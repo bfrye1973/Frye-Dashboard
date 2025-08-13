@@ -1,58 +1,55 @@
 // webpack.config.js
-const path = require('path');
-const HtmlWebpackPlugin = require('html-webpack-plugin');
-const Dotenv = require('dotenv-webpack');
+const path = require("path");
+const HtmlWebpackPlugin = require("html-webpack-plugin");
 
 module.exports = (env, argv) => {
-  const isProd = argv.mode === 'production';
+  const isDev = argv.mode !== "production";
 
   return {
-    entry: './src/index.js',
+    entry: path.resolve(__dirname, "src/main.jsx"),
     output: {
-      path: path.resolve(__dirname, 'dist'),
-      filename: 'bundle.[contenthash].js',
-      publicPath: '/',
+      path: path.resolve(__dirname, "dist"),
+      filename: isDev ? "bundle.js" : "bundle.[contenthash].js",
       clean: true,
+      publicPath: "/"
     },
-    mode: isProd ? 'production' : 'development',
-    devtool: isProd ? 'source-map' : 'eval-source-map',
+    resolve: {
+      extensions: [".js", ".jsx"]
+    },
     module: {
       rules: [
         {
           test: /\.(js|jsx)$/,
           exclude: /node_modules/,
           use: {
-            loader: 'babel-loader',
+            loader: "babel-loader",
             options: {
-              presets: ['@babel/preset-env', '@babel/preset-react'],
-            },
-          },
+              presets: [
+                ["@babel/preset-env", { targets: "defaults" }],
+                ["@babel/preset-react", { runtime: "automatic" }]
+              ]
+            }
+          }
         },
-        { test: /\.css$/i, use: ['style-loader', 'css-loader'] },
-        { test: /\.(png|jpg|gif|svg)$/i, type: 'asset/resource' },
-      ],
+        {
+          test: /\.css$/i,
+          use: ["style-loader", "css-loader"]
+        }
+      ]
     },
-    resolve: { extensions: ['.js', '.jsx'] },
     plugins: [
-      new HtmlWebpackPlugin({ template: './public/index.html' }),
-      new Dotenv({
-        path: isProd ? './.env.production' : './.env.development',
-        systemvars: false,
-      }),
+      new HtmlWebpackPlugin({
+        template: path.resolve(__dirname, "index.html"),
+        inject: "body"
+      })
     ],
+    devtool: isDev ? "eval-source-map" : "source-map",
     devServer: {
-      port: 3001,
-      historyApiFallback: true,
+      static: path.resolve(__dirname, "public"),
+      port: 5173,
       hot: true,
-      open: false,
-      proxy: {
-        '/api': {
-          target: 'https://frye-market-backend.onrender.com',
-          changeOrigin: true,
-          secure: true,
-          headers: { origin: 'https://frye-market-backend.onrender.com' },
-        },
-      },
-    },
+      historyApiFallback: true,
+      client: { overlay: true }
+    }
   };
 };

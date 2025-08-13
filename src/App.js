@@ -1,62 +1,95 @@
-// src/App.js
 import React, { useEffect, useState } from "react";
-import { getHealth } from "./services/api";
 
 export default function App() {
-  const [status, setStatus] = useState("checking…");
-  const [error, setError] = useState("");
+  const [status, setStatus] = useState("checking"); // "checking" | "online" | "offline"
+  const [ping, setPing] = useState(null);
+  const [error, setError] = useState(null);
 
-  async function check() {
-    // Debug: make sure env vars are coming through Webpack
-    console.log("API_BASE_URL =", process.env.API_BASE_URL);
-
-    setStatus("checking…");
-    setError("");
-
-    try {
-      const data = await getHealth(); // expects { ok: true }
-      setStatus(data?.ok ? "ok ✅" : "unexpected response ❓");
-    } catch (e) {
-      setStatus("failed ❌");
-      setError(e?.message ? String(e.message) : String(e));
-    }
-  }
-
+  // Call the backend health endpoint via the proxy (relative path => no CORS in dev)
   useEffect(() => {
-    check();
+    (async () => {
+      try {
+        const res = await fetch("/api/health", { cache: "no-store" });
+        if (!res.ok) throw new Error(`Health ${res.status}`);
+        const json = await res.json();
+        setStatus(json && json.ok ? "online" : "offline");
+      } catch {
+        setStatus("offline");
+      }
+    })();
   }, []);
 
+  const doPing = async () => {
+    setError(null);
+    setPing(null);
+    try {
+      const res = await fetch("/api/ping", { cache: "no-store" });
+      if (!res.ok) throw new Error(`Ping ${res.status}`);
+      const json = await res.json();
+      setPing(json);
+    } catch (e) {
+      setError(e && e.message ? e.message : "Failed to fetch");
+    }
+  };
+
+  useEffect(() => {
+    doPing();
+  }, []);
+
+  const badgeColor =
+    status === "online" ? "#16a34a" : status === "offline" ? "#dc2626" : "#64748b";
+  const badgeText =
+    status === "online" ? "Backend: online" : status === "offline" ? "Backend: offline" : "Backend: checking…";
+
   return (
-    <div style={{ fontFamily: "system-ui, sans-serif", padding: 24 }}>
-      <h1>Frye Dashboard</h1>
-
-      <p style={{ marginTop: 4 }}>
-        <strong>Backend health:</strong>{" "}
-        <span>{status}</span>
-      </p>
-
-      {error && (
-        <pre
+    <div style={{ padding: 16 }}>
+      {/* Status badge */}
+      <div
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 8,
+          padding: "6px 10px",
+          borderRadius: 12,
+          background: "#0b1220",
+          color: "#e5e7eb",
+          fontSize: 14,
+          marginBottom: 16,
+        }}
+      >
+        <span
           style={{
-            background: "#111",
-            color: "#fff",
-            padding: 12,
-            borderRadius: 8,
-            maxWidth: 680,
-            overflow: "auto",
+            display: "inline-block",
+            width: 10,
+            height: 10,
+            borderRadius: "50%",
+            background: badgeColor,
           }}
-        >
-          {error}
-        </pre>
-      )}
+        />
+        <span>{badgeText}</span>
+      </div>
 
-      <button onClick={check} style={{ padding: "8px 12px", marginTop: 8 }}>
-        Re‑check
-      </button>
-
-      <p style={{ marginTop: 18, color: "#666" }}>
-        If this says <em>ok</em>, your frontend ↔ backend connection is working.
+      <h1 style={{ margin: "12px 0 4px" }}>Frye Dashboard (Staging)</h1>
+      <p style={{ color: "#657287", marginTop: 0 }}>
+        Frontend is running. Backend badge is in the top-left.
       </p>
+
+      <div
+        style={{
+          marginTop: 12,
+          padding: 12,
+          borderRadius: 12,
+          background: "#0b1220",
+          color: "#e5e7eb",
+          display: "inline-block",
+          minWidth: 260,
+        }}
+      >
+        <div style={{ fontWeight: 600, marginBottom: 6 }}>Ping check</div>
+        {ping && <pre style={{ margin: 0 }}>{JSON.stringify(ping, null, 2)}</pre>}
+        {!ping && !error && <div>Loading…</div>}
+        {error && <div style={{ color: "#fca5a5" }}>Error: {error}</div>}
+      </div>
     </div>
   );
 }
