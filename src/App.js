@@ -1,15 +1,20 @@
+// src/App.js
 import React, { useEffect, useState } from "react";
+
+// ✅ Read the backend URL from Render env
+const API_BASE_URL = process.env.API_BASE_URL;
+console.log("API_BASE_URL =", API_BASE_URL);
 
 export default function App() {
   const [status, setStatus] = useState("checking"); // "checking" | "online" | "offline"
   const [ping, setPing] = useState(null);
   const [error, setError] = useState(null);
 
-  // Call the backend health endpoint via the proxy (relative path => no CORS in dev)
+  // Health check
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch("/api/health", { cache: "no-store" });
+        const res = await fetch(`${API_BASE_URL}/api/health`, { cache: "no-store" });
         if (!res.ok) throw new Error(`Health ${res.status}`);
         const json = await res.json();
         setStatus(json && json.ok ? "online" : "offline");
@@ -23,12 +28,12 @@ export default function App() {
     setError(null);
     setPing(null);
     try {
-      const res = await fetch("/api/ping", { cache: "no-store" });
+      const res = await fetch(`${API_BASE_URL}/api/ping`, { cache: "no-store" });
       if (!res.ok) throw new Error(`Ping ${res.status}`);
       const json = await res.json();
       setPing(json);
     } catch (e) {
-      setError(e && e.message ? e.message : "Failed to fetch");
+      setError(e?.message || "Failed to fetch");
     }
   };
 
