@@ -1,100 +1,112 @@
 // src/App.js
 import React, { useEffect, useState } from "react";
+import QuoteCard from "./components/QuoteCard"; // If you haven't created it yet, comment this line and the <QuoteCard /> below.
 
-// ✅ Read the backend URL from Render env
-const API_BASE_URL = process.env.API_BASE_URL;
-console.log("API_BASE_URL =", API_BASE_URL);
+const API_BASE_URL =
+  (typeof process !== "undefined" &&
+    process.env &&
+    (process.env.API_BASE_URL ||
+      process.env.REACT_APP_API_BASE_URL ||
+      process.env.VITE_API_BASE_URL)) ||
+  "https://frye-market-backend-1.onrender.com";
 
-export default function App() {
-  const [status, setStatus] = useState("checking"); // "checking" | "online" | "offline"
-  const [ping, setPing] = useState(null);
-  const [error, setError] = useState(null);
+// Small badge that shows backend status in the top-left
+function BackendBadge() {
+  const [online, setOnline] = useState(false);
 
-  // Health check
-  useEffect(() => {
-    (async () => {
-      try {
-        const res = await fetch(`${API_BASE_URL}/api/health`, { cache: "no-store" });
-        if (!res.ok) throw new Error(`Health ${res.status}`);
-        const json = await res.json();
-        setStatus(json && json.ok ? "online" : "offline");
-      } catch {
-        setStatus("offline");
-      }
-    })();
-  }, []);
-
-  const doPing = async () => {
-    setError(null);
-    setPing(null);
+  async function check() {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/ping`, { cache: "no-store" });
-      if (!res.ok) throw new Error(`Ping ${res.status}`);
-      const json = await res.json();
-      setPing(json);
-    } catch (e) {
-      setError(e?.message || "Failed to fetch");
+      const r = await fetch(`${API_BASE_URL}/api/healthz`);
+      setOnline(r.ok);
+    } catch {
+      setOnline(false);
     }
-  };
+  }
 
   useEffect(() => {
-    doPing();
+    check();
+    const id = setInterval(check, 15000); // re-check every 15s
+    return () => clearInterval(id);
   }, []);
 
-  const badgeColor =
-    status === "online" ? "#16a34a" : status === "offline" ? "#dc2626" : "#64748b";
-  const badgeText =
-    status === "online" ? "Backend: online" : status === "offline" ? "Backend: offline" : "Backend: checking…";
+  const bg = online ? "#0b5d1e" : "#6b0d0d";
+  const txt = online ? "Backend: online" : "Backend: offline";
 
   return (
-    <div style={{ padding: 16 }}>
-      {/* Status badge */}
-      <div
-        style={{
-          display: "inline-flex",
-          alignItems: "center",
-          gap: 8,
-          padding: "6px 10px",
-          borderRadius: 12,
-          background: "#0b1220",
-          color: "#e5e7eb",
-          fontSize: 14,
-          marginBottom: 16,
-        }}
-      >
-        <span
-          style={{
-            display: "inline-block",
-            width: 10,
-            height: 10,
-            borderRadius: "50%",
-            background: badgeColor,
-          }}
-        />
-        <span>{badgeText}</span>
-      </div>
-
-      <h1 style={{ margin: "12px 0 4px" }}>Frye Dashboard (Staging)</h1>
-      <p style={{ color: "#657287", marginTop: 0 }}>
-        Frontend is running. Backend badge is in the top-left.
-      </p>
-
-      <div
-        style={{
-          marginTop: 12,
-          padding: 12,
-          borderRadius: 12,
-          background: "#0b1220",
-          color: "#e5e7eb",
-          display: "inline-block",
-          minWidth: 260,
-        }}
-      >
-        <div style={{ fontWeight: 600, marginBottom: 6 }}>Ping check</div>
-        {ping && <pre style={{ margin: 0 }}>{JSON.stringify(ping, null, 2)}</pre>}
-        {!ping && !error && <div>Loading…</div>}
-        {error && <div style={{ color: "#fca5a5" }}>Error: {error}</div>}
-      </div>
+    <div
+      style={{
+        position: "fixed",
+        top: 16,
+        left: 16,
+        background: bg,
+        color: "#fff",
+        padding: "6px 10px",
+        borderRadius: 12,
+        fontWeight: 600,
+      }}
+    >
+      {txt}
     </div>
+  );
+}
+
+// Simple ping box that calls GET /api/ping
+function PingCard() {
+  const [text, setText] = useState("—");
+
+  async function runPing() {
+    try {
+      const r = await fetch(`${API_BASE_URL}/api/ping`);
+      if (!r.ok) throw new Error(`Ping ${r.status}`);
+      const data = await r.json();
+      setText(JSON.stringify(data, null, 2));
+    } catch (e) {
+      setText(`Error: ${e?.message || e}`);
+    }
+  }
+
+  useEffect(() => {
+    runPing();
+  }, []);
+
+  return (
+    <div
+      style={{
+        padding: 16,
+        background: "#0b1320",
+        color: "#d9e1f2",
+        borderRadius: 12,
+        width: 300,
+      }}
+    >
+      <h3 style={{ marginTop: 0 }}>Ping check</h3>
+      <pre style={{ whiteSpace: "pre-wrap" }}>{text}</pre>
+      <button
+        onClick={runPing}
+        style={{ marginTop: 8, padding: "6px 10px", borderRadius: 8 }}
+      >
+        Ping again
+      </button>
+    </div>
+  );
+}
+
+export default function App() {
+  return (
+    <main
+      style={{
+        padding: 24,
+        fontFamily: "system-ui, -apple-system, Segoe UI, Roboto, Arial",
+      }}
+    >
+      <BackendBadge />
+      <h1>Frye Dashboard (Staging)</h1>
+      <p>Frontend is running. Backend badge is in the top-left.</p>
+
+      <PingCard />
+
+      {/* Shows the quote fetcher that calls /api/v1/quotes */}
+      <QuoteCard />
+    </main>
   );
 }
