@@ -1,0 +1,54 @@
+/* src/theme.css — Ferrari carbon + dark UI */
+
+:root{
+  --bg:#0b0f16;
+  --panel:#0f1320;
+  --panel-2:#101522;
+  --line:#1a2236;
+  --text:#e6edf7;
+  --muted:#9fb1d6;
+  --accent:#d72f2f;    /* redline */
+  --accent-2:#f4c21d;  /* tach yellow */
+}
+
+/* Subtle animated carbon fiber backdrop */
+body{
+  margin:0;
+  color:var(--text);
+  background:
+    linear-gradient(135deg, rgba(255,255,255,.02) 25%, rgba(255,255,255,0) 25%) 0 0/22px 22px,
+    linear-gradient(225deg, rgba(255,255,255,.02) 25%, rgba(255,255,255,0) 25%) 0 0/22px 22px,
+    radial-gradient(circle at 1px 1px, rgba(255,255,255,.04) 1px, transparent 1px) 0 0/11px 11px,
+    var(--bg);
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
+}
+
+.panel{
+  background:var(--panel);
+  border:1px solid var(--line);
+  border-radius:12px;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.04);
+}
+
+.badge{
+  background:#0e1525;
+  border:1px solid var(--line);
+  padding:.4rem .6rem;
+  border-radius:12px;
+  font-weight:700;
+  letter-spacing:.02em;
+}
+
+/* small helper for a redline underline */
+.redline {
+  display:inline-block;
+  position:relative;
+}
+.redline::after{
+  content:"";
+  position:absolute;
+  left:0; right:0; bottom:-6px;
+  height:4px;
+  background:linear-gradient(90deg, var(--accent), transparent 70%);
+  border-radius:3px;
+}
