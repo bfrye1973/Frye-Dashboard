@@ -1,6 +1,7 @@
 // src/App.jsx
 import React, { useEffect, useState } from "react";
-import LiveFeeds from "./pages/LiveFeeds"; // <- new live chart + market panels
+import LiveFeeds from "./pages/LiveFeeds.tsx";
+
 // import QuoteCard from "./components/QuoteCard"; // optional: leave commented if not present
 
 // ---- Backend base URL (keeps your existing logic) ----
