@@ -1,306 +1,132 @@
-// src/components/Gauge.jsx
+// src/components/CarbonGauge.jsx
 import React, { useMemo } from "react";
 
 /**
- * Reusable Ferrari-style radial gauge.
+ * Ferrari-style semicircle gauge.
  * Props:
- *  - value (0..100)
- *  - label (string)
- *  - size (px diameter)
- *  - redlineStart (% where red arc begins)
- *  - theme: "dark" (carbon) | "yellow" (logo face)
- *  - showTicks (boolean)
- *  - centerBrand (ReactNode)  // optional overlay (e.g., REDLINE/TRADING text)
- *  - sublabel (string)        // optional secondary line inside gauge
+ *  - label: string
+ *  - value: number (0-100)
+ *  - diameter: number (px)
+ *  - color: needle color
+ *  - face: "tach" | "dark"   (tach = yellow face)
+ *  - subline?: string        (small line under label; used for Momentum “Powered by AI” if desired)
+ *  - logoCenter?: boolean    (draws subtle “REDLINE” mark inside)
  */
-export default function Gauge({
+export default function CarbonGauge({
+  label,
   value = 0,
-  label = "Gauge",
-  size = 220,
-  redlineStart = 75,
-  theme = "dark",
-  showTicks = true,
-  centerBrand = null,
-  sublabel = null,
+  diameter = 260,
+  color = "#e24b4b",
+  face = "dark",
+  subline,
+  logoCenter = false,
 }) {
-  const radius = size / 2;
-  const thickness = Math.max(12, size * 0.075);
+  const clamped = Math.max(0, Math.min(100, value));
+  const radius = diameter / 2;
+  const stroke = 10;
+  const cx = radius;
+  const cy = radius;
+  const start = 210;      // degrees (left)
+  const end = -30;        // degrees (right)
+  const angle = start + (end - start) * (clamped / 100);
 
-  // sweep angles (Ferrari-like)
-  const startDeg = -135;
-  const endDeg = 135;
-
-  const clamped = clamp01(value / 100);
-  const angle = useMemo(
-    () => startDeg + clamped * (endDeg - startDeg),
-    [clamped]
-  );
-
-  // tick marks
-  const ticks = useMemo(() => {
-    if (!showTicks) return [];
-    const arr = [];
-    const majorEvery = 10;
-    for (let v = 0; v <= 100; v += 5) {
-      const a = degToRad(startDeg + (v / 100) * (endDeg - startDeg));
-      const isMajor = v % majorEvery === 0;
-      const r1 = radius - thickness * (isMajor ? 1.2 : 1.05);
-      const r2 = radius - thickness * 0.55;
-      arr.push({
-        x1: radius + r1 * Math.cos(a),
-        y1: radius + r1 * Math.sin(a),
-        x2: radius + r2 * Math.cos(a),
-        y2: radius + r2 * Math.sin(a),
-        isMajor,
-      });
+  const marks = useMemo(() => {
+    const ticks = [];
+    for (let i = 0; i <= 10; i++) {
+      const t = i / 10;
+      const a = start + (end - start) * t;
+      const len = i % 2 === 0 ? 14 : 8;
+      const r1 = radius - 22;
+      const r2 = r1 - len;
+      const x1 = cx + r1 * Math.cos((a * Math.PI) / 180);
+      const y1 = cy + r1 * Math.sin((a * Math.PI) / 180);
+      const x2 = cx + r2 * Math.cos((a * Math.PI) / 180);
+      const y2 = cy + r2 * Math.sin((a * Math.PI) / 180);
+      ticks.push(<line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke="#cfd8ec" strokeOpacity={i%2?0.35:0.8} strokeWidth={i%2?1:1.6} />);
     }
-    return arr;
-  }, [radius, thickness]);
+    return ticks;
+  }, [radius, cx, cy]);
 
-  const yellowFace = theme === "yellow";
-  const faceColor = yellowFace ? "#F7D21B" : "url(#carbonWeave)";
-  const tickColor = yellowFace ? "#1a1a1a" : "#e8e8e8";
-  const textColor = yellowFace ? "#1a1a1a" : "#eaeaea";
-  const ringColor = yellowFace ? "#c5ab15" : "#888";
+  const needleLen = radius - 36;
+  const nx = cx + needleLen * Math.cos((angle * Math.PI) / 180);
+  const ny = cy + needleLen * Math.sin((angle * Math.PI) / 180);
 
-  const redStartDeg =
-    startDeg + clamp01(redlineStart / 100) * (endDeg - startDeg);
+  const faceFill = face === "tach" ? "url(#tachFace)" : "url(#darkFace)";
 
   return (
-    <div style={{ width: size, height: size }}>
-      <svg
-        width={size}
-        height={size}
-        viewBox={`0 0 ${size} ${size}`}
-        role="img"
-        aria-label={`${label} gauge at ${Math.round(value)}%`}
-      >
+    <div style={{ width: diameter, height: diameter, position:"relative" }}>
+      <svg width={diameter} height={diameter} viewBox={`0 0 ${diameter} ${diameter}`}>
         <defs>
-          {/* subtle carbon-fiber weave */}
-          <pattern id="carbonWeave" width="8" height="8" patternUnits="userSpaceOnUse">
-            <rect width="8" height="8" fill="#0e0f13" />
-            <path d="M0,8 L8,0 M-2,6 L2,10 M6,-2 L10,2" stroke="#14161d" strokeWidth="2" />
-            <path d="M0,0 L8,8 M-2,2 L2,-2 M6,10 L10,6" stroke="#1a1d26" strokeWidth="2" />
+          {/* dark carbon */}
+          <pattern id="carbon" width="12" height="12" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+            <rect width="12" height="12" fill="#0f1320" />
+            <rect width="6" height="12" fill="rgba(255,255,255,.03)"/>
           </pattern>
+          <radialGradient id="bezel" cx="50%" cy="50%">
+            <stop offset="0%" stopColor="#2a3248"/>
+            <stop offset="100%" stopColor="#1a2236"/>
+          </radialGradient>
+          <linearGradient id="needleGrad" x1="0" x2="1">
+            <stop offset="0%" stopColor={color}/>
+            <stop offset="100%" stopColor="#851f1f"/>
+          </linearGradient>
+          <linearGradient id="tachYellow" x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0%" stopColor="#ffd84a"/>
+            <stop offset="100%" stopColor="#f4c21d"/>
+          </linearGradient>
+          <mask id="semi">
+            <rect width="100%" height="100%" fill="black"/>
+            <path d={arcPath(cx, cy, radius - 12, start, end)} stroke="white" strokeWidth={radius} fill="none"/>
+          </mask>
+          <rect id="tachRect" width="100%" height="100%" fill="url(#tachYellow)" />
+          <rect id="darkRect" width="100%" height="100%" fill="url(#carbon)" />
+          <g id="tachFace"><use href="#tachRect"/></g>
+          <g id="darkFace"><use href="#darkRect"/></g>
         </defs>
 
-        {/* dial face */}
-        <circle
-          cx={radius}
-          cy={radius}
-          r={radius - thickness * 0.25}
-          fill={faceColor}
-          stroke={ringColor}
-          strokeWidth={Math.max(2, thickness * 0.14)}
-        />
+        {/* Face (masked semicircle) */}
+        <g mask="url(#semi)">
+          <rect width="100%" height="100%" fill={faceFill}/>
+        </g>
 
-        {/* redline arc */}
-        <Arc
-          cx={radius}
-          cy={radius}
-          r={radius - thickness * 0.35}
-          startDeg={redStartDeg}
-          endDeg={endDeg}
-          stroke="#e01e37"
-          strokeWidth={thickness * 0.35}
-          rounded
-        />
+        {/* Bezel */}
+        <circle cx={cx} cy={cy} r={radius-6} fill="none" stroke="url(#bezel)" strokeWidth={6}/>
 
-        {/* ticks */}
-        {ticks.map((t, i) => (
-          <line
-            key={i}
-            x1={t.x1}
-            y1={t.y1}
-            x2={t.x2}
-            y2={t.y2}
-            stroke={tickColor}
-            strokeWidth={t.isMajor ? 2 : 1}
-            opacity={0.9}
-          />
-        ))}
-
-        {/* black '0' printed at left for yellow face */}
-        {yellowFace && (
-          <text
-            x={radius + (radius - thickness * 0.9) * Math.cos(degToRad(startDeg))}
-            y={radius + (radius - thickness * 0.9) * Math.sin(degToRad(startDeg))}
-            textAnchor="middle"
-            dominantBaseline="middle"
-            fill="#101010"
-            fontWeight="700"
-            fontSize={size * 0.1}
-          >
-            0
-          </text>
-        )}
-
-        {/* value */}
-        <text
-          x={radius}
-          y={radius + size * 0.08}
-          textAnchor="middle"
-          fill={textColor}
-          fontWeight="800"
-          fontSize={Math.max(14, size * 0.18)}
-        >
-          {Math.round(value)}%
-        </text>
-
-        {/* label */}
-        <text
-          x={radius}
-          y={radius + size * 0.33}
-          textAnchor="middle"
-          fill={textColor}
-          fontWeight="600"
-          fontSize={Math.max(12, size * 0.09)}
-          style={{ letterSpacing: 0.4 }}
-        >
-          {label}
-        </text>
-
-        {/* sublabel */}
-        {sublabel && (
-          <text
-            x={radius}
-            y={radius + size * 0.42}
-            textAnchor="middle"
-            fill={textColor}
-            fontSize={Math.max(10, size * 0.06)}
-            opacity={0.8}
-          >
-            {sublabel}
-          </text>
-        )}
+        {/* tick marks */}
+        {marks}
 
         {/* needle */}
-        <Needle
-          cx={radius}
-          cy={radius}
-          r={radius - thickness * 0.6}
-          angleDeg={angle}
-          hubColor={yellowFace ? "#1a1a1a" : "#e6e6e6"}
-        />
+        <line x1={cx} y1={cy} x2={nx} y2={ny} stroke="url(#needleGrad)" strokeWidth={4} strokeLinecap="round"/>
+        <circle cx={cx} cy={cy} r={8} fill="#1a2236" stroke="#eaeff9" strokeWidth={1}/>
 
-        {/* overlay slot for brand/extra marks (e.g., REDLINE/TRADING) */}
-        {centerBrand}
+        {/* label + value */}
+        <text x={cx} y={cy+radius*0.40} fill="#cfd8ec" fontSize={14} textAnchor="middle">{label}</text>
+        {subline ? (
+          <text x={cx} y={cy+radius*0.54} fill="#9fb1d6" fontSize={12} textAnchor="middle">{subline}</text>
+        ) : null}
+        <g>
+          <text x={cx} y={cy+4} textAnchor="middle" fontWeight="800" fontSize={28} fill="#ffffff">{Math.round(value)}%</text>
+        </g>
+
+        {/* subtle center branding if requested */}
+        {logoCenter && (
+          <text x={cx} y={cy-10} textAnchor="middle" fontWeight="900" fontSize={16} fill="#e23a3a" style={{letterSpacing:".2em"}}>
+            REDLINE
+          </text>
+        )}
       </svg>
     </div>
   );
 }
 
-/* ----- LogoGauge helper (yellow face + brand text) ----- */
-export function LogoGauge({ value = 0, size = 260, label = "Momentum" }) {
-  return (
-    <Gauge
-      value={value}
-      size={size}
-      label={label}
-      theme="yellow"
-      redlineStart={78}
-      showTicks
-      centerBrand={
-        <g>
-          {/* REDLINE top */}
-          <text
-            x="50%"
-            y="22%"
-            textAnchor="middle"
-            fill="#E01E37"
-            fontWeight="900"
-            style={{ fontSize: "24px", letterSpacing: "1px" }}
-          >
-            REDLINE
-          </text>
-
-          {/* TRADING center */}
-          <text
-            x="50%"
-            y="60%"
-            textAnchor="middle"
-            fill="#E01E37"
-            fontWeight="900"
-            style={{ fontSize: "20px", letterSpacing: "1px" }}
-          >
-            TRADING
-          </text>
-
-          {/* Powered By AI bottom */}
-          <text
-            x="50%"
-            y="72%"
-            textAnchor="middle"
-            fill="#ffffff"
-            fontWeight="700"
-            style={{ fontSize: "12px", letterSpacing: ".6px" }}
-          >
-            Powered By AI
-          </text>
-        </g>
-      }
-    />
-  );
-}
-
-/* ----- primitives ----- */
-export function Needle({ cx, cy, r, angleDeg, hubColor = "#ddd" }) {
-  const a = degToRad(angleDeg);
-  const x = cx + r * Math.cos(a);
-  const y = cy + r * Math.sin(a);
-  return (
-    <>
-      <line
-        x1={cx}
-        y1={cy}
-        x2={x}
-        y2={y}
-        stroke="#ff2d2d"
-        strokeWidth="5"
-        style={{
-          transformOrigin: `${cx}px ${cy}px`,
-          transition: "transform 450ms cubic-bezier(.2,.9,.2,1)",
-        }}
-      />
-      <circle cx={cx} cy={cy} r={10} fill={hubColor} stroke="#555" />
-    </>
-  );
-}
-
-export function Arc({
-  cx,
-  cy,
-  r,
-  startDeg,
-  endDeg,
-  stroke = "#e01e37",
-  strokeWidth = 12,
-  rounded = false,
-}) {
-  const start = polar(cx, cy, r, startDeg);
-  const end = polar(cx, cy, r, endDeg);
-  const largeArc = endDeg - startDeg <= 180 ? 0 : 1;
-  const d = `M ${start.x} ${start.y} A ${r} ${r} 0 ${largeArc} 1 ${end.x} ${end.y}`;
-  return (
-    <path
-      d={d}
-      fill="none"
-      stroke={stroke}
-      strokeWidth={strokeWidth}
-      strokeLinecap={rounded ? "round" : "butt"}
-    />
-  );
-}
-
-/* ----- helpers ----- */
-function clamp01(x) {
-  if (Number.isNaN(x)) return 0;
-  return Math.max(0, Math.min(1, x));
-}
-function degToRad(deg) {
-  return (deg * Math.PI) / 180;
+/** build a circular-arc path for mask */
+function arcPath(cx, cy, r, startDeg, endDeg) {
+  const s = polar(cx, cy, r, startDeg);
+  const e = polar(cx, cy, r, endDeg);
+  const large = Math.abs(endDeg - startDeg) <= 180 ? 0 : 1;
+  return `M ${s.x} ${s.y} A ${r} ${r} 0 ${large} 1 ${e.x} ${e.y}`;
 }
 function polar(cx, cy, r, deg) {
-  const a = degToRad(deg);
-  return { x: cx + r * Math.cos(a), y: cy + r * Math.sin(a) };
+  const rad = (deg * Math.PI) / 180;
+  return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) };
 }
