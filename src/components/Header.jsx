@@ -4,20 +4,18 @@ import React from "react";
 export default function Header({ online }) {
   return (
     <header style={styles.wrap}>
-      <div style={styles.brand}>
-        <span style={styles.brandBig}>REDLINE TRADING</span>
-        <span style={styles.power}> — Powered by AI</span>
+      <div style={styles.left}>
+        <div style={styles.logo}>REDLINE TRADING</div>
       </div>
-
-      <div
-        className="badge"
-        style={{
-          borderColor: online ? "#225d37" : "#5d2222",
-          background: online ? "#0e1f16" : "#1f0e0e",
-          color: online ? "#9ee4b2" : "#f3a0a0",
-        }}
-      >
-        {online ? "Backend: online" : "Backend: offline"}
+      <div style={styles.right}>
+        <div
+          style={{
+            ...styles.badge,
+            background: online ? "#0b5d1e" : "#6b0d0d",
+          }}
+        >
+          {online ? "Backend: Online" : "Backend: Offline"}
+        </div>
       </div>
     </header>
   );
@@ -25,17 +23,20 @@ export default function Header({ online }) {
 
 const styles = {
   wrap: {
+    background:
+      "repeating-linear-gradient(135deg,#0b0e13 0px,#0b0e13 4px,#11161f 4px,#11161f 8px)",
+    padding: "10px 20px",
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
-    padding: "14px 18px",
-    borderBottom: "1px solid var(--line)",
-    background: "linear-gradient(180deg, rgba(255,255,255,.02), transparent 40%)",
-    position: "sticky",
-    top: 0,
-    zIndex: 10,
+    borderBottom: "1px solid #202733",
   },
-  brand: { fontWeight: 900, letterSpacing: ".06em" },
-  brandBig: { fontSize: 20 },
-  power: { fontSize: 16, opacity: 0.9 },
+  left: { fontWeight: 800, fontSize: 20, color: "#fff" },
+  right: {},
+  badge: {
+    padding: "6px 12px",
+    borderRadius: 12,
+    fontWeight: 600,
+    color: "#fff",
+  },
 };
