@@ -1,8 +1,7 @@
-const WS_URL = (process && process.env && (
-  process.env.REACT_APP_WS_BASE ||
-  process.env.API_WS_BASE ||
-  process.env.VITE_WS_BASE_URL
-)) || "wss://frye-market-backend-1.onrender.com";
+// src/lib/ws.js
+const WS_URL =
+  (typeof window !== "undefined" && window.__WS_BASE__) ||
+  "wss://frye-market-backend-1.onrender.com";
 
 export function openMarketSocket(handlers = {}) {
   let ws = null;
