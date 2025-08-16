@@ -1,314 +1,233 @@
-// src/App.jsx
+// src/App.js
 import React, { useEffect, useState } from "react";
-import CarbonGauge, { LogoGauge } from "./components/CarbonGauge.jsx";
+import Header from "./components/Header";              // NEW
+import CarbonGauge from "./components/CarbonGauge.jsx";
 
-/** ---------- Config ---------- */
+// -------------------- Config --------------------
 const API_BASE =
   (typeof process !== "undefined" &&
-    process.env &&
     (process.env.API_BASE_URL ||
       process.env.REACT_APP_API_BASE_URL ||
       process.env.VITE_API_BASE_URL)) ||
   "https://frye-market-backend-1.onrender.com";
 
-/** Map backend metrics to the 4 gauges (adjust later to your real logic) */
-function mapMetricsToGauges(m) {
-  const sectors = m?.sectors ?? [];
-  const highs = sectors.reduce((a, s) => a + (s?.newHighs ?? 0), 0);
-  const lows = sectors.reduce((a, s) => a + (s?.newLows ?? 0), 0);
-  const adrAvg =
-    sectors.length > 0
-      ? sectors.reduce((a, s) => a + (s?.adrAvg ?? 1), 0) / sectors.length
-      : 1;
+// Clamp helper
+const clamp01 = (n) => Math.max(0, Math.min(1, Number.isFinite(n) ? n : 0));
 
-  const clamp01 = (x) => Math.max(0, Math.min(1, Number.isFinite(x) ? x : 0));
+// -------------------- App -----------------------
+export default function App() {
+  const [online, setOnline] = useState(false);
+  const [mom, setMom] = useState(72);        // Momentum
+  const [breadth, setBreadth] = useState(41);
+  const [vol, setVol] = useState(63);
+  const [liq, setLiq] = useState(55);
 
-  const momentum = clamp01((highs - lows + 50) / 100) * 100;
-  const breadth = clamp01(highs / Math.max(highs + lows, 1)) * 100;
-  const volatility = clamp01((adrAvg - 0.8) / (2.2 - 0.8)) * 100;
-  const liquidity = clamp01((highs + lows) / 60) * 100;
+  // Health check (drives the green/red badge in the header)
+  async function checkHealth() {
+    try {
+      const r = await fetch(`${API_BASE}/api/health`);
+      if (r.ok) return setOnline(true);
+      // fallback some backends expose /healthz
+      const r2 = await fetch(`${API_BASE}/api/healthz`);
+      setOnline(r2.ok);
+    } catch {
+      setOnline(false);
+    }
+  }
 
-  return {
-    momentum: Math.round(momentum),
-    breadth: Math.round(breadth),
-    volatility: Math.round(volatility),
-    liquidity: Math.round(liquidity),
-  };
-}
+  // Pull metrics → map to our 4 gauges
+  async function fetchMetrics() {
+    try {
+      const r = await fetch(`${API_BASE}/api/market-metrics`);
+      if (!r.ok) throw new Error(`metrics ${r.status}`);
+      const data = await r.json();
 
-/** ---------- Small helpers ---------- */
-function Badge({ ok }) {
+      // expected shape:
+      // { timestamp, sectors: [{sector, newHighs, newLows, adrAvg }] }
+      const sectors = Array.isArray(data?.sectors) ? data.sectors : [];
+
+      // crude mapping (you’ll replace with your real formulas later)
+      const highs = sectors.reduce((a, s) => a + (s.newHighs ?? 0), 0);
+      const lows = sectors.reduce((a, s) => a + (s.newLows ?? 0), 0);
+      const adrAvg =
+        sectors.length > 0
+          ? sectors.reduce((a, s) => a + (s.adrAvg ?? 0), 0) / sectors.length
+          : 1;
+
+      const sectorsActive = Math.max(1, sectors.length);
+
+      const momentum = clamp01((highs - lows + 60) / 120) * 100; // 0–100
+      const breadthPct = clamp01(highs / Math.max(1, highs + lows)) * 100;
+      const volatility = clamp01((adrAvg - 0.8) / (2.0 - 0.8)) * 100;
+      const liquidity = clamp01((highs + sectorsActive) / 60) * 100;
+
+      setMom(Math.round(momentum));
+      setBreadth(Math.round(breadthPct));
+      setVol(Math.round(volatility));
+      setLiq(Math.round(liquidity));
+    } catch {
+      // keep last values if API hiccups
+    }
+  }
+
+  useEffect(() => {
+    checkHealth();
+    fetchMetrics();
+    const t1 = setInterval(checkHealth, 15000);
+    const t2 = setInterval(fetchMetrics, 20000);
+    return () => {
+      clearInterval(t1);
+      clearInterval(t2);
+    };
+  }, []);
+
   return (
-    <div
-      style={{
-        position: "fixed",
-        top: 12,
-        left: 12,
-        padding: "6px 10px",
-        borderRadius: 10,
-        fontWeight: 800,
-        fontSize: 12,
-        color: "#fff",
-        background: ok ? "#0f8a41" : "#8a1d1d",
-        zIndex: 9,
-      }}
-    >
-      Backend: {ok ? "online" : "offline"}
-    </div>
+    <main style={styles.page}>
+      {/* Header (Ferrari strip + badge) */}
+      <Header online={online} />
+
+      {/* TOP: 4 gauges */}
+      <section style={styles.gaugeRow}>
+        <div style={styles.gaugeColSm}>
+          <CarbonGauge value={breadth} label="Breadth" size="sm" />
+        </div>
+
+        <div style={styles.gaugeColLg}>
+          {/* Center “logo” gauge */}
+          <CarbonGauge value={mom} label="Momentum" isLogo size="lg" />
+        </div>
+
+        <div style={styles.gaugeColSm}>
+          <CarbonGauge value={vol} label="Volatility" size="sm" />
+          <div style={{ height: 18 }} />
+          <CarbonGauge value={liq} label="Liquidity / Fuel" size="sm" />
+        </div>
+      </section>
+
+      {/* MIDDLE: 3 list panels */}
+      <section style={styles.panelsRow}>
+        <div style={styles.panel}>
+          <div style={styles.panelTitle}>Wave 3 Scanner</div>
+          <ListSkeleton rows={7} />
+        </div>
+        <div style={styles.panel}>
+          <div style={styles.panelTitle}>Flagpole Breakouts</div>
+          <ListSkeleton rows={7} />
+        </div>
+        <div style={styles.panel}>
+          <div style={styles.panelTitle}>EMA Run (D/W)</div>
+          <ListSkeleton rows={7} />
+        </div>
+      </section>
+
+      {/* BOTTOM: Chart placeholder */}
+      <section style={styles.chartWrap}>
+        <div style={styles.chartTitle}>
+          Live Chart <span style={{ opacity: 0.6, marginLeft: 8 }}>AAPL · 1m</span>
+        </div>
+        <div style={styles.chartBox}>Chart goes here (Lightweight Charts)</div>
+      </section>
+    </main>
   );
 }
 
-function Panel({ title, right, children }) {
-  return (
-    <div
-      style={{
-        background:
-          "linear-gradient(180deg,#0f1420,#121827)",
-        border: "1px solid #1f2637",
-        borderRadius: 14,
-        overflow: "hidden",
-        minHeight: 220,
-      }}
-    >
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          padding: "10px 12px 8px",
-          borderBottom: "1px solid #1f2637",
-          background: "linear-gradient(180deg,#0d1220,#0b101a)",
-        }}
-      >
-        <span style={{ fontWeight: 800, letterSpacing: 0.4 }}>{title}</span>
-        {right ? (
-          <span
-            style={{
-              background: "#1b2232",
-              border: "1px solid #2b3650",
-              borderRadius: 10,
-              padding: "2px 8px",
-              fontSize: 12,
-              opacity: 0.9,
-            }}
-          >
-            {right}
-          </span>
-        ) : null}
-      </div>
-      <div style={{ padding: "10px 12px" }}>{children}</div>
-    </div>
-  );
-}
+/* ---------- small shared pieces ---------- */
 
-function PlaceholderRows({ rows = 6 }) {
+function ListSkeleton({ rows = 6 }) {
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+    <div>
       {Array.from({ length: rows }).map((_, i) => (
-        <div
-          key={i}
-          style={{
-            display: "grid",
-            gridTemplateColumns: "16px 1fr 54px",
-            gap: 10,
-            alignItems: "center",
-          }}
-        >
-          <div
-            style={{
-              width: 10,
-              height: 10,
-              borderRadius: "50%",
-              background: "#2b3246",
-            }}
-          />
-          <div
-            style={{
-              height: 8,
-              background: "linear-gradient(90deg,#243050,#2a3a61)",
-              borderRadius: 8,
-            }}
-          />
-          <div
-            style={{
-              justifySelf: "end",
-              background: "#243050",
-              border: "1px solid #33416a",
-              borderRadius: 10,
-              padding: "2px 8px",
-              fontSize: 12,
-              color: "#c8d2ea",
-            }}
-          >
-            view
-          </div>
+        <div key={i} style={styles.row}>
+          <div style={styles.rowBar} />
+          <button style={styles.viewBtn}>view</button>
         </div>
       ))}
     </div>
   );
 }
 
-/** ---------- Main App ---------- */
-export default function App() {
-  const [online, setOnline] = useState(false);
-  const [g, setG] = useState({
-    momentum: 78,
-    breadth: 42,
-    volatility: 63,
-    liquidity: 55,
-  });
+/* ---------------- styles ----------------- */
 
-  async function load() {
-    try {
-      const r = await fetch(`${API_BASE}/api/market-metrics`);
-      setOnline(r.ok);
-      const data = r.ok ? await r.json() : null;
-      if (data) setG(mapMetricsToGauges(data));
-    } catch {
-      setOnline(false);
-    }
-  }
+const carbonBg =
+  "repeating-linear-gradient(135deg,#0b0e13 0px,#0b0e13 4px,#11161f 4px,#11161f 8px)";
 
-  useEffect(() => {
-    load();
-    const id = setInterval(load, 15000);
-    return () => clearInterval(id);
-  }, []);
+const styles = {
+  page: {
+    minHeight: "100vh",
+    color: "#d9e2f1",
+    background: "#070a0f",
+    "--line": "#202733",
+    "--soft": "#0f1520",
+    letterSpacing: ".015em",
+  },
 
-  return (
-    <div
-      style={{
-        background: "#0b0f16",
-        color: "#e8edf7",
-        minHeight: "100vh",
-        fontFamily:
-          "ui-sans-serif, system-ui, Segoe UI, Roboto, Helvetica, Arial",
-      }}
-    >
-      <Badge ok={online} />
+  gaugeRow: {
+    display: "grid",
+    gridTemplateColumns: "380px 1fr 380px",
+    gap: 24,
+    padding: "20px 18px 8px",
+    background: carbonBg,
+    borderBottom: "1px solid var(--line)",
+  },
+  gaugeColSm: { display: "flex", flexDirection: "column", alignItems: "center" },
+  gaugeColLg: { display: "flex", justifyContent: "center" },
 
-      {/* Header */}
-      <header style={{ padding: "12px 20px 0" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-          <div
-            style={{
-              height: 6,
-              flex: 1,
-              background:
-                "linear-gradient(90deg,#E01E37,#c71a2f 60%, #7a1424)",
-              borderRadius: 8,
-            }}
-          />
-          <div
-            style={{
-              fontWeight: 900,
-              fontSize: 26,
-              letterSpacing: 2,
-              opacity: 0.92,
-            }}
-          >
-            REDLINE TRADING — Powered By AI
-          </div>
-        </div>
-      </header>
+  panelsRow: {
+    display: "grid",
+    gridTemplateColumns: "1fr 1fr 1fr",
+    gap: 18,
+    padding: "16px 18px",
+  },
+  panel: {
+    background: "linear-gradient(180deg,#0b1320, #09101a)",
+    border: "1px solid var(--line)",
+    borderRadius: 10,
+    padding: "10px 10px 12px",
+    boxShadow: "inset 0 0 0 1px rgba(255,255,255,.02)",
+  },
+  panelTitle: {
+    fontWeight: 700,
+    fontSize: 13,
+    letterSpacing: ".06em",
+    margin: "6px 8px 10px",
+    opacity: 0.9,
+  },
+  row: {
+    display: "grid",
+    gridTemplateColumns: "1fr 56px",
+    alignItems: "center",
+    gap: 8,
+    padding: "6px 8px",
+  },
+  rowBar: {
+    height: 8,
+    borderRadius: 6,
+    background:
+      "linear-gradient(90deg,#213048,#2f466c,#3a5685)",
+  },
+  viewBtn: {
+    fontSize: 12,
+    padding: "4px 10px",
+    borderRadius: 8,
+    border: "1px solid #2a3342",
+    background: "#0f1520",
+    color: "#c9d6ea",
+    cursor: "pointer",
+  },
 
-      {/* Top Ferrari cluster */}
-      <section style={{ padding: "10px 18px 0" }}>
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1fr auto 1fr",
-            gap: 18,
-            background:
-              "radial-gradient(1200px 300px at 50% -20%, rgba(255,255,255,.04), transparent 60%),\
-               repeating-linear-gradient(45deg, #0e0f13, #0e0f13 12px, #10131a 12px, #10131a 24px)",
-            border: "1px solid #222a3d",
-            borderRadius: 18,
-            padding: "16px 16px 8px",
-          }}
-        >
-          {/* Left column */}
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 16,
-            }}
-          >
-            <CarbonGauge label="Breadth" value={g.breadth} size={200} redlineStart={70} />
-          </div>
-
-          {/* Center logo gauge */}
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <LogoGauge value={g.momentum} size={260} label="Momentum" />
-          </div>
-
-          {/* Right column */}
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 16,
-              flexDirection: "column",
-            }}
-          >
-            <CarbonGauge label="Volatility" value={g.volatility} size={200} redlineStart={65} />
-            <CarbonGauge
-              label="Liquidity / Fuel"
-              value={g.liquidity}
-              size={160}
-              redlineStart={30}
-            />
-          </div>
-        </div>
-      </section>
-
-      {/* Bottom panels */}
-      <section
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(3,1fr)",
-          gap: 16,
-          padding: "16px 18px 24px",
-        }}
-      >
-        <Panel title="Wave 3 Scanner">
-          <PlaceholderRows rows={6} />
-        </Panel>
-
-        <Panel title="Flagpole Breakouts">
-          <PlaceholderRows rows={6} />
-        </Panel>
-
-        <Panel title="EMA Run (D/W)">
-          <PlaceholderRows rows={6} />
-        </Panel>
-
-        <Panel title="Live Chart" right="AAPL • 1m">
-          <div
-            style={{
-              height: 250,
-              border: "1px dashed #2a3653",
-              borderRadius: 10,
-              display: "grid",
-              placeItems: "center",
-              color: "#9fb2df",
-              background:
-                "repeating-linear-gradient(90deg,#0f1422,#0f1422 8px,#11182a 8px,#11182a 16px)",
-            }}
-          >
-            Chart goes here (Lightweight Charts)
-          </div>
-        </Panel>
-      </section>
-    </div>
-  );
-}
+  chartWrap: { padding: "6px 18px 24px" },
+  chartTitle: {
+    margin: "10px 0 8px",
+    fontWeight: 700,
+    letterSpacing: ".06em",
+  },
+  chartBox: {
+    height: 420,
+    borderRadius: 10,
+    border: "1px solid var(--line)",
+    background: "linear-gradient(180deg,#0b1320, #09101a)",
+    display: "grid",
+    placeItems: "center",
+    color: "#7c92b6",
+  },
+};
