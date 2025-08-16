@@ -1,25 +1,25 @@
-// src/App.jsx
+// src/App.js
 import React, { useEffect, useState } from "react";
-import LiveFeeds from "./pages/LiveFeeds.tsx";
-
+import LiveFeeds from "./pages/LiveFeeds.jsx"; // ← live chart + market panels
 // import QuoteCard from "./components/QuoteCard"; // optional: leave commented if not present
 
-// ---- Backend base URL (keeps your existing logic) ----
+// ---- Backend base URL (keeps your original logic, adds common env names) ----
 const API_BASE_URL =
   (typeof process !== "undefined" &&
     process.env &&
     (process.env.API_BASE_URL ||
-      process.env.REACT_APP_API_BASE_URL ||
-      process.env.VITE_API_BASE_URL)) ||
+      process.env.REACT_APP_API_BASE ||       // common CRA name
+      process.env.REACT_APP_API_BASE_URL ||   // your existing name
+      process.env.VITE_API_BASE_URL)) ||      // Vite-style
   "https://frye-market-backend-1.onrender.com";
 
-// ---- Small badge that shows backend status (kept from your file) ----
+// ---- Small badge that shows backend status (unchanged behavior) ----
 function BackendBadge() {
   const [online, setOnline] = useState(false);
 
   async function check() {
     try {
-      // your backend exposes /api/healthz – keep that
+      // your backend exposes /api/healthz – keep that endpoint
       const r = await fetch(`${API_BASE_URL}/api/healthz`);
       setOnline(r.ok);
     } catch {
@@ -115,7 +115,7 @@ export default function App() {
         <PingCard />
       </div>
 
-      {/* New live page: sector panels + candlestick chart */}
+      {/* Live page: sector panels + candlestick chart */}
       <LiveFeeds />
 
       {/* Optional: keep your QuoteCard below if/when you have the component */}
