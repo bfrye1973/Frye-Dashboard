@@ -1,9 +1,7 @@
-const API = (process && process.env && (
-  process.env.API_BASE_URL ||
-  process.env.REACT_APP_API_BASE ||
-  process.env.REACT_APP_API_BASE_URL ||
-  process.env.VITE_API_BASE_URL
-)) || "https://frye-market-backend-1.onrender.com";
+// src/lib/api.js
+const API =
+  (typeof window !== "undefined" && window.__API_BASE__) ||
+  "https://frye-market-backend-1.onrender.com";
 
 export async function apiHealth() {
   const r = await fetch(`${API}/api/health`);
