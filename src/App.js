@@ -1,7 +1,9 @@
-// src/App.js
+// src/App.jsx
 import React, { useEffect, useState } from "react";
-import QuoteCard from "./components/QuoteCard"; // If you haven't created it yet, comment this line and the <QuoteCard /> below.
+import LiveFeeds from "./pages/LiveFeeds"; // <- new live chart + market panels
+// import QuoteCard from "./components/QuoteCard"; // optional: leave commented if not present
 
+// ---- Backend base URL (keeps your existing logic) ----
 const API_BASE_URL =
   (typeof process !== "undefined" &&
     process.env &&
@@ -10,12 +12,13 @@ const API_BASE_URL =
       process.env.VITE_API_BASE_URL)) ||
   "https://frye-market-backend-1.onrender.com";
 
-// Small badge that shows backend status in the top-left
+// ---- Small badge that shows backend status (kept from your file) ----
 function BackendBadge() {
   const [online, setOnline] = useState(false);
 
   async function check() {
     try {
+      // your backend exposes /api/healthz – keep that
       const r = await fetch(`${API_BASE_URL}/api/healthz`);
       setOnline(r.ok);
     } catch {
@@ -43,6 +46,7 @@ function BackendBadge() {
         padding: "6px 10px",
         borderRadius: 12,
         fontWeight: 600,
+        zIndex: 9999,
       }}
     >
       {txt}
@@ -50,7 +54,7 @@ function BackendBadge() {
   );
 }
 
-// Simple ping box that calls GET /api/ping
+// ---- Simple ping box that calls GET /api/ping (kept from your file) ----
 function PingCard() {
   const [text, setText] = useState("—");
 
@@ -76,11 +80,11 @@ function PingCard() {
         background: "#0b1320",
         color: "#d9e1f2",
         borderRadius: 12,
-        width: 300,
+        width: 320,
       }}
     >
       <h3 style={{ marginTop: 0 }}>Ping check</h3>
-      <pre style={{ whiteSpace: "pre-wrap" }}>{text}</pre>
+      <pre style={{ whiteSpace: "pre-wrap", margin: 0 }}>{text}</pre>
       <button
         onClick={runPing}
         style={{ marginTop: 8, padding: "6px 10px", borderRadius: 8 }}
@@ -91,6 +95,7 @@ function PingCard() {
   );
 }
 
+// ---- App: shows your badge + ping card + the new Live Feeds page ----
 export default function App() {
   return (
     <main
@@ -100,13 +105,22 @@ export default function App() {
       }}
     >
       <BackendBadge />
-      <h1>Frye Dashboard (Staging)</h1>
-      <p>Frontend is running. Backend badge is in the top-left.</p>
+      <h1>Frye Dashboard — Live Feeds</h1>
+      <p style={{ marginTop: 0 }}>
+        Frontend is running & connected to backend (see badge at top-left).
+      </p>
 
-      <PingCard />
+      <div style={{ marginBottom: 24 }}>
+        <PingCard />
+      </div>
 
-      {/* Shows the quote fetcher that calls /api/v1/quotes */}
-      <QuoteCard />
+      {/* New live page: sector panels + candlestick chart */}
+      <LiveFeeds />
+
+      {/* Optional: keep your QuoteCard below if/when you have the component */}
+      {/* <div style={{ marginTop: 24 }}>
+        <QuoteCard />
+      </div> */}
     </main>
   );
 }
