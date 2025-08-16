@@ -1,6 +1,6 @@
 import React from "react";
-import MarketMeters from "../components/MarketMeters";
-import LiveFeedsChart from "../components/LiveFeedsChart";
+import MarketMeters from "../components/MarketMeters.jsx";      // ← .jsx
+import LiveFeedsChart from "../components/LiveFeedsChart.jsx";  // ← .jsx
 
 export default function LiveFeeds() {
   const now = new Date();
