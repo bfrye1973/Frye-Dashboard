@@ -1,6 +1,6 @@
 // src/pages/LiveFeeds.jsx
-import React, { useEffect, useMemo, useRef, useState } from "react";
-import { createChart } from "lightweight-charts";
+import React, { useEffect, useMemo, useState } from "react";
+import LiveFeedsChart from "../components/LiveFeedsChart";
 
 /** ---------- Config (backend URLs) ---------- */
 const API_BASE =
@@ -12,15 +12,6 @@ const API_BASE =
       process.env.VITE_API_BASE_URL)) ||
   "https://frye-market-backend-1.onrender.com";
 
-const WS_BASE =
-  (typeof window !== "undefined" && window.__WS_BASE__) ||
-  (typeof process !== "undefined" &&
-    process.env &&
-    (process.env.WS_BASE_URL ||
-      process.env.REACT_APP_WS_BASE ||
-      process.env.VITE_WS_BASE_URL)) ||
-  API_BASE.replace(/^http/i, "ws"); // derive wss:// from https://
-
 /** ---------- Helpers ---------- */
 function fmtTsSec(ts) {
   try {
@@ -28,9 +19,6 @@ function fmtTsSec(ts) {
   } catch {
     return "—";
   }
-}
-function clamp(v, lo = 0, hi = 100) {
-  return Math.max(lo, Math.min(hi, v));
 }
 
 /** ---------- Sector Tile ---------- */
@@ -48,147 +36,42 @@ function Tile({ title, ts, newHighs, newLows, adrAvg }) {
   );
 }
 
-/** ---------- LiveFeeds Page ---------- */
+/** ---------- Page ---------- */
 export default function LiveFeeds() {
   // Controls
   const [ticker, setTicker] = useState("AAPL");
-  const [tf, setTf] = useState("minute"); // minute | hour | day
+  const [tf, setTf] = useState("minute"); // "minute" | "hour" | "day"
 
   // Metrics (sector tiles)
   const [metrics, setMetrics] = useState([]);
   const [metricsTs, setMetricsTs] = useState(null);
 
-  // Chart refs
-  const wrapRef = useRef(null);
-  const chartRef = useRef(null);
-  const seriesRef = useRef(null);
-  const lastTimeRef = useRef(null);
-  const wsStopRef = useRef(null);
-
-  // Time range (last 7d by default)
+  // Time range (last 7d)
   const { fromISO, toISO } = useMemo(() => {
     const to = new Date();
     const from = new Date(Date.now() - 7 * 864e5);
-    const toS = to.toISOString().slice(0, 10);
-    const fromS = from.toISOString().slice(0, 10);
-    return { fromISO: fromS, toISO: toS };
+    return {
+      fromISO: from.toISOString().slice(0, 10),
+      toISO: to.toISOString().slice(0, 10),
+    };
   }, []);
 
-  /** ----- Build chart once ----- */
-  useEffect(() => {
-    if (!wrapRef.current) return;
-    const chart = createChart(wrapRef.current, {
-      width: wrapRef.current.clientWidth || 960,
-      height: 420,
-      layout: { background: { type: "Solid", color: "#0f0f0f" }, textColor: "#e6edf7" },
-      grid: {
-        vertLines: { color: "rgba(255,255,255,0.06)" },
-        horzLines: { color: "rgba(255,255,255,0.06)" },
-      },
-      timeScale: { timeVisible: tf !== "day", secondsVisible: tf === "minute" },
-      rightPriceScale: { borderVisible: false },
-      crosshair: { mode: 1 },
-    });
-    const series = chart.addCandlestickSeries();
-    chartRef.current = chart;
-    seriesRef.current = series;
-
-    const ro = new ResizeObserver(() => {
-      try {
-        chart.applyOptions({ width: wrapRef.current.clientWidth || 960 });
-      } catch {}
-    });
-    ro.observe(wrapRef.current);
-
-    return () => {
-      ro.disconnect();
-      try { chart.remove(); } catch {}
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // build once
-
-  /** ----- Load history & open WS when ticker/tf changes ----- */
+  /** ----- One-time metrics boot (and light polling) ----- */
   useEffect(() => {
     let cancelled = false;
-
-    async function loadHistory() {
-      const url = `${API_BASE}/api/history?ticker=${encodeURIComponent(
-        ticker
-      )}&tf=${encodeURIComponent(tf)}&from=${fromISO}&to=${toISO}`;
+    async function load() {
       try {
-        const r = await fetch(url);
-        if (!r.ok) throw new Error(`history ${r.status}`);
-        const candles = await r.json(); // [{time,open,high,low,close,volume}]
-        if (cancelled || !seriesRef.current) return;
-        seriesRef.current.setData(candles);
-        lastTimeRef.current = candles.at(-1)?.time ?? null;
-        try { chartRef.current.timeScale().fitContent(); } catch {}
-      } catch (e) {
-        console.error("loadHistory error:", e);
-      }
-    }
-
-    function openWS() {
-      // Close previous socket
-      try { wsStopRef.current && wsStopRef.current(); } catch {}
-      let ws;
-      try {
-        ws = new WebSocket(WS_BASE);
-      } catch (e) {
-        console.error("WS open failed:", e);
-        return () => {};
-      }
-
-      ws.onmessage = (ev) => {
-        try {
-          const msg = JSON.parse(ev.data);
-          if (!msg || !msg.type) return;
-
-          if (msg.type === "bar" && msg.payload) {
-            const b = msg.payload; // {ticker,time,open,high,low,close,volume}
-            if (b.ticker && b.ticker !== ticker) return; // filter other symbols if backend fans out
-            if (!seriesRef.current) return;
-            if (lastTimeRef.current && b.time === lastTimeRef.current) {
-              seriesRef.current.update(b);
-            } else {
-              seriesRef.current.update(b);
-              lastTimeRef.current = b.time;
-            }
-          } else if (msg.type === "metrics" && msg.payload) {
-            setMetrics(msg.payload.sectors || []);
-            setMetricsTs(msg.payload.timestamp || Math.floor(Date.now() / 1000));
-          }
-        } catch {}
-      };
-
-      ws.onerror = () => {/* ignore, backend may restart */};
-      ws.onclose = () => {/* allow reconnect by caller if needed */};
-
-      return () => {
-        try { ws.close(); } catch {}
-      };
-    }
-
-    loadHistory();
-    wsStopRef.current = openWS();
-
-    return () => {
-      cancelled = true;
-      try { wsStopRef.current && wsStopRef.current(); } catch {}
-    };
-  }, [ticker, tf, fromISO, toISO]);
-
-  /** ----- One-time metrics boot ----- */
-  useEffect(() => {
-    (async () => {
-      try {
-        const r = await fetch(`${API_BASE}/api/market-metrics`);
+        const r = await fetch(`${API_BASE}/api/market-metrics`, { cache: "no-store" });
         if (!r.ok) return;
         const m = await r.json();
+        if (cancelled) return;
         setMetrics(m.sectors || []);
         setMetricsTs(m.timestamp || Math.floor(Date.now() / 1000));
       } catch {}
-    })();
+    }
+    load();
+    const id = setInterval(load, 30_000); // optional 30s refresh
+    return () => { cancelled = true; clearInterval(id); };
   }, []);
 
   return (
@@ -219,7 +102,7 @@ export default function LiveFeeds() {
         </div>
       </div>
 
-      {/* Strategy strips (placeholder hooks for now) */}
+      {/* Strategy strips (placeholders) */}
       <div style={styles.strips}>
         <div style={styles.strip}><b>Wave 3</b> • signals feed</div>
         <div style={styles.strip}><b>Flagpole</b> • breakouts</div>
@@ -244,8 +127,16 @@ export default function LiveFeeds() {
         )}
       </div>
 
-      {/* Chart */}
-      <div ref={wrapRef} style={styles.chartBox} />
+      {/* Chart (component builds chart + WS + overlays) */}
+      <div style={styles.chartOuter}>
+        <LiveFeedsChart
+          ticker={ticker}
+          tf={tf}
+          from={fromISO}
+          to={toISO}
+          height={420}
+        />
+      </div>
     </section>
   );
 }
@@ -310,9 +201,8 @@ const styles = {
   },
   tileTs: { fontSize: 12, opacity: 0.6 },
   tileRow: { fontSize: 13, lineHeight: "18px" },
-  chartBox: {
+  chartOuter: {
     width: "100%",
-    minHeight: 420,
     borderRadius: 10,
     overflow: "hidden",
     border: "1px solid #1b2130",
