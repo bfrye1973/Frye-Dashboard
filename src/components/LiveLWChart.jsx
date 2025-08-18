@@ -2,44 +2,62 @@
 import React, { useEffect, useRef } from "react";
 import { createChart, CrosshairMode } from "lightweight-charts";
 
+/**
+ * LiveLWChart
+ * - Expects CRA proxy for /api (src/setupProxy.js already points to your backend)
+ * - Calls: GET /api/v1/ohlc?symbol=SYMBOL&timeframe=TF
+ *   → [{ time: 1717027200 | "2024-01-01T00:00:00Z", open, high, low, close, volume }]
+ */
 export default function LiveLWChart({
   symbol = "AAPL",
-  timeframe = "1m",
-  height = 540,
+  timeframe = "1m", // use "1m", "1H", or "1D" (backend keys)
+  height = 560,
 }) {
-  const containerRef = useRef(null);
+  const wrapRef = useRef(null);
   const chartRef = useRef(null);
   const candleRef = useRef(null);
   const volRef = useRef(null);
 
-  // ---- fake data adapter (replace with your real API if you have it)
+  // -------- helpers
+  const toSec = (t) =>
+    typeof t === "string" ? Math.floor(new Date(t).getTime() / 1000) : t;
+
   async function fetchHistory(sym, tf) {
-    // Example: return last ~500 synthetic candles so you see something
-    const now = Math.floor(Date.now() / 1000);
-    const N = 500, step = tf === "1m" ? 60 : tf === "1h" ? 3600 : 86400;
-    const data = [];
-    let p = 110;
-    for (let i = N; i > 0; i--) {
-      const t = now - i * step;
-      const drift = Math.sin(i / 20) * 0.5;
-      const open = p;
-      const close = p + drift + (Math.random() - 0.5) * 0.3;
-      const high = Math.max(open, close) + Math.random() * 0.6;
-      const low = Math.min(open, close) - Math.random() * 0.6;
-      const volume = Math.floor(30000 + Math.random() * 180000);
-      p = close;
-      data.push({ time: t, open, high, low, close, volume });
+    const ctrl = new AbortController();
+    const id = setTimeout(() => ctrl.abort("timeout"), 15000);
+
+    try {
+      const url = `/api/v1/ohlc?symbol=${encodeURIComponent(
+        sym
+      )}&timeframe=${encodeURIComponent(tf)}`;
+      const res = await fetch(url, { signal: ctrl.signal });
+      if (!res.ok) throw new Error(`OHLC ${res.status} ${res.statusText}`);
+      const rows = await res.json();
+      return rows.map((r) => ({
+        time: toSec(r.time),
+        open: +r.open,
+        high: +r.high,
+        low: +r.low,
+        close: +r.close,
+        volume: r.volume != null ? +r.volume : undefined,
+      }));
+    } finally {
+      clearTimeout(id);
     }
-    return data;
   }
 
+  // -------- main effect
   useEffect(() => {
-    if (!containerRef.current) return;
+    if (!wrapRef.current) return;
 
-    const chart = createChart(containerRef.current, {
-      width: containerRef.current.clientWidth || 1200,
+    // chart
+    const chart = createChart(wrapRef.current, {
+      width: wrapRef.current.clientWidth || 1200,
       height,
-      layout: { background: { type: "Solid", color: "#0f1117" }, textColor: "#d1d4dc" },
+      layout: {
+        background: { type: "Solid", color: "#0f1117" },
+        textColor: "#d1d4dc",
+      },
       grid: {
         vertLines: { color: "rgba(255,255,255,0.06)" },
         horzLines: { color: "rgba(255,255,255,0.06)" },
@@ -48,14 +66,14 @@ export default function LiveLWChart({
       leftPriceScale: { visible: false },
       timeScale: {
         borderVisible: false,
-        timeVisible: timeframe !== "1d",
+        timeVisible: timeframe !== "1D",
         secondsVisible: timeframe === "1m",
       },
       crosshair: { mode: CrosshairMode.Normal },
-      localization: { priceFormatter: p => p.toFixed(2) },
+      localization: { priceFormatter: (p) => (p ?? 0).toFixed(2) },
     });
 
-    const candleSeries = chart.addCandlestickSeries({
+    const candles = chart.addCandlestickSeries({
       upColor: "#26a69a",
       downColor: "#ef5350",
       borderUpColor: "#26a69a",
@@ -64,66 +82,85 @@ export default function LiveLWChart({
       wickDownColor: "#ef5350",
     });
 
-    const volumeSeries = chart.addHistogramSeries({
+    const volume = chart.addHistogramSeries({
       priceFormat: { type: "volume" },
       priceScaleId: "",
       overlay: true,
-      color: "rgba(110, 118, 129, 0.4)",
+      color: "rgba(110,118,129,0.45)",
       base: 0,
     });
 
     chartRef.current = chart;
-    candleRef.current = candleSeries;
-    volRef.current = volumeSeries;
+    candleRef.current = candles;
+    volRef.current = volume;
 
-    // Responsive
+    // resize
     const ro = new ResizeObserver(() => {
-      try {
-        chart.applyOptions({
-          width: containerRef.current?.clientWidth || 1200,
-          height,
-        });
-      } catch {}
+      chart.applyOptions({
+        width: wrapRef.current?.clientWidth || 1200,
+        height,
+      });
     });
-    ro.observe(containerRef.current);
+    ro.observe(wrapRef.current);
 
-    // Load initial data
-    let mounted = true;
+    // load data
+    let alive = true;
     (async () => {
-      const candles = await fetchHistory(symbol, timeframe);
-      if (!mounted) return;
-      candleSeries.setData(
-        candles.map(c => ({
-          time: c.time,
-          open: c.open,
-          high: c.high,
-          low: c.low,
-          close: c.close,
-        }))
-      );
-      volumeSeries.setData(
-        candles.map(c => ({
-          time: c.time,
-          value: c.volume,
-          color: c.close >= c.open ? "rgba(38,166,154,0.4)" : "rgba(239,83,80,0.4)",
-        }))
-      );
-      chart.timeScale().fitContent();
+      try {
+        const rows = await fetchHistory(symbol, timeframe);
+        if (!alive) return;
+
+        const candleData = rows.map((r) => ({
+          time: r.time,
+          open: r.open,
+          high: r.high,
+          low: r.low,
+          close: r.close,
+        }));
+        const volData = rows.map((r) => ({
+          time: r.time,
+          value: r.volume ?? 0,
+          color:
+            r.close >= r.open
+              ? "rgba(38,166,154,0.45)"
+              : "rgba(239,83,80,0.45)",
+        }));
+
+        candles.setData(candleData);
+        volume.setData(volData);
+        chart.timeScale().fitContent();
+      } catch (e) {
+        // simple inline error banner
+        if (wrapRef.current) {
+          const node = document.createElement("div");
+          node.style.cssText =
+            "position:absolute;top:8px;left:8px;padding:6px 10px;border-radius:8px;background:#361b1b;color:#ffb4b4;border:1px solid #532222;font:12px system-ui";
+          node.textContent = `Chart error: ${e?.message ?? e}`;
+          wrapRef.current.appendChild(node);
+        }
+        // eslint-disable-next-line no-console
+        console.error(e);
+      }
     })();
 
     return () => {
-      mounted = false;
-      try { ro.disconnect(); } catch {}
-      try { chart.remove(); } catch {}
+      alive = false;
+      try {
+        ro.disconnect();
+      } catch {}
+      try {
+        chart.remove();
+      } catch {}
       chartRef.current = null;
       candleRef.current = null;
       volRef.current = null;
     };
   }, [symbol, timeframe, height]);
 
+  // -------- render
   return (
     <div
-      ref={containerRef}
+      ref={wrapRef}
       style={{
         position: "relative",
         width: "100%",
