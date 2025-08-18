@@ -1,12 +1,13 @@
 // src/setupProxy.js
-const { createProxyMiddleware } = require('http-proxy-middleware');
+const { createProxyMiddleware } = require("http-proxy-middleware");
 
 module.exports = function (app) {
   app.use(
-    '/api',
+    "/api",
     createProxyMiddleware({
-      target: 'https://YOUR-BACKEND-BASE-URL', // <-- replace this with your backend URL
+      target: "https://frye-market-backend-1.onrender.com",
       changeOrigin: true,
+      pathRewrite: { "^/api": "" }, // so /api/v1/... → /v1/...
     })
   );
 };
