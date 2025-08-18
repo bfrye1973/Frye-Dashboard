@@ -1,10 +1,12 @@
 // src/lib/api.js
 // Centralized API helper
 
+// Always resolve a full backend base URL.
+// Order: build-time env -> runtime window override -> hard fallback.
 const API_BASE =
-  process.env.REACT_APP_API_BASE || // from Vercel/Render env variable
-  (typeof window !== "undefined" && window.__API_BASE__) || // optional override
-  ""; // default to relative (/api/...) in dev with proxy
+  process.env.REACT_APP_API_BASE || // set in Render frontend env
+  (typeof window !== "undefined" && window.__API_BASE__) || // optional override from index.html
+  "https://frye-market-backend-1.onrender.com"; // safe default fallback
 
 // Helper to build URLs safely
 export const apiUrl = (path) => {
@@ -41,7 +43,7 @@ export async function fetchHistory(ticker, tf /* from, to unused for now */) {
   }));
 }
 
-// Fetch market metrics
+// Fetch market metrics (keep as-is if you add this route later)
 export async function fetchMetrics() {
   const r = await fetch(apiUrl("/api/market-metrics"), { cache: "no-store" });
   if (!r.ok) throw new Error(`Metrics ${r.status}`);
