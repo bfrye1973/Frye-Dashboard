@@ -3,7 +3,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createChart } from "lightweight-charts";
 import MoneyFlowOverlay from "../components/overlays/MoneyFlowOverlay";
 
-/** ---------- Backend config ---------- */
+/* -------------------- Backend endpoints -------------------- */
 const API_BASE =
   (typeof window !== "undefined" && window.__API_BASE__) ||
   (typeof process !== "undefined" &&
@@ -22,16 +22,12 @@ const WS_BASE =
       process.env.VITE_WS_BASE_URL)) ||
   API_BASE.replace(/^http/i, "ws");
 
-/** ---------- helpers ---------- */
+/* -------------------- helpers -------------------- */
 function fmtTs(tsSec) {
-  try {
-    return new Date(tsSec * 1000).toLocaleString();
-  } catch {
-    return "—";
-  }
+  try { return new Date(tsSec * 1000).toLocaleString(); } catch { return "—"; }
 }
 
-/** ---------- Tile (metrics) ---------- */
+/* small tile for metrics (unchanged) */
 function Tile({ title, ts, newHighs, newLows, adrAvg }) {
   return (
     <div style={S.tile}>
@@ -46,29 +42,24 @@ function Tile({ title, ts, newHighs, newLows, adrAvg }) {
   );
 }
 
-/** =========================================================
- * LiveFeeds page
- * ======================================================= */
+/* =========================================================
+   LiveFeeds page with Candles + Price Line + Volume + MFP overlay
+   ========================================================= */
 export default function LiveFeeds() {
-  // Controls
   const [ticker, setTicker] = useState("AAPL");
   const [tf, setTf] = useState("minute"); // minute | hour | day
-
-  // Market metrics (sector tiles)
   const [metrics, setMetrics] = useState([]);
   const [metricsTs, setMetricsTs] = useState(null);
+  const [candles, setCandles] = useState([]); // shared with overlay
 
-  // Candles we show + stream (also given to overlay)
-  const [candles, setCandles] = useState([]);
-
-  // Chart refs
   const wrapRef = useRef(null);
   const chartRef = useRef(null);
-  const seriesRef = useRef(null);
+  const candleSeriesRef = useRef(null);
+  const priceLineRef = useRef(null);
+  const volumeRef = useRef(null);
   const wsStopRef = useRef(null);
   const lastTimeRef = useRef(null);
 
-  // Time range (last 7 days)
   const { fromISO, toISO } = useMemo(() => {
     const to = new Date();
     const from = new Date(Date.now() - 7 * 864e5);
@@ -78,30 +69,53 @@ export default function LiveFeeds() {
     };
   }, []);
 
-  /** ----- create chart once ----- */
+  /* ---------- create chart once ---------- */
   useEffect(() => {
     if (!wrapRef.current) return;
 
     const chart = createChart(wrapRef.current, {
-      width: wrapRef.current.clientWidth || 960,
-      height: 420,
+      width: wrapRef.current.clientWidth || 1000,
+      height: 480,
       layout: { background: { type: "Solid", color: "#0f0f0f" }, textColor: "#e6edf7" },
       grid: {
         vertLines: { color: "rgba(255,255,255,0.06)" },
         horzLines: { color: "rgba(255,255,255,0.06)" },
       },
-      timeScale: { timeVisible: true, secondsVisible: true },
+      timeScale: { timeVisible: tf !== "day", secondsVisible: tf === "minute" },
       rightPriceScale: { borderVisible: false },
       crosshair: { mode: 1 },
     });
-    const series = chart.addCandlestickSeries();
+
+    // Series
+    const candleSeries = chart.addCandlestickSeries({
+      upColor: "#2ecc71",
+      downColor: "#e74c3c",
+      wickUpColor: "#2ecc71",
+      wickDownColor: "#e74c3c",
+      borderVisible: false,
+    });
+
+    const priceLine = chart.addLineSeries({
+      color: "#66d9ff",
+      lineWidth: 1,
+      lastValueVisible: true,
+      priceLineVisible: true,
+      crosshairMarkerVisible: true,
+    });
+
+    const volume = chart.addHistogramSeries({
+      priceScaleId: "",               // own scale
+      priceFormat: { type: "volume" },
+      scaleMargins: { top: 0.8, bottom: 0 }, // bottom strip
+    });
+
     chartRef.current = chart;
-    seriesRef.current = series;
+    candleSeriesRef.current = candleSeries;
+    priceLineRef.current = priceLine;
+    volumeRef.current = volume;
 
     const ro = new ResizeObserver(() => {
-      try {
-        chart.applyOptions({ width: wrapRef.current.clientWidth || 960 });
-      } catch {}
+      try { chart.applyOptions({ width: wrapRef.current.clientWidth || 1000 }); } catch {}
     });
     ro.observe(wrapRef.current);
 
@@ -110,13 +124,23 @@ export default function LiveFeeds() {
       try { wsStopRef.current && wsStopRef.current(); } catch {}
       try { chart.remove(); } catch {}
       chartRef.current = null;
-      seriesRef.current = null;
+      candleSeriesRef.current = null;
+      priceLineRef.current = null;
+      volumeRef.current = null;
     };
-  }, []);
+  }, [tf]);
 
-  /** ----- load history + open WS when ticker/tf changes ----- */
+  /* ---------- load history + open WS when ticker/tf changes ---------- */
   useEffect(() => {
     let cancelled = false;
+
+    function buildVolume(bars) {
+      return bars.map((b) => ({
+        time: b.time,
+        value: b.volume ?? 0,
+        color: (b.close >= b.open) ? "rgba(46, 204, 113, .6)" : "rgba(231, 76, 60, .6)",
+      }));
+    }
 
     async function loadHistory() {
       const url = `${API_BASE}/api/history?ticker=${encodeURIComponent(
@@ -128,10 +152,13 @@ export default function LiveFeeds() {
         const rows = await r.json(); // [{time,open,high,low,close,volume}]
         if (cancelled) return;
 
-        // push into chart + local state
-        seriesRef.current?.setData(rows);
+        candleSeriesRef.current?.setData(rows);
+        priceLineRef.current?.setData(rows.map((b) => ({ time: b.time, value: b.close })));
+        volumeRef.current?.setData(buildVolume(rows));
+
         setCandles(rows);
         lastTimeRef.current = rows.at(-1)?.time ?? null;
+
         try { chartRef.current?.timeScale().fitContent(); } catch {}
       } catch (e) {
         console.error("loadHistory error:", e);
@@ -152,9 +179,16 @@ export default function LiveFeeds() {
             const b = msg.payload; // {ticker,time,open,high,low,close,volume}
             if (b.ticker && b.ticker !== ticker) return;
 
-            // Update chart
+            const volPoint = {
+              time: b.time,
+              value: b.volume ?? 0,
+              color: (b.close >= b.open) ? "rgba(46, 204, 113, .6)" : "rgba(231, 76, 60, .6)",
+            };
+
             if (lastTimeRef.current && b.time === lastTimeRef.current) {
-              seriesRef.current?.update(b);
+              candleSeriesRef.current?.update(b);
+              priceLineRef.current?.update({ time: b.time, value: b.close });
+              volumeRef.current?.update(volPoint);
               setCandles((prev) => {
                 if (!prev.length) return [b];
                 const copy = prev.slice();
@@ -162,7 +196,9 @@ export default function LiveFeeds() {
                 return copy;
               });
             } else {
-              seriesRef.current?.update(b);
+              candleSeriesRef.current?.update(b);
+              priceLineRef.current?.update({ time: b.time, value: b.close });
+              volumeRef.current?.update(volPoint);
               lastTimeRef.current = b.time;
               setCandles((prev) => prev.concat(b));
             }
@@ -173,9 +209,7 @@ export default function LiveFeeds() {
         } catch {}
       };
 
-      return () => {
-        try { ws.close(); } catch {}
-      };
+      return () => { try { ws.close(); } catch {} };
     }
 
     loadHistory();
@@ -187,7 +221,7 @@ export default function LiveFeeds() {
     };
   }, [ticker, tf, fromISO, toISO]);
 
-  /** ----- one-time metrics seed ----- */
+  /* ---------- seed metrics once ---------- */
   useEffect(() => {
     (async () => {
       try {
@@ -250,16 +284,16 @@ export default function LiveFeeds() {
         )}
       </div>
 
-      {/* Chart + Overlay */}
+      {/* Chart + overlays */}
       <div ref={wrapRef} style={S.chartBox}>
-        {/* Overlay needs the container + current candles */}
+        {/* Right-side Money Flow overlay */}
         <MoneyFlowOverlay chartContainer={wrapRef.current} candles={candles} />
       </div>
     </section>
   );
 }
 
-/** ---------- styles ---------- */
+/* -------------------- styles -------------------- */
 const S = {
   controls: {
     display: "flex",
@@ -321,7 +355,7 @@ const S = {
   tileRow: { fontSize: 13, lineHeight: "18px" },
   chartBox: {
     width: "100%",
-    minHeight: 420,
+    minHeight: 480,
     borderRadius: 10,
     overflow: "hidden",
     border: "1px solid #1b2130",
