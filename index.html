@@ -5,12 +5,25 @@
     <meta name="viewport" content="width=device-width,initial-scale=1,shrink-to-fit=no,viewport-fit=cover" />
     <title>Frye Dashboard</title>
     <meta name="theme-color" content="#0d1117" />
+
+    <!-- Frontend → Backend base URL -->
+    <script>
+      // Point the frontend to the Render backend
+      window.__API_BASE__ = "https://frye-market-backend-1.onrender.com";
+    </script>
+
     <style>
-      html,body,#root{height:100%}
-      body{margin:0;background:#0d1117;color:#d1d4dc;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial}
+      html, body, #root { height: 100%; }
+      body {
+        margin: 0;
+        background: #0d1117;
+        color: #d1d4dc;
+        font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;
+      }
     </style>
   </head>
   <body>
     <div id="root"></div>
+    <!-- Your bundler (Vite/CRA) will inject the app scripts here -->
   </body>
 </html>
