@@ -1,14 +1,22 @@
 // src/lib/api.js
-// Centralized API helper
+// Centralized API helper (Vite/CRA compatible)
 
-// Always resolve a full backend base URL.
-// Order: build-time env -> runtime window override -> hard fallback.
+// Resolve backend base URL in this order:
+// 1) Vite env (VITE_API_BASE_URL)
+// 2) CRA env  (REACT_APP_API_BASE)
+// 3) Runtime override injected in index.html (window.__API_BASE__)
+// 4) Hard fallback (Render backend URL)
 const API_BASE =
-  process.env.REACT_APP_API_BASE || // set in Render frontend env
-  (typeof window !== "undefined" && window.__API_BASE__) || // optional override from index.html
-  "https://frye-market-backend-1.onrender.com"; // safe default fallback
+  (typeof import.meta !== "undefined" &&
+    import.meta.env &&
+    import.meta.env.VITE_API_BASE_URL) ||
+  (typeof process !== "undefined" &&
+    process.env &&
+    process.env.REACT_APP_API_BASE) ||
+  (typeof window !== "undefined" && window.__API_BASE__) ||
+  "https://frye-market-backend-1.onrender.com";
 
-// Helper to build URLs safely
+// Build URL safely
 export const apiUrl = (path) => {
   const p = path.startsWith("/") ? path : `/${path}`;
   return `${API_BASE}${p}`;
@@ -22,7 +30,7 @@ export async function apiHealth() {
 }
 
 // Fetch OHLC history (frontend params -> backend shape)
-export async function fetchHistory(ticker, tf /* from, to unused for now */) {
+export async function fetchHistory(ticker, tf /* from, to unused */) {
   const symbol = String(ticker || "").toUpperCase();
   const timeframe = String(tf || "1m").toLowerCase();
 
@@ -43,7 +51,7 @@ export async function fetchHistory(ticker, tf /* from, to unused for now */) {
   }));
 }
 
-// Fetch market metrics (keep as-is if you add this route later)
+// (Optional) Market metrics — keep if/when you add the route
 export async function fetchMetrics() {
   const r = await fetch(apiUrl("/api/market-metrics"), { cache: "no-store" });
   if (!r.ok) throw new Error(`Metrics ${r.status}`);
