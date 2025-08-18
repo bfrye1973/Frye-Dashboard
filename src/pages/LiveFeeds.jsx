@@ -1,16 +1,21 @@
 // src/pages/LiveFeeds.jsx
-import React, { useEffect, useState } from "react";
+import React, { useState, useEffect } from "react";
 import LiveLWChart from "../components/LiveLWChart";
 
 const TF_OPTIONS = ["1m", "1H", "1D"]; // match backend keys
 const TICKERS = ["AAPL", "MSFT", "SPY", "NVDA", "TSLA"];
 
 export default function LiveFeedsPage() {
-  const [ticker, setTicker] = useState("AAPL");
-  const [tf, setTf] = useState("1m");
+  const [ticker, setTicker] = useState(() => localStorage.getItem("lf:ticker") || "AAPL");
+  const [tf, setTf] = useState(() => localStorage.getItem("lf:tf") || "1m");
 
+  // persist choices
+  useEffect(() => localStorage.setItem("lf:ticker", ticker), [ticker]);
+  useEffect(() => localStorage.setItem("lf:tf", tf), [tf]);
+
+  // page title
   useEffect(() => {
-    document.title = `Live • ${ticker} • ${tf} — Frye Dashboard`;
+    document.title = `Live • ${ticker} • ${tf.toUpperCase()} — Frye Dashboard`;
   }, [ticker, tf]);
 
   return (
@@ -19,9 +24,9 @@ export default function LiveFeedsPage() {
         <div style={styles.title}>Live Chart (Lightweight Charts)</div>
 
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <label htmlFor="symbol" style={styles.srOnly}>Symbol</label>
+          <label htmlFor="symbol-select" style={styles.srOnly}>Symbol</label>
           <select
-            id="symbol"
+            id="symbol-select"
             value={ticker}
             onChange={(e) => setTicker(e.target.value)}
             title="Symbol"
