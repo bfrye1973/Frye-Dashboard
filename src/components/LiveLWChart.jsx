@@ -3,46 +3,45 @@ import React, { useEffect, useRef } from "react";
 import { createChart, CrosshairMode } from "lightweight-charts";
 
 /**
- * Lightweight Charts wrapper with a simple OHLC fetcher and
- * graceful fallback to synthetic data if the API is unavailable.
+ * Lightweight Charts component
+ * - Props:
+ *   - symbol: string (e.g., "AAPL")
+ *   - timeframe: "1m" | "1h" | "1d"
+ *   - height: number (default 560)
  *
- * Expects your dev proxy to forward /api -> your backend, so calls like:
- *   /api/v1/ohlc?symbol=AAPL&timeframe=1m
- * hit your service.
+ * Expects backend endpoint via proxy:
+ *   GET /api/v1/ohlc?symbol=SYMBOL&timeframe=1m|1h|1d
+ * Returns array of rows with:
+ *   { time: unixSeconds, open, high, low, close, volume }
  */
 export default function LiveLWChart({
   symbol = "AAPL",
-  timeframe = "1m", // "1m" | "1h" | "1d"
+  timeframe = "1m",
   height = 560,
 }) {
-  const containerRef = useRef(null);
+  const wrapRef = useRef(null);
   const chartRef = useRef(null);
-  const candlesRef = useRef(null);
-  const volumeRef = useRef(null);
+  const candleRef = useRef(null);
+  const volRef = useRef(null);
 
-  // --- utils ---------------------------------------------------------------
-
-  // Normalize time: ISO string/Date -> seconds; pass numbers through
+  // --- helpers
   const toSec = (t) =>
-    typeof t === "string" || t instanceof Date
-      ? Math.floor(new Date(t).getTime() / 1000)
-      : t;
+    typeof t === "string" ? Math.floor(new Date(t).getTime() / 1000) : t;
 
-  // Synthetic candles so the chart always renders something
+  // Fallback synthetic candles so UI still renders if API 404s
   function makeSynthetic(count = 500, tf = "1m") {
     const now = Math.floor(Date.now() / 1000);
     const step = tf === "1m" ? 60 : tf === "1h" ? 3600 : 86400;
     const out = [];
     let p = 110;
-
     for (let i = count; i > 0; i--) {
       const t = now - i * step;
       const drift = Math.sin(i / 20) * 0.6;
       const open = p;
-      const close = p + drift + (Math.random() - 0.5) * 0.3;
-      const high = Math.max(open, close) + Math.random() * 0.6;
-      const low = Math.min(open, close) - Math.random() * 0.6;
-      const volume = Math.floor(30_000 + Math.random() * 180_000);
+      const close = p + drift + (Math.random() - 0.5) * 0.4;
+      const high = Math.max(open, close) + Math.random() * 0.8;
+      const low = Math.min(open, close) - Math.random() * 0.8;
+      const volume = Math.floor(30000 + Math.random() * 170000);
       p = close;
       out.push({ time: t, open, high, low, close, volume });
     }
@@ -51,18 +50,15 @@ export default function LiveLWChart({
 
   async function fetchHistory(sym, tf) {
     const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort("timeout"), 15_000);
-
+    const id = setTimeout(() => ctrl.abort(), 15000);
     try {
-      const url = `/api/v1/ohlc?symbol=${encodeURIComponent(sym)}&timeframe=${encodeURIComponent(
-        tf
-      )}`;
+      const url = `/api/v1/ohlc?symbol=${encodeURIComponent(
+        sym
+      )}&timeframe=${encodeURIComponent(tf)}`;
       const res = await fetch(url, { signal: ctrl.signal });
       if (!res.ok) throw new Error(`OHLC ${res.status} ${res.statusText}`);
-
       const rows = await res.json();
       if (!Array.isArray(rows)) throw new Error("Bad JSON");
-
       return rows.map((r) => ({
         time: toSec(r.time),
         open: +r.open,
@@ -71,21 +67,20 @@ export default function LiveLWChart({
         close: +r.close,
         volume: r.volume != null ? +r.volume : undefined,
       }));
-    } catch {
-      // Fallback if API is down / 404 / etc.
+    } catch (e) {
+      // fallback
       return makeSynthetic(500, tf);
     } finally {
-      clearTimeout(timer);
+      clearTimeout(id);
     }
   }
 
-  // --- effect --------------------------------------------------------------
-
   useEffect(() => {
-    if (!containerRef.current) return;
+    if (!wrapRef.current) return;
 
-    const chart = createChart(containerRef.current, {
-      width: containerRef.current.clientWidth || 1200,
+    // create chart
+    const chart = createChart(wrapRef.current, {
+      width: wrapRef.current.clientWidth || 1200,
       height,
       layout: {
         background: { type: "Solid", color: "#0f1117" },
@@ -119,62 +114,46 @@ export default function LiveLWChart({
       priceFormat: { type: "volume" },
       priceScaleId: "",
       overlay: true,
-      color: "rgba(110, 118, 129, 0.4)",
       base: 0,
     });
 
     chartRef.current = chart;
-    candlesRef.current = candles;
-    volumeRef.current = volume;
+    candleRef.current = candles;
+    volRef.current = volume;
 
-    // responsive sizing
-    const ro = new ResizeObserver(() => {
-      try {
-        chart.applyOptions({
-          width: containerRef.current?.clientWidth || 1200,
-          height,
-        });
-      } catch {}
-    });
-    ro.observe(containerRef.current);
-
+    // load data
     let alive = true;
-
     (async () => {
-      try {
-        const rows = await fetchHistory(symbol, timeframe);
-        if (!alive) return;
+      const rows = await fetchHistory(symbol, timeframe);
+      if (!alive) return;
 
-        const cData = rows.map((r) => ({
-          time: r.time,
-          open: r.open,
-          high: r.high,
-          low: r.low,
-          close: r.close,
-        }));
+      const cData = rows.map((r) => ({
+        time: r.time,
+        open: r.open,
+        high: r.high,
+        low: r.low,
+        close: r.close,
+      }));
 
-        const vData = rows.map((r) => ({
-          time: r.time,
-          value: r.volume ?? 0,
-          color: r.close >= r.open ? "rgba(38,166,154,0.45)" : "rgba(239,83,80,0.45)",
-        }));
+      const vData = rows.map((r) => ({
+        time: r.time,
+        value: r.volume ?? 0,
+        color: r.close >= r.open ? "rgba(38,166,154,0.45)" : "rgba(239,83,80,0.45)",
+      }));
 
-        candles.setData(cData);
-        volume.setData(vData);
-        chart.timeScale().fitContent();
-      } catch (e) {
-        // Minimal inline banner so failures are visible in UI
-        if (containerRef.current) {
-          const node = document.createElement("div");
-          node.style.cssText =
-            "position:absolute;top:8px;left:8px;padding:6px 10px;border-radius:8px;background:#361b1b;color:#ffb4b4;border:1px solid #532222;font:12px/1.3 system-ui";
-          node.textContent = `Chart error: ${e?.message ?? e}`;
-          containerRef.current.appendChild(node);
-        }
-        // eslint-disable-next-line no-console
-        console.error(e);
-      }
+      candles.setData(cData);
+      volume.setData(vData);
+      chart.timeScale().fitContent();
     })();
+
+    // responsive
+    const ro = new ResizeObserver(() => {
+      chart.applyOptions({
+        width: wrapRef.current?.clientWidth || 1200,
+        height,
+      });
+    });
+    ro.observe(wrapRef.current);
 
     return () => {
       alive = false;
@@ -185,16 +164,14 @@ export default function LiveLWChart({
         chart.remove();
       } catch {}
       chartRef.current = null;
-      candlesRef.current = null;
-      volumeRef.current = null;
+      candleRef.current = null;
+      volRef.current = null;
     };
   }, [symbol, timeframe, height]);
 
-  // --- render --------------------------------------------------------------
-
   return (
     <div
-      ref={containerRef}
+      ref={wrapRef}
       style={{
         position: "relative",
         width: "100%",
