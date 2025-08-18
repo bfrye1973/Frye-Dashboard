@@ -1,15 +1,8 @@
-// src/components/LiveFeedsChart.jsx
 import React, { useEffect, useRef } from "react";
 import { createChart } from "lightweight-charts";
-import RightProfileOverlay from "./overlays/RightProfileOverlay";
 import MoneyFlowOverlay from "./overlays/MoneyFlowOverlay";
 
-export default function LiveFeedsChart({
-  ticker,
-  tf = "minute",
-  height = 420,
-  candles = [],           // <-- history + live bars from parent
-}) {
+export default function LiveFeedsChart({ candles = [], height = 480 }) {
   const containerRef = useRef(null);
   const chartRef = useRef(null);
   const seriesRef = useRef(null);
@@ -19,46 +12,45 @@ export default function LiveFeedsChart({
     if (!containerRef.current) return;
 
     const chart = createChart(containerRef.current, {
-      width: containerRef.current.clientWidth || 960,
+      width: containerRef.current.clientWidth || 800,
       height,
-      layout: { background: { type: "Solid", color: "#0f0f0f" }, textColor: "#e6edf7" },
+      layout: { background: { type: "Solid", color: "#0f0f0f" }, textColor: "#d8dee9" },
       grid: {
         vertLines: { color: "rgba(255,255,255,0.06)" },
         horzLines: { color: "rgba(255,255,255,0.06)" },
       },
-      timeScale: { timeVisible: tf !== "day", secondsVisible: tf === "minute" },
       rightPriceScale: { borderVisible: false },
       crosshair: { mode: 1 },
+      timeScale: { timeVisible: true, secondsVisible: true },
     });
-    const series = chart.addCandlestickSeries();
 
+    const series = chart.addCandlestickSeries();
     chartRef.current = chart;
     seriesRef.current = series;
 
     const ro = new ResizeObserver(() => {
       try {
-        chart.applyOptions({ width: containerRef.current.clientWidth || 960, height });
+        chart.applyOptions({ width: containerRef.current.clientWidth || 800, height });
       } catch {}
     });
     ro.observe(containerRef.current);
 
     return () => {
-      try { ro.disconnect(); } catch {}
+      ro.disconnect();
       try { chart.remove(); } catch {}
       chartRef.current = null;
       seriesRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // create once
+  }, []);
 
-  // push incoming candles to the chart
+  // feed candles into LWC
   useEffect(() => {
     if (!seriesRef.current) return;
-    if (!Array.isArray(candles) || candles.length === 0) {
+    if (!candles?.length) {
       seriesRef.current.setData([]);
       return;
     }
-    // full set (history or re-render)
     seriesRef.current.setData(candles);
     try { chartRef.current.timeScale().fitContent(); } catch {}
   }, [candles]);
@@ -67,7 +59,7 @@ export default function LiveFeedsChart({
     <div
       ref={containerRef}
       style={{
-        position: "relative",          // overlays stack on top
+        position: "relative",
         width: "100%",
         minHeight: height,
         borderRadius: 10,
@@ -76,8 +68,6 @@ export default function LiveFeedsChart({
         background: "#0f0f0f",
       }}
     >
-      {/* Overlays */}
-      <RightProfileOverlay chartContainer={containerRef.current} candles={candles} />
       <MoneyFlowOverlay chartContainer={containerRef.current} candles={candles} />
     </div>
   );
