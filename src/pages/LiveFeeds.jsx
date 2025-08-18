@@ -2,8 +2,9 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createChart } from "lightweight-charts";
 import MoneyFlowOverlay from "../components/overlays/MoneyFlowOverlay";
+import SessionShadingOverlay from "../components/overlays/SessionShadingOverlay";
 
-/* -------------------- Backend endpoints -------------------- */
+/* -------------------- API endpoints -------------------- */
 const API_BASE =
   (typeof window !== "undefined" && window.__API_BASE__) ||
   (typeof process !== "undefined" &&
@@ -26,8 +27,6 @@ const WS_BASE =
 function fmtTs(tsSec) {
   try { return new Date(tsSec * 1000).toLocaleString(); } catch { return "—"; }
 }
-
-/* small tile for metrics (unchanged) */
 function Tile({ title, ts, newHighs, newLows, adrAvg }) {
   return (
     <div style={S.tile}>
@@ -42,15 +41,13 @@ function Tile({ title, ts, newHighs, newLows, adrAvg }) {
   );
 }
 
-/* =========================================================
-   LiveFeeds page with Candles + Price Line + Volume + MFP overlay
-   ========================================================= */
+/* ========================================================= */
 export default function LiveFeeds() {
-  const [ticker, setTicker] = useState("AAPL");
+  const [ticker, setTicker] = useState("SPY");
   const [tf, setTf] = useState("minute"); // minute | hour | day
   const [metrics, setMetrics] = useState([]);
   const [metricsTs, setMetricsTs] = useState(null);
-  const [candles, setCandles] = useState([]); // shared with overlay
+  const [candles, setCandles] = useState([]);
 
   const wrapRef = useRef(null);
   const chartRef = useRef(null);
@@ -69,32 +66,52 @@ export default function LiveFeeds() {
     };
   }, []);
 
-  /* ---------- create chart once ---------- */
+  /* ---------- chart ---------- */
   useEffect(() => {
     if (!wrapRef.current) return;
 
     const chart = createChart(wrapRef.current, {
       width: wrapRef.current.clientWidth || 1000,
-      height: 480,
-      layout: { background: { type: "Solid", color: "#0f0f0f" }, textColor: "#e6edf7" },
+      height: 520,
+      layout: {
+        background: { type: "Solid", color: "#0c0f14" },
+        textColor: "#b9c8e8",
+        fontSize: 12,
+      },
       grid: {
         vertLines: { color: "rgba(255,255,255,0.06)" },
         horzLines: { color: "rgba(255,255,255,0.06)" },
       },
-      timeScale: { timeVisible: tf !== "day", secondsVisible: tf === "minute" },
-      rightPriceScale: { borderVisible: false },
+      timeScale: {
+        timeVisible: tf !== "day",
+        secondsVisible: tf === "minute",
+        rightOffset: 6,
+        barSpacing: 8,
+        borderColor: "rgba(255,255,255,0.08)",
+      },
+      rightPriceScale: {
+        borderVisible: true,
+        borderColor: "rgba(255,255,255,0.08)",
+      },
       crosshair: { mode: 1 },
+      handleScroll: { mouseWheel: true, pressedMouseMove: true },
+      handleScale: { axisPressedMouseMove: true, pinch: true, mouseWheel: true },
     });
 
-    // Series
+    // Candles styled like TradingView
     const candleSeries = chart.addCandlestickSeries({
-      upColor: "#2ecc71",
-      downColor: "#e74c3c",
-      wickUpColor: "#2ecc71",
-      wickDownColor: "#e74c3c",
-      borderVisible: false,
+      upColor: "#22c55e",         // green
+      downColor: "#ef4444",       // red
+      wickUpColor: "#22c55e",
+      wickDownColor: "#ef4444",
+      borderUpColor: "#18994a",
+      borderDownColor: "#c23333",
+      borderVisible: true,
+      wickVisible: true,
+      priceLineVisible: true,
     });
 
+    // Close-price line
     const priceLine = chart.addLineSeries({
       color: "#66d9ff",
       lineWidth: 1,
@@ -103,10 +120,11 @@ export default function LiveFeeds() {
       crosshairMarkerVisible: true,
     });
 
+    // Volume bottom pane (auto-colored)
     const volume = chart.addHistogramSeries({
-      priceScaleId: "",               // own scale
+      priceScaleId: "",
       priceFormat: { type: "volume" },
-      scaleMargins: { top: 0.8, bottom: 0 }, // bottom strip
+      scaleMargins: { top: 0.8, bottom: 0 },
     });
 
     chartRef.current = chart;
@@ -115,7 +133,7 @@ export default function LiveFeeds() {
     volumeRef.current = volume;
 
     const ro = new ResizeObserver(() => {
-      try { chart.applyOptions({ width: wrapRef.current.clientWidth || 1000 }); } catch {}
+      chart.applyOptions({ width: wrapRef.current.clientWidth || 1000 });
     });
     ro.observe(wrapRef.current);
 
@@ -130,7 +148,7 @@ export default function LiveFeeds() {
     };
   }, [tf]);
 
-  /* ---------- load history + open WS when ticker/tf changes ---------- */
+  /* ---------- data ---------- */
   useEffect(() => {
     let cancelled = false;
 
@@ -138,15 +156,15 @@ export default function LiveFeeds() {
       return bars.map((b) => ({
         time: b.time,
         value: b.volume ?? 0,
-        color: (b.close >= b.open) ? "rgba(46, 204, 113, .6)" : "rgba(231, 76, 60, .6)",
+        color: (b.close >= b.open) ? "rgba(34,197,94,0.6)" : "rgba(239,68,68,0.6)",
       }));
     }
 
     async function loadHistory() {
-      const url = `${API_BASE}/api/history?ticker=${encodeURIComponent(
-        ticker
-      )}&tf=${encodeURIComponent(tf)}&from=${fromISO}&to=${toISO}`;
       try {
+        const url = `${API_BASE}/api/history?ticker=${encodeURIComponent(
+          ticker
+        )}&tf=${encodeURIComponent(tf)}&from=${fromISO}&to=${toISO}`;
         const r = await fetch(url);
         if (!r.ok) throw new Error(`history ${r.status}`);
         const rows = await r.json(); // [{time,open,high,low,close,volume}]
@@ -159,7 +177,7 @@ export default function LiveFeeds() {
         setCandles(rows);
         lastTimeRef.current = rows.at(-1)?.time ?? null;
 
-        try { chartRef.current?.timeScale().fitContent(); } catch {}
+        chartRef.current?.timeScale().fitContent();
       } catch (e) {
         console.error("loadHistory error:", e);
       }
@@ -182,7 +200,7 @@ export default function LiveFeeds() {
             const volPoint = {
               time: b.time,
               value: b.volume ?? 0,
-              color: (b.close >= b.open) ? "rgba(46, 204, 113, .6)" : "rgba(231, 76, 60, .6)",
+              color: (b.close >= b.open) ? "rgba(34,197,94,0.6)" : "rgba(239,68,68,0.6)",
             };
 
             if (lastTimeRef.current && b.time === lastTimeRef.current) {
@@ -242,7 +260,7 @@ export default function LiveFeeds() {
         <input
           value={ticker}
           onChange={(e) => setTicker(e.target.value.toUpperCase().slice(0, 10))}
-          placeholder="AAPL"
+          placeholder="SPY"
           style={S.input}
         />
         <div style={{ display: "flex", gap: 6 }}>
@@ -259,7 +277,7 @@ export default function LiveFeeds() {
         </div>
       </div>
 
-      {/* Strategy strips (placeholders) */}
+      {/* Strategy strips */}
       <div style={S.strips}>
         <div style={S.strip}><b>Wave 3</b> • signals feed</div>
         <div style={S.strip}><b>Flagpole</b> • breakouts</div>
@@ -286,6 +304,14 @@ export default function LiveFeeds() {
 
       {/* Chart + overlays */}
       <div ref={wrapRef} style={S.chartBox}>
+        {/* Background shading for ETH (session bands) */}
+        {chartRef.current && wrapRef.current && (
+          <SessionShadingOverlay
+            chart={chartRef.current}
+            container={wrapRef.current}
+          />
+        )}
+
         {/* Right-side Money Flow overlay */}
         <MoneyFlowOverlay chartContainer={wrapRef.current} candles={candles} />
       </div>
@@ -355,11 +381,11 @@ const S = {
   tileRow: { fontSize: 13, lineHeight: "18px" },
   chartBox: {
     width: "100%",
-    minHeight: 480,
+    minHeight: 520,
     borderRadius: 10,
     overflow: "hidden",
     border: "1px solid #1b2130",
-    background: "#0f0f0f",
+    background: "#0c0f14",
     position: "relative",
   },
 };
