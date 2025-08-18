@@ -3,21 +3,6 @@ import React, { useEffect, useRef } from "react";
 import { createChart, CrosshairMode } from "lightweight-charts";
 import { fetchHistory } from "../lib/api";
 
-/**
- * Lightweight Charts component
- * - Props:
- *   - symbol: string (e.g., "AAPL")
- *   - timeframe: "1m" | "5m" | "15m" | "30m" | "1h" | "1d"
- *   - height: number (default 560)
- *
- * Backend:
- *   GET /api/v1/ohlc?symbol=SYMBOL&timeframe=1m|5m|15m|30m|1h|1d
- * Returns:
- *   { ok: true, symbol, timeframe, source, bars: [{ t, o, h, l, c, v }] }
- * Our api helper `fetchHistory(symbol, timeframe)` normalizes to:
- *   [{ time (ms), open, high, low, close, volume }]
- */
-
 export default function LiveLWChart({
   symbol = "AAPL",
   timeframe = "1m",
@@ -28,14 +13,14 @@ export default function LiveLWChart({
   const candleRef = useRef(null);
   const volRef = useRef(null);
 
-  // ---- synthetic fallback so UI still renders if API fails/empty ----
-  function makeSynthetic(count = 500, tf = "1m") {
+  // fallback data generator
+  function makeSynthetic(count = 200, tf = "1m") {
     const step =
       tf === "1m" ? 60_000 :
       tf === "5m" ? 300_000 :
       tf === "15m" ? 900_000 :
       tf === "30m" ? 1_800_000 :
-      tf === "1h" ? 3_600_000 : 86_400_000; // ms
+      tf === "1h" ? 3_600_000 : 86_400_000;
     const now = Date.now();
     const out = [];
     let p = 110;
@@ -53,82 +38,66 @@ export default function LiveLWChart({
     return out;
   }
 
+  // load data from backend
+  async function loadData(sym, tf) {
+    try {
+      const rows = await fetchHistory(sym, tf);
+      if (!Array.isArray(rows) || rows.length === 0) {
+        return makeSynthetic(200, tf);
+      }
+      return rows;
+    } catch {
+      return makeSynthetic(200, tf);
+    }
+  }
+
   useEffect(() => {
     if (!wrapRef.current) return;
 
-    // ---- create chart ----
     const chart = createChart(wrapRef.current, {
       width: wrapRef.current.clientWidth || 1200,
       height,
-      layout: {
-        background: { type: "Solid", color: "#0f1117" },
-        textColor: "#d1d4dc",
-      },
+      layout: { background: { type: "Solid", color: "#0f1117" }, textColor: "#d1d4dc" },
       grid: {
         vertLines: { color: "rgba(255,255,255,0.06)" },
         horzLines: { color: "rgba(255,255,255,0.06)" },
       },
       rightPriceScale: { borderVisible: false },
       leftPriceScale: { visible: false },
-      timeScale: {
-        borderVisible: false,
-        timeVisible: timeframe !== "1d",
-        secondsVisible: timeframe === "1m",
-      },
+      timeScale: { borderVisible: false, timeVisible: timeframe !== "1d", secondsVisible: timeframe === "1m" },
       crosshair: { mode: CrosshairMode.Normal },
       localization: { priceFormatter: (p) => (p ?? 0).toFixed(2) },
     });
 
     const candles = chart.addCandlestickSeries({
-      upColor: "#26a69a",
-      downColor: "#ef5350",
-      borderUpColor: "#26a69a",
-      borderDownColor: "#ef5350",
-      wickUpColor: "#26a69a",
-      wickDownColor: "#ef5350",
+      upColor: "#26a69a", downColor: "#ef5350",
+      borderUpColor: "#26a69a", borderDownColor: "#ef5350",
+      wickUpColor: "#26a69a", wickDownColor: "#ef5350",
     });
 
     const volume = chart.addHistogramSeries({
-      priceFormat: { type: "volume" },
-      priceScaleId: "",
-      overlay: true,
-      base: 0,
+      priceFormat: { type: "volume" }, priceScaleId: "", overlay: true, base: 0,
     });
 
     chartRef.current = chart;
     candleRef.current = candles;
     volRef.current = volume;
 
-    // ---- load data ----
+    // initial + updates
     let alive = true;
     (async () => {
-      let rows = [];
-      try {
-        // fetchHistory returns [{ time(ms), open, high, low, close, volume }]
-        rows = await fetchHistory(String(symbol).toUpperCase(), String(timeframe).toLowerCase());
-      } catch {
-        // ignore; we'll synthesize below
-      }
-
+      const bars = await loadData(symbol, timeframe);
       if (!alive) return;
 
-      if (!Array.isArray(rows) || rows.length === 0) {
-        rows = makeSynthetic(500, timeframe);
-      }
-
-      // Lightweight Charts expects time in SECONDS
-      const cData = rows.map((r) => ({
-        time: Math.round(r.time / 1000),
-        open: r.open,
-        high: r.high,
-        low: r.low,
-        close: r.close,
+      const cData = bars.map(b => ({
+        time: Math.round(b.time / 1000), // seconds
+        open: b.open, high: b.high, low: b.low, close: b.close,
       }));
 
-      const vData = rows.map((r) => ({
-        time: Math.round(r.time / 1000),
-        value: r.volume ?? 0,
-        color: r.close >= r.open ? "rgba(38,166,154,0.45)" : "rgba(239,83,80,0.45)",
+      const vData = bars.map(b => ({
+        time: Math.round(b.time / 1000),
+        value: b.volume ?? 0,
+        color: b.close >= b.open ? "rgba(38,166,154,0.45)" : "rgba(239,83,80,0.45)",
       }));
 
       candles.setData(cData);
@@ -136,24 +105,19 @@ export default function LiveLWChart({
       chart.timeScale().fitContent();
     })();
 
-    // ---- responsive ----
     const ro = new ResizeObserver(() => {
-      chart.applyOptions({
-        width: wrapRef.current?.clientWidth || 1200,
-        height,
-      });
+      chart.applyOptions({ width: wrapRef.current?.clientWidth || 1200, height });
     });
     ro.observe(wrapRef.current);
 
     return () => {
       alive = false;
-      try { ro.disconnect(); } catch {}
-      try { chart.remove(); } catch {}
+      ro.disconnect();
+      chart.remove();
       chartRef.current = null;
       candleRef.current = null;
       volRef.current = null;
     };
-    // re‑init when inputs change so scales refresh correctly
   }, [symbol, timeframe, height]);
 
   return (
