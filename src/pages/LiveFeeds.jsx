@@ -2,18 +2,16 @@
 import React, { useEffect, useRef, useState } from "react";
 import { createChart } from "lightweight-charts";
 
-// If you created this overlay at: src/components/overlays/MoneyFlowOverlay.js
-// it will be picked up here automatically; if not present, we keep going.
+// Optional money-flow overlay (if present we render it)
 let MoneyFlowOverlay = null;
 try {
-  // path from pages → components
   // eslint-disable-next-line global-require, import/no-unresolved
   MoneyFlowOverlay = require("../components/overlays/MoneyFlowOverlay").default;
-} catch (_) {
-  /* overlay optional */
-}
+} catch (_) {}
 
-/* -------------------------- Config / Helpers -------------------------- */
+/* ------------------------------------------------------------------ */
+/*                            CONFIG & UTILS                           */
+/* ------------------------------------------------------------------ */
 
 const API_BASE =
   (typeof process !== "undefined" &&
@@ -22,20 +20,18 @@ const API_BASE =
       process.env.VITE_API_BASE_URL)) ||
   "https://frye-market-backend-1.onrender.com";
 
-/** choose a small lookback so first paint is fast */
-const LOOKBACK_BY_TF = {
-  minute: 480, // ~ a trading day of 1-minute bars
-  hour: 240,
-  day: 300,
-};
+const LOOKBACK_BY_TF = { minute: 480, hour: 240, day: 300 }; // small for fast first paint
+const STEP_BY_TF = { minute: 60, hour: 3600, day: 86400 };
 
-function nowSec() {
-  return Math.floor(Date.now() / 1000);
-}
+const US_REG_OPEN = { h: 9, m: 30 };
+const US_REG_CLOSE = { h: 16, m: 0 };
+
+// convert a JS Date in local tz to unix seconds
+const toSec = (d) => Math.floor(d.getTime() / 1000);
+const nowSec = () => Math.floor(Date.now() / 1000);
 
 function makeDemoBars(tf = "minute", n = 300, start = nowSec() - n * 60) {
-  const step =
-    tf === "day" ? 86400 : tf === "hour" ? 3600 : 60; /* default 1m bars */
+  const step = STEP_BY_TF[tf] || 60;
   const out = [];
   let p = 100 + Math.random() * 5;
   for (let i = 0; i < n; i++) {
@@ -52,7 +48,131 @@ function makeDemoBars(tf = "minute", n = 300, start = nowSec() - n * 60) {
   return out;
 }
 
-/* ------------------------------ Page --------------------------------- */
+/* ------------------------------------------------------------------ */
+/*                         SESSION SHADING (Canvas)                    */
+/* ------------------------------------------------------------------ */
+// Very small overlay that draws bands for premarket/regular/postmarket.
+function SessionShadingOverlay({ chart, container, tf }) {
+  const canvasRef = useRef(null);
+
+  useEffect(() => {
+    if (!container || !chart) return;
+
+    // create canvas
+    const cvs = document.createElement("canvas");
+    cvs.style.position = "absolute";
+    cvs.style.left = "0";
+    cvs.style.top = "0";
+    cvs.style.pointerEvents = "none";
+    cvs.style.zIndex = "5"; // under crosshair/overlay
+    container.appendChild(cvs);
+    canvasRef.current = cvs;
+
+    const ctx = cvs.getContext("2d");
+
+    const ro = new ResizeObserver(() => {
+      syncSize();
+      draw();
+    });
+    ro.observe(container);
+
+    const unsub = chart.timeScale().subscribeVisibleTimeRangeChange(() => {
+      draw();
+    });
+
+    function syncSize() {
+      const w = container.clientWidth || 100;
+      const h = container.clientHeight || 100;
+      cvs.width = Math.max(2, w);
+      cvs.height = Math.max(2, h);
+    }
+
+    function draw() {
+      if (!ctx) return;
+      syncSize();
+      ctx.clearRect(0, 0, cvs.width, cvs.height);
+
+      // only shade for intraday tfs
+      if (tf === "day") return;
+
+      const ts = chart.timeScale();
+      const range = ts.getVisibleRange();
+      if (!range) return;
+
+      const step = STEP_BY_TF[tf] || 60;
+      // Walk days inside visible range
+      const startSec = Math.floor(range.from / 86400) * 86400;
+      const endSec = Math.ceil(range.to / 86400) * 86400 + 86400;
+
+      // colors
+      const preColor = "rgba(53, 101, 164, 0.12)"; // blue-ish
+      const postColor = "rgba(199, 111, 25, 0.12)"; // orange-ish
+      const regFrame = "rgba(255,255,255,0.05)";
+
+      for (let day = startSec; day <= endSec; day += 86400) {
+        // Build local date from 'day' (assumes day is in UTC seconds; use local tz for simple shading)
+        const d = new Date(day * 1000);
+        const y = d.getFullYear();
+        const m = d.getMonth();
+        const date = d.getDate();
+
+        const preStart = toSec(new Date(y, m, date, 4, 0, 0)); // 04:00
+        const regStart = toSec(new Date(y, m, date, US_REG_OPEN.h, US_REG_OPEN.m, 0)); // 09:30
+        const regEnd = toSec(new Date(y, m, date, US_REG_CLOSE.h, US_REG_CLOSE.m, 0)); // 16:00
+        const postEnd = toSec(new Date(y, m, date, 20, 0, 0)); // 20:00
+
+        // helper to draw band [a,b)
+        const rect = (a, b, fill, frame = false) => {
+          const x1 = ts.timeToCoordinate(a);
+          const x2 = ts.timeToCoordinate(b - step);
+          if (x1 == null || x2 == null) return;
+          const left = Math.min(x1, x2);
+          const right = Math.max(x1, x2);
+          const w = right - left;
+          if (w <= 1) return;
+
+          ctx.fillStyle = fill;
+          ctx.fillRect(left, 0, w, cvs.height);
+
+          if (frame) {
+            ctx.strokeStyle = regFrame;
+            ctx.lineWidth = 1;
+            ctx.strokeRect(left, 0, w, cvs.height);
+          }
+        };
+
+        // premarket 04:00–09:30
+        rect(preStart, regStart, preColor, false);
+        // regular 09:30–16:00 (frame it lightly)
+        rect(regStart, regEnd, "rgba(255,255,255,0.02)", true);
+        // post 16:00–20:00
+        rect(regEnd, postEnd, postColor, false);
+      }
+    }
+
+    // initial draw
+    syncSize();
+    draw();
+
+    return () => {
+      try {
+        ro.disconnect();
+      } catch {}
+      try {
+        chart.timeScale().unsubscribeVisibleTimeRangeChange(unsub);
+      } catch {}
+      try {
+        container.removeChild(cvs);
+      } catch {}
+    };
+  }, [chart, container, tf]);
+
+  return null;
+}
+
+/* ------------------------------------------------------------------ */
+/*                               PAGE                                  */
+/* ------------------------------------------------------------------ */
 
 export default function LiveFeeds() {
   const [ticker, setTicker] = useState("AAPL");
@@ -66,13 +186,13 @@ export default function LiveFeeds() {
   const lineSeriesRef = useRef(null);
   const lastTimeRef = useRef(null);
 
-  /* --------- create chart once --------- */
+  /* ----------------------- chart creation ----------------------- */
   useEffect(() => {
     if (!wrapRef.current) return;
 
     const chart = createChart(wrapRef.current, {
       width: wrapRef.current.clientWidth || 980,
-      height: 480,
+      height: 520,
       layout: {
         background: { type: "Solid", color: "#0b0e13" },
         textColor: "#d6deef",
@@ -82,13 +202,11 @@ export default function LiveFeeds() {
         vertLines: { color: "rgba(255,255,255,0.06)" },
         horzLines: { color: "rgba(255,255,255,0.06)" },
       },
-      rightPriceScale: {
-        borderVisible: false,
-      },
+      rightPriceScale: { borderVisible: false },
       timeScale: {
         borderVisible: false,
-        timeVisible: tf !== "day",
-        secondsVisible: tf === "minute",
+        timeVisible: true,
+        secondsVisible: false,
       },
       crosshair: { mode: 1 },
     });
@@ -104,7 +222,7 @@ export default function LiveFeeds() {
     const vs = chart.addHistogramSeries({
       priceScaleId: "",
       priceFormat: { type: "volume" },
-      scaleMargins: { top: 0.85, bottom: 0 },
+      scaleMargins: { top: 0.82, bottom: 0 }, // more room for volume
       color: "rgba(118,160,255,0.45)",
     });
 
@@ -126,37 +244,30 @@ export default function LiveFeeds() {
     ro.observe(wrapRef.current);
 
     return () => {
-      try {
-        ro.disconnect();
-      } catch {}
-      try {
-        chart.remove();
-      } catch {}
+      try { ro.disconnect(); } catch {}
+      try { chart.remove(); } catch {}
       chartRef.current = null;
       candleSeriesRef.current = null;
       volumeSeriesRef.current = null;
       lineSeriesRef.current = null;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  /* --------- (re)load history whenever ticker/tf changes --------- */
+  /* --------------- load initial history on change --------------- */
   useEffect(() => {
     let disposed = false;
 
     async function loadHistory() {
       const lookback = LOOKBACK_BY_TF[tf] ?? 300;
-      const step = tf === "day" ? 86400 : tf === "hour" ? 3600 : 60;
+      const step = STEP_BY_TF[tf] || 60;
       const to = nowSec();
       const from = to - lookback * step;
 
-      // Paint demo first so UI never looks empty
+      // Demo first
       const demo = makeDemoBars(tf, lookback, from);
-      if (!disposed) {
-        paintBars(demo);
-      }
+      if (!disposed) paintBars(demo);
 
-      // Try real history API
+      // Real history
       try {
         const url = `${API_BASE}/api/history?ticker=${encodeURIComponent(
           ticker
@@ -164,16 +275,10 @@ export default function LiveFeeds() {
         const r = await fetch(url);
         if (!r.ok) throw new Error(`history ${r.status}`);
         const rows = await r.json();
-        const data =
-          Array.isArray(rows) && rows.length
-            ? rows
-            : demo;
-
-        if (!disposed) {
-          paintBars(data);
-        }
+        const data = Array.isArray(rows) && rows.length ? rows : demo;
+        if (!disposed) paintBars(data);
       } catch {
-        // keep demo bars
+        // keep demo
       }
     }
 
@@ -186,25 +291,97 @@ export default function LiveFeeds() {
           color: b.close >= b.open ? "rgba(34,197,94,0.45)" : "rgba(239,68,68,0.45)",
         }))
       );
-      lineSeriesRef.current?.setData(
-        data.map((b) => ({ time: b.time, value: b.close }))
-      );
+      lineSeriesRef.current?.setData(data.map((b) => ({ time: b.time, value: b.close })));
       setCandles(data);
       lastTimeRef.current = data.at(-1)?.time ?? null;
-
-      try {
-        chartRef.current?.timeScale().fitContent();
-      } catch {}
+      try { chartRef.current?.timeScale().fitContent(); } catch {}
     }
 
     loadHistory();
+    return () => { disposed = true; };
+  }, [ticker, tf]);
+
+  /* ----------------------------- LIVE ---------------------------- */
+  useEffect(() => {
+    if (!chartRef.current) return;
+
+    let stop = () => {};
+    const step = STEP_BY_TF[tf] || 60;
+
+    // Try SSE first
+    try {
+      const sseUrl = `${API_BASE}/api/stream?ticker=${encodeURIComponent(
+        ticker
+      )}&tf=${encodeURIComponent(tf)}`;
+
+      const es = new EventSource(sseUrl);
+      const onMsg = (ev) => {
+        try {
+          const tick = JSON.parse(ev.data);
+          if (tick && tick.time) onTick(tick);
+        } catch {}
+      };
+      es.addEventListener("message", onMsg);
+      es.addEventListener("error", () => {
+        // silently fallback
+      });
+
+      stop = () => {
+        try { es.close(); } catch {}
+      };
+    } catch {
+      // ignore
+    }
+
+    // Also add a polling fallback (lightweight, 5s)
+    const poll = setInterval(async () => {
+      try {
+        const url = `${API_BASE}/api/last?ticker=${encodeURIComponent(
+          ticker
+        )}&tf=${encodeURIComponent(tf)}`;
+        const r = await fetch(url);
+        if (!r.ok) return;
+        const tick = await r.json();
+        if (tick && tick.time) onTick(tick);
+      } catch {}
+    }, 5000);
+
+    function onTick(b) {
+      const lastTime = lastTimeRef.current || 0;
+      const isNewBar = b.time > lastTime + step / 2;
+
+      if (isNewBar) {
+        // append
+        candleSeriesRef.current?.update(b);
+        volumeSeriesRef.current?.update({
+          time: b.time,
+          value: b.volume ?? 0,
+          color: b.close >= b.open ? "rgba(34,197,94,0.45)" : "rgba(239,68,68,0.45)",
+        });
+        lineSeriesRef.current?.update({ time: b.time, value: b.close });
+        lastTimeRef.current = b.time;
+        setCandles((arr) => (arr.length ? [...arr, b] : [b]));
+      } else {
+        // mutate last
+        candleSeriesRef.current?.update(b);
+        volumeSeriesRef.current?.update({
+          time: b.time,
+          value: b.volume ?? 0,
+          color: b.close >= b.open ? "rgba(34,197,94,0.45)" : "rgba(239,68,68,0.45)",
+        });
+        lineSeriesRef.current?.update({ time: b.time, value: b.close });
+        lastTimeRef.current = b.time;
+        setCandles((arr) => (arr.length ? [...arr.slice(0, -1), b] : [b]));
+      }
+    }
 
     return () => {
-      disposed = true;
+      clearInterval(poll);
+      stop();
     };
   }, [ticker, tf]);
 
-  /* ---------------------------- UI ---------------------------- */
+  /* --------------------------- RENDER --------------------------- */
 
   return (
     <main style={styles.page}>
@@ -256,6 +433,16 @@ export default function LiveFeeds() {
       </div>
 
       <div ref={wrapRef} style={styles.chartWrap} />
+      {/* Session shading band overlay */}
+      {wrapRef.current && chartRef.current ? (
+        <SessionShadingOverlay
+          chart={chartRef.current}
+          container={wrapRef.current}
+          tf={tf}
+        />
+      ) : null}
+
+      {/* Optional money flow overlay */}
       {MoneyFlowOverlay ? (
         <MoneyFlowOverlay chartContainer={wrapRef.current} candles={candles} />
       ) : null}
@@ -263,7 +450,9 @@ export default function LiveFeeds() {
   );
 }
 
-/* ---------------------------- Styles ---------------------------- */
+/* ------------------------------------------------------------------ */
+/*                                STYLES                               */
+/* ------------------------------------------------------------------ */
 
 const styles = {
   page: {
