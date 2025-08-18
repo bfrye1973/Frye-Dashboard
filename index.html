@@ -2,36 +2,16 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta
-      name="viewport"
-      content="width=device-width,initial-scale=1,shrink-to-fit=no,viewport-fit=cover"
-    />
+    <meta name="viewport" content="width=device-width,initial-scale=1,shrink-to-fit=no,viewport-fit=cover" />
     <title>Frye Dashboard</title>
     <meta name="theme-color" content="#0d1117" />
     <style>
-      html,body,#root{height:100%;}
-      body{margin:0;background:#0d1117;color:#d1d4dc;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;}
-
-      /* HARD BLOCK any TradingView embeds/logos if something legacy still injects them */
-      .tradingview-widget-container,
-      .tradingview-widget-container__widget,
-      .tradingview-widget-copyright,
-      .tv-embed,
-      [class*="tradingview-"],
-      [class^="tradingview-"],
-      [class*="tv-"],
-      [class^="tv-"] {
-        display: none !important;
-        visibility: hidden !important;
-        width: 0 !important;
-        height: 0 !important;
-        overflow: hidden !important;
+      html,body,#root{height:100%}
+      body{margin:0;background:#0d1117;color:#d1d4dc;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial}
+      .tradingview-widget-container,.tv-embed,.tradingview-widget-container__widget,.tradingview-widget-copyright{
+        display:none!important;visibility:hidden!important;width:0!important;height:0!important;overflow:hidden!important
       }
-      iframe[src*="tradingview"] { display:none !important; }
     </style>
   </head>
-  <body>
-    <div id="root"></div>
-    <!-- Intentionally no TradingView <script> -->
-  </body>
+  <body><div id="root"></div></body>
 </html>
