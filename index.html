@@ -1,31 +1,29 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Frye Dashboard (Staging)</title>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width,initial-scale=1,shrink-to-fit=no,viewport-fit=cover"
+    />
+    <title>Frye Dashboard</title>
+    <meta name="theme-color" content="#0d1117" />
+    <style>
+      html,body,#root{height:100%;}
+      body{margin:0;background:#0d1117;color:#d1d4dc;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;}
+      /* If any old TV widget got injected anywhere, kill it hard. */
+      .tradingview-widget-container,
+      .tv-embed,
+      .tradingview-widget-container__widget,
+      .tradingview-widget-copyright {
+        display: none !important;
+        visibility: hidden !important;
+        width: 0 !important; height: 0 !important; overflow: hidden !important;
+      }
+    </style>
   </head>
-  <body style="margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;">
-    <!-- Backend Status Badge -->
-    <div id="api-status" style="display:inline-flex;align-items:center;gap:8px;padding:6px 10px;border-radius:12px;background:#0b1220;color:#e5e7eb;font-size:14px;-webkit-font-smoothing:antialiased;">
-      <span id="api-dot" style="width:10px;height:10px;border-radius:50%;background:#64748b;"></span>
-      <span id="api-text">Backend: checking…</span>
-    </div>
-
-    <!-- React root -->
+  <body>
     <div id="root"></div>
-
-    <!-- Status Badge Script -->
-    <script>
-      const API_BASE_URL = "https://frye-market-backend-1.onrender.com";
-      const dot = document.getElementById("api-dot");
-      const text = document.getElementById("api-text");
-
-      fetch(`${API_BASE_URL}/api/health`, { cache: "no-store" })
-        .then(r => r.ok ? r.json() : Promise.reject())
-        .then(() => { dot.style.background = "#16a34a"; text.textContent = "Backend: online"; })
-        .catch(() => { dot.style.background = "#dc2626"; text.textContent = "Backend: offline"; });
-    </script>
+    <!-- No TradingView <script> here on purpose -->
   </body>
 </html>
-=
