@@ -4,40 +4,39 @@ import { createChart, CrosshairMode } from "lightweight-charts";
 
 export default function LiveLWChart({
   symbol = "AAPL",
-  timeframe = "1m",
-  height = 540,
+  timeframe = "1m",   // "1m" | "1H" | "1D"
+  height = 560,
 }) {
-  const containerRef = useRef(null);
-  const chartRef = useRef(null);
-  const candleRef = useRef(null);
-  const volRef = useRef(null);
+  const wrapRef = useRef(null);
 
-  // ---- fake data adapter (replace with your real API if you have it)
-  async function fetchHistory(sym, tf) {
-    // Example: return last ~500 synthetic candles so you see something
+  const toSec = (t) =>
+    typeof t === "string" ? Math.floor(new Date(t).getTime() / 1000) : t;
+
+  // fallback synthetic candles so you can keep building even if API 404s
+  function makeSynthetic(count = 500, tf = "1m") {
     const now = Math.floor(Date.now() / 1000);
-    const N = 500, step = tf === "1m" ? 60 : tf === "1h" ? 3600 : 86400;
-    const data = [];
+    const step = tf === "1m" ? 60 : tf === "1H" ? 3600 : 86400;
+    const out = [];
     let p = 110;
-    for (let i = N; i > 0; i--) {
+    for (let i = count; i > 0; i--) {
       const t = now - i * step;
-      const drift = Math.sin(i / 20) * 0.5;
+      const drift = Math.sin(i / 20) * 0.6;
       const open = p;
-      const close = p + drift + (Math.random() - 0.5) * 0.3;
-      const high = Math.max(open, close) + Math.random() * 0.6;
-      const low = Math.min(open, close) - Math.random() * 0.6;
+      const close = p + drift + (Math.random() - 0.5) * 0.6;
+      const high = Math.max(open, close) + Math.random() * 1.0;
+      const low = Math.min(open, close) - Math.random() * 1.0;
       const volume = Math.floor(30000 + Math.random() * 180000);
       p = close;
-      data.push({ time: t, open, high, low, close, volume });
+      out.push({ time: t, open, high, low, close, volume });
     }
-    return data;
+    return out;
   }
 
   useEffect(() => {
-    if (!containerRef.current) return;
+    if (!wrapRef.current) return;
 
-    const chart = createChart(containerRef.current, {
-      width: containerRef.current.clientWidth || 1200,
+    const chart = createChart(wrapRef.current, {
+      width: wrapRef.current.clientWidth || 1200,
       height,
       layout: { background: { type: "Solid", color: "#0f1117" }, textColor: "#d1d4dc" },
       grid: {
@@ -48,14 +47,14 @@ export default function LiveLWChart({
       leftPriceScale: { visible: false },
       timeScale: {
         borderVisible: false,
-        timeVisible: timeframe !== "1d",
+        timeVisible: timeframe !== "1D",
         secondsVisible: timeframe === "1m",
       },
       crosshair: { mode: CrosshairMode.Normal },
-      localization: { priceFormatter: p => p.toFixed(2) },
+      localization: { priceFormatter: (p) => (p ?? 0).toFixed(2) },
     });
 
-    const candleSeries = chart.addCandlestickSeries({
+    const candles = chart.addCandlestickSeries({
       upColor: "#26a69a",
       downColor: "#ef5350",
       borderUpColor: "#26a69a",
@@ -64,66 +63,64 @@ export default function LiveLWChart({
       wickDownColor: "#ef5350",
     });
 
-    const volumeSeries = chart.addHistogramSeries({
+    const volume = chart.addHistogramSeries({
       priceFormat: { type: "volume" },
       priceScaleId: "",
       overlay: true,
-      color: "rgba(110, 118, 129, 0.4)",
+      color: "rgba(110,118,129,0.45)",
       base: 0,
     });
 
-    chartRef.current = chart;
-    candleRef.current = candleSeries;
-    volRef.current = volumeSeries;
-
-    // Responsive
     const ro = new ResizeObserver(() => {
-      try {
-        chart.applyOptions({
-          width: containerRef.current?.clientWidth || 1200,
-          height,
-        });
-      } catch {}
+      chart.applyOptions({ width: wrapRef.current?.clientWidth || 1200, height });
     });
-    ro.observe(containerRef.current);
+    ro.observe(wrapRef.current);
 
-    // Load initial data
-    let mounted = true;
+    let alive = true;
     (async () => {
-      const candles = await fetchHistory(symbol, timeframe);
-      if (!mounted) return;
-      candleSeries.setData(
-        candles.map(c => ({
-          time: c.time,
-          open: c.open,
-          high: c.high,
-          low: c.low,
-          close: c.close,
-        }))
-      );
-      volumeSeries.setData(
-        candles.map(c => ({
-          time: c.time,
-          value: c.volume,
-          color: c.close >= c.open ? "rgba(38,166,154,0.4)" : "rgba(239,83,80,0.4)",
-        }))
-      );
+      const url = `/api/v1/ohlc?symbol=${encodeURIComponent(symbol)}&timeframe=${encodeURIComponent(timeframe)}`;
+      let rows = null;
+      try {
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        rows = await res.json();
+        if (!Array.isArray(rows)) throw new Error("Bad JSON");
+      } catch {
+        rows = makeSynthetic(500, timeframe);
+      }
+
+      if (!alive) return;
+
+      const cData = rows.map((r) => ({
+        time: toSec(r.time),
+        open: +r.open,
+        high: +r.high,
+        low: +r.low,
+        close: +r.close,
+      }));
+      const vData = rows.map((r) => ({
+        time: toSec(r.time),
+        value: r.volume != null ? +r.volume : 0,
+        color: (+r.close >= +r.open)
+          ? "rgba(38,166,154,0.45)"
+          : "rgba(239,83,80,0.45)",
+      }));
+
+      candles.setData(cData);
+      volume.setData(vData);
       chart.timeScale().fitContent();
     })();
 
     return () => {
-      mounted = false;
+      alive = false;
       try { ro.disconnect(); } catch {}
       try { chart.remove(); } catch {}
-      chartRef.current = null;
-      candleRef.current = null;
-      volRef.current = null;
     };
   }, [symbol, timeframe, height]);
 
   return (
     <div
-      ref={containerRef}
+      ref={wrapRef}
       style={{
         position: "relative",
         width: "100%",

@@ -1,21 +1,27 @@
 // src/pages/LiveFeeds.jsx
-import React, { useState } from "react";
-import LiveLWChart from "../components/LiveLWChart"; // <-- Lightweight Charts component
+import React, { useEffect, useState } from "react";
+import LiveLWChart from "../components/LiveLWChart";
 
-const TF_OPTIONS = ["1m", "1h", "1d"];
+const TF_OPTIONS = ["1m", "1H", "1D"]; // match backend keys
 const TICKERS = ["AAPL", "MSFT", "SPY", "NVDA", "TSLA"];
 
 export default function LiveFeedsPage() {
   const [ticker, setTicker] = useState("AAPL");
   const [tf, setTf] = useState("1m");
 
+  useEffect(() => {
+    document.title = `Live • ${ticker} • ${tf} — Frye Dashboard`;
+  }, [ticker, tf]);
+
   return (
     <main style={styles.page}>
-      <div style={styles.toolbar}>
+      <div style={styles.toolbar} role="region" aria-label="Live chart controls">
         <div style={styles.title}>Live Chart (Lightweight Charts)</div>
 
-        <div style={{ display: "flex", gap: 8 }}>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <label htmlFor="symbol" style={styles.srOnly}>Symbol</label>
           <select
+            id="symbol"
             value={ticker}
             onChange={(e) => setTicker(e.target.value)}
             title="Symbol"
@@ -23,9 +29,7 @@ export default function LiveFeedsPage() {
             aria-label="Choose symbol"
           >
             {TICKERS.map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
+              <option key={s} value={s}>{s}</option>
             ))}
           </select>
 
@@ -47,7 +51,6 @@ export default function LiveFeedsPage() {
         </div>
       </div>
 
-      {/* Lightweight Charts (no TradingView watermark) */}
       <LiveLWChart symbol={ticker} timeframe={tf} height={560} />
     </main>
   );
@@ -80,5 +83,16 @@ const styles = {
     borderRadius: 8,
     border: "1px solid #202733",
     cursor: "pointer",
+  },
+  srOnly: {
+    position: "absolute",
+    width: 1,
+    height: 1,
+    padding: 0,
+    margin: -1,
+    overflow: "hidden",
+    clip: "rect(0,0,0,0)",
+    whiteSpace: "nowrap",
+    border: 0,
   },
 };
