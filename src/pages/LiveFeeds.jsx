@@ -1,6 +1,6 @@
-// src/pages/livefeeds.jsx
+// src/pages/LiveFeeds.jsx
 import React, { useState } from "react";
-import LiveLWChart from "../components/LiveLWChart";
+import LiveLWChart from "../components/LiveLWChart"; // <-- Lightweight Charts component
 
 const TF_OPTIONS = ["1m", "1h", "1d"];
 const TICKERS = ["AAPL", "MSFT", "SPY", "NVDA", "TSLA"];
@@ -12,20 +12,24 @@ export default function LiveFeedsPage() {
   return (
     <main style={styles.page}>
       <div style={styles.toolbar}>
-        <div style={styles.title}>Live Chart (LW only)</div>
+        <div style={styles.title}>Live Chart (Lightweight Charts)</div>
+
         <div style={{ display: "flex", gap: 8 }}>
           <select
             value={ticker}
-            onChange={e => setTicker(e.target.value)}
+            onChange={(e) => setTicker(e.target.value)}
             title="Symbol"
             style={styles.select}
             aria-label="Choose symbol"
           >
-            {TICKERS.map(s => (
-              <option key={s} value={s}>{s}</option>
+            {TICKERS.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
             ))}
           </select>
-          {TF_OPTIONS.map(k => (
+
+          {TF_OPTIONS.map((k) => (
             <button
               key={k}
               onClick={() => setTf(k)}
@@ -43,6 +47,7 @@ export default function LiveFeedsPage() {
         </div>
       </div>
 
+      {/* Lightweight Charts (no TradingView watermark) */}
       <LiveLWChart symbol={ticker} timeframe={tf} height={560} />
     </main>
   );
@@ -62,11 +67,7 @@ const styles = {
     gap: 12,
     marginBottom: 10,
   },
-  title: {
-    fontWeight: 700,
-    letterSpacing: ".06em",
-    opacity: 0.95,
-  },
+  title: { fontWeight: 700, letterSpacing: ".06em", opacity: 0.95 },
   select: {
     padding: "6px 10px",
     borderRadius: 8,
