@@ -1,37 +1,30 @@
 // src/pages/LiveFeeds.jsx
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useState, useEffect } from "react";
 import LiveLWChart from "../components/LiveLWChart";
 
-const TF_OPTIONS = ["1m", "1h", "1d"];
+const TF_OPTIONS = ["1m", "1H", "1D"]; // match backend keys
 const TICKERS = ["AAPL", "MSFT", "SPY", "NVDA", "TSLA"];
-
-// Map UI -> API timeframe; tweak if your backend expects different keys.
-const TF_TO_API = { "1m": "1m", "1h": "1H", "1d": "1D" };
 
 export default function LiveFeedsPage() {
   const [ticker, setTicker] = useState(() => localStorage.getItem("lf:ticker") || "AAPL");
   const [tf, setTf] = useState(() => localStorage.getItem("lf:tf") || "1m");
 
-  // Persist choices
+  // persist choices
   useEffect(() => localStorage.setItem("lf:ticker", ticker), [ticker]);
   useEffect(() => localStorage.setItem("lf:tf", tf), [tf]);
 
-  // Nice page title
+  // page title
   useEffect(() => {
     document.title = `Live • ${ticker} • ${tf.toUpperCase()} — Frye Dashboard`;
   }, [ticker, tf]);
-
-  // Ensure timeframe always valid
-  const safeTf = useMemo(() => (TF_OPTIONS.includes(tf) ? tf : "1m"), [tf]);
-  const apiTf = TF_TO_API[safeTf] || "1m";
 
   return (
     <main style={styles.page}>
       <div style={styles.toolbar} role="region" aria-label="Live chart controls">
         <div style={styles.title}>Live Chart (Lightweight Charts)</div>
 
-        <div style={{ display: "flex", gap: 8 }}>
-          <label style={styles.srOnly} htmlFor="symbol-select">Symbol</label>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <label htmlFor="symbol-select" style={styles.srOnly}>Symbol</label>
           <select
             id="symbol-select"
             value={ticker}
@@ -51,11 +44,11 @@ export default function LiveFeedsPage() {
               onClick={() => setTf(k)}
               style={{
                 ...styles.btn,
-                background: safeTf === k ? "#182230" : "#0f1520",
-                color: safeTf === k ? "#cde3ff" : "#96a4bd",
+                background: tf === k ? "#182230" : "#0f1520",
+                color: tf === k ? "#cde3ff" : "#96a4bd",
               }}
               title={`Timeframe: ${k}`}
-              aria-pressed={safeTf === k}
+              aria-pressed={tf === k}
             >
               {k}
             </button>
@@ -63,8 +56,7 @@ export default function LiveFeedsPage() {
         </div>
       </div>
 
-      {/* Lightweight Charts */}
-      <LiveLWChart symbol={ticker} timeframe={apiTf} height={560} />
+      <LiveLWChart symbol={ticker} timeframe={tf} height={560} />
     </main>
   );
 }
