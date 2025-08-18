@@ -1,4 +1,5 @@
 // src/components/LiveFeedsChart.jsx
+import MoneyFlowOverlay from "./overlays/MoneyFlowOverlay";
 import React, { useEffect, useRef } from "react";
 import { createChart } from "lightweight-charts";
 import RightProfileOverlay from "./overlays/RightProfileOverlay";
