@@ -1,8 +1,6 @@
-// src/pages/LiveFeeds.jsx
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import LiveFeedsChart from "../components/LiveFeedsChart";
 
-/** ---------- Config (backend URLs) ---------- */
 const API_BASE =
   (typeof window !== "undefined" && window.__API_BASE__) ||
   (typeof process !== "undefined" &&
@@ -19,9 +17,8 @@ const WS_BASE =
     (process.env.WS_BASE_URL ||
       process.env.REACT_APP_WS_BASE ||
       process.env.VITE_WS_BASE_URL)) ||
-  API_BASE.replace(/^http/i, "ws"); // derive wss:// from https://
+  API_BASE.replace(/^http/i, "ws");
 
-/** ---------- Small UI helpers ---------- */
 function fmtTsSec(ts) {
   try { return new Date(ts * 1000).toLocaleString(); } catch { return "—"; }
 }
@@ -40,23 +37,18 @@ function Tile({ title, ts, newHighs, newLows, adrAvg }) {
   );
 }
 
-/** ---------- Page ---------- */
 export default function LiveFeeds() {
   const [ticker, setTicker] = useState("AAPL");
   const [tf, setTf] = useState("minute"); // minute | hour | day
-
-  // market tiles
   const [metrics, setMetrics] = useState([]);
   const [metricsTs, setMetricsTs] = useState(null);
 
-  // chart candles (this is what we pass down)
+  // candles state for the chart + overlay
   const [candles, setCandles] = useState([]);
-
-  // WS closer
-  const wsStopRef = useRef(null);
   const lastTimeRef = useRef(null);
+  const wsStopRef = useRef(null);
 
-  // 7d range default
+  // Time range (last 7d)
   const { fromISO, toISO } = useMemo(() => {
     const to = new Date();
     const from = new Date(Date.now() - 7 * 864e5);
@@ -66,7 +58,7 @@ export default function LiveFeeds() {
     };
   }, []);
 
-  // Load history + open WS when ticker/tf change
+  // load history + open WS on ticker/tf change
   useEffect(() => {
     let cancelled = false;
 
@@ -75,28 +67,33 @@ export default function LiveFeeds() {
         ticker
       )}&tf=${encodeURIComponent(tf)}&from=${fromISO}&to=${toISO}`;
       try {
-        const r = await fetch(url, { cache: "no-store" });
+        const r = await fetch(url);
         if (!r.ok) throw new Error(`history ${r.status}`);
-        const data = await r.json(); // [{time,open,high,low,close,volume}]
+        const data = await r.json();
+        const list = (data ?? []).map(b => {
+          const raw = b.time ?? b.t;
+          const time = Math.round(raw / (raw > 2_000_000_000 ? 1000 : 1)); // seconds
+          return {
+            time,
+            open: b.open ?? b.o,
+            high: b.high ?? b.h,
+            low: b.low ?? b.l,
+            close: b.close ?? b.c,
+            volume: b.volume ?? b.v,
+          };
+        });
         if (cancelled) return;
-        setCandles(Array.isArray(data) ? data : []);
-        lastTimeRef.current = data?.length ? data[data.length - 1].time : null;
+        setCandles(list);
+        lastTimeRef.current = list.at(-1)?.time ?? null;
       } catch (e) {
         console.error("loadHistory error:", e);
-        if (!cancelled) setCandles([]);
       }
     }
 
     function openWS() {
-      // close existing
       try { wsStopRef.current && wsStopRef.current(); } catch {}
       let ws;
-      try {
-        ws = new WebSocket(WS_BASE);
-      } catch (e) {
-        console.error("WS open failed:", e);
-        return () => {};
-      }
+      try { ws = new WebSocket(WS_BASE); } catch { return () => {}; }
 
       ws.onmessage = (ev) => {
         try {
@@ -104,29 +101,34 @@ export default function LiveFeeds() {
           if (!msg || !msg.type) return;
 
           if (msg.type === "bar" && msg.payload) {
-            const b = msg.payload; // {ticker,time,open,high,low,close,volume}
+            const b = msg.payload;
             if (b.ticker && b.ticker !== ticker) return;
-            // append/update last candle locally
+
+            const time = Math.round(b.time / (b.time > 2_000_000_000 ? 1000 : 1));
+            const bar = {
+              time,
+              open: b.open, high: b.high, low: b.low, close: b.close,
+              volume: b.volume,
+            };
+
             setCandles((prev) => {
-              if (!prev?.length) return [b];
+              if (!prev?.length) return [bar];
               const last = prev[prev.length - 1];
-              if (last && last.time === b.time) {
+              if (last.time === bar.time) {
                 const copy = prev.slice();
-                copy[copy.length - 1] = b;
+                copy[copy.length - 1] = bar;
                 return copy;
+              } else {
+                return [...prev, bar];
               }
-              return [...prev, b];
             });
-            lastTimeRef.current = b.time;
+            lastTimeRef.current = time;
           } else if (msg.type === "metrics" && msg.payload) {
             setMetrics(msg.payload.sectors || []);
             setMetricsTs(msg.payload.timestamp || Math.floor(Date.now() / 1000));
           }
         } catch {}
       };
-
-      ws.onerror = () => {};
-      ws.onclose = () => {};
 
       return () => { try { ws.close(); } catch {} };
     }
@@ -144,7 +146,7 @@ export default function LiveFeeds() {
   useEffect(() => {
     (async () => {
       try {
-        const r = await fetch(`${API_BASE}/api/market-metrics`, { cache: "no-store" });
+        const r = await fetch(`${API_BASE}/api/market-metrics`);
         if (!r.ok) return;
         const m = await r.json();
         setMetrics(m.sectors || []);
@@ -181,7 +183,7 @@ export default function LiveFeeds() {
         </div>
       </div>
 
-      {/* Strategy strips (placeholders) */}
+      {/* Strategy strips */}
       <div style={styles.strips}>
         <div style={styles.strip}><b>Wave 3</b> • signals feed</div>
         <div style={styles.strip}><b>Flagpole</b> • breakouts</div>
@@ -206,41 +208,45 @@ export default function LiveFeeds() {
         )}
       </div>
 
-      {/* Chart + overlays (candles passed down) */}
-      <LiveFeedsChart ticker={ticker} tf={tf} height={420} candles={candles} />
+      {/* Chart + overlay */}
+      <LiveFeedsChart candles={candles} height={480} />
     </section>
   );
 }
 
-/** ---------- Styles ---------- */
 const styles = {
   controls: {
-    display: "flex", gap: 12, alignItems: "center", margin: "8px 0 14px", flexWrap: "wrap",
+    display: "flex", gap: 12, alignItems: "center",
+    margin: "8px 0 14px", flexWrap: "wrap",
   },
   label: { fontSize: 14, opacity: 0.8 },
   input: {
-    background: "#10141f", color: "#e6edf7", border: "1px solid #1b2130",
-    borderRadius: 8, padding: "8px 10px", width: 120, outline: "none",
+    background: "#10141f", color: "#e6edf7",
+    border: "1px solid #1b2130", borderRadius: 8,
+    padding: "8px 10px", width: 120, outline: "none",
   },
   btn: {
-    padding: "8px 10px", borderRadius: 8, border: "1px solid #1b2130",
-    color: "#e6edf7", cursor: "pointer",
+    padding: "8px 10px", borderRadius: 8,
+    border: "1px solid #1b2130", color: "#e6edf7", cursor: "pointer",
   },
   strips: {
-    display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px,1fr))",
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(220px,1fr))",
     gap: 8, marginBottom: 10,
   },
   strip: {
-    background: "#11151f", border: "1px solid #1b2130", borderRadius: 10,
-    padding: "8px 10px", fontSize: 13, color: "#cfd8ec",
+    background: "#11151f", border: "1px solid #1b2130",
+    borderRadius: 10, padding: "8px 10px", fontSize: 13, color: "#cfd8ec",
   },
   tiles: {
-    display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px,1fr))",
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(240px,1fr))",
     gap: 12, marginBottom: 14,
   },
   tile: {
-    background: "#11151f", border: "1px solid #1b2130", borderRadius: 10,
-    padding: 12, boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)",
+    background: "#11151f", border: "1px solid #1b2130",
+    borderRadius: 10, padding: 12,
+    boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)",
   },
   tileHead: { display: "flex", justifyContent: "space-between", marginBottom: 6 },
   tileTs: { fontSize: 12, opacity: 0.6 },
