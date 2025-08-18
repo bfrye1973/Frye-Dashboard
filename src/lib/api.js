@@ -19,13 +19,19 @@ export async function apiHealth() {
   return r.json();
 }
 
-// Fetch OHLC history
-export async function fetchHistory(ticker, tf, from, to) {
-  const q = new URLSearchParams({ ticker, tf, from, to }).toString();
+// Fetch OHLC history (frontend params -> backend shape)
+export async function fetchHistory(ticker, tf /* from, to unused for now */) {
+  const symbol = String(ticker || "").toUpperCase();
+  const timeframe = String(tf || "1m").toLowerCase();
+
+  const q = new URLSearchParams({ symbol, timeframe }).toString();
   const r = await fetch(apiUrl(`/api/v1/ohlc?${q}`), { cache: "no-store" });
   if (!r.ok) throw new Error(`History ${r.status}`);
-  const data = await r.json();
-  return (data ?? []).map((b) => ({
+
+  const j = await r.json();
+  const bars = Array.isArray(j?.bars) ? j.bars : [];
+
+  return bars.map((b) => ({
     time: b.t,
     open: b.o,
     high: b.h,
@@ -41,4 +47,3 @@ export async function fetchMetrics() {
   if (!r.ok) throw new Error(`Metrics ${r.status}`);
   return r.json();
 }
-
