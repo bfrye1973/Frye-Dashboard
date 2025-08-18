@@ -7,7 +7,9 @@ module.exports = function (app) {
     createProxyMiddleware({
       target: "https://frye-market-backend-1.onrender.com",
       changeOrigin: true,
-      pathRewrite: { "^/api": "" }, // so /api/v1/... → /v1/...
+      // DO NOT rewrite. We want /api/... -> /api/... on the backend
+      // pathRewrite: { "^/api": "" },
+      logLevel: "warn",
     })
   );
 };
