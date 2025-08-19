@@ -2,21 +2,43 @@
 import React, { useEffect, useRef } from "react";
 import { createChart, CrosshairMode } from "lightweight-charts";
 
+/** Resolve API base (Render/CRA/Vite or window override) */
+function resolveApiBase() {
+  // 1) Runtime override (optional): <script>window.__API_BASE__ = "https://your-backend";</script>
+  if (typeof window !== "undefined" && window.__API_BASE__) return String(window.__API_BASE__);
+
+  // 2) CRA / Render build-time env:
+  // (CRA replaces process.env.REACT_APP_* at build time)
+  if (typeof process !== "undefined" && process.env) {
+    if (process.env.REACT_APP_API_BASE) return String(process.env.REACT_APP_API_BASE);
+    if (process.env.REACT_APP_API_BASE_URL) return String(process.env.REACT_APP_API_BASE_URL);
+  }
+
+  // 3) Fallback: relative (works in local dev if you proxy /api to backend)
+  return "";
+}
+const API_BASE = resolveApiBase();
+
+function apiUrl(path) {
+  const base = (API_BASE || "").replace(/\/$/, "");
+  const p = path.startsWith("/") ? path : `/${path}`;
+  return `${base}${p}`;
+}
+
 /**
  * LiveLWChart
  *  - Renders candlesticks + EMA(10) + EMA(20)
  *  - Props:
- *      symbol: "AAPL" | "MSFT" | "SPY" | ...
+ *      symbol: string ("AAPL" | "MSFT" | "SPY" | ...)
  *      timeframe: "1m" | "5m" | "15m" | "30m" | "1h" | "1d"
  *      height: number (px)
  *
- *  Backend contract (already live):
- *    GET /api/v1/ohlc?symbol=SPY&timeframe=1h
- *    Response example:
- *      { ok:true, bars:[{ t: 1735584000000, o:..., h:..., l:..., c:..., v:...}, ...] }
- *    (t in ms; we convert to unix seconds for Lightweight Charts)
+ * Backend contract:
+ *   GET /api/v1/ohlc?symbol=SPY&timeframe=1h
+ *   Response:
+ *     { ok:true, bars:[{ t: 1735584000000, o,h,l,c,v }, ...] }  // t in ms
+ *   (Older shape [ ... ] also supported.)
  */
-
 export default function LiveLWChart({
   symbol = "SPY",
   timeframe = "1d",
@@ -28,18 +50,15 @@ export default function LiveLWChart({
   const ema10Ref = useRef(null);
   const ema20Ref = useRef(null);
 
-  // ---------- utils ----------
   const toSec = (msOrSec) =>
     typeof msOrSec === "number" && msOrSec > 1e12
-      ? Math.floor(msOrSec / 1000) // ms -> s
+      ? Math.floor(msOrSec / 1000)
       : typeof msOrSec === "number"
       ? msOrSec
       : Math.floor(Date.now() / 1000);
 
-  // Accepts either {bars:[...]} or [...] and normalizes to LWC shape
   function normalizeBars(json) {
     const raw = Array.isArray(json) ? json : Array.isArray(json?.bars) ? json.bars : [];
-    // Bars ascending by time; convert to { time, open, high, low, close, volume }
     const rows = raw
       .map((b) => ({
         time: toSec(b.t ?? b.time),
@@ -50,27 +69,21 @@ export default function LiveLWChart({
         volume: +((b.v ?? b.volume) ?? 0),
       }))
       .filter((r) => r.time && Number.isFinite(r.open) && Number.isFinite(r.close));
-    // Ensure strictly ascending (Polygon is asc; still guard)
     rows.sort((a, b) => a.time - b.time);
     return rows;
   }
 
-  // Simple EMA: seed with SMA for first 'p' samples, then standard multiplier
   function computeEMA(rows, period) {
     if (!Array.isArray(rows) || rows.length === 0) return [];
-    if (period <= 1) {
-      return rows.map((r) => ({ time: r.time, value: r.close }));
-    }
+    if (period <= 1) return rows.map((r) => ({ time: r.time, value: r.close }));
+    if (rows.length < period) return [];
 
-    const out = [];
     const closes = rows.map((r) => r.close);
-    if (closes.length < period) return out;
-
     let sum = 0;
     for (let i = 0; i < period; i++) sum += closes[i];
     let prev = sum / period;
-    out.push({ time: rows[period - 1].time, value: prev });
 
+    const out = [{ time: rows[period - 1].time, value: prev }];
     const k = 2 / (period + 1);
     for (let i = period; i < closes.length; i++) {
       const ema = closes[i] * k + prev * (1 - k);
@@ -84,11 +97,9 @@ export default function LiveLWChart({
     const ctrl = new AbortController();
     const id = setTimeout(() => ctrl.abort(), 20000);
     try {
-      const url = `/api/v1/ohlc?symbol=${encodeURIComponent(sym)}&timeframe=${encodeURIComponent(
-        tf
-      )}`;
+      const url = apiUrl(`/api/v1/ohlc?symbol=${encodeURIComponent(sym)}&timeframe=${encodeURIComponent(tf)}`);
       const res = await fetch(url, { signal: ctrl.signal, cache: "no-store" });
-      if (!res.ok) throw new Error(`OHLC ${res.status} ${res.statusText}`);
+      if (!res.ok) throw new Error(`OHLC ${res.status}`);
       const json = await res.json();
       return normalizeBars(json);
     } catch (e) {
@@ -99,42 +110,29 @@ export default function LiveLWChart({
     }
   }
 
-  // ---------- init & update ----------
   useEffect(() => {
     if (!wrapRef.current) return;
 
-    // Destroy & recreate chart on prop changes (simplest + safest)
     if (chartRef.current) {
-      try {
-        chartRef.current.remove();
-      } catch {}
+      try { chartRef.current.remove(); } catch {}
     }
 
     const chart = createChart(wrapRef.current, {
       width: wrapRef.current.clientWidth || 1200,
       height,
-      layout: {
-        background: { type: "Solid", color: "#0f1117" },
-        textColor: "#d1d4dc",
-      },
+      layout: { background: { type: "Solid", color: "#0f1117" }, textColor: "#d1d4dc" },
       grid: {
         vertLines: { color: "rgba(255,255,255,0.06)" },
         horzLines: { color: "rgba(255,255,255,0.06)" },
       },
+      rightPriceScale: { borderVisible: false },
       timeScale: {
         borderVisible: false,
-        secondsVisible: timeframe === "1m" || timeframe === "5m" || timeframe === "15m" || timeframe === "30m",
         timeVisible: timeframe !== "1d",
+        secondsVisible: ["1m", "5m", "15m", "30m"].includes(timeframe),
       },
-      rightPriceScale: {
-        borderVisible: false,
-      },
-      crosshair: {
-        mode: CrosshairMode.Normal,
-      },
-      localization: {
-        priceFormatter: (p) => (p ?? 0).toFixed(2),
-      },
+      crosshair: { mode: CrosshairMode.Normal },
+      localization: { priceFormatter: (p) => (p ?? 0).toFixed(2) },
     });
 
     const candles = chart.addCandlestickSeries({
@@ -146,20 +144,19 @@ export default function LiveLWChart({
       wickDownColor: "#ef5350",
     });
 
-    // EMA lines (overlay on same scale as candles)
     const ema10 = chart.addLineSeries({
-      color: "#00bcd4", // teal-ish
+      color: "#00bcd4",
       lineWidth: 2,
-      priceLineVisible: true,
       lastValueVisible: true,
+      priceLineVisible: true,
       title: "EMA 10",
     });
 
     const ema20 = chart.addLineSeries({
-      color: "#ffa726", // orange-ish
+      color: "#ffa726",
       lineWidth: 2,
-      priceLineVisible: true,
       lastValueVisible: true,
+      priceLineVisible: true,
       title: "EMA 20",
     });
 
@@ -172,35 +169,21 @@ export default function LiveLWChart({
     (async () => {
       const rows = await fetchHistory(symbol, timeframe);
       if (!alive) return;
-
       candles.setData(rows);
-
-      // Compute EMAs over close prices
-      const e10 = computeEMA(rows, 10);
-      const e20 = computeEMA(rows, 20);
-      ema10.setData(e10);
-      ema20.setData(e20);
-
+      ema10.setData(computeEMA(rows, 10));
+      ema20.setData(computeEMA(rows, 20));
       chart.timeScale().fitContent();
     })();
 
-    // Responsive
     const ro = new ResizeObserver(() => {
-      chart.applyOptions({
-        width: wrapRef.current?.clientWidth || 1200,
-        height,
-      });
+      chart.applyOptions({ width: wrapRef.current?.clientWidth || 1200, height });
     });
     ro.observe(wrapRef.current);
 
     return () => {
       alive = false;
-      try {
-        ro.disconnect();
-      } catch {}
-      try {
-        chart.remove();
-      } catch {}
+      try { ro.disconnect(); } catch {}
+      try { chart.remove(); } catch {}
       chartRef.current = null;
       candleRef.current = null;
       ema10Ref.current = null;
