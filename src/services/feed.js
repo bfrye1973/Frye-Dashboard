@@ -1,13 +1,8 @@
-// placeholder feed service
-
+// src/services/feed.js
 export function getFeed(symbol, timeframe) {
   return {
-    async history() {
-      return []; // empty candles
-    },
-    subscribe() {
-      return () => {};
-    },
+    async history() { return []; },
+    subscribe() { return () => {}; },
     close() {}
   };
 }
