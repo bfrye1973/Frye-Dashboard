@@ -2,14 +2,27 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width,initial-scale=1,shrink-to-fit=no,viewport-fit=cover" />
+    <meta
+      name="viewport"
+      content="width=device-width,initial-scale=1,shrink-to-fit=no,viewport-fit=cover"
+    />
     <title>Frye Dashboard</title>
     <meta name="theme-color" content="#0d1117" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="description" content="Frye Dashboard — charts, EMAs, and indicators." />
 
-    <!-- Frontend → Backend base URL -->
+    <!-- Frontend → Backend base URL (Step 2) -->
     <script>
       // Point the frontend to the Render backend
       window.__API_BASE__ = "https://frye-market-backend-1.onrender.com";
+
+      // Optional: quick visibility to confirm it's set
+      (function () {
+        try {
+          const b = window.__API_BASE__ || "";
+          console.log("[Frye] API_BASE =", b || "(relative /api)");
+        } catch (e) {}
+      })();
     </script>
 
     <style>
@@ -18,11 +31,16 @@
         margin: 0;
         background: #0d1117;
         color: #d1d4dc;
-        font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;
+        font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
       }
     </style>
   </head>
   <body>
+    <noscript style="color:#d1d4dc;background:#0d1117;display:block;padding:12px;">
+      This app requires JavaScript to run.
+    </noscript>
     <div id="root"></div>
     <!-- Your bundler (Vite/CRA) will inject the app scripts here -->
   </body>
