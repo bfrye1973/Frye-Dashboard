@@ -1,15 +1,16 @@
 // src/indicators/index.js
-import { MONEY_FLOW_INDICATORS } from "./moneyFlow";
+import { MONEY_FLOW_INDICATORS } from "./moneyFlow";   // (mfi/cmf if you keep them)
+import MFP from "./moneyFlow/profile";                  // <-- NEW
 import EMA, { makeEMA } from "./ema";
-import VOLUME from "./volume";
 
-// Define EMA10 & EMA20 using the factory
-const EMA10 = makeEMA({ id: "ema10", label: "EMA 10", length: 10, color: "#60a5fa" }); // blue
-const EMA20 = makeEMA({ id: "ema20", label: "EMA 20", length: 20, color: "#f59e0b" }); // amber
+// Define EMAs
+const EMA10 = makeEMA({ id: "ema10", label: "EMA 10", length: 10, color: "#60a5fa" });
+const EMA20 = makeEMA({ id: "ema20", label: "EMA 20", length: 20, color: "#f59e0b" });
 
 export const INDICATORS = [
-  ...MONEY_FLOW_INDICATORS,  // mfi, cmf
-  VOLUME,                    // volume histogram
+  // Keep any existing families:
+  ...MONEY_FLOW_INDICATORS.filter(i => i.id !== "mfi"), // optional: drop the oscillator if you want
+  MFP,      // Money Flow Profile overlay
   EMA10,
   EMA20,
 ];
