@@ -1,174 +1,142 @@
 // src/components/LiveLWChart.jsx
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import {
-  createChart,
-  CrosshairMode,
-  LineStyle,
-} from "lightweight-charts";
+import { createChart, CrosshairMode } from "lightweight-charts";
+
+// ---------- API base resolver ----------
+const API_BASE =
+  (typeof window !== "undefined" && window.__API_BASE__) ||
+  (typeof import.meta !== "undefined" &&
+    import.meta.env &&
+    import.meta.env.VITE_API_BASE_URL) ||
+  (typeof process !== "undefined" &&
+    process.env &&
+    (process.env.REACT_APP_API_BASE || process.env.NEXT_PUBLIC_API_BASE)) ||
+  "";
+
+function apiUrl(path) {
+  const p = path.startsWith("/") ? path : `/${path}`;
+  return `${API_BASE}${p}`;
+}
+
+// ---------- small utils ----------
+const toSec = (t) =>
+  typeof t === "string" ? Math.floor(new Date(t).getTime() / 1000) : Math.floor(Number(t) / 1000);
+
+function ema(values, length) {
+  if (!Array.isArray(values) || !length) return [];
+  const k = 2 / (length + 1);
+  const out = [];
+  let prev;
+  for (let i = 0; i < values.length; i++) {
+    const v = values[i];
+    if (v == null) {
+      out.push(undefined);
+      continue;
+    }
+    if (prev == null) {
+      // seed with SMA over first length
+      const start = Math.max(0, i - length + 1);
+      const slice = values.slice(start, i + 1).filter((x) => typeof x === "number");
+      if (slice.length < length) {
+        out.push(undefined);
+        continue;
+      }
+      const sma = slice.reduce((a, b) => a + b, 0) / slice.length;
+      prev = sma;
+      out.push(prev);
+    } else {
+      prev = v * k + prev * (1 - k);
+      out.push(prev);
+    }
+  }
+  return out;
+}
 
 /**
- * Phase 3: Candles + EMA(10/20) + Volume histogram + MFI overlay
- * - Fetches OHLCV from your backend: /api/v1/ohlc?symbol=...&timeframe=...
- * - Renders: candles, EMA10, EMA20, volume histogram (bottom), MFI overlay (0..100) with 80/20 lines
- * - Simple controls for symbol, timeframe, and indicator toggles
+ * Money Flow Index (0..100)
+ * Uses typical price ((H+L+C)/3) and volume over a given period.
+ * Returns array aligned to bars.
  */
+function mfi(bars, period = 14) {
+  if (!Array.isArray(bars) || bars.length === 0) return [];
+  const tp = bars.map((b) => (b.h + b.l + b.c) / 3);
+  const rawMF = tp.map((p, i) => p * (bars[i]?.v ?? 0));
 
-const TF_OPTIONS = ["1m", "1h", "1d"];
-const SYMBOLS = ["AAPL", "MSFT", "SPY", "QQQ", "IWM", "MDY"];
+  const out = new Array(bars.length).fill(undefined);
+  for (let i = 1; i < bars.length; i++) {
+    // positive if typical price increased vs previous bar
+    const pos = tp[i] > tp[i - 1] ? rawMF[i] : 0;
+    const neg = tp[i] < tp[i - 1] ? rawMF[i] : 0;
 
-function toSec(ts) {
-  // server sends ms; lightweight-charts wants seconds or businessDay
-  return typeof ts === "number" ? Math.round(ts / 1000) : ts;
-}
-
-async function fetchOHLC(symbol, timeframe) {
-  const url = `/api/v1/ohlc?symbol=${encodeURIComponent(
-    symbol
-  )}&timeframe=${encodeURIComponent(timeframe)}`;
-  const res = await fetch(url, { cache: "no-store" });
-  if (!res.ok) {
-    const msg = await res.text();
-    throw new Error(`OHLC ${res.status}: ${msg}`);
-  }
-  const j = await res.json();
-  const bars = Array.isArray(j?.bars) ? j.bars : [];
-  // Normalize for chart + calcs
-  return bars.map((b) => ({
-    time: toSec(b.t),
-    open: +b.o,
-    high: +b.h,
-    low: +b.l,
-    close: +b.c,
-    volume: b.v != null ? +b.v : 0,
-  }));
-}
-
-function calcEMA(data, period = 10) {
-  if (!Array.isArray(data) || data.length === 0) return [];
-  const k = 2 / (period + 1);
-  let emaPrev = data[0].close;
-  const out = [{ time: data[0].time, value: emaPrev }];
-
-  for (let i = 1; i < data.length; i++) {
-    const v = data[i].close * k + emaPrev * (1 - k);
-    out.push({ time: data[i].time, value: v });
-    emaPrev = v;
+    // rolling sums over window "period"
+    let posSum = 0,
+      negSum = 0;
+    for (let j = Math.max(1, i - period + 1); j <= i; j++) {
+      const isPos = tp[j] > tp[j - 1];
+      const mf = rawMF[j];
+      if (isPos) posSum += mf;
+      else if (tp[j] < tp[j - 1]) negSum += mf;
+      // equal tp -> both add 0
+    }
+    if (posSum === 0 && negSum === 0) {
+      out[i] = 50;
+      continue;
+    }
+    if (negSum === 0) {
+      out[i] = 100;
+      continue;
+    }
+    const mr = posSum / negSum;
+    out[i] = 100 - 100 / (1 + mr);
   }
   return out;
 }
 
-// Money Flow Index (MFI) overlay (default 14)
-function calcMFI(data, period = 14) {
-  if (!Array.isArray(data) || data.length === 0) return [];
-  const tp = (d) => (d.high + d.low + d.close) / 3;
-  const flows = data.map((d, i) => {
-    const t = tp(d);
-    const prev = i > 0 ? tp(data[i - 1]) : t;
-    const raw = t * (d.volume ?? 0);
-    const pos = t > prev ? raw : 0;
-    const neg = t < prev ? raw : 0;
-    return { time: d.time, pos, neg };
-  });
-
-  let sumPos = 0;
-  let sumNeg = 0;
-  const q = [];
-  const out = [];
-
-  for (let i = 0; i < flows.length; i++) {
-    const f = flows[i];
-    q.push(f);
-    sumPos += f.pos;
-    sumNeg += f.neg;
-
-    if (q.length > period) {
-      const old = q.shift();
-      sumPos -= old.pos;
-      sumNeg -= old.neg;
-    }
-
-    if (q.length === period) {
-      const ratio = sumNeg === 0 ? 1000 : sumPos / sumNeg;
-      const mfi = 100 - 100 / (1 + ratio);
-      out.push({ time: f.time, value: mfi });
-    } else {
-      // pad with null until the first full window
-      out.push({ time: f.time, value: null });
-    }
-  }
-
-  return out;
-}
-
+// ---------- component ----------
 export default function LiveLWChart({
+  defaultSymbol = "SPY",
+  defaultTimeframe = "1d",
   height = 560,
-  initialSymbol = "SPY",
-  initialTf = "1d",
 }) {
+  // persisted UI state
+  const persisted = useMemo(() => {
+    try {
+      return JSON.parse(localStorage.getItem("lwc_ui") || "{}");
+    } catch {
+      return {};
+    }
+  }, []);
+
+  const [symbol, setSymbol] = useState(persisted.symbol || defaultSymbol);
+  const [tf, setTf] = useState(persisted.tf || defaultTimeframe);
+  const [showVol, setShowVol] = useState(
+    typeof persisted.showVol === "boolean" ? persisted.showVol : true
+  );
+  const [showMfi, setShowMfi] = useState(
+    typeof persisted.showMfi === "boolean" ? persisted.showMfi : true
+  );
+  const [mfiPeriod, setMfiPeriod] = useState(persisted.mfiPeriod || 14);
+
+  // refs for chart + series
   const wrapRef = useRef(null);
   const chartRef = useRef(null);
-
   const candleRef = useRef(null);
+  const volRef = useRef(null);
   const ema10Ref = useRef(null);
   const ema20Ref = useRef(null);
-  const volRef = useRef(null);
-  const mfiRef = useRef(null);
-  const mfi80LineRef = useRef(null);
-  const mfi20LineRef = useRef(null);
+  const mfiRef = useRef(null); // left scale line
 
-  const [symbol, setSymbol] = useState(initialSymbol);
-  const [tf, setTf] = useState(initialTf);
+  const [error, setError] = useState("");
 
-  const [showVolume, setShowVolume] = useState(true);
-  const [showMfi, setShowMfi] = useState(true);
-  const [mfiPeriod, setMfiPeriod] = useState(14);
-
-  // Fetch & memoize data
-  const [raw, setRaw] = useState([]);
+  // persist ui
   useEffect(() => {
-    let live = true;
-    (async () => {
-      try {
-        const d = await fetchOHLC(symbol, tf);
-        if (live) setRaw(d);
-      } catch (e) {
-        console.error("fetchHistory error:", e);
-        if (live) setRaw([]);
-      }
-    })();
-    return () => {
-      live = false;
-    };
-  }, [symbol, tf]);
+    localStorage.setItem(
+      "lwc_ui",
+      JSON.stringify({ symbol, tf, showVol, showMfi, mfiPeriod })
+    );
+  }, [symbol, tf, showVol, showMfi, mfiPeriod]);
 
-  const ema10 = useMemo(() => calcEMA(raw, 10), [raw]);
-  const ema20 = useMemo(() => calcEMA(raw, 20), [raw]);
-
-  const mfi = useMemo(() => calcMFI(raw, mfiPeriod), [raw, mfiPeriod]);
-
-  const candleData = useMemo(
-    () =>
-      raw.map((d) => ({
-        time: d.time,
-        open: d.open,
-        high: d.high,
-        low: d.low,
-        close: d.close,
-      })),
-    [raw]
-  );
-
-  const volumeData = useMemo(
-    () =>
-      raw.map((d) => ({
-        time: d.time,
-        value: d.volume ?? 0,
-        color: d.close >= d.open ? "rgba(38,166,154,0.6)" : "rgba(239,83,80,0.6)",
-      })),
-    [raw]
-  );
-
-  // Build chart & series once
+  // build chart once
   useEffect(() => {
     if (!wrapRef.current) return;
 
@@ -185,7 +153,12 @@ export default function LiveLWChart({
       },
       rightPriceScale: {
         borderVisible: false,
-        scaleMargins: { top: 0.08, bottom: 0.22 }, // leave room for bottom volume
+        scaleMargins: { top: 0.05, bottom: 0.25 }, // leave room for volume overlay
+      },
+      leftPriceScale: {
+        visible: true, // we will use left scale for MFI (0..100)
+        borderVisible: false,
+        scaleMargins: { top: 0.1, bottom: 0.1 },
       },
       timeScale: {
         borderVisible: false,
@@ -196,7 +169,6 @@ export default function LiveLWChart({
       localization: { priceFormatter: (p) => (p ?? 0).toFixed(2) },
     });
 
-    // Candles
     const candles = chart.addCandlestickSeries({
       upColor: "#26a69a",
       downColor: "#ef5350",
@@ -206,61 +178,49 @@ export default function LiveLWChart({
       wickDownColor: "#ef5350",
     });
 
-    // EMA 10
-    const ema10Series = chart.addLineSeries({
-      color: "#2dd4bf", // teal-ish
-      lineWidth: 2,
-      priceLineVisible: false,
-      lastValueVisible: true,
-    });
-
-    // EMA 20
-    const ema20Series = chart.addLineSeries({
-      color: "#f59e0b", // amber-ish
-      lineWidth: 2,
-      priceLineVisible: false,
-      lastValueVisible: true,
-    });
-
-    // Volume (special empty price scale id groups histogram at bottom)
     const volume = chart.addHistogramSeries({
       priceFormat: { type: "volume" },
-      priceScaleId: "",
-      priceLineVisible: false,
-      lastValueVisible: false,
+      priceScaleId: "", // overlay on main
       base: 0,
-    });
-    chart.priceScale("").applyOptions({
-      scaleMargins: { top: 0.85, bottom: 0.0 },
+      visible: showVol,
     });
 
-    // MFI overlay with its own hidden scale
-    const mfiSeries = chart.addLineSeries({
-      priceScaleId: "mfi",
-      color: "#00bcd4",
+    const ema10 = chart.addLineSeries({
+      color: "#19c2ff",
       lineWidth: 2,
-      priceLineVisible: false,
+      priceScaleId: "right",
       lastValueVisible: true,
-    });
-    chart.priceScale("mfi").applyOptions({
-      visible: false, // hide labels/ticks for this scale
-      scaleMargins: { top: 0.02, bottom: 0.72 }, // small band toward top
+      title: "EMA 10",
     });
 
-    // Keep refs
+    const ema20 = chart.addLineSeries({
+      color: "#ffa726",
+      lineWidth: 2,
+      priceScaleId: "right",
+      lastValueVisible: true,
+      title: "EMA 20",
+    });
+
+    const mfiLine = chart.addLineSeries({
+      color: "#7bd88f",
+      lineWidth: 1,
+      priceScaleId: "left", // 0..100 scale
+      priceFormat: { type: "price", precision: 0, minMove: 1 },
+      lastValueVisible: true,
+      visible: showMfi,
+      title: `MFI ${mfiPeriod}`,
+    });
+
     chartRef.current = chart;
     candleRef.current = candles;
-    ema10Ref.current = ema10Series;
-    ema20Ref.current = ema20Series;
     volRef.current = volume;
-    mfiRef.current = mfiSeries;
+    ema10Ref.current = ema10;
+    ema20Ref.current = ema20;
+    mfiRef.current = mfiLine;
 
-    // responsive
+    // resize observer
     const ro = new ResizeObserver(() => {
-      chart.applyOptions({
-        width: wrapRef.current?.clientWidth || 1200,
-        height,
-      });
+      chart.applyOptions({ width: wrapRef.current?.clientWidth || 1200, height });
     });
     ro.observe(wrapRef.current);
 
@@ -273,151 +233,215 @@ export default function LiveLWChart({
       } catch {}
       chartRef.current = null;
       candleRef.current = null;
+      volRef.current = null;
       ema10Ref.current = null;
       ema20Ref.current = null;
-      volRef.current = null;
       mfiRef.current = null;
-      mfi80LineRef.current = null;
-      mfi20LineRef.current = null;
     };
-  }, [height, tf]); // recreate chart if timeframe mode changes secondsVisible
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  // Push data into series
+  // reflect visibility toggles on existing series
   useEffect(() => {
-    if (!chartRef.current) return;
+    if (volRef.current) volRef.current.applyOptions({ visible: showVol });
+  }, [showVol]);
+  useEffect(() => {
+    if (mfiRef.current) mfiRef.current.applyOptions({ visible: showMfi, title: `MFI ${mfiPeriod}` });
+  }, [showMfi, mfiPeriod]);
 
-    candleRef.current?.setData(candleData);
-    ema10Ref.current?.setData(ema10);
-    ema20Ref.current?.setData(ema20);
-
-    if (showVolume) {
-      volRef.current?.setData(volumeData);
-    } else {
-      volRef.current?.setData([]);
-    }
-
-    if (showMfi) {
-      mfiRef.current?.setData(mfi);
-      // recreate guide lines
-      if (mfi80LineRef.current) mfiRef.current.removePriceLine(mfi80LineRef.current);
-      if (mfi20LineRef.current) mfiRef.current.removePriceLine(mfi20LineRef.current);
-      mfi80LineRef.current = mfiRef.current.createPriceLine({
-        price: 80,
-        color: "rgba(255,99,132,0.6)",
-        lineWidth: 1,
-        lineStyle: LineStyle.Dashed,
-        axisLabelVisible: false,
-        title: "80",
-      });
-      mfi20LineRef.current = mfiRef.current.createPriceLine({
-        price: 20,
-        color: "rgba(99,255,132,0.6)",
-        lineWidth: 1,
-        lineStyle: LineStyle.Dashed,
-        axisLabelVisible: false,
-        title: "20",
-      });
-    } else {
-      mfiRef.current?.setData([]);
-      if (mfi80LineRef.current) {
-        mfiRef.current.removePriceLine(mfi80LineRef.current);
-        mfi80LineRef.current = null;
+  // ---- data fetcher ----
+  async function fetchHistory(sym, timeframe) {
+    const ctrl = new AbortController();
+    const id = setTimeout(() => ctrl.abort(), 20000);
+    try {
+      const url = apiUrl(
+        `/api/v1/ohlc?symbol=${encodeURIComponent(sym)}&timeframe=${encodeURIComponent(timeframe)}`
+      );
+      const r = await fetch(url, { signal: ctrl.signal, cache: "no-store" });
+      if (!r.ok) {
+        const txt = await r.text().catch(() => "");
+        throw new Error(`OHLC ${r.status}: ${txt || "Not Found"}`);
       }
-      if (mfi20LineRef.current) {
-        mfiRef.current.removePriceLine(mfi20LineRef.current);
-        mfi20LineRef.current = null;
-      }
+      const j = await r.json();
+      // backend returns { ok, symbol, timeframe, source, bars: [{t,o,h,l,c,v}] }
+      const rows = Array.isArray(j?.bars) ? j.bars : [];
+      return rows.map((b) => ({
+        time: toSec(b.t),
+        open: b.o,
+        high: b.h,
+        low: b.l,
+        close: b.c,
+        volume: b.v ?? 0,
+      }));
+    } finally {
+      clearTimeout(id);
     }
+  }
 
-    chartRef.current.timeScale().fitContent();
-  }, [candleData, ema10, ema20, volumeData, mfi, showVolume, showMfi]);
+  // main data effect
+  useEffect(() => {
+    let alive = true;
+    setError("");
+
+    (async () => {
+      try {
+        if (!chartRef.current || !candleRef.current) return;
+
+        // adjust time axis mode
+        chartRef.current.applyOptions({
+          timeScale: {
+            timeVisible: tf !== "1d",
+            secondsVisible: tf === "1m",
+          },
+        });
+
+        const rows = await fetchHistory(symbol, tf);
+        if (!alive) return;
+
+        // set candles
+        candleRef.current.setData(
+          rows.map((r) => ({
+            time: r.time,
+            open: r.open,
+            high: r.high,
+            low: r.low,
+            close: r.close,
+          }))
+        );
+
+        // volume histogram (color based on up/down)
+        if (volRef.current) {
+          const vData = rows.map((r) => ({
+            time: r.time,
+            value: r.volume,
+            color: (r.close ?? 0) >= (r.open ?? 0)
+              ? "rgba(38,166,154,0.45)"
+              : "rgba(239,83,80,0.45)",
+          }));
+          volRef.current.setData(vData);
+        }
+
+        // EMAs
+        const closes = rows.map((r) => r.close);
+        const e10 = ema(closes, 10);
+        const e20 = ema(closes, 20);
+
+        ema10Ref.current?.setData(
+          rows.map((r, i) =>
+            e10[i] != null ? { time: r.time, value: Number(e10[i].toFixed(2)) } : { time: r.time, value: undefined }
+          )
+        );
+
+        ema20Ref.current?.setData(
+          rows.map((r, i) =>
+            e20[i] != null ? { time: r.time, value: Number(e20[i].toFixed(2)) } : { time: r.time, value: undefined }
+          )
+        );
+
+        // MFI (left scale 0..100)
+        if (mfiRef.current) {
+          const mf = mfi(
+            rows.map((r) => ({ h: r.high, l: r.low, c: r.close, v: r.volume })),
+            Number(mfiPeriod) || 14
+          );
+          mfiRef.current.setData(
+            rows.map((r, i) =>
+              mf[i] != null ? { time: r.time, value: Math.max(0, Math.min(100, Math.round(mf[i]))) } : { time: r.time, value: undefined }
+            )
+          );
+        }
+
+        chartRef.current.timeScale().fitContent();
+      } catch (err) {
+        setError(err?.message || String(err));
+      }
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, [symbol, tf, mfiPeriod]);
+
+  // ------- UI controls -------
+  const onSymChange = (e) => setSymbol(e.target.value.toUpperCase());
+  const onMfiPeriodChange = (e) => {
+    const v = Math.max(2, Math.min(200, Number(e.target.value) || 14));
+    setMfiPeriod(v);
+  };
 
   return (
-    <div style={{ padding: "8px 10px 0" }}>
-      {/* Controls */}
+    <div style={{ width: "100%" }}>
       <div
         style={{
           display: "flex",
-          gap: 8,
           alignItems: "center",
-          marginBottom: 8,
-          flexWrap: "wrap",
+          gap: 12,
+          color: "#c9d1d9",
+          padding: "6px 8px",
+          fontSize: 13,
         }}
       >
-        <strong>Symbol</strong>
+        <span style={{ opacity: 0.8 }}>Symbol</span>
         <select
           value={symbol}
-          onChange={(e) => setSymbol(e.target.value)}
-          style={{ background: "#0f1117", color: "#d1d4dc", borderRadius: 6, padding: "4px 8px", border: "1px solid #1b2130" }}
+          onChange={onSymChange}
+          style={{ background: "#0f1117", color: "#c9d1d9", border: "1px solid #1f2633", borderRadius: 6, padding: "4px 6px" }}
         >
-          {SYMBOLS.map((s) => (
-            <option key={s} value={s}>
-              {s}
-            </option>
+          {["SPY", "QQQ", "IWM", "MDY", "AAPL", "MSFT", "NVDA"].map((s) => (
+            <option key={s} value={s}>{s}</option>
           ))}
         </select>
 
-        <strong style={{ marginLeft: 8 }}>Timeframe</strong>
-        <div style={{ display: "inline-flex", gap: 6 }}>
-          {TF_OPTIONS.map((x) => (
-            <button
-              key={x}
-              onClick={() => setTf(x)}
-              style={{
-                padding: "4px 10px",
-                borderRadius: 6,
-                border: "1px solid #1b2130",
-                background: tf === x ? "#263046" : "#0f1117",
-                color: "#d1d4dc",
-                cursor: "pointer",
-              }}
-            >
-              {x}
-            </button>
-          ))}
-        </div>
-
-        <span style={{ marginLeft: 16 }} />
-
-        <label style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-          <input
-            type="checkbox"
-            checked={showVolume}
-            onChange={() => setShowVolume((v) => !v)}
-          />
-          <span>Volume</span>
-        </label>
-
-        <label style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-          <input
-            type="checkbox"
-            checked={showMfi}
-            onChange={() => setShowMfi((v) => !v)}
-          />
-          <span>MFI</span>
-        </label>
-
-        <label style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-          <span>MFI Period</span>
-          <input
-            type="number"
-            value={mfiPeriod}
-            min={3}
-            max={100}
-            onChange={(e) => setMfiPeriod(Math.max(3, Math.min(100, +e.target.value || 14)))}
+        <span style={{ opacity: 0.8 }}>Timeframe</span>
+        {["1m", "1h", "1d"].map((k) => (
+          <button
+            key={k}
+            onClick={() => setTf(k)}
             style={{
-              width: 60,
-              background: "#0f1117",
-              color: "#d1d4dc",
-              border: "1px solid #1b2130",
+              padding: "4px 8px",
               borderRadius: 6,
-              padding: "4px 6px",
+              border: "1px solid #1f2633",
+              background: tf === k ? "#1f2633" : "transparent",
+              color: "#c9d1d9",
+              cursor: "pointer",
             }}
-          />
+          >
+            {k}
+          </button>
+        ))}
+
+        <label style={{ display: "inline-flex", alignItems: "center", gap: 6, marginLeft: 12 }}>
+          <input type="checkbox" checked={showVol} onChange={(e) => setShowVol(e.target.checked)} />
+          Volume
         </label>
+
+        <label style={{ display: "inline-flex", alignItems: "center", gap: 6, marginLeft: 12 }}>
+          <input type="checkbox" checked={showMfi} onChange={(e) => setShowMfi(e.target.checked)} />
+          MFI
+        </label>
+
+        <span style={{ opacity: 0.8 }}>MFI Period</span>
+        <input
+          type="number"
+          min={2}
+          max={200}
+          value={mfiPeriod}
+          onChange={onMfiPeriodChange}
+          style={{
+            width: 60,
+            background: "#0f1117",
+            color: "#c9d1d9",
+            border: "1px solid #1f2633",
+            borderRadius: 6,
+            padding: "4px 6px",
+          }}
+        />
+
+        <div style={{ marginLeft: "auto", opacity: 0.6, fontSize: 12 }}>
+          API: {API_BASE ? API_BASE : "(relative /api)"}
+        </div>
       </div>
 
-      {/* Chart */}
       <div
         ref={wrapRef}
         style={{
@@ -429,8 +453,24 @@ export default function LiveLWChart({
           border: "1px solid #1b2130",
           background: "#0f1117",
         }}
-        aria-label="Lightweight Charts price chart with EMA, Volume, and MFI"
+        aria-label="Lightweight Charts price chart"
       />
+
+      {error && (
+        <div
+          style={{
+            marginTop: 8,
+            padding: "8px 10px",
+            fontSize: 13,
+            background: "#2a1f1f",
+            color: "#ffb3b3",
+            border: "1px solid #4b2b2b",
+            borderRadius: 8,
+          }}
+        >
+          {error}
+        </div>
+      )}
     </div>
   );
 }
