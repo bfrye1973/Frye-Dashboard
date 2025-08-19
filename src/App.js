@@ -1,8 +1,7 @@
 // src/App.js
-import React, { useState, useMemo } from "react";
-import LiveLWChart from "./components/LiveLWChart";
+import React, { useMemo, useState } from "react";
+import LiveLWChart from "./components/LiveLWChart"; // barrel re-export (index.js in the folder)
 
-// Simple pill button
 function Pill({ active, onClick, children }) {
   return (
     <button
@@ -25,16 +24,13 @@ function Pill({ active, onClick, children }) {
 
 export default function App() {
   const [symbol, setSymbol] = useState("AAPL");
-  const [timeframe, setTimeframe] = useState("1m");
+  const [timeframe, setTimeframe] = useState("1h");
 
   const symbols = useMemo(
     () => ["AAPL", "MSFT", "NVDA", "TSLA", "META", "AMZN", "SPY", "QQQ"],
     []
   );
   const tfs = useMemo(() => ["1m", "5m", "15m", "1h", "1d"], []);
-
-  // Tiny diagnostic so you can confirm props are flowing
-  console.log(`[App] symbol=${symbol} timeframe=${timeframe}`);
 
   return (
     <div
@@ -57,9 +53,9 @@ export default function App() {
           marginBottom: 12,
         }}
       >
-        <h2 style={{ margin: 0, fontWeight: 600 }}>Frye Dashboard — Candles Only</h2>
+        <h2 style={{ margin: 0, fontWeight: 600 }}>Live Chart (Lightweight Charts)</h2>
         <div style={{ opacity: 0.7, fontSize: 13 }}>
-          Data: /api/v1/ohlc?symbol=&timeframe=
+          Mock feed is enabled so you can see candles immediately.
         </div>
       </div>
 
@@ -94,15 +90,18 @@ export default function App() {
 
       {/* Chart */}
       <div style={{ border: "1px solid #1b2130", borderRadius: 12, overflow: "hidden" }}>
-        <LiveLWChart symbol={symbol} timeframe={timeframe} height={560} />
+        <LiveLWChart
+          symbol={symbol}
+          timeframe={timeframe}
+          height={560}
+          enabledIndicators={["mfi", "cmf"]}
+          indicatorSettings={{ mfi: { length: 14 }, cmf: { length: 20 } }}
+        />
       </div>
 
-      {/* Footer tip */}
+      {/* Footer */}
       <div style={{ marginTop: 10, fontSize: 12, opacity: 0.75 }}>
-        Tip: Open DevTools → Console. You’ll see a line like
-        {" "}
-        <code>[candles] AAPL 1m bars=… from=… to=…</code>
-        {" "}when data loads.
+        Tip: If you see a favicon 404 in Console, it’s harmless.
       </div>
     </div>
   );
