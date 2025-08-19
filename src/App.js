@@ -7,7 +7,7 @@ export default function App() {
   const [timeframe, setTimeframe] = useState("1D");
   const [dbg, setDbg] = useState({ source: "-", url: "-", bars: 0, shape: "-" });
 
-  // read feed debug (confirms backend vs mock)
+  // read feed debug (backend vs mock)
   useEffect(() => {
     const id = setInterval(() => {
       const d = window.__FEED_DEBUG__ || {};
@@ -21,10 +21,7 @@ export default function App() {
     return () => clearInterval(id);
   }, []);
 
-  const symbols = useMemo(
-    () => ["SPY", "QQQ", "AAPL", "MSFT", "NVDA", "TSLA", "META", "AMZN"],
-    []
-  );
+  const symbols = useMemo(() => ["SPY","QQQ","AAPL","MSFT","NVDA","TSLA","META","AMZN"], []);
   const tfs = useMemo(() => ["1m", "1H", "1D"], []);
 
   const panel = { border: "1px solid #1f2a44", borderRadius: 12, padding: 12, background: "#0e1526", marginBottom: 12 };
@@ -47,7 +44,7 @@ export default function App() {
 
   return (
     <div style={{ minHeight: "100vh", background: "#0d1117", color: "#d1d4dc" }}>
-      {/* tiny debug bar (leave on while we verify) */}
+      {/* debug bar while we verify */}
       <div style={{ padding: "6px 10px", fontSize: 12, color: "#93a3b8", background: "#111827", borderBottom: "1px solid #334155" }}>
         FEED: <strong>{dbg.source}</strong> • bars: <strong>{dbg.bars}</strong> • shape: <strong>{dbg.shape}</strong> • url: <span style={{ opacity: 0.8 }}>{dbg.url}</span>
       </div>
@@ -86,14 +83,25 @@ export default function App() {
             enabledIndicators={[
               "ema10",
               "ema20",
-              "mfp",     // ✅ Money Flow Profile overlay (not the MFI oscillator)
-              // "mfi",   // leave OFF
-              // "cmf",   // optional later
+              "mfp",       // Money Flow Profile overlay (not MFI oscillator)
             ]}
             indicatorSettings={{
               ema10: { length: 12, color: "#60a5fa" },
               ema20: { length: 26, color: "#f59e0b" },
-              mfp:   { lookback: 250, bins: 24, widthPct: 0.28, opacity: 0.28 }, // tweak to taste
+              // ✅ Updated keys for the profile:
+              mfp: {
+                lookback: 250,
+                bins: 24,
+                showZones: true,      // full-width blocks for dominant zones
+                zonesCount: 1,        // top 1 green + top 1 red zone
+                zoneOpacity: 0.12,
+                showSides: true,      // side bars inside pane edges
+                sideWidthPct: 0.18,   // 18% of pane width max
+                sideOpacity: 0.28,
+                posColor: "#22c55e",
+                negColor: "#ef4444",
+                innerMargin: 10,      // padding from left/right edges (px)
+              },
             }}
           />
         </div>
