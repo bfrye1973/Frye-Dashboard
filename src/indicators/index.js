@@ -1,8 +1,17 @@
-// Master registry that the chart can use
+// src/indicators/index.js
 import { MONEY_FLOW_INDICATORS } from "./moneyFlow";
+import EMA, { makeEMA } from "./ema";
+import VOLUME from "./volume";
+
+// Define EMA10 & EMA20 using the factory
+const EMA10 = makeEMA({ id: "ema10", label: "EMA 10", length: 10, color: "#60a5fa" }); // blue
+const EMA20 = makeEMA({ id: "ema20", label: "EMA 20", length: 20, color: "#f59e0b" }); // amber
 
 export const INDICATORS = [
-  ...MONEY_FLOW_INDICATORS,
+  ...MONEY_FLOW_INDICATORS,  // mfi, cmf
+  VOLUME,                    // volume histogram
+  EMA10,
+  EMA20,
 ];
 
 export const INDICATOR_MAP = INDICATORS.reduce((acc, ind) => {
@@ -10,7 +19,6 @@ export const INDICATOR_MAP = INDICATORS.reduce((acc, ind) => {
   return acc;
 }, {});
 
-// Optional helper: resolve enabled indicators with settings
 export function resolveIndicators(enabledIds = [], settings = {}) {
   return enabledIds
     .map((id) => {
