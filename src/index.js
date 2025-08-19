@@ -1,18 +1,31 @@
 // src/index.js
 import React from "react";
 import { createRoot } from "react-dom/client";
+import App from "./App";
 
-// IMPORTANT: match file names exactly (case-sensitive on Render)
-import LiveFeeds from "./pages/LiveFeeds.jsx";
-import OverlayLab from "./pages/OverlayLab.jsx";
+// 🔵 Build tag from React bundle (hard to miss)
+document.title = "Frye Dashboard • BUILD RB2";
 
-function Root() {
-  const hash = typeof window !== "undefined" ? window.location.hash : "";
-  // visit .../#/overlay-lab to open the overlay sandbox, otherwise show LiveFeeds
-  if (hash.startsWith("#/overlay-lab")) return <OverlayLab />;
-  return <LiveFeeds />;
+function BuildBanner() {
+  return (
+    <div style={{
+      background:"#111827",
+      borderBottom:"1px solid #334155",
+      padding:"6px 10px",
+      font:"12px/1.4 system-ui",
+      color:"#93a3b8"
+    }}>
+      BUILD TAG: <strong>RB2</strong>
+    </div>
+  );
 }
 
-const el = document.getElementById("root");
-createRoot(el).render(<Root />);
+const root = createRoot(document.getElementById("root"));
+root.render(
+  <React.StrictMode>
+    <BuildBanner />
+    <App />
+  </React.StrictMode>
+);
+
 
