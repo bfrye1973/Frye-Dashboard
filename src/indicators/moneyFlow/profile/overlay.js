@@ -1,21 +1,27 @@
-// Draw horizontal money-flow bars on the PRICE pane using a canvas overlay.
+// src/indicators/moneyFlow/profile/overlay.js
+// Draw horizontal money-flow bars + dominant zones on the PRICE pane.
 
 export function mfpAttach(chartApi, seriesMap, result, inputs) {
   const {
-    widthPct = 0.28,
-    opacity = 0.28,
+    showSides = true,
+    sideWidthPct = 0.18,
+    sideOpacity = 0.28,
+    showZones = true,
+    zonesCount = 1,
+    zoneOpacity = 0.12,
     posColor = "#22c55e",
     negColor = "#ef4444",
+    innerMargin = 10,
   } = inputs || {};
 
   const bins = result?.bins || [];
   if (!bins.length) return () => {};
 
-  const container = chartApi._container;       // from LiveLWChart (NEW)
-  const priceSeries = chartApi._priceSeries;   // from LiveLWChart (NEW)
+  const container = chartApi._container;
+  const priceSeries = chartApi._priceSeries;
   if (!container || !priceSeries) return () => {};
 
-  // Create overlay canvas
+  // Canvas overlay (on top, but transparent)
   const canvas = document.createElement("canvas");
   canvas.style.position = "absolute";
   canvas.style.left = "0";
@@ -26,64 +32,116 @@ export function mfpAttach(chartApi, seriesMap, result, inputs) {
   canvas.width = container.clientWidth;
   canvas.height = container.clientHeight;
   container.appendChild(canvas);
-
   const ctx = canvas.getContext("2d");
 
+  // Helpers
   function priceToY(price) {
     const y = priceSeries.priceToCoordinate(price);
     return y == null ? -1 : y;
   }
-
-  function draw() {
-    // resize to actual pixels
-    const w = container.clientWidth;
-    const h = container.clientHeight;
-    if (canvas.width !== w || canvas.height !== h) {
-      canvas.width = w; canvas.height = h;
-    }
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    // compute max width in pixels
-    const maxW = Math.floor(w * widthPct);
-
-    // draw each bin
-    for (const b of bins) {
-      const y1 = priceToY(b.p1);
-      const y2 = priceToY(b.p2);
-      if (y1 < 0 || y2 < 0) continue;
-
-      const yTop = Math.min(y1, y2);
-      const yBot = Math.max(y1, y2);
-      const hPx = Math.max(1, yBot - yTop);
-
-      // scale widths
-      const posW = b.abs > 0 ? Math.round((b.pos / b.abs) * (b.abs / result.maxAbs) * maxW) : 0;
-      const negW = b.abs > 0 ? Math.round((b.neg / b.abs) * (b.abs / result.maxAbs) * maxW) : 0;
-
-      // RIGHT side accumulation (green)
-      if (posW > 0) {
-        ctx.fillStyle = hexWithOpacity(posColor, opacity);
-        ctx.fillRect(w - posW - 2, yTop, posW, hPx);
-      }
-      // LEFT side distribution (red)
-      if (negW > 0) {
-        ctx.fillStyle = hexWithOpacity(negColor, opacity);
-        ctx.fillRect(2, yTop, negW, hPx);
-      }
-    }
-  }
-
-  function hexWithOpacity(hex, a) {
-    // #rrggbb → rgba(...)
+  function rgba(hex, a) {
     const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
     if (!m) return hex;
     const r = parseInt(m[1], 16);
     const g = parseInt(m[2], 16);
     const b = parseInt(m[3], 16);
     return `rgba(${r},${g},${b},${a})`;
+  }
+
+  // Build zone candidates by contiguous bin grouping per side (pos/neg)
+  function buildZones(side /* "pos" | "neg" */) {
+    const zones = [];
+    let runStart = null, runEnd = null, runSum = 0;
+
+    for (let i = 0; i < bins.length; i++) {
+      const b = bins[i];
+      const val = side === "pos" ? b.pos : b.neg;
+      if (val > 0) {
+        if (runStart == null) { runStart = i; runEnd = i; runSum = val; }
+        else { runEnd = i; runSum += val; }
+      } else if (runStart != null) {
+        zones.push({ side, i1: runStart, i2: runEnd, strength: runSum });
+        runStart = runEnd = null; runSum = 0;
+      }
+    }
+    if (runStart != null) zones.push({ side, i1: runStart, i2: runEnd, strength: runSum });
+    // strongest first
+    zones.sort((a, b) => b.strength - a.strength);
+    return zones.slice(0, Math.max(0, zonesCount));
+  }
+
+  const posZones = showZones ? buildZones("pos") : [];
+  const negZones = showZones ? buildZones("neg") : [];
+
+  function draw() {
+    // Resize backing store to device px
+    const w = container.clientWidth;
+    const h = container.clientHeight;
+    if (canvas.width !== w || canvas.height !== h) {
+      canvas.width = w; canvas.height = h;
+    }
+    ctx.clearRect(0, 0, w, h);
+
+    // Plot area bounds (approx): keep a small inner margin
+    const leftX = innerMargin;
+    const rightX = w - innerMargin;
+
+    // A) ZONES — full-width horizontal blocks
+    if (showZones) {
+      ctx.save();
+      // Positive (green) zones
+      ctx.fillStyle = rgba(posColor, zoneOpacity);
+      for (const z of posZones) {
+        const topY = priceToY(bins[z.i2].p2);
+        const botY = priceToY(bins[z.i1].p1);
+        if (topY < 0 || botY < 0) continue;
+        const y = Math.min(topY, botY);
+        const hPx = Math.max(1, Math.abs(botY - topY));
+        ctx.fillRect(leftX, y, rightX - leftX, hPx);
+      }
+      // Negative (red) zones
+      ctx.fillStyle = rgba(negColor, zoneOpacity);
+      for (const z of negZones) {
+        const topY = priceToY(bins[z.i2].p2);
+        const botY = priceToY(bins[z.i1].p1);
+        if (topY < 0 || botY < 0) continue;
+        const y = Math.min(topY, botY);
+        const hPx = Math.max(1, Math.abs(botY - topY));
+        ctx.fillRect(leftX, y, rightX - leftX, hPx);
+      }
+      ctx.restore();
     }
 
-  // Redraw handlers
+    // B) SIDE BARS — inside the pane edges
+    if (showSides) {
+      const maxW = Math.floor(w * sideWidthPct);
+      for (const b of bins) {
+        const y1 = priceToY(b.p1);
+        const y2 = priceToY(b.p2);
+        if (y1 < 0 || y2 < 0) continue;
+        const yTop = Math.min(y1, y2);
+        const yBot = Math.max(y1, y2);
+        const hPx = Math.max(1, yBot - yTop);
+
+        const scale = result.maxAbs ? (b.abs / result.maxAbs) : 0;
+        const posW = b.pos > 0 ? Math.round(scale * maxW) : 0;
+        const negW = b.neg > 0 ? Math.round(scale * maxW) : 0;
+
+        // Accumulation on RIGHT
+        if (posW > 0) {
+          ctx.fillStyle = rgba(posColor, sideOpacity);
+          ctx.fillRect(rightX - posW, yTop, posW, hPx);
+        }
+        // Distribution on LEFT
+        if (negW > 0) {
+          ctx.fillStyle = rgba(negColor, sideOpacity);
+          ctx.fillRect(leftX, yTop, negW, hPx);
+        }
+      }
+    }
+  }
+
+  // Hook redraws
   const ro = new ResizeObserver(draw);
   ro.observe(container);
   const ts = chartApi.timeScale();
@@ -91,8 +149,7 @@ export function mfpAttach(chartApi, seriesMap, result, inputs) {
   const unsub2 = ts.subscribeVisibleLogicalRangeChange?.(draw) || (() => {});
   const unsub3 = priceSeries.priceScale().subscribeSizeChange?.(draw) || (() => {});
 
-  // initial draw
-  draw();
+  draw(); // initial
 
   const cleanup = () => {
     try { ro.disconnect(); } catch {}
@@ -102,7 +159,7 @@ export function mfpAttach(chartApi, seriesMap, result, inputs) {
     try { container.removeChild(canvas); } catch {}
   };
 
-  // expose so we can remove from registry (no seriesMap entry since it's canvas)
+  // register cleanup
   seriesMap.set("mfp_canvas_cleanup", cleanup);
   return cleanup;
 }
