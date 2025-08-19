@@ -1,19 +1,19 @@
 // src/services/feed.js
-// Live OHLC feed from backend with a safe mock fallback.
-// Expects backend endpoint:  GET  /api/v1/ohlc?symbol=SYM&timeframe=TF
-// Returns candles like [{ time|t|timestamp, open, high, low, close, volume }, ...]
+// Backend OHLC with safe mock fallback + debug markers.
 
-// ---------- helpers ----------
-function tfToSeconds(tf = "1D") {
+function normalizeTf(tf = "1D") {
   const t = String(tf).toLowerCase();
-  return { "1m": 60, "5m": 300, "15m": 900, "1h": 3600, "1d": 86400 }[t] ?? 86400;
+  if (t === "1h" || t === "1m" || t === "1d") return t;
+  // map variants like "1H" -> "1h"
+  return t.replace("h", "h").replace("m", "m").replace("d", "d");
+}
+function tfToSeconds(tf = "1d") {
+  const t = normalizeTf(tf);
+  return { "1m": 60, "1h": 3600, "1d": 86400 }[t] ?? 86400;
 }
 function toSec(x) {
   if (x == null) return null;
-  if (typeof x === "number") {
-    // if it's ms, convert to sec
-    return x > 1e12 ? Math.floor(x / 1000) : x;
-  }
+  if (typeof x === "number") return x > 1e12 ? Math.floor(x / 1000) : x;
   const d = Date.parse(x);
   return Number.isNaN(d) ? null : Math.floor(d / 1000);
 }
@@ -29,14 +29,14 @@ function normalizeBars(raw = []) {
       const l = +b.low ?? +b.l ?? NaN;
       const c = +b.close ?? +b.c ?? NaN;
       const v = +b.volume ?? +b.v ?? 0;
-      if ([o, h, l, c].some((x) => Number.isNaN(x))) return null;
+      if ([o, h, l, c].some(Number.isNaN)) return null;
       return { time, open: o, high: h, low: l, close: c, volume: v };
     })
     .filter(Boolean)
     .sort((a, b) => a.time - b.time);
 }
 
-// ---------- mock fallback ----------
+// --------- mock fallback ----------
 function genHistory({ bars = 200, base = 100, tfSec = 3600 }) {
   const now = Math.floor(Date.now() / 1000);
   let px = base;
@@ -60,45 +60,51 @@ function hashCode(str) {
   return h;
 }
 
-// ---------- main API ----------
+// --------- main API ----------
 export function getFeed(symbol = "MSFT", timeframe = "1D") {
-  const tfSec = tfToSeconds(timeframe);
+  const tf = normalizeTf(timeframe);
+  const tfSec = tfToSeconds(tf);
+
   const API_BASE = (typeof window !== "undefined" && window.__API_BASE__) || "";
-  const url = `${API_BASE}/api/v1/ohlc?symbol=${encodeURIComponent(symbol)}&timeframe=${encodeURIComponent(timeframe)}`;
+  // cache-buster to defeat intermediate caches
+  const cb = Date.now().toString(36);
+  const url = `${API_BASE}/api/v1/ohlc?symbol=${encodeURIComponent(symbol)}&timeframe=${encodeURIComponent(tf)}&cb=${cb}`;
 
   let timer = null;
 
   return {
-    // 1) initial history (tries backend, falls back to mock)
     async history() {
       try {
+        console.info("[feed] GET", url);
         const res = await fetch(url, { cache: "no-store" });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json = await res.json();
         const bars = normalizeBars(json);
+        console.info("[feed] backend bars:", bars.length);
         if (!bars.length) throw new Error("empty");
+        if (typeof window !== "undefined") window.__FEED_SOURCE = "backend";
         return bars;
       } catch (e) {
-        // fallback to mock so UI still works
-        const base = (Math.abs(hashCode(`${symbol}:${timeframe}`)) % 200) + 50;
-        return genHistory({ bars: 200, base, tfSec });
+        const base = (Math.abs(hashCode(`${symbol}:${tf}`)) % 200) + 50;
+        const mock = genHistory({ bars: 200, base, tfSec });
+        console.warn("[feed] fallback to mock, reason:", e?.message);
+        if (typeof window !== "undefined") window.__FEED_SOURCE = "mock";
+        return mock;
       }
     },
 
-    // 2) polling subscribe (refetch the last bar periodically)
-    // Lightweight-Charts will replace/update if time matches last bar
     subscribe(onBar) {
-      const pollMs = Math.min(tfSec * 1000, 5000); // up to 5s
+      const pollMs = Math.min(tfSec * 1000, 5000);
       timer = setInterval(async () => {
         try {
-          const res = await fetch(url + "&limit=2", { cache: "no-store" });
+          const cb2 = Date.now().toString(36);
+          const res = await fetch(`${url}&limit=2&cb2=${cb2}`, { cache: "no-store" });
           if (!res.ok) return;
           const bars = normalizeBars(await res.json());
           const last = bars[bars.length - 1];
           if (last) onBar({ ...last });
         } catch {}
       }, pollMs);
-
       return () => clearInterval(timer);
     },
 
