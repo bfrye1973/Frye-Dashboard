@@ -86,13 +86,14 @@ export default function App() {
             enabledIndicators={[
               "ema10",
               "ema20",
-              "mfi",     // ← ON
-              // "cmf",   // keep off for now; we’ll add next
+              "mfp",     // ✅ Money Flow Profile overlay (not the MFI oscillator)
+              // "mfi",   // leave OFF
+              // "cmf",   // optional later
             ]}
             indicatorSettings={{
               ema10: { length: 12, color: "#60a5fa" },
               ema20: { length: 26, color: "#f59e0b" },
-              mfi:   { length: 14 }, // standard MFI period
+              mfp:   { lookback: 250, bins: 24, widthPct: 0.28, opacity: 0.28 }, // tweak to taste
             }}
           />
         </div>
