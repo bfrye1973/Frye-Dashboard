@@ -3,17 +3,14 @@ import { useEffect, useRef, useState } from "react";
 import { createChart } from "lightweight-charts";
 import { baseChartOptions } from "./chartConfig";
 import { resolveIndicators } from "../../indicators";
-
-// NOTE: adjust this import to wherever your feed adapter lives.
-// If you already have a feed util, point to it. Otherwise leave as-is and wire later.
-import { getFeed } from "../../services/feed"; // <-- change if needed
+import { getFeed } from "../../services/feed";
 
 export default function LiveLWChart({
   symbol = "SPY",
   timeframe = "1D",
   height = 560,
-  enabledIndicators = ["mfi", "cmf"],
-  indicatorSettings = {}, // e.g. { mfi:{length:10}, cmf:{length:21} }
+  enabledIndicators = [],
+  indicatorSettings = {},
 }) {
   const containerRef = useRef(null);
   const chartRef = useRef(null);
@@ -31,6 +28,10 @@ export default function LiveLWChart({
     const price = chart.addCandlestickSeries();
     priceSeriesRef.current = price;
 
+    // NEW: expose container & price series so overlays can map price→Y and draw
+    chartRef.current._container = containerRef.current;   // NEW
+    chartRef.current._priceSeries = priceSeriesRef.current; // NEW
+
     return () => {
       try { chart.remove(); } catch {}
       chartRef.current = null;
@@ -43,21 +44,18 @@ export default function LiveLWChart({
   useEffect(() => {
     if (!chartRef.current || !priceSeriesRef.current) return;
 
-    const feed = getFeed?.(symbol, timeframe);
+    const feed = getFeed(symbol, timeframe);
     let disposed = false;
 
     (async () => {
-      if (!feed?.history) return;
       const seed = await feed.history();
       if (disposed) return;
-
       setCandles(seed);
       priceSeriesRef.current.setData(seed);
-      // expose candles for indicator panes to read times
-      chartRef.current._candles = seed;
+      chartRef.current._candles = seed; // expose for overlays
     })();
 
-    const unsubscribe = feed?.subscribe?.((bar) => {
+    const unsubscribe = feed.subscribe((bar) => {
       if (disposed) return;
       setCandles((prev) => {
         const next = mergeBar(prev, bar);
@@ -70,16 +68,16 @@ export default function LiveLWChart({
     return () => {
       disposed = true;
       unsubscribe?.();
-      feed?.close?.();
+      feed.close?.();
     };
   }, [symbol, timeframe]);
 
-  // Attach indicators whenever candles or list/settings change
+  // Attach/detach indicators
   useEffect(() => {
     const chart = chartRef.current;
-    if (!chart || candles.length === 0) return;
+    if (!chart || !candles.length) return;
 
-    // clean old series (and run cleanups if stored)
+    // run cleanups
     for (const [key, obj] of seriesMapRef.current) {
       if (key.endsWith("__cleanup") && typeof obj === "function") {
         try { obj(); } catch {}
@@ -109,11 +107,6 @@ export default function LiveLWChart({
   return <div ref={containerRef} className="w-full" style={{ height }} />;
 }
 
-/**
- * Minimal merge for streaming bars.
- * If incoming bar time equals last candle time -> replace/update.
- * Otherwise push new bar.
- */
 function mergeBar(prev, bar) {
   if (!prev?.length) return [bar];
   const last = prev[prev.length - 1];
