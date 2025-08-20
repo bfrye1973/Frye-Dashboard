@@ -1,9 +1,14 @@
 // src/indicators/swing/index.js
 // Swing Points & Liquidity — BLOCKS ONLY (no lines)
 // Demand (swing lows) = GREEN, Supply (swing highs) = RED
-// Draws ABOVE the chart; with viewport culling for a clean zoomed view.
+// Draws ABOVE the chart; viewport culling + HARD LIMIT: MAX 3 PER SIDE
 
 import { INDICATOR_KIND } from "../shared/indicatorTypes";
+
+// ======= TUNABLES =======
+const MAX_ZONES_PER_SIDE = 3;     // ← change to 2 if you prefer
+const MIN_PX_W = 24;              // drop skinny slivers
+// ========================
 
 const DEF = {
   leftBars: 15,
@@ -44,7 +49,7 @@ function swingCompute(candles, inputs) {
   const n = candles?.length ?? 0;
   if (!n) return { zones: [], labels: [], opts: o };
 
-  const zones = [];
+  const zones = [];   // {type:'res'|'sup', price, fromIdx, toIdx, filled}
   const labels = [];
 
   for (let i = L; i < n - R; i++) {
@@ -64,6 +69,7 @@ function swingCompute(candles, inputs) {
     }
   }
 
+  // extend until fill (or stop early)
   for (const Z of zones) {
     for (let i = Z.fromIdx; i < n; i++) {
       const c = candles[i];
@@ -78,13 +84,7 @@ function swingCompute(candles, inputs) {
   }
 
   const filtered = o.hideFilled ? zones.filter(z => !z.filled) : zones;
-
-  const res = filtered.map(z => ({
-    ...z,
-    fromTime: candles[z.fromIdx].time,
-    toTime:   candles[z.toIdx].time,
-  }));
-
+  const res = filtered.map(z => ({ ...z, fromTime: candles[z.fromIdx].time, toTime: candles[z.toIdx].time }));
   return { zones: res, labels, opts: o };
 }
 
@@ -115,8 +115,6 @@ function swingAttach(chartApi, seriesMap, result, inputs) {
   function getVisibleTimeRange() {
     const r = ts.getVisibleRange ? ts.getVisibleRange() : null;
     if (r && r.from != null && r.to != null) return { from: r.from, to: r.to };
-    const lr = ts.getVisibleLogicalRange ? ts.getVisibleLogicalRange() : null;
-    if (!lr) return null;
     const leftTime  = ts.coordinateToTime ? ts.coordinateToTime(0) : null;
     const rightTime = ts.coordinateToTime ? ts.coordinateToTime(canvas.clientWidth) : null;
     if (leftTime && rightTime) return { from: leftTime, to: rightTime };
@@ -145,7 +143,7 @@ function swingAttach(chartApi, seriesMap, result, inputs) {
     // version tag
     ctx.fillStyle = "rgba(147,163,184,0.85)";
     ctx.font = o.font;
-    ctx.fillText("SWING v2", 10, 16);
+    ctx.fillText("SWING v3 (max 3/side)", 10, 16);
 
     const zones = result?.zones || [];
     if (!zones.length) return;
@@ -153,9 +151,6 @@ function swingAttach(chartApi, seriesMap, result, inputs) {
     const vr = getVisibleTimeRange();
     const tFrom = vr?.from ?? -Infinity;
     const tTo   = vr?.to   ??  Infinity;
-
-    const MIN_PX_W = 24;
-    const MAX_ZONES_PER_SIDE = 12;
 
     const visible = [];
     for (const Z of zones) {
@@ -171,6 +166,7 @@ function swingAttach(chartApi, seriesMap, result, inputs) {
     }
     if (!visible.length) return;
 
+    // HARD LIMIT: keep strongest 3 supply and 3 demand on screen
     const supply = visible.filter(v => v.Z.type === "res").sort((a,b)=>b.strength - a.strength).slice(0, MAX_ZONES_PER_SIDE);
     const demand = visible.filter(v => v.Z.type === "sup").sort((a,b)=>b.strength - a.strength).slice(0, MAX_ZONES_PER_SIDE);
     const drawList = supply.concat(demand);
@@ -178,7 +174,8 @@ function swingAttach(chartApi, seriesMap, result, inputs) {
     for (const V of drawList) {
       const Z = V.Z;
       const baseHalf = Math.max(1e-6, Z.price * o.blockHeightPct);
-      const scale = Math.max(0.6, Math.min(1.0, 120 / V.pxW)); // thinner when zoomed in wide
+      // height scales a little thinner when zoomed in (wider pxW)
+      const scale = Math.max(0.6, Math.min(1.0, 120 / V.pxW));
       const half  = baseHalf * scale;
 
       const yTop = yOf(Z.type === "res" ? (Z.price + half) : (Z.price - half));
@@ -188,8 +185,10 @@ function swingAttach(chartApi, seriesMap, result, inputs) {
       const xx = V.x1, ww = Math.max(1, V.pxW);
       const yy = Math.min(yTop, yBot), hh = Math.max(1, Math.abs(yTop - yBot));
 
-      const localMax = (Z.type === "res" ? supply : demand)[0]?.strength || V.strength;
-      const alpha = 0.20 + 0.15 * (V.strength / localMax); // 0.20–0.35
+      // opacity by strength within on-screen cohort
+      const cohort = Z.type === "res" ? supply : demand;
+      const localMax = cohort[0]?.strength || V.strength;
+      const alpha = 0.22 + 0.13 * (V.strength / localMax); // 0.22–0.35
 
       ctx.globalAlpha = alpha;
       ctx.fillStyle   = (Z.type === "res") ? o.resFill : o.supFill;
