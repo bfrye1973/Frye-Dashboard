@@ -63,7 +63,8 @@ export default function App() {
   }, [enabled]);
 
   const symbols = useMemo(() => ["SPY","QQQ","AAPL","MSFT","NVDA","TSLA","META","AMZN"], []);
-  const tfs = useMemo(() => ["1m","1H","1D"], []);
+  // ✅ add 10m here
+  const tfs = useMemo(() => ["1m","10m","1H","1D"], []);
 
   // styles
   const panel = { border: "1px solid #1f2a44", borderRadius: 12, padding: 12, background: "#0e1526", marginBottom: 12 };
