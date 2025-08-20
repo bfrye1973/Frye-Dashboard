@@ -1,6 +1,7 @@
 // src/App.js
 import React, { useMemo, useState, useEffect } from "react";
 import LiveLWChart from "./components/LiveLWChart";
+import GaugesCard from "./components/GaugesCard";
 
 export default function App() {
   const [symbol, setSymbol] = useState("SPY");
@@ -97,6 +98,11 @@ export default function App() {
       <div style={{ display: "grid", gridTemplateColumns: "300px 1fr", gap: 16, padding: 16 }}>
         {/* LEFT DASHBOARD */}
         <div>
+          {/* Market Gauges */}
+          <div style={panel}>
+            <GaugesCard />
+          </div>
+
           {/* Symbol */}
           <div style={panel}>
             <span style={label}>Symbol</span>
