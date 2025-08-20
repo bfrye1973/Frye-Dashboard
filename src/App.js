@@ -5,9 +5,9 @@ import LiveLWChart from "./components/LiveLWChart";
 export default function App() {
   const [symbol, setSymbol] = useState("SPY");
   const [timeframe, setTimeframe] = useState("1D");
-  const [dbg, setDbg] = useState({ source: "-", url: "-", bars: 0, shape: "-" });
 
-  // read feed debug (backend vs mock)
+  // tiny feed debug (top banner)
+  const [dbg, setDbg] = useState({ source: "-", url: "-", bars: 0, shape: "-" });
   useEffect(() => {
     const id = setInterval(() => {
       const d = window.__FEED_DEBUG__ || {};
@@ -17,13 +17,49 @@ export default function App() {
         bars: d.bars || 0,
         shape: d.shape || "-",
       });
-    }, 500);
+    }, 600);
     return () => clearInterval(id);
   }, []);
 
-  const symbols = useMemo(() => ["SPY", "QQQ", "AAPL", "MSFT", "NVDA", "TSLA", "META", "AMZN"], []);
+  // --- indicator toggles ---
+  const [enabled, setEnabled] = useState({
+    ema10: true,
+    ema20: true,
+    mfp: false,      // start OFF so you can turn it on to verify
+  });
+
+  // indicator settings (you can tweak these anytime)
+  const [settings, setSettings] = useState({
+    ema10: { length: 12, color: "#60a5fa" },
+    ema20: { length: 26, color: "#f59e0b" },
+    mfp: {
+      lookback: 250,
+      bins: 24,
+      showZones: true,
+      zonesCount: 1,
+      zoneOpacity: 0.12,
+      showSides: true,
+      sideWidthPct: 0.18,
+      sideOpacity: 0.28,
+      posColor: "#22c55e",
+      negColor: "#ef4444",
+      innerMargin: 10,
+    },
+  });
+
+  // build enabledIndicators array from toggles
+  const enabledIndicators = useMemo(() => {
+    const out = [];
+    if (enabled.ema10) out.push("ema10");
+    if (enabled.ema20) out.push("ema20");
+    if (enabled.mfp)   out.push("mfp");       // Money Flow Profile
+    return out;
+  }, [enabled]);
+
+  const symbols = useMemo(() => ["SPY","QQQ","AAPL","MSFT","NVDA","TSLA","META","AMZN"], []);
   const tfs = useMemo(() => ["1m", "1H", "1D"], []);
 
+  // ----- styles -----
   const panel = { border: "1px solid #1f2a44", borderRadius: 12, padding: 12, background: "#0e1526", marginBottom: 12 };
   const label = { fontSize: 12, opacity: 0.8, marginBottom: 6, display: "block" };
   const row = { display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" };
@@ -37,21 +73,19 @@ export default function App() {
     fontSize: 13,
   });
   const select = {
-    width: "100%",
-    padding: "8px 10px",
-    borderRadius: 8,
-    border: "1px solid #334155",
-    background: "#0b1220",
-    color: "#e5e7eb",
-    fontSize: 14,
-    outline: "none",
+    width: "100%", padding: "8px 10px", borderRadius: 8,
+    border: "1px solid #334155", background: "#0b1220",
+    color: "#e5e7eb", fontSize: 14, outline: "none",
   };
+  const checkRow = { display: "flex", alignItems: "center", gap: 8, margin: "6px 0" };
+  const small = { fontSize: 12, opacity: 0.85 };
 
   return (
     <div style={{ minHeight: "100vh", background: "#0d1117", color: "#d1d4dc" }}>
-      {/* debug bar while we verify */}
+      {/* debug bar */}
       <div style={{ padding: "6px 10px", fontSize: 12, color: "#93a3b8", background: "#111827", borderBottom: "1px solid #334155" }}>
-        FEED: <strong>{dbg.source}</strong> • bars: <strong>{dbg.bars}</strong> • shape: <strong>{dbg.shape}</strong> • url: <span style={{ opacity: 0.8 }}>{dbg.url}</span>
+        FEED: <strong>{dbg.source}</strong> • bars: <strong>{dbg.bars}</strong> • shape: <strong>{dbg.shape}</strong> • url:{" "}
+        <span style={{ opacity: 0.8 }}>{dbg.url}</span>
       </div>
 
       <div style={{ padding: 12, borderBottom: "1px solid #1f2a44" }}>
@@ -61,16 +95,15 @@ export default function App() {
       <div style={{ display: "grid", gridTemplateColumns: "300px 1fr", gap: 16, padding: 16 }}>
         {/* LEFT DASHBOARD */}
         <div>
+          {/* Symbol */}
           <div style={panel}>
             <span style={label}>Symbol</span>
             <select value={symbol} onChange={(e) => setSymbol(e.target.value)} style={select}>
-              {symbols.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
+              {symbols.map((s) => (<option key={s} value={s}>{s}</option>))}
             </select>
           </div>
+
+          {/* Timeframe */}
           <div style={panel}>
             <span style={label}>Timeframe</span>
             <div style={row}>
@@ -81,6 +114,46 @@ export default function App() {
               ))}
             </div>
           </div>
+
+          {/* Indicator toggles */}
+          <div style={panel}>
+            <span style={label}>Indicators</span>
+
+            <div style={checkRow}>
+              <input
+                id="ema10"
+                type="checkbox"
+                checked={enabled.ema10}
+                onChange={(e) => setEnabled((p) => ({ ...p, ema10: e.target.checked }))}
+              />
+              <label htmlFor="ema10" style={small}>EMA 10</label>
+            </div>
+
+            <div style={checkRow}>
+              <input
+                id="ema20"
+                type="checkbox"
+                checked={enabled.ema20}
+                onChange={(e) => setEnabled((p) => ({ ...p, ema20: e.target.checked }))}
+              />
+              <label htmlFor="ema20" style={small}>EMA 20</label>
+            </div>
+
+            <div style={checkRow}>
+              <input
+                id="mfp"
+                type="checkbox"
+                checked={enabled.mfp}
+                onChange={(e) => setEnabled((p) => ({ ...p, mfp: e.target.checked }))}
+              />
+              <label htmlFor="mfp" style={small}>Money Flow Profile</label>
+            </div>
+
+            {/* (optional) tiny hint so you can see which ids are active */}
+            <div style={{ marginTop: 8, fontSize: 11, opacity: 0.7 }}>
+              Active: {enabledIndicators.join(", ") || "none"}
+            </div>
+          </div>
         </div>
 
         {/* CHART */}
@@ -89,14 +162,8 @@ export default function App() {
             symbol={symbol}
             timeframe={timeframe}
             height={620}
-            enabledIndicators={[
-              "ema10",
-              "ema20",
-            ]}
-            indicatorSettings={{
-              ema10: { length: 12, color: "#60a5fa" },
-              ema20: { length: 26, color: "#f59e0b" },
-            }}
+            enabledIndicators={enabledIndicators}
+            indicatorSettings={settings}
           />
         </div>
       </div>
