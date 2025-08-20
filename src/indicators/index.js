@@ -1,6 +1,8 @@
 // src/indicators/index.js
-// Master indicator registry + safe flattener + resolver
+// Master indicator registry + safe flattener + resolver (keeps LiveLWChart happy)
 
+// Sub-registries should DEFAULT-EXPORT ARRAYS of indicator defs.
+// If one is missing or not an array, we coerce to [] so the app never crashes.
 import moneyFlowIndicators from "./moneyFlow";
 import emaIndicators from "./ema";
 import volumeIndicators from "./volume";
@@ -22,7 +24,7 @@ export const INDICATOR_MAP = INDICATORS.reduce((acc, ind) => {
   return acc;
 }, {});
 
-// ✅ bring back resolveIndicators for LiveLWChart.jsx
+// >>> This is the function LiveLWChart.jsx imports. Bring it back and keep it stable.
 export function resolveIndicators(enabledIds = [], settings = {}) {
   try {
     console.info("[indicators] enabledIds =", JSON.stringify(enabledIds));
@@ -32,7 +34,10 @@ export function resolveIndicators(enabledIds = [], settings = {}) {
   const list = enabledIds
     .map((id) => {
       const def = INDICATOR_MAP[id];
-      if (!def) { try { console.warn("[indicators] missing id:", id); } catch {} ; return null; }
+      if (!def) {
+        try { console.warn("[indicators] missing id:", id); } catch {}
+        return null;
+      }
       const inputs = { ...(def.defaults || {}), ...(settings[id] || {}) };
       return { def, inputs };
     })
@@ -42,5 +47,5 @@ export function resolveIndicators(enabledIds = [], settings = {}) {
   return list;
 }
 
-// (optional) default export if other files import the whole array
+// Optional default export (harmless if other files import the whole list)
 export default INDICATORS;
