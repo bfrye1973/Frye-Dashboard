@@ -1,3 +1,4 @@
+// src/indicators/volume/index.js
 import { INDICATOR_KIND } from "../shared/indicatorTypes";
 import { volumeCompute } from "./compute";
 import { volumeAttach } from "./overlay";
@@ -7,9 +8,10 @@ const VOLUME = {
   id: "vol",
   label: "Volume",
   kind: INDICATOR_KIND.OVERLAY,
-  defaults: volumeDefaults,
+  defaults: volumeDefaults || {},
   compute: (candles) => volumeCompute(candles),
   attach: volumeAttach,
 };
 
-export default VOLUME;
+const volumeIndicators = [VOLUME];  // <-- ARRAY (or [] if you want it off)
+export default volumeIndicators;
