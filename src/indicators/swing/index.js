@@ -3,10 +3,10 @@
 // Demand (swing lows) = GREEN, Supply (swing highs) = RED
 // Draws ABOVE the chart; viewport culling + HARD LIMIT: MAX 3 PER SIDE
 
-import { INDICATOR_KIND } from "../shared/indicatorTypes";
+import indicatorTypes from "../shared/indicatorTypes";
 
 // ======= TUNABLES =======
-const MAX_ZONES_PER_SIDE = 3;     // ← change to 2 if you prefer
+const MAX_ZONES_PER_SIDE = 3;     // change to 2 if you prefer
 const MIN_PX_W = 24;              // drop skinny slivers
 // ========================
 
@@ -49,7 +49,7 @@ function swingCompute(candles, inputs) {
   const n = candles?.length ?? 0;
   if (!n) return { zones: [], labels: [], opts: o };
 
-  const zones = [];   // {type:'res'|'sup', price, fromIdx, toIdx, filled}
+  const zones = [];
   const labels = [];
 
   for (let i = L; i < n - R; i++) {
@@ -112,15 +112,6 @@ function swingAttach(chartApi, seriesMap, result, inputs) {
   const xOf = (t) => ts.timeToCoordinate(t);
   const yOf = (p) => priceSeries.priceToCoordinate(p);
 
-  function getVisibleTimeRange() {
-    const r = ts.getVisibleRange ? ts.getVisibleRange() : null;
-    if (r && r.from != null && r.to != null) return { from: r.from, to: r.to };
-    const leftTime  = ts.coordinateToTime ? ts.coordinateToTime(0) : null;
-    const rightTime = ts.coordinateToTime ? ts.coordinateToTime(canvas.clientWidth) : null;
-    if (leftTime && rightTime) return { from: leftTime, to: rightTime };
-    return null;
-  }
-
   let raf = 0;
   function scheduleDraw() { if (!raf) raf = requestAnimationFrame(() => { raf = 0; draw(); }); }
   function resize() {
@@ -137,10 +128,10 @@ function swingAttach(chartApi, seriesMap, result, inputs) {
 
   function draw() {
     resize();
-    const w = canvas.clientWidth, h = canvas.clientHeight;
-    ctx.clearRect(0, 0, w, h);
+    const w = canvas.clientWidth;
+    ctx.clearRect(0, 0, w, canvas.clientHeight);
 
-    // version tag
+    // tag
     ctx.fillStyle = "rgba(147,163,184,0.85)";
     ctx.font = o.font;
     ctx.fillText("SWING v3 (max 3/side)", 10, 16);
@@ -148,9 +139,10 @@ function swingAttach(chartApi, seriesMap, result, inputs) {
     const zones = result?.zones || [];
     if (!zones.length) return;
 
-    const vr = getVisibleTimeRange();
-    const tFrom = vr?.from ?? -Infinity;
-    const tTo   = vr?.to   ??  Infinity;
+    const leftT  = ts.coordinateToTime ? ts.coordinateToTime(0) : null;
+    const rightT = ts.coordinateToTime ? ts.coordinateToTime(w) : null;
+    const tFrom = leftT ?? -Infinity;
+    const tTo   = rightT ??  Infinity;
 
     const visible = [];
     for (const Z of zones) {
@@ -166,7 +158,7 @@ function swingAttach(chartApi, seriesMap, result, inputs) {
     }
     if (!visible.length) return;
 
-    // HARD LIMIT: keep strongest 3 supply and 3 demand on screen
+    // HARD LIMIT: strongest 3 supply + 3 demand
     const supply = visible.filter(v => v.Z.type === "res").sort((a,b)=>b.strength - a.strength).slice(0, MAX_ZONES_PER_SIDE);
     const demand = visible.filter(v => v.Z.type === "sup").sort((a,b)=>b.strength - a.strength).slice(0, MAX_ZONES_PER_SIDE);
     const drawList = supply.concat(demand);
@@ -174,7 +166,6 @@ function swingAttach(chartApi, seriesMap, result, inputs) {
     for (const V of drawList) {
       const Z = V.Z;
       const baseHalf = Math.max(1e-6, Z.price * o.blockHeightPct);
-      // height scales a little thinner when zoomed in (wider pxW)
       const scale = Math.max(0.6, Math.min(1.0, 120 / V.pxW));
       const half  = baseHalf * scale;
 
@@ -185,10 +176,10 @@ function swingAttach(chartApi, seriesMap, result, inputs) {
       const xx = V.x1, ww = Math.max(1, V.pxW);
       const yy = Math.min(yTop, yBot), hh = Math.max(1, Math.abs(yTop - yBot));
 
-      // opacity by strength within on-screen cohort
+      // opacity by strength within cohort
       const cohort = Z.type === "res" ? supply : demand;
       const localMax = cohort[0]?.strength || V.strength;
-      const alpha = 0.22 + 0.13 * (V.strength / localMax); // 0.22–0.35
+      const alpha = 0.22 + 0.13 * (V.strength / localMax);
 
       ctx.globalAlpha = alpha;
       ctx.fillStyle   = (Z.type === "res") ? o.resFill : o.supFill;
@@ -208,7 +199,7 @@ function swingAttach(chartApi, seriesMap, result, inputs) {
     }
   }
 
-  // markers once
+  // once: markers at swing points
   if (Array.isArray(result?.labels) && o.showLabels) {
     const markers = result.labels.map((lb) => ({
       time: lb.time,
@@ -223,14 +214,12 @@ function swingAttach(chartApi, seriesMap, result, inputs) {
 
   const ro = new ResizeObserver(scheduleDraw);
   ro.observe(container);
-
   const unsub1 = ts.subscribeVisibleTimeRangeChange(scheduleDraw);
   const unsub2 = ts.subscribeVisibleLogicalRangeChange
     ? ts.subscribeVisibleLogicalRangeChange(scheduleDraw) : null;
 
   const ps = priceSeries.priceScale();
-  const subscribedSizeChange = ps && ps.subscribeSizeChange
-    ? (ps.subscribeSizeChange(scheduleDraw), true) : false;
+  const subscribed = ps && ps.subscribeSizeChange ? (ps.subscribeSizeChange(scheduleDraw), true) : false;
 
   scheduleDraw();
 
@@ -238,18 +227,17 @@ function swingAttach(chartApi, seriesMap, result, inputs) {
     try { ro.disconnect(); } catch {}
     try { unsub1 && ts.unsubscribeVisibleTimeRangeChange(scheduleDraw); } catch {}
     try { unsub2 && ts.unsubscribeVisibleLogicalRangeChange && ts.unsubscribeVisibleLogicalRangeChange(scheduleDraw); } catch {}
-    try { if (subscribedSizeChange && ps && ps.unsubscribeSizeChange) { ps.unsubscribeSizeChange(scheduleDraw); } } catch {}
+    try { if (subscribed && ps && ps.unsubscribeSizeChange) ps.unsubscribeSizeChange(scheduleDraw); } catch {}
     try { container.removeChild(canvas); } catch {}
   };
-
   seriesMap.set("swing_blocks_canvas_cleanup", cleanup);
   return cleanup;
 }
 
 const SWING = {
-  id: "swing",
+  id: indicatorTypes.SWING,   // "swing"
   label: "Swing Points & Liquidity (Blocks)",
-  kind: INDICATOR_KIND.OVERLAY,
+  kind: "OVERLAY",
   defaults: DEF,
   compute: swingCompute,
   attach: swingAttach,
