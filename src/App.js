@@ -83,25 +83,26 @@ export default function App() {
             enabledIndicators={[
               "ema10",
               "ema20",
-              "mfp",       // Money Flow Profile overlay (not MFI oscillator)
+              "mfp",        // Money Flow Profile overlay
+              "sr_breaks",  // ✅ Support/Resistance (id must match indicator)
             ]}
             indicatorSettings={{
               ema10: { length: 12, color: "#60a5fa" },
               ema20: { length: 26, color: "#f59e0b" },
-              // ✅ Updated keys for the profile:
               mfp: {
                 lookback: 250,
                 bins: 24,
-                showZones: true,      // full-width blocks for dominant zones
-                zonesCount: 1,        // top 1 green + top 1 red zone
+                showZones: true,
+                zonesCount: 1,
                 zoneOpacity: 0.12,
-                showSides: true,      // side bars inside pane edges
-                sideWidthPct: 0.18,   // 18% of pane width max
+                showSides: true,
+                sideWidthPct: 0.18,
                 sideOpacity: 0.28,
                 posColor: "#22c55e",
                 negColor: "#ef4444",
-                innerMargin: 10,      // padding from left/right edges (px)
+                innerMargin: 10,
               },
+              sr_breaks: { leftBars: 15, rightBars: 15, volumeThresh: 20 }, // ✅ matches id
             }}
           />
         </div>
