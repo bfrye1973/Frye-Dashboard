@@ -1,16 +1,16 @@
 // src/indicators/index.js
-// Master indicator registry — ensures Money Flow Profile is included.
+// Master indicator registry + strong debug so we can see what's happening.
 
-import { MONEY_FLOW_INDICATORS } from "./moneyFlow";     // your existing family (mfi/cmf)
-import MFP from "./moneyFlow/profile";                    // ✅ Money Flow Profile
+import { MONEY_FLOW_INDICATORS } from "./moneyFlow";   // (mfi/cmf if kept)
+import MFP from "./moneyFlow/profile";                  // Money Flow Profile overlay
 import EMA, { makeEMA } from "./ema";
 
-// --- Define EMAs ---
+// ----- Define EMAs -----
 const EMA10 = makeEMA({ id: "ema10", label: "EMA 10", length: 10, color: "#60a5fa" });
 const EMA20 = makeEMA({ id: "ema20", label: "EMA 20", length: 20, color: "#f59e0b" });
 
-// --- Master list ---
-// (Optionally drop the oscillator if present)
+// ----- Master list -----
+// (Optional) drop MFI oscillator if present in your MONEY_FLOW_INDICATORS
 export const INDICATORS = [
   ...MONEY_FLOW_INDICATORS.filter(ind => ind.id !== "mfi"),
   MFP,         // ✅ Money Flow Profile overlay
@@ -18,29 +18,34 @@ export const INDICATORS = [
   EMA20,
 ];
 
-// --- id → def map ---
+// id -> def map
 export const INDICATOR_MAP = INDICATORS.reduce((acc, ind) => {
   acc[ind.id] = ind;
   return acc;
 }, {});
 
-// --- resolver (merges defaults with per‑indicator settings) ---
+// ----- resolver (merges defaults with per‑indicator settings) -----
 export function resolveIndicators(enabledIds = [], settings = {}) {
+  // DEBUG: show enabled IDs and what registry holds
+  try {
+    console.info("[indicators] enabledIds =", JSON.stringify(enabledIds));
+    console.info("[indicators] registryIds =", Object.keys(INDICATOR_MAP));
+  } catch {}
+
   const list = enabledIds
     .map((id) => {
       const def = INDICATOR_MAP[id];
-      if (!def) return null;
+      if (!def) {
+        try { console.warn("[indicators] missing id in registry:", id); } catch {}
+        return null;
+      }
       const inputs = { ...(def.defaults || {}), ...(settings[id] || {}) };
       return { def, inputs };
     })
     .filter(Boolean);
 
-  // Debug: see what the chart will actually attach
   try {
-    console.info(
-      "[indicators] attach:",
-      list.map(x => x.def.id)
-    );
+    console.info("[indicators] attach =", list.map(x => x.def.id));
   } catch {}
 
   return list;
