@@ -193,20 +193,32 @@ function swingAttach(chartApi, seriesMap, result, inputs) {
     try { priceSeries.setMarkers([...(priceSeries._markers || []), ...markers]); } catch {}
   }
 
+  // subscribe to redraws
   const ro = new ResizeObserver(scheduleDraw);
   ro.observe(container);
+
   const unsub1 = ts.subscribeVisibleTimeRangeChange(scheduleDraw);
-  const unsub2 = ts.subscribeVisibleLogicalRangeChange?.(scheduleDraw) || (() => {});
-  const unsub3 = priceSeries.priceScale().subscribeSizeChange?.(scheduleDraw) || (() => {});
+  const unsub2 = ts.subscribeVisibleLogicalRangeChange
+    ? ts.subscribeVisibleLogicalRangeChange(scheduleDraw) : null;
+
+  const ps = priceSeries.priceScale();
+  const subscribedSizeChange = ps && ps.subscribeSizeChange
+    ? (ps.subscribeSizeChange(scheduleDraw), true) : false;
+
   scheduleDraw();
 
   const cleanup = () => {
     try { ro.disconnect(); } catch {}
     try { unsub1 && ts.unsubscribeVisibleTimeRangeChange(scheduleDraw); } catch {}
-    try { unsub2 && ts.unsubscribeVisibleLogicalRangeChange?.(scheduleDraw); } catch {}
-    try { unsub3 && priceSeries.priceScale().unsubscribeSizeChange?.(scheduleDraw) || (() => {}) ; } catch {}
+    try { unsub2 && ts.unsubscribeVisibleLogicalRangeChange && ts.unsubscribeVisibleLogicalRangeChange(scheduleDraw); } catch {}
+    try {
+      if (subscribedSizeChange && ps && ps.unsubscribeSizeChange) {
+        ps.unsubscribeSizeChange(scheduleDraw);
+      }
+    } catch {}
     try { container.removeChild(canvas); } catch {}
   };
+
   seriesMap.set("swing_blocks_canvas_cleanup", cleanup);
   return cleanup;
 }
