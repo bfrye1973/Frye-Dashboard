@@ -43,3 +43,14 @@ export function resolveIndicators(enabledIds = [], settings = {}) {
 }
 
 export default INDICATORS;
+import emaIndicators from "./ema";
+import MFP from "./moneyFlow/profile";
+import SR from "./sr";
+import SWING from "./swing";           // ⬅️ add this
+
+export const INDICATORS = [
+  ...emaIndicators,
+  MFP,
+  SR,
+  SWING,                               // ⬅️ include Swing
+];
