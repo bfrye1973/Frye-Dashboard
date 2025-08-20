@@ -1,9 +1,7 @@
 // src/indicators/sr/index.js
 // Support / Resistance as HORIZONTAL BLOCKS (no lines)
-// - Pivot highs/lows (left/right bars) -> zones
-// - Extend forward (until fill or fixed)
-// - Blocks drawn ABOVE chart (z-index)
-// - Version tag: "SR BLOCKS v1"
+// Palette: RES = RED, SUP = BLUE (so it doesn’t collide with Liquidity’s red/green)
+// Version tag: "SR BLOCKS v1b"
 
 import { INDICATOR_KIND } from "../shared/indicatorTypes";
 
@@ -11,15 +9,21 @@ import { INDICATOR_KIND } from "../shared/indicatorTypes";
 const DEF = {
   leftBars: 15,
   rightBars: 15,
-  extendUntilFill: true,     // keep extending until price touches the level
-  hideFilled: false,         // remove zones once touched
-  // block appearance
-  resColor: "rgba(170,36,48,0.35)",  // resistance block fill (red-ish)
-  supColor: "rgba(102,187,106,0.35)",// support block fill (green-ish)
-  resStroke: "#aa2430",
-  supStroke: "#66bb6a",
+  extendUntilFill: true,
+  hideFilled: false,
+
+  // SR palette (fixed):
+  // Resistance = red
+  resColor: "rgba(239,68,68,0.35)",   // red-500 @ 35%
+  resStroke: "#ef4444",
+
+  // Support = blue
+  supColor: "rgba(59,130,246,0.35)",  // blue-500 @ 35%
+  supStroke: "#3b82f6",
+
   strokeWidth: 1,
-  blockHeightPct: 0.002,     // vertical thickness relative to price (e.g. 0.2% of price)
+  blockHeightPct: 0.002,              // ~0.2% of price
+
   // labels
   showLabelsInBlock: true,
   labelColor: "rgba(230,236,245,0.9)",
@@ -51,8 +55,9 @@ function srCompute(candles, inputs) {
   const n = candles?.length ?? 0;
   if (!n) return { zones: [], opts: o };
 
-  // Find swings; activate zone at pivotIndex + rightBars
   const zones = []; // {type:'res'|'sup', price, fromIdx, toIdx, filled}
+
+  // find pivots and activate at i+R
   for (let i = L; i < n - R; i++) {
     if (isPivotHigh(candles, i, L, R)) {
       const act = i + R;
@@ -64,7 +69,7 @@ function srCompute(candles, inputs) {
     }
   }
 
-  // Extend zones forward; mark filled when candle crosses price
+  // extend forward; mark filled on touch
   for (const Z of zones) {
     for (let i = Z.fromIdx; i < n; i++) {
       const c = candles[i];
@@ -78,10 +83,9 @@ function srCompute(candles, inputs) {
     }
   }
 
-  // Hide filled if requested
   const filtered = o.hideFilled ? zones.filter(z => !z.filled) : zones;
 
-  // Turn idx -> time; precompute thickness in price space
+  // map idx -> time
   const res = filtered.map(z => ({
     ...z,
     fromTime: candles[z.fromIdx].time,
@@ -91,7 +95,7 @@ function srCompute(candles, inputs) {
   return { zones: res, opts: o };
 }
 
-// ---------- overlay: draw blocks only (no lines) ----------
+// ---------- overlay ----------
 function srAttach(chartApi, seriesMap, result, inputs) {
   const o = { ...DEF, ...(inputs || {}) };
   const container = chartApi?._container;
@@ -108,7 +112,7 @@ function srAttach(chartApi, seriesMap, result, inputs) {
   canvas.style.width = "100%";
   canvas.style.height = "100%";
   canvas.style.pointerEvents = "none";
-  canvas.style.zIndex = "9";           // draw above chart
+  canvas.style.zIndex = "9";
   container.appendChild(canvas);
   const ctx = canvas.getContext("2d");
 
@@ -131,36 +135,32 @@ function srAttach(chartApi, seriesMap, result, inputs) {
       ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
     }
   }
-
   function draw() {
     resize();
     const w = canvas.clientWidth, h = canvas.clientHeight;
     ctx.clearRect(0, 0, w, h);
 
-    // version tag
+    // tag
     ctx.fillStyle = "rgba(147,163,184,0.85)";
     ctx.font = o.font;
-    ctx.fillText("SR BLOCKS v1", 10, 16);
+    ctx.fillText("SR BLOCKS v1b", 10, 16);
 
     const zones = result?.zones || [];
-    if (!zones.length) return;
-
     for (const Z of zones) {
       const x1 = xOf(Z.fromTime), x2 = xOf(Z.toTime), y = yOf(Z.price);
       if (x1 == null || x2 == null || y == null) continue;
 
-      // vertical thickness in price space
+      // thickness in price space
       const half = Math.max(1e-6, Z.price * o.blockHeightPct);
       const yTop = yOf(Z.type === "res" ? (Z.price + half) : (Z.price - half));
       const yBot = yOf(Z.type === "res" ? (Z.price - half) : (Z.price + half));
       if (yTop == null || yBot == null) continue;
 
+      const xx = Math.min(x1, x2), ww = Math.max(1, Math.abs(x2 - x1));
+      const yy = Math.min(yTop, yBot), hh = Math.max(1, Math.abs(yTop - yBot));
+
       // fill
       ctx.fillStyle = (Z.type === "res") ? o.resColor : o.supColor;
-      const yy = Math.min(yTop, yBot);
-      const hh = Math.max(1, Math.abs(yTop - yBot));
-      const xx = Math.min(x1, x2);
-      const ww = Math.max(1, Math.abs(x2 - x1));
       ctx.fillRect(xx, yy, ww, hh);
 
       // stroke
@@ -168,17 +168,16 @@ function srAttach(chartApi, seriesMap, result, inputs) {
       ctx.strokeStyle = (Z.type === "res") ? o.resStroke : o.supStroke;
       ctx.strokeRect(xx + 0.5, yy + 0.5, ww - 1, hh - 1);
 
-      // optional label inside block
+      // label
       if (o.showLabelsInBlock && ww > 36) {
         ctx.fillStyle = o.labelColor;
         ctx.font = o.font;
-        const text = `${Z.type.toUpperCase()}  ${Z.price.toFixed(2)}  (${Math.max(1, Z.toIdx - Z.fromIdx + 1)} bars)`;
-        ctx.fillText(text, xx + 6, yy + Math.min(16, hh - 4));
+        const label = `${Z.type === "res" ? "RES" : "SUP"}  ${Z.price.toFixed(2)}  (${Math.max(1, Z.toIdx - Z.fromIdx + 1)} bars)`;
+        ctx.fillText(label, xx + 6, yy + Math.min(16, hh - 4));
       }
     }
   }
 
-  // subscribe to redraws
   const ro = new ResizeObserver(scheduleDraw);
   ro.observe(container);
   const unsub1 = ts.subscribeVisibleTimeRangeChange(scheduleDraw);
@@ -199,7 +198,7 @@ function srAttach(chartApi, seriesMap, result, inputs) {
 
 // ---------- indicator ----------
 const SR = {
-  id: "sr",                         // same id as before; your App.js toggle still works
+  id: "sr",
   label: "Support / Resistance (Blocks)",
   kind: INDICATOR_KIND.OVERLAY,
   defaults: DEF,
