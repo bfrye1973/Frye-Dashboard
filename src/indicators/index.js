@@ -1,6 +1,5 @@
 // src/indicators/index.js
-// Master registry + safe flattener + resolver.
-// Includes: EMA (array), Money Flow Profile (single), Support/Resistance (single), Swing (single)
+// Master registry + safe flattener + resolver (no duplicates)
 
 import emaIndicators from "./ema";                 // array: [ema10, ema20, ...]
 import MFP from "./moneyFlow/profile";             // single (id: "mfp")
@@ -21,8 +20,9 @@ export const INDICATOR_MAP = INDICATORS.reduce((acc, ind) => {
   return acc;
 }, {});
 
-// LiveLWChart uses this to expand ids -> defs + merged inputs
+// LiveLWChart uses this
 export function resolveIndicators(enabledIds = [], settings = {}) {
+  // light debug to verify
   try {
     console.info("[indicators] enabledIds =", JSON.stringify(enabledIds));
     console.info("[indicators] registryIds =", Object.keys(INDICATOR_MAP));
