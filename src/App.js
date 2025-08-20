@@ -30,25 +30,18 @@ export default function App() {
     swing:false,
   });
 
-  // indicator settings (overrides)
+  // indicator settings (only overrides you want to expose)
   const [settings] = useState({
     ema10: { length: 12, color: "#60a5fa" },
     ema20: { length: 26, color: "#f59e0b" },
     mfp: {
-      lookback: 250,
-      bins: 24,
-      showZones: true,
-      zonesCount: 1,
-      zoneOpacity: 0.12,
-      showSides: true,
-      sideWidthPct: 0.18,
-      sideOpacity: 0.28,
-      posColor: "#22c55e",
-      negColor: "#ef4444",
-      innerMargin: 10,
+      lookback: 250, bins: 24,
+      showZones: true, zonesCount: 1, zoneOpacity: 0.12,
+      showSides: true, sideWidthPct: 0.18, sideOpacity: 0.28,
+      posColor: "#22c55e", negColor: "#ef4444", innerMargin: 10,
     },
-    // sr: { leftBars: 15, rightBars: 15, lineWidth: 3, band: 0, volumeThresh: 20 },
-    // swing: { leftBars: 15, rightBars: 10, volumeThresh: 0, showBoxes: true, showLines: true, showLabels: true }
+    // sr: { blockHeightPct: 0.002 },  // optional SR overrides
+    // swing: { blockHeightPct: 0.002 } // optional Swing overrides
   });
 
   // active indicator id list
@@ -63,7 +56,7 @@ export default function App() {
   }, [enabled]);
 
   const symbols = useMemo(() => ["SPY","QQQ","AAPL","MSFT","NVDA","TSLA","META","AMZN"], []);
-  // ✅ add 10m here
+  // ✅ includes 10-minute timeframe
   const tfs = useMemo(() => ["1m","10m","1H","1D"], []);
 
   // styles
