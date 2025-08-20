@@ -5,10 +5,12 @@
 
 function normalizeTf(tf = "1D") {
   const t = String(tf).toLowerCase();
-  return t === "1m" || t === "1h" || t === "1d" ? t : "1d";
+  // ✅ now recognizes 10m
+  return (t === "1m" || t === "10m" || t === "1h" || t === "1d") ? t : "1d";
 }
 function tfToSeconds(tf = "1d") {
-  return { "1m": 60, "1h": 3600, "1d": 86400 }[normalizeTf(tf)];
+  // ✅ map 10m to 600 seconds
+  return { "1m": 60, "10m": 600, "1h": 3600, "1d": 86400 }[normalizeTf(tf)];
 }
 function toSec(x) {
   if (x == null) return null;
