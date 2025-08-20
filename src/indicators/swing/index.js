@@ -1,32 +1,26 @@
 // src/indicators/swing/index.js
 // Swing Points & Liquidity — BLOCKS ONLY (no lines)
-// - Pivot highs/lows with left/right bars
-// - Extend until fill (or stop early) with optional hideFilled
-// - Demand (swing lows) = GREEN block, Supply (swing highs) = RED block
-// - Draws ABOVE chart (z-index); version tag "SWING v2"
+// Demand (swing lows) = GREEN, Supply (swing highs) = RED
+// Draws ABOVE the chart; with viewport culling for a clean zoomed view.
 
 import { INDICATOR_KIND } from "../shared/indicatorTypes";
 
-// Defaults (override via indicatorSettings.swing if desired)
 const DEF = {
-  leftBars: 15,            // swingSizeL
-  rightBars: 10,           // swingSizeR
-  showBoxes: true,         // blocks only (we don’t draw lines here)
-  showLabels: true,        // small circles at swing point (via markers)
-  extendUntilFill: true,   // extend forward until price fills the zone
-  hideFilled: false,       // remove zone once filled
+  leftBars: 15,
+  rightBars: 10,
+  showBoxes: true,
+  showLabels: true,
+  extendUntilFill: true,
+  hideFilled: false,
   // Appearance (Liquidity palette)
-  supFill: "rgba(102,187,106,0.35)", // GREEN demand zone fill
-  supStroke: "#66bb6a",
-  resFill: "rgba(170,36,48,0.35)",   // RED supply zone fill
-  resStroke: "#aa2430",
+  supFill: "rgba(102,187,106,0.35)", supStroke: "#66bb6a",  // demand
+  resFill: "rgba(170,36,48,0.35)",   resStroke: "#aa2430",  // supply
   strokeWidth: 1,
-  blockHeightPct: 0.002,   // vertical thickness ≈ 0.2% of price
+  blockHeightPct: 0.002,
   labelColor: "rgba(230,236,245,0.9)",
   font: "12px system-ui,-apple-system,Segoe UI,Roboto,Arial",
 };
 
-// ---------- helpers ----------
 function isPivotHigh(c, i, L, R) {
   const hi = c[i].high;
   for (let k = i - L; k <= i + R; k++) {
@@ -44,15 +38,14 @@ function isPivotLow(c, i, L, R) {
   return true;
 }
 
-// ---------- compute pivots -> zones ----------
 function swingCompute(candles, inputs) {
   const o = { ...DEF, ...(inputs || {}) };
   const L = o.leftBars, R = o.rightBars;
   const n = candles?.length ?? 0;
   if (!n) return { zones: [], labels: [], opts: o };
 
-  const zones = [];  // {type:'res'|'sup', price, fromIdx, toIdx, filled}
-  const labels = []; // {time, type, price}
+  const zones = [];
+  const labels = [];
 
   for (let i = L; i < n - R; i++) {
     if (isPivotHigh(candles, i, L, R)) {
@@ -65,13 +58,12 @@ function swingCompute(candles, inputs) {
     if (isPivotLow(candles, i, L, R)) {
       const act = i + R;
       if (act < n) {
-        zones.push({ type: "sup", price: candles[i].low, fromIdx: act, toIdx: act, filled: false });
+        zones.push({ type: "sup", price: candles[i].low,  fromIdx: act, toIdx: act, filled: false });
         if (o.showLabels) labels.push({ time: candles[i].time, type: "sup", price: candles[i].low });
       }
     }
   }
 
-  // Extend zones forward; mark filled when price touches
   for (const Z of zones) {
     for (let i = Z.fromIdx; i < n; i++) {
       const c = candles[i];
@@ -87,7 +79,6 @@ function swingCompute(candles, inputs) {
 
   const filtered = o.hideFilled ? zones.filter(z => !z.filled) : zones;
 
-  // map idx → time for drawing
   const res = filtered.map(z => ({
     ...z,
     fromTime: candles[z.fromIdx].time,
@@ -97,10 +88,8 @@ function swingCompute(candles, inputs) {
   return { zones: res, labels, opts: o };
 }
 
-// ---------- overlay (blocks only; z-index + rAF + DPR cap) ----------
 function swingAttach(chartApi, seriesMap, result, inputs) {
   const o = { ...DEF, ...(inputs || {}) };
-
   const container = chartApi?._container;
   const priceSeries = chartApi?._priceSeries;
   const candles = chartApi?._candles || [];
@@ -123,13 +112,23 @@ function swingAttach(chartApi, seriesMap, result, inputs) {
   const xOf = (t) => ts.timeToCoordinate(t);
   const yOf = (p) => priceSeries.priceToCoordinate(p);
 
+  function getVisibleTimeRange() {
+    const r = ts.getVisibleRange ? ts.getVisibleRange() : null;
+    if (r && r.from != null && r.to != null) return { from: r.from, to: r.to };
+    const lr = ts.getVisibleLogicalRange ? ts.getVisibleLogicalRange() : null;
+    if (!lr) return null;
+    const leftTime  = ts.coordinateToTime ? ts.coordinateToTime(0) : null;
+    const rightTime = ts.coordinateToTime ? ts.coordinateToTime(canvas.clientWidth) : null;
+    if (leftTime && rightTime) return { from: leftTime, to: rightTime };
+    return null;
+  }
+
   let raf = 0;
   function scheduleDraw() { if (!raf) raf = requestAnimationFrame(() => { raf = 0; draw(); }); }
   function resize() {
     const DPR = Math.min(window.devicePixelRatio || 1, 1.5);
     const w = container.clientWidth, h = container.clientHeight;
-    const need = canvas.width !== Math.floor(w * DPR) || canvas.height !== Math.floor(h * DPR);
-    if (need) {
+    if (canvas.width !== Math.floor(w * DPR) || canvas.height !== Math.floor(h * DPR)) {
       canvas.width = Math.floor(w * DPR);
       canvas.height = Math.floor(h * DPR);
       canvas.style.width = w + "px";
@@ -143,44 +142,74 @@ function swingAttach(chartApi, seriesMap, result, inputs) {
     const w = canvas.clientWidth, h = canvas.clientHeight;
     ctx.clearRect(0, 0, w, h);
 
-    // version tag for visibility
+    // version tag
     ctx.fillStyle = "rgba(147,163,184,0.85)";
     ctx.font = o.font;
     ctx.fillText("SWING v2", 10, 16);
 
     const zones = result?.zones || [];
+    if (!zones.length) return;
+
+    const vr = getVisibleTimeRange();
+    const tFrom = vr?.from ?? -Infinity;
+    const tTo   = vr?.to   ??  Infinity;
+
+    const MIN_PX_W = 24;
+    const MAX_ZONES_PER_SIDE = 12;
+
+    const visible = [];
     for (const Z of zones) {
+      if (Z.toTime < tFrom || Z.fromTime > tTo) continue;
       const x1 = xOf(Z.fromTime), x2 = xOf(Z.toTime), y = yOf(Z.price);
       if (x1 == null || x2 == null || y == null) continue;
+      const pxW = Math.abs(x2 - x1);
+      if (pxW < MIN_PX_W) continue;
+      visible.push({
+        Z, x1: Math.min(x1, x2), x2: Math.max(x1, x2), y, pxW,
+        strength: Math.max(1, (Z.toIdx ?? 0) - (Z.fromIdx ?? 0) + 1),
+      });
+    }
+    if (!visible.length) return;
 
-      const half = Math.max(1e-6, Z.price * o.blockHeightPct);
+    const supply = visible.filter(v => v.Z.type === "res").sort((a,b)=>b.strength - a.strength).slice(0, MAX_ZONES_PER_SIDE);
+    const demand = visible.filter(v => v.Z.type === "sup").sort((a,b)=>b.strength - a.strength).slice(0, MAX_ZONES_PER_SIDE);
+    const drawList = supply.concat(demand);
+
+    for (const V of drawList) {
+      const Z = V.Z;
+      const baseHalf = Math.max(1e-6, Z.price * o.blockHeightPct);
+      const scale = Math.max(0.6, Math.min(1.0, 120 / V.pxW)); // thinner when zoomed in wide
+      const half  = baseHalf * scale;
+
       const yTop = yOf(Z.type === "res" ? (Z.price + half) : (Z.price - half));
       const yBot = yOf(Z.type === "res" ? (Z.price - half) : (Z.price + half));
       if (yTop == null || yBot == null) continue;
 
-      const xx = Math.min(x1, x2), ww = Math.max(1, Math.abs(x2 - x1));
+      const xx = V.x1, ww = Math.max(1, V.pxW);
       const yy = Math.min(yTop, yBot), hh = Math.max(1, Math.abs(yTop - yBot));
 
-      // fill
-      ctx.fillStyle = (Z.type === "res") ? o.resFill : o.supFill; // RED supply, GREEN demand
+      const localMax = (Z.type === "res" ? supply : demand)[0]?.strength || V.strength;
+      const alpha = 0.20 + 0.15 * (V.strength / localMax); // 0.20–0.35
+
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle   = (Z.type === "res") ? o.resFill : o.supFill;
       ctx.fillRect(xx, yy, ww, hh);
 
-      // stroke
-      ctx.lineWidth = o.strokeWidth;
+      ctx.globalAlpha = 1;
+      ctx.lineWidth   = o.strokeWidth;
       ctx.strokeStyle = (Z.type === "res") ? o.resStroke : o.supStroke;
       ctx.strokeRect(xx + 0.5, yy + 0.5, ww - 1, hh - 1);
 
-      // optional label inside block
-      if (o.showBoxes && ww > 36) {
+      if (o.showBoxes && ww > 48) {
         ctx.fillStyle = o.labelColor;
         ctx.font = o.font;
-        const label = `${Z.type === "res" ? "SUPPLY" : "DEMAND"}  ${Z.price.toFixed(2)}`;
-        ctx.fillText(label, xx + 6, yy + Math.min(16, hh - 4));
+        const tag = (Z.type === "res" ? "SUPPLY" : "DEMAND") + "  " + Z.price.toFixed(2);
+        ctx.fillText(tag, xx + 6, yy + Math.min(16, hh - 4));
       }
     }
   }
 
-  // (Optional) marker dots at swing points — only once
+  // markers once
   if (Array.isArray(result?.labels) && o.showLabels) {
     const markers = result.labels.map((lb) => ({
       time: lb.time,
@@ -193,7 +222,6 @@ function swingAttach(chartApi, seriesMap, result, inputs) {
     try { priceSeries.setMarkers([...(priceSeries._markers || []), ...markers]); } catch {}
   }
 
-  // subscribe to redraws
   const ro = new ResizeObserver(scheduleDraw);
   ro.observe(container);
 
@@ -211,11 +239,7 @@ function swingAttach(chartApi, seriesMap, result, inputs) {
     try { ro.disconnect(); } catch {}
     try { unsub1 && ts.unsubscribeVisibleTimeRangeChange(scheduleDraw); } catch {}
     try { unsub2 && ts.unsubscribeVisibleLogicalRangeChange && ts.unsubscribeVisibleLogicalRangeChange(scheduleDraw); } catch {}
-    try {
-      if (subscribedSizeChange && ps && ps.unsubscribeSizeChange) {
-        ps.unsubscribeSizeChange(scheduleDraw);
-      }
-    } catch {}
+    try { if (subscribedSizeChange && ps && ps.unsubscribeSizeChange) { ps.unsubscribeSizeChange(scheduleDraw); } } catch {}
     try { container.removeChild(canvas); } catch {}
   };
 
@@ -223,7 +247,6 @@ function swingAttach(chartApi, seriesMap, result, inputs) {
   return cleanup;
 }
 
-// ---------- indicator ----------
 const SWING = {
   id: "swing",
   label: "Swing Points & Liquidity (Blocks)",
