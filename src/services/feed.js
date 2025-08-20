@@ -1,15 +1,13 @@
 // src/services/feed.js
 // Robust backend OHLC with mock fallback + on-screen debug
-// Auto-detects shapes: array of objects, {data|results|bars|candles: []},
+// Auto-detects shapes: array<obj>, {data|results|bars|candles: []},
 // column arrays {t,o,h,l,c,v}, or array-of-arrays [t,o,h,l,c,(v)].
 
 function normalizeTf(tf = "1D") {
   const t = String(tf).toLowerCase();
-  // ✅ now recognizes 10m
   return (t === "1m" || t === "10m" || t === "1h" || t === "1d") ? t : "1d";
 }
 function tfToSeconds(tf = "1d") {
-  // ✅ map 10m to 600 seconds
   return { "1m": 60, "10m": 600, "1h": 3600, "1d": 86400 }[normalizeTf(tf)];
 }
 function toSec(x) {
@@ -18,10 +16,7 @@ function toSec(x) {
   const d = Date.parse(x);
   return Number.isNaN(d) ? null : Math.floor(d / 1000);
 }
-function num(x) {
-  const n = +x;
-  return Number.isFinite(n) ? n : NaN;
-}
+function num(x) { const n = +x; return Number.isFinite(n) ? n : NaN; }
 
 // ---- shape normalizers ----
 function fromArrayOfObjects(arr) {
@@ -40,9 +35,7 @@ function fromArrayOfObjects(arr) {
   }
   return { bars: out.sort((a, b) => a.time - b.time), shape: "array<obj>" };
 }
-
 function fromArrayOfArrays(arr) {
-  // Supports [t,o,h,l,c] or [t,o,h,l,c,v]
   const out = [];
   for (const row of arr) {
     if (!Array.isArray(row) || row.length < 5) continue;
@@ -54,40 +47,33 @@ function fromArrayOfArrays(arr) {
   }
   return { bars: out.sort((a, b) => a.time - b.time), shape: "array<array>" };
 }
-
 function fromColumnArrays(obj) {
-  // e.g. { t:[], o:[], h:[], l:[], c:[], v:[] } or long names
   const T = obj.t ?? obj.time ?? obj.timestamp ?? obj.ts;
   const O = obj.o ?? obj.open;
   const H = obj.h ?? obj.high;
   const L = obj.l ?? obj.low;
   const C = obj.c ?? obj.close;
   const V = obj.v ?? obj.volume ?? [];
-  if (!Array.isArray(T) || !Array.isArray(O) || !Array.isArray(H) || !Array.isArray(L) || !Array.isArray(C)) {
-    return { bars: [], shape: "unknown" };
-  }
+  if (![T,O,H,L,C].every(Array.isArray)) return { bars: [], shape: "unknown" };
   const n = Math.min(T.length, O.length, H.length, L.length, C.length, Array.isArray(V) ? V.length : Infinity);
   const out = [];
   for (let i = 0; i < n; i++) {
     const time = toSec(T[i]);
     const o = num(O[i]), h = num(H[i]), l = num(L[i]), c = num(C[i]);
     const v = Array.isArray(V) ? num(V[i]) : 0;
-    if (!time || [o, h, l, c].some(Number.isNaN)) continue;
-    out.push({ time, open: o, high: h, low: l, close: c, volume: v });
+    if (!time || [o,h,l,c].some(Number.isNaN)) continue;
+    out.push({ time, open:o, high:h, low:l, close:c, volume:v });
   }
-  return { bars: out.sort((a, b) => a.time - b.time), shape: "columns" };
+  return { bars: out.sort((a,b)=>a.time-b.time), shape: "columns" };
 }
-
 function pickArrayProp(obj) {
-  for (const k of ["data", "results", "bars", "candles", "items"]) {
+  for (const k of ["data","results","bars","candles","items"]) {
     if (Array.isArray(obj?.[k])) return { arr: obj[k], key: k };
   }
   return { arr: null, key: null };
 }
-
 function normalizeAny(json) {
   if (Array.isArray(json)) {
-    // array<obj> or array<array>?
     const looksObj = json.length && typeof json[0] === "object" && !Array.isArray(json[0]);
     return looksObj ? fromArrayOfObjects(json) : fromArrayOfArrays(json);
   }
@@ -97,7 +83,6 @@ function normalizeAny(json) {
       const res = Array.isArray(arr[0]) ? fromArrayOfArrays(arr) : fromArrayOfObjects(arr);
       return { ...res, shape: `${res.shape} via ${key}` };
     }
-    // column arrays
     const res = fromColumnArrays(json);
     if (res.bars.length) return res;
   }
@@ -122,11 +107,7 @@ function genHistory({ bars = 200, base = 100, tfSec = 3600 }) {
   }
   return out;
 }
-function hashCode(str) {
-  let h = 0;
-  for (let i = 0; i < str.length; i++) { h = (h << 5) - h + str.charCodeAt(i); h |= 0; }
-  return h;
-}
+function hashCode(str) { let h = 0; for (let i=0;i<str.length;i++){ h=(h<<5)-h+str.charCodeAt(i); h|=0; } return h; }
 
 // ---- main feed ----
 export function getFeed(symbol = "MSFT", timeframe = "1D") {
