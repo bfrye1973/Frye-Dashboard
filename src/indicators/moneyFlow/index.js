@@ -1,18 +1,9 @@
-// src/indicators/moneyFlow/profile/index.js
-import { INDICATOR_KIND } from "../../shared/indicatorTypes";  // ✅ two ../
-import { mfpDefaults } from "./schema";
-import { mfpCompute } from "./compute";
-import { mfpAttach } from "./overlay";
+// src/indicators/moneyFlow/index.js
+import MFP from "./profile";   // ✅ Money Flow Profile
+import CMF from "./cmf";       // ✅ Chaikin Money Flow
+import MFI from "./mfi";       // ✅ Money Flow Index oscillator
 
-const MFP = {
-  id: "mfp",
-  label: "Money Flow Profile",
-  kind: INDICATOR_KIND.OVERLAY,   // draw on price pane
-  defaults: mfpDefaults,
-  compute: (candles, inputs) =>
-    mfpCompute(candles, { ...mfpDefaults, ...(inputs || {}) }),
-  attach: (chartApi, seriesMap, result, inputs) =>
-    mfpAttach(chartApi, seriesMap, result, { ...mfpDefaults, ...(inputs || {}) }),
-};
+// Registry of all money flow–related indicators
+const moneyFlowIndicators = [MFP, CMF, MFI];
 
-export default MFP;
+export default moneyFlowIndicators;
