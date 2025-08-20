@@ -1,10 +1,11 @@
 // src/indicators/index.js
-// Master indicator registry + safe flattener + resolver.
-// Includes: EMA set (array), Money Flow Profile (single), Support/Resistance (single)
+// Master registry + safe flattener + resolver.
+// Includes: EMA (array), Money Flow Profile (single), Support/Resistance (single), Swing (single)
 
-import emaIndicators from "./ema";               // array: [ema10, ema20, ...]
-import MFP from "./moneyFlow/profile";           // single indicator (id: "mfp")
-import SR from "./sr";                            // single indicator (id: "sr")
+import emaIndicators from "./ema";                 // array: [ema10, ema20, ...]
+import MFP from "./moneyFlow/profile";             // single (id: "mfp")
+import SR from "./sr";                              // single (id: "sr")
+import SWING from "./swing";                        // single (id: "swing")
 
 const asArray = (x) => (Array.isArray(x) ? x : []);
 
@@ -12,6 +13,7 @@ export const INDICATORS = [
   ...asArray(emaIndicators),
   MFP,
   SR,
+  SWING,
 ];
 
 export const INDICATOR_MAP = INDICATORS.reduce((acc, ind) => {
@@ -19,7 +21,7 @@ export const INDICATOR_MAP = INDICATORS.reduce((acc, ind) => {
   return acc;
 }, {});
 
-// LiveLWChart imports this to resolve the ids + merge settings.
+// LiveLWChart uses this to expand ids -> defs + merged inputs
 export function resolveIndicators(enabledIds = [], settings = {}) {
   try {
     console.info("[indicators] enabledIds =", JSON.stringify(enabledIds));
@@ -43,14 +45,3 @@ export function resolveIndicators(enabledIds = [], settings = {}) {
 }
 
 export default INDICATORS;
-import emaIndicators from "./ema";
-import MFP from "./moneyFlow/profile";
-import SR from "./sr";
-import SWING from "./swing";           // ⬅️ add this
-
-export const INDICATORS = [
-  ...emaIndicators,
-  MFP,
-  SR,
-  SWING,                               // ⬅️ include Swing
-];
