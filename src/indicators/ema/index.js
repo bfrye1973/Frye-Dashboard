@@ -1,10 +1,10 @@
+// src/indicators/ema/index.js
 import { INDICATOR_KIND } from "../shared/indicatorTypes";
 import { emaCompute } from "./compute";
 import { emaAttach } from "./overlay";
 import { emaDefaults } from "./schema";
 
-// A small factory so we can create EMA10/EMA20 from the same code
-export function makeEMA({ id, label, length, color }) {
+function makeEMA({ id, label, length, color }) {
   return {
     id,
     label,
@@ -16,5 +16,9 @@ export function makeEMA({ id, label, length, color }) {
   };
 }
 
-const EMA = { makeEMA };
-export default EMA;
+const EMA10 = makeEMA({ id: "ema10", label: "EMA 10", length: 10, color: "#60a5fa" });
+const EMA20 = makeEMA({ id: "ema20", label: "EMA 20", length: 20, color: "#f59e0b" });
+
+const emaIndicators = [EMA10, EMA20];  // <-- ARRAY
+export default emaIndicators;
+export { makeEMA };
