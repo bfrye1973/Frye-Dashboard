@@ -1,11 +1,18 @@
-// Collect and export Money Flow indicators (MFI, CMF)
-import MFI from "./mfi";
-import CMF from "./cmf";
+// src/indicators/moneyFlow/profile/index.js
+import { INDICATOR_KIND } from "../../shared/indicatorTypes";  // ✅ two ../
+import { mfpDefaults } from "./schema";
+import { mfpCompute } from "./compute";
+import { mfpAttach } from "./overlay";
 
-export const MONEY_FLOW_INDICATORS = [MFI, CMF];
+const MFP = {
+  id: "mfp",
+  label: "Money Flow Profile",
+  kind: INDICATOR_KIND.OVERLAY,   // draw on price pane
+  defaults: mfpDefaults,
+  compute: (candles, inputs) =>
+    mfpCompute(candles, { ...mfpDefaults, ...(inputs || {}) }),
+  attach: (chartApi, seriesMap, result, inputs) =>
+    mfpAttach(chartApi, seriesMap, result, { ...mfpDefaults, ...(inputs || {}) }),
+};
 
-export const MONEY_FLOW_MAP = MONEY_FLOW_INDICATORS.reduce((acc, ind) => {
-  acc[ind.id] = ind;
-  return acc;
-}, {});
-
+export default MFP;
