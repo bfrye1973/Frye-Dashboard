@@ -1,13 +1,12 @@
 // src/App.js
 import React, { useMemo, useState, useEffect } from "react";
 import LiveLWChart from "./components/LiveLWChart";
-import GaugesCard from "./components/GaugesCard";
 
 export default function App() {
   const [symbol, setSymbol] = useState("SPY");
   const [timeframe, setTimeframe] = useState("1D");
 
-  // small feed debug banner
+  // tiny feed debug banner
   const [dbg, setDbg] = useState({ source: "-", url: "-", bars: 0, shape: "-" });
   useEffect(() => {
     const id = setInterval(() => {
@@ -22,15 +21,16 @@ export default function App() {
     return () => clearInterval(id);
   }, []);
 
-  // --- indicator toggles ---
+  // indicator toggles
   const [enabled, setEnabled] = useState({
     ema10: true,
     ema20: true,
-    mfp:  false,   // start OFF so you can toggle it on
-    sr:   false,   // Support/Resistance toggle
+    mfp:  false,
+    sr:   false,
+    swing:false,
   });
 
-  // indicator settings (tweak freely)
+  // indicator settings (overrides)
   const [settings] = useState({
     ema10: { length: 12, color: "#60a5fa" },
     ema20: { length: 26, color: "#f59e0b" },
@@ -47,16 +47,18 @@ export default function App() {
       negColor: "#ef4444",
       innerMargin: 10,
     },
-    // SR defaults live in the indicator; set here only if you want overrides:
-    // sr: { leftBars: 15, rightBars: 15, lineWidth: 3, band: 0 }
+    // sr: { leftBars: 15, rightBars: 15, lineWidth: 3, band: 0, volumeThresh: 20 },
+    // swing: { leftBars: 15, rightBars: 10, volumeThresh: 0, showBoxes: true, showLines: true, showLabels: true }
   });
 
+  // active indicator id list
   const enabledIndicators = useMemo(() => {
     const out = [];
     if (enabled.ema10) out.push("ema10");
     if (enabled.ema20) out.push("ema20");
     if (enabled.mfp)   out.push("mfp");
     if (enabled.sr)    out.push("sr");
+    if (enabled.swing) out.push("swing");
     return out;
   }, [enabled]);
 
@@ -98,11 +100,6 @@ export default function App() {
       <div style={{ display: "grid", gridTemplateColumns: "300px 1fr", gap: 16, padding: 16 }}>
         {/* LEFT DASHBOARD */}
         <div>
-          {/* Market Gauges */}
-          <div style={panel}>
-            <GaugesCard />
-          </div>
-
           {/* Symbol */}
           <div style={panel}>
             <span style={label}>Symbol</span>
@@ -149,6 +146,12 @@ export default function App() {
               <input id="sr" type="checkbox" checked={enabled.sr}
                 onChange={(e) => setEnabled((p) => ({ ...p, sr: e.target.checked }))} />
               <label htmlFor="sr" style={small}>Support / Resistance</label>
+            </div>
+
+            <div style={checkRow}>
+              <input id="swing" type="checkbox" checked={enabled.swing}
+                onChange={(e) => setEnabled((p) => ({ ...p, swing: e.target.checked }))} />
+              <label htmlFor="swing" style={small}>Swing Points & Liquidity</label>
             </div>
 
             <div style={{ marginTop: 8, fontSize: 11, opacity: 0.7 }}>
