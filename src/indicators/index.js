@@ -1,27 +1,26 @@
 // src/indicators/index.js
-// Master indicator registry + resolver
+// Master indicator registry + safe flattener so runtime never explodes.
 
-// Each folder exports a DEFAULT ARRAY of indicator defs.
-import moneyFlowIndicators from "./moneyFlow";   // ✅ default export (MFP/CMF/MFI array)
-import emaIndicators from "./ema";               // default array (EMA10/EMA20, etc.)
-import volumeIndicators from "./volume";         // default array (if present)
+import moneyFlowIndicators from "./moneyFlow";   // default export MUST be an array
+import emaIndicators from "./ema";               // default export MUST be an array
+import volumeIndicators from "./volume";         // default export (ok if empty)
 
-// Build the flat list
+// Guard: coerce any non-array to []
+const asArray = (x) => (Array.isArray(x) ? x : []);
+
 export const INDICATORS = [
-  ...(moneyFlowIndicators || []),
-  ...(emaIndicators || []),
-  ...(volumeIndicators || []),
+  ...asArray(moneyFlowIndicators),
+  ...asArray(emaIndicators),
+  ...asArray(volumeIndicators),
 ];
 
-// id -> def
 export const INDICATOR_MAP = INDICATORS.reduce((acc, ind) => {
-  acc[ind.id] = ind;
+  if (ind && ind.id) acc[ind.id] = ind;
   return acc;
 }, {});
 
-// Merge defaults with per‑indicator settings
 export function resolveIndicators(enabledIds = [], settings = {}) {
-  // Light debug to verify what's attaching
+  // Debug to verify types
   try {
     console.info("[indicators] enabledIds =", JSON.stringify(enabledIds));
     console.info("[indicators] registryIds =", Object.keys(INDICATOR_MAP));
