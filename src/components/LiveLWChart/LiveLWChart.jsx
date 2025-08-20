@@ -18,7 +18,7 @@ export default function LiveLWChart({
   const seriesMapRef = useRef(new Map());
   const [candles, setCandles] = useState([]);
 
-  // Create chart
+  // Create chart + main price series
   useEffect(() => {
     if (!containerRef.current) return;
 
@@ -28,9 +28,9 @@ export default function LiveLWChart({
     const price = chart.addCandlestickSeries();
     priceSeriesRef.current = price;
 
-    // NEW: expose container & price series so overlays can map price→Y and draw
-    chartRef.current._container = containerRef.current;   // NEW
-    chartRef.current._priceSeries = priceSeriesRef.current; // NEW
+    // ✅ expose internals for overlays (Money Flow Profile, etc.)
+    chartRef.current._container = containerRef.current;
+    chartRef.current._priceSeries = priceSeriesRef.current;
 
     return () => {
       try { chart.remove(); } catch {}
@@ -40,7 +40,7 @@ export default function LiveLWChart({
     };
   }, [height]);
 
-  // Load + stream data
+  // Load history + subscribe to updates
   useEffect(() => {
     if (!chartRef.current || !priceSeriesRef.current) return;
 
@@ -52,7 +52,7 @@ export default function LiveLWChart({
       if (disposed) return;
       setCandles(seed);
       priceSeriesRef.current.setData(seed);
-      chartRef.current._candles = seed; // expose for overlays
+      chartRef.current._candles = seed; // expose for overlays that need times
     })();
 
     const unsubscribe = feed.subscribe((bar) => {
@@ -72,12 +72,12 @@ export default function LiveLWChart({
     };
   }, [symbol, timeframe]);
 
-  // Attach/detach indicators
+  // Attach indicators (overlays + panes)
   useEffect(() => {
     const chart = chartRef.current;
-    if (!chart || !candles.length) return;
+    if (!chart || candles.length === 0) return;
 
-    // run cleanups
+    // cleanup previous
     for (const [key, obj] of seriesMapRef.current) {
       if (key.endsWith("__cleanup") && typeof obj === "function") {
         try { obj(); } catch {}
@@ -87,7 +87,10 @@ export default function LiveLWChart({
     }
     seriesMapRef.current.clear();
 
+    // resolve requested indicators with settings
     const items = resolveIndicators(enabledIndicators, indicatorSettings);
+
+    // compute + attach
     items.forEach(({ def, inputs }) => {
       const result = def.compute(candles, inputs);
       const cleanup = def.attach(chart, seriesMapRef.current, result, inputs);
@@ -104,9 +107,10 @@ export default function LiveLWChart({
     };
   }, [candles, enabledIndicators, indicatorSettings]);
 
-  return <div ref={containerRef} className="w-full" style={{ height }} />;
+  return <div ref={containerRef} className="w-full" style={{ height, position: "relative" }} />;
 }
 
+// Replace last bar if same time; otherwise append
 function mergeBar(prev, bar) {
   if (!prev?.length) return [bar];
   const last = prev[prev.length - 1];
