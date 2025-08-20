@@ -1,9 +1,8 @@
 // src/indicators/moneyFlow/index.js
-import MFP from "./profile";   // ✅ Money Flow Profile
-import CMF from "./cmf";       // ✅ Chaikin Money Flow
-import MFI from "./mfi";       // ✅ Money Flow Index oscillator
+import MFP from "./profile"; // Money Flow Profile overlay
+import CMF from "./cmf";     // Chaikin Money Flow (pane)
+import MFI from "./mfi";     // MFI oscillator (pane) — keep or remove later
 
-// Registry of all money flow–related indicators
-const moneyFlowIndicators = [MFP, CMF, MFI];
-
+const moneyFlowIndicators = [MFP, CMF, MFI];  // <-- ARRAY
 export default moneyFlowIndicators;
+
