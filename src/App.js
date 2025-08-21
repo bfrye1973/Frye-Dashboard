@@ -6,17 +6,14 @@ import LiveLWChart from "./components/LiveLWChart";
 import GaugesPanel from "./components/GaugesPanel";
 import FerrariReplica from "./components/FerrariReplica";
 
-// Data
+// Data service (momentum/breadth)
 import { getGauges } from "./services/gauges";
-
-// Engine‑lights
-import { computeEngineLights } from "./logic/computeEngineLights";
 
 export default function App() {
   const [symbol, setSymbol] = useState("SPY");
   const [timeframe, setTimeframe] = useState("1D");
 
-  // small debug banner
+  // Small debug banner showing feed source (backend/mock)
   const [dbg, setDbg] = useState({ source: "-", url: "-", bars: 0, shape: "-" });
   useEffect(() => {
     const id = setInterval(() => {
@@ -26,7 +23,7 @@ export default function App() {
     return () => clearInterval(id);
   }, []);
 
-  // indicator toggles
+  // Indicator toggles
   const [enabled, setEnabled] = useState({
     ema10: true,
     ema20: true,
@@ -38,6 +35,7 @@ export default function App() {
     vol: false,
   });
 
+  // Indicator settings (override only if desired)
   const [settings] = useState({
     ema10: { length: 12, color: "#60a5fa" },
     ema20: { length: 26, color: "#f59e0b" },
@@ -48,8 +46,10 @@ export default function App() {
       showSides: true, sideWidthPct: 0.18, sideOpacity: 0.28,
       posColor: "#22c55e", negColor: "#ef4444", innerMargin: 10,
     },
+    // sr / swing / squeeze / smi / vol can be added later as needed
   });
 
+  // Build the enabled list for the chart
   const enabledIndicators = useMemo(() => {
     const out = [];
     if (enabled.ema10) out.push("ema10");
@@ -63,44 +63,46 @@ export default function App() {
     return out;
   }, [enabled]);
 
+  // Sidebar lists
   const symbols = useMemo(() => ["SPY","QQQ","AAPL","MSFT","NVDA","TSLA","META","AMZN"], []);
   const tfs     = useMemo(() => ["1m","10m","1H","1D"], []);
 
-  // candles from chart (for engine lights / dist-days)
+  // Candles from chart (for future signals; not used by first-draft cluster)
   const [candles, setCandles] = useState([]);
 
-  // gauges for selected index
+  // Gauges (Momentum/Breadth) for selected index
   const [gaugesRow, setGaugesRow] = useState(null);
   useEffect(() => {
     let live = true;
     (async () => {
       const rows = await getGauges(symbol);
       if (!live) return;
-      setGaugesRow(rows[0] || null);
+      setGaugesRow(rows[0] || null); // use first/most recent row from your backend/CSV
     })();
     return () => { live = false; };
   }, [symbol]);
 
-  // engine lights
-  const [lights, setLights] = useState({});
-  useEffect(() => {
-    const m = Number(gaugesRow?.momentum ?? 0);
-    const b = Number(gaugesRow?.breadth ?? 0);
-    const next = computeEngineLights({ candles, momentum: m, breadth: b, prior: lights });
-    setLights(next);
-  }, [candles, gaugesRow]);
-
-  // styles
+  // ----- styles -----
   const panel  = { border:"1px solid #1f2a44", borderRadius:12, padding:12, background:"#0e1526", marginBottom:12 };
   const label  = { fontSize:12, opacity:0.8, marginBottom:6, display:"block" };
   const row    = { display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" };
-  const btn = (active) => ({ padding:"8px 12px", borderRadius:8, border:active?"1px solid #60a5fa":"1px solid #334155",
-                             background:active?"#111827":"#0b1220", color:"#e5e7eb", cursor:"pointer", fontSize:13 });
-  const select = { width:"100%", padding:"8px 10px", borderRadius:8, border:"1px solid #334155", background:"#0b1220", color:"#e5e7eb", fontSize:14, outline:"none" };
+  const btn = (active) => ({
+    padding:"8px 12px", borderRadius:8,
+    border: active ? "1px solid #60a5fa" : "1px solid #334155",
+    background: active ? "#111827" : "#0b1220",
+    color:"#e5e7eb", cursor:"pointer", fontSize:13
+  });
+  const select = {
+    width:"100%", padding:"8px 10px", borderRadius:8,
+    border:"1px solid #334155", background:"#0b1220", color:"#e5e7eb",
+    fontSize:14, outline:"none"
+  };
 
-  // Carbon‑fiber header strip (optional)
+  // Carbon-fiber header strip + gloss
   const cfHeader = {
-    position:"relative", padding:"10px 14px", borderBottom:"1px solid #1f2a44",
+    position:"relative",
+    padding:"10px 14px",
+    borderBottom:"1px solid #1f2a44",
     background:
       `repeating-linear-gradient(45deg, #0b1220 0 2px, #0f172a 2px 4px),
        repeating-linear-gradient(-45deg, #0b1220 0 2px, #0f172a 2px 4px)`,
@@ -109,7 +111,8 @@ export default function App() {
   const cfGloss = {
     position:"absolute", left:0, right:0, top:0, height:38,
     background:"linear-gradient(to bottom, rgba(255,255,255,0.12), rgba(255,255,255,0.02))",
-    borderBottom:"1px solid rgba(255,255,255,0.06)", pointerEvents:"none"
+    borderBottom:"1px solid rgba(255,255,255,0.06)",
+    pointerEvents:"none",
   };
 
   return (
@@ -119,12 +122,16 @@ export default function App() {
         FEED: <strong>{dbg.source}</strong> • bars: <strong>{dbg.bars}</strong> • shape: <strong>{dbg.shape}</strong> • url: <span style={{opacity:0.8}}>{dbg.url}</span>
       </div>
 
-      {/* Carbon‑fiber strip */}
+      {/* Carbon-fiber header strip */}
       <div style={cfHeader}>
         <div style={cfGloss} />
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-          <div style={{ fontSize:12, letterSpacing:1.2, textTransform:"uppercase", opacity:0.75 }}>Ferrari Market Cluster</div>
-          <div style={{ fontSize:11, opacity:0.6 }}>{symbol} • {timeframe.toUpperCase()}</div>
+          <div style={{ fontSize:12, letterSpacing:1.2, textTransform:"uppercase", opacity:0.75 }}>
+            Ferrari Market Cluster
+          </div>
+          <div style={{ fontSize:11, opacity:0.6 }}>
+            {symbol} • {timeframe.toUpperCase()}
+          </div>
         </div>
       </div>
 
@@ -133,6 +140,7 @@ export default function App() {
         <h2 style={{ margin:0, fontWeight:600 }}>Live Chart (Lightweight Charts)</h2>
       </div>
 
+      {/* Layout */}
       <div style={{ display:"grid", gridTemplateColumns:"300px 1fr", gap:16, padding:16 }}>
         {/* Sidebar */}
         <div>
@@ -146,7 +154,11 @@ export default function App() {
           <div style={panel}>
             <span style={label}>Timeframe</span>
             <div style={row}>
-              {tfs.map(tf => <button key={tf} style={btn(timeframe.toLowerCase()===tf.toLowerCase())} onClick={()=>setTimeframe(tf)}>{tf.toUpperCase()}</button>)}
+              {tfs.map(tf => (
+                <button key={tf} style={btn(timeframe.toLowerCase()===tf.toLowerCase())} onClick={()=>setTimeframe(tf)}>
+                  {tf.toUpperCase()}
+                </button>
+              ))}
             </div>
           </div>
 
@@ -158,10 +170,16 @@ export default function App() {
               ["squeeze","Squeeze (LuxAlgo)"], ["smi","SMI"], ["vol","Volume"],
             ].map(([id,lbl]) => (
               <div key={id} style={{ display:"flex", alignItems:"center", gap:8, margin:"6px 0" }}>
-                <input id={id} type="checkbox" checked={!!enabled[id]} onChange={(e)=>setEnabled(p=>({...p, [id]: e.target.checked}))} />
+                <input
+                  id={id}
+                  type="checkbox"
+                  checked={!!enabled[id]}
+                  onChange={(e)=>setEnabled(p=>({ ...p, [id]: e.target.checked }))}
+                />
                 <label htmlFor={id} style={{ fontSize:12, opacity:0.85 }}>{lbl}</label>
               </div>
             ))}
+
             <div style={{ marginTop:8, fontSize:11, opacity:0.7 }}>
               Active: {enabledIndicators.join(", ") || "none"}
             </div>
@@ -170,17 +188,18 @@ export default function App() {
 
         {/* Right: Ferrari cluster + Gauges + Chart */}
         <div style={{ border:"1px solid #1b2130", borderRadius:12, overflow:"hidden" }}>
+          {/* Ferrari replica cluster (logo on tach face). Fuel uses psi when we wire it. */}
           <FerrariReplica
-            logoUrl="/ferrari.png" // put a logo here: /public/ferrari.png
-            momentum={Number(gaugesRow?.momentum ?? 0)}
-            breadth={Number(gaugesRow?.breadth ?? 0)}
-            psi={undefined} // we’ll wire real PSI next so Fuel becomes live
-            lights={lights}
+            logoUrl="/ferrari.png"                                // place your logo at /public/ferrari.png
+            momentum={Number(gaugesRow?.momentum ?? 0)}           // Speed dial
+            breadth={Number(gaugesRow?.breadth ?? 0)}             // Tach dial
+            psi={undefined}                                       // We'll wire real PSI next
           />
 
-          {/* optional table gauges beneath the cluster */}
+          {/* Optional: keep table gauges under the cluster */}
           <GaugesPanel defaultIndex={symbol} />
 
+          {/* Multi‑pane chart */}
           <LiveLWChart
             symbol={symbol}
             timeframe={timeframe}
