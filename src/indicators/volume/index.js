@@ -1,36 +1,36 @@
 // src/indicators/volume/index.js
-// Volume histogram pane
+// Volume histogram pane (SEPARATE)
 
 const DEF = {
-  upColor:  "#22c55e",
-  downColor:"#ef4444",
-  neutral:  "#94a3b8",
-  lineWidth: 1,
+  upColor:   "#22c55e",  // green
+  downColor: "#ef4444",  // red
+  neutral:   "#94a3b8",
 };
 
 function volCompute(candles, inputs) {
   const o = { ...DEF, ...(inputs || {}) };
-  const n = candles?.length ?? 0;
-  if (n === 0) return { bars: [], opts: o };
-  const bars = new Array(n);
-  for (let i = 0; i < n; i++) {
-    const c = candles[i];
-    const up = c.close >= c.open;
-    bars[i] = { time: c.time, value: c.volume ?? 0, color: up ? o.upColor : o.downColor };
-  }
+  const bars = (candles || []).map(c => ({
+    time: c.time,
+    value: Number(c.volume ?? 0),
+    color: (c.close >= c.open) ? o.upColor : o.downColor,
+  }));
   return { bars, opts: o };
 }
 
 function volAttach(chartApi, seriesMap, result, inputs) {
   const hist = chartApi.addHistogramSeries({
     priceLineVisible: false,
-    color: "#94a3b8",
+    priceFormat: { type: "volume" }, // important for proper axis formatting
     autoscaleInfoProvider: () => ({ priceRange: { minValue: 0, maxValue: null } }),
+    // fallback color (per-point color overrides this)
+    color: "#94a3b8",
   });
-  seriesMap.set("volume", hist);
+  seriesMap.set("vol", hist);
+
+  // Per-bar colors supported by setData()
   hist.setData(result.bars || []);
 
-  return () => { try { chartApi.removeSeries(hist); } catch {}; seriesMap.delete("volume"); };
+  return () => { try { chartApi.removeSeries(hist); } catch {}; seriesMap.delete("vol"); };
 }
 
 const VOL = {
