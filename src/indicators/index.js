@@ -2,12 +2,12 @@
 // Master registry + safe flattener + resolver.
 // Includes: EMA (array), MFP (single), SR (single), SWING (single)
 
-import indicatorTypes from "./shared/indicatorTypes";
+import indicatorTypes from "./shared/indicatorTypes";   // ✅ correct path
 
-import emaIndicators from "./ema";                 // default array: [EMA10, EMA20, ...]
-import MFP from "./moneyFlow/profile";             // default single (id: "mfp")
-import SR from "./sr";                              // default single (id: "sr")
-import SWING from "./swing";                        // default single (id: "swing")
+import emaIndicators from "./ema";                      // default array: [EMA10, EMA20, ...]
+import MFP from "./moneyFlow/profile";                  // default single (id: "mfp")
+import SR from "./sr";                                   // default single (id: "sr")
+import SWING from "./swing";                             // default single (id: "swing")
 
 const asArray = (x) => (Array.isArray(x) ? x : []);
 
