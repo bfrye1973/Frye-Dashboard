@@ -3,24 +3,19 @@
 // Palette: RES=RED, SUP=BLUE; overlay above chart;
 // HARD LIMIT: MAX 3 PER SIDE + cull skinny/off-screen zones.
 
-import indicatorTypes from "../shared/indicatorTypes";
-
-// ======= TUNABLES =======
-const MAX_ZONES_PER_SIDE = 3;      // change to 2 if you prefer
-const MIN_PX_W = 24;               // drop very skinny blocks
-// ========================
+const MAX_ZONES_PER_SIDE = 3;   // ← change to 2 if you prefer
+const MIN_PX_W = 24;            // drop very skinny blocks
 
 const DEF = {
   leftBars: 15,
   rightBars: 15,
   extendUntilFill: true,
   hideFilled: false,
-
   // SR palette (fixed): red/blue
   resColor: "rgba(239,68,68,0.35)", resStroke: "#ef4444",
   supColor: "rgba(59,130,246,0.35)", supStroke: "#3b82f6",
   strokeWidth: 1,
-  blockHeightPct: 0.002,           // ~0.2% of price for band thickness
+  blockHeightPct: 0.002,        // ~0.2% of price for band thickness
   showLabelsInBlock: true,
   labelColor: "rgba(230,236,245,0.9)",
   font: "12px system-ui,-apple-system,Segoe UI,Roboto,Arial",
@@ -84,8 +79,7 @@ function srAttach(chartApi, seriesMap, result, inputs) {
   const o = { ...DEF, ...(inputs || {}) };
   const container = chartApi?._container;
   const priceSeries = chartApi?._priceSeries;
-  const candles = chartApi?._candles || [];
-  if (!container || !priceSeries || !candles.length) return () => {};
+  if (!container || !priceSeries) return () => {};
 
   if (!container.style.position) container.style.position = "relative";
 
@@ -123,7 +117,7 @@ function srAttach(chartApi, seriesMap, result, inputs) {
     const w = canvas.clientWidth;
     ctx.clearRect(0, 0, w, canvas.clientHeight);
 
-    // version tag
+    // tag
     ctx.fillStyle = "rgba(147,163,184,0.85)";
     ctx.font = o.font;
     ctx.fillText("SR BLOCKS v2 (max 3/side)", 10, 16);
@@ -136,7 +130,7 @@ function srAttach(chartApi, seriesMap, result, inputs) {
     const tFrom = leftT ?? -Infinity;
     const tTo   = rightT ??  Infinity;
 
-    // 1) filter on-screen & min width
+    // filter on-screen & min width
     const visible = [];
     for (const Z of zones) {
       if (Z.toTime < tFrom || Z.fromTime > tTo) continue;
@@ -151,16 +145,16 @@ function srAttach(chartApi, seriesMap, result, inputs) {
     }
     if (!visible.length) return;
 
-    // 2) take strongest 3 per side
+    // strongest N per side
     const supply = visible.filter(v => v.Z.type === "res").sort((a,b)=>b.strength - a.strength).slice(0, MAX_ZONES_PER_SIDE);
     const demand = visible.filter(v => v.Z.type === "sup").sort((a,b)=>b.strength - a.strength).slice(0, MAX_ZONES_PER_SIDE);
     const drawList = supply.concat(demand);
 
-    // 3) draw
+    // draw
     for (const V of drawList) {
       const Z = V.Z;
       const baseHalf = Math.max(1e-6, Z.price * o.blockHeightPct);
-      const scale = Math.max(0.6, Math.min(1.0, 120 / V.pxW));
+      const scale = Math.max(0.6, Math.min(1.0, 120 / V.pxW)); // thinner when zoomed in
       const half  = baseHalf * scale;
 
       const yTop = yOf(Z.type === "res" ? (Z.price + half) : (Z.price - half));
@@ -170,7 +164,6 @@ function srAttach(chartApi, seriesMap, result, inputs) {
       const xx = V.x1, ww = Math.max(1, V.pxW);
       const yy = Math.min(yTop, yBot), hh = Math.max(1, Math.abs(yTop - yBot));
 
-      // Fill + stroke
       ctx.globalAlpha = 0.28;
       ctx.fillStyle = (Z.type === "res") ? o.resColor : o.supColor;
       ctx.fillRect(xx, yy, ww, hh);
@@ -212,7 +205,7 @@ function srAttach(chartApi, seriesMap, result, inputs) {
 }
 
 const SR = {
-  id: indicatorTypes.SR,         // "sr"
+  id: "sr",                        // ← plain string id
   label: "Support / Resistance (Blocks)",
   kind: "OVERLAY",
   defaults: DEF,
