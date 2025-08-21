@@ -3,12 +3,8 @@
 // Demand (swing lows) = GREEN, Supply (swing highs) = RED
 // Draws ABOVE the chart; viewport culling + HARD LIMIT: MAX 3 PER SIDE
 
-import indicatorTypes from "../shared/indicatorTypes";
-
-// ======= TUNABLES =======
-const MAX_ZONES_PER_SIDE = 3;     // change to 2 if you prefer
-const MIN_PX_W = 24;              // drop skinny slivers
-// ========================
+const MAX_ZONES_PER_SIDE = 3;   // ← change to 2 if you prefer
+const MIN_PX_W = 24;            // drop skinny slivers
 
 const DEF = {
   leftBars: 15,
@@ -17,7 +13,7 @@ const DEF = {
   showLabels: true,
   extendUntilFill: true,
   hideFilled: false,
-  // Appearance (Liquidity palette)
+  // Liquidity palette
   supFill: "rgba(102,187,106,0.35)", supStroke: "#66bb6a",  // demand
   resFill: "rgba(170,36,48,0.35)",   resStroke: "#aa2430",  // supply
   strokeWidth: 1,
@@ -92,8 +88,7 @@ function swingAttach(chartApi, seriesMap, result, inputs) {
   const o = { ...DEF, ...(inputs || {}) };
   const container = chartApi?._container;
   const priceSeries = chartApi?._priceSeries;
-  const candles = chartApi?._candles || [];
-  if (!container || !priceSeries || !candles.length) return () => {};
+  if (!container || !priceSeries) return () => {};
 
   if (!container.style.position) container.style.position = "relative";
 
@@ -144,6 +139,7 @@ function swingAttach(chartApi, seriesMap, result, inputs) {
     const tFrom = leftT ?? -Infinity;
     const tTo   = rightT ??  Infinity;
 
+    // filter on-screen & min width
     const visible = [];
     for (const Z of zones) {
       if (Z.toTime < tFrom || Z.fromTime > tTo) continue;
@@ -158,7 +154,7 @@ function swingAttach(chartApi, seriesMap, result, inputs) {
     }
     if (!visible.length) return;
 
-    // HARD LIMIT: strongest 3 supply + 3 demand
+    // strongest N per side
     const supply = visible.filter(v => v.Z.type === "res").sort((a,b)=>b.strength - a.strength).slice(0, MAX_ZONES_PER_SIDE);
     const demand = visible.filter(v => v.Z.type === "sup").sort((a,b)=>b.strength - a.strength).slice(0, MAX_ZONES_PER_SIDE);
     const drawList = supply.concat(demand);
@@ -176,7 +172,7 @@ function swingAttach(chartApi, seriesMap, result, inputs) {
       const xx = V.x1, ww = Math.max(1, V.pxW);
       const yy = Math.min(yTop, yBot), hh = Math.max(1, Math.abs(yTop - yBot));
 
-      // opacity by strength within cohort
+      // opacity by relative strength
       const cohort = Z.type === "res" ? supply : demand;
       const localMax = cohort[0]?.strength || V.strength;
       const alpha = 0.22 + 0.13 * (V.strength / localMax);
@@ -199,7 +195,7 @@ function swingAttach(chartApi, seriesMap, result, inputs) {
     }
   }
 
-  // once: markers at swing points
+  // optional swing markers, once
   if (Array.isArray(result?.labels) && o.showLabels) {
     const markers = result.labels.map((lb) => ({
       time: lb.time,
@@ -235,7 +231,7 @@ function swingAttach(chartApi, seriesMap, result, inputs) {
 }
 
 const SWING = {
-  id: indicatorTypes.SWING,   // "swing"
+  id: "swing",                    // ← plain string id
   label: "Swing Points & Liquidity (Blocks)",
   kind: "OVERLAY",
   defaults: DEF,
