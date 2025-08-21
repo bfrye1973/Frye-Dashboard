@@ -4,21 +4,26 @@ import React, { useMemo, useState, useEffect } from "react";
 // Components
 import LiveLWChart from "./components/LiveLWChart";
 import GaugesPanel from "./components/GaugesPanel";
-import FerrariTwoGaugesReplica from "./components/FerrariTwoGaugesReplica"; // ⬅️ two‑gauge test
+import FerrariTwoGaugesMock from "./components/FerrariTwoGaugesMock"; // ⬅️ two‑gauge visual test
 
-// Data (Momentum/Breadth)
+// Data (Momentum / Breadth)
 import { getGauges } from "./services/gauges";
 
 export default function App() {
   const [symbol, setSymbol] = useState("SPY");
   const [timeframe, setTimeframe] = useState("1D");
 
-  // Debug banner (feed source / bars / shape)
+  // Small debug banner for OHLC feed
   const [dbg, setDbg] = useState({ source: "-", url: "-", bars: 0, shape: "-" });
   useEffect(() => {
     const id = setInterval(() => {
       const d = window.__FEED_DEBUG__ || {};
-      setDbg({ source: d.source || "-", url: d.url || "-", bars: d.bars || 0, shape: d.shape || "-" });
+      setDbg({
+        source: d.source || "-",
+        url: d.url || "-",
+        bars: d.bars || 0,
+        shape: d.shape || "-",
+      });
     }, 600);
     return () => clearInterval(id);
   }, []);
@@ -47,7 +52,7 @@ export default function App() {
     },
   });
 
-  // Build enabled list for the chart
+  // Build list passed to chart
   const enabledIndicators = useMemo(() => {
     const out = [];
     if (enabled.ema10) out.push("ema10");
@@ -65,17 +70,17 @@ export default function App() {
   const symbols = useMemo(() => ["SPY","QQQ","AAPL","MSFT","NVDA","TSLA","META","AMZN"], []);
   const tfs     = useMemo(() => ["1m","10m","1H","1D"], []);
 
-  // Candles (if needed later)
+  // Candles (future use; kept for consistency)
   const [candles, setCandles] = useState([]);
 
-  // Gauges (Momentum/Breadth) for the selected index
+  // Gauges (momentum / breadth) for current index
   const [gaugesRow, setGaugesRow] = useState(null);
   useEffect(() => {
     let live = true;
     (async () => {
       const rows = await getGauges(symbol);
       if (!live) return;
-      setGaugesRow(rows[0] || null);
+      setGaugesRow(rows[0] || null); // choose latest row
     })();
     return () => { live = false; };
   }, [symbol]);
@@ -125,7 +130,7 @@ export default function App() {
         <div style={cfGloss} />
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
           <div style={{ fontSize:12, letterSpacing:1.2, textTransform:"uppercase", opacity:0.75 }}>
-            Ferrari Two‑Gauge Replica (Test)
+            Ferrari Two‑Gauge Replica (Visual Test)
           </div>
           <div style={{ fontSize:11, opacity:0.6 }}>
             {symbol} • {timeframe.toUpperCase()}
@@ -163,35 +168,38 @@ export default function App() {
           <div style={panel}>
             <span style={label}>Indicators</span>
             {[
-              ["ema10","EM A 10"], ["ema20","EMA 20"], ["mfp","Money Flow Profile"],
+              ["ema10","EMA 10"], ["ema20","EMA 20"], ["mfp","Money Flow Profile"],
               ["sr","Support / Resistance"], ["swing","Swing / Liquidity"],
               ["squeeze","Squeeze (LuxAlgo)"], ["smi","SMI"], ["vol","Volume"],
             ].map(([id,lbl]) => (
               <div key={id} style={{ display:"flex", alignItems:"center", gap:8, margin:"6px 0" }}>
-                <input id={id} type="checkbox" checked={!!enabled[id]} onChange={(e)=>setEnabled(p=>({ ...p, [id]: e.target.checked }))} />
+                <input
+                  id={id}
+                  type="checkbox"
+                  checked={!!enabled[id]}
+                  onChange={(e)=>setEnabled(p=>({ ...p, [id]: e.target.checked }))}
+                />
                 <label htmlFor={id} style={{ fontSize:12, opacity:0.85 }}>{lbl}</label>
               </div>
             ))}
-
             <div style={{ marginTop:8, fontSize:11, opacity:0.7 }}>
               Active: {enabledIndicators.join(", ") || "none"}
             </div>
           </div>
         </div>
 
-        {/* Right: Two-gauge test + GaugesPanel + Chart */}
+        {/* Right: Two‑gauge mock + GaugesPanel + Chart */}
         <div style={{ border:"1px solid #1b2130", borderRadius:12, overflow:"hidden" }}>
           {/* 🚗 Two‑gauge Ferrari replica (visuals only) */}
-          <FerrariTwoGaugesReplica
-            rpmValue={Number(gaugesRow?.breadth ?? 0)}    // RPM = Breadth
-            speedValue={Number(gaugesRow?.momentum ?? 0)} // SPEED = Momentum
-            startSweep={true}
+          <FerrariTwoGaugesMock
+            rpmPercent={40}     // 0..100 visual only (no data yet)
+            speedPercent={20}   // 0..100 visual only (no data yet)
           />
 
-          {/* (Optional) keep table gauges under the test cluster */}
+          {/* (Optional) table gauges */}
           <GaugesPanel defaultIndex={symbol} />
 
-          {/* Multi‑pane chart */}
+          {/* Multi‑pane chart (unchanged) */}
           <LiveLWChart
             symbol={symbol}
             timeframe={timeframe}
@@ -205,3 +213,4 @@ export default function App() {
     </div>
   );
 }
+
