@@ -1,107 +1,126 @@
 // src/components/LiveLWChart/LiveLWChart.jsx
-import { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createChart } from "lightweight-charts";
 import { baseChartOptions } from "./chartConfig";
 import { resolveIndicators } from "../../indicators";
 import { getFeed } from "../../services/feed";
 
-/**
- * Multi-pane chart manager:
- * - Main price pane stays as before (EMAs, MFP, SR, Swing).
- * - SEPARATE indicators (squeeze, smi, volume) render in their own fixed-height subcharts below.
- * - Time scale is synchronized across panes.
- */
-
-const SEPARATE_PANE_HEIGHT = 140; // default bottom pane height (px)
-const MIN_PANES_CONTAINER_HEIGHT = 10;
+const DEFAULT_HEIGHTS = {
+  price: 620,
+  squeeze: 140,
+  smi: 140,
+  vol: 160,
+};
 
 export default function LiveLWChart({
   symbol = "SPY",
   timeframe = "1D",
-  height = 620,
+  height = DEFAULT_HEIGHTS.price, // legacy; we apply to price pane
   enabledIndicators = [],
   indicatorSettings = {},
 }) {
-  // main refs
-  const hostRef = useRef(null);
-  const mainRef = useRef(null);
-  const mainSeriesRef = useRef(null);
+  // containers
+  const priceRef   = useRef(null);
+  const squeezeRef = useRef(null);
+  const smiRef     = useRef(null);
+  const volRef     = useRef(null);
+
+  // charts
+  const priceChartRef   = useRef(null);
+  const squeezeChartRef = useRef(null);
+  const smiChartRef     = useRef(null);
+  const volChartRef     = useRef(null);
+
+  // main price candlesticks
+  const priceSeriesRef  = useRef(null);
+
   const seriesMapRef = useRef(new Map());
   const [candles, setCandles] = useState([]);
 
-  // panes (separate indicators) refs
-  const panesWrapRef = useRef(null);
-  const panesMapRef = useRef(
-    new Map() // id -> { rootEl, chart, seriesMap }
-  );
+  // enabled panes
+  const needSqueeze = useMemo(() => enabledIndicators.includes("squeeze"), [enabledIndicators]);
+  const needSMI     = useMemo(() => enabledIndicators.includes("smi"), [enabledIndicators]);
+  const needVol     = useMemo(() => enabledIndicators.includes("vol"), [enabledIndicators]);
 
-  // --- create base DOM scaffolding
+  // pane heights with simple +/- controls
+  const [heights, setHeights] = useState(DEFAULT_HEIGHTS);
+  const inc = (key, amt=40) => setHeights(h => ({ ...h, [key]: Math.min(h[key] + amt, 400)}));
+  const dec = (key, amt=40) => setHeights(h => ({ ...h, [key]: Math.max(h[key] - amt, 60)}));
+
+  // ---- create charts once ----
   useEffect(() => {
-    if (!hostRef.current) return;
+    // price
+    if (priceRef.current && !priceChartRef.current) {
+      const chart = createChart(priceRef.current, { ...baseChartOptions, height: heights.price });
+      priceChartRef.current = chart;
 
-    // Clear any old content on remount
-    hostRef.current.innerHTML = "";
+      const price = chart.addCandlestickSeries();
+      priceSeriesRef.current = price;
 
-    // Outer container uses column layout: [ mainPane, panesWrap ]
-    const root = hostRef.current;
-    root.style.display = "flex";
-    root.style.flexDirection = "column";
-    root.style.width = "100%";
-    root.style.height = `${height}px`;
-
-    // Main pane
-    const mainEl = document.createElement("div");
-    mainEl.style.flex = "1 1 auto";
-    mainEl.style.position = "relative";
-    mainEl.style.minHeight = "160px";
-    root.appendChild(mainEl);
-
-    // Panes container
-    const panesWrap = document.createElement("div");
-    panesWrap.style.flex = "0 0 auto";
-    panesWrap.style.display = "flex";
-    panesWrap.style.flexDirection = "column";
-    panesWrap.style.width = "100%";
-    panesWrap.style.minHeight = `${MIN_PANES_CONTAINER_HEIGHT}px`;
-    root.appendChild(panesWrap);
-
-    panesWrapRef.current = panesWrap;
-
-    // Main chart
-    const chart = createChart(mainEl, { ...baseChartOptions, height: undefined });
-    mainRef.current = chart;
-
-    // Main price series
-    const price = chart.addCandlestickSeries();
-    mainSeriesRef.current = price;
-
-    // Expose for overlays
-    chart._container = mainEl;
-    chart._priceSeries = price;
+      // expose for overlays
+      chart._container   = priceRef.current;
+      chart._priceSeries = priceSeriesRef.current;
+    }
+    // squeeze
+    if (squeezeRef.current && !squeezeChartRef.current) {
+      const chart = createChart(squeezeRef.current, {
+        ...baseChartOptions,
+        height: heights.squeeze,
+        rightPriceScale: { visible: true },
+      });
+      squeezeChartRef.current = chart;
+      chart._container = squeezeRef.current;
+      chart._priceSeries = null;
+    }
+    // smi
+    if (smiRef.current && !smiChartRef.current) {
+      const chart = createChart(smiRef.current, {
+        ...baseChartOptions,
+        height: heights.smi,
+        rightPriceScale: { visible: true },
+      });
+      smiChartRef.current = chart;
+      chart._container = smiRef.current;
+      chart._priceSeries = null;
+    }
+    // vol
+    if (volRef.current && !volChartRef.current) {
+      const chart = createChart(volRef.current, {
+        ...baseChartOptions,
+        height: heights.vol,
+        rightPriceScale: { visible: true },
+      });
+      volChartRef.current = chart;
+      chart._container = volRef.current;
+      chart._priceSeries = null;
+    }
 
     return () => {
-      // Cleanup sub-panes first
-      try {
-        for (const [, rec] of panesMapRef.current) {
-          try { rec.chart?.remove(); } catch {}
-        }
-      } catch {}
-      panesMapRef.current.clear();
-      // Cleanup main chart
-      try { chart.remove(); } catch {}
-      mainRef.current = null;
-      mainSeriesRef.current = null;
+      try { priceChartRef.current?.remove(); } catch {}
+      try { squeezeChartRef.current?.remove(); } catch {}
+      try { smiChartRef.current?.remove(); } catch {}
+      try { volChartRef.current?.remove(); } catch {}
+      priceChartRef.current = null;
+      squeezeChartRef.current = null;
+      smiChartRef.current = null;
+      volChartRef.current = null;
+      priceSeriesRef.current = null;
       seriesMapRef.current.clear();
-      panesWrapRef.current = null;
-      hostRef.current && (hostRef.current.innerHTML = "");
     };
-  }, [height]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  // --- load data + subscribe
+  // update pane heights on change
   useEffect(() => {
-    const chart = mainRef.current;
-    const price = mainSeriesRef.current;
-    if (!chart || !price) return;
+    try { priceChartRef.current?.applyOptions({ height: heights.price }); } catch {}
+    try { squeezeChartRef.current?.applyOptions({ height: needSqueeze ? heights.squeeze : 0 }); } catch {}
+    try { smiChartRef.current?.applyOptions({ height: needSMI ? heights.smi : 0 }); } catch {}
+    try { volChartRef.current?.applyOptions({ height: needVol ? heights.vol : 0 }); } catch {}
+  }, [heights, needSqueeze, needSMI, needVol]);
+
+  // ---- load data ----
+  useEffect(() => {
+    if (!priceChartRef.current || !priceSeriesRef.current) return;
 
     const feed = getFeed(symbol, timeframe);
     let disposed = false;
@@ -110,229 +129,183 @@ export default function LiveLWChart({
       const seed = await feed.history();
       if (disposed) return;
       setCandles(seed);
-      price.setData(seed);
-      chart._candles = seed; // for overlays
+      priceSeriesRef.current.setData(seed);
+      // expose candles on all charts
+      priceChartRef.current._candles = seed;
+      if (squeezeChartRef.current) squeezeChartRef.current._candles = seed;
+      if (smiChartRef.current)     smiChartRef.current._candles     = seed;
+      if (volChartRef.current)     volChartRef.current._candles     = seed;
+      syncVisibleRange("price");
     })();
 
     const unsub = feed.subscribe((bar) => {
       if (disposed) return;
-      setCandles((prev) => {
+      setCandles(prev => {
         const next = mergeBar(prev, bar);
-        price.update(bar);
-        chart._candles = next;
+        priceSeriesRef.current.update(bar);
+        priceChartRef.current._candles = next;
+        if (squeezeChartRef.current) squeezeChartRef.current._candles = next;
+        if (smiChartRef.current)     smiChartRef.current._candles     = next;
+        if (volChartRef.current)     volChartRef.current._candles     = next;
         return next;
       });
     });
 
-    return () => {
-      disposed = true;
-      unsub?.();
-      feed.close?.();
-    };
+    return () => { disposed = true; unsub?.(); feed.close?.(); };
   }, [symbol, timeframe]);
 
-  // --- Attach indicators (main overlays + separate panes)
+  // ---- sync time scales ----
   useEffect(() => {
-    const chart = mainRef.current;
-    const priceSeries = mainSeriesRef.current;
-    const panesWrap = panesWrapRef.current;
-    if (!chart || !priceSeries || !panesWrap || candles.length === 0) return;
+    if (!priceChartRef.current) return;
 
-    // Cleanup all main-series artifacts
+    const price = priceChartRef.current;
+    const panes = [squeezeChartRef.current, smiChartRef.current, volChartRef.current].filter(Boolean);
+
+    const unsubPrice = price.timeScale().subscribeVisibleLogicalRangeChange((range) => {
+      panes.forEach(c => { try { c.timeScale().setVisibleLogicalRange(range); } catch {} });
+    });
+
+    const childUnsubs = panes.map((c) =>
+      c.timeScale().subscribeVisibleLogicalRangeChange((range) => {
+        try { price.timeScale().setVisibleLogicalRange(range); } catch {}
+        panes.forEach(sib => { if (sib !== c) try { sib.timeScale().setVisibleLogicalRange(range); } catch {} });
+      })
+    );
+
+    return () => {
+      try { price.timeScale().unsubscribeVisibleLogicalRangeChange(unsubPrice); } catch {}
+      childUnsubs.forEach((fn, i) => {
+        const c = panes[i];
+        try { c?.timeScale().unsubscribeVisibleLogicalRangeChange(fn); } catch {}
+      });
+    };
+  }, [candles]);
+
+  function syncVisibleRange(source) {
+    const src = source === "price" ? priceChartRef.current
+      : source === "squeeze" ? squeezeChartRef.current
+      : source === "smi" ? smiChartRef.current
+      : volChartRef.current;
+    if (!src) return;
+    const range = src.timeScale().getVisibleLogicalRange?.();
+    if (!range) return;
+    [priceChartRef.current, squeezeChartRef.current, smiChartRef.current, volChartRef.current]
+      .filter(c => c && c !== src)
+      .forEach(c => { try { c.timeScale().setVisibleLogicalRange(range); } catch {} });
+  }
+
+  // ---- attach indicators to the correct pane ----
+  useEffect(() => {
+    const priceChart   = priceChartRef.current;
+    const squeezeChart = squeezeChartRef.current;
+    const smiChart     = smiChartRef.current;
+    const volChart     = volChartRef.current;
+    if (!priceChart || !candles.length) return;
+
+    // cleanup existing series/overlays
     for (const [key, obj] of seriesMapRef.current) {
       if (key.endsWith("__cleanup") && typeof obj === "function") {
         try { obj(); } catch {}
       } else {
-        try { chart.removeSeries(obj); } catch {}
+        try { priceChart.removeSeries?.(obj); } catch {}
+        try { squeezeChart?.removeSeries?.(obj); } catch {}
+        try { smiChart?.removeSeries?.(obj); } catch {}
+        try { volChart?.removeSeries?.(obj); } catch {}
       }
     }
     seriesMapRef.current.clear();
 
-    // Determine which indicators are enabled
-    const items = resolveIndicators(enabledIndicators, indicatorSettings);
+    // map SEPARATE id -> pane chart
+    const paneForId = (id) => {
+      if (id === "squeeze") return squeezeChart;
+      if (id === "smi")     return smiChart;
+      if (id === "vol")     return volChart;
+      return priceChart; // overlays default to price
+    };
 
-    // Partition: overlays -> main, separates -> panes
-    const overlayItems = [];
-    const separateItems = [];
-    for (const it of items) {
-      const k = (it.def.kind || "").toUpperCase();
-      if (k === "SEPARATE") separateItems.push(it);
-      else overlayItems.push(it);
-    }
+    // expose containers for panes
+    priceChart._container   = priceRef.current;
+    priceChart._priceSeries = priceSeriesRef.current;
+    if (squeezeChart) { squeezeChart._container = squeezeRef.current; squeezeChart._priceSeries = null; }
+    if (smiChart)     { smiChart._container     = smiRef.current;     smiChart._priceSeries     = null; }
+    if (volChart)     { volChart._container     = volRef.current;     volChart._priceSeries     = null; }
 
-    // 1) Attach overlays to main chart
-    overlayItems.forEach(({ def, inputs }) => {
-      const result = def.compute(candles, inputs);
-      const cleanup = def.attach(chart, seriesMapRef.current, result, inputs);
+    const defs = resolveIndicators(enabledIndicators, indicatorSettings);
+
+    defs.forEach(({ def, inputs }) => {
+      const isSeparate = String(def.kind || "").toUpperCase() === "SEPARATE";
+      const chartApi = isSeparate ? paneForId(def.id) : priceChart;
+      if (!chartApi) return;
+      const result  = def.compute(candles, inputs);
+      const cleanup = def.attach(chartApi, seriesMapRef.current, result, inputs);
       seriesMapRef.current.set(`${def.id}__cleanup`, cleanup);
     });
 
-    // 2) Build sub-panes for separates
-    // Sync time-scales (pan/zoom any pane -> apply to all)
-    setupSyncTimeScales(mainRef.current, panesMapRef, panesWrap);
-
-    // Mark which panes we need this render
-    const needed = new Set(separateItems.map(x => x.def.id));
-
-    // Create or reuse panes
-    separateItems.forEach(({ def, inputs }) => {
-      let rec = panesMapRef.current.get(def.id);
-      if (!rec) {
-        // Make root div for pane
-        const rootEl = document.createElement("div");
-        rootEl.style.height = `${paneHeightFor(def.id)}px`;
-        rootEl.style.position = "relative";
-        rootEl.style.borderTop = "1px solid rgba(60, 72, 92, 0.6)";
-        panesWrap.appendChild(rootEl);
-
-        const paneChart = createChart(rootEl, {
-          ...baseChartOptions,
-          height: undefined,
-          rightPriceScale: {
-            ...baseChartOptions.rightPriceScale,
-            borderVisible: false,
-          },
-          leftPriceScale: { visible: false },
-          timeScale: {
-            ...baseChartOptions.timeScale,
-            borderVisible: false,
-          },
-          grid: {
-            ...baseChartOptions.grid,
-            vertLines: { ...baseChartOptions.grid.vertLines, visible: false },
-          },
-        });
-
-        // record
-        rec = { rootEl, chart: paneChart, seriesMap: new Map() };
-        panesMapRef.current.set(def.id, rec);
-      }
-
-      // Fill data + attach series for this pane
-      const fakeApi = paneApi(rec.chart, candles);
-      const result = def.compute(candles, inputs);
-      const cleanup = def.attach(fakeApi, rec.seriesMap, result, inputs);
-      rec.seriesMap.set(`${def.id}__cleanup`, cleanup);
-    });
-
-    // Remove panes that are no longer needed
-    for (const [id, rec] of panesMapRef.current) {
-      if (!needed.has(id)) {
-        // Cleanup series in that pane
-        for (const [k, v] of rec.seriesMap) {
-          if (k.endsWith("__cleanup") && typeof v === "function") {
-            try { v(); } catch {}
-          } else {
-            try { rec.chart.removeSeries(v); } catch {}
-          }
-        }
-        rec.seriesMap.clear();
-        try { rec.chart.remove(); } catch {}
-        try { panesWrap.removeChild(rec.rootEl); } catch {}
-        panesMapRef.current.delete(id);
-      }
-    }
+    syncVisibleRange("price");
 
     return () => {
-      // Cleanup overlays on main
       for (const [key, fn] of seriesMapRef.current) {
         if (key.endsWith("__cleanup") && typeof fn === "function") {
           try { fn(); } catch {}
         }
       }
       seriesMapRef.current.clear();
-      // (leave panes to be cleaned on next render or unmount)
     };
-  }, [candles, enabledIndicators, indicatorSettings]);
+  }, [candles, enabledIndicators, indicatorSettings, needSqueeze, needSMI, needVol]);
 
-  return <div ref={hostRef} style={{ width: "100%", height }} />;
+  const show = { display: "block" };
+  const hide = { display: "none" };
+
+  const PaneHeader = ({ label, onInc, onDec }) => (
+    <div style={{ position: "absolute", left: 6, top: 6, zIndex: 10, display: "flex", gap: 8, alignItems: "center" }}>
+      <span style={{ fontSize: 12, color: "#93a3b8" }}>{label}</span>
+      <button onClick={onDec} style={btnMini}>–</button>
+      <button onClick={onInc} style={btnMini}>+</button>
+    </div>
+  );
+  const btnMini = {
+    padding: "2px 6px", borderRadius: 6, fontSize: 12,
+    background: "#0b1220", color: "#e5e7eb", border: "1px solid #334155", cursor: "pointer"
+  };
+
+  return (
+    <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 8 }}>
+      {/* PRICE */}
+      <div ref={priceRef} style={{ height: heights.price, position: "relative" }} />
+
+      {/* SQUEEZE */}
+      <div
+        ref={squeezeRef}
+        style={{ height: needSqueeze ? heights.squeeze : 0, position: "relative", ...(needSqueeze ? show : hide) }}
+      >
+        {needSqueeze && <PaneHeader label="Squeeze (LuxAlgo)" onInc={() => inc("squeeze")} onDec={() => dec("squeeze")} />}
+      </div>
+
+      {/* SMI */}
+      <div
+        ref={smiRef}
+        style={{ height: needSMI ? heights.smi : 0, position: "relative", ...(needSMI ? show : hide) }}
+      >
+        {needSMI && <PaneHeader label="SMI" onInc={() => inc("smi")} onDec={() => dec("smi")} />}
+      </div>
+
+      {/* VOLUME */}
+      <div
+        ref={volRef}
+        style={{ height: needVol ? heights.vol : 0, position: "relative", ...(needVol ? show : hide) }}
+      >
+        {needVol && <PaneHeader label="Volume" onInc={() => inc("vol")} onDec={() => dec("vol")} />}
+      </div>
+    </div>
+  );
 }
 
-/* ----------------- helpers ----------------- */
-
+// merge candle on same timestamp else append
 function mergeBar(prev, bar) {
   if (!prev?.length) return [bar];
   const last = prev[prev.length - 1];
   if (last.time === bar.time) {
-    const next = prev.slice(0, -1);
-    next.push(bar);
-    return next;
+    const next = prev.slice(0, -1); next.push(bar); return next;
   }
   return [...prev, bar];
-}
-
-function paneHeightFor(id) {
-  // You can customize per-indicator if desired
-  // e.g., if (id === "vol") return 120;
-  return SEPARATE_PANE_HEIGHT;
-}
-
-function paneApi(chart, candles) {
-  // Expose a lightweight API compatible with our indicators
-  chart._container = chart._container || chart._hostElement || chart._paneElement;
-  chart._candles = candles;
-  // ensure addXXXSeries exist from lightweight-charts chart
-  return chart;
-}
-
-function setupSyncTimeScales(mainChart, panesMapRef, panesWrap) {
-  if (!mainChart || !panesWrap) return;
-
-  // Avoid installing duplicate listeners
-  if (mainChart.__syncInstalled) return;
-  mainChart.__syncInstalled = true;
-
-  let syncing = false;
-  const onMain = () => {
-    if (syncing) return;
-    syncing = true;
-    try {
-      const lr = mainChart.timeScale().getVisibleLogicalRange?.();
-      if (!lr) return;
-      for (const [, rec] of panesMapRef.current) {
-        try { rec.chart.timeScale().setVisibleLogicalRange(lr); } catch {}
-      }
-    } finally { syncing = false; }
-  };
-
-  const onPane = (srcChart) => () => {
-    if (syncing) return;
-    syncing = true;
-    try {
-      const lr = srcChart.timeScale().getVisibleLogicalRange?.();
-      if (!lr) return;
-      // apply to main
-      try { mainChart.timeScale().setVisibleLogicalRange(lr); } catch {}
-      // apply to other panes
-      for (const [, rec] of panesMapRef.current) {
-        if (rec.chart === srcChart) continue;
-        try { rec.chart.timeScale().setVisibleLogicalRange(lr); } catch {}
-      }
-    } finally { syncing = false; }
-  };
-
-  // Subscribe once: main -> panes
-  mainChart.timeScale().subscribeVisibleLogicalRangeChange(onMain);
-
-  // Each time panes set changes, (re)subscribe their handlers
-  const refreshPaneSubs = () => {
-    for (const [, rec] of panesMapRef.current) {
-      if (rec.__subscribed) continue;
-      const ts = rec.chart.timeScale();
-      const handler = onPane(rec.chart);
-      ts.subscribeVisibleLogicalRangeChange(handler);
-      rec.__subscribed = true;
-      rec.__handler = handler;
-    }
-  };
-
-  // little observer to subscribe when panes get added
-  const obs = new MutationObserver(() => refreshPaneSubs());
-  obs.observe(panesWrap, { childList: true });
-
-  // initial
-  refreshPaneSubs();
-
-  // Save so it can be found on unmount if needed
-  mainChart.__paneSyncObserver = obs;
 }
