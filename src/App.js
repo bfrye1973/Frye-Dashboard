@@ -4,16 +4,16 @@ import React, { useMemo, useState, useEffect } from "react";
 // Components
 import LiveLWChart from "./components/LiveLWChart";
 import GaugesPanel from "./components/GaugesPanel";
-import FerrariReplica from "./components/FerrariReplica";
+import FerrariTwoGaugesReplica from "./components/FerrariTwoGaugesReplica"; // ⬅️ two‑gauge test
 
-// Data service (momentum/breadth)
+// Data (Momentum/Breadth)
 import { getGauges } from "./services/gauges";
 
 export default function App() {
   const [symbol, setSymbol] = useState("SPY");
   const [timeframe, setTimeframe] = useState("1D");
 
-  // Small debug banner showing feed source (backend/mock)
+  // Debug banner (feed source / bars / shape)
   const [dbg, setDbg] = useState({ source: "-", url: "-", bars: 0, shape: "-" });
   useEffect(() => {
     const id = setInterval(() => {
@@ -27,29 +27,27 @@ export default function App() {
   const [enabled, setEnabled] = useState({
     ema10: true,
     ema20: true,
-    mfp: false,
-    sr: false,
+    mfp:   false,
+    sr:    false,
     swing: false,
     squeeze: false,
-    smi: false,
-    vol: false,
+    smi:     false,
+    vol:     false,
   });
 
-  // Indicator settings (override only if desired)
+  // Indicator settings (override only if needed)
   const [settings] = useState({
     ema10: { length: 12, color: "#60a5fa" },
     ema20: { length: 26, color: "#f59e0b" },
     mfp: {
-      lookback: 250,
-      bins: 24,
+      lookback: 250, bins: 24,
       showZones: true, zonesCount: 1, zoneOpacity: 0.12,
       showSides: true, sideWidthPct: 0.18, sideOpacity: 0.28,
       posColor: "#22c55e", negColor: "#ef4444", innerMargin: 10,
     },
-    // sr / swing / squeeze / smi / vol can be added later as needed
   });
 
-  // Build the enabled list for the chart
+  // Build enabled list for the chart
   const enabledIndicators = useMemo(() => {
     const out = [];
     if (enabled.ema10) out.push("ema10");
@@ -67,17 +65,17 @@ export default function App() {
   const symbols = useMemo(() => ["SPY","QQQ","AAPL","MSFT","NVDA","TSLA","META","AMZN"], []);
   const tfs     = useMemo(() => ["1m","10m","1H","1D"], []);
 
-  // Candles from chart (for future signals; not used by first-draft cluster)
+  // Candles (if needed later)
   const [candles, setCandles] = useState([]);
 
-  // Gauges (Momentum/Breadth) for selected index
+  // Gauges (Momentum/Breadth) for the selected index
   const [gaugesRow, setGaugesRow] = useState(null);
   useEffect(() => {
     let live = true;
     (async () => {
       const rows = await getGauges(symbol);
       if (!live) return;
-      setGaugesRow(rows[0] || null); // use first/most recent row from your backend/CSV
+      setGaugesRow(rows[0] || null);
     })();
     return () => { live = false; };
   }, [symbol]);
@@ -98,7 +96,7 @@ export default function App() {
     fontSize:14, outline:"none"
   };
 
-  // Carbon-fiber header strip + gloss
+  // Carbon‑fiber header strip + gloss
   const cfHeader = {
     position:"relative",
     padding:"10px 14px",
@@ -122,12 +120,12 @@ export default function App() {
         FEED: <strong>{dbg.source}</strong> • bars: <strong>{dbg.bars}</strong> • shape: <strong>{dbg.shape}</strong> • url: <span style={{opacity:0.8}}>{dbg.url}</span>
       </div>
 
-      {/* Carbon-fiber header strip */}
+      {/* Carbon‑fiber header strip */}
       <div style={cfHeader}>
         <div style={cfGloss} />
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
           <div style={{ fontSize:12, letterSpacing:1.2, textTransform:"uppercase", opacity:0.75 }}>
-            Ferrari Market Cluster
+            Ferrari Two‑Gauge Replica (Test)
           </div>
           <div style={{ fontSize:11, opacity:0.6 }}>
             {symbol} • {timeframe.toUpperCase()}
@@ -140,7 +138,7 @@ export default function App() {
         <h2 style={{ margin:0, fontWeight:600 }}>Live Chart (Lightweight Charts)</h2>
       </div>
 
-      {/* Layout */}
+      {/* Layout: Sidebar + Right */}
       <div style={{ display:"grid", gridTemplateColumns:"300px 1fr", gap:16, padding:16 }}>
         {/* Sidebar */}
         <div>
@@ -165,17 +163,12 @@ export default function App() {
           <div style={panel}>
             <span style={label}>Indicators</span>
             {[
-              ["ema10","EMA 10"], ["ema20","EMA 20"], ["mfp","Money Flow Profile"],
+              ["ema10","EM A 10"], ["ema20","EMA 20"], ["mfp","Money Flow Profile"],
               ["sr","Support / Resistance"], ["swing","Swing / Liquidity"],
               ["squeeze","Squeeze (LuxAlgo)"], ["smi","SMI"], ["vol","Volume"],
             ].map(([id,lbl]) => (
               <div key={id} style={{ display:"flex", alignItems:"center", gap:8, margin:"6px 0" }}>
-                <input
-                  id={id}
-                  type="checkbox"
-                  checked={!!enabled[id]}
-                  onChange={(e)=>setEnabled(p=>({ ...p, [id]: e.target.checked }))}
-                />
+                <input id={id} type="checkbox" checked={!!enabled[id]} onChange={(e)=>setEnabled(p=>({ ...p, [id]: e.target.checked }))} />
                 <label htmlFor={id} style={{ fontSize:12, opacity:0.85 }}>{lbl}</label>
               </div>
             ))}
@@ -186,17 +179,16 @@ export default function App() {
           </div>
         </div>
 
-        {/* Right: Ferrari cluster + Gauges + Chart */}
+        {/* Right: Two-gauge test + GaugesPanel + Chart */}
         <div style={{ border:"1px solid #1b2130", borderRadius:12, overflow:"hidden" }}>
-          {/* Ferrari replica cluster (logo on tach face). Fuel uses psi when we wire it. */}
-          <FerrariReplica
-            logoUrl="/ferrari.png"                                // place your logo at /public/ferrari.png
-            momentum={Number(gaugesRow?.momentum ?? 0)}           // Speed dial
-            breadth={Number(gaugesRow?.breadth ?? 0)}             // Tach dial
-            psi={undefined}                                       // We'll wire real PSI next
+          {/* 🚗 Two‑gauge Ferrari replica (visuals only) */}
+          <FerrariTwoGaugesReplica
+            rpmValue={Number(gaugesRow?.breadth ?? 0)}    // RPM = Breadth
+            speedValue={Number(gaugesRow?.momentum ?? 0)} // SPEED = Momentum
+            startSweep={true}
           />
 
-          {/* Optional: keep table gauges under the cluster */}
+          {/* (Optional) keep table gauges under the test cluster */}
           <GaugesPanel defaultIndex={symbol} />
 
           {/* Multi‑pane chart */}
