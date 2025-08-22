@@ -97,7 +97,7 @@ export default function App() {
           <div style={panel}>
             <span style={label}>Symbol</span>
             <select value={symbol} onChange={(e)=>setSymbol(e.target.value)} style={select}>
-              {symbols.map(s => <option key={s} value={s}>{s}</option>)}
+              {symbols.map((s)=> <option key={s} value={s}>{s}</option>)}
             </select>
           </div>
 
@@ -128,29 +128,20 @@ export default function App() {
               ["squeeze","Squeeze (LuxAlgo)"], ["smi","SMI"], ["vol","Volume"],
             ].map(([id,lbl]) => (
               <div key={id} style={{ display:"flex", alignItems:"center", gap:8, margin:"6px 0" }}>
-                <input
-                  id={id}
-                  type="checkbox"
-                  checked={!!enabled[id]}
-                  onChange={(e)=>setEnabled(p=>({ ...p, [id]: e.target.checked }))}
-                />
+                <input id={id} type="checkbox" checked={!!enabled[id]}
+                  onChange={(e)=>setEnabled(p=>({ ...p, [id]: e.target.checked }))} />
                 <label htmlFor={id} style={{ fontSize:12, opacity:0.85 }}>{lbl}</label>
               </div>
             ))}
           </div>
         </div>
 
-        {/* Right: full cluster + existing UI */}
+        {/* Right: cluster + gauges table + chart */}
         <div style={{ border:"1px solid #1b2130", borderRadius:12, overflow:"hidden" }}>
-          <FerrariClusterFull
-            rpmNeedleDeg={10}
-            speedNeedleDeg={-20}
-          />
+          <FerrariClusterFull rpmNeedleDeg={10} speedNeedleDeg={-20} />
 
-          {/* Keep your table panel */}
           <GaugesPanel defaultIndex={symbol} />
 
-          {/* Chart */}
           <LiveLWChart
             symbol={symbol}
             timeframe={timeframe}
