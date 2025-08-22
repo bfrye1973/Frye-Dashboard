@@ -1,46 +1,28 @@
 // src/App.js
 import React, { useMemo, useState, useEffect } from "react";
 
-// Components
 import LiveLWChart from "./components/LiveLWChart";
 import GaugesPanel from "./components/GaugesPanel";
-import FerrariClusterPreview from "./components/FerrariClusterPreview"; // ⬅️ Ferrari visual preview
-
-// Data (Momentum/Breadth) for your table panel (preview doesn't use it)
+import FerrariClusterFull from "./components/FerrariClusterFull"; // ⬅️ full cluster (visuals only)
 import { getGauges } from "./services/gauges";
 
 export default function App() {
   const [symbol, setSymbol] = useState("SPY");
   const [timeframe, setTimeframe] = useState("1D");
 
-  // Small debug banner for OHLC feed (unchanged)
   const [dbg, setDbg] = useState({ source: "-", url: "-", bars: 0, shape: "-" });
   useEffect(() => {
     const id = setInterval(() => {
       const d = window.__FEED_DEBUG__ || {};
-      setDbg({
-        source: d.source || "-",
-        url: d.url || "-",
-        bars: d.bars || 0,
-        shape: d.shape || "-",
-      });
+      setDbg({ source: d.source || "-", url: d.url || "-", bars: d.bars || 0, shape: d.shape || "-" });
     }, 600);
     return () => clearInterval(id);
   }, []);
 
-  // Indicator toggles (unchanged)
   const [enabled, setEnabled] = useState({
-    ema10: true,
-    ema20: true,
-    mfp:   false,
-    sr:    false,
-    swing: false,
-    squeeze: false,
-    smi:     false,
-    vol:     false,
+    ema10: true, ema20: true, mfp: false, sr: false, swing: false, squeeze: false, smi: false, vol: false,
   });
 
-  // Indicator settings (unchanged)
   const [settings] = useState({
     ema10: { length: 12, color: "#60a5fa" },
     ema20: { length: 26, color: "#f59e0b" },
@@ -52,28 +34,24 @@ export default function App() {
     },
   });
 
-  // Build enabled list for the chart
   const enabledIndicators = useMemo(() => {
     const out = [];
     if (enabled.ema10) out.push("ema10");
     if (enabled.ema20) out.push("ema20");
-    if (enabled.mfp)   out.push("mfp");
-    if (enabled.sr)    out.push("sr");
+    if (enabled.mfp) out.push("mfp");
+    if (enabled.sr) out.push("sr");
     if (enabled.swing) out.push("swing");
     if (enabled.squeeze) out.push("squeeze");
-    if (enabled.smi)     out.push("smi");
-    if (enabled.vol)     out.push("vol");
+    if (enabled.smi) out.push("smi");
+    if (enabled.vol) out.push("vol");
     return out;
   }, [enabled]);
 
-  // Sidebar lists (unchanged)
   const symbols = useMemo(() => ["SPY","QQQ","AAPL","MSFT","NVDA","TSLA","META","AMZN"], []);
-  const tfs     = useMemo(() => ["1m","10m","1H","1D"], []);
+  const tfs = useMemo(() => ["1m","10m","1H","1D"], []);
 
-  // Candles (kept for chart plumbing)
   const [candles, setCandles] = useState([]);
 
-  // Gauges (Momentum/Breadth) for your table panel (not used by preview component)
   const [gaugesRow, setGaugesRow] = useState(null);
   useEffect(() => {
     let live = true;
@@ -85,7 +63,6 @@ export default function App() {
     return () => { live = false; };
   }, [symbol]);
 
-  // ---------- styles ----------
   const panel  = { border:"1px solid #1f2a44", borderRadius:12, padding:12, background:"#0e1526", marginBottom:12 };
   const label  = { fontSize:12, opacity:0.8, marginBottom:6, display:"block" };
   const rowCtl = { display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" };
@@ -110,10 +87,10 @@ export default function App() {
 
       {/* Title */}
       <div style={{ padding:12, borderBottom:"1px solid #1f2a44" }}>
-        <h2 style={{ margin:0, fontWeight:600 }}>Ferrari Cluster — Visual Preview</h2>
+        <h2 style={{ margin:0, fontWeight:600 }}>Ferrari Cluster — Static Visual</h2>
       </div>
 
-      {/* Grid layout: Sidebar + Right */}
+      {/* Grid */}
       <div style={{ display:"grid", gridTemplateColumns:"300px 1fr", gap:16, padding:16 }}>
         {/* Sidebar */}
         <div>
@@ -128,7 +105,15 @@ export default function App() {
             <span style={label}>Timeframe</span>
             <div style={rowCtl}>
               {tfs.map(tf => (
-                <button key={tf} style={btn(timeframe.toLowerCase()===tf.toLowerCase())} onClick={()=>setTimeframe(tf)}>
+                <button key={tf}
+                  style={{
+                    padding:"8px 12px", borderRadius:8,
+                    border: timeframe.toLowerCase()===tf.toLowerCase() ? "1px solid #60a5fa" : "1px solid #334155",
+                    background: timeframe.toLowerCase()===tf.toLowerCase() ? "#111827" : "#0b1220",
+                    color:"#e5e7eb", cursor:"pointer", fontSize:13
+                  }}
+                  onClick={()=>setTimeframe(tf)}
+                >
                   {tf.toUpperCase()}
                 </button>
               ))}
@@ -152,25 +137,20 @@ export default function App() {
                 <label htmlFor={id} style={{ fontSize:12, opacity:0.85 }}>{lbl}</label>
               </div>
             ))}
-            <div style={{ marginTop:8, fontSize:11, opacity:0.7 }}>
-              Active: {enabledIndicators.join(", ") || "none"}
-            </div>
           </div>
         </div>
 
-        {/* Right: Ferrari preview + GaugesPanel + Chart */}
+        {/* Right: full cluster + existing UI */}
         <div style={{ border:"1px solid #1b2130", borderRadius:12, overflow:"hidden" }}>
-          {/* 🚗 Ferrari cluster preview (static visuals) */}
-          <FerrariClusterPreview
-            headerLogoUrl="/ferrari.png"   // temporary watermark in header strip
-            rpmNeedleDeg={10}              // ~3.5k look for preview
-            speedNeedleDeg={-20}           // ~40 mph look for preview
+          <FerrariClusterFull
+            rpmNeedleDeg={10}
+            speedNeedleDeg={-20}
           />
 
-          {/* Your table gauges (still visible) */}
+          {/* Keep your table panel */}
           <GaugesPanel defaultIndex={symbol} />
 
-          {/* Multi‑pane chart (unchanged) */}
+          {/* Chart */}
           <LiveLWChart
             symbol={symbol}
             timeframe={timeframe}
