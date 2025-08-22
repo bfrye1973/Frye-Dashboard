@@ -1,11 +1,11 @@
 // src/components/FerrariClusterFull.jsx
-// Ferrari cluster – full visual replica (static needles, no data yet).
-// - Center yellow tach: black numerals, red perimeter ring under ticks, red band 8..10,
-//   curved arc text: REDLINE TRADING (top), POWERED BY AI (bottom).
-// - Right red speedometer: white numerals.
-// - Left two mini-gauges: water temp, oil pressure.
-// - Carbon-fiber housing with bezels + glass gloss.
-// - Trading “engine lights” row centered (two demo lights ON); others hidden.
+// Ferrari cluster – full visual replica (static needles, no data wiring).
+// - Carbon‑fiber housing + glossy bezel depth
+// - Yellow tach (red perimeter under ticks, red 8–10 band, black numerals)
+// - Red speedometer (white numerals, black label)
+// - Left mini‑gauges (WATER & OIL) styled to match
+// - Engine‑light row: two demo lights ON (📈 green breakout, 📉 red sell pressure), others hidden
+// - Curved arc text on tach: REDLINE TRADING (top), POWERED BY AI (bottom)
 
 import React, { useMemo } from "react";
 
@@ -18,16 +18,16 @@ const arcPath  = (cx, cy, r, startDeg, endDeg) => {
   return `M ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2}`;
 };
 
-// ---------- Main big gauge ----------
+// ---------------- Big dial (tach / speed) ----------------
 function BigGauge({
   size = 300,
   face = "yellow",                      // "yellow" | "red"
   label = "RPM",
   numerals = [],
   numeralsColor = "#0b1220",
-  redPerimeter = false,                 // thin ring under ticks (tach)
-  redBandStartDeg = null,               // inner red band (8..10 region)
-  needleDeg = -120,                     // static angle
+  redPerimeter = false,                 // thin red ring under ticks
+  redBandStartDeg = null,               // inner red band (e.g., 80..120)
+  needleDeg = -120,                     // static angle for preview
   accent = "#f59e0b",                   // needle color
   topArcText,                           // { text, color, stroke }
   bottomArcText,                        // { text, color, stroke }
@@ -35,30 +35,29 @@ function BigGauge({
   const W = size, H = size, cx = W/2, cy = H/2;
   const rFace = size * 0.38;
 
-  // Ticks
-  const majorAngles = useMemo(() => Array.from({length:9}, (_,i) => -120 + i*30), []);
+  // major/minor ticks
+  const majorAngles = useMemo(() => Array.from({length:9}, (_,i)=>-120 + i*30), []);
   const minorAngles = useMemo(() => {
-    const arr = [];
-    for (let a=-110; a<=110; a+=10) if (a % 30 !== 0) arr.push(a);
-    return arr;
+    const arr = []; for (let a=-110; a<=110; a+=10) if (a % 30 !== 0) arr.push(a); return arr;
   }, []);
 
   const [nx, ny] = point(cx, cy, needleDeg, rFace * 0.86);
-  const topPath    = arcPath(cx, cy, rFace * 0.88, -110, 110);
-  const bottomPath = arcPath(cx, cy, rFace * 0.68, 110, -110);
-
   const faceFill = face === "yellow" ? "url(#faceYellowG)" : "url(#faceRedG)";
+
+  // curved text paths
+  const topPath    = arcPath(cx, cy, rFace * 0.88, -110, 110);
+  const bottomPath = arcPath(cx, cy, rFace * 0.68,  110, -110);
 
   return (
     <svg viewBox={`0 0 ${W} ${H}`} style={{ width: W, height: H, display: "block" }}>
       <defs>
-        {/* carbon fiber */}
+        {/* carbon fiber weave */}
         <pattern id="cfG" width="8" height="8" patternUnits="userSpaceOnUse">
           <rect width="8" height="8" fill="#0b1220" />
           <path d="M-2,2 l4,-4 M0,8 l8,-8 M6,10 l4,-4" stroke="#0f172a" strokeWidth="2" />
         </pattern>
         {/* deep steel bezel */}
-        <linearGradient id="bezelG" x1="0" y1="0" x2="0" y2="1">
+        <linearGradient id="bezelGradG" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%"  stopColor="#3a4757" />
           <stop offset="100%" stopColor="#0f172a" />
         </linearGradient>
@@ -80,22 +79,22 @@ function BigGauge({
           <stop offset="100%" stopColor="rgba(0,0,0,0.30)" />
         </radialGradient>
 
-        {/* curved text paths */}
-        <path id="gTopPath" d={topPath} />
-        <path id="gBottomPath" d={bottomPath} />
+        {/* paths for curved arc text */}
+        <path id="topPathG" d={topPath} />
+        <path id="bottomPathG" d={bottomPath} />
       </defs>
 
-      {/* Carbon-fiber + bezel + recess shadow */}
-      <circle cx={cx} cy={cy} r={rFace*1.40} fill="url(#cfG)" />
-      <circle cx={cx} cy={cy} r={rFace*1.34} fill="url(#bezelG)" stroke="#0b1220" strokeWidth="2" />
-      <circle cx={cx} cy={cy} r={rFace*1.08} fill="none" style={{ filter:"drop-shadow(0 9px 18px rgba(0,0,0,0.7))" }} />
+      {/* CF panel + bezel + recess shadow */}
+      <circle cx={cx} cy={cy} r={rFace * 1.40} fill="url(#cfG)" />
+      <circle cx={cx} cy={cy} r={rFace * 1.34} fill="url(#bezelGradG)" stroke="#0b1220" strokeWidth="2" />
+      <circle cx={cx} cy={cy} r={rFace * 1.08} fill="none" style={{ filter:"drop-shadow(0 9px 18px rgba(0,0,0,0.7))" }} />
 
-      {/* face */}
+      {/* dial face */}
       <circle cx={cx} cy={cy} r={rFace} fill={faceFill} stroke="#0b1220" strokeWidth="1" />
 
       {/* thin red perimeter ring under ticks (tach) */}
       {redPerimeter && (
-        <path d={arcPath(cx,cy, rFace*0.96, -120, 120)}
+        <path d={arcPath(cx, cy, rFace * 0.96, -120, 120)}
               stroke="#ef4444" strokeWidth={8} fill="none" strokeLinecap="round" opacity="0.9" />
       )}
 
@@ -114,7 +113,7 @@ function BigGauge({
 
       {/* numerals */}
       {numerals.map((n, i) => {
-        const pt = point(cx, cy, n.angleDeg, rFace*0.63);
+        const pt = point(cx, cy, n.angleDeg, rFace * 0.63);
         return (
           <text key={i} x={pt[0]} y={pt[1]+6} textAnchor="middle"
                 fill={n.color || numeralsColor}
@@ -130,9 +129,21 @@ function BigGauge({
               stroke="#ef4444" strokeWidth={12} fill="none" strokeLinecap="round" />
       )}
 
+      {/* curved arc text (top/bottom) */}
+      {topArcText && (
+        <text fontSize={14} fontWeight="700" fill={topArcText.color} stroke={topArcText.stroke || "none"} strokeWidth={topArcText.stroke ? 1 : 0}>
+          <textPath href="#topPathG" startOffset="50%" textAnchor="middle">{topArcText.text}</textPath>
+        </text>
+      )}
+      {bottomArcText && (
+        <text fontSize={13} fontWeight="700" fill={bottomArcText.color} stroke={bottomArcText.stroke || "none"} strokeWidth={bottomArcText.stroke ? 1 : 0}>
+          <textPath href="#bottomPathG" startOffset="50%" textAnchor="middle">{bottomArcText.text}</textPath>
+        </text>
+      )}
+
       {/* needle + hub */}
       {(() => {
-        const [nx, ny] = point(cx, cy, needleDeg, rFace*0.86);
+        const [nx, ny] = point(cx, cy, needleDeg, rFace * 0.86);
         return (
           <>
             <line x1={cx} y1={cy} x2={nx} y2={ny}
@@ -147,14 +158,14 @@ function BigGauge({
       {/* glass gloss */}
       <ellipse cx={cx} cy={cy-20} rx={rFace*0.96} ry={rFace*0.36} fill="url(#glassG)" opacity="0.55" />
 
-      {/* label (black as requested) */}
+      {/* black label */}
       <text x={cx} y={cy+40} textAnchor="middle" fill="#0b1220" fontSize="13" fontWeight="700">{label}</text>
     </svg>
   );
 }
 
-// ---------- Mini gauge (left column) ----------
-function MiniGauge({ label="TEMP", valueText="210°F" }) {
+// ---------------- Mini gauge (left stack) ----------------
+function MiniGauge({ label="WATER", valueText="210°F" }) {
   return (
     <div style={miniWrap}>
       <div style={miniFace}>
@@ -167,7 +178,7 @@ function MiniGauge({ label="TEMP", valueText="210°F" }) {
   );
 }
 
-// ---------- Engine lights (centered row; two demo ON) ----------
+// ---------------- Engine lights (two demo ON) ----------------
 function EngineLightsDemo() {
   const Light = ({ emoji, color }) => (
     <div style={{
@@ -181,58 +192,60 @@ function EngineLightsDemo() {
       <span>{emoji}</span>
     </div>
   );
+
   return (
     <div style={{ display:"flex", gap:12, justifyContent:"center", marginTop: 8 }}>
-      <Light emoji="📈" color="#22c55e" /> {/* Breakout */}
-      <Light emoji="📉" color="#ef4444" /> {/* Distribution */}
+      <Light emoji="📈" color="#22c55e" /> {/* Breakout (green) */}
+      <Light emoji="📉" color="#ef4444" /> {/* Distribution (red) */}
     </div>
   );
 }
 
-// ---------- Full cluster (static preview) ----------
+// ---------------- Full cluster housing ----------------
 export default function FerrariClusterFull({
-  // Needle angles (static)
-  rpmNeedleDeg   =  10,   // tach ~3.5k
-  speedNeedleDeg = -20,   // speed ~40
+  rpmNeedleDeg   =  10,  // ~3.5k live-look
+  speedNeedleDeg = -20,  // ~40 live-look
 }) {
   // Tach numerals 1..10 (black)
   const tachLabels = useMemo(() =>
-    Array.from({length:10}, (_,i)=>{
-      const num=i+1; const t=(num-1)/9; const a=-120 + t*240;
-      return { angleDeg:a, text:String(num), color:"#0b1220", fontSize:18 };
+    Array.from({ length: 10 }, (_, i) => {
+      const num = i + 1; const t = (num - 1) / 9; const a = -120 + t * 240;
+      return { angleDeg: a, text: String(num), color: "#0b1220", fontSize: 18 };
     })
-  ,[]);
+  , []);
 
   // Speed numerals 20..220 (white)
   const speedLabels = useMemo(() =>
-    Array.from({length:11}, (_,i)=>{
-      const val=(i+1)*20; const t=i/10; const a=-120 + t*240;
-      return { angleDeg:a, text:String(val), color:"#ffffff", fontSize:15 };
+    Array.from({ length: 11 }, (_, i) => {
+      const val = (i + 1) * 20; const t = i / 10; const a = -120 + t * 240;
+      return { angleDeg: a, text: String(val), color: "#ffffff", fontSize: 15 };
     })
-  ,[]);
+  , []);
 
   return (
     <div style={clusterWrap}>
-      {/* Header strip (carbon-fiber, watermark area) */}
+      {/* carbon-fiber header strip */}
       <div style={header}>
         <div style={headerGloss}/>
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-          <div style={{ fontSize:12, letterSpacing:1.2, textTransform:"uppercase", opacity:0.75 }}>
+          <div style={{ fontSize: 12, letterSpacing: 1.2, textTransform: "uppercase", opacity: 0.75 }}>
             Ferrari Cluster — Static Visual
           </div>
-          <div style={{ opacity:0.22 }}>
-            {/* optional logo watermark position */}
+          <div style={{ opacity: 0.22 }}>
+            {/* watermark/logo area if needed */}
           </div>
         </div>
       </div>
 
-      {/* Row: mini-gauges (left) + big tach (center) + speedo (right) */}
+      {/* layout row */}
       <div style={row}>
+        {/* left mini-gauges */}
         <div style={leftCol}>
           <MiniGauge label="WATER" valueText="210°F" />
-          <MiniGauge label="OIL"   valueText="70 psi" />
+          <MiniGauge label="OIL" valueText="70 psi" />
         </div>
 
+        {/* center tach (yellow) */}
         <div style={{ transform:"scale(1.08)" }}>
           <BigGauge
             size={310}
@@ -244,9 +257,12 @@ export default function FerrariClusterFull({
             redBandStartDeg={80}
             needleDeg={rpmNeedleDeg}
             accent="#f59e0b"
+            topArcText={{ text: "REDLINE TRADING", color: "#E21D1D", stroke: "#ffffff" }}
+            bottomArcText={{ text: "POWERED BY AI", color: "#ffffff" }}
           />
         </div>
 
+        {/* right speedo (red) */}
         <div style={{ transform:"scale(0.96)" }}>
           <BigGauge
             size={260}
@@ -260,13 +276,13 @@ export default function FerrariClusterFull({
         </div>
       </div>
 
-      {/* Engine lights row (demo: two on) */}
+      {/* engine lights demo */}
       <EngineLightsDemo />
     </div>
   );
 }
 
-// ---------- styles ----------
+// ---------------- styles ----------------
 const clusterWrap = {
   position:"relative",
   margin:"12px 12px 12px",
@@ -292,7 +308,6 @@ const headerGloss = {
   background:"linear-gradient(to bottom, rgba(255,255,255,0.12), rgba(255,255,255,0.02))",
   borderBottom:"1px solid rgba(255,255,255,0.06)", pointerEvents:"none"
 };
-
 const row = {
   marginTop:10,
   display:"grid",
@@ -301,7 +316,6 @@ const row = {
   alignItems:"center",
   justifyItems:"center",
 };
-
 const leftCol = {
   display:"flex",
   flexDirection:"column",
@@ -309,43 +323,26 @@ const leftCol = {
   alignItems:"center",
 };
 
-// Mini-gauge styles
+// mini‑gauge styling
 const miniWrap = {
-  width:150,
-  height:90,
-  borderRadius:12,
-  background:"#0b1220",
-  border:"1px solid #1f2a44",
+  width:150, height:90, borderRadius:12,
+  background:"#0b1220", border:"1px solid #1f2a44",
   boxShadow:"inset 0 0 18px rgba(0,0,0,0.5)",
-  position:"relative",
-  padding:"8px 10px",
+  position:"relative", padding:"8px 10px",
 };
 const miniFace = {
-  position:"relative",
-  width:"100%",
-  height:54,
-  borderRadius:8,
-  background:
-    `radial-gradient(ellipse at 50% -20%, rgba(255,255,255,0.12), rgba(0,0,0,0) 55%),
-     linear-gradient(#161f2b, #0e1620)`,
-  border:"1px solid #223045",
-  overflow:"hidden",
+  position:"relative", width:"100%", height:54, borderRadius:8,
+  background:`radial-gradient(ellipse at 50% -20%, rgba(255,255,255,0.12), rgba(0,0,0,0) 55%),
+              linear-gradient(#161f2b, #0e1620)`,
+  border:"1px solid #223045", overflow:"hidden",
 };
 const miniGlass = {
-  position:"absolute",
-  left:0, right:0, top:0, height:18,
+  position:"absolute", left:0, right:0, top:0, height:18,
   background:"linear-gradient(to bottom, rgba(255,255,255,0.15), rgba(0,0,0,0))",
 };
 const miniTicks = {
-  position:"absolute",
-  inset:4,
-  borderTop:"2px solid #dbe4f2",
-  borderBottom:"2px solid #dbe4f2",
-  opacity:0.6,
+  position:"absolute", inset:4,
+  borderTop:"2px solid #dbe4f2", borderBottom:"2px solid #dbe4f2", opacity:0.6,
 };
-const miniLabel = {
-  marginTop:6, fontSize:11, color:"#cbd5e1", textAlign:"center"
-};
-const miniValue = {
-  fontSize:12, color:"#22c55e", fontWeight:700, textAlign:"center"
-};
+const miniLabel = { marginTop:6, fontSize:11, color:"#cbd5e1", textAlign:"center" };
+const miniValue = { fontSize:12, color:"#22c55e", fontWeight:700, textAlign:"center" };
