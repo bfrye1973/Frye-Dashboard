@@ -4,17 +4,16 @@ import React, { useMemo, useState, useEffect } from "react";
 // Components
 import LiveLWChart from "./components/LiveLWChart";
 import GaugesPanel from "./components/GaugesPanel";
-import FerrariTwoGaugesMock from "./components/FerrariTwoGaugesMock";
+import FerrariClusterPreview from "./components/FerrariClusterPreview"; // ⬅️ Ferrari visual preview
 
-// (Optional) Gauges service – we keep this since your UI already uses it,
-// but the mock at the top is visual-only and does not rely on it.
+// Data (Momentum/Breadth) for your table panel (preview doesn't use it)
 import { getGauges } from "./services/gauges";
 
 export default function App() {
   const [symbol, setSymbol] = useState("SPY");
   const [timeframe, setTimeframe] = useState("1D");
 
-  // Debug banner for OHLC feed (unchanged)
+  // Small debug banner for OHLC feed (unchanged)
   const [dbg, setDbg] = useState({ source: "-", url: "-", bars: 0, shape: "-" });
   useEffect(() => {
     const id = setInterval(() => {
@@ -53,6 +52,7 @@ export default function App() {
     },
   });
 
+  // Build enabled list for the chart
   const enabledIndicators = useMemo(() => {
     const out = [];
     if (enabled.ema10) out.push("ema10");
@@ -73,7 +73,7 @@ export default function App() {
   // Candles (kept for chart plumbing)
   const [candles, setCandles] = useState([]);
 
-  // Gauges row (kept for your table panel; not required by the top mock)
+  // Gauges (Momentum/Breadth) for your table panel (not used by preview component)
   const [gaugesRow, setGaugesRow] = useState(null);
   useEffect(() => {
     let live = true;
@@ -110,7 +110,7 @@ export default function App() {
 
       {/* Title */}
       <div style={{ padding:12, borderBottom:"1px solid #1f2a44" }}>
-        <h2 style={{ margin:0, fontWeight:600 }}>Ferrari Two‑Gauge Replica — Visual Preview</h2>
+        <h2 style={{ margin:0, fontWeight:600 }}>Ferrari Cluster — Visual Preview</h2>
       </div>
 
       {/* Grid layout: Sidebar + Right */}
@@ -160,13 +160,14 @@ export default function App() {
 
         {/* Right: Ferrari preview + GaugesPanel + Chart */}
         <div style={{ border:"1px solid #1b2130", borderRadius:12, overflow:"hidden" }}>
-          {/* 🚗 Two-gauge Ferrari replica (visuals only, static needles) */}
-          <FerrariTwoGaugesMock
-            rpmPercent={0}      // keep parked at zero for visuals
-            speedPercent={0}
+          {/* 🚗 Ferrari cluster preview (static visuals) */}
+          <FerrariClusterPreview
+            headerLogoUrl="/ferrari.png"   // temporary watermark in header strip
+            rpmNeedleDeg={10}              // ~3.5k look for preview
+            speedNeedleDeg={-20}           // ~40 mph look for preview
           />
 
-          {/* Your table gauges (unchanged) */}
+          {/* Your table gauges (still visible) */}
           <GaugesPanel defaultIndex={symbol} />
 
           {/* Multi‑pane chart (unchanged) */}
