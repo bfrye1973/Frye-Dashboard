@@ -1,6 +1,6 @@
 import React from "react";
 
-/** ============================== utils ============================== **/
+/** ---------- helpers ---------- */
 const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
 const polarToXY = (cx, cy, r, angDeg) => {
   const a = ((angDeg - 90) * Math.PI) / 180;
@@ -13,38 +13,18 @@ const arcPath = (cx, cy, r, angA, angB) => {
   return `M ${x0} ${y0} A ${r} ${r} 0 ${largeArc} 1 ${x1} ${y1}`;
 };
 
-/** ========================= main cluster ============================ **/
+/** ---------- main cluster ---------- */
 export default function FerrariCluster({
-  // live values — replace with your feed
-  rpm = 5200,         // 0..9000
-  speed = 68,         // 0..220
-  water = 62,         // 0..100
-  oil = 55,           // 0..100
-  fuel = 73,          // 0..100
-
-  // engine lights (dimmed unless true)
-  lights = {
-    breakout: false,
-    buy: false,
-    sell: false,
-    emaCross: false,
-    stop: false,
-    trail: false,
-  },
-
-  height = 360,       // compact so we have room for chart/journal below
+  rpm = 5200, speed = 68, water = 62, oil = 55, fuel = 73,
+  lights = { breakout:false, buy:false, sell:false, emaCross:false, stop:false, trail:false },
+  height = 360,
 }) {
   return (
     <div
       style={{
-        width: "100%",
-        height,
-        position: "relative",
-        borderRadius: 18,
-        overflow: "hidden",
+        width: "100%", height, position: "relative", borderRadius: 18, overflow: "hidden",
         border: "1px solid #171a22",
-        boxShadow:
-          "inset 0 0 0 2px rgba(255,255,255,0.03), 0 10px 30px rgba(0,0,0,0.35)",
+        boxShadow: "inset 0 0 0 2px rgba(255,255,255,0.03), 0 10px 30px rgba(0,0,0,0.35)",
         background:
           "radial-gradient(ellipse at center, rgba(0,0,0,.32), rgba(0,0,0,.66)), repeating-linear-gradient(45deg, #101317 0 6px, #0b0e12 6px 12px)",
       }}
@@ -59,7 +39,7 @@ export default function FerrariCluster({
           padding: "18px 18px 6px 18px",
         }}
       >
-        {/* LEFT: RPM + minis stacked */}
+        {/* LEFT: RPM + minis */}
         <div
           style={{
             display: "grid",
@@ -85,13 +65,10 @@ export default function FerrariCluster({
           </div>
         </div>
 
-        {/* CENTER: soft vignette (badge area – optional) */}
+        {/* CENTER: soft vignette / badge area */}
         <div
           style={{
-            height: "100%",
-            display: "grid",
-            placeItems: "center",
-            opacity: 0.22,
+            height: "100%", display: "grid", placeItems: "center", opacity: 0.22,
             background:
               "radial-gradient(circle at center, rgba(255,255,255,.06), rgba(0,0,0,0) 60%)",
             maskImage:
@@ -105,13 +82,13 @@ export default function FerrariCluster({
         </div>
       </div>
 
-      {/* Engine lights (dimmed unless lights.* = true) */}
+      {/* Engine lights (dimmed until true) */}
       <EngineLightsRow lights={lights} />
     </div>
   );
 }
 
-/** =========================== RPM (yellow) ========================== **/
+/** ---------- RPM (yellow face, red tach sweep, branding outside) ---------- */
 function FerrariRPMGauge({ value = 5200, min = 0, max = 9000, size = 240 }) {
   const vb = 200, cx = 100, cy = 100;
   const R_FACE = 84, R_TRIM = 92, R_TICKS = 88, R_NUM = 64;
@@ -120,30 +97,21 @@ function FerrariRPMGauge({ value = 5200, min = 0, max = 9000, size = 240 }) {
   const angle = START + (END - START) * t(value);
   const topArcId = "rpm-top-arc", botArcId = "rpm-bot-arc";
 
-  const majors = [];        // 0..9 x1000
+  const majors = [], minors = [], nums = [];
   for (let k = 0; k <= 9; k++) {
     const a = START + ((END - START) * (k * 1000 - min)) / (max - min);
     const [x0, y0] = polarToXY(cx, cy, R_TICKS - 10, a);
     const [x1, y1] = polarToXY(cx, cy, R_TICKS + 6, a);
     majors.push(<line key={`maj-${k}`} x1={x0} y1={y0} x2={x1} y2={y1} stroke="#fff" strokeWidth="2" />);
+    const [tx, ty] = polarToXY(cx, cy, R_NUM, a);
+    nums.push(<text key={`n-${k}`} x={tx} y={ty + 4} textAnchor="middle" fontSize="12" fontWeight="700" fill="#0a0a0a">{k}</text>);
   }
-  const minors = [];        // 100’s except where majors land
   for (let k = 0; k <= 90; k += 10) {
     if (k % 20 === 0) continue;
     const a = START + ((END - START) * (k * 100 - min)) / (max - min);
     const [x0, y0] = polarToXY(cx, cy, R_TICKS - 6, a);
     const [x1, y1] = polarToXY(cx, cy, R_TICKS + 4, a);
     minors.push(<line key={`min-${k}`} x1={x0} y1={y0} x2={x1} y2={y1} stroke="#fff" strokeWidth="1.5" />);
-  }
-  const numerals = [];
-  for (let k = 0; k <= 9; k++) {
-    const a = START + ((END - START) * (k * 1000 - min)) / (max - min);
-    const [tx, ty] = polarToXY(cx, cy, R_NUM, a);
-    numerals.push(
-      <text key={`num-${k}`} x={tx} y={ty + 4} textAnchor="middle" fontSize="12" fontWeight="700" fill="#0a0a0a">
-        {k}
-      </text>
-    );
   }
 
   return (
@@ -153,27 +121,25 @@ function FerrariRPMGauge({ value = 5200, min = 0, max = 9000, size = 240 }) {
         <path id={botArcId} d={arcPath(cx, cy, R_LABEL, 30, 150)} />
       </defs>
 
-      {/* red trim + yellow face */}
+      {/* red outer trim + yellow face */}
       <circle cx={cx} cy={cy} r={R_TRIM} fill="none" stroke="#dc2626" strokeWidth="8" />
       <circle cx={cx} cy={cy} r={R_FACE} fill="#facc15" />
 
-      {/* white ticks + black numerals */}
-      <g>{majors}</g><g>{minors}</g><g>{numerals}</g>
+      {/* ticks + numerals */}
+      <g>{majors}</g><g>{minors}</g><g>{nums}</g>
 
-      {/* RED tach line */}
+      {/* RED tach sweep */}
       <path d={arcPath(cx, cy, R_TICKS - 16, START, angle)} stroke="#ef4444" strokeWidth="6" fill="none" strokeLinecap="round" />
 
       {/* needle */}
       <circle cx={cx} cy={cy} r="4.5" fill="#0f172a" />
-      {(() => {
-        const [nx, ny] = polarToXY(cx, cy, R_TICKS - 22, angle);
-        return <line x1={cx} y1={cy} x2={nx} y2={ny} stroke="#111827" strokeWidth="3" strokeLinecap="round" />;
-      })()}
+      {(() => { const [nx, ny] = polarToXY(cx, cy, R_TICKS - 22, angle);
+        return <line x1={cx} y1={cy} x2={nx} y2={ny} stroke="#111827" strokeWidth="3" strokeLinecap="round" />; })()}
 
       {/* label */}
       <text x={cx} y={cy + 30} textAnchor="middle" fontSize="10" fill="#0a0a0a" opacity=".85">RPM × 1000</text>
 
-      {/* arced branding outside the red trim */}
+      {/* branding outside red trim */}
       <text fontSize="10" fontWeight="800" fill="#ef4444" letterSpacing=".12em">
         <textPath href={`#${topArcId}`} startOffset="50%" textAnchor="middle">REDLINE TRADING</textPath>
       </text>
@@ -184,7 +150,7 @@ function FerrariRPMGauge({ value = 5200, min = 0, max = 9000, size = 240 }) {
   );
 }
 
-/** ========================= Speed (black) ========================== **/
+/** ---------- Speed (black face, red sweep) ---------- */
 function FerrariSpeedGauge({ value = 70, min = 0, max = 220, size = 280 }) {
   const vb = 220, cx = 110, cy = 110;
   const R_FACE = 90, R_TICKS = 94, R_NUM = 68, START = -120, END = 120;
@@ -220,7 +186,7 @@ function FerrariSpeedGauge({ value = 70, min = 0, max = 220, size = 280 }) {
   );
 }
 
-/** ======================== Mini black gauges ======================= **/
+/** ---------- Mini gauges (black face, white ticks, red sweep) ---------- */
 function MiniGaugeBlack({ label, value = 50, size = 94, greenToRed = false }) {
   const vb = 160, cx = 80, cy = 80;
   const R_FACE = 60, R_TICKS = 64, START = -120, END = 120;
@@ -253,7 +219,7 @@ function MiniGaugeBlack({ label, value = 50, size = 94, greenToRed = false }) {
   );
 }
 
-/** ========================= Engine lights row ====================== **/
+/** ---------- Engine lights (dimmed by default) ---------- */
 function EngineLightsRow({ lights }) {
   const defs = [
     { key: "breakout", label: "BREAKOUT", color: "#22c55e" },
@@ -271,8 +237,11 @@ function EngineLightsRow({ lights }) {
           <div key={d.key} title={d.label}
             style={{
               width: 26, height: 26, borderRadius: 9999, display: "grid", placeItems: "center",
-              color: "#0b0b0b", background: d.color, boxShadow: on ? "0 0 10px rgba(255,255,255,.35)" : "0 0 0 2px rgba(0,0,0,.4) inset",
-              opacity: on ? 1 : 0.28, filter: on ? "none" : "saturate(.7) brightness(.9)", transition: "all 120ms ease",
+              color: "#0b0b0b", background: d.color,
+              boxShadow: on ? "0 0 10px rgba(255,255,255,.35)" : "0 0 0 2px rgba(0,0,0,.4) inset",
+              opacity: on ? 1 : 0.28,
+              filter: on ? "none" : "saturate(.7) brightness(.9)",
+              transition: "all 120ms ease",
             }}>
             <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: ".04em", transform: "scale(.95)" }}>
               {d.label.replace(" ", "")}
