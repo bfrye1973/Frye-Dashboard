@@ -1,7 +1,7 @@
 // src/components/FerrariCluster.jsx
 import React from "react";
 
-/* ===================== helpers ===================== */
+/* ===================== shared helpers ===================== */
 const clampNum = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
 const polarToXY = (cx, cy, r, angDeg) => {
   const a = ((angDeg - 90) * Math.PI) / 180;
@@ -15,19 +15,26 @@ const arcPath = (cx, cy, r, angA, angB) => {
 };
 
 /* ===================== main cluster ===================== */
+/**
+ * Grid (5 columns):
+ * [ MINIS ] [ LEFT LIGHTS ] [ RPM ] [ RIGHT LIGHTS ] [ SPEED ]
+ * - Engine lights are placed in the “between” columns and bottom-aligned.
+ * - RPM stays visually centered; SPEED hugs right; MINIS hug left.
+ */
 export default function FerrariCluster({
   rpm = 5200,
   speed = 68,
   water = 62,
   oil = 55,
   fuel = 73,
+
   lights = { breakout:false, buy:false, sell:false, emaCross:false, stop:false, trail:false },
 
   height = 340,
-  // ↑ you can lower height later to make more vertical room
-  maxWidth = "min(1900px, 98vw)",  // << wider cockpit for ultrawide (spreads out)
+  // cockpit width scales (big on 31.5", conservative on smaller)
+  maxWidth = "min(1900px, 98vw)",
 }) {
-  // split lights half/half
+  // split lights (half/half)
   const defs = [
     { key: "breakout", label: "BREAKOUT", color: "#22c55e" },
     { key: "buy",      label: "BUY",      color: "#3b82f6" },
@@ -64,17 +71,24 @@ export default function FerrariCluster({
             height: "100%",
             position: "relative",
 
-            /* KEY: 3-column grid spreads content */
+            /* 5-column grid to place lights in-between gauges */
             display: "grid",
             gridTemplateRows: "1fr",
-            gridTemplateColumns: "1fr auto 1fr",
+            gridTemplateColumns: `
+              clamp(160px, 18vw, 260px)   /* MINI column */
+              clamp(120px, 12vw, 200px)   /* LEFT LIGHTS */
+              clamp(260px, 22vw, 360px)   /* RPM */
+              clamp(120px, 12vw, 200px)   /* RIGHT LIGHTS */
+              clamp(260px, 22vw, 360px)   /* SPEED */
+            `,
             alignItems: "center",
+            columnGap: "clamp(8px, 1vw, 16px)",
           }}
         >
-          {/* LEFT COLUMN — minis pinned to far left */}
+          {/* LEFT: MINI GAUGES */}
           <div
             style={{
-              justifySelf: "start",        // << far left
+              justifySelf: "start",
               display: "grid",
               gridTemplateRows: "repeat(3, 1fr)",
               rowGap: "clamp(6px, 1.2vw, 12px)",
@@ -87,31 +101,34 @@ export default function FerrariCluster({
             <MiniGaugeBlack label="FUEL"  value={fuel}  sizeCSS="clamp(82px, 7vw, 106px)" greenToRed />
           </div>
 
-          {/* CENTER COLUMN — RPM stays centered */}
+          {/* LEFT LIGHTS (between MINIS and RPM) */}
+          <div
+            style={{
+              alignSelf: "end",     // bottom align to gauges
+              paddingBottom: 8,
+            }}
+          >
+            <LightsGroup defs={leftDefs} lights={lights} align="left" />
+          </div>
+
+          {/* RPM (center) */}
           <div style={{ justifySelf: "center" }}>
             <FerrariRPMGauge value={rpm} max={9000} sizeCSS="clamp(260px, 22vw, 360px)" />
           </div>
 
-          {/* RIGHT COLUMN — speed pinned to far right */}
-          <div style={{ justifySelf: "end" }}>  {/* << far right */}
-            <FerrariSpeedGauge value={speed} max={220} sizeCSS="clamp(260px, 22vw, 360px)" />
-          </div>
-
-          {/* SPLIT LIGHTS aligned to bottom of gauges row */}
+          {/* RIGHT LIGHTS (between RPM and SPEED) */}
           <div
             style={{
-              position: "absolute",
-              left: 0,
-              right: 0,
-              bottom: 8,                   // keep bottoms flush with gauges
-              display: "grid",
-              gridTemplateColumns: "1fr 1fr",
-              alignItems: "end",
-              pointerEvents: "none",
+              alignSelf: "end",
+              paddingBottom: 8,
             }}
           >
-            <LightsGroup defs={leftDefs} lights={lights} align="left" />
             <LightsGroup defs={rightDefs} lights={lights} align="right" />
+          </div>
+
+          {/* SPEED (far right) */}
+          <div style={{ justifySelf: "end" }}>
+            <FerrariSpeedGauge value={speed} max={220} sizeCSS="clamp(260px, 22vw, 360px)" />
           </div>
         </div>
       </div>
@@ -119,17 +136,16 @@ export default function FerrariCluster({
   );
 }
 
-/* ===================== lights group ===================== */
+/* ===================== LightsGroup ===================== */
 function LightsGroup({ defs, lights, align = "left" }) {
   return (
     <div
       style={{
         pointerEvents: "auto",
         display: "flex",
-        gap: 10,
+        gap: "clamp(6px, 0.8vw, 12px)",
         justifyContent: align === "left" ? "flex-start" : "flex-end",
         alignItems: "center",
-        padding: "0 10px",
       }}
     >
       {defs.map((d) => {
@@ -139,8 +155,8 @@ function LightsGroup({ defs, lights, align = "left" }) {
             key={d.key}
             title={d.label}
             style={{
-              width: 26,
-              height: 26,
+              width: "clamp(22px, 2.1vw, 26px)",
+              height: "clamp(22px, 2.1vw, 26px)",
               borderRadius: 9999,
               display: "grid",
               placeItems: "center",
@@ -156,7 +172,7 @@ function LightsGroup({ defs, lights, align = "left" }) {
           >
             <div
               style={{
-                fontSize: 9,
+                fontSize: "clamp(8px, .8vw, 9px)",
                 fontWeight: 800,
                 letterSpacing: ".04em",
                 transform: "scale(.95)",
@@ -175,9 +191,14 @@ function LightsGroup({ defs, lights, align = "left" }) {
 function FerrariRPMGauge({ value = 5200, min = 0, max = 9000, sizeCSS = "300px" }) {
   const vb = 200, cx = 100, cy = 100;
   const R_FACE = 84, R_TRIM = 94, R_TICKS = 88, R_NUM = 64;
-  const START = -120, END = 120, R_LABEL = R_TRIM + 10;
+
+  // Angle span & label radius
+  const START = -120, END = 120;
   const t = (v) => (clampNum(v, min, max) - min) / (max - min);
   const angle = START + (END - START) * t(value);
+
+  // Branding (outside trim) – slightly larger radius & spacing
+  const R_LABEL = R_TRIM + 12;   // moved out a bit
   const topArcId = "rpm-top-arc", botArcId = "rpm-bot-arc";
 
   const majors = [], minors = [], nums = [];
@@ -187,7 +208,7 @@ function FerrariRPMGauge({ value = 5200, min = 0, max = 9000, sizeCSS = "300px" 
     const [x1, y1] = polarToXY(cx, cy, R_TICKS + 6, a);
     majors.push(<line key={`maj-${k}`} x1={x0} y1={y0} x2={x1} y2={y1} stroke="#ffffff" strokeWidth="2" />);
     const [tx, ty] = polarToXY(cx, cy, R_NUM, a);
-    nums.push(<text key={`num-${k}`} x={tx} y={ty + 4} textAnchor="middle" fontSize="12" fontWeight="700" fill="#0a0a0a">{k}</text>);
+    nums.push(<text key={`n-${k}`} x={tx} y={ty + 4} textAnchor="middle" fontSize="12" fontWeight="700" fill="#0a0a0a">{k}</text>);
   }
   for (let k = 0; k <= 90; k += 10) {
     if (k % 20 === 0) continue;
@@ -200,6 +221,7 @@ function FerrariRPMGauge({ value = 5200, min = 0, max = 9000, sizeCSS = "300px" 
   return (
     <svg viewBox={`0 0 ${vb} ${vb}`} style={{ width: sizeCSS, height: sizeCSS }} aria-label="RPM">
       <defs>
+        {/* arcs for outside branding */}
         <path id={topArcId} d={arcPath(cx, cy, R_LABEL, -150, -30)} />
         <path id={botArcId} d={arcPath(cx, cy, R_LABEL, 30, 150)} />
       </defs>
@@ -222,11 +244,11 @@ function FerrariRPMGauge({ value = 5200, min = 0, max = 9000, sizeCSS = "300px" 
       {/* label */}
       <text x={cx} y={cy + 30} textAnchor="middle" fontSize="10" fill="#0a0a0a" opacity=".85">RPM × 1000</text>
 
-      {/* branding outside red trim */}
+      {/* branding (outside trim, more spacing, no overlap) */}
       <text fontSize="11" fontWeight="900" fill="#ff3b30" letterSpacing=".14em">
         <textPath href={`#${topArcId}`} startOffset="50%" textAnchor="middle">REDLINE TRADING</textPath>
       </text>
-      <text fontSize="10" fontWeight="800" fill="#ff3b30" letterSpacing=".20em">
+      <text fontSize="10" fontWeight="800" fill="#ff3b30" letterSpacing=".22em">
         <textPath href={`#${botArcId}`} startOffset="50%" textAnchor="middle">POWERED BY AI</textPath>
       </text>
     </svg>
