@@ -14,20 +14,43 @@ const arcPath = (cx, cy, r, angA, angB) => {
   return `M ${x0} ${y0} A ${r} ${r} 0 ${largeArc} 1 ${x1} ${y1}`;
 };
 
-/* ===================== main cluster (narrow width, wide spacing) ===================== */
+/* ===================== main cluster (wide spacing + split lights) ===================== */
 export default function FerrariCluster({
+  // live values (mock or backend)
   rpm = 5200,
   speed = 68,
   water = 62,
   oil = 55,
   fuel = 73,
-  lights = { breakout:false, buy:false, sell:false, emaCross:false, stop:false, trail:false },
 
-  // layout (narrower cockpit width; keep room for charts/journal)
-  height = 340,                         // a tad shorter
-  maxWidth = "min(1100px, 86vw)",       // << narrower overall width
-  pairGap = "clamp(120px, 14vw, 220px)" // << keep gauges spaced even in a narrow bar
+  // engine lights (dimmed unless true)
+  lights = {
+    breakout: false,
+    buy: false,
+    sell: false,
+    emaCross: false,
+    stop: false,
+    trail: false,
+  },
+
+  // layout controls
+  height = 340,                          // compact
+  maxWidth = "min(1200px, 92vw)",        // centered cockpit, not too wide
+  pairGap = "clamp(160px, 16vw, 280px)", // WIDE spacing between RPM and MPH
 }) {
+  // split lights into left & right groups (half/half)
+  const defs = [
+    { key: "breakout", label: "BREAKOUT", color: "#22c55e" },
+    { key: "buy", label: "BUY", color: "#3b82f6" },
+    { key: "sell", label: "SELL", color: "#ef4444" },
+    { key: "emaCross", label: "EMA X", color: "#f59e0b" },
+    { key: "stop", label: "STOP", color: "#e11d48" },
+    { key: "trail", label: "TRAIL", color: "#a78bfa" },
+  ];
+  const half = Math.ceil(defs.length / 2);
+  const leftDefs = defs.slice(0, half);
+  const rightDefs = defs.slice(half);
+
   return (
     <div
       style={{
@@ -43,43 +66,126 @@ export default function FerrariCluster({
           "radial-gradient(ellipse at center, rgba(0,0,0,.32), rgba(0,0,0,.66)), repeating-linear-gradient(45deg, #101317 0 6px, #0b0e12 6px 12px)",
       }}
     >
-      {/* WIDE: Left(Minis) — Center(RPM) — Right(Speed) inside a NARROW container */}
-      <div style={{ width: "100%", padding: "10px 14px 0 14px" }}>
+      {/* Cockpit wrapper */}
+      <div style={{ width: "100%", padding: "8px 14px 0 14px", height: "100%" }}>
         <div
           style={{
-            maxWidth,                              // << narrower cockpit
-            minWidth: "min(980px, 96vw)",
+            maxWidth,
             margin: "0 auto",
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "center",
-            gap: pairGap,                          // << wide spacing
+            height: "100%",
+            display: "grid",
+            gridTemplateColumns: "1fr", // one column: we handle internals with positioned rows
+            position: "relative",
           }}
         >
-          {/* LEFT: Mini Gauges */}
+          {/* ===================== GAUGES ROW ===================== */}
           <div
             style={{
-              display: "grid",
-              gridTemplateRows: "repeat(3, 1fr)",
-              rowGap: "clamp(6px, 1.2vw, 12px)",
-              justifyItems: "center",
+              position: "relative",
+              height: "100%",
+              display: "flex",
+              justifyContent: "center",
+              alignItems: "center",
+              gap: pairGap, // wide spacing between RPM and MPH
             }}
           >
-            <MiniGaugeBlack label="WATER" value={water} sizeCSS="clamp(82px, 7vw, 106px)" />
-            <MiniGaugeBlack label="OIL"   value={oil}   sizeCSS="clamp(82px, 7vw, 106px)" />
-            <MiniGaugeBlack label="FUEL"  value={fuel}  sizeCSS="clamp(82px, 7vw, 106px)" greenToRed />
+            {/* LEFT minis column (fixed to left, vertically centered) */}
+            <div
+              style={{
+                display: "grid",
+                gridTemplateRows: "repeat(3, 1fr)",
+                rowGap: "clamp(6px, 1.2vw, 12px)",
+                justifyItems: "center",
+              }}
+            >
+              <MiniGaugeBlack label="WATER" value={water} sizeCSS="clamp(82px, 7vw, 106px)" />
+              <MiniGaugeBlack label="OIL"   value={oil}   sizeCSS="clamp(82px, 7vw, 106px)" />
+              <MiniGaugeBlack label="FUEL"  value={fuel}  sizeCSS="clamp(82px, 7vw, 106px)" greenToRed />
+            </div>
+
+            {/* CENTER: RPM (yellow) */}
+            <FerrariRPMGauge value={rpm} max={9000} sizeCSS="clamp(250px, 22vw, 340px)" />
+
+            {/* RIGHT: Speed (Ferrari red face) */}
+            <FerrariSpeedGauge value={speed} max={220} sizeCSS="clamp(250px, 22vw, 330px)" />
           </div>
 
-          {/* CENTER: RPM (yellow) */}
-          <FerrariRPMGauge value={rpm} max={9000} sizeCSS="clamp(240px, 20vw, 320px)" />
+          {/* ===================== SPLIT LIGHTS (aligned to bottom of gauges) ===================== */}
+          {/* We overlay two flex groups and pull them up so their bottom equals gauges' bottom */}
+          <div
+            style={{
+              position: "absolute",
+              left: 0,
+              right: 0,
+              bottom: 8, // baseline for the lights
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "flex-end",
+              maxWidth,
+              margin: "0 auto",
+              pointerEvents: "none", // lights are display-only for now
+            }}
+          >
+            {/* LEFT lights → to the LEFT of RPM */}
+            <LightsGroup defs={leftDefs} lights={lights} align="left" />
 
-          {/* RIGHT: Speed (Ferrari red) */}
-          <FerrariSpeedGauge value={speed} max={220} sizeCSS="clamp(240px, 20vw, 300px)" />
+            {/* RIGHT lights → to the RIGHT of MPH */}
+            <LightsGroup defs={rightDefs} lights={lights} align="right" />
+          </div>
         </div>
       </div>
+    </div>
+  );
+}
 
-      {/* Engine lights row (centered under the same narrow width) */}
-      <EngineLightsRow lights={lights} maxWidth={maxWidth} />
+/* ===================== LightsGroup (left/right split) ===================== */
+function LightsGroup({ defs, lights, align = "left" }) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        gap: 10,
+        alignItems: "center",
+        justifyContent: align === "left" ? "flex-start" : "flex-end",
+        padding: "0 6px",
+        pointerEvents: "auto",
+      }}
+    >
+      {defs.map((d) => {
+        const on = !!lights?.[d.key];
+        return (
+          <div
+            key={d.key}
+            title={d.label}
+            style={{
+              width: 26,
+              height: 26,
+              borderRadius: 9999,
+              display: "grid",
+              placeItems: "center",
+              color: "#0b0b0b",
+              background: d.color,
+              boxShadow: on
+                ? "0 0 10px rgba(255,255,255,.35)"
+                : "0 0 0 2px rgba(0,0,0,.4) inset",
+              opacity: on ? 1 : 0.28,
+              filter: on ? "none" : "saturate(.7) brightness(.9)",
+              transition: "all 120ms ease",
+            }}
+          >
+            <div
+              style={{
+                fontSize: 9,
+                fontWeight: 800,
+                letterSpacing: ".04em",
+                transform: "scale(.95)",
+              }}
+            >
+              {d.label.replace(" ", "")}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -215,69 +321,5 @@ function MiniGaugeBlack({ label, value = 50, sizeCSS = "100px", greenToRed = fal
         return <line x1={cx} y1={cy} x2={nx} y2={ny} stroke="#e5e7eb" strokeWidth="2.5" strokeLinecap="round" />; })()}
       <text x={cx} y={cy + 26} textAnchor="middle" fontSize="10" fill="#cbd5e1" letterSpacing=".12em">{label}</text>
     </svg>
-  );
-}
-
-/* ===================== Engine lights (centered under narrow width) ===================== */
-function EngineLightsRow({ lights, maxWidth = "min(1100px, 86vw)" }) {
-  const defs = [
-    { key: "breakout", label: "BREAKOUT", color: "#22c55e" },
-    { key: "buy",      label: "BUY",      color: "#3b82f6" },
-    { key: "sell",     label: "SELL",     color: "#ef4444" },
-    { key: "emaCross", label: "EMA X",    color: "#f59e0b" },
-    { key: "stop",     label: "STOP",     color: "#e11d48" },
-    { key: "trail",    label: "TRAIL",    color: "#a78bfa" },
-  ];
-  return (
-    <div style={{ width: "100%" }}>
-      <div
-        style={{
-          maxWidth,
-          margin: "0 auto",
-          display: "flex",
-          gap: 10,
-          justifyContent: "center",
-          alignItems: "center",
-          padding: "6px 12px 10px",
-          background: "linear-gradient(180deg, rgba(0,0,0,0.18), rgba(0,0,0,0))",
-        }}
-      >
-        {defs.map((d) => {
-          const on = !!lights?.[d.key];
-          return (
-            <div
-              key={d.key}
-              title={d.label}
-              style={{
-                width: 26,
-                height: 26,
-                borderRadius: 9999,
-                display: "grid",
-                placeItems: "center",
-                color: "#0b0b0b",
-                background: d.color,
-                boxShadow: on
-                  ? "0 0 10px rgba(255,255,255,.35)"
-                  : "0 0 0 2px rgba(0,0,0,.4) inset",
-                opacity: on ? 1 : 0.28,
-                filter: on ? "none" : "saturate(.7) brightness(.9)",
-                transition: "all 120ms ease",
-              }}
-            >
-              <div
-                style={{
-                  fontSize: 9,
-                  fontWeight: 800,
-                  letterSpacing: ".04em",
-                  transform: "scale(.95)",
-                }}
-              >
-                {d.label.replace(" ", "")}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
   );
 }
