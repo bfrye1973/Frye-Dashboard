@@ -13,19 +13,34 @@ import { RefreshCcw, Activity, Database, Shield, Settings } from "lucide-react";
 export default function SetupPaperLiveTab() {
   const [isLive, setIsLive] = useState(false);
 
-  // Gauges + lights
-  const [gauges, setGauges] = useState({ rpm:5200, speed:68, water:62, oil:55, fuel:73 });
-  const [lights, setLights] = useState({ breakout:false, buy:false, sell:false, emaCross:false, stop:false, trail:false });
+  // Gauges + lights (cluster feeds)
+  const [gauges, setGauges] = useState({
+    rpm: 5200,
+    speed: 68,
+    water: 62,
+    oil: 55,
+    fuel: 73,
+  });
+  const [lights, setLights] = useState({
+    breakout: false,
+    buy: false,
+    sell: false,
+    emaCross: false,
+    stop: false,
+    trail: false,
+  });
 
   useEffect(() => {
     const stopG = subscribeGauges(setGauges);
     const stopS = subscribeSignals(setLights);
-    return () => { stopG?.(); stopS?.(); };
+    return () => {
+      stopG?.();
+      stopS?.();
+    };
   }, []);
 
   return (
     <div className="w-full p-0 md:p-0 space-y-6">
-
       {/* Ferrari Banner */}
       <div className="relative w-full bg-black text-white p-4 md:p-6 flex items-center justify-between shadow-lg border-b-4 border-red-600">
         <div className="flex items-center gap-3">
@@ -71,23 +86,30 @@ export default function SetupPaperLiveTab() {
       {/* Environment & Accounts */}
       <Card className="shadow-sm m-4">
         <CardHeader className="pb-2">
-          <CardTitle className="flex items-center gap-2"><Database className="h-5 w-5"/> Environment & Accounts</CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            <Database className="h-5 w-5" /> Environment & Accounts
+          </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid md:grid-cols-3 gap-4">
             <div className="space-y-2">
               <Label>Primary Account #</Label>
-              <Input placeholder="27570747" readOnly/>
+              <Input placeholder="27570747" readOnly />
             </div>
             <div className="space-y-2">
               <Label>Primary Account Hash</Label>
-              <Input placeholder="08BD9C...C15150" readOnly/>
+              <Input placeholder="08BD9C...C15150" readOnly />
             </div>
             <div className="space-y-2">
               <Label>Auth Status</Label>
               <div className="flex items-center gap-2">
-                <Badge variant="outline" className="border-green-500 text-green-600">ok:true</Badge>
-                <Button variant="ghost" size="sm" className="gap-2"><RefreshCcw className="h-4 w-4"/>Check</Button>
+                <Badge variant="outline" className="border-green-500 text-green-600">
+                  ok:true
+                </Badge>
+                <Button variant="ghost" size="sm" className="gap-2">
+                  <RefreshCcw className="h-4 w-4" />
+                  Check
+                </Button>
               </div>
             </div>
           </div>
@@ -97,36 +119,42 @@ export default function SetupPaperLiveTab() {
       {/* Config & Risk */}
       <Card className="shadow-sm m-4">
         <CardHeader className="pb-2">
-          <CardTitle className="flex items-center gap-2"><Settings className="h-5 w-5"/> Configuration & Risk</CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            <Settings className="h-5 w-5" /> Configuration & Risk
+          </CardTitle>
         </CardHeader>
         <CardContent className="grid md:grid-cols-5 gap-4">
           <div className="space-y-2 md:col-span-1">
             <Label>MAX_ORDER_QTY</Label>
-            <Input placeholder="1000"/>
+            <Input placeholder="1000" />
           </div>
           <div className="space-y-2 md:col-span-1">
             <Label>MAX_ORDER_NOTIONAL ($)</Label>
-            <Input placeholder="25000"/>
+            <Input placeholder="25000" />
           </div>
           <div className="space-y-2 md:col-span-1">
             <Label>ALLOWED_SYMBOLS</Label>
-            <Input placeholder="AAPL, MSFT, SPY"/>
+            <Input placeholder="AAPL, MSFT, SPY" />
           </div>
           <div className="space-y-2 md:col-span-1">
             <Label>Slippage (bps)</Label>
-            <Input placeholder="3"/>
+            <Input placeholder="3" />
           </div>
           <div className="space-y-2 md:col-span-1">
             <Label>Fill Latency (ms)</Label>
-            <Input placeholder="150"/>
+            <Input placeholder="150" />
           </div>
           <div className="md:col-span-5 flex items-center justify-between rounded-2xl bg-muted p-3">
-            <div className="flex items-center gap-2 text-sm"><Shield className="h-4 w-4"/> Live Trading Enabled</div>
+            <div className="flex items-center gap-2 text-sm">
+              <Shield className="h-4 w-4" /> Live Trading Enabled
+            </div>
             <Switch checked={isLive} onCheckedChange={setIsLive} />
           </div>
           <div className="md:col-span-5 flex gap-3">
             <Button className="rounded-2xl">Save Settings</Button>
-            <Button variant="outline" className="rounded-2xl">Reset</Button>
+            <Button variant="outline" className="rounded-2xl">
+              Reset
+            </Button>
           </div>
         </CardContent>
       </Card>
@@ -140,7 +168,9 @@ export default function SetupPaperLiveTab() {
 
         <TabsContent value="paper" className="space-y-4 pt-4">
           <Card>
-            <CardHeader><CardTitle>Paper OMS</CardTitle></CardHeader>
+            <CardHeader>
+              <CardTitle>Paper OMS</CardTitle>
+            </CardHeader>
             <CardContent>
               <div className="text-sm text-muted-foreground">
                 Paper engine wiring goes here (orders preview, simulated fills, PnL, journal).
@@ -151,7 +181,9 @@ export default function SetupPaperLiveTab() {
 
         <TabsContent value="live" className="space-y-4 pt-4">
           <Card>
-            <CardHeader><CardTitle>Live OMS (Schwab)</CardTitle></CardHeader>
+            <CardHeader>
+              <CardTitle>Live OMS (Schwab)</CardTitle>
+            </CardHeader>
             <CardContent>
               <div className="text-sm text-muted-foreground">
                 Live endpoints + risk checks + order tickets here.
