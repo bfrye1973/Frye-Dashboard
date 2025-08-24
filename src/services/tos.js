@@ -1,39 +1,65 @@
 // src/services/tos.js
-// Replace URLs with your live endpoints once ready.
 
-let gaugesInterval = null;
-let signalsInterval = null;
+// If you want to point at a real backend later, set this in index.html:
+// window.__TOS_BASE__ = "https://your-tos-backend.example.com"
+const TOS_BASE =
+  (typeof window !== "undefined" && window.__TOS_BASE__) || "";
 
+/**
+ * subscribeGauges(onUpdate)
+ * Sends { rpm, speed, water, oil, fuel } updates.
+ * Returns a stop() function to unsubscribe.
+ */
 export function subscribeGauges(onUpdate) {
-  // TODO: replace with your fetch/WebSocket
-  // onUpdate({ rpm, speed, water, oil, fuel })
-  clearInterval(gaugesInterval);
-  gaugesInterval = setInterval(() => {
+  // MOCK: random demo values (replace with your backend later)
+  const id = setInterval(() => {
     onUpdate({
-      rpm:   5000 + Math.round(Math.random() * 3000),
-      speed: 40 + Math.round(Math.random() * 60),
-      water: 50 + Math.round(Math.random() * 20),
-      oil:   50 + Math.round(Math.random() * 20),
-      fuel:  40 + Math.round(Math.random() * 40),
+      rpm:   4500 + Math.round(Math.random() * 3500), // 4500..8000
+      speed: 35 + Math.round(Math.random() * 85),      // 35..120
+      water: 50 + Math.round(Math.random() * 30),      // %
+      oil:   45 + Math.round(Math.random() * 35),      // %
+      fuel:  30 + Math.round(Math.random() * 60),      // %
     });
   }, 1200);
-  return () => clearInterval(gaugesInterval);
+
+  // If using real backend later, replace the block above with:
+  // const id = setInterval(async () => {
+  //   const r = await fetch(`${TOS_BASE}/gauges`, { cache: "no-store" });
+  //   if (r.ok) onUpdate(await r.json());
+  // }, 1000);
+
+  return () => clearInterval(id);
 }
 
+/**
+ * subscribeSignals(onSignals)
+ * Sends { breakout, buy, sell, emaCross, stop, trail } booleans.
+ * Returns a stop() function to unsubscribe.
+ */
 export function subscribeSignals(onSignals) {
-  // TODO: wire to your strategy outputs
-  // onSignals({ breakout, buy, sell, emaCross, stop, trail })
-  clearInterval(signalsInterval);
-  signalsInterval = setInterval(() => {
-    const pick = Math.random();
+  // MOCK: flip random lights (replace later)
+  const id = setInterval(() => {
+    const p = Math.random();
     onSignals({
-      breakout: pick < 0.15,
-      buy:      pick > 0.65 && pick < 0.72,
-      sell:     pick > 0.72 && pick < 0.80,
-      emaCross: pick > 0.80 && pick < 0.88,
-      stop:     pick > 0.88 && pick < 0.94,
-      trail:    pick > 0.94,
+      breakout: p < 0.12,
+      buy:      p > 0.60 && p < 0.68,
+      sell:     p > 0.68 && p < 0.76,
+      emaCross: p > 0.76 && p < 0.84,
+      stop:     p > 0.84 && p < 0.92,
+      trail:    p > 0.92,
     });
   }, 2000);
-  return () => clearInterval(signalsInterval);
+
+  // Real backend example (polling):
+  // const id = setInterval(async () => {
+  //   const r = await fetch(`${TOS_BASE}/signals`, { cache: "no-store" });
+  //   if (r.ok) onSignals(await r.json());
+  // }, 1000);
+
+  // Or WebSocket example:
+  // const ws = new WebSocket(`${TOS_BASE_REPLACE_WITH_WS}/signals`);
+  // ws.onmessage = (e) => onSignals(JSON.parse(e.data));
+  // return () => ws.close();
+
+  return () => clearInterval(id);
 }
