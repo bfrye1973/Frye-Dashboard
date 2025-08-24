@@ -1,0 +1,121 @@
+// --- Ferrari RPM Gauge (vertical branding) ---
+export function FerrariRPMGauge({ value = 5200, min = 0, max = 9000, sizeCSS = "280px" }) {
+  // local helpers (self-contained)
+  const clampNum = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
+  const polarToXY = (cx, cy, r, deg) => {
+    const a = ((deg - 90) * Math.PI) / 180;
+    return [cx + r * Math.cos(a), cy + r * Math.sin(a)];
+  };
+
+  // geometry
+  const vb = 200, cx = 100, cy = 100;
+  const R_TRIM = 94;     // red bezel outer radius
+  const R_FACE = 94;     // yellow face extends to the bezel (no inner ring)
+  const START = -120, END = 120;
+
+  // ticks (inside, small/clean)
+  const R_TB  = 98;      // tick base (inside trim)
+  const R_NUM = 66;      // numerals
+
+  // vertical branding placement (outside face, still within SVG)
+  // left label x = cx - R_LABEL (then rotate -90 around cx,cy)
+  // right label x = cx + R_LABEL (then rotate +90 around cx,cy)
+  const R_LABEL = 110;   // push text comfortably out so it’s readable
+
+  // map value → angle
+  const t = (v) => (clampNum(v, min, max) - min) / (max - min);
+  const angle = START + (END - START) * t(value);
+
+  // build ticks
+  const majors = [];
+  const minors = [];
+  const nums   = [];
+
+  // majors every 1000 (0..9)
+  for (let k = 0; k <= 9; k++) {
+    const a = START + ((END - START) * (k * 1000 - min)) / (max - min);
+    const [x0, y0] = polarToXY(cx, cy, R_TB - 12, a);
+    const [x1, y1] = polarToXY(cx, cy, R_TB - 2,  a);
+    majors.push(
+      <line key={`maj-${k}`} x1={x0} y1={y0} x2={x1} y2={y1}
+            stroke="#ffffff" strokeWidth="2" />
+    );
+    // numerals (black)
+    const [tx, ty] = polarToXY(cx, cy, R_NUM, a);
+    nums.push(
+      <text key={`num-${k}`} x={tx} y={ty + 3} textAnchor="middle"
+            fontSize="11" fontWeight="700" fill="#0a0a0a">
+        {k}
+      </text>
+    );
+  }
+
+  // minors every 500 (except where majors land)
+  for (let v = 500; v < 9000; v += 500) {
+    if (v % 1000 === 0) continue;
+    const a = START + ((END - START) * (v - min)) / (max - min);
+    const [x0, y0] = polarToXY(cx, cy, R_TB - 9, a);
+    const [x1, y1] = polarToXY(cx, cy, R_TB - 4, a);
+    minors.push(
+      <line key={`min-${v}`} x1={x0} y1={y0} x2={x1} y2={y1}
+            stroke="#ffffff" strokeWidth="1.2" />
+    );
+  }
+
+  return (
+    <svg
+      viewBox="0 0 200 200"
+      style={{ width: sizeCSS, height: sizeCSS, overflow: "visible" }}
+      aria-label="RPM"
+    >
+      {/* Red bezel + Yellow face (no inner black ring) */}
+      <circle cx={cx} cy={cy} r={R_TRIM} fill="none" stroke="#dc2626" strokeWidth="10" />
+      <circle cx={cx} cy={cy} r={R_FACE - 2} fill="#facc15" />
+
+      {/* Ticks + numerals */}
+      <g>{majors}</g>
+      <g>{minors}</g>
+      <g>{nums}</g>
+
+      {/* RED needle */}
+      <circle cx={cx} cy={cy} r="4.5" fill="#0f172a" />
+      {(() => {
+        const [nx, ny] = polarToXY(cx, cy, R_TB - 16, angle);
+        return (
+          <line
+            x1={cx} y1={cy} x2={nx} y2={ny}
+            stroke="#ef4444" strokeWidth="3" strokeLinecap="round"
+          />
+        );
+      })()}
+
+      {/* Inside label */}
+      <text x={cx} y={cy + 24} textAnchor="middle"
+            fontSize="12" fontWeight="700" fill="#0a0a0a">
+        RPM × 1000
+      </text>
+
+      {/* ===== Vertical branding (with white stroke under red) ===== */}
+
+      {/* LEFT: REDLINE TRADING (rotated 270°) */}
+      <g transform={`rotate(-90 ${cx} ${cy})`}>
+        <text x={cx - R_LABEL} y={cy} textAnchor="middle"
+              fontSize="18" fontWeight="900" letterSpacing=".20em"
+              stroke="#ffffff" strokeWidth="1.6" paintOrder="stroke fill"
+              fill="#ff2f2f">
+          REDLINE TRADING
+        </text>
+      </g>
+
+      {/* RIGHT: POWERED BY AI (rotated 90°) */}
+      <g transform={`rotate(90 ${cx} ${cy})`}>
+        <text x={cx + R_LABEL} y={cy} textAnchor="middle"
+              fontSize="14" fontWeight="800" letterSpacing=".26em"
+              stroke="#ffffff" strokeWidth="1.4" paintOrder="stroke fill"
+              fill="#ff2f2f">
+          POWERED BY AI
+        </text>
+      </g>
+    </svg>
+  );
+}
