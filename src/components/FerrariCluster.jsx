@@ -16,10 +16,10 @@ const arcPath = (cx, cy, r, angA, angB) => {
 
 /* ===================== main cluster ===================== */
 /**
- * Grid (5 columns):
- * [ MINIS ] [ LEFT LIGHTS ] [ RPM ] [ RIGHT LIGHTS ] [ SPEED ]
- * - Engine lights are placed in the “between” columns and bottom-aligned.
- * - RPM stays visually centered; SPEED hugs right; MINIS hug left.
+ * Grid (7 columns):
+ * [ SPACER ] [ MINIS ] [ LEFT LIGHTS ] [ RPM ] [ RIGHT LIGHTS ] [ SPEED ] [ SPACER ]
+ * - Spacers (1fr) push the minis to far-left and speed to far-right on big screens.
+ * - Engine lights live BETWEEN minis↔RPM and RPM↔speed; bottom-aligned to gauges.
  */
 export default function FerrariCluster({
   rpm = 5200,
@@ -31,10 +31,10 @@ export default function FerrariCluster({
   lights = { breakout:false, buy:false, sell:false, emaCross:false, stop:false, trail:false },
 
   height = 340,
-  // cockpit width scales (big on 31.5", conservative on smaller)
+  // Let ultrawides breathe; still clamps well on smaller monitors
   maxWidth = "min(1900px, 98vw)",
 }) {
-  // split lights (half/half)
+  // split the 6 lights 3/3
   const defs = [
     { key: "breakout", label: "BREAKOUT", color: "#22c55e" },
     { key: "buy",      label: "BUY",      color: "#3b82f6" },
@@ -71,21 +71,25 @@ export default function FerrariCluster({
             height: "100%",
             position: "relative",
 
-            /* 5-column grid to place lights in-between gauges */
             display: "grid",
-            gridTemplateRows: "1fr",
+            gridTemplateRows: "1fr", // single row for gauges
             gridTemplateColumns: `
-              clamp(160px, 18vw, 260px)   /* MINI column */
-              clamp(120px, 12vw, 200px)   /* LEFT LIGHTS */
-              clamp(260px, 22vw, 360px)   /* RPM */
-              clamp(120px, 12vw, 200px)   /* RIGHT LIGHTS */
-              clamp(260px, 22vw, 360px)   /* SPEED */
+              1fr                                        /* spacer left */
+              clamp(160px, 18vw, 260px)                  /* minis col */
+              clamp(110px, 11vw, 180px)                  /* left-lights */
+              clamp(260px, 22vw, 360px)                  /* RPM */
+              clamp(110px, 11vw, 180px)                  /* right-lights */
+              clamp(260px, 22vw, 360px)                  /* SPEED */
+              1fr                                        /* spacer right */
             `,
             alignItems: "center",
-            columnGap: "clamp(8px, 1vw, 16px)",
+            columnGap: "clamp(6px, .8vw, 14px)",
           }}
         >
-          {/* LEFT: MINI GAUGES */}
+          {/* [0] spacer left (empty) */}
+          <div />
+
+          {/* [1] MINIS — pinned left within cockpit */}
           <div
             style={{
               justifySelf: "start",
@@ -101,42 +105,35 @@ export default function FerrariCluster({
             <MiniGaugeBlack label="FUEL"  value={fuel}  sizeCSS="clamp(82px, 7vw, 106px)" greenToRed />
           </div>
 
-          {/* LEFT LIGHTS (between MINIS and RPM) */}
-          <div
-            style={{
-              alignSelf: "end",     // bottom align to gauges
-              paddingBottom: 8,
-            }}
-          >
+          {/* [2] LEFT LIGHTS — between minis and RPM, bottom-aligned */}
+          <div style={{ alignSelf: "end", paddingBottom: 8 }}>
             <LightsGroup defs={leftDefs} lights={lights} align="left" />
           </div>
 
-          {/* RPM (center) */}
+          {/* [3] RPM — centered in its own column */}
           <div style={{ justifySelf: "center" }}>
             <FerrariRPMGauge value={rpm} max={9000} sizeCSS="clamp(260px, 22vw, 360px)" />
           </div>
 
-          {/* RIGHT LIGHTS (between RPM and SPEED) */}
-          <div
-            style={{
-              alignSelf: "end",
-              paddingBottom: 8,
-            }}
-          >
+          {/* [4] RIGHT LIGHTS — between RPM and SPEED, bottom-aligned */}
+          <div style={{ alignSelf: "end", paddingBottom: 8 }}>
             <LightsGroup defs={rightDefs} lights={lights} align="right" />
           </div>
 
-          {/* SPEED (far right) */}
+          {/* [5] SPEED — pinned right within cockpit */}
           <div style={{ justifySelf: "end" }}>
             <FerrariSpeedGauge value={speed} max={220} sizeCSS="clamp(260px, 22vw, 360px)" />
           </div>
+
+          {/* [6] spacer right (empty) */}
+          <div />
         </div>
       </div>
     </div>
   );
 }
 
-/* ===================== LightsGroup ===================== */
+/* ===================== LightsGroup (in-between) ===================== */
 function LightsGroup({ defs, lights, align = "left" }) {
   return (
     <div
@@ -187,19 +184,21 @@ function LightsGroup({ defs, lights, align = "left" }) {
   );
 }
 
-/* ===================== RPM (yellow) ===================== */
+/* ===================== RPM (yellow) with unique branding IDs ===================== */
 function FerrariRPMGauge({ value = 5200, min = 0, max = 9000, sizeCSS = "300px" }) {
+  const uid = React.useId(); // ← ensures unique IDs per instance
+  const topArcId = `rpm-top-arc-${uid}`;
+  const botArcId = `rpm-bot-arc-${uid}`;
+
   const vb = 200, cx = 100, cy = 100;
   const R_FACE = 84, R_TRIM = 94, R_TICKS = 88, R_NUM = 64;
-
-  // Angle span & label radius
   const START = -120, END = 120;
+
   const t = (v) => (clampNum(v, min, max) - min) / (max - min);
   const angle = START + (END - START) * t(value);
 
-  // Branding (outside trim) – slightly larger radius & spacing
-  const R_LABEL = R_TRIM + 12;   // moved out a bit
-  const topArcId = "rpm-top-arc", botArcId = "rpm-bot-arc";
+  // Branding arcs moved farther out to avoid overlap
+  const R_LABEL = R_TRIM + 14;
 
   const majors = [], minors = [], nums = [];
   for (let k = 0; k <= 9; k++) {
@@ -208,7 +207,7 @@ function FerrariRPMGauge({ value = 5200, min = 0, max = 9000, sizeCSS = "300px" 
     const [x1, y1] = polarToXY(cx, cy, R_TICKS + 6, a);
     majors.push(<line key={`maj-${k}`} x1={x0} y1={y0} x2={x1} y2={y1} stroke="#ffffff" strokeWidth="2" />);
     const [tx, ty] = polarToXY(cx, cy, R_NUM, a);
-    nums.push(<text key={`n-${k}`} x={tx} y={ty + 4} textAnchor="middle" fontSize="12" fontWeight="700" fill="#0a0a0a">{k}</text>);
+    nums.push(<text key={`num-${k}`} x={tx} y={ty + 4} textAnchor="middle" fontSize="12" fontWeight="700" fill="#0a0a0a">{k}</text>);
   }
   for (let k = 0; k <= 90; k += 10) {
     if (k % 20 === 0) continue;
@@ -221,7 +220,6 @@ function FerrariRPMGauge({ value = 5200, min = 0, max = 9000, sizeCSS = "300px" 
   return (
     <svg viewBox={`0 0 ${vb} ${vb}`} style={{ width: sizeCSS, height: sizeCSS }} aria-label="RPM">
       <defs>
-        {/* arcs for outside branding */}
         <path id={topArcId} d={arcPath(cx, cy, R_LABEL, -150, -30)} />
         <path id={botArcId} d={arcPath(cx, cy, R_LABEL, 30, 150)} />
       </defs>
@@ -238,13 +236,15 @@ function FerrariRPMGauge({ value = 5200, min = 0, max = 9000, sizeCSS = "300px" 
 
       {/* needle */}
       <circle cx={cx} cy={cy} r="4.5" fill="#0f172a" />
-      {(() => { const [nx, ny] = polarToXY(cx, cy, R_TICKS - 22, angle);
-        return <line x1={cx} y1={cy} x2={nx} y2={ny} stroke="#111827" strokeWidth="3" strokeLinecap="round" />; })()}
+      {(() => {
+        const [nx, ny] = polarToXY(cx, cy, R_TICKS - 22, angle);
+        return <line x1={cx} y1={cy} x2={nx} y2={ny} stroke="#111827" strokeWidth="3" strokeLinecap="round" />;
+      })()}
 
       {/* label */}
       <text x={cx} y={cy + 30} textAnchor="middle" fontSize="10" fill="#0a0a0a" opacity=".85">RPM × 1000</text>
 
-      {/* branding (outside trim, more spacing, no overlap) */}
+      {/* branding — unique IDs; outside trim; better spacing */}
       <text fontSize="11" fontWeight="900" fill="#ff3b30" letterSpacing=".14em">
         <textPath href={`#${topArcId}`} startOffset="50%" textAnchor="middle">REDLINE TRADING</textPath>
       </text>
@@ -255,7 +255,7 @@ function FerrariRPMGauge({ value = 5200, min = 0, max = 9000, sizeCSS = "300px" 
   );
 }
 
-/* ===================== Speed (Ferrari RED face) ===================== */
+/* ===================== SPEED (Ferrari red face) ===================== */
 function FerrariSpeedGauge({ value = 70, min = 0, max = 220, sizeCSS = "300px" }) {
   const vb = 220, cx = 110, cy = 110;
   const R_FACE = 90, R_TICKS = 94, R_NUM = 68, START = -120, END = 120;
@@ -291,7 +291,7 @@ function FerrariSpeedGauge({ value = 70, min = 0, max = 220, sizeCSS = "300px" }
   );
 }
 
-/* ===================== Mini black gauges ===================== */
+/* ===================== MINI black gauges ===================== */
 function MiniGaugeBlack({ label, value = 50, sizeCSS = "100px", greenToRed = false }) {
   const vb = 160, cx = 80, cy = 80;
   const R_FACE = 60, R_TICKS = 64, START = -120, END = 120;
