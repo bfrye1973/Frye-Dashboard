@@ -14,9 +14,9 @@ const arcPath = (cx, cy, r, angA, angB) => {
   return `M ${x0} ${y0} A ${r} ${r} 0 ${largeArc} 1 ${x1} ${y1}`;
 };
 
-/* ===================== main cluster (wide spacing + split lights) ===================== */
+/* ===================== main cluster (grid: 1fr | auto | 1fr) ===================== */
 export default function FerrariCluster({
-  // live values (mock or backend)
+  // live values
   rpm = 5200,
   speed = 68,
   water = 62,
@@ -34,18 +34,17 @@ export default function FerrariCluster({
   },
 
   // layout controls
-  height = 340,                          // compact
-  maxWidth = "min(1200px, 92vw)",        // centered cockpit, not too wide
-  pairGap = "clamp(160px, 16vw, 280px)", // WIDE spacing between RPM and MPH
+  height = 340,                              // compact cockpit height
+  maxWidth = "min(1700px, 98vw)",           // << wide when screen is big (spreads out on 31.5")
 }) {
   // split lights into left & right groups (half/half)
   const defs = [
     { key: "breakout", label: "BREAKOUT", color: "#22c55e" },
-    { key: "buy", label: "BUY", color: "#3b82f6" },
-    { key: "sell", label: "SELL", color: "#ef4444" },
-    { key: "emaCross", label: "EMA X", color: "#f59e0b" },
-    { key: "stop", label: "STOP", color: "#e11d48" },
-    { key: "trail", label: "TRAIL", color: "#a78bfa" },
+    { key: "buy",      label: "BUY",      color: "#3b82f6" },
+    { key: "sell",     label: "SELL",     color: "#ef4444" },
+    { key: "emaCross", label: "EMA X",    color: "#f59e0b" },
+    { key: "stop",     label: "STOP",     color: "#e11d48" },
+    { key: "trail",    label: "TRAIL",    color: "#a78bfa" },
   ];
   const half = Math.ceil(defs.length / 2);
   const leftDefs = defs.slice(0, half);
@@ -66,71 +65,65 @@ export default function FerrariCluster({
           "radial-gradient(ellipse at center, rgba(0,0,0,.32), rgba(0,0,0,.66)), repeating-linear-gradient(45deg, #101317 0 6px, #0b0e12 6px 12px)",
       }}
     >
-      {/* Cockpit wrapper */}
+      {/* OUTER wrapper to center the cockpit width */}
       <div style={{ width: "100%", padding: "8px 14px 0 14px", height: "100%" }}>
         <div
           style={{
             maxWidth,
+            minWidth: "min(1100px, 96vw)",
             margin: "0 auto",
             height: "100%",
-            display: "grid",
-            gridTemplateColumns: "1fr", // one column: we handle internals with positioned rows
             position: "relative",
+            display: "grid",
+            gridTemplateRows: "1fr",
+            /* core layout: 1fr | auto | 1fr keeps RPM centered while minis hug left, MPH hug right */
+            gridTemplateColumns: "1fr auto 1fr",
+            alignItems: "center",
           }}
         >
-          {/* ===================== GAUGES ROW ===================== */}
+          {/* LEFT COLUMN: MINI GAUGES (aligned right edge of cockpit) */}
           <div
             style={{
-              position: "relative",
-              height: "100%",
-              display: "flex",
-              justifyContent: "center",
+              justifySelf: "end",
+              display: "grid",
+              gridTemplateRows: "repeat(3, 1fr)",
+              rowGap: "clamp(6px, 1.2vw, 12px)",
               alignItems: "center",
-              gap: pairGap, // wide spacing between RPM and MPH
+              justifyItems: "center",
             }}
           >
-            {/* LEFT minis column (fixed to left, vertically centered) */}
-            <div
-              style={{
-                display: "grid",
-                gridTemplateRows: "repeat(3, 1fr)",
-                rowGap: "clamp(6px, 1.2vw, 12px)",
-                justifyItems: "center",
-              }}
-            >
-              <MiniGaugeBlack label="WATER" value={water} sizeCSS="clamp(82px, 7vw, 106px)" />
-              <MiniGaugeBlack label="OIL"   value={oil}   sizeCSS="clamp(82px, 7vw, 106px)" />
-              <MiniGaugeBlack label="FUEL"  value={fuel}  sizeCSS="clamp(82px, 7vw, 106px)" greenToRed />
-            </div>
-
-            {/* CENTER: RPM (yellow) */}
-            <FerrariRPMGauge value={rpm} max={9000} sizeCSS="clamp(250px, 22vw, 340px)" />
-
-            {/* RIGHT: Speed (Ferrari red face) */}
-            <FerrariSpeedGauge value={speed} max={220} sizeCSS="clamp(250px, 22vw, 330px)" />
+            <MiniGaugeBlack label="WATER" value={water} sizeCSS="clamp(82px, 7vw, 106px)" />
+            <MiniGaugeBlack label="OIL"   value={oil}   sizeCSS="clamp(82px, 7vw, 106px)" />
+            <MiniGaugeBlack label="FUEL"  value={fuel}  sizeCSS="clamp(82px, 7vw, 106px)" greenToRed />
           </div>
 
-          {/* ===================== SPLIT LIGHTS (aligned to bottom of gauges) ===================== */}
-          {/* We overlay two flex groups and pull them up so their bottom equals gauges' bottom */}
+          {/* CENTER COLUMN: RPM (YELLOW) — remains centered */}
+          <div style={{ justifySelf: "center" }}>
+            <FerrariRPMGauge value={rpm} max={9000} sizeCSS="clamp(260px, 22vw, 360px)" />
+          </div>
+
+          {/* RIGHT COLUMN: SPEED (FERRARI RED) — aligned to left edge of cockpit */}
+          <div style={{ justifySelf: "start" }}>
+            <FerrariSpeedGauge value={speed} max={220} sizeCSS="clamp(260px, 22vw, 360px)" />
+          </div>
+
+          {/* SPLIT LIGHTS: aligned to the bottom of the gauges row */}
           <div
             style={{
               position: "absolute",
               left: 0,
               right: 0,
-              bottom: 8, // baseline for the lights
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "flex-end",
-              maxWidth,
-              margin: "0 auto",
-              pointerEvents: "none", // lights are display-only for now
+              bottom: 8,            // << baseline for lights; lines up with gauge bottoms
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              alignItems: "end",
             }}
           >
-            {/* LEFT lights → to the LEFT of RPM */}
-            <LightsGroup defs={leftDefs} lights={lights} align="left" />
+            {/* LEFT LIGHTS under left column (to LEFT of RPM) */}
+            <LightsGroup defs={leftDefs} lights={lights} align="right" />
 
-            {/* RIGHT lights → to the RIGHT of MPH */}
-            <LightsGroup defs={rightDefs} lights={lights} align="right" />
+            {/* RIGHT LIGHTS under right column (to RIGHT of MPH) */}
+            <LightsGroup defs={rightDefs} lights={lights} align="left" />
           </div>
         </div>
       </div>
@@ -138,17 +131,16 @@ export default function FerrariCluster({
   );
 }
 
-/* ===================== LightsGroup (left/right split) ===================== */
+/* ===================== LightsGroup ===================== */
 function LightsGroup({ defs, lights, align = "left" }) {
   return (
     <div
       style={{
         display: "flex",
         gap: 10,
-        alignItems: "center",
         justifyContent: align === "left" ? "flex-start" : "flex-end",
-        padding: "0 6px",
-        pointerEvents: "auto",
+        alignItems: "center",
+        padding: "0 8px",
       }}
     >
       {defs.map((d) => {
@@ -223,7 +215,7 @@ function FerrariRPMGauge({ value = 5200, min = 0, max = 9000, sizeCSS = "300px" 
         <path id={botArcId} d={arcPath(cx, cy, R_LABEL, 30, 150)} />
       </defs>
 
-      {/* red trim + yellow face */}
+      {/* red outer trim + yellow face */}
       <circle cx={cx} cy={cy} r={R_TRIM} fill="none" stroke="#dc2626" strokeWidth="10" />
       <circle cx={cx} cy={cy} r={R_FACE} fill="#facc15" />
 
@@ -286,6 +278,7 @@ function FerrariSpeedGauge({ value = 70, min = 0, max = 220, sizeCSS = "300px" }
       <circle cx={cx} cy={cy} r="4.5" fill="#0f172a" />
       {(() => { const [nx, ny] = polarToXY(cx, cy, R_TICKS - 22, angle);
         return <line x1={cx} y1={cy} x2={nx} y2={ny} stroke="#e5e7eb" strokeWidth="3" strokeLinecap="round" />; })()}
+      {/* MPH label */}
       <text x={cx} y={cy + 30} textAnchor="middle" fontSize="10" fill="#ffffff" opacity=".92">MPH</text>
     </svg>
   );
