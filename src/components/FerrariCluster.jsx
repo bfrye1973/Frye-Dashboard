@@ -2,7 +2,7 @@
 import React from "react";
 
 /* ===================== shared helpers ===================== */
-const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
+const clampNum = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
 const polarToXY = (cx, cy, r, angDeg) => {
   const a = ((angDeg - 90) * Math.PI) / 180;
   return [cx + r * Math.cos(a), cy + r * Math.sin(a)];
@@ -14,7 +14,7 @@ const arcPath = (cx, cy, r, angA, angB) => {
   return `M ${x0} ${y0} A ${r} ${r} 0 ${largeArc} 1 ${x1} ${y1}`;
 };
 
-/* ===================== main cluster ===================== */
+/* ===================== main cluster (responsive) ===================== */
 export default function FerrariCluster({
   rpm = 5200,
   speed = 68,
@@ -23,9 +23,10 @@ export default function FerrariCluster({
   fuel = 73,
   lights = { breakout:false, buy:false, sell:false, emaCross:false, stop:false, trail:false },
 
-  height = 360,         // compact cockpit height
-  maxWidth = 1280,      // max cockpit width (centered)
-  pairGap = 120,        // horizontal gap between RPM cluster and Speed gauge
+  // viewport‑friendly defaults; can be overridden if needed
+  height = 360,                   // overall cockpit height (compressed)
+  maxWidth = "min(1400px, 92vw)", // clamp the cockpit so it doesn't get too wide
+  pairGap = "clamp(64px, 8vw, 140px)", // gap between RPM cluster and Speed
 }) {
   return (
     <div
@@ -47,41 +48,42 @@ export default function FerrariCluster({
         <div
           style={{
             maxWidth,
+            minWidth: "min(1000px, 96vw)",
             margin: "0 auto",
             display: "flex",
-            justifyContent: "center",   // << centers the whole pair
+            justifyContent: "center",
             alignItems: "center",
-            gap: pairGap,               // << distance between RPM-cluster and Speed
+            gap: pairGap,
           }}
         >
-          {/* LEFT cluster: RPM (yellow) + three mini gauges */}
+          {/* LEFT cluster: RPM + mini gauges */}
           <div
             style={{
               display: "flex",
               alignItems: "center",
-              gap: 18,                   // space between RPM and minis
+              gap: "clamp(12px, 2vw, 24px)",
             }}
           >
-            {/* RPM gauge (a bit larger so it anchors the middle visually) */}
-            <FerrariRPMGauge value={rpm} max={9000} size={280} />
+            {/* RPM gauge size scales with viewport: 240→340px */}
+            <FerrariRPMGauge value={rpm} max={9000} sizeCSS="clamp(240px, 20vw, 340px)" />
 
-            {/* Minis stacked */}
+            {/* Minis stack, size 88→116px */}
             <div
               style={{
                 display: "grid",
                 gridTemplateRows: "repeat(3, 1fr)",
-                rowGap: 10,
+                rowGap: "clamp(6px, 1.2vw, 12px)",
                 justifyItems: "start",
               }}
             >
-              <MiniGaugeBlack label="WATER" value={water} size={100} />
-              <MiniGaugeBlack label="OIL"   value={oil}   size={100} />
-              <MiniGaugeBlack label="FUEL"  value={fuel} size={100} greenToRed />
+              <MiniGaugeBlack label="WATER" value={water} sizeCSS="clamp(88px, 8vw, 116px)" />
+              <MiniGaugeBlack label="OIL"   value={oil}   sizeCSS="clamp(88px, 8vw, 116px)" />
+              <MiniGaugeBlack label="FUEL"  value={fuel}  sizeCSS="clamp(88px, 8vw, 116px)" greenToRed />
             </div>
           </div>
 
-          {/* RIGHT cluster: Speed (Ferrari red face) */}
-          <FerrariSpeedGauge value={speed} max={220} size={300} />
+          {/* RIGHT cluster: Speed (responsive 240→330px) */}
+          <FerrariSpeedGauge value={speed} max={220} sizeCSS="clamp(240px, 22vw, 330px)" />
         </div>
       </div>
 
@@ -92,11 +94,11 @@ export default function FerrariCluster({
 }
 
 /* ===================== RPM (yellow) ===================== */
-function FerrariRPMGauge({ value = 5200, min = 0, max = 9000, size = 280 }) {
+function FerrariRPMGauge({ value = 5200, min = 0, max = 9000, sizeCSS = "280px" }) {
   const vb = 200, cx = 100, cy = 100;
   const R_FACE = 84, R_TRIM = 94, R_TICKS = 88, R_NUM = 64;
   const START = -120, END = 120, R_LABEL = R_TRIM + 10;
-  const t = (v) => (clamp(v, min, max) - min) / (max - min);
+  const t = (v) => (clampNum(v, min, max) - min) / (max - min);
   const angle = START + (END - START) * t(value);
   const topArcId = "rpm-top-arc", botArcId = "rpm-bot-arc";
 
@@ -118,13 +120,13 @@ function FerrariRPMGauge({ value = 5200, min = 0, max = 9000, size = 280 }) {
   }
 
   return (
-    <svg viewBox={`0 0 ${vb} ${vb}`} width={size} height={size} aria-label="RPM">
+    <svg viewBox={`0 0 ${vb} ${vb}`} style={{ width: sizeCSS, height: sizeCSS }} aria-label="RPM">
       <defs>
         <path id={topArcId} d={arcPath(cx, cy, R_LABEL, -150, -30)} />
         <path id={botArcId} d={arcPath(cx, cy, R_LABEL, 30, 150)} />
       </defs>
 
-      {/* red trim + yellow face */}
+      {/* red outer trim + yellow face */}
       <circle cx={cx} cy={cy} r={R_TRIM} fill="none" stroke="#dc2626" strokeWidth="10" />
       <circle cx={cx} cy={cy} r={R_FACE} fill="#facc15" />
 
@@ -154,10 +156,10 @@ function FerrariRPMGauge({ value = 5200, min = 0, max = 9000, size = 280 }) {
 }
 
 /* ===================== Speed (Ferrari RED face) ===================== */
-function FerrariSpeedGauge({ value = 70, min = 0, max = 220, size = 300 }) {
+function FerrariSpeedGauge({ value = 70, min = 0, max = 220, sizeCSS = "300px" }) {
   const vb = 220, cx = 110, cy = 110;
   const R_FACE = 90, R_TICKS = 94, R_NUM = 68, START = -120, END = 120;
-  const angle = START + (END - START) * ((clamp(value, min, max) - min) / (max - min));
+  const angle = START + (END - START) * ((clampNum(value, min, max) - min) / (max - min));
 
   const majors = [], minors = [], nums = [];
   for (let k = 0; k <= max; k += 20) {
@@ -177,7 +179,7 @@ function FerrariSpeedGauge({ value = 70, min = 0, max = 220, size = 300 }) {
   }
 
   return (
-    <svg viewBox={`0 0 ${vb} ${vb}`} width={size} height={size} aria-label="Speed">
+    <svg viewBox={`0 0 ${vb} ${vb}`} style={{ width: sizeCSS, height: sizeCSS }} aria-label="Speed">
       {/* Ferrari red dial + darker red trim */}
       <circle cx={cx} cy={cy} r={R_FACE} fill="#b91c1c" stroke="#7f1d1d" strokeWidth="8" />
       <g>{majors}</g><g>{minors}</g><g>{nums}</g>
@@ -187,17 +189,17 @@ function FerrariSpeedGauge({ value = 70, min = 0, max = 220, size = 300 }) {
       <circle cx={cx} cy={cy} r="4.5" fill="#0f172a" />
       {(() => { const [nx, ny] = polarToXY(cx, cy, R_TICKS - 22, angle);
         return <line x1={cx} y1={cy} x2={nx} y2={ny} stroke="#e5e7eb" strokeWidth="3" strokeLinecap="round" />; })()}
-      {/* straight MPH label (clean on red) */}
+      {/* MPH label */}
       <text x={cx} y={cy + 30} textAnchor="middle" fontSize="10" fill="#ffffff" opacity=".92">MPH</text>
     </svg>
   );
 }
 
 /* ===================== Mini black gauges ===================== */
-function MiniGaugeBlack({ label, value = 50, size = 100, greenToRed = false }) {
+function MiniGaugeBlack({ label, value = 50, sizeCSS = "100px", greenToRed = false }) {
   const vb = 160, cx = 80, cy = 80;
   const R_FACE = 60, R_TICKS = 64, START = -120, END = 120;
-  const angle = START + ((END - START) * clamp(value, 0, 100)) / 100;
+  const angle = START + ((END - START) * clampNum(value, 0, 100)) / 100;
 
   const majors = [];
   for (let k = 0; k <= 100; k += 20) {
@@ -208,7 +210,7 @@ function MiniGaugeBlack({ label, value = 50, size = 100, greenToRed = false }) {
   }
 
   return (
-    <svg viewBox={`0 0 ${vb} ${vb}`} width={size} height={size} aria-label={label}>
+    <svg viewBox={`0 0 ${vb} ${vb}`} style={{ width: sizeCSS, height: sizeCSS }} aria-label={label}>
       <circle cx={cx} cy={cy} r={R_FACE} fill="#0b0f14" stroke="#1a202a" strokeWidth="5" />
       {greenToRed && (
         <>
@@ -227,7 +229,7 @@ function MiniGaugeBlack({ label, value = 50, size = 100, greenToRed = false }) {
 }
 
 /* ===================== Engine lights (centered) ===================== */
-function EngineLightsRow({ lights, maxWidth = 1280 }) {
+function EngineLightsRow({ lights, maxWidth = "min(1400px, 92vw)" }) {
   const defs = [
     { key: "breakout", label: "BREAKOUT", color: "#22c55e" },
     { key: "buy",      label: "BUY",      color: "#3b82f6" },
