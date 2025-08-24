@@ -14,11 +14,11 @@ export function subscribeGauges(onUpdate) {
   // MOCK: random demo values (replace with your backend later)
   const id = setInterval(() => {
     onUpdate({
-      rpm:   4500 + Math.round(Math.random() * 3500), // 4500..8000
-      speed: 35 + Math.round(Math.random() * 85),      // 35..120
-      water: 50 + Math.round(Math.random() * 30),      // %
-      oil:   45 + Math.round(Math.random() * 35),      // %
-      fuel:  30 + Math.round(Math.random() * 60),      // %
+      rpm: 4500 + Math.round(Math.random() * 3500), // 4500..8000
+      speed: 35 + Math.round(Math.random() * 85), // 35..120
+      water: 50 + Math.round(Math.random() * 30), // %
+      oil: 45 + Math.round(Math.random() * 35), // %
+      fuel: 30 + Math.round(Math.random() * 60), // %
     });
   }, 1200);
 
@@ -42,15 +42,15 @@ export function subscribeSignals(onSignals) {
     const p = Math.random();
     onSignals({
       breakout: p < 0.12,
-      buy:      p > 0.60 && p < 0.68,
-      sell:     p > 0.68 && p < 0.76,
+      buy: p > 0.6 && p < 0.68,
+      sell: p > 0.68 && p < 0.76,
       emaCross: p > 0.76 && p < 0.84,
-      stop:     p > 0.84 && p < 0.92,
-      trail:    p > 0.92,
+      stop: p > 0.84 && p < 0.92,
+      trail: p > 0.92,
     });
   }, 2000);
 
-  // Real backend example:
+  // Real backend example (polling):
   // const id = setInterval(async () => {
   //   const r = await fetch(`${TOS_BASE}/signals`, { cache: "no-store" });
   //   if (r.ok) onSignals(await r.json());
