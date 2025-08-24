@@ -18,8 +18,7 @@ const arcPath = (cx, cy, r, angA, angB) => {
 /**
  * Grid (7 columns):
  * [ SPACER ] [ MINIS ] [ LEFT LIGHTS ] [ RPM ] [ RIGHT LIGHTS ] [ SPEED ] [ SPACER ]
- * - Spacers expand on ultrawide → clusters spread.
- * - Engine lights columns live between minis↔RPM and RPM↔speed; bottom-aligned to gauges.
+ * Engine lights sit in the “between” columns and are bottom-aligned with the gauges.
  */
 export default function FerrariCluster({
   rpm = 5200,
@@ -31,9 +30,9 @@ export default function FerrariCluster({
   lights = { breakout:false, buy:false, sell:false, emaCross:false, stop:false, trail:false },
 
   height = 340,
-  maxWidth = "min(1900px, 98vw)",     // spreads on 32", compresses on 21"
+  maxWidth = "min(1900px, 98vw)",
 }) {
-  // split the lights half/half
+  // split lights 3/3
   const defs = [
     { key: "breakout", label: "BREAKOUT", color: "#22c55e" },
     { key: "buy",      label: "BUY",      color: "#3b82f6" },
@@ -76,7 +75,7 @@ export default function FerrariCluster({
               1fr                                        /* spacer left  */
               clamp(160px, 18vw, 260px)                  /* minis        */
               clamp(110px, 11vw, 180px)                  /* left-lights  */
-              clamp(240px, 20vw, 330px)                  /* RPM (smaller so branding fits) */
+              clamp(240px, 20vw, 330px)                  /* RPM (slightly smaller for branding fit) */
               clamp(110px, 11vw, 180px)                  /* right-lights */
               clamp(260px, 22vw, 360px)                  /* speed        */
               1fr                                        /* spacer right */
@@ -88,7 +87,7 @@ export default function FerrariCluster({
           {/* [0] spacer left */}
           <div />
 
-          {/* [1] MINIS — pinned left */}
+          {/* [1] minis */}
           <div
             style={{
               justifySelf: "start",
@@ -104,22 +103,22 @@ export default function FerrariCluster({
             <MiniGaugeBlack label="FUEL"  value={fuel}  sizeCSS="clamp(82px, 7vw, 106px)" greenToRed />
           </div>
 
-          {/* [2] LEFT LIGHTS — between MINIS and RPM */}
+          {/* [2] left-lights */}
           <div style={{ alignSelf: "end", paddingBottom: 8 }}>
             <LightsGroup defs={leftDefs} lights={lights} align="left" />
           </div>
 
-          {/* [3] RPM — centered in its column */}
+          {/* [3] RPM — centered */}
           <div style={{ justifySelf: "center" }}>
             <FerrariRPMGauge value={rpm} max={9000} sizeCSS="clamp(240px, 20vw, 330px)" />
           </div>
 
-          {/* [4] RIGHT LIGHTS — between RPM and SPEED */}
+          {/* [4] right-lights */}
           <div style={{ alignSelf: "end", paddingBottom: 8 }}>
             <LightsGroup defs={rightDefs} lights={lights} align="right" />
           </div>
 
-          {/* [5] SPEED — pinned right */}
+          {/* [5] speed — right */}
           <div style={{ justifySelf: "end" }}>
             <FerrariSpeedGauge value={speed} max={220} sizeCSS="clamp(260px, 22vw, 360px)" />
           </div>
@@ -132,7 +131,7 @@ export default function FerrariCluster({
   );
 }
 
-/* ===================== LightsGroup (in-between) ===================== */
+/* ===================== in-between engine lights ===================== */
 function LightsGroup({ defs, lights, align = "left" }) {
   return (
     <div
@@ -183,63 +182,53 @@ function LightsGroup({ defs, lights, align = "left" }) {
   );
 }
 
-/* ===================== RPM (yellow) — FINAL per your photo ===================== */
+/* ===================== RPM (yellow) — no inner black ring, MPH-style ticks, Ferrari label, no sweep ===================== */
 function FerrariRPMGauge({ value = 5200, min = 0, max = 9000, sizeCSS = "300px" }) {
-  const uid = React.useId();                         // unique IDs for textPath
+  const uid = React.useId(); // unique IDs for curved text
   const topArcId = `rpm-top-arc-${uid}`;
   const botArcId = `rpm-bot-arc-${uid}`;
 
+  // SVG geometry
   const vb = 200, cx = 100, cy = 100;
+  const R_TRIM = 94;  // red trim
+  const R_FACE = 94;  // yellow fills to the trim edge -> no inner black ring
+  const R_TICKS = 98; // tick baseline (just outside face, like MPH)
+  const R_NUM  = 68;  // numerals inside face
 
-  // FACE & TRIM
-  const R_TRIM = 94;       // red trim outer radius
-  const R_FACE = 84;       // yellow face radius (smaller now so branding fits outside)
-  const R_TICKS = 90;      // tick radius baseline (slightly farther out to match MPH)
-  const R_NUM  = 66;       // numeral radius
-
-  // ANGLES & BRAND
+  // angles
   const START = -120, END = 120;
-  const R_LABEL = R_TRIM + 24;  // push branding farther out so it doesn't crowd (per your photo)
 
-  // value → angle
+  // branding arcs — keep within viewBox so not clipped, but clearly outside trim
+  const R_LABEL = 99; // (<= 100 to avoid clipping)
+
+  // map value → angle
   const t = (v) => (clampNum(v, min, max) - min) / (max - min);
   const angle = START + (END - START) * t(value);
 
-  // TICKS — use same visual as MPH: longer/thicker majors, shorter minors
+  // MPH-style ticks (majors longer/thicker, minors shorter)
   const majors = [], minors = [], nums = [];
-  // majors every 1000 (0..9)
   for (let k = 0; k <= 9; k++) {
     const a = START + ((END - START) * (k * 1000 - min)) / (max - min);
-    const [x0, y0] = polarToXY(cx, cy, R_TICKS - 14, a);
+    const [x0, y0] = polarToXY(cx, cy, R_TICKS - 16, a);
     const [x1, y1] = polarToXY(cx, cy, R_TICKS + 6,  a);
     majors.push(<line key={`maj-${k}`} x1={x0} y1={y0} x2={x1} y2={y1} stroke="#ffffff" strokeWidth="3" />);
-    // numerals in black
     const [tx, ty] = polarToXY(cx, cy, R_NUM, a);
-    nums.push(
-      <text
-        key={`num-${k}`}
-        x={tx}
-        y={ty + 4}
-        textAnchor="middle"
-        fontSize="12"
-        fontWeight="700"
-        fill="#0a0a0a"
-      >
-        {k}
-      </text>
-    );
+    nums.push(<text key={`num-${k}`} x={tx} y={ty + 4} textAnchor="middle" fontSize="12" fontWeight="700" fill="#0a0a0a">{k}</text>);
   }
-  // minors every 500 (except where majors land)
   for (let v = 500; v < 9000; v += 500) {
     if (v % 1000 === 0) continue;
     const a = START + ((END - START) * (v - min)) / (max - min);
-    const [x0, y0] = polarToXY(cx, cy, R_TICKS - 10, a);
+    const [x0, y0] = polarToXY(cx, cy, R_TICKS - 12, a);
     const [x1, y1] = polarToXY(cx, cy, R_TICKS + 2,  a);
-    minors.push(<line key={`min-${v}`} x1={x0} y1={y0} x2={x1} y2={y1} stroke="#ffffff" strokeWidth="1.6" />);
+    minors.push(<line key={`min-${v}`} x1={x0} y1={y0} x2={x1} y2={y1} stroke="#ffffff" strokeWidth="1.8" />);
   }
 
   return (
-    <svg viewBox={`0 0 ${vb} ${vb}`} style={{ width: sizeCSS, height: sizeCSS }} aria-label="RPM">
+    <svg
+      viewBox={`0 0 ${vb} ${vb}`}
+      style={{ width: sizeCSS, height: sizeCSS, overflow: "visible" }} // keep branding visible
+      aria-label="RPM"
+    >
       <defs>
         <path id={topArcId} d={arcPath(cx, cy, R_LABEL, -150, -30)} />
         <path id={botArcId} d={arcPath(cx, cy, R_LABEL, 30, 150)} />
@@ -248,78 +237,47 @@ function FerrariRPMGauge({ value = 5200, min = 0, max = 9000, sizeCSS = "300px" 
       {/* red trim (outer ring) */}
       <circle cx={cx} cy={cy} r={R_TRIM} fill="none" stroke="#dc2626" strokeWidth="10" />
 
-      {/* yellow face — NOTE: no black inner ring anymore */}
-      <circle cx={cx} cy={cy} r={R_FACE} fill="#facc15" />
+      {/* yellow face — NO inner black ring */}
+      <circle cx={cx} cy={cy} r={R_FACE - 2} fill="#facc15" />
 
-      {/* ticks + numerals (white ticks like MPH; black numerals) */}
-      <g>{majors}</g>
-      <g>{minors}</g>
-      <g>{nums}</g>
+      {/* ticks + numerals (MPH style) */}
+      <g>{majors}</g><g>{minors}</g><g>{nums}</g>
 
-      {/* RED tach sweep */}
-      <path
-        d={arcPath(cx, cy, R_TICKS - 18, START, angle)}
-        stroke="#ef4444"
-        strokeWidth="8"
-        fill="none"
-        strokeLinecap="round"
-      />
+      {/* NO red sweep trace per your instruction */}
 
       {/* needle */}
       <circle cx={cx} cy={cy} r="4.5" fill="#0f172a" />
       {(() => {
         const [nx, ny] = polarToXY(cx, cy, R_TICKS - 24, angle);
-        return (
-          <line
-            x1={cx}
-            y1={cy}
-            x2={nx}
-            y2={ny}
-            stroke="#111827"
-            strokeWidth="3"
-            strokeLinecap="round"
-          />
-        );
+        return <line x1={cx} y1={cy} x2={nx} y2={ny} stroke="#111827" strokeWidth="3" strokeLinecap="round" />;
       })()}
 
-      {/* Inside label: FERRARI (per your photo) */}
-      <text
-        x={cx}
-        y={cy + 24}
-        textAnchor="middle"
-        fontSize="12"
-        fontWeight="800"
-        fill="#0a0a0a"
-        style={{ letterSpacing: ".08em" }}
-      >
+      {/* Inside label */}
+      <text x={cx} y={cy + 22} textAnchor="middle" fontSize="12" fontWeight="800" fill="#0a0a0a" style={{ letterSpacing: ".08em" }}>
         FERRARI
       </text>
 
-      {/* Outside branding (clean, arced, well outside ring) */}
+      {/* Outside branding (clean, visible, not clipped) */}
       <text fontSize="11" fontWeight="900" fill="#ff3b30" letterSpacing=".14em">
-        <textPath href={`#${topArcId}`} startOffset="50%" textAnchor="middle">
-          REDLINE TRADING
-        </textPath>
+        <textPath href={`#${topArcId}`} startOffset="50%" textAnchor="middle">REDLINE TRADING</textPath>
       </text>
       <text fontSize="10" fontWeight="800" fill="#ff3b30" letterSpacing=".22em">
-        <textPath href={`#${botArcId}`} startOffset="50%" textAnchor="middle">
-          POWERED BY AI
-        </textPath>
+        <textPath href={`#${botArcId}`} startOffset="50%" textAnchor="middle">POWERED BY AI</textPath>
       </text>
     </svg>
   );
 }
 
-/* ===================== SPEED (Ferrari red face) ===================== */
+/* ===================== SPEED (Ferrari red face) — NO sweep ===================== */
 function FerrariSpeedGauge({ value = 70, min = 0, max = 220, sizeCSS = "300px" }) {
   const vb = 220, cx = 110, cy = 110;
-  const R_FACE = 90, R_TICKS = 94, R_NUM = 68, START = -120, END = 120;
+  const R_FACE = 90, R_TICKS = 98, R_NUM = 68, START = -120, END = 120;
   const angle = START + (END - START) * ((clampNum(value, min, max) - min) / (max - min));
 
   const majors = [], minors = [], nums = [];
   for (let k = 0; k <= max; k += 20) {
     const a = START + ((END - START) * (k - min)) / (max - min);
-    const [x0, y0] = polarToXY(cx, cy, R_TICKS - 14, a);
+    const [x0, y0] = polarToXY(cx, cy, R_TICKS - 16, a);
     const [x1, y1] = polarToXY(cx, cy, R_TICKS + 6,  a);
     majors.push(<line key={`M${k}`} x1={x0} y1={y0} x2={x1} y2={y1} stroke="#ffffff" strokeWidth="3.2" />);
     const [tx, ty] = polarToXY(cx, cy, R_NUM, a);
@@ -328,8 +286,8 @@ function FerrariSpeedGauge({ value = 70, min = 0, max = 220, sizeCSS = "300px" }
   for (let k = 10; k < max; k += 10) {
     if (k % 20 === 0) continue;
     const a = START + ((END - START) * (k - min)) / (max - min);
-    const [x0, y0] = polarToXY(cx, cy, R_TICKS - 9, a);
-    const [x1, y1] = polarToXY(cx, cy, R_TICKS + 2, a);
+    const [x0, y0] = polarToXY(cx, cy, R_TICKS - 12, a);
+    const [x1, y1] = polarToXY(cx, cy, R_TICKS + 2,  a);
     minors.push(<line key={`m${k}`} x1={x0} y1={y0} x2={x1} y2={y1} stroke="#ffffff" strokeWidth="1.8" />);
   }
 
@@ -337,10 +295,15 @@ function FerrariSpeedGauge({ value = 70, min = 0, max = 220, sizeCSS = "300px" }
     <svg viewBox={`0 0 ${vb} ${vb}`} style={{ width: sizeCSS, height: sizeCSS }} aria-label="Speed">
       <circle cx={cx} cy={cy} r={R_FACE} fill="#b91c1c" stroke="#7f1d1d" strokeWidth="8" />
       <g>{majors}</g><g>{minors}</g><g>{nums}</g>
-      <path d={arcPath(cx, cy, R_TICKS - 18, START, angle)} stroke="#ef4444" strokeWidth="8" fill="none" strokeLinecap="round" />
+
+      {/* NO red sweep per your instruction */}
+
+      {/* needle */}
       <circle cx={cx} cy={cy} r="4.5" fill="#0f172a" />
-      {(() => { const [nx, ny] = polarToXY(cx, cy, R_TICKS - 24, angle);
-        return <line x1={cx} y1={cy} x2={nx} y2={ny} stroke="#e5e7eb" strokeWidth="3" strokeLinecap="round" />; })()}
+      {(() => {
+        const [nx, ny] = polarToXY(cx, cy, R_TICKS - 20, angle);
+        return <line x1={cx} y1={cy} x2={nx} y2={ny} stroke="#e5e7eb" strokeWidth="3" strokeLinecap="round" />;
+      })()}
       <text x={cx} y={cy + 30} textAnchor="middle" fontSize="10" fill="#ffffff" opacity=".92">MPH</text>
     </svg>
   );
