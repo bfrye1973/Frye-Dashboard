@@ -1,14 +1,14 @@
 // src/services/tos.js
 
-// If you want to point at a real backend later, set this in index.html:
-// window.__TOS_BASE__ = "https://your-tos-backend.example.com"
+// Optionally set a real base in public/index.html:
+// <script>window.__TOS_BASE__ = "https://your-tos-backend.example.com";</script>
 const TOS_BASE =
   (typeof window !== "undefined" && window.__TOS_BASE__) || "";
 
 /**
  * subscribeGauges(onUpdate)
  * Sends { rpm, speed, water, oil, fuel } updates.
- * Returns a stop() function to unsubscribe.
+ * Returns stop() to unsubscribe.
  */
 export function subscribeGauges(onUpdate) {
   // MOCK: random demo values (replace with your backend later)
@@ -22,7 +22,7 @@ export function subscribeGauges(onUpdate) {
     });
   }, 1200);
 
-  // If using real backend later, replace the block above with:
+  // Real backend example (polling):
   // const id = setInterval(async () => {
   //   const r = await fetch(`${TOS_BASE}/gauges`, { cache: "no-store" });
   //   if (r.ok) onUpdate(await r.json());
@@ -34,7 +34,7 @@ export function subscribeGauges(onUpdate) {
 /**
  * subscribeSignals(onSignals)
  * Sends { breakout, buy, sell, emaCross, stop, trail } booleans.
- * Returns a stop() function to unsubscribe.
+ * Returns stop() to unsubscribe.
  */
 export function subscribeSignals(onSignals) {
   // MOCK: flip random lights (replace later)
@@ -50,14 +50,14 @@ export function subscribeSignals(onSignals) {
     });
   }, 2000);
 
-  // Real backend example (polling):
+  // Real backend example:
   // const id = setInterval(async () => {
   //   const r = await fetch(`${TOS_BASE}/signals`, { cache: "no-store" });
   //   if (r.ok) onSignals(await r.json());
   // }, 1000);
 
   // Or WebSocket example:
-  // const ws = new WebSocket(`${TOS_BASE_REPLACE_WITH_WS}/signals`);
+  // const ws = new WebSocket(`${TOS_BASE_WS}/signals`);
   // ws.onmessage = (e) => onSignals(JSON.parse(e.data));
   // return () => ws.close();
 
