@@ -22,8 +22,10 @@ export default function FerrariCluster({
   oil = 55,
   fuel = 73,
   lights = { breakout:false, buy:false, sell:false, emaCross:false, stop:false, trail:false },
-  height = 360,              // compact cockpit height
-  maxWidth = 1280,           // centered cockpit width
+
+  height = 360,         // compact cockpit height
+  maxWidth = 1280,      // max cockpit width (centered)
+  pairGap = 120,        // horizontal gap between RPM cluster and Speed gauge
 }) {
   return (
     <div
@@ -40,63 +42,46 @@ export default function FerrariCluster({
           "radial-gradient(ellipse at center, rgba(0,0,0,.32), rgba(0,0,0,.66)), repeating-linear-gradient(45deg, #101317 0 6px, #0b0e12 6px 12px)",
       }}
     >
-      {/* CENTERED cockpit container */}
+      {/* CENTERED cockpit row (RPM cluster + Speed) */}
       <div style={{ width: "100%", padding: "12px 16px 0 16px" }}>
         <div
           style={{
             maxWidth,
             margin: "0 auto",
-            display: "grid",
-            gridTemplateColumns: "520px 1fr 340px",
+            display: "flex",
+            justifyContent: "center",   // << centers the whole pair
             alignItems: "center",
-            gap: 0,
+            gap: pairGap,               // << distance between RPM-cluster and Speed
           }}
         >
-          {/* LEFT: RPM + Mini Gauges */}
+          {/* LEFT cluster: RPM (yellow) + three mini gauges */}
           <div
             style={{
-              display: "grid",
-              gridTemplateColumns: "260px 1fr",
+              display: "flex",
               alignItems: "center",
-              columnGap: 16,
+              gap: 18,                   // space between RPM and minis
             }}
           >
-            <div style={{ display: "flex", justifyContent: "center" }}>
-              <FerrariRPMGauge value={rpm} max={9000} size={260} />
-            </div>
+            {/* RPM gauge (a bit larger so it anchors the middle visually) */}
+            <FerrariRPMGauge value={rpm} max={9000} size={280} />
 
+            {/* Minis stacked */}
             <div
               style={{
                 display: "grid",
                 gridTemplateRows: "repeat(3, 1fr)",
-                rowGap: 8,
+                rowGap: 10,
                 justifyItems: "start",
               }}
             >
               <MiniGaugeBlack label="WATER" value={water} size={100} />
-              <MiniGaugeBlack label="OIL" value={oil} size={100} />
-              <MiniGaugeBlack label="FUEL" value={fuel} size={100} greenToRed />
+              <MiniGaugeBlack label="OIL"   value={oil}   size={100} />
+              <MiniGaugeBlack label="FUEL"  value={fuel} size={100} greenToRed />
             </div>
           </div>
 
-          {/* CENTER: soft vignette / badge space */}
-          <div
-            style={{
-              height: "100%",
-              display: "grid",
-              placeItems: "center",
-              opacity: 0.22,
-              background:
-                "radial-gradient(circle at center, rgba(255,255,255,.06), rgba(0,0,0,0) 60%)",
-              maskImage:
-                "radial-gradient(ellipse at center, rgba(0,0,0,1), rgba(0,0,0,0.0) 70%)",
-            }}
-          />
-
-          {/* RIGHT: Speed (Ferrari red face) */}
-          <div style={{ display: "flex", justifyContent: "center" }}>
-            <FerrariSpeedGauge value={speed} max={220} size={300} />
-          </div>
+          {/* RIGHT cluster: Speed (Ferrari red face) */}
+          <FerrariSpeedGauge value={speed} max={220} size={300} />
         </div>
       </div>
 
@@ -107,7 +92,7 @@ export default function FerrariCluster({
 }
 
 /* ===================== RPM (yellow) ===================== */
-function FerrariRPMGauge({ value = 5200, min = 0, max = 9000, size = 260 }) {
+function FerrariRPMGauge({ value = 5200, min = 0, max = 9000, size = 280 }) {
   const vb = 200, cx = 100, cy = 100;
   const R_FACE = 84, R_TRIM = 94, R_TICKS = 88, R_NUM = 64;
   const START = -120, END = 120, R_LABEL = R_TRIM + 10;
@@ -120,7 +105,7 @@ function FerrariRPMGauge({ value = 5200, min = 0, max = 9000, size = 260 }) {
     const a = START + ((END - START) * (k * 1000 - min)) / (max - min);
     const [x0, y0] = polarToXY(cx, cy, R_TICKS - 10, a);
     const [x1, y1] = polarToXY(cx, cy, R_TICKS + 6, a);
-    majors.push(<line key={`maj-${k}`} x1={x0} y1={y0} x2={x1} y2={y1} stroke="#fff" strokeWidth="2" />);
+    majors.push(<line key={`maj-${k}`} x1={x0} y1={y0} x2={x1} y2={y1} stroke="#ffffff" strokeWidth="2" />);
     const [tx, ty] = polarToXY(cx, cy, R_NUM, a);
     nums.push(<text key={`num-${k}`} x={tx} y={ty + 4} textAnchor="middle" fontSize="12" fontWeight="700" fill="#0a0a0a">{k}</text>);
   }
@@ -129,11 +114,11 @@ function FerrariRPMGauge({ value = 5200, min = 0, max = 9000, size = 260 }) {
     const a = START + ((END - START) * (k * 100 - min)) / (max - min);
     const [x0, y0] = polarToXY(cx, cy, R_TICKS - 6, a);
     const [x1, y1] = polarToXY(cx, cy, R_TICKS + 4, a);
-    minors.push(<line key={`min-${k}`} x1={x0} y1={y0} x2={x1} y2={y1} stroke="#fff" strokeWidth="1.5" />);
+    minors.push(<line key={`min-${k}`} x1={x0} y1={y0} x2={x1} y2={y1} stroke="#ffffff" strokeWidth="1.5" />);
   }
 
   return (
-    <svg viewBox={`0 0 ${vb} ${vb}`} width={size} height={size} aria-label="RPM Gauge">
+    <svg viewBox={`0 0 ${vb} ${vb}`} width={size} height={size} aria-label="RPM">
       <defs>
         <path id={topArcId} d={arcPath(cx, cy, R_LABEL, -150, -30)} />
         <path id={botArcId} d={arcPath(cx, cy, R_LABEL, 30, 150)} />
@@ -157,7 +142,7 @@ function FerrariRPMGauge({ value = 5200, min = 0, max = 9000, size = 260 }) {
       {/* label */}
       <text x={cx} y={cy + 30} textAnchor="middle" fontSize="10" fill="#0a0a0a" opacity=".85">RPM × 1000</text>
 
-      {/* branding outside the red trim */}
+      {/* branding outside red trim */}
       <text fontSize="11" fontWeight="900" fill="#ff3b30" letterSpacing=".14em">
         <textPath href={`#${topArcId}`} startOffset="50%" textAnchor="middle">REDLINE TRADING</textPath>
       </text>
@@ -192,7 +177,7 @@ function FerrariSpeedGauge({ value = 70, min = 0, max = 220, size = 300 }) {
   }
 
   return (
-    <svg viewBox={`0 0 ${vb} ${vb}`} width={size} height={size} aria-label="Speed Gauge">
+    <svg viewBox={`0 0 ${vb} ${vb}`} width={size} height={size} aria-label="Speed">
       {/* Ferrari red dial + darker red trim */}
       <circle cx={cx} cy={cy} r={R_FACE} fill="#b91c1c" stroke="#7f1d1d" strokeWidth="8" />
       <g>{majors}</g><g>{minors}</g><g>{nums}</g>
@@ -202,7 +187,7 @@ function FerrariSpeedGauge({ value = 70, min = 0, max = 220, size = 300 }) {
       <circle cx={cx} cy={cy} r="4.5" fill="#0f172a" />
       {(() => { const [nx, ny] = polarToXY(cx, cy, R_TICKS - 22, angle);
         return <line x1={cx} y1={cy} x2={nx} y2={ny} stroke="#e5e7eb" strokeWidth="3" strokeLinecap="round" />; })()}
-      {/* straight MPH label (cleaner on red dial) */}
+      {/* straight MPH label (clean on red) */}
       <text x={cx} y={cy + 30} textAnchor="middle" fontSize="10" fill="#ffffff" opacity=".92">MPH</text>
     </svg>
   );
