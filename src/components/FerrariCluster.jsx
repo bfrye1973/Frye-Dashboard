@@ -1,10 +1,10 @@
 // src/components/FerrariCluster.jsx
 import React from "react";
 
-/* ---------- shared helpers ---------- */
+/* ------------------ helpers ------------------ */
 const clampNum = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
 const polarToXY = (cx, cy, r, angDeg) => {
-  const a = ((angDeg - 90) * Math.PI) / 180;
+  const a = ((angDeg - 90) * Math.PI) / 180; // 0deg = right, 90deg = down, etc.
   return [cx + r * Math.cos(a), cy + r * Math.sin(a)];
 };
 const arcPath = (cx, cy, r, angA, angB) => {
@@ -14,7 +14,12 @@ const arcPath = (cx, cy, r, angA, angB) => {
   return `M ${x0} ${y0} A ${r} ${r} 0 ${largeArc} 1 ${x1} ${y1}`;
 };
 
-/* ---------- main cluster ---------- */
+/* ------------------ main cluster ------------------ */
+/**
+ * 7 columns:
+ * [ SPACER ] [ MINIS ] [ LEFT LIGHTS ] [ RPM ] [ RIGHT LIGHTS ] [ SPEED ] [ SPACER ]
+ * Engine lights are bottom-aligned between the clusters. Fully responsive.
+ */
 export default function FerrariCluster({
   rpm = 5200,
   speed = 68,
@@ -39,7 +44,7 @@ export default function FerrariCluster({
     pad3:     { label: "",      color: "#6b7280" },
     pad4:     { label: "",      color: "#6b7280" },
   };
-  const leftDefs  = leftKeys.map(k => ({ key:k, ...palette[k]  }));
+  const leftDefs  = leftKeys.map(k  => ({ key:k,  ...palette[k] }));
   const rightDefs = rightKeys.map(k => ({ key:k, ...palette[k] }));
 
   return (
@@ -55,54 +60,64 @@ export default function FerrariCluster({
       <div style={{ width: "100%", padding: "8px 14px 0 14px", height: "100%" }}>
         <div
           style={{
-            maxWidth, minWidth: "min(1100px, 96vw)", margin: "0 auto", height: "100%", position: "relative",
-            display: "grid", gridTemplateRows: "1fr",
+            maxWidth,
+            minWidth: "min(1100px, 96vw)",
+            margin: "0 auto",
+            height: "100%",
+            position: "relative",
+
+            display: "grid",
+            gridTemplateRows: "1fr",
             gridTemplateColumns: `
-              1fr
-              clamp(160px, 18vw, 260px)
-              clamp(140px, 13vw, 220px)
-              clamp(220px, 18vw, 300px)
-              clamp(140px, 13vw, 220px)
-              clamp(240px, 20vw, 320px)
-              1fr
+              1fr                                        /* spacer left */
+              clamp(160px, 18vw, 260px)                  /* minis       */
+              clamp(140px, 13vw, 220px)                  /* left lights */
+              clamp(220px, 18vw, 300px)                  /* RPM         */
+              clamp(140px, 13vw, 220px)                  /* right lights*/
+              clamp(240px, 20vw, 320px)                  /* SPEED       */
+              1fr                                        /* spacer right*/
             `,
-            alignItems: "center", columnGap: "clamp(6px, .8vw, 16px)",
+            alignItems: "center",
+            columnGap: "clamp(6px, .8vw, 16px)",
           }}
         >
           {/* spacer left */}
           <div />
 
-          {/* mini gauges */}
-          <div style={{
-            justifySelf:"start",
-            display:"grid",
-            gridTemplateRows:"repeat(3,1fr)",
-            rowGap:"clamp(6px,1.2vw,12px)",
-            alignItems:"center", justifyItems:"center",
-          }}>
-            <MiniGaugeBlack label="WATER" value={water} sizeCSS="clamp(88px,8vw,116px)" />
-            <MiniGaugeBlack label="OIL"   value={oil}   sizeCSS="clamp(88px,8vw,116px)" />
-            <MiniGaugeBlack label="FUEL"  value={fuel}  sizeCSS="clamp(88px,8vw,116px)" greenToRed />
+          {/* Minis */}
+          <div
+            style={{
+              justifySelf: "start",
+              display: "grid",
+              gridTemplateRows: "repeat(3, 1fr)",
+              rowGap: "clamp(6px, 1.2vw, 12px)",
+              alignItems: "center",
+              justifyItems: "center",
+            }}
+          >
+            <MiniGaugeBlack label="WATER" value={water} sizeCSS="clamp(88px, 8vw, 116px)" />
+            <MiniGaugeBlack label="OIL"   value={oil}   sizeCSS="clamp(88px, 8vw, 116px)" />
+            <MiniGaugeBlack label="FUEL"  value={fuel}  sizeCSS="clamp(88px, 8vw, 116px)" greenToRed />
           </div>
 
-          {/* left lights */}
+          {/* Lights left */}
           <div style={{ alignSelf:"end", paddingBottom:8 }}>
-            <LightsGroup defs={leftDefs} lights={lights} align="left" sizeCSS="clamp(40px,3.8vw,52px)" />
+            <LightsGroup defs={leftDefs} lights={lights} align="left" sizeCSS="clamp(40px, 3.8vw, 52px)" />
           </div>
 
           {/* RPM */}
           <div style={{ justifySelf:"center" }}>
-            <FerrariRPMGauge value={rpm} max={9000} sizeCSS="clamp(220px,18vw,300px)" />
+            <FerrariRPMGauge value={rpm} max={9000} sizeCSS="clamp(220px, 18vw, 300px)" />
           </div>
 
-          {/* right lights */}
+          {/* Lights right */}
           <div style={{ alignSelf:"end", paddingBottom:8 }}>
-            <LightsGroup defs={rightDefs} lights={lights} align="right" sizeCSS="clamp(40px,3.8vw,52px)" />
+            <LightsGroup defs={rightDefs} lights={lights} align="right" sizeCSS="clamp(40px, 3.8vw, 52px)" />
           </div>
 
-          {/* MPH */}
+          {/* Speed */}
           <div style={{ justifySelf:"end" }}>
-            <FerrariSpeedGauge value={speed} max={220} sizeCSS="clamp(240px,20vw,320px)" />
+            <FerrariSpeedGauge value={speed} max={220} sizeCSS="clamp(240px, 20vw, 320px)" />
           </div>
 
           {/* spacer right */}
@@ -113,23 +128,42 @@ export default function FerrariCluster({
   );
 }
 
-/* ---------- lights ---------- */
+/* ------------------ engine lights ------------------ */
 function LightsGroup({ defs, lights, align="left", sizeCSS="48px" }) {
   return (
-    <div style={{ display:"flex", gap:"clamp(8px,1vw,14px)", justifyContent:align==="left"?"flex-start":"flex-end", alignItems:"center" }}>
+    <div
+      style={{
+        display: "flex",
+        gap: "clamp(8px, 1vw, 14px)",
+        justifyContent: align === "left" ? "flex-start" : "flex-end",
+        alignItems: "center",
+      }}
+    >
       {defs.map(d => {
         const on = !!lights?.[d.key];
         const isPad = !d.label;
         const active = !isPad && on;
         const bg = isPad ? "#6b7280" : d.color;
         return (
-          <div key={d.key} title={d.label} style={{
-            width:sizeCSS, height:sizeCSS, borderRadius:9999, display:"grid", placeItems:"center",
-            color:"#0b0b0b", background:bg,
-            boxShadow: active ? "0 0 14px rgba(255,255,255,.45)" : "0 0 0 3px rgba(0,0,0,.45) inset",
-            opacity: active ? 1 : .35, filter: active ? "none":"saturate(.7) brightness(.9)", transition:"all 140ms ease"
-          }}>
-            <div style={{ fontSize:"clamp(9px,.9vw,11px)", fontWeight:800, letterSpacing:".05em", transform:"scale(.96)", userSelect:"none" }}>
+          <div
+            key={d.key}
+            title={d.label}
+            style={{
+              width: sizeCSS,
+              height: sizeCSS,
+              borderRadius: 9999,
+              display: "grid",
+              placeItems: "center",
+              color: "#0b0b0b",
+              background: bg,
+              boxShadow: active ? "0 0 14px rgba(255,255,255,.45)" : "0 0 0 3px rgba(0,0,0,.45) inset",
+              opacity: active ? 1 : 0.35,
+              filter: active ? "none" : "saturate(.7) brightness(.9)",
+              transition: "all 140ms ease",
+              userSelect: "none",
+            }}
+          >
+            <div style={{ fontSize:"clamp(9px,.9vw,11px)", fontWeight:800, letterSpacing:".05em" }}>
               {d.label}
             </div>
           </div>
@@ -139,98 +173,110 @@ function LightsGroup({ defs, lights, align="left", sizeCSS="48px" }) {
   );
 }
 
-/* ---------- RPM (yellow) — small ticks, red needle, curved branding with white shadow ---------- */
+/* ------------------ RPM (yellow) ------------------ */
+/* small ticks, red needle, branding TOP/BOTTOM with white underprint, no inner black ring, no sweep */
 function FerrariRPMGauge({ value=5200, min=0, max=9000, sizeCSS="280px" }) {
   const uid = React.useId();
   const topArcId = `rpm-top-arc-${uid}`;
   const botArcId = `rpm-bot-arc-${uid}`;
 
   const vb = 200, cx=100, cy=100;
-  const R_TRIM = 94;            // red ring
-  const R_FACE = 94;            // full yellow (no inner ring)
+  const R_TRIM = 94;             // red ring
+  const R_FACE = 94;             // yellow face to trim edge (no inner ring)
   const START = -120, END = 120;
 
-  // small tick style (inside)
-  const R_TICK_BASE = 98;       // tick base inside the bezel
+  // ticks inside (compact)
+  const R_TICK_BASE = 98;
   const R_NUM = 66;
 
-  // branding arcs (bigger font, farther out, and visible)
-  const R_LABEL_TOP = 108;
-  const R_LABEL_BOT = 108;
+  // branding arcs: TRUE TOP (180→0), TRUE BOTTOM (0→180)
+  const R_LABEL = 108; // far enough to be clear, still visible
+  const TOP_A   = 180;
+  const TOP_B   = 0;
+  const BOT_A   = 0;
+  const BOT_B   = 180;
 
   const t = v => (clampNum(v,min,max)-min)/(max-min);
   const angle = START + (END-START)*t(value);
 
+  // small tick style
   const majors=[], minors=[], nums=[];
-  for (let k=0;k<=9;k++){
+  for(let k=0;k<=9;k++){
     const a = START + ((END-START)*(k*1000-min))/(max-min);
-    const [x0,y0] = polarToXY(cx,cy,R_TICK_BASE-12,a);
-    const [x1,y1] = polarToXY(cx,cy,R_TICK_BASE-2,a);
+    const [x0,y0]=polarToXY(cx,cy,R_TICK_BASE-12,a);
+    const [x1,y1]=polarToXY(cx,cy,R_TICK_BASE-2 ,a);
     majors.push(<line key={`maj-${k}`} x1={x0} y1={y0} x2={x1} y2={y1} stroke="#fff" strokeWidth="2" />);
-    const [tx,ty] = polarToXY(cx,cy,R_NUM,a);
+    const [tx,ty]=polarToXY(cx,cy,R_NUM,a);
     nums.push(<text key={`num-${k}`} x={tx} y={ty+3} textAnchor="middle" fontSize="11" fontWeight="700" fill="#0a0a0a">{k}</text>);
   }
-  for (let v=500; v<9000; v+=500){
+  for(let v=500; v<9000; v+=500){
     if (v%1000===0) continue;
     const a = START + ((END-START)*(v-min))/(max-min);
-    const [x0,y0] = polarToXY(cx,cy,R_TICK_BASE-9,a);
-    const [x1,y1] = polarToXY(cx,cy,R_TICK_BASE-4,a);
+    const [x0,y0]=polarToXY(cx,cy,R_TICK_BASE-9,a);
+    const [x1,y1]=polarToXY(cx,cy,R_TICK_BASE-4,a);
     minors.push(<line key={`min-${v}`} x1={x0} y1={y0} x2={x1} y2={y1} stroke="#fff" strokeWidth="1.2" />);
   }
 
   return (
     <svg viewBox="0 0 200 200" style={{ width:sizeCSS, height:sizeCSS, overflow:"visible" }} aria-label="RPM">
       <defs>
-        <path id={topArcId} d={arcPath(cx,cy,R_LABEL_TOP,-150,-30)} />
-        <path id={botArcId} d={arcPath(cx,cy,R_LABEL_BOT, 30, 150)} />
+        <path id={topArcId} d={arcPath(cx,cy,R_LABEL, TOP_A, TOP_B)} />
+        <path id={botArcId} d={arcPath(cx,cy,R_LABEL, BOT_A, BOT_B)} />
       </defs>
 
-      {/* red trim + yellow face */}
+      {/* bezel + face */}
       <circle cx={cx} cy={cy} r={R_TRIM} fill="none" stroke="#dc2626" strokeWidth="10" />
       <circle cx={cx} cy={cy} r={R_FACE-2} fill="#facc15" />
 
       {/* ticks + numerals */}
       <g>{majors}</g><g>{minors}</g><g>{nums}</g>
 
-      {/* red needle */}
+      {/* RED needle */}
       <circle cx={cx} cy={cy} r="4.5" fill="#0f172a" />
       {(() => { const [nx,ny]=polarToXY(cx,cy,R_TICK_BASE-16,angle);
         return <line x1={cx} y1={cy} x2={nx} y2={ny} stroke="#ef4444" strokeWidth="3" strokeLinecap="round" />;
       })()}
 
-      {/* RPM label */}
+      {/* inside label */}
       <text x={cx} y={cy+24} textAnchor="middle" fontSize="12" fontWeight="700" fill="#0a0a0a">RPM × 1000</text>
 
-      {/* curved branding: white shadow behind red for 3D look */}
-      {/* TOP */}
+      {/* curved branding TOP with white underprint */}
       <text fontSize="14" fontWeight="900" letterSpacing=".18em">
-        <textPath href={`#${topArcId}`} startOffset="50%" textAnchor="middle" fill="#ffffff" opacity=".7">REDLINE TRADING</textPath>
+        <textPath href={`#${topArcId}`} startOffset="50%" textAnchor="middle" fill="#ffffff" opacity=".70">
+          REDLINE TRADING
+        </textPath>
       </text>
       <text fontSize="14" fontWeight="900" letterSpacing=".18em">
-        <textPath href={`#${topArcId}`} startOffset="50%" textAnchor="middle" fill="#ff2f2f">REDLINE TRADING</textPath>
+        <textPath href={`#${topArcId}`} startOffset="50%" textAnchor="middle" fill="#ff2f2f">
+          REDLINE TRADING
+        </textPath>
       </text>
-      {/* BOTTOM */}
+
+      {/* curved branding BOTTOM with white underprint */}
       <text fontSize="12" fontWeight="800" letterSpacing=".24em">
-        <textPath href={`#${botArcId}`} startOffset="50%" textAnchor="middle" fill="#ffffff" opacity=".7">POWERED BY AI</textPath>
+        <textPath href={`#${botArcId}`} startOffset="50%" textAnchor="middle" fill="#ffffff" opacity=".70">
+          POWERED BY AI
+        </textPath>
       </text>
       <text fontSize="12" fontWeight="800" letterSpacing=".24em">
-        <textPath href={`#${botArcId}`} startOffset="50%" textAnchor="middle" fill="#ff2f2f">POWERED BY AI</textPath>
+        <textPath href={`#${botArcId}`} startOffset="50%" textAnchor="middle" fill="#ff2f2f">
+          POWERED BY AI
+        </textPath>
       </text>
     </svg>
   );
 }
 
-/* ---------- SPEED (red) — ticks inside, no sweep ---------- */
+/* ------------------ SPEED (red) — ticks inside, white needle, no sweep ------------------ */
 function FerrariSpeedGauge({ value=70, min=0, max=220, sizeCSS="300px" }) {
-  const vb=220, cx=110, cy=110;
-  const R_FACE=90, START=-120, END=120;
-
-  // ticks inside face
+  const cx=110, cy=110, vb=220, R_FACE=90;
+  const START=-120, END=120;
   const R_TICK_BASE=96, R_NUM=68;
-  const angle = START + (END-START)*((clampNum(value,min,max)-min)/(max-min));
+
+  const angle = START + (END-START) * ((clampNum(value,min,max)-min)/(max-min));
 
   const majors=[], minors=[], nums=[];
-  for(let k=0;k<=max;k+=20){
+  for (let k=0;k<=max;k+=20){
     const a=START+((END-START)*(k-min))/(max-min);
     const [x0,y0]=polarToXY(cx,cy,R_TICK_BASE-12,a);
     const [x1,y1]=polarToXY(cx,cy,R_TICK_BASE-2 ,a);
@@ -238,8 +284,8 @@ function FerrariSpeedGauge({ value=70, min=0, max=220, sizeCSS="300px" }) {
     const [tx,ty]=polarToXY(cx,cy,R_NUM,a);
     nums.push(<text key={`N${k}`} x={tx} y={ty+3} textAnchor="middle" fontSize="11" fontWeight="700" fill="#fff">{k}</text>);
   }
-  for(let k=10;k<max;k+=10){
-    if(k%20===0) continue;
+  for (let k=10;k<max;k+=10){
+    if (k%20===0) continue;
     const a=START+((END-START)*(k-min))/(max-min);
     const [x0,y0]=polarToXY(cx,cy,R_TICK_BASE-9,a);
     const [x1,y1]=polarToXY(cx,cy,R_TICK_BASE-4,a);
@@ -250,27 +296,24 @@ function FerrariSpeedGauge({ value=70, min=0, max=220, sizeCSS="300px" }) {
     <svg viewBox={`0 0 ${vb} ${vb}`} style={{ width:sizeCSS, height:sizeCSS, overflow:"visible" }} aria-label="Speed">
       <circle cx={cx} cy={cy} r={R_FACE} fill="#b91c1c" stroke="#7f1d1d" strokeWidth="8" />
       <g>{majors}</g><g>{minors}</g><g>{nums}</g>
-
-      {/* no sweep */}
-
       {/* white needle */}
       <circle cx={cx} cy={cy} r="4.5" fill="#0f172a" />
       {(() => { const [nx,ny]=polarToXY(cx,cy,R_TICK_BASE-14,angle);
-        return <line x1={cx} y1={cy} x2={nx} y2={ny} stroke="#ffffff" strokeWidth="3" strokeLinecap="round" />;
+        return <line x1={cx} y1={cy} x2={nx} y2={ny} stroke="#fff" strokeWidth="3" strokeLinecap="round" />;
       })()}
       <text x={cx} y={cy+30} textAnchor="middle" fontSize="10" fill="#ffffff" opacity=".92">MPH</text>
     </svg>
   );
 }
 
-/* ---------- mini black gauges ---------- */
+/* ------------------ MINI gauges (black) ------------------ */
 function MiniGaugeBlack({ label, value=50, sizeCSS="100px", greenToRed=false }) {
   const vb=160, cx=80, cy=80;
   const R_FACE=60, R_TICKS=64, START=-120, END=120;
   const angle = START+((END-START)*clampNum(value,0,100))/100;
 
   const majors=[];
-  for(let k=0;k<=100;k+=20){
+  for (let k=0;k<=100;k+=20){
     const a=START+((END-START)*k)/100;
     const [x0,y0]=polarToXY(cx,cy,R_TICKS-9,a);
     const [x1,y1]=polarToXY(cx,cy,R_TICKS+3,a);
@@ -287,10 +330,8 @@ function MiniGaugeBlack({ label, value=50, sizeCSS="100px", greenToRed=false }) 
         </>
       )}
       <g>{majors}</g>
-
-      {/* keep small mini sweep (can remove if you prefer) */}
+      {/* keep short mini sweep for vibe; remove if you like */}
       <path d={arcPath(cx,cy,R_TICKS-16,START,angle)} stroke="#ef4444" strokeWidth="5" fill="none" strokeLinecap="round" />
-
       <circle cx={cx} cy={cy} r="3.8" fill="#0f172a" />
       {(() => { const [nx,ny]=polarToXY(cx,cy,R_TICKS-20,angle);
         return <line x1={cx} y1={cy} x2={nx} y2={ny} stroke="#e5e7eb" strokeWidth="2.5" strokeLinecap="round" />;
