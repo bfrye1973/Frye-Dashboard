@@ -2,21 +2,47 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="viewport"
+      content="width=device-width,initial-scale=1,shrink-to-fit=no,viewport-fit=cover"
+    />
     <title>Frye Dashboard</title>
-    <style>
-      html, body, #root { height: 100%; margin: 0; background: #0f0f0f; color: #d8d8d8; }
-      .boot { padding: 24px; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; }
-    </style>
-    <!-- FRONTEND CONFIG (edit here if your backend URL changes) -->
+    <meta name="theme-color" content="#0d1117" />
+    <meta name="color-scheme" content="dark" />
+
+    <!-- Backend for your existing market API (already set previously) -->
     <script>
       window.__API_BASE__ = "https://frye-market-backend-1.onrender.com";
-      window.__WS_BASE__  = "wss://frye-market-backend-1.onrender.com";
     </script>
+
+    <!-- TOS live feeds (Step 1: EDIT THESE) -->
+    <script>
+      // HTTP base for polling (fallback or primary if you don’t have WS)
+      window.__TOS_BASE__ = "https://YOUR-TOS-HTTP.example.com";   /* <-- CHANGE */
+      // WebSocket base for real-time streaming (preferred)
+      window.__TOS_WS_BASE__ = "wss://YOUR-TOS-WS.example.com";     /* <-- CHANGE (or leave "") */
+      // Optional: bearer token or session token (leave "" if not needed)
+      window.__TOS_TOKEN__ = "";                                    /* <-- OPTIONAL */
+    </script>
+
+    <style>
+      html, body, #root { height: 100%; }
+      body {
+        margin: 0;
+        background: #0d1117;
+        color: #d1d4dc;
+        font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+      }
+      svg, text { shape-rendering: geometricPrecision; text-rendering: geometricPrecision; }
+    </style>
   </head>
   <body>
-    <div id="root"><div class="boot">Loading Frye Dashboard…</div></div>
-    <!-- html-webpack-plugin will inject the bundle here -->
+    <noscript style="color:#d1d4dc;background:#0d1117;display:block;padding:12px;">
+      This app requires JavaScript to run.
+    </noscript>
+    <div id="root" data-build="Step1-TOS-Link" ></div>
+    <!-- Your bundler injects scripts here -->
   </body>
 </html>
-
