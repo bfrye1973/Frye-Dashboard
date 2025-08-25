@@ -1,7 +1,13 @@
-// src/pages/SetupPaperLiveTab.jsx
 import React, { useEffect, useState } from "react";
 import FerrariCluster from "@/components/FerrariCluster";
-import { subscribeGauges, subscribeSignals } from "@/services/tos";
+import {
+  subscribeRPM,
+  subscribeSpeed,
+  subscribeWater,
+  subscribeOil,
+  subscribeFuel,
+  subscribeSignals,
+} from "@/services/tos";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -15,20 +21,74 @@ import { RefreshCcw, Activity, Database, Shield, Settings } from "lucide-react";
 export default function SetupPaperLiveTab() {
   const [isLive, setIsLive] = useState(false);
 
-  // cluster state
+  // Gauges + lights shown in the cluster
   const [gauges, setGauges] = useState({
-    rpm: 5200, speed: 68, water: 62, oil: 55, fuel: 73,
-  });
-  const [lights, setLights] = useState({
-    breakout: false, buy: false, sell: false, emaCross: false, stop: false, trail: false,
-    pad1:false, pad2:false, pad3:false, pad4:false,
+    rpm: 5200,
+    speed: 68,
+    water: 62,
+    oil: 55,
+    fuel: 73,
   });
 
-  // subscribe once on mount
+  const [lights, setLights] = useState({
+    breakout: false,
+    buy: false,
+    sell: false,
+    emaCross: false,
+    stop: false,
+    trail: false,
+    pad1: false,
+    pad2: false,
+    pad3: false,
+    pad4: false,
+  });
+
+  // Track last update timestamps for quick diagnostics (optional)
+  const [lastTs, setLastTs] = useState({
+    rpm: 0, speed: 0, water: 0, oil: 0, fuel: 0, signals: 0,
+  });
+
+  // ---------- per‑gauge subscriptions ----------
   useEffect(() => {
-    const stopG = subscribeGauges((g) => setGauges((prev) => ({ ...prev, ...g })));
-    const stopS = subscribeSignals((s) => setLights((prev) => ({ ...prev, ...s })));
-    return () => { stopG?.(); stopS?.(); };
+    const stopRPM = subscribeRPM((p) => {
+      setGauges((g) => ({ ...g, rpm: p.value }));
+      setLastTs((t) => ({ ...t, rpm: p.ts || Date.now() }));
+    });
+
+    const stopSPD = subscribeSpeed((p) => {
+      setGauges((g) => ({ ...g, speed: p.value }));
+      setLastTs((t) => ({ ...t, speed: p.ts || Date.now() }));
+    });
+
+    const stopWAT = subscribeWater((p) => {
+      setGauges((g) => ({ ...g, water: p.value }));
+      setLastTs((t) => ({ ...t, water: p.ts || Date.now() }));
+    });
+
+    const stopOIL = subscribeOil((p) => {
+      setGauges((g) => ({ ...g, oil: p.value }));
+      setLastTs((t) => ({ ...t, oil: p.ts || Date.now() }));
+    });
+
+    const stopFUEL = subscribeFuel((p) => {
+      setGauges((g) => ({ ...g, fuel: p.value }));
+      setLastTs((t) => ({ ...t, fuel: p.ts || Date.now() }));
+    });
+
+    const stopSIG = subscribeSignals((s) => {
+      setLights((prev) => ({ ...prev, ...s }));
+      setLastTs((t) => ({ ...t, signals: s.ts || Date.now() }));
+    });
+
+    // cleanup all feeds
+    return () => {
+      stopRPM?.();
+      stopSPD?.();
+      stopWAT?.();
+      stopOIL?.();
+      stopFUEL?.();
+      stopSIG?.();
+    };
   }, []);
 
   return (
@@ -62,7 +122,7 @@ export default function SetupPaperLiveTab() {
         </div>
       </div>
 
-      {/* Cluster */}
+      {/* Ferrari Cluster (live values) */}
       <div className="px-4">
         <FerrariCluster
           rpm={gauges.rpm}
@@ -108,7 +168,7 @@ export default function SetupPaperLiveTab() {
         </CardContent>
       </Card>
 
-      {/* Config & Risk */}
+      {/* Configuration & Risk */}
       <Card className="shadow-sm m-4">
         <CardHeader className="pb-2">
           <CardTitle className="flex items-center gap-2">
@@ -151,7 +211,7 @@ export default function SetupPaperLiveTab() {
         </CardContent>
       </Card>
 
-      {/* Tabs */}
+      {/* Tabs (Paper vs Live) */}
       <Tabs defaultValue={isLive ? "live" : "paper"} className="w-full m-4">
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="paper">Paper Trading</TabsTrigger>
@@ -180,6 +240,18 @@ export default function SetupPaperLiveTab() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* tiny diag row; remove if you don’t want it */}
+      <div className="px-4 pb-6 text-xs text-muted-foreground/70">
+        <div className="flex gap-4 flex-wrap">
+          <span>last rpm: {lastTs.rpm ? new Date(lastTs.rpm).toLocaleTimeString() : "-"}</span>
+          <span>speed: {lastTs.speed ? new Date(lastTs.speed).toLocaleTimeString() : "-"}</span>
+          <span>water: {lastTs.water ? new Date(lastTs.water).toLocaleTimeString() : "-"}</span>
+          <span>oil: {lastTs.oil ? new Date(lastTs.oil).toLocaleTimeString() : "-"}</span>
+          <span>fuel: {lastTs.fuel ? new Date(lastTs.fuel).toLocaleTimeString() : "-"}</span>
+          <span>signals: {lastTs.signals ? new Date(lastTs.signals).toLocaleTimeString() : "-"}</span>
+        </div>
+      </div>
     </div>
   );
 }
