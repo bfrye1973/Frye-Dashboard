@@ -1,6 +1,8 @@
+// src/pages/SetupPaperLiveTab.jsx
 import React, { useEffect, useState } from "react";
 import FerrariCluster from "@/components/FerrariCluster";
 import { subscribeGauges, subscribeSignals } from "@/services/tos";
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,35 +15,25 @@ import { RefreshCcw, Activity, Database, Shield, Settings } from "lucide-react";
 export default function SetupPaperLiveTab() {
   const [isLive, setIsLive] = useState(false);
 
-  // Gauges + lights (cluster feeds)
+  // cluster state
   const [gauges, setGauges] = useState({
-    rpm: 5200,
-    speed: 68,
-    water: 62,
-    oil: 55,
-    fuel: 73,
+    rpm: 5200, speed: 68, water: 62, oil: 55, fuel: 73,
   });
   const [lights, setLights] = useState({
-    breakout: false,
-    buy: false,
-    sell: false,
-    emaCross: false,
-    stop: false,
-    trail: false,
+    breakout: false, buy: false, sell: false, emaCross: false, stop: false, trail: false,
+    pad1:false, pad2:false, pad3:false, pad4:false,
   });
 
+  // subscribe once on mount
   useEffect(() => {
-    const stopG = subscribeGauges(setGauges);
-    const stopS = subscribeSignals(setLights);
-    return () => {
-      stopG?.();
-      stopS?.();
-    };
+    const stopG = subscribeGauges((g) => setGauges((prev) => ({ ...prev, ...g })));
+    const stopS = subscribeSignals((s) => setLights((prev) => ({ ...prev, ...s })));
+    return () => { stopG?.(); stopS?.(); };
   }, []);
 
   return (
     <div className="w-full p-0 md:p-0 space-y-6">
-      {/* Ferrari Banner */}
+      {/* Banner */}
       <div className="relative w-full bg-black text-white p-4 md:p-6 flex items-center justify-between shadow-lg border-b-4 border-red-600">
         <div className="flex items-center gap-3">
           <img src="/ferrari-logo.png" alt="Ferrari Logo" className="h-10 w-auto" />
@@ -70,7 +62,7 @@ export default function SetupPaperLiveTab() {
         </div>
       </div>
 
-      {/* Ferrari Cluster */}
+      {/* Cluster */}
       <div className="px-4">
         <FerrariCluster
           rpm={gauges.rpm}
@@ -79,7 +71,7 @@ export default function SetupPaperLiveTab() {
           oil={gauges.oil}
           fuel={gauges.fuel}
           lights={lights}
-          height={360}
+          height={340}
         />
       </div>
 
@@ -144,22 +136,22 @@ export default function SetupPaperLiveTab() {
             <Label>Fill Latency (ms)</Label>
             <Input placeholder="150" />
           </div>
+
           <div className="md:col-span-5 flex items-center justify-between rounded-2xl bg-muted p-3">
             <div className="flex items-center gap-2 text-sm">
               <Shield className="h-4 w-4" /> Live Trading Enabled
             </div>
             <Switch checked={isLive} onCheckedChange={setIsLive} />
           </div>
+
           <div className="md:col-span-5 flex gap-3">
             <Button className="rounded-2xl">Save Settings</Button>
-            <Button variant="outline" className="rounded-2xl">
-              Reset
-            </Button>
+            <Button variant="outline" className="rounded-2xl">Reset</Button>
           </div>
         </CardContent>
       </Card>
 
-      {/* Tabs (Paper vs Live) */}
+      {/* Tabs */}
       <Tabs defaultValue={isLive ? "live" : "paper"} className="w-full m-4">
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="paper">Paper Trading</TabsTrigger>
@@ -168,9 +160,7 @@ export default function SetupPaperLiveTab() {
 
         <TabsContent value="paper" className="space-y-4 pt-4">
           <Card>
-            <CardHeader>
-              <CardTitle>Paper OMS</CardTitle>
-            </CardHeader>
+            <CardHeader><CardTitle>Paper OMS</CardTitle></CardHeader>
             <CardContent>
               <div className="text-sm text-muted-foreground">
                 Paper engine wiring goes here (orders preview, simulated fills, PnL, journal).
@@ -181,9 +171,7 @@ export default function SetupPaperLiveTab() {
 
         <TabsContent value="live" className="space-y-4 pt-4">
           <Card>
-            <CardHeader>
-              <CardTitle>Live OMS (Schwab)</CardTitle>
-            </CardHeader>
+            <CardHeader><CardTitle>Live OMS (Schwab)</CardTitle></CardHeader>
             <CardContent>
               <div className="text-sm text-muted-foreground">
                 Live endpoints + risk checks + order tickets here.
