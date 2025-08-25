@@ -1,6 +1,6 @@
 // src/services/tos.js
 
-// ---- Read config defined in public/index.html ----
+// ---- Read config injected in public/index.html ----
 const TOS_BASE =
   (typeof window !== "undefined" && window.__TOS_BASE__) || "";
 const TOS_WS_BASE =
@@ -8,7 +8,7 @@ const TOS_WS_BASE =
 const TOS_TOKEN =
   (typeof window !== "undefined" && window.__TOS_TOKEN__) || "";
 
-// ---- Helpers ----
+/* ================================= utils ================================= */
 function authHeaders() {
   return TOS_TOKEN ? { Authorization: `Bearer ${TOS_TOKEN}` } : {};
 }
@@ -27,8 +27,6 @@ function clamp(n, lo, hi, d = 0) {
   if (Number.isFinite(x)) return Math.max(lo, Math.min(hi, x));
   return d;
 }
-
-// Sanitize each gauge field so UI never explodes on bad packets
 const sanitize = {
   rpm:   (v) => clamp(v,   0, 9000, 0),
   speed: (v) => clamp(v,   0,  220, 0),
@@ -55,7 +53,7 @@ function sanitizeSignalsPayload(obj = {}) {
   };
 }
 
-// ---- HTTP polling with backoff ----
+/* =============================== polling ================================= */
 function pollLoop({ url, intervalMs = 1000, onUpdate }) {
   let stopped = false;
   let t = null;
@@ -78,12 +76,11 @@ function pollLoop({ url, intervalMs = 1000, onUpdate }) {
       if (!stopped) t = setTimeout(tick, delay);
     }
   }
-
   t = setTimeout(tick, 10);
   return () => { stopped = true; clearTimeout(t); };
 }
 
-// ---- WebSocket with heartbeat + auto-reconnect; onDown() to fallback ----
+/* =============================== WebSocket =============================== */
 function socketStream({ url, onMessage, onDown }) {
   let ws = null;
   let alive = true;
@@ -97,32 +94,26 @@ function socketStream({ url, onMessage, onDown }) {
       onDown?.();
       return;
     }
-
     ws.onopen = () => {
       clearInterval(hbTimer);
       hbTimer = setInterval(() => {
         try { ws?.readyState === 1 && ws.send('{"type":"ping"}'); } catch {}
       }, 20000);
     };
-
     ws.onmessage = (e) => {
-      try {
-        const data = JSON.parse(e.data);
-        onMessage?.(data);
-      } catch {}
+      try { onMessage?.(JSON.parse(e.data)); } catch {}
     };
-
     ws.onerror = () => {};
     ws.onclose = () => {
       clearInterval(hbTimer);
       if (!alive) return;
       clearTimeout(reconnectTimer);
-      reconnectTimer = setTimeout(() => connect(), 1000);
+      reconnectTimer = setTimeout(connect, 1000);
       onDown?.();
     };
   }
-
   connect();
+
   return {
     stop() {
       alive = false;
@@ -133,20 +124,18 @@ function socketStream({ url, onMessage, onDown }) {
   };
 }
 
-// ---- Core builder for a *single* gauge feed (rpm/speed/water/oil/fuel) ----
+/* ====================== per‑gauge subscriber builder ====================== */
 function buildGaugeSubscriber({ key, httpPath, wsPath, intervalMs = 1000 }) {
   return function subscribe(onUpdate) {
     let cleanup = () => {};
     const httpURL = `${TOS_BASE.replace(/\/$/, "")}${httpPath}`;
     const wsURL   = `${TOS_WS_BASE.replace(/\/$/, "")}${wsPath}`;
 
-    // Prefer WebSocket if provided
     if (TOS_WS_BASE) {
       const stream = socketStream({
         url: wsURL,
         onMessage: (obj) => onUpdate(sanitizeGaugePayload(obj, key)),
         onDown: () => {
-          // Fallback to polling once if WS fails
           cleanup = pollLoop({
             url: httpURL,
             intervalMs,
@@ -156,55 +145,52 @@ function buildGaugeSubscriber({ key, httpPath, wsPath, intervalMs = 1000 }) {
       });
       cleanup = () => stream.stop();
     } else {
-      // Polling only
       cleanup = pollLoop({
         url: httpURL,
         intervalMs,
         onUpdate: (obj) => onUpdate(sanitizeGaugePayload(obj, key)),
       });
     }
-
     return () => cleanup?.();
   };
 }
 
-// ---- Build each gauge subscriber (one feed per gauge) ----
+/* ============================== per‑gauge ============================== */
 export const subscribeRPM   = buildGaugeSubscriber({
-  key: "rpm",
-  httpPath: "/gauges/rpm",
-  wsPath:   "/gauges/rpm",
-  intervalMs: 400,  // faster cadence for RPM (feel responsive)
+  key: "rpm",   httpPath: "/gauges/rpm",   wsPath: "/gauges/rpm",   intervalMs: 400,
 });
-
 export const subscribeSpeed = buildGaugeSubscriber({
-  key: "speed",
-  httpPath: "/gauges/speed",
-  wsPath:   "/gauges/speed",
-  intervalMs: 600,
+  key: "speed", httpPath: "/gauges/speed", wsPath: "/gauges/speed", intervalMs: 600,
 });
-
 export const subscribeWater = buildGaugeSubscriber({
-  key: "water",
-  httpPath: "/gauges/water",
-  wsPath:   "/gauges/water",
-  intervalMs: 1200,
+  key: "water", httpPath: "/gauges/water", wsPath: "/gauges/water", intervalMs: 1200,
 });
-
 export const subscribeOil   = buildGaugeSubscriber({
-  key: "oil",
-  httpPath: "/gauges/oil",
-  wsPath:   "/gauges/oil",
-  intervalMs: 1200,
+  key: "oil",   httpPath: "/gauges/oil",   wsPath: "/gauges/oil",   intervalMs: 1200,
 });
-
 export const subscribeFuel  = buildGaugeSubscriber({
-  key: "fuel",
-  httpPath: "/gauges/fuel",
-  wsPath:   "/gauges/fuel",
-  intervalMs: 1200,
+  key: "fuel",  httpPath: "/gauges/fuel",  wsPath: "/gauges/fuel",  intervalMs: 1200,
 });
 
-// ---- Signals (combined booleans) ----
+/* ============================ combined gauges ============================ */
+/**
+ * subscribeGauges(cb)
+ *  → cb({ rpm, speed, water, oil, fuel })
+ *  Backward‑compatible shim so existing pages that import subscribeGauges keep working.
+ */
+export function subscribeGauges(onUpdate) {
+  let state = { rpm:0, speed:0, water:0, oil:0, fuel:0 };
+  const subs = [
+    subscribeRPM  ((p) => { state = { ...state, rpm:   p.value }; onUpdate(state); }),
+    subscribeSpeed((p) => { state = { ...state, speed: p.value }; onUpdate(state); }),
+    subscribeWater((p) => { state = { ...state, water: p.value }; onUpdate(state); }),
+    subscribeOil  ((p) => { state = { ...state, oil:   p.value }; onUpdate(state); }),
+    subscribeFuel ((p) => { state = { ...state, fuel:  p.value }; onUpdate(state); }),
+  ];
+  return () => subs.forEach((stop) => stop?.());
+}
+
+/* ================================ signals ================================ */
 export function subscribeSignals(onSignals) {
   let cleanup = () => {};
   const httpURL = `${TOS_BASE.replace(/\/$/, "")}/signals`;
@@ -230,6 +216,5 @@ export function subscribeSignals(onSignals) {
       onUpdate: (obj) => onSignals(sanitizeSignalsPayload(obj)),
     });
   }
-
   return () => cleanup?.();
 }
