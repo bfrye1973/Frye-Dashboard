@@ -1,65 +1,235 @@
 // src/services/tos.js
 
-// Optionally set a real base in public/index.html:
-// <script>window.__TOS_BASE__ = "https://your-tos-backend.example.com";</script>
+// ---- Read config defined in public/index.html ----
 const TOS_BASE =
   (typeof window !== "undefined" && window.__TOS_BASE__) || "";
+const TOS_WS_BASE =
+  (typeof window !== "undefined" && window.__TOS_WS_BASE__) || "";
+const TOS_TOKEN =
+  (typeof window !== "undefined" && window.__TOS_TOKEN__) || "";
 
-/**
- * subscribeGauges(onUpdate)
- * Sends { rpm, speed, water, oil, fuel } updates.
- * Returns stop() to unsubscribe.
- */
-export function subscribeGauges(onUpdate) {
-  // MOCK: random demo values (replace with your backend later)
-  const id = setInterval(() => {
-    onUpdate({
-      rpm: 4500 + Math.round(Math.random() * 3500), // 4500..8000
-      speed: 35 + Math.round(Math.random() * 85), // 35..120
-      water: 50 + Math.round(Math.random() * 30), // %
-      oil: 45 + Math.round(Math.random() * 35), // %
-      fuel: 30 + Math.round(Math.random() * 60), // %
-    });
-  }, 1200);
-
-  // Real backend example (polling):
-  // const id = setInterval(async () => {
-  //   const r = await fetch(`${TOS_BASE}/gauges`, { cache: "no-store" });
-  //   if (r.ok) onUpdate(await r.json());
-  // }, 1000);
-
-  return () => clearInterval(id);
+// ---- Helpers ----
+function authHeaders() {
+  return TOS_TOKEN ? { Authorization: `Bearer ${TOS_TOKEN}` } : {};
+}
+function withAuthQS(url) {
+  if (!TOS_TOKEN) return url;
+  try {
+    const u = new URL(url);
+    u.searchParams.set("token", TOS_TOKEN);
+    return u.toString();
+  } catch {
+    return url;
+  }
+}
+function clamp(n, lo, hi, d = 0) {
+  const x = Number(n);
+  if (Number.isFinite(x)) return Math.max(lo, Math.min(hi, x));
+  return d;
 }
 
-/**
- * subscribeSignals(onSignals)
- * Sends { breakout, buy, sell, emaCross, stop, trail } booleans.
- * Returns stop() to unsubscribe.
- */
+// Sanitize each gauge field so UI never explodes on bad packets
+const sanitize = {
+  rpm:   (v) => clamp(v,   0, 9000, 0),
+  speed: (v) => clamp(v,   0,  220, 0),
+  water: (v) => clamp(v,   0,  100, 0),
+  oil:   (v) => clamp(v,   0,  100, 0),
+  fuel:  (v) => clamp(v,   0,  100, 0),
+};
+function sanitizeGaugePayload(obj, key) {
+  return { value: sanitize[key]?.(obj?.value) ?? 0, ts: Number(obj?.ts) || Date.now() };
+}
+function sanitizeSignalsPayload(obj = {}) {
+  return {
+    breakout: !!obj.breakout,
+    buy:      !!obj.buy,
+    sell:     !!obj.sell,
+    emaCross: !!obj.emaCross,
+    stop:     !!obj.stop,
+    trail:    !!obj.trail,
+    pad1:     !!obj.pad1,
+    pad2:     !!obj.pad2,
+    pad3:     !!obj.pad3,
+    pad4:     !!obj.pad4,
+    ts:       Number(obj.ts) || Date.now(),
+  };
+}
+
+// ---- HTTP polling with backoff ----
+function pollLoop({ url, intervalMs = 1000, onUpdate }) {
+  let stopped = false;
+  let t = null;
+  let delay = intervalMs;
+
+  async function tick() {
+    if (stopped) return;
+    try {
+      const r = await fetch(url, { headers: { ...authHeaders() }, cache: "no-store" });
+      if (r.ok) {
+        const json = await r.json();
+        onUpdate?.(json);
+        delay = intervalMs;
+      } else {
+        delay = Math.min(delay * 1.5, 5000);
+      }
+    } catch {
+      delay = Math.min(delay * 1.5, 5000);
+    } finally {
+      if (!stopped) t = setTimeout(tick, delay);
+    }
+  }
+
+  t = setTimeout(tick, 10);
+  return () => { stopped = true; clearTimeout(t); };
+}
+
+// ---- WebSocket with heartbeat + auto-reconnect; onDown() to fallback ----
+function socketStream({ url, onMessage, onDown }) {
+  let ws = null;
+  let alive = true;
+  let hbTimer = null;
+  let reconnectTimer = null;
+
+  function connect() {
+    try {
+      ws = new WebSocket(withAuthQS(url));
+    } catch {
+      onDown?.();
+      return;
+    }
+
+    ws.onopen = () => {
+      clearInterval(hbTimer);
+      hbTimer = setInterval(() => {
+        try { ws?.readyState === 1 && ws.send('{"type":"ping"}'); } catch {}
+      }, 20000);
+    };
+
+    ws.onmessage = (e) => {
+      try {
+        const data = JSON.parse(e.data);
+        onMessage?.(data);
+      } catch {}
+    };
+
+    ws.onerror = () => {};
+    ws.onclose = () => {
+      clearInterval(hbTimer);
+      if (!alive) return;
+      clearTimeout(reconnectTimer);
+      reconnectTimer = setTimeout(() => connect(), 1000);
+      onDown?.();
+    };
+  }
+
+  connect();
+  return {
+    stop() {
+      alive = false;
+      try { ws?.close(); } catch {}
+      clearInterval(hbTimer);
+      clearTimeout(reconnectTimer);
+    },
+  };
+}
+
+// ---- Core builder for a *single* gauge feed (rpm/speed/water/oil/fuel) ----
+function buildGaugeSubscriber({ key, httpPath, wsPath, intervalMs = 1000 }) {
+  return function subscribe(onUpdate) {
+    let cleanup = () => {};
+    const httpURL = `${TOS_BASE.replace(/\/$/, "")}${httpPath}`;
+    const wsURL   = `${TOS_WS_BASE.replace(/\/$/, "")}${wsPath}`;
+
+    // Prefer WebSocket if provided
+    if (TOS_WS_BASE) {
+      const stream = socketStream({
+        url: wsURL,
+        onMessage: (obj) => onUpdate(sanitizeGaugePayload(obj, key)),
+        onDown: () => {
+          // Fallback to polling once if WS fails
+          cleanup = pollLoop({
+            url: httpURL,
+            intervalMs,
+            onUpdate: (obj) => onUpdate(sanitizeGaugePayload(obj, key)),
+          });
+        },
+      });
+      cleanup = () => stream.stop();
+    } else {
+      // Polling only
+      cleanup = pollLoop({
+        url: httpURL,
+        intervalMs,
+        onUpdate: (obj) => onUpdate(sanitizeGaugePayload(obj, key)),
+      });
+    }
+
+    return () => cleanup?.();
+  };
+}
+
+// ---- Build each gauge subscriber (one feed per gauge) ----
+export const subscribeRPM   = buildGaugeSubscriber({
+  key: "rpm",
+  httpPath: "/gauges/rpm",
+  wsPath:   "/gauges/rpm",
+  intervalMs: 400,  // faster cadence for RPM (feel responsive)
+});
+
+export const subscribeSpeed = buildGaugeSubscriber({
+  key: "speed",
+  httpPath: "/gauges/speed",
+  wsPath:   "/gauges/speed",
+  intervalMs: 600,
+});
+
+export const subscribeWater = buildGaugeSubscriber({
+  key: "water",
+  httpPath: "/gauges/water",
+  wsPath:   "/gauges/water",
+  intervalMs: 1200,
+});
+
+export const subscribeOil   = buildGaugeSubscriber({
+  key: "oil",
+  httpPath: "/gauges/oil",
+  wsPath:   "/gauges/oil",
+  intervalMs: 1200,
+});
+
+export const subscribeFuel  = buildGaugeSubscriber({
+  key: "fuel",
+  httpPath: "/gauges/fuel",
+  wsPath:   "/gauges/fuel",
+  intervalMs: 1200,
+});
+
+// ---- Signals (combined booleans) ----
 export function subscribeSignals(onSignals) {
-  // MOCK: flip random lights (replace later)
-  const id = setInterval(() => {
-    const p = Math.random();
-    onSignals({
-      breakout: p < 0.12,
-      buy: p > 0.6 && p < 0.68,
-      sell: p > 0.68 && p < 0.76,
-      emaCross: p > 0.76 && p < 0.84,
-      stop: p > 0.84 && p < 0.92,
-      trail: p > 0.92,
+  let cleanup = () => {};
+  const httpURL = `${TOS_BASE.replace(/\/$/, "")}/signals`;
+  const wsURL   = `${TOS_WS_BASE.replace(/\/$/, "")}/signals`;
+
+  if (TOS_WS_BASE) {
+    const stream = socketStream({
+      url: wsURL,
+      onMessage: (obj) => onSignals(sanitizeSignalsPayload(obj)),
+      onDown: () => {
+        cleanup = pollLoop({
+          url: httpURL,
+          intervalMs: 1500,
+          onUpdate: (obj) => onSignals(sanitizeSignalsPayload(obj)),
+        });
+      },
     });
-  }, 2000);
+    cleanup = () => stream.stop();
+  } else {
+    cleanup = pollLoop({
+      url: httpURL,
+      intervalMs: 1500,
+      onUpdate: (obj) => onSignals(sanitizeSignalsPayload(obj)),
+    });
+  }
 
-  // Real backend example (polling):
-  // const id = setInterval(async () => {
-  //   const r = await fetch(`${TOS_BASE}/signals`, { cache: "no-store" });
-  //   if (r.ok) onSignals(await r.json());
-  // }, 1000);
-
-  // Or WebSocket example:
-  // const ws = new WebSocket(`${TOS_BASE_WS}/signals`);
-  // ws.onmessage = (e) => onSignals(JSON.parse(e.data));
-  // return () => ws.close();
-
-  return () => clearInterval(id);
+  return () => cleanup?.();
 }
