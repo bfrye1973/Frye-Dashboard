@@ -18,13 +18,13 @@
       window.__API_BASE__ = "https://frye-market-backend-1.onrender.com";
 
       /* TOS REST base (HTTP polling or fallback) */
-      window.__TOS_BASE__ = "https://YOUR-TOS-HTTP.example.com";   /* <-- CHANGE */
+      window.__TOS_BASE__ = "https://frye-market-backend-1.onrender.com";
 
       /* TOS WebSocket base (preferred). If no WS yet, set "" */
-      window.__TOS_WS_BASE__ = "wss://YOUR-TOS-WS.example.com";     /* <-- CHANGE or "" */
+      window.__TOS_WS_BASE__ = "wss://frye-market-backend-1.onrender.com";
 
       /* Optional: Bearer token if your server requires auth */
-      window.__TOS_TOKEN__ = "";                                    /* <-- OPTIONAL */
+      window.__TOS_TOKEN__ = ""; // keep empty unless REQUIRE_TOKEN=1
 
       /* ---- diagnostics banner so you can verify after deploy ---- */
       (function () {
