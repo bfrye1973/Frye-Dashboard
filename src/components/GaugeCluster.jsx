@@ -1,163 +1,297 @@
 // src/components/GaugeCluster.jsx
-import React from "react";
+import React, { useMemo } from "react";
 import { useDashboardPoll } from "../lib/dashboardApi";
+import "./GaugeCluster.css"; // optional: only if you want to split some styles
 
 /* ---------- helpers ---------- */
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
-const toDeg = (v, inMin, inMax, degMin = -130, degMax = 130) => {
-  const t = (clamp(v, inMin, inMax) - inMin) / (inMax - inMin || 1);
-  return degMin + t * (degMax - degMin);
+const map1000ToAngle = (x) => {
+  // maps [-1000..1000] -> [-130..+130] degrees
+  const t = clamp((x + 1000) / 2000, 0, 1);
+  return -130 + t * 260;
 };
+const fmt = (n) => (n ?? n === 0 ? n.toLocaleString() : "—");
 
-function Card({ className = "", children }) {
-  return <div className={`card ${className}`}>{children}</div>;
+/* Traffic-light freshness for last updated pill */
+function freshness(tsISO) {
+  try {
+    const ts = new Date(tsISO).getTime();
+    const ageSec = (Date.now() - ts) / 1000;
+    if (ageSec < 15 * 60) return { text: "Fresh", tone: "ok" };         // <15m
+    if (ageSec < 60 * 60) return { text: "Warming", tone: "warn" };     // 15–60m
+    return { text: "Stale", tone: "danger" };                           // >60m
+  } catch {
+    return { text: "Unknown", tone: "warn" };
+  }
 }
 
-/* ---------- big gauges (tach / speed) ---------- */
-function BigGauge({ label, value, vmin, vmax, accent = "var(--accent)" }) {
-  const deg = toDeg(value ?? 0, vmin, vmax, -130, 130);
+/* Small sparkline from an array of numbers */
+function Sparkline({ data = [], width = 120, height = 28 }) {
+  if (!data || data.length < 2) {
+    return <div className="muted">no data</div>;
+  }
+  const min = Math.min(...data);
+  const max = Math.max(...data);
+  const span = max - min || 1;
+  const stepX = width / (data.length - 1);
+  const d = data
+    .map((v, i) => {
+      const x = i * stepX;
+      const y = height - ((v - min) / span) * height;
+      return `${i === 0 ? "M" : "L"}${x.toFixed(2)},${y.toFixed(2)}`;
+    })
+    .join(" ");
   return (
-    <Card className="big-gauge">
-      <div className="gauge-label">{label}</div>
-      <div className="gauge-wrap">
-        <svg viewBox="0 0 200 200" className="gauge-svg">
-          <circle cx="100" cy="100" r="92" fill="none" stroke="rgba(255,255,255,.18)" strokeWidth="12" />
-          {Array.from({ length: 13 }).map((_, i) => {
-            const a = (-130 + i * (260 / 12)) * (Math.PI / 180);
-            const x1 = 100 + 78 * Math.cos(a), y1 = 100 + 78 * Math.sin(a);
-            const x2 = 100 + 92 * Math.cos(a), y2 = 100 + 92 * Math.sin(a);
-            return <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke="rgba(255,255,255,.5)" strokeWidth="3" />;
+    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
+      <path d={d} fill="none" stroke="currentColor" strokeWidth="2" />
+    </svg>
+  );
+}
+
+/* Capsule tag */
+function Tag({ tone = "info", children }) {
+  const cls = {
+    info: "tag tag-info",
+    ok: "tag tag-ok",
+    warn: "tag tag-warn",
+    danger: "tag tag-danger",
+  }[tone] || "tag tag-info";
+  return <span className={cls}>{children}</span>;
+}
+
+/* Engine light pill */
+function Light({ label, active, severity = "info" }) {
+  if (!active) return null;
+  const cls =
+    severity === "danger"
+      ? "light light-danger"
+      : severity === "warn"
+      ? "light light-warn"
+      : "light light-ok";
+  return <div className={cls}>{label}</div>;
+}
+
+/* Big Gauge (needle over a circular face) - simple SVG */
+function BigGauge({ title, value1000 = 0, face = "yellow" }) {
+  const angle = map1000ToAngle(value1000);
+  const w = 280;
+  const h = 280;
+  const cx = w / 2,
+    cy = h / 2,
+    r = 110;
+
+  const faceFill =
+    face === "red"
+      ? "radial-gradient(circle at 45% 40%, #ff6b6b, #b91c1c 65%, #1f2937 100%)"
+      : "radial-gradient(circle at 45% 40%, #ffe685, #f59e0b 65%, #1f2937 100%)";
+
+  return (
+    <div className="gauge-wrap">
+      <div className="gauge-face" style={{ background: faceFill }}>
+        <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`}>
+          {/* outer ring */}
+          <circle cx={cx} cy={cy} r={r + 26} fill="url(#cf)" />
+          <circle cx={cx} cy={cy} r={r + 22} fill="url(#bezel)" />
+          {/* perimeter ring under ticks */}
+          <circle cx={cx} cy={cy} r={r + 4} fill="none" stroke="#ef4444" strokeWidth="8" />
+          {/* ticks (every 10°, heavy every 30°) */}
+          {Array.from({ length: 27 }).map((_, i) => {
+            const a = -130 + i * 10;
+            const rad = ((a - 90) * Math.PI) / 180;
+            const inner = r - (a % 30 === 0 ? 18 : 10);
+            const x1 = cx + (r + 2) * Math.cos(rad);
+            const y1 = cy + (r + 2) * Math.sin(rad);
+            const x2 = cx + inner * Math.cos(rad);
+            const y2 = cy + inner * Math.sin(rad);
+            return (
+              <line
+                key={i}
+                x1={x1}
+                y1={y1}
+                x2={x2}
+                y2={y2}
+                stroke="#111"
+                strokeWidth={a % 30 === 0 ? 4 : 2}
+                opacity={0.9}
+              />
+            );
           })}
+          {/* needle */}
+          <g transform={`rotate(${angle} ${cx} ${cy})`}>
+            <rect
+              x={cx - 6}
+              y={cy - 2}
+              width={r + 18}
+              height={4}
+              fill="#fff"
+              rx="2"
+              ry="2"
+              style={{ filter: "drop-shadow(0 0 4px #000)" }}
+            />
+          </g>
+          {/* hub */}
+          <circle cx={cx} cy={cy} r={10} fill="#111" stroke="#aaa" strokeWidth="3" />
         </svg>
-        <div className="needle" style={{ transform: `translate(-50%,-100%) rotate(${deg}deg)`, background: accent }} />
-        <div className="hub" />
       </div>
-      <div className="gauge-value">{value ?? "—"}</div>
-    </Card>
+      <div className="gauge-title">{title}</div>
+    </div>
   );
 }
 
-/* ---------- mini gauges ---------- */
-function MiniGauge({ label, value = 0, min = 0, max = 100, unit = "" }) {
-  const pct = clamp((value - min) / (max - min || 1), 0, 1);
-  const deg = -130 + pct * 260;
+/* Mini round gauge with text value */
+function MiniGauge({ title, value, unit }) {
   return (
-    <Card className="mini-gauge">
-      <div className="gauge-label">{label}</div>
-      <div className="gauge-wrap small">
-        <svg viewBox="0 0 200 200" className="gauge-svg">
-          <circle cx="100" cy="100" r="90" fill="none" stroke="rgba(255,255,255,.18)" strokeWidth="12" />
-        </svg>
-        <div className="needle" style={{ transform: `translate(-50%,-100%) rotate(${deg}deg)` }} />
-        <div className="hub small" />
+    <div className="mini">
+      <div className="mini-face">
+        <div className="mini-value">
+          {fmt(value)} {unit}
+        </div>
       </div>
-      <div className="mini-value">{Math.round(value)}{unit}</div>
-    </Card>
+      <div className="mini-title">{title}</div>
+    </div>
   );
 }
 
-/* ---------- stat / pill ---------- */
-function StatBox({ label, value }) {
-  return (
-    <Card className="stat">
-      <div className="stat-label">{label}</div>
-      <div className="stat-value">{value ?? "—"}</div>
-    </Card>
-  );
-}
-function SignalPill({ label, active, severity = "info" }) {
-  const cls = !active
-    ? "pill off"
-    : severity === "danger" ? "pill danger"
-    : severity === "warn"   ? "pill warn"
-    : "pill ok";
-  return <span className={cls}>{label} {active ? "●" : "○"}</span>;
-}
-
-/* ---------- main ---------- */
+/* ---------- Main component ---------- */
 export default function GaugeCluster() {
-  const { data, loading, error, refresh } = useDashboardPoll(5000);
+  const { data, loading, error, refresh, lastFetchAt } = useDashboardPoll(5000);
 
-  if (loading) return <Card className="loading">Loading dashboard…</Card>;
-  if (error || !data) {
+  const metaTs = data?.meta?.ts;
+  const fresh = freshness(metaTs);
+
+  const sigs = data?.signals || {};
+  const listSignals = useMemo(() => {
+    const order = [
+      ["sigBreakout", "Breakout"],
+      ["sigExpansion", "Expansion"],
+      ["sigCompression", "Compression"],
+      ["sigTurbo", "Turbo"],
+      ["sigDistribution", "Distribution"],
+      ["sigDivergence", "Divergence"],
+      ["sigOverheat", "Overheat"],
+      ["sigLowLiquidity", "Low Liquidity"],
+    ];
+    return order
+      .map(([key, label]) => {
+        const s = sigs[key];
+        return s ? { label, active: !!s.active, severity: s.severity || "info" } : null;
+      })
+      .filter(Boolean);
+  }, [sigs]);
+
+  if (error) {
     return (
-      <Card className="error">
-        <div className="err-title">Error</div>
-        <div className="err-msg">{error || "No data"}</div>
-        <button className="btn" onClick={refresh}>Retry</button>
-      </Card>
+      <div className="panel">
+        <div className="panel-head">
+          <div className="panel-title">Ferrari Cluster</div>
+          <div className="spacer" />
+          <Tag tone="danger">Load failed</Tag>
+          <button className="btn" onClick={refresh}>Retry</button>
+        </div>
+        <div className="pad">Error: {String(error)}</div>
+      </div>
     );
   }
 
-  const { gauges = {}, odometers = {}, signals = {}, outlook = {}, meta = {} } = data;
-
-  const rpmVal = clamp(Number(gauges.rpm ?? 0), -1000, 1000);
-  const spdVal = clamp(Number(gauges.speed ?? 0), -1000, 1000);
-  const fuel   = clamp(Number(gauges.fuelPct ?? 50), 0, 100);
-  const water  = clamp(Number(gauges.waterTemp ?? 200), 160, 260);
-  const oil    = clamp(Number(gauges.oilPsi ?? 70), 0, 120);
-
   return (
     <div className="cluster">
-      <div className="cluster-head">
-        <div className="title">Ferrari Cluster — Live</div>
-        <div className="ts">ts: {meta.ts || "—"}</div>
-      </div>
+      {/* Header */}
+      <div className="panel">
+        <div className="panel-head">
+          <div className="panel-title">Ferrari Trading Cluster</div>
+          <div className="spacer" />
+          <Tag tone={fresh.tone}>{fresh.text}</Tag>
+          <div className="muted small" style={{ marginLeft: 8 }}>
+            {metaTs ? new Date(metaTs).toLocaleString() : "—"}
+          </div>
+          <button className="btn" onClick={refresh} disabled={loading} style={{ marginLeft: 8 }}>
+            {loading ? "Refreshing…" : "Refresh"}
+          </button>
+        </div>
 
-      {/* Big gauges */}
-      <div className="grid two">
-        <BigGauge label="RPM"   value={rpmVal} vmin={-1000} vmax={1000} accent="#ffd43b" />
-        <BigGauge label="Speed" value={spdVal} vmin={-1000} vmax={1000} accent="#ff4d4f" />
-      </div>
+        {/* Gauges row */}
+        <div className="row">
+          <div className="col col-left">
+            <MiniGauge title="Fuel" value={data?.gauges?.fuelPct} unit="%" />
+            <MiniGauge title="Water" value={data?.gauges?.waterTemp} unit="°F" />
+            <MiniGauge title="Oil" value={data?.gauges?.oilPsi} unit="PSI" />
+          </div>
 
-      {/* Mini gauges */}
-      <div className="grid three">
-        <MiniGauge label="Fuel %"   value={fuel}  min={0}   max={100} unit="%" />
-        <MiniGauge label="Water °F" value={water} min={160} max={260} unit="°F" />
-        <MiniGauge label="Oil PSI"  value={oil}   min={0}   max={120} unit="" />
-      </div>
+          <div className="col col-center">
+            <BigGauge
+              title="RPM"
+              face="yellow"
+              value1000={data?.gauges?.rpm ?? 0}
+            />
+          </div>
 
-      {/* Odometers */}
-      <div className="grid three">
-        <StatBox label="Breadth Odometer"  value={odometers.breadthOdometer} />
-        <StatBox label="Momentum Odometer" value={odometers.momentumOdometer} />
-        <StatBox label="Squeeze"           value={String(odometers.squeeze || "none")} />
-      </div>
+          <div className="col col-right">
+            <BigGauge
+              title="Speed"
+              face="red"
+              value1000={data?.gauges?.speed ?? 0}
+            />
+          </div>
+        </div>
 
-      {/* Signals */}
-      <div className="signals">
-        <div className="section-label">Engine Lights</div>
-        <div className="pill-row">
-          {[
-            ["sigBreakout", "Breakout"],
-            ["sigDistribution", "Distribution"],
-            ["sigTurbo", "Turbo"],
-            ["sigCompression", "Compression"],
-            ["sigExpansion", "Expansion"],
-            ["sigDivergence", "Divergence"],
-            ["sigOverheat", "Overheat"],
-            ["sigLowLiquidity", "Low Liquidity"]
-          ].map(([k, label]) => {
-            const s = signals[k] || {};
-            return <SignalPill key={k} label={label} active={!!s.active} severity={s.severity || "info"} />;
-          })}
+        {/* Odometers */}
+        <div className="row odos">
+          <div className="odo">
+            <div className="odo-label">Breadth</div>
+            <div className="odo-value">{fmt(data?.odometers?.breadthOdometer)}</div>
+          </div>
+          <div className="odo">
+            <div className="odo-label">Momentum</div>
+            <div className="odo-value">{fmt(data?.odometers?.momentumOdometer)}</div>
+          </div>
+          <div className="odo">
+            <div className="odo-label">Squeeze</div>
+            <div className="odo-value">{data?.odometers?.squeeze ?? "—"}</div>
+          </div>
+        </div>
+
+        {/* Engine Lights */}
+        <div className="row lights">
+          {listSignals.length === 0 && <div className="muted">No active signals</div>}
+          {listSignals.map((s, i) => (
+            <Light key={i} label={s.label} active={s.active} severity={s.severity} />
+          ))}
         </div>
       </div>
 
       {/* Sectors */}
-      <div className="sectors">
-        <div className="section-label">Sectors</div>
-        <div className="grid three">
-          {(outlook.sectorCards || []).map((c, i) => (
-            <Card key={i}>
-              <div className="card-row">
-                <div className="sector">{c.sector}</div>
-                <div className="outlook">{c.outlook}</div>
+      <div className="panel">
+        <div className="panel-head">
+          <div className="panel-title">Sectors</div>
+        </div>
+        <div className="sectors-grid">
+          {(data?.outlook?.sectorCards ?? []).map((c, i) => (
+            <div key={i} className="sector-card">
+              <div className="sector-head">
+                <div className="sector-name">{c.sector}</div>
+                <Tag
+                  tone={
+                    c.outlook === "Bullish"
+                      ? "ok"
+                      : c.outlook === "Bearish"
+                      ? "danger"
+                      : "info"
+                  }
+                >
+                  {c.outlook}
+                </Tag>
               </div>
-              <div className="spark">spark: {Array.isArray(c.spark) ? c.spark.join(", ") : "—"}</div>
-            </Card>
+              <div className="sector-spark">
+                <Sparkline data={c.spark} />
+              </div>
+            </div>
           ))}
         </div>
+      </div>
+
+      {/* Footer */}
+      <div className="muted small" style={{ textAlign: "right" }}>
+        Last fetch: {lastFetchAt ? new Date(lastFetchAt).toLocaleTimeString() : "—"}
       </div>
     </div>
   );
