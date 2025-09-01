@@ -1,5 +1,15 @@
+// src/components/GaugeCluster.jsx
 import React from "react";
 import { useDashboardPoll } from "../lib/dashboardApi";
+
+function Stat({ label, value }) {
+  return (
+    <div className="p-3 rounded-xl border border-gray-700 bg-zinc-900">
+      <div className="text-xs opacity-70">{label}</div>
+      <div className="text-lg font-semibold">{value ?? "—"}</div>
+    </div>
+  );
+}
 
 export default function GaugeCluster() {
   const { data, loading, error, refresh } = useDashboardPoll(5000);
@@ -90,7 +100,7 @@ export default function GaugeCluster() {
         </div>
       </div>
 
-      {/* Sector cards (simple list for now) */}
+      {/* Sector cards */}
       <div className="mt-2">
         <div className="text-xs uppercase tracking-wide opacity-70 mb-1">Sectors</div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -107,15 +117,6 @@ export default function GaugeCluster() {
           ))}
         </div>
       </div>
-    </div>
-  );
-}
-
-function Stat({ label, value }) {
-  return (
-    <div className="p-3 rounded-xl border border-gray-700 bg-zinc-900">
-      <div className="text-xs opacity-70">{label}</div>
-      <div className="text-lg font-semibold">{value ?? "—"}</div>
     </div>
   );
 }
