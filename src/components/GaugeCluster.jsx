@@ -1,35 +1,28 @@
 // src/components/GaugeCluster.jsx
 import React, { useMemo } from "react";
 import { useDashboardPoll } from "../lib/dashboardApi";
-import "./GaugeCluster.css"; // optional: only if you want to split some styles
 
-/* ---------- helpers ---------- */
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 const map1000ToAngle = (x) => {
-  // maps [-1000..1000] -> [-130..+130] degrees
   const t = clamp((x + 1000) / 2000, 0, 1);
   return -130 + t * 260;
 };
 const fmt = (n) => (n ?? n === 0 ? n.toLocaleString() : "—");
 
-/* Traffic-light freshness for last updated pill */
 function freshness(tsISO) {
   try {
     const ts = new Date(tsISO).getTime();
     const ageSec = (Date.now() - ts) / 1000;
-    if (ageSec < 15 * 60) return { text: "Fresh", tone: "ok" };         // <15m
-    if (ageSec < 60 * 60) return { text: "Warming", tone: "warn" };     // 15–60m
-    return { text: "Stale", tone: "danger" };                           // >60m
+    if (ageSec < 15 * 60) return { text: "Fresh", tone: "ok" };
+    if (ageSec < 60 * 60) return { text: "Warming", tone: "warn" };
+    return { text: "Stale", tone: "danger" };
   } catch {
     return { text: "Unknown", tone: "warn" };
   }
 }
 
-/* Small sparkline from an array of numbers */
 function Sparkline({ data = [], width = 120, height = 28 }) {
-  if (!data || data.length < 2) {
-    return <div className="muted">no data</div>;
-  }
+  if (!data || data.length < 2) return <div className="muted">no data</div>;
   const min = Math.min(...data);
   const max = Math.max(...data);
   const span = max - min || 1;
@@ -48,7 +41,6 @@ function Sparkline({ data = [], width = 120, height = 28 }) {
   );
 }
 
-/* Capsule tag */
 function Tag({ tone = "info", children }) {
   const cls = {
     info: "tag tag-info",
@@ -59,7 +51,6 @@ function Tag({ tone = "info", children }) {
   return <span className={cls}>{children}</span>;
 }
 
-/* Engine light pill */
 function Light({ label, active, severity = "info" }) {
   if (!active) return null;
   const cls =
@@ -71,15 +62,9 @@ function Light({ label, active, severity = "info" }) {
   return <div className={cls}>{label}</div>;
 }
 
-/* Big Gauge (needle over a circular face) - simple SVG */
 function BigGauge({ title, value1000 = 0, face = "yellow" }) {
   const angle = map1000ToAngle(value1000);
-  const w = 280;
-  const h = 280;
-  const cx = w / 2,
-    cy = h / 2,
-    r = 110;
-
+  const w = 280, h = 280, cx = w / 2, cy = h / 2, r = 110;
   const faceFill =
     face === "red"
       ? "radial-gradient(circle at 45% 40%, #ff6b6b, #b91c1c 65%, #1f2937 100%)"
@@ -89,12 +74,9 @@ function BigGauge({ title, value1000 = 0, face = "yellow" }) {
     <div className="gauge-wrap">
       <div className="gauge-face" style={{ background: faceFill }}>
         <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`}>
-          {/* outer ring */}
           <circle cx={cx} cy={cy} r={r + 26} fill="url(#cf)" />
           <circle cx={cx} cy={cy} r={r + 22} fill="url(#bezel)" />
-          {/* perimeter ring under ticks */}
           <circle cx={cx} cy={cy} r={r + 4} fill="none" stroke="#ef4444" strokeWidth="8" />
-          {/* ticks (every 10°, heavy every 30°) */}
           {Array.from({ length: 27 }).map((_, i) => {
             const a = -130 + i * 10;
             const rad = ((a - 90) * Math.PI) / 180;
@@ -116,7 +98,6 @@ function BigGauge({ title, value1000 = 0, face = "yellow" }) {
               />
             );
           })}
-          {/* needle */}
           <g transform={`rotate(${angle} ${cx} ${cy})`}>
             <rect
               x={cx - 6}
@@ -129,7 +110,6 @@ function BigGauge({ title, value1000 = 0, face = "yellow" }) {
               style={{ filter: "drop-shadow(0 0 4px #000)" }}
             />
           </g>
-          {/* hub */}
           <circle cx={cx} cy={cy} r={10} fill="#111" stroke="#aaa" strokeWidth="3" />
         </svg>
       </div>
@@ -138,7 +118,6 @@ function BigGauge({ title, value1000 = 0, face = "yellow" }) {
   );
 }
 
-/* Mini round gauge with text value */
 function MiniGauge({ title, value, unit }) {
   return (
     <div className="mini">
@@ -152,10 +131,8 @@ function MiniGauge({ title, value, unit }) {
   );
 }
 
-/* ---------- Main component ---------- */
 export default function GaugeCluster() {
   const { data, loading, error, refresh, lastFetchAt } = useDashboardPoll(5000);
-
   const metaTs = data?.meta?.ts;
   const fresh = freshness(metaTs);
 
@@ -185,7 +162,7 @@ export default function GaugeCluster() {
         <div className="panel-head">
           <div className="panel-title">Ferrari Cluster</div>
           <div className="spacer" />
-          <Tag tone="danger">Load failed</Tag>
+          <span className="tag tag-danger">Load failed</span>
           <button className="btn" onClick={refresh}>Retry</button>
         </div>
         <div className="pad">Error: {String(error)}</div>
@@ -195,12 +172,13 @@ export default function GaugeCluster() {
 
   return (
     <div className="cluster">
-      {/* Header */}
       <div className="panel">
         <div className="panel-head">
           <div className="panel-title">Ferrari Trading Cluster</div>
           <div className="spacer" />
-          <Tag tone={fresh.tone}>{fresh.text}</Tag>
+          <span className={`tag ${fresh.tone === "ok" ? "tag-ok" : fresh.tone === "warn" ? "tag-warn" : "tag-danger"}`}>
+            {fresh.text}
+          </span>
           <div className="muted small" style={{ marginLeft: 8 }}>
             {metaTs ? new Date(metaTs).toLocaleString() : "—"}
           </div>
@@ -209,32 +187,20 @@ export default function GaugeCluster() {
           </button>
         </div>
 
-        {/* Gauges row */}
         <div className="row">
-          <div className="col col-left">
+          <div className="col-left">
             <MiniGauge title="Fuel" value={data?.gauges?.fuelPct} unit="%" />
             <MiniGauge title="Water" value={data?.gauges?.waterTemp} unit="°F" />
             <MiniGauge title="Oil" value={data?.gauges?.oilPsi} unit="PSI" />
           </div>
-
-          <div className="col col-center">
-            <BigGauge
-              title="RPM"
-              face="yellow"
-              value1000={data?.gauges?.rpm ?? 0}
-            />
+          <div className="col-center">
+            <BigGauge title="RPM" face="yellow" value1000={data?.gauges?.rpm ?? 0} />
           </div>
-
-          <div className="col col-right">
-            <BigGauge
-              title="Speed"
-              face="red"
-              value1000={data?.gauges?.speed ?? 0}
-            />
+          <div className="col-right">
+            <BigGauge title="Speed" face="red" value1000={data?.gauges?.speed ?? 0} />
           </div>
         </div>
 
-        {/* Odometers */}
         <div className="row odos">
           <div className="odo">
             <div className="odo-label">Breadth</div>
@@ -250,7 +216,6 @@ export default function GaugeCluster() {
           </div>
         </div>
 
-        {/* Engine Lights */}
         <div className="row lights">
           {listSignals.length === 0 && <div className="muted">No active signals</div>}
           {listSignals.map((s, i) => (
@@ -259,7 +224,6 @@ export default function GaugeCluster() {
         </div>
       </div>
 
-      {/* Sectors */}
       <div className="panel">
         <div className="panel-head">
           <div className="panel-title">Sectors</div>
@@ -269,17 +233,12 @@ export default function GaugeCluster() {
             <div key={i} className="sector-card">
               <div className="sector-head">
                 <div className="sector-name">{c.sector}</div>
-                <Tag
-                  tone={
-                    c.outlook === "Bullish"
-                      ? "ok"
-                      : c.outlook === "Bearish"
-                      ? "danger"
-                      : "info"
-                  }
-                >
+                <span className={
+                  c.outlook === "Bullish" ? "tag tag-ok" :
+                  c.outlook === "Bearish" ? "tag tag-danger" : "tag tag-info"
+                }>
                   {c.outlook}
-                </Tag>
+                </span>
               </div>
               <div className="sector-spark">
                 <Sparkline data={c.spark} />
@@ -289,7 +248,6 @@ export default function GaugeCluster() {
         </div>
       </div>
 
-      {/* Footer */}
       <div className="muted small" style={{ textAlign: "right" }}>
         Last fetch: {lastFetchAt ? new Date(lastFetchAt).toLocaleTimeString() : "—"}
       </div>
