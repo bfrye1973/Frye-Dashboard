@@ -1,208 +1,190 @@
+/* =========================================================
+   Frye Dashboard — Ferrari Cluster UI
+   COMPLETE index.css (for Create React App)
+   ========================================================= */
+
+/* ---------- Optional Theme Tokens ---------- */
 :root {
-  --bg: #0a0a0a;
-  --panel: #121212;
-  --border: #2b2b2b;
-  --text: #e6e6e6;
-  --muted: #a7a7a7;
-  --accent: #ffd43b;
+  --bg: #0d1117;
+  --panel: #0e1526;
+  --border: #1f2a44;
+  --text: #d1d4dc;
+  --muted: #9aa4b2;
+
+  /* accents */
+  --accent-red: #ff2d2d;
+  --accent-blue: #60a5fa;
+  --accent-green: #34d399;
+  --accent-yellow: #fbbf24;
 }
 
+/* ---------- Base / Reset ---------- */
 * { box-sizing: border-box; }
 html, body, #root { height: 100%; }
-body { margin: 0; background: var(--bg); color: var(--text); font-family: ui-sans-serif, system-ui, Segoe UI, Roboto, Arial, "Apple Color Emoji", "Segoe UI Emoji"; }
+body {
+  margin: 0;
+  color: var(--text);
+  background: var(--bg);
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto,
+               "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji",
+               "Segoe UI Emoji";
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+a { color: var(--accent-blue); text-decoration: none; }
+a:hover { text-decoration: underline; }
+button { font: inherit; cursor: pointer; }
 
-.page { min-height: 100%; }
-.container { max-width: 1200px; margin: 0 auto; padding: 16px; }
+/* Utilities */
+.muted { opacity: .7; }
+.small { font-size: 12px; }
+.spacer { flex: 1; }
 
-.cluster { display: flex; flex-direction: column; gap: 16px; }
-.cluster-head { display: flex; justify-content: space-between; align-items: baseline; }
-.title { font-size: 20px; font-weight: 700; }
-.ts { font-size: 12px; color: var(--muted); opacity: .8; }
+/* =========================================================
+   Page Shell
+   ========================================================= */
+.app-shell { min-height: 100%; display: grid; grid-template-rows: auto 1fr; }
 
-.grid { display: grid; gap: 12px; }
-.grid.two { grid-template-columns: repeat(1, minmax(0, 1fr)); }
-@media (min-width: 820px) { .grid.two { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-.grid.three { grid-template-columns: repeat(1, minmax(0, 1fr)); }
-@media (min-width: 820px) { .grid.three { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.header {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  background: #0b1220;
+}
+.header h2 { margin: 0; font-weight: 700; }
 
-.card { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 12px; }
-.card-row { display: flex; justify-content: space-between; align-items: center; }
-.sector { font-weight: 600; }
-.outlook { font-size: 12px; color: var(--muted); }
-.spark { margin-top: 6px; font-size: 12px; color: var(--muted); }
-
-.big-gauge { text-align: center; }
-.mini-gauge { text-align: center; }
-.gauge-label { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
-.gauge-wrap { position: relative; width: 224px; height: 224px; margin: 0 auto; }
-.gauge-wrap.small { width: 128px; height: 128px; }
-.gauge-svg { width: 100%; height: 100%; display: block; }
-.needle { position: absolute; left: 50%; top: 50%; width: 2px; height: 44%; background: #fff; transform-origin: bottom center; border-radius: 2px; }
-.hub { position: absolute; left: 50%; top: 50%; width: 18px; height: 18px; transform: translate(-50%,-50%); background: #fff; border-radius: 999px; }
-.hub.small { width: 12px; height: 12px; }
-.gauge-value { margin-top: 6px; font-size: 18px; font-weight: 700; }
-.mini-value { margin-top: 4px; font-size: 14px; font-weight: 700; }
-
-.stat .stat-label { font-size: 12px; color: var(--muted); }
-.stat .stat-value { font-size: 18px; font-weight: 700; margin-top: 4px; }
-
-.signals .section-label { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
-.pill-row { display: flex; flex-wrap: wrap; gap: 8px; }
-.pill { font-size: 12px; font-weight: 700; padding: 6px 10px; border-radius: 999px; border: 1px solid var(--border); }
-.pill.off { background: #2b2b2b; color: #cfcfcf; }
-.pill.ok { background: #4ade80; color: #0a0a0a; }
-.pill.warn { background: #facc15; color: #0a0a0a; }
-.pill.danger { background: #ef4444; color: #fff; }
-
-.loading, .error { text-align: left; }
-.err-title { font-weight: 700; margin-bottom: 4px; }
-.err-msg { font-size: 13px; opacity: .9; }
-.btn { margin-top: 8px; background: #ef4444; color: white; border: 0; border-radius: 8px; padding: 6px 10px; cursor: pointer; }
-.btn:hover { filter: brightness(1.05); }
-/* Layout */
+/* =========================================================
+   Panels & Layout
+   ========================================================= */
 .cluster { display: grid; gap: 14px; }
+
 .panel {
-  background: #0e1526;
-  border: 1px solid #1f2a44;
-  border-radius: 12px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 14px;
   padding: 12px;
 }
-.panel-head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
-.panel-title { font-weight: 600; }
-.spacer { flex: 1; }
+
+.panel-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.panel-title { font-weight: 700; }
+
+/* Row used for odometers & other grid areas */
 .row { display: grid; gap: 12px; }
-.col-left { display: flex; flex-direction: column; gap: 10px; align-items: center; }
-.col-center, .col-right { display: flex; align-items: center; justify-content: center; }
 
-/* responsive */
-@media (min-width: 980px) {
-  .row { grid-template-columns: 1fr 2fr 2fr; }
-}
-@media (max-width: 979px) {
-  .row { grid-template-columns: 1fr; }
-}
-
-/* Big gauges */
-.gauge-wrap { display:flex; flex-direction:column; align-items:center; }
-.gauge-face {
-  width: 300px; height: 300px; border-radius: 50%;
-  border: 16px solid #111; box-shadow: inset 0 0 20px #000, 0 0 18px #000;
-  display:flex; align-items:center; justify-content:center;
-}
-.gauge-title { margin-top: 6px; font-weight: 600; }
-
-/* Mini gauges */
-.mini { display:flex; flex-direction:column; align-items:center; }
-.mini-face {
-  width: 110px; height: 110px; border-radius: 50%;
-  background: radial-gradient(circle at 30% 30%, #1a1a1a, #000);
-  border: 4px solid #555; display:flex; align-items:center; justify-content:center;
-  box-shadow: inset 0 0 12px #000, 0 0 8px #111;
-}
-.mini-value { font-size: 14px; font-weight: 600; color: #e5e7eb; }
-.mini-title { margin-top: 6px; font-size: 12px; opacity: .8; }
-
-/* Odometers */
-.odos { grid-template-columns: repeat(3, 1fr); }
-.odo { background:#0b1220; border:1px solid #1f2a44; border-radius:10px; padding:10px; text-align:center; }
-.odo-label { font-size:12px; opacity:.7; }
-.odo-value { font-size:20px; font-weight:700; }
-
-/* Engine lights */
-.lights { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
-.light {
-  padding: 6px 10px; border-radius: 8px; font-weight: 700; font-size: 12px;
-  box-shadow: 0 0 10px rgba(0,0,0,.35);
-}
-.light-ok { background:#064e3b; color:#d1fae5; border:1px solid #065f46; box-shadow: 0 0 10px rgba(16,185,129,.45); }
-.light-warn { background:#5b4508; color:#fde68a; border:1px solid #a16207; box-shadow: 0 0 10px rgba(234,179,8,.45); }
-.light-danger { background:#7f1d1d; color:#fecaca; border:1px solid #b91c1c; box-shadow: 0 0 10px rgba(248,113,113,.45); }
-
-/* Tags & buttons */
-.tag { padding: 3px 8px; border-radius: 10px; font-size: 12px; border:1px solid #334155; }
-.tag-info { background:#0b1220; color:#93c5fd; }
-.tag-ok { background:#052e1b; color:#34d399; border-color:#14532d; }
-.tag-warn { background:#2a1f05; color:#fbbf24; border-color:#7c5806; }
-.tag-danger { background:#3a0e0e; color:#fca5a5; border-color:#7f1d1d; }
-
-.btn { padding:6px 10px; border:1px solid #334155; background:#0b1220; color:#e5e7eb; border-radius:8px; cursor:pointer; }
-.btn:disabled { opacity:.6; cursor:default; }
-
-.muted { opacity:.7; }
-.small { font-size:12px; }
-
-/* Sectors */
-.sectors-grid { display:grid; gap:10px; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
-.sector-card { border:1px solid #1f2a44; background:#0b1220; border-radius:10px; padding:10px; }
-.sector-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; }
-.sector-name { font-weight:700; }
-.sector-spark { color:#60a5fa; }
-/* Base */
-* { box-sizing: border-box; }
-body { margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial; }
-.muted { opacity:.7; } .small { font-size:12px; }
-
-/* Layout */
-.cluster { display: grid; gap: 14px; }
-.panel { background:#0e1526; border:1px solid #1f2a44; border-radius:12px; padding:12px; }
-.panel-head { display:flex; align-items:center; gap:8px; margin-bottom:10px; }
-.panel-title { font-weight:600; } .spacer { flex:1; }
-.row { display:grid; gap:12px; }
-.col-left { display:flex; flex-direction:column; gap:10px; align-items:center; }
-.col-center, .col-right { display:flex; align-items:center; justify-content:center; }
-
-/* responsive */
+/* Responsive column rules for the top gauge row (if used) */
 @media (min-width: 980px) { .row { grid-template-columns: 1fr 2fr 2fr; } }
 @media (max-width: 979px) { .row { grid-template-columns: 1fr; } }
 
-/* Big gauges */
-.gauge-wrap { display:flex; flex-direction:column; align-items:center; }
-.gauge-face {
-  width:300px; height:300px; border-radius:50%;
-  border:16px solid #111; box-shadow: inset 0 0 20px #000, 0 0 18px #000;
-  display:flex; align-items:center; justify-content:center;
-}
-.gauge-title { margin-top:6px; font-weight:600; }
+/* =========================================================
+   Ferrari Cluster (tight center pair + side mini gauges)
+   ========================================================= */
+.cluster-row { display: flex; gap: 22px; align-items: center; justify-content: center; }
+.left-stack   { display: flex; flex-direction: column; gap: 12px; margin-right: 12px; }
+.center-pair  { display: flex; gap: 24px; align-items: center; }
 
-/* Mini gauges */
-.mini { display:flex; flex-direction:column; align-items:center; }
+/* Big Gauge wrapper */
+.fg-wrap { display: flex; flex-direction: column; align-items: center; }
+.fg-title { margin-top: 6px; font-weight: 700; }
+
+/* =========================================================
+   Big Gauge Face
+   (The SVG visuals themselves are built in JSX; these styles
+   add bezel, ring, and container polish.)
+   ========================================================= */
+.gauge-face {
+  width: 300px;
+  height: 300px;
+  border-radius: 50%;
+  border: 16px solid #111;
+  box-shadow: inset 0 0 20px #000, 0 0 18px #000;
+  display: flex; align-items: center; justify-content: center;
+}
+
+/* =========================================================
+   Mini Gauges (Fuel / Water / Oil)
+   ========================================================= */
+.mini { display: flex; flex-direction: column; align-items: center; }
 .mini-face {
-  width:110px; height:110px; border-radius:50%;
+  width: 110px; height: 110px; border-radius: 50%;
   background: radial-gradient(circle at 30% 30%, #1a1a1a, #000);
-  border:4px solid #555; display:flex; align-items:center; justify-content:center;
+  border: 4px solid #555;
+  display: flex; align-items: center; justify-content: center;
   box-shadow: inset 0 0 12px #000, 0 0 8px #111;
 }
-.mini-value { font-size:14px; font-weight:600; color:#e5e7eb; }
-.mini-title { margin-top:6px; font-size:12px; opacity:.8; }
+.mini-value { font-size: 14px; font-weight: 700; color: #e5e7eb; }
+.mini-title { margin-top: 6px; font-size: 12px; opacity: .8; }
 
-/* Odometers */
-.odos { grid-template-columns: repeat(3, 1fr); }
-.odo { background:#0b1220; border:1px solid #1f2a44; border-radius:10px; padding:10px; text-align:center; }
-.odo-label { font-size:12px; opacity:.7; }
-.odo-value { font-size:20px; font-weight:700; }
+/* =========================================================
+   Odometers
+   ========================================================= */
+.odos { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 10px; }
+.odo  {
+  background: #0b1220;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px;
+  text-align: center;
+}
+.odo-label { font-size: 12px; opacity: .7; }
+.odo-value { font-size: 20px; font-weight: 800; }
 
-/* Engine lights */
-.lights { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
-.light { padding:6px 10px; border-radius:8px; font-weight:700; font-size:12px; box-shadow:0 0 10px rgba(0,0,0,.35); }
-.light-ok { background:#064e3b; color:#d1fae5; border:1px solid #065f46; box-shadow:0 0 10px rgba(16,185,129,.45); }
-.light-warn { background:#5b4508; color:#fde68a; border:1px solid #a16207; box-shadow:0 0 10px rgba(234,179,8,.45); }
-.light-danger { background:#7f1d1d; color:#fecaca; border:1px solid #b91c1c; box-shadow:0 0 10px rgba(248,113,113,.45); }
+/* =========================================================
+   Engine Lights Row (signal pills)
+   ========================================================= */
+.lights { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; justify-content: center; }
+.light {
+  padding: 6px 10px; border-radius: 8px; font-weight: 800; font-size: 12px;
+  box-shadow: 0 0 10px rgba(0,0,0,.35);
+}
+.light-ok    { background: #064e3b; color: #d1fae5; border: 1px solid #065f46; box-shadow: 0 0 10px rgba(16,185,129,.45); }
+.light-warn  { background: #5b4508; color: #fde68a; border: 1px solid #a16207; box-shadow: 0 0 10px rgba(234,179,8,.45); }
+.light-danger{ background: #7f1d1d; color: #fecaca; border: 1px solid #b91c1c; box-shadow: 0 0 10px rgba(248,113,113,.45); }
 
-/* Tags & buttons */
-.tag { padding:3px 8px; border-radius:10px; font-size:12px; border:1px solid #334155; }
-.tag-info { background:#0b1220; color:#93c5fd; }
-.tag-ok { background:#052e1b; color:#34d399; border-color:#14532d; }
-.tag-warn { background:#2a1f05; color:#fbbf24; border-color:#7c5806; }
-.tag-danger { background:#3a0e0e; color:#fca5a5; border-color:#7f1d1d; }
-.btn { padding:6px 10px; border:1px solid #334155; background:#0b1220; color:#e5e7eb; border-radius:8px; cursor:pointer; }
-.btn:disabled { opacity:.6; cursor:default; }
+/* =========================================================
+   Tags & Buttons
+   ========================================================= */
+.tag {
+  padding: 3px 8px;
+  border-radius: 10px;
+  font-size: 12px;
+  border: 1px solid #334155;
+}
+.tag-info   { background: #0b1220; color: #93c5fd; }
+.tag-ok     { background: #052e1b; color: #34d399; border-color: #14532d; }
+.tag-warn   { background: #2a1f05; color: #fbbf24; border-color: #7c5806; }
+.tag-danger { background: #3a0e0e; color: #fca5a5; border-color: #7f1d1d; }
 
-/* Sectors */
-.sectors-grid { display:grid; gap:10px; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
-.sector-card { border:1px solid #1f2a44; background:#0b1220; border-radius:10px; padding:10px; }
-.sector-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; }
-.sector-name { font-weight:700; }
-.sector-spark { color:#60a5fa; }
+.btn {
+  padding: 6px 10px;
+  border: 1px solid #334155;
+  background: #0b1220;
+  color: #e5e7eb;
+  border-radius: 8px;
+}
+.btn:disabled { opacity: .6; cursor: default; }
 
-/* SVG defs used by BigGauge rings */
+/* =========================================================
+   Sectors Grid + Cards
+   ========================================================= */
+.sectors-grid { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+.sector-card  { border: 1px solid var(--border); background: #0b1220; border-radius: 10px; padding: 10px; }
+.sector-head  { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+.sector-name  { font-weight: 700; }
+.sector-spark { color: var(--accent-blue); }
+
+/* =========================================================
+   Responsive
+   ========================================================= */
+@media (max-width: 980px) {
+  .cluster-row { flex-direction: column; }
+  .center-pair { gap: 14px; }
+}
+
+/* =========================================================
+   SVG helpers (defs placeholders to avoid optimizer quirks)
+   ========================================================= */
 svg defs, svg linearGradient, svg radialGradient { }
