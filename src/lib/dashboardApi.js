@@ -4,7 +4,7 @@ const BASE_URL = "https://frye-market-backend-1.onrender.com";
 /** Fetch the dashboard JSON once */
 export async function fetchDashboard() {
   const ctrl = new AbortController();
-  const id = setTimeout(() => ctrl.abort(), 8000); // 8s safety timeout
+  const id = setTimeout(() => ctrl.abort(), 8000); // 8s timeout
 
   const res = await fetch(`${BASE_URL}/api/dashboard`, {
     method: "GET",
