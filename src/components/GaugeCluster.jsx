@@ -1,5 +1,5 @@
 // src/components/GaugeCluster.jsx
-// Ferrari Dashboard cluster — R7.2 (freshness badge + real mini-gauge ranges)
+// Ferrari Dashboard — R8: Ferrari tach/speedo numerals + redline arc + centered cockpit
 
 import React from "react";
 import { useDashboardPoll } from "../lib/dashboardApi";
@@ -13,28 +13,17 @@ function timeAgo(ts) {
     const m = Math.floor(s / 60);
     if (m < 60) return `${m}m ago`;
     return `${Math.floor(m / 60)}h ago`;
-  } catch {
-    return "—";
-  }
+  } catch { return "—"; }
 }
 function freshnessColor(ts) {
   try {
     const t = new Date(ts).getTime();
     const mins = (Date.now() - t) / 60000;
-    if (mins < 15) return "#22c55e"; // green
-    if (mins < 60) return "#f59e0b"; // yellow
-    return "#ef4444";               // red
-  } catch {
-    return "#6b7280";               // gray
-  }
+    if (mins < 15) return "#22c55e";
+    if (mins < 60) return "#f59e0b";
+    return "#ef4444";
+  } catch { return "#6b7280"; }
 }
-const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
-const mapToDeg = (v, lo, hi) => {
-  // maps [lo..hi] -> [-130..+130] degrees
-  const t = (clamp(v, lo, hi) - lo) / (hi - lo || 1);
-  return -130 + 260 * t;
-};
-
 const Panel = ({ title, children, className = "" }) => (
   <div className={`panel ${className}`}>
     {title ? (
@@ -46,18 +35,15 @@ const Panel = ({ title, children, className = "" }) => (
   </div>
 );
 
-/* ---------- engine-light pill ---------- */
-/* states: off | ok | warn | danger */
-const Pill = ({ label, state = "off", icon = "" }) => {
-  return (
-    <span className={`light ${state}`} aria-label={`${label}: ${state}`}>
-      <span className="light-icon" role="img" aria-hidden>
-        {icon}
-      </span>
-      <span className="light-text">{label}</span>
+/* ---------- engine-light pill (kept as-is) ---------- */
+const Pill = ({ label, state = "off", icon = "" }) => (
+  <span className={`light ${state}`} aria-label={`${label}: ${state}`}>
+    <span className="light-icon" role="img" aria-hidden>
+      {icon}
     </span>
-  );
-};
+    <span className="light-text">{label}</span>
+  </span>
+);
 
 /* ---------- main ---------- */
 export default function GaugeCluster() {
@@ -65,63 +51,37 @@ export default function GaugeCluster() {
   const ts = data?.meta?.ts || null;
   const color = freshnessColor(ts);
 
-  // Build engine-light states
+  // Signal → light mapping (unchanged)
   const s = data?.signals || {};
   const squeeze = String(data?.odometers?.squeeze || "none");
-
-  const mapSig = (sig) => {
-    if (!sig || !sig.active) return "off";
-    const sev = String(sig.severity || "info").toLowerCase();
-    return sev === "danger" ? "danger" : sev === "warn" ? "warn" : "ok";
-  };
-
-  const squeezeState =
-    squeeze === "firingDown" ? "danger" :
-    squeeze === "firingUp"   ? "ok"     :
-    squeeze === "on"         ? "warn"   : "off";
-
+  const mapSig = (sig) => (!sig || !sig.active) ? "off" : (String(sig.severity || "info").toLowerCase() === "danger" ? "danger" : String(sig.severity).toLowerCase() === "warn" ? "warn" : "ok");
+  const squeezeState = squeeze === "firingDown" ? "danger" : squeeze === "firingUp" ? "ok" : squeeze === "on" ? "warn" : "off";
   const lights = [
-    { label: "Breakout",         state: mapSig(s.sigBreakout),      icon: "📈" },
-    { label: "Squeeze",          state: squeezeState,               icon: "⏳" },
-    { label: "Overextended",     state: mapSig(s.sigOverheat),      icon: "🚀" },
-    { label: "Distribution",     state: mapSig(s.sigDistribution),  icon: "📉" },
-    { label: "Divergence",       state: mapSig(s.sigDivergence),    icon: "↔️" },
-    { label: "Risk Alert",       state: mapSig(s.sigOverheat),      icon: "⚡" },
-    { label: "Liquidity Weak",   state: mapSig(s.sigLowLiquidity),  icon: "💧" },
-    { label: "Turbo",            state: mapSig(s.sigTurbo),         icon: "⚡" },
-    // placeholders (OFF by default; wire when ready)
-    { label: "News",             state: "off",                      icon: "📰" },
-    { label: "Earnings",         state: "off",                      icon: "📊" },
-    { label: "Halt",             state: "off",                      icon: "⛔" },
-    { label: "Circuit",          state: "off",                      icon: "🛑" },
+    { label: "Breakout",       state: mapSig(s.sigBreakout),      icon: "📈" },
+    { label: "Squeeze",        state: squeezeState,               icon: "⏳" },
+    { label: "Overextended",   state: mapSig(s.sigOverheat),      icon: "🚀" },
+    { label: "Distribution",   state: mapSig(s.sigDistribution),  icon: "📉" },
+    { label: "Divergence",     state: mapSig(s.sigDivergence),    icon: "↔️" },
+    { label: "Risk Alert",     state: mapSig(s.sigOverheat),      icon: "⚡" },
+    { label: "Liquidity Weak", state: mapSig(s.sigLowLiquidity),  icon: "💧" },
+    { label: "Turbo",          state: mapSig(s.sigTurbo),         icon: "⚡" },
+    { label: "News",           state: "off",                      icon: "📰" },
+    { label: "Earnings",       state: "off",                      icon: "📊" },
+    { label: "Halt",           state: "off",                      icon: "⛔" },
+    { label: "Circuit",        state: "off",                      icon: "🛑" },
   ];
 
   return (
     <div className="cluster">
       {/* Header */}
-      <div
-        className="panel"
-        style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}
-      >
+      <div className="panel" style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
         <div>
-          <div style={{ fontWeight: 700 }}>Ferrari Trading Cluster</div>
+          <div style={{fontWeight:700}}>Ferrari Trading Cluster</div>
           <div className="small muted">Live from /api/dashboard</div>
         </div>
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <div
-            className="tag"
-            style={{ border: `1px solid ${color}`, display: "flex", gap: 8, alignItems: "center", borderRadius: 8, padding: "4px 8px" }}
-            title={ts || "unknown"}
-          >
-            <span
-              style={{
-                width: 8,
-                height: 8,
-                borderRadius: 999,
-                background: color,
-                boxShadow: `0 0 8px ${color}`,
-              }}
-            />
+        <div style={{display:"flex",gap:8,alignItems:"center"}}>
+          <div className="tag" style={{border:`1px solid ${color}`,display:"flex",gap:8,alignItems:"center",borderRadius:8,padding:"4px 8px"}}>
+            <span style={{width:8,height:8,borderRadius:999,background:color,boxShadow:`0 0 8px ${color}`}}/>
             <span className="small">{ts ? `Updated ${timeAgo(ts)}` : "—"}</span>
           </div>
           <button className="btn" onClick={refresh} disabled={loading}>
@@ -130,32 +90,31 @@ export default function GaugeCluster() {
         </div>
       </div>
 
-      {/* Loading / Error states */}
+      {/* Loading / Error */}
       {loading && !data ? <div className="panel">Loading…</div> : null}
       {error ? <div className="panel">Error: {String(error)}</div> : null}
       {!data && !loading && !error ? <div className="panel">No data</div> : null}
 
-      {/* Content */}
       {data ? (
         <>
-          {/* Cockpit — centered block with tight pair */}
+          {/* Cockpit */}
           <Panel title="Gauges" className="carbon-fiber">
             <div className="cockpit-center">
               <div className="cockpit">
-                {/* Minis left (2×2) */}
+                {/* Left minis */}
                 <div className="left-stack">
-                  <MiniGauge label="WATER" value={data.gauges?.waterTemp} unit="°F" min={160} max={260} />
-                  <MiniGauge label="OIL"   value={data.gauges?.oilPsi}    unit="psi" min={0}   max={120} />
-                  <MiniGauge label="FUEL"  value={data.gauges?.fuelPct}   unit="%"   min={0}   max={100} />
-                  <MiniGauge label="ALT"   value={null} />
+                  <MiniGauge label="WATER" value={data.gauges?.waterTemp} unit="°F" />
+                  <MiniGauge label="OIL"   value={data.gauges?.oilPsi}    unit="psi" />
+                  <MiniGauge label="FUEL"  value={data.gauges?.fuelPct}   unit="%" />
+                  <MiniGauge label="ALT"   value="—" />
                 </div>
 
-                {/* Center tach (yellow) with outside branding arcs */}
+                {/* Center tach with branding arcs */}
                 <div className="center-tach">
-                  <BigGauge theme="tach" label="RPM" value={data.gauges?.rpm} withLogo />
+                  <BigGauge theme="tach"  label="RPM"   value={data.gauges?.rpm}   withLogo />
                 </div>
 
-                {/* Right speedo (red) */}
+                {/* Right speedo */}
                 <div className="right-speed">
                   <BigGauge theme="speed" label="SPEED" value={data.gauges?.speed} />
                 </div>
@@ -163,7 +122,7 @@ export default function GaugeCluster() {
             </div>
           </Panel>
 
-          {/* Engine lights row (always visible) */}
+          {/* Engine lights strip (unchanged behavior) */}
           <Panel title="Engine Lights">
             <div className="lights">
               {lights.map((L, i) => (
@@ -202,11 +161,29 @@ export default function GaugeCluster() {
 }
 
 /* ---------- components ---------- */
+
 function BigGauge({ theme = "tach", label, value = 0, withLogo = false }) {
-  const v = clamp(Number(value ?? 0), -1000, 1000);
-  const angle = mapToDeg(v, -1000, 1000);
+  const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+  const t = (clamp(value, -1000, 1000) + 1000) / 2000; // 0..1
+  const angle = -130 + t * 260; // -130..+130
   const isTach = theme === "tach";
   const face = isTach ? "#ffdd00" : "#c21a1a";
+
+  // Numerals layout
+  // Tach: 1..10 across -120..+120 (skip 0)
+  const tachNums = Array.from({ length: 10 }, (_, i) => i + 1);
+  // Speedo: 20..220 step 20 across -120..+120
+  const speedNums = Array.from({ length: 11 }, (_, i) => (i + 1) * 20);
+
+  // Helper for polar text positions within SVG (center 100,100; radius ~74–78)
+  const numeralRadius = 78;
+  const angleForIndex = (idx, total) => -120 + (idx / (total - 1)) * 240; // degrees
+  const toXY = (deg) => {
+    const rad = (deg - 90) * Math.PI / 180; // SVG 0° is at 12 o'clock
+    const x = 100 + numeralRadius * Math.cos(rad);
+    const y = 100 + numeralRadius * Math.sin(rad);
+    return { x, y };
+  };
 
   return (
     <div className={`fg-wrap ${isTach ? "gauge--tach" : "gauge--speed"}`}>
@@ -214,24 +191,39 @@ function BigGauge({ theme = "tach", label, value = 0, withLogo = false }) {
         {/* 18px ring */}
         <div className="ring" />
 
-        {/* ticks */}
+        {/* White ticks */}
         <div className="ticks">
-          {Array.from({ length: 9 }, (_, i) => {
-            const a = -130 + i * (260 / 8);
-            const major = i % 2 === 0;
+          {Array.from({ length: 41 }, (_, i) => {
+            const a = -120 + (i / 40) * 240;
+            const major = i % 5 === 0;
             return <Tick key={i} angle={a} major={major} />;
           })}
         </div>
 
-        {/* tach redline */}
+        {/* Tach redline arc (rightmost ~20% of sweep) */}
         {isTach ? <div className="redline-arc" aria-hidden /> : null}
 
-        {/* needle & hub */}
+        {/* Numerals (SVG overlay inside the face) */}
+        <svg className="dial-numerals" viewBox="0 0 200 200" aria-hidden>
+          {(isTach ? tachNums : speedNums).map((num, idx, arr) => {
+            const a = angleForIndex(idx, arr.length);
+            const { x, y } = toXY(a);
+            return (
+              <text key={idx} x={x} y={y} className={`numeral ${isTach ? "tach" : "speed"}`} textAnchor="middle" dominantBaseline="central">
+                {num}
+              </text>
+            );
+          })}
+        </svg>
+
+        {/* Needle & hub */}
         <div className="needle" style={{ transform: `rotate(${angle}deg)` }} />
         <div className="hub" />
+
+        {/* Glass */}
         <div className="glass" />
 
-        {/* outside-bezel branding arcs (tach only) */}
+        {/* Branding arcs outside bezel (tach only) */}
         {withLogo ? (
           <svg className="logo-ring" viewBox="0 0 220 220" aria-hidden>
             <defs>
@@ -239,14 +231,10 @@ function BigGauge({ theme = "tach", label, value = 0, withLogo = false }) {
               <path id="ringPathBottom" d="M110,210 a100,100 0 1,1 0,-200 a100,100 0 1,1 0,200" />
             </defs>
             <text className="logo-top">
-              <textPath href="#ringPath" startOffset="50%" textAnchor="middle">
-                REDLINE TRADING
-              </textPath>
+              <textPath href="#ringPath" startOffset="50%" textAnchor="middle">REDLINE TRADING</textPath>
             </text>
             <text className="logo-bottom">
-              <textPath href="#ringPathBottom" startOffset="50%" textAnchor="middle">
-                POWERED BY AI
-              </textPath>
+              <textPath href="#ringPathBottom" startOffset="50%" textAnchor="middle">POWERED BY AI</textPath>
             </text>
           </svg>
         ) : null}
@@ -265,22 +253,14 @@ function Tick({ angle, major }) {
   );
 }
 
-/* MiniGauge now uses min/max to rotate the needle based on real ranges */
-function MiniGauge({ label, value, unit, min = 0, max = 100 }) {
-  const v = typeof value === "number" ? value : NaN;
-  const hasVal = Number.isFinite(v);
-  const deg = hasVal ? mapToDeg(v, min, max) : 0;
-
+function MiniGauge({ label, value, unit }) {
   return (
     <div className="mini">
       <div className="mini-face">
-        <div className="mini-needle" style={{ transform: `rotate(${deg}deg)` }} />
+        <div className="mini-needle" />
         <div className="mini-hub" />
       </div>
-      <div className="mini-value">
-        {hasVal ? Math.round(v) : "—"}
-        {unit || ""}
-      </div>
+      <div className="mini-value">{value ?? "—"}{unit || ""}</div>
       <div className="mini-title">{label}</div>
     </div>
   );
@@ -297,19 +277,16 @@ function Odometer({ label, value }) {
 
 function Spark({ values = [] }) {
   if (!values || values.length < 2) return <div className="sector-spark">(no data)</div>;
-  const min = Math.min(...values);
-  const max = Math.max(...values);
+  const min = Math.min(...values), max = Math.max(...values);
   const W = 180, H = 36;
   const norm = (v) => (max - min ? (v - min) / (max - min) : 0.5);
-  const pts = values
-    .map((v, i) => {
-      const x = (i / (values.length - 1)) * (W - 8) + 4;
-      const y = (1 - norm(v)) * (H - 8) + 4;
-      return `${x},${y}`;
-    })
-    .join(" ");
+  const pts = values.map((v, i) => {
+    const x = (i / (values.length - 1)) * (W - 8) + 4;
+    const y = (1 - norm(v)) * (H - 8) + 4;
+    return `${x},${y}`;
+  }).join(" ");
   return (
-    <svg className="spark" viewBox={`0 0 ${W} ${H}`} width={W} height={H} aria-hidden>
+    <svg className="spark" viewBox={`0 0 ${W} ${H}`} width={W} height={H}>
       <polyline fill="none" stroke="#60a5fa" strokeWidth="2" points={pts} />
     </svg>
   );
