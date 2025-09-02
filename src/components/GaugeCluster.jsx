@@ -217,4 +217,56 @@ function BigGauge({ theme="tach", label, value=0, withLogo=false }) {
             <text className="logo-top">
               <textPath href="#ringPath" startOffset="50%" textAnchor="middle">REDLINE TRADING</textPath>
             </text>
-            <text
+            <text className="logo-bottom">
+              <textPath href="#ringPathBottom" startOffset="50%" textAnchor="middle">POWERED BY AI</textPath>
+            </text>
+          </svg>
+        )}
+      </div>
+      <div className="fg-title">{label}</div>
+    </div>
+  );
+}
+
+function Tick({ angle, major }) {
+  return <div className={`tick ${major ? "major" : "minor"}`} style={{ transform: `rotate(${angle}deg)` }} />;
+}
+
+function MiniGauge({ label, value, unit }) {
+  return (
+    <div className="mini">
+      <div className="mini-face">
+        <div className="mini-needle" />
+        <div className="mini-hub" />
+      </div>
+      <div className="mini-value">{value ?? "—"}{unit || ""}</div>
+      <div className="mini-title">{label}</div>
+    </div>
+  );
+}
+
+function Odometer({ label, value }) {
+  return (
+    <div className="odo">
+      <div className="odo-label">{label}</div>
+      <div className="odo-value">{value ?? "—"}</div>
+    </div>
+  );
+}
+
+function Spark({ values=[] }) {
+  if (values.length < 2) return <div className="sector-spark">(no data)</div>;
+  const min = Math.min(...values), max = Math.max(...values);
+  const W=180, H=36;
+  const norm = v => (max - min ? (v - min) / (max - min) : 0.5);
+  const pts = values.map((v, i) => {
+    const x = (i / (values.length - 1)) * (W - 8) + 4;
+    const y = (1 - norm(v)) * (H - 8) + 4;
+    return `${x},${y}`;
+  }).join(" ");
+  return (
+    <svg className="spark" viewBox={`0 0 ${W} ${H}`} width={W} height={H}>
+      <polyline fill="none" stroke="#60a5fa" strokeWidth="2" points={pts} />
+    </svg>
+  );
+}
