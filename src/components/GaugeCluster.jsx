@@ -1,5 +1,5 @@
 // src/components/GaugeCluster.jsx
-// Ferrari Dashboard cluster — full component
+// Ferrari Dashboard cluster — full component (with engine lights row at the bottom)
 
 import React from "react";
 import { useDashboardPoll } from "../lib/dashboardApi";
@@ -15,9 +15,7 @@ function timeAgo(ts) {
     if (m < 60) return `${m}m ago`;
     const h = Math.floor(m / 60);
     return `${h}h ago`;
-  } catch {
-    return "—";
-  }
+  } catch { return "—"; }
 }
 function freshnessColor(ts) {
   try {
@@ -26,42 +24,43 @@ function freshnessColor(ts) {
     if (mins < 15) return "#22c55e"; // green
     if (mins < 60) return "#f59e0b"; // yellow
     return "#ef4444";                // red
-  } catch {
-    return "#6b7280";
-  }
+  } catch { return "#6b7280"; }
 }
 
-const Panel = ({ title, children }) => (
-  <div className="panel">
-    {title && <div className="panel-head"><div className="panel-title">{title}</div></div>}
+const Panel = ({ title, children, className = "" }) => (
+  <div className={`panel ${className}`}>
+    {title && (
+      <div className="panel-head">
+        <div className="panel-title">{title}</div>
+      </div>
+    )}
     {children}
   </div>
 );
 
-/* Pill for engine lights */
-const Pill = ({ label, tone = "ok" }) => {
+/* Pill for engine lights; treat "info" as ok/green */
+const Pill = ({ label, severity = "ok" }) => {
+  const tone = (severity === "danger") ? "danger" :
+               (severity === "warn")   ? "warn"   : "ok";
   const map = {
     ok:     { bg:"#052e1b", bd:"#14532d", fg:"#34d399" },  // green
     warn:   { bg:"#2a1f05", bd:"#7c5806", fg:"#fbbf24" },  // yellow
     danger: { bg:"#2a0b0b", bd:"#7f1d1d", fg:"#ef4444" },  // red
-    info:   { bg:"#0b1220", bd:"#334155", fg:"#93c5fd" }   // blue (unused)
-  }[tone] || { bg:"#0b1220", bd:"#334155", fg:"#e5e7eb" };
+  }[tone];
   return (
     <span style={{
-      padding:"4px 8px",
+      padding:"6px 10px",
       borderRadius:8,
       border:`1px solid ${map.bd}`,
       background:map.bg,
       color:map.fg,
       fontSize:12,
+      boxShadow:`0 0 10px ${map.fg}`,
       display:"inline-flex",
       alignItems:"center",
       gap:6
     }}>
-      <span style={{
-        width:8, height:8, borderRadius:999,
-        background:map.fg, boxShadow:`0 0 8px ${map.fg}`
-      }}/>
+      <span style={{ width:8, height:8, borderRadius:999, background:map.fg, boxShadow:`0 0 8px ${map.fg}` }}/>
       {label}
     </span>
   );
@@ -70,7 +69,6 @@ const Pill = ({ label, tone = "ok" }) => {
 /* ----------- MAIN ----------- */
 export default function GaugeCluster() {
   const { data, loading, error, refresh } = useDashboardPoll(5000);
-
   const ts = data?.meta?.ts;
   const color = freshnessColor(ts);
 
@@ -101,16 +99,19 @@ export default function GaugeCluster() {
       {/* Content */}
       {data && (
         <>
-          {/* Gauges */}
-          <Panel title="Gauges">
+          {/* Gauges with carbon-fiber background */}
+          <Panel title="Gauges" className="carbon-fiber">
             <div className="cluster-row">
+              {/* Mini stack left */}
               <div className="left-stack">
                 <MiniGauge label="FUEL"  value={data.gauges?.fuelPct}   unit="%" />
                 <MiniGauge label="WATER" value={data.gauges?.waterTemp} unit="°F" />
                 <MiniGauge label="OIL"   value={data.gauges?.oilPsi}    unit="psi" />
               </div>
+
+              {/* Main pair, tight like Ferrari cockpit */}
               <div className="center-pair">
-                <BigGauge theme="tach"  label="RPM"   value={data.gauges?.rpm} />
+                <BigGauge theme="tach"  label="RPM"   value={data.gauges?.rpm}   />
                 <BigGauge theme="speed" label="SPEED" value={data.gauges?.speed} />
               </div>
             </div>
@@ -119,24 +120,24 @@ export default function GaugeCluster() {
           {/* Odometers */}
           <Panel title="Odometers">
             <div className="odos">
-              <Odometer label="Breadth"  value={data.odometers?.breadthOdometer}/>
-              <Odometer label="Momentum" value={data.odometers?.momentumOdometer}/>
-              <Odometer label="Squeeze"  value={String(data.odometers?.squeeze ?? "—")}/>
+              <Odometer label="Breadth"  value={data.odometers?.breadthOdometer} />
+              <Odometer label="Momentum" value={data.odometers?.momentumOdometer} />
+              <Odometer label="Squeeze"  value={String(data.odometers?.squeeze ?? "—")} />
             </div>
           </Panel>
 
-          {/* Engine Lights */}
+          {/* Engine lights AT THE BOTTOM (below momentum, full width) */}
           <Panel title="Engine Lights">
             <div className="lights">
-              {renderSignal("Breakout",     data.signals?.sigBreakout)}
-              {renderSignal("Distribution", data.signals?.sigDistribution)}
-              {renderSignal("Turbo",        data.signals?.sigTurbo)}
-              {renderSignal("Compression",  data.signals?.sigCompression)}
-              {renderSignal("Expansion",    data.signals?.sigExpansion)}
-              {renderSignal("Divergence",   data.signals?.sigDivergence)}
-              {renderSignal("Overheat",     data.signals?.sigOverheat)}
-              {renderSignal("Low Liquidity",data.signals?.sigLowLiquidity)}
-              {!anyActive(data.signals) && <span className="small muted">No active signals</span>}
+              {renderSignal("Breakout",      data.signals?.sigBreakout)}
+              {renderSignal("Compression",   data.signals?.sigCompression)}
+              {renderSignal("Expansion",     data.signals?.sigExpansion)}
+              {renderSignal("Turbo",         data.signals?.sigTurbo)}
+              {renderSignal("Distribution",  data.signals?.sigDistribution)}
+              {renderSignal("Divergence",    data.signals?.sigDivergence)}
+              {renderSignal("Overheat",      data.signals?.sigOverheat)}
+              {renderSignal("Low Liquidity", data.signals?.sigLowLiquidity)}
+              {(!anyActive(data.signals)) && <span className="small muted">No active signals</span>}
             </div>
           </Panel>
 
@@ -163,24 +164,29 @@ export default function GaugeCluster() {
 /* ----------- Components ----------- */
 function BigGauge({ theme="tach", label, value=0 }) {
   const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+  // Map [-1000..1000] → [-130..130]
   const t = (clamp(value, -1000, 1000) + 1000) / 2000;
   const angle = -130 + t * 260;
-  const face = theme === "tach" ? "#facc15" : "#dc2626";
+
+  const face = theme === "tach" ? "#facc15" : "#dc2626"; // yellow or red
 
   return (
     <div className="fg-wrap">
-      <div className="gauge-face" style={{ background: face, position:"relative" }}>
+      <div className="gauge-face" style={{ background: face }}>
+        {/* Thick red perimeter ring under ticks (Ferrari look) */}
         <div className="ring" />
+        {/* White ticks */}
         <div className="ticks">
           {Array.from({ length: 9 }, (_, i) => {
             const a = -130 + i * (260 / 8);
             return <Tick key={i} angle={a} major={i % 2 === 0} />;
           })}
         </div>
+        {/* Needle & hub */}
         <div className="needle" style={{ transform: `rotate(${angle}deg)` }}/>
         <div className="hub" />
       </div>
-      <div className="fg-title" style={{ color:"#0b1220" }}>{label}</div>
+      <div className="fg-title">{label}</div>
     </div>
   );
 }
@@ -241,6 +247,6 @@ function anyActive(signals) {
 function renderSignal(label, sig) {
   if (!sig || !sig.active) return null;
   const sev = (sig.severity || "info").toLowerCase();
-  const tone = sev === "danger" ? "danger" : (sev === "warn" ? "warn" : "ok"); // treat info as ok
+  const tone = sev === "danger" ? "danger" : (sev === "warn" ? "warn" : "ok"); // info → ok
   return <Pill key={label} label={label} tone={tone} />;
 }
