@@ -1,5 +1,5 @@
 // src/components/GaugeCluster.jsx
-// Ferrari Dashboard — R8: Ferrari tach/speedo numerals + redline arc + centered cockpit
+// Ferrari Dashboard — R8.1: tighter seam, polished numerals, outside branding arcs, centered cockpit
 
 import React from "react";
 import { useDashboardPoll } from "../lib/dashboardApi";
@@ -24,6 +24,7 @@ function freshnessColor(ts) {
     return "#ef4444";
   } catch { return "#6b7280"; }
 }
+
 const Panel = ({ title, children, className = "" }) => (
   <div className={`panel ${className}`}>
     {title ? (
@@ -35,7 +36,7 @@ const Panel = ({ title, children, className = "" }) => (
   </div>
 );
 
-/* ---------- engine-light pill (kept as-is) ---------- */
+/* engine-light pill (unchanged behavior) */
 const Pill = ({ label, state = "off", icon = "" }) => (
   <span className={`light ${state}`} aria-label={`${label}: ${state}`}>
     <span className="light-icon" role="img" aria-hidden>
@@ -51,7 +52,7 @@ export default function GaugeCluster() {
   const ts = data?.meta?.ts || null;
   const color = freshnessColor(ts);
 
-  // Signal → light mapping (unchanged)
+  // signals -> lights (kept)
   const s = data?.signals || {};
   const squeeze = String(data?.odometers?.squeeze || "none");
   const mapSig = (sig) => (!sig || !sig.active) ? "off" : (String(sig.severity || "info").toLowerCase() === "danger" ? "danger" : String(sig.severity).toLowerCase() === "warn" ? "warn" : "ok");
@@ -97,7 +98,7 @@ export default function GaugeCluster() {
 
       {data ? (
         <>
-          {/* Cockpit */}
+          {/* Gauges */}
           <Panel title="Gauges" className="carbon-fiber">
             <div className="cockpit-center">
               <div className="cockpit">
@@ -109,12 +110,12 @@ export default function GaugeCluster() {
                   <MiniGauge label="ALT"   value="—" />
                 </div>
 
-                {/* Center tach with branding arcs */}
+                {/* Center tach (yellow) with branding arcs */}
                 <div className="center-tach">
-                  <BigGauge theme="tach"  label="RPM"   value={data.gauges?.rpm}   withLogo />
+                  <BigGauge theme="tach"  label="RPM"   value={data.gauges?.rpm} withLogo />
                 </div>
 
-                {/* Right speedo */}
+                {/* Right speedo (red) */}
                 <div className="right-speed">
                   <BigGauge theme="speed" label="SPEED" value={data.gauges?.speed} />
                 </div>
@@ -122,7 +123,7 @@ export default function GaugeCluster() {
             </div>
           </Panel>
 
-          {/* Engine lights strip (unchanged behavior) */}
+          {/* Engine Lights */}
           <Panel title="Engine Lights">
             <div className="lights">
               {lights.map((L, i) => (
@@ -161,28 +162,24 @@ export default function GaugeCluster() {
 }
 
 /* ---------- components ---------- */
-
 function BigGauge({ theme = "tach", label, value = 0, withLogo = false }) {
   const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
-  const t = (clamp(value, -1000, 1000) + 1000) / 2000; // 0..1
-  const angle = -130 + t * 260; // -130..+130
+  const t = (clamp(value, -1000, 1000) + 1000) / 2000;   // 0..1
+  const angle = -130 + t * 260;                          // -130..+130
+
   const isTach = theme === "tach";
   const face = isTach ? "#ffdd00" : "#c21a1a";
 
-  // Numerals layout
-  // Tach: 1..10 across -120..+120 (skip 0)
+  // Numerals
   const tachNums = Array.from({ length: 10 }, (_, i) => i + 1);
-  // Speedo: 20..220 step 20 across -120..+120
   const speedNums = Array.from({ length: 11 }, (_, i) => (i + 1) * 20);
 
-  // Helper for polar text positions within SVG (center 100,100; radius ~74–78)
-  const numeralRadius = 78;
-  const angleForIndex = (idx, total) => -120 + (idx / (total - 1)) * 240; // degrees
+  // Polar positions (SVG 200x200)
+  const numeralRadius = 77; // keep inside ticks
+  const angleForIndex = (idx, total) => -120 + (idx / (total - 1)) * 240;
   const toXY = (deg) => {
-    const rad = (deg - 90) * Math.PI / 180; // SVG 0° is at 12 o'clock
-    const x = 100 + numeralRadius * Math.cos(rad);
-    const y = 100 + numeralRadius * Math.sin(rad);
-    return { x, y };
+    const rad = (deg - 90) * Math.PI / 180;
+    return { x: 100 + numeralRadius * Math.cos(rad), y: 100 + numeralRadius * Math.sin(rad) };
   };
 
   return (
@@ -191,7 +188,7 @@ function BigGauge({ theme = "tach", label, value = 0, withLogo = false }) {
         {/* 18px ring */}
         <div className="ring" />
 
-        {/* White ticks */}
+        {/* Ticks */}
         <div className="ticks">
           {Array.from({ length: 41 }, (_, i) => {
             const a = -120 + (i / 40) * 240;
@@ -200,16 +197,18 @@ function BigGauge({ theme = "tach", label, value = 0, withLogo = false }) {
           })}
         </div>
 
-        {/* Tach redline arc (rightmost ~20% of sweep) */}
+        {/* Tach redline */}
         {isTach ? <div className="redline-arc" aria-hidden /> : null}
 
-        {/* Numerals (SVG overlay inside the face) */}
+        {/* Numerals */}
         <svg className="dial-numerals" viewBox="0 0 200 200" aria-hidden>
           {(isTach ? tachNums : speedNums).map((num, idx, arr) => {
             const a = angleForIndex(idx, arr.length);
             const { x, y } = toXY(a);
             return (
-              <text key={idx} x={x} y={y} className={`numeral ${isTach ? "tach" : "speed"}`} textAnchor="middle" dominantBaseline="central">
+              <text key={idx} x={x} y={y}
+                className={`numeral ${isTach ? "tach" : "speed"}`}
+                textAnchor="middle" dominantBaseline="central">
                 {num}
               </text>
             );
@@ -219,8 +218,6 @@ function BigGauge({ theme = "tach", label, value = 0, withLogo = false }) {
         {/* Needle & hub */}
         <div className="needle" style={{ transform: `rotate(${angle}deg)` }} />
         <div className="hub" />
-
-        {/* Glass */}
         <div className="glass" />
 
         {/* Branding arcs outside bezel (tach only) */}
