@@ -1,5 +1,5 @@
 // src/components/GaugeCluster.jsx
-// Ferrari Dashboard cluster — FULL FILE (R4 cockpit geometry)
+// Ferrari Dashboard cluster — FULL FILE (R5: edge-anchored cockpit)
 
 import React from "react";
 import { useDashboardPoll } from "../lib/dashboardApi";
@@ -21,9 +21,9 @@ function freshnessColor(ts) {
   try {
     const t = new Date(ts).getTime();
     const mins = (Date.now() - t) / 60000;
-    if (mins < 15) return "#22c55e"; // green
-    if (mins < 60) return "#f59e0b"; // yellow
-    return "#ef4444";                // red
+    if (mins < 15) return "#22c55e";
+    if (mins < 60) return "#f59e0b";
+    return "#ef4444";
   } catch { return "#6b7280"; }
 }
 
@@ -100,7 +100,7 @@ export default function GaugeCluster() {
       {/* Content */}
       {data && (
         <>
-          {/* Gauges — Ferrari cockpit geometry (left minis | BIG tach | speedo) */}
+          {/* Gauges — Ferrari cockpit geometry (edge-anchored) */}
           <Panel title="Gauges" className="carbon-fiber">
             <div className="cockpit">
               {/* Left: 2×2 mini stack */}
@@ -111,10 +111,12 @@ export default function GaugeCluster() {
                 <MiniGauge label="ALT"   value="—" />
               </div>
 
-              {/* Center: big yellow tach */}
-              <BigGauge theme="tach"  label="RPM"   value={data.gauges?.rpm} />
+              {/* Center: big yellow tach — right-anchored */}
+              <div className="center-tach">
+                <BigGauge theme="tach"  label="RPM"   value={data.gauges?.rpm} />
+              </div>
 
-              {/* Right: slightly smaller red speedo */}
+              {/* Right: slightly smaller red speedo — left-anchored */}
               <div className="right-speed">
                 <BigGauge theme="speed" label="SPEED" value={data.gauges?.speed} />
               </div>
@@ -189,9 +191,6 @@ function BigGauge({ theme="tach", label, value=0 }) {
         {/* Needle & hub */}
         <div className="needle" style={{ transform: `rotate(${angle}deg)` }} />
         <div className="hub" />
-        {/* Bezel branding (optional, commented to keep clean numbers) */}
-        {/* <div className="arc-top">REDLINE TRADING</div>
-        <div className="arc-bottom">POWERED BY AI</div> */}
         <div className="glass" />
       </div>
       <div className="fg-title">{label}</div>
@@ -262,6 +261,6 @@ function anyActive(signals) {
 function renderSignal(label, sig) {
   if (!sig || !sig.active) return null;
   const sev = (sig.severity || "info").toLowerCase();
-  const severity = sev === "danger" ? "danger" : (sev === "warn" ? "warn" : "ok"); // info → ok
+  const severity = sev === "danger" ? "danger" : (sev === "warn" ? "warn" : "ok");
   return <Pill key={label} label={label} severity={severity} />;
 }
