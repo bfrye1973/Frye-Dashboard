@@ -207,4 +207,19 @@ a{color:#60a5fa;text-decoration:none} a:hover{text-decoration:underline}
 }
 
 /* Layer order safety */
-.ring{z-index:1}.ticks{z-index:2}.needle,.hub{z-index:3}.glass{z-index:5}
+.ring{z-index:1}.ticks{z-index:2}.needle,.hub{z-index:3}.glass{z-index:5
+/* header right side */
+.head-right { display: flex; gap: 8px; align-items: center; }
+
+/* freshness badge */
+.badge { font-size: 12px; font-weight: 700; padding: 4px 8px; border-radius: 999px; border: 1px solid var(--border); }
+.badge.ok     { background: #22c55e; color: #0a0a0a; }   /* < 15m */
+.badge.warn   { background: #facc15; color: #0a0a0a; }   /* 15–60m */
+.badge.danger { background: #ef4444; color: #ffffff; }   /* > 60m */
+.badge.stale  { background: #2b2b2b; color: #cfcfcf; }
+
+/* ghost button */
+.btn.ghost { background: transparent; border: 1px solid var(--border); color: var(--text); }
+.btn.ghost:hover { filter: brightness(1.1); }
+
+                                                               
