@@ -266,3 +266,71 @@ button { font: inherit; cursor: pointer; }
    SVG / Helpers
    ========================================================= */
 svg defs, svg linearGradient, svg radialGradient, svg pattern, svg clipPath { pointer-events:none; }
+/* =========================================================
+   ULTRAWIDE FIT PACK — Ferrari Cockpit
+   Adapts geometry for 24" (1080/1200) and 34" ultrawide (1440/1600/2k+)
+   Paste at the VERY BOTTOM so it wins.
+   ========================================================= */
+
+/* Base tighten (applies to all) */
+.cockpit { gap: 18px; }
+.left-stack { gap: 12px; }
+.gauge-face { max-width: 520px; }
+
+/* ---------- 24" screen (typical 1920×1080/1200) ---------- */
+@media (min-width: 1200px) and (max-width: 1700px) {
+  /* Slightly enlarge center tach, modestly shrink speedo */
+  .gauge--tach       { transform: scale(1.08); }
+  .right-speed .gauge--speed { transform: scale(0.90); }
+
+  /* Geometry: left minis narrower, center dominates a bit more */
+  .cockpit {
+    grid-template-columns: 0.28fr 0.62fr 0.34fr; /* left | center | right */
+    gap: 16px;
+  }
+
+  /* Keep overall gauge cap reasonable on smaller desk depth */
+  .gauge-face { max-width: 560px; }
+}
+
+/* ---------- 34" ultrawide (2560×1440 / 3440×1440 / 3840×1600) ---------- */
+@media (min-width: 1701px) and (max-width: 2559px) {
+  /* Give the tach presence, pull speedo closer to it */
+  .gauge--tach       { transform: scale(1.12); }
+  .right-speed .gauge--speed { transform: scale(0.92); }
+
+  /* Wider center to mimic Ferrari binnacle */
+  .cockpit {
+    grid-template-columns: 0.26fr 0.64fr 0.36fr;
+    gap: 14px;
+  }
+
+  /* Let faces breathe on ultrawide */
+  .gauge-face { max-width: 620px; }
+}
+
+/* ---------- Super ultrawide / 4K+ desktops ---------- */
+@media (min-width: 2560px) {
+  .gauge--tach       { transform: scale(1.18); }
+  .right-speed .gauge--speed { transform: scale(0.94); }
+
+  .cockpit {
+    grid-template-columns: 0.24fr 0.66fr 0.36fr;
+    gap: 14px;
+  }
+
+  .gauge-face { max-width: 680px; }
+}
+
+/* Optional: mini dials scale slightly on very large screens */
+@media (min-width: 1701px) {
+  .left-stack .mini .mini-face { transform: scale(1.06); transform-origin: center; }
+}
+
+/* Make sure layering stays correct when sizes change */
+.ring{ z-index:1; }
+.ticks{ z-index:2; }
+.arc-top,.arc-bottom{ z-index:3; }
+.needle,.hub{ z-index:4; }
+.glass{ z-index:5; }
+
