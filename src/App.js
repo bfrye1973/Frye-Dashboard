@@ -1,3 +1,5 @@
+import FerrariTwoGaugesReplica from "./components/FerrariTwoGaugesReplica";
+
 import React from "react";
 import GaugeCluster from "./components/GaugeCluster";
 
