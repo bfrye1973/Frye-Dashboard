@@ -1,20 +1,18 @@
 // src/components/GaugeCluster.jsx
-// Ferrari Dashboard cluster — FULL FILE (R5: edge-anchored cockpit)
+// Ferrari Dashboard cluster — FULL FILE (R6: centered cockpit + tight pair)
 
 import React from "react";
 import { useDashboardPoll } from "../lib/dashboardApi";
 
-/* ----------- helpers ----------- */
+/* -------- helpers -------- */
 function timeAgo(ts) {
   try {
     const t = new Date(ts).getTime();
-    const d = Date.now() - t;
-    const s = Math.floor(d / 1000);
+    const s = Math.floor((Date.now() - t) / 1000);
     if (s < 60) return `${s}s ago`;
     const m = Math.floor(s / 60);
     if (m < 60) return `${m}m ago`;
-    const h = Math.floor(m / 60);
-    return `${h}h ago`;
+    return `${Math.floor(m / 60)}h ago`;
   } catch { return "—"; }
 }
 function freshnessColor(ts) {
@@ -38,10 +36,8 @@ const Panel = ({ title, children, className = "" }) => (
   </div>
 );
 
-/* Engine-light pill (info -> ok/green) */
 const Pill = ({ label, severity = "ok" }) => {
-  const tone = (severity === "danger") ? "danger" :
-               (severity === "warn")   ? "warn"   : "ok";
+  const tone = severity === "danger" ? "danger" : severity === "warn" ? "warn" : "ok";
   const map = {
     ok:     { bg:"#052e1b", bd:"#14532d", fg:"#34d399" },
     warn:   { bg:"#2a1f05", bd:"#7c5806", fg:"#fbbf24" },
@@ -49,17 +45,10 @@ const Pill = ({ label, severity = "ok" }) => {
   }[tone];
   return (
     <span style={{
-      padding:"6px 10px",
-      borderRadius:999,
-      border:`1px solid ${map.bd}`,
-      background:map.bg,
-      color:map.fg,
-      fontSize:12,
-      fontWeight:800,
+      padding:"6px 10px", borderRadius:999, border:`1px solid ${map.bd}`,
+      background:map.bg, color:map.fg, fontSize:12, fontWeight:800,
       boxShadow:`0 0 10px ${map.fg}66, inset 0 0 0 1px #ffffff08`,
-      display:"inline-flex",
-      alignItems:"center",
-      gap:6
+      display:"inline-flex", alignItems:"center", gap:6
     }}>
       <span style={{ width:8, height:8, borderRadius:999, background:map.fg, boxShadow:`0 0 8px ${map.fg}` }}/>
       {label}
@@ -67,7 +56,7 @@ const Pill = ({ label, severity = "ok" }) => {
   );
 };
 
-/* ----------- MAIN ----------- */
+/* -------- main -------- */
 export default function GaugeCluster() {
   const { data, loading, error, refresh } = useDashboardPoll(5000);
   const ts = data?.meta?.ts;
@@ -100,25 +89,29 @@ export default function GaugeCluster() {
       {/* Content */}
       {data && (
         <>
-          {/* Gauges — Ferrari cockpit geometry (edge-anchored) */}
+          {/* Gauges — centered cockpit */}
           <Panel title="Gauges" className="carbon-fiber">
-            <div className="cockpit">
-              {/* Left: 2×2 mini stack */}
-              <div className="left-stack">
-                <MiniGauge label="WATER" value={data.gauges?.waterTemp} unit="°F" />
-                <MiniGauge label="OIL"   value={data.gauges?.oilPsi}    unit="psi" />
-                <MiniGauge label="FUEL"  value={data.gauges?.fuelPct}   unit="%" />
-                <MiniGauge label="ALT"   value="—" />
-              </div>
+            {/* Center the entire cockpit in the panel */}
+            <div className="cockpit-center">
+              {/* Grid uses auto/fit-content so gauges determine width; rims will sit tight */}
+              <div className="cockpit">
+                {/* Left: 2×2 mini stack */}
+                <div className="left-stack">
+                  <MiniGauge label="WATER" value={data.gauges?.waterTemp} unit="°F" />
+                  <MiniGauge label="OIL"   value={data.gauges?.oilPsi}    unit="psi" />
+                  <MiniGauge label="FUEL"  value={data.gauges?.fuelPct}   unit="%" />
+                  <MiniGauge label="ALT"   value="—" />
+                </div>
 
-              {/* Center: big yellow tach — right-anchored */}
-              <div className="center-tach">
-                <BigGauge theme="tach"  label="RPM"   value={data.gauges?.rpm} />
-              </div>
+                {/* Center: big yellow tach — right-anchored */}
+                <div className="center-tach">
+                  <BigGauge theme="tach"  label="RPM"   value={data.gauges?.rpm} />
+                </div>
 
-              {/* Right: slightly smaller red speedo — left-anchored */}
-              <div className="right-speed">
-                <BigGauge theme="speed" label="SPEED" value={data.gauges?.speed} />
+                {/* Right: red speedo — left-anchored */}
+                <div className="right-speed">
+                  <BigGauge theme="speed" label="SPEED" value={data.gauges?.speed} />
+                </div>
               </div>
             </div>
           </Panel>
@@ -132,7 +125,7 @@ export default function GaugeCluster() {
             </div>
           </Panel>
 
-          {/* Engine lights (bottom row) */}
+          {/* Engine lights */}
           <Panel title="Engine Lights">
             <div className="lights">
               {renderSignal("Breakout",      data.signals?.sigBreakout)}
@@ -167,28 +160,24 @@ export default function GaugeCluster() {
   );
 }
 
-/* ----------- Components ----------- */
+/* -------- components -------- */
 function BigGauge({ theme="tach", label, value=0 }) {
   const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
-  // Map [-1000..1000] → [-130..130] sweep
-  const t = (clamp(value, -1000, 1000) + 1000) / 2000;
-  const angle = -130 + t * 260;
+  const t = (clamp(value, -1000, 1000) + 1000) / 2000; // 0..1
+  const angle = -130 + t * 260; // sweep
 
-  const face = theme === "tach" ? "#facc15" : "#dc2626"; // yellow / red
+  const face = theme === "tach" ? "#facc15" : "#dc2626";
 
   return (
     <div className={`fg-wrap ${theme === "tach" ? "gauge--tach" : "gauge--speed"}`}>
       <div className="gauge-face" style={{ background: face }}>
-        {/* 18px red perimeter ring under ticks */}
         <div className="ring" />
-        {/* White ticks */}
         <div className="ticks">
           {Array.from({ length: 9 }, (_, i) => {
             const a = -130 + i * (260 / 8);
             return <Tick key={i} angle={a} major={i % 2 === 0} />;
           })}
         </div>
-        {/* Needle & hub */}
         <div className="needle" style={{ transform: `rotate(${angle}deg)` }} />
         <div className="hub" />
         <div className="glass" />
@@ -197,16 +186,9 @@ function BigGauge({ theme="tach", label, value=0 }) {
     </div>
   );
 }
-
 function Tick({ angle, major }) {
-  return (
-    <div
-      className={`tick ${major ? "major" : "minor"}`}
-      style={{ transform: `rotate(${angle}deg)` }}
-    />
-  );
+  return <div className={`tick ${major ? "major" : "minor"}`} style={{ transform: `rotate(${angle}deg)` }} />;
 }
-
 function MiniGauge({ label, value, unit }) {
   return (
     <div className="mini">
@@ -219,7 +201,6 @@ function MiniGauge({ label, value, unit }) {
     </div>
   );
 }
-
 function Odometer({ label, value }) {
   return (
     <div className="odo">
@@ -228,14 +209,12 @@ function Odometer({ label, value }) {
     </div>
   );
 }
-
 function toneFromOutlook(o) {
   const k = String(o || "").toLowerCase();
   if (k.includes("bull")) return "tag-ok";
   if (k.includes("bear")) return "tag-danger";
   return "tag-info";
 }
-
 function Spark({ values=[] }) {
   if (values.length < 2) return <div className="sector-spark">(no data)</div>;
   const min = Math.min(...values), max = Math.max(...values);
@@ -252,12 +231,10 @@ function Spark({ values=[] }) {
     </svg>
   );
 }
-
 function anyActive(signals) {
   if (!signals) return false;
   return Object.values(signals).some(v => v && v.active === true);
 }
-
 function renderSignal(label, sig) {
   if (!sig || !sig.active) return null;
   const sev = (sig.severity || "info").toLowerCase();
