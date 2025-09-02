@@ -1,5 +1,5 @@
 // src/components/GaugeCluster.jsx
-// Ferrari Dashboard cluster — FULL FILE (cockpit geometry + fixed engine pills)
+// Ferrari Dashboard cluster — FULL FILE (R4 cockpit geometry)
 
 import React from "react";
 import { useDashboardPoll } from "../lib/dashboardApi";
@@ -38,14 +38,14 @@ const Panel = ({ title, children, className = "" }) => (
   </div>
 );
 
-/* Pill for engine lights; severity: ok | warn | danger (info maps to ok) */
+/* Engine-light pill (info -> ok/green) */
 const Pill = ({ label, severity = "ok" }) => {
   const tone = (severity === "danger") ? "danger" :
                (severity === "warn")   ? "warn"   : "ok";
   const map = {
-    ok:     { bg:"#052e1b", bd:"#14532d", fg:"#34d399" },  // green
-    warn:   { bg:"#2a1f05", bd:"#7c5806", fg:"#fbbf24" },  // yellow
-    danger: { bg:"#2a0b0b", bd:"#7f1d1d", fg:"#ef4444" },  // red
+    ok:     { bg:"#052e1b", bd:"#14532d", fg:"#34d399" },
+    warn:   { bg:"#2a1f05", bd:"#7c5806", fg:"#fbbf24" },
+    danger: { bg:"#2a0b0b", bd:"#7f1d1d", fg:"#ef4444" },
   }[tone];
   return (
     <span style={{
@@ -100,11 +100,10 @@ export default function GaugeCluster() {
       {/* Content */}
       {data && (
         <>
-          {/* Gauges — Ferrari cockpit geometry on a carbon-fiber panel */}
+          {/* Gauges — Ferrari cockpit geometry (left minis | BIG tach | speedo) */}
           <Panel title="Gauges" className="carbon-fiber">
-            {/* NEW cockpit grid: [ 2x2 minis | BIG center tach | smaller speedo ] */}
             <div className="cockpit">
-              {/* Left: four small dials 2×2 (uses three live metrics + one placeholder) */}
+              {/* Left: 2×2 mini stack */}
               <div className="left-stack">
                 <MiniGauge label="WATER" value={data.gauges?.waterTemp} unit="°F" />
                 <MiniGauge label="OIL"   value={data.gauges?.oilPsi}    unit="psi" />
@@ -112,7 +111,7 @@ export default function GaugeCluster() {
                 <MiniGauge label="ALT"   value="—" />
               </div>
 
-              {/* Center: BIG yellow tach */}
+              {/* Center: big yellow tach */}
               <BigGauge theme="tach"  label="RPM"   value={data.gauges?.rpm} />
 
               {/* Right: slightly smaller red speedo */}
@@ -169,16 +168,16 @@ export default function GaugeCluster() {
 /* ----------- Components ----------- */
 function BigGauge({ theme="tach", label, value=0 }) {
   const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
-  // Map [-1000..1000] → [-130..130] (sweep)
+  // Map [-1000..1000] → [-130..130] sweep
   const t = (clamp(value, -1000, 1000) + 1000) / 2000;
   const angle = -130 + t * 260;
 
-  const face = theme === "tach" ? "#facc15" : "#dc2626"; // yellow or red
+  const face = theme === "tach" ? "#facc15" : "#dc2626"; // yellow / red
 
   return (
     <div className={`fg-wrap ${theme === "tach" ? "gauge--tach" : "gauge--speed"}`}>
       <div className="gauge-face" style={{ background: face }}>
-        {/* 18px red perimeter ring under ticks (Ferrari look) */}
+        {/* 18px red perimeter ring under ticks */}
         <div className="ring" />
         {/* White ticks */}
         <div className="ticks">
@@ -190,6 +189,10 @@ function BigGauge({ theme="tach", label, value=0 }) {
         {/* Needle & hub */}
         <div className="needle" style={{ transform: `rotate(${angle}deg)` }} />
         <div className="hub" />
+        {/* Bezel branding (optional, commented to keep clean numbers) */}
+        {/* <div className="arc-top">REDLINE TRADING</div>
+        <div className="arc-bottom">POWERED BY AI</div> */}
+        <div className="glass" />
       </div>
       <div className="fg-title">{label}</div>
     </div>
@@ -260,5 +263,5 @@ function renderSignal(label, sig) {
   if (!sig || !sig.active) return null;
   const sev = (sig.severity || "info").toLowerCase();
   const severity = sev === "danger" ? "danger" : (sev === "warn" ? "warn" : "ok"); // info → ok
-  return <Pill key={label} label={label} severity={severity} />; // <-- fixed: pass severity
+  return <Pill key={label} label={label} severity={severity} />;
 }
