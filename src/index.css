@@ -71,13 +71,57 @@ button { font: inherit; cursor: pointer; }
 
 /* Big Gauge Face (container) */
 .gauge-face {
-  width: 300px;
-  height: 300px;
+  width: 210px;
+  height: 210px;
   border-radius: 50%;
-  border: 16px solid #111;
+  border: 12px solid #0f172a;
   box-shadow: inset 0 0 20px #000, 0 0 18px #000;
-  display: flex; align-items: center; justify-content: center;
+  position: relative;
+  overflow: hidden;
 }
+
+/* Thin red perimeter ring under ticks (more vivid) */
+.gauge-face .ring {
+  position: absolute;
+  inset: 0;
+  border: 14px solid #b91c1c;
+  border-radius: 50%;
+  opacity: 1;
+}
+
+/* Tick marks */
+.ticks { position: absolute; inset: 0; }
+.tick {
+  position: absolute;
+  left: 50%; top: 50%;
+  width: 2px; height: 20px;
+  background: #ffffff;
+  transform-origin: 50% calc(50% - 85px);
+  opacity: .9;
+}
+.tick.major { height: 26px; width: 3px; }
+
+/* Needle + hub */
+.needle {
+  position: absolute;
+  left: 50%; top: 50%;
+  width: 90px; height: 3px;
+  background: #fff;
+  transform-origin: 0% 50%;
+  box-shadow: 0 0 4px #000;
+}
+.hub {
+  position: absolute;
+  left: 50%; top: 50%;
+  width: 20px; height: 20px;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  background: #111;
+  border: 3px solid #888;
+}
+
+/* Big gauge label (black text) */
+.fg-title { color: #0b1220; }
 
 /* =========================================================
    Mini Gauges (Fuel / Water / Oil)
@@ -89,6 +133,24 @@ button { font: inherit; cursor: pointer; }
   border: 4px solid #555;
   display: flex; align-items: center; justify-content: center;
   box-shadow: inset 0 0 12px #000, 0 0 8px #111;
+  position: relative;
+}
+.mini-needle {
+  position: absolute;
+  left: 50%; top: 50%;
+  width: 42px; height: 2px;
+  background: #e5e7eb;
+  transform-origin: 0% 50%;
+  transform: rotate(-90deg);
+}
+.mini-hub {
+  position: absolute;
+  left: 50%; top: 50%;
+  width: 12px; height: 12px;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  background: #111;
+  border: 2px solid #777;
 }
 .mini-value { font-size: 14px; font-weight: 700; color: #e5e7eb; }
 .mini-title { margin-top: 6px; font-size: 12px; opacity: .8; }
@@ -111,28 +173,9 @@ button { font: inherit; cursor: pointer; }
    Engine Lights
    ========================================================= */
 .lights { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; justify-content: center; }
-.light {
-  padding: 6px 10px;
-  border-radius: 8px;
-  font-weight: 800;
-  font-size: 12px;
-  box-shadow: 0 0 10px rgba(0,0,0,.35);
-}
-.light-ok {
-  background: #064e3b; color: #d1fae5;
-  border: 1px solid #065f46;
-  box-shadow: 0 0 10px rgba(16,185,129,.45);
-}
-.light-warn {
-  background: #5b4508; color: #fde68a;
-  border: 1px solid #a16207;
-  box-shadow: 0 0 10px rgba(234,179,8,.45);
-}
-.light-danger {
-  background: #7f1d1d; color: #fecaca;
-  border: 1px solid #b91c1c;
-  box-shadow: 0 0 10px rgba(248,113,113,.45);
-}
+
+/* pill styles come from inline Pill map in JSX; optional fallback: */
+.light { padding: 6px 10px; border-radius: 8px; font-weight: 800; font-size: 12px; }
 
 /* =========================================================
    Tags & Buttons
@@ -175,6 +218,25 @@ button { font: inherit; cursor: pointer; }
 }
 
 /* =========================================================
-   SVG helper (prevents optimizer stripping)
+   SVG / Gloss Helpers
    ========================================================= */
-svg defs, svg linearGradient, svg radialGradient { }
+svg defs,
+svg linearGradient,
+svg radialGradient,
+svg pattern,
+svg clipPath { pointer-events: none; }
+
+/* Optional: realistic glass highlight */
+.gauge-face::after {
+  content: "";
+  position: absolute;
+  left: 50%; top: 50%;
+  width: 86%; height: 34%;
+  transform: translate(-50%, -72%);
+  border-radius: 50%;
+  background: radial-gradient(ellipse at 50% 20%,
+    rgba(255,255,255,0.20) 0%,
+    rgba(255,255,255,0.08) 55%,
+    rgba(0,0,0,0) 100%);
+  pointer-events: none;
+}
