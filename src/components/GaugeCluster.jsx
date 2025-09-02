@@ -1,10 +1,10 @@
 // src/components/GaugeCluster.jsx
-// Ferrari Dashboard cluster — FULL FILE (R6: centered cockpit + tight pair)
+// Ferrari Dashboard cluster — FULL FILE (R7: centered cockpit + branding arcs + engine lights)
 
 import React from "react";
 import { useDashboardPoll } from "../lib/dashboardApi";
 
-/* -------- helpers -------- */
+/* ---------- helpers ---------- */
 function timeAgo(ts) {
   try {
     const t = new Date(ts).getTime();
@@ -36,31 +36,53 @@ const Panel = ({ title, children, className = "" }) => (
   </div>
 );
 
-const Pill = ({ label, severity = "ok" }) => {
-  const tone = severity === "danger" ? "danger" : severity === "warn" ? "warn" : "ok";
-  const map = {
-    ok:     { bg:"#052e1b", bd:"#14532d", fg:"#34d399" },
-    warn:   { bg:"#2a1f05", bd:"#7c5806", fg:"#fbbf24" },
-    danger: { bg:"#2a0b0b", bd:"#7f1d1d", fg:"#ef4444" },
-  }[tone];
+/* ---------- engine-light pill ---------- */
+/* states: off | ok | warn | danger */
+const Pill = ({ label, state = "off", icon = "" }) => {
   return (
-    <span style={{
-      padding:"6px 10px", borderRadius:999, border:`1px solid ${map.bd}`,
-      background:map.bg, color:map.fg, fontSize:12, fontWeight:800,
-      boxShadow:`0 0 10px ${map.fg}66, inset 0 0 0 1px #ffffff08`,
-      display:"inline-flex", alignItems:"center", gap:6
-    }}>
-      <span style={{ width:8, height:8, borderRadius:999, background:map.fg, boxShadow:`0 0 8px ${map.fg}` }}/>
-      {label}
+    <span className={`light ${state}`} aria-label={`${label}: ${state}`}>
+      <span className="light-icon">{icon}</span>
+      <span className="light-text">{label}</span>
     </span>
   );
 };
 
-/* -------- main -------- */
+/* ---------- main ---------- */
 export default function GaugeCluster() {
   const { data, loading, error, refresh } = useDashboardPoll(5000);
   const ts = data?.meta?.ts;
   const color = freshnessColor(ts);
+
+  /* Build engine-light states */
+  const s = data?.signals || {};
+  const squeeze = String(data?.odometers?.squeeze || "none");
+
+  const mapSig = (sig) => {
+    if (!sig || !sig.active) return "off";
+    const sev = String(sig.severity || "info").toLowerCase();
+    return sev === "danger" ? "danger" : sev === "warn" ? "warn" : "ok";
+  };
+
+  const squeezeState =
+    squeeze === "firingDown" ? "danger" :
+    squeeze === "firingUp"   ? "ok"     :
+    squeeze === "on"         ? "warn"   : "off";
+
+  const lights = [
+    { label: "Breakout",      state: mapSig(s.sigBreakout),      icon: "📈" },
+    { label: "Squeeze",       state: squeezeState,               icon: "⏳" },
+    { label: "Overextended",  state: mapSig(s.sigOverheat),      icon: "🚀" },
+    { label: "Distribution",  state: mapSig(s.sigDistribution),  icon: "📉" },
+    { label: "Divergence",    state: mapSig(s.sigDivergence),    icon: "↔️" },
+    { label: "Risk Alert",    state: mapSig(s.sigOverheat),      icon: "⚡" },  // shares severity with overheat for now
+    { label: "Liquidity Weak",state: mapSig(s.sigLowLiquidity),  icon: "💧" },
+    { label: "Turbo",         state: mapSig(s.sigTurbo),         icon: "⚡" },
+    // placeholders (OFF by default; wire later if you like)
+    { label: "News",          state: "off",                      icon: "📰" },
+    { label: "Earnings",      state: "off",                      icon: "📊" },
+    { label: "Halt",          state: "off",                      icon: "⛔" },
+    { label: "Circuit",       state: "off",                      icon: "🛑" },
+  ];
 
   return (
     <div className="cluster">
@@ -89,13 +111,11 @@ export default function GaugeCluster() {
       {/* Content */}
       {data && (
         <>
-          {/* Gauges — centered cockpit */}
+          {/* Cockpit — centered block with tight pair */}
           <Panel title="Gauges" className="carbon-fiber">
-            {/* Center the entire cockpit in the panel */}
             <div className="cockpit-center">
-              {/* Grid uses auto/fit-content so gauges determine width; rims will sit tight */}
               <div className="cockpit">
-                {/* Left: 2×2 mini stack */}
+                {/* Minis left (2×2) */}
                 <div className="left-stack">
                   <MiniGauge label="WATER" value={data.gauges?.waterTemp} unit="°F" />
                   <MiniGauge label="OIL"   value={data.gauges?.oilPsi}    unit="psi" />
@@ -103,16 +123,25 @@ export default function GaugeCluster() {
                   <MiniGauge label="ALT"   value="—" />
                 </div>
 
-                {/* Center: big yellow tach — right-anchored */}
+                {/* Center tach (yellow) with outside branding arcs */}
                 <div className="center-tach">
-                  <BigGauge theme="tach"  label="RPM"   value={data.gauges?.rpm} />
+                  <BigGauge theme="tach"  label="RPM"   value={data.gauges?.rpm} withLogo />
                 </div>
 
-                {/* Right: red speedo — left-anchored */}
+                {/* Right speedo (red) */}
                 <div className="right-speed">
                   <BigGauge theme="speed" label="SPEED" value={data.gauges?.speed} />
                 </div>
               </div>
+            </div>
+          </Panel>
+
+          {/* Engine lights row (always visible) */}
+          <Panel title="Engine Lights">
+            <div className="lights">
+              {lights.map((L, i) => (
+                <Pill key={i} label={L.label} state={L.state} icon={L.icon} />
+              ))}
             </div>
           </Panel>
 
@@ -125,31 +154,16 @@ export default function GaugeCluster() {
             </div>
           </Panel>
 
-          {/* Engine lights */}
-          <Panel title="Engine Lights">
-            <div className="lights">
-              {renderSignal("Breakout",      data.signals?.sigBreakout)}
-              {renderSignal("Compression",   data.signals?.sigCompression)}
-              {renderSignal("Expansion",     data.signals?.sigExpansion)}
-              {renderSignal("Turbo",         data.signals?.sigTurbo)}
-              {renderSignal("Distribution",  data.signals?.sigDistribution)}
-              {renderSignal("Divergence",    data.signals?.sigDivergence)}
-              {renderSignal("Overheat",      data.signals?.sigOverheat)}
-              {renderSignal("Low Liquidity", data.signals?.sigLowLiquidity)}
-              {(!anyActive(data.signals)) && <span className="small muted">No active signals</span>}
-            </div>
-          </Panel>
-
           {/* Sectors */}
           <Panel title="Sectors">
             <div className="sectors-grid">
-              {(data.outlook?.sectorCards || []).map((s, i) => (
+              {(data.outlook?.sectorCards || []).map((c, i) => (
                 <div key={i} className="sector-card">
                   <div className="sector-head">
-                    <div className="sector-name">{s.sector}</div>
-                    <span className={`tag ${toneFromOutlook(s.outlook)}`}>{s.outlook}</span>
+                    <div className="sector-name">{c.sector}</div>
+                    <span className="tag">{c.outlook}</span>
                   </div>
-                  <Spark values={s.spark || []} />
+                  <Spark values={c.spark || []} />
                 </div>
               ))}
             </div>
@@ -160,84 +174,47 @@ export default function GaugeCluster() {
   );
 }
 
-/* -------- components -------- */
-function BigGauge({ theme="tach", label, value=0 }) {
+/* ---------- components ---------- */
+function BigGauge({ theme="tach", label, value=0, withLogo=false }) {
   const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
-  const t = (clamp(value, -1000, 1000) + 1000) / 2000; // 0..1
-  const angle = -130 + t * 260; // sweep
+  const t = (clamp(value, -1000, 1000) + 1000) / 2000;
+  const angle = -130 + t * 260;
 
-  const face = theme === "tach" ? "#facc15" : "#dc2626";
+  const isTach = theme === "tach";
+  const face = isTach ? "#ffdd00" : "#c21a1a";
 
   return (
-    <div className={`fg-wrap ${theme === "tach" ? "gauge--tach" : "gauge--speed"}`}>
+    <div className={`fg-wrap ${isTach ? "gauge--tach" : "gauge--speed"}`}>
       <div className="gauge-face" style={{ background: face }}>
+        {/* 18px red perimeter ring under ticks */}
         <div className="ring" />
+        {/* Ferrari ticks */}
         <div className="ticks">
           {Array.from({ length: 9 }, (_, i) => {
             const a = -130 + i * (260 / 8);
             return <Tick key={i} angle={a} major={i % 2 === 0} />;
           })}
         </div>
+
+        {/* Optional tach redline arc (rightmost 20% sweep) */}
+        {isTach && <div className="redline-arc" aria-hidden />}
+
+        {/* Needle & hub */}
         <div className="needle" style={{ transform: `rotate(${angle}deg)` }} />
         <div className="hub" />
+
+        {/* Glass highlight */}
         <div className="glass" />
-      </div>
-      <div className="fg-title">{label}</div>
-    </div>
-  );
-}
-function Tick({ angle, major }) {
-  return <div className={`tick ${major ? "major" : "minor"}`} style={{ transform: `rotate(${angle}deg)` }} />;
-}
-function MiniGauge({ label, value, unit }) {
-  return (
-    <div className="mini">
-      <div className="mini-face">
-        <div className="mini-needle" />
-        <div className="mini-hub" />
-      </div>
-      <div className="mini-value">{value ?? "—"}{unit || ""}</div>
-      <div className="mini-title">{label}</div>
-    </div>
-  );
-}
-function Odometer({ label, value }) {
-  return (
-    <div className="odo">
-      <div className="odo-label">{label}</div>
-      <div className="odo-value">{value ?? "—"}</div>
-    </div>
-  );
-}
-function toneFromOutlook(o) {
-  const k = String(o || "").toLowerCase();
-  if (k.includes("bull")) return "tag-ok";
-  if (k.includes("bear")) return "tag-danger";
-  return "tag-info";
-}
-function Spark({ values=[] }) {
-  if (values.length < 2) return <div className="sector-spark">(no data)</div>;
-  const min = Math.min(...values), max = Math.max(...values);
-  const W=180, H=36;
-  const norm = v => (max - min ? (v - min) / (max - min) : 0.5);
-  const pts = values.map((v, i) => {
-    const x = (i / (values.length - 1)) * (W - 8) + 4;
-    const y = (1 - norm(v)) * (H - 8) + 4;
-    return `${x},${y}`;
-  }).join(" ");
-  return (
-    <svg className="spark" viewBox={`0 0 ${W} ${H}`} width={W} height={H}>
-      <polyline fill="none" stroke="#60a5fa" strokeWidth="2" points={pts} />
-    </svg>
-  );
-}
-function anyActive(signals) {
-  if (!signals) return false;
-  return Object.values(signals).some(v => v && v.active === true);
-}
-function renderSignal(label, sig) {
-  if (!sig || !sig.active) return null;
-  const sev = (sig.severity || "info").toLowerCase();
-  const severity = sev === "danger" ? "danger" : (sev === "warn" ? "warn" : "ok");
-  return <Pill key={label} label={label} severity={severity} />;
-}
+
+        {/* Outside bezel branding arcs (tach only, outside ring) */}
+        {withLogo && (
+          <svg className="logo-ring" viewBox="0 0 220 220" aria-hidden>
+            {/* Circle path a bit larger than face so text sits outside bezel */}
+            <defs>
+              <path id="ringPath" d="M110,10 a100,100 0 1,1 0,200 a100,100 0 1,1 0,-200" />
+              <path id="ringPathBottom" d="M110,210 a100,100 0 1,1 0,-200 a100,100 0 1,1 0,200" />
+            </defs>
+            <text className="logo-top">
+              <textPath href="#ringPath" startOffset="50%" textAnchor="middle">REDLINE TRADING</textPath>
+            </text>
+            <text
