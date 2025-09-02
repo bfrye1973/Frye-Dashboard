@@ -1,5 +1,5 @@
 // src/components/GaugeCluster.jsx
-// Ferrari Dashboard cluster — R7.1 (centered cockpit + branding arcs + engine lights)
+// Ferrari Dashboard cluster — R7.2 (freshness badge + real mini-gauge ranges)
 
 import React from "react";
 import { useDashboardPoll } from "../lib/dashboardApi";
@@ -21,13 +21,19 @@ function freshnessColor(ts) {
   try {
     const t = new Date(ts).getTime();
     const mins = (Date.now() - t) / 60000;
-    if (mins < 15) return "#22c55e";
-    if (mins < 60) return "#f59e0b";
-    return "#ef4444";
+    if (mins < 15) return "#22c55e"; // green
+    if (mins < 60) return "#f59e0b"; // yellow
+    return "#ef4444";               // red
   } catch {
-    return "#6b7280";
+    return "#6b7280";               // gray
   }
 }
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+const mapToDeg = (v, lo, hi) => {
+  // maps [lo..hi] -> [-130..+130] degrees
+  const t = (clamp(v, lo, hi) - lo) / (hi - lo || 1);
+  return -130 + 260 * t;
+};
 
 const Panel = ({ title, children, className = "" }) => (
   <div className={`panel ${className}`}>
@@ -76,18 +82,18 @@ export default function GaugeCluster() {
 
   const lights = [
     { label: "Breakout",         state: mapSig(s.sigBreakout),      icon: "📈" },
-    { label: "Squeeze",          state: squeezeState,                icon: "⏳" },
-    { label: "Overextended",     state: mapSig(s.sigOverheat),       icon: "🚀" },
-    { label: "Distribution",     state: mapSig(s.sigDistribution),   icon: "📉" },
-    { label: "Divergence",       state: mapSig(s.sigDivergence),     icon: "↔️" },
-    { label: "Risk Alert",       state: mapSig(s.sigOverheat),       icon: "⚡" },
-    { label: "Liquidity Weak",   state: mapSig(s.sigLowLiquidity),   icon: "💧" },
-    { label: "Turbo",            state: mapSig(s.sigTurbo),          icon: "⚡" },
+    { label: "Squeeze",          state: squeezeState,               icon: "⏳" },
+    { label: "Overextended",     state: mapSig(s.sigOverheat),      icon: "🚀" },
+    { label: "Distribution",     state: mapSig(s.sigDistribution),  icon: "📉" },
+    { label: "Divergence",       state: mapSig(s.sigDivergence),    icon: "↔️" },
+    { label: "Risk Alert",       state: mapSig(s.sigOverheat),      icon: "⚡" },
+    { label: "Liquidity Weak",   state: mapSig(s.sigLowLiquidity),  icon: "💧" },
+    { label: "Turbo",            state: mapSig(s.sigTurbo),         icon: "⚡" },
     // placeholders (OFF by default; wire when ready)
-    { label: "News",             state: "off",                       icon: "📰" },
-    { label: "Earnings",         state: "off",                       icon: "📊" },
-    { label: "Halt",             state: "off",                       icon: "⛔" },
-    { label: "Circuit",          state: "off",                       icon: "🛑" },
+    { label: "News",             state: "off",                      icon: "📰" },
+    { label: "Earnings",         state: "off",                      icon: "📊" },
+    { label: "Halt",             state: "off",                      icon: "⛔" },
+    { label: "Circuit",          state: "off",                      icon: "🛑" },
   ];
 
   return (
@@ -105,6 +111,7 @@ export default function GaugeCluster() {
           <div
             className="tag"
             style={{ border: `1px solid ${color}`, display: "flex", gap: 8, alignItems: "center", borderRadius: 8, padding: "4px 8px" }}
+            title={ts || "unknown"}
           >
             <span
               style={{
@@ -137,10 +144,10 @@ export default function GaugeCluster() {
               <div className="cockpit">
                 {/* Minis left (2×2) */}
                 <div className="left-stack">
-                  <MiniGauge label="WATER" value={data.gauges?.waterTemp} unit="°F" />
-                  <MiniGauge label="OIL"   value={data.gauges?.oilPsi}    unit="psi" />
-                  <MiniGauge label="FUEL"  value={data.gauges?.fuelPct}   unit="%" />
-                  <MiniGauge label="ALT"   value="—" />
+                  <MiniGauge label="WATER" value={data.gauges?.waterTemp} unit="°F" min={160} max={260} />
+                  <MiniGauge label="OIL"   value={data.gauges?.oilPsi}    unit="psi" min={0}   max={120} />
+                  <MiniGauge label="FUEL"  value={data.gauges?.fuelPct}   unit="%"   min={0}   max={100} />
+                  <MiniGauge label="ALT"   value={null} />
                 </div>
 
                 {/* Center tach (yellow) with outside branding arcs */}
@@ -196,9 +203,8 @@ export default function GaugeCluster() {
 
 /* ---------- components ---------- */
 function BigGauge({ theme = "tach", label, value = 0, withLogo = false }) {
-  const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
-  const t = (clamp(value, -1000, 1000) + 1000) / 2000; // 0..1
-  const angle = -130 + t * 260; // -130..+130
+  const v = clamp(Number(value ?? 0), -1000, 1000);
+  const angle = mapToDeg(v, -1000, 1000);
   const isTach = theme === "tach";
   const face = isTach ? "#ffdd00" : "#c21a1a";
 
@@ -259,15 +265,20 @@ function Tick({ angle, major }) {
   );
 }
 
-function MiniGauge({ label, value, unit }) {
+/* MiniGauge now uses min/max to rotate the needle based on real ranges */
+function MiniGauge({ label, value, unit, min = 0, max = 100 }) {
+  const v = typeof value === "number" ? value : NaN;
+  const hasVal = Number.isFinite(v);
+  const deg = hasVal ? mapToDeg(v, min, max) : 0;
+
   return (
     <div className="mini">
       <div className="mini-face">
-        <div className="mini-needle" />
+        <div className="mini-needle" style={{ transform: `rotate(${deg}deg)` }} />
         <div className="mini-hub" />
       </div>
       <div className="mini-value">
-        {value ?? "—"}
+        {hasVal ? Math.round(v) : "—"}
         {unit || ""}
       </div>
       <div className="mini-title">{label}</div>
@@ -298,7 +309,7 @@ function Spark({ values = [] }) {
     })
     .join(" ");
   return (
-    <svg className="spark" viewBox={`0 0 ${W} ${H}`} width={W} height={H}>
+    <svg className="spark" viewBox={`0 0 ${W} ${H}`} width={W} height={H} aria-hidden>
       <polyline fill="none" stroke="#60a5fa" strokeWidth="2" points={pts} />
     </svg>
   );
