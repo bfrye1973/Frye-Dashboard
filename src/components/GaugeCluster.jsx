@@ -1,13 +1,10 @@
 // src/components/GaugeCluster.jsx
-// Renders the Ferrari dashboard from /api/dashboard with:
-// - Freshness badge from meta.ts (green/yellow/red)
-// - Manual Refresh button (calls refresh() from useDashboardPoll)
-// - Gauges (rpm/speed/fuel/water/oil), odometers, engine lights, sector cards
+// Ferrari Dashboard cluster — full component
 
 import React from "react";
 import { useDashboardPoll } from "../lib/dashboardApi";
 
-// ---------- helpers ----------
+/* ----------- helpers ----------- */
 function timeAgo(ts) {
   try {
     const t = new Date(ts).getTime();
@@ -36,88 +33,101 @@ function freshnessColor(ts) {
 
 const Panel = ({ title, children }) => (
   <div className="panel">
-    {title && <div className="panel-title">{title}</div>}
-    <div>{children}</div>
+    {title && <div className="panel-head"><div className="panel-title">{title}</div></div>}
+    {children}
   </div>
 );
 
-// Pills for engine lights
-const Pill = ({ label, tone="info" }) => {
+/* Pill for engine lights */
+const Pill = ({ label, tone = "ok" }) => {
   const map = {
-    info:   { bg:"#0b1220", bd:"#334155", fg:"#93c5fd" },
-    warn:   { bg:"#2a1f05", bd:"#7c5806", fg:"#fbbf24" },
-    danger: { bg:"#2a0b0b", bd:"#7f1d1d", fg:"#ef4444" },
-    ok:     { bg:"#052e1b", bd:"#14532d", fg:"#34d399" },
+    ok:     { bg:"#052e1b", bd:"#14532d", fg:"#34d399" },  // green
+    warn:   { bg:"#2a1f05", bd:"#7c5806", fg:"#fbbf24" },  // yellow
+    danger: { bg:"#2a0b0b", bd:"#7f1d1d", fg:"#ef4444" },  // red
+    info:   { bg:"#0b1220", bd:"#334155", fg:"#93c5fd" }   // blue (unused)
   }[tone] || { bg:"#0b1220", bd:"#334155", fg:"#e5e7eb" };
   return (
     <span style={{
-      padding:"4px 8px", borderRadius:8, border:`1px solid ${map.bd}`,
-      background:map.bg, color:map.fg, fontSize:12, marginRight:6, display:"inline-flex", alignItems:"center", gap:6
+      padding:"4px 8px",
+      borderRadius:8,
+      border:`1px solid ${map.bd}`,
+      background:map.bg,
+      color:map.fg,
+      fontSize:12,
+      display:"inline-flex",
+      alignItems:"center",
+      gap:6
     }}>
-      <span style={{ width:8, height:8, borderRadius:999, background:map.fg, boxShadow:`0 0 8px ${map.fg}` }}/>
+      <span style={{
+        width:8, height:8, borderRadius:999,
+        background:map.fg, boxShadow:`0 0 8px ${map.fg}`
+      }}/>
       {label}
     </span>
   );
 };
 
-// ---------- MAIN ----------
+/* ----------- MAIN ----------- */
 export default function GaugeCluster() {
   const { data, loading, error, refresh } = useDashboardPoll(5000);
 
-  // header UI (freshness + refresh)
   const ts = data?.meta?.ts;
   const color = freshnessColor(ts);
 
   return (
-    <div className="cluster-wrap">
-      {/* Header row */}
-      <div className="cluster-header">
-        <div className="cluster-title">
-          <div className="title-main">Ferrari Trading Cluster</div>
-          <div className="title-sub">Live dashboard • SVG needles</div>
+    <div className="cluster">
+      {/* Header */}
+      <div className="panel" style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+        <div>
+          <div style={{fontWeight:700}}>Ferrari Trading Cluster</div>
+          <div className="small muted">Live from /api/dashboard</div>
         </div>
-
-        <div className="cluster-actions">
-          <div className="freshness-pill" title={ts || ""} style={{ borderColor: color }}>
-            <span className="dot" style={{ background: color, boxShadow: `0 0 10px ${color}` }}/>
-            <span className="fresh-text">{ts ? `Updated ${timeAgo(ts)}` : "—"}</span>
+        <div style={{display:"flex",gap:8,alignItems:"center"}}>
+          <div className="tag" style={{borderColor:color,display:"flex",gap:8,alignItems:"center"}}>
+            <span style={{width:8,height:8,borderRadius:999,background:color,boxShadow:`0 0 8px ${color}`}}/>
+            <span className="small">{ts ? `Updated ${timeAgo(ts)}` : "—"}</span>
           </div>
-          <button className="btn" onClick={refresh} disabled={loading} title="Manual refresh">
+          <button className="btn" onClick={refresh} disabled={loading}>
             {loading ? "Refreshing…" : "Refresh"}
           </button>
         </div>
       </div>
 
-      {/* Loading / error */}
-      {loading && !data && <div className="hint">Loading dashboard…</div>}
-      {error && <div className="error">Failed to load: {String(error)}</div>}
-      {!data && !loading && !error && <div className="hint">No data</div>}
+      {/* Loading / Error */}
+      {loading && !data && <div className="panel">Loading…</div>}
+      {error && <div className="panel">Error: {error}</div>}
+      {!data && !loading && !error && <div className="panel">No data</div>}
 
+      {/* Content */}
       {data && (
-        <div className="grid">
+        <>
           {/* Gauges */}
           <Panel title="Gauges">
-            <div className="gauges-row">
-              <Gauge label="RPM"       value={data.gauges?.rpm}   min={-1000} max={1000} theme="tach" />
-              <Gauge label="SPEED"     value={data.gauges?.speed} min={-1000} max={1000} theme="speed" />
-              <MiniGauge label="FUEL"       value={data.gauges?.fuelPct}   unit="%"   />
-              <MiniGauge label="WATER"      value={data.gauges?.waterTemp} unit="°F"  />
-              <MiniGauge label="OIL"        value={data.gauges?.oilPsi}    unit="psi" />
+            <div className="cluster-row">
+              <div className="left-stack">
+                <MiniGauge label="FUEL"  value={data.gauges?.fuelPct}   unit="%" />
+                <MiniGauge label="WATER" value={data.gauges?.waterTemp} unit="°F" />
+                <MiniGauge label="OIL"   value={data.gauges?.oilPsi}    unit="psi" />
+              </div>
+              <div className="center-pair">
+                <BigGauge theme="tach"  label="RPM"   value={data.gauges?.rpm} />
+                <BigGauge theme="speed" label="SPEED" value={data.gauges?.speed} />
+              </div>
             </div>
           </Panel>
 
           {/* Odometers */}
           <Panel title="Odometers">
-            <div className="odom-row">
-              <Odometer label="Breadth"  value={data.odometers?.breadthOdometer}  />
-              <Odometer label="Momentum" value={data.odometers?.momentumOdometer} />
-              <Badge label={`Squeeze: ${data.odometers?.squeeze ?? "—"}`} />
+            <div className="odos">
+              <Odometer label="Breadth"  value={data.odometers?.breadthOdometer}/>
+              <Odometer label="Momentum" value={data.odometers?.momentumOdometer}/>
+              <Odometer label="Squeeze"  value={String(data.odometers?.squeeze ?? "—")}/>
             </div>
           </Panel>
 
-          {/* Engine Lights — only show active */}
+          {/* Engine Lights */}
           <Panel title="Engine Lights">
-            <div className="lights-row">
+            <div className="lights">
               {renderSignal("Breakout",     data.signals?.sigBreakout)}
               {renderSignal("Distribution", data.signals?.sigDistribution)}
               {renderSignal("Turbo",        data.signals?.sigTurbo)}
@@ -126,58 +136,51 @@ export default function GaugeCluster() {
               {renderSignal("Divergence",   data.signals?.sigDivergence)}
               {renderSignal("Overheat",     data.signals?.sigOverheat)}
               {renderSignal("Low Liquidity",data.signals?.sigLowLiquidity)}
-              {/* if none active */}
-              {(!anyActive(data.signals)) && <span className="hint">No active signals</span>}
+              {!anyActive(data.signals) && <span className="small muted">No active signals</span>}
             </div>
           </Panel>
 
           {/* Sectors */}
           <Panel title="Sectors">
-            <div className="sectors">
+            <div className="sectors-grid">
               {(data.outlook?.sectorCards || []).map((s, i) => (
                 <div key={i} className="sector-card">
                   <div className="sector-head">
                     <div className="sector-name">{s.sector}</div>
-                    <Badge label={s.outlook} />
+                    <span className={`tag ${toneFromOutlook(s.outlook)}`}>{s.outlook}</span>
                   </div>
                   <Spark values={s.spark || []} />
                 </div>
               ))}
             </div>
           </Panel>
-        </div>
+        </>
       )}
     </div>
   );
 }
 
-// ---------- simple components ----------
-function Gauge({ label, value=0, min=-1000, max=1000, theme="tach" }) {
-  // Map [-1000..1000] → [-130..130] deg
+/* ----------- Components ----------- */
+function BigGauge({ theme="tach", label, value=0 }) {
   const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
-  const t = (clamp(value, min, max) - min) / (max - min || 1);
+  const t = (clamp(value, -1000, 1000) + 1000) / 2000;
   const angle = -130 + t * 260;
-
-  const faceColor = theme === "tach" ? "#facc15" : "#dc2626"; // yellow/red
-  const labelColor = "#0b1220";
+  const face = theme === "tach" ? "#facc15" : "#dc2626";
 
   return (
-    <div className="gauge">
-      <div className="gauge-face" style={{ background: faceColor }}>
-        {/* red perimeter ring under ticks */}
+    <div className="fg-wrap">
+      <div className="gauge-face" style={{ background: face, position:"relative" }}>
         <div className="ring" />
-        {/* ticks */}
         <div className="ticks">
           {Array.from({ length: 9 }, (_, i) => {
             const a = -130 + i * (260 / 8);
             return <Tick key={i} angle={a} major={i % 2 === 0} />;
           })}
         </div>
-        {/* needle */}
-        <div className="needle" style={{ transform: `rotate(${angle}deg)` }} />
+        <div className="needle" style={{ transform: `rotate(${angle}deg)` }}/>
         <div className="hub" />
       </div>
-      <div className="gauge-label" style={{ color: labelColor }}>{label}</div>
+      <div className="fg-title" style={{ color:"#0b1220" }}>{label}</div>
     </div>
   );
 }
@@ -196,37 +199,29 @@ function MiniGauge({ label, value, unit }) {
         <div className="mini-needle" />
         <div className="mini-hub" />
       </div>
-      <div className="mini-row">
-        <div className="mini-label">{label}</div>
-        <div className="mini-value">{value ?? "—"}{unit || ""}</div>
-      </div>
+      <div className="mini-value">{value ?? "—"}{unit || ""}</div>
+      <div className="mini-title">{label}</div>
     </div>
   );
 }
 function Odometer({ label, value }) {
   return (
-    <div className="odom">
-      <div className="odom-label">{label}</div>
-      <div className="odom-value">{value ?? "—"}</div>
+    <div className="odo">
+      <div className="odo-label">{label}</div>
+      <div className="odo-value">{value ?? "—"}</div>
     </div>
   );
 }
-function Badge({ label }) {
-  return <span className="badge">{label}</span>;
-}
-function anyActive(signals) {
-  if (!signals) return false;
-  return Object.values(signals).some(v => v && (v.active === true));
-}
-function renderSignal(label, sig) {
-  if (!sig || !sig.active) return null;
-  return <Pill key={label} label={label} tone={sig.severity || "info"} />;
+function toneFromOutlook(o) {
+  const k = String(o || "").toLowerCase();
+  if (k.includes("bull")) return "tag-ok";
+  if (k.includes("bear")) return "tag-danger";
+  return "tag-info";
 }
 function Spark({ values=[] }) {
-  if (values.length < 2) return <div className="spark">(no data)</div>;
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  const H = 28, W = 120;
+  if (values.length < 2) return <div className="sector-spark">(no data)</div>;
+  const min = Math.min(...values), max = Math.max(...values);
+  const W=180, H=36;
   const norm = v => (max - min ? (v - min) / (max - min) : 0.5);
   const pts = values.map((v, i) => {
     const x = (i / (values.length - 1)) * (W - 8) + 4;
@@ -238,4 +233,14 @@ function Spark({ values=[] }) {
       <polyline fill="none" stroke="#60a5fa" strokeWidth="2" points={pts} />
     </svg>
   );
+}
+function anyActive(signals) {
+  if (!signals) return false;
+  return Object.values(signals).some(v => v && v.active === true);
+}
+function renderSignal(label, sig) {
+  if (!sig || !sig.active) return null;
+  const sev = (sig.severity || "info").toLowerCase();
+  const tone = sev === "danger" ? "danger" : (sev === "warn" ? "warn" : "ok"); // treat info as ok
+  return <Pill key={label} label={label} tone={tone} />;
 }
