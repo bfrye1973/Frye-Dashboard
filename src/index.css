@@ -333,4 +333,25 @@ svg defs, svg linearGradient, svg radialGradient, svg pattern, svg clipPath { po
 .arc-top,.arc-bottom{ z-index:3; }
 .needle,.hub{ z-index:4; }
 .glass{ z-index:5; }
+/* =========================================================
+   FERRARI COCKPIT — 34" Ultrawide (3440×1440)
+   Paste at bottom of index.css so it overrides.
+   ========================================================= */
+@media (min-width: 2000px) and (max-width: 3600px) {
+  /* Center tach bigger, speedo modestly smaller */
+  .gauge--tach { transform: scale(1.22); }
+  .right-speed .gauge--speed { transform: scale(0.90); }
+
+  /* Ferrari binnacle geometry: center really dominates */
+  .cockpit {
+    grid-template-columns: 0.22fr 0.70fr 0.36fr; /* left | tach | speedo */
+    gap: 18px;
+  }
+
+  /* Allow gauges to expand on ultrawide */
+  .gauge-face { max-width: 720px; }
+
+  /* Mini dials scale up slightly so they don’t look lost */
+  .left-stack .mini .mini-face { transform: scale(1.1); transform-origin: center; }
+}
 
