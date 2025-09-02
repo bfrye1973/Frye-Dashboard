@@ -1,218 +1,210 @@
 /* =========================================================
-   Frye Dashboard — Ferrari Cluster UI (R6)
-   COMPLETE index.css — centered cockpit
+   Frye Dashboard — Ferrari Cluster UI (R7)
+   COMPLETE index.css — centered cockpit + branding arcs + engine lights
    ========================================================= */
 
 /* ---------- Theme Tokens ---------- */
-:root {
-  --bg: #0d1117;
-  --panel: #0e1526;
-  --border: #1f2a44;
-  --text: #d1d4dc;
-  --muted: #9aa4b2;
+:root{
+  --bg:#0d1117;
+  --panel:#0e1526;
+  --border:#1f2a44;
+  --text:#d1d4dc;
+  --muted:#9aa4b2;
 
-  --accent-blue: #60a5fa;
+  --tach-yellow:#ffdd00;
+  --speed-red:#c21a1a;
+  --ring-red:#e21212;
 
-  --tach-yellow: #ffdd00;
-  --speed-red: #c21a1a;
-  --ring-red: #e21212; /* 18px ring */
+  --ok:#29c651;
+  --warn:#ffc400;
+  --danger:#ff3b3b;
+
+  --off-bg:#1f2633;
+  --off-fg:#566074;
 }
 
 /* ---------- Base ---------- */
-* { box-sizing: border-box; }
-html, body, #root { height: 100%; }
-body {
-  margin: 0; color: var(--text); background: var(--bg);
-  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto,
-    "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji";
-  -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;
+*{box-sizing:border-box}
+html,body,#root{height:100%}
+body{
+  margin:0;color:var(--text);background:var(--bg);
+  font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica Neue,Arial,Noto Sans,Apple Color Emoji,Segoe UI Emoji;
+  -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;
 }
-.small { font-size: 12px; }
-.muted { opacity: .7; }
+.small{font-size:12px}.muted{opacity:.7}
+a{color:#60a5fa;text-decoration:none} a:hover{text-decoration:underline}
 
-.cluster { display: grid; gap: 14px; }
-.panel {
-  position: relative; background: var(--panel);
-  border: 1px solid var(--border); border-radius: 14px; padding: 12px; overflow: hidden;
+/* ---------- Panel & Carbon Shell ---------- */
+.cluster{display:grid;gap:14px}
+.panel{
+  position:relative;background:var(--panel);border:1px solid var(--border);
+  border-radius:14px;padding:12px;overflow:hidden;
 }
 .panel::before{
-  content:""; position:absolute; inset:0; pointer-events:none;
+  content:"";position:absolute;inset:0;pointer-events:none;
   background:
-    linear-gradient(45deg, #101419 25%, transparent 25%) -8px 0/16px 16px,
-    linear-gradient(-45deg, #101419 25%, transparent 25%) -8px 0/16px 16px,
-    linear-gradient(45deg, transparent 75%, #0b0f14 75%) -8px 0/16px 16px,
-    linear-gradient(-45deg, transparent 75%, #0b0f14 75%) -8px 0/16px 16px,
-    linear-gradient(0deg, #0a0e15, #0a0e15);
+    linear-gradient(45deg,#101419 25%,transparent 25%) -8px 0/16px 16px,
+    linear-gradient(-45deg,#101419 25%,transparent 25%) -8px 0/16px 16px,
+    linear-gradient(45deg,transparent 75%,#0b0f14 75%) -8px 0/16px 16px,
+    linear-gradient(-45deg,transparent 75%,#0b0f14 75%) -8px 0/16px 16px,
+    linear-gradient(0deg,#0a0e15,#0a0e15);
   opacity:.55;
 }
 .panel::after{
-  content:""; position:absolute; inset:0; pointer-events:none;
+  content:"";position:absolute;inset:0;pointer-events:none;
   background:
     radial-gradient(1200px 520px at 50% -30%, rgba(255,255,255,0.06), transparent 55%),
     radial-gradient(900px 320px at 50% 120%, rgba(0,0,0,0.55), transparent 62%);
 }
-.panel-head { display:flex; align-items:center; gap:8px; margin-bottom:10px; z-index:2; }
-.panel-title { font-weight: 700; }
+.panel-head{display:flex;align-items:center;gap:8px;margin-bottom:10px;z-index:2}
+.panel-title{font-weight:700}
 
-/* =========================================================
-   Centered Cockpit
-   ========================================================= */
-
-/* This wrapper sets the cockpit to its intrinsic width and centers it */
-.cockpit-center{
-  display:block;
-  width: fit-content;
-  max-width: 100%;
-  margin-inline: auto;     /* <-- centers in the panel */
-}
-
-/* Grid columns sized by content so gauges determine the width */
+/* ---------- Centered Cockpit ---------- */
+.cockpit-center{ display:block; width:fit-content; max-width:100%; margin-inline:auto; }
 .cockpit{
-  display: grid;
-  align-items: center;
-  column-gap: 8px;         /* small seam between tach & speedo */
-  grid-template-columns: auto auto auto;  /* minis | tach | speedo */
+  display:grid;align-items:center;column-gap:8px;
+  grid-template-columns:auto auto auto; /* minis | tach | speedo */
 }
 
-/* Left: 2×2 mini dials */
+/* Left minis 2×2 */
 .left-stack{
-  display:grid;
-  grid-template-columns: 1fr 1fr;
-  grid-auto-rows: 1fr;
-  gap: 12px;
-  margin-right: 10px; /* a touch of breathing room before tach */
+  display:grid;grid-template-columns:1fr 1fr;grid-auto-rows:1fr;gap:12px;margin-right:10px;
 }
-.left-stack .mini{
-  aspect-ratio: 1/1;
-  display:flex; flex-direction:column; justify-content:center; align-items:center;
-}
+.left-stack .mini{aspect-ratio:1/1;display:flex;flex-direction:column;align-items:center;justify-content:center}
 
-/* Edge-anchor main gauges so rims meet at the seam */
-.center-tach { display:flex; justify-content:flex-end;  align-items:center; }
-.right-speed { display:flex; justify-content:flex-start; align-items:center; }
+/* Edge anchor main gauges */
+.center-tach{display:flex;justify-content:flex-end;align-items:center}
+.right-speed{display:flex;justify-content:flex-start;align-items:center}
 
-/* Face caps; gauges scale with screen in media queries below */
-.gauge-face { max-width: 520px; }
-.gauge--tach { transform: scale(1.16); }              /* center dominant */
-.right-speed .gauge--speed { transform: scale(0.92); } /* secondary */
-
-/* =========================================================
-   Big Gauges Look (Ferrari)
-   ========================================================= */
-.fg-wrap { display:flex; flex-direction:column; align-items:center; }
-.fg-title { margin-top:6px; font-weight:800; color:#0b1220; }
+/* ---------- Big Gauges ---------- */
+.fg-wrap{display:flex;flex-direction:column;align-items:center}
+.fg-title{margin-top:6px;font-weight:800;color:#0b1220}
 
 .gauge-face{
-  width: 210px; height: 210px; border-radius: 50%;
-  border: 12px solid #0f172a; position: relative; overflow: hidden;
-  box-shadow: inset 0 0 24px #000, 0 0 18px #000; isolation:isolate;
+  width:210px;height:210px;border-radius:50%;border:12px solid #0f172a;
+  position:relative;overflow:hidden;box-shadow:inset 0 0 24px #000,0 0 18px #000;isolation:isolate;
 }
-.gauge--tach  .gauge-face { background: var(--tach-yellow); }
-.gauge--speed .gauge-face { background: var(--speed-red); }
+.gauge--tach  .gauge-face{background:var(--tach-yellow)}
+.gauge--speed .gauge-face{background:var(--speed-red)}
 
-/* 18px ring under ticks */
-.ring{
-  position:absolute; inset:10px; border-radius:50%;
-  box-shadow: inset 0 0 0 18px var(--ring-red), inset 0 0 52px rgba(226,18,18,0.35);
-  z-index:1;
-}
+/* 18px red ring under ticks */
+.ring{position:absolute;inset:10px;border-radius:50%;box-shadow:inset 0 0 0 18px var(--ring-red), inset 0 0 52px rgba(226,18,18,.35);z-index:1}
 
-/* Ticks + Needle + Hub + Glass */
-.ticks { position:absolute; inset:0; z-index:2; }
-.tick{
-  position:absolute; left:50%; top:50%;
-  width:2px; height:20px; background:#fff; opacity:.9;
-  transform-origin: 50% calc(50% - 85px);
-}
-.tick.major{ height:26px; width:3px; opacity:1; }
-.needle{
-  position:absolute; left:50%; top:50%;
-  width:90px; height:3px; background:#fff; transform-origin:0% 50%;
-  box-shadow:0 0 4px #000; z-index:3;
-}
-.hub{
-  position:absolute; left:50%; top:50%;
-  width:20px; height:20px; border-radius:50%;
-  transform:translate(-50%,-50%); background:#111; border:3px solid #888; z-index:3;
-}
+/* Ticks / Needle / Hub / Glass */
+.ticks{position:absolute;inset:0;z-index:2}
+.tick{position:absolute;left:50%;top:50%;width:2px;height:20px;background:#fff;opacity:.9;transform-origin:50% calc(50% - 85px)}
+.tick.major{height:26px;width:3px;opacity:1}
+.needle{position:absolute;left:50%;top:50%;width:90px;height:3px;background:#fff;transform-origin:0% 50%;box-shadow:0 0 4px #000;z-index:3}
+.hub{position:absolute;left:50%;top:50%;width:20px;height:20px;border-radius:50%;transform:translate(-50%,-50%);background:#111;border:3px solid #888;z-index:3}
 .glass{
-  position:absolute; inset:0; border-radius:50%;
-  background:
-    radial-gradient(55% 35% at 50% 15%, rgba(255,255,255,0.22), rgba(255,255,255,0.08) 42%, transparent 62%),
-    linear-gradient(180deg, rgba(255,255,255,0.08), rgba(0,0,0,0.42) 62%);
-  mix-blend-mode:screen; pointer-events:none; z-index:5;
+  position:absolute;inset:0;border-radius:50%;
+  background:radial-gradient(55% 35% at 50% 15%, rgba(255,255,255,.22), rgba(255,255,255,.08) 42%, transparent 62%),
+             linear-gradient(180deg, rgba(255,255,255,.08), rgba(0,0,0,.42) 62%);
+  mix-blend-mode:screen;pointer-events:none;z-index:5;
 }
 
-/* =========================================================
-   Minis
-   ========================================================= */
-.mini { display:flex; flex-direction:column; align-items:center; }
+/* Tach redline arc (right edge of sweep) */
+.redline-arc{
+  position:absolute;inset:10px;border-radius:50%;
+  box-shadow: inset 0 0 0 18px rgba(226,18,18,.4);
+  clip-path: polygon(50% 50%, 100% 0%, 100% 100%); /* simple right arc wedge */
+  z-index:1; pointer-events:none;
+}
+
+/* Branding arcs outside bezel (tach only) */
+.logo-ring{
+  position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+  width:260px;height:260px; pointer-events:none; z-index:4;
+}
+.logo-top, .logo-bottom{
+  fill:#f7f7f7;
+  font-weight:800;
+  letter-spacing:2.2px;
+  text-shadow:0 1px 0 rgba(0,0,0,.6), 0 0 8px rgba(255,255,255,.12);
+  font-size:12px;
+}
+
+/* ---------- Engine Lights Row ---------- */
+.lights{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;align-items:center}
+.light{
+  display:inline-flex;align-items:center;gap:6px;
+  padding:6px 10px;border-radius:999px;
+  border:1px solid #2b3550;
+  background:var(--off-bg); color:var(--off-fg);
+  font-size:12px;font-weight:800;
+  transition: box-shadow .2s ease, background .2s ease, color .2s ease, transform .2s ease;
+}
+.light-icon{font-size:14px;opacity:.85}
+.light-text{letter-spacing:.2px}
+
+/* Active states (glow on) */
+.light.ok{
+  background:linear-gradient(180deg,#67f28f,#29c651);
+  color:#05280e; border-color:#1a7c3a;
+  box-shadow:0 0 12px rgba(41,198,81,.55), 0 0 0 1px rgba(41,198,81,.4) inset;
+}
+.light.warn{
+  background:linear-gradient(180deg,#ffe47a,#ffc400);
+  color:#3a2a00; border-color:#a07b00;
+  box-shadow:0 0 12px rgba(255,196,0,.55), 0 0 0 1px rgba(255,196,0,.4) inset;
+}
+.light.danger{
+  background:linear-gradient(180deg,#ff9a9a,#ff3b3b);
+  color:#2e0000; border-color:#a31212;
+  box-shadow:0 0 12px rgba(255,59,59,.6), 0 0 0 1px rgba(255,59,59,.45) inset;
+}
+
+/* ---------- Minis ---------- */
+.mini{display:flex;flex-direction:column;align-items:center}
 .mini-face{
-  width:110px; height:110px; border-radius:50%;
+  width:110px;height:110px;border-radius:50%;
   background: radial-gradient(circle at 30% 30%, #1a1a1a, #000);
-  border:4px solid #555; display:flex; align-items:center; justify-content:center;
-  box-shadow: inset 0 0 12px #000, 0 0 8px #111; position:relative;
+  border:4px solid #555;display:flex;align-items:center;justify-content:center;
+  box-shadow: inset 0 0 12px #000, 0 0 8px #111;position:relative;
 }
-.mini-needle{
-  position:absolute; left:50%; top:50%;
-  width:42px; height:2px; background:#e5e7eb;
-  transform-origin:0% 50%; transform: rotate(-90deg);
+.mini-needle{position:absolute;left:50%;top:50%;width:42px;height:2px;background:#e74a4a;transform-origin:0% 50%;transform:rotate(-90deg)}
+.mini-hub{position:absolute;left:50%;top:50%;width:12px;height:12px;border-radius:50%;transform:translate(-50%,-50%);background:#111;border:2px solid #777}
+.mini-value{font-size:14px;font-weight:700;color:#e5e7eb}
+.mini-title{margin-top:6px;font-size:12px;opacity:.8}
+
+/* ---------- Odometers / Sectors ---------- */
+.odos{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:12px}
+.odo{background:#0b1220;border:1px solid var(--border);border-radius:10px;padding:10px;text-align:center}
+.odo-label{font-size:12px;opacity:.7}
+.odo-value{font-size:20px;font-weight:800}
+
+.sectors-grid{display:grid;gap:10px;grid-template-columns:repeat(auto-fill,minmax(220px,1fr))}
+.sector-card{border:1px solid var(--border);background:#0b1220;border-radius:10px;padding:10px}
+.sector-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.sector-name{font-weight:700}
+.sector-spark{color:#60a5fa}
+
+/* ---------- Sizing & Screen Tuning ---------- */
+/* Base caps + dominance */
+.gauge-face{max-width:520px}
+.gauge--tach{transform:scale(1.16)}          /* center dominant */
+.right-speed .gauge--speed{transform:scale(0.92)}  /* secondary */
+
+/* 24" ~1920px */
+@media (min-width:1200px) and (max-width:1700px){
+  .gauge-face{max-width:560px}
+  .gauge--tach{transform:scale(1.18)}
+  .right-speed .gauge--speed{transform:scale(0.90)}
 }
-.mini-hub{
-  position:absolute; left:50%; top:50%;
-  width:12px; height:12px; border-radius:50%;
-  transform:translate(-50%,-50%); background:#111; border:2px solid #777;
+
+/* 34" ultrawide families */
+@media (min-width:1701px) and (max-width:3600px){
+  .gauge-face{max-width:700px}
+  .gauge--tach{transform:scale(1.22)}
+  .right-speed .gauge--speed{transform:scale(0.90)}
+  .cockpit{column-gap:6px}
 }
-.mini-value{ font-size:14px; font-weight:700; color:#e5e7eb; }
-.mini-title{ margin-top:6px; font-size:12px; opacity:.8; }
-
-/* =========================================================
-   Odometers / Lights / Sectors
-   ========================================================= */
-.odos{ display:grid; grid-template-columns: repeat(3, 1fr); gap:12px; margin-top:12px; }
-.odo{ background:#0b1220; border:1px solid var(--border); border-radius:10px; padding:10px; text-align:center; }
-.odo-label{ font-size:12px; opacity:.7; }
-.odo-value{ font-size:20px; font-weight:800; }
-
-.lights{ display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; justify-content:center; }
-.light{ padding:6px 10px; border-radius:999px; font-weight:800; font-size:12px; border:1px solid #334155; }
-
-.sectors-grid{ display:grid; gap:10px; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
-.sector-card{ border:1px solid var(--border); background:#0b1220; border-radius:10px; padding:10px; }
-.sector-head{ display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; }
-.sector-name{ font-weight:700; }
-.sector-spark{ color: var(--accent-blue); }
-
-/* =========================================================
-   Responsive + Screen-specific tuning
-   ========================================================= */
 
 /* Narrow screens: stack */
-@media (max-width: 980px){
-  .cockpit{ grid-template-columns: 1fr; }
-  .center-tach, .right-speed { justify-content:center; }
+@media (max-width:980px){
+  .cockpit{grid-template-columns:1fr}
+  .center-tach,.right-speed{justify-content:center}
 }
 
-/* 24" ~1920px: centered, tight, readable */
-@media (min-width: 1200px) and (max-width: 1700px){
-  .gauge-face { max-width: 560px; }
-  .gauge--tach { transform: scale(1.18); }
-  .right-speed .gauge--speed { transform: scale(0.90); }
-}
-
-/* 34" ultrawide (2560–3440 widths): tighter pair with slightly larger faces */
-@media (min-width: 1701px) and (max-width: 3600px){
-  .gauge-face { max-width: 700px; }
-  .gauge--tach { transform: scale(1.22); }
-  .right-speed .gauge--speed { transform: scale(0.90); }
-  .cockpit { column-gap: 6px; } /* rims closer */
-}
-
-/* Keep layer order correct */
-.ring{ z-index:1; }
-.ticks{ z-index:2; }
-.needle,.hub{ z-index:3; }
-.glass{ z-index:5; }
-
-/* SVG helpers */
-svg defs, svg linearGradient, svg radialGradient, svg pattern, svg clipPath { pointer-events:none; }
+/* Layer order safety */
+.ring{z-index:1}.ticks{z-index:2}.needle,.hub{z-index:3}.glass{z-index:5}
