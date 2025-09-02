@@ -1,5 +1,6 @@
 // src/components/GaugeCluster.jsx
-// Ferrari Dashboard — R8.3: fixed tick geometry (10 majors, 4 minors), centered cockpit
+// Ferrari Dashboard — R8.4: EXACT TICKS (10 majors aligned to numerals, 4 minors between)
+// Centered cockpit + engine lights preserved
 
 import React from "react";
 import { useDashboardPoll } from "../lib/dashboardApi";
@@ -36,7 +37,6 @@ const Panel = ({ title, children, className = "" }) => (
   </div>
 );
 
-/* engine-light pill (unchanged behavior) */
 const Pill = ({ label, state = "off", icon = "" }) => (
   <span className={`light ${state}`} aria-label={`${label}: ${state}`}>
     <span className="light-icon" role="img" aria-hidden>{icon}</span>
@@ -50,14 +50,13 @@ export default function GaugeCluster() {
   const ts = data?.meta?.ts || null;
   const color = freshnessColor(ts);
 
-  // signals -> lights (kept)
   const s = data?.signals || {};
-  const squeeze = String(data?.odometers?.squeeze || "none");
   const mapSig = (sig) =>
     !sig || !sig.active ? "off" :
     String(sig.severity || "info").toLowerCase() === "danger" ? "danger" :
     String(sig.severity).toLowerCase() === "warn" ? "warn" : "ok";
 
+  const squeeze = String(data?.odometers?.squeeze || "none");
   const squeezeState =
     squeeze === "firingDown" ? "danger" :
     squeeze === "firingUp"   ? "ok"     :
@@ -80,14 +79,14 @@ export default function GaugeCluster() {
 
   return (
     <div className="cluster">
-      {/* Header with build chip to verify deploy */}
+      {/* Header with build chip to prove deploy */}
       <div className="panel" style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
         <div>
           <div style={{fontWeight:700}}>Ferrari Trading Cluster</div>
           <div className="small muted">Live from /api/dashboard</div>
         </div>
         <div style={{display:"flex",gap:8,alignItems:"center"}}>
-          <span className="build-chip">BUILD R8.3</span>
+          <span className="build-chip">BUILD R8.4</span>
           <div className="tag" style={{border:`1px solid ${color}`,display:"flex",gap:8,alignItems:"center",borderRadius:8,padding:"4px 8px"}}>
             <span style={{width:8,height:8,borderRadius:999,background:color,boxShadow:`0 0 8px ${color}`}}/>
             <span className="small">{ts ? `Updated ${timeAgo(ts)}` : "—"}</span>
@@ -104,11 +103,10 @@ export default function GaugeCluster() {
 
       {data ? (
         <>
-          {/* Gauges */}
           <Panel title="Gauges" className="carbon-fiber">
             <div className="cockpit-center">
               <div className="cockpit">
-                {/* Left minis */}
+                {/* Left 2×2 minis */}
                 <div className="left-stack">
                   <MiniGauge label="WATER" value={data.gauges?.waterTemp} unit="°F" />
                   <MiniGauge label="OIL"   value={data.gauges?.oilPsi}    unit="psi" />
@@ -129,7 +127,6 @@ export default function GaugeCluster() {
             </div>
           </Panel>
 
-          {/* Engine Lights */}
           <Panel title="Engine Lights">
             <div className="lights">
               {lights.map((L, i) => (
@@ -138,7 +135,6 @@ export default function GaugeCluster() {
             </div>
           </Panel>
 
-          {/* Odometers */}
           <Panel title="Odometers">
             <div className="odos">
               <Odometer label="Breadth"  value={data.odometers?.breadthOdometer} />
@@ -155,19 +151,41 @@ export default function GaugeCluster() {
 /* ---------- components ---------- */
 function BigGauge({ theme = "tach", label, value = 0, withLogo = false }) {
   const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
-  const t = (clamp(value, -1000, 1000) + 1000) / 2000; // 0..1
-  const angle = -130 + t * 260; // -130..+130
+  const t = (clamp(value, -1000, 1000) + 1000) / 2000;     // 0..1
+  const angle = -130 + t * 260;                            // -130..+130
 
   const isTach = theme === "tach";
   const face = isTach ? "#ffdd00" : "#c21a1a";
 
-  // Numerals
-  const tachNums = Array.from({ length: 10 }, (_, i) => i + 1);         // 1..10
-  const speedNums = Array.from({ length: 11 }, (_, i) => (i + 1) * 20); // 20..220
+  // ===== TICK GEOMETRY (shared by all gauges) =====
+  // Sweep = -120..+120 (240°). 10 majors aligned to numerals (k=0..9).
+  const MAJOR_COUNT = 10;
+  const SWEEP_START = -120;
+  const SWEEP_END = 120;
+  const SWEEP = SWEEP_END - SWEEP_START;                   // 240
+  const MAJOR_STEP = SWEEP / (MAJOR_COUNT - 1);            // 240/9
+  // Build major angles
+  const majorAngles = Array.from({ length: MAJOR_COUNT }, (_, k) => SWEEP_START + k * MAJOR_STEP);
+  // Insert 4 minors between each adjacent pair of majors (no minors on the majors)
+  const allTicks = [];
+  for (let k = 0; k < MAJOR_COUNT; k++) {
+    allTicks.push({ angle: majorAngles[k], major: true });
+    if (k < MAJOR_COUNT - 1) {
+      const start = majorAngles[k];
+      const step = MAJOR_STEP / 5;                         // 5 equal segments -> 4 minors in-between
+      for (let j = 1; j <= 4; j++) {
+        allTicks.push({ angle: start + j * step, major: false });
+      }
+    }
+  }
+  // ==> total ticks = 10 majors + (9 gaps * 4 minors) = 46
 
+  // ===== Numerals =====
+  const tachNums = Array.from({ length: 10 }, (_, i) => i + 1);         // 1..10
+  const speedNums = Array.from({ length: 10 }, (_, i) => (i + 1) * 20); // 20..200 (10 numerals to match 10 majors)
   // Polar positions (SVG 200x200)
-  const numeralRadius = 77; // inside tick ring
-  const angleForIndex = (idx, total) => -120 + (idx / (total - 1)) * 240; // deg
+  const numeralRadius = 77;
+  const numeralAngle = (idx, total) => SWEEP_START + (idx / (total - 1)) * SWEEP; // align with majors
   const toXY = (deg) => {
     const rad = (deg - 90) * Math.PI / 180;
     return { x: 100 + numeralRadius * Math.cos(rad), y: 100 + numeralRadius * Math.sin(rad) };
@@ -179,22 +197,20 @@ function BigGauge({ theme = "tach", label, value = 0, withLogo = false }) {
         {/* 18px perimeter ring */}
         <div className="ring" />
 
-        {/* Ticks: 10 majors, 4 minors each → 51 total (0..50) */}
+        {/* Ticks: 46 total (10 majors + 36 minors) */}
         <div className="ticks">
-          {Array.from({ length: 51 }, (_, i) => {
-            const a = -120 + (i / 50) * 240;
-            const major = i % 5 === 0;
-            return <Tick key={i} angle={a} major={major} />;
-          })}
+          {allTicks.map((tk, i) => (
+            <Tick key={i} angle={tk.angle} major={tk.major} />
+          ))}
         </div>
 
-        {/* Tach redline wedge (right side) */}
+        {/* Tach redline wedge on right side */}
         {isTach ? <div className="redline-arc" aria-hidden /> : null}
 
-        {/* Numerals */}
+        {/* Numerals (aligned to majors) */}
         <svg className="dial-numerals" viewBox="0 0 200 200" aria-hidden>
           {(isTach ? tachNums : speedNums).map((num, idx, arr) => {
-            const a = angleForIndex(idx, arr.length);
+            const a = numeralAngle(idx, arr.length);
             const { x, y } = toXY(a);
             return (
               <text key={idx} x={x} y={y}
@@ -211,7 +227,7 @@ function BigGauge({ theme = "tach", label, value = 0, withLogo = false }) {
         <div className="hub" />
         <div className="glass" />
 
-        {/* Outside-bezel branding arcs (tach only) */}
+        {/* Branding arcs outside bezel (tach only) */}
         {withLogo ? (
           <svg className="logo-ring" viewBox="0 0 220 220" aria-hidden>
             <defs>
@@ -235,7 +251,7 @@ function BigGauge({ theme = "tach", label, value = 0, withLogo = false }) {
 function Tick({ angle, major }) {
   return (
     <div
-      className={`tick ${major ? "major" : "minor"}`}
+      className={`tick ${major ? "major" : ""}`}
       style={{ transform: `rotate(${angle}deg)` }}
     />
   );
