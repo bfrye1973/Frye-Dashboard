@@ -1,5 +1,5 @@
 // src/components/GaugeCluster.jsx
-// Ferrari Dashboard — R8.6 (layout stable + numerals-first ticks + sparklines)
+// Ferrari Dashboard — R8.3 stable baseline (layout, minis, engine lights, gauges)
 
 import React from "react";
 import { useDashboardPoll } from "../lib/dashboardApi";
@@ -80,7 +80,7 @@ export default function GaugeCluster(){
           <div className="small muted">Live from /api/dashboard</div>
         </div>
         <div style={{display:"flex",gap:8,alignItems:"center"}}>
-          <span className="build-chip">BUILD R8.6</span>
+          <span className="build-chip">BUILD R8.3</span>
           <div className="tag" style={{border:`1px solid ${color}`,display:"flex",gap:8,alignItems:"center",borderRadius:8,padding:"4px 8px"}}>
             <span style={{width:8,height:8,borderRadius:999,background:color,boxShadow:`0 0 8px ${color}`}}/>
             <span className="small">{ts ? `Updated ${timeAgo(ts)}` : "—"}</span>
@@ -97,11 +97,11 @@ export default function GaugeCluster(){
 
       {data ? (
         <>
-          {/* Gauges (centered cockpit) */}
+          {/* Gauges */}
           <Panel title="Gauges" className="carbon-fiber">
             <div className="cockpit-center">
               <div className="cockpit">
-                {/* Left 2×2 minis */}
+                {/* Left minis */}
                 <div className="left-stack">
                   <MiniGauge label="WATER" value={data.gauges?.waterTemp} unit="°F" />
                   <MiniGauge label="OIL"   value={data.gauges?.oilPsi}    unit="psi" />
@@ -109,12 +109,12 @@ export default function GaugeCluster(){
                   <MiniGauge label="ALT"   value="—" />
                 </div>
 
-                {/* Center tach (yellow) */}
+                {/* Center tach */}
                 <div className="center-tach">
                   <BigGauge theme="tach" label="RPM" value={data.gauges?.rpm} withLogo />
                 </div>
 
-                {/* Right speedo (red) */}
+                {/* Right speedo */}
                 <div className="right-speed">
                   <BigGauge theme="speed" label="SPEED" value={data.gauges?.speed} />
                 </div>
@@ -137,93 +137,46 @@ export default function GaugeCluster(){
               <Odometer label="Squeeze"  value={String(data.odometers?.squeeze ?? "—")} />
             </div>
           </Panel>
-
-          {/* Sectors (spark lines restored) */}
-          <Panel title="Sectors">
-            <div className="sectors-grid">
-              {(data.outlook?.sectorCards || []).map((c, i) => (
-                <div key={i} className="sector-card">
-                  <div className="sector-head">
-                    <div className="sector-name">{c.sector}</div>
-                    <span className="tag">{c.outlook}</span>
-                  </div>
-                  <Spark values={c.spark || []} />
-                </div>
-              ))}
-            </div>
-          </Panel>
         </>
       ) : null}
     </div>
   );
 }
 
-/* ===== Components ===== */
-
+/* components */
 function BigGauge({ theme="tach", label, value=0, withLogo=false }){
   const clamp=(v,lo,hi)=>Math.max(lo,Math.min(hi,v));
   const t=(clamp(value,-1000,1000)+1000)/2000;
-  const angle=-130 + t*260; // -130..+130
+  const angle=-130+t*260;
 
   const isTach = theme==="tach";
   const face = isTach ? "#ffdd00" : "#c21a1a";
 
-  // ---- Numerals-first tick alignment ----
-  const START=-120, END=120, SWEEP=END-START, MAJOR_COUNT=10;
+  // Numerals
+  const tachNums = Array.from({ length: 10 }, (_, i) => i + 1);
+  const speedNums = Array.from({ length: 11 }, (_, i) => (i + 1) * 20);
 
-  // Numerals (10 labels) define where majors go
-  const numerals = isTach
-    ? Array.from({length:10},(_,i)=>i+1)           // 1..10
-    : Array.from({length:10},(_,i)=>(i+1)*20);     // 20..200
-
-  // Major angles from numerals (equal spacing across sweep)
-  const majorAngles = numerals.map((_, idx) => START + (idx/(MAJOR_COUNT-1))*SWEEP);
-
-  // Build ticks: majors + 4 minors between each pair (46 total)
-  const ticks = [];
-  for(let k=0;k<majorAngles.length;k++){
-    ticks.push({ angle: majorAngles[k], major:true });
-    if(k<majorAngles.length-1){
-      const step = (majorAngles[k+1]-majorAngles[k])/5; // 5 segments → 4 minors
-      for(let j=1;j<=4;j++) ticks.push({ angle: majorAngles[k] + j*step, major:false });
-    }
-  }
-
-  // Numeral placement: same major angles
-  const numeralRadius = 77;
-  const toXY = (deg) => {
-    const rad = (deg - 90) * Math.PI/180;
-    return { x: 100 + numeralRadius*Math.cos(rad), y: 100 + numeralRadius*Math.sin(rad) };
-  };
+  const numeralRadius=77;
+  const angleForIndex=(idx,total)=>-120+(idx/(total-1))*240;
+  const toXY=(deg)=>{const rad=(deg-90)*Math.PI/180;return{ x:100+numeralRadius*Math.cos(rad), y:100+numeralRadius*Math.sin(rad)}};
 
   return (
     <div className={`fg-wrap ${isTach?"gauge--tach":"gauge--speed"}`}>
       <div className="gauge-face" style={{background:face}}>
         <div className="ring"/>
-
-        {/* Ticks */}
         <div className="ticks">
-          {ticks.map((tk,i)=>(<Tick key={i} angle={tk.angle} major={tk.major}/>))}
+          {Array.from({length:41},(_,i)=>{const a=-120+(i/40)*240;const major=i%5===0;return <Tick key={i} angle={a} major={major}/>})}
         </div>
-
-        {/* Tach redline */}
-        {isTach ? <div className="redline-arc" aria-hidden/> : null}
-
-        {/* Numerals */}
+        {isTach?<div className="redline-arc" aria-hidden/>:null}
         <svg className="dial-numerals" viewBox="0 0 200 200" aria-hidden>
-          {numerals.map((num,idx)=>{ const {x,y}=toXY(majorAngles[idx]); return (
-            <text key={idx} x={x} y={y} className={`numeral ${isTach?"tach":"speed"}`}
-              textAnchor="middle" dominantBaseline="central">{num}</text>
-          );})}
+          {(isTach?tachNums:speedNums).map((num,idx,arr)=>{const a=angleForIndex(idx,arr.length);const {x,y}=toXY(a);return(
+            <text key={idx} x={x} y={y} className={`numeral ${isTach?"tach":"speed"}`} textAnchor="middle" dominantBaseline="central">{num}</text>
+          )})}
         </svg>
-
-        {/* Needle / hub / glass */}
         <div className="needle" style={{transform:`rotate(${angle}deg)`}}/>
         <div className="hub"/>
         <div className="glass"/>
-
-        {/* Branding arcs (tach only) */}
-        {withLogo ? (
+        {withLogo?(
           <svg className="logo-ring" viewBox="0 0 220 220" aria-hidden>
             <defs>
               <path id="ringPath" d="M110,10 a100,100 0 1,1 0,200 a100,100 0 1,1 0,-200"/>
@@ -232,50 +185,13 @@ function BigGauge({ theme="tach", label, value=0, withLogo=false }){
             <text className="logo-top"><textPath href="#ringPath" startOffset="50%" textAnchor="middle">REDLINE TRADING</textPath></text>
             <text className="logo-bottom"><textPath href="#ringPathBottom" startOffset="50%" textAnchor="middle">POWERED BY AI</textPath></text>
           </svg>
-        ) : null}
+        ):null}
       </div>
       <div className="fg-title">{label}</div>
     </div>
   );
 }
 
-function Tick({angle,major}){
-  return <div className={`tick ${major?"major":""}`} style={{transform:`rotate(${angle}deg)`}}/>;
-}
-
-function MiniGauge({label,value,unit}){
-  return (
-    <div className="mini">
-      <div className="mini-face"><div className="mini-needle"/><div className="mini-hub"/></div>
-      <div className="mini-value">{value??"—"}{unit||""}</div>
-      <div className="mini-title">{label}</div>
-    </div>
-  );
-}
-
-function Odometer({label,value}){
-  return (
-    <div className="odo">
-      <div className="odo-label">{label}</div>
-      <div className="odo-value">{value??"—"}</div>
-    </div>
-  );
-}
-
-/* Sparkline component (SVG) */
-function Spark({ values=[] }){
-  if(!values || values.length<2) return <div className="sector-spark">(no data)</div>;
-  const min = Math.min(...values), max = Math.max(...values);
-  const W=180, H=36;
-  const norm = v => (max-min ? (v-min)/(max-min) : 0.5);
-  const pts = values.map((v,i)=>{
-    const x = (i/(values.length-1))*(W-8)+4;
-    const y = (1-norm(v))*(H-8)+4;
-    return `${x},${y}`;
-  }).join(" ");
-  return (
-    <svg className="spark" viewBox={`0 0 ${W} ${H}`} width={W} height={H}>
-      <polyline className="spark-line" fill="none" strokeWidth="2" points={pts} />
-    </svg>
-  );
-}
+function Tick({angle,major}){return <div className={`tick ${major?"major":"minor"}`} style={{transform:`rotate(${angle}deg)`}}/>}
+function MiniGauge({label,value,unit}){return(<div className="mini"><div className="mini-face"><div className="mini-needle"/><div className="mini-hub"/></div><div className="mini-value">{value??"—"}{unit||""}</div><div className="mini-title">{label}</div></div>)}
+function Odometer({label,value}){return(<div className="odo"><div className="odo-label">{label}</div><div className="odo-value">{value??"—"}</div></div>)}
