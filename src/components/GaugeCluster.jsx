@@ -1,5 +1,5 @@
 // src/components/GaugeCluster.jsx
-// Ferrari Dashboard cluster — full component (with engine lights row at the bottom)
+// Ferrari Dashboard cluster — FULL FILE (cockpit geometry + fixed engine pills)
 
 import React from "react";
 import { useDashboardPoll } from "../lib/dashboardApi";
@@ -38,7 +38,7 @@ const Panel = ({ title, children, className = "" }) => (
   </div>
 );
 
-/* Pill for engine lights; treat "info" as ok/green */
+/* Pill for engine lights; severity: ok | warn | danger (info maps to ok) */
 const Pill = ({ label, severity = "ok" }) => {
   const tone = (severity === "danger") ? "danger" :
                (severity === "warn")   ? "warn"   : "ok";
@@ -50,12 +50,13 @@ const Pill = ({ label, severity = "ok" }) => {
   return (
     <span style={{
       padding:"6px 10px",
-      borderRadius:8,
+      borderRadius:999,
       border:`1px solid ${map.bd}`,
       background:map.bg,
       color:map.fg,
       fontSize:12,
-      boxShadow:`0 0 10px ${map.fg}`,
+      fontWeight:800,
+      boxShadow:`0 0 10px ${map.fg}66, inset 0 0 0 1px #ffffff08`,
       display:"inline-flex",
       alignItems:"center",
       gap:6
@@ -93,25 +94,29 @@ export default function GaugeCluster() {
 
       {/* Loading / Error */}
       {loading && !data && <div className="panel">Loading…</div>}
-      {error && <div className="panel">Error: {error}</div>}
+      {error && <div className="panel">Error: {String(error)}</div>}
       {!data && !loading && !error && <div className="panel">No data</div>}
 
       {/* Content */}
       {data && (
         <>
-          {/* Gauges with carbon-fiber background */}
+          {/* Gauges — Ferrari cockpit geometry on a carbon-fiber panel */}
           <Panel title="Gauges" className="carbon-fiber">
-            <div className="cluster-row">
-              {/* Mini stack left */}
+            {/* NEW cockpit grid: [ 2x2 minis | BIG center tach | smaller speedo ] */}
+            <div className="cockpit">
+              {/* Left: four small dials 2×2 (uses three live metrics + one placeholder) */}
               <div className="left-stack">
-                <MiniGauge label="FUEL"  value={data.gauges?.fuelPct}   unit="%" />
                 <MiniGauge label="WATER" value={data.gauges?.waterTemp} unit="°F" />
                 <MiniGauge label="OIL"   value={data.gauges?.oilPsi}    unit="psi" />
+                <MiniGauge label="FUEL"  value={data.gauges?.fuelPct}   unit="%" />
+                <MiniGauge label="ALT"   value="—" />
               </div>
 
-              {/* Main pair, tight like Ferrari cockpit */}
-              <div className="center-pair">
-                <BigGauge theme="tach"  label="RPM"   value={data.gauges?.rpm}   />
+              {/* Center: BIG yellow tach */}
+              <BigGauge theme="tach"  label="RPM"   value={data.gauges?.rpm} />
+
+              {/* Right: slightly smaller red speedo */}
+              <div className="right-speed">
                 <BigGauge theme="speed" label="SPEED" value={data.gauges?.speed} />
               </div>
             </div>
@@ -126,7 +131,7 @@ export default function GaugeCluster() {
             </div>
           </Panel>
 
-          {/* Engine lights AT THE BOTTOM (below momentum, full width) */}
+          {/* Engine lights (bottom row) */}
           <Panel title="Engine Lights">
             <div className="lights">
               {renderSignal("Breakout",      data.signals?.sigBreakout)}
@@ -164,16 +169,16 @@ export default function GaugeCluster() {
 /* ----------- Components ----------- */
 function BigGauge({ theme="tach", label, value=0 }) {
   const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
-  // Map [-1000..1000] → [-130..130]
+  // Map [-1000..1000] → [-130..130] (sweep)
   const t = (clamp(value, -1000, 1000) + 1000) / 2000;
   const angle = -130 + t * 260;
 
   const face = theme === "tach" ? "#facc15" : "#dc2626"; // yellow or red
 
   return (
-    <div className="fg-wrap">
+    <div className={`fg-wrap ${theme === "tach" ? "gauge--tach" : "gauge--speed"}`}>
       <div className="gauge-face" style={{ background: face }}>
-        {/* Thick red perimeter ring under ticks (Ferrari look) */}
+        {/* 18px red perimeter ring under ticks (Ferrari look) */}
         <div className="ring" />
         {/* White ticks */}
         <div className="ticks">
@@ -183,13 +188,14 @@ function BigGauge({ theme="tach", label, value=0 }) {
           })}
         </div>
         {/* Needle & hub */}
-        <div className="needle" style={{ transform: `rotate(${angle}deg)` }}/>
+        <div className="needle" style={{ transform: `rotate(${angle}deg)` }} />
         <div className="hub" />
       </div>
       <div className="fg-title">{label}</div>
     </div>
   );
 }
+
 function Tick({ angle, major }) {
   return (
     <div
@@ -198,6 +204,7 @@ function Tick({ angle, major }) {
     />
   );
 }
+
 function MiniGauge({ label, value, unit }) {
   return (
     <div className="mini">
@@ -210,6 +217,7 @@ function MiniGauge({ label, value, unit }) {
     </div>
   );
 }
+
 function Odometer({ label, value }) {
   return (
     <div className="odo">
@@ -218,12 +226,14 @@ function Odometer({ label, value }) {
     </div>
   );
 }
+
 function toneFromOutlook(o) {
   const k = String(o || "").toLowerCase();
   if (k.includes("bull")) return "tag-ok";
   if (k.includes("bear")) return "tag-danger";
   return "tag-info";
 }
+
 function Spark({ values=[] }) {
   if (values.length < 2) return <div className="sector-spark">(no data)</div>;
   const min = Math.min(...values), max = Math.max(...values);
@@ -240,13 +250,15 @@ function Spark({ values=[] }) {
     </svg>
   );
 }
+
 function anyActive(signals) {
   if (!signals) return false;
   return Object.values(signals).some(v => v && v.active === true);
 }
+
 function renderSignal(label, sig) {
   if (!sig || !sig.active) return null;
   const sev = (sig.severity || "info").toLowerCase();
-  const tone = sev === "danger" ? "danger" : (sev === "warn" ? "warn" : "ok"); // info → ok
-  return <Pill key={label} label={label} tone={tone} />;
+  const severity = sev === "danger" ? "danger" : (sev === "warn" ? "warn" : "ok"); // info → ok
+  return <Pill key={label} label={label} severity={severity} />; // <-- fixed: pass severity
 }
