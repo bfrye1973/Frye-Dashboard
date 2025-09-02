@@ -1,13 +1,13 @@
 /* =========================================================
-   Frye Dashboard — Ferrari Cluster UI (R8.3)
-   Centered cockpit + Ferrari gauges + engine lights
+   Frye Dashboard — Ferrari Cluster UI (R8.6)
+   Stable layout + numerals-first ticks + sparklines visible
    ========================================================= */
 
 :root{
   --bg:#0d1117; --panel:#0e1526; --border:#1f2a44; --text:#d1d4dc; --muted:#9aa4b2;
   --tach-yellow:#ffdd00; --speed-red:#c21a1a; --ring-red:#e21212;
-  --ok:#29c651; --warn:#ffc400; --danger:#ff3b3b;
-  --off-bg:#1f2633; --off-fg:#566074; --accent-blue:#60a5fa;
+  --ok:#29c651; --warn:#ffc400; --danger:#ff3b3b; --off-bg:#1f2633; --off-fg:#566074;
+  --accent-blue:#60a5fa;
 }
 
 /* Base */
@@ -44,14 +44,14 @@ a{color:var(--accent-blue);text-decoration:none} a:hover{text-decoration:underli
 .panel-head{display:flex;align-items:center;gap:8px;margin-bottom:10px;z-index:2}
 .panel-title{font-weight:700}
 
-/* Build chip (for header) */
+/* Build chip */
 .build-chip{
   padding:4px 10px;border-radius:999px;font-weight:800;font-size:12px;
   background:#3d2e00;color:#ffd15a;border:1px solid #8a6a00;
   box-shadow:0 0 8px rgba(255,209,90,.35) inset,0 0 8px rgba(255,209,90,.25);
 }
 
-/* ===== Centered Cockpit ===== */
+/* Centered cockpit */
 .cockpit-center{ display:block; width:fit-content; max-width:100%; margin-inline:auto; }
 .cockpit{ display:grid; align-items:center; column-gap:8px; grid-template-columns:auto auto auto; }
 .left-stack{
@@ -62,10 +62,9 @@ a{color:var(--accent-blue);text-decoration:none} a:hover{text-decoration:underli
 .center-tach{ display:flex; justify-content:flex-end; align-items:center; }
 .right-speed{ display:flex; justify-content:flex-start; align-items:center; }
 
-/* ===== Big Gauges (Ferrari look) ===== */
+/* Gauges */
 .fg-wrap{display:flex;flex-direction:column;align-items:center}
 .fg-title{margin-top:6px;font-weight:800;color:#0b1220}
-
 .gauge-face{
   width:210px;height:210px;border-radius:50%;
   border:12px solid #0f172a; position:relative; overflow:hidden;
@@ -124,7 +123,7 @@ a{color:var(--accent-blue);text-decoration:none} a:hover{text-decoration:underli
   font-size:12px;
 }
 
-/* ===== Engine Lights Row ===== */
+/* Engine Lights Row */
 .lights{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;align-items:center}
 .light{
   display:inline-flex;align-items:center;gap:6px;
@@ -151,7 +150,7 @@ a{color:var(--accent-blue);text-decoration:none} a:hover{text-decoration:underli
   box-shadow:0 0 12px rgba(255,59,59,.6), 0 0 0 1px rgba(255,59,59,.45) inset;
 }
 
-/* ===== Minis ===== */
+/* Minis */
 .mini{display:flex;flex-direction:column;align-items:center}
 .mini-face{
   width:110px;height:110px;border-radius:50%;
@@ -172,7 +171,7 @@ a{color:var(--accent-blue);text-decoration:none} a:hover{text-decoration:underli
 .mini-value{font-size:14px;font-weight:700;color:#e5e7eb}
 .mini-title{margin-top:6px;font-size:12px;opacity:.8}
 
-/* ===== Odometers & Sectors ===== */
+/* Odometers & Sectors */
 .odos{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:12px}
 .odo{background:#0b1220;border:1px solid var(--border);border-radius:10px;padding:10px;text-align:center}
 .odo-label{font-size:12px;opacity:.7}
@@ -182,9 +181,13 @@ a{color:var(--accent-blue);text-decoration:none} a:hover{text-decoration:underli
 .sector-card{border:1px solid var(--border);background:#0b1220;border-radius:10px;padding:10px}
 .sector-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
 .sector-name{font-weight:700}
-.sector-spark{color:var(--accent-blue)}
 
-/* ===== Sizing & Responsive ===== */
+/* Sparkline visibility (restored) */
+.spark{display:block}
+.spark-line{stroke:#60a5fa}      /* line color */
+.sector-spark{color:#60a5fa}     /* label color (if used) */
+
+/* Sizing & Responsive */
 .gauge-face{max-width:700px}
 .gauge--tach{transform:scale(1.22)}
 .right-speed .gauge--speed{transform:scale(0.90)}
