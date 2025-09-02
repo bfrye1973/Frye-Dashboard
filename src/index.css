@@ -1,6 +1,6 @@
 /* =========================================================
-   Frye Dashboard — Ferrari Cluster UI
-   COMPLETE index.css (for Create React App)
+   Frye Dashboard — Ferrari Cluster UI (R4)
+   COMPLETE index.css for Create React App
    ========================================================= */
 
 /* ---------- Theme Tokens ---------- */
@@ -19,6 +19,8 @@
   /* Ferrari faces */
   --tach-yellow: #ffdd00;
   --speed-red: #c21a1a;
+
+  /* Bezel ring */
   --ring-red: #e21212; /* 18px perimeter ring */
 }
 
@@ -57,7 +59,7 @@ button { font: inherit; cursor: pointer; }
   overflow: hidden;
 }
 
-/* Subtle carbon weave vignette like the cockpit shell */
+/* Carbon fiber weave + vignette (applies to all panels) */
 .panel::before{
   content:"";
   position:absolute; inset:0; pointer-events:none;
@@ -76,8 +78,27 @@ button { font: inherit; cursor: pointer; }
     radial-gradient(1200px 520px at 50% -30%, rgba(255,255,255,0.06), transparent 55%),
     radial-gradient(900px 320px at 50% 120%, rgba(0,0,0,0.55), transparent 62%);
 }
+/* Optional hook if you only want weave on certain panels */
+.carbon-fiber::before,
+.carbon-fiber::after { content: unset; }
+.carbon-fiber { position: relative; }
+.carbon-fiber::before,
+.carbon-fiber::after { content:""; position:absolute; inset:0; pointer-events:none; }
+.carbon-fiber::before {
+  background:
+    linear-gradient(45deg, #101419 25%, transparent 25%) -8px 0/16px 16px,
+    linear-gradient(-45deg, #101419 25%, transparent 25%) -8px 0/16px 16px,
+    linear-gradient(45deg, transparent 75%, #0b0f14 75%) -8px 0/16px 16px,
+    linear-gradient(-45deg, transparent 75%, #0b0f14 75%) -8px 0/16px 16px,
+    linear-gradient(0deg, #0a0e15, #0a0e15);
+  opacity:.55;
+}
+.carbon-fiber::after {
+  background:
+    radial-gradient(1200px 520px at 50% -30%, rgba(255,255,255,0.06), transparent 55%),
+    radial-gradient(900px 320px at 50% 120%, rgba(0,0,0,0.55), transparent 62%);
+}
 
-/* Panel header (optional) */
 .panel-head {
   position: relative;
   display: flex;
@@ -137,14 +158,9 @@ button { font: inherit; cursor: pointer; }
   isolation:isolate;
 }
 
-/* Face colors */
-.gauge--tach .face-fill { background: var(--tach-yellow); }
-.gauge--speed .face-fill { background: var(--speed-red); }
-
-.face-fill{
-  position:absolute; inset:0; border-radius:50%;
-  background: #222;
-}
+/* Face colors (set via theme class) */
+.gauge--tach .gauge-face { background: var(--tach-yellow); }
+.gauge--speed .gauge-face { background: var(--speed-red); }
 
 /* 18px red perimeter ring under ticks */
 .ring{
@@ -179,13 +195,12 @@ button { font: inherit; cursor: pointer; }
   background:#111; border:3px solid #888; z-index:3;
 }
 
-/* Branding arcs (simple straight placements inside bezel) */
+/* Branding arcs (bezel text) */
 .arc-top, .arc-bottom{
   position:absolute; width:78%; left:11%; text-align:center;
   font-weight:800; letter-spacing:2.2px; color:#f7f7f7;
   text-shadow:0 1px 0 rgba(0,0,0,0.6), 0 0 8px rgba(255,255,255,0.12);
-  z-index:4;
-  text-transform:uppercase;
+  z-index:4; text-transform:uppercase;
 }
 .arc-top{ top:7%; font-size:12px; }
 .arc-bottom{ bottom:7%; font-size:11px; opacity:.9; }
@@ -263,95 +278,50 @@ button { font: inherit; cursor: pointer; }
 }
 
 /* =========================================================
-   SVG / Helpers
-   ========================================================= */
-svg defs, svg linearGradient, svg radialGradient, svg pattern, svg clipPath { pointer-events:none; }
-/* =========================================================
-   ULTRAWIDE FIT PACK — Ferrari Cockpit
-   Adapts geometry for 24" (1080/1200) and 34" ultrawide (1440/1600/2k+)
-   Paste at the VERY BOTTOM so it wins.
+   ULTRAWIDE FIT — 24" and 34"+ variants
    ========================================================= */
 
-/* Base tighten (applies to all) */
-.cockpit { gap: 18px; }
-.left-stack { gap: 12px; }
-.gauge-face { max-width: 520px; }
-
-/* ---------- 24" screen (typical 1920×1080/1200) ---------- */
+/* 24" (typical 1920×1080/1200) */
 @media (min-width: 1200px) and (max-width: 1700px) {
-  /* Slightly enlarge center tach, modestly shrink speedo */
-  .gauge--tach       { transform: scale(1.08); }
+  .gauge--tach { transform: scale(1.08); }
   .right-speed .gauge--speed { transform: scale(0.90); }
-
-  /* Geometry: left minis narrower, center dominates a bit more */
-  .cockpit {
-    grid-template-columns: 0.28fr 0.62fr 0.34fr; /* left | center | right */
-    gap: 16px;
-  }
-
-  /* Keep overall gauge cap reasonable on smaller desk depth */
+  .cockpit { grid-template-columns: 0.28fr 0.62fr 0.34fr; gap:16px; }
   .gauge-face { max-width: 560px; }
 }
 
-/* ---------- 34" ultrawide (2560×1440 / 3440×1440 / 3840×1600) ---------- */
+/* 34" ultrawide families (2560×1440 / 3440×1440 / 3840×1600) */
 @media (min-width: 1701px) and (max-width: 2559px) {
-  /* Give the tach presence, pull speedo closer to it */
-  .gauge--tach       { transform: scale(1.12); }
+  .gauge--tach { transform: scale(1.12); }
   .right-speed .gauge--speed { transform: scale(0.92); }
-
-  /* Wider center to mimic Ferrari binnacle */
-  .cockpit {
-    grid-template-columns: 0.26fr 0.64fr 0.36fr;
-    gap: 14px;
-  }
-
-  /* Let faces breathe on ultrawide */
+  .cockpit { grid-template-columns: 0.26fr 0.64fr 0.36fr; gap:14px; }
   .gauge-face { max-width: 620px; }
 }
 
-/* ---------- Super ultrawide / 4K+ desktops ---------- */
+/* Super-ultrawide / 4K+ desktops */
 @media (min-width: 2560px) {
-  .gauge--tach       { transform: scale(1.18); }
+  .gauge--tach { transform: scale(1.18); }
   .right-speed .gauge--speed { transform: scale(0.94); }
-
-  .cockpit {
-    grid-template-columns: 0.24fr 0.66fr 0.36fr;
-    gap: 14px;
-  }
-
+  .cockpit { grid-template-columns: 0.24fr 0.66fr 0.36fr; gap:14px; }
   .gauge-face { max-width: 680px; }
 }
 
-/* Optional: mini dials scale slightly on very large screens */
-@media (min-width: 1701px) {
-  .left-stack .mini .mini-face { transform: scale(1.06); transform-origin: center; }
+/* Targeted tune for 34" 3440×1440 */
+@media (min-width: 2000px) and (max-width: 3600px) {
+  .gauge--tach { transform: scale(1.22); }
+  .right-speed .gauge--speed { transform: scale(0.90); }
+  .cockpit { grid-template-columns: 0.22fr 0.70fr 0.36fr; gap:18px; }
+  .gauge-face { max-width: 720px; }
+  .left-stack .mini .mini-face { transform: scale(1.10); transform-origin: center; }
 }
 
-/* Make sure layering stays correct when sizes change */
+/* Keep layer order correct at every size */
 .ring{ z-index:1; }
 .ticks{ z-index:2; }
 .arc-top,.arc-bottom{ z-index:3; }
 .needle,.hub{ z-index:4; }
 .glass{ z-index:5; }
+
 /* =========================================================
-   FERRARI COCKPIT — 34" Ultrawide (3440×1440)
-   Paste at bottom of index.css so it overrides.
+   SVG / Helpers
    ========================================================= */
-@media (min-width: 2000px) and (max-width: 3600px) {
-  /* Center tach bigger, speedo modestly smaller */
-  .gauge--tach { transform: scale(1.22); }
-  .right-speed .gauge--speed { transform: scale(0.90); }
-
-  /* Ferrari binnacle geometry: center really dominates */
-  .cockpit {
-    grid-template-columns: 0.22fr 0.70fr 0.36fr; /* left | tach | speedo */
-    gap: 18px;
-  }
-
-  /* Allow gauges to expand on ultrawide */
-  .gauge-face { max-width: 720px; }
-
-  /* Mini dials scale up slightly so they don’t look lost */
-  .left-stack .mini .mini-face { transform: scale(1.1); transform-origin: center; }
-}
-
+svg defs, svg linearGradient, svg radialGradient, svg pattern, svg clipPath { pointer-events:none; }
