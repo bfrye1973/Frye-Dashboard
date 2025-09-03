@@ -1,5 +1,9 @@
 // src/components/GaugeCluster.jsx
-// Ferrari Dashboard — R8.4
+// Ferrari Dashboard — R8.4 (stable)
+// - Big gauges (tach/speed) with numerals; masked tach rim; ticks hidden
+// - Mini gauges (Water/Oil/Fuel/Alt) with readout below + warn/danger + pulsing rim
+// - Engine lights, odometers, sector cards (NH / NL / 3U / 3D)
+// - Optional big-gauge ring coloring via data.lights.{breadth|momentum}
 
 import React from "react";
 import { useDashboardPoll } from "../lib/dashboardApi";
@@ -15,27 +19,6 @@ function timeAgo(ts) {
     return `${Math.floor(m / 60)}h ago`;
   } catch { return "—"; }
 }
-// returns { ageMin, label, cls, title } from a meta.ts ISO string
-function computeFreshness(ts) {
-  if (!ts) return { ageMin: null, label: "—", cls: "fresh neutral", title: "no timestamp" };
-  const now = Date.now();
-  const t = new Date(ts).getTime();
-  if (!Number.isFinite(t)) return { ageMin: null, label: "—", cls: "fresh neutral", title: "invalid timestamp" };
-
-  const ageMin = Math.floor((now - t) / 60000);
-  let label = "", cls = "fresh neutral";
-  if (ageMin < 15) { label = "live"; cls = "fresh live"; }
-  else if (ageMin < 60) { label = "stale"; cls = "fresh stale"; }
-  else { label = "old"; cls = "fresh old"; }
-
-  return {
-    ageMin,
-    label,
-    cls,
-    title: `${label.toUpperCase()} • ${ageMin}m old • ts=${ts}`
-  };
-}
-
 function freshnessColor(ts) {
   try {
     const t = new Date(ts).getTime();
@@ -50,7 +33,11 @@ const mapToDeg = (v, lo, hi) => {
   const t = (clamp(Number(v ?? NaN), lo, hi) - lo) / (hi - lo || 1);
   return -130 + 260 * t;
 };
+
 // thresholds for mini dials
+// Water: warn >225°F, danger >235°F
+// Oil:   warn <40 psi, danger <30 psi
+// Fuel:  warn <35%,   danger <20%
 function statusFor(label, value) {
   const v = Number(value);
   if (!Number.isFinite(v)) return "readout";
@@ -95,12 +82,14 @@ export default function GaugeCluster() {
   const ts = data?.meta?.ts || null;
   const color = freshnessColor(ts);
 
+  // signals -> pills
   const s = data?.signals || {};
   const mapSig = (sig) =>
     !sig || !sig.active ? "off" :
     String(sig.severity || "info").toLowerCase() === "danger" ? "danger" :
-    String(sig.severity || "").toLowerCase() === "warn"   ? "warn"   : "ok";
+    String(sig.severity || "").toLowerCase() === "warn" ? "warn" : "ok";
 
+  // squeeze state -> pill color
   const squeeze = String(data?.odometers?.squeeze || "none");
   const squeezeState =
     squeeze === "firingDown" ? "danger" :
@@ -118,24 +107,26 @@ export default function GaugeCluster() {
     { label: "Turbo",          state: mapSig(s.sigTurbo),        icon: "⚡"  },
   ];
 
-  // Optional big-gauge ring color by market state
+  // Optional big-gauge state coloring from backend
   const stateB = data?.lights?.breadth  || "neutral";
   const stateM = data?.lights?.momentum || "neutral";
 
   return (
     <div className="cluster">
       {/* Header */}
-      <div className="panel" style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+      <div className="panel" style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div>
           <div style={{ fontWeight: 700 }}>Ferrari Trading Cluster</div>
           <div className="small muted">Live from /api/dashboard</div>
         </div>
-        <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <span className="build-chip">BUILD R8.4</span>
+
           <div className="tag" style={{ border:`1px solid ${color}`, display:"flex", gap:8, alignItems:"center", borderRadius:8, padding:"4px 8px" }}>
             <span style={{ width:8, height:8, borderRadius:999, background:color, boxShadow:`0 0 8px ${color}` }}/>
             <span className="small">{ts ? `Updated ${timeAgo(ts)}` : "—"}</span>
           </div>
+
           <button className="btn" onClick={refresh} disabled={loading}>
             {loading ? "Refreshing…" : "Refresh"}
           </button>
@@ -218,7 +209,6 @@ function BigGauge({ theme = "tach", label, value = 0, withLogo = false, stateCla
   const angle = -130 + t * 260;
   const isTach = theme === "tach";
   const face = isTach ? "#ffdd00" : "#c21a1a";
-
   const showTicks = false; // hide ticks per your preference
 
   // Dark bezel to mask outer yellow on tach
@@ -231,18 +221,6 @@ function BigGauge({ theme = "tach", label, value = 0, withLogo = false, stateCla
       <div className="gauge-face" style={{ background: face }}>
         {rimMask}
         <div className="ring" />
-
-        {showTicks && (
-          <div className="ticks">
-            {Array.from({ length: 41 }, (_, i) => {
-              const a = -120 + (i / 40) * 240;
-              const major = i % 5 === 0;
-              return <Tick key={i} angle={a} major={major} />;
-            })}
-          </div>
-        )}
-
-        {isTach ? <div className="redline-arc" aria-hidden /> : null}
 
         {/* Numerals */}
         <svg className="dial-numerals" viewBox="0 0 200 200" aria-hidden>
@@ -261,10 +239,14 @@ function BigGauge({ theme = "tach", label, value = 0, withLogo = false, stateCla
           })}
         </svg>
 
+        {/* Tach redline wedge */}
+        {isTach ? <div className="redline-arc" aria-hidden /> : null}
+
         <div className="needle" style={{ transform: `rotate(${angle}deg)` }} />
         <div className="hub" />
         <div className="glass" />
 
+        {/* Branding arcs */}
         {withLogo ? (
           <svg className="logo-ring" viewBox="0 0 220 220" aria-hidden>
             <defs>
@@ -285,11 +267,7 @@ function BigGauge({ theme = "tach", label, value = 0, withLogo = false, stateCla
   );
 }
 
-function Tick({ angle, major }) {
-  return <div className={`tick ${major ? "major" : "minor"}`} style={{ transform: `rotate(${angle}deg)` }} />;
-}
-
-/* Mini with colored rim + readout below */
+/* Mini gauge: clean dial + colored rim + readout below (warn/danger + pulse on danger) */
 function MiniGauge({ label, value, min = 0, max = 100 }) {
   const hasVal = Number.isFinite(Number(value));
   const deg = hasVal ? mapToDeg(value, min, max) : 0;
@@ -323,6 +301,7 @@ function Odometer({ label, value }) {
   );
 }
 
+/* Inline sparkline component */
 function Spark({ values = [] }) {
   if (!values || values.length < 2) return <div className="sector-spark">(no data)</div>;
   const min = Math.min(...values), max = Math.max(...values);
