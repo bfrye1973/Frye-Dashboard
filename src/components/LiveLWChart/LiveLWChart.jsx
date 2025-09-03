@@ -18,40 +18,40 @@ export default function LiveLWChart({
   height = DEFAULT_HEIGHTS.price, // legacy
   enabledIndicators = [],
   indicatorSettings = {},
-  onCandles,
+  onCandles, // NEW
 }) {
-  /*** WRAPPERS & PANES ***/
+  // wrapper for width
   const wrapperRef = useRef(null);
+
+  // pane containers
   const priceRef   = useRef(null);
   const squeezeRef = useRef(null);
   const smiRef     = useRef(null);
   const volRef     = useRef(null);
 
-  /*** CHART APIS ***/
+  // charts
   const priceChartRef   = useRef(null);
   const squeezeChartRef = useRef(null);
   const smiChartRef     = useRef(null);
   const volChartRef     = useRef(null);
 
-  /*** SERIES ***/
+  // main price series
   const priceSeriesRef  = useRef(null);
-  const seriesMapRef = useRef(new Map()); // indicator series registry
 
-  /*** STATE ***/
+  const seriesMapRef = useRef(new Map());
   const [candles, setCandles] = useState([]);
 
+  // which panes are needed
   const needSqueeze = useMemo(() => enabledIndicators.includes("squeeze"), [enabledIndicators]);
   const needSMI     = useMemo(() => enabledIndicators.includes("smi"), [enabledIndicators]);
   const needVol     = useMemo(() => enabledIndicators.includes("vol"), [enabledIndicators]);
 
+  // pane heights (+/-)
   const [heights, setHeights] = useState(DEFAULT_HEIGHTS);
   const inc = (key, amt=40) => setHeights(h => ({ ...h, [key]: Math.min(h[key] + amt, 480)}));
   const dec = (key, amt=40) => setHeights(h => ({ ...h, [key]: Math.max(h[key] - amt, 60)}));
 
-  /*** LEGEND (top-left of price pane) ***/
-  const legendRef = useRef(null);
-
-  /*** INITIALIZE CHARTS (once) ***/
+  // create charts once
   useEffect(() => {
     const w = wrapperRef.current?.clientWidth ?? 800;
 
@@ -98,7 +98,7 @@ export default function LiveLWChart({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  /*** RESIZE OBSERVER ***/
+  // observe wrapper width and resize charts
   useEffect(() => {
     if (!wrapperRef.current) return;
     const ro = new ResizeObserver(() => {
@@ -112,7 +112,7 @@ export default function LiveLWChart({
     return () => { try { ro.disconnect(); } catch {} };
   }, [heights, needSqueeze, needSMI, needVol]);
 
-  /*** LOAD + STREAM DATA ***/
+  // load data
   useEffect(() => {
     if (!priceChartRef.current || !priceSeriesRef.current) return;
 
@@ -125,7 +125,7 @@ export default function LiveLWChart({
       setCandles(seed);
       priceSeriesRef.current.setData(seed);
 
-      // expose candles for other panes
+      // expose candles across panes
       priceChartRef.current._candles = seed;
       if (squeezeChartRef.current) squeezeChartRef.current._candles = seed;
       if (smiChartRef.current)     smiChartRef.current._candles     = seed;
@@ -151,33 +151,7 @@ export default function LiveLWChart({
     return () => { disposed = true; unsub?.(); feed.close?.(); };
   }, [symbol, timeframe, onCandles]);
 
-  /*** 60s SAFETY REFRESH (re-seed history) ***/
-  useEffect(() => {
-    let stop = false;
-
-    async function refreshHistory() {
-      if (stop || !priceSeriesRef.current) return;
-      try {
-        const seed = await getFeed(symbol, timeframe).history();
-        if (!seed?.length) return;
-
-        priceSeriesRef.current.setData(seed);
-        setCandles(seed);
-
-        if (priceChartRef.current) priceChartRef.current._candles = seed;
-        if (squeezeChartRef.current) squeezeChartRef.current._candles = seed;
-        if (smiChartRef.current) smiChartRef.current._candles = seed;
-        if (volChartRef.current) volChartRef.current._candles = seed;
-
-        try { onCandles?.(seed); } catch {}
-      } catch {}
-    }
-
-    const id = setInterval(refreshHistory, 60_000);
-    return () => { stop = true; clearInterval(id); };
-  }, [symbol, timeframe, onCandles]);
-
-  /*** SYNC TIME SCALES ***/
+  // sync time scales both ways
   useEffect(() => {
     if (!priceChartRef.current) return;
 
@@ -217,7 +191,7 @@ export default function LiveLWChart({
       .forEach(c => { try { c.timeScale().setVisibleLogicalRange(range); } catch {} });
   }
 
-  /*** ATTACH INDICATORS (to panes) ***/
+  // attach indicators to correct pane
   useEffect(() => {
     const priceChart   = priceChartRef.current;
     const squeezeChart = squeezeChartRef.current;
@@ -225,7 +199,7 @@ export default function LiveLWChart({
     const volChart     = volChartRef.current;
     if (!priceChart || !candles.length) return;
 
-    // cleanup prior
+    // cleanup
     for (const [key, obj] of seriesMapRef.current) {
       if (key.endsWith("__cleanup") && typeof obj === "function") {
         try { obj(); } catch {}
@@ -253,18 +227,16 @@ export default function LiveLWChart({
     if (volChart)     { volChart._container     = volRef.current;     volChart._priceSeries     = null; }
 
     const defs = resolveIndicators(enabledIndicators, indicatorSettings);
-
     defs.forEach(({ def, inputs }) => {
       const isSeparate = String(def.kind || "").toUpperCase() === "SEPARATE";
       const chartApi = isSeparate ? paneForId(def.id) : priceChart;
       if (!chartApi) return;
-
       const result  = def.compute(candles, inputs);
       const cleanup = def.attach(chartApi, seriesMapRef.current, result, inputs);
       seriesMapRef.current.set(`${def.id}__cleanup`, cleanup);
     });
 
-    // ensure sizes
+    // ensure size after attach
     const w = wrapperRef.current?.clientWidth ?? 800;
     try { priceChart.resize(w, heights.price); } catch {}
     try { squeezeChart?.resize(w, needSqueeze ? heights.squeeze : 0); } catch {}
@@ -274,73 +246,9 @@ export default function LiveLWChart({
     syncVisibleRange("price");
   }, [candles, enabledIndicators, indicatorSettings, heights, needSqueeze, needSMI, needVol]);
 
-  /*** CROSSHAIR LEGEND (Px / EMA10 / EMA20 / MFI) ***/
-  useEffect(() => {
-    const chart = priceChartRef.current;
-    const priceSeries = priceSeriesRef.current;
-    if (!chart || !priceSeries || !legendRef.current) return;
-
-    // Find known series by keys used by your indicators
-    const ema10 = seriesMapRef.current.get("ema10") || null;
-    const ema20 = seriesMapRef.current.get("ema20") || null;
-    const mfi   = seriesMapRef.current.get("mfi")   || null;
-
-    const fmt = (n) => (n == null || Number.isNaN(n) ? "—" : Number(n).toFixed(2));
-    const toNum = (v) => (typeof v === "object" && v?.price != null ? v.price : v);
-
-    function write(payload) {
-      const node = legendRef.current;
-      if (!node) return;
-
-      const last = {
-        px:  priceSeries.getLastPrice?.() ?? {},
-        e10: ema10?.getLastPrice?.() ?? {},
-        e20: ema20?.getLastPrice?.() ?? {},
-        mfi: mfi?.getLastPrice?.()   ?? {},
-      };
-
-      let px = last.px, e10 = last.e10, e20 = last.e20, mfiv = last.mfi;
-
-      if (payload?.time && payload?.seriesPrices) {
-        const sp = payload.seriesPrices;
-        px   = sp.get(priceSeries)?.close ?? last.px;
-        if (ema10) e10 = sp.get(ema10) ?? last.e10;
-        if (ema20) e20 = sp.get(ema20) ?? last.e20;
-        if (mfi)   mfiv = sp.get(mfi)   ?? last.mfi;
-      }
-
-      node.innerHTML = `
-        <div style="display:flex; gap:12px; align-items:center">
-          <span>Px <b>${fmt(toNum(px))}</b></span>
-          <span style="color:#2dd4bf">EMA10 <b>${fmt(toNum(e10))}</b></span>
-          <span style="color:#fb923c">EMA20 <b>${fmt(toNum(e20))}</b></span>
-          <span style="color:#60a5fa">MFI14 <b>${fmt(toNum(mfiv))}</b></span>
-        </div>
-      `;
-    }
-
-    write(); // seed
-    chart.subscribeCrosshairMove(write);
-    return () => { try { chart.unsubscribeCrosshairMove(write); } catch {} };
-  }, [candles]);
-
-  /*** DEV QA: Jump to date range (optional helper) ***/
-  function jumpToRange(fromIso, toIso) {
-    const ts = (s) => Math.floor(new Date(s).getTime() / 1000);
-    const from = ts(fromIso), to = ts(toIso);
-    try {
-      priceChartRef.current?.timeScale().setVisibleRange({ from, to });
-    } catch {}
-  }
-  // Example (commented): jumpToRange("2024-08-20T13:00:00-04:00","2024-08-22T16:00:00-04:00");
-
-  /*** RENDER ***/
   const show = { display: "block" };
   const hide = { display: "none" };
-  const btnMini = {
-    padding: "2px 6px", borderRadius: 6, fontSize: 12,
-    background: "#0b1220", color: "#e5e7eb", border: "1px solid #334155", cursor: "pointer"
-  };
+
   const PaneHeader = ({ label, onInc, onDec }) => (
     <div style={{ position: "absolute", left: 6, top: 6, zIndex: 10, display: "flex", gap: 8, alignItems: "center" }}>
       <span style={{ fontSize: 12, color: "#93a3b8" }}>{label}</span>
@@ -348,21 +256,15 @@ export default function LiveLWChart({
       <button onClick={onInc} style={btnMini}>+</button>
     </div>
   );
+  const btnMini = {
+    padding: "2px 6px", borderRadius: 6, fontSize: 12,
+    background: "#0b1220", color: "#e5e7eb", border: "1px solid #334155", cursor: "pointer"
+  };
 
   return (
     <div ref={wrapperRef} style={{ width: "100%", display: "flex", flexDirection: "column", gap: 8 }}>
-      {/* PRICE pane with legend */}
-      <div ref={priceRef} style={{ height: heights.price, position: "relative" }}>
-        <div
-          ref={legendRef}
-          style={{
-            position: "absolute", top: 8, left: 10, zIndex: 6,
-            fontSize: 12, background: "rgba(15,17,23,.85)",
-            border: "1px solid #1f2937", borderRadius: 6,
-            padding: "6px 8px", color: "#d1d4dc", pointerEvents: "none"
-          }}
-        />
-      </div>
+      {/* PRICE */}
+      <div ref={priceRef} style={{ height: heights.price, position: "relative" }} />
 
       {/* SQUEEZE */}
       <div ref={squeezeRef} style={{ height: needSqueeze ? heights.squeeze : 0, position: "relative", ...(needSqueeze ? show : hide) }}>
@@ -382,7 +284,7 @@ export default function LiveLWChart({
   );
 }
 
-/*** MERGE CANDLE ON SAME TIMESTAMP ELSE APPEND ***/
+// merge candle on same timestamp else append
 function mergeBar(prev, bar) {
   if (!prev?.length) return [bar];
   const last = prev[prev.length - 1];
