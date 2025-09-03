@@ -1,9 +1,5 @@
 // src/components/GaugeCluster.jsx
 // Ferrari Dashboard — R8.4
-// • Keeps R8.2/R8.3 layout + numerals + masked tach rim
-// • Mini black gauges: clean dial + readout below + warn/danger + pulsing rim
-// • Engine lights, sector counts, sparklines
-// • Ready to color big gauges via data.lights (state-strong|improving|neutral|deteriorating|weak)
 
 import React from "react";
 import { useDashboardPoll } from "../lib/dashboardApi";
@@ -33,14 +29,10 @@ const mapToDeg = (v, lo, hi) => {
   const t = (clamp(Number(v ?? NaN), lo, hi) - lo) / (hi - lo || 1);
   return -130 + 260 * t;
 };
-
 // thresholds for mini dials
-// Water: warn >225°F, danger >235°F
-// Oil:   warn <40 psi, danger <30 psi
-// Fuel:  warn <35%,   danger <20%
 function statusFor(label, value) {
   const v = Number(value);
-  if (!Number.isFinite(v)) return "readout"; // neutral
+  if (!Number.isFinite(v)) return "readout";
   if (label === "WATER") {
     if (v > 235) return "readout danger";
     if (v > 225) return "readout warn";
@@ -56,7 +48,7 @@ function statusFor(label, value) {
     if (v < 35) return "readout warn";
     return "readout ok";
   }
-  return "readout"; // ALT neutral
+  return "readout";
 }
 
 const Panel = ({ title, children, className = "" }) => (
@@ -86,7 +78,7 @@ export default function GaugeCluster() {
   const mapSig = (sig) =>
     !sig || !sig.active ? "off" :
     String(sig.severity || "info").toLowerCase() === "danger" ? "danger" :
-    String(sig.severity || "").toLowerCase() === "warn"   ? "warn" : "ok";
+    String(sig.severity || "").toLowerCase() === "warn"   ? "warn"   : "ok";
 
   const squeeze = String(data?.odometers?.squeeze || "none");
   const squeezeState =
@@ -105,19 +97,19 @@ export default function GaugeCluster() {
     { label: "Turbo",          state: mapSig(s.sigTurbo),        icon: "⚡"  },
   ];
 
-  // Optional big-gauge state coloring (if backend provides data.lights)
+  // Optional big-gauge ring color by market state
   const stateB = data?.lights?.breadth  || "neutral";
   const stateM = data?.lights?.momentum || "neutral";
 
   return (
     <div className="cluster">
       {/* Header */}
-      <div className="panel" style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+      <div className="panel" style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
         <div>
           <div style={{ fontWeight: 700 }}>Ferrari Trading Cluster</div>
           <div className="small muted">Live from /api/dashboard</div>
         </div>
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        <div style={{ display:"flex", gap:8, alignItems:"center" }}>
           <span className="build-chip">BUILD R8.4</span>
           <div className="tag" style={{ border:`1px solid ${color}`, display:"flex", gap:8, alignItems:"center", borderRadius:8, padding:"4px 8px" }}>
             <span style={{ width:8, height:8, borderRadius:999, background:color, boxShadow:`0 0 8px ${color}` }}/>
@@ -139,7 +131,7 @@ export default function GaugeCluster() {
           <Panel title="Gauges" className="carbon-fiber">
             <div className="cockpit-center">
               <div className="cockpit">
-                {/* Left minis (with thresholds & pulsing rim on danger) */}
+                {/* Left minis */}
                 <div className="left-stack">
                   <MiniGauge label="WATER" value={data.gauges?.waterTemp} min={160} max={260} />
                   <MiniGauge label="OIL"   value={data.gauges?.oilPsi}    min={0}   max={120} />
@@ -149,23 +141,12 @@ export default function GaugeCluster() {
 
                 {/* Center tach */}
                 <div className="center-tach">
-                  <BigGauge
-                    theme="tach"
-                    label="RPM"
-                    value={data.gauges?.rpm}
-                    withLogo
-                    stateClass={`state-${stateB}`} // optional state color
-                  />
+                  <BigGauge theme="tach"  label="RPM"   value={data.gauges?.rpm}   withLogo stateClass={`state-${stateB}`} />
                 </div>
 
                 {/* Right speedo */}
                 <div className="right-speed">
-                  <BigGauge
-                    theme="speed"
-                    label="SPEED"
-                    value={data.gauges?.speed}
-                    stateClass={`state-${stateM}`} // optional state color
-                  />
+                  <BigGauge theme="speed" label="SPEED" value={data.gauges?.speed} stateClass={`state-${stateM}`} />
                 </div>
               </div>
             </div>
@@ -174,9 +155,7 @@ export default function GaugeCluster() {
           {/* Engine Lights */}
           <Panel title="Engine Lights">
             <div className="lights">
-              {lights.map((L, i) => (
-                <Pill key={`${L.label}-${i}`} label={L.label} state={L.state} icon={L.icon} />
-              ))}
+              {lights.map((L, i) => <Pill key={`${L.label}-${i}`} label={L.label} state={L.state} icon={L.icon} />)}
             </div>
           </Panel>
 
@@ -189,7 +168,7 @@ export default function GaugeCluster() {
             </div>
           </Panel>
 
-          {/* Sectors (sparks + counts) */}
+          {/* Sectors */}
           <Panel title="Sectors">
             <div className="sectors-grid">
               {(data.outlook?.sectorCards || []).map((c, i) => (
@@ -216,35 +195,22 @@ export default function GaugeCluster() {
 function BigGauge({ theme = "tach", label, value = 0, withLogo = false, stateClass = "" }) {
   const t = (clamp(value, -1000, 1000) + 1000) / 2000;
   const angle = -130 + t * 260;
-
   const isTach = theme === "tach";
   const face = isTach ? "#ffdd00" : "#c21a1a";
 
-  const showTicks = false; // per your request
+  const showTicks = false; // hide ticks per your preference
 
-  // Dark bezel to mask outer yellow edge on tach
+  // Dark bezel to mask outer yellow on tach
   const rimMask = isTach ? (
-    <div
-      style={{
-        position: "absolute",
-        inset: 0,
-        borderRadius: "50%",
-        boxShadow: "inset 0 0 0 10px #0f172a",
-        zIndex: 1
-      }}
-      aria-hidden
-    />
+    <div style={{ position:"absolute", inset:0, borderRadius:"50%", boxShadow:"inset 0 0 0 10px #0f172a", zIndex:1 }} aria-hidden />
   ) : null;
 
   return (
     <div className={`fg-wrap ${isTach ? "gauge--tach" : "gauge--speed"} ${stateClass}`}>
       <div className="gauge-face" style={{ background: face }}>
         {rimMask}
-
-        {/* Ring (color can be overridden by .state-* in CSS) */}
         <div className="ring" />
 
-        {/* Ticks hidden */}
         {showTicks && (
           <div className="ticks">
             {Array.from({ length: 41 }, (_, i) => {
@@ -255,7 +221,6 @@ function BigGauge({ theme = "tach", label, value = 0, withLogo = false, stateCla
           </div>
         )}
 
-        {/* Tach redline wedge */}
         {isTach ? <div className="redline-arc" aria-hidden /> : null}
 
         {/* Numerals */}
@@ -268,26 +233,17 @@ function BigGauge({ theme = "tach", label, value = 0, withLogo = false, stateCla
             const r = 77, rad = (a - 90) * Math.PI / 180;
             const x = 100 + r * Math.cos(rad), y = 100 + r * Math.sin(rad);
             return (
-              <text
-                key={idx}
-                x={x}
-                y={y}
-                className={`numeral ${isTach ? "tach" : "speed"}`}
-                textAnchor="middle"
-                dominantBaseline="central"
-              >
+              <text key={idx} x={x} y={y} className={`numeral ${isTach ? "tach" : "speed"}`} textAnchor="middle" dominantBaseline="central">
                 {num}
               </text>
             );
           })}
         </svg>
 
-        {/* Needle / hub / glass */}
         <div className="needle" style={{ transform: `rotate(${angle}deg)` }} />
         <div className="hub" />
         <div className="glass" />
 
-        {/* Branding */}
         {withLogo ? (
           <svg className="logo-ring" viewBox="0 0 220 220" aria-hidden>
             <defs>
@@ -295,14 +251,10 @@ function BigGauge({ theme = "tach", label, value = 0, withLogo = false, stateCla
               <path id="ringPathBottom" d="M110,210 a100,100 0 1,1 0,-200 a100,100 0 1,1 0,200" />
             </defs>
             <text className="logo-top">
-              <textPath href="#ringPath" startOffset="50%" textAnchor="middle">
-                REDLINE TRADING
-              </textPath>
+              <textPath href="#ringPath" startOffset="50%" textAnchor="middle">REDLINE TRADING</textPath>
             </text>
             <text className="logo-bottom">
-              <textPath href="#ringPathBottom" startOffset="50%" textAnchor="middle">
-                POWERED BY AI
-              </textPath>
+              <textPath href="#ringPathBottom" startOffset="50%">POWERED BY AI</textPath>
             </text>
           </svg>
         ) : null}
@@ -316,7 +268,7 @@ function Tick({ angle, major }) {
   return <div className={`tick ${major ? "major" : "minor"}`} style={{ transform: `rotate(${angle}deg)` }} />;
 }
 
-/* Mini gauge: clean face + colored rim + readout below (warn/danger + pulse on danger) */
+/* Mini with colored rim + readout below */
 function MiniGauge({ label, value, min = 0, max = 100 }) {
   const hasVal = Number.isFinite(Number(value));
   const deg = hasVal ? mapToDeg(value, min, max) : 0;
@@ -350,7 +302,6 @@ function Odometer({ label, value }) {
   );
 }
 
-/* Inline sparkline component */
 function Spark({ values = [] }) {
   if (!values || values.length < 2) return <div className="sector-spark">(no data)</div>;
   const min = Math.min(...values), max = Math.max(...values);
