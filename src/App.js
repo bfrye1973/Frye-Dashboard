@@ -1,4 +1,4 @@
-// src/App.js
+// src/App.js — Compact layout (no top header/title)
 import React, { useMemo, useState, useEffect } from "react";
 
 // Components
@@ -13,7 +13,7 @@ export default function App() {
   const [symbol, setSymbol] = useState("SPY");
   const [timeframe, setTimeframe] = useState("1D");
 
-  // Debug banner for OHLC feed
+  // Keep feed debug plumbing but don't render the header
   const [dbg, setDbg] = useState({ source: "-", url: "-", bars: 0, shape: "-" });
   useEffect(() => {
     const id = setInterval(() => {
@@ -28,19 +28,13 @@ export default function App() {
     return () => clearInterval(id);
   }, []);
 
-  // Indicator toggles
+  // Indicator toggles/settings
   const [enabled, setEnabled] = useState({
-    ema10: true,
-    ema20: true,
-    mfp:   false,
-    sr:    false,
-    swing: false,
-    squeeze: false,
-    smi:     false,
-    vol:     false,
+    ema10: true, ema20: true,
+    mfp: false, sr: false, swing: false,
+    squeeze: false, smi: false, vol: false,
   });
 
-  // Indicator settings
   const [settings] = useState({
     ema10: { length: 12, color: "#60a5fa" },
     ema20: { length: 26, color: "#f59e0b" },
@@ -65,11 +59,9 @@ export default function App() {
     return out;
   }, [enabled]);
 
-  // Sidebar lists
   const symbols = useMemo(() => ["SPY","QQQ","AAPL","MSFT","NVDA","TSLA","META","AMZN"], []);
   const tfs     = useMemo(() => ["1m","10m","1H","1D"], []);
 
-  // Candles (chart plumbing)
   const [candles, setCandles] = useState([]);
 
   // Gauges row for your table panel (unchanged)
@@ -84,36 +76,29 @@ export default function App() {
     return () => { live = false; };
   }, [symbol]);
 
-  // ---------- inline styles ----------
-  const panel  = { border:"1px solid #1f2a44", borderRadius:12, padding:12, background:"#0e1526", marginBottom:12 };
+  // ---------- compact styles ----------
+  const page   = { minHeight:"100vh", background:"#0d1117", color:"#d1d4dc" };
+  const wrap   = { display:"grid", gridTemplateColumns:"280px 1fr", gap:12, padding:"12px 12px 8px" };
+  const panel  = { border:"1px solid #1f2a44", borderRadius:12, padding:10, background:"#0e1526", marginBottom:10 };
   const label  = { fontSize:12, opacity:0.8, marginBottom:6, display:"block" };
-  const rowCtl = { display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" };
+  const rowCtl = { display:"flex", gap:6, alignItems:"center", flexWrap:"wrap" };
   const btn = (active) => ({
-    padding:"8px 12px", borderRadius:8,
+    padding:"6px 10px", borderRadius:8,
     border: active ? "1px solid #60a5fa" : "1px solid #334155",
     background: active ? "#111827" : "#0b1220",
-    color:"#e5e7eb", cursor:"pointer", fontSize:13
+    color:"#e5e7eb", cursor:"pointer", fontSize:12
   });
   const select = {
     width:"100%", padding:"8px 10px", borderRadius:8,
     border:"1px solid #334155", background:"#0b1220", color:"#e5e7eb",
     fontSize:14, outline:"none"
   };
+  const rightCol = { border:"1px solid #1b2130", borderRadius:12, overflow:"hidden" };
 
   return (
-    <div style={{ minHeight:"100vh", background:"#0d1117", color:"#d1d4dc" }}>
-      {/* Debug header */}
-      <div style={{ padding:"6px 10px", fontSize:12, color:"#93a3b8", background:"#111827", borderBottom:"1px solid #334155" }}>
-        FEED: <strong>{dbg.source}</strong> • bars: <strong>{dbg.bars}</strong> • shape: <strong>{dbg.shape}</strong> • url: <span style={{opacity:0.8}}>{dbg.url}</span>
-      </div>
-
-      {/* Title */}
-      <div style={{ padding:12, borderBottom:"1px solid #1f2a44" }}>
-        <h2 style={{ margin:0, fontWeight:600 }}>Ferrari Dashboard</h2>
-      </div>
-
-      {/* Grid: Sidebar + Right */}
-      <div style={{ display:"grid", gridTemplateColumns:"300px 1fr", gap:16, padding:16 }}>
+    <div style={page}>
+      {/* Grid: Sidebar + Right (compact, no top bars) */}
+      <div style={wrap}>
         {/* Sidebar */}
         <div>
           <div style={panel}>
@@ -151,25 +136,22 @@ export default function App() {
                 <label htmlFor={id} style={{ fontSize:12, opacity:0.85 }}>{lbl}</label>
               </div>
             ))}
-            <div style={{ marginTop:8, fontSize:11, opacity:0.7 }}>
-              Active: {enabledIndicators.join(", ") || "none"}
-            </div>
           </div>
         </div>
 
         {/* Right column */}
-        <div style={{ border:"1px solid #1b2130", borderRadius:12, overflow:"hidden" }}>
+        <div style={rightCol}>
           {/* Normal cockpit cluster */}
           <GaugeCluster />
 
           {/* Gauges panel (unchanged) */}
           <GaugesPanel defaultIndex={symbol} />
 
-          {/* Chart (unchanged) */}
+          {/* Chart — shorter so the page fits */}
           <LiveLWChart
             symbol={symbol}
             timeframe={timeframe}
-            height={620}
+            height={520}              // was 620
             enabledIndicators={enabledIndicators}
             indicatorSettings={settings}
             onCandles={setCandles}
