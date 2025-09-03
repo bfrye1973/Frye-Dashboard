@@ -15,6 +15,27 @@ function timeAgo(ts) {
     return `${Math.floor(m / 60)}h ago`;
   } catch { return "—"; }
 }
+// returns { ageMin, label, cls, title } from a meta.ts ISO string
+function computeFreshness(ts) {
+  if (!ts) return { ageMin: null, label: "—", cls: "fresh neutral", title: "no timestamp" };
+  const now = Date.now();
+  const t = new Date(ts).getTime();
+  if (!Number.isFinite(t)) return { ageMin: null, label: "—", cls: "fresh neutral", title: "invalid timestamp" };
+
+  const ageMin = Math.floor((now - t) / 60000);
+  let label = "", cls = "fresh neutral";
+  if (ageMin < 15) { label = "live"; cls = "fresh live"; }
+  else if (ageMin < 60) { label = "stale"; cls = "fresh stale"; }
+  else { label = "old"; cls = "fresh old"; }
+
+  return {
+    ageMin,
+    label,
+    cls,
+    title: `${label.toUpperCase()} • ${ageMin}m old • ts=${ts}`
+  };
+}
+
 function freshnessColor(ts) {
   try {
     const t = new Date(ts).getTime();
