@@ -1,5 +1,5 @@
 // src/components/GaugeCluster.jsx
-// Ferrari Dashboard — R8.3 stable baseline (layout, minis, engine lights, gauges)
+// Ferrari Dashboard — R8.2 baseline: layout stable + minis + engine lights + sparklines
 
 import React from "react";
 import { useDashboardPoll } from "../lib/dashboardApi";
@@ -80,7 +80,7 @@ export default function GaugeCluster(){
           <div className="small muted">Live from /api/dashboard</div>
         </div>
         <div style={{display:"flex",gap:8,alignItems:"center"}}>
-          <span className="build-chip">BUILD R8.3</span>
+          <span className="build-chip">BUILD R8.2</span>
           <div className="tag" style={{border:`1px solid ${color}`,display:"flex",gap:8,alignItems:"center",borderRadius:8,padding:"4px 8px"}}>
             <span style={{width:8,height:8,borderRadius:999,background:color,boxShadow:`0 0 8px ${color}`}}/>
             <span className="small">{ts ? `Updated ${timeAgo(ts)}` : "—"}</span>
@@ -137,6 +137,21 @@ export default function GaugeCluster(){
               <Odometer label="Squeeze"  value={String(data.odometers?.squeeze ?? "—")} />
             </div>
           </Panel>
+
+          {/* Sectors (spark lines visible) */}
+          <Panel title="Sectors">
+            <div className="sectors-grid">
+              {(data.outlook?.sectorCards || []).map((c, i) => (
+                <div key={i} className="sector-card">
+                  <div className="sector-head">
+                    <div className="sector-name">{c.sector}</div>
+                    <span className="tag">{c.outlook}</span>
+                  </div>
+                  <Spark values={c.spark || []} />
+                </div>
+              ))}
+            </div>
+          </Panel>
         </>
       ) : null}
     </div>
@@ -152,14 +167,7 @@ function BigGauge({ theme="tach", label, value=0, withLogo=false }){
   const isTach = theme==="tach";
   const face = isTach ? "#ffdd00" : "#c21a1a";
 
-  // Numerals
-  const tachNums = Array.from({ length: 10 }, (_, i) => i + 1);
-  const speedNums = Array.from({ length: 11 }, (_, i) => (i + 1) * 20);
-
-  const numeralRadius=77;
-  const angleForIndex=(idx,total)=>-120+(idx/(total-1))*240;
-  const toXY=(deg)=>{const rad=(deg-90)*Math.PI/180;return{ x:100+numeralRadius*Math.cos(rad), y:100+numeralRadius*Math.sin(rad)}};
-
+  // baseline tick math (we’ll align later)
   return (
     <div className={`fg-wrap ${isTach?"gauge--tach":"gauge--speed"}`}>
       <div className="gauge-face" style={{background:face}}>
@@ -169,9 +177,15 @@ function BigGauge({ theme="tach", label, value=0, withLogo=false }){
         </div>
         {isTach?<div className="redline-arc" aria-hidden/>:null}
         <svg className="dial-numerals" viewBox="0 0 200 200" aria-hidden>
-          {(isTach?tachNums:speedNums).map((num,idx,arr)=>{const a=angleForIndex(idx,arr.length);const {x,y}=toXY(a);return(
-            <text key={idx} x={x} y={y} className={`numeral ${isTach?"tach":"speed"}`} textAnchor="middle" dominantBaseline="central">{num}</text>
-          )})}
+          {(isTach
+            ? Array.from({ length: 10 }, (_, i) => i + 1)
+            : Array.from({ length: 11 }, (_, i) => (i + 1) * 20)
+          ).map((num, idx, arr) => {
+            const a=-120+(idx/(arr.length-1))*240;
+            const r=77, rad=(a-90)*Math.PI/180;
+            const x=100+r*Math.cos(rad), y=100+r*Math.sin(rad);
+            return <text key={idx} x={x} y={y} className={`numeral ${isTach?"tach":"speed"}`} textAnchor="middle" dominantBaseline="central">{num}</text>;
+          })}
         </svg>
         <div className="needle" style={{transform:`rotate(${angle}deg)`}}/>
         <div className="hub"/>
@@ -195,3 +209,21 @@ function BigGauge({ theme="tach", label, value=0, withLogo=false }){
 function Tick({angle,major}){return <div className={`tick ${major?"major":"minor"}`} style={{transform:`rotate(${angle}deg)`}}/>}
 function MiniGauge({label,value,unit}){return(<div className="mini"><div className="mini-face"><div className="mini-needle"/><div className="mini-hub"/></div><div className="mini-value">{value??"—"}{unit||""}</div><div className="mini-title">{label}</div></div>)}
 function Odometer({label,value}){return(<div className="odo"><div className="odo-label">{label}</div><div className="odo-value">{value??"—"}</div></div>)}
+
+/* Inline sparkline component (keeps sectors visible) */
+function Spark({ values=[] }){
+  if(!values || values.length<2) return <div className="sector-spark">(no data)</div>;
+  const min = Math.min(...values), max = Math.max(...values);
+  const W=180, H=36;
+  const norm = v => (max-min ? (v-min)/(max-min) : 0.5);
+  const pts = values.map((v,i)=>{
+    const x = (i/(values.length-1))*(W-8)+4;
+    const y = (1-norm(v))*(H-8)+4;
+    return `${x},${y}`;
+  }).join(" ");
+  return (
+    <svg className="spark" viewBox={`0 0 ${W} ${H}`} width={W} height={H}>
+      <polyline className="spark-line" fill="none" strokeWidth="2" points={pts} />
+    </svg>
+  );
+}
