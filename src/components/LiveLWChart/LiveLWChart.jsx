@@ -291,3 +291,6 @@ function mergeBar(prev, bar) {
   if (last.time === bar.time) { const next = prev.slice(0, -1); next.push(bar); return next; }
   return [...prev, bar];
 }
+- const defs = resolveIndicators(enabledIndicators, indicatorSettings);
++ const defs = resolveIndicators(enabledIndicators, indicatorSettings)
++   .filter(({ def }) => def && typeof def.compute === "function" && typeof def.attach === "function");
