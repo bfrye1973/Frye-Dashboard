@@ -1,5 +1,6 @@
 /* =========================================================
-   Frye Dashboard — Ferrari Cluster UI (R8.3 baseline + tweaks)
+   Frye Dashboard — Ferrari Cluster UI (R8.4)
+   Based on your R8.3, with mini gauge readouts below + warn/danger + pulse
    ========================================================= */
 
 :root{
@@ -52,13 +53,8 @@ a:hover{text-decoration:underline}
 .gauge--tach .gauge-face{background:var(--tach-yellow)}
 .gauge--speed .gauge-face{background:var(--speed-red)}
 
-/* Red ring (kept) */
+/* Red ring (default) */
 .ring{position:absolute;inset:10px;border-radius:50%;box-shadow:inset 0 0 0 18px var(--ring-red), inset 0 0 52px rgba(226,18,18,.35);z-index:2}
-
-/* Ticks (baseline; we hide for tach/speed per your request) */
-.ticks{position:absolute;inset:0;z-index:3}
-.tick{position:absolute;left:50%;top:50%;width:2px;height:18px;background:#ffffff;opacity:.95;transform-origin:50% calc(50% - 85px)}
-.tick.major{height:28px;width:3px;opacity:1}
 
 /* Numerals */
 .dial-numerals{position:absolute;inset:0;z-index:4}
@@ -96,18 +92,38 @@ a:hover{text-decoration:underline}
 .light.warn{background:linear-gradient(180deg,#ffe47a,#ffc400);color:#3a2a00;border-color:#a07b00;box-shadow:0 0 12px rgba(255,196,0,.55), 0 0 0 1px rgba(255,196,0,.4) inset}
 .light.danger{background:linear-gradient(180deg,#ff9a9a,#ff3b3b);color:#2e0000;border-color:#a31212;box-shadow:0 0 12px rgba(255,59,59,.6), 0 0 0 1px rgba(255,59,59,.45) inset}
 
-/* Minis */
+/* Minis (clean dial + readout below + rim colors + pulse on danger) */
 .mini{display:flex;flex-direction:column;align-items:center}
-.mini-face{width:110px;height:110px;border-radius:50%;background: radial-gradient(circle at 30% 30%, #1a1a1a, #000);border:4px solid #555;display:flex;align-items:center;justify-content:center;box-shadow: inset 0 0 12px #000, 0 0 8px #111;position:relative}
+.mini-face{
+  width:110px;height:110px;border-radius:50%;
+  background: radial-gradient(circle at 30% 30%, #1a1a1a, #000);
+  border:4px solid #555; display:flex;align-items:center;justify-content:center;
+  box-shadow: inset 0 0 12px #000, 0 0 8px #111; position:relative;
+}
 .mini-needle{position:absolute;left:50%;top:50%;width:42px;height:2px;background:#e74a4a;transform-origin:0% 50%;transform:rotate(-90deg)}
 .mini-hub{position:absolute;left:50%;top:50%;width:12px;height:12px;border-radius:50%;transform:translate(-50%,-50%);background:#111;border:2px solid #777}
-/* numeric readout inside mini dial */
-.mini-readout{
-  position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
-  font-size:16px;font-weight:800;color:#e5e7eb;text-shadow:0 1px 2px rgba(0,0,0,.6);pointer-events:none;
+
+/* readout below dial */
+.readout{ margin-top:4px; font-size:14px; font-weight:800; letter-spacing:.3px; }
+.readout.ok{ color:#22c55e; }
+.readout.warn{ color:#f59e0b; }
+.readout.danger{ color:#ef4444; }
+.mini-title{ font-size:12px; opacity:.8; margin-top:2px; letter-spacing:.4px; }
+
+/* Rim colors by state */
+.gauge.ok{   border-color:#22c55e; box-shadow:0 0 6px #22c55e88, inset 0 0 6px #22c55e33; }
+.gauge.warn{ border-color:#f59e0b; box-shadow:0 0 6px #f59e0b88, inset 0 0 6px #f59e0b33; }
+.gauge.danger{
+  border-color:#ef4444;
+  animation: rim-pulse 1.4s ease-in-out infinite;
 }
-.mini-value{display:none} /* hide old line under dial */
-.mini-title{margin-top:6px;font-size:12px;opacity:.8}
+
+/* Pulse for danger rim */
+@keyframes rim-pulse{
+  0%   { box-shadow:0 0 4px #ef444466, inset 0 0 6px #ef444433; }
+  50%  { box-shadow:0 0 12px #ef4444aa, inset 0 0 10px #ef444466; }
+  100% { box-shadow:0 0 4px #ef444466, inset 0 0 6px #ef444433; }
+}
 
 /* Odometers & Sectors */
 .odos{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:12px}
@@ -123,18 +139,16 @@ a:hover{text-decoration:underline}
 .spark-line{stroke:#60a5fa}
 .sector-spark{color:#60a5fa}
 
-/* ===== Your three requested tweaks ===== */
+/* ===== R8.3 tweaks kept ===== */
 
 /* 1) Hide ticks on the main odometers (tach + speed) */
 .gauge--tach .ticks,
 .gauge--speed .ticks { display:none !important; }
 
-/* 2) Remove outer yellow rim around the RPM face (keep red ring) */
+/* 2) Mask outer yellow rim around the RPM face (keep red ring) */
 .gauge--tach .gauge-face::before{
-  content:"";
-  position:absolute; inset:0; border-radius:50%;
-  box-shadow: inset 0 0 0 10px #0f172a;  /* dark bezel to mask yellow edge */
-  z-index:1; /* sits below ring (z-index:2) */
+  content:""; position:absolute; inset:0; border-radius:50%;
+  box-shadow: inset 0 0 0 10px #0f172a; z-index:1;
 }
 
 /* Sizing & Responsive */
@@ -149,3 +163,10 @@ a:hover{text-decoration:underline}
 
 /* Layer order safety */
 .ring{z-index:2}.ticks{z-index:3}.dial-numerals{z-index:4}.needle,.hub{z-index:5}.glass{z-index:6}
+
+/* Optional: color big-gauge ring by market state (from data.lights) */
+.state-strong .ring{        box-shadow:inset 0 0 0 18px #22c55e, inset 0 0 52px #22c55e44; }
+.state-improving .ring{     box-shadow:inset 0 0 0 18px #84cc16, inset 0 0 52px #84cc1644; }
+.state-neutral .ring{       box-shadow:inset 0 0 0 18px #64748b, inset 0 0 52px #64748b44; }
+.state-deteriorating .ring{ box-shadow:inset 0 0 0 18px #f59e0b, inset 0 0 52px #f59e0b44; }
+.state-weak .ring{          box-shadow:inset 0 0 0 18px #ef4444, inset 0 0 52px #ef444444; }
