@@ -148,6 +148,10 @@ export default function GaugeCluster(){
                     <span className="tag">{c.outlook}</span>
                   </div>
                   <Spark values={c.spark || []} />
+                  <div className="small muted">
+  NH: {c.counts?.nh ?? "—"} · NL: {c.counts?.nl ?? "—"} · 3U: {c.counts?.u ?? "—"} · 3D: {c.counts?.d ?? "—"}
+</div>
+
                 </div>
               ))}
             </div>
