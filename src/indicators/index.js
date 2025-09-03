@@ -1,17 +1,20 @@
 // src/indicators/index.js
 //
 // Safe auto-register of indicators (recurses subfolders) with guards.
-// An indicator module should export objects that include:
-//   { id: "ema10", compute(candles, inputs) => result, attach(chartApi, seriesMap, result, inputs) => cleanupFn }
-// We register only exports that have id + compute + attach functions.
-// Any import/processing error is caught so the app never crashes.
+// Each indicator module should export objects shaped like:
+//   { id: "ema10", inputs?: {...}, compute(candles, inputs) => result,
+//     attach(chartApi, seriesMap, result, inputs) => cleanupFn }
+//
+// We register ONLY exports that have id + compute + attach.
+// Any import/processing error is logged so the app never crashes.
 
 function buildRegistry() {
   const REGISTRY = {};
   let ctx;
 
   try {
-    ctx = require.context("./", true, /\.js$/); // recurse
+    // recurse into subfolders (true)
+    ctx = require.context("./", true, /\.js$/);
   } catch (e) {
     console.warn("[indicators] require.context unavailable:", e);
     return REGISTRY;
@@ -21,7 +24,7 @@ function buildRegistry() {
     // skip any index.js to avoid self-import loops
     if (key === "./index.js" || key.endsWith("/index.js")) return;
 
-    // import the module; never let a bad module crash the app
+    // import module; never let a bad module crash the app
     let mod;
     try {
       mod = ctx(key);
@@ -53,16 +56,13 @@ function buildRegistry() {
 
 export const registry = buildRegistry();
 
-/**
- * resolveIndicators(enabled, settings) -> [{ def, inputs }]
- * Only returns indicators that passed validation.
- */
+/** resolveIndicators(enabled, settings) -> [{ def, inputs }] */
 export function resolveIndicators(enabled = [], settings = {}) {
   const out = [];
   for (const id of enabled) {
     const def = registry[id];
     if (!def) {
-      console.warn(`[indicators] missing or invalid id: ${id}`);
+      console.warn(`[indicators] missing/invalid id: ${id}`);
       continue;
     }
     const defaults  = def.inputs || {};
@@ -71,4 +71,3 @@ export function resolveIndicators(enabled = [], settings = {}) {
   }
   return out;
 }
-
