@@ -1,5 +1,4 @@
-// src/lib/dashboardApi.js
-// Fetch /api/dashboard with cache-buster + no-store, and a simple poll hook.
+// fetch /api/dashboard with cache-buster + no-store and a simple poll hook
 
 import { useEffect, useRef, useState } from "react";
 
@@ -9,9 +8,7 @@ export async function fetchDashboard() {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 8000);
 
-  // cache-buster defeats any intermediary caching
-  const url = `${BASE_URL}/api/dashboard?t=${Date.now()}`;
-
+  const url = `${BASE_URL}/api/dashboard?t=${Date.now()}`; // cache buster
   const res = await fetch(url, {
     method: "GET",
     headers: { Accept: "application/json" },
@@ -28,7 +25,6 @@ export async function fetchDashboard() {
   return res.json();
 }
 
-// Poll every intervalMs (default 5s)
 export function useDashboardPoll(intervalMs = 5000) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -48,7 +44,7 @@ export function useDashboardPoll(intervalMs = 5000) {
   }
 
   useEffect(() => {
-    loadOnce(); // initial
+    loadOnce();
     timer.current = setInterval(loadOnce, intervalMs);
     return () => timer.current && clearInterval(timer.current);
   }, [intervalMs]);
