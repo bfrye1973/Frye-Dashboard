@@ -4,16 +4,16 @@ import React, { useMemo, useState, useEffect } from "react";
 // Components
 import LiveLWChart from "./components/LiveLWChart";
 import GaugesPanel from "./components/GaugesPanel";
-import FerrariTwoGaugesReplica from "./components/FerrariTwoGaugesReplica";
+import GaugeCluster from "./components/GaugeCluster";
 
-// (Optional) Gauges service – we keep this since your UI already uses it
+// Services (kept for your table panel)
 import { getGauges } from "./services/gauges";
 
 export default function App() {
   const [symbol, setSymbol] = useState("SPY");
   const [timeframe, setTimeframe] = useState("1D");
 
-  // Debug banner for OHLC feed (unchanged)
+  // Debug banner for OHLC feed
   const [dbg, setDbg] = useState({ source: "-", url: "-", bars: 0, shape: "-" });
   useEffect(() => {
     const id = setInterval(() => {
@@ -69,10 +69,10 @@ export default function App() {
   const symbols = useMemo(() => ["SPY","QQQ","AAPL","MSFT","NVDA","TSLA","META","AMZN"], []);
   const tfs     = useMemo(() => ["1m","10m","1H","1D"], []);
 
-  // Candles (for chart plumbing)
+  // Candles (chart plumbing)
   const [candles, setCandles] = useState([]);
 
-  // Gauges row (kept for your table panel)
+  // Gauges row for your table panel (unchanged)
   const [gaugesRow, setGaugesRow] = useState(null);
   useEffect(() => {
     let live = true;
@@ -84,7 +84,7 @@ export default function App() {
     return () => { live = false; };
   }, [symbol]);
 
-  // ---------- styles ----------
+  // ---------- inline styles ----------
   const panel  = { border:"1px solid #1f2a44", borderRadius:12, padding:12, background:"#0e1526", marginBottom:12 };
   const label  = { fontSize:12, opacity:0.8, marginBottom:6, display:"block" };
   const rowCtl = { display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" };
@@ -112,7 +112,7 @@ export default function App() {
         <h2 style={{ margin:0, fontWeight:600 }}>Ferrari Dashboard</h2>
       </div>
 
-      {/* Grid layout: Sidebar + Right */}
+      {/* Grid: Sidebar + Right */}
       <div style={{ display:"grid", gridTemplateColumns:"300px 1fr", gap:16, padding:16 }}>
         {/* Sidebar */}
         <div>
@@ -159,12 +159,8 @@ export default function App() {
 
         {/* Right column */}
         <div style={{ border:"1px solid #1b2130", borderRadius:12, overflow:"hidden" }}>
-          {/* 🚗 Ferrari two-gauge replica */}
-          <FerrariTwoGaugesReplica
-            rpmValue={0}
-            speedValue={0}
-            startSweep={true}
-          />
+          {/* Normal cockpit cluster */}
+          <GaugeCluster />
 
           {/* Gauges panel (unchanged) */}
           <GaugesPanel defaultIndex={symbol} />
