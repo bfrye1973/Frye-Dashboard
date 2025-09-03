@@ -1,7 +1,7 @@
 // src/indicators/index.js
 //
-// Auto-register any indicator module in this folder.
-// No hardcoded imports, so missing files (e.g., ema10.js) won’t break builds.
+// Auto-register any indicator module in this folder *and subfolders*.
+// No hardcoded imports, so nested files (e.g., ema/index.js, squeeze/foo.js) won’t break builds.
 //
 // Convention: each indicator file should export one or more objects
 // that have an `id` field (e.g., { id: "ema10", ... }).
@@ -10,11 +10,11 @@
 function buildRegistry() {
   const REGISTRY = {};
 
-  // Webpack (CRA) helper: import all .js files in this folder (non-recursive)
-  const ctx = require.context("./", false, /\.js$/);
+  // Webpack helper: import all .js files recursively in this folder
+  const ctx = require.context("./", true, /\.js$/);
 
   ctx.keys().forEach((key) => {
-    if (key === "./index.js") return; // skip this file
+    if (key.includes("index.js")) return; // skip this file and other indexes
     const mod = ctx(key);
 
     // Collect any named exports that look like indicator defs (have an `id`)
@@ -50,5 +50,5 @@ export function resolveIndicators(enabledIndicators = [], indicatorSettings = {}
   return out;
 }
 
-// Optional: re-export everything we discovered (handy for testing)
+// Optional: re-export everything we discovered (handy for testing/dev)
 export const registry = REGISTRY;
