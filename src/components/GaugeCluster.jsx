@@ -1,5 +1,9 @@
 // src/components/GaugeCluster.jsx
 // Ferrari Dashboard — R8.2 baseline: layout stable + minis + engine lights + sparklines
+// Tweaks applied:
+// 1) No white ticks on RPM/SPEED odometers
+// 2) Mask outer yellow rim on RPM so only the red ring shows
+// 3) Big numeric readouts inside the four black mini-gauges
 
 import React from "react";
 import { useDashboardPoll } from "../lib/dashboardApi";
@@ -138,7 +142,7 @@ export default function GaugeCluster(){
             </div>
           </Panel>
 
-          {/* Sectors (spark lines visible) */}
+          {/* Sectors (spark lines visible + counts) */}
           <Panel title="Sectors">
             <div className="sectors-grid">
               {(data.outlook?.sectorCards || []).map((c, i) => (
@@ -149,9 +153,8 @@ export default function GaugeCluster(){
                   </div>
                   <Spark values={c.spark || []} />
                   <div className="small muted">
-  NH: {c.counts?.nh ?? "—"} · NL: {c.counts?.nl ?? "—"} · 3U: {c.counts?.u ?? "—"} · 3D: {c.counts?.d ?? "—"}
-</div>
-
+                    NH: {c.counts?.nh ?? "—"} · NL: {c.counts?.nl ?? "—"} · 3U: {c.counts?.u ?? "—"} · 3D: {c.counts?.d ?? "—"}
+                  </div>
                 </div>
               ))}
             </div>
@@ -171,15 +174,44 @@ function BigGauge({ theme="tach", label, value=0, withLogo=false }){
   const isTach = theme==="tach";
   const face = isTach ? "#ffdd00" : "#c21a1a";
 
-  // baseline tick math (we’ll align later)
+  // We keep baseline tick generation for compatibility,
+  // but we DO NOT render ticks for tach/speed (your request).
+  const showTicks = false;
+
+  // Inline mask to remove outer yellow rim on RPM (below the red ring)
+  const rimMask = isTach ? (
+    <div
+      style={{
+        position:"absolute",
+        inset:0,
+        borderRadius:"50%",
+        boxShadow:"inset 0 0 0 10px #0f172a",
+        zIndex:1
+      }}
+      aria-hidden
+    />
+  ) : null;
+
   return (
     <div className={`fg-wrap ${isTach?"gauge--tach":"gauge--speed"}`}>
       <div className="gauge-face" style={{background:face}}>
+        {/* Mask outer yellow rim on RPM so only red ring shows */}
+        {rimMask}
+
+        {/* Red ring */}
         <div className="ring"/>
-        <div className="ticks">
-          {Array.from({length:41},(_,i)=>{const a=-120+(i/40)*240;const major=i%5===0;return <Tick key={i} angle={a} major={major}/>})}
-        </div>
+
+        {/* Ticks intentionally hidden for main odometers */}
+        {showTicks && (
+          <div className="ticks">
+            {Array.from({length:41},(_,i)=>{const a=-120+(i/40)*240;const major=i%5===0;return <Tick key={i} angle={a} major={major}/>})}
+          </div>
+        )}
+
+        {/* Tach redline wedge */}
         {isTach?<div className="redline-arc" aria-hidden/>:null}
+
+        {/* Numerals */}
         <svg className="dial-numerals" viewBox="0 0 200 200" aria-hidden>
           {(isTach
             ? Array.from({ length: 10 }, (_, i) => i + 1)
@@ -191,9 +223,13 @@ function BigGauge({ theme="tach", label, value=0, withLogo=false }){
             return <text key={idx} x={x} y={y} className={`numeral ${isTach?"tach":"speed"}`} textAnchor="middle" dominantBaseline="central">{num}</text>;
           })}
         </svg>
+
+        {/* Needle / hub / glass */}
         <div className="needle" style={{transform:`rotate(${angle}deg)`}}/>
         <div className="hub"/>
         <div className="glass"/>
+
+        {/* Branding */}
         {withLogo?(
           <svg className="logo-ring" viewBox="0 0 220 220" aria-hidden>
             <defs>
@@ -211,7 +247,21 @@ function BigGauge({ theme="tach", label, value=0, withLogo=false }){
 }
 
 function Tick({angle,major}){return <div className={`tick ${major?"major":"minor"}`} style={{transform:`rotate(${angle}deg)`}}/>}
-function MiniGauge({label,value,unit}){return(<div className="mini"><div className="mini-face"><div className="mini-needle"/><div className="mini-hub"/></div><div className="mini-value">{value??"—"}{unit||""}</div><div className="mini-title">{label}</div></div>)}
+
+/* Mini-gauge with big numeric readout inside the black dial */
+function MiniGauge({ label, value, unit }) {
+  return (
+    <div className="mini">
+      <div className="mini-face">
+        <div className="mini-readout">{value ?? "—"}{unit || ""}</div>
+        <div className="mini-needle" />
+        <div className="mini-hub" />
+      </div>
+      <div className="mini-title">{label}</div>
+    </div>
+  );
+}
+
 function Odometer({label,value}){return(<div className="odo"><div className="odo-label">{label}</div><div className="odo-value">{value??"—"}</div></div>)}
 
 /* Inline sparkline component (keeps sectors visible) */
