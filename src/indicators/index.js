@@ -1,54 +1,71 @@
 // src/indicators/index.js
 //
-// Auto-register any indicator module in this folder *and subfolders*.
-// No hardcoded imports, so nested files (e.g., ema/index.js, squeeze/foo.js) won’t break builds.
-//
-// Convention: each indicator file should export one or more objects
-// that have an `id` field (e.g., { id: "ema10", ... }).
-// We’ll pick up all such objects and register them by id.
+// Safe auto-register of indicators (recurses subfolders), with guards.
+// Each indicator module should export one or more objects that include an `id` field
+// (e.g., export const EMA10 = { id: "ema10", ... }). We register by id.
 
 function buildRegistry() {
   const REGISTRY = {};
 
-  // Webpack helper: import all .js files recursively in this folder
-  const ctx = require.context("./", true, /\.js$/);
+  let ctx;
+  try {
+    // Recurse all .js files under ./ (CRA / Webpack)
+    ctx = require.context("./", true, /\.js$/);
+  } catch (e) {
+    console.warn("[indicators] require.context unavailable:", e);
+    return REGISTRY;
+  }
 
   ctx.keys().forEach((key) => {
-    if (key.includes("index.js")) return; // skip this file and other indexes
-    const mod = ctx(key);
+    // skip any index.js to avoid self-import loops
+    if (key === "./index.js" || key.endsWith("/index.js")) return;
 
-    // Collect any named exports that look like indicator defs (have an `id`)
-    Object.values(mod).forEach((exp) => {
-      if (exp && typeof exp === "object" && typeof exp.id === "string") {
-        REGISTRY[exp.id] = exp;
-      }
-    });
+    // import module; never let a bad module crash the app
+    let mod;
+    try {
+      mod = ctx(key);
+    } catch (e) {
+      console.error(`[indicators] failed loading ${key}:`, e);
+      return;
+    }
+
+    // collect any named exports that look like indicator defs (have an `id`)
+    try {
+      Object.values(mod).forEach((exp) => {
+        if (exp && typeof exp === "object" && typeof exp.id === "string") {
+          REGISTRY[exp.id] = exp;
+        }
+      });
+    } catch (e) {
+      console.error(`[indicators] failed processing exports from ${key}:`, e);
+    }
   });
 
   return REGISTRY;
 }
 
-// Build once at module load
 const REGISTRY = buildRegistry();
 
 /**
- * resolveIndicators(enabledIndicators, indicatorSettings)
- * Returns: [{ def, inputs }, ...] in the same order as enabledIndicators.
- * - enabledIndicators: string[] (e.g., ["ema10","ema20","mfi","sr","vol"])
- * - indicatorSettings: object keyed by id with input overrides
+ * resolveIndicators(enabled, settings)
+ * Returns [{ def, inputs }, ...] keeping the order of `enabled`.
+ * - enabled: string[] of ids, e.g., ["ema10","ema20","mfi","sr","vol"]
+ * - settings: per-id overrides (merged with def.inputs)
  */
-export function resolveIndicators(enabledIndicators = [], indicatorSettings = {}) {
+export function resolveIndicators(enabled = [], settings = {}) {
   const out = [];
-  for (const id of enabledIndicators) {
+  for (const id of enabled) {
     const def = REGISTRY[id];
-    if (!def) continue; // silently ignore unknown/missing indicators
-    const defaults = def.inputs || {};
-    const overrides = indicatorSettings[id] || {};
-    const inputs = { ...defaults, ...overrides };
-    out.push({ def, inputs });
+    if (!def) {
+      console.warn(`[indicators] missing id: ${id}`);
+      continue;
+    }
+    const defaults  = def.inputs || {};
+    const overrides = settings[id] || {};
+    out.push({ def, inputs: { ...defaults, ...overrides } });
   }
   return out;
 }
 
-// Optional: re-export everything we discovered (handy for testing/dev)
+// Optional: export registry for debugging
 export const registry = REGISTRY;
