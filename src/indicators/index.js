@@ -1,6 +1,6 @@
 // src/indicators/index.js
 //
-// Safe auto-register of indicators (recurses subfolders), with guards.
+// Safe auto-register of indicators (recurses subfolders) with guards.
 // Indicator export shape:
 //   { id: "ema10", inputs?: {...}, compute(candles, inputs), attach(chartApi, seriesMap, result, inputs) }
 
@@ -17,6 +17,7 @@ function buildRegistry() {
 
   ctx.keys().forEach((key) => {
     if (key === "./index.js" || key.endsWith("/index.js")) return;
+
     let mod;
     try { mod = ctx(key); }
     catch(e){ console.error(`[indicators] failed loading ${key}:`, e); return; }
