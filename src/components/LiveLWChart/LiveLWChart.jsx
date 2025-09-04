@@ -1,7 +1,6 @@
 // src/components/LiveLWChart/LiveLWChart.jsx
-// Lightweight Charts: price pane + optional squeeze/SMI/volume panes
-// - Resilient to feed/indicator errors (try/catch)
-// - Guards: only attach indicators that implement compute & attach
+// Lightweight Charts: price + optional squeeze/SMI/volume panes
+// - Guards around feed/indicators so one bad module can't crash the app.
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createChart } from "lightweight-charts";
@@ -14,7 +13,7 @@ const DEFAULT_HEIGHTS = { price: 620, squeeze: 140, smi: 140, vol: 160 };
 export default function LiveLWChart({
   symbol = "SPY",
   timeframe = "1D",
-  height = DEFAULT_HEIGHTS.price, // legacy param
+  height = DEFAULT_HEIGHTS.price, // legacy
   enabledIndicators = [],
   indicatorSettings = {},
   onCandles,
@@ -32,7 +31,7 @@ export default function LiveLWChart({
   const smiChartRef     = useRef(null);
   const volChartRef     = useRef(null);
 
-  /*** Primary series (price) & indicator series map ***/
+  /*** Primary series + series registry ***/
   const priceSeriesRef  = useRef(null);
   const seriesMapRef    = useRef(new Map()); // key -> series or cleanup
 
@@ -44,15 +43,13 @@ export default function LiveLWChart({
   const needVol     = useMemo(() => enabledIndicators.includes("vol"),      [enabledIndicators]);
 
   const [heights, setHeights] = useState(DEFAULT_HEIGHTS);
-  const inc = (key, amt = 40) => setHeights(h => ({ ...h, [key]: Math.min(h[key] + amt, 480) }));
-  const dec = (key, amt = 40) => setHeights(h => ({ ...h, [key]: Math.max(h[key] - amt, 60)  }));
+  const inc = (key, amt=40) => setHeights(h => ({ ...h, [key]: Math.min(h[key] + amt, 480)}));
+  const dec = (key, amt=40) => setHeights(h => ({ ...h, [key]: Math.max(h[key] - amt, 60)}));
 
-  /*** Legend ***/
+  /*** Legend (top-left of price pane) ***/
   const legendRef = useRef(null);
 
-  /*****************************************************************
-   * INIT CHARTS (once)
-   *****************************************************************/
+  /* =========================== INIT CHARTS =========================== */
   useEffect(() => {
     const w = wrapperRef.current?.clientWidth ?? 800;
 
@@ -95,25 +92,21 @@ export default function LiveLWChart({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  /*****************************************************************
-   * RESIZE OBSERVER
-   *****************************************************************/
+  /* =========================== RESIZE OBSERVER =========================== */
   useEffect(() => {
     if (!wrapperRef.current) return;
     const ro = new ResizeObserver(() => {
       const w = wrapperRef.current?.clientWidth ?? 800;
-      try { priceChartRef.current?.resize(w, heights.price); }                   catch {}
+      try { priceChartRef.current?.resize(w, heights.price); }                       catch {}
       try { squeezeChartRef.current?.resize(w, needSqueeze ? heights.squeeze : 0); } catch {}
-      try { smiChartRef.current?.resize(w, needSMI ? heights.smi : 0); }        catch {}
-      try { volChartRef.current?.resize(w, needVol ? heights.vol : 0); }        catch {}
+      try { smiChartRef.current?.resize(w, needSMI ? heights.smi : 0); }             catch {}
+      try { volChartRef.current?.resize(w, needVol ? heights.vol : 0); }             catch {}
     });
     ro.observe(wrapperRef.current);
     return () => { try { ro.disconnect(); } catch {} };
   }, [heights, needSqueeze, needSMI, needVol]);
 
-  /*****************************************************************
-   * LOAD + STREAM DATA
-   *****************************************************************/
+  /* =========================== LOAD + STREAM =========================== */
   useEffect(() => {
     if (!priceChartRef.current || !priceSeriesRef.current) return;
 
@@ -128,7 +121,6 @@ export default function LiveLWChart({
         setCandles(seed);
         priceSeriesRef.current.setData(seed);
 
-        // expose candles for sibling panes
         priceChartRef.current._candles = seed;
         if (squeezeChartRef.current) squeezeChartRef.current._candles = seed;
         if (smiChartRef.current)     smiChartRef.current._candles     = seed;
@@ -162,9 +154,7 @@ export default function LiveLWChart({
     return () => { disposed = true; unsub?.(); feed.close?.(); };
   }, [symbol, timeframe, onCandles]);
 
-  /*****************************************************************
-   * 60s SAFETY REFRESH
-   *****************************************************************/
+  /* =========================== 60s SAFETY REFRESH =========================== */
   useEffect(() => {
     let stop = false;
     async function refreshHistory() {
@@ -187,9 +177,7 @@ export default function LiveLWChart({
     return () => { stop = true; clearInterval(id); };
   }, [symbol, timeframe, onCandles]);
 
-  /*****************************************************************
-   * SYNC TIME SCALES
-   *****************************************************************/
+  /* =========================== SYNC TIME SCALES =========================== */
   useEffect(() => {
     if (!priceChartRef.current) return;
 
@@ -199,6 +187,7 @@ export default function LiveLWChart({
     const unsubPrice = price.timeScale().subscribeVisibleLogicalRangeChange((range) => {
       panes.forEach(c => { try { c.timeScale().setVisibleLogicalRange(range); } catch {} });
     });
+
     const childUnsubs = panes.map((c) =>
       c.timeScale().subscribeVisibleLogicalRangeChange((range) => {
         try { price.timeScale().setVisibleLogicalRange(range); } catch {}
@@ -228,9 +217,7 @@ export default function LiveLWChart({
       .forEach(c => { try { c.timeScale().setVisibleLogicalRange(range); } catch {} });
   }
 
-  /*****************************************************************
-   * ATTACH INDICATORS (guards)
-   *****************************************************************/
+  /* =========================== ATTACH INDICATORS =========================== */
   useEffect(() => {
     const priceChart   = priceChartRef.current;
     const squeezeChart = squeezeChartRef.current;
@@ -293,9 +280,7 @@ export default function LiveLWChart({
     syncVisibleRange("price");
   }, [candles, enabledIndicators, indicatorSettings, heights, needSqueeze, needSMI, needVol]);
 
-  /*****************************************************************
-   * CROSSHAIR LEGEND
-   *****************************************************************/
+  /* =========================== CROSSHAIR LEGEND =========================== */
   useEffect(() => {
     const chart = priceChartRef.current;
     const priceSeries = priceSeriesRef.current;
@@ -339,14 +324,12 @@ export default function LiveLWChart({
       `;
     }
 
-    write(); // seed
+    write();
     chart.subscribeCrosshairMove(write);
     return () => { try { chart.unsubscribeCrosshairMove(write); } catch {} };
   }, [candles]);
 
-  /*****************************************************************
-   * RENDER
-   *****************************************************************/
+  /* =========================== RENDER =========================== */
   const show = { display: "block" };
   const hide = { display: "none" };
   const btnMini = {
