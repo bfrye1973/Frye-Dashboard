@@ -1,23 +1,52 @@
 // src/components/LiveLWChart/LiveLWChart.jsx
 // Lightweight Charts: price + optional squeeze/SMI/volume panes
-// - Guards around feed/indicators so one bad module can't crash the app.
+// Bridge-aware: listens to symbolBridge so external dropdowns can change symbol/timeframe.
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createChart } from "lightweight-charts";
 import { baseChartOptions } from "./chartConfig";
 import { resolveIndicators } from "../../indicators";
 import { getFeed } from "../../services/feed";
+import { symbolBridge } from "../../lib/symbolBridge";
 
 const DEFAULT_HEIGHTS = { price: 620, squeeze: 140, smi: 140, vol: 160 };
 
 export default function LiveLWChart({
-  symbol = "SPY",
-  timeframe = "1D",
+  symbol: propSymbol = "SPY",
+  timeframe: propTimeframe = "1D",
   height = DEFAULT_HEIGHTS.price, // legacy
   enabledIndicators = [],
   indicatorSettings = {},
   onCandles,
 }) {
+  /*** Active inputs (from props OR bridge) ***/
+  const [activeSymbol, setActiveSymbol] = useState(
+    (propSymbol || symbolBridge.getSymbol()).toUpperCase()
+  );
+  const [activeTf, setActiveTf] = useState(
+    propTimeframe || symbolBridge.getTimeframe()
+  );
+
+  // If parent props change, prefer props; otherwise the bridge controls them.
+  useEffect(() => {
+    if (propSymbol) setActiveSymbol(String(propSymbol).toUpperCase());
+  }, [propSymbol]);
+  useEffect(() => {
+    if (propTimeframe) setActiveTf(String(propTimeframe));
+  }, [propTimeframe]);
+
+  // Subscribe to external UI changes (dropdowns can call window.setChartSymbol / setChartTf)
+  useEffect(() => {
+    function onSym(e) { setActiveSymbol(String(e.detail || "").toUpperCase() || "SPY"); }
+    function onTf(e)  { setActiveTf(String(e.detail || "1D")); }
+    window.addEventListener(symbolBridge.EVT_SYMBOL, onSym);
+    window.addEventListener(symbolBridge.EVT_TF, onTf);
+    return () => {
+      window.removeEventListener(symbolBridge.EVT_SYMBOL, onSym);
+      window.removeEventListener(symbolBridge.EVT_TF, onTf);
+    };
+  }, []);
+
   /*** DOM refs ***/
   const wrapperRef = useRef(null);
   const priceRef   = useRef(null);
@@ -110,7 +139,7 @@ export default function LiveLWChart({
   useEffect(() => {
     if (!priceChartRef.current || !priceSeriesRef.current) return;
 
-    const feed = getFeed(symbol, timeframe);
+    const feed = getFeed(activeSymbol, activeTf);
     let disposed = false;
 
     (async () => {
@@ -152,7 +181,7 @@ export default function LiveLWChart({
     });
 
     return () => { disposed = true; unsub?.(); feed.close?.(); };
-  }, [symbol, timeframe, onCandles]);
+  }, [activeSymbol, activeTf, onCandles]);
 
   /* =========================== 60s SAFETY REFRESH =========================== */
   useEffect(() => {
@@ -160,7 +189,7 @@ export default function LiveLWChart({
     async function refreshHistory() {
       if (stop || !priceSeriesRef.current) return;
       try {
-        const seed = await getFeed(symbol, timeframe).history();
+        const seed = await getFeed(activeSymbol, activeTf).history();
         if (!seed?.length) return;
         priceSeriesRef.current.setData(seed);
         setCandles(seed);
@@ -175,7 +204,7 @@ export default function LiveLWChart({
     }
     const id = setInterval(refreshHistory, 60_000);
     return () => { stop = true; clearInterval(id); };
-  }, [symbol, timeframe, onCandles]);
+  }, [activeSymbol, activeTf, onCandles]);
 
   /* =========================== SYNC TIME SCALES =========================== */
   useEffect(() => {
