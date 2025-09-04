@@ -224,3 +224,43 @@ a:hover{text-decoration:underline}
   width: 0%;
   transition: width .35s ease;
 }
+.market-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.summary-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.chip.verdict {
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-weight: bold;
+  font-size: 14px;
+}
+.chip.verdict.bullish { background:#14532d; color:#22c55e; }
+.chip.verdict.neutral { background:#374151; color:#facc15; }
+.chip.verdict.bearish { background:#7f1d1d; color:#ef4444; }
+
+.summary-score .bar {
+  width: 180px;
+  height: 8px;
+  background:#1f2937;
+  border-radius: 4px;
+  overflow:hidden;
+}
+.summary-score .fill {
+  height: 100%;
+  background: linear-gradient(90deg,#ef4444,#facc15,#22c55e);
+}
+
+.summary-notes {
+  display:flex;
+  gap:24px;
+  font-size:13px;
+  opacity:.8;
+}
