@@ -4,7 +4,7 @@ import App from "./App";
 import "./index.css";
 import ErrorBoundary from "./ErrorBoundary";
 
-// surface runtime errors to console & boundary
+// log runtime errors to console & show boundary instead of a black screen
 window.addEventListener("error",  (e) => console.error("[window.error]", e.error || e.message || e));
 window.addEventListener("unhandledrejection", (e) => console.error("[unhandledrejection]", e.reason || e));
 
