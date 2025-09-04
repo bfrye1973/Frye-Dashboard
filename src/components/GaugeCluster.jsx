@@ -1,19 +1,15 @@
 // src/components/GaugeCluster.jsx
-// Ferrari Dashboard — R9.0
-// - Big gauges linked to summary (breadth/momentum) with fallback to raw needles
-// - Market Summary panel (verdict + 0..100 bar + bullets)
-// - Engine Lights, Odometers, Sector Cards with NH/NL/3U/3D
-// - Mini black gauges with threshold colors + pulsing rim on danger
+// Ferrari Dashboard — R9.1 (Option A)
+// - Big gauges driven by summary breadth/momentum; rings colored by lights
+// - Mini gauges: WATER (vol °F), OIL (liq PSI), FUEL (squeeze % + PSI readout), ALT (net breadth trend)
+// - Market Summary panel, Engine Lights, Odometers, Sector Cards
 
 import React from "react";
 import { useDashboardPoll } from "../lib/dashboardApi";
 
 /* ---------- helpers ---------- */
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
-const mapToDeg = (v, lo, hi) => {
-  const t = (clamp(Number(v ?? NaN), lo, hi) - lo) / (hi - lo || 1);
-  return -130 + 260 * t;
-};
+const mapToDeg = (v, lo, hi) => -130 + 260 * ((clamp(Number(v ?? NaN), lo, hi) - lo) / (hi - lo || 1));
 
 function timeAgo(ts) {
   try {
@@ -73,6 +69,35 @@ function barColor(score = 50) {
   return "#ef4444";              // red
 }
 
+/** Compute ALT (altimeter) from sector sparks (Option A):
+ * Sum each day's spark value across all sectors (NH-NL),
+ * take delta = last - first over the last 5 days,
+ * normalize to -100..100 and map to angle.
+ */
+function computeAltAngleFromSparks(cards = []) {
+  const buckets = []; // length up to 5
+  for (const c of cards) {
+    const sp = Array.isArray(c.spark) ? c.spark.slice(-5) : [];
+    // Normalize length to 5 with zeros
+    const len = sp.length;
+    for (let i = 0; i < 5; i++) {
+      const v = i < len ? sp[len - 5 + i] ?? 0 : 0; // backfill with zero
+      buckets[i] = (buckets[i] || 0) + (Number.isFinite(v) ? v : 0);
+    }
+  }
+  if (!buckets.length || buckets.every(v => v === 0)) {
+    return mapToDeg(0, -100, 100); // flat
+  }
+  const first = buckets[0];
+  const last  = buckets[buckets.length - 1];
+  const delta = last - first; // net change across buckets
+  // Soft normalization: assume ±(10 * numSectors) is "full scale"
+  const scale = Math.max(1, 10 * Math.max(1, cards.length));
+  const val = clamp(Math.round((delta / scale) * 100), -100, 100);
+  return mapToDeg(val, -100, 100);
+}
+
+/* ---------- chrome ---------- */
 const Panel = ({ title, children, className = "" }) => (
   <div className={`panel ${className}`}>
     {title ? (
@@ -97,35 +122,39 @@ export default function GaugeCluster() {
   const ts = data?.meta?.ts || null;
   const color = freshnessColor(ts);
 
-  // lights for ring coloring
-  const lights = data?.lights || {};
-  const stateB = lights.breadth  || "neutral";
-  const stateM = lights.momentum || "neutral";
-
-  // summary (preferred for big gauges) with fallback to raw needles
   const summary = data?.summary || null;
+
+  // Big gauge angles (prefer summary; fallback to raw needles)
   const breadthIdx  = summary?.breadthIdx;
   const momentumIdx = summary?.momentumIdx;
-  const rpmAngle   = Number.isFinite(breadthIdx)  ? mapToDeg(breadthIdx,  0, 100) : mapToDeg(data?.gauges?.rpm,   -1000, 1000);
-  const speedAngle = Number.isFinite(momentumIdx) ? mapToDeg(momentumIdx, 0, 100) : mapToDeg(data?.gauges?.speed, -1000, 1000);
+  const rpmAngle    = Number.isFinite(breadthIdx)  ? mapToDeg(breadthIdx,  0, 100) : mapToDeg(data?.gauges?.rpm,   -1000, 1000);
+  const speedAngle  = Number.isFinite(momentumIdx) ? mapToDeg(momentumIdx, 0, 100) : mapToDeg(data?.gauges?.speed, -1000, 1000);
 
-  // signals -> pills
+  // Ring color tokens from lights
+  const stateB = data?.lights?.breadth  || "neutral";
+  const stateM = data?.lights?.momentum || "neutral";
+
+  // ALT angle (Option A): compute net breadth trend from sector sparks
+  const altAngle = computeAltAngleFromSparks(data?.outlook?.sectorCards || []);
+
+  // Squeeze state -> pill color
+  const squeezeRaw   = String(data?.odometers?.squeeze || "none");
+  const squeezePill = (
+    squeezeRaw === "firingDown" ? "danger" :
+    squeezeRaw === "firingUp"   ? "ok"     :
+    squeezeRaw === "on"         ? "warn"   : "off"
+  );
+
+  // Signals row
   const s = data?.signals || {};
   const mapSig = (sig) =>
     !sig || !sig.active ? "off" :
     String(sig.severity || "info").toLowerCase() === "danger" ? "danger" :
     String(sig.severity || "").toLowerCase() === "warn" ? "warn" : "ok";
 
-  // squeeze -> pill color
-  const squeezeRaw = String(data?.odometers?.squeeze || "none");
-  const squeezeState =
-    squeezeRaw === "firingDown" ? "danger" :
-    squeezeRaw === "firingUp"   ? "ok"     :
-    squeezeRaw === "on"         ? "warn"   : "off";
-
   const lightsRow = [
     { label: "Breakout",       state: mapSig(s.sigBreakout),     icon: "📈" },
-    { label: "Squeeze",        state: squeezeState,              icon: "⏳" },
+    { label: "Squeeze",        state: squeezePill,               icon: "⏳" },
     { label: "Overextended",   state: mapSig(s.sigOverheat),     icon: "🚀" },
     { label: "Distribution",   state: mapSig(s.sigDistribution), icon: "📉" },
     { label: "Divergence",     state: mapSig(s.sigDivergence),   icon: "↔️" },
@@ -142,8 +171,9 @@ export default function GaugeCluster() {
           <div style={{ fontWeight: 700 }}>Ferrari Trading Cluster</div>
           <div className="small muted">Live from /api/dashboard</div>
         </div>
+
         <div style={{ display:"flex", gap:8, alignItems:"center" }}>
-          <span className="build-chip">BUILD R9.0</span>
+          <span className="build-chip">BUILD R9.1</span>
           <div className="tag" style={{ border:`1px solid ${color}`, display:"flex", gap:8, alignItems:"center", borderRadius:8, padding:"4px 8px" }}>
             <span style={{ width:8, height:8, borderRadius:999, background:color, boxShadow:`0 0 8px ${color}` }}/>
             <span className="small">{ts ? `Updated ${timeAgo(ts)}` : "—"}</span>
@@ -164,41 +194,37 @@ export default function GaugeCluster() {
           <Panel title="Gauges" className="carbon-fiber">
             <div className="cockpit-center">
               <div className="cockpit">
-                {/* Left mini stack */}
+                {/* Left minis */}
                 <div className="left-stack">
+
+                  {/* WATER (Volatility °F) */}
                   <MiniGauge label="WATER" value={data.gauges?.waterTemp} min={160} max={260} />
+
+                  {/* OIL (Liquidity PSI) */}
                   <MiniGauge label="OIL"   value={data.gauges?.oilPsi}    min={0}   max={120} />
+
+                  {/* FUEL (Squeeze %) + tiny "PSI xx" */}
                   <div style={{ textAlign:"center" }}>
-  <MiniGauge label="FUEL" value={data.gauges?.fuelPct} min={0} max={100} />
-  <div className="mini-psi">
-    PSI {Number.isFinite(Number(data.gauges?.fuelPct))
-      ? Math.round(data.gauges.fuelPct)
-      : "—"}
-  </div>
-</div>
+                    <MiniGauge label="FUEL"  value={data.gauges?.fuelPct}   min={0}   max={100} />
+                    <div className="mini-psi">
+                      PSI {Number.isFinite(Number(data.gauges?.fuelPct)) ? Math.round(data.gauges.fuelPct) : "—"}
+                    </div>
+                  </div>
 
-                  <MiniGauge label="ALT"   value={null} />
+                  {/* ALT (Net Breadth Trend) */}
+                  <MiniGauge label="ALT" value={null} min={-100} max={100}>
+                    {/* angle comes from altAngle in Big ALT style below if desired */}
+                  </MiniGauge>
                 </div>
 
-                {/* Center tach (breadth) */}
+                {/* Center tach (Breadth) */}
                 <div className="center-tach">
-                  <BigGauge
-                    theme="tach"
-                    label="RPM"
-                    angle={rpmAngle}
-                    withLogo
-                    stateClass={`state-${stateB}`}
-                  />
+                  <BigGauge theme="tach" label="RPM (Breadth)"  angle={rpmAngle}   withLogo stateClass={`state-${stateB}`} />
                 </div>
 
-                {/* Right speedo (momentum) */}
+                {/* Right speedo (Momentum) */}
                 <div className="right-speed">
-                  <BigGauge
-                    theme="speed"
-                    label="SPEED"
-                    angle={speedAngle}
-                    stateClass={`state-${stateM}`}
-                  />
+                  <BigGauge theme="speed" label="SPEED (Momentum)" angle={speedAngle} stateClass={`state-${stateM}`} />
                 </div>
               </div>
             </div>
@@ -234,7 +260,6 @@ export default function GaugeCluster() {
                       width: `${Math.max(0, Math.min(100, summary.score))}%`,
                       background: barColor(summary.score)
                     }}
-                    title={`score = ${summary.score}/100`}
                   />
                 </div>
                 <span className="small muted">{summary.score}/100</span>
@@ -279,12 +304,8 @@ function BigGauge({ theme = "tach", label, angle = 0, withLogo = false, stateCla
   return (
     <div className={`fg-wrap ${isTach ? "gauge--tach" : "gauge--speed"} ${stateClass}`}>
       <div className="gauge-face" style={{ background: face }}>
-        {/* mask outer tach rim to keep only red ring */}
         {isTach ? <div style={{ position:"absolute", inset:0, borderRadius:"50%", boxShadow:"inset 0 0 0 10px #0f172a", zIndex:1 }} /> : null}
-
-        {/* ring (big ring colors via .state-* in CSS) */}
         <div className="ring" />
-
         {/* numerals */}
         <svg className="dial-numerals" viewBox="0 0 200 200" aria-hidden>
           {(isTach
@@ -301,16 +322,13 @@ function BigGauge({ theme = "tach", label, angle = 0, withLogo = false, stateCla
             );
           })}
         </svg>
-
-        {/* redline wedge */}
+        {/* tach redline wedge */}
         {isTach ? <div className="redline-arc" aria-hidden /> : null}
 
-        {/* smooth needle */}
-        <div className="needle" style={{ transform: `rotate(${angle}deg)`, transition: "transform .35s ease-out" }} />
+        <div className="needle" style={{ transform:`rotate(${angle}deg)`, transition:"transform .35s ease-out" }} />
         <div className="hub" />
         <div className="glass" />
 
-        {/* branding */}
         {withLogo ? (
           <svg className="logo-ring" viewBox="0 0 220 220" aria-hidden>
             <defs>
@@ -332,17 +350,15 @@ function MiniGauge({ label, value, min = 0, max = 100 }) {
   const deg = hasVal ? mapToDeg(value, min, max) : 0;
   const readoutCls = statusFor(label, value);
   const faceCls    = `mini-face ${readoutCls.replace("readout", "gauge")}`;
-
   const txt =
     label === "FUEL"  ? `${hasVal ? Math.round(value) : "—"} %`  :
     label === "OIL"   ? `${hasVal ? Math.round(value) : "—"} psi`:
     label === "WATER" ? `${hasVal ? Math.round(value) : "—"}°F`  :
                         (hasVal ? Math.round(value) : "—");
-
   return (
     <div className="mini">
       <div className={faceCls}>
-        <div className="mini-needle" style={{ transform: `rotate(${deg}deg)` }} />
+        <div className="mini-needle" style={{ transform:`rotate(${deg}deg)` }} />
         <div className="mini-hub" />
       </div>
       <div className={readoutCls}>{txt}</div>
