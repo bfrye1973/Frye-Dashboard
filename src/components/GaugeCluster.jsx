@@ -34,6 +34,22 @@ const mapToDeg = (v, lo, hi) => {
   return -130 + 260 * t;
 };
 
+function chipClass(verdict = "Neutral") {
+  const v = String(verdict).toLowerCase();
+  if (v.startsWith("bullish")) return "chip-bullish";
+  if (v.startsWith("bearish")) return "chip-bearish";
+  if (v.includes("risk-on"))  return "chip-risk-on";
+  if (v.includes("risk-off")) return "chip-risk-off";
+  return "chip-neutral";
+}
+function barColor(score = 50) {
+  const s = Number(score);
+  if (s >= 65) return "#22c55e"; // green
+  if (s >= 50) return "#84cc16"; // lime
+  if (s >  35) return "#f59e0b"; // amber
+  return "#ef4444";              // red
+}
+
 // thresholds for mini dials
 // Water: warn >225°F, danger >235°F
 // Oil:   warn <40 psi, danger <30 psi
