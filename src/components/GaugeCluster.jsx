@@ -179,6 +179,37 @@ export default function GaugeCluster() {
               <Odometer label="Squeeze"  value={String(data.odometers?.squeeze ?? "—")} />
             </div>
           </Panel>
+          {/* Market Summary */}
+{data.summary && (
+  <Panel title="Market Summary">
+    <div style={{display:"flex", alignItems:"center", gap:12, flexWrap:"wrap"}}>
+      {/* verdict chip */}
+      <span className={`verdict chip-${(data.summary.verdict || "Neutral").split(" ")[0].toLowerCase()}`}>
+        {data.summary.verdict}
+      </span>
+
+      {/* 0–100 strength bar */}
+      <div style={{flex:"0 0 240px", height:10, borderRadius:6, border:"1px solid #1f2937", background:"#0b1220", overflow:"hidden"}}>
+        <div style={{
+          width: `${data.summary.score}%`,
+          height: "100%",
+          background: data.summary.score>=65 ? "#22c55e" :
+                      data.summary.score>=50 ? "#84cc16" :
+                      data.summary.score> 35 ? "#f59e0b" : "#ef4444",
+          transition: "width .3s ease"
+        }} />
+      </div>
+      <span className="small muted">{data.summary.score}/100</span>
+    </div>
+
+    <div className="small muted" style={{marginTop:8, display:"flex", gap:16, flexWrap:"wrap"}}>
+      <span>Breadth: <b>{data.summary.breadthState}</b> ({data.summary.breadthIdx})</span>
+      <span>Momentum: <b>{data.summary.momentumState}</b> ({data.summary.momentumIdx})</span>
+      <span>Up breadth: <b>{data.summary.sectors.upBreadth}</b> / {data.summary.sectors.total}</span>
+      <span>Up momentum: <b>{data.summary.sectors.upMomentum}</b> / {data.summary.sectors.total}</span>
+    </div>
+  </Panel>
+)}
 
           {/* Sectors */}
           <Panel title="Sectors">
