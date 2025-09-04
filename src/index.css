@@ -180,3 +180,47 @@ a:hover{text-decoration:underline}
 .chip-neutral  { border-color:#334155; background:#0b1220; color:#9aa4b2; }
 .chip-risk-off { border-color:#a07b00; background:linear-gradient(180deg,#ffe47a,#ffc400); color:#3a2a00; }
 .chip-risk-on  { border-color:#1a7c3a; background:linear-gradient(180deg,#67f28f,#29c651); color:#05280e; }
+/* Market Summary */
+.summary-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+.summary-bullets {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+/* verdict chip colors */
+.verdict {
+  font-size: 12px;
+  font-weight: 800;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid #1f2937;
+  background: #0b1220;
+  color: #d1d4dc;
+}
+.chip-bullish   { border-color:#1a7c3a; background:linear-gradient(180deg,#67f28f,#29c651); color:#05280e; }
+.chip-bearish   { border-color:#7f1d1d; background:linear-gradient(180deg,#ff9a9a,#ff3b3b); color:#2e0000; }
+.chip-neutral   { border-color:#334155; background:#0b1220; color:#9aa4b2; }
+.chip-risk-on   { border-color:#1a7c3a; background:linear-gradient(180deg,#67f28f,#29c651); color:#05280e; }
+.chip-risk-off  { border-color:#a07b00; background:linear-gradient(180deg,#ffe47a,#ffc400); color:#3a2a00; }
+
+/* strength bar */
+.strength {
+  flex: 0 0 240px;
+  height: 10px;
+  border-radius: 6px;
+  border: 1px solid #1f2937;
+  background: #0b1220;
+  overflow: hidden;
+}
+.strength-bar {
+  height: 100%;
+  width: 0%;
+  transition: width .35s ease;
+}
