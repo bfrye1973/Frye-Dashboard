@@ -130,6 +130,33 @@ export default function GaugeCluster() {
   return (
     <div className="cluster">
       {/* Header */}
+      {/* ===== Market Summary ===== */}
+{data?.summary ? (
+  <div className="panel market-summary">
+    <div className="summary-row">
+      <span className={`chip verdict ${data.summary.verdict.toLowerCase()}`}>
+        {data.summary.verdict}
+      </span>
+      <div className="summary-score">
+        <div className="bar">
+          <div
+            className="fill"
+            style={{ width: `${data.summary.score}%` }}
+          />
+        </div>
+        <span>{data.summary.score}/100</span>
+      </div>
+    </div>
+    <div className="summary-notes">
+      <span>Breadth: {data.summary.breadthState}</span>
+      <span>Momentum: {data.summary.momentumState}</span>
+      <span>
+        Sectors Up: {data.summary.upBreadth} / Down: {data.summary.downBreadth}
+      </span>
+    </div>
+  </div>
+) : null}
+
       <div className="panel" style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div>
           <div style={{ fontWeight: 700 }}>Ferrari Trading Cluster</div>
