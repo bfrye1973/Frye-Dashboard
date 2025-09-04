@@ -168,7 +168,15 @@ export default function GaugeCluster() {
                 <div className="left-stack">
                   <MiniGauge label="WATER" value={data.gauges?.waterTemp} min={160} max={260} />
                   <MiniGauge label="OIL"   value={data.gauges?.oilPsi}    min={0}   max={120} />
-                  <MiniGauge label="FUEL"  value={data.gauges?.fuelPct}   min={0}   max={100} />
+                  <div style={{ textAlign:"center" }}>
+  <MiniGauge label="FUEL" value={data.gauges?.fuelPct} min={0} max={100} />
+  <div className="mini-psi">
+    PSI {Number.isFinite(Number(data.gauges?.fuelPct))
+      ? Math.round(data.gauges.fuelPct)
+      : "—"}
+  </div>
+</div>
+
                   <MiniGauge label="ALT"   value={null} />
                 </div>
 
