@@ -104,3 +104,25 @@ a:hover {
 .overflow-hidden {
   overflow: hidden;
 }
+/* === Keep the Ferrari cluster contained === */
+#cluster,
+#cluster-root,
+.FerrariCluster,
+.cluster-root {
+  position: relative !important;
+  height: 520px !important;
+  max-height: 520px !important;
+  overflow: hidden !important;
+}
+
+/* Make the big dial obey the box */
+#cluster svg,
+#cluster-root svg,
+.FerrariCluster svg,
+.cluster-root svg,
+#cluster canvas,
+#cluster-root canvas {
+  width: 100% !important;
+  height: 100% !important;
+  display: block !important;
+}
