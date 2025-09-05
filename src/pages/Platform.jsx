@@ -4,6 +4,78 @@ import ChartContainer from "../components/ChartContainer";
 import { createLiveFeed } from "../services/liveFeed";
 import { createAggregator } from "../lib/aggregator";
 
+/* ===================== NEW: SectorsPanel ===================== */
+// self-contained panel that fetches /api/dashboard and renders sectorCards
+function SectorsPanel() {
+  const [rows, setRows] = React.useState([]);
+  const [err, setErr] = React.useState("");
+
+  React.useEffect(() => {
+    let cancel = false;
+    async function load() {
+      try {
+        const r = await fetch("/api/dashboard");
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        const j = await r.json();
+        const payload = j?.data ?? j;
+        const cards = payload?.sectorCards ?? payload?.outlook?.sectorCards ?? [];
+        if (!Array.isArray(cards)) throw new Error("sectorCards missing");
+        if (!cancel) setRows(cards);
+      } catch (e) {
+        if (!cancel) setErr(String(e.message || e));
+      }
+    }
+    load();
+    const t = setInterval(load, 60000);
+    return () => { cancel = true; clearInterval(t); };
+  }, []);
+
+  return (
+    <section id="sectors" style={{ position:"relative", zIndex:10 }}>
+      <div style={{ display:"flex", alignItems:"baseline", gap:10, marginBottom:8 }}>
+        <h3 style={{ margin:0 }}>Sectors</h3>
+        <small style={{ opacity:0.7 }}>
+          {err ? "• error" : rows.length ? `(${rows.length})` : "• loading…"}
+        </small>
+      </div>
+
+      {err && <div style={{ color:"#f87171", marginBottom:8 }}>Error: {err}</div>}
+
+      {!rows.length && !err ? (
+        <div style={{ opacity:0.7 }}>Loading…</div>
+      ) : rows.length ? (
+        <div style={{ border:"1px solid #1f2a44", borderRadius:8, overflow:"hidden" }}>
+          <table style={{ width:"100%", borderCollapse:"collapse", fontSize:14 }}>
+            <thead style={{ background:"#0e1526" }}>
+              <tr>
+                <th style={th}>Group</th>
+                <th style={th}>Momentum (U/D)</th>
+                <th style={th}>Breadth (NH/NL)</th>
+                <th style={th}>Net</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r, i) => (
+                <tr key={r.sector || i} style={{ background: i % 2 ? "#0a1120" : "#0c1424" }}>
+                  <td style={td}>{r.sector || "—"}</td>
+                  <td style={td}>{r.u ?? 0} / {r.d ?? 0}</td>
+                  <td style={td}>{r.nh ?? 0} / {r.nl ?? 0}</td>
+                  <td style={td}>
+                    NetNH {(r.netNH ?? (r.nh - r.nl) || 0)} · NetUD {(r.netUD ?? (r.u - r.d) || 0)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+const th = { textAlign:"left", padding:"10px 12px", borderBottom:"1px solid #1f2a44" };
+const td = { padding:"10px 12px", borderBottom:"1px solid #0f1b33" };
+
 /* ===================== Config ===================== */
 // Set your timeframe in seconds: 60=1m, 300=5m, 3600=1h, 86400=1D
 const TIMEFRAME_SEC = 86400;
@@ -247,8 +319,8 @@ export default function Platform() {
         {
           onOpen: () => console.log("WS open"),
           onError: (e) => console.error("WS error", e),
-          onBar:  (bar)  => aggregator.bar(bar),   // if provider sends bars
-          onTick: (tick) => aggregator.tick(tick)  // if provider sends ticks
+          onBar:  (bar)  => aggregator.bar(bar),
+          onTick: (tick) => aggregator.tick(tick)
         }
       );
       cleanup = () => { aggregator.flush(); feed.close(); };
@@ -265,16 +337,23 @@ export default function Platform() {
         height: "100vh",
         background: "#0b0b14",
         display: "grid",
-        gridTemplateRows: "minmax(360px,1fr) 200px",
+        gridTemplateRows: "520px auto 220px",   // top chart, sectors, bottom chart
         gap: 12,
         padding: 12,
       }}
     >
-      {/* Top pane */}
-      <ChartContainer onReady={onReadyTop} />
+      {/* Top pane (fixed height, prevents spill) */}
+      <div className="relative" style={{ height: "520px", overflow: "hidden" }}>
+        <ChartContainer onReady={onReadyTop} />
+      </div>
+
+      {/* NEW: Sectors table */}
+      <SectorsPanel />
 
       {/* Bottom pane */}
-      <ChartContainer onReady={onReadyBottom} />
+      <div className="relative" style={{ height: "220px", overflow: "hidden" }}>
+        <ChartContainer onReady={onReadyBottom} />
+      </div>
     </div>
   );
 }
