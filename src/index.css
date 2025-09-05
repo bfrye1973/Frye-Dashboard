@@ -270,3 +270,14 @@ a:hover{text-decoration:underline}
   font-weight: 600;
   color: #9aa4b2;
 }
+/* ==== Chart overlap guard ==== */
+.chart-host { position: relative; z-index: 0; overflow: hidden; }
+
+/* Force the lightweight-charts canvases to stay under other sections */
+.chart-host .tv-lightweight-charts,
+.chart-host .tv-lightweight-charts * {
+  z-index: 0 !important;
+}
+
+/* Optional: if any section must always float above, add this class to it */
+.section-above-chart { position: relative; z-index: 2; }
