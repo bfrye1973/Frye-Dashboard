@@ -345,19 +345,17 @@ export default function LiveLWChart({
   );
 
   return (
-    <div
-      ref={wrapperRef}
-      className="chart-host"
-      style={{
-        width: "100%",
-        display: "flex",
-        flexDirection: "column",
-        gap: 8,
-        position: "relative",
-        zIndex: 0,
-        overflow: "hidden",
-      }}
-    >
+   <div
+  ref={legendRef}
+  className="chart-legend"
+  style={{
+    position: "absolute", top: 8, left: 10,
+    fontSize: 12, background: "rgba(15,17,23,.85)",
+    border: "1px solid #1f2937", borderRadius: 6,
+    padding: "6px 8px", color: "#d1d4dc", pointerEvents: "none"
+  }}
+/>
+
       {/* PRICE pane with legend */}
       <div ref={priceRef} style={{ height: heights.price, position: "relative", zIndex: 0 }}>
         <div
