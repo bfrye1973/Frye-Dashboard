@@ -8,7 +8,7 @@ import { baseChartOptions } from "./chartConfig";
 import { resolveIndicators } from "../../indicators";
 import { getFeed } from "../../services/feed";
 
-const DEFAULT_HEIGHTS = { price: 620, squeeze: 140, smi: 140, vol: 160 };
+const DEFAULT_HEIGHTS = { price: 500, squeeze: 140, smi: 140, vol: 160 };
 
 export default function LiveLWChart({
   symbol = "SPY",
@@ -97,7 +97,7 @@ export default function LiveLWChart({
     if (!wrapperRef.current) return;
     const ro = new ResizeObserver(() => {
       const w = wrapperRef.current?.clientWidth ?? 800;
-      try { priceChartRef.current?.resize(w, heights.price); }                       catch {}
+      try { priceChartRef.current?.resize(w, Math.min(heights.price, 520)); }                       catch {}
       try { squeezeChartRef.current?.resize(w, needSqueeze ? heights.squeeze : 0); } catch {}
       try { smiChartRef.current?.resize(w, needSMI ? heights.smi : 0); }             catch {}
       try { volChartRef.current?.resize(w, needVol ? heights.vol : 0); }             catch {}
@@ -269,7 +269,7 @@ export default function LiveLWChart({
 
     // ensure size after attach
     const w = wrapperRef.current?.clientWidth ?? 800;
-    try { priceChart.resize(w, heights.price); } catch {}
+    try { priceChart.resize(w, Math.min(heights.price, 520)); } catch {}
     try { squeezeChart?.resize(w, needSqueeze ? heights.squeeze : 0); } catch {}
     try { smiChart?.resize(w, needSMI ? heights.smi : 0); } catch {}
     try { volChart?.resize(w, needVol ? heights.vol : 0); } catch {}
@@ -344,7 +344,11 @@ export default function LiveLWChart({
   return (
     <div ref={wrapperRef} style={{ width: "100%", display: "flex", flexDirection: "column", gap: 8 }}>
       {/* PRICE pane with legend */}
-      <div ref={priceRef} style={{ height: heights.price, position: "relative" }}>
+      <div
+        ref={priceRef}
+        className="lw-price-pane"
+        style={{ height: heights.price, maxHeight: 520, overflow: "hidden", position: "relative" }}
+      >
         <div
           ref={legendRef}
           style={{
