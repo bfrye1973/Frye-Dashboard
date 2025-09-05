@@ -163,3 +163,38 @@ svg[aria-label="RPM"], svg[aria-label="Speed"] {
   background: #0b0b14;
   box-shadow: var(--shadow-2);
 }
+/* ---- hard stop: no page zoom/scale, no sideways scroll ---- */
+html, body, #root {
+  zoom: 1 !important;
+  transform: none !important;
+  transform-origin: 50% 0 !important;
+  overflow-x: hidden !important;
+}
+
+/* clamp any full-bleed panels to screen */
+body > * {
+  max-width: 100vw !important;
+}
+
+/* Ferrari cluster safety (works with id="cluster") */
+#cluster {
+  position: relative !important;
+  height: 520px !important;
+  max-height: 520px !important;
+  overflow: hidden !important;
+  border-radius: 18px;
+}
+
+/* make the big dials obey the box */
+#cluster svg,
+#cluster canvas {
+  width: 100% !important;
+  height: 100% !important;
+  display: block !important;
+}
+
+/* chart pane cannot grow past 520px */
+.lw-price-pane {
+  max-height: 520px !important;
+  overflow: hidden !important;
+}
