@@ -1,6 +1,7 @@
 // src/components/LiveLWChart/LiveLWChart.jsx
 // Lightweight Charts: price + optional squeeze/SMI/volume panes
 // - Guards around feed/indicators so one bad module can't crash the app.
+// - Overlap fix: wrapper uses a low z-index + isolation; canvases render under other sections.
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createChart } from "lightweight-charts";
@@ -43,8 +44,10 @@ export default function LiveLWChart({
   const needVol     = useMemo(() => enabledIndicators.includes("vol"),      [enabledIndicators]);
 
   const [heights, setHeights] = useState(DEFAULT_HEIGHTS);
-  const inc = (key, amt=40) => setHeights(h => ({ ...h, [key]: Math.min(h[key] + amt, 480)}));
-  const dec = (key, amt=40) => setHeights(h => ({ ...h, [key]: Math.max(h[key] - amt, 60)}));
+  const inc = (key, amt = 40) =>
+    setHeights((h) => ({ ...h, [key]: Math.min(h[key] + amt, 480) }));
+  const dec = (key, amt = 40) =>
+    setHeights((h) => ({ ...h, [key]: Math.max(h[key] - amt, 60) }));
 
   /*** Legend (top-left of price pane) ***/
   const legendRef = useRef(null);
@@ -54,38 +57,60 @@ export default function LiveLWChart({
     const w = wrapperRef.current?.clientWidth ?? 800;
 
     if (priceRef.current && !priceChartRef.current) {
-      const chart = createChart(priceRef.current, { ...baseChartOptions, height: heights.price, width: w });
+      const chart = createChart(priceRef.current, {
+        ...baseChartOptions,
+        height: heights.price,
+        width: w,
+      });
       priceChartRef.current = chart;
       const price = chart.addCandlestickSeries();
       priceSeriesRef.current = price;
-      chart._container   = priceRef.current;
+      chart._container = priceRef.current;
       chart._priceSeries = priceSeriesRef.current;
     }
     if (squeezeRef.current && !squeezeChartRef.current) {
-      const chart = createChart(squeezeRef.current, { ...baseChartOptions, height: heights.squeeze, width: w, rightPriceScale: { visible: true } });
+      const chart = createChart(squeezeRef.current, {
+        ...baseChartOptions,
+        height: heights.squeeze,
+        width: w,
+        rightPriceScale: { visible: true },
+      });
       squeezeChartRef.current = chart;
       chart._container = squeezeRef.current;
       chart._priceSeries = null;
     }
     if (smiRef.current && !smiChartRef.current) {
-      const chart = createChart(smiRef.current, { ...baseChartOptions, height: heights.smi, width: w, rightPriceScale: { visible: true } });
+      const chart = createChart(smiRef.current, {
+        ...baseChartOptions,
+        height: heights.smi,
+        width: w,
+        rightPriceScale: { visible: true },
+      });
       smiChartRef.current = chart;
       chart._container = smiRef.current;
       chart._priceSeries = null;
     }
     if (volRef.current && !volChartRef.current) {
-      const chart = createChart(volRef.current, { ...baseChartOptions, height: heights.vol, width: w, rightPriceScale: { visible: true } });
+      const chart = createChart(volRef.current, {
+        ...baseChartOptions,
+        height: heights.vol,
+        width: w,
+        rightPriceScale: { visible: true },
+      });
       volChartRef.current = chart;
       chart._container = volRef.current;
       chart._priceSeries = null;
     }
 
     return () => {
-      try { priceChartRef.current?.remove(); }   catch {}
+      try { priceChartRef.current?.remove(); } catch {}
       try { squeezeChartRef.current?.remove(); } catch {}
-      try { smiChartRef.current?.remove(); }     catch {}
-      try { volChartRef.current?.remove(); }     catch {}
-      priceChartRef.current = squeezeChartRef.current = smiChartRef.current = volChartRef.current = null;
+      try { smiChartRef.current?.remove(); } catch {}
+      try { volChartRef.current?.remove(); } catch {}
+      priceChartRef.current = null;
+      squeezeChartRef.current = null;
+      smiChartRef.current = null;
+      volChartRef.current = null;
       priceSeriesRef.current = null;
       seriesMapRef.current.clear();
     };
@@ -97,10 +122,10 @@ export default function LiveLWChart({
     if (!wrapperRef.current) return;
     const ro = new ResizeObserver(() => {
       const w = wrapperRef.current?.clientWidth ?? 800;
-      try { priceChartRef.current?.resize(w, heights.price); }                       catch {}
+      try { priceChartRef.current?.resize(w, heights.price); } catch {}
       try { squeezeChartRef.current?.resize(w, needSqueeze ? heights.squeeze : 0); } catch {}
-      try { smiChartRef.current?.resize(w, needSMI ? heights.smi : 0); }             catch {}
-      try { volChartRef.current?.resize(w, needVol ? heights.vol : 0); }             catch {}
+      try { smiChartRef.current?.resize(w, needSMI ? heights.smi : 0); } catch {}
+      try { volChartRef.current?.resize(w, needVol ? heights.vol : 0); } catch {}
     });
     ro.observe(wrapperRef.current);
     return () => { try { ro.disconnect(); } catch {} };
@@ -136,7 +161,7 @@ export default function LiveLWChart({
       try {
         if (disposed) return;
         if (!bar || bar.time == null) return;
-        setCandles(prev => {
+        setCandles((prev) => {
           const next = mergeBar(prev, bar);
           priceSeriesRef.current.update(bar);
           priceChartRef.current._candles = next;
@@ -165,10 +190,10 @@ export default function LiveLWChart({
         priceSeriesRef.current.setData(seed);
         setCandles(seed);
 
-        if (priceChartRef.current)  priceChartRef.current._candles  = seed;
+        if (priceChartRef.current)   priceChartRef.current._candles   = seed;
         if (squeezeChartRef.current) squeezeChartRef.current._candles = seed;
-        if (smiChartRef.current)      smiChartRef.current._candles      = seed;
-        if (volChartRef.current)      volChartRef.current._candles      = seed;
+        if (smiChartRef.current)     smiChartRef.current._candles     = seed;
+        if (volChartRef.current)     volChartRef.current._candles     = seed;
 
         try { onCandles?.(seed); } catch {}
       } catch {}
@@ -185,13 +210,13 @@ export default function LiveLWChart({
     const panes = [squeezeChartRef.current, smiChartRef.current, volChartRef.current].filter(Boolean);
 
     const unsubPrice = price.timeScale().subscribeVisibleLogicalRangeChange((range) => {
-      panes.forEach(c => { try { c.timeScale().setVisibleLogicalRange(range); } catch {} });
+      panes.forEach((c) => { try { c.timeScale().setVisibleLogicalRange(range); } catch {} });
     });
 
     const childUnsubs = panes.map((c) =>
       c.timeScale().subscribeVisibleLogicalRangeChange((range) => {
         try { price.timeScale().setVisibleLogicalRange(range); } catch {}
-        panes.forEach(sib => { if (sib !== c) try { sib.timeScale().setVisibleLogicalRange(range); } catch {} });
+        panes.forEach((sib) => { if (sib !== c) try { sib.timeScale().setVisibleLogicalRange(range); } catch {} });
       })
     );
 
@@ -205,16 +230,17 @@ export default function LiveLWChart({
   }, [candles]);
 
   function syncVisibleRange(source) {
-    const src = source === "price" ? priceChartRef.current
-      : source === "squeeze" ? squeezeChartRef.current
-      : source === "smi" ? smiChartRef.current
-      : volChartRef.current;
+    const src =
+      source === "price"   ? priceChartRef.current :
+      source === "squeeze" ? squeezeChartRef.current :
+      source === "smi"     ? smiChartRef.current :
+      volChartRef.current;
     if (!src) return;
     const range = src.timeScale().getVisibleLogicalRange?.();
     if (!range) return;
     [priceChartRef.current, squeezeChartRef.current, smiChartRef.current, volChartRef.current]
-      .filter(c => c && c !== src)
-      .forEach(c => { try { c.timeScale().setVisibleLogicalRange(range); } catch {} });
+      .filter((c) => c && c !== src)
+      .forEach((c) => { try { c.timeScale().setVisibleLogicalRange(range); } catch {} });
   }
 
   /* =========================== ATTACH INDICATORS =========================== */
@@ -333,11 +359,26 @@ export default function LiveLWChart({
   const show = { display: "block" };
   const hide = { display: "none" };
   const btnMini = {
-    padding: "2px 6px", borderRadius: 6, fontSize: 12,
-    background: "#0b1220", color: "#e5e7eb", border: "1px solid #334155", cursor: "pointer"
+    padding: "2px 6px",
+    borderRadius: 6,
+    fontSize: 12,
+    background: "#0b1220",
+    color: "#e5e7eb",
+    border: "1px solid #334155",
+    cursor: "pointer",
   };
   const PaneHeader = ({ label, onInc, onDec }) => (
-    <div style={{ position: "absolute", left: 6, top: 6, zIndex: 10, display: "flex", gap: 8, alignItems: "center" }}>
+    <div
+      style={{
+        position: "absolute",
+        left: 6,
+        top: 6,
+        zIndex: 10,
+        display: "flex",
+        gap: 8,
+        alignItems: "center",
+      }}
+    >
       <span style={{ fontSize: 12, color: "#93a3b8" }}>{label}</span>
       <button onClick={onDec} style={btnMini}>–</button>
       <button onClick={onInc} style={btnMini}>+</button>
@@ -345,43 +386,100 @@ export default function LiveLWChart({
   );
 
   return (
-   <div
-  ref={legendRef}
-  className="chart-legend"
-  style={{
-    position: "absolute", top: 8, left: 10,
-    fontSize: 12, background: "rgba(15,17,23,.85)",
-    border: "1px solid #1f2937", borderRadius: 6,
-    padding: "6px 8px", color: "#d1d4dc", pointerEvents: "none"
-  }}
-/>
-
+    <div
+      ref={wrapperRef}
+      className="chart-host"
+      style={{
+        width: "100%",
+        display: "flex",
+        flexDirection: "column",
+        gap: 8,
+        position: "relative",
+        zIndex: 0,
+        overflow: "hidden",
+        isolation: "isolate",
+      }}
+    >
       {/* PRICE pane with legend */}
-      <div ref={priceRef} style={{ height: heights.price, position: "relative", zIndex: 0 }}>
+      <div style={{ height: heights.price, position: "relative", zIndex: 0 }}>
+        <div
+          ref={priceRef}
+          style={{
+            position: "absolute",
+            inset: 0,
+            zIndex: 0, // canvases go underneath other sections via CSS
+          }}
+        />
         <div
           ref={legendRef}
+          className="chart-legend"
           style={{
-            position: "absolute", top: 8, left: 10, zIndex: 6,
-            fontSize: 12, background: "rgba(15,17,23,.85)",
-            border: "1px solid #1f2937", borderRadius: 6,
-            padding: "6px 8px", color: "#d1d4dc", pointerEvents: "none"
+            position: "absolute",
+            top: 8,
+            left: 10,
+            fontSize: 12,
+            background: "rgba(15,17,23,.85)",
+            border: "1px solid #1f2937",
+            borderRadius: 6,
+            padding: "6px 8px",
+            color: "#d1d4dc",
+            pointerEvents: "none",
           }}
         />
       </div>
 
       {/* SQUEEZE */}
-      <div ref={squeezeRef} style={{ height: needSqueeze ? heights.squeeze : 0, position: "relative", ...(needSqueeze ? show : hide) }}>
-        {needSqueeze && <PaneHeader label="Squeeze (LuxAlgo)" onInc={() => inc("squeeze")} onDec={() => dec("squeeze")} />}
+      <div
+        ref={squeezeRef}
+        style={{
+          height: needSqueeze ? heights.squeeze : 0,
+          position: "relative",
+          ...(needSqueeze ? show : hide),
+        }}
+      >
+        {needSqueeze && (
+          <PaneHeader
+            label="Squeeze (LuxAlgo)"
+            onInc={() => inc("squeeze")}
+            onDec={() => dec("squeeze")}
+          />
+        )}
       </div>
 
       {/* SMI */}
-      <div ref={smiRef} style={{ height: needSMI ? heights.smi : 0, position: "relative", ...(needSMI ? show : hide) }}>
-        {needSMI && <PaneHeader label="SMI" onInc={() => inc("smi")} onDec={() => dec("smi")} />}
+      <div
+        ref={smiRef}
+        style={{
+          height: needSMI ? heights.smi : 0,
+          position: "relative",
+          ...(needSMI ? show : hide),
+        }}
+      >
+        {needSMI && (
+          <PaneHeader
+            label="SMI"
+            onInc={() => inc("smi")}
+            onDec={() => dec("smi")}
+          />
+        )}
       </div>
 
       {/* VOLUME */}
-      <div ref={volRef} style={{ height: needVol ? heights.vol : 0, position: "relative", ...(needVol ? show : hide) }}>
-        {needVol && <PaneHeader label="Volume" onInc={() => inc("vol")} onDec={() => dec("vol")} />}
+      <div
+        ref={volRef}
+        style={{
+          height: needVol ? heights.vol : 0,
+          position: "relative",
+          ...(needVol ? show : hide),
+        }}
+      >
+        {needVol && (
+          <PaneHeader
+            label="Volume"
+            onInc={() => inc("vol")}
+            onDec={() => dec("vol")}
+          />
+        )}
       </div>
     </div>
   );
@@ -391,6 +489,10 @@ export default function LiveLWChart({
 function mergeBar(prev, bar) {
   if (!prev?.length) return [bar];
   const last = prev[prev.length - 1];
-  if (last.time === bar.time) { const next = prev.slice(0, -1); next.push(bar); return next; }
+  if (last.time === bar.time) {
+    const next = prev.slice(0, -1);
+    next.push(bar);
+    return next;
+  }
   return [...prev, bar];
 }
