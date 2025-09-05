@@ -281,3 +281,11 @@ a:hover{text-decoration:underline}
 
 /* Optional: if any section must always float above, add this class to it */
 .section-above-chart { position: relative; z-index: 2; }
+/* Prevent the lightweight-charts canvases from sitting above other sections */
+.chart-host { position: relative; overflow: hidden; isolation: isolate; z-index: 0; }
+
+/* Force all chart canvases to render *behind* surrounding panels */
+.chart-host canvas { position: relative; z-index: -1 !important; }
+
+/* Keep the little legend chip visible over the chart only */
+.chart-host .chart-legend { position: absolute; z-index: 3; }
