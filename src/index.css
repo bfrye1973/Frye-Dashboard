@@ -1,3 +1,7 @@
+/* ===============================
+   Global Theme & Base Styles
+   =============================== */
+
 :root {
   --bg: #0a0a0a;
   --panel: #121212;
@@ -8,6 +12,10 @@
   --danger: #ef4444;
   --warning: #f59e0b;
   --info: #3b82f6;
+
+  /* subtle elevations */
+  --shadow-1: 0 1px 2px rgba(0,0,0,.25);
+  --shadow-2: 0 6px 18px rgba(0,0,0,.35);
 }
 
 html, body, #root {
@@ -17,112 +25,141 @@ html, body, #root {
   width: 100%;
   background: var(--bg);
   color: var(--text);
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-    Helvetica, Arial, sans-serif;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-* {
-  box-sizing: border-box;
-}
+* { box-sizing: border-box; }
 
-button {
-  font-family: inherit;
-}
+img, canvas, svg, video { max-width: 100%; height: auto; display: block; }
 
-a {
-  color: var(--info);
-  text-decoration: none;
-}
+/* Links & buttons */
+a { color: var(--info); text-decoration: none; }
+a:hover { text-decoration: underline; }
+button { font-family: inherit; color: inherit; background: transparent; border: 1px solid var(--border); padding: 6px 10px; border-radius: 6px; cursor: pointer; }
+button:hover { border-color: #3d3d3d; }
 
-a:hover {
-  text-decoration: underline;
-}
+/* ===============================
+   Panels / Cards
+   =============================== */
 
-/* Panels / cards */
 .panel {
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 12px;
   color: var(--text);
+  box-shadow: var(--shadow-1);
 }
-
 .panel-header {
   font-size: 14px;
   font-weight: 600;
   margin-bottom: 8px;
 }
 
-.flex {
-  display: flex;
-}
-.flex-col {
-  display: flex;
-  flex-direction: column;
-}
-.flex-row {
-  display: flex;
-  flex-direction: row;
-}
+/* ===============================
+   Utilities (tiny, non-invasive)
+   =============================== */
 
-.flex-1 {
-  flex: 1;
-}
+.flex { display: flex; }
+.flex-col { display: flex; flex-direction: column; }
+.flex-row { display: flex; flex-direction: row; }
+.flex-1 { flex: 1; }
+.grid { display: grid; }
+.gap-2 { gap: 8px; }
+.gap-4 { gap: 16px; }
+.w-full { width: 100%; }
+.h-full { height: 100%; }
+.overflow-hidden { overflow: hidden; }
+.text-muted { color: var(--muted); }
+.text-accent { color: var(--accent); }
+.text-danger { color: var(--danger); }
+.text-warning { color: var(--warning); }
+.text-info { color: var(--info); }
 
-.gap-2 {
-  gap: 8px;
-}
-.gap-4 {
-  gap: 16px;
-}
-
-.text-muted {
-  color: var(--muted);
-}
-
-.text-accent {
-  color: var(--accent);
-}
-.text-danger {
-  color: var(--danger);
-}
-.text-warning {
-  color: var(--warning);
-}
-.text-info {
-  color: var(--info);
-}
-
-/* Utility */
-.w-full {
+/* Simple table baseline (used by SectorsPanel) */
+.table-basic {
   width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
 }
-.h-full {
-  height: 100%;
+.table-basic thead th {
+  text-align: left;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  background: #0e1526;
+}
+.table-basic tbody td {
+  padding: 10px 12px;
+  border-bottom: 1px solid #0f1b33;
+}
+.table-basic tbody tr:nth-child(odd) {
+  background: #0a1120;
+}
+.table-basic tbody tr:nth-child(even) {
+  background: #0c1424;
 }
 
-.overflow-hidden {
-  overflow: hidden;
-}
-/* === Keep the Ferrari cluster contained === */
+/* ===============================
+   Ferrari Cluster Clamp
+   (Prevents the tach from taking over)
+   =============================== */
+
+/* Apply to whichever wrapper you use:
+   - give the outer cluster container id="cluster"
+   - OR id="cluster-fixed"
+   - OR a className="FerrariCluster"
+   Any of these will clamp height & hide overflow.
+*/
 #cluster,
-#cluster-root,
+#cluster-fixed,
 .FerrariCluster,
 .cluster-root {
   position: relative !important;
   height: 520px !important;
   max-height: 520px !important;
   overflow: hidden !important;
+  border-radius: 18px;
 }
 
-/* Make the big dial obey the box */
-#cluster svg,
-#cluster-root svg,
-.FerrariCluster svg,
-.cluster-root svg,
-#cluster canvas,
-#cluster-root canvas {
+/* Ensure inner drawings obey the box */
+#cluster svg, #cluster canvas,
+#cluster-fixed svg, #cluster-fixed canvas,
+.FerrariCluster svg, .FerrariCluster canvas,
+.cluster-root svg, .cluster-root canvas {
   width: 100% !important;
   height: 100% !important;
   display: block !important;
+}
+
+/* Safety: if any gauge SVG tried to overflow explicitly, force containment */
+svg[aria-label="RPM"], svg[aria-label="Speed"] {
+  overflow: hidden !important;
+}
+
+/* ===============================
+   Layout helpers for dashboard pages
+   =============================== */
+
+/* Optional grid helper for a page that has:
+   [top chart][sectors][bottom chart]
+   (Use if you want; does nothing unless applied)
+*/
+.dashboard-grid {
+  display: grid;
+  grid-template-rows: 520px auto 220px;
+  gap: 12px;
+  padding: 12px;
+  width: 100%;
+  min-height: 100vh;
+  background: var(--bg);
+}
+.chart-box {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #0b0b14;
+  box-shadow: var(--shadow-2);
 }
