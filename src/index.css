@@ -198,3 +198,19 @@ body > * {
   max-height: 520px !important;
   overflow: hidden !important;
 }
+/* Ferrari cluster safety */
+#cluster {
+  position: relative !important;
+  height: 520px !important;
+  max-height: 520px !important;
+  overflow: hidden !important;
+  border-radius: 18px;
+}
+
+/* keep dials contained */
+#cluster svg,
+#cluster canvas {
+  width: 100% !important;
+  height: 100% !important;
+  display: block !important;
+}
