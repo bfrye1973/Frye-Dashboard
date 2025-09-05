@@ -289,11 +289,3 @@ a:hover{text-decoration:underline}
 
 /* Keep the little legend chip visible over the chart only */
 .chart-host .chart-legend { position: absolute; z-index: 3; }
-/* ==== Chart overlap guard ==== */
-.chart-host { position: relative; overflow: hidden; isolation: isolate; z-index: 0; }
-
-/* Put chart canvases under surrounding sections */
-.chart-host canvas { position: relative; z-index: -1 !important; }
-
-/* Keep legend above the chart canvas only */
-.chart-host .chart-legend { position: absolute; z-index: 3; }
