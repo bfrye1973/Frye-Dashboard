@@ -65,6 +65,49 @@
     </script>
     <!-- ==== END ZOOM NORMALIZER ==== -->
 
+    <!-- ==== ANTI-100VH INLINE SANITIZER ==== -->
+    <script>
+      (function() {
+        function scrub(el) {
+          try {
+            var s = el.style; if (!s) return;
+            var mh = (s.minHeight || "").replace(/\s/g, "");
+            var h  = (s.height    || "").replace(/\s/g, "");
+            if (mh === "100vh" || h === "100vh") {
+              s.setProperty("min-height", "auto", "important");
+              s.setProperty("height", "auto", "important");
+              s.setProperty("max-height", "92vh", "important");
+              s.setProperty("overflow", "hidden", "important");
+            }
+          } catch(_) {}
+        }
+
+        // scrub existing nodes
+        document.querySelectorAll("*[style]").forEach(scrub);
+
+        // watch for future style changes / added nodes
+        var mo = new MutationObserver(function(muts){
+          for (var i=0;i<muts.length;i++){
+            var m = muts[i];
+            if (m.type === "attributes" && m.attributeName === "style") {
+              scrub(m.target);
+            } else if (m.addedNodes && m.addedNodes.length) {
+              m.addedNodes.forEach(function(n){
+                if (n && n.nodeType === 1) {
+                  if (n.hasAttribute && n.hasAttribute("style")) scrub(n);
+                  if (n.querySelectorAll) n.querySelectorAll("*[style]").forEach(scrub);
+                }
+              });
+            }
+          }
+        });
+        mo.observe(document.documentElement, {
+          subtree: true, childList: true, attributes: true, attributeFilter: ["style"]
+        });
+      })();
+    </script>
+    <!-- ==== END ANTI-100VH INLINE SANITIZER ==== -->
+
     <!-- Optional CSP while developing (loosened). Tighten for prod. -->
     <!--
     <meta http-equiv="Content-Security-Policy"
@@ -104,4 +147,3 @@
     <!-- Your bundler will inject the compiled app script here -->
   </body>
 </html>
-
