@@ -26,6 +26,7 @@ export default function TopCluster({ metrics = {}, height = 380 }) {
   const momentum  = Number.isFinite(+metrics.momentum)  ? +metrics.momentum  : 72;
   const volatility= Number.isFinite(+metrics.volatility)? +metrics.volatility: 63;
   const liquidity = Number.isFinite(+metrics.liquidity) ? +metrics.liquidity : 58;
+<div data-owner="TopCluster" style={...}>
 
   return (
     <div style={{ ...styles.wrap, "--H": `${H}px` }}>
