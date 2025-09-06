@@ -1,7 +1,9 @@
 // src/components/GaugeCluster.jsx
-// Ferrari Dashboard — R9.1 (compact, capped gauges row)
-// - Gauges panel fixed at ~380px; global soft-cap (max-height:520) in public/index.html
-// - Big dials centered & scaled to fit; no vh/%/calc height math
+// Ferrari Dashboard — R9.1 (Ferrari layout)
+// - Left: 2×2 mini gauges (Water, Oil, Fuel, Alt)
+// - Center: Yellow tach (Breadth)
+// - Right: Red speedo (Momentum)
+// - Panel ~380px tall; global soft-cap (max-height:520) is handled in public/index.html
 
 import React from "react";
 import { useDashboardPoll } from "../lib/dashboardApi";
@@ -124,8 +126,8 @@ export default function GaugeCluster() {
   const stateB = data?.lights?.breadth  || "neutral";
   const stateM = data?.lights?.momentum || "neutral";
 
-  // ALT (from sector sparks)
-  const altAngle = computeAltAngleFromSparks(data?.outlook?.sectorCards || []);
+  // ALT (from sector sparks) — used if you want a dedicated big alt later
+  // const altAngle = computeAltAngleFromSparks(data?.outlook?.sectorCards || []);
 
   // Squeeze -> pill state
   const squeezeRaw   = String(data?.odometers?.squeeze || "none");
@@ -179,49 +181,62 @@ export default function GaugeCluster() {
 
       {data ? (
         <>
-          {/* Gauges (fixed ~380px; dials centered & scaled) */}
-          <Panel title="Gauges" className="carbon-fiber" style={{ height: 380, maxHeight: 520, overflow: "hidden" }}>
-            <div className="cockpit-center">
+          {/* Gauges — Ferrari layout */}
+          <Panel
+            title="Gauges"
+            className="carbon-fiber"
+            style={{ height: 380, maxHeight: 520, overflow: "hidden" }}
+          >
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "300px 1fr 300px", // left minis (fixed), center tach, right speed
+                gap: 18,
+                alignItems: "center",
+                height: "100%",
+              }}
+            >
+              {/* LEFT: 2×2 mini gauges */}
               <div
-                className="cockpit"
+                className="left-stack-grid"
                 style={{
                   display: "grid",
                   gridTemplateColumns: "1fr 1fr",
-                  alignItems: "center",
-                  gap: 18,
+                  gap: 8,
+                  alignContent: "start",
+                  justifyItems: "center",
                 }}
               >
-                {/* Left minis */}
-                <div className="left-stack" style={{ display:"grid", rowGap:8, alignContent:"start" }}>
-                  <MiniGauge label="WATER" value={data.gauges?.waterTemp} min={160} max={260} scale={0.95} />
-                  <MiniGauge label="OIL"   value={data.gauges?.oilPsi}    min={0}   max={120} scale={0.95} />
-                  <div style={{ textAlign:"center" }}>
-                    <MiniGauge label="FUEL" value={data.gauges?.fuelPct}   min={0}   max={100} scale={0.95} />
-                    <div className="mini-psi">PSI {Number.isFinite(Number(data.gauges?.fuelPct)) ? Math.round(data.gauges.fuelPct) : "—"}</div>
-                  </div>
-                  <MiniGauge label="ALT" value={null} min={-100} max={100} scale={0.95} />
+                <MiniGauge label="WATER" value={data.gauges?.waterTemp} min={160} max={260} scale={1.0} />
+                <MiniGauge label="OIL"   value={data.gauges?.oilPsi}    min={0}   max={120} scale={1.0} />
+                <div style={{ textAlign:"center" }}>
+                  <MiniGauge label="FUEL" value={data.gauges?.fuelPct}   min={0}   max={100} scale={1.0} />
+                  <div className="mini-psi">PSI {Number.isFinite(Number(data.gauges?.fuelPct)) ? Math.round(data.gauges.fuelPct) : "—"}</div>
                 </div>
+                <MiniGauge label="ALT" value={0} min={-100} max={100} scale={1.0} />
+              </div>
 
-                {/* Right: center tach + speed */}
-                <div
-                  className="right-stack"
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "1fr 1fr",
-                    alignItems: "center",
-                    justifyItems: "center",
-                    gap: 18,
-                    minWidth: 0,
-                  }}
-                >
-                  <div className="center-tach" style={{ display:"flex", justifyContent:"center", minWidth:0 }}>
-                    <BigGauge theme="tach"  label="RPM (Breadth)"    angle={rpmAngle}   withLogo stateClass={`state-${stateB}`} scale={0.90} />
-                  </div>
+              {/* CENTER: Yellow tach (Breadth) */}
+              <div style={{ display:"flex", alignItems:"center", justifyContent:"center" }}>
+                <BigGauge
+                  theme="tach"
+                  label="RPM (Breadth)"
+                  angle={rpmAngle}
+                  withLogo
+                  stateClass={`state-${stateB}`}
+                  scale={0.98}    // nudge to fill; soft-cap protects against overflow
+                />
+              </div>
 
-                  <div className="right-speed" style={{ display:"flex", justifyContent:"center", minWidth:0 }}>
-                    <BigGauge theme="speed" label="SPEED (Momentum)" angle={speedAngle}                stateClass={`state-${stateM}`} scale={0.90} />
-                  </div>
-                </div>
+              {/* RIGHT: Red speedo (Momentum) */}
+              <div style={{ display:"flex", alignItems:"center", justifyContent:"center" }}>
+                <BigGauge
+                  theme="speed"
+                  label="SPEED (Momentum)"
+                  angle={speedAngle}
+                  stateClass={`state-${stateM}`}
+                  scale={0.98}
+                />
               </div>
             </div>
           </Panel>
@@ -229,7 +244,9 @@ export default function GaugeCluster() {
           {/* Engine Lights */}
           <Panel title="Engine Lights">
             <div className="lights">
-              {lightsRow.map((L, i) => <Pill key={`${L.label}-${i}`} label={L.label} state={L.state} icon={L.icon} />)}
+              {lightsRow.map((L, i) => (
+                <Pill key={`${L.label}-${i}`} label={L.label} state={L.state} icon={L.icon} />
+              ))}
             </div>
           </Panel>
 
@@ -285,17 +302,17 @@ export default function GaugeCluster() {
 }
 
 /* ---------- components ---------- */
-function BigGauge({ theme = "tach", label, angle = 0, withLogo = false, stateClass = "", scale = 0.90 }) {
+function BigGauge({ theme = "tach", label, angle = 0, withLogo = false, stateClass = "", scale = 0.98 }) {
   const isTach = theme === "tach";
   const face = isTach ? "#ffdd00" : "#c21a1a";
 
   return (
     <div
       className={`fg-wrap ${isTach ? "gauge--tach" : "gauge--speed"} ${stateClass}`}
-      style={{ transform: `scale(${scale})`, transformOrigin: "center top" }}
+      style={{ transform: `scale(${scale})`, transformOrigin: "center" }}
     >
       <div className="gauge-face" style={{ background: face }}>
-        {isTach ? <div style={{ position:"absolute", inset:0, borderRadius:"50%", boxShadow:"inset 0 0 0 10px #0f172a", zIndex:1 }} /> : null}
+        {/* inner trim is provided by CSS .ring; keep it above the face */}
         <div className="ring" />
         {/* numerals */}
         <svg className="dial-numerals" viewBox="0 0 200 200" aria-hidden>
@@ -312,7 +329,6 @@ function BigGauge({ theme = "tach", label, angle = 0, withLogo = false, stateCla
             );
           })}
         </svg>
-        {isTach ? <div className="redline-arc" aria-hidden /> : null}
 
         <div className="needle" style={{ transform:`rotate(${angle}deg)`, transition:"transform .35s ease-out" }} />
         <div className="hub" />
@@ -334,7 +350,7 @@ function BigGauge({ theme = "tach", label, angle = 0, withLogo = false, stateCla
   );
 }
 
-function MiniGauge({ label, value, min = 0, max = 100, scale = 0.95 }) {
+function MiniGauge({ label, value, min = 0, max = 100, scale = 1.0 }) {
   const hasVal = Number.isFinite(Number(value));
   const deg = hasVal ? mapToDeg(value, min, max) : 0;
   const readoutCls = statusFor(label, value);
@@ -345,7 +361,7 @@ function MiniGauge({ label, value, min = 0, max = 100, scale = 0.95 }) {
     label === "WATER" ? `${hasVal ? Math.round(value) : "—"}°F`  :
                         (hasVal ? Math.round(value) : "—");
   return (
-    <div className="mini" style={{ transform:`scale(${scale})`, transformOrigin:"center top" }}>
+    <div className="mini" style={{ transform:`scale(${scale})`, transformOrigin:"center" }}>
       <div className={faceCls}>
         <div className="mini-needle" style={{ transform:`rotate(${deg}deg)` }} />
         <div className="mini-hub" />
