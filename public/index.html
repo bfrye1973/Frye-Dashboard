@@ -2,32 +2,35 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
+
+    <!-- Base viewport -->
     <meta
       name="viewport"
       content="width=device-width,initial-scale=1,shrink-to-fit=no,viewport-fit=cover"
     />
+
     <title>Frye Dashboard</title>
     <meta name="theme-color" content="#0d1117" />
     <meta name="color-scheme" content="dark" />
     <!-- marker to confirm we’re editing the real file -->
-    <meta name="Frye-Marker" content="public-index-soft-cap-v1" />
+    <meta name="Frye-Marker" content="public-index-soft-cap-v2" />
 
     <!-- ========================= BACKEND CONFIG ========================= -->
     <script>
-      window.__API_BASE__   = "https://frye-market-backend-1.onrender.com";
-      window.__TOS_BASE__   = "https://frye-market-backend-1.onrender.com";
-      window.__TOS_WS_BASE__= "wss://frye-market-backend-1.onrender.com";
-      window.__TOS_TOKEN__  = "";
+      window.__API_BASE__    = "https://frye-market-backend-1.onrender.com";
+      window.__TOS_BASE__    = "https://frye-market-backend-1.onrender.com";
+      window.__TOS_WS_BASE__ = "wss://frye-market-backend-1.onrender.com";
+      window.__TOS_TOKEN__   = "";
 
       (function () {
         const tag = "%c[BOOT]";
         const style = "color:#22d3ee;font-weight:700";
         try {
           console.log(tag, style, "Frye Dashboard");
-          console.log("%c API_BASE     ", "color:#a3e635", window.__API_BASE__   || "(unset)");
-          console.log("%c TOS_BASE     ", "color:#a3e635", window.__TOS_BASE__   || "(unset)");
-          console.log("%c TOS_WS_BASE  ", "color:#a3e635", window.__TOS_WS_BASE__|| "(unset)");
-          console.log("%c TOS_TOKEN    ", "color:#a3e635", window.__TOS_TOKEN__  ? "(provided)" : "(none)");
+          console.log("%c API_BASE     ", "color:#a3e635", window.__API_BASE__    || "(unset)");
+          console.log("%c TOS_BASE     ", "color:#a3e635", window.__TOS_BASE__    || "(unset)");
+          console.log("%c TOS_WS_BASE  ", "color:#a3e635", window.__TOS_WS_BASE__ || "(unset)");
+          console.log("%c TOS_TOKEN    ", "color:#a3e635", window.__TOS_TOKEN__   ? "(provided)" : "(none)");
         } catch (e) {}
       })();
     </script>
@@ -67,7 +70,7 @@
             var h  = (s.height    || "").replace(/\s/g, "");
             if (mh === "100vh" || h === "100vh") {
               s.setProperty("min-height", "auto", "important");
-              s.setProperty("height", "auto", "important");
+              s.setProperty("height", "auto",  "important");
               s.setProperty("max-height", "92vh", "important");
               s.setProperty("overflow", "hidden", "important");
             }
@@ -95,7 +98,7 @@
     </script>
     <!-- ==== END ANTI-100VH INLINE SANITIZER ==== -->
 
-    <!-- ===== Ferrari Cluster SOFT CAP (no fixed height) ===== -->
+    <!-- ===== Ferrari Cluster SOFT CAP (single host, guaranteed) ===== -->
     <style id="cluster-clamp">
       /* Let the panel render naturally; cap growth at 520px */
       [data-cluster-host] {
@@ -105,7 +108,6 @@
         overflow: hidden !important;
         position: relative;
       }
-      /* Contain dial drawings inside the host */
       [data-cluster-host] svg,
       [data-cluster-host] canvas {
         width: 100% !important;
@@ -115,24 +117,45 @@
       }
     </style>
     <script>
-      /* Auto-tag the real cluster host on load + re-renders */
       (function () {
-        function tagClusterHost(){
-          var cand = Array.from(document.querySelectorAll("div,section,main,article"))
-            .map(function(el){ var r = el.getBoundingClientRect(); return { el: el, r: r, a: r.width * r.height }; })
+        function pickHost() {
+          // Prefer explicit cluster panel; otherwise fall back to the largest early container
+          var panel = document.querySelector(".cluster .panel, .panel.carbon-fiber");
+          if (panel) return panel;
+
+          var cands = Array.from(document.querySelectorAll("div,section,main,article"))
+            .map(function(el){ var r = el.getBoundingClientRect(); return { el: el, r: r, a: r.width*r.height }; })
             .filter(function(x){ return x.r.top < 350 && x.r.height > 200 && x.r.width > innerWidth * 0.6; })
-            .sort(function(a,b){ return b.a - a.a; })[0];
-          if (cand && !cand.el.hasAttribute("data-cluster-host")) {
-            cand.el.setAttribute("data-cluster-host", "");
+            .sort(function(a,b){ return b.a - a.a; });
+          return cands[0] && cands[0].el;
+        }
+
+        function retag() {
+          // Ensure only ONE host is tagged
+          document.querySelectorAll("[data-cluster-host]").forEach(function(n){ n.removeAttribute("data-cluster-host"); });
+          var host = pickHost();
+          if (host) host.setAttribute("data-cluster-host", "");
+        }
+
+        function ensureStyle() {
+          if (!document.getElementById("cluster-clamp")) {
+            var tag = document.createElement("style");
+            tag.id = "cluster-clamp";
+            tag.textContent =
+              "[data-cluster-host]{min-height:auto!important;height:auto!important;max-height:520px!important;overflow:hidden!important;position:relative}" +
+              "[data-cluster-host] svg,[data-cluster-host] canvas{width:100%!important;height:100%!important;display:block!important;overflow:hidden!important}";
+            document.head.appendChild(tag);
           }
         }
+
+        function init() { ensureStyle(); retag(); }
+
         if (document.readyState === "loading") {
-          document.addEventListener("DOMContentLoaded", tagClusterHost);
+          document.addEventListener("DOMContentLoaded", init);
         } else {
-          tagClusterHost();
+          init();
         }
-        new MutationObserver(tagClusterHost)
-          .observe(document.documentElement, { subtree:true, childList:true });
+        new MutationObserver(init).observe(document.documentElement, { subtree: true, childList: true });
       })();
     </script>
     <!-- ===== END SOFT CAP ===== -->
@@ -147,15 +170,9 @@
         -webkit-font-smoothing: antialiased;
         -moz-osx-font-smoothing: grayscale;
       }
-      svg, text {
-        shape-rendering: geometricPrecision;
-        text-rendering: geometricPrecision;
-      }
+      svg, text { shape-rendering: geometricPrecision; text-rendering: geometricPrecision; }
       noscript {
-        color: #d1d4dc;
-        background: #0d1117;
-        display: block;
-        padding: 12px;
+        color: #d1d4dc; background: #0d1117; display: block; padding: 12px;
       }
     </style>
   </head>
