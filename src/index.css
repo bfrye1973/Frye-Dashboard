@@ -173,13 +173,11 @@ div[style*="height: 100vh"] {
 #root .cluster .panel,
 #root .panel.carbon-fiber {
   min-height: auto !important;
-  height: auto !important;        /* <— no hard height */
-  max-height: 520px !important;   /* <— soft cap */
+  height: auto !important;        /* no hard height */
+  max-height: 520px !important;   /* soft cap */
   overflow: hidden !important;
   position: relative;
 }
-
-/* Keep drawings contained inside any cluster panel */
 #root .cluster .panel svg,
 #root .cluster .panel canvas {
   width: 100% !important;
@@ -187,9 +185,10 @@ div[style*="height: 100vh"] {
   display: block !important;
   overflow: hidden !important;
 }
-/* ===============================
-   Ferrari Gauges — Big & Mini
-   =============================== */
+
+/* ============================================================
+   Ferrari Gauges — Big (tach/speed) & Mini (Water/Oil/Fuel/Alt)
+   ============================================================ */
 
 /* --- Big dials (tach / speed) --- */
 .fg-wrap {
@@ -197,7 +196,6 @@ div[style*="height: 100vh"] {
   flex-direction: column;
   align-items: center;
   gap: 8px;
-  /* size is driven by scale prop on the wrapper; face is 220x220 by default */
 }
 
 .fg-wrap .gauge-face {
@@ -206,7 +204,7 @@ div[style*="height: 100vh"] {
   height: 220px;
   border-radius: 50%;
   overflow: hidden;
-  background: #ffdd00; /* overridden per theme by inline style already */
+  background: #ffdd00; /* yellow by default; red is applied inline */
   box-shadow: inset 0 0 0 2px rgba(0,0,0,.5), 0 8px 18px rgba(0,0,0,.35);
 }
 
@@ -215,8 +213,8 @@ div[style*="height: 100vh"] {
   inset: 0;
   border-radius: 50%;
   box-shadow:
-    inset 0 0 0 9px #0f172a,     /* dark trim */
-    inset 0 0 0 12px #1f2937;   /* bezel */
+    inset 0 0 0 9px #0f172a,      /* inner trim */
+    inset 0 0 0 12px #1f2937;     /* bezel */
   pointer-events: none;
 }
 
@@ -228,7 +226,7 @@ div[style*="height: 100vh"] {
   height: 42%;
   background: #0f172a;
   border-radius: 2px;
-  transform-origin: 50% 100%; /* rotate from bottom center */
+  transform-origin: 50% 100%;
   box-shadow: 0 0 6px rgba(0,0,0,.35);
   z-index: 3;
 }
@@ -258,36 +256,21 @@ div[style*="height: 100vh"] {
 .fg-wrap .dial-numerals {
   position: absolute;
   inset: 0;
-  width: 220px; height: 220px;
+  width: 220px;
+  height: 220px;
   z-index: 2;
 }
 .fg-wrap .dial-numerals .numeral {
-  fill: #0f172a;            /* dark numerals for yellow face */
+  fill: #0f172a;      /* dark numerals for yellow face */
   font-size: 16px;
   font-weight: 700;
   text-shadow: 0 1px 0 rgba(255,255,255,.35);
 }
 
-/* tach-only red wedge */
-.fg-wrap .redline-arc {
-  position: absolute;
-  inset: 0;
-  border-radius: 50%;
-  box-shadow:
-    inset 0 0 0 90px rgba(0,0,0,0), /* placeholder; arc handled by SVG text/ring */
-    0 0 0 0 transparent;
-  z-index: 1;
-}
-
-/* title under dial */
 .fg-wrap .fg-title {
   font-size: 12px;
   opacity: .85;
 }
-
-/* Themes (optional hooks) */
-.fg-wrap.gauge--tach .dial-numerals .numeral { fill: #0f172a; }
-.fg-wrap.gauge--speed .dial-numerals .numeral { fill: #111827; }
 
 /* --- Mini dials (Water/Oil/Fuel/Alt) --- */
 .mini {
@@ -295,18 +278,27 @@ div[style*="height: 100vh"] {
   flex-direction: column;
   align-items: center;
   justify-content: flex-start;
-  width: 100px;        /* visual footprint (scaled by inline transform) */
-  margin: 2px 6px;
+  width: 108px;              /* footprint; face is 86x86 */
+  margin: 4px 8px;
 }
 
 .mini .mini-face {
   position: relative;
-  width: 80px;
-  height: 80px;
+  width: 86px;
+  height: 86px;
   border-radius: 50%;
-  background: #0b0f14;               /* dark mini face */
-  border: 2px solid #1f2937;          /* bezel */
-  box-shadow: inset 0 0 12px rgba(0,0,0,.55), 0 6px 12px rgba(0,0,0,.25);
+  background: #0b0f14;       /* deep black */
+  box-shadow:
+    inset 0 0 20px rgba(0,0,0,.65),
+    0 2px 4px rgba(0,0,0,.35);
+  border: 2px solid #303642; /* bezel edge */
+}
+
+.mini .mini-face::before {   /* inner chrome ring */
+  content:"";
+  position:absolute; inset:4px;
+  border-radius:50%;
+  box-shadow: inset 0 0 0 2px rgba(255,255,255,.08);
 }
 
 .mini .mini-needle {
@@ -314,42 +306,48 @@ div[style*="height: 100vh"] {
   left: 50%;
   bottom: 50%;
   width: 3px;
-  height: 34%;
-  background: #ef4444;                /* needle */
+  height: 36%;
+  background: #f43f5e;       /* bright needle */
   border-radius: 2px;
-  transform-origin: 50% 100%;         /* rotate from bottom center */
-  box-shadow: 0 0 4px rgba(0,0,0,.35);
+  transform-origin: 50% 100%;
+  box-shadow: 0 0 4px rgba(0,0,0,.45);
 }
 
 .mini .mini-hub {
   position: absolute;
   left: 50%;
   top: 50%;
-  width: 8px; height: 8px;
+  width: 9px; height: 9px;
   border-radius: 50%;
-  background: #e5e7eb;
-  border: 2px solid #111827;
+  background: #d1d5db;
+  border: 2px solid #0a0a0a;
   transform: translate(-50%, -50%);
 }
 
 .mini .mini-title {
   font-size: 11px;
-  letter-spacing: .05em;
-  margin-top: 2px;
-  opacity: .85;
+  letter-spacing: .06em;
+  margin-top: 3px;
+  opacity: .9;
 }
 
-/* Mini readouts */
 .readout {
   margin-top: 4px;
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 700;
 }
 .readout.ok     { color: #22c55e; }   /* green */
 .readout.warn   { color: #f59e0b; }   /* amber */
 .readout.danger { color: #ef4444; }   /* red */
 
-/* Face tint by status (subtle) */
-.mini-face.gauge-ok     { box-shadow: inset 0 0 12px rgba(34,197,94,.20), 0 6px 12px rgba(0,0,0,.25); }
-.mini-face.gauge-warn   { box-shadow: inset 0 0 12px rgba(245,158,11,.20), 0 6px 12px rgba(0,0,0,.25); }
-.mini-face.gauge-danger { box-shadow: inset 0 0 12px rgba(239,68,68,.25), 0 6px 12px rgba(0,0,0,.25); }
+.mini-face.gauge-ok     { box-shadow: inset 0 0 14px rgba(34,197,94,.18),  0 2px 4px rgba(0,0,0,.35); }
+.mini-face.gauge-warn   { box-shadow: inset 0 0 14px rgba(245,158,11,.18), 0 2px 4px rgba(0,0,0,.35); }
+.mini-face.gauge-danger { box-shadow: inset 0 0 14px rgba(239,68,68,.22),  0 2px 4px rgba(0,0,0,.35); }
+
+/* Optional: 2×2 left stack layout */
+.left-stack-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  align-content: start;
+}
