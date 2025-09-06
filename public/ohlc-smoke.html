@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>OHLC Smoke Test</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; background:#0f1117; color:#e5e7eb; margin:20px; }
+    input, select, button { font-size:16px; padding:6px 10px; margin-right:8px; }
+    code { background:#111827; padding:2px 6px; border-radius:4px; }
+    .ok { color:#22c55e } .warn { color:#f59e0b } .err { color:#ef4444 }
+    pre { background:#111827; padding:10px; border-radius:6px; overflow:auto; }
+  </style>
+</head>
+<body>
+  <h2>OHLC Smoke Test</h2>
+  <p>This page does one thing: call your backend and show the result.</p>
+
+  <div style="margin:8px 0;">
+    Backend: <input id="base" size="60" />
+  </div>
+  <div style="margin:8px 0;">
+    Symbol:
+    <input id="sym" value="SPY" size="8" />
+    Timeframe:
+    <select id="tf">
+      <option>1m</option>
+      <option>5m</option>
+      <option selected>1h</option>
+      <option>1d</option>
+    </select>
+    <button id="go">Fetch</button>
+  </div>
+
+  <div id="out"></div>
+  <pre id="raw" style="display:none"></pre>
+
+  <script>
+    const baseEl = document.getElementById('base');
+    const symEl = document.getElementById('sym');
+    const tfEl = document.getElementById('tf');
+    const out = document.getElementById('out');
+    const raw = document.getElementById('raw');
+
+    // default backend
+    baseEl.value = localStorage.getItem('ohlc_base') ||
+      'https://frye-market-backend-1.onrender.com';
+
+    function q(sel){ return document.querySelector(sel); }
+    function esc(s){ return String(s).replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m])); }
+
+    async function run(){
+      const base = baseEl.value.replace(/\/+$/,'');
+      const symbol = symEl.value.trim().toUpperCase();
+      const tf = tfEl.value.trim();
+      localStorage.setItem('ohlc_base', base);
+      const url = `${base}/api/v1/ohlc?symbol=${encodeURIComponent(symbol)}&timeframe=${encodeURIComponent(tf)}&cb=${Date.now().toString(36)}`;
+
+      out.innerHTML = `Request: <code>${esc(url)}</code>`;
+      raw.style.display = 'none'; raw.textContent = '';
+
+      try{
+        const res = await fetch(url, { cache: 'no-store' });
+        const text = await res.text();
+        let json=null; try{ json = JSON.parse(text); }catch{}
+        const ok = res.ok;
+
+        if(!ok){
+          out.innerHTML += `<div class="err">HTTP ${res.status}</div>`;
+          raw.style.display='block'; raw.textContent = text;
+          return;
+        }
+        const bars = Array.isArray(json?.bars) ? json.bars : [];
+        out.innerHTML += `<div class="${bars.length? 'ok':'warn'}">
+          Result: ${bars.length ? bars.length + ' bars' : 'no bars'} | shape: ${typeof json}
+        </div>`;
+        if(bars.length){
+          const last = bars[bars.length-1];
+          out.innerHTML += `<div>Last bar → time: <code>${esc(last.time)}</code>, close: <code>${esc(last.close)}</code></div>`;
+        }
+        raw.style.display='block'; raw.textContent = text;
+      }catch(e){
+        out.innerHTML += `<div class="err">Error: ${esc(e.message)}</div>`;
+      }
+    }
+    document.getElementById('go').onclick = run;
+  </script>
+</body>
+</html>
