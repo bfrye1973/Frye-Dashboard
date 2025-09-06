@@ -12,19 +12,11 @@
 
     <!-- ========================= BACKEND CONFIG ========================= -->
     <script>
-      /* Market/quotes backend (already used by the chart layer) */
       window.__API_BASE__ = "https://frye-market-backend-1.onrender.com";
-
-      /* TOS REST base (HTTP polling or fallback) */
       window.__TOS_BASE__ = "https://frye-market-backend-1.onrender.com";
-
-      /* TOS WebSocket base (preferred). If no WS yet, set "" */
       window.__TOS_WS_BASE__ = "wss://frye-market-backend-1.onrender.com";
+      window.__TOS_TOKEN__ = "";
 
-      /* Optional: Bearer token if your server requires auth */
-      window.__TOS_TOKEN__ = ""; // keep empty unless REQUIRE_TOKEN=1
-
-      /* ---- diagnostics banner so you can verify after deploy ---- */
       (function () {
         const tag = "%c[BOOT]";
         const style = "color:#22d3ee;font-weight:700";
@@ -81,11 +73,7 @@
             }
           } catch(_) {}
         }
-
-        // scrub existing nodes
         document.querySelectorAll("*[style]").forEach(scrub);
-
-        // watch for future style changes / added nodes
         var mo = new MutationObserver(function(muts){
           for (var i=0;i<muts.length;i++){
             var m = muts[i];
@@ -108,15 +96,34 @@
     </script>
     <!-- ==== END ANTI-100VH INLINE SANITIZER ==== -->
 
-    <!-- Optional CSP while developing (loosened). Tighten for prod. -->
-    <!--
-    <meta http-equiv="Content-Security-Policy"
-          content="default-src 'self' * blob: data: ws: wss:;
-                   script-src 'self' 'unsafe-inline' 'unsafe-eval' *;
-                   connect-src * ws: wss:;
-                   img-src * data: blob:;
-                   style-src * 'unsafe-inline';">
-    -->
+    <!-- ==== CLAMP TOP CLUSTER FAILSAFE ==== -->
+    <script>
+      (function () {
+        function clampTopCluster() {
+          var root = document.getElementById('root');
+          if (!root) return;
+          var cand = Array.from(root.querySelectorAll('div, section, article, main'));
+          var best = null, bestArea = 0;
+          var vw = window.innerWidth, vh = window.innerHeight;
+          cand.forEach(function (el) {
+            var r = el.getBoundingClientRect();
+            if (r.top < 400 && r.width > vw * 0.6 && r.height > 560) {
+              var area = r.width * r.height;
+              if (area > bestArea) { bestArea = area; best = el; }
+            }
+          });
+          if (best) {
+            best.style.setProperty('max-height', '520px', 'important');
+            best.style.setProperty('height', '520px', 'important');
+            best.style.setProperty('overflow', 'hidden', 'important');
+          }
+        }
+        window.addEventListener('load', clampTopCluster);
+        new MutationObserver(function () { clampTopCluster(); })
+          .observe(document.documentElement, { subtree: true, childList: true });
+      })();
+    </script>
+    <!-- ==== END CLAMP TOP CLUSTER FAILSAFE ==== -->
 
     <style>
       html, body, #root { height: 100%; }
@@ -128,7 +135,6 @@
         -webkit-font-smoothing: antialiased;
         -moz-osx-font-smoothing: grayscale;
       }
-      /* Sharper SVG + text on the gauges */
       svg, text {
         shape-rendering: geometricPrecision;
         text-rendering: geometricPrecision;
