@@ -210,3 +210,20 @@ div[style*="min-height: 100vh"] {
   display: block !important;
   overflow: hidden !important;
 }
+/* Clamp the actual oversized host we found (center-tach) */
+body > div#root > div > div > div.cluster > div.panel.carbon-fiber > div.cockpit-center > div.cockpit > div.center-tach {
+  min-height: auto !important;
+  height: 520px !important;
+  max-height: 520px !important;
+  overflow: hidden !important;
+  position: relative;
+}
+
+/* Keep any drawings inside that host */
+body > div#root > div > div > div.cluster > div.panel.carbon-fiber > div.cockpit-center > div.cockpit > div.center-tach svg,
+body > div#root > div > div > div.cluster > div.panel.carbon-fiber > div.cockpit-center > div.cockpit > div.center-tach canvas {
+  width: 100% !important;
+  height: 100% !important;
+  display: block !important;
+  overflow: hidden !important;
+}
