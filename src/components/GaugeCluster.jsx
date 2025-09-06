@@ -1,9 +1,9 @@
 // src/components/GaugeCluster.jsx
-// Ferrari Dashboard — R9.1 (3-region cockpit)
+// Ferrari Dashboard — R9.1 (3-region cockpit, no statusFor)
 // Left: compact Market Summary (InfoStack)
 // Middle: ALL GAUGES (2×2 minis + yellow RPM (Breadth) + red SPEED (Momentum))
 // Right: reserved (hidden for now)
-// Panel ~380px tall; soft-cap (≤520px) handled in public/index.html
+// Gauges panel ~380px; soft-cap (≤520px) handled in public/index.html
 
 import React from "react";
 import { useDashboardPoll } from "../lib/dashboardApi";
@@ -97,7 +97,7 @@ export default function GaugeCluster() {
   const freshness = freshnessColor(ts);
   const summary = data?.summary || null;
 
-  // Big gauges — angles from summary if available, fallback to raw gauges
+  // Big gauge angles (prefer summary; fallback to raw)
   const breadthIdx  = summary?.breadthIdx;
   const momentumIdx = summary?.momentumIdx;
   const rpmAngle   = Number.isFinite(breadthIdx)
@@ -248,15 +248,6 @@ export default function GaugeCluster() {
               ))}
             </div>
           </Panel>
-
-          {/* Odometers */}
-          <Panel title="Odometers">
-            <div className="odos">
-              <Odometer label="Breadth"  value={data.odometers?.breadthOdometer} />
-              <Odometer label="Momentum" value={data.odometers?.momentumOdometer} />
-              <Odometer label="Squeeze"  value={String(data.odometers?.squeeze ?? "—")} />
-            </div>
-          </Panel>
         </>
       ) : null}
     </div>
@@ -303,8 +294,6 @@ function BigGauge({ theme = "tach", label, title, angle = 0, withLogo = false, s
 function MiniGauge({ label, caption, value, min = 0, max = 100, scale = 1.0, extra = null }) {
   const hasVal = Number.isFinite(Number(value));
   const deg = hasVal ? mapToDeg(value, min, max) : 0;
-  const readoutCls = statusFor(label, value);
-  const faceCls = `mini-face ${readoutCls.replace("readout", "gauge")}`;
   const txt =
     label === "FUEL"  ? `${hasVal ? Math.round(value) : "—"} %`  :
     label === "OIL"   ? `${hasVal ? Math.round(value) : "—"} psi`:
@@ -312,12 +301,12 @@ function MiniGauge({ label, caption, value, min = 0, max = 100, scale = 1.0, ext
                         (hasVal ? Math.round(value) : "—");
   return (
     <div className="mini" style={{ transform:`scale(${scale})`, transformOrigin:"center" }} title={caption || label} aria-label={caption || label}>
-      <div className={faceCls}>
+      <div className="mini-face">{/* neutral face; styles in index.css */} 
         <div className="mini-needle" style={{ transform:`rotate(${deg}deg)` }} />
         <div className="mini-hub" />
       </div>
       <div className="readout-row" style={{ textAlign:"center" }}>
-        <div className={readoutCls}>{txt}</div>
+        <div className="readout">{txt}</div>
         {extra}
         <div className="mini-title" style={{ opacity:.85 }}>
           {label} {caption ? <span className="small muted" style={{ marginLeft:6 }}>({caption})</span> : null}
@@ -328,16 +317,6 @@ function MiniGauge({ label, caption, value, min = 0, max = 100, scale = 1.0, ext
 }
 
 /* ---------- small widgets ---------- */
-function Odometer({ label, value }) {
-  return (
-    <div className="odo">
-      <div className="odo-label">{label}</div>
-      <div className="odo-value">{value ?? "—"}</div>
-    </div>
-  );
-}
-
-/* Style fragments for summary bar */
 const cardBox = {
   border: "1px solid #1f2a44",
   borderRadius: 12,
@@ -359,21 +338,3 @@ const barFill = {
   bottom: 0,
   borderRadius: 6,
 };
-
-/* (optional) tiny sparkline for sectors — leave as-is */
-function Spark({ values = [] }) {
-  if (!values || values.length < 2) return <div className="sector-spark">(no data)</div>;
-  const min = Math.min(...values), max = Math.max(...values);
-  const W = 180, H = 36;
-  const norm = v => (max - min ? (v - min) / (max - min) : 0.5);
-  const pts = values.map((v, i) => {
-    const x = (i / (values.length - 1)) * (W - 8) + 4;
-    const y = (1 - norm(v)) * (H - 8) + 4;
-    return `${x},${y}`;
-  }).join(" ");
-  return (
-    <svg className="spark" viewBox={`0 0 ${W} ${H}`} width={W} height={H}>
-      <polyline className="spark-line" fill="none" strokeWidth="2" points={pts} />
-    </svg>
-  );
-}
