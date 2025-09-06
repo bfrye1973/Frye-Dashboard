@@ -20,6 +20,8 @@ export default function FerrariCluster({
   const TOP_ROW = Math.max(200, Math.min(H - 60, 460));          // leave 60px for lights
 
   return (
+   <div data-owner="FerrariCluster" style={...}>
+ 
     <div
       id="cluster"
       style={{
