@@ -8,14 +8,8 @@ html, body {
   text-size-adjust: 100%;
   transform: none !important;
 }
-html {
-  /* Avoid stray inherited zoom from toolbars or extensions */
-  zoom: 1 !important; /* Chrome-friendly; ignored by Firefox */
-}
-.zoom-reset-tmp {
-  /* tiny no-op used to force reflow after viewport change */
-  outline: 0;
-}
+html { zoom: 1 !important; }         /* Chrome-friendly; ignored by Firefox */
+.zoom-reset-tmp { outline: 0; }       /* tiny no-op to force reflow if needed */
 
 /* --- Theme tokens --- */
 :root {
@@ -54,20 +48,15 @@ img, canvas, svg, video { max-width: 100%; height: auto; display: block; }
 a { color: var(--info); text-decoration: none; }
 a:hover { text-decoration: underline; }
 button {
-  font-family: inherit;
-  color: inherit;
-  background: transparent;
-  border: 1px solid var(--border);
-  padding: 6px 10px;
-  border-radius: 6px;
-  cursor: pointer;
+  font-family: inherit; color: inherit;
+  background: transparent; border: 1px solid var(--border);
+  padding: 6px 10px; border-radius: 6px; cursor: pointer;
 }
 button:hover { border-color: #3d3d3d; }
 
 /* ===============================
    Panels / Cards
    =============================== */
-
 .panel {
   background: var(--panel);
   border: 1px solid var(--border);
@@ -81,7 +70,6 @@ button:hover { border-color: #3d3d3d; }
 /* ===============================
    Utilities
    =============================== */
-
 .flex { display: flex; }
 .flex-col { display: flex; flex-direction: column; }
 .flex-row { display: flex; flex-direction: row; }
@@ -98,13 +86,11 @@ button:hover { border-color: #3d3d3d; }
 .text-warning { color: var(--warning); }
 .text-info { color: var(--info); }
 
-/* Prevent any full-bleed container from exceeding viewport width */
-body > * { max-width: 100vw !important; }
+body > * { max-width: 100vw !important; } /* no sideways overflow */
 
 /* ===============================
    Simple Table (for sectors)
    =============================== */
-
 .table-basic { width: 100%; border-collapse: collapse; font-size: 14px; }
 .table-basic thead th {
   text-align: left; padding: 10px 12px;
@@ -115,19 +101,14 @@ body > * { max-width: 100vw !important; }
 .table-basic tbody tr:nth-child(even) { background: #0c1424; }
 
 /* ===============================
-   Ferrari Cluster Clamp (id="cluster")
-   Keeps gauge drawings inside a fixed pane
+   Cluster (id="cluster") — optional component clamp
    =============================== */
-
 #cluster {
-  position: relative !important;
-  height: 520px !important;
-  max-height: 520px !important;
-  overflow: hidden !important;
+  position: relative;
+  max-height: 520px;             /* soft cap only */
+  overflow: hidden;
   border-radius: 18px;
 }
-
-/* Keep gauge drawings inside the box */
 #cluster svg,
 #cluster canvas {
   width: 100% !important;
@@ -136,33 +117,24 @@ body > * { max-width: 100vw !important; }
   overflow: hidden !important;
 }
 
-/* Safety containment if SVGs are targeted directly */
+/* Safety if dials are targeted directly */
 svg[aria-label="RPM"],
-svg[aria-label="Speed"] {
-  overflow: hidden !important;
-}
+svg[aria-label="Speed"] { overflow: hidden !important; }
 
 /* ===============================
    Chart Price Pane Cap
    =============================== */
-
-.lw-price-pane {
-  max-height: 520px !important;
-  overflow: hidden !important;
-}
+.lw-price-pane { max-height: 520px !important; overflow: hidden !important; }
 
 /* ===============================
-   Dashboard Layout
-   (No forced min-height:100vh — avoids blown-up layout)
+   Dashboard Layout (no vh)
    =============================== */
-
 .dashboard-grid {
   display: grid;
-  grid-template-rows: 520px auto 220px; /* header (cluster) / content / footer row */
+  grid-template-rows: 520px auto 220px; /* header / content / footer */
   gap: 12px;
   padding: 12px;
   width: 100%;
-  /* DO NOT force min-height:100vh here */
   background: var(--bg);
 }
 
@@ -179,91 +151,35 @@ svg[aria-label="Speed"] {
 /* ===============================
    Global Hard-Stop
    =============================== */
-
-/* Never allow sideways scroll due to wide children */
 html, body, #root {
   overflow-x: hidden !important;
   transform-origin: 50% 0 !important;
 }
 
-/* Guard: stop any inline 100vh wrappers from blowing up layout */
-div[style*="min-height: 100vh"] {
+/* Guard: stop inline 100vh wrappers from blowing up layout */
+div[style*="min-height: 100vh"],
+div[style*="height: 100vh"] {
   min-height: auto !important;
   height: auto !important;
   max-height: 92vh !important;
   overflow: hidden !important;
 }
-/* Clamp the oversized cluster host that we tagged in the DOM */
-[data-clamp-target="cluster"] {
-  min-height: auto !important;
-  height: 520px !important;
-  max-height: 520px !important;
-  overflow: hidden !important;
-  position: relative;
-}
 
-/* Keep drawings inside */
-[data-clamp-target="cluster"] svg,
-[data-clamp-target="cluster"] canvas {
-  width: 100% !important;
-  height: 100% !important;
-  display: block !important;
-  overflow: hidden !important;
-}
-/* Clamp the actual oversized host we found (center-tach) */
-body > div#root > div > div > div.cluster > div.panel.carbon-fiber > div.cockpit-center > div.cockpit > div.center-tach {
-  min-height: auto !important;
-  height: 520px !important;
-  max-height: 520px !important;
-  overflow: hidden !important;
-  position: relative;
-}
-
-/* Keep any drawings inside that host */
-body > div#root > div > div > div.cluster > div.panel.carbon-fiber > div.cockpit-center > div.cockpit > div.center-tach svg,
-body > div#root > div > div > div.cluster > div.panel.carbon-fiber > div.cockpit-center > div.cockpit > div.center-tach canvas {
-  width: 100% !important;
-  height: 100% !important;
-  display: block !important;
-  overflow: hidden !important;
-}
-/* Clamp the carbon-fiber cluster panel */
-body > div#root > div > div > div.cluster > div.panel.carbon-fiber {
-  min-height: auto !important;
-  height: 520px !important;
-  max-height: 520px !important;
-  overflow: hidden !important;
-  position: relative;
-}
-
-/* Keep drawings inside */
-body > div#root > div > div > div.cluster > div.panel.carbon-fiber svg,
-body > div#root > div > div > div.cluster > div.panel.carbon-fiber canvas {
-  width: 100% !important;
-  height: 100% !important;
-  display: block !important;
-  overflow: hidden !important;
-}
-/* ===== FINAL CLUSTER CLAMP (survives hot reloads) ===== */
+/* ===============================
+   Cluster panel soft-caps (robust selectors)
+   - cap, don't fix height; allow content to render then restrict growth
+   =============================== */
 #root .cluster > .panel,
 #root .cluster .panel,
 #root .panel.carbon-fiber {
   min-height: auto !important;
-  height: 520px !important;
-  max-height: 520px !important;
+  height: auto !important;        /* <— no hard height */
+  max-height: 520px !important;   /* <— soft cap */
   overflow: hidden !important;
   position: relative;
 }
 
-/* Prevent common inner wrappers from stretching host */
-#root .cluster .cockpit,
-#root .cluster .center-tach,
-#root .cluster .cockpit-center {
-  max-height: 520px !important;
-  overflow: hidden !important;
-}
-
-/* Keep gauges contained */
+/* Keep drawings contained inside any cluster panel */
 #root .cluster .panel svg,
 #root .cluster .panel canvas {
   width: 100% !important;
