@@ -31,6 +31,8 @@ export default function FerrariCluster({
           "radial-gradient(ellipse at center, rgba(0,0,0,.35), rgba(0,0,0,.65)), repeating-linear-gradient(45deg, #101317 0 6px, #0b0e12 6px 12px)",
       }}
     >
+      <div data-owner="FerrariClusterFull" style={...}>
+
       {/* top cluster row */}
       <div
         style={{
