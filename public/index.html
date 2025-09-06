@@ -10,9 +10,7 @@
     <meta name="theme-color" content="#0d1117" />
     <meta name="color-scheme" content="dark" />
 
-    <!-- ========================= BACKEND CONFIG =========================
-         Set these to your real services. If you don't have WS yet,
-         set __TOS_WS_BASE__ = "" and the client will poll HTTP.      -->
+    <!-- ========================= BACKEND CONFIG ========================= -->
     <script>
       /* Market/quotes backend (already used by the chart layer) */
       window.__API_BASE__ = "https://frye-market-backend-1.onrender.com";
@@ -39,6 +37,33 @@
         } catch (e) {}
       })();
     </script>
+
+    <!-- ==== ZOOM NORMALIZER & DEBUG ==== -->
+    <meta id="vp" name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+    <script>
+      (function () {
+        var probe = document.createElement('div');
+        probe.style.width = '1in';
+        probe.style.height = '1in';
+        probe.style.position = 'absolute';
+        probe.style.left = '-9999px';
+        document.documentElement.appendChild(probe);
+        var cssPPI = probe.offsetWidth || 96;
+        probe.remove();
+        var dpr = window.devicePixelRatio || 1;
+        window.__SCALE_DEBUG__ = { cssPPI: cssPPI, dpr: dpr };
+
+        if (cssPPI > 130 || cssPPI < 80) {
+          var vp = document.getElementById('vp');
+          if (vp) vp.setAttribute('content', 'width=device-width, initial-scale=1, maximum-scale=1');
+          document.documentElement.classList.add('zoom-reset-tmp');
+          setTimeout(function () {
+            document.documentElement.classList.remove('zoom-reset-tmp');
+          }, 50);
+        }
+      })();
+    </script>
+    <!-- ==== END ZOOM NORMALIZER ==== -->
 
     <!-- Optional CSP while developing (loosened). Tighten for prod. -->
     <!--
@@ -79,3 +104,4 @@
     <!-- Your bundler will inject the compiled app script here -->
   </body>
 </html>
+
