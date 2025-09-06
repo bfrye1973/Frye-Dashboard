@@ -193,3 +193,20 @@ div[style*="min-height: 100vh"] {
   max-height: 92vh !important;
   overflow: hidden !important;
 }
+/* Clamp the oversized cluster host that we tagged in the DOM */
+[data-clamp-target="cluster"] {
+  min-height: auto !important;
+  height: 520px !important;
+  max-height: 520px !important;
+  overflow: hidden !important;
+  position: relative;
+}
+
+/* Keep drawings inside */
+[data-clamp-target="cluster"] svg,
+[data-clamp-target="cluster"] canvas {
+  width: 100% !important;
+  height: 100% !important;
+  display: block !important;
+  overflow: hidden !important;
+}
