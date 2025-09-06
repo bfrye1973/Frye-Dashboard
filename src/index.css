@@ -1,6 +1,22 @@
 /* ===============================
    Global Theme & Base Styles
    =============================== */
+/* === Scale/zoom hardeners (safe defaults) === */
+html, body {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  transform: none !important;
+}
+
+html {
+  /* Avoid stray inherited zoom from toolbars or extensions */
+  zoom: 1 !important; /* Chrome-friendly; ignored by Firefox */
+}
+
+.zoom-reset-tmp {
+  /* tiny no-op used to force reflow after viewport change */
+  outline: 0;
+}
 
 :root {
   --bg: #0a0a0a;
