@@ -1,23 +1,23 @@
 /* ===============================
    Global Theme & Base Styles
    =============================== */
-/* === Scale/zoom hardeners (safe defaults) === */
+
+/* --- Scale/zoom hardeners (safe defaults) --- */
 html, body {
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
   transform: none !important;
 }
-
 html {
   /* Avoid stray inherited zoom from toolbars or extensions */
   zoom: 1 !important; /* Chrome-friendly; ignored by Firefox */
 }
-
 .zoom-reset-tmp {
   /* tiny no-op used to force reflow after viewport change */
   outline: 0;
 }
 
+/* --- Theme tokens --- */
 :root {
   --bg: #0a0a0a;
   --panel: #121212;
@@ -33,6 +33,7 @@ html {
   --shadow-2: 0 6px 18px rgba(0,0,0,.35);
 }
 
+/* --- App shell --- */
 html, body, #root {
   margin: 0;
   padding: 0;
@@ -45,6 +46,7 @@ html, body, #root {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* --- Resets / media elements --- */
 * { box-sizing: border-box; }
 img, canvas, svg, video { max-width: 100%; height: auto; display: block; }
 
@@ -52,9 +54,13 @@ img, canvas, svg, video { max-width: 100%; height: auto; display: block; }
 a { color: var(--info); text-decoration: none; }
 a:hover { text-decoration: underline; }
 button {
-  font-family: inherit; color: inherit;
-  background: transparent; border: 1px solid var(--border);
-  padding: 6px 10px; border-radius: 6px; cursor: pointer;
+  font-family: inherit;
+  color: inherit;
+  background: transparent;
+  border: 1px solid var(--border);
+  padding: 6px 10px;
+  border-radius: 6px;
+  cursor: pointer;
 }
 button:hover { border-color: #3d3d3d; }
 
@@ -92,6 +98,9 @@ button:hover { border-color: #3d3d3d; }
 .text-warning { color: var(--warning); }
 .text-info { color: var(--info); }
 
+/* Prevent any full-bleed container from exceeding viewport width */
+body > * { max-width: 100vw !important; }
+
 /* ===============================
    Simple Table (for sectors)
    =============================== */
@@ -107,6 +116,7 @@ button:hover { border-color: #3d3d3d; }
 
 /* ===============================
    Ferrari Cluster Clamp (id="cluster")
+   Keeps gauge drawings inside a fixed pane
    =============================== */
 
 #cluster {
@@ -133,20 +143,6 @@ svg[aria-label="Speed"] {
 }
 
 /* ===============================
-   Global Hard-Stop (no page zoom / no sideways scroll)
-   =============================== */
-
-html, body, #root {
-  zoom: 1 !important;
-  transform: none !important;
-  transform-origin: 50% 0 !important;
-  overflow-x: hidden !important;
-}
-
-/* Prevent any full-bleed container from exceeding viewport width */
-body > * { max-width: 100vw !important; }
-
-/* ===============================
    Chart Price Pane Cap
    =============================== */
 
@@ -156,18 +152,21 @@ body > * { max-width: 100vw !important; }
 }
 
 /* ===============================
-   Optional Dashboard Grid Helpers
+   Dashboard Layout
+   (No forced min-height:100vh — avoids blown-up layout)
    =============================== */
 
 .dashboard-grid {
   display: grid;
-  grid-template-rows: 520px auto 220px;
+  grid-template-rows: 520px auto 220px; /* header (cluster) / content / footer row */
   gap: 12px;
   padding: 12px;
   width: 100%;
-  min-height: 100vh;
+  /* DO NOT force min-height:100vh here */
   background: var(--bg);
 }
+
+/* Optional containment for any chart/cluster box */
 .chart-box {
   position: relative;
   overflow: hidden;
@@ -175,4 +174,22 @@ body > * { max-width: 100vw !important; }
   border-radius: 8px;
   background: #0b0b14;
   box-shadow: var(--shadow-2);
+}
+
+/* ===============================
+   Global Hard-Stop
+   =============================== */
+
+/* Never allow sideways scroll due to wide children */
+html, body, #root {
+  overflow-x: hidden !important;
+  transform-origin: 50% 0 !important;
+}
+
+/* Guard: stop any inline 100vh wrappers from blowing up layout */
+div[style*="min-height: 100vh"] {
+  min-height: auto !important;
+  height: auto !important;
+  max-height: 92vh !important;
+  overflow: hidden !important;
 }
