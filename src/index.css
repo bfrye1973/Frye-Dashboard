@@ -227,3 +227,20 @@ body > div#root > div > div > div.cluster > div.panel.carbon-fiber > div.cockpit
   display: block !important;
   overflow: hidden !important;
 }
+/* Clamp the carbon-fiber cluster panel */
+body > div#root > div > div > div.cluster > div.panel.carbon-fiber {
+  min-height: auto !important;
+  height: 520px !important;
+  max-height: 520px !important;
+  overflow: hidden !important;
+  position: relative;
+}
+
+/* Keep drawings inside */
+body > div#root > div > div > div.cluster > div.panel.carbon-fiber svg,
+body > div#root > div > div > div.cluster > div.panel.carbon-fiber canvas {
+  width: 100% !important;
+  height: 100% !important;
+  display: block !important;
+  overflow: hidden !important;
+}
