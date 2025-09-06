@@ -244,3 +244,30 @@ body > div#root > div > div > div.cluster > div.panel.carbon-fiber canvas {
   display: block !important;
   overflow: hidden !important;
 }
+/* ===== FINAL CLUSTER CLAMP (survives hot reloads) ===== */
+#root .cluster > .panel,
+#root .cluster .panel,
+#root .panel.carbon-fiber {
+  min-height: auto !important;
+  height: 520px !important;
+  max-height: 520px !important;
+  overflow: hidden !important;
+  position: relative;
+}
+
+/* Prevent common inner wrappers from stretching host */
+#root .cluster .cockpit,
+#root .cluster .center-tach,
+#root .cluster .cockpit-center {
+  max-height: 520px !important;
+  overflow: hidden !important;
+}
+
+/* Keep gauges contained */
+#root .cluster .panel svg,
+#root .cluster .panel canvas {
+  width: 100% !important;
+  height: 100% !important;
+  display: block !important;
+  overflow: hidden !important;
+}
