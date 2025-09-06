@@ -1,65 +1,339 @@
-// GaugeCluster.jsx — Top row split into 3 regions: Left InfoStack, Center Big Pair, Right Reserved
+// src/components/GaugeCluster.jsx
+// Ferrari Dashboard — R9.1 (3-region cockpit, default export, no statusFor)
+// Left: compact Market Summary (InfoStack)
+// Middle: ALL GAUGES (2×2 minis + yellow RPM (Breadth) + red SPEED (Momentum) side-by-side)
+// Right: reserved (hidden for now)
+// Gauges panel ~380px; soft-cap (≤520px) handled in public/index.html
+
 import React from "react";
 import { useDashboardPoll } from "../lib/dashboardApi";
 
-/* --- Big Gauge (face is colored by prop) --- */
-function BigGauge({ title, faceColor, angle = 0, kind = "tach" }) {
-  return (
-    <div className={`fg-wrap gauge--${kind} state-neutral`}>
-      <div className="gauge-face" style={{ background: faceColor }}>
-        <div className="ring"></div>
-        <svg className="dial-numerals" viewBox="0 0 100 100" aria-hidden />
-        <div className="needle" style={{ transform: `rotate(${angle}deg)` }} />
-        <div className="hub"></div>
-        <div className="glass"></div>
+/* ---------- helpers ---------- */
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+const mapToDeg = (v, lo, hi) =>
+  -130 + 260 * ((clamp(Number(v ?? NaN), lo, hi) - lo) / (hi - lo || 1));
+
+function timeAgo(ts) {
+  try {
+    const t = new Date(ts).getTime();
+    const s = Math.floor((Date.now() - t) / 1000);
+    if (s < 60) return `${s}s ago`;
+    const m = Math.floor(s / 60);
+    if (m < 60) return `${m}m ago`;
+    return `${Math.floor(m / 60)}h ago`;
+  } catch { return "—"; }
+}
+function freshnessColor(ts) {
+  try {
+    const t = new Date(ts).getTime();
+    const mins = (Date.now() - t) / 60000;
+    if (mins < 15) return "#22c55e";
+    if (mins < 60) return "#f59e0b";
+    return "#ef4444";
+  } catch { return "#6b7280"; }
+}
+function chipClass(verdict = "Neutral") {
+  const v = String(verdict).toLowerCase();
+  if (v.startsWith("bullish")) return "chip-bullish";
+  if (v.startsWith("bearish")) return "chip-bearish";
+  if (v.includes("risk-on"))  return "chip-risk-on";
+  if (v.includes("risk-off")) return "chip-risk-off";
+  return "chip-neutral";
+}
+function barColor(score = 50) {
+  const s = Number(score);
+  if (s >= 65) return "#22c55e";
+  if (s >= 50) return "#84cc16";
+  if (s > 35)  return "#f59e0b";
+  return "#ef4444";
+}
+
+/* ---------- chrome ---------- */
+const Panel = ({ title, children, className = "", style }) => (
+  <div className={`panel ${className}`} style={style}>
+    {title ? (
+      <div className="panel-head">
+        <div className="panel-title">{title}</div>
       </div>
-      <div className="fg-title">{title}</div>
+    ) : null}
+    {children}
+  </div>
+);
+
+const Pill = ({ label, state = "off", icon = "" }) => (
+  <span className={`light ${state}`} aria-label={`${label}: ${state}`}>
+    <span className="light-icon" role="img" aria-hidden>{icon}</span>
+    <span className="light-text">{label}</span>
+  </span>
+);
+
+/* ---------- compact cards (left InfoStack) ---------- */
+function MarketSummaryCard({ summary }) {
+  if (!summary) return <div className="small muted">(no summary)</div>;
+  return (
+    <div style={cardBox}>
+      <div style={{display:"flex", alignItems:"center", gap:8, marginBottom:8}}>
+        <span className={`verdict ${chipClass(summary.verdict)}`} style={{fontWeight:700}}>
+          {summary.verdict}
+        </span>
+        <span className="small muted">score {summary.score}/100</span>
+      </div>
+      <div style={barWrap}>
+        <div style={{...barFill, width: `${Math.max(0, Math.min(100, summary.score))}%`, background: barColor(summary.score)}} />
+      </div>
+      <div className="small muted" style={{display:"grid", gap:4, marginTop:8}}>
+        <span>Breadth: <b>{summary.breadthState}</b> ({summary.breadthIdx})</span>
+        <span>Momentum: <b>{summary.momentumState}</b> ({summary.momentumIdx})</span>
+      </div>
     </div>
   );
 }
 
+/* ---------- DEFAULT EXPORT ---------- */
 export default function GaugeCluster() {
-  const { data } = useDashboardPoll(5000);
-  const summary = data?.summary || {};
+  const { data, loading, error, refresh } = useDashboardPoll(5000);
+  const ts = data?.meta?.ts || null;
+  const freshness = freshnessColor(ts);
+  const summary = data?.summary || null;
 
-  // Map 0–100 indices to ~0–180° sweep (adjust if you have helpers)
-  const rpmAngle   = (summary.breadthIdx  ?? 0) * 1.8;
-  const speedAngle = (summary.momentumIdx ?? 0) * 1.8;
+  // Big gauges — prefer summary; fallback to raw
+  const breadthIdx  = summary?.breadthIdx;
+  const momentumIdx = summary?.momentumIdx;
+  const rpmAngle   = Number.isFinite(breadthIdx)
+    ? mapToDeg(breadthIdx, 0, 100)
+    : mapToDeg(data?.gauges?.rpm,   -1000, 1000);
+
+  const speedAngle = Number.isFinite(momentumIdx)
+    ? mapToDeg(momentumIdx, 0, 100)
+    : mapToDeg(data?.gauges?.speed, -1000, 1000);
+
+  // Engine lights
+  const s = data?.signals || {};
+  const mapSig = (sig) =>
+    !sig || !sig.active ? "off" :
+    String(sig.severity || "info").toLowerCase() === "danger" ? "danger" :
+    String(sig.severity || "").toLowerCase() === "warn" ? "warn" : "ok";
+
+  const lightsRow = [
+    { label: "Breakout",       state: mapSig(s.sigBreakout),     icon: "📈" },
+    { label: "Squeeze",        state: mapSig(s.sigOverheat),     icon: "⏳" },
+    { label: "Overextended",   state: mapSig(s.sigOverextended), icon: "🚀" },
+    { label: "Distribution",   state: mapSig(s.sigDistribution), icon: "📉" },
+    { label: "Divergence",     state: mapSig(s.sigDivergence),   icon: "↔️" },
+    { label: "Risk Alert",     state: mapSig(s.sigOverheat),     icon: "⚡"  },
+    { label: "Liquidity Weak", state: mapSig(s.sigLowLiquidity), icon: "💧" },
+    { label: "Turbo",          state: mapSig(s.sigTurbo),        icon: "⚡"  },
+  ];
 
   return (
-    <section className="cluster panel" data-cluster-host>
-      {/* === TOP COCKPIT ROW (3 REGIONS) === */}
-      <div className="cockpit-row">
-        {/* LEFT: InfoStack */}
-        <div className="cockpit-left">
-          <div className="summary-card">
-            <div className="summary-title">Ferrari Trading Cluster</div>
-            <div className="summary-sub">Live from /api/dashboard</div>
-            <div className="verdict">{summary.verdict ?? "—"}</div>
-            <div className="score-bar">
-              <div className="score-fill" style={{ width: `${summary.score ?? 0}%` }} />
-            </div>
-            <ul className="bullets">
-              <li>Breadth: {summary.breadthIdx ?? "—"}</li>
-              <li>Momentum: {summary.momentumIdx ?? "—"}</li>
-            </ul>
-          </div>
+    <div className="cluster">
+      {/* Header */}
+      <div className="panel" style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+        <div>
+          <div style={{ fontWeight: 700 }}>Ferrari Trading Cluster</div>
+          <div className="small muted">Live from /api/dashboard</div>
         </div>
-
-        {/* CENTER: Big Pair (yellow RPM + red SPEED) */}
-        <div className="cockpit-center">
-          <div className="big-pair">
-            <BigGauge title="RPM (Breadth)"  faceColor="rgb(255,221,0)" angle={rpmAngle}   kind="tach"  />
-            <BigGauge title="SPEED (Momentum)" faceColor="rgb(220,40,40)" angle={speedAngle} kind="speed" />
+        <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+          <span className="build-chip">BUILD R9.1</span>
+          <div className="tag" style={{ border:`1px solid ${freshness}`, display:"flex", gap:8, alignItems:"center", borderRadius:8, padding:"4px 8px" }}>
+            <span style={{ width:8, height:8, borderRadius:999, background:freshness, boxShadow:`0 0 8px ${freshness}` }}/>
+            <span className="small">{ts ? `Updated ${timeAgo(ts)}` : "—"}</span>
           </div>
-        </div>
-
-        {/* RIGHT: Reserved (kept for spacing; hidden content) */}
-        <div className="cockpit-right" aria-hidden="true">
-          <div className="reserved-placeholder">Reserved</div>
+          <button className="btn" onClick={refresh} disabled={loading}>
+            {loading ? "Refreshing…" : "Refresh"}
+          </button>
         </div>
       </div>
-      {/* === /TOP ROW === */}
-    </section>
+
+      {loading && !data ? <div className="panel">Loading…</div> : null}
+      {error                 ? <div className="panel">Error: {String(error)}</div> : null}
+      {!data && !loading && !error ? <div className="panel">No data</div> : null}
+
+      {data ? (
+        <>
+          {/* COCKPIT ROW: Left InfoStack / Middle GaugesCenter / Right Reserved */}
+          <Panel
+            title="Gauges — RPM = Breadth (yellow), SPEED = Momentum (red), WATER = Volatility (°F), OIL = Liquidity (PSI), FUEL = Squeeze Pressure (% + PSI), ALT = Breadth Trend"
+            className="carbon-fiber"
+            style={{ height: 380, maxHeight: 520, overflow: "hidden" }}
+          >
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "380px 1fr 340px",
+                gap: 18,
+                alignItems: "center",
+                justifyItems: "center",
+                justifyContent: "center",
+                height: "100%",
+              }}
+            >
+              {/* LEFT: InfoStack (compact Market Summary now) */}
+              <div style={{ width: "100%", alignSelf: "stretch" }}>
+                <MarketSummaryCard summary={summary} />
+              </div>
+
+              {/* MIDDLE: ALL Gauges (2×2 minis + RPM/SPEED pair) */}
+              <div style={{ width: "100%", height: "100%", display:"grid", gridTemplateRows: "1fr 1fr", alignItems:"center" }}>
+                {/* Row 1 : 2×2 minis */}
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr 1fr",
+                    gap: 10,
+                    justifyItems: "center",
+                    alignItems: "center",
+                  }}
+                >
+                  <MiniGauge label="WATER" caption="Volatility (°F)"      value={data.gauges?.waterTemp} min={160} max={260} />
+                  <MiniGauge label="OIL"   caption="Liquidity (PSI)"      value={data.gauges?.oilPsi}    min={0}   max={120} />
+                  <MiniGauge label="FUEL"  caption="Squeeze Pressure"     value={data.gauges?.fuelPct}   min={0}   max={100}
+                    extra={<div className="mini-psi">PSI {Number.isFinite(Number(data.gauges?.fuelPct)) ? Math.round(data.gauges.fuelPct) : "—"}</div>} />
+                  <MiniGauge label="ALT"   caption="Breadth Trend (ALT)"  value={0}                       min={-100} max={100} />
+                </div>
+
+                {/* Row 2 : RPM + SPEED pair (tight & centered) */}
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr 1fr",
+                    gap: 28,
+                    alignItems: "center",
+                    justifyItems: "center",
+                    maxWidth: 560,
+                    margin: "0 auto",
+                    width: "100%",
+                  }}
+                >
+                  <BigGauge
+                    theme="tach"
+                    label="RPM (Breadth)"
+                    title="Breadth Index (RPM)"
+                    angle={rpmAngle}
+                    withLogo
+                    stateClass={`state-${(data?.lights?.breadth || "neutral")}`}
+                    scale={0.96}
+                  />
+                  <BigGauge
+                    theme="speed"
+                    label="SPEED (Momentum)"
+                    title="Momentum Index (SPEED)"
+                    angle={speedAngle}
+                    stateClass={`state-${(data?.lights?.momentum || "neutral")}`}
+                    scale={0.96}
+                  />
+                </div>
+              </div>
+
+              {/* RIGHT: Reserved (hidden for now) */}
+              <div style={{ display:"none" }} />
+            </div>
+          </Panel>
+
+          {/* Engine Lights */}
+          <Panel title="Engine Lights">
+            <div className="lights">
+              {[
+                { label: "Breakout", icon: "📈" },
+                { label: "Squeeze",  icon: "⏳" },
+                { label: "Overextended", icon: "🚀" },
+                { label: "Distribution", icon: "📉" },
+                { label: "Divergence", icon: "↔️" },
+                { label: "Risk Alert", icon: "⚡" },
+                { label: "Liquidity Weak", icon: "💧" },
+                { label: "Turbo", icon: "⚡" },
+              ].map((L, i) => (
+                <Pill key={`${L.label}-${i}`} label={L.label} state="off" icon={L.icon} />
+              ))}
+            </div>
+          </Panel>
+        </>
+      ) : null}
+    </div>
   );
 }
+
+/* ---------- gauge components ---------- */
+function BigGauge({ theme = "tach", label, title, angle = 0, withLogo = false, stateClass = "", scale = 0.96 }) {
+  const isTach = theme === "tach";
+  const face = isTach ? "#ffdd00" : "#c21a1a";
+  return (
+    <div
+      className={`fg-wrap ${isTach ? "gauge--tach" : "gauge--speed"} ${stateClass}`}
+      style={{ transform: `scale(${scale})`, transformOrigin: "center" }}
+      title={title || label}
+      aria-label={title || label}
+    >
+      <div className="gauge-face" style={{ background: face }}>
+        <div className="ring" />
+        {/* numerals */}
+        <svg className="dial-numerals" viewBox="0 0 200 200" aria-hidden>
+          {(isTach ? Array.from({ length: 10 }, (_, i) => i + 1)
+                   : Array.from({ length: 11 }, (_, i) => (i + 1) * 20)
+          ).map((num, idx, arr) => {
+            const a = -120 + (idx / (arr.length - 1)) * 240;
+            const r = 77, rad = (a - 90) * Math.PI / 180;
+            const x = 100 + r * Math.cos(rad), y = 100 + r * Math.sin(rad);
+            return (
+              <text key={idx} x={x} y={y} className={`numeral ${isTach ? "tach" : "speed"}`} textAnchor="middle" dominantBaseline="central">
+                {num}
+              </text>
+            );
+          })}
+        </svg>
+        <div className="needle" style={{ transform:`rotate(${angle}deg)`, transition:"transform .35s ease-out" }} />
+        <div className="hub" />
+        <div className="glass" />
+      </div>
+      <div className="fg-title">{label}</div>
+    </div>
+  );
+}
+
+function MiniGauge({ label, caption, value, min = 0, max = 100, scale = 1.0, extra = null }) {
+  const hasVal = Number.isFinite(Number(value));
+  const deg = hasVal ? mapToDeg(value, min, max) : 0;
+  const txt =
+    label === "FUEL"  ? `${hasVal ? Math.round(value) : "—"} %`  :
+    label === "OIL"   ? `${hasVal ? Math.round(value) : "—"} psi`:
+    label === "WATER" ? `${hasVal ? Math.round(value) : "—"}°F`  :
+                        (hasVal ? Math.round(value) : "—");
+  return (
+    <div className="mini" style={{ transform:`scale(${scale})`, transformOrigin:"center" }} title={caption || label} aria-label={caption || label}>
+      <div className="mini-face">
+        <div className="mini-needle" style={{ transform:`rotate(${deg}deg)` }} />
+        <div className="mini-hub" />
+      </div>
+      <div className="readout-row" style={{ textAlign:"center" }}>
+        <div className="readout">{txt}</div>
+        {extra}
+        <div className="mini-title" style={{ opacity:.85 }}>
+          {label} {caption ? <span className="small muted" style={{ marginLeft:6 }}>({caption})</span> : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ---------- small widgets ---------- */
+const cardBox = {
+  border: "1px solid #1f2a44",
+  borderRadius: 12,
+  padding: 12,
+  background: "#0e1526",
+};
+const barWrap = {
+  position: "relative",
+  height: 10,
+  background: "#0b1220",
+  border: "1px solid #334155",
+  borderRadius: 6,
+  overflow: "hidden",
+};
+const barFill = {
+  position: "absolute",
+  left: 0,
+  top: 0,
+  bottom: 0,
+  borderRadius: 6,
+};
