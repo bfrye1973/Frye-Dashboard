@@ -9,23 +9,25 @@
     <title>Frye Dashboard</title>
     <meta name="theme-color" content="#0d1117" />
     <meta name="color-scheme" content="dark" />
+    <!-- marker to confirm we’re editing the real file -->
+    <meta name="Frye-Marker" content="public-index-soft-cap-v1" />
 
     <!-- ========================= BACKEND CONFIG ========================= -->
     <script>
-      window.__API_BASE__ = "https://frye-market-backend-1.onrender.com";
-      window.__TOS_BASE__ = "https://frye-market-backend-1.onrender.com";
-      window.__TOS_WS_BASE__ = "wss://frye-market-backend-1.onrender.com";
-      window.__TOS_TOKEN__ = "";
+      window.__API_BASE__   = "https://frye-market-backend-1.onrender.com";
+      window.__TOS_BASE__   = "https://frye-market-backend-1.onrender.com";
+      window.__TOS_WS_BASE__= "wss://frye-market-backend-1.onrender.com";
+      window.__TOS_TOKEN__  = "";
 
       (function () {
         const tag = "%c[BOOT]";
         const style = "color:#22d3ee;font-weight:700";
         try {
           console.log(tag, style, "Frye Dashboard");
-          console.log("%c API_BASE     ", "color:#a3e635", window.__API_BASE__ || "(unset)");
-          console.log("%c TOS_BASE     ", "color:#a3e635", window.__TOS_BASE__ || "(unset)");
-          console.log("%c TOS_WS_BASE  ", "color:#a3e635", window.__TOS_WS_BASE__ || "(unset)");
-          console.log("%c TOS_TOKEN    ", "color:#a3e635", window.__TOS_TOKEN__ ? "(provided)" : "(none)");
+          console.log("%c API_BASE     ", "color:#a3e635", window.__API_BASE__   || "(unset)");
+          console.log("%c TOS_BASE     ", "color:#a3e635", window.__TOS_BASE__   || "(unset)");
+          console.log("%c TOS_WS_BASE  ", "color:#a3e635", window.__TOS_WS_BASE__|| "(unset)");
+          console.log("%c TOS_TOKEN    ", "color:#a3e635", window.__TOS_TOKEN__  ? "(provided)" : "(none)");
         } catch (e) {}
       })();
     </script>
@@ -49,15 +51,13 @@
           var vp = document.getElementById('vp');
           if (vp) vp.setAttribute('content', 'width=device-width, initial-scale=1, maximum-scale=1');
           document.documentElement.classList.add('zoom-reset-tmp');
-          setTimeout(function () {
-            document.documentElement.classList.remove('zoom-reset-tmp');
-          }, 50);
+          setTimeout(function () { document.documentElement.classList.remove('zoom-reset-tmp'); }, 50);
         }
       })();
     </script>
     <!-- ==== END ZOOM NORMALIZER ==== -->
 
-    <!-- ==== ANTI-100VH INLINE SANITIZER ==== -->
+    <!-- ==== ANTI-100VH INLINE SANITIZER (safe to keep) ==== -->
     <script>
       (function() {
         function scrub(el) {
@@ -74,7 +74,7 @@
           } catch(_) {}
         }
         document.querySelectorAll("*[style]").forEach(scrub);
-        var mo = new MutationObserver(function(muts){
+        new MutationObserver(function(muts){
           for (var i=0;i<muts.length;i++){
             var m = muts[i];
             if (m.type === "attributes" && m.attributeName === "style") {
@@ -88,42 +88,54 @@
               });
             }
           }
-        });
-        mo.observe(document.documentElement, {
+        }).observe(document.documentElement, {
           subtree: true, childList: true, attributes: true, attributeFilter: ["style"]
         });
       })();
     </script>
     <!-- ==== END ANTI-100VH INLINE SANITIZER ==== -->
 
-    <!-- ==== CLAMP TOP CLUSTER FAILSAFE ==== -->
+    <!-- ===== Ferrari Cluster SOFT CAP (no fixed height) ===== -->
+    <style id="cluster-clamp">
+      /* Let the panel render naturally; cap growth at 520px */
+      [data-cluster-host] {
+        min-height: auto !important;
+        height: auto !important;
+        max-height: 520px !important;
+        overflow: hidden !important;
+        position: relative;
+      }
+      /* Contain dial drawings inside the host */
+      [data-cluster-host] svg,
+      [data-cluster-host] canvas {
+        width: 100% !important;
+        height: 100% !important;
+        display: block !important;
+        overflow: hidden !important;
+      }
+    </style>
     <script>
+      /* Auto-tag the real cluster host on load + re-renders */
       (function () {
-        function clampTopCluster() {
-          var root = document.getElementById('root');
-          if (!root) return;
-          var cand = Array.from(root.querySelectorAll('div, section, article, main'));
-          var best = null, bestArea = 0;
-          var vw = window.innerWidth, vh = window.innerHeight;
-          cand.forEach(function (el) {
-            var r = el.getBoundingClientRect();
-            if (r.top < 400 && r.width > vw * 0.6 && r.height > 560) {
-              var area = r.width * r.height;
-              if (area > bestArea) { bestArea = area; best = el; }
-            }
-          });
-          if (best) {
-            best.style.setProperty('max-height', '520px', 'important');
-            best.style.setProperty('height', '520px', 'important');
-            best.style.setProperty('overflow', 'hidden', 'important');
+        function tagClusterHost(){
+          var cand = Array.from(document.querySelectorAll("div,section,main,article"))
+            .map(function(el){ var r = el.getBoundingClientRect(); return { el: el, r: r, a: r.width * r.height }; })
+            .filter(function(x){ return x.r.top < 350 && x.r.height > 200 && x.r.width > innerWidth * 0.6; })
+            .sort(function(a,b){ return b.a - a.a; })[0];
+          if (cand && !cand.el.hasAttribute("data-cluster-host")) {
+            cand.el.setAttribute("data-cluster-host", "");
           }
         }
-        window.addEventListener('load', clampTopCluster);
-        new MutationObserver(function () { clampTopCluster(); })
-          .observe(document.documentElement, { subtree: true, childList: true });
+        if (document.readyState === "loading") {
+          document.addEventListener("DOMContentLoaded", tagClusterHost);
+        } else {
+          tagClusterHost();
+        }
+        new MutationObserver(tagClusterHost)
+          .observe(document.documentElement, { subtree:true, childList:true });
       })();
     </script>
-    <!-- ==== END CLAMP TOP CLUSTER FAILSAFE ==== -->
+    <!-- ===== END SOFT CAP ===== -->
 
     <style>
       html, body, #root { height: 100%; }
