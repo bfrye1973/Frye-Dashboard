@@ -67,7 +67,7 @@ const Pill = ({ label, state = "off", icon = "" }) => (
   </span>
 );
 
-/* ---------- compact cards (left InfoStack) ---------- */
+/* ---------- compact card (left InfoStack) ---------- */
 function MarketSummaryCard({ summary }) {
   if (!summary) return <div className="small muted">(no summary)</div>;
   return (
@@ -164,7 +164,7 @@ export default function GaugeCluster() {
                 gap: 18,
                 alignItems: "center",
                 justifyItems: "center",
-                justifyContent: "center",
+                justifyContent: "center",  // ✅ centers the entire row
                 height: "100%",
               }}
             >
@@ -200,9 +200,9 @@ export default function GaugeCluster() {
                     gap: 28,
                     alignItems: "center",
                     justifyItems: "center",
-                    maxWidth: 560,
-                    margin: "0 auto",
-                    width: "100%",
+                    maxWidth: 560,     // ✅ keeps the pair tight
+                    margin: "0 auto",  // ✅ centers the pair block
+                    width: "100%",     // ✅ avoids shrinking issues
                   }}
                 >
                   <BigGauge
