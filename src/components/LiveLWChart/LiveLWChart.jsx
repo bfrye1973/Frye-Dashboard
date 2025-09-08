@@ -1,6 +1,7 @@
 // src/components/LiveLWChart/LiveLWChart.jsx
 // Lightweight Charts: price + optional squeeze/SMI/volume panes
 // - Guards around feed/indicators so one bad module can't crash the app.
+// - Adds scaleMargins to avoid clipped wicks and gives the price series an explicit right price scale.
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createChart } from "lightweight-charts";
@@ -54,27 +55,66 @@ export default function LiveLWChart({
     const w = wrapperRef.current?.clientWidth ?? 800;
 
     if (priceRef.current && !priceChartRef.current) {
-      const chart = createChart(priceRef.current, { ...baseChartOptions, height: heights.price, width: w });
+      const chart = createChart(priceRef.current, {
+        ...baseChartOptions,
+        height: heights.price,
+        width: w,
+        rightPriceScale: {
+          // show on right and give vertical headroom for wicks
+          visible: true,
+          scaleMargins: { top: 0.20, bottom: 0.12 },
+        },
+      });
       priceChartRef.current = chart;
-      const price = chart.addCandlestickSeries();
+
+      // attach candlesticks to the explicit right scale
+      const price = chart.addCandlestickSeries({ priceScaleId: "right" });
       priceSeriesRef.current = price;
+
       chart._container   = priceRef.current;
       chart._priceSeries = priceSeriesRef.current;
     }
+
     if (squeezeRef.current && !squeezeChartRef.current) {
-      const chart = createChart(squeezeRef.current, { ...baseChartOptions, height: heights.squeeze, width: w, rightPriceScale: { visible: true } });
+      const chart = createChart(squeezeRef.current, {
+        ...baseChartOptions,
+        height: heights.squeeze,
+        width: w,
+        rightPriceScale: {
+          visible: true,
+          scaleMargins: { top: 0.20, bottom: 0.12 },
+        },
+      });
       squeezeChartRef.current = chart;
       chart._container = squeezeRef.current;
       chart._priceSeries = null;
     }
+
     if (smiRef.current && !smiChartRef.current) {
-      const chart = createChart(smiRef.current, { ...baseChartOptions, height: heights.smi, width: w, rightPriceScale: { visible: true } });
+      const chart = createChart(smiRef.current, {
+        ...baseChartOptions,
+        height: heights.smi,
+        width: w,
+        rightPriceScale: {
+          visible: true,
+          scaleMargins: { top: 0.20, bottom: 0.12 },
+        },
+      });
       smiChartRef.current = chart;
       chart._container = smiRef.current;
       chart._priceSeries = null;
     }
+
     if (volRef.current && !volChartRef.current) {
-      const chart = createChart(volRef.current, { ...baseChartOptions, height: heights.vol, width: w, rightPriceScale: { visible: true } });
+      const chart = createChart(volRef.current, {
+        ...baseChartOptions,
+        height: heights.vol,
+        width: w,
+        rightPriceScale: {
+          visible: true,
+          scaleMargins: { top: 0.20, bottom: 0.12 },
+        },
+      });
       volChartRef.current = chart;
       chart._container = volRef.current;
       chart._priceSeries = null;
@@ -97,10 +137,10 @@ export default function LiveLWChart({
     if (!wrapperRef.current) return;
     const ro = new ResizeObserver(() => {
       const w = wrapperRef.current?.clientWidth ?? 800;
-      try { priceChartRef.current?.resize(w, Math.min(heights.price, 520)); }                       catch {}
+      try { priceChartRef.current?.resize(w, Math.min(heights.price, 520)); } catch {}
       try { squeezeChartRef.current?.resize(w, needSqueeze ? heights.squeeze : 0); } catch {}
-      try { smiChartRef.current?.resize(w, needSMI ? heights.smi : 0); }             catch {}
-      try { volChartRef.current?.resize(w, needVol ? heights.vol : 0); }             catch {}
+      try { smiChartRef.current?.resize(w, needSMI ? heights.smi : 0); } catch {}
+      try { volChartRef.current?.resize(w, needVol ? heights.vol : 0); } catch {}
     });
     ro.observe(wrapperRef.current);
     return () => { try { ro.disconnect(); } catch {} };
@@ -165,10 +205,10 @@ export default function LiveLWChart({
         priceSeriesRef.current.setData(seed);
         setCandles(seed);
 
-        if (priceChartRef.current)  priceChartRef.current._candles  = seed;
+        if (priceChartRef.current)   priceChartRef.current._candles   = seed;
         if (squeezeChartRef.current) squeezeChartRef.current._candles = seed;
-        if (smiChartRef.current)      smiChartRef.current._candles      = seed;
-        if (volChartRef.current)      volChartRef.current._candles      = seed;
+        if (smiChartRef.current)     smiChartRef.current._candles     = seed;
+        if (volChartRef.current)     volChartRef.current._candles     = seed;
 
         try { onCandles?.(seed); } catch {}
       } catch {}
@@ -331,7 +371,7 @@ export default function LiveLWChart({
   const hide = { display: "none" };
   const btnMini = {
     padding: "2px 6px", borderRadius: 6, fontSize: 12,
-    background: "#0b1220", color: "#e5e7eb", border: "1px solid #334155", cursor: "pointer"
+    background: "#0b1220", color: "#e5e7eb", border: "1px solid "#334155", cursor: "pointer"
   };
   const PaneHeader = ({ label, onInc, onDec }) => (
     <div style={{ position: "absolute", left: 6, top: 6, zIndex: 10, display: "flex", gap: 8, alignItems: "center" }}>
