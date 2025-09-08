@@ -1,11 +1,11 @@
 // src/components/GaugeCluster.jsx
-// Ferrari Dashboard — R9.1 (3-region cockpit, default export, no statusFor)
+// Ferrari Dashboard — R9.1 (3-region cockpit, lastGood fallback, default export)
 // Left: compact Market Summary (InfoStack)
 // Middle: ALL GAUGES (2×2 minis + yellow RPM (Breadth) + red SPEED (Momentum) side-by-side, centered tight)
 // Right: reserved (hidden for now)
 // Gauges panel ~380px; soft-cap (≤520px) handled in public/index.html
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { useDashboardPoll } from "../lib/dashboardApi";
 
 /* ---------- helpers ---------- */
@@ -85,20 +85,28 @@ function MarketSummaryCard({ summary }) {
 /* ---------- DEFAULT EXPORT ---------- */
 export default function GaugeCluster() {
   const { data, loading, error, refresh } = useDashboardPoll(5000);
-  const ts = data?.meta?.ts || null;
+
+  // Keep last good payload so gauges don't disappear on a temporary 500
+  const [lastGood, setLastGood] = useState(null);
+  useEffect(() => {
+    if (data) setLastGood(data);
+  }, [data]);
+
+  const working = data || lastGood || null; // <- cockpit uses this
+  const ts = working?.meta?.ts || null;
   const freshness = freshnessColor(ts);
-  const summary = data?.summary || null;
+  const summary = working?.summary || null;
 
   // Big gauges — prefer summary; fallback to raw
   const breadthIdx  = summary?.breadthIdx;
   const momentumIdx = summary?.momentumIdx;
   const rpmAngle   = Number.isFinite(breadthIdx)
     ? mapToDeg(breadthIdx, 0, 100)
-    : mapToDeg(data?.gauges?.rpm,   -1000, 1000);
+    : mapToDeg(working?.gauges?.rpm,   -1000, 1000);
 
   const speedAngle = Number.isFinite(momentumIdx)
     ? mapToDeg(momentumIdx, 0, 100)
-    : mapToDeg(data?.gauges?.speed, -1000, 1000);
+    : mapToDeg(working?.gauges?.speed, -1000, 1000);
 
   return (
     <div className="cluster">
@@ -107,6 +115,7 @@ export default function GaugeCluster() {
         <div>
           <div style={{ fontWeight: 700 }}>Ferrari Trading Cluster</div>
           <div className="small muted">Live from /api/dashboard</div>
+          {error ? <div className="small text-danger" style={{marginTop:6}}>Error: {String(error?.message || error)}</div> : null}
         </div>
         <div style={{ display:"flex", gap:8, alignItems:"center" }}>
           <span className="build-chip">BUILD R9.1</span>
@@ -120,11 +129,14 @@ export default function GaugeCluster() {
         </div>
       </div>
 
-      {loading && !data ? <div className="panel">Loading…</div> : null}
-      {error                 ? <div className="panel">Error: {String(error)}</div> : null}
-      {!data && !loading && !error ? <div className="panel">No data</div> : null}
-
-      {data ? (
+      {/* If never received a good payload yet, show a friendly placeholder */}
+      {!working ? (
+        <Panel title="Gauges" className="carbon-fiber" style={{ height: 280, maxHeight: 520 }}>
+          <div style={{display:"grid", placeItems:"center", height:"100%", color:"#93a3b8"}}>
+            (Waiting for data…)
+          </div>
+        </Panel>
+      ) : (
         <>
           {/* COCKPIT ROW: Left InfoStack / Middle GaugesCenter / Right Reserved */}
           <Panel
@@ -139,7 +151,7 @@ export default function GaugeCluster() {
                 gap: 18,
                 alignItems: "center",
                 justifyItems: "center",
-                justifyContent: "center",   // centers the entire row
+                justifyContent: "center",  // centers the entire row
                 height: "100%",
               }}
             >
@@ -160,11 +172,11 @@ export default function GaugeCluster() {
                     alignItems: "center",
                   }}
                 >
-                  <MiniGauge label="WATER" caption="Volatility (°F)"      value={data.gauges?.waterTemp} min={160} max={260} />
-                  <MiniGauge label="OIL"   caption="Liquidity (PSI)"      value={data.gauges?.oilPsi}    min={0}   max={120} />
-                  <MiniGauge label="FUEL"  caption="Squeeze Pressure"     value={data.gauges?.fuelPct}   min={0}   max={100}
-                    extra={<div className="mini-psi">PSI {Number.isFinite(Number(data.gauges?.fuelPct)) ? Math.round(data.gauges.fuelPct) : "—"}</div>} />
-                  <MiniGauge label="ALT"   caption="Breadth Trend (ALT)"  value={0}                       min={-100} max={100} />
+                  <MiniGauge label="WATER" caption="Volatility (°F)"      value={working?.gauges?.waterTemp} min={160} max={260} />
+                  <MiniGauge label="OIL"   caption="Liquidity (PSI)"      value={working?.gauges?.oilPsi}    min={0}   max={120} />
+                  <MiniGauge label="FUEL"  caption="Squeeze Pressure"     value={working?.gauges?.fuelPct}   min={0}   max={100}
+                    extra={<div className="mini-psi">PSI {Number.isFinite(Number(working?.gauges?.fuelPct)) ? Math.round(working?.gauges?.fuelPct) : "—"}</div>} />
+                  <MiniGauge label="ALT"   caption="Breadth Trend (ALT)"  value={0}                           min={-100} max={100} />
                 </div>
 
                 {/* Row 2 : RPM + SPEED pair (tight & centered) */}
@@ -176,7 +188,7 @@ export default function GaugeCluster() {
                     alignItems: "center",
                     justifyItems: "center",
                     maxWidth: 560,     // keeps the pair tight
-                    margin: "0 auto",  // centers as a block
+                    margin: "0 auto",  // centers the pair block
                     width: "100%",
                   }}
                 >
@@ -186,7 +198,7 @@ export default function GaugeCluster() {
                     title="Breadth Index (RPM)"
                     angle={rpmAngle}
                     withLogo
-                    stateClass={`state-${(data?.lights?.breadth || "neutral")}`}
+                    stateClass={`state-${(working?.lights?.breadth || "neutral")}`}
                     scale={0.96}
                   />
                   <BigGauge
@@ -194,7 +206,7 @@ export default function GaugeCluster() {
                     label="SPEED (Momentum)"
                     title="Momentum Index (SPEED)"
                     angle={speedAngle}
-                    stateClass={`state-${(data?.lights?.momentum || "neutral")}`}
+                    stateClass={`state-${(working?.lights?.momentum || "neutral")}`}
                     scale={0.96}
                   />
                 </div>
@@ -205,7 +217,7 @@ export default function GaugeCluster() {
             </div>
           </Panel>
         </>
-      ) : null}
+      )}
     </div>
   );
 }
