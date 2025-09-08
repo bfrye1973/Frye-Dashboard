@@ -11,6 +11,9 @@ import EngineLightsPanel from "./components/EngineLightsPanel";
 import SectorsGrid from "./components/SectorsGrid";
 import StrategiesPanel from "./components/StrategiesPanel";
 import ChartSection from "./components/ChartSection";
+// DEBUG: build marker — remove after you confirm things are updating
+const __BUILD_TS__ = new Date().toISOString();
+console.log("APP build:", __BUILD_TS__);
 
 /* --- App --- */
 export default function App() {
