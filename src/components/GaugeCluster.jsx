@@ -3,6 +3,7 @@
 // Left: compact Market Summary (InfoStack)
 // Middle: ALL GAUGES (2×2 minis + yellow RPM (Breadth) + red SPEED (Momentum) side-by-side, centered tight)
 // Right: reserved (hidden for now)
+// Engine Lights: pills restored (state by severity)
 // Gauges panel ~380px; soft-cap (≤520px) handled in public/index.html
 
 import React, { useEffect, useState } from "react";
@@ -60,6 +61,14 @@ const Panel = ({ title, children, className = "", style }) => (
   </div>
 );
 
+/* Basic pill for engine lights */
+const Pill = ({ label, state = "off", icon = "" }) => (
+  <span className={`light ${state}`} aria-label={`${label}: ${state}`} style={{display:"inline-flex", gap:6, alignItems:"center", marginRight:10}}>
+    <span role="img" aria-hidden>{icon}</span>
+    <span>{label}</span>
+  </span>
+);
+
 /* ---------- compact card (left InfoStack) ---------- */
 function MarketSummaryCard({ summary }) {
   if (!summary) return <div className="small muted">(no summary)</div>;
@@ -86,27 +95,40 @@ function MarketSummaryCard({ summary }) {
 export default function GaugeCluster() {
   const { data, loading, error, refresh } = useDashboardPoll(5000);
 
-  // Keep last good payload so gauges don't disappear on a temporary 500
+  // Keep last good payload so gauges don't vanish on temporary 500s
   const [lastGood, setLastGood] = useState(null);
-  useEffect(() => {
-    if (data) setLastGood(data);
-  }, [data]);
+  useEffect(() => { if (data) setLastGood(data); }, [data]);
 
-  const working = data || lastGood || null; // <- cockpit uses this
+  const working = data || lastGood || null;
+
+  // Header freshness timestamp
   const ts = working?.meta?.ts || null;
   const freshness = freshnessColor(ts);
-  const summary = working?.summary || null;
+
+  // Summary & odometers/lights/gauges
+  const summary    = working?.summary || {};
+  const odometers  = working?.odometers || {};
+  const gauges     = working?.gauges || {};
+  const lights     = working?.signals || {};
 
   // Big gauges — prefer summary; fallback to raw
   const breadthIdx  = summary?.breadthIdx;
   const momentumIdx = summary?.momentumIdx;
   const rpmAngle   = Number.isFinite(breadthIdx)
     ? mapToDeg(breadthIdx, 0, 100)
-    : mapToDeg(working?.gauges?.rpm,   -1000, 1000);
-
+    : mapToDeg(gauges?.rpm,   -1000, 1000);
   const speedAngle = Number.isFinite(momentumIdx)
     ? mapToDeg(momentumIdx, 0, 100)
-    : mapToDeg(working?.gauges?.speed, -1000, 1000);
+    : mapToDeg(gauges?.speed, -1000, 1000);
+
+  // Engine-lights mapping
+  const mapSig = (sig) => {
+    if (!sig || !sig.active) return "off";
+    const sev = String(sig.severity || "").toLowerCase();
+    if (sev === "danger") return "danger";
+    if (sev === "warn")   return "warn";
+    return "ok";
+  };
 
   return (
     <div className="cluster">
@@ -129,7 +151,7 @@ export default function GaugeCluster() {
         </div>
       </div>
 
-      {/* If never received a good payload yet, show a friendly placeholder */}
+      {/* If never received a good payload yet, show a small placeholder */}
       {!working ? (
         <Panel title="Gauges" className="carbon-fiber" style={{ height: 280, maxHeight: 520 }}>
           <div style={{display:"grid", placeItems:"center", height:"100%", color:"#93a3b8"}}>
@@ -172,11 +194,11 @@ export default function GaugeCluster() {
                     alignItems: "center",
                   }}
                 >
-                  <MiniGauge label="WATER" caption="Volatility (°F)"      value={working?.gauges?.waterTemp} min={160} max={260} />
-                  <MiniGauge label="OIL"   caption="Liquidity (PSI)"      value={working?.gauges?.oilPsi}    min={0}   max={120} />
-                  <MiniGauge label="FUEL"  caption="Squeeze Pressure"     value={working?.gauges?.fuelPct}   min={0}   max={100}
-                    extra={<div className="mini-psi">PSI {Number.isFinite(Number(working?.gauges?.fuelPct)) ? Math.round(working?.gauges?.fuelPct) : "—"}</div>} />
-                  <MiniGauge label="ALT"   caption="Breadth Trend (ALT)"  value={0}                           min={-100} max={100} />
+                  <MiniGauge label="WATER" caption="Volatility (°F)"      value={gauges?.waterTemp} min={160} max={260} />
+                  <MiniGauge label="OIL"   caption="Liquidity (PSI)"      value={gauges?.oilPsi}    min={0}   max={120} />
+                  <MiniGauge label="FUEL"  caption="Squeeze Pressure"     value={gauges?.fuelPct}   min={0}   max={100}
+                    extra={<div className="mini-psi">PSI {Number.isFinite(Number(gauges?.fuelPct)) ? Math.round(gauges?.fuelPct) : "—"}</div>} />
+                  <MiniGauge label="ALT"   caption="Breadth Trend (ALT)"  value={0}                   min={-100} max={100} />
                 </div>
 
                 {/* Row 2 : RPM + SPEED pair (tight & centered) */}
@@ -188,7 +210,7 @@ export default function GaugeCluster() {
                     alignItems: "center",
                     justifyItems: "center",
                     maxWidth: 560,     // keeps the pair tight
-                    margin: "0 auto",  // centers the pair block
+                    margin: "0 auto",  // centers as a block
                     width: "100%",
                   }}
                 >
@@ -214,6 +236,29 @@ export default function GaugeCluster() {
 
               {/* RIGHT: Reserved (hidden for now) */}
               <div style={{ display:"none" }} />
+            </div>
+          </Panel>
+
+          {/* ===== Engine Lights (restored) ===== */}
+          <Panel title="Engine Lights">
+            <div style={{display:"flex", flexWrap:"wrap", gap:10}}>
+              {[
+                { key: "sigBreakout",      label: "Breakout",       icon: "📈" },
+                { key: "sigOverheat",      label: "Squeeze",        icon: "⏳" },
+                { key: "sigOverextended",  label: "Overextended",   icon: "🚀" },
+                { key: "sigDistribution",  label: "Distribution",   icon: "📉" },
+                { key: "sigDivergence",    label: "Divergence",     icon: "↔️" },
+                { key: "sigRiskAlert",     label: "Risk Alert",     icon: "⚡" },
+                { key: "sigLowLiquidity",  label: "Liquidity Weak", icon: "💧" },
+                { key: "sigTurbo",         label: "Turbo",          icon: "⚡" },
+              ].map((it) => (
+                <Pill
+                  key={it.key}
+                  label={it.label}
+                  icon={it.icon}
+                  state={mapSig(lights?.[it.key])}
+                />
+              ))}
             </div>
           </Panel>
         </>
