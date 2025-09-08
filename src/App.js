@@ -1,19 +1,23 @@
-// src/App.js — Top: DashboardTop; Row2: controls + table; Row3: full-width chart
+// src/App.js — 3 rows: DashboardTop, Controls+Gauges table, Full-width ChartSection
 import React, { useMemo, useState, useEffect } from "react";
 
-// Components
-import DashboardTop from "./components/DashboardTop";                // new top (meter + tiles)
-import LiveLWChart from "./components/LiveLWChart/LiveLWChart";
+// Top (beginner-friendly): Market Meter + KPI Tiles (modes)
+import DashboardTop from "./components/DashboardTop";
+
+// Middle: Market table
 import GaugesPanel from "./components/GaugesPanel";
 
-// Services
+// Bottom: Chart section (isolated)
+import ChartSection from "./components/ChartSection";
+
+// Services (optional prefetch for GaugesPanel)
 import { getGauges } from "./services/gauges";
 
 export default function App() {
   /* ---------------- Symbol / timeframe ---------------- */
   const [symbol, setSymbol] = useState("SPY");
   const [timeframe, setTimeframe] = useState("1D");
-  const [candles, setCandles] = useState([]); // required by LiveLWChart.onCandles
+  const [candles, setCandles] = useState([]); // LiveLWChart will push bars here
 
   /* ---------------- Indicators ---------------- */
   const [enabled, setEnabled] = useState({
@@ -49,7 +53,7 @@ export default function App() {
   const symbols = useMemo(() => ["SPY","QQQ","AAPL","MSFT","NVDA","TSLA","META","AMZN"], []);
   const tfs     = useMemo(() => ["1m","10m","1H","1D"], []);
 
-  // (Optional) Pre-fetch for table’s first row (table can fetch itself; safe to keep)
+  // Optional: prefetch a row for GaugesPanel (table can also fetch itself)
   const [gaugesRow, setGaugesRow] = useState(null);
   useEffect(() => {
     let live = true;
@@ -63,21 +67,35 @@ export default function App() {
     return () => { live = false; };
   }, [symbol]);
 
-  /* ---------------- Styles ---------------- */
-  const page   = { minHeight:"100vh", background:"#0d1117", color:"#d1d4dc", display:"grid", gap:12, padding:"12px" };
+  /* ------------ Layout styles (3 rows) ------------ */
+  const page = {
+    minHeight: "100vh",
+    background: "#0d1117",
+    color: "#d1d4dc",
+    display: "grid",
+    gap: 12,
+    padding: "12px",
+  };
 
-  // Row 2: controls (left) + Market Gauges table (right)
-  const row2   = { display:"grid", gridTemplateColumns:"320px 1fr", gap:12, alignItems:"start" };
+  // Row 2: two columns: Controls | Market Gauges
+  const row2 = {
+    display: "grid",
+    gridTemplateColumns: "320px 1fr",
+    gap: 12,
+    alignItems: "start",
+  };
 
   const panel  = { border:"1px solid #1f2a44", borderRadius:12, padding:10, background:"#0e1526", marginBottom:12 };
   const label  = { fontSize:12, opacity:0.85, marginBottom:6, display:"block" };
   const rowCtl = { display:"flex", gap:6, alignItems:"center", flexWrap:"wrap" };
-
-  const btn = (active) => ({
-    padding:"6px 10px", borderRadius:8,
+  const btn    = (active) => ({
+    padding:"6px 10px",
+    borderRadius:8,
     border: active ? "1px solid #60a5fa" : "1px solid #334155",
     background: active ? "#111827" : "#0b1220",
-    color:"#e5e7eb", cursor:"pointer", fontSize:12
+    color:"#e5e7eb",
+    cursor:"pointer",
+    fontSize:12
   });
   const select = {
     width:"100%", padding:"8px 10px", borderRadius:8,
@@ -86,16 +104,15 @@ export default function App() {
   };
 
   const tablePanel = { border:"1px solid #1b2130", borderRadius:12, overflow:"hidden" };
-  const chartPanel = { border:"1px solid #1b2130", borderRadius:12, overflow:"hidden" };
 
   return (
     <div style={page}>
-      {/* Row 1: Beginner-friendly top (Meter + Tiles) */}
+      {/* Row 1: Beginner-friendly top (Market Meter + Tiles / modes) */}
       <DashboardTop />
 
       {/* Row 2: Controls (left) + Market Gauges table (right) */}
       <div style={row2}>
-        {/* Left: controls */}
+        {/* --- Controls --- */}
         <div>
           <div style={panel}>
             <span style={label}>Symbol</span>
@@ -139,23 +156,22 @@ export default function App() {
           </div>
         </div>
 
-        {/* Right: Market Gauges table */}
+        {/* --- Market Gauges table --- */}
         <div style={tablePanel}>
           <GaugesPanel defaultIndex={symbol} />
         </div>
       </div>
 
-      {/* Row 3: Full-width Chart at bottom */}
-      <div style={chartPanel}>
-        <LiveLWChart
-          symbol={symbol}
-          timeframe={timeframe}
-          height={520}
-          enabledIndicators={enabledIndicators}
-          indicatorSettings={settings}
-          onCandles={setCandles}
-        />
-      </div>
+      {/* Row 3: Full-width ChartSection (chart in its own section) */}
+      <ChartSection
+        symbol={symbol}
+        timeframe={timeframe}
+        height={560}
+        enabledIndicators={enabledIndicators}
+        settings={settings}
+        onCandles={setCandles}
+        title="Price Chart"
+      />
     </div>
   );
 }
