@@ -1,171 +1,85 @@
 // src/services/feed.js
-// Robust backend OHLC with mock fallback + on-screen debug
-// Auto-detects shapes: array<obj>, {data|results|bars|candles: []},
-// column arrays {t,o,h,l,c,v}, or array-of-arrays [t,o,h,l,c,(v)].
+// Minimal OHLC feed adapter for Lightweight Charts (history + poll).
+// Calls backend /api/v1/ohlc with clean timeframe normalization.
 
-function normalizeTf(tf = "1D") {
+const API_BASE = (window.__API_BASE__ || "").replace(/\/+$/, ""); // strip trailing slashes
+const OHLC_PATH = "/api/v1/ohlc";
+
+function normalizeTf(tf = "1d") {
   const t = String(tf).toLowerCase();
-  return (t === "1m" || t === "10m" || t === "1h" || t === "1d") ? t : "1d";
-}
-function tfToSeconds(tf = "1d") {
-  return { "1m": 60, "10m": 600, "1h": 3600, "1d": 86400 }[normalizeTf(tf)];
-}
-function toSec(x) {
-  if (x == null) return null;
-  if (typeof x === "number") return x > 1e12 ? Math.floor(x / 1000) : x;
-  const d = Date.parse(x);
-  return Number.isNaN(d) ? null : Math.floor(d / 1000);
-}
-function num(x) { const n = +x; return Number.isFinite(n) ? n : NaN; }
-
-// ---- shape normalizers ----
-function fromArrayOfObjects(arr) {
-  const out = [];
-  for (const b of arr) {
-    const time =
-      toSec(b.time ?? b.t ?? b.timestamp ?? b.ts) ??
-      (typeof b.date === "string" ? toSec(b.date) : null);
-    const o = num(b.open ?? b.o);
-    const h = num(b.high ?? b.h);
-    const l = num(b.low ?? b.l);
-    const c = num(b.close ?? b.c);
-    const v = num(b.volume ?? b.v ?? 0);
-    if (!time || [o, h, l, c].some(Number.isNaN)) continue;
-    out.push({ time, open: o, high: h, low: l, close: c, volume: v });
+  // accept your supported set
+  if (t === "1m" || t === "5m" || t === "10m" || t === "15m" || t === "30m" || t === "1h" || t === "1d") {
+    return t;
   }
-  return { bars: out.sort((a, b) => a.time - b.time), shape: "array<obj>" };
-}
-function fromArrayOfArrays(arr) {
-  const out = [];
-  for (const row of arr) {
-    if (!Array.isArray(row) || row.length < 5) continue;
-    const [t, o, h, l, c, v = 0] = row;
-    const time = toSec(t);
-    const no = num(o), nh = num(h), nl = num(l), nc = num(c), nv = num(v ?? 0);
-    if (!time || [no, nh, nl, nc].some(Number.isNaN)) continue;
-    out.push({ time, open: no, high: nh, low: nl, close: nc, volume: nv });
-  }
-  return { bars: out.sort((a, b) => a.time - b.time), shape: "array<array>" };
-}
-function fromColumnArrays(obj) {
-  const T = obj.t ?? obj.time ?? obj.timestamp ?? obj.ts;
-  const O = obj.o ?? obj.open;
-  const H = obj.h ?? obj.high;
-  const L = obj.l ?? obj.low;
-  const C = obj.c ?? obj.close;
-  const V = obj.v ?? obj.volume ?? [];
-  if (![T,O,H,L,C].every(Array.isArray)) return { bars: [], shape: "unknown" };
-  const n = Math.min(T.length, O.length, H.length, L.length, C.length, Array.isArray(V) ? V.length : Infinity);
-  const out = [];
-  for (let i = 0; i < n; i++) {
-    const time = toSec(T[i]);
-    const o = num(O[i]), h = num(H[i]), l = num(L[i]), c = num(C[i]);
-    const v = Array.isArray(V) ? num(V[i]) : 0;
-    if (!time || [o,h,l,c].some(Number.isNaN)) continue;
-    out.push({ time, open:o, high:h, low:l, close:c, volume:v });
-  }
-  return { bars: out.sort((a,b)=>a.time-b.time), shape: "columns" };
-}
-function pickArrayProp(obj) {
-  for (const k of ["data","results","bars","candles","items"]) {
-    if (Array.isArray(obj?.[k])) return { arr: obj[k], key: k };
-  }
-  return { arr: null, key: null };
-}
-function normalizeAny(json) {
-  if (Array.isArray(json)) {
-    const looksObj = json.length && typeof json[0] === "object" && !Array.isArray(json[0]);
-    return looksObj ? fromArrayOfObjects(json) : fromArrayOfArrays(json);
-  }
-  if (json && typeof json === "object") {
-    const { arr, key } = pickArrayProp(json);
-    if (arr) {
-      const res = Array.isArray(arr[0]) ? fromArrayOfArrays(arr) : fromArrayOfObjects(arr);
-      return { ...res, shape: `${res.shape} via ${key}` };
-    }
-    const res = fromColumnArrays(json);
-    if (res.bars.length) return res;
-  }
-  return { bars: [], shape: "unrecognized" };
+  // map common variants
+  if (t === "1h" || t === "1hr" || t === "60m") return "1h";
+  if (t === "1d" || t === "d" || t === "day") return "1d";
+  // default
+  return "1d";
 }
 
-// ---- mock fallback ----
-function genHistory({ bars = 200, base = 100, tfSec = 3600 }) {
-  const now = Math.floor(Date.now() / 1000);
-  let px = base;
-  const out = [];
-  for (let i = bars - 1; i >= 0; i--) {
-    const t = now - i * tfSec;
-    const drift = (Math.random() - 0.5) * 0.8;
-    const o = px;
-    const c = Math.max(0.01, o + drift);
-    const h = Math.max(o, c) + Math.random() * 0.4;
-    const l = Math.min(o, c) - Math.random() * 0.4;
-    const v = Math.floor(1000 + Math.random() * 5000);
-    out.push({ time: t, open: o, high: h, low: l, close: c, volume: v });
-    px = c;
-  }
-  return out;
+function toNumber(n, d = 0) {
+  const x = Number(n);
+  return Number.isFinite(x) ? x : d;
 }
-function hashCode(str) { let h = 0; for (let i=0;i<str.length;i++){ h=(h<<5)-h+str.charCodeAt(i); h|=0; } return h; }
 
-// ---- main feed ----
-export function getFeed(symbol = "MSFT", timeframe = "1D") {
+export function getFeed(symbol = "SPY", timeframe = "1d") {
   const tf = normalizeTf(timeframe);
-  const tfSec = tfToSeconds(tf);
-  const API_BASE = (typeof window !== "undefined" && window.__API_BASE__) || "";
-  const baseUrl = `${API_BASE}/api/v1/ohlc`;
-  const urlBase = `${baseUrl}?symbol=${encodeURIComponent(symbol)}&timeframe=${encodeURIComponent(tf)}`;
-  let timer = null;
+  const base = `${API_BASE}${OHLC_PATH}?symbol=${encodeURIComponent(symbol)}&timeframe=${encodeURIComponent(tf)}`;
 
-  const setDebug = (patch) => {
-    if (typeof window === "undefined") return;
-    window.__FEED_DEBUG__ = { ...(window.__FEED_DEBUG__ || {}), ...patch };
-  };
+  let stopped = false;
+  let ctrl = null;
 
   return {
     async history() {
-      try {
-        const cb = Date.now().toString(36);
-        const url = `${urlBase}&cb=${cb}`;
-        console.info("[feed] GET", url);
-        setDebug({ source: "fetching", url, shape: "-", bars: 0 });
-
-        const res = await fetch(url, { cache: "no-store" });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const json = await res.json();
-
-        const { bars, shape } = normalizeAny(json);
-        if (!bars.length) throw new Error(`empty (${shape})`);
-
-        console.info("[feed] backend bars:", bars.length, "shape:", shape);
-        setDebug({ source: "backend", url, shape, bars: bars.length });
-        return bars;
-      } catch (e) {
-        const base = (Math.abs(hashCode(`${symbol}:${tf}`)) % 200) + 50;
-        const mock = genHistory({ bars: 200, base, tfSec });
-        console.warn("[feed] fallback to mock, reason:", e?.message);
-        setDebug({ source: `mock: ${e?.message || "error"}`, shape: "mock", bars: mock.length });
-        return mock;
-      }
+      const url = `${base}&t=${Date.now()}`;
+      ctrl = new AbortController();
+      const r = await fetch(url, { cache: "no-store", signal: ctrl.signal });
+      if (!r.ok) throw new Error(`ohlc ${r.status}`);
+      const j = await r.json();
+      const arr = Array.isArray(j?.bars) ? j.bars : [];
+      // Lightweight Charts expects seconds since epoch
+      return arr
+        .map(b => ({
+          time: toNumber(b.time),         // backend returns seconds; if ms, divide by 1000
+          open: toNumber(b.open),
+          high: toNumber(b.high),
+          low:  toNumber(b.low),
+          close:toNumber(b.close),
+          volume: toNumber(b.volume, 0),
+        }))
+        .sort((a, b) => a.time - b.time);
     },
 
     subscribe(onBar) {
-      const pollMs = Math.min(tfSec * 1000, 5000);
-      timer = setInterval(async () => {
+      // simple 5s poll for last bar
+      const id = setInterval(async () => {
         try {
-          const cb2 = Date.now().toString(36);
-          const res = await fetch(`${urlBase}&limit=2&cb=${cb2}`, { cache: "no-store" });
-          if (!res.ok) return;
-          const json = await res.json();
-          const { bars } = normalizeAny(json);
-          const last = bars[bars.length - 1];
-          if (last) onBar({ ...last });
-        } catch {}
-      }, pollMs);
-      return () => clearInterval(timer);
+          const url = `${base}&limit=2&t=${Date.now()}`;
+          const r = await fetch(url, { cache: "no-store" });
+          if (!r.ok) return;
+          const j = await r.json();
+          const arr = Array.isArray(j?.bars) ? j.bars : [];
+          const last = arr[arr.length - 1];
+          if (!last) return;
+          onBar({
+            time: toNumber(last.time),
+            open: toNumber(last.open),
+            high: toNumber(last.high),
+            low:  toNumber(last.low),
+            close:toNumber(last.close),
+            volume: toNumber(last.volume, 0),
+          });
+        } catch {
+          // swallow; keep polling
+        }
+      }, 5000);
+      return () => clearInterval(id);
     },
 
-    close() { if (timer) clearInterval(timer); },
+    close() {
+      stopped = true;
+      try { ctrl?.abort(); } catch {}
+    },
   };
 }
