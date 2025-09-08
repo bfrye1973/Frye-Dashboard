@@ -1,20 +1,35 @@
-// src/App.js — Dashboard with Sidebar (symbol/timeframe/indicators) + Main content
+// src/App.js — Compact layout (sidebar + cockpit + chart)
 import React, { useMemo, useState, useEffect } from "react";
 
 // Components
-import LiveLWChart from "./components/LiveLWChart";
+import LiveLWChart from "./components/LiveLWChart/LiveLWChart";
 import GaugesPanel from "./components/GaugesPanel";
 import GaugeCluster from "./components/GaugeCluster";
 
-// Services (kept for your table panel)
+// Services
 import { getGauges } from "./services/gauges";
 
 export default function App() {
-  /* ---------------- Symbol / timeframe ---------------- */
   const [symbol, setSymbol] = useState("SPY");
   const [timeframe, setTimeframe] = useState("1D");
+  const [candles, setCandles] = useState([]);   // <— FIXED: declared properly
 
-  /* ---------------- Indicators ---------------- */
+  // Debug feed (not rendered)
+  const [dbg, setDbg] = useState({ source: "-", url: "-", bars: 0, shape: "-" });
+  useEffect(() => {
+    const id = setInterval(() => {
+      const d = window.__FEED_DEBUG__ || {};
+      setDbg({
+        source: d.source || "-",
+        url: d.url || "-",
+        bars: d.bars || 0,
+        shape: d.shape || "-",
+      });
+    }, 600);
+    return () => clearInterval(id);
+  }, []);
+
+  // Indicators toggle
   const [enabled, setEnabled] = useState({
     ema10: true, ema20: true,
     mfp: false, sr: false, swing: false,
@@ -48,30 +63,23 @@ export default function App() {
   const symbols = useMemo(() => ["SPY","QQQ","AAPL","MSFT","NVDA","TSLA","META","AMZN"], []);
   const tfs     = useMemo(() => ["1m","10m","1H","1D"], []);
 
-  /* ---------------- Candles — needed by LiveLWChart.onCandles ---------------- */
-  const [candles, setCandles] = useState([]); // <- required so onCandles compiles
-
-  /* ---------------- Market Gauges (table) top row fetch (unchanged) ---------------- */
+  // Gauges row for your table panel (unchanged)
   const [gaugesRow, setGaugesRow] = useState(null);
   useEffect(() => {
     let live = true;
     (async () => {
-      try {
-        const rows = await getGauges(symbol);
-        if (!live) return;
-        setGaugesRow(rows?.[0] || null);
-      } catch (e) {
-        // ignore for now; table panel can handle empty state
-      }
+      const rows = await getGauges(symbol);
+      if (!live) return;
+      setGaugesRow(rows[0] || null);
     })();
     return () => { live = false; };
   }, [symbol]);
 
-  /* ---------------- Shell styles ---------------- */
+  // ---------- styles ----------
   const page   = { minHeight:"100vh", background:"#0d1117", color:"#d1d4dc" };
-  const shell  = { display:"grid", gridTemplateColumns:"280px 1fr", gap:12, padding:"12px 12px 8px" };
+  const wrap   = { display:"grid", gridTemplateColumns:"280px 1fr", gap:12, padding:"12px 12px 8px" };
   const panel  = { border:"1px solid #1f2a44", borderRadius:12, padding:10, background:"#0e1526", marginBottom:10 };
-  const label  = { fontSize:12, opacity:0.85, marginBottom:6, display:"block" };
+  const label  = { fontSize:12, opacity:0.8, marginBottom:6, display:"block" };
   const rowCtl = { display:"flex", gap:6, alignItems:"center", flexWrap:"wrap" };
   const btn = (active) => ({
     padding:"6px 10px", borderRadius:8,
@@ -84,14 +92,13 @@ export default function App() {
     border:"1px solid #334155", background:"#0b1220", color:"#e5e7eb",
     fontSize:14, outline:"none"
   };
-  const mainCol = { border:"1px solid #1b2130", borderRadius:12, overflow:"hidden" };
+  const rightCol = { border:"1px solid #1b2130", borderRadius:12, overflow:"hidden" };
 
   return (
     <div style={page}>
-      {/* === Page shell: Sidebar (controls) + Main (dashboard panels) === */}
-      <div style={shell}>
-        {/* Sidebar controls */}
-        <aside>
+      <div style={wrap}>
+        {/* Sidebar */}
+        <div>
           <div style={panel}>
             <span style={label}>Symbol</span>
             <select value={symbol} onChange={(e)=>setSymbol(e.target.value)} style={select}>
@@ -103,11 +110,7 @@ export default function App() {
             <span style={label}>Timeframe</span>
             <div style={rowCtl}>
               {tfs.map(tf => (
-                <button
-                  key={tf}
-                  style={btn(timeframe.toLowerCase()===tf.toLowerCase())}
-                  onClick={()=>setTimeframe(tf)}
-                >
+                <button key={tf} style={btn(timeframe.toLowerCase()===tf.toLowerCase())} onClick={()=>setTimeframe(tf)}>
                   {tf.toUpperCase()}
                 </button>
               ))}
@@ -128,30 +131,25 @@ export default function App() {
                   checked={!!enabled[id]}
                   onChange={(e)=>setEnabled(p=>({ ...p, [id]: e.target.checked }))}
                 />
-                <label htmlFor={id} style={{ fontSize:12, opacity:0.9 }}>{lbl}</label>
+                <label htmlFor={id} style={{ fontSize:12, opacity:0.85 }}>{lbl}</label>
               </div>
             ))}
           </div>
-        </aside>
+        </div>
 
-        {/* Main content column */}
-        <main style={mainCol}>
-          {/* Cockpit (3-region) */}
+        {/* Right column */}
+        <div style={rightCol}>
           <GaugeCluster />
-
-          {/* Market Gauges table (still uses defaultIndex) */}
           <GaugesPanel defaultIndex={symbol} />
-
-          {/* Chart */}
           <LiveLWChart
             symbol={symbol}
             timeframe={timeframe}
             height={520}
             enabledIndicators={enabledIndicators}
             indicatorSettings={settings}
-            onCandles={setCandles}   // <- keep so the chart can notify latest candles if needed
+            onCandles={setCandles}     // <— uses the declared state above
           />
-        </main>
+        </div>
       </div>
     </div>
   );
