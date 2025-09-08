@@ -1,7 +1,7 @@
 // src/components/GaugeCluster.jsx
 // Ferrari Dashboard — R9.1 (3-region cockpit, default export, no statusFor)
 // Left: compact Market Summary (InfoStack)
-// Middle: ALL GAUGES (2×2 minis + yellow RPM (Breadth) + red SPEED (Momentum) side-by-side)
+// Middle: ALL GAUGES (2×2 minis + yellow RPM (Breadth) + red SPEED (Momentum) side-by-side, centered tight)
 // Right: reserved (hidden for now)
 // Gauges panel ~380px; soft-cap (≤520px) handled in public/index.html
 
@@ -60,13 +60,6 @@ const Panel = ({ title, children, className = "", style }) => (
   </div>
 );
 
-const Pill = ({ label, state = "off", icon = "" }) => (
-  <span className={`light ${state}`} aria-label={`${label}: ${state}`}>
-    <span className="light-icon" role="img" aria-hidden>{icon}</span>
-    <span className="light-text">{label}</span>
-  </span>
-);
-
 /* ---------- compact card (left InfoStack) ---------- */
 function MarketSummaryCard({ summary }) {
   if (!summary) return <div className="small muted">(no summary)</div>;
@@ -107,24 +100,6 @@ export default function GaugeCluster() {
     ? mapToDeg(momentumIdx, 0, 100)
     : mapToDeg(data?.gauges?.speed, -1000, 1000);
 
-  // Engine lights
-  const s = data?.signals || {};
-  const mapSig = (sig) =>
-    !sig || !sig.active ? "off" :
-    String(sig.severity || "info").toLowerCase() === "danger" ? "danger" :
-    String(sig.severity || "").toLowerCase() === "warn" ? "warn" : "ok";
-
-  const lightsRow = [
-    { label: "Breakout",       state: mapSig(s.sigBreakout),     icon: "📈" },
-    { label: "Squeeze",        state: mapSig(s.sigOverheat),     icon: "⏳" },
-    { label: "Overextended",   state: mapSig(s.sigOverextended), icon: "🚀" },
-    { label: "Distribution",   state: mapSig(s.sigDistribution), icon: "📉" },
-    { label: "Divergence",     state: mapSig(s.sigDivergence),   icon: "↔️" },
-    { label: "Risk Alert",     state: mapSig(s.sigOverheat),     icon: "⚡"  },
-    { label: "Liquidity Weak", state: mapSig(s.sigLowLiquidity), icon: "💧" },
-    { label: "Turbo",          state: mapSig(s.sigTurbo),        icon: "⚡"  },
-  ];
-
   return (
     <div className="cluster">
       {/* Header */}
@@ -164,11 +139,11 @@ export default function GaugeCluster() {
                 gap: 18,
                 alignItems: "center",
                 justifyItems: "center",
-                justifyContent: "center",  // centers the entire row
+                justifyContent: "center",   // centers the entire row
                 height: "100%",
               }}
             >
-              {/* LEFT: InfoStack (compact Market Summary now) */}
+              {/* LEFT: InfoStack (compact Market Summary) */}
               <div style={{ width: "100%", alignSelf: "stretch" }}>
                 <MarketSummaryCard summary={summary} />
               </div>
@@ -200,8 +175,8 @@ export default function GaugeCluster() {
                     gap: 28,
                     alignItems: "center",
                     justifyItems: "center",
-                    maxWidth: 560,    // keeps the pair tight
-                    margin: "0 auto", // centers as a block
+                    maxWidth: 560,     // keeps the pair tight
+                    margin: "0 auto",  // centers as a block
                     width: "100%",
                   }}
                 >
@@ -227,24 +202,6 @@ export default function GaugeCluster() {
 
               {/* RIGHT: Reserved (hidden for now) */}
               <div style={{ display:"none" }} />
-            </div>
-          </Panel>
-
-          {/* Engine Lights */}
-          <Panel title="Engine Lights">
-            <div className="lights">
-              {[
-                { label: "Breakout", icon: "📈" },
-                { label: "Squeeze",  icon: "⏳" },
-                { label: "Overextended", icon: "🚀" },
-                { label: "Distribution", icon: "📉" },
-                { label: "Divergence", icon: "↔️" },
-                { label: "Risk Alert", icon: "⚡" },
-                { label: "Liquidity Weak", icon: "💧" },
-                { label: "Turbo", icon: "⚡" },
-              ].map((L, i) => (
-                <Pill key={`${L.label}-${i}`} label={L.label} state="off" icon={L.icon} />
-              ))}
             </div>
           </Panel>
         </>
