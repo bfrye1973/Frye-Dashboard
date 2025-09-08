@@ -10,26 +10,11 @@ import GaugeCluster from "./components/GaugeCluster";
 import { getGauges } from "./services/gauges";
 
 export default function App() {
-  // ---------------- Symbol / timeframe state ----------------
+  /* ---------------- Symbol / timeframe ---------------- */
   const [symbol, setSymbol] = useState("SPY");
   const [timeframe, setTimeframe] = useState("1D");
 
-  // ---------------- Feed debug (unchanged) ----------------
-  const [dbg, setDbg] = useState({ source: "-", url: "-", bars: 0, shape: "-" });
-  useEffect(() => {
-    const id = setInterval(() => {
-      const d = window.__FEED_DEBUG__ || {};
-      setDbg({
-        source: d.source || "-",
-        url: d.url || "-",
-        bars: d.bars || 0,
-        shape: d.shape || "-",
-      });
-    }, 600);
-    return () => clearInterval(id);
-  }, []);
-
-  // ---------------- Indicators ----------------
+  /* ---------------- Indicators ---------------- */
   const [enabled, setEnabled] = useState({
     ema10: true, ema20: true,
     mfp: false, sr: false, swing: false,
@@ -63,19 +48,26 @@ export default function App() {
   const symbols = useMemo(() => ["SPY","QQQ","AAPL","MSFT","NVDA","TSLA","META","AMZN"], []);
   const tfs     = useMemo(() => ["1m","10m","1H","1D"], []);
 
-  // ---------------- Table gauges row (unchanged) ----------------
+  /* ---------------- Candles — needed by LiveLWChart.onCandles ---------------- */
+  const [candles, setCandles] = useState([]); // <- required so onCandles compiles
+
+  /* ---------------- Market Gauges (table) top row fetch (unchanged) ---------------- */
   const [gaugesRow, setGaugesRow] = useState(null);
   useEffect(() => {
     let live = true;
     (async () => {
-      const rows = await getGauges(symbol);
-      if (!live) return;
-      setGaugesRow(rows[0] || null);
+      try {
+        const rows = await getGauges(symbol);
+        if (!live) return;
+        setGaugesRow(rows?.[0] || null);
+      } catch (e) {
+        // ignore for now; table panel can handle empty state
+      }
     })();
     return () => { live = false; };
   }, [symbol]);
 
-  // ---------------- Shell styles ----------------
+  /* ---------------- Shell styles ---------------- */
   const page   = { minHeight:"100vh", background:"#0d1117", color:"#d1d4dc" };
   const shell  = { display:"grid", gridTemplateColumns:"280px 1fr", gap:12, padding:"12px 12px 8px" };
   const panel  = { border:"1px solid #1f2a44", borderRadius:12, padding:10, background:"#0e1526", marginBottom:10 };
@@ -144,10 +136,10 @@ export default function App() {
 
         {/* Main content column */}
         <main style={mainCol}>
-          {/* Cockpit (3-region) — this stays at the top */}
+          {/* Cockpit (3-region) */}
           <GaugeCluster />
 
-          {/* Market Gauges table (unchanged; remove its dropdown inside GaugesPanel if desired) */}
+          {/* Market Gauges table (still uses defaultIndex) */}
           <GaugesPanel defaultIndex={symbol} />
 
           {/* Chart */}
@@ -157,7 +149,7 @@ export default function App() {
             height={520}
             enabledIndicators={enabledIndicators}
             indicatorSettings={settings}
-            onCandles={setCandles}
+            onCandles={setCandles}   // <- keep so the chart can notify latest candles if needed
           />
         </main>
       </div>
