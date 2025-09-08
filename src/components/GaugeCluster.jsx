@@ -164,7 +164,7 @@ export default function GaugeCluster() {
                 gap: 18,
                 alignItems: "center",
                 justifyItems: "center",
-                justifyContent: "center",  // ✅ centers the entire row
+                justifyContent: "center",  // centers the entire row
                 height: "100%",
               }}
             >
@@ -200,9 +200,9 @@ export default function GaugeCluster() {
                     gap: 28,
                     alignItems: "center",
                     justifyItems: "center",
-                    maxWidth: 560,     // ✅ keeps the pair tight
-                    margin: "0 auto",  // ✅ centers the pair block
-                    width: "100%",     // ✅ avoids shrinking issues
+                    maxWidth: 560,    // keeps the pair tight
+                    margin: "0 auto", // centers as a block
+                    width: "100%",
                   }}
                 >
                   <BigGauge
