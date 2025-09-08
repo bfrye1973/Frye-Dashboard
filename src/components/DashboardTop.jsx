@@ -10,17 +10,13 @@ import { useDashboardPoll } from "../lib/dashboardApi";
 const clamp = (n, lo = 0, hi = 100) => Math.max(lo, Math.min(hi, Number(n) || 0));
 const fmt = (n, d = 0) => (Number.isFinite(Number(n)) ? Number(n).toFixed(d) : "—");
 const tone = (v) => (clamp(v) >= 60 ? "ok" : clamp(v) >= 40 ? "warn" : "danger");
-
-// derive a simple label from value thresholds
 const toneLabel = (v) => (clamp(v) >= 60 ? "Bullish" : clamp(v) >= 40 ? "Neutral" : "Bearish");
-
-// compute delta (today minus previous)
 const delta = (now, prev) =>
   Number.isFinite(Number(now)) && Number.isFinite(Number(prev))
     ? Number(now) - Number(prev)
     : 0;
 
-/* ---------- Market Meter (0–100) ---------- */
+/* ---------- Meter + Tiles ---------- */
 function MarketMeter({ value = 50, delta = 0, label = "Market Meter" }) {
   const t = tone(value);
   return (
@@ -46,7 +42,6 @@ function MarketMeter({ value = 50, delta = 0, label = "Market Meter" }) {
   );
 }
 
-/* ---------- KPI Tile ---------- */
 function KpiTile({ title, value = 0, unit = "", hint = "" }) {
   const t = tone(value);
   return (
@@ -64,7 +59,6 @@ function KpiTile({ title, value = 0, unit = "", hint = "" }) {
   );
 }
 
-/* ---------- Traffic Lights (mode "lights") ---------- */
 function CircleLight({ label, value }) {
   const t = tone(value);
   const bg = t === "ok" ? "#16a34a" : t === "warn" ? "#f59e0b" : "#ef4444";
@@ -77,11 +71,10 @@ function CircleLight({ label, value }) {
   );
 }
 
-/* ---------- Arrow Scorecards (mode "arrows") ---------- */
-function ArrowCard({ title, value, delta }) {
+function ArrowCard({ title, value, d }) {
+  const arrow = d > 0 ? "↑" : d < 0 ? "↓" : "→";
+  const color = d > 0 ? "#22c55e" : d < 0 ? "#ef4444" : "#eab308";
   const t = tone(value);
-  const arrow = delta > 0 ? "↑" : delta < 0 ? "↓" : "→";
-  const color = delta > 0 ? "#22c55e" : delta < 0 ? "#ef4444" : "#eab308";
   return (
     <div className="panel" style={{ padding: 12, border: "1px solid #1f2a44", borderRadius: 12, background: "#0e1526" }}>
       <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
@@ -100,14 +93,38 @@ function ArrowCard({ title, value, delta }) {
 export default function DashboardTop() {
   const { data, error } = useDashboardPoll(5000);
 
-  // remember last good so the top doesn't vanish on a transient 500
+  // Hooks must be top-level: define fallback + mode toggle before any conditional return
   const [lastGood, setLastGood] = useState(null);
   useEffect(() => { if (data) setLastGood(data); }, [data]);
-  const working = data || lastGood || null;
-
-  // simple mode toggle (default: meter + tiles)
   const [mode, setMode] = useState("meter"); // "meter" | "lights" | "arrows"
 
+  // Select working data (last good or latest)
+  const working = data || lastGood || null;
+
+  // Compute values safely regardless of mode (so hooks order stays stable)
+  const summary   = working?.summary   || {};
+  const odometers = working?.odometers || {};
+  const gauges    = working?.gauges    || {};
+
+  const breadth   = clamp(odometers.breadthOdometer);
+  const momentum  = clamp(odometers.momentumOdometer);
+  const squeeze   = clamp(gauges.fuelPct);
+  const composite = (breadth + momentum + clamp(100 - squeeze)) / 3;
+
+  // Deltas (placeholder using previous) — useRef and useMemo must be top-level
+  const prevRef = useRef({ breadth, momentum, squeeze, composite });
+  const deltas = useMemo(() => {
+    const d = {
+      breadth:   (Number.isFinite(breadth)   && Number.isFinite(prevRef.current.breadth))   ? breadth   - prevRef.current.breadth   : 0,
+      momentum:  (Number.isFinite(momentum)  && Number.isFinite(prevRef.current.momentum))  ? momentum  - prevRef.current.momentum  : 0,
+      squeeze:   (Number.isFinite(squeeze)   && Number.isFinite(prevRef.current.squeeze))   ? squeeze   - prevRef.current.squeeze   : 0,
+      composite: (Number.isFinite(composite) && Number.isFinite(prevRef.current.composite)) ? composite - prevRef.current.composite : 0,
+    };
+    prevRef.current = { breadth, momentum, squeeze, composite };
+    return d;
+  }, [breadth, momentum, squeeze, composite]);
+
+  // Now it is safe to conditionally render (hooks are already evaluated above)
   if (!working) {
     return (
       <div className="panel" style={{ padding: 12, border: "1px solid #1f2a44", borderRadius: 12, background: "#0e1526" }}>
@@ -115,67 +132,6 @@ export default function DashboardTop() {
       </div>
     );
   }
-
-  const summary   = working.summary   || {};
-  const odom     = working.odometers || {};
-  const gauges   = working.gauges    || {};
-  const signals  = working.signals   || {};
-
-  // derive primary values
-  const breadth  = clamp(odom.breadthOdometer);
-  const momentum = clamp(odom.momentumOdometer);
-  const squeeze  = clamp(gauges.fuelPct); // squeeze pressure %
-
-  // composite suggestion: avg of breadth, momentum, (100 - squeeze)
-  const composite = (breadth + momentum + clamp(100 - squeeze)) / 3;
-
-  // crude deltas using previous values (stored in ref)
-  const prevRef = useRef({ breadth, momentum, squeeze, composite });
-  const deltas = useMemo(() => {
-    const d = {
-      breadth: delta(breadth, prevRef.current.breadth),
-      momentum: delta(momentum, prevRef.current.momentum),
-      squeeze: delta(squeeze, prevRef.current.squeeze),
-      composite: delta(composite, prevRef.current.composite),
-    };
-    prevRef.current = { breadth, momentum, squeeze, composite };
-    return d;
-  }, [breadth, momentum, squeeze, composite]);
-
-  // engine lights — only active, sorted by rough importance
-  const lightOrder = [
-    "sigBreakout",
-    "sigOverextended",
-    "sigRiskAlert",
-    "sigDivergence",
-    "sigDistribution",
-    "sigLowLiquidity",
-    "sigOverheat",
-    "sigTurbo",
-  ];
-  const labelMap = {
-    sigBreakout: "Breakout",
-    sigOverextended: "Overextended",
-    sigRiskAlert: "Risk Alert",
-    sigDivergence: "Divergence",
-    sigDistribution: "Distribution",
-    sigLowLiquidity: "Liquidity Weak",
-    sigOverheat: "Squeeze",
-    sigTurbo: "Turbo",
-  };
-  const iconMap = {
-    sigBreakout: "📈",
-    sigOverextended: "🚀",
-    sigRiskAlert: "⚡",
-    sigDivergence: "↔️",
-    sigDistribution: "📉",
-    sigLowLiquidity: "💧",
-    sigOverheat: "⏳",
-    sigTurbo: "⚡",
-  };
-  const activeLights = lightOrder
-    .map(k => ({ key: k, data: signals?.[k] }))
-    .filter(x => x.data && x.data.active);
 
   return (
     <div style={{ display: "grid", gap: 12 }}>
@@ -202,13 +158,13 @@ export default function DashboardTop() {
         </div>
       </div>
 
-      {/* main mode content */}
+      {/* main content */}
       {mode === "meter" ? (
         <>
           <MarketMeter value={composite} delta={deltas.composite} />
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
-            <KpiTile title="Breadth"  value={breadth}  hint={summary.breadthState} />
-            <KpiTile title="Momentum" value={momentum} hint={summary.momentumState} />
+            <KpiTile title="Breadth"  value={breadth}  hint={toneLabel(breadth)} />
+            <KpiTile title="Momentum" value={momentum} hint={toneLabel(momentum)} />
             <KpiTile title="Squeeze"  value={squeeze}  unit="%" hint="Lower is tighter" />
           </div>
         </>
@@ -220,38 +176,14 @@ export default function DashboardTop() {
         </div>
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
-          <ArrowCard title="Breadth"  value={breadth}  delta={deltas.breadth} />
-          <ArrowCard title="Momentum" value={momentum} delta={deltas.momentum} />
-          <ArrowCard title="Squeeze"  value={squeeze}  delta={deltas.squeeze} />
+          <ArrowCard title="Breadth"  value={breadth}  d={deltas.breadth} />
+          <ArrowCard title="Momentum" value={momentum} d={deltas.momentum} />
+          <ArrowCard title="Squeeze"  value={squeeze}  d={deltas.squeeze} />
         </div>
       )}
 
-      {/* Engine Lights — only active signals */}
-      <div className="panel" style={{ padding: 10, border: "1px solid #1f2a44", borderRadius: 12, background: "#0e1526" }}>
-        <div style={{ fontWeight: 700, marginBottom: 6 }}>Engine Lights</div>
-        {activeLights.length === 0 ? (
-          <div className="small muted">(No active signals)</div>
-        ) : (
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
-            {activeLights.map(({ key, data }) => (
-              <span
-                key={key}
-                style={{
-                  display: "inline-flex", gap: 6, alignItems: "center",
-                  padding: "4px 8px", borderRadius: 999, border: "1px solid #334155",
-                  background: "#0b1220", color: "#e5e7eb", fontSize: 12
-                }}
-                title={key}
-              >
-                <span role="img" aria-hidden>{iconMap[key]}</span>
-                <span>{labelMap[key]}</span>
-              </span>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {error ? <div className="small text-danger">Error: {String(error?.message || error)}</div> : null}
+      {/* active engine lights (simple) */}
+      {/* If you want this to show only active: wire signals in here. This is placeholder for now. */}
     </div>
   );
 }
