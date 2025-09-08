@@ -380,3 +380,11 @@ div[style*="height: 100vh"] {
 .chart-section .panel-title {
   font-weight: 700;
 }
+.small { font-size: 12px; }
+.muted { opacity: .8; }
+.panel { border:1px solid #1f2a44; border-radius:12px; padding:10px; background:#0e1526; }
+.panel-head { display:flex; align-items:center; gap:8px; border-bottom:1px solid #1f2a44; padding:8px 10px; background:#0c1320; }
+.panel-title { font-weight:700; }
+.spacer { flex: 1; }
+.kpi-bar { position:relative; height:8px; border:1px solid #334155; background:#0b1220; border-radius:6px; overflow:hidden; }
+.kpi-fill { position:absolute; left:0; top:0; bottom:0; border-radius:6px; }
