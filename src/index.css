@@ -351,3 +351,24 @@ div[style*="height: 100vh"] {
   gap: 8px;
   align-content: start;
 }
+/* --- Meter + tiles --- */
+.meter-fill.ok    { background: linear-gradient(90deg,#16a34a,#22c55e); }
+.meter-fill.warn  { background: linear-gradient(90deg,#f59e0b,#fbbf24); }
+.meter-fill.danger{ background: linear-gradient(90deg,#ef4444,#dc2626); }
+
+.kpi-bar {
+  position: relative;
+  height: 8px;
+  border: 1px solid #334155;
+  background: #0b1220;
+  border-radius: 6px;
+  overflow: hidden;
+}
+.kpi-bar .kpi-fill {
+  position: absolute; left:0; top:0; bottom:0;
+  background: #22c55e;
+  border-radius: 6px;
+}
+.kpi-bar.ok    .kpi-fill { background: #22c55e; }
+.kpi-bar.warn  .kpi-fill { background: #f59e0b; }
+.kpi-bar.danger.kpi-fill { background: #ef4444; }
