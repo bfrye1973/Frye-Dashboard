@@ -371,7 +371,7 @@ export default function LiveLWChart({
   const hide = { display: "none" };
   const btnMini = {
     padding: "2px 6px", borderRadius: 6, fontSize: 12,
-    background: "#0b1220", color: "#e5e7eb", border: "1px solid "#334155", cursor: "pointer"
+    background: "#0b1220", color: "#e5e7eb", border: "1px solid #334155", cursor: "pointer"
   };
   const PaneHeader = ({ label, onInc, onDec }) => (
     <div style={{ position: "absolute", left: 6, top: 6, zIndex: 10, display: "flex", gap: 8, alignItems: "center" }}>
