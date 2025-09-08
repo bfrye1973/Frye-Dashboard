@@ -372,3 +372,8 @@ div[style*="height: 100vh"] {
 .kpi-bar.ok    .kpi-fill { background: #22c55e; }
 .kpi-bar.warn  .kpi-fill { background: #f59e0b; }
 .kpi-bar.danger.kpi-fill { background: #ef4444; }
+/* Delta styles */
+.delta { font-weight: 700; padding: 2px 6px; border-radius: 8px; border: 1px solid transparent; }
+.delta-up   { color:#16a34a; border-color:#14532d; background:#052e1b; }
+.delta-down { color:#ef4444; border-color:#7f1d1d; background:#3a0e0e; }
+.delta-flat { color:#93c5fd; border-color:#334155; background:#0b1220; }
