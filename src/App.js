@@ -78,6 +78,14 @@ export default function App() {
 
         {/* Row 5: Strategies */}
         <StrategiesPanel />
+{/* DEBUG marker — remove after you confirm updates */}
+<div style={{
+  position:'fixed', top:6, right:8, zIndex:99999,
+  background:'#111827', color:'#fff', border:'1px solid #334155',
+  padding:'2px 6px', borderRadius:6, fontSize:12
+}}>
+  {__BUILD_TS__}
+</div>
 
         {/* Chart Controls (tied to the chart, above the chart) */}
         <section className="panel" style={panel}>
