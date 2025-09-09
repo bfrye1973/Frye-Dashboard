@@ -388,3 +388,8 @@ div[style*="height: 100vh"] {
 .spacer { flex: 1; }
 .kpi-bar { position:relative; height:8px; border:1px solid #334155; background:#0b1220; border-radius:6px; overflow:hidden; }
 .kpi-fill { position:absolute; left:0; top:0; bottom:0; border-radius:6px; }
+/* TEMP: visualize rows */
+#row-1, #row-2, #row-3, #row-4, #row-5, #row-5-controls, #row-6 {
+  outline: 1px dotted rgba(100,150,255,.35);
+  margin-bottom: 8px;
+}
