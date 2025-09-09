@@ -173,3 +173,6 @@ function mergeBar(prev, bar) {
   }
   return [...prev, bar];
 }
+<section className="panel chart-card" /* …styles OK… */>
+  <div ref={/* chart root ref */} className="chart-root" /* … */ />
+</section>
