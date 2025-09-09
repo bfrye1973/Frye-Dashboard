@@ -9,16 +9,15 @@ import { getFeed } from "../../services/feed";
 export default function LiveLWChart({
   symbol = "SPY",
   timeframe = "1D",
-  enabledIndicators = [],      // reserved for later
-  indicatorSettings = {},      // reserved for later
+  enabledIndicators = [],   // reserved for future use
+  indicatorSettings = {},   // reserved for future use
   height = 520,
 }) {
-  // OUTER PANEL (the visible card)
+  // panel (outer visible card) and inner chart root
   const panelRef = useRef(null);
-
-  // ROOT for the chart/canvases (must be inside the card)
   const chartRootRef = useRef(null);
 
+  // chart internals
   const chartRef = useRef(null);
   const seriesRef = useRef(null);
   const roRef = useRef(null);
@@ -38,6 +37,7 @@ export default function LiveLWChart({
     const holder = chartRootRef.current;
     if (!holder) return;
 
+    // keep canvases scoped inside the card
     holder.style.position = "relative";
     holder.style.zIndex = "1";
 
@@ -51,10 +51,12 @@ export default function LiveLWChart({
     const candleSeries = chart.addCandlestickSeries();
     seriesRef.current = candleSeries;
 
+    // respond to container size changes
     const ro = new ResizeObserver(() => safeResize());
     ro.observe(holder);
     roRef.current = ro;
 
+    // respond to OS/browser zoom changes for crisp rendering
     const mq = window.matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
     const onDpr = () => safeResize();
     if (mq.addEventListener) {
@@ -65,6 +67,7 @@ export default function LiveLWChart({
       dprCleanupRef.current = () => mq.removeListener(onDpr);
     }
 
+    // initial size sync
     safeResize();
 
     return () => {
@@ -133,8 +136,9 @@ export default function LiveLWChart({
         marginTop: 12,
       }}
     >
+      {/* chart mount root */}
       <div
-        ref={chartRootRef}               {/* <-- the ref must be a real variable */}
+        ref={chartRootRef}
         className="chart-root"
         style={{ position: "relative", width: "100%", height }}
       />
