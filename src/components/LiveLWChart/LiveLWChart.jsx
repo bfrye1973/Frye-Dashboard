@@ -4,33 +4,30 @@
 import React, { useEffect, useRef, useState } from "react";
 import { createChart } from "lightweight-charts";
 import { baseChartOptions } from "./chartConfig";
-import { resolveIndicators } from "../../indicators";
 import { getFeed } from "../../services/feed";
 
 export default function LiveLWChart({
   symbol = "SPY",
   timeframe = "1D",
-  enabledIndicators = [],
-  indicatorSettings = {},
+  enabledIndicators = [],      // reserved for later
+  indicatorSettings = {},      // reserved for later
   height = 520,
 }) {
   // OUTER PANEL (the visible card)
   const panelRef = useRef(null);
 
   // ROOT for the chart/canvases (must be inside the card)
-  const rootRef = useRef(null);
+  const chartRootRef = useRef(null);
 
   const chartRef = useRef(null);
   const seriesRef = useRef(null);
-  const seriesMap = useRef(new Map());
   const roRef = useRef(null);
   const dprCleanupRef = useRef(null);
 
   const [candles, setCandles] = useState([]);
 
-  // --- helpers ---
   const safeResize = () => {
-    const el = rootRef.current;
+    const el = chartRootRef.current;
     const chart = chartRef.current;
     if (!el || !chart) return;
     chart.resize(el.clientWidth, el.clientHeight);
@@ -38,10 +35,9 @@ export default function LiveLWChart({
 
   // ---------- INIT ----------
   useEffect(() => {
-    const holder = rootRef.current;
+    const holder = chartRootRef.current;
     if (!holder) return;
 
-    // enforce stacking context & confinement
     holder.style.position = "relative";
     holder.style.zIndex = "1";
 
@@ -55,12 +51,10 @@ export default function LiveLWChart({
     const candleSeries = chart.addCandlestickSeries();
     seriesRef.current = candleSeries;
 
-    // ResizeObserver: responds to grid/layout changes
     const ro = new ResizeObserver(() => safeResize());
     ro.observe(holder);
     roRef.current = ro;
 
-    // DevicePixelRatio changes (zoom/scaling)
     const mq = window.matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
     const onDpr = () => safeResize();
     if (mq.addEventListener) {
@@ -71,18 +65,15 @@ export default function LiveLWChart({
       dprCleanupRef.current = () => mq.removeListener(onDpr);
     }
 
-    // initial size
     safeResize();
 
     return () => {
       try { roRef.current?.disconnect(); } catch {}
       try { dprCleanupRef.current?.(); } catch {}
-      try { seriesMap.current.clear(); } catch {}
       try { chart.remove(); } catch {}
       chartRef.current = null;
       seriesRef.current = null;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [height]);
 
   // ---------- LOAD + STREAM ----------
@@ -101,7 +92,6 @@ export default function LiveLWChart({
         if (Array.isArray(seed)) {
           series.setData(seed);
           setCandles(seed);
-          // console.log("[LiveLWChart] seed bars:", seed.length);
         } else {
           series.setData([]);
           setCandles([]);
@@ -126,17 +116,11 @@ export default function LiveLWChart({
     };
   }, [symbol, timeframe]);
 
-  // ---------- (optional) indicators ----------
-  useEffect(() => {
-    if (!chartRef.current) return;
-    // resolveIndicators(chartRef.current, enabledIndicators, indicatorSettings);
-  }, [enabledIndicators, indicatorSettings]);
-
-  // ---------- RENDER (IMPORTANT PART) ----------
+  // ---------- RENDER ----------
   return (
     <section
       ref={panelRef}
-      className="panel chart-card"     // <- REQUIRED classes
+      className="panel chart-card"
       style={{
         position: "relative",
         zIndex: 1,
@@ -145,18 +129,14 @@ export default function LiveLWChart({
         border: "1px solid #1f2a44",
         borderRadius: 8,
         background: "#0b0b14",
-        overflow: "hidden",            // <- confines canvases
+        overflow: "hidden",
         marginTop: 12,
       }}
     >
       <div
-        ref={rootRef}
-        className="chart-root"         // <- REQUIRED class
-        style={{
-          position: "relative",        // <- stacking context for canvases
-          width: "100%",
-          height: height,
-        }}
+        ref={chartRootRef}               {/* <-- the ref must be a real variable */}
+        className="chart-root"
+        style={{ position: "relative", width: "100%", height }}
       />
     </section>
   );
@@ -173,6 +153,3 @@ function mergeBar(prev, bar) {
   }
   return [...prev, bar];
 }
-<section className="panel chart-card" /* …styles OK… */>
-  <div ref={/* chart root ref */} className="chart-root" /* … */ />
-</section>
