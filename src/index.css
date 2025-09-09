@@ -461,3 +461,5 @@ div[class*="overlay"].fullscreen,
 div[class*="backdrop"].fullscreen {
   display: none !important;   /* TEMP kill-switch for rogue elements */
 }
+/* Keep other sections above just in case */
+.panel, .cluster, .index-sectors, .kpi-area, .bottom-grid { position: relative; z-index: 2; }
