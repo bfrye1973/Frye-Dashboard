@@ -1,11 +1,10 @@
 // src/pages/DashboardLayout.jsx
-// Frye Dashboard — 7-row layout skeleton (safe placeholders)
+// Frye Dashboard — 7-row layout skeleton + TEMP DEBUG block (safe placeholders)
 
 import React from "react";
-// If you already have real components, swap these placeholders later.
 import LiveLWChart from "../components/LiveLWChart/LiveLWChart"; // Row 6 chart
 
-// ---------- Row 1: Mode Toggle ----------
+/* ---------- Row 1: Mode Toggle ---------- */
 function ModeToggle() {
   return (
     <div id="row-1" className="panel" style={{ padding: 10 }}>
@@ -21,7 +20,7 @@ function ModeToggle() {
   );
 }
 
-// ---------- Row 2: Market Overview (selected mode) ----------
+/* ---------- Row 2: Market Overview ---------- */
 function MarketOverview() {
   return (
     <div id="row-2" className="panel" style={{ padding: 10 }}>
@@ -54,14 +53,16 @@ function MarketOverview() {
           <div className="kpi-bar ok" style={{ marginTop: 8 }}>
             <div className="kpi-fill" style={{ width: "73%" }} />
           </div>
-          <div className="small muted" style={{ marginTop: 6 }}>Higher = tighter (direction unknown)</div>
+          <div className="small muted" style={{ marginTop: 6 }}>
+            Higher = tighter (direction unknown)
+          </div>
         </div>
       </div>
     </div>
   );
 }
 
-// ---------- Row 3: Engine Lights ----------
+/* ---------- Row 3: Engine Lights ---------- */
 function EngineLights() {
   return (
     <div id="row-3" className="panel" style={{ padding: 10 }}>
@@ -73,7 +74,7 @@ function EngineLights() {
   );
 }
 
-// ---------- Row 4: Index Sectors ----------
+/* ---------- Row 4: Index Sectors ---------- */
 function IndexSectors() {
   return (
     <div id="row-4" className="panel index-sectors" style={{ padding: 10 }}>
@@ -84,26 +85,8 @@ function IndexSectors() {
     </div>
   );
 }
-<IndexSectors />
 
-{/* TEMP DEBUG: should render a tall red bar */}
-<div id="debug-block"
-     style={{
-       height: 600,
-       background: "rgba(255,0,0,0.25)",
-       outline: "2px solid #ff4d4d",
-       color: "#ffcccc",
-       display: "flex",
-       alignItems: "center",
-       justifyContent: "center",
-       fontWeight: 700
-     }}>
-  DEBUG BLOCK — if you can see this, rows below are not the problem
-</div>
-
-<StrategiesRow />
-
-// ---------- Row 5: Strategies (3-up) ----------
+/* ---------- Row 5: Strategies (3-up) ---------- */
 function StrategiesRow() {
   return (
     <div id="row-5" className="panel strategies" style={{ padding: 10 }}>
@@ -129,7 +112,7 @@ function StrategiesRow() {
   );
 }
 
-// ---------- Row 6: Chart Section (full width) ----------
+/* ---------- Row 6: Chart Section (full width) ---------- */
 function ChartSection() {
   return (
     <div id="row-6" className="panel chart-card" style={{ marginTop: 12 }}>
@@ -139,7 +122,7 @@ function ChartSection() {
   );
 }
 
-// ---------- Row 7: Journal ----------
+/* ---------- Row 7: Journal ---------- */
 function JournalPanel() {
   return (
     <div id="row-7" className="panel journal" style={{ padding: 10, minHeight: 200 }}>
@@ -151,7 +134,7 @@ function JournalPanel() {
   );
 }
 
-// ---------- Page wrapper ----------
+/* ---------- Page wrapper (with TEMP DEBUG block) ---------- */
 export default function DashboardLayout() {
   return (
     <div style={{ padding: 12, display: "grid", gap: 12 }}>
@@ -159,9 +142,27 @@ export default function DashboardLayout() {
       <MarketOverview />
       <EngineLights />
       <IndexSectors />
-      <StrategiesRow />
-      <ChartSection />
-      <JournalPanel />
+
+      {/* TEMP DEBUG: should render a tall red bar between Row 4 and Row 5 */}
+      <div
+        id="debug-block"
+        style={{
+          height: 600,
+          background: "rgba(255,0,0,0.25)",
+          outline: "2px solid #ff4d4d",
+          color: "#ffcccc",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontWeight: 700,
+        }}
+      >
+        DEBUG BLOCK — if you can see this, the bottom rows are fine (overlay not present)
+      </div>
+
+      <StrategiesRow />   {/* Row 5 */}
+      <ChartSection />    {/* Row 6 */}
+      <JournalPanel />    {/* Row 7 */}
     </div>
   );
 }
