@@ -84,6 +84,24 @@ function IndexSectors() {
     </div>
   );
 }
+<IndexSectors />
+
+{/* TEMP DEBUG: should render a tall red bar */}
+<div id="debug-block"
+     style={{
+       height: 600,
+       background: "rgba(255,0,0,0.25)",
+       outline: "2px solid #ff4d4d",
+       color: "#ffcccc",
+       display: "flex",
+       alignItems: "center",
+       justifyContent: "center",
+       fontWeight: 700
+     }}>
+  DEBUG BLOCK — if you can see this, rows below are not the problem
+</div>
+
+<StrategiesRow />
 
 // ---------- Row 5: Strategies (3-up) ----------
 function StrategiesRow() {
