@@ -1,19 +1,25 @@
 // src/components/ChartSection.jsx
-<div style={{color:'#93a3b8', fontSize:12, margin:'6px 10px'}}>
-  ChartSection mounted: {new Date().toLocaleTimeString()}
-</div>
-
 import React from "react";
-import LiveLWChart from "./LiveLWChart/LiveLWChart";
+import LiveLWChart from "./LiveLWChart/LiveLWChart"; // <-- keep this path
 
 export default function ChartSection({
-  symbol, timeframe, enabledIndicators = [], settings = {}, height = 560, onCandles
+  symbol,
+  timeframe,
+  enabledIndicators = [],
+  settings = {},
+  height = 560,
+  title = "Price Chart",
+  onCandles,
 }) {
   return (
     <section className="panel" style={panel}>
       <div className="panel-head">
-        <div className="panel-title">Price Chart</div>
+        <div className="panel-title">{title}</div>
       </div>
+
+      {/* If you want controls here instead of above, you can pass them in and render here */}
+      {/* {rightActions} */}
+
       <LiveLWChart
         symbol={symbol}
         timeframe={timeframe}
@@ -27,8 +33,8 @@ export default function ChartSection({
 }
 
 const panel = {
-  border:"1px solid #1b2130",
-  borderRadius:12,
-  overflow:"hidden",
-  background:"#0e1526",
+  border: "1px solid #1b2130",
+  borderRadius: 12,
+  overflow: "hidden",
+  background: "#0e1526",
 };
