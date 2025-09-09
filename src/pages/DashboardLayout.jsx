@@ -1,8 +1,6 @@
 // src/pages/DashboardLayout.jsx
-// Frye Dashboard — 7-row layout skeleton + TEMP DEBUG block (safe placeholders)
-
 import React from "react";
-import LiveLWChart from "../components/LiveLWChart/LiveLWChart"; // Row 6 chart
+import LiveLWChart from "../components/LiveLWChart/LiveLWChart";
 
 /* ---------- Row 1: Mode Toggle ---------- */
 function ModeToggle() {
@@ -30,7 +28,6 @@ function MarketOverview() {
         <span className="small muted">Bearish ← 0 … 100 → Bullish</span>
       </div>
 
-      {/* Simple meter bar as a placeholder */}
       <div className="kpi-bar ok" style={{ marginBottom: 10 }}>
         <div className="kpi-fill" style={{ width: "78%" }} />
       </div>
@@ -86,10 +83,19 @@ function IndexSectors() {
   );
 }
 
-/* ---------- Row 5: Strategies (3-up) ---------- */
+/* ---------- Row 5: Strategies (forced visible) ---------- */
 function StrategiesRow() {
   return (
-    <div id="row-5" className="panel strategies" style={{ padding: 10 }}>
+    <div
+      id="row-5"
+      className="panel strategies"
+      style={{
+        padding: 10,
+        minHeight: 220,
+        background: "rgba(34,197,94,0.08)",     // light green tint so you can see it
+        outline: "1px dashed rgba(34,197,94,.5)"
+      }}
+    >
       <div className="panel-head">
         <div className="panel-title">Strategies</div>
       </div>
@@ -112,20 +118,37 @@ function StrategiesRow() {
   );
 }
 
-/* ---------- Row 6: Chart Section (full width) ---------- */
+/* ---------- Row 6: Chart Section (forced visible) ---------- */
 function ChartSection() {
   return (
-    <div id="row-6" className="panel chart-card" style={{ marginTop: 12 }}>
-      {/* The chart mounts here and stays inside this card */}
+    <div
+      id="row-6"
+      className="panel chart-card"
+      style={{
+        marginTop: 12,
+        outline: "1px dashed rgba(59,130,246,.5)",  // blue dashed outline
+        background: "rgba(59,130,246,0.06)"         // faint blue so you can see it
+      }}
+    >
       <LiveLWChart symbol="SPY" timeframe="1D" height={520} />
     </div>
   );
 }
 
-/* ---------- Row 7: Journal ---------- */
+/* ---------- Row 7: Journal (forced visible) ---------- */
 function JournalPanel() {
   return (
-    <div id="row-7" className="panel journal" style={{ padding: 10, minHeight: 200 }}>
+    <div
+      id="row-7"
+      className="panel journal"
+      style={{
+        padding: 10,
+        minHeight: 220,
+        marginTop: 12,
+        background: "rgba(255,99,71,0.07)",         // faint red tint
+        outline: "1px dashed rgba(255,99,71,.5)"
+      }}
+    >
       <div className="panel-head">
         <div className="panel-title">Journal</div>
       </div>
@@ -134,7 +157,7 @@ function JournalPanel() {
   );
 }
 
-/* ---------- Page wrapper (with TEMP DEBUG block) ---------- */
+/* ---------- Page wrapper ---------- */
 export default function DashboardLayout() {
   return (
     <div style={{ padding: 12, display: "grid", gap: 12 }}>
@@ -142,24 +165,6 @@ export default function DashboardLayout() {
       <MarketOverview />
       <EngineLights />
       <IndexSectors />
-
-      {/* TEMP DEBUG: should render a tall red bar between Row 4 and Row 5 */}
-      <div
-        id="debug-block"
-        style={{
-          height: 600,
-          background: "rgba(255,0,0,0.25)",
-          outline: "2px solid #ff4d4d",
-          color: "#ffcccc",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          fontWeight: 700,
-        }}
-      >
-        DEBUG BLOCK — if you can see this, the bottom rows are fine (overlay not present)
-      </div>
-
       <StrategiesRow />   {/* Row 5 */}
       <ChartSection />    {/* Row 6 */}
       <JournalPanel />    {/* Row 7 */}
