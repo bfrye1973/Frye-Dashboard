@@ -1,6 +1,122 @@
-import React from "react";
-import { createRoot } from "react-dom/client";
-import App from "./App";
-import "./index.css";
+/* ===== Base ===== */
+html, body {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+html { zoom: 1 !important; }
 
-createRoot(document.getElementById("root")).render(<App />);
+:root {
+  --bg:#0d1117;
+  --panel:#0e1526;
+  --border:#1f2a44;
+  --text:#e5e7eb;
+  --muted:#9ca3af;
+  --ok:#22c55e;
+  --warn:#f59e0b;
+  --danger:#ef4444;
+  --info:#3b82f6;
+}
+
+* { box-sizing: border-box; }
+
+html, body, #root {
+  height: 100%;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+}
+
+img, svg, video { 
+  max-width: 100%; 
+  display: block; 
+  height: auto; 
+}
+
+a { 
+  color: var(--info); 
+  text-decoration: none; 
+}
+a:hover { text-decoration: underline; }
+
+button {
+  font: inherit;
+  color: inherit;
+  background: transparent;
+  border: 1px solid var(--border);
+  padding: 6px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+/* ===== Panels ===== */
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px;
+}
+.panel-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  background: #0c1320;
+}
+.panel-title { font-weight: 700; }
+.spacer { flex: 1; }
+.muted { opacity: .8; }
+.small { font-size: 12px; }
+
+/* ===== KPI bars ===== */
+.kpi-bar {
+  position: relative;
+  height: 8px;
+  border: 1px solid #334155;
+  background: #0b1220;
+  border-radius: 6px;
+  overflow: hidden;
+}
+.kpi-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  border-radius: 6px;
+}
+.kpi-bar.ok .kpi-fill { background: var(--ok); }
+.kpi-bar.warn .kpi-fill { background: var(--warn); }
+.kpi-bar.danger .kpi-fill { background: var(--danger); }
+
+/* ===== Row debug outlines (optional; remove later) ===== */
+#row-1,#row-2,#row-3,#row-4,#row-5,#row-6,#row-7 {
+  outline: 1px dotted rgba(100,150,255,.25);
+  margin-bottom: 12px;
+  position: relative;
+  z-index: 2;
+}
+
+/* TEMP tints so you can verify stacking order (remove later) */
+#row-5 { background: rgba(34,197,94,.08); min-height: 220px; }
+#row-6 { background: rgba(59,130,246,.06); min-height: 520px; }
+#row-7 { background: rgba(255,99,71,.07); min-height: 220px; }
+
+/* ===== Chart quarantine (only inside Row 6) ===== */
+#row-6.chart-card {
+  position: relative;
+  height: 520px;
+  overflow: hidden;
+}
+#row-6.chart-card canvas {
+  position: relative !important;
+  width: 100% !important;
+  height: 100% !important;
+  max-height: 520px !important;
+  z-index: 0 !important;
+  overflow: hidden !important;
+}
