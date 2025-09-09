@@ -46,3 +46,16 @@ button{ font:inherit; color:inherit; background:transparent; border:1px solid va
   position:relative !important; width:100% !important; height:100% !important;
   max-height:520px !important; z-index:0 !important; overflow:hidden !important;
 }
+
+/* ===== Added guards (safe) ===== */
+
+/* 1) Ensure the React mount container never clips rows 5–7 */
+#root { overflow: visible !important; }
+
+/* 2) TEMP: if ANY canvas is mounted outside row-6, hide it (proves overlay source).
+      After you confirm things look right, delete this block. */
+body > canvas,
+#root > canvas {
+  display: none !important;
+  pointer-events: none !important;
+}
