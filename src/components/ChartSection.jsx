@@ -1,4 +1,8 @@
 // src/components/ChartSection.jsx
+<div style={{color:'#93a3b8', fontSize:12, margin:'6px 10px'}}>
+  ChartSection mounted: {new Date().toLocaleTimeString()}
+</div>
+
 import React from "react";
 import LiveLWChart from "./LiveLWChart/LiveLWChart";
 
