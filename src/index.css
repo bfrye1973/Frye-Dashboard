@@ -120,3 +120,14 @@ button {
   z-index: 0 !important;
   overflow: hidden !important;
 }
+/* Guard: never clip the app container */
+#root { 
+  overflow: visible !important; 
+}
+
+/* TEMP: hide any canvas mounted OUTSIDE row 6 (proves overlay source) */
+body > canvas,
+#root > canvas {
+  display: none !important;
+  pointer-events: none !important;
+}
