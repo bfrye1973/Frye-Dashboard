@@ -31,7 +31,8 @@ html, body, #root{
   -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
   font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
 }
-img, canvas, svg, video{ max-width:100%; display:block; height:auto; }
+img, svg, video{ max-width:100%; display:block; height:auto; }
+/* don’t globally force canvas — handled per chart */
 a{ color:var(--info); text-decoration:none; } a:hover{text-decoration:underline;}
 button{ font:inherit; color:inherit; background:transparent; border:1px solid var(--border); padding:6px 10px; border-radius:6px; cursor:pointer; }
 
@@ -61,91 +62,44 @@ button{ font:inherit; color:inherit; background:transparent; border:1px solid va
 .delta-flat{ color:#93c5fd; border-color:#334155; background:#0b1220; }
 
 /* Optional row outlines for debugging */
-#row-1,#row-2,#row-3,#row-4,#row-5,#row-5-controls,#row-6,#row-7{
+#row-1,#row-2,#row-3,#row-4,#row-5,#row-6,#row-7{
   outline:1px dotted rgba(100,150,255,.25); margin-bottom:8px;
 }
 
 /* =========================================================
-   CHART QUARANTINE (one definitive copy)
-   - Keeps any chart canvas inside its card
-   - Prevents full-page overlays
+   ROW 5–7 SAFETY
    ========================================================= */
-
-/* Content rows should always sit above canvases */
-.panel, .cluster, .index-sectors, .strategies, .journal, .kpi-area, .bottom-grid{
-  position:relative; z-index:2;
-}
-
-/* Chart card wrapper for every chart section (e.g., Row 6) */
-.chart-card{
-  position:relative;
-  height:520px;                 /* adjust if you want taller/shorter */
-  overflow:hidden;              /* CRITICAL: clips runaway canvases */
-  z-index:1;
-}
-
-/* The inner mount node for the chart library */
-.chart-card > .chart-root{
-  position:relative; width:100%; height:100%;
-}
-
-/* Confine canvases/roots inside the card */
-.chart-card > .chart-root,
-.chart-card canvas,
-.chart-card .tv-lightweight-charts,
-.chart-card .tradingview-widget-container,
-.chart-card .lw-chart,
-.chart-card .chart-canvas{
-  position:absolute !important;
-  inset:0 !important;           /* fill the card */
-  z-index:1;
-}
-
-/* ===== TEMP safety: HARD-HIDE any full-screen canvases at <body> level ===== */
-body > canvas,
-body > .tv-lightweight-charts,
-body > .tradingview-widget-container,
-body > div[style*="position:fixed"],
-body > div[style*="position: absolute"][style*="top: 0"][style*="left: 0"][style*="right: 0"][style*="bottom: 0"]{
-  z-index:0 !important; pointer-events:none !important;
-  display:none !important;       /* turn ON to remove the black sheet now */
-}
-
-/* Avoid 100vh traps from 3rd-party widgets */
-div[style*="min-height: 100vh"], div[style*="height: 100vh"]{
-  min-height:auto !important; height:auto !important; max-height:92vh !important; overflow:hidden !important;
-}
-/* --- TEMP: force Rows 5–7 to be visibly tall and tinted so you can see them --- */
 #row-5, #row-7 {
   min-height: 220px !important;
   background: rgba(34, 197, 94, 0.08) !important;   /* faint tint */
   outline: 1px dashed rgba(34, 197, 94, 0.5) !important;
+  position: relative !important;
+  z-index: 2 !important;
 }
 #row-6 {
   min-height: 520px !important;                     /* chart row height */
   background: rgba(59, 130, 246, 0.06) !important;  /* faint tint */
   outline: 1px dashed rgba(59, 130, 246, 0.5) !important;
+  position: relative !important;
+  z-index: 2 !important;
 }
 
-/* make sure these rows actually render above any canvases */
-#row-5, #row-6, #row-7 { position: relative; z-index: 2 !important; }
-/* Contain the chart canvas inside Row 6 so it doesn't overlay Row 7 */
-#row-6.chart-card canvas {
-  max-height: 520px !important;   /* keep canvas locked to card height */
-  z-index: 0 !important;          /* drop canvas below other panels */
-  overflow: hidden !important;    /* clip any extra drawing */
-  position: relative !important;  /* reset from absolute positioning */
-}
-/* Make sure rows 6 and 7 stay in order and don't jump to the top */
-#row-6.chart-card,
-#row-7.journal {
-  position: relative !important;   /* keeps them in the normal flow */
-  margin-top: 12px;                /* spacing between rows */
+/* =========================================================
+   CHART QUARANTINE — ONLY ROW 6
+   ========================================================= */
+#row-6.chart-card {
+  position: relative !important;
+  height: 520px !important;
+  overflow: hidden !important;   /* clip runaway canvases */
+  margin-top: 12px;
 }
 
+/* contain only canvases inside row-6 */
 #row-6.chart-card canvas {
-  position: relative !important;   /* stops it from escaping */
-  max-height: 520px !important;    /* contain chart height */
-  z-index: 0 !important;           /* don’t cover other rows */
-  overflow: hidden !important;     /* clip extra canvas */
+  position: relative !important;
+  max-height: 520px !important;
+  width: 100% !important;
+  height: 100% !important;
+  z-index: 0 !important;          /* don’t overlay row-7 */
+  overflow: hidden !important;
 }
