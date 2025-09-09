@@ -129,3 +129,10 @@ div[style*="min-height: 100vh"], div[style*="height: 100vh"]{
 
 /* make sure these rows actually render above any canvases */
 #row-5, #row-6, #row-7 { position: relative; z-index: 2 !important; }
+/* Contain the chart canvas inside Row 6 so it doesn't overlay Row 7 */
+#row-6.chart-card canvas {
+  max-height: 520px !important;   /* keep canvas locked to card height */
+  z-index: 0 !important;          /* drop canvas below other panels */
+  overflow: hidden !important;    /* clip any extra drawing */
+  position: relative !important;  /* reset from absolute positioning */
+}
