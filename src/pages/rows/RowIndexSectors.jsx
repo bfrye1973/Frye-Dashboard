@@ -1,7 +1,8 @@
 // src/pages/rows/RowIndexSectors.jsx
-import React from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useDashboardPoll } from "../../lib/dashboardApi";
 
+/* ----- helpers ----- */
 const toneFor = (o) => {
   if (!o) return "info";
   const s = String(o).toLowerCase();
@@ -53,22 +54,56 @@ function SectorCard({ sector, outlook, spark }) {
   );
 }
 
+/* ----- Row 4: Index Sectors (stale-while-revalidate) ----- */
 export default function RowIndexSectors() {
   const { data, loading, error } = useDashboardPoll?.(5000) ?? { data:null, loading:false, error:null };
-  const cards = data?.outlook?.sectorCards ?? [];
+
+  const hasLoadedRef = useRef(false);           // track first successful load
+  const [cards, setCards] = useState([]);       // last-good cards to render
+  const [stale, setStale] = useState(false);    // true when poll returned empty/undefined
+
+  // update from polling
+  useEffect(() => {
+    const polled = data?.outlook?.sectorCards;
+    const hasArray = Array.isArray(polled);
+
+    // first good payload: set cards and mark loaded
+    if (!hasLoadedRef.current && hasArray && polled.length > 0) {
+      setCards(polled);
+      setStale(false);
+      hasLoadedRef.current = true;
+      return;
+    }
+
+    // after first load:
+    if (hasArray) {
+      if (polled.length > 0) {
+        // replace only when non-empty to avoid flicker
+        setCards(polled);
+        setStale(false);
+      } else {
+        // keep rendering last-good and mark stale (no flicker)
+        setStale(true);
+      }
+    }
+  }, [data]);
 
   return (
     <section id="row-4" className="panel index-sectors" aria-label="Index Sectors">
       <div className="panel-head">
         <div className="panel-title">Index Sectors</div>
+        <div className="spacer" />
+        {stale && <span className="small muted">refreshing…</span>}
       </div>
 
-      {error && <div className="small muted">Failed to load sectors.</div>}
-      {loading && <div className="small muted">Loading…</div>}
-      {!loading && cards.length === 0 && (
+      {/* initial states */}
+      {error && !hasLoadedRef.current && <div className="small muted">Failed to load sectors.</div>}
+      {loading && !hasLoadedRef.current && <div className="small muted">Loading…</div>}
+      {!loading && !hasLoadedRef.current && cards.length === 0 && (
         <div className="small muted">Sectors table/cards will render here.</div>
       )}
 
+      {/* render last-good always (prevents disappearing/flicker) */}
       {cards.length > 0 && (
         <div style={{
           display:"grid",
@@ -76,7 +111,12 @@ export default function RowIndexSectors() {
           gap:10, marginTop:10
         }}>
           {cards.map((c, i) => (
-            <SectorCard key={i} sector={c.sector} outlook={c.outlook} spark={c.spark} />
+            <SectorCard
+              key={c?.sector || i}     // stable keys reduce re-mount flicker
+              sector={c?.sector}
+              outlook={c?.outlook}
+              spark={Array.isArray(c?.spark) ? c.spark : []}
+            />
           ))}
         </div>
       )}
