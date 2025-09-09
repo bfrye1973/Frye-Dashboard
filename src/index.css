@@ -393,3 +393,41 @@ div[style*="height: 100vh"] {
   outline: 1px dotted rgba(100,150,255,.35);
   margin-bottom: 8px;
 }
+/* === Layout safety: keep later sections above any stray canvases === */
+#root, body { position: relative; }
+.panel, .cluster, .sectors-grid, .kpi-area, .index-sectors {
+  position: relative;
+  z-index: 2;  /* content wins */
+}
+
+/* === Chart card pattern: size the container, keep canvas inside it === */
+.chart-card {           /* use this class on each chart panel */
+  position: relative;
+  height: 520px;        /* set whatever height you want */
+  overflow: hidden;     /* clip any over-sized canvas */
+}
+
+/* anything that renders the chart (div/canvas/root) must stay inside card */
+.chart-card > .chart-root,
+.chart-card > #chart-root,
+.chart-card canvas,
+.chart-card .tv-lightweight-charts,
+.chart-card .lw-chart,
+.chart-card .chart-canvas {
+  position: absolute !important;
+  inset: 12px !important;     /* top/right/bottom/left padding */
+  z-index: 1;                  /* under the panel text */
+}
+
+/* === Kill accidental full-screen overlays below the fold === */
+div[class*="overlay"], div[class*="backdrop"], .tv-chart-pane__overlay {
+  /* if a library sticks a fullscreen overlay, keep it behind content */
+  z-index: 0 !important;
+  pointer-events: none;        /* don’t block clicks */
+}
+
+/* avoid global 100vh that can hide content */
+.page, .container, .cluster {
+  min-height: auto;
+  height: auto;
+}
