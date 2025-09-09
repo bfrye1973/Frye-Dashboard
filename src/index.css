@@ -97,20 +97,18 @@ button{ font:inherit; color:inherit; background:transparent; border:1px solid va
 .chart-card .lw-chart,
 .chart-card .chart-canvas{
   position:absolute !important;
-  inset:0 !important;           /* fill the card; padding handled in JSX if needed */
+  inset:0 !important;           /* fill the card */
   z-index:1;
 }
 
-/* TEMP safety: demote any full-screen canvases mounted at <body> level */
+/* ===== TEMP safety: HARD-HIDE any full-screen canvases at <body> level ===== */
 body > canvas,
 body > .tv-lightweight-charts,
 body > .tradingview-widget-container,
 body > div[style*="position:fixed"],
 body > div[style*="position: absolute"][style*="top: 0"][style*="left: 0"][style*="right: 0"][style*="bottom: 0"]{
   z-index:0 !important; pointer-events:none !important;
-  /* If you still see a black sheet, uncomment the next line for a hard hide:
-     display:none !important;
-  */
+  display:none !important;       /* turn ON to remove the black sheet now */
 }
 
 /* Avoid 100vh traps from 3rd-party widgets */
