@@ -1,13 +1,11 @@
-// src/pages/rows/RowEngineLights.jsx  (example)
+// src/pages/rows/RowChart.jsx
 import React from "react";
+import LiveLWChart from "../../components/LiveLWChart/LiveLWChart";
 
-export default function RowEngineLights() {
+export default function RowChart() {
   return (
-    <section id="row-3" className="panel" style={{ marginTop: 12 }}>
-      <div className="panel-head">
-        <div className="panel-title">Engine Lights</div>
-      </div>
-      <div className="muted small">Active signals will appear here.</div>
+    <section id="row-6" className="panel chart-card" style={{ marginTop: 12 }}>
+      <LiveLWChart symbol="SPY" timeframe="1D" height={520} />
     </section>
   );
 }
