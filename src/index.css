@@ -1,499 +1,119 @@
-/* ===============================
-   Global Theme & Base Styles
-   =============================== */
+/* =========================================================
+   Frye Dashboard — CLEAN BASE
+   ========================================================= */
 
-/* --- Scale/zoom hardeners (safe defaults) --- */
+/* ---------- Zoom/scale hardeners (safe defaults) ---------- */
 html, body {
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
-  transform: none !important;
 }
-html { zoom: 1 !important; }         /* Chrome-friendly; ignored by Firefox */
-.zoom-reset-tmp { outline: 0; }       /* tiny no-op to force reflow if needed */
+html { zoom: 1 !important; }      /* ignored by Firefox */
 
-/* --- Theme tokens --- */
-:root {
-  --bg: #0a0a0a;
-  --panel: #121212;
-  --border: #2b2b2b;
-  --text: #e5e7eb;
-  --muted: #9ca3af;
-  --accent: #22c55e;
-  --danger: #ef4444;
-  --warning: #f59e0b;
-  --info: #3b82f6;
+/* ---------- Theme tokens ---------- */
+:root{
+  --bg:#0d1117;
+  --panel:#0e1526;
+  --border:#1f2a44;
+  --text:#e5e7eb;
+  --muted:#9ca3af;
 
-  --shadow-1: 0 1px 2px rgba(0,0,0,.25);
-  --shadow-2: 0 6px 18px rgba(0,0,0,.35);
+  --ok:#22c55e;
+  --warn:#f59e0b;
+  --danger:#ef4444;
+  --info:#3b82f6;
 }
 
-/* --- App shell --- */
-html, body, #root {
-  margin: 0;
-  padding: 0;
-  height: 100%;
-  width: 100%;
-  background: var(--bg);
-  color: var(--text);
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+/* ---------- Base ---------- */
+*{ box-sizing:border-box; }
+html, body, #root{
+  height:100%; width:100%; margin:0; padding:0;
+  background:var(--bg); color:var(--text);
+  -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+}
+img, canvas, svg, video{ max-width:100%; display:block; height:auto; }
+a{ color:var(--info); text-decoration:none; } a:hover{text-decoration:underline;}
+button{ font:inherit; color:inherit; background:transparent; border:1px solid var(--border); padding:6px 10px; border-radius:6px; cursor:pointer; }
+
+/* ---------- Panels / layout ---------- */
+.panel{
+  background:var(--panel); border:1px solid var(--border);
+  border-radius:12px; padding:10px;
+}
+.panel-head{ display:flex; align-items:center; gap:8px; padding:8px 10px; border-bottom:1px solid var(--border); background:#0c1320; }
+.panel-title{ font-weight:700; }
+.spacer{ flex:1; }
+.muted{ opacity:.8; } .small{ font-size:12px; }
+
+/* =========================================================
+   KPI / Tiles / Meter
+   ========================================================= */
+.kpi-bar{ position:relative; height:8px; border:1px solid #334155; background:#0b1220; border-radius:6px; overflow:hidden; }
+.kpi-fill{ position:absolute; left:0; top:0; bottom:0; border-radius:6px; }
+.kpi-bar.ok    .kpi-fill{ background:var(--ok); }
+.kpi-bar.warn  .kpi-fill{ background:var(--warn); }
+.kpi-bar.danger .kpi-fill{ background:var(--danger); }
+
+/* delta chips */
+.delta{ font-weight:700; padding:2px 6px; border-radius:8px; border:1px solid transparent; }
+.delta-up{   color:#16a34a; border-color:#14532d; background:#052e1b; }
+.delta-down{ color:#ef4444; border-color:#7f1d1d; background:#3a0e0e; }
+.delta-flat{ color:#93c5fd; border-color:#334155; background:#0b1220; }
+
+/* Optional row outlines for debugging */
+#row-1,#row-2,#row-3,#row-4,#row-5,#row-5-controls,#row-6,#row-7{
+  outline:1px dotted rgba(100,150,255,.25); margin-bottom:8px;
 }
 
-/* --- Resets / media elements --- */
-* { box-sizing: border-box; }
-img, canvas, svg, video { max-width: 100%; height: auto; display: block; }
+/* =========================================================
+   CHART QUARANTINE (one definitive copy)
+   - Keeps any chart canvas inside its card
+   - Prevents full-page overlays
+   ========================================================= */
 
-/* Links & buttons */
-a { color: var(--info); text-decoration: none; }
-a:hover { text-decoration: underline; }
-button {
-  font-family: inherit; color: inherit;
-  background: transparent; border: 1px solid var(--border);
-  padding: 6px 10px; border-radius: 6px; cursor: pointer;
-}
-button:hover { border-color: #3d3d3d; }
-
-/* ===============================
-   Panels / Cards
-   =============================== */
-.panel {
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 12px;
-  color: var(--text);
-  box-shadow: var(--shadow-1);
-}
-.panel-header { font-size: 14px; font-weight: 600; margin-bottom: 8px; }
-
-/* ===============================
-   Utilities
-   =============================== */
-.flex { display: flex; }
-.flex-col { display: flex; flex-direction: column; }
-.flex-row { display: flex; flex-direction: row; }
-.flex-1 { flex: 1; }
-.grid { display: grid; }
-.gap-2 { gap: 8px; }
-.gap-4 { gap: 16px; }
-.w-full { width: 100%; }
-.h-full { height: 100%; }
-.overflow-hidden { overflow: hidden; }
-.text-muted { color: var(--muted); }
-.text-accent { color: var(--accent); }
-.text-danger { color: var(--danger); }
-.text-warning { color: var(--warning); }
-.text-info { color: var(--info); }
-
-body > * { max-width: 100vw !important; } /* no sideways overflow */
-
-/* ===============================
-   Simple Table (for sectors)
-   =============================== */
-.table-basic { width: 100%; border-collapse: collapse; font-size: 14px; }
-.table-basic thead th {
-  text-align: left; padding: 10px 12px;
-  border-bottom: 1px solid var(--border); background: #0e1526;
-}
-.table-basic tbody td { padding: 10px 12px; border-bottom: 1px solid #0f1b33; }
-.table-basic tbody tr:nth-child(odd)  { background: #0a1120; }
-.table-basic tbody tr:nth-child(even) { background: #0c1424; }
-
-/* ===============================
-   Cluster (id="cluster") — optional component clamp
-   =============================== */
-#cluster {
-  position: relative;
-  max-height: 520px;             /* soft cap only */
-  overflow: hidden;
-  border-radius: 18px;
-}
-#cluster svg,
-#cluster canvas {
-  width: 100% !important;
-  height: 100% !important;
-  display: block !important;
-  overflow: hidden !important;
+/* Content rows should always sit above canvases */
+.panel, .cluster, .index-sectors, .strategies, .journal, .kpi-area, .bottom-grid{
+  position:relative; z-index:2;
 }
 
-/* Safety if dials are targeted directly */
-svg[aria-label="RPM"],
-svg[aria-label="Speed"] { overflow: hidden !important; }
-
-/* ===============================
-   Chart Price Pane Cap
-   =============================== */
-.lw-price-pane { max-height: 520px !important; overflow: hidden !important; }
-
-/* ===============================
-   Dashboard Layout (no vh)
-   =============================== */
-.dashboard-grid {
-  display: grid;
-  grid-template-rows: 520px auto 220px; /* header / content / footer */
-  gap: 12px;
-  padding: 12px;
-  width: 100%;
-  background: var(--bg);
+/* Chart card wrapper for every chart section (e.g., Row 6) */
+.chart-card{
+  position:relative;
+  height:520px;                 /* adjust if you want taller/shorter */
+  overflow:hidden;              /* CRITICAL: clips runaway canvases */
+  z-index:1;
 }
 
-/* Optional containment for any chart/cluster box */
-.chart-box {
-  position: relative;
-  overflow: hidden;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: #0b0b14;
-  box-shadow: var(--shadow-2);
+/* The inner mount node for the chart library */
+.chart-card > .chart-root{
+  position:relative; width:100%; height:100%;
 }
 
-/* ===============================
-   Global Hard-Stop
-   =============================== */
-html, body, #root {
-  overflow-x: hidden !important;
-  transform-origin: 50% 0 !important;
-}
-
-/* Guard: stop inline 100vh wrappers from blowing up layout */
-div[style*="min-height: 100vh"],
-div[style*="height: 100vh"] {
-  min-height: auto !important;
-  height: auto !important;
-  max-height: 92vh !important;
-  overflow: hidden !important;
-}
-
-/* ===============================
-   Cluster panel soft-caps (robust selectors)
-   - cap, don't fix height; allow content to render then restrict growth
-   =============================== */
-#root .cluster > .panel,
-#root .cluster .panel,
-#root .panel.carbon-fiber {
-  min-height: auto !important;
-  height: auto !important;        /* no hard height */
-  max-height: 520px !important;   /* soft cap */
-  overflow: hidden !important;
-  position: relative;
-}
-#root .cluster .panel svg,
-#root .cluster .panel canvas {
-  width: 100% !important;
-  height: 100% !important;
-  display: block !important;
-  overflow: hidden !important;
-}
-
-/* ============================================================
-   Ferrari Gauges — Big (tach/speed) & Mini (Water/Oil/Fuel/Alt)
-   ============================================================ */
-
-/* --- Big dials (tach / speed) --- */
-.fg-wrap {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-}
-
-.fg-wrap .gauge-face {
-  position: relative;
-  width: 220px;
-  height: 220px;
-  border-radius: 50%;
-  overflow: hidden;
-  background: #ffdd00; /* yellow by default; red is applied inline */
-  box-shadow: inset 0 0 0 2px rgba(0,0,0,.5), 0 8px 18px rgba(0,0,0,.35);
-}
-
-.fg-wrap .ring {
-  position: absolute;
-  inset: 0;
-  border-radius: 50%;
-  box-shadow:
-    inset 0 0 0 9px #0f172a,      /* inner trim */
-    inset 0 0 0 12px #1f2937;     /* bezel */
-  pointer-events: none;
-}
-
-.fg-wrap .needle {
-  position: absolute;
-  left: 50%;
-  bottom: 50%;
-  width: 4px;
-  height: 42%;
-  background: #0f172a;
-  border-radius: 2px;
-  transform-origin: 50% 100%;
-  box-shadow: 0 0 6px rgba(0,0,0,.35);
-  z-index: 3;
-}
-
-.fg-wrap .hub {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: #e5e7eb;
-  border: 2px solid #0f172a;
-  transform: translate(-50%, -50%);
-  z-index: 4;
-}
-
-.fg-wrap .glass {
-  position: absolute;
-  inset: 0;
-  border-radius: 50%;
-  background: radial-gradient(ellipse at 30% 20%, rgba(255,255,255,.12), rgba(255,255,255,0) 45%);
-  z-index: 5;
-  pointer-events: none;
-}
-
-.fg-wrap .dial-numerals {
-  position: absolute;
-  inset: 0;
-  width: 220px;
-  height: 220px;
-  z-index: 2;
-}
-.fg-wrap .dial-numerals .numeral {
-  fill: #0f172a;      /* dark numerals for yellow face */
-  font-size: 16px;
-  font-weight: 700;
-  text-shadow: 0 1px 0 rgba(255,255,255,.35);
-}
-
-.fg-wrap .fg-title {
-  font-size: 12px;
-  opacity: .85;
-}
-
-/* --- Mini dials (Water/Oil/Fuel/Alt) --- */
-.mini {
-  display: inline-flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: flex-start;
-  width: 108px;              /* footprint; face is 86x86 */
-  margin: 4px 8px;
-}
-
-.mini .mini-face {
-  position: relative;
-  width: 86px;
-  height: 86px;
-  border-radius: 50%;
-  background: #0b0f14;       /* deep black */
-  box-shadow:
-    inset 0 0 20px rgba(0,0,0,.65),
-    0 2px 4px rgba(0,0,0,.35);
-  border: 2px solid #303642; /* bezel edge */
-}
-
-.mini .mini-face::before {   /* inner chrome ring */
-  content:"";
-  position:absolute; inset:4px;
-  border-radius:50%;
-  box-shadow: inset 0 0 0 2px rgba(255,255,255,.08);
-}
-
-.mini .mini-needle {
-  position: absolute;
-  left: 50%;
-  bottom: 50%;
-  width: 3px;
-  height: 36%;
-  background: #f43f5e;       /* bright needle */
-  border-radius: 2px;
-  transform-origin: 50% 100%;
-  box-shadow: 0 0 4px rgba(0,0,0,.45);
-}
-
-.mini .mini-hub {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 9px; height: 9px;
-  border-radius: 50%;
-  background: #d1d5db;
-  border: 2px solid #0a0a0a;
-  transform: translate(-50%, -50%);
-}
-
-.mini .mini-title {
-  font-size: 11px;
-  letter-spacing: .06em;
-  margin-top: 3px;
-  opacity: .9;
-}
-
-.readout {
-  margin-top: 4px;
-  font-size: 12px;
-  font-weight: 700;
-}
-.readout.ok     { color: #22c55e; }   /* green */
-.readout.warn   { color: #f59e0b; }   /* amber */
-.readout.danger { color: #ef4444; }   /* red */
-
-.mini-face.gauge-ok     { box-shadow: inset 0 0 14px rgba(34,197,94,.18),  0 2px 4px rgba(0,0,0,.35); }
-.mini-face.gauge-warn   { box-shadow: inset 0 0 14px rgba(245,158,11,.18), 0 2px 4px rgba(0,0,0,.35); }
-.mini-face.gauge-danger { box-shadow: inset 0 0 14px rgba(239,68,68,.22),  0 2px 4px rgba(0,0,0,.35); }
-
-/* Optional: 2×2 left stack layout */
-.left-stack-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-  align-content: start;
-}
-/* --- Meter + tiles --- */
-.meter-fill.ok    { background: linear-gradient(90deg,#16a34a,#22c55e); }
-.meter-fill.warn  { background: linear-gradient(90deg,#f59e0b,#fbbf24); }
-.meter-fill.danger{ background: linear-gradient(90deg,#ef4444,#dc2626); }
-
-.kpi-bar {
-  position: relative;
-  height: 8px;
-  border: 1px solid #334155;
-  background: #0b1220;
-  border-radius: 6px;
-  overflow: hidden;
-}
-.kpi-bar .kpi-fill {
-  position: absolute; left:0; top:0; bottom:0;
-  background: #22c55e;
-  border-radius: 6px;
-}
-.kpi-bar.ok    .kpi-fill { background: #22c55e; }
-.kpi-bar.warn  .kpi-fill { background: #f59e0b; }
-.kpi-bar.danger.kpi-fill { background: #ef4444; }
-/* Delta styles */
-.delta { font-weight: 700; padding: 2px 6px; border-radius: 8px; border: 1px solid transparent; }
-.delta-up   { color:#16a34a; border-color:#14532d; background:#052e1b; }
-.delta-down { color:#ef4444; border-color:#7f1d1d; background:#3a0e0e; }
-.delta-flat { color:#93c5fd; border-color:#334155; background:#0b1220; }
-.chart-section .panel-title {
-  font-weight: 700;
-}
-.small { font-size: 12px; }
-.muted { opacity: .8; }
-.panel { border:1px solid #1f2a44; border-radius:12px; padding:10px; background:#0e1526; }
-.panel-head { display:flex; align-items:center; gap:8px; border-bottom:1px solid #1f2a44; padding:8px 10px; background:#0c1320; }
-.panel-title { font-weight:700; }
-.spacer { flex: 1; }
-.kpi-bar { position:relative; height:8px; border:1px solid #334155; background:#0b1220; border-radius:6px; overflow:hidden; }
-.kpi-fill { position:absolute; left:0; top:0; bottom:0; border-radius:6px; }
-/* TEMP: visualize rows */
-#row-1, #row-2, #row-3, #row-4, #row-5, #row-5-controls, #row-6 {
-  outline: 1px dotted rgba(100,150,255,.35);
-  margin-bottom: 8px;
-}
-/* === Layout safety: keep later sections above any stray canvases === */
-#root, body { position: relative; }
-.panel, .cluster, .sectors-grid, .kpi-area, .index-sectors {
-  position: relative;
-  z-index: 2;  /* content wins */
-}
-
-/* === Chart card pattern: size the container, keep canvas inside it === */
-.chart-card {           /* use this class on each chart panel */
-  position: relative;
-  height: 520px;        /* set whatever height you want */
-  overflow: hidden;     /* clip any over-sized canvas */
-}
-
-/* anything that renders the chart (div/canvas/root) must stay inside card */
+/* Confine canvases/roots inside the card */
 .chart-card > .chart-root,
-.chart-card > #chart-root,
 .chart-card canvas,
 .chart-card .tv-lightweight-charts,
-.chart-card .lw-chart,
-.chart-card .chart-canvas {
-  position: absolute !important;
-  inset: 12px !important;     /* top/right/bottom/left padding */
-  z-index: 1;                  /* under the panel text */
-}
-
-/* === Kill accidental full-screen overlays below the fold === */
-div[class*="overlay"], div[class*="backdrop"], .tv-chart-pane__overlay {
-  /* if a library sticks a fullscreen overlay, keep it behind content */
-  z-index: 0 !important;
-  pointer-events: none;        /* don’t block clicks */
-}
-
-/* avoid global 100vh that can hide content */
-.page, .container, .cluster {
-  min-height: auto;
-  height: auto;
-}
-/* 1) Confine charts to their card and keep content above them */
-.panel, .cluster, .index-sectors, .bottom-grid, .kpi-area { position: relative; z-index: 2; }
-
-.chart-card {                 /* apply this class to each chart panel */
-  position: relative;
-  height: 520px;              /* or whatever height your chart needs */
-  overflow: hidden;           /* critical: clip runaway canvases */
-  z-index: 1;                 /* content above stays clickable/visible */
-}
-
-/* Lightweight/TV canvases must stay inside the card */
-.chart-card > .chart-root,
-.chart-card .tv-lightweight-charts,
-.chart-card canvas,
 .chart-card .tradingview-widget-container,
 .chart-card .lw-chart,
-.chart-card .chart-canvas {
-  position: absolute !important;
-  inset: 12px !important;     /* inner padding */
-  z-index: 1;
+.chart-card .chart-canvas{
+  position:absolute !important;
+  inset:0 !important;           /* fill the card; padding handled in JSX if needed */
+  z-index:1;
 }
 
-/* Kill any full-page overlays from libs (safety net) */
-body > canvas,
-body > .tv-lightweight-charts,
-body > .tradingview-widget-container,
-div[class*="overlay"].fullscreen,
-div[class*="backdrop"].fullscreen {
-  display: none !important;   /* TEMP kill-switch for rogue elements */
-}
-/* Keep other sections above just in case */
-.panel, .cluster, .index-sectors, .kpi-area, .bottom-grid { position: relative; z-index: 2; }
-/* ======= Quarantine all charts to their card ======= */
-.panel, .cluster, .index-sectors, .kpi-area, .bottom-grid { position: relative; z-index: 2; }
-
-.chart-card {                 /* put this class on your chart panels */
-  position: relative;
-  height: 520px;              /* your chart height */
-  overflow: hidden;           /* <-- critical: clip runaway canvases */
-  z-index: 1;
-}
-.chart-card > .chart-root,
-.chart-card .tv-lightweight-charts,
-.chart-card canvas,
-.chart-card .tradingview-widget-container,
-.chart-card .lw-chart,
-.chart-card .chart-canvas {
-  position: absolute !important;
-  inset: 12px !important;
-  z-index: 1;
-}
-
-/* ======= TEMP kill-switch for any fullscreen overlay ======= */
-/* This hides canvases that are mounted at the BODY level (not inside a chart card). */
+/* TEMP safety: demote any full-screen canvases mounted at <body> level */
 body > canvas,
 body > .tv-lightweight-charts,
 body > .tradingview-widget-container,
 body > div[style*="position:fixed"],
-body > div[style*="position: absolute"][style*="top: 0"][style*="left: 0"][style*="right: 0"][style*="bottom: 0"] {
-  display: none !important;
-  pointer-events: none !important;
-  z-index: 0 !important;
+body > div[style*="position: absolute"][style*="top: 0"][style*="left: 0"][style*="right: 0"][style*="bottom: 0"]{
+  z-index:0 !important; pointer-events:none !important;
+  /* If you still see a black sheet, uncomment the next line for a hard hide:
+     display:none !important;
+  */
 }
 
-/* Avoid 100vh traps */
-.page, .container, .cluster { min-height: auto; height: auto; }
+/* Avoid 100vh traps from 3rd-party widgets */
+div[style*="min-height: 100vh"], div[style*="height: 100vh"]{
+  min-height:auto !important; height:auto !important; max-height:92vh !important; overflow:hidden !important;
+}
