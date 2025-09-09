@@ -136,3 +136,16 @@ div[style*="min-height: 100vh"], div[style*="height: 100vh"]{
   overflow: hidden !important;    /* clip any extra drawing */
   position: relative !important;  /* reset from absolute positioning */
 }
+/* Make sure rows 6 and 7 stay in order and don't jump to the top */
+#row-6.chart-card,
+#row-7.journal {
+  position: relative !important;   /* keeps them in the normal flow */
+  margin-top: 12px;                /* spacing between rows */
+}
+
+#row-6.chart-card canvas {
+  position: relative !important;   /* stops it from escaping */
+  max-height: 520px !important;    /* contain chart height */
+  z-index: 0 !important;           /* don’t cover other rows */
+  overflow: hidden !important;     /* clip extra canvas */
+}
