@@ -1,5 +1,5 @@
 // src/components/LiveLWChart/LiveLWChart.jsx
-// Lightweight Charts wrapper — isolated & safe (no page overlay)
+// Lightweight Charts wrapper — isolated card + safe scaling
 
 import React, { useEffect, useRef, useState } from "react";
 import { createChart } from "lightweight-charts";
@@ -14,74 +14,69 @@ export default function LiveLWChart({
   indicatorSettings = {},
   height = 520,
 }) {
-  const containerRef = useRef(null);      // outer panel
-  const chartRootRef = useRef(null);      // inner chart root
+  // OUTER PANEL (the visible card)
+  const panelRef = useRef(null);
+
+  // ROOT for the chart/canvases (must be inside the card)
+  const rootRef = useRef(null);
+
   const chartRef = useRef(null);
   const seriesRef = useRef(null);
   const seriesMap = useRef(new Map());
   const roRef = useRef(null);
-  const dprListenerRef = useRef(null);
+  const dprCleanupRef = useRef(null);
 
   const [candles, setCandles] = useState([]);
 
-  // -------- helpers --------
+  // --- helpers ---
   const safeResize = () => {
-    const el = chartRootRef.current;
+    const el = rootRef.current;
     const chart = chartRef.current;
     if (!el || !chart) return;
-    // keep height fixed; width from parent
     chart.resize(el.clientWidth, el.clientHeight);
   };
 
   // ---------- INIT ----------
   useEffect(() => {
-    const holder = chartRootRef.current;
+    const holder = rootRef.current;
     if (!holder) return;
 
-    // Ensure the holder is sized and creates a stacking context
-    // (prevents canvas overlaying other sections)
+    // enforce stacking context & confinement
     holder.style.position = "relative";
     holder.style.zIndex = "1";
 
     const chart = createChart(holder, {
       ...baseChartOptions,
       width: holder.clientWidth,
-      height: height,
-      // Any chart-level options that help with crispness:
-      // Right/left price scale can remain as configured in baseChartOptions
+      height,
     });
-
     chartRef.current = chart;
 
     const candleSeries = chart.addCandlestickSeries();
     seriesRef.current = candleSeries;
 
-    // ResizeObserver is more reliable than window resize for grid layouts
+    // ResizeObserver: responds to grid/layout changes
     const ro = new ResizeObserver(() => safeResize());
     ro.observe(holder);
     roRef.current = ro;
 
-    // React to devicePixelRatio changes (zooms/OS scaling)
+    // DevicePixelRatio changes (zoom/scaling)
     const mq = window.matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
-    const onDpr = () => {
-      // Recreate the chart size on DPR change for crisp rendering
-      safeResize();
-    };
-    // Some browsers don’t fire .addEventListener on this MediaQueryList
+    const onDpr = () => safeResize();
     if (mq.addEventListener) {
       mq.addEventListener("change", onDpr);
-      dprListenerRef.current = () => mq.removeEventListener("change", onDpr);
+      dprCleanupRef.current = () => mq.removeEventListener("change", onDpr);
     } else if (mq.addListener) {
       mq.addListener(onDpr);
-      dprListenerRef.current = () => mq.removeListener(onDpr);
+      dprCleanupRef.current = () => mq.removeListener(onDpr);
     }
 
-    // Initial size sync
+    // initial size
     safeResize();
 
     return () => {
       try { roRef.current?.disconnect(); } catch {}
-      try { dprListenerRef.current?.(); } catch {}
+      try { dprCleanupRef.current?.(); } catch {}
       try { seriesMap.current.clear(); } catch {}
       try { chart.remove(); } catch {}
       chartRef.current = null;
@@ -90,7 +85,7 @@ export default function LiveLWChart({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [height]);
 
-  // ---------- LOAD DATA ----------
+  // ---------- LOAD + STREAM ----------
   useEffect(() => {
     const chart = chartRef.current;
     const series = seriesRef.current;
@@ -101,17 +96,15 @@ export default function LiveLWChart({
 
     (async () => {
       try {
-        const seed = await feed.history();   // expect array of bars
+        const seed = await feed.history();
         if (disposed) return;
-        if (Array.isArray(seed) && seed.length) {
+        if (Array.isArray(seed)) {
           series.setData(seed);
           setCandles(seed);
-          // console.log(`[LiveLWChart] history loaded: ${seed.length} bars`);
+          // console.log("[LiveLWChart] seed bars:", seed.length);
         } else {
-          // No seed? clear to avoid stale canvas
           series.setData([]);
           setCandles([]);
-          // console.warn("[LiveLWChart] history returned empty array");
         }
       } catch (e) {
         console.error("[LiveLWChart] history failed:", e);
@@ -120,7 +113,6 @@ export default function LiveLWChart({
       }
     })();
 
-    // Live updates
     const unsub = feed.subscribe((bar) => {
       if (disposed || !bar || bar.time == null) return;
       series.update(bar);
@@ -134,19 +126,17 @@ export default function LiveLWChart({
     };
   }, [symbol, timeframe]);
 
-  // ---------- Indicators (optional; kept for future wiring) ----------
+  // ---------- (optional) indicators ----------
   useEffect(() => {
     if (!chartRef.current) return;
-    // Example: resolveIndicators(chartRef.current, enabledIndicators, indicatorSettings);
+    // resolveIndicators(chartRef.current, enabledIndicators, indicatorSettings);
   }, [enabledIndicators, indicatorSettings]);
 
-  // ---------- RENDER ----------
+  // ---------- RENDER (IMPORTANT PART) ----------
   return (
     <section
-      id="chart-section"
-      className="panel chart-card"
-      ref={containerRef}
-      /* The panel & chart-card classes help ensure no overlay leak */
+      ref={panelRef}
+      className="panel chart-card"     // <- REQUIRED classes
       style={{
         position: "relative",
         zIndex: 1,
@@ -155,26 +145,24 @@ export default function LiveLWChart({
         border: "1px solid #1f2a44",
         borderRadius: 8,
         background: "#0b0b14",
-        overflow: "hidden",  // critical: confine canvases
+        overflow: "hidden",            // <- confines canvases
         marginTop: 12,
       }}
     >
       <div
-        ref={chartRootRef}
-        className="chart-root"
+        ref={rootRef}
+        className="chart-root"         // <- REQUIRED class
         style={{
-          position: "relative", // stacking context so canvases are scoped
+          position: "relative",        // <- stacking context for canvases
           width: "100%",
           height: height,
-          // Prevent any stray children (like overlays) from capturing the page
-          // pointerEvents stays default so you can interact with chart
         }}
       />
     </section>
   );
 }
 
-// ---------- HELPERS ----------
+// ---------- helpers ----------
 function mergeBar(prev, bar) {
   if (!Array.isArray(prev) || prev.length === 0) return [bar];
   const last = prev[prev.length - 1];
@@ -182,9 +170,6 @@ function mergeBar(prev, bar) {
     const next = prev.slice(0, -1);
     next.push(bar);
     return next;
-    }
+  }
   return [...prev, bar];
 }
-<section className="panel chart-card" /* …styles OK … */>
-  <div ref={chartRootRef} className="chart-root" /* … */ />
-</section>
