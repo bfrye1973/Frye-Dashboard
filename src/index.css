@@ -431,3 +431,33 @@ div[class*="overlay"], div[class*="backdrop"], .tv-chart-pane__overlay {
   min-height: auto;
   height: auto;
 }
+/* 1) Confine charts to their card and keep content above them */
+.panel, .cluster, .index-sectors, .bottom-grid, .kpi-area { position: relative; z-index: 2; }
+
+.chart-card {                 /* apply this class to each chart panel */
+  position: relative;
+  height: 520px;              /* or whatever height your chart needs */
+  overflow: hidden;           /* critical: clip runaway canvases */
+  z-index: 1;                 /* content above stays clickable/visible */
+}
+
+/* Lightweight/TV canvases must stay inside the card */
+.chart-card > .chart-root,
+.chart-card .tv-lightweight-charts,
+.chart-card canvas,
+.chart-card .tradingview-widget-container,
+.chart-card .lw-chart,
+.chart-card .chart-canvas {
+  position: absolute !important;
+  inset: 12px !important;     /* inner padding */
+  z-index: 1;
+}
+
+/* Kill any full-page overlays from libs (safety net) */
+body > canvas,
+body > .tv-lightweight-charts,
+body > .tradingview-widget-container,
+div[class*="overlay"].fullscreen,
+div[class*="backdrop"].fullscreen {
+  display: none !important;   /* TEMP kill-switch for rogue elements */
+}
