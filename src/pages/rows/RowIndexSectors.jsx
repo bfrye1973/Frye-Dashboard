@@ -1,10 +1,7 @@
 // src/pages/rows/RowIndexSectors.jsx
 import React, { useEffect, useRef, useState } from "react";
-import { fetchDashboard } from "../../lib/dashboardApi"; // direct fetch (no hook)
+import { useDashboardPoll } from "../../lib/dashboardApi";
 
-const POLL_MS = 5000;
-
-/* ---------- helpers ---------- */
 const toneFor = (o) => {
   if (!o) return "info";
   const s = String(o).toLowerCase();
@@ -28,32 +25,24 @@ function Badge({ text, tone="info" }) {
   );
 }
 
-/* sparkline */
 function Sparkline({ data=[], width=160, height=36 }) {
-  if (!Array.isArray(data) || data.length < 2) {
-    return <div className="small muted">no data</div>;
-  }
-  const min = Math.min(...data), max = Math.max(...data);
-  const span = (max - min) || 1;
+  if (!Array.isArray(data) || data.length < 2) return <div className="small muted">no data</div>;
+  const min = Math.min(...data), max = Math.max(...data), span = (max - min) || 1;
   const stepX = width / (data.length - 1);
   const d = data.map((v,i)=>{
     const x=i*stepX, y=height-((v-min)/span)*height;
     return `${i===0?"M":"L"}${x.toFixed(2)},${y.toFixed(2)}`;
   }).join(" ");
-  return (
-    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
-      <path d={d} fill="none" stroke="#60a5fa" strokeWidth="2" />
-    </svg>
-  );
+  return <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
+    <path d={d} fill="none" stroke="#60a5fa" strokeWidth="2" />
+  </svg>;
 }
 
 function SectorCard({ sector, outlook, spark }) {
   const tone = toneFor(outlook);
   return (
     <div className="panel" style={{ padding:10 }}>
-      <div style={{
-        display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:8
-      }}>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:8 }}>
         <div className="panel-title small">{sector || "Sector"}</div>
         <Badge text={outlook || "Neutral"} tone={tone} />
       </div>
@@ -62,83 +51,38 @@ function SectorCard({ sector, outlook, spark }) {
   );
 }
 
-/* normalize to [{sector, outlook, spark}] from various payload shapes */
-function extractSectorCards(raw){
-  const direct = raw?.outlook?.sectorCards ?? raw?.sectorCards;
-  if (Array.isArray(direct)) return direct;
-
-  // legacy mapping: outlook.sectors = { Tech:{outlook:"Bullish", spark:[...] }, ... }
-  const legacy = raw?.outlook?.sectors;
-  if (legacy && typeof legacy === "object") {
-    return Object.keys(legacy).map(k => ({
-      sector: k,
-      outlook: legacy[k]?.outlook ?? "Neutral",
-      spark: legacy[k]?.spark ?? []
-    }));
-  }
-  return []; // nothing found
-}
-
-/* ---------- Row 4 with a private poller (stale-while-revalidate) ---------- */
 export default function RowIndexSectors() {
-  const [cards, setCards] = useState([]);
-  const [initialLoading, setInitialLoading] = useState(true);
-  const [stale, setStale] = useState(false);
-  const [error, setError] = useState(null);
-  const timerRef = useRef(null);
-  const aliveRef = useRef(true);
+  const { data, loading, error } = useDashboardPoll?.(5000) ?? { data:null, loading:false, error:null };
+
+  const [cards, setCards] = useState([]);        // last-good cards we render
+  const [stale, setStale] = useState(false);     // true if last poll returned empty
+  const firstGoodRef = useRef(false);
 
   useEffect(() => {
-    async function loadOnce() {
-      try {
-        const d = await fetchDashboard();
-        const next = extractSectorCards(d);
-        if (!aliveRef.current) return;
-        if (Array.isArray(next) && next.length > 0) {
-          setCards(next);
-          setStale(false);
-          setError(null);
-        } else {
-          // keep nothing on first load, show placeholder
-          setStale(false);
-        }
-      } catch (e) {
-        if (!aliveRef.current) return;
-        setError(e);
-      } finally {
-        if (aliveRef.current) setInitialLoading(false);
+    // current polled array (can be empty)
+    const polled = data?.outlook?.sectorCards;
+
+    // first meaningful payload
+    if (!firstGoodRef.current) {
+      if (Array.isArray(polled) && polled.length > 0) {
+        setCards(polled);
+        setStale(false);
+        firstGoodRef.current = true;
       }
+      // if first payload is empty or undefined, do nothing (keep placeholder)
+      return;
     }
 
-    async function refresh() {
-      try {
-        const d = await fetchDashboard();
-        const next = extractSectorCards(d);
-        if (!aliveRef.current) return;
-
-        if (Array.isArray(next) && next.length > 0) {
-          setCards(next);
-          setStale(false);
-        } else {
-          // momentary empty → keep last-good and mark stale (prevents flicker)
-          setStale(true);
-        }
-      } catch {
-        // network error → keep last-good, mark stale
-        if (aliveRef.current) setStale(true);
+    // after first-good: only replace when non-empty; keep last-good on empty
+    if (Array.isArray(polled)) {
+      if (polled.length > 0) {
+        setCards(polled);
+        setStale(false);
+      } else {
+        setStale(true); // show 'refreshing…' but render previous cards
       }
     }
-
-    // initial load
-    loadOnce();
-
-    // poller
-    timerRef.current = setInterval(refresh, POLL_MS);
-    return () => {
-      aliveRef.current = false;
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
-  }, []);
+  }, [data]);
 
   return (
     <section id="row-4" className="panel index-sectors" aria-label="Index Sectors">
@@ -149,14 +93,14 @@ export default function RowIndexSectors() {
       </div>
 
       {/* initial states */}
-      {initialLoading && cards.length === 0 && <div className="small muted">Loading…</div>}
-      {error && cards.length === 0 && <div className="small muted">Failed to load sectors.</div>}
-      {!initialLoading && cards.length === 0 && !error && (
+      {!firstGoodRef.current && loading && <div className="small muted">Loading…</div>}
+      {!firstGoodRef.current && error   && <div className="small muted">Failed to load sectors.</div>}
+      {!firstGoodRef.current && !loading && !error && (!cards || cards.length === 0) && (
         <div className="small muted">No sector data.</div>
       )}
 
-      {/* last-good always (prevents disappear/flicker) */}
-      {cards.length > 0 && (
+      {/* last-good always (prevents flicker) */}
+      {Array.isArray(cards) && cards.length > 0 && (
         <div style={{
           display:"grid",
           gridTemplateColumns:"repeat(auto-fill, minmax(220px, 1fr))",
