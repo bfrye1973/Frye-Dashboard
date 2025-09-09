@@ -5,11 +5,11 @@ import LiveLWChart from "../components/LiveLWChart/LiveLWChart";
 /* ---------- Row 1: Mode Toggle ---------- */
 function ModeToggle() {
   return (
-    <div id="row-1" className="panel" style={{ padding: 10 }}>
+    <div id="row-1" className="panel">
       <div className="panel-head">
         <div className="panel-title">View Modes</div>
       </div>
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+      <div style={{ display: "flex", gap: 8 }}>
         <button>Meter + Tiles</button>
         <button>Traffic Lights</button>
         <button>Arrow Scorecards</button>
@@ -21,7 +21,7 @@ function ModeToggle() {
 /* ---------- Row 2: Market Overview ---------- */
 function MarketOverview() {
   return (
-    <div id="row-2" className="panel" style={{ padding: 10 }}>
+    <div id="row-2" className="panel">
       <div className="panel-head">
         <div className="panel-title">Market Meter</div>
         <div className="spacer" />
@@ -33,19 +33,19 @@ function MarketOverview() {
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
-        <div className="panel" style={{ padding: 10 }}>
+        <div className="panel">
           <div className="panel-title small">Breadth</div>
           <div className="kpi-bar warn" style={{ marginTop: 8 }}>
             <div className="kpi-fill" style={{ width: "55%" }} />
           </div>
         </div>
-        <div className="panel" style={{ padding: 10 }}>
+        <div className="panel">
           <div className="panel-title small">Momentum</div>
           <div className="kpi-bar warn" style={{ marginTop: 8 }}>
             <div className="kpi-fill" style={{ width: "56%" }} />
           </div>
         </div>
-        <div className="panel" style={{ padding: 10 }}>
+        <div className="panel">
           <div className="panel-title small">Squeeze (Compression)</div>
           <div className="kpi-bar ok" style={{ marginTop: 8 }}>
             <div className="kpi-fill" style={{ width: "73%" }} />
@@ -62,7 +62,7 @@ function MarketOverview() {
 /* ---------- Row 3: Engine Lights ---------- */
 function EngineLights() {
   return (
-    <div id="row-3" className="panel" style={{ padding: 10 }}>
+    <div id="row-3" className="panel">
       <div className="panel-head">
         <div className="panel-title">Engine Lights</div>
       </div>
@@ -74,7 +74,7 @@ function EngineLights() {
 /* ---------- Row 4: Index Sectors ---------- */
 function IndexSectors() {
   return (
-    <div id="row-4" className="panel index-sectors" style={{ padding: 10 }}>
+    <div id="row-4" className="panel index-sectors">
       <div className="panel-head">
         <div className="panel-title">Index Sectors</div>
       </div>
@@ -83,44 +83,35 @@ function IndexSectors() {
   );
 }
 
-/* ---------- Row 5: Strategies (visible) ---------- */
+/* ---------- Row 5: Strategies ---------- */
 function StrategiesRow() {
   return (
-    <div id="row-5" className="panel strategies" style={{ padding: 10, minHeight: 220 }}>
+    <div id="row-5" className="panel strategies">
       <div className="panel-head">
         <div className="panel-title">Strategies</div>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
-        <div className="panel" style={{ padding: 10, minHeight: 120 }}>
-          <div className="panel-title small">Strategy A</div>
-          <div className="muted small" style={{ marginTop: 6 }}>Placeholder tile.</div>
-        </div>
-        <div className="panel" style={{ padding: 10, minHeight: 120 }}>
-          <div className="panel-title small">Strategy B</div>
-          <div className="muted small" style={{ marginTop: 6 }}>Placeholder tile.</div>
-        </div>
-        <div className="panel" style={{ padding: 10, minHeight: 120 }}>
-          <div className="panel-title small">Strategy C</div>
-          <div className="muted small" style={{ marginTop: 6 }}>Placeholder tile.</div>
-        </div>
+        <div className="panel"><div className="panel-title small">Strategy A</div></div>
+        <div className="panel"><div className="panel-title small">Strategy B</div></div>
+        <div className="panel"><div className="panel-title small">Strategy C</div></div>
       </div>
     </div>
   );
 }
 
-/* ---------- Row 6: Chart Section (visible) ---------- */
+/* ---------- Row 6: Chart Section ---------- */
 function ChartSection() {
   return (
-    <div id="row-6" className="panel chart-card" style={{ marginTop: 12 }}>
+    <div id="row-6" className="panel chart-card">
       <LiveLWChart symbol="SPY" timeframe="1D" height={520} />
     </div>
   );
 }
 
-/* ---------- Row 7: Journal (visible) ---------- */
+/* ---------- Row 7: Journal ---------- */
 function JournalPanel() {
   return (
-    <div id="row-7" className="panel journal" style={{ padding: 10, minHeight: 220, marginTop: 12 }}>
+    <div id="row-7" className="panel journal">
       <div className="panel-head">
         <div className="panel-title">Journal</div>
       </div>
@@ -129,7 +120,7 @@ function JournalPanel() {
   );
 }
 
-/* ---------- Page wrapper ---------- */
+/* ---------- Page Wrapper ---------- */
 export default function DashboardLayout() {
   return (
     <div style={{ padding: 12, display: "grid", gap: 12 }}>
