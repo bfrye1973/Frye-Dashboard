@@ -83,23 +83,13 @@ function IndexSectors() {
   );
 }
 
-/* ---------- Row 5: Strategies (forced visible) ---------- */
+/* ---------- Row 5: Strategies (visible) ---------- */
 function StrategiesRow() {
   return (
-    <div
-      id="row-5"
-      className="panel strategies"
-      style={{
-        padding: 10,
-        minHeight: 220,
-        background: "rgba(34,197,94,0.08)",     // light green tint so you can see it
-        outline: "1px dashed rgba(34,197,94,.5)"
-      }}
-    >
+    <div id="row-5" className="panel strategies" style={{ padding: 10, minHeight: 220 }}>
       <div className="panel-head">
         <div className="panel-title">Strategies</div>
       </div>
-
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
         <div className="panel" style={{ padding: 10, minHeight: 120 }}>
           <div className="panel-title small">Strategy A</div>
@@ -118,37 +108,19 @@ function StrategiesRow() {
   );
 }
 
-/* ---------- Row 6: Chart Section (forced visible) ---------- */
+/* ---------- Row 6: Chart Section (visible) ---------- */
 function ChartSection() {
   return (
-    <div
-      id="row-6"
-      className="panel chart-card"
-      style={{
-        marginTop: 12,
-        outline: "1px dashed rgba(59,130,246,.5)",  // blue dashed outline
-        background: "rgba(59,130,246,0.06)"         // faint blue so you can see it
-      }}
-    >
+    <div id="row-6" className="panel chart-card" style={{ marginTop: 12 }}>
       <LiveLWChart symbol="SPY" timeframe="1D" height={520} />
     </div>
   );
 }
 
-/* ---------- Row 7: Journal (forced visible) ---------- */
+/* ---------- Row 7: Journal (visible) ---------- */
 function JournalPanel() {
   return (
-    <div
-      id="row-7"
-      className="panel journal"
-      style={{
-        padding: 10,
-        minHeight: 220,
-        marginTop: 12,
-        background: "rgba(255,99,71,0.07)",         // faint red tint
-        outline: "1px dashed rgba(255,99,71,.5)"
-      }}
-    >
+    <div id="row-7" className="panel journal" style={{ padding: 10, minHeight: 220, marginTop: 12 }}>
       <div className="panel-head">
         <div className="panel-title">Journal</div>
       </div>
@@ -165,9 +137,9 @@ export default function DashboardLayout() {
       <MarketOverview />
       <EngineLights />
       <IndexSectors />
-      <StrategiesRow />   {/* Row 5 */}
-      <ChartSection />    {/* Row 6 */}
-      <JournalPanel />    {/* Row 7 */}
+      <StrategiesRow />
+      <ChartSection />
+      <JournalPanel />
     </div>
   );
 }
