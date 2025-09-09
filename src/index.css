@@ -463,3 +463,37 @@ div[class*="backdrop"].fullscreen {
 }
 /* Keep other sections above just in case */
 .panel, .cluster, .index-sectors, .kpi-area, .bottom-grid { position: relative; z-index: 2; }
+/* ======= Quarantine all charts to their card ======= */
+.panel, .cluster, .index-sectors, .kpi-area, .bottom-grid { position: relative; z-index: 2; }
+
+.chart-card {                 /* put this class on your chart panels */
+  position: relative;
+  height: 520px;              /* your chart height */
+  overflow: hidden;           /* <-- critical: clip runaway canvases */
+  z-index: 1;
+}
+.chart-card > .chart-root,
+.chart-card .tv-lightweight-charts,
+.chart-card canvas,
+.chart-card .tradingview-widget-container,
+.chart-card .lw-chart,
+.chart-card .chart-canvas {
+  position: absolute !important;
+  inset: 12px !important;
+  z-index: 1;
+}
+
+/* ======= TEMP kill-switch for any fullscreen overlay ======= */
+/* This hides canvases that are mounted at the BODY level (not inside a chart card). */
+body > canvas,
+body > .tv-lightweight-charts,
+body > .tradingview-widget-container,
+body > div[style*="position:fixed"],
+body > div[style*="position: absolute"][style*="top: 0"][style*="left: 0"][style*="right: 0"][style*="bottom: 0"] {
+  display: none !important;
+  pointer-events: none !important;
+  z-index: 0 !important;
+}
+
+/* Avoid 100vh traps */
+.page, .container, .cluster { min-height: auto; height: auto; }
