@@ -1,17 +1,5 @@
 import React from "react";
-import ReactDOM from "react-dom/client";
+import { createRoot } from "react-dom/client";
 import App from "./App";
 import "./index.css";
-import ErrorBoundary from "./ErrorBoundary";
-
-// log runtime errors to console & show boundary instead of a black screen
-window.addEventListener("error",  (e) => console.error("[window.error]", e.error || e.message || e));
-window.addEventListener("unhandledrejection", (e) => console.error("[unhandledrejection]", e.reason || e));
-
-ReactDOM.createRoot(document.getElementById("root")).render(
-  <React.StrictMode>
-    <ErrorBoundary>
-      <App />
-    </ErrorBoundary>
-  </React.StrictMode>
-);
+createRoot(document.getElementById("root")).render(<App />);
