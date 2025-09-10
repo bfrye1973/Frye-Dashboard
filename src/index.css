@@ -99,3 +99,14 @@ button{
 .delta-up{   color:#22c55e; border-color:#14532d; background:#052e1b; }
 .delta-down{ color:#ef4444; border-color:#7f1d1d; background:#3a0e0e; }
 .delta-flat{ color:#93c5fd; border-color:#334155; background:#0b1220; }
+/* Live / Stale badge */
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  border: 1px solid;
+}
+.badge.live  { background: #052e1b; color:#34d399; border-color:#14532d; }
+.badge.stale { background: #3a0e0e; color:#fca5a5; border-color:#7f1d1d; }
