@@ -1,76 +1,44 @@
-/* ========= Thin + stable row sizing (top rows) ========= */
+/* ===== Market Meter row compaction + alignment ===== */
 
-/* View Modes (Row 1) — slim like original */
-#row-1 {
-  min-height: 100px !important;   /* compact */
-  padding: 8px 10px !important;
-}
-
-/* Market Meter (Row 2) — thin, but roomy enough for stoplights */
+/* Slim the row without breaking layout */
 #row-2 {
-  min-height: 140px !important;   /* compact but safe */
+  min-height: 140px !important;  /* compact */
   padding: 8px 10px !important;
 }
 
-/* Engine Lights (Row 3) — slim */
-#row-3 {
-  min-height: 120px !important;
-  padding: 8px 10px !important;
+/* Container for the 3 clusters + legend */
+.meter-grid {
+  display: grid;
+  grid-template-columns: auto auto auto 1fr; /* left | center | right | legend */
+  align-items: center;
+  gap: 10px;
 }
 
-/* Index Sectors (Row 4) — slim; leaves space for a single line of cards */
-#row-4 {
-  min-height: 140px !important;
-  padding: 8px 10px !important;
+/* Keep small gauges consistent & prevent over-expansion */
+.meter-small {
+  display: flex;
+  gap: 10px;
+  flex-wrap: nowrap;
+}
+.meter-small .light {
+  min-width: 96px; /* keeps label+arrow readable */
 }
 
-/* Strategies (Row 5) — slightly taller for tiles */
-#row-5 {
-  min-height: 200px !important;
-  padding: 8px 10px !important;
+/* Center big light */
+.meter-center {
+  display: flex;
+  justify-content: center;
 }
 
-/* Chart (Row 6) — must remain quarantined and tall for the canvas */
-#row-6 {
-  min-height: 520px !important;  /* required for lightweight-charts */
-  padding: 8px 10px !important;
+/* Legend sits inline to the right of the Market Meter */
+.meter-legend {
+  justify-self: end;
+  min-width: 320px;   /* wide enough to read comfortably */
+  max-width: 420px;
 }
 
-/* Journal (Row 7) — slim */
-#row-7 {
-  min-height: 160px !important;
-  padding: 8px 10px !important;
-}
-
-/* ========= Panel compaction ========= */
-
-/* Reduce top/bottom space inside all panel heads */
-.panel-head {
+/* Small title margin to keep tight */
+#row-2 .panel-head {
   padding: 6px 10px !important;
+  margin-bottom: 4px !important;
 }
-
-/* Small meter/tiles spacing */
-.kpi-bar { height: 8px !important; }
-
-/* General: reduce gap between stacked rows */
-#row-1, #row-2, #row-3, #row-4, #row-5, #row-6, #row-7 {
-  margin-bottom: 8px !important;
-}
-
-/* ========= Chart quarantine (keep; ensures no black overlay) ========= */
-#row-6.chart-card {
-  position: relative !important;
-  height: 520px !important;
-  overflow: hidden !important;
-}
-#row-6.chart-card canvas {
-  position: relative !important;
-  width: 100% !important;
-  height: 100% !important;
-  max-height: 520px !important;
-  z-index: 0 !important;
-  overflow: hidden !important;
-}
-
-/* ========= Root container guard (prevents clipping) ========= */
-#root { overflow: visible !important; }
