@@ -1,47 +1,101 @@
-/* ===== Market Meter row compaction + alignment ===== */
+/* ===== Base ===== */
+html, body { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
+html { zoom:1 !important; }
 
-/* Slim the row without breaking layout */
-#row-2 {
-  min-height: 140px !important;  /* compact */
-  padding: 8px 10px !important;
-}
-
-/* Container for the 3 clusters + legend */
-.meter-grid {
-  display: grid;
-  grid-template-columns: auto auto auto 1fr; /* left | center | right | legend */
-  align-items: center;
-  gap: 10px;
+:root{
+  --bg:#0d1117; --panel:#0e1526; --border:#1f2a44; --text:#e5e7eb; --muted:#9ca3af;
+  --ok:#22c55e; --warn:#fbbf24; --danger:#ef4444; --info:#3b82f6;
 }
 
-/* Keep small gauges consistent & prevent over-expansion */
-.meter-small {
-  display: flex;
-  gap: 10px;
-  flex-wrap: nowrap;
-}
-.meter-small .light {
-  min-width: 96px; /* keeps label+arrow readable */
+*{ box-sizing:border-box; }
+html, body, #root{
+  height:100%; width:100%; margin:0; padding:0;
+  background:var(--bg); color:var(--text);
+  -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
 }
 
-/* Center big light */
-.meter-center {
-  display: flex;
-  justify-content: center;
+/* App container should never clip later rows */
+#root { overflow: visible !important; }
+
+img, svg, video { max-width:100%; display:block; height:auto; }
+
+a{ color:var(--info); text-decoration:none; }
+a:hover{ text-decoration:underline; }
+
+button{
+  font:inherit; color:inherit; background:transparent;
+  border:1px solid var(--border); padding:6px 10px; border-radius:6px; cursor:pointer;
 }
 
-/* Legend sits inline to the right of the Market Meter */
-.meter-legend {
-  justify-self: end;
-  min-width: 320px;   /* wide enough to read comfortably */
-  max-width: 420px;
+/* ===== Panels ===== */
+.panel{
+  background:var(--panel);
+  border:1px solid var(--border);
+  border-radius:12px;
+  padding:10px;
+}
+.panel-head{
+  display:flex; align-items:center; gap:8px;
+  padding:6px 10px;                  /* tighter header */
+  border-bottom:1px solid var(--border);
+  background:#0c1320;
+}
+.panel-title{ font-weight:700; }
+.spacer{ flex:1; }
+.muted{ opacity:.8; } .small{ font-size:12px; }
+
+/* ===== KPI bars ===== */
+.kpi-bar{
+  position:relative; height:8px;
+  border:1px solid #334155; background:#0b1220; border-radius:6px; overflow:hidden;
+}
+.kpi-fill{ position:absolute; left:0; top:0; bottom:0; border-radius:6px; }
+.kpi-bar.ok    .kpi-fill{ background:var(--ok); }
+.kpi-bar.warn  .kpi-fill{ background:var(--warn); }
+.kpi-bar.danger .kpi-fill{ background:var(--danger); }
+
+/* ===== Slim row sizing ===== */
+#row-1 { min-height: 90px  !important; padding:8px 10px !important; }   /* View Modes */
+#row-2 { min-height: 130px !important; padding:8px 10px !important; }   /* Market Meter */
+#row-3 { min-height: 110px !important; padding:8px 10px !important; }   /* Engine Lights */
+#row-4 { min-height: 130px !important; padding:8px 10px !important; }   /* Index Sectors */
+#row-5 { min-height: 180px !important; padding:8px 10px !important; }   /* Strategies */
+#row-6 { min-height: 520px !important; padding:8px 10px !important; }   /* Chart (required) */
+#row-7 { min-height: 140px !important; padding:8px 10px !important; }   /* Journal */
+
+/* Reduce gap between rows */
+#row-1, #row-2, #row-3, #row-4, #row-5, #row-6, #row-7 { margin-bottom:8px !important; }
+
+/* ===== Compact Market Meter layout (no legend forcing) ===== */
+/* If classes from the previous layout exist, these will compact them. */
+.meter-grid{ display:grid; grid-template-columns:auto auto auto; gap:8px; align-items:center; }
+.meter-small{ display:flex; gap:8px; flex-wrap:nowrap; }
+
+/* Shrink stoplights globally inside Row 2 without changing JSX sizes */
+#row-2 .light{ 
+  transform: scale(0.72);                 /* shrink the whole light */
+  transform-origin: center;
+  min-width: 80px !important;             /* prevent “wide” container reservations */
 }
 
-/* Small title margin to keep tight */
-#row-2 .panel-head {
-  padding: 6px 10px !important;
-  margin-bottom: 4px !important;
+/* ===== Chart quarantine (Row 6 only) ===== */
+#row-6.chart-card{
+  position:relative !important;
+  height:520px !important;
+  overflow:hidden !important;
 }
-/* TEMP: hide any canvas mounted outside Row-6 (stray overlay) */
-body > canvas,
-#root > canvas { display: none !important; pointer-events: none !important; }
+#row-6.chart-card canvas{
+  position:relative !important;
+  width:100% !important;
+  height:100% !important;
+  max-height:520px !important;
+  z-index:0 !important;
+  overflow:hidden !important;
+}
+
+/* ===== Delta chips (used next to lights) ===== */
+.delta{ font-weight:700; padding:2px 6px; border-radius:8px; border:1px solid transparent; }
+.delta-up{   color:#22c55e; border-color:#14532d; background:#052e1b; }
+.delta-down{ color:#ef4444; border-color:#7f1d1d; background:#3a0e0e; }
+.delta-flat{ color:#93c5fd; border-color:#334155; background:#0b1220; }
