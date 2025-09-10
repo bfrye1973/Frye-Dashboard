@@ -42,3 +42,6 @@
   padding: 6px 10px !important;
   margin-bottom: 4px !important;
 }
+/* TEMP: hide any canvas mounted outside Row-6 (stray overlay) */
+body > canvas,
+#root > canvas { display: none !important; pointer-events: none !important; }
