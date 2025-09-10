@@ -62,7 +62,7 @@ function Stoplight({ label, value, baseline, size = 72, unit = "%" }) {
         title={`${label}: ${pct(v)}${unit === "%" ? "%" : ""}`}
         style={{
           width: size, height: size, borderRadius: "50%",
-          background: colors.bg, boxShadow: `0 0 20px ${colors.glow}`,
+          background: colors.bg, boxShadow: `0 0 18px ${colors.glow}`,
           display:"flex", alignItems:"center", justifyContent:"center",
           border: "6px solid #0c1320"
         }}
@@ -82,21 +82,21 @@ function Stoplight({ label, value, baseline, size = 72, unit = "%" }) {
 }
 
 /* ---------- legend (wide, readable, always visible) ---------- */
-function LegendMini() {
+function LegendWide() {
   const Dot = ({ tone }) => {
     const c = tone === "ok" ? "#22c55e" : tone === "warn" ? "#fbbf24" : "#ef4444";
     return <span style={{ display:"inline-block", width:10, height:10, borderRadius:"50%", background:c, marginRight:6 }}/>;
   };
   return (
-    <div className="panel" style={{ padding:14, minWidth:360 }}>
-      <div className="panel-title" style={{ marginBottom:10, fontSize:14 }}>Legend</div>
-      <div style={{ fontSize:13, marginBottom:10, display:"flex", gap:18, flexWrap:"wrap" }}>
+    <div className="panel" style={{ padding:12 }}>
+      <div className="panel-title" style={{ marginBottom:8, fontSize:14 }}>Legend</div>
+      <div style={{ fontSize:13, display:"flex", flexWrap:"wrap", gap:18 }}>
         <div><Dot tone="ok" /><strong>Green</strong>: strong / favorable</div>
         <div><Dot tone="warn" /><strong>Yellow</strong>: neutral / mixed</div>
         <div><Dot tone="danger" /><strong>Red</strong>: weak / unfavorable</div>
         <div><strong>Arrows</strong> — ⬆ up vs baseline, → flat (&lt;0.5%), ⬇ down</div>
       </div>
-      <div style={{ fontSize:13, display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
+      <div style={{ fontSize:13, display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginTop:8 }}>
         <div><strong>Breadth / Momentum / Squeeze</strong><br/>Green &gt; 60%, Yellow 40–60%, Red &lt; 40%</div>
         <div><strong>Liquidity (PSI)</strong><br/>Green &gt; 80, Yellow 50–80, Red &lt; 50</div>
         <div><strong>Volatility</strong><br/>Green = low, Yellow = medium, Red = high</div>
@@ -106,7 +106,7 @@ function LegendMini() {
 }
 
 export default function RowMarketOverview() {
-  const { data, loading, error } = useDashboardPoll?.(5000) ?? { data:null, loading:false, error:null };
+  const { data } = useDashboardPoll?.(5000) ?? { data:null };
 
   // live values
   const od = data?.odometers ?? {};
@@ -119,24 +119,23 @@ export default function RowMarketOverview() {
   const liquidity = Number.isFinite(gg?.oil?.psi) ? gg.oil.psi
                   : Number.isFinite(gg?.oilPsi)    ? gg.oilPsi : NaN;
 
-  // Volatility mapping (placeholder until a dedicated metric is provided)
+  // Volatility placeholder mapping (adjust when dedicated metric available)
   const rawVol = Number.isFinite(gg?.waterTemp) ? gg.waterTemp : NaN;
   const volatility = Number.isFinite(rawVol)
-    ? clamp01(((rawVol - 160) / (260 - 160)) * 100) /* 160–260°F => 0..100 index */
+    ? clamp01(((rawVol - 160) / (260 - 160)) * 100) /* 160–260°F => 0..100 */
     : NaN;
 
-  // baselines for arrows
+  // baselines
   const baseBreadth   = useDailyBaseline("breadth", breadth);
   const baseMomentum  = useDailyBaseline("momentum", momentum);
   const baseSqueeze   = useDailyBaseline("squeeze", squeeze);
   const baseLiquidity = useDailyBaseline("liquidity", liquidity);
   const baseVol       = useDailyBaseline("volatility", volatility);
 
-  // composite meter (optional thin bar)
+  // composite (for center light, not the top bar)
   const expansion = 100 - clamp01(squeeze);
   const baseMeter = 0.4 * breadth + 0.4 * momentum + 0.2 * expansion;
   const meter = Math.round(squeeze >= 90 ? 45 + (baseMeter - 50) * 0.30 : baseMeter);
-  const meterTone = toneFor(meter);
 
   return (
     <section id="row-2" className="panel" style={{ padding:10 }}>
@@ -146,45 +145,37 @@ export default function RowMarketOverview() {
         <span className="small muted">Legend always visible</span>
       </div>
 
-      {/* thin headline meter bar */}
-      <div className={`kpi-bar ${meterTone}`} style={{ margin:"6px 0 4px 0" }}>
-        <div className="kpi-fill" style={{ width: `${clamp01(meter)}%` }} />
-      </div>
-      <div className="small muted" style={{ display:"flex", justifyContent:"space-between" }}>
-        <span>Meter: <strong>{pct(meter)}%</strong></span>
-        {squeeze >= 90 && <span>Major squeeze — direction unknown</span>}
-      </div>
-
-      {/* Layout: [ LEFT(3) | CENTER big | RIGHT(2) | LEGEND (wide) ] */}
+      {/* Compact 3-column layout: left(3) | center(big) | right(2) */}
       <div style={{
         display:"grid",
-        gridTemplateColumns:"auto auto auto 1fr", /* left cluster | center big | right cluster | legend wide */
-        gap:12, marginTop:8, alignItems:"start"
+        gridTemplateColumns:"1fr auto 1fr",
+        alignItems:"center",
+        gap:12,
+        marginTop:6
       }}>
-        {/* LEFT cluster: 3 lights */}
-        <div style={{ display:"flex", gap:12, flexWrap:"wrap" }}>
+        {/* Left cluster (3) */}
+        <div style={{ display:"flex", gap:10, justifyContent:"flex-start", flexWrap:"wrap" }}>
           <Stoplight label="Breadth"   value={breadth}   baseline={baseBreadth} />
           <Stoplight label="Momentum"  value={momentum}  baseline={baseMomentum} />
           <Stoplight label="Squeeze"   value={squeeze}   baseline={baseSqueeze} />
         </div>
 
-        {/* CENTER: big meter */}
+        {/* Center big light */}
         <div style={{ display:"flex", justifyContent:"center" }}>
           <Stoplight label="Market Meter" value={meter} baseline={meter} size={140} />
         </div>
 
-        {/* RIGHT cluster: 2 lights */}
-        <div style={{ display:"flex", gap:12, flexWrap:"wrap", justifyContent:"flex-end" }}>
+        {/* Right cluster (2) */}
+        <div style={{ display:"flex", gap:10, justifyContent:"flex-end", flexWrap:"wrap" }}>
           <Stoplight label="Liquidity"  value={liquidity}  baseline={baseLiquidity} unit="" />
           <Stoplight label="Volatility" value={volatility} baseline={baseVol} />
         </div>
-
-        {/* LEGEND (wide) */}
-        <LegendMini />
       </div>
 
-      {loading && <div className="small muted" style={{ marginTop:6 }}>Loading…</div>}
-      {error   && <div className="small muted" style={{ marginTop:6 }}>Failed to load.</div>}
+      {/* Wide legend below (keeps row compact and centers big light above) */}
+      <div style={{ marginTop:10 }}>
+        <LegendWide />
+      </div>
     </section>
   );
 }
