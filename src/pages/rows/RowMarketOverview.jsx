@@ -5,7 +5,7 @@ import { useDashboardPoll } from "../../lib/dashboardApi";
 /* ---------- helpers ---------- */
 const clamp01 = (n) => Math.max(0, Math.min(100, Number(n)));
 const pct = (n) => (Number.isFinite(n) ? n.toFixed(1) : "—");
-const toneFor = (v) => (v >= 60 ? "ok" : v >= 40 ? "warn" : "danger");
+const toneFor = (v) => (v >= 60 ? "ok" : v >= 40 ? "warn" : "danger"); // green / yellow / red
 const dayKey = () => new Date().toISOString().slice(0, 10);
 
 function useDailyBaseline(keyName, current) {
@@ -32,7 +32,7 @@ function useDailyBaseline(keyName, current) {
   return baseline;
 }
 
-/* ---------- stoplight (small/big size via prop) ---------- */
+/* ---------- stoplight ---------- */
 function Stoplight({ label, value, baseline, size = 60, unit = "%" }) {
   const v = clamp01(value);
   const delta = Number.isFinite(v) && Number.isFinite(baseline) ? v - baseline : NaN;
@@ -40,7 +40,7 @@ function Stoplight({ label, value, baseline, size = 60, unit = "%" }) {
   const tone = toneFor(v);
   const colors = {
     ok:    { bg:"#22c55e", glow:"rgba(34,197,94,.45)"  }, // green
-    warn:  { bg:"#fbbf24", glow:"rgba(251,191,36,.45)" }, // yellow
+    warn:  { bg:"#fbbf24", glow:"rgba(251,191,36,.45)" }, // yellow (true)
     danger:{ bg:"#ef4444", glow:"rgba(239,68,68,.45)"  }  // red
   }[tone];
 
@@ -79,85 +79,77 @@ function Stoplight({ label, value, baseline, size = 60, unit = "%" }) {
   );
 }
 
-/* ---------- legend (compact, inline to right of Market Meter) ---------- */
-function LegendInline() {
-  const Dot = ({ tone }) => {
-    const c = tone === "ok" ? "#22c55e" : tone === "warn" ? "#fbbf24" : "#ef4444";
-    return <span style={{ display:"inline-block", width:10, height:10, borderRadius:"50%", background:c, marginRight:6 }}/>;
-  };
-  return (
-    <div className="panel meter-legend">
-      <div className="panel-title small" style={{ marginBottom:6 }}>Legend</div>
-      <div className="small" style={{ display:"flex", gap:14, flexWrap:"wrap", lineHeight:1.35 }}>
-        <div><Dot tone="ok" /><strong>Green</strong>: strong</div>
-        <div><Dot tone="warn" /><strong>Yellow</strong>: neutral</div>
-        <div><Dot tone="danger" /><strong>Red</strong>: weak</div>
-        <div><strong>Arrows</strong>: ⬆ up, → flat (&lt;0.5%), ⬇ down</div>
-        <div><strong>Thresh.</strong>: B/M/S: G&gt;60, Y:40–60, R&lt;40 • Liquidity (PSI): G&gt;80, Y:50–80, R&lt;50</div>
-      </div>
-    </div>
-  );
-}
-
 export default function RowMarketOverview() {
   const { data } = useDashboardPoll?.(5000) ?? { data:null };
 
-  // live values
   const od = data?.odometers ?? {};
   const gg = data?.gauges ?? {};
 
-  const breadth   = Number(od?.breadthOdometer ?? 50);
-  const momentum  = Number(od?.momentumOdometer ?? 50);
-  const squeeze   = Number.isFinite(od?.squeezeCompressionPct) ? od.squeezeCompressionPct
-                  : Number.isFinite(gg?.fuelPct) ? gg.fuelPct : 50;
-  const liquidity = Number.isFinite(gg?.oil?.psi) ? gg.oil.psi
-                  : Number.isFinite(gg?.oilPsi)    ? gg.oilPsi : NaN;
+  const breadth    = Number(od?.breadthOdometer ?? 50);
+  const momentum   = Number(od?.momentumOdometer ?? 50);
 
-  // Volatility mapping (placeholder until dedicated metric)
+  // Intraday squeeze: odometers.squeezeCompressionPct (fallback fuelPct)
+  const squeezeIntra = Number.isFinite(od?.squeezeCompressionPct) ? od.squeezeCompressionPct
+                      : Number.isFinite(gg?.fuelPct) ? gg.fuelPct : 50;
+
+  // Daily squeeze: gauges.squeezeDaily.pct
+  const squeezeDaily = Number.isFinite(gg?.squeezeDaily?.pct) ? gg.squeezeDaily.pct : null;
+
+  const liquidity  = Number.isFinite(gg?.oil?.psi) ? gg.oil.psi
+                   : Number.isFinite(gg?.oilPsi)    ? gg.oilPsi : NaN;
+
+  // Volatility mapping (placeholder → convert your real metric when available)
   const rawVol = Number.isFinite(gg?.waterTemp) ? gg.waterTemp : NaN;
   const volatility = Number.isFinite(rawVol)
-    ? clamp01(((rawVol - 160) / (260 - 160)) * 100)
+    ? clamp01(((rawVol - 160) / (260 - 160)) * 100)  // map 160–260°F to 0–100
     : NaN;
 
   // baselines for arrows
-  const baseBreadth   = useDailyBaseline("breadth", breadth);
-  const baseMomentum  = useDailyBaseline("momentum", momentum);
-  const baseSqueeze   = useDailyBaseline("squeeze", squeeze);
-  const baseLiquidity = useDailyBaseline("liquidity", liquidity);
-  const baseVol       = useDailyBaseline("volatility", volatility);
+  const baseBreadth    = useDailyBaseline("breadth", breadth);
+  const baseMomentum   = useDailyBaseline("momentum", momentum);
+  const baseSqueezeIn  = useDailyBaseline("squeezeIntraday", squeezeIntra);
+  const baseSqueezeDay = useDailyBaseline("squeezeDaily", squeezeDaily);
+  const baseLiquidity  = useDailyBaseline("liquidity", liquidity);
+  const baseVol        = useDailyBaseline("volatility", volatility);
 
-  // layout: [ left(3) | center(big) | right(2) | legend ]
+  // composite Market Meter (center big light)
+  const expansion = 100 - clamp01(squeezeIntra);
+  const baseMeter = 0.4 * breadth + 0.4 * momentum + 0.2 * expansion;
+  const meter = Math.round((squeezeDaily ?? 0) >= 90 ? 45 + (baseMeter - 50) * 0.30 : baseMeter);
+
   return (
     <section id="row-2" className="panel" style={{ padding:8 }}>
       <div className="panel-head">
         <div className="panel-title">Market Meter — Stoplights</div>
         <div className="spacer" />
-        <span className="small muted">Legend always visible</span>
+        <span className="small muted">Daily Squeeze + Intraday Squeeze</span>
       </div>
 
-      <div className="meter-grid">
-        {/* left cluster: 3 small */}
-        <div className="meter-small" style={{ justifyContent:"flex-start" }}>
-          <Stoplight label="Breadth"   value={breadth}   baseline={baseBreadth} />
-          <Stoplight label="Momentum"  value={momentum}  baseline={baseMomentum} />
-          <Stoplight label="Squeeze"   value={squeeze}   baseline={baseSqueeze} />
+      {/* 3-column cluster (left | center | right) */}
+      <div style={{
+        display:"grid",
+        gridTemplateColumns:"1fr auto 1fr",
+        alignItems:"center",
+        gap:10,
+        marginTop:6
+      }}>
+        {/* LEFT: Breadth, Momentum, Intraday Squeeze */}
+        <div style={{ display:"flex", gap:10, flexWrap:"nowrap", justifyContent:"flex-start" }}>
+          <Stoplight label="Breadth" value={breadth} baseline={baseBreadth} />
+          <Stoplight label="Momentum" value={momentum} baseline={baseMomentum} />
+          <Stoplight label="Intraday Squeeze" value={squeezeIntra} baseline={baseSqueezeIn} />
         </div>
 
-        {/* center big */}
-        <div className="meter-center">
-          <Stoplight label="Market Meter" value={
-            Math.round(0.4 * breadth + 0.4 * momentum + 0.2 * (100 - clamp01(squeeze)))
-          } baseline={null} size={110} />
+        {/* CENTER: Big Market Meter */}
+        <div style={{ display:"flex", justifyContent:"center" }}>
+          <Stoplight label="Market Meter" value={meter} baseline={meter} size={110} />
         </div>
 
-        {/* right cluster: 2 small */}
-        <div className="meter-small" style={{ justifyContent:"flex-end" }}>
-          <Stoplight label="Liquidity"  value={liquidity}  baseline={baseLiquidity} unit="" />
-          <Stoplight label="Volatility" value={volatility} baseline={baseVol} />
+        {/* RIGHT: Liquidity, Daily Squeeze */}
+        <div style={{ display:"flex", gap:10, flexWrap:"nowrap", justifyContent:"flex-end" }}>
+          <Stoplight label="Liquidity" value={liquidity} baseline={baseLiquidity} unit="" />
+          <Stoplight label="Daily Squeeze" value={squeezeDaily} baseline={baseSqueezeDay} />
         </div>
-
-        {/* legend inline to the right of center light */}
-        <LegendInline />
       </div>
     </section>
   );
