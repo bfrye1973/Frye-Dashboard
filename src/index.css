@@ -1,85 +1,76 @@
-/* ===== Base ===== */
-html, body { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
-html { zoom:1 !important; }
+/* ========= Thin + stable row sizing (top rows) ========= */
 
-:root{
-  --bg:#0d1117; --panel:#0e1526; --border:#1f2a44; --text:#e5e7eb; --muted:#9ca3af;
-  --ok:#22c55e; --warn:#fbbf24; --danger:#ef4444; --info:#3b82f6;
+/* View Modes (Row 1) — slim like original */
+#row-1 {
+  min-height: 100px !important;   /* compact */
+  padding: 8px 10px !important;
 }
 
-*{ box-sizing:border-box; }
-
-html, body, #root{
-  height:100%; width:100%; margin:0; padding:0;
-  background:var(--bg); color:var(--text);
-  -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
-  font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+/* Market Meter (Row 2) — thin, but roomy enough for stoplights */
+#row-2 {
+  min-height: 140px !important;   /* compact but safe */
+  padding: 8px 10px !important;
 }
 
-/* keep app container from clipping later rows */
+/* Engine Lights (Row 3) — slim */
+#row-3 {
+  min-height: 120px !important;
+  padding: 8px 10px !important;
+}
+
+/* Index Sectors (Row 4) — slim; leaves space for a single line of cards */
+#row-4 {
+  min-height: 140px !important;
+  padding: 8px 10px !important;
+}
+
+/* Strategies (Row 5) — slightly taller for tiles */
+#row-5 {
+  min-height: 200px !important;
+  padding: 8px 10px !important;
+}
+
+/* Chart (Row 6) — must remain quarantined and tall for the canvas */
+#row-6 {
+  min-height: 520px !important;  /* required for lightweight-charts */
+  padding: 8px 10px !important;
+}
+
+/* Journal (Row 7) — slim */
+#row-7 {
+  min-height: 160px !important;
+  padding: 8px 10px !important;
+}
+
+/* ========= Panel compaction ========= */
+
+/* Reduce top/bottom space inside all panel heads */
+.panel-head {
+  padding: 6px 10px !important;
+}
+
+/* Small meter/tiles spacing */
+.kpi-bar { height: 8px !important; }
+
+/* General: reduce gap between stacked rows */
+#row-1, #row-2, #row-3, #row-4, #row-5, #row-6, #row-7 {
+  margin-bottom: 8px !important;
+}
+
+/* ========= Chart quarantine (keep; ensures no black overlay) ========= */
+#row-6.chart-card {
+  position: relative !important;
+  height: 520px !important;
+  overflow: hidden !important;
+}
+#row-6.chart-card canvas {
+  position: relative !important;
+  width: 100% !important;
+  height: 100% !important;
+  max-height: 520px !important;
+  z-index: 0 !important;
+  overflow: hidden !important;
+}
+
+/* ========= Root container guard (prevents clipping) ========= */
 #root { overflow: visible !important; }
-
-img, svg, video { max-width:100%; display:block; height:auto; }
-
-a{ color:var(--info); text-decoration:none; }
-a:hover{ text-decoration:underline; }
-
-button{
-  font:inherit; color:inherit; background:transparent;
-  border:1px solid var(--border); padding:6px 10px; border-radius:6px; cursor:pointer;
-}
-
-/* ===== Panels ===== */
-.panel{
-  background:var(--panel);
-  border:1px solid var(--border);
-  border-radius:12px;
-  padding:10px;
-}
-.panel-head{
-  display:flex; align-items:center; gap:8px;
-  padding:8px 10px; border-bottom:1px solid var(--border);
-  background:#0c1320;
-}
-.panel-title{ font-weight:700; }
-.spacer{ flex:1; }
-.muted{ opacity:.8; } .small{ font-size:12px; }
-
-/* ===== KPI bars ===== */
-.kpi-bar{ position:relative; height:8px; border:1px solid #334155; background:#0b1220; border-radius:6px; overflow:hidden; }
-.kpi-fill{ position:absolute; left:0; top:0; bottom:0; border-radius:6px; }
-.kpi-bar.ok    .kpi-fill{ background:var(--ok); }
-.kpi-bar.warn  .kpi-fill{ background:var(--warn); }
-.kpi-bar.danger .kpi-fill{ background:var(--danger); }
-
-/* ===== Row outlines (debug; remove later) ===== */
-#row-1,#row-2,#row-3,#row-4,#row-5,#row-6,#row-7{
-  outline:1px dotted rgba(100,150,255,.2);
-  margin-bottom:12px;
-  position:relative; z-index:2;
-}
-
-/* ===== Safe min-heights (prevents black region) ===== */
-#row-1 { min-height:180px; }   /* Mode toggle row */
-#row-2 { min-height:220px; }   /* Market Meter */
-#row-3 { min-height:200px; }   /* Engine Lights */
-#row-4 { min-height:220px; }   /* Index Sectors */
-#row-5 { min-height:240px; }   /* Strategies */
-#row-6 { min-height:520px; }   /* Chart (required) */
-#row-7 { min-height:220px; }   /* Journal */
-
-/* ===== Chart quarantine (only row-6) ===== */
-#row-6.chart-card{
-  position:relative; height:520px; overflow:hidden;
-}
-#row-6.chart-card canvas{
-  position:relative !important;
-  width:100% !important; height:100% !important; max-height:520px !important;
-  z-index:0 !important; overflow:hidden !important;
-}
-
-/* ===== Delta chips (already used by stoplights) ===== */
-.delta{ font-weight:700; padding:2px 6px; border-radius:8px; border:1px solid transparent; }
-.delta-up{   color:#22c55e; border-color:#14532d; background:#052e1b; }
-.delta-down{ color:#ef4444; border-color:#7f1d1d; background:#3a0e0e; }
-.delta-flat{ color:#93c5fd; border-color:#334155; background:#0b1220; }
