@@ -4,7 +4,7 @@ import { LastUpdated } from "../../components/LastUpdated";
 
 const API = "https://frye-market-backend-1.onrender.com/api/dashboard";
 
-/* --- tone helpers --- */
+/* --- badge helpers --- */
 const toneFor = (o) => {
   if (!o) return "info";
   const s = String(o).toLowerCase();
@@ -12,7 +12,6 @@ const toneFor = (o) => {
   if (s.startsWith("bear")) return "danger";
   return "warn";
 };
-
 function Badge({ text, tone = "info" }) {
   const map = {
     ok:    { bg:"#064e3b", fg:"#d1fae5", bd:"#065f46" },
@@ -47,7 +46,6 @@ function Sparkline({ data = [], width = 160, height = 36 }) {
     </svg>
   );
 }
-
 function SectorCard({ sector, outlook, spark }) {
   const tone = toneFor(outlook);
   const arr  = Array.isArray(spark) ? spark : [];
@@ -55,12 +53,10 @@ function SectorCard({ sector, outlook, spark }) {
   const last  = arr.length ? arr[arr.length - 1] : null;
   const delta = (Number.isFinite(last) && Number.isFinite(first) && Math.abs(first) > 1e-6)
     ? ((last - first) / first) * 100 : NaN;
-
   const arrow =
     !Number.isFinite(delta) ? "→" :
     Math.abs(delta) < 0.5   ? "→" :
     delta > 0               ? "↑" : "↓";
-
   const deltaClass =
     !Number.isFinite(delta) || Math.abs(delta) < 0.5
       ? "delta delta-flat"
@@ -76,16 +72,14 @@ function SectorCard({ sector, outlook, spark }) {
       </div>
       <div className="small" style={{ display:"flex", justifyContent:"space-between", margin:"4px 0 6px 0" }}>
         <span>Last: <strong>{Number.isFinite(last) ? last.toFixed(1) : "—"}</strong></span>
-        <span className={deltaClass}>
-          {arrow} {Number.isFinite(delta) ? delta.toFixed(1) : "0.0"}%
-        </span>
+        <span className={deltaClass}>{arrow} {Number.isFinite(delta) ? delta.toFixed(1) : "0.0"}%</span>
       </div>
       <Sparkline data={arr} />
     </div>
   );
 }
 
-/* --- canonical order for stable UI --- */
+/* --- prefer outlook.sectors (11) --- */
 const ORDER = [
   "tech","materials","healthcare","communication services","real estate",
   "energy","consumer staples","consumer discretionary","financials","utilities","industrials",
@@ -95,22 +89,21 @@ const orderKey = (s) => {
   const i = ORDER.indexOf(norm(s));
   return i === -1 ? 999 : i;
 };
-
-/* prefer outlook.sectors (11) over sectorCards (3) */
-function extractAllSectors(json) {
-  const out = json?.outlook || {};
-  const obj = out.sectors;
-  if (obj && typeof obj === "object" && Object.keys(obj).length > 0) {
-    const list = Object.keys(obj).map(k => ({
-      sector:  k.split(" ").map(w=>w? w[0].toUpperCase()+w.slice(1):w).join(" "),
-      outlook: obj[k]?.outlook ?? "Neutral",
-      spark:   Array.isArray(obj[k]?.spark) ? obj[k].spark : [],
-    }));
+function titleCase(name="") {
+  return name.split(" ").map(w => w ? w[0].toUpperCase()+w.slice(1) : w).join(" ");
+}
+function extractFromSectors(json) {
+  const obj = json?.outlook?.sectors;
+  if (obj && typeof obj === "object") {
+    const list = Object.keys(obj).map(k => {
+      const sec = obj[k] || {};
+      return {
+        sector:  titleCase(k),
+        outlook: sec?.outlook ?? "Neutral",
+        spark:   Array.isArray(sec?.spark) ? sec.spark : []
+      };
+    });
     return list.sort((a,b)=> orderKey(a.sector) - orderKey(b.sector));
-  }
-  const cards = out.sectorCards;
-  if (Array.isArray(cards) && cards.length > 0) {
-    return cards.sort((a,b)=> orderKey(a.sector) - orderKey(b.sector));
   }
   return [];
 }
@@ -120,8 +113,8 @@ export default function RowIndexSectors() {
   const [lastTs, setLastTs] = useState(null);
   const [initial, setInitial] = useState(true);
   const [stale, setStale] = useState(false);
-  const timerRef = useRef(null);
   const aliveRef = useRef(true);
+  const timerRef = useRef(null);
 
   async function fetchOnce() {
     try {
@@ -129,14 +122,14 @@ export default function RowIndexSectors() {
       const d = await r.json();
       if (!aliveRef.current) return;
       setLastTs(d?.meta?.ts || null);
-      const list = extractAllSectors(d);
+      const list = extractFromSectors(d); // <- force outlook.sectors mapping
       if (list.length > 0) {
         setCards(list);
         setStale(false);
       } else {
         setStale(true);
       }
-    } catch (e) {
+    } catch {
       if (aliveRef.current) setStale(true);
     } finally {
       if (aliveRef.current) setInitial(false);
@@ -154,7 +147,7 @@ export default function RowIndexSectors() {
       <div className="panel-head">
         <div className="panel-title">Index Sectors</div>
         <div className="spacer" />
-        {<LastUpdated ts={lastTs} />}
+        <LastUpdated ts={lastTs} />
       </div>
 
       {initial && cards.length === 0 && <div className="small muted">Loading…</div>}
