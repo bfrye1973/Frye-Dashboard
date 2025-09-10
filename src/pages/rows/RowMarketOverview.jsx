@@ -1,13 +1,14 @@
 // src/pages/rows/RowMarketOverview.jsx
 import React, { useEffect, useState } from "react";
 import { useDashboardPoll } from "../../lib/dashboardApi";
+import { LastUpdated } from "../../components/LastUpdated";
 
 /* ---------- helpers ---------- */
 const clamp01 = (n) => Math.max(0, Math.min(100, Number(n)));
 const pct = (n) => (Number.isFinite(n) ? n.toFixed(1) : "—");
-const toneFor = (v) => (v >= 60 ? "ok" : v >= 40 ? "warn" : "danger"); // green / yellow / red
-const dayKey = () => new Date().toISOString().slice(0, 10);
+const toneFor = (v) => (v >= 60 ? "ok" : v >= 40 ? "warn" : "danger");
 
+const dayKey = () => new Date().toISOString().slice(0, 10);
 function useDailyBaseline(keyName, current) {
   const [baseline, setBaseline] = useState(null);
   useEffect(() => {
@@ -39,16 +40,16 @@ function Stoplight({ label, value, baseline, size = 60, unit = "%" }) {
 
   const tone = Number.isFinite(v) ? toneFor(v) : "info";
   const colors = {
-    ok:    { bg:"#22c55e", glow:"rgba(34,197,94,.45)"  }, // green
-    warn:  { bg:"#fbbf24", glow:"rgba(251,191,36,.45)" }, // yellow
-    danger:{ bg:"#ef4444", glow:"rgba(239,68,68,.45)"  }, // red
-    info:  { bg:"#334155", glow:"rgba(51,65,85,.35)"   }  // no data
+    ok:    { bg:"#22c55e", glow:"rgba(34,197,94,.45)"  },
+    warn:  { bg:"#fbbf24", glow:"rgba(251,191,36,.45)" },
+    danger:{ bg:"#ef4444", glow:"rgba(239,68,68,.45)"  },
+    info:  { bg:"#334155", glow:"rgba(51,65,85,.35)"   }
   }[tone];
 
-  const arrow = !Number.isFinite(delta)
-    ? "→" : Math.abs(delta) < 0.5
-    ? "→" : delta > 0
-    ? "↑" : "↓";
+  const arrow =
+    !Number.isFinite(delta) ? "→" :
+    Math.abs(delta) < 0.5   ? "→" :
+    delta > 0               ? "↑" : "↓";
 
   const arrowClass =
     !Number.isFinite(delta) || Math.abs(delta) < 0.5
@@ -62,13 +63,13 @@ function Stoplight({ label, value, baseline, size = 60, unit = "%" }) {
       <div
         title={`${label}: ${pct(v)}${unit === "%" ? "%" : ""}`}
         style={{
-          width: size, height: size, borderRadius: "50%",
-          background: colors.bg, boxShadow: `0 0 14px ${colors.glow}`,
+          width: size, height: size, borderRadius:"50%",
+          background: colors.bg, boxShadow:`0 0 14px ${colors.glow}`,
           display:"flex", alignItems:"center", justifyContent:"center",
           border: "5px solid #0c1320"
         }}
       >
-        <div style={{ fontWeight:800, fontSize: size > 100 ? 20 : 14, color:"#0b1220" }}>
+        <div style={{ fontWeight:800, fontSize:size > 100 ? 20 : 14, color:"#0b1220" }}>
           {pct(v)}{unit === "%" ? "%" : ""}
         </div>
       </div>
@@ -85,53 +86,58 @@ export default function RowMarketOverview() {
 
   const od = data?.odometers ?? {};
   const gg = data?.gauges ?? {};
+  const ts = data?.meta?.ts || null;
 
-  // Core values
-  const breadth    = Number(od?.breadthOdometer ?? 50);
-  const momentum   = Number(od?.momentumOdometer ?? 50);
+  // core values
+  const breadth   = Number(od?.breadthOdometer ?? 50);
+  const momentum  = Number(od?.momentumOdometer ?? 50);
 
-  // Intraday squeeze (compression %)
+  // intraday squeeze (compression)
   const squeezeIntra =
     Number.isFinite(od?.squeezeCompressionPct) ? od.squeezeCompressionPct :
     Number.isFinite(gg?.fuelPct)               ? gg.fuelPct : 50;
 
-  // Daily squeeze (compression %)
+  // daily squeeze (compression)
   const squeezeDaily =
     Number.isFinite(gg?.squeezeDaily?.pct) ? gg.squeezeDaily.pct : null;
 
-  // Liquidity (PSI)
-  const liquidity =
+  // liquidity & volatility
+  const liquidity  =
     Number.isFinite(gg?.oil?.psi) ? gg.oil.psi :
     Number.isFinite(gg?.oilPsi)    ? gg.oilPsi : NaN;
 
-  // Volatility (placeholder mapping—add a real field later)
-  const rawVol = Number.isFinite(gg?.volatilityPct) ? gg.volatilityPct :
-                 Number.isFinite(gg?.waterTemp)     ? ((gg.waterTemp - 160) / (260 - 160)) * 100 : NaN;
-  const volatility = Number.isFinite(rawVol) ? clamp01(rawVol) : NaN;
+  const volatility =
+    Number.isFinite(gg?.volatilityPct) ? gg.volatilityPct : NaN;
 
-  // Baselines (for arrows)
-  const bBreadth    = useDailyBaseline("breadth", breadth);
-  const bMomentum   = useDailyBaseline("momentum", momentum);
-  const bSqueezeIn  = useDailyBaseline("squeezeIntraday", squeezeIntra);
-  const bSqueezeDay = useDailyBaseline("squeezeDaily", squeezeDaily);
-  const bLiquidity  = useDailyBaseline("liquidity", liquidity);
-  const bVol        = useDailyBaseline("volatility", volatility);
+  // baselines (for arrows)
+  const bBreadth   = useDailyBaseline("breadth", breadth);
+  const bMomentum  = useDailyBaseline("momentum", momentum);
+  const bSqueezeIn = useDailyBaseline("squeezeIntraday", squeezeIntra);
+  const bSqueezeDy = useDailyBaseline("squeezeDaily", squeezeDaily);
+  const bLiquidity = useDailyBaseline("liquidity", liquidity);
+  const bVol       = useDailyBaseline("volatility", volatility);
 
-  // Composite meter (center big)
-  const expansion = 100 - clamp01(squeezeIntra);
-  const baseMeter = 0.4 * breadth + 0.4 * momentum + 0.2 * expansion;
-  const meter = Math.round((squeezeDaily ?? 0) >= 90 ? 45 + (baseMeter - 50) * 0.30 : baseMeter);
+  // composite Market Meter (center big)
+  const expansion  = 100 - clamp01(squeezeIntra);
+  const baseMeter  = 0.4 * breadth + 0.4 * momentum + 0.2 * expansion;
+  const meterValue = Math.round((squeezeDaily ?? 0) >= 90 ? 45 + (baseMeter - 50) * 0.30 : baseMeter);
 
   return (
     <section id="row-2" className="panel" style={{ padding:8 }}>
       <div className="panel-head">
         <div className="panel-title">Market Meter — Stoplights</div>
         <div className="spacer" />
-        <span className="small muted">Daily Squeeze + Intraday Squeeze</span>
+        <LastUpdated ts={ts} />
       </div>
 
-      {/* 3-column cluster: left(3) | center(big + daily) | right(2) */}
-      <div style={{ display:"grid", gridTemplateColumns:"1fr auto 1fr", alignItems:"center", gap:10, marginTop:6 }}>
+      {/* 3-column cluster: left(3) | center(big+daily) | right(2) */}
+      <div style={{
+        display:"grid",
+        gridTemplateColumns:"1fr auto 1fr",
+        alignItems:"center",
+        gap:10,
+        marginTop:6
+      }}>
         {/* LEFT: Breadth, Momentum, Intraday Squeeze */}
         <div style={{ display:"flex", gap:10, flexWrap:"nowrap", justifyContent:"flex-start" }}>
           <Stoplight label="Breadth"          value={breadth}       baseline={bBreadth} />
@@ -139,10 +145,10 @@ export default function RowMarketOverview() {
           <Stoplight label="Intraday Squeeze" value={squeezeIntra}  baseline={bSqueezeIn} />
         </div>
 
-        {/* CENTER: Big Market Meter + Daily Squeeze (small) */}
+        {/* CENTER: Big Market Meter + Daily Squeeze */}
         <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:12 }}>
-          <Stoplight label="Market Meter"   value={meter}        baseline={meter} size={110} />
-          <Stoplight label="Daily Squeeze"  value={squeezeDaily} baseline={bSqueezeDay} />
+          <Stoplight label="Market Meter"  value={meterValue} baseline={meterValue} size={110} />
+          <Stoplight label="Daily Squeeze" value={squeezeDaily} baseline={bSqueezeDy} />
         </div>
 
         {/* RIGHT: Liquidity, Volatility */}
@@ -154,17 +160,3 @@ export default function RowMarketOverview() {
     </section>
   );
 }
-import { LastUpdated } from "../../components/LastUpdated";
-
-// inside the component:
-const ts = data?.meta?.ts;
-
-// in the render:
-<section id="row-2" className="panel" style={{ padding:8 }}>
-  <div className="panel-head">
-    <div className="panel-title">Market Meter — Stoplights</div>
-    <div className="spacer" />
-    <LastUpdated ts={ts} />
-  </div>
-  {/* ...rest of your row... */}
-</section>
