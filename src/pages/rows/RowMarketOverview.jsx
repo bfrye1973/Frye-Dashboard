@@ -154,3 +154,17 @@ export default function RowMarketOverview() {
     </section>
   );
 }
+import { LastUpdated } from "../../components/LastUpdated";
+
+// inside the component:
+const ts = data?.meta?.ts;
+
+// in the render:
+<section id="row-2" className="panel" style={{ padding:8 }}>
+  <div className="panel-head">
+    <div className="panel-title">Market Meter — Stoplights</div>
+    <div className="spacer" />
+    <LastUpdated ts={ts} />
+  </div>
+  {/* ...rest of your row... */}
+</section>
