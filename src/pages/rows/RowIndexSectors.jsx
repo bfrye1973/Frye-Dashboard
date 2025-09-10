@@ -1,6 +1,7 @@
 // src/pages/rows/RowIndexSectors.jsx
 import React, { useEffect, useRef, useState } from "react";
-import { useDashboardPoll } from "../../lib/dashboardApi";
+
+const API = "https://frye-market-backend-1.onrender.com/api/dashboard"; // direct backend
 
 /* --- tone helpers --- */
 const toneFor = (o) => {
@@ -33,22 +34,14 @@ function Badge({ text, tone = "info" }) {
 
 /* --- tiny sparkline --- */
 function Sparkline({ data = [], width = 160, height = 36 }) {
-  if (!Array.isArray(data) || data.length < 2) {
-    return <div className="small muted">no data</div>;
-  }
-  const min = Math.min(...data);
-  const max = Math.max(...data);
+  if (!Array.isArray(data) || data.length < 2) return <div className="small muted">no data</div>;
+  const min = Math.min(...data), max = Math.max(...data);
   const span = (max - min) || 1;
   const stepX = width / (data.length - 1);
-
-  const d = data
-    .map((v, i) => {
-      const x = i * stepX;
-      const y = height - ((v - min) / span) * height;
-      return `${i === 0 ? "M" : "L"}${x.toFixed(2)},${y.toFixed(2)}`;
-    })
-    .join(" ");
-
+  const d = data.map((v,i)=>{
+    const x=i*stepX, y=height-((v-min)/span)*height;
+    return `${i===0?"M":"L"}${x.toFixed(2)},${y.toFixed(2)}`;
+  }).join(" ");
   return (
     <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
       <path d={d} fill="none" stroke="#60a5fa" strokeWidth="2" />
@@ -60,12 +53,7 @@ function SectorCard({ sector, outlook, spark }) {
   const tone = toneFor(outlook);
   return (
     <div className="panel" style={{ padding:10 }}>
-      <div
-        style={{
-          display:"flex", alignItems:"center", justifyContent:"space-between",
-          marginBottom:8,
-        }}
-      >
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:8 }}>
         <div className="panel-title small">{sector || "Sector"}</div>
         <Badge text={outlook || "Neutral"} tone={tone} />
       </div>
@@ -74,70 +62,73 @@ function SectorCard({ sector, outlook, spark }) {
   );
 }
 
-/* --- preferred sector order (keeps row stable) --- */
+/* --- keep row stable in a consistent order --- */
 const ORDER = [
-  "tech",
-  "materials",
-  "healthcare",
-  "communication services",
-  "real estate",
-  "energy",
-  "consumer staples",
-  "consumer discretionary",
-  "financials",
-  "utilities",
-  "industrials",
+  "tech","materials","healthcare","communication services","real estate",
+  "energy","consumer staples","consumer discretionary","financials","utilities","industrials",
 ];
-
-function normalizeName(name = "") {
-  return String(name).trim().toLowerCase();
-}
-
-function sortByPreferredOrder(cards = []) {
-  return [...cards].sort((a, b) => {
-    const ia = ORDER.indexOf(normalizeName(a?.sector));
-    const ib = ORDER.indexOf(normalizeName(b?.sector));
-    const sa = ia === -1 ? 999 : ia;
-    const sb = ib === -1 ? 999 : ib;
-    return sa - sb;
+const keyNorm = (s="") => String(s).trim().toLowerCase();
+function sortByPreferred(cards=[]) {
+  return [...cards].sort((a,b)=>{
+    const ia = ORDER.indexOf(keyNorm(a?.sector));
+    const ib = ORDER.indexOf(keyNorm(b?.sector));
+    return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
   });
 }
 
-/* --- Row 4: Index Sectors with last-good (no flicker) --- */
+/* --- Row 4: direct poll + last-good (no flicker) --- */
 export default function RowIndexSectors() {
-  const { data, loading, error } = useDashboardPoll?.(5000) ?? {
-    data: null,
-    loading: false,
-    error: null,
-  };
-
-  const loadedRef = useRef(false);      // first good payload seen
-  const [cards, setCards] = useState([]);  // last-good list
+  const [cards, setCards] = useState([]);
+  const [initial, setInitial] = useState(true);
   const [stale, setStale] = useState(false);
+  const [error, setError] = useState(null);
+  const timerRef = useRef(null);
+  const aliveRef = useRef(true);
 
-  useEffect(() => {
-    const arr = data?.outlook?.sectorCards;
-
-    // first meaningful payload
-    if (!loadedRef.current) {
+  async function loadOnce() {
+    try {
+      const r = await fetch(`${API}?t=${Date.now()}`, { cache:"no-store" });
+      const d = await r.json();
+      const arr = d?.outlook?.sectorCards;
+      if (!aliveRef.current) return;
       if (Array.isArray(arr) && arr.length > 0) {
-        setCards(sortByPreferredOrder(arr));
+        setCards(sortByPreferred(arr));
         setStale(false);
-        loadedRef.current = true;
+        setError(null);
       }
-      return; // do not clear UI on first empty/undefined
+    } catch (e) {
+      if (!aliveRef.current) return;
+      setError(e);
+    } finally {
+      if (aliveRef.current) setInitial(false);
     }
+  }
 
-    // after first good: only replace when non-empty; keep last-good if empty
-    if (Array.isArray(arr)) {
-      if (arr.length > 0) {
-        setCards(sortByPreferredOrder(arr));
+  async function refresh() {
+    try {
+      const r = await fetch(`${API}?t=${Date.now()}`, { cache:"no-store" });
+      const d = await r.json();
+      const arr = d?.outlook?.sectorCards;
+      if (!aliveRef.current) return;
+      if (Array.isArray(arr) && arr.length > 0) {
+        setCards(sortByPreferred(arr));
         setStale(false);
       } else {
-        setStale(true); // show "refreshing…" but keep last-good
+        setStale(true); // keep last-good cards
       }
+    } catch {
+      if (aliveRef.current) setStale(true);
     }
-  }, [data]);
+  }
+
+  useEffect(() => {
+    loadOnce();
+    timerRef.current = setInterval(refresh, 5000);
+    return () => {
+      aliveRef.current = false;
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, []);
 
   return (
     <section id="row-4" className="panel index-sectors" aria-label="Index Sectors">
@@ -148,33 +139,21 @@ export default function RowIndexSectors() {
       </div>
 
       {/* initial states */}
-      {!loadedRef.current && loading && (
-        <div className="small muted">Loading…</div>
-      )}
-      {!loadedRef.current && error && (
-        <div className="small muted">Failed to load sectors.</div>
-      )}
-      {!loadedRef.current && !loading && !error && cards.length === 0 && (
+      {initial && cards.length === 0 && <div className="small muted">Loading…</div>}
+      {error   && cards.length === 0 && <div className="small muted">Failed to load sectors.</div>}
+      {!initial && !error && cards.length === 0 && (
         <div className="small muted">No sector data.</div>
       )}
 
-      {/* last-good list (stable, no flicker) */}
-      {Array.isArray(cards) && cards.length > 0 && (
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
-            gap: 10,
-            marginTop: 10,
-          }}
-        >
+      {/* always render last-good to avoid flicker */}
+      {cards.length > 0 && (
+        <div style={{
+          display:"grid",
+          gridTemplateColumns:"repeat(auto-fill, minmax(220px, 1fr))",
+          gap:10, marginTop:10
+        }}>
           {cards.map((c, i) => (
-            <SectorCard
-              key={c?.sector || i}
-              sector={c?.sector}
-              outlook={c?.outlook}
-              spark={c?.spark}
-            />
+            <SectorCard key={c?.sector || i} sector={c?.sector} outlook={c?.outlook} spark={c?.spark} />
           ))}
         </div>
       )}
