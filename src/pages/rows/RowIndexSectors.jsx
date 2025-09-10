@@ -34,9 +34,7 @@ function Badge({ text, tone = "info" }) {
 
 /* ---- tiny sparkline ---- */
 function Sparkline({ data = [], width = 160, height = 36 }) {
-  if (!Array.isArray(data) || data.length < 2) {
-    return <div className="small muted">no data</div>;
-  }
+  if (!Array.isArray(data) || data.length < 2) return <div className="small muted">no data</div>;
   const min = Math.min(...data), max = Math.max(...data);
   const span = (max - min) || 1;
   const stepX = width / (data.length - 1);
@@ -80,7 +78,7 @@ function SectorCard({ sector, outlook, spark }) {
         <Badge text={outlook || "Neutral"} tone={tone} />
       </div>
 
-      {/* Inline numbers under badge (no extra height later) */}
+      {/* inline stats (keeps row slim) */}
       <div className="small" style={{ display:"flex", justifyContent:"space-between", margin:"4px 0 6px 0" }}>
         <span>Last: <strong>{Number.isFinite(last) ? last.toFixed(1) : "—"}</strong></span>
         <span className={deltaClass}>{arrow} {Number.isFinite(deltaPct) ? deltaPct.toFixed(1) : "0.0"}%</span>
@@ -91,15 +89,13 @@ function SectorCard({ sector, outlook, spark }) {
   );
 }
 
-/* ---- preferred order (keeps row stable) ---- */
+/* ---- preferred order for stable layout ---- */
 const ORDER = [
   "tech","materials","healthcare","communication services","real estate",
   "energy","consumer staples","consumer discretionary","financials","utilities","industrials",
 ];
-
 const keyNorm = (s="") => String(s).trim().toLowerCase();
-
-function sortCards(cards=[]) {
+function sortByPreferred(cards=[]) {
   return [...cards].sort((a,b)=>{
     const ia = ORDER.indexOf(keyNorm(a?.sector));
     const ib = ORDER.indexOf(keyNorm(b?.sector));
@@ -107,19 +103,20 @@ function sortCards(cards=[]) {
   });
 }
 
-/* ---- normalize from either sectorCards (array) or sectors (object) ---- */
+/* ---- prefer outlook.sectors (11) over sectorCards (3) ---- */
 function extractAllSectors(dash) {
-  const cards = dash?.outlook?.sectorCards;
-  if (Array.isArray(cards) && cards.length > 0) return sortCards(cards);
-
   const obj = dash?.outlook?.sectors;
-  if (obj && typeof obj === "object") {
+  if (obj && typeof obj === "object" && Object.keys(obj).length > 0) {
     const list = Object.keys(obj).map(k => ({
       sector:  k,
       outlook: obj[k]?.outlook ?? "Neutral",
       spark:   Array.isArray(obj[k]?.spark) ? obj[k].spark : [],
     }));
-    return sortCards(list);
+    return sortByPreferred(list);
+  }
+  const cards = dash?.outlook?.sectorCards;
+  if (Array.isArray(cards) && cards.length > 0) {
+    return sortByPreferred(cards);
   }
   return [];
 }
