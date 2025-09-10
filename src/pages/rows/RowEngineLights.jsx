@@ -1,37 +1,24 @@
 // src/pages/rows/RowEngineLights.jsx
-import React from "react";
-import { useDashboardPoll } from "../../lib/dashboardApi"; // same hook StrategiesPanel uses
+import React, { useEffect, useRef, useState } from "react";
+import { useDashboardPoll } from "../../lib/dashboardApi";
 
-// small pill component
+/* ---- pill component ---- */
 function Light({ label, tone = "info" }) {
-  const bg =
-    tone === "ok"    ? "#064e3b" :
-    tone === "warn"  ? "#5b4508" :
-    tone === "danger"? "#7f1d1d" : "#0b1220";
-  const fg =
-    tone === "ok"    ? "#d1fae5" :
-    tone === "warn"  ? "#fde68a" :
-    tone === "danger"? "#fecaca" : "#93c5fd";
-  const bd =
-    tone === "ok"    ? "#065f46" :
-    tone === "warn"  ? "#a16207" :
-    tone === "danger"? "#b91c1c" : "#334155";
+  const palette = {
+    ok:    { bg:"#064e3b", fg:"#d1fae5", bd:"#065f46" },
+    warn:  { bg:"#5b4508", fg:"#fde68a", bd:"#a16207" },
+    danger:{ bg:"#7f1d1d", fg:"#fecaca", bd:"#b91c1c" },
+    info:  { bg:"#0b1220", fg:"#93c5fd", bd:"#334155" },
+  }[tone] || { bg:"#0b1220", fg:"#93c5fd", bd:"#334155" };
 
   return (
     <span
       style={{
-        display: "inline-flex",
-        alignItems: "center",
-        gap: 6,
-        padding: "6px 10px",
-        marginRight: 8,
-        borderRadius: 8,
-        fontWeight: 700,
-        fontSize: 12,
-        background: bg,
-        color: fg,
-        border: `1px solid ${bd}`,
-        boxShadow: `0 0 10px ${bd}55`
+        display:"inline-flex", alignItems:"center",
+        padding:"6px 10px", marginRight:8, marginBottom:6,
+        borderRadius:8, fontWeight:700, fontSize:12,
+        background: palette.bg, color: palette.fg, border:`1px solid ${palette.bd}`,
+        boxShadow: `0 0 10px ${palette.bd}55`
       }}
     >
       {label}
@@ -39,13 +26,10 @@ function Light({ label, tone = "info" }) {
   );
 }
 
-export default function RowEngineLights() {
-  // poll every 5s (same as your other rows)
-  const { data, loading, error } = useDashboardPoll?.(5000) ?? { data:null, loading:false, error:null };
+/* ---- normalize signals into a list with tone ---- */
+function extractActiveSignals(sigObj) {
+  if (!sigObj || typeof sigObj !== "object") return [];
 
-  // read signals safely
-  const signals = data?.signals ?? {};
-  // normalize to a list of {key,label,active,severity}
   const defs = [
     { key:"sigBreakout",     label:"Breakout"     },
     { key:"sigExpansion",    label:"Expansion"    },
@@ -57,36 +41,74 @@ export default function RowEngineLights() {
     { key:"sigLowLiquidity", label:"Low Liquidity"},
   ];
 
-  const active = defs.map(d => {
-    const s = signals[d.key];
-    return {
-      label: d.label,
-      active: !!(s?.active ?? s === true),
-      tone: (s?.severity === "danger") ? "danger" :
-            (s?.severity === "warn")   ? "warn"   :
-            (s?.active === true)       ? "ok"     : "info"
-    };
-  }).filter(x => x.active);
+  return defs
+    .map(d => {
+      const s = sigObj[d.key];
+      const active = !!(s?.active ?? s === true);
+      // prefer explicit severity if present
+      const sev = String(s?.severity || "").toLowerCase();
+      const tone =
+        sev === "danger" ? "danger" :
+        sev === "warn"   ? "warn"   :
+        active           ? "ok"     : "info";
+      return { label: d.label, active, tone };
+    })
+    .filter(x => x.active);
+}
+
+/* ---- Row 3: Engine Lights with last-good, no flicker ---- */
+export default function RowEngineLights() {
+  const { data, loading, error } = useDashboardPoll?.(5000) ?? { data:null, loading:false, error:null };
+
+  const [lights, setLights] = useState([]);    // last-good list of active signals
+  const [stale, setStale] = useState(false);   // empty refresh -> keep last-good
+  const firstGoodRef = useRef(false);
+
+  useEffect(() => {
+    const sig = data?.signals;
+    const list = extractActiveSignals(sig);
+
+    if (!firstGoodRef.current) {
+      if (list.length > 0) {
+        setLights(list);
+        setStale(false);
+        firstGoodRef.current = true;
+      }
+      return; // don’t clear UI on first empty/undefined
+    }
+
+    // after first good: only replace when non-empty
+    if (Array.isArray(list)) {
+      if (list.length > 0) {
+        setLights(list);
+        setStale(false);
+      } else {
+        setStale(true); // keep last-good and show refreshing…
+      }
+    }
+  }, [data]);
 
   return (
     <section id="row-3" className="panel" aria-label="Engine Lights">
       <div className="panel-head">
         <div className="panel-title">Engine Lights</div>
+        <div className="spacer" />
+        {stale && lights.length > 0 && <span className="small muted">refreshing…</span>}
       </div>
 
-      {/* states */}
-      {error && <div className="small muted">Failed to load signals.</div>}
-      {loading && <div className="small muted">Loading…</div>}
-      {!loading && active.length === 0 && (
+      {/* initial states */}
+      {!firstGoodRef.current && loading && <div className="small muted">Loading…</div>}
+      {!firstGoodRef.current && error   && <div className="small muted">Failed to load signals.</div>}
+      {!firstGoodRef.current && !loading && !error && lights.length === 0 && (
         <div className="small muted">No active signals.</div>
       )}
 
-      {/* active lights */}
-      <div style={{ marginTop: 8 }}>
-        {active.map((s, i) => (
-          <Light key={i} label={s.label} tone={s.tone} />
-        ))}
-      </div>
+      {/* active lights — last-good persisted, no flicker */}
+      {lights.length > 0 && (
+        <div style={{ display:"flex", flexWrap:"wrap", marginTop:8 }}>
+          {lights.map((l, i) => <Light key={i} label={l.label} tone={l.tone} />)}
+        </div>
+      )}
     </section>
   );
 }
