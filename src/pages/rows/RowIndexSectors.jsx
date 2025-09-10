@@ -51,16 +51,67 @@ function Sparkline({ data = [], width = 160, height = 36 }) {
 
 function SectorCard({ sector, outlook, spark }) {
   const tone = toneFor(outlook);
+
+  // derive simple stats from spark
+  const arr = Array.isArray(spark) ? spark : [];
+  const first = arr.length > 0 ? arr[0] : null;
+  const last  = arr.length > 0 ? arr[arr.length - 1] : null;
+
+  const deltaAbs  = (Number.isFinite(last) && Number.isFinite(first)) ? (last - first) : NaN;
+  const deltaPct  = (Number.isFinite(deltaAbs) && Math.abs(first) > 1e-6) ? (deltaAbs / first) * 100 : NaN;
+
+  const deltaArrow =
+    !Number.isFinite(deltaPct) ? "→" :
+    Math.abs(deltaPct) < 0.5 ? "→" :
+    deltaPct > 0 ? "↑" : "↓";
+
+  const deltaClass =
+    !Number.isFinite(deltaPct) || Math.abs(deltaPct) < 0.5
+      ? "delta delta-flat"
+      : deltaPct > 0
+      ? "delta delta-up"
+      : "delta delta-down";
+
   return (
-    <div className="panel" style={{ padding:10 }}>
-      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:8 }}>
+    <div className="panel" style={{ padding: 10 }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          marginBottom: 8,
+        }}
+      >
         <div className="panel-title small">{sector || "Sector"}</div>
         <Badge text={outlook || "Neutral"} tone={tone} />
       </div>
-      <Sparkline data={Array.isArray(spark) ? spark : []} />
+
+      {/* sparkline */}
+      <Sparkline data={arr} />
+
+      {/* numeric footer */}
+      <div
+        className="small"
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          marginTop: 6,
+        }}
+      >
+        <span>
+          Last:{" "}
+          <strong>
+            {Number.isFinite(last) ? last.toFixed(1) : "—"}
+          </strong>
+        </span>
+        <span className={deltaClass}>
+          {deltaArrow} {Number.isFinite(deltaPct) ? deltaPct.toFixed(1) : "0.0"}%
+        </span>
+      </div>
     </div>
   );
 }
+
 
 /* --- keep row stable in a consistent order --- */
 const ORDER = [
