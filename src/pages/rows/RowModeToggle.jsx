@@ -3,9 +3,11 @@ import React from "react";
 import MarketNarrator from "../../components/MarketNarrator";
 
 /**
- * Simple header row with your existing view-mode buttons on the left
- * and the Market Narrator (scope + summary + 🔊 Explain) on the right.
- * If you have custom handlers for the buttons, wire them where marked.
+ * View Modes row:
+ * - Left: your existing mode buttons (placeholders here)
+ * - Right: Market Narrator (scope + summary + 🔊 Explain)
+ *
+ * NOTE: All import statements must stay at the very TOP of the file.
  */
 export default function RowModeToggle() {
   return (
@@ -13,17 +15,11 @@ export default function RowModeToggle() {
       <div className="panel-head" style={{ alignItems: "center" }}>
         <div className="panel-title">View Modes</div>
 
-        {/* LEFT — your existing buttons (keep / customize as needed) */}
+        {/* LEFT — your mode buttons (wire real handlers if you have them) */}
         <div className="small" style={{ display: "flex", gap: 8 }}>
-          <button className="btn" onClick={() => {/* TODO: set mode 'meter' */}}>
-            Meter + Tiles
-          </button>
-          <button className="btn" onClick={() => {/* TODO: set mode 'traffic' */}}>
-            Traffic Lights
-          </button>
-          <button className="btn" onClick={() => {/* TODO: set mode 'arrows' */}}>
-            Arrow Scorecards
-          </button>
+          <button className="btn" type="button">Meter + Tiles</button>
+          <button className="btn" type="button">Traffic Lights</button>
+          <button className="btn" type="button">Arrow Scorecards</button>
         </div>
 
         <div className="spacer" />
