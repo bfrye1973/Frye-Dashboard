@@ -1,5 +1,5 @@
 // src/pages/rows/RowMarketOverview.jsx
-import React, { useEffect, useState } from "react";
+import React from "react";
 import { useDashboardPoll } from "../../lib/dashboardApi";
 import { LastUpdated } from "../../components/LastUpdated";
 
@@ -8,10 +8,12 @@ const clamp01 = (n) => Math.max(0, Math.min(100, Number(n)));
 const pct = (n) => (Number.isFinite(n) ? n.toFixed(1) : "—");
 const toneFor = (v) => (v >= 60 ? "ok" : v >= 40 ? "warn" : "danger");
 
+/* ---------- baselines (per day) ---------- */
 const dayKey = () => new Date().toISOString().slice(0, 10);
 function useDailyBaseline(keyName, current) {
-  const [baseline, setBaseline] = useState(null);
-  useEffect(() => {
+  const [baseline, setBaseline] = React.useState(null);
+
+  React.useEffect(() => {
     const k = `meter_baseline_${dayKey()}_${keyName}`;
     const saved = localStorage.getItem(k);
     if (saved === null && Number.isFinite(current)) {
@@ -21,8 +23,10 @@ function useDailyBaseline(keyName, current) {
       const n = Number(saved);
       setBaseline(Number.isFinite(n) ? n : null);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [keyName]);
-  useEffect(() => {
+
+  React.useEffect(() => {
     if (!Number.isFinite(current)) return;
     const k = `meter_baseline_${dayKey()}_${keyName}`;
     if (localStorage.getItem(k) === null) {
@@ -30,6 +34,7 @@ function useDailyBaseline(keyName, current) {
       setBaseline(current);
     }
   }, [keyName, current]);
+
   return baseline;
 }
 
@@ -82,32 +87,26 @@ function Stoplight({ label, value, baseline, size = 60, unit = "%" }) {
 }
 
 export default function RowMarketOverview() {
-  const { data } = useDashboardPoll?.(5000) ?? { data:null };
+  // ✅ dynamic cadence (RTH=15s, pre/post=30s, overnight/weekend=120s)
+  const { data } = useDashboardPoll?.("dynamic") ?? { data:null };
 
   const od = data?.odometers ?? {};
   const gg = data?.gauges ?? {};
   const ts = data?.meta?.ts || null;
 
-  // core values
+  // core values (already normalized in dashboardApi.transformToUi)
   const breadth   = Number(od?.breadthOdometer ?? 50);
   const momentum  = Number(od?.momentumOdometer ?? 50);
 
   // intraday squeeze (compression)
-  const squeezeIntra =
-    Number.isFinite(od?.squeezeCompressionPct) ? od.squeezeCompressionPct :
-    Number.isFinite(gg?.fuelPct)               ? gg.fuelPct : 50;
+  const squeezeIntra = Number(od?.squeezeCompressionPct ?? 50);
 
-  // daily squeeze (compression)
-  const squeezeDaily =
-    Number.isFinite(gg?.squeezeDaily?.pct) ? gg.squeezeDaily.pct : null;
+  // daily squeeze (compression) — backend mirrors to gauges.squeezeDaily.pct
+  const squeezeDaily = Number.isFinite(gg?.squeezeDaily?.pct) ? gg.squeezeDaily.pct : null;
 
   // liquidity & volatility
-  const liquidity  =
-    Number.isFinite(gg?.oil?.psi) ? gg.oil.psi :
-    Number.isFinite(gg?.oilPsi)    ? gg.oilPsi : NaN;
-
-  const volatility =
-    Number.isFinite(gg?.volatilityPct) ? gg.volatilityPct : NaN;
+  const liquidity  = Number.isFinite(gg?.oilPsi) ? gg.oilPsi : (Number.isFinite(gg?.oil?.psi) ? gg.oil.psi : NaN);
+  const volatility = Number.isFinite(gg?.volatilityPct) ? gg.volatilityPct : NaN;
 
   // baselines (for arrows)
   const bBreadth   = useDailyBaseline("breadth", breadth);
