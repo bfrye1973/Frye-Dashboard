@@ -4,7 +4,6 @@ import { useDashboardPoll } from "../../lib/dashboardApi";
 
 /* ---- pill component ---- */
 function Light({ label, tone = "info", active = true }) {
-  // "off" = dim/blackout look but still visible
   const palette = {
     ok:     { bg:"#064e3b", fg:"#d1fae5", bd:"#065f46", shadow:"#065f46" },
     warn:   { bg:"#5b4508", fg:"#fde68a", bd:"#a16207", shadow:"#a16207" },
@@ -32,14 +31,15 @@ function Light({ label, tone = "info", active = true }) {
 
 /* ---- signal definitions (order + legend text) ---- */
 const SIGNAL_DEFS = [
-  { key:"sigBreakout",     label:"Breakout",     desc:"Breadth positive (net NH > 0)" },
-  { key:"sigDistribution", label:"Distribution", desc:"Breadth negative (net NH < 0)" },
-  { key:"sigCompression",  label:"Compression",  desc:"Squeeze ≥ 70" },
-  { key:"sigExpansion",    label:"Expansion",    desc:"Squeeze < 40" },
-  { key:"sigOverheat",     label:"Overheat",     desc:"Momentum > 85 (danger > 92)" },
-  { key:"sigTurbo",        label:"Turbo",        desc:"Momentum > 92 AND expansion" },
-  { key:"sigDivergence",   label:"Divergence",   desc:"Momentum strong, breadth weak" },
-  { key:"sigLowLiquidity", label:"Low Liquidity",desc:"PSI < 40 (danger < 30)" },
+  { key:"sigBreakout",       label:"Breakout",       desc:"Breadth positive (net NH > 0)" },
+  { key:"sigDistribution",   label:"Distribution",   desc:"Breadth negative (net NH < 0)" },
+  { key:"sigCompression",    label:"Compression",    desc:"Squeeze ≥ 70" },
+  { key:"sigExpansion",      label:"Expansion",      desc:"Squeeze < 40" },
+  { key:"sigOverheat",       label:"Overheat",       desc:"Momentum > 85 (danger > 92)" },
+  { key:"sigTurbo",          label:"Turbo",          desc:"Momentum > 92 AND expansion" },
+  { key:"sigDivergence",     label:"Divergence",     desc:"Momentum strong, breadth weak" },
+  { key:"sigLowLiquidity",   label:"Low Liquidity",  desc:"PSI < 40 (danger < 30)" },
+  { key:"sigVolatilityHigh", label:"Volatility High",desc:"Volatility > 70 (danger > 85)" },
 ];
 
 /* ---- normalize signals: return ALL, not just active ---- */
@@ -62,7 +62,7 @@ function computeSignalList(sigObj = {}) {
 
 /* ---- Row 3: Engine Lights (always render all pills; inline legend) ---- */
 export default function RowEngineLights() {
-  const { data, loading, error } = useDashboardPoll?.(5000) ?? { data:null, loading:false, error:null };
+  const { data, loading, error } = useDashboardPoll?.("dynamic") ?? { data:null, loading:false, error:null };
 
   const [lights, setLights] = useState(() => computeSignalList({}));
   const [stale, setStale] = useState(false);
@@ -87,7 +87,6 @@ export default function RowEngineLights() {
         {stale && <span className="small muted">refreshing…</span>}
       </div>
 
-      {/* ONE single-row flex container: pills on left, legend on right */}
       <div
         style={{
           display:"flex",
@@ -97,25 +96,17 @@ export default function RowEngineLights() {
           whiteSpace:"nowrap"
         }}
       >
-        {/* pills (always all) */}
         <div style={{ display:"flex", flexWrap:"nowrap", overflow:"hidden" }}>
           {lights.map((l) => (
             <Light key={l.key} label={l.label} tone={l.tone} active={l.active} />
           ))}
         </div>
 
-        {/* divider dot */}
         <span className="muted" style={{ opacity:0.6 }}>•</span>
 
-        {/* inline legend (single line, shrinks first) */}
         <div
           className="small muted"
-          style={{
-            overflow:"hidden",
-            textOverflow:"ellipsis",
-            flex:1,
-            minWidth:120
-          }}
+          style={{ overflow:"hidden", textOverflow:"ellipsis", flex:1, minWidth:120 }}
           title={SIGNAL_DEFS.map(d => `${d.label}: ${d.desc}`).join("  |  ")}
         >
           {SIGNAL_DEFS.map((d, i) => (
@@ -127,7 +118,6 @@ export default function RowEngineLights() {
         </div>
       </div>
 
-      {/* initial status messages (kept tiny to avoid height growth) */}
       {!firstPaintRef.current && loading && (
         <div className="small muted" style={{ marginTop:6 }}>Loading…</div>
       )}
