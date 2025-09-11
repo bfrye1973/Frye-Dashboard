@@ -1,7 +1,7 @@
 // src/lib/dashboardApi.js
 import { useEffect, useRef, useState } from "react";
 
-const API = "https://frye-market-backend.onrender.com";
+const API = "https://frye-market-backend-1.onrender.com";
 
 /* ----------------------- utils ----------------------- */
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
