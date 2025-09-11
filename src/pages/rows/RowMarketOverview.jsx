@@ -94,21 +94,21 @@ export default function RowMarketOverview() {
   const gg = data?.gauges ?? {};
   const ts = data?.meta?.ts || null;
 
-  // core values (already normalized in dashboardApi.transformToUi)
+  // normalized (from dashboardApi)
   const breadth   = Number(od?.breadthOdometer ?? 50);
   const momentum  = Number(od?.momentumOdometer ?? 50);
 
-  // intraday squeeze (compression)
+  // intraday squeeze (compression), expansion = 100 - compression
   const squeezeIntra = Number(od?.squeezeCompressionPct ?? 50);
 
-  // daily squeeze (compression) — backend mirrors to gauges.squeezeDaily.pct
+  // daily squeeze (compression) — MUST be under gauges.squeezeDaily.pct
   const squeezeDaily = Number.isFinite(gg?.squeezeDaily?.pct) ? gg.squeezeDaily.pct : null;
 
-  // liquidity & volatility
+  // liquidity & volatility; accept both canonical and water.pct
   const liquidity  = Number.isFinite(gg?.oilPsi) ? gg.oilPsi : (Number.isFinite(gg?.oil?.psi) ? gg.oil.psi : NaN);
-  const volatility = Number.isFinite(gg?.volatilityPct) ? gg.volatilityPct : NaN;
+  const volatility = Number.isFinite(gg?.volatilityPct) ? gg.volatilityPct : (Number.isFinite(gg?.water?.pct) ? gg.water.pct : NaN);
 
-  // baselines (for arrows)
+  // baselines
   const bBreadth   = useDailyBaseline("breadth", breadth);
   const bMomentum  = useDailyBaseline("momentum", momentum);
   const bSqueezeIn = useDailyBaseline("squeezeIntraday", squeezeIntra);
@@ -116,10 +116,14 @@ export default function RowMarketOverview() {
   const bLiquidity = useDailyBaseline("liquidity", liquidity);
   const bVol       = useDailyBaseline("volatility", volatility);
 
-  // composite Market Meter (center big)
+  // ----- Market Meter formula -----
   const expansion  = 100 - clamp01(squeezeIntra);
   const baseMeter  = 0.4 * breadth + 0.4 * momentum + 0.2 * expansion;
-  const meterValue = Math.round((squeezeDaily ?? 0) >= 90 ? 45 + (baseMeter - 50) * 0.30 : baseMeter);
+
+  // blend toward neutral by daily squeeze
+  const Sdy = Number.isFinite(squeezeDaily) ? clamp01(squeezeDaily) / 100 : 0;
+  const blended = (1 - Sdy) * baseMeter + Sdy * 50; // 0..100
+  const meterValue = Math.round(blended);
 
   return (
     <section id="row-2" className="panel" style={{ padding:8 }}>
