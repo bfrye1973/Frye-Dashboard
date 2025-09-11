@@ -1,13 +1,13 @@
 // src/lib/dashboardApi.js
 import { useEffect, useRef, useState } from "react";
 
+// FINAL CANONICAL BACKEND (the working one)
 const API = "https://frye-market-backend-1.onrender.com";
 
 /* ----------------------- utils ----------------------- */
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 const pctTo1000 = (pct) => Math.round((clamp(pct ?? 50, 0, 100) - 50) * 20); // -> -1000..+1000
 
-// map 0..100 to tone
 export function getTone(x) {
   if (x == null || Number.isNaN(x)) return "info";
   if (x <= 39) return "danger";
@@ -16,12 +16,6 @@ export function getTone(x) {
 }
 
 /* --------------------- cadence ----------------------- */
-/**
- * getPollMs()
- * - RTH (09:30–16:00 ET): 15s
- * - Pre/Post (08:00–18:00 ET): 30s
- * - Overnight/Weekends: 120s
- */
 export function getPollMs() {
   const now = new Date();
   const parts = Object.fromEntries(
@@ -31,25 +25,22 @@ export function getPollMs() {
       minute: "2-digit",
       hour12: false,
       weekday: "short",
-    })
-      .formatToParts(now)
-      .map((p) => [p.type, p.value])
+    }).formatToParts(now).map(p => [p.type, p.value])
   );
-
   const hh = parseInt(parts.hour, 10);
   const mm = parseInt(parts.minute, 10);
   const wd = parts.weekday; // Mon..Sun
 
-  const inWeek = ["Mon", "Tue", "Wed", "Thu", "Fri"].includes(wd);
+  const inWeek = ["Mon","Tue","Wed","Thu","Fri"].includes(wd);
   const minutes = hh * 60 + mm;
 
-  const preStart = 8 * 60; // 08:00
-  const open = 9 * 60 + 30; // 09:30
-  const close = 16 * 60; // 16:00
-  const postEnd = 18 * 60; // 18:00
+  const preStart = 8*60;      // 08:00
+  const open     = 9*60 + 30; // 09:30
+  const close    = 16*60;     // 16:00
+  const postEnd  = 18*60;     // 18:00
 
-  if (!inWeek) return 120000; // weekends
-  if (minutes >= open && minutes <= close) return 15000; // RTH
+  if (!inWeek) return 120000;                        // weekends
+  if (minutes >= open && minutes <= close) return 15000;   // RTH
   if (minutes >= preStart && minutes <= postEnd) return 30000; // pre/post
   return 120000; // overnight
 }
@@ -60,7 +51,7 @@ function transformToUi(raw) {
   const rpmPct = g.rpm?.pct;
   const spdPct = g.speed?.pct;
 
-  // DAILY SQUEEZE (Compression %) — prefer explicit daily field, else generic
+  // prefer explicit daily squeeze; fallback to other fields
   const squeezeDailyPct =
     raw?.summary?.squeezePctDaily ??
     g.squeezeDaily?.pct ??
@@ -72,44 +63,44 @@ function transformToUi(raw) {
     ? clamp(squeezeDailyPct, 0, 100)
     : null;
 
-  const expansionPotential =
-    compressionPct == null ? null : 100 - compressionPct;
+  const expansionPotential = compressionPct == null ? null : 100 - compressionPct;
 
   const breadthIdx =
-    raw?.summary?.breadthIdx ?? raw?.breadthIdx ?? (Number.isFinite(rpmPct) ? rpmPct : 50);
+    raw?.summary?.breadthIdx ??
+    raw?.breadthIdx ??
+    (Number.isFinite(rpmPct) ? rpmPct : 50);
 
   const momentumIdx =
-    raw?.summary?.momentumIdx ?? raw?.momentumIdx ?? (Number.isFinite(spdPct) ? spdPct : 50);
+    raw?.summary?.momentumIdx ??
+    raw?.momentumIdx ??
+    (Number.isFinite(spdPct) ? spdPct : 50);
 
-  // Market Meter (with major-squeeze gating)
+  // Market Meter (with daily squeeze blend)
   const base =
-    0.4 * breadthIdx +
-    0.4 * momentumIdx +
-    0.2 * (expansionPotential ?? 50);
+    0.40 * breadthIdx +
+    0.40 * momentumIdx +
+    0.20 * (expansionPotential ?? 50);
 
-  let marketMeter = base;
-  let meterNote = null;
-  if (compressionPct != null && compressionPct >= 90) {
-    marketMeter = 45 + (base - 50) * 0.30; // pull toward neutral
-    meterNote = `Major Squeeze (${compressionPct.toFixed(1)}%) — direction unknown`;
-  }
+  const Sdy = Number.isFinite(squeezeDailyPct) ? (clamp(squeezeDailyPct, 0, 100) / 100) : 0;
+  const overall = (1 - Sdy) * base + Sdy * 50;
 
   return {
     gauges: {
-      rpm: pctTo1000(rpmPct),
+      rpm:   pctTo1000(rpmPct),
       speed: pctTo1000(spdPct),
-      fuelPct: compressionPct, // keep tile label "Squeeze (Compression)"
+      fuelPct: compressionPct,
       waterTemp: g.water?.degF ?? null,
       oilPsi: g.oil?.psi ?? null,
+      volatilityPct: g.volatilityPct ?? g.water?.pct ?? null,
+      squeezeDaily: g.squeezeDaily ?? null,
     },
     odometers: {
       breadthOdometer: Math.round(clamp(breadthIdx, 0, 100)),
       momentumOdometer: Math.round(clamp(momentumIdx, 0, 100)),
-      squeezeCompressionPct: compressionPct, // 0..100 (higher = tighter)
-      expansionPotential:
-        expansionPotential == null ? null : Math.round(expansionPotential),
-      marketMeter: Math.round(clamp(marketMeter, 0, 100)),
-      meterNote,
+      squeezeCompressionPct: compressionPct,
+      expansionPotential: expansionPotential == null ? null : Math.round(expansionPotential),
+      marketMeter: Math.round(clamp(overall, 0, 100)),
+      meterNote: null,
     },
     outlook: {
       dailyOutlook: Math.round(clamp((breadthIdx + momentumIdx) / 2, 0, 100)),
@@ -130,7 +121,7 @@ export async function fetchDashboard() {
   } catch (e) {
     console.error("fetchDashboard failed:", e);
     return {
-      gauges: { rpm: 0, speed: 0, fuelPct: null, waterTemp: null, oilPsi: null },
+      gauges: { rpm: 0, speed: 0, fuelPct: null, waterTemp: null, oilPsi: null, volatilityPct: null, squeezeDaily: null },
       odometers: {
         breadthOdometer: 50,
         momentumOdometer: 50,
@@ -148,8 +139,6 @@ export async function fetchDashboard() {
 
 /**
  * useDashboardPoll(intervalMs = "dynamic")
- * - "dynamic" (default): uses getPollMs() and re-evaluates every minute
- * - number: fixed interval in ms (keeps legacy behavior)
  */
 export function useDashboardPoll(intervalMs = "dynamic") {
   const [data, setData] = useState(null);
@@ -177,12 +166,10 @@ export function useDashboardPoll(intervalMs = "dynamic") {
   };
 
   const load = async () => {
-    setLoading(true);
-    setError(null);
+    setLoading(true); setError(null);
     try {
       const d = await fetchDashboard();
-      setData(d);
-      setLastFetchAt(Date.now());
+      setData(d); setLastFetchAt(Date.now());
     } catch (e) {
       setError(e);
     } finally {
@@ -191,22 +178,15 @@ export function useDashboardPoll(intervalMs = "dynamic") {
   };
 
   useEffect(() => {
-    // initial load
     load();
 
     if (intervalMs === "dynamic") {
-      // start with current cadence
       startPolling(currentIntervalRef.current);
-
-      // re-evaluate cadence every minute and reset if it changed
       cadenceTimerRef.current = setInterval(() => {
         const next = getPollMs();
-        if (next !== currentIntervalRef.current) {
-          startPolling(next);
-        }
+        if (next !== currentIntervalRef.current) startPolling(next);
       }, 60000);
     } else {
-      // fixed numeric cadence
       startPolling(Number(intervalMs));
     }
 
