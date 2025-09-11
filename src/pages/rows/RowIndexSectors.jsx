@@ -46,23 +46,32 @@ function Sparkline({ data = [], width = 160, height = 36 }) {
     </svg>
   );
 }
-function SectorCard({ sector, outlook, spark }) {
+
+/* --- card --- */
+function SectorCard({ sector, outlook, spark, last, deltaPct }) {
   const tone = toneFor(outlook);
-  const arr  = Array.isArray(spark) ? spark : [];
-  const first = arr.length ? arr[0] : null;
-  const last  = arr.length ? arr[arr.length - 1] : null;
-  const delta = (Number.isFinite(last) && Number.isFinite(first) && Math.abs(first) > 1e-6)
-    ? ((last - first) / first) * 100 : NaN;
+  // prefer provided last/deltaPct; else derive from spark; else show 0
+  let _last = Number.isFinite(last) ? last : null;
+  let _deltaPct = Number.isFinite(deltaPct) ? deltaPct : null;
+
+  if ((_last === null || _deltaPct === null) && Array.isArray(spark) && spark.length >= 2) {
+    const first = Number(spark[0]) || 0;
+    const lst   = Number(spark[spark.length - 1]) || 0;
+    const base  = Math.abs(first) > 1e-6 ? Math.abs(first) : 1;
+    _last = _last === null ? lst : _last;
+    _deltaPct = _deltaPct === null ? ((lst - first) / base) * 100 : _deltaPct;
+  }
+
+  if (_last === null) _last = 0;
+  if (_deltaPct === null) _deltaPct = 0;
+
   const arrow =
-    !Number.isFinite(delta) ? "→" :
-    Math.abs(delta) < 0.5   ? "→" :
-    delta > 0               ? "↑" : "↓";
+    Math.abs(_deltaPct) < 0.5 ? "→" :
+    _deltaPct > 0             ? "↑" : "↓";
+
   const deltaClass =
-    !Number.isFinite(delta) || Math.abs(delta) < 0.5
-      ? "delta delta-flat"
-      : delta > 0
-      ? "delta delta-up"
-      : "delta delta-down";
+    Math.abs(_deltaPct) < 0.5 ? "delta delta-flat" :
+    _deltaPct > 0             ? "delta delta-up"   : "delta delta-down";
 
   return (
     <div className="panel" style={{ padding:10 }}>
@@ -71,15 +80,15 @@ function SectorCard({ sector, outlook, spark }) {
         <Badge text={outlook || "Neutral"} tone={tone} />
       </div>
       <div className="small" style={{ display:"flex", justifyContent:"space-between", margin:"4px 0 6px 0" }}>
-        <span>Last: <strong>{Number.isFinite(last) ? last.toFixed(1) : "—"}</strong></span>
-        <span className={deltaClass}>{arrow} {Number.isFinite(delta) ? delta.toFixed(1) : "0.0"}%</span>
+        <span>Last: <strong>{Number.isFinite(_last) ? _last.toFixed(1) : "—"}</strong></span>
+        <span className={deltaClass}>{arrow} {Number.isFinite(_deltaPct) ? _deltaPct.toFixed(1) : "0.0"}%</span>
       </div>
-      <Sparkline data={arr} />
+      <Sparkline data={Array.isArray(spark) ? spark : []} />
     </div>
   );
 }
 
-/* --- prefer outlook.sectors (11) --- */
+/* --- prefer outlook.sectorCards (has numbers), else compute from outlook.sectors --- */
 const ORDER = [
   "tech","materials","healthcare","communication services","real estate",
   "energy","consumer staples","consumer discretionary","financials","utilities","industrials",
@@ -92,20 +101,38 @@ const orderKey = (s) => {
 function titleCase(name="") {
   return name.split(" ").map(w => w ? w[0].toUpperCase()+w.slice(1) : w).join(" ");
 }
-function extractFromSectors(json) {
+
+function fromSectorCards(json){
+  const arr = json?.outlook?.sectorCards;
+  if (!Array.isArray(arr)) return [];
+  return arr.map(c => ({
+    sector: c?.sector ?? "",
+    outlook: c?.outlook ?? "Neutral",
+    spark: Array.isArray(c?.spark) ? c.spark : [],
+    last: Number(c?.last ?? c?.value ?? NaN),
+    deltaPct: Number(c?.deltaPct ?? c?.pct ?? c?.changePct ?? NaN),
+  })).sort((a,b) => orderKey(a.sector) - orderKey(b.sector));
+}
+
+function fromSectors(json){
   const obj = json?.outlook?.sectors;
-  if (obj && typeof obj === "object") {
-    const list = Object.keys(obj).map(k => {
-      const sec = obj[k] || {};
-      return {
-        sector:  titleCase(k),
-        outlook: sec?.outlook ?? "Neutral",
-        spark:   Array.isArray(sec?.spark) ? sec.spark : []
-      };
-    });
-    return list.sort((a,b)=> orderKey(a.sector) - orderKey(b.sector));
-  }
-  return [];
+  if (!obj || typeof obj !== "object") return [];
+  const list = Object.keys(obj).map(k => {
+    const sec = obj[k] || {};
+    const nh = Number(sec?.nh ?? 0);
+    const nl = Number(sec?.nl ?? 0);
+    const netNH = Number(sec?.netNH ?? (nh - nl));
+    const denom = nh + nl;
+    const pct = denom > 0 ? (netNH / denom) * 100 : 0;
+    return {
+      sector:  titleCase(k),
+      outlook: sec?.outlook ?? (netNH > 0 ? "Bullish" : netNH < 0 ? "Bearish" : "Neutral"),
+      spark:   Array.isArray(sec?.spark) ? sec.spark : [],
+      last:    netNH,
+      deltaPct: pct
+    };
+  });
+  return list.sort((a,b) => orderKey(a.sector) - orderKey(b.sector));
 }
 
 export default function RowIndexSectors() {
@@ -121,8 +148,13 @@ export default function RowIndexSectors() {
       const r = await fetch(`${API}?t=${Date.now()}`, { cache:"no-store" });
       const d = await r.json();
       if (!aliveRef.current) return;
-      setLastTs(d?.meta?.ts || null);
-      const list = extractFromSectors(d); // <- force outlook.sectors mapping
+
+      setLastTs(d?.meta?.ts || d?.updated_at || null);
+
+      // prefer sectorCards (has numbers); else compute from sectors
+      let list = fromSectorCards(d);
+      if (list.length === 0) list = fromSectors(d);
+
       if (list.length > 0) {
         setCards(list);
         setStale(false);
@@ -157,14 +189,4 @@ export default function RowIndexSectors() {
       {cards.length > 0 && (
         <div style={{
           display:"grid",
-          gridTemplateColumns:"repeat(auto-fill, minmax(220px, 1fr))",
-          gap:10, marginTop:8
-        }}>
-          {cards.map((c, i) => (
-            <SectorCard key={c?.sector || i} sector={c?.sector} outlook={c?.outlook} spark={c?.spark} />
-          ))}
-        </div>
-      )}
-    </section>
-  );
-}
+          gridTemplateColumns:"repeat(auto-fill, minmax(220px, 1fr))
