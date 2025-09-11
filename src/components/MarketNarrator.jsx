@@ -1,9 +1,10 @@
 // src/components/MarketNarrator.jsx
 import React, { useEffect, useMemo, useState } from "react";
 
-const API = "https://frye-market-backend.onrender.com";
+// FINAL CANONICAL BACKEND
+const API = "https://frye-market-backend-1.onrender.com";
 
-/* small helpers */
+/* helpers */
 const clamp01 = (n) => Math.max(0, Math.min(100, Number(n)));
 const pct = (n) => (Number.isFinite(n) ? n.toFixed(1) + "%" : "—");
 const fmtDate = (d) => new Date(d).toLocaleDateString(undefined, { month:"short", day:"numeric" });
@@ -32,7 +33,7 @@ function indicatorsLine(dash) {
 
   const expansion = 100 - clamp01(squeezeIn);
   const baseMeter = 0.4 * breadth + 0.4 * momentum + 0.2 * expansion;
-  const Sdy       = Number.isFinite(squeezeDy) ? clamp01(squeezeDy) / 100 : 0;
+  const Sdy       = Number.isFinite(squeezeDy) ? clamp01(squeezeDy)/100 : 0;
   const overall   = Math.round((1 - Sdy) * baseMeter + Sdy * 50);
 
   const parts = [
@@ -109,7 +110,7 @@ export default function MarketNarrator() {
   const [five, setFive] = useState(null);
   const [speaking, setSpeaking] = useState(false);
   const [scope, setScope]   = useState("All Market");
-  const [mode, setMode]     = useState("now");     // "now" | "1d" | "5d"
+  const [mode, setMode]     = useState("now");
   const [sectorKey, setSectorKey] = useState("");
 
   useEffect(() => {
@@ -117,7 +118,6 @@ export default function MarketNarrator() {
     fetch(`${API}/api/outlook5d`, { cache:"no-store" }).then(r=>r.json()).then(setFive).catch(()=>setFive(null));
   }, []);
 
-  // sectors for dropdown (from cards)
   const sectorOptions = useMemo(() => {
     const cards = dash?.outlook?.sectorCards || dash?.sectorCards || [];
     return cards.map(c => c?.sector).filter(Boolean);
@@ -127,7 +127,8 @@ export default function MarketNarrator() {
     if (!dash) return "Loading indicators…";
     if (mode === "now") {
       const key = sectorKey && sectorOptions.includes(sectorKey) ? sectorKey.toLowerCase() : "";
-      return buildNowScript(scope, dash, key);
+      const text = buildNowScript(scope, dash, key);
+      return text;
     }
     if (mode === "1d") return buildOneDayRecap(scope, dash, five);
     return buildFiveDayTrend(scope, five);
