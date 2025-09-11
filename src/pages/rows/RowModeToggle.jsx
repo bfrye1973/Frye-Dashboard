@@ -43,3 +43,19 @@ export default function RowModeToggle({ value, onChange }) {
     </section>
   );
 }
++ import MarketNarrator from "../../components/MarketNarrator";
+
+export default function RowModeToggle() {
+  return (
+    <section id="view-modes" className="panel" style={{ padding:8 }}>
+      <div className="panel-head" style={{ alignItems:"center" }}>
+        <div className="panel-title">View Modes</div>
+
+        {/* your existing buttons left/middle */}
+
+        <div className="spacer" />
++       <MarketNarrator />
+      </div>
+    </section>
+  );
+}
