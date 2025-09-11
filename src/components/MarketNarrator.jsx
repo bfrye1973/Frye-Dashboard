@@ -1,13 +1,25 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+// src/components/MarketNarrator.jsx
+import React, { useEffect, useMemo, useState } from "react";
 
 const API = "https://frye-market-backend.onrender.com";
 
-/** helpers */
+/* small helpers */
 const clamp01 = (n) => Math.max(0, Math.min(100, Number(n)));
 const pct = (n) => (Number.isFinite(n) ? n.toFixed(1) + "%" : "—");
 const fmtDate = (d) => new Date(d).toLocaleDateString(undefined, { month:"short", day:"numeric" });
 
-/** build a short sentence for indicator state */
+function sectorTotals(sectors) {
+  const keys = Object.keys(sectors || {});
+  return keys.reduce((acc, k) => {
+    const v = sectors[k] || {};
+    acc.nh += Number(v?.nh || 0);
+    acc.nl += Number(v?.nl || 0);
+    acc.u  += Number(v?.up || v?.u || 0);
+    acc.d  += Number(v?.down || v?.d || 0);
+    return acc;
+  }, { nh:0, nl:0, u:0, d:0 });
+}
+
 function indicatorsLine(dash) {
   const gg = dash?.gauges || {};
   const od = dash?.odometers || {};
@@ -20,7 +32,7 @@ function indicatorsLine(dash) {
 
   const expansion = 100 - clamp01(squeezeIn);
   const baseMeter = 0.4 * breadth + 0.4 * momentum + 0.2 * expansion;
-  const Sdy       = Number.isFinite(squeezeDy) ? clamp01(squeezeDy)/100 : 0;
+  const Sdy       = Number.isFinite(squeezeDy) ? clamp01(squeezeDy) / 100 : 0;
   const overall   = Math.round((1 - Sdy) * baseMeter + Sdy * 50);
 
   const parts = [
@@ -35,20 +47,6 @@ function indicatorsLine(dash) {
   return parts.join(" · ");
 }
 
-/** sum a sector dict */
-function sectorTotals(sectors) {
-  const keys = Object.keys(sectors || {});
-  return keys.reduce((acc, k) => {
-    const v = sectors[k] || {};
-    acc.nh += Number(v.nh || 0);
-    acc.nl += Number(v.nl || 0);
-    acc.u  += Number(v.up || v.u || 0);
-    acc.d  += Number(v.down || v.d || 0);
-    return acc;
-  }, { nh:0, nl:0, u:0, d:0 });
-}
-
-/** narrative builders */
 function buildNowScript(scope, dash, sectorKey) {
   const sectors = dash?.outlook?.sectors || {};
   const inScope = sectorKey && sectors[sectorKey] ? { [sectorKey]: sectors[sectorKey] } : sectors;
@@ -77,7 +75,7 @@ function buildFiveDayTrend(scope, outlook5) {
   if (rows.length < 5) return "Not enough data for a 5-day trend.";
   const seg = rows.map(r => ({ ...r, label: fmtDate(r.date) }));
   const early = seg.slice(0,2), mid = seg.slice(2,3), late = seg.slice(3);
-  const avg = a => a.reduce((x,y)=>x+y,0)/a.length;
+  const avg = a => a.length ? a.reduce((x,y)=>x+y,0)/a.length : 0;
   const br  = xs => avg(xs.map(d => d.nh/Math.max(1,d.nl)));
   const vr  = xs => avg(xs.map(d => d.u /Math.max(1,d.d )));
   const word = (x,lo,hi,a,b,c)=> x>=hi?a: x<=lo?b:c;
@@ -89,11 +87,13 @@ function buildFiveDayTrend(scope, outlook5) {
   const vM = word(vr(mid),  0.9,1.1,"expanding","contracting","mixed");
   const vL = word(vr(late), 0.9,1.1,"expanding","contracting","mixed");
   const t  = seg[seg.length-1];
+
   const guidance =
     vL==="contracting" && bL!=="bearish" ? "Net effect: grind-up — watch for expansion to power stronger moves." :
     vL==="expanding" && bL==="bullish"   ? "Net effect: constructive — breakouts have better odds." :
     vL==="expanding" && bL==="bearish"   ? "Net effect: risk-off with wider ranges — manage downside and size." :
                                            "Net effect: mixed tape — expect chop until volatility picks a side.";
+
   return [
     `Here’s your ${scope} 5-day trend.`,
     `${seg[0].label} to ${seg[1].label}: breadth was ${bE}, volatility ${vE}.`,
@@ -104,26 +104,12 @@ function buildFiveDayTrend(scope, outlook5) {
   ].join(" ");
 }
 
-/** TTS */
-function speakText(text, setSpeaking) {
-  if (!("speechSynthesis" in window)) { alert("Speech not supported in this browser."); return; }
-  window.speechSynthesis.cancel();
-  const u = new SpeechSynthesisUtterance(text);
-  u.rate = 1.05; u.pitch = 1.0;
-  const v = window.speechSynthesis.getVoices().find(v => /Google US English|Samantha|Microsoft (Aria|Zira)/i.test(v.name));
-  if (v) u.voice = v;
-  u.onend = () => setSpeaking(false);
-  setSpeaking(true);
-  window.speechSynthesis.speak(u);
-}
-
-/** Main component */
 export default function MarketNarrator() {
   const [dash, setDash] = useState(null);
   const [five, setFive] = useState(null);
   const [speaking, setSpeaking] = useState(false);
   const [scope, setScope]   = useState("All Market");
-  const [mode, setMode]     = useState("now"); // "now" | "1d" | "5d"
+  const [mode, setMode]     = useState("now");     // "now" | "1d" | "5d"
   const [sectorKey, setSectorKey] = useState("");
 
   useEffect(() => {
@@ -131,13 +117,14 @@ export default function MarketNarrator() {
     fetch(`${API}/api/outlook5d`, { cache:"no-store" }).then(r=>r.json()).then(setFive).catch(()=>setFive(null));
   }, []);
 
-  // sector list from dashboard
+  // sectors for dropdown (from cards)
   const sectorOptions = useMemo(() => {
     const cards = dash?.outlook?.sectorCards || dash?.sectorCards || [];
     return cards.map(c => c?.sector).filter(Boolean);
   }, [dash]);
 
   const script = useMemo(() => {
+    if (!dash) return "Loading indicators…";
     if (mode === "now") {
       const key = sectorKey && sectorOptions.includes(sectorKey) ? sectorKey.toLowerCase() : "";
       return buildNowScript(scope, dash, key);
@@ -146,10 +133,22 @@ export default function MarketNarrator() {
     return buildFiveDayTrend(scope, five);
   }, [mode, scope, dash, five, sectorKey, sectorOptions]);
 
+  const speak = () => {
+    if (!("speechSynthesis" in window)) { alert("Speech not supported."); return; }
+    window.speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(script);
+    u.rate = 1.05; u.pitch = 1.0;
+    const v = window.speechSynthesis.getVoices()
+      .find(v => /Google US English|Samantha|Microsoft (Aria|Zira)/i.test(v.name));
+    if (v) u.voice = v;
+    u.onend = () => setSpeaking(false);
+    setSpeaking(true);
+    window.speechSynthesis.speak(u);
+  };
+
   return (
     <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-      {/* scope selector */}
-      <select value={scope} onChange={e => setScope(e.target.value)} className="px-2 py-1 rounded border">
+      <select value={scope} onChange={e=>setScope(e.target.value)} className="px-2 py-1 rounded border">
         <option>All Market</option>
         <option>Technology</option>
         <option>Materials</option>
@@ -164,28 +163,22 @@ export default function MarketNarrator() {
         <option>Industrials</option>
       </select>
 
-      {/* (optional) choose a sector for 'now' scope */}
       {mode === "now" && (
-        <select value={sectorKey} onChange={e => setSectorKey(e.target.value)} className="px-2 py-1 rounded border">
+        <select value={sectorKey} onChange={e=>setSectorKey(e.target.value)} className="px-2 py-1 rounded border">
           <option value="">All Sectors</option>
-          {sectorOptions.map((s) => (
-            <option key={s} value={s}>{s}</option>
-          ))}
+          {sectorOptions.map((s) => <option key={s} value={s}>{s}</option>)}
         </select>
       )}
 
-      {/* summary type */}
-      <select value={mode} onChange={e => setMode(e.target.value)} className="px-2 py-1 rounded border">
+      <select value={mode} onChange={e=>setMode(e.target.value)} className="px-2 py-1 rounded border">
         <option value="now">Current status</option>
         <option value="1d">1-day recap</option>
         <option value="5d">5-day trend</option>
       </select>
 
-      {/* speak / stop */}
       {!speaking
-        ? <button onClick={() => speakText(script, setSpeaking)} className="px-3 py-1 rounded bg-black text-white">🔊 Explain</button>
-        : <button onClick={() => { window.speechSynthesis.cancel(); setSpeaking(false); }} className="px-3 py-1 rounded bg-gray-200">⏹ Stop</button>
-      }
+        ? <button onClick={speak} className="px-3 py-1 rounded bg-black text-white">🔊 Explain</button>
+        : <button onClick={()=>{ window.speechSynthesis.cancel(); setSpeaking(false); }} className="px-3 py-1 rounded bg-gray-200">⏹ Stop</button>}
     </div>
   );
 }
