@@ -177,25 +177,32 @@ export default function RowChart({
       </div>
 
       {/* Status + Test Fetch */}
-      <div style={{ padding: '6px 12px', color: '#9ca3af', fontSize: 12, borderBottom: '1px solid #2b2b2b', display:'flex', gap:12, alignItems:'center' }}>
-        <div>RowChart v1.8 • Base: {baseShown || 'MISSING'} • Symbol: {symbol} • TF: {tf} • Bars: {bars.length}</div>
-        <button onClick={() => doFetch(true)} style={{ marginLeft: 'auto', background:'#eab308', color:'#111', border:'none', borderRadius:8, padding:'6px 10px', fontWeight:700, cursor:'pointer' }}>Test Fetch</button>
-      </div>
+      <button
+  onClick={async () => {
+    console.log("[RowChart v1.9] manual fetch start");
+    try {
+      await doFetch(true);
+      console.log("[RowChart v1.9] success", symbol, tf, "bars:", bars.length);
+      alert(`Fetched ${bars.length} bars for ${symbol} ${tf}`);
+    } catch (e) {
+      console.error("[RowChart v1.9] error", e);
+      alert(`Fetch error: ${e.message || e}`);
+    }
+  }}
+  style={{
+    marginLeft: 'auto',
+    background:'#eab308',
+    color:'#111',
+    border:'none',
+    borderRadius:8,
+    padding:'6px 10px',
+    fontWeight:700,
+    cursor:'pointer'
+  }}
+>
+  Test Fetch
+</button>
 
-      <div ref={containerRef} style={{ position: 'relative', flex: 1 }}>
-        {loading && <div style={overlayStyle}><span style={{ color: '#eab308', fontWeight: 700 }}>Loading bars…</span></div>}
-        {!loading && !error && bars.length === 0 && (
-          <div style={overlayStyle}><span style={{ color: '#ef4444', fontWeight: 700 }}>No data returned</span></div>
-        )}
-        {error && (
-          <div style={overlayStyle}>
-            <div style={{ color: '#ef4444', marginBottom: 8, fontWeight: 700 }}>Error: {error}</div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
 
 const selectStyle = { background: '#0b0b0b', color: '#e5e7eb', border: '1px solid #2b2b2b', borderRadius: 8, padding: '6px 8px' };
 const rangeBtnStyle = (active) => ({ background: active ? '#eab308' : '#0b0b0b', color: active ? '#111111' : '#e5e7eb', border: '1px solid #2b2b2b', borderRadius: 8, padding: '6px 10px', fontWeight: 600, cursor: 'pointer' });
