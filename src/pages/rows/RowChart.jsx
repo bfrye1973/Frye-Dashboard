@@ -1,20 +1,17 @@
-// RowChart.jsx — v1.4 (no-candles fix)
-// Changes:
-// - Accepts explicit `apiBase` prop (recommended) — avoids wrong-origin calls
-// - Fallback order: props.apiBase → REACT_APP_API_BASE → window.location.origin
-// - zIndex on overlays so messages render ABOVE canvas
-// - Treat 0-bar responses as an error with guidance
-// - Logs response status and URL in console
+// RowChart.jsx — v1.6 (clean backend, strict apiBase)
+// - Requires apiBase prop (prevents wrong-origin fetch)
+// - Uses normalized backend (timestamps already fixed)
+// - Clear error + URL debug if fetch fails
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createChart } from "lightweight-charts";
 
 export default function RowChart({
+  apiBase,                // REQUIRED: e.g. "https://frye-market-backend-1.onrender.com"
   defaultSymbol = "SPY",
   defaultTimeframe = "1h",
   height = 520,
   onStatus,
-  apiBase, // 🔧 NEW: pass "https://frye-market-backend-1.onrender.com"
 }) {
   const [symbol, setSymbol] = useState(defaultSymbol);
   const [tf, setTf] = useState(defaultTimeframe);
@@ -87,19 +84,15 @@ export default function RowChart({
     };
   }, [height, theme]);
 
-  function normalizeBars(rows) {
-    const mapped = rows.map((b) => {
-      let t = Number(b.time);
-      if (t > 2e10) t = Math.floor(t / 1000); // ms → s safeguard
-      return { time: t, open: +b.open, high: +b.high, low: +b.low, close: +b.close, volume: +(b.volume || 0) };
-    });
-    mapped.sort((a, b) => a.time - b.time);
-    return mapped;
-  }
-
   const fetchBars = React.useCallback(() => {
     const key = `${symbol}|${tf}`;
     lastKeyRef.current = key;
+
+    if (!apiBase) {
+      setError('RowChart: apiBase prop is required (e.g., https://frye-market-backend-1.onrender.com)');
+      onStatus?.('error');
+      return;
+    }
 
     onStatus?.('loading');
     setLoading(true); setError(null);
@@ -116,32 +109,29 @@ export default function RowChart({
       return;
     }
 
-    const envBase = (process.env.REACT_APP_API_BASE || '').replace(/\/$/, '');
-    const base = (apiBase && apiBase.replace(/\/$/, '')) || envBase || window.location.origin;
+    const base = apiBase.replace(/\/$/, '');
     const url = `${base}/api/v1/ohlc?symbol=${encodeURIComponent(symbol)}&timeframe=${encodeURIComponent(tf)}&_=${Date.now()}`;
-    console.debug(`[RowChart] GET`, url);
+    console.debug('[RowChart] GET', url);
 
     fetch(url, { signal: controller.signal, cache: 'no-store', headers: { 'Cache-Control': 'no-cache' } })
       .then(async (r) => {
-        const status = r.status;
         if (!r.ok) {
           const txt = await r.text().catch(() => '');
-          throw new Error(`HTTP ${status} — ${txt?.slice(0,180)}`);
+          throw new Error(`HTTP ${r.status} — ${txt.slice(0,160)}`);
         }
         const j = await r.json();
         const rows = Array.isArray(j?.bars) ? j.bars : [];
-        const mapped = normalizeBars(rows);
-        cacheRef.current.set(key, mapped);
+        // backend already normalized to seconds & sorted
+        cacheRef.current.set(key, rows);
         if (lastKeyRef.current !== key) return;
-        if (mapped.length === 0) throw new Error('No bars returned from API');
-        setBars(mapped); onStatus?.('ready');
+        if (rows.length === 0) throw new Error('No bars returned');
+        setBars(rows); onStatus?.('ready');
       })
       .catch((e) => {
         if (e.name === 'AbortError') return;
         setBars([]);
-        setError(e.message || 'Failed to fetch bars');
+        setError(`${e.message} — URL: ${base}/api/v1/ohlc`);
         onStatus?.('error');
-        console.error(`[RowChart] fetch error`, e);
       })
       .finally(() => setLoading(false));
   }, [symbol, tf, apiBase, onStatus]);
@@ -159,13 +149,9 @@ export default function RowChart({
     if (chartRef.current && data.length > 0) chartRef.current.timeScale().fitContent();
   }, [bars, range]);
 
-  const symbols = [
-    "SPY","QQQ","IWM","DIA","AAPL","MSFT","AMZN","GOOGL","META","TSLA","NVDA",
-    "NFLX","AMD","INTC","BA","XOM","CVX","JPM","GS","BAC","WMT","COST","HD","LOW","DIS"
-  ];
+  const symbols = ["SPY","QQQ","IWM","DIA","AAPL","MSFT","AMZN","GOOGL","META","TSLA","NVDA","NFLX","AMD","INTC","BA","XOM","CVX","JPM","GS","BAC","WMT","COST","HD","LOW","DIS"];
   const timeframes = ["1m","5m","15m","1h","4h","1d"];
   const ranges = [50, 100, 200];
-
   const disableControls = loading;
 
   return (
@@ -196,12 +182,12 @@ export default function RowChart({
       <div ref={containerRef} style={{ position: 'relative', flex: 1 }}>
         {loading && <div style={overlayStyle}><span style={{ color: '#eab308', fontWeight: 700 }}>Loading bars…</span></div>}
         {!loading && !error && bars.length === 0 && (
-          <div style={overlayStyle}><span style={{ color: '#ef4444', fontWeight: 700 }}>No data returned. Check Network → /api/v1/ohlc. Ensure apiBase points to backend.</span></div>
+          <div style={overlayStyle}><span style={{ color: '#ef4444', fontWeight: 700 }}>No data returned</span></div>
         )}
         {error && (
-          <div style={{...overlayStyle}}>
+          <div style={overlayStyle}>
             <div style={{ color: '#ef4444', marginBottom: 8, fontWeight: 700 }}>Error: {error}</div>
-            <div style={{ color: '#9ca3af', fontSize: 12, marginBottom: 8 }}>Tip: confirm apiBase/ENV; open Console for full URL & status.</div>
+            <div style={{ color: '#9ca3af', fontSize: 12 }}>Check Network tab for the request details.</div>
           </div>
         )}
       </div>
@@ -211,4 +197,4 @@ export default function RowChart({
 
 const selectStyle = { background: '#0b0b0b', color: '#e5e7eb', border: '1px solid #2b2b2b', borderRadius: 8, padding: '6px 8px' };
 const rangeBtnStyle = (active) => ({ background: active ? '#eab308' : '#0b0b0b', color: active ? '#111111' : '#e5e7eb', border: '1px solid #2b2b2b', borderRadius: 8, padding: '6px 10px', fontWeight: 600, cursor: 'pointer' });
-const overlayStyle = { position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 5, background: 'rgba(0,0,0,0.0)', textAlign: 'center', padding: 12 };
+const overlayStyle = { position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0)', textAlign: 'center', padding: 12 };
