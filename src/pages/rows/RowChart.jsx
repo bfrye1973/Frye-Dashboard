@@ -1,7 +1,7 @@
-// RowChart.jsx — v1.8 (Test Fetch button + self-diagnosing)
-// - Adds a "Test Fetch" button to trigger a manual request
+// RowChart.jsx — v1.9 (Manual Test Fetch + diagnostics)
 // - apiBase optional (prop > env > same-origin)
-// - Status badge + clear error copy
+// - Status badge shows base/symbol/TF/bars
+// - Test Fetch button forces a request + shows alert() result
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createChart } from "lightweight-charts";
@@ -87,13 +87,13 @@ export default function RowChart({
     return prop || env || window.location.origin;
   }
 
-  const doFetch = React.useCallback((force=false) => {
+  const doFetch = React.useCallback(async (force=false) => {
     const key = `${symbol}|${tf}`;
     lastKeyRef.current = key;
 
     const base = resolveBase();
     const url = `${base}/api/v1/ohlc?symbol=${encodeURIComponent(symbol)}&timeframe=${encodeURIComponent(tf)}&_=${Date.now()}`;
-    console.debug('[RowChart v1.8] fetch', url);
+    console.debug('[RowChart v1.9] fetch', url);
 
     onStatus?.('loading');
     setLoading(true); setError(null);
@@ -107,34 +107,36 @@ export default function RowChart({
     if (!force && cacheRef.current.has(key)) {
       const cached = cacheRef.current.get(key);
       setBars(cached); setLoading(false); onStatus?.(cached.length ? 'ready' : 'idle');
-      return;
+      return { ok:true, cached:true, count: cached.length };
     }
 
-    fetch(url, { signal: controller.signal, cache: 'no-store', headers: { 'Cache-Control': 'no-cache' } })
-      .then(async (r) => {
-        if (!r.ok) {
-          const txt = await r.text().catch(()=>'');
-          throw new Error(`HTTP ${r.status} — ${txt.slice(0,160)}`);
-        }
-        const j = await r.json();
-        const rows = Array.isArray(j?.bars) ? j.bars : [];
-        cacheRef.current.set(key, rows);
-        if (lastKeyRef.current !== key) return;
-        if (rows.length === 0) throw new Error('No bars returned');
-        setBars(rows); onStatus?.('ready');
-      })
-      .catch((e) => {
-        if (e.name === 'AbortError') return;
-        setBars([]);
-        setError(`${e.message} — URL: ${url}`);
-        onStatus?.('error');
-      })
-      .finally(() => setLoading(false));
+    try {
+      const r = await fetch(url, { signal: controller.signal, cache: 'no-store', headers: { 'Cache-Control': 'no-cache' } });
+      if (!r.ok) {
+        const txt = await r.text().catch(()=>'');
+        throw new Error(`HTTP ${r.status} — ${txt.slice(0,160)}`);
+      }
+      const j = await r.json();
+      const rows = Array.isArray(j?.bars) ? j.bars : [];
+      cacheRef.current.set(key, rows);
+      if (lastKeyRef.current !== key) return { ok:true, stale:true, count: rows.length };
+      if (rows.length === 0) throw new Error('No bars returned');
+      setBars(rows); onStatus?.('ready');
+      return { ok:true, count: rows.length };
+    } catch (e) {
+      if (e.name === 'AbortError') return { ok:false, aborted:true };
+      setBars([]);
+      setError(`${e.message} — URL: ${url}`);
+      onStatus?.('error');
+      return { ok:false, error: e.message || String(e) };
+    } finally {
+      setLoading(false);
+    }
   }, [symbol, tf, apiBase]);
 
   useEffect(() => {
     if (debounceTimer.current) clearTimeout(debounceTimer.current);
-    debounceTimer.current = setTimeout(() => doFetch(false), 250);
+    debounceTimer.current = setTimeout(() => { void doFetch(false); }, 250);
     return () => debounceTimer.current && clearTimeout(debounceTimer.current);
   }, [doFetch]);
 
@@ -177,32 +179,40 @@ export default function RowChart({
       </div>
 
       {/* Status + Test Fetch */}
-      <button
-  onClick={async () => {
-    console.log("[RowChart v1.9] manual fetch start");
-    try {
-      await doFetch(true);
-      console.log("[RowChart v1.9] success", symbol, tf, "bars:", bars.length);
-      alert(`Fetched ${bars.length} bars for ${symbol} ${tf}`);
-    } catch (e) {
-      console.error("[RowChart v1.9] error", e);
-      alert(`Fetch error: ${e.message || e}`);
-    }
-  }}
-  style={{
-    marginLeft: 'auto',
-    background:'#eab308',
-    color:'#111',
-    border:'none',
-    borderRadius:8,
-    padding:'6px 10px',
-    fontWeight:700,
-    cursor:'pointer'
-  }}
->
-  Test Fetch
-</button>
+      <div style={{ padding: '6px 12px', color: '#9ca3af', fontSize: 12, borderBottom: '1px solid #2b2b2b', display:'flex', gap:12, alignItems:'center' }}>
+        <div>RowChart v1.9 • Base: {baseShown || 'MISSING'} • Symbol: {symbol} • TF: {tf} • Bars: {bars.length}</div>
+        <button
+          onClick={async () => {
+            console.log('[RowChart v1.9] manual fetch start');
+            const result = await doFetch(true);
+            if (result?.ok) {
+              alert(`Fetched ${result.count ?? 0} bars for ${symbol} ${tf}`);
+            } else if (result?.aborted) {
+              alert('Fetch aborted');
+            } else {
+              alert(`Fetch error: ${result?.error || 'unknown'}`);
+            }
+          }}
+          style={{ marginLeft: 'auto', background:'#eab308', color:'#111', border:'none', borderRadius:8, padding:'6px 10px', fontWeight:700, cursor:'pointer' }}
+        >
+          Test Fetch
+        </button>
+      </div>
 
+      <div ref={containerRef} style={{ position: 'relative', flex: 1 }}>
+        {loading && <div style={overlayStyle}><span style={{ color: '#eab308', fontWeight: 700 }}>Loading bars…</span></div>}
+        {!loading && !error && bars.length === 0 && (
+          <div style={overlayStyle}><span style={{ color: '#ef4444', fontWeight: 700 }}>No data returned</span></div>
+        )}
+        {error && (
+          <div style={overlayStyle}>
+            <div style={{ color: '#ef4444', marginBottom: 8, fontWeight: 700 }}>Error: {error}</div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 const selectStyle = { background: '#0b0b0b', color: '#e5e7eb', border: '1px solid #2b2b2b', borderRadius: 8, padding: '6px 8px' };
 const rangeBtnStyle = (active) => ({ background: active ? '#eab308' : '#0b0b0b', color: active ? '#111111' : '#e5e7eb', border: '1px solid #2b2b2b', borderRadius: 8, padding: '6px 10px', fontWeight: 600, cursor: 'pointer' });
