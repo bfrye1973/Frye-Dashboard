@@ -1,7 +1,10 @@
 // src/pages/rows/RowIndexSectors.jsx
-import React from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { LastUpdated } from "../../components/LastUpdated";
 import { useDashboardPoll } from "../../lib/dashboardApi";
+
+// Backend base for trend endpoint (keep -1)
+const API = "https://frye-market-backend-1.onrender.com";
 
 /* --- badge helpers --- */
 const toneFor = (o) => {
@@ -28,6 +31,22 @@ function Badge({ text, tone = "info" }) {
   );
 }
 
+/* --- tiny trend glyph (▲ ▼ →) --- */
+function TrendGlyph({ delta }) {
+  if (!Number.isFinite(delta)) return null;
+  const abs = Math.abs(delta);
+  let char = "→", color = "#9ca3af", title = `vs last hour: ${delta > 0 ? "+" : ""}${delta}`;
+  if (delta >= 1) { char = "▲"; color = "#22c55e"; }
+  else if (delta <= -1) { char = "▼"; color = "#ef4444"; }
+  return (
+    <span title={title} style={{
+      marginLeft:8, fontWeight:900, fontSize:12, color
+    }}>
+      {char}
+    </span>
+  );
+}
+
 /* --- sparkline --- */
 function Sparkline({ data = [], width = 160, height = 36 }) {
   if (!Array.isArray(data) || data.length < 2) return <div className="small muted">no data</div>;
@@ -47,11 +66,11 @@ function Sparkline({ data = [], width = 160, height = 36 }) {
 }
 
 /* --- card --- */
-function SectorCard({ sector, outlook, spark, last, deltaPct }) {
+function SectorCard({ sector, outlook, spark, last, deltaPct, trendDelta }) {
   const tone = toneFor(outlook);
   const arr  = Array.isArray(spark) ? spark : [];
 
-  // prefer API-provided numbers; fall back to spark math; finally 0s
+  // prefer provided last/deltaPct; fall back to spark math; finally 0s
   let _last = Number.isFinite(last) ? last : null;
   let _deltaPct = Number.isFinite(deltaPct) ? deltaPct : null;
 
@@ -77,7 +96,11 @@ function SectorCard({ sector, outlook, spark, last, deltaPct }) {
   return (
     <div className="panel" style={{ padding:10 }}>
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-        <div className="panel-title small">{sector || "Sector"}</div>
+        <div className="panel-title small" style={{ display:"flex", alignItems:"center" }}>
+          {sector || "Sector"}
+          {/* tiny hour-over-hour glyph */}
+          {Number.isFinite(trendDelta) && <TrendGlyph delta={trendDelta} />}
+        </div>
         <Badge text={outlook || "Neutral"} tone={tone} />
       </div>
       <div className="small" style={{ display:"flex", justifyContent:"space-between", margin:"4px 0 6px 0" }}>
@@ -89,14 +112,100 @@ function SectorCard({ sector, outlook, spark, last, deltaPct }) {
   );
 }
 
-/* --- render --- */
+/* --- mapping helpers --- */
+const ORDER = [
+  "tech","materials","healthcare","communication services","real estate",
+  "energy","consumer staples","consumer discretionary","financials","utilities","industrials",
+];
+const norm = (s="") => s.trim().toLowerCase();
+const orderKey = (s) => {
+  const i = ORDER.indexOf(norm(s));
+  return i === -1 ? 999 : i;
+};
+function titleCase(name="") {
+  return name.split(" ").map(w => w ? w[0].toUpperCase()+w.slice(1) : w).join(" ");
+}
+
+/* --- prefer outlook.sectorCards (has numbers), else compute from outlook.sectors --- */
+function fromSectorCards(json){
+  const arr = json?.outlook?.sectorCards;
+  if (!Array.isArray(arr)) return [];
+  return arr.map(c => ({
+    sector: c?.sector ?? "",
+    outlook: c?.outlook ?? "Neutral",
+    spark: Array.isArray(c?.spark) ? c.spark : [],
+    last: Number(c?.last ?? c?.value ?? NaN),
+    deltaPct: Number(c?.deltaPct ?? c?.pct ?? c?.changePct ?? NaN),
+  })).sort((a,b) => orderKey(a.sector) - orderKey(b.sector));
+}
+
+function fromSectors(json){
+  const obj = json?.outlook?.sectors;
+  if (!obj || typeof obj !== "object") return [];
+  const list = Object.keys(obj).map((k) => {
+    const sec = obj[k] || {};
+    const nh = Number(sec?.nh ?? 0);
+    const nl = Number(sec?.nl ?? 0);
+    const netNH = Number(sec?.netNH ?? (nh - nl));
+    const denom = nh + nl;
+    const pct = denom > 0 ? (netNH / denom) * 100 : 0;
+    return {
+      sector:  titleCase(k),
+      outlook: sec?.outlook ?? (netNH > 0 ? "Bullish" : netNH < 0 ? "Bearish" : "Neutral"),
+      spark:   Array.isArray(sec?.spark) ? sec.spark : [],
+      last:    netNH,
+      deltaPct: pct
+    };
+  });
+  return list.sort((a,b) => orderKey(a.sector) - orderKey(b.sector));
+}
+
 export default function RowIndexSectors() {
   // ✅ dynamic cadence (same as overview row)
   const { data, loading, error } = useDashboardPoll?.("dynamic") ?? { data:null, loading:false, error:null };
   const ts = data?.meta?.ts || null;
 
   // Prefer backend-normalized sectorCards (includes last/deltaPct + aliases)
-  const cards = Array.isArray(data?.outlook?.sectorCards) ? data.outlook.sectorCards : [];
+  const cards = useMemo(() => {
+    let list = fromSectorCards(data);
+    if (list.length === 0) list = fromSectors(data || {});
+    return list;
+  }, [data]);
+
+  // ---- NEW: hour-over-hour trend fetch
+  const [trend, setTrend] = useState(null);
+  const aliveRef = useRef(true);
+  useEffect(() => {
+    aliveRef.current = true;
+    const controller = new AbortController();
+    const load = async () => {
+      try {
+        const r = await fetch(`${API}/api/sectorTrend?window=1`, { signal: controller.signal, cache:"no-store" });
+        const j = await r.json();
+        if (!aliveRef.current) return;
+        setTrend(j?.sectors || {});
+      } catch {
+        if (aliveRef.current) setTrend(null);
+      }
+    };
+    load();
+    // refresh trend every minute to match dynamic cadence roughly
+    const t = setInterval(load, 60000);
+    return () => { aliveRef.current = false; controller.abort(); clearInterval(t); };
+  }, []);
+
+  // build a lookup of hour-over-hour netNH delta per sector (lowercased key)
+  const trendDeltaBySector = useMemo(() => {
+    const out = {};
+    if (!trend) return out;
+    for (const [key, pair] of Object.entries(trend)) {
+      const curr = pair?.curr || {};
+      const prev = pair?.prev || {};
+      const d = Number(curr?.netNH ?? 0) - Number(prev?.netNH ?? 0);
+      out[key] = d;
+    }
+    return out;
+  }, [trend]);
 
   return (
     <section id="row-4" className="panel index-sectors" aria-label="Index Sectors">
@@ -115,16 +224,21 @@ export default function RowIndexSectors() {
           gridTemplateColumns:"repeat(auto-fill, minmax(220px, 1fr))",
           gap:10, marginTop:8
         }}>
-          {cards.map((c, i) => (
-            <SectorCard
-              key={c?.sector || i}
-              sector={c?.sector}
-              outlook={c?.outlook}
-              spark={c?.spark}
-              last={Number.isFinite(c?.last) ? c.last : (Number.isFinite(c?.value) ? c.value : null)}
-              deltaPct={Number.isFinite(c?.deltaPct) ? c.deltaPct : (Number.isFinite(c?.pct) ? c.pct : (Number.isFinite(c?.changePct) ? c.changePct : null))}
-            />
-          ))}
+          {cards.map((c, i) => {
+            const key = c?.sector ? c.sector.trim().toLowerCase() : "";
+            const delta = trendDeltaBySector[key]; // may be undefined
+            return (
+              <SectorCard
+                key={c?.sector || i}
+                sector={c?.sector}
+                outlook={c?.outlook}
+                spark={c?.spark}
+                last={Number.isFinite(c?.last) ? c.last : (Number.isFinite(c?.value) ? c.value : null)}
+                deltaPct={Number.isFinite(c?.deltaPct) ? c.deltaPct : (Number.isFinite(c?.pct) ? c.pct : (Number.isFinite(c?.changePct) ? c.changePct : null))}
+                trendDelta={Number.isFinite(delta) ? delta : undefined}
+              />
+            );
+          })}
         </div>
       ) : (
         !loading && <div className="small muted">No sector data.</div>
