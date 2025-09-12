@@ -1,13 +1,15 @@
-// RowChart.jsx — v1.6 (clean backend, strict apiBase)
-// - Requires apiBase prop (prevents wrong-origin fetch)
-// - Uses normalized backend (timestamps already fixed)
-// - Clear error + URL debug if fetch fails
+// RowChart.jsx — v1.7 (self-diagnosing fetch)
+// Improvements
+// - apiBase is OPTIONAL (prop > env > same-origin fallback)
+// - Always logs exact URL; shows status badge
+// - Guaranteed refetch on symbol/TF change
+// - Safer abort + cache; clearer error copy
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createChart } from "lightweight-charts";
 
 export default function RowChart({
-  apiBase,                // REQUIRED: e.g. "https://frye-market-backend-1.onrender.com"
+  apiBase,                // optional; if omitted we use env or same-origin
   defaultSymbol = "SPY",
   defaultTimeframe = "1h",
   height = 520,
@@ -34,7 +36,7 @@ export default function RowChart({
     layout: { background: { type: 'solid', color: '#0a0a0a' }, textColor: '#e5e7eb' },
     grid: { vertLines: { color: '#1e1e1e' }, horzLines: { color: '#1e1e1e' } },
     rightPriceScale: { borderColor: '#2b2b2b' },
-    timeScale: { borderColor: '#2b2b2b' },
+    timeScale: { borderColor: '#2b2b2b', rightOffset: 6, barSpacing: 8, fixLeftEdge: true },
     crosshair: { mode: 0 },
     upColor: '#16a34a',
     downColor: '#ef4444',
@@ -44,20 +46,19 @@ export default function RowChart({
     borderDownColor: '#ef4444',
   }), []);
 
+  // chart init
   useEffect(() => {
     if (!containerRef.current) return;
-
     const chart = createChart(containerRef.current, {
       width: containerRef.current.clientWidth,
       height,
       layout: theme.layout,
       grid: theme.grid,
       rightPriceScale: { borderColor: theme.rightPriceScale.borderColor },
-      timeScale: { borderColor: theme.timeScale.borderColor, rightOffset: 6, barSpacing: 8, fixLeftEdge: true },
+      timeScale: theme.timeScale,
       crosshair: theme.crosshair,
       localization: { dateFormat: 'yyyy-MM-dd' },
     });
-
     const series = chart.addCandlestickSeries({
       upColor: theme.upColor,
       downColor: theme.downColor,
@@ -66,7 +67,6 @@ export default function RowChart({
       wickUpColor: theme.wickUpColor,
       wickDownColor: theme.wickDownColor,
     });
-
     chartRef.current = chart;
     seriesRef.current = series;
 
@@ -84,16 +84,21 @@ export default function RowChart({
     };
   }, [height, theme]);
 
+  // resolve base (prop > env > same-origin)
+  function resolveBase() {
+    const env = (process.env.REACT_APP_API_BASE || "").replace(/\/$/, "");
+    const prop = (apiBase || "").replace(/\/$/, "");
+    return prop || env || window.location.origin;
+  }
+
   const fetchBars = React.useCallback(() => {
     const key = `${symbol}|${tf}`;
     lastKeyRef.current = key;
 
-    if (!apiBase) {
-      setError('RowChart: apiBase prop is required (e.g., https://frye-market-backend-1.onrender.com)');
-      onStatus?.('error');
-      return;
-    }
+    const base = resolveBase();
+    const url = `${base}/api/v1/ohlc?symbol=${encodeURIComponent(symbol)}&timeframe=${encodeURIComponent(tf)}&_=${Date.now()}`;
 
+    console.debug('[RowChart v1.7] fetch', url);
     onStatus?.('loading');
     setLoading(true); setError(null);
 
@@ -103,45 +108,43 @@ export default function RowChart({
 
     try { seriesRef.current?.setData([]); } catch {}
 
+    // cache
     if (cacheRef.current.has(key)) {
       const cached = cacheRef.current.get(key);
       setBars(cached); setLoading(false); onStatus?.(cached.length ? 'ready' : 'idle');
       return;
     }
 
-    const base = apiBase.replace(/\/$/, '');
-    const url = `${base}/api/v1/ohlc?symbol=${encodeURIComponent(symbol)}&timeframe=${encodeURIComponent(tf)}&_=${Date.now()}`;
-    console.debug('[RowChart] GET', url);
-
     fetch(url, { signal: controller.signal, cache: 'no-store', headers: { 'Cache-Control': 'no-cache' } })
       .then(async (r) => {
         if (!r.ok) {
-          const txt = await r.text().catch(() => '');
+          const txt = await r.text().catch(()=>'');
           throw new Error(`HTTP ${r.status} — ${txt.slice(0,160)}`);
         }
         const j = await r.json();
         const rows = Array.isArray(j?.bars) ? j.bars : [];
-        // backend already normalized to seconds & sorted
         cacheRef.current.set(key, rows);
-        if (lastKeyRef.current !== key) return;
+        if (lastKeyRef.current !== key) return; // stale
         if (rows.length === 0) throw new Error('No bars returned');
         setBars(rows); onStatus?.('ready');
       })
       .catch((e) => {
         if (e.name === 'AbortError') return;
         setBars([]);
-        setError(`${e.message} — URL: ${base}/api/v1/ohlc`);
+        setError(`${e.message} — URL: ${url}`);
         onStatus?.('error');
       })
       .finally(() => setLoading(false));
-  }, [symbol, tf, apiBase, onStatus]);
+  }, [symbol, tf, apiBase]);
 
+  // guarantee refetch on symbol/TF change
   useEffect(() => {
     if (debounceTimer.current) clearTimeout(debounceTimer.current);
     debounceTimer.current = setTimeout(fetchBars, 250);
     return () => debounceTimer.current && clearTimeout(debounceTimer.current);
   }, [fetchBars]);
 
+  // render new data
   useEffect(() => {
     if (!seriesRef.current) return;
     const data = (range && bars.length > range) ? bars.slice(-range) : bars;
@@ -150,9 +153,11 @@ export default function RowChart({
   }, [bars, range]);
 
   const symbols = ["SPY","QQQ","IWM","DIA","AAPL","MSFT","AMZN","GOOGL","META","TSLA","NVDA","NFLX","AMD","INTC","BA","XOM","CVX","JPM","GS","BAC","WMT","COST","HD","LOW","DIS"];
-  const timeframes = ["1m","5m","15m","1h","4h","1d"];
+  const timeframes = ["1m","5m","15m","30m","1h","4h","1d"]; // include 30m which backend supports
   const ranges = [50, 100, 200];
   const disableControls = loading;
+
+  const baseShown = resolveBase();
 
   return (
     <div style={{ height: `${height}px`, overflow: 'hidden', background: '#0a0a0a', border: '1px solid #2b2b2b', borderRadius: 12, display: 'flex', flexDirection: 'column' }}>
@@ -179,6 +184,11 @@ export default function RowChart({
         </div>
       </div>
 
+      {/* Status badge */}
+      <div style={{ padding: '6px 12px', color: '#9ca3af', fontSize: 12, borderBottom: '1px solid #2b2b2b' }}>
+        RowChart v1.7 • Base: {baseShown || 'MISSING'} • Symbol: {symbol} • TF: {tf} • Bars: {bars.length}
+      </div>
+
       <div ref={containerRef} style={{ position: 'relative', flex: 1 }}>
         {loading && <div style={overlayStyle}><span style={{ color: '#eab308', fontWeight: 700 }}>Loading bars…</span></div>}
         {!loading && !error && bars.length === 0 && (
@@ -187,7 +197,7 @@ export default function RowChart({
         {error && (
           <div style={overlayStyle}>
             <div style={{ color: '#ef4444', marginBottom: 8, fontWeight: 700 }}>Error: {error}</div>
-            <div style={{ color: '#9ca3af', fontSize: 12 }}>Check Network tab for the request details.</div>
+            <div style={{ color: '#9ca3af', fontSize: 12 }}>Check Network tab for the request above.</div>
           </div>
         )}
       </div>
