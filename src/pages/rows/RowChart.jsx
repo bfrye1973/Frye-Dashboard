@@ -1,15 +1,13 @@
-// RowChart.jsx — v1.7 (self-diagnosing fetch)
-// Improvements
-// - apiBase is OPTIONAL (prop > env > same-origin fallback)
-// - Always logs exact URL; shows status badge
-// - Guaranteed refetch on symbol/TF change
-// - Safer abort + cache; clearer error copy
+// RowChart.jsx — v1.8 (Test Fetch button + self-diagnosing)
+// - Adds a "Test Fetch" button to trigger a manual request
+// - apiBase optional (prop > env > same-origin)
+// - Status badge + clear error copy
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createChart } from "lightweight-charts";
 
 export default function RowChart({
-  apiBase,                // optional; if omitted we use env or same-origin
+  apiBase,
   defaultSymbol = "SPY",
   defaultTimeframe = "1h",
   height = 520,
@@ -46,7 +44,6 @@ export default function RowChart({
     borderDownColor: '#ef4444',
   }), []);
 
-  // chart init
   useEffect(() => {
     if (!containerRef.current) return;
     const chart = createChart(containerRef.current, {
@@ -84,21 +81,20 @@ export default function RowChart({
     };
   }, [height, theme]);
 
-  // resolve base (prop > env > same-origin)
   function resolveBase() {
     const env = (process.env.REACT_APP_API_BASE || "").replace(/\/$/, "");
     const prop = (apiBase || "").replace(/\/$/, "");
     return prop || env || window.location.origin;
   }
 
-  const fetchBars = React.useCallback(() => {
+  const doFetch = React.useCallback((force=false) => {
     const key = `${symbol}|${tf}`;
     lastKeyRef.current = key;
 
     const base = resolveBase();
     const url = `${base}/api/v1/ohlc?symbol=${encodeURIComponent(symbol)}&timeframe=${encodeURIComponent(tf)}&_=${Date.now()}`;
+    console.debug('[RowChart v1.8] fetch', url);
 
-    console.debug('[RowChart v1.7] fetch', url);
     onStatus?.('loading');
     setLoading(true); setError(null);
 
@@ -108,8 +104,7 @@ export default function RowChart({
 
     try { seriesRef.current?.setData([]); } catch {}
 
-    // cache
-    if (cacheRef.current.has(key)) {
+    if (!force && cacheRef.current.has(key)) {
       const cached = cacheRef.current.get(key);
       setBars(cached); setLoading(false); onStatus?.(cached.length ? 'ready' : 'idle');
       return;
@@ -124,7 +119,7 @@ export default function RowChart({
         const j = await r.json();
         const rows = Array.isArray(j?.bars) ? j.bars : [];
         cacheRef.current.set(key, rows);
-        if (lastKeyRef.current !== key) return; // stale
+        if (lastKeyRef.current !== key) return;
         if (rows.length === 0) throw new Error('No bars returned');
         setBars(rows); onStatus?.('ready');
       })
@@ -137,14 +132,12 @@ export default function RowChart({
       .finally(() => setLoading(false));
   }, [symbol, tf, apiBase]);
 
-  // guarantee refetch on symbol/TF change
   useEffect(() => {
     if (debounceTimer.current) clearTimeout(debounceTimer.current);
-    debounceTimer.current = setTimeout(fetchBars, 250);
+    debounceTimer.current = setTimeout(() => doFetch(false), 250);
     return () => debounceTimer.current && clearTimeout(debounceTimer.current);
-  }, [fetchBars]);
+  }, [doFetch]);
 
-  // render new data
   useEffect(() => {
     if (!seriesRef.current) return;
     const data = (range && bars.length > range) ? bars.slice(-range) : bars;
@@ -153,10 +146,9 @@ export default function RowChart({
   }, [bars, range]);
 
   const symbols = ["SPY","QQQ","IWM","DIA","AAPL","MSFT","AMZN","GOOGL","META","TSLA","NVDA","NFLX","AMD","INTC","BA","XOM","CVX","JPM","GS","BAC","WMT","COST","HD","LOW","DIS"];
-  const timeframes = ["1m","5m","15m","30m","1h","4h","1d"]; // include 30m which backend supports
+  const timeframes = ["1m","5m","15m","30m","1h","4h","1d"];
   const ranges = [50, 100, 200];
   const disableControls = loading;
-
   const baseShown = resolveBase();
 
   return (
@@ -184,9 +176,10 @@ export default function RowChart({
         </div>
       </div>
 
-      {/* Status badge */}
-      <div style={{ padding: '6px 12px', color: '#9ca3af', fontSize: 12, borderBottom: '1px solid #2b2b2b' }}>
-        RowChart v1.7 • Base: {baseShown || 'MISSING'} • Symbol: {symbol} • TF: {tf} • Bars: {bars.length}
+      {/* Status + Test Fetch */}
+      <div style={{ padding: '6px 12px', color: '#9ca3af', fontSize: 12, borderBottom: '1px solid #2b2b2b', display:'flex', gap:12, alignItems:'center' }}>
+        <div>RowChart v1.8 • Base: {baseShown || 'MISSING'} • Symbol: {symbol} • TF: {tf} • Bars: {bars.length}</div>
+        <button onClick={() => doFetch(true)} style={{ marginLeft: 'auto', background:'#eab308', color:'#111', border:'none', borderRadius:8, padding:'6px 10px', fontWeight:700, cursor:'pointer' }}>Test Fetch</button>
       </div>
 
       <div ref={containerRef} style={{ position: 'relative', flex: 1 }}>
@@ -197,7 +190,6 @@ export default function RowChart({
         {error && (
           <div style={overlayStyle}>
             <div style={{ color: '#ef4444', marginBottom: 8, fontWeight: 700 }}>Error: {error}</div>
-            <div style={{ color: '#9ca3af', fontSize: 12 }}>Check Network tab for the request above.</div>
           </div>
         )}
       </div>
