@@ -3,7 +3,6 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { LastUpdated } from "../../components/LastUpdated";
 import { useDashboardPoll } from "../../lib/dashboardApi";
 
-// Backend base for trend endpoint (keep -1)
 const API = "https://frye-market-backend-1.onrender.com";
 
 /* --- badge helpers --- */
@@ -31,24 +30,18 @@ function Badge({ text, tone = "info" }) {
   );
 }
 
-/* --- tiny hour-over-hour % badge --- */
+/* --- hourly % badge (always show) --- */
 function TrendBadge({ deltaPct }) {
   if (!Number.isFinite(deltaPct)) return null;
-  const d = deltaPct;
-  const abs = Math.abs(d);
-  // color/arrow
+  const d = deltaPct; // e.g., +0.84 means +0.84% vs last hour
   let color = "#9ca3af", arrow = "→";
   if (d >= 0.2) { color = "#22c55e"; arrow = "▲"; }
   else if (d <= -0.2) { color = "#ef4444"; arrow = "▼"; }
-  // text with sign and one decimal
   const text = `${d >= 0 ? "+" : ""}${d.toFixed(1)}%/h`;
   const title = `vs last hour: ${d >= 0 ? "+" : ""}${d.toFixed(2)}%`;
   return (
-    <span title={title} style={{
-      marginLeft:8, fontWeight:800, fontSize:12, color, display:"inline-flex", alignItems:"center", gap:4
-    }}>
-      <span>{arrow}</span>
-      <span>{text}</span>
+    <span title={title} style={{ fontWeight:800, fontSize:12, color, display:"inline-flex", alignItems:"center", gap:4 }}>
+      <span>{arrow}</span><span>{text}</span>
     </span>
   );
 }
@@ -79,7 +72,6 @@ function SectorCard({ sector, outlook, spark, last, deltaPct, hourDeltaPct }) {
   // prefer provided last/deltaPct; fall back to spark math; finally 0s
   let _last = Number.isFinite(last) ? last : null;
   let _deltaPct = Number.isFinite(deltaPct) ? deltaPct : null;
-
   if ((_last === null || _deltaPct === null) && arr.length >= 2) {
     const first = Number(arr[0]) || 0;
     const lst   = Number(arr[arr.length - 1]) || 0;
@@ -87,14 +79,12 @@ function SectorCard({ sector, outlook, spark, last, deltaPct, hourDeltaPct }) {
     _last = _last === null ? lst : _last;
     _deltaPct = _deltaPct === null ? ((lst - first) / base) * 100 : _deltaPct;
   }
-
   if (_last === null) _last = 0;
   if (_deltaPct === null) _deltaPct = 0;
 
   const arrow =
     Math.abs(_deltaPct) < 0.5 ? "→" :
     _deltaPct > 0             ? "↑" : "↓";
-
   const deltaClass =
     Math.abs(_deltaPct) < 0.5 ? "delta delta-flat" :
     _deltaPct > 0             ? "delta delta-up"   : "delta delta-down";
@@ -102,12 +92,12 @@ function SectorCard({ sector, outlook, spark, last, deltaPct, hourDeltaPct }) {
   return (
     <div className="panel" style={{ padding:10 }}>
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-        <div className="panel-title small" style={{ display:"flex", alignItems:"center" }}>
-          {sector || "Sector"}
-          {/* NEW: hour-over-hour % badge */}
+        <div className="panel-title small">{sector || "Sector"}</div>
+        <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+          {/* hourly % badge to the RIGHT for visibility */}
           {Number.isFinite(hourDeltaPct) && <TrendBadge deltaPct={hourDeltaPct} />}
+          <Badge text={outlook || "Neutral"} tone={tone} />
         </div>
-        <Badge text={outlook || "Neutral"} tone={tone} />
       </div>
       <div className="small" style={{ display:"flex", justifyContent:"space-between", margin:"4px 0 6px 0" }}>
         <span>Last: <strong>{Number.isFinite(_last) ? _last.toFixed(1) : "—"}</strong></span>
@@ -131,6 +121,22 @@ const orderKey = (s) => {
 function titleCase(name="") {
   return name.split(" ").map(w => w ? w[0].toUpperCase()+w.slice(1) : w).join(" ");
 }
+
+/* Sector alias map to avoid name mismatches */
+const ALIASES = {
+  "tech": "information technology",
+  "information technology": "information technology",
+  "materials": "materials",
+  "healthcare": "healthcare",
+  "communication services": "communication services",
+  "real estate": "real estate",
+  "energy": "energy",
+  "consumer staples": "consumer staples",
+  "consumer discretionary": "consumer discretionary",
+  "financials": "financials",
+  "utilities": "utilities",
+  "industrials": "industrials",
+};
 
 /* --- prefer outlook.sectorCards, else compute from outlook.sectors --- */
 function fromSectorCards(json){
@@ -176,7 +182,7 @@ export default function RowIndexSectors() {
     return list;
   }, [data]);
 
-  // ---- Trend fetch (curr/prev hour pct from /sectorTrend)
+  // Fetch /sectorTrend (hour-over-hour % deltas)
   const [trend, setTrend] = useState(null);
   const aliveRef = useRef(true);
   useEffect(() => {
@@ -197,11 +203,12 @@ export default function RowIndexSectors() {
     return () => { aliveRef.current = false; controller.abort(); clearInterval(t); };
   }, []);
 
-  // lookup: lowercased sector → deltaPct (hour-over-hour)
+  // lookup: normalized sector → deltaPct
   const hourDeltaPctBySector = useMemo(() => {
     const out = {};
     if (!trend) return out;
-    for (const [key, pair] of Object.entries(trend)) {
+    for (const [rawKey, pair] of Object.entries(trend)) {
+      const key = ALIASES[norm(rawKey)] || norm(rawKey);
       const d = Number(pair?.deltaPct ?? NaN);
       if (Number.isFinite(d)) out[key] = d;
     }
@@ -226,8 +233,8 @@ export default function RowIndexSectors() {
           gap:10, marginTop:8
         }}>
           {cards.map((c, i) => {
-            const key = c?.sector ? c.sector.trim().toLowerCase() : "";
-            const hourDelta = hourDeltaPctBySector[key]; // e.g., +0.84 means +0.84% vs last hour
+            const normName = ALIASES[norm(c?.sector || "")] || norm(c?.sector || "");
+            const hourDelta = hourDeltaPctBySector[normName]; // +/- X.X % vs last hour
             return (
               <SectorCard
                 key={c?.sector || i}
