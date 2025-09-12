@@ -1,5 +1,10 @@
-// RowChart.jsx — v1.2 (fix symbol switch cache + full stock list)
-// Ferrari Dashboard — Row 6 (Chart Row)
+// RowChart.jsx — v1.3 (restore candles)
+// Fixes:
+// - Robust base URL fallback (env OR window.location.origin)
+// - Hard cache-bust + no-store
+// - Clear series on symbol change safely
+// - Time normalization (ms → s if needed) + sorting
+// - Stronger on-screen debug for empty/error
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createChart } from "lightweight-charts";
@@ -20,6 +25,7 @@ export default function RowChart({
   const debounceTimer = useRef(null);
   const abortRef = useRef(null);
   const cacheRef = useRef(new Map());
+  const lastKeyRef = useRef("");
 
   const containerRef = useRef(null);
   const chartRef = useRef(null);
@@ -80,8 +86,29 @@ export default function RowChart({
     };
   }, [height, theme]);
 
+  function normalizeBars(rows) {
+    const mapped = rows.map((b) => {
+      let t = Number(b.time);
+      // if timestamp looks like ms, convert to seconds
+      if (t > 2e10) t = Math.floor(t / 1000);
+      return {
+        time: t,
+        open: Number(b.open),
+        high: Number(b.high),
+        low: Number(b.low),
+        close: Number(b.close),
+        volume: Number(b.volume || 0),
+      };
+    });
+    // sort ascending by time just in case
+    mapped.sort((a, b) => a.time - b.time);
+    return mapped;
+  }
+
   const fetchBars = React.useCallback(() => {
     const key = `${symbol}|${tf}`;
+    lastKeyRef.current = key;
+
     if (onStatus) onStatus('loading');
     setLoading(true);
     setError(null);
@@ -90,41 +117,40 @@ export default function RowChart({
     const controller = new AbortController();
     abortRef.current = controller;
 
-    // clear series immediately on symbol change to avoid stale price display
+    // Clear series immediately so stale candles/price line aren't visible
     try { seriesRef.current?.setData([]); } catch {}
 
     if (cacheRef.current.has(key)) {
       const cached = cacheRef.current.get(key);
       setBars(cached);
       setLoading(false);
-      if (onStatus) onStatus('ready');
+      if (onStatus) onStatus(cached.length > 0 ? 'ready' : 'idle');
+      console.debug(`[RowChart] cache hit`, key, cached.length);
       return;
     }
 
-    const base = process.env.REACT_APP_API_BASE?.replace(/\/$/, '') || "";
+    const base = (process.env.REACT_APP_API_BASE && process.env.REACT_APP_API_BASE.replace(/\/$/, '')) || window.location.origin;
     const url = `${base}/api/v1/ohlc?symbol=${encodeURIComponent(symbol)}&timeframe=${encodeURIComponent(tf)}&_=${Date.now()}`;
+    console.debug(`[RowChart] fetch`, url);
 
     fetch(url, { signal: controller.signal, cache: 'no-store', headers: { 'Cache-Control': 'no-cache' } })
       .then(async (r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         const j = await r.json();
         const rows = Array.isArray(j?.bars) ? j.bars : [];
-        const mapped = rows.map(b => ({
-          time: Number(b.time),
-          open: Number(b.open),
-          high: Number(b.high),
-          low: Number(b.low),
-          close: Number(b.close),
-          volume: Number(b.volume || 0),
-        }));
+        const mapped = normalizeBars(rows);
         cacheRef.current.set(key, mapped);
+        // protect against race if symbol/tf changed mid-flight
+        if (lastKeyRef.current !== key) return;
         setBars(mapped);
-        if (onStatus) onStatus(mapped.length > 1 ? 'ready' : 'idle');
+        if (onStatus) onStatus(mapped.length > 0 ? 'ready' : 'idle');
+        console.debug(`[RowChart] fetched`, key, mapped.length);
       })
       .catch((e) => {
         if (e.name === 'AbortError') return;
         setError(e.message || 'Failed to fetch bars');
         if (onStatus) onStatus('error');
+        console.error(`[RowChart] error`, e);
       })
       .finally(() => setLoading(false));
   }, [symbol, tf, onStatus]);
@@ -139,10 +165,9 @@ export default function RowChart({
     if (!seriesRef.current) return;
     const data = (range && bars.length > range) ? bars.slice(-range) : bars;
     seriesRef.current.setData(data);
-    if (chartRef.current && data.length > 1) chartRef.current.timeScale().fitContent();
+    if (chartRef.current && data.length > 0) chartRef.current.timeScale().fitContent();
   }, [bars, range]);
 
-  // ✅ Expanded symbol list
   const symbols = [
     "SPY","QQQ","IWM","DIA","AAPL","MSFT","AMZN","GOOGL","META","TSLA","NVDA",
     "NFLX","AMD","INTC","BA","XOM","CVX","JPM","GS","BAC","WMT","COST","HD","LOW","DIS"
@@ -179,11 +204,13 @@ export default function RowChart({
       </div>
 
       <div ref={containerRef} style={{ position: 'relative', flex: 1 }}>
-        {loading && <div style={overlayStyle}><span style={{ color: '#9ca3af' }}>Fetching bars…</span></div>}
-        {!loading && !error && bars.length < 2 && <div style={overlayStyle}><span style={{ color: '#9ca3af' }}>No data for this symbol/timeframe</span></div>}
+        {loading && <div style={overlayStyle}><span style={{ color: '#eab308', fontWeight: 700 }}>Loading bars…</span></div>}
+        {!loading && !error && bars.length === 0 && (
+          <div style={overlayStyle}><span style={{ color: '#ef4444', fontWeight: 700 }}>No data returned — check network console (F12 → Network) for /api/v1/ohlc {symbol} {tf}</span></div>
+        )}
         {error && (
           <div style={overlayStyle}>
-            <div style={{ color: '#ef4444', marginBottom: 8 }}>Error: {error}</div>
+            <div style={{ color: '#ef4444', marginBottom: 8, fontWeight: 700 }}>Error: {error}</div>
             <button onClick={retry} style={retryBtnStyle}>Retry</button>
           </div>
         )}
@@ -194,5 +221,5 @@ export default function RowChart({
 
 const selectStyle = { background: '#0b0b0b', color: '#e5e7eb', border: '1px solid #2b2b2b', borderRadius: 8, padding: '6px 8px' };
 const rangeBtnStyle = (active) => ({ background: active ? '#eab308' : '#0b0b0b', color: active ? '#111111' : '#e5e7eb', border: '1px solid #2b2b2b', borderRadius: 8, padding: '6px 10px', fontWeight: 600, cursor: 'pointer' });
-const overlayStyle = { position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', pointerEvents: 'none' };
+const overlayStyle = { position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.0)', textAlign: 'center', padding: 12 };
 const retryBtnStyle = { background: '#eab308', color: '#111111', border: 'none', borderRadius: 8, padding: '8px 12px', fontWeight: 700, cursor: 'pointer', pointerEvents: 'auto' };
