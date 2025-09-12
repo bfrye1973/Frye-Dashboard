@@ -31,18 +31,24 @@ function Badge({ text, tone = "info" }) {
   );
 }
 
-/* --- tiny trend glyph (▲ ▼ →) --- */
-function TrendGlyph({ delta }) {
-  if (!Number.isFinite(delta)) return null;
-  const abs = Math.abs(delta);
-  let char = "→", color = "#9ca3af", title = `vs last hour: ${delta > 0 ? "+" : ""}${delta}`;
-  if (delta >= 1) { char = "▲"; color = "#22c55e"; }
-  else if (delta <= -1) { char = "▼"; color = "#ef4444"; }
+/* --- tiny hour-over-hour % badge --- */
+function TrendBadge({ deltaPct }) {
+  if (!Number.isFinite(deltaPct)) return null;
+  const d = deltaPct;
+  const abs = Math.abs(d);
+  // color/arrow
+  let color = "#9ca3af", arrow = "→";
+  if (d >= 0.2) { color = "#22c55e"; arrow = "▲"; }
+  else if (d <= -0.2) { color = "#ef4444"; arrow = "▼"; }
+  // text with sign and one decimal
+  const text = `${d >= 0 ? "+" : ""}${d.toFixed(1)}%/h`;
+  const title = `vs last hour: ${d >= 0 ? "+" : ""}${d.toFixed(2)}%`;
   return (
     <span title={title} style={{
-      marginLeft:8, fontWeight:900, fontSize:12, color
+      marginLeft:8, fontWeight:800, fontSize:12, color, display:"inline-flex", alignItems:"center", gap:4
     }}>
-      {char}
+      <span>{arrow}</span>
+      <span>{text}</span>
     </span>
   );
 }
@@ -66,7 +72,7 @@ function Sparkline({ data = [], width = 160, height = 36 }) {
 }
 
 /* --- card --- */
-function SectorCard({ sector, outlook, spark, last, deltaPct, trendDelta }) {
+function SectorCard({ sector, outlook, spark, last, deltaPct, hourDeltaPct }) {
   const tone = toneFor(outlook);
   const arr  = Array.isArray(spark) ? spark : [];
 
@@ -98,8 +104,8 @@ function SectorCard({ sector, outlook, spark, last, deltaPct, trendDelta }) {
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
         <div className="panel-title small" style={{ display:"flex", alignItems:"center" }}>
           {sector || "Sector"}
-          {/* tiny hour-over-hour glyph */}
-          {Number.isFinite(trendDelta) && <TrendGlyph delta={trendDelta} />}
+          {/* NEW: hour-over-hour % badge */}
+          {Number.isFinite(hourDeltaPct) && <TrendBadge deltaPct={hourDeltaPct} />}
         </div>
         <Badge text={outlook || "Neutral"} tone={tone} />
       </div>
@@ -126,7 +132,7 @@ function titleCase(name="") {
   return name.split(" ").map(w => w ? w[0].toUpperCase()+w.slice(1) : w).join(" ");
 }
 
-/* --- prefer outlook.sectorCards (has numbers), else compute from outlook.sectors --- */
+/* --- prefer outlook.sectorCards, else compute from outlook.sectors --- */
 function fromSectorCards(json){
   const arr = json?.outlook?.sectorCards;
   if (!Array.isArray(arr)) return [];
@@ -161,18 +167,16 @@ function fromSectors(json){
 }
 
 export default function RowIndexSectors() {
-  // ✅ dynamic cadence (same as overview row)
   const { data, loading, error } = useDashboardPoll?.("dynamic") ?? { data:null, loading:false, error:null };
   const ts = data?.meta?.ts || null;
 
-  // Prefer backend-normalized sectorCards (includes last/deltaPct + aliases)
   const cards = useMemo(() => {
     let list = fromSectorCards(data);
     if (list.length === 0) list = fromSectors(data || {});
     return list;
   }, [data]);
 
-  // ---- NEW: hour-over-hour trend fetch
+  // ---- Trend fetch (curr/prev hour pct from /sectorTrend)
   const [trend, setTrend] = useState(null);
   const aliveRef = useRef(true);
   useEffect(() => {
@@ -189,20 +193,17 @@ export default function RowIndexSectors() {
       }
     };
     load();
-    // refresh trend every minute to match dynamic cadence roughly
     const t = setInterval(load, 60000);
     return () => { aliveRef.current = false; controller.abort(); clearInterval(t); };
   }, []);
 
-  // build a lookup of hour-over-hour netNH delta per sector (lowercased key)
-  const trendDeltaBySector = useMemo(() => {
+  // lookup: lowercased sector → deltaPct (hour-over-hour)
+  const hourDeltaPctBySector = useMemo(() => {
     const out = {};
     if (!trend) return out;
     for (const [key, pair] of Object.entries(trend)) {
-      const curr = pair?.curr || {};
-      const prev = pair?.prev || {};
-      const d = Number(curr?.netNH ?? 0) - Number(prev?.netNH ?? 0);
-      out[key] = d;
+      const d = Number(pair?.deltaPct ?? NaN);
+      if (Number.isFinite(d)) out[key] = d;
     }
     return out;
   }, [trend]);
@@ -226,7 +227,7 @@ export default function RowIndexSectors() {
         }}>
           {cards.map((c, i) => {
             const key = c?.sector ? c.sector.trim().toLowerCase() : "";
-            const delta = trendDeltaBySector[key]; // may be undefined
+            const hourDelta = hourDeltaPctBySector[key]; // e.g., +0.84 means +0.84% vs last hour
             return (
               <SectorCard
                 key={c?.sector || i}
@@ -235,7 +236,7 @@ export default function RowIndexSectors() {
                 spark={c?.spark}
                 last={Number.isFinite(c?.last) ? c.last : (Number.isFinite(c?.value) ? c.value : null)}
                 deltaPct={Number.isFinite(c?.deltaPct) ? c.deltaPct : (Number.isFinite(c?.pct) ? c.pct : (Number.isFinite(c?.changePct) ? c.changePct : null))}
-                trendDelta={Number.isFinite(delta) ? delta : undefined}
+                hourDeltaPct={Number.isFinite(hourDelta) ? hourDelta : undefined}
               />
             );
           })}
