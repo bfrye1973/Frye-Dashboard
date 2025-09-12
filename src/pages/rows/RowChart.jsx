@@ -1,10 +1,10 @@
-// RowChart.jsx — v1.3 (restore candles)
-// Fixes:
-// - Robust base URL fallback (env OR window.location.origin)
-// - Hard cache-bust + no-store
-// - Clear series on symbol change safely
-// - Time normalization (ms → s if needed) + sorting
-// - Stronger on-screen debug for empty/error
+// RowChart.jsx — v1.4 (no-candles fix)
+// Changes:
+// - Accepts explicit `apiBase` prop (recommended) — avoids wrong-origin calls
+// - Fallback order: props.apiBase → REACT_APP_API_BASE → window.location.origin
+// - zIndex on overlays so messages render ABOVE canvas
+// - Treat 0-bar responses as an error with guidance
+// - Logs response status and URL in console
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createChart } from "lightweight-charts";
@@ -14,6 +14,7 @@ export default function RowChart({
   defaultTimeframe = "1h",
   height = 520,
   onStatus,
+  apiBase, // 🔧 NEW: pass "https://frye-market-backend-1.onrender.com"
 }) {
   const [symbol, setSymbol] = useState(defaultSymbol);
   const [tf, setTf] = useState(defaultTimeframe);
@@ -89,18 +90,9 @@ export default function RowChart({
   function normalizeBars(rows) {
     const mapped = rows.map((b) => {
       let t = Number(b.time);
-      // if timestamp looks like ms, convert to seconds
-      if (t > 2e10) t = Math.floor(t / 1000);
-      return {
-        time: t,
-        open: Number(b.open),
-        high: Number(b.high),
-        low: Number(b.low),
-        close: Number(b.close),
-        volume: Number(b.volume || 0),
-      };
+      if (t > 2e10) t = Math.floor(t / 1000); // ms → s safeguard
+      return { time: t, open: +b.open, high: +b.high, low: +b.low, close: +b.close, volume: +(b.volume || 0) };
     });
-    // sort ascending by time just in case
     mapped.sort((a, b) => a.time - b.time);
     return mapped;
   }
@@ -109,51 +101,50 @@ export default function RowChart({
     const key = `${symbol}|${tf}`;
     lastKeyRef.current = key;
 
-    if (onStatus) onStatus('loading');
-    setLoading(true);
-    setError(null);
+    onStatus?.('loading');
+    setLoading(true); setError(null);
 
     if (abortRef.current) { try { abortRef.current.abort(); } catch {} }
     const controller = new AbortController();
     abortRef.current = controller;
 
-    // Clear series immediately so stale candles/price line aren't visible
     try { seriesRef.current?.setData([]); } catch {}
 
     if (cacheRef.current.has(key)) {
       const cached = cacheRef.current.get(key);
-      setBars(cached);
-      setLoading(false);
-      if (onStatus) onStatus(cached.length > 0 ? 'ready' : 'idle');
-      console.debug(`[RowChart] cache hit`, key, cached.length);
+      setBars(cached); setLoading(false); onStatus?.(cached.length ? 'ready' : 'idle');
       return;
     }
 
-    const base = (process.env.REACT_APP_API_BASE && process.env.REACT_APP_API_BASE.replace(/\/$/, '')) || window.location.origin;
+    const envBase = (process.env.REACT_APP_API_BASE || '').replace(/\/$/, '');
+    const base = (apiBase && apiBase.replace(/\/$/, '')) || envBase || window.location.origin;
     const url = `${base}/api/v1/ohlc?symbol=${encodeURIComponent(symbol)}&timeframe=${encodeURIComponent(tf)}&_=${Date.now()}`;
-    console.debug(`[RowChart] fetch`, url);
+    console.debug(`[RowChart] GET`, url);
 
     fetch(url, { signal: controller.signal, cache: 'no-store', headers: { 'Cache-Control': 'no-cache' } })
       .then(async (r) => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        const status = r.status;
+        if (!r.ok) {
+          const txt = await r.text().catch(() => '');
+          throw new Error(`HTTP ${status} — ${txt?.slice(0,180)}`);
+        }
         const j = await r.json();
         const rows = Array.isArray(j?.bars) ? j.bars : [];
         const mapped = normalizeBars(rows);
         cacheRef.current.set(key, mapped);
-        // protect against race if symbol/tf changed mid-flight
         if (lastKeyRef.current !== key) return;
-        setBars(mapped);
-        if (onStatus) onStatus(mapped.length > 0 ? 'ready' : 'idle');
-        console.debug(`[RowChart] fetched`, key, mapped.length);
+        if (mapped.length === 0) throw new Error('No bars returned from API');
+        setBars(mapped); onStatus?.('ready');
       })
       .catch((e) => {
         if (e.name === 'AbortError') return;
+        setBars([]);
         setError(e.message || 'Failed to fetch bars');
-        if (onStatus) onStatus('error');
-        console.error(`[RowChart] error`, e);
+        onStatus?.('error');
+        console.error(`[RowChart] fetch error`, e);
       })
       .finally(() => setLoading(false));
-  }, [symbol, tf, onStatus]);
+  }, [symbol, tf, apiBase, onStatus]);
 
   useEffect(() => {
     if (debounceTimer.current) clearTimeout(debounceTimer.current);
@@ -176,7 +167,6 @@ export default function RowChart({
   const ranges = [50, 100, 200];
 
   const disableControls = loading;
-  const retry = () => fetchBars();
 
   return (
     <div style={{ height: `${height}px`, overflow: 'hidden', background: '#0a0a0a', border: '1px solid #2b2b2b', borderRadius: 12, display: 'flex', flexDirection: 'column' }}>
@@ -206,12 +196,12 @@ export default function RowChart({
       <div ref={containerRef} style={{ position: 'relative', flex: 1 }}>
         {loading && <div style={overlayStyle}><span style={{ color: '#eab308', fontWeight: 700 }}>Loading bars…</span></div>}
         {!loading && !error && bars.length === 0 && (
-          <div style={overlayStyle}><span style={{ color: '#ef4444', fontWeight: 700 }}>No data returned — check network console (F12 → Network) for /api/v1/ohlc {symbol} {tf}</span></div>
+          <div style={overlayStyle}><span style={{ color: '#ef4444', fontWeight: 700 }}>No data returned. Check Network → /api/v1/ohlc. Ensure apiBase points to backend.</span></div>
         )}
         {error && (
-          <div style={overlayStyle}>
+          <div style={{...overlayStyle}}>
             <div style={{ color: '#ef4444', marginBottom: 8, fontWeight: 700 }}>Error: {error}</div>
-            <button onClick={retry} style={retryBtnStyle}>Retry</button>
+            <div style={{ color: '#9ca3af', fontSize: 12, marginBottom: 8 }}>Tip: confirm apiBase/ENV; open Console for full URL & status.</div>
           </div>
         )}
       </div>
@@ -221,5 +211,4 @@ export default function RowChart({
 
 const selectStyle = { background: '#0b0b0b', color: '#e5e7eb', border: '1px solid #2b2b2b', borderRadius: 8, padding: '6px 8px' };
 const rangeBtnStyle = (active) => ({ background: active ? '#eab308' : '#0b0b0b', color: active ? '#111111' : '#e5e7eb', border: '1px solid #2b2b2b', borderRadius: 8, padding: '6px 10px', fontWeight: 600, cursor: 'pointer' });
-const overlayStyle = { position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.0)', textAlign: 'center', padding: 12 };
-const retryBtnStyle = { background: '#eab308', color: '#111111', border: 'none', borderRadius: 8, padding: '8px 12px', fontWeight: 700, cursor: 'pointer', pointerEvents: 'auto' };
+const overlayStyle = { position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 5, background: 'rgba(0,0,0,0.0)', textAlign: 'center', padding: 12 };
