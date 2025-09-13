@@ -238,17 +238,6 @@ function LegendContent() {
         <li>85–100% <Tag bg="#f97316">🔥 Critical</Tag> → Very tight coil, watch for breakout.</li>
       </ul>
 
-      {/* Market Meter dial */}
-      <div style={h3}>Market Meter (Center Dial)</div>
-      <p>Overall average of the gauges — like a “dashboard score.”</p>
-      <p><strong>Example:</strong> 95% → Market is firing on all cylinders, very strong environment.</p>
-      <div style={p}><strong>Zones:</strong></div>
-      <ul style={ul}>
-        <li>0–34% <Tag bg="#ef4444">🔴 Weak</Tag> → Market conditions unfavorable.</li>
-        <li>35–64% <Tag bg="#f59e0b">🟡 Mixed</Tag> → Sideways/choppy.</li>
-        <li>65–84% <Tag bg="#22c55e">🟢 Favorable</Tag> → Trend-friendly.</li>
-        <li>85–100% <Tag bg="#fca5a5">🟥 Extreme</Tag> → May be overheated.</li>
-      </ul>
 
       {/* Daily Squeeze */}
       <div style={h3}>Daily Squeeze</div>
@@ -291,6 +280,21 @@ function LegendContent() {
       <div style={{ ...p, opacity: 0.8, marginTop: 6 }}>
         When daily squeeze is high, the meter is blended toward 50 (neutral).
       </div>
+
+      {/* Market Meter dial */}
+      <div style={h3}>Overall Market Indicator</div>
+      <p>Overall average of the gauges — like a “dashboard score.”</p>
+      <p><strong>Example:</strong> 95% → Market is firing on all cylinders, very strong environment.</p>
+      <div style={p}><strong>Zones:</strong></div>
+      <ul style={ul}>
+        <li>0–34% <Tag bg="#ef4444">🔴 Weak</Tag> → Market conditions unfavorable.</li>
+        <li>35–64% <Tag bg="#f59e0b">🟡 Mixed</Tag> → Sideways/choppy.</li>
+        <li>65–84% <Tag bg="#22c55e">🟢 Favorable</Tag> → Trend-friendly.</li>
+        <li>85–100% <Tag bg="#fca5a5">🟥 Extreme</Tag> → May be overheated.</li>
+      </ul>
+
+      
+      
     </div>
   );
 }
