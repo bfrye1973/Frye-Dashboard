@@ -140,17 +140,23 @@ export default function RowMarketOverview() {
         gap:10,
         marginTop:6
       }}>        
-        {/* LEFT: Breadth, Momentum, Intraday Squeeze */}
-        <div style={{
-          display: "flex",
-          justifyContent: "center",   // center the row
-          gap: 16,                    // space between buttons
-          maxWidth: 400,              // 👈 cap the width of the whole row
-          margin: "0 auto",           // center it horizontally
-        }}
-          <Stoplight label="Breadth"          value={breadth}       baseline={bBreadth} />
-          <Stoplight label="Momentum"         value={momentum}      baseline={bMomentum} />
-          <Stoplight label="Intraday Squeeze" value={squeezeIntra}  baseline={bSqueezeIn} />
+        {/* Market Meter — Stoplights (narrow row) */}
+        <div style={{ display: 'flex', justifyContent: 'center' }}>
+          <div
+            style={{
+              display: 'flex',
+              gap: 16,               // spacing between the 3 buttons
+              maxWidth: 420,         // 👈 cap total width (tune 360–520 as you like)
+              width: '100%',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+            }}
+          >
+            {/* Replace these with your actual components/elements */}
+            <Stoplight label="Breadth"  value={breadthPct}  delta={breadthDelta}  />
+            <Stoplight label="Momentum" value={momentumPct} delta={momentumDelta} />
+            <Stoplight label="Intraday Squeeze" value={squeezePct} delta={squeezeDelta} />
+          </div>
         </div>
 
         {/* CENTER: Big Market Meter + Daily Squeeze */}
