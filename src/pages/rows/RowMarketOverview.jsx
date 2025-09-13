@@ -153,16 +153,8 @@ export default function RowMarketOverview() {
           <Stoplight label="Breadth"          value={breadth}       baseline={bBreadth} />
           <Stoplight label="Momentum"         value={momentum}      baseline={bMomentum} />
           <Stoplight label="Intraday Squeeze" value={squeezeIntra}  baseline={bSqueezeIn} />
-        </div>
-
-        {/* CENTER: Big Market Meter + Daily Squeeze */}
-        <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:12 }}>
           <Stoplight label="Market Meter"  value={meterValue} baseline={meterValue} size={110} />
           <Stoplight label="Daily Squeeze" value={squeezeDaily} baseline={bSqueezeDy} />
-        </div>
-
-        {/* RIGHT: Liquidity, Volatility */}
-        <div style={{ display:"flex", gap:10, flexWrap:"nowrap", justifyContent:"flex-end" }}>
           <Stoplight label="Liquidity"  value={liquidity}  baseline={bLiquidity} unit="" />
           <Stoplight label="Volatility" value={volatility} baseline={bVol} />
         </div>
