@@ -153,10 +153,10 @@ export default function RowMarketOverview() {
           <Stoplight label="Breadth"          value={breadth}       baseline={bBreadth} />
           <Stoplight label="Momentum"         value={momentum}      baseline={bMomentum} />
           <Stoplight label="Intraday Squeeze" value={squeezeIntra}  baseline={bSqueezeIn} />
-          <Stoplight label="Market Meter"  value={meterValue} baseline={meterValue} size={110} />
           <Stoplight label="Daily Squeeze" value={squeezeDaily} baseline={bSqueezeDy} />
           <Stoplight label="Liquidity"  value={liquidity}  baseline={bLiquidity} unit="" />
           <Stoplight label="Volatility" value={volatility} baseline={bVol} />
+          <Stoplight label="Market Meter"  value={meterValue} baseline={meterValue} size={110} />
         </div>
       </div>
     </section>
