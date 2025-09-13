@@ -5,7 +5,7 @@ import RowMarketOverview from "./rows/RowMarketOverview";
 import RowEngineLights from "./rows/RowEngineLights";
 import RowIndexSectors from "./rows/RowIndexSectors";
 import RowStrategies from "./rows/RowStrategies";
-import RowChart from "./rows/RowChart";
+import RowChart from "./rows/RowChart";        // resolves to ./rows/RowChart/index.jsx
 import RowJournal from "./rows/RowJournal";
 
 export default function NewDashboard() {
@@ -16,7 +16,15 @@ export default function NewDashboard() {
       <RowEngineLights />     {/* Row 3 */}
       <RowIndexSectors />     {/* Row 4 */}
       <RowStrategies />       {/* Row 5 */}
-      <RowChart />            {/* Row 6 */}
+
+      {/* Row 6 — Chart (modular RowChart) */}
+      <RowChart
+        apiBase="https://frye-market-backend-1.onrender.com"
+        defaultSymbol="SPY"
+        defaultTimeframe="1h"
+        height={520}
+      />
+
       <RowJournal />          {/* Row 7 */}
     </div>
   );
