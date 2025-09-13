@@ -4,6 +4,7 @@ import Controls from "./Controls";
 import useOhlc from "./useOhlc";
 import useLwcChart from "./useLwcChart";
 import { SYMBOLS, TIMEFRAMES, resolveApiBase } from "./constants";
+import { VolumePanel } from "./panels";
 
 export default function RowChart({
   apiBase,
@@ -81,6 +82,15 @@ export default function RowChart({
         {!loading && !error && bars.length === 0 && <Overlay>No data returned</Overlay>}
         {error && <Overlay>Error: {error}</Overlay>}
       </div>
+      <div ref={containerRef} style={{ position: "relative", flex: 1 }}>
+        {loading && <Overlay>Loading bars…</Overlay>}
+        {!loading && !error && bars.length === 0 && <Overlay>No data returned</Overlay>}
+        {error && <Overlay>Error: {error}</Overlay>}
+      </div>
+
+      {/* SUB-PANELS */}
+      <VolumePanel theme={theme} bars={bars} />
+
     </div>
   );
 }
