@@ -78,9 +78,7 @@ function Stoplight({ label, value, baseline, size = 60, unit = "%" }) {
           {pct(v)}{unit === "%" ? "%" : ""}
         </div>
       </div>
-      <div className="small" style={{ fontWeight:700, fontSize: 
-      
-      1720, lineHeight:1.1 }}>{label}</div>
+      <div className="small" style={{ fontWeight:700, fontSize: 17, lineHeight:1.1 }}>{label}</div>
       <div className={arrowClass} style={{ marginTop:2 }}>
         {arrow} {Number.isFinite(delta) ? delta.toFixed(1) : "0.0"}{unit === "%" ? "%" : ""}
       </div>
