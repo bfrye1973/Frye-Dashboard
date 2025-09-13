@@ -201,7 +201,7 @@ function LegendContent() {
   return (
     <div>
        {/* Breadth */}
-      <div style={h3}>Breadth (RPM)</div>
+      <div style={h3}>Breadth</div>
       <p>Shows what % of stocks are rising vs falling.</p>
       <p><strong>Example:</strong> 95% → Almost all stocks are going up together. Very strong market participation.</p>
       <div style={p}><strong>Zones:</strong></div>
@@ -225,7 +225,7 @@ function LegendContent() {
       </ul>
 
       {/* Intraday Squeeze */}
-      <div style={h3}>Intraday Squeeze (Fuel)</div>
+      <div style={h3}>Intraday Squeeze</div>
       <p>Shows how “compressed” today’s trading ranges are. Think spring tension.</p>
       <p><strong>Example:</strong> 95% → Market is very coiled; big move could fire soon.</p>
       <div style={p}><strong>Zones:</strong></div>
@@ -244,7 +244,7 @@ function LegendContent() {
       <div style={p}><strong>Zones:</strong> Same as Intraday.</div>
 
       {/* Volatility */}
-      <div style={h3}>Volatility (Water)</div>
+      <div style={h3}>Volatility</div>
       <p>How big the swings are.</p>
       <p><strong>Example:</strong> 95% → Very high volatility; market is turbulent and risky.</p>
       <div style={p}><strong>Zones:</strong></div>
@@ -256,7 +256,7 @@ function LegendContent() {
       </ul>
 
       {/* Liquidity */}
-      <div style={h3}>Liquidity (Oil)</div>
+      <div style={h3}>Liquidity</div>
       <p>How much buying/selling volume is available.</p>
       <p><strong>Example:</strong> 95% → Very liquid market; trades fill easily, low slippage.</p>
       <div style={p}><strong>Zones:</strong></div>
@@ -269,7 +269,7 @@ function LegendContent() {
       </ul>
 
       {/* Formula block */}
-      <div style={{ ...h3, marginTop: 12 }}>Market Meter (center):</div>
+      <div style={{ ...h3, marginTop: 12 }}>Market Meter</div>
       <div style={{ ...p, ...code }}>
         base = 0.4×Breadth + 0.4×Momentum + 0.2×(100 − Intraday&nbsp;Squeeze)
         <br />
@@ -279,7 +279,7 @@ function LegendContent() {
         When daily squeeze is high, the meter is blended toward 50 (neutral).
       </div>
 
-      {/* Market Meter dial */}
+      {/* Market Meter */}
       <div style={h3}>Overall Market Indicator</div>
       <p>Overall average of the gauges — like a “dashboard score.”</p>
       <p><strong>Example:</strong> 95% → Market is firing on all cylinders, very strong environment.</p>
