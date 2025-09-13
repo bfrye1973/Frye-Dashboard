@@ -55,7 +55,7 @@ export default function RowMarketOverview(props) {
         <div
           style={{
             display: "flex",
-            alignItems: "center",
+            alignItems: "left",
             justifyContent: "space-between",
             gap: 16,
             width: "100%",
