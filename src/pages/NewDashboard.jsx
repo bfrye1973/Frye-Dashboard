@@ -19,11 +19,12 @@ export default function NewDashboard() {
 
       {/* Row 6 — Chart (modular RowChart) */}
       <RowChart
-        apiBase="https://frye-market-backend-1.onrender.com"
-        defaultSymbol="SPY"
-        defaultTimeframe="1h"
-        height={520}
-      />
+  apiBase="https://frye-market-backend-1.onrender.com"
+  defaultSymbol="SPY"
+  defaultTimeframe="1h"
+  height={520}
+  showDebug={true}   // 👈 add this line
+/>
 
       <RowJournal />          {/* Row 7 */}
     </div>
