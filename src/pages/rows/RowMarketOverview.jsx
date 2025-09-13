@@ -12,7 +12,6 @@ const toneFor = (v) => (v >= 60 ? "ok" : v >= 40 ? "warn" : "danger");
 const dayKey = () => new Date().toISOString().slice(0, 10);
 function useDailyBaseline(keyName, current) {
   const [baseline, setBaseline] = React.useState(null);
-
   React.useEffect(() => {
     const k = `meter_baseline_${dayKey()}_${keyName}`;
     const saved = localStorage.getItem(k);
