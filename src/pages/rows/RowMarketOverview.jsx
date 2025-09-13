@@ -200,9 +200,7 @@ function LegendContent() {
 
   return (
     <div>
-      <div style={h2}>Market Meter — Gauge Legend (with Examples)</div>
-
-      {/* Breadth */}
+       {/* Breadth */}
       <div style={h3}>Breadth (RPM)</div>
       <p>Shows what % of stocks are rising vs falling.</p>
       <p><strong>Example:</strong> 95% → Almost all stocks are going up together. Very strong market participation.</p>
@@ -215,7 +213,7 @@ function LegendContent() {
       </ul>
 
       {/* Momentum */}
-      <div style={h3}>Momentum (Speed)</div>
+      <div style={h3}>Momentum</div>
       <p>Measures the balance of new highs vs new lows.</p>
       <p><strong>Example:</strong> 95% → Huge buying momentum; many stocks are breaking out to new highs.</p>
       <div style={p}><strong>Zones:</strong></div>
@@ -354,7 +352,7 @@ function LegendContent() {
           <Stoplight label="Daily Squeeze" value={squeezeDaily} baseline={bSqueezeDy} />
           <Stoplight label="Liquidity"  value={liquidity}  baseline={bLiquidity} unit="" />
           <Stoplight label="Volatility" value={volatility} baseline={bVol} />
-          <Stoplight label="Market Meter"  value={meterValue} baseline={meterValue} size={110} />
+          <Stoplight label="Overall Market Indicator"  value={meterValue} baseline={meterValue} size={110} />
         </div>
       </div>
     </section>
