@@ -8,6 +8,8 @@ const clamp01 = (n) => Math.max(0, Math.min(100, Number(n)));
 const pct = (n) => (Number.isFinite(n) ? n.toFixed(1) : "—");
 const toneFor = (v) => (v >= 60 ? "ok" : v >= 40 ? "warn" : "danger");
 
+const [legendOpen, setLegendOpen] = React.useState(false);
+
 /* ---------- baselines (per day) ---------- */
 const dayKey = () => new Date().toISOString().slice(0, 10);
 function useDailyBaseline(keyName, current) {
@@ -125,10 +127,123 @@ export default function RowMarketOverview() {
   const blended = (1 - Sdy) * baseMeter + Sdy * 50; // 0..100
   const meterValue = Math.round(blended);
 
+  function LegendModal({ onClose, children }) {
+    React.useEffect(() => {
+      const onKey = (e) => e.key === "Escape" && onClose?.();
+      window.addEventListener("keydown", onKey);
+      return () => window.removeEventListener("keydown", onKey);
+    }, [onClose]);
+  
+    return (
+      <div
+        role="dialog"
+        aria-modal="true"
+        onClick={onClose}
+        style={{
+          position: "fixed",
+          inset: 0,
+          background: "rgba(0,0,0,0.5)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          zIndex: 50,
+        }}
+      >
+        <div
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            width: "min(680px, 92vw)",
+            background: "#0b0b0c",
+            border: "1px solid #2b2b2b",
+            borderRadius: 12,
+            padding: 16,
+            boxShadow: "0 10px 30px rgba(0,0,0,0.35)",
+          }}
+        >
+          {children}
+        </div>
+      </div>
+    );
+  }
+  
   return (
     <section id="row-2" className="panel" style={{ padding:8 }}>
+      {legendOpen && (
+        <LegendModal onClose={() => setLegendOpen(false)}>
+          <h3 style={{ marginTop: 0, color: "#e5e7eb" }}>Market Meter Legend</h3>
+          <div style={{ color: "#cbd5e1", fontSize: 14, lineHeight: 1.5 }}>
+            <ul style={{ paddingLeft: 18, margin: "8px 0 16px" }}>
+              <li>
+                <strong>Breadth</strong> — % of advancing vs. declining participation (0–100).
+              </li>
+              <li>
+                <strong>Momentum</strong> — thrust/velocity index from recent breadth & price action (0–100).
+              </li>
+              <li>
+                <strong>Intraday Squeeze</strong> — compression % (higher = tighter). Expansion = 100 − compression.
+              </li>
+              <li>
+                <strong>Daily Squeeze</strong> — compression measured on the daily timeframe. Used to weight the meter toward neutral when very high.
+              </li>
+              <li>
+                <strong>Liquidity (PSI)</strong> — oil/pressure proxy (higher is better flow). Low values trigger “Low Liquidity” engine light.
+              </li>
+              <li>
+                <strong>Volatility</strong> — normalized water/volatility % (higher = more risk).
+              </li>
+            </ul>
+      
+            <div style={{ marginTop: 8 }}>
+              <strong>Market Meter (center):</strong>
+              <div style={{ marginTop: 6, fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}>
+                base = 0.4×Breadth + 0.4×Momentum + 0.2×(100 − Intraday&nbsp;Squeeze)
+                <br />
+                blend = (1 − w)×base + w×50, where w = Daily&nbsp;Squeeze/100
+              </div>
+              <div style={{ marginTop: 8, opacity: 0.8 }}>
+                When daily squeeze is high, the meter is blended toward 50 (neutral).
+              </div>
+            </div>
+      
+            <div style={{ marginTop: 16, display: "flex", gap: 8, justifyContent: "flex-end" }}>
+              <button
+                onClick={() => setLegendOpen(false)}
+                style={{
+                  background: "#eab308",
+                  color: "#111827",
+                  border: "none",
+                  borderRadius: 8,
+                  padding: "8px 12px",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                }}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </LegendModal>
+      )}
+
+
+      
       <div className="panel-head">
         <div className="panel-title">Market Meter — Stoplights</div>
+        <button
+          onClick={() => setLegendOpen(true)}
+          style={{
+            background: "#0b0b0b",
+            color: "#e5e7eb",
+            border: "1px solid #2b2b2b",
+            borderRadius: 8,
+            padding: "6px 10px",
+            fontWeight: 600,
+            cursor: "pointer",
+          }}
+          title="Show legend"
+        >
+          Legend
+        </button>
         <div className="spacer" />
         <LastUpdated ts={ts} />
       </div>
