@@ -8,7 +8,7 @@ const clamp01 = (n) => Math.max(0, Math.min(100, Number(n)));
 const pct = (n) => (Number.isFinite(n) ? n.toFixed(1) : "—");
 const toneFor = (v) => (v >= 60 ? "ok" : v >= 40 ? "warn" : "danger");
 
-const [legendOpen, setLegendOpen] = React.useState(false);
+
 
 /* ---------- baselines (per day) ---------- */
 const dayKey = () => new Date().toISOString().slice(0, 10);
@@ -92,6 +92,8 @@ export default function RowMarketOverview() {
   // ✅ dynamic cadence (RTH=15s, pre/post=30s, overnight/weekend=120s)
   const { data } = useDashboardPoll?.("dynamic") ?? { data:null };
 
+  const [legendOpen, setLegendOpen] = React.useState(false);
+  
   const od = data?.odometers ?? {};
   const gg = data?.gauges ?? {};
   const ts = data?.meta?.ts || null;
