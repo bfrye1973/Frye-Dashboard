@@ -74,11 +74,13 @@ function Stoplight({ label, value, baseline, size = 60, unit = "%" }) {
           border: "5px solid #0c1320"
         }}
       >
-        <div style={{ fontWeight:800, fontSize:size > 100 ? 20 : 20, color:"#0b1220" }}>
+        <div style={{ fontWeight:800, fontSize:size > 100 ? 20 : 17, color:"#0b1220" }}>
           {pct(v)}{unit === "%" ? "%" : ""}
         </div>
       </div>
-      <div className="small" style={{ fontWeight:700, fontSize: 20, lineHeight:1.1 }}>{label}</div>
+      <div className="small" style={{ fontWeight:700, fontSize: 
+      
+      1720, lineHeight:1.1 }}>{label}</div>
       <div className={arrowClass} style={{ marginTop:2 }}>
         {arrow} {Number.isFinite(delta) ? delta.toFixed(1) : "0.0"}{unit === "%" ? "%" : ""}
       </div>
