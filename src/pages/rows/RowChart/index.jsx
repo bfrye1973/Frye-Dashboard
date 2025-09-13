@@ -11,6 +11,7 @@ export default function RowChart({
   defaultTimeframe = "1h",
   height = 520,
   onStatus,
+  showDebug = false,              // 👈 NEW
 }) {
   const [state, setState] = useState({
     symbol: defaultSymbol,
@@ -18,22 +19,19 @@ export default function RowChart({
     range: null,
   });
 
-  const theme = useMemo(
-    () => ({
-      layout: { background: { type: "solid", color: "#0a0a0a" }, textColor: "#e5e7eb" },
-      grid: { vertLines: { color: "#1e1e1e" }, horzLines: { color: "#1e1e1e" } },
-      rightPriceScale: { borderColor: "#2b2b2b" },
-      timeScale: { borderColor: "#2b2b2b", rightOffset: 6, barSpacing: 8, fixLeftEdge: true },
-      crosshair: { mode: 0 },
-      upColor: "#16a34a",
-      downColor: "#ef4444",
-      wickUpColor: "#16a34a",
-      wickDownColor: "#ef4444",
-      borderUpColor: "#16a34a",
-      borderDownColor: "#ef4444",
-    }),
-    []
-  );
+  const theme = useMemo(() => ({
+    layout: { background: { type: "solid", color: "#0a0a0a" }, textColor: "#e5e7eb" },
+    grid: { vertLines: { color: "#1e1e1e" }, horzLines: { color: "#1e1e1e" } },
+    rightPriceScale: { borderColor: "#2b2b2b" },
+    timeScale: { borderColor: "#2b2b2b", rightOffset: 6, barSpacing: 8, fixLeftEdge: true },
+    crosshair: { mode: 0 },
+    upColor: "#16a34a",
+    downColor: "#ef4444",
+    wickUpColor: "#16a34a",
+    wickDownColor: "#ef4444",
+    borderUpColor: "#16a34a",
+    borderDownColor: "#ef4444",
+  }), []);
 
   const { containerRef, setData } = useLwcChart({ height, theme });
   const { bars, loading, error, refetch } = useOhlc({
@@ -42,72 +40,41 @@ export default function RowChart({
     timeframe: state.timeframe,
   });
 
-  // Status (optional)
   useEffect(() => {
-    onStatus &&
-      onStatus(loading ? "loading" : error ? "error" : bars.length ? "ready" : "idle");
+    onStatus && onStatus(loading ? "loading" : error ? "error" : bars.length ? "ready" : "idle");
   }, [loading, error, bars, onStatus]);
 
-  // Fetch immediately on mount
-  useEffect(() => {
-    void refetch(true);
-  }, []); // mount only
+  useEffect(() => { void refetch(true); }, []); // fetch on mount
+  useEffect(() => { void refetch(true); }, [state.symbol, state.timeframe]); // refetch on changes
 
-  // Refetch on symbol/timeframe change
   useEffect(() => {
-    void refetch(true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.symbol, state.timeframe]);
-
-  // Push bars → chart (respect range buttons)
-  useEffect(() => {
-    const data =
-      state.range && bars.length > state.range ? bars.slice(-state.range) : bars;
+    const data = state.range && bars.length > state.range ? bars.slice(-state.range) : bars;
     setData(data);
   }, [bars, state.range, setData]);
 
   const baseShown = resolveApiBase(apiBase);
 
   return (
-    <div
-      style={{
-        height,
-        overflow: "hidden",
-        background: "#0a0a0a",
-        border: "1px solid #2b2b2b",
-        borderRadius: 12,
-        display: "flex",
-        flexDirection: "column",
-      }}
-    >
+    <div style={{
+      height, overflow: "hidden", background: "#0a0a0a",
+      border: "1px solid #2b2b2b", borderRadius: 12, display: "flex", flexDirection: "column"
+    }}>
       <Controls
         symbols={SYMBOLS}
         timeframes={TIMEFRAMES}
-        value={{
-          symbol: state.symbol,
-          timeframe: state.timeframe,
-          range: state.range,
-          disabled: loading,
-        }}
+        value={{ symbol: state.symbol, timeframe: state.timeframe, range: state.range, disabled: loading }}
         onChange={(patch) => setState((s) => ({ ...s, ...patch }))}
-        onTest={async () => {
+        onTest={showDebug ? async () => {                 // 👈 Only enabled in debug
           const r = await refetch(true);
           alert(r.ok ? `Fetched ${r.count || 0} bars` : `Error: ${r.error || "unknown"}`);
-        }}
+        } : undefined}
       />
 
-      {/* small debug line – remove once you're happy */}
-      <div
-        style={{
-          padding: "6px 12px",
-          color: "#9ca3af",
-          fontSize: 12,
-          borderBottom: "1px solid #2b2b2b",
-        }}
-      >
-        debug • base: {baseShown || "MISSING"} • symbol: {state.symbol} • tf:{" "}
-        {state.timeframe} • bars: {bars.length}
-      </div>
+      {showDebug && (                                         // 👈 Debug badge gated
+        <div style={{ padding: "6px 12px", color: "#9ca3af", fontSize: 12, borderBottom: "1px solid #2b2b2b" }}>
+          debug • base: {baseShown || "MISSING"} • symbol: {state.symbol} • tf: {state.timeframe} • bars: {bars.length}
+        </div>
+      )}
 
       <div ref={containerRef} style={{ position: "relative", flex: 1 }}>
         {loading && <Overlay>Loading bars…</Overlay>}
@@ -120,19 +87,11 @@ export default function RowChart({
 
 function Overlay({ children }) {
   return (
-    <div
-      style={{
-        position: "absolute",
-        inset: 0,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        color: "#9ca3af",
-        background: "transparent",
-        pointerEvents: "none",
-        textAlign: "center",
-      }}
-    >
+    <div style={{
+      position: "absolute", inset: 0, display: "flex", alignItems: "center",
+      justifyContent: "center", color: "#9ca3af", background: "transparent",
+      pointerEvents: "none", textAlign: "center"
+    }}>
       {children}
     </div>
   );
