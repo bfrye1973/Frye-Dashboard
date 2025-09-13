@@ -1,21 +1,35 @@
-// Overlay EMA line on the main price pane
-export function emaAttach(chartApi, seriesMap, values, inputs) {
-  const { color = "#f59e0b", lineWidth = 2, id = "ema" } = inputs || {};
-  const line = chartApi.addLineSeries({
+// Lightweight-charts overlay helper for EMA
+// Usage: const ema20 = createEmaOverlay({ chart, period:20, color:'#22c55e' });
+//        ema20.setBars(bars);  ema20.remove();
+
+import { computeEMA } from "./compute";
+
+export function createEmaOverlay({
+  chart,
+  period = 20,
+  color = "#22c55e",
+  src = "close",
+  lineWidth = 2,
+}) {
+  if (!chart) throw new Error("createEmaOverlay: chart is required");
+
+  const series = chart.addLineSeries({
+    priceScaleId: "right",
     color,
     lineWidth,
+    lastValueVisible: false,
     priceLineVisible: false,
+    crosshairMarkerVisible: true,
   });
-  seriesMap.set(id, line);
 
-  const candles = chartApi._candles || [];
-  const data = values
-    .map((v, i) => (v == null ? null : { time: candles[i].time, value: v }))
-    .filter(Boolean);
-  line.setData(data);
+  function setBars(bars) {
+    const data = computeEMA(bars || [], period, src);
+    series.setData(data);
+  }
 
-  return () => {
-    try { chartApi.removeSeries(line); } catch {}
-    seriesMap.delete(id);
-  };
+  function remove() {
+    try { chart.removeSeries(series); } catch {}
+  }
+
+  return { setBars, remove, series, period };
 }
