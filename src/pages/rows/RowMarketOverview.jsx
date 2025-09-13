@@ -142,7 +142,14 @@ export default function RowMarketOverview() {
         marginTop:6
       }}>
         {/* LEFT: Breadth, Momentum, Intraday Squeeze */}
-        <div style={{ display:"flex", gap:10, flexWrap:"nowrap", justifyContent:"flex-start" }}>
+        <div style={{ 
+              display: 'flex',
+              gap: 16,               // spacing between the 3 buttons
+              maxWidth: 420,         // 👈 cap total width (tune 360–520 as you like)
+              width: '100%',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+            }}>
           <Stoplight label="Breadth"          value={breadth}       baseline={bBreadth} />
           <Stoplight label="Momentum"         value={momentum}      baseline={bMomentum} />
           <Stoplight label="Intraday Squeeze" value={squeezeIntra}  baseline={bSqueezeIn} />
