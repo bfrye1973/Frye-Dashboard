@@ -1,8 +1,26 @@
-export const SYMBOLS = ["SPY","QQQ","IWM","DIA","AAPL","MSFT","AMZN","GOOGL","META","TSLA","NVDA"];
-export const TIMEFRAMES = ["1m","5m","15m","30m","1h","4h","1d"];
+// src/pages/rows/RowChart/constants.js
 
+// Preset symbols for dropdown
+export const SYMBOLS = [
+  "SPY",
+  "QQQ",
+  "IWM",
+  "DIA",
+  "AAPL",
+  "MSFT",
+  "AMZN",
+  "GOOGL",
+  "META",
+  "TSLA",
+  "NVDA",
+];
+
+// Preset timeframes for dropdown
+export const TIMEFRAMES = ["1m", "5m", "15m", "30m", "1h", "4h", "1d"];
+
+// Resolve API base URL (priority: explicit prop > env > same-origin)
 export function resolveApiBase(explicit) {
-  const env = (process.env.REACT_APP_API_BASE || "").replace(/\/$/,"");
-  const prop = (explicit || "").replace(/\/$/,"");
+  const env = (process.env.REACT_APP_API_BASE || "").replace(/\/$/, "");
+  const prop = (explicit || "").replace(/\/$/, "");
   return prop || env || window.location.origin;
 }
