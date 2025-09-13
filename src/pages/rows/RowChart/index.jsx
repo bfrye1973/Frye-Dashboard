@@ -42,24 +42,24 @@ export default function RowChart({
     timeframe: state.timeframe,
   });
 
-  // Report status up (optional)
+  // Status (optional)
   useEffect(() => {
     onStatus &&
       onStatus(loading ? "loading" : error ? "error" : bars.length ? "ready" : "idle");
   }, [loading, error, bars, onStatus]);
 
-  // >>> ALWAYS fetch immediately on mount
+  // Fetch immediately on mount
   useEffect(() => {
     void refetch(true);
   }, []); // mount only
 
-  // >>> Refetch whenever symbol or timeframe change
+  // Refetch on symbol/timeframe change
   useEffect(() => {
     void refetch(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.symbol, state.timeframe]);
 
-  // Pipe data into chart + fit view; apply range window if set
+  // Push bars → chart (respect range buttons)
   useEffect(() => {
     const data =
       state.range && bars.length > state.range ? bars.slice(-state.range) : bars;
@@ -96,7 +96,7 @@ export default function RowChart({
         }}
       />
 
-      {/* Tiny badge for sanity while we finish wiring; remove later */}
+      {/* small debug line – remove once you're happy */}
       <div
         style={{
           padding: "6px 12px",
@@ -110,12 +110,8 @@ export default function RowChart({
       </div>
 
       <div ref={containerRef} style={{ position: "relative", flex: 1 }}>
-        {loading && (
-          <Overlay>Loading bars…</Overlay>
-        )}
-        {!loading && !error && bars.length === 0 && (
-          <Overlay>No data returned</Overlay>
-        )}
+        {loading && <Overlay>Loading bars…</Overlay>}
+        {!loading && !error && bars.length === 0 && <Overlay>No data returned</Overlay>}
         {error && <Overlay>Error: {error}</Overlay>}
       </div>
     </div>
@@ -141,4 +137,3 @@ function Overlay({ children }) {
     </div>
   );
 }
-
