@@ -142,7 +142,7 @@ export default function RowMarketOverview() {
         marginTop:6
       }}>
         {/* LEFT: Breadth, Momentum, Intraday Squeeze */}
-        <divstyle={{
+        <div style={{
           display: "flex",
           justifyContent: "center",   // center the row
           gap: 16,                    // space between buttons
