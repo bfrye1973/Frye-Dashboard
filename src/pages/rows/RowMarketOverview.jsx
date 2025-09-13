@@ -140,7 +140,7 @@ export default function RowMarketOverview() {
         alignItems:"center",
         gap:10,
         marginTop:6
-      }}>
+      }}>        
         {/* LEFT: Breadth, Momentum, Intraday Squeeze */}
         <div style={{
           display: "flex",
