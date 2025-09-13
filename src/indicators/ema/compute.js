@@ -1,27 +1,26 @@
-// Exponential Moving Average
-export function emaCompute(candles, inputs) {
-  const { length = 20, source = "close" } = inputs || {};
-  if (!candles?.length || length <= 1) return new Array(candles.length).fill(null);
+// Exponential Moving Average for lightweight-charts bars
+// bars: [{time, open, high, low, close, volume}]
+// returns [{time, value}] compatible with lineSeries.setData
 
-  const out = new Array(candles.length).fill(null);
-  const k = 2 / (length + 1);
+export function computeEMA(bars, period = 20, src = "close") {
+  if (!Array.isArray(bars) || bars.length === 0) return [];
+  const p = Math.max(1, Number(period));
+  const k = 2 / (p + 1); // smoothing
+  const out = [];
 
-  // seed with SMA of first N
-  let sum = 0;
-  for (let i = 0; i < length; i++) {
-    const c = candles[i];
-    const v = c?.[source] ?? c?.close ?? 0;
-    sum += v;
+  let ema = null;
+  for (let i = 0; i < bars.length; i++) {
+    const price = Number(bars[i]?.[src] ?? NaN);
+    if (!Number.isFinite(price)) continue;
+
+    ema = (ema == null)
+      ? price // seed on first valid price
+      : (price - ema) * k + ema;
+
+    // Only start emitting once we have "period" samples (optional)
+    if (i >= p - 1) {
+      out.push({ time: Number(bars[i].time), value: ema });
+    }
   }
-  let ema = sum / length;
-  out[length - 1] = ema;
-
-  for (let i = length; i < candles.length; i++) {
-    const c = candles[i];
-    const v = c?.[source] ?? c?.close ?? 0;
-    ema = v * k + ema * (1 - k);
-    out[i] = ema;
-  }
-
   return out;
 }
