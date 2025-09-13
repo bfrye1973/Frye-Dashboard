@@ -130,105 +130,182 @@ export default function RowMarketOverview() {
   const meterValue = Math.round(blended);
 
   function LegendModal({ onClose, children }) {
-    React.useEffect(() => {
-      const onKey = (e) => e.key === "Escape" && onClose?.();
-      window.addEventListener("keydown", onKey);
-      return () => window.removeEventListener("keydown", onKey);
-    }, [onClose]);
-  
-    return (
+  React.useEffect(() => {
+    const onKey = (e) => e.key === "Escape" && onClose?.();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      onClick={onClose}
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0,0,0,0.5)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 50,
+      }}
+    >
       <div
-        role="dialog"
-        aria-modal="true"
-        onClick={onClose}
+        onClick={(e) => e.stopPropagation()}
         style={{
-          position: "fixed",
-          inset: 0,
-          background: "rgba(0,0,0,0.5)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          zIndex: 50,
+          width: "min(860px, 92vw)",
+          background: "#0b0b0c",
+          border: "1px solid #2b2b2b",
+          borderRadius: 12,
+          padding: 16,
+          boxShadow: "0 10px 30px rgba(0,0,0,0.35)",
         }}
       >
-        <div
-          onClick={(e) => e.stopPropagation()}
-          style={{
-            width: "min(680px, 92vw)",
-            background: "#0b0b0c",
-            border: "1px solid #2b2b2b",
-            borderRadius: 12,
-            padding: 16,
-            boxShadow: "0 10px 30px rgba(0,0,0,0.35)",
-          }}
-        >
-          {children}
+        {children}
+        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}>
+          <button
+            onClick={onClose}
+            style={{
+              background: "#eab308",
+              color: "#111827",
+              border: "none",
+              borderRadius: 8,
+              padding: "8px 12px",
+              fontWeight: 700,
+              cursor: "pointer",
+            }}
+          >
+            Close
+          </button>
         </div>
       </div>
-    );
-  }
+    </div>
+  );
+}
+
+function LegendContent() {
+  const h2 = { color: "#e5e7eb", margin: "6px 0 8px", fontSize: 16, fontWeight: 700 };
+  const h3 = { color: "#e5e7eb", margin: "10px 0 6px", fontSize: 14, fontWeight: 700 };
+  const p  = { color: "#cbd5e1", margin: "4px 0", fontSize: 14, lineHeight: 1.5 };
+  const ul = { color: "#cbd5e1", fontSize: 14, lineHeight: 1.5, paddingLeft: 18, margin: "4px 0 10px" };
+  const code = { fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", color: "#e5e7eb" };
+
+  const Tag = ({ bg, children }) => (
+    <span style={{
+      display: "inline-block", padding: "2px 6px", borderRadius: 6,
+      fontSize: 12, marginLeft: 6, background: bg, color: "#0f1115", fontWeight: 700
+    }}>{children}</span>
+  );
+
+  return (
+    <div>
+      <div style={h2}>Market Meter — Gauge Legend (with Examples)</div>
+
+      {/* Breadth */}
+      <div style={h3}>Breadth (RPM)</div>
+      <p>Shows what % of stocks are rising vs falling.</p>
+      <p><strong>Example:</strong> 95% → Almost all stocks are going up together. Very strong market participation.</p>
+      <div style={p}><strong>Zones:</strong></div>
+      <ul style={ul}>
+        <li>0–34% <Tag bg="#ef4444">🔴 Weak</Tag> → Most stocks are falling.</li>
+        <li>35–64% <Tag bg="#f59e0b">🟡 Neutral</Tag> → Mixed, no clear trend.</li>
+        <li>65–84% <Tag bg="#22c55e">🟢 Strong</Tag> → Broad rally.</li>
+        <li>85–100% <Tag bg="#fca5a5">🟥 Extreme</Tag> → Overheated, risk of pullback.</li>
+      </ul>
+
+      {/* Momentum */}
+      <div style={h3}>Momentum (Speed)</div>
+      <p>Measures the balance of new highs vs new lows.</p>
+      <p><strong>Example:</strong> 95% → Huge buying momentum; many stocks are breaking out to new highs.</p>
+      <div style={p}><strong>Zones:</strong></div>
+      <ul style={ul}>
+        <li>0–34% <Tag bg="#ef4444">🔴 Bearish</Tag> → More new lows than highs.</li>
+        <li>35–64% <Tag bg="#f59e0b">🟡 Neutral</Tag> → Balanced.</li>
+        <li>65–84% <Tag bg="#22c55e">🟢 Bullish</Tag> → More new highs than lows.</li>
+        <li>85–100% <Tag bg="#fca5a5">🟥 Extreme</Tag> → Momentum may be unsustainable.</li>
+      </ul>
+
+      {/* Intraday Squeeze */}
+      <div style={h3}>Intraday Squeeze (Fuel)</div>
+      <p>Shows how “compressed” today’s trading ranges are. Think spring tension.</p>
+      <p><strong>Example:</strong> 95% → Market is very coiled; big move could fire soon.</p>
+      <div style={p}><strong>Zones:</strong></div>
+      <ul style={ul}>
+        <li>0–34% <Tag bg="#22c55e">🟢 Expanded</Tag> → Market already moving freely.</li>
+        <li>35–64% <Tag bg="#f59e0b">🟡 Normal</Tag> → Average compression.</li>
+        <li>65–84% <Tag bg="#fb923c">🟠 Tight</Tag> → Building pressure.</li>
+        <li>85–100% <Tag bg="#f97316">🔥 Critical</Tag> → Very tight coil, watch for breakout.</li>
+      </ul>
+
+      {/* Market Meter dial */}
+      <div style={h3}>Market Meter (Center Dial)</div>
+      <p>Overall average of the gauges — like a “dashboard score.”</p>
+      <p><strong>Example:</strong> 95% → Market is firing on all cylinders, very strong environment.</p>
+      <div style={p}><strong>Zones:</strong></div>
+      <ul style={ul}>
+        <li>0–34% <Tag bg="#ef4444">🔴 Weak</Tag> → Market conditions unfavorable.</li>
+        <li>35–64% <Tag bg="#f59e0b">🟡 Mixed</Tag> → Sideways/choppy.</li>
+        <li>65–84% <Tag bg="#22c55e">🟢 Favorable</Tag> → Trend-friendly.</li>
+        <li>85–100% <Tag bg="#fca5a5">🟥 Extreme</Tag> → May be overheated.</li>
+      </ul>
+
+      {/* Daily Squeeze */}
+      <div style={h3}>Daily Squeeze</div>
+      <p>Same as Intraday Squeeze, but over multiple days (bigger picture).</p>
+      <p><strong>Example:</strong> 95% → Market is extremely compressed on the daily chart → expect a big move soon.</p>
+      <div style={p}><strong>Zones:</strong> Same as Intraday.</div>
+
+      {/* Volatility */}
+      <div style={h3}>Volatility (Water)</div>
+      <p>How big the swings are.</p>
+      <p><strong>Example:</strong> 95% → Very high volatility; market is turbulent and risky.</p>
+      <div style={p}><strong>Zones:</strong></div>
+      <ul style={ul}>
+        <li>0–29% <Tag bg="#22c55e">🟢 Calm</Tag> → Easy to hold positions.</li>
+        <li>30–59% <Tag bg="#f59e0b">🟡 Normal</Tag> → Manageable swings.</li>
+        <li>60–74% <Tag bg="#fb923c">🟠 Elevated</Tag> → Riskier conditions.</li>
+        <li>75–100% <Tag bg="#ef4444">🔴 High</Tag> → Expect sharp, unpredictable moves.</li>
+      </ul>
+
+      {/* Liquidity */}
+      <div style={h3}>Liquidity (Oil)</div>
+      <p>How much buying/selling volume is available.</p>
+      <p><strong>Example:</strong> 95% → Very liquid market; trades fill easily, low slippage.</p>
+      <div style={p}><strong>Zones:</strong></div>
+      <ul style={ul}>
+        <li>0–29% <Tag bg="#ef4444">🔴 Thin</Tag> → Hard to get in/out without moving price.</li>
+        <li>30–49% <Tag bg="#fb923c">🟠 Light</Tag> → Caution needed.</li>
+        <li>50–69% <Tag bg="#f59e0b">🟡 Normal</Tag> → Adequate.</li>
+        <li>70–84% <Tag bg="#22c55e">🟢 Good</Tag> → Healthy trading.</li>
+        <li>85–100% <Tag bg="#16a34a">🟢🟢 Excellent</Tag> → Very easy to trade.</li>
+      </ul>
+
+      {/* Formula block */}
+      <div style={{ ...h3, marginTop: 12 }}>Market Meter (center):</div>
+      <div style={{ ...p, ...code }}>
+        base = 0.4×Breadth + 0.4×Momentum + 0.2×(100 − Intraday&nbsp;Squeeze)
+        <br />
+        blend = (1 − w)×base + w×50, where w = Daily&nbsp;Squeeze/100
+      </div>
+      <div style={{ ...p, opacity: 0.8, marginTop: 6 }}>
+        When daily squeeze is high, the meter is blended toward 50 (neutral).
+      </div>
+    </div>
+  );
+}
+
   
   return (
     <section id="row-2" className="panel" style={{ padding:8 }}>
+
       {legendOpen && (
         <LegendModal onClose={() => setLegendOpen(false)}>
-          <h3 style={{ marginTop: 0, color: "#e5e7eb" }}>Market Meter Legend</h3>
-          <div style={{ color: "#cbd5e1", fontSize: 14, lineHeight: 1.5 }}>
-            <ul style={{ paddingLeft: 18, margin: "8px 0 16px" }}>
-              <li>
-                <strong>Breadth</strong> — % of advancing vs. declining participation (0–100).
-              </li>
-              <li>
-                <strong>Momentum</strong> — thrust/velocity index from recent breadth & price action (0–100).
-              </li>
-              <li>
-                <strong>Intraday Squeeze</strong> — compression % (higher = tighter). Expansion = 100 − compression.
-              </li>
-              <li>
-                <strong>Daily Squeeze</strong> — compression measured on the daily timeframe. Used to weight the meter toward neutral when very high.
-              </li>
-              <li>
-                <strong>Liquidity (PSI)</strong> — oil/pressure proxy (higher is better flow). Low values trigger “Low Liquidity” engine light.
-              </li>
-              <li>
-                <strong>Volatility</strong> — normalized water/volatility % (higher = more risk).
-              </li>
-            </ul>
-      
-            <div style={{ marginTop: 8 }}>
-              <strong>Market Meter (center):</strong>
-              <div style={{ marginTop: 6, fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}>
-                base = 0.4×Breadth + 0.4×Momentum + 0.2×(100 − Intraday&nbsp;Squeeze)
-                <br />
-                blend = (1 − w)×base + w×50, where w = Daily&nbsp;Squeeze/100
-              </div>
-              <div style={{ marginTop: 8, opacity: 0.8 }}>
-                When daily squeeze is high, the meter is blended toward 50 (neutral).
-              </div>
-            </div>
-      
-            <div style={{ marginTop: 16, display: "flex", gap: 8, justifyContent: "flex-end" }}>
-              <button
-                onClick={() => setLegendOpen(false)}
-                style={{
-                  background: "#eab308",
-                  color: "#111827",
-                  border: "none",
-                  borderRadius: 8,
-                  padding: "8px 12px",
-                  fontWeight: 700,
-                  cursor: "pointer",
-                }}
-              >
-                Close
-              </button>
-            </div>
-          </div>
+          <LegendContent />
         </LegendModal>
       )}
 
-
-      
+            
       <div className="panel-head">
         <div className="panel-title">Market Meter — Stoplights</div>
         <button
