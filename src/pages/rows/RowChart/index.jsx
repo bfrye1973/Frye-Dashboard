@@ -1,8 +1,8 @@
-// src/pages/rows/RowChart/index.jsx  (v2.0.3)
+// src/pages/rows/RowChart/index.jsx  (v2.1.0 — separate TimeRail)
 import React, { useMemo, useState, useEffect, useRef } from "react";
 import Controls from "./Controls";
 import IndicatorsToolbar from "./IndicatorsToolbar";
-import TimelineOverlay from "./TimelineOverlay";
+import TimeRail from "./TimeRail";                 // ⬅️ use rail below chart, not overlay
 import useOhlc from "./useOhlc";
 import useLwcChart from "./useLwcChart";
 import { SYMBOLS, TIMEFRAMES, resolveApiBase } from "./constants";
@@ -16,18 +16,16 @@ export default function RowChart({
   onStatus,
   showDebug = false,
 }) {
-  // Reserve space for time rail so it never covers candles
-  const BOTTOM_PAD = 42;
-  const chartHeight = Math.max(120, height - BOTTOM_PAD);
+  // rail is a separate element; chart gets explicit height = height - rail
+  const RAIL_H = 42;
+  const chartHeight = Math.max(120, height - RAIL_H);
 
-  // UI state
   const [state, setState] = useState({
     symbol: defaultSymbol,
     timeframe: defaultTimeframe,
     range: null,
   });
 
-  // Indicator toggles
   const [ind, setInd] = useState({
     showEma: true,
     ema10: true,
@@ -35,13 +33,12 @@ export default function RowChart({
     ema50: true,
   });
 
-  // Chart theme
   const theme = useMemo(
     () => ({
       layout: { background: { type: "solid", color: "#0a0a0a" }, textColor: "#e5e7eb" },
-      grid: { vertLines: { color: "#1e1e1e" }, horzLines: { color: "#1e1e1e" } },
+      grid:   { vertLines: { color: "#1e1e1e" }, horzLines: { color: "#1e1e1e" } },
       rightPriceScale: { borderColor: "#2b2b2b" },
-      timeScale: { borderColor: "#2b2b2b", rightOffset: 6, barSpacing: 8, fixLeftEdge: true },
+      timeScale:       { borderColor: "#2b2b2b", rightOffset: 6, barSpacing: 8, fixLeftEdge: true },
       crosshair: { mode: 0 },
       upColor: "#16a34a",
       downColor: "#ef4444",
@@ -53,26 +50,25 @@ export default function RowChart({
     []
   );
 
-  // Main chart (reduced height so rail fits)
+  // Main chart at explicit height (so the rail has its own lane)
   const { containerRef, chart, setData } = useLwcChart({ height: chartHeight, theme });
 
-  // Data
   const { bars, loading, error, refetch } = useOhlc({
     apiBase,
     symbol: state.symbol,
     timeframe: state.timeframe,
   });
 
-  // Status up
+  // status
   useEffect(() => {
     onStatus && onStatus(loading ? "loading" : error ? "error" : bars.length ? "ready" : "idle");
   }, [loading, error, bars, onStatus]);
 
-  // Fetch on mount + on symbol/TF changes
+  // fetch on mount + on symbol/tf change
   useEffect(() => { void refetch(true); }, []);
   useEffect(() => { void refetch(true); }, [state.symbol, state.timeframe]);
 
-  // Push bars into candle series
+  // feed candles
   useEffect(() => {
     const data = state.range && bars.length > state.range ? bars.slice(-state.range) : bars;
     setData(data);
@@ -81,7 +77,6 @@ export default function RowChart({
   // ---------- EMA overlays ----------
   const emaOverlaysRef = useRef({}); // { e10, e20, e50 }
 
-  // Create/remove overlays when chart/toggles change; feed current bars immediately
   useEffect(() => {
     if (!chart) return;
 
@@ -98,17 +93,15 @@ export default function RowChart({
       if (ind.ema50) emaOverlaysRef.current.e50 = createEmaOverlay({ chart, period: 50, color: "#34d399" });
     }
 
-    // feed current bars so lines appear immediately
-    const overlays = emaOverlaysRef.current;
-    Object.values(overlays).forEach((o) => o?.setBars?.(bars));
+    // push current bars so lines appear immediately
+    Object.values(emaOverlaysRef.current).forEach((o) => o?.setBars?.(bars));
 
     return () => removeAll();
   }, [chart, ind.showEma, ind.ema10, ind.ema20, ind.ema50, bars]);
 
-  // Re-feed on bars/toggle changes (belt & suspenders)
+  // re-feed on bars/toggle changes
   useEffect(() => {
-    const overlays = emaOverlaysRef.current;
-    Object.values(overlays).forEach((o) => o?.setBars?.(bars));
+    Object.values(emaOverlaysRef.current).forEach((o) => o?.setBars?.(bars));
   }, [bars, ind.showEma, ind.ema10, ind.ema20, ind.ema50]);
 
   const baseShown = resolveApiBase(apiBase);
@@ -125,7 +118,7 @@ export default function RowChart({
         flexDirection: "column",
       }}
     >
-      {/* Controls (symbol, timeframe, range) */}
+      {/* Controls */}
       <Controls
         symbols={SYMBOLS}
         timeframes={TIMEFRAMES}
@@ -141,7 +134,7 @@ export default function RowChart({
         }
       />
 
-      {/* Indicators toolbar */}
+      {/* Indicators */}
       <IndicatorsToolbar
         showEma={ind.showEma}
         ema10={ind.ema10}
@@ -150,7 +143,7 @@ export default function RowChart({
         onChange={(patch) => setInd((s) => ({ ...s, ...patch }))}
       />
 
-      {/* Full screen chart quick link */}
+      {/* Full chart link */}
       <div style={{ display: "flex", justifyContent: "flex-end", padding: "6px 12px", borderBottom: "1px solid #2b2b2b" }}>
         <button
           onClick={() => {
@@ -171,21 +164,24 @@ export default function RowChart({
         </button>
       </div>
 
-      {/* Debug line (optional) */}
+      {/* Debug (optional) */}
       {showDebug && (
         <div style={{ padding: "6px 12px", color: "#9ca3af", fontSize: 12, borderBottom: "1px solid #2b2b2b" }}>
           debug • base: {baseShown || "MISSING"} • symbol: {state.symbol} • tf: {state.timeframe} • bars: {bars.length}
         </div>
       )}
 
-      {/* Chart host — paddingBottom reserves the time-rail lane */}
-      <div ref={containerRef} style={{ position: "relative", flex: 1, paddingBottom: BOTTOM_PAD }}>
-        {loading && <Overlay>Loading bars…</Overlay>}
-        {!loading && !error && bars.length === 0 && <Overlay>No data returned</Overlay>}
-        {error && <Overlay>Error: {error}</Overlay>}
+      {/* Chart + Time rail column */}
+      <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+        {/* Chart canvas gets explicit height */}
+        <div ref={containerRef} style={{ position: "relative", height: chartHeight }}>
+          {loading && <Overlay>Loading bars…</Overlay>}
+          {!loading && !error && bars.length === 0 && <Overlay>No data returned</Overlay>}
+          {error && <Overlay>Error: {error}</Overlay>}
+        </div>
 
-        {/* Time rail (hours + dates) */}
-        <TimelineOverlay chart={chart} container={containerRef.current} bars={bars} />
+        {/* Separate rail BELOW the chart (always visible) */}
+        <TimeRail chart={chart} bars={bars} />
       </div>
     </div>
   );
