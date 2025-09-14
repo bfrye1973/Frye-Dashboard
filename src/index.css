@@ -110,3 +110,47 @@ button{
 }
 .badge.live  { background: #052e1b; color:#34d399; border-color:#14532d; }
 .badge.stale { background: #3a0e0e; color:#fca5a5; border-color:#7f1d1d; }
+/* ===== Black-canvas FIX (append to end) ===== */
+
+/* Make the page size to the viewport and allow inner content to shrink */
+html, body { height: 100%; }
+body {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;      /* page = viewport height */
+  margin: 0;
+}
+
+/* Let the app root fill the page and NOT leave slack at the bottom */
+body > #root {
+  flex: 1 1 auto;
+  min-height: 0 !important;     /* critical: allow children to shrink */
+  overflow: hidden !important;   /* hide any leftover seam */
+}
+
+/* Full Chart & Row 6 containers: no extra space, chart fills area */
+.fullchart-page,
+.fullchart-body,
+.chart-shell {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0 !important;     /* critical */
+}
+
+/* Ensure the lightweight-charts host fills its shell */
+.chart-shell .tv-lightweight-charts {
+  width: 100% !important;
+  height: 100% !important;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Dashboard Row 6: make the chart fill the row’s height you already set */
+#row-6 .tv-lightweight-charts {
+  height: 100% !important;
+}
+
+/* If you keep a fixed row height (520px), prevent any extra padding/margins from creating slack */
+#row-6 { padding-bottom: 0 !important; margin-bottom: 8px !important; }
+
