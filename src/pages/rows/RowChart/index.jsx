@@ -1,4 +1,4 @@
-// src/pages/rows/RowChart/index.jsx  (v2.0.2)
+// src/pages/rows/RowChart/index.jsx  (v2.0.3)
 import React, { useMemo, useState, useEffect, useRef } from "react";
 import Controls from "./Controls";
 import IndicatorsToolbar from "./IndicatorsToolbar";
@@ -16,16 +16,18 @@ export default function RowChart({
   onStatus,
   showDebug = false,
 }) {
-  // reserve space at bottom for the time rail so candles aren't covered
+  // Reserve space for time rail so it never covers candles
   const BOTTOM_PAD = 42;
-  const chartHeight = Math.max(120, height - BOTTOM_PAD); // guard against tiny heights
+  const chartHeight = Math.max(120, height - BOTTOM_PAD);
 
+  // UI state
   const [state, setState] = useState({
     symbol: defaultSymbol,
     timeframe: defaultTimeframe,
     range: null,
   });
 
+  // Indicator toggles
   const [ind, setInd] = useState({
     showEma: true,
     ema10: true,
@@ -33,6 +35,7 @@ export default function RowChart({
     ema50: true,
   });
 
+  // Chart theme
   const theme = useMemo(
     () => ({
       layout: { background: { type: "solid", color: "#0a0a0a" }, textColor: "#e5e7eb" },
@@ -50,28 +53,26 @@ export default function RowChart({
     []
   );
 
-  // 👇 use reduced height so the overlay's reserved space doesn't hide candles
+  // Main chart (reduced height so rail fits)
   const { containerRef, chart, setData } = useLwcChart({ height: chartHeight, theme });
 
+  // Data
   const { bars, loading, error, refetch } = useOhlc({
     apiBase,
     symbol: state.symbol,
     timeframe: state.timeframe,
   });
 
+  // Status up
   useEffect(() => {
     onStatus && onStatus(loading ? "loading" : error ? "error" : bars.length ? "ready" : "idle");
   }, [loading, error, bars, onStatus]);
 
-  // initial fetch + on symbol/tf change
-  useEffect(() => {
-    void refetch(true);
-  }, []);
-  useEffect(() => {
-    void refetch(true);
-  }, [state.symbol, state.timeframe]);
+  // Fetch on mount + on symbol/TF changes
+  useEffect(() => { void refetch(true); }, []);
+  useEffect(() => { void refetch(true); }, [state.symbol, state.timeframe]);
 
-  // pipe data into main candle series
+  // Push bars into candle series
   useEffect(() => {
     const data = state.range && bars.length > state.range ? bars.slice(-state.range) : bars;
     setData(data);
@@ -80,6 +81,7 @@ export default function RowChart({
   // ---------- EMA overlays ----------
   const emaOverlaysRef = useRef({}); // { e10, e20, e50 }
 
+  // Create/remove overlays when chart/toggles change; feed current bars immediately
   useEffect(() => {
     if (!chart) return;
 
@@ -96,14 +98,14 @@ export default function RowChart({
       if (ind.ema50) emaOverlaysRef.current.e50 = createEmaOverlay({ chart, period: 50, color: "#34d399" });
     }
 
-    // immediately feed current bars so lines appear when toggled on
+    // feed current bars so lines appear immediately
     const overlays = emaOverlaysRef.current;
     Object.values(overlays).forEach((o) => o?.setBars?.(bars));
 
     return () => removeAll();
   }, [chart, ind.showEma, ind.ema10, ind.ema20, ind.ema50, bars]);
 
-  // also re-feed when bars/toggles change
+  // Re-feed on bars/toggle changes (belt & suspenders)
   useEffect(() => {
     const overlays = emaOverlaysRef.current;
     Object.values(overlays).forEach((o) => o?.setBars?.(bars));
@@ -123,6 +125,7 @@ export default function RowChart({
         flexDirection: "column",
       }}
     >
+      {/* Controls (symbol, timeframe, range) */}
       <Controls
         symbols={SYMBOLS}
         timeframes={TIMEFRAMES}
@@ -138,6 +141,7 @@ export default function RowChart({
         }
       />
 
+      {/* Indicators toolbar */}
       <IndicatorsToolbar
         showEma={ind.showEma}
         ema10={ind.ema10}
@@ -146,17 +150,41 @@ export default function RowChart({
         onChange={(patch) => setInd((s) => ({ ...s, ...patch }))}
       />
 
+      {/* Full screen chart quick link */}
+      <div style={{ display: "flex", justifyContent: "flex-end", padding: "6px 12px", borderBottom: "1px solid #2b2b2b" }}>
+        <button
+          onClick={() => {
+            const url = `/chart?symbol=${state.symbol}&tf=${state.timeframe}`;
+            window.open(url, "_blank", "noopener");
+          }}
+          style={{
+            background: "#0b0b0b",
+            color: "#e5e7eb",
+            border: "1px solid #2b2b2b",
+            borderRadius: 8,
+            padding: "6px 10px",
+            fontWeight: 600,
+            cursor: "pointer",
+          }}
+        >
+          Open Full Chart ↗
+        </button>
+      </div>
+
+      {/* Debug line (optional) */}
       {showDebug && (
         <div style={{ padding: "6px 12px", color: "#9ca3af", fontSize: 12, borderBottom: "1px solid #2b2b2b" }}>
           debug • base: {baseShown || "MISSING"} • symbol: {state.symbol} • tf: {state.timeframe} • bars: {bars.length}
         </div>
       )}
 
-      {/* Reserve space for the time rail so it's never covering candles */}
+      {/* Chart host — paddingBottom reserves the time-rail lane */}
       <div ref={containerRef} style={{ position: "relative", flex: 1, paddingBottom: BOTTOM_PAD }}>
         {loading && <Overlay>Loading bars…</Overlay>}
         {!loading && !error && bars.length === 0 && <Overlay>No data returned</Overlay>}
         {error && <Overlay>Error: {error}</Overlay>}
+
+        {/* Time rail (hours + dates) */}
         <TimelineOverlay chart={chart} container={containerRef.current} bars={bars} />
       </div>
     </div>
