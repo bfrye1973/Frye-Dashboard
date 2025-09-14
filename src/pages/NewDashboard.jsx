@@ -17,14 +17,18 @@ export default function NewDashboard() {
       <RowIndexSectors />     {/* Row 4 */}
       <RowStrategies />       {/* Row 5 */}
 
-      {/* Row 6 — Chart */}
-      <RowChart
-        apiBase="https://frye-market-backend-1.onrender.com"
-        defaultSymbol="SPY"
-        defaultTimeframe="1h"
-        height={560}           // 👈 bumped from 520 → 550
-        showDebug={false}
-      />
+      {/* Row 6 — Chart (wrapped so CSS can stretch the canvas) */}
+      <section id="row-6" className="panel">
+        <div className="row6-shell">
+          <RowChart
+            apiBase="https://frye-market-backend-1.onrender.com"
+            defaultSymbol="SPY"
+            defaultTimeframe="1h"
+            height={560}
+            showDebug={false}
+          />
+        </div>
+      </section>
 
       <RowJournal />          {/* Row 7 */}
     </div>
