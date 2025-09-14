@@ -1,6 +1,6 @@
 // src/pages/rows/RowChart/Row6Chart.jsx
 import React from "react";
-import RowChart from "./RowChart";
+ import RowChart from ".";           // ✅ resolves to index.jsx
 
 /**
  * Row6Chart — measures the exact pixel height available in Row 6
