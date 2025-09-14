@@ -2,23 +2,27 @@
 import { useEffect, useRef, useState } from "react";
 import { createChart } from "lightweight-charts";
 
+/**
+ * Creates a lightweight-charts instance with an explicit pixel height.
+ * Returns { containerRef, chart, setData }.
+ */
 export default function useLwcChart({ height = 520, theme }) {
   const containerRef = useRef(null);
   const chartRef = useRef(null);
   const seriesRef = useRef(null);
   const resizeObs = useRef(null);
-  const [chart, setChart] = useState(null); // 👈 stateful chart
+  const [chart, setChart] = useState(null); // stateful to trigger consumers
 
   useEffect(() => {
     if (!containerRef.current) return;
 
     const chartInstance = createChart(containerRef.current, {
       width: containerRef.current.clientWidth,
-      height,
+      height,                                 // 👈 explicit pixel height
       layout: theme.layout,
       grid: theme.grid,
       rightPriceScale: { borderColor: theme.rightPriceScale.borderColor },
-      timeScale: { borderColor: theme.timeScale.borderColor, rightOffset: 6, barSpacing: 8, fixLeftEdge: true },
+      timeScale: theme.timeScale,             // includes timeVisible: true
       crosshair: theme.crosshair,
       localization: { dateFormat: "yyyy-MM-dd" },
     });
@@ -34,9 +38,9 @@ export default function useLwcChart({ height = 520, theme }) {
 
     chartRef.current = chartInstance;
     seriesRef.current = candleSeries;
-    setChart(chartInstance); // 👈 trigger consumer render
+    setChart(chartInstance);
 
-    // keep responsive
+    // responsive width (height stays fixed)
     resizeObs.current = new ResizeObserver(() => {
       if (!containerRef.current || !chartRef.current) return;
       chartRef.current.applyOptions({ width: containerRef.current.clientWidth });
@@ -60,5 +64,5 @@ export default function useLwcChart({ height = 520, theme }) {
     }
   };
 
-  return { containerRef, chart, setData }; // 👈 chart is a state value now
+  return { containerRef, chart, setData };
 }
