@@ -1,4 +1,4 @@
-// src/pages/rows/RowChart/index.jsx  (v3.1 — explicit height, single Full Chart button)
+// src/pages/rows/RowChart/index.jsx  (v3.2 — explicit height, white labels, Full Chart)
 import React, { useMemo, useState, useEffect, useRef } from "react";
 import Controls from "./Controls";
 import IndicatorsToolbar from "./IndicatorsToolbar";
@@ -29,18 +29,27 @@ export default function RowChart({
     ema50: true,
   });
 
-  // ----- theme for LWC -----
+  // ----- theme for lightweight-charts -----
   const theme = useMemo(
     () => ({
-      layout: { background: { type: "solid", color: "#0a0a0a" }, textColor: "#e5e7eb" },
-      grid:   { vertLines: { color: "#1e1e1e" }, horzLines: { color: "#1e1e1e" } },
-      rightPriceScale: { borderColor: "#2b2b2b" },
+      layout: {
+        background: { type: "solid", color: "#0a0a0a" },
+        textColor: "#ffffff",           // ← pure white labels
+      },
+      grid: {
+        vertLines: { color: "#1e1e1e" },
+        horzLines: { color: "#1e1e1e" },
+      },
+      rightPriceScale: {
+        borderColor: "#2b2b2b",
+      },
       timeScale: {
+        borderVisible: true,
         borderColor: "#2b2b2b",
         rightOffset: 6,
         barSpacing: 8,
         fixLeftEdge: true,
-        timeVisible: true,       // render time labels inside canvas
+        timeVisible: true,              // labels inside canvas
         secondsVisible: false,
       },
       crosshair: { mode: 0 },
@@ -69,11 +78,11 @@ export default function RowChart({
     onStatus && onStatus(loading ? "loading" : error ? "error" : bars.length ? "ready" : "idle");
   }, [loading, error, bars, onStatus]);
 
-  // fetch on mount & on symbol/TF change
+  // fetch on mount & when symbol/TF changes
   useEffect(() => { void refetch(true); }, []);
   useEffect(() => { void refetch(true); }, [state.symbol, state.timeframe]);
 
-  // pipe bars into candle series
+  // push candles to chart
   useEffect(() => {
     const data = state.range && bars.length > state.range ? bars.slice(-state.range) : bars;
     setData(data);
@@ -98,7 +107,7 @@ export default function RowChart({
       if (ind.ema50) emaOverlaysRef.current.e50 = createEmaOverlay({ chart, period: 50, color: "#34d399" });
     }
 
-    // feed current bars so lines appear immediately
+    // show lines immediately with current bars
     Object.values(emaOverlaysRef.current).forEach((o) => o?.setBars?.(bars));
 
     return () => removeAll();
@@ -115,7 +124,7 @@ export default function RowChart({
     <div
       style={{
         height,                 // wrapper equals explicit height
-        minHeight: height,      // guard: row cannot collapse
+        minHeight: height,      // guard against collapse
         overflow: "hidden",
         background: "#0a0a0a",
         border: "1px solid #2b2b2b",
@@ -149,7 +158,7 @@ export default function RowChart({
         onChange={(patch) => setInd((s) => ({ ...s, ...patch }))}
       />
 
-      {/* Open Full Chart — single placement under indicators */}
+      {/* Open Full Chart — single placement below indicators */}
       <div
         style={{
           display: "flex",
