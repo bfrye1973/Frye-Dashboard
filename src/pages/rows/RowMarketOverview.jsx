@@ -9,11 +9,12 @@ const clamp01 = (n) => Math.max(0, Math.min(100, Number(n)));
 const pct = (n) => (Number.isFinite(n) ? n.toFixed(1) : "—");
 const toneFor = (v) => (v >= 60 ? "ok" : v >= 40 ? "warn" : "danger");
 
-/* ---------- baselines (per day) ---------- */
+/* ---------- baselines (per day, persisted) ---------- */
 const dayKey = () => new Date().toISOString().slice(0, 10);
 function useDailyBaseline(keyName, current) {
   const [baseline, setBaseline] = React.useState(null);
 
+  // initial load (read or seed)
   React.useEffect(() => {
     const k = `meter_baseline_${dayKey()}_${keyName}`;
     const saved = localStorage.getItem(k);
@@ -27,6 +28,7 @@ function useDailyBaseline(keyName, current) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [keyName]);
 
+  // if current appears later AND no baseline yet, seed it
   React.useEffect(() => {
     if (!Number.isFinite(current)) return;
     const k = `meter_baseline_${dayKey()}_${keyName}`;
@@ -39,7 +41,7 @@ function useDailyBaseline(keyName, current) {
   return baseline;
 }
 
-/* ---------- stoplight ---------- */
+/* ---------- stoplight tile ---------- */
 function Stoplight({ label, value, baseline, size = 60, unit = "%" }) {
   const v = Number.isFinite(value) ? clamp01(value) : NaN;
   const delta = Number.isFinite(v) && Number.isFinite(baseline) ? v - baseline : NaN;
@@ -57,15 +59,13 @@ function Stoplight({ label, value, baseline, size = 60, unit = "%" }) {
     Math.abs(delta) < 0.5   ? "→" :
     delta > 0               ? "↑" : "↓";
 
-  const arrowClass =
-    !Number.isFinite(delta) || Math.abs(delta) < 0.5
-      ? "delta delta-flat"
-      : delta > 0
-      ? "delta delta-up"
-      : "delta delta-down";
+  const deltaColor =
+    !Number.isFinite(delta) ? "#94a3b8" :
+    delta > 0               ? "#22c55e" :
+    delta < 0               ? "#ef4444" : "#94a3b8";
 
   return (
-    <div className="light" style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:4, minWidth:size+36 }}>
+    <div className="light" style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:6, minWidth:size+44 }}>
       <div
         title={`${label}: ${pct(v)}${unit === "%" ? "%" : ""}`}
         style={{
@@ -75,12 +75,14 @@ function Stoplight({ label, value, baseline, size = 60, unit = "%" }) {
           border: "5px solid #0c1320"
         }}
       >
-        <div style={{ fontWeight:800, fontSize:size > 100 ? 20 : 17, color:"#0b1220" }}>
+        <div style={{ fontWeight:800, fontSize:size >= 100 ? 20 : 17, color:"#0b1220" }}>
           {pct(v)}{unit === "%" ? "%" : ""}
         </div>
       </div>
-      <div className="small" style={{ fontWeight:700, fontSize: 17, lineHeight:1.1, color:"#e5e7eb" }}>{label}</div>
-      <div className={arrowClass} style={{ marginTop:2 }}>
+      <div className="small" style={{ color:"#e5e7eb", fontWeight:700, fontSize:16, lineHeight:1.15, textAlign:"center" }}>
+        {label}
+      </div>
+      <div style={{ color: deltaColor, fontSize:14, fontWeight:600, marginTop:2 }}>
         {arrow} {Number.isFinite(delta) ? delta.toFixed(1) : "0.0"}{unit === "%" ? "%" : ""}
       </div>
     </div>
@@ -91,17 +93,16 @@ function Stoplight({ label, value, baseline, size = 60, unit = "%" }) {
    Row 2 — Market Overview
    ======================= */
 export default function RowMarketOverview() {
-  // ✅ dynamic cadence (RTH=15s, pre/post=30s, overnight/weekend=120s)
+  // dynamic cadence (RTH=15s, pre/post=30s, overnight/weekend=120s)
   const { data } = useDashboardPoll?.("dynamic") ?? { data:null };
   const { mode } = useViewMode(); // view mode from Row 1
-
   const [legendOpen, setLegendOpen] = React.useState(false);
 
   const od = data?.odometers ?? {};
   const gg = data?.gauges ?? {};
-  const ts = data?.meta?.ts || null;
+  const ts = data?.meta?.ts ?? null;
 
-  // normalized (from dashboardApi)
+  // normalized (from dashboardApi.transformToUi)
   const breadth   = Number(od?.breadthOdometer ?? 50);
   const momentum  = Number(od?.momentumOdometer ?? 50);
 
@@ -109,27 +110,29 @@ export default function RowMarketOverview() {
   const squeezeIntra = Number(od?.squeezeCompressionPct ?? 50);
 
   // daily squeeze (compression) — MUST be under gauges.squeezeDaily.pct
-  const squeezeDaily = Number.isFinite(gg?.squeezeDaily?.pct) ? gg.squeezeDaily.pct : null;
+  const squeezeDaily = Number.isFinite(gg?.squeezeDaily?.pct) ? Number(gg.squeezeDaily.pct) : null;
 
-  // liquidity & volatility; accept both canonical and water.pct
-  const liquidity  = Number.isFinite(gg?.oil?.psi) ? gg.oil.psi : (Number.isFinite(gg?.oilPsi) ? gg.oilPsi : NaN);
-  const volatility = Number.isFinite(gg?.volatilityPct) ? gg.volatilityPct : (Number.isFinite(gg?.water?.pct) ? gg.water.pct : NaN);
+  // liquidity & volatility; accept canonical and legacy mirrors
+  const liquidity  = Number.isFinite(gg?.oil?.psi) ? Number(gg.oil.psi)
+                     : (Number.isFinite(gg?.oilPsi) ? Number(gg.oilPsi) : NaN);
+  const volatility = Number.isFinite(gg?.volatilityPct) ? Number(gg.volatilityPct)
+                     : (Number.isFinite(gg?.water?.pct) ? Number(gg.water.pct) : NaN);
 
-  // baselines
-  const bBreadth   = useDailyBaseline("breadth", breadth);
-  const bMomentum  = useDailyBaseline("momentum", momentum);
+  // daily baselines (for arrows)
+  const bBreadth   = useDailyBaseline("breadth",         breadth);
+  const bMomentum  = useDailyBaseline("momentum",        momentum);
   const bSqueezeIn = useDailyBaseline("squeezeIntraday", squeezeIntra);
-  const bSqueezeDy = useDailyBaseline("squeezeDaily", squeezeDaily);
-  const bLiquidity = useDailyBaseline("liquidity", liquidity);
-  const bVol       = useDailyBaseline("volatility", volatility);
+  const bSqueezeDy = useDailyBaseline("squeezeDaily",    squeezeDaily);
+  const bLiquidity = useDailyBaseline("liquidity",       liquidity);
+  const bVol       = useDailyBaseline("volatility",      volatility);
 
-  // ----- Market Meter formula -----
+  // ----- Market Meter (center) -----
   const expansion  = 100 - clamp01(squeezeIntra);
   const baseMeter  = 0.4 * breadth + 0.4 * momentum + 0.2 * expansion;
 
   // blend toward neutral by daily squeeze
   const Sdy = Number.isFinite(squeezeDaily) ? clamp01(squeezeDaily) / 100 : 0;
-  const blended = (1 - Sdy) * baseMeter + Sdy * 50; // 0..100
+  const blended = (1 - Sdy) * baseMeter + Sdy * 50;       // 0..100
   const meterValue = Math.round(blended);
 
   /* ---------- render ---------- */
@@ -157,7 +160,7 @@ export default function RowMarketOverview() {
             cursor: "pointer",
             marginLeft: 8
           }}
-          title="Show legend"
+          title="Legend"
         >
           Legend
         </button>
@@ -180,19 +183,17 @@ export default function RowMarketOverview() {
         <TrafficLightsLayout
           breadth={breadth} momentum={momentum} squeezeIntra={squeezeIntra}
           squeezeDaily={squeezeDaily} liquidity={liquidity} volatility={volatility}
-          bBreadth={bBreadth} bMomentum={bMomentum} bSqueezeIn={bSqueezeIn}
-          bSqueezeDy={bSqueezeDy} bLiquidity={bLiquidity} bVol={bVol}
         />
       )}
 
       {mode === ViewModes.ARROWS && (
         <ArrowScorecardsLayout
-          breadth={{ value: breadth, base: bBreadth }}
-          momentum={{ value: momentum, base: bMomentum }}
+          breadth={{ value: breadth,       base: bBreadth   }}
+          momentum={{ value: momentum,     base: bMomentum  }}
           squeezeIntra={{ value: squeezeIntra, base: bSqueezeIn }}
           squeezeDaily={{ value: squeezeDaily, base: bSqueezeDy }}
-          liquidity={{ value: liquidity, base: bLiquidity }}
-          volatility={{ value: volatility, base: bVol }}
+          liquidity={{ value: liquidity,   base: bLiquidity }}
+          volatility={{ value: volatility, base: bVol       }}
           meterValue={meterValue}
         />
       )}
@@ -215,11 +216,11 @@ function MeterTilesLayout({
         display:"grid",
         gridTemplateColumns:"1fr auto 1fr",
         alignItems:"center",
-        gap:10,
+        gap:12,
         marginTop:6
       }}
     >
-      {/* LEFT: Breadth, Momentum, Intraday Squeeze (capped width) */}
+      {/* LEFT: Breadth, Momentum, Intraday Squeeze (narrow cluster) */}
       <div style={{
         display: 'flex', gap: 12, maxWidth: 420, width: '100%',
         alignItems: 'center', justifyContent: 'space-between'
@@ -229,7 +230,7 @@ function MeterTilesLayout({
         <Stoplight label="Intraday Squeeze" value={squeezeIntra} baseline={bSqueezeIn} />
       </div>
 
-      {/* CENTER: big meter + daily squeeze small */}
+      {/* CENTER: big meter + daily squeeze */}
       <div style={{ display:"flex", alignItems:"center", gap:16 }}>
         <Stoplight label="Overall Market Indicator" value={meterValue} baseline={meterValue} size={110} />
         <Stoplight label="Daily Squeeze" value={squeezeDaily} baseline={bSqueezeDy} />
