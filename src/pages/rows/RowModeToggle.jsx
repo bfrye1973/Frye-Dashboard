@@ -16,15 +16,21 @@ export default function RowModeToggle() {
         title={title}
         className="btn"
         style={{
-          // keep your .btn look but add active state without needing new CSS
           background: active ? "#0f172a" : "#0b0b0b",
           color: "#e5e7eb",
           border: `1px solid ${active ? "#475569" : "#2b2b2b"}`,
           borderRadius: 8,
-          padding: "6px 10px",
+          padding: "6px 12px",
           fontWeight: 600,
           cursor: "pointer",
+          transition: "background 0.2s, border 0.2s",
         }}
+        onMouseEnter={(e) =>
+          (e.currentTarget.style.background = active ? "#1e293b" : "#1a1a1a")
+        }
+        onMouseLeave={(e) =>
+          (e.currentTarget.style.background = active ? "#0f172a" : "#0b0b0b")
+        }
       >
         {children}
       </button>
@@ -44,17 +50,11 @@ export default function RowModeToggle() {
             Meter + Tiles
           </Btn>
 
-          <Btn
-            id={ViewModes.TRAFFIC}
-            title="Compact traffic-light chips"
-          >
+          <Btn id={ViewModes.TRAFFIC} title="Compact traffic-light chips">
             Traffic Lights
           </Btn>
 
-          <Btn
-            id={ViewModes.ARROWS}
-            title="Arrow scorecards vs baseline"
-          >
+          <Btn id={ViewModes.ARROWS} title="Arrow scorecards vs baseline">
             Arrow Scorecards
           </Btn>
         </div>
