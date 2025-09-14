@@ -126,7 +126,7 @@ export default function RowChart({
         {loading && <Overlay>Loading bars…</Overlay>}
         {!loading && !error && bars.length === 0 && <Overlay>No data returned</Overlay>}
         {error && <Overlay>Error: {error}</Overlay>}
-        <TimelineOverlay chart={chart} container={containerRef.current} />
+        <TimelineOverlay chart={chart} container={containerRef.current} bars={bars}  />
       </div>
     </div>
   );
