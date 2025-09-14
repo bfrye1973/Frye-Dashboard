@@ -1,8 +1,7 @@
-// src/pages/rows/RowChart/index.jsx  (v2.1.0 — separate TimeRail)
+// src/pages/rows/RowChart/index.jsx  (v3.0 — precise height, no overlay)
 import React, { useMemo, useState, useEffect, useRef } from "react";
 import Controls from "./Controls";
 import IndicatorsToolbar from "./IndicatorsToolbar";
-import TimeRail from "./TimeRail";                 // ⬅️ use rail below chart, not overlay
 import useOhlc from "./useOhlc";
 import useLwcChart from "./useLwcChart";
 import { SYMBOLS, TIMEFRAMES, resolveApiBase } from "./constants";
@@ -12,14 +11,10 @@ export default function RowChart({
   apiBase,
   defaultSymbol = "SPY",
   defaultTimeframe = "1h",
-  height = 520,
+  height = 520,                // 👈 explicit pixel height from parent
   onStatus,
   showDebug = false,
 }) {
-  // rail is a separate element; chart gets explicit height = height - rail
-  const RAIL_H = 42;
-  const chartHeight = Math.max(120, height - RAIL_H);
-
   const [state, setState] = useState({
     symbol: defaultSymbol,
     timeframe: defaultTimeframe,
@@ -38,7 +33,14 @@ export default function RowChart({
       layout: { background: { type: "solid", color: "#0a0a0a" }, textColor: "#e5e7eb" },
       grid:   { vertLines: { color: "#1e1e1e" }, horzLines: { color: "#1e1e1e" } },
       rightPriceScale: { borderColor: "#2b2b2b" },
-      timeScale:       { borderColor: "#2b2b2b", rightOffset: 6, barSpacing: 8, fixLeftEdge: true },
+      timeScale: {
+        borderColor: "#2b2b2b",
+        rightOffset: 6,
+        barSpacing: 8,
+        fixLeftEdge: true,
+        timeVisible: true,       // 👈 render time labels inside the canvas
+        secondsVisible: false,
+      },
       crosshair: { mode: 0 },
       upColor: "#16a34a",
       downColor: "#ef4444",
@@ -50,8 +52,8 @@ export default function RowChart({
     []
   );
 
-  // Main chart at explicit height (so the rail has its own lane)
-  const { containerRef, chart, setData } = useLwcChart({ height: chartHeight, theme });
+  // Main chart gets the exact height provided by the parent
+  const { containerRef, chart, setData } = useLwcChart({ height, theme });
 
   const { bars, loading, error, refetch } = useOhlc({
     apiBase,
@@ -64,11 +66,11 @@ export default function RowChart({
     onStatus && onStatus(loading ? "loading" : error ? "error" : bars.length ? "ready" : "idle");
   }, [loading, error, bars, onStatus]);
 
-  // fetch on mount + on symbol/tf change
+  // fetch on mount + when symbol/tf changes
   useEffect(() => { void refetch(true); }, []);
   useEffect(() => { void refetch(true); }, [state.symbol, state.timeframe]);
 
-  // feed candles
+  // candles → chart
   useEffect(() => {
     const data = state.range && bars.length > state.range ? bars.slice(-state.range) : bars;
     setData(data);
@@ -93,13 +95,13 @@ export default function RowChart({
       if (ind.ema50) emaOverlaysRef.current.e50 = createEmaOverlay({ chart, period: 50, color: "#34d399" });
     }
 
-    // push current bars so lines appear immediately
+    // feed current bars so EMA lines appear immediately
     Object.values(emaOverlaysRef.current).forEach((o) => o?.setBars?.(bars));
 
     return () => removeAll();
   }, [chart, ind.showEma, ind.ema10, ind.ema20, ind.ema50, bars]);
 
-  // re-feed on bars/toggle changes
+  // re-feed on bars/toggles change
   useEffect(() => {
     Object.values(emaOverlaysRef.current).forEach((o) => o?.setBars?.(bars));
   }, [bars, ind.showEma, ind.ema10, ind.ema20, ind.ema50]);
@@ -109,7 +111,7 @@ export default function RowChart({
   return (
     <div
       style={{
-        height,
+        height,                       // 👈 wrapper matches the explicit height
         overflow: "hidden",
         background: "#0a0a0a",
         border: "1px solid #2b2b2b",
@@ -143,8 +145,24 @@ export default function RowChart({
         onChange={(patch) => setInd((s) => ({ ...s, ...patch }))}
       />
 
+      {/* Optional debug */}
+      {showDebug && (
+        <div style={{ padding: "6px 12px", color: "#9ca3af", fontSize: 12, borderBottom: "1px solid #2b2b2b" }}>
+          debug • base: {baseShown || "MISSING"} • symbol: {state.symbol} • tf: {state.timeframe} • bars: {bars.length}
+        </div>
+      )}
+
+      {/* Chart host at exact pixel height — no padding, no overlay */}
+      <div style={{ flex: 1, minHeight: 0 }}>
+        <div ref={containerRef} style={{ position: "relative", height }}>
+          {loading && <Overlay>Loading bars…</Overlay>}
+          {!loading && !error && bars.length === 0 && <Overlay>No data returned</Overlay>}
+          {error && <Overlay>Error: {error}</Overlay>}
+        </div>
+      </div>
+
       {/* Full chart link */}
-      <div style={{ display: "flex", justifyContent: "flex-end", padding: "6px 12px", borderBottom: "1px solid #2b2b2b" }}>
+      <div style={{ display: "flex", justifyContent: "flex-end", padding: "6px 12px", borderTop: "1px solid #2b2b2b" }}>
         <button
           onClick={() => {
             const url = `/chart?symbol=${state.symbol}&tf=${state.timeframe}`;
@@ -162,26 +180,6 @@ export default function RowChart({
         >
           Open Full Chart ↗
         </button>
-      </div>
-
-      {/* Debug (optional) */}
-      {showDebug && (
-        <div style={{ padding: "6px 12px", color: "#9ca3af", fontSize: 12, borderBottom: "1px solid #2b2b2b" }}>
-          debug • base: {baseShown || "MISSING"} • symbol: {state.symbol} • tf: {state.timeframe} • bars: {bars.length}
-        </div>
-      )}
-
-      {/* Chart + Time rail column */}
-      <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
-        {/* Chart canvas gets explicit height */}
-        <div ref={containerRef} style={{ position: "relative", height: chartHeight }}>
-          {loading && <Overlay>Loading bars…</Overlay>}
-          {!loading && !error && bars.length === 0 && <Overlay>No data returned</Overlay>}
-          {error && <Overlay>Error: {error}</Overlay>}
-        </div>
-
-        {/* Separate rail BELOW the chart (always visible) */}
-        <TimeRail chart={chart} bars={bars} />
       </div>
     </div>
   );
