@@ -1,4 +1,4 @@
-// src/pages/rows/RowChart/index.jsx  (v3.2 — explicit height, white labels, Full Chart)
+// src/pages/rows/RowChart/index.jsx  (v3.3 — white labels, tighter bottom, single Full Chart button)
 import React, { useMemo, useState, useEffect, useRef } from "react";
 import Controls from "./Controls";
 import IndicatorsToolbar from "./IndicatorsToolbar";
@@ -34,7 +34,7 @@ export default function RowChart({
     () => ({
       layout: {
         background: { type: "solid", color: "#0a0a0a" },
-        textColor: "#ffffff",           // ← pure white labels
+        textColor: "#ffffff",           // white axis/labels
       },
       grid: {
         vertLines: { color: "#1e1e1e" },
@@ -42,12 +42,14 @@ export default function RowChart({
       },
       rightPriceScale: {
         borderColor: "#2b2b2b",
+        // tighten visible content so bottom lane feels smaller
+        scaleMargins: { top: 0.06, bottom: 0.03 }, // small, safe nudge
       },
       timeScale: {
         borderVisible: true,
         borderColor: "#2b2b2b",
         rightOffset: 6,
-        barSpacing: 8,
+        barSpacing: 12,                 // ⬆︎ was 8 — gives labels more room
         fixLeftEdge: true,
         timeVisible: true,              // labels inside canvas
         secondsVisible: false,
