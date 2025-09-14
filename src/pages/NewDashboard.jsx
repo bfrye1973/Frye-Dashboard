@@ -22,7 +22,7 @@ export default function NewDashboard() {
         apiBase="https://frye-market-backend-1.onrender.com"
         defaultSymbol="SPY"
         defaultTimeframe="1h"
-        height={600}           // 👈 bumped from 520 → 550
+        height={560}           // 👈 bumped from 520 → 550
         showDebug={false}
       />
 
