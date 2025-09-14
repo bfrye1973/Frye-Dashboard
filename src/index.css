@@ -61,7 +61,7 @@ button{
 #row-3 { min-height: 110px !important; padding:8px 10px !important; }   /* Engine Lights */
 #row-4 { min-height: 130px !important; padding:8px 10px !important; }   /* Index Sectors */
 #row-5 { min-height: 180px !important; padding:8px 10px !important; }   /* Strategies */
-#row-6 { min-height: 520px !important; padding:8px 10px !important; }   /* Chart (required) */
+/* (Row 6 sized in canonical block at bottom) */
 #row-7 { min-height: 140px !important; padding:8px 10px !important; }   /* Journal */
 
 /* Reduce gap between rows */
@@ -72,7 +72,7 @@ button{
 .meter-small{ display:flex; gap:8px; flex-wrap:nowrap; }
 
 /* Shrink stoplights globally inside Row 2 without changing JSX sizes */
-#row-2 .light{ 
+#row-2 .light{
   transform: scale(0.72);
   transform-origin: center;
   min-width: 80px !important;
@@ -145,8 +145,13 @@ body > #root {
   overflow: hidden;
 }
 
-/* ===== Row 6 specific (permanent fix) ===== */
-#row-6 { display:flex; flex-direction:column; min-height:520px; padding-bottom:0 !important; }
+/* ===== Row 6 specific (canonical, permanent fix) ===== */
+#row-6 {
+  display:flex;
+  flex-direction:column;
+  min-height:520px !important;
+  padding:8px 10px 0 10px !important;   /* bottom=0 to avoid slack */
+}
 #row-6 .row6-shell {
   flex: 1 1 auto;
   min-height: 0 !important;
@@ -154,6 +159,6 @@ body > #root {
   flex-direction: column;
 }
 /* Stretch the chart host to the bottom so the time axis is visible */
-#row-6 .tv-lightweight-charts {
-  height: 100% !important;
-}
+#row-6 .tv-lightweight-charts { height: 100% !important; }
+/* Make Row 6's inline wrapper (from RowChart) fill the row */
+#row-6 .row6-shell > div[style*="position: relative"] { height: 100% !important; }
