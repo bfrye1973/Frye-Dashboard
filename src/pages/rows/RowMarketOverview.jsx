@@ -2,13 +2,12 @@
 import React from "react";
 import { useDashboardPoll } from "../../lib/dashboardApi";
 import { LastUpdated } from "../../components/LastUpdated";
+import { useViewMode, ViewModes } from "../../context/ModeContext";
 
 /* ---------- helpers ---------- */
 const clamp01 = (n) => Math.max(0, Math.min(100, Number(n)));
 const pct = (n) => (Number.isFinite(n) ? n.toFixed(1) : "—");
 const toneFor = (v) => (v >= 60 ? "ok" : v >= 40 ? "warn" : "danger");
-
-
 
 /* ---------- baselines (per day) ---------- */
 const dayKey = () => new Date().toISOString().slice(0, 10);
@@ -80,7 +79,7 @@ function Stoplight({ label, value, baseline, size = 60, unit = "%" }) {
           {pct(v)}{unit === "%" ? "%" : ""}
         </div>
       </div>
-      <div className="small" style={{ fontWeight:700, fontSize: 17, lineHeight:1.1 }}>{label}</div>
+      <div className="small" style={{ fontWeight:700, fontSize: 17, lineHeight:1.1, color:"#e5e7eb" }}>{label}</div>
       <div className={arrowClass} style={{ marginTop:2 }}>
         {arrow} {Number.isFinite(delta) ? delta.toFixed(1) : "0.0"}{unit === "%" ? "%" : ""}
       </div>
@@ -88,12 +87,16 @@ function Stoplight({ label, value, baseline, size = 60, unit = "%" }) {
   );
 }
 
+/* =======================
+   Row 2 — Market Overview
+   ======================= */
 export default function RowMarketOverview() {
   // ✅ dynamic cadence (RTH=15s, pre/post=30s, overnight/weekend=120s)
   const { data } = useDashboardPoll?.("dynamic") ?? { data:null };
+  const { mode } = useViewMode(); // view mode from Row 1
 
   const [legendOpen, setLegendOpen] = React.useState(false);
-  
+
   const od = data?.odometers ?? {};
   const gg = data?.gauges ?? {};
   const ts = data?.meta?.ts || null;
@@ -109,7 +112,7 @@ export default function RowMarketOverview() {
   const squeezeDaily = Number.isFinite(gg?.squeezeDaily?.pct) ? gg.squeezeDaily.pct : null;
 
   // liquidity & volatility; accept both canonical and water.pct
-  const liquidity  = Number.isFinite(gg?.oilPsi) ? gg.oilPsi : (Number.isFinite(gg?.oil?.psi) ? gg.oil.psi : NaN);
+  const liquidity  = Number.isFinite(gg?.oil?.psi) ? gg.oil.psi : (Number.isFinite(gg?.oilPsi) ? gg.oilPsi : NaN);
   const volatility = Number.isFinite(gg?.volatilityPct) ? gg.volatilityPct : (Number.isFinite(gg?.water?.pct) ? gg.water.pct : NaN);
 
   // baselines
@@ -129,7 +132,175 @@ export default function RowMarketOverview() {
   const blended = (1 - Sdy) * baseMeter + Sdy * 50; // 0..100
   const meterValue = Math.round(blended);
 
-  function LegendModal({ onClose, children }) {
+  /* ---------- render ---------- */
+  return (
+    <section id="row-2" className="panel" style={{ padding:12 }}>
+      {/* Legend modal */}
+      {legendOpen && (
+        <LegendModal onClose={() => setLegendOpen(false)}>
+          <LegendContent />
+        </LegendModal>
+      )}
+
+      {/* Header */}
+      <div className="panel-head" style={{ alignItems: "center" }}>
+        <div className="panel-title">Market Meter — Stoplights</div>
+        <button
+          onClick={() => setLegendOpen(true)}
+          style={{
+            background: "#0b0b0b",
+            color: "#e5e7eb",
+            border: "1px solid #2b2b2b",
+            borderRadius: 8,
+            padding: "6px 10px",
+            fontWeight: 600,
+            cursor: "pointer",
+            marginLeft: 8
+          }}
+          title="Show legend"
+        >
+          Legend
+        </button>
+        <div className="spacer" />
+        <LastUpdated ts={ts} />
+      </div>
+
+      {/* Layouts by view mode */}
+      {mode === ViewModes.METER_TILES && (
+        <MeterTilesLayout
+          breadth={breadth} momentum={momentum} squeezeIntra={squeezeIntra}
+          squeezeDaily={squeezeDaily} liquidity={liquidity} volatility={volatility}
+          meterValue={meterValue}
+          bBreadth={bBreadth} bMomentum={bMomentum} bSqueezeIn={bSqueezeIn}
+          bSqueezeDy={bSqueezeDy} bLiquidity={bLiquidity} bVol={bVol}
+        />
+      )}
+
+      {mode === ViewModes.TRAFFIC && (
+        <TrafficLightsLayout
+          breadth={breadth} momentum={momentum} squeezeIntra={squeezeIntra}
+          squeezeDaily={squeezeDaily} liquidity={liquidity} volatility={volatility}
+          bBreadth={bBreadth} bMomentum={bMomentum} bSqueezeIn={bSqueezeIn}
+          bSqueezeDy={bSqueezeDy} bLiquidity={bLiquidity} bVol={bVol}
+        />
+      )}
+
+      {mode === ViewModes.ARROWS && (
+        <ArrowScorecardsLayout
+          breadth={{ value: breadth, base: bBreadth }}
+          momentum={{ value: momentum, base: bMomentum }}
+          squeezeIntra={{ value: squeezeIntra, base: bSqueezeIn }}
+          squeezeDaily={{ value: squeezeDaily, base: bSqueezeDy }}
+          liquidity={{ value: liquidity, base: bLiquidity }}
+          volatility={{ value: volatility, base: bVol }}
+          meterValue={meterValue}
+        />
+      )}
+    </section>
+  );
+}
+
+/* =========================
+   Layout variants (Row 2)
+   ========================= */
+
+function MeterTilesLayout({
+  breadth, momentum, squeezeIntra, squeezeDaily, liquidity, volatility,
+  meterValue,
+  bBreadth, bMomentum, bSqueezeIn, bSqueezeDy, bLiquidity, bVol
+}) {
+  return (
+    <div
+      style={{
+        display:"grid",
+        gridTemplateColumns:"1fr auto 1fr",
+        alignItems:"center",
+        gap:10,
+        marginTop:6
+      }}
+    >
+      {/* LEFT: Breadth, Momentum, Intraday Squeeze (capped width) */}
+      <div style={{
+        display: 'flex', gap: 12, maxWidth: 420, width: '100%',
+        alignItems: 'center', justifyContent: 'space-between'
+      }}>
+        <Stoplight label="Breadth"          value={breadth}      baseline={bBreadth} />
+        <Stoplight label="Momentum"         value={momentum}     baseline={bMomentum} />
+        <Stoplight label="Intraday Squeeze" value={squeezeIntra} baseline={bSqueezeIn} />
+      </div>
+
+      {/* CENTER: big meter + daily squeeze small */}
+      <div style={{ display:"flex", alignItems:"center", gap:16 }}>
+        <Stoplight label="Overall Market Indicator" value={meterValue} baseline={meterValue} size={110} />
+        <Stoplight label="Daily Squeeze" value={squeezeDaily} baseline={bSqueezeDy} />
+      </div>
+
+      {/* RIGHT: Liquidity, Volatility */}
+      <div style={{ display:"flex", gap:12, justifyContent:"flex-end" }}>
+        <Stoplight label="Liquidity"  value={liquidity}  baseline={bLiquidity} unit="" />
+        <Stoplight label="Volatility" value={volatility} baseline={bVol} />
+      </div>
+    </div>
+  );
+}
+
+function TrafficLightsLayout({
+  breadth, momentum, squeezeIntra, squeezeDaily, liquidity, volatility
+}) {
+  return (
+    <div style={{ display:"flex", gap:12, flexWrap:"wrap", marginTop:6 }}>
+      <Stoplight label="Breadth"          value={breadth}      baseline={null} />
+      <Stoplight label="Momentum"         value={momentum}     baseline={null} />
+      <Stoplight label="Intraday Squeeze" value={squeezeIntra} baseline={null} />
+      <Stoplight label="Daily Squeeze"    value={squeezeDaily} baseline={null} />
+      <Stoplight label="Liquidity"        value={liquidity}    baseline={null} unit="" />
+      <Stoplight label="Volatility"       value={volatility}   baseline={null} />
+    </div>
+  );
+}
+
+function ArrowScorecardsLayout({
+  breadth, momentum, squeezeIntra, squeezeDaily, liquidity, volatility, meterValue
+}) {
+  const Card = ({ title, value, base }) => {
+    const v = Number.isFinite(value) ? value : NaN;
+    const d = Number.isFinite(value) && Number.isFinite(base) ? value - base : NaN;
+    const arrow = !Number.isFinite(d) ? "→" : d > 0 ? "↑" : d < 0 ? "↓" : "→";
+    const tone = Number.isFinite(v) ? toneFor(v) : "info";
+    const border = { ok:"#22c55e", warn:"#fbbf24", danger:"#ef4444", info:"#475569" }[tone];
+
+    return (
+      <div style={{
+        border:`1px solid ${border}`, borderRadius:12, padding:"10px 12px",
+        minWidth:160, background:"#0f1113"
+      }}>
+        <div style={{ color:"#9ca3af", fontSize:12 }}>{title}</div>
+        <div style={{ color:"#e5e7eb", fontWeight:800, fontSize:18 }}>{pct(v)}%</div>
+        <div style={{ color:"#cbd5e1", fontSize:12, marginTop:2 }}>
+          {arrow} {Number.isFinite(d) ? d.toFixed(1) : "0.0"}%
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div style={{ display:"flex", gap:12, flexWrap:"wrap", marginTop:6 }}>
+      <Card title="Market Meter" value={meterValue} base={50} />
+      <Card title="Breadth" value={breadth.value} base={breadth.base} />
+      <Card title="Momentum" value={momentum.value} base={momentum.base} />
+      <Card title="Intraday Squeeze" value={squeezeIntra.value} base={squeezeIntra.base} />
+      <Card title="Daily Squeeze" value={squeezeDaily.value} base={squeezeDaily.base} />
+      <Card title="Liquidity" value={liquidity.value} base={liquidity.base} />
+      <Card title="Volatility" value={volatility.value} base={volatility.base} />
+    </div>
+  );
+}
+
+/* =========================
+   Legend Modal + Content
+   ========================= */
+
+function LegendModal({ onClose, children }) {
   React.useEffect(() => {
     const onKey = (e) => e.key === "Escape" && onClose?.();
     window.addEventListener("keydown", onKey);
@@ -200,7 +371,9 @@ function LegendContent() {
 
   return (
     <div>
-       {/* Breadth */}
+      <div style={h2}>Market Meter — Gauge Legend (with Examples)</div>
+
+      {/* Breadth */}
       <div style={h3}>Breadth</div>
       <p>Shows what % of stocks are rising vs falling.</p>
       <p><strong>Example:</strong> 95% → Almost all stocks are going up together. Very strong market participation.</p>
@@ -236,7 +409,6 @@ function LegendContent() {
         <li>85–100% <Tag bg="#f97316">🔥 Critical</Tag> → Very tight coil, watch for breakout.</li>
       </ul>
 
-
       {/* Daily Squeeze */}
       <div style={h3}>Daily Squeeze</div>
       <p>Same as Intraday Squeeze, but over multiple days (bigger picture).</p>
@@ -268,7 +440,7 @@ function LegendContent() {
         <li>85–100% <Tag bg="#16a34a">🟢🟢 Excellent</Tag> → Very easy to trade.</li>
       </ul>
 
-      {/* Formula block */}
+      {/* Formula */}
       <div style={{ ...h3, marginTop: 12 }}>Market Meter</div>
       <div style={{ ...p, ...code }}>
         base = 0.4×Breadth + 0.4×Momentum + 0.2×(100 − Intraday&nbsp;Squeeze)
@@ -279,7 +451,7 @@ function LegendContent() {
         When daily squeeze is high, the meter is blended toward 50 (neutral).
       </div>
 
-      {/* Market Meter */}
+      {/* Overall Market Indicator explanation */}
       <div style={h3}>Overall Market Indicator</div>
       <p>Overall average of the gauges — like a “dashboard score.”</p>
       <p><strong>Example:</strong> 95% → Market is firing on all cylinders, very strong environment.</p>
@@ -290,71 +462,6 @@ function LegendContent() {
         <li>65–84% <Tag bg="#22c55e">🟢 Favorable</Tag> → Trend-friendly.</li>
         <li>85–100% <Tag bg="#fca5a5">🟥 Extreme</Tag> → May be overheated.</li>
       </ul>
-
-      
-      
     </div>
-  );
-}
-
-  
-  return (
-    <section id="row-2" className="panel" style={{ padding:8 }}>
-
-      {legendOpen && (
-        <LegendModal onClose={() => setLegendOpen(false)}>
-          <LegendContent />
-        </LegendModal>
-      )}
-
-            
-      <div className="panel-head">
-        <div className="panel-title">Market Meter — Stoplights</div>
-        <button
-          onClick={() => setLegendOpen(true)}
-          style={{
-            background: "#0b0b0b",
-            color: "#e5e7eb",
-            border: "1px solid #2b2b2b",
-            borderRadius: 8,
-            padding: "6px 10px",
-            fontWeight: 600,
-            cursor: "pointer",
-          }}
-          title="Show legend"
-        >
-          Legend
-        </button>
-        <div className="spacer" />
-        <LastUpdated ts={ts} />
-      </div>
-
-      {/* 3-column cluster: left(3) | center(big+daily) | right(2) */}
-      <div style={{
-        display:"grid",
-        gridTemplateColumns:"1fr auto 1fr",
-        alignItems:"center",
-        gap:10,
-        marginTop:6
-      }}>
-        {/* LEFT: Breadth, Momentum, Intraday Squeeze */}
-        <div style={{ 
-              display: 'flex',
-              gap: 10,               // spacing between the 3 buttons
-              maxWidth: 300,         // 👈 cap total width (tune 360–520 as you like)
-              width: '100%',
-              alignItems: 'left',
-              justifyContent: 'space-between',
-            }}>
-          <Stoplight label="Breadth"          value={breadth}       baseline={bBreadth} />
-          <Stoplight label="Momentum"         value={momentum}      baseline={bMomentum} />
-          <Stoplight label="Intraday Squeeze" value={squeezeIntra}  baseline={bSqueezeIn} />
-          <Stoplight label="Daily Squeeze" value={squeezeDaily} baseline={bSqueezeDy} />
-          <Stoplight label="Liquidity"  value={liquidity}  baseline={bLiquidity} unit="" />
-          <Stoplight label="Volatility" value={volatility} baseline={bVol} />
-          <Stoplight label="Overall Market Indicator"  value={meterValue} baseline={meterValue} size={110} />
-        </div>
-      </div>
-    </section>
   );
 }
