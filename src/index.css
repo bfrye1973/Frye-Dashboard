@@ -153,4 +153,17 @@ body > #root {
 
 /* If you keep a fixed row height (520px), prevent any extra padding/margins from creating slack */
 #row-6 { padding-bottom: 0 !important; margin-bottom: 8px !important; }
+/* Row 6 shell must flex correctly so chart fills exactly */
+#row-6 {
+  display: flex;
+  flex-direction: column;
+  min-height: 520px;         /* same as your base */
+}
+
+#row-6 .row6-shell {
+  flex: 1 1 auto;
+  min-height: 0 !important;  /* allow the chart to shrink to bottom */
+  display: flex;
+  flex-direction: column;
+}
 
