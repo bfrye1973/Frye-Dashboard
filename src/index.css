@@ -167,3 +167,10 @@ body > #root {
 #row-6 .tv-lightweight-charts {
   height: 100% !important;
 }
+/* Row 6 — stretch to bottom so timeline shows, no slack */
+#row-6 { padding-bottom: 0 !important; }
+#row-6 .row6-shell { height: 100% !important; min-height: 0 !important; display:flex; flex-direction:column; }
+/* RowChart's inline wrapper (style="position: relative; height: 520px") */
+#row-6 .row6-shell > div[style*="position: relative"] { height: 100% !important; }
+/* The chart host (canvas container) */
+#row-6 .tv-lightweight-charts { height: 100% !important; }
