@@ -61,24 +61,25 @@ button{
 #row-3 { min-height: 110px !important; padding:8px 10px !important; }   /* Engine Lights */
 #row-4 { min-height: 130px !important; padding:8px 10px !important; }   /* Index Sectors */
 #row-5 { min-height: 180px !important; padding:8px 10px !important; }   /* Strategies */
-/* (Row 6 sized in canonical block at bottom) */
+#row-6 { min-height: 520px !important; padding:8px 10px !important; }   /* Chart (required) */
 #row-7 { min-height: 140px !important; padding:8px 10px !important; }   /* Journal */
 
 /* Reduce gap between rows */
 #row-1, #row-2, #row-3, #row-4, #row-5, #row-6, #row-7 { margin-bottom:8px !important; }
 
 /* ===== Compact Market Meter layout (no legend forcing) ===== */
+/* If classes from the previous layout exist, these will compact them. */
 .meter-grid{ display:grid; grid-template-columns:auto auto auto; gap:8px; align-items:center; }
 .meter-small{ display:flex; gap:8px; flex-wrap:nowrap; }
 
 /* Shrink stoplights globally inside Row 2 without changing JSX sizes */
-#row-2 .light{
-  transform: scale(0.72);
+#row-2 .light{ 
+  transform: scale(0.72);                 /* shrink the whole light */
   transform-origin: center;
-  min-width: 80px !important;
+  min-width: 80px !important;             /* prevent “wide” container reservations */
 }
 
-/* ===== Chart quarantine (Row 6 only — optional fixed card) ===== */
+/* ===== Chart quarantine (Row 6 only) ===== */
 #row-6.chart-card{
   position:relative !important;
   height:520px !important;
@@ -93,11 +94,12 @@ button{
   overflow:hidden !important;
 }
 
-/* ===== Delta chips ===== */
+/* ===== Delta chips (used next to lights) ===== */
 .delta{ font-weight:700; padding:2px 6px; border-radius:8px; border:1px solid transparent; }
 .delta-up{   color:#22c55e; border-color:#14532d; background:#052e1b; }
 .delta-down{ color:#ef4444; border-color:#7f1d1d; background:#3a0e0e; }
 .delta-flat{ color:#93c5fd; border-color:#334155; background:#0b1220; }
+/* Live / Stale badge */
 .badge {
   display: inline-block;
   padding: 2px 8px;
@@ -108,57 +110,3 @@ button{
 }
 .badge.live  { background: #052e1b; color:#34d399; border-color:#14532d; }
 .badge.stale { background: #3a0e0e; color:#fca5a5; border-color:#7f1d1d; }
-
-/* ===== Black-canvas FIX (global) ===== */
-
-/* Make the page size to the viewport and allow inner content to shrink */
-html, body { height: 100%; }
-body {
-  display: flex;
-  flex-direction: column;
-  min-height: 100vh;      /* page = viewport height */
-  margin: 0;
-}
-
-/* Let the app root fill the page and NOT leave slack at the bottom */
-body > #root {
-  flex: 1 1 auto;
-  min-height: 0 !important;     /* allow children to shrink */
-  overflow: hidden !important;   /* hide any leftover seam */
-}
-
-/* Full Chart & common chart shells */
-.fullchart-page,
-.fullchart-body,
-.chart-shell {
-  display: flex;
-  flex-direction: column;
-  flex: 1 1 auto;
-  min-height: 0 !important;
-}
-
-/* Ensure lightweight-charts host fills its shell */
-.chart-shell .tv-lightweight-charts {
-  width: 100% !important;
-  height: 100% !important;
-  position: relative;
-  overflow: hidden;
-}
-
-/* ===== Row 6 specific (canonical, permanent fix) ===== */
-#row-6 {
-  display:flex;
-  flex-direction:column;
-  min-height:520px !important;
-  padding:8px 10px 0 10px !important;   /* bottom=0 to avoid slack */
-}
-#row-6 .row6-shell {
-  flex: 1 1 auto;
-  min-height: 0 !important;
-  display: flex;
-  flex-direction: column;
-}
-/* Stretch the chart host to the bottom so the time axis is visible */
-#row-6 .tv-lightweight-charts { height: 100% !important; }
-/* Make Row 6's inline wrapper (from RowChart) fill the row */
-#row-6 .row6-shell > div[style*="position: relative"] { height: 100% !important; }
