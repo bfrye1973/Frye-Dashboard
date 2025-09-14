@@ -144,6 +144,26 @@ export default function RowChart({
         ema50={ind.ema50}
         onChange={(patch) => setInd((s) => ({ ...s, ...patch }))}
       />
+      {/* Full chart link — restored here */}
+       <div style={{ display: "flex", justifyContent: "flex-end", padding: "6px 12px", borderBottom: "1px solid #2b2b2b" }}>
+        <button
+          onClick={() => {
+            const url = `/chart?symbol=${state.symbol}&tf=${state.timeframe}`;
+            window.open(url, "_blank", "noopener");
+          }}
+          style={{
+            background: "#0b0b0b",
+            color: "#e5e7eb",
+            border: "1px solid #2b2b2b",
+            borderRadius: 8,
+            padding: "6px 10px",
+            fontWeight: 600,
+            cursor: "pointer",
+          }}
+         >
+          Open Full Chart ↗
+        </button>
+      </div>
 
       {/* Optional debug */}
       {showDebug && (
