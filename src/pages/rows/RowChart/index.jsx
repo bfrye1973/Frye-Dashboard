@@ -1,4 +1,4 @@
-// src/pages/rows/RowChart/index.jsx  (v3.0 — precise height, no overlay)
+// src/pages/rows/RowChart/index.jsx  (v3.1 — explicit height, single Full Chart button)
 import React, { useMemo, useState, useEffect, useRef } from "react";
 import Controls from "./Controls";
 import IndicatorsToolbar from "./IndicatorsToolbar";
@@ -11,10 +11,11 @@ export default function RowChart({
   apiBase,
   defaultSymbol = "SPY",
   defaultTimeframe = "1h",
-  height = 520,                // 👈 explicit pixel height from parent
+  height = 520,          // explicit pixel height from parent
   onStatus,
   showDebug = false,
 }) {
+  // ----- UI state -----
   const [state, setState] = useState({
     symbol: defaultSymbol,
     timeframe: defaultTimeframe,
@@ -28,6 +29,7 @@ export default function RowChart({
     ema50: true,
   });
 
+  // ----- theme for LWC -----
   const theme = useMemo(
     () => ({
       layout: { background: { type: "solid", color: "#0a0a0a" }, textColor: "#e5e7eb" },
@@ -38,7 +40,7 @@ export default function RowChart({
         rightOffset: 6,
         barSpacing: 8,
         fixLeftEdge: true,
-        timeVisible: true,       // 👈 render time labels inside the canvas
+        timeVisible: true,       // render time labels inside canvas
         secondsVisible: false,
       },
       crosshair: { mode: 0 },
@@ -52,31 +54,32 @@ export default function RowChart({
     []
   );
 
-  // Main chart gets the exact height provided by the parent
+  // ----- chart -----
   const { containerRef, chart, setData } = useLwcChart({ height, theme });
 
+  // ----- data -----
   const { bars, loading, error, refetch } = useOhlc({
     apiBase,
     symbol: state.symbol,
     timeframe: state.timeframe,
   });
 
-  // status
+  // status to parent
   useEffect(() => {
     onStatus && onStatus(loading ? "loading" : error ? "error" : bars.length ? "ready" : "idle");
   }, [loading, error, bars, onStatus]);
 
-  // fetch on mount + when symbol/tf changes
+  // fetch on mount & on symbol/TF change
   useEffect(() => { void refetch(true); }, []);
   useEffect(() => { void refetch(true); }, [state.symbol, state.timeframe]);
 
-  // candles → chart
+  // pipe bars into candle series
   useEffect(() => {
     const data = state.range && bars.length > state.range ? bars.slice(-state.range) : bars;
     setData(data);
   }, [bars, state.range, setData]);
 
-  // ---------- EMA overlays ----------
+  // ----- EMA overlays -----
   const emaOverlaysRef = useRef({}); // { e10, e20, e50 }
 
   useEffect(() => {
@@ -95,13 +98,13 @@ export default function RowChart({
       if (ind.ema50) emaOverlaysRef.current.e50 = createEmaOverlay({ chart, period: 50, color: "#34d399" });
     }
 
-    // feed current bars so EMA lines appear immediately
+    // feed current bars so lines appear immediately
     Object.values(emaOverlaysRef.current).forEach((o) => o?.setBars?.(bars));
 
     return () => removeAll();
   }, [chart, ind.showEma, ind.ema10, ind.ema20, ind.ema50, bars]);
 
-  // re-feed on bars/toggles change
+  // re-feed on bars/toggle change
   useEffect(() => {
     Object.values(emaOverlaysRef.current).forEach((o) => o?.setBars?.(bars));
   }, [bars, ind.showEma, ind.ema10, ind.ema20, ind.ema50]);
@@ -111,7 +114,8 @@ export default function RowChart({
   return (
     <div
       style={{
-        height,                       // 👈 wrapper matches the explicit height
+        height,                 // wrapper equals explicit height
+        minHeight: height,      // guard: row cannot collapse
         overflow: "hidden",
         background: "#0a0a0a",
         border: "1px solid #2b2b2b",
@@ -144,45 +148,16 @@ export default function RowChart({
         ema50={ind.ema50}
         onChange={(patch) => setInd((s) => ({ ...s, ...patch }))}
       />
-      {/* Full chart link — restored here */}
-       <div style={{ display: "flex", justifyContent: "flex-end", padding: "6px 12px", borderBottom: "1px solid #2b2b2b" }}>
-        <button
-          onClick={() => {
-            const url = `/chart?symbol=${state.symbol}&tf=${state.timeframe}`;
-            window.open(url, "_blank", "noopener");
-          }}
-          style={{
-            background: "#0b0b0b",
-            color: "#e5e7eb",
-            border: "1px solid #2b2b2b",
-            borderRadius: 8,
-            padding: "6px 10px",
-            fontWeight: 600,
-            cursor: "pointer",
-          }}
-         >
-          Open Full Chart ↗
-        </button>
-      </div>
 
-      {/* Optional debug */}
-      {showDebug && (
-        <div style={{ padding: "6px 12px", color: "#9ca3af", fontSize: 12, borderBottom: "1px solid #2b2b2b" }}>
-          debug • base: {baseShown || "MISSING"} • symbol: {state.symbol} • tf: {state.timeframe} • bars: {bars.length}
-        </div>
-      )}
-
-      {/* Chart host at exact pixel height — no padding, no overlay */}
-      <div style={{ flex: 1, minHeight: 0 }}>
-        <div ref={containerRef} style={{ position: "relative", height }}>
-          {loading && <Overlay>Loading bars…</Overlay>}
-          {!loading && !error && bars.length === 0 && <Overlay>No data returned</Overlay>}
-          {error && <Overlay>Error: {error}</Overlay>}
-        </div>
-      </div>
-
-      {/* Full chart link */}
-      <div style={{ display: "flex", justifyContent: "flex-end", padding: "6px 12px", borderTop: "1px solid #2b2b2b" }}>
+      {/* Open Full Chart — single placement under indicators */}
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "flex-end",
+          padding: "6px 12px",
+          borderBottom: "1px solid #2b2b2b",
+        }}
+      >
         <button
           onClick={() => {
             const url = `/chart?symbol=${state.symbol}&tf=${state.timeframe}`;
@@ -200,6 +175,22 @@ export default function RowChart({
         >
           Open Full Chart ↗
         </button>
+      </div>
+
+      {/* Debug (optional) */}
+      {showDebug && (
+        <div style={{ padding: "6px 12px", color: "#9ca3af", fontSize: 12, borderBottom: "1px solid #2b2b2b" }}>
+          debug • base: {baseShown || "MISSING"} • symbol: {state.symbol} • tf: {state.timeframe} • bars: {bars.length}
+        </div>
+      )}
+
+      {/* Chart host at exact pixel height — no padding/overlay */}
+      <div style={{ flex: 1, minHeight: 0 }}>
+        <div ref={containerRef} style={{ position: "relative", height }}>
+          {loading && <Overlay>Loading bars…</Overlay>}
+          {!loading && !error && bars.length === 0 && <Overlay>No data returned</Overlay>}
+          {error && <Overlay>Error: {error}</Overlay>}
+        </div>
       </div>
     </div>
   );
