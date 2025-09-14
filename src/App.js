@@ -5,7 +5,7 @@ import NewDashboard from "./pages/NewDashboard";
 import ErrorBoundary from "./ErrorBoundary";
 import "./index.css";
 
-// Lazy-load FullChart to keep initial bundle small
+// Lazy-load to keep the first load fast
 const FullChart = React.lazy(() => import("./pages/FullChart"));
 
 export default function App() {
@@ -17,7 +17,6 @@ export default function App() {
             <Routes>
               <Route path="/" element={<NewDashboard />} />
               <Route path="/chart" element={<FullChart />} />
-              {/* Fallback: redirect unknown routes to dashboard */}
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </React.Suspense>
