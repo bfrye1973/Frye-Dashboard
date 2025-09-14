@@ -99,6 +99,7 @@ button{
 .delta-up{   color:#22c55e; border-color:#14532d; background:#052e1b; }
 .delta-down{ color:#ef4444; border-color:#7f1d1d; background:#3a0e0e; }
 .delta-flat{ color:#93c5fd; border-color:#334155; background:#0b1220; }
+
 /* Live / Stale badge */
 .badge {
   display: inline-block;
@@ -110,3 +111,59 @@ button{
 }
 .badge.live  { background: #052e1b; color:#34d399; border-color:#14532d; }
 .badge.stale { background: #3a0e0e; color:#fca5a5; border-color:#7f1d1d; }
+
+/* ===== Black-canvas FIX (global) ===== */
+
+/* Make the page size to the viewport and allow inner content to shrink */
+html, body { height: 100%; }
+body {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;      /* page = viewport height */
+  margin: 0;
+}
+
+/* Let the app root fill the page and NOT leave slack at the bottom */
+body > #root {
+  flex: 1 1 auto;
+  min-height: 0 !important;     /* allow children to shrink */
+  overflow: hidden !important;   /* hide any leftover seam */
+}
+
+/* Full Chart & common chart shells */
+.fullchart-page,
+.fullchart-body,
+.chart-shell {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0 !important;
+}
+
+/* Ensure lightweight-charts host fills its shell */
+.chart-shell .tv-lightweight-charts {
+  width: 100% !important;
+  height: 100% !important;
+  position: relative;
+  overflow: hidden;
+}
+
+/* === Row 6 — kill black canvas (append-only) === */
+#row-6 { padding-bottom: 0 !important; } /* keep side/top padding, remove bottom slack */
+
+#row-6 .row6-shell {
+  height: 100% !important;
+  min-height: 0 !important;
+  display: flex;
+  flex-direction: column;
+}
+
+/* RowChart injects an inline wrapper: style="position: relative; height: 520px" */
+#row-6 .row6-shell > div[style*="position: relative"] {
+  height: 100% !important;
+}
+
+/* Make the lightweight-charts host stretch to the bottom (timeline visible) */
+#row-6 .tv-lightweight-charts {
+  height: 100% !important;
+}
