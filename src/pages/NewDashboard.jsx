@@ -9,18 +9,12 @@ import RowIndexSectors from "./rows/RowIndexSectors";
 import RowStrategies from "./rows/RowStrategies";
 import RowJournal from "./rows/RowJournal";
 
-/* Row 6 — measured wrapper (make sure you added this file earlier) */
+/* Row 6 — measured wrapper */
 import Row6Chart from "./rows/RowChart/Row6Chart";
 
 export default function NewDashboard() {
   return (
-    <div
-      style={{
-        padding: 12,
-        display: "grid",
-        gap: 12,
-      }}
-    >
+    <div style={{ padding: 12, display: "grid", gap: 12 }}>
       {/* Row 1 — Mode Toggle */}
       <section id="row-1" className="panel" style={{ display: "flex", flexDirection: "column" }}>
         <RowModeToggle />
@@ -47,11 +41,15 @@ export default function NewDashboard() {
       </section>
 
       {/* Row 6 — Chart (measured; zero slack) */}
-      <section id="row-6" className="panel" style={{ display: "flex", flexDirection: "column", minHeight: 520 }}>
-        {/* If you have a toolbar for the chart row, render it here so it sits above the chart */}
-        {/* <Row6Toolbar ... /> */}
+      <section
+        id="row-6"
+        className="panel"
+        style={{ display: "flex", flexDirection: "column", minHeight: 520 }}
+      >
+        {/* Optional toolbar above chart */}
+        {/* <Row6Toolbar /> */}
 
-        {/* The measured chart fills the rest exactly */}
+        {/* Measured shell ensures the chart fills exactly */}
         <div className="row6-shell" style={{ flex: "1 1 auto", minHeight: 0 }}>
           <Row6Chart
             apiBase="https://frye-market-backend-1.onrender.com"
