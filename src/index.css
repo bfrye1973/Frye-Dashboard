@@ -140,7 +140,12 @@ body > #root {
 
 /* ===== Row 6 Lock (Fixed Height, No Black Canvas) ===== */
 #row-6 {
-  height: 560px !important;             /* lock instead of min-height */
+ #row-6 {
+  height: auto !important;     /* allow the grid’s 1fr to take effect */
+  min-height: 520px !important;/* keep a safe floor so it never gets too small */
+  ...
+}
+
   padding: 8px 10px 0 10px !important;  /* bottom=0 so no slack */
   display: flex;
   flex-direction: column;
