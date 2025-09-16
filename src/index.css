@@ -37,7 +37,7 @@ button{
 }
 .panel-head{
   display:flex; align-items:center; gap:8px;
-  padding:6px 10px;                  /* tighter header */
+  padding:6px 10px;
   border-bottom:1px solid var(--border);
   background:#0c1320;
 }
@@ -61,7 +61,6 @@ button{
 #row-3 { min-height: 110px !important; padding:8px 10px !important; }   /* Engine Lights */
 #row-4 { min-height: 130px !important; padding:8px 10px !important; }   /* Index Sectors */
 #row-5 { min-height: 180px !important; padding:8px 10px !important; }   /* Strategies */
-#row-6 { min-height: 520px !important; padding:8px 10px !important; }   /* Chart (baseline, overridden by lock below) */
 #row-7 { min-height: 140px !important; padding:8px 10px !important; }   /* Journal */
 
 /* Reduce gap between rows */
@@ -93,7 +92,7 @@ button{
   overflow:hidden !important;
 }
 
-/* ===== Delta chips (used next to lights) ===== */
+/* ===== Delta chips ===== */
 .delta{ font-weight:700; padding:2px 6px; border-radius:8px; border:1px solid transparent; }
 .delta-up{   color:#22c55e; border-color:#14532d; background:#052e1b; }
 .delta-down{ color:#ef4444; border-color:#7f1d1d; background:#3a0e0e; }
@@ -138,15 +137,17 @@ body > #root {
   overflow: hidden;
 }
 
-/* ===== Row 6 Lock (Fixed Height, No Black Canvas) ===== */
-#row-6 {
- #row-6 {
-  height: auto !important;     /* allow the grid’s 1fr to take effect */
-  min-height: 520px !important;/* keep a safe floor so it never gets too small */
-  ...
+/* ===== Dashboard grid: Row 6 flex-fill ===== */
+.dashboard-grid {
+  grid-template-rows: auto auto auto auto auto 1fr auto;
+  min-height: 100vh;
 }
 
-  padding: 8px 10px 0 10px !important;  /* bottom=0 so no slack */
+/* ===== Row 6 (flex-fill, no black canvas) ===== */
+#row-6 {
+  height: auto !important;              /* let grid 1fr control height */
+  min-height: 520px !important;         /* safe floor on small screens */
+  padding: 8px 10px 0 10px !important;  /* bottom=0, no slack */
   display: flex;
   flex-direction: column;
 }
@@ -155,19 +156,12 @@ body > #root {
   min-height: 0 !important;
   display: flex;
   flex-direction: column;
-  overflow: hidden;                      /* hide any tiny canvas seam */
+  overflow: hidden;                      /* hide any tiny seams */
 }
-/* Inline wrapper that RowChart injects (was capping at 520px) */
 #row-6 .row6-shell > div[style*="position: relative"] {
   height: 100% !important;
   min-height: 100% !important;
 }
-/* Lightweight-charts host (canvas container) fills the wrapper */
 #row-6 .tv-lightweight-charts {
   height: 100% !important;
-}
-/* Dashboard grid layout: allow Row 6 to flex-fill */
-.dashboard-grid {
-  grid-template-rows: auto auto auto auto auto 1fr auto;  /* rows 1-5 fixed, row 6 flexible, row 7 fixed */
-  min-height: 100vh;                                     /* fill full viewport height */
 }
