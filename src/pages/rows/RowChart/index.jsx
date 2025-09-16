@@ -196,16 +196,23 @@ export default function RowChart({
       )}
 
       {/* Chart host at exact pixel height — no padding/overlay */}
-      <div style={{ flex: 1, minHeight: 0 }}>
-        <div ref={containerRef} style={{ position: "relative", height }}>
-          {loading && <Overlay>Loading bars…</Overlay>}
-          {!loading && !error && bars.length === 0 && <Overlay>No data returned</Overlay>}
-          {error && <Overlay>Error: {error}</Overlay>}
-        </div>
-      </div>
+     <div style={{ flex: 1, minHeight: 0 }}>
+      <div
+        ref={containerRef}
+        className="tv-lightweight-charts"
+        style={{
+        position: "relative",
+        width: "100%",
+        height: "100%",
+        minHeight: 0,
+        flex: 1,
+      }}
+     >
+      {loading && <Overlay>Loading bars…</Overlay>}
+      {!loading && !error && bars.length === 0 && <Overlay>No data returned</Overlay>}
+      {error && <Overlay>Error: {error}</Overlay>}
     </div>
-  );
-}
+  </div>
 
 function Overlay({ children }) {
   return (
