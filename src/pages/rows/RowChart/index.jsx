@@ -149,16 +149,16 @@ export default function RowChart({
 
   return (
     <div
-      style={{
-        height,
-        minHeight: height,
-        overflow: "hidden",
-        background: "#0a0a0a",
-        border: "1px solid #2b2b2b",
-        borderRadius: 12,
-        display: "flex",
-        flexDirection: "column",
-      }}
+style={{
+  flex: 1,
+  minHeight: 0,
+  overflow: "hidden",
+  background: "#0a0a0a",
+  border: "1px solid #2b2b2b",
+  borderRadius: 12,
+  display: "flex",
+  flexDirection: "column",
+}}
     >
       {/* Controls */}
       <Controls
