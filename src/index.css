@@ -161,3 +161,8 @@ body > #root {
 #row-6 .tv-lightweight-charts {
   height: 100% !important;
 }
+/* Dashboard grid layout: allow Row 6 to flex-fill */
+.dashboard-grid {
+  grid-template-rows: auto auto auto auto auto 1fr auto;  /* rows 1-5 fixed, row 6 flexible, row 7 fixed */
+  min-height: 100vh;                                     /* fill full viewport height */
+}
