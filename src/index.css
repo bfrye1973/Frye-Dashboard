@@ -173,3 +173,9 @@ body > #root {
   flex-direction: column;
   justify-content: flex-start;   /* no extra centering space */
 }
+/* Remove the 92vh cap on the dashboard wrapper */
+[data-cluster-host] {
+  max-height: none !important;
+  min-height: 100vh !important;  /* let the grid fill the viewport */
+  height: auto !important;
+}
