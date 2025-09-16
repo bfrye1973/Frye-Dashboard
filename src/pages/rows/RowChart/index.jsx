@@ -1,4 +1,6 @@
-// src/pages/rows/RowChart/index.jsx  (v3.3 — white labels, tighter bottom, single Full Chart button)
+// src/pages/rows/RowChart/index.jsx
+// v3.4 — white labels, flexible height, tv-lightweight-charts container
+
 import React, { useMemo, useState, useEffect, useRef } from "react";
 import Controls from "./Controls";
 import IndicatorsToolbar from "./IndicatorsToolbar";
@@ -11,7 +13,7 @@ export default function RowChart({
   apiBase,
   defaultSymbol = "SPY",
   defaultTimeframe = "1h",
-  height = 520,          // explicit pixel height from parent
+  height = 520,          // can be overridden, but we stretch via CSS now
   onStatus,
   showDebug = false,
 }) {
@@ -34,7 +36,7 @@ export default function RowChart({
     () => ({
       layout: {
         background: { type: "solid", color: "#0a0a0a" },
-        textColor: "#ffffff",           // white axis/labels
+        textColor: "#ffffff",
       },
       grid: {
         vertLines: { color: "#1e1e1e" },
@@ -42,16 +44,15 @@ export default function RowChart({
       },
       rightPriceScale: {
         borderColor: "#2b2b2b",
-        // tighten visible content so bottom lane feels smaller
-        scaleMargins: { top: 0.06, bottom: 0.03 }, // small, safe nudge
+        scaleMargins: { top: 0.06, bottom: 0.03 },
       },
       timeScale: {
         borderVisible: true,
         borderColor: "#2b2b2b",
         rightOffset: 6,
-        barSpacing: 12,                 // ⬆︎ was 8 — gives labels more room
+        barSpacing: 12,
         fixLeftEdge: true,
-        timeVisible: true,              // labels inside canvas
+        timeVisible: true,
         secondsVisible: false,
       },
       crosshair: { mode: 0 },
@@ -77,16 +78,27 @@ export default function RowChart({
 
   // status to parent
   useEffect(() => {
-    onStatus && onStatus(loading ? "loading" : error ? "error" : bars.length ? "ready" : "idle");
+    if (!onStatus) return;
+    if (loading) onStatus("loading");
+    else if (error) onStatus("error");
+    else if (bars.length) onStatus("ready");
+    else onStatus("idle");
   }, [loading, error, bars, onStatus]);
 
   // fetch on mount & when symbol/TF changes
-  useEffect(() => { void refetch(true); }, []);
-  useEffect(() => { void refetch(true); }, [state.symbol, state.timeframe]);
+  useEffect(() => {
+    void refetch(true);
+  }, []);
+  useEffect(() => {
+    void refetch(true);
+  }, [state.symbol, state.timeframe]);
 
   // push candles to chart
   useEffect(() => {
-    const data = state.range && bars.length > state.range ? bars.slice(-state.range) : bars;
+    const data =
+      state.range && bars.length > state.range
+        ? bars.slice(-state.range)
+        : bars;
     setData(data);
   }, [bars, state.range, setData]);
 
@@ -104,18 +116,31 @@ export default function RowChart({
     removeAll();
 
     if (ind.showEma) {
-      if (ind.ema10) emaOverlaysRef.current.e10 = createEmaOverlay({ chart, period: 10, color: "#60a5fa" });
-      if (ind.ema20) emaOverlaysRef.current.e20 = createEmaOverlay({ chart, period: 20, color: "#f59e0b" });
-      if (ind.ema50) emaOverlaysRef.current.e50 = createEmaOverlay({ chart, period: 50, color: "#34d399" });
+      if (ind.ema10)
+        emaOverlaysRef.current.e10 = createEmaOverlay({
+          chart,
+          period: 10,
+          color: "#60a5fa",
+        });
+      if (ind.ema20)
+        emaOverlaysRef.current.e20 = createEmaOverlay({
+          chart,
+          period: 20,
+          color: "#f59e0b",
+        });
+      if (ind.ema50)
+        emaOverlaysRef.current.e50 = createEmaOverlay({
+          chart,
+          period: 50,
+          color: "#34d399",
+        });
     }
 
-    // show lines immediately with current bars
     Object.values(emaOverlaysRef.current).forEach((o) => o?.setBars?.(bars));
 
     return () => removeAll();
   }, [chart, ind.showEma, ind.ema10, ind.ema20, ind.ema50, bars]);
 
-  // re-feed on bars/toggle change
   useEffect(() => {
     Object.values(emaOverlaysRef.current).forEach((o) => o?.setBars?.(bars));
   }, [bars, ind.showEma, ind.ema10, ind.ema20, ind.ema50]);
@@ -125,8 +150,8 @@ export default function RowChart({
   return (
     <div
       style={{
-        height,                 // wrapper equals explicit height
-        minHeight: height,      // guard against collapse
+        height,
+        minHeight: height,
         overflow: "hidden",
         background: "#0a0a0a",
         border: "1px solid #2b2b2b",
@@ -139,13 +164,22 @@ export default function RowChart({
       <Controls
         symbols={SYMBOLS}
         timeframes={TIMEFRAMES}
-        value={{ symbol: state.symbol, timeframe: state.timeframe, range: state.range, disabled: loading }}
+        value={{
+          symbol: state.symbol,
+          timeframe: state.timeframe,
+          range: state.range,
+          disabled: loading,
+        }}
         onChange={(patch) => setState((s) => ({ ...s, ...patch }))}
         onTest={
           showDebug
             ? async () => {
                 const r = await refetch(true);
-                alert(r.ok ? `Fetched ${r.count || 0} bars` : `Error: ${r.error || "unknown"}`);
+                alert(
+                  r.ok
+                    ? `Fetched ${r.count || 0} bars`
+                    : `Error: ${r.error || "unknown"}`
+                );
               }
             : undefined
         }
@@ -160,7 +194,7 @@ export default function RowChart({
         onChange={(patch) => setInd((s) => ({ ...s, ...patch }))}
       />
 
-      {/* Open Full Chart — single placement below indicators */}
+      {/* Open Full Chart */}
       <div
         style={{
           display: "flex",
@@ -190,29 +224,42 @@ export default function RowChart({
 
       {/* Debug (optional) */}
       {showDebug && (
-        <div style={{ padding: "6px 12px", color: "#9ca3af", fontSize: 12, borderBottom: "1px solid #2b2b2b" }}>
-          debug • base: {baseShown || "MISSING"} • symbol: {state.symbol} • tf: {state.timeframe} • bars: {bars.length}
+        <div
+          style={{
+            padding: "6px 12px",
+            color: "#9ca3af",
+            fontSize: 12,
+            borderBottom: "1px solid #2b2b2b",
+          }}
+        >
+          debug • base: {baseShown || "MISSING"} • symbol: {state.symbol} • tf:{" "}
+          {state.timeframe} • bars: {bars.length}
         </div>
       )}
 
-      {/* Chart host at exact pixel height — no padding/overlay */}
-     <div style={{ flex: 1, minHeight: 0 }}>
-      <div
-        ref={containerRef}
-        className="tv-lightweight-charts"
-        style={{
-        position: "relative",
-        width: "100%",
-        height: "100%",
-        minHeight: 0,
-        flex: 1,
-      }}
-     >
-      {loading && <Overlay>Loading bars…</Overlay>}
-      {!loading && !error && bars.length === 0 && <Overlay>No data returned</Overlay>}
-      {error && <Overlay>Error: {error}</Overlay>}
+      {/* Chart host */}
+      <div style={{ flex: 1, minHeight: 0 }}>
+        <div
+          ref={containerRef}
+          className="tv-lightweight-charts"
+          style={{
+            position: "relative",
+            width: "100%",
+            height: "100%",
+            minHeight: 0,
+            flex: 1,
+          }}
+        >
+          {loading && <Overlay>Loading bars…</Overlay>}
+          {!loading && !error && bars.length === 0 && (
+            <Overlay>No data returned</Overlay>
+          )}
+          {error && <Overlay>Error: {error}</Overlay>}
+        </div>
+      </div>
     </div>
-  </div>
+  );
+}
 
 function Overlay({ children }) {
   return (
