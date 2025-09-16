@@ -61,29 +61,24 @@ button{
 #row-3 { min-height: 110px !important; padding:8px 10px !important; }   /* Engine Lights */
 #row-4 { min-height: 130px !important; padding:8px 10px !important; }   /* Index Sectors */
 #row-5 { min-height: 180px !important; padding:8px 10px !important; }   /* Strategies */
-
-/* Option A: lock Row 6 height (fixed, no growth) */
-#row-6 { height: 560px !important; padding:8px 10px 0 10px !important; }   /* Chart (fixed) */
-
+#row-6 { min-height: 520px !important; padding:8px 10px !important; }   /* Chart (baseline, overridden by lock below) */
 #row-7 { min-height: 140px !important; padding:8px 10px !important; }   /* Journal */
 
 /* Reduce gap between rows */
 #row-1, #row-2, #row-3, #row-4, #row-5, #row-6, #row-7 { margin-bottom:8px !important; }
 
 /* ===== Compact Market Meter layout (no legend forcing) ===== */
-/* If classes from the previous layout exist, these will compact them. */
 .meter-grid{ display:grid; grid-template-columns:auto auto auto; gap:8px; align-items:center; }
 .meter-small{ display:flex; gap:8px; flex-wrap:nowrap; }
 
 /* Shrink stoplights globally inside Row 2 without changing JSX sizes */
 #row-2 .light{ 
-  transform: scale(0.72);                 /* shrink the whole light */
+  transform: scale(0.72);
   transform-origin: center;
-  min-width: 80px !important;             /* prevent “wide” container reservations */
+  min-width: 80px !important;
 }
 
 /* ===== Chart quarantine (Row 6 only — optional fixed card) ===== */
-/* NOTE: Do NOT add class "chart-card" to Row 6 unless you intentionally want this hard 520px card. */
 #row-6.chart-card{
   position:relative !important;
   height:520px !important;
@@ -104,7 +99,6 @@ button{
 .delta-down{ color:#ef4444; border-color:#7f1d1d; background:#3a0e0e; }
 .delta-flat{ color:#93c5fd; border-color:#334155; background:#0b1220; }
 
-/* Live / Stale badge */
 .badge {
   display: inline-block;
   padding: 2px 8px;
@@ -117,24 +111,18 @@ button{
 .badge.stale { background: #3a0e0e; color:#fca5a5; border-color:#7f1d1d; }
 
 /* ===== Black-canvas FIX (global) ===== */
-
-/* Make the page size to the viewport and allow inner content to shrink */
 html, body { height: 100%; }
 body {
   display: flex;
   flex-direction: column;
-  min-height: 100vh;      /* page = viewport height */
+  min-height: 100vh;
   margin: 0;
 }
-
-/* Let the app root fill the page and NOT leave slack at the bottom */
 body > #root {
   flex: 1 1 auto;
-  min-height: 0 !important;     /* allow children to shrink */
-  overflow: hidden !important;   /* hide any leftover seam */
+  min-height: 0 !important;
+  overflow: hidden !important;
 }
-
-/* Full Chart & common chart shells */
 .fullchart-page,
 .fullchart-body,
 .chart-shell {
@@ -143,8 +131,6 @@ body > #root {
   flex: 1 1 auto;
   min-height: 0 !important;
 }
-
-/* Ensure lightweight-charts host fills its shell */
 .chart-shell .tv-lightweight-charts {
   width: 100% !important;
   height: 100% !important;
@@ -152,20 +138,22 @@ body > #root {
   overflow: hidden;
 }
 
-/* ===== Row 6 lock helpers (children fill the fixed row) ===== */
+/* ===== Row 6 Lock (Fixed Height, No Black Canvas) ===== */
+#row-6 {
+  height: 560px !important;             /* lock instead of min-height */
+  padding: 8px 10px 0 10px !important;  /* bottom=0 so no slack */
+  display: flex;
+  flex-direction: column;
+}
 #row-6 .row6-shell {
-  height: 100% !important;       /* shell fills the fixed row */
+  height: 100% !important;
   min-height: 0 !important;
   display: flex;
   flex-direction: column;
 }
-
-/* RowChart injects an inline wrapper: style="position: relative; height: 520px" */
 #row-6 .row6-shell > div[style*="position: relative"] {
-  height: 100% !important;       /* stretch wrapper to the row height */
+  height: 100% !important;
 }
-
-/* Make the lightweight-charts host stretch to the bottom (timeline visible) */
 #row-6 .tv-lightweight-charts {
-  height: 100% !important;       /* canvas host fills wrapper */
+  height: 100% !important;
 }
