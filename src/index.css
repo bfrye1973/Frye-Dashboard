@@ -150,15 +150,14 @@ body > #root {
   min-height: 0 !important;
   display: flex;
   flex-direction: column;
+  overflow: hidden;                      /* hide any tiny canvas seam */
 }
-#row-6 .row6-shell > div[style*="position: relative"] {
-  height: 100% !important;
-}
-#row-6 .tv-lightweight-charts {
-  height: 100% !important;
-}
-/* Inline wrapper inside Row 6 must stretch to the row height */
+/* Inline wrapper that RowChart injects (was capping at 520px) */
 #row-6 .row6-shell > div[style*="position: relative"] {
   height: 100% !important;
   min-height: 100% !important;
+}
+/* Lightweight-charts host (canvas container) fills the wrapper */
+#row-6 .tv-lightweight-charts {
+  height: 100% !important;
 }
