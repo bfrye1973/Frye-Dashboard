@@ -165,3 +165,11 @@ body > #root {
 #row-6 .tv-lightweight-charts {
   height: 100% !important;
 }
+/* Keep Market Meter row tight */
+#row-2 {
+  height: auto !important;
+  min-height: 130px !important;  /* baseline size */
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;   /* no extra centering space */
+}
