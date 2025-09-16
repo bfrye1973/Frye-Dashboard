@@ -10,7 +10,7 @@ import RowJournal from "./rows/RowJournal";
 
 export default function NewDashboard() {
   return (
-    <div style={{ padding: 12, display: "grid", gap: 12 }}>
+   <div className="dashboard-grid" style={{ padding: 12, display: "grid", gap: 12 }}>
       <RowModeToggle />       {/* Row 1 */}
       <RowMarketOverview />   {/* Row 2 */}
       <RowEngineLights />     {/* Row 3 */}
