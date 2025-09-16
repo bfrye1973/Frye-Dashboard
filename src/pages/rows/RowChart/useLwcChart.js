@@ -3,22 +3,28 @@ import { useEffect, useRef, useState } from "react";
 import { createChart } from "lightweight-charts";
 
 /**
- * Creates a lightweight-charts instance that flexes to its container.
+ * Mounts a lightweight-charts instance that flexes to fill its parent.
  * Returns { containerRef, chart, setData }.
  */
 export default function useLwcChart({ theme }) {
   const containerRef = useRef(null);
   const chartRef = useRef(null);
   const seriesRef = useRef(null);
-  const resizeObs = useRef(null);
+  const resizeObsRef = useRef(null);
   const [chart, setChart] = useState(null);
 
   useEffect(() => {
-    if (!containerRef.current) return;
+    const el = containerRef.current;
+    if (!el) return;
 
-    const chartInstance = createChart(containerRef.current, {
-      width: containerRef.current.clientWidth,
-      height: containerRef.current.clientHeight,   // 👈 dynamic, matches CSS height
+    // Use the *parent* height because the container may start tiny (e.g., 36px) before the chart mounts.
+    const parent = el.parentElement || el;
+    const width = el.clientWidth || parent.clientWidth || 600;
+    const height = parent.clientHeight || el.clientHeight || 400;
+
+    const chartInstance = createChart(el, {
+      width,
+      height,
       layout: theme.layout,
       grid: theme.grid,
       rightPriceScale: { borderColor: theme.rightPriceScale.borderColor },
@@ -40,18 +46,22 @@ export default function useLwcChart({ theme }) {
     seriesRef.current = candleSeries;
     setChart(chartInstance);
 
-    // Responsive width & height
-    resizeObs.current = new ResizeObserver(() => {
-      if (!containerRef.current || !chartRef.current) return;
+    // Keep width *and height* synced to the parent as Row 6 flexes.
+    const ro = new ResizeObserver(() => {
+      const elNow = containerRef.current;
+      if (!elNow || !chartRef.current) return;
+      const p = elNow.parentElement || elNow;
       chartRef.current.applyOptions({
-        width: containerRef.current.clientWidth,
-        height: containerRef.current.clientHeight,
+        width: elNow.clientWidth || p.clientWidth || 600,
+        height: p.clientHeight || elNow.clientHeight || 400,
       });
     });
-    resizeObs.current.observe(containerRef.current);
+    ro.observe(parent);
+    ro.observe(el);
+    resizeObsRef.current = ro;
 
     return () => {
-      try { resizeObs.current?.disconnect(); } catch {}
+      try { resizeObsRef.current?.disconnect(); } catch {}
       try { chartInstance.remove(); } catch {}
       chartRef.current = null;
       seriesRef.current = null;
@@ -62,7 +72,7 @@ export default function useLwcChart({ theme }) {
   const setData = (bars) => {
     if (!seriesRef.current) return;
     seriesRef.current.setData(bars || []);
-    if (chartRef.current && bars?.length > 0) {
+    if (chartRef.current && bars && bars.length > 0) {
       chartRef.current.timeScale().fitContent();
     }
   };
