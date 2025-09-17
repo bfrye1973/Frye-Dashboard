@@ -179,7 +179,3 @@ body > #root {
   min-height: 100vh !important;  /* let the grid fill the viewport */
   height: auto !important;
 }
-/* Dashboard Row 6 chart: give bottom a tiny guard space */
-#row-6 .tv-lightweight-charts {
-  margin-bottom: 2px;   /* margin, not padding → avoids ResizeObserver loop */
-}
