@@ -2,20 +2,16 @@
 import React, { useMemo, useRef, useLayoutEffect, useState } from "react";
 import RowChart from "./rows/RowChart"; // resolves to ./rows/RowChart/index.jsx
 
-// Simple header height (matches your dashboard top bar)
-const HEADER_H = 52;
+const HEADER_H = 52; // match your top bar height
 
 export default function FullChart() {
-  // Read query params
   const params = useMemo(() => new URLSearchParams(window.location.search), []);
   const symbol = (params.get("symbol") || "SPY").toUpperCase();
   const tf = params.get("tf") || "1h";
 
-  // Ref to the body area (below header) so we can ensure it fills the viewport
   const bodyRef = useRef(null);
   const [ready, setReady] = useState(false);
 
-  // Ensure the body area has the exact viewport space (vh minus header)
   useLayoutEffect(() => {
     const el = bodyRef.current;
     if (!el) return;
@@ -29,7 +25,6 @@ export default function FullChart() {
     const onResize = () => apply();
     window.addEventListener("resize", onResize);
     setReady(true);
-
     return () => window.removeEventListener("resize", onResize);
   }, []);
 
@@ -44,7 +39,7 @@ export default function FullChart() {
         overflow: "hidden",
       }}
     >
-      {/* Header spacer (use your real header if present) */}
+      {/* Header */}
       <div
         style={{
           height: HEADER_H,
@@ -80,7 +75,7 @@ export default function FullChart() {
         </div>
       </div>
 
-      {/* Body → RowChart flex-fills this box; RowChart/Hook handle the timeline and resizing */}
+      {/* Body */}
       <div
         ref={bodyRef}
         className="fullchart-body"
