@@ -31,7 +31,7 @@ export default function useLwcChart({ theme }) {
       layout: theme.layout,
       grid: theme.grid,
       rightPriceScale: { borderColor: theme.rightPriceScale.borderColor },
-      timeScale: theme.timeScale,     // base options (will be re-applied below)
+      timeScale: theme.timeScale,     // base options
       crosshair: theme.crosshair,
       localization: { dateFormat: "yyyy-MM-dd" },
     });
