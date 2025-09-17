@@ -179,3 +179,8 @@ html body #root > .dashboard-grid[data-cluster-host] {
   height: auto !important;
   overflow: auto !important;   /* enable vertical scroll */
 }
+/* Row 6: give the wrapper a little breathing room for the time axis */
+#row-6 .chart-shell {
+  padding-bottom: 6px;          /* safe: parent wrapper, not the host */
+  overflow: visible;            /* allow panel border & axis to show */
+}
