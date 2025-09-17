@@ -7,11 +7,11 @@ import { createChart } from "lightweight-charts";
  * - Sizes from the parent (prevents tiny-start issues)
  * - Observes ONLY the parent (prevents resize feedback loops)
  * - Forces time axis visible with room for labels
- * - Sets chart timezone to America/Phoenix (Arizona)
+ * - Locks timezone to America/Phoenix (Arizona), with a version-safe timeFormatter fallback
  * Returns { containerRef, chart, setData }.
  */
 export default function useLwcChart({ theme }) {
-  const containerRef = useRef(null);      // div.tv-lightweight-charts
+  const containerRef = useRef(null); // div.tv-lightweight-charts
   const chartRef = useRef(null);
   const seriesRef = useRef(null);
   const roRef = useRef(null);
@@ -20,13 +20,34 @@ export default function useLwcChart({ theme }) {
   // Small internal guard so the time axis has a few pixels without CSS padding
   const AXIS_GUARD = 6;
 
+  // Phoenix time formatter (fallback across lib versions)
+  const phoenixFormatter = (ts) => {
+    // ts may be a number (seconds) or a { timestamp } object depending on the lib
+    const seconds =
+      typeof ts === "number"
+        ? ts
+        : ts && typeof ts.timestamp === "number"
+        ? ts.timestamp
+        : 0;
+    const d = new Date(seconds * 1000);
+    return new Intl.DateTimeFormat("en-US", {
+      timeZone: "America/Phoenix",
+      hour12: true,
+      hour: "numeric",
+      minute: "2-digit",
+    }).format(d);
+  };
+
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
 
     const parent = el.parentElement || el;
-    const width  = el.clientWidth || parent.clientWidth || 600;
-    const height = Math.max(200, (parent.clientHeight || el.clientHeight || 400) - AXIS_GUARD);
+    const width = el.clientWidth || parent.clientWidth || 600;
+    const height = Math.max(
+      200,
+      (parent.clientHeight || el.clientHeight || 400) - AXIS_GUARD
+    );
 
     const chartInstance = createChart(el, {
       width,
@@ -34,13 +55,12 @@ export default function useLwcChart({ theme }) {
       layout: theme.layout,
       grid: theme.grid,
       rightPriceScale: { borderColor: theme.rightPriceScale.borderColor },
-      timeScale: theme.timeScale,               // base options (spacing, borders)
+      timeScale: theme.timeScale, // keep your spacing/borders from theme
       crosshair: theme.crosshair,
       localization: {
-        // IMPORTANT: Arizona time
-        timezone: "America/Phoenix",
+        timezone: "America/Phoenix", // Arizona (no DST)
         dateFormat: "yyyy-MM-dd",
-        // locale can stay default or 'en-US'; leaving unset avoids extra fonts
+        timeFormatter: phoenixFormatter, // robust fallback
       },
     });
 
@@ -49,7 +69,7 @@ export default function useLwcChart({ theme }) {
       visible: true,
       timeVisible: true,
       borderVisible: true,
-      minimumHeight: 20,                        // guard space for labels
+      minimumHeight: 20, // guard space for labels
     });
 
     const candleSeries = chartInstance.addCandlestickSeries({
@@ -59,6 +79,14 @@ export default function useLwcChart({ theme }) {
       borderDownColor: theme.borderDownColor,
       wickUpColor: theme.wickUpColor,
       wickDownColor: theme.wickDownColor,
+    });
+
+    // Re-assert axis options after series creation (wins over any later touches)
+    chartInstance.timeScale().applyOptions({
+      visible: true,
+      timeVisible: true,
+      borderVisible: true,
+      minimumHeight: 20,
     });
 
     chartRef.current = chartInstance;
@@ -72,16 +100,23 @@ export default function useLwcChart({ theme }) {
       const p = host.parentElement || host;
 
       chartRef.current.applyOptions({
-        width:  host.clientWidth || p.clientWidth || 600,
-        height: Math.max(200, (p.clientHeight || host.clientHeight || 400) - AXIS_GUARD),
+        width: host.clientWidth || p.clientWidth || 600,
+        height: Math.max(
+          200,
+          (p.clientHeight || host.clientHeight || 400) - AXIS_GUARD
+        ),
       });
     });
     ro.observe(parent);
     roRef.current = ro;
 
     return () => {
-      try { roRef.current?.disconnect(); } catch {}
-      try { chartInstance.remove(); } catch {}
+      try {
+        roRef.current?.disconnect();
+      } catch {}
+      try {
+        chartInstance.remove();
+      } catch {}
       chartRef.current = null;
       seriesRef.current = null;
       setChart(null);
