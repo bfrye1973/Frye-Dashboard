@@ -7,6 +7,7 @@ import { createChart } from "lightweight-charts";
  * - Sizes from the parent (prevents tiny-start issues)
  * - Observes ONLY the parent (prevents resize feedback loops)
  * - Forces time axis visible with room for labels
+ * - Sets chart timezone to America/Phoenix (Arizona)
  * Returns { containerRef, chart, setData }.
  */
 export default function useLwcChart({ theme }) {
@@ -25,10 +26,7 @@ export default function useLwcChart({ theme }) {
 
     const parent = el.parentElement || el;
     const width  = el.clientWidth || parent.clientWidth || 600;
-    const height = Math.max(
-      200,
-      (parent.clientHeight || el.clientHeight || 400) - AXIS_GUARD
-    );
+    const height = Math.max(200, (parent.clientHeight || el.clientHeight || 400) - AXIS_GUARD);
 
     const chartInstance = createChart(el, {
       width,
@@ -36,9 +34,14 @@ export default function useLwcChart({ theme }) {
       layout: theme.layout,
       grid: theme.grid,
       rightPriceScale: { borderColor: theme.rightPriceScale.borderColor },
-      timeScale: theme.timeScale,    // base options
+      timeScale: theme.timeScale,               // base options (spacing, borders)
       crosshair: theme.crosshair,
-      localization: { dateFormat: "yyyy-MM-dd" },
+      localization: {
+        // IMPORTANT: Arizona time
+        timezone: "America/Phoenix",
+        dateFormat: "yyyy-MM-dd",
+        // locale can stay default or 'en-US'; leaving unset avoids extra fonts
+      },
     });
 
     // Ensure the time axis exists and has space
@@ -46,7 +49,7 @@ export default function useLwcChart({ theme }) {
       visible: true,
       timeVisible: true,
       borderVisible: true,
-      minimumHeight: 20,
+      minimumHeight: 20,                        // guard space for labels
     });
 
     const candleSeries = chartInstance.addCandlestickSeries({
@@ -70,10 +73,7 @@ export default function useLwcChart({ theme }) {
 
       chartRef.current.applyOptions({
         width:  host.clientWidth || p.clientWidth || 600,
-        height: Math.max(
-          200,
-          (p.clientHeight || host.clientHeight || 400) - AXIS_GUARD
-        ),
+        height: Math.max(200, (p.clientHeight || host.clientHeight || 400) - AXIS_GUARD),
       });
     });
     ro.observe(parent);
