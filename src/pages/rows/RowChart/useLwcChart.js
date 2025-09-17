@@ -17,7 +17,7 @@ export default function useLwcChart({ theme }) {
     const el = containerRef.current;
     if (!el) return;
 
-    // Use the *parent* height because the container may start tiny (e.g., 36px) before the chart mounts.
+    // Use parent height because the container may start small before mount.
     const parent = el.parentElement || el;
     const width = el.clientWidth || parent.clientWidth || 600;
     const height = parent.clientHeight || el.clientHeight || 400;
@@ -28,9 +28,16 @@ export default function useLwcChart({ theme }) {
       layout: theme.layout,
       grid: theme.grid,
       rightPriceScale: { borderColor: theme.rightPriceScale.borderColor },
-      timeScale: theme.timeScale,
+      timeScale: theme.timeScale, // includes timeVisible etc.
       crosshair: theme.crosshair,
       localization: { dateFormat: "yyyy-MM-dd" },
+    });
+
+    // ✅ Force timeline/time axis to be visible (dashboard + full chart)
+    chartInstance.timeScale().applyOptions({
+      visible: true,
+      timeVisible: true,
+      borderVisible: true,
     });
 
     const candleSeries = chartInstance.addCandlestickSeries({
@@ -46,7 +53,7 @@ export default function useLwcChart({ theme }) {
     seriesRef.current = candleSeries;
     setChart(chartInstance);
 
-    // Keep width *and height* synced to the parent as Row 6 flexes.
+    // Keep width AND height in sync with the parent as Row 6 flexes.
     const ro = new ResizeObserver(() => {
       const elNow = containerRef.current;
       if (!elNow || !chartRef.current) return;
