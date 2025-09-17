@@ -4,20 +4,23 @@ import { createChart } from "lightweight-charts";
 
 /**
  * Mounts a lightweight-charts instance that flexes to fill its parent.
+ * - Sizes from the parent (prevents tiny-start issues)
+ * - Observes ONLY the parent (prevents resize feedback loops)
+ * - Forces time axis visible with room for labels
  * Returns { containerRef, chart, setData }.
  */
 export default function useLwcChart({ theme }) {
-  const containerRef = useRef(null);   // div.tv-lightweight-charts
+  const containerRef = useRef(null);      // div.tv-lightweight-charts
   const chartRef = useRef(null);
   const seriesRef = useRef(null);
-  const resizeObsRef = useRef(null);
+  const roRef = useRef(null);
   const [chart, setChart] = useState(null);
 
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
 
-    // Use the *parent* for height so we don’t start tiny
+    // Use the parent for reliable height on first paint
     const parent = el.parentElement || el;
     const width  = el.clientWidth || parent.clientWidth || 600;
     const height = parent.clientHeight || el.clientHeight || 400;
@@ -28,16 +31,17 @@ export default function useLwcChart({ theme }) {
       layout: theme.layout,
       grid: theme.grid,
       rightPriceScale: { borderColor: theme.rightPriceScale.borderColor },
-      timeScale: theme.timeScale,     // includes timeVisible
+      timeScale: theme.timeScale,     // base options (will be re-applied below)
       crosshair: theme.crosshair,
       localization: { dateFormat: "yyyy-MM-dd" },
     });
 
-    // Ensure the time axis is visible on dashboard too
+    // Ensure the time axis is visible and has room in tight containers
     chartInstance.timeScale().applyOptions({
       visible: true,
       timeVisible: true,
       borderVisible: true,
+      minimumHeight: 20,              // guard space for labels
     });
 
     const candleSeries = chartInstance.addCandlestickSeries({
@@ -55,18 +59,19 @@ export default function useLwcChart({ theme }) {
 
     // Resize: observe ONLY the parent to avoid feedback loops
     const ro = new ResizeObserver(() => {
-      if (!containerRef.current || !chartRef.current) return;
-      const p = containerRef.current.parentElement || containerRef.current;
+      const host = containerRef.current;
+      if (!host || !chartRef.current) return;
+      const p = host.parentElement || host;
       chartRef.current.applyOptions({
-        width:  containerRef.current.clientWidth || p.clientWidth || 600,
-        height: p.clientHeight || containerRef.current.clientHeight || 400,
+        width:  host.clientWidth || p.clientWidth || 600,
+        height: p.clientHeight   || host.clientHeight || 400,
       });
     });
     ro.observe(parent);
-    resizeObsRef.current = ro;
+    roRef.current = ro;
 
     return () => {
-      try { resizeObsRef.current?.disconnect(); } catch {}
+      try { roRef.current?.disconnect(); } catch {}
       try { chartInstance.remove(); } catch {}
       chartRef.current = null;
       seriesRef.current = null;
