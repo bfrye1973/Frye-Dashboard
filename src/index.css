@@ -159,3 +159,17 @@ body > #root{
   min-height:130px !important;
   display:flex; flex-direction:column; justify-content:flex-start;
 }
+/* Override inline <style id="cluster-clamp"> so the dashboard can size/scroll correctly */
+html body #root .dashboard-grid[data-cluster-host] {
+  max-height: none !important;
+  height: auto !important;
+  overflow: auto !important;    /* bring back scroll instead of clipping */
+}
+
+/* Neutralize the canvas clamp so the time-axis can be a short pane instead of 100% */
+html body #root .dashboard-grid[data-cluster-host] canvas,
+html body #root .dashboard-grid[data-cluster-host] svg,
+html body #root .dashboard-grid[data-cluster-host] text {
+  height: auto !important;
+  overflow: visible !important;
+}
