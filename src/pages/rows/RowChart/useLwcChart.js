@@ -7,7 +7,7 @@ import { createChart } from "lightweight-charts";
  * Returns { containerRef, chart, setData }.
  */
 export default function useLwcChart({ theme }) {
-  const containerRef = useRef(null);
+  const containerRef = useRef(null);   // div.tv-lightweight-charts
   const chartRef = useRef(null);
   const seriesRef = useRef(null);
   const resizeObsRef = useRef(null);
@@ -17,9 +17,9 @@ export default function useLwcChart({ theme }) {
     const el = containerRef.current;
     if (!el) return;
 
-    // Use parent height because the container may start small before mount.
+    // Use the *parent* for height so we don’t start tiny
     const parent = el.parentElement || el;
-    const width = el.clientWidth || parent.clientWidth || 600;
+    const width  = el.clientWidth || parent.clientWidth || 600;
     const height = parent.clientHeight || el.clientHeight || 400;
 
     const chartInstance = createChart(el, {
@@ -28,12 +28,12 @@ export default function useLwcChart({ theme }) {
       layout: theme.layout,
       grid: theme.grid,
       rightPriceScale: { borderColor: theme.rightPriceScale.borderColor },
-      timeScale: theme.timeScale, // includes timeVisible etc.
+      timeScale: theme.timeScale,     // includes timeVisible
       crosshair: theme.crosshair,
       localization: { dateFormat: "yyyy-MM-dd" },
     });
 
-    // ✅ Force timeline/time axis to be visible (dashboard + full chart)
+    // Ensure the time axis is visible on dashboard too
     chartInstance.timeScale().applyOptions({
       visible: true,
       timeVisible: true,
@@ -53,18 +53,16 @@ export default function useLwcChart({ theme }) {
     seriesRef.current = candleSeries;
     setChart(chartInstance);
 
-    // Keep width AND height in sync with the parent as Row 6 flexes.
+    // Resize: observe ONLY the parent to avoid feedback loops
     const ro = new ResizeObserver(() => {
-      const elNow = containerRef.current;
-      if (!elNow || !chartRef.current) return;
-      const p = elNow.parentElement || elNow;
+      if (!containerRef.current || !chartRef.current) return;
+      const p = containerRef.current.parentElement || containerRef.current;
       chartRef.current.applyOptions({
-        width: elNow.clientWidth || p.clientWidth || 600,
-        height: p.clientHeight || elNow.clientHeight || 400,
+        width:  containerRef.current.clientWidth || p.clientWidth || 600,
+        height: p.clientHeight || containerRef.current.clientHeight || 400,
       });
     });
     ro.observe(parent);
-    ro.observe(el);
     resizeObsRef.current = ro;
 
     return () => {
