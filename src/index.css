@@ -15,8 +15,8 @@ html, body, #root{
   font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
 }
 
-/* App container should never clip later rows */
-#root { overflow: visible !important; }
+/* App container may scroll (no clipping) */
+#root { overflow: auto !important; }
 
 img, svg, video { max-width:100%; display:block; height:auto; }
 
@@ -70,14 +70,14 @@ button{
 .meter-grid{ display:grid; grid-template-columns:auto auto auto; gap:8px; align-items:center; }
 .meter-small{ display:flex; gap:8px; flex-wrap:nowrap; }
 
-/* Shrink stoplights globally inside Row 2 without changing JSX sizes */
-#row-2 .light{ 
+/* Shrink stoplights inside Row 2 */
+#row-2 .light{
   transform: scale(0.72);
   transform-origin: center;
   min-width: 80px !important;
 }
 
-/* ===== Chart quarantine (Row 6 only — optional fixed card) ===== */
+/* ===== Optional fixed card for Row 6 (unused unless you add class="chart-card") ===== */
 #row-6.chart-card{
   position:relative !important;
   height:520px !important;
@@ -85,8 +85,7 @@ button{
 }
 #row-6.chart-card canvas{
   position:relative !important;
-  width:100% !important;
-  height:100% !important;
+  width:100% !important; height:100% !important;
   max-height:520px !important;
   z-index:0 !important;
   overflow:hidden !important;
@@ -99,83 +98,64 @@ button{
 .delta-flat{ color:#93c5fd; border-color:#334155; background:#0b1220; }
 
 .badge {
-  display: inline-block;
-  padding: 2px 8px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 700;
-  border: 1px solid;
+  display: inline-block; padding: 2px 8px; border-radius: 999px;
+  font-size: 12px; font-weight: 700; border: 1px solid;
 }
 .badge.live  { background: #052e1b; color:#34d399; border-color:#14532d; }
 .badge.stale { background: #3a0e0e; color:#fca5a5; border-color:#7f1d1d; }
 
-/* ===== Black-canvas FIX (global) ===== */
-html, body { height: 100%; }
-body {
-  display: flex;
-  flex-direction: column;
-  min-height: 100vh;
-  margin: 0;
+/* ===== Black-canvas FIX (global base for flex sections) ===== */
+html, body { height:100%; }
+body{
+  display:flex; flex-direction:column;
+  min-height:100vh; margin:0;
 }
-body > #root {
-  flex: 1 1 auto;
-  min-height: 0 !important;
-  overflow: hidden !important;
+body > #root{
+  flex:1 1 auto;
+  min-height:0 !important;
+  overflow:auto !important;   /* allow page scroll */
 }
-.fullchart-page,
-.fullchart-body,
-.chart-shell {
-  display: flex;
-  flex-direction: column;
-  flex: 1 1 auto;
-  min-height: 0 !important;
+.fullchart-page, .fullchart-body, .chart-shell{
+  display:flex; flex-direction:column; flex:1 1 auto; min-height:0 !important;
 }
-.chart-shell .tv-lightweight-charts {
-  width: 100% !important;
-  height: 100% !important;
-  position: relative;
-  overflow: hidden;
+.chart-shell .tv-lightweight-charts{
+  width:100% !important; height:100% !important; position:relative; overflow:hidden;
 }
 
-/* ===== Dashboard grid: Row 6 flex-fill ===== */
-.dashboard-grid {
+/* ===== Remove old 92vh clamp on the dashboard wrapper; allow scroll ===== */
+[data-cluster-host]{
+  max-height:none !important;
+  height:auto !important;
+  overflow:auto !important;
+}
+
+/* ===== Dashboard grid: rows 1–5 auto, Row 6 flex-fill, Row 7 auto ===== */
+.dashboard-grid{
+  display:grid;
+  gap:12px;
   grid-template-rows: auto auto auto auto auto 1fr auto;
-  min-height: 100vh;
+  min-height:100vh;
 }
 
 /* ===== Row 6 (flex-fill, no black canvas) ===== */
-#row-6 {
-  height: auto !important;              /* let grid 1fr control height */
-  min-height: 520px !important;         /* safe floor on small screens */
-  padding: 8px 10px 0 10px !important;  /* bottom=0, no slack */
-  display: flex;
-  flex-direction: column;
+#row-6{
+  height:auto !important;                /* grid 1fr owns height */
+  min-height:520px !important;           /* floor for small viewports */
+  padding:8px 10px 0 10px !important;    /* bottom=0 to avoid slack */
+  display:flex; flex-direction:column;
 }
-#row-6 .row6-shell {
-  height: 100% !important;
-  min-height: 0 !important;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;                      /* hide any tiny seams */
+#row-6 .row6-shell{
+  height:100% !important; min-height:0 !important;
+  display:flex; flex-direction:column; overflow:hidden;
 }
-#row-6 .row6-shell > div[style*="position: relative"] {
-  height: 100% !important;
-  min-height: 100% !important;
+/* Chart container fills the shell */
+#row-6 .tv-lightweight-charts{
+  width:100% !important; height:100% !important; position:relative;
 }
-#row-6 .tv-lightweight-charts {
-  height: 100% !important;
-}
+
 /* Keep Market Meter row tight */
-#row-2 {
-  height: auto !important;
-  min-height: 130px !important;  /* baseline size */
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-start;   /* no extra centering space */
-}
-/* Remove the 92vh cap on the dashboard wrapper */
-[data-cluster-host] {
-  max-height: none !important;
-  min-height: 100vh !important;  /* let the grid fill the viewport */
-  height: auto !important;
+#row-2{
+  height:auto !important;
+  min-height:130px !important;
+  display:flex; flex-direction:column; justify-content:flex-start;
 }
