@@ -16,14 +16,19 @@ export default function useLwcChart({ theme }) {
   const roRef = useRef(null);
   const [chart, setChart] = useState(null);
 
+  // Small internal guard so the time axis has a few pixels without CSS padding
+  const AXIS_GUARD = 6;
+
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
 
-    // Use the parent for reliable height on first paint
     const parent = el.parentElement || el;
     const width  = el.clientWidth || parent.clientWidth || 600;
-    const height = parent.clientHeight || el.clientHeight || 400;
+    const height = Math.max(
+      200,
+      (parent.clientHeight || el.clientHeight || 400) - AXIS_GUARD
+    );
 
     const chartInstance = createChart(el, {
       width,
@@ -31,17 +36,17 @@ export default function useLwcChart({ theme }) {
       layout: theme.layout,
       grid: theme.grid,
       rightPriceScale: { borderColor: theme.rightPriceScale.borderColor },
-      timeScale: theme.timeScale,     // base options
+      timeScale: theme.timeScale,    // base options
       crosshair: theme.crosshair,
       localization: { dateFormat: "yyyy-MM-dd" },
     });
 
-    // Ensure the time axis is visible and has room in tight containers
+    // Ensure the time axis exists and has space
     chartInstance.timeScale().applyOptions({
       visible: true,
       timeVisible: true,
       borderVisible: true,
-      minimumHeight: 20,              // guard space for labels
+      minimumHeight: 20,
     });
 
     const candleSeries = chartInstance.addCandlestickSeries({
@@ -62,9 +67,13 @@ export default function useLwcChart({ theme }) {
       const host = containerRef.current;
       if (!host || !chartRef.current) return;
       const p = host.parentElement || host;
+
       chartRef.current.applyOptions({
         width:  host.clientWidth || p.clientWidth || 600,
-        height: p.clientHeight   || host.clientHeight || 400,
+        height: Math.max(
+          200,
+          (p.clientHeight || host.clientHeight || 400) - AXIS_GUARD
+        ),
       });
     });
     ro.observe(parent);
