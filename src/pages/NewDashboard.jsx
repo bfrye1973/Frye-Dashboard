@@ -11,23 +11,19 @@ import RowJournal from "./rows/RowJournal";
 
 export default function NewDashboard() {
   return (
-    <div className="dashboard-grid" style={{ padding: 12, display: "grid", gap: 12 }}>
+    <div className="dashboard-grid" style={{ padding: 12 }}>
       {/* Row 1 */}
       <RowModeToggle />
-
       {/* Row 2 */}
       <RowMarketOverview />
-
       {/* Row 3 */}
       <RowEngineLights />
-
       {/* Row 4 */}
       <RowIndexSectors />
-
       {/* Row 5 */}
       <RowStrategies />
 
-      {/* Row 6 — Chart (flex-fill, no fixed height) */}
+      {/* Row 6 — Chart (flex-fill, no fixed height prop) */}
       <section id="row-6" className="panel">
         <div className="row6-shell">
           <RowChart
