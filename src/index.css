@@ -173,3 +173,9 @@ html body #root .dashboard-grid[data-cluster-host] text {
   height: auto !important;
   overflow: visible !important;
 }
+/* Unclamp the dashboard page so Row 7 is reachable */
+html body #root > .dashboard-grid[data-cluster-host] {
+  max-height: none !important;
+  height: auto !important;
+  overflow: auto !important;   /* enable vertical scroll */
+}
