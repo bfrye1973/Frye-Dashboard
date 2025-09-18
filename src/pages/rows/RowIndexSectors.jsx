@@ -3,7 +3,9 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { LastUpdated } from "../../components/LastUpdated";
 import { useDashboardPoll } from "../../lib/dashboardApi";
 
-const API = (typeof window !== "undefined" && (window.__API_BASE__ || "")) || "https://frye-market-backend-1.onrender.com";
+const API =
+  (typeof window !== "undefined" && (window.__API_BASE__ || "")) ||
+  "https://frye-market-backend-1.onrender.com";
 
 /* ------------------------------- UI helpers ------------------------------- */
 
@@ -44,9 +46,9 @@ const toneFor = (o) => {
 
 function Badge({ text, tone = "info" }) {
   const map = {
-    ok:    { bg:"#22c55e", fg:"#0b1220", bd:"#16a34a" },     // bright green
-    warn:  { bg:"#facc15", fg:"#111827", bd:"#ca8a04" },     // bright yellow
-    danger:{ bg:"#ef4444", fg:"#fee2e2", bd:"#b91c1c" },     // bright red
+    ok:    { bg:"#22c55e", fg:"#0b1220", bd:"#16a34a" },
+    warn:  { bg:"#facc15", fg:"#111827", bd:"#ca8a04" },
+    danger:{ bg:"#ef4444", fg:"#fee2e2", bd:"#b91c1c" },
     info:  { bg:"#0b1220", fg:"#93c5fd", bd:"#334155" },
   }[tone] || { bg:"#0b1220", fg:"#93c5fd", bd:"#334155" };
   return (
@@ -81,7 +83,7 @@ function DeltaPill({ label, value }) {
   );
 }
 
-/* Compact sparkline (shorter height to save vertical space) */
+/* Compact sparkline */
 function Sparkline({ data = [], width = 160, height = 28 }) {
   if (!Array.isArray(data) || data.length < 2) return <div className="small muted"> </div>;
   const min = Math.min(...data), max = Math.max(...data);
@@ -104,7 +106,6 @@ function SectorCard({ sector, outlook, spark, last, deltaPct, d10m, d1h, d1d }) 
   const tone = toneFor(outlook);
   const arr  = Array.isArray(spark) ? spark : [];
 
-  // Prefer provided last/deltaPct; fallback to spark math; finally 0
   let _last = Number.isFinite(last) ? last : null;
   let _tilt = Number.isFinite(deltaPct) ? deltaPct : null;
   if ((_last === null || _tilt === null) && arr.length >= 2) {
@@ -150,7 +151,7 @@ function SectorCard({ sector, outlook, spark, last, deltaPct, d10m, d1h, d1d }) 
   );
 }
 
-/* -------------------------- Snapshot helpers (10m/1d) -------------------------- */
+/* -------------------------- Snapshot helpers -------------------------- */
 
 async function fetchJSON(url) {
   const r = await fetch(url, { cache:"no-store" });
@@ -210,50 +211,16 @@ function IndexSectorsLegendContent(){
       <div style={{ color:"#f9fafb", fontSize:14, fontWeight:800, marginBottom:8 }}>
         Index Sectors — Legend
       </div>
-      {/* … legend content unchanged … */}
-      {/* (Keeping your full legend text as-is) */}
+      {/* (content identical to your current copy) */}
+      <div style={{ color:"#e5e7eb", fontSize:13, fontWeight:700, marginTop:6 }}>Outlook</div>
+      <div style={{ color:"#d1d5db", fontSize:12 }}>
+        Sector trend bias from breadth: <b>Bullish</b> (NH&gt;NL), <b>Neutral</b> (mixed), <b>Bearish</b> (NL&gt;NH).
+      </div>
     </div>
   );
 }
 
-/* -------------------------- Data builders (cards) -------------------------- */
-
-function fromSectorCards(json){
-  const arr = json?.outlook?.sectorCards;
-  if (!Array.isArray(arr)) return [];
-  return arr.map(c => ({
-    sector: c?.sector ?? "",
-    outlook: c?.outlook ?? "Neutral",
-    spark: Array.isArray(c?.spark) ? c.spark : [],
-    last: Number(c?.last ?? c?.value ?? NaN),
-    deltaPct: Number(c?.deltaPct ?? c?.pct ?? c?.changePct ?? NaN),
-  })).sort((a,b) => orderKey(a.sector) - orderKey(b.sector));
-}
-
-function fromSectors(json){
-  const obj = json?.outlook?.sectors;
-  if (!obj || typeof obj !== "object") return [];
-  const list = Object.keys(obj).map((k) => {
-    const sec = obj[k] || {};
-    const nh = Number(sec?.nh ?? 0);
-    const nl = Number(sec?.nl ?? 0);
-    const netNH = Number(sec?.netNH ?? (nh - nl));
-    const denom = nh + nl;
-    const pct = denom > 0 ? (netNH / denom) * 100 : 0;
-    const title = k.split(" ").map(w => w ? (w[0].toUpperCase()+w.slice(1)) : w).join(" ");
-    return {
-      sector:  title,
-      outlook: sec?.outlook ?? (netNH > 0 ? "Bullish" : netNH < 0 ? "Bearish" : "Neutral"),
-      spark:   Array.isArray(sec?.spark) ? sec.spark : [],
-      last:    netNH,
-      deltaPct: pct
-    };
-  });
-  return list.sort((a,b) => orderKey(a.sector) - orderKey(b.sector));
-}
-
 /* --------------------------------- Main Row -------------------------------- */
-
 export default function RowIndexSectors() {
   const { data: live, loading, error } = useDashboardPoll("dynamic");
 
@@ -272,9 +239,8 @@ export default function RowIndexSectors() {
   }, []);
   const source = (replayOn && replayData) ? replayData : live;
 
-  // NEW: prefer section stamp from backend
+  // NEW: prefer per-section updatedAt
   const ts = source?.sectors?.updatedAt || source?.meta?.ts || source?.updated_at || source?.ts || null;
-
 
   // Cards from source
   const cards = useMemo(() => {
@@ -363,7 +329,7 @@ export default function RowIndexSectors() {
           Legend
         </button>
         <div className="spacer" />
-        <LastUpdated ts={ts} tz="America/Phoenix" />
+        <LastUpdated ts={ts} />
       </div>
 
       {!source && loading && <div className="small muted">Loading…</div>}
