@@ -81,9 +81,9 @@ function DeltaPill({ label, value }) {
   );
 }
 
-/* Sparkline */
-function Sparkline({ data = [], width = 160, height = 36 }) {
-  if (!Array.isArray(data) || data.length < 2) return <div className="small muted">no data</div>;
+/* Compact sparkline (shorter height to save vertical space) */
+function Sparkline({ data = [], width = 160, height = 28 }) {
+  if (!Array.isArray(data) || data.length < 2) return <div className="small muted"> </div>;
   const min = Math.min(...data), max = Math.max(...data);
   const span = (max - min) || 1;
   const stepX = width / (data.length - 1);
@@ -104,43 +104,45 @@ function SectorCard({ sector, outlook, spark, last, deltaPct, d10m, d1h, d1d }) 
   const tone = toneFor(outlook);
   const arr  = Array.isArray(spark) ? spark : [];
 
-  // prefer provided last/deltaPct; fallback to spark; finally 0s
+  // Prefer provided last/deltaPct; fallback to spark math; finally 0
   let _last = Number.isFinite(last) ? last : null;
-  let _deltaPct = Number.isFinite(deltaPct) ? deltaPct : null;
-  if ((_last === null || _deltaPct === null) && arr.length >= 2) {
+  let _tilt = Number.isFinite(deltaPct) ? deltaPct : null;
+  if ((_last === null || _tilt === null) && arr.length >= 2) {
     const first = Number(arr[0]) || 0;
     const lst   = Number(arr[arr.length - 1]) || 0;
     const base  = Math.abs(first) > 1e-6 ? Math.abs(first) : 1;
     _last = _last === null ? lst : _last;
-    _deltaPct = _deltaPct === null ? ((lst - first) / base) * 100 : _deltaPct;
+    _tilt = _tilt === null ? ((lst - first) / base) * 100 : _tilt;
   }
   if (_last === null) _last = 0;
-  if (_deltaPct === null) _deltaPct = 0;
+  if (_tilt === null) _tilt = 0;
 
-  const arrow = Math.abs(_deltaPct) < 0.5 ? "→" : (_deltaPct > 0 ? "↑" : "↓");
-  const deltaClass =
-    Math.abs(_deltaPct) < 0.5 ? "delta delta-flat" :
-    _deltaPct > 0             ? "delta delta-up"   : "delta delta-down";
+  const arrow =
+    Math.abs(_tilt) < 0.5 ? "→" :
+    _tilt > 0             ? "↑" : "↓";
+  const tiltColor =
+    _tilt > 0 ? "#22c55e" : _tilt < 0 ? "#ef4444" : "#9ca3af";
 
   return (
-    <div className="panel" style={{ padding:10 }}>
+    <div className="panel" style={{ padding:8 }}>
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
         <div className="panel-title small">{sector || "Sector"}</div>
-        <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-          <Badge text={outlook || "Neutral"} tone={tone} />
-        </div>
+        <Badge text={outlook || "Neutral"} tone={tone} />
       </div>
 
-      {/* Three deltas row */}
-      <div style={{ display:"flex", gap:6, flexWrap:"wrap", margin:"4px 0 6px 0" }}>
+      {/* Deltas row */}
+      <div style={{ display:"flex", gap:6, flexWrap:"wrap", margin:"4px 0 4px 0" }}>
         {Number.isFinite(d10m) && <DeltaPill label="Δ10m" value={d10m} />}
         {Number.isFinite(d1h)  && <DeltaPill label="Δ1h"  value={d1h}  />}
         {Number.isFinite(d1d)  && <DeltaPill label="Δ1d"  value={d1d}  />}
       </div>
 
-      <div className="small" style={{ display:"flex", justifyContent:"space-between", margin:"2px 0 6px 0" }}>
-        <span>Last: <strong>{Number.isFinite(_last) ? _last.toFixed(1) : "—"}</strong></span>
-        <span className={deltaClass}>{arrow} {Number.isFinite(_deltaPct) ? _deltaPct.toFixed(1) : "0.0"}%</span>
+      {/* Net NH + Breadth Tilt */}
+      <div className="small" style={{ display:"flex", justifyContent:"space-between", margin:"2px 0 4px 0" }}>
+        <span>Net NH: <strong>{Number.isFinite(_last) ? _last.toFixed(0) : "—"}</strong></span>
+        <span style={{ color:tiltColor, fontWeight:700 }}>
+          Breadth Tilt: {arrow} {Number.isFinite(_tilt) ? ( (_tilt>=0?"+":"") + _tilt.toFixed(1) + "%") : "0.0%"}
+        </span>
       </div>
 
       <Sparkline data={arr} />
@@ -157,7 +159,6 @@ async function fetchJSON(url) {
 }
 
 function buildSectorLastMap(snapshot) {
-  // return map sectorNameLower -> last breadth-like value for comparison
   const cards = snapshot?.outlook?.sectorCards || snapshot?.sectorCards || [];
   const out = {};
   for (const c of cards) {
@@ -172,9 +173,9 @@ async function computeDeltaFromReplay(granularity /* '10min' | 'eod' */) {
   try {
     const idx = await fetchJSON(`${API}/api/replay/index?granularity=${encodeURIComponent(granularity)}&t=${Date.now()}`);
     const items = Array.isArray(idx?.items) ? idx.items : [];
-    if (items.length < 2) return {}; // not enough history
-    const tsA = items[0]?.ts;      // most recent
-    const tsB = items[1]?.ts;      // previous
+    if (items.length < 2) return {};
+    const tsA = items[0]?.ts;
+    const tsB = items[1]?.ts;
     if (!tsA || !tsB) return {};
     const [snapA, snapB] = await Promise.all([
       fetchJSON(`${API}/api/replay/at?granularity=${granularity}&ts=${encodeURIComponent(tsA)}&t=${Date.now()}`),
@@ -186,7 +187,7 @@ async function computeDeltaFromReplay(granularity /* '10min' | 'eod' */) {
     const keys = new Set([...Object.keys(mapA), ...Object.keys(mapB)]);
     for (const k of keys) {
       const a = mapA[k]; const b = mapB[k];
-      if (Number.isFinite(a) && Number.isFinite(b)) out[k] = a - b; // difference in 'last' reading
+      if (Number.isFinite(a) && Number.isFinite(b)) out[k] = a - b; // change in Net NH
     }
     return out;
   } catch {
@@ -210,55 +211,56 @@ function IndexSectorsLegendContent(){
         Index Sectors — Legend
       </div>
 
+      {/* Outlook */}
       <div style={{ color:"#e5e7eb", fontSize:13, fontWeight:700, marginTop:6 }}>Outlook</div>
       <div style={{ color:"#d1d5db", fontSize:12 }}>
         Sector trend bias from breadth: <b>Bullish</b> (NH&gt;NL), <b>Neutral</b> (mixed), <b>Bearish</b> (NL&gt;NH).
       </div>
-      <div style={{ display:"flex", gap:12, margin:"6px 0 10px 0", alignItems:"center" }}>
+      <div style={{ display:"flex", gap:12, margin:"6px 0 6px 0", alignItems:"center" }}>
         <Pill color="#22c55e" /> <span style={{color:"#e5e7eb",fontWeight:700,fontSize:12}}>Bullish</span>
         <Pill color="#facc15" /> <span style={{color:"#e5e7eb",fontWeight:700,fontSize:12}}>Neutral</span>
         <Pill color="#ef4444" /> <span style={{color:"#e5e7eb",fontWeight:700,fontSize:12}}>Bearish</span>
       </div>
 
-      <div style={{ color:"#e5e7eb", fontSize:13, fontWeight:700, marginTop:6 }}>Deltas</div>
-      <div style={{ color:"#d1d5db", fontSize:12 }}>Short-, intraday-, and daily-frame changes in the sector’s reading.</div>
+      {/* Net NH + Breadth Tilt */}
+      <div style={{ color:"#e5e7eb", fontSize:13, fontWeight:700, marginTop:6 }}>Net NH & Breadth Tilt</div>
+      <div style={{ color:"#d1d5db", fontSize:12 }}>
+        <b>Net NH</b> = New Highs − New Lows (participation strength).<br/>
+        <b>Breadth Tilt</b> = how tilted NH vs NL is in % terms (positive = more NH).
+      </div>
+      <div style={{ color:"#f9fafb", fontSize:12, marginTop:2, marginLeft:8 }}>
+        Example: Net NH <b>22</b>, Breadth Tilt <b>+25%</b> → sector participation leaning bullish.
+      </div>
 
-      {/* Δ10m */}
-      <div style={{ color:"#cbd5e1", fontSize:12, marginTop:6 }}><b>Δ10m</b> — short-term momentum since the last update.</div>
+      {/* Deltas */}
+      <div style={{ color:"#e5e7eb", fontSize:13, fontWeight:700, marginTop:8 }}>Deltas</div>
+      <div style={{ color:"#d1d5db", fontSize:12 }}>Short-, intraday-, and daily changes in Net NH.</div>
+
+      <div style={{ color:"#cbd5e1", fontSize:12, marginTop:6 }}><b>Δ10m</b> — short-term change since last update.</div>
       <div style={{ display:"flex", gap:12, margin:"4px 0 2px 0", alignItems:"center" }}>
         <Pill color="#22c55e" /> <span style={{color:"#e5e7eb",fontWeight:700,fontSize:12}}>Positive</span>
         <Pill color="#facc15" /> <span style={{color:"#e5e7eb",fontWeight:700,fontSize:12}}>Flat</span>
         <Pill color="#ef4444" /> <span style={{color:"#e5e7eb",fontWeight:700,fontSize:12}}>Negative</span>
       </div>
-      <div style={{ color:"#f9fafb", fontSize:12, marginLeft:8 }}>Example: +0.5% → sector ticking up on the last scan.</div>
 
-      {/* Δ1h */}
-      <div style={{ color:"#cbd5e1", fontSize:12, marginTop:8 }}><b>Δ1h</b> — intraday trend across the past hour.</div>
+      <div style={{ color:"#cbd5e1", fontSize:12, marginTop:8 }}><b>Δ1h</b> — hour-over-hour change (from trend endpoint).</div>
       <div style={{ display:"flex", gap:12, margin:"4px 0 2px 0", alignItems:"center" }}>
         <Pill color="#22c55e" /> <span style={{color:"#e5e7eb",fontWeight:700,fontSize:12}}>Positive</span>
         <Pill color="#facc15" /> <span style={{color:"#e5e7eb",fontWeight:700,fontSize:12}}>Flat</span>
         <Pill color="#ef4444" /> <span style={{color:"#e5e7eb",fontWeight:700,fontSize:12}}>Negative</span>
       </div>
-      <div style={{ color:"#f9fafb", fontSize:12, marginLeft:8 }}>Example: +1.2% → steady push higher for an hour.</div>
 
-      {/* Δ1d */}
-      <div style={{ color:"#cbd5e1", fontSize:12, marginTop:8 }}><b>Δ1d</b> — change vs prior close (daily context).</div>
+      <div style={{ color:"#cbd5e1", fontSize:12, marginTop:8 }}><b>Δ1d</b> — change vs prior close (from EOD snapshots).</div>
       <div style={{ display:"flex", gap:12, margin:"4px 0 2px 0", alignItems:"center" }}>
         <Pill color="#22c55e" /> <span style={{color:"#e5e7eb",fontWeight:700,fontSize:12}}>Positive</span>
         <Pill color="#facc15" /> <span style={{color:"#e5e7eb",fontWeight:700,fontSize:12}}>Flat</span>
         <Pill color="#ef4444" /> <span style={{color:"#e5e7eb",fontWeight:700,fontSize:12}}>Negative</span>
-      </div>
-      <div style={{ color:"#f9fafb", fontSize:12, marginLeft:8 }}>Example: −0.8% → still red on day despite intraday bounce.</div>
-
-      <div style={{ color:"#e5e7eb", fontSize:13, fontWeight:700, marginTop:8 }}>Sparkline</div>
-      <div style={{ color:"#d1d5db", fontSize:12, marginBottom:2 }}>
-        Shows recent trend in the sector’s reading. Rising = strengthening, falling = weakening.
       </div>
     </div>
   );
 }
 
-/* ------------------------------ Data builders ------------------------------ */
+/* -------------------------- Data builders (cards) -------------------------- */
 
 function fromSectorCards(json){
   const arr = json?.outlook?.sectorCards;
@@ -282,8 +284,9 @@ function fromSectors(json){
     const netNH = Number(sec?.netNH ?? (nh - nl));
     const denom = nh + nl;
     const pct = denom > 0 ? (netNH / denom) * 100 : 0;
+    const title = k.split(" ").map(w => w ? (w[0].toUpperCase()+w.slice(1)) : w).join(" ");
     return {
-      sector:  k.split(" ").map(w => w ? (w[0].toUpperCase()+w.slice(1)) : w).join(" "),
+      sector:  title,
       outlook: sec?.outlook ?? (netNH > 0 ? "Bullish" : netNH < 0 ? "Bearish" : "Neutral"),
       spark:   Array.isArray(sec?.spark) ? sec.spark : [],
       last:    netNH,
@@ -375,7 +378,6 @@ export default function RowIndexSectors() {
       const m = await computeDeltaFromReplay("eod");
       if (mounted) setD1dMap(m);
     })();
-    // EOD deltas don't need frequent refresh; refresh every 5 mins
     const t = setInterval(async () => {
       const m = await computeDeltaFromReplay("eod");
       setD1dMap(m);
@@ -411,8 +413,8 @@ export default function RowIndexSectors() {
       {Array.isArray(cards) && cards.length > 0 ? (
         <div style={{
           display:"grid",
-          gridTemplateColumns:"repeat(auto-fill, minmax(220px, 1fr))",
-          gap:10, marginTop:8
+          gridTemplateColumns:"repeat(auto-fill, minmax(210px, 1fr))",
+          gap:8, marginTop:6
         }}>
           {cards.map((c, i) => {
             const normName = ALIASES[norm(c?.sector || "")] || norm(c?.sector || "");
