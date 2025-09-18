@@ -209,7 +209,6 @@ function LegendContent() {
   );
 }
 
-
 /* ------------------------------ Replay UI ----------------------------- */
 function ReplayControls({
   on, setOn, granularity, setGranularity, ts, setTs, options, loading
@@ -329,7 +328,8 @@ export default function RowMarketOverview() {
         if (items.length && !tsSel) setTsSel(items[0].ts);
       } finally { setLoadingIdx(false); }
     })();
-  }, [on, granParam]); // eslint-disable-line
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [on, granParam]);
 
   // fetch snapshot
   React.useEffect(() => {
@@ -340,8 +340,11 @@ export default function RowMarketOverview() {
         const r = await fetch(`${API}/api/replay/at?granularity=${granParam}&ts=${encodeURIComponent(tsSel)}&t=${Date.now()}`, { cache:"no-store" });
         const j = await r.json();
         setSnap(j);
-      } catch { setSnap(null); }
-      finally { setLoadingSnap(false); }
+      } catch {
+        setSnap(null);
+      } finally {
+        setLoadingSnap(false);
+      }
     })();
   }, [on, tsSel, granParam]);
 
@@ -359,9 +362,8 @@ export default function RowMarketOverview() {
 
   const od = data?.odometers ?? {};
   const gg = data?.gauges ?? {};
+  // NEW: prefer per-section updatedAt from backend
   const ts = data?.marketMeter?.updatedAt ?? data?.meta?.ts ?? data?.updated_at ?? data?.ts ?? null;
-  // NEW: prefer section stamp from backend
-  const tsShown = data?.marketMeter?.updatedAt || tsBase;
 
   const breadth   = Number(od?.breadthOdometer ?? data?.summary?.breadthIdx ?? gg?.rpm?.pct ?? 50);
   const momentum  = Number(od?.momentumOdometer ?? data?.summary?.momentumIdx ?? gg?.speed?.pct ?? 50);
@@ -422,7 +424,7 @@ export default function RowMarketOverview() {
               Replaying: {fmtIso(tsSel)} ({granularity})
             </span>
           )}
-          <LastUpdated ts={tsShown} tz="America/Phoenix" />
+          <LastUpdated ts={ts} />
           <ReplayControls
             on={on}
             setOn={setOn}
@@ -446,8 +448,8 @@ export default function RowMarketOverview() {
       />
 
       <div className="text-xs text-neutral-500" style={{ marginTop:4 }}>
-        {on ? (loadingSnap ? "Loading snapshot…" : (tsShown ? `Snapshot: ${fmtIso(tsShown)}` : "Replay ready"))
-            : (tsShown ? `Updated ${fmtIso(tsShown)}` : "")}
+        {on ? (loadingSnap ? "Loading snapshot…" : (ts ? `Snapshot: ${fmtIso(ts)}` : "Replay ready"))
+            : (ts ? `Updated ${fmtIso(ts)}` : "")}
       </div>
     </section>
   );
