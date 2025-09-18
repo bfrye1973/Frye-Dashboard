@@ -273,12 +273,8 @@ export default function RowIndexSectors() {
   const source = (replayOn && replayData) ? replayData : live;
 
   // NEW: prefer section stamp from backend
-  const ts =
-    source?.sectors?.updatedAt ||
-    source?.meta?.ts ||
-    source?.updated_at ||
-    source?.ts ||
-    null;
+  const ts = source?.sectors?.updatedAt || source?.meta?.ts || source?.updated_at || source?.ts || null;
+
 
   // Cards from source
   const cards = useMemo(() => {
