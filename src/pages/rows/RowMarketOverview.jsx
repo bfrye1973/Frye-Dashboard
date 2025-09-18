@@ -102,10 +102,7 @@ function Stoplight({ label, value, baseline, size = 60, unit = "%" }) {
    ======================= */
 export default function RowMarketOverview() {
   // live poll (defensive — no optional-call syntax)
-  const { data: live } = (typeof useDashboardPoll === "function"
-    ? useDashboardPoll("dynamic")
-    : { data: null });
-
+  const { data: live } = useDashboardPoll("dynamic");
   const { mode } = useViewMode(); // view mode from Row 1
   const [legendOpen, setLegendOpen] = React.useState(false);
 
