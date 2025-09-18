@@ -2,6 +2,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { LastUpdated } from "../../components/LastUpdated";
 import { useDashboardPoll } from "../../lib/dashboardApi";
+import CadenceBadge from "../../components/CadenceBadge";
 
 const API =
   (typeof window !== "undefined" && (window.__API_BASE__ || "")) ||
@@ -390,6 +391,7 @@ export default function RowIndexSectors() {
     source?.updated_at ||
     source?.ts ||
     null;
+   const cadence = (source && source.meta && source.meta.cadence) ? source.meta.cadence : "unknown";
 
   // Cards from source (uses helpers defined above)
   const cards = useMemo(() => {
