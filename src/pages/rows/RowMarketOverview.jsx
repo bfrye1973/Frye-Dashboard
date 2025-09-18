@@ -101,51 +101,57 @@ function useDailyBaseline(keyName, current) {
 function Tag({ bg, children }) {
   return (
     <span style={{
-      display:"inline-block", padding:"2px 6px", borderRadius:6,
-      fontSize:12, marginLeft:6, background:bg, color:"#0f1115", fontWeight:700
+      display:"inline-block",
+      padding:"2px 6px",
+      borderRadius:6,
+      fontSize:12,
+      marginLeft:6,
+      background:bg,
+      color:"#0f1115",
+      fontWeight:700
     }}>{children}</span>
   );
 }
+
 function LegendContent() {
-  const h2={ color:"#e5e7eb", margin:"6px 0 8px", fontSize:16, fontWeight:700 };
-  const h3={ color:"#e5e7eb", margin:"10px 0 6px", fontSize:14, fontWeight:700 };
-  const p ={ color:"#cbd5e1", margin:"4px 0", fontSize:14, lineHeight:1.5 };
-  const ul={ color:"#cbd5e1", fontSize:14, lineHeight:1.5, paddingLeft:18, margin:"4px 0 10px" };
+  const h2 = { color:"#e5e7eb", margin:"6px 0 8px", fontSize:16, fontWeight:700 };
+  const p  = { color:"#cbd5e1", margin:"4px 0", fontSize:14, lineHeight:1.5 };
+  const ul = { color:"#cbd5e1", fontSize:14, lineHeight:1.5, paddingLeft:18, margin:"4px 0 10px" };
 
   return (
     <div>
       {/* Breadth */}
-      <div style={h2}>Breadth (RPM)</div>
+      <div style={h2}>Breadth</div>
       <p style={p}>Measures the balance of <b>new highs vs new lows</b> across the market.</p>
       <p style={p}><b>Example:</b> 95% → Almost all stocks are setting more new highs than new lows (broad participation).</p>
-      <div style={p}><b>Zones:</b></div>
+      <p style={p}><b>Zones:</b></p>
       <ul style={ul}>
         <li>0–34% <Tag bg="#ef4444">🔴 Weak</Tag> → More new lows than highs.</li>
-        <li>35–64% <Tag bg="#f59e0b">🟡 Neutral</Tag> → Highs ≈ Lows (mixed).</li>
+        <li>35–64% <Tag bg="#facc15">🟡 Neutral</Tag> → Highs ≈ Lows (mixed).</li>
         <li>65–84% <Tag bg="#22c55e">🟢 Strong</Tag> → More new highs than lows.</li>
         <li>85–100% <Tag bg="#fca5a5">🟥 Extreme</Tag> → Overheated; risk of pullback.</li>
       </ul>
 
       {/* Momentum */}
-      <div style={h2}>Momentum (Speed)</div>
+      <div style={h2}>Momentum</div>
       <p style={p}>Measures <b>advancers vs decliners</b> (market thrust).</p>
       <p style={p}><b>Example:</b> 95% → Strong thrust; many more stocks are up than down.</p>
-      <div style={p}><b>Zones:</b></div>
+      <p style={p}><b>Zones:</b></p>
       <ul style={ul}>
         <li>0–34% <Tag bg="#ef4444">🔴 Bearish</Tag> → Decliners dominate.</li>
-        <li>35–64% <Tag bg="#f59e0b">🟡 Neutral</Tag> → Balanced.</li>
+        <li>35–64% <Tag bg="#facc15">🟡 Neutral</Tag> → Balanced.</li>
         <li>65–84% <Tag bg="#22c55e">🟢 Bullish</Tag> → Advancers dominate.</li>
         <li>85–100% <Tag bg="#fca5a5">🟥 Extreme</Tag> → Unsustainable momentum.</li>
       </ul>
 
       {/* Intraday Squeeze */}
       <div style={h2}>Intraday Squeeze</div>
-      <p style={p}>Compression of today’s ranges (spring tension) — higher = tighter coil.</p>
-      <p style={p}><b>Example:</b> 95% → Very coiled; a big move could fire soon.</p>
-      <div style={p}><b>Zones:</b></div>
+      <p style={p}>Shows how compressed today’s ranges are (spring tension) — higher = tighter coil.</p>
+      <p style={p}><b>Example:</b> 95% → Very coiled; big move could fire soon.</p>
+      <p style={p}><b>Zones:</b></p>
       <ul style={ul}>
         <li>0–34% <Tag bg="#22c55e">🟢 Expanded</Tag> → Market already moving freely.</li>
-        <li>35–64% <Tag bg="#f59e0b">🟡 Normal</Tag> → Average compression.</li>
+        <li>35–64% <Tag bg="#facc15">🟡 Normal</Tag> → Average compression.</li>
         <li>65–84% <Tag bg="#fb923c">🟠 Tight</Tag> → Pressure building.</li>
         <li>85–100% <Tag bg="#ef4444">🔴 Critical</Tag> → Very tight coil; breakout risk.</li>
       </ul>
@@ -156,10 +162,10 @@ function LegendContent() {
         Weighted blend of Breadth (40%), Momentum (40%), Expansion (20%), blended toward 50 when Daily Squeeze is high.
       </p>
       <p style={p}><b>Example:</b> 95% → Market is firing on all cylinders; very strong environment.</p>
-      <div style={p}><b>Zones:</b></div>
+      <p style={p}><b>Zones:</b></p>
       <ul style={ul}>
         <li>0–34% <Tag bg="#ef4444">🔴 Weak</Tag> → Market conditions unfavorable.</li>
-        <li>35–64% <Tag bg="#f59e0b">🟡 Mixed</Tag> → Sideways/choppy.</li>
+        <li>35–64% <Tag bg="#facc15">🟡 Mixed</Tag> → Sideways/choppy.</li>
         <li>65–84% <Tag bg="#22c55e">🟢 Favorable</Tag> → Trend-friendly.</li>
         <li>85–100% <Tag bg="#fca5a5">🟥 Extreme</Tag> → May be overheated.</li>
       </ul>
@@ -168,19 +174,41 @@ function LegendContent() {
       <div style={h2}>Daily Squeeze</div>
       <p style={p}>Same idea as Intraday Squeeze but on SPY daily bars (Lux indicator).</p>
       <p style={p}><b>Example:</b> 54% → Moderate daily compression (constructive).</p>
+      <p style={p}><b>Zones:</b></p>
+      <ul style={ul}>
+        <li>0–34% <Tag bg="#22c55e">🟢 Expanded</Tag> → Daily ranges wide, not coiled.</li>
+        <li>35–64% <Tag bg="#facc15">🟡 Normal</Tag> → Average daily compression.</li>
+        <li>65–84% <Tag bg="#fb923c">🟠 Tight</Tag> → Daily pressure building.</li>
+        <li>85–100% <Tag bg="#ef4444">🔴 Critical</Tag> → Extreme daily coil; breakout likely.</li>
+      </ul>
 
       {/* Liquidity */}
       <div style={h2}>Liquidity</div>
-      <p style={p}>Depth/ease of execution (PSI). Higher = easier fills, lower slippage.</p>
-      <p style={p}><b>Example:</b> 95% → Very liquid; tight fills, low slippage.</p>
+      <p style={p}>Measures depth/ease of execution (PSI). Higher = easier fills, lower slippage.</p>
+      <p style={p}><b>Example:</b> 95% → Very liquid; tight fills; low slippage.</p>
+      <p style={p}><b>Zones:</b></p>
+      <ul style={ul}>
+        <li>0–29% <Tag bg="#ef4444">🔴 Thin</Tag> → Hard to get in/out without moving price.</li>
+        <li>30–49% <Tag bg="#fb923c">🟠 Light</Tag> → Patchy liquidity; caution.</li>
+        <li>50–69% <Tag bg="#facc15">🟡 Normal</Tag> → Adequate.</li>
+        <li>70–100% <Tag bg="#22c55e">🟢 Good / Excellent</Tag> → Very easy to trade.</li>
+      </ul>
 
       {/* Volatility */}
       <div style={h2}>Volatility</div>
-      <p style={p}>How big price swings are (ATR/stdev). Higher = more turbulent.</p>
+      <p style={p}>How big price swings are (ATR/stdev). Higher = more turbulent & risky.</p>
       <p style={p}><b>Example:</b> 95% → Very high volatility; turbulent and risky.</p>
+      <p style={p}><b>Zones:</b></p>
+      <ul style={ul}>
+        <li>0–29% <Tag bg="#22c55e">🟢 Calm</Tag> → Smoother swings; easier to hold.</li>
+        <li>30–59% <Tag bg="#facc15">🟡 Normal</Tag> → Typical movement.</li>
+        <li>60–74% <Tag bg="#fb923c">🟠 Elevated</Tag> → Risk rises; widen stops.</li>
+        <li>75–100% <Tag bg="#ef4444">🔴 High</Tag> → Sharp, unpredictable moves.</li>
+      </ul>
     </div>
   );
 }
+
 
 /* ------------------------------ Replay UI ----------------------------- */
 function ReplayControls({
