@@ -33,7 +33,7 @@ function Badge({ text, tone = "info" }) {
 /* --- hourly % badge (always show) --- */
 function TrendBadge({ deltaPct }) {
   if (!Number.isFinite(deltaPct)) return null;
-  const d = deltaPct; // e.g., +0.84 means +0.84% vs last hour
+  const d = deltaPct;
   let color = "#9ca3af", arrow = "→";
   if (d >= 0.2) { color = "#22c55e"; arrow = "▲"; }
   else if (d <= -0.2) { color = "#ef4444"; arrow = "▼"; }
@@ -94,7 +94,6 @@ function SectorCard({ sector, outlook, spark, last, deltaPct, hourDeltaPct }) {
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
         <div className="panel-title small">{sector || "Sector"}</div>
         <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-          {/* hourly % badge to the RIGHT for visibility */}
           {Number.isFinite(hourDeltaPct) && <TrendBadge deltaPct={hourDeltaPct} />}
           <Badge text={outlook || "Neutral"} tone={tone} />
         </div>
@@ -173,16 +172,36 @@ function fromSectors(json){
 }
 
 export default function RowIndexSectors() {
-  const { data, loading, error } = useDashboardPoll?.("dynamic") ?? { data:null, loading:false, error:null };
-  const ts = data?.meta?.ts || null;
+  // Live poll — unconditionally call the hook (rules-of-hooks)
+  const { data: live, loading, error } = useDashboardPoll("dynamic");
 
+  // Replay latch for this row
+  const [replayOn, setReplayOn] = useState(false);
+  const [replayData, setReplayData] = useState(null);
+
+  useEffect(() => {
+    function onReplay(e) {
+      const detail = e?.detail || {};
+      const on = !!detail.on;
+      setReplayOn(on);
+      setReplayData(on ? (detail.data || null) : null);
+    }
+    window.addEventListener("replay:update", onReplay);
+    return () => window.removeEventListener("replay:update", onReplay);
+  }, []);
+
+  // Choose same source as Market Overview
+  const source = (replayOn && replayData) ? replayData : live;
+  const ts = source?.meta?.ts || source?.updated_at || source?.ts || null;
+
+  // Build cards from source
   const cards = useMemo(() => {
-    let list = fromSectorCards(data);
-    if (list.length === 0) list = fromSectors(data || {});
+    let list = fromSectorCards(source);
+    if (list.length === 0) list = fromSectors(source || {});
     return list;
-  }, [data]);
+  }, [source]);
 
-  // Fetch /sectorTrend (hour-over-hour % deltas)
+  // Fetch /sectorTrend (hour-over-hour % deltas) — keep independent
   const [trend, setTrend] = useState(null);
   const aliveRef = useRef(true);
   useEffect(() => {
@@ -223,7 +242,7 @@ export default function RowIndexSectors() {
         <LastUpdated ts={ts} />
       </div>
 
-      {!data && loading && <div className="small muted">Loading…</div>}
+      {!source && loading && <div className="small muted">Loading…</div>}
       {error && <div className="small muted">Failed to load sectors.</div>}
 
       {Array.isArray(cards) && cards.length > 0 ? (
