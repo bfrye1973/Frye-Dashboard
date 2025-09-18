@@ -31,15 +31,15 @@ function Light({ label, tone = "info", active = true }) {
 
 /* ---- signal definitions (order + legend text) ---- */
 const SIGNAL_DEFS = [
-  { key:"sigBreakout",       label:"Breakout",       desc:"Breadth positive (net NH > 0)" },
-  { key:"sigDistribution",   label:"Distribution",   desc:"Breadth negative (net NH < 0)" },
-  { key:"sigCompression",    label:"Compression",    desc:"Squeeze ≥ 70" },
-  { key:"sigExpansion",      label:"Expansion",      desc:"Squeeze < 40" },
-  { key:"sigOverheat",       label:"Overheat",       desc:"Momentum > 85 (danger > 92)" },
-  { key:"sigTurbo",          label:"Turbo",          desc:"Momentum > 92 AND expansion" },
-  { key:"sigDivergence",     label:"Divergence",     desc:"Momentum strong, breadth weak" },
-  { key:"sigLowLiquidity",   label:"Low Liquidity",  desc:"PSI < 40 (danger < 30)" },
-  { key:"sigVolatilityHigh", label:"Volatility High",desc:"Volatility > 70 (danger > 85)" },
+  { key:"sigBreakout",       label:"Breakout",        desc:"Breadth positive (net NH > 0)" },
+  { key:"sigDistribution",   label:"Distribution",    desc:"Breadth negative (net NH < 0)" },
+  { key:"sigCompression",    label:"Compression",     desc:"Squeeze ≥ 70" },
+  { key:"sigExpansion",      label:"Expansion",       desc:"Squeeze < 40" },
+  { key:"sigOverheat",       label:"Overheat",        desc:"Momentum > 85 (danger > 92)" },
+  { key:"sigTurbo",          label:"Turbo",           desc:"Momentum > 92 AND expansion" },
+  { key:"sigDivergence",     label:"Divergence",      desc:"Momentum strong, breadth weak" },
+  { key:"sigLowLiquidity",   label:"Low Liquidity",   desc:"PSI < 40 (danger < 30)" },
+  { key:"sigVolatilityHigh", label:"Volatility High", desc:"Volatility > 70 (danger > 85)" },
 ];
 
 /* ---- normalize signals: return ALL, not just active ---- */
@@ -60,24 +60,46 @@ function computeSignalList(sigObj = {}) {
   });
 }
 
-/* ---- Row 3: Engine Lights (always render all pills; inline legend) ---- */
+/* ---- Row 3: Engine Lights (replay-aware) ---- */
 export default function RowEngineLights() {
-  const { data, loading, error } = useDashboardPoll?.("dynamic") ?? { data:null, loading:false, error:null };
+  // Live poll — unconditionally call the hook (rules of hooks)
+  const { data: live, loading, error } = useDashboardPoll("dynamic");
 
+  // Local UI state
   const [lights, setLights] = useState(() => computeSignalList({}));
   const [stale, setStale] = useState(false);
   const firstPaintRef = useRef(false);
 
+  // Replay bridge state for this row
+  const [replayOn, setReplayOn] = useState(false);
+  const [replayData, setReplayData] = useState(null);
+
+  // Subscribe to Market Overview's replay event
   useEffect(() => {
-    if (!data || typeof data !== "object") {
+    function onReplay(e) {
+      const detail = e?.detail || {};
+      const on = !!detail.on;
+      setReplayOn(on);
+      setReplayData(on ? (detail.data || null) : null);
+    }
+    window.addEventListener("replay:update", onReplay);
+    return () => window.removeEventListener("replay:update", onReplay);
+  }, []);
+
+  // Choose the same source as the Market Overview row
+  const source = (replayOn && replayData) ? replayData : live;
+
+  // Derive lights from source
+  useEffect(() => {
+    if (!source || typeof source !== "object") {
       if (firstPaintRef.current) setStale(true);
       return;
     }
-    const list = computeSignalList(data.signals || {});
+    const list = computeSignalList(source.signals || {});
     setLights(list);
     setStale(false);
     firstPaintRef.current = true;
-  }, [data]);
+  }, [source]);
 
   return (
     <section id="row-3" className="panel" aria-label="Engine Lights">
