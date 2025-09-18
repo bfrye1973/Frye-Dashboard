@@ -359,7 +359,7 @@ export default function RowMarketOverview() {
 
   const od = data?.odometers ?? {};
   const gg = data?.gauges ?? {};
-  const tsBase = data?.meta?.ts ?? data?.updated_at ?? data?.ts ?? null;
+  const ts = data?.marketMeter?.updatedAt ?? data?.meta?.ts ?? data?.updated_at ?? data?.ts ?? null;
   // NEW: prefer section stamp from backend
   const tsShown = data?.marketMeter?.updatedAt || tsBase;
 
