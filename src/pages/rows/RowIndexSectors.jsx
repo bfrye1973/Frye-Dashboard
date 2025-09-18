@@ -244,8 +244,7 @@ export default function RowIndexSectors() {
 
   // Cards from source
   const cards = useMemo(() => {
-    let list = fromSectorCards(source);
-    if (list.length === 0) list = fromSectors(source || {});
+    
     return list;
   }, [source]);
 
