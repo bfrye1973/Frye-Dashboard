@@ -9,26 +9,35 @@ const API =
 
 /* ------------------------------- UI helpers ------------------------------- */
 
-const norm = (s="") => s.trim().toLowerCase();
+const norm = (s = "") => s.trim().toLowerCase();
 
 const ALIASES = {
-  "tech": "information technology",
+  tech: "information technology",
   "information technology": "information technology",
-  "materials": "materials",
-  "healthcare": "healthcare",
+  materials: "materials",
+  healthcare: "healthcare",
   "communication services": "communication services",
   "real estate": "real estate",
-  "energy": "energy",
+  energy: "energy",
   "consumer staples": "consumer staples",
   "consumer discretionary": "consumer discretionary",
-  "financials": "financials",
-  "utilities": "utilities",
-  "industrials": "industrials",
+  financials: "financials",
+  utilities: "utilities",
+  industrials: "industrials",
 };
 
 const ORDER = [
-  "tech","materials","healthcare","communication services","real estate",
-  "energy","consumer staples","consumer discretionary","financials","utilities","industrials",
+  "tech",
+  "materials",
+  "healthcare",
+  "communication services",
+  "real estate",
+  "energy",
+  "consumer staples",
+  "consumer discretionary",
+  "financials",
+  "utilities",
+  "industrials",
 ];
 
 const orderKey = (s) => {
@@ -45,17 +54,25 @@ const toneFor = (o) => {
 };
 
 function Badge({ text, tone = "info" }) {
-  const map = {
-    ok:    { bg:"#22c55e", fg:"#0b1220", bd:"#16a34a" },
-    warn:  { bg:"#facc15", fg:"#111827", bd:"#ca8a04" },
-    danger:{ bg:"#ef4444", fg:"#fee2e2", bd:"#b91c1c" },
-    info:  { bg:"#0b1220", fg:"#93c5fd", bd:"#334155" },
-  }[tone] || { bg:"#0b1220", fg:"#93c5fd", bd:"#334155" };
+  const map =
+    {
+      ok: { bg: "#22c55e", fg: "#0b1220", bd: "#16a34a" },
+      warn: { bg: "#facc15", fg: "#111827", bd: "#ca8a04" },
+      danger: { bg: "#ef4444", fg: "#fee2e2", bd: "#b91c1c" },
+      info: { bg: "#0b1220", fg: "#93c5fd", bd: "#334155" },
+    }[tone] || { bg: "#0b1220", fg: "#93c5fd", bd: "#334155" };
   return (
-    <span style={{
-      padding:"4px 8px", borderRadius:8, fontSize:12, fontWeight:700,
-      background:map.bg, color:map.fg, border:`1px solid ${map.bd}`
-    }}>
+    <span
+      style={{
+        padding: "4px 8px",
+        borderRadius: 8,
+        fontSize: 12,
+        fontWeight: 700,
+        background: map.bg,
+        color: map.fg,
+        border: `1px solid ${map.bd}`,
+      }}
+    >
       {text}
     </span>
   );
@@ -67,33 +84,53 @@ function DeltaPill({ label, value }) {
   const tone = v > 0 ? "#22c55e" : v < 0 ? "#ef4444" : "#9ca3af";
   const arrow = v > 0 ? "▲" : v < 0 ? "▼" : "→";
   return (
-    <span title={`${label}: ${v >= 0 ? "+" : ""}${v.toFixed(1)}%`}
+    <span
+      title={`${label}: ${v >= 0 ? "+" : ""}${v.toFixed(1)}%`}
       style={{
-        display:"inline-flex", alignItems:"center", gap:4,
-        borderRadius:8, padding:"2px 6px", fontSize:11, fontWeight:700,
-        background:"#0b0f17", color:tone, border:`1px solid ${tone}33`
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 4,
+        borderRadius: 8,
+        padding: "2px 6px",
+        fontSize: 11,
+        fontWeight: 700,
+        background: "#0b0f17",
+        color: tone,
+        border: `1px solid ${tone}33`,
       }}
     >
-      <span style={{
-        width:32, height:10, borderRadius:6, background:tone,
-        display:"inline-block"
-      }} />
-      <span>{label}: {arrow} {v >= 0 ? "+" : ""}{v.toFixed(1)}%</span>
+      <span
+        style={{
+          width: 32,
+          height: 10,
+          borderRadius: 6,
+          background: tone,
+          display: "inline-block",
+        }}
+      />
+      <span>
+        {label}: {arrow} {v >= 0 ? "+" : ""}
+        {v.toFixed(1)}%
+      </span>
     </span>
   );
 }
 
 /* Compact sparkline */
 function Sparkline({ data = [], width = 160, height = 28 }) {
-  if (!Array.isArray(data) || data.length < 2) return <div className="small muted"> </div>;
-  const min = Math.min(...data), max = Math.max(...data);
-  const span = (max - min) || 1;
+  if (!Array.isArray(data) || data.length < 2)
+    return <div className="small muted"> </div>;
+  const min = Math.min(...data),
+    max = Math.max(...data);
+  const span = max - min || 1;
   const stepX = width / (data.length - 1);
-  const d = data.map((v,i) => {
-    const x = i * stepX;
-    const y = height - ((v - min) / span) * height;
-    return `${i === 0 ? "M" : "L"}${x.toFixed(2)},${y.toFixed(2)}`;
-  }).join(" ");
+  const d = data
+    .map((v, i) => {
+      const x = i * stepX;
+      const y = height - ((v - min) / span) * height;
+      return `${i === 0 ? "M" : "L"}${x.toFixed(2)},${y.toFixed(2)}`;
+    })
+    .join(" ");
   return (
     <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
       <path d={d} fill="none" stroke="#60a5fa" strokeWidth="2" />
@@ -104,45 +141,67 @@ function Sparkline({ data = [], width = 160, height = 28 }) {
 /* Card */
 function SectorCard({ sector, outlook, spark, last, deltaPct, d10m, d1h, d1d }) {
   const tone = toneFor(outlook);
-  const arr  = Array.isArray(spark) ? spark : [];
+  const arr = Array.isArray(spark) ? spark : [];
 
   let _last = Number.isFinite(last) ? last : null;
   let _tilt = Number.isFinite(deltaPct) ? deltaPct : null;
   if ((_last === null || _tilt === null) && arr.length >= 2) {
     const first = Number(arr[0]) || 0;
-    const lst   = Number(arr[arr.length - 1]) || 0;
-    const base  = Math.abs(first) > 1e-6 ? Math.abs(first) : 1;
+    const lst = Number(arr[arr.length - 1]) || 0;
+    const base = Math.abs(first) > 1e-6 ? Math.abs(first) : 1;
     _last = _last === null ? lst : _last;
     _tilt = _tilt === null ? ((lst - first) / base) * 100 : _tilt;
   }
   if (_last === null) _last = 0;
   if (_tilt === null) _tilt = 0;
 
-  const arrow =
-    Math.abs(_tilt) < 0.5 ? "→" :
-    _tilt > 0             ? "↑" : "↓";
-  const tiltColor =
-    _tilt > 0 ? "#22c55e" : _tilt < 0 ? "#ef4444" : "#9ca3af";
+  const arrow = Math.abs(_tilt) < 0.5 ? "→" : _tilt > 0 ? "↑" : "↓";
+  const tiltColor = _tilt > 0 ? "#22c55e" : _tilt < 0 ? "#ef4444" : "#9ca3af";
 
   return (
-    <div className="panel" style={{ padding:8 }}>
-      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+    <div className="panel" style={{ padding: 8 }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+        }}
+      >
         <div className="panel-title small">{sector || "Sector"}</div>
         <Badge text={outlook || "Neutral"} tone={tone} />
       </div>
 
       {/* Deltas row */}
-      <div style={{ display:"flex", gap:6, flexWrap:"wrap", margin:"4px 0 4px 0" }}>
+      <div
+        style={{
+          display: "flex",
+          gap: 6,
+          flexWrap: "wrap",
+          margin: "4px 0 4px 0",
+        }}
+      >
         {Number.isFinite(d10m) && <DeltaPill label="Δ10m" value={d10m} />}
-        {Number.isFinite(d1h)  && <DeltaPill label="Δ1h"  value={d1h}  />}
-        {Number.isFinite(d1d)  && <DeltaPill label="Δ1d"  value={d1d}  />}
+        {Number.isFinite(d1h) && <DeltaPill label="Δ1h" value={d1h} />}
+        {Number.isFinite(d1d) && <DeltaPill label="Δ1d" value={d1d} />}
       </div>
 
       {/* Net NH + Breadth Tilt */}
-      <div className="small" style={{ display:"flex", justifyContent:"space-between", margin:"2px 0 4px 0" }}>
-        <span>Net NH: <strong>{Number.isFinite(_last) ? _last.toFixed(0) : "—"}</strong></span>
-        <span style={{ color:tiltColor, fontWeight:700 }}>
-          Breadth Tilt: {arrow} {Number.isFinite(_tilt) ? ( (_tilt>=0?"+":"") + _tilt.toFixed(1) + "%") : "0.0%"}
+      <div
+        className="small"
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          margin: "2px 0 4px 0",
+        }}
+      >
+        <span>
+          Net NH: <strong>{Number.isFinite(_last) ? _last.toFixed(0) : "—"}</strong>
+        </span>
+        <span style={{ color: tiltColor, fontWeight: 700 }}>
+          Breadth Tilt: {arrow}{" "}
+          {Number.isFinite(_tilt)
+            ? (_tilt >= 0 ? "+" : "") + _tilt.toFixed(1) + "%"
+            : "0.0%"}
         </span>
       </div>
 
@@ -154,7 +213,7 @@ function SectorCard({ sector, outlook, spark, last, deltaPct, d10m, d1h, d1d }) 
 /* -------------------------- Snapshot helpers -------------------------- */
 
 async function fetchJSON(url) {
-  const r = await fetch(url, { cache:"no-store" });
+  const r = await fetch(url, { cache: "no-store" });
   if (!r.ok) throw new Error(`HTTP ${r.status}`);
   return await r.json();
 }
@@ -172,22 +231,35 @@ function buildSectorLastMap(snapshot) {
 
 async function computeDeltaFromReplay(granularity /* '10min' | 'eod' */) {
   try {
-    const idx = await fetchJSON(`${API}/api/replay/index?granularity=${encodeURIComponent(granularity)}&t=${Date.now()}`);
+    const idx = await fetchJSON(
+      `${API}/api/replay/index?granularity=${encodeURIComponent(
+        granularity
+      )}&t=${Date.now()}`
+    );
     const items = Array.isArray(idx?.items) ? idx.items : [];
     if (items.length < 2) return {};
     const tsA = items[0]?.ts;
     const tsB = items[1]?.ts;
     if (!tsA || !tsB) return {};
     const [snapA, snapB] = await Promise.all([
-      fetchJSON(`${API}/api/replay/at?granularity=${granularity}&ts=${encodeURIComponent(tsA)}&t=${Date.now()}`),
-      fetchJSON(`${API}/api/replay/at?granularity=${granularity}&ts=${encodeURIComponent(tsB)}&t=${Date.now()}`)
+      fetchJSON(
+        `${API}/api/replay/at?granularity=${granularity}&ts=${encodeURIComponent(
+          tsA
+        )}&t=${Date.now()}`
+      ),
+      fetchJSON(
+        `${API}/api/replay/at?granularity=${granularity}&ts=${encodeURIComponent(
+          tsB
+        )}&t=${Date.now()}`
+      ),
     ]);
     const mapA = buildSectorLastMap(snapA);
     const mapB = buildSectorLastMap(snapB);
     const out = {};
     const keys = new Set([...Object.keys(mapA), ...Object.keys(mapB)]);
     for (const k of keys) {
-      const a = mapA[k]; const b = mapB[k];
+      const a = mapA[k];
+      const b = mapB[k];
       if (Number.isFinite(a) && Number.isFinite(b)) out[k] = a - b; // change in Net NH
     }
     return out;
@@ -199,25 +271,97 @@ async function computeDeltaFromReplay(granularity /* '10min' | 'eod' */) {
 /* ------------------------------- Legend content ------------------------------- */
 
 function Pill({ color }) {
-  return <span style={{
-    width:34, height:12, borderRadius:12, background:color,
-    display:"inline-block", border:"1px solid rgba(255,255,255,0.1)", marginRight:8
-  }} />;
+  return (
+    <span
+      style={{
+        width: 34,
+        height: 12,
+        borderRadius: 12,
+        background: color,
+        display: "inline-block",
+        border: "1px solid rgba(255,255,255,0.1)",
+        marginRight: 8,
+      }}
+    />
+  );
 }
 
-function IndexSectorsLegendContent(){
+function IndexSectorsLegendContent() {
   return (
     <div>
-      <div style={{ color:"#f9fafb", fontSize:14, fontWeight:800, marginBottom:8 }}>
+      <div style={{ color: "#f9fafb", fontSize: 14, fontWeight: 800, marginBottom: 8 }}>
         Index Sectors — Legend
       </div>
-      {/* (content identical to your current copy) */}
-      <div style={{ color:"#e5e7eb", fontSize:13, fontWeight:700, marginTop:6 }}>Outlook</div>
-      <div style={{ color:"#d1d5db", fontSize:12 }}>
-        Sector trend bias from breadth: <b>Bullish</b> (NH&gt;NL), <b>Neutral</b> (mixed), <b>Bearish</b> (NL&gt;NH).
+
+      {/* Outlook */}
+      <div style={{ color: "#e5e7eb", fontSize: 13, fontWeight: 700, marginTop: 6 }}>
+        Outlook
+      </div>
+      <div style={{ color: "#d1d5db", fontSize: 12 }}>
+        Sector trend bias from breadth: <b>Bullish</b> (NH&gt;NL), <b>Neutral</b>{" "}
+        (mixed), <b>Bearish</b> (NL&gt;NH).
+      </div>
+      <div style={{ display: "flex", gap: 12, margin: "6px 0 6px 0", alignItems: "center" }}>
+        <Pill color="#22c55e" />{" "}
+        <span style={{ color: "#e5e7eb", fontWeight: 700, fontSize: 12 }}>Bullish</span>
+        <Pill color="#facc15" />{" "}
+        <span style={{ color: "#e5e7eb", fontWeight: 700, fontSize: 12 }}>Neutral</span>
+        <Pill color="#ef4444" />{" "}
+        <span style={{ color: "#e5e7eb", fontWeight: 700, fontSize: 12 }}>Bearish</span>
+      </div>
+
+      {/* Net NH + Breadth Tilt */}
+      <div style={{ color: "#e5e7eb", fontSize: 13, fontWeight: 700, marginTop: 6 }}>
+        Net NH & Breadth Tilt
+      </div>
+      <div style={{ color: "#d1d5db", fontSize: 12 }}>
+        <b>Net NH</b> = New Highs − New Lows (participation strength).
+        <br />
+        <b>Breadth Tilt</b> = how tilted NH vs NL is in % terms (positive = more NH).
       </div>
     </div>
   );
+}
+
+/* --------------------------------- Data builders (cards) --------------------------------- */
+/** These two helpers MUST exist, or the build will fail (undefined errors). */
+function fromSectorCards(json) {
+  const arr = json?.outlook?.sectorCards;
+  if (!Array.isArray(arr)) return [];
+  return arr
+    .map((c) => ({
+      sector: c?.sector ?? "",
+      outlook: c?.outlook ?? "Neutral",
+      spark: Array.isArray(c?.spark) ? c.spark : [],
+      last: Number(c?.last ?? c?.value ?? NaN),
+      deltaPct: Number(c?.deltaPct ?? c?.pct ?? c?.changePct ?? NaN),
+    }))
+    .sort((a, b) => orderKey(a.sector) - orderKey(b.sector));
+}
+
+function fromSectors(json) {
+  const obj = json?.outlook?.sectors;
+  if (!obj || typeof obj !== "object") return [];
+  const list = Object.keys(obj).map((k) => {
+    const sec = obj[k] || {};
+    const nh = Number(sec?.nh ?? 0);
+    const nl = Number(sec?.nl ?? 0);
+    const netNH = Number(sec?.netNH ?? nh - nl);
+    const denom = nh + nl;
+    const pct = denom > 0 ? (netNH / denom) * 100 : 0;
+    const title = k
+      .split(" ")
+      .map((w) => (w ? w[0].toUpperCase() + w.slice(1) : w))
+      .join(" ");
+    return {
+      sector: title,
+      outlook: sec?.outlook ?? (netNH > 0 ? "Bullish" : netNH < 0 ? "Bearish" : "Neutral"),
+      spark: Array.isArray(sec?.spark) ? sec.spark : [],
+      last: netNH,
+      deltaPct: pct,
+    };
+  });
+  return list.sort((a, b) => orderKey(a.sector) - orderKey(b.sector));
 }
 
 /* --------------------------------- Main Row -------------------------------- */
@@ -232,19 +376,25 @@ export default function RowIndexSectors() {
       const detail = e?.detail || {};
       const on = !!detail.on;
       setReplayOn(on);
-      setReplayData(on ? (detail.data || null) : null);
+      setReplayData(on ? detail.data || null : null);
     }
     window.addEventListener("replay:update", onReplay);
     return () => window.removeEventListener("replay:update", onReplay);
   }, []);
-  const source = (replayOn && replayData) ? replayData : live;
+  const source = replayOn && replayData ? replayData : live;
 
   // NEW: prefer per-section updatedAt
-  const ts = source?.sectors?.updatedAt || source?.meta?.ts || source?.updated_at || source?.ts || null;
+  const ts =
+    source?.sectors?.updatedAt ||
+    source?.meta?.ts ||
+    source?.updated_at ||
+    source?.ts ||
+    null;
 
-  // Cards from source
+  // Cards from source (uses helpers defined above)
   const cards = useMemo(() => {
-    
+    let list = fromSectorCards(source);
+    if (list.length === 0) list = fromSectors(source || {});
     return list;
   }, [source]);
 
@@ -256,7 +406,10 @@ export default function RowIndexSectors() {
     const controller = new AbortController();
     const load = async () => {
       try {
-        const r = await fetch(`${API}/api/sectorTrend?window=1`, { signal: controller.signal, cache:"no-store" });
+        const r = await fetch(`${API}/api/sectorTrend?window=1`, {
+          signal: controller.signal,
+          cache: "no-store",
+        });
         const j = await r.json();
         if (!aliveRef.current) return;
         setHourTrend(j?.sectors || {});
@@ -266,7 +419,11 @@ export default function RowIndexSectors() {
     };
     load();
     const t = setInterval(load, 60_000);
-    return () => { aliveRef.current = false; controller.abort(); clearInterval(t); };
+    return () => {
+      aliveRef.current = false;
+      controller.abort();
+      clearInterval(t);
+    };
   }, []);
   const d1hMap = useMemo(() => {
     const out = {};
@@ -291,7 +448,10 @@ export default function RowIndexSectors() {
       const m = await computeDeltaFromReplay("10min");
       setD10mMap(m);
     }, 60_000);
-    return () => { mounted = false; clearInterval(t); };
+    return () => {
+      mounted = false;
+      clearInterval(t);
+    };
   }, []);
 
   // Δ1d — from last two EOD snapshots
@@ -306,7 +466,10 @@ export default function RowIndexSectors() {
       const m = await computeDeltaFromReplay("eod");
       setD1dMap(m);
     }, 300_000);
-    return () => { mounted = false; clearInterval(t); };
+    return () => {
+      mounted = false;
+      clearInterval(t);
+    };
   }, []);
 
   // Legend modal
@@ -314,14 +477,19 @@ export default function RowIndexSectors() {
 
   return (
     <section id="row-4" className="panel index-sectors" aria-label="Index Sectors">
-      <div className="panel-head" style={{ alignItems:"center" }}>
+      <div className="panel-head" style={{ alignItems: "center" }}>
         <div className="panel-title">Index Sectors</div>
         <button
-          onClick={()=> setLegendOpen(true)}
+          onClick={() => setLegendOpen(true)}
           style={{
-            background:"#0b0b0b", color:"#e5e7eb",
-            border:"1px solid #2b2b2b", borderRadius:8,
-            padding:"6px 10px", fontWeight:600, cursor:"pointer", marginLeft:8
+            background: "#0b0b0b",
+            color: "#e5e7eb",
+            border: "1px solid #2b2b2b",
+            borderRadius: 8,
+            padding: "6px 10px",
+            fontWeight: 600,
+            cursor: "pointer",
+            marginLeft: 8,
           }}
           title="Legend"
         >
@@ -335,11 +503,14 @@ export default function RowIndexSectors() {
       {error && <div className="small muted">Failed to load sectors.</div>}
 
       {Array.isArray(cards) && cards.length > 0 ? (
-        <div style={{
-          display:"grid",
-          gridTemplateColumns:"repeat(auto-fill, minmax(210px, 1fr))",
-          gap:8, marginTop:6
-        }}>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill, minmax(210px, 1fr))",
+            gap: 8,
+            marginTop: 6,
+          }}
+        >
           {cards.map((c, i) => {
             const normName = ALIASES[norm(c?.sector || "")] || norm(c?.sector || "");
             const d10 = d10mMap[normName];
@@ -352,10 +523,22 @@ export default function RowIndexSectors() {
                 sector={c?.sector}
                 outlook={c?.outlook}
                 spark={c?.spark}
-                last={Number.isFinite(c?.last) ? c.last : (Number.isFinite(c?.value) ? c.value : null)}
-                deltaPct={Number.isFinite(c?.deltaPct) ? c.deltaPct :
-                          (Number.isFinite(c?.pct) ? c.pct :
-                          (Number.isFinite(c?.changePct) ? c.changePct : null))}
+                last={
+                  Number.isFinite(c?.last)
+                    ? c.last
+                    : Number.isFinite(c?.value)
+                    ? c.value
+                    : null
+                }
+                deltaPct={
+                  Number.isFinite(c?.deltaPct)
+                    ? c.deltaPct
+                    : Number.isFinite(c?.pct)
+                    ? c.pct
+                    : Number.isFinite(c?.changePct)
+                    ? c.changePct
+                    : null
+                }
                 d10m={Number.isFinite(d10) ? d10 : undefined}
                 d1h={Number.isFinite(d1h) ? d1h : undefined}
                 d1d={Number.isFinite(d1d) ? d1d : undefined}
@@ -372,27 +555,40 @@ export default function RowIndexSectors() {
         <div
           role="dialog"
           aria-modal="true"
-          onClick={()=> setLegendOpen(false)}
+          onClick={() => setLegendOpen(false)}
           style={{
-            position:"fixed", inset:0, background:"rgba(0,0,0,0.5)",
-            display:"flex", alignItems:"center", justifyContent:"center", zIndex:60
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 60,
           }}
         >
           <div
-            onClick={(e)=> e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
             style={{
-              width:"min(880px, 92vw)", background:"#0b0b0c",
-              border:"1px solid #2b2b2b", borderRadius:12, padding:16,
-              boxShadow:"0 10px 30px rgba(0,0,0,0.35)"
+              width: "min(880px, 92vw)",
+              background: "#0b0b0c",
+              border: "1px solid #2b2b2b",
+              borderRadius: 12,
+              padding: 16,
+              boxShadow: "0 10px 30px rgba(0,0,0,0.35)",
             }}
           >
             <IndexSectorsLegendContent />
-            <div style={{ display:"flex", justifyContent:"flex-end", marginTop:12 }}>
+            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}>
               <button
-                onClick={()=> setLegendOpen(false)}
+                onClick={() => setLegendOpen(false)}
                 style={{
-                  background:"#eab308", color:"#111827", border:"none",
-                  borderRadius:8, padding:"8px 12px", fontWeight:700, cursor:"pointer"
+                  background: "#eab308",
+                  color: "#111827",
+                  border: "none",
+                  borderRadius: 8,
+                  padding: "8px 12px",
+                  fontWeight: 700,
+                  cursor: "pointer",
                 }}
               >
                 Close
