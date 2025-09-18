@@ -1,12 +1,11 @@
 // src/pages/rows/RowIndexSectors.jsx
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useDashboardPoll } from "../../lib/dashboardApi";
 import { LastUpdated } from "../../components/LastUpdated";
 import CadenceBadge from "../../components/CadenceBadge";
 
 /* ---------------------------- tiny helpers ---------------------------- */
 function safe(obj, path) {
-  // safe(obj, ["a","b","c"])
   let cur = obj;
   for (let i = 0; i < path.length; i++) {
     if (!cur || typeof cur !== "object") return undefined;
@@ -14,17 +13,58 @@ function safe(obj, path) {
   }
   return cur;
 }
-function pickTs(source) {
-  if (!source || typeof source !== "object") return null;
-  const s = source.sectors && source.sectors.updatedAt;
-  const m = source.meta && source.meta.ts;
-  const ua = source.updated_at;
-  const t = source.ts;
-  return s || m || ua || t || null;
-}
 function pickCadence(source) {
   return safe(source, ["meta", "cadence"]) || "unknown";
 }
+/** Prefer section stamps; then “outlook” (some backends attach it there); then meta/legacy. */
+function pickSectorsTs(source) {
+  if (!source || typeof source !== "object") return null;
+  return (
+    safe(source, ["sectors", "updatedAt"]) ||
+    safe(source, ["outlook", "updatedAt"]) ||
+    safe(source, ["meta", "ts"]) ||
+    source.updated_at ||
+    source.ts ||
+    null
+  );
+}
+
+/** returns array of card-like objects no matter how backend shapes them */
+function getSectorCards(source) {
+  if (!source) return [];
+  const s = safe(source, ["sectors"]);
+  const o = safe(source, ["outlook"]);
+
+  // 1) New preferred: /dashboard.outlook.sectorCards (what your backend emits now)
+  if (Array.isArray(safe(o, ["sectorCards"]))) return safe(o, ["sectorCards"]);
+
+  // 2) Also allow sectors.sectorCards / sectors.cards / sectors.list
+  if (Array.isArray(safe(s, ["sectorCards"]))) return safe(s, ["sectorCards"]);
+  if (Array.isArray(safe(s, ["cards"])))       return safe(s, ["cards"]);
+  if (Array.isArray(safe(s, ["list"])))        return safe(s, ["list"]);
+
+  // 3) Dict fallback: sectors.groups = { "Tech": { advPct, decPct, ... } }
+  const groups = safe(s, ["groups"]);
+  if (groups && typeof groups === "object") {
+    const out = [];
+    for (const name in groups) {
+      if (!Object.prototype.hasOwnProperty.call(groups, name)) continue;
+      const g = groups[name] || {};
+      out.push({
+        name,
+        advPct: g.advPct,
+        decPct: g.decPct,
+        netNH: g.netNH,
+        breadthTR: g.breadthTR,
+        tone: g.tone || g.state, // optional
+      });
+    }
+    return out;
+  }
+
+  return [];
+}
+
 function pct(v) {
   const n = Number(v);
   return Number.isFinite(n) ? n.toFixed(2) + "%" : "—";
@@ -32,12 +72,20 @@ function pct(v) {
 function toneForNet(n) {
   const v = Number(n);
   if (!Number.isFinite(v)) return "neutral";
-  if (v > 0.4) return "bull";       // net positive
-  if (v < -0.4) return "bear";      // net negative
+  if (v > 0.4) return "bull";
+  if (v < -0.4) return "bear";
   return "neutral";
 }
 
-/* ---------------------------- UI primitives --------------------------- */
+function Stat({ k, v }) {
+  return (
+    <span style={{ display: "inline-flex", gap: 6 }}>
+      <span style={{ color: "#94a3b8" }}>{k}:</span>
+      <span style={{ color: "#e5e7eb", fontWeight: 700 }}>{v}</span>
+    </span>
+  );
+}
+
 function Pill({ label, tone, subtitle }) {
   const theme =
     tone === "bull"
@@ -61,9 +109,7 @@ function Pill({ label, tone, subtitle }) {
       }}
       title={label}
     >
-      <div style={{ color: "#e5e7eb", fontWeight: 800, fontSize: 13 }}>
-        {label}
-      </div>
+      <div style={{ color: "#e5e7eb", fontWeight: 800, fontSize: 13 }}>{label}</div>
       <span
         style={{
           fontSize: 11,
@@ -75,8 +121,9 @@ function Pill({ label, tone, subtitle }) {
           justifySelf: "end",
         }}
       >
-        {tone.toUpperCase()}
+        {String(tone || "neutral").toUpperCase()}
       </span>
+
       {subtitle ? (
         <div
           style={{
@@ -95,30 +142,18 @@ function Pill({ label, tone, subtitle }) {
   );
 }
 
-function Stat({ k, v }) {
-  return (
-    <span style={{ display: "inline-flex", gap: 6 }}>
-      <span style={{ color: "#94a3b8" }}>{k}:</span>
-      <span style={{ color: "#e5e7eb", fontWeight: 700 }}>{v}</span>
-    </span>
-  );
-}
-
 /* =============================== MAIN ================================= */
 export default function RowIndexSectors() {
-  // live poll
-  const poll = useDashboardPoll("dynamic");
-  const live = poll && poll.data ? poll.data : null;
+  const { data: live } = useDashboardPoll("dynamic");
 
-  // replay bridge (listens to window "replay:update")
+  // replay support (from RowMarketOverview)
   const [replayOn, setReplayOn] = useState(false);
   const [replayData, setReplayData] = useState(null);
   useEffect(() => {
     function onReplay(e) {
       const d = e && e.detail ? e.detail : {};
-      const on = !!d.on;
-      setReplayOn(on);
-      setReplayData(on ? d.data || null : null);
+      setReplayOn(!!d.on);
+      setReplayData(d.on ? d.data || null : null);
     }
     if (typeof window !== "undefined") {
       window.addEventListener("replay:update", onReplay);
@@ -127,79 +162,53 @@ export default function RowIndexSectors() {
     return () => {};
   }, []);
 
-  // choose source (snapshot vs live)
   const source = replayOn && replayData ? replayData : live;
 
-  // per-section timestamp + cadence
-  const ts = pickTs(source);
+  const ts = pickSectorsTs(source);
   const cadence = pickCadence(source);
 
-  // get sector cards (resilient to different shapes)
+  // where the cards actually live
+  const cardsRaw = useMemo(() => getSectorCards(source), [source]);
+
+  // normalize for view
   const cards = useMemo(() => {
-    const s = source && source.sectors;
-    if (!s) return [];
-
-    // preferred: sectors.sectorCards = [{ name, advPct, decPct, netNH, breadthTR, ... }]
-    if (Array.isArray(s.sectorCards)) return s.sectorCards;
-
-    // legacy shapes fallback
-    if (Array.isArray(s.list)) return s.list;
-    if (Array.isArray(s.cards)) return s.cards;
-
-    // build from groups dict if provided (name -> stats)
-    const g = s.groups || {};
-    const out = [];
-    for (const key in g) {
-      if (!Object.prototype.hasOwnProperty.call(g, key)) continue;
-      const obj = g[key] || {};
-      out.push({
-        name: key,
-        advPct: obj.advPct,
-        decPct: obj.decPct,
-        netNH: obj.netNH,
-        breadthTR: obj.breadthTR,
-        label: obj.label || key,
-      });
-    }
-    return out;
-  }, [source]);
-
-  // normalize each card to a uniform view model
-  const vm = useMemo(() => {
-    return cards.map((c, idx) => {
+    return cardsRaw.map((c, idx) => {
       const name = (c && (c.name || c.label)) || "Sector";
-      // try to compute a net tone:
-      //  - use provided "state"/"tone" if present
-      //  - else infer from adv - dec or breadthTR
-      let tone = "neutral";
-      const provided =
-        (c && (c.tone || c.state)) ? String(c.tone || c.state).toLowerCase() : "";
+      const adv = Number(c && c.advPct);
+      const dec = Number(c && c.decPct);
+      const tr = Number(c && c.breadthTR);
 
-      if (provided === "bull" || provided === "bear" || provided === "neutral") {
-        tone = provided;
-      } else {
-        const adv = Number(c && c.advPct);
-        const dec = Number(c && c.decPct);
-        const tr = Number(c && c.breadthTR);
+      // tone: prefer provided tone/state, otherwise infer from adv-dec or breadthTR
+      let tone =
+        (c && (c.tone || c.state)) ? String(c.tone || c.state).toLowerCase() : "neutral";
+      if (tone !== "bull" && tone !== "bear" && tone !== "neutral") {
         const net = Number.isFinite(adv) && Number.isFinite(dec) ? adv - dec : tr;
         tone = toneForNet(net);
       }
 
-      // subtitle stats line
       const parts = [];
       if (c && c.advPct != null) parts.push(<Stat key={"a" + idx} k="Adv" v={pct(c.advPct)} />);
       if (c && c.decPct != null) parts.push(<Stat key={"d" + idx} k="Dec" v={pct(c.decPct)} />);
       if (c && c.netNH != null) parts.push(<Stat key={"nh" + idx} k="Net NH" v={String(c.netNH)} />);
-      if (c && c.breadthTR != null)
-        parts.push(<Stat key={"tr" + idx} k="Breadth TR" v={pct(c.breadthTR)} />);
+      if (c && c.breadthTR != null) parts.push(<Stat key={"tr" + idx} k="Breadth TR" v={pct(c.breadthTR)} />);
 
       return { name, tone, subtitle: parts };
     });
-  }, [cards]);
+  }, [cardsRaw]);
+
+  // helpful log if nothing found (does not break build)
+  useEffect(() => {
+    if (!source) return;
+    if (cardsRaw.length === 0) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        "[IndexSectors] No sector cards found. Checked: outlook.sectorCards, sectors.sectorCards, sectors.cards, sectors.list, sectors.groups"
+      );
+    }
+  }, [source, cardsRaw.length]);
 
   return (
     <section id="row-4" className="panel" style={{ padding: 10 }}>
-      {/* header */}
       <div className="panel-head" style={{ alignItems: "center" }}>
         <div className="panel-title">Index Sectors</div>
         <div className="spacer" />
@@ -207,7 +216,6 @@ export default function RowIndexSectors() {
         <CadenceBadge ts={ts} cadence={cadence} />
       </div>
 
-      {/* grid of sector pills */}
       <div
         style={{
           display: "grid",
@@ -216,15 +224,12 @@ export default function RowIndexSectors() {
           alignItems: "stretch",
         }}
       >
-        {vm.length > 0 ? (
-          vm.map((x, i) => (
+        {cards.length > 0 ? (
+          cards.map((x, i) => (
             <Pill key={x.name + "-" + i} label={x.name} tone={x.tone} subtitle={x.subtitle} />
           ))
         ) : (
-          <div
-            className="text-xs"
-            style={{ color: "#9ca3af", padding: "8px 4px" }}
-          >
+          <div className="text-xs" style={{ color: "#9ca3af", padding: "8px 4px" }}>
             No sector data.
           </div>
         )}
