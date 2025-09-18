@@ -359,7 +359,9 @@ export default function RowMarketOverview() {
 
   const od = data?.odometers ?? {};
   const gg = data?.gauges ?? {};
-  const ts = data?.meta?.ts ?? data?.updated_at ?? data?.ts ?? null;
+  const tsBase = data?.meta?.ts ?? data?.updated_at ?? data?.ts ?? null;
+  // NEW: prefer section stamp from backend
+  const tsShown = data?.marketMeter?.updatedAt || tsBase;
 
   const breadth   = Number(od?.breadthOdometer ?? data?.summary?.breadthIdx ?? gg?.rpm?.pct ?? 50);
   const momentum  = Number(od?.momentumOdometer ?? data?.summary?.momentumIdx ?? gg?.speed?.pct ?? 50);
@@ -420,7 +422,7 @@ export default function RowMarketOverview() {
               Replaying: {fmtIso(tsSel)} ({granularity})
             </span>
           )}
-          <LastUpdated ts={ts} />
+          <LastUpdated ts={tsShown} tz="America/Phoenix" />
           <ReplayControls
             on={on}
             setOn={setOn}
@@ -444,8 +446,8 @@ export default function RowMarketOverview() {
       />
 
       <div className="text-xs text-neutral-500" style={{ marginTop:4 }}>
-        {on ? (loadingSnap ? "Loading snapshot…" : (ts ? `Snapshot: ${fmtIso(ts)}` : "Replay ready"))
-            : (ts ? `Updated ${fmtIso(ts)}` : "")}
+        {on ? (loadingSnap ? "Loading snapshot…" : (tsShown ? `Snapshot: ${fmtIso(tsShown)}` : "Replay ready"))
+            : (tsShown ? `Updated ${fmtIso(tsShown)}` : "")}
       </div>
     </section>
   );
