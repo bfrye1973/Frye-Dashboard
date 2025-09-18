@@ -1,11 +1,4 @@
 import React from "react";
-setGranularity={replay.setGranularity}
-ts={replay.ts}
-setTs={replay.setTs}
-loadIndex={getReplayIndex}
-index={index}
-setIndex={setIndex}
-loading={loadingIdx}
 />
 </div>
 </div>
