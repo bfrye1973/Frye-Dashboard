@@ -1,6 +1,7 @@
 // src/pages/rows/RowEngineLights.jsx
 import React, { useEffect, useRef, useState } from "react";
 import { useDashboardPoll } from "../../lib/dashboardApi";
+import { LastUpdated } from "../../components/LastUpdated";
 
 /* ------------------------------------------------------------------ */
 /* Color pill                                                          */
@@ -53,7 +54,7 @@ function EngineLightsLegendContent(){
       <div style={{ color:"#f9fafb", fontSize:14, fontWeight:800, marginBottom:8 }}>
         Engine Lights — Legend
       </div>
-
+      {/* … (unchanged legend content) … */}
       {/* Breakout */}
       <div style={{ color:"#e5e7eb", fontSize:13, fontWeight:700, marginTop:6 }}>Breakout</div>
       <div style={{ color:"#d1d5db", fontSize:12 }}>
@@ -63,7 +64,6 @@ function EngineLightsLegendContent(){
         Example: Breakout active → More stocks making new highs than lows. Attention: possible entry opportunity.
       </div>
       <Swatch color="#22c55e" label="Active" note="Market setting up for move." />
-
       {/* Distribution */}
       <div style={{ color:"#e5e7eb", fontSize:13, fontWeight:700, marginTop:6 }}>Distribution</div>
       <div style={{ color:"#d1d5db", fontSize:12 }}>
@@ -73,7 +73,6 @@ function EngineLightsLegendContent(){
         Example: Distribution active → More stocks making new lows than highs. Possible trend reversal warning.
       </div>
       <Swatch color="#ef4444" label="Active" note="Breadth negative, potential reversal." />
-
       {/* Compression */}
       <div style={{ color:"#e5e7eb", fontSize:13, fontWeight:700, marginTop:6 }}>Compression</div>
       <div style={{ color:"#d1d5db", fontSize:12 }}>
@@ -83,7 +82,6 @@ function EngineLightsLegendContent(){
         Example: Compression active → Market tightly compressed; breakout possible, direction uncertain.
       </div>
       <Swatch color="#facc15" label="Caution" note="Squeeze ≥ 70." />
-
       {/* Expansion */}
       <div style={{ color:"#e5e7eb", fontSize:13, fontWeight:700, marginTop:6 }}>Expansion</div>
       <div style={{ color:"#d1d5db", fontSize:12 }}>
@@ -93,7 +91,6 @@ function EngineLightsLegendContent(){
         Example: Expansion active → Squeeze released, volatility opening up.
       </div>
       <Swatch color="#22c55e" label="Active" note="Ranges expanding." />
-
       {/* Overheat */}
       <div style={{ color:"#e5e7eb", fontSize:13, fontWeight:700, marginTop:6 }}>Overheat</div>
       <div style={{ color:"#d1d5db", fontSize:12 }}>
@@ -104,7 +101,6 @@ function EngineLightsLegendContent(){
       </div>
       <Swatch color="#facc15" label="Warn"   note="Momentum > 85." />
       <Swatch color="#ef4444" label="Danger" note="Momentum > 92." />
-
       {/* Turbo */}
       <div style={{ color:"#e5e7eb", fontSize:13, fontWeight:700, marginTop:6 }}>Turbo</div>
       <div style={{ color:"#d1d5db", fontSize:12 }}>
@@ -114,7 +110,6 @@ function EngineLightsLegendContent(){
         Example: Turbo active → Momentum > 92 with expansion. Market in runaway mode.
       </div>
       <Swatch color="#22c55e" label="Active" note="Momentum + Expansion together." />
-
       {/* Divergence */}
       <div style={{ color:"#e5e7eb", fontSize:13, fontWeight:700, marginTop:6 }}>Divergence</div>
       <div style={{ color:"#d1d5db", fontSize:12 }}>
@@ -124,18 +119,16 @@ function EngineLightsLegendContent(){
         Example: Divergence active → Speed up while breadth falters.
       </div>
       <Swatch color="#facc15" label="Active" note="Momentum strong, breadth weak." />
-
       {/* Low Liquidity */}
       <div style={{ color:"#e5e7eb", fontSize:13, fontWeight:700, marginTop:6 }}>Low Liquidity</div>
       <div style={{ color:"#d1d5db", fontSize:12 }}>
         Thin depth — harder fills, higher slippage.
       </div>
       <div style={{ color:"#f9fafb", fontSize:12, marginTop:2, marginLeft:8 }}>
-        Example: Low Liquidity active → PSI &lt; 40. Market harder to trade.
+        Example: Low Liquidity active → PSI < 40. Market harder to trade.
       </div>
       <Swatch color="#facc15" label="Warn"   note="Liquidity < 40." />
       <Swatch color="#ef4444" label="Danger" note="Liquidity < 30." />
-
       {/* Volatility High */}
       <div style={{ color:"#e5e7eb", fontSize:13, fontWeight:700, marginTop:6 }}>Volatility High</div>
       <div style={{ color:"#d1d5db", fontSize:12 }}>
@@ -241,6 +234,14 @@ export default function RowEngineLights() {
     firstPaintRef.current = true;
   }, [source]);
 
+  // NEW: pick stamp from section (fallback to meta/updated_at)
+  const ts =
+    source?.engineLights?.updatedAt ||
+    source?.meta?.ts ||
+    source?.updated_at ||
+    source?.ts ||
+    null;
+
   return (
     <section id="row-3" className="panel" aria-label="Engine Lights">
       {/* Header with Legend button (no inline legend text) */}
@@ -258,7 +259,8 @@ export default function RowEngineLights() {
           Legend
         </button>
         <div className="spacer" />
-        {stale && <span className="small muted">refreshing…</span>}
+        <LastUpdated ts={ts} tz="America/Phoenix" />
+        {stale && <span className="small muted" style={{ marginLeft:8 }}>refreshing…</span>}
       </div>
 
       {/* Lights row */}
