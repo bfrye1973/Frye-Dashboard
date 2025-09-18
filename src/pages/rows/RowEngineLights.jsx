@@ -221,7 +221,7 @@ export default function RowEngineLights() {
 
   // Choose source (snapshot vs live)
   const source = (replayOn && replayData) ? replayData : live;
-
+  const ts = source?.engineLights?.updatedAt ?? source?.meta?.ts ?? source?.ts ?? null;
   // Compute row lights
   useEffect(() => {
     if (!source || typeof source !== "object") {
