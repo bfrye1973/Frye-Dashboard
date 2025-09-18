@@ -101,12 +101,12 @@ function Stoplight({ label, value, baseline, size = 60, unit = "%" }) {
    (SAFE: adds Replay, preserves original behavior)
    ======================= */
 export default function RowMarketOverview() {
-  // live poll (defensive — no optional-call syntax)
+  // live poll (unconditional call: obey rules-of-hooks)
   const { data: live } = useDashboardPoll("dynamic");
-  const { mode } = useViewMode(); // view mode from Row 1
+  const { mode } = useViewMode();
   const [legendOpen, setLegendOpen] = React.useState(false);
 
-  // ---- Replay state & data (sandboxed) ----
+  // ---- Replay state & data ----
   const replay = useReplayState(); // { on, setOn, granularity, setGranularity, ts, setTs }
   const [index, setIndex] = React.useState([]); // [{ ts }]
   const [loadingIdx, setLoadingIdx] = React.useState(false);
@@ -136,29 +136,28 @@ export default function RowMarketOverview() {
       .finally(() => setLoadingSnap(false));
   }, [replay.on, replay.ts, replay.granularity]);
 
-  // Inform the chart to sync
-  React.useEffect(() => {
-    emitReplayUpdate({ on: replay.on, ts: replay.ts, granularity: replay.granularity });
-  }, [replay.on, replay.ts, replay.granularity]);
-
   // Choose data source (snapshot when ON, else live)
   const data = (replay.on && snap && snap.ok !== false) ? snap : live;
 
+  // Inform other rows (Engine Lights & Index Sectors) to use same payload
+  React.useEffect(() => {
+    emitReplayUpdate({
+      on: replay.on,
+      ts: replay.ts,
+      granularity: replay.granularity,
+      data, // << broadcast the same object this row renders
+    });
+  }, [replay.on, replay.ts, replay.granularity, data]);
+
+  // Pull values
   const od = data?.odometers ?? {};
   const gg = data?.gauges ?? {};
   const ts = data?.meta?.ts ?? data?.updated_at ?? data?.ts ?? null;
 
-  // normalized (from dashboardApi.transformToUi / or replay summary)
   const breadth   = Number(od?.breadthOdometer ?? data?.summary?.breadthIdx ?? gg?.rpm?.pct ?? 50);
   const momentum  = Number(od?.momentumOdometer ?? data?.summary?.momentumIdx ?? gg?.speed?.pct ?? 50);
-
-  // intraday squeeze (compression)
   const squeezeIntra = Number(od?.squeezeCompressionPct ?? gg?.fuel?.pct ?? 50);
-
-  // daily squeeze (compression) — MUST be under gauges.squeezeDaily.pct
   const squeezeDaily = Number.isFinite(gg?.squeezeDaily?.pct) ? Number(gg.squeezeDaily.pct) : null;
-
-  // liquidity & volatility; accept canonical and legacy mirrors
   const liquidity  = Number.isFinite(gg?.oil?.psi) ? Number(gg.oil.psi)
                      : (Number.isFinite(gg?.oilPsi) ? Number(gg.oilPsi) : NaN);
   const volatility = Number.isFinite(gg?.volatilityPct) ? Number(gg.volatilityPct)
@@ -258,7 +257,7 @@ export default function RowMarketOverview() {
         />
       )}
 
-      {/* Optional tiny status line */}
+      {/* Status line */}
       <div className="text-xs" style={{ color:"#9ca3af", marginTop:6 }}>
         {replay.on
           ? (loadingSnap ? "Loading snapshot…" : (ts ? `Snapshot: ${fmtIso(ts)}` : "Replay ready"))
@@ -410,15 +409,112 @@ function LegendModal({ onClose, children }) {
 }
 
 function LegendContent() {
-  // Keep your original content here. Placeholder title so file compiles if you paste now.
+  const h2 = { color: "#e5e7eb", margin: "6px 0 8px", fontSize: 16, fontWeight: 700 };
+  const h3 = { color: "#e5e7eb", margin: "10px 0 6px", fontSize: 14, fontWeight: 700 };
+  const p  = { color: "#cbd5e1", margin: "4px 0", fontSize: 14, lineHeight: 1.5 };
+  const ul = { color: "#cbd5e1", fontSize: 14, lineHeight: 1.5, paddingLeft: 18, margin: "4px 0 10px" };
+  const code = { fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", color: "#e5e7eb" };
+
+  const Tag = ({ bg, children }) => (
+    <span style={{
+      display: "inline-block", padding: "2px 6px", borderRadius: 6,
+      fontSize: 12, marginLeft: 6, background: bg, color: "#0f1115", fontWeight: 700
+    }}>{children}</span>
+  );
+
   return (
     <div>
-      <div style={{ color:"#e5e7eb", margin:"6px 0 8px", fontSize:16, fontWeight:700 }}>
-        Market Meter — Gauge Legend
+      <div style={h2}>Market Meter — Gauge Legend (with Examples)</div>
+
+      {/* Breadth */}
+      <div style={h3}>Breadth</div>
+      <p>Shows what % of stocks are rising vs falling.</p>
+      <p><strong>Example:</strong> 95% → Almost all stocks are going up together. Very strong market participation.</p>
+      <div style={p}><strong>Zones:</strong></div>
+      <ul style={ul}>
+        <li>0–34% <Tag bg="#ef4444">🔴 Weak</Tag> → Most stocks are falling.</li>
+        <li>35–64% <Tag bg="#f59e0b">🟡 Neutral</Tag> → Mixed, no clear trend.</li>
+        <li>65–84% <Tag bg="#22c55e">🟢 Strong</Tag> → Broad rally.</li>
+        <li>85–100% <Tag bg="#fca5a5">🟥 Extreme</Tag> → Overheated, risk of pullback.</li>
+      </ul>
+
+      {/* Momentum */}
+      <div style={h3}>Momentum</div>
+      <p>Measures the balance of new highs vs new lows.</p>
+      <p><strong>Example:</strong> 95% → Huge buying momentum; many stocks are breaking out to new highs.</p>
+      <div style={p}><strong>Zones:</strong></div>
+      <ul style={ul}>
+        <li>0–34% <Tag bg="#ef4444">🔴 Bearish</Tag> → More new lows than highs.</li>
+        <li>35–64% <Tag bg="#f59e0b">🟡 Neutral</Tag> → Balanced.</li>
+        <li>65–84% <Tag bg="#22c55e">🟢 Bullish</Tag> → More new highs than lows.</li>
+        <li>85–100% <Tag bg="#fca5a5">🟥 Extreme</Tag> → Momentum may be unsustainable.</li>
+      </ul>
+
+      {/* Intraday Squeeze */}
+      <div style={h3}>Intraday Squeeze</div>
+      <p>Shows how “compressed” today’s trading ranges are. Think spring tension.</p>
+      <p><strong>Example:</strong> 95% → Market is very coiled; big move could fire soon.</p>
+      <div style={p}><strong>Zones:</strong></div>
+      <ul style={ul}>
+        <li>0–34% <Tag bg="#22c55e">🟢 Expanded</Tag> → Market already moving freely.</li>
+        <li>35–64% <Tag bg="#f59e0b">🟡 Normal</Tag> → Average compression.</li>
+        <li>65–84% <Tag bg="#fb923c">🟠 Tight</Tag> → Building pressure.</li>
+        <li>85–100% <Tag bg="#f97316">🔥 Critical</Tag> → Very tight coil, watch for breakout.</li>
+      </ul>
+
+      {/* Daily Squeeze */}
+      <div style={h3}>Daily Squeeze</div>
+      <p>Same as Intraday Squeeze, but over multiple days (bigger picture).</p>
+      <p><strong>Example:</strong> 95% → Market is extremely compressed on the daily chart — expect a big move soon.</p>
+      <div style={p}><strong>Zones:</strong> Same as Intraday.</div>
+
+      {/* Volatility */}
+      <div style={h3}>Volatility</div>
+      <p>How big the swings are.</p>
+      <p><strong>Example:</strong> 95% → Very high volatility; market is turbulent and risky.</p>
+      <div style={p}><strong>Zones:</strong></div>
+      <ul style={ul}>
+        <li>0–29% <Tag bg="#22c55e">🟢 Calm</Tag> → Easy to hold positions.</li>
+        <li>30–59% <Tag bg="#f59e0b">🟡 Normal</Tag> → Manageable swings.</li>
+        <li>60–74% <Tag bg="#fb923c">🟠 Elevated</Tag> → Riskier conditions.</li>
+        <li>75–100% <Tag bg="#ef4444">🔴 High</Tag> → Expect sharp, unpredictable moves.</li>
+      </ul>
+
+      {/* Liquidity */}
+      <div style={h3}>Liquidity</div>
+      <p>How much buying/selling volume is available.</p>
+      <p><strong>Example:</strong> 95% → Very liquid market; trades fill easily, low slippage.</p>
+      <div style={p}><strong>Zones:</strong></div>
+      <ul style={ul}>
+        <li>0–29% <Tag bg="#ef4444">🔴 Thin</Tag> → Hard to get in/out without moving price.</li>
+        <li>30–49% <Tag bg="#fb923c">🟠 Light</Tag> → Caution needed.</li>
+        <li>50–69% <Tag bg="#f59e0b">🟡 Normal</Tag> → Adequate.</li>
+        <li>70–84% <Tag bg="#22c55e">🟢 Good</Tag> → Healthy trading.</li>
+        <li>85–100% <Tag bg="#16a34a">🟢🟢 Excellent</Tag> → Very easy to trade.</li>
+      </ul>
+
+      {/* Formula */}
+      <div style={{ ...h3, marginTop: 12 }}>Market Meter</div>
+      <div style={{ ...p, ...code }}>
+        base = 0.4×Breadth + 0.4×Momentum + 0.2×(100 − Intraday&nbsp;Squeeze)
+        <br />
+        blend = (1 − w)×base + w×50, where w = Daily&nbsp;Squeeze/100
       </div>
-      <div style={{ color:"#cbd5e1", fontSize:14 }}>
-        (Your existing LegendContent goes here.)
+      <div style={{ ...p, opacity: 0.8, marginTop: 6 }}>
+        When daily squeeze is high, the meter is blended toward 50 (neutral).
       </div>
+
+      {/* Overall Market Indicator */}
+      <div style={h3}>Overall Market Indicator</div>
+      <p>Overall average of the gauges — like a “dashboard score.”</p>
+      <p><strong>Example:</strong> 95% → Market is firing on all cylinders, very strong environment.</p>
+      <div style={p}><strong>Zones:</strong></div>
+      <ul style={ul}>
+        <li>0–34% <Tag bg="#ef4444">🔴 Weak</Tag> → Market conditions unfavorable.</li>
+        <li>35–64% <Tag bg="#f59e0b">🟡 Mixed</Tag> → Sideways/choppy.</li>
+        <li>65–84% <Tag bg="#22c55e">🟢 Favorable</Tag> → Trend-friendly.</li>
+        <li>85–100% <Tag bg="#fca5a5">🟥 Extreme</Tag> → May be overheated.</li>
+      </ul>
     </div>
   );
 }
