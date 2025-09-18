@@ -17,7 +17,8 @@ const pct = (n) => (Number.isFinite(n) ? n.toFixed(1) : "—");
 const toneFor = (v) => (v >= 60 ? "ok" : v >= 40 ? "warn" : "danger");
 
 /* ---------------------------- Stoplight ---------------------------- */
-function Stoplight({ label, value, baseline, size = 60, unit = "%" }) {
+/** tighter: default size 54, compact spacing */
+function Stoplight({ label, value, baseline, size = 54, unit = "%" }) {
   const v = Number.isFinite(value) ? clamp01(value) : NaN;
   const delta =
     Number.isFinite(v) && Number.isFinite(baseline) ? v - baseline : NaN;
@@ -41,22 +42,25 @@ function Stoplight({ label, value, baseline, size = 60, unit = "%" }) {
     delta < 0               ? "#ef4444" : "#94a3b8";
 
   return (
-    <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:6, minWidth:size+44 }}>
+    <div style={{
+      display:"flex", flexDirection:"column", alignItems:"center", gap:4,
+      minWidth:size+36
+    }}>
       <div title={`${label}: ${pct(v)}${unit === "%" ? "%" : ""}`}
         style={{
           width:size, height:size, borderRadius:"50%",
-          background:colors.bg, boxShadow:`0 0 14px ${colors.glow}`,
+          background:colors.bg, boxShadow:`0 0 12px ${colors.glow}`,
           display:"flex", alignItems:"center", justifyContent:"center",
-          border:"5px solid #0c1320"
+          border:"4px solid #0c1320"
         }}>
-        <div style={{ fontWeight:800, fontSize:size >= 100 ? 20 : 17, color:"#0b1220" }}>
+        <div style={{ fontWeight:800, fontSize:size >= 100 ? 20 : 16, color:"#0b1220" }}>
           {pct(v)}{unit === "%" ? "%" : ""}
         </div>
       </div>
-      <div className="small" style={{ color:"#e5e7eb", fontWeight:700, fontSize:16, lineHeight:1.15, textAlign:"center" }}>
+      <div className="small" style={{ color:"#e5e7eb", fontWeight:700, fontSize:15, lineHeight:1.1, textAlign:"center" }}>
         {label}
       </div>
-      <div style={{ color:deltaColor, fontSize:14, fontWeight:600, marginTop:2 }}>
+      <div style={{ color:deltaColor, fontSize:13, fontWeight:600 }}>
         {arrow} {Number.isFinite(delta) ? delta.toFixed(1) : "0.0"}{unit === "%" ? "%" : ""}
       </div>
     </div>
@@ -228,6 +232,7 @@ function ReplayControls({
 }
 
 /* ------------------------------ Layouts ------------------------------- */
+/** compact: smaller gaps & minWidths to keep section height low */
 function MeterTilesLayout({
   breadth, momentum, squeezeIntra, squeezeDaily, liquidity, volatility, meterValue,
   bBreadth, bMomentum, bSqueezeIn, bSqueezeDy, bLiquidity, bVol
@@ -238,13 +243,13 @@ function MeterTilesLayout({
         display:"grid",
         gridTemplateColumns:"1fr auto 1fr",
         alignItems:"center",
-        gap:12,
+        gap:10,
         marginTop:6
       }}
     >
       {/* LEFT: Breadth, Momentum, Intraday Squeeze */}
       <div style={{
-        display:'flex', gap:12, maxWidth:420, width:'100%',
+        display:'flex', gap:10, maxWidth:420, width:'100%',
         alignItems:'center', justifyContent:'space-between'
       }}>
         <Stoplight label="Breadth"          value={breadth}      baseline={bBreadth} />
@@ -253,13 +258,13 @@ function MeterTilesLayout({
       </div>
 
       {/* CENTER: big meter + daily squeeze */}
-      <div style={{ display:"flex", alignItems:"center", gap:16 }}>
-        <Stoplight label="Overall Market Indicator" value={meterValue} baseline={meterValue} size={110} />
+      <div style={{ display:"flex", alignItems:"center", gap:14 }}>
+        <Stoplight label="Overall Market Indicator" value={meterValue} baseline={meterValue} size={100} />
         <Stoplight label="Daily Squeeze" value={squeezeDaily} baseline={bSqueezeDy} />
       </div>
 
       {/* RIGHT: Liquidity, Volatility */}
-      <div style={{ display:"flex", gap:12, justifyContent:"flex-end" }}>
+      <div style={{ display:"flex", gap:10, justifyContent:"flex-end" }}>
         <Stoplight label="Liquidity"  value={liquidity}  baseline={bLiquidity} unit="" />
         <Stoplight label="Volatility" value={volatility} baseline={bVol} />
       </div>
@@ -272,7 +277,7 @@ export default function RowMarketOverview() {
   const { data: live } = useDashboardPoll("dynamic");
   const [legendOpen, setLegendOpen] = React.useState(false);
 
-  // replay state
+  // replay
   const [on, setOn] = React.useState(false);
   const [granularity, setGranularity] = React.useState("10min");
   const [tsSel, setTsSel] = React.useState("");
@@ -342,14 +347,14 @@ export default function RowMarketOverview() {
   const bLiquidity = useDailyBaseline("liquidity",       liquidity);
   const bVol       = useDailyBaseline("volatility",      volatility);
 
-  // Market Meter computation
+  // Market Meter calculation
   const expansion  = 100 - clamp01(squeezeIntra);
   const baseMeter  = 0.4 * breadth + 0.4 * momentum + 0.2 * expansion;
   const Sdy        = Number.isFinite(squeezeDaily) ? clamp01(squeezeDaily) / 100 : 0;
   const meterValue = Math.round((1 - Sdy) * baseMeter + Sdy * 50);
 
   return (
-    <section id="row-2" className="panel" style={{ padding:12 }}>
+    <section id="row-2" className="panel" style={{ padding:10 }}>
       {/* Legend modal */}
       {legendOpen && (
         <div role="dialog" aria-modal="true" onClick={()=> setLegendOpen(false)}
@@ -371,7 +376,7 @@ export default function RowMarketOverview() {
       <div className="panel-head" style={{ alignItems:"center" }}>
         <div className="panel-title">Market Meter — Stoplights</div>
 
-        {/* Keep ONLY the Legend button (removed Download PDF) */}
+        {/* Legend only (no download PDF) */}
         <button
           onClick={()=> setLegendOpen(true)}
           style={{ background:"#0b0b0b", color:"#e5e7eb", border:"1px solid #2b2b2b", borderRadius:8, padding:"6px 10px", fontWeight:600, cursor:"pointer", marginLeft:8 }}
@@ -401,7 +406,7 @@ export default function RowMarketOverview() {
         </div>
       </div>
 
-      {/* RESTORED classic 3-cluster layout */}
+      {/* 3-cluster compact layout */}
       <MeterTilesLayout
         breadth={breadth} momentum={momentum} squeezeIntra={squeezeIntra}
         squeezeDaily={squeezeDaily} liquidity={liquidity} volatility={volatility}
@@ -410,7 +415,7 @@ export default function RowMarketOverview() {
         bSqueezeDy={bSqueezeDy} bLiquidity={bLiquidity} bVol={bVol}
       />
 
-      <div className="text-xs text-neutral-500" style={{ marginTop:6 }}>
+      <div className="text-xs text-neutral-500" style={{ marginTop:4 }}>
         {on ? (loadingSnap ? "Loading snapshot…" : (ts ? `Snapshot: ${fmtIso(ts)}` : "Replay ready"))
             : (ts ? `Updated ${fmtIso(ts)}` : "")}
       </div>
