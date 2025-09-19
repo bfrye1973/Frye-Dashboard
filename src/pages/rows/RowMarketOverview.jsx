@@ -2,6 +2,9 @@
 import React from "react";
 import { useDashboardPoll } from "../../lib/dashboardApi";
 import { LastUpdated } from "../../components/LastUpdated";
+const INTRADAY_URL = process.env.REACT_APP_INTRADAY_URL;
+const INTRADAY_SOURCE_URL = process.env.REACT_APP_INTRADAY_SOURCE_URL;
+
 
 const API =
   (typeof window !== "undefined" && (window.__API_BASE__ || "")) ||
@@ -314,6 +317,26 @@ export default function RowMarketOverview() {
   const [loadingSnap, setLoadingSnap] = React.useState(false);
 
   const granParam = (granularity === "10min" ? "10min" : (granularity === "1h" ? "hourly" : "eod"));
+
+  // fetch live intraday first
+React.useEffect(() => {
+  let cancelled = false;
+  (async () => {
+    try {
+      const r1 = await fetch(`${INTRADAY_URL}?t=${Date.now()}`, { cache: 'no-store' });
+      const j1 = await r1.json();
+      const r2 = await fetch(`${INTRADAY_SOURCE_URL}?t=${Date.now()}`, { cache: 'no-store' });
+      const j2 = await r2.json();
+      if (!cancelled) {
+        setLiveIntraday(j1);
+        setLiveSource(j2);
+      }
+    } catch (e) {
+      console.warn('live intraday fetch failed', e);
+    }
+  })();
+  return () => { cancelled = true; };
+}, []);
 
   // fetch replay index
   React.useEffect(() => {
