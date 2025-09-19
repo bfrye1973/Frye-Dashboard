@@ -24,8 +24,7 @@ function Light({ label, tone = "info", active = true }) {
         borderRadius:8, fontWeight:700, fontSize:12,
         background: palette.bg, color: palette.fg, border:`1px solid ${palette.bd}`,
         boxShadow: `0 0 10px ${palette.shadow}55`,
-        opacity: active ? 1 : 0.45,
-        filter: active ? "none" : "grayscale(40%)"
+        opacity: active ? 1 : 0.45, filter: active ? "none" : "grayscale(40%)"
       }}
     >
       {label}
@@ -119,21 +118,23 @@ function computeSignalList(sigObj = {}) {
 /* ------------------------------------------------------------------ */
 function deriveSignalsFromGauges(g = {}) {
   const out = {};
-  const squeeze = g?.fuel?.pct ?? 0;
-  const momentum = g?.speed?.pct ?? 50;
-  const breadth = g?.rpm?.pct ?? 50;
-  const liquidity = g?.oil?.psi ?? 100;
-  const volatility = g?.water?.pct ?? 20;
+  const squeeze = Number(g?.fuel?.pct ?? NaN);
+  const momentum = Number(g?.speed?.pct ?? NaN);
+  const breadth = Number(g?.rpm?.pct ?? NaN);
+  const liquidity = Number(g?.oil?.psi ?? g?.oilPsi ?? NaN);
+  const volatility = Number(g?.water?.pct ?? g?.volatilityPct ?? NaN);
 
-  if (squeeze >= 70) out.sigCompression = { active:true, severity:"warn" };
-  if (momentum > 85) out.sigOverheat = { active:true, severity:(momentum>92?"danger":"warn") };
-  if (momentum > 92 && squeeze < 70) out.sigTurbo = { active:true };
-  if (breadth > 60 && squeeze < 70) out.sigBreakout = { active:true };
-  if (breadth < 40) out.sigDistribution = { active:true };
-  if (squeeze < 40) out.sigExpansion = { active:true };
-  if (momentum > 70 && breadth < 50) out.sigDivergence = { active:true };
-  if (liquidity < 40) out.sigLowLiquidity = { active:true, severity:(liquidity<30?"danger":"warn") };
-  if (volatility > 70) out.sigVolatilityHigh = { active:true, severity:(volatility>85?"danger":"warn") };
+  const isF = Number.isFinite;
+
+  if (isF(squeeze) && squeeze >= 70) out.sigCompression = { active:true, severity:(squeeze>=85?"danger":"warn") };
+  if (isF(momentum) && momentum > 85) out.sigOverheat = { active:true, severity:(momentum>92?"danger":"warn") };
+  if (isF(momentum) && isF(squeeze) && momentum > 92 && squeeze < 70) out.sigTurbo = { active:true };
+  if (isF(breadth) && isF(squeeze) && breadth > 60 && squeeze < 70) out.sigBreakout = { active:true };
+  if (isF(breadth) && breadth < 40) out.sigDistribution = { active:true };
+  if (isF(squeeze) && squeeze < 40) out.sigExpansion = { active:true };
+  if (isF(momentum) && isF(breadth) && momentum > 70 && breadth < 50) out.sigDivergence = { active:true };
+  if (isF(liquidity) && liquidity < 40) out.sigLowLiquidity = { active:true, severity:(liquidity<30?"danger":"warn") };
+  if (isF(volatility) && volatility > 70) out.sigVolatilityHigh = { active:true, severity:(volatility>85?"danger":"warn") };
 
   return out;
 }
@@ -148,11 +149,9 @@ export default function RowEngineLights() {
   const [stale, setStale] = useState(false);
   const firstPaintRef = useRef(false);
 
+  // Replay bridge
   const [replayOn, setReplayOn] = useState(false);
   const [replayData, setReplayData] = useState(null);
-
-  const [legendOpen, setLegendOpen] = useState(false);
-
   useEffect(() => {
     function onReplay(e) {
       const detail = e?.detail || {};
@@ -164,38 +163,58 @@ export default function RowEngineLights() {
     return () => window.removeEventListener("replay:update", onReplay);
   }, []);
 
-  // Prefer liveIntraday if available
-  const source = (replayOn && replayData) ? replayData : (live?.liveIntraday || live || {});
+  // Choose source: replay → backend poll
+  const source = (replayOn && replayData) ? replayData : (live || {});
+
+  // Prefer the new backend section (engineLights) for timestamp + signals
+  const eng = source?.engineLights || {};
+  const backendSignals = eng?.signals || source?.signals || null;
+
+  // Timestamp priority: engineLights.updatedAt → marketMeter.updatedAt → meta.ts → updated_at/ts
   const ts =
-    source?.engineLights?.updatedAt ??
+    eng?.updatedAt ??
     source?.marketMeter?.updatedAt ??
     source?.meta?.ts ??
     source?.updated_at ??
     source?.ts ??
     null;
 
+  // Live badge if backend marked it
+  const isLive = !!eng?.live;
+  const modeLabel = eng?.mode || null; // "intraday" | "daily" | "eod" (informational)
+
+  // Compute lights whenever source changes
   useEffect(() => {
     if (!source || typeof source !== "object") {
       if (firstPaintRef.current) setStale(true);
       return;
     }
-    const backendList = computeSignalList(source?.signals || {});
-    let list = backendList;
 
-    const hasActive = backendList.some(s => s.active);
-    const gauges = source?.gauges;
-    if (!hasActive && gauges) {
-      const derived = deriveSignalsFromGauges(gauges);
+    // 1) Use backend signals if provided
+    let baseList = null;
+    if (backendSignals && typeof backendSignals === "object") {
+      baseList = computeSignalList(backendSignals);
+    }
+
+    // 2) If no active signals from backend, derive from gauges
+    let list = baseList || computeSignalList({});
+    const hasActive = list.some(s => s.active);
+
+    if (!hasActive && source?.gauges) {
+      const derived = deriveSignalsFromGauges(source.gauges);
       list = computeSignalList(derived);
     }
 
     setLights(list);
     setStale(false);
     firstPaintRef.current = true;
-  }, [source]);
+  }, [source, backendSignals]);
+
+  const [legendOpen, setLegendOpen] = useState(false);
 
   return (
     <section id="row-3" className="panel" aria-label="Engine Lights">
+      {/* Header with Legend + status */}
       <div className="panel-head" style={{ alignItems:"center" }}>
         <div className="panel-title">Engine Lights</div>
         <button
@@ -210,10 +229,24 @@ export default function RowEngineLights() {
           Legend
         </button>
         <div className="spacer" />
+        {/* LIVE badge if backend flagged it */}
+        {isLive && (
+          <span
+            className="small"
+            style={{
+              marginRight:8, padding:"3px 8px", borderRadius:6,
+              background:"#16a34a", color:"#0b1220", fontWeight:800, border:"1px solid #0f7a2a"
+            }}
+            title={modeLabel ? `Mode: ${modeLabel}` : "Live intraday"}
+          >
+            LIVE
+          </span>
+        )}
         <LastUpdated ts={ts} />
         {stale && <span className="small muted" style={{ marginLeft:8 }}>refreshing…</span>}
       </div>
 
+      {/* Lights row */}
       <div style={{ display:"flex", alignItems:"center", gap:12, overflow:"hidden", whiteSpace:"nowrap" }}>
         <div style={{ display:"flex", flexWrap:"nowrap", overflow:"hidden" }}>
           {lights.map(l => (
@@ -222,6 +255,7 @@ export default function RowEngineLights() {
         </div>
       </div>
 
+      {/* Legend modal */}
       {legendOpen && (
         <div
           role="dialog"
@@ -233,7 +267,7 @@ export default function RowEngineLights() {
           }}
         >
           <div
-            onClick={(e)=> e.stopPropagation() }
+            onClick={(e)=> e.stopPropagation()}
             style={{
               width:"min(880px, 92vw)", background:"#0b0b0c",
               border:"1px solid #2b2b2b", borderRadius:12, padding:16,
@@ -256,6 +290,7 @@ export default function RowEngineLights() {
         </div>
       )}
 
+      {/* Loading / error (first paint) */}
       {!firstPaintRef.current && loading && (
         <div className="small muted" style={{ marginTop:6 }}>Loading…</div>
       )}
