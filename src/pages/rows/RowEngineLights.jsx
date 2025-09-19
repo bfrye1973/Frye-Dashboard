@@ -4,21 +4,16 @@ import { useDashboardPoll } from "../../lib/dashboardApi";
 import { LastUpdated } from "../../components/LastUpdated";
 
 /* ------------------------------------------------------------------ */
-/* LIVE intraday (optional)                                            */
-/* ------------------------------------------------------------------ */
-const INTRADAY_URL = process.env.REACT_APP_INTRADAY_URL;
-
-/* ------------------------------------------------------------------ */
-/* Color pill                                                          */
+/* Light pill (colored badge)                                          */
 /* ------------------------------------------------------------------ */
 function Light({ label, tone = "info", active = true }) {
   const palette = {
     ok:     { bg:"#22c55e", fg:"#0b1220", bd:"#16a34a", shadow:"#16a34a" }, // green
     warn:   { bg:"#facc15", fg:"#111827", bd:"#ca8a04", shadow:"#ca8a04" }, // yellow
     danger: { bg:"#ef4444", fg:"#fee2e2", bd:"#b91c1c", shadow:"#b91c1c" }, // red
-    info:   { bg:"#0b1220", fg:"#93c5fd", bd:"#334155", shadow:"#334155" },
-    off:    { bg:"#0b0f17", fg:"#6b7280", bd:"#1f2937", shadow:"#111827" }
-  }[tone] || { bg:"#0b1220", fg:"#93c5fd", bd:"#334155", shadow:"#334155" };
+    info:   { bg:"#0b1220", fg:"#93c5fd", bd:"#334155", shadow:"#334155" }, // muted blue
+    off:    { bg:"#0b0f17", fg:"#6b7280", bd:"#1f2937", shadow:"#111827" }  // dark/off
+  }[tone] || { bg:"#0b0f17", fg:"#6b7280", bd:"#1f2937", shadow:"#111827" };
 
   return (
     <span
@@ -29,7 +24,8 @@ function Light({ label, tone = "info", active = true }) {
         borderRadius:8, fontWeight:700, fontSize:12,
         background: palette.bg, color: palette.fg, border:`1px solid ${palette.bd}`,
         boxShadow: `0 0 10px ${palette.shadow}55`,
-        opacity: active ? 1 : 0.45, filter: active ? "none" : "grayscale(40%)"
+        opacity: active ? 1 : 0.45,
+        filter: active ? "none" : "grayscale(40%)"
       }}
     >
       {label}
@@ -38,44 +34,39 @@ function Light({ label, tone = "info", active = true }) {
 }
 
 /* ------------------------------------------------------------------ */
-/* Legend content                                                      */
+/* Legend content (modal body)                                         */
 /* ------------------------------------------------------------------ */
 function Swatch({ color, label, note }) {
   return (
     <div style={{display:"flex", alignItems:"center", gap:8, marginBottom:6}}>
-      <span style={{ width:36, height:12, borderRadius:12, background:color,
-        display:"inline-block", border:"1px solid rgba(255,255,255,0.1)" }} />
+      <span style={{
+        width:36, height:12, borderRadius:12, background:color,
+        display:"inline-block", border:"1px solid rgba(255,255,255,0.1)"
+      }} />
       <span style={{ color:"#e5e7eb", fontSize:12, fontWeight:700 }}>{label}</span>
       <span style={{ color:"#cbd5e1", fontSize:12 }}>— {note}</span>
     </div>
   );
 }
+
 function EngineLightsLegendContent(){
   return (
     <div>
       <div style={{ color:"#f9fafb", fontSize:14, fontWeight:800, marginBottom:8 }}>
         Engine Lights — Legend
       </div>
-      <Swatch color="#22c55e" label="Active" note="Market setting up for move." />
-      <div style={{ height:6 }} />
-      <Swatch color="#ef4444" label="Active" note="Breadth negative, potential reversal." />
-      <div style={{ height:6 }} />
-      <Swatch color="#facc15" label="Caution" note="Squeeze ≥ 70." />
-      <div style={{ height:6 }} />
-      <Swatch color="#22c55e" label="Active" note="Ranges expanding." />
-      <div style={{ height:6 }} />
-      <Swatch color="#facc15" label="Warn"   note="Momentum > 85." />
-      <Swatch color="#ef4444" label="Danger" note="Momentum > 92." />
-      <div style={{ height:6 }} />
-      <Swatch color="#22c55e" label="Active" note="Momentum + Expansion together." />
-      <div style={{ height:6 }} />
-      <Swatch color="#facc15" label="Active" note="Momentum strong, breadth weak." />
-      <div style={{ height:6 }} />
-      <Swatch color="#facc15" label="Warn"   note="Liquidity < 40." />
-      <Swatch color="#ef4444" label="Danger" note="Liquidity < 30." />
-      <div style={{ height:6 }} />
-      <Swatch color="#facc15" label="Warn"   note="Volatility > 70." />
-      <Swatch color="#ef4444" label="Danger" note="Volatility > 85." />
+      <Swatch color="#22c55e" label="Breakout" note="Market setting up for move." />
+      <Swatch color="#ef4444" label="Distribution" note="Breadth negative, possible reversal." />
+      <Swatch color="#facc15" label="Compression" note="Squeeze ≥ 70, direction unclear." />
+      <Swatch color="#22c55e" label="Expansion" note="Ranges expanding." />
+      <Swatch color="#facc15" label="Overheat" note="Momentum > 85." />
+      <Swatch color="#ef4444" label="Overheat Danger" note="Momentum > 92." />
+      <Swatch color="#22c55e" label="Turbo" note="Momentum + Expansion together." />
+      <Swatch color="#facc15" label="Divergence" note="Momentum strong, breadth weak." />
+      <Swatch color="#facc15" label="Low Liquidity" note="Liquidity < 40." />
+      <Swatch color="#ef4444" label="Liquidity Danger" note="Liquidity < 30." />
+      <Swatch color="#facc15" label="Volatility Warn" note="Volatility > 70." />
+      <Swatch color="#ef4444" label="Volatility Danger" note="Volatility > 85." />
     </div>
   );
 }
@@ -84,10 +75,10 @@ function EngineLightsLegendContent(){
 /* Signal definitions                                                  */
 /* ------------------------------------------------------------------ */
 const SIGNAL_DEFS = [
-  { key:"sigBreakout",       label:"Breakout",        desc:"Market getting ready to make a move" },
-  { key:"sigDistribution",   label:"Distribution",    desc:"Market might be turning direction" },
+  { key:"sigBreakout",       label:"Breakout",        desc:"Market ready to move" },
+  { key:"sigDistribution",   label:"Distribution",    desc:"Breadth negative, possible reversal" },
   { key:"sigCompression",    label:"Compression",     desc:"Squeeze ≥ 70 — direction unclear" },
-  { key:"sigExpansion",      label:"Expansion",       desc:"Post-squeeze ranges opening up" },
+  { key:"sigExpansion",      label:"Expansion",       desc:"Post-squeeze ranges opening" },
   { key:"sigOverheat",       label:"Overheat",        desc:"Momentum > 85 (danger > 92)" },
   { key:"sigTurbo",          label:"Turbo",           desc:"Momentum > 92 with expansion" },
   { key:"sigDivergence",     label:"Divergence",      desc:"Momentum strong, breadth weak" },
@@ -96,7 +87,7 @@ const SIGNAL_DEFS = [
 ];
 
 /* ------------------------------------------------------------------ */
-/* Tone mapping (as before)                                           */
+/* Tone mapping                                                        */
 /* ------------------------------------------------------------------ */
 function computeSignalList(sigObj = {}) {
   return SIGNAL_DEFS.map(def => {
@@ -107,86 +98,61 @@ function computeSignalList(sigObj = {}) {
     let tone = "off";
     if (active) {
       switch (def.key) {
-        case "sigBreakout":        tone = "ok"; break;
+        case "sigBreakout":        tone = "ok";     break;
         case "sigDistribution":    tone = "danger"; break;
-        case "sigCompression":     tone = "warn"; break;
-        case "sigExpansion":       tone = "ok"; break;
+        case "sigCompression":     tone = "warn";   break;
+        case "sigExpansion":       tone = "ok";     break;
         case "sigOverheat":        tone = (sev === "danger") ? "danger" : "warn"; break;
-        case "sigTurbo":           tone = "ok"; break;
-        case "sigDivergence":      tone = "warn"; break;
+        case "sigTurbo":           tone = "ok";     break;
+        case "sigDivergence":      tone = "warn";   break;
         case "sigLowLiquidity":    tone = (sev === "danger") ? "danger" : "warn"; break;
         case "sigVolatilityHigh":  tone = (sev === "danger") ? "danger" : "warn"; break;
-        default: tone = (sev === "danger") ? "danger" : (sev === "warn" ? "warn" : "ok");
+        default:                   tone = "ok";     break;
       }
     }
-    return { key: def.key, label: def.label, desc: def.desc, active, tone };
+    return { key:def.key, label:def.label, desc:def.desc, active, tone };
   });
 }
 
 /* ------------------------------------------------------------------ */
-/* Derive signals from live intraday gauges (fallback)                 */
+/* Derive fallback signals from gauges (when backend signals missing) */
 /* ------------------------------------------------------------------ */
-function deriveSignalsFromGauges(gg = {}) {
-  // Using the same semantics you documented:
-  const rpm = Number(gg?.rpm?.pct);     // Breadth %
-  const speed = Number(gg?.speed?.pct); // Momentum %
-  const fuel = Number(gg?.fuel?.pct);   // Squeeze % (compression)
-  const water = Number(gg?.water?.pct ?? gg?.volatilityPct); // Volatility %
-  const oil = Number(gg?.oil?.psi ?? gg?.oilPsi);            // Liquidity PSI
+function deriveSignalsFromGauges(g = {}) {
+  const out = {};
+  const squeeze = g?.fuel?.pct ?? 0;
+  const momentum = g?.speed?.pct ?? 50;
+  const breadth = g?.rpm?.pct ?? 50;
+  const liquidity = g?.oil?.psi ?? 100;
+  const volatility = g?.water?.pct ?? 20;
 
-  // helper thresholds
-  const isNumber = (x) => Number.isFinite(x);
+  if (squeeze >= 70) out.sigCompression = { active:true, severity:"warn" };
+  if (momentum > 85) out.sigOverheat = { active:true, severity:(momentum>92?"danger":"warn") };
+  if (momentum > 92 && squeeze < 70) out.sigTurbo = { active:true };
+  if (breadth > 60 && squeeze < 70) out.sigBreakout = { active:true };
+  if (breadth < 40) out.sigDistribution = { active:true };
+  if (squeeze < 40) out.sigExpansion = { active:true };
+  if (momentum > 70 && breadth < 50) out.sigDivergence = { active:true };
+  if (liquidity < 40) out.sigLowLiquidity = { active:true, severity:(liquidity<30?"danger":"warn") };
+  if (volatility > 70) out.sigVolatilityHigh = { active:true, severity:(volatility>85?"danger":"warn") };
 
-  const expansion = isNumber(fuel) ? 100 - Math.max(0, Math.min(100, fuel)) : NaN;
-
-  const on = (active, severity) => ({ active: !!active, severity });
-
-  // Heuristics aligned to legend copy (conservative):
-  const sigBreakout      = on(isNumber(speed) && isNumber(expansion) && speed > 65 && expansion > 60);
-  const sigDistribution  = on(isNumber(rpm) && rpm < 40, rpm < 30 ? "danger" : "warn");
-  const sigCompression   = on(isNumber(fuel) && fuel >= 70, fuel >= 85 ? "danger" : "warn");
-  const sigExpansion     = on(isNumber(expansion) && expansion >= 60);
-  const sigOverheat      = on(isNumber(speed) && speed > 85, speed > 92 ? "danger" : "warn");
-  const sigTurbo         = on(isNumber(speed) && isNumber(expansion) && speed > 92 && expansion > 60);
-  const sigDivergence    = on(isNumber(speed) && isNumber(rpm) && speed > 65 && rpm < 45);
-  const sigLowLiquidity  = on(isNumber(oil) && oil < 40, oil < 30 ? "danger" : "warn");
-  const sigVolatilityHigh= on(isNumber(water) && water > 70, water > 85 ? "danger" : "warn");
-
-  return {
-    sigBreakout, sigDistribution, sigCompression, sigExpansion,
-    sigOverheat, sigTurbo, sigDivergence, sigLowLiquidity, sigVolatilityHigh
-  };
+  return out;
 }
 
 /* ------------------------------------------------------------------ */
-/* Row: Engine Lights (replay-aware + legend modal)                    */
+/* Main Row Component                                                  */
 /* ------------------------------------------------------------------ */
 export default function RowEngineLights() {
   const { data: live, loading, error } = useDashboardPoll("dynamic");
 
-  // Local state
   const [lights, setLights] = useState(() => computeSignalList({}));
   const [stale, setStale] = useState(false);
   const firstPaintRef = useRef(false);
 
-  // LIVE intraday JSON (optional)
-  const [liveIntraday, setLiveIntraday] = useState(null);
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        if (!INTRADAY_URL) return;
-        const r = await fetch(`${INTRADAY_URL}?t=${Date.now()}`, { cache:"no-store" });
-        const j = await r.json();
-        if (!cancelled) setLiveIntraday(j);
-      } catch {/* silent */}
-    })();
-    return () => { cancelled = true; };
-  }, []);
-
-  // Replay bridge
   const [replayOn, setReplayOn] = useState(false);
   const [replayData, setReplayData] = useState(null);
+
+  const [legendOpen, setLegendOpen] = useState(false);
+
   useEffect(() => {
     function onReplay(e) {
       const detail = e?.detail || {};
@@ -198,10 +164,8 @@ export default function RowEngineLights() {
     return () => window.removeEventListener("replay:update", onReplay);
   }, []);
 
-  // Choose source: replay → backend poll → live intraday JSON
-  const source = (replayOn && replayData) ? replayData : (live || liveIntraday || {});
-
-  // section-specific timestamp
+  // Prefer liveIntraday if available
+  const source = (replayOn && replayData) ? replayData : (live?.liveIntraday || live || {});
   const ts =
     source?.engineLights?.updatedAt ??
     source?.marketMeter?.updatedAt ??
@@ -210,21 +174,18 @@ export default function RowEngineLights() {
     source?.ts ??
     null;
 
-  // Compute row lights
   useEffect(() => {
     if (!source || typeof source !== "object") {
       if (firstPaintRef.current) setStale(true);
       return;
     }
-
-    // 1) Preferred: backend-provided signals
-    const backendList = computeSignalList(source.signals || {});
-    const hasBackendActive = backendList.some(s => s.active);
-
-    // 2) Fallback: derive from live intraday gauges if backend signals are missing / all off
+    const backendList = computeSignalList(source?.signals || {});
     let list = backendList;
-    if (!hasBackendActive && source?.gauges) {
-      const derived = deriveSignalsFromGauges(source.gauges);
+
+    const hasActive = backendList.some(s => s.active);
+    const gauges = source?.gauges;
+    if (!hasActive && gauges) {
+      const derived = deriveSignalsFromGauges(gauges);
       list = computeSignalList(derived);
     }
 
@@ -233,12 +194,8 @@ export default function RowEngineLights() {
     firstPaintRef.current = true;
   }, [source]);
 
-  // Legend modal
-  const [legendOpen, setLegendOpen] = useState(false);
-
   return (
     <section id="row-3" className="panel" aria-label="Engine Lights">
-      {/* Header with Legend button */}
       <div className="panel-head" style={{ alignItems:"center" }}>
         <div className="panel-title">Engine Lights</div>
         <button
@@ -257,7 +214,6 @@ export default function RowEngineLights() {
         {stale && <span className="small muted" style={{ marginLeft:8 }}>refreshing…</span>}
       </div>
 
-      {/* Lights row */}
       <div style={{ display:"flex", alignItems:"center", gap:12, overflow:"hidden", whiteSpace:"nowrap" }}>
         <div style={{ display:"flex", flexWrap:"nowrap", overflow:"hidden" }}>
           {lights.map(l => (
@@ -266,7 +222,6 @@ export default function RowEngineLights() {
         </div>
       </div>
 
-      {/* Legend modal */}
       {legendOpen && (
         <div
           role="dialog"
@@ -278,7 +233,7 @@ export default function RowEngineLights() {
           }}
         >
           <div
-            onClick={(e)=> e.stopPropagation()}
+            onClick={(e)=> e.stopPropagation() }
             style={{
               width:"min(880px, 92vw)", background:"#0b0b0c",
               border:"1px solid #2b2b2b", borderRadius:12, padding:16,
@@ -301,7 +256,6 @@ export default function RowEngineLights() {
         </div>
       )}
 
-      {/* Loading / error (first paint) */}
       {!firstPaintRef.current && loading && (
         <div className="small muted" style={{ marginTop:6 }}>Loading…</div>
       )}
