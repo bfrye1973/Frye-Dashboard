@@ -3,6 +3,8 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { LastUpdated } from "../../components/LastUpdated";
 import { useDashboardPoll } from "../../lib/dashboardApi";
 
+const INTRADAY_SOURCE_URL = process.env.REACT_APP_INTRADAY_SOURCE_URL;
+
 const API =
   (typeof window !== "undefined" && (window.__API_BASE__ || "")) ||
   "https://frye-market-backend-1.onrender.com";
@@ -298,16 +300,12 @@ function IndexSectorsLegendContent() {
         Outlook
       </div>
       <div style={{ color: "#d1d5db", fontSize: 12 }}>
-        Sector trend bias from breadth: <b>Bullish</b> (NH&gt;NL), <b>Neutral</b>{" "}
-        (mixed), <b>Bearish</b> (NL&gt;NH).
+        Sector trend bias from breadth: <b>Bullish</b> (NH&gt;NL), <b>Neutral</b> (mixed), <b>Bearish</b> (NL&gt;NH).
       </div>
       <div style={{ display: "flex", gap: 12, margin: "6px 0 6px 0", alignItems: "center" }}>
-        <Pill color="#22c55e" />{" "}
-        <span style={{ color: "#e5e7eb", fontWeight: 700, fontSize: 12 }}>Bullish</span>
-        <Pill color="#facc15" />{" "}
-        <span style={{ color: "#e5e7eb", fontWeight: 700, fontSize: 12 }}>Neutral</span>
-        <Pill color="#ef4444" />{" "}
-        <span style={{ color: "#e5e7eb", fontWeight: 700, fontSize: 12 }}>Bearish</span>
+        <Pill color="#22c55e" /> <span style={{ color: "#e5e7eb", fontWeight: 700, fontSize: 12 }}>Bullish</span>
+        <Pill color="#facc15" /> <span style={{ color: "#e5e7eb", fontWeight: 700, fontSize: 12 }}>Neutral</span>
+        <Pill color="#ef4444" /> <span style={{ color: "#e5e7eb", fontWeight: 700, fontSize: 12 }}>Bearish</span>
       </div>
 
       {/* Net NH + Breadth Tilt */}
@@ -324,7 +322,6 @@ function IndexSectorsLegendContent() {
 }
 
 /* --------------------------------- Data builders (cards) --------------------------------- */
-/** These two helpers MUST exist, or the build will fail (undefined errors). */
 function fromSectorCards(json) {
   const arr = json?.outlook?.sectorCards;
   if (!Array.isArray(arr)) return [];
@@ -368,6 +365,24 @@ function fromSectors(json) {
 export default function RowIndexSectors() {
   const { data: live, loading, error } = useDashboardPoll("dynamic");
 
+  // Fetch LIVE intraday sector source (GitHub raw) — used when not in replay
+  const [liveSourceJSON, setLiveSourceJSON] = useState(null);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        if (!INTRADAY_SOURCE_URL) return;
+        const j = await fetchJSON(`${INTRADAY_SOURCE_URL}?t=${Date.now()}`);
+        if (!cancelled) setLiveSourceJSON(j);
+      } catch (e) {
+        if (!cancelled) setLiveSourceJSON(null);
+        // leave console quiet in prod; okay to warn if needed
+        // console.warn("live sector source fetch failed", e);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
   // Replay bridge
   const [replayOn, setReplayOn] = useState(false);
   const [replayData, setReplayData] = useState(null);
@@ -381,22 +396,49 @@ export default function RowIndexSectors() {
     window.addEventListener("replay:update", onReplay);
     return () => window.removeEventListener("replay:update", onReplay);
   }, []);
-  const source = replayOn && replayData ? replayData : live;
 
-  // NEW: prefer per-section updatedAt
+  // Choose base source: replay → live polled → LIVE GitHub source merged into a shell
+  const polled = live || {};
+  const base = replayOn && replayData ? replayData : polled;
+
+  // If not in replay and we have liveSourceJSON, build a source-like shell so existing code flows
+  const sourceForCards = useMemo(() => {
+    if (replayOn || !liveSourceJSON) return base;
+    // Wrap live sector source under outlook.{sectors|sectorCards} if needed
+    if (Array.isArray(liveSourceJSON?.outlook?.sectorCards)) return liveSourceJSON;
+    if (liveSourceJSON?.groups) {
+      // convert your groups format into sectors map
+      const sectors = {};
+      Object.entries(liveSourceJSON.groups).forEach(([k, v]) => {
+        sectors[k] = {
+          nh: Number(v?.nh ?? 0),
+          nl: Number(v?.nl ?? 0),
+          netNH: Number(v?.nh ?? 0) - Number(v?.nl ?? 0),
+          spark: Array.isArray(v?.spark) ? v.spark : [],
+          outlook: v?.outlook || undefined,
+        };
+      });
+      return { outlook: { sectors }, timestamp: liveSourceJSON.timestamp };
+    }
+    return liveSourceJSON;
+  }, [replayOn, liveSourceJSON, base]);
+
+  // Prefer per-section updatedAt from polled; fall back to liveSourceJSON.timestamp; then meta
   const ts =
-    source?.sectors?.updatedAt ||
-    source?.meta?.ts ||
-    source?.updated_at ||
-    source?.ts ||
+    base?.sectors?.updatedAt ||
+    base?.marketMeter?.updatedAt ||
+    sourceForCards?.timestamp ||
+    base?.meta?.ts ||
+    base?.updated_at ||
+    base?.ts ||
     null;
 
-  // Cards from source (uses helpers defined above)
+  // Build cards (same helpers)
   const cards = useMemo(() => {
-    let list = fromSectorCards(source);
-    if (list.length === 0) list = fromSectors(source || {});
+    let list = fromSectorCards(sourceForCards);
+    if (list.length === 0) list = fromSectors(sourceForCards || {});
     return list;
-  }, [source]);
+  }, [sourceForCards]);
 
   // Δ1h — hour-over-hour from backend trend endpoint
   const [hourTrend, setHourTrend] = useState(null);
@@ -436,7 +478,7 @@ export default function RowIndexSectors() {
     return out;
   }, [hourTrend]);
 
-  // Δ10m — from last two 10min snapshots
+  // Δ10m — from last two 10min snapshots (replay)
   const [d10mMap, setD10mMap] = useState({});
   useEffect(() => {
     let mounted = true;
@@ -454,7 +496,7 @@ export default function RowIndexSectors() {
     };
   }, []);
 
-  // Δ1d — from last two EOD snapshots
+  // Δ1d — from last two EOD snapshots (replay)
   const [d1dMap, setD1dMap] = useState({});
   useEffect(() => {
     let mounted = true;
@@ -499,7 +541,7 @@ export default function RowIndexSectors() {
         <LastUpdated ts={ts} />
       </div>
 
-      {!source && loading && <div className="small muted">Loading…</div>}
+      {!base && loading && <div className="small muted">Loading…</div>}
       {error && <div className="small muted">Failed to load sectors.</div>}
 
       {Array.isArray(cards) && cards.length > 0 ? (
