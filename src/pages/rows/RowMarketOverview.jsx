@@ -3,11 +3,11 @@ import React from "react";
 import { useDashboardPoll } from "../../lib/dashboardApi";
 import { LastUpdated } from "../../components/LastUpdated";
 
-// LIVE endpoints (raw GitHub)
+// Raw GitHub live endpoints
 const INTRADAY_URL = process.env.REACT_APP_INTRADAY_URL;   // data-live-10min/data/outlook_intraday.json
 const EOD_URL      = process.env.REACT_APP_EOD_URL;        // data-live-eod/data/outlook.json
 
-// Backend API for replay
+// Backend API (replay)
 const API =
   (typeof window !== "undefined" && (window.__API_BASE__ || "")) ||
   process.env.REACT_APP_API_URL ||
@@ -18,19 +18,23 @@ function fmtIso(ts){ try{ return new Date(ts).toLocaleString(); }catch{ return t
 const clamp01 = (n)=> Math.max(0, Math.min(100, Number(n)));
 const pct = (n)=> (Number.isFinite(n) ? n.toFixed(1) : "—");
 const toneFor = (v)=> (v >= 60 ? "ok" : v >= 40 ? "warn" : "danger");
+// Daily squeeze (Lux): >85 red, else green
+function toneForLuxSqueeze(v){
+  if (!Number.isFinite(v)) return "info";
+  return v > 85 ? "danger" : "ok";
+}
 
 /* ---------------------------- Stoplight ---------------------------- */
-function Stoplight({ label, value, baseline, size=54, unit="%", subtitle }) {
+function Stoplight({ label, value, baseline, size=54, unit="%", subtitle, toneOverride }) {
   const v = Number.isFinite(value) ? clamp01(value) : NaN;
   const delta = (Number.isFinite(v) && Number.isFinite(baseline)) ? v - baseline : NaN;
-  const tone = Number.isFinite(v) ? toneFor(v) : "info";
+  const tone = toneOverride || (Number.isFinite(v) ? toneFor(v) : "info");
   const colors = {
     ok:{bg:"#22c55e",glow:"rgba(34,197,94,.45)"},
     warn:{bg:"#fbbf24",glow:"rgba(251,191,36,.45)"},
     danger:{bg:"#ef4444",glow:"rgba(239,68,68,.45)"},
     info:{bg:"#334155",glow:"rgba(51,65,85,.35)"}
   }[tone];
-
   const arrow =
     !Number.isFinite(delta) ? "→" :
     Math.abs(delta) < 0.5   ? "→" :
@@ -89,10 +93,10 @@ function LegendContent(){
       <ul style={ul}><li>0–34% <Tag bg="#ef4444">🔴 Bearish</Tag></li><li>35–64% <Tag bg="#facc15">🟡 Neutral</Tag></li><li>65–84% <Tag bg="#22c55e">🟢 Bullish</Tag></li><li>85–100% <Tag bg="#fca5a5">🟥 Extreme</Tag></li></ul>
       <div style={h2}>Intraday Squeeze</div>
       <ul style={ul}><li>0–34% <Tag bg="#22c55e">🟢 Expanded</Tag></li><li>35–64% <Tag bg="#facc15">🟡 Normal</Tag></li><li>65–84% <Tag bg="#fb923c">🟠 Tight</Tag></li><li>85–100% <Tag bg="#ef4444">🔴 Critical</Tag></li></ul>
-      <div style={h2}>Overall Market Indicator</div>
       <div style={h2}>Daily Squeeze</div>
-      <div style={h2}>Liquidity</div>
-      <div style={h2}>Volatility</div>
+      <p style={{color:"#cbd5e1",margin:"4px 0"}}>Lux PSI — <b>red &gt; 85%</b>, <b>green 0–84%</b>.</p>
+      <div style={h2}>Volatility / Liquidity</div>
+      <p style={{color:"#cbd5e1",margin:"4px 0"}}>Vol: ATR% / Liq: PSI.</p>
     </div>
   );
 }
@@ -125,7 +129,7 @@ export default function RowMarketOverview(){
   const { data: polled } = useDashboardPoll("dynamic");
   const [legendOpen,setLegendOpen]=React.useState(false);
 
-  // LIVE fetch (intraday + daily)
+  // LIVE: intraday + daily
   const [liveIntraday,setLiveIntraday]=React.useState(null);
   const [liveDaily,setLiveDaily]=React.useState(null);
   React.useEffect(()=>{ let c=false;(async()=>{
@@ -140,6 +144,7 @@ export default function RowMarketOverview(){
   const [indexOptions,setIndexOptions]=React.useState([]); const [loadingIdx,setLoadingIdx]=React.useState(false);
   const [snap,setSnap]=React.useState(null); const [loadingSnap,setLoadingSnap]=React.useState(false);
   const granParam = granularity==="10min"?"10min":(granularity==="1h"?"hourly":"eod");
+
   React.useEffect(()=>{ if(!on){setIndexOptions([]);return;} (async()=>{ try{ setLoadingIdx(true);
     const r=await fetch(`${API}/api/replay/index?granularity=${granParam}&t=${Date.now()}`,{cache:"no-store"}); const j=await r.json();
     const items=Array.isArray(j?.items)?j.items:[]; setIndexOptions(items); if(items.length && !tsSel) setTsSel(items[0].ts);
@@ -167,7 +172,6 @@ export default function RowMarketOverview(){
   const squeezeIntra= Number(od?.squeezeCompressionPct ?? gg?.fuel?.pct ?? 50);
   const liquidity   = Number.isFinite(gg?.oil?.psi) ? Number(gg.oil.psi) : (Number.isFinite(gg?.oilPsi)?Number(gg.oilPsi):NaN);
   const volatility  = Number.isFinite(gg?.water?.pct) ? Number(gg.water.pct) : (Number.isFinite(gg?.volatilityPct)?Number(gg?.volatilityPct):NaN);
-  const squeezeDailyIntra = Number.isFinite(gg?.squeezeDaily?.pct) ? Number(gg.squeezeDaily.pct) : null;
 
   const sectorDirCount = data?.intraday?.sectorDirection10m?.risingCount ?? null;
   const sectorDirPct   = data?.intraday?.sectorDirection10m?.risingPct ?? null;
@@ -179,12 +183,6 @@ export default function RowMarketOverview(){
   const bSqueezeIn=useDailyBaseline("squeezeIntraday", squeezeIntra);
   const bLiquidity=useDailyBaseline("liquidity", liquidity);
   const bVol      =useDailyBaseline("volatility", volatility);
-
-  // overall meter (not used on right now but keep calc if needed)
-  const expansion  = 100 - clamp01(squeezeIntra);
-  const baseMeter  = 0.4*breadth + 0.4*momentum + 0.2*expansion;
-  const SdyIntra   = Number.isFinite(squeezeDailyIntra) ? clamp01(squeezeDailyIntra)/100 : 0;
-  const meterValue = Math.round((1 - SdyIntra)*baseMeter + SdyIntra*50);
 
   // daily trend block (RIGHT)
   const td = daily?.trendDaily || {};
@@ -227,7 +225,7 @@ export default function RowMarketOverview(){
         />
       </div>
 
-      {/* Two labeled halves in one row */}
+      {/* Two labeled halves */}
       <div style={{display:"flex",justifyContent:"space-between",gap:18,marginTop:8,flexWrap:"wrap"}}>
         {/* LEFT: Intraday Scalp Lights */}
         <div style={{display:"flex",flexDirection:"column",gap:6}}>
@@ -235,24 +233,23 @@ export default function RowMarketOverview(){
           <div style={{display:"flex",gap:12,alignItems:"center"}}>
             <Stoplight label="Breadth" value={breadth} baseline={bBreadth}/>
             <Stoplight label="Momentum" value={momentum} baseline={bMomentum}/>
-            <Stoplight label="Intraday Squeeze" value={squeezeIntra} baseline={bSqueezeIn}/>
+            <Stoplight label="Intraday Squeeze" value={squeezeIntra} baseline={squeezeIntra}/>
             <Stoplight label="Liquidity" value={liquidity} baseline={bLiquidity} unit=""/>
             <Stoplight label="Volatility" value={volatility} baseline={bVol}/>
-            <Stoplight label="Sector Direction (10m)" value={data?.intraday?.sectorDirection10m?.risingPct ?? null}
-              baseline={data?.intraday?.sectorDirection10m?.risingPct ?? null}
+            <Stoplight label="Sector Direction (10m)"
+              value={sectorDirPct} baseline={sectorDirPct}
               subtitle={Number.isFinite(sectorDirCount)?`${sectorDirCount}/11 rising`:undefined}/>
             <Stoplight label="Risk On (10m)" value={riskOn10m} baseline={riskOn10m}/>
           </div>
         </div>
 
-        {/* RIGHT: Overall Market Trend Daily (with Daily Squeeze + Indicator) */}
+        {/* RIGHT: Overall Market Trend Daily */}
         <div style={{display:"flex",flexDirection:"column",gap:6}}>
           <div className="small" style={{color:"#9ca3af",fontWeight:800}}>Overall Market Trend Daily</div>
           <div style={{display:"flex",gap:12,alignItems:"center",justifyContent:"flex-end"}}>
-            <Stoplight label="Indicator"          value={Math.round((tdPartPct??50)*0.4 + (tdTrendVal??50)*0.4 + (100-(squeezeIntra??50))*0.2)} baseline={50}/>
             <Stoplight label="Daily Trend"        value={tdTrendVal}  baseline={tdTrendVal}  subtitle={td?.trend?.state || undefined}/>
             <Stoplight label="Participation"      value={tdPartPct}   baseline={tdPartPct}/>
-            <Stoplight label="Daily Squeeze"      value={tdSdyDaily}  baseline={tdSdyDaily}/>
+            <Stoplight label="Daily Squeeze"      value={tdSdyDaily}  baseline={tdSdyDaily} toneOverride={toneForLuxSqueeze(tdSdyDaily)}/>
             <Stoplight label="Volatility Regime"  value={tdVolPct}    baseline={tdVolPct}/>
             <Stoplight label="Liquidity Regime"   value={tdLiqPsi}    baseline={tdLiqPsi} unit=""/>
             <Stoplight label="Risk On (Daily)"    value={tdRiskOn}    baseline={tdRiskOn}/>
