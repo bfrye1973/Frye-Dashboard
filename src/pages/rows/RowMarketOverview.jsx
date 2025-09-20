@@ -80,52 +80,19 @@ function useDailyBaseline(key, current){
 function Tag({ bg, children }){ return <span style={{display:"inline-block",padding:"2px 6px",borderRadius:6,fontSize:12,marginLeft:6,background:bg,color:"#0f1115",fontWeight:700}}>{children}</span>; }
 function LegendContent(){
   const h2={color:"#e5e7eb",margin:"6px 0 8px",fontSize:16,fontWeight:700};
-  const p ={color:"#cbd5e1",margin:"4px 0",fontSize:14,lineHeight:1.5};
   const ul={color:"#cbd5e1",fontSize:14,lineHeight:1.5,paddingLeft:18,margin:"4px 0 10px"};
   return (
     <div>
-      {/* Breadth */}
       <div style={h2}>Breadth</div>
-      <p style={p}>Balance of <b>new highs</b> vs <b>new lows</b> across the market.</p>
-      <ul style={ul}>
-        <li>0–34% <Tag bg="#ef4444">🔴 Weak</Tag></li>
-        <li>35–64% <Tag bg="#facc15">🟡 Neutral</Tag></li>
-        <li>65–84% <Tag bg="#22c55e">🟢 Strong</Tag></li>
-        <li>85–100% <Tag bg="#fca5a5">🟥 Extreme</Tag></li>
-      </ul>
-
-      {/* Momentum */}
+      <ul style={ul}><li>0–34% <Tag bg="#ef4444">🔴 Weak</Tag></li><li>35–64% <Tag bg="#facc15">🟡 Neutral</Tag></li><li>65–84% <Tag bg="#22c55e">🟢 Strong</Tag></li><li>85–100% <Tag bg="#fca5a5">🟥 Extreme</Tag></li></ul>
       <div style={h2}>Momentum</div>
-      <p style={p}>Advancers vs decliners (thrust).</p>
-      <ul style={ul}>
-        <li>0–34% <Tag bg="#ef4444">🔴 Bearish</Tag></li>
-        <li>35–64% <Tag bg="#facc15">🟡 Neutral</Tag></li>
-        <li>65–84% <Tag bg="#22c55e">🟢 Bullish</Tag></li>
-        <li>85–100% <Tag bg="#fca5a5">🟥 Extreme</Tag></li>
-      </ul>
-
-      {/* Intraday Squeeze */}
+      <ul style={ul}><li>0–34% <Tag bg="#ef4444">🔴 Bearish</Tag></li><li>35–64% <Tag bg="#facc15">🟡 Neutral</Tag></li><li>65–84% <Tag bg="#22c55e">🟢 Bullish</Tag></li><li>85–100% <Tag bg="#fca5a5">🟥 Extreme</Tag></li></ul>
       <div style={h2}>Intraday Squeeze</div>
-      <p style={p}>Compression of today’s ranges — higher = tighter coil.</p>
-      <ul style={ul}>
-        <li>0–34% <Tag bg="#22c55e">🟢 Expanded</Tag></li>
-        <li>35–64% <Tag bg="#facc15">🟡 Normal</Tag></li>
-        <li>65–84% <Tag bg="#fb923c">🟠 Tight</Tag></li>
-        <li>85–100% <Tag bg="#ef4444">🔴 Critical</Tag></li>
-      </ul>
-
-      {/* Overall Market Indicator */}
+      <ul style={ul}><li>0–34% <Tag bg="#22c55e">🟢 Expanded</Tag></li><li>35–64% <Tag bg="#facc15">🟡 Normal</Tag></li><li>65–84% <Tag bg="#fb923c">🟠 Tight</Tag></li><li>85–100% <Tag bg="#ef4444">🔴 Critical</Tag></li></ul>
       <div style={h2}>Overall Market Indicator</div>
-      <p style={p}>0.4·Breadth + 0.4·Momentum + 0.2·Expansion; blended toward 50 when Daily Squeeze is high.</p>
-
-      {/* Daily Squeeze */}
-      <div style={h2}>Daily Squeeze</div><p style={p}>Daily compression on SPY.</p>
-
-      {/* Liquidity */}
-      <div style={h2}>Liquidity</div><p style={p}>PSI — higher = easier fills.</p>
-
-      {/* Volatility */}
-      <div style={h2}>Volatility</div><p style={p}>ATR/stdev — higher = more turbulent.</p>
+      <div style={h2}>Daily Squeeze</div>
+      <div style={h2}>Liquidity</div>
+      <div style={h2}>Volatility</div>
     </div>
   );
 }
@@ -158,7 +125,7 @@ export default function RowMarketOverview(){
   const { data: polled } = useDashboardPoll("dynamic");
   const [legendOpen,setLegendOpen]=React.useState(false);
 
-  // LIVE: intraday + daily (raw GitHub)
+  // LIVE fetch (intraday + daily)
   const [liveIntraday,setLiveIntraday]=React.useState(null);
   const [liveDaily,setLiveDaily]=React.useState(null);
   React.useEffect(()=>{ let c=false;(async()=>{
@@ -173,19 +140,17 @@ export default function RowMarketOverview(){
   const [indexOptions,setIndexOptions]=React.useState([]); const [loadingIdx,setLoadingIdx]=React.useState(false);
   const [snap,setSnap]=React.useState(null); const [loadingSnap,setLoadingSnap]=React.useState(false);
   const granParam = granularity==="10min"?"10min":(granularity==="1h"?"hourly":"eod");
-
   React.useEffect(()=>{ if(!on){setIndexOptions([]);return;} (async()=>{ try{ setLoadingIdx(true);
     const r=await fetch(`${API}/api/replay/index?granularity=${granParam}&t=${Date.now()}`,{cache:"no-store"}); const j=await r.json();
     const items=Array.isArray(j?.items)?j.items:[]; setIndexOptions(items); if(items.length && !tsSel) setTsSel(items[0].ts);
   }finally{ setLoadingIdx(false); } })(); },[on,granParam]);
-
   React.useEffect(()=>{ if(!on||!tsSel){setSnap(null);return;} (async()=>{ try{ setLoadingSnap(true);
     const r=await fetch(`${API}/api/replay/at?granularity=${granParam}&ts=${encodeURIComponent(tsSel)}&t=${Date.now()}`,{cache:"no-store"}); const j=await r.json(); setSnap(j);
   }catch{ setSnap(null);} finally{ setLoadingSnap(false); } })(); },[on,tsSel,granParam]);
 
-  // choose data: replay → live intraday → polled backend
+  // choose data: replay → live intraday → polled
   const data  = on && snap && snap.ok!==false ? snap : (liveIntraday || polled);
-  const daily = liveDaily || {}; // for trendDaily
+  const daily = liveDaily || {};
 
   // intraday gauges
   const gg = data?.gauges ?? {};
@@ -202,7 +167,7 @@ export default function RowMarketOverview(){
   const squeezeIntra= Number(od?.squeezeCompressionPct ?? gg?.fuel?.pct ?? 50);
   const liquidity   = Number.isFinite(gg?.oil?.psi) ? Number(gg.oil.psi) : (Number.isFinite(gg?.oilPsi)?Number(gg.oilPsi):NaN);
   const volatility  = Number.isFinite(gg?.water?.pct) ? Number(gg.water.pct) : (Number.isFinite(gg?.volatilityPct)?Number(gg?.volatilityPct):NaN);
-  const squeezeDaily= Number.isFinite(gg?.squeezeDaily?.pct) ? Number(gg.squeezeDaily.pct) : null;
+  const squeezeDailyIntra = Number.isFinite(gg?.squeezeDaily?.pct) ? Number(gg.squeezeDaily.pct) : null;
 
   const sectorDirCount = data?.intraday?.sectorDirection10m?.risingCount ?? null;
   const sectorDirPct   = data?.intraday?.sectorDirection10m?.risingPct ?? null;
@@ -215,11 +180,11 @@ export default function RowMarketOverview(){
   const bLiquidity=useDailyBaseline("liquidity", liquidity);
   const bVol      =useDailyBaseline("volatility", volatility);
 
-  // overall meter (not shown on right now)
+  // overall meter (not used on right now but keep calc if needed)
   const expansion  = 100 - clamp01(squeezeIntra);
   const baseMeter  = 0.4*breadth + 0.4*momentum + 0.2*expansion;
-  const Sdy        = Number.isFinite(squeezeDaily) ? clamp01(squeezeDaily)/100 : 0;
-  const meterValue = Math.round((1 - Sdy)*baseMeter + Sdy*50);
+  const SdyIntra   = Number.isFinite(squeezeDailyIntra) ? clamp01(squeezeDailyIntra)/100 : 0;
+  const meterValue = Math.round((1 - SdyIntra)*baseMeter + SdyIntra*50);
 
   // daily trend block (RIGHT)
   const td = daily?.trendDaily || {};
@@ -229,9 +194,9 @@ export default function RowMarketOverview(){
   const tdVolPct     = td?.volatilityRegime?.atrPct ?? null;           // %
   const tdLiqPsi     = td?.liquidityRegime?.psi ?? null;               // PSI
   const tdRiskOn     = td?.rotation?.riskOnPct ?? null;                // %
+  const tdSdyDaily   = Number.isFinite(td?.squeezeDaily?.pct) ? Number(td.squeezeDaily.pct) : null;
   const tdUpdatedAt  = td?.updatedAt ?? null;
 
-  /* ------------------------------ RENDER ------------------------------ */
   return (
     <section id="row-2" className="panel" style={{padding:10}}>
       {/* Legend modal */}
@@ -266,7 +231,7 @@ export default function RowMarketOverview(){
       <div style={{display:"flex",justifyContent:"space-between",gap:18,marginTop:8,flexWrap:"wrap"}}>
         {/* LEFT: Intraday Scalp Lights */}
         <div style={{display:"flex",flexDirection:"column",gap:6}}>
-          <SectionLabel text="Intraday Scalp Lights" />
+          <div className="small" style={{color:"#9ca3af",fontWeight:800}}>Intraday Scalp Lights</div>
           <div style={{display:"flex",gap:12,alignItems:"center"}}>
             <Stoplight label="Breadth" value={breadth} baseline={bBreadth}/>
             <Stoplight label="Momentum" value={momentum} baseline={bMomentum}/>
@@ -280,12 +245,14 @@ export default function RowMarketOverview(){
           </div>
         </div>
 
-        {/* RIGHT: Overall Market Trend Daily */}
+        {/* RIGHT: Overall Market Trend Daily (with Daily Squeeze + Indicator) */}
         <div style={{display:"flex",flexDirection:"column",gap:6}}>
-          <SectionLabel text="Overall Market Trend Daily" />
+          <div className="small" style={{color:"#9ca3af",fontWeight:800}}>Overall Market Trend Daily</div>
           <div style={{display:"flex",gap:12,alignItems:"center",justifyContent:"flex-end"}}>
+            <Stoplight label="Indicator"          value={Math.round((tdPartPct??50)*0.4 + (tdTrendVal??50)*0.4 + (100-(squeezeIntra??50))*0.2)} baseline={50}/>
             <Stoplight label="Daily Trend"        value={tdTrendVal}  baseline={tdTrendVal}  subtitle={td?.trend?.state || undefined}/>
             <Stoplight label="Participation"      value={tdPartPct}   baseline={tdPartPct}/>
+            <Stoplight label="Daily Squeeze"      value={tdSdyDaily}  baseline={tdSdyDaily}/>
             <Stoplight label="Volatility Regime"  value={tdVolPct}    baseline={tdVolPct}/>
             <Stoplight label="Liquidity Regime"   value={tdLiqPsi}    baseline={tdLiqPsi} unit=""/>
             <Stoplight label="Risk On (Daily)"    value={tdRiskOn}    baseline={tdRiskOn}/>
@@ -295,7 +262,7 @@ export default function RowMarketOverview(){
       </div>
 
       <div className="text-xs text-neutral-500" style={{marginTop:4}}>
-        {on ? (/* replay */ (ts ? `Snapshot: ${fmtIso(ts)}` : "Replay ready"))
+        {on ? (ts ? `Snapshot: ${fmtIso(ts)}` : "Replay ready")
             : (ts ? `Updated ${fmtIso(ts)}` : "")}
       </div>
     </section>
