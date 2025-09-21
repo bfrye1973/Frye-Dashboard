@@ -2,12 +2,11 @@
 import React from "react";
 
 /**
- * RowStrategies — B3 (cards only, no data wiring yet)
- * - 3 cards: Alignment (10m), Wave 3 (Daily), Flagpole (Daily)
- * - Static mock values so you can see layout/visuals
- * - Buttons are NO-OP for now; we wire them in C1
+ * RowStrategies — Compact Cards (B3.1)
+ * - 3 strategy cards
+ * - No long bullet lists (keeps Row 5 short)
+ * - UI only, no data wiring yet
  */
-
 export default function RowStrategies() {
   return (
     <div style={styles.wrap}>
@@ -18,11 +17,6 @@ export default function RowStrategies() {
         score={72}
         lastSignal="Long bias • 9:50 ET"
         plToday="+$0"
-        bullets={[
-          "All indices > EMA10 (VIX < EMA10)",
-          "2-bar confirm • 15m cooldown",
-          "Exit: nearest SR or 3 bars",
-        ]}
         ctas={[
           { label: "Load SPY (10m)", onClick: noop },
           { label: "Load QQQ (10m)", onClick: noop },
@@ -34,13 +28,8 @@ export default function RowStrategies() {
         timeframe="Daily"
         status={{ text: "Flat", tone: "muted" }}
         score={64}
-        lastSignal="On deck: FIB 38–61% • EMA cross"
+        lastSignal="On deck candidate"
         plToday="—"
-        bullets={[
-          "Fib pullback 38–61% (reject > 74%)",
-          "10/20 EMA cross → Breakout close > W1 high",
-          "Vol ≥ 1.2× AVG20",
-        ]}
         ctas={[{ label: "Top Candidate (Daily)", onClick: noop }]}
       />
 
@@ -51,11 +40,6 @@ export default function RowStrategies() {
         score={58}
         lastSignal="Tight flag forming"
         plToday="—"
-        bullets={[
-          "Tight flag (nested range)",
-          "Above 20/50 EMA • Descending slope",
-          "Breakout with ≥ 1.2× volume",
-        ]}
         ctas={[{ label: "Top Candidate (Daily)", onClick: noop }]}
       />
     </div>
@@ -69,7 +53,6 @@ function StrategyCard({
   score = 0,
   lastSignal,
   plToday,
-  bullets = [],
   ctas = [],
 }) {
   const tone = toneStyles(status?.tone || "muted");
@@ -98,12 +81,6 @@ function StrategyCard({
         <div><span style={styles.metaKey}>P/L Today:</span> {plToday}</div>
       </div>
 
-      <ul style={styles.bullets}>
-        {bullets.map((b, i) => (
-          <li key={i} style={styles.bullet}>{b}</li>
-        ))}
-      </ul>
-
       <div style={styles.ctaRow}>
         {ctas.map((c, i) => (
           <button key={i} onClick={c.onClick} style={styles.ctaBtn}>
@@ -116,7 +93,6 @@ function StrategyCard({
 }
 
 function noop() {
-  // B3: UI only. We'll wire actions to global selection in C1.
   console.log("RowStrategies: noop (C1 will wire this).");
 }
 
@@ -135,7 +111,7 @@ const styles = {
     display: "flex",
     flexDirection: "column",
     gap: 10,
-    minHeight: 170,
+    minHeight: 120,
   },
   cardHead: {
     display: "flex",
@@ -143,7 +119,7 @@ const styles = {
     justifyContent: "space-between",
     gap: 8,
   },
-  title: { fontWeight: 700, fontSize: 16, lineHeight: "18px" },
+  title: { fontWeight: 700, fontSize: 16 },
   badge: {
     background: "#0b0b0b",
     border: "1px solid #2b2b2b",
@@ -188,8 +164,6 @@ const styles = {
     color: "#cbd5e1",
   },
   metaKey: { color: "#9ca3af", marginRight: 6, fontWeight: 600 },
-  bullets: { margin: 0, paddingLeft: 16, display: "grid", gap: 2 },
-  bullet: { fontSize: 12, color: "#a3a3a3" },
   ctaRow: { display: "flex", gap: 8, marginTop: 4, flexWrap: "wrap" },
   ctaBtn: {
     background: "#0b0b0b",
