@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { fetchSignals } from "../../../../api/signals"; // <- 4-dot path from /hooks to /src/api/signals.js
+import { fetchSignals } from "../../../../api/signals";
 
 const POLL_MS = 30000; // 30s
 
