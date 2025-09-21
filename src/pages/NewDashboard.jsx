@@ -1,4 +1,4 @@
-// src/pages/NewDashboard.jsx — v1 (prop name fix only)
+// src/pages/NewDashboard.jsx — v1.1 (Row 5 renders RowStrategies)
 import React from "react";
 
 // Row components (folder-based imports → resolve to index.jsx inside each folder)
@@ -6,7 +6,7 @@ import RowModeToggle from "./rows/RowModeToggle";
 import RowMarketOverview from "./rows/RowMarketOverview";
 import RowEngineLights from "./rows/RowEngineLights";
 import RowIndexSectors from "./rows/RowIndexSectors";
-import RowStrategies from "./rows/RowStrategies"; // will be implemented next
+import RowStrategies from "./rows/RowStrategies"; // now actually rendered
 import RowChart from "./rows/RowChart";
 import RowJournal from "./rows/RowJournal";
 
@@ -33,11 +33,9 @@ export default function NewDashboard() {
         <RowIndexSectors />
       </section>
 
-      {/* Row 5 — Strategies (placeholder for now) */}
+      {/* Row 5 — Strategies (now the component, not the test banner) */}
       <section id="row-5" className="panel">
-        <div style={{ padding: 8, background: "#222", color: "#fff", fontWeight: 700 }}>
-          ROW 5 TEST — if you see this, Row 5 is controlled here.
-        </div>
+        <RowStrategies />
       </section>
 
       {/* Row 6 — Chart (flex-fill row) */}
