@@ -42,10 +42,12 @@ export default function NewDashboard() {
         <RowIndexSectors />
       </section>
 
-      {/* Row 5 — Strategies (Tabs: Alignment • Wave 3 • Flagpole) */}
       <section id="row-5" className="panel">
-        <RowStrategies />
+        <div style={{padding:8,background:'#222',color:'#fff',fontWeight:700}}>
+          ROW 5 TEST — if you see this, Row 5 is controlled here.
+        </div>
       </section>
+
 
       {/* Row 6 — Chart (flex-fill row) */}
       <section id="row-6" className="panel row6-shell">
