@@ -1,41 +1,40 @@
 // src/components/overlays/SwingLiquidityOverlay.js
-// Draws short, solid horizontal segments for swing liquidity (pivots).
-// - Red = swing-high liquidity (resistance), Green = swing-low liquidity (support)
-// - Segments extend from confirmation time until filled (or last bar)
-// - Uses tiny line series segments (2 points per level) so lines don't span the whole pane
+// FIX: proper cleanup so toggle OFF removes all lines/markers
 
 import React, { useEffect, useRef } from "react";
 import { LineStyle } from "lightweight-charts";
 import { computeSwingLiquidity } from "../../indicators/swingLiquidity/compute";
 
-const COLORS = {
-  res: "#ef4444", // red
-  sup: "#10b981", // green-ish
-};
-const STYLE = {
-  mainWidth: 3,
-  otherWidth: 2,
-  emphasizeMostRecent: true,
-};
+const COLORS = { res: "#ef4444", sup: "#10b981" };
+const STYLE  = { mainWidth: 3, otherWidth: 2, emphasizeMostRecent: true };
 
 export default function SwingLiquidityOverlay({
-  chart,          // LightweightCharts chart instance
-  candles,        // [{time,open,high,low,close,volume}]
+  chart,
+  candles,
   leftBars = 15,
   rightBars = 10,
-  volPctGate = 0.65,     // keep swings where volume >= 65th percentile
+  volPctGate = 0.65,
   extendUntilFilled = true,
   hideFilled = false,
   lookbackBars = 800,
   maxOnScreen = 80,
 }) {
-  const hostRef = useRef(null);              // host series for markers (optional)
-  const segmentsRef = useRef([]);            // line series per zone
+  const hostRef = useRef(null);      // timeline/markers host
+  const segsRef = useRef([]);        // array of line series
+  const chartRef = useRef(chart);
 
-  // Ensure host exists (for timeline stability if we want markers later)
+  // Helper: remove every series we created
+  const clearAll = () => {
+    try { segsRef.current.forEach(s => chartRef.current?.removeSeries(s)); } catch {}
+    segsRef.current = [];
+    try { hostRef.current?.setMarkers([]); } catch {}
+  };
+
+  // Mount host & ensure it’s removed on unmount
   useEffect(() => {
-    if (!chart) return;
-    if (hostRef.current) return;
+    chartRef.current = chart;
+    if (!chart || hostRef.current) return;
+
     hostRef.current = chart.addLineSeries({
       color: "rgba(0,0,0,0)",
       lineWidth: 1,
@@ -44,18 +43,21 @@ export default function SwingLiquidityOverlay({
       crosshairMarkerVisible: false,
       priceLineVisible: false,
     });
+
     return () => {
-      try { chart.removeSeries(hostRef.current); } catch {}
+      // full cleanup on unmount
+      clearAll();
+      try { chart?.removeSeries(hostRef.current); } catch {}
       hostRef.current = null;
     };
   }, [chart]);
 
-  // Draw segments whenever bars change
+  // Draw segments; also clean them up when deps change OR on unmount
   useEffect(() => {
-    if (!chart || !candles?.length) return;
+    if (!chart || !candles?.length || !hostRef.current) return;
 
-    // Give host a minimal timeline (prevents some libs from dropping markers)
-    try { hostRef.current?.setData(candles.map(c => ({ time: c.time, value: c.close }))); } catch {}
+    // Keep host timeline stable
+    try { hostRef.current.setData(candles.map(c => ({ time: c.time, value: c.close }))); } catch {}
 
     // Compute zones
     const { zones } = computeSwingLiquidity(candles, {
@@ -64,40 +66,43 @@ export default function SwingLiquidityOverlay({
       lookbackBars, maxOnScreen,
     });
 
-    // Cleanup old segments
-    try { segmentsRef.current.forEach(s => chart.removeSeries(s)); } catch {}
-    segmentsRef.current = [];
+    // Remove previous segments before drawing new
+    clearAll();
 
     if (!zones.length) return;
 
-    // Emphasize the most recent unfilled zone (optional)
     let emphasizePrice = null;
     if (STYLE.emphasizeMostRecent) {
-      const firstUnfilled = zones.find(z => !z.filled);
-      if (firstUnfilled) emphasizePrice = firstUnfilled.price;
+      const u = zones.find(z => !z.filled);
+      if (u) emphasizePrice = u.price;
     }
 
-    // Draw each zone as a short two-point line segment
     for (const z of zones) {
-      const color = z.type === "res" ? COLORS.res : COLORS.sup;
       const isMain = emphasizePrice != null && Math.abs(z.price - emphasizePrice) < 1e-9;
-
-      const seg = chart.addLineSeries({
-        color,
+      const s = chart.addLineSeries({
+        color: z.type === "res" ? COLORS.res : COLORS.sup,
         lineWidth: isMain ? STYLE.mainWidth : STYLE.otherWidth,
         lineStyle: LineStyle.Solid,
         lastValueVisible: false,
         priceLineVisible: false,
       });
-
-      seg.setData([
+      s.setData([
         { time: z.fromTime, value: z.price },
         { time: z.toTime,   value: z.price },
       ]);
-
-      segmentsRef.current.push(seg);
+      segsRef.current.push(s);
     }
-  }, [chart, candles, leftBars, rightBars, volPctGate, extendUntilFilled, hideFilled, lookbackBars, maxOnScreen]);
+
+    // cleanup when any dependency changes OR component unmounts
+    return () => {
+      clearAll();
+    };
+  }, [
+    chart, candles,
+    leftBars, rightBars, volPctGate,
+    extendUntilFilled, hideFilled,
+    lookbackBars, maxOnScreen,
+  ]);
 
   return null;
 }
