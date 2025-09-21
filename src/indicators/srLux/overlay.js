@@ -1,18 +1,14 @@
 // src/indicators/srLux/overlay.js
 // Lux-style Support/Resistance with Breaks (pivot bands + volume EMA filter)
-// - Draws price lines for S/R levels
-// - Adds "B" break markers (up/down) when level breaks with volume confirmation
-// - Uses an internal (hidden) line series to host price lines & markers
 
 import { LineStyle } from "lightweight-charts";
 
 export function createLuxSrOverlay({
   chart,
-  // defaults mirror your Pine inputs
   leftBars = 15,
   rightBars = 15,
-  volumeThresh = 20,      // osc > volumeThresh
-  pivotLeftRight = 5,     // for line-level clustering (see below)
+  volumeThresh = 20,
+  pivotLeftRight = 5,
   minSeparationPct = 0.25,
   maxLevels = 10,
   lookbackBars = 800,
@@ -20,12 +16,14 @@ export function createLuxSrOverlay({
 }) {
   if (!chart) return { setBars: () => {}, remove: () => {} };
 
-  // We host price lines & markers on a hidden line series that shares the main scale
+  // IMPORTANT: series must be visible and have data for price lines / markers to show
   const host = chart.addLineSeries({
     priceLineVisible: false,
-    visible: false,
+    visible: true,                 // <- was false; must be true
     lastValueVisible: false,
     crosshairMarkerVisible: false,
+    lineWidth: 1,
+    color: "rgba(0,0,0,0)",        // effectively invisible line
   });
 
   const resHandles = [];
@@ -37,10 +35,10 @@ export function createLuxSrOverlay({
       && Number.isFinite(x.close) && Number.isFinite(x.open);
   }
 
-  // ---- helpers (EMA, pivots, clustering like the Pine script intent) ----
   function ema(arr, len) {
-    const out = [];
-    if (arr.length === 0 || len <= 1) return out;
+    if (!Array.isArray(arr) || arr.length === 0) return [];
+    if (len <= 1) return [...arr];
+    const out = new Array(arr.length);
     const k = 2 / (len + 1);
     let prev = arr[0];
     out[0] = prev;
@@ -82,7 +80,7 @@ export function createLuxSrOverlay({
     const n = candles.length;
     const scanStart = Math.max(0, n - lookbackBars);
 
-    // 1) base S/R from leftBars/rightBars (Lux Pivots)
+    // 1) Lux pivots
     const r1 = [];
     const s1 = [];
     for (let i = scanStart; i < n; i++) {
@@ -90,7 +88,7 @@ export function createLuxSrOverlay({
       if (pivotLow (candles, i, leftBars, rightBars)) s1.push(candles[i].low);
     }
 
-    // 2) cluster to fewer “levels” (pushLevel like your other SR)
+    // 2) cluster to fewer levels
     const res = [], sup = [];
     const L = Math.max(1, Math.floor(pivotLeftRight));
     const sep = Math.max(0.01, Number(minSeparationPct));
@@ -100,32 +98,29 @@ export function createLuxSrOverlay({
       if (pivotLow (candles, i, L, L)) pushLevel(sup, candles[i].low,  sep, maxLv, "sup");
     }
 
-    // 3) volume oscillator (EMA5 vs EMA10 on volume)
+    // 3) volume osc (EMA 5 vs 10)
     const vols = candles.map(c => Number(c.volume ?? 0));
     const e5  = ema(vols, 5);
     const e10 = ema(vols, 10);
     const osc = e10.map((v, i) => {
-      const d = e5[i] - (e10[i] ?? 0);
-      const base = (e10[i] ?? 1);
-      return base === 0 ? 0 : 100 * (d / base);
+      const base = e10[i] ?? 1;
+      return base === 0 ? 0 : 100 * ((e5[i] - base) / base);
     });
 
-    // 4) break markers (last markersLookback bars)
+    // 4) break markers on recent window
     const recent = candles.slice(-Math.max(50, markersLookback));
     const markers = [];
-    // The most recent “active” levels we compare breaks against
     const lastRes = res.length ? res[res.length - 1] : null;
     const lastSup = sup.length ? sup[0] : null;
 
     for (let i = n - recent.length; i < n; i++) {
       const b = candles[i];
       const o = osc[i] ?? 0;
-      // Bull/Bear wick conditions (approx)
+
       const bullWick = (b.open - b.low) > (b.close - b.open);
       const bearWick = (b.high - b.open) > (b.open - b.close);
 
       if (lastSup != null) {
-        // crossunder(close, lowUsePivot) with osc > threshold
         if (b.close < lastSup && o > volumeThresh && !bearWick) {
           markers.push({ time: b.time, position: "aboveBar", color: "#ef4444", shape: "arrowDown", text: "B" });
         }
@@ -134,7 +129,6 @@ export function createLuxSrOverlay({
         }
       }
       if (lastRes != null) {
-        // crossover(close, highUsePivot) with osc > threshold
         if (b.close > lastRes && o > volumeThresh && !bullWick) {
           markers.push({ time: b.time, position: "belowBar", color: "#10b981", shape: "arrowUp", text: "B" });
         }
@@ -155,19 +149,22 @@ export function createLuxSrOverlay({
   }
 
   function setBars(candles = []) {
+    // feed host series minimal data so lines/markers have a timeline
+    if (Array.isArray(candles) && candles.length) {
+      const minimal = candles.map(c => ({ time: c.time, value: c.close }));
+      try { host.setData(minimal); } catch {}
+    }
+
     clearLines();
 
     const result = computeLuxSR(candles);
+
     // draw price lines
     (result.levels.res || []).forEach((level) => {
       if (!Number.isFinite(level)) return;
       const h = host.createPriceLine({
-        price: level,
-        color: "#ef4444",
-        lineWidth: 2,
-        lineStyle: LineStyle.Solid,
-        axisLabelVisible: true,
-        title: "R",
+        price: level, color: "#ef4444", lineWidth: 2, lineStyle: LineStyle.Solid,
+        axisLabelVisible: true, title: "R",
       });
       resHandles.push(h);
     });
@@ -175,17 +172,13 @@ export function createLuxSrOverlay({
     (result.levels.sup || []).forEach((level) => {
       if (!Number.isFinite(level)) return;
       const h = host.createPriceLine({
-        price: level,
-        color: "#3b82f6",
-        lineWidth: 2,
-        lineStyle: LineStyle.Solid,
-        axisLabelVisible: true,
-        title: "S",
+        price: level, color: "#3b82f6", lineWidth: 2, lineStyle: LineStyle.Solid,
+        axisLabelVisible: true, title: "S",
       });
       supHandles.push(h);
     });
 
-    // markers (B / Bull Wick / Bear Wick)
+    // markers
     if (Array.isArray(result.markers) && result.markers.length) {
       try { host.setMarkers(result.markers); } catch {}
     }
