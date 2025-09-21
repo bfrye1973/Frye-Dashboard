@@ -1,57 +1,53 @@
 // src/indicators/srLux/overlay.js
-// Lux-style Support/Resistance with Breaks — TradingView look
-// - Red resistance lines, Blue support lines
-// - Latest active level emphasized (thick solid), older levels dashed
-// - Break markers ("B", Bull/Bear Wick) with volume EMA(5/10) threshold
+// Lux S/R (segments) — solid red resistance & blue support, short segments
+// Latest active level thicker; “B” markers kept with EMA5/EMA10 volume filter
 
 import { LineStyle } from "lightweight-charts";
 
-// ---------- Appearance (TV-like) ----------
 const COLORS = {
-  res:   "#ef4444",                          // red
-  sup:   "#3b82f6",                          // blue
-  resDashed: "rgba(239,68,68,0.9)",
-  supDashed: "rgba(59,130,246,0.9)",
-  markerBull: "#10b981",
-  markerBear: "#ef4444",
+  res: "#ef4444",  // red
+  sup: "#3b82f6",  // blue
+  bull: "#10b981",
+  bear: "#ef4444",
 };
-const STYLES = {
-  mainWidth: 3,          // latest level (emphasized)
-  otherWidth: 2,
-  dashStyle: LineStyle.Dashed,
-  mainStyle: LineStyle.Solid,
-  maxRes: 8,             // cap number of resistance lines
-  maxSup: 8,             // cap number of support lines
-  minSeparationPct: 0.25 // minimum spacing between lines (as % of price)
+
+const STYLE = {
+  segmentBars: 220,     // length of each horizontal segment (bars)
+  mainWidth: 3,         // latest level thickness
+  otherWidth: 2,        // other levels thickness
+  maxRes: 8,
+  maxSup: 8,
+  minSepPct: 0.25,      // min spacing between levels as % of price
 };
 
 export function createLuxSrOverlay({
   chart,
   leftBars = 15,
   rightBars = 15,
-  volumeThresh = 20,      // osc > volumeThresh (EMA5 vs EMA10)
-  pivotLeftRight = 5,     // secondary clustering
-  minSeparationPct = STYLES.minSeparationPct,
-  maxLevels = 10,         // pre-cluster cap before final TV styling
+  volumeThresh = 20,
+  pivotLeftRight = 5,
+  minSeparationPct = STYLE.minSepPct,
+  maxLevels = 10,
   lookbackBars = 800,
   markersLookback = 300,
+  segmentBars = STYLE.segmentBars,
 }) {
   if (!chart) return { setBars: () => {}, remove: () => {} };
 
-  // Host must be visible and have data for price lines / markers to render
+  // Host for markers (needs data + visibility)
   const host = chart.addLineSeries({
-    priceLineVisible: false,
+    color: "rgba(0,0,0,0)",
     visible: true,
     lastValueVisible: false,
     crosshairMarkerVisible: false,
+    priceLineVisible: false,
     lineWidth: 1,
-    color: "rgba(0,0,0,0)", // invisible line body
   });
 
-  const resHandles = [];
-  const supHandles = [];
+  // Horizontal segments = many tiny line series (2 points per level)
+  let resSeries = [];
+  let supSeries = [];
 
-  // ----------------- helpers -----------------
   const isCandle = (x) =>
     x && typeof x.time !== "undefined" &&
     Number.isFinite(x.open) && Number.isFinite(x.high) &&
@@ -81,60 +77,51 @@ export function createLuxSrOverlay({
     return true;
   }
 
-  // cluster: keep levels separated by pct tolerance, cap count, favor near current price
-  function clusterLevels(levels, refPrice, pctTol, keep) {
+  function cluster(levels, ref, pctTol, keep) {
     const tolAbs = (p) => Math.abs(p) * (pctTol / 100);
-    const sorted = [...levels].sort((a, b) => Math.abs(a - refPrice) - Math.abs(b - refPrice));
+    const sorted = [...levels].sort((a, b) => Math.abs(a - ref) - Math.abs(b - ref));
     const kept = [];
-    for (const lv of sorted) {
-      const tooClose = kept.some((k) => Math.abs(k - lv) <= tolAbs(lv));
-      if (!tooClose) kept.push(lv);
+    for (const p of sorted) {
+      if (!kept.some((k) => Math.abs(k - p) <= tolAbs(p))) kept.push(p);
       if (kept.length >= keep) break;
     }
-    // For display order: res high→low, sup low→high
     return kept;
   }
 
-  function computeLuxSR(candles) {
+  function compute(candles) {
     const n = candles.length;
     const start = Math.max(0, n - lookbackBars);
 
-    // 1) Lux Pivots for base levels (left/right bars as given)
-    const rawRes = [], rawSup = [];
+    // Lux pivots
+    const baseRes = [], baseSup = [];
     for (let i = start; i < n; i++) {
-      if (pivotHigh(candles, i, leftBars, rightBars)) rawRes.push(candles[i].high);
-      if (pivotLow (candles, i, leftBars, rightBars)) rawSup.push(candles[i].low);
+      if (pivotHigh(candles, i, leftBars, rightBars)) baseRes.push(candles[i].high);
+      if (pivotLow (candles, i, leftBars, rightBars)) baseSup.push(candles[i].low);
     }
-
-    // 2) Secondary clustering using pivotLeftRight spacing and minSeparationPct
+    // Secondary clustering
     const L = Math.max(1, Math.floor(pivotLeftRight));
-    const preRes = [], preSup = [];
+    const moreRes = [], moreSup = [];
     for (let i = start; i < n; i++) {
-      if (pivotHigh(candles, i, L, L)) preRes.push(candles[i].high);
-      if (pivotLow (candles, i, L, L)) preSup.push(candles[i].low);
+      if (pivotHigh(candles, i, L, L)) moreRes.push(candles[i].high);
+      if (pivotLow (candles, i, L, L)) moreSup.push(candles[i].low);
     }
 
-    // combine & cluster around last close
     const lastClose = candles[n - 1]?.close ?? 0;
-    const res = clusterLevels(preRes.concat(rawRes), lastClose, Math.max(minSeparationPct, 0.05), Math.max(1, maxLevels));
-    const sup = clusterLevels(preSup.concat(rawSup), lastClose, Math.max(minSeparationPct, 0.05), Math.max(1, maxLevels));
+    const resAll = cluster(baseRes.concat(moreRes), lastClose, Math.max(minSeparationPct, 0.05), Math.max(1, maxLevels));
+    const supAll = cluster(baseSup.concat(moreSup), lastClose, Math.max(minSeparationPct, 0.05), Math.max(1, maxLevels));
 
-    // 3) choose latest/active levels for emphasis
-    // latest resistance = nearest level ABOVE last close
-    const resAbove = res.filter((p) => p >= lastClose).sort((a, b) => a - b);
-    const latestRes = resAbove.length ? resAbove[0] : (res.length ? [...res].sort((a,b)=>b-a)[0] : null);
+    const resForDraw = [...resAll].sort((a,b)=>b-a).slice(0, STYLE.maxRes);
+    const supForDraw = [...supAll].sort((a,b)=>a-b).slice(0, STYLE.maxSup);
 
-    // latest support = nearest level BELOW last close
-    const supBelow = sup.filter((p) => p <= lastClose).sort((a, b) => b - a);
-    const latestSup = supBelow.length ? supBelow[0] : (sup.length ? [...sup].sort((a,b)=>a-b)[0] : null);
+    // latest active levels (nearest above/below)
+    const resAbove = resForDraw.filter(p => p >= lastClose).sort((a,b)=>a-b);
+    const supBelow = supForDraw.filter(p => p <= lastClose).sort((a,b)=>b-a);
+    const latestRes = resAbove[0] ?? resForDraw[0] ?? null;
+    const latestSup = supBelow[0] ?? supForDraw[0] ?? null;
 
-    // 4) trim to TV-like counts for display
-    const resForDraw = [...res].sort((a,b)=>b-a).slice(0, STYLES.maxRes);
-    const supForDraw = [...sup].sort((a,b)=>a-b).slice(0, STYLES.maxSup);
-
-    // 5) volume oscillator (EMA5 vs EMA10) for break markers
+    // Volume osc for breaks
     const vols = candles.map(c => Number(c.volume ?? 0));
-    const e5  = ema(vols, 5);
+    const e5 = ema(vols, 5);
     const e10 = ema(vols, 10);
     const osc = e10.map((v, i) => {
       const base = e10[i] ?? 1;
@@ -142,85 +129,81 @@ export function createLuxSrOverlay({
     });
 
     const markers = [];
-    const recentIdx0 = Math.max(0, n - Math.max(50, markersLookback));
-    for (let i = recentIdx0; i < n; i++) {
+    const m0 = Math.max(0, n - Math.max(50, markersLookback));
+    for (let i = m0; i < n; i++) {
       const b = candles[i];
       const o = osc[i] ?? 0;
       const bullWick = (b.open - b.low) > (b.close - b.open);
       const bearWick = (b.high - b.open) > (b.open - b.close);
-
-      if (latestSup != null) {
-        if (b.close < latestSup && o > volumeThresh && !bearWick) {
-          markers.push({ time: b.time, position: "aboveBar", color: COLORS.markerBear, shape: "arrowDown", text: "B" });
-        } else if (b.close < latestSup && bearWick && o > volumeThresh) {
-          markers.push({ time: b.time, position: "aboveBar", color: COLORS.markerBear, shape: "arrowDown", text: "Bear Wick" });
-        }
+      if (latestSup != null && b.close < latestSup && o > volumeThresh) {
+        markers.push({ time: b.time, position: "aboveBar", color: COLORS.bear, shape: "arrowDown", text: bullWick ? "Bear Wick" : "B" });
       }
-      if (latestRes != null) {
-        if (b.close > latestRes && o > volumeThresh && !bullWick) {
-          markers.push({ time: b.time, position: "belowBar", color: COLORS.markerBull, shape: "arrowUp", text: "B" });
-        } else if (b.close > latestRes && bullWick && o > volumeThresh) {
-          markers.push({ time: b.time, position: "belowBar", color: COLORS.markerBull, shape: "arrowUp", text: "Bull Wick" });
-        }
+      if (latestRes != null && b.close > latestRes && o > volumeThresh) {
+        markers.push({ time: b.time, position: "belowBar", color: COLORS.bull, shape: "arrowUp", text: bearWick ? "Bull Wick" : "B" });
       }
     }
 
     return { resForDraw, supForDraw, latestRes, latestSup, markers };
   }
 
-  function clearAll() {
-    try { resHandles.forEach(h => host.removePriceLine(h)); } catch {}
-    try { supHandles.forEach(h => host.removePriceLine(h)); } catch {}
-    resHandles.length = 0; supHandles.length = 0;
-    try { host.setMarkers([]); } catch {}
+  function clearSegments() {
+    try { resSeries.forEach(s => chart.removeSeries(s)); } catch {}
+    try { supSeries.forEach(s => chart.removeSeries(s)); } catch {}
+    resSeries = []; supSeries = [];
   }
 
   function setBars(candles = []) {
-    // host needs timeline data; use close values
     if (Array.isArray(candles) && candles.length) {
-      const minimal = candles.map(c => ({ time: c.time, value: c.close }));
-      try { host.setData(minimal); } catch {}
+      // host timeline (for markers)
+      try { host.setData(candles.map(c => ({ time: c.time, value: c.close }))); } catch {}
     }
 
-    clearAll();
+    clearSegments();
+    try { host.setMarkers([]); } catch {}
 
-    const { resForDraw, supForDraw, latestRes, latestSup, markers } = computeLuxSR(candles);
+    const n = candles.length;
+    if (!n) return;
 
-    // draw RESISTANCE lines
-    for (const level of resForDraw) {
-      const isMain = latestRes != null && Math.abs(level - latestRes) < 1e-9;
-      const h = host.createPriceLine({
-        price: level,
-        color: COLORS.res,
-        lineWidth: isMain ? STYLES.mainWidth : STYLES.otherWidth,
-        lineStyle: isMain ? STYLES.mainStyle : STYLES.dashStyle,
-        axisLabelVisible: true,
-        title: "R",
+    const { resForDraw, supForDraw, latestRes, latestSup, markers } = compute(candles);
+
+    // Draw short horizontal segments using mini line series (two points per level)
+    const tEnd = candles[n - 1].time;
+    const tStart = candles[Math.max(0, n - segmentBars)].time;
+
+    const makeSeg = (price, color, isMain) => {
+      const s = chart.addLineSeries({
+        color,
+        lineWidth: isMain ? STYLE.mainWidth : STYLE.otherWidth,
+        lineStyle: LineStyle.Solid,
+        lastValueVisible: false,
+        priceLineVisible: false,
       });
-      resHandles.push(h);
+      s.setData([
+        { time: tStart, value: price },
+        { time: tEnd,   value: price },
+      ]);
+      return s;
+    };
+
+    // Resistance (red)
+    for (const p of resForDraw) {
+      const main = latestRes != null && Math.abs(p - latestRes) < 1e-9;
+      resSeries.push(makeSeg(p, COLORS.res, main));
+    }
+    // Support (blue)
+    for (const p of supForDraw) {
+      const main = latestSup != null && Math.abs(p - latestSup) < 1e-9;
+      supSeries.push(makeSeg(p, COLORS.sup, main));
     }
 
-    // draw SUPPORT lines
-    for (const level of supForDraw) {
-      const isMain = latestSup != null && Math.abs(level - latestSup) < 1e-9;
-      const h = host.createPriceLine({
-        price: level,
-        color: COLORS.sup,
-        lineWidth: isMain ? STYLES.mainWidth : STYLES.otherWidth,
-        lineStyle: isMain ? STYLES.mainStyle : STYLES.dashStyle,
-        axisLabelVisible: true,
-        title: "S",
-      });
-      supHandles.push(h);
-    }
-
-    if (Array.isArray(markers) && markers.length) {
+    if (markers.length) {
       try { host.setMarkers(markers); } catch {}
     }
   }
 
   function remove() {
-    clearAll();
+    clearSegments();
+    try { host.setMarkers([]); } catch {}
     try { chart.removeSeries(host); } catch {}
   }
 
