@@ -3,32 +3,28 @@ import React from "react";
 import { useDashboardPoll } from "../../lib/dashboardApi";
 import { LastUpdated } from "../../components/LastUpdated";
 
-// Raw GitHub live endpoints
+// RAW GitHub live endpoints
 const INTRADAY_URL = process.env.REACT_APP_INTRADAY_URL;   // data-live-10min/data/outlook_intraday.json
 const EOD_URL      = process.env.REACT_APP_EOD_URL;        // data-live-eod/data/outlook.json
 
 // Backend API (replay)
 const API =
   (typeof window !== "undefined" && (window.__API_BASE__ || "")) ||
-  process.env.REACT_APP_API_URL ||
-  "";
+  process.env.REACT_APP_API_URL || "";
 
 /* ------------------------------ utils ------------------------------ */
-function fmtIso(ts){ try{ return new Date(ts).toLocaleString(); }catch{ return ts; } }
 const clamp01 = (n)=> Math.max(0, Math.min(100, Number(n)));
 const pct = (n)=> (Number.isFinite(n) ? n.toFixed(1) : "—");
+function fmtIso(ts){ try{ return new Date(ts).toLocaleString(); }catch{ return ts; } }
 const toneFor = (v)=> (v >= 60 ? "ok" : v >= 40 ? "warn" : "danger");
-// Daily squeeze (Lux): >85 red, else green
-function toneForLuxSqueeze(v){
-  if (!Number.isFinite(v)) return "info";
-  return v > 85 ? "danger" : "ok";
-}
+// Lux (daily) squeeze tone: >85 red, else green
+const toneForLuxSqueeze = (v)=> !Number.isFinite(v) ? "info" : (v > 85 ? "danger" : "ok");
 
 /* ---------------------------- Stoplight ---------------------------- */
 function Stoplight({ label, value, baseline, size=54, unit="%", subtitle, toneOverride }) {
   const v = Number.isFinite(value) ? clamp01(value) : NaN;
   const delta = (Number.isFinite(v) && Number.isFinite(baseline)) ? v - baseline : NaN;
-  const tone = toneOverride || (Number.isFinite(v) ? toneFor(v) : "info");
+  const tone = toneOverride || (Number.isFinite(v) ? (v >= 60 ? "ok" : v >= 40 ? "warn" : "danger") : "info");
   const colors = {
     ok:{bg:"#22c55e",glow:"rgba(34,197,94,.45)"},
     warn:{bg:"#fbbf24",glow:"rgba(251,191,36,.45)"},
@@ -109,10 +105,12 @@ function ReplayControls({ on, setOn, granularity, setGranularity, ts, setTs, opt
         className={`px-3 py-1 rounded-full border text-sm ${on?"border-yellow-400 text-yellow-300 bg-neutral-800":"border-neutral-700 text-neutral-300 bg-neutral-900 hover:border-neutral-500"}`}>
         {on ? "Replay: ON" : "Replay: OFF"}
       </button>
-      <select value={granularity} onChange={(e)=>setGranularity(e.target.value)} disabled={!on} className="px-2 py-1 rounded-md border border-neutral-700 bg-neutral-900 text-neutral-200 text-sm">
+      <select value={granularity} onChange={(e)=>setGranularity(e.target.value)} disabled={!on}
+        className="px-2 py-1 rounded-md border border-neutral-700 bg-neutral-900 text-neutral-200 text-sm">
         <option value="10min">10m</option><option value="1h">1h</option><option value="1d">1d</option>
       </select>
-      <select value={ts||""} onChange={(e)=>setTs(e.target.value)} disabled={!on||loading||options.length===0} className="min-w-[220px] px-2 py-1 rounded-md border border-neutral-700 bg-neutral-900 text-neutral-200 text-sm">
+      <select value={ts||""} onChange={(e)=>setTs(e.target.value)} disabled={!on||loading||options.length===0}
+        className="min-w-[220px] px-2 py-1 rounded-md border border-neutral-700 bg-neutral-900 text-neutral-200 text-sm">
         {loading && <option value="">Loading…</option>}
         {!loading && options.length===0 && <option value="">No snapshots</option>}
         {!loading && options.length>0 && (<><option value="">Select time…</option>{options.map(o=><option key={o.ts} value={o.ts}>{fmtIso(o.ts)}</option>)}</>)}
@@ -122,14 +120,14 @@ function ReplayControls({ on, setOn, granularity, setGranularity, ts, setTs, opt
 }
 
 /* ------------------------------ Layout helper ----------------------------- */
-function SectionLabel({text}){ return <div className="small" style={{color:"#9ca3af",fontWeight:800}}>{text}</div>; }
+const SectionLabel = ({text})=> <div className="small" style={{color:"#9ca3af",fontWeight:800}}>{text}</div>;
 
 /* ========================== Main Row component ========================== */
 export default function RowMarketOverview(){
   const { data: polled } = useDashboardPoll("dynamic");
   const [legendOpen,setLegendOpen]=React.useState(false);
 
-  // LIVE: intraday + daily
+  // LIVE fetch (intraday + daily)
   const [liveIntraday,setLiveIntraday]=React.useState(null);
   const [liveDaily,setLiveDaily]=React.useState(null);
   React.useEffect(()=>{ let c=false;(async()=>{
@@ -141,14 +139,17 @@ export default function RowMarketOverview(){
   const [on,setOn]=React.useState(false);
   const [granularity,setGranularity]=React.useState("10min");
   const [tsSel,setTsSel]=React.useState("");
-  const [indexOptions,setIndexOptions]=React.useState([]); const [loadingIdx,setLoadingIdx]=React.useState(false);
-  const [snap,setSnap]=React.useState(null); const [loadingSnap,setLoadingSnap]=React.useState(false);
+  const [indexOptions,setIndexOptions]=React.useState([]);
+  const [loadingIdx,setLoadingIdx]=React.useState(false);
+  const [snap,setSnap]=React.useState(null);
+  const [loadingSnap,setLoadingSnap]=React.useState(false);
   const granParam = granularity==="10min"?"10min":(granularity==="1h"?"hourly":"eod");
 
   React.useEffect(()=>{ if(!on){setIndexOptions([]);return;} (async()=>{ try{ setLoadingIdx(true);
     const r=await fetch(`${API}/api/replay/index?granularity=${granParam}&t=${Date.now()}`,{cache:"no-store"}); const j=await r.json();
     const items=Array.isArray(j?.items)?j.items:[]; setIndexOptions(items); if(items.length && !tsSel) setTsSel(items[0].ts);
   }finally{ setLoadingIdx(false); } })(); },[on,granParam]);
+
   React.useEffect(()=>{ if(!on||!tsSel){setSnap(null);return;} (async()=>{ try{ setLoadingSnap(true);
     const r=await fetch(`${API}/api/replay/at?granularity=${granParam}&ts=${encodeURIComponent(tsSel)}&t=${Date.now()}`,{cache:"no-store"}); const j=await r.json(); setSnap(j);
   }catch{ setSnap(null);} finally{ setLoadingSnap(false); } })(); },[on,tsSel,granParam]);
@@ -164,8 +165,7 @@ export default function RowMarketOverview(){
     data?.marketMeter?.updatedAt ??
     data?.meta?.ts ??
     data?.updated_at ??
-    data?.ts ??
-    null;
+    data?.ts ?? null;
 
   const breadth     = Number(od?.breadthOdometer ?? data?.summary?.breadthIdx ?? gg?.rpm?.pct ?? 50);
   const momentum    = Number(od?.momentumOdometer ?? data?.summary?.momentumIdx ?? gg?.speed?.pct ?? 50);
@@ -184,7 +184,7 @@ export default function RowMarketOverview(){
   const bLiquidity=useDailyBaseline("liquidity", liquidity);
   const bVol      =useDailyBaseline("volatility", volatility);
 
-  // daily trend block (RIGHT)
+  // DAILY trend block
   const td = daily?.trendDaily || {};
   const tdTrendState = td?.trend?.state || null;                       // "up" | "flat" | "down"
   const tdTrendVal   = tdTrendState==="up" ? 75 : tdTrendState==="flat" ? 50 : tdTrendState==="down" ? 25 : null;
@@ -192,7 +192,9 @@ export default function RowMarketOverview(){
   const tdVolPct     = td?.volatilityRegime?.atrPct ?? null;           // %
   const tdLiqPsi     = td?.liquidityRegime?.psi ?? null;               // PSI
   const tdRiskOn     = td?.rotation?.riskOnPct ?? null;                // %
-  const tdSdyDaily   = Number.isFinite(td?.squeezeDaily?.pct) ? Number(td.squeezeDaily.pct) : null;
+  // DAILY squeeze (Lux) with fallback to intraday gauge if null
+  const tdSdyDaily   = Number.isFinite(td?.squeezeDaily?.pct) ? Number(td.squeezeDaily.pct)
+                        : (Number.isFinite(gg?.squeezeDaily?.pct) ? Number(gg.squeezeDaily.pct) : null);
   const tdUpdatedAt  = td?.updatedAt ?? null;
 
   return (
@@ -229,7 +231,7 @@ export default function RowMarketOverview(){
       <div style={{display:"flex",justifyContent:"space-between",gap:18,marginTop:8,flexWrap:"wrap"}}>
         {/* LEFT: Intraday Scalp Lights */}
         <div style={{display:"flex",flexDirection:"column",gap:6}}>
-          <div className="small" style={{color:"#9ca3af",fontWeight:800}}>Intraday Scalp Lights</div>
+          <SectionLabel text="Intraday Scalp Lights" />
           <div style={{display:"flex",gap:12,alignItems:"center"}}>
             <Stoplight label="Breadth" value={breadth} baseline={bBreadth}/>
             <Stoplight label="Momentum" value={momentum} baseline={bMomentum}/>
@@ -237,15 +239,17 @@ export default function RowMarketOverview(){
             <Stoplight label="Liquidity" value={liquidity} baseline={bLiquidity} unit=""/>
             <Stoplight label="Volatility" value={volatility} baseline={bVol}/>
             <Stoplight label="Sector Direction (10m)"
-              value={sectorDirPct} baseline={sectorDirPct}
-              subtitle={Number.isFinite(sectorDirCount)?`${sectorDirCount}/11 rising`:undefined}/>
+              value={data?.intraday?.sectorDirection10m?.risingPct ?? null}
+              baseline={data?.intraday?.sectorDirection10m?.risingPct ?? null}
+              subtitle={Number.isFinite((data?.intraday?.sectorDirection10m?.risingCount))?
+                `${data?.intraday?.sectorDirection10m?.risingCount}/11 rising`:undefined}/>
             <Stoplight label="Risk On (10m)" value={riskOn10m} baseline={riskOn10m}/>
           </div>
         </div>
 
         {/* RIGHT: Overall Market Trend Daily */}
         <div style={{display:"flex",flexDirection:"column",gap:6}}>
-          <div className="small" style={{color:"#9ca3af",fontWeight:800}}>Overall Market Trend Daily</div>
+          <SectionLabel text="Overall Market Trend Daily" />
           <div style={{display:"flex",gap:12,alignItems:"center",justifyContent:"flex-end"}}>
             <Stoplight label="Daily Trend"        value={tdTrendVal}  baseline={tdTrendVal}  subtitle={td?.trend?.state || undefined}/>
             <Stoplight label="Participation"      value={tdPartPct}   baseline={tdPartPct}/>
@@ -254,8 +258,8 @@ export default function RowMarketOverview(){
             <Stoplight label="Liquidity Regime"   value={tdLiqPsi}    baseline={tdLiqPsi} unit=""/>
             <Stoplight label="Risk On (Daily)"    value={tdRiskOn}    baseline={tdRiskOn}/>
           </div>
-          {tdUpdatedAt && <div className="text-xs" style={{color:"#9ca3af",textAlign:"right"}}>Daily updated {fmtIso(tdUpdatedAt)}</div>}
-        </div>
+          {td?.updatedAt && <div className="text-xs" style={{color:"#9ca3af",textAlign:"right"}}>Daily updated {fmtIso(td.updatedAt)}</div>}
+      </div>
       </div>
 
       <div className="text-xs text-neutral-500" style={{marginTop:4}}>
