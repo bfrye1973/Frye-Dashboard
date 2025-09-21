@@ -1,5 +1,5 @@
 // src/pages/rows/RowChart/index.jsx
-// v3.9 — EMA + Volume + Money Flow + Lux S/R (lines + breaks)
+// v4.0 — adds Swing Liquidity (pivots) overlay (TV-style segments)
 
 import React, { useMemo, useState, useEffect, useRef } from "react";
 import Controls from "./Controls";
@@ -11,6 +11,7 @@ import { createEmaOverlay } from "../../../indicators/ema/overlay";
 import { createVolumeOverlay } from "../../../indicators/volume";
 import MoneyFlowOverlay from "../../../components/overlays/MoneyFlowOverlay";
 import { createLuxSrOverlay } from "../../../indicators/srLux";
+import SwingLiquidityOverlay from "../../../components/overlays/SwingLiquidityOverlay";
 
 export default function RowChart({
   apiBase,
@@ -20,25 +21,16 @@ export default function RowChart({
   onStatus,
   showDebug = false,
 }) {
-  // symbol/timeframe
-  const [state, setState] = useState({
-    symbol: defaultSymbol,
-    timeframe: defaultTimeframe,
-    range: null,
-  });
+  const [state, setState] = useState({ symbol: defaultSymbol, timeframe: defaultTimeframe, range: null });
 
-  // indicator toggles
   const [ind, setInd] = useState({
-    showEma: true,
-    ema10: true,
-    ema20: true,
-    ema50: true,
+    showEma: true, ema10: true, ema20: true, ema50: true,
     volume: true,
     moneyFlow: false,
-    luxSr: true,            // NEW: default ON; set to false if you prefer
+    luxSr: true,
+    swingLiquidity: true,    // NEW
   });
 
-  // theme
   const theme = useMemo(() => ({
     layout: { background: { type:"solid", color:"#0a0a0a" }, textColor:"#ffffff" },
     grid: { vertLines: { color:"#1e1e1e" }, horzLines: { color:"#1e1e1e" } },
@@ -48,41 +40,27 @@ export default function RowChart({
     upColor:"#16a34a", downColor:"#ef4444", wickUpColor:"#16a34a", wickDownColor:"#ef4444", borderUpColor:"#16a34a", borderDownColor:"#ef4444",
   }), []);
 
-  // chart mount
   const { containerRef, chart, setData } = useLwcChart({ theme });
+  const { bars, loading, error, refetch } = useOhlc({ apiBase, symbol: state.symbol, timeframe: state.timeframe });
 
-  // data feed
-  const { bars, loading, error, refetch } = useOhlc({
-    apiBase, symbol: state.symbol, timeframe: state.timeframe,
-  });
-
-  // status
-  useEffect(() => {
-    if (!onStatus) return;
-    if (loading) onStatus("loading");
-    else if (error) onStatus("error");
-    else if (bars.length) onStatus("ready");
-    else onStatus("idle");
+  useEffect(() => { if (!onStatus) return;
+    if (loading) onStatus("loading"); else if (error) onStatus("error");
+    else if (bars.length) onStatus("ready"); else onStatus("idle");
   }, [loading, error, bars, onStatus]);
 
-  // fetch
   useEffect(() => { void refetch(true); }, []);
   useEffect(() => { void refetch(true); }, [state.symbol, state.timeframe]);
 
-  // push bars to chart
   useEffect(() => {
     const data = state.range && bars.length > state.range ? bars.slice(-state.range) : bars;
     setData(data);
   }, [bars, state.range, setData]);
 
-  // ==== EMA overlays ====
+  // EMA overlays
   const emaRef = useRef({});
   useEffect(() => {
     if (!chart) return;
-    const removeAll = () => {
-      Object.values(emaRef.current).forEach(o => o?.remove?.());
-      emaRef.current = {};
-    };
+    const removeAll = () => { Object.values(emaRef.current).forEach(o => o?.remove?.()); emaRef.current = {}; };
     removeAll();
     if (ind.showEma) {
       if (ind.ema10) emaRef.current.e10 = createEmaOverlay({ chart, period:10, color:"#60a5fa" });
@@ -93,7 +71,7 @@ export default function RowChart({
     return () => removeAll();
   }, [chart, ind.showEma, ind.ema10, ind.ema20, ind.ema50, bars]);
 
-  // ==== Volume overlay ====
+  // Volume overlay
   const volRef = useRef(null);
   useEffect(() => {
     if (!chart) return;
@@ -106,7 +84,7 @@ export default function RowChart({
   }, [chart, ind.volume, bars]);
   useEffect(() => { if (ind.volume && volRef.current) volRef.current.setBars(bars); }, [bars, ind.volume]);
 
-  // ==== Lux S/R overlay ====
+  // Lux S/R overlay
   const luxRef = useRef(null);
   useEffect(() => {
     if (!chart) return;
@@ -114,8 +92,7 @@ export default function RowChart({
     if (ind.luxSr) {
       luxRef.current = createLuxSrOverlay({
         chart,
-        leftBars: 15,
-        rightBars: 15,
+        leftBars: 15, rightBars: 15,
         volumeThresh: 20,
         pivotLeftRight: 5,
         minSeparationPct: 0.25,
@@ -158,6 +135,7 @@ export default function RowChart({
         volume={ind.volume}
         moneyFlow={ind.moneyFlow}
         luxSr={ind.luxSr}
+        swingLiquidity={ind.swingLiquidity}
         onChange={(patch) => setInd(s => ({ ...s, ...patch }))}
       />
 
@@ -185,9 +163,20 @@ export default function RowChart({
           data-cluster-host
         >
           {ind.moneyFlow && (
-            <MoneyFlowOverlay
-              chartContainer={containerRef.current}
+            <MoneyFlowOverlay chartContainer={containerRef.current} candles={bars} />
+          )}
+
+          {ind.swingLiquidity && chart && (
+            <SwingLiquidityOverlay
+              chart={chart}
               candles={bars}
+              leftBars={15}
+              rightBars={10}
+              volPctGate={0.65}
+              extendUntilFilled={true}
+              hideFilled={false}
+              lookbackBars={800}
+              maxOnScreen={80}
             />
           )}
         </div>
