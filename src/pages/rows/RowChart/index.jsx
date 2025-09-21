@@ -1,5 +1,5 @@
 // src/pages/rows/RowChart/index.jsx
-// v3.6 — adds Indicators menu toggle for Money Flow Profile
+// v3.8 — EMA + Volume + Money Flow Profile (toggles working)
 
 import React, { useMemo, useState, useEffect, useRef } from "react";
 import Controls from "./Controls";
@@ -8,30 +8,35 @@ import useOhlc from "./useOhlc";
 import useLwcChart from "./useLwcChart";
 import { SYMBOLS, TIMEFRAMES, resolveApiBase } from "./constants";
 import { createEmaOverlay } from "../../../indicators/ema/overlay";
+import { createVolumeOverlay } from "../../../indicators/volume";
 import MoneyFlowOverlay from "../../../components/overlays/MoneyFlowOverlay";
 
 export default function RowChart({
   apiBase,
   defaultSymbol = "SPY",
   defaultTimeframe = "1h",
-  height = 520,          // fallback only; CSS controls final height
+  height = 520,
   onStatus,
   showDebug = false,
 }) {
+  // symbol/timeframe state
   const [state, setState] = useState({
     symbol: defaultSymbol,
     timeframe: defaultTimeframe,
     range: null,
   });
 
+  // indicator toggles
   const [ind, setInd] = useState({
     showEma: true,
     ema10: true,
     ema20: true,
     ema50: true,
-    moneyFlow: true, // NEW: default ON; change to false if you prefer
+    volume: true,
+    moneyFlow: false,
   });
 
+  // chart theme
   const theme = useMemo(() => ({
     layout: { background: { type:"solid", color:"#0a0a0a" }, textColor:"#ffffff" },
     grid: { vertLines: { color:"#1e1e1e" }, horzLines: { color:"#1e1e1e" } },
@@ -41,12 +46,15 @@ export default function RowChart({
     upColor:"#16a34a", downColor:"#ef4444", wickUpColor:"#16a34a", wickDownColor:"#ef4444", borderUpColor:"#16a34a", borderDownColor:"#ef4444",
   }), []);
 
+  // chart mount hook
   const { containerRef, chart, setData } = useLwcChart({ theme });
 
+  // OHLC data hook
   const { bars, loading, error, refetch } = useOhlc({
     apiBase, symbol: state.symbol, timeframe: state.timeframe,
   });
 
+  // status
   useEffect(() => {
     if (!onStatus) return;
     if (loading) onStatus("loading");
@@ -55,35 +63,51 @@ export default function RowChart({
     else onStatus("idle");
   }, [loading, error, bars, onStatus]);
 
-  useEffect(() => { void refetch(true); }, []); // mount
+  // fetch data on mount + symbol/timeframe change
+  useEffect(() => { void refetch(true); }, []);
   useEffect(() => { void refetch(true); }, [state.symbol, state.timeframe]);
 
+  // set bars into chart
   useEffect(() => {
     const data = state.range && bars.length > state.range ? bars.slice(-state.range) : bars;
     setData(data);
   }, [bars, state.range, setData]);
 
   // EMA overlays
-  const emaOverlaysRef = useRef({});
+  const emaRef = useRef({});
   useEffect(() => {
     if (!chart) return;
     const removeAll = () => {
-      Object.values(emaOverlaysRef.current).forEach(o => o?.remove?.());
-      emaOverlaysRef.current = {};
+      Object.values(emaRef.current).forEach(o => o?.remove?.());
+      emaRef.current = {};
     };
     removeAll();
     if (ind.showEma) {
-      if (ind.ema10) emaOverlaysRef.current.e10 = createEmaOverlay({ chart, period:10, color:"#60a5fa" });
-      if (ind.ema20) emaOverlaysRef.current.e20 = createEmaOverlay({ chart, period:20, color:"#f59e0b" });
-      if (ind.ema50) emaOverlaysRef.current.e50 = createEmaOverlay({ chart, period:50, color:"#34d399" });
+      if (ind.ema10) emaRef.current.e10 = createEmaOverlay({ chart, period:10, color:"#60a5fa" });
+      if (ind.ema20) emaRef.current.e20 = createEmaOverlay({ chart, period:20, color:"#f59e0b" });
+      if (ind.ema50) emaRef.current.e50 = createEmaOverlay({ chart, period:50, color:"#34d399" });
     }
-    Object.values(emaOverlaysRef.current).forEach(o => o?.setBars?.(bars));
+    Object.values(emaRef.current).forEach(o => o?.setBars?.(bars));
     return () => removeAll();
   }, [chart, ind.showEma, ind.ema10, ind.ema20, ind.ema50, bars]);
 
+  // Volume overlay
+  const volRef = useRef(null);
   useEffect(() => {
-    Object.values(emaOverlaysRef.current).forEach(o => o?.setBars?.(bars));
-  }, [bars, ind.showEma, ind.ema10, ind.ema20, ind.ema50]);
+    if (!chart) return;
+    if (volRef.current) { volRef.current.remove(); volRef.current = null; }
+    if (ind.volume) {
+      volRef.current = createVolumeOverlay({ chart });
+      volRef.current.setBars(bars);
+    }
+    return () => { volRef.current?.remove(); volRef.current = null; };
+  }, [chart, ind.volume, bars]);
+
+  useEffect(() => {
+    if (ind.volume && volRef.current) {
+      volRef.current.setBars(bars);
+    }
+  }, [bars, ind.volume]);
 
   const baseShown = resolveApiBase(apiBase);
 
@@ -111,7 +135,8 @@ export default function RowChart({
         ema10={ind.ema10}
         ema20={ind.ema20}
         ema50={ind.ema50}
-        moneyFlow={ind.moneyFlow}          // NEW
+        volume={ind.volume}
+        moneyFlow={ind.moneyFlow}
         onChange={(patch) => setInd(s => ({ ...s, ...patch }))}
       />
 
@@ -130,7 +155,7 @@ export default function RowChart({
         </div>
       )}
 
-      {/* Chart host (fills remainder) */}
+      {/* Chart host */}
       <div className="chart-shell" style={{ flex:"1 1 auto", minHeight:0, display:"flex", flexDirection:"column" }}>
         <div
           ref={containerRef}
@@ -138,7 +163,6 @@ export default function RowChart({
           style={{ position:"relative", width:"100%", height:"100%", minHeight:0, flex:1 }}
           data-cluster-host
         >
-          {/* Visual overlays */}
           {ind.moneyFlow && (
             <MoneyFlowOverlay
               chartContainer={containerRef.current}
