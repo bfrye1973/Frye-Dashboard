@@ -1,5 +1,5 @@
 // src/pages/rows/RowChart/index.jsx
-// v4.0 — adds Swing Liquidity (pivots) overlay (TV-style segments)
+// v4.1 — EMA + Volume + Money Flow + Lux S/R + Swing Liquidity + SMI (bottom pane)
 
 import React, { useMemo, useState, useEffect, useRef } from "react";
 import Controls from "./Controls";
@@ -7,30 +7,49 @@ import IndicatorsToolbar from "./IndicatorsToolbar";
 import useOhlc from "./useOhlc";
 import useLwcChart from "./useLwcChart";
 import { SYMBOLS, TIMEFRAMES, resolveApiBase } from "./constants";
+
+// Overlays / panes
 import { createEmaOverlay } from "../../../indicators/ema/overlay";
 import { createVolumeOverlay } from "../../../indicators/volume";
 import MoneyFlowOverlay from "../../../components/overlays/MoneyFlowOverlay";
 import { createLuxSrOverlay } from "../../../indicators/srLux";
 import SwingLiquidityOverlay from "../../../components/overlays/SwingLiquidityOverlay";
+import { createSmiOverlay } from "../../../indicators/smi";
 
 export default function RowChart({
   apiBase,
   defaultSymbol = "SPY",
   defaultTimeframe = "1h",
-  height = 520,
+  height = 520,          // fallback only; CSS/grid controls final height
   onStatus,
   showDebug = false,
 }) {
-  const [state, setState] = useState({ symbol: defaultSymbol, timeframe: defaultTimeframe, range: null });
-
-  const [ind, setInd] = useState({
-    showEma: true, ema10: true, ema20: true, ema50: true,
-    volume: true,
-    moneyFlow: false,
-    luxSr: true,
-    swingLiquidity: true,    // NEW
+  // symbol / timeframe / optional range
+  const [state, setState] = useState({
+    symbol: defaultSymbol,
+    timeframe: defaultTimeframe,
+    range: null,
   });
 
+  // indicator toggles
+  const [ind, setInd] = useState({
+    // EMA
+    showEma: true,
+    ema10: true,
+    ema20: true,
+    ema50: true,
+
+    // panes
+    volume: true,        // bottom pane (histogram)
+    smi: true,           // bottom pane (SMI)
+
+    // overlays
+    moneyFlow: false,    // right profile canvas overlay
+    luxSr: true,         // Lux S/R (lines + breaks)
+    swingLiquidity: true // pivot-liquidity short segments
+  });
+
+  // theme (unchanged)
   const theme = useMemo(() => ({
     layout: { background: { type:"solid", color:"#0a0a0a" }, textColor:"#ffffff" },
     grid: { vertLines: { color:"#1e1e1e" }, horzLines: { color:"#1e1e1e" } },
@@ -40,38 +59,58 @@ export default function RowChart({
     upColor:"#16a34a", downColor:"#ef4444", wickUpColor:"#16a34a", wickDownColor:"#ef4444", borderUpColor:"#16a34a", borderDownColor:"#ef4444",
   }), []);
 
+  // chart mount
   const { containerRef, chart, setData } = useLwcChart({ theme });
-  const { bars, loading, error, refetch } = useOhlc({ apiBase, symbol: state.symbol, timeframe: state.timeframe });
 
-  useEffect(() => { if (!onStatus) return;
-    if (loading) onStatus("loading"); else if (error) onStatus("error");
-    else if (bars.length) onStatus("ready"); else onStatus("idle");
+  // data feed
+  const { bars, loading, error, refetch } = useOhlc({
+    apiBase, symbol: state.symbol, timeframe: state.timeframe,
+  });
+
+  // status
+  useEffect(() => {
+    if (!onStatus) return;
+    if (loading) onStatus("loading");
+    else if (error) onStatus("error");
+    else if (bars.length) onStatus("ready");
+    else onStatus("idle");
   }, [loading, error, bars, onStatus]);
 
-  useEffect(() => { void refetch(true); }, []);
+  // fetch data
+  useEffect(() => { void refetch(true); }, []); // mount
   useEffect(() => { void refetch(true); }, [state.symbol, state.timeframe]);
 
+  // push bars to main price series
   useEffect(() => {
     const data = state.range && bars.length > state.range ? bars.slice(-state.range) : bars;
     setData(data);
   }, [bars, state.range, setData]);
 
-  // EMA overlays
+  // =========================
+  // EMA overlays (on price)
+  // =========================
   const emaRef = useRef({});
   useEffect(() => {
     if (!chart) return;
-    const removeAll = () => { Object.values(emaRef.current).forEach(o => o?.remove?.()); emaRef.current = {}; };
+    const removeAll = () => {
+      Object.values(emaRef.current).forEach(o => o?.remove?.());
+      emaRef.current = {};
+    };
     removeAll();
+
     if (ind.showEma) {
-      if (ind.ema10) emaRef.current.e10 = createEmaOverlay({ chart, period:10, color:"#60a5fa" });
-      if (ind.ema20) emaRef.current.e20 = createEmaOverlay({ chart, period:20, color:"#f59e0b" });
-      if (ind.ema50) emaRef.current.e50 = createEmaOverlay({ chart, period:50, color:"#34d399" });
+      if (ind.ema10) emaRef.current.e10 = createEmaOverlay({ chart, period: 10, color: "#60a5fa" });
+      if (ind.ema20) emaRef.current.e20 = createEmaOverlay({ chart, period: 20, color: "#f59e0b" });
+      if (ind.ema50) emaRef.current.e50 = createEmaOverlay({ chart, period: 50, color: "#34d399" });
     }
     Object.values(emaRef.current).forEach(o => o?.setBars?.(bars));
+
     return () => removeAll();
   }, [chart, ind.showEma, ind.ema10, ind.ema20, ind.ema50, bars]);
 
-  // Volume overlay
+  // =========================
+  // Volume pane (bottom)
+  // =========================
   const volRef = useRef(null);
   useEffect(() => {
     if (!chart) return;
@@ -84,48 +123,29 @@ export default function RowChart({
   }, [chart, ind.volume, bars]);
   useEffect(() => { if (ind.volume && volRef.current) volRef.current.setBars(bars); }, [bars, ind.volume]);
 
-  // imports (top):
-import { createSmiOverlay } from "../../../indicators/smi";
+  // =========================
+  // SMI pane (bottom)
+  // =========================
+  const smiRef = useRef(null);
+  useEffect(() => {
+    if (!chart) return;
+    if (smiRef.current) { smiRef.current.remove(); smiRef.current = null; }
+    if (ind.smi) {
+      smiRef.current = createSmiOverlay({
+        chart,
+        kLen: 12,
+        dLen: 7,
+        emaLen: 5,
+      });
+      smiRef.current.setBars(bars);
+    }
+    return () => { smiRef.current?.remove(); smiRef.current = null; };
+  }, [chart, ind.smi, bars]);
+  useEffect(() => { if (ind.smi && smiRef.current) smiRef.current.setBars(bars); }, [bars, ind.smi]);
 
-// state defaults (add):
-// smi: true,
-
-// inside component state:
-const [ind, setInd] = useState({
-  showEma: true, ema10: true, ema20: true, ema50: true,
-  volume: true,
-  moneyFlow: false,
-  luxSr: true,
-  swingLiquidity: true,
-  smi: true,                   // NEW
-});
-
-// SMI overlay block:
-const smiRef = useRef(null);
-useEffect(() => {
-  if (!chart) return;
-  if (smiRef.current) { smiRef.current.remove(); smiRef.current = null; }
-  if (ind.smi) {
-    smiRef.current = createSmiOverlay({
-      chart,
-      kLen: 12,
-      dLen: 7,
-      emaLen: 5,
-    });
-    smiRef.current.setBars(bars);
-  }
-  return () => { smiRef.current?.remove(); smiRef.current = null; };
-}, [chart, ind.smi, bars]);
-useEffect(() => { if (ind.smi && smiRef.current) smiRef.current.setBars(bars); }, [bars, ind.smi]);
-
-// pass prop to IndicatorsToolbar:
-<IndicatorsToolbar
-  // …existing props…
-  smi={ind.smi}
-  onChange={(patch) => setInd(s => ({ ...s, ...patch }))}
-/>
-
-  // Lux S/R overlay
+  // =========================
+  // Lux S/R (lines + breaks)
+  // =========================
   const luxRef = useRef(null);
   useEffect(() => {
     if (!chart) return;
@@ -133,7 +153,8 @@ useEffect(() => { if (ind.smi && smiRef.current) smiRef.current.setBars(bars); }
     if (ind.luxSr) {
       luxRef.current = createLuxSrOverlay({
         chart,
-        leftBars: 15, rightBars: 15,
+        leftBars: 15,
+        rightBars: 15,
         volumeThresh: 20,
         pivotLeftRight: 5,
         minSeparationPct: 0.25,
@@ -151,6 +172,7 @@ useEffect(() => { if (ind.smi && smiRef.current) smiRef.current.setBars(bars); }
 
   return (
     <div
+      /* FLEX (no fixed height here; CSS/grid controls row size) */
       style={{
         flex: 1, minHeight: 0, overflow: "hidden",
         background: "#0a0a0a", border: "1px solid #2b2b2b", borderRadius: 12,
@@ -169,14 +191,19 @@ useEffect(() => { if (ind.smi && smiRef.current) smiRef.current.setBars(bars); }
       />
 
       <IndicatorsToolbar
+        // EMA
         showEma={ind.showEma}
         ema10={ind.ema10}
         ema20={ind.ema20}
         ema50={ind.ema50}
+        // Panes
         volume={ind.volume}
+        smi={ind.smi}
+        // Overlays
         moneyFlow={ind.moneyFlow}
         luxSr={ind.luxSr}
         swingLiquidity={ind.swingLiquidity}
+        // Change handler
         onChange={(patch) => setInd(s => ({ ...s, ...patch }))}
       />
 
@@ -195,7 +222,7 @@ useEffect(() => { if (ind.smi && smiRef.current) smiRef.current.setBars(bars); }
         </div>
       )}
 
-      {/* Chart host */}
+      {/* Chart host (fills remainder) */}
       <div className="chart-shell" style={{ flex:"1 1 auto", minHeight:0, display:"flex", flexDirection:"column" }}>
         <div
           ref={containerRef}
@@ -203,10 +230,15 @@ useEffect(() => { if (ind.smi && smiRef.current) smiRef.current.setBars(bars); }
           style={{ position:"relative", width:"100%", height:"100%", minHeight:0, flex:1 }}
           data-cluster-host
         >
+          {/* Canvas/profile overlays */}
           {ind.moneyFlow && (
-            <MoneyFlowOverlay chartContainer={containerRef.current} candles={bars} />
+            <MoneyFlowOverlay
+              chartContainer={containerRef.current}
+              candles={bars}
+            />
           )}
 
+          {/* Swing Liquidity segments (short lines) */}
           {ind.swingLiquidity && chart && (
             <SwingLiquidityOverlay
               chart={chart}
