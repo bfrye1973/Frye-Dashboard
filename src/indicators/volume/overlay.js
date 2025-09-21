@@ -1,17 +1,11 @@
 // src/indicators/volume/overlay.js
 // Lightweight Charts volume histogram overlay (bottom 20% pane)
-//
-// Usage in RowChart:
-//   const vol = createVolumeOverlay({ chart });
-//   vol.setBars(bars);
-//   vol.remove();
 
 export function createVolumeOverlay({ chart }) {
   if (!chart) return { setBars: () => {}, remove: () => {} };
 
   const SCALE_ID = "volume";
 
-  // Create or reuse a price scale for volume at the bottom
   const scale = chart.priceScale(SCALE_ID);
   scale.applyOptions({
     scaleMargins: { top: 0.80, bottom: 0.02 }, // bottom ~20%
@@ -22,7 +16,7 @@ export function createVolumeOverlay({ chart }) {
     priceScaleId: SCALE_ID,
     priceFormat: { type: "volume" },
     base: 0,
-    color: "rgba(128, 160, 192, 0.55)", // fallback color
+    color: "rgba(128, 160, 192, 0.55)", // fallback
   });
 
   function setBars(bars = []) {
@@ -31,8 +25,8 @@ export function createVolumeOverlay({ chart }) {
       time: b.time,
       value: Number(b.volume ?? 0),
       color: (b.close >= b.open)
-        ? "rgba(22, 163, 74, 0.65)"   // green for up candles
-        : "rgba(239, 68, 68, 0.65)",  // red for down candles
+        ? "rgba(22, 163, 74, 0.65)"   // green up bar
+        : "rgba(239, 68, 68, 0.65)",  // red down bar
     }));
     series.setData(data);
   }
