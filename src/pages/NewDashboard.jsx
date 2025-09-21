@@ -22,6 +22,8 @@ import RowJournal from "./rows/RowJournal";
 export default function NewDashboard() {
   return (
     <div className="dashboard-grid" style={{ padding: 12 }}>
+    <div style={{padding:4, background:'#222', color:'#0f0', fontWeight:700}}>NEW DASHBOARD ACTIVE ✅</div>
+ 
       {/* Row 1 — Mode Toggle */}
       <section id="row-1" className="panel">
         <RowModeToggle />
