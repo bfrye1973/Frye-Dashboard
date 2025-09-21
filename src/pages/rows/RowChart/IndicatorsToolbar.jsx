@@ -1,6 +1,5 @@
 // src/pages/rows/RowChart/IndicatorsToolbar.jsx
-// v2.1 — EMA group + Overlays group (Money Flow Profile)
-// Uses <details>/<summary> like your current UI.
+// v2.3 — EMA + Volume + Money Flow + Lux S/R (lines + breaks)
 
 import React from "react";
 
@@ -11,8 +10,14 @@ export default function IndicatorsToolbar({
   ema20 = true,
   ema50 = true,
 
-  // Overlays
+  // Volume
+  volume = false,
+
+  // Money Flow (right profile)
   moneyFlow = false,
+
+  // Lux S/R (lines + breaks)
+  luxSr = false,
 
   onChange,
 }) {
@@ -42,7 +47,7 @@ export default function IndicatorsToolbar({
               borderRadius: 8,
             }}
           >
-            {showEma ? "EMA (on)" : "EMA (off)"} ▾
+            Indicators ▾
           </summary>
 
           <div
@@ -54,64 +59,32 @@ export default function IndicatorsToolbar({
               border: "1px solid #2b2b2b",
               borderRadius: 8,
               padding: 10,
-              minWidth: 220,
+              minWidth: 240,
+              color: "#e5e7eb",
             }}
           >
-            {/* EMA group */}
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-              <input
-                type="checkbox"
-                checked={showEma}
-                onChange={(e) => onChange({ showEma: e.target.checked })}
-              />
-              <span style={{ color: "#e5e7eb" }}>Enable EMA</span>
-            </div>
-
-            <div style={{ color: "#9ca3af", fontSize: 12, margin: "6px 0 4px" }}>Lines</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 6, color: "#e5e7eb" }}>
-              <label>
-                <input
-                  type="checkbox"
-                  checked={ema10}
-                  onChange={(e) => onChange({ ema10: e.target.checked })}
-                />{" "}
-                EMA 10
-              </label>
-              <label>
-                <input
-                  type="checkbox"
-                  checked={ema20}
-                  onChange={(e) => onChange({ ema20: e.target.checked })}
-                />{" "}
-                EMA 20
-              </label>
-              <label>
-                <input
-                  type="checkbox"
-                  checked={ema50}
-                  onChange={(e) => onChange({ ema50: e.target.checked })}
-                />{" "}
-                EMA 50
-              </label>
+            {/* EMA */}
+            <div style={{ color: "#9ca3af", fontSize: 12, margin: "6px 0 4px" }}>EMA</div>
+            <label><input type="checkbox" checked={showEma} onChange={e=>onChange({ showEma: e.target.checked })}/> Enable EMA</label>
+            <div style={{ display:"flex", flexDirection:"column", gap: 6 }}>
+              <label><input type="checkbox" checked={ema10} onChange={e=>onChange({ ema10: e.target.checked })}/> EMA 10</label>
+              <label><input type="checkbox" checked={ema20} onChange={e=>onChange({ ema20: e.target.checked })}/> EMA 20</label>
+              <label><input type="checkbox" checked={ema50} onChange={e=>onChange({ ema50: e.target.checked })}/> EMA 50</label>
             </div>
 
             <div style={{ height: 1, background: "#2b2b2b", margin: "10px 0" }} />
 
-            {/* Overlays group */}
+            {/* Volume */}
+            <div style={{ color: "#9ca3af", fontSize: 12, margin: "6px 0 4px" }}>Volume</div>
+            <label><input type="checkbox" checked={volume} onChange={e=>onChange({ volume: e.target.checked })}/> Show Volume Histogram</label>
+
+            <div style={{ height: 1, background: "#2b2b2b", margin: "10px 0" }} />
+
+            {/* Overlays */}
             <div style={{ color: "#9ca3af", fontSize: 12, margin: "6px 0 4px" }}>Overlays</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 6, color: "#e5e7eb" }}>
-              <label>
-                <input
-                  type="checkbox"
-                  checked={moneyFlow}
-                  onChange={(e) => onChange({ moneyFlow: e.target.checked })}
-                />{" "}
-                Money Flow Profile (right)
-              </label>
-              {/* Future:
-              <label><input type="checkbox" checked={sessionShade} onChange={e=>onChange({sessionShade:e.target.checked})}/> Session Shading</label>
-              <label><input type="checkbox" checked={rightProfile} onChange={e=>onChange({rightProfile:e.target.checked})}/> Right Volume Profile</label>
-              */}
+            <div style={{ display:"flex", flexDirection:"column", gap: 6 }}>
+              <label><input type="checkbox" checked={moneyFlow} onChange={e=>onChange({ moneyFlow: e.target.checked })}/> Money Flow Profile (right)</label>
+              <label><input type="checkbox" checked={luxSr} onChange={e=>onChange({ luxSr: e.target.checked })}/> Lux S/R (lines + breaks)</label>
             </div>
           </div>
         </details>
