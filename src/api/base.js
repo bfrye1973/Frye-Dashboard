@@ -1,5 +1,7 @@
-// Works in CRA and Vite
+// src/api/base.js — works in CRA (react-scripts) and Vite
+
 function env(key, fallback = undefined) {
+  // Vite: import.meta.env.VITE_*
   const vite =
     typeof import.meta !== "undefined" &&
     import.meta.env &&
@@ -7,6 +9,7 @@ function env(key, fallback = undefined) {
       ? import.meta.env[key]
       : undefined;
 
+  // CRA: process.env.REACT_APP_*
   const cra =
     typeof process !== "undefined" &&
     process.env &&
