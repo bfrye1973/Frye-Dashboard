@@ -84,6 +84,47 @@ export default function RowChart({
   }, [chart, ind.volume, bars]);
   useEffect(() => { if (ind.volume && volRef.current) volRef.current.setBars(bars); }, [bars, ind.volume]);
 
+  // imports (top):
+import { createSmiOverlay } from "../../../indicators/smi";
+
+// state defaults (add):
+// smi: true,
+
+// inside component state:
+const [ind, setInd] = useState({
+  showEma: true, ema10: true, ema20: true, ema50: true,
+  volume: true,
+  moneyFlow: false,
+  luxSr: true,
+  swingLiquidity: true,
+  smi: true,                   // NEW
+});
+
+// SMI overlay block:
+const smiRef = useRef(null);
+useEffect(() => {
+  if (!chart) return;
+  if (smiRef.current) { smiRef.current.remove(); smiRef.current = null; }
+  if (ind.smi) {
+    smiRef.current = createSmiOverlay({
+      chart,
+      kLen: 12,
+      dLen: 7,
+      emaLen: 5,
+    });
+    smiRef.current.setBars(bars);
+  }
+  return () => { smiRef.current?.remove(); smiRef.current = null; };
+}, [chart, ind.smi, bars]);
+useEffect(() => { if (ind.smi && smiRef.current) smiRef.current.setBars(bars); }, [bars, ind.smi]);
+
+// pass prop to IndicatorsToolbar:
+<IndicatorsToolbar
+  // …existing props…
+  smi={ind.smi}
+  onChange={(patch) => setInd(s => ({ ...s, ...patch }))}
+/>
+
   // Lux S/R overlay
   const luxRef = useRef(null);
   useEffect(() => {
