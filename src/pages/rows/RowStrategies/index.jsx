@@ -1,26 +1,55 @@
 // src/pages/rows/RowStrategies/index.jsx
-import React from "react";
+import React, { useState } from "react";
 
 /**
- * RowStrategies — placeholder (B1)
- * Purpose:
- * - Satisfy NewDashboard.jsx import "./rows/RowStrategies"
- * - Render a simple marker so we can see Row 5 is mounted
- * - No data, no tabs yet (that’s B2)
+ * RowStrategies — Tabs only (B2)
+ * - Shows 3 tabs: Alignment • Wave 3 • Flagpole
+ * - Active tab is highlighted
+ * - Static counts (0/0/0) for now
+ * - No data, no chart wiring yet
  */
 export default function RowStrategies() {
+  const [active, setActive] = useState("alignment");
+
+  const tabs = [
+    { key: "alignment", label: "Alignment (0)" },
+    { key: "wave3", label: "Wave 3 (0)" },
+    { key: "flagpole", label: "Flagpole (0)" },
+  ];
+
   return (
     <div
       style={{
-        padding: 12,
-        background: "#2b2b2b",
-        color: "#e5e7eb",
-        border: "1px solid #3b3b3b",
+        background: "#1a1a1a",
+        border: "1px solid #333",
         borderRadius: 12,
-        fontWeight: 700,
+        padding: "8px 12px",
+        color: "#e5e7eb",
       }}
     >
-      RowStrategies placeholder — Row 5 wiring is live.
+      <div style={{ display: "flex", gap: 12, marginBottom: 8 }}>
+        {tabs.map((tab) => (
+          <button
+            key={tab.key}
+            onClick={() => setActive(tab.key)}
+            style={{
+              padding: "6px 12px",
+              borderRadius: 8,
+              border: "1px solid #444",
+              background: active === tab.key ? "#2563eb" : "#2b2b2b",
+              color: active === tab.key ? "#fff" : "#9ca3af",
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      <div style={{ padding: 12, background: "#111", borderRadius: 8 }}>
+        <strong>Active Tab:</strong> {active}
+      </div>
     </div>
   );
 }
