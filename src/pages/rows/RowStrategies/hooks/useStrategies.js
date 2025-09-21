@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { fetchSignals } from "../../../api/signals";
-
+import { fetchSignals } from "../../../../api/signals";
 
 const POLL_MS = 30000; // 30s
 
