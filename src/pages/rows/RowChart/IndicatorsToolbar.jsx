@@ -1,5 +1,5 @@
 // src/pages/rows/RowChart/IndicatorsToolbar.jsx
-// v2.5 — EMA + Volume + Overlays (MoneyFlow, Lux S/R, Swing Liquidity) + Oscillators (SMI)
+// v2.6 — Compiles clean. Groups: EMA, Volume, Overlays (MoneyFlow, Lux S/R, Swing Liquidity), Oscillators (SMI).
 
 import React from "react";
 
@@ -21,6 +21,7 @@ export default function IndicatorsToolbar({
   // Oscillators (separate pane)
   smi = false,
 
+  // callback
   onChange,
 }) {
   return (
@@ -61,7 +62,7 @@ export default function IndicatorsToolbar({
               border: "1px solid #2b2b2b",
               borderRadius: 8,
               padding: 10,
-              minWidth: 260,
+              minWidth: 270,
               color: "#e5e7eb",
             }}
           >
@@ -70,7 +71,7 @@ export default function IndicatorsToolbar({
             <label>
               <input
                 type="checkbox"
-                checked={showEma}
+                checked={!!showEma}
                 onChange={(e) => onChange?.({ showEma: e.target.checked })}
               />{" "}
               Enable EMA
@@ -79,7 +80,7 @@ export default function IndicatorsToolbar({
               <label>
                 <input
                   type="checkbox"
-                  checked={ema10}
+                  checked={!!ema10}
                   onChange={(e) => onChange?.({ ema10: e.target.checked })}
                 />{" "}
                 EMA 10
@@ -87,7 +88,7 @@ export default function IndicatorsToolbar({
               <label>
                 <input
                   type="checkbox"
-                  checked={ema20}
+                  checked={!!ema20}
                   onChange={(e) => onChange?.({ ema20: e.target.checked })}
                 />{" "}
                 EMA 20
@@ -95,7 +96,7 @@ export default function IndicatorsToolbar({
               <label>
                 <input
                   type="checkbox"
-                  checked={ema50}
+                  checked={!!ema50}
                   onChange={(e) => onChange?.({ ema50: e.target.checked })}
                 />{" "}
                 EMA 50
@@ -109,7 +110,7 @@ export default function IndicatorsToolbar({
             <label>
               <input
                 type="checkbox"
-                checked={volume}
+                checked={!!volume}
                 onChange={(e) => onChange?.({ volume: e.target.checked })}
               />{" "}
               Show Volume Histogram
@@ -123,7 +124,7 @@ export default function IndicatorsToolbar({
               <label>
                 <input
                   type="checkbox"
-                  checked={moneyFlow}
+                  checked={!!moneyFlow}
                   onChange={(e) => onChange?.({ moneyFlow: e.target.checked })}
                 />{" "}
                 Money Flow Profile (right)
@@ -131,7 +132,7 @@ export default function IndicatorsToolbar({
               <label>
                 <input
                   type="checkbox"
-                  checked={luxSr}
+                  checked={!!luxSr}
                   onChange={(e) => onChange?.({ luxSr: e.target.checked })}
                 />{" "}
                 Lux S/R (lines + breaks)
@@ -139,7 +140,7 @@ export default function IndicatorsToolbar({
               <label>
                 <input
                   type="checkbox"
-                  checked={swingLiquidity}
+                  checked={!!swingLiquidity}
                   onChange={(e) => onChange?.({ swingLiquidity: e.target.checked })}
                 />{" "}
                 Swing Liquidity (pivots)
@@ -153,7 +154,7 @@ export default function IndicatorsToolbar({
             <label>
               <input
                 type="checkbox"
-                checked={smi}
+                checked={!!smi}
                 onChange={(e) => onChange?.({ smi: e.target.checked })}
               />{" "}
               SMI (K=12, D=7, EMA=5)
