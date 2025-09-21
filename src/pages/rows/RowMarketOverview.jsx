@@ -10,14 +10,15 @@ const EOD_URL      = process.env.REACT_APP_EOD_URL;        // data-live-eod/data
 // Backend API (replay)
 const API =
   (typeof window !== "undefined" && (window.__API_BASE__ || "")) ||
-  process.env.REACT_APP_API_URL || "";
+  process.env.REACT_APP_API_URL ||
+  "";
 
 /* ------------------------------ utils ------------------------------ */
 const clamp01 = (n)=> Math.max(0, Math.min(100, Number(n)));
 const pct = (n)=> (Number.isFinite(n) ? n.toFixed(1) : "—");
 function fmtIso(ts){ try{ return new Date(ts).toLocaleString(); }catch{ return ts; } }
 const toneFor = (v)=> (v >= 60 ? "ok" : v >= 40 ? "warn" : "danger");
-// Lux (daily) squeeze tone: >85 red, else green
+// Daily squeeze Lux tone: >85 red, else green
 const toneForLuxSqueeze = (v)=> !Number.isFinite(v) ? "info" : (v > 85 ? "danger" : "ok");
 
 /* ---------------------------- Stoplight ---------------------------- */
@@ -158,18 +159,19 @@ export default function RowMarketOverview(){
   const data  = on && snap && snap.ok!==false ? snap : (liveIntraday || polled);
   const daily = liveDaily || {};
 
-  // intraday gauges
+  // intraday (LEFT) — keep these from intraday JSON
   const gg = data?.gauges ?? {};
   const od = data?.odometers ?? {};
   const ts =
     data?.marketMeter?.updatedAt ??
     data?.meta?.ts ??
     data?.updated_at ??
-    data?.ts ?? null;
+    data?.ts ??
+    null;
 
   const breadth     = Number(od?.breadthOdometer ?? data?.summary?.breadthIdx ?? gg?.rpm?.pct ?? 50);
   const momentum    = Number(od?.momentumOdometer ?? data?.summary?.momentumIdx ?? gg?.speed?.pct ?? 50);
-  const squeezeIntra= Number(od?.squeezeCompressionPct ?? gg?.fuel?.pct ?? 50);
+  const squeezeIntra= Number(od?.squeezeCompressionPct ?? gg?.fuel?.pct ?? 50); // <-- intraday squeeze (fuel)
   const liquidity   = Number.isFinite(gg?.oil?.psi) ? Number(gg.oil.psi) : (Number.isFinite(gg?.oilPsi)?Number(gg.oilPsi):NaN);
   const volatility  = Number.isFinite(gg?.water?.pct) ? Number(gg.water.pct) : (Number.isFinite(gg?.volatilityPct)?Number(gg?.volatilityPct):NaN);
 
@@ -177,22 +179,21 @@ export default function RowMarketOverview(){
   const sectorDirPct   = data?.intraday?.sectorDirection10m?.risingPct ?? null;
   const riskOn10m      = data?.intraday?.riskOn10m?.riskOnPct ?? null;
 
-  // baselines
+  // baselines for intraday
   const bBreadth = useDailyBaseline("breadth", breadth);
   const bMomentum= useDailyBaseline("momentum", momentum);
   const bSqueezeIn=useDailyBaseline("squeezeIntraday", squeezeIntra);
   const bLiquidity=useDailyBaseline("liquidity", liquidity);
   const bVol      =useDailyBaseline("volatility", volatility);
 
-  // DAILY trend block
+  // daily (RIGHT) — use trendDaily block; fallback gauge if squeezeDaily null
   const td = daily?.trendDaily || {};
-  const tdTrendState = td?.trend?.state || null;                       // "up" | "flat" | "down"
+  const tdTrendState = td?.trend?.state || null; // "up" | "flat" | "down"
   const tdTrendVal   = tdTrendState==="up" ? 75 : tdTrendState==="flat" ? 50 : tdTrendState==="down" ? 25 : null;
-  const tdPartPct    = td?.participation?.pctAboveMA ?? null;          // %
-  const tdVolPct     = td?.volatilityRegime?.atrPct ?? null;           // %
-  const tdLiqPsi     = td?.liquidityRegime?.psi ?? null;               // PSI
-  const tdRiskOn     = td?.rotation?.riskOnPct ?? null;                // %
-  // DAILY squeeze (Lux) with fallback to intraday gauge if null
+  const tdPartPct    = td?.participation?.pctAboveMA ?? null;
+  const tdVolPct     = td?.volatilityRegime?.atrPct ?? null;
+  const tdLiqPsi     = td?.liquidityRegime?.psi ?? null;
+  const tdRiskOn     = td?.rotation?.riskOnPct ?? null;
   const tdSdyDaily   = Number.isFinite(td?.squeezeDaily?.pct) ? Number(td.squeezeDaily.pct)
                         : (Number.isFinite(gg?.squeezeDaily?.pct) ? Number(gg.squeezeDaily.pct) : null);
   const tdUpdatedAt  = td?.updatedAt ?? null;
@@ -200,6 +201,7 @@ export default function RowMarketOverview(){
   return (
     <section id="row-2" className="panel" style={{padding:10}}>
       {/* Legend modal */}
+      {/* eslint-disable-next-line */}
       {legendOpen && (
         <div role="dialog" aria-modal="true" onClick={()=>setLegendOpen(false)}
           style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:60}}>
@@ -219,6 +221,7 @@ export default function RowMarketOverview(){
         <button onClick={()=>setLegendOpen(true)} style={{background:"#0b0b0b",color:"#e5e7eb",border:"1px solid #2b2b2b",borderRadius:8,padding:"6px 10px",fontWeight:600,cursor:"pointer",marginLeft:8}}>Legend</button>
         <div className="spacer" />
         <LastUpdated ts={ts}/>
+        {/* Replay controls */}
         <ReplayControls
           on={on} setOn={setOn}
           granularity={granularity} setGranularity={setGranularity}
@@ -231,7 +234,7 @@ export default function RowMarketOverview(){
       <div style={{display:"flex",justifyContent:"space-between",gap:18,marginTop:8,flexWrap:"wrap"}}>
         {/* LEFT: Intraday Scalp Lights */}
         <div style={{display:"flex",flexDirection:"column",gap:6}}>
-          <SectionLabel text="Intraday Scalp Lights" />
+          <div className="small" style={{color:"#9ca3af",fontWeight:800}}>Intraday Scalp Lights</div>
           <div style={{display:"flex",gap:12,alignItems:"center"}}>
             <Stoplight label="Breadth" value={breadth} baseline={bBreadth}/>
             <Stoplight label="Momentum" value={momentum} baseline={bMomentum}/>
@@ -249,9 +252,9 @@ export default function RowMarketOverview(){
 
         {/* RIGHT: Overall Market Trend Daily */}
         <div style={{display:"flex",flexDirection:"column",gap:6}}>
-          <SectionLabel text="Overall Market Trend Daily" />
+          <div className="small" style={{color:"#9ca3af",fontWeight:800}}>Overall Market Trend Daily</div>
           <div style={{display:"flex",gap:12,alignItems:"center",justifyContent:"flex-end"}}>
-            <Stoplight label="Daily Trend"        value={tdTrendVal}  baseline={tdTrendVal}  subtitle={td?.trend?.state || undefined}/>
+            <Stoplight label="Daily Trend"        value={tdTrendVal}  baseline={tdTrendVal}  subtitle={tdTrendState || undefined}/>
             <Stoplight label="Participation"      value={tdPartPct}   baseline={tdPartPct}/>
             <Stoplight label="Daily Squeeze"      value={tdSdyDaily}  baseline={tdSdyDaily} toneOverride={toneForLuxSqueeze(tdSdyDaily)}/>
             <Stoplight label="Volatility Regime"  value={tdVolPct}    baseline={tdVolPct}/>
@@ -259,7 +262,7 @@ export default function RowMarketOverview(){
             <Stoplight label="Risk On (Daily)"    value={tdRiskOn}    baseline={tdRiskOn}/>
           </div>
           {td?.updatedAt && <div className="text-xs" style={{color:"#9ca3af",textAlign:"right"}}>Daily updated {fmtIso(td.updatedAt)}</div>}
-      </div>
+        </div>
       </div>
 
       <div className="text-xs text-neutral-500" style={{marginTop:4}}>
@@ -269,3 +272,4 @@ export default function RowMarketOverview(){
     </section>
   );
 }
+
