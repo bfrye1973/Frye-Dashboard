@@ -1,5 +1,5 @@
 // src/pages/rows/RowChart/IndicatorsToolbar.jsx
-// v2.3 — EMA + Volume + Money Flow + Lux S/R (lines + breaks)
+// v2.4 — adds "Swing Liquidity (pivots)" toggle
 
 import React from "react";
 
@@ -13,11 +13,10 @@ export default function IndicatorsToolbar({
   // Volume
   volume = false,
 
-  // Money Flow (right profile)
+  // Overlays
   moneyFlow = false,
-
-  // Lux S/R (lines + breaks)
   luxSr = false,
+  swingLiquidity = false,   // NEW
 
   onChange,
 }) {
@@ -85,6 +84,7 @@ export default function IndicatorsToolbar({
             <div style={{ display:"flex", flexDirection:"column", gap: 6 }}>
               <label><input type="checkbox" checked={moneyFlow} onChange={e=>onChange({ moneyFlow: e.target.checked })}/> Money Flow Profile (right)</label>
               <label><input type="checkbox" checked={luxSr} onChange={e=>onChange({ luxSr: e.target.checked })}/> Lux S/R (lines + breaks)</label>
+              <label><input type="checkbox" checked={swingLiquidity} onChange={e=>onChange({ swingLiquidity: e.target.checked })}/> Swing Liquidity (pivots)</label>
             </div>
           </div>
         </details>
