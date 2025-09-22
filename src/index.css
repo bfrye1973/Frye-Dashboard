@@ -179,3 +179,13 @@ html body #root > .dashboard-grid[data-cluster-host] {
   height: auto !important;
   overflow: auto !important;   /* enable vertical scroll */
 }
+/* Reserve a small gap so overlays never cover the time axis canvas */
+:root { --axis-gap: 20px; } /* tweak 18–22px to taste */
+
+.overlay-leave-axis-gap {
+  position: absolute;
+  left: 0; right: 0; top: 0;
+  bottom: var(--axis-gap, 20px) !important;
+  pointer-events: none;
+  z-index: 10;
+}
