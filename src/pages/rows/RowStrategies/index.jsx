@@ -1,90 +1,119 @@
 // src/pages/rows/RowStrategies/index.jsx
 import React from "react";
+import { useSelection } from "../../../context/ModeContext";
 
 /**
- * RowStrategies — Compact Cards (B3.1)
- * - 3 strategy cards
- * - No long bullet lists (keeps Row 5 short)
- * - UI only, no data wiring yet
+ * RowStrategies — Section 5 (compact, safe, wired)
+ * - 3 small cards (Alignment • Wave 3 • Flagpole)
+ * - No long text (prevents Row 6 compression)
+ * - SPY/QQQ buttons set global selection { symbol, strategy, timeframe }
+ * - No network calls; Wave3/Flagpole buttons are placeholders for now
+ *
+ * Sizing/contract notes (to avoid "black canvas"):
+ * - This row has no fixed heights; it stays short naturally.
+ * - No padding/margins are applied to Row 6 hosts from here.
+ * - Pure UI only; chart overlays handled in Row 6 later.
  */
+
 export default function RowStrategies() {
+  const { setSelection } = useSelection();
+
+  const load = (symbol, timeframe = "10m", strategy = "alignment") =>
+    setSelection({ symbol, timeframe, strategy });
+
   return (
-    <div style={styles.wrap}>
-      <StrategyCard
+    <div style={S.wrap}>
+      {/* Card 1 — SPY/QQQ Index-Alignment Scalper (10m) */}
+      <Card
         title="SPY/QQQ Index-Alignment Scalper"
         timeframe="10m"
         status={{ text: "On Deck", tone: "info" }}
         score={72}
-        lastSignal="Long bias • 9:50 ET"
-        plToday="+$0"
-        ctas={[
-          { label: "Load SPY (10m)", onClick: noop },
-          { label: "Load QQQ (10m)", onClick: noop },
+        last="Long bias • 9:50 ET"
+        pl="+$0"
+        actions={[
+          { label: "Load SPY (10m)", onClick: () => load("SPY", "10m", "alignment") },
+          { label: "Load QQQ (10m)", onClick: () => load("QQQ", "10m", "alignment") },
         ]}
       />
 
-      <StrategyCard
+      {/* Card 2 — Wave 3 Breakout (Daily) */}
+      <Card
         title="Wave 3 Breakout"
         timeframe="Daily"
         status={{ text: "Flat", tone: "muted" }}
         score={64}
-        lastSignal="On deck candidate"
-        plToday="—"
-        ctas={[{ label: "Top Candidate (Daily)", onClick: noop }]}
+        last="On deck candidate"
+        pl="—"
+        actions={[
+          {
+            label: "Top Candidate (Daily)",
+            onClick: () => {
+              // C2 (later): pick real symbol from feed; for now this is a placeholder
+              setSelection({ symbol: "SPY", timeframe: "1d", strategy: "wave3" });
+            },
+          },
+        ]}
       />
 
-      <StrategyCard
+      {/* Card 3 — Flagpole Breakout (Daily) */}
+      <Card
         title="Flagpole Breakout"
         timeframe="Daily"
         status={{ text: "Caution", tone: "warn" }}
         score={58}
-        lastSignal="Tight flag forming"
-        plToday="—"
-        ctas={[{ label: "Top Candidate (Daily)", onClick: noop }]}
+        last="Tight flag forming"
+        pl="—"
+        actions={[
+          {
+            label: "Top Candidate (Daily)",
+            onClick: () => {
+              // C2 (later): pick real symbol from feed; for now this is a placeholder
+              setSelection({ symbol: "SPY", timeframe: "1d", strategy: "flag" });
+            },
+          },
+        ]}
       />
     </div>
   );
 }
 
-function StrategyCard({
-  title,
-  timeframe,
-  status,
-  score = 0,
-  lastSignal,
-  plToday,
-  ctas = [],
-}) {
-  const tone = toneStyles(status?.tone || "muted");
+/* ---------- Small, tight card ---------- */
+function Card({ title, timeframe, status, score = 0, last, pl, actions = [] }) {
   const pct = Math.max(0, Math.min(100, score));
+  const tone = toneStyles(status?.tone || "muted");
 
   return (
-    <div style={styles.card}>
-      <div style={styles.cardHead}>
+    <div style={S.card}>
+      <div style={S.head}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <div style={styles.title}>{title}</div>
-          <span style={styles.badge}>{timeframe}</span>
+          <div style={S.title}>{title}</div>
+          <span style={S.badge}>{timeframe}</span>
         </div>
-        <span style={{ ...styles.statusPill, ...tone.pill }}>{status?.text}</span>
+        <span style={{ ...S.pill, ...tone.pill }}>{status?.text}</span>
       </div>
 
-      <div style={styles.scoreRow}>
-        <div style={styles.scoreLabel}>Score</div>
-        <div style={styles.progress}>
-          <div style={{ ...styles.progressFill, width: `${pct}%` }} />
+      <div style={S.scoreRow}>
+        <div style={S.scoreLabel}>Score</div>
+        <div style={S.progress}>
+          <div style={{ ...S.progressFill, width: `${pct}%` }} />
         </div>
-        <div style={styles.scoreValue}>{pct}</div>
+        <div style={S.scoreVal}>{pct}</div>
       </div>
 
-      <div style={styles.metaRow}>
-        <div><span style={styles.metaKey}>Last:</span> {lastSignal}</div>
-        <div><span style={styles.metaKey}>P/L Today:</span> {plToday}</div>
+      <div style={S.metaRow}>
+        <div>
+          <span style={S.metaKey}>Last:</span> {last}
+        </div>
+        <div>
+          <span style={S.metaKey}>P/L Today:</span> {pl}
+        </div>
       </div>
 
-      <div style={styles.ctaRow}>
-        {ctas.map((c, i) => (
-          <button key={i} onClick={c.onClick} style={styles.ctaBtn}>
-            {c.label}
+      <div style={S.ctaRow}>
+        {actions.map((a, i) => (
+          <button key={i} onClick={a.onClick} style={S.btn}>
+            {a.label}
           </button>
         ))}
       </div>
@@ -92,11 +121,8 @@ function StrategyCard({
   );
 }
 
-function noop() {
-  console.log("RowStrategies: noop (C1 will wire this).");
-}
-
-const styles = {
+/* ---------- Styles (compact; no fixed heights) ---------- */
+const S = {
   wrap: {
     display: "grid",
     gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
@@ -111,9 +137,9 @@ const styles = {
     display: "flex",
     flexDirection: "column",
     gap: 10,
-    minHeight: 120,
+    minHeight: 120, // compact to protect Row 6 space
   },
-  cardHead: {
+  head: {
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
@@ -129,7 +155,7 @@ const styles = {
     borderRadius: 999,
     fontWeight: 700,
   },
-  statusPill: {
+  pill: {
     fontSize: 12,
     padding: "4px 10px",
     borderRadius: 999,
@@ -155,7 +181,7 @@ const styles = {
     background:
       "linear-gradient(90deg, #22c55e 0%, #84cc16 40%, #f59e0b 70%, #ef4444 100%)",
   },
-  scoreValue: { textAlign: "right", fontWeight: 700 },
+  scoreVal: { textAlign: "right", fontWeight: 700 },
   metaRow: {
     display: "grid",
     gridTemplateColumns: "1fr auto",
@@ -165,7 +191,7 @@ const styles = {
   },
   metaKey: { color: "#9ca3af", marginRight: 6, fontWeight: 600 },
   ctaRow: { display: "flex", gap: 8, marginTop: 4, flexWrap: "wrap" },
-  ctaBtn: {
+  btn: {
     background: "#0b0b0b",
     color: "#e5e7eb",
     border: "1px solid #2b2b2b",
