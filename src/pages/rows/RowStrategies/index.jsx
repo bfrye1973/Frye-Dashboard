@@ -1,22 +1,66 @@
 // src/pages/rows/RowStrategies/index.jsx
-import React from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useSelection } from "../../../context/ModeContext";
+import { getAlignmentLatest } from "../../../services/signalsService";
 
 /**
- * RowStrategies — Section 5 (compact, safe, wired)
- * - 3 small cards (Alignment • Wave 3 • Flagpole)
- * - No long text (prevents Row 6 compression)
- * - SPY/QQQ buttons set global selection { symbol, strategy, timeframe }
- * - No network calls; Wave3/Flagpole buttons are placeholders for now
- *
- * Sizing/contract notes (to avoid "black canvas"):
- * - This row has no fixed heights; it stays short naturally.
- * - No padding/margins are applied to Row 6 hosts from here.
- * - Pure UI only; chart overlays handled in Row 6 later.
+ * RowStrategies — Section 5 (compact + live Alignment status)
+ * - Shows 3 cards
+ * - Alignment card pulls /api/signals?strategy=alignment&limit=1
+ * - SPY/QQQ buttons set global selection (10m)
+ * - Wave3/Flagpole remain placeholders for now (no network)
+ * - Zero layout changes to protect Row 6 (Chart)
  */
 
 export default function RowStrategies() {
   const { setSelection } = useSelection();
+  const [align, setAlign] = useState({ loading: true, status: "mock", signal: null });
+
+  // Fetch once on mount, then refresh on a light interval
+  useEffect(() => {
+    let alive = true;
+
+    async function pull() {
+      const res = await getAlignmentLatest();
+      if (!alive) return;
+      setAlign({ loading: false, ...res });
+    }
+
+    pull();
+    const id = setInterval(pull, 30_000); // 30s soft refresh
+    return () => {
+      alive = false;
+      clearInterval(id);
+    };
+  }, []);
+
+  const alignmentView = useMemo(() => {
+    const s = align.signal;
+    if (!s) {
+      return {
+        statusText: align.loading ? "Loading…" : "No Data",
+        tone: "muted",
+        score: 0,
+        last: "—",
+        pl: "—",
+        failing: [],
+      };
+    }
+    const direction = s.direction || "none";
+    const tone =
+      direction === "long" ? "ok" : direction === "short" ? "warn" : "muted";
+    const statusText =
+      direction === "none"
+        ? "Flat"
+        : s.streak_bars >= 2
+        ? "Triggered"
+        : "On Deck";
+    const last = `${direction === "none" ? "—" : direction.toUpperCase()} • ${fmtTime(s.timestamp)}`;
+    const score = Math.round(Math.max(0, Math.min(100, Number(s.confidence || 0))));
+    const failing = Array.isArray(s.failing) ? s.failing : [];
+
+    return { statusText, tone, score, last, pl: "—", failing };
+  }, [align]);
 
   const load = (symbol, timeframe = "10m", strategy = "alignment") =>
     setSelection({ symbol, timeframe, strategy });
@@ -27,10 +71,11 @@ export default function RowStrategies() {
       <Card
         title="SPY/QQQ Index-Alignment Scalper"
         timeframe="10m"
-        status={{ text: "On Deck", tone: "info" }}
-        score={72}
-        last="Long bias • 9:50 ET"
-        pl="+$0"
+        status={{ text: alignmentView.statusText, tone: alignmentView.tone }}
+        score={alignmentView.score}
+        last={alignmentView.last}
+        pl={alignmentView.pl}
+        footNote={alignmentView.failing.length ? `Failing: ${alignmentView.failing.join(", ")}` : ""}
         actions={[
           { label: "Load SPY (10m)", onClick: () => load("SPY", "10m", "alignment") },
           { label: "Load QQQ (10m)", onClick: () => load("QQQ", "10m", "alignment") },
@@ -48,10 +93,7 @@ export default function RowStrategies() {
         actions={[
           {
             label: "Top Candidate (Daily)",
-            onClick: () => {
-              // C2 (later): pick real symbol from feed; for now this is a placeholder
-              setSelection({ symbol: "SPY", timeframe: "1d", strategy: "wave3" });
-            },
+            onClick: () => setSelection({ symbol: "SPY", timeframe: "1d", strategy: "wave3" }),
           },
         ]}
       />
@@ -67,10 +109,7 @@ export default function RowStrategies() {
         actions={[
           {
             label: "Top Candidate (Daily)",
-            onClick: () => {
-              // C2 (later): pick real symbol from feed; for now this is a placeholder
-              setSelection({ symbol: "SPY", timeframe: "1d", strategy: "flag" });
-            },
+            onClick: () => setSelection({ symbol: "SPY", timeframe: "1d", strategy: "flag" }),
           },
         ]}
       />
@@ -78,8 +117,8 @@ export default function RowStrategies() {
   );
 }
 
-/* ---------- Small, tight card ---------- */
-function Card({ title, timeframe, status, score = 0, last, pl, actions = [] }) {
+/* ---------- Compact Card ---------- */
+function Card({ title, timeframe, status, score = 0, last, pl, actions = [], footNote = "" }) {
   const pct = Math.max(0, Math.min(100, score));
   const tone = toneStyles(status?.tone || "muted");
 
@@ -102,13 +141,13 @@ function Card({ title, timeframe, status, score = 0, last, pl, actions = [] }) {
       </div>
 
       <div style={S.metaRow}>
-        <div>
-          <span style={S.metaKey}>Last:</span> {last}
-        </div>
-        <div>
-          <span style={S.metaKey}>P/L Today:</span> {pl}
-        </div>
+        <div><span style={S.metaKey}>Last:</span> {last}</div>
+        <div><span style={S.metaKey}>P/L Today:</span> {pl}</div>
       </div>
+
+      {footNote ? (
+        <div style={S.foot}>{footNote}</div>
+      ) : null}
 
       <div style={S.ctaRow}>
         {actions.map((a, i) => (
@@ -121,7 +160,19 @@ function Card({ title, timeframe, status, score = 0, last, pl, actions = [] }) {
   );
 }
 
-/* ---------- Styles (compact; no fixed heights) ---------- */
+/* ---------- Helpers & Styles ---------- */
+function fmtTime(iso) {
+  try {
+    const d = new Date(iso);
+    // show HH:MM (local). You can swap to ET later if desired.
+    const hh = d.getHours().toString().padStart(2, "0");
+    const mm = d.getMinutes().toString().padStart(2, "0");
+    return `${hh}:${mm}`;
+  } catch {
+    return "—";
+  }
+}
+
 const S = {
   wrap: {
     display: "grid",
@@ -137,7 +188,7 @@ const S = {
     display: "flex",
     flexDirection: "column",
     gap: 10,
-    minHeight: 120, // compact to protect Row 6 space
+    minHeight: 120,
   },
   head: {
     display: "flex",
@@ -190,6 +241,7 @@ const S = {
     color: "#cbd5e1",
   },
   metaKey: { color: "#9ca3af", marginRight: 6, fontWeight: 600 },
+  foot: { fontSize: 11, color: "#94a3b8" },
   ctaRow: { display: "flex", gap: 8, marginTop: 4, flexWrap: "wrap" },
   btn: {
     background: "#0b0b0b",
