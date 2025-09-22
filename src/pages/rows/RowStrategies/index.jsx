@@ -4,8 +4,8 @@ import { useSelection } from "../../../context/ModeContext";
 import { getAlignmentLatest } from "../../../services/signalsService";
 
 /**
- * RowStrategies — compact cards + LIVE pill + tiny 7-tab symbol bar
- * - Alignment card pulls /api/signals?strategy=alignment&limit=1
+ * RowStrategies — compact cards + LIVE/MOCK pill + tiny 7-tab symbol bar
+ * - Alignment card pulls /api/signals?strategy=alignment&limit=1 (mock-safe)
  * - Buttons/tabs set global selection (Row 6 remounts via NewDashboard key)
  * - Fonts/paddings minimized to protect Row 6 height
  */
@@ -14,7 +14,7 @@ export default function RowStrategies() {
   const { setSelection } = useSelection();
   const [align, setAlign] = useState({ loading: true, status: "mock", signal: null });
 
-  // Poll Alignment latest (lightweight)
+  // Poll Alignment latest (soft refresh)
   useEffect(() => {
     let alive = true;
     const pull = async () => {
@@ -23,11 +23,8 @@ export default function RowStrategies() {
       setAlign({ loading: false, ...res });
     };
     pull();
-    const id = setInterval(pull, 30_000); // soft refresh
-    return () => {
-      alive = false;
-      clearInterval(id);
-    };
+    const id = setInterval(pull, 30_000);
+    return () => { alive = false; clearInterval(id); };
   }, []);
 
   const alignmentView = useMemo(() => {
@@ -46,16 +43,10 @@ export default function RowStrategies() {
     }
 
     const direction = s.direction || "none";
-    const tone =
-      direction === "long" ? "ok" : direction === "short" ? "warn" : "muted";
-    const statusText =
-      direction === "none" ? "Flat" : s.streak_bars >= 2 ? "Triggered" : "On Deck";
-    const last = `${direction === "none" ? "—" : direction.toUpperCase()} • ${fmtTime(
-      s.timestamp
-    )}`;
-    const score = Math.round(
-      Math.max(0, Math.min(100, Number(s.confidence || 0)))
-    );
+    const tone = direction === "long" ? "ok" : direction === "short" ? "warn" : "muted";
+    const statusText = direction === "none" ? "Flat" : s.streak_bars >= 2 ? "Triggered" : "On Deck";
+    const last = `${direction === "none" ? "—" : direction.toUpperCase()} • ${fmtTime(s.timestamp)}`;
+    const score = Math.round(Math.max(0, Math.min(100, Number(s.confidence || 0))));
     const failing = Array.isArray(s.failing) ? s.failing : [];
 
     return { liveStatus, statusText, tone, score, last, failing };
@@ -66,7 +57,7 @@ export default function RowStrategies() {
 
   return (
     <div style={S.wrap}>
-      {/* Alignment Scalper */}
+      {/* Alignment Scalper (10m) */}
       <Card
         title="SPY/QQQ Index-Alignment Scalper"
         timeframe="10m"
@@ -93,7 +84,7 @@ export default function RowStrategies() {
         ]}
       />
 
-      {/* Wave 3 (Daily) — compact placeholder */}
+      {/* Wave 3 (Daily) */}
       <Card
         title="Wave 3 Breakout"
         timeframe="Daily"
@@ -102,14 +93,11 @@ export default function RowStrategies() {
         last="On deck candidate"
         pl="—"
         actions={[
-          {
-            label: "Top Candidate (Daily)",
-            onClick: () => setSelection({ symbol: "SPY", timeframe: "1d", strategy: "wave3" }),
-          },
+          { label: "Top Candidate (Daily)", onClick: () => setSelection({ symbol: "SPY", timeframe: "1d", strategy: "wave3" }) },
         ]}
       />
 
-      {/* Flagpole (Daily) — compact placeholder */}
+      {/* Flagpole (Daily) */}
       <Card
         title="Flagpole Breakout"
         timeframe="Daily"
@@ -118,17 +106,14 @@ export default function RowStrategies() {
         last="Tight flag forming"
         pl="—"
         actions={[
-          {
-            label: "Top Candidate (Daily)",
-            onClick: () => setSelection({ symbol: "SPY", timeframe: "1d", strategy: "flag" }),
-          },
+          { label: "Top Candidate (Daily)", onClick: () => setSelection({ symbol: "SPY", timeframe: "1d", strategy: "flag" }) },
         ]}
       />
     </div>
   );
 }
 
-/* ---------- Compact Card ---------- */
+/* ---------- Card ---------- */
 function Card({
   title,
   timeframe,
@@ -161,19 +146,13 @@ function Card({
 
       <div style={S.scoreRow}>
         <div style={S.scoreLabel}>Score</div>
-        <div style={S.progress}>
-          <div style={{ ...S.progressFill, width: `${pct}%` }} />
-        </div>
+        <div style={S.progress}><div style={{ ...S.progressFill, width: `${pct}%` }} /></div>
         <div style={S.scoreVal}>{pct}</div>
       </div>
 
       <div style={S.metaRow}>
-        <div>
-          <span style={S.metaKey}>Last:</span> {last}
-        </div>
-        <div>
-          <span style={S.metaKey}>P/L Today:</span> {pl}
-        </div>
+        <div><span style={S.metaKey}>Last:</span> {last}</div>
+        <div><span style={S.metaKey}>P/L Today:</span> {pl}</div>
       </div>
 
       {footNote ? <div style={S.foot}>{footNote}</div> : null}
@@ -206,9 +185,7 @@ function fmtTime(iso) {
     const hh = d.getHours().toString().padStart(2, "0");
     const mm = d.getMinutes().toString().padStart(2, "0");
     return `${hh}:${mm}`;
-  } catch {
-    return "—";
-  }
+  } catch { return "—"; }
 }
 
 const S = {
@@ -268,8 +245,7 @@ const S = {
   },
   progressFill: {
     height: "100%",
-    background:
-      "linear-gradient(90deg, #22c55e 0%, #84cc16 40%, #f59e0b 70%, #ef4444 100%)",
+    background: "linear-gradient(90deg, #22c55e 0%, #84cc16 40%, #f59e0b 70%, #ef4444 100%)",
   },
   scoreVal: { textAlign: "right", fontWeight: 700, fontSize: 12 },
   metaRow: {
@@ -308,24 +284,14 @@ const S = {
 function toneStyles(kind) {
   switch (kind) {
     case "live":
-      return {
-        pill: { background: "#06220f", color: "#86efac", borderColor: "#166534" },
-      };
+      return { pill: { background: "#06220f", color: "#86efac", borderColor: "#166534" } };
     case "info":
-      return {
-        pill: { background: "#0b1220", color: "#93c5fd", borderColor: "#1e3a8a" },
-      };
+      return { pill: { background: "#0b1220", color: "#93c5fd", borderColor: "#1e3a8a" } };
     case "warn":
-      return {
-        pill: { background: "#1b1409", color: "#fbbf24", borderColor: "#92400e" },
-      };
+      return { pill: { background: "#1b1409", color: "#fbbf24", borderColor: "#92400e" } };
     case "ok":
-      return {
-        pill: { background: "#07140d", color: "#86efac", borderColor: "#166534" },
-      };
+      return { pill: { background: "#07140d", color: "#86efac", borderColor: "#166534" } };
     default:
-      return {
-        pill: { background: "#0b0b0b", color: "#94a3b8", borderColor: "#2b2b2b" },
-      };
+      return { pill: { background: "#0b0b0b", color: "#94a3b8", borderColor: "#2b2b2b" } };
   }
 }
