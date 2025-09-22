@@ -1,6 +1,7 @@
 // src/components/overlays/MoneyFlowOverlay.js
 // Lightweight overlay that draws LEFT + RIGHT money/volume profile
-// and a yellow HVN rectangle across the chart price area.
+// and yellow HVN bands across the chart price area.
+// Leaves a bottom gap so it never covers the chart's time axis.
 //
 // Requires: src/lib/indicators/moneyFlowProfile.js
 import React, { useEffect, useRef } from "react";
@@ -10,8 +11,8 @@ let computeMoneyFlowProfile = null;
 try {
   ({ computeMoneyFlowProfile } =
     require("../../lib/indicators/moneyFlowProfile.js"));
-} catch (e) {
-  // leave null; we'll draw a small watermark so you know the overlay mounted
+} catch {
+  /* noop — we'll watermark to show the overlay mounted */
 }
 
 export default function MoneyFlowOverlay({ chartContainer, candles }) {
@@ -26,7 +27,6 @@ export default function MoneyFlowOverlay({ chartContainer, candles }) {
       if (!chartContainer) return;
       const w = chartContainer.clientWidth || 300;
       const h = chartContainer.clientHeight || 200;
-      // devicePixelRatio for crisp lines
       const dpr = Math.max(1, window.devicePixelRatio || 1);
       cnv.width = Math.max(1, Math.floor(w * dpr));
       cnv.height = Math.max(1, Math.floor(h * dpr));
@@ -61,7 +61,7 @@ export default function MoneyFlowOverlay({ chartContainer, candles }) {
     // clear
     ctx.clearRect(0, 0, w, h);
 
-    // if we don't have the math yet, just watermark so you know overlay is alive
+    // watermark if math missing / no data
     if (!computeMoneyFlowProfile || !candles?.length) {
       ctx.save();
       ctx.globalAlpha = 0.6;
@@ -93,12 +93,11 @@ export default function MoneyFlowOverlay({ chartContainer, candles }) {
     ctx.save();
     ctx.globalAlpha = 0.10;
     ctx.fillStyle = "#1a2536";
-    ctx.fillRect(rightXLeft, 0, colW, h);      // right column
-    ctx.fillRect(leftXLeft,  0, colW, h);      // left column
+    ctx.fillRect(rightXLeft, 0, colW, h); // right column
+    ctx.fillRect(leftXLeft,  0, colW, h); // left column
     ctx.restore();
 
     if (!mfp?.bins?.length) {
-      // still draw a light label
       ctx.save();
       ctx.globalAlpha = 0.6;
       ctx.fillStyle = "#88a8c3";
@@ -121,7 +120,7 @@ export default function MoneyFlowOverlay({ chartContainer, candles }) {
       return h - Math.round(t * h);
     };
 
-    // --- HVN yellow rectangle across the whole chart (bins above highThreshold)
+    // HVN yellow bands across entire chart width
     const threshold = mfp.percentile?.highThreshold ?? (maxVal * 0.53);
     let i = 0;
     while (i < mfp.bins.length) {
@@ -136,7 +135,7 @@ export default function MoneyFlowOverlay({ chartContainer, candles }) {
 
         ctx.save();
         ctx.globalAlpha = 0.18;
-        ctx.fillStyle = "rgba(255,215,0,1)"; // yellow
+        ctx.fillStyle = "rgba(255,215,0,1)";
         ctx.fillRect(0, yTop, w, bandH);
         ctx.restore();
       } else {
@@ -144,7 +143,7 @@ export default function MoneyFlowOverlay({ chartContainer, candles }) {
       }
     }
 
-    // draw LEFT + RIGHT profiles
+    // draw LEFT + RIGHT profile bars
     const drawColumn = (xLeft) => {
       ctx.save();
       for (const b of mfp.bins) {
@@ -159,12 +158,10 @@ export default function MoneyFlowOverlay({ chartContainer, candles }) {
           const buyW = Math.round((b.buy / total) * bw);
           const sellW = bw - buyW;
 
-          // buy
           ctx.globalAlpha = 0.85;
           ctx.fillStyle = "rgba(0,180,120,0.55)";
           ctx.fillRect(x, yTop, buyW, bh);
 
-          // sell
           ctx.fillStyle = "rgba(220,80,80,0.55)";
           ctx.fillRect(x + buyW, yTop, sellW, bh);
         } else {
@@ -195,21 +192,14 @@ export default function MoneyFlowOverlay({ chartContainer, candles }) {
 
   return (
     <>
-      <style>
-        {`
-          /* leave room for the time axis */
-          .overlay-leave-axis-gap {
-            inset: 0 0 var(--axis-gap, 18px) 0 !important;
-          }
-        `}
-      </style>
+      {/* Class ensures the canvas leaves room for the time axis */}
       <canvas
         ref={canvasRef}
         className="overlay-leave-axis-gap"
         style={{
           position: "absolute",
-          pointerEvents: "none", // visual-only
-          zIndex: 10,            // sits above chart canvases
+          pointerEvents: "none",
+          zIndex: 10,
         }}
       />
     </>
