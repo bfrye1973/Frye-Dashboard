@@ -61,7 +61,7 @@ export default function RowChart({
     () => ({
       layout: { background: { type: "solid", color: "#0a0a0a" }, textColor: "#ffffff" },
       grid: { vertLines: { color: "#1e1e1e" }, horzLines: { color: "#1e1e1e" } },
-      rightPriceScale: { borderColor: "#2b2b2b", scaleMargins: { top: 0.06, bottom: 0.03 } },
+      rightPriceScale: { borderColor:"#2b2b2b", scaleMargins:{ top:0.06, bottom:0.08 } },
       timeScale: {
         borderVisible: true,
         borderColor: "#2b2b2b",
