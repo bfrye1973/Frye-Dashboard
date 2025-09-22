@@ -1,5 +1,6 @@
 // src/pages/rows/RowChart/IndicatorsToolbar.jsx
-// v2.6 — Compiles clean. Groups: EMA, Volume, Overlays (MoneyFlow, Lux S/R, Swing Liquidity), Oscillators (SMI).
+// v2.7 — EMA, Volume, Overlays (MoneyFlow, Lux S/R, Swing Liquidity),
+//         Oscillators (SMI shown only when showSmiToggle=true)
 
 import React from "react";
 
@@ -21,7 +22,9 @@ export default function IndicatorsToolbar({
   // Oscillators (separate pane)
   smi = false,
 
-  // callback
+  // NEW: controls whether we show the SMI checkbox (Full Chart only)
+  showSmiToggle = true,
+
   onChange,
 }) {
   return (
@@ -151,14 +154,18 @@ export default function IndicatorsToolbar({
 
             {/* Oscillators */}
             <div style={{ color: "#9ca3af", fontSize: 12, margin: "6px 0 4px" }}>Oscillators</div>
-            <label>
-              <input
-                type="checkbox"
-                checked={!!smi}
-                onChange={(e) => onChange?.({ smi: e.target.checked })}
-              />{" "}
-              SMI (K=12, D=7, EMA=5)
-            </label>
+            {showSmiToggle ? (
+              <label>
+                <input
+                  type="checkbox"
+                  checked={!!smi}
+                  onChange={(e) => onChange?.({ smi: e.target.checked })}
+                />{" "}
+                SMI (K=12, D=7, EMA=5)
+              </label>
+            ) : (
+              <div style={{ opacity: 0.6 }}>SMI available in Full Chart</div>
+            )}
           </div>
         </details>
       </div>
