@@ -1,5 +1,5 @@
 // src/components/LiveLWChart/LiveLWChart.jsx
-// Lightweight Charts wrapper — isolated card + safe scaling
+// Lightweight Charts wrapper — isolated card + safe scaling (AZ time axis)
 
 import React, { useEffect, useRef, useState } from "react";
 import { createChart } from "lightweight-charts";
@@ -9,8 +9,8 @@ import { getFeed } from "../../services/feed";
 export default function LiveLWChart({
   symbol = "SPY",
   timeframe = "1D",
-  enabledIndicators = [],   // reserved for future use
-  indicatorSettings = {},   // reserved for future use
+  enabledIndicators = [],    // reserved for future use
+  indicatorSettings = {},    // reserved for future use
   height = 520,
 }) {
   // panel (outer visible card) and inner chart root
@@ -25,11 +25,30 @@ export default function LiveLWChart({
 
   const [candles, setCandles] = useState([]);
 
+  // ensure chart follows container size
   const safeResize = () => {
     const el = chartRootRef.current;
     const chart = chartRef.current;
     if (!el || !chart) return;
     chart.resize(el.clientWidth, el.clientHeight);
+  };
+
+  // -------- timezone formatter (works across library versions) --------
+  const phoenixFormatter = (ts) => {
+    // lightweight-charts can pass either seconds (number) or {timestamp}
+    const seconds =
+      typeof ts === "number"
+        ? ts
+        : ts && typeof ts.timestamp === "number"
+        ? ts.timestamp
+        : 0;
+    const d = new Date(seconds * 1000);
+    return new Intl.DateTimeFormat("en-US", {
+      timeZone: "America/Phoenix",
+      hour12: true,
+      hour: "numeric",
+      minute: "2-digit",
+    }).format(d);
   };
 
   // ---------- INIT ----------
@@ -41,17 +60,40 @@ export default function LiveLWChart({
     holder.style.position = "relative";
     holder.style.zIndex = "1";
 
+    // merge your base options, then assert AZ localization + sizes
     const chart = createChart(holder, {
       ...baseChartOptions,
       width: holder.clientWidth,
       height,
+      localization: {
+        ...(baseChartOptions.localization || {}),
+        timezone: "America/Phoenix",         // <-- AZ time
+        dateFormat: "yyyy-MM-dd",
+        timeFormatter: phoenixFormatter,     // safe for multiple lib versions
+      },
     });
     chartRef.current = chart;
 
-    const candleSeries = chart.addCandlestickSeries();
+    const candleSeries = chart.addCandlestickSeries({
+      upColor: baseChartOptions?.upColor ?? "#26a69a",
+      downColor: baseChartOptions?.downColor ?? "#ef5350",
+      borderUpColor: baseChartOptions?.borderUpColor ?? "#26a69a",
+      borderDownColor: baseChartOptions?.borderDownColor ?? "#ef5350",
+      wickUpColor: baseChartOptions?.wickUpColor ?? "#26a69a",
+      wickDownColor: baseChartOptions?.wickDownColor ?? "#ef5350",
+    });
     seriesRef.current = candleSeries;
 
-    // respond to container size changes
+    // keep bottom axis visible with room for labels
+    chart.timeScale().applyOptions({
+      visible: true,
+      timeVisible: true,
+      borderVisible: true,
+      minimumHeight: 20,
+      // some builds ignore localization until timeVisible is set -> we set it
+    });
+
+    // respond to container size changes (observe only this element)
     const ro = new ResizeObserver(() => safeResize());
     ro.observe(holder);
     roRef.current = ro;
@@ -95,6 +137,7 @@ export default function LiveLWChart({
         if (Array.isArray(seed)) {
           series.setData(seed);
           setCandles(seed);
+          chart.timeScale().fitContent();
         } else {
           series.setData([]);
           setCandles([]);
@@ -136,7 +179,6 @@ export default function LiveLWChart({
         marginTop: 12,
       }}
     >
-      {/* chart mount root */}
       <div
         ref={chartRootRef}
         className="chart-root"
