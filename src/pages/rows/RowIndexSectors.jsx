@@ -1,11 +1,7 @@
 // src/pages/rows/RowIndexSectors.jsx
-// v3 — FIXED: strict bind to backend /live endpoints; no fallbacks; repaint by AZ timestamp
-// - Intraday (10m) and EOD dropdown both fetch backend Render URLs directly
-// - Binds ONLY to top-level { sectorsUpdatedAt, sectorCards[] }
-// - Adds cache-buster + no-store; forces React repaint by timestamp
-// - Minimal UI (sector, outlook badge, Breadth%, Momentum%, Net NH); Legend modal preserved
+// v3.1 — Intraday/EOD + Δ10m / Δ1d pills (compact), strict backend bind, repaint by AZ timestamp
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 
 /* -------------------------- API base resolver -------------------------- */
 function resolveApiBase() {
@@ -22,7 +18,6 @@ function resolveApiBase() {
 /* ------------------------------- helpers ------------------------------- */
 const norm = (s = "") => s.trim().toLowerCase();
 
-// Canonical order for visual consistency
 const ORDER = [
   "information technology",
   "materials",
@@ -74,8 +69,37 @@ function Badge({ text, tone = "info" }) {
   );
 }
 
+function Pill({ label, value }) {
+  if (!Number.isFinite(value)) return null;
+  const v = Number(value);
+  const tone = v > 0 ? "#22c55e" : v < 0 ? "#ef4444" : "#9ca3af";
+  const arrow = v > 0 ? "▲" : v < 0 ? "▼" : "→";
+  return (
+    <span
+      title={`${label}: ${v >= 0 ? "+" : ""}${v}`}
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 4,
+        borderRadius: 6,
+        padding: "1px 4px",
+        fontSize: 11,
+        lineHeight: 1.1,     // compact → no vertical growth
+        fontWeight: 600,
+        background: "#0b0f17",
+        color: tone,
+        border: `1px solid ${tone}33`,
+        whiteSpace: "nowrap",
+      }}
+    >
+      {label}: {arrow} {v >= 0 ? "+" : ""}
+      {v}
+    </span>
+  );
+}
+
 /* ------------------------------ Card UI ------------------------------ */
-function SectorCard({ card }) {
+function SectorCard({ card, d10m, d1d }) {
   const nh = Number(card?.nh ?? NaN);
   const nl = Number(card?.nl ?? NaN);
   const netNH = Number.isFinite(nh) && Number.isFinite(nl) ? nh - nl : null;
@@ -98,11 +122,17 @@ function SectorCard({ card }) {
         boxShadow: "0 8px 20px rgba(0,0,0,0.25)",
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
         <div className="panel-title small" style={{ color: "#f3f4f6" }}>
           {card?.sector || "Sector"}
         </div>
         <Badge text={card?.outlook || "Neutral"} tone={tone} />
+      </div>
+
+      {/* Compact Δ row (no extra height) */}
+      <div style={{ display: "flex", gap: 6, margin: "0 0 4px 0", alignItems: "center" }}>
+        <Pill label="Δ10m" value={Number.isFinite(d10m) ? d10m : undefined} />
+        <Pill label="Δ1d" value={Number.isFinite(d1d) ? d1d : undefined} />
       </div>
 
       <div style={{ fontSize: 12, color: "#cbd5e1", display: "grid", gap: 2 }}>
@@ -129,16 +159,74 @@ function SectorCard({ card }) {
   );
 }
 
-/* ------------------------------- Main ------------------------------- */
+/* ----------------------- Replay Δ helpers (Net NH) ----------------------- */
+async function fetchJSON(url, signal) {
+  const r = await fetch(url, { cache: "no-store", signal });
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  return await r.json();
+}
+
+function snapshotToNetNHMap(snap) {
+  // Prefer top-level sectorCards; fallback to nested outlook.sectorCards if present
+  const cards = Array.isArray(snap?.sectorCards)
+    ? snap.sectorCards
+    : Array.isArray(snap?.outlook?.sectorCards)
+    ? snap.outlook.sectorCards
+    : [];
+  const out = {};
+  for (const c of cards) {
+    const key = norm(c?.sector || "");
+    const nh = Number(c?.nh ?? NaN);
+    const nl = Number(c?.nl ?? NaN);
+    if (key && Number.isFinite(nh) && Number.isFinite(nl)) {
+      out[key] = nh - nl; // Net NH
+    }
+  }
+  return out;
+}
+
+async function computeDeltaNetNH(API, granularity, signal) {
+  // Pull last two snapshots from replay and compute per-sector Δ(Net NH)
+  const idx = await fetchJSON(
+    `${API}/api/replay/index?granularity=${encodeURIComponent(granularity)}&t=${Date.now()}`,
+    signal
+  );
+  const items = Array.isArray(idx?.items) ? idx.items : [];
+  if (items.length < 2) return {};
+  const tsA = items[0]?.ts;
+  const tsB = items[1]?.ts;
+  if (!tsA || !tsB) return {};
+  const [snapA, snapB] = await Promise.all([
+    fetchJSON(
+      `${API}/api/replay/at?granularity=${encodeURIComponent(granularity)}&ts=${encodeURIComponent(tsA)}&t=${Date.now()}`,
+      signal
+    ),
+    fetchJSON(
+      `${API}/api/replay/at?granularity=${encodeURIComponent(granularity)}&ts=${encodeURIComponent(tsB)}&t=${Date.now()}`,
+      signal
+    ),
+  ]);
+  const A = snapshotToNetNHMap(snapA);
+  const B = snapshotToNetNHMap(snapB);
+  const out = {};
+  const keys = new Set([...Object.keys(A), ...Object.keys(B)]);
+  for (const k of keys) {
+    if (Number.isFinite(A[k]) && Number.isFinite(B[k])) out[k] = A[k] - B[k];
+  }
+  return out;
+}
+
+/* -------------------------------- Main -------------------------------- */
 export default function RowIndexSectors() {
   const API = resolveApiBase();
-
-  // Source toggle (10m vs EOD)
   const [sourceTf, setSourceTf] = useState("10m"); // "10m" | "eod"
 
-  // Payload state (strict)
   const [intraday, setIntraday] = useState({ ts: null, cards: [], err: null });
   const [eod, setEod] = useState({ ts: null, cards: [], err: null });
+
+  // Δ maps
+  const [d10mMap, setD10mMap] = useState({});
+  const [d1dMap, setD1dMap] = useState({});
 
   // Poll intraday every 60s
   useEffect(() => {
@@ -146,13 +234,10 @@ export default function RowIndexSectors() {
     async function load() {
       const url = `${API}/live/intraday?t=${Date.now()}`;
       try {
-        const res = await fetch(url, { cache: "no-store", signal: ctrl.signal });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const j = await res.json();
+        const j = await fetchJSON(url, ctrl.signal);
         const ts = j?.sectorsUpdatedAt || j?.updated_at || null;
         const cards = Array.isArray(j?.sectorCards) ? j.sectorCards.slice() : [];
         setIntraday({ ts, cards, err: null });
-        // Dev beacon for quick QA:
         console.log("[RowIndexSectors] intraday", { url, ts, count: cards.length });
       } catch (err) {
         setIntraday((p) => ({ ...p, err: String(err) }));
@@ -166,16 +251,14 @@ export default function RowIndexSectors() {
     };
   }, [API]);
 
-  // Fetch EOD on demand (and every 5 min while selected)
+  // Fetch EOD on demand (and refresh every 5 min while selected)
   useEffect(() => {
     let timer = null;
     const ctrl = new AbortController();
     async function load() {
       const url = `${API}/live/eod?t=${Date.now()}`;
       try {
-        const res = await fetch(url, { cache: "no-store", signal: ctrl.signal });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const j = await res.json();
+        const j = await fetchJSON(url, ctrl.signal);
         const ts = j?.sectorsUpdatedAt || j?.updated_at || null;
         const cards = Array.isArray(j?.sectorCards) ? j.sectorCards.slice() : [];
         setEod({ ts, cards, err: null });
@@ -189,21 +272,59 @@ export default function RowIndexSectors() {
       timer = setInterval(load, 300_000);
     }
     return () => {
-      ctrl.abort();
       if (timer) clearInterval(timer);
+      ctrl.abort();
     };
   }, [API, sourceTf]);
+
+  // Compute Δ10m every 60s
+  useEffect(() => {
+    const ctrl = new AbortController();
+    async function load() {
+      try {
+        const m = await computeDeltaNetNH(API, "10min", ctrl.signal);
+        setD10mMap(m);
+      } catch {
+        setD10mMap({});
+      }
+    }
+    load();
+    const t = setInterval(load, 60_000);
+    return () => {
+      ctrl.abort();
+      clearInterval(t);
+    };
+  }, [API]);
+
+  // Compute Δ1d every 5 min
+  useEffect(() => {
+    const ctrl = new AbortController();
+    async function load() {
+      try {
+        const m = await computeDeltaNetNH(API, "eod", ctrl.signal);
+        setD1dMap(m);
+      } catch {
+        setD1dMap({});
+      }
+    }
+    load();
+    const t = setInterval(load, 300_000);
+    return () => {
+      ctrl.abort();
+      clearInterval(t);
+    };
+  }, [API]);
 
   // Choose active source strictly
   const active = sourceTf === "eod" ? eod : intraday;
 
-  // Sort cards by canonical order (no filtering, no alias tricks needed here)
+  // Sort by canonical order
   const cards = useMemo(() => {
     const arr = Array.isArray(active.cards) ? active.cards.slice() : [];
     return arr.sort((a, b) => orderKey(a?.sector) - orderKey(b?.sector));
   }, [active.cards]);
 
-  // Force repaint on each backend tick
+  // Repaint per backend tick
   const stableKey = `${active.ts || "no-ts"}•${cards.length}`;
 
   // Legend modal
@@ -268,9 +389,12 @@ export default function RowIndexSectors() {
             marginTop: 6,
           }}
         >
-          {cards.map((c, i) => (
-            <SectorCard key={c?.sector || i} card={c} />
-          ))}
+          {cards.map((c, i) => {
+            const key = norm(c?.sector || "");
+            const d10 = d10mMap[key];
+            const d1d = d1dMap[key];
+            return <SectorCard key={c?.sector || i} card={c} d10m={d10} d1d={d1d} />;
+          })}
         </div>
       ) : (
         <div className="small muted" style={{ padding: 6 }}>
@@ -312,23 +436,9 @@ export default function RowIndexSectors() {
               Outlook
             </div>
             <div style={{ color: "#d1d5db", fontSize: 12 }}>
-              Sector trend bias from breadth: <b>Bullish</b> (NH&gt;NL), <b>Neutral</b> (mixed),{" "}
-              <b>Bearish</b> (NL&gt;NH).
-            </div>
-            <div style={{ display: "flex", gap: 12, margin: "6px 0", alignItems: "center" }}>
-              <span style={{ width: 34, height: 12, borderRadius: 12, background: "#22c55e", border: "1px solid rgba(255,255,255,0.1)" }} />
-              <span style={{ color: "#e5e7eb", fontWeight: 700, fontSize: 12 }}>Bullish</span>
-              <span style={{ width: 34, height: 12, borderRadius: 12, background: "#facc15", border: "1px solid rgba(255,255,255,0.1)" }} />
-              <span style={{ color: "#e5e7eb", fontWeight: 700, fontSize: 12 }}>Neutral</span>
-              <span style={{ width: 34, height: 12, borderRadius: 12, background: "#ef4444", border: "1px solid rgba(255,255,255,0.1)" }} />
-              <span style={{ color: "#e5e7eb", fontWeight: 700, fontSize: 12 }}>Bearish</span>
-            </div>
-            <div style={{ color: "#e5e7eb", fontSize: 13, fontWeight: 700, marginTop: 6 }}>
-              Net NH & Breadth Tilt
-            </div>
-            <div style={{ color: "#d1d5db", fontSize: 12 }}>
-              <b>Net NH</b> = New Highs − New Lows. <br />
-              <b>Breadth Tilt</b> = NH / (NH + NL) × 100.
+              <b>Net NH</b> Δ pills show change in Net Highs (NH−NL) between the two most recent snapshots for each cadence:
+              <br />• <b>Δ10m</b> compares last two 10-minute snapshots
+              <br />• <b>Δ1d</b> compares last two end-of-day snapshots
             </div>
             <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}>
               <button
