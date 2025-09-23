@@ -1,39 +1,159 @@
 // src/pages/rows/RowStrategies/index.jsx
-// Compact Strategy Row (CRA-safe). Polls backend directly via signalsService.
-// Shows LIVE/MOCK + Triggered/Flat/On Deck, score, last, and wired mini-tabs.
+// CRA-safe, no service import. Compact cards + LIVE/MOCK + 7 mini tabs (wired).
+// Fetches backend directly inside useEffect with hard guards; never throws at module load.
 
 import React, { useEffect, useMemo, useState } from "react";
 import { useSelection } from "../../../context/ModeContext";
-import { getAlignmentLatest } from "../../../services/signalsService";
 
 export default function RowStrategies() {
   const { selection, setSelection } = useSelection();
   const [res, setRes] = useState({ status: "mock", signal: null, apiBase: "" });
 
-  useEffect(() => {
-    let alive = true;
-    async function pull() {
-      const r = await getAlignmentLatest();
-      if (!alive) return;
-      setRes(r);
-      // QA beacon
-      // eslint-disable-next-line no-console
-      console.log("[RowStrategies] alignment",
-        r.status,
-        r.signal ? `dir=${r.signal.direction} streak=${r.signal.streak_bars} conf=${r.signal.confidence} ts=${r.signal.timestamp}` : "no-signal"
-      );
+  // Build API base safely (no crashes if process/window are missing)
+  function getApiBase() {
+    try {
+      // CRA inlines REACT_APP_API_BASE at build, so this is safe:
+      var envBase = (process && process.env && process.env.REACT_APP_API_BASE) || "";
+      if (envBase && typeof envBase === "string") return envBase.replace(/\/$/, "");
+    } catch (e) {}
+    try {
+      if (typeof window !== "undefined" && window.location && window.location.origin) {
+        return window.location.origin.replace(/\/$/, "");
+      }
+    } catch (e2) {}
+    return "";
+  }
+
+  useEffect(function () {
+    var alive = true;
+    var base = getApiBase();
+    if (!base) {
+      // No base → safe mock result (UI stays up; shows MOCK)
+      setRes({
+        status: "mock(no-base)",
+        signal: {
+          direction: "long",
+          streak_bars: 2,
+          confidence: 93,
+          timestamp: new Date(
+            Math.floor(Date.now() / (10 * 60 * 1000)) * 10 * 60 * 1000
+          ).toISOString(),
+          failing: ["I:NDX"],
+        },
+        apiBase: "mock",
+      });
+      return function () {};
     }
+
+    async function pull() {
+      var url = base + "/api/signals?strategy=alignment&limit=1&t=" + Date.now();
+      try {
+        var resHttp = await fetch(url, {
+          method: "GET",
+          cache: "no-store",
+          headers: { "Cache-Control": "no-store" },
+        });
+        if (!resHttp.ok) throw new Error("HTTP " + resHttp.status);
+        var data = await resHttp.json();
+
+        // Normalize payload (accept {items:[...]} or {signal:...})
+        var status = data && data.status ? String(data.status) : "live";
+        var sig = null;
+        if (data && data.items && data.items.length) {
+          sig = data.items[0];
+        } else if (data && data.signal) {
+          sig = data.signal;
+        }
+
+        if (!sig || typeof sig !== "object") {
+          // explicit empty → harmless mock
+          if (alive) {
+            setRes({
+              status: "mock(empty)",
+              signal: {
+                direction: "none",
+                streak_bars: 0,
+                confidence: 0,
+                timestamp: null,
+                failing: [],
+              },
+              apiBase: base,
+            });
+          }
+          return;
+        }
+
+        var direction = String(sig.direction || "none");
+        var streak_bars = Number(sig.streak_bars || 0);
+        var confidenceNum = Number(sig.confidence || 0);
+        if (!(confidenceNum >= 0)) confidenceNum = 0;
+        if (confidenceNum > 100) confidenceNum = 100;
+        var ts = sig.timestamp || null;
+        var failing =
+          sig.failing && sig.failing.slice ? sig.failing.slice(0) : [];
+
+        if (alive) {
+          setRes({
+            status: status,
+            signal: {
+              direction: direction,
+              streak_bars: streak_bars,
+              confidence: confidenceNum,
+              timestamp: ts,
+              failing: failing,
+            },
+            apiBase: base,
+          });
+        }
+
+        // QA beacon
+        try {
+          /* eslint-disable no-console */
+          console.log(
+            "[RowStrategies] alignment",
+            status,
+            "dir=" + direction,
+            "streak=" + streak_bars,
+            "conf=" + confidenceNum,
+            "ts=" + (ts || "—")
+          );
+          /* eslint-enable no-console */
+        } catch (e3) {}
+      } catch (err) {
+        // Network/parse error → safe mock; never crash UI
+        if (alive) {
+          setRes({
+            status: "mock(error)",
+            signal: {
+              direction: "long",
+              streak_bars: 2,
+              confidence: 93,
+              timestamp: new Date(
+                Math.floor(Date.now() / (10 * 60 * 1000)) * 10 * 60 * 1000
+              ).toISOString(),
+              failing: ["I:NDX"],
+            },
+            apiBase: base,
+          });
+        }
+        try { console.warn("[RowStrategies] fetch error:", err && err.message ? err.message : err); } catch(e4){}
+      }
+    }
+
     pull();
-    const id = setInterval(pull, 30000);
-    return () => { alive = false; clearInterval(id); };
+    var id = setInterval(pull, 30000);
+    return function () {
+      alive = false;
+      clearInterval(id);
+    };
   }, []);
 
-  const view = useMemo(() => {
-    const status = res.status || "mock";
-    const s = res.signal;
+  const view = useMemo(function () {
+    var status = res && res.status ? res.status : "mock";
+    var s = res && res.signal ? res.signal : null;
     if (!s) {
       return {
-        key: `mock-no-ts`,
+        key: "mock-no-ts",
         livePill: status === "live" ? "LIVE" : "MOCK",
         statePill: "Flat",
         tone: "muted",
@@ -42,23 +162,24 @@ export default function RowStrategies() {
         failing: [],
       };
     }
-    const dir = s.direction || "none";
-    const statePill = dir === "none" ? "Flat" : (s.streak_bars >= 2 ? "Triggered" : "On Deck");
-    const tone = dir === "long" ? "ok" : dir === "short" ? "warn" : "muted";
-    const score = Math.round(Math.max(0, Math.min(100, Number(s.confidence || 0))));
-    const last = dir === "none" ? "—" : `${dir.toUpperCase()} • ${fmtTime(s.timestamp)}`;
-    const failing = Array.isArray(s.failing) ? s.failing : [];
+    var dir = s.direction || "none";
+    var statePill = dir === "none" ? "Flat" : (s.streak_bars >= 2 ? "Triggered" : "On Deck");
+    var tone = dir === "long" ? "ok" : dir === "short" ? "warn" : "muted";
+    var score = Math.round(s.confidence >= 0 ? (s.confidence <= 100 ? s.confidence : 100) : 0);
+    var last = dir === "none" ? "—" : (dir.toUpperCase() + " • " + fmtTime(s.timestamp));
+    var failing = s.failing && s.failing.slice ? s.failing.slice(0) : [];
     return {
-      key: `${status}-${s.timestamp || "no-ts"}`,
+      key: status + "-" + (s.timestamp || "no-ts"),
       livePill: status === "live" ? "LIVE" : "MOCK",
-      statePill,
-      tone,
-      score,
-      last,
-      failing,
+      statePill: statePill,
+      tone: tone,
+      score: score,
+      last: last,
+      failing: failing,
     };
   }, [res]);
 
+  // Mini-tabs for Alignment (always 10m)
   const tabs = [
     { k: "SPY", sym: "SPY" },
     { k: "QQQ", sym: "QQQ" },
@@ -68,10 +189,13 @@ export default function RowStrategies() {
     { k: "NDX", sym: "I:NDX" },
     { k: "DJI", sym: "I:DJI" },
   ];
-  const load = (sym) => setSelection({ symbol: sym, timeframe: "10m", strategy: "alignment" });
+  function load(sym) {
+    setSelection({ symbol: sym, timeframe: "10m", strategy: "alignment" });
+  }
 
   return (
     <div key={view.key} style={S.wrap}>
+      {/* Alignment Scalper */}
       <Card
         title="SPY/QQQ Index-Alignment Scalper"
         timeframe="10m"
@@ -82,37 +206,40 @@ export default function RowStrategies() {
         score={view.score}
         last={view.last}
         pl="—"
-        footNote={view.failing.length ? `Failing: ${view.failing.join(", ")}` : ""}
+        footNote={view.failing.length ? ("Failing: " + view.failing.join(", ")) : ""}
         actions={[
-          { label: "Load SPY (10m)", onClick: () => load("SPY") },
-          { label: "Load QQQ (10m)", onClick: () => load("QQQ") },
+          { label: "Load SPY (10m)", onClick: function(){ load("SPY"); } },
+          { label: "Load QQQ (10m)", onClick: function(){ load("QQQ"); } },
         ]}
       >
         <div style={S.selRow}>
           <span style={S.selKey}>Selected:</span>
           <span style={S.selVal}>
-            {selection?.symbol || "—"} • {selection?.timeframe || "—"}
+            {(selection && selection.symbol) || "—"} • {(selection && selection.timeframe) || "—"}
           </span>
         </div>
+
         <div style={S.tabRow}>
-          {tabs.map(({ k, sym }) => {
-            const active = selection?.symbol === sym && selection?.timeframe === "10m";
+          {tabs.map(function (t) {
+            var active =
+              selection && selection.symbol === t.sym && selection.timeframe === "10m";
             return (
               <button
-                key={k}
+                key={t.k}
                 type="button"
-                onClick={() => load(sym)}
-                style={{ ...S.tab, ...(active ? S.tabActive : null) }}
-                aria-pressed={active}
-                title={`Load ${k} (10m)`}
+                onClick={function(){ load(t.sym); }}
+                style={Object.assign({}, S.tab, active ? S.tabActive : null)}
+                aria-pressed={!!active}
+                title={"Load " + t.k + " (10m)"}
               >
-                {k}
+                {t.k}
               </button>
             );
           })}
         </div>
       </Card>
 
+      {/* Wave 3 (Daily) */}
       <Card
         title="Wave 3 Breakout"
         timeframe="Daily"
@@ -121,10 +248,11 @@ export default function RowStrategies() {
         last="On deck candidate"
         pl="—"
         actions={[
-          { label: "Top Candidate (Daily)", onClick: () => setSelection({ symbol: "SPY", timeframe: "1d", strategy: "wave3" }) },
+          { label: "Top Candidate (Daily)", onClick: function(){ setSelection({ symbol: "SPY", timeframe: "1d", strategy: "wave3" }); } },
         ]}
       />
 
+      {/* Flagpole (Daily) */}
       <Card
         title="Flagpole Breakout"
         timeframe="Daily"
@@ -133,7 +261,7 @@ export default function RowStrategies() {
         last="Tight flag forming"
         pl="—"
         actions={[
-          { label: "Top Candidate (Daily)", onClick: () => setSelection({ symbol: "SPY", timeframe: "1d", strategy: "flag" }) },
+          { label: "Top Candidate (Daily)", onClick: function(){ setSelection({ symbol: "SPY", timeframe: "1d", strategy: "flag" }); } },
         ]}
       />
     </div>
@@ -141,18 +269,13 @@ export default function RowStrategies() {
 }
 
 /* ---------- Card ---------- */
-function Card({
-  title,
-  timeframe,
-  rightPills = [],
-  score = 0,
-  last,
-  pl,
-  actions = [],
-  footNote = "",
-  children = null,
-}) {
-  const pct = Math.max(0, Math.min(100, score));
+function Card(props) {
+  var title = props.title, timeframe = props.timeframe, rightPills = props.rightPills || [];
+  var score = props.score || 0, last = props.last, pl = props.pl;
+  var actions = props.actions || [], footNote = props.footNote || "", children = props.children || null;
+
+  var pct = Math.max(0, Math.min(100, score));
+
   return (
     <div style={S.card}>
       <div style={S.head}>
@@ -160,18 +283,22 @@ function Card({
           <div style={S.title}>{title}</div>
           <span style={S.badge}>{timeframe}</span>
         </div>
+
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-          {rightPills.map((p, i) => (
-            <span key={i} style={{ ...S.pill, ...toneStyles(p.tone).pill }}>
-              {p.text}
-            </span>
-          ))}
+          {rightPills.map(function (p, i) {
+            var tone = toneStyles(p.tone);
+            return (
+              <span key={i} style={Object.assign({}, S.pill, tone.pill)}>
+                {p.text}
+              </span>
+            );
+          })}
         </div>
       </div>
 
       <div style={S.scoreRow}>
         <div style={S.scoreLabel}>Score</div>
-        <div style={S.progress}><div style={{ ...S.progressFill, width: `${pct}%` }} /></div>
+        <div style={S.progress}><div style={Object.assign({}, S.progressFill, { width: pct + "%" })} /></div>
         <div style={S.scoreVal}>{pct}</div>
       </div>
 
@@ -183,11 +310,13 @@ function Card({
       {footNote ? <div style={S.foot}>{footNote}</div> : null}
 
       <div style={S.ctaRow}>
-        {actions.map((a, i) => (
-          <button key={i} type="button" onClick={a.onClick} style={S.btnSm}>
-            {a.label}
-          </button>
-        ))}
+        {actions.map(function (a, i) {
+          return (
+            <button key={i} type="button" onClick={a.onClick} style={S.btnSm}>
+              {a.label}
+            </button>
+          );
+        })}
       </div>
 
       {children}
@@ -198,18 +327,19 @@ function Card({
 /* ---------- Helpers & Styles ---------- */
 function fmtTime(iso) {
   try {
-    const d = new Date(iso);
-    const hh = d.getHours().toString().padStart(2, "0");
-    const mm = d.getMinutes().toString().padStart(2, "0");
-    return `${hh}:${mm}`;
-  } catch { return "—"; }
+    if (!iso) return "—";
+    var d = new Date(iso);
+    var hh = String(d.getHours()).padStart(2, "0");
+    var mm = String(d.getMinutes()).padStart(2, "0");
+    return hh + ":" + mm;
+  } catch (e) { return "—"; }
 }
 
-const S = {
+var S = {
   wrap: {
     display: "grid",
     gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-    gap: 10,
+    gap: 10
   },
   card: {
     background: "#101010",
@@ -220,13 +350,13 @@ const S = {
     display: "flex",
     flexDirection: "column",
     gap: 8,
-    minHeight: 110,
+    minHeight: 110
   },
   head: {
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
-    gap: 6,
+    gap: 6
   },
   title: { fontWeight: 700, fontSize: 14, lineHeight: "16px" },
   badge: {
@@ -236,7 +366,7 @@ const S = {
     fontSize: 10,
     padding: "1px 6px",
     borderRadius: 999,
-    fontWeight: 700,
+    fontWeight: 700
   },
   pill: {
     fontSize: 10,
@@ -244,13 +374,13 @@ const S = {
     borderRadius: 999,
     border: "1px solid #2b2b2b",
     fontWeight: 700,
-    lineHeight: "14px",
+    lineHeight: "14px"
   },
   scoreRow: {
     display: "grid",
     gridTemplateColumns: "44px 1fr 28px",
     alignItems: "center",
-    gap: 6,
+    gap: 6
   },
   scoreLabel: { color: "#9ca3af", fontSize: 10 },
   progress: {
@@ -258,11 +388,11 @@ const S = {
     borderRadius: 6,
     height: 6,
     overflow: "hidden",
-    border: "1px solid #334155",
+    border: "1px solid #334155"
   },
   progressFill: {
     height: "100%",
-    background: "linear-gradient(90deg, #22c55e 0%, #84cc16 40%, #f59e0b 70%, #ef4444 100%)",
+    background: "linear-gradient(90deg, #22c55e 0%, #84cc16 40%, #f59e0b 70%, #ef4444 100%)"
   },
   scoreVal: { textAlign: "right", fontWeight: 700, fontSize: 12 },
   metaRow: {
@@ -270,7 +400,7 @@ const S = {
     gridTemplateColumns: "1fr auto",
     gap: 6,
     fontSize: 11,
-    color: "#cbd5e1",
+    color: "#cbd5e1"
   },
   metaKey: { color: "#9ca3af", marginRight: 4, fontWeight: 600 },
   foot: { fontSize: 10, color: "#94a3b8" },
@@ -283,7 +413,7 @@ const S = {
     padding: "4px 8px",
     fontWeight: 700,
     fontSize: 11,
-    cursor: "pointer",
+    cursor: "pointer"
   },
   selRow: { display: "flex", alignItems: "center", gap: 6, marginTop: 2, fontSize: 11 },
   selKey: { color: "#9ca3af" },
@@ -297,14 +427,14 @@ const S = {
     padding: "3px 6px",
     fontSize: 10,
     fontWeight: 700,
-    cursor: "pointer",
+    cursor: "pointer"
   },
   tabActive: {
     background: "#1f2937",
     color: "#e5e7eb",
     border: "1px solid #3b82f6",
-    boxShadow: "0 0 0 1px #3b82f6 inset",
-  },
+    boxShadow: "0 0 0 1px #3b82f6 inset"
+  }
 };
 
 function toneStyles(kind) {
