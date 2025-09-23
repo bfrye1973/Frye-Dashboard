@@ -1,4 +1,4 @@
-// src/pages/rows/RowIndexSectors.jsx
+// RowIndexSectors.jsx
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
 const URLS = {
@@ -13,7 +13,21 @@ const TF_OPTIONS = [
   { key: "eod", label: "EOD" },
 ];
 
-/* ----------------- UI helpers ----------------- */
+/* ---------- Tiny controls ---------- */
+function TinyTab({ active, onClick, label }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`px-1.5 py-0.5 rounded border text-[10px] leading-none
+        ${active
+          ? "bg-slate-700 border-slate-500 text-white"
+          : "bg-slate-900 border-slate-700 text-slate-300 hover:border-slate-500"}`}
+    >
+      {label}
+    </button>
+  );
+}
+
 function Pill({ value, label }) {
   if (value == null) return null;
   const v = Number(value);
@@ -21,31 +35,13 @@ function Pill({ value, label }) {
   const abs = Math.abs(v).toFixed(1);
   const color = v > 0 ? "text-emerald-400" : v < 0 ? "text-rose-400" : "text-slate-300";
   return (
-    <span className={`px-2 py-0.5 rounded-full bg-slate-800/60 border border-slate-700 ${color} text-xs`}>
+    <span className={`px-1.5 py-0.5 rounded-full bg-slate-800/60 border border-slate-700 ${color} text-[10px] leading-none`}>
       {label}: {sign}{abs}
     </span>
   );
 }
 
-function TimeframeTabs({ value, onChange }) {
-  return (
-    <div className="flex items-center gap-2">
-      {TF_OPTIONS.map(opt => (
-        <button
-          key={opt.key}
-          onClick={() => onChange(opt.key)}
-          className={`px-2.5 py-1 rounded-md border text-xs
-            ${value === opt.key
-              ? "bg-slate-700 border-slate-500 text-white"
-              : "bg-slate-900 border-slate-700 text-slate-300 hover:border-slate-500"}`}
-        >
-          {opt.label}
-        </button>
-      ))}
-    </div>
-  );
-}
-
+/* ---------- Sector Card ---------- */
 function SectorCard({ c }) {
   const momentum = c.momentum_pct ?? 50;
   const breadth  = c.breadth_pct ?? 50;
@@ -91,7 +87,7 @@ function SectorCard({ c }) {
   );
 }
 
-/* ----------------- Main component ----------------- */
+/* ---------- Main Row ---------- */
 export default function RowIndexSectors() {
   const [tf, setTf] = useState("10m");
   const [data, setData] = useState(null);
@@ -140,17 +136,26 @@ export default function RowIndexSectors() {
   return (
     <section className="px-4 py-3">
       {/* Header */}
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-3">
-          <div className="text-white/90 font-medium">Index Sectors</div>
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-2">
+          <div className="text-white/90 font-medium text-sm">Index Sectors</div>
           <div className="text-slate-300/80 text-xs">Legend</div>
           <div className="text-slate-300/70 text-xs">·</div>
-          <div className="text-slate-300/80 text-xs">Updated {updatedAt}</div>
+          <div className="text-slate-300/80 text-[11px]">Updated {updatedAt}</div>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-1">
           <Pill value={deltas.momentum} label="Δ Momentum" />
           <Pill value={deltas.breadth}  label="Δ Breadth" />
-          <TimeframeTabs value={tf} onChange={setTf} />
+          <div className="flex gap-1">
+            {TF_OPTIONS.map(opt => (
+              <TinyTab
+                key={opt.key}
+                active={tf === opt.key}
+                onClick={() => setTf(opt.key)}
+                label={opt.label}
+              />
+            ))}
+          </div>
         </div>
       </div>
 
