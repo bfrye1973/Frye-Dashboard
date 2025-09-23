@@ -1,18 +1,29 @@
 // src/pages/rows/EngineLights.jsx
-// v2 — Bind directly to /live/intraday (no metrics fallback, no dynamic hook ambiguity)
+// v2.1 — FIX: always fetch from backend origin (not the frontend)
+// Source of truth: <API_BASE>/live/intraday → engineLights.signals
 
 import React, { useEffect, useRef, useState } from "react";
 import { LastUpdated } from "../../components/LastUpdated";
+
+// ---- CONFIG: resolve API base ----
+function resolveApiBase() {
+  // Prefer env → global → hardcoded fallback
+  const env = (process.env.REACT_APP_API_BASE || "").trim().replace(/\/+$/,"");
+  if (env) return env;
+  const globalWin = (typeof window !== "undefined" && window.__API_BASE) ? String(window.__API_BASE).trim().replace(/\/+$/,"") : "";
+  if (globalWin) return globalWin;
+  return "https://frye-market-backend-1.onrender.com"; // <— your backend origin
+}
 
 /* -------------------------- Light pill --------------------------- */
 function Light({ label, tone = "info", active = true }) {
   const palette =
     {
-      ok:     { bg:"#22c55e", fg:"#0b1220", bd:"#16a34a", shadow:"#16a34a" }, // green
-      warn:   { bg:"#facc15", fg:"#111827", bd:"#ca8a04", shadow:"#ca8a04" }, // yellow
-      danger: { bg:"#ef4444", fg:"#fee2e2", bd:"#b91c1c", shadow:"#b91c1c" }, // red
-      info:   { bg:"#0b1220", fg:"#93c5fd", bd:"#334155", shadow:"#334155" }, // muted blue
-      off:    { bg:"#0b0f17", fg:"#6b7280", bd:"#1f2937", shadow:"#111827" }, // dark/off
+      ok:     { bg:"#22c55e", fg:"#0b1220", bd:"#16a34a", shadow:"#16a34a" },
+      warn:   { bg:"#facc15", fg:"#111827", bd:"#ca8a04", shadow:"#ca8a04" },
+      danger: { bg:"#ef4444", fg:"#fee2e2", bd:"#b91c1c", shadow:"#b91c1c" },
+      info:   { bg:"#0b1220", fg:"#93c5fd", bd:"#334155", shadow:"#334155" },
+      off:    { bg:"#0b0f17", fg:"#6b7280", bd:"#1f2937", shadow:"#111827" },
     }[tone] || { bg:"#0b0f17", fg:"#6b7280", bd:"#1f2937", shadow:"#111827" };
 
   return (
@@ -33,7 +44,7 @@ function Light({ label, tone = "info", active = true }) {
   );
 }
 
-/* --------------------- Legend (unchanged) --------------------- */
+/* --------------------- Legend --------------------- */
 function Swatch({ color, label, note }) {
   return (
     <div style={{display:"flex", alignItems:"center", gap:8, marginBottom:6}}>
@@ -79,7 +90,6 @@ function computeSignalList(sigObj = {}) {
     const sig = sigObj?.[def.key] || {};
     const active = !!(sig.active ?? sig === true);
     const sev = String(sig.severity || "").toLowerCase();
-
     let tone = "off";
     if (active) {
       switch (def.key) {
@@ -99,7 +109,6 @@ function computeSignalList(sigObj = {}) {
   });
 }
 
-/* Build stable key so React repaints when timestamp OR signal states change */
 function buildStableKey(ts, signals) {
   const parts = [ts || "no-ts"];
   try {
@@ -114,42 +123,46 @@ function buildStableKey(ts, signals) {
 
 /* --------------------------- Main ---------------------------- */
 export default function EngineLights() {
-  const [payload, setPayload] = useState({ eng: null, signals: {}, ts: null, live: false, mode: null });
+  const API_BASE = resolveApiBase();
+
+  const [payload, setPayload] = useState({ eng: null, signals: {}, ts: null, live: false, mode: null, err: null });
   const [lights, setLights] = useState(() => computeSignalList({}));
   const [legendOpen, setLegendOpen] = useState(false);
   const firstPaintRef = useRef(false);
   const timerRef = useRef(null);
 
   async function fetchLive(abortSignal) {
+    const url = `${API_BASE}/live/intraday?nocache=${Date.now()}`;
     try {
-      const res = await fetch("/live/intraday?nocache=" + Date.now(), { cache: "no-store", signal: abortSignal });
-      if (!res.ok) throw new Error("HTTP " + res.status);
+      const res = await fetch(url, { cache: "no-store", signal: abortSignal });
+      if (!res.ok) throw new Error(`HTTP ${res.status} ${url}`);
       const j = await res.json();
       const eng = j?.engineLights || {};
       const signals = (eng?.signals && typeof eng.signals === "object") ? eng.signals : {};
       const ts = eng?.updatedAt || j?.updated_at || j?.ts || null;
       const live = !!eng?.live;
       const mode = eng?.mode || null;
-      console.log("[EngineLights /live] at", ts, "keys", Object.keys(signals)); // DEBUG
-      setPayload({ eng, signals, ts, live, mode });
+      console.log("[EngineLights /live]", { url, ts, keys: Object.keys(signals) });
+      setPayload({ eng, signals, ts, live, mode, err: null });
       setLights(computeSignalList(signals));
       firstPaintRef.current = true;
     } catch (e) {
       console.warn("[EngineLights] fetch failed:", e);
+      setPayload(p => ({ ...p, err: String(e) }));
     }
   }
 
   useEffect(() => {
     const ctrl = new AbortController();
     fetchLive(ctrl.signal);
-    timerRef.current = setInterval(() => fetchLive(ctrl.signal), 60_000); // poll every 60s
+    timerRef.current = setInterval(() => fetchLive(ctrl.signal), 60_000);
     return () => {
       try { ctrl.abort(); } catch {}
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, []);
+  }, [API_BASE]);
 
-  const { ts, live, mode, signals } = payload;
+  const { ts, live, mode, signals, err } = payload;
   const stableKey = buildStableKey(ts, signals);
 
   return (
@@ -170,15 +183,12 @@ export default function EngineLights() {
         </button>
         <div className="spacer" />
         {live && (
-          <span
-            className="small"
-            style={{ marginRight:8, padding:"3px 8px", borderRadius:6, background:"#16a34a", color:"#0b1220", fontWeight:800, border:"1px solid #0f7a2a" }}
-            title={mode ? `Mode: ${mode}` : "Live intraday"}
-          >
+          <span className="small" style={{ marginRight:8, padding:"3px 8px", borderRadius:6, background:"#16a34a", color:"#0b1220", fontWeight:800, border:"1px solid #0f7a2a" }} title={mode ? `Mode: ${mode}` : "Live intraday"}>
             LIVE
           </span>
         )}
         <LastUpdated ts={ts} />
+        {err && <span className="small muted" style={{ marginLeft:8 }} title={err}>fetch error</span>}
       </div>
 
       {/* Lights row */}
@@ -192,22 +202,11 @@ export default function EngineLights() {
 
       {/* Legend modal */}
       {legendOpen && (
-        <div
-          role="dialog" aria-modal="true" onClick={()=> setLegendOpen(false)}
-          style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.5)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:60 }}
-        >
-          <div
-            onClick={(e)=> e.stopPropagation()}
-            style={{ width:"min(880px, 92vw)", background:"#0b0b0c", border:"1px solid #2b2b2b", borderRadius:12, padding:16, boxShadow:"0 10px 30px rgba(0,0,0,0.35)" }}
-          >
+        <div role="dialog" aria-modal="true" onClick={()=> setLegendOpen(false)} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.5)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:60 }}>
+          <div onClick={(e)=> e.stopPropagation()} style={{ width:"min(880px, 92vw)", background:"#0b0b0c", border:"1px solid #2b2b2b", borderRadius:12, padding:16, boxShadow:"0 10px 30px rgba(0,0,0,0.35)" }}>
             <EngineLightsLegendContent />
             <div style={{ display:"flex", justifyContent:"flex-end", marginTop:12 }}>
-              <button
-                onClick={()=> setLegendOpen(false)}
-                style={{ background:"#eab308", color:"#111827", border:"none", borderRadius:8, padding:"8px 12px", fontWeight:700, cursor:"pointer" }}
-              >
-                Close
-              </button>
+              <button onClick={()=> setLegendOpen(false)} style={{ background:"#eab308", color:"#111827", border:"none", borderRadius:8, padding:"8px 12px", fontWeight:700, cursor:"pointer" }}>Close</button>
             </div>
           </div>
         </div>
