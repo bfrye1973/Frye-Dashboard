@@ -1,9 +1,7 @@
 // src/pages/rows/RowIndexSectors.jsx
-// Compact sectors row:
-// - Cards slightly wider (horizontal) without changing row height
-// - AZ timestamp on LEFT next to "Legend"
-// - Δ pills: Δ10m + Δ1h (top line), Δ1d (second line)
-// - Net NH + Breadth Tilt labels preserved
+// Compact sectors row: wider cards; AZ timestamp on LEFT; small source dropdown (10m/EOD);
+// Δ pills (Δ10m + Δ1h on top, Δ1d bottom); Legend button opens local modal.
+// Row height and spacing remain unchanged.
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useDashboardPoll } from "../../lib/dashboardApi";
@@ -11,11 +9,13 @@ import { useDashboardPoll } from "../../lib/dashboardApi";
 /* ------------------------------- helpers ------------------------------- */
 const norm = (s = "") => s.trim().toLowerCase();
 
+// IMPORTANT: map to canonical keys used by backend ("health care", etc.)
 const ALIASES = {
   tech: "information technology",
   "information technology": "information technology",
   materials: "materials",
-  healthcare: "healthcare",
+  healthcare: "health care",           // <-- fixed
+  "health care": "health care",
   "communication services": "communication services",
   "real estate": "real estate",
   energy: "energy",
@@ -56,7 +56,7 @@ function Badge({ text, tone = "info" }) {
       warn: { bg: "#facc15", fg: "#111827", bd: "#ca8a04" },
       danger: { bg: "#ef4444", fg: "#fee2e2", bd: "#b91c1c" },
       info: { bg: "#0b1220", fg: "#93c5fd", bd: "#334155" },
-    }[tone] || { bg: "#0b1220", fg: "#93c5fd", bd: "#334155" };
+    }[tone] || { bg: "#0b0b17", fg: "#93c5fd", bd: "#334155" };
   return (
     <span
       style={{
@@ -135,14 +135,13 @@ function buildSectorLastMap(snapshot) {
   const out = {};
   for (const c of cards) {
     const name = norm(c?.sector || "");
-    // Net NH often appears as `last` or `value` in legacy sectorCards
     const val = Number(c?.last ?? c?.value ?? NaN);
     if (name && Number.isFinite(val)) out[name] = val;
   }
   return out;
 }
 
-// Δ map from replay snapshots (granularity: "10min" or "eod")
+// Δ map from replay snapshots ("10min" | "eod")
 async function computeDeltaFromReplay(granularity) {
   try {
     const idx = await fetchJSON(
@@ -230,7 +229,7 @@ function SectorCard({ sector, outlook, spark, last, deltaPct, d10m, d1h, d1d }) 
         )}
       </div>
 
-      {/* Net NH + Breadth Tilt (kept as before) */}
+      {/* Net NH + Breadth Tilt (kept) */}
       <div
         className="small"
         style={{
@@ -241,14 +240,10 @@ function SectorCard({ sector, outlook, spark, last, deltaPct, d10m, d1h, d1d }) 
       >
         <span>Net NH: <strong>{Number.isFinite(_last) ? _last.toFixed(0) : "—"}</strong></span>
         <span style={{ color: tiltColor, fontWeight: 700 }}>
-          Breadth Tilt: {arrow}{" "}
-          {Number.isFinite(_tilt)
-            ? (_tilt >= 0 ? "+" : "") + _tilt.toFixed(1) + "%"
-            : "0.0%"}
+          Breadth Tilt: {arrow} {(_tilt >= 0 ? "+" : "") + _tilt.toFixed(1)}%
         </span>
       </div>
 
-      {/* optional spark, unchanged */}
       <Sparkline data={arr} />
     </div>
   );
@@ -258,26 +253,47 @@ function SectorCard({ sector, outlook, spark, last, deltaPct, d10m, d1h, d1d }) 
 export default function RowIndexSectors() {
   const { data: live, loading, error } = useDashboardPoll("dynamic");
 
-  // AZ updated time (backend now emits updated_at in AZ)
-  const ts = live?.sectors?.updatedAt
-    || live?.marketMeter?.updatedAt
-    || live?.updated_at
-    || live?.ts
-    || null;
+  // tiny source dropdown for cards (10m vs EOD) for spreadsheet compare
+  const [srcTf, setSrcTf] = useState("10m"); // "10m" | "eod"
+  const [eodData, setEodData] = useState(null);
 
-  // sector cards from live payload
+  useEffect(() => {
+    let alive = true;
+    async function loadEod() {
+      try {
+        const j = await fetchJSON("https://frye-market-backend-1.onrender.com/live/eod");
+        if (alive) setEodData(j);
+      } catch {
+        if (alive) setEodData(null);
+      }
+    }
+    if (srcTf === "eod") loadEod();
+    return () => { alive = false; };
+  }, [srcTf]);
+
+  // AZ updated time (backend emits updated_at in AZ)
+  const ts =
+    live?.sectors?.updatedAt ||
+    live?.marketMeter?.updatedAt ||
+    live?.updated_at ||
+    live?.ts ||
+    null;
+
+  // choose cards source
+  const source = srcTf === "eod" ? (eodData || live) : live;
+
   const cards = useMemo(() => {
-    const arr = live?.outlook?.sectorCards;
+    const arr = source?.outlook?.sectorCards;
     if (!Array.isArray(arr)) return [];
     return arr.sort((a, b) => orderKey(a.sector) - orderKey(b.sector));
-  }, [live]);
+  }, [source]);
 
-  // build Δ maps
+  // Δ maps (10m, 1h, 1d)
   const [d10mMap, setD10mMap] = useState({});
   const [d1dMap, setD1dMap] = useState({});
   const [d1hMap, setD1hMap] = useState({});
 
-  // Δ10m from replay (last two 10m snapshots)
+  // Δ10m
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -288,13 +304,10 @@ export default function RowIndexSectors() {
       const m = await computeDeltaFromReplay("10min");
       setD10mMap(m);
     }, 60_000);
-    return () => {
-      alive = false;
-      clearInterval(t);
-    };
+    return () => { alive = false; clearInterval(t); };
   }, []);
 
-  // Δ1d from replay (last two EOD snapshots)
+  // Δ1d
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -305,21 +318,17 @@ export default function RowIndexSectors() {
       const m = await computeDeltaFromReplay("eod");
       setD1dMap(m);
     }, 300_000);
-    return () => {
-      alive = false;
-      clearInterval(t);
-    };
+    return () => { alive = false; clearInterval(t); };
   }, []);
 
-  // Δ1h from backend trend endpoint
+  // Δ1h
   useEffect(() => {
     let alive = true;
     const controller = new AbortController();
     async function load() {
       try {
         const r = await fetch(`${API}/api/sectorTrend?window=1`, {
-          signal: controller.signal,
-          cache: "no-store",
+          signal: controller.signal, cache: "no-store",
         });
         const j = await r.json();
         if (!alive) return;
@@ -337,12 +346,11 @@ export default function RowIndexSectors() {
     }
     load();
     const t = setInterval(load, 60_000);
-    return () => {
-      alive = false;
-      controller.abort();
-      clearInterval(t);
-    };
+    return () => { alive = false; controller.abort(); clearInterval(t); };
   }, []);
+
+  // legend modal
+  const [legendOpen, setLegendOpen] = useState(false);
 
   return (
     <section id="row-4" className="panel index-sectors" aria-label="Index Sectors">
@@ -350,6 +358,8 @@ export default function RowIndexSectors() {
       <div className="panel-head" style={{ alignItems: "center" }}>
         <div className="panel-title">Index Sectors</div>
         <button
+          title="Legend"
+          onClick={() => setLegendOpen(true)}
           style={{
             background: "#0b0b0b",
             color: "#e5e7eb",
@@ -361,19 +371,30 @@ export default function RowIndexSectors() {
             cursor: "pointer",
             marginLeft: 8,
           }}
-          title="Legend"
-          onClick={() =>
-            window.dispatchEvent(
-              new CustomEvent("sectors:legend", { detail: { open: true } })
-            )
-          }
         >
           Legend
         </button>
-        {/* AZ timestamp next to Legend */}
+        {/* AZ time + tiny source dropdown next to Legend */}
         <div style={{ marginLeft: 8, color: "#9ca3af", fontSize: 12 }}>
           Updated {ts || "--"}
         </div>
+        <select
+          value={srcTf}
+          onChange={(e) => setSrcTf(e.target.value)}
+          style={{
+            marginLeft: 8,
+            background: "#0b0b0b",
+            color: "#e5e7eb",
+            border: "1px solid #2b2b2b",
+            borderRadius: 6,
+            padding: "2px 6px",
+            fontSize: 12,
+          }}
+          title="Cards Source"
+        >
+          <option value="10m">10m</option>
+          <option value="eod">EOD</option>
+        </select>
         <div className="spacer" />
       </div>
 
@@ -390,7 +411,6 @@ export default function RowIndexSectors() {
           }}
         >
           {cards.map((c, i) => {
-            // Normalize key for delta maps
             const nameKey = ALIASES[norm(c?.sector || "")] || norm(c?.sector || "");
             const d10 = d10mMap[nameKey];
             const d1h = d1hMap[nameKey];
@@ -413,6 +433,77 @@ export default function RowIndexSectors() {
         </div>
       ) : (
         !loading && <div className="small muted">No sector data.</div>
+      )}
+
+      {/* Legend modal */}
+      {legendOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setLegendOpen(false)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 60,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: "min(880px, 92vw)",
+              background: "#0b0b0c",
+              border: "1px solid #2b2b2b",
+              borderRadius: 12,
+              padding: 16,
+              boxShadow: "0 10px 30px rgba(0,0,0,0.35)",
+            }}
+          >
+            <div style={{ color: "#f9fafb", fontSize: 14, fontWeight: 800, marginBottom: 8 }}>
+              Index Sectors — Legend
+            </div>
+            <div style={{ color: "#e5e7eb", fontSize: 13, fontWeight: 700, marginTop: 6 }}>
+              Outlook
+            </div>
+            <div style={{ color: "#d1d5db", fontSize: 12 }}>
+              Sector trend bias from breadth: <b>Bullish</b> (NH&gt;NL), <b>Neutral</b> (mixed), <b>Bearish</b> (NL&gt;NH).
+            </div>
+            <div style={{ display: "flex", gap: 12, margin: "6px 0", alignItems: "center" }}>
+              <span style={{ width: 34, height: 12, borderRadius: 12, background: "#22c55e", border: "1px solid rgba(255,255,255,0.1)" }} />
+              <span style={{ color: "#e5e7eb", fontWeight: 700, fontSize: 12 }}>Bullish</span>
+              <span style={{ width: 34, height: 12, borderRadius: 12, background: "#facc15", border: "1px solid rgba(255,255,255,0.1)" }} />
+              <span style={{ color: "#e5e7eb", fontWeight: 700, fontSize: 12 }}>Neutral</span>
+              <span style={{ width: 34, height: 12, borderRadius: 12, background: "#ef4444", border: "1px solid rgba(255,255,255,0.1)" }} />
+              <span style={{ color: "#e5e7eb", fontWeight: 700, fontSize: 12 }}>Bearish</span>
+            </div>
+            <div style={{ color: "#e5e7eb", fontSize: 13, fontWeight: 700, marginTop: 6 }}>
+              Net NH & Breadth Tilt
+            </div>
+            <div style={{ color: "#d1d5db", fontSize: 12 }}>
+              <b>Net NH</b> = New Highs − New Lows. <br />
+              <b>Breadth Tilt</b> = tilt in % terms: (NH − NL) / (NH + NL).
+            </div>
+            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}>
+              <button
+                onClick={() => setLegendOpen(false)}
+                style={{
+                  background: "#eab308",
+                  color: "#111827",
+                  border: "none",
+                  borderRadius: 8,
+                  padding: "8px 12px",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                }}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </section>
   );
