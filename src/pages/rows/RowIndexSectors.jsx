@@ -1,6 +1,5 @@
 // src/pages/rows/RowIndexSectors.jsx
-import React, { useEffect, useMemo, useState } from "react";
-import { LastUpdated } from "../../components/LastUpdated";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useDashboardPoll } from "../../lib/dashboardApi";
 
 /* ------------------------------- UI helpers ------------------------------- */
@@ -61,30 +60,36 @@ function Badge({ text, tone = "info" }) {
   );
 }
 
-/* Compact sparkline (optional – unchanged) */
-function Sparkline({ data = [], width = 160, height = 28 }) {
-  if (!Array.isArray(data) || data.length < 2) return <div className="small muted"> </div>;
-  const min = Math.min(...data), max = Math.max(...data);
-  const span = max - min || 1;
-  const stepX = width / (data.length - 1);
-  const d = data
-    .map((v, i) => {
-      const x = i * stepX;
-      const y = height - ((v - min) / span) * height;
-      return `${i === 0 ? "M" : "L"}${x.toFixed(2)},${y.toFixed(2)}`;
-    })
-    .join(" ");
+function DeltaPill({ label, value }) {
+  if (value == null || !Number.isFinite(value)) return null;
+  const v = Number(value);
+  const tone = v > 0 ? "#22c55e" : v < 0 ? "#ef4444" : "#9ca3af";
+  const arrow = v > 0 ? "▲" : v < 0 ? "▼" : "→";
   return (
-    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
-      <path d={d} fill="none" stroke="#60a5fa" strokeWidth="2" />
-    </svg>
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 4,
+        borderRadius: 6,
+        padding: "1px 4px",
+        fontSize: 11,
+        fontWeight: 600,
+        background: "#0b0f17",
+        color: tone,
+        border: `1px solid ${tone}33`,
+      }}
+    >
+      {label}: {arrow} {v >= 0 ? "+" : ""}{v.toFixed(1)}%
+    </span>
   );
 }
 
-/* Card (unchanged content) */
-function SectorCard({ sector, outlook, spark, last, deltaPct }) {
+/* Card */
+function SectorCard({ sector, outlook, spark, last, deltaPct, d10m, d1h, d1d }) {
   const tone = toneFor(outlook);
   const arr = Array.isArray(spark) ? spark : [];
+
   let _last = Number.isFinite(last) ? last : null;
   let _tilt = Number.isFinite(deltaPct) ? deltaPct : null;
 
@@ -102,80 +107,57 @@ function SectorCard({ sector, outlook, spark, last, deltaPct }) {
   const tiltColor = _tilt > 0 ? "#22c55e" : _tilt < 0 ? "#ef4444" : "#9ca3af";
 
   return (
-    <div className="panel" style={{ padding: 8 }}>
+    <div
+      className="panel"
+      style={{
+        padding: 10,
+        minWidth: 260,   // wider horizontally
+        maxWidth: 280,
+      }}
+    >
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div className="panel-title small">{sector || "Sector"}</div>
         <Badge text={outlook || "Neutral"} tone={tone} />
       </div>
 
-      <div className="small" style={{ display: "flex", justifyContent: "space-between", margin: "4px 0" }}>
+      {/* Δ pills: 2 on top, 1 on bottom */}
+      <div style={{ margin: "4px 0" }}>
+        <div style={{ display: "flex", gap: 4 }}>
+          {Number.isFinite(d10m) && <DeltaPill label="Δ10m" value={d10m} />}
+          {Number.isFinite(d1h) && <DeltaPill label="Δ1h" value={d1h} />}
+        </div>
+        {Number.isFinite(d1d) && (
+          <div style={{ marginTop: 4 }}>
+            <DeltaPill label="Δ1d" value={d1d} />
+          </div>
+        )}
+      </div>
+
+      {/* Net NH + Breadth Tilt */}
+      <div
+        className="small"
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          margin: "2px 0 4px 0",
+        }}
+      >
         <span>Net NH: <strong>{Number.isFinite(_last) ? _last.toFixed(0) : "—"}</strong></span>
         <span style={{ color: tiltColor, fontWeight: 700 }}>
-          Breadth Tilt: {arrow} {Number.isFinite(_tilt) ? (_tilt >= 0 ? "+" : "") + _tilt.toFixed(1) + "%" : "0.0%"}
+          Breadth Tilt: {arrow}{" "}
+          {Number.isFinite(_tilt) ? (_tilt >= 0 ? "+" : "") + _tilt.toFixed(1) + "%" : "0.0%"}
         </span>
       </div>
-
-      <Sparkline data={arr} />
     </div>
   );
 }
 
-/* Legend modal content (unchanged) */
-function Pill({ color }) {
-  return (
-    <span
-      style={{
-        width: 34, height: 12, borderRadius: 12, background: color,
-        display: "inline-block", border: "1px solid rgba(255,255,255,0.1)", marginRight: 8
-      }}
-    />
-  );
-}
-function IndexSectorsLegendContent() {
-  return (
-    <div>
-      <div style={{ color: "#f9fafb", fontSize: 14, fontWeight: 800, marginBottom: 8 }}>Index Sectors — Legend</div>
-      <div style={{ color: "#e5e7eb", fontSize: 13, fontWeight: 700, marginTop: 6 }}>Outlook</div>
-      <div style={{ color: "#d1d5db", fontSize: 12 }}>
-        Sector trend bias from breadth: <b>Bullish</b> (NH&gt;NL), <b>Neutral</b> (mixed), <b>Bearish</b> (NL&gt;NH).
-      </div>
-      <div style={{ display: "flex", gap: 12, margin: "6px 0", alignItems: "center" }}>
-        <Pill color="#22c55e" /> <span style={{ color: "#e5e7eb", fontWeight: 700, fontSize: 12 }}>Bullish</span>
-        <Pill color="#facc15" /> <span style={{ color: "#e5e7eb", fontWeight: 700, fontSize: 12 }}>Neutral</span>
-        <Pill color="#ef4444" /> <span style={{ color: "#e5e7eb", fontWeight: 700, fontSize: 12 }}>Bearish</span>
-      </div>
-      <div style={{ color: "#e5e7eb", fontSize: 13, fontWeight: 700, marginTop: 6 }}>Net NH & Breadth Tilt</div>
-      <div style={{ color: "#d1d5db", fontSize: 12 }}>
-        <b>Net NH</b> = New Highs − New Lows. <br />
-        <b>Breadth Tilt</b> = tilt in % terms: (NH − NL) / (NH + NL).
-      </div>
-    </div>
-  );
-}
-
-/* ------------------------------ helpers ------------------------------ */
-async function fetchJSON(url) {
-  const r = await fetch(url, { cache: "no-store" });
-  if (!r.ok) throw new Error(`HTTP ${r.status}`);
-  return await r.json();
-}
-
-/* ------------------------------ main row ------------------------------ */
+/* ----------------- Main ----------------- */
 export default function RowIndexSectors() {
   const { data: live, loading, error } = useDashboardPoll("dynamic");
 
-  // choose updated timestamp (we now emit AZ time as updated_at)
-  const ts =
-    live?.sectors?.updatedAt ||
-    live?.marketMeter?.updatedAt ||
-    live?.updated_at ||
-    live?.ts ||
-    null;
+  const ts = live?.updated_at || live?.ts || null;
 
-  // legend modal
-  const [legendOpen, setLegendOpen] = useState(false);
-
-  // build cards list as before (from live)
   const cards = useMemo(() => {
     const arr = live?.outlook?.sectorCards;
     if (!Array.isArray(arr)) return [];
@@ -187,22 +169,24 @@ export default function RowIndexSectors() {
       <div className="panel-head" style={{ alignItems: "center" }}>
         <div className="panel-title">Index Sectors</div>
         <button
-          onClick={() => setLegendOpen(true)}
           style={{
-            background: "#0b0b0b", color: "#e5e7eb", border: "1px solid #2b2b2b",
-            borderRadius: 6, padding: "4px 8px", fontSize: 12, fontWeight: 600,
-            cursor: "pointer", marginLeft: 8,
+            background: "#0b0b0b",
+            color: "#e5e7eb",
+            border: "1px solid #2b2b2b",
+            borderRadius: 6,
+            padding: "4px 8px",
+            fontSize: 12,
+            fontWeight: 600,
+            cursor: "pointer",
+            marginLeft: 8,
           }}
-          title="Legend"
         >
           Legend
         </button>
-        {/* AZ timestamp on LEFT next to Legend */}
         <div style={{ marginLeft: 8, color: "#9ca3af", fontSize: 12 }}>
           Updated {ts || "--"}
         </div>
         <div className="spacer" />
-        {/* (Removed right-side LastUpdated to avoid duplication) */}
       </div>
 
       {!live && loading && <div className="small muted">Loading…</div>}
@@ -212,58 +196,29 @@ export default function RowIndexSectors() {
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(210px, 1fr))",
+            gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", // match wider card
             gap: 8,
             marginTop: 6,
           }}
         >
-          {cards.map((c, i) => (
-            <SectorCard
-              key={c?.sector || i}
-              sector={c?.sector}
-              outlook={c?.outlook}
-              spark={c?.spark}
-              last={c?.last}
-              deltaPct={c?.deltaPct}
-            />
-          ))}
+          {cards.map((c, i) => {
+            return (
+              <SectorCard
+                key={c?.sector || i}
+                sector={c?.sector}
+                outlook={c?.outlook}
+                spark={c?.spark}
+                last={c?.last}
+                deltaPct={c?.deltaPct}
+                d10m={c?.d10m}
+                d1h={c?.d1h}
+                d1d={c?.d1d}
+              />
+            );
+          })}
         </div>
       ) : (
         !loading && <div className="small muted">No sector data.</div>
-      )}
-
-      {legendOpen && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          onClick={() => setLegendOpen(false)}
-          style={{
-            position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            zIndex: 60,
-          }}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              width: "min(880px, 92vw)", background: "#0b0b0c", border: "1px solid #2b2b2b",
-              borderRadius: 12, padding: 16, boxShadow: "0 10px 30px rgba(0,0,0,0.35)",
-            }}
-          >
-            <IndexSectorsLegendContent />
-            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}>
-              <button
-                onClick={() => setLegendOpen(false)}
-                style={{
-                  background: "#eab308", color: "#111827", border: "none",
-                  borderRadius: 8, padding: "8px 12px", fontWeight: 700, cursor: "pointer",
-                }}
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
       )}
     </section>
   );
