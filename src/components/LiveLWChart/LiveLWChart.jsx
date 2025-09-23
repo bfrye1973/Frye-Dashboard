@@ -9,8 +9,8 @@ import { getFeed } from "../../services/feed";
 export default function LiveLWChart({
   symbol = "SPY",
   timeframe = "1D",
-  enabledIndicators = [],    // reserved for future use
-  indicatorSettings = {},    // reserved for future use
+  enabledIndicators = [],   // reserved for future use
+  indicatorSettings = {},   // reserved for future use
   height = 520,
 }) {
   // panel (outer visible card) and inner chart root
@@ -25,7 +25,7 @@ export default function LiveLWChart({
 
   const [candles, setCandles] = useState([]);
 
-  // ensure chart follows container size
+  // keep chart responsive to its container
   const safeResize = () => {
     const el = chartRootRef.current;
     const chart = chartRef.current;
@@ -33,9 +33,9 @@ export default function LiveLWChart({
     chart.resize(el.clientWidth, el.clientHeight);
   };
 
-  // -------- timezone formatter (works across library versions) --------
+  // ---- Phoenix time formatter (works across LW charts versions) ----
   const phoenixFormatter = (ts) => {
-    // lightweight-charts can pass either seconds (number) or {timestamp}
+    // library may pass a number (seconds) or an object { timestamp }
     const seconds =
       typeof ts === "number"
         ? ts
@@ -51,7 +51,7 @@ export default function LiveLWChart({
     }).format(d);
   };
 
-  // ---------- INIT ----------
+  // ---- INIT ----
   useEffect(() => {
     const holder = chartRootRef.current;
     if (!holder) return;
@@ -60,16 +60,16 @@ export default function LiveLWChart({
     holder.style.position = "relative";
     holder.style.zIndex = "1";
 
-    // merge your base options, then assert AZ localization + sizes
     const chart = createChart(holder, {
       ...baseChartOptions,
       width: holder.clientWidth,
       height,
+      // assert AZ localization; timeScale tick formatter will reinforce it
       localization: {
         ...(baseChartOptions.localization || {}),
-        timezone: "America/Phoenix",         // <-- AZ time
+        timezone: "America/Phoenix",
         dateFormat: "yyyy-MM-dd",
-        timeFormatter: phoenixFormatter,     // safe for multiple lib versions
+        timeFormatter: phoenixFormatter,
       },
     });
     chartRef.current = chart;
@@ -84,40 +84,24 @@ export default function LiveLWChart({
     });
     seriesRef.current = candleSeries;
 
-    // keep bottom axis visible with room for labels
+    // ensure bottom axis is visible & shows AZ tick labels
     chart.timeScale().applyOptions({
       visible: true,
       timeVisible: true,
       borderVisible: true,
       minimumHeight: 20,
-      // force tick labels into Arizona as well
-      tickMarkFormatter: (time /* number or {timestamp} */) => {
-        const seconds =
-          typeof time === "number"
-            ? time
-            : time && typeof time.timestamp === "number"
-            ? time.timestamp
-            : 0;
-        const d = new Date(seconds * 1000);
-        return new Intl.DateTimeFormat("en-US", {
-          timeZone: "America/Phoenix",
-          hour12: true,
-          hour: "numeric",
-          minute: "2-digit",
-       }).format(d);
-     },
-  });
-
-      // some builds ignore localization until timeVisible is set -> we set it
+      tickMarkFormatter: (time) => phoenixFormatter(time),
     });
 
-    // respond to container size changes (observe only this element)
-    const ro = new ResizeObserver(() => safeResize());
+    // observe ONLY this element (prevents resize feedback loops)
+    const ro = new ResizeObserver(safeResize);
     ro.observe(holder);
     roRef.current = ro;
 
     // respond to OS/browser zoom changes for crisp rendering
-    const mq = window.matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
+    const mq = window.matchMedia(
+      `(resolution: ${window.devicePixelRatio}dppx)`
+    );
     const onDpr = () => safeResize();
     if (mq.addEventListener) {
       mq.addEventListener("change", onDpr);
@@ -131,15 +115,22 @@ export default function LiveLWChart({
     safeResize();
 
     return () => {
-      try { roRef.current?.disconnect(); } catch {}
-      try { dprCleanupRef.current?.(); } catch {}
-      try { chart.remove(); } catch {}
+      try {
+        roRef.current?.disconnect();
+      } catch {}
+      try {
+        dprCleanupRef.current?.();
+      } catch {}
+      try {
+        chart.remove();
+      } catch {}
       chartRef.current = null;
       seriesRef.current = null;
     };
   }, [height]);
 
-  // ---------- LOAD + STREAM ----------
+  // ---- LOAD + STREAM ----
+
   useEffect(() => {
     const chart = chartRef.current;
     const series = seriesRef.current;
@@ -153,8 +144,12 @@ export default function LiveLWChart({
         const seed = await feed.history();
         if (disposed) return;
         if (Array.isArray(seed)) {
-          series.setData(seed);
-          setCandles(seed);
+          const normalizedSeed = seed.map((b) => ({
+            ...b,
+            time: normalizeSeconds(b.time),
+          }));
+          series.setData(normalizedSeed);
+          setCandles(normalizedSeed);
           chart.timeScale().fitContent();
         } else {
           series.setData([]);
@@ -169,18 +164,24 @@ export default function LiveLWChart({
 
     const unsub = feed.subscribe((bar) => {
       if (disposed || !bar || bar.time == null) return;
-      series.update(bar);
-      setCandles((prev) => mergeBar(prev, bar));
+      const time = normalizeSeconds(bar.time);
+      const normalized = { ...bar, time };
+      series.update(normalized);
+      setCandles((prev) => mergeBar(prev, normalized));
     });
 
     return () => {
       disposed = true;
-      try { unsub?.(); } catch {}
-      try { feed.close?.(); } catch {}
+      try {
+        unsub?.();
+      } catch {}
+      try {
+        feed.close?.();
+      } catch {}
     };
   }, [symbol, timeframe]);
 
-  // ---------- RENDER ----------
+  // ---- RENDER ----
   return (
     <section
       ref={panelRef}
@@ -197,6 +198,7 @@ export default function LiveLWChart({
         marginTop: 12,
       }}
     >
+      {/* chart mount root */}
       <div
         ref={chartRootRef}
         className="chart-root"
@@ -206,7 +208,14 @@ export default function LiveLWChart({
   );
 }
 
-// ---------- helpers ----------
+/* -------------------- helpers -------------------- */
+
+// if time is in ms (e.g., 1695402600000), convert to seconds
+function normalizeSeconds(t) {
+  if (typeof t === "number" && t > 1e12) return Math.floor(t / 1000);
+  return t;
+}
+
 function mergeBar(prev, bar) {
   if (!Array.isArray(prev) || prev.length === 0) return [bar];
   const last = prev[prev.length - 1];
