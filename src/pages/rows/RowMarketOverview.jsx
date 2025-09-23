@@ -204,17 +204,16 @@ export default function RowMarketOverview(){
       {/* Legend modal */}
       {/* eslint-disable-next-line */}
       {legendOpen && (
-        <div role="dialog" aria-modal="true" onClick={()=>setLegendOpen(false)}
-          style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:60}}>
-          <div onClick={(e)=>e.stopPropagation()}
-            style={{width:"min(880px,92vw)",background:"#0b0b0c",border:"1px solid #2b2b2b",borderRadius:12,padding:16,boxShadow:"0 10px 30px rgba(0,0,0,0.35)"}}>
-            <LegendContent/>
+        <div role="dialog" aria-modal="true" onClick={()=>setLegendOpen(false)} style={...}>
+          <div onClick={(e)=>e.stopPropagation()} style={...}>
+            {legendOpen === "intraday" && <IntradayLegendContent />}
+            {legendOpen === "daily" && <DailyLegendContent />}
             <div style={{display:"flex",justifyContent:"flex-end",marginTop:12}}>
-              <button onClick={()=>setLegendOpen(false)} style={{background:"#eab308",color:"#111827",border:"none",borderRadius:8,padding:"8px 12px",fontWeight:700,cursor:"pointer"}}>Close</button>
-            </div>
-          </div>
-        </div>
-      )}
+              <button onClick={()=>setLegendOpen(false)} style={{...}}>Close</button>
+             </div>
+           </div>
+         </div>
+       )}
 
       {/* Header */}
       <div className="panel-title">Market Meter — Stoplights</div>
