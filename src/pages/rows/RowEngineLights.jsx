@@ -1,8 +1,9 @@
 // src/pages/rows/RowEngineLights.jsx
-// v2 — Strict binding to /live/intraday → engineLights.signals
-// - No fallbacks to metrics/gauges
-// - Keyed by engineLights.updatedAt to force fresh render each tick
-// - Minimal, stable layout (auto-height; flex pills)
+// v3 — Strict /live/intraday binding + stable re-render key + debug logs
+// - Source of truth: source.engineLights.signals ONLY
+// - No metrics/gauges fallback (prevents "stuck" UI)
+// - <section key={stableKey}> guarantees paint when timestamp or signals change
+// - Console logs show exactly what arrives from backend
 
 import React, { useEffect, useRef, useState } from "react";
 import { useDashboardPoll } from "../../lib/dashboardApi";
@@ -114,6 +115,20 @@ function computeSignalList(sigObj = {}) {
   });
 }
 
+/* Build a stable key so React repaints when timestamp or signal states change */
+function buildStableKey(ts, signals) {
+  const parts = [ts || "no-ts"];
+  try {
+    // fold signals to a tiny signature like: sigBreakout:1-info|sigCompression:0-|
+    const sigSig = Object.entries(signals || {})
+      .sort(([a],[b]) => a.localeCompare(b))
+      .map(([k,v]) => `${k}:${(v?.active?1:0)}-${(v?.severity||"")}`)
+      .join("|");
+    parts.push(sigSig);
+  } catch {}
+  return parts.join("•");
+}
+
 /* ------------------------------------------------------------------ */
 /* Main Row Component                                                  */
 /* ------------------------------------------------------------------ */
@@ -157,24 +172,38 @@ export default function RowEngineLights() {
   const isLive = !!eng?.live;
   const modeLabel = eng?.mode || null; // "intraday" | "hourly" | "daily"
 
+  // stable key for render
+  const stableKey = buildStableKey(ts, backendSignals);
+
   // Compute lights whenever backend signals change
   useEffect(() => {
     if (!source || typeof source !== "object") {
       if (firstPaintRef.current) setStale(true);
       return;
     }
+    // DEBUG: what arrives from backend each tick
+    try {
+      console.log("[EngineLights] update", {
+        ts,
+        live: isLive,
+        mode: modeLabel,
+        keys: Object.keys(backendSignals),
+        sample: backendSignals
+      });
+    } catch {}
     const list = computeSignalList(backendSignals);
-    // one-line debug to verify updates are flowing
-    try { console.debug("[EngineLights] at", ts, "keys", Object.keys(backendSignals)); } catch {}
     setLights(list);
     setStale(false);
     firstPaintRef.current = true;
-  }, [ts, backendSignals, source]);
+  }, [stableKey, source]); // using stableKey guarantees this effect runs on payload change
 
   const [legendOpen, setLegendOpen] = useState(false);
 
+  // One more DEBUG at render time so we can see what the component sees
+  try { console.log("[RowEngineLights payload]", eng); } catch {}
+
   return (
-    <section id="row-3" className="panel" aria-label="Engine Lights" key={ts || "no-ts"}>
+    <section id="row-3" className="panel" aria-label="Engine Lights" key={stableKey}>
       {/* Header with Legend + status */}
       <div className="panel-head" style={{ alignItems:"center" }}>
         <div className="panel-title">Engine Lights</div>
