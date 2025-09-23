@@ -1,5 +1,5 @@
 // src/pages/rows/RowIndexSectors.jsx
-// Compact sectors row: wider cards; AZ timestamp on LEFT; small source dropdown (10m/EOD);
+// Compact sectors row: wider cards; AZ timestamp on LEFT; tiny source dropdown (10m/EOD);
 // Δ pills (Δ10m + Δ1h on top, Δ1d bottom); Legend button opens local modal.
 // Row height and spacing remain unchanged.
 
@@ -9,21 +9,60 @@ import { useDashboardPoll } from "../../lib/dashboardApi";
 /* ------------------------------- helpers ------------------------------- */
 const norm = (s = "") => s.trim().toLowerCase();
 
-// IMPORTANT: map to canonical keys used by backend ("health care", etc.)
+// Extended aliases to ensure sector keys align across /live/* and /api/sectorTrend
 const ALIASES = {
-  tech: "information technology",
+  // info tech
+  it: "information technology",
+  "info tech": "information technology",
   "information technology": "information technology",
+  technology: "information technology",
+  tech: "information technology",
+
+  // materials
   materials: "materials",
-  healthcare: "health care",           // <-- fixed
+  material: "materials",
+
+  // health care (many variants)
+  healthcare: "health care",
   "health care": "health care",
+  "health-care": "health care",
+  "health  care": "health care",
+  "healthcare ": "health care",
+
+  // communication services (and short forms)
   "communication services": "communication services",
+  communications: "communication services",
+  "comm services": "communication services",
+  "comm. services": "communication services",
+  telecom: "communication services",
+
+  // real estate
   "real estate": "real estate",
+  reit: "real estate",
+  reits: "real estate",
+
+  // energy
   energy: "energy",
+
+  // consumer staples
+  staples: "consumer staples",
   "consumer staples": "consumer staples",
+
+  // consumer discretionary
+  discretionary: "consumer discretionary",
   "consumer discretionary": "consumer discretionary",
+
+  // financials
   financials: "financials",
+  finance: "financials",
+
+  // utilities
   utilities: "utilities",
+  utility: "utilities",
+
+  // industrials
   industrials: "industrials",
+  industry: "industrials",
 };
 
 const ORDER = [
@@ -129,7 +168,6 @@ async function fetchJSON(url) {
   return await r.json();
 }
 
-// Build a { sectorKey -> NetNH } map from a snapshot
 function buildSectorLastMap(snapshot) {
   const cards = snapshot?.outlook?.sectorCards || snapshot?.sectorCards || [];
   const out = {};
@@ -141,7 +179,6 @@ function buildSectorLastMap(snapshot) {
   return out;
 }
 
-// Δ map from replay snapshots ("10min" | "eod")
 async function computeDeltaFromReplay(granularity) {
   try {
     const idx = await fetchJSON(
@@ -173,7 +210,7 @@ async function computeDeltaFromReplay(granularity) {
     for (const k of keys) {
       const a = mapA[k];
       const b = mapB[k];
-      if (Number.isFinite(a) && Number.isFinite(b)) out[k] = a - b; // change in Net NH
+      if (Number.isFinite(a) && Number.isFinite(b)) out[k] = a - b;
     }
     return out;
   } catch {
@@ -206,17 +243,16 @@ function SectorCard({ sector, outlook, spark, last, deltaPct, d10m, d1h, d1d }) 
       className="panel"
       style={{
         padding: 10,
-        minWidth: 260,       // wider horizontally
+        minWidth: 260,     // wider horizontally
         maxWidth: 280,
       }}
     >
-      {/* header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div className="panel-title small">{sector || "Sector"}</div>
         <Badge text={outlook || "Neutral"} tone={tone} />
       </div>
 
-      {/* Δ pills — top row: 10m + 1h; bottom row: 1d */}
+      {/* Δ pills — top: 10m + 1h; bottom: 1d */}
       <div style={{ margin: "4px 0" }}>
         <div style={{ display: "flex", gap: 6 }}>
           {Number.isFinite(d10m) && <DeltaPill label="Δ10m" value={d10m} />}
@@ -232,11 +268,7 @@ function SectorCard({ sector, outlook, spark, last, deltaPct, d10m, d1h, d1d }) 
       {/* Net NH + Breadth Tilt (kept) */}
       <div
         className="small"
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          margin: "2px 0 4px 0",
-        }}
+        style={{ display: "flex", justifyContent: "space-between", margin: "2px 0 4px 0" }}
       >
         <span>Net NH: <strong>{Number.isFinite(_last) ? _last.toFixed(0) : "—"}</strong></span>
         <span style={{ color: tiltColor, fontWeight: 700 }}>
@@ -253,7 +285,7 @@ function SectorCard({ sector, outlook, spark, last, deltaPct, d10m, d1h, d1d }) 
 export default function RowIndexSectors() {
   const { data: live, loading, error } = useDashboardPoll("dynamic");
 
-  // tiny source dropdown for cards (10m vs EOD) for spreadsheet compare
+  // 10m/EOD source dropdown (for spreadsheet compare)
   const [srcTf, setSrcTf] = useState("10m"); // "10m" | "eod"
   const [eodData, setEodData] = useState(null);
 
@@ -261,7 +293,7 @@ export default function RowIndexSectors() {
     let alive = true;
     async function loadEod() {
       try {
-        const j = await fetchJSON("https://frye-market-backend-1.onrender.com/live/eod");
+        const j = await fetchJSON(`${API}/live/eod`);
         if (alive) setEodData(j);
       } catch {
         if (alive) setEodData(null);
@@ -271,7 +303,7 @@ export default function RowIndexSectors() {
     return () => { alive = false; };
   }, [srcTf]);
 
-  // AZ updated time (backend emits updated_at in AZ)
+  // AZ time
   const ts =
     live?.sectors?.updatedAt ||
     live?.marketMeter?.updatedAt ||
@@ -321,7 +353,7 @@ export default function RowIndexSectors() {
     return () => { alive = false; clearInterval(t); };
   }, []);
 
-  // Δ1h
+  // Δ1h (sectorTrend) — with TEMP console.log so you can verify keys/values
   useEffect(() => {
     let alive = true;
     const controller = new AbortController();
@@ -331,6 +363,8 @@ export default function RowIndexSectors() {
           signal: controller.signal, cache: "no-store",
         });
         const j = await r.json();
+        // TEMP DEBUG: inspect incoming keys once
+        console.log("[sectorTrend window=1]", j);
         if (!alive) return;
         const map = {};
         const sectors = j?.sectors || {};
@@ -349,7 +383,7 @@ export default function RowIndexSectors() {
     return () => { alive = false; controller.abort(); clearInterval(t); };
   }, []);
 
-  // legend modal
+  // Legend modal
   const [legendOpen, setLegendOpen] = useState(false);
 
   return (
