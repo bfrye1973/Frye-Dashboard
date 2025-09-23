@@ -1,90 +1,118 @@
 // src/pages/rows/RowStrategies/index.jsx
+// Compact Strategy Row (CRA-safe). Polls backend directly via signalsService.
+// Shows LIVE/MOCK + Triggered/Flat/On Deck, score, last, and wired mini-tabs.
+
 import React, { useEffect, useMemo, useState } from "react";
 import { useSelection } from "../../../context/ModeContext";
 import { getAlignmentLatest } from "../../../services/signalsService";
 
-/**
- * RowStrategies — compact cards + LIVE/MOCK pill + tiny 7-tab symbol bar
- * - Alignment card pulls /api/signals?strategy=alignment&limit=1 (mock-safe)
- * - Buttons/tabs set global selection (Row 6 remounts via NewDashboard key)
- * - Fonts/paddings minimized to protect Row 6 height
- */
-
 export default function RowStrategies() {
-  const { setSelection } = useSelection();
-  const [align, setAlign] = useState({ loading: true, status: "mock", signal: null });
+  const { selection, setSelection } = useSelection();
+  const [res, setRes] = useState({ status: "mock", signal: null, apiBase: "" });
 
-  // Poll Alignment latest (soft refresh)
   useEffect(() => {
     let alive = true;
-    const pull = async () => {
-      const res = await getAlignmentLatest();
+    async function pull() {
+      const r = await getAlignmentLatest();
       if (!alive) return;
-      setAlign({ loading: false, ...res });
-    };
+      setRes(r);
+      // QA beacon
+      // eslint-disable-next-line no-console
+      console.log("[RowStrategies] alignment",
+        r.status,
+        r.signal ? `dir=${r.signal.direction} streak=${r.signal.streak_bars} conf=${r.signal.confidence} ts=${r.signal.timestamp}` : "no-signal"
+      );
+    }
     pull();
-    const id = setInterval(pull, 30_000);
+    const id = setInterval(pull, 30000);
     return () => { alive = false; clearInterval(id); };
   }, []);
 
-  const alignmentView = useMemo(() => {
-    const s = align.signal;
-    const liveStatus = align.status === "live" ? "LIVE" : "MOCK";
-
+  const view = useMemo(() => {
+    const status = res.status || "mock";
+    const s = res.signal;
     if (!s) {
       return {
-        liveStatus,
-        statusText: align.loading ? "Loading…" : "Flat",
+        key: `mock-no-ts`,
+        livePill: status === "live" ? "LIVE" : "MOCK",
+        statePill: "Flat",
         tone: "muted",
         score: 0,
         last: "—",
         failing: [],
       };
     }
-
-    const direction = s.direction || "none";
-    const tone = direction === "long" ? "ok" : direction === "short" ? "warn" : "muted";
-    const statusText = direction === "none" ? "Flat" : s.streak_bars >= 2 ? "Triggered" : "On Deck";
-    const last = `${direction === "none" ? "—" : direction.toUpperCase()} • ${fmtTime(s.timestamp)}`;
+    const dir = s.direction || "none";
+    const statePill = dir === "none" ? "Flat" : (s.streak_bars >= 2 ? "Triggered" : "On Deck");
+    const tone = dir === "long" ? "ok" : dir === "short" ? "warn" : "muted";
     const score = Math.round(Math.max(0, Math.min(100, Number(s.confidence || 0))));
+    const last = dir === "none" ? "—" : `${dir.toUpperCase()} • ${fmtTime(s.timestamp)}`;
     const failing = Array.isArray(s.failing) ? s.failing : [];
+    return {
+      key: `${status}-${s.timestamp || "no-ts"}`,
+      livePill: status === "live" ? "LIVE" : "MOCK",
+      statePill,
+      tone,
+      score,
+      last,
+      failing,
+    };
+  }, [res]);
 
-    return { liveStatus, statusText, tone, score, last, failing };
-  }, [align]);
-
-  const load = (symbol, timeframe = "10m", strategy = "alignment") =>
-    setSelection({ symbol, timeframe, strategy });
+  const tabs = [
+    { k: "SPY", sym: "SPY" },
+    { k: "QQQ", sym: "QQQ" },
+    { k: "IWM", sym: "IWM" },
+    { k: "MDY", sym: "MDY" },
+    { k: "SPX", sym: "I:SPX" },
+    { k: "NDX", sym: "I:NDX" },
+    { k: "DJI", sym: "I:DJI" },
+  ];
+  const load = (sym) => setSelection({ symbol: sym, timeframe: "10m", strategy: "alignment" });
 
   return (
-    <div style={S.wrap}>
-      {/* Alignment Scalper (10m) */}
+    <div key={view.key} style={S.wrap}>
       <Card
         title="SPY/QQQ Index-Alignment Scalper"
         timeframe="10m"
         rightPills={[
-          { text: alignmentView.liveStatus, tone: alignmentView.liveStatus === "LIVE" ? "live" : "muted" },
-          { text: alignmentView.statusText, tone: alignmentView.tone },
+          { text: view.livePill, tone: view.livePill === "LIVE" ? "live" : "muted" },
+          { text: view.statePill, tone: view.tone },
         ]}
-        score={alignmentView.score}
-        last={alignmentView.last}
+        score={view.score}
+        last={view.last}
         pl="—"
-        footNote={alignmentView.failing.length ? `Failing: ${alignmentView.failing.join(", ")}` : ""}
+        footNote={view.failing.length ? `Failing: ${view.failing.join(", ")}` : ""}
         actions={[
-          { label: "Load SPY (10m)", onClick: () => load("SPY", "10m", "alignment") },
-          { label: "Load QQQ (10m)", onClick: () => load("QQQ", "10m", "alignment") },
+          { label: "Load SPY (10m)", onClick: () => load("SPY") },
+          { label: "Load QQQ (10m)", onClick: () => load("QQQ") },
         ]}
-        bottomTabs={[
-          { k: "SPY", on: () => load("SPY", "10m", "alignment") },
-          { k: "QQQ", on: () => load("QQQ", "10m", "alignment") },
-          { k: "IWM", on: () => load("IWM", "10m", "alignment") },
-          { k: "MDY", on: () => load("MDY", "10m", "alignment") },
-          { k: "SPX", on: () => load("I:SPX", "10m", "alignment") },
-          { k: "NDX", on: () => load("I:NDX", "10m", "alignment") },
-          { k: "DJI", on: () => load("I:DJI", "10m", "alignment") },
-        ]}
-      />
+      >
+        <div style={S.selRow}>
+          <span style={S.selKey}>Selected:</span>
+          <span style={S.selVal}>
+            {selection?.symbol || "—"} • {selection?.timeframe || "—"}
+          </span>
+        </div>
+        <div style={S.tabRow}>
+          {tabs.map(({ k, sym }) => {
+            const active = selection?.symbol === sym && selection?.timeframe === "10m";
+            return (
+              <button
+                key={k}
+                type="button"
+                onClick={() => load(sym)}
+                style={{ ...S.tab, ...(active ? S.tabActive : null) }}
+                aria-pressed={active}
+                title={`Load ${k} (10m)`}
+              >
+                {k}
+              </button>
+            );
+          })}
+        </div>
+      </Card>
 
-      {/* Wave 3 (Daily) */}
       <Card
         title="Wave 3 Breakout"
         timeframe="Daily"
@@ -97,7 +125,6 @@ export default function RowStrategies() {
         ]}
       />
 
-      {/* Flagpole (Daily) */}
       <Card
         title="Flagpole Breakout"
         timeframe="Daily"
@@ -123,10 +150,9 @@ function Card({
   pl,
   actions = [],
   footNote = "",
-  bottomTabs = [],
+  children = null,
 }) {
   const pct = Math.max(0, Math.min(100, score));
-
   return (
     <div style={S.card}>
       <div style={S.head}>
@@ -134,7 +160,6 @@ function Card({
           <div style={S.title}>{title}</div>
           <span style={S.badge}>{timeframe}</span>
         </div>
-
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
           {rightPills.map((p, i) => (
             <span key={i} style={{ ...S.pill, ...toneStyles(p.tone).pill }}>
@@ -159,21 +184,13 @@ function Card({
 
       <div style={S.ctaRow}>
         {actions.map((a, i) => (
-          <button key={i} onClick={a.onClick} style={S.btnSm}>
+          <button key={i} type="button" onClick={a.onClick} style={S.btnSm}>
             {a.label}
           </button>
         ))}
       </div>
 
-      {bottomTabs.length ? (
-        <div style={S.tabRow}>
-          {bottomTabs.map((t) => (
-            <button key={t.k} onClick={t.on} style={S.tab}>
-              {t.k}
-            </button>
-          ))}
-        </div>
-      ) : null}
+      {children}
     </div>
   );
 }
@@ -203,7 +220,7 @@ const S = {
     display: "flex",
     flexDirection: "column",
     gap: 8,
-    minHeight: 110, // compact to preserve chart height
+    minHeight: 110,
   },
   head: {
     display: "flex",
@@ -268,6 +285,9 @@ const S = {
     fontSize: 11,
     cursor: "pointer",
   },
+  selRow: { display: "flex", alignItems: "center", gap: 6, marginTop: 2, fontSize: 11 },
+  selKey: { color: "#9ca3af" },
+  selVal: { fontWeight: 700 },
   tabRow: { display: "flex", gap: 6, flexWrap: "wrap", marginTop: 4 },
   tab: {
     background: "#141414",
@@ -279,19 +299,20 @@ const S = {
     fontWeight: 700,
     cursor: "pointer",
   },
+  tabActive: {
+    background: "#1f2937",
+    color: "#e5e7eb",
+    border: "1px solid #3b82f6",
+    boxShadow: "0 0 0 1px #3b82f6 inset",
+  },
 };
 
 function toneStyles(kind) {
   switch (kind) {
-    case "live":
-      return { pill: { background: "#06220f", color: "#86efac", borderColor: "#166534" } };
-    case "info":
-      return { pill: { background: "#0b1220", color: "#93c5fd", borderColor: "#1e3a8a" } };
-    case "warn":
-      return { pill: { background: "#1b1409", color: "#fbbf24", borderColor: "#92400e" } };
-    case "ok":
-      return { pill: { background: "#07140d", color: "#86efac", borderColor: "#166534" } };
-    default:
-      return { pill: { background: "#0b0b0b", color: "#94a3b8", borderColor: "#2b2b2b" } };
+    case "live": return { pill: { background: "#06220f", color: "#86efac", borderColor: "#166534" } };
+    case "info": return { pill: { background: "#0b1220", color: "#93c5fd", borderColor: "#1e3a8a" } };
+    case "warn": return { pill: { background: "#1b1409", color: "#fbbf24", borderColor: "#92400e" } };
+    case "ok":   return { pill: { background: "#07140d", color: "#86efac", borderColor: "#166534" } };
+    default:     return { pill: { background: "#0b0b0b", color: "#94a3b8", borderColor: "#2b2b2b" } };
   }
 }
