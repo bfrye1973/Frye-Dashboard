@@ -5,24 +5,23 @@ import { createChart } from "lightweight-charts";
 /**
  * Mounts a lightweight-charts instance that flexes to fill its parent.
  * - Sizes from the parent (prevents tiny-start issues)
- * - Observes ONLY the parent (prevents resize feedback loops)
- * - Forces time axis visible with room for labels
+ * - Observes ONLY the parent (avoids resize feedback loops)
+ * - Keeps time axis visible with space for labels
  * - Locks timezone to America/Phoenix (Arizona), with a version-safe timeFormatter fallback
  * Returns { containerRef, chart, setData }.
  */
 export default function useLwcChart({ theme }) {
-  const containerRef = useRef(null); // div.tv-lightweight-charts
+  const containerRef = useRef(null);   // div.tv-lightweight-charts
   const chartRef = useRef(null);
   const seriesRef = useRef(null);
   const roRef = useRef(null);
   const [chart, setChart] = useState(null);
 
-  // Small internal guard so the time axis has a few pixels without CSS padding
+  // give the bottom axis a few px without messing with CSS elsewhere
   const AXIS_GUARD = 6;
 
-  // Phoenix time formatter (fallback across lib versions)
+  // Phoenix time formatter that works across lib versions (number or {timestamp})
   const phoenixFormatter = (ts) => {
-    // ts may be a number (seconds) or a { timestamp } object depending on the lib
     const seconds =
       typeof ts === "number"
         ? ts
@@ -55,21 +54,21 @@ export default function useLwcChart({ theme }) {
       layout: theme.layout,
       grid: theme.grid,
       rightPriceScale: { borderColor: theme.rightPriceScale.borderColor },
-      timeScale: theme.timeScale, // keep your spacing/borders from theme
+      timeScale: theme.timeScale, // keep your existing spacing/borders
       crosshair: theme.crosshair,
       localization: {
-        timezone: "America/Phoenix", // Arizona (no DST)
+        timezone: "America/Phoenix",     // AZ time (no DST)
         dateFormat: "yyyy-MM-dd",
-        timeFormatter: phoenixFormatter, // robust fallback
+        timeFormatter: phoenixFormatter, // robust across versions
       },
     });
 
-    // Ensure the time axis exists and has space
+    // ensure the time axis is visible and has space for labels
     chartInstance.timeScale().applyOptions({
       visible: true,
       timeVisible: true,
       borderVisible: true,
-      minimumHeight: 20, // guard space for labels
+      minimumHeight: 20,
     });
 
     const candleSeries = chartInstance.addCandlestickSeries({
@@ -81,7 +80,7 @@ export default function useLwcChart({ theme }) {
       wickDownColor: theme.wickDownColor,
     });
 
-    // Re-assert axis options after series creation (wins over any later touches)
+    // re-assert axis options after series creation (wins over later touches)
     chartInstance.timeScale().applyOptions({
       visible: true,
       timeVisible: true,
@@ -93,7 +92,7 @@ export default function useLwcChart({ theme }) {
     seriesRef.current = candleSeries;
     setChart(chartInstance);
 
-    // Resize: observe ONLY the parent to avoid feedback loops
+    // observe ONLY the parent for resizes (prevents chart <-> container feedback loops)
     const ro = new ResizeObserver(() => {
       const host = containerRef.current;
       if (!host || !chartRef.current) return;
@@ -111,12 +110,8 @@ export default function useLwcChart({ theme }) {
     roRef.current = ro;
 
     return () => {
-      try {
-        roRef.current?.disconnect();
-      } catch {}
-      try {
-        chartInstance.remove();
-      } catch {}
+      try { roRef.current?.disconnect(); } catch {}
+      try { chartInstance.remove(); } catch {}
       chartRef.current = null;
       seriesRef.current = null;
       setChart(null);
