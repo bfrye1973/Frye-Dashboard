@@ -2,6 +2,7 @@
 import React from "react";
 import { useDashboardPoll } from "../../lib/dashboardApi";
 import { LastUpdated } from "../../components/LastUpdated";
+import { MarketMeterIntradayLegend, MarketMeterDailyLegend } from "../../components/MarketMeterLegend";
 
 // RAW GitHub live endpoints
 const INTRADAY_URL = process.env.REACT_APP_INTRADAY_URL;   // data-live-10min/data/outlook_intraday.json
