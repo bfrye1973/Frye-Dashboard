@@ -90,6 +90,24 @@ export default function LiveLWChart({
       timeVisible: true,
       borderVisible: true,
       minimumHeight: 20,
+      // force tick labels into Arizona as well
+      tickMarkFormatter: (time /* number or {timestamp} */) => {
+        const seconds =
+          typeof time === "number"
+            ? time
+            : time && typeof time.timestamp === "number"
+            ? time.timestamp
+            : 0;
+        const d = new Date(seconds * 1000);
+        return new Intl.DateTimeFormat("en-US", {
+          timeZone: "America/Phoenix",
+          hour12: true,
+          hour: "numeric",
+          minute: "2-digit",
+       }).format(d);
+     },
+  });
+
       // some builds ignore localization until timeVisible is set -> we set it
     });
 
