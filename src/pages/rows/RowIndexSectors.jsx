@@ -305,11 +305,14 @@ export default function RowIndexSectors() {
 
   // AZ time
   const ts =
-    live?.sectors?.updatedAt ||
-    live?.marketMeter?.updatedAt ||
-    live?.updated_at ||
-    live?.ts ||
+    live?.sectorsUpdatedAt ||  // preferred
+    live?.updated_at ||        // fallback (AZ)
     null;
+
+  // In header:
+  <div style={{ marginLeft: 8, color: "#9ca3af", fontSize: 12 }}>
+    Updated {ts || "--"}
+  </div>
 
   // choose cards source
   const source = srcTf === "eod" ? (eodData || live) : live;
