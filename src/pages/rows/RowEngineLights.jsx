@@ -1,4 +1,9 @@
 // src/pages/rows/RowEngineLights.jsx
+// v2 — Strict binding to /live/intraday → engineLights.signals
+// - No fallbacks to metrics/gauges
+// - Keyed by engineLights.updatedAt to force fresh render each tick
+// - Minimal, stable layout (auto-height; flex pills)
+
 import React, { useEffect, useRef, useState } from "react";
 import { useDashboardPoll } from "../../lib/dashboardApi";
 import { LastUpdated } from "../../components/LastUpdated";
@@ -70,7 +75,7 @@ function EngineLightsLegendContent(){
 }
 
 /* ------------------------------------------------------------------ */
-/* Signal definitions                                                  */
+/* Signal definitions & tone mapping                                   */
 /* ------------------------------------------------------------------ */
 const SIGNAL_DEFS = [
   { key:"sigBreakout",       label:"Breakout",        desc:"Market ready to move" },
@@ -84,9 +89,6 @@ const SIGNAL_DEFS = [
   { key:"sigVolatilityHigh", label:"Volatility High", desc:"Volatility > 70 (danger > 85)" },
 ];
 
-/* ------------------------------------------------------------------ */
-/* Tone mapping                                                        */
-/* ------------------------------------------------------------------ */
 function computeSignalList(sigObj = {}) {
   return SIGNAL_DEFS.map(def => {
     const sig = sigObj?.[def.key] || {};
@@ -113,54 +115,17 @@ function computeSignalList(sigObj = {}) {
 }
 
 /* ------------------------------------------------------------------ */
-/* Derive fallback signals from METRICS (preferred) then GAUGES        */
-/* ------------------------------------------------------------------ */
-function deriveFromMetricsOrGauges(source = {}) {
-  // Prefer new metrics/*
-  const m = source?.metrics || null;
-  const g = source?.gauges  || null;
-
-  // read from metrics
-  let breadth    = Number(m?.breadth_pct);
-  let momentum   = Number(m?.momentum_pct);
-  let squeeze    = Number(m?.squeeze_intraday_pct);
-  let liquidity  = Number(m?.liquidity_psi);
-  let volatility = Number(m?.volatility_pct);
-
-  // if metrics missing, read from legacy gauges
-  if (!Number.isFinite(breadth)    && g?.rpm)    breadth    = Number(g.rpm.pct);
-  if (!Number.isFinite(momentum)   && g?.speed)  momentum   = Number(g.speed.pct);
-  if (!Number.isFinite(squeeze)    && g?.fuel)   squeeze    = Number(g.fuel.pct);
-  if (!Number.isFinite(liquidity)  && g?.oil)    liquidity  = Number(g.oil.psi ?? g.oilPsi);
-  if (!Number.isFinite(volatility) && g?.water)  volatility = Number(g.water.pct ?? g.volatilityPct);
-
-  const out = {};
-  const F = (x) => Number.isFinite(x);
-
-  if (F(squeeze) && squeeze >= 70) out.sigCompression   = { active:true, severity:(squeeze>=85?"danger":"warn") };
-  if (F(momentum) && momentum > 92 && F(squeeze) && squeeze < 70) out.sigTurbo = { active:true };
-  if (F(momentum) && momentum > 85) out.sigOverheat     = { active:true, severity:(momentum>92?"danger":"warn") };
-  if (F(breadth) && breadth < 40)   out.sigDistribution = { active:true };
-  if (F(breadth) && F(squeeze) && breadth > 60 && squeeze < 70) out.sigBreakout = { active:true };
-  if (F(squeeze) && squeeze < 40)   out.sigExpansion    = { active:true };
-  if (F(momentum) && F(breadth) && momentum > 70 && breadth < 50) out.sigDivergence = { active:true };
-  if (F(liquidity) && liquidity < 40) out.sigLowLiquidity = { active:true, severity:(liquidity<30?"danger":"warn") };
-  if (F(volatility) && volatility > 70) out.sigVolatilityHigh = { active:true, severity:(volatility>85?"danger":"warn") };
-
-  return out;
-}
-
-/* ------------------------------------------------------------------ */
 /* Main Row Component                                                  */
 /* ------------------------------------------------------------------ */
 export default function RowEngineLights() {
+  // Polls the dashboard payload (includes /live/intraday fields)
   const { data: live, loading, error } = useDashboardPoll("dynamic");
 
   const [lights, setLights] = useState(() => computeSignalList({}));
   const [stale, setStale] = useState(false);
   const firstPaintRef = useRef(false);
 
-  // Replay bridge
+  // Replay bridge (if your Replay Mode broadcasts events)
   const [replayOn, setReplayOn] = useState(false);
   const [replayData, setReplayData] = useState(null);
   useEffect(() => {
@@ -177,9 +142,9 @@ export default function RowEngineLights() {
   // Choose source: replay → backend poll
   const source = (replayOn && replayData) ? replayData : (live || {});
 
-  // Prefer the new backend section (engineLights) for timestamp + signals
+  // Strictly read the new backend section for timestamp + signals
   const eng = source?.engineLights || {};
-  const backendSignals = eng?.signals || source?.signals || null;
+  const backendSignals = (eng?.signals && typeof eng.signals === "object") ? eng.signals : {};
 
   // Timestamp priority: engineLights.updatedAt → updated_at (AZ) → ts
   const ts =
@@ -188,38 +153,28 @@ export default function RowEngineLights() {
     source?.ts ??
     null;
 
-  // Live badge if backend marked it
+  // Live badge and mode label from backend
   const isLive = !!eng?.live;
-  const modeLabel = eng?.mode || null; // "intraday" | "daily" | "eod" (informational)
+  const modeLabel = eng?.mode || null; // "intraday" | "hourly" | "daily"
 
-  // Compute lights whenever source changes
+  // Compute lights whenever backend signals change
   useEffect(() => {
     if (!source || typeof source !== "object") {
       if (firstPaintRef.current) setStale(true);
       return;
     }
-
-    // 1) Use backend signals if provided
-    let list = null;
-    if (backendSignals && typeof backendSignals === "object") {
-      list = computeSignalList(backendSignals);
-    }
-
-    // 2) If no active signals from backend, derive from METRICS/GAUGES
-    if (!list || !list.some(s => s.active)) {
-      const derived = deriveFromMetricsOrGauges(source);
-      list = computeSignalList(derived);
-    }
-
+    const list = computeSignalList(backendSignals);
+    // one-line debug to verify updates are flowing
+    try { console.debug("[EngineLights] at", ts, "keys", Object.keys(backendSignals)); } catch {}
     setLights(list);
     setStale(false);
     firstPaintRef.current = true;
-  }, [source, backendSignals]);
+  }, [ts, backendSignals, source]);
 
   const [legendOpen, setLegendOpen] = useState(false);
 
   return (
-    <section id="row-3" className="panel" aria-label="Engine Lights">
+    <section id="row-3" className="panel" aria-label="Engine Lights" key={ts || "no-ts"}>
       {/* Header with Legend + status */}
       <div className="panel-head" style={{ alignItems:"center" }}>
         <div className="panel-title">Engine Lights</div>
