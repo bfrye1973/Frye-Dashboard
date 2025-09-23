@@ -1,11 +1,7 @@
 // src/pages/rows/EngineLights.jsx
-// v1 — Strict /live/intraday binding + stable re-render key + debug logs
-// - Source of truth: source.engineLights.signals ONLY
-// - No metrics/gauges fallback (prevents "stuck" UI)
-// - <section key={stableKey}> forces repaint when timestamp or signals change
+// v2 — Bind directly to /live/intraday (no metrics fallback, no dynamic hook ambiguity)
 
 import React, { useEffect, useRef, useState } from "react";
-import { useDashboardPoll } from "../../lib/dashboardApi";
 import { LastUpdated } from "../../components/LastUpdated";
 
 /* -------------------------- Light pill --------------------------- */
@@ -37,14 +33,11 @@ function Light({ label, tone = "info", active = true }) {
   );
 }
 
-/* -------------------------- Legend --------------------------- */
+/* --------------------- Legend (unchanged) --------------------- */
 function Swatch({ color, label, note }) {
   return (
     <div style={{display:"flex", alignItems:"center", gap:8, marginBottom:6}}>
-      <span style={{
-        width:36, height:12, borderRadius:12, background:color,
-        display:"inline-block", border:"1px solid rgba(255,255,255,0.1)"
-      }} />
+      <span style={{ width:36, height:12, borderRadius:12, background:color, display:"inline-block", border:"1px solid rgba(255,255,255,0.1)" }} />
       <span style={{ color:"#e5e7eb", fontSize:12, fontWeight:700 }}>{label}</span>
       <span style={{ color:"#cbd5e1", fontSize:12 }}>— {note}</span>
     </div>
@@ -54,9 +47,7 @@ function Swatch({ color, label, note }) {
 function EngineLightsLegendContent(){
   return (
     <div>
-      <div style={{ color:"#f9fafb", fontSize:14, fontWeight:800, marginBottom:8 }}>
-        Engine Lights — Legend
-      </div>
+      <div style={{ color:"#f9fafb", fontSize:14, fontWeight:800, marginBottom:8 }}>Engine Lights — Legend</div>
       <Swatch color="#22c55e" label="Breakout"         note="Market setting up for move" />
       <Swatch color="#ef4444" label="Distribution"     note="Breadth negative, possible reversal" />
       <Swatch color="#facc15" label="Compression"      note="Squeeze ≥ 70 — direction unclear" />
@@ -123,67 +114,43 @@ function buildStableKey(ts, signals) {
 
 /* --------------------------- Main ---------------------------- */
 export default function EngineLights() {
-  const { data: live, loading, error } = useDashboardPoll("dynamic");
-
+  const [payload, setPayload] = useState({ eng: null, signals: {}, ts: null, live: false, mode: null });
   const [lights, setLights] = useState(() => computeSignalList({}));
-  const [stale, setStale] = useState(false);
+  const [legendOpen, setLegendOpen] = useState(false);
   const firstPaintRef = useRef(false);
+  const timerRef = useRef(null);
 
-  // Replay bridge (if you broadcast replay events)
-  const [replayOn, setReplayOn] = useState(false);
-  const [replayData, setReplayData] = useState(null);
-  useEffect(() => {
-    function onReplay(e) {
-      const d = e?.detail || {};
-      const on = !!d.on;
-      setReplayOn(on);
-      setReplayData(on ? (d.data || null) : null);
+  async function fetchLive(abortSignal) {
+    try {
+      const res = await fetch("/live/intraday?nocache=" + Date.now(), { cache: "no-store", signal: abortSignal });
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      const j = await res.json();
+      const eng = j?.engineLights || {};
+      const signals = (eng?.signals && typeof eng.signals === "object") ? eng.signals : {};
+      const ts = eng?.updatedAt || j?.updated_at || j?.ts || null;
+      const live = !!eng?.live;
+      const mode = eng?.mode || null;
+      console.log("[EngineLights /live] at", ts, "keys", Object.keys(signals)); // DEBUG
+      setPayload({ eng, signals, ts, live, mode });
+      setLights(computeSignalList(signals));
+      firstPaintRef.current = true;
+    } catch (e) {
+      console.warn("[EngineLights] fetch failed:", e);
     }
-    window.addEventListener("replay:update", onReplay);
-    return () => window.removeEventListener("replay:update", onReplay);
+  }
+
+  useEffect(() => {
+    const ctrl = new AbortController();
+    fetchLive(ctrl.signal);
+    timerRef.current = setInterval(() => fetchLive(ctrl.signal), 60_000); // poll every 60s
+    return () => {
+      try { ctrl.abort(); } catch {}
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
   }, []);
 
-  // Choose source: replay → backend poll
-  const source = (replayOn && replayData) ? replayData : (live || {});
-
-  // Strictly read the backend section for timestamp + signals
-  const eng = source?.engineLights || {};
-  const backendSignals = (eng?.signals && typeof eng.signals === "object") ? eng.signals : {};
-
-  // Timestamp priority
-  const ts = eng?.updatedAt ?? source?.updated_at ?? source?.ts ?? null;
-
-  // Live badge / mode
-  const isLive = !!eng?.live;
-  const modeLabel = eng?.mode || null;
-
-  // Stable key
-  const stableKey = buildStableKey(ts, backendSignals);
-
-  // React to payload changes
-  useEffect(() => {
-    if (!source || typeof source !== "object") {
-      if (firstPaintRef.current) setStale(true);
-      return;
-    }
-    // DEBUG: see exactly what arrives each tick
-    try {
-      console.log("[EngineLights] update", {
-        ts, live: isLive, mode: modeLabel,
-        keys: Object.keys(backendSignals),
-        sample: backendSignals
-      });
-    } catch {}
-    const list = computeSignalList(backendSignals);
-    setLights(list);
-    setStale(false);
-    firstPaintRef.current = true;
-  }, [stableKey, source]); // stableKey guarantees this fires on real changes
-
-  const [legendOpen, setLegendOpen] = useState(false);
-
-  // DEBUG at render
-  try { console.log("[EngineLights payload]", eng); } catch {}
+  const { ts, live, mode, signals } = payload;
+  const stableKey = buildStableKey(ts, signals);
 
   return (
     <section id="row-3" className="panel" aria-label="Engine Lights" key={stableKey}>
@@ -202,20 +169,16 @@ export default function EngineLights() {
           Legend
         </button>
         <div className="spacer" />
-        {isLive && (
+        {live && (
           <span
             className="small"
-            style={{
-              marginRight:8, padding:"3px 8px", borderRadius:6,
-              background:"#16a34a", color:"#0b1220", fontWeight:800, border:"1px solid #0f7a2a"
-            }}
-            title={modeLabel ? `Mode: ${modeLabel}` : "Live intraday"}
+            style={{ marginRight:8, padding:"3px 8px", borderRadius:6, background:"#16a34a", color:"#0b1220", fontWeight:800, border:"1px solid #0f7a2a" }}
+            title={mode ? `Mode: ${mode}` : "Live intraday"}
           >
             LIVE
           </span>
         )}
         <LastUpdated ts={ts} />
-        {stale && <span className="small muted" style={{ marginLeft:8 }}>refreshing…</span>}
       </div>
 
       {/* Lights row */}
@@ -230,44 +193,24 @@ export default function EngineLights() {
       {/* Legend modal */}
       {legendOpen && (
         <div
-          role="dialog"
-          aria-modal="true"
-          onClick={()=> setLegendOpen(false)}
-          style={{
-            position:"fixed", inset:0, background:"rgba(0,0,0,0.5)",
-            display:"flex", alignItems:"center", justifyContent:"center", zIndex:60
-          }}
+          role="dialog" aria-modal="true" onClick={()=> setLegendOpen(false)}
+          style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.5)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:60 }}
         >
           <div
             onClick={(e)=> e.stopPropagation()}
-            style={{
-              width:"min(880px, 92vw)", background:"#0b0b0c",
-              border:"1px solid #2b2b2b", borderRadius:12, padding:16,
-              boxShadow:"0 10px 30px rgba(0,0,0,0.35)"
-            }}
+            style={{ width:"min(880px, 92vw)", background:"#0b0b0c", border:"1px solid #2b2b2b", borderRadius:12, padding:16, boxShadow:"0 10px 30px rgba(0,0,0,0.35)" }}
           >
             <EngineLightsLegendContent />
             <div style={{ display:"flex", justifyContent:"flex-end", marginTop:12 }}>
               <button
                 onClick={()=> setLegendOpen(false)}
-                style={{
-                  background:"#eab308", color:"#111827", border:"none",
-                  borderRadius:8, padding:"8px 12px", fontWeight:700, cursor:"pointer"
-                }}
+                style={{ background:"#eab308", color:"#111827", border:"none", borderRadius:8, padding:"8px 12px", fontWeight:700, cursor:"pointer" }}
               >
                 Close
               </button>
             </div>
           </div>
         </div>
-      )}
-
-      {/* First-paint loading/error */}
-      {!firstPaintRef.current && loading && (
-        <div className="small muted" style={{ marginTop:6 }}>Loading…</div>
-      )}
-      {!firstPaintRef.current && error && (
-        <div className="small muted" style={{ marginTop:6 }}>Failed to load signals.</div>
       )}
     </section>
   );
