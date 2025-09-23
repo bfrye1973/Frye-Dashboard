@@ -217,19 +217,29 @@ export default function RowMarketOverview(){
       )}
 
       {/* Header */}
-      <div className="panel-head" style={{alignItems:"center"}}>
-        <div className="panel-title">Market Meter — Stoplights</div>
-        <button onClick={()=>setLegendOpen(true)} style={{background:"#0b0b0b",color:"#e5e7eb",border:"1px solid #2b2b2b",borderRadius:8,padding:"6px 10px",fontWeight:600,cursor:"pointer",marginLeft:8}}>Legend</button>
-        <div className="spacer" />
-        <LastUpdated ts={ts}/>
-        {/* Replay controls */}
-        <ReplayControls
-          on={on} setOn={setOn}
-          granularity={granularity} setGranularity={setGranularity}
-          ts={tsSel} setTs={setTsSel}
-          options={indexOptions} loading={loadingIdx}
-        />
-      </div>
+      <div className="panel-title">Market Meter — Stoplights</div>
+
+      {/* Intraday Legend Button */}
+      <button 
+        onClick={()=>setLegendOpen("intraday")} 
+        style={{
+          background:"#0b0b0b",color:"#e5e7eb",
+          border:"1px solid #2b2b2b",borderRadius:8,
+          padding:"6px 10px",fontWeight:600,cursor:"pointer",marginLeft:8
+       }}>
+       Intraday Legend
+      </button>
+
+      {/* Daily Legend Button */}
+      <button 
+       onClick={()=>setLegendOpen("daily")} 
+       style={{
+         background:"#0b0b0b",color:"#e5e7eb",
+         border:"1px solid #2b2b2b",borderRadius:8,
+         padding:"6px 10px",fontWeight:600,cursor:"pointer",marginLeft:8
+       }}>
+       Daily Legend
+      </button>
 
       {/* Two labeled halves */}
       <div style={{display:"flex",justifyContent:"space-between",gap:18,marginTop:8,flexWrap:"wrap"}}>
