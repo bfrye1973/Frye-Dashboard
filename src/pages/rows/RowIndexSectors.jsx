@@ -1,4 +1,10 @@
-// RowIndexSectors.jsx
+// src/pages/rows/RowIndexSectors.jsx
+// Compact Index Sectors row (no layout/height changes):
+// - AZ timestamp on LEFT next to Legend
+// - Tiny timeframe tabs (10m / 1h / EOD) on RIGHT
+// - Δ Momentum / Δ Breadth pills (tiny)
+// - Sector cards: Momentum bar, Breadth Tilt bar, Net NH, Bullish/Bearish chip
+
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
 const URLS = {
@@ -13,7 +19,7 @@ const TF_OPTIONS = [
   { key: "eod", label: "EOD" },
 ];
 
-/* ---------- Tiny controls ---------- */
+/* ---------- tiny UI bits (won’t change row height) ---------- */
 function TinyTab({ active, onClick, label }) {
   return (
     <button
@@ -41,17 +47,24 @@ function Pill({ value, label }) {
   );
 }
 
-/* ---------- Sector Card ---------- */
-function SectorCard({ c }) {
-  const momentum = c.momentum_pct ?? 50;
-  const breadth  = c.breadth_pct ?? 50;
-  const netNH    = (c.nh ?? 0) - (c.nl ?? 0);
-  const outlook  = c.outlook || "Neutral";
+function toneFor(outlook) {
+  const s = String(outlook || "").toLowerCase();
+  if (s.startsWith("bull")) return "bull";
+  if (s.startsWith("bear")) return "bear";
+  return "neu";
+}
+
+/* ---------- Sector Card (compact) ---------- */
+function SectorCard({ sector, outlook, momentum_pct, breadth_pct, nh, nl }) {
+  const momentum = Number(momentum_pct ?? 50);
+  const breadth  = Number(breadth_pct  ?? 50);
+  const netNH    = (Number(nh) ?? 0) - (Number(nl) ?? 0);
+  const tone     = toneFor(outlook);
 
   const chip =
-    outlook === "Bullish" ? "bg-emerald-600/20 text-emerald-300"
-  : outlook === "Bearish" ? "bg-rose-600/20 text-rose-300"
-  : "bg-slate-700/30 text-slate-300";
+    tone === "bull" ? "bg-emerald-600/20 text-emerald-300" :
+    tone === "bear" ? "bg-rose-600/20 text-rose-300" :
+                      "bg-slate-700/30 text-slate-300";
 
   const Bar = ({ pct, title }) => (
     <div className="w-full">
@@ -70,9 +83,12 @@ function SectorCard({ c }) {
   return (
     <div className="min-w-[220px] max-w-[240px] rounded-xl border border-slate-700 bg-slate-900/60 p-3">
       <div className="flex items-center justify-between mb-2">
-        <div className="text-sm text-white/90">{c.sector}</div>
-        <span className={`px-2 py-0.5 rounded-full text-[10px] ${chip}`}>{outlook}</span>
+        <div className="text-sm text-white/90">{sector || "Sector"}</div>
+        <span className={`px-2 py-0.5 rounded-full text-[10px] ${chip}`}>
+          {outlook || "Neutral"}
+        </span>
       </div>
+
       <div className="space-y-2">
         <Bar pct={momentum} title="Momentum" />
         <Bar pct={breadth}  title="Breadth Tilt" />
@@ -87,7 +103,7 @@ function SectorCard({ c }) {
   );
 }
 
-/* ---------- Main Row ---------- */
+/* ---------- Main Row (small, no height change) ---------- */
 export default function RowIndexSectors() {
   const [tf, setTf] = useState("10m");
   const [data, setData] = useState(null);
@@ -106,43 +122,54 @@ export default function RowIndexSectors() {
         prevRef.current = data;
         setData(json);
       } catch (e) {
-        console.error("fetch error", e);
+        // keep quiet in prod
+        console.error("IndexSectors fetch error:", e);
       }
     }
     fetchOnce();
-    const interval = tf === "eod" ? null : setInterval(fetchOnce, 60_000);
+    const t = tf === "eod" ? null : setInterval(fetchOnce, 60_000);
     return () => {
       alive = false;
-      if (interval) clearInterval(interval);
+      if (t) clearInterval(t);
     };
   }, [url]);
 
-  const updatedAt = useMemo(() => {
+  // AZ timestamp (we emit sectorsUpdatedAt; fall back to updated_at)
+  const updatedAtAZ = useMemo(() => {
     return data?.sectorsUpdatedAt || data?.updated_at || "";
   }, [data]);
 
   const cards = data?.sectorCards || [];
-  const summary = data?.summary || {};
-  const prevSummary = prevRef.current?.summary || null;
 
+  // Small Δ pills (global summary)
+  const summary     = data?.summary || {};
+  const prevSummary = prevRef.current?.summary || null;
   const deltas = useMemo(() => {
     if (!prevSummary) return { momentum: null, breadth: null };
     return {
       momentum: (summary.momentum_pct ?? 0) - (prevSummary.momentum_pct ?? 0),
-      breadth: (summary.breadth_pct ?? 0) - (prevSummary.breadth_pct ?? 0),
+      breadth:  (summary.breadth_pct  ?? 0) - (prevSummary.breadth_pct  ?? 0),
     };
   }, [summary, prevSummary]);
 
   return (
     <section className="px-4 py-3">
-      {/* Header */}
+      {/* header — compact; no height change */}
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
           <div className="text-white/90 font-medium text-sm">Index Sectors</div>
-          <div className="text-slate-300/80 text-xs">Legend</div>
-          <div className="text-slate-300/70 text-xs">·</div>
-          <div className="text-slate-300/80 text-[11px]">Updated {updatedAt}</div>
+          <button
+            className="text-slate-300/80 text-xs px-2 py-1 rounded border border-slate-700 bg-slate-900 hover:border-slate-500"
+            title="Legend"
+            onClick={() => window.dispatchEvent(new CustomEvent("sectors:legend", { detail: { open: true } }))}
+          >
+            Legend
+          </button>
+          {/* timestamp on LEFT next to Legend (AZ) */}
+          <div className="text-slate-300/80 text-[11px]">Updated {updatedAtAZ}</div>
         </div>
+
+        {/* right controls (tiny) */}
         <div className="flex items-center gap-1">
           <Pill value={deltas.momentum} label="Δ Momentum" />
           <Pill value={deltas.breadth}  label="Δ Breadth" />
@@ -159,7 +186,7 @@ export default function RowIndexSectors() {
         </div>
       </div>
 
-      {/* Cards */}
+      {/* cards grid — same spacing as before */}
       <div className="flex flex-wrap gap-2">
         {cards.map((c, i) => (
           <SectorCard key={c.sector || i} c={c} {...c} />
