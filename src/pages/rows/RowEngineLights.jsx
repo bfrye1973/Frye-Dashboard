@@ -1,17 +1,14 @@
-// src/pages/rows/RowEngineLights.jsx
-// v3 — Strict /live/intraday binding + stable re-render key + debug logs
+// src/pages/rows/EngineLights.jsx
+// v1 — Strict /live/intraday binding + stable re-render key + debug logs
 // - Source of truth: source.engineLights.signals ONLY
 // - No metrics/gauges fallback (prevents "stuck" UI)
-// - <section key={stableKey}> guarantees paint when timestamp or signals change
-// - Console logs show exactly what arrives from backend
+// - <section key={stableKey}> forces repaint when timestamp or signals change
 
 import React, { useEffect, useRef, useState } from "react";
 import { useDashboardPoll } from "../../lib/dashboardApi";
 import { LastUpdated } from "../../components/LastUpdated";
 
-/* ------------------------------------------------------------------ */
-/* Light pill (colored badge)                                          */
-/* ------------------------------------------------------------------ */
+/* -------------------------- Light pill --------------------------- */
 function Light({ label, tone = "info", active = true }) {
   const palette =
     {
@@ -40,9 +37,7 @@ function Light({ label, tone = "info", active = true }) {
   );
 }
 
-/* ------------------------------------------------------------------ */
-/* Legend content (modal body)                                         */
-/* ------------------------------------------------------------------ */
+/* -------------------------- Legend --------------------------- */
 function Swatch({ color, label, note }) {
   return (
     <div style={{display:"flex", alignItems:"center", gap:8, marginBottom:6}}>
@@ -62,9 +57,9 @@ function EngineLightsLegendContent(){
       <div style={{ color:"#f9fafb", fontSize:14, fontWeight:800, marginBottom:8 }}>
         Engine Lights — Legend
       </div>
-      <Swatch color="#22c55e" label="Breakout"         note="Market setting up for move (breadth + momentum strong)" />
+      <Swatch color="#22c55e" label="Breakout"         note="Market setting up for move" />
       <Swatch color="#ef4444" label="Distribution"     note="Breadth negative, possible reversal" />
-      <Swatch color="#facc15" label="Compression"      note="Squeeze ≥ 70, direction unclear" />
+      <Swatch color="#facc15" label="Compression"      note="Squeeze ≥ 70 — direction unclear" />
       <Swatch color="#22c55e" label="Expansion"        note="Post-squeeze ranges opening" />
       <Swatch color="#facc15" label="Overheat"         note="Momentum > 85 (danger > 92)" />
       <Swatch color="#22c55e" label="Turbo"            note="Momentum > 92 with expansion" />
@@ -75,19 +70,17 @@ function EngineLightsLegendContent(){
   );
 }
 
-/* ------------------------------------------------------------------ */
-/* Signal definitions & tone mapping                                   */
-/* ------------------------------------------------------------------ */
+/* --------------------- Signal defs & tone --------------------- */
 const SIGNAL_DEFS = [
-  { key:"sigBreakout",       label:"Breakout",        desc:"Market ready to move" },
-  { key:"sigDistribution",   label:"Distribution",    desc:"Breadth negative, possible reversal" },
-  { key:"sigCompression",    label:"Compression",     desc:"Squeeze ≥ 70 — direction unclear" },
-  { key:"sigExpansion",      label:"Expansion",       desc:"Post-squeeze ranges opening" },
-  { key:"sigOverheat",       label:"Overheat",        desc:"Momentum > 85 (danger > 92)" },
-  { key:"sigTurbo",          label:"Turbo",           desc:"Momentum > 92 with expansion" },
-  { key:"sigDivergence",     label:"Divergence",      desc:"Momentum strong, breadth weak" },
-  { key:"sigLowLiquidity",   label:"Low Liquidity",   desc:"PSI < 40 (danger < 30)" },
-  { key:"sigVolatilityHigh", label:"Volatility High", desc:"Volatility > 70 (danger > 85)" },
+  { key:"sigBreakout",       label:"Breakout" },
+  { key:"sigDistribution",   label:"Distribution" },
+  { key:"sigCompression",    label:"Compression" },
+  { key:"sigExpansion",      label:"Expansion" },
+  { key:"sigOverheat",       label:"Overheat" },
+  { key:"sigTurbo",          label:"Turbo" },
+  { key:"sigDivergence",     label:"Divergence" },
+  { key:"sigLowLiquidity",   label:"Low Liquidity" },
+  { key:"sigVolatilityHigh", label:"Volatility High" },
 ];
 
 function computeSignalList(sigObj = {}) {
@@ -111,15 +104,14 @@ function computeSignalList(sigObj = {}) {
         default:                   tone = "ok";     break;
       }
     }
-    return { key:def.key, label:def.label, desc:def.desc, active, tone };
+    return { key:def.key, label:def.label, active, tone };
   });
 }
 
-/* Build a stable key so React repaints when timestamp or signal states change */
+/* Build stable key so React repaints when timestamp OR signal states change */
 function buildStableKey(ts, signals) {
   const parts = [ts || "no-ts"];
   try {
-    // fold signals to a tiny signature like: sigBreakout:1-info|sigCompression:0-|
     const sigSig = Object.entries(signals || {})
       .sort(([a],[b]) => a.localeCompare(b))
       .map(([k,v]) => `${k}:${(v?.active?1:0)}-${(v?.severity||"")}`)
@@ -129,26 +121,23 @@ function buildStableKey(ts, signals) {
   return parts.join("•");
 }
 
-/* ------------------------------------------------------------------ */
-/* Main Row Component                                                  */
-/* ------------------------------------------------------------------ */
-export default function RowEngineLights() {
-  // Polls the dashboard payload (includes /live/intraday fields)
+/* --------------------------- Main ---------------------------- */
+export default function EngineLights() {
   const { data: live, loading, error } = useDashboardPoll("dynamic");
 
   const [lights, setLights] = useState(() => computeSignalList({}));
   const [stale, setStale] = useState(false);
   const firstPaintRef = useRef(false);
 
-  // Replay bridge (if your Replay Mode broadcasts events)
+  // Replay bridge (if you broadcast replay events)
   const [replayOn, setReplayOn] = useState(false);
   const [replayData, setReplayData] = useState(null);
   useEffect(() => {
     function onReplay(e) {
-      const detail = e?.detail || {};
-      const on = !!detail.on;
+      const d = e?.detail || {};
+      const on = !!d.on;
       setReplayOn(on);
-      setReplayData(on ? (detail.data || null) : null);
+      setReplayData(on ? (d.data || null) : null);
     }
     window.addEventListener("replay:update", onReplay);
     return () => window.removeEventListener("replay:update", onReplay);
@@ -157,36 +146,30 @@ export default function RowEngineLights() {
   // Choose source: replay → backend poll
   const source = (replayOn && replayData) ? replayData : (live || {});
 
-  // Strictly read the new backend section for timestamp + signals
+  // Strictly read the backend section for timestamp + signals
   const eng = source?.engineLights || {};
   const backendSignals = (eng?.signals && typeof eng.signals === "object") ? eng.signals : {};
 
-  // Timestamp priority: engineLights.updatedAt → updated_at (AZ) → ts
-  const ts =
-    eng?.updatedAt ??
-    source?.updated_at ??
-    source?.ts ??
-    null;
+  // Timestamp priority
+  const ts = eng?.updatedAt ?? source?.updated_at ?? source?.ts ?? null;
 
-  // Live badge and mode label from backend
+  // Live badge / mode
   const isLive = !!eng?.live;
-  const modeLabel = eng?.mode || null; // "intraday" | "hourly" | "daily"
+  const modeLabel = eng?.mode || null;
 
-  // stable key for render
+  // Stable key
   const stableKey = buildStableKey(ts, backendSignals);
 
-  // Compute lights whenever backend signals change
+  // React to payload changes
   useEffect(() => {
     if (!source || typeof source !== "object") {
       if (firstPaintRef.current) setStale(true);
       return;
     }
-    // DEBUG: what arrives from backend each tick
+    // DEBUG: see exactly what arrives each tick
     try {
       console.log("[EngineLights] update", {
-        ts,
-        live: isLive,
-        mode: modeLabel,
+        ts, live: isLive, mode: modeLabel,
         keys: Object.keys(backendSignals),
         sample: backendSignals
       });
@@ -195,16 +178,16 @@ export default function RowEngineLights() {
     setLights(list);
     setStale(false);
     firstPaintRef.current = true;
-  }, [stableKey, source]); // using stableKey guarantees this effect runs on payload change
+  }, [stableKey, source]); // stableKey guarantees this fires on real changes
 
   const [legendOpen, setLegendOpen] = useState(false);
 
-  // One more DEBUG at render time so we can see what the component sees
-  try { console.log("[RowEngineLights payload]", eng); } catch {}
+  // DEBUG at render
+  try { console.log("[EngineLights payload]", eng); } catch {}
 
   return (
     <section id="row-3" className="panel" aria-label="Engine Lights" key={stableKey}>
-      {/* Header with Legend + status */}
+      {/* Header */}
       <div className="panel-head" style={{ alignItems:"center" }}>
         <div className="panel-title">Engine Lights</div>
         <button
@@ -219,7 +202,6 @@ export default function RowEngineLights() {
           Legend
         </button>
         <div className="spacer" />
-        {/* LIVE badge if backend flagged it */}
         {isLive && (
           <span
             className="small"
@@ -280,7 +262,7 @@ export default function RowEngineLights() {
         </div>
       )}
 
-      {/* Loading / error (first paint only) */}
+      {/* First-paint loading/error */}
       {!firstPaintRef.current && loading && (
         <div className="small muted" style={{ marginTop:6 }}>Loading…</div>
       )}
