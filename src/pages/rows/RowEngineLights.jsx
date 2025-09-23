@@ -7,13 +7,14 @@ import { LastUpdated } from "../../components/LastUpdated";
 /* Light pill (colored badge)                                          */
 /* ------------------------------------------------------------------ */
 function Light({ label, tone = "info", active = true }) {
-  const palette = {
-    ok:     { bg:"#22c55e", fg:"#0b1220", bd:"#16a34a", shadow:"#16a34a" }, // green
-    warn:   { bg:"#facc15", fg:"#111827", bd:"#ca8a04", shadow:"#ca8a04" }, // yellow
-    danger: { bg:"#ef4444", fg:"#fee2e2", bd:"#b91c1c", shadow:"#b91c1c" }, // red
-    info:   { bg:"#0b1220", fg:"#93c5fd", bd:"#334155", shadow:"#334155" }, // muted blue
-    off:    { bg:"#0b0f17", fg:"#6b7280", bd:"#1f2937", shadow:"#111827" }  // dark/off
-  }[tone] || { bg:"#0b0f17", fg:"#6b7280", bd:"#1f2937", shadow:"#111827" };
+  const palette =
+    {
+      ok:     { bg:"#22c55e", fg:"#0b1220", bd:"#16a34a", shadow:"#16a34a" }, // green
+      warn:   { bg:"#facc15", fg:"#111827", bd:"#ca8a04", shadow:"#ca8a04" }, // yellow
+      danger: { bg:"#ef4444", fg:"#fee2e2", bd:"#b91c1c", shadow:"#b91c1c" }, // red
+      info:   { bg:"#0b1220", fg:"#93c5fd", bd:"#334155", shadow:"#334155" }, // muted blue
+      off:    { bg:"#0b0f17", fg:"#6b7280", bd:"#1f2937", shadow:"#111827" }, // dark/off
+    }[tone] || { bg:"#0b0f17", fg:"#6b7280", bd:"#1f2937", shadow:"#111827" };
 
   return (
     <span
@@ -24,7 +25,8 @@ function Light({ label, tone = "info", active = true }) {
         borderRadius:8, fontWeight:700, fontSize:12,
         background: palette.bg, color: palette.fg, border:`1px solid ${palette.bd}`,
         boxShadow: `0 0 10px ${palette.shadow}55`,
-        opacity: active ? 1 : 0.45, filter: active ? "none" : "grayscale(40%)"
+        opacity: active ? 1 : 0.45, filter: active ? "none" : "grayscale(40%)",
+        transition: "opacity 120ms ease",
       }}
     >
       {label}
@@ -54,18 +56,15 @@ function EngineLightsLegendContent(){
       <div style={{ color:"#f9fafb", fontSize:14, fontWeight:800, marginBottom:8 }}>
         Engine Lights — Legend
       </div>
-      <Swatch color="#22c55e" label="Breakout" note="Market setting up for move." />
-      <Swatch color="#ef4444" label="Distribution" note="Breadth negative, possible reversal." />
-      <Swatch color="#facc15" label="Compression" note="Squeeze ≥ 70, direction unclear." />
-      <Swatch color="#22c55e" label="Expansion" note="Ranges expanding." />
-      <Swatch color="#facc15" label="Overheat" note="Momentum > 85." />
-      <Swatch color="#ef4444" label="Overheat Danger" note="Momentum > 92." />
-      <Swatch color="#22c55e" label="Turbo" note="Momentum + Expansion together." />
-      <Swatch color="#facc15" label="Divergence" note="Momentum strong, breadth weak." />
-      <Swatch color="#facc15" label="Low Liquidity" note="Liquidity < 40." />
-      <Swatch color="#ef4444" label="Liquidity Danger" note="Liquidity < 30." />
-      <Swatch color="#facc15" label="Volatility Warn" note="Volatility > 70." />
-      <Swatch color="#ef4444" label="Volatility Danger" note="Volatility > 85." />
+      <Swatch color="#22c55e" label="Breakout"         note="Market setting up for move (breadth + momentum strong)" />
+      <Swatch color="#ef4444" label="Distribution"     note="Breadth negative, possible reversal" />
+      <Swatch color="#facc15" label="Compression"      note="Squeeze ≥ 70, direction unclear" />
+      <Swatch color="#22c55e" label="Expansion"        note="Post-squeeze ranges opening" />
+      <Swatch color="#facc15" label="Overheat"         note="Momentum > 85 (danger > 92)" />
+      <Swatch color="#22c55e" label="Turbo"            note="Momentum > 92 with expansion" />
+      <Swatch color="#facc15" label="Divergence"       note="Momentum strong, breadth weak" />
+      <Swatch color="#facc15" label="Low Liquidity"    note="PSI < 40 (danger < 30)" />
+      <Swatch color="#ef4444" label="Volatility High"  note="Volatility > 70 (danger > 85)" />
     </div>
   );
 }
@@ -114,27 +113,39 @@ function computeSignalList(sigObj = {}) {
 }
 
 /* ------------------------------------------------------------------ */
-/* Derive fallback signals from gauges (when backend signals missing) */
+/* Derive fallback signals from METRICS (preferred) then GAUGES        */
 /* ------------------------------------------------------------------ */
-function deriveSignalsFromGauges(g = {}) {
+function deriveFromMetricsOrGauges(source = {}) {
+  // Prefer new metrics/*
+  const m = source?.metrics || null;
+  const g = source?.gauges  || null;
+
+  // read from metrics
+  let breadth    = Number(m?.breadth_pct);
+  let momentum   = Number(m?.momentum_pct);
+  let squeeze    = Number(m?.squeeze_intraday_pct);
+  let liquidity  = Number(m?.liquidity_psi);
+  let volatility = Number(m?.volatility_pct);
+
+  // if metrics missing, read from legacy gauges
+  if (!Number.isFinite(breadth)    && g?.rpm)    breadth    = Number(g.rpm.pct);
+  if (!Number.isFinite(momentum)   && g?.speed)  momentum   = Number(g.speed.pct);
+  if (!Number.isFinite(squeeze)    && g?.fuel)   squeeze    = Number(g.fuel.pct);
+  if (!Number.isFinite(liquidity)  && g?.oil)    liquidity  = Number(g.oil.psi ?? g.oilPsi);
+  if (!Number.isFinite(volatility) && g?.water)  volatility = Number(g.water.pct ?? g.volatilityPct);
+
   const out = {};
-  const squeeze = Number(g?.fuel?.pct ?? NaN);
-  const momentum = Number(g?.speed?.pct ?? NaN);
-  const breadth = Number(g?.rpm?.pct ?? NaN);
-  const liquidity = Number(g?.oil?.psi ?? g?.oilPsi ?? NaN);
-  const volatility = Number(g?.water?.pct ?? g?.volatilityPct ?? NaN);
+  const F = (x) => Number.isFinite(x);
 
-  const isF = Number.isFinite;
-
-  if (isF(squeeze) && squeeze >= 70) out.sigCompression = { active:true, severity:(squeeze>=85?"danger":"warn") };
-  if (isF(momentum) && momentum > 85) out.sigOverheat = { active:true, severity:(momentum>92?"danger":"warn") };
-  if (isF(momentum) && isF(squeeze) && momentum > 92 && squeeze < 70) out.sigTurbo = { active:true };
-  if (isF(breadth) && isF(squeeze) && breadth > 60 && squeeze < 70) out.sigBreakout = { active:true };
-  if (isF(breadth) && breadth < 40) out.sigDistribution = { active:true };
-  if (isF(squeeze) && squeeze < 40) out.sigExpansion = { active:true };
-  if (isF(momentum) && isF(breadth) && momentum > 70 && breadth < 50) out.sigDivergence = { active:true };
-  if (isF(liquidity) && liquidity < 40) out.sigLowLiquidity = { active:true, severity:(liquidity<30?"danger":"warn") };
-  if (isF(volatility) && volatility > 70) out.sigVolatilityHigh = { active:true, severity:(volatility>85?"danger":"warn") };
+  if (F(squeeze) && squeeze >= 70) out.sigCompression   = { active:true, severity:(squeeze>=85?"danger":"warn") };
+  if (F(momentum) && momentum > 92 && F(squeeze) && squeeze < 70) out.sigTurbo = { active:true };
+  if (F(momentum) && momentum > 85) out.sigOverheat     = { active:true, severity:(momentum>92?"danger":"warn") };
+  if (F(breadth) && breadth < 40)   out.sigDistribution = { active:true };
+  if (F(breadth) && F(squeeze) && breadth > 60 && squeeze < 70) out.sigBreakout = { active:true };
+  if (F(squeeze) && squeeze < 40)   out.sigExpansion    = { active:true };
+  if (F(momentum) && F(breadth) && momentum > 70 && breadth < 50) out.sigDivergence = { active:true };
+  if (F(liquidity) && liquidity < 40) out.sigLowLiquidity = { active:true, severity:(liquidity<30?"danger":"warn") };
+  if (F(volatility) && volatility > 70) out.sigVolatilityHigh = { active:true, severity:(volatility>85?"danger":"warn") };
 
   return out;
 }
@@ -170,11 +181,9 @@ export default function RowEngineLights() {
   const eng = source?.engineLights || {};
   const backendSignals = eng?.signals || source?.signals || null;
 
-  // Timestamp priority: engineLights.updatedAt → marketMeter.updatedAt → meta.ts → updated_at/ts
+  // Timestamp priority: engineLights.updatedAt → updated_at (AZ) → ts
   const ts =
     eng?.updatedAt ??
-    source?.marketMeter?.updatedAt ??
-    source?.meta?.ts ??
     source?.updated_at ??
     source?.ts ??
     null;
@@ -191,17 +200,14 @@ export default function RowEngineLights() {
     }
 
     // 1) Use backend signals if provided
-    let baseList = null;
+    let list = null;
     if (backendSignals && typeof backendSignals === "object") {
-      baseList = computeSignalList(backendSignals);
+      list = computeSignalList(backendSignals);
     }
 
-    // 2) If no active signals from backend, derive from gauges
-    let list = baseList || computeSignalList({});
-    const hasActive = list.some(s => s.active);
-
-    if (!hasActive && source?.gauges) {
-      const derived = deriveSignalsFromGauges(source.gauges);
+    // 2) If no active signals from backend, derive from METRICS/GAUGES
+    if (!list || !list.some(s => s.active)) {
+      const derived = deriveFromMetricsOrGauges(source);
       list = computeSignalList(derived);
     }
 
@@ -290,7 +296,7 @@ export default function RowEngineLights() {
         </div>
       )}
 
-      {/* Loading / error (first paint) */}
+      {/* Loading / error (first paint only) */}
       {!firstPaintRef.current && loading && (
         <div className="small muted" style={{ marginTop:6 }}>Loading…</div>
       )}
