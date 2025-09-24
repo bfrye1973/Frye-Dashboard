@@ -1,5 +1,5 @@
 // src/pages/rows/RowIndexSectors.jsx
-// v3.1 — Intraday/EOD + Δ10m / Δ1d pills (compact), strict backend bind, repaint by AZ timestamp
+// v4.0 — Adds read-only 5m Δ pills from sandbox (no source swap, no layout churn)
 
 import React, { useEffect, useMemo, useState } from "react";
 
@@ -17,6 +17,11 @@ function resolveApiBase() {
 
 /* ------------------------------- helpers ------------------------------- */
 const norm = (s = "") => s.trim().toLowerCase();
+const isStale = (ts, maxMs = 12 * 60 * 1000) => {
+  if (!ts) return true;
+  const t = new Date(ts).getTime();
+  return !Number.isFinite(t) || Date.now() - t > maxMs;
+};
 
 const ORDER = [
   "information technology",
@@ -76,7 +81,7 @@ function Pill({ label, value }) {
   const arrow = v > 0 ? "▲" : v < 0 ? "▼" : "→";
   return (
     <span
-      title={`${label}: ${v >= 0 ? "+" : ""}${v}`}
+      title={`${label}: ${v >= 0 ? "+" : ""}${v.toFixed(2)}`}
       style={{
         display: "inline-flex",
         alignItems: "center",
@@ -84,7 +89,7 @@ function Pill({ label, value }) {
         borderRadius: 6,
         padding: "1px 4px",
         fontSize: 11,
-        lineHeight: 1.1,     // compact → no vertical growth
+        lineHeight: 1.1,
         fontWeight: 600,
         background: "#0b0f17",
         color: tone,
@@ -93,73 +98,30 @@ function Pill({ label, value }) {
       }}
     >
       {label}: {arrow} {v >= 0 ? "+" : ""}
-      {v}
+      {v.toFixed(2)}
     </span>
   );
 }
 
-/* ------------------------------ Card UI ------------------------------ */
-function SectorCard({ card, d10m, d1d }) {
-  const nh = Number(card?.nh ?? NaN);
-  const nl = Number(card?.nl ?? NaN);
-  const netNH = Number.isFinite(nh) && Number.isFinite(nl) ? nh - nl : null;
+/* ------------------------------ Sandbox 5m ------------------------------ */
+const SANDBOX_URL = process.env.REACT_APP_INTRADAY_SANDBOX_URL || "";
+const ALIASES = {
+  "healthcare": "Health Care",
+  "health care": "Health Care",
+  "info tech": "Information Technology",
+  "information technology": "Information Technology",
+  "communications": "Communication Services",
+  "communication services": "Communication Services",
+  "consumer staples": "Consumer Staples",
+  "consumer discretionary": "Consumer Discretionary",
+  "financials": "Financials",
+  "industrials": "Industrials",
+  "materials": "Materials",
+  "real estate": "Real Estate",
+  "utilities": "Utilities",
+  "energy": "Energy",
+};
 
-  const breadth = Number(card?.breadth_pct ?? NaN);
-  const momentum = Number(card?.momentum_pct ?? NaN);
-
-  const tone = toneFor(card?.outlook);
-
-  return (
-    <div
-      className="panel"
-      style={{
-        padding: 10,
-        minWidth: 220,
-        maxWidth: 260,
-        borderRadius: 12,
-        border: "1px solid #2b2b2b",
-        background: "#0b0b0c",
-        boxShadow: "0 8px 20px rgba(0,0,0,0.25)",
-      }}
-    >
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
-        <div className="panel-title small" style={{ color: "#f3f4f6" }}>
-          {card?.sector || "Sector"}
-        </div>
-        <Badge text={card?.outlook || "Neutral"} tone={tone} />
-      </div>
-
-      {/* Compact Δ row (no extra height) */}
-      <div style={{ display: "flex", gap: 6, margin: "0 0 4px 0", alignItems: "center" }}>
-        <Pill label="Δ10m" value={Number.isFinite(d10m) ? d10m : undefined} />
-        <Pill label="Δ1d" value={Number.isFinite(d1d) ? d1d : undefined} />
-      </div>
-
-      <div style={{ fontSize: 12, color: "#cbd5e1", display: "grid", gap: 2 }}>
-        <div>
-          Breadth Tilt:{" "}
-          <b style={{ color: "#f3f4f6" }}>
-            {Number.isFinite(breadth) ? `${breadth.toFixed(1)}%` : "—"}
-          </b>
-        </div>
-        <div>
-          Momentum:{" "}
-          <b style={{ color: "#f3f4f6" }}>
-            {Number.isFinite(momentum) ? `${momentum.toFixed(1)}%` : "—"}
-          </b>
-        </div>
-        <div>
-          Net NH: <b style={{ color: "#f3f4f6" }}>{netNH ?? "—"}</b>{" "}
-          <span style={{ color: "#9ca3af" }}>
-            (NH {Number.isFinite(nh) ? nh : "—"} / NL {Number.isFinite(nl) ? nl : "—"})
-          </span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ----------------------- Replay Δ helpers (Net NH) ----------------------- */
 async function fetchJSON(url, signal) {
   const r = await fetch(url, { cache: "no-store", signal });
   if (!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -167,7 +129,6 @@ async function fetchJSON(url, signal) {
 }
 
 function snapshotToNetNHMap(snap) {
-  // Prefer top-level sectorCards; fallback to nested outlook.sectorCards if present
   const cards = Array.isArray(snap?.sectorCards)
     ? snap.sectorCards
     : Array.isArray(snap?.outlook?.sectorCards)
@@ -186,7 +147,6 @@ function snapshotToNetNHMap(snap) {
 }
 
 async function computeDeltaNetNH(API, granularity, signal) {
-  // Pull last two snapshots from replay and compute per-sector Δ(Net NH)
   const idx = await fetchJSON(
     `${API}/api/replay/index?granularity=${encodeURIComponent(granularity)}&t=${Date.now()}`,
     signal
@@ -228,6 +188,10 @@ export default function RowIndexSectors() {
   const [d10mMap, setD10mMap] = useState({});
   const [d1dMap, setD1dMap] = useState({});
 
+  // Sandbox deltas (5m)
+  const [d5mMap, setD5mMap] = useState({});
+  const [deltasUpdatedAt, setDeltasUpdatedAt] = useState(null);
+
   // Poll intraday every 60s
   useEffect(() => {
     const ctrl = new AbortController();
@@ -238,7 +202,6 @@ export default function RowIndexSectors() {
         const ts = j?.sectorsUpdatedAt || j?.updated_at || null;
         const cards = Array.isArray(j?.sectorCards) ? j.sectorCards.slice() : [];
         setIntraday({ ts, cards, err: null });
-        console.log("[RowIndexSectors] intraday", { url, ts, count: cards.length });
       } catch (err) {
         setIntraday((p) => ({ ...p, err: String(err) }));
       }
@@ -262,7 +225,6 @@ export default function RowIndexSectors() {
         const ts = j?.sectorsUpdatedAt || j?.updated_at || null;
         const cards = Array.isArray(j?.sectorCards) ? j.sectorCards.slice() : [];
         setEod({ ts, cards, err: null });
-        console.log("[RowIndexSectors] eod", { url, ts, count: cards.length });
       } catch (err) {
         setEod((p) => ({ ...p, err: String(err) }));
       }
@@ -315,6 +277,38 @@ export default function RowIndexSectors() {
     };
   }, [API]);
 
+  // Pull 5m sandbox deltas every 60s (read-only)
+  useEffect(() => {
+    let stop = false;
+    async function loadSandbox() {
+      if (!SANDBOX_URL) return;
+      try {
+        const u = SANDBOX_URL.includes("?")
+          ? `${SANDBOX_URL}&t=${Date.now()}`
+          : `${SANDBOX_URL}?t=${Date.now()}`;
+        const r = await fetch(u, { cache: "no-store" });
+        const j = await r.json();
+        if (stop) return;
+
+        const map = {};
+        const ds = j?.deltas?.sectors || {};
+        for (const key of Object.keys(ds)) {
+          const canon = ALIASES[norm(key)] || key; // keep canon case
+          map[norm(canon)] = Number(ds[key]?.netTilt ?? NaN); // we’ll show netTilt as Δ5m
+          // Alternatively, you can store dBreadthPct/dMomentumPct if you prefer
+          // map[norm(canon)] = Number(ds[key]?.dMomentumPct ?? NaN);
+        }
+        setD5mMap(map);
+        setDeltasUpdatedAt(j?.deltasUpdatedAt || null);
+      } catch {
+        if (!stop) { setD5mMap({}); setDeltasUpdatedAt(null); }
+      }
+    }
+    loadSandbox();
+    const t = setInterval(loadSandbox, 60_000);
+    return () => { stop = true; clearInterval(t); };
+  }, []);
+
   // Choose active source strictly
   const active = sourceTf === "eod" ? eod : intraday;
 
@@ -329,6 +323,8 @@ export default function RowIndexSectors() {
 
   // Legend modal
   const [legendOpen, setLegendOpen] = useState(false);
+
+  const stale5m = isStale(deltasUpdatedAt);
 
   return (
     <section id="row-4" className="panel index-sectors" aria-label="Index Sectors" key={stableKey}>
@@ -377,6 +373,12 @@ export default function RowIndexSectors() {
         </select>
 
         <div className="spacer" />
+        {/* Δ5m staleness indicator */}
+        {SANDBOX_URL && (
+          <div style={{ color: stale5m ? "#9ca3af" : "#22c55e", fontSize: 12, fontWeight: 700 }}>
+            Δ5m {stale5m ? "STALE" : "LIVE"} {deltasUpdatedAt ? `• ${deltasUpdatedAt}` : ""}
+          </div>
+        )}
       </div>
 
       {/* Body */}
@@ -393,7 +395,70 @@ export default function RowIndexSectors() {
             const key = norm(c?.sector || "");
             const d10 = d10mMap[key];
             const d1d = d1dMap[key];
-            return <SectorCard key={c?.sector || i} card={c} d10m={d10} d1d={d1d} />;
+
+            // 5m netTilt pill (sandbox; green/red/gray); hide if stale or missing
+            const canon = ALIASES[key] || c?.sector || "";
+            const d5 = d5mMap[norm(canon)];
+            const show5 = Number.isFinite(d5) && !stale5m;
+
+            const nh = Number(c?.nh ?? NaN);
+            const nl = Number(c?.nl ?? NaN);
+            const netNH = Number.isFinite(nh) && Number.isFinite(nl) ? nh - nl : null;
+
+            const breadth = Number(c?.breadth_pct ?? NaN);
+            const momentum = Number(c?.momentum_pct ?? NaN);
+            const tone = toneFor(c?.outlook);
+
+            return (
+              <div
+                key={c?.sector || i}
+                className="panel"
+                style={{
+                  padding: 10,
+                  minWidth: 220,
+                  maxWidth: 260,
+                  borderRadius: 12,
+                  border: "1px solid #2b2b2b",
+                  background: "#0b0b0c",
+                  boxShadow: "0 8px 20px rgba(0,0,0,0.25)",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+                  <div className="panel-title small" style={{ color: "#f3f4f6" }}>
+                    {c?.sector || "Sector"}
+                  </div>
+                  <Badge text={c?.outlook || "Neutral"} tone={tone} />
+                </div>
+
+                {/* Compact Δ row */}
+                <div style={{ display: "flex", gap: 6, margin: "0 0 4px 0", alignItems: "center", flexWrap: "wrap" }}>
+                  {show5 && <Pill label="Δ5m" value={d5} />}
+                  <Pill label="Δ10m" value={Number.isFinite(d10) ? d10 : undefined} />
+                  <Pill label="Δ1d" value={Number.isFinite(d1d) ? d1d : undefined} />
+                </div>
+
+                <div style={{ fontSize: 12, color: "#cbd5e1", display: "grid", gap: 2 }}>
+                  <div>
+                    Breadth Tilt:{" "}
+                    <b style={{ color: "#f3f4f6" }}>
+                      {Number.isFinite(breadth) ? `${breadth.toFixed(1)}%` : "—"}
+                    </b>
+                  </div>
+                  <div>
+                    Momentum:{" "}
+                    <b style={{ color: "#f3f4f6" }}>
+                      {Number.isFinite(momentum) ? `${momentum.toFixed(1)}%` : "—"}
+                    </b>
+                  </div>
+                  <div>
+                    Net NH: <b style={{ color: "#f3f4f6" }}>{netNH ?? "—"}</b>{" "}
+                    <span style={{ color: "#9ca3af" }}>
+                      (NH {Number.isFinite(nh) ? nh : "—"} / NL {Number.isFinite(nl) ? nl : "—"})
+                    </span>
+                  </div>
+                </div>
+              </div>
+            );
           })}
         </div>
       ) : (
@@ -436,9 +501,9 @@ export default function RowIndexSectors() {
               Outlook
             </div>
             <div style={{ color: "#d1d5db", fontSize: 12 }}>
-              <b>Net NH</b> Δ pills show change in Net Highs (NH−NL) between the two most recent snapshots for each cadence:
-              <br />• <b>Δ10m</b> compares last two 10-minute snapshots
-              <br />• <b>Δ1d</b> compares last two end-of-day snapshots
+              <b>Δ5m</b> pill shows read-only <i>netTilt</i> from sandbox (5-minute change).<br/>
+              <b>Δ10m</b> compares last two 10-minute snapshots via replay.<br/>
+              <b>Δ1d</b> compares last two end-of-day snapshots via replay.
             </div>
             <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}>
               <button
