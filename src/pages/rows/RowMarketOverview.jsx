@@ -11,6 +11,9 @@ import {
 const INTRADAY_URL = process.env.REACT_APP_INTRADAY_URL; // /live/intraday
 const EOD_URL      = process.env.REACT_APP_EOD_URL;      // /live/eod
 
+// Read-only sandbox URL for 5m deltas
+const SANDBOX_URL  = process.env.REACT_APP_INTRADAY_SANDBOX_URL || "";
+
 // Optional backend API base for replay (unchanged)
 const API =
   (typeof window !== "undefined" && (window.__API_BASE__ || "")) ||
@@ -27,6 +30,11 @@ const num = (v) => {
 function fmtIso(ts) {
   try { return new Date(ts).toLocaleString(); } catch { return ts; }
 }
+const isStale = (ts, maxMs = 12 * 60 * 1000) => {
+  if (!ts) return true;
+  const t = new Date(ts).getTime();
+  return !Number.isFinite(t) || Date.now() - t > maxMs;
+};
 
 /** tone helpers for Market Meter (finalized thresholds) */
 function toneForBreadth(v){ if (!Number.isFinite(v)) return "info"; if (v >= 65) return "ok"; if (v >= 35) return "warn"; return "danger"; }
@@ -46,7 +54,7 @@ function toneForVolBand(band){ return band === "high" ? "danger" : band === "ele
 function toneForLiqBand(band){ return band === "good" ? "ok" : band === "normal" ? "warn" : band ? "danger" : "info"; }
 
 /* ---------------------------- Stoplight ---------------------------- */
-function Stoplight({ label, value, baseline, size = 54, unit = "%", subtitle, toneOverride }) {
+function Stoplight({ label, value, baseline, size = 54, unit = "%", subtitle, toneOverride, extraBelow }) {
   const v = Number.isFinite(value) ? clamp01(value) : NaN;
   const delta = Number.isFinite(v) && Number.isFinite(baseline) ? v - baseline : NaN;
   const tone  = toneOverride || "info";
@@ -92,6 +100,8 @@ function Stoplight({ label, value, baseline, size = 54, unit = "%", subtitle, to
       <div style={{ color: deltaColor, fontSize: 13, fontWeight: 600 }}>
         {arrow} {Number.isFinite(delta) ? delta.toFixed(1) : "0.0"}{unit === "%" ? "%" : ""}
       </div>
+      {/* Extra line under the baseline delta (we use this to show 5m Δ pills) */}
+      {extraBelow || null}
     </div>
   );
 }
@@ -112,6 +122,65 @@ function useDailyBaseline(key, current) {
     if (localStorage.getItem(k) === null) { localStorage.setItem(k, String(current)); setB(current); }
   }, [key, current]);
   return b;
+}
+
+/* -------------------------- 5m Δ (sandbox) -------------------------- */
+function useSandboxDeltas() {
+  const [deltaMkt, setDeltaMkt] = React.useState({ dB: null, dM: null, riskOn: null });
+  const [deltasUpdatedAt, setDUA] = React.useState(null);
+  React.useEffect(() => {
+    let stop = false;
+    async function load() {
+      if (!SANDBOX_URL) return;
+      try {
+        const u = SANDBOX_URL.includes("?")
+          ? `${SANDBOX_URL}&t=${Date.now()}`
+          : `${SANDBOX_URL}?t=${Date.now()}`;
+        const r = await fetch(u, { cache: "no-store" });
+        const j = await r.json();
+        if (stop) return;
+        setDeltaMkt({
+          dB: Number(j?.deltas?.market?.dBreadthPct ?? null),
+          dM: Number(j?.deltas?.market?.dMomentumPct ?? null),
+          riskOn: Number(j?.deltas?.market?.riskOnPct ?? null),
+        });
+        setDUA(j?.deltasUpdatedAt || null);
+      } catch {
+        if (!stop) { setDeltaMkt({ dB: null, dM: null, riskOn: null }); setDUA(null); }
+      }
+    }
+    load();
+    const t = setInterval(load, 60_000);
+    return () => { stop = true; clearInterval(t); };
+  }, []);
+  return { deltaMkt, deltasUpdatedAt, stale: isStale(deltasUpdatedAt) };
+}
+
+function DeltaTag({ label, value, stale }) {
+  if (!Number.isFinite(value)) return null;
+  const c = value >= 1 ? "#22c55e" : value <= -1 ? "#ef4444" : "#9ca3af";
+  return (
+    <span
+      style={{
+        display: "inline-block",
+        fontSize: 11,
+        lineHeight: "14px",
+        padding: "2px 6px",
+        borderRadius: 6,
+        marginTop: 4,
+        marginRight: 6,
+        background: "#0b1220",
+        color: stale ? "#9ca3af" : c,
+        border: `1px solid ${c}33`,
+        fontWeight: 700,
+      }}
+      title={`${label}: ${value > 0 ? "+" : ""}${value.toFixed(2)}`}
+    >
+      {label}: <span style={{ color: stale ? "#9ca3af" : c }}>
+        {value > 0 ? "+" : ""}{value.toFixed(2)}
+      </span>
+    </span>
+  );
 }
 
 /* ------------------------------ Replay UI ----------------------------- */
@@ -164,7 +233,7 @@ export default function RowMarketOverview() {
   // Legend state (two independent modals)
   const [legendOpen, setLegendOpen] = React.useState(null); // "intraday" | "daily" | null
 
-  // LIVE fetch (intraday + daily) — one-time load to lock onto Render proxies
+  // LIVE fetch (intraday + daily)
   const [liveIntraday, setLiveIntraday] = React.useState(null);
   const [liveDaily, setLiveDaily] = React.useState(null);
   React.useEffect(() => {
@@ -216,6 +285,8 @@ export default function RowMarketOverview() {
   const daily = liveDaily || {};
 
   /* -------------------- INTRADAY LEFT (metrics + intraday) -------------------- */
+  const { deltaMkt, deltasUpdatedAt, stale } = useSandboxDeltas();
+
   const m   = data?.metrics ?? {};
   const ts  = data?.updated_at ?? data?.ts ?? null;
 
@@ -241,7 +312,7 @@ export default function RowMarketOverview() {
 
   const tdSlope   = num(td?.trend?.emaSlope);                 // composite slope around 0
   const tdTrend   = td?.trend?.state || null;                 // "up" | "flat" | "down" (subtitle)
-  const tdTrendVal= Number.isFinite(tdSlope) ? (tdSlope > 5 ? 75 : tdSlope < -5 ? 25 : 50) : NaN;
+  const tdTrendVal= Number.isFinite(num(tdSlope)) ? (tdSlope > 5 ? 75 : tdSlope < -5 ? 25 : 50) : NaN;
 
   const tdPartPct = num(td?.participation?.pctAboveMA);
   const tdVolPct  = num(td?.volatilityRegime?.atrPct);
@@ -328,18 +399,37 @@ export default function RowMarketOverview() {
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           <div className="small" style={{ color: "#9ca3af", fontWeight: 800 }}>Intraday Scalp Lights</div>
           <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-            <Stoplight label="Breadth"            value={breadth}      baseline={bBreadth}   toneOverride={toneForBreadth(breadth)} />
-            <Stoplight label="Momentum"           value={momentum}     baseline={bMomentum}  toneOverride={toneForMomentum(momentum)} />
+            <Stoplight
+              label="Breadth"
+              value={breadth}
+              baseline={bBreadth}
+              toneOverride={toneForBreadth(breadth)}
+              extraBelow={<DeltaTag label="Δ5m" value={deltaMkt.dB} stale={stale} />}
+            />
+            <Stoplight
+              label="Momentum"
+              value={momentum}
+              baseline={bMomentum}
+              toneOverride={toneForMomentum(momentum)}
+              extraBelow={<DeltaTag label="Δ5m" value={deltaMkt.dM} stale={stale} />}
+            />
             <Stoplight label="Intraday Squeeze"   value={squeezeIntra} baseline={bSqueezeIn} toneOverride={toneForSqueeze(squeezeIntra)} />
             <Stoplight label="Liquidity"          value={liquidity}    baseline={bLiquidity} unit="" toneOverride={toneForLiquidity(liquidity)} />
             <Stoplight label="Volatility"         value={volatility}   baseline={bVol}       toneOverride={toneForVol(volatility)} />
-            <Stoplight label="Sector Direction (10m)"
+            <Stoplight
+              label="Sector Direction (10m)"
               value={sectorDirPct} baseline={sectorDirPct}
               subtitle={Number.isFinite(sectorDirCount) ? `${sectorDirCount}/11 rising` : undefined}
               toneOverride={toneForPercent(sectorDirPct)}
             />
             <Stoplight label="Risk On (10m)"      value={riskOn10m}    baseline={riskOn10m} toneOverride={toneForPercent(riskOn10m)} />
           </div>
+          {/* Staleness indicator */}
+          {SANDBOX_URL && (
+            <div className="text-xs" style={{ color: "#9ca3af", marginTop: 4 }}>
+              Δ5m updated {deltasUpdatedAt ? fmtIso(deltasUpdatedAt) : "—"} {stale ? "• STALE" : ""}
+            </div>
+          )}
         </div>
 
         {/* RIGHT: Overall Market Trend Daily */}
