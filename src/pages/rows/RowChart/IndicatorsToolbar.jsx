@@ -1,6 +1,5 @@
 // src/pages/rows/RowChart/IndicatorsToolbar.jsx
-// v2.7 — EMA, Volume, Overlays (MoneyFlow, Lux S/R, Swing Liquidity),
-//         Oscillators (SMI shown only when showSmiToggle=true)
+// v2.8 — Defaults show EMA + Volume only. Added "Reset to Defaults" button.
 
 import React from "react";
 
@@ -22,10 +21,12 @@ export default function IndicatorsToolbar({
   // Oscillators (separate pane)
   smi = false,
 
-  // NEW: controls whether we show the SMI checkbox (Full Chart only)
+  // Show SMI checkbox only on Full Chart
   showSmiToggle = true,
 
+  // Handlers
   onChange,
+  onReset, // NEW (optional)
 }) {
   return (
     <div
@@ -166,6 +167,26 @@ export default function IndicatorsToolbar({
             ) : (
               <div style={{ opacity: 0.6 }}>SMI available in Full Chart</div>
             )}
+
+            {/* Reset */}
+            <div style={{ height: 1, background: "#2b2b2b", margin: "10px 0" }} />
+            <button
+              type="button"
+              onClick={() => onReset?.()}
+              style={{
+                width: "100%",
+                background: "#0b0b0b",
+                color: "#e5e7eb",
+                border: "1px solid #2b2b2b",
+                borderRadius: 8,
+                padding: "6px 10px",
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+              title="Reset to EMAs + Volume only"
+            >
+              Reset to Defaults
+            </button>
           </div>
         </details>
       </div>
