@@ -1,6 +1,6 @@
 // src/pages/rows/RowChart/index.jsx
-// v4.2 — SMI gated to Full Chart only; dashboard layout unaffected.
-//        EMA + Volume + Money Flow + Lux S/R + Swing Liquidity remain.
+// v4.3 — Clean defaults: EMAs + Volume ON; all other indicators OFF.
+//        SMI is still gated to Full Chart, but defaults OFF there too.
 
 import React, { useMemo, useState, useEffect, useRef } from "react";
 import Controls from "./Controls";
@@ -38,8 +38,8 @@ export default function RowChart({
     range: null,
   });
 
-  // indicator toggles (SMI defaults ON only for Full Chart)
-  const [ind, setInd] = useState({
+  // ---- Defaults: EMAs + Volume ON; everything else OFF ----
+  const DEFAULT_IND = {
     // EMA
     showEma: true,
     ema10: true,
@@ -48,20 +48,23 @@ export default function RowChart({
 
     // panes
     volume: true,
-    smi: isFullChart, // <- gated default
+    smi: false, // gated to Full Chart, but default OFF
 
     // overlays
     moneyFlow: false,
-    luxSr: true,
-    swingLiquidity: true,
-  });
+    luxSr: false,
+    swingLiquidity: false,
+  };
+
+  // indicator toggles
+  const [ind, setInd] = useState(DEFAULT_IND);
 
   // theme
   const theme = useMemo(
     () => ({
       layout: { background: { type: "solid", color: "#0a0a0a" }, textColor: "#ffffff" },
       grid: { vertLines: { color: "#1e1e1e" }, horzLines: { color: "#1e1e1e" } },
-      rightPriceScale: { borderColor:"#2b2b2b", scaleMargins:{ top:0.06, bottom:0.08 } },
+      rightPriceScale: { borderColor: "#2b2b2b", scaleMargins: { top: 0.06, bottom: 0.08 } },
       timeScale: {
         borderVisible: true,
         borderColor: "#2b2b2b",
@@ -265,13 +268,15 @@ export default function RowChart({
         // Panes
         volume={ind.volume}
         smi={isFullChart ? ind.smi : false}
-        showSmiToggle={isFullChart} // <-- only show toggle in Full Chart
+        showSmiToggle={isFullChart} // only show toggle in Full Chart
         // Overlays
         moneyFlow={ind.moneyFlow}
         luxSr={ind.luxSr}
         swingLiquidity={ind.swingLiquidity}
         // Change handler
         onChange={(patch) => setInd((s) => ({ ...s, ...patch }))}
+        // Reset button (optional but handy)
+        onReset={() => setInd(DEFAULT_IND)}
       />
 
       <div
