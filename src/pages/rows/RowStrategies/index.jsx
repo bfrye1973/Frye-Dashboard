@@ -1,146 +1,134 @@
 // src/pages/rows/RowStrategies/index.jsx
+// CRA-safe Strategy Row (Alignment, Wave3, Flagpole)
+// Alignment card: 5-of-7 immediate trigger (no debounce), NDX removed, DJI→DIA.
+// Fetches backend directly with cache-buster; never crashes if backend unavailable.
+
 import React, { useEffect, useMemo, useState } from "react";
 import { useSelection } from "../../../context/ModeContext";
 
 export default function RowStrategies() {
   const { selection, setSelection } = useSelection();
-  const [res, setRes] = useState({ status: "mock", signal: null, apiBase: "" });
+  const [res, setRes] = useState({ status: "mock", data: null, apiBase: "" });
 
-  // Backend base (env → fallback to your Render backend URL → same-origin)
+  // --- Config (universe & threshold) ---
+  // Canonical 7 (NDX removed, DIA used instead of DJI)
+  const CANON = ["SPY", "I:SPX", "QQQ", "IWM", "MDY", "DIA", "I:VIX"];
+  const THRESHOLD = 5; // 5-of-7 immediate trigger
+
+  // Build backend base (CRA-safe)
   function getApiBase() {
     try {
-      var envBase =
-        (typeof process !== "undefined" &&
-          process.env &&
-          process.env.REACT_APP_API_BASE) ||
-        "";
-      if (envBase && typeof envBase === "string") return envBase.replace(/\/$/, "");
-    } catch (e) {}
-    // HARD BACKUP: your backend Render URL (prevents accidental MOCK)
+      if (typeof process !== "undefined" && process.env && process.env.REACT_APP_API_BASE) {
+        return String(process.env.REACT_APP_API_BASE).replace(/\/+$/, "");
+      }
+    } catch {}
+    // Hard fallback so we don't accidentally hit the frontend origin:
     return "https://frye-market-backend-1.onrender.com";
   }
 
+  // Poll backend alignment feed (but we derive our own 5-of-7 view)
   useEffect(function () {
-    var alive = true;
-    var base = getApiBase();
+    let alive = true;
+    const base = getApiBase();
 
     async function pull() {
-      var url = base + "/api/signals?strategy=alignment&limit=1&t=" + Date.now();
+      const url = `${base}/api/signals?strategy=alignment&limit=1&t=${Date.now()}`;
       try {
-        var resHttp = await fetch(url, {
-          method: "GET",
-          cache: "no-store",
-          headers: { "Cache-Control": "no-store" },
-        });
-        if (!resHttp.ok) throw new Error("HTTP " + resHttp.status);
-        var data = await resHttp.json();
-
-        var status = data && data.status ? String(data.status) : "live";
-        var sig = null;
-        if (data && data.items && data.items.length) sig = data.items[0];
-        else if (data && data.signal) sig = data.signal;
-
-        if (!sig || typeof sig !== "object") {
-          if (alive)
-            setRes({
-              status: "mock(empty)",
-              signal: {
-                direction: "none",
-                streak_bars: 0,
-                confidence: 0,
-                timestamp: null,
-                failing: [],
+        const r = await fetch(url, { cache: "no-store", headers: { "Cache-Control": "no-store" } });
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        const data = await r.json(); // may be {items:[...]}, {signal:...}, or a single signal
+        if (!alive) return;
+        setRes({ status: String(data?.status ?? "live"), data, apiBase: base });
+      } catch (e) {
+        if (!alive) return;
+        // Safe mock (so UI never blanks)
+        setRes({
+          status: "mock(error)",
+          data: {
+            signal: {
+              // mock members with one laggard, to verify UI wiring
+              members: {
+                SPY: { ok: true }, "I:SPX": { ok: true }, QQQ: { ok: true },
+                IWM: { ok: true }, MDY: { ok: true }, DIA: { ok: false },
+                "I:VIX": { ok: true } // backend already inverts VIX; we trust "ok"
               },
-              apiBase: base,
-            });
-          return;
-        }
-
-        var direction = String(sig.direction || "none");
-        var streak_bars = Number(sig.streak_bars || 0);
-        var confidenceNum = Number(sig.confidence || 0);
-        if (!(confidenceNum >= 0)) confidenceNum = 0;
-        if (confidenceNum > 100) confidenceNum = 100;
-        var ts = sig.timestamp || null;
-        var failing = sig.failing && sig.failing.slice ? sig.failing.slice(0) : [];
-
-        if (alive)
-          setRes({
-            status: status,
-            signal: {
-              direction: direction,
-              streak_bars: streak_bars,
-              confidence: confidenceNum,
-              timestamp: ts,
-              failing: failing,
-            },
-            apiBase: base,
-          });
-      } catch (err) {
-        if (alive)
-          setRes({
-            status: "mock(error)",
-            signal: {
-              direction: "long",
-              streak_bars: 2,
-              confidence: 93,
-              timestamp: new Date(
-                Math.floor(Date.now() / (10 * 60 * 1000)) * 10 * 60 * 1000
-              ).toISOString(),
-              failing: ["I:NDX"],
-            },
-            apiBase: base,
-          });
+              timestamp: new Date(Math.floor(Date.now() / 600000) * 600000).toISOString()
+            }
+          },
+          apiBase: base
+        });
       }
     }
 
     pull();
-    var id = setInterval(pull, 30000);
-    return function () {
-      alive = false;
-      clearInterval(id);
-    };
+    const id = setInterval(pull, 30000);
+    return function () { alive = false; clearInterval(id); };
   }, []);
 
-  const view = useMemo(function () {
-    var status = res && res.status ? res.status : "mock";
-    var s = res && res.signal ? res.signal : null;
-    if (!s) {
-      return {
-        key: "mock-no-ts",
-        livePill: status === "live" ? "LIVE" : "MOCK",
-        statePill: "Flat",
-        tone: "muted",
-        score: 0,
-        last: "—",
-        failing: [],
-      };
-    }
-    var dir = s.direction || "none";
-    var statePill = dir === "none" ? "Flat" : s.streak_bars >= 2 ? "Triggered" : "On Deck";
-    var tone = dir === "long" ? "ok" : dir === "short" ? "warn" : "muted";
-    var score = Math.round(s.confidence >= 0 ? (s.confidence <= 100 ? s.confidence : 100) : 0);
-    var last = dir === "none" ? "—" : dir.toUpperCase() + " • " + fmtTime(s.timestamp);
-    var failing = s.failing && s.failing.slice ? s.failing.slice(0) : [];
+  // Normalize backend payload to a single "signal" object (accept items[] or signal)
+  function extractSignal(data) {
+    if (!data) return null;
+    if (Array.isArray(data?.items) && data.items.length) return data.items[0];
+    if (data?.signal) return data.signal;
+    if (data?.direction || data?.members) return data; // single-object style
+    return null;
+  }
+
+  // 5-of-7 immediate evaluation (front-end derived) over the canonical set
+  const view = useMemo(() => {
+    const status = res.status || "mock";
+    const sig = extractSignal(res.data);
+    const members = (sig && sig.members) ? sig.members : {};
+    const ts = sig && sig.timestamp ? sig.timestamp : null;
+
+    // Accept both DIA and legacy I:DJI (until backend swap completes)
+    const effective = {
+      SPY: members["SPY"],
+      "I:SPX": members["I:SPX"] || members["SPX"],
+      QQQ: members["QQQ"],
+      IWM: members["IWM"],
+      MDY: members["MDY"],
+      DIA: members["DIA"] || members["I:DJI"], // prefer DIA; fallback to I:DJI if DIA not present
+      "I:VIX": members["I:VIX"] || members["VIX"],
+    };
+
+    // Count ok's across the 7 canonical keys (missing counts as false)
+    let confirm = 0;
+    const failing = [];
+    CANON.forEach((k) => {
+      const m = effective[k];
+      const ok = !!(m && m.ok === true);
+      if (ok) confirm += 1;
+      else failing.push(k);
+    });
+
+    // 5-of-7 immediate trigger (no debounce)
+    const triggered = confirm >= THRESHOLD;
+    const statePill = triggered ? "Triggered" : "Flat";
+    const tone = triggered ? "ok" : "muted";
+    const confidence = Math.round((confirm / CANON.length) * 100); // simple confidence 0..100
+
     return {
-      key: status + "-" + (s.timestamp || "no-ts"),
+      key: `${status}-${ts || "no-ts"}-${confirm}`,
       livePill: status === "live" ? "LIVE" : "MOCK",
-      statePill: statePill,
-      tone: tone,
-      score: score,
-      last: last,
-      failing: failing,
+      statePill,
+      tone,
+      score: confidence,
+      last: triggered ? `LONG • ${fmtTime(ts)}` : (ts ? `— • ${fmtTime(ts)}` : "—"),
+      failing: triggered ? [] : failing, // only show failing when not triggered
+      confirm,
+      total: CANON.length
     };
   }, [res]);
 
+  // --- Tabs & actions (wired to chart via global selection) ---
   const tabs = [
     { k: "SPY", sym: "SPY" },
     { k: "QQQ", sym: "QQQ" },
     { k: "IWM", sym: "IWM" },
     { k: "MDY", sym: "MDY" },
     { k: "SPX", sym: "I:SPX" },
-    { k: "NDX", sym: "I:NDX" },
-    { k: "DJI", sym: "I:DJI" },
+    { k: "DIA", sym: "DIA" },
   ];
   function load(sym) {
     setSelection({ symbol: sym, timeframe: "10m", strategy: "alignment" });
@@ -148,12 +136,13 @@ export default function RowStrategies() {
 
   return (
     <div key={view.key} style={S.wrap}>
+      {/* Alignment Scalper — 5-of-7 immediate */}
       <Card
         title="SPY/QQQ Index-Alignment Scalper"
         timeframe="10m"
         rightPills={[
           { text: view.livePill, tone: view.livePill === "LIVE" ? "live" : "muted" },
-          { text: view.statePill, tone: view.tone },
+          { text: `${view.statePill} (${view.confirm}/${view.total})`, tone: view.tone },
         ]}
         score={view.score}
         last={view.last}
@@ -164,6 +153,7 @@ export default function RowStrategies() {
           { label: "Load QQQ (10m)", onClick: function () { load("QQQ"); } },
         ]}
       >
+        {/* Selected readout + tiny tabs */}
         <div style={S.selRow}>
           <span style={S.selKey}>Selected:</span>
           <span style={S.selVal}>
@@ -173,8 +163,7 @@ export default function RowStrategies() {
 
         <div style={S.tabRow}>
           {tabs.map(function (t) {
-            var active =
-              selection && selection.symbol === t.sym && selection.timeframe === "10m";
+            const active = selection && selection.symbol === t.sym && selection.timeframe === "10m";
             return (
               <button
                 key={t.k}
@@ -191,6 +180,7 @@ export default function RowStrategies() {
         </div>
       </Card>
 
+      {/* Wave 3 (Daily) — placeholder */}
       <Card
         title="Wave 3 Breakout"
         timeframe="Daily"
@@ -203,6 +193,7 @@ export default function RowStrategies() {
         ]}
       />
 
+      {/* Flagpole (Daily) — placeholder */}
       <Card
         title="Flagpole Breakout"
         timeframe="Daily"
