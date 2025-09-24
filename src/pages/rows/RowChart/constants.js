@@ -6,7 +6,7 @@ export const SYMBOLS = [
   "SPY",
   "QQQ",
   "IWM",
-  "DIA",
+  "DIA",  // ✅ using DIA instead of I:DJI
   "MDY",
 
   // Large cap techs
@@ -20,8 +20,8 @@ export const SYMBOLS = [
 
   // Indexes (normalized Polygon IDs)
   "I:SPX", // S&P 500 index
-  "I:NDX", // Nasdaq-100 index
-  "I:DJI", // Dow Jones index
+  // "I:NDX", // ❌ removed
+  // "I:DJI", // ❌ removed (DIA covers Dow proxy)
   "I:VIX", // VIX index (inverse condition handled separately)
 ];
 
@@ -29,7 +29,7 @@ export const SYMBOLS = [
 export const TIMEFRAMES = [
   "1m",
   "5m",
-  "10m",  // ✅ added 10m, important for Alignment Scalper
+  "10m",  // important for Alignment Scalper
   "15m",
   "30m",
   "1h",
