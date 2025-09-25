@@ -1,6 +1,7 @@
 // src/pages/rows/RowStrategies/index.jsx
-// Alignment Scalper — 3-check card (Alignment 5/7, Liquidity ✓, Δ Accel ✓)
-// CRA-safe (no import.meta), compact UI, wired tabs. Two pulls:
+// Alignment Scalper — 3-check card (Alignment, Liquidity, Δ Accel)
+// CRA-safe (no import.meta), compact UI, wired tabs.
+// Pulls:
 //   1) Alignment feed (backend)
 //   2) Sandbox deltas (optional; hide if missing or stale)
 
@@ -23,7 +24,7 @@ function getBackendBase() {
   return (envBase || "https://frye-market-backend-1.onrender.com").replace(/\/+$/, "");
 }
 function getSandboxUrl() {
-  // Example: https://raw.githubusercontent.com/<org>/<repo>/data-live-10min-sandbox/data/outlook_intraday.json
+  // e.g. https://raw.githubusercontent.com/<org>/<repo>/data-live-10min-sandbox/data/outlook_intraday.json
   return getEnv("REACT_APP_INTRADAY_SANDBOX_URL", "");
 }
 function nowIso() { return new Date().toISOString(); }
@@ -31,8 +32,10 @@ function nowIso() { return new Date().toISOString(); }
 /* =========================
    Config / thresholds
    ========================= */
-const CANON = ["SPY", "I:SPX", "QQQ", "IWM", "MDY", "DIA", "I:VIX"]; // NDX removed; DJI→DIA
-const ALIGN_THRESHOLD = 5; // 5-of-7 immediate trigger
+// FINAL UNIVERSE (SPX removed; NDX removed; DJI -> DIA)
+const CANON = ["SPY", "QQQ", "IWM", "MDY", "DIA", "I:VIX"]; // 6 instruments
+// Trigger threshold — choose 4-of-6 (≈ old 5/7 strictness). Set to 5 for stricter filter.
+const ALIGN_THRESHOLD = 4;
 
 // Δ pills color rules
 const GREEN_TH = +1.0;
@@ -68,17 +71,19 @@ export default function RowStrategies() {
         console.log("[Alignment] pull", data?.status ?? "live", data);
       } catch (e) {
         if (!alive) return;
-        // harmless mock (never crash UI)
         const ts = new Date(Math.floor(Date.now() / 600000) * 600000).toISOString();
+        // harmless mock (never crash UI)
         setAlignRes({
           status: "mock(error)",
           data: {
             signal: {
+              // mock over 6-member universe
               members: {
-                SPY: { ok: true }, "I:SPX": { ok: true }, QQQ: { ok: true },
-                IWM: { ok: true }, MDY: { ok: false }, DIA: { ok: true }, "I:VIX": { ok: true }
+                SPY: { ok: true }, QQQ: { ok: true }, IWM: { ok: true },
+                MDY: { ok: true }, DIA: { ok: false }, "I:VIX": { ok: true }
               },
-              liquidity_ok: false,
+              // liquidity optional (not yet from backend)
+              liquidity_ok: null,
               timestamp: ts
             }
           },
@@ -148,18 +153,17 @@ export default function RowStrategies() {
     const members = (sig && sig.members) ? sig.members : {};
     const ts = sig?.timestamp || null;
 
-    // accept both DIA and legacy I:DJI for transition
+    // map over final 6-universe
     const effective = {
       SPY: members["SPY"],
-      "I:SPX": members["I:SPX"] || members["SPX"],
       QQQ: members["QQQ"],
       IWM: members["IWM"],
       MDY: members["MDY"],
-      DIA: members["DIA"] || members["I:DJI"],
+      DIA: members["DIA"] || members["I:DJI"], // accept legacy DJI during transition
       "I:VIX": members["I:VIX"] || members["VIX"],
     };
 
-    // 5-of-7 count
+    // 4-of-6 count (ALIGN_THRESHOLD configurable)
     let confirm = 0;
     const failing = [];
     CANON.forEach(k => {
@@ -167,8 +171,12 @@ export default function RowStrategies() {
       if (ok) confirm += 1; else failing.push(k);
     });
 
-    // Liquidity flag from backend (if provided)
-    const liquidityOk = !!(sig && (sig.liquidity_ok === true));
+    // Liquidity flag from backend (optional)
+    // true → green ✓ ; false → gray ; null/undefined → neutral/disabled
+    const liquidityRaw = (sig && "liquidity_ok" in sig) ? sig.liquidity_ok : null;
+    const liquidityOk = liquidityRaw === true;
+    const liquidityState = (liquidityRaw === null || typeof liquidityRaw === "undefined")
+      ? "neutral" : (liquidityOk ? "ok" : "no");
 
     // Δ Acceleration from sandbox
     const dm = deltaRes.market;
@@ -178,22 +186,22 @@ export default function RowStrategies() {
       dm.dBreadthPct >= GREEN_TH &&
       dm.dMomentumPct >= GREEN_TH);
 
-    // Confidence = alignment (0..100) + Liquidity ( +10 ) + Δ ( +20 ), clamped
+    // Confidence = alignment% + (Liquidity? +10) + (Δ? +20), clamped
     const baseScore = Math.round((confirm / CANON.length) * 100);
-    const conf = Math.max(0, Math.min(100,
-      baseScore + (liquidityOk ? 10 : 0) + (accelOk ? 20 : 0)
-    ));
+    const bonusLiq  = liquidityOk ? 10 : 0; // neutral/false → +0
+    const bonusΔ    = accelOk ? 20 : 0;
+    const conf = Math.max(0, Math.min(100, baseScore + bonusLiq + bonusΔ));
 
-    // State pill: Triggered if ≥5; else Flat
+    // State pill: Triggered if ≥ ALIGN_THRESHOLD ; else Flat
     const triggered = confirm >= ALIGN_THRESHOLD;
     const statePill = triggered ? "Triggered" : "Flat";
     const tone = triggered ? "ok" : "muted";
     const last = ts ? (triggered ? `LONG • ${fmtHHMM(ts)}` : `— • ${fmtHHMM(ts)}`) : "—";
 
     return {
-      key: `${status}-${ts || nowIso()}-${confirm}-${liquidityOk ? 1 : 0}-${accelOk ? 1 : 0}`,
+      key: `${status}-${ts || nowIso()}-${confirm}-${liquidityState}-${accelOk ? 1 : 0}`,
       status, confirm, total: CANON.length,
-      liquidityOk, accelOk,
+      liquidityState, liquidityOk, accelOk,
       score: conf, tone, statePill, last,
       failing: triggered ? [] : failing
     };
@@ -205,7 +213,6 @@ export default function RowStrategies() {
     { k: "QQQ", sym: "QQQ" },
     { k: "IWM", sym: "IWM" },
     { k: "MDY", sym: "MDY" },
-    { k: "SPX", sym: "I:SPX" },
     { k: "DIA", sym: "DIA" },
   ];
   function load(sym) {
@@ -218,7 +225,7 @@ export default function RowStrategies() {
       <Card
         title="SPY/QQQ Index-Alignment Scalper"
         timeframe="10m"
-        // two pills: LIVE/MOCK + Triggered/Flat (X/7)
+        // two pills: LIVE/MOCK + Triggered/Flat (X/6)
         rightPills={[
           { text: alignRes.status === "live" ? "LIVE" : "MOCK", tone: alignRes.status === "live" ? "live" : "muted" },
           { text: `${view.statePill} (${view.confirm}/${view.total})`, tone: view.tone },
@@ -230,8 +237,8 @@ export default function RowStrategies() {
       >
         {/* 3 checks row */}
         <div style={S.checks}>
-          <Check ok={view.confirm >= ALIGN_THRESHOLD} label="Alignment ≥5/7" />
-          <Check ok={view.liquidityOk} label="Liquidity Grab" />
+          <Check ok={view.confirm >= ALIGN_THRESHOLD} label={`Alignment ≥${ALIGN_THRESHOLD}/${CANON.length}`} />
+          <Check ok={view.liquidityState === "ok"} neutral={view.liquidityState === "neutral"} label="Liquidity Grab" />
           <Check ok={view.accelOk} label="Δ Accel (5m)" tip={deltaRes.stale ? "stale" : ""} />
         </div>
 
@@ -267,11 +274,11 @@ export default function RowStrategies() {
 }
 
 /* ---------- Small pieces ---------- */
-function Check({ ok, label, tip }) {
-  const style = ok ? S.chkOk : S.chkNo;
+function Check({ ok, label, tip, neutral }) {
+  const style = neutral ? S.chkNeutral : ok ? S.chkOk : S.chkNo;
   return (
     <div style={S.chk}>
-      <span style={style}>{ok ? "✓" : "•"}</span>
+      <span style={style}>{neutral ? "•" : ok ? "✓" : "•"}</span>
       <span>{label}{tip ? ` — ${tip}` : ""}</span>
     </div>
   );
@@ -348,6 +355,7 @@ const S = {
   chk: { display: "flex", alignItems: "center", gap: 6, fontSize: 11 },
   chkOk: { color: "#86efac", fontWeight: 900 },
   chkNo: { color: "#94a3b8", fontWeight: 900 },
+  chkNeutral: { color: "#9ca3af", fontWeight: 900 },
 
   // selection + tabs
   selRow: { display: "flex", alignItems: "center", gap: 6, marginTop: 2, fontSize: 11 },
