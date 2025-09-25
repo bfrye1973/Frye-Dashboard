@@ -1,5 +1,6 @@
 // src/pages/rows/RowIndexSectors.jsx
-// v4.1 — Adds Δ1h pill (hour-over-hour Net NH) next to EOD; preserves layout and sizes
+// v4.2 — Δ5m (sandbox), Δ10m (replay), Δ1h (replay), Δ1d (replay)
+// Uses the same computeDeltaNetNH() helper for 10m/1h/1d. No layout/size changes.
 
 import React, { useEffect, useMemo, useState } from "react";
 
@@ -105,42 +106,21 @@ function Pill({ label, value }) {
 
 /* ------------------------------ Sandbox 5m ------------------------------ */
 const SANDBOX_URL = process.env.REACT_APP_INTRADAY_SANDBOX_URL || "";
-
-// Canonical aliases (used by 5m sandbox + 1h trend)
 const ALIASES = {
   "healthcare": "Health Care",
   "health care": "Health Care",
-  "health-care": "Health Care",
-
   "info tech": "Information Technology",
   "information technology": "Information Technology",
-  "technology": "Information Technology",
-  "tech": "Information Technology",
-
   "communications": "Communication Services",
   "communication services": "Communication Services",
-  "comm services": "Communication Services",
-  "telecom": "Communication Services",
-
   "consumer staples": "Consumer Staples",
-  staples: "Consumer Staples",
-
   "consumer discretionary": "Consumer Discretionary",
-  discretionary: "Consumer Discretionary",
-
-  financials: "Financials",
-  finance: "Financials",
-
-  industrials: "Industrials",
-  industry: "Industrials",
-
-  materials: "Materials",
+  "financials": "Financials",
+  "industrials": "Industrials",
+  "materials": "Materials",
   "real estate": "Real Estate",
-  reit: "Real Estate",
-  reits: "Real Estate",
-
-  utilities: "Utilities",
-  energy: "Energy",
+  "utilities": "Utilities",
+  "energy": "Energy",
 };
 
 async function fetchJSON(url, signal) {
@@ -207,10 +187,8 @@ export default function RowIndexSectors() {
 
   // Δ maps
   const [d10mMap, setD10mMap] = useState({});
+  const [d1hMap, setD1hMap] = useState({});   // NEW — hourly via replay
   const [d1dMap, setD1dMap] = useState({});
-
-  // NEW: Δ1h map (hour-over-hour Net NH)
-  const [d1hMap, setD1hMap] = useState({});
 
   // Sandbox deltas (5m)
   const [d5mMap, setD5mMap] = useState({});
@@ -263,7 +241,7 @@ export default function RowIndexSectors() {
     };
   }, [API, sourceTf]);
 
-  // Compute Δ10m every 60s
+  // Δ10m every 60s
   useEffect(() => {
     const ctrl = new AbortController();
     async function load() {
@@ -282,7 +260,26 @@ export default function RowIndexSectors() {
     };
   }, [API]);
 
-  // Compute Δ1d every 5 min
+  // Δ1h every 5 min (same pattern as 10m/eod)
+  useEffect(() => {
+    const ctrl = new AbortController();
+    async function load() {
+      try {
+        const m = await computeDeltaNetNH(API, "1h", ctrl.signal);
+        setD1hMap(m);
+      } catch {
+        setD1hMap({});
+      }
+    }
+    load();
+    const t = setInterval(load, 300_000);
+    return () => {
+      ctrl.abort();
+      clearInterval(t);
+    };
+  }, [API]);
+
+  // Δ1d every 5 min
   useEffect(() => {
     const ctrl = new AbortController();
     async function load() {
@@ -299,34 +296,6 @@ export default function RowIndexSectors() {
       ctrl.abort();
       clearInterval(t);
     };
-  }, [API]);
-
-  // NEW: Δ1h — /api/sectorTrend?window=1 (poll every 60s)
-  useEffect(() => {
-    const ctrl = new AbortController();
-    async function load() {
-      try {
-        const url = `${API}/api/sectorTrend?window=1&t=${Date.now()}`;
-        const res = await fetch(url, { cache: "no-store", signal: ctrl.signal });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const j = await res.json();
-        const sectors = j?.sectors || {};
-        const map = {};
-        for (const [raw, obj] of Object.entries(sectors)) {
-          const canon = ALIASES[norm(raw)] || raw;         // keep canonical case if found
-          const k = norm(canon);
-          // prefer deltaNetNH; fall back to deltaPct or delta if backend differs
-          const d = Number(obj?.deltaNetNH ?? obj?.deltaPct ?? obj?.delta ?? NaN);
-          if (Number.isFinite(d)) map[k] = d;
-        }
-        setD1hMap(map);
-      } catch {
-        setD1hMap({});
-      }
-    }
-    load();
-    const t = setInterval(load, 60_000);
-    return () => { ctrl.abort(); clearInterval(t); };
   }, [API]);
 
   // Pull 5m sandbox deltas every 60s (read-only)
@@ -346,7 +315,7 @@ export default function RowIndexSectors() {
         const ds = j?.deltas?.sectors || {};
         for (const key of Object.keys(ds)) {
           const canon = ALIASES[norm(key)] || key; // keep canon case
-          map[norm(canon)] = Number(ds[key]?.netTilt ?? NaN); // we’ll show netTilt as Δ5m
+          map[norm(canon)] = Number(ds[key]?.netTilt ?? NaN); // show netTilt as Δ5m
         }
         setD5mMap(map);
         setDeltasUpdatedAt(j?.deltasUpdatedAt || null);
@@ -443,14 +412,14 @@ export default function RowIndexSectors() {
         >
           {cards.map((c, i) => {
             const key = norm(c?.sector || "");
+            const d5 = (() => {
+              const canon = ALIASES[key] || c?.sector || "";
+              const v = d5mMap[norm(canon)];
+              return Number.isFinite(v) && !stale5m ? v : undefined;
+            })();
             const d10 = d10mMap[key];
+            const d1h = d1hMap[key];
             const d1d = d1dMap[key];
-            const d1h = d1hMap[key]; // NEW
-
-            // 5m netTilt pill (sandbox; green/red/gray); hide if stale or missing
-            const canon = ALIASES[key] || c?.sector || "";
-            const d5 = d5mMap[norm(canon)];
-            const show5 = Number.isFinite(d5) && !stale5m;
 
             const nh = Number(c?.nh ?? NaN);
             const nl = Number(c?.nl ?? NaN);
@@ -483,9 +452,9 @@ export default function RowIndexSectors() {
 
                 {/* Compact Δ row (single line; no height change) */}
                 <div style={{ display: "flex", gap: 6, margin: "0 0 4px 0", alignItems: "center", flexWrap: "wrap" }}>
-                  {show5 && <Pill label="Δ5m" value={d5} />}
+                  {Number.isFinite(d5) && <Pill label="Δ5m" value={d5} />}
                   <Pill label="Δ10m" value={Number.isFinite(d10) ? d10 : undefined} />
-                  <Pill label="Δ1h"  value={Number.isFinite(d1h) ? d1h : undefined} /> {/* NEW: next to EOD */}
+                  <Pill label="Δ1h"  value={Number.isFinite(d1h) ? d1h : undefined} />
                   <Pill label="Δ1d"  value={Number.isFinite(d1d) ? d1d : undefined} />
                 </div>
 
@@ -553,10 +522,10 @@ export default function RowIndexSectors() {
               Outlook
             </div>
             <div style={{ color: "#d1d5db", fontSize: 12 }}>
-              <b>Δ5m</b> pill shows read-only <i>netTilt</i> from sandbox (5-minute change).<br/>
-              <b>Δ10m</b> compares last two 10-minute snapshots via replay.<br/>
-              <b>Δ1h</b> comes from <code>/api/sectorTrend?window=1</code> (hour-over-hour Net NH).<br/>
-              <b>Δ1d</b> compares last two end-of-day snapshots via replay.
+              <b>Δ5m</b> from sandbox (netTilt).<br/>
+              <b>Δ10m</b> from replay: last two 10-minute snapshots.<br/>
+              <b>Δ1h</b> from replay: last two hourly snapshots.<br/>
+              <b>Δ1d</b> from replay: last two end-of-day snapshots.
             </div>
             <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}>
               <button
