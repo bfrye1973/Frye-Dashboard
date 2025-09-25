@@ -1,9 +1,8 @@
 // src/pages/rows/RowStrategies/index.jsx
-// Alignment Scalper — 3-check card (Alignment, Liquidity, Δ Accel)
-// CRA-safe (no import.meta), compact UI, wired tabs.
-// Pulls:
+// Alignment Scalper — 6-universe, 4/6 trigger, Δ gate + RiskOn block, Liquidity neutral (not in backend yet).
+// CRA-safe (no import.meta). Compact UI, wired tabs. Two pulls:
 //   1) Alignment feed (backend)
-//   2) Sandbox deltas (optional; hide if missing or stale)
+//   2) Sandbox deltas (optional; ignore if missing/stale)
 
 import React, { useEffect, useMemo, useState } from "react";
 import { useSelection } from "../../../context/ModeContext";
@@ -24,23 +23,20 @@ function getBackendBase() {
   return (envBase || "https://frye-market-backend-1.onrender.com").replace(/\/+$/, "");
 }
 function getSandboxUrl() {
-  // e.g. https://raw.githubusercontent.com/<org>/<repo>/data-live-10min-sandbox/data/outlook_intraday.json
   return getEnv("REACT_APP_INTRADAY_SANDBOX_URL", "");
 }
 function nowIso() { return new Date().toISOString(); }
 
 /* =========================
-   Config / thresholds
+   Config / thresholds (your answers)
    ========================= */
-// FINAL UNIVERSE (SPX removed; NDX removed; DJI -> DIA)
+// FINAL UNIVERSE (SPX/NDX removed; DJI->DIA)
 const CANON = ["SPY", "QQQ", "IWM", "MDY", "DIA", "I:VIX"]; // 6 instruments
-// Trigger threshold — choose 4-of-6 (≈ old 5/7 strictness). Set to 5 for stricter filter.
+// Trigger threshold (immediate; no debounce)
 const ALIGN_THRESHOLD = 4;
-
-// Δ pills color rules
+// Δ pills thresholds
 const GREEN_TH = +1.0;
-const RED_TH   = -1.0;
-// staleness
+// staleness guard (minutes)
 const STALE_MINUTES = 12;
 
 /* =========================
@@ -67,30 +63,21 @@ export default function RowStrategies() {
         const data = await r.json();
         if (!alive) return;
         setAlignRes({ status: String(data?.status ?? "live"), data, base });
-        // eslint-disable-next-line no-console
-        console.log("[Alignment] pull", data?.status ?? "live", data);
       } catch (e) {
         if (!alive) return;
-        const ts = new Date(Math.floor(Date.now() / 600000) * 600000).toISOString();
         // harmless mock (never crash UI)
+        const ts = new Date(Math.floor(Date.now() / 600000) * 600000).toISOString();
         setAlignRes({
           status: "mock(error)",
           data: {
             signal: {
-              // mock over 6-member universe
-              members: {
-                SPY: { ok: true }, QQQ: { ok: true }, IWM: { ok: true },
-                MDY: { ok: true }, DIA: { ok: false }, "I:VIX": { ok: true }
-              },
-              // liquidity optional (not yet from backend)
+              members: { SPY:{ok:true}, QQQ:{ok:true}, IWM:{ok:true}, MDY:{ok:true}, DIA:{ok:false}, "I:VIX":{ok:true} },
               liquidity_ok: null,
               timestamp: ts
             }
           },
           base
         });
-        // eslint-disable-next-line no-console
-        console.warn("[Alignment] pull error:", e?.message || e);
       }
     }
 
@@ -124,22 +111,18 @@ export default function RowStrategies() {
 
         if (!alive) return;
         setDeltaRes({ ok: !!market, stale, market, at, url });
-        // eslint-disable-next-line no-console
-        console.log("[SandboxΔ] pull", { stale, at, market });
       } catch (e) {
         if (!alive) return;
         setDeltaRes({ ok: false, stale: true, market: null, at: null, url });
-        // eslint-disable-next-line no-console
-        console.warn("[SandboxΔ] error:", e?.message || e);
       }
     }
 
     pull();
-    const id = setInterval(pull, 300000); // every ~5m
+    const id = setInterval(pull, 300000); // ~5m
     return () => { alive = false; clearInterval(id); };
   }, []);
 
-  /* -------- Normalize alignment signal -------- */
+  /* -------- Normalize + Decision logic (Δ gate + RiskOn block) -------- */
   const view = useMemo(() => {
     const status = alignRes.status || "mock";
     const data = alignRes.data;
@@ -163,7 +146,7 @@ export default function RowStrategies() {
       "I:VIX": members["I:VIX"] || members["VIX"],
     };
 
-    // 4-of-6 count (ALIGN_THRESHOLD configurable)
+    // confirm count (4-of-6 default)
     let confirm = 0;
     const failing = [];
     CANON.forEach(k => {
@@ -171,39 +154,71 @@ export default function RowStrategies() {
       if (ok) confirm += 1; else failing.push(k);
     });
 
-    // Liquidity flag from backend (optional)
-    // true → green ✓ ; false → gray ; null/undefined → neutral/disabled
+    // Liquidity flag from backend (optional / neutral)
     const liquidityRaw = (sig && "liquidity_ok" in sig) ? sig.liquidity_ok : null;
     const liquidityOk = liquidityRaw === true;
     const liquidityState = (liquidityRaw === null || typeof liquidityRaw === "undefined")
       ? "neutral" : (liquidityOk ? "ok" : "no");
 
-    // Δ Acceleration from sandbox
-    const dm = deltaRes.market;
+    // Δ Acceleration + RiskOn gate (from sandbox)
+    const dm = deltaRes.market;  // { dBreadthPct, dMomentumPct, riskOnPct }
     const accelOk = !!(deltaRes.ok && !deltaRes.stale &&
-      typeof dm?.dBreadthPct === "number" &&
-      typeof dm?.dMomentumPct === "number" &&
-      dm.dBreadthPct >= GREEN_TH &&
-      dm.dMomentumPct >= GREEN_TH);
+      typeof dm?.dBreadthPct === "number" && dm.dBreadthPct >= GREEN_TH &&
+      typeof dm?.dMomentumPct === "number" && dm.dMomentumPct >= GREEN_TH
+    );
+    const riskOn = (typeof dm?.riskOnPct === "number") ? dm.riskOnPct : null;
+    const riskOk = (riskOn === null || deltaRes.stale) ? true : (riskOn > -1.0); // block only if <= -1.0
+
+    // Triggered by alignment threshold?
+    const triggered = confirm >= ALIGN_THRESHOLD;
+
+    // ENTRY GATE decision (UI only here; OMS call is a separate switch)
+    let gateReady = false;
+    let gateReason = "";
+    if (!triggered) {
+      gateReady = false;
+      gateReason = `need ≥${ALIGN_THRESHOLD}/${CANON.length}`;
+    } else if (deltaRes.stale) {
+      // Stale → ignore deltas (no block, no bonus)
+      gateReady = true;
+      gateReason = "staleΔ: ignore";
+    } else if (!accelOk) {
+      gateReady = false;
+      gateReason = "ΔAccel not green";
+    } else if (!riskOk) {
+      gateReady = false;
+      gateReason = "RiskOn red";
+    } else {
+      gateReady = true;
+      gateReason = "ready";
+    }
 
     // Confidence = alignment% + (Liquidity? +10) + (Δ? +20), clamped
     const baseScore = Math.round((confirm / CANON.length) * 100);
     const bonusLiq  = liquidityOk ? 10 : 0; // neutral/false → +0
-    const bonusΔ    = accelOk ? 20 : 0;
+    const bonusΔ    = (!deltaRes.stale && accelOk) ? 20 : 0;
     const conf = Math.max(0, Math.min(100, baseScore + bonusLiq + bonusΔ));
 
-    // State pill: Triggered if ≥ ALIGN_THRESHOLD ; else Flat
-    const triggered = confirm >= ALIGN_THRESHOLD;
     const statePill = triggered ? "Triggered" : "Flat";
     const tone = triggered ? "ok" : "muted";
     const last = ts ? (triggered ? `LONG • ${fmtHHMM(ts)}` : `— • ${fmtHHMM(ts)}`) : "—";
+
+    // Console beacon (decision trace)
+    try {
+      // eslint-disable-next-line no-console
+      console.log("[Alignment] decision", {
+        confirm, accelOk, riskOnPct: riskOn, stale: deltaRes.stale,
+        score: conf, action: gateReady ? "READY" : "BLOCKED", reason: gateReason
+      });
+    } catch {}
 
     return {
       key: `${status}-${ts || nowIso()}-${confirm}-${liquidityState}-${accelOk ? 1 : 0}`,
       status, confirm, total: CANON.length,
       liquidityState, liquidityOk, accelOk,
       score: conf, tone, statePill, last,
-      failing: triggered ? [] : failing
+      failing: triggered ? [] : failing,
+      gateReady, gateReason
     };
   }, [alignRes, deltaRes]);
 
@@ -240,6 +255,14 @@ export default function RowStrategies() {
           <Check ok={view.confirm >= ALIGN_THRESHOLD} label={`Alignment ≥${ALIGN_THRESHOLD}/${CANON.length}`} />
           <Check ok={view.liquidityState === "ok"} neutral={view.liquidityState === "neutral"} label="Liquidity Grab" />
           <Check ok={view.accelOk} label="Δ Accel (5m)" tip={deltaRes.stale ? "stale" : ""} />
+        </div>
+
+        {/* Gate status (tiny, actionable) */}
+        <div style={S.gateRow}>
+          <span style={view.gateReady ? S.gateOk : S.gateNo}>
+            {view.gateReady ? "READY" : "BLOCKED"}
+          </span>
+          <span style={S.gateWhy}>{view.gateReason}</span>
         </div>
 
         {/* Selected readout */}
@@ -308,10 +331,9 @@ function Card(props) {
 
       <div style={S.metaRow}>
         <div><span style={S.metaKey}>Last:</span> {props.last}</div>
-        <div><span style={S.metaKey}>P/L Today:</span> {props.pl}</div>
+        <div><span style={S.plKey}>P/L Today:</span> {props.pl}</div>
       </div>
 
-      {props.footNote ? <div style={S.foot}>{props.footNote}</div> : null}
       {props.children}
     </div>
   );
@@ -331,7 +353,7 @@ function fmtHHMM(iso) {
 const S = {
   wrap: { display: "grid", gridTemplateColumns: "repeat(3, minmax(0,1fr))", gap: 10 },
 
-  card: { background: "#101010", border: "1px solid #262626", borderRadius: 10, padding: 10, color: "#e5e7eb",
+  card: { background: "#101010", border: "1px solid "#262626", borderRadius: 10, padding: 10, color: "#e5e7eb",
           display: "flex", flexDirection: "column", gap: 8, minHeight: 110 },
 
   head: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 },
@@ -348,7 +370,7 @@ const S = {
 
   metaRow: { display: "grid", gridTemplateColumns: "1fr auto", gap: 6, fontSize: 11, color: "#cbd5e1" },
   metaKey: { color: "#9ca3af", marginRight: 4, fontWeight: 600 },
-  foot: { fontSize: 10, color: "#94a3b8" },
+  plKey:   { color: "#9ca3af", marginRight: 4, fontWeight: 600 },
 
   // checks (compact)
   checks: { display: "flex", gap: 10, flexWrap: "wrap", marginTop: 2 },
@@ -356,6 +378,12 @@ const S = {
   chkOk: { color: "#86efac", fontWeight: 900 },
   chkNo: { color: "#94a3b8", fontWeight: 900 },
   chkNeutral: { color: "#9ca3af", fontWeight: 900 },
+
+  // gate status
+  gateRow: { display: "flex", alignItems: "center", gap: 8, marginTop: 4, fontSize: 11 },
+  gateOk: { background:"#06220f", color:"#86efac", border:"1px solid #166534", borderRadius:999, padding:"2px 8px", fontWeight:900 },
+  gateNo: { background:"#1b1409", color:"#fca5a5", border:"1px solid #7f1d1d", borderRadius:999, padding:"2px 8px", fontWeight:900 },
+  gateWhy:{ color:"#94a3b8" },
 
   // selection + tabs
   selRow: { display: "flex", alignItems: "center", gap: 6, marginTop: 2, fontSize: 11 },
