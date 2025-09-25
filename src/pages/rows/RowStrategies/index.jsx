@@ -1,5 +1,6 @@
 // src/pages/rows/RowStrategies/index.jsx
-// Alignment Scalper — 6-universe, 4/6 trigger, Δ gate + RiskOn block, Liquidity neutral (not in backend yet).
+// Alignment Scalper — 6-universe, 4/6 trigger, Δ gate + RiskOn block,
+// Liquidity neutral (not in backend yet).
 // CRA-safe (no import.meta). Compact UI, wired tabs. Two pulls:
 //   1) Alignment feed (backend)
 //   2) Sandbox deltas (optional; ignore if missing/stale)
@@ -23,6 +24,7 @@ function getBackendBase() {
   return (envBase || "https://frye-market-backend-1.onrender.com").replace(/\/+$/, "");
 }
 function getSandboxUrl() {
+  // e.g. https://raw.githubusercontent.com/<org>/<repo>/data-live-10min-sandbox/data/outlook_intraday.json
   return getEnv("REACT_APP_INTRADAY_SANDBOX_URL", "");
 }
 function nowIso() { return new Date().toISOString(); }
@@ -34,7 +36,7 @@ function nowIso() { return new Date().toISOString(); }
 const CANON = ["SPY", "QQQ", "IWM", "MDY", "DIA", "I:VIX"]; // 6 instruments
 // Trigger threshold (immediate; no debounce)
 const ALIGN_THRESHOLD = 4;
-// Δ pills thresholds
+// Δ thresholds
 const GREEN_TH = +1.0;
 // staleness guard (minutes)
 const STALE_MINUTES = 12;
@@ -216,7 +218,7 @@ export default function RowStrategies() {
       key: `${status}-${ts || nowIso()}-${confirm}-${liquidityState}-${accelOk ? 1 : 0}`,
       status, confirm, total: CANON.length,
       liquidityState, liquidityOk, accelOk,
-      score: conf, tone, statePill, last,
+      score: conf, tone: triggered ? "ok" : "muted", statePill, last,
       failing: triggered ? [] : failing,
       gateReady, gateReason
     };
@@ -353,7 +355,8 @@ function fmtHHMM(iso) {
 const S = {
   wrap: { display: "grid", gridTemplateColumns: "repeat(3, minmax(0,1fr))", gap: 10 },
 
-  card: { background: "#101010", border: "1px solid "#262626", borderRadius: 10, padding: 10, color: "#e5e7eb",
+  // ✅ FIXED the border string below ("1px solid #262626")
+  card: { background: "#101010", border: "1px solid #262626", borderRadius: 10, padding: 10, color: "#e5e7eb",
           display: "flex", flexDirection: "column", gap: 8, minHeight: 110 },
 
   head: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 },
