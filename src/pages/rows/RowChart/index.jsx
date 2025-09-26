@@ -1,5 +1,4 @@
-// src/pages/rows/RowChart/index.jsx
-// v5.1.1 — Re-adds Swing Liquidity (OFF by default) and removes problematic inline comment/prop.
+// v5.2 — Stable build: EMA+Volume defaults; SMI gated; Swing optional
 
 import React, { useMemo, useState, useEffect, useRef } from "react";
 import Controls from "./Controls";
@@ -8,12 +7,13 @@ import useOhlc from "./useOhlc";
 import useLwcChart from "./useLwcChart";
 import { SYMBOLS, TIMEFRAMES, resolveApiBase } from "./constants";
 
-// Alias imports
+// alias imports (jsconfig baseUrl: "src")
 import { createEmaOverlay } from "indicators/ema/overlay";
 import { createVolumeOverlay } from "indicators/volume/overlay";
 import { createLuxSrOverlay } from "indicators/srLux/overlay";
 import { createSmiOverlay } from "indicators/smi";
 import MoneyFlowOverlay from "components/overlays/MoneyFlowOverlay";
+// keep if you want Swing available; remove the line if not
 import SwingLiquidityOverlay from "components/overlays/SwingLiquidityOverlay";
 
 export default function RowChart({
@@ -22,7 +22,7 @@ export default function RowChart({
   defaultTimeframe = "1h",
   height = 520,
   onStatus,
-  showDebug = false,
+  showDebug = false
 }) {
   const isFullChart =
     typeof window !== "undefined" &&
@@ -32,7 +32,7 @@ export default function RowChart({
   const [state, setState] = useState({
     symbol: defaultSymbol,
     timeframe: defaultTimeframe,
-    range: null,
+    range: null
   });
 
   const DEFAULT_IND = {
@@ -41,7 +41,7 @@ export default function RowChart({
     smi: false,
     moneyFlow: false,
     luxSr: false,
-    swingLiquidity: false, // OFF by default
+    swingLiquidity: false
   };
   const [ind, setInd] = useState(DEFAULT_IND);
 
@@ -57,7 +57,7 @@ export default function RowChart({
         barSpacing: 12,
         fixLeftEdge: true,
         timeVisible: true,
-        secondsVisible: false,
+        secondsVisible: false
       },
       crosshair: { mode: 0 },
       upColor: "#16a34a",
@@ -65,7 +65,7 @@ export default function RowChart({
       wickUpColor: "#16a34a",
       wickDownColor: "#ef4444",
       borderUpColor: "#16a34a",
-      borderDownColor: "#ef4444",
+      borderDownColor: "#ef4444"
     }),
     []
   );
@@ -75,7 +75,7 @@ export default function RowChart({
   const { bars, loading, error, refetch } = useOhlc({
     apiBase,
     symbol: state.symbol,
-    timeframe: state.timeframe,
+    timeframe: state.timeframe
   });
 
   useEffect(() => {
@@ -98,13 +98,13 @@ export default function RowChart({
   const emaRef = useRef({});
   useEffect(() => {
     if (!chart) return;
-    const removeAll = () => { Object.values(emaRef.current).forEach((o) => o?.remove?.()); emaRef.current = {}; };
+    const removeAll = () => { Object.values(emaRef.current).forEach(o => o?.remove?.()); emaRef.current = {}; };
     removeAll();
     if (ind.showEma) {
       if (ind.ema10) emaRef.current.e10 = createEmaOverlay({ chart, period: 10, color: "#60a5fa" });
       if (ind.ema20) emaRef.current.e20 = createEmaOverlay({ chart, period: 20, color: "#f59e0b" });
       if (ind.ema50) emaRef.current.e50 = createEmaOverlay({ chart, period: 50, color: "#34d399" });
-      Object.values(emaRef.current).forEach((o) => o?.setBars?.(bars));
+      Object.values(emaRef.current).forEach(o => o?.setBars?.(bars));
     }
     return () => removeAll();
   }, [chart, ind.showEma, ind.ema10, ind.ema20, ind.ema50, bars]);
@@ -150,7 +150,7 @@ export default function RowChart({
         minSeparationPct: 0.25,
         maxLevels: 10,
         lookbackBars: 800,
-        markersLookback: 300,
+        markersLookback: 300
       });
       luxRef.current.setBars(bars);
     }
@@ -165,7 +165,7 @@ export default function RowChart({
       style={{
         flex: 1, minHeight: 0, overflow: "hidden",
         background: "#0a0a0a", border: "1px solid #2b2b2b", borderRadius: 12,
-        display: "flex", flexDirection: "column",
+        display: "flex", flexDirection: "column"
       }}
     >
       <Controls
@@ -173,26 +173,21 @@ export default function RowChart({
         timeframes={TIMEFRAMES}
         value={{ symbol: state.symbol, timeframe: state.timeframe, range: state.range, disabled: loading }}
         onChange={(patch) => setState((s) => ({ ...s, ...patch }))}
-        onTest={
-          showDebug
-            ? async () => {
-                const r = await refetch(true);
-                alert(r.ok ? `Fetched ${r.count || 0} bars` : `Error: ${r.error || "unknown"}`);
-              }
-            : undefined
-        }
+        onTest={ showDebug ? async () => {
+          const r = await refetch(true);
+          alert(r.ok ? `Fetched ${r.count || 0} bars` : `Error: ${r.error || "unknown"}`);
+        } : undefined }
       />
 
       <IndicatorsToolbar
-        // EMA
-        showEma={ind.showEma} ema10={ind.ema10} ema20={ind.ema20} ema50={ind.ema50}
-        // Panes
+        showEma={ind.showEma}
+        ema10={ind.ema10}
+        ema20={ind.ema20}
+        ema50={ind.ema50}
         volume={ind.volume}
-        // Overlays
         moneyFlow={ind.moneyFlow}
         luxSr={ind.luxSr}
         swingLiquidity={ind.swingLiquidity}
-        // Oscillator (gated)
         smi={isFullChart ? ind.smi : false}
         showSmiToggle={isFullChart}
         onChange={(patch) => setInd((s) => ({ ...s, ...patch }))}
@@ -202,16 +197,14 @@ export default function RowChart({
       <div
         style={{
           flex: "0 0 auto", display: "flex", justifyContent: "flex-end",
-          padding: "6px 12px", borderBottom: "1px solid #2b2b2b",
+          padding: "6px 12px", borderBottom: "1px solid #2b2b2b"
         }}
       >
         <button
-          onClick={() =>
-            window.open(`/chart?symbol=${state.symbol}&tf=${state.timeframe}`, "_blank", "noopener")
-          }
+          onClick={() => window.open(`/chart?symbol=${state.symbol}&tf=${state.timeframe}`, "_blank", "noopener")}
           style={{
             background: "#0b0b0b", color: "#e5e7eb", border: "1px solid #2b2b2b",
-            borderRadius: 8, padding: "6px 10px", fontWeight: 600, cursor: "pointer",
+            borderRadius: 8, padding: "6px 10px", fontWeight: 600, cursor: "pointer"
           }}
         >
           Open Full Chart ↗
@@ -221,7 +214,7 @@ export default function RowChart({
       {showDebug && (
         <div
           style={{
-            padding: "6px 12px", color: "#9ca3af", fontSize: 12, borderBottom: "1px solid #2b2b2b",
+            padding: "6px 12px", color: "#9ca3af", fontSize: 12, borderBottom: "1px solid #2b2b2b"
           }}
         >
           debug • base: {baseShown || "MISSING"} • symbol: {state.symbol} • tf: {state.timeframe} • bars: {bars.length}

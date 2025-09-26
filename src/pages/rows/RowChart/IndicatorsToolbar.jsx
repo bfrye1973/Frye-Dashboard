@@ -1,6 +1,3 @@
-// src/pages/rows/RowChart/IndicatorsToolbar.jsx
-// v5.1 — Adds Swing Liquidity back (OFF by default), SMI gated
-
 import React from "react";
 
 export default function IndicatorsToolbar({
@@ -11,7 +8,7 @@ export default function IndicatorsToolbar({
   // overlays
   moneyFlow,
   luxSr,
-  swingLiquidity,         // ⬅️ new prop
+  swingLiquidity,        // ok if undefined
   // oscillator (gated on Full Chart)
   smi,
   showSmiToggle = false,
@@ -31,7 +28,7 @@ export default function IndicatorsToolbar({
             borderRadius: 8,
             padding: "6px 10px",
             fontWeight: 600,
-            cursor: "pointer",
+            cursor: "pointer"
           }}
         >
           Indicators ▾
@@ -48,7 +45,7 @@ export default function IndicatorsToolbar({
             border: "1px solid #2b2b2b",
             borderRadius: 8,
             padding: 10,
-            minWidth: 240,
+            minWidth: 240
           }}
         >
           {/* EMA */}
@@ -68,7 +65,9 @@ export default function IndicatorsToolbar({
           <div style={{ fontWeight: 700, opacity: 0.9, marginTop: 12, marginBottom: 6 }}>Overlays</div>
           <label><input type="checkbox" checked={B(moneyFlow)} onChange={(e)=>onChange?.({ moneyFlow:e.target.checked })}/> Money Flow Profile (right)</label>
           <label><input type="checkbox" checked={B(luxSr)} onChange={(e)=>onChange?.({ luxSr:e.target.checked })}/> Lux S/R (lines + breaks)</label>
-          <label><input type="checkbox" checked={B(swingLiquidity)} onChange={(e)=>onChange?.({ swingLiquidity:e.target.checked })}/> Swing Liquidity (pivots)</label>
+          {typeof swingLiquidity === "boolean" && (
+            <label><input type="checkbox" checked={B(swingLiquidity)} onChange={(e)=>onChange?.({ swingLiquidity:e.target.checked })}/> Swing Liquidity (pivots)</label>
+          )}
 
           {/* Oscillators */}
           <div style={{ fontWeight: 700, opacity: 0.9, marginTop: 12, marginBottom: 6 }}>Oscillators</div>
@@ -88,7 +87,7 @@ export default function IndicatorsToolbar({
                 borderRadius: 6,
                 padding: "4px 8px",
                 fontWeight: 600,
-                cursor: "pointer",
+                cursor: "pointer"
               }}
             >
               Reset to Defaults
