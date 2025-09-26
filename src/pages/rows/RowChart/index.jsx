@@ -14,7 +14,6 @@ import { createEmaOverlay } from "../../../indicators/ema/overlay";
 import { createVolumeOverlay } from "../../../indicators/volume";
 import MoneyFlowOverlay from "../../../components/overlays/MoneyFlowOverlay";
 import { createLuxSrOverlay } from "../../../indicators/srLux";
-import SwingLiquidityOverlay from "../../../components/overlays/SwingLiquidityOverlay";
 import { createSmiOverlay } from "../../../indicators/smi";
 
 export default function RowChart({
@@ -53,8 +52,7 @@ export default function RowChart({
     // overlays
     moneyFlow: false,
     luxSr: false,
-    swingLiquidity: false,
-  };
+      };
 
   // indicator toggles
   const [ind, setInd] = useState(DEFAULT_IND);
@@ -272,7 +270,6 @@ export default function RowChart({
         // Overlays
         moneyFlow={ind.moneyFlow}
         luxSr={ind.luxSr}
-        swingLiquidity={ind.swingLiquidity}
         // Change handler
         onChange={(patch) => setInd((s) => ({ ...s, ...patch }))}
         // Reset button (optional but handy)
