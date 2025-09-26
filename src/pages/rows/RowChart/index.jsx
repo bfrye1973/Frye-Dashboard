@@ -1,6 +1,7 @@
 // src/pages/rows/RowChart/index.jsx
-// v4.4.3 — Imports pinned to concrete files; EMAs + Volume ON by default; others OFF.
-//           SMI gated to Full Chart (default OFF). Border style typo fixed.
+// v4.4.4 — EMAs + Volume ON by default; others OFF.
+//          SMI gated to Full Chart (default OFF).
+//          Imports fixed to exactly 3x "../" and explicit file paths.
 
 import React, { useMemo, useState, useEffect, useRef } from "react";
 import Controls from "./Controls";
@@ -9,13 +10,13 @@ import useOhlc from "./useOhlc";
 import useLwcChart from "./useLwcChart";
 import { SYMBOLS, TIMEFRAMES, resolveApiBase } from "./constants";
 
-/* ----- Overlays / panes (explicit file paths within src/) ----- */
+/* ----- Overlays / panes (these match your repo exactly) ----- */
 import { createEmaOverlay } from "../../../indicators/ema/overlay";
-import { createVolumeOverlay } from "../../../indicators/volume/overlay";   // ← explicit
+import { createVolumeOverlay } from "../../../indicators/volume/overlay";   // <= IMPORTANT: 3x ../
 import MoneyFlowOverlay from "../../../components/overlays/MoneyFlowOverlay";
-import { createLuxSrOverlay } from "../../../indicators/srLux/overlay";     // ← explicit
+import { createLuxSrOverlay } from "../../../indicators/srLux/overlay";
 import SwingLiquidityOverlay from "../../../components/overlays/SwingLiquidityOverlay";
-import { createSmiOverlay } from "../../../indicators/smi";                  // uses its index.js
+import { createSmiOverlay } from "../../../indicators/smi";
 
 export default function RowChart({
   apiBase,
@@ -25,13 +26,11 @@ export default function RowChart({
   onStatus,
   showDebug = false,
 }) {
-  // Full Chart route gate (for SMI)
   const isFullChart =
     typeof window !== "undefined" &&
     (window.location.pathname === "/chart" ||
       window.location.pathname.startsWith("/chart"));
 
-  // Symbol / timeframe / optional range
   const [state, setState] = useState({
     symbol: defaultSymbol,
     timeframe: defaultTimeframe,
@@ -40,24 +39,18 @@ export default function RowChart({
 
   // Defaults: EMAs + Volume ON; everything else OFF
   const DEFAULT_IND = {
-    // EMA
     showEma: true,
     ema10: true,
     ema20: true,
     ema50: true,
-
-    // panes
     volume: true,
-    smi: false, // gated to Full Chart; default OFF
-
-    // overlays
+    smi: false,           // Full Chart only; default OFF
     moneyFlow: false,
     luxSr: false,
     swingLiquidity: false,
   };
   const [ind, setInd] = useState(DEFAULT_IND);
 
-  // Theme
   const theme = useMemo(
     () => ({
       layout: { background: { type: "solid", color: "#0a0a0a" }, textColor: "#ffffff" },
@@ -83,17 +76,14 @@ export default function RowChart({
     []
   );
 
-  // Chart mount
   const { containerRef, chart, setData } = useLwcChart({ theme });
 
-  // Data feed
   const { bars, loading, error, refetch } = useOhlc({
     apiBase,
     symbol: state.symbol,
     timeframe: state.timeframe,
   });
 
-  // Status bubble
   useEffect(() => {
     if (!onStatus) return;
     if (loading) onStatus("loading");
@@ -102,19 +92,17 @@ export default function RowChart({
     else onStatus("idle");
   }, [loading, error, bars, onStatus]);
 
-  // Fetch data on mount / changes
   useEffect(() => { void refetch(true); }, []); // mount
   useEffect(() => { void refetch(true); }, [state.symbol, state.timeframe]);
 
-  // Push bars to chart
   useEffect(() => {
     const data = state.range && bars.length > state.range ? bars.slice(-state.range) : bars;
     setData(data);
   }, [bars, state.range, setData]);
 
-  /* =========================
-     EMA overlays (price pane)
-     ========================= */
+  // =========================
+  // EMA overlays (price pane)
+  // =========================
   const emaRef = useRef({});
   useEffect(() => {
     if (!chart) return;
@@ -133,9 +121,9 @@ export default function RowChart({
     return () => removeAll();
   }, [chart, ind.showEma, ind.ema10, ind.ema20, ind.ema50, bars]);
 
-  /* =========================
-     Volume pane (bottom)
-     ========================= */
+  // =========================
+  // Volume pane (bottom)
+  // =========================
   const volRef = useRef(null);
   useEffect(() => {
     if (!chart) return;
@@ -146,11 +134,13 @@ export default function RowChart({
     }
     return () => { volRef.current?.remove(); volRef.current = null; };
   }, [chart, ind.volume, bars]);
-  useEffect(() => { if (ind.volume && volRef.current) volRef.current.setBars(bars); }, [bars, ind.volume]);
+  useEffect(() => {
+    if (ind.volume && volRef.current) volRef.current.setBars(bars);
+  }, [bars, ind.volume]);
 
-  /* =========================
-     SMI pane (Full Chart only)
-     ========================= */
+  // =========================
+  // SMI pane (Full Chart only)
+  // =========================
   const smiRef = useRef(null);
   useEffect(() => {
     if (!chart || !isFullChart) return;
@@ -161,11 +151,13 @@ export default function RowChart({
     }
     return () => { smiRef.current?.remove(); smiRef.current = null; };
   }, [chart, ind.smi, bars, isFullChart]);
-  useEffect(() => { if (isFullChart && ind.smi && smiRef.current) smiRef.current.setBars(bars); }, [bars, ind.smi, isFullChart]);
+  useEffect(() => {
+    if (isFullChart && ind.smi && smiRef.current) smiRef.current.setBars(bars);
+  }, [bars, ind.smi, isFullChart]);
 
-  /* =========================
-     Lux S/R (overlay)
-     ========================= */
+  // =========================
+  // Lux S/R (overlay)
+  // =========================
   const luxRef = useRef(null);
   useEffect(() => {
     if (!chart) return;
@@ -276,10 +268,8 @@ export default function RowChart({
           style={{ position: "relative", width: "100%", height: "100%", minHeight: 0, flex: 1 }}
           data-cluster-host
         >
-          {/* Right profile / canvas overlays */}
           {ind.moneyFlow && <MoneyFlowOverlay chartContainer={containerRef.current} candles={bars} />}
 
-          {/* TV-style Swing Liquidity (self-contained overlay file) */}
           {ind.swingLiquidity && chart && (
             <SwingLiquidityOverlay
               chart={chart}
