@@ -22,7 +22,6 @@ const API =
 
 /* ------------------------------ utils ------------------------------ */
 const clamp01 = (n) => Math.max(0, Math.min(100, Number(n)));
-const pct = (n) => (Number.isFinite(n) ? n.toFixed(1) : "—");
 const num = (v) => {
   const n = Number(v);
   return Number.isFinite(n) ? n : NaN;
@@ -35,6 +34,14 @@ const isStale = (ts, maxMs = 12 * 60 * 1000) => {
   const t = new Date(ts).getTime();
   return !Number.isFinite(t) || Date.now() - t > maxMs;
 };
+
+function tsOf(x){ return x?.updated_at || x?.ts || null; }
+function newer(a, b) {
+  const ta = tsOf(a), tb = tsOf(b);
+  if (!ta) return b;
+  if (!tb) return a;
+  return new Date(ta).getTime() >= new Date(tb).getTime() ? a : b;
+}
 
 /** tone helpers for Market Meter (finalized thresholds) */
 function toneForBreadth(v){ if (!Number.isFinite(v)) return "info"; if (v >= 65) return "ok"; if (v >= 35) return "warn"; return "danger"; }
@@ -54,9 +61,26 @@ function toneForVolBand(band){ return band === "high" ? "danger" : band === "ele
 function toneForLiqBand(band){ return band === "good" ? "ok" : band === "normal" ? "warn" : band ? "danger" : "info"; }
 
 /* ---------------------------- Stoplight ---------------------------- */
-function Stoplight({ label, value, baseline, size = 54, unit = "%", subtitle, toneOverride, extraBelow }) {
-  const v = Number.isFinite(value) ? clamp01(value) : NaN;
-  const delta = Number.isFinite(v) && Number.isFinite(baseline) ? v - baseline : NaN;
+/** 
+ * clamp: if true, clamp to [0,100] (use for %). 
+ * For PSI or raw indices, set clamp={false} and provide unit="PSI" (or "").
+ */
+function Stoplight({
+  label,
+  value,
+  baseline,
+  size = 54,
+  unit = "%",
+  subtitle,
+  toneOverride,
+  extraBelow,
+  clamp = true,
+}) {
+  const rawV = Number.isFinite(value) ? Number(value) : NaN;
+  const v = clamp ? (Number.isFinite(rawV) ? clamp01(rawV) : NaN) : rawV;
+
+  const rawB = Number.isFinite(baseline) ? Number(baseline) : NaN;
+  const delta = Number.isFinite(v) && Number.isFinite(rawB) ? v - rawB : NaN;
   const tone  = toneOverride || "info";
   const colors = {
     ok:     { bg: "#22c55e", glow: "rgba(34,197,94,.45)" },
@@ -75,10 +99,18 @@ function Stoplight({ label, value, baseline, size = 54, unit = "%", subtitle, to
     delta > 0               ? "#22c55e" :
     delta < 0               ? "#ef4444" : "#94a3b8";
 
+  const valueText = Number.isFinite(v)
+    ? `${v.toFixed(1)}${unit && unit !== "%" ? ` ${unit}` : unit === "%" ? "%" : ""}`
+    : "—";
+
+  const deltaText = Number.isFinite(delta)
+    ? `${delta.toFixed(1)}${unit && unit !== "%" ? ` ${unit}` : unit === "%" ? "%" : ""}`
+    : (unit === "%" ? "0.0%" : "0.0");
+
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, minWidth: size + 36 }}>
       <div
-        title={`${label}: ${pct(v)}${unit === "%" ? "%" : ""}`}
+        title={`${label}: ${valueText}`}
         style={{
           width: size,
           height: size,
@@ -92,13 +124,13 @@ function Stoplight({ label, value, baseline, size = 54, unit = "%", subtitle, to
         }}
       >
         <div style={{ fontWeight: 800, fontSize: size >= 100 ? 20 : 16, color: "#0b1220" }}>
-          {pct(v)}{unit === "%" ? "%" : ""}
+          {valueText}
         </div>
       </div>
       <div className="small" style={{ color: "#e5e7eb", fontWeight: 700, fontSize: 15, textAlign: "center" }}>{label}</div>
       {subtitle && <div style={{ color: "#94a3b8", fontSize: 12, fontWeight: 600, textAlign: "center" }}>{subtitle}</div>}
       <div style={{ color: deltaColor, fontSize: 13, fontWeight: 600 }}>
-        {arrow} {Number.isFinite(delta) ? delta.toFixed(1) : "0.0"}{unit === "%" ? "%" : ""}
+        {arrow} {deltaText}
       </div>
       {/* Extra line under the baseline delta (we use this to show 5m Δ pills) */}
       {extraBelow || null}
@@ -189,9 +221,7 @@ function ReplayControls({ on, setOn, granularity, setGranularity, ts, setTs, opt
     <div className="flex items-center gap-2">
       <button
         onClick={() => setOn(!on)}
-        className={`px-3 py-1 rounded-full border text-sm ${
-          on ? "border-yellow-400 text-yellow-300 bg-neutral-800" : "border-neutral-700 text-neutral-300 bg-neutral-900 hover:border-neutral-500"
-        }`}
+        className={`px-3 py-1 rounded-full border text-sm ${on ? "border-yellow-400 text-yellow-300 bg-neutral-800" : "border-neutral-700 text-neutral-300 bg-neutral-900 hover:border-neutral-500"}`}
       >
         {on ? "Replay: ON" : "Replay: OFF"}
       </button>
@@ -233,14 +263,29 @@ export default function RowMarketOverview() {
   // Legend state (two independent modals)
   const [legendOpen, setLegendOpen] = React.useState(null); // "intraday" | "daily" | null
 
-  // LIVE fetch (intraday + daily)
+  // LIVE fetch (intraday + daily) — initial pull + 60s polling
   const [liveIntraday, setLiveIntraday] = React.useState(null);
   const [liveDaily, setLiveDaily] = React.useState(null);
+
   React.useEffect(() => {
-    let c = false; (async () => {
-      try { if (INTRADAY_URL) { const r = await fetch(`${INTRADAY_URL}?t=${Date.now()}`, { cache: "no-store" }); const j = await r.json(); if (!c) setLiveIntraday(j); } } catch {}
-      try { if (EOD_URL)      { const r = await fetch(`${EOD_URL}?t=${Date.now()}`,      { cache: "no-store" }); const j = await r.json(); if (!c) setLiveDaily(j); } } catch {}
-    })(); return () => { c = true; };
+    let stop = false;
+    async function pull() {
+      try {
+        if (INTRADAY_URL) {
+          const r = await fetch(`${INTRADAY_URL}?t=${Date.now()}`, { cache: "no-store" });
+          const j = await r.json();
+          if (!stop) setLiveIntraday(j);
+        }
+        if (EOD_URL) {
+          const r2 = await fetch(`${EOD_URL}?t=${Date.now()}`, { cache: "no-store" });
+          const j2 = await r2.json();
+          if (!stop) setLiveDaily(j2);
+        }
+      } catch {}
+    }
+    pull();
+    const id = setInterval(pull, 60_000);
+    return () => { stop = true; clearInterval(id); };
   }, []);
 
   // Replay
@@ -280,8 +325,9 @@ export default function RowMarketOverview() {
     })();
   }, [on, tsSel, granParam]);
 
-  // choose data: replay → live intraday → polled
-  const data  = on && snap && snap.ok !== false ? snap : (liveIntraday || polled);
+  // choose data: replay → newer(live vs polled)
+  const chosen = on && snap && snap.ok !== false ? snap : newer(liveIntraday, polled);
+  const data  = chosen || {};
   const daily = liveDaily || {};
 
   /* -------------------- INTRADAY LEFT (metrics + intraday) -------------------- */
@@ -293,7 +339,7 @@ export default function RowMarketOverview() {
   const breadth      = num(m.breadth_pct);
   const momentum     = num(m.momentum_pct);
   const squeezeIntra = num(m.squeeze_intraday_pct);
-  const liquidity    = num(m.liquidity_psi);
+  const liquidity    = num(m.liquidity_psi);      // PSI, not %
   const volatility   = num(m.volatility_pct);
 
   const sectorDirCount = data?.intraday?.sectorDirection10m?.risingCount ?? null;
@@ -329,7 +375,7 @@ export default function RowMarketOverview() {
   const tdUpdatedAt = daily?.updated_at || null;
 
   return (
-    <section id="row-2" className="panel" style={{ padding: 10 }}>
+    <section id="row-2" className="panel" style={{ padding: 10 }} key={ts || "live"}>
       {/* Legend modal */}
       {legendOpen && (
         <div
@@ -414,7 +460,8 @@ export default function RowMarketOverview() {
               extraBelow={<DeltaTag label="Δ5m" value={deltaMkt.dM} stale={stale} />}
             />
             <Stoplight label="Intraday Squeeze"   value={squeezeIntra} baseline={bSqueezeIn} toneOverride={toneForSqueeze(squeezeIntra)} />
-            <Stoplight label="Liquidity"          value={liquidity}    baseline={bLiquidity} unit="" toneOverride={toneForLiquidity(liquidity)} />
+            {/* Liquidity = PSI (no clamp to 100) */}
+            <Stoplight label="Liquidity"          value={liquidity}    baseline={bLiquidity} unit="PSI" clamp={false} toneOverride={toneForLiquidity(liquidity)} />
             <Stoplight label="Volatility"         value={volatility}   baseline={bVol}       toneOverride={toneForVol(volatility)} />
             <Stoplight
               label="Sector Direction (10m)"
@@ -440,7 +487,8 @@ export default function RowMarketOverview() {
             <Stoplight label="Participation"      value={tdPartPct}  baseline={tdPartPct}  toneOverride={toneForPercent(tdPartPct)} />
             <Stoplight label="Daily Squeeze"      value={tdSdyDaily} baseline={tdSdyDaily} toneOverride={toneForLuxDaily(tdSdyDaily)} />
             <Stoplight label="Volatility Regime"  value={tdVolPct}   baseline={tdVolPct}   toneOverride={toneForVolBand(tdVolBand)} />
-            <Stoplight label="Liquidity Regime"   value={tdLiqPsi}   baseline={tdLiqPsi}   unit="" toneOverride={toneForLiqBand(tdLiqBand)} />
+            {/* Liquidity regime prints PSI number but colors by band */}
+            <Stoplight label="Liquidity Regime"   value={tdLiqPsi}   baseline={tdLiqPsi}   unit="PSI" clamp={false} toneOverride={toneForLiqBand(tdLiqBand)} />
             <Stoplight label="Risk On (Daily)"    value={tdRiskOn}   baseline={tdRiskOn}   toneOverride={toneForPercent(tdRiskOn)} />
           </div>
           {tdUpdatedAt && (
