@@ -1,9 +1,7 @@
-// src/components/overlays/SwingLiquidityOverlay.js
-// SAFE v0.2 (with self-test):
-// - Draws TV-style pivot bands
-// - Never crashes (guards everywhere)
-// - Logs pivot/band counts to console
-// - Always draws a small corner dot so we know the canvas is painting
+// SAFE v0.3 — always-visible debug edition
+// - Thick, bright bands
+// - High z-index so it sits ABOVE the chart (but pointer-events: none)
+// - Extra guards + console logs so we know what's happening
 
 import React, { useEffect, useRef } from "react";
 
@@ -18,7 +16,7 @@ function rafThrottle(fn) {
   };
 }
 
-function findPivots(bars, L = 10, R = 5) {           // slightly easier defaults than 15/10
+function findPivots(bars, L = 10, R = 5) {
   const out = [];
   if (!Array.isArray(bars) || bars.length < L + R + 1) return out;
   const n = bars.length;
@@ -52,23 +50,19 @@ function buildBands(bars, pivots, extendUntilFill = true) {
   return bands;
 }
 
-export default function SwingLiquidityOverlay({
-  containerEl,
-  chart,
-  bars,
-  opts = {}
-}) {
+export default function SwingLiquidityOverlay({ containerEl, chart, bars, opts = {} }) {
   const canvasRef = useRef(null);
   const roRef = useRef(null);
   const drawRef = useRef(() => {});
 
+  // Create canvas with high z-index and leave bottom axis gap
   useEffect(() => {
     if (!containerEl) return;
     const el = document.createElement("canvas");
     el.style.position = "absolute";
     el.style.pointerEvents = "none";
     el.style.inset = "0 0 var(--axis-gap,18px) 0";
-    el.style.zIndex = "10";                    // be above chart canvases
+    el.style.zIndex = "999"; // make sure it's on top
     containerEl.appendChild(el);
     canvasRef.current = el;
 
@@ -107,21 +101,24 @@ export default function SwingLiquidityOverlay({
       left: 10,
       right: 5,
       extendUntilFill: true,
-      maxOnScreen: 200,
-      bandPx: 12,                                // thicker for visibility
-      colorHigh: "rgba(220,38,38,0.35)",         // brighter red
-      colorLow:  "rgba(34,197,94,0.35)",         // brighter green
-      lineHigh:  "rgba(239,68,68,1.0)",
-      lineLow:   "rgba(34,197,94,1.0)",
+      maxOnScreen: 250,
+      bandPx: 14, // thicker so you can’t miss it
+      colorHigh: "rgba(255, 59, 48, 0.45)",   // bright red
+      colorLow:  "rgba(52, 199, 89, 0.45)",   // bright green
+      lineHigh:  "rgba(255, 82, 82, 1.0)",
+      lineLow:   "rgba(48, 209, 88, 1.0)",
       ...opts
     };
 
     const pivots = findPivots(bars, options.left, options.right);
     const bands  = buildBands(bars, pivots, options.extendUntilFill);
 
-    // Log so we know it's running
-    try { console.debug("[SwingOverlay] pivots:", pivots.length, "bands:", bands.length); } catch {}
+    // Debug print so we know we’re running
+    try {
+      console.debug("[SwingOverlay v0.3] bars:", bars.length, "pivots:", pivots.length, "bands:", bands.length);
+    } catch {}
 
+    // Helpers
     const priceToY = (p) => {
       try {
         const ps = chart.priceScale && chart.priceScale("right");
@@ -150,13 +147,11 @@ export default function SwingLiquidityOverlay({
         ctx.clearRect(0, 0, width, height);
         ctx.scale(dpr, dpr);
 
-        // Self-test: corner dot so we know canvas is painting
-        ctx.fillStyle = "rgba(250,204,21,0.9)";
-        ctx.beginPath();
-        ctx.arc(10, 10, 3, 0, Math.PI * 2);
-        ctx.fill();
+        // Always draw a yellow dot at top-left so we know canvas is visible
+        ctx.fillStyle = "rgba(250,204,21,0.95)";
+        ctx.beginPath(); ctx.arc(10, 10, 3, 0, Math.PI * 2); ctx.fill();
 
-        // Visible range (safe)
+        // Visible time range (safe)
         let minT = -Infinity, maxT = Infinity;
         try {
           const vr = timeScale.getVisibleRange && timeScale.getVisibleRange();
@@ -168,14 +163,13 @@ export default function SwingLiquidityOverlay({
           if (drawn >= options.maxOnScreen) break;
           const b = bands[i];
 
-          const x1 = timeToX(b.startTime);
-          if (x1 < 0) continue;
-
+          let x1 = timeToX(b.startTime);
+          if (x1 < 0) continue; // off-screen
           const endTime = b.filledIndex != null ? bars[b.filledIndex]?.time : maxT;
           if (endTime != null && endTime < minT) continue;
+          let x2 = b.filledIndex != null ? timeToX(endTime) : (cnv.clientWidth || width);
 
           const y = priceToY(b.level);
-          const x2 = b.filledIndex != null ? timeToX(endTime) : (cnv.clientWidth || width);
 
           const fill = b.kind === "H" ? options.colorHigh : options.colorLow;
           const stroke = b.kind === "H" ? options.lineHigh : options.lineLow;
@@ -187,7 +181,7 @@ export default function SwingLiquidityOverlay({
           ctx.fillRect(Math.round(x1), yTop, Math.max(1, Math.round(x2 - x1)), Math.max(1, yBot - yTop));
 
           ctx.strokeStyle = stroke;
-          ctx.lineWidth = 1;
+          ctx.lineWidth = 2;
           ctx.beginPath();
           ctx.moveTo(Math.round(x1), Math.round(y));
           ctx.lineTo(Math.round(x2), Math.round(y));
@@ -196,11 +190,11 @@ export default function SwingLiquidityOverlay({
           drawn++;
         }
 
-        // If no bands drawn, print a tiny hint (top-left)
+        // If nothing drawn, leave a hint
         if (drawn === 0) {
-          ctx.fillStyle = "rgba(156,163,175,0.9)";
-          ctx.font = "12px sans-serif";
-          ctx.fillText("Swing: no bands", 20, 14);
+          ctx.fillStyle = "rgba(156,163,175,0.95)";
+          ctx.font = "12px system-ui, sans-serif";
+          ctx.fillText("Swing: no bands in view", 20, 14);
         }
       } catch {}
     };
@@ -211,7 +205,6 @@ export default function SwingLiquidityOverlay({
     throttled(); // initial
     const onTime = () => throttled();
     const onLogical = () => throttled();
-
     try { timeScale.subscribeVisibleTimeRangeChange(onTime); } catch {}
     try { timeScale.subscribeVisibleLogicalRangeChange(onLogical); } catch {}
 
@@ -219,7 +212,7 @@ export default function SwingLiquidityOverlay({
       try { timeScale.unsubscribeVisibleTimeRangeChange(onTime); } catch {}
       try { timeScale.unsubscribeVisibleLogicalRangeChange(onLogical); } catch {}
     };
-  }, [chart, JSON.stringify(opts), Array.isArray(bars) ? bars.length : 0]);
+  }, [chart, Array.isArray(bars) ? bars.length : 0, JSON.stringify(opts)]);
 
   return null;
 }
