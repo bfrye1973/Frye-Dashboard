@@ -1,99 +1,194 @@
+// src/pages/rows/RowChart/IndicatorsToolbar.jsx
+// v2.8 — Defaults show EMA + Volume only. Added "Reset to Defaults" button.
+
 import React from "react";
 
 export default function IndicatorsToolbar({
   // EMA
-  showEma, ema10, ema20, ema50,
-  // panes
-  volume,
-  // overlays
-  moneyFlow,
-  luxSr,
-  swingLiquidity,        // ok if undefined
-  // oscillator (gated on Full Chart)
-  smi,
-  showSmiToggle = false,
+  showEma,
+  ema10 = true,
+  ema20 = true,
+  ema50 = true,
+
+  // Volume (separate pane)
+  volume = false,
+
+  // Overlays
+  moneyFlow = false,
+  luxSr = false,
+  swingLiquidity = false,
+
+  // Oscillators (separate pane)
+  smi = false,
+
+  // Show SMI checkbox only on Full Chart
+  showSmiToggle = true,
+
+  // Handlers
   onChange,
-  onReset,
+  onReset, // NEW (optional)
 }) {
-  const B = (v) => !!v;
-
   return (
-    <div style={{ padding: "6px 12px", borderBottom: "1px solid #2b2b2b", display: "flex", gap: 8 }}>
-      <div className="dropdown">
-        <button
-          style={{
-            background: "#0b0b0b",
-            color: "#e5e7eb",
-            border: "1px solid #2b2b2b",
-            borderRadius: 8,
-            padding: "6px 10px",
-            fontWeight: 600,
-            cursor: "pointer"
-          }}
-        >
-          Indicators ▾
-        </button>
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 12,
+        padding: "8px 12px",
+        borderBottom: "1px solid #2b2b2b",
+        background: "#0f0f0f",
+      }}
+    >
+      <label style={{ color: "#9ca3af", fontWeight: 600 }}>Indicators</label>
 
-        <div
-          className="menu"
-          style={{
-            position: "absolute",
-            zIndex: 10,
-            marginTop: 6,
-            background: "#0b0b0b",
-            color: "#e5e7eb",
-            border: "1px solid #2b2b2b",
-            borderRadius: 8,
-            padding: 10,
-            minWidth: 240
-          }}
-        >
-          {/* EMA */}
-          <div style={{ fontWeight: 700, opacity: 0.9, marginBottom: 6 }}>EMA</div>
-          <label><input type="checkbox" checked={B(showEma)} onChange={(e)=>onChange?.({ showEma:e.target.checked })}/> Enable EMA</label>
-          <div style={{ marginLeft: 18, display: "grid", gap: 4, marginBottom: 8 }}>
-            <label><input type="checkbox" checked={B(ema10)} onChange={(e)=>onChange?.({ ema10:e.target.checked })}/> EMA 10</label>
-            <label><input type="checkbox" checked={B(ema20)} onChange={(e)=>onChange?.({ ema20:e.target.checked })}/> EMA 20</label>
-            <label><input type="checkbox" checked={B(ema50)} onChange={(e)=>onChange?.({ ema50:e.target.checked })}/> EMA 50</label>
-          </div>
+      <div style={{ position: "relative" }}>
+        <details>
+          <summary
+            style={{
+              listStyle: "none",
+              cursor: "pointer",
+              color: "#e5e7eb",
+              background: "#0b0b0b",
+              border: "1px solid #2b2b2b",
+              padding: "6px 10px",
+              borderRadius: 8,
+            }}
+          >
+            Indicators ▾
+          </summary>
 
-          {/* Pane */}
-          <div style={{ fontWeight: 700, opacity: 0.9, marginTop: 6, marginBottom: 6 }}>Pane</div>
-          <label><input type="checkbox" checked={B(volume)} onChange={(e)=>onChange?.({ volume:e.target.checked })}/> Show Volume Histogram</label>
+          <div
+            style={{
+              position: "absolute",
+              zIndex: 5,
+              marginTop: 6,
+              background: "#111",
+              border: "1px solid #2b2b2b",
+              borderRadius: 8,
+              padding: 10,
+              minWidth: 270,
+              color: "#e5e7eb",
+            }}
+          >
+            {/* EMA */}
+            <div style={{ color: "#9ca3af", fontSize: 12, margin: "6px 0 4px" }}>EMA</div>
+            <label>
+              <input
+                type="checkbox"
+                checked={!!showEma}
+                onChange={(e) => onChange?.({ showEma: e.target.checked })}
+              />{" "}
+              Enable EMA
+            </label>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 6 }}>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={!!ema10}
+                  onChange={(e) => onChange?.({ ema10: e.target.checked })}
+                />{" "}
+                EMA 10
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={!!ema20}
+                  onChange={(e) => onChange?.({ ema20: e.target.checked })}
+                />{" "}
+                EMA 20
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={!!ema50}
+                  onChange={(e) => onChange?.({ ema50: e.target.checked })}
+                />{" "}
+                EMA 50
+              </label>
+            </div>
 
-          {/* Overlays */}
-          <div style={{ fontWeight: 700, opacity: 0.9, marginTop: 12, marginBottom: 6 }}>Overlays</div>
-          <label><input type="checkbox" checked={B(moneyFlow)} onChange={(e)=>onChange?.({ moneyFlow:e.target.checked })}/> Money Flow Profile (right)</label>
-          <label><input type="checkbox" checked={B(luxSr)} onChange={(e)=>onChange?.({ luxSr:e.target.checked })}/> Lux S/R (lines + breaks)</label>
-          {typeof swingLiquidity === "boolean" && (
-            <label><input type="checkbox" checked={B(swingLiquidity)} onChange={(e)=>onChange?.({ swingLiquidity:e.target.checked })}/> Swing Liquidity (pivots)</label>
-          )}
+            <div style={{ height: 1, background: "#2b2b2b", margin: "10px 0" }} />
 
-          {/* Oscillators */}
-          <div style={{ fontWeight: 700, opacity: 0.9, marginTop: 12, marginBottom: 6 }}>Oscillators</div>
-          {showSmiToggle ? (
-            <label><input type="checkbox" checked={B(smi)} onChange={(e)=>onChange?.({ smi:e.target.checked })}/> SMI (K:12, D:7, EMA:5)</label>
-          ) : (
-            <div style={{ opacity: 0.5, fontSize: 12 }}>SMI available on Full Chart only</div>
-          )}
+            {/* Volume */}
+            <div style={{ color: "#9ca3af", fontSize: 12, margin: "6px 0 4px" }}>Volume</div>
+            <label>
+              <input
+                type="checkbox"
+                checked={!!volume}
+                onChange={(e) => onChange?.({ volume: e.target.checked })}
+              />{" "}
+              Show Volume Histogram
+            </label>
 
-          <div style={{ marginTop: 12 }}>
+            <div style={{ height: 1, background: "#2b2b2b", margin: "10px 0" }} />
+
+            {/* Overlays */}
+            <div style={{ color: "#9ca3af", fontSize: 12, margin: "6px 0 4px" }}>Overlays</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={!!moneyFlow}
+                  onChange={(e) => onChange?.({ moneyFlow: e.target.checked })}
+                />{" "}
+                Money Flow Profile (right)
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={!!luxSr}
+                  onChange={(e) => onChange?.({ luxSr: e.target.checked })}
+                />{" "}
+                Lux S/R (lines + breaks)
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={!!swingLiquidity}
+                  onChange={(e) => onChange?.({ swingLiquidity: e.target.checked })}
+                />{" "}
+                Swing Liquidity (pivots)
+              </label>
+            </div>
+
+            <div style={{ height: 1, background: "#2b2b2b", margin: "10px 0" }} />
+
+            {/* Oscillators */}
+            <div style={{ color: "#9ca3af", fontSize: 12, margin: "6px 0 4px" }}>Oscillators</div>
+            {showSmiToggle ? (
+              <label>
+                <input
+                  type="checkbox"
+                  checked={!!smi}
+                  onChange={(e) => onChange?.({ smi: e.target.checked })}
+                />{" "}
+                SMI (K=12, D=7, EMA=5)
+              </label>
+            ) : (
+              <div style={{ opacity: 0.6 }}>SMI available in Full Chart</div>
+            )}
+
+            {/* Reset */}
+            <div style={{ height: 1, background: "#2b2b2b", margin: "10px 0" }} />
             <button
+              type="button"
               onClick={() => onReset?.()}
               style={{
-                background: "#111",
+                width: "100%",
+                background: "#0b0b0b",
                 color: "#e5e7eb",
                 border: "1px solid #2b2b2b",
-                borderRadius: 6,
-                padding: "4px 8px",
+                borderRadius: 8,
+                padding: "6px 10px",
                 fontWeight: 600,
-                cursor: "pointer"
+                cursor: "pointer",
               }}
+              title="Reset to EMAs + Volume only"
             >
               Reset to Defaults
             </button>
           </div>
-        </div>
+        </details>
       </div>
     </div>
   );
