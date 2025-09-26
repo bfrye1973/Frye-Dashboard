@@ -1,8 +1,9 @@
 // src/components/overlays/SwingLiquidityOverlay.js
-// SAFE v0 — cannot crash the page. If anything goes wrong it quietly no-ops.
-// - Draws pivot bands on an absolute canvas
-// - Guards every external call; catches draw errors
-// - Respects --axis-gap (x-axis stays visible)
+// SAFE v0.2 (with self-test):
+// - Draws TV-style pivot bands
+// - Never crashes (guards everywhere)
+// - Logs pivot/band counts to console
+// - Always draws a small corner dot so we know the canvas is painting
 
 import React, { useEffect, useRef } from "react";
 
@@ -12,13 +13,12 @@ function rafThrottle(fn) {
     if (frame) return;
     frame = window.requestAnimationFrame(() => {
       frame = null;
-      try { fn(...args); } catch (e) { /* swallow draw errors */ }
+      try { fn(...args); } catch (e) {}
     });
   };
 }
 
-// Simple pivot finder (like TV’s pivot high/low), safe for short arrays.
-function findPivots(bars, L = 15, R = 10) {
+function findPivots(bars, L = 10, R = 5) {           // slightly easier defaults than 15/10
   const out = [];
   if (!Array.isArray(bars) || bars.length < L + R + 1) return out;
   const n = bars.length;
@@ -62,13 +62,13 @@ export default function SwingLiquidityOverlay({
   const roRef = useRef(null);
   const drawRef = useRef(() => {});
 
-  // Create canvas (with axis gap) and observe parent size.
   useEffect(() => {
     if (!containerEl) return;
     const el = document.createElement("canvas");
     el.style.position = "absolute";
     el.style.pointerEvents = "none";
     el.style.inset = "0 0 var(--axis-gap,18px) 0";
+    el.style.zIndex = "10";                    // be above chart canvases
     containerEl.appendChild(el);
     canvasRef.current = el;
 
@@ -96,9 +96,7 @@ export default function SwingLiquidityOverlay({
     };
   }, [containerEl]);
 
-  // Main draw
   useEffect(() => {
-    // Hard guards: if any dependency missing, do nothing.
     if (!chart || !canvasRef.current || !Array.isArray(bars) || bars.length === 0) return;
 
     const ctx = canvasRef.current.getContext("2d");
@@ -106,22 +104,24 @@ export default function SwingLiquidityOverlay({
     if (!ctx || !timeScale || typeof timeScale.timeToCoordinate !== "function") return;
 
     const options = {
-      left: 15,
-      right: 10,
+      left: 10,
+      right: 5,
       extendUntilFill: true,
-      maxOnScreen: 150,
-      bandPx: 8,
-      colorHigh: "rgba(170,36,48,0.22)",
-      colorLow:  "rgba(102,187,106,0.22)",
-      lineHigh:  "rgba(170,36,48,1.0)",
-      lineLow:   "rgba(102,187,106,1.0)",
+      maxOnScreen: 200,
+      bandPx: 12,                                // thicker for visibility
+      colorHigh: "rgba(220,38,38,0.35)",         // brighter red
+      colorLow:  "rgba(34,197,94,0.35)",         // brighter green
+      lineHigh:  "rgba(239,68,68,1.0)",
+      lineLow:   "rgba(34,197,94,1.0)",
       ...opts
     };
 
     const pivots = findPivots(bars, options.left, options.right);
     const bands  = buildBands(bars, pivots, options.extendUntilFill);
 
-    // y from price: prefer right price scale; fall back to 0 safely.
+    // Log so we know it's running
+    try { console.debug("[SwingOverlay] pivots:", pivots.length, "bands:", bands.length); } catch {}
+
     const priceToY = (p) => {
       try {
         const ps = chart.priceScale && chart.priceScale("right");
@@ -145,9 +145,16 @@ export default function SwingLiquidityOverlay({
         if (!cnv) return;
         const { width, height } = cnv;
         const dpr = window.devicePixelRatio || 1;
-        ctx.setTransform(1,0,0,1,0,0); // reset
+
+        ctx.setTransform(1,0,0,1,0,0);
         ctx.clearRect(0, 0, width, height);
         ctx.scale(dpr, dpr);
+
+        // Self-test: corner dot so we know canvas is painting
+        ctx.fillStyle = "rgba(250,204,21,0.9)";
+        ctx.beginPath();
+        ctx.arc(10, 10, 3, 0, Math.PI * 2);
+        ctx.fill();
 
         // Visible range (safe)
         let minT = -Infinity, maxT = Infinity;
@@ -188,16 +195,20 @@ export default function SwingLiquidityOverlay({
 
           drawn++;
         }
-      } catch {
-        // swallow any unexpected draw error
-      }
+
+        // If no bands drawn, print a tiny hint (top-left)
+        if (drawn === 0) {
+          ctx.fillStyle = "rgba(156,163,175,0.9)";
+          ctx.font = "12px sans-serif";
+          ctx.fillText("Swing: no bands", 20, 14);
+        }
+      } catch {}
     };
 
     const throttled = rafThrottle(draw);
     drawRef.current = throttled;
 
-    // initial + subscribe
-    throttled();
+    throttled(); // initial
     const onTime = () => throttled();
     const onLogical = () => throttled();
 
