@@ -1,274 +1,357 @@
-// src/components/overlays/SwingLiquidityOverlay.js
-// v2.0 — TV-style Swing Liquidity (fat translucent bands, extend-until-filled)
-// - Self-contained: renders its own wrapper+canvas (no chartContainer prop needed)
-// - No layout shift; respects bottom axis gap via CSS inset
-// - Bands stack with translucency, stop when price touches level (wick-based)
-// - Cleanly cleans up on unmount and on redraw triggers
+// src/pages/rows/RowChart/index.jsx
+// v4.3 — Clean defaults: EMAs + Volume ON; all other indicators OFF.
+//        SMI is gated to Full Chart, default OFF.
 
-import React, { useEffect, useRef } from "react";
+import React, { useMemo, useState, useEffect, useRef } from "react";
+import Controls from "./Controls";
+import IndicatorsToolbar from "./IndicatorsToolbar";
+import useOhlc from "./useOhlc";
+import useLwcChart from "./useLwcChart";
+import { SYMBOLS, TIMEFRAMES, resolveApiBase } from "./constants";
 
-/* ----------------------------- math helpers ----------------------------- */
+// Overlays / panes
+import { createEmaOverlay } from "../../../indicators/ema/overlay";
+import { createVolumeOverlay } from "../../../indicators/volume";
+import MoneyFlowOverlay from "../../../components/overlays/MoneyFlowOverlay";
+import { createLuxSrOverlay } from "../../../indicators/srLux";
+import SwingLiquidityOverlay from "../../../components/overlays/SwingLiquidityOverlay";
+import { createSmiOverlay } from "../../../indicators/smi";
 
-function percentile(values, p) {
-  if (!values || values.length === 0) return 0;
-  const a = [...values].sort((x, y) => x - y);
-  const i = Math.min(a.length - 1, Math.max(0, Math.floor((p / 100) * a.length)));
-  return a[i];
-}
-
-// Detect pivot highs/lows using left/right bars and a volume gate
-function detectPivots(bars, { left = 15, right = 10, lookback = 800, volGatePct = 65 }) {
-  const n = bars.length;
-  const start = Math.max(0, n - lookback);
-  const vols = bars.slice(start).map((b) => b.volume ?? 0);
-  const volGate = percentile(vols, volGatePct);
-
-  const pivots = [];
-  for (let i = start + left; i < n - right; i++) {
-    const b = bars[i];
-    if (!b) continue;
-    if ((b.volume ?? 0) < volGate) continue;
-
-    let isHigh = true;
-    let isLow = true;
-    for (let k = i - left; k <= i + right; k++) {
-      if (bars[k].high > b.high) isHigh = false;
-      if (bars[k].low < b.low) isLow = false;
-      if (!isHigh && !isLow) break;
-    }
-    if (isHigh) pivots.push({ kind: "resistance", idx: i, price: b.high });
-    else if (isLow) pivots.push({ kind: "support", idx: i, price: b.low });
-  }
-  return pivots;
-}
-
-// Build liquidity bands that extend right until they’re “filled”
-function buildBands(bars, pivots, { extendUntilFilled = true }) {
-  const n = bars.length;
-  const bands = [];
-  for (const p of pivots) {
-    const level = p.price;
-    let endIdx = n - 1;
-    if (extendUntilFilled) {
-      for (let i = p.idx + 1; i < n; i++) {
-        const b = bars[i];
-        const touched =
-          p.kind === "resistance" ? b.high >= level : b.low <= level; // wick-based
-        if (touched) {
-          endIdx = i;
-          break;
-        }
-      }
-    }
-    bands.push({
-      kind: p.kind, // 'support' | 'resistance'
-      price: level,
-      startIdx: p.idx,
-      endIdx,
-      filled: endIdx < n - 1,
-    });
-  }
-  return bands;
-}
-
-/* -------------------------------- component ------------------------------ */
-
-export default function SwingLiquidityOverlay({
-  chart,
-  candles = [],
-  leftBars = 15,
-  rightBars = 10,
-  volPctGate = 0.65, // 0..1 → converted to percentile
-  extendUntilFilled = true,
-  hideFilled = false,
-  lookbackBars = 800,
-  maxOnScreen = 80,
-
-  // visual
-  bandPx = 8, // thickness (px)
-  supportColor = "rgba(34,197,94,0.35)",    // green-500 @35%
-  resistanceColor = "rgba(239,68,68,0.35)", // red-500   @35%
-  edgeLine = true,
-  edgeOpacity = 0.85,
+export default function RowChart({
+  apiBase,
+  defaultSymbol = "SPY",
+  defaultTimeframe = "1h",
+  height = 520,
+  onStatus,
+  showDebug = false,
 }) {
-  const wrapRef = useRef(null);
-  const canvasRef = useRef(null);
-  const roRef = useRef(null);
-  const unsubRef = useRef(null);
+  // Detect Full Chart route (so SMI only runs there)
+  const isFullChart =
+    typeof window !== "undefined" &&
+    (window.location.pathname === "/chart" ||
+      window.location.pathname.startsWith("/chart"));
 
-  // Mount wrapper + canvas (self-contained, no external parent needed)
+  // symbol / timeframe / optional range
+  const [state, setState] = useState({
+    symbol: defaultSymbol,
+    timeframe: defaultTimeframe,
+    range: null,
+  });
+
+  // ---- Defaults: EMAs + Volume ON; everything else OFF ----
+  const DEFAULT_IND = {
+    // EMA
+    showEma: true,
+    ema10: true,
+    ema20: true,
+    ema50: true,
+
+    // panes
+    volume: true,
+    smi: false, // gated to Full Chart, but default OFF
+
+    // overlays
+    moneyFlow: false,
+    luxSr: false,
+    swingLiquidity: false,
+  };
+
+  // indicator toggles
+  const [ind, setInd] = useState(DEFAULT_IND);
+
+  // theme
+  const theme = useMemo(
+    () => ({
+      layout: { background: { type: "solid", color: "#0a0a0a" }, textColor: "#ffffff" },
+      grid: { vertLines: { color: "#1e1e1e" }, horzLines: { color: "#1e1e1e" } },
+      rightPriceScale: { borderColor: "#2b2b2b", scaleMargins: { top: 0.06, bottom: 0.08 } },
+      timeScale: {
+        borderVisible: true,
+        borderColor: "#2b2b2b",
+        rightOffset: 6,
+        barSpacing: 12,
+        fixLeftEdge: true,
+        timeVisible: true,
+        secondsVisible: false,
+      },
+      crosshair: { mode: 0 },
+      upColor: "#16a34a",
+      downColor: "#ef4444",
+      wickUpColor: "#16a34a",
+      wickDownColor: "#ef4444",
+      borderUpColor: "#16a34a",
+      borderDownColor: "#ef4444",
+    }),
+    []
+  );
+
+  // chart mount
+  const { containerRef, chart, setData } = useLwcChart({ theme });
+
+  // data feed
+  const { bars, loading, error, refetch } = useOhlc({
+    apiBase,
+    symbol: state.symbol,
+    timeframe: state.timeframe,
+  });
+
+  // status
+  useEffect(() => {
+    if (!onStatus) return;
+    if (loading) onStatus("loading");
+    else if (error) onStatus("error");
+    else if (bars.length) onStatus("ready");
+    else onStatus("idle");
+  }, [loading, error, bars, onStatus]);
+
+  // fetch data
+  useEffect(() => {
+    void refetch(true);
+  }, []); // mount
+  useEffect(() => {
+    void refetch(true);
+  }, [state.symbol, state.timeframe]);
+
+  // set price bars
+  useEffect(() => {
+    const data = state.range && bars.length > state.range ? bars.slice(-state.range) : bars;
+    setData(data);
+  }, [bars, state.range, setData]);
+
+  // =========================
+  // EMA overlays (on price)
+  // =========================
+  const emaRef = useRef({});
   useEffect(() => {
     if (!chart) return;
-
-    // Create a wrapper that leaves room for the time axis
-    const wrap = document.createElement("div");
-    wrap.className = "overlay-leave-axis-gap";
-    Object.assign(wrap.style, {
-      position: "absolute",
-      inset: "0 0 var(--axis-gap, 18px) 0",
-      pointerEvents: "none",
-      zIndex: 10,
-    });
-
-    // Canvas inside wrapper
-    const canvas = document.createElement("canvas");
-    Object.assign(canvas.style, {
-      position: "absolute",
-      inset: "0",
-      width: "100%",
-      height: "100%",
-      pointerEvents: "none",
-    });
-    wrap.appendChild(canvas);
-
-    // Attach to the same DOM node where this React component is rendered
-    const host = wrapRef.current?.parentElement || document.body;
-    host.appendChild(wrap);
-
-    wrapRef.current = wrap;
-    canvasRef.current = canvas;
-
-    // Resize only the wrapper (prevents feedback loops)
-    const ro = new ResizeObserver(() => {
-      resizeCanvasTo(wrap, canvas);
-      draw();
-    });
-    ro.observe(wrap);
-    roRef.current = ro;
-
-    // Redraw on visible time range changes (pan/zoom)
-    const ts = chart.timeScale();
-    const onVis = () => draw();
-    ts.subscribeVisibleTimeRangeChange(onVis);
-    unsubRef.current = () => {
-      try {
-        ts.unsubscribeVisibleTimeRangeChange(onVis);
-      } catch {}
+    const removeAll = () => {
+      Object.values(emaRef.current).forEach((o) => o?.remove?.());
+      emaRef.current = {};
     };
+    removeAll();
 
-    // Initial size & draw
-    resizeCanvasTo(wrap, canvas);
-    draw();
+    if (ind.showEma) {
+      if (ind.ema10) emaRef.current.e10 = createEmaOverlay({ chart, period: 10, color: "#60a5fa" });
+      if (ind.ema20) emaRef.current.e20 = createEmaOverlay({ chart, period: 20, color: "#f59e0b" });
+      if (ind.ema50) emaRef.current.e50 = createEmaOverlay({ chart, period: 50, color: "#34d399" });
+    }
+    Object.values(emaRef.current).forEach((o) => o?.setBars?.(bars));
 
-    return () => {
-      try {
-        unsubRef.current?.();
-      } catch {}
-      try {
-        roRef.current?.disconnect();
-      } catch {}
-      if (wrap && wrap.parentElement) wrap.parentElement.removeChild(wrap);
-      wrapRef.current = null;
-      canvasRef.current = null;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chart]);
+    return () => removeAll();
+  }, [chart, ind.showEma, ind.ema10, ind.ema20, ind.ema50, bars]);
 
-  // Redraw on data/prop changes
+  // =========================
+  // Volume pane (bottom)
+  // =========================
+  const volRef = useRef(null);
   useEffect(() => {
-    draw();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    candles,
-    leftBars,
-    rightBars,
-    volPctGate,
-    extendUntilFilled,
-    hideFilled,
-    lookbackBars,
-    maxOnScreen,
-    bandPx,
-    supportColor,
-    resistanceColor,
-    edgeLine,
-    edgeOpacity,
-  ]);
-
-  function draw() {
-    const canvas = canvasRef.current;
-    if (!chart || !canvas || !Array.isArray(candles) || candles.length === 0) return;
-
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    const ts = chart.timeScale();
-    const ps = chart.priceScale("right");
-    if (!ts || !ps || !ps.priceToCoordinate) return;
-
-    // Compute pivots and bands
-    const pivots = detectPivots(candles, {
-      left: leftBars,
-      right: rightBars,
-      lookback: lookbackBars,
-      volGatePct: Math.max(0, Math.min(100, volPctGate * 100)),
-    });
-    let bands = buildBands(candles, pivots, { extendUntilFilled });
-    if (hideFilled) bands = bands.filter((b) => !b.filled);
-
-    if (typeof maxOnScreen === "number" && maxOnScreen > 0 && bands.length > maxOnScreen) {
-      bands = bands.slice(-maxOnScreen);
+    if (!chart) return;
+    if (volRef.current) {
+      volRef.current.remove();
+      volRef.current = null;
     }
-
-    // Helpers → px coords
-    const timeToX = (t) => ts.timeToCoordinate(t);
-    const priceToY = (p) => ps.priceToCoordinate(p);
-
-    for (const b of bands) {
-      const startBar = candles[b.startIdx];
-      const endBar = candles[b.endIdx] ?? candles[candles.length - 1];
-      if (!startBar || !endBar) continue;
-
-      const x1 = timeToX(startBar.time);
-      let x2 = timeToX(endBar.time);
-      if (x1 == null) continue;
-      if (x2 == null) x2 = canvas.width - 1;
-
-      const y = priceToY(b.price);
-      if (y == null) continue;
-
-      const half = Math.max(1, (bandPx * getDpr()) / 2);
-      const yTop = Math.round(y - half);
-      const w = Math.abs(x2 - x1);
-      const h = Math.max(2 * getDpr(), Math.round(bandPx * getDpr()));
-
-      ctx.save();
-      ctx.beginPath();
-      ctx.rect(Math.min(x1, x2), yTop, w, h);
-      ctx.fillStyle = b.kind === "support" ? supportColor : resistanceColor;
-      ctx.fill();
-
-      if (edgeLine) {
-        ctx.globalAlpha = edgeOpacity;
-        ctx.beginPath();
-        ctx.moveTo(Math.min(x1, x2), y);
-        ctx.lineTo(Math.max(x1, x2), y);
-        ctx.lineWidth = Math.max(1, 1 * getDpr());
-        ctx.strokeStyle = b.kind === "support" ? "rgba(16,185,129,1)" : "rgba(248,113,113,1)";
-        ctx.stroke();
-      }
-      ctx.restore();
+    if (ind.volume) {
+      volRef.current = createVolumeOverlay({ chart });
+      volRef.current.setBars(bars);
     }
-  }
+    return () => {
+      volRef.current?.remove();
+      volRef.current = null;
+    };
+  }, [chart, ind.volume, bars]);
+  useEffect(() => {
+    if (ind.volume && volRef.current) volRef.current.setBars(bars);
+  }, [bars, ind.volume]);
 
-  // Host marker (invisible; used only to find where to mount wrapper)
-  return <div ref={wrapRef} style={{ display: "none" }} />;
-}
+  // =========================
+  // SMI pane (gated to Full Chart)
+  // =========================
+  const smiRef = useRef(null);
+  useEffect(() => {
+    if (!chart || !isFullChart) return; // gate here
+    if (smiRef.current) {
+      smiRef.current.remove();
+      smiRef.current = null;
+    }
+    if (ind.smi) {
+      smiRef.current = createSmiOverlay({
+        chart,
+        kLen: 12,
+        dLen: 7,
+        emaLen: 5,
+      });
+      smiRef.current.setBars(bars);
+    }
+    return () => {
+      smiRef.current?.remove();
+      smiRef.current = null;
+    };
+  }, [chart, ind.smi, bars, isFullChart]);
+  useEffect(() => {
+    if (isFullChart && ind.smi && smiRef.current) smiRef.current.setBars(bars);
+  }, [bars, ind.smi, isFullChart]);
 
-/* ------------------------------- utilities ------------------------------- */
+  // =========================
+  // Lux S/R (lines + breaks)
+  // =========================
+  const luxRef = useRef(null);
+  useEffect(() => {
+    if (!chart) return;
+    if (luxRef.current) {
+      luxRef.current.remove();
+      luxRef.current = null;
+    }
+    if (ind.luxSr) {
+      luxRef.current = createLuxSrOverlay({
+        chart,
+        leftBars: 15,
+        rightBars: 15,
+        volumeThresh: 20,
+        pivotLeftRight: 5,
+        minSeparationPct: 0.25,
+        maxLevels: 10,
+        lookbackBars: 800,
+        markersLookback: 300,
+      });
+      luxRef.current.setBars(bars);
+    }
+    return () => {
+      luxRef.current?.remove();
+      luxRef.current = null;
+    };
+  }, [chart, ind.luxSr, bars]);
+  useEffect(() => {
+    if (ind.luxSr && luxRef.current) luxRef.current.setBars(bars);
+  }, [bars, ind.luxSr]);
 
-function getDpr() {
-  return typeof window !== "undefined" ? Math.max(1, window.devicePixelRatio || 1) : 1;
-}
+  const baseShown = resolveApiBase(apiBase);
 
-function resizeCanvasTo(wrapperEl, canvasEl) {
-  if (!wrapperEl || !canvasEl) return;
-  const rect = wrapperEl.getBoundingClientRect();
-  const dpr = getDpr();
-  // Set backing store size
-  canvasEl.width = Math.max(1, Math.floor(rect.width * dpr));
-  // The wrapper leaves the axis gap already; rect.height is safe to use
-  canvasEl.height = Math.max(1, Math.floor(rect.height * dpr));
-  const ctx = canvasEl.getContext("2d");
-  if (ctx) ctx.setTransform(dpr, 0, 0, dpr, 0, 0); // normalize for drawing in CSS pixels
+  return (
+    <div
+      style={{
+        flex: 1,
+        minHeight: 0,
+        overflow: "hidden",
+        background: "#0a0a0a",
+        border: "1px solid #2b2b2b",
+        borderRadius: 12,
+        display: "flex",
+        flexDirection: "column",
+      }}
+    >
+      <Controls
+        symbols={SYMBOLS}
+        timeframes={TIMEFRAMES}
+        value={{
+          symbol: state.symbol,
+          timeframe: state.timeframe,
+          range: state.range,
+          disabled: loading,
+        }}
+        onChange={(patch) => setState((s) => ({ ...s, ...patch }))}
+        onTest={
+          showDebug
+            ? async () => {
+                const r = await refetch(true);
+                alert(r.ok ? `Fetched ${r.count || 0} bars` : `Error: ${r.error || "unknown"}`);
+              }
+            : undefined
+        }
+      />
+
+      <IndicatorsToolbar
+        // EMA
+        showEma={ind.showEma}
+        ema10={ind.ema10}
+        ema20={ind.ema20}
+        ema50={ind.ema50}
+        // Panes
+        volume={ind.volume}
+        smi={isFullChart ? ind.smi : false}
+        showSmiToggle={isFullChart} // only show toggle in Full Chart
+        // Overlays
+        moneyFlow={ind.moneyFlow}
+        luxSr={ind.luxSr}
+        swingLiquidity={ind.swingLiquidity}
+        // Change handler
+        onChange={(patch) => setInd((s) => ({ ...s, ...patch }))}
+        // Reset button (optional but handy)
+        onReset={() => setInd(DEFAULT_IND)}
+      />
+
+      <div
+        style={{
+          flex: "0 0 auto",
+          display: "flex",
+          justifyContent: "flex-end",
+          padding: "6px 12px",
+          borderBottom: "1px solid #2b2b2b",
+        }}
+      >
+        <button
+          onClick={() =>
+            window.open(`/chart?symbol=${state.symbol}&tf=${state.timeframe}`, "_blank", "noopener")
+          }
+          style={{
+            background: "#0b0b0b",
+            color: "#e5e7eb",
+            border: "1px solid #2b2b2b",   // ✅ correct string
+            borderRadius: 8,
+            padding: "6px 10px",
+            fontWeight: 600,
+            cursor: "pointer",
+          }}
+        >
+          Open Full Chart ↗
+        </button>
+      </div>
+
+      {showDebug && (
+        <div
+          style={{
+            padding: "6px 12px",
+            color: "#9ca3af",
+            fontSize: 12,
+            borderBottom: "1px solid #2b2b2b",
+          }}
+        >
+          debug • base: {baseShown || "MISSING"} • symbol: {state.symbol} • tf: {state.timeframe} •
+          bars: {bars.length}
+        </div>
+      )}
+
+      {/* Chart host */}
+      <div
+        className="chart-shell"
+        style={{ flex: "1 1 auto", minHeight: 0, display: "flex", flexDirection: "column" }}
+      >
+        <div
+          ref={containerRef}
+          className="tv-lightweight-charts"
+          style={{ position: "relative", width: "100%", height: "100%", minHeight: 0, flex: 1 }}
+          data-cluster-host
+        >
+          {/* Canvas/profile overlays */}
+          {ind.moneyFlow && (
+            <MoneyFlowOverlay chartContainer={containerRef.current} candles={bars} />
+          )}
+
+          {/* Swing Liquidity (self-contained overlay file; no host prop required) */}
+          {ind.swingLiquidity && chart && (
+            <SwingLiquidityOverlay
+              chart={chart}
+              candles={bars}
+              leftBars={15}
+              rightBars={10}
+              volPctGate={0.65}
+              extendUntilFilled={true}
+              hideFilled={false}
+              lookbackBars={800}
+              maxOnScreen={80}
+            />
+          )}
+        </div>
+      </div>
+    </div>
+  );
 }
