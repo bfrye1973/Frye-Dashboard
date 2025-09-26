@@ -1,6 +1,7 @@
 // src/pages/rows/RowChart/index.jsx
-// v4.3 — Clean defaults: EMAs + Volume ON; all other indicators OFF.
-//        SMI is still gated to Full Chart, but defaults OFF there too.
+// v4.3.1 — Clean defaults: EMAs + Volume ON; all other indicators OFF.
+//          SMI gated to Full Chart (default OFF).
+//          Pass chartContainer to SwingLiquidityOverlay to prevent null parent errors.
 
 import React, { useMemo, useState, useEffect, useRef } from "react";
 import Controls from "./Controls";
@@ -295,7 +296,7 @@ export default function RowChart({
           style={{
             background: "#0b0b0b",
             color: "#e5e7eb",
-            border: "1px solid #2b2b2b",
+            border: "1px solid "#2b2b2b",
             borderRadius: 8,
             padding: "6px 10px",
             fontWeight: 600,
@@ -336,10 +337,11 @@ export default function RowChart({
             <MoneyFlowOverlay chartContainer={containerRef.current} candles={bars} />
           )}
 
-          {/* Swing Liquidity segments */}
+          {/* Swing Liquidity — now receives the host container explicitly */}
           {ind.swingLiquidity && chart && (
             <SwingLiquidityOverlay
               chart={chart}
+              chartContainer={containerRef.current}   // ← important: provide host
               candles={bars}
               leftBars={15}
               rightBars={10}
