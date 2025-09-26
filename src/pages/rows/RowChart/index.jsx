@@ -11,12 +11,12 @@ import useLwcChart from "./useLwcChart";
 import { SYMBOLS, TIMEFRAMES, resolveApiBase } from "./constants";
 
 /* ----- Overlays / panes (these match your repo exactly) ----- */
-import { createEmaOverlay } from "../../../indicators/ema/overlay";
-import { createVolumeOverlay } from "../../../indicators/volume/overlay";   // <= IMPORTANT: 3x ../
-import MoneyFlowOverlay from "../../../components/overlays/MoneyFlowOverlay";
-import { createLuxSrOverlay } from "../../../indicators/srLux/overlay";
-import SwingLiquidityOverlay from "../../../components/overlays/SwingLiquidityOverlay";
-import { createSmiOverlay } from "../../../indicators/smi";
+import { createEmaOverlay } from "indicators/ema/overlay";
+import { createVolumeOverlay } from "indicators/volume/overlay";
+import MoneyFlowOverlay from "components/overlays/MoneyFlowOverlay";
+import { createLuxSrOverlay } from "indicators/srLux/overlay";
+import SwingLiquidityOverlay from "components/overlays/SwingLiquidityOverlay";
+import { createSmiOverlay } from "indicators/smi";
 
 export default function RowChart({
   apiBase,
