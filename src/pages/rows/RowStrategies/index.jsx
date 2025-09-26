@@ -1,350 +1,322 @@
 // src/pages/rows/RowStrategies/index.jsx
-// Alignment Scalper — Sensitive Mode: 6-universe, 4/6 trigger, Δ gate (0.5/0.5), RiskOn soft.
-// Adds: Journal entries + optional alert webhook when gate becomes READY.
-// CRA-safe, compact UI, wired tabs.
-
+// Alignment Scalper — 6-universe, 4/6 trigger (immediate), Δ gate (0.5/0.5 sensitive),
+// RiskOn soft. Adds: LIVE/STALE/ERROR dot + Trigger Log pull-down (today).
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useSelection } from "../../../context/ModeContext";
-import { addJournalEntry } from "../../../lib/journal";
+import LiveDot from "../../../components/LiveDot";
 
-/* ========== CRA-safe env helpers ========== */
-function getEnv(name, fallback = "") {
-  try { if (typeof process !== "undefined" && process.env && name in process.env) { return String(process.env[name] || "").trim(); } } catch {}
-  return fallback;
-}
-function getBackendBase() {
-  const envBase = getEnv("REACT_APP_API_BASE", "");
-  return (envBase || "https://frye-market-backend-1.onrender.com").replace(/\/+$/, "");
-}
-function getSandboxUrl() { return getEnv("REACT_APP_INTRADAY_SANDBOX_URL", ""); }
-function getAlertWebhook() { return getEnv("REACT_APP_ALERT_WEBHOOK_URL", ""); }
-function nowIso() { return new Date().toISOString(); }
+/* ---------- env helpers ---------- */
+function env(name, fb=""){ try{ if(typeof process!=="undefined"&&process.env&&name in process.env){return String(process.env[name]||"").trim();}}catch{} return fb; }
+const API_BASE = env("REACT_APP_API_BASE","https://frye-market-backend-1.onrender.com");
+const SANDBOX   = env("REACT_APP_INTRADAY_SANDBOX_URL","");
 
-/* ========== Config / thresholds (Sensitive Mode) ========== */
-const CANON = ["SPY", "QQQ", "IWM", "MDY", "DIA", "I:VIX"]; // 6 instruments
-const ALIGN_THRESHOLD = 4;           // 4-of-6 immediate
-const GREEN_TH = +0.5;               // Δ gate loosened to 0.5 / 0.5
-const STALE_MINUTES = 12;            // Δ staleness guard
+/* ---------- config ---------- */
+const CANON = ["SPY","QQQ","IWM","MDY","DIA","I:VIX"];
+const ALIGN_THRESHOLD = 4;      // 4 of 6
+const DELTA_TH = 0.5;           // sensitive ±0.5
+const STALE_MIN = 12;           // Δ stale if >12m
+const LIVE_ALIGN_MAX_SEC = 90;  // alignment fetch considered fresh if within 90s
 
-export default function RowStrategies() {
+/* ---------- utilities ---------- */
+const nowIso = ()=>new Date().toISOString();
+function toET(iso){ try{ return new Date(iso).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit", timeZone:"America/New_York"});} catch{return "—";} }
+function minutesAgo(iso){ if(!iso) return Infinity; const ms=Date.now() - new Date(iso).getTime(); return ms/60000; }
+function fmt(v){ return typeof v==="number" ? (v>0?`+${v.toFixed(1)}`:v.toFixed(1)) : "—"; }
+function keyForToday(){ const d=new Date(); const y=d.getFullYear(); const m=String(d.getMonth()+1).padStart(2,"0"); const day=String(d.getDate()).padStart(2,"0"); return `align_triggers_${y}${m}${day}`;}
+function loadLog(){ try{ const j=localStorage.getItem(keyForToday()); return j?JSON.parse(j):[];}catch{return [];} }
+function saveLog(items){ try{ localStorage.setItem(keyForToday(), JSON.stringify(items.slice(0,200)));}catch{} }
+
+/* ---------- component ---------- */
+export default function RowStrategies(){
   const { selection, setSelection } = useSelection();
 
-  // pulls
-  const [alignRes, setAlignRes] = useState({ status: "mock", data: null, base: "" });
-  const [deltaRes, setDeltaRes] = useState({ ok: false, stale: true, market: null, at: null, url: "" });
+  // alignment fetch
+  const [alignRes, setAlignRes] = useState({ status:"mock", data:null, err:null, lastFetch:null });
+  // Δ sandbox
+  const [deltaRes, setDeltaRes] = useState({ ok:false, stale:true, market:null, at:null, err:null, lastFetch:null });
 
-  /* ---- Alignment feed ---- */
-  useEffect(() => {
-    let alive = true;
-    const base = getBackendBase();
-    async function pull() {
-      const url = `${base}/api/signals?strategy=alignment&limit=1&t=${Date.now()}`;
-      try {
-        const r = await fetch(url, { cache: "no-store", headers: { "Cache-Control": "no-store" } });
-        if (!r.ok) throw new Error("HTTP " + r.status);
-        const data = await r.json();
-        if (!alive) return;
-        setAlignRes({ status: String(data?.status ?? "live"), data, base });
-      } catch {
-        if (!alive) return;
-        const ts = new Date(Math.floor(Date.now() / 600000) * 600000).toISOString();
-        setAlignRes({
-          status: "mock(error)",
-          data: { signal: { members: { SPY:{ok:true}, QQQ:{ok:true}, IWM:{ok:true}, MDY:{ok:true}, DIA:{ok:false}, "I:VIX":{ok:true} }, liquidity_ok: null, timestamp: ts } },
-          base
-        });
+  // Trigger Log UI
+  const [logOpen, setLogOpen] = useState(false);
+  const [log, setLog] = useState(loadLog());
+
+  /* ---- pull alignment every 30s ---- */
+  useEffect(()=>{ let alive=true;
+    async function pull(){
+      const url=`${API_BASE}/api/signals?strategy=alignment&limit=1&t=${Date.now()}`;
+      try{
+        const r=await fetch(url, { cache:"no-store", headers:{ "Cache-Control":"no-store" }});
+        const j=await r.json();
+        if(!alive) return;
+        setAlignRes({ status:String(j?.status??"live"), data:j, err:null, lastFetch:nowIso() });
+      }catch(e){
+        if(!alive) return;
+        setAlignRes(a=>({ ...a, err:String(e?.message||e), lastFetch:nowIso() }));
       }
     }
-    pull();
-    const id = setInterval(pull, 30000);
-    return () => { alive = false; clearInterval(id); };
-  }, []);
+    pull(); const id=setInterval(pull, 30_000); return ()=>{alive=false;clearInterval(id);};
+  },[]);
 
-  /* ---- Sandbox deltas ---- */
-  useEffect(() => {
-    let alive = true;
-    const url = getSandboxUrl();
-    if (!url) { setDeltaRes({ ok:false, stale:true, market:null, at:null, url:"" }); return; }
-    async function pull() {
-      try {
-        const r = await fetch(`${url}${url.includes("?") ? "&" : "?"}t=${Date.now()}`, { cache:"no-store", headers:{ "Cache-Control":"no-store" } });
-        if (!r.ok) throw new Error("HTTP " + r.status);
-        const j = await r.json();
+  /* ---- pull sandbox deltas every ~5m ---- */
+  useEffect(()=>{ let alive=true;
+    if(!SANDBOX){ setDeltaRes({ ok:false, stale:true, market:null, at:null, err:"SANDBOX_URL missing", lastFetch:nowIso() }); return; }
+    async function pull(){
+      try{
+        const r=await fetch(`${SANDBOX}${SANDBOX.includes("?")?"&":"?"}t=${Date.now()}`,{ cache:"no-store", headers:{ "Cache-Control":"no-store" }});
+        const j=await r.json();
+        if(!alive) return;
         const at = j?.deltasUpdatedAt || j?.updated_at || null;
-        const market = j?.deltas?.market || null;
-        const stale = (() => {
-          if (!at) return true;
-          const diffMin = (Date.now() - new Date(at).getTime())/60000;
-          return !(diffMin>=0) || diffMin > STALE_MINUTES;
-        })();
-        if (!alive) return;
-        setDeltaRes({ ok:!!market, stale, market, at, url });
-      } catch {
-        if (!alive) return;
-        setDeltaRes({ ok:false, stale:true, market:null, at:null, url });
+        const stale = minutesAgo(at) > STALE_MIN;
+        setDeltaRes({ ok:!!j?.deltas?.market, stale, market:j?.deltas?.market||null, at, err:null, lastFetch:nowIso() });
+      }catch(e){
+        if(!alive) return;
+        setDeltaRes({ ok:false, stale:true, market:null, at:null, err:String(e?.message||e), lastFetch:nowIso() });
       }
     }
-    pull();
-    const id = setInterval(pull, 300000); // ~5m
-    return () => { alive = false; clearInterval(id); };
-  }, []);
+    pull(); const id=setInterval(pull, 300_000); return ()=>{alive=false; clearInterval(id);};
+  },[]);
 
-  /* ---- Normalize + Decision (Δ gate soft RiskOn) ---- */
-  const prevGate = useRef(false);
-  const view = useMemo(() => {
+  /* ---- normalize alignment ---- */
+  const view = useMemo(()=>{
     const status = alignRes.status || "mock";
-    const data = alignRes.data;
+    // accept {items:[signal]}, {signal}, or single signal
+    let sig=null; const d=alignRes.data;
+    if(Array.isArray(d?.items)&&d.items.length) sig=d.items[0]; else if(d?.signal) sig=d.signal; else if(d?.direction||d?.members) sig=d;
 
-    let sig = null;
-    if (Array.isArray(data?.items) && data.items.length) sig = data.items[0];
-    else if (data?.signal) sig = data.signal;
-    else if (data?.direction || data?.members) sig = data;
-
-    const members = sig?.members || {};
     const ts = sig?.timestamp || null;
+    const members = sig?.members || {};
+    const eff = { SPY:members["SPY"], QQQ:members["QQQ"], IWM:members["IWM"], MDY:members["MDY"], DIA:members["DIA"]||members["I:DJI"], "I:VIX":members["I:VIX"]||members["VIX"] };
 
-    const effective = {
-      SPY: members["SPY"],
-      QQQ: members["QQQ"],
-      IWM: members["IWM"],
-      MDY: members["MDY"],
-      DIA: members["DIA"] || members["I:DJI"], // legacy
-      "I:VIX": members["I:VIX"] || members["VIX"],
-    };
+    let confirm=0; const failing=[];
+    CANON.forEach(k=>{ const ok=!!(eff[k]&&eff[k].ok===true); if(ok) confirm++; else failing.push(k); });
 
-    let confirm = 0; const failing = [];
-    CANON.forEach(k => { const ok = !!(effective[k] && effective[k].ok === true); if (ok) confirm++; else failing.push(k); });
+    // Δ accel (sensitive)
+    const dm = deltaRes.market || {};
+    const accelOk = !!(!deltaRes.stale && typeof dm.dBreadthPct==="number" && typeof dm.dMomentumPct==="number" && dm.dBreadthPct>=DELTA_TH && dm.dMomentumPct>=DELTA_TH);
 
-    const liquidityRaw = ("liquidity_ok" in (sig||{})) ? sig.liquidity_ok : null;
-    const liquidityState = (liq => liq===true ? "ok" : (liq===false ? "no" : "neutral"))(liquidityRaw);
-
-    const dm = deltaRes.market;  // { dBreadthPct, dMomentumPct, riskOnPct }
-    const accelOk = !!(deltaRes.ok && !deltaRes.stale &&
-      typeof dm?.dBreadthPct === "number" && dm.dBreadthPct >= GREEN_TH &&
-      typeof dm?.dMomentumPct === "number" && dm.dMomentumPct >= GREEN_TH
-    );
-    const riskOn = (typeof dm?.riskOnPct === "number") ? dm.riskOnPct : null;
+    // RiskOn soft (warn only)
+    const riskOn = (typeof dm.riskOnPct==="number") ? dm.riskOnPct : null;
 
     const triggered = confirm >= ALIGN_THRESHOLD;
-
-    // Sensitive mode: Δ gate required; RiskOn = SOFT (warn only)
-    let gateReady = false; let gateWhy = "";
-    if (!triggered) { gateReady=false; gateWhy = `need ≥${ALIGN_THRESHOLD}/${CANON.length}`; }
-    else if (deltaRes.stale) { gateReady=true; gateWhy = "staleΔ: ignore"; }  // ignore stale (no block, no bonus)
-    else if (!accelOk) { gateReady=false; gateWhy = "ΔAccel < 0.5/0.5"; }
-    else { gateReady=true; gateWhy = (riskOn!==null && riskOn<=-1.0) ? "READY — RiskOn red (soft)" : "ready"; }
-
     const baseScore = Math.round((confirm / CANON.length) * 100);
-    const bonusLiq  = (liquidityState==="ok") ? 10 : 0;
-    const bonusΔ    = (!deltaRes.stale && accelOk) ? 20 : 0;
-    const conf = Math.max(0, Math.min(100, baseScore + bonusLiq + bonusΔ));
+    const score = Math.min(100, baseScore + (accelOk ? 20 : 0));
 
-    const statePill = triggered ? "Triggered" : "Flat";
-    const tone = triggered ? "ok" : "muted";
-    const last = ts ? (triggered ? `LONG • ${fmtHHMM(ts)}` : `— • ${fmtHHMM(ts)}`) : "—";
+    const lastAlignmentAt = ts;
+    const lastAlignmentFetch = alignRes.lastFetch;
+    const lastDeltaAt = deltaRes.at;
+    const lastDeltaFetch = deltaRes.lastFetch;
+
+    // live dot: green if alignment fetch fresh (≤90s) AND Δ not stale; yellow if either stale; red if recent fetch error
+    const alignFresh = minutesAgo(lastAlignmentFetch) <= (LIVE_ALIGN_MAX_SEC/60);
+    const liveStatus = alignRes.err ? "red" : (!alignFresh || deltaRes.stale ? "yellow" : "green");
+    const liveTip =
+      `Alignment fetch: ${lastAlignmentFetch?toET(lastAlignmentFetch):"—"} ET` +
+      ` • Δ5m: ${lastDeltaAt?toET(lastDeltaAt):"—"} ET (${deltaRes.stale?"STALE": "LIVE"})`;
 
     return {
-      key: `${status}-${ts || nowIso()}-${confirm}-${liquidityState}-${accelOk ? 1 : 0}`,
-      status, confirm, total: CANON.length,
-      liquidityState, accelOk, score: conf, tone, statePill, last,
+      status, confirm, score, triggered, accelOk, riskOn,
       failing: triggered ? [] : failing,
-      gateReady, gateWhy,
-      dBreadth: dm?.dBreadthPct ?? null, dMomentum: dm?.dMomentumPct ?? null, riskOn
+      liveStatus, liveTip,
+      lastAlignmentAt, lastAlignmentFetch, lastDeltaAt
     };
-  }, [alignRes, deltaRes]);
+  },[alignRes, deltaRes]);
 
-  /* ---- On READY edge: journal + optional alert ---- */
-  useEffect(() => {
-    if (view.gateReady && !prevGate.current) {
-      const ts = new Date().toISOString();
-      // Journal both SPY and QQQ so you can test entries immediately
-      ["SPY","QQQ"].forEach(sym => {
-        addJournalEntry({
-          ts, strategy:"alignment", symbol: sym, tf:"10m",
-          info: {
-            confirm:`${view.confirm}/${view.total}`,
-            dBreadth:view.dBreadth, dMomentum:view.dMomentum, riskOn:view.riskOn,
-            note: view.gateWhy
-          }
-        });
-      });
-      // Optional alert webhook -> set REACT_APP_ALERT_WEBHOOK_URL to enable
-      const hook = getAlertWebhook();
-      if (hook) {
-        try {
-          fetch(hook, {
-            method:"POST",
-            headers:{ "Content-Type":"application/json" },
-            body: JSON.stringify({
-              ts, strategy:"alignment", symbols:["SPY","QQQ"], timeframe:"10m",
-              gate:"READY", confirm:`${view.confirm}/${view.total}`,
-              dBreadth:view.dBreadth, dMomentum:view.dMomentum, riskOn:view.riskOn,
-              msg:`Alignment READY ${view.confirm}/${view.total} • Δ(${fmtNum(view.dBreadth)}/${fmtNum(view.dMomentum)}) ${view.riskOn!==null?`• RiskOn ${fmtNum(view.riskOn)}`:""}`
-            })
-          }).catch(()=>{});
-        } catch {}
-      }
+  /* ---- Trigger Log: log READY + Triggered edge ---- */
+  const prevGate = useRef(false);
+  useEffect(()=>{
+    const gateReady = view.triggered && (view.accelOk || deltaRes.stale); // sensitive mode: accel required unless stale (ignore stale)
+    if(gateReady && !prevGate.current){
+      const entry = {
+        id: `${Date.now()}-${Math.random()}`,
+        ts: new Date().toISOString(),
+        side: "long",                // fill with real direction when available
+        confirm: `${view.confirm}/${CANON.length}`,
+        score: view.score,
+        symbols: ["SPY","QQQ"],
+        dBreadth: deltaRes.market?.dBreadthPct ?? null,
+        dMomentum: deltaRes.market?.dMomentumPct ?? null,
+        riskOn: deltaRes.market?.riskOnPct ?? null,
+        note: deltaRes.stale ? "staleΔ: ignore" : "ready"
+      };
+      const next=[entry, ...loadLog()];
+      saveLog(next); setLog(next);
     }
-    prevGate.current = view.gateReady;
-  }, [view.gateReady, view.confirm, view.total, view.dBreadth, view.dMomentum, view.riskOn, view.gateWhy]);
-
-  /* ---- Tabs ---- */
-  const tabs = [
-    { k:"SPY", sym:"SPY" },
-    { k:"QQQ", sym:"QQQ" },
-    { k:"IWM", sym:"IWM" },
-    { k:"MDY", sym:"MDY" },
-    { k:"DIA", sym:"DIA" },
-    { k:"VIX", sym:"I:VIX" }, // added VIX tab
-  ];
-  function load(sym) { setSelection({ symbol: sym, timeframe: "10m", strategy: "alignment" }); }
+    prevGate.current = gateReady;
+  },[view.triggered, view.accelOk, deltaRes.stale]);
 
   /* ---- UI ---- */
+  const tabs = [
+    { k:"SPY", sym:"SPY" }, { k:"QQQ", sym:"QQQ" }, { k:"IWM", sym:"IWM" },
+    { k:"MDY", sym:"MDY" }, { k:"DIA", sym:"DIA" }, { k:"VIX", sym:"I:VIX" },
+  ];
+  function load(sym){ setSelection({ symbol:sym, timeframe:"10m", strategy:"alignment" }); }
+
   return (
-    <div key={view.key} style={S.wrap}>
+    <div style={{ display:"grid", gridTemplateColumns:"repeat(3, minmax(0,1fr))", gap:10 }}>
       <Card
         title="SPY/QQQ Index-Alignment Scalper"
         timeframe="10m"
         rightPills={[
-          { text: alignRes.status === "live" ? "LIVE" : "MOCK", tone: alignRes.status === "live" ? "live" : "muted" },
-          { text: `${view.statePill} (${view.confirm}/${view.total})`, tone: view.tone },
+          { text: (alignRes.status==="live"?"LIVE":"MOCK"), tone:(alignRes.status==="live"?"live":"muted") },
+          { text: `${view.triggered?"Triggered":"Flat"} (${view.confirm}/${CANON.length})`, tone:(view.triggered?"ok":"muted") },
         ]}
         score={view.score}
-        last={view.last}
-        pl="—"
-        footNote={view.failing.length ? ("Failing: " + view.failing.join(", ")) : ""}
+        last={view.lastAlignmentAt ? `${toET(view.lastAlignmentAt)} ET` : "—"}
+        extraRight={<LiveDot status={view.liveStatus} tip={view.liveTip}/>}
       >
-        {/* 3 checks */}
-        <div style={S.checks}>
+        {/* checks */}
+        <div style={{ display:"flex", gap:10, flexWrap:"wrap", marginTop:2, fontSize:11 }}>
           <Check ok={view.confirm >= ALIGN_THRESHOLD} label={`Alignment ≥${ALIGN_THRESHOLD}/${CANON.length}`} />
-          <Check ok={false} neutral={true} label="Liquidity (pending)" />
-          <Check ok={view.accelOk} label="Δ Accel (5m)" tip={deltaRes.stale ? "stale" : ""} />
+          <Check neutral={true} ok={false} label="Liquidity (pending)" />
+          <Check ok={view.accelOk} label="Δ Accel (5m)" tip={deltaRes.stale?"stale":""} />
         </div>
 
-        {/* Gate line */}
-        <div style={S.gateRow}>
-          <span style={view.gateReady ? S.gateOk : S.gateNo}>
-            {view.gateReady ? "READY" : "BLOCKED"}
+        {/* Gate line + Trigger Log pill */}
+        <div style={{ display:"flex", alignItems:"center", gap:8, marginTop:4, fontSize:11 }}>
+          <span style={view.triggered ? styles.gateOk : styles.gateNo}>
+            {view.triggered ? "Triggered" : "Flat"}
           </span>
-          <span style={S.gateWhy}>{view.gateWhy}</span>
+          <span style={{ color:"#94a3b8" }}>
+            {view.accelOk ? "READY" : deltaRes.stale ? "READY — staleΔ: ignore" : "BLOCKED — ΔAccel"}
+            { (view.riskOn!==null) ? ` • RiskOn ${fmt(view.riskOn)} (soft)` : "" }
+          </span>
+
+          <button onClick={()=>setLogOpen(v=>!v)} style={styles.logBtn}>
+            Triggers: {log.length}
+          </button>
         </div>
 
-        {/* Selected + Tabs */}
-        <div style={S.selRow}>
-          <span style={S.selKey}>Selected:</span>
-          <span style={S.selVal}>{(selection?.symbol || "—")} • {(selection?.timeframe || "—")}</span>
+        {/* Selected readout */}
+        <div style={{ display:"flex", alignItems:"center", gap:6, marginTop:2, fontSize:11 }}>
+          <span style={{ color:"#9ca3af" }}>Selected:</span>
+          <span style={{ fontWeight:700 }}>{selection?.symbol || "—"} • {selection?.timeframe || "—"}</span>
         </div>
-        <div style={S.tabRow}>
-          {tabs.map(t => {
-            const active = selection?.symbol === t.sym && selection?.timeframe === "10m";
+
+        {/* tabs */}
+        <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginTop:4 }}>
+          {tabs.map(t=>{
+            const active = selection?.symbol===t.sym && selection?.timeframe==="10m";
             return (
-              <button key={t.k} type="button" onClick={()=>load(t.sym)}
-                style={{ ...S.tab, ...(active ? S.tabActive : null) }} aria-pressed={!!active} title={`Load ${t.k} (10m)`}>
-                {t.k}
-              </button>
+              <button key={t.k} onClick={()=>load(t.sym)} style={{ ...styles.tab, ...(active?styles.tabActive:null) }} title={`Load ${t.k} (10m)`}>{t.k}</button>
             );
           })}
         </div>
+
+        {/* Trigger Log panel */}
+        {logOpen && (
+          <div style={styles.logPanel}>
+            <div style={{ display:"flex", justifyContent:"space-between", marginBottom:6 }}>
+              <b>Today’s Triggers</b>
+              <div style={{ display:"flex", gap:6 }}>
+                <button style={styles.logMini} onClick={()=>{ localStorage.removeItem(keyForToday()); setLog([]); }}>Clear</button>
+                <button style={styles.logMini} onClick={()=>{
+                  const rows = log.map(e=>[toET(e.ts), e.side, e.confirm, e.score, e.symbols.join("&"), e.dBreadth, e.dMomentum, e.riskOn, e.note].join(","));
+                  navigator.clipboard.writeText(["timeET,side,confirm,score,symbols,dBreadth,dMomentum,riskOn,note", ...rows].join("\n"));
+                }}>Copy CSV</button>
+              </div>
+            </div>
+            {log.length===0 ? <div style={{ color:"#9ca3af" }}>No entries yet.</div> :
+              <div style={{ maxHeight:180, overflow:"auto", display:"grid", gap:6 }}>
+                {log.map(e=>(
+                  <div key={e.id} style={styles.logItem}>
+                    <div style={{ display:"flex", justifyContent:"space-between" }}>
+                      <div><b>{toET(e.ts)} ET</b> • {e.side.toUpperCase()} • {e.confirm} • Score {e.score}</div>
+                      <div style={{ color:"#9ca3af" }}>{e.symbols.join(" & ")}</div>
+                    </div>
+                    <div style={{ fontSize:12, color:"#cbd5e1" }}>
+                      Δ({fmt(e.dBreadth)}/{fmt(e.dMomentum)}){e.riskOn!==null?` • RiskOn ${fmt(e.riskOn)}`:""} • {e.note}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            }
+          </div>
+        )}
       </Card>
     </div>
   );
 }
 
-/* ---------- subcomponents ---------- */
+/* ---------- subcomponents & styles ---------- */
 function Check({ ok, label, tip, neutral }) {
-  const style = neutral ? S.chkNeutral : ok ? S.chkOk : S.chkNo;
+  const style = neutral ? styles.chkNeutral : ok ? styles.chkOk : styles.chkNo;
   return (
-    <div style={S.chk}>
+    <div style={styles.chk}>
       <span style={style}>{neutral ? "•" : ok ? "✓" : "•"}</span>
       <span>{label}{tip ? ` — ${tip}` : ""}</span>
     </div>
   );
 }
 
-function Card(props) {
-  const pct = Math.max(0, Math.min(100, props.score || 0));
+function Card({ title, timeframe, rightPills=[], score=0, last="—", children, extraRight=null }) {
+  const pct = Math.max(0, Math.min(100, score));
   return (
-    <div style={S.card}>
-      <div style={S.head}>
+    <div style={styles.card}>
+      <div style={styles.head}>
         <div style={{ display:"flex", alignItems:"center", gap:6 }}>
-          <div style={S.title}>{props.title}</div>
-          <span style={S.badge}>{props.timeframe}</span>
+          <div style={styles.title}>{title}</div>
+          <span style={styles.badge}>{timeframe}</span>
         </div>
-        <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
-          {props.rightPills.map((p,i)=><span key={i} style={{ ...S.pill, ...toneStyles(p.tone).pill }}>{p.text}</span>)}
+        <div style={{ display:"flex", alignItems:"center", gap:6, flexWrap:"wrap" }}>
+          {rightPills.map((p,i)=><span key={i} style={{ ...styles.pill, ...toneStyles(p.tone).pill }}>{p.text}</span>)}
+          {extraRight}
         </div>
       </div>
 
-      <div style={S.scoreRow}>
-        <div style={S.scoreLabel}>Score</div>
-        <div style={S.progress}><div style={{ ...S.progressFill, width: `${pct}%` }} /></div>
-        <div style={S.scoreVal}>{pct}</div>
+      <div style={styles.scoreRow}>
+        <div style={styles.scoreLabel}>Score</div>
+        <div style={styles.progress}><div style={{ ...styles.progressFill, width:`${pct}%` }} /></div>
+        <div style={styles.scoreVal}>{pct}</div>
       </div>
 
-      <div style={S.metaRow}>
-        <div><span style={S.metaKey}>Last:</span> {props.last}</div>
-        <div><span style={S.plKey}>P/L Today:</span> {props.pl}</div>
+      <div style={styles.metaRow}>
+        <div><span style={styles.metaKey}>Last:</span> {last}</div>
+        <div><span style={styles.metaKey}>P/L Today:</span> —</div>
       </div>
 
-      {props.children}
+      {children}
     </div>
   );
 }
 
-/* ---------- utils & styles ---------- */
-function fmtHHMM(iso) {
-  try { if (!iso) return "—"; const d=new Date(iso); return `${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`; }
-  catch { return "—"; }
-}
-function fmtNum(v){ return (typeof v==="number") ? (v>0?`+${v.toFixed(1)}`:v.toFixed(1)) : "—"; }
-
-const S = {
-  wrap: { display:"grid", gridTemplateColumns:"repeat(3, minmax(0,1fr))", gap:10 },
-
-  card: { background:"#101010", border:"1px solid #262626", borderRadius:10, padding:10, color:"#e5e7eb",
-          display:"flex", flexDirection:"column", gap:8, minHeight:110 },
-
-  head: { display:"flex", alignItems:"center", justifyContent:"space-between", gap:6 },
+const styles = {
+  card:{ background:"#101010", border:"1px solid #262626", borderRadius:10, padding:10, color:"#e5e7eb",
+         display:"flex", flexDirection:"column", gap:8, minHeight:110 },
+  head:{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:6 },
   title:{ fontWeight:700, fontSize:14, lineHeight:"16px" },
   badge:{ background:"#0b0b0b", border:"1px solid #2b2b2b", color:"#9ca3af", fontSize:10, padding:"1px 6px", borderRadius:999, fontWeight:700 },
-  pill: { fontSize:10, padding:"2px 8px", borderRadius:999, border:"1px solid #2b2b2b", fontWeight:700, lineHeight:"14px" },
+  pill:{ fontSize:10, padding:"2px 8px", borderRadius:999, border:"1px solid #2b2b2b", fontWeight:700, lineHeight:"14px" },
 
   scoreRow:{ display:"grid", gridTemplateColumns:"44px 1fr 28px", alignItems:"center", gap:6 },
   scoreLabel:{ color:"#9ca3af", fontSize:10 },
   progress:{ background:"#1f2937", borderRadius:6, height:6, overflow:"hidden", border:"1px solid #334155" },
   progressFill:{ height:"100%", background:"linear-gradient(90deg,#22c55e 0%,#84cc16 40%,#f59e0b 70%,#ef4444 100%)" },
   scoreVal:{ textAlign:"right", fontWeight:700, fontSize:12 },
-
   metaRow:{ display:"grid", gridTemplateColumns:"1fr auto", gap:6, fontSize:11, color:"#cbd5e1" },
   metaKey:{ color:"#9ca3af", marginRight:4, fontWeight:600 },
-  plKey:{ color:"#9ca3af", marginRight:4, fontWeight:600 },
 
-  checks:{ display:"flex", gap:10, flexWrap:"wrap", marginTop:2 },
   chk:{ display:"flex", alignItems:"center", gap:6, fontSize:11 },
   chkOk:{ color:"#86efac", fontWeight:900 },
   chkNo:{ color:"#94a3b8", fontWeight:900 },
   chkNeutral:{ color:"#9ca3af", fontWeight:900 },
 
-  gateRow:{ display:"flex", alignItems:"center", gap:8, marginTop:4, fontSize:11 },
   gateOk:{ background:"#06220f", color:"#86efac", border:"1px solid #166534", borderRadius:999, padding:"2px 8px", fontWeight:900 },
   gateNo:{ background:"#1b1409", color:"#fca5a5", border:"1px solid #7f1d1d", borderRadius:999, padding:"2px 8px", fontWeight:900 },
-  gateWhy:{ color:"#94a3b8" },
 
-  selRow:{ display:"flex", alignItems:"center", gap:6, marginTop:2, fontSize:11 },
-  selKey:{ color:"#9ca3af" },
-  selVal:{ fontWeight:700 },
-
-  tabRow:{ display:"flex", gap:6, flexWrap:"wrap", marginTop:4 },
   tab:{ background:"#141414", color:"#cbd5e1", border:"1px solid #2a2a2a", borderRadius:7, padding:"3px 6px", fontSize:10, fontWeight:700, cursor:"pointer" },
   tabActive:{ background:"#1f2937", color:"#e5e7eb", border:"1px solid #3b82f6", boxShadow:"0 0 0 1px #3b82f6 inset" },
+
+  logBtn:{ marginLeft:"auto", background:"#0b0b0b", color:"#e5e7eb", border:"1px solid #2b2b2b", borderRadius:8, padding:"2px 8px", fontWeight:700, fontSize:11, cursor:"pointer" },
+  logPanel:{ marginTop:8, padding:8, background:"#0f172a", border:"1px solid #1e293b", borderRadius:10 },
+  logItem:{ background:"#0b0b0b", border:"1px solid #1f2937", borderRadius:8, padding:8 },
+  logMini:{ background:"#0b0b0b", color:"#e5e7eb", border:"1px solid #2b2b2b", borderRadius:6, padding:"2px 6px", fontWeight:700, fontSize:11, cursor:"pointer" },
 };
 
-function toneStyles(kind) {
-  switch (kind) {
-    case "live": return { pill: { background:"#06220f", color:"#86efac", borderColor:"#166534" } };
-    case "info": return { pill: { background:"#0b1220", color:"#93c5fd", borderColor:"#1e3a8a" } };
-    case "warn": return { pill: { background:"#1b1409", color:"#fbbf24", borderColor:"#92400e" } };
-    case "ok":   return { pill: { background:"#07140d", color:"#86efac", borderColor:"#166534" } };
-    default:     return { pill: { background:"#0b0b0b", color:"#94a3b8", borderColor:"#2b2b2b" } };
+function toneStyles(kind){
+  switch(kind){
+    case "live": return { pill:{ background:"#06220f", color:"#86efac", borderColor:"#166534" } };
+    case "info": return { pill:{ background:"#0b1220", color:"#93c5fd", borderColor:"#1e3a8a" } };
+    case "warn": return { pill:{ background:"#1b1409", color:"#fbbf24", borderColor:"#92400e" } };
+    case "ok":   return { pill:{ background:"#07140d", color:"#86efac", borderColor:"#166534" } };
+    default:     return { pill:{ background:"#0b0b0b", color:"#94a3b8", borderColor:"#2b2b2b" } };
   }
 }
