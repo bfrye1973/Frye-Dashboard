@@ -1,10 +1,6 @@
 {
   "compilerOptions": {
-    "baseUrl": "src",
-    "paths": {
-      "indicators/*": ["indicators/*"],
-      "components/*": ["components/*"]
-    }
+    "baseUrl": "src"
   },
   "include": ["src"]
 }
