@@ -1,7 +1,7 @@
 // src/pages/rows/RowChart/index.jsx
-// v4.4 — Clean defaults: EMAs + Volume ON; all other indicators OFF.
-//        SMI gated to Full Chart, default OFF.
-//        Imports fixed to stay inside src/ (no relative path escape).
+// v4.4.1 — Clean defaults: EMAs + Volume ON; others OFF.
+//          SMI gated to Full Chart (default OFF).
+//          Imports use correct 3x "../" (no alias, no escaping src/).
 
 import React, { useMemo, useState, useEffect, useRef } from "react";
 import Controls from "./Controls";
@@ -10,13 +10,13 @@ import useOhlc from "./useOhlc";
 import useLwcChart from "./useLwcChart";
 import { SYMBOLS, TIMEFRAMES, resolveApiBase } from "./constants";
 
-// ✅ Overlays / panes (all within src/)
-import { createEmaOverlay } from "src/indicators/ema/overlay";
-import { createVolumeOverlay } from "src/indicators/volume";
-import MoneyFlowOverlay from "src/components/overlays/MoneyFlowOverlay";
-import { createLuxSrOverlay } from "src/indicators/srLux";
-import SwingLiquidityOverlay from "src/components/overlays/SwingLiquidityOverlay";
-import { createSmiOverlay } from "src/indicators/smi";
+// ✅ Overlays / panes (relative paths within src/, exactly 3x ../)
+import { createEmaOverlay } from "../../../indicators/ema/overlay";
+import { createVolumeOverlay } from "../../../indicators/volume";
+import MoneyFlowOverlay from "../../../components/overlays/MoneyFlowOverlay";
+import { createLuxSrOverlay } from "../../../indicators/srLux";
+import SwingLiquidityOverlay from "../../../components/overlays/SwingLiquidityOverlay";
+import { createSmiOverlay } from "../../../indicators/smi";
 
 export default function RowChart({
   apiBase,
@@ -49,7 +49,7 @@ export default function RowChart({
 
     // panes
     volume: true,
-    smi: false, // gated to Full Chart, but default OFF
+    smi: false, // gated to Full Chart, default OFF
 
     // overlays
     moneyFlow: false,
