@@ -1,7 +1,6 @@
 // src/pages/rows/RowChart/index.jsx
-// v4.4.1 — Clean defaults: EMAs + Volume ON; others OFF.
-//          SMI gated to Full Chart (default OFF).
-//          Imports use correct 3x "../" (no alias, no escaping src/).
+// v4.4.3 — Imports pinned to concrete files; EMAs + Volume ON by default; others OFF.
+//           SMI gated to Full Chart (default OFF). Border style typo fixed.
 
 import React, { useMemo, useState, useEffect, useRef } from "react";
 import Controls from "./Controls";
@@ -10,13 +9,13 @@ import useOhlc from "./useOhlc";
 import useLwcChart from "./useLwcChart";
 import { SYMBOLS, TIMEFRAMES, resolveApiBase } from "./constants";
 
-// ✅ Overlays / panes (relative paths within src/, exactly 3x ../)
+/* ----- Overlays / panes (explicit file paths within src/) ----- */
 import { createEmaOverlay } from "../../../indicators/ema/overlay";
-import { createVolumeOverlay } from "../../../indicators/volume";
+import { createVolumeOverlay } from "../../../indicators/volume/overlay";   // ← explicit
 import MoneyFlowOverlay from "../../../components/overlays/MoneyFlowOverlay";
-import { createLuxSrOverlay } from "../../../indicators/srLux";
+import { createLuxSrOverlay } from "../../../indicators/srLux/overlay";     // ← explicit
 import SwingLiquidityOverlay from "../../../components/overlays/SwingLiquidityOverlay";
-import { createSmiOverlay } from "../../../indicators/smi";
+import { createSmiOverlay } from "../../../indicators/smi";                  // uses its index.js
 
 export default function RowChart({
   apiBase,
@@ -26,20 +25,20 @@ export default function RowChart({
   onStatus,
   showDebug = false,
 }) {
-  // Detect Full Chart route (so SMI only runs there)
+  // Full Chart route gate (for SMI)
   const isFullChart =
     typeof window !== "undefined" &&
     (window.location.pathname === "/chart" ||
       window.location.pathname.startsWith("/chart"));
 
-  // symbol / timeframe / optional range
+  // Symbol / timeframe / optional range
   const [state, setState] = useState({
     symbol: defaultSymbol,
     timeframe: defaultTimeframe,
     range: null,
   });
 
-  // ---- Defaults: EMAs + Volume ON; everything else OFF ----
+  // Defaults: EMAs + Volume ON; everything else OFF
   const DEFAULT_IND = {
     // EMA
     showEma: true,
@@ -49,18 +48,16 @@ export default function RowChart({
 
     // panes
     volume: true,
-    smi: false, // gated to Full Chart, default OFF
+    smi: false, // gated to Full Chart; default OFF
 
     // overlays
     moneyFlow: false,
     luxSr: false,
     swingLiquidity: false,
   };
-
-  // indicator toggles
   const [ind, setInd] = useState(DEFAULT_IND);
 
-  // theme
+  // Theme
   const theme = useMemo(
     () => ({
       layout: { background: { type: "solid", color: "#0a0a0a" }, textColor: "#ffffff" },
@@ -86,17 +83,17 @@ export default function RowChart({
     []
   );
 
-  // chart mount
+  // Chart mount
   const { containerRef, chart, setData } = useLwcChart({ theme });
 
-  // data feed
+  // Data feed
   const { bars, loading, error, refetch } = useOhlc({
     apiBase,
     symbol: state.symbol,
     timeframe: state.timeframe,
   });
 
-  // status
+  // Status bubble
   useEffect(() => {
     if (!onStatus) return;
     if (loading) onStatus("loading");
@@ -105,23 +102,19 @@ export default function RowChart({
     else onStatus("idle");
   }, [loading, error, bars, onStatus]);
 
-  // fetch data
-  useEffect(() => {
-    void refetch(true);
-  }, []); // mount
-  useEffect(() => {
-    void refetch(true);
-  }, [state.symbol, state.timeframe]);
+  // Fetch data on mount / changes
+  useEffect(() => { void refetch(true); }, []); // mount
+  useEffect(() => { void refetch(true); }, [state.symbol, state.timeframe]);
 
-  // set price bars
+  // Push bars to chart
   useEffect(() => {
     const data = state.range && bars.length > state.range ? bars.slice(-state.range) : bars;
     setData(data);
   }, [bars, state.range, setData]);
 
-  // =========================
-  // EMA overlays (on price)
-  // =========================
+  /* =========================
+     EMA overlays (price pane)
+     ========================= */
   const emaRef = useRef({});
   useEffect(() => {
     if (!chart) return;
@@ -137,71 +130,46 @@ export default function RowChart({
       if (ind.ema50) emaRef.current.e50 = createEmaOverlay({ chart, period: 50, color: "#34d399" });
     }
     Object.values(emaRef.current).forEach((o) => o?.setBars?.(bars));
-
     return () => removeAll();
   }, [chart, ind.showEma, ind.ema10, ind.ema20, ind.ema50, bars]);
 
-  // =========================
-  // Volume pane (bottom)
-  // =========================
+  /* =========================
+     Volume pane (bottom)
+     ========================= */
   const volRef = useRef(null);
   useEffect(() => {
     if (!chart) return;
-    if (volRef.current) {
-      volRef.current.remove();
-      volRef.current = null;
-    }
+    if (volRef.current) { volRef.current.remove(); volRef.current = null; }
     if (ind.volume) {
       volRef.current = createVolumeOverlay({ chart });
       volRef.current.setBars(bars);
     }
-    return () => {
-      volRef.current?.remove();
-      volRef.current = null;
-    };
+    return () => { volRef.current?.remove(); volRef.current = null; };
   }, [chart, ind.volume, bars]);
-  useEffect(() => {
-    if (ind.volume && volRef.current) volRef.current.setBars(bars);
-  }, [bars, ind.volume]);
+  useEffect(() => { if (ind.volume && volRef.current) volRef.current.setBars(bars); }, [bars, ind.volume]);
 
-  // =========================
-  // SMI pane (gated to Full Chart)
-  // =========================
+  /* =========================
+     SMI pane (Full Chart only)
+     ========================= */
   const smiRef = useRef(null);
   useEffect(() => {
-    if (!chart || !isFullChart) return; // gate here
-    if (smiRef.current) {
-      smiRef.current.remove();
-      smiRef.current = null;
-    }
+    if (!chart || !isFullChart) return;
+    if (smiRef.current) { smiRef.current.remove(); smiRef.current = null; }
     if (ind.smi) {
-      smiRef.current = createSmiOverlay({
-        chart,
-        kLen: 12,
-        dLen: 7,
-        emaLen: 5,
-      });
+      smiRef.current = createSmiOverlay({ chart, kLen: 12, dLen: 7, emaLen: 5 });
       smiRef.current.setBars(bars);
     }
-    return () => {
-      smiRef.current?.remove();
-      smiRef.current = null;
-    };
+    return () => { smiRef.current?.remove(); smiRef.current = null; };
   }, [chart, ind.smi, bars, isFullChart]);
-  useEffect(() => {
-    if (isFullChart && ind.smi && smiRef.current) smiRef.current.setBars(bars);
-  }, [bars, ind.smi, isFullChart]);
+  useEffect(() => { if (isFullChart && ind.smi && smiRef.current) smiRef.current.setBars(bars); }, [bars, ind.smi, isFullChart]);
 
-  // =========================
-  // Lux S/R (lines + breaks)
-  // =========================
+  /* =========================
+     Lux S/R (overlay)
+     ========================= */
   const luxRef = useRef(null);
   useEffect(() => {
     if (!chart) return;
-    if (luxRef.current) {
-      luxRef.current.remove();
-      luxRef.current = null;
-    }
+    if (luxRef.current) { luxRef.current.remove(); luxRef.current = null; }
     if (ind.luxSr) {
       luxRef.current = createLuxSrOverlay({
         chart,
@@ -216,14 +184,9 @@ export default function RowChart({
       });
       luxRef.current.setBars(bars);
     }
-    return () => {
-      luxRef.current?.remove();
-      luxRef.current = null;
-    };
+    return () => { luxRef.current?.remove(); luxRef.current = null; };
   }, [chart, ind.luxSr, bars]);
-  useEffect(() => {
-    if (ind.luxSr && luxRef.current) luxRef.current.setBars(bars);
-  }, [bars, ind.luxSr]);
+  useEffect(() => { if (ind.luxSr && luxRef.current) luxRef.current.setBars(bars); }, [bars, ind.luxSr]);
 
   const baseShown = resolveApiBase(apiBase);
 
@@ -243,12 +206,7 @@ export default function RowChart({
       <Controls
         symbols={SYMBOLS}
         timeframes={TIMEFRAMES}
-        value={{
-          symbol: state.symbol,
-          timeframe: state.timeframe,
-          range: state.range,
-          disabled: loading,
-        }}
+        value={{ symbol: state.symbol, timeframe: state.timeframe, range: state.range, disabled: loading }}
         onChange={(patch) => setState((s) => ({ ...s, ...patch }))}
         onTest={
           showDebug
@@ -269,14 +227,13 @@ export default function RowChart({
         // Panes
         volume={ind.volume}
         smi={isFullChart ? ind.smi : false}
-        showSmiToggle={isFullChart} // only show toggle in Full Chart
+        showSmiToggle={isFullChart}
         // Overlays
         moneyFlow={ind.moneyFlow}
         luxSr={ind.luxSr}
         swingLiquidity={ind.swingLiquidity}
-        // Change handler
+        // Handlers
         onChange={(patch) => setInd((s) => ({ ...s, ...patch }))}
-        // Reset button (optional but handy)
         onReset={() => setInd(DEFAULT_IND)}
       />
 
@@ -290,9 +247,7 @@ export default function RowChart({
         }}
       >
         <button
-          onClick={() =>
-            window.open(`/chart?symbol=${state.symbol}&tf=${state.timeframe}`, "_blank", "noopener")
-          }
+          onClick={() => window.open(`/chart?symbol=${state.symbol}&tf=${state.timeframe}`, "_blank", "noopener")}
           style={{
             background: "#0b0b0b",
             color: "#e5e7eb",
@@ -308,36 +263,23 @@ export default function RowChart({
       </div>
 
       {showDebug && (
-        <div
-          style={{
-            padding: "6px 12px",
-            color: "#9ca3af",
-            fontSize: 12,
-            borderBottom: "1px solid #2b2b2b",
-          }}
-        >
-          debug • base: {baseShown || "MISSING"} • symbol: {state.symbol} • tf: {state.timeframe} •
-          bars: {bars.length}
+        <div style={{ padding: "6px 12px", color: "#9ca3af", fontSize: 12, borderBottom: "1px solid #2b2b2b" }}>
+          debug • base: {baseShown || "MISSING"} • symbol: {state.symbol} • tf: {state.timeframe} • bars: {bars.length}
         </div>
       )}
 
       {/* Chart host */}
-      <div
-        className="chart-shell"
-        style={{ flex: "1 1 auto", minHeight: 0, display: "flex", flexDirection: "column" }}
-      >
+      <div className="chart-shell" style={{ flex: "1 1 auto", minHeight: 0, display: "flex", flexDirection: "column" }}>
         <div
           ref={containerRef}
           className="tv-lightweight-charts"
           style={{ position: "relative", width: "100%", height: "100%", minHeight: 0, flex: 1 }}
           data-cluster-host
         >
-          {/* Canvas/profile overlays */}
-          {ind.moneyFlow && (
-            <MoneyFlowOverlay chartContainer={containerRef.current} candles={bars} />
-          )}
+          {/* Right profile / canvas overlays */}
+          {ind.moneyFlow && <MoneyFlowOverlay chartContainer={containerRef.current} candles={bars} />}
 
-          {/* Swing Liquidity overlay */}
+          {/* TV-style Swing Liquidity (self-contained overlay file) */}
           {ind.swingLiquidity && chart && (
             <SwingLiquidityOverlay
               chart={chart}
