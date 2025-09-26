@@ -1,5 +1,5 @@
 // src/pages/rows/RowChart/index.jsx
-// v5.1 — Clean defaults + re-added Swing Liquidity toggle (OFF by default)
+// v5.1.1 — Re-adds Swing Liquidity (OFF by default) and removes problematic inline comment/prop.
 
 import React, { useMemo, useState, useEffect, useRef } from "react";
 import Controls from "./Controls";
@@ -14,7 +14,6 @@ import { createVolumeOverlay } from "indicators/volume/overlay";
 import { createLuxSrOverlay } from "indicators/srLux/overlay";
 import { createSmiOverlay } from "indicators/smi";
 import MoneyFlowOverlay from "components/overlays/MoneyFlowOverlay";
-// ✅ Clean Swing Liquidity overlay component (we added earlier)
 import SwingLiquidityOverlay from "components/overlays/SwingLiquidityOverlay";
 
 export default function RowChart({
@@ -36,19 +35,13 @@ export default function RowChart({
     range: null,
   });
 
-  // Defaults: EMAs + Volume ON; others OFF (Swing Liquidity OFF by default)
   const DEFAULT_IND = {
-    showEma: true,
-    ema10: true,
-    ema20: true,
-    ema50: true,
-
+    showEma: true, ema10: true, ema20: true, ema50: true,
     volume: true,
-    smi: false,          // gated to Full Chart
-
+    smi: false,
     moneyFlow: false,
     luxSr: false,
-    swingLiquidity: false, // ⬅️ re-added, default OFF
+    swingLiquidity: false, // OFF by default
   };
   const [ind, setInd] = useState(DEFAULT_IND);
 
@@ -105,13 +98,13 @@ export default function RowChart({
   const emaRef = useRef({});
   useEffect(() => {
     if (!chart) return;
-    const removeAll = () => { Object.values(emaRef.current).forEach(o=>o?.remove?.()); emaRef.current = {}; };
+    const removeAll = () => { Object.values(emaRef.current).forEach((o) => o?.remove?.()); emaRef.current = {}; };
     removeAll();
     if (ind.showEma) {
       if (ind.ema10) emaRef.current.e10 = createEmaOverlay({ chart, period: 10, color: "#60a5fa" });
       if (ind.ema20) emaRef.current.e20 = createEmaOverlay({ chart, period: 20, color: "#f59e0b" });
       if (ind.ema50) emaRef.current.e50 = createEmaOverlay({ chart, period: 50, color: "#34d399" });
-      Object.values(emaRef.current).forEach(o => o?.setBars?.(bars));
+      Object.values(emaRef.current).forEach((o) => o?.setBars?.(bars));
     }
     return () => removeAll();
   }, [chart, ind.showEma, ind.ema10, ind.ema20, ind.ema50, bars]);
@@ -168,20 +161,26 @@ export default function RowChart({
   const baseShown = resolveApiBase(apiBase);
 
   return (
-    <div style={{
-      flex: 1, minHeight: 0, overflow: "hidden",
-      background: "#0a0a0a", border: "1px solid #2b2b2b", borderRadius: 12,
-      display: "flex", flexDirection: "column",
-    }}>
+    <div
+      style={{
+        flex: 1, minHeight: 0, overflow: "hidden",
+        background: "#0a0a0a", border: "1px solid #2b2b2b", borderRadius: 12,
+        display: "flex", flexDirection: "column",
+      }}
+    >
       <Controls
         symbols={SYMBOLS}
         timeframes={TIMEFRAMES}
         value={{ symbol: state.symbol, timeframe: state.timeframe, range: state.range, disabled: loading }}
         onChange={(patch) => setState((s) => ({ ...s, ...patch }))}
-        onTest={ showDebug ? async () => {
-          const r = await refetch(true);
-          alert(r.ok ? `Fetched ${r.count || 0} bars` : `Error: ${r.error || "unknown"}`);
-        } : undefined }
+        onTest={
+          showDebug
+            ? async () => {
+                const r = await refetch(true);
+                alert(r.ok ? `Fetched ${r.count || 0} bars` : `Error: ${r.error || "unknown"}`);
+              }
+            : undefined
+        }
       />
 
       <IndicatorsToolbar
@@ -192,7 +191,7 @@ export default function RowChart({
         // Overlays
         moneyFlow={ind.moneyFlow}
         luxSr={ind.luxSr}
-        swingLiquidity={ind.swingLiquidity}   {/* ⬅️ back in toolbar */}
+        swingLiquidity={ind.swingLiquidity}
         // Oscillator (gated)
         smi={isFullChart ? ind.smi : false}
         showSmiToggle={isFullChart}
@@ -200,17 +199,31 @@ export default function RowChart({
         onReset={() => setInd(DEFAULT_IND)}
       />
 
-      <div style={{ flex: "0 0 auto", display: "flex", justifyContent: "flex-end", padding: "6px 12px", borderBottom: "1px solid #2b2b2b" }}>
+      <div
+        style={{
+          flex: "0 0 auto", display: "flex", justifyContent: "flex-end",
+          padding: "6px 12px", borderBottom: "1px solid #2b2b2b",
+        }}
+      >
         <button
-          onClick={() => window.open(`/chart?symbol=${state.symbol}&tf=${state.timeframe}`, "_blank", "noopener")}
-          style={{ background: "#0b0b0b", color: "#e5e7eb", border: "1px solid #2b2b2b", borderRadius: 8, padding: "6px 10px", fontWeight: 600, cursor: "pointer" }}
+          onClick={() =>
+            window.open(`/chart?symbol=${state.symbol}&tf=${state.timeframe}`, "_blank", "noopener")
+          }
+          style={{
+            background: "#0b0b0b", color: "#e5e7eb", border: "1px solid #2b2b2b",
+            borderRadius: 8, padding: "6px 10px", fontWeight: 600, cursor: "pointer",
+          }}
         >
           Open Full Chart ↗
         </button>
       </div>
 
       {showDebug && (
-        <div style={{ padding: "6px 12px", color: "#9ca3af", fontSize: 12, borderBottom: "1px solid #2b2b2b" }}>
+        <div
+          style={{
+            padding: "6px 12px", color: "#9ca3af", fontSize: 12, borderBottom: "1px solid #2b2b2b",
+          }}
+        >
           debug • base: {baseShown || "MISSING"} • symbol: {state.symbol} • tf: {state.timeframe} • bars: {bars.length}
         </div>
       )}
@@ -226,12 +239,10 @@ export default function RowChart({
             <MoneyFlowOverlay chartContainer={containerRef.current} candles={bars} />
           )}
 
-          {/* ✅ Clean Swing Liquidity overlay mount */}
           {ind.swingLiquidity && chart && (
             <SwingLiquidityOverlay
               containerEl={containerRef.current}
               chart={chart}
-              series={chart.__primarySeries || null /* if you store series, pass it here */}
               bars={bars}
               opts={{ left: 15, right: 10, extendUntilFill: true, maxOnScreen: 120, bandPx: 8 }}
             />
