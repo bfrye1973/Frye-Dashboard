@@ -1,6 +1,7 @@
 // src/pages/rows/RowChart/index.jsx
-// v4.3 — Clean defaults: EMAs + Volume ON; all other indicators OFF.
-//        SMI is gated to Full Chart, default OFF.
+// v4.4 — Clean defaults: EMAs + Volume ON; all other indicators OFF.
+//        SMI gated to Full Chart, default OFF.
+//        Imports fixed to stay inside src/ (no relative path escape).
 
 import React, { useMemo, useState, useEffect, useRef } from "react";
 import Controls from "./Controls";
@@ -9,13 +10,13 @@ import useOhlc from "./useOhlc";
 import useLwcChart from "./useLwcChart";
 import { SYMBOLS, TIMEFRAMES, resolveApiBase } from "./constants";
 
-// Overlays / panes
-import { createEmaOverlay } from "../../../indicators/ema/overlay";
-import { createVolumeOverlay } from "../../../indicators/volume";
-import MoneyFlowOverlay from "../../../components/overlays/MoneyFlowOverlay";
-import { createLuxSrOverlay } from "../../../indicators/srLux";
-import SwingLiquidityOverlay from "../../../components/overlays/SwingLiquidityOverlay";
-import { createSmiOverlay } from "../../../indicators/smi";
+// ✅ Overlays / panes (all within src/)
+import { createEmaOverlay } from "src/indicators/ema/overlay";
+import { createVolumeOverlay } from "src/indicators/volume";
+import MoneyFlowOverlay from "src/components/overlays/MoneyFlowOverlay";
+import { createLuxSrOverlay } from "src/indicators/srLux";
+import SwingLiquidityOverlay from "src/components/overlays/SwingLiquidityOverlay";
+import { createSmiOverlay } from "src/indicators/smi";
 
 export default function RowChart({
   apiBase,
@@ -295,7 +296,7 @@ export default function RowChart({
           style={{
             background: "#0b0b0b",
             color: "#e5e7eb",
-            border: "1px solid #2b2b2b",   // ✅ correct string
+            border: "1px solid #2b2b2b",
             borderRadius: 8,
             padding: "6px 10px",
             fontWeight: 600,
@@ -336,7 +337,7 @@ export default function RowChart({
             <MoneyFlowOverlay chartContainer={containerRef.current} candles={bars} />
           )}
 
-          {/* Swing Liquidity (self-contained overlay file; no host prop required) */}
+          {/* Swing Liquidity overlay */}
           {ind.swingLiquidity && chart && (
             <SwingLiquidityOverlay
               chart={chart}
