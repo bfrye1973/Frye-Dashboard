@@ -1,11 +1,7 @@
 // src/components/LiveDot.jsx
 import React from "react";
 
-/**
- * LiveDot
- * status: "green" | "yellow" | "red"
- * tip: tooltip text
- */
+/** LiveDot • status: "green" | "yellow" | "red" • tip: tooltip text */
 export default function LiveDot({ status = "yellow", tip = "" }) {
   const colors = {
     green: { bg: "#16a34a", ring: "#22c55e" },
