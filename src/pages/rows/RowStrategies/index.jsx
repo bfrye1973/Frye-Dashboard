@@ -1,45 +1,58 @@
 // src/pages/rows/RowStrategies/index.jsx
-// Alignment Scalper — 6-universe, 4/6 trigger (immediate), Δ gate (0.5/0.5 sensitive),
-// RiskOn soft. Adds: LIVE/STALE/ERROR dot + Trigger Log pull-down (today).
+// Alignment Scalper — Sensitive Mode:
+// • Universe: SPY, QQQ, IWM, MDY, DIA, I:VIX (6)
+// • Trigger: 4/6 immediate (no debounce)
+// • Δ gate: ≥ +0.5 / +0.5 (fresh); Risk-On soft (warn only)
+// • LIVE/STALE/ERROR dot (real feed health)
+// • Trigger Log (today only) with AZ timestamps + CSV
+// • Tabs include VIX; all times render in America/Phoenix (AZ)
+
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useSelection } from "../../../context/ModeContext";
 import LiveDot from "../../../components/LiveDot";
 
-/* ---------- env helpers ---------- */
-function env(name, fb=""){ try{ if(typeof process!=="undefined"&&process.env&&name in process.env){return String(process.env[name]||"").trim();}}catch{} return fb; }
-const API_BASE = env("REACT_APP_API_BASE","https://frye-market-backend-1.onrender.com");
+/* -------------------- env helpers (CRA-safe) -------------------- */
+function env(name, fb=""){ try{ if(typeof process!=="undefined"&&process.env&&name in process.env){ return String(process.env[name]||"").trim(); } }catch{} return fb; }
+const API_BASE  = env("REACT_APP_API_BASE","https://frye-market-backend-1.onrender.com");
 const SANDBOX   = env("REACT_APP_INTRADAY_SANDBOX_URL","");
 
-/* ---------- config ---------- */
+/* -------------------- config -------------------- */
 const CANON = ["SPY","QQQ","IWM","MDY","DIA","I:VIX"];
-const ALIGN_THRESHOLD = 4;      // 4 of 6
-const DELTA_TH = 0.5;           // sensitive ±0.5
-const STALE_MIN = 12;           // Δ stale if >12m
-const LIVE_ALIGN_MAX_SEC = 90;  // alignment fetch considered fresh if within 90s
+const ALIGN_THRESHOLD = 4;     // 4 of 6 (sensitive)
+const DELTA_TH = 0.5;          // Δ gate ≥ +0.5 / +0.5
+const STALE_MIN = 12;          // Δ stale if >12 min
+const LIVE_ALIGN_MAX_SEC = 90; // alignment fetch fresh if within 90s
+const AZ_TZ = "America/Phoenix";
 
-/* ---------- utilities ---------- */
+/* -------------------- utils -------------------- */
 const nowIso = ()=>new Date().toISOString();
-function toET(iso){ try{ return new Date(iso).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit", timeZone:"America/New_York"});} catch{return "—";} }
-function minutesAgo(iso){ if(!iso) return Infinity; const ms=Date.now() - new Date(iso).getTime(); return ms/60000; }
-function fmt(v){ return typeof v==="number" ? (v>0?`+${v.toFixed(1)}`:v.toFixed(1)) : "—"; }
+function minutesAgo(iso){ if(!iso) return Infinity; const ms=Date.now()-new Date(iso).getTime(); return ms/60000; }
+function fmt(n){ return typeof n==="number" ? (n>0?`+${n.toFixed(1)}`:n.toFixed(1)) : "—"; }
+function toAZ(iso, withSeconds=false){
+  try{
+    return new Date(iso).toLocaleTimeString("en-US", {
+      hour:"2-digit", minute:"2-digit", second: withSeconds ? "2-digit" : undefined, timeZone: AZ_TZ
+    }) + " AZ";
+  }catch{ return "—"; }
+}
 function keyForToday(){ const d=new Date(); const y=d.getFullYear(); const m=String(d.getMonth()+1).padStart(2,"0"); const day=String(d.getDate()).padStart(2,"0"); return `align_triggers_${y}${m}${day}`;}
 function loadLog(){ try{ const j=localStorage.getItem(keyForToday()); return j?JSON.parse(j):[];}catch{return [];} }
-function saveLog(items){ try{ localStorage.setItem(keyForToday(), JSON.stringify(items.slice(0,200)));}catch{} }
+function saveLog(items){ try{ localStorage.setItem(keyForToday(), JSON.stringify(items.slice(0,200))); }catch{} }
 
-/* ---------- component ---------- */
+/* -------------------- component -------------------- */
 export default function RowStrategies(){
   const { selection, setSelection } = useSelection();
 
-  // alignment fetch
+  // alignment fetch state
   const [alignRes, setAlignRes] = useState({ status:"mock", data:null, err:null, lastFetch:null });
-  // Δ sandbox
+  // Δ sandbox state
   const [deltaRes, setDeltaRes] = useState({ ok:false, stale:true, market:null, at:null, err:null, lastFetch:null });
 
-  // Trigger Log UI
+  // Trigger Log UI state
   const [logOpen, setLogOpen] = useState(false);
   const [log, setLog] = useState(loadLog());
 
-  /* ---- pull alignment every 30s ---- */
+  /* ---- alignment poll (30s) ---- */
   useEffect(()=>{ let alive=true;
     async function pull(){
       const url=`${API_BASE}/api/signals?strategy=alignment&limit=1&t=${Date.now()}`;
@@ -53,10 +66,10 @@ export default function RowStrategies(){
         setAlignRes(a=>({ ...a, err:String(e?.message||e), lastFetch:nowIso() }));
       }
     }
-    pull(); const id=setInterval(pull, 30_000); return ()=>{alive=false;clearInterval(id);};
+    pull(); const id=setInterval(pull,30_000); return ()=>{alive=false; clearInterval(id);};
   },[]);
 
-  /* ---- pull sandbox deltas every ~5m ---- */
+  /* ---- sandbox deltas poll (~5m) ---- */
   useEffect(()=>{ let alive=true;
     if(!SANDBOX){ setDeltaRes({ ok:false, stale:true, market:null, at:null, err:"SANDBOX_URL missing", lastFetch:nowIso() }); return; }
     async function pull(){
@@ -72,63 +85,62 @@ export default function RowStrategies(){
         setDeltaRes({ ok:false, stale:true, market:null, at:null, err:String(e?.message||e), lastFetch:nowIso() });
       }
     }
-    pull(); const id=setInterval(pull, 300_000); return ()=>{alive=false; clearInterval(id);};
+    pull(); const id=setInterval(pull,300_000); return ()=>{alive=false; clearInterval(id);};
   },[]);
 
-  /* ---- normalize alignment ---- */
+  /* ---- normalize + compute view ---- */
   const view = useMemo(()=>{
     const status = alignRes.status || "mock";
-    // accept {items:[signal]}, {signal}, or single signal
-    let sig=null; const d=alignRes.data;
+    const d=alignRes.data;
+    let sig=null;
     if(Array.isArray(d?.items)&&d.items.length) sig=d.items[0]; else if(d?.signal) sig=d.signal; else if(d?.direction||d?.members) sig=d;
 
     const ts = sig?.timestamp || null;
     const members = sig?.members || {};
-    const eff = { SPY:members["SPY"], QQQ:members["QQQ"], IWM:members["IWM"], MDY:members["MDY"], DIA:members["DIA"]||members["I:DJI"], "I:VIX":members["I:VIX"]||members["VIX"] };
+    const eff = {
+      SPY:members["SPY"], QQQ:members["QQQ"], IWM:members["IWM"],
+      MDY:members["MDY"], DIA:members["DIA"]||members["I:DJI"],
+      "I:VIX":members["I:VIX"]||members["VIX"]
+    };
 
     let confirm=0; const failing=[];
-    CANON.forEach(k=>{ const ok=!!(eff[k]&&eff[k].ok===true); if(ok) confirm++; else failing.push(k); });
+    CANON.forEach(k=>{ const ok=!!(eff[k] && eff[k].ok===true); if(ok) confirm++; else failing.push(k); });
 
-    // Δ accel (sensitive)
+    // Δ gate (sensitive) + Risk-On soft
     const dm = deltaRes.market || {};
-    const accelOk = !!(!deltaRes.stale && typeof dm.dBreadthPct==="number" && typeof dm.dMomentumPct==="number" && dm.dBreadthPct>=DELTA_TH && dm.dMomentumPct>=DELTA_TH);
-
-    // RiskOn soft (warn only)
+    const accelOk = !!(!deltaRes.stale && typeof dm.dBreadthPct==="number" && typeof dm.dMomentumPct==="number"
+                       && dm.dBreadthPct>=DELTA_TH && dm.dMomentumPct>=DELTA_TH);
     const riskOn = (typeof dm.riskOnPct==="number") ? dm.riskOnPct : null;
 
     const triggered = confirm >= ALIGN_THRESHOLD;
     const baseScore = Math.round((confirm / CANON.length) * 100);
     const score = Math.min(100, baseScore + (accelOk ? 20 : 0));
 
-    const lastAlignmentAt = ts;
-    const lastAlignmentFetch = alignRes.lastFetch;
-    const lastDeltaAt = deltaRes.at;
-    const lastDeltaFetch = deltaRes.lastFetch;
-
-    // live dot: green if alignment fetch fresh (≤90s) AND Δ not stale; yellow if either stale; red if recent fetch error
-    const alignFresh = minutesAgo(lastAlignmentFetch) <= (LIVE_ALIGN_MAX_SEC/60);
+    // Live dot
+    const alignFresh = minutesAgo(alignRes.lastFetch) <= (LIVE_ALIGN_MAX_SEC/60);
     const liveStatus = alignRes.err ? "red" : (!alignFresh || deltaRes.stale ? "yellow" : "green");
     const liveTip =
-      `Alignment fetch: ${lastAlignmentFetch?toET(lastAlignmentFetch):"—"} ET` +
-      ` • Δ5m: ${lastDeltaAt?toET(lastDeltaAt):"—"} ET (${deltaRes.stale?"STALE": "LIVE"})`;
+      `Alignment fetch: ${alignRes.lastFetch?toAZ(alignRes.lastFetch,true):"—"} • ` +
+      `Δ5m: ${deltaRes.at?toAZ(deltaRes.at,true):"—"} (${deltaRes.stale?"STALE":"LIVE"})`;
 
     return {
       status, confirm, score, triggered, accelOk, riskOn,
       failing: triggered ? [] : failing,
-      liveStatus, liveTip,
-      lastAlignmentAt, lastAlignmentFetch, lastDeltaAt
+      lastAlignmentAt: ts,
+      lastAlignmentFetch: alignRes.lastFetch,
+      liveStatus, liveTip
     };
   },[alignRes, deltaRes]);
 
-  /* ---- Trigger Log: log READY + Triggered edge ---- */
+  /* ---- Trigger Log: log on edge (Triggered + READY or staleΔ-ignore) ---- */
   const prevGate = useRef(false);
   useEffect(()=>{
-    const gateReady = view.triggered && (view.accelOk || deltaRes.stale); // sensitive mode: accel required unless stale (ignore stale)
+    const gateReady = view.triggered && (view.accelOk || deltaRes.stale);
     if(gateReady && !prevGate.current){
       const entry = {
-        id: `${Date.now()}-${Math.random()}`,
+        id:`${Date.now()}-${Math.random()}`,
         ts: new Date().toISOString(),
-        side: "long",                // fill with real direction when available
+        side: "long", // fill with real direction when you add it to payload
         confirm: `${view.confirm}/${CANON.length}`,
         score: view.score,
         symbols: ["SPY","QQQ"],
@@ -156,12 +168,12 @@ export default function RowStrategies(){
         title="SPY/QQQ Index-Alignment Scalper"
         timeframe="10m"
         rightPills={[
-          { text: (alignRes.status==="live"?"LIVE":"MOCK"), tone:(alignRes.status==="live"?"live":"muted") },
-          { text: `${view.triggered?"Triggered":"Flat"} (${view.confirm}/${CANON.length})`, tone:(view.triggered?"ok":"muted") },
+          { text:(alignRes.status==="live"?"LIVE":"MOCK"), tone:(alignRes.status==="live"?"live":"muted") },
+          { text:`${view.triggered?"Triggered":"Flat"} (${view.confirm}/${CANON.length})`, tone:(view.triggered?"ok":"muted") },
         ]}
         score={view.score}
-        last={view.lastAlignmentAt ? `${toET(view.lastAlignmentAt)} ET` : "—"}
-        extraRight={<LiveDot status={view.liveStatus} tip={view.liveTip}/>}
+        last={view.lastAlignmentAt ? toAZ(view.lastAlignmentAt) : "—"}
+        extraRight={<LiveDot status={view.liveStatus} tip={view.liveTip} />}
       >
         {/* checks */}
         <div style={{ display:"flex", gap:10, flexWrap:"wrap", marginTop:2, fontSize:11 }}>
@@ -185,13 +197,11 @@ export default function RowStrategies(){
           </button>
         </div>
 
-        {/* Selected readout */}
+        {/* Selected + Tabs */}
         <div style={{ display:"flex", alignItems:"center", gap:6, marginTop:2, fontSize:11 }}>
           <span style={{ color:"#9ca3af" }}>Selected:</span>
           <span style={{ fontWeight:700 }}>{selection?.symbol || "—"} • {selection?.timeframe || "—"}</span>
         </div>
-
-        {/* tabs */}
         <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginTop:4 }}>
           {tabs.map(t=>{
             const active = selection?.symbol===t.sym && selection?.timeframe==="10m";
@@ -201,16 +211,21 @@ export default function RowStrategies(){
           })}
         </div>
 
-        {/* Trigger Log panel */}
+        {/* Trigger Log panel (AZ times) */}
         {logOpen && (
           <div style={styles.logPanel}>
             <div style={{ display:"flex", justifyContent:"space-between", marginBottom:6 }}>
-              <b>Today’s Triggers</b>
+              <b>Today’s Triggers (AZ)</b>
               <div style={{ display:"flex", gap:6 }}>
                 <button style={styles.logMini} onClick={()=>{ localStorage.removeItem(keyForToday()); setLog([]); }}>Clear</button>
                 <button style={styles.logMini} onClick={()=>{
-                  const rows = log.map(e=>[toET(e.ts), e.side, e.confirm, e.score, e.symbols.join("&"), e.dBreadth, e.dMomentum, e.riskOn, e.note].join(","));
-                  navigator.clipboard.writeText(["timeET,side,confirm,score,symbols,dBreadth,dMomentum,riskOn,note", ...rows].join("\n"));
+                  const rows = log.map(e=>[
+                    toAZ(e.ts), e.side, e.confirm, e.score, e.symbols.join("&"),
+                    e.dBreadth, e.dMomentum, e.riskOn, e.note
+                  ].join(","));
+                  navigator.clipboard.writeText(
+                    ["timeAZ,side,confirm,score,symbols,dBreadth,dMomentum,riskOn,note", ...rows].join("\n")
+                  );
                 }}>Copy CSV</button>
               </div>
             </div>
@@ -219,7 +234,7 @@ export default function RowStrategies(){
                 {log.map(e=>(
                   <div key={e.id} style={styles.logItem}>
                     <div style={{ display:"flex", justifyContent:"space-between" }}>
-                      <div><b>{toET(e.ts)} ET</b> • {e.side.toUpperCase()} • {e.confirm} • Score {e.score}</div>
+                      <div><b>{toAZ(e.ts)}</b> • {e.side.toUpperCase()} • {e.confirm} • Score {e.score}</div>
                       <div style={{ color:"#9ca3af" }}>{e.symbols.join(" & ")}</div>
                     </div>
                     <div style={{ fontSize:12, color:"#cbd5e1" }}>
@@ -229,6 +244,7 @@ export default function RowStrategies(){
                 ))}
               </div>
             }
+            <div style={{ marginTop:6, color:"#9ca3af", fontSize:11 }}>All times shown in AZ (America/Phoenix)</div>
           </div>
         )}
       </Card>
@@ -236,7 +252,7 @@ export default function RowStrategies(){
   );
 }
 
-/* ---------- subcomponents & styles ---------- */
+/* -------------------- subcomponents & styles -------------------- */
 function Check({ ok, label, tip, neutral }) {
   const style = neutral ? styles.chkNeutral : ok ? styles.chkOk : styles.chkNo;
   return (
@@ -291,6 +307,7 @@ const styles = {
   progress:{ background:"#1f2937", borderRadius:6, height:6, overflow:"hidden", border:"1px solid #334155" },
   progressFill:{ height:"100%", background:"linear-gradient(90deg,#22c55e 0%,#84cc16 40%,#f59e0b 70%,#ef4444 100%)" },
   scoreVal:{ textAlign:"right", fontWeight:700, fontSize:12 },
+
   metaRow:{ display:"grid", gridTemplateColumns:"1fr auto", gap:6, fontSize:11, color:"#cbd5e1" },
   metaKey:{ color:"#9ca3af", marginRight:4, fontWeight:600 },
 
@@ -308,7 +325,6 @@ const styles = {
   logBtn:{ marginLeft:"auto", background:"#0b0b0b", color:"#e5e7eb", border:"1px solid #2b2b2b", borderRadius:8, padding:"2px 8px", fontWeight:700, fontSize:11, cursor:"pointer" },
   logPanel:{ marginTop:8, padding:8, background:"#0f172a", border:"1px solid #1e293b", borderRadius:10 },
   logItem:{ background:"#0b0b0b", border:"1px solid #1f2937", borderRadius:8, padding:8 },
-  logMini:{ background:"#0b0b0b", color:"#e5e7eb", border:"1px solid #2b2b2b", borderRadius:6, padding:"2px 6px", fontWeight:700, fontSize:11, cursor:"pointer" },
 };
 
 function toneStyles(kind){
