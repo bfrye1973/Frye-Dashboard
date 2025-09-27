@@ -5,8 +5,9 @@ import RowMarketOverview from "./rows/RowMarketOverview";
 import RowEngineLights from "./rows/RowEngineLights";
 import RowIndexSectors from "./rows/RowIndexSectors";
 import RowStrategies from "./rows/RowStrategies";
-import RowTradingReadOnly from "./rows/RowTradingReadOnly"; // ← NEW
+// REMOVED: RowTradingReadOnly (we moved to a drawer + tiny positions strip)
 import RowChart from "./rows/RowChart";
+import RowPositionsStrip from "./rows/RowPositionsStrip"; // ← NEW compact strip
 import RowJournal from "./rows/RowJournal";
 import { useSelection } from "../context/ModeContext";
 
@@ -50,12 +51,7 @@ export default function NewDashboard() {
         <RowStrategies />
       </section>
 
-      {/* Row 5A — Paper Trading (read-only) */}
-      <section id="row-5a" className="panel">
-        <RowTradingReadOnly />
-      </section>
-
-      {/* Row 6 — remount on selection change */}
+      {/* Row 6 — Chart */}
       <section id="row-6" className="panel row6-shell">
         <RowChart
           key={`${symbol}-${timeframe}`}
@@ -64,6 +60,11 @@ export default function NewDashboard() {
           defaultTimeframe={timeframe}
           showDebug={false}
         />
+      </section>
+
+      {/* Row 6A — tiny Positions strip (always visible, very small) */}
+      <section id="row-6a" className="panel">
+        <RowPositionsStrip />
       </section>
 
       {/* Row 7 */}
