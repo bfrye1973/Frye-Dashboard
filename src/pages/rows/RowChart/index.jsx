@@ -1,6 +1,5 @@
 // src/pages/rows/RowChart/index.jsx
-// v4.3 — Clean defaults: EMAs + Volume ON; all other indicators OFF.
-//        SMI is still gated to Full Chart, but defaults OFF there too.
+// v4.3 — Clean defaults: EMAs + Volume ON; others OFF. SMI gated to Full Chart.
 
 import React, { useMemo, useState, useEffect, useRef } from "react";
 import Controls from "./Controls";
@@ -21,7 +20,23 @@ import { createLuxSrOverlay } from "../../../indicators/srLux";
 import SwingLiquidityOverlay from "../../../components/overlays/SwingLiquidityOverlay";
 import { createSmiOverlay } from "../../../indicators/smi";
 
-export default function RowChart({
+/* ----------------------------- PUBLIC WRAPPER ----------------------------- */
+// This wrapper keeps Hooks inside RowChartImpl so we never call them conditionally.
+export default function RowChart(props) {
+  if (LINK_ONLY) {
+    return (
+      <LinkOnly
+        defaultSymbol={props.defaultSymbol || "SPY"}
+        defaultTimeframe={props.defaultTimeframe || "1h"}
+        label="Open Full Chart ↗"
+      />
+    );
+  }
+  return <RowChartImpl {...props} />;
+}
+
+/* ------------------------------- REAL CHART ------------------------------- */
+function RowChartImpl({
   apiBase,
   defaultSymbol = "SPY",
   defaultTimeframe = "1h",
@@ -29,17 +44,6 @@ export default function RowChart({
   onStatus,
   showDebug = false,
 }) {
-  // If env flag is set, render a link-only panel and exit early
-  if (LINK_ONLY) {
-    return (
-      <LinkOnly
-        defaultSymbol={defaultSymbol}
-        defaultTimeframe={defaultTimeframe}
-        label="Open Full Chart ↗"
-      />
-    );
-  }
-
   // Detect Full Chart route (so SMI only runs there)
   const isFullChart =
     typeof window !== "undefined" &&
