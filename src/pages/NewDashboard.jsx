@@ -5,15 +5,18 @@ import RowMarketOverview from "./rows/RowMarketOverview";
 import RowEngineLights from "./rows/RowEngineLights";
 import RowIndexSectors from "./rows/RowIndexSectors";
 import RowStrategies from "./rows/RowStrategies";
-// REMOVED: RowTradingReadOnly (we moved to a drawer + tiny positions strip)
 import RowChart from "./rows/RowChart";
-import RowPositionsStrip from "./rows/RowPositionsStrip"; // ← NEW compact strip
 import RowJournal from "./rows/RowJournal";
 import { useSelection } from "../context/ModeContext";
 
 // single, crash-proof helper (no 'process' access in the browser)
 function getApiBase() {
+  // If you later set REACT_APP_API_BASE, the bundler will inline a literal here
+  // and this function still won’t crash because we never reference `process`.
+  const INLINE = "__REACT_APP_API_BASE__";
+  // The bundler will not replace this string; keep the backend default:
   const DEFAULT_BACKEND = "https://frye-market-backend-1.onrender.com";
+  // If you do want to wire env later, change INLINE at build time; otherwise we use default.
   return DEFAULT_BACKEND;
 }
 
@@ -51,7 +54,7 @@ export default function NewDashboard() {
         <RowStrategies />
       </section>
 
-      {/* Row 6 — Chart */}
+      {/* Row 6 — remount on selection change */}
       <section id="row-6" className="panel row6-shell">
         <RowChart
           key={`${symbol}-${timeframe}`}
@@ -60,11 +63,6 @@ export default function NewDashboard() {
           defaultTimeframe={timeframe}
           showDebug={false}
         />
-      </section>
-
-      {/* Row 6A — tiny Positions strip (always visible, very small) */}
-      <section id="row-6a" className="panel">
-        <RowPositionsStrip />
       </section>
 
       {/* Row 7 */}
