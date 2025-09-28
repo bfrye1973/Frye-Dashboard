@@ -4,17 +4,22 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import NewDashboard from "./pages/NewDashboard";
 import ErrorBoundary from "./ErrorBoundary";
 import "./index.css";
-import { ModeProvider, ViewModes } from "./context/ModeContext";
-import TradeDrawer from "./components/trading/TradeDrawer"; // ← NEW
 
+// NEW: bring in the provider so selection is available app-wide
+import { ModeProvider, ViewModes } from "./context/ModeContext";
+
+// Lazy-load to keep the first load fast
 const FullChart = React.lazy(() => import("./pages/FullChart"));
 
+/* ------------------------- config: backend base ------------------------- */
+// Try window override first (for local dev), then env, then hard default.
 const API_BASE =
   (typeof window !== "undefined" && (window.__API_BASE__ || "")) ||
   process.env.REACT_APP_API_BASE ||
   process.env.VITE_TRADING_API_BASE ||
   "https://frye-market-backend-1.onrender.com";
 
+/* --------------------------- small date helpers ------------------------- */
 const fmtAz = (iso) => {
   try {
     return new Intl.DateTimeFormat("en-US", {
@@ -31,7 +36,12 @@ const fmtAz = (iso) => {
   }
 };
 
-function HealthStatusBar({ onOpenTrade }) {
+/* --------------------------- Health Status Bar -------------------------- */
+/**
+ * Read-only health bar:
+ * GET {API_BASE}/api/health → { ok: boolean, ts: ISO, service: string }
+ */
+function HealthStatusBar() {
   const [state, setState] = useState({
     ok: null,
     ts: null,
@@ -67,6 +77,7 @@ function HealthStatusBar({ onOpenTrade }) {
       }
     };
 
+    // initial + poll every 10s
     fetchHealth();
     const id = setInterval(fetchHealth, 10000);
     return () => {
@@ -76,7 +87,7 @@ function HealthStatusBar({ onOpenTrade }) {
   }, [url]);
 
   const connected = state.ok === true;
-  const statusColor = connected ? "#16a34a" : "#dc2626";
+  const statusColor = connected ? "#16a34a" : "#dc2626"; // green/red
   const heartbeat = state.ts ? fmtAz(state.ts) : "—";
   const checked = state.lastChecked ? fmtAz(state.lastChecked) : "—";
 
@@ -101,119 +112,70 @@ function HealthStatusBar({ onOpenTrade }) {
           alignItems: "center",
           padding: "6px 10px",
           flexWrap: "wrap",
-          justifyContent: "space-between",
         }}
       >
-        {/* Left side: service + health */}
-        <div style={{ display: "flex", gap: 16, alignItems: "center", flexWrap: "wrap" }}>
-          <strong style={{ color: "#93c5fd" }}>Service:</strong>
-          <span>{state.service || "frye-market-backend"}</span>
-          <span style={{ opacity: 0.5 }}>|</span>
+        <strong style={{ color: "#93c5fd" }}>Service:</strong>
+        <span>{state.service || "frye-market-backend"}</span>
 
-          <strong style={{ color: "#93c5fd" }}>Connected:</strong>
+        <span style={{ opacity: 0.5 }}>|</span>
+
+        <strong style={{ color: "#93c5fd" }}>Connected:</strong>
+        <span
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 6,
+            color: statusColor,
+            fontWeight: 600,
+          }}
+        >
           <span
             style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 6,
-              color: statusColor,
-              fontWeight: 600,
+              width: 8,
+              height: 8,
+              borderRadius: 999,
+              background: statusColor,
+              display: "inline-block",
             }}
-          >
-            <span
-              style={{
-                width: 8,
-                height: 8,
-                borderRadius: 999,
-                background: statusColor,
-                display: "inline-block",
-              }}
-            />
-            {connected ? "✓" : "✗"}
-          </span>
+          />
+          {connected ? "✓" : "✗"}
+        </span>
 
-          <span style={{ opacity: 0.5 }}>|</span>
-          <strong style={{ color: "#93c5fd" }}>Last heartbeat (AZ):</strong>
-          <span>{heartbeat}</span>
+        <span style={{ opacity: 0.5 }}>|</span>
 
-          <span style={{ opacity: 0.5 }}>|</span>
-          <strong style={{ color: "#93c5fd" }}>Checked at (AZ):</strong>
-          <span>{checked}</span>
+        <strong style={{ color: "#93c5fd" }}>Last heartbeat (AZ):</strong>
+        <span>{heartbeat}</span>
 
-          {state.error && (
-            <>
-              <span style={{ opacity: 0.5 }}>|</span>
-              <span style={{ color: "#f97316" }}>Note:</span>
-              <span style={{ color: "#fca5a5" }}>{state.error}</span>
-            </>
-          )}
-        </div>
+        <span style={{ opacity: 0.5 }}>|</span>
 
-        {/* Right side: Trade dropdown */}
-        <div>
-          <details style={{ position: "relative" }}>
-            <summary
-              style={{
-                listStyle: "none",
-                cursor: "pointer",
-                background: "#111827",
-                color: "#e5e7eb",
-                border: "1px solid #1f2937",
-                borderRadius: 8,
-                padding: "6px 10px",
-              }}
-            >
-              Trade ▾
-            </summary>
-            <div
-              style={{
-                position: "absolute",
-                right: 0,
-                marginTop: 6,
-                minWidth: 220,
-                background: "#0b0f14",
-                border: "1px solid #1f2937",
-                borderRadius: 10,
-                boxShadow: "0 10px 20px rgba(0,0,0,0.4)",
-                padding: 8,
-                zIndex: 1001,
-              }}
-            >
-              <button onClick={onOpenTrade} style={menuBtn}>Open Trade Drawer</button>
-              <button onClick={onOpenTrade} style={menuBtn}>Positions / Orders</button>
-              <button onClick={onOpenTrade} style={menuBtn}>Options Chain</button>
-              <button onClick={onOpenTrade} style={menuBtn}>Trading Journal</button>
-            </div>
-          </details>
-        </div>
+        <strong style={{ color: "#93c5fd" }}>Checked at (AZ):</strong>
+        <span>{checked}</span>
+
+        {state.error && (
+          <>
+            <span style={{ opacity: 0.5 }}>|</span>
+            <span style={{ color: "#f97316" }}>Note:</span>
+            <span style={{ color: "#fca5a5" }}>{state.error}</span>
+          </>
+        )}
       </div>
     </div>
   );
 }
 
-const menuBtn = {
-  width: "100%",
-  textAlign: "left",
-  background: "transparent",
-  color: "#e5e7eb",
-  border: "none",
-  borderRadius: 8,
-  padding: "8px 10px",
-  cursor: "pointer",
-};
-
 export default function App() {
-  const [tradeOpen, setTradeOpen] = useState(false);
-
   return (
     <div style={{ minHeight: "100vh" }}>
       <ErrorBoundary>
         <BrowserRouter>
-          <HealthStatusBar onOpenTrade={() => setTradeOpen(true)} />
+          {/* Read-only health bar at the very top */}
+          <HealthStatusBar />
 
           <ModeProvider initial={ViewModes.METER_TILES}>
             <React.Suspense
-              fallback={<div style={{ padding: 16, color: "#9ca3af" }}>Loading…</div>}
+              fallback={
+                <div style={{ padding: 16, color: "#9ca3af" }}>Loading…</div>
+              }
             >
               <Routes>
                 <Route path="/" element={<NewDashboard />} />
@@ -222,9 +184,6 @@ export default function App() {
               </Routes>
             </React.Suspense>
           </ModeProvider>
-
-          {/* Floating trade drawer (right side) */}
-          <TradeDrawer open={tradeOpen} onClose={() => setTradeOpen(false)} defaultSymbol="SPY" />
         </BrowserRouter>
       </ErrorBoundary>
     </div>
