@@ -1,41 +1,36 @@
-import { useCallback, useRef, useState } from "react";
-import { resolveApiBase } from "./constants";
+import { useCallback, useEffect, useState } from "react";
+import { fetchOHLCResilient } from "lib/ohlcClient"; // or "../../lib/ohlcClient" if you don't use aliases
 
-export default function useOhlc({ apiBase, symbol, timeframe }) {
+let printedOnce = false; // dev-only breadcrumb
+
+export default function useOhlc({ apiBase, symbol, timeframe, limit = 500 }) {
   const [bars, setBars] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const abortRef = useRef(null);
-  const cacheRef = useRef(new Map());
-  const key = `${symbol}|${timeframe}`;
+  const [error, setError] = useState("");
 
-  const fetchBars = useCallback(async (force=false) => {
-    setError(null); setLoading(true);
-    if (abortRef.current) try { abortRef.current.abort(); } catch {}
-    const ctl = new AbortController(); abortRef.current = ctl;
-
-    if (!force && cacheRef.current.has(key)) {
-      setBars(cacheRef.current.get(key)); setLoading(false); return { ok:true, cached:true };
-    }
-
-    const base = resolveApiBase(apiBase);
-    const url = `${base}/api/v1/ohlc?symbol=${encodeURIComponent(symbol)}&timeframe=${encodeURIComponent(timeframe)}&_=${Date.now()}`;
-
+  const refetch = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
+    setError("");
     try {
-      const r = await fetch(url, { signal: ctl.signal, cache: "no-store" });
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      const j = await r.json();
-      const data = Array.isArray(j?.bars) ? j.bars : [];
-      cacheRef.current.set(key, data);
-      setBars(data);
-      return { ok:true, count:data.length };
+      const { source, bars } = await fetchOHLCResilient({ symbol, timeframe, limit });
+      setBars(bars);
+      if (!printedOnce) {
+        printedOnce = true;
+        // eslint-disable-next-line no-console
+        console.debug("[OHLC] src:", source, "bars:", bars.length, "first:", bars[0], "last:", bars.at?.(-1));
+      }
+      if (!bars.length) setError("empty");
+      return { ok: true, count: bars.length, source };
     } catch (e) {
-      if (e.name !== "AbortError") setError(e.message || "Failed to fetch");
-      return { ok:false, error:e.message || "Failed to fetch" };
+      const msg = e?.message || "fetch failed";
+      setError(msg);
+      return { ok: false, error: msg };
     } finally {
       setLoading(false);
     }
-  }, [apiBase, key, symbol, timeframe]);
+  }, [symbol, timeframe, limit]);
 
-  return { bars, loading, error, refetch: fetchBars };
+  useEffect(() => { void refetch(true); }, [refetch]);
+
+  return { bars, loading, error, refetch };
 }
