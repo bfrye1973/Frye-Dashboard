@@ -189,3 +189,21 @@ html body #root > .dashboard-grid[data-cluster-host] {
   pointer-events: none;
   z-index: 10;
 }
+/* Keep chart host always visible with room for time axis */
+.tv-lightweight-charts {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 520px;       /* never collapse */
+  padding: 0;              /* no extra padding that clips */
+  margin: 0;
+}
+
+/* leave room for x-axis labels at bottom */
+.tv-lightweight-charts canvas {
+  inset: 0 0 var(--axis-gap, 18px) 0 !important;
+}
+
+:root {
+  --axis-gap: 18px; /* ensures bottom labels are visible */
+}
