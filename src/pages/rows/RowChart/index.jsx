@@ -9,6 +9,10 @@ import useOhlc from "./useOhlc";
 import useLwcChart from "./useLwcChart";
 import { SYMBOLS, TIMEFRAMES, resolveApiBase } from "./constants";
 
+// Link-only (env-flagged) mode
+import LinkOnly from "./LinkOnly";
+const LINK_ONLY = process.env.REACT_APP_CHART_LINK_ONLY === "1";
+
 // Overlays / panes
 import { createEmaOverlay } from "../../../indicators/ema/overlay";
 import { createVolumeOverlay } from "../../../indicators/volume";
@@ -25,6 +29,17 @@ export default function RowChart({
   onStatus,
   showDebug = false,
 }) {
+  // If env flag is set, render a link-only panel and exit early
+  if (LINK_ONLY) {
+    return (
+      <LinkOnly
+        defaultSymbol={defaultSymbol}
+        defaultTimeframe={defaultTimeframe}
+        label="Open Full Chart ↗"
+      />
+    );
+  }
+
   // Detect Full Chart route (so SMI only runs there)
   const isFullChart =
     typeof window !== "undefined" &&
@@ -285,7 +300,7 @@ export default function RowChart({
           display: "flex",
           justifyContent: "flex-end",
           padding: "6px 12px",
-          borderBottom: "1px solid #2b2b2b",
+          borderBottom: "1px solid "#2b2b2b",
         }}
       >
         <button
