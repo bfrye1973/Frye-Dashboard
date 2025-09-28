@@ -300,7 +300,7 @@ export default function RowChart({
           display: "flex",
           justifyContent: "flex-end",
           padding: "6px 12px",
-          borderBottom: "1px solid "#2b2b2b",
+          borderBottom: "1px solid #2b2b2b",
         }}
       >
         <button
