@@ -4,10 +4,18 @@ import RowChart from "./rows/RowChart"; // resolves to ./rows/RowChart/index.jsx
 
 const HEADER_H = 52; // match your top bar height
 
+// NEW: accept timeframe OR tf from the URL (and normalize symbol)
+function getQueryParams() {
+  if (typeof window === "undefined") return { symbol: "SPY", timeframe: "1h" };
+  const q = new URLSearchParams(window.location.search);
+  const symbol = (q.get("symbol") || "SPY").toUpperCase();
+  const timeframe = q.get("timeframe") || q.get("tf") || "1h";
+  return { symbol, timeframe };
+}
+
 export default function FullChart() {
-  const params = useMemo(() => new URLSearchParams(window.location.search), []);
-  const symbol = (params.get("symbol") || "SPY").toUpperCase();
-  const tf = params.get("tf") || "1h";
+  // useMemo so we only read the URL once on mount
+  const { symbol, timeframe } = useMemo(() => getQueryParams(), []);
 
   const bodyRef = useRef(null);
   const [ready, setReady] = useState(false);
@@ -17,7 +25,10 @@ export default function FullChart() {
     if (!el) return;
 
     const apply = () => {
-      const h = window.innerHeight || document.documentElement.clientHeight || 800;
+      const h =
+        window.innerHeight ||
+        document.documentElement.clientHeight ||
+        800;
       el.style.height = Math.max(200, h - HEADER_H) + "px";
     };
 
@@ -55,7 +66,9 @@ export default function FullChart() {
       >
         <button
           onClick={() =>
-            window.history.length > 1 ? window.history.back() : (window.location.href = "/")
+            window.history.length > 1
+              ? window.history.back()
+              : (window.location.href = "/")
           }
           style={{
             background: "#0b0b0b",
@@ -69,9 +82,11 @@ export default function FullChart() {
         >
           ← Back
         </button>
-        <div style={{ color: "#e5e7eb", fontWeight: 700, marginLeft: 8 }}>Full Chart</div>
+        <div style={{ color: "#e5e7eb", fontWeight: 700, marginLeft: 8 }}>
+          Full Chart
+        </div>
         <div style={{ marginLeft: "auto", color: "#9ca3af", fontSize: 12 }}>
-          {symbol} · {tf}
+          {symbol} · {timeframe}
         </div>
       </div>
 
@@ -88,11 +103,18 @@ export default function FullChart() {
         }}
       >
         {ready && (
-          <div style={{ flex: "1 1 auto", minHeight: 0, display: "flex", flexDirection: "column" }}>
+          <div
+            style={{
+              flex: "1 1 auto",
+              minHeight: 0,
+              display: "flex",
+              flexDirection: "column",
+            }}
+          >
             <RowChart
               apiBase="https://frye-market-backend-1.onrender.com"
               defaultSymbol={symbol}
-              defaultTimeframe={tf}
+              defaultTimeframe={timeframe}
               showDebug={false}
             />
           </div>
