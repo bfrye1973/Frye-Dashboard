@@ -4,11 +4,12 @@
 import React, { useEffect, useRef, useState } from "react";
 import { createChart } from "lightweight-charts";
 import { baseChartOptions } from "./chartConfig";
-import { getFeed } from "../../services/feed";
+import { getFeed } from "../../services/feed";   // keep if you stream updates
+import { getOHLC } from "../../services/ohlc";   // ✅ seed history from backend alias
 
 export default function LiveLWChart({
   symbol = "SPY",
-  timeframe = "1D",
+  timeframe = "10m",
   enabledIndicators = [],   // reserved for future use
   indicatorSettings = {},   // reserved for future use
   height = 520,
@@ -99,9 +100,7 @@ export default function LiveLWChart({
     roRef.current = ro;
 
     // respond to OS/browser zoom changes for crisp rendering
-    const mq = window.matchMedia(
-      `(resolution: ${window.devicePixelRatio}dppx)`
-    );
+    const mq = window.matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
     const onDpr = () => safeResize();
     if (mq.addEventListener) {
       mq.addEventListener("change", onDpr);
@@ -115,41 +114,30 @@ export default function LiveLWChart({
     safeResize();
 
     return () => {
-      try {
-        roRef.current?.disconnect();
-      } catch {}
-      try {
-        dprCleanupRef.current?.();
-      } catch {}
-      try {
-        chart.remove();
-      } catch {}
+      try { roRef.current?.disconnect(); } catch {}
+      try { dprCleanupRef.current?.(); } catch {}
+      try { chart.remove(); } catch {}
       chartRef.current = null;
       seriesRef.current = null;
     };
   }, [height]);
 
   // ---- LOAD + STREAM ----
-
   useEffect(() => {
     const chart = chartRef.current;
     const series = seriesRef.current;
     if (!chart || !series) return;
 
-    const feed = getFeed(symbol, timeframe);
     let disposed = false;
 
+    // 1) Seed history from backend alias (✅ your new /api/v1/ohlc)
     (async () => {
       try {
-        const seed = await feed.history();
+        const seed = await getOHLC(symbol, timeframe, 1500);
         if (disposed) return;
-        if (Array.isArray(seed)) {
-          const normalizedSeed = seed.map((b) => ({
-            ...b,
-            time: normalizeSeconds(b.time),
-          }));
-          series.setData(normalizedSeed);
-          setCandles(normalizedSeed);
+        if (Array.isArray(seed) && seed.length) {
+          series.setData(seed);
+          setCandles(seed);
           chart.timeScale().fitContent();
         } else {
           series.setData([]);
@@ -162,9 +150,11 @@ export default function LiveLWChart({
       }
     })();
 
-    const unsub = feed.subscribe((bar) => {
+    // 2) Streaming (if your feed is active)
+    const feed = getFeed(symbol, timeframe); // keep your streaming adapter
+    const unsub = feed?.subscribe?.((bar) => {
       if (disposed || !bar || bar.time == null) return;
-      const time = normalizeSeconds(bar.time);
+      const time = normalizeSeconds(bar.time);           // normalize ms→s if needed
       const normalized = { ...bar, time };
       series.update(normalized);
       setCandles((prev) => mergeBar(prev, normalized));
@@ -172,12 +162,8 @@ export default function LiveLWChart({
 
     return () => {
       disposed = true;
-      try {
-        unsub?.();
-      } catch {}
-      try {
-        feed.close?.();
-      } catch {}
+      try { unsub?.(); } catch {}
+      try { feed?.close?.(); } catch {}
     };
   }, [symbol, timeframe]);
 
