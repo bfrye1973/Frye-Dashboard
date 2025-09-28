@@ -1,6 +1,5 @@
 // src/components/trading/TradeDrawer.jsx
 import React, { useEffect, useMemo, useState } from "react";
-import { createPortal } from "react-dom";
 
 /* --------------------- CRA-safe backend base resolver --------------------- */
 function getApiBase() {
@@ -75,8 +74,6 @@ function numberOrNull(v) {
 }
 
 /* ------------------------------ small UI bits ----------------------------- */
-const FONT = 13;
-
 function Pill({ color = "#374151", children }) {
   return (
     <span
@@ -86,7 +83,7 @@ function Pill({ color = "#374151", children }) {
         borderRadius: 999,
         background: color,
         color: "#e5e7eb",
-        fontSize: FONT,
+        fontSize: 12,
         lineHeight: "18px",
         fontWeight: 600,
       }}
@@ -95,7 +92,6 @@ function Pill({ color = "#374151", children }) {
     </span>
   );
 }
-
 function SimpleTable({ columns, rows, emptyText }) {
   return (
     <div style={{ overflowX: "auto" }}>
@@ -108,7 +104,7 @@ function SimpleTable({ columns, rows, emptyText }) {
                 style={{
                   textAlign: c.align || "left",
                   padding: "8px 10px",
-                  fontSize: FONT,
+                  fontSize: 12,
                   color: "#9ca3af",
                   borderBottom: "1px solid #1f2937",
                   whiteSpace: "nowrap",
@@ -122,7 +118,7 @@ function SimpleTable({ columns, rows, emptyText }) {
         <tbody>
           {rows.length === 0 ? (
             <tr>
-              <td colSpan={columns.length} style={{ padding: 10, color: "#6b7280", fontSize: FONT }}>
+              <td colSpan={columns.length} style={{ padding: 12, color: "#6b7280", fontSize: 13 }}>
                 {emptyText}
               </td>
             </tr>
@@ -135,7 +131,7 @@ function SimpleTable({ columns, rows, emptyText }) {
                     style={{
                       padding: "8px 10px",
                       textAlign: c.align || "left",
-                      fontSize: FONT + 1,
+                      fontSize: 13,
                       color: "#e5e7eb",
                       whiteSpace: "nowrap",
                     }}
@@ -156,38 +152,63 @@ function SimpleTable({ columns, rows, emptyText }) {
 export default function TradeDrawer({ open, onClose, defaultSymbol = "SPY" }) {
   const apiBase = getApiBase();
 
-  const [tab, setTab] = useState("ticket"); // ticket | positions | orders | executions | options | risk
+  const [tab, setTab] = useState("ticket"); // ticket | positions | orders | executions | journal | options | risk
   const [symbol, setSymbol] = useState(defaultSymbol);
 
-  // Asset type
+  // Asset type toggle
   const [assetType, setAssetType] = useState("OPTION"); // OPTION | EQUITY
 
-  // status (LIVE stays read-only)
+  // live/paper status (LIVE read-only until backend enables)
   const [status, setStatus] = useState({ mode: "PAPER", liveEnabled: false, connected: false });
+  const statusUrl = useMemo(() => `${apiBase.replace(/\/+$/, "")}/api/trading/status`, [apiBase]);
 
+  useEffect(() => {
+    if (!open) return;
+    let alive = true;
+    (async () => {
+      const res = await safeGet(statusUrl);
+      if (!alive) return;
+      if (res.ok && res.data) {
+        setStatus({
+          mode: res.data.mode || "PAPER",
+          liveEnabled: Boolean(res.data.liveEnabled),
+          connected: Boolean(res.data.connected),
+        });
+      }
+    })();
+    const id = setInterval(async () => {
+      const res = await safeGet(statusUrl);
+      if (!alive) return;
+      if (res.ok && res.data) {
+        setStatus({
+          mode: res.data.mode || "PAPER",
+          liveEnabled: Boolean(res.data.liveEnabled),
+          connected: Boolean(res.data.connected),
+        });
+      }
+    }, 15000);
+    return () => { alive = false; clearInterval(id); };
+  }, [statusUrl, open]);
+
+  /* -------------------------- read-only datasets -------------------------- */
   const URLS = useMemo(() => {
     const base = apiBase.replace(/\/+$/, "");
     return {
-      status: `${base}/api/trading/status`,
       positions: `${base}/api/trading/positions`,
       orders: `${base}/api/trading/orders`,
       executions: `${base}/api/trading/executions`,
-      // options
       optionsMeta: `${base}/api/options/meta?symbol=${encodeURIComponent(symbol)}`,
       chain: ({ expiration, side }) =>
         `${base}/api/options/chain?symbol=${encodeURIComponent(symbol)}${
           expiration ? `&expiration=${encodeURIComponent(expiration)}` : ""
         }${side ? `&side=${encodeURIComponent(side)}` : ""}`,
-      // risk
       riskStatus: `${base}/api/risk/status`,
       riskKill: `${base}/api/risk/kill`,
-      // place/cancel
       placeOrder: `${base}/api/trading/orders`,
       cancelOrder: (id) => `${base}/api/trading/orders/${encodeURIComponent(id)}`,
     };
   }, [apiBase, symbol]);
 
-  /* --------------------------- status + polling --------------------------- */
   const [positions, setPositions] = useState([]);
   const [orders, setOrders] = useState([]);
   const [executions, setExecutions] = useState([]);
@@ -195,44 +216,34 @@ export default function TradeDrawer({ open, onClose, defaultSymbol = "SPY" }) {
   useEffect(() => {
     if (!open) return;
     let alive = true;
-
-    const tick = async () => {
-      const s = await safeGet(URLS.status);
-      if (alive && s.ok && s.data) {
-        setStatus({
-          mode: s.data.mode || "PAPER",
-          liveEnabled: !!s.data.liveEnabled,
-          connected: !!s.data.connected,
-        });
-      }
-      const [p, o, e] = await Promise.all([
-        safeGet(URLS.positions),
-        safeGet(URLS.orders),
-        safeGet(URLS.executions),
-      ]);
+    async function tick() {
+      const [p, o, e] = await Promise.all([safeGet(URLS.positions), safeGet(URLS.orders), safeGet(URLS.executions)]);
       if (!alive) return;
       setPositions(Array.isArray(p.data) ? p.data : []);
       setOrders(Array.isArray(o.data) ? o.data : []);
       setExecutions(Array.isArray(e.data) ? e.data : []);
-    };
-
+    }
     tick();
     const id = setInterval(tick, 10000);
-    return () => {
-      alive = false;
-      clearInterval(id);
-    };
-  }, [URLS.status, URLS.positions, URLS.orders, URLS.executions, open]);
+    return () => { alive = false; clearInterval(id); };
+  }, [URLS.positions, URLS.orders, URLS.executions, open]);
 
   /* ------------------------------ Options data ---------------------------- */
   const [expirations, setExpirations] = useState([]);
   const [expiration, setExpiration] = useState("");
   const [optSide, setOptSide] = useState("call"); // call | put
+  const [chainRows, setChainRows] = useState([]);
+  const [chainAvail, setChainAvail] = useState(null);
   const [strike, setStrike] = useState("");
-  const [manualOpt, setManualOpt] = useState(false);
 
+  // NEW: manual fallback for options fields
+  const [manualOpt, setManualOpt] = useState(false); // when true, allow typing expiration/strike even without endpoints
+
+  // Load expirations (if available)
   useEffect(() => {
-    if (!open || tab !== "ticket" || assetType !== "OPTION" || manualOpt) return;
+    if (!open) return;
+    if (tab !== "ticket" && tab !== "options") return;
+    if (assetType !== "OPTION" || manualOpt) return; // skip when manual mode
     let alive = true;
     (async () => {
       const meta = await safeGet(URLS.optionsMeta);
@@ -241,39 +252,46 @@ export default function TradeDrawer({ open, onClose, defaultSymbol = "SPY" }) {
       setExpirations(list);
       if (!expiration && list.length) setExpiration(list[0]);
     })();
-    return () => {
-      alive = false;
-    };
-  }, [URLS.optionsMeta, open, tab, assetType, manualOpt, expiration]);
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [URLS.optionsMeta, open, tab, assetType, manualOpt]);
 
-  /* --------------------------------- Risk --------------------------------- */
+  // Load chain (if available)
+  useEffect(() => {
+    if (!open) return;
+    if (tab !== "ticket" && tab !== "options") return;
+    if (assetType !== "OPTION" || manualOpt) return;
+    let alive = true;
+    (async () => {
+      const res = await safeGet(URLS.chain({ expiration, side: optSide }));
+      if (!alive) return;
+      if (res.ok && Array.isArray(res.data)) {
+        setChainRows(res.data);
+        setChainAvail(true);
+      } else {
+        setChainRows([]);
+        setChainAvail(false);
+      }
+    })();
+    return () => { alive = false; };
+  }, [URLS, expiration, optSide, open, tab, assetType, manualOpt]);
+
+  /* ------------------------------- Risk tab ------------------------------- */
   const [risk, setRisk] = useState({ killSwitch: false, caps: null, last: null });
-
   useEffect(() => {
     if (!open || tab !== "risk") return;
     let alive = true;
     (async () => {
       const r = await safeGet(URLS.riskStatus);
       if (!alive) return;
-      setRisk({
-        killSwitch: !!r.data?.killSwitch,
-        caps: r.data?.caps || null,
-        last: new Date().toISOString(),
-      });
+      setRisk({ killSwitch: Boolean(r.data?.killSwitch), caps: r.data?.caps || null, last: new Date().toISOString() });
     })();
     const id = setInterval(async () => {
       const r = await safeGet(URLS.riskStatus);
       if (!alive) return;
-      setRisk({
-        killSwitch: !!r.data?.killSwitch,
-        caps: r.data?.caps || null,
-        last: new Date().toISOString(),
-      });
+      setRisk({ killSwitch: Boolean(r.data?.killSwitch), caps: r.data?.caps || null, last: new Date().toISOString() });
     }, 15000);
-    return () => {
-      alive = false;
-      clearInterval(id);
-    };
+    return () => { alive = false; clearInterval(id); };
   }, [URLS.riskStatus, tab, open]);
 
   async function handleKillSwitch() {
@@ -285,29 +303,27 @@ export default function TradeDrawer({ open, onClose, defaultSymbol = "SPY" }) {
       const o = await safeGet(URLS.orders);
       setOrders(Array.isArray(o.data) ? o.data : []);
       const r = await safeGet(URLS.riskStatus);
-      setRisk({
-        killSwitch: !!r.data?.killSwitch,
-        caps: r.data?.caps || null,
-        last: new Date().toISOString(),
-      });
+      setRisk({ killSwitch: Boolean(r.data?.killSwitch), caps: r.data?.caps || null, last: new Date().toISOString() });
     } else {
       alert("Kill Switch failed or endpoint not available.");
     }
   }
 
   /* ------------------------------ Ticket state ---------------------------- */
+  // Shared
   const [sideIn, setSideIn] = useState("BUY");
   const [tif, setTif] = useState("DAY");
   const [type, setType] = useState("MKT"); // MKT|LMT|STOP|STOP-LMT
   const [limitPrice, setLimitPrice] = useState("");
   const [stopPrice, setStopPrice] = useState("");
 
-  // equity
+  // Equity
   const [equityQty, setEquityQty] = useState(100);
 
-  // option
-  const [contracts, setContracts] = useState(1);
-  const right = optSide.toUpperCase() === "PUT" ? "PUT" : "CALL";
+  // Option
+  const [contracts, setContracts] = useState(1); // contracts
+  const [right, setRight] = useState("CALL"); // CALL|PUT (sync with optSide)
+  useEffect(() => setRight(optSide?.toUpperCase() === "PUT" ? "PUT" : "CALL"), [optSide]);
 
   const [review, setReview] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -319,40 +335,42 @@ export default function TradeDrawer({ open, onClose, defaultSymbol = "SPY" }) {
     const errors = [];
     if (assetType === "EQUITY") {
       if (!symbol || !/^[A-Z0-9\.\-:]+$/i.test(symbol)) errors.push("Symbol looks invalid.");
-      if (!(+equityQty >= 1)) errors.push("Share quantity must be ≥ 1.");
-      if (type === "LMT" && numberOrNull(limitPrice) == null) errors.push("Limit required for LMT.");
+      if (!Number.isFinite(Number(equityQty)) || Number(equityQty) < 1) errors.push("Share quantity must be ≥ 1.");
+      if (type === "LMT" && numberOrNull(limitPrice) == null) errors.push("Limit price required for LMT.");
       if ((type === "STOP" || type === "STOP-LMT") && numberOrNull(stopPrice) == null)
-        errors.push("Stop required for STOP/STOP-LMT.");
+        errors.push("Stop price required for STOP/STOP-LMT.");
     } else {
       if (!symbol || !/^[A-Z0-9\.\-:]+$/i.test(symbol)) errors.push("Underlying looks invalid.");
-      if (!manualOpt && !expiration) errors.push("Choose expiration.");
-      if (manualOpt && !/^\d{4}-\d{2}-\d{2}$/.test(expiration)) errors.push("Expiration must be YYYY-MM-DD.");
-      if (!(+contracts >= 1)) errors.push("Contracts must be ≥ 1.");
-      if (!Number.isFinite(+strike)) errors.push("Choose strike.");
-      if (type === "LMT" && numberOrNull(limitPrice) == null) errors.push("Limit required for LMT.");
+      if (!expiration || !/^\d{4}-\d{2}-\d{2}$/.test(expiration)) errors.push("Expiration must be YYYY-MM-DD.");
+      if (!Number.isFinite(Number(contracts)) || Number(contracts) < 1) errors.push("Contracts must be ≥ 1.");
+      if (!Number.isFinite(Number(strike))) errors.push("Choose a strike.");
+      if (type === "LMT" && numberOrNull(limitPrice) == null) errors.push("Limit price required for LMT.");
       if ((type === "STOP" || type === "STOP-LMT") && numberOrNull(stopPrice) == null)
-        errors.push("Stop required for STOP/STOP-LMT.");
+        errors.push("Stop price required for STOP/STOP-LMT.");
     }
     if (liveBlocked) errors.push("Live trading is read-only. Paper only.");
     return errors;
   }
 
-  function submitTicket() {
+  async function submitTicket() {
     const errors = validateTicket();
-    if (errors.length) return alert("Please fix:\n• " + errors.join("\n• "));
+    if (errors.length) {
+      alert("Please fix:\n• " + errors.join("\n• "));
+      return;
+    }
     setReview(true);
   }
 
   async function confirmSubmit() {
     setBusy(true);
     const idem = uuidv4();
-    let payload;
 
+    let payload;
     if (assetType === "EQUITY") {
       payload = {
         mode: "PAPER",
         assetType: "EQUITY",
-        symbol: symbol.toUpperCase(),
+        symbol: String(symbol).toUpperCase(),
         side: sideIn,
         qty: Number(equityQty),
         orderType: type,
@@ -365,7 +383,7 @@ export default function TradeDrawer({ open, onClose, defaultSymbol = "SPY" }) {
       payload = {
         mode: "PAPER",
         assetType: "OPTION",
-        underlying: symbol.toUpperCase(),
+        underlying: String(symbol).toUpperCase(),
         right,
         expiration,
         strike: Number(strike),
@@ -393,7 +411,7 @@ export default function TradeDrawer({ open, onClose, defaultSymbol = "SPY" }) {
       const o = await safeGet(URLS.orders);
       setOrders(Array.isArray(o.data) ? o.data : []);
     } else {
-      alert(`Order submit failed (${res.status || "network"}). ${res.data?.message || ""}`);
+      alert(`Order submit failed (${res.status || "network"}). ${res.data?.message || "Endpoint not available yet."}`);
     }
   }
 
@@ -413,85 +431,65 @@ export default function TradeDrawer({ open, onClose, defaultSymbol = "SPY" }) {
   /* --------------------------------- UI ----------------------------------- */
   if (!open) return null;
 
-  const drawer = (
-    <div role="dialog" aria-modal="true" style={{ position: "fixed", inset: 0, zIndex: 2000, fontSize: FONT }}>
-      {/* Backdrop (no document/body side-effects) */}
+  return (
+    <div role="dialog" aria-modal="true" style={{ position: "fixed", inset: 0, zIndex: 2000 }}>
       <div onClick={onClose} style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.5)" }} />
-
-      {/* Panel — fixed, out of flow, won’t affect grid/rows */}
       <div
         style={{
           position: "absolute",
           top: 0,
           right: 0,
           height: "100%",
-          width: 460,
+          width: 520,
           background: "#0b0f14",
           borderLeft: "1px solid #1f2937",
           display: "flex",
           flexDirection: "column",
+          boxShadow: "0 0 0 1px rgba(0,0,0,0.3)",
         }}
       >
-        {/* Header (minimal) */}
+        {/* Header */}
         <div
           style={{
-            padding: "8px 10px",
+            padding: "10px 12px",
             borderBottom: "1px solid #1f2937",
             display: "flex",
             alignItems: "center",
-            gap: 10,
-            color: "#e5e7eb",
+            justifyContent: "space-between",
+            gap: 8,
           }}
         >
-          <strong style={{ color: "#93c5fd" }}>Trade</strong>
-          <input
-            value={symbol}
-            onChange={(e) => setSymbol(e.target.value.toUpperCase())}
-            placeholder="Symbol"
-            style={{
-              width: 90,
-              background: "#0f172a",
-              color: "#e5e7eb",
-              border: "1px solid #1f2937",
-              borderRadius: 8,
-              padding: "6px 8px",
-              textTransform: "uppercase",
-            }}
-          />
-          <Pill color={status.mode === "PAPER" ? "#065f46" : "#7c2d12"}>
-            {status.mode} {status.mode === "LIVE" && !status.liveEnabled ? "(read-only)" : ""}
-          </Pill>
-          <button
-            onClick={onClose}
-            style={{
-              marginLeft: "auto",
-              background: "#111827",
-              color: "#e5e7eb",
-              border: "1px solid #374151",
-              borderRadius: 8,
-              padding: "6px 10px",
-              cursor: "pointer",
-            }}
-          >
-            Close
-          </button>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <strong style={{ color: "#93c5fd" }}>Trade</strong>
+            <input
+              value={symbol}
+              onChange={(e) => setSymbol(e.target.value.toUpperCase())}
+              placeholder="Symbol"
+              style={{
+                width: 90,
+                background: "#0f172a",
+                color: "#e5e7eb",
+                border: "1px solid #1f2937",
+                borderRadius: 8,
+                padding: "6px 8px",
+                textTransform: "uppercase",
+              }}
+            />
+            <Pill color={status.mode === "PAPER" ? "#065f46" : "#7c2d12"}>
+              {status.mode} {status.mode === "LIVE" && !status.liveEnabled ? "(read-only)" : ""}
+            </Pill>
+          </div>
+          <button onClick={onClose} style={ghostBtn}>Close</button>
         </div>
 
-        {/* Tabs — simple, no centering tricks */}
-        <div
-          style={{
-            padding: "6px 8px",
-            borderBottom: "1px solid #1f2937",
-            display: "flex",
-            gap: 6,
-            flexWrap: "wrap",
-          }}
-        >
+        {/* Tabs */}
+        <div style={{ padding: "8px 10px", borderBottom: "1px solid #1f2937" }}>
           {[
             ["ticket", "Ticket"],
             ["positions", "Positions"],
             ["orders", "Orders"],
             ["executions", "Executions"],
+            ["journal", "Journal"],
             ["options", "Options"],
             ["risk", "Risk"],
           ].map(([key, label]) => (
@@ -501,12 +499,12 @@ export default function TradeDrawer({ open, onClose, defaultSymbol = "SPY" }) {
               style={{
                 background: tab === key ? "#1f2937" : "#0f172a",
                 color: "#e5e7eb",
-                border: "1px solid #374151",
+                border: "1px solid #1f2937",
                 borderRadius: 999,
                 padding: "6px 10px",
+                marginRight: 6,
                 cursor: "pointer",
-                fontSize: FONT,
-                fontWeight: tab === key ? 700 : 600,
+                fontSize: 12,
               }}
             >
               {label}
@@ -515,65 +513,38 @@ export default function TradeDrawer({ open, onClose, defaultSymbol = "SPY" }) {
         </div>
 
         {/* Body */}
-        <div style={{ flex: 1, overflow: "auto", padding: 10, display: "grid", gap: 10 }}>
+        <div style={{ flex: 1, overflow: "auto", padding: 12, display: "grid", gap: 12 }}>
           {/* Ticket */}
           {tab === "ticket" && (
-            <div style={{ display: "grid", gap: 8 }}>
+            <div style={{ display: "grid", gap: 10 }}>
               {lastNote && (
                 <div style={{ color: "#a7f3d0", background: "#064e3b", borderRadius: 8, padding: "6px 8px" }}>
                   {lastNote}
                 </div>
               )}
 
-              {/* Asset toggle */}
-              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                <span style={{ color: "#9ca3af" }}>Asset:</span>
-                <button
-                  onClick={() => setAssetType("OPTION")}
-                  style={{
-                    background: assetType === "OPTION" ? "#1f2937" : "#0f172a",
-                    color: "#e5e7eb",
-                    border: "1px solid #374151",
-                    borderRadius: 999,
-                    padding: "4px 10px",
-                    cursor: "pointer",
-                  }}
-                >
-                  Option
-                </button>
-                <button
-                  onClick={() => setAssetType("EQUITY")}
-                  style={{
-                    background: assetType === "EQUITY" ? "#1f2937" : "#0f172a",
-                    color: "#e5e7eb",
-                    border: "1px solid #374151",
-                    borderRadius: 999,
-                    padding: "4px 10px",
-                    cursor: "pointer",
-                  }}
-                >
-                  Equity
-                </button>
+              {/* Asset Type Toggle */}
+              <div style={{ display: "flex", gap: 8 }}>
+                <label style={{ color: "#93c5fd", fontSize: 12, paddingTop: 6 }}>Asset:</label>
+                <button onClick={() => setAssetType("OPTION")} style={assetType === "OPTION" ? chipOn : chipOff}>Option</button>
+                <button onClick={() => setAssetType("EQUITY")} style={assetType === "EQUITY" ? chipOn : chipOff}>Equity</button>
               </div>
 
               {/* OPTION MODE */}
               {assetType === "OPTION" && (
                 <>
-                  <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                    <input
-                      id="manualOpt"
-                      type="checkbox"
-                      checked={manualOpt}
-                      onChange={(e) => setManualOpt(e.target.checked)}
-                    />
-                    <label htmlFor="manualOpt" style={{ color: "#9ca3af" }}>
-                      Manual expiration/strike (use if endpoints aren’t live)
+                  {/* Manual toggle */}
+                  <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                    <input id="manualOpt" type="checkbox" checked={manualOpt} onChange={(e) => setManualOpt(e.target.checked)} />
+                    <label htmlFor="manualOpt" style={{ color: "#9ca3af", fontSize: 13 }}>
+                      Manual expiration/strike (use this if the options endpoints aren’t live)
                     </label>
                   </div>
 
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                  {/* Filters / Inputs */}
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8 }}>
                     <div>
-                      <div style={{ color: "#93c5fd", fontSize: FONT }}>Expiration</div>
+                      <label style={{ color: "#93c5fd", fontSize: 12 }}>Expiration</label>
                       {manualOpt ? (
                         <input
                           placeholder="YYYY-MM-DD"
@@ -582,25 +553,23 @@ export default function TradeDrawer({ open, onClose, defaultSymbol = "SPY" }) {
                           style={inputStyle}
                         />
                       ) : (
-                        <select value={expiration} onChange={(e) => setExpiration(e.target.value)} style={inputStyle}>
+                        <select value={expiration} onChange={(e) => setExpiration(e.target.value)} style={selStyle}>
                           {expirations.length === 0 && <option value="">(not available yet)</option>}
                           {expirations.map((d) => (
-                            <option key={d} value={d}>
-                              {d}
-                            </option>
+                            <option key={d} value={d}>{d}</option>
                           ))}
                         </select>
                       )}
                     </div>
                     <div>
-                      <div style={{ color: "#93c5fd", fontSize: FONT }}>Right</div>
-                      <select value={optSide} onChange={(e) => setOptSide(e.target.value)} style={inputStyle}>
+                      <label style={{ color: "#93c5fd", fontSize: 12 }}>Right</label>
+                      <select value={optSide} onChange={(e) => setOptSide(e.target.value)} style={selStyle}>
                         <option value="call">CALL</option>
                         <option value="put">PUT</option>
                       </select>
                     </div>
                     <div>
-                      <div style={{ color: "#93c5fd", fontSize: FONT }}>Strike</div>
+                      <label style={{ color: "#93c5fd", fontSize: 12 }}>Strike</label>
                       <input
                         type="number"
                         value={strike}
@@ -610,28 +579,23 @@ export default function TradeDrawer({ open, onClose, defaultSymbol = "SPY" }) {
                       />
                     </div>
                     <div>
-                      <div style={{ color: "#93c5fd", fontSize: FONT }}>Contracts</div>
-                      <input
-                        type="number"
-                        value={contracts}
-                        min={1}
-                        onChange={(e) => setContracts(Number(e.target.value))}
-                        style={inputStyle}
-                      />
+                      <label style={{ color: "#93c5fd", fontSize: 12 }}>Contracts</label>
+                      <input type="number" value={contracts} min={1} onChange={(e) => setContracts(Number(e.target.value))} style={inputStyle} />
                     </div>
                   </div>
 
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8 }}>
+                  {/* Order controls */}
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8 }}>
                     <div>
-                      <div style={{ color: "#93c5fd", fontSize: FONT }}>Side</div>
-                      <select value={sideIn} onChange={(e) => setSideIn(e.target.value)} style={inputStyle}>
+                      <label style={{ color: "#93c5fd", fontSize: 12 }}>Side</label>
+                      <select value={sideIn} onChange={(e) => setSideIn(e.target.value)} style={selStyle}>
                         <option>BUY</option>
                         <option>SELL</option>
                       </select>
                     </div>
                     <div>
-                      <div style={{ color: "#93c5fd", fontSize: FONT }}>Type</div>
-                      <select value={type} onChange={(e) => setType(e.target.value)} style={inputStyle}>
+                      <label style={{ color: "#93c5fd", fontSize: 12 }}>Type</label>
+                      <select value={type} onChange={(e) => setType(e.target.value)} style={selStyle}>
                         <option>MKT</option>
                         <option>LMT</option>
                         <option>STOP</option>
@@ -639,16 +603,16 @@ export default function TradeDrawer({ open, onClose, defaultSymbol = "SPY" }) {
                       </select>
                     </div>
                     <div>
-                      <div style={{ color: "#93c5fd", fontSize: FONT }}>Limit</div>
-                      <input value={limitPrice} onChange={(e) => setLimitPrice(e.target.value)} style={inputStyle} />
+                      <label style={{ color: "#93c5fd", fontSize: 12 }}>Limit</label>
+                      <input type="number" value={limitPrice} onChange={(e) => setLimitPrice(e.target.value)} placeholder="—" style={inputStyle} />
                     </div>
                     <div>
-                      <div style={{ color: "#93c5fd", fontSize: FONT }}>Stop</div>
-                      <input value={stopPrice} onChange={(e) => setStopPrice(e.target.value)} style={inputStyle} />
+                      <label style={{ color: "#93c5fd", fontSize: 12 }}>Stop</label>
+                      <input type="number" value={stopPrice} onChange={(e) => setStopPrice(e.target.value)} placeholder="—" style={inputStyle} />
                     </div>
                     <div>
-                      <div style={{ color: "#93c5fd", fontSize: FONT }}>TIF</div>
-                      <select value={tif} onChange={(e) => setTif(e.target.value)} style={inputStyle}>
+                      <label style={{ color: "#93c5fd", fontSize: 12 }}>TIF</label>
+                      <select value={tif} onChange={(e) => setTif(e.target.value)} style={selStyle}>
                         <option>DAY</option>
                         <option>GTC</option>
                       </select>
@@ -659,124 +623,79 @@ export default function TradeDrawer({ open, onClose, defaultSymbol = "SPY" }) {
 
               {/* EQUITY MODE */}
               {assetType === "EQUITY" && (
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8 }}>
-                  <div>
-                    <div style={{ color: "#93c5fd", fontSize: FONT }}>Side</div>
-                    <select value={sideIn} onChange={(e) => setSideIn(e.target.value)} style={inputStyle}>
-                      <option>BUY</option>
-                      <option>SELL</option>
-                    </select>
+                <>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8 }}>
+                    <div>
+                      <label style={{ color: "#93c5fd", fontSize: 12 }}>Side</label>
+                      <select value={sideIn} onChange={(e) => setSideIn(e.target.value)} style={selStyle}>
+                        <option>BUY</option>
+                        <option>SELL</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label style={{ color: "#93c5fd", fontSize: 12 }}>Shares</label>
+                      <input type="number" value={equityQty} min={1} onChange={(e) => setEquityQty(Number(e.target.value))} style={inputStyle} />
+                    </div>
+                    <div>
+                      <label style={{ color: "#93c5fd", fontSize: 12 }}>Type</label>
+                      <select value={type} onChange={(e) => setType(e.target.value)} style={selStyle}>
+                        <option>MKT</option>
+                        <option>LMT</option>
+                        <option>STOP</option>
+                        <option>STOP-LMT</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label style={{ color: "#93c5fd", fontSize: 12 }}>Limit</label>
+                      <input type="number" value={limitPrice} onChange={(e) => setLimitPrice(e.target.value)} placeholder="—" style={inputStyle} />
+                    </div>
+                    <div>
+                      <label style={{ color: "#93c5fd", fontSize: 12 }}>Stop</label>
+                      <input type="number" value={stopPrice} onChange={(e) => setStopPrice(e.target.value)} placeholder="—" style={inputStyle} />
+                    </div>
+                    <div>
+                      <label style={{ color: "#93c5fd", fontSize: 12 }}>TIF</label>
+                      <select value={tif} onChange={(e) => setTif(e.target.value)} style={selStyle}>
+                        <option>DAY</option>
+                        <option>GTC</option>
+                      </select>
+                    </div>
                   </div>
-                  <div>
-                    <div style={{ color: "#93c5fd", fontSize: FONT }}>Shares</div>
-                    <input
-                      type="number"
-                      value={equityQty}
-                      min={1}
-                      onChange={(e) => setEquityQty(Number(e.target.value))}
-                      style={inputStyle}
-                    />
-                  </div>
-                  <div>
-                    <div style={{ color: "#93c5fd", fontSize: FONT }}>Type</div>
-                    <select value={type} onChange={(e) => setType(e.target.value)} style={inputStyle}>
-                      <option>MKT</option>
-                      <option>LMT</option>
-                      <option>STOP</option>
-                      <option>STOP-LMT</option>
-                    </select>
-                  </div>
-                  <div>
-                    <div style={{ color: "#93c5fd", fontSize: FONT }}>Limit</div>
-                    <input value={limitPrice} onChange={(e) => setLimitPrice(e.target.value)} style={inputStyle} />
-                  </div>
-                  <div>
-                    <div style={{ color: "#93c5fd", fontSize: FONT }}>Stop</div>
-                    <input value={stopPrice} onChange={(e) => setStopPrice(e.target.value)} style={inputStyle} />
-                  </div>
-                </div>
+                </>
               )}
 
               {/* Actions */}
               <div style={{ display: "flex", gap: 8 }}>
-                <button
-                  onClick={submitTicket}
-                  disabled={busy || liveBlocked}
-                  style={{
-                    background: "#2563eb",
-                    color: "#fff",
-                    border: "1px solid #1f2937",
-                    borderRadius: 8,
-                    padding: "8px 12px",
-                    cursor: "pointer",
-                    fontWeight: 700,
-                  }}
-                >
+                <button style={primaryBtn} onClick={submitTicket} disabled={busy || (status.mode === "LIVE" && !status.liveEnabled)}>
                   Review (paper)
                 </button>
-                <button
-                  onClick={onClose}
-                  style={{
-                    background: "#111827",
-                    color: "#e5e7eb",
-                    border: "1px solid #1f2937",
-                    borderRadius: 8,
-                    padding: "8px 12px",
-                    cursor: "pointer",
-                  }}
-                >
-                  Cancel
-                </button>
+                <button style={ghostBtn} onClick={onClose}>Cancel</button>
               </div>
 
-              {/* Review */}
+              {/* Review panel */}
               {review && (
-                <div style={{ border: "1px solid #1f2937", borderRadius: 8, padding: 10, background: "#111827" }}>
-                  <div style={{ color: "#e5e7eb", marginBottom: 6, fontWeight: 700 }}>Confirm Paper Order</div>
-                  <div style={{ color: "#9ca3af", fontSize: FONT, marginBottom: 8 }}>
+                <div style={{ border: "1px solid #1f2937", borderRadius: 10, padding: 12, background: "#111827" }}>
+                  <div style={{ color: "#e5e7eb", marginBottom: 8, fontWeight: 600 }}>Confirm Paper Order</div>
+                  <div style={{ color: "#9ca3af", fontSize: 13, marginBottom: 8 }}>
                     {assetType === "EQUITY" ? (
                       <>
-                        {sideIn} {equityQty} {symbol.toUpperCase()} • {type}
+                        {sideIn} {equityQty} {String(symbol).toUpperCase()} • {type}
                         {type === "LMT" && ` @ ${limitPrice}`} {type === "STOP" && ` stop ${stopPrice}`}
                         {type === "STOP-LMT" && ` stop ${stopPrice} / limit ${limitPrice}`} • {tif}
                       </>
                     ) : (
                       <>
-                        {sideIn} {contracts}x {right} {symbol.toUpperCase()} {strike} {expiration} • {type}
+                        {sideIn} {contracts}x {optSide.toUpperCase()} {String(symbol).toUpperCase()} {strike} {expiration} • {type}
                         {type === "LMT" && ` @ ${limitPrice}`} {type === "STOP" && ` stop ${stopPrice}`}
                         {type === "STOP-LMT" && ` stop ${stopPrice} / limit ${limitPrice}`} • {tif}
                       </>
                     )}
                   </div>
                   <div style={{ display: "flex", gap: 8 }}>
-                    <button
-                      onClick={confirmSubmit}
-                      disabled={busy}
-                      style={{
-                        background: "#2563eb",
-                        color: "#fff",
-                        border: "1px solid #1f2937",
-                        borderRadius: 8,
-                        padding: "8px 12px",
-                        cursor: "pointer",
-                        fontWeight: 700,
-                      }}
-                    >
+                    <button style={primaryBtn} onClick={confirmSubmit} disabled={busy}>
                       {busy ? "Submitting…" : "Confirm"}
                     </button>
-                    <button
-                      onClick={() => setReview(false)}
-                      style={{
-                        background: "#111827",
-                        color: "#e5e7eb",
-                        border: "1px solid #1f2937",
-                        borderRadius: 8,
-                        padding: "8px 12px",
-                        cursor: "pointer",
-                      }}
-                    >
-                      Back
-                    </button>
+                    <button style={ghostBtn} onClick={() => setReview(false)}>Back</button>
                   </div>
                 </div>
               )}
@@ -786,6 +705,9 @@ export default function TradeDrawer({ open, onClose, defaultSymbol = "SPY" }) {
           {/* Positions */}
           {tab === "positions" && (
             <div>
+              <div style={{ marginBottom: 8 }}>
+                <Pill color="#374151">Updated (AZ): {fmtAz(new Date().toISOString())}</Pill>
+              </div>
               <SimpleTable
                 emptyText={positions.length ? "" : "No positions or endpoint not available yet."}
                 columns={[
@@ -820,19 +742,7 @@ export default function TradeDrawer({ open, onClose, defaultSymbol = "SPY" }) {
                     label: "Action",
                     render: (_, row) =>
                       row.status && /NEW|WORKING|OPEN|PENDING/i.test(row.status) ? (
-                        <button
-                          onClick={() => cancelOrder(row.id)}
-                          style={{
-                            background: "#111827",
-                            color: "#e5e7eb",
-                            border: "1px solid #1f2937",
-                            borderRadius: 8,
-                            padding: "4px 8px",
-                            cursor: "pointer",
-                          }}
-                        >
-                          Cancel
-                        </button>
+                        <button style={ghostBtn} onClick={() => cancelOrder(row.id)}>Cancel</button>
                       ) : (
                         "—"
                       ),
@@ -862,40 +772,93 @@ export default function TradeDrawer({ open, onClose, defaultSymbol = "SPY" }) {
             </div>
           )}
 
-          {/* Options (read-only, optional) */}
+          {/* Journal */}
+          {tab === "journal" && (
+            <div style={{ display: "grid", gap: 8 }}>
+              <div style={{ color: "#9ca3af", fontSize: 13 }}>
+                Quick Trading Journal (local text for now; backend wiring next).
+              </div>
+              <textarea
+                rows={8}
+                placeholder="Why this trade? Plan, risk, entry/exit, emotions…"
+                style={{
+                  width: "100%",
+                  background: "#0f172a",
+                  color: "#e5e7eb",
+                  border: "1px solid #1f2937",
+                  borderRadius: 10,
+                  padding: 10,
+                }}
+              />
+            </div>
+          )}
+
+          {/* Options (read-only chain viewer) */}
           {tab === "options" && (
-            <div style={{ color: "#9ca3af", fontSize: FONT }}>Use the Ticket tab to select & send options orders.</div>
+            <div style={{ display: "grid", gap: 10 }}>
+              <div style={{ color: "#9ca3af", fontSize: 13 }}>
+                Options Chain (read-only). Backend should expose:
+                <code> /api/options/meta?symbol=SPY </code> → {"{ expirations: [...] }"} and
+                <code> /api/options/chain?symbol=SPY&expiration=YYYY-MM-DD&side=call|put </code>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+                <div>
+                  <label style={{ color: "#93c5fd", fontSize: 12 }}>Expiration</label>
+                  <select value={expiration} onChange={(e) => setExpiration(e.target.value)} style={selStyle}>
+                    {expirations.length === 0 && <option value="">(not available yet)</option>}
+                    {expirations.map((d) => (
+                      <option key={d} value={d}>{d}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label style={{ color: "#93c5fd", fontSize: 12 }}>Side</label>
+                  <select value={optSide} onChange={(e) => setOptSide(e.target.value)} style={selStyle}>
+                    <option value="call">Calls</option>
+                    <option value="put">Puts</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={{ color: "#93c5fd", fontSize: 12 }}>Strikes (view)</label>
+                  <input placeholder="e.g., 5 OTM each side" style={inputStyle} disabled />
+                </div>
+              </div>
+              <SimpleTable
+                emptyText={chainAvail === false ? "Options chain endpoint not available yet." : "No rows."}
+                columns={[
+                  { key: "strike", label: "Strike", align: "right" },
+                  { key: "mark", label: "Mark", align: "right" },
+                  { key: "bid", label: "Bid", align: "right" },
+                  { key: "ask", label: "Ask", align: "right" },
+                  { key: "delta", label: "Δ", align: "right" },
+                  { key: "theta", label: "Θ", align: "right" },
+                  { key: "gamma", label: "Γ", align: "right" },
+                  { key: "vega", label: "V", align: "right" },
+                  { key: "oi", label: "OI", align: "right" },
+                  { key: "volume", label: "Vol", align: "right" },
+                ]}
+                rows={chainRows}
+              />
+            </div>
           )}
 
           {/* Risk */}
           {tab === "risk" && (
-            <div style={{ display: "grid", gap: 8 }}>
-              <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+            <div style={{ display: "grid", gap: 10 }}>
+              <div>
                 <Pill color={risk.killSwitch ? "#7c2d12" : "#065f46"}>
                   Kill Switch: {risk.killSwitch ? "ON (trading blocked)" : "OFF"}
-                </Pill>
+                </Pill>{" "}
                 {risk.caps && (
                   <Pill color="#374151">
                     Caps: {Object.entries(risk.caps).map(([k, v]) => `${k}=${v}`).join(" • ")}
                   </Pill>
-                )}
+                )}{" "}
                 <Pill color="#374151">Updated (AZ): {fmtAz(risk.last)}</Pill>
               </div>
               <div style={{ display: "flex", gap: 8 }}>
-                <button
-                  onClick={handleKillSwitch}
-                  style={{
-                    background: "#b91c1c",
-                    color: "#fff",
-                    border: "1px solid #1f2937",
-                    borderRadius: 8,
-                    padding: "8px 12px",
-                    cursor: "pointer",
-                    fontWeight: 700,
-                  }}
-                >
-                  Engage Kill Switch
-                </button>
+                <button style={dangerBtn} onClick={handleKillSwitch}>Engage Kill Switch</button>
+                <button style={ghostBtn} onClick={() => setTab("ticket")}>Back to Ticket</button>
               </div>
             </div>
           )}
@@ -903,9 +866,6 @@ export default function TradeDrawer({ open, onClose, defaultSymbol = "SPY" }) {
       </div>
     </div>
   );
-
-  // Render OUTSIDE the dashboard/grid so it can't affect chart height/layout
-  return createPortal(drawer, document.body);
 }
 
 /* ------------------------------- styles ---------------------------------- */
@@ -916,5 +876,42 @@ const inputStyle = {
   border: "1px solid #1f2937",
   borderRadius: 8,
   padding: "6px 8px",
-  fontSize: 13,
 };
+const selStyle = { ...inputStyle, appearance: "auto" };
+const primaryBtn = {
+  background: "#2563eb",
+  color: "#fff",
+  border: "1px solid #1f2937",
+  borderRadius: 8,
+  padding: "8px 12px",
+  cursor: "pointer",
+  fontWeight: 600,
+};
+const ghostBtn = {
+  background: "#111827",
+  color: "#e5e7eb",
+  border: "1px solid #1f2937",
+  borderRadius: 8,
+  padding: "8px 12px",
+  cursor: "pointer",
+};
+const dangerBtn = {
+  background: "#b91c1c",
+  color: "#fff",
+  border: "1px solid #1f2937",
+  borderRadius: 8,
+  padding: "8px 12px",
+  cursor: "pointer",
+  fontWeight: 700,
+};
+const chipOn = {
+  background: "#1f2937",
+  color: "#e5e7eb",
+  border: "1px solid #1f2937",
+  borderRadius: 999,
+  padding: "6px 10px",
+  cursor: "pointer",
+  fontSize: 12,
+  fontWeight: 700,
+};
+const chipOff = { ...chipOn, background: "#0f172a", opacity: 0.9, fontWeight: 600 };
