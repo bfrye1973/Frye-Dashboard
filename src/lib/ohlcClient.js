@@ -1,29 +1,39 @@
 // src/lib/ohlcClient.js
 // Canonical OHLC client:
-// 1) Try /api/v1/ohlc (deep history; seconds)
-// 2) Fallback to /live/intraday | /live/hourly | /live/eod (normalize)
+// 1) Primary: /api/v1/ohlc  (deep history; time in EPOCH SECONDS)
+// 2) Fallbacks: /live/intraday | /live/hourly | /live/eod  (normalize + seconds)
 
+// ------------------------- Backend base -------------------------
 const BACKEND =
   (typeof window !== "undefined" && (window.__API_BASE__ || "")) ||
   process.env.REACT_APP_API_URL ||
   "https://frye-market-backend-1.onrender.com";
 
-const API = (BACKEND || "").replace(/\/+$/, "");
+const API = String(BACKEND || "").replace(/\/+$/, "");
 
-const isMs = (t) => typeof t === "number" && t > 1e12;
-const toSec = (t) => (isMs(t) ? Math.floor(t / 1000) : t);
+// ------------------------- Helpers ------------------------------
+const toNum = (v) => (typeof v === "number" ? v : Number(v));
+const isMs = (t) => {
+  const n = toNum(t);
+  return Number.isFinite(n) && n > 1e12;
+};
+const toSec = (t) => {
+  const n = toNum(t);
+  if (!Number.isFinite(n)) return NaN;
+  return isMs(n) ? Math.floor(n / 1000) : n;
+};
 
 function normalizeBars(arr) {
   if (!Array.isArray(arr)) return [];
-  return arr
+  const out = arr
     .filter(Boolean)
     .map((b) => ({
       time: toSec(b.time ?? b.t ?? b.ts ?? b.timestamp),
-      open: Number(b.open ?? b.o),
-      high: Number(b.high ?? b.h),
-      low: Number(b.low ?? b.l),
-      close: Number(b.close ?? b.c),
-      volume: Number(b.volume ?? b.v ?? 0),
+      open: toNum(b.open ?? b.o),
+      high: toNum(b.high ?? b.h),
+      low: toNum(b.low ?? b.l),
+      close: toNum(b.close ?? b.c),
+      volume: toNum(b.volume ?? b.v ?? 0),
     }))
     .filter(
       (b) =>
@@ -33,6 +43,10 @@ function normalizeBars(arr) {
         Number.isFinite(b.low) &&
         Number.isFinite(b.close)
     );
+
+  // Ensure ascending order by time (some feeds are not sorted).
+  out.sort((a, b) => a.time - b.time);
+  return out;
 }
 
 async function getJson(url) {
@@ -53,59 +67,74 @@ function mapTf(tf) {
   return "eod"; // 1d/d/day/w
 }
 
+// ------------------------- Public API ---------------------------
+/**
+ * Resilient OHLC fetcher with normalization.
+ * @param {{symbol: string, timeframe: string, limit?: number}} params
+ * @returns {Promise<{source: string, bars: Array}>}
+ */
 export async function fetchOHLCResilient({ symbol, timeframe, limit = 1500 }) {
   const sym = String(symbol || "SPY").toUpperCase();
-  const tf  = String(timeframe || "10m");
+  const tf = String(timeframe || "10m");
+
+  // Sanitize limit (client side). Server will also clamp.
+  let lim = Number.parseInt(limit, 10);
+  if (!Number.isFinite(lim) || lim <= 0) lim = 1500;
+  lim = Math.min(lim, 5000);
 
   // 1) Primary: /api/v1/ohlc
-  const url1 = `${API}/api/v1/ohlc?symbol=${encodeURIComponent(sym)}&timeframe=${encodeURIComponent(tf)}&limit=${limit}`;
+  const url1 = `${API}/api/v1/ohlc?symbol=${encodeURIComponent(
+    sym
+  )}&timeframe=${encodeURIComponent(tf)}&limit=${lim}`;
   const r1 = await getJson(url1);
   if (r1.ok && r1.data) {
     const root = Array.isArray(r1.data)
       ? r1.data
-      : Array.isArray(r1.data.bars)
-        ? r1.data.bars
-        : [];
+      : Array.isArray(r1.data?.bars)
+      ? r1.data.bars
+      : [];
     const bars = normalizeBars(root);
     if (bars.length) return { source: "api/v1/ohlc", bars };
   }
 
-  // 2) Fallback: /live/*
+  // 2) Fallback: /live/* for this timeframe bucket
   const feed = mapTf(tf);
-  const liveUrl = {
-    intraday: `${API}/live/intraday`,
-    hourly:   `${API}/live/hourly`,
-    eod:      `${API}/live/eod`,
-  }[feed];
+  const liveUrl =
+    feed === "intraday"
+      ? `${API}/live/intraday`
+      : feed === "hourly"
+      ? `${API}/live/hourly`
+      : `${API}/live/eod`;
 
   const r2 = await getJson(liveUrl);
   if (r2.ok && r2.data) {
     const raw = Array.isArray(r2.data)
       ? r2.data
-      : Array.isArray(r2.data.series)
-        ? r2.data.series
-        : Array.isArray(r2.data.ohlc)
-          ? r2.data.ohlc
-          : [];
+      : Array.isArray(r2.data?.series)
+      ? r2.data.series
+      : Array.isArray(r2.data?.ohlc)
+      ? r2.data.ohlc
+      : [];
     const bars = normalizeBars(raw);
     if (bars.length) return { source: `/live/${feed}`, bars };
   }
 
-  // 3) Try remaining live feeds as last resort
+  // 3) Try the remaining live feeds as a last resort (bugfix: use rx, not r2)
   for (const f of ["intraday", "hourly", "eod"].filter((x) => x !== feed)) {
     const rx = await getJson(`${API}/live/${f}`);
     if (rx.ok && rx.data) {
       const raw = Array.isArray(rx.data)
         ? rx.data
-        : Array.isArray(rx.data.series)
-          ? r2.data.series
-          : Array.isArray(r2.data.ohlc)
-            ? r2.data.ohlc
-            : [];
+        : Array.isArray(rx.data?.series)
+        ? rx.data.series
+        : Array.isArray(rx.data?.ohlc)
+        ? rx.data.ohlc
+        : [];
       const bars = normalizeBars(raw);
       if (bars.length) return { source: `/live/${f}`, bars };
     }
   }
 
+  // Nothing usable
   return { source: "none", bars: [] };
 }
