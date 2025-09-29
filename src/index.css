@@ -193,3 +193,29 @@ html body #root .dashboard-grid[data-cluster-host] text{
   width: 100% !important;
   height: 100% !important;
 }
+/* ---- Full Chart height clamps (viewport safe) ---- */
+.fullchart-page { min-height: 100vh; }
+
+.fullchart-body {
+  height: calc(100vh - 52px) !important;  /* 52px = header height */
+  min-height: 0 !important;
+  overflow: hidden;                        /* chart owns scroll inside */
+}
+
+.fullchart-body .chart-shell {
+  height: 100% !important;
+  min-height: 0 !important;
+  display: flex; flex-direction: column;
+}
+
+.fullchart-body .tv-lightweight-charts {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* In case that old 92vh clamp is injected on #root, override it globally */
+html body #root {
+  max-height: none !important;
+  height: auto !important;
+  overflow: auto !important;
+}
