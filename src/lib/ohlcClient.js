@@ -1,9 +1,9 @@
 // src/lib/ohlcClient.js
-// Resilient OHLC fetcher:
-// 1) Try /api/v1/ohlc
-// 2) Fallback to /live/intraday | /live/hourly | /live/eod (normalize)
-// 3) Final fallback to Polygon (client-side) using REACT_APP_POLYGON_KEY
-//    NOTE: This exposes the key to the browser (temporary stopgap only).
+// Live-only OHLC client (Option A):
+// - 10m  -> /live/intraday
+// - 1h   -> /live/hourly
+// - 1d   -> /live/eod
+// Normalizes shapes and ms→s if needed.
 
 const BACKEND =
   (typeof window !== "undefined" && (window.__API_BASE__ || "")) ||
@@ -11,7 +11,6 @@ const BACKEND =
   "https://frye-market-backend-1.onrender.com";
 
 const API = (BACKEND || "").replace(/\/+$/, "");
-const POLY = (process.env.REACT_APP_POLYGON_KEY || "").trim();
 
 const isMs = (t) => typeof t === "number" && t > 1e12;
 const toSec = (t) => (isMs(t) ? Math.floor(t / 1000) : t);
@@ -49,133 +48,58 @@ async function getJson(url) {
   }
 }
 
-function mapTf(tf) {
+function mapTfToLive(tf) {
   const t = String(tf || "").toLowerCase();
-  if (/^\d+m$/.test(t)) return "intraday";
+  if (/^\d+m$/.test(t)) return "intraday";      // 1m, 3m, 5m, 10m, 15m, 30m
   if (t === "1h" || t === "4h") return "hourly";
-  if (["d", "1d", "day", "w", "1w", "week"].includes(t)) return "eod";
-  return "intraday";
+  return "eod";                                  // 1d / d / day / w
 }
 
-/* ------------------------ Polygon fallback helpers ----------------------- */
-function polyMap(tf) {
-  const t = String(tf || "").toLowerCase();
-  const m = {
-    "1m": { mult: 1, span: "minute" },
-    "3m": { mult: 3, span: "minute" },
-    "5m": { mult: 5, span: "minute" },
-    "10m": { mult: 10, span: "minute" },
-    "15m": { mult: 15, span: "minute" },
-    "30m": { mult: 30, span: "minute" },
-    "1h": { mult: 1, span: "hour" },
-    "4h": { mult: 4, span: "hour" },
-    "1d": { mult: 1, span: "day" },
-    d: { mult: 1, span: "day" },
-    day: { mult: 1, span: "day" },
-  };
-  return m[t] || m["10m"];
-}
-
-function polyWindow(span) {
-  const now = new Date();
-  const toISO = now.toISOString().slice(0, 10);
-  const from = new Date(now);
-  if (span === "minute" || span === "hour") from.setDate(from.getDate() - 45);
-  else from.setFullYear(from.getFullYear() - 1);
-  const fromISO = from.toISOString().slice(0, 10);
-  return { fromISO, toISO };
-}
-
-async function fetchFromPolygon({ symbol, timeframe, limit = 500 }) {
-  if (!POLY) return { ok: false, data: null, reason: "no-key" };
+/**
+ * fetchOHLCResilient — live-only edition
+ * Always pulls from the old JSON feeds; no /api/v1/ohlc call.
+ */
+export async function fetchOHLCResilient({ symbol, timeframe, limit = 1500 }) {
   const sym = String(symbol || "SPY").toUpperCase();
-  const map = polyMap(timeframe);
-  const { fromISO, toISO } = polyWindow(map.span);
+  const tf  = String(timeframe || "10m");
+  const feed = mapTfToLive(tf);
 
-  const url =
-    `https://api.polygon.io/v2/aggs/ticker/${encodeURIComponent(sym)}` +
-    `/range/${map.mult}/${map.span}/${fromISO}/${toISO}?adjusted=true&sort=asc&limit=${limit}&apiKey=${encodeURIComponent(
-      POLY
-    )}`;
-
-  const r = await getJson(url);
-  if (!r.ok || !r.data) return { ok: false, data: null, status: r.status || 0 };
-
-  const raw = Array.isArray(r.data?.results) ? r.data.results : [];
-  const bars = normalizeBars(
-    raw.map((b) => ({
-      t: Number(b.t), // ms
-      o: b.o,
-      h: b.h,
-      l: b.l,
-      c: b.c,
-      v: b.v ?? 0,
-    }))
-  );
-  return { ok: bars.length > 0, data: bars };
-}
-
-/* ------------------------------ main export ------------------------------ */
-export async function fetchOHLCResilient({ symbol, timeframe, limit = 500 }) {
-  const sym = String(symbol || "SPY").toUpperCase();
-  const tf = String(timeframe || "10m");
-
-  // 1) primary route
-  const url1 = `${API}/api/v1/ohlc?symbol=${encodeURIComponent(sym)}&timeframe=${encodeURIComponent(
-    tf
-  )}&limit=${limit}`;
-  const r1 = await getJson(url1);
-  if (r1.ok && r1.data) {
-    const root = Array.isArray(r1.data)
-      ? r1.data
-      : Array.isArray(r1.data.bars)
-      ? r1.data.bars
-      : [];
-    const bars = normalizeBars(root);
-    if (bars.length) return { source: "api/v1/ohlc", bars };
-  }
-
-  // 2) cadence fallback
-  const feed = mapTf(tf);
-  const feedUrl = {
+  const byFeed = {
     intraday: `${API}/live/intraday`,
-    hourly: `${API}/live/hourly`,
-    eod: `${API}/live/eod`,
-  }[feed];
+    hourly:   `${API}/live/hourly`,
+    eod:      `${API}/live/eod`,
+  };
 
-  const r2 = await getJson(feedUrl);
-  if (r2.ok && r2.data) {
-    const raw = Array.isArray(r2.data)
-      ? r2.data
-      : Array.isArray(r2.data.series)
-      ? r2.data.series
-      : Array.isArray(r2.data.ohlc)
-      ? r2.data.ohlc
-      : [];
+  // primary
+  const r = await getJson(byFeed[feed]);
+  if (r.ok && r.data) {
+    const raw =
+      Array.isArray(r.data)
+        ? r.data
+        : Array.isArray(r.data.series)
+          ? r.data.series
+          : Array.isArray(r.data.ohlc)
+            ? r.data.ohlc
+            : [];
     const bars = normalizeBars(raw);
     if (bars.length) return { source: `/live/${feed}`, bars };
   }
 
-  // 3) try remaining feeds
+  // final fallback: try remaining live feeds (just in case)
   for (const f of ["intraday", "hourly", "eod"].filter((x) => x !== feed)) {
-    const rx = await getJson(`${API}/live/${f}`);
+    const rx = await getJson(byFeed[f]);
     if (rx.ok && rx.data) {
-      const raw = Array.isArray(rx.data)
-        ? rx.data
-        : Array.isArray(rx.data.series)
-        ? rx.data.series
-        : Array.isArray(rx.data.ohlc)
-        ? rx.data.ohlc
-        : [];
+      const raw =
+        Array.isArray(rx.data)
+          ? rx.data
+          : Array.isArray(rx.data.series)
+            ? rx.data.series
+            : Array.isArray(rx.data.ohlc)
+              ? rx.data.ohlc
+              : [];
       const bars = normalizeBars(raw);
       if (bars.length) return { source: `/live/${f}`, bars };
     }
-  }
-
-  // 4) FINAL fallback: Polygon (client-side)
-  const pr = await fetchFromPolygon({ symbol: sym, timeframe: tf, limit });
-  if (pr.ok && Array.isArray(pr.data) && pr.data.length) {
-    return { source: "polygon", bars: pr.data };
   }
 
   return { source: "none", bars: [] };
