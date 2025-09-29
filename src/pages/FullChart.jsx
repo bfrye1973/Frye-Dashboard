@@ -1,6 +1,6 @@
 // src/pages/FullChart.jsx
 import React, { useMemo, useRef, useLayoutEffect, useState } from "react";
-import LiveLWChart from "../components/LiveLWChart/LiveLWChart";
+import RowChart from "./rows/RowChart";
 
 const HEADER_H = 52;
 
@@ -16,7 +16,6 @@ export default function FullChart() {
   const { symbol, timeframe } = useMemo(() => getQueryParams(), []);
   const bodyRef = useRef(null);
   const [ready, setReady] = useState(false);
-  const [chartHeight, setChartHeight] = useState(520);
 
   useLayoutEffect(() => {
     const el = bodyRef.current;
@@ -26,9 +25,7 @@ export default function FullChart() {
         window.innerHeight ||
         document.documentElement.clientHeight ||
         800;
-      const px = Math.max(420, h - HEADER_H);
-      el.style.height = px + "px";
-      setChartHeight(px);
+      el.style.height = Math.max(200, h - HEADER_H) + "px";
     };
     apply();
     const onResize = () => apply();
@@ -80,9 +77,7 @@ export default function FullChart() {
         >
           ← Back
         </button>
-        <div style={{ color: "#e5e7eb", fontWeight: 700, marginLeft: 8 }}>
-          Full Chart
-        </div>
+        <div style={{ color: "#e5e7eb", fontWeight: 700, marginLeft: 8 }}>Full Chart</div>
         <div style={{ marginLeft: "auto", color: "#9ca3af", fontSize: 12 }}>
           {symbol} · {timeframe}
         </div>
@@ -102,7 +97,12 @@ export default function FullChart() {
       >
         {ready && (
           <div style={{ flex: "1 1 auto", minHeight: 0, display: "flex", flexDirection: "column" }}>
-            <LiveLWChart symbol={symbol} timeframe={timeframe} height={chartHeight} />
+            <RowChart
+              apiBase="https://frye-market-backend-1.onrender.com"
+              defaultSymbol={symbol}
+              defaultTimeframe={timeframe}
+              showDebug={false}
+            />
           </div>
         )}
       </div>
