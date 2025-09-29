@@ -1,353 +1,261 @@
 // src/pages/rows/RowChart/index.jsx
-// v4.3 — Clean defaults: EMAs + Volume ON; all other indicators OFF.
-//        SMI is still gated to Full Chart, but defaults OFF there too.
+// RowChart: seeds deep history from /api/v1/ohlc, renders Lightweight Charts,
+// keeps AZ time on hover + axis, and makes Range 50/100/200 viewport-only.
 
-import React, { useMemo, useState, useEffect, useRef } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { createChart } from "lightweight-charts";
 import Controls from "./Controls";
-import IndicatorsToolbar from "./IndicatorsToolbar";
-import useOhlc from "./useOhlc";
-import useLwcChart from "./useLwcChart";
-import { SYMBOLS, TIMEFRAMES, resolveApiBase } from "./constants";
+import { fetchOHLCResilient } from "../../../lib/ohlcClient";
 
-// Overlays / panes
-import { createEmaOverlay } from "../../../indicators/ema/overlay";
-import { createVolumeOverlay } from "../../../indicators/volume";
-import MoneyFlowOverlay from "../../../components/overlays/MoneyFlowOverlay";
-import { createLuxSrOverlay } from "../../../indicators/srLux";
-import SwingLiquidityOverlay from "../../../components/overlays/SwingLiquidityOverlay";
-import { createSmiOverlay } from "../../../indicators/smi";
+// ---- constants ------------------------------------------------------------
+const SEED_LIMIT = 1500; // deep seed for 10m/1h; server still clamps to ≤5000
 
+const DEFAULTS = {
+  upColor: "#26a69a",
+  downColor: "#ef5350",
+  gridColor: "rgba(255,255,255,0.06)",
+  bg: "#0b0b14",
+  border: "#1f2a44",
+};
+
+// ---- helpers --------------------------------------------------------------
+const isMs = (t) => typeof t === "number" && t > 1e12;
+const toSec = (t) => (isMs(t) ? Math.floor(t / 1000) : t);
+
+// Phoenix (America/Phoenix) time formatter that works for numbers or {timestamp}
+function phoenixTime(ts, forDaily = false) {
+  const seconds =
+    typeof ts === "number"
+      ? ts
+      : ts && typeof ts.timestamp === "number"
+      ? ts.timestamp
+      : 0;
+  const d = new Date(seconds * 1000);
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Phoenix",
+    hour12: true,
+    ...(forDaily
+      ? { month: "short", day: "2-digit" }
+      : { hour: "numeric", minute: "2-digit" }),
+  }).format(d);
+}
+
+// ---- component ------------------------------------------------------------
 export default function RowChart({
-  apiBase,
+  apiBase = "https://frye-market-backend-1.onrender.com",
   defaultSymbol = "SPY",
   defaultTimeframe = "1h",
-  height = 520,
-  onStatus,
   showDebug = false,
 }) {
-  // Detect Full Chart route (so SMI only runs there)
-  const isFullChart =
-    typeof window !== "undefined" &&
-    (window.location.pathname === "/chart" ||
-      window.location.pathname.startsWith("/chart"));
+  // Allow the lib client to pick up the backend base
+  useEffect(() => {
+    if (typeof window !== "undefined" && apiBase) {
+      window.__API_BASE__ = apiBase.replace(/\/+$/, "");
+    }
+  }, [apiBase]);
 
-  // symbol / timeframe / optional range
+  // chart refs
+  const containerRef = useRef(null);
+  const chartRef = useRef(null);
+  const seriesRef = useRef(null);
+  const resizeObsRef = useRef(null);
+
+  // data state
+  const [bars, setBars] = useState([]);
+  const barsRef = useRef([]);
   const [state, setState] = useState({
     symbol: defaultSymbol,
     timeframe: defaultTimeframe,
-    range: null,
+    range: null, // UI highlight; viewport is handled imperatively
+    disabled: false,
   });
 
-  // ---- Defaults: EMAs + Volume ON; everything else OFF ----
-  const DEFAULT_IND = {
-    // EMA
-    showEma: true,
-    ema10: true,
-    ema20: true,
-    ema50: true,
+  // options
+  const symbols = useMemo(() => ["SPY", "QQQ", "IWM"], []);
+  const timeframes = useMemo(() => ["10m", "1h", "4h", "1d"], []);
 
-    // panes
-    volume: true,
-    smi: false, // gated to Full Chart, but default OFF
+  // create chart once
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
 
-    // overlays
-    moneyFlow: false,
-    luxSr: false,
-    swingLiquidity: false,
+    const chart = createChart(el, {
+      width: el.clientWidth,
+      height: el.clientHeight,
+      layout: { background: { color: DEFAULTS.bg }, textColor: "#d1d5db" },
+      grid: {
+        vertLines: { color: DEFAULTS.gridColor },
+        horzLines: { color: DEFAULTS.gridColor },
+      },
+      rightPriceScale: { borderColor: DEFAULTS.border, scaleMargins: { top: 0.1, bottom: 0.2 } },
+      timeScale: { borderColor: DEFAULTS.border, timeVisible: true },
+      localization: {
+        timezone: "America/Phoenix",
+        timeFormatter: (t) => phoenixTime(t, state.timeframe === "1d"),
+      },
+      crosshair: { mode: 0 }, // Normal
+    });
+    chartRef.current = chart;
+
+    const series = chart.addCandlestickSeries({
+      upColor: DEFAULTS.upColor,
+      downColor: DEFAULTS.downColor,
+      wickUpColor: DEFAULTS.upColor,
+      wickDownColor: DEFAULTS.downColor,
+      borderUpColor: DEFAULTS.upColor,
+      borderDownColor: DEFAULTS.downColor,
+    });
+    seriesRef.current = series;
+
+    chart.timeScale().applyOptions({
+      tickMarkFormatter: (t) => phoenixTime(t, state.timeframe === "1d"),
+      minimumHeight: 20,
+    });
+
+    // resize observer
+    const ro = new ResizeObserver(() => {
+      if (!chartRef.current || !containerRef.current) return;
+      chartRef.current.resize(
+        containerRef.current.clientWidth,
+        containerRef.current.clientHeight
+      );
+    });
+    ro.observe(el);
+    resizeObsRef.current = ro;
+
+    return () => {
+      try { resizeObsRef.current?.disconnect(); } catch {}
+      try { chartRef.current?.remove(); } catch {}
+      chartRef.current = null;
+      seriesRef.current = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // create once
+
+  // update axis formatter when timeframe changes (daily vs intraday labels)
+  useEffect(() => {
+    if (!chartRef.current) return;
+    chartRef.current.timeScale().applyOptions({
+      tickMarkFormatter: (t) => phoenixTime(t, state.timeframe === "1d"),
+      timeVisible: state.timeframe !== "1d",
+    });
+  }, [state.timeframe]);
+
+  // fetch seed on symbol/timeframe change (deep, independent of Range)
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      setState((s) => ({ ...s, disabled: true }));
+      try {
+        const { source, bars } = await fetchOHLCResilient({
+          symbol: state.symbol,
+          timeframe: state.timeframe,
+          limit: SEED_LIMIT,
+        });
+        if (cancelled) return;
+        // Ensure ascending time order
+        const asc = (Array.isArray(bars) ? bars : []).slice().sort((a, b) => a.time - b.time);
+        barsRef.current = asc;
+        setBars(asc);
+        if (showDebug && typeof window !== "undefined") {
+          console.log("[RowChart] seed", state.timeframe, asc.length, "source:", source);
+        }
+      } catch (e) {
+        if (showDebug) console.error("[RowChart] load error:", e);
+        barsRef.current = [];
+        setBars([]);
+      } finally {
+        if (!cancelled) setState((s) => ({ ...s, disabled: false }));
+      }
+    }
+    load();
+    return () => { cancelled = true; };
+  }, [state.symbol, state.timeframe, showDebug]);
+
+  // render bars to series (always the full dataset)
+  useEffect(() => {
+    const series = seriesRef.current;
+    const chart = chartRef.current;
+    if (!series || !chart) return;
+
+    series.setData(bars);
+
+    // fit on first load or when range is cleared; else show last N bars
+    requestAnimationFrame(() => {
+      const ts = chart.timeScale();
+      if (!state.range) ts.fitContent();
+      else {
+        const to = bars.length - 1;
+        const from = Math.max(0, to - (state.range - 1));
+        ts.setVisibleLogicalRange({ from, to });
+      }
+    });
+  }, [bars, state.range]);
+
+  // viewport-only applyRange (used by Controls.onRange)
+  const applyRange = (nextRange) => {
+    const chart = chartRef.current;
+    if (!chart) return;
+    const len = barsRef.current.length;
+    const ts = chart.timeScale();
+    if (!nextRange || !len) {
+      ts.fitContent();
+      return;
+    }
+    const to = len - 1;
+    const from = Math.max(0, to - (nextRange - 1));
+    ts.setVisibleLogicalRange({ from, to });
   };
 
-  // indicator toggles
-  const [ind, setInd] = useState(DEFAULT_IND);
+  // Controls change handler (state drives symbol/timeframe + UI highlight)
+  const handleControlsChange = (patch) => {
+    setState((s) => ({ ...s, ...patch }));
+    // Note: viewport moves via applyRange (Controls.onRange) or via effect above.
+  };
 
-  // theme
-  const theme = useMemo(
-    () => ({
-      layout: { background: { type: "solid", color: "#0a0a0a" }, textColor: "#ffffff" },
-      grid: { vertLines: { color: "#1e1e1e" }, horzLines: { color: "#1e1e1e" } },
-      rightPriceScale: { borderColor: "#2b2b2b", scaleMargins: { top: 0.06, bottom: 0.08 } },
-      timeScale: {
-        borderVisible: true,
-        borderColor: "#2b2b2b",
-        rightOffset: 6,
-        barSpacing: 12,
-        fixLeftEdge: true,
-        timeVisible: true,
-        secondsVisible: false,
-      },
-      crosshair: { mode: 0 },
-      upColor: "#16a34a",
-      downColor: "#ef4444",
-      wickUpColor: "#16a34a",
-      wickDownColor: "#ef4444",
-      borderUpColor: "#16a34a",
-      borderDownColor: "#ef4444",
-    }),
-    []
-  );
-
-  // chart mount
-  const { containerRef, chart, setData } = useLwcChart({ theme });
-
-  // data feed
-  const { bars, loading, error, refetch } = useOhlc({
-    apiBase,
-    symbol: state.symbol,
-    timeframe: state.timeframe,
-  });
-
-  // status
-  useEffect(() => {
-    if (!onStatus) return;
-    if (loading) onStatus("loading");
-    else if (error) onStatus("error");
-    else if (bars.length) onStatus("ready");
-    else onStatus("idle");
-  }, [loading, error, bars, onStatus]);
-
-  // fetch data
-  useEffect(() => { void refetch(true); }, []); // mount
-  useEffect(() => { void refetch(true); }, [state.symbol, state.timeframe]);
-
-  // set price bars
-  useEffect(() => {
-    const data = state.range && bars.length > state.range ? bars.slice(-state.range) : bars;
-    setData(data);
-  }, [bars, state.range, setData]);
-
-  // =========================
-  // EMA overlays (on price)
-  // =========================
-  const emaRef = useRef({});
-  useEffect(() => {
-    if (!chart) return;
-    const removeAll = () => {
-      Object.values(emaRef.current).forEach((o) => o?.remove?.());
-      emaRef.current = {};
-    };
-    removeAll();
-
-    if (ind.showEma) {
-      if (ind.ema10) emaRef.current.e10 = createEmaOverlay({ chart, period: 10, color: "#60a5fa" });
-      if (ind.ema20) emaRef.current.e20 = createEmaOverlay({ chart, period: 20, color: "#f59e0b" });
-      if (ind.ema50) emaRef.current.e50 = createEmaOverlay({ chart, period: 50, color: "#34d399" });
-    }
-    Object.values(emaRef.current).forEach((o) => o?.setBars?.(bars));
-
-    return () => removeAll();
-  }, [chart, ind.showEma, ind.ema10, ind.ema20, ind.ema50, bars]);
-
-  // =========================
-  // Volume pane (bottom)
-  // =========================
-  const volRef = useRef(null);
-  useEffect(() => {
-    if (!chart) return;
-    if (volRef.current) {
-      volRef.current.remove();
-      volRef.current = null;
-    }
-    if (ind.volume) {
-      volRef.current = createVolumeOverlay({ chart });
-      volRef.current.setBars(bars);
-    }
-    return () => {
-      volRef.current?.remove();
-      volRef.current = null;
-    };
-  }, [chart, ind.volume, bars]);
-  useEffect(() => {
-    if (ind.volume && volRef.current) volRef.current.setBars(bars);
-  }, [bars, ind.volume]);
-
-  // =========================
-  // SMI pane (gated to Full Chart)
-  // =========================
-  const smiRef = useRef(null);
-  useEffect(() => {
-    if (!chart || !isFullChart) return; // gate here
-    if (smiRef.current) {
-      smiRef.current.remove();
-      smiRef.current = null;
-    }
-    if (ind.smi) {
-      smiRef.current = createSmiOverlay({
-        chart,
-        kLen: 12,
-        dLen: 7,
-        emaLen: 5,
+  // Optional: a quick fetch tester for the button
+  const handleTest = async () => {
+    try {
+      const { source, bars } = await fetchOHLCResilient({
+        symbol: state.symbol,
+        timeframe: state.timeframe,
+        limit: SEED_LIMIT,
       });
-      smiRef.current.setBars(bars);
+      alert(`Fetched ${bars.length} bars from ${source}`);
+    } catch {
+      alert("Fetch failed");
     }
-    return () => {
-      smiRef.current?.remove();
-      smiRef.current = null;
-    };
-  }, [chart, ind.smi, bars, isFullChart]);
-  useEffect(() => {
-    if (isFullChart && ind.smi && smiRef.current) smiRef.current.setBars(bars);
-  }, [bars, ind.smi, isFullChart]);
-
-  // =========================
-  // Lux S/R (lines + breaks)
-  // =========================
-  const luxRef = useRef(null);
-  useEffect(() => {
-    if (!chart) return;
-    if (luxRef.current) {
-      luxRef.current.remove();
-      luxRef.current = null;
-    }
-    if (ind.luxSr) {
-      luxRef.current = createLuxSrOverlay({
-        chart,
-        leftBars: 15,
-        rightBars: 15,
-        volumeThresh: 20,
-        pivotLeftRight: 5,
-        minSeparationPct: 0.25,
-        maxLevels: 10,
-        lookbackBars: 800,
-        markersLookback: 300,
-      });
-      luxRef.current.setBars(bars);
-    }
-    return () => {
-      luxRef.current?.remove();
-      luxRef.current = null;
-    };
-  }, [chart, ind.luxSr, bars]);
-  useEffect(() => {
-    if (ind.luxSr && luxRef.current) luxRef.current.setBars(bars);
-  }, [bars, ind.luxSr]);
-
-  const baseShown = resolveApiBase(apiBase);
+  };
 
   return (
     <div
       style={{
-        flex: 1,
-        minHeight: 0,
-        overflow: "hidden",
-        background: "#0a0a0a",
-        border: "1px solid #2b2b2b",
-        borderRadius: 12,
         display: "flex",
         flexDirection: "column",
+        border: `1px solid ${DEFAULTS.border}`,
+        borderRadius: 8,
+        overflow: "hidden",
+        background: DEFAULTS.bg,
       }}
     >
       <Controls
-        symbols={SYMBOLS}
-        timeframes={TIMEFRAMES}
-        value={{
-          symbol: state.symbol,
-          timeframe: state.timeframe,
-          range: state.range,
-          disabled: loading,
-        }}
-        onChange={(patch) => setState((s) => ({ ...s, ...patch }))}
-        onTest={
-          showDebug
-            ? async () => {
-                const r = await refetch(true);
-                alert(r.ok ? `Fetched ${r.count || 0} bars` : `Error: ${r.error || "unknown"}`);
-              }
-            : undefined
-        }
-      />
-
-      <IndicatorsToolbar
-        // EMA
-        showEma={ind.showEma}
-        ema10={ind.ema10}
-        ema20={ind.ema20}
-        ema50={ind.ema50}
-        // Panes
-        volume={ind.volume}
-        smi={isFullChart ? ind.smi : false}
-        showSmiToggle={isFullChart} // only show toggle in Full Chart
-        // Overlays
-        moneyFlow={ind.moneyFlow}
-        luxSr={ind.luxSr}
-        swingLiquidity={ind.swingLiquidity}
-        // Change handler
-        onChange={(patch) => setInd((s) => ({ ...s, ...patch }))}
-        // Reset button (optional but handy)
-        onReset={() => setInd(DEFAULT_IND)}
+        symbols={symbols}
+        timeframes={timeframes}
+        value={state}
+        onChange={handleControlsChange}
+        onRange={applyRange}        // viewport-only (no reseed/trim)
+        onTest={showDebug ? handleTest : null}
       />
 
       <div
+        ref={containerRef}
         style={{
-          flex: "0 0 auto",
-          display: "flex",
-          justifyContent: "flex-end",
-          padding: "6px 12px",
-          borderBottom: "1px solid #2b2b2b", // fixed quotes
+          width: "100%",
+          height: 520, // keep fixed to avoid vertical growth; adjust if you prefer
+          minHeight: 360,
+          background: DEFAULTS.bg,
         }}
-      >
-        <button
-          onClick={() =>
-            window.open(`/chart?symbol=${state.symbol}&tf=${state.timeframe}`, "_blank", "noopener")
-          }
-          style={{
-            background: "#0b0b0b",
-            color: "#e5e7eb",
-            border: "1px solid #2b2b2b",
-            borderRadius: 8,
-            padding: "6px 10px",
-            fontWeight: 600,
-            cursor: "pointer",
-          }}
-        >
-          Open Full Chart ↗
-        </button>
-      </div>
-
-      {showDebug && (
-        <div
-          style={{
-            padding: "6px 12px",
-            color: "#9ca3af",
-            fontSize: 12,
-            borderBottom: "1px solid #2b2b2b",
-          }}
-        >
-          debug • base: {baseShown || "MISSING"} • symbol: {state.symbol} • tf: {state.timeframe} •
-          bars: {bars.length}
-        </div>
-      )}
-
-      {/* Chart host */}
-      <div
-        className="chart-shell"
-        style={{ flex: "1 1 auto", minHeight: 0, display: "flex", flexDirection: "column" }}
-      >
-        <div
-          ref={containerRef}
-          className="tv-lightweight-charts"
-          style={{ position: "relative", width: "100%", height: "100%", minHeight: 0, flex: 1 }}
-          data-cluster-host
-        >
-          {/* Canvas/profile overlays */}
-          {ind.moneyFlow && (
-            <MoneyFlowOverlay chartContainer={containerRef.current} candles={bars} />
-          )}
-
-          {/* Swing Liquidity segments */}
-          {ind.swingLiquidity && chart && (
-            <SwingLiquidityOverlay
-              chart={chart}
-              candles={bars}
-              leftBars={15}
-              rightBars={10}
-              volPctGate={0.65}
-              extendUntilFilled={true}
-              hideFilled={false}
-              lookbackBars={800}
-              maxOnScreen={80}
-            />
-          )}
-        </div>
-      </div>
+      />
     </div>
   );
 }
