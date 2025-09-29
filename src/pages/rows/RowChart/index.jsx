@@ -1,5 +1,6 @@
 // src/pages/rows/RowChart/index.jsx
-// v4.3 — Clean defaults: EMAs + Volume ON; others OFF. SMI gated to Full Chart.
+// v4.3 — Clean defaults: EMAs + Volume ON; all other indicators OFF.
+//        SMI is still gated to Full Chart, but defaults OFF there too.
 
 import React, { useMemo, useState, useEffect, useRef } from "react";
 import Controls from "./Controls";
@@ -7,7 +8,6 @@ import IndicatorsToolbar from "./IndicatorsToolbar";
 import useOhlc from "./useOhlc";
 import useLwcChart from "./useLwcChart";
 import { SYMBOLS, TIMEFRAMES, resolveApiBase } from "./constants";
-import LinkOnly from "./LinkOnly";
 
 // Overlays / panes
 import { createEmaOverlay } from "../../../indicators/ema/overlay";
@@ -17,25 +17,7 @@ import { createLuxSrOverlay } from "../../../indicators/srLux";
 import SwingLiquidityOverlay from "../../../components/overlays/SwingLiquidityOverlay";
 import { createSmiOverlay } from "../../../indicators/smi";
 
-/* ----------------------------- PUBLIC WRAPPER ----------------------------- */
-/** RowChart — wrapper. If `linkOnly` prop is true, render just the link panel.
- *  Otherwise render the full chart in RowChartImpl (keeps Hooks un-conditional).
- */
-export default function RowChart(props) {
-  if (props.linkOnly) {
-    return (
-      <LinkOnly
-        defaultSymbol={props.defaultSymbol || "SPY"}
-        defaultTimeframe={props.defaultTimeframe || "1h"}
-        label="Open Full Chart ↗"
-      />
-    );
-  }
-  return <RowChartImpl {...props} />;
-}
-
-/* ------------------------------- REAL CHART ------------------------------- */
-function RowChartImpl({
+export default function RowChart({
   apiBase,
   defaultSymbol = "SPY",
   defaultTimeframe = "1h",
@@ -123,12 +105,8 @@ function RowChartImpl({
   }, [loading, error, bars, onStatus]);
 
   // fetch data
-  useEffect(() => {
-    void refetch(true);
-  }, []); // mount
-  useEffect(() => {
-    void refetch(true);
-  }, [state.symbol, state.timeframe]);
+  useEffect(() => { void refetch(true); }, []); // mount
+  useEffect(() => { void refetch(true); }, [state.symbol, state.timeframe]);
 
   // set price bars
   useEffect(() => {
@@ -303,7 +281,7 @@ function RowChartImpl({
           display: "flex",
           justifyContent: "flex-end",
           padding: "6px 12px",
-          borderBottom: "1px solid #2b2b2b",
+          borderBottom: "1px solid #2b2b2b", // fixed quotes
         }}
       >
         <button
