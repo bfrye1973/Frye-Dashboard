@@ -10,7 +10,6 @@ import { SYMBOLS, TIMEFRAMES, resolveApiBase } from "./constants";
 
 // Link-only (env-flagged) mode
 import LinkOnly from "./LinkOnly";
-const LINK_ONLY = process.env.REACT_APP_CHART_LINK_ONLY === "1";
 
 // Overlays / panes
 import { createEmaOverlay } from "../../../indicators/ema/overlay";
@@ -20,8 +19,11 @@ import { createLuxSrOverlay } from "../../../indicators/srLux";
 import SwingLiquidityOverlay from "../../../components/overlays/SwingLiquidityOverlay";
 import { createSmiOverlay } from "../../../indicators/smi";
 
+// Env flag MUST be after imports (lint: import/first)
+const LINK_ONLY = process.env.REACT_APP_CHART_LINK_ONLY === "1";
+
 /* ----------------------------- PUBLIC WRAPPER ----------------------------- */
-// This wrapper keeps Hooks inside RowChartImpl so we never call them conditionally.
+// Wrapper keeps Hooks inside RowChartImpl so Hooks are never conditional.
 export default function RowChart(props) {
   if (LINK_ONLY) {
     return (
