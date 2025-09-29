@@ -1,9 +1,7 @@
 // src/lib/ohlcClient.js
-// Live-only OHLC client (Option A):
-// - 10m  -> /live/intraday
-// - 1h   -> /live/hourly
-// - 1d   -> /live/eod
-// Normalizes shapes and ms→s if needed.
+// Canonical OHLC client:
+// 1) Try /api/v1/ohlc (deep history; seconds)
+// 2) Fallback to /live/intraday | /live/hourly | /live/eod (normalize)
 
 const BACKEND =
   (typeof window !== "undefined" && (window.__API_BASE__ || "")) ||
@@ -48,55 +46,62 @@ async function getJson(url) {
   }
 }
 
-function mapTfToLive(tf) {
+function mapTf(tf) {
   const t = String(tf || "").toLowerCase();
-  if (/^\d+m$/.test(t)) return "intraday";      // 1m, 3m, 5m, 10m, 15m, 30m
+  if (/^\d+m$/.test(t)) return "intraday";
   if (t === "1h" || t === "4h") return "hourly";
-  return "eod";                                  // 1d / d / day / w
+  return "eod"; // 1d/d/day/w
 }
 
-/**
- * fetchOHLCResilient — live-only edition
- * Always pulls from the old JSON feeds; no /api/v1/ohlc call.
- */
 export async function fetchOHLCResilient({ symbol, timeframe, limit = 1500 }) {
   const sym = String(symbol || "SPY").toUpperCase();
   const tf  = String(timeframe || "10m");
-  const feed = mapTfToLive(tf);
 
-  const byFeed = {
+  // 1) Primary: /api/v1/ohlc
+  const url1 = `${API}/api/v1/ohlc?symbol=${encodeURIComponent(sym)}&timeframe=${encodeURIComponent(tf)}&limit=${limit}`;
+  const r1 = await getJson(url1);
+  if (r1.ok && r1.data) {
+    const root = Array.isArray(r1.data)
+      ? r1.data
+      : Array.isArray(r1.data.bars)
+        ? r1.data.bars
+        : [];
+    const bars = normalizeBars(root);
+    if (bars.length) return { source: "api/v1/ohlc", bars };
+  }
+
+  // 2) Fallback: /live/*
+  const feed = mapTf(tf);
+  const liveUrl = {
     intraday: `${API}/live/intraday`,
     hourly:   `${API}/live/hourly`,
     eod:      `${API}/live/eod`,
-  };
+  }[feed];
 
-  // primary
-  const r = await getJson(byFeed[feed]);
-  if (r.ok && r.data) {
-    const raw =
-      Array.isArray(r.data)
-        ? r.data
-        : Array.isArray(r.data.series)
-          ? r.data.series
-          : Array.isArray(r.data.ohlc)
-            ? r.data.ohlc
-            : [];
+  const r2 = await getJson(liveUrl);
+  if (r2.ok && r2.data) {
+    const raw = Array.isArray(r2.data)
+      ? r2.data
+      : Array.isArray(r2.data.series)
+        ? r2.data.series
+        : Array.isArray(r2.data.ohlc)
+          ? r2.data.ohlc
+          : [];
     const bars = normalizeBars(raw);
     if (bars.length) return { source: `/live/${feed}`, bars };
   }
 
-  // final fallback: try remaining live feeds (just in case)
+  // 3) Try remaining live feeds as last resort
   for (const f of ["intraday", "hourly", "eod"].filter((x) => x !== feed)) {
-    const rx = await getJson(byFeed[f]);
+    const rx = await getJson(`${API}/live/${f}`);
     if (rx.ok && rx.data) {
-      const raw =
-        Array.isArray(rx.data)
-          ? rx.data
-          : Array.isArray(rx.data.series)
-            ? rx.data.series
-            : Array.isArray(rx.data.ohlc)
-              ? rx.data.ohlc
-              : [];
+      const raw = Array.isArray(rx.data)
+        ? rx.data
+        : Array.isArray(rx.data.series)
+          ? r2.data.series
+          : Array.isArray(r2.data.ohlc)
+            ? r2.data.ohlc
+            : [];
       const bars = normalizeBars(raw);
       if (bars.length) return { source: `/live/${f}`, bars };
     }
