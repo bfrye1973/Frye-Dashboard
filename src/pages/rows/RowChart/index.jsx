@@ -7,8 +7,6 @@ import IndicatorsToolbar from "./IndicatorsToolbar";
 import useOhlc from "./useOhlc";
 import useLwcChart from "./useLwcChart";
 import { SYMBOLS, TIMEFRAMES, resolveApiBase } from "./constants";
-
-// Link-only (env-flagged) mode
 import LinkOnly from "./LinkOnly";
 
 // Overlays / panes
@@ -19,21 +17,12 @@ import { createLuxSrOverlay } from "../../../indicators/srLux";
 import SwingLiquidityOverlay from "../../../components/overlays/SwingLiquidityOverlay";
 import { createSmiOverlay } from "../../../indicators/smi";
 
-// Env flag MUST be after imports (lint: import/first)
-const LINK_ONLY = process.env.REACT_APP_CHART_LINK_ONLY === "1";
-
 /* ----------------------------- PUBLIC WRAPPER ----------------------------- */
-// Link-only (env-flagged) mode
-import LinkOnly from "./LinkOnly";
-
-// keep the flag available, but we’ll prefer the prop
-const LINK_ONLY_FLAG = process.env.REACT_APP_CHART_LINK_ONLY === "1";
-
-/* ----------------------------- PUBLIC WRAPPER ----------------------------- */
-// Wrapper keeps Hooks inside RowChartImpl so Hooks are never conditional.
+/** RowChart — wrapper. If `linkOnly` prop is true, render just the link panel.
+ *  Otherwise render the full chart in RowChartImpl (keeps Hooks un-conditional).
+ */
 export default function RowChart(props) {
-  const linkOnlyProp = !!props.linkOnly;
-  if (LINK_ONLY_FLAG || linkOnlyProp) {
+  if (props.linkOnly) {
     return (
       <LinkOnly
         defaultSymbol={props.defaultSymbol || "SPY"}
