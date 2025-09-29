@@ -9,7 +9,7 @@ import RowChart from "./rows/RowChart";
 import RowJournal from "./rows/RowJournal";
 import { useSelection } from "../context/ModeContext";
 
-// Minimal backend base (literal; no process.env at runtime)
+// Literal backend base (no runtime process.env)
 function getApiBase() {
   return "https://frye-market-backend-1.onrender.com";
 }
@@ -47,11 +47,10 @@ export default function NewDashboard() {
         <RowStrategies />
       </section>
 
-      {/* Row 6 — link-only to full chart (no embedded chart here) */}
+      {/* Row 6 — embedded chart (remount on selection change) */}
       <section id="row-6" className="panel row6-shell">
         <RowChart
-          linkOnly                         /* <- makes Row 6 a slim link */
-          key={`${symbol}-${timeframe}`}   /* remount on selection change */
+          key={`${symbol}-${timeframe}`}
           apiBase={apiBase}
           defaultSymbol={symbol}
           defaultTimeframe={timeframe}
