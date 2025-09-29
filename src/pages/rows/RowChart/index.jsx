@@ -23,9 +23,17 @@ import { createSmiOverlay } from "../../../indicators/smi";
 const LINK_ONLY = process.env.REACT_APP_CHART_LINK_ONLY === "1";
 
 /* ----------------------------- PUBLIC WRAPPER ----------------------------- */
+// Link-only (env-flagged) mode
+import LinkOnly from "./LinkOnly";
+
+// keep the flag available, but we’ll prefer the prop
+const LINK_ONLY_FLAG = process.env.REACT_APP_CHART_LINK_ONLY === "1";
+
+/* ----------------------------- PUBLIC WRAPPER ----------------------------- */
 // Wrapper keeps Hooks inside RowChartImpl so Hooks are never conditional.
 export default function RowChart(props) {
-  if (LINK_ONLY) {
+  const linkOnlyProp = !!props.linkOnly;
+  if (LINK_ONLY_FLAG || linkOnlyProp) {
     return (
       <LinkOnly
         defaultSymbol={props.defaultSymbol || "SPY"}
