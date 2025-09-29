@@ -13,6 +13,7 @@ export default function Controls({
   const disabled = !!value.disabled;
 
   const ranges = [50, 100, 200];
+  const fullChartHref = `/chart?symbol=${encodeURIComponent(symbol)}&tf=${encodeURIComponent(timeframe)}`;
 
   return (
     <div
@@ -82,6 +83,12 @@ export default function Controls({
             {n}
           </button>
         ))}
+
+        {/* Restore Open Full Chart button */}
+        <a href={fullChartHref} style={openBtnStyle} title="Open Full Chart">
+          Open Full Chart ↗
+        </a>
+
         {onTest && (
           <button
             onClick={onTest}
@@ -114,6 +121,17 @@ const rangeBtnStyle = (active) => ({
   fontWeight: 600,
   cursor: "pointer",
 });
+
+const openBtnStyle = {
+  background: "#0b0b0b",
+  color: "#e5e7eb",
+  border: "1px solid #2b2b2b",
+  borderRadius: 8,
+  padding: "6px 10px",
+  fontWeight: 700,
+  cursor: "pointer",
+  textDecoration: "none",
+};
 
 const testBtnStyle = {
   background: "#eab308",
