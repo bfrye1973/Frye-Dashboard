@@ -1,6 +1,7 @@
 // src/pages/rows/RowChart/index.jsx
 // RowChart: seeds deep history from /api/v1/ohlc, renders Lightweight Charts,
-// keeps AZ time on hover + axis, and makes Range 50/100/200 viewport-only.
+// keeps AZ time on hover + axis, adds a bottom volume histogram,
+// and makes Range 50/100/200 viewport-only.
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createChart } from "lightweight-charts";
@@ -13,6 +14,8 @@ const SEED_LIMIT = 1500; // deep seed for 10m/1h; server still clamps to ≤5000
 const DEFAULTS = {
   upColor: "#26a69a",
   downColor: "#ef5350",
+  volUp: "rgba(38, 166, 154, 0.5)",
+  volDown: "rgba(239, 83, 80, 0.5)",
   gridColor: "rgba(255,255,255,0.06)",
   bg: "#0b0b14",
   border: "#1f2a44",
@@ -58,6 +61,7 @@ export default function RowChart({
   const containerRef = useRef(null);
   const chartRef = useRef(null);
   const seriesRef = useRef(null);
+  const volSeriesRef = useRef(null);
   const resizeObsRef = useRef(null);
 
   // data state
@@ -66,7 +70,7 @@ export default function RowChart({
   const [state, setState] = useState({
     symbol: defaultSymbol,
     timeframe: defaultTimeframe,
-    range: null, // UI highlight; viewport is handled imperatively
+    range: null, // UI highlight; viewport handled imperatively
     disabled: false,
   });
 
@@ -97,6 +101,7 @@ export default function RowChart({
     });
     chartRef.current = chart;
 
+    // Candles
     const series = chart.addCandlestickSeries({
       upColor: DEFAULTS.upColor,
       downColor: DEFAULTS.downColor,
@@ -106,6 +111,15 @@ export default function RowChart({
       borderDownColor: DEFAULTS.downColor,
     });
     seriesRef.current = series;
+
+    // Volume (bottom histogram on its own scale)
+    const volSeries = chart.addHistogramSeries({
+      priceScaleId: "", // separate scale at the bottom
+      priceFormat: { type: "volume" },
+    });
+    // push volume to the bottom 20% of the pane
+    volSeries.priceScale().applyOptions({ scaleMargins: { top: 0.8, bottom: 0 } });
+    volSeriesRef.current = volSeries;
 
     chart.timeScale().applyOptions({
       tickMarkFormatter: (t) => phoenixTime(t, state.timeframe === "1d"),
@@ -128,6 +142,7 @@ export default function RowChart({
       try { chartRef.current?.remove(); } catch {}
       chartRef.current = null;
       seriesRef.current = null;
+      volSeriesRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // create once
@@ -175,10 +190,22 @@ export default function RowChart({
   // render bars to series (always the full dataset)
   useEffect(() => {
     const series = seriesRef.current;
+    const volSeries = volSeriesRef.current;
     const chart = chartRef.current;
     if (!series || !chart) return;
 
+    // Candles
     series.setData(bars);
+
+    // Volume (color by candle direction)
+    if (volSeries) {
+      const volData = bars.map((b) => ({
+        time: b.time,
+        value: Number(b.volume ?? 0),
+        color: (b.close >= b.open) ? DEFAULTS.volUp : DEFAULTS.volDown,
+      }));
+      volSeries.setData(volData);
+    }
 
     // fit on first load or when range is cleared; else show last N bars
     requestAnimationFrame(() => {
@@ -247,11 +274,12 @@ export default function RowChart({
         onTest={showDebug ? handleTest : null}
       />
 
+      {/* NOTE: Dimensions preserved — fixed height 520 like before */}
       <div
         ref={containerRef}
         style={{
           width: "100%",
-          height: 520, // keep fixed to avoid vertical growth; adjust if you prefer
+          height: 520,
           minHeight: 360,
           background: DEFAULTS.bg,
         }}
