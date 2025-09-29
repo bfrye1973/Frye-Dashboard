@@ -73,9 +73,9 @@ export default function Controls({
             disabled={disabled}
             onClick={() => {
               const next = range === n ? null : n;
-              // Keep UI highlight in RowChart state
+              // 1) keep UI highlight in RowChart state
               onChange?.({ range: next });
-              // Adjust viewport on the live chart (no reseed, no slice)
+              // 2) adjust viewport on the live chart (no reseed, no slice)
               onRange?.(next);
             }}
             style={rangeBtnStyle(range === n)}
@@ -84,7 +84,7 @@ export default function Controls({
           </button>
         ))}
 
-        {/* Restore Open Full Chart button */}
+        {/* Open Full Chart (kept; no dimension changes) */}
         <a href={fullChartHref} style={openBtnStyle} title="Open Full Chart">
           Open Full Chart ↗
         </a>
