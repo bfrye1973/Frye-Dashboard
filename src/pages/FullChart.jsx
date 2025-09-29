@@ -1,10 +1,9 @@
 // src/pages/FullChart.jsx
 import React, { useMemo, useRef, useLayoutEffect, useState } from "react";
-import RowChart from "./rows/RowChart"; // resolves to ./rows/RowChart/index.jsx
+import RowChart from "./rows/RowChart";
 
-const HEADER_H = 52; // match your top bar height
+const HEADER_H = 52;
 
-// NEW: accept timeframe OR tf from the URL (and normalize symbol)
 function getQueryParams() {
   if (typeof window === "undefined") return { symbol: "SPY", timeframe: "1h" };
   const q = new URLSearchParams(window.location.search);
@@ -14,16 +13,13 @@ function getQueryParams() {
 }
 
 export default function FullChart() {
-  // useMemo so we only read the URL once on mount
   const { symbol, timeframe } = useMemo(() => getQueryParams(), []);
-
   const bodyRef = useRef(null);
   const [ready, setReady] = useState(false);
 
   useLayoutEffect(() => {
     const el = bodyRef.current;
     if (!el) return;
-
     const apply = () => {
       const h =
         window.innerHeight ||
@@ -31,7 +27,6 @@ export default function FullChart() {
         800;
       el.style.height = Math.max(200, h - HEADER_H) + "px";
     };
-
     apply();
     const onResize = () => apply();
     window.addEventListener("resize", onResize);
@@ -82,9 +77,7 @@ export default function FullChart() {
         >
           ← Back
         </button>
-        <div style={{ color: "#e5e7eb", fontWeight: 700, marginLeft: 8 }}>
-          Full Chart
-        </div>
+        <div style={{ color: "#e5e7eb", fontWeight: 700, marginLeft: 8 }}>Full Chart</div>
         <div style={{ marginLeft: "auto", color: "#9ca3af", fontSize: 12 }}>
           {symbol} · {timeframe}
         </div>
@@ -103,14 +96,7 @@ export default function FullChart() {
         }}
       >
         {ready && (
-          <div
-            style={{
-              flex: "1 1 auto",
-              minHeight: 0,
-              display: "flex",
-              flexDirection: "column",
-            }}
-          >
+          <div style={{ flex: "1 1 auto", minHeight: 0, display: "flex", flexDirection: "column" }}>
             <RowChart
               apiBase="https://frye-market-backend-1.onrender.com"
               defaultSymbol={symbol}
