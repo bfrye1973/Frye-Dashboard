@@ -4,6 +4,7 @@ export default function Controls({
   timeframes = [],
   value = {},
   onChange,
+  onRange, // viewport-only handler (no reseed/trim)
   onTest,
 }) {
   const symbol = value.symbol ?? "SPY";
@@ -69,7 +70,13 @@ export default function Controls({
           <button
             key={n}
             disabled={disabled}
-            onClick={() => onChange?.({ range: range === n ? null : n })}
+            onClick={() => {
+              const next = range === n ? null : n;
+              // Keep UI highlight in RowChart state
+              onChange?.({ range: next });
+              // Adjust viewport on the live chart (no reseed, no slice)
+              onRange?.(next);
+            }}
             style={rangeBtnStyle(range === n)}
           >
             {n}
