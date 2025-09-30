@@ -1,18 +1,18 @@
 // src/pages/rows/RowChart/index.jsx
-// RowChart — final minimal path (no slicing)
+// RowChart — final, consistent with backend
 // - Seeds with getOHLC(limit=5000) → full array
 // - AZ time on hover + bottom axis
 // - Volume histogram (bottom 20%)
 // - Fixed height = 520
 // - Range 50/100 = last N bars (viewport only), 200 = FULL TIMELINE (fitContent)
-// - window.__ROWCHART_INFO__ set on each seed so we can see bars/spanDays
+// - window.__ROWCHART_INFO__ shows tf, bars, spanDays, source
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createChart } from "lightweight-charts";
 import Controls from "./Controls";
 import { getOHLC } from "../../../lib/ohlcClient";
 
-const SEED_LIMIT = 5000; // ✅ cap at 5000
+const SEED_LIMIT = 5000; // ✅ match backend cap
 
 const DEFAULTS = {
   upColor: "#26a69a",
@@ -46,7 +46,6 @@ export default function RowChart({
   defaultTimeframe = "1h",
   showDebug = false,
 }) {
-  // Make sure lib client sees the same base
   useEffect(() => {
     if (typeof window !== "undefined" && apiBase) {
       window.__API_BASE__ = apiBase.replace(/\/+$/, "");
@@ -65,7 +64,7 @@ export default function RowChart({
   const [state, setState] = useState({
     symbol: defaultSymbol,
     timeframe: defaultTimeframe,
-    range: 200, // 200 = FULL timeline
+    range: 200,
     disabled: false,
   });
 
@@ -134,17 +133,12 @@ export default function RowChart({
     roRef.current = ro;
 
     return () => {
-      try {
-        roRef.current?.disconnect();
-      } catch {}
-      try {
-        chartRef.current?.remove();
-      } catch {}
+      try { roRef.current?.disconnect(); } catch {}
+      try { chartRef.current?.remove(); } catch {}
       chartRef.current = null;
       seriesRef.current = null;
       volSeriesRef.current = null;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Update bottom axis when timeframe changes
@@ -156,7 +150,7 @@ export default function RowChart({
     });
   }, [state.timeframe]);
 
-  // Seed on symbol/timeframe change — NO slicing
+  // Seed on symbol/timeframe change
   useEffect(() => {
     let cancelled = false;
     async function load() {
@@ -193,20 +187,16 @@ export default function RowChart({
       }
     }
     load();
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    return () => { cancelled = true; };
   }, [state.symbol, state.timeframe, showDebug]);
 
-  // Render full data + apply viewport preset
+  // Render + viewport
   useEffect(() => {
     const chart = chartRef.current;
     const series = seriesRef.current;
     const vol = volSeriesRef.current;
     if (!chart || !series) return;
 
-    // Always set FULL data
     series.setData(bars);
 
     if (vol) {
@@ -219,25 +209,20 @@ export default function RowChart({
       );
     }
 
-    // Viewport: 200 = fit all; 50/100 = last N bars
     requestAnimationFrame(() => {
       const ts = chart.timeScale();
       const r = state.range;
       const len = bars.length;
       if (!r || r === 200 || !len) {
         ts.fitContent();
-        if (showDebug) console.log("[ROWCHART viewport] FULL (fitContent)");
       } else {
         const to = len - 1;
         const from = Math.max(0, to - (r - 1));
         ts.setVisibleLogicalRange({ from, to });
-        if (showDebug)
-          console.log(`[ROWCHART viewport] last ${r} bars (from ${from} to ${to})`);
       }
     });
-  }, [bars, state.range, showDebug]);
+  }, [bars, state.range]);
 
-  // Camera only
   const applyRange = (nextRange) => {
     const chart = chartRef.current;
     if (!chart) return;
