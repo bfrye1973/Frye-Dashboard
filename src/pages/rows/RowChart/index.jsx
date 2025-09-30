@@ -8,8 +8,7 @@ import { createChart } from "lightweight-charts";
 import Controls from "./Controls";
 import { fetchOHLCResilient } from "../../../lib/ohlcClient";
 
-// ---- constants ------------------------------------------------------------
-const SEED_LIMIT = 1500; // deep seed for 10m/1h; server still clamps to ≤5000
+const SEED_LIMIT = 1500;
 
 const DEFAULTS = {
   upColor: "#26a69a",
@@ -21,11 +20,6 @@ const DEFAULTS = {
   border: "#1f2a44",
 };
 
-// ---- helpers --------------------------------------------------------------
-const isMs = (t) => typeof t === "number" && t > 1e12;
-const toSec = (t) => (isMs(t) ? Math.floor(t / 1000) : t);
-
-// Phoenix (America/Phoenix) time formatter that works for numbers or {timestamp}
 function phoenixTime(ts, forDaily = false) {
   const seconds =
     typeof ts === "number"
@@ -43,42 +37,36 @@ function phoenixTime(ts, forDaily = false) {
   }).format(d);
 }
 
-// ---- component ------------------------------------------------------------
 export default function RowChart({
   apiBase = "https://frye-market-backend-1.onrender.com",
   defaultSymbol = "SPY",
   defaultTimeframe = "1h",
   showDebug = false,
 }) {
-  // Allow the lib client to pick up the backend base
   useEffect(() => {
     if (typeof window !== "undefined" && apiBase) {
       window.__API_BASE__ = apiBase.replace(/\/+$/, "");
     }
   }, [apiBase]);
 
-  // chart refs
   const containerRef = useRef(null);
   const chartRef = useRef(null);
   const seriesRef = useRef(null);
   const volSeriesRef = useRef(null);
   const resizeObsRef = useRef(null);
 
-  // data state
   const [bars, setBars] = useState([]);
   const barsRef = useRef([]);
   const [state, setState] = useState({
     symbol: defaultSymbol,
     timeframe: defaultTimeframe,
-    range: 200, // 🔸 default to FULL timeline (we treat 200 as fitContent)
+    range: 200,              // ← default to FULL timeline
     disabled: false,
   });
 
-  // options
   const symbols = useMemo(() => ["SPY", "QQQ", "IWM"], []);
   const timeframes = useMemo(() => ["10m", "1h", "4h", "1d"], []);
 
-  // create chart once
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -97,11 +85,10 @@ export default function RowChart({
         timezone: "America/Phoenix",
         timeFormatter: (t) => phoenixTime(t, state.timeframe === "1d"),
       },
-      crosshair: { mode: 0 }, // Normal
+      crosshair: { mode: 0 },
     });
     chartRef.current = chart;
 
-    // Candles
     const series = chart.addCandlestickSeries({
       upColor: DEFAULTS.upColor,
       downColor: DEFAULTS.downColor,
@@ -112,12 +99,10 @@ export default function RowChart({
     });
     seriesRef.current = series;
 
-    // Volume (bottom histogram on its own scale)
     const volSeries = chart.addHistogramSeries({
-      priceScaleId: "", // separate scale at the bottom
+      priceScaleId: "",
       priceFormat: { type: "volume" },
     });
-    // push volume to the bottom 20% of the pane
     volSeries.priceScale().applyOptions({ scaleMargins: { top: 0.8, bottom: 0 } });
     volSeriesRef.current = volSeries;
 
@@ -126,7 +111,6 @@ export default function RowChart({
       minimumHeight: 20,
     });
 
-    // resize observer
     const ro = new ResizeObserver(() => {
       if (!chartRef.current || !containerRef.current) return;
       chartRef.current.resize(
@@ -145,9 +129,8 @@ export default function RowChart({
       volSeriesRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // create once
+  }, []);
 
-  // update axis formatter when timeframe changes (daily vs intraday labels)
   useEffect(() => {
     if (!chartRef.current) return;
     chartRef.current.timeScale().applyOptions({
@@ -156,7 +139,6 @@ export default function RowChart({
     });
   }, [state.timeframe]);
 
-  // fetch seed on symbol/timeframe change (deep, independent of Range)
   useEffect(() => {
     let cancelled = false;
     async function load() {
@@ -168,7 +150,6 @@ export default function RowChart({
           limit: SEED_LIMIT,
         });
         if (cancelled) return;
-        // Ensure ascending time order
         const asc = (Array.isArray(bars) ? bars : []).slice().sort((a, b) => a.time - b.time);
         barsRef.current = asc;
         setBars(asc);
@@ -187,17 +168,14 @@ export default function RowChart({
     return () => { cancelled = true; };
   }, [state.symbol, state.timeframe, showDebug]);
 
-  // render bars to series (always the full dataset), then apply viewport preset
   useEffect(() => {
     const series = seriesRef.current;
     const volSeries = volSeriesRef.current;
     const chart = chartRef.current;
     if (!series || !chart) return;
 
-    // Candles
     series.setData(bars);
 
-    // Volume (color by candle direction)
     if (volSeries) {
       const volData = bars.map((b) => ({
         time: b.time,
@@ -207,12 +185,11 @@ export default function RowChart({
       volSeries.setData(volData);
     }
 
-    // Viewport: Range 200 = FULL TIMELINE (fit), 50/100 = last N bars
     requestAnimationFrame(() => {
       const ts = chart.timeScale();
       const r = state.range;
       const len = bars.length;
-      const wantFull = !r || r === 200; // 🔸 treat 200 as FULL
+      const wantFull = !r || r === 200;  // ← 200 means FULL timeline
       if (wantFull || !len) {
         ts.fitContent();
       } else {
@@ -223,13 +200,12 @@ export default function RowChart({
     });
   }, [bars, state.range]);
 
-  // viewport-only applyRange (used by Controls.onRange)
   const applyRange = (nextRange) => {
     const chart = chartRef.current;
     if (!chart) return;
     const len = barsRef.current.length;
     const ts = chart.timeScale();
-    const wantFull = !nextRange || nextRange === 200; // 🔸 200 => FULL
+    const wantFull = !nextRange || nextRange === 200; // ← 200 => FULL
     if (wantFull || !len) {
       ts.fitContent();
       return;
@@ -239,13 +215,10 @@ export default function RowChart({
     ts.setVisibleLogicalRange({ from, to });
   };
 
-  // Controls change handler (state drives symbol/timeframe + UI highlight)
   const handleControlsChange = (patch) => {
     setState((s) => ({ ...s, ...patch }));
-    // Note: viewport moves via applyRange (Controls.onRange) or via effect above.
   };
 
-  // Optional: a quick fetch tester for the button
   const handleTest = async () => {
     try {
       const { source, bars } = await fetchOHLCResilient({
@@ -275,16 +248,14 @@ export default function RowChart({
         timeframes={timeframes}
         value={state}
         onChange={handleControlsChange}
-        onRange={applyRange}        // viewport-only (no reseed/trim)
+        onRange={applyRange}
         onTest={showDebug ? handleTest : null}
       />
-
-      {/* NOTE: Dimensions preserved — fixed height 520 like before */}
       <div
         ref={containerRef}
         style={{
           width: "100%",
-          height: 520,
+          height: 520,         // ← dimensions unchanged
           minHeight: 360,
           background: DEFAULTS.bg,
         }}
