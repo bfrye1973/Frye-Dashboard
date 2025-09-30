@@ -1,6 +1,7 @@
 // src/lib/ohlcClient.js
-// Minimal, deterministic OHLC client for the chart.
-// Always hits /api/v1/ohlc and returns the plain bars array (seconds).
+// Canonical OHLC client (compat-safe):
+// - getOHLC(symbol, timeframe, limit) -> returns plain bars array in EPOCH SECONDS
+// - fetchOHLCResilient({ symbol, timeframe, limit }) -> { source, bars }  (shim for legacy callers)
 
 const BACKEND =
   (typeof window !== "undefined" && (window.__API_BASE__ || "")) ||
@@ -34,6 +35,7 @@ function normalizeBars(arr) {
     );
 }
 
+/** Minimal canonical call used by the new RowChart */
 export async function getOHLC(symbol = "SPY", timeframe = "1h", limit = 1500) {
   const sym = String(symbol || "SPY").toUpperCase();
   const tf = String(timeframe || "1h");
@@ -44,9 +46,17 @@ export async function getOHLC(symbol = "SPY", timeframe = "1h", limit = 1500) {
   const r = await fetch(url, { cache: "no-store" });
   if (!r.ok) throw new Error(`OHLC ${r.status}`);
 
-  // Backend returns a plain array: [{time,open,high,low,close,volume}, ...]
+  // Backend returns a plain array: [{ time, open, high, low, close, volume }, ...]
   const data = await r.json();
   const bars = normalizeBars(Array.isArray(data) ? data : data?.bars || []);
   return bars;
 }
 
+/** Compatibility shim: some code still imports fetchOHLCResilient */
+export async function fetchOHLCResilient({ symbol, timeframe, limit = 1500 }) {
+  const bars = await getOHLC(symbol, timeframe, limit);
+  return { source: "api/v1/ohlc", bars };
+}
+
+// Optional default export for any legacy default imports
+export default { getOHLC, fetchOHLCResilient };
