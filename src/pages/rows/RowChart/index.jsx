@@ -70,7 +70,7 @@ export default function RowChart({
   });
 
   const symbols = useMemo(() => ["SPY", "QQQ", "IWM"], []);
-  const timeframes = useMemo(() => ["10m", "1h", "4h", "1d"], []);
+  onst timeframes = useMemo(() => ["1m", "5m", "10m", "15m", "30m", "1h", "4h", "1d"], []);
 
   // Create chart once
   useEffect(() => {
