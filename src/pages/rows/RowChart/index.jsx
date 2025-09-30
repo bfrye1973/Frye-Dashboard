@@ -113,11 +113,11 @@ export default function RowChart({
       chartRef.current.resize(containerRef.current.clientWidth, containerRef.current.clientHeight);
     });
     ro.observe(el);
-    roRef = ro;
+    roRef.current = ro; // ✅ correct
 
     return () => {
-      try { ro.disconnect(); } catch {}
-      try { chart.remove(); } catch {}
+      try { roRef.current?.disconnect(); } catch {}
+      try { chartRef.current?.remove(); } catch {}
       chartRef.current = null;
       seriesRef.current = null;
       volSeriesRef.current = null;
