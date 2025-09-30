@@ -12,7 +12,7 @@ import { createChart } from "lightweight-charts";
 import Controls from "./Controls";
 import { getOHLC } from "../../../lib/ohlcClient";
 
-const SEED_LIMIT = 1500;
+const SEED_LIMIT = 10000;
 
 const DEFAULTS = {
   upColor: "#26a69a",
