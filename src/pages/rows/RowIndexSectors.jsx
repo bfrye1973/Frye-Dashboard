@@ -145,30 +145,44 @@ function snapshotToNetNHMap(snap) {
     }
   }
   return out;
-}
+ }
 
-async function computeDeltaNetNH(API, granularity, signal) {
-  const idx = await fetchJSON(
-    `${API}/api/replay/index?granularity=${encodeURIComponent(granularity)}&t=${Date.now()}`,
-    signal
-  );
+ async function computeDeltaNetNH(API, granularity, signal) {
+  // helper to fetch the index list
+  async function fetchIndex(g) {
+    return await fetchJSON(
+      `${API}/api/replay/index?granularity=${encodeURIComponent(g)}&t=${Date.now()}`,
+      signal
+    );
+  }
+
+  // 1) try the requested granularity
+  let idx = await fetchIndex(granularity);
+
+  // 2) if asking for hourly and it’s empty, also try the other common name
+  if ((granularity === "1h" || granularity === "hourly") && (!idx?.items?.length)) {
+    const alt = granularity === "1h" ? "hourly" : "1h";
+    idx = await fetchIndex(alt);
+  }
+
   const items = Array.isArray(idx?.items) ? idx.items : [];
-  if (items.length < 2) return {};
+  if (items.length < 2) return {};           // need two snapshots to compute a delta
+
   const tsA = items[0]?.ts;
   const tsB = items[1]?.ts;
   if (!tsA || !tsB) return {};
+
+  // fetch the two snapshots
   const [snapA, snapB] = await Promise.all([
-    fetchJSON(
-      `${API}/api/replay/at?granularity=${encodeURIComponent(granularity)}&ts=${encodeURIComponent(tsA)}&t=${Date.now()}`,
-      signal
-    ),
-    fetchJSON(
-      `${API}/api/replay/at?granularity=${encodeURIComponent(granularity)}&ts=${encodeURIComponent(tsB)}&t=${Date.now()}`,
-      signal
-    ),
+    fetchJSON(`${API}/api/replay/at?granularity=${encodeURIComponent(items[0]?.granularity || granularity)}&ts=${encodeURIComponent(tsA)}&t=${Date.now()}`, signal),
+    fetchJSON(`${API}/api/replay/at?granularity=${encodeURIComponent(items[1]?.granularity || granularity)}&ts=${encodeURIComponent(tsB)}&t=${Date.now()}`, signal),
   ]);
+
+  // turn snapshots into { sectorKey -> NetNH }
   const A = snapshotToNetNHMap(snapA);
   const B = snapshotToNetNHMap(snapB);
+
+  // delta = latest - previous
   const out = {};
   const keys = new Set([...Object.keys(A), ...Object.keys(B)]);
   for (const k of keys) {
@@ -176,6 +190,7 @@ async function computeDeltaNetNH(API, granularity, signal) {
   }
   return out;
 }
+
 
 /* -------------------------------- Main -------------------------------- */
 export default function RowIndexSectors() {
