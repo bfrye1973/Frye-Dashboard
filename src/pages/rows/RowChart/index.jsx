@@ -1,45 +1,39 @@
 // src/pages/rows/RowChart/index.jsx
-// Authoritative RowChart used by dashboard rows and Full Chart:
-// - Deep seed from /api/v1/ohlc (limit=1500), seconds units
-// - AZ time (hover + bottom axis) on the SAME chart instance
-// - Volume histogram on a separate bottom scale
+// Hook-based RowChart (uses your useLwcChart) with deep seed and correct viewport logic.
+// - Deep seed from /api/v1/ohlc (limit=1500) in EPOCH SECONDS
+// - AZ time on hover + axis via the SAME chart instance (hook handles this)
+// - Volume preserved
 // - Fixed height = 520px (no layout changes)
-// - Range presets: 50/100 = last N bars; 200 = FULL TIMELINE (fitContent)
+// - Range 50/100 = last N bars (viewport only)
+// - Range 200 = FULL timeline (fitContent)
+// - Debug: window.__ROWCHART_INFO__ shows bars count + span days
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { createChart } from "lightweight-charts";
 import Controls from "./Controls";
+import useLwcChart from "./useLwcChart";
+import { SYMBOLS, TIMEFRAMES, resolveApiBase } from "./constants";
 import { fetchOHLCResilient } from "../../../lib/ohlcClient";
 
 const SEED_LIMIT = 1500;
 
-const DEFAULTS = {
+const THEME = {
+  // chart appearance for the hook
+  layout: { background: { color: "#0b0b14" }, textColor: "#d1d5db" },
+  grid: {
+    vertLines: { color: "rgba(255,255,255,0.06)" },
+    horzLines: { color: "rgba(255,255,255,0.06)" },
+  },
+  rightPriceScale: { borderColor: "#1f2a44" },
+  timeScale: { borderColor: "#1f2a44", timeVisible: true },
+  crosshair: { mode: 0 },
+  // series colors consumed by the hook
   upColor: "#26a69a",
   downColor: "#ef5350",
-  volUp: "rgba(38, 166, 154, 0.5)",
-  volDown: "rgba(239, 83, 80, 0.5)",
-  gridColor: "rgba(255,255,255,0.06)",
-  bg: "#0b0b14",
-  border: "#1f2a44",
+  borderUpColor: "#26a69a",
+  borderDownColor: "#ef5350",
+  wickUpColor: "#26a69a",
+  wickDownColor: "#ef5350",
 };
-
-// Phoenix time label helper (works for numeric seconds or {timestamp})
-function phoenixTime(ts, forDaily = false) {
-  const seconds =
-    typeof ts === "number"
-      ? ts
-      : ts && typeof ts.timestamp === "number"
-      ? ts.timestamp
-      : 0;
-  const d = new Date(seconds * 1000);
-  return new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/Phoenix",
-    hour12: true,
-    ...(forDaily
-      ? { month: "short", day: "2-digit" }
-      : { hour: "numeric", minute: "2-digit" }),
-  }).format(d);
-}
 
 export default function RowChart({
   apiBase = "https://frye-market-backend-1.onrender.com",
@@ -47,105 +41,33 @@ export default function RowChart({
   defaultTimeframe = "1h",
   showDebug = false,
 }) {
-  // Allow the lib client to pick up the backend base
+  // resolve API base used by lib client and put it on window for consistency
+  const API_BASE = resolveApiBase(apiBase);
   useEffect(() => {
-    if (typeof window !== "undefined" && apiBase) {
-      window.__API_BASE__ = apiBase.replace(/\/+$/, "");
+    if (typeof window !== "undefined") {
+      window.__API_BASE__ = API_BASE.replace(/\/+$/, "");
     }
-  }, [apiBase]);
+  }, [API_BASE]);
 
-  // --- refs & state
-  const containerRef = useRef(null);
-  const chartRef = useRef(null);
-  const seriesRef = useRef(null);
-  const volSeriesRef = useRef(null);
-  const resizeObsRef = useRef(null);
-
-  const [bars, setBars] = useState([]);
-  const barsRef = useRef([]);
+  // use your hook for the actual chart + series
+  const { containerRef, chart, setData } = useLwcChart({ theme: THEME });
 
   const [state, setState] = useState({
     symbol: defaultSymbol,
     timeframe: defaultTimeframe,
-    range: 200,           // 🔸 default to FULL timeline view
+    range: 200,   // 🔸 default to FULL timeline
     disabled: false,
   });
 
-  const symbols = useMemo(() => ["SPY", "QQQ", "IWM"], []);
-  const timeframes = useMemo(() => ["10m", "1h", "4h", "1d"], []);
+  const barsRef = useRef([]);
 
-  // --- create chart once
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
+  const symbols = useMemo(() => SYMBOLS, []);
+  const timeframes = useMemo(() => TIMEFRAMES, []);
 
-    const chart = createChart(el, {
-      width: el.clientWidth,
-      height: el.clientHeight,
-      layout: { background: { color: DEFAULTS.bg }, textColor: "#d1d5db" },
-      grid: { vertLines: { color: DEFAULTS.gridColor }, horzLines: { color: DEFAULTS.gridColor } },
-      rightPriceScale: { borderColor: DEFAULTS.border, scaleMargins: { top: 0.1, bottom: 0.2 } },
-      timeScale: { borderColor: DEFAULTS.border, timeVisible: true },
-      localization: {
-        timezone: "America/Phoenix",
-        timeFormatter: (t) => phoenixTime(t, state.timeframe === "1d"),
-      },
-      crosshair: { mode: 0 },
-    });
-    chartRef.current = chart;
-
-    const series = chart.addCandlestickSeries({
-      upColor: DEFAULTS.upColor,
-      downColor: DEFAULTS.downColor,
-      wickUpColor: DEFAULTS.upColor,
-      wickDownColor: DEFAULTS.downColor,
-      borderUpColor: DEFAULTS.upColor,
-      borderDownColor: DEFAULTS.downColor,
-    });
-    seriesRef.current = series;
-
-    const volSeries = chart.addHistogramSeries({
-      priceScaleId: "",
-      priceFormat: { type: "volume" },
-    });
-    volSeries.priceScale().applyOptions({ scaleMargins: { top: 0.8, bottom: 0 } });
-    volSeriesRef.current = volSeries;
-
-    chart.timeScale().applyOptions({
-      tickMarkFormatter: (t) => phoenixTime(t, state.timeframe === "1d"),
-      minimumHeight: 20,
-    });
-
-    // keep chart sized to container
-    const ro = new ResizeObserver(() => {
-      if (!chartRef.current || !containerRef.current) return;
-      chartRef.current.resize(containerRef.current.clientWidth, containerRef.current.clientHeight);
-    });
-    ro.observe(el);
-    resizeObsRef.current = ro;
-
-    return () => {
-      try { resizeObsRef.current?.disconnect(); } catch {}
-      try { chartRef.current?.remove(); } catch {}
-      chartRef.current = null;
-      seriesRef.current = null;
-      volSeriesRef.current = null;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // --- axis formatter when timeframe toggles
-  useEffect(() => {
-    if (!chartRef.current) return;
-    chartRef.current.timeScale().applyOptions({
-      tickMarkFormatter: (t) => phoenixTime(t, state.timeframe === "1d"),
-      timeVisible: state.timeframe !== "1d",
-    });
-  }, [state.timeframe]);
-
-  // --- seed when symbol/timeframe changes
+  // seed on symbol/timeframe change (never slice)
   useEffect(() => {
     let cancelled = false;
+
     async function load() {
       setState((s) => ({ ...s, disabled: true }));
       try {
@@ -156,89 +78,73 @@ export default function RowChart({
         });
 
         if (cancelled) return;
+
         const asc = (Array.isArray(bars) ? bars : []).slice().sort((a, b) => a.time - b.time);
         barsRef.current = asc;
-        setBars(asc);
+        setData(asc); // hook will fitContent() initially
 
-        if (showDebug && typeof window !== "undefined") {
+        if (typeof window !== "undefined") {
           const first = asc[0]?.time ?? 0;
           const last  = asc[asc.length - 1]?.time ?? 0;
           const days  = first && last ? Math.round((last - first) / 86400) : 0;
-          console.log("[ROWCHART] seed", state.timeframe, "bars:", asc.length, "span(days):", days, "source:", source);
-          // quick global for you to check any time:
-          window.__ROWCHART_INFO__ = { tf: state.timeframe, bars: asc.length, first, last, spanDays: days, source };
+          window.__ROWCHART_INFO__ = {
+            tf: state.timeframe,
+            bars: asc.length,
+            first,
+            last,
+            spanDays: days,
+            source,
+          };
+          if (showDebug) {
+            console.log("[ROWCHART] seed", state.timeframe, "bars:", asc.length, "spanDays:", days, "source:", source);
+          }
         }
+
+        // after the hook's fit, apply our viewport preset (below)
+        applyViewport(state.range, asc);
       } catch (e) {
         if (showDebug) console.error("[ROWCHART] load error:", e);
         barsRef.current = [];
-        setBars([]);
+        setData([]);
       } finally {
         if (!cancelled) setState((s) => ({ ...s, disabled: false }));
       }
     }
+
     load();
     return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.symbol, state.timeframe, showDebug]);
 
-  // --- render candles/volume, then apply viewport preset
-  useEffect(() => {
-    const series = seriesRef.current;
-    const volSeries = volSeriesRef.current;
-    const chart = chartRef.current;
-    if (!series || !chart) return;
-
-    series.setData(bars);
-
-    if (volSeries) {
-      const volData = bars.map((b) => ({
-        time: b.time,
-        value: Number(b.volume ?? 0),
-        color: (b.close >= b.open) ? DEFAULTS.volUp : DEFAULTS.volDown,
-      }));
-      volSeries.setData(volData);
-    }
-
-    requestAnimationFrame(() => {
-      const ts = chart.timeScale();
-      const r = state.range;
-      const len = bars.length;
-      const wantFull = !r || r === 200; // 🔸 200 = FULL TIMELINE
-      if (wantFull || !len) {
-        ts.fitContent();
-        if (showDebug) console.log("[ROWCHART] viewport = FULL (fitContent)");
-      } else {
-        const to = len - 1;
-        const from = Math.max(0, to - (r - 1));
-        ts.setVisibleLogicalRange({ from, to });
-        if (showDebug) console.log(`[ROWCHART] viewport = last ${r} bars (from ${from} to ${to})`);
-      }
-    });
-  }, [bars, state.range, showDebug]);
-
-  // --- viewport-only range control
-  const applyRange = (nextRange) => {
-    const chart = chartRef.current;
+  // viewport logic: Range 200 = FULL timeline; 50/100 = last N bars
+  const applyViewport = (r, list = barsRef.current) => {
     if (!chart) return;
-    const len = barsRef.current.length;
-    const ts = chart.timeScale();
-    const wantFull = !nextRange || nextRange === 200;
-    if (wantFull || !len) {
+    const ts = chart.timeScale?.();
+    if (!ts) return;
+
+    const wantFull = !r || r === 200;
+    if (wantFull || !Array.isArray(list) || list.length === 0) {
       ts.fitContent();
-      if (showDebug) console.log("[ROWCHART] viewport = FULL (fitContent) via Controls");
+      if (showDebug) console.log("[ROWCHART] viewport FULL (fitContent)");
       return;
     }
-    const to = len - 1;
-    const from = Math.max(0, to - (nextRange - 1));
+
+    const to = list.length - 1;
+    const from = Math.max(0, to - (r - 1));
     ts.setVisibleLogicalRange({ from, to });
-    if (showDebug) console.log(`[ROWCHART] viewport = last ${nextRange} bars via Controls`);
+    if (showDebug) console.log(`[ROWCHART] viewport last ${r} bars (from ${from} to ${to})`);
   };
 
-  // --- Controls patch handler
+  // when Range button changes, move the camera (no reseed, no slice)
+  useEffect(() => {
+    applyViewport(state.range);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chart, state.range]);
+
   const handleControlsChange = (patch) => {
     setState((s) => ({ ...s, ...patch }));
   };
 
-  // --- optional debug fetch-test button
   const handleTest = async () => {
     try {
       const { source, bars } = await fetchOHLCResilient({
@@ -257,10 +163,10 @@ export default function RowChart({
       style={{
         display: "flex",
         flexDirection: "column",
-        border: `1px solid ${DEFAULTS.border}`,
+        border: "1px solid #1f2a44",
         borderRadius: 8,
         overflow: "hidden",
-        background: DEFAULTS.bg,
+        background: "#0b0b14",
       }}
     >
       <Controls
@@ -268,18 +174,21 @@ export default function RowChart({
         timeframes={timeframes}
         value={state}
         onChange={handleControlsChange}
-        onRange={applyRange}        // viewport-only (no reseed/trim)
+        onRange={(r) => {
+          setState((s) => ({ ...s, range: r }));
+          applyViewport(r);
+        }}
         onTest={showDebug ? handleTest : null}
       />
 
-      {/* Fixed height pane — DO NOT CHANGE */}
+      {/* Fixed height (no layout changes) */}
       <div
         ref={containerRef}
         style={{
           width: "100%",
           height: 520,
           minHeight: 360,
-          background: DEFAULTS.bg,
+          background: "#0b0b14",
         }}
       />
     </div>
