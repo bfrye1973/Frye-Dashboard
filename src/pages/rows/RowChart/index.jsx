@@ -1,7 +1,7 @@
 // src/pages/rows/RowChart/index.jsx
 // RowChart: seeds deep history from /api/v1/ohlc, renders Lightweight Charts,
 // keeps AZ time on hover + axis, adds a bottom volume histogram,
-// and makes Range 50/100/200 viewport-only.
+// and makes Range 50/100 viewport-only (last N bars) while Range 200 = FULL TIMELINE (fitContent).
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createChart } from "lightweight-charts";
@@ -70,7 +70,7 @@ export default function RowChart({
   const [state, setState] = useState({
     symbol: defaultSymbol,
     timeframe: defaultTimeframe,
-    range: null, // UI highlight; viewport handled imperatively
+    range: 200, // 🔸 default to FULL timeline (we treat 200 as fitContent)
     disabled: false,
   });
 
@@ -187,7 +187,7 @@ export default function RowChart({
     return () => { cancelled = true; };
   }, [state.symbol, state.timeframe, showDebug]);
 
-  // render bars to series (always the full dataset)
+  // render bars to series (always the full dataset), then apply viewport preset
   useEffect(() => {
     const series = seriesRef.current;
     const volSeries = volSeriesRef.current;
@@ -207,13 +207,17 @@ export default function RowChart({
       volSeries.setData(volData);
     }
 
-    // fit on first load or when range is cleared; else show last N bars
+    // Viewport: Range 200 = FULL TIMELINE (fit), 50/100 = last N bars
     requestAnimationFrame(() => {
       const ts = chart.timeScale();
-      if (!state.range) ts.fitContent();
-      else {
-        const to = bars.length - 1;
-        const from = Math.max(0, to - (state.range - 1));
+      const r = state.range;
+      const len = bars.length;
+      const wantFull = !r || r === 200; // 🔸 treat 200 as FULL
+      if (wantFull || !len) {
+        ts.fitContent();
+      } else {
+        const to = len - 1;
+        const from = Math.max(0, to - (r - 1));
         ts.setVisibleLogicalRange({ from, to });
       }
     });
@@ -225,7 +229,8 @@ export default function RowChart({
     if (!chart) return;
     const len = barsRef.current.length;
     const ts = chart.timeScale();
-    if (!nextRange || !len) {
+    const wantFull = !nextRange || nextRange === 200; // 🔸 200 => FULL
+    if (wantFull || !len) {
       ts.fitContent();
       return;
     }
