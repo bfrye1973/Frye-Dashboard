@@ -4,12 +4,12 @@ export default function Controls({
   timeframes = [],
   value = {},
   onChange,
-  onRange, // viewport-only handler (no reseed/trim)
+  onRange, // viewport-only (no reseed/trim)
   onTest,
 }) {
   const symbol = value.symbol ?? "SPY";
   const timeframe = value.timeframe ?? "1h";
-  const range = value.range ?? null;
+  const range = value.range ?? 200; // 200 highlighted by default (FULL)
   const disabled = !!value.disabled;
 
   const ranges = [50, 100, 200];
@@ -36,9 +36,7 @@ export default function Controls({
         style={selectStyle}
       >
         {(symbols.length ? symbols : ["SPY", "QQQ", "IWM"]).map((s) => (
-          <option key={s} value={s}>
-            {s}
-          </option>
+          <option key={s} value={s}>{s}</option>
         ))}
       </select>
 
@@ -49,34 +47,21 @@ export default function Controls({
         onChange={(e) => onChange?.({ timeframe: e.target.value })}
         style={selectStyle}
       >
-        {(timeframes.length ? timeframes : ["1m", "5m", "15m", "30m", "1h", "4h", "1d"]).map(
-          (t) => (
-            <option key={t} value={t}>
-              {t}
-            </option>
-          )
-        )}
+        {(timeframes.length ? timeframes : ["10m", "1h", "4h", "1d"]).map((t) => (
+          <option key={t} value={t}>{t}</option>
+        ))}
       </select>
 
-      <div
-        style={{
-          marginLeft: "auto",
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-        }}
-      >
+      <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
         <span style={{ color: "#9ca3af" }}>Range</span>
         {ranges.map((n) => (
           <button
             key={n}
             disabled={disabled}
             onClick={() => {
-              const next = range === n ? null : n;
-              // 1) keep UI highlight in RowChart state
-              onChange?.({ range: next });
-              // 2) adjust viewport on the live chart (no reseed, no slice)
-              onRange?.(next);
+              const next = range === n ? 200 : n; // clicking an active 50/100 returns to FULL (200)
+              onChange?.({ range: next });       // keep UI highlight
+              onRange?.(next);                   // move camera
             }}
             style={rangeBtnStyle(range === n)}
           >
@@ -84,17 +69,10 @@ export default function Controls({
           </button>
         ))}
 
-        {/* Open Full Chart (kept; no dimension changes) */}
-        <a href={fullChartHref} style={openBtnStyle} title="Open Full Chart">
-          Open Full Chart ↗
-        </a>
+        <a href={fullChartHref} style={openBtnStyle} title="Open Full Chart">Open Full Chart ↗</a>
 
         {onTest && (
-          <button
-            onClick={onTest}
-            style={testBtnStyle}
-            title="Force a fetch and show result"
-          >
+          <button onClick={onTest} style={testBtnStyle} title="Force a fetch and show result">
             Test Fetch
           </button>
         )}
