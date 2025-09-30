@@ -1,18 +1,16 @@
 // src/pages/rows/RowChart/index.jsx
-// RowChart — final, consistent with backend
-// - Seeds with getOHLC(limit=5000) → full array
-// - AZ time on hover + bottom axis
-// - Volume histogram (bottom 20%)
-// - Fixed height = 520
-// - Range 50/100 = last N bars (viewport only), 200 = FULL TIMELINE (fitContent)
-// - window.__ROWCHART_INFO__ shows tf, bars, spanDays, source
+// RowChart — history + live aggregates (WS with polling fallback)
+// - Seeds with getOHLC(limit=5000)
+// - Live updates via Polygon WS minute aggregates ("AM.SYMBOL") or backend proxy /ws/agg
+// - Client bucketizes 1m aggregates into active TF (5m/10m/15m/30m/1h/4h)
+// - AZ time, volume histogram, fixed height, Range 200 = Full
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createChart } from "lightweight-charts";
 import Controls from "./Controls";
 import { getOHLC } from "../../../lib/ohlcClient";
 
-const SEED_LIMIT = 5000; // ✅ match backend cap
+const SEED_LIMIT = 5000;
 
 const DEFAULTS = {
   upColor: "#26a69a",
@@ -22,6 +20,17 @@ const DEFAULTS = {
   gridColor: "rgba(255,255,255,0.06)",
   bg: "#0b0b14",
   border: "#1f2a44",
+};
+
+const TF_MINUTES = {
+  "1m": 1,
+  "5m": 5,
+  "10m": 10,
+  "15m": 15,
+  "30m": 30,
+  "1h": 60,
+  "4h": 240,
+  "1d": 1440, // not bucketized from minutes; we keep it read-only
 };
 
 function phoenixTime(ts, isDaily = false) {
@@ -46,6 +55,7 @@ export default function RowChart({
   defaultTimeframe = "1h",
   showDebug = false,
 }) {
+  // Make sure lib client sees the same base (for getOHLC)
   useEffect(() => {
     if (typeof window !== "undefined" && apiBase) {
       window.__API_BASE__ = apiBase.replace(/\/+$/, "");
@@ -60,7 +70,6 @@ export default function RowChart({
 
   const [bars, setBars] = useState([]);
   const barsRef = useRef([]);
-
   const [state, setState] = useState({
     symbol: defaultSymbol,
     timeframe: defaultTimeframe,
@@ -150,7 +159,7 @@ export default function RowChart({
     });
   }, [state.timeframe]);
 
-  // Seed on symbol/timeframe change
+  // Seed on symbol/timeframe change — NO slicing
   useEffect(() => {
     let cancelled = false;
     async function load() {
@@ -162,6 +171,7 @@ export default function RowChart({
         const asc = (Array.isArray(seed) ? seed : [])
           .slice()
           .sort((a, b) => a.time - b.time);
+
         barsRef.current = asc;
         setBars(asc);
 
@@ -223,6 +233,187 @@ export default function RowChart({
     });
   }, [bars, state.range]);
 
+  // --- LIVE via WebSocket aggregates (AM.SYMBOL) + client bucketizer ---
+  useEffect(() => {
+    const series = seriesRef.current;
+    if (!series) return;
+    const tfMin = TF_MINUTES[state.timeframe] ?? 60;
+
+    // do not attempt WS for daily timeframe
+    if (state.timeframe === "1d") return;
+
+    // Resolve a WS URL:
+    // Option 1: direct Polygon (set window.__POLY_KEY__ = "<your_key>")
+    // Option 2: backend proxy: wss(s)://<API_BASE>/ws/agg?symbol=SPY
+    const polyKey =
+      (typeof window !== "undefined" && window.__POLY_KEY__) || "";
+    const directWs =
+      polyKey &&
+      `wss://socket.polygon.io/stocks`;
+    const proxyWsBase =
+      (typeof window !== "undefined" && window.__API_BASE__) ||
+      apiBase.replace(/^http/, "ws");
+    const proxyWs = `${proxyWsBase.replace(/\/+$/, "")}/ws/agg?symbol=${encodeURIComponent(
+      state.symbol
+    )}`;
+
+    // We'll try direct Polygon first (only if key present), else proxy
+    let wsUrl = polyKey ? directWs : proxyWs;
+    let ws = null;
+    let alive = true;
+    let reconnectTimer = null;
+
+    // Internal helper: compute current bucket start (seconds)
+    const bucketStart = (sec) =>
+      Math.floor(sec / (tfMin * 60)) * (tfMin * 60);
+
+    // Merge an incoming 1-minute aggregate into current TF bucket
+    function mergeMinuteAgg(msg) {
+      // Support both polygon AM payload or proxy { time, o,h,l,c,v }
+      const ms = Number(
+        msg.s ?? msg.S ?? msg.t ?? msg.T ?? (msg.time ? msg.time * 1000 : 0)
+      ); // start time ms
+      const o = Number(msg.o ?? msg.open);
+      const h = Number(msg.h ?? msg.high);
+      const l = Number(msg.l ?? msg.low);
+      const c = Number(msg.c ?? msg.close);
+      const v = Number(msg.v ?? msg.volume ?? 0);
+      if (!ms || !Number.isFinite(c)) return;
+
+      const minuteSec = Math.floor(ms / 1000);
+      const bStart = bucketStart(minuteSec);
+
+      const list = barsRef.current;
+      const last = list[list.length - 1];
+
+      // If last bar aligns with our bucket → update; else start a new bucket
+      if (last && last.time === bStart) {
+        const merged = {
+          time: last.time,
+          open: Number.isFinite(last.open) ? last.open : o,
+          high: Math.max(Number.isFinite(last.high) ? last.high : h, h),
+          low: Math.min(Number.isFinite(last.low) ? last.low : l, l),
+          close: c,
+          volume: Number(last.volume ?? 0) + v,
+        };
+        series.update(merged);
+        list[list.length - 1] = merged;
+      } else if (last && last.time > bStart) {
+        // out-of-order (rare) → ignore
+        return;
+      } else {
+        const fresh = {
+          time: bStart,
+          open: o,
+          high: h,
+          low: l,
+          close: c,
+          volume: v,
+        };
+        series.update(fresh);
+        barsRef.current = [...list, fresh];
+      }
+    }
+
+    function connect() {
+      try {
+        ws = new WebSocket(wsUrl);
+      } catch {
+        scheduleReconnect();
+        return;
+      }
+
+      ws.onopen = () => {
+        if (!alive) return;
+        if (polyKey && wsUrl === directWs) {
+          // Authenticate + subscribe to AM.SYMBOL (minute aggregates)
+          ws.send(JSON.stringify({ action: "auth", params: polyKey }));
+          ws.send(JSON.stringify({ action: "subscribe", params: `AM.${state.symbol}` }));
+        } else {
+          // Backend proxy should already be subscribed by query param (?symbol=)
+        }
+      };
+
+      ws.onmessage = (ev) => {
+        if (!alive) return;
+        try {
+          const data = JSON.parse(ev.data);
+          const arr = Array.isArray(data) ? data : [data];
+          for (const msg of arr) {
+            // Polygon v2 AM message has ev:"AM", sym:"SPY", o,h,l,c,v, s( start ms )
+            if (msg && (msg.ev === "AM" || msg.type === "agg" || msg.open !== undefined)) {
+              mergeMinuteAgg(msg);
+            }
+          }
+        } catch {
+          /* ignore */
+        }
+      };
+
+      ws.onerror = () => {
+        cleanupSocket();
+        scheduleReconnect();
+      };
+
+      ws.onclose = () => {
+        cleanupSocket();
+        scheduleReconnect();
+      };
+    }
+
+    function cleanupSocket() {
+      try { ws && ws.close && ws.readyState === 1 && ws.close(); } catch {}
+      ws = null;
+    }
+
+    function scheduleReconnect() {
+      if (!alive) return;
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      reconnectTimer = setTimeout(connect, 4000);
+    }
+
+    connect();
+
+    return () => {
+      alive = false;
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      cleanupSocket();
+    };
+  }, [state.symbol, state.timeframe, apiBase, showDebug]);
+
+  // --- POLLING FALLBACK (keeps price updating if WS not available) ---
+  useEffect(() => {
+    const series = seriesRef.current;
+    if (!series) return;
+    if (state.timeframe === "1d") return; // skip daily
+
+    const POLL_MS = 5000;
+    let alive = true;
+    let timer = null;
+
+    async function tick() {
+      try {
+        const lastTwo = await getOHLC(state.symbol, state.timeframe, 2);
+        if (!alive || !Array.isArray(lastTwo) || lastTwo.length === 0) return;
+        const last = lastTwo[lastTwo.length - 1];
+        const list = barsRef.current;
+        const prevLast = list[list.length - 1];
+        if (prevLast && prevLast.time === last.time) {
+          series.update(last);
+          list[list.length - 1] = last;
+        } else if (!prevLast || prevLast.time < last.time) {
+          series.update(last);
+          barsRef.current = [...list, last];
+        }
+      } catch { /* ignore */ }
+      finally { if (alive) timer = setTimeout(tick, POLL_MS); }
+    }
+
+    timer = setTimeout(tick, POLL_MS);
+    return () => { alive = false; if (timer) clearTimeout(timer); };
+  }, [state.symbol, state.timeframe]);
+
+  // Camera only (Range buttons)
   const applyRange = (nextRange) => {
     const chart = chartRef.current;
     if (!chart) return;
