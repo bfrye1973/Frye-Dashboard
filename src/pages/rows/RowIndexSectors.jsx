@@ -1,6 +1,10 @@
 // src/pages/rows/RowIndexSectors.jsx
-// v4.2 — Δ5m (sandbox), Δ10m (replay), Δ1h (replay), Δ1d (replay)
-// Uses the same computeDeltaNetNH() helper for 10m/1h/1d. No layout/size changes.
+// v4.3 — Pills restored without replay:
+// - Δ10m from current intraday vs previous intraday (session)
+// - Δ1h  from current hourly   vs previous hourly   (session)
+// - Δ1d  from current EOD      vs previous EOD      (session)
+// If replay comes back later, this still prefers replay maps automatically.
+// Also retains Δ5m (sandbox) read-only pill.
 
 import React, { useEffect, useMemo, useState } from "react";
 
@@ -106,21 +110,23 @@ function Pill({ label, value }) {
 
 /* ------------------------------ Sandbox 5m ------------------------------ */
 const SANDBOX_URL = process.env.REACT_APP_INTRADAY_SANDBOX_URL || "";
+
+// Canonical aliases (used by 5m sandbox + mapping)
 const ALIASES = {
-  "healthcare": "Health Care",
+  healthcare: "Health Care",
   "health care": "Health Care",
   "info tech": "Information Technology",
   "information technology": "Information Technology",
-  "communications": "Communication Services",
+  communications: "Communication Services",
   "communication services": "Communication Services",
   "consumer staples": "Consumer Staples",
   "consumer discretionary": "Consumer Discretionary",
-  "financials": "Financials",
-  "industrials": "Industrials",
-  "materials": "Materials",
+  financials: "Financials",
+  industrials: "Industrials",
+  materials: "Materials",
   "real estate": "Real Estate",
-  "utilities": "Utilities",
-  "energy": "Energy",
+  utilities: "Utilities",
+  energy: "Energy",
 };
 
 async function fetchJSON(url, signal) {
@@ -137,7 +143,9 @@ function snapshotToNetNHMap(snap) {
     : [];
   const out = {};
   for (const c of cards) {
-    const key = norm(c?.sector || "");
+    const raw = c?.sector || "";
+    const canon = ALIASES[norm(raw)] || raw; // align labels if needed
+    const key = norm(canon);
     const nh = Number(c?.nh ?? NaN);
     const nl = Number(c?.nl ?? NaN);
     if (key && Number.isFinite(nh) && Number.isFinite(nl)) {
@@ -145,52 +153,21 @@ function snapshotToNetNHMap(snap) {
     }
   }
   return out;
- }
+}
 
- async function computeDeltaNetNH(API, granularity, signal) {
-  // helper to fetch the index list
-  async function fetchIndex(g) {
-    return await fetchJSON(
-      `${API}/api/replay/index?granularity=${encodeURIComponent(g)}&t=${Date.now()}`,
-      signal
-    );
-  }
-
-  // 1) try the requested granularity
-  let idx = await fetchIndex(granularity);
-
-  // 2) if asking for hourly and it’s empty, also try the other common name
-  if ((granularity === "1h" || granularity === "hourly") && (!idx?.items?.length)) {
-    const alt = granularity === "1h" ? "hourly" : "1h";
-    idx = await fetchIndex(alt);
-  }
-
-  const items = Array.isArray(idx?.items) ? idx.items : [];
-  if (items.length < 2) return {};           // need two snapshots to compute a delta
-
-  const tsA = items[0]?.ts;
-  const tsB = items[1]?.ts;
-  if (!tsA || !tsB) return {};
-
-  // fetch the two snapshots
-  const [snapA, snapB] = await Promise.all([
-    fetchJSON(`${API}/api/replay/at?granularity=${encodeURIComponent(items[0]?.granularity || granularity)}&ts=${encodeURIComponent(tsA)}&t=${Date.now()}`, signal),
-    fetchJSON(`${API}/api/replay/at?granularity=${encodeURIComponent(items[1]?.granularity || granularity)}&ts=${encodeURIComponent(tsB)}&t=${Date.now()}`, signal),
-  ]);
-
-  // turn snapshots into { sectorKey -> NetNH }
-  const A = snapshotToNetNHMap(snapA);
-  const B = snapshotToNetNHMap(snapB);
-
-  // delta = latest - previous
+/* Build { sectorKey -> Net NH } from live cards (intraday/hourly/eod) */
+function netNHMapFromCards(cards = []) {
   const out = {};
-  const keys = new Set([...Object.keys(A), ...Object.keys(B)]);
-  for (const k of keys) {
-    if (Number.isFinite(A[k]) && Number.isFinite(B[k])) out[k] = A[k] - B[k];
+  for (const c of Array.isArray(cards) ? cards : []) {
+    const raw = c?.sector || "";
+    const canon = ALIASES[norm(raw)] || raw;
+    const key = norm(canon);
+    const nh = Number(c?.nh ?? NaN);
+    const nl = Number(c?.nl ?? NaN);
+    if (key && Number.isFinite(nh) && Number.isFinite(nl)) out[key] = nh - nl;
   }
   return out;
 }
-
 
 /* -------------------------------- Main -------------------------------- */
 export default function RowIndexSectors() {
@@ -200,16 +177,26 @@ export default function RowIndexSectors() {
   const [intraday, setIntraday] = useState({ ts: null, cards: [], err: null });
   const [eod, setEod] = useState({ ts: null, cards: [], err: null });
 
-  // Δ maps
-  const [d10mMap, setD10mMap] = useState({});
-  const [d1hMap, setD1hMap] = useState({});   // NEW — hourly via replay
-  const [d1dMap, setD1dMap] = useState({});
+  // Replay maps (kept for future; empty when replay offline)
+  const [d10mMap] = useState({}); // not used now, reserved
+  const [d1hMap] = useState({});  // not used now, reserved
+  const [d1dMap] = useState({});  // not used now, reserved
+
+  // Session delta maps (live-only, no replay)
+  const [d10mSess, setD10mSess] = useState({});
+  const [d1hSess, setD1hSess] = useState({});
+  const [d1dSess, setD1dSess] = useState({});
+
+  // Last snapshots per cadence for session deltas
+  const [last10m, setLast10m] = useState(null);
+  const [last1h, setLast1h] = useState(null);
+  const [last1d, setLast1d] = useState(null);
 
   // Sandbox deltas (5m)
   const [d5mMap, setD5mMap] = useState({});
   const [deltasUpdatedAt, setDeltasUpdatedAt] = useState(null);
 
-  // Poll intraday every 60s
+  /* -------------------- Poll intraday (10m) + Δ10m session -------------------- */
   useEffect(() => {
     const ctrl = new AbortController();
     async function load() {
@@ -219,8 +206,54 @@ export default function RowIndexSectors() {
         const ts = j?.sectorsUpdatedAt || j?.updated_at || null;
         const cards = Array.isArray(j?.sectorCards) ? j.sectorCards.slice() : [];
         setIntraday({ ts, cards, err: null });
+
+        // Session Δ10m: compare current NetNH to last10m
+        const nowMap = netNHMapFromCards(cards);
+        if (last10m) {
+          const d = {};
+          const keys = new Set([...Object.keys(nowMap), ...Object.keys(last10m)]);
+          for (const k of keys) {
+            if (Number.isFinite(nowMap[k]) && Number.isFinite(last10m[k])) {
+              d[k] = nowMap[k] - last10m[k];
+            }
+          }
+          setD10mSess(d);
+        }
+        setLast10m(nowMap);
       } catch (err) {
         setIntraday((p) => ({ ...p, err: String(err) }));
+      }
+    }
+    load();
+    const t = setInterval(load, 60_000); // poll every 60s
+    return () => {
+      ctrl.abort();
+      clearInterval(t);
+    };
+  }, [API, last10m]);
+
+  /* -------------------- Poll hourly + Δ1h session -------------------- */
+  useEffect(() => {
+    const ctrl = new AbortController();
+    async function load() {
+      try {
+        const url = `${API}/live/hourly?t=${Date.now()}`;
+        const j = await fetchJSON(url, ctrl.signal);
+        const cards = Array.isArray(j?.sectorCards) ? j.sectorCards : [];
+        const nowMap = netNHMapFromCards(cards);
+        if (last1h) {
+          const d = {};
+          const keys = new Set([...Object.keys(nowMap), ...Object.keys(last1h)]);
+          for (const k of keys) {
+            if (Number.isFinite(nowMap[k]) && Number.isFinite(last1h[k])) {
+              d[k] = nowMap[k] - last1h[k];
+            }
+          }
+          setD1hSess(d);
+        }
+        setLast1h(nowMap);
+      } catch {
+        // keep old session deltas if fetch fails
       }
     }
     load();
@@ -229,9 +262,9 @@ export default function RowIndexSectors() {
       ctrl.abort();
       clearInterval(t);
     };
-  }, [API]);
+  }, [API, last1h]);
 
-  // Fetch EOD on demand (and refresh every 5 min while selected)
+  /* -------------------- Fetch EOD on demand + Δ1d session -------------------- */
   useEffect(() => {
     let timer = null;
     const ctrl = new AbortController();
@@ -242,78 +275,35 @@ export default function RowIndexSectors() {
         const ts = j?.sectorsUpdatedAt || j?.updated_at || null;
         const cards = Array.isArray(j?.sectorCards) ? j.sectorCards.slice() : [];
         setEod({ ts, cards, err: null });
+
+        // Session Δ1d: compare current NetNH to last1d
+        const nowMap = netNHMapFromCards(cards);
+        if (last1d) {
+          const d = {};
+          const keys = new Set([...Object.keys(nowMap), ...Object.keys(last1d)]);
+          for (const k of keys) {
+            if (Number.isFinite(nowMap[k]) && Number.isFinite(last1d[k])) {
+              d[k] = nowMap[k] - last1d[k];
+            }
+          }
+          setD1dSess(d);
+        }
+        setLast1d(nowMap);
       } catch (err) {
         setEod((p) => ({ ...p, err: String(err) }));
       }
     }
     if (sourceTf === "eod") {
       load();
-      timer = setInterval(load, 300_000);
+      timer = setInterval(load, 300_000); // refresh every 5 min while viewing EOD
     }
     return () => {
       if (timer) clearInterval(timer);
       ctrl.abort();
     };
-  }, [API, sourceTf]);
+  }, [API, sourceTf, last1d]);
 
-  // Δ10m every 60s
-  useEffect(() => {
-    const ctrl = new AbortController();
-    async function load() {
-      try {
-        const m = await computeDeltaNetNH(API, "10min", ctrl.signal);
-        setD10mMap(m);
-      } catch {
-        setD10mMap({});
-      }
-    }
-    load();
-    const t = setInterval(load, 60_000);
-    return () => {
-      ctrl.abort();
-      clearInterval(t);
-    };
-  }, [API]);
-
-  // Δ1h every 5 min (same pattern as 10m/eod)
-  useEffect(() => {
-    const ctrl = new AbortController();
-    async function load() {
-      try {
-        const m = await computeDeltaNetNH(API, "1h", ctrl.signal);
-        setD1hMap(m);
-      } catch {
-        setD1hMap({});
-      }
-    }
-    load();
-    const t = setInterval(load, 300_000);
-    return () => {
-      ctrl.abort();
-      clearInterval(t);
-    };
-  }, [API]);
-
-  // Δ1d every 5 min
-  useEffect(() => {
-    const ctrl = new AbortController();
-    async function load() {
-      try {
-        const m = await computeDeltaNetNH(API, "eod", ctrl.signal);
-        setD1dMap(m);
-      } catch {
-        setD1dMap({});
-      }
-    }
-    load();
-    const t = setInterval(load, 300_000);
-    return () => {
-      ctrl.abort();
-      clearInterval(t);
-    };
-  }, [API]);
-
-  // Pull 5m sandbox deltas every 60s (read-only)
+  /* -------------------- Pull 5m sandbox deltas (read-only) -------------------- */
   useEffect(() => {
     let stop = false;
     async function loadSandbox() {
@@ -329,21 +319,27 @@ export default function RowIndexSectors() {
         const map = {};
         const ds = j?.deltas?.sectors || {};
         for (const key of Object.keys(ds)) {
-          const canon = ALIASES[norm(key)] || key; // keep canon case
-          map[norm(canon)] = Number(ds[key]?.netTilt ?? NaN); // show netTilt as Δ5m
+          const canon = ALIASES[norm(key)] || key; // keep canon case for display
+          map[norm(canon)] = Number(ds[key]?.netTilt ?? NaN); // display netTilt as Δ5m
         }
         setD5mMap(map);
         setDeltasUpdatedAt(j?.deltasUpdatedAt || null);
       } catch {
-        if (!stop) { setD5mMap({}); setDeltasUpdatedAt(null); }
+        if (!stop) {
+          setD5mMap({});
+          setDeltasUpdatedAt(null);
+        }
       }
     }
     loadSandbox();
     const t = setInterval(loadSandbox, 60_000);
-    return () => { stop = true; clearInterval(t); };
+    return () => {
+      stop = true;
+      clearInterval(t);
+    };
   }, []);
 
-  // Choose active source strictly
+  // Active source strictly
   const active = sourceTf === "eod" ? eod : intraday;
 
   // Sort by canonical order
@@ -427,14 +423,16 @@ export default function RowIndexSectors() {
         >
           {cards.map((c, i) => {
             const key = norm(c?.sector || "");
-            const d5 = (() => {
-              const canon = ALIASES[key] || c?.sector || "";
-              const v = d5mMap[norm(canon)];
-              return Number.isFinite(v) && !stale5m ? v : undefined;
-            })();
-            const d10 = d10mMap[key];
-            const d1h = d1hMap[key];
-            const d1d = d1dMap[key];
+
+            // 5m netTilt pill (sandbox; green/red/gray); hide if stale or missing
+            const canon = ALIASES[key] || c?.sector || "";
+            const d5 = d5mMap[norm(canon)];
+            const show5 = Number.isFinite(d5) && !stale5m;
+
+            // Prefer replay values if present (kept for future), else session deltas
+            const d10 = Number.isFinite(d10mMap[key]) ? d10mMap[key] : d10mSess[key];
+            const d1h = Number.isFinite(d1hMap[key]) ? d1hMap[key] : d1hSess[key];
+            const d1d = Number.isFinite(d1dMap[key]) ? d1dMap[key] : d1dSess[key];
 
             const nh = Number(c?.nh ?? NaN);
             const nl = Number(c?.nl ?? NaN);
@@ -467,7 +465,7 @@ export default function RowIndexSectors() {
 
                 {/* Compact Δ row (single line; no height change) */}
                 <div style={{ display: "flex", gap: 6, margin: "0 0 4px 0", alignItems: "center", flexWrap: "wrap" }}>
-                  {Number.isFinite(d5) && <Pill label="Δ5m" value={d5} />}
+                  {show5 && <Pill label="Δ5m" value={d5} />}
                   <Pill label="Δ10m" value={Number.isFinite(d10) ? d10 : undefined} />
                   <Pill label="Δ1h"  value={Number.isFinite(d1h) ? d1h : undefined} />
                   <Pill label="Δ1d"  value={Number.isFinite(d1d) ? d1d : undefined} />
@@ -537,10 +535,10 @@ export default function RowIndexSectors() {
               Outlook
             </div>
             <div style={{ color: "#d1d5db", fontSize: 12 }}>
-              <b>Δ5m</b> from sandbox (netTilt).<br/>
-              <b>Δ10m</b> from replay: last two 10-minute snapshots.<br/>
-              <b>Δ1h</b> from replay: last two hourly snapshots.<br/>
-              <b>Δ1d</b> from replay: last two end-of-day snapshots.
+              <b>Δ5m</b> from sandbox (netTilt).<br />
+              <b>Δ10m</b> from live intraday vs prior intraday (session).<br />
+              <b>Δ1h</b> from live hourly vs prior hourly (session).<br />
+              <b>Δ1d</b> from live EOD vs prior EOD (session).
             </div>
             <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}>
               <button
