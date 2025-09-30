@@ -5,7 +5,7 @@ import RowMarketOverview from "./rows/RowMarketOverview";
 import RowEngineLights from "./rows/RowEngineLights";
 import RowIndexSectors from "./rows/RowIndexSectors";
 import RowStrategies from "./rows/RowStrategies";
-import RowChart from "./rows/RowChart";
+import RowChart from "./rows/RowChart/index.jsx";
 import RowJournal from "./rows/RowJournal";
 import { useSelection } from "../context/ModeContext";
 
