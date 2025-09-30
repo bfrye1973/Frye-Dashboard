@@ -1,6 +1,6 @@
 // src/pages/rows/RowChart/index.jsx
 // RowChart — final minimal path (no slicing)
-// - Seeds with getOHLC(limit=1500) → full array
+// - Seeds with getOHLC(limit=5000) → full array
 // - AZ time on hover + bottom axis
 // - Volume histogram (bottom 20%)
 // - Fixed height = 520
@@ -12,7 +12,7 @@ import { createChart } from "lightweight-charts";
 import Controls from "./Controls";
 import { getOHLC } from "../../../lib/ohlcClient";
 
-const SEED_LIMIT = 10000;
+const SEED_LIMIT = 5000; // ✅ cap at 5000
 
 const DEFAULTS = {
   upColor: "#26a69a",
@@ -70,7 +70,10 @@ export default function RowChart({
   });
 
   const symbols = useMemo(() => ["SPY", "QQQ", "IWM"], []);
-  const timeframes = useMemo(() => ["1m", "5m", "10m", "15m", "30m", "1h", "4h", "1d"], []);
+  const timeframes = useMemo(
+    () => ["1m", "5m", "10m", "15m", "30m", "1h", "4h", "1d"],
+    []
+  );
 
   // Create chart once
   useEffect(() => {
@@ -81,10 +84,19 @@ export default function RowChart({
       width: el.clientWidth,
       height: el.clientHeight,
       layout: { background: { color: DEFAULTS.bg }, textColor: "#d1d5db" },
-      grid: { vertLines: { color: DEFAULTS.gridColor }, horzLines: { color: DEFAULTS.gridColor } },
-      rightPriceScale: { borderColor: DEFAULTS.border, scaleMargins: { top: 0.1, bottom: 0.2 } },
+      grid: {
+        vertLines: { color: DEFAULTS.gridColor },
+        horzLines: { color: DEFAULTS.gridColor },
+      },
+      rightPriceScale: {
+        borderColor: DEFAULTS.border,
+        scaleMargins: { top: 0.1, bottom: 0.2 },
+      },
       timeScale: { borderColor: DEFAULTS.border, timeVisible: true },
-      localization: { timezone: "America/Phoenix", timeFormatter: (t) => phoenixTime(t, state.timeframe === "1d") },
+      localization: {
+        timezone: "America/Phoenix",
+        timeFormatter: (t) => phoenixTime(t, state.timeframe === "1d"),
+      },
       crosshair: { mode: 0 },
     });
     chartRef.current = chart;
@@ -99,7 +111,10 @@ export default function RowChart({
     });
     seriesRef.current = series;
 
-    const vol = chart.addHistogramSeries({ priceScaleId: "", priceFormat: { type: "volume" } });
+    const vol = chart.addHistogramSeries({
+      priceScaleId: "",
+      priceFormat: { type: "volume" },
+    });
     vol.priceScale().applyOptions({ scaleMargins: { top: 0.8, bottom: 0 } });
     volSeriesRef.current = vol;
 
@@ -110,14 +125,21 @@ export default function RowChart({
 
     const ro = new ResizeObserver(() => {
       if (!chartRef.current || !containerRef.current) return;
-      chartRef.current.resize(containerRef.current.clientWidth, containerRef.current.clientHeight);
+      chartRef.current.resize(
+        containerRef.current.clientWidth,
+        containerRef.current.clientHeight
+      );
     });
     ro.observe(el);
-    roRef.current = ro; // ✅ correct
+    roRef.current = ro;
 
     return () => {
-      try { roRef.current?.disconnect(); } catch {}
-      try { chartRef.current?.remove(); } catch {}
+      try {
+        roRef.current?.disconnect();
+      } catch {}
+      try {
+        chartRef.current?.remove();
+      } catch {}
       chartRef.current = null;
       seriesRef.current = null;
       volSeriesRef.current = null;
@@ -143,15 +165,23 @@ export default function RowChart({
         const seed = await getOHLC(state.symbol, state.timeframe, SEED_LIMIT);
         if (cancelled) return;
 
-        const asc = (Array.isArray(seed) ? seed : []).slice().sort((a, b) => a.time - b.time);
+        const asc = (Array.isArray(seed) ? seed : [])
+          .slice()
+          .sort((a, b) => a.time - b.time);
         barsRef.current = asc;
         setBars(asc);
 
         if (typeof window !== "undefined") {
           const first = asc[0]?.time ?? 0;
           const last = asc[asc.length - 1]?.time ?? 0;
-          const spanDays = first && last ? Math.round((last - first) / 86400) : 0;
-          window.__ROWCHART_INFO__ = { tf: state.timeframe, bars: asc.length, spanDays, source: "api/v1/ohlc" };
+          const spanDays =
+            first && last ? Math.round((last - first) / 86400) : 0;
+          window.__ROWCHART_INFO__ = {
+            tf: state.timeframe,
+            bars: asc.length,
+            spanDays,
+            source: "api/v1/ohlc",
+          };
           if (showDebug) console.log("[ROWCHART seed]", window.__ROWCHART_INFO__);
         }
       } catch (e) {
@@ -163,7 +193,9 @@ export default function RowChart({
       }
     }
     load();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.symbol, state.timeframe, showDebug]);
 
@@ -199,7 +231,8 @@ export default function RowChart({
         const to = len - 1;
         const from = Math.max(0, to - (r - 1));
         ts.setVisibleLogicalRange({ from, to });
-        if (showDebug) console.log(`[ROWCHART viewport] last ${r} bars`);
+        if (showDebug)
+          console.log(`[ROWCHART viewport] last ${r} bars (from ${from} to ${to})`);
       }
     });
   }, [bars, state.range, showDebug]);
@@ -220,7 +253,8 @@ export default function RowChart({
     ts.setVisibleLogicalRange({ from, to });
   };
 
-  const handleControlsChange = (patch) => setState((s) => ({ ...s, ...patch }));
+  const handleControlsChange = (patch) =>
+    setState((s) => ({ ...s, ...patch }));
 
   const handleTest = async () => {
     try {
@@ -252,7 +286,12 @@ export default function RowChart({
       />
       <div
         ref={containerRef}
-        style={{ width: "100%", height: 520, minHeight: 360, background: DEFAULTS.bg }}
+        style={{
+          width: "100%",
+          height: 520,
+          minHeight: 360,
+          background: DEFAULTS.bg,
+        }}
       />
     </div>
   );
