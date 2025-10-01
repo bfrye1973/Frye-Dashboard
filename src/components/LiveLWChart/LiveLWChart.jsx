@@ -1,32 +1,26 @@
-// src/components/LiveLWChart/LiveLWChart.jsx
-// Lightweight Charts wrapper — isolated card + safe scaling (AZ time axis)
+// /src/components/LiveLWChart/LiveLWChart.jsx
+// Lightweight Charts wrapper — seed from /api/v1/ohlc + SSE live from /stream/agg
 
 import React, { useEffect, useRef, useState } from "react";
 import { createChart } from "lightweight-charts";
 import { baseChartOptions } from "./chartConfig";
-import { getFeed } from "../../services/feed";   // keep if you stream updates
-import { getOHLC } from "../../services/ohlc";   // ✅ seed history from backend alias
+import { getOHLC } from "../../services/ohlc";
+import { subscribeStream } from "../../services/feed";
 
 export default function LiveLWChart({
   symbol = "SPY",
   timeframe = "10m",
-  enabledIndicators = [],   // reserved for future use
-  indicatorSettings = {},   // reserved for future use
   height = 520,
 }) {
-  // panel (outer visible card) and inner chart root
-  const panelRef = useRef(null);
   const chartRootRef = useRef(null);
-
-  // chart internals
   const chartRef = useRef(null);
   const seriesRef = useRef(null);
+  const volRef = useRef(null);
   const roRef = useRef(null);
   const dprCleanupRef = useRef(null);
 
   const [candles, setCandles] = useState([]);
 
-  // keep chart responsive to its container
   const safeResize = () => {
     const el = chartRootRef.current;
     const chart = chartRef.current;
@@ -34,9 +28,7 @@ export default function LiveLWChart({
     chart.resize(el.clientWidth, el.clientHeight);
   };
 
-  // ---- Phoenix time formatter (works across LW charts versions) ----
   const phoenixFormatter = (ts) => {
-    // library may pass a number (seconds) or an object { timestamp }
     const seconds =
       typeof ts === "number"
         ? ts
@@ -52,12 +44,11 @@ export default function LiveLWChart({
     }).format(d);
   };
 
-  // ---- INIT ----
+  // INIT
   useEffect(() => {
     const holder = chartRootRef.current;
     if (!holder) return;
 
-    // keep canvases scoped inside the card
     holder.style.position = "relative";
     holder.style.zIndex = "1";
 
@@ -65,7 +56,6 @@ export default function LiveLWChart({
       ...baseChartOptions,
       width: holder.clientWidth,
       height,
-      // assert AZ localization; timeScale tick formatter will reinforce it
       localization: {
         ...(baseChartOptions.localization || {}),
         timezone: "America/Phoenix",
@@ -85,7 +75,10 @@ export default function LiveLWChart({
     });
     seriesRef.current = candleSeries;
 
-    // ensure bottom axis is visible & shows AZ tick labels
+    const vol = chart.addHistogramSeries({ priceScaleId: "", priceFormat: { type: "volume" } });
+    vol.priceScale().applyOptions({ scaleMargins: { top: 0.8, bottom: 0 } });
+    volRef.current = vol;
+
     chart.timeScale().applyOptions({
       visible: true,
       timeVisible: true,
@@ -94,12 +87,10 @@ export default function LiveLWChart({
       tickMarkFormatter: (time) => phoenixFormatter(time),
     });
 
-    // observe ONLY this element (prevents resize feedback loops)
     const ro = new ResizeObserver(safeResize);
     ro.observe(holder);
     roRef.current = ro;
 
-    // respond to OS/browser zoom changes for crisp rendering
     const mq = window.matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
     const onDpr = () => safeResize();
     if (mq.addEventListener) {
@@ -110,7 +101,6 @@ export default function LiveLWChart({
       dprCleanupRef.current = () => mq.removeListener(onDpr);
     }
 
-    // initial size sync
     safeResize();
 
     return () => {
@@ -119,24 +109,37 @@ export default function LiveLWChart({
       try { chart.remove(); } catch {}
       chartRef.current = null;
       seriesRef.current = null;
+      volRef.current = null;
     };
   }, [height]);
 
-  // ---- LOAD + STREAM ----
+  // LOAD + STREAM
   useEffect(() => {
     const chart = chartRef.current;
     const series = seriesRef.current;
     if (!chart || !series) return;
 
     let disposed = false;
+    let unsubscribe = null;
 
-    // 1) Seed history from backend alias (✅ your new /api/v1/ohlc)
+    // 1) Seed
     (async () => {
       try {
-        const seed = await getOHLC(symbol, timeframe, 1500);
+        const seed = await getOHLC(symbol, timeframe, 5000);
         if (disposed) return;
         if (Array.isArray(seed) && seed.length) {
           series.setData(seed);
+          if (volRef.current) {
+            volRef.current.setData(
+              seed.map((b) => ({
+                time: b.time,
+                value: Number(b.volume || 0),
+                color: b.close >= b.open
+                  ? "rgba(38,166,154,0.5)"
+                  : "rgba(239,83,80,0.5)",
+              }))
+            );
+          }
           setCandles(seed);
           chart.timeScale().fitContent();
         } else {
@@ -150,27 +153,32 @@ export default function LiveLWChart({
       }
     })();
 
-    // 2) Streaming (if your feed is active)
-    const feed = getFeed(symbol, timeframe); // keep your streaming adapter
-    const unsub = feed?.subscribe?.((bar) => {
-      if (disposed || !bar || bar.time == null) return;
-      const time = normalizeSeconds(bar.time);           // normalize ms→s if needed
-      const normalized = { ...bar, time };
-      series.update(normalized);
-      setCandles((prev) => mergeBar(prev, normalized));
-    });
+    // 2) Stream (SSE)
+    if (timeframe !== "1d") {
+      unsubscribe = subscribeStream(symbol, timeframe, (bar) => {
+        if (disposed || !bar || bar.time == null) return;
+        series.update(bar);
+        if (volRef.current) {
+          volRef.current.update({
+            time: bar.time,
+            value: Number(bar.volume || 0),
+            color: bar.close >= bar.open
+              ? "rgba(38,166,154,0.5)"
+              : "rgba(239,83,80,0.5)",
+          });
+        }
+        setCandles((prev) => mergeBar(prev, bar));
+      });
+    }
 
     return () => {
       disposed = true;
-      try { unsub?.(); } catch {}
-      try { feed?.close?.(); } catch {}
+      try { unsubscribe?.(); } catch {}
     };
   }, [symbol, timeframe]);
 
-  // ---- RENDER ----
   return (
     <section
-      ref={panelRef}
       className="panel chart-card"
       style={{
         position: "relative",
@@ -184,7 +192,6 @@ export default function LiveLWChart({
         marginTop: 12,
       }}
     >
-      {/* chart mount root */}
       <div
         ref={chartRootRef}
         className="chart-root"
@@ -195,13 +202,6 @@ export default function LiveLWChart({
 }
 
 /* -------------------- helpers -------------------- */
-
-// if time is in ms (e.g., 1695402600000), convert to seconds
-function normalizeSeconds(t) {
-  if (typeof t === "number" && t > 1e12) return Math.floor(t / 1000);
-  return t;
-}
-
 function mergeBar(prev, bar) {
   if (!Array.isArray(prev) || prev.length === 0) return [bar];
   const last = prev[prev.length - 1];
