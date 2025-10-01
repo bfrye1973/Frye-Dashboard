@@ -229,49 +229,82 @@ export default function RowChart({
   }, [bars, state.range]);
 
   /* ------------------------------ live poller ------------------------------ */
-  useEffect(() => {
-    let stop = false;
-    let timer = null;
+ // --- LIVE NOW-BAR POLLER (every 10s) ---
+ useEffect(() => {
+  // build backend base (uses window.__API_BASE__ if set)
+  const API_BASE =
+    (typeof window !== "undefined" && (window.__API_BASE__ || "")) ||
+    "https://frye-market-backend-1.onrender.com";
 
-    async function tick() {
-      try {
-        const base = (typeof window !== "undefined" && (window.__API_BASE__ || "")) || apiBase || API_BASE_DEFAULT;
-        const url =
-          `${String(base).replace(/\/+$/, "")}/api/v1/live/nowbar?symbol=${encodeURIComponent(state.symbol)}` +
-          `&tf=${encodeURIComponent(state.timeframe)}&t=${Date.now()}`;
+  let timer;
+  let cancelled = false;
 
-        const r = await fetch(url, { cache: "no-store" });
-        const j = await r.json().catch(() => null);
-        const b = j?.bar;
+  async function tick() {
+    try {
+      const url =
+        `${API_BASE.replace(/\/+$/, "")}/api/v1/live/nowbar` +
+        `?symbol=${encodeURIComponent(state.symbol)}` +
+        `&tf=${encodeURIComponent(state.timeframe)}` +
+        `&t=${Date.now()}`;
 
-        if (!stop && b && Number.isFinite(b.time)) {
-          setBars((prev) => {
-            if (!Array.isArray(prev) || prev.length === 0) return [b];
-            const last = prev[prev.length - 1];
-            if (last && last.time === b.time) {
-              const next = prev.slice();
-              next[next.length - 1] = b;
-              return next;
-            }
-            if (!last || b.time > last.time) return [...prev, b];
-            return prev;
-          });
-        }
-      } catch {
-        // ignore and retry
-      } finally {
-        if (!stop) timer = setTimeout(tick, 15000); // 15s
+      const r = await fetch(url, { cache: "no-store" });
+      const j = await r.json().catch(() => null);
+      const b = j?.bar;
+      if (!b || cancelled) return;
+
+      // normalize + merge
+      const live = {
+        time: Number(b.time),                    // seconds epoch
+        open: Number(b.open),
+        high: Number(b.high),
+        low:  Number(b.low),
+        close:Number(b.close),
+        volume: Number(b.volume || 0),
+      };
+
+      // Update the chart series directly (flicker-free),
+      // and keep your local 'bars' state in sync if you use it elsewhere
+      if (seriesRef?.current) seriesRef.current.update(live);
+      if (volSeriesRef?.current) {
+        volSeriesRef.current.update({
+          time: live.time,
+          value: live.volume,
+          color: live.close >= live.open
+            ? "rgba(38,166,154,0.5)"
+            : "rgba(239,83,80,0.5)",
+        });
       }
+
+      // Keep in-memory list consistent if your file uses it
+      if (typeof setBars === "function") {
+        setBars((prev) => {
+          if (!Array.isArray(prev) || prev.length === 0) return [live];
+          const last = prev[prev.length - 1];
+          if (last?.time === live.time) {
+            const next = prev.slice();
+            next[next.length - 1] = live;
+            return next;
+          }
+          if (!last || live.time > last.time) return [...prev, live];
+          return prev;
+        });
+      }
+    } catch {
+      // ignore, retry next tick
+    } finally {
+      if (!cancelled) timer = setTimeout(tick, 10000); // 10s cadence
     }
+  }
 
-    // daily moves only once/day — no point polling
-    if (state.timeframe !== "1d") tick();
+  // don’t poll daily; it only changes once/day
+  if (state.timeframe !== "1d") tick();
 
-    return () => {
-      stop = true;
-      if (timer) clearTimeout(timer);
-    };
-  }, [state.symbol, state.timeframe, apiBase]);
+  return () => {
+    cancelled = true;
+    if (timer) clearTimeout(timer);
+  };
+}, [state.symbol, state.timeframe]);
+
 
   /* ------------------------------ range camera ----------------------------- */
   const applyRange = (nextRange) => {
