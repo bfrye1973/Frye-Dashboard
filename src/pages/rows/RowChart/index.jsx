@@ -1,21 +1,18 @@
 // src/pages/rows/RowChart/index.jsx
-// RowChart — deep seed + live now-bar poller (no sockets)
-// - History from /api/v1/ohlc (full array, no slicing)
-// - Live last bucket from /api/v1/live/nowbar (15s)
-// - AZ time on hover + axis
+// RowChart — final, consistent with backend
+// - Seeds with getOHLC(limit=5000) → full array
+// - AZ time on hover + bottom axis
 // - Volume histogram (bottom 20%)
 // - Fixed height = 520
-// - Range 50/100 = last N bars (viewport only), 200 = FULL TIMELINE
+// - Range 50/100 = last N bars (viewport only), 200 = FULL TIMELINE (fitContent)
+// - window.__ROWCHART_INFO__ shows tf, bars, spanDays, source
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createChart } from "lightweight-charts";
 import Controls from "./Controls";
 import { getOHLC } from "../../../lib/ohlcClient";
-import { SYMBOLS, TIMEFRAMES } from "./constants";
 
-/* --------------------------- constants / styles -------------------------- */
-const API_BASE_DEFAULT = "https://frye-market-backend-1.onrender.com";
-const SEED_LIMIT = 5000; // backend still clamps; deep enough for intra + hourly
+const SEED_LIMIT = 5000; // ✅ match backend cap
 
 const DEFAULTS = {
   upColor: "#26a69a",
@@ -27,7 +24,6 @@ const DEFAULTS = {
   border: "#1f2a44",
 };
 
-/* ------------------------------- helpers -------------------------------- */
 function phoenixTime(ts, isDaily = false) {
   const seconds =
     typeof ts === "number"
@@ -44,14 +40,12 @@ function phoenixTime(ts, isDaily = false) {
   }).format(new Date(seconds * 1000));
 }
 
-/* --------------------------------- main --------------------------------- */
 export default function RowChart({
-  apiBase = API_BASE_DEFAULT,
+  apiBase = "https://frye-market-backend-1.onrender.com",
   defaultSymbol = "SPY",
   defaultTimeframe = "1h",
   showDebug = false,
 }) {
-  // Make sure lib client sees the same base for /api/v1/ohlc
   useEffect(() => {
     if (typeof window !== "undefined" && apiBase) {
       window.__API_BASE__ = apiBase.replace(/\/+$/, "");
@@ -70,14 +64,17 @@ export default function RowChart({
   const [state, setState] = useState({
     symbol: defaultSymbol,
     timeframe: defaultTimeframe,
-    range: 200, // 200 = FULL timeline
+    range: 200,
     disabled: false,
   });
 
-  const symbols = useMemo(() => SYMBOLS, []);
-  const timeframes = useMemo(() => TIMEFRAMES, []);
+  const symbols = useMemo(() => ["SPY", "QQQ", "IWM"], []);
+  const timeframes = useMemo(
+    () => ["1m", "5m", "10m", "15m", "30m", "1h", "4h", "1d"],
+    []
+  );
 
-  /* ------------------------------ create chart ------------------------------ */
+  // Create chart once
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -142,10 +139,9 @@ export default function RowChart({
       seriesRef.current = null;
       volSeriesRef.current = null;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Update axis label style when timeframe changes (daily vs intraday)
+  // Update bottom axis when timeframe changes
   useEffect(() => {
     if (!chartRef.current) return;
     chartRef.current.timeScale().applyOptions({
@@ -154,7 +150,7 @@ export default function RowChart({
     });
   }, [state.timeframe]);
 
-  /* ------------------------------ seed history ----------------------------- */
+  // Seed on symbol/timeframe change
   useEffect(() => {
     let cancelled = false;
     async function load() {
@@ -166,14 +162,14 @@ export default function RowChart({
         const asc = (Array.isArray(seed) ? seed : [])
           .slice()
           .sort((a, b) => a.time - b.time);
-
         barsRef.current = asc;
         setBars(asc);
 
         if (typeof window !== "undefined") {
           const first = asc[0]?.time ?? 0;
           const last = asc[asc.length - 1]?.time ?? 0;
-          const spanDays = first && last ? Math.round((last - first) / 86400) : 0;
+          const spanDays =
+            first && last ? Math.round((last - first) / 86400) : 0;
           window.__ROWCHART_INFO__ = {
             tf: state.timeframe,
             bars: asc.length,
@@ -192,10 +188,9 @@ export default function RowChart({
     }
     load();
     return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.symbol, state.timeframe, showDebug]);
 
-  /* ------------------------------ render bars ------------------------------ */
+  // Render + viewport
   useEffect(() => {
     const chart = chartRef.current;
     const series = seriesRef.current;
@@ -228,85 +223,6 @@ export default function RowChart({
     });
   }, [bars, state.range]);
 
-  /* ------------------------------ live poller ------------------------------ */
- // --- LIVE NOW-BAR POLLER (every 10s) ---
- useEffect(() => {
-  // build backend base (uses window.__API_BASE__ if set)
-  const API_BASE =
-    (typeof window !== "undefined" && (window.__API_BASE__ || "")) ||
-    "https://frye-market-backend-1.onrender.com";
-
-  let timer;
-  let cancelled = false;
-
-  async function tick() {
-    try {
-      const url =
-        `${API_BASE.replace(/\/+$/, "")}/api/v1/live/nowbar` +
-        `?symbol=${encodeURIComponent(state.symbol)}` +
-        `&tf=${encodeURIComponent(state.timeframe)}` +
-        `&t=${Date.now()}`;
-
-      const r = await fetch(url, { cache: "no-store" });
-      const j = await r.json().catch(() => null);
-      const b = j?.bar;
-      if (!b || cancelled) return;
-
-      // normalize + merge
-      const live = {
-        time: Number(b.time),                    // seconds epoch
-        open: Number(b.open),
-        high: Number(b.high),
-        low:  Number(b.low),
-        close:Number(b.close),
-        volume: Number(b.volume || 0),
-      };
-
-      // Update the chart series directly (flicker-free),
-      // and keep your local 'bars' state in sync if you use it elsewhere
-      if (seriesRef?.current) seriesRef.current.update(live);
-      if (volSeriesRef?.current) {
-        volSeriesRef.current.update({
-          time: live.time,
-          value: live.volume,
-          color: live.close >= live.open
-            ? "rgba(38,166,154,0.5)"
-            : "rgba(239,83,80,0.5)",
-        });
-      }
-
-      // Keep in-memory list consistent if your file uses it
-      if (typeof setBars === "function") {
-        setBars((prev) => {
-          if (!Array.isArray(prev) || prev.length === 0) return [live];
-          const last = prev[prev.length - 1];
-          if (last?.time === live.time) {
-            const next = prev.slice();
-            next[next.length - 1] = live;
-            return next;
-          }
-          if (!last || live.time > last.time) return [...prev, live];
-          return prev;
-        });
-      }
-    } catch {
-      // ignore, retry next tick
-    } finally {
-      if (!cancelled) timer = setTimeout(tick, 10000); // 10s cadence
-    }
-  }
-
-  // don’t poll daily; it only changes once/day
-  if (state.timeframe !== "1d") tick();
-
-  return () => {
-    cancelled = true;
-    if (timer) clearTimeout(timer);
-  };
-}, [state.symbol, state.timeframe]);
-
-
-  /* ------------------------------ range camera ----------------------------- */
   const applyRange = (nextRange) => {
     const chart = chartRef.current;
     if (!chart) return;
@@ -322,18 +238,18 @@ export default function RowChart({
     ts.setVisibleLogicalRange({ from, to });
   };
 
-  const handleControlsChange = (patch) => setState((s) => ({ ...s, ...patch }));
+  const handleControlsChange = (patch) =>
+    setState((s) => ({ ...s, ...patch }));
 
   const handleTest = async () => {
     try {
-      const got = await getOHLC(state.symbol, state.timeframe, SEED_LIMIT);
-      alert(`Fetched ${Array.isArray(got) ? got.length : 0} bars from /api/v1/ohlc`);
+      const bars = await getOHLC(state.symbol, state.timeframe, SEED_LIMIT);
+      alert(`Fetched ${bars.length} bars from /api/v1/ohlc`);
     } catch {
       alert("Fetch failed");
     }
   };
 
-  /* --------------------------------- UI ----------------------------------- */
   return (
     <div
       style={{
@@ -353,11 +269,14 @@ export default function RowChart({
         onRange={applyRange}
         onTest={showDebug ? handleTest : null}
       />
-
-      {/* IMPORTANT: keep the same fixed height to avoid the black-canvas issue */}
       <div
         ref={containerRef}
-        style={{ width: "100%", height: 520, minHeight: 360, background: DEFAULTS.bg }}
+        style={{
+          width: "100%",
+          height: 520,
+          minHeight: 360,
+          background: DEFAULTS.bg,
+        }}
       />
     </div>
   );
