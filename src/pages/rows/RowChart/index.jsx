@@ -1,6 +1,6 @@
 // src/pages/rows/RowChart/index.jsx
-// RowChart — seed from /api/v1/ohlc + SSE stream from /stream/agg
-// Includes a status strip so we can SEE stream activity in the UI.
+// RowChart — deep seed from /api/v1/ohlc + SSE live stream from /stream/agg
+// Guards invalid times (null/0) so we don't update off-screen.
 
 import React, { useEffect, useRef, useState } from "react";
 import { createChart } from "lightweight-charts";
@@ -25,7 +25,7 @@ const STYLE = {
 };
 
 function fmt(sec) {
-  if (!Number.isFinite(sec)) return "—";
+  if (!Number.isFinite(sec) || sec <= 0) return "—";
   const d = new Date(sec * 1000);
   return d.toLocaleString("en-US", { hour12: true });
 }
@@ -38,7 +38,7 @@ export default function RowChart({
   const containerRef = useRef(null);
   const chartRef = useRef(null);
   const seriesRef = useRef(null);
-  const volRef = useRef(null);
+  const volSeriesRef = useRef(null);
 
   // state
   const [bars, setBars] = useState([]);
@@ -51,9 +51,9 @@ export default function RowChart({
   // status UI (instrumentation)
   const [sseStatus, setSseStatus] = useState({
     connected: false,
-    lastEventAt: null,     // Date.now()
-    lastBarTime: null,     // seconds epoch
-    lastPrice: null,       // close
+    lastEventAt: null,
+    lastBarTime: null,
+    lastPrice: null,
     error: null,
   });
 
@@ -83,7 +83,7 @@ export default function RowChart({
 
     const vol = chart.addHistogramSeries({ priceScaleId: "", priceFormat: { type: "volume" } });
     vol.priceScale().applyOptions({ scaleMargins: { top: 0.8, bottom: 0 } });
-    volRef.current = vol;
+    volSeriesRef.current = vol;
 
     // responsive width
     const ro = new ResizeObserver(() => {
@@ -107,7 +107,7 @@ export default function RowChart({
         setBars(asc);
 
         seriesRef.current?.setData(asc);
-        volRef.current?.setData(
+        volSeriesRef.current?.setData(
           asc.map((b) => ({
             time: b.time,
             value: Number(b.volume || 0),
@@ -122,7 +122,7 @@ export default function RowChart({
     })();
   }, [state.symbol, state.timeframe]);
 
-  // SSE live stream (instant updates) + status UI
+  // SSE live stream (instant updates) + guard invalid times
   useEffect(() => {
     if (state.timeframe === "1d") return; // skip daily
     if (!seriesRef.current) return;
@@ -143,18 +143,24 @@ export default function RowChart({
         const msg = JSON.parse(ev.data);
         if (!msg?.ok || !msg?.bar) return;
 
-        const b = msg.bar;
-        const live = {
-          time: Number(b.time),
-          open: Number(b.open),
-          high: Number(b.high),
-          low:  Number(b.low),
-          close:Number(b.close),
-          volume: Number(b.volume || 0),
-        };
-        if (!Number.isFinite(live.time)) return;
+        const tRaw = msg.bar?.time;
+        // Hard guard: require a valid 10-digit seconds epoch (> 1e9)
+        const tSec = Number(tRaw);
+        if (!Number.isFinite(tSec) || tSec < 1_000_000_000) {
+          // ignore null/0/ms/nonsense
+          return;
+        }
 
-        // update status
+        const live = {
+          time: tSec,
+          open: Number(msg.bar.open),
+          high: Number(msg.bar.high),
+          low:  Number(msg.bar.low),
+          close:Number(msg.bar.close),
+          volume: Number(msg.bar.volume || 0),
+        };
+
+        // status
         setSseStatus({
           connected: true,
           lastEventAt: Date.now(),
@@ -163,9 +169,9 @@ export default function RowChart({
           error: null,
         });
 
-        // push into chart
-        seriesRef.current?.update(live);
-        volRef.current?.update({
+        // update series on screen
+        seriesRef.current.update(live);
+        volSeriesRef.current?.update({
           time: live.time,
           value: live.volume,
           color: live.close >= live.open ? STYLE.volUp : STYLE.volDn,
@@ -188,9 +194,9 @@ export default function RowChart({
       }
     };
 
-    es.onerror = (e) => {
+    es.onerror = () => {
       setSseStatus((s) => ({ ...s, connected: false, error: "SSE error" }));
-      // Let EventSource auto-reconnect
+      // allow auto-reconnect
     };
 
     return () => es.close();
@@ -198,7 +204,7 @@ export default function RowChart({
 
   return (
     <div style={{ border: `1px solid ${STYLE.border}`, borderRadius: 8, background: STYLE.bg, position: "relative" }}>
-      {/* Status strip (top-right) */}
+      {/* Status strip */}
       <div style={{
         position: "absolute",
         right: 8,
