@@ -1,5 +1,6 @@
 // src/pages/rows/RowChart/index.jsx
-// RowChart — deep seed from /api/v1/ohlc + SSE live stream from /stream/agg
+// RowChart — seed from /api/v1/ohlc + SSE stream from /stream/agg
+// Includes a status strip so we can SEE stream activity in the UI.
 
 import React, { useEffect, useRef, useState } from "react";
 import { createChart } from "lightweight-charts";
@@ -23,6 +24,12 @@ const STYLE = {
   border: "#1f2a44",
 };
 
+function fmt(sec) {
+  if (!Number.isFinite(sec)) return "—";
+  const d = new Date(sec * 1000);
+  return d.toLocaleString("en-US", { hour12: true });
+}
+
 export default function RowChart({
   defaultSymbol = "SPY",
   defaultTimeframe = "10m",
@@ -31,7 +38,7 @@ export default function RowChart({
   const containerRef = useRef(null);
   const chartRef = useRef(null);
   const seriesRef = useRef(null);
-  const volSeriesRef = useRef(null);
+  const volRef = useRef(null);
 
   // state
   const [bars, setBars] = useState([]);
@@ -39,6 +46,15 @@ export default function RowChart({
     symbol: defaultSymbol,
     timeframe: defaultTimeframe,
     range: 200,
+  });
+
+  // status UI (instrumentation)
+  const [sseStatus, setSseStatus] = useState({
+    connected: false,
+    lastEventAt: null,     // Date.now()
+    lastBarTime: null,     // seconds epoch
+    lastPrice: null,       // close
+    error: null,
   });
 
   // create chart once
@@ -67,7 +83,7 @@ export default function RowChart({
 
     const vol = chart.addHistogramSeries({ priceScaleId: "", priceFormat: { type: "volume" } });
     vol.priceScale().applyOptions({ scaleMargins: { top: 0.8, bottom: 0 } });
-    volSeriesRef.current = vol;
+    volRef.current = vol;
 
     // responsive width
     const ro = new ResizeObserver(() => {
@@ -85,24 +101,28 @@ export default function RowChart({
   // seed history
   useEffect(() => {
     (async () => {
-      const seed = await getOHLC(state.symbol, state.timeframe, SEED_LIMIT);
-      const asc = (Array.isArray(seed) ? seed : []).sort((a, b) => a.time - b.time);
-      setBars(asc);
+      try {
+        const seed = await getOHLC(state.symbol, state.timeframe, SEED_LIMIT);
+        const asc = (Array.isArray(seed) ? seed : []).sort((a, b) => a.time - b.time);
+        setBars(asc);
 
-      seriesRef.current?.setData(asc);
-      volSeriesRef.current?.setData(
-        asc.map((b) => ({
-          time: b.time,
-          value: Number(b.volume || 0),
-          color: b.close >= b.open ? STYLE.volUp : STYLE.volDn,
-        }))
-      );
+        seriesRef.current?.setData(asc);
+        volRef.current?.setData(
+          asc.map((b) => ({
+            time: b.time,
+            value: Number(b.volume || 0),
+            color: b.close >= b.open ? STYLE.volUp : STYLE.volDn,
+          }))
+        );
 
-      chartRef.current?.timeScale().fitContent();
+        chartRef.current?.timeScale().fitContent();
+      } catch (e) {
+        console.error("[RowChart seed] error:", e);
+      }
     })();
   }, [state.symbol, state.timeframe]);
 
-  // SSE live stream (instant updates)
+  // SSE live stream (instant updates) + status UI
   useEffect(() => {
     if (state.timeframe === "1d") return; // skip daily
     if (!seriesRef.current) return;
@@ -114,6 +134,10 @@ export default function RowChart({
 
     const es = new EventSource(url);
 
+    es.onopen = () => {
+      setSseStatus((s) => ({ ...s, connected: true, error: null }));
+    };
+
     es.onmessage = (ev) => {
       try {
         const msg = JSON.parse(ev.data);
@@ -121,7 +145,7 @@ export default function RowChart({
 
         const b = msg.bar;
         const live = {
-          time: Number(b.time),        // seconds epoch (bucket start) — REQUIRED
+          time: Number(b.time),
           open: Number(b.open),
           high: Number(b.high),
           low:  Number(b.low),
@@ -130,9 +154,18 @@ export default function RowChart({
         };
         if (!Number.isFinite(live.time)) return;
 
-        // push into series
-        seriesRef.current.update(live);
-        volSeriesRef.current?.update({
+        // update status
+        setSseStatus({
+          connected: true,
+          lastEventAt: Date.now(),
+          lastBarTime: live.time,
+          lastPrice: live.close,
+          error: null,
+        });
+
+        // push into chart
+        seriesRef.current?.update(live);
+        volRef.current?.update({
           time: live.time,
           value: live.volume,
           color: live.close >= live.open ? STYLE.volUp : STYLE.volDn,
@@ -150,16 +183,41 @@ export default function RowChart({
           if (live.time > last.time) return [...prev, live];
           return prev;
         });
-      } catch {}
+      } catch (e) {
+        console.error("[RowChart SSE] parse error:", e);
+      }
     };
 
-    es.onerror = () => { /* let EventSource auto-reconnect */ };
+    es.onerror = (e) => {
+      setSseStatus((s) => ({ ...s, connected: false, error: "SSE error" }));
+      // Let EventSource auto-reconnect
+    };
 
     return () => es.close();
   }, [state.symbol, state.timeframe]);
 
   return (
-    <div style={{ border: `1px solid ${STYLE.border}`, borderRadius: 8, background: STYLE.bg }}>
+    <div style={{ border: `1px solid ${STYLE.border}`, borderRadius: 8, background: STYLE.bg, position: "relative" }}>
+      {/* Status strip (top-right) */}
+      <div style={{
+        position: "absolute",
+        right: 8,
+        top: 8,
+        zIndex: 5,
+        background: "rgba(0,0,0,0.5)",
+        color: "#d1d5db",
+        fontSize: 12,
+        padding: "6px 8px",
+        border: "1px solid #2b2b2b",
+        borderRadius: 6,
+      }}>
+        <div><strong>SSE:</strong> {sseStatus.connected ? "connected" : "disconnected"}</div>
+        <div><strong>Last SSE:</strong> {sseStatus.lastEventAt ? new Date(sseStatus.lastEventAt).toLocaleTimeString() : "—"}</div>
+        <div><strong>Bar time:</strong> {fmt(sseStatus.lastBarTime)}</div>
+        <div><strong>Last price:</strong> {sseStatus.lastPrice ?? "—"}</div>
+        {sseStatus.error && <div style={{ color: "#f87171" }}>{sseStatus.error}</div>}
+      </div>
+
       <Controls
         symbols={SYMBOLS}
         timeframes={TIMEFRAMES}
