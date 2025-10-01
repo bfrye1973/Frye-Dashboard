@@ -1,11 +1,16 @@
 // src/components/LiveLWChart/LiveLWChart.jsx
 // Lightweight Charts wrapper — isolated card + safe scaling (AZ time axis)
+// Seed from /api/v1/ohlc and stream via backend SSE /stream/agg
 
 import React, { useEffect, useRef, useState } from "react";
 import { createChart } from "lightweight-charts";
 import { baseChartOptions } from "./chartConfig";
-import { getFeed } from "../../services/feed";   // keep if you stream updates
 import { getOHLC } from "../../services/ohlc";   // ✅ seed history from backend alias
+
+// backend base (same pattern used elsewhere in your app)
+const API_BASE =
+  (typeof window !== "undefined" && (window.__API_BASE__ || "")) ||
+  "https://frye-market-backend-1.onrender.com";
 
 export default function LiveLWChart({
   symbol = "SPY",
@@ -122,18 +127,19 @@ export default function LiveLWChart({
     };
   }, [height]);
 
-  // ---- LOAD + STREAM ----
+  // ---- LOAD + STREAM (seed + SSE) ----
   useEffect(() => {
     const chart = chartRef.current;
     const series = seriesRef.current;
     if (!chart || !series) return;
 
     let disposed = false;
+    let es = null;
 
-    // 1) Seed history from backend alias (✅ your new /api/v1/ohlc)
+    // 1) Seed history from backend alias (✅ /api/v1/ohlc)
     (async () => {
       try {
-        const seed = await getOHLC(symbol, timeframe, 1500);
+        const seed = await getOHLC(symbol, timeframe, 5000);
         if (disposed) return;
         if (Array.isArray(seed) && seed.length) {
           series.setData(seed);
@@ -150,20 +156,54 @@ export default function LiveLWChart({
       }
     })();
 
-    // 2) Streaming (if your feed is active)
-    const feed = getFeed(symbol, timeframe); // keep your streaming adapter
-    const unsub = feed?.subscribe?.((bar) => {
-      if (disposed || !bar || bar.time == null) return;
-      const time = normalizeSeconds(bar.time);           // normalize ms→s if needed
-      const normalized = { ...bar, time };
-      series.update(normalized);
-      setCandles((prev) => mergeBar(prev, normalized));
-    });
+    // 2) SSE stream from backend WS relay (instant last-candle updates)
+    //    /stream/agg?symbol=SPY&tf=10m (bar.time is bucket start in SECONDS)
+    const url =
+      `${API_BASE.replace(/\/+$/, "")}/stream/agg` +
+      `?symbol=${encodeURIComponent(symbol)}` +
+      `&tf=${encodeURIComponent(timeframe)}`;
+
+    try {
+      es = new EventSource(url);
+    } catch (e) {
+      console.error("[LiveLWChart] SSE init error:", e);
+      es = null;
+    }
+
+    if (es) {
+      es.onmessage = (ev) => {
+        if (disposed) return;
+        try {
+          const msg = JSON.parse(ev.data);
+          const b = msg?.bar;
+          const tSec = Number(b?.time);
+          // guard: require valid seconds epoch (>= 1e9) or ignore
+          if (!msg?.ok || !b || !Number.isFinite(tSec) || tSec < 1_000_000_000) return;
+
+          const live = {
+            time: tSec,
+            open: Number(b.open),
+            high: Number(b.high),
+            low:  Number(b.low),
+            close:Number(b.close),
+            volume: Number(b.volume || 0),
+          };
+
+          series.update(live);
+          setCandles((prev) => mergeBar(prev, live));
+        } catch (e) {
+          // ignore bad packet
+        }
+      };
+
+      es.onerror = () => {
+        // let browser auto-reconnect; nothing to do here
+      };
+    }
 
     return () => {
       disposed = true;
-      try { unsub?.(); } catch {}
-      try { feed?.close?.(); } catch {}
+      try { es?.close?.(); } catch {}
     };
   }, [symbol, timeframe]);
 
