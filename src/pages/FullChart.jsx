@@ -1,14 +1,14 @@
 // src/pages/FullChart.jsx
 import React, { useMemo, useRef, useLayoutEffect, useState } from "react";
-import RowChart from "./rows/RowChart/index.jsx"; // <-- explicit folder index
+import RowChart from "./rows/RowChart";
 
 const HEADER_H = 52;
 
 function getQueryParams() {
-  if (typeof window === "undefined") return { symbol: "SPY", timeframe: "10m" };
+  if (typeof window === "undefined") return { symbol: "SPY", timeframe: "1h" };
   const q = new URLSearchParams(window.location.search);
   const symbol = (q.get("symbol") || "SPY").toUpperCase();
-  const timeframe = q.get("timeframe") || q.get("tf") || "10m";
+  const timeframe = q.get("timeframe") || q.get("tf") || "1h";
   return { symbol, timeframe };
 }
 
@@ -77,9 +77,7 @@ export default function FullChart() {
         >
           ← Back
         </button>
-        <div style={{ color: "#e5e7eb", fontWeight: 700, marginLeft: 8 }}>
-          Full Chart
-        </div>
+        <div style={{ color: "#e5e7eb", fontWeight: 700, marginLeft: 8 }}>Full Chart</div>
         <div style={{ marginLeft: "auto", color: "#9ca3af", fontSize: 12 }}>
           {symbol} · {timeframe}
         </div>
@@ -99,8 +97,12 @@ export default function FullChart() {
       >
         {ready && (
           <div style={{ flex: "1 1 auto", minHeight: 0, display: "flex", flexDirection: "column" }}>
-            {/* Key forces remount on URL change */}
-            <RowChart key={`${symbol}-${timeframe}`} defaultSymbol={symbol} defaultTimeframe={timeframe} />
+            <RowChart
+              apiBase="https://frye-market-backend-1.onrender.com"
+              defaultSymbol={symbol}
+              defaultTimeframe={timeframe}
+              showDebug={false}
+            />
           </div>
         )}
       </div>
