@@ -2,6 +2,7 @@
 // Minimal OHLC feed adapter for Lightweight Charts (history + 5s poll).
 // Uses backend /api/v1/ohlc and normalizes time to EPOCH SECONDS.
 // IMPORTANT: Backend returns a TOP-LEVEL ARRAY (not { bars: [...] }).
+// Also provides an SSE subscriber for /stream/agg (instant updates).
 
 /* ----------------------------- Backend base ----------------------------- */
 const BACKEND =
@@ -52,7 +53,7 @@ function normalizeBars(arr) {
   return out;
 }
 
-/* -------------------------------- Feed ---------------------------------- */
+/* -------------------------------- Feed (history + poll) ---------------------------------- */
 export function getFeed(symbol = "SPY", timeframe = "1d") {
   const tf = normalizeTf(timeframe);
 
@@ -104,8 +105,8 @@ export function getFeed(symbol = "SPY", timeframe = "1d") {
             time: toSec(last.time ?? last.t ?? last.ts ?? last.timestamp),
             open: toNum(last.open ?? last.o),
             high: toNum(last.high ?? last.h),
-            low: toNum(last.low ?? last.l),
-            close: toNum(last.close ?? last.c),
+            low:  toNum(last.low ?? last.l),
+            close:toNum(last.close ?? last.c),
             volume: toNum(last.volume ?? last.v ?? 0),
           };
 
@@ -137,5 +138,56 @@ export function getFeed(symbol = "SPY", timeframe = "1d") {
         ctrl?.abort?.();
       } catch {}
     },
+  };
+}
+
+/* ------------------------------- SSE (instant) -------------------------------- */
+// Subscribe to backend SSE stream (/stream/agg?symbol=...&tf=...)
+// Calls onBar with normalized { time(sec), open, high, low, close, volume }.
+export function subscribeStream(symbol = "SPY", timeframe = "10m", onBar) {
+  const tf = normalizeTf(timeframe);
+  const base = (API || "").replace(/\/+$/, "");
+  const url =
+    `${base}/stream/agg?symbol=${encodeURIComponent(symbol)}` +
+    `&tf=${encodeURIComponent(tf)}`;
+
+  let es = null;
+  try {
+    es = new EventSource(url);
+  } catch {
+    es = null;
+  }
+
+  if (es) {
+    es.onmessage = (ev) => {
+      try {
+        const msg = JSON.parse(ev.data);
+        const b = msg?.bar;
+        const tSec = toSec(b?.time);
+        // hard guard: only accept valid seconds epoch (>= 1e9)
+        if (!msg?.ok || !b || !Number.isFinite(tSec) || tSec < 1_000_000_000) return;
+
+        onBar?.({
+          time: tSec,
+          open: toNum(b.open),
+          high: toNum(b.high),
+          low:  toNum(b.low),
+          close:toNum(b.close),
+          volume: toNum(b.volume || 0),
+        });
+      } catch {
+        // ignore malformed events
+      }
+    };
+
+    es.onerror = () => {
+      // Let EventSource auto-reconnect; no-op
+    };
+  }
+
+  // unsubscribe
+  return () => {
+    try { es?.close?.(); } catch {}
+    es = null;
   };
 }
