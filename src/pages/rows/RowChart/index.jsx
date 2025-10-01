@@ -1,5 +1,5 @@
 // src/pages/rows/RowChart/index.jsx
-// RowChart — deep seed from /api/v1/ohlc + SSE live stream (/stream/agg)
+// RowChart — deep seed from /api/v1/ohlc + SSE live stream from /stream/agg
 
 import React, { useEffect, useRef, useState } from "react";
 import { createChart } from "lightweight-charts";
@@ -102,7 +102,7 @@ export default function RowChart({
     })();
   }, [state.symbol, state.timeframe]);
 
-  // SSE live stream (instant last-candle updates)
+  // SSE live stream (instant updates)
   useEffect(() => {
     if (state.timeframe === "1d") return; // skip daily
     if (!seriesRef.current) return;
@@ -121,7 +121,7 @@ export default function RowChart({
 
         const b = msg.bar;
         const live = {
-          time: Number(b.time),           // seconds epoch (bucket start)
+          time: Number(b.time),        // seconds epoch (bucket start) — REQUIRED
           open: Number(b.open),
           high: Number(b.high),
           low:  Number(b.low),
@@ -130,7 +130,7 @@ export default function RowChart({
         };
         if (!Number.isFinite(live.time)) return;
 
-        // update chart
+        // push into series
         seriesRef.current.update(live);
         volSeriesRef.current?.update({
           time: live.time,
@@ -138,7 +138,7 @@ export default function RowChart({
           color: live.close >= live.open ? STYLE.volUp : STYLE.volDn,
         });
 
-        // keep local bars if other UI needs it
+        // keep local bars list
         setBars((prev) => {
           if (!Array.isArray(prev) || prev.length === 0) return [live];
           const last = prev[prev.length - 1];
@@ -150,14 +150,10 @@ export default function RowChart({
           if (live.time > last.time) return [...prev, live];
           return prev;
         });
-      } catch {
-        // ignore
-      }
+      } catch {}
     };
 
-    es.onerror = () => {
-      // let EventSource auto-reconnect
-    };
+    es.onerror = () => { /* let EventSource auto-reconnect */ };
 
     return () => es.close();
   }, [state.symbol, state.timeframe]);
