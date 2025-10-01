@@ -1,14 +1,21 @@
-import React, { useEffect, useRef, useState } from "react";
+// src/pages/rows/RowChart/index.jsx
+// RowChart — deep seed + live now-bar poller (no sockets)
+// - History from /api/v1/ohlc (full array, no slicing)
+// - Live last bucket from /api/v1/live/nowbar (15s)
+// - AZ time on hover + axis
+// - Volume histogram (bottom 20%)
+// - Fixed height = 520
+// - Range 50/100 = last N bars (viewport only), 200 = FULL TIMELINE
+
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createChart } from "lightweight-charts";
 import Controls from "./Controls";
 import { getOHLC } from "../../../lib/ohlcClient";
 import { SYMBOLS, TIMEFRAMES } from "./constants";
 
-const API_BASE =
-  (typeof window !== "undefined" && (window.__API_BASE__ || "")) ||
-  "https://frye-market-backend-1.onrender.com";
-
-const SEED_LIMIT = 5000;
+/* --------------------------- constants / styles -------------------------- */
+const API_BASE_DEFAULT = "https://frye-market-backend-1.onrender.com";
+const SEED_LIMIT = 5000; // backend still clamps; deep enough for intra + hourly
 
 const DEFAULTS = {
   upColor: "#26a69a",
@@ -20,32 +27,79 @@ const DEFAULTS = {
   border: "#1f2a44",
 };
 
+/* ------------------------------- helpers -------------------------------- */
+function phoenixTime(ts, isDaily = false) {
+  const seconds =
+    typeof ts === "number"
+      ? ts
+      : ts && typeof ts.timestamp === "number"
+      ? ts.timestamp
+      : 0;
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Phoenix",
+    hour12: true,
+    ...(isDaily
+      ? { month: "short", day: "2-digit" }
+      : { hour: "numeric", minute: "2-digit" }),
+  }).format(new Date(seconds * 1000));
+}
+
+/* --------------------------------- main --------------------------------- */
 export default function RowChart({
+  apiBase = API_BASE_DEFAULT,
   defaultSymbol = "SPY",
-  defaultTimeframe = "10m",
+  defaultTimeframe = "1h",
+  showDebug = false,
 }) {
+  // Make sure lib client sees the same base for /api/v1/ohlc
+  useEffect(() => {
+    if (typeof window !== "undefined" && apiBase) {
+      window.__API_BASE__ = apiBase.replace(/\/+$/, "");
+    }
+  }, [apiBase]);
+
   const containerRef = useRef(null);
   const chartRef = useRef(null);
   const seriesRef = useRef(null);
   const volSeriesRef = useRef(null);
+  const roRef = useRef(null);
+
+  const [bars, setBars] = useState([]);
+  const barsRef = useRef([]);
 
   const [state, setState] = useState({
     symbol: defaultSymbol,
     timeframe: defaultTimeframe,
+    range: 200, // 200 = FULL timeline
+    disabled: false,
   });
 
-  // create chart once
+  const symbols = useMemo(() => SYMBOLS, []);
+  const timeframes = useMemo(() => TIMEFRAMES, []);
+
+  /* ------------------------------ create chart ------------------------------ */
   useEffect(() => {
-    const chart = createChart(containerRef.current, {
-      width: containerRef.current.clientWidth,
-      height: 520,
+    const el = containerRef.current;
+    if (!el) return;
+
+    const chart = createChart(el, {
+      width: el.clientWidth,
+      height: el.clientHeight,
       layout: { background: { color: DEFAULTS.bg }, textColor: "#d1d5db" },
       grid: {
         vertLines: { color: DEFAULTS.gridColor },
         horzLines: { color: DEFAULTS.gridColor },
       },
-      rightPriceScale: { borderColor: DEFAULTS.border, scaleMargins: { top: 0.1, bottom: 0.2 } },
+      rightPriceScale: {
+        borderColor: DEFAULTS.border,
+        scaleMargins: { top: 0.1, bottom: 0.2 },
+      },
       timeScale: { borderColor: DEFAULTS.border, timeVisible: true },
+      localization: {
+        timezone: "America/Phoenix",
+        timeFormatter: (t) => phoenixTime(t, state.timeframe === "1d"),
+      },
+      crosshair: { mode: 0 },
     });
     chartRef.current = chart;
 
@@ -59,73 +113,219 @@ export default function RowChart({
     });
     seriesRef.current = series;
 
-    const vol = chart.addHistogramSeries({ priceScaleId: "", priceFormat: { type: "volume" } });
+    const vol = chart.addHistogramSeries({
+      priceScaleId: "",
+      priceFormat: { type: "volume" },
+    });
     vol.priceScale().applyOptions({ scaleMargins: { top: 0.8, bottom: 0 } });
     volSeriesRef.current = vol;
 
-    return () => chart.remove();
+    chart.timeScale().applyOptions({
+      tickMarkFormatter: (t) => phoenixTime(t, state.timeframe === "1d"),
+      minimumHeight: 20,
+    });
+
+    const ro = new ResizeObserver(() => {
+      if (!chartRef.current || !containerRef.current) return;
+      chartRef.current.resize(
+        containerRef.current.clientWidth,
+        containerRef.current.clientHeight
+      );
+    });
+    ro.observe(el);
+    roRef.current = ro;
+
+    return () => {
+      try { roRef.current?.disconnect(); } catch {}
+      try { chartRef.current?.remove(); } catch {}
+      chartRef.current = null;
+      seriesRef.current = null;
+      volSeriesRef.current = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // seed history
+  // Update axis label style when timeframe changes (daily vs intraday)
   useEffect(() => {
-    (async () => {
-      const seed = await getOHLC(state.symbol, state.timeframe, SEED_LIMIT);
-      if (seriesRef.current) seriesRef.current.setData(seed);
-      if (volSeriesRef.current) {
-        volSeriesRef.current.setData(
-          seed.map((b) => ({
-            time: b.time,
-            value: b.volume,
-            color: b.close >= b.open ? DEFAULTS.volUp : DEFAULTS.volDown,
-          }))
-        );
-      }
-    })();
-  }, [state.symbol, state.timeframe]);
+    if (!chartRef.current) return;
+    chartRef.current.timeScale().applyOptions({
+      tickMarkFormatter: (t) => phoenixTime(t, state.timeframe === "1d"),
+      timeVisible: state.timeframe !== "1d",
+    });
+  }, [state.timeframe]);
 
-  // live poller
+  /* ------------------------------ seed history ----------------------------- */
   useEffect(() => {
-    let timer;
+    let cancelled = false;
+    async function load() {
+      setState((s) => ({ ...s, disabled: true }));
+      try {
+        const seed = await getOHLC(state.symbol, state.timeframe, SEED_LIMIT);
+        if (cancelled) return;
+
+        const asc = (Array.isArray(seed) ? seed : [])
+          .slice()
+          .sort((a, b) => a.time - b.time);
+
+        barsRef.current = asc;
+        setBars(asc);
+
+        if (typeof window !== "undefined") {
+          const first = asc[0]?.time ?? 0;
+          const last = asc[asc.length - 1]?.time ?? 0;
+          const spanDays = first && last ? Math.round((last - first) / 86400) : 0;
+          window.__ROWCHART_INFO__ = {
+            tf: state.timeframe,
+            bars: asc.length,
+            spanDays,
+            source: "api/v1/ohlc",
+          };
+          if (showDebug) console.log("[ROWCHART seed]", window.__ROWCHART_INFO__);
+        }
+      } catch (e) {
+        if (showDebug) console.error("[ROWCHART] load error:", e);
+        barsRef.current = [];
+        setBars([]);
+      } finally {
+        if (!cancelled) setState((s) => ({ ...s, disabled: false }));
+      }
+    }
+    load();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.symbol, state.timeframe, showDebug]);
+
+  /* ------------------------------ render bars ------------------------------ */
+  useEffect(() => {
+    const chart = chartRef.current;
+    const series = seriesRef.current;
+    const vol = volSeriesRef.current;
+    if (!chart || !series) return;
+
+    series.setData(bars);
+
+    if (vol) {
+      vol.setData(
+        bars.map((b) => ({
+          time: b.time,
+          value: Number(b.volume ?? 0),
+          color: b.close >= b.open ? DEFAULTS.volUp : DEFAULTS.volDown,
+        }))
+      );
+    }
+
+    requestAnimationFrame(() => {
+      const ts = chart.timeScale();
+      const r = state.range;
+      const len = bars.length;
+      if (!r || r === 200 || !len) {
+        ts.fitContent();
+      } else {
+        const to = len - 1;
+        const from = Math.max(0, to - (r - 1));
+        ts.setVisibleLogicalRange({ from, to });
+      }
+    });
+  }, [bars, state.range]);
+
+  /* ------------------------------ live poller ------------------------------ */
+  useEffect(() => {
+    let stop = false;
+    let timer = null;
+
     async function tick() {
       try {
-        const r = await fetch(
-          `${API_BASE}/api/v1/live/nowbar?symbol=${state.symbol}&tf=${state.timeframe}&t=${Date.now()}`
-        );
-        const j = await r.json();
-        if (j?.ok && j.bar && seriesRef.current) {
-          const b = {
-            time: Math.floor(Number(j.bar.time) / 1000),
-            open: Number(j.bar.open),
-            high: Number(j.bar.high),
-            low: Number(j.bar.low),
-            close: Number(j.bar.close),
-            volume: Number(j.bar.volume),
-          };
-          seriesRef.current.update(b);
-          if (volSeriesRef.current) {
-            volSeriesRef.current.update({
-              time: b.time,
-              value: b.volume,
-              color: b.close >= b.open ? DEFAULTS.volUp : DEFAULTS.volDown,
-            });
-          }
-        }
-      } catch {}
-      timer = setTimeout(tick, 10000); // every 10s
-    }
-    tick();
-    return () => clearTimeout(timer);
-  }, [state.symbol, state.timeframe]);
+        const base = (typeof window !== "undefined" && (window.__API_BASE__ || "")) || apiBase || API_BASE_DEFAULT;
+        const url =
+          `${String(base).replace(/\/+$/, "")}/api/v1/live/nowbar?symbol=${encodeURIComponent(state.symbol)}` +
+          `&tf=${encodeURIComponent(state.timeframe)}&t=${Date.now()}`;
 
+        const r = await fetch(url, { cache: "no-store" });
+        const j = await r.json().catch(() => null);
+        const b = j?.bar;
+
+        if (!stop && b && Number.isFinite(b.time)) {
+          setBars((prev) => {
+            if (!Array.isArray(prev) || prev.length === 0) return [b];
+            const last = prev[prev.length - 1];
+            if (last && last.time === b.time) {
+              const next = prev.slice();
+              next[next.length - 1] = b;
+              return next;
+            }
+            if (!last || b.time > last.time) return [...prev, b];
+            return prev;
+          });
+        }
+      } catch {
+        // ignore and retry
+      } finally {
+        if (!stop) timer = setTimeout(tick, 15000); // 15s
+      }
+    }
+
+    // daily moves only once/day — no point polling
+    if (state.timeframe !== "1d") tick();
+
+    return () => {
+      stop = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [state.symbol, state.timeframe, apiBase]);
+
+  /* ------------------------------ range camera ----------------------------- */
+  const applyRange = (nextRange) => {
+    const chart = chartRef.current;
+    if (!chart) return;
+    const ts = chart.timeScale();
+    const list = barsRef.current;
+    const len = list.length;
+    if (!nextRange || nextRange === 200 || !len) {
+      ts.fitContent();
+      return;
+    }
+    const to = len - 1;
+    const from = Math.max(0, to - (nextRange - 1));
+    ts.setVisibleLogicalRange({ from, to });
+  };
+
+  const handleControlsChange = (patch) => setState((s) => ({ ...s, ...patch }));
+
+  const handleTest = async () => {
+    try {
+      const got = await getOHLC(state.symbol, state.timeframe, SEED_LIMIT);
+      alert(`Fetched ${Array.isArray(got) ? got.length : 0} bars from /api/v1/ohlc`);
+    } catch {
+      alert("Fetch failed");
+    }
+  };
+
+  /* --------------------------------- UI ----------------------------------- */
   return (
-    <div style={{ border: `1px solid ${DEFAULTS.border}`, borderRadius: 8, background: DEFAULTS.bg }}>
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        border: `1px solid ${DEFAULTS.border}`,
+        borderRadius: 8,
+        overflow: "hidden",
+        background: DEFAULTS.bg,
+      }}
+    >
       <Controls
-        symbols={SYMBOLS}
-        timeframes={TIMEFRAMES}
+        symbols={symbols}
+        timeframes={timeframes}
         value={state}
-        onChange={(patch) => setState((s) => ({ ...s, ...patch }))}
+        onChange={handleControlsChange}
+        onRange={applyRange}
+        onTest={showDebug ? handleTest : null}
       />
-      <div ref={containerRef} style={{ width: "100%", height: 520 }} />
+
+      {/* IMPORTANT: keep the same fixed height to avoid the black-canvas issue */}
+      <div
+        ref={containerRef}
+        style={{ width: "100%", height: 520, minHeight: 360, background: DEFAULTS.bg }}
+      />
     </div>
   );
 }
