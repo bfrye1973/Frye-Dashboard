@@ -1,20 +1,35 @@
 // src/lib/ohlcClient.js
-// Canonical OHLC client (compat-safe):
-// - getOHLC(symbol, timeframe, limit) -> returns plain bars array in EPOCH SECONDS
-// - fetchOHLCResilient({ symbol, timeframe, limit }) -> { source, bars }  (shim for legacy callers)
-// - subscribeStream(symbol, timeframe, onBar) -> live SSE bars (normalized to EPOCH SECONDS)
+// Canonical OHLC client (compat-safe)
+//
+// Exports:
+//   - getOHLC(symbol, timeframe, limit) -> plain bars in UNIX SECONDS
+//   - fetchOHLCResilient({ symbol, timeframe, limit }) -> { source, bars }
+//   - subscribeStream(symbol, timeframe, onBar) -> live SSE bars (UNIX SECONDS)
 
 const BACKEND =
   (typeof window !== "undefined" && (window.__API_BASE__ || "")) ||
+  process.env.REACT_APP_API_BASE ||
   process.env.REACT_APP_API_URL ||
   "https://frye-market-backend-1.onrender.com";
 
 const STREAM_BASE =
   (typeof window !== "undefined" && (window.__STREAM_BASE__ || "")) ||
   process.env.REACT_APP_STREAM_BASE ||
-  ""; // ex: https://frye-market-backend-2.onrender.com
+  ""; // e.g. https://frye-market-backend-2.onrender.com
 
 const API = (BACKEND || "").replace(/\/+$/, "");
+
+// ---------------- utils ----------------
+const TF_SEC = {
+  "1m": 60,
+  "5m": 300,
+  "10m": 600,
+  "15m": 900,
+  "30m": 1800,
+  "1h": 3600,
+  "4h": 14400,
+  "1d": 86400,
+};
 
 const isMs = (t) => typeof t === "number" && t > 1e12;
 const toSec = (t) => (isMs(t) ? Math.floor(t / 1000) : t);
@@ -41,30 +56,80 @@ function normalizeBars(arr) {
     );
 }
 
-/** Minimal canonical call used by the new RowChart */
-export async function getOHLC(symbol = "SPY", timeframe = "1h", limit = 1500) {
+// Aggregate ascending 1m bars to target timeframe (seconds)
+function aggregateToTf(barsAsc, tfSec) {
+  if (!Array.isArray(barsAsc) || !barsAsc.length || tfSec === 60) return barsAsc || [];
+  const out = [];
+  let bucketStart = null;
+  let cur = null;
+
+  for (const b of barsAsc) {
+    const t = Number(b.time);
+    if (!Number.isFinite(t)) continue;
+    const start = Math.floor(t / tfSec) * tfSec;
+
+    if (bucketStart === null || start > bucketStart) {
+      if (cur) out.push(cur);
+      bucketStart = start;
+      cur = {
+        time: start,
+        open: b.open,
+        high: b.high,
+        low: b.low,
+        close: b.close,
+        volume: Number(b.volume || 0),
+      };
+    } else {
+      cur.high = Math.max(cur.high, b.high);
+      cur.low = Math.min(cur.low, b.low);
+      cur.close = b.close;
+      cur.volume = Number(cur.volume || 0) + Number(b.volume || 0);
+    }
+  }
+  if (cur) out.push(cur);
+  return out;
+}
+
+// ---------------- API: getOHLC ----------------
+// Always fetch 1m from Backend-1 and aggregate locally.
+// This avoids backend gaps (e.g., 10m returning []) and guarantees consistent bars.
+export async function getOHLC(symbol = "SPY", timeframe = "1m", limit = 1500) {
   const sym = String(symbol || "SPY").toUpperCase();
-  const tf = String(timeframe || "1h");
+  const tf = String(timeframe || "1m");
+  const tfSec = TF_SEC[tf] || 600; // default to 10m if unknown
+  const needAgg = tfSec !== 60;
+
+  // Over-fetch enough 1m bars to build 'limit' bars at the target TF.
+  const overshoot = 3; // safety factor for gaps/market pauses
+  const need1mCount = Math.min(
+    5000,
+    Math.max(needAgg ? Math.ceil((limit * tfSec) / 60) * overshoot : limit, 50)
+  );
+
   const url =
     `${API}/api/v1/ohlc?symbol=${encodeURIComponent(sym)}` +
-    `&timeframe=${encodeURIComponent(tf)}&limit=${limit}`;
+    `&timeframe=1m&limit=${need1mCount}`;
 
   const r = await fetch(url, { cache: "no-store" });
   if (!r.ok) throw new Error(`OHLC ${r.status}`);
 
-  // Backend returns a plain array: [{ time, open, high, low, close, volume }, ...]
   const data = await r.json();
-  const bars = normalizeBars(Array.isArray(data) ? data : data?.bars || []);
-  return bars;
+  const oneMin = normalizeBars(Array.isArray(data) ? data : data?.bars || []);
+  oneMin.sort((a, b) => a.time - b.time); // ascending
+
+  if (!needAgg) return oneMin.slice(-limit);
+
+  const agg = aggregateToTf(oneMin, tfSec);
+  return agg.slice(-limit);
 }
 
-/** Compatibility shim: some code still imports fetchOHLCResilient */
+// ---------------- API: compat shim ----------------
 export async function fetchOHLCResilient({ symbol, timeframe, limit = 1500 }) {
   const bars = await getOHLC(symbol, timeframe, limit);
-  return { source: "api/v1/ohlc", bars };
+  return { source: "api/v1/ohlc (1m→tf client agg)", bars };
 }
 
-/** NEW: Live stream subscribe via SSE (normalized to EPOCH SECONDS) */
+// ---------------- Live SSE subscribe ----------------
 export function subscribeStream(symbol, timeframe, onBar) {
   if (!STREAM_BASE) {
     console.warn("[subscribeStream] STREAM_BASE missing");
@@ -72,13 +137,15 @@ export function subscribeStream(symbol, timeframe, onBar) {
   }
   const sym = String(symbol || "SPY").toUpperCase();
   const tf = String(timeframe || "1m");
-  const url = `${STREAM_BASE.replace(/\/+$/, "")}/stream/agg?symbol=${encodeURIComponent(sym)}&tf=${encodeURIComponent(tf)}`;
+  const url = `${STREAM_BASE.replace(/\/+$/, "")}/stream/agg?symbol=${encodeURIComponent(
+    sym
+  )}&tf=${encodeURIComponent(tf)}`;
 
   console.log("[subscribeStream] opening", url);
   const es = new EventSource(url);
 
   es.onmessage = (ev) => {
-    // Stream sends either :ping keepalives or JSON lines
+    // Stream sends :ping keepalives and JSON lines
     if (!ev?.data || ev.data === ":ping" || ev.data.trim() === "") return;
 
     try {
@@ -93,26 +160,27 @@ export function subscribeStream(symbol, timeframe, onBar) {
           close: Number(b.close ?? b.c),
           volume: Number(b.volume ?? b.v ?? 0),
         };
-        if (Number.isFinite(bar.time) && Number.isFinite(bar.open)) {
-          onBar(bar);
-        }
+        if (Number.isFinite(bar.time) && Number.isFinite(bar.open)) onBar(bar);
       } else if (msg?.type === "diag") {
         console.debug("[stream diag]", msg);
       }
-    } catch (e) {
-      // Harmless when the server sends ping comments or partials
-      // Keep visible for early debugging:
-      console.debug("[subscribeStream] non-JSON line:", ev.data);
+    } catch {
+      // ignore non-JSON lines (e.g., comments)
+      if (process?.env?.NODE_ENV !== "production") {
+        console.debug("[subscribeStream] non-JSON line:", ev.data);
+      }
     }
   };
 
   es.onerror = (e) => {
     console.warn("[subscribeStream] error (closing)", e);
-    es.close();
+    try { es.close(); } catch {}
   };
 
-  return () => es.close();
+  return () => {
+    try { es.close(); } catch {}
+  };
 }
 
-// Optional default export for any legacy default imports
+// Default export for legacy import styles
 export default { getOHLC, fetchOHLCResilient, subscribeStream };
