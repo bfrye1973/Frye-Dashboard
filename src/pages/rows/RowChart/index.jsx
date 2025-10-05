@@ -1,8 +1,5 @@
 // ============================================================
-// RowChart — Historical + Live SSE + Auto Fallback Polling
-// - Seeds from Backend-1 (REST)
-// - Subscribes to Backend-2 at 1m and aggregates up to selected TF
-// - Auto-fallback to REST polling when market is closed (only :ping)
+// RowChart — Historical seed + Live 1m → TF aggregation (No barcode)
 // ============================================================
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
@@ -10,10 +7,8 @@ import { createChart } from "lightweight-charts";
 import Controls from "./Controls";
 import { getOHLC, subscribeStream } from "../../../lib/ohlcClient";
 
-// Config -----------------------------------------------------
+// How many historical TF bars to show
 const SEED_LIMIT = 5000;
-const POLL_INTERVAL_MS = 15000;   // fallback poll every 15s when no live bars
-const LIVE_STALE_MS    = 20000;   // if no live bar for 20s → consider stale, enable polling
 
 const DEFAULTS = {
   upColor: "#26a69a",
@@ -25,7 +20,7 @@ const DEFAULTS = {
   border: "#1f2a44",
 };
 
-// map timeframe label → seconds per bucket
+// TF → seconds map
 const TF_SEC = {
   "1m": 60,
   "5m": 300,
@@ -36,7 +31,7 @@ const TF_SEC = {
   "4h": 14400,
   "1d": 86400,
 };
-const LIVE_TF = "1m"; // always subscribe to 1m
+const LIVE_TF = "1m"; // we always subscribe to 1-minute live bars
 
 function phoenixTime(ts, isDaily = false) {
   const seconds =
@@ -55,20 +50,18 @@ function phoenixTime(ts, isDaily = false) {
 }
 
 export default function RowChart({
-  apiBase = process.env.REACT_APP_API_BASE,        // read by getOHLC()
-  streamBase = process.env.REACT_APP_STREAM_BASE,  // read by subscribeStream()
   defaultSymbol = "SPY",
   defaultTimeframe = "10m",
   showDebug = false,
 }) {
-  // DOM / Series refs ---------------------------------------
+  // DOM / series refs
   const containerRef = useRef(null);
   const chartRef = useRef(null);
   const seriesRef = useRef(null);
   const volSeriesRef = useRef(null);
   const roRef = useRef(null);
 
-  // Bars (visual + logical)
+  // bars state (visual) and working copy for range logic
   const [bars, setBars] = useState([]);
   const barsRef = useRef([]);
 
@@ -80,19 +73,13 @@ export default function RowChart({
     disabled: false,
   });
 
-  // Live status
-  const [liveStatus, setLiveStatus] = useState("SEED"); // SEED | LIVE | POLL
-  const lastLiveAtRef = useRef(0); // ms since epoch (when last real bar arrived)
-
   const symbols = useMemo(() => ["SPY", "QQQ", "IWM"], []);
   const timeframes = useMemo(
     () => ["1m", "5m", "10m", "15m", "30m", "1h", "4h", "1d"],
     []
   );
 
-  // ----------------------------------------------------------
-  // 1) Mount Chart (once)
-  // ----------------------------------------------------------
+  // 1) Mount chart once
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -151,14 +138,11 @@ export default function RowChart({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ----------------------------------------------------------
-  // 2) Load Historical Seed (Backend-1)
-  // ----------------------------------------------------------
+  // 2) Load historical seed (already aggregated by getOHLC)
   useEffect(() => {
     let cancelled = false;
 
     async function loadSeed() {
-      setLiveStatus("SEED");
       setState((s) => ({ ...s, disabled: true }));
       try {
         const seed = await getOHLC(state.symbol, state.timeframe, SEED_LIMIT);
@@ -172,15 +156,15 @@ export default function RowChart({
         setBars(asc);
 
         if (showDebug) {
-          console.log("[RowChart] Seed bars:", asc.length, {
-            symbol: state.symbol,
-            timeframe: state.timeframe,
+          console.log("[RowChart] Seed:", {
+            tf: state.timeframe,
+            count: asc.length,
             first: asc[0],
             last: asc[asc.length - 1],
           });
         }
       } catch (e) {
-        console.error("[RowChart] OHLC load error:", e);
+        console.error("[RowChart] OHLC seed error:", e);
         barsRef.current = [];
         setBars([]);
       } finally {
@@ -192,9 +176,7 @@ export default function RowChart({
     return () => { cancelled = true; };
   }, [state.symbol, state.timeframe, showDebug]);
 
-  // ----------------------------------------------------------
-  // 3) Render Bars + Range
-  // ----------------------------------------------------------
+  // 3) Render + range
   useEffect(() => {
     const chart = chartRef.current;
     const series = seriesRef.current;
@@ -206,7 +188,7 @@ export default function RowChart({
       vol.setData(
         bars.map((b) => ({
           time: b.time,
-          value: Number(b.volume ?? 0),
+          value: Number(b.volume || 0),
           color: b.close >= b.open ? DEFAULTS.volUp : DEFAULTS.volDown,
         }))
       );
@@ -224,43 +206,30 @@ export default function RowChart({
     }
   }, [bars, state.range]);
 
-  // ----------------------------------------------------------
-  // 4) Live Stream (Backend-2) + 1m→TF aggregation
-  // ----------------------------------------------------------
+  // 4) Live stream: subscribe to 1m and aggregate to current TF
   useEffect(() => {
     if (!seriesRef.current || !volSeriesRef.current) return;
 
-    const bucketSize = TF_SEC[state.timeframe] ?? TF_SEC["10m"];
-    const floorToBucket = (tSec) => Math.floor(tSec / bucketSize) * bucketSize;
+    const tfSec = TF_SEC[state.timeframe] ?? TF_SEC["10m"];
+    const floorToBucket = (tSec) => Math.floor(tSec / tfSec) * tfSec;
 
-    let currentStart = null;
-    let currentBar = null;
+    // rolling TF bucket we build from incoming 1m bars
+    let bucketStart = null;
+    let rolling = null;
 
+    // Prime the bucket using the last seeded bar, if present
     const lastSeed = barsRef.current[barsRef.current.length - 1] || null;
     if (lastSeed) {
-      currentStart = floorToBucket(lastSeed.time);
-      currentBar = { ...lastSeed };
+      bucketStart = floorToBucket(lastSeed.time);
+      rolling = { ...lastSeed };
     }
 
-    if (showDebug) {
-      console.log("[RowChart] Live subscribe", {
-        symbol: state.symbol,
-        from: LIVE_TF,
-        to: state.timeframe,
-        bucketSize,
-      });
-    }
-
-    // subscribe to 1m live bars
     const unsub = subscribeStream(state.symbol, LIVE_TF, (oneMin) => {
-      lastLiveAtRef.current = Date.now();
-      setLiveStatus("LIVE");
-
       const t = Number(oneMin.time);
       if (!Number.isFinite(t)) return;
 
-      // pass-through for 1m UI
-      if (bucketSize === TF_SEC["1m"]) {
+      // If user is on 1m, forward directly (no aggregation)
+      if (tfSec === TF_SEC["1m"]) {
         seriesRef.current.update(oneMin);
         volSeriesRef.current.update({
           time: oneMin.time,
@@ -268,6 +237,7 @@ export default function RowChart({
           color: oneMin.close >= oneMin.open ? DEFAULTS.volUp : DEFAULTS.volDown,
         });
 
+        // keep working copy in sync
         const next = [...barsRef.current];
         const last = next[next.length - 1];
         if (!last || oneMin.time > last.time) next.push(oneMin);
@@ -277,31 +247,32 @@ export default function RowChart({
         return;
       }
 
-      // aggregate 1m → current TF
-      const bStart = floorToBucket(t);
-      if (currentStart == null || bStart > currentStart) {
-        // finalize previous bucket
-        if (currentBar && (!lastSeed || currentBar.time >= lastSeed.time)) {
-          seriesRef.current.update(currentBar);
+      // Aggregate 1m → selected TF (prevents "barcode")
+      const start = floorToBucket(t);
+
+      // Moved to a new bucket?
+      if (bucketStart === null || start > bucketStart) {
+        // Finalize the previous bucket (if it belongs at/after the seed tail)
+        if (rolling && (!lastSeed || rolling.time >= lastSeed.time)) {
+          seriesRef.current.update(rolling);
           volSeriesRef.current.update({
-            time: currentBar.time,
-            value: Number(currentBar.volume || 0),
-            color:
-              currentBar.close >= currentBar.open
-                ? DEFAULTS.volUp
-                : DEFAULTS.volDown,
+            time: rolling.time,
+            value: Number(rolling.volume || 0),
+            color: rolling.close >= rolling.open ? DEFAULTS.volUp : DEFAULTS.volDown,
           });
+
           const next = [...barsRef.current];
           const last = next[next.length - 1];
-          if (!last || currentBar.time > last.time) next.push(currentBar);
-          else next[next.length - 1] = currentBar;
+          if (!last || rolling.time > last.time) next.push(rolling);
+          else next[next.length - 1] = rolling;
           barsRef.current = next;
           setBars(next);
         }
 
-        currentStart = bStart;
-        currentBar = {
-          time: bStart,
+        // Start a new TF bucket from this 1m bar
+        bucketStart = start;
+        rolling = {
+          time: start,
           open: oneMin.open,
           high: oneMin.high,
           low: oneMin.low,
@@ -309,25 +280,25 @@ export default function RowChart({
           volume: Number(oneMin.volume || 0),
         };
       } else {
-        currentBar.high = Math.max(currentBar.high, oneMin.high);
-        currentBar.low = Math.min(currentBar.low, oneMin.low);
-        currentBar.close = oneMin.close;
-        currentBar.volume = Number(currentBar.volume || 0) + Number(oneMin.volume || 0);
+        // Still inside same TF bucket: extend it
+        rolling.high = Math.max(rolling.high, oneMin.high);
+        rolling.low = Math.min(rolling.low, oneMin.low);
+        rolling.close = oneMin.close;
+        rolling.volume = Number(rolling.volume || 0) + Number(oneMin.volume || 0);
       }
 
-      // live in-progress candle
-      seriesRef.current.update(currentBar);
+      // Update the in-progress TF candle live
+      seriesRef.current.update(rolling);
       volSeriesRef.current.update({
-        time: currentBar.time,
-        value: Number(currentBar.volume || 0),
-        color:
-          currentBar.close >= currentBar.open ? DEFAULTS.volUp : DEFAULTS.volDown,
+        time: rolling.time,
+        value: Number(rolling.volume || 0),
+        color: rolling.close >= rolling.open ? DEFAULTS.volUp : DEFAULTS.volDown,
       });
 
       const next = [...barsRef.current];
       const last = next[next.length - 1];
-      if (!last || currentBar.time > last.time) next.push({ ...currentBar });
-      else next[next.length - 1] = { ...currentBar };
+      if (!last || rolling.time > last.time) next.push({ ...rolling });
+      else next[next.length - 1] = { ...rolling };
       barsRef.current = next;
       setBars(next);
     });
@@ -335,59 +306,7 @@ export default function RowChart({
     return () => unsub?.();
   }, [state.symbol, state.timeframe, showDebug]);
 
-  // ----------------------------------------------------------
-  // 5) Auto Fallback Polling when stream is stale (weekends/after-hours)
-  // ----------------------------------------------------------
-  useEffect(() => {
-    let timer = null;
-
-    const tick = async () => {
-      const staleFor = Date.now() - lastLiveAtRef.current;
-      const shouldPoll = staleFor > LIVE_STALE_MS;
-
-      if (shouldPoll) {
-        setLiveStatus((s) => (s === "LIVE" ? "POLL" : s === "SEED" ? "SEED" : "POLL"));
-        try {
-          // fetch last few bars and merge tail
-          const fresh = await getOHLC(state.symbol, state.timeframe, 3);
-          const asc = (Array.isArray(fresh) ? fresh : []).slice().sort((a, b) => a.time - b.time);
-          if (asc.length) {
-            const next = [...barsRef.current];
-            const lastIncoming = asc[asc.length - 1];
-            const last = next[next.length - 1];
-            if (!last || lastIncoming.time > last.time) next.push(lastIncoming);
-            else next[next.length - 1] = lastIncoming;
-
-            barsRef.current = next;
-            setBars(next);
-
-            // also update series visually (keeps volume coloring consistent)
-            if (seriesRef.current) seriesRef.current.update(lastIncoming);
-            if (volSeriesRef.current) {
-              volSeriesRef.current.update({
-                time: lastIncoming.time,
-                value: Number(lastIncoming.volume || 0),
-                color:
-                  lastIncoming.close >= lastIncoming.open
-                    ? DEFAULTS.volUp
-                    : DEFAULTS.volDown,
-              });
-            }
-          }
-        } catch (e) {
-          if (showDebug) console.warn("[RowChart] Poll error:", e);
-        }
-      }
-    };
-
-    // kick off the interval
-    timer = setInterval(tick, POLL_INTERVAL_MS);
-    return () => { if (timer) clearInterval(timer); };
-  }, [state.symbol, state.timeframe, showDebug]);
-
-  // ----------------------------------------------------------
-  // 6) Controls + UI
-  // ----------------------------------------------------------
+  // 5) Controls + UI
   const handleControlsChange = (patch) =>
     setState((s) => ({ ...s, ...patch }));
 
@@ -406,12 +325,6 @@ export default function RowChart({
     ts.setVisibleLogicalRange({ from, to });
   };
 
-  const statusChip = {
-    SEED:  { text: "Seeding…", bg: "#374151" },
-    LIVE:  { text: "Live",     bg: "#065f46" },
-    POLL:  { text: "Polling",  bg: "#4b5563" },
-  }[liveStatus] || { text: liveStatus, bg: "#374151" };
-
   return (
     <div
       style={{
@@ -423,26 +336,13 @@ export default function RowChart({
         background: DEFAULTS.bg,
       }}
     >
-      <div style={{ display: "flex", alignItems: "center" }}>
-        <Controls
-          symbols={symbols}
-          timeframes={timeframes}
-          value={state}
-          onChange={handleControlsChange}
-          onRange={applyRange}
-        />
-        <div style={{
-          marginLeft: "auto",
-          marginRight: 8,
-          fontSize: 12,
-          padding: "2px 8px",
-          borderRadius: 999,
-          background: statusChip.bg,
-          color: "#e5e7eb",
-        }}>
-          {statusChip.text}
-        </div>
-      </div>
+      <Controls
+        symbols={symbols}
+        timeframes={timeframes}
+        value={state}
+        onChange={handleControlsChange}
+        onRange={applyRange}
+      />
 
       <div
         ref={containerRef}
