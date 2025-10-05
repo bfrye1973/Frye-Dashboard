@@ -1,5 +1,6 @@
 // ============================================================
-// RowChart — Historical seed + Live 1m → TF aggregation (with “All” range)
+// RowChart — Historical seed + Live 1m → TF aggregation
+// Phoenix (America/Phoenix) on BOTH axis ticks + crosshair tooltip
 // ============================================================
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
@@ -8,7 +9,7 @@ import Controls from "./Controls";
 import { getOHLC, subscribeStream } from "../../../lib/ohlcClient";
 
 // TF bars to request from getOHLC (we still fit “All” on view)
-const SEED_LIMIT = 2000; // enough for ~1 month of 10m including buffer
+const SEED_LIMIT = 2000; // ~1 month for 10m with buffer
 
 const DEFAULTS = {
   upColor: "#26a69a",
@@ -21,24 +22,32 @@ const DEFAULTS = {
 };
 
 const TF_SEC = {
-  "1m": 60,
-  "5m": 300,
-  "10m": 600,
-  "15m": 900,
-  "30m": 1800,
-  "1h": 3600,
-  "4h": 14400,
-  "1d": 86400,
+  "1m": 60, "5m": 300, "10m": 600, "15m": 900, "30m": 1800,
+  "1h": 3600, "4h": 14400, "1d": 86400,
 };
 const LIVE_TF = "1m";
 
+/* ---------- Phoenix time helpers ---------- */
+// tooltip formatter (used by localization.timeFormatter)
 function phoenixTime(ts, isDaily = false) {
   const seconds =
     typeof ts === "number"
       ? ts
-      : ts && typeof ts.timestamp === "number"
-      ? ts.timestamp
-      : 0;
+      : (ts && (ts.timestamp ?? ts.time)) || 0;
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Phoenix",
+    hour12: true,
+    ...(isDaily
+      ? { month: "short", day: "2-digit" }
+      : { hour: "numeric", minute: "2-digit" }),
+  }).format(new Date(seconds * 1000));
+}
+// axis tick mark formatter (used by timeScale.tickMarkFormatter)
+function phoenixTick(ts, isDaily = false) {
+  const seconds =
+    typeof ts === "number"
+      ? ts
+      : (ts && (ts.timestamp ?? ts.time)) || 0;
   return new Intl.DateTimeFormat("en-US", {
     timeZone: "America/Phoenix",
     hour12: true,
@@ -65,7 +74,7 @@ export default function RowChart({
   const [state, setState] = useState({
     symbol: defaultSymbol,
     timeframe: defaultTimeframe,
-    range: "ALL", // ⟵ default to All
+    range: "ALL", // default to All
     disabled: false,
   });
 
@@ -75,7 +84,7 @@ export default function RowChart({
     []
   );
 
-  // Mount chart once
+  // ---------- Mount chart once ----------
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -92,9 +101,14 @@ export default function RowChart({
         borderColor: DEFAULTS.border,
         scaleMargins: { top: 0.1, bottom: 0.2 },
       },
-      timeScale: { borderColor: DEFAULTS.border, timeVisible: true },
+      timeScale: {
+        borderColor: DEFAULTS.border,
+        timeVisible: true,
+        // ⬇️ Axis tick labels in AZ time
+        tickMarkFormatter: (t) => phoenixTick(t, state.timeframe === "1d"),
+      },
+      // ⬇️ Crosshair tooltip in AZ time
       localization: {
-        timezone: "America/Phoenix",
         timeFormatter: (t) => phoenixTime(t, state.timeframe === "1d"),
       },
       crosshair: { mode: 0 },
@@ -134,16 +148,28 @@ export default function RowChart({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Historical seed
+  // ---------- Keep tick & tooltip formatters in sync with TF ----------
+  useEffect(() => {
+    const chart = chartRef.current;
+    if (!chart) return;
+    chart.applyOptions({
+      timeScale: {
+        tickMarkFormatter: (t) => phoenixTick(t, state.timeframe === "1d"),
+      },
+      localization: {
+        timeFormatter: (t) => phoenixTime(t, state.timeframe === "1d"),
+      },
+    });
+  }, [state.timeframe]);
+
+  // ---------- Historical seed ----------
   useEffect(() => {
     let cancelled = false;
-
     async function loadSeed() {
       setState((s) => ({ ...s, disabled: true }));
       try {
         const seed = await getOHLC(state.symbol, state.timeframe, SEED_LIMIT);
         if (cancelled) return;
-
         const asc = (Array.isArray(seed) ? seed : []).slice().sort((a, b) => a.time - b.time);
         barsRef.current = asc;
         setBars(asc);
@@ -155,10 +181,7 @@ export default function RowChart({
 
         if (showDebug) {
           console.log("[RowChart] Seed:", {
-            tf: state.timeframe,
-            count: asc.length,
-            first: asc[0],
-            last: asc[asc.length - 1],
+            tf: state.timeframe, count: asc.length, first: asc[0], last: asc[asc.length - 1],
           });
         }
       } catch (e) {
@@ -169,12 +192,11 @@ export default function RowChart({
         if (!cancelled) setState((s) => ({ ...s, disabled: false }));
       }
     }
-
     loadSeed();
     return () => { cancelled = true; };
   }, [state.symbol, state.timeframe, state.range, showDebug]);
 
-  // Render + range
+  // ---------- Render + range ----------
   useEffect(() => {
     const chart = chartRef.current;
     const series = seriesRef.current;
@@ -194,7 +216,6 @@ export default function RowChart({
 
     const ts = chart.timeScale();
     const len = bars.length;
-
     if (!len) return;
 
     if (state.range === "ALL") {
@@ -208,7 +229,7 @@ export default function RowChart({
     }
   }, [bars, state.range]);
 
-  // Live stream: subscribe to 1m and aggregate to current TF
+  // ---------- Live stream: 1m → selected TF aggregation ----------
   useEffect(() => {
     if (!seriesRef.current || !volSeriesRef.current) return;
 
@@ -298,7 +319,7 @@ export default function RowChart({
     return () => unsub?.();
   }, [state.symbol, state.timeframe, showDebug]);
 
-  // Controls + UI handlers
+  // ---------- Controls ----------
   const handleControlsChange = (patch) =>
     setState((s) => ({ ...s, ...patch }));
 
