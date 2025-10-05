@@ -1,5 +1,8 @@
 // ============================================================
-// RowChart — Final Clean Version (Historical + Live + Aggregation)
+// RowChart — Historical + Live SSE + Auto Fallback Polling
+// - Seeds from Backend-1 (REST)
+// - Subscribes to Backend-2 at 1m and aggregates up to selected TF
+// - Auto-fallback to REST polling when market is closed (only :ping)
 // ============================================================
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
@@ -7,8 +10,10 @@ import { createChart } from "lightweight-charts";
 import Controls from "./Controls";
 import { getOHLC, subscribeStream } from "../../../lib/ohlcClient";
 
-// How many historical bars to seed from Backend-1
+// Config -----------------------------------------------------
 const SEED_LIMIT = 5000;
+const POLL_INTERVAL_MS = 15000;   // fallback poll every 15s when no live bars
+const LIVE_STALE_MS    = 20000;   // if no live bar for 20s → consider stale, enable polling
 
 const DEFAULTS = {
   upColor: "#26a69a",
@@ -20,7 +25,19 @@ const DEFAULTS = {
   border: "#1f2a44",
 };
 
-// UX helpers -------------------------------------------------
+// map timeframe label → seconds per bucket
+const TF_SEC = {
+  "1m": 60,
+  "5m": 300,
+  "10m": 600,
+  "15m": 900,
+  "30m": 1800,
+  "1h": 3600,
+  "4h": 14400,
+  "1d": 86400,
+};
+const LIVE_TF = "1m"; // always subscribe to 1m
+
 function phoenixTime(ts, isDaily = false) {
   const seconds =
     typeof ts === "number"
@@ -37,46 +54,35 @@ function phoenixTime(ts, isDaily = false) {
   }).format(new Date(seconds * 1000));
 }
 
-// map timeframe label → seconds per bucket
-const TF_SEC = {
-  "1m": 60,
-  "5m": 300,
-  "10m": 600,
-  "15m": 900,
-  "30m": 1800,
-  "1h": 3600,
-  "4h": 14400,
-  "1d": 86400,
-};
-const LIVE_TF = "1m"; // we always subscribe to 1m and aggregate up
-
-// ============================================================
-
 export default function RowChart({
-  apiBase = process.env.REACT_APP_API_BASE, // (not used directly here; getOHLC reads it)
-  streamBase = process.env.REACT_APP_STREAM_BASE, // subscribeStream reads it
+  apiBase = process.env.REACT_APP_API_BASE,        // read by getOHLC()
+  streamBase = process.env.REACT_APP_STREAM_BASE,  // read by subscribeStream()
   defaultSymbol = "SPY",
   defaultTimeframe = "10m",
   showDebug = false,
 }) {
-  // DOM + series refs ---------------------------------------
+  // DOM / Series refs ---------------------------------------
   const containerRef = useRef(null);
   const chartRef = useRef(null);
   const seriesRef = useRef(null);
   const volSeriesRef = useRef(null);
   const roRef = useRef(null);
 
-  // bar state (visual + logical) -----------------------------
+  // Bars (visual + logical)
   const [bars, setBars] = useState([]);
-  const barsRef = useRef([]); // canonical working copy for range logic, etc.
+  const barsRef = useRef([]);
 
-  // UI state -------------------------------------------------
+  // UI state
   const [state, setState] = useState({
     symbol: defaultSymbol,
     timeframe: defaultTimeframe,
     range: 200,
     disabled: false,
   });
+
+  // Live status
+  const [liveStatus, setLiveStatus] = useState("SEED"); // SEED | LIVE | POLL
+  const lastLiveAtRef = useRef(0); // ms since epoch (when last real bar arrived)
 
   const symbols = useMemo(() => ["SPY", "QQQ", "IWM"], []);
   const timeframes = useMemo(
@@ -152,6 +158,7 @@ export default function RowChart({
     let cancelled = false;
 
     async function loadSeed() {
+      setLiveStatus("SEED");
       setState((s) => ({ ...s, disabled: true }));
       try {
         const seed = await getOHLC(state.symbol, state.timeframe, SEED_LIMIT);
@@ -198,7 +205,7 @@ export default function RowChart({
     if (vol) {
       vol.setData(
         bars.map((b) => ({
-          time: b.time, // UNIX seconds
+          time: b.time,
           value: Number(b.volume ?? 0),
           color: b.close >= b.open ? DEFAULTS.volUp : DEFAULTS.volDown,
         }))
@@ -218,19 +225,17 @@ export default function RowChart({
   }, [bars, state.range]);
 
   // ----------------------------------------------------------
-  // 4) Live Stream → ALWAYS subscribe to 1m, aggregate to selected TF
+  // 4) Live Stream (Backend-2) + 1m→TF aggregation
   // ----------------------------------------------------------
   useEffect(() => {
     if (!seriesRef.current || !volSeriesRef.current) return;
 
-    const bucketSize = TF_SEC[state.timeframe] ?? TF_SEC["10m"]; // seconds per bucket
+    const bucketSize = TF_SEC[state.timeframe] ?? TF_SEC["10m"];
     const floorToBucket = (tSec) => Math.floor(tSec / bucketSize) * bucketSize;
 
-    // rolling bucket we build live
     let currentStart = null;
     let currentBar = null;
 
-    // use last seeded bar to align the first bucket correctly
     const lastSeed = barsRef.current[barsRef.current.length - 1] || null;
     if (lastSeed) {
       currentStart = floorToBucket(lastSeed.time);
@@ -246,11 +251,15 @@ export default function RowChart({
       });
     }
 
+    // subscribe to 1m live bars
     const unsub = subscribeStream(state.symbol, LIVE_TF, (oneMin) => {
+      lastLiveAtRef.current = Date.now();
+      setLiveStatus("LIVE");
+
       const t = Number(oneMin.time);
       if (!Number.isFinite(t)) return;
 
-      // If we are on 1m UI timeframe, just forward the bar
+      // pass-through for 1m UI
       if (bucketSize === TF_SEC["1m"]) {
         seriesRef.current.update(oneMin);
         volSeriesRef.current.update({
@@ -268,12 +277,10 @@ export default function RowChart({
         return;
       }
 
-      // Aggregate: 1m → selected timeframe
+      // aggregate 1m → current TF
       const bStart = floorToBucket(t);
-
-      // moved into a new bucket?
       if (currentStart == null || bStart > currentStart) {
-        // finalize previous bucket (if any & at/after last seed)
+        // finalize previous bucket
         if (currentBar && (!lastSeed || currentBar.time >= lastSeed.time)) {
           seriesRef.current.update(currentBar);
           volSeriesRef.current.update({
@@ -284,7 +291,6 @@ export default function RowChart({
                 ? DEFAULTS.volUp
                 : DEFAULTS.volDown,
           });
-
           const next = [...barsRef.current];
           const last = next[next.length - 1];
           if (!last || currentBar.time > last.time) next.push(currentBar);
@@ -293,7 +299,6 @@ export default function RowChart({
           setBars(next);
         }
 
-        // start a fresh bucket with this 1m bar
         currentStart = bStart;
         currentBar = {
           time: bStart,
@@ -304,14 +309,13 @@ export default function RowChart({
           volume: Number(oneMin.volume || 0),
         };
       } else {
-        // still inside same bucket: update OHLCV
         currentBar.high = Math.max(currentBar.high, oneMin.high);
         currentBar.low = Math.min(currentBar.low, oneMin.low);
         currentBar.close = oneMin.close;
         currentBar.volume = Number(currentBar.volume || 0) + Number(oneMin.volume || 0);
       }
 
-      // Show in-progress candle live
+      // live in-progress candle
       seriesRef.current.update(currentBar);
       volSeriesRef.current.update({
         time: currentBar.time,
@@ -332,7 +336,57 @@ export default function RowChart({
   }, [state.symbol, state.timeframe, showDebug]);
 
   // ----------------------------------------------------------
-  // 5) Controls + UI
+  // 5) Auto Fallback Polling when stream is stale (weekends/after-hours)
+  // ----------------------------------------------------------
+  useEffect(() => {
+    let timer = null;
+
+    const tick = async () => {
+      const staleFor = Date.now() - lastLiveAtRef.current;
+      const shouldPoll = staleFor > LIVE_STALE_MS;
+
+      if (shouldPoll) {
+        setLiveStatus((s) => (s === "LIVE" ? "POLL" : s === "SEED" ? "SEED" : "POLL"));
+        try {
+          // fetch last few bars and merge tail
+          const fresh = await getOHLC(state.symbol, state.timeframe, 3);
+          const asc = (Array.isArray(fresh) ? fresh : []).slice().sort((a, b) => a.time - b.time);
+          if (asc.length) {
+            const next = [...barsRef.current];
+            const lastIncoming = asc[asc.length - 1];
+            const last = next[next.length - 1];
+            if (!last || lastIncoming.time > last.time) next.push(lastIncoming);
+            else next[next.length - 1] = lastIncoming;
+
+            barsRef.current = next;
+            setBars(next);
+
+            // also update series visually (keeps volume coloring consistent)
+            if (seriesRef.current) seriesRef.current.update(lastIncoming);
+            if (volSeriesRef.current) {
+              volSeriesRef.current.update({
+                time: lastIncoming.time,
+                value: Number(lastIncoming.volume || 0),
+                color:
+                  lastIncoming.close >= lastIncoming.open
+                    ? DEFAULTS.volUp
+                    : DEFAULTS.volDown,
+              });
+            }
+          }
+        } catch (e) {
+          if (showDebug) console.warn("[RowChart] Poll error:", e);
+        }
+      }
+    };
+
+    // kick off the interval
+    timer = setInterval(tick, POLL_INTERVAL_MS);
+    return () => { if (timer) clearInterval(timer); };
+  }, [state.symbol, state.timeframe, showDebug]);
+
+  // ----------------------------------------------------------
+  // 6) Controls + UI
   // ----------------------------------------------------------
   const handleControlsChange = (patch) =>
     setState((s) => ({ ...s, ...patch }));
@@ -352,6 +406,12 @@ export default function RowChart({
     ts.setVisibleLogicalRange({ from, to });
   };
 
+  const statusChip = {
+    SEED:  { text: "Seeding…", bg: "#374151" },
+    LIVE:  { text: "Live",     bg: "#065f46" },
+    POLL:  { text: "Polling",  bg: "#4b5563" },
+  }[liveStatus] || { text: liveStatus, bg: "#374151" };
+
   return (
     <div
       style={{
@@ -363,19 +423,26 @@ export default function RowChart({
         background: DEFAULTS.bg,
       }}
     >
-      <Controls
-        symbols={symbols}
-        timeframes={timeframes}
-        value={state}
-        onChange={handleControlsChange}
-        onRange={applyRange}
-      />
-
-      {showDebug && (
-        <div style={{ fontSize: 12, opacity: 0.7, padding: "4px 8px" }}>
-          Live via SSE: {LIVE_TF} → {state.timeframe}
+      <div style={{ display: "flex", alignItems: "center" }}>
+        <Controls
+          symbols={symbols}
+          timeframes={timeframes}
+          value={state}
+          onChange={handleControlsChange}
+          onRange={applyRange}
+        />
+        <div style={{
+          marginLeft: "auto",
+          marginRight: 8,
+          fontSize: 12,
+          padding: "2px 8px",
+          borderRadius: 999,
+          background: statusChip.bg,
+          color: "#e5e7eb",
+        }}>
+          {statusChip.text}
         </div>
-      )}
+      </div>
 
       <div
         ref={containerRef}
