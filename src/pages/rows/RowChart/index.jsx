@@ -5,7 +5,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createChart } from "lightweight-charts";
 import Controls from "./Controls";
-import { getOHLC } from "../../../lib/ohlcClient";
+import { getOHLC, subscribeStream } from "../../../lib/ohlcClient"; // ⟵ add subscribeStream
 
 const SEED_LIMIT = 5000; // match backend cap
 
@@ -20,12 +20,14 @@ const DEFAULTS = {
 };
 
 function phoenixTime(ts, isDaily = false) {
+  // ts is UNIX seconds in our pipeline; normalize if needed
   const seconds =
     typeof ts === "number"
       ? ts
       : ts && typeof ts.timestamp === "number"
       ? ts.timestamp
       : 0;
+
   return new Intl.DateTimeFormat("en-US", {
     timeZone: "America/Phoenix",
     hour12: true,
@@ -36,7 +38,7 @@ function phoenixTime(ts, isDaily = false) {
 }
 
 export default function RowChart({
-  apiBase = process.env.REACT_APP_API_BASE, // backend-1 (historical)
+  apiBase = process.env.REACT_APP_API_BASE,      // backend-1 (historical)
   streamBase = process.env.REACT_APP_STREAM_BASE, // backend-2 (live stream)
   defaultSymbol = "SPY",
   defaultTimeframe = "10m",
@@ -135,13 +137,22 @@ export default function RowChart({
         const seed = await getOHLC(state.symbol, state.timeframe, SEED_LIMIT);
         if (cancelled) return;
 
+        // Ensure ascending by time (seconds)
         const asc = (Array.isArray(seed) ? seed : [])
           .slice()
           .sort((a, b) => a.time - b.time);
+
         barsRef.current = asc;
         setBars(asc);
 
-        if (showDebug) console.log("[RowChart] Seed bars:", asc.length);
+        if (showDebug) {
+          console.log("[RowChart] Seed bars:", asc.length, {
+            symbol: state.symbol,
+            timeframe: state.timeframe,
+            first: asc[0],
+            last: asc[asc.length - 1],
+          });
+        }
       } catch (e) {
         console.error("[RowChart] OHLC load error:", e);
         setBars([]);
@@ -151,7 +162,7 @@ export default function RowChart({
     }
     load();
     return () => { cancelled = true; };
-  }, [state.symbol, state.timeframe]);
+  }, [state.symbol, state.timeframe, showDebug]);
 
   // -----------------------------------------------
   // Render + range
@@ -166,7 +177,7 @@ export default function RowChart({
     if (vol) {
       vol.setData(
         bars.map((b) => ({
-          time: b.time,
+          time: b.time, // UNIX seconds
           value: Number(b.volume ?? 0),
           color: b.close >= b.open ? DEFAULTS.volUp : DEFAULTS.volDown,
         }))
@@ -186,41 +197,46 @@ export default function RowChart({
   }, [bars, state.range]);
 
   // -----------------------------------------------
-  // Live Stream (backend-2)
+  // Live Stream (backend-2) — uses helper with :ping tolerance & ms→sec safety
   // -----------------------------------------------
   useEffect(() => {
-    if (!streamBase || !state.symbol) return;
+    if (!seriesRef.current || !volSeriesRef.current) return;
 
-    const url = `${streamBase.replace(/\/+$/, "")}/stream/agg?symbol=${state.symbol}&tf=${state.timeframe}`;
-    const es = new EventSource(url);
+    if (showDebug) {
+      console.log("[RowChart] streamBase =", streamBase);
+    }
 
-    es.onmessage = (ev) => {
-      try {
-        const msg = JSON.parse(ev.data);
-        if (msg?.type === "bar" && msg?.bar?.time) {
-          const bar = msg.bar;
-          if (seriesRef.current) seriesRef.current.update(bar);
-          if (volSeriesRef.current) {
-            volSeriesRef.current.update({
-              time: bar.time,
-              value: Number(bar.volume || 0),
-              color: bar.close >= bar.open ? DEFAULTS.volUp : DEFAULTS.volDown,
-            });
-          }
-        }
-      } catch (err) {
-        if (showDebug) console.warn("[stream error]", err);
-      }
-    };
+    // subscribeStream handles EventSource, :ping lines, and normalization
+    const unsub = subscribeStream(state.symbol, state.timeframe, (bar) => {
+      // Update price series
+      seriesRef.current.update(bar);
 
-    es.onerror = () => es.close();
-    return () => es.close();
-  }, [streamBase, state.symbol, state.timeframe]);
+      // Update volume series
+      volSeriesRef.current.update({
+        time: bar.time,
+        value: Number(bar.volume || 0),
+        color: bar.close >= bar.open ? DEFAULTS.volUp : DEFAULTS.volDown,
+      });
+
+      // Keep an in-memory tail so range adjustments work live
+      const next = [...barsRef.current];
+      const last = next[next.length - 1];
+      if (!last || bar.time > last.time) next.push(bar);
+      else next[next.length - 1] = bar; // in-bar update
+
+      barsRef.current = next;
+      setBars(next);
+    });
+
+    return () => unsub?.();
+  }, [streamBase, state.symbol, state.timeframe, showDebug]);
 
   // -----------------------------------------------
   // Controls + UI
   // -----------------------------------------------
-  const handleControlsChange = (patch) => setState((s) => ({ ...s, ...patch }));
+  const handleControlsChange = (patch) =>
+    setState((s) => ({ ...s, ...patch }));
+
   const applyRange = (nextRange) => {
     const chart = chartRef.current;
     if (!chart) return;
