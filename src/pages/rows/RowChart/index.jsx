@@ -1,18 +1,20 @@
 // src/pages/rows/RowChart/index.jsx
-// RowChart — final, consistent with backend
-// - Seeds with getOHLC(limit=5000) → full array
+// RowChart — final (history + live stream via Streamer)
+// - Seeds with getOHLC(limit=5000)
 // - AZ time on hover + bottom axis
 // - Volume histogram (bottom 20%)
-// - Fixed height = 520
-// - Range 50/100 = last N bars (viewport only), 200 = FULL TIMELINE (fitContent)
-// - window.__ROWCHART_INFO__ shows tf, bars, spanDays, source
+// - Range 50/100 = last N bars; 200 = FULL (fitContent)
+// - Live stream from REACT_APP_STREAM_BASE (/stream/agg?symbol=&tf=)
+// - Single source of truth for symbols/timeframes = ./constants
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createChart } from "lightweight-charts";
 import Controls from "./Controls";
+import IndicatorsToolbar from "./IndicatorsToolbar";
 import { getOHLC } from "../../../lib/ohlcClient";
+import { SYMBOLS, TIMEFRAMES } from "./constants";
 
-const SEED_LIMIT = 5000; // ✅ match backend cap
+const SEED_LIMIT = 5000;
 
 const DEFAULTS = {
   upColor: "#26a69a",
@@ -24,6 +26,38 @@ const DEFAULTS = {
   border: "#1f2a44",
 };
 
+// ---------------- Streamer (SSE) ----------------
+const STREAM_BASE = (process.env.REACT_APP_STREAM_BASE || "").replace(/\/+$/, "");
+function buildStreamUrl(symbol, timeframe) {
+  if (!STREAM_BASE) return "";
+  const s = encodeURIComponent(symbol);
+  const tf = encodeURIComponent(timeframe);
+  return `${STREAM_BASE}/stream/agg?symbol=${s}&tf=${tf}`;
+}
+function subscribeLive(symbol, timeframe, onBar) {
+  const url = buildStreamUrl(symbol, timeframe);
+  if (!url) return () => {};
+  const es = new EventSource(url);
+
+  es.onmessage = (ev) => {
+    try {
+      const msg = JSON.parse(ev.data);
+      // Streamer emits { ok:true, type:"bar", bar:{ time, ohlc, volume } }
+      if (msg && msg.ok && msg.type === "bar" && msg.bar && Number.isFinite(msg.bar.time)) {
+        onBar(msg.bar);
+      }
+    } catch {
+      // ignore heartbeats / non-JSON
+    }
+  };
+  es.onerror = () => {
+    // let browser auto-reconnect; optional: console.warn for visibility
+    // console.warn("[RowChart] SSE error; browser will reconnect");
+  };
+  return () => es.close();
+}
+
+// ---------------- Time formatting ----------------
 function phoenixTime(ts, isDaily = false) {
   const seconds =
     typeof ts === "number"
@@ -43,9 +77,10 @@ function phoenixTime(ts, isDaily = false) {
 export default function RowChart({
   apiBase = "https://frye-market-backend-1.onrender.com",
   defaultSymbol = "SPY",
-  defaultTimeframe = "1h",
+  defaultTimeframe = "10m",
   showDebug = false,
 }) {
+  // expose backend base for clients that read window.__API_BASE__
   useEffect(() => {
     if (typeof window !== "undefined" && apiBase) {
       window.__API_BASE__ = apiBase.replace(/\/+$/, "");
@@ -68,13 +103,11 @@ export default function RowChart({
     disabled: false,
   });
 
-  const symbols = useMemo(() => ["SPY", "QQQ", "IWM"], []);
-  const timeframes = useMemo(
-    () => ["1m", "5m", "10m", "15m", "30m", "1h", "4h", "1d"],
-    []
-  );
+  // canonical symbols/timeframes (from ./constants)
+  const symbols = useMemo(() => SYMBOLS, []);
+  const timeframes = useMemo(() => TIMEFRAMES, []);
 
-  // Create chart once
+  // ---------- create chart once ----------
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -91,7 +124,7 @@ export default function RowChart({
         borderColor: DEFAULTS.border,
         scaleMargins: { top: 0.1, bottom: 0.2 },
       },
-      timeScale: { borderColor: DEFAULTS.border, timeVisible: true },
+      timeScale: { borderColor: DEFAULTS.border, timeVisible: true, minimumHeight: 20 },
       localization: {
         timezone: "America/Phoenix",
         timeFormatter: (t) => phoenixTime(t, state.timeframe === "1d"),
@@ -119,7 +152,6 @@ export default function RowChart({
 
     chart.timeScale().applyOptions({
       tickMarkFormatter: (t) => phoenixTime(t, state.timeframe === "1d"),
-      minimumHeight: 20,
     });
 
     const ro = new ResizeObserver(() => {
@@ -139,9 +171,10 @@ export default function RowChart({
       seriesRef.current = null;
       volSeriesRef.current = null;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Update bottom axis when timeframe changes
+  // ---------- timeframe axis when timeframe changes ----------
   useEffect(() => {
     if (!chartRef.current) return;
     chartRef.current.timeScale().applyOptions({
@@ -150,7 +183,7 @@ export default function RowChart({
     });
   }, [state.timeframe]);
 
-  // Seed on symbol/timeframe change
+  // ---------- seed (history) on symbol/timeframe change ----------
   useEffect(() => {
     let cancelled = false;
     async function load() {
@@ -162,6 +195,7 @@ export default function RowChart({
         const asc = (Array.isArray(seed) ? seed : [])
           .slice()
           .sort((a, b) => a.time - b.time);
+
         barsRef.current = asc;
         setBars(asc);
 
@@ -190,7 +224,7 @@ export default function RowChart({
     return () => { cancelled = true; };
   }, [state.symbol, state.timeframe, showDebug]);
 
-  // Render + viewport
+  // ---------- render + viewport ----------
   useEffect(() => {
     const chart = chartRef.current;
     const series = seriesRef.current;
@@ -198,7 +232,6 @@ export default function RowChart({
     if (!chart || !series) return;
 
     series.setData(bars);
-
     if (vol) {
       vol.setData(
         bars.map((b) => ({
@@ -223,6 +256,40 @@ export default function RowChart({
     });
   }, [bars, state.range]);
 
+  // ---------- live stream (SSE via Streamer) ----------
+  useEffect(() => {
+    // For "1d" we usually skip live (provider sends 1m final bars).
+    if (state.timeframe === "1d") return;
+    // If no Streamer base configured, skip silently.
+    if (!STREAM_BASE) return;
+
+    let disposed = false;
+    const unsubscribe = subscribeLive(state.symbol, state.timeframe, (bar) => {
+      if (disposed || !bar || bar.time == null) return;
+
+      // update OHLC series
+      seriesRef.current?.update(bar);
+      // update volume series
+      if (volSeriesRef.current) {
+        volSeriesRef.current.update({
+          time: bar.time,
+          value: Number(bar.volume || 0),
+          color: bar.close >= bar.open ? DEFAULTS.volUp : DEFAULTS.volDown,
+        });
+      }
+      // maintain local cache
+      barsRef.current = mergeBar(barsRef.current, bar);
+      // trigger UI update incrementally (don’t rebuild whole array)
+      setBars((prev) => mergeBar(prev, bar));
+    });
+
+    return () => {
+      disposed = true;
+      try { unsubscribe?.(); } catch {}
+    };
+  }, [state.symbol, state.timeframe]);
+
+  // ---------- handlers ----------
   const applyRange = (nextRange) => {
     const chart = chartRef.current;
     if (!chart) return;
@@ -243,13 +310,14 @@ export default function RowChart({
 
   const handleTest = async () => {
     try {
-      const bars = await getOHLC(state.symbol, state.timeframe, SEED_LIMIT);
-      alert(`Fetched ${bars.length} bars from /api/v1/ohlc`);
+      const x = await getOHLC(state.symbol, state.timeframe, SEED_LIMIT);
+      alert(`Fetched ${x.length} bars from /api/v1/ohlc`);
     } catch {
       alert("Fetch failed");
     }
   };
 
+  // ---------- render ----------
   return (
     <div
       style={{
@@ -269,6 +337,13 @@ export default function RowChart({
         onRange={applyRange}
         onTest={showDebug ? handleTest : null}
       />
+
+      {/* Indicators tab / toggles */}
+      <IndicatorsToolbar
+        symbol={state.symbol}
+        timeframe={state.timeframe}
+      />
+
       <div
         ref={containerRef}
         style={{
@@ -280,4 +355,16 @@ export default function RowChart({
       />
     </div>
   );
+}
+
+// ---------- helpers ----------
+function mergeBar(prev, bar) {
+  if (!Array.isArray(prev) || prev.length === 0) return [bar];
+  const last = prev[prev.length - 1];
+  if (last && last.time === bar.time) {
+    const next = prev.slice(0, -1);
+    next.push(bar);
+    return next;
+  }
+  return [...prev, bar];
 }
