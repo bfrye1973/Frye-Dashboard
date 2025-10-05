@@ -14,6 +14,29 @@ import IndicatorsToolbar from "./IndicatorsToolbar";
 import { getOHLC } from "../../../lib/ohlcClient";
 import { SYMBOLS, TIMEFRAMES } from "./constants";
 
+// ---- LIVE STREAM CONFIG ----
+const STREAM_BASE = process.env.REACT_APP_STREAM_BASE || "https://frye-market-backend-2.onrender.com";
+
+function subscribeStream(symbol, tf, onBar) {
+  const url = `${STREAM_BASE}/stream/agg?symbol=${encodeURIComponent(symbol)}&tf=${encodeURIComponent(tf)}`;
+  const es = new EventSource(url);
+  console.log("[STREAM] Subscribing to:", url);
+
+  es.onmessage = (ev) => {
+    try {
+      const msg = JSON.parse(ev.data);
+      if (msg?.type === "bar" && msg?.bar) onBar(msg.bar);
+    } catch {}
+  };
+
+  es.onerror = (err) => {
+    console.warn("[STREAM] SSE error:", err);
+  };
+
+  return () => es.close();
+}
+
+
 const SEED_LIMIT = 5000;
 
 const DEFAULTS = {
