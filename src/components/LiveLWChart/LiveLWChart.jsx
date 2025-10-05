@@ -50,6 +50,8 @@ function phoenix(ts){
     timeZone:"America/Phoenix", hour12:true, hour:"numeric", minute:"2-digit"
   }).format(new Date(seconds*1000));
 }
+export default function LiveLWChart({ symbol="SPY", timeframe="10m", height=520 }) {
+  console.log("[LiveLWChart.jsx] mounted", { symbol, timeframe, STREAM_BASE });
 
 /* ------------------------------------------------------------
    Component
