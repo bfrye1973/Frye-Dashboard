@@ -1,13 +1,14 @@
 // ============================================================
-// RowChart — Final Clean Version (Live + Historical + Indicators)
+// RowChart — Final Clean Version (Historical + Live + Aggregation)
 // ============================================================
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createChart } from "lightweight-charts";
 import Controls from "./Controls";
-import { getOHLC, subscribeStream } from "../../../lib/ohlcClient"; // ⟵ add subscribeStream
+import { getOHLC, subscribeStream } from "../../../lib/ohlcClient";
 
-const SEED_LIMIT = 5000; // match backend cap
+// How many historical bars to seed from Backend-1
+const SEED_LIMIT = 5000;
 
 const DEFAULTS = {
   upColor: "#26a69a",
@@ -19,15 +20,14 @@ const DEFAULTS = {
   border: "#1f2a44",
 };
 
+// UX helpers -------------------------------------------------
 function phoenixTime(ts, isDaily = false) {
-  // ts is UNIX seconds in our pipeline; normalize if needed
   const seconds =
     typeof ts === "number"
       ? ts
       : ts && typeof ts.timestamp === "number"
       ? ts.timestamp
       : 0;
-
   return new Intl.DateTimeFormat("en-US", {
     timeZone: "America/Phoenix",
     hour12: true,
@@ -37,22 +37,40 @@ function phoenixTime(ts, isDaily = false) {
   }).format(new Date(seconds * 1000));
 }
 
+// map timeframe label → seconds per bucket
+const TF_SEC = {
+  "1m": 60,
+  "5m": 300,
+  "10m": 600,
+  "15m": 900,
+  "30m": 1800,
+  "1h": 3600,
+  "4h": 14400,
+  "1d": 86400,
+};
+const LIVE_TF = "1m"; // we always subscribe to 1m and aggregate up
+
+// ============================================================
+
 export default function RowChart({
-  apiBase = process.env.REACT_APP_API_BASE,      // backend-1 (historical)
-  streamBase = process.env.REACT_APP_STREAM_BASE, // backend-2 (live stream)
+  apiBase = process.env.REACT_APP_API_BASE, // (not used directly here; getOHLC reads it)
+  streamBase = process.env.REACT_APP_STREAM_BASE, // subscribeStream reads it
   defaultSymbol = "SPY",
   defaultTimeframe = "10m",
   showDebug = false,
 }) {
+  // DOM + series refs ---------------------------------------
   const containerRef = useRef(null);
   const chartRef = useRef(null);
   const seriesRef = useRef(null);
   const volSeriesRef = useRef(null);
   const roRef = useRef(null);
 
+  // bar state (visual + logical) -----------------------------
   const [bars, setBars] = useState([]);
-  const barsRef = useRef([]);
+  const barsRef = useRef([]); // canonical working copy for range logic, etc.
 
+  // UI state -------------------------------------------------
   const [state, setState] = useState({
     symbol: defaultSymbol,
     timeframe: defaultTimeframe,
@@ -66,9 +84,9 @@ export default function RowChart({
     []
   );
 
-  // -----------------------------------------------
-  // Mount chart (once)
-  // -----------------------------------------------
+  // ----------------------------------------------------------
+  // 1) Mount Chart (once)
+  // ----------------------------------------------------------
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -124,20 +142,21 @@ export default function RowChart({
       seriesRef.current = null;
       volSeriesRef.current = null;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // -----------------------------------------------
-  // Load historical OHLC (backend-1)
-  // -----------------------------------------------
+  // ----------------------------------------------------------
+  // 2) Load Historical Seed (Backend-1)
+  // ----------------------------------------------------------
   useEffect(() => {
     let cancelled = false;
-    async function load() {
+
+    async function loadSeed() {
       setState((s) => ({ ...s, disabled: true }));
       try {
         const seed = await getOHLC(state.symbol, state.timeframe, SEED_LIMIT);
         if (cancelled) return;
 
-        // Ensure ascending by time (seconds)
         const asc = (Array.isArray(seed) ? seed : [])
           .slice()
           .sort((a, b) => a.time - b.time);
@@ -155,18 +174,20 @@ export default function RowChart({
         }
       } catch (e) {
         console.error("[RowChart] OHLC load error:", e);
+        barsRef.current = [];
         setBars([]);
       } finally {
         if (!cancelled) setState((s) => ({ ...s, disabled: false }));
       }
     }
-    load();
+
+    loadSeed();
     return () => { cancelled = true; };
   }, [state.symbol, state.timeframe, showDebug]);
 
-  // -----------------------------------------------
-  // Render + range
-  // -----------------------------------------------
+  // ----------------------------------------------------------
+  // 3) Render Bars + Range
+  // ----------------------------------------------------------
   useEffect(() => {
     const chart = chartRef.current;
     const series = seriesRef.current;
@@ -196,44 +217,123 @@ export default function RowChart({
     }
   }, [bars, state.range]);
 
-  // -----------------------------------------------
-  // Live Stream (backend-2) — uses helper with :ping tolerance & ms→sec safety
-  // -----------------------------------------------
+  // ----------------------------------------------------------
+  // 4) Live Stream → ALWAYS subscribe to 1m, aggregate to selected TF
+  // ----------------------------------------------------------
   useEffect(() => {
     if (!seriesRef.current || !volSeriesRef.current) return;
 
-    if (showDebug) {
-      console.log("[RowChart] streamBase =", streamBase);
+    const bucketSize = TF_SEC[state.timeframe] ?? TF_SEC["10m"]; // seconds per bucket
+    const floorToBucket = (tSec) => Math.floor(tSec / bucketSize) * bucketSize;
+
+    // rolling bucket we build live
+    let currentStart = null;
+    let currentBar = null;
+
+    // use last seeded bar to align the first bucket correctly
+    const lastSeed = barsRef.current[barsRef.current.length - 1] || null;
+    if (lastSeed) {
+      currentStart = floorToBucket(lastSeed.time);
+      currentBar = { ...lastSeed };
     }
 
-    // subscribeStream handles EventSource, :ping lines, and normalization
-    const unsub = subscribeStream(state.symbol, state.timeframe, (bar) => {
-      // Update price series
-      seriesRef.current.update(bar);
+    if (showDebug) {
+      console.log("[RowChart] Live subscribe", {
+        symbol: state.symbol,
+        from: LIVE_TF,
+        to: state.timeframe,
+        bucketSize,
+      });
+    }
 
-      // Update volume series
+    const unsub = subscribeStream(state.symbol, LIVE_TF, (oneMin) => {
+      const t = Number(oneMin.time);
+      if (!Number.isFinite(t)) return;
+
+      // If we are on 1m UI timeframe, just forward the bar
+      if (bucketSize === TF_SEC["1m"]) {
+        seriesRef.current.update(oneMin);
+        volSeriesRef.current.update({
+          time: oneMin.time,
+          value: Number(oneMin.volume || 0),
+          color: oneMin.close >= oneMin.open ? DEFAULTS.volUp : DEFAULTS.volDown,
+        });
+
+        const next = [...barsRef.current];
+        const last = next[next.length - 1];
+        if (!last || oneMin.time > last.time) next.push(oneMin);
+        else next[next.length - 1] = oneMin;
+        barsRef.current = next;
+        setBars(next);
+        return;
+      }
+
+      // Aggregate: 1m → selected timeframe
+      const bStart = floorToBucket(t);
+
+      // moved into a new bucket?
+      if (currentStart == null || bStart > currentStart) {
+        // finalize previous bucket (if any & at/after last seed)
+        if (currentBar && (!lastSeed || currentBar.time >= lastSeed.time)) {
+          seriesRef.current.update(currentBar);
+          volSeriesRef.current.update({
+            time: currentBar.time,
+            value: Number(currentBar.volume || 0),
+            color:
+              currentBar.close >= currentBar.open
+                ? DEFAULTS.volUp
+                : DEFAULTS.volDown,
+          });
+
+          const next = [...barsRef.current];
+          const last = next[next.length - 1];
+          if (!last || currentBar.time > last.time) next.push(currentBar);
+          else next[next.length - 1] = currentBar;
+          barsRef.current = next;
+          setBars(next);
+        }
+
+        // start a fresh bucket with this 1m bar
+        currentStart = bStart;
+        currentBar = {
+          time: bStart,
+          open: oneMin.open,
+          high: oneMin.high,
+          low: oneMin.low,
+          close: oneMin.close,
+          volume: Number(oneMin.volume || 0),
+        };
+      } else {
+        // still inside same bucket: update OHLCV
+        currentBar.high = Math.max(currentBar.high, oneMin.high);
+        currentBar.low = Math.min(currentBar.low, oneMin.low);
+        currentBar.close = oneMin.close;
+        currentBar.volume = Number(currentBar.volume || 0) + Number(oneMin.volume || 0);
+      }
+
+      // Show in-progress candle live
+      seriesRef.current.update(currentBar);
       volSeriesRef.current.update({
-        time: bar.time,
-        value: Number(bar.volume || 0),
-        color: bar.close >= bar.open ? DEFAULTS.volUp : DEFAULTS.volDown,
+        time: currentBar.time,
+        value: Number(currentBar.volume || 0),
+        color:
+          currentBar.close >= currentBar.open ? DEFAULTS.volUp : DEFAULTS.volDown,
       });
 
-      // Keep an in-memory tail so range adjustments work live
       const next = [...barsRef.current];
       const last = next[next.length - 1];
-      if (!last || bar.time > last.time) next.push(bar);
-      else next[next.length - 1] = bar; // in-bar update
-
+      if (!last || currentBar.time > last.time) next.push({ ...currentBar });
+      else next[next.length - 1] = { ...currentBar };
       barsRef.current = next;
       setBars(next);
     });
 
     return () => unsub?.();
-  }, [streamBase, state.symbol, state.timeframe, showDebug]);
+  }, [state.symbol, state.timeframe, showDebug]);
 
-  // -----------------------------------------------
-  // Controls + UI
-  // -----------------------------------------------
+  // ----------------------------------------------------------
+  // 5) Controls + UI
+  // ----------------------------------------------------------
   const handleControlsChange = (patch) =>
     setState((s) => ({ ...s, ...patch }));
 
@@ -270,6 +370,13 @@ export default function RowChart({
         onChange={handleControlsChange}
         onRange={applyRange}
       />
+
+      {showDebug && (
+        <div style={{ fontSize: 12, opacity: 0.7, padding: "4px 8px" }}>
+          Live via SSE: {LIVE_TF} → {state.timeframe}
+        </div>
+      )}
+
       <div
         ref={containerRef}
         style={{
