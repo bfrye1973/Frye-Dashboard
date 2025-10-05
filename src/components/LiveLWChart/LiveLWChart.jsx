@@ -15,7 +15,8 @@ function subscribeLive(symbol, timeframe, onBar) {
   // Build SSE URL to the Streamer
   const url =
     `${STREAM_BASE}/stream/agg?symbol=${encodeURIComponent(symbol)}&tf=${encodeURIComponent(timeframe)}`;
- console.log("[LiveLWChart] subscribing to", url);
+ console.log("[LiveLWChart] URL =", url);
+
   const es = new EventSource(url);
 
   es.onmessage = (ev) => {
