@@ -1,5 +1,5 @@
 // ============================================================
-// RowChart — Historical seed + Live 1m → TF aggregation (No barcode)
+// RowChart — Historical seed + Live 1m → TF aggregation (with “All” range)
 // ============================================================
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
@@ -7,8 +7,8 @@ import { createChart } from "lightweight-charts";
 import Controls from "./Controls";
 import { getOHLC, subscribeStream } from "../../../lib/ohlcClient";
 
-// How many historical TF bars to show
-const SEED_LIMIT = 5000;
+// TF bars to request from getOHLC (we still fit “All” on view)
+const SEED_LIMIT = 2000; // enough for ~1 month of 10m including buffer
 
 const DEFAULTS = {
   upColor: "#26a69a",
@@ -20,7 +20,6 @@ const DEFAULTS = {
   border: "#1f2a44",
 };
 
-// TF → seconds map
 const TF_SEC = {
   "1m": 60,
   "5m": 300,
@@ -31,7 +30,7 @@ const TF_SEC = {
   "4h": 14400,
   "1d": 86400,
 };
-const LIVE_TF = "1m"; // we always subscribe to 1-minute live bars
+const LIVE_TF = "1m";
 
 function phoenixTime(ts, isDaily = false) {
   const seconds =
@@ -54,22 +53,19 @@ export default function RowChart({
   defaultTimeframe = "10m",
   showDebug = false,
 }) {
-  // DOM / series refs
   const containerRef = useRef(null);
   const chartRef = useRef(null);
   const seriesRef = useRef(null);
   const volSeriesRef = useRef(null);
   const roRef = useRef(null);
 
-  // bars state (visual) and working copy for range logic
   const [bars, setBars] = useState([]);
   const barsRef = useRef([]);
 
-  // UI state
   const [state, setState] = useState({
     symbol: defaultSymbol,
     timeframe: defaultTimeframe,
-    range: 200,
+    range: "ALL", // ⟵ default to All
     disabled: false,
   });
 
@@ -79,7 +75,7 @@ export default function RowChart({
     []
   );
 
-  // 1) Mount chart once
+  // Mount chart once
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -138,7 +134,7 @@ export default function RowChart({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // 2) Load historical seed (already aggregated by getOHLC)
+  // Historical seed
   useEffect(() => {
     let cancelled = false;
 
@@ -148,12 +144,14 @@ export default function RowChart({
         const seed = await getOHLC(state.symbol, state.timeframe, SEED_LIMIT);
         if (cancelled) return;
 
-        const asc = (Array.isArray(seed) ? seed : [])
-          .slice()
-          .sort((a, b) => a.time - b.time);
-
+        const asc = (Array.isArray(seed) ? seed : []).slice().sort((a, b) => a.time - b.time);
         barsRef.current = asc;
         setBars(asc);
+
+        // Auto-fit entire dataset after seed if range is “ALL”
+        if (chartRef.current && state.range === "ALL") {
+          chartRef.current.timeScale().fitContent();
+        }
 
         if (showDebug) {
           console.log("[RowChart] Seed:", {
@@ -174,9 +172,9 @@ export default function RowChart({
 
     loadSeed();
     return () => { cancelled = true; };
-  }, [state.symbol, state.timeframe, showDebug]);
+  }, [state.symbol, state.timeframe, state.range, showDebug]);
 
-  // 3) Render + range
+  // Render + range
   useEffect(() => {
     const chart = chartRef.current;
     const series = seriesRef.current;
@@ -195,29 +193,31 @@ export default function RowChart({
     }
 
     const ts = chart.timeScale();
-    const r = state.range;
     const len = bars.length;
-    if (!r || r === 200 || !len) {
+
+    if (!len) return;
+
+    if (state.range === "ALL") {
       ts.fitContent();
-    } else {
+    } else if (typeof state.range === "number") {
       const to = len - 1;
-      const from = Math.max(0, to - (r - 1));
+      const from = Math.max(0, to - (state.range - 1));
       ts.setVisibleLogicalRange({ from, to });
+    } else {
+      ts.fitContent();
     }
   }, [bars, state.range]);
 
-  // 4) Live stream: subscribe to 1m and aggregate to current TF
+  // Live stream: subscribe to 1m and aggregate to current TF
   useEffect(() => {
     if (!seriesRef.current || !volSeriesRef.current) return;
 
     const tfSec = TF_SEC[state.timeframe] ?? TF_SEC["10m"];
     const floorToBucket = (tSec) => Math.floor(tSec / tfSec) * tfSec;
 
-    // rolling TF bucket we build from incoming 1m bars
     let bucketStart = null;
     let rolling = null;
 
-    // Prime the bucket using the last seeded bar, if present
     const lastSeed = barsRef.current[barsRef.current.length - 1] || null;
     if (lastSeed) {
       bucketStart = floorToBucket(lastSeed.time);
@@ -228,7 +228,6 @@ export default function RowChart({
       const t = Number(oneMin.time);
       if (!Number.isFinite(t)) return;
 
-      // If user is on 1m, forward directly (no aggregation)
       if (tfSec === TF_SEC["1m"]) {
         seriesRef.current.update(oneMin);
         volSeriesRef.current.update({
@@ -237,7 +236,6 @@ export default function RowChart({
           color: oneMin.close >= oneMin.open ? DEFAULTS.volUp : DEFAULTS.volDown,
         });
 
-        // keep working copy in sync
         const next = [...barsRef.current];
         const last = next[next.length - 1];
         if (!last || oneMin.time > last.time) next.push(oneMin);
@@ -247,12 +245,9 @@ export default function RowChart({
         return;
       }
 
-      // Aggregate 1m → selected TF (prevents "barcode")
       const start = floorToBucket(t);
 
-      // Moved to a new bucket?
       if (bucketStart === null || start > bucketStart) {
-        // Finalize the previous bucket (if it belongs at/after the seed tail)
         if (rolling && (!lastSeed || rolling.time >= lastSeed.time)) {
           seriesRef.current.update(rolling);
           volSeriesRef.current.update({
@@ -269,7 +264,6 @@ export default function RowChart({
           setBars(next);
         }
 
-        // Start a new TF bucket from this 1m bar
         bucketStart = start;
         rolling = {
           time: start,
@@ -280,14 +274,12 @@ export default function RowChart({
           volume: Number(oneMin.volume || 0),
         };
       } else {
-        // Still inside same TF bucket: extend it
         rolling.high = Math.max(rolling.high, oneMin.high);
         rolling.low = Math.min(rolling.low, oneMin.low);
         rolling.close = oneMin.close;
         rolling.volume = Number(rolling.volume || 0) + Number(oneMin.volume || 0);
       }
 
-      // Update the in-progress TF candle live
       seriesRef.current.update(rolling);
       volSeriesRef.current.update({
         time: rolling.time,
@@ -306,22 +298,34 @@ export default function RowChart({
     return () => unsub?.();
   }, [state.symbol, state.timeframe, showDebug]);
 
-  // 5) Controls + UI
+  // Controls + UI handlers
   const handleControlsChange = (patch) =>
     setState((s) => ({ ...s, ...patch }));
 
   const applyRange = (nextRange) => {
     const chart = chartRef.current;
     if (!chart) return;
+
+    setState((s) => ({ ...s, range: nextRange }));
+
     const ts = chart.timeScale();
     const list = barsRef.current;
     const len = list.length;
-    if (!nextRange || nextRange === 200 || !len) {
+    if (!len) return;
+
+    if (nextRange === "ALL") {
       ts.fitContent();
       return;
     }
+
+    const r = Number(nextRange);
+    if (!Number.isFinite(r) || r <= 0) {
+      ts.fitContent();
+      return;
+    }
+
     const to = len - 1;
-    const from = Math.max(0, to - (nextRange - 1));
+    const from = Math.max(0, to - (r - 1));
     ts.setVisibleLogicalRange({ from, to });
   };
 
