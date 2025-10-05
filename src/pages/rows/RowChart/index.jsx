@@ -75,7 +75,7 @@ function phoenixTime(ts, isDaily = false) {
 }
 
 export default function RowChart({
-  apiBase = "https://frye-market-backend-1.onrender.com",
+  apiBase = process.env.REACT_APP_API_BASE,
   defaultSymbol = "SPY",
   defaultTimeframe = "10m",
   showDebug = false,
