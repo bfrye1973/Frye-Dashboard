@@ -99,10 +99,12 @@ export async function getOHLC(symbol = "SPY", timeframe = "1m", limit = 1500) {
   const tfSec = TF_SEC[tf] || 600; // default to 10m if unknown
   const needAgg = tfSec !== 60;
 
-  // Over-fetch enough 1m bars to build 'limit' bars at the target TF.
-  const overshoot = 3; // safety factor for gaps/market pauses
+  // Over-fetch enough 1m bars to build 'limit' TF bars.
+  // Bump the ceiling so 10m can show ~1 month.
+  const MAX_1M_FETCH = 50000;
+  const overshoot = 3; // safety factor for gaps/pauses
   const need1mCount = Math.min(
-    5000,
+    MAX_1M_FETCH,
     Math.max(needAgg ? Math.ceil((limit * tfSec) / 60) * overshoot : limit, 50)
   );
 
