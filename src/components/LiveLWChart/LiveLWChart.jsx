@@ -2,8 +2,58 @@
 import React, { useEffect, useRef, useState } from "react";
 import { createChart } from "lightweight-charts";
 import { baseChartOptions } from "./chartConfig";
-import { getFeed, subscribeStream } from "../../services/feed";
+import { getFeed /* removed: subscribeStream */ } from "../../services/feed";
 
+/* ------------------------------------------------------------
+   Streamer wiring (uses dedicated Streamer service)
+   - Set REACT_APP_STREAM_BASE in your .env (.env.local)
+   - Example: https://frye-market-backend-2.onrender.com
+------------------------------------------------------------- */
+const STREAM_BASE = (process.env.REACT_APP_STREAM_BASE || "").replace(/\/+$/,"");
+
+function subscribeLive(symbol, timeframe, onBar) {
+  // Build SSE URL to the Streamer
+  const url =
+    `${STREAM_BASE}/stream/agg?symbol=${encodeURIComponent(symbol)}&tf=${encodeURIComponent(timeframe)}`;
+
+  const es = new EventSource(url);
+
+  es.onmessage = (ev) => {
+    // Streamer emits only JSON "bar" messages (plus server :ping heartbeats we can ignore)
+    try {
+      const msg = JSON.parse(ev.data);
+      if (msg && msg.ok && msg.type === "bar" && msg.bar && Number.isFinite(msg.bar.time)) {
+        onBar(msg.bar);
+      }
+    } catch {
+      // Ignore non-JSON (e.g., heartbeats or accidental noise)
+    }
+  };
+
+  es.onerror = () => {
+    // Let the browser auto-reconnect. Optional: add console.warn if you want visibility.
+    // console.warn("[LiveLWChart] SSE error; browser will reconnect");
+  };
+
+  // Return an unsubscribe
+  return () => es.close();
+}
+
+/* ------------------------------------------------------------
+   Phoenix time formatter
+------------------------------------------------------------- */
+function phoenix(ts){
+  const seconds =
+    typeof ts === "number" ? ts :
+    (ts && typeof ts.timestamp === "number" ? ts.timestamp : 0);
+  return new Intl.DateTimeFormat("en-US",{
+    timeZone:"America/Phoenix", hour12:true, hour:"numeric", minute:"2-digit"
+  }).format(new Date(seconds*1000));
+}
+
+/* ------------------------------------------------------------
+   Component
+------------------------------------------------------------- */
 export default function LiveLWChart({ symbol="SPY", timeframe="10m", height=520 }) {
   const rootRef = useRef(null);
   const chartRef = useRef(null);
@@ -18,16 +68,7 @@ export default function LiveLWChart({ symbol="SPY", timeframe="10m", height=520 
     chart.resize(el.clientWidth, el.clientHeight);
   };
 
-  const phoenix = (ts)=>{
-    const seconds =
-      typeof ts === "number" ? ts :
-      ts && typeof ts.timestamp === "number" ? ts.timestamp : 0;
-    return new Intl.DateTimeFormat("en-US",{
-      timeZone:"America/Phoenix", hour12:true, hour:"numeric", minute:"2-digit"
-    }).format(new Date(seconds*1000));
-  };
-
-  // init
+  // init chart
   useEffect(()=>{
     const holder = rootRef.current;
     if (!holder) return;
@@ -74,7 +115,7 @@ export default function LiveLWChart({ symbol="SPY", timeframe="10m", height=520 
     };
   },[height]);
 
-  // load + stream
+  // load history + start live stream
   useEffect(()=>{
     const chart = chartRef.current, series = seriesRef.current;
     if (!chart || !series) return;
@@ -82,7 +123,7 @@ export default function LiveLWChart({ symbol="SPY", timeframe="10m", height=520 
     let disposed = false;
     let unsubscribe = null;
 
-    // history
+    // 1) History seed (from your existing feed service)
     (async ()=>{
       try{
         const feed = getFeed(symbol, timeframe);
@@ -105,9 +146,9 @@ export default function LiveLWChart({ symbol="SPY", timeframe="10m", height=520 
       }
     })();
 
-    // SSE instant stream
+    // 2) Live stream (SSE from dedicated Streamer)
     if (timeframe !== "1d") {
-      unsubscribe = subscribeStream(symbol, timeframe, (bar)=>{
+      unsubscribe = subscribeLive(symbol, timeframe, (bar)=>{
         if (disposed || !bar || bar.time == null) return;
         series.update(bar);
         if (volRef.current){
@@ -141,9 +182,16 @@ export default function LiveLWChart({ symbol="SPY", timeframe="10m", height=520 
   );
 }
 
+/* ------------------------------------------------------------
+   Helpers
+------------------------------------------------------------- */
 function mergeBar(prev, bar){
   if (!Array.isArray(prev) || prev.length===0) return [bar];
   const last = prev[prev.length-1];
-  if (last && last.time===bar.time){ const next = prev.slice(0,-1); next.push(bar); return next; }
+  if (last && last.time===bar.time){
+    const next = prev.slice(0,-1);
+    next.push(bar);
+    return next;
+  }
   return [...prev, bar];
 }
