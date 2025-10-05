@@ -91,16 +91,14 @@ function aggregateToTf(barsAsc, tfSec) {
 }
 
 // ---------------- API: getOHLC ----------------
-// Always fetch 1m from Backend-1 and aggregate locally.
-// This avoids backend gaps (e.g., 10m returning []) and guarantees consistent bars.
+// Always fetch 1m from Backend-1 and aggregate locally (robust against backend TF gaps).
 export async function getOHLC(symbol = "SPY", timeframe = "1m", limit = 1500) {
   const sym = String(symbol || "SPY").toUpperCase();
   const tf = String(timeframe || "1m");
   const tfSec = TF_SEC[tf] || 600; // default to 10m if unknown
   const needAgg = tfSec !== 60;
 
-  // Over-fetch enough 1m bars to build 'limit' TF bars.
-  // Bump the ceiling so 10m can show ~1 month.
+  // Raise ceiling so 10m can show ~1 month (and more if needed)
   const MAX_1M_FETCH = 50000;
   const overshoot = 3; // safety factor for gaps/pauses
   const need1mCount = Math.min(
@@ -111,6 +109,9 @@ export async function getOHLC(symbol = "SPY", timeframe = "1m", limit = 1500) {
   const url =
     `${API}/api/v1/ohlc?symbol=${encodeURIComponent(sym)}` +
     `&timeframe=1m&limit=${need1mCount}`;
+
+  // DEBUG: print the exact URL the bundle is calling
+  console.log("[getOHLC] →", url, { sym, tf, tfSec, need1mCount, limit });
 
   const r = await fetch(url, { cache: "no-store" });
   if (!r.ok) throw new Error(`OHLC ${r.status}`);
@@ -143,7 +144,9 @@ export function subscribeStream(symbol, timeframe, onBar) {
     sym
   )}&tf=${encodeURIComponent(tf)}`;
 
-  console.log("[subscribeStream] opening", url);
+  // DEBUG: show live stream URL too
+  console.log("[subscribeStream] →", url, { sym, tf });
+
   const es = new EventSource(url);
 
   es.onmessage = (ev) => {
@@ -167,7 +170,6 @@ export function subscribeStream(symbol, timeframe, onBar) {
         console.debug("[stream diag]", msg);
       }
     } catch {
-      // ignore non-JSON lines (e.g., comments)
       if (process?.env?.NODE_ENV !== "production") {
         console.debug("[subscribeStream] non-JSON line:", ev.data);
       }
