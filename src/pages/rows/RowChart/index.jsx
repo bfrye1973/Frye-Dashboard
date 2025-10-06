@@ -489,13 +489,11 @@ export default function RowChart({
         ref={containerRef}
         style={{
           width: "100%",
-          height: fullScreen ? "calc(100% - 24px)" : "520px",
-          paddingBottom: fullScreen ? 24 : 0,
+          // Leave extra room for the time axis labels so they never clip
+          height: fullScreen ? "calc(100% - 28px)" : "520px",
+          paddingBottom: fullScreen ? 28 : 0,
           boxSizing: "border-box",
           minHeight: fullScreen ? 0 : 360,
           background: DEFAULTS.bg,
-        }}
-      />
-    </div>
-  );
-}
+         }}
+       />
