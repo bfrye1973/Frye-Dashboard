@@ -593,7 +593,7 @@ export default function RowChart({
         ref={containerRef}
         style={{
           width: "100%",
-          height: "520px",     // row height; on /chart page put parent at 100vh so this expands
+          height: "520px",
           minHeight: 360,
           background: DEFAULTS.bg,
         }}
