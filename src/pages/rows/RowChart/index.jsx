@@ -29,7 +29,7 @@ const TF_SEC = {
 const LIVE_TF = "1m";
 
 /* -------------------- helpers -------------------- */
-// AZ tooltip formatter (crosshair)
+// Crosshair tooltip in AZ
 function phoenixTime(ts, isDaily = false) {
   const seconds = typeof ts === "number" ? ts : (ts && (ts.timestamp ?? ts.time)) || 0;
   return new Intl.DateTimeFormat("en-US", {
@@ -39,18 +39,27 @@ function phoenixTime(ts, isDaily = false) {
   }).format(new Date(seconds * 1000));
 }
 
-// Axis tick formatter: prints date+hour at boundaries, time otherwise
+// Axis tick formatter: date+hour at boundaries, time elsewhere (AZ)
 const formatTick = (t) => {
   const seconds = typeof t === "number" ? t : (t?.timestamp ?? t?.time ?? 0);
   const d = new Date(seconds * 1000);
-
-  const optsTime = { timeZone: "America/Phoenix", hour: "numeric", minute: "2-digit" };
-  const optsDateHour = { timeZone: "America/Phoenix", month: "short", day: "2-digit", hour: "numeric" };
   const isMidnight = d.getHours() === 0 && d.getMinutes() === 0;
   const onHour = d.getMinutes() === 0;
 
-  // Show “Oct 05, 9 AM” style at midnight or on each hour; time only for in-between ticks
-  return new Intl.DateTimeFormat("en-US", (isMidnight || onHour) ? optsDateHour : optsTime).format(d);
+  const timeOnly = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Phoenix",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(d);
+
+  const dateHour = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Phoenix",
+    month: "short",
+    day: "2-digit",
+    hour: "numeric",
+  }).format(d);
+
+  return (isMidnight || onHour) ? dateHour : timeOnly;
 };
 
 function calcEMA(barsAsc, length) {
@@ -67,7 +76,7 @@ function calcEMA(barsAsc, length) {
   return out;
 }
 
-// Accepts class, factory, or static attach() overlays
+// Accept class, factory, or static attach() overlays
 function attachOverlay(Module, args) {
   try {
     if (!Module) return null;
@@ -80,11 +89,11 @@ function attachOverlay(Module, args) {
 
 /* -------------------- component -------------------- */
 export default function RowChart({
-  apiBase,                       // optional
+  apiBase,                       // optional (you already hardcode in FullChart)
   defaultSymbol = "SPY",
   defaultTimeframe = "10m",
   showDebug = false,
-  fullScreen = false,            // true on /chart; false on dashboard row
+  fullScreen = false,            // true only on /chart; dashboard row stays fixed
 }) {
   // DOM & series refs
   const containerRef = useRef(null);
@@ -102,15 +111,15 @@ export default function RowChart({
   const sessionShadeRef = useRef(null);
   const swingLiqRef = useRef(null);
 
-  // Data state
+  // Data
   const [bars, setBars] = useState([]);
   const barsRef = useRef([]);
 
-  // UI state (toolbar)
+  // UI / toolbar
   const [state, setState] = useState({
     symbol: defaultSymbol,
     timeframe: defaultTimeframe,
-    range: "ALL", // All/50/100/200
+    range: "ALL",
     disabled: false,
     showEma: true, ema10: true, ema20: true, ema50: true,
     volume: true,
@@ -176,7 +185,7 @@ export default function RowChart({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fullScreen]);
 
-  // keep time/tooltip formatters in sync with TF
+  // keep axis + tooltip formatters updated with TF
   useEffect(() => {
     const chart = chartRef.current; if (!chart) return;
     chart.applyOptions({
@@ -218,7 +227,6 @@ export default function RowChart({
 
     price.setData(bars);
 
-    // Volume apply/hide
     if (vol) {
       vol.applyOptions({ visible: !!state.volume });
       if (state.volume) {
@@ -384,7 +392,7 @@ export default function RowChart({
     }
   }, [state.moneyFlow, bars]);
 
-  // Right Profile (tie to Volume toggle for now)
+  // Right Profile (tie to Volume for now)
   useEffect(() => {
     const chart = chartRef.current; const price = seriesRef.current;
     if (!chart || !price) return;
@@ -484,16 +492,18 @@ export default function RowChart({
       />
       <IndicatorsToolbar {...toolbarProps} />
 
-      {/* chart canvas – give bottom padding to avoid clipping time-axis */}
+      {/* Chart canvas — give bottom padding so time axis never clips */}
       <div
         ref={containerRef}
         style={{
           width: "100%",
-          // Leave extra room for the time axis labels so they never clip
           height: fullScreen ? "calc(100% - 28px)" : "520px",
           paddingBottom: fullScreen ? 28 : 0,
           boxSizing: "border-box",
           minHeight: fullScreen ? 0 : 360,
           background: DEFAULTS.bg,
-         }}
-        />
+        }}
+      />
+    </div>
+  );
+}
