@@ -464,14 +464,12 @@ export default function RowChart({
         ref={containerRef}
         style={{
           width: "100%",
-          // Add bottom padding so time axis isn’t clipped
-          height: fullScreen ? "calc(100% - 12px)" : "520px",
-          paddingBottom: fullScreen ? 12 : 0,
+          // Give the time axis breathing room in full-screen
+          height: fullScreen ? "calc(100% - 24px)" : "520px",
+          paddingBottom: fullScreen ? 24 : 0,
           boxSizing: "border-box",
           minHeight: fullScreen ? 0 : 360,
           background: DEFAULTS.bg,
         }}
       />
-    </div>
-  );
-}
+
