@@ -2,9 +2,10 @@
 // ============================================================
 // RowChart — month seed + live 1m→TF aggregation + Indicators wiring
 // - AZ timezone on axis + tooltip
-// - "All" range support (+ adaptive initial zoom)
+// - "All" range support
 // - IndicatorsToolbar wired: EMA10/20/50, Volume, MoneyFlow, RightProfile,
 //   SessionShading (via luxSr toggle), SwingLiquidity
+// - Axis/date fixes: TradingView-style ticks + seconds on 1m only
 // ============================================================
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
@@ -50,16 +51,41 @@ function phoenixTime(ts, isDaily = false) {
     ...(isDaily ? { month: "short", day: "2-digit" } : { hour: "numeric", minute: "2-digit" }),
   }).format(new Date(seconds * 1000));
 }
-function phoenixTick(ts, isDaily = false) {
-  const seconds =
-    typeof ts === "number"
-      ? ts
-      : (ts && (ts.timestamp ?? ts.time)) || 0;
-  return new Intl.DateTimeFormat("en-US", {
+
+// NEW: TradingView-style tick formatter (seconds on 1m; hh:mm on intraday; date on daily)
+function makeTickFormatter(tf) {
+  const showSeconds = tf === "1m";
+  const isDailyTF   = tf === "1d";
+
+  const fmtTime = new Intl.DateTimeFormat("en-US", {
     timeZone: "America/Phoenix",
-    hour12: true,
-    ...(isDaily ? { month: "short", day: "2-digit" } : { hour: "numeric", minute: "2-digit" }),
-  }).format(new Date(seconds * 1000));
+    hour: "numeric",
+    minute: "2-digit",
+    ...(showSeconds ? { second: "2-digit" } : {}),
+  });
+
+  const fmtBoundary = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Phoenix",
+    month: "short",
+    day: "2-digit",
+    hour: "numeric",
+    ...(showSeconds ? { minute: "2-digit" } : {}),
+  });
+
+  const fmtDaily = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Phoenix",
+    month: "short",
+    day: "2-digit",
+  });
+
+  return (t) => {
+    const seconds = typeof t === "number" ? t : (t?.timestamp ?? t?.time ?? 0);
+    const d = new Date(seconds * 1000);
+    if (isDailyTF) return fmtDaily.format(d);
+    const isMidnight = d.getHours() === 0 && d.getMinutes() === 0;
+    const onHour     = d.getMinutes() === 0;
+    return (isMidnight || onHour) ? fmtBoundary.format(d) : fmtTime.format(d);
+  };
 }
 
 // ---------- Small utils ----------
@@ -107,16 +133,6 @@ function attachOverlay(Module, args) {
   };
 }
 
-// ------ NEW: adaptive initial zoom helper ------
-// Choose an initial visible window based on container width.
-// ~7 px per bar feels good; clamp so laptops/big monitors look right.
-function pickInitialVisibleBars(containerWidth, totalBars) {
-  const pxPerBar = 7;
-  let n = Math.round((containerWidth || 1200) / pxPerBar);
-  n = Math.max(90, Math.min(360, n)); // clamp: 90–360 bars
-  return Math.min(totalBars, Math.max(1, n));
-}
-
 export default function RowChart({
   defaultSymbol = "SPY",
   defaultTimeframe = "10m",
@@ -142,9 +158,6 @@ export default function RowChart({
   // Bars state
   const [bars, setBars] = useState([]);
   const barsRef = useRef([]);
-
-  // Track if we already applied the adaptive zoom for the current seed load
-  const didAutoZoomRef = useRef(false);
 
   // UI / Indicators state
   const [state, setState] = useState({
@@ -190,7 +203,9 @@ export default function RowChart({
       timeScale: {
         borderColor: DEFAULTS.border,
         timeVisible: true,
-        tickMarkFormatter: (t) => phoenixTick(t, state.timeframe === "1d"),
+        // NEW: dynamic tick formatter + seconds toggle at init
+        secondsVisible: defaultTimeframe === "1m",
+        tickMarkFormatter: makeTickFormatter(defaultTimeframe),
       },
       localization: {
         timeFormatter: (t) => phoenixTime(t, state.timeframe === "1d"),
@@ -235,16 +250,18 @@ export default function RowChart({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fullScreen]);
 
-  // Keep AZ formatters correct on TF change
+  // Keep AZ formatters correct on TF change (and update tick style/sec visibility)
   useEffect(() => {
     const chart = chartRef.current;
     if (!chart) return;
+    const tf = state.timeframe;
     chart.applyOptions({
-      timeScale: { tickMarkFormatter: (t) => phoenixTick(t, state.timeframe === "1d") },
-      localization: { timeFormatter: (t) => phoenixTime(t, state.timeframe === "1d") },
+      timeScale: {
+        tickMarkFormatter: makeTickFormatter(tf),
+        secondsVisible: tf === "1m",
+      },
+      localization: { timeFormatter: (t) => phoenixTime(t, tf === "1d") },
     });
-    // allow adaptive zoom to run again on the next seed load after TF change
-    didAutoZoomRef.current = false;
   }, [state.timeframe]);
 
   // ---------- Historical seed ----------
@@ -259,16 +276,9 @@ export default function RowChart({
         barsRef.current = asc;
         setBars(asc);
 
-        // NEW: adaptive initial zoom (once per seed load) when Range = "ALL"
-        const chart = chartRef.current;
-        if (chart && state.range === "ALL" && !didAutoZoomRef.current && asc.length > 0) {
-          const visible = pickInitialVisibleBars(containerRef.current?.clientWidth || 1200, asc.length);
-          const to = asc.length - 1;
-          const from = Math.max(0, to - (visible - 1));
-          chart.timeScale().setVisibleLogicalRange({ from, to });
-          didAutoZoomRef.current = true;
+        if (chartRef.current && state.range === "ALL") {
+          chartRef.current.timeScale().fitContent();
         }
-
         if (showDebug) {
           console.log("[RowChart] Seed:", {
             tf: state.timeframe, count: asc.length, first: asc[0], last: asc[asc.length - 1],
@@ -316,14 +326,13 @@ export default function RowChart({
     if (!len) return;
 
     if (state.range === "ALL") {
-      // respect adaptive zoom applied at seed load; only fit if auto-zoom didn't run
-      if (!didAutoZoomRef.current) ts.fitContent();
+      ts.fitContent();
     } else if (typeof state.range === "number") {
       const to = len - 1;
       const from = Math.max(0, to - (state.range - 1));
       ts.setVisibleLogicalRange({ from, to });
     } else {
-      if (!didAutoZoomRef.current) ts.fitContent();
+      ts.fitContent();
     }
   }, [bars, state.range, state.volume]);
 
@@ -557,20 +566,16 @@ export default function RowChart({
 
     if (nextRange === "ALL") {
       ts.fitContent();
-      // user explicitly chose All; keep that and stop auto-zooming
-      didAutoZoomRef.current = true;
       return;
     }
     const r = Number(nextRange);
     if (!Number.isFinite(r) || r <= 0) {
       ts.fitContent();
-      didAutoZoomRef.current = true;
       return;
     }
     const to = len - 1;
     const from = Math.max(0, to - (r - 1));
     ts.setVisibleLogicalRange({ from, to });
-    didAutoZoomRef.current = true;
   };
 
   // ---------- Toolbar handlers ----------
@@ -579,8 +584,7 @@ export default function RowChart({
     setState((s) => ({
       ...s,
       showEma: true, ema10: true, ema20: true, ema50: true,
-      volume: true,
-      moneyFlow: false, luxSr: false, swingLiquidity: false,
+      volume: true, moneyFlow: false, luxSr: false, swingLiquidity: false,
     }));
 
   const toolbarProps = {
