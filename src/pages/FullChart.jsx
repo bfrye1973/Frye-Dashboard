@@ -1,51 +1,33 @@
 // src/pages/FullChart.jsx
-import React, { useMemo, useRef, useLayoutEffect, useState } from "react";
+import React, { useMemo } from "react";
 import RowChart from "./rows/RowChart";
 
 const HEADER_H = 52;
 
 function getQueryParams() {
-  if (typeof window === "undefined") return { symbol: "SPY", timeframe: "1h" };
+  if (typeof window === "undefined") return { symbol: "SPY", timeframe: "10m" };
   const q = new URLSearchParams(window.location.search);
   const symbol = (q.get("symbol") || "SPY").toUpperCase();
-  const timeframe = q.get("timeframe") || q.get("tf") || "1h";
+  const timeframe = q.get("timeframe") || q.get("tf") || "10m";
   return { symbol, timeframe };
 }
 
 export default function FullChart() {
   const { symbol, timeframe } = useMemo(() => getQueryParams(), []);
-  const bodyRef = useRef(null);
-  const [ready, setReady] = useState(false);
-
-  useLayoutEffect(() => {
-    const el = bodyRef.current;
-    if (!el) return;
-    const apply = () => {
-      const h =
-        window.innerHeight ||
-        document.documentElement.clientHeight ||
-        800;
-      el.style.height = Math.max(200, h - HEADER_H) + "px";
-    };
-    apply();
-    const onResize = () => apply();
-    window.addEventListener("resize", onResize);
-    setReady(true);
-    return () => window.removeEventListener("resize", onResize);
-  }, []);
 
   return (
     <div
       className="fullchart-page"
       style={{
-        minHeight: "100vh",
+        width: "100vw",
+        height: "100vh",
         display: "flex",
         flexDirection: "column",
         background: "#0a0a0a",
         overflow: "hidden",
       }}
     >
-      {/* Header */}
+      {/* Header (kept) */}
       <div
         style={{
           height: HEADER_H,
@@ -83,28 +65,26 @@ export default function FullChart() {
         </div>
       </div>
 
-      {/* Body */}
+      {/* Body fills the rest of the viewport */}
       <div
-        ref={bodyRef}
         className="fullchart-body"
         style={{
-          flex: "1 1 auto",
-          minHeight: 0,
+          height: `calc(100vh - ${HEADER_H}px)`,
+          width: "100%",
           overflow: "hidden",
           display: "flex",
           flexDirection: "column",
         }}
       >
-        {ready && (
-          <div style={{ flex: "1 1 auto", minHeight: 0, display: "flex", flexDirection: "column" }}>
-            <RowChart
-              apiBase="https://frye-market-backend-1.onrender.com"
-              defaultSymbol={symbol}
-              defaultTimeframe={timeframe}
-              showDebug={false}
-            />
-          </div>
-        )}
+        <div style={{ flex: 1, minHeight: 0 }}>
+          <RowChart
+            apiBase="https://frye-market-backend-1.onrender.com"
+            defaultSymbol={symbol}
+            defaultTimeframe={timeframe}
+            showDebug={false}
+            fullScreen={true}   // <-- only /chart passes this
+          />
+        </div>
       </div>
     </div>
   );
