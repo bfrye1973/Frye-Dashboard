@@ -5,7 +5,7 @@ import Controls from "./Controls";
 import IndicatorsToolbar from "./IndicatorsToolbar";
 import { getOHLC, subscribeStream } from "../../../lib/ohlcClient";
 
-// Overlays from your repo
+// Overlays
 import MoneyFlowOverlay from "../../../components/overlays/MoneyFlowOverlay";
 import RightProfileOverlay from "../../../components/overlays/RightProfileOverlay";
 import SessionShadingOverlay from "../../../components/overlays/SessionShadingOverlay";
@@ -87,7 +87,6 @@ function attachOverlay(Module, args) {
 }
 
 // Compute a safe canvas height inside a flex column container.
-// Ensures >0 height even if parent hasn't assigned one yet.
 function computeCanvasHeight(canvasEl, min = 360) {
   if (!canvasEl) return min;
   const parent = canvasEl.parentElement;
@@ -100,10 +99,9 @@ function computeCanvasHeight(canvasEl, min = 360) {
     const r = child.getBoundingClientRect();
     used += r.height;
   }
-  // Preferred: fill leftover space in the parent box.
   let h = Math.max(min, Math.floor(parentRect.height - used));
 
-  // Fallback: if parent has no height (0), compute from viewport position.
+  // Fallback if parent height is not yet settled
   if (h <= min) {
     const top = canvasEl.getBoundingClientRect().top || parentRect.top || 0;
     const padding = 24; // breathing room for axis
@@ -130,7 +128,12 @@ export default function RowChart({
   const ema50Ref = useRef(null);
   const roRef = useRef(null);
 
-  // Overlay instances
+  // Height guards
+  const stableHeightRef = useRef(0);
+  const lastGoodHeightRef = useRef(0);
+  const minHeight = fullScreen ? 420 : 360;
+
+  // Overlays
   const moneyFlowRef = useRef(null);
   const rightProfileRef = useRef(null);
   const sessionShadeRef = useRef(null);
@@ -140,7 +143,7 @@ export default function RowChart({
   const [bars, setBars] = useState([]);
   const barsRef = useRef([]);
 
-  // UI / toolbar
+  // UI
   const [state, setState] = useState({
     symbol: defaultSymbol,
     timeframe: defaultTimeframe,
@@ -161,13 +164,15 @@ export default function RowChart({
     const el = containerRef.current;
     if (!el) return;
 
-    // Make sure the canvas has a real height before creating the chart
-    const safeH = computeCanvasHeight(el, fullScreen ? 420 : 360);
-    el.style.height = `${safeH}px`;
+    // 1) Measure once (stable) and set explicit height before creating the chart
+    const measured = computeCanvasHeight(el, minHeight);
+    stableHeightRef.current = measured;
+    lastGoodHeightRef.current = measured;
+    el.style.height = `${measured}px`;
 
     const chart = createChart(el, {
       width: el.clientWidth,
-      height: safeH,
+      height: measured,
       layout: { background: { color: DEFAULTS.bg }, textColor: "#d1d5db" },
       grid: { vertLines: { color: DEFAULTS.grid }, horzLines: { color: DEFAULTS.grid } },
       rightPriceScale: { borderColor: DEFAULTS.border, scaleMargins: { top: 0.1, bottom: 0.2 } },
@@ -199,20 +204,47 @@ export default function RowChart({
     vol.priceScale().applyOptions({ scaleMargins: { top: 0.8, bottom: 0 } });
     volSeriesRef.current = vol;
 
-    // Resize handling with safety: recompute desired height first
-    const doResize = () => {
-      const h = computeCanvasHeight(el, fullScreen ? 420 : 360);
-      el.style.height = `${h}px`;
-      chart.resize(el.clientWidth, h);
+    // 2) Guarded resize: ignore transient collapses
+    let rafId = 0;
+    const safeResize = () => {
+      const next = computeCanvasHeight(el, minHeight);
+
+      // If the next height is a sudden collapse (<60% of last good), ignore it
+      const last = lastGoodHeightRef.current || minHeight;
+      const collapsed = next < Math.max(minHeight, Math.floor(last * 0.6));
+
+      if (!collapsed) {
+        el.style.height = `${next}px`;
+        chart.resize(el.clientWidth, next);
+        lastGoodHeightRef.current = next;
+      } else {
+        // Defer one frame and try again (lets flex/layout settle)
+        cancelAnimationFrame(rafId);
+        rafId = requestAnimationFrame(() => {
+          const retry = computeCanvasHeight(el, minHeight);
+          const retryCollapsed = retry < Math.max(minHeight, Math.floor(lastGoodHeightRef.current * 0.6));
+          if (!retryCollapsed) {
+            el.style.height = `${retry}px`;
+            chart.resize(el.clientWidth, retry);
+            lastGoodHeightRef.current = retry;
+          }
+        });
+      }
     };
-    const ro = new ResizeObserver(doResize);
+
+    const ro = new ResizeObserver(() => safeResize());
     ro.observe(el);
     roRef.current = ro;
 
-    // Ensure first layout sizing happens after flex/paint settles
-    requestAnimationFrame(doResize);
+    // First layout pass after flex settles
+    requestAnimationFrame(safeResize);
+
+    // Extra safety: reassert height shortly after mount (handles late toolbars/fonts)
+    const t = setTimeout(safeResize, 500);
 
     return () => {
+      clearTimeout(t);
+      cancelAnimationFrame(rafId);
       try { ro.disconnect(); } catch {}
       try { chart.remove(); } catch {}
       chartRef.current = null;
@@ -221,7 +253,7 @@ export default function RowChart({
       ema10Ref.current = ema20Ref.current = ema50Ref.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fullScreen]);
+  }, [fullScreen]); // recompute guards if /chart vs row changes
 
   // keep axis + tooltip formatters updated with TF
   useEffect(() => {
@@ -526,14 +558,13 @@ export default function RowChart({
       />
       <IndicatorsToolbar {...toolbarProps} />
 
-      {/* Chart canvas — grows, but we still compute & set an explicit height */}
+      {/* Chart canvas — height is explicitly set & guarded in effect */}
       <div
         ref={containerRef}
         style={{
           width: "100%",
           flex: fullScreen ? "1 1 0%" : "0 0 auto",
-          // height is set dynamically by computeCanvasHeight() on mount/resize
-          minHeight: fullScreen ? 420 : 360,
+          minHeight: minHeight,
           boxSizing: "border-box",
           background: DEFAULTS.bg,
         }}
