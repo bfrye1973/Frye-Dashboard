@@ -592,10 +592,10 @@ export default function RowChart({
       <div
         ref={containerRef}
         style={{
-          width: "100%",
-          height: fullScreen ? "100%" : "520px",  // <-- only fullScreen grows
-          minHeight: fullScreen ? 0 : 360,
-          background: DEFAULTS.bg,
+           width: "100%",
+           height: fullScreen ? "100%" : "520px",  // <-- only fullScreen grows
+           minHeight: fullScreen ? 0 : 360,
+           background: DEFAULTS.bg,
         }}
       />
     </div>
