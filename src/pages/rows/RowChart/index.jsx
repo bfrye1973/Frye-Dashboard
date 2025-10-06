@@ -12,7 +12,7 @@ import SessionShadingOverlay from "../../../components/overlays/SessionShadingOv
 import SwingLiquidityOverlay from "../../../components/overlays/SwingLiquidityOverlay";
 
 /* -------------------- constants -------------------- */
-const SEED_LIMIT = 2000; // ~1 month of 10m bars
+const SEED_LIMIT = 2000; // server returns months for 10m/1h/4h if Core window is live
 const DEFAULTS = {
   upColor: "#26a69a",
   downColor: "#ef5350",
@@ -35,7 +35,9 @@ function phoenixTime(ts, isDaily = false) {
   return new Intl.DateTimeFormat("en-US", {
     timeZone: "America/Phoenix",
     hour12: true,
-    ...(isDaily ? { month: "short", day: "2-digit" } : { hour: "numeric", minute: "2-digit" }),
+    ...(isDaily
+      ? { month: "short", day: "2-digit" }
+      : { hour: "numeric", minute: "2-digit" }),
   }).format(new Date(seconds * 1000));
 }
 
@@ -80,8 +82,14 @@ function calcEMA(barsAsc, length) {
 function attachOverlay(Module, args) {
   try {
     if (!Module) return null;
-    try { const inst = new Module(args); if (inst && (inst.update || inst.destroy)) return inst; } catch {}
-    try { const inst = Module(args); if (inst && (inst.update || inst.destroy)) return inst; } catch {}
+    try {
+      const inst = new Module(args);
+      if (inst && (inst.update || inst.destroy)) return inst;
+    } catch {}
+    try {
+      const inst = Module(args);
+      if (inst && (inst.update || inst.destroy)) return inst;
+    } catch {}
     if (Module.attach) return Module.attach(args);
   } catch {}
   return { update() {}, destroy() {} };
@@ -170,9 +178,14 @@ export default function RowChart({
     vol.priceScale().applyOptions({ scaleMargins: { top: 0.8, bottom: 0 } });
     volSeriesRef.current = vol;
 
-    const ro = new ResizeObserver(() => chart.resize(el.clientWidth, el.clientHeight));
+    // Resize handling (fixes bottom-axis clipping by letting flex finish layout first)
+    const doResize = () => chart.resize(el.clientWidth, el.clientHeight);
+    const ro = new ResizeObserver(doResize);
     ro.observe(el);
     roRef.current = ro;
+
+    // Ensure first layout sizing happens after flex settles
+    requestAnimationFrame(doResize);
 
     return () => {
       try { ro.disconnect(); } catch {}
@@ -492,15 +505,15 @@ export default function RowChart({
       />
       <IndicatorsToolbar {...toolbarProps} />
 
-      {/* Chart canvas — give bottom padding so time axis never clips */}
+      {/* Chart canvas — flexes to fill remaining space; no clipping */}
       <div
         ref={containerRef}
         style={{
           width: "100%",
-          height: fullScreen ? "calc(100% - 28px)" : "520px",
-          paddingBottom: fullScreen ? 28 : 0,
-          boxSizing: "border-box",
+          flex: fullScreen ? "1 1 0%" : "0 0 auto",
+          height: fullScreen ? "auto" : "520px",
           minHeight: fullScreen ? 0 : 360,
+          boxSizing: "border-box",
           background: DEFAULTS.bg,
         }}
       />
