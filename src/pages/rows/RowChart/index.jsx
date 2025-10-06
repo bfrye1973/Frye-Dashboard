@@ -471,5 +471,5 @@ export default function RowChart({
           minHeight: fullScreen ? 0 : 360,
           background: DEFAULTS.bg,
         }}
-      />
+     />
 
