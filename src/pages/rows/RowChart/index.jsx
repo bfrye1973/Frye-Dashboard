@@ -20,7 +20,7 @@ import SessionShadingOverlay from "../../../components/overlays/SessionShadingOv
 import SwingLiquidityOverlay from "../../../components/overlays/SwingLiquidityOverlay";
 
 // ---------- Config ----------
-const SEED_LIMIT = 2000; // ~1 month of 10m bars + buffer
+const SEED_LIMIT = 6000; // ~1 month of 10m bars + buffer
 
 const DEFAULTS = {
   upColor: "#26a69a",
