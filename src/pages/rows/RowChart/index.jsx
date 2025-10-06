@@ -464,7 +464,10 @@ export default function RowChart({
         ref={containerRef}
         style={{
           width: "100%",
-          height: fullScreen ? "100%" : "520px", // full-screen vs dashboard row
+          // Add bottom padding so time axis isn’t clipped
+          height: fullScreen ? "calc(100% - 12px)" : "520px",
+          paddingBottom: fullScreen ? 12 : 0,
+          boxSizing: "border-box",
           minHeight: fullScreen ? 0 : 360,
           background: DEFAULTS.bg,
         }}
