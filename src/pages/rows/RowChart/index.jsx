@@ -2,10 +2,9 @@
 // ============================================================
 // RowChart — month seed + live 1m→TF aggregation + Indicators wiring
 // - AZ timezone on axis + tooltip
-// - "All" range support
+// - "All" range support (fit once; no auto-fit on every tick)
 // - IndicatorsToolbar wired: EMA10/20/50, Volume, MoneyFlow, RightProfile,
 //   SessionShading (via luxSr toggle), SwingLiquidity
-// - Axis/date fixes: TradingView-style ticks + seconds on 1m only
 // ============================================================
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
@@ -14,7 +13,7 @@ import Controls from "./Controls";
 import IndicatorsToolbar from "./IndicatorsToolbar";
 import { getOHLC, subscribeStream } from "../../../lib/ohlcClient";
 
-// Overlays (your exact paths from the repo screenshot)
+// Overlays
 import MoneyFlowOverlay from "../../../components/overlays/MoneyFlowOverlay";
 import RightProfileOverlay from "../../../components/overlays/RightProfileOverlay";
 import SessionShadingOverlay from "../../../components/overlays/SessionShadingOverlay";
@@ -52,7 +51,7 @@ function phoenixTime(ts, isDaily = false) {
   }).format(new Date(seconds * 1000));
 }
 
-// NEW: TradingView-style tick formatter (seconds on 1m; hh:mm on intraday; date on daily)
+// TradingView-style ticks: seconds on 1m; hh:mm on intraday; date on daily
 function makeTickFormatter(tf) {
   const showSeconds = tf === "1m";
   const isDailyTF   = tf === "1d";
@@ -97,11 +96,7 @@ function calcEMA(barsAsc, length) {
   for (let i = 0; i < barsAsc.length; i++) {
     const c = Number(barsAsc[i].close);
     if (!Number.isFinite(c)) continue;
-    if (ema === undefined) {
-      ema = c; // seed with first close; simple seed is fine
-    } else {
-      ema = c * k + ema * (1 - k);
-    }
+    if (ema === undefined) ema = c; else ema = c * k + ema * (1 - k);
     out.push({ time: barsAsc[i].time, value: ema });
   }
   return out;
@@ -111,26 +106,11 @@ function calcEMA(barsAsc, length) {
 function attachOverlay(Module, args) {
   try {
     if (!Module) return null;
-    // 1) class
-    try {
-      const inst = new Module(args);
-      if (inst && (typeof inst.update === "function" || typeof inst.destroy === "function")) return inst;
-    } catch (_) {}
-    // 2) factory
-    try {
-      const inst = Module(args);
-      if (inst && (typeof inst.update === "function" || typeof inst.destroy === "function")) return inst;
-    } catch (_) {}
-    // 3) static attach
-    if (typeof Module.attach === "function") {
-      return Module.attach(args);
-    }
-  } catch (_) {}
-  // Fallback no-op controller
-  return {
-    update: () => {},
-    destroy: () => {},
-  };
+    try { const inst = new Module(args); if (inst && (inst.update || inst.destroy)) return inst; } catch {}
+    try { const inst = Module(args); if (inst && (inst.update || inst.destroy)) return inst; } catch {}
+    if (typeof Module.attach === "function") return Module.attach(args);
+  } catch {}
+  return { update() {}, destroy() {} };
 }
 
 export default function RowChart({
@@ -159,6 +139,10 @@ export default function RowChart({
   const [bars, setBars] = useState([]);
   const barsRef = useRef([]);
 
+  // Fit/interaction guards
+  const didFitOnceRef = useRef(false);     // set true after seed fit or Range click
+  const userInteractedRef = useRef(false); // set true on wheel/drag once
+
   // UI / Indicators state
   const [state, setState] = useState({
     symbol: defaultSymbol,
@@ -173,15 +157,12 @@ export default function RowChart({
     ema50: true,
     volume: true,
     moneyFlow: false,
-    luxSr: false,            // we map this to SessionShadingOverlay below
+    luxSr: false,            // mapped to SessionShadingOverlay below
     swingLiquidity: false,
   });
 
   const symbols = useMemo(() => ["SPY", "QQQ", "IWM"], []);
-  const timeframes = useMemo(
-    () => ["1m", "5m", "10m", "15m", "30m", "1h", "4h", "1d"],
-    []
-  );
+  const timeframes = useMemo(() => ["1m", "5m", "10m", "15m", "30m", "1h", "4h", "1d"], []);
 
   // ---------- Mount chart ----------
   useEffect(() => {
@@ -192,27 +173,23 @@ export default function RowChart({
       width: el.clientWidth,
       height: fullScreen ? el.clientHeight : el.clientHeight, // parent controls height
       layout: { background: { color: DEFAULTS.bg }, textColor: "#d1d5db" },
-      grid: {
-        vertLines: { color: DEFAULTS.gridColor },
-        horzLines: { color: DEFAULTS.gridColor },
-      },
-      rightPriceScale: {
-        borderColor: DEFAULTS.border,
-        scaleMargins: { top: 0.1, bottom: 0.2 },
-      },
+      grid: { vertLines: { color: DEFAULTS.gridColor }, horzLines: { color: DEFAULTS.gridColor } },
+      rightPriceScale: { borderColor: DEFAULTS.border, scaleMargins: { top: 0.1, bottom: 0.2 } },
       timeScale: {
         borderColor: DEFAULTS.border,
         timeVisible: true,
-        // NEW: dynamic tick formatter + seconds toggle at init
-        secondsVisible: defaultTimeframe === "1m",
-        tickMarkFormatter: makeTickFormatter(defaultTimeframe),
+        secondsVisible: state.timeframe === "1m",
+        tickMarkFormatter: makeTickFormatter(state.timeframe),
       },
-      localization: {
-        timeFormatter: (t) => phoenixTime(t, state.timeframe === "1d"),
-      },
+      localization: { timeFormatter: (t) => phoenixTime(t, state.timeframe === "1d") },
       crosshair: { mode: 0 },
     });
     chartRef.current = chart;
+
+    // mark user interaction (prevents any auto-fit in future)
+    const markInteract = () => { userInteractedRef.current = true; };
+    el.addEventListener("wheel", markInteract, { passive: true });
+    el.addEventListener("mousedown", markInteract);
 
     const price = chart.addCandlestickSeries({
       upColor: DEFAULTS.upColor,
@@ -224,33 +201,27 @@ export default function RowChart({
     });
     seriesRef.current = price;
 
-    const vol = chart.addHistogramSeries({
-      priceScaleId: "",
-      priceFormat: { type: "volume" },
-    });
+    const vol = chart.addHistogramSeries({ priceScaleId: "", priceFormat: { type: "volume" } });
     vol.priceScale().applyOptions({ scaleMargins: { top: 0.8, bottom: 0 } });
     volSeriesRef.current = vol;
 
-    const ro = new ResizeObserver(() => {
-      chart.resize(el.clientWidth, el.clientHeight);
-    });
+    const ro = new ResizeObserver(() => chart.resize(el.clientWidth, el.clientHeight));
     ro.observe(el);
     roRef.current = ro;
 
     return () => {
       try { ro.disconnect(); } catch {}
+      try { el.removeEventListener("wheel", markInteract); el.removeEventListener("mousedown", markInteract); } catch {}
       try { chart.remove(); } catch {}
       chartRef.current = null;
       seriesRef.current = null;
       volSeriesRef.current = null;
-      ema10Ref.current = null;
-      ema20Ref.current = null;
-      ema50Ref.current = null;
+      ema10Ref.current = ema20Ref.current = ema50Ref.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fullScreen]);
 
-  // Keep AZ formatters correct on TF change (and update tick style/sec visibility)
+  // Keep AZ formatters + secondsVisible correct on TF change; also reset fit guard
   useEffect(() => {
     const chart = chartRef.current;
     if (!chart) return;
@@ -262,9 +233,11 @@ export default function RowChart({
       },
       localization: { timeFormatter: (t) => phoenixTime(t, tf === "1d") },
     });
+    // new TF: allow a fresh single fit after seed
+    didFitOnceRef.current = false;
   }, [state.timeframe]);
 
-  // ---------- Historical seed ----------
+  // ---------- Historical seed (fit ONCE here) ----------
   useEffect(() => {
     let cancelled = false;
     async function loadSeed() {
@@ -276,9 +249,13 @@ export default function RowChart({
         barsRef.current = asc;
         setBars(asc);
 
-        if (chartRef.current && state.range === "ALL") {
-          chartRef.current.timeScale().fitContent();
+        const chart = chartRef.current;
+        if (chart && state.range === "ALL" && !didFitOnceRef.current && !userInteractedRef.current) {
+          // Fit ONCE immediately after seed (no further auto-fit on ticks)
+          chart.timeScale().fitContent();
+          didFitOnceRef.current = true;
         }
+
         if (showDebug) {
           console.log("[RowChart] Seed:", {
             tf: state.timeframe, count: asc.length, first: asc[0], last: asc[asc.length - 1],
@@ -294,9 +271,9 @@ export default function RowChart({
     }
     loadSeed();
     return () => { cancelled = true; };
-  }, [state.symbol, state.timeframe, state.range, showDebug]);
+  }, [state.symbol, state.timeframe, showDebug, state.range]);
 
-  // ---------- Render + range ----------
+  // ---------- Render + range (NO auto-fit on every tick) ----------
   useEffect(() => {
     const chart = chartRef.current;
     const price = seriesRef.current;
@@ -305,7 +282,6 @@ export default function RowChart({
 
     price.setData(bars);
 
-    // Volume visibility + data
     if (vol) {
       vol.applyOptions({ visible: !!state.volume });
       if (state.volume) {
@@ -321,23 +297,28 @@ export default function RowChart({
       }
     }
 
+    // Respect Range buttons (explicit user action)
     const ts = chart.timeScale();
     const len = bars.length;
     if (!len) return;
 
     if (state.range === "ALL") {
-      ts.fitContent();
+      // Only fit if we haven't already fit after seed, and user hasn't interacted.
+      if (!didFitOnceRef.current && !userInteractedRef.current) {
+        ts.fitContent();
+        didFitOnceRef.current = true;
+      }
     } else if (typeof state.range === "number") {
       const to = len - 1;
       const from = Math.max(0, to - (state.range - 1));
       ts.setVisibleLogicalRange({ from, to });
-    } else {
-      ts.fitContent();
+      didFitOnceRef.current = true;
     }
   }, [bars, state.range, state.volume]);
 
   // ---------- Live stream: 1m → selected TF aggregation ----------
   useEffect(() => {
+    // when TF/symbol changes, this effect cleans up previous subscription automatically
     if (!seriesRef.current || !volSeriesRef.current) return;
 
     const tfSec = TF_SEC[state.timeframe] ?? TF_SEC["10m"];
@@ -356,6 +337,7 @@ export default function RowChart({
       const t = Number(oneMin.time);
       if (!Number.isFinite(t)) return;
 
+      // 1m TF: push finished bar to state only when a NEW minute bar begins
       if (tfSec === TF_SEC["1m"]) {
         seriesRef.current.update(oneMin);
         if (state.volume && volSeriesRef.current) {
@@ -365,18 +347,28 @@ export default function RowChart({
             color: oneMin.close >= oneMin.open ? DEFAULTS.volUp : DEFAULTS.volDown,
           });
         }
-        const next = [...barsRef.current];
-        const last = next[next.length - 1];
-        if (!last || oneMin.time > last.time) next.push(oneMin);
-        else next[next.length - 1] = oneMin;
-        barsRef.current = next;
-        setBars(next);
+
+        const prev = barsRef.current[barsRef.current.length - 1];
+        if (!prev || oneMin.time > prev.time) {
+          const next = [...barsRef.current, oneMin];
+          barsRef.current = next;
+          setBars(next);
+        } else {
+          const next = [...barsRef.current];
+          next[next.length - 1] = oneMin;
+          barsRef.current = next;
+          setBars(next);
+        }
         return;
       }
 
+      // Aggregated TFs: update rolling bucket live, commit to state ONLY when bucket closes
       const start = floorToBucket(t);
+
+      // bucket rollover: commit the previous bucket (CLOSE) to state once
       if (bucketStart === null || start > bucketStart) {
         if (rolling && (!lastSeed || rolling.time >= lastSeed.time)) {
+          // Paint the final closed bucket to series & vol
           seriesRef.current.update(rolling);
           if (state.volume && volSeriesRef.current) {
             volSeriesRef.current.update({
@@ -385,6 +377,7 @@ export default function RowChart({
               color: rolling.close >= rolling.open ? DEFAULTS.volUp : DEFAULTS.volDown,
             });
           }
+          // Commit closed bucket to React state ONCE per bucket
           const next = [...barsRef.current];
           const last = next[next.length - 1];
           if (!last || rolling.time > last.time) next.push(rolling);
@@ -393,6 +386,7 @@ export default function RowChart({
           setBars(next);
         }
 
+        // start new bucket
         bucketStart = start;
         rolling = {
           time: start,
@@ -403,12 +397,14 @@ export default function RowChart({
           volume: Number(oneMin.volume || 0),
         };
       } else {
+        // update current open bucket
         rolling.high = Math.max(rolling.high, oneMin.high);
         rolling.low = Math.min(rolling.low, oneMin.low);
         rolling.close = oneMin.close;
         rolling.volume = Number(rolling.volume || 0) + Number(oneMin.volume || 0);
       }
 
+      // paint current open bucket to the chart (no React state change yet)
       seriesRef.current.update(rolling);
       if (state.volume && volSeriesRef.current) {
         volSeriesRef.current.update({
@@ -417,24 +413,17 @@ export default function RowChart({
           color: rolling.close >= rolling.open ? DEFAULTS.volUp : DEFAULTS.volDown,
         });
       }
-      const next = [...barsRef.current];
-      const last = next[next.length - 1];
-      if (!last || rolling.time > last.time) next.push({ ...rolling });
-      else next[next.length - 1] = { ...rolling };
-      barsRef.current = next;
-      setBars(next);
     });
 
     return () => unsub?.();
   }, [state.symbol, state.timeframe, state.volume]);
 
-  // ---------- EMA lines (respond to showEma/ema10/20/50 + bars) ----------
+  // ---------- EMA lines ----------
   useEffect(() => {
     const chart = chartRef.current;
     const price = seriesRef.current;
     if (!chart || !price) return;
 
-    // Ensure line series exist when needed
     const ensureLine = (ref, color) => {
       if (!ref.current) {
         ref.current = chart.addLineSeries({
@@ -455,33 +444,28 @@ export default function RowChart({
     if (!state.showEma || bars.length === 0) return;
 
     if (state.ema10) {
-      const l = ensureLine(ema10Ref, "#f59e0b"); // amber
+      const l = ensureLine(ema10Ref, "#f59e0b");
       l.setData(calcEMA(bars, 10));
       l.applyOptions({ visible: true });
     }
     if (state.ema20) {
-      const l = ensureLine(ema20Ref, "#3b82f6"); // blue
+      const l = ensureLine(ema20Ref, "#3b82f6");
       l.setData(calcEMA(bars, 20));
       l.applyOptions({ visible: true });
     }
     if (state.ema50) {
-      const l = ensureLine(ema50Ref, "#10b981"); // green
+      const l = ensureLine(ema50Ref, "#10b981");
       l.setData(calcEMA(bars, 50));
       l.applyOptions({ visible: true });
     }
   }, [bars, state.showEma, state.ema10, state.ema20, state.ema50]);
 
   // ---------- Overlays ----------
-  // Money Flow (right-side)
   useEffect(() => {
-    const chart = chartRef.current;
-    const price = seriesRef.current;
+    const chart = chartRef.current; const price = seriesRef.current;
     if (!chart || !price) return;
-
     if (state.moneyFlow) {
-      if (!moneyFlowRef.current) {
-        moneyFlowRef.current = attachOverlay(MoneyFlowOverlay, { chart, series: price });
-      }
+      if (!moneyFlowRef.current) moneyFlowRef.current = attachOverlay(MoneyFlowOverlay, { chart, series: price });
       try { moneyFlowRef.current.update?.(bars); } catch {}
     } else {
       try { moneyFlowRef.current?.destroy?.(); } catch {}
@@ -489,40 +473,24 @@ export default function RowChart({
     }
   }, [state.moneyFlow, bars]);
 
-  // Right Profile (volume profile on right edge)
   useEffect(() => {
-    const chart = chartRef.current;
-    const price = seriesRef.current;
+    const chart = chartRef.current; const price = seriesRef.current;
     if (!chart || !price) return;
-
-    if (state.volume) {
-      // RightProfile overlay often complements volume; gate by its own toggle if you like.
-    }
-
-    // We'll show it when volume is on and you enable the overlay via toolbar (reuse "volume profile" notion).
     if (state.volume && !rightProfileRef.current) {
-      // You can switch to a dedicated toggle later; for now mount when volume on.
       rightProfileRef.current = attachOverlay(RightProfileOverlay, { chart, series: price });
     }
     if (rightProfileRef.current) {
       try { rightProfileRef.current.update?.(bars); } catch {}
     }
-
-    // If you prefer a separate toggle, replace the condition with your chosen state flag.
   }, [state.volume, bars]);
 
-  // Session Shading (use luxSr toggle as requested)
   useEffect(() => {
-    const chart = chartRef.current;
-    const price = seriesRef.current;
+    const chart = chartRef.current; const price = seriesRef.current;
     if (!chart || !price) return;
-
     if (state.luxSr) {
       if (!sessionShadeRef.current) {
         sessionShadeRef.current = attachOverlay(SessionShadingOverlay, {
-          chart,
-          series: price,
-          timezone: "America/Phoenix",
+          chart, series: price, timezone: "America/Phoenix",
         });
       }
       try { sessionShadeRef.current.update?.(bars, { timeframe: state.timeframe }); } catch {}
@@ -532,12 +500,9 @@ export default function RowChart({
     }
   }, [state.luxSr, state.timeframe, bars]);
 
-  // Swing Liquidity (pivots)
   useEffect(() => {
-    const chart = chartRef.current;
-    const price = seriesRef.current;
+    const chart = chartRef.current; const price = seriesRef.current;
     if (!chart || !price) return;
-
     if (state.swingLiquidity) {
       if (!swingLiqRef.current) {
         swingLiqRef.current = attachOverlay(SwingLiquidityOverlay, { chart, series: price });
@@ -550,8 +515,7 @@ export default function RowChart({
   }, [state.swingLiquidity, bars]);
 
   // ---------- Controls ----------
-  const handleControlsChange = (patch) =>
-    setState((s) => ({ ...s, ...patch }));
+  const handleControlsChange = (patch) => setState((s) => ({ ...s, ...patch }));
 
   const applyRange = (nextRange) => {
     const chart = chartRef.current;
@@ -566,19 +530,25 @@ export default function RowChart({
 
     if (nextRange === "ALL") {
       ts.fitContent();
+      didFitOnceRef.current = true;             // lock: no further auto-fit
+      userInteractedRef.current = true;         // treat as explicit user choice
       return;
     }
     const r = Number(nextRange);
     if (!Number.isFinite(r) || r <= 0) {
       ts.fitContent();
+      didFitOnceRef.current = true;
+      userInteractedRef.current = true;
       return;
     }
     const to = len - 1;
     const from = Math.max(0, to - (r - 1));
     ts.setVisibleLogicalRange({ from, to });
+    didFitOnceRef.current = true;
+    userInteractedRef.current = true;
   };
 
-  // ---------- Toolbar handlers ----------
+  // ---------- Toolbar ----------
   const handleIndicatorsChange = (patch) => setState((s) => ({ ...s, ...patch }));
   const handleIndicatorsReset = () =>
     setState((s) => ({
@@ -589,14 +559,10 @@ export default function RowChart({
 
   const toolbarProps = {
     showEma: state.showEma,
-    ema10: state.ema10,
-    ema20: state.ema20,
-    ema50: state.ema50,
+    ema10: state.ema10, ema20: state.ema20, ema50: state.ema50,
     volume: state.volume,
-    moneyFlow: state.moneyFlow,
-    luxSr: state.luxSr,                 // mapped to SessionShading overlay
-    swingLiquidity: state.swingLiquidity,
-    showSmiToggle: false,               // per your request (no SMI here)
+    moneyFlow: state.moneyFlow, luxSr: state.luxSr, swingLiquidity: state.swingLiquidity,
+    showSmiToggle: false,
     onChange: handleIndicatorsChange,
     onReset: handleIndicatorsReset,
   };
@@ -620,17 +586,14 @@ export default function RowChart({
         onRange={applyRange}
       />
 
-      {/* Indicators toolbar */}
       <IndicatorsToolbar {...toolbarProps} />
 
-      {/* Chart container — parent determines height.
-          On the dashboard, keep your row height (e.g., via parent CSS).
-          On the /chart page, wrap this RowChart in a 100vh container. */}
+      {/* Chart container — parent determines height (dashboard row fixed height) */}
       <div
         ref={containerRef}
         style={{
           width: "100%",
-          height: "520px",     // row height; on /chart page put parent at 100vh so this expands
+          height: "520px",
           minHeight: 360,
           background: DEFAULTS.bg,
         }}
