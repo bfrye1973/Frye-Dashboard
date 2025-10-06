@@ -13,11 +13,12 @@ const FullChart = React.lazy(() => import("./pages/FullChart"));
 
 /* ------------------------- config: backend base ------------------------- */
 // Try window override first (for local dev), then env, then hard default.
+// NOTE: fallback now includes /api so routes like /v1/ohlc resolve correctly.
 const API_BASE =
   (typeof window !== "undefined" && (window.__API_BASE__ || "")) ||
   process.env.REACT_APP_API_BASE ||
   process.env.VITE_TRADING_API_BASE ||
-  "https://frye-market-backend-1.onrender.com";
+  "https://frye-market-backend-1.onrender.com/api";
 
 /* --------------------------- small date helpers ------------------------- */
 const fmtAz = (iso) => {
@@ -189,3 +190,6 @@ export default function App() {
     </div>
   );
 }
+
+// Optional: export for other modules that might want the resolved base.
+export { API_BASE };
