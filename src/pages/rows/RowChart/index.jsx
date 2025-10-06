@@ -12,7 +12,7 @@ import SessionShadingOverlay from "../../../components/overlays/SessionShadingOv
 import SwingLiquidityOverlay from "../../../components/overlays/SwingLiquidityOverlay";
 
 /* -------------------- constants -------------------- */
-const SEED_LIMIT = 2000; // server returns months for 10m/1h/4h if Core window is live
+const SEED_LIMIT = 2000;
 const DEFAULTS = {
   upColor: "#26a69a",
   downColor: "#ef5350",
@@ -29,15 +29,12 @@ const TF_SEC = {
 const LIVE_TF = "1m";
 
 /* -------------------- helpers -------------------- */
-// Crosshair tooltip in AZ
 function phoenixTime(ts, isDaily = false) {
   const seconds = typeof ts === "number" ? ts : (ts && (ts.timestamp ?? ts.time)) || 0;
   return new Intl.DateTimeFormat("en-US", {
     timeZone: "America/Phoenix",
     hour12: true,
-    ...(isDaily
-      ? { month: "short", day: "2-digit" }
-      : { hour: "numeric", minute: "2-digit" }),
+    ...(isDaily ? { month: "short", day: "2-digit" } : { hour: "numeric", minute: "2-digit" }),
   }).format(new Date(seconds * 1000));
 }
 
@@ -82,26 +79,46 @@ function calcEMA(barsAsc, length) {
 function attachOverlay(Module, args) {
   try {
     if (!Module) return null;
-    try {
-      const inst = new Module(args);
-      if (inst && (inst.update || inst.destroy)) return inst;
-    } catch {}
-    try {
-      const inst = Module(args);
-      if (inst && (inst.update || inst.destroy)) return inst;
-    } catch {}
+    try { const inst = new Module(args); if (inst && (inst.update || inst.destroy)) return inst; } catch {}
+    try { const inst = Module(args); if (inst && (inst.update || inst.destroy)) return inst; } catch {}
     if (Module.attach) return Module.attach(args);
   } catch {}
   return { update() {}, destroy() {} };
 }
 
+// Compute a safe canvas height inside a flex column container.
+// Ensures >0 height even if parent hasn't assigned one yet.
+function computeCanvasHeight(canvasEl, min = 360) {
+  if (!canvasEl) return min;
+  const parent = canvasEl.parentElement;
+  if (!parent) return min;
+
+  const parentRect = parent.getBoundingClientRect();
+  let used = 0;
+  for (const child of Array.from(parent.children)) {
+    if (child === canvasEl) continue;
+    const r = child.getBoundingClientRect();
+    used += r.height;
+  }
+  // Preferred: fill leftover space in the parent box.
+  let h = Math.max(min, Math.floor(parentRect.height - used));
+
+  // Fallback: if parent has no height (0), compute from viewport position.
+  if (h <= min) {
+    const top = canvasEl.getBoundingClientRect().top || parentRect.top || 0;
+    const padding = 24; // breathing room for axis
+    h = Math.max(min, Math.floor(window.innerHeight - top - padding));
+  }
+  return h;
+}
+
 /* -------------------- component -------------------- */
 export default function RowChart({
-  apiBase,                       // optional (you already hardcode in FullChart)
+  apiBase,
   defaultSymbol = "SPY",
   defaultTimeframe = "10m",
   showDebug = false,
-  fullScreen = false,            // true only on /chart; dashboard row stays fixed
+  fullScreen = false,
 }) {
   // DOM & series refs
   const containerRef = useRef(null);
@@ -132,24 +149,25 @@ export default function RowChart({
     showEma: true, ema10: true, ema20: true, ema50: true,
     volume: true,
     moneyFlow: false,
-    luxSr: false,             // mapped to SessionShading overlay
+    luxSr: false,
     swingLiquidity: false,
   });
 
   const symbols = useMemo(() => ["SPY", "QQQ", "IWM"], []);
-  const timeframes = useMemo(
-    () => ["1m", "5m", "10m", "15m", "30m", "1h", "4h", "1d"],
-    []
-  );
+  const timeframes = useMemo(() => ["1m", "5m", "10m", "15m", "30m", "1h", "4h", "1d"], []);
 
   /* -------------------- mount chart -------------------- */
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
 
+    // Make sure the canvas has a real height before creating the chart
+    const safeH = computeCanvasHeight(el, fullScreen ? 420 : 360);
+    el.style.height = `${safeH}px`;
+
     const chart = createChart(el, {
       width: el.clientWidth,
-      height: el.clientHeight,
+      height: safeH,
       layout: { background: { color: DEFAULTS.bg }, textColor: "#d1d5db" },
       grid: { vertLines: { color: DEFAULTS.grid }, horzLines: { color: DEFAULTS.grid } },
       rightPriceScale: { borderColor: DEFAULTS.border, scaleMargins: { top: 0.1, bottom: 0.2 } },
@@ -168,9 +186,12 @@ export default function RowChart({
     chartRef.current = chart;
 
     const price = chart.addCandlestickSeries({
-      upColor: DEFAULTS.upColor, downColor: DEFAULTS.downColor,
-      wickUpColor: DEFAULTS.upColor, wickDownColor: DEFAULTS.downColor,
-      borderUpColor: DEFAULTS.upColor, borderDownColor: DEFAULTS.downColor,
+      upColor: DEFAULTS.upColor,
+      downColor: DEFAULTS.downColor,
+      wickUpColor: DEFAULTS.upColor,
+      wickDownColor: DEFAULTS.downColor,
+      borderUpColor: DEFAULTS.upColor,
+      borderDownColor: DEFAULTS.downColor,
     });
     seriesRef.current = price;
 
@@ -178,13 +199,17 @@ export default function RowChart({
     vol.priceScale().applyOptions({ scaleMargins: { top: 0.8, bottom: 0 } });
     volSeriesRef.current = vol;
 
-    // Resize handling (fixes bottom-axis clipping by letting flex finish layout first)
-    const doResize = () => chart.resize(el.clientWidth, el.clientHeight);
+    // Resize handling with safety: recompute desired height first
+    const doResize = () => {
+      const h = computeCanvasHeight(el, fullScreen ? 420 : 360);
+      el.style.height = `${h}px`;
+      chart.resize(el.clientWidth, h);
+    };
     const ro = new ResizeObserver(doResize);
     ro.observe(el);
     roRef.current = ro;
 
-    // Ensure first layout sizing happens after flex settles
+    // Ensure first layout sizing happens after flex/paint settles
     requestAnimationFrame(doResize);
 
     return () => {
@@ -390,7 +415,6 @@ export default function RowChart({
   }, [bars, state.showEma, state.ema10, state.ema20, state.ema50]);
 
   /* -------------------- overlays -------------------- */
-  // Money Flow (right-side)
   useEffect(() => {
     const chart = chartRef.current; const price = seriesRef.current;
     if (!chart || !price) return;
@@ -405,7 +429,6 @@ export default function RowChart({
     }
   }, [state.moneyFlow, bars]);
 
-  // Right Profile (tie to Volume for now)
   useEffect(() => {
     const chart = chartRef.current; const price = seriesRef.current;
     if (!chart || !price) return;
@@ -417,7 +440,6 @@ export default function RowChart({
     }
   }, [state.volume, bars]);
 
-  // Lux S/R → Session shading
   useEffect(() => {
     const chart = chartRef.current; const price = seriesRef.current;
     if (!chart || !price) return;
@@ -434,7 +456,6 @@ export default function RowChart({
     }
   }, [state.luxSr, state.timeframe, bars]);
 
-  // Swing Liquidity (pivots)
   useEffect(() => {
     const chart = chartRef.current; const price = seriesRef.current;
     if (!chart || !price) return;
@@ -491,7 +512,7 @@ export default function RowChart({
         borderRadius: 8,
         overflow: "hidden",
         background: DEFAULTS.bg,
-        flex: fullScreen ? "1 1 auto" : "0 0 auto", // grow only on /chart
+        flex: fullScreen ? "1 1 auto" : "0 0 auto",
         minHeight: 0,
         height: fullScreen ? "100%" : undefined,
       }}
@@ -505,14 +526,14 @@ export default function RowChart({
       />
       <IndicatorsToolbar {...toolbarProps} />
 
-      {/* Chart canvas — flexes to fill remaining space; no clipping */}
+      {/* Chart canvas — grows, but we still compute & set an explicit height */}
       <div
         ref={containerRef}
         style={{
           width: "100%",
           flex: fullScreen ? "1 1 0%" : "0 0 auto",
-          height: fullScreen ? "auto" : "520px",
-          minHeight: fullScreen ? 0 : 360,
+          // height is set dynamically by computeCanvasHeight() on mount/resize
+          minHeight: fullScreen ? 420 : 360,
           boxSizing: "border-box",
           background: DEFAULTS.bg,
         }}
