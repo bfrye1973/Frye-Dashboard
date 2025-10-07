@@ -4,6 +4,16 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import NewDashboard from "./pages/NewDashboard";
 import ErrorBoundary from "./ErrorBoundary";
 import "./index.css";
+import UIScaler from "./components/UIScaler";
+
+export default function App() {
+  return (
+    <UIScaler>
+      <RootLayout />   {/* your dashboard */}
+    </UIScaler>
+  );
+}
+
 
 // NEW: bring in the provider so selection is available app-wide
 import { ModeProvider, ViewModes } from "./context/ModeContext";
