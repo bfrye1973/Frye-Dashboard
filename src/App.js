@@ -6,15 +6,6 @@ import ErrorBoundary from "./ErrorBoundary";
 import "./index.css";
 import UIScaler from "./components/UIScaler";
 
-export default function App() {
-  return (
-    <UIScaler>
-      <RootLayout />   {/* your dashboard */}
-    </UIScaler>
-  );
-}
-
-
 // NEW: bring in the provider so selection is available app-wide
 import { ModeProvider, ViewModes } from "./context/ModeContext";
 
@@ -23,7 +14,7 @@ const FullChart = React.lazy(() => import("./pages/FullChart"));
 
 /* ------------------------- config: backend base ------------------------- */
 // Try window override first (for local dev), then env, then hard default.
-// NOTE: fallback now includes /api so routes like /v1/ohlc resolve correctly.
+// NOTE: fallback includes /api so routes like /v1/ohlc resolve correctly.
 const API_BASE =
   (typeof window !== "undefined" && (window.__API_BASE__ || "")) ||
   process.env.REACT_APP_API_BASE ||
@@ -174,32 +165,35 @@ function HealthStatusBar() {
   );
 }
 
+/* --------------------------------- App --------------------------------- */
 export default function App() {
   return (
-    <div style={{ minHeight: "100vh" }}>
-      <ErrorBoundary>
-        <BrowserRouter>
-          {/* Read-only health bar at the very top */}
-          <HealthStatusBar />
+    <ErrorBoundary>
+      <UIScaler>
+        <div style={{ minHeight: "100vh" }}>
+          <BrowserRouter>
+            {/* Read-only health bar at the very top */}
+            <HealthStatusBar />
 
-          <ModeProvider initial={ViewModes.METER_TILES}>
-            <React.Suspense
-              fallback={
-                <div style={{ padding: 16, color: "#9ca3af" }}>Loading…</div>
-              }
-            >
-              <Routes>
-                <Route path="/" element={<NewDashboard />} />
-                <Route path="/chart" element={<FullChart />} />
-                <Route path="*" element={<Navigate to="/" replace />} />
-              </Routes>
-            </React.Suspense>
-          </ModeProvider>
-        </BrowserRouter>
-      </ErrorBoundary>
-    </div>
+            <ModeProvider initial={ViewModes.METER_TILES}>
+              <React.Suspense
+                fallback={
+                  <div style={{ padding: 16, color: "#9ca3af" }}>Loading…</div>
+                }
+              >
+                <Routes>
+                  <Route path="/" element={<NewDashboard />} />
+                  <Route path="/chart" element={<FullChart />} />
+                  <Route path="*" element={<Navigate to="/" replace />} />
+                </Routes>
+              </React.Suspense>
+            </ModeProvider>
+          </BrowserRouter>
+        </div>
+      </UIScaler>
+    </ErrorBoundary>
   );
 }
 
-// Optional: export for other modules that might want the resolved base.
+/* ----------------------------- named export ----------------------------- */
 export { API_BASE };
