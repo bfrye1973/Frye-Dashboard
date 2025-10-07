@@ -9,19 +9,29 @@ import React, {
   useState,
 } from "react";
 
+/**
+ * SAFE UI Scaler (v2.2)
+ * - No minHeight hacks (prevents the black-gap above the chart)
+ * - Chart-safe: export <NoScale> to render charts at true 1:1
+ * - Auto/Manual modes with localStorage + URL overrides (?scale=0.7&mode=manual)
+ * - Bottom-right control: + / – / Fit / Auto
+ */
+
 const STORAGE_KEY = "frye.uiScale.v2";
 const STORAGE_MODE = "frye.uiMode.v2"; // "auto" | "manual"
-
-// Context lets other components (like NoScale) know the current scale
 const ScaleCtx = createContext({ scale: 1 });
 
 const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
 
 export default function UIScaler({
   children,
+  // never allow unreadable sizes
   minReadable = 0.45,
+  // allow zoom-in beyond 100% if desired
   maxScale = 1.6,
+  // good starting point for 34"
   defaultScale = 0.60,
+  // start manual so it stays zoomed-in unless you toggle Auto
   defaultMode = "manual",
 }) {
   const params = new URLSearchParams(window.location.search);
@@ -42,26 +52,47 @@ export default function UIScaler({
     return clamp(s || 1, minReadable, maxScale);
   });
 
-  const innerRef = useRef(null);
+  // Outer holds the scaled layer (scaled) purely for measurement/DOM access.
+  const outerRef = useRef(null);
+  const scaledRef = useRef(null);
 
-  // Auto fit to window height (never below minReadable)
+  // --- Auto-fit (height) WITHOUT introducing extra blank space
+  // We temporarily measure the natural height with transform removed.
   const recalcAuto = () => {
-    const el = innerRef.current;
+    const el = scaledRef.current;
     if (!el) return;
+
+    // Temporarily disable transform for a clean measurement
+    const prevTransform = el.style.transform;
+    const prevWidth = el.style.width;
+
+    el.style.transform = "none";
+    el.style.width = "100%";
+
+    // Measure natural content height
     const naturalH =
       el.scrollHeight ||
+      el.offsetHeight ||
       el.getBoundingClientRect().height ||
       window.innerHeight;
+
+    // Restore transform styles
+    el.style.transform = prevTransform;
+    el.style.width = prevWidth;
+
+    // Compute target scale to fit viewport height
     const target = window.innerHeight / naturalH;
-    const fitted = clamp(target, minReadable, maxScale);
-    setScale(+fitted.toFixed(3));
+    const fitted = clamp(+target.toFixed(4), minReadable, maxScale);
+    setScale(fitted);
   };
 
+  // Initial pass (layout-first to avoid flicker)
   useLayoutEffect(() => {
     if (mode === "auto") recalcAuto();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode]);
 
+  // Recalc on resize in auto mode
   useEffect(() => {
     if (mode !== "auto") return;
     const onResize = () => recalcAuto();
@@ -70,16 +101,16 @@ export default function UIScaler({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode]);
 
-  // persist
+  // Persist
   useEffect(() => localStorage.setItem(STORAGE_KEY, String(scale)), [scale]);
   useEffect(() => localStorage.setItem(STORAGE_MODE, mode), [mode]);
 
-  // expose CSS var too (for any advanced styling)
+  // Expose CSS var (optional)
   useEffect(() => {
     document.documentElement.style.setProperty("--ui-scale", String(scale));
   }, [scale]);
 
-  // keyboard shortcuts (Ctrl/Cmd + = / - / 0)
+  // Keyboard shortcuts (Ctrl/Cmd + = / - / 0)
   useEffect(() => {
     const onKey = (e) => {
       const accel = e.ctrlKey || e.metaKey;
@@ -104,13 +135,15 @@ export default function UIScaler({
     return () => window.removeEventListener("keydown", onKey);
   }, [minReadable, maxScale]);
 
-  // Only scale the content inside this div.
+  // ✅ Scaled layer:
+  // - No minHeight here (this removed the black band)
+  // - Width correction keeps layout edges aligned while scaling
   const scaledStyle = useMemo(
     () => ({
       transform: `scale(${scale})`,
       transformOrigin: "top left",
       width: `${100 / scale}%`,
-      minHeight: `${100 / scale}vh`,
+      display: "block",
     }),
     [scale]
   );
@@ -168,7 +201,12 @@ export default function UIScaler({
         Fit
       </button>
       <label
-        style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer" }}
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 6,
+          cursor: "pointer",
+        }}
         title="Auto-fit to screen height"
       >
         <input
@@ -187,9 +225,11 @@ export default function UIScaler({
 
   return (
     <ScaleCtx.Provider value={{ scale }}>
-      {/* Everything inside THIS div is scaled */}
-      <div ref={innerRef} style={scaledStyle}>
-        {children}
+      <div ref={outerRef}>
+        {/* Only this layer is scaled (no minHeight) */}
+        <div ref={scaledRef} style={scaledStyle}>
+          {children}
+        </div>
       </div>
       <Control />
     </ScaleCtx.Provider>
@@ -197,19 +237,21 @@ export default function UIScaler({
 }
 
 /**
- * NoScale — wraps content that must render at true 1:1,
- * even when the app is globally scaled. It applies an inverse
- * transform so children render at their natural size.
+ * NoScale — Wrap content that must render at true 1:1
+ * (e.g., TradingView/Lightweight-Charts) to avoid the “black canvas” issue.
  */
 export function NoScale({ children, style }) {
   const { scale } = useContext(ScaleCtx);
   const inv = 1 / (scale || 1);
+
+  // Only inverse-scale; do NOT set minHeight here.
   const s = {
     transform: `scale(${inv})`,
     transformOrigin: "top left",
     width: `${100 * (scale || 1)}%`,
-    minHeight: `${100 * (scale || 1)}vh`,
+    display: "block",
     ...style,
   };
+
   return <div style={s}>{children}</div>;
 }
