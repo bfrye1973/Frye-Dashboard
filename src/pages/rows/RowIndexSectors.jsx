@@ -1,22 +1,21 @@
 // src/pages/rows/RowIndexSectors.jsx
-// v4.4 — Fixed: sectors bind to /live/* env URLs (no /api); session Δ pills kept
-// - Δ10m = current intraday vs previous intraday (session)
-// - Δ1h  = current hourly   vs previous hourly   (session)
-// - Δ1d  = current EOD      vs previous EOD      (session)
+// v4.5 — /live/* env URLs + session Δ pills; compact, no layout changes.
 // - Δ5m  = sandbox netTilt (read-only)
-// If replay returns later, you can re-enable those maps without touching layout.
+// - Δ10m = current intraday vs prior intraday (session)
+// - Δ1h  = current hourly vs prior hourly (session)
+//          Fallback: intraday vs last-hourly until next hourly closes
+// - Δ1d  = current EOD vs prior EOD (session)
 
 import React, { useEffect, useMemo, useState } from "react";
 
 /* ------------------------------ ENV URLS ------------------------------ */
-// IMPORTANT: these must be set in Render → Frye-Dashboard → Environment
 const INTRADAY_URL = (process.env.REACT_APP_INTRADAY_URL || "").replace(/\/+$/, "");
 const HOURLY_URL   = (process.env.REACT_APP_HOURLY_URL   || "").replace(/\/+$/, "");
 const EOD_URL      = (process.env.REACT_APP_EOD_URL      || "").replace(/\/+$/, "");
 const SANDBOX_URL  = process.env.REACT_APP_INTRADAY_SANDBOX_URL || "";
 
 /* ------------------------------- helpers ------------------------------- */
-const norm   = (s = "") => s.trim().toLowerCase();
+const norm = (s = "") => s.trim().toLowerCase();
 const isStale = (ts, maxMs = 12 * 60 * 1000) => {
   if (!ts) return true;
   const t = new Date(ts).getTime();
@@ -32,8 +31,8 @@ const orderKey = (name = "") => {
   const i = ORDER.indexOf(norm(name));
   return i === -1 ? 999 : i;
 };
-const toneFor = (outlook) => {
-  const s = String(outlook || "").toLowerCase();
+const toneFor = (o) => {
+  const s = String(o || "").toLowerCase();
   if (s.startsWith("bull")) return "ok";
   if (s.startsWith("bear")) return "danger";
   if (s.startsWith("neut")) return "warn";
@@ -77,7 +76,6 @@ function Pill({ label, value }) {
 }
 
 /* ------------------------------ Aliases ------------------------------ */
-// Canonical aliases (used by 5m sandbox + mapping)
 const ALIASES = {
   healthcare: "Health Care", "health care": "Health Care",
   "info tech": "Information Technology", "information technology": "Information Technology",
@@ -94,7 +92,7 @@ async function fetchJSON(url, signal) {
   return await r.json();
 }
 
-/* Build { sectorKey -> Net NH } from live cards (intraday/hourly/eod) */
+/* Build { sectorKey -> Net NH } from live cards */
 function netNHMapFromCards(cards = []) {
   const out = {};
   for (const c of Array.isArray(cards) ? cards : []) {
@@ -113,19 +111,20 @@ export default function RowIndexSectors() {
   const [sourceTf, setSourceTf] = useState("10m"); // "10m" | "eod"
 
   const [intraday, setIntraday] = useState({ ts: null, cards: [], err: null });
+  const [hourly,   setHourly]   = useState({ ts: null, cards: [], err: null });
   const [eod,      setEod]      = useState({ ts: null, cards: [], err: null });
 
-  // Session delta maps (live-only, no replay)
+  // Session delta maps
   const [d10mSess, setD10mSess] = useState({});
   const [d1hSess,  setD1hSess]  = useState({});
   const [d1dSess,  setD1dSess]  = useState({});
 
-  // Last snapshots per cadence for session deltas
+  // Last snapshots for session deltas
   const [last10m, setLast10m] = useState(null);
   const [last1h,  setLast1h]  = useState(null);
   const [last1d,  setLast1d]  = useState(null);
 
-  // Sandbox deltas (5m)
+  // Δ5m sandbox
   const [d5mMap, setD5mMap] = useState({});
   const [deltasUpdatedAt, setDeltasUpdatedAt] = useState(null);
 
@@ -158,28 +157,46 @@ export default function RowIndexSectors() {
     return () => { ctrl.abort(); clearInterval(t); };
   }, [last10m]);
 
-  /* -------------------- Poll hourly + Δ1h session -------------------- */
+  /* -------------------- Poll hourly + Δ1h session (+fallback) -------------------- */
   useEffect(() => {
     const ctrl = new AbortController();
     async function load() {
-      if (!HOURLY_URL) return;
+      if (!HOURLY_URL) { setHourly(p => ({ ...p, err: "Missing HOURLY_URL" })); return; }
       try {
         const j = await fetchJSON(`${HOURLY_URL}?t=${Date.now()}`, ctrl.signal);
+        const ts    = j?.sectorsUpdatedAt || j?.updated_at || null;
         const cards = Array.isArray(j?.sectorCards) ? j.sectorCards : [];
-        const nowMap = netNHMapFromCards(cards);
+        setHourly({ ts, cards, err: null });
+
+        const nowH = netNHMapFromCards(cards);
+
+        // Normal: hour-over-hour
         if (last1h) {
           const d = {};
-          const keys = new Set([...Object.keys(nowMap), ...Object.keys(last1h)]);
-          for (const k of keys) if (Number.isFinite(nowMap[k]) && Number.isFinite(last1h[k])) d[k] = nowMap[k] - last1h[k];
+          const keys = new Set([...Object.keys(nowH), ...Object.keys(last1h)]);
+          for (const k of keys) if (Number.isFinite(nowH[k]) && Number.isFinite(last1h[k])) d[k] = nowH[k] - last1h[k];
           setD1hSess(d);
         }
-        setLast1h(nowMap);
-      } catch { /* keep previous session deltas */ }
+
+        // Fallback until next hourly bar closes:
+        // Δ1h = current intraday NetNH - last hourly NetNH
+        if (intraday.cards?.length && last1h && (!ts || ts === hourly.ts)) {
+          const now10 = netNHMapFromCards(intraday.cards);
+          const dAlt = {};
+          const keys = new Set([...Object.keys(now10), ...Object.keys(last1h)]);
+          for (const k of keys) if (Number.isFinite(now10[k]) && Number.isFinite(last1h[k])) dAlt[k] = now10[k] - last1h[k];
+          setD1hSess(dAlt);
+        }
+
+        setLast1h(nowH);
+      } catch (err) {
+        setHourly(p => ({ ...p, err: String(err) }));
+      }
     }
     load();
     const t = setInterval(load, 60_000);
     return () => { ctrl.abort(); clearInterval(t); };
-  }, [last1h]);
+  }, [intraday.cards, last1h, hourly.ts]);
 
   /* -------------------- Fetch EOD on demand + Δ1d session -------------------- */
   useEffect(() => {
@@ -193,7 +210,6 @@ export default function RowIndexSectors() {
         const cards = Array.isArray(j?.sectorCards) ? j.sectorCards.slice() : [];
         setEod({ ts, cards, err: null });
 
-        // Session Δ1d
         const nowMap = netNHMapFromCards(cards);
         if (last1d) {
           const d = {};
@@ -228,7 +244,7 @@ export default function RowIndexSectors() {
         const ds = j?.deltas?.sectors || {};
         for (const key of Object.keys(ds)) {
           const canon = ALIASES[norm(key)] || key;
-          map[norm(canon)] = Number(ds[key]?.netTilt ?? NaN); // Δ5m = netTilt
+          map[norm(canon)] = Number(ds[key]?.netTilt ?? NaN);
         }
         setD5mMap(map);
         setDeltasUpdatedAt(j?.deltasUpdatedAt || null);
@@ -301,12 +317,12 @@ export default function RowIndexSectors() {
           {cards.map((c, i) => {
             const key = norm(c?.sector || "");
 
-            // 5m netTilt pill (sandbox; green/red/gray); hide if stale or missing
+            // Δ5m sandbox pill
             const canon = ALIASES[key] || c?.sector || "";
             const d5 = d5mMap[norm(canon)];
             const show5 = Number.isFinite(d5) && !stale5m;
 
-            // Session deltas (replay-ready fallback: prefer replay maps if added later)
+            // Session deltas
             const d10 = d10mSess[key];
             const d1h = d1hSess[key];
             const d1d = d1dSess[key];
@@ -333,7 +349,7 @@ export default function RowIndexSectors() {
                   <Badge text={c?.outlook || "Neutral"} tone={tone} />
                 </div>
 
-                {/* Compact Δ row (single line; no height change) */}
+                {/* Compact Δ row */}
                 <div style={{ display:"flex", gap:6, margin:"0 0 4px 0", alignItems:"center", flexWrap:"wrap" }}>
                   {show5 && <Pill label="Δ5m" value={d5} />}
                   <Pill label="Δ10m" value={Number.isFinite(d10) ? d10 : undefined} />
@@ -355,10 +371,8 @@ export default function RowIndexSectors() {
         </div>
       ) : (
         <div className="small muted" style={{ padding:6 }}>
-          {active.err
-            ? `Failed to load sectors. ${active.err}`
-            : (!INTRADAY_URL ? "Missing REACT_APP_INTRADAY_URL" : "No sector cards in payload.")
-          }
+          {(!INTRADAY_URL && "Missing REACT_APP_INTRADAY_URL") ||
+            (active.err ? `Failed to load sectors. ${active.err}` : "No sector cards in payload.")}
         </div>
       )}
 
@@ -387,7 +401,7 @@ export default function RowIndexSectors() {
             <div style={{ color:"#d1d5db", fontSize:12 }}>
               <b>Δ5m</b> from sandbox (netTilt).<br/>
               <b>Δ10m</b> from live intraday vs prior intraday (session).<br/>
-              <b>Δ1h</b> from live hourly vs prior hourly (session).<br/>
+              <b>Δ1h</b> from live hourly vs prior hourly (session; falls back to intraday−last-hourly until next hourly closes).<br/>
               <b>Δ1d</b> from live EOD vs prior EOD (session).
             </div>
             <div style={{ display:"flex", justifyContent:"flex-end", marginTop:12 }}>
