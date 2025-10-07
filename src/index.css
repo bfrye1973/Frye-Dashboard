@@ -1,46 +1,70 @@
-/* =========================
-   Base & Design Tokens
-   ========================= */
-html, body { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
-html { zoom:1 !important; }
+/* ==========================================================================
+   Frye Dashboard — Global Styles (Pro Build: multi-monitor safe)
+   - No CSS transform scaling (protects chart)
+   - Root ratio knob (rem-based)
+   - Row min-heights use rem (scale with screen)
+   - Row 6 (chart) uses clamp() height (always real pixels)
+   - Full Chart “bare” mode
+   ========================================================================== */
 
-:root{
-  --bg:#0d1117; --panel:#0e1526; --border:#1f2a44; --text:#e5e7eb; --muted:#9ca3af;
+/* --------------------------
+   Base & Design Tokens
+--------------------------- */
+html, body { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
+html { zoom: 1 !important; } /* keep browser zoom neutral */
+
+:root {
+  /* Colors */
+  --bg:#0d1117;
+  --panel:#0e1526;
+  --panel-head:#0c1320;
+  --border:#1f2a44;
+  --text:#e5e7eb;
+  --muted:#9ca3af;
   --ok:#22c55e; --warn:#fbbf24; --danger:#ef4444; --info:#3b82f6;
 
-  /* Time-axis guard (leave room for bottom labels) */
-  --axis-gap: 22px; /* tweak 18–22px if you want */
+  /* Layout tokens */
+  --gutter-x: 10px;
+  --gutter-y: 8px;
 
-  /* 32" 2560×1440 baseline UI ratio (safe, no transforms) */
-  --base-font: clamp(14px, 0.22vw + 10px, 17px);
+  /* Chart axis gap (bottom labels) */
+  --axis-gap: 22px;
+
+  /* Root ratio knob (balanced for 27–34" @ 1440p) */
+  --base-font: clamp(14px, 0.24vw + 10px, 18px);
 }
 
-*{ box-sizing:border-box; }
+* { box-sizing: border-box; }
 
-html, body, #root{
-  height:100%; width:100%; margin:0; padding:0;
-  background:var(--bg); color:var(--text);
-  -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
+html, body, #root {
+  height:100%;
+  width:100%;
+  margin:0;
+  padding:0;
+  background:var(--bg);
+  color:var(--text);
+  -webkit-font-smoothing:antialiased;
+  -moz-osx-font-smoothing:grayscale;
   font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
-  font-size: var(--base-font); /* <<< new: resolution-friendly sizing */
+  font-size: var(--base-font);
 }
 
-/* App container may scroll (no clipping) */
-#root { overflow:auto !important; }
+/* Allow page scroll; do not clamp height globally */
+#root { overflow:auto; }
 
-img, svg, video { max-width:100%; display:block; height:auto; }
+img, svg, video { max-width:100%; height:auto; display:block; }
 
-a{ color:var(--info); text-decoration:none; }
-a:hover{ text-decoration:underline; }
+a { color:var(--info); text-decoration:none; }
+a:hover { text-decoration:underline; }
 
-button{
+button {
   font:inherit; color:inherit; background:transparent;
   border:1px solid var(--border); padding:6px 10px; border-radius:6px; cursor:pointer;
 }
 
-/* =========================
+/* --------------------------
    Panels / UI Bits
-   ========================= */
+--------------------------- */
 .panel{
   background:var(--panel);
   border:1px solid var(--border);
@@ -51,7 +75,7 @@ button{
   display:flex; align-items:center; gap:8px;
   padding:6px 10px;
   border-bottom:1px solid var(--border);
-  background:#0c1320;
+  background:var(--panel-head);
 }
 .panel-title{ font-weight:700; }
 .spacer{ flex:1; }
@@ -73,53 +97,36 @@ button{
 .delta-down{ color:#ef4444; border-color:#7f1d1d; background:#3a0e0e; }
 .delta-flat{ color:#93c5fd; border-color:#334155; background:#0b1220; }
 
-.badge {
-  display:inline-block; padding:2px 8px; border-radius:999px;
-  font-size:12px; font-weight:700; border:1px solid;
-}
+.badge { display:inline-block; padding:2px 8px; border-radius:999px; font-size:12px; font-weight:700; border:1px solid; }
 .badge.live  { background:#052e1b; color:#34d399; border-color:#14532d; }
 .badge.stale { background:#3a0e0e; color:#fca5a5; border-color:#7f1d1d; }
 
-/* =========================
-   Rows (compact sizing)
-   ========================= */
-#row-1 { min-height: 90px  !important; padding:8px 10px !important; }   /* View Modes */
-#row-2 { min-height: 130px !important; padding:8px 10px !important; }   /* Market Meter */
-#row-3 { min-height: 110px !important; padding:8px 10px !important; }   /* Engine Lights */
-#row-4 { min-height: 130px !important; padding:8px 10px !important; }   /* Index Sectors */
-#row-5 { min-height: 180px !important; padding:8px 10px !important; }   /* Strategies */
-#row-7 { min-height: 140px !important; padding:8px 10px !important; }   /* Journal */
+/* --------------------------
+   Rows (now rem-based min-heights)
+   Mapping from your old px:
+   90→6rem, 110→7.5rem, 130→9rem, 180→12rem, 140→9.5rem
+--------------------------- */
+#row-1 { min-height: 6rem;   padding:8px var(--gutter-x); }   /* View Modes (≈90px)   */
+#row-2 { min-height: 9rem;   padding:8px var(--gutter-x); }   /* Market Meter (≈130px)*/
+#row-3 { min-height: 7.5rem; padding:8px var(--gutter-x); }   /* Engine Lights (≈110px)*/
+#row-4 { min-height: 9rem;   padding:8px var(--gutter-x); }   /* Index Sectors (≈130px)*/
+#row-5 { min-height: 12rem;  padding:8px var(--gutter-x); }   /* Strategies (≈180px)  */
+#row-7 { min-height: 9.5rem; padding:8px var(--gutter-x); }   /* Journal (≈140px)     */
 
 /* Reduce gap between rows */
-#row-1, #row-2, #row-3, #row-4, #row-5, #row-6, #row-7 { margin-bottom:8px !important; }
+#row-1, #row-2, #row-3, #row-4, #row-5, #row-6, #row-7 { margin-bottom: var(--gutter-y); }
 
-/* Market Meter layout */
+/* Market Meter layout helpers */
 .meter-grid{ display:grid; grid-template-columns:auto auto auto; gap:8px; align-items:center; }
 .meter-small{ display:flex; gap:8px; flex-wrap:nowrap; }
 
-/* Shrink stoplights inside Row 2 */
-#row-2 .light{ transform:scale(0.72); transform-origin:center; min-width:80px !important; }
+/* Slight shrink of stoplights inside Row 2 (kept from your build) */
+#row-2 .light{ transform:scale(0.72); transform-origin:center; min-width:80px; }
 
-/* =========================
-   Black-canvas fix & grid
-   ========================= */
-body{
-  display:flex; flex-direction:column;
-  min-height:100vh; margin:0;
-}
-body > #root{
-  flex:1 1 auto;
-  min-height:0 !important;
-  overflow:auto !important;   /* allow page scroll */
-}
-.fullchart-page, .fullchart-body, .chart-shell{
-  display:flex; flex-direction:column; flex:1 1 auto; min-height:0 !important;
-}
-
-/* Remove old 92vh clamp on wrapper; allow scroll */
-[data-cluster-host]{ max-height:none !important; height:auto !important; overflow:auto !important; }
-
-/* Dashboard grid: rows 1–5 auto, Row 6 flex-fill, Row 7 auto */
+/* --------------------------
+   Dashboard Grid
+   rows 1–5 auto; row 6 flex-fill; row 7 auto
+--------------------------- */
 .dashboard-grid{
   display:grid;
   gap:12px;
@@ -127,112 +134,134 @@ body > #root{
   min-height:100vh;
 }
 
-/* Row 6: flex-fill, safe floor, no slack at bottom */
+/* --------------------------
+   Row 6 (Chart) — FLEXIBLE, SAFE
+   - No transform scaling
+   - Parent chain gives real pixel height
+   - clamp(): min px, preferred vh, max px
+--------------------------- */
 #row-6{
-  height:auto !important;
-  min-height:520px !important;
-  padding:8px 10px 0 10px !important;   /* bottom=0 to keep axis visible */
+  height:auto;
+  min-height:0;
+  padding:8px var(--gutter-x) 0 var(--gutter-x); /* bottom=0 so axis shows */
   display:flex; flex-direction:column;
 }
+
+/* Shell expands within a sensible range across screens */
 #row-6 .row6-shell{
-  height:100% !important; min-height:0 !important;
-  display:flex; flex-direction:column; overflow:hidden;
-}
-#row-6 .tv-lightweight-charts{
-  width:100% !important; height:100% !important; position:relative; overflow:hidden;
+  height: clamp(480px, 60vh, 700px);
+  min-height: 0;
+  display:flex; flex-direction:column;
+  overflow:hidden;
 }
 
-/* Keep Market Meter tight */
+/* Inner chart container */
+#row-6 .chart-shell{
+  flex:1 1 auto;
+  min-height:0;
+  display:flex; flex-direction:column;
+}
+
+/* Lightweight-Charts host fills the shell */
+#row-6 .tv-lightweight-charts{
+  width:100%;
+  height:100%;
+  position:relative;
+  overflow:hidden;
+  padding: 0 0 var(--axis-gap) 0;   /* leave room for time-axis labels */
+}
+
+/* Absolute overlays should respect axis gap */
+.overlay-leave-axis-gap{
+  position:absolute;
+  inset: 0 0 var(--axis-gap) 0 !important;
+  pointer-events:none;
+  z-index:10;
+}
+
+/* Keep Market Meter tight (unchanged behavior) */
 #row-2{
-  height:auto !important;
-  min-height:130px !important;
+  height:auto;
+  min-height:9rem;
   display:flex; flex-direction:column; justify-content:flex-start;
 }
 
-/* Neutralize any canvas clamp inside dashboard so time-axis can be a short strip */
+/* Prevent third-party clamps from breaking layout inside dashboard grid */
 html body #root .dashboard-grid[data-cluster-host] canvas,
 html body #root .dashboard-grid[data-cluster-host] svg,
 html body #root .dashboard-grid[data-cluster-host] text{
-  height:auto !important;
-  overflow:visible !important;
+  height:auto;
+  overflow:visible;
 }
 
-/* =========================
-   Axis / Row-6 guardrails
-   ========================= */
-
-/* Always leave room for the bottom time axis */
-.tv-lightweight-charts{
-  position: relative;
-  width: 100%;
-  height: 100%;
-  min-height: 520px;
-  margin: 0;
-  padding: 0 0 22px 0;             /* bottom gap for axis labels */
-}
-
-/* Any absolute overlay must respect the axis gap */
-.overlay-leave-axis-gap{
-  position: absolute;
-  inset: 0 0 22px 0 !important;    /* leave the same bottom gap */
-  pointer-events: none;
-  z-index: 10;
-}
-
-/* Freeze Row-6 so upstream reflows don’t resize the chart */
-#row-6 .row6-shell,
-#row-6 .chart-shell{
-  height: 480px !important;        /* pick the height you want */
-  min-height: 480px !important;
-  max-height: 480px !important;
-  overflow: hidden;
-}
-
-/* Chart host fills the frozen shell */
-#row-6 .tv-lightweight-charts{
-  width: 100% !important;
-  height: 100% !important;
-}
-
-/* ---- Full Chart height clamps (viewport safe) ---- */
-.fullchart-page { min-height: 100vh; }
-
+/* --------------------------
+   Full Chart (bare mode)
+--------------------------- */
+.fullchart-page { min-height:100vh; display:flex; flex-direction:column; }
 .fullchart-body {
-  height: calc(100vh - 52px) !important;  /* 52px = header height */
-  min-height: 0 !important;
-  overflow: hidden;                        /* chart owns scroll inside */
+  height: calc(100vh - 52px);     /* 52px = FullChart top bar */
+  min-height:0;
+  overflow:hidden;
+  display:flex; flex-direction:column;
 }
 
-.fullchart-body .chart-shell {
-  height: 100% !important;
-  min-height: 0 !important;
-  display: flex; flex-direction: column;
+/* Neutralize dashboard chrome in full-screen context */
+.fullchart-body .panel,
+.fullchart-body .panel-head {
+  display:none !important;
 }
 
-.fullchart-body .tv-lightweight-charts {
-  width: 100% !important;
-  height: 100% !important;
+.fullchart-body .row6-shell,
+.fullchart-body .chart-shell{
+  height:100% !important;
+  min-height:0 !important;
+  max-height:none !important;
+  padding:0 !important;
+  border:0 !important;
+  background:transparent !important;
 }
 
-/* In case that old 92vh clamp is injected on #root, override it globally */
+/* Full-screen chart host fills available space */
+.fullchart-body .tv-lightweight-charts{
+  width:100% !important;
+  height:100% !important;
+  padding:0 !important;           /* axis gap not needed in full-screen */
+  position:relative;
+  overflow:hidden;
+}
+
+/* --------------------------
+   Safety: Root container flow
+--------------------------- */
+body{
+  display:flex; flex-direction:column;
+  min-height:100vh; margin:0;
+}
+body > #root{
+  flex:1 1 auto;
+  min-height:0;
+  overflow:auto;
+}
+
+/* In case an old 92vh clamp gets injected on #root, override it */
 html body #root {
-  max-height: none !important;
-  height: auto !important;
-  overflow: auto !important;
-}
-/* --- Fine-tune Row-6 chart height (safe override) --- */
-#row-6 {
-  min-height: 0 !important;
+  max-height:none !important;
+  height:auto !important;
+  overflow:auto !important;
 }
 
-#row-6 .row6-shell,
-#row-6 .chart-shell {
-  height: 480px !important;     /* adjust this number */
-  min-height: 480px !important;
-  max-height: 480px !important;
+/* --------------------------
+   Responsive tiers (long-term multi-user)
+--------------------------- */
+/* Smaller/1080p and similar: slightly larger UI */
+@media (max-width: 1920px) {
+  :root { --base-font: clamp(15px, 0.30vw + 10px, 20px); }
+  /* Optional: a touch taller chart on small screens
+     #row-6 .row6-shell{ height: clamp(520px, 62vh, 720px); } */
 }
 
-#row-6 .tv-lightweight-charts {
-  height: 100% !important;
-  width: 100% !important;
+/* 34" ultrawide (very wide): bump UI a bit more */
+@media (min-width: 3400px) {
+  :root { --base-font: clamp(16px, 0.35vw + 10px, 22px); }
+  #row-6 .row6-shell{ height: clamp(560px, 64vh, 760px); }
 }
