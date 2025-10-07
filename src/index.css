@@ -246,3 +246,29 @@ html body #root {
   height:auto !important;
   overflow:auto !important;
 }
+/* =======================
+   EMERGENCY CHART HOT-FIX
+   (forces visible height for Row 6)
+   ======================= */
+
+#row-6 {
+  display: block !important;
+  padding: 8px 10px 0 10px !important;
+}
+
+#row-6 .row6-shell,
+#row-6 .chart-shell {
+  height: 640px !important;     /* stable, visible height */
+  min-height: 640px !important;
+  max-height: none !important;
+  overflow: hidden !important;
+}
+
+#row-6 .tv-lightweight-charts {
+  width: 100% !important;
+  height: 100% !important;      /* make canvas fill the shell */
+  min-height: 100% !important;
+  position: relative !important;
+  overflow: hidden !important;
+  padding: 0 0 22px 0 !important;  /* leave room for time axis */
+}
