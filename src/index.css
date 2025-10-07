@@ -182,9 +182,9 @@ html body #root .dashboard-grid[data-cluster-host] text{
 /* Freeze Row-6 so upstream reflows don’t resize the chart */
 #row-6 .row6-shell,
 #row-6 .chart-shell{
-  height: 520px !important;        /* pick the height you want */
-  min-height: 520px !important;
-  max-height: 520px !important;
+  height: 480px !important;        /* pick the height you want */
+  min-height: 480px !important;
+  max-height: 480px !important;
   overflow: hidden;
 }
 
