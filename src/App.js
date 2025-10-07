@@ -5,23 +5,18 @@ import NewDashboard from "./pages/NewDashboard";
 import ErrorBoundary from "./ErrorBoundary";
 import "./index.css";
 import UIScaler from "./components/UIScaler";
-
-// NEW: bring in the provider so selection is available app-wide
 import { ModeProvider, ViewModes } from "./context/ModeContext";
 
-// Lazy-load to keep the first load fast
 const FullChart = React.lazy(() => import("./pages/FullChart"));
 
-/* ------------------------- config: backend base ------------------------- */
-// Try window override first (for local dev), then env, then hard default.
-// NOTE: fallback includes /api so routes like /v1/ohlc resolve correctly.
+/* ------------------------- API base resolution ------------------------- */
 const API_BASE =
   (typeof window !== "undefined" && (window.__API_BASE__ || "")) ||
   process.env.REACT_APP_API_BASE ||
   process.env.VITE_TRADING_API_BASE ||
   "https://frye-market-backend-1.onrender.com/api";
 
-/* --------------------------- small date helpers ------------------------- */
+/* --------------------------- date helper (AZ) --------------------------- */
 const fmtAz = (iso) => {
   try {
     return new Intl.DateTimeFormat("en-US", {
@@ -56,6 +51,7 @@ function HealthStatusBar() {
 
   useEffect(() => {
     let alive = true;
+
     const fetchHealth = async () => {
       try {
         const res = await fetch(url, { cache: "no-store" });
@@ -79,7 +75,6 @@ function HealthStatusBar() {
       }
     };
 
-    // initial + poll every 10s
     fetchHealth();
     const id = setInterval(fetchHealth, 10000);
     return () => {
@@ -89,7 +84,7 @@ function HealthStatusBar() {
   }, [url]);
 
   const connected = state.ok === true;
-  const statusColor = connected ? "#16a34a" : "#dc2626"; // green/red
+  const statusColor = connected ? "#16a34a" : "#dc2626";
   const heartbeat = state.ts ? fmtAz(state.ts) : "—";
   const checked = state.lastChecked ? fmtAz(state.lastChecked) : "—";
 
@@ -169,12 +164,15 @@ function HealthStatusBar() {
 export default function App() {
   return (
     <ErrorBoundary>
-      <UIScaler>
+      <UIScaler
+        minReadable={0.45}   // won’t shrink below 45% visual size
+        defaultScale={0.60}  // start zoomed-in on your 34"
+        defaultMode="manual" // ignore auto-fit unless you flip the toggle
+        maxScale={1.6}
+      >
         <div style={{ minHeight: "100vh" }}>
           <BrowserRouter>
-            {/* Read-only health bar at the very top */}
             <HealthStatusBar />
-
             <ModeProvider initial={ViewModes.METER_TILES}>
               <React.Suspense
                 fallback={
