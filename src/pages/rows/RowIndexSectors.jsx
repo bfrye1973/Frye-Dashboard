@@ -1,27 +1,22 @@
 // src/pages/rows/RowIndexSectors.jsx
-// v4.3 — Pills restored without replay:
-// - Δ10m from current intraday vs previous intraday (session)
-// - Δ1h  from current hourly   vs previous hourly   (session)
-// - Δ1d  from current EOD      vs previous EOD      (session)
-// If replay comes back later, this still prefers replay maps automatically.
-// Also retains Δ5m (sandbox) read-only pill.
+// v4.4 — Fixed: sectors bind to /live/* env URLs (no /api); session Δ pills kept
+// - Δ10m = current intraday vs previous intraday (session)
+// - Δ1h  = current hourly   vs previous hourly   (session)
+// - Δ1d  = current EOD      vs previous EOD      (session)
+// - Δ5m  = sandbox netTilt (read-only)
+// If replay returns later, you can re-enable those maps without touching layout.
 
 import React, { useEffect, useMemo, useState } from "react";
 
-/* -------------------------- API base resolver -------------------------- */
-function resolveApiBase() {
-  const env = (process.env.REACT_APP_API_BASE || "").trim().replace(/\/+$/, "");
-  if (env) return env;
-  const winBase =
-    typeof window !== "undefined" && window.__API_BASE__
-      ? String(window.__API_BASE__).trim().replace(/\/+$/, "")
-      : "";
-  if (winBase) return winBase;
-  return "https://frye-market-backend-1.onrender.com"; // backend origin
-}
+/* ------------------------------ ENV URLS ------------------------------ */
+// IMPORTANT: these must be set in Render → Frye-Dashboard → Environment
+const INTRADAY_URL = (process.env.REACT_APP_INTRADAY_URL || "").replace(/\/+$/, "");
+const HOURLY_URL   = (process.env.REACT_APP_HOURLY_URL   || "").replace(/\/+$/, "");
+const EOD_URL      = (process.env.REACT_APP_EOD_URL      || "").replace(/\/+$/, "");
+const SANDBOX_URL  = process.env.REACT_APP_INTRADAY_SANDBOX_URL || "";
 
 /* ------------------------------- helpers ------------------------------- */
-const norm = (s = "") => s.trim().toLowerCase();
+const norm   = (s = "") => s.trim().toLowerCase();
 const isStale = (ts, maxMs = 12 * 60 * 1000) => {
   if (!ts) return true;
   const t = new Date(ts).getTime();
@@ -29,130 +24,74 @@ const isStale = (ts, maxMs = 12 * 60 * 1000) => {
 };
 
 const ORDER = [
-  "information technology",
-  "materials",
-  "health care",
-  "communication services",
-  "real estate",
-  "energy",
-  "consumer staples",
-  "consumer discretionary",
-  "financials",
-  "utilities",
-  "industrials",
+  "information technology","materials","health care","communication services",
+  "real estate","energy","consumer staples","consumer discretionary",
+  "financials","utilities","industrials",
 ];
 const orderKey = (name = "") => {
   const i = ORDER.indexOf(norm(name));
   return i === -1 ? 999 : i;
 };
-
-function toneFor(outlook) {
+const toneFor = (outlook) => {
   const s = String(outlook || "").toLowerCase();
   if (s.startsWith("bull")) return "ok";
   if (s.startsWith("bear")) return "danger";
   if (s.startsWith("neut")) return "warn";
   return "info";
-}
+};
 
 function Badge({ text, tone = "info" }) {
   const map =
     {
-      ok: { bg: "#22c55e", fg: "#0b1220", bd: "#16a34a" },
-      warn: { bg: "#facc15", fg: "#111827", bd: "#ca8a04" },
-      danger: { bg: "#ef4444", fg: "#fee2e2", bd: "#b91c1c" },
-      info: { bg: "#0b1220", fg: "#93c5fd", bd: "#334155" },
+      ok:    { bg: "#22c55e", fg: "#0b1220", bd: "#16a34a" },
+      warn:  { bg: "#facc15", fg: "#111827", bd: "#ca8a04" },
+      danger:{ bg: "#ef4444", fg: "#fee2e2", bd: "#b91c1c" },
+      info:  { bg: "#0b1220", fg: "#93c5fd", bd: "#334155" },
     }[tone] || { bg: "#0b0f17", fg: "#93c5fd", bd: "#334155" };
   return (
-    <span
-      style={{
-        padding: "4px 8px",
-        borderRadius: 8,
-        fontSize: 12,
-        fontWeight: 700,
-        background: map.bg,
-        color: map.fg,
-        border: `1px solid ${map.bd}`,
-      }}
-    >
-      {text}
-    </span>
+    <span style={{
+      padding:"4px 8px", borderRadius:8, fontSize:12, fontWeight:700,
+      background: map.bg, color: map.fg, border:`1px solid ${map.bd}`
+    }}>{text}</span>
   );
 }
 
 function Pill({ label, value }) {
   if (!Number.isFinite(value)) return null;
   const v = Number(value);
-  const tone = v > 0 ? "#22c55e" : v < 0 ? "#ef4444" : "#9ca3af";
+  const tone  = v > 0 ? "#22c55e" : v < 0 ? "#ef4444" : "#9ca3af";
   const arrow = v > 0 ? "▲" : v < 0 ? "▼" : "→";
   return (
     <span
       title={`${label}: ${v >= 0 ? "+" : ""}${v.toFixed(2)}`}
       style={{
-        display: "inline-flex",
-        alignItems: "center",
-        gap: 4,
-        borderRadius: 6,
-        padding: "1px 4px",
-        fontSize: 11,
-        lineHeight: 1.1,
-        fontWeight: 600,
-        background: "#0b0f17",
-        color: tone,
-        border: `1px solid ${tone}33`,
-        whiteSpace: "nowrap",
+        display:"inline-flex", alignItems:"center", gap:4,
+        borderRadius:6, padding:"1px 4px", fontSize:11, lineHeight:1.1,
+        fontWeight:600, background:"#0b0f17", color:tone, border:`1px solid ${tone}33`,
+        whiteSpace:"nowrap",
       }}
     >
-      {label}: {arrow} {v >= 0 ? "+" : ""}
-      {v.toFixed(2)}
+      {label}: {arrow} {v >= 0 ? "+" : ""}{v.toFixed(2)}
     </span>
   );
 }
 
-/* ------------------------------ Sandbox 5m ------------------------------ */
-const SANDBOX_URL = process.env.REACT_APP_INTRADAY_SANDBOX_URL || "";
-
+/* ------------------------------ Aliases ------------------------------ */
 // Canonical aliases (used by 5m sandbox + mapping)
 const ALIASES = {
-  healthcare: "Health Care",
-  "health care": "Health Care",
-  "info tech": "Information Technology",
-  "information technology": "Information Technology",
-  communications: "Communication Services",
-  "communication services": "Communication Services",
-  "consumer staples": "Consumer Staples",
-  "consumer discretionary": "Consumer Discretionary",
-  financials: "Financials",
-  industrials: "Industrials",
-  materials: "Materials",
-  "real estate": "Real Estate",
-  utilities: "Utilities",
-  energy: "Energy",
+  healthcare: "Health Care", "health care": "Health Care",
+  "info tech": "Information Technology", "information technology": "Information Technology",
+  communications: "Communication Services", "communication services": "Communication Services",
+  "consumer staples": "Consumer Staples", "consumer discretionary": "Consumer Discretionary",
+  financials: "Financials", industrials: "Industrials", materials: "Materials",
+  "real estate": "Real Estate", utilities: "Utilities", energy: "Energy",
 };
 
+/* ------------------------------ Fetch util ------------------------------ */
 async function fetchJSON(url, signal) {
   const r = await fetch(url, { cache: "no-store", signal });
-  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  if (!r.ok) throw new Error(`HTTP ${r.status} ${url}`);
   return await r.json();
-}
-
-function snapshotToNetNHMap(snap) {
-  const cards = Array.isArray(snap?.sectorCards)
-    ? snap.sectorCards
-    : Array.isArray(snap?.outlook?.sectorCards)
-    ? snap.outlook.sectorCards
-    : [];
-  const out = {};
-  for (const c of cards) {
-    const raw = c?.sector || "";
-    const canon = ALIASES[norm(raw)] || raw; // align labels if needed
-    const key = norm(canon);
-    const nh = Number(c?.nh ?? NaN);
-    const nl = Number(c?.nl ?? NaN);
-    if (key && Number.isFinite(nh) && Number.isFinite(nl)) {
-      out[key] = nh - nl; // Net NH
-    }
-  }
-  return out;
 }
 
 /* Build { sectorKey -> Net NH } from live cards (intraday/hourly/eod) */
@@ -171,26 +110,20 @@ function netNHMapFromCards(cards = []) {
 
 /* -------------------------------- Main -------------------------------- */
 export default function RowIndexSectors() {
-  const API = resolveApiBase();
   const [sourceTf, setSourceTf] = useState("10m"); // "10m" | "eod"
 
   const [intraday, setIntraday] = useState({ ts: null, cards: [], err: null });
-  const [eod, setEod] = useState({ ts: null, cards: [], err: null });
-
-  // Replay maps (kept for future; empty when replay offline)
-  const [d10mMap] = useState({}); // not used now, reserved
-  const [d1hMap] = useState({});  // not used now, reserved
-  const [d1dMap] = useState({});  // not used now, reserved
+  const [eod,      setEod]      = useState({ ts: null, cards: [], err: null });
 
   // Session delta maps (live-only, no replay)
   const [d10mSess, setD10mSess] = useState({});
-  const [d1hSess, setD1hSess] = useState({});
-  const [d1dSess, setD1dSess] = useState({});
+  const [d1hSess,  setD1hSess]  = useState({});
+  const [d1dSess,  setD1dSess]  = useState({});
 
   // Last snapshots per cadence for session deltas
   const [last10m, setLast10m] = useState(null);
-  const [last1h, setLast1h] = useState(null);
-  const [last1d, setLast1d] = useState(null);
+  const [last1h,  setLast1h]  = useState(null);
+  const [last1d,  setLast1d]  = useState(null);
 
   // Sandbox deltas (5m)
   const [d5mMap, setD5mMap] = useState({});
@@ -200,108 +133,85 @@ export default function RowIndexSectors() {
   useEffect(() => {
     const ctrl = new AbortController();
     async function load() {
-      const url = `${API}/live/intraday?t=${Date.now()}`;
+      if (!INTRADAY_URL) { setIntraday(p => ({ ...p, err: "Missing INTRADAY_URL" })); return; }
       try {
-        const j = await fetchJSON(url, ctrl.signal);
-        const ts = j?.sectorsUpdatedAt || j?.updated_at || null;
+        const j = await fetchJSON(`${INTRADAY_URL}?t=${Date.now()}`, ctrl.signal);
+        const ts    = j?.sectorsUpdatedAt || j?.updated_at || null;
         const cards = Array.isArray(j?.sectorCards) ? j.sectorCards.slice() : [];
         setIntraday({ ts, cards, err: null });
 
-        // Session Δ10m: compare current NetNH to last10m
+        // Session Δ10m
         const nowMap = netNHMapFromCards(cards);
         if (last10m) {
           const d = {};
           const keys = new Set([...Object.keys(nowMap), ...Object.keys(last10m)]);
-          for (const k of keys) {
-            if (Number.isFinite(nowMap[k]) && Number.isFinite(last10m[k])) {
-              d[k] = nowMap[k] - last10m[k];
-            }
-          }
+          for (const k of keys) if (Number.isFinite(nowMap[k]) && Number.isFinite(last10m[k])) d[k] = nowMap[k] - last10m[k];
           setD10mSess(d);
         }
         setLast10m(nowMap);
       } catch (err) {
-        setIntraday((p) => ({ ...p, err: String(err) }));
+        setIntraday(p => ({ ...p, err: String(err) }));
       }
     }
     load();
-    const t = setInterval(load, 60_000); // poll every 60s
-    return () => {
-      ctrl.abort();
-      clearInterval(t);
-    };
-  }, [API, last10m]);
+    const t = setInterval(load, 60_000);
+    return () => { ctrl.abort(); clearInterval(t); };
+  }, [last10m]);
 
   /* -------------------- Poll hourly + Δ1h session -------------------- */
   useEffect(() => {
     const ctrl = new AbortController();
     async function load() {
+      if (!HOURLY_URL) return;
       try {
-        const url = `${API}/live/hourly?t=${Date.now()}`;
-        const j = await fetchJSON(url, ctrl.signal);
+        const j = await fetchJSON(`${HOURLY_URL}?t=${Date.now()}`, ctrl.signal);
         const cards = Array.isArray(j?.sectorCards) ? j.sectorCards : [];
         const nowMap = netNHMapFromCards(cards);
         if (last1h) {
           const d = {};
           const keys = new Set([...Object.keys(nowMap), ...Object.keys(last1h)]);
-          for (const k of keys) {
-            if (Number.isFinite(nowMap[k]) && Number.isFinite(last1h[k])) {
-              d[k] = nowMap[k] - last1h[k];
-            }
-          }
+          for (const k of keys) if (Number.isFinite(nowMap[k]) && Number.isFinite(last1h[k])) d[k] = nowMap[k] - last1h[k];
           setD1hSess(d);
         }
         setLast1h(nowMap);
-      } catch {
-        // keep old session deltas if fetch fails
-      }
+      } catch { /* keep previous session deltas */ }
     }
     load();
     const t = setInterval(load, 60_000);
-    return () => {
-      ctrl.abort();
-      clearInterval(t);
-    };
-  }, [API, last1h]);
+    return () => { ctrl.abort(); clearInterval(t); };
+  }, [last1h]);
 
   /* -------------------- Fetch EOD on demand + Δ1d session -------------------- */
   useEffect(() => {
     let timer = null;
     const ctrl = new AbortController();
     async function load() {
-      const url = `${API}/live/eod?t=${Date.now()}`;
+      if (!EOD_URL) { setEod(p => ({ ...p, err: "Missing EOD_URL" })); return; }
       try {
-        const j = await fetchJSON(url, ctrl.signal);
-        const ts = j?.sectorsUpdatedAt || j?.updated_at || null;
+        const j = await fetchJSON(`${EOD_URL}?t=${Date.now()}`, ctrl.signal);
+        const ts    = j?.sectorsUpdatedAt || j?.updated_at || null;
         const cards = Array.isArray(j?.sectorCards) ? j.sectorCards.slice() : [];
         setEod({ ts, cards, err: null });
 
-        // Session Δ1d: compare current NetNH to last1d
+        // Session Δ1d
         const nowMap = netNHMapFromCards(cards);
         if (last1d) {
           const d = {};
           const keys = new Set([...Object.keys(nowMap), ...Object.keys(last1d)]);
-          for (const k of keys) {
-            if (Number.isFinite(nowMap[k]) && Number.isFinite(last1d[k])) {
-              d[k] = nowMap[k] - last1d[k];
-            }
-          }
+          for (const k of keys) if (Number.isFinite(nowMap[k]) && Number.isFinite(last1d[k])) d[k] = nowMap[k] - last1d[k];
           setD1dSess(d);
         }
         setLast1d(nowMap);
       } catch (err) {
-        setEod((p) => ({ ...p, err: String(err) }));
+        setEod(p => ({ ...p, err: String(err) }));
       }
     }
     if (sourceTf === "eod") {
       load();
-      timer = setInterval(load, 300_000); // refresh every 5 min while viewing EOD
+      timer = setInterval(load, 300_000);
     }
-    return () => {
-      if (timer) clearInterval(timer);
-      ctrl.abort();
-    };
-  }, [API, sourceTf, last1d]);
+    return () => { if (timer) clearInterval(timer); ctrl.abort(); };
+  }, [sourceTf, last1d]);
 
   /* -------------------- Pull 5m sandbox deltas (read-only) -------------------- */
   useEffect(() => {
@@ -309,9 +219,7 @@ export default function RowIndexSectors() {
     async function loadSandbox() {
       if (!SANDBOX_URL) return;
       try {
-        const u = SANDBOX_URL.includes("?")
-          ? `${SANDBOX_URL}&t=${Date.now()}`
-          : `${SANDBOX_URL}?t=${Date.now()}`;
+        const u = SANDBOX_URL.includes("?") ? `${SANDBOX_URL}&t=${Date.now()}` : `${SANDBOX_URL}?t=${Date.now()}`;
         const r = await fetch(u, { cache: "no-store" });
         const j = await r.json();
         if (stop) return;
@@ -319,24 +227,16 @@ export default function RowIndexSectors() {
         const map = {};
         const ds = j?.deltas?.sectors || {};
         for (const key of Object.keys(ds)) {
-          const canon = ALIASES[norm(key)] || key; // keep canon case for display
-          map[norm(canon)] = Number(ds[key]?.netTilt ?? NaN); // display netTilt as Δ5m
+          const canon = ALIASES[norm(key)] || key;
+          map[norm(canon)] = Number(ds[key]?.netTilt ?? NaN); // Δ5m = netTilt
         }
         setD5mMap(map);
         setDeltasUpdatedAt(j?.deltasUpdatedAt || null);
-      } catch {
-        if (!stop) {
-          setD5mMap({});
-          setDeltasUpdatedAt(null);
-        }
-      }
+      } catch { if (!stop) { setD5mMap({}); setDeltasUpdatedAt(null); } }
     }
     loadSandbox();
     const t = setInterval(loadSandbox, 60_000);
-    return () => {
-      stop = true;
-      clearInterval(t);
-    };
+    return () => { stop = true; clearInterval(t); };
   }, []);
 
   // Active source strictly
@@ -359,42 +259,26 @@ export default function RowIndexSectors() {
   return (
     <section id="row-4" className="panel index-sectors" aria-label="Index Sectors" key={stableKey}>
       {/* Header */}
-      <div className="panel-head" style={{ alignItems: "center" }}>
+      <div className="panel-head" style={{ alignItems:"center" }}>
         <div className="panel-title">Index Sectors</div>
 
         <button
-          title="Legend"
-          onClick={() => setLegendOpen(true)}
+          title="Legend" onClick={() => setLegendOpen(true)}
           style={{
-            background: "#0b0b0b",
-            color: "#e5e7eb",
-            border: "1px solid #2b2b2b",
-            borderRadius: 6,
-            padding: "4px 8px",
-            fontSize: 12,
-            fontWeight: 600,
-            cursor: "pointer",
-            marginLeft: 8,
+            background:"#0b0b0b", color:"#e5e7eb", border:"1px solid #2b2b2b",
+            borderRadius:6, padding:"4px 8px", fontSize:12, fontWeight:600, cursor:"pointer", marginLeft:8,
           }}
-        >
-          Legend
-        </button>
+        >Legend</button>
 
         {/* AZ timestamp + source dropdown */}
-        <div style={{ marginLeft: 8, color: "#9ca3af", fontSize: 12 }}>
+        <div style={{ marginLeft:8, color:"#9ca3af", fontSize:12 }}>
           Updated {active.ts || "—"}
         </div>
         <select
-          value={sourceTf}
-          onChange={(e) => setSourceTf(e.target.value)}
+          value={sourceTf} onChange={(e) => setSourceTf(e.target.value)}
           style={{
-            marginLeft: 8,
-            background: "#0b0b0b",
-            color: "#e5e7eb",
-            border: "1px solid #2b2b2b",
-            borderRadius: 6,
-            padding: "2px 6px",
-            fontSize: 12,
+            marginLeft:8, background:"#0b0b0b", color:"#e5e7eb",
+            border:"1px solid #2b2b2b", borderRadius:6, padding:"2px 6px", fontSize:12,
           }}
           title="Cards Source"
         >
@@ -405,7 +289,7 @@ export default function RowIndexSectors() {
         <div className="spacer" />
         {/* Δ5m staleness indicator */}
         {SANDBOX_URL && (
-          <div style={{ color: stale5m ? "#9ca3af" : "#22c55e", fontSize: 12, fontWeight: 700 }}>
+          <div style={{ color: stale5m ? "#9ca3af" : "#22c55e", fontSize:12, fontWeight:700 }}>
             Δ5m {stale5m ? "STALE" : "LIVE"} {deltasUpdatedAt ? `• ${deltasUpdatedAt}` : ""}
           </div>
         )}
@@ -413,14 +297,7 @@ export default function RowIndexSectors() {
 
       {/* Body */}
       {cards.length > 0 ? (
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
-            gap: 8,
-            marginTop: 6,
-          }}
-        >
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(220px, 1fr))", gap:8, marginTop:6 }}>
           {cards.map((c, i) => {
             const key = norm(c?.sector || "");
 
@@ -429,16 +306,16 @@ export default function RowIndexSectors() {
             const d5 = d5mMap[norm(canon)];
             const show5 = Number.isFinite(d5) && !stale5m;
 
-            // Prefer replay values if present (kept for future), else session deltas
-            const d10 = Number.isFinite(d10mMap[key]) ? d10mMap[key] : d10mSess[key];
-            const d1h = Number.isFinite(d1hMap[key]) ? d1hMap[key] : d1hSess[key];
-            const d1d = Number.isFinite(d1dMap[key]) ? d1dMap[key] : d1dSess[key];
+            // Session deltas (replay-ready fallback: prefer replay maps if added later)
+            const d10 = d10mSess[key];
+            const d1h = d1hSess[key];
+            const d1d = d1dSess[key];
 
             const nh = Number(c?.nh ?? NaN);
             const nl = Number(c?.nl ?? NaN);
             const netNH = Number.isFinite(nh) && Number.isFinite(nl) ? nh - nl : null;
 
-            const breadth = Number(c?.breadth_pct ?? NaN);
+            const breadth  = Number(c?.breadth_pct  ?? NaN);
             const momentum = Number(c?.momentum_pct ?? NaN);
             const tone = toneFor(c?.outlook);
 
@@ -447,48 +324,29 @@ export default function RowIndexSectors() {
                 key={c?.sector || i}
                 className="panel"
                 style={{
-                  padding: 10,
-                  minWidth: 220,
-                  maxWidth: 260,
-                  borderRadius: 12,
-                  border: "1px solid #2b2b2b",
-                  background: "#0b0b0c",
-                  boxShadow: "0 8px 20px rgba(0,0,0,0.25)",
+                  padding:10, minWidth:220, maxWidth:260, borderRadius:12,
+                  border:"1px solid #2b2b2b", background:"#0b0b0c", boxShadow:"0 8px 20px rgba(0,0,0,0.25)",
                 }}
               >
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
-                  <div className="panel-title small" style={{ color: "#f3f4f6" }}>
-                    {c?.sector || "Sector"}
-                  </div>
+                <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:4 }}>
+                  <div className="panel-title small" style={{ color:"#f3f4f6" }}>{c?.sector || "Sector"}</div>
                   <Badge text={c?.outlook || "Neutral"} tone={tone} />
                 </div>
 
                 {/* Compact Δ row (single line; no height change) */}
-                <div style={{ display: "flex", gap: 6, margin: "0 0 4px 0", alignItems: "center", flexWrap: "wrap" }}>
+                <div style={{ display:"flex", gap:6, margin:"0 0 4px 0", alignItems:"center", flexWrap:"wrap" }}>
                   {show5 && <Pill label="Δ5m" value={d5} />}
                   <Pill label="Δ10m" value={Number.isFinite(d10) ? d10 : undefined} />
                   <Pill label="Δ1h"  value={Number.isFinite(d1h) ? d1h : undefined} />
                   <Pill label="Δ1d"  value={Number.isFinite(d1d) ? d1d : undefined} />
                 </div>
 
-                <div style={{ fontSize: 12, color: "#cbd5e1", display: "grid", gap: 2 }}>
+                <div style={{ fontSize:12, color:"#cbd5e1", display:"grid", gap:2 }}>
+                  <div> Breadth Tilt: <b style={{ color:"#f3f4f6" }}>{Number.isFinite(breadth) ? `${breadth.toFixed(1)}%` : "—"}</b> </div>
+                  <div> Momentum:     <b style={{ color:"#f3f4f6" }}>{Number.isFinite(momentum) ? `${momentum.toFixed(1)}%` : "—"}</b> </div>
                   <div>
-                    Breadth Tilt:{" "}
-                    <b style={{ color: "#f3f4f6" }}>
-                      {Number.isFinite(breadth) ? `${breadth.toFixed(1)}%` : "—"}
-                    </b>
-                  </div>
-                  <div>
-                    Momentum:{" "}
-                    <b style={{ color: "#f3f4f6" }}>
-                      {Number.isFinite(momentum) ? `${momentum.toFixed(1)}%` : "—"}
-                    </b>
-                  </div>
-                  <div>
-                    Net NH: <b style={{ color: "#f3f4f6" }}>{netNH ?? "—"}</b>{" "}
-                    <span style={{ color: "#9ca3af" }}>
-                      (NH {Number.isFinite(nh) ? nh : "—"} / NL {Number.isFinite(nl) ? nl : "—"})
-                    </span>
+                    Net NH: <b style={{ color:"#f3f4f6" }}>{netNH ?? "—"}</b>
+                    <span style={{ color:"#9ca3af" }}> (NH {Number.isFinite(nh) ? nh : "—"} / NL {Number.isFinite(nl) ? nl : "—"})</span>
                   </div>
                 </div>
               </div>
@@ -496,61 +354,48 @@ export default function RowIndexSectors() {
           })}
         </div>
       ) : (
-        <div className="small muted" style={{ padding: 6 }}>
-          {active.err ? "Failed to load sectors." : "No sector cards in payload."}
+        <div className="small muted" style={{ padding:6 }}>
+          {active.err
+            ? `Failed to load sectors. ${active.err}`
+            : (!INTRADAY_URL ? "Missing REACT_APP_INTRADAY_URL" : "No sector cards in payload.")
+          }
         </div>
       )}
 
       {/* Legend modal */}
       {legendOpen && (
         <div
-          role="dialog"
-          aria-modal="true"
-          onClick={() => setLegendOpen(false)}
+          role="dialog" aria-modal="true" onClick={() => setLegendOpen(false)}
           style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.5)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 60,
+            position:"fixed", inset:0, background:"rgba(0,0,0,0.5)",
+            display:"flex", alignItems:"center", justifyContent:"center", zIndex:60,
           }}
         >
           <div
             onClick={(e) => e.stopPropagation()}
             style={{
-              width: "min(880px, 92vw)",
-              background: "#0b0b0c",
-              border: "1px solid #2b2b2b",
-              borderRadius: 12,
-              padding: 16,
-              boxShadow: "0 10px 30px rgba(0,0,0,0.35)",
+              width:"min(880px, 92vw)", background:"#0b0b0c", border:"1px solid #2b2b2b",
+              borderRadius:12, padding:16, boxShadow:"0 10px 30px rgba(0,0,0,0.35)",
             }}
           >
-            <div style={{ color: "#f9fafb", fontSize: 14, fontWeight: 800, marginBottom: 8 }}>
+            <div style={{ color:"#f9fafb", fontSize:14, fontWeight:800, marginBottom:8 }}>
               Index Sectors — Legend
             </div>
-            <div style={{ color: "#e5e7eb", fontSize: 13, fontWeight: 700, marginTop: 6 }}>
+            <div style={{ color:"#e5e7eb", fontSize:13, fontWeight:700, marginTop:6 }}>
               Outlook
             </div>
-            <div style={{ color: "#d1d5db", fontSize: 12 }}>
-              <b>Δ5m</b> from sandbox (netTilt).<br />
-              <b>Δ10m</b> from live intraday vs prior intraday (session).<br />
-              <b>Δ1h</b> from live hourly vs prior hourly (session).<br />
+            <div style={{ color:"#d1d5db", fontSize:12 }}>
+              <b>Δ5m</b> from sandbox (netTilt).<br/>
+              <b>Δ10m</b> from live intraday vs prior intraday (session).<br/>
+              <b>Δ1h</b> from live hourly vs prior hourly (session).<br/>
               <b>Δ1d</b> from live EOD vs prior EOD (session).
             </div>
-            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}>
+            <div style={{ display:"flex", justifyContent:"flex-end", marginTop:12 }}>
               <button
                 onClick={() => setLegendOpen(false)}
                 style={{
-                  background: "#eab308",
-                  color: "#111827",
-                  border: "none",
-                  borderRadius: 8,
-                  padding: "8px 12px",
-                  fontWeight: 700,
-                  cursor: "pointer",
+                  background:"#eab308", color:"#111827", border:"none",
+                  borderRadius:8, padding:"8px 12px", fontWeight:700, cursor:"pointer",
                 }}
               >
                 Close
