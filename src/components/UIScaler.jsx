@@ -1,5 +1,7 @@
 // src/components/UIScaler.jsx
 import React, {
+  createContext,
+  useContext,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -10,22 +12,17 @@ import React, {
 const STORAGE_KEY = "frye.uiScale.v2";
 const STORAGE_MODE = "frye.uiMode.v2"; // "auto" | "manual"
 
+// Context lets other components (like NoScale) know the current scale
+const ScaleCtx = createContext({ scale: 1 });
+
 const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
 
-/**
- * UIScaler
- * - Scales the entire app via CSS transform to control perceived zoom.
- * - Two modes:
- *   • "auto"   → fit-to-window-height (never below minReadable)
- *   • "manual" → use saved/default scale and user +/- adjustments
- * - URL overrides: ?scale=0.62&mode=manual
- */
 export default function UIScaler({
   children,
-  minReadable = 0.45,     // don’t allow unreadable sizes
-  maxScale = 1.6,          // allow zoom-in beyond 100% if desired
-  defaultScale = 0.60,     // good starting point for a 34" monitor
-  defaultMode = "manual",  // start manual so it stays zoomed-in
+  minReadable = 0.45,
+  maxScale = 1.6,
+  defaultScale = 0.60,
+  defaultMode = "manual",
 }) {
   const params = new URLSearchParams(window.location.search);
   const urlScale = params.get("scale");
@@ -47,7 +44,7 @@ export default function UIScaler({
 
   const innerRef = useRef(null);
 
-  // --- Auto-fit to window height (never below minReadable)
+  // Auto fit to window height (never below minReadable)
   const recalcAuto = () => {
     const el = innerRef.current;
     if (!el) return;
@@ -73,9 +70,14 @@ export default function UIScaler({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode]);
 
-  // persist user choices
+  // persist
   useEffect(() => localStorage.setItem(STORAGE_KEY, String(scale)), [scale]);
   useEffect(() => localStorage.setItem(STORAGE_MODE, mode), [mode]);
+
+  // expose CSS var too (for any advanced styling)
+  useEffect(() => {
+    document.documentElement.style.setProperty("--ui-scale", String(scale));
+  }, [scale]);
 
   // keyboard shortcuts (Ctrl/Cmd + = / - / 0)
   useEffect(() => {
@@ -102,8 +104,8 @@ export default function UIScaler({
     return () => window.removeEventListener("keydown", onKey);
   }, [minReadable, maxScale]);
 
-  // scale wrapper with width correction so layout doesn't clip
-  const style = useMemo(
+  // Only scale the content inside this div.
+  const scaledStyle = useMemo(
     () => ({
       transform: `scale(${scale})`,
       transformOrigin: "top left",
@@ -184,11 +186,30 @@ export default function UIScaler({
   );
 
   return (
-    <>
-      <div ref={innerRef} style={style}>
+    <ScaleCtx.Provider value={{ scale }}>
+      {/* Everything inside THIS div is scaled */}
+      <div ref={innerRef} style={scaledStyle}>
         {children}
       </div>
       <Control />
-    </>
+    </ScaleCtx.Provider>
   );
+}
+
+/**
+ * NoScale — wraps content that must render at true 1:1,
+ * even when the app is globally scaled. It applies an inverse
+ * transform so children render at their natural size.
+ */
+export function NoScale({ children, style }) {
+  const { scale } = useContext(ScaleCtx);
+  const inv = 1 / (scale || 1);
+  const s = {
+    transform: `scale(${inv})`,
+    transformOrigin: "top left",
+    width: `${100 * (scale || 1)}%`,
+    minHeight: `${100 * (scale || 1)}vh`,
+    ...style,
+  };
+  return <div style={s}>{children}</div>;
 }
