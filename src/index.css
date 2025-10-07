@@ -220,3 +220,19 @@ html body #root {
   height: auto !important;
   overflow: auto !important;
 }
+/* --- Fine-tune Row-6 chart height (safe override) --- */
+#row-6 {
+  min-height: 0 !important;
+}
+
+#row-6 .row6-shell,
+#row-6 .chart-shell {
+  height: 480px !important;     /* adjust this number */
+  min-height: 480px !important;
+  max-height: 480px !important;
+}
+
+#row-6 .tv-lightweight-charts {
+  height: 100% !important;
+  width: 100% !important;
+}
