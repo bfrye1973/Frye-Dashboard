@@ -273,7 +273,7 @@ export default function RowIndexSectors() {
   const stale5m = isStale(deltasUpdatedAt);
 
   return (
-    <section id="row-4" className="panel index-sectors" aria-label="Index Sectors" key={stableKey}>
+    <section id="row-4" className="panel index-sectors" aria-label="Index Sectors">
       {/* Header */}
       <div className="panel-head" style={{ alignItems:"center" }}>
         <div className="panel-title">Index Sectors</div>
