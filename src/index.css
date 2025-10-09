@@ -319,3 +319,26 @@ html, body, #root {
   position: relative;
   overflow: hidden;
 }
+/* Full Chart: page covers viewport; body gets all remaining height */
+.fullchart-page{
+  position: fixed; inset: 0;
+  display: flex; flex-direction: column;
+  background: #0b0b14;
+  min-height: 0;
+  z-index: 9999;
+}
+
+/* 48px is your top bar height — adjust if you changed it */
+.fullchart-body{
+  height: calc(100vh - 48px) !important;
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  display: flex; flex-direction: column;
+  overflow: hidden;
+}
+
+/* Whatever you render inside .fullchart-body (RowChart root) must stretch */
+.fullchart-body > *{
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+}
