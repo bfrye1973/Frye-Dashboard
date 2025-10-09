@@ -2,7 +2,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import NewDashboard from "./pages/NewDashboard";
-import ErrorBoundary from "./ErrorBoundary";
+import ErrorBoundary from "./components/ErrorBoundary"; // <- components path
 import "./index.css";
 import UIScaler from "./components/UIScaler";
 import { ModeProvider, ViewModes } from "./context/ModeContext";
@@ -34,10 +34,6 @@ const fmtAz = (iso) => {
 };
 
 /* --------------------------- Health Status Bar -------------------------- */
-/**
- * Read-only health bar:
- * GET {API_BASE}/api/health → { ok: boolean, ts: ISO, service: string }
- */
 function HealthStatusBar() {
   const [state, setState] = useState({
     ok: null,
@@ -159,40 +155,34 @@ function HealthStatusBar() {
     </div>
   );
 }
-import { useEffect } from "react";
-
-useEffect(() => {
-  const fixWidth = () => {
-    const grid = document.querySelector(".dashboard-grid");
-    if (grid) {
-      grid.style.width = "100%";
-      grid.style.maxWidth = "100vw";
-      grid.style.overflowX = "hidden";
-    }
-  };
-
-  // Run once on mount
-  fixWidth();
-
-  // Run again whenever the window resizes or zooms
-  window.addEventListener("resize", fixWidth);
-  window.addEventListener("orientationchange", fixWidth);
-
-  // Cleanup
-  return () => {
-    window.removeEventListener("resize", fixWidth);
-    window.removeEventListener("orientationchange", fixWidth);
-  };
-}, []);
 
 /* --------------------------------- App --------------------------------- */
 export default function App() {
+  // FINAL clamp so zooming/resizes never re-widen the grid
+  useEffect(() => {
+    const fixWidth = () => {
+      const grid = document.querySelector(".dashboard-grid");
+      if (grid) {
+        grid.style.width = "100%";
+        grid.style.maxWidth = "100vw";
+        grid.style.overflowX = "hidden";
+      }
+    };
+    fixWidth();
+    window.addEventListener("resize", fixWidth);
+    window.addEventListener("orientationchange", fixWidth);
+    return () => {
+      window.removeEventListener("resize", fixWidth);
+      window.removeEventListener("orientationchange", fixWidth);
+    };
+  }, []);
+
   return (
     <ErrorBoundary>
       <UIScaler
-        minReadable={0.45}   // won’t shrink below 45% visual size
-        defaultScale={0.60}  // start zoomed-in on your 34"
-        defaultMode="manual" // ignore auto-fit unless you flip the toggle
+        minReadable={0.45}
+        defaultScale={0.60}
+        defaultMode="manual"
         maxScale={1.6}
       >
         <div style={{ minHeight: "100vh" }}>
