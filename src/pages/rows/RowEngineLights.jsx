@@ -1,18 +1,27 @@
 // src/pages/rows/EngineLights.jsx
-// v2.1 — FIX: always fetch from backend origin (not the frontend)
-// Source of truth: <API_BASE>/live/intraday → engineLights.signals
+// v3.0 — Strict /live binding from FRONTEND env (no /api), 30s poll, guard fixer
+// Source of truth: REACT_APP_INTRADAY_URL → engineLights.signals
 
 import React, { useEffect, useRef, useState } from "react";
 import { LastUpdated } from "../../components/LastUpdated";
 
-// ---- CONFIG: resolve API base ----
-function resolveApiBase() {
-  // Prefer env → global → hardcoded fallback
-  const env = (process.env.REACT_APP_API_BASE || "").trim().replace(/\/+$/,"");
-  if (env) return env;
-  const globalWin = (typeof window !== "undefined" && window.__API_BASE) ? String(window.__API_BASE).trim().replace(/\/+$/,"") : "";
-  if (globalWin) return globalWin;
-  return "https://frye-market-backend-1.onrender.com"; // <— your backend origin
+/* -------------------------- helpers -------------------------- */
+// Read /live/intraday from FRONTEND env (never from /api)
+function resolveLiveIntraday() {
+  const env = (process.env.REACT_APP_INTRADAY_URL || "").trim();
+  if (env) return env.replace(/\/+$/, "");
+  // Optional global override if you use window.__LIVE_INTRADAY_URL
+  const win = (typeof window !== "undefined" && window.__LIVE_INTRADAY_URL) ? String(window.__LIVE_INTRADAY_URL).trim() : "";
+  if (win) return win.replace(/\/+$/, "");
+  // Hard fallback (safe default)
+  return "https://frye-market-backend-1.onrender.com/live/intraday";
+}
+
+// If someone accidentally prepends /api, fix it at runtime.
+function guardLive(url) {
+  return url
+    .replace(/\/api\/live\//, "/live/")
+    .replace(/\/api\/?(\?|$)/, "/"); // drop trailing /api
 }
 
 /* -------------------------- Light pill --------------------------- */
@@ -88,12 +97,12 @@ const SIGNAL_DEFS = [
 function computeSignalList(sigObj = {}) {
   return SIGNAL_DEFS.map(def => {
     const sig = sigObj?.[def.key] || {};
-    const active = !!(sig.active ?? sig === true);
+    const active = !!sig.active;
     const sev = String(sig.severity || "").toLowerCase();
     let tone = "off";
     if (active) {
       switch (def.key) {
-        case "sigBreakout":        tone = "ok";     break;
+        case "sigBreakout":        tone = sev === "danger" ? "danger" : "ok"; break;
         case "sigDistribution":    tone = "danger"; break;
         case "sigCompression":     tone = "warn";   break;
         case "sigExpansion":       tone = "ok";     break;
@@ -123,29 +132,32 @@ function buildStableKey(ts, signals) {
 
 /* --------------------------- Main ---------------------------- */
 export default function EngineLights() {
-  const API_BASE = resolveApiBase();
+  const LIVE_URL = resolveLiveIntraday();
 
   const [payload, setPayload] = useState({ eng: null, signals: {}, ts: null, live: false, mode: null, err: null });
   const [lights, setLights] = useState(() => computeSignalList({}));
   const [legendOpen, setLegendOpen] = useState(false);
-  const firstPaintRef = useRef(false);
   const timerRef = useRef(null);
 
   async function fetchLive(abortSignal) {
-    const url = `${API_BASE}/live/intraday?nocache=${Date.now()}`;
+    // Always call /live — NEVER /api
+    const url = guardLive(`${LIVE_URL}?t=${Date.now()}`);
     try {
       const res = await fetch(url, { cache: "no-store", signal: abortSignal });
       if (!res.ok) throw new Error(`HTTP ${res.status} ${url}`);
       const j = await res.json();
+
       const eng = j?.engineLights || {};
       const signals = (eng?.signals && typeof eng.signals === "object") ? eng.signals : {};
       const ts = eng?.updatedAt || j?.updated_at || j?.ts || null;
       const live = !!eng?.live;
       const mode = eng?.mode || null;
-      console.log("[EngineLights /live]", { url, ts, keys: Object.keys(signals) });
+
+      // Debug once per tick
+      try { console.log("[EngineLights] bound", { url, ts, keys: Object.keys(signals) }); } catch {}
+
       setPayload({ eng, signals, ts, live, mode, err: null });
       setLights(computeSignalList(signals));
-      firstPaintRef.current = true;
     } catch (e) {
       console.warn("[EngineLights] fetch failed:", e);
       setPayload(p => ({ ...p, err: String(e) }));
@@ -155,12 +167,14 @@ export default function EngineLights() {
   useEffect(() => {
     const ctrl = new AbortController();
     fetchLive(ctrl.signal);
-    timerRef.current = setInterval(() => fetchLive(ctrl.signal), 60_000);
+    // 30s poll so the row feels live for scalping
+    timerRef.current = setInterval(() => fetchLive(ctrl.signal), 30_000);
     return () => {
       try { ctrl.abort(); } catch {}
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [API_BASE]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [LIVE_URL]);
 
   const { ts, live, mode, signals, err } = payload;
   const stableKey = buildStableKey(ts, signals);
@@ -183,7 +197,11 @@ export default function EngineLights() {
         </button>
         <div className="spacer" />
         {live && (
-          <span className="small" style={{ marginRight:8, padding:"3px 8px", borderRadius:6, background:"#16a34a", color:"#0b1220", fontWeight:800, border:"1px solid #0f7a2a" }} title={mode ? `Mode: ${mode}` : "Live intraday"}>
+          <span
+            className="small"
+            style={{ marginRight:8, padding:"3px 8px", borderRadius:6, background:"#16a34a", color:"#0b1220", fontWeight:800, border:"1px solid #0f7a2a" }}
+            title={mode ? `Mode: ${mode}` : "Live intraday"}
+          >
             LIVE
           </span>
         )}
@@ -202,11 +220,24 @@ export default function EngineLights() {
 
       {/* Legend modal */}
       {legendOpen && (
-        <div role="dialog" aria-modal="true" onClick={()=> setLegendOpen(false)} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.5)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:60 }}>
-          <div onClick={(e)=> e.stopPropagation()} style={{ width:"min(880px, 92vw)", background:"#0b0b0c", border:"1px solid #2b2b2b", borderRadius:12, padding:16, boxShadow:"0 10px 30px rgba(0,0,0,0.35)" }}>
+        <div
+          role="dialog"
+          aria-modal="true"
+          onClick={()=> setLegendOpen(false)}
+          style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.5)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:60 }}
+        >
+          <div
+            onClick={(e)=> e.stopPropagation()}
+            style={{ width:"min(880px, 92vw)", background:"#0b0b0c", border:"1px solid #2b2b2b", borderRadius:12, padding:16, boxShadow:"0 10px 30px rgba(0,0,0,0.35)" }}
+          >
             <EngineLightsLegendContent />
             <div style={{ display:"flex", justifyContent:"flex-end", marginTop:12 }}>
-              <button onClick={()=> setLegendOpen(false)} style={{ background:"#eab308", color:"#111827", border:"none", borderRadius:8, padding:"8px 12px", fontWeight:700, cursor:"pointer" }}>Close</button>
+              <button
+                onClick={()=> setLegendOpen(false)}
+                style={{ background:"#eab308", color:"#111827", border:"none", borderRadius:8, padding:"8px 12px", fontWeight:700, cursor:"pointer" }}
+              >
+                Close
+              </button>
             </div>
           </div>
         </div>
