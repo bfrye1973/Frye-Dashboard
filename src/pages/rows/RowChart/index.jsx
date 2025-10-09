@@ -1,10 +1,10 @@
 // src/pages/rows/RowChart/index.jsx
 // ============================================================
-// RowChart — seed + live 1m aggregation + Indicators wiring
+// RowChart — seed + live 1m aggregation + indicators & overlays
 // - AZ timezone on axis + tooltip
 // - Range support ("ALL" fits once; no auto-fit on every tick)
 // - IndicatorsToolbar: EMA10/20/50, Volume, MoneyFlow, RightProfile,
-//   SessionShading (via luxSr), SwingLiquidity
+//   SessionShading (luxSr), SwingLiquidity
 // - fullScreen=true → fills parent (FullChart); false → 520px (dashboard)
 // ============================================================
 
@@ -14,7 +14,7 @@ import Controls from "./Controls";
 import IndicatorsToolbar from "./IndicatorsToolbar";
 import { getOHLC, subscribeStream } from "../../../lib/ohlcClient";
 
-// Overlays (gracefully optional)
+// Overlays (optional; attach gracefully)
 import MoneyFlowOverlay from "../../../components/overlays/MoneyFlowOverlay";
 import RightProfileOverlay from "../../../components/overlays/RightProfileOverlay";
 import SessionShadingOverlay from "../../../components/overlays/SessionShadingOverlay";
@@ -80,7 +80,7 @@ function makeTickFormatter(tf) {
     if (isDailyTF) return fmtDaily.format(d);
     const isMidnight = d.getHours() === 0 && d.getMinutes() === 0;
     const onHour = d.getMinutes() === 0;
-    return isMidnight || onHour ? fmtBoundary.format(d) : fmtTime.format(d);
+    return (isMidnight || onHour) ? fmtBoundary.format(d) : fmtTime.format(d);
   };
 }
 
@@ -99,7 +99,7 @@ function calcEMA(barsAsc, length) {
   return out;
 }
 
-// Flexible overlay attach (class, factory, or {attach})
+// Attach overlay that might be a class, factory, or {attach()}
 function attachOverlay(Module, args) {
   try {
     if (!Module) return null;
@@ -133,29 +133,28 @@ export default function RowChart({
   const sessionShadeRef = useRef(null);
   const swingLiqRef = useRef(null);
 
-  // Bars
+  // Data
   const [bars, setBars] = useState([]);
   const barsRef = useRef([]);
 
   // Guards
-  const didFitOnceRef = useRef(false);     // fit once after seed / explicit Range
-  const userInteractedRef = useRef(false); // wheel/drag happened
+  const didFitOnceRef = useRef(false);
+  const userInteractedRef = useRef(false);
 
-  // UI state
+  // UI State
   const [state, setState] = useState({
     symbol: defaultSymbol,
     timeframe: defaultTimeframe,
     range: "ALL",
     disabled: false,
 
-    // Indicators (defaults)
     showEma: true,
     ema10: true,
     ema20: true,
     ema50: true,
     volume: true,
     moneyFlow: false,
-    luxSr: false,            // mapped to session shading overlay
+    luxSr: false,
     swingLiquidity: false,
   });
 
@@ -169,7 +168,7 @@ export default function RowChart({
 
     const chart = createChart(el, {
       width: el.clientWidth,
-      height: el.clientHeight,        // parent controls height
+      height: el.clientHeight, // parent controls height (dashboard=520px; full=100%)
       layout: { background: { color: DEFAULTS.bg }, textColor: "#d1d5db" },
       grid: { vertLines: { color: DEFAULTS.gridColor }, horzLines: { color: DEFAULTS.gridColor } },
       rightPriceScale: { borderColor: DEFAULTS.border, scaleMargins: { top: 0.1, bottom: 0.2 } },
@@ -198,12 +197,10 @@ export default function RowChart({
     vol.priceScale().applyOptions({ scaleMargins: { top: 0.8, bottom: 0 } });
     volSeriesRef.current = vol;
 
-    // mark interaction to disable auto-fit afterwards
     const markInteract = () => { userInteractedRef.current = true; };
     el.addEventListener("wheel", markInteract, { passive: true });
     el.addEventListener("mousedown", markInteract);
 
-    // resize with container
     const ro = new ResizeObserver(() => {
       try { chart.resize(el.clientWidth, el.clientHeight); } catch {}
     });
@@ -220,7 +217,7 @@ export default function RowChart({
       ema10Ref.current = ema20Ref.current = ema50Ref.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fullScreen]); // new container size in FullChart/Dashboard
+  }, [fullScreen]);
 
   /* ---------------------- TF / AZ format updates --------------------- */
   useEffect(() => {
@@ -234,7 +231,7 @@ export default function RowChart({
       },
       localization: { timeFormatter: (t) => phoenixTime(t, tf === "1d") },
     });
-    didFitOnceRef.current = false; // allow single fit on next seed
+    didFitOnceRef.current = false; // allow one fit after next seed
   }, [state.timeframe]);
 
   /* ---------------------------- Seed (fit once) ---------------------- */
@@ -253,7 +250,7 @@ export default function RowChart({
 
         const chart = chartRef.current;
         if (chart && state.range === "ALL" && !didFitOnceRef.current && !userInteractedRef.current) {
-          chart.timeScale().fitContent(); // ONE fit after seed
+          chart.timeScale().fitContent();
           didFitOnceRef.current = true;
         }
 
@@ -401,7 +398,7 @@ export default function RowChart({
         rolling.volume = Number(rolling.volume || 0) + Number(oneMin.volume || 0);
       }
 
-      // paint open bucket live
+      // paint open bucket
       seriesRef.current.update(rolling);
       if (state.volume) {
         volSeriesRef.current.update({
@@ -561,7 +558,28 @@ export default function RowChart({
   };
 
   /* ------------------------------ Render ----------------------------- */
-  // Height rule: dashboard fixed 520px; FullChart fills parent 100%
+  // Wrapper: fullscreen fills parent; dashboard keeps border chrome
+  const wrapperStyle = useMemo(() => {
+    return fullScreen
+      ? {
+          display: "flex",
+          flexDirection: "column",
+          flex: "1 1 auto",
+          minHeight: 0,
+          overflow: "hidden",
+          background: DEFAULTS.bg,
+        }
+      : {
+          display: "flex",
+          flexDirection: "column",
+          border: `1px solid ${DEFAULTS.border}`,
+          borderRadius: 8,
+          overflow: "hidden",
+          background: DEFAULTS.bg,
+        };
+  }, [fullScreen]);
+
+  // Chart container: dashboard fixed 520px; FullChart = 100%
   const containerStyle = useMemo(() => {
     return fullScreen
       ? {
@@ -585,16 +603,7 @@ export default function RowChart({
   }, [fullScreen]);
 
   return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        border: `1px solid ${DEFAULTS.border}`,
-        borderRadius: 8,
-        overflow: "hidden",
-        background: DEFAULTS.bg,
-      }}
-    >
+    <div style={wrapperStyle}>
       <Controls
         symbols={symbols}
         timeframes={timeframes}
