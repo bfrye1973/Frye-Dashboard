@@ -1,10 +1,11 @@
 // src/pages/rows/RowChart/index.jsx
 // ============================================================
-// RowChart — month seed + live 1m→TF aggregation + Indicators wiring
+// RowChart — seed + live 1m aggregation + Indicators wiring
 // - AZ timezone on axis + tooltip
-// - "All" range support (fit once; no auto-fit on every tick)
-// - IndicatorsToolbar wired: EMA10/20/50, Volume, MoneyFlow, RightProfile,
-//   SessionShading (via luxSr toggle), SwingLiquidity
+// - Range support ("ALL" fits once; no auto-fit on every tick)
+// - IndicatorsToolbar: EMA10/20/50, Volume, MoneyFlow, RightProfile,
+//   SessionShading (via luxSr), SwingLiquidity
+// - fullScreen=true → fills parent (FullChart); false → 520px (dashboard)
 // ============================================================
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
@@ -13,13 +14,13 @@ import Controls from "./Controls";
 import IndicatorsToolbar from "./IndicatorsToolbar";
 import { getOHLC, subscribeStream } from "../../../lib/ohlcClient";
 
-// Overlays
+// Overlays (gracefully optional)
 import MoneyFlowOverlay from "../../../components/overlays/MoneyFlowOverlay";
 import RightProfileOverlay from "../../../components/overlays/RightProfileOverlay";
 import SessionShadingOverlay from "../../../components/overlays/SessionShadingOverlay";
 import SwingLiquidityOverlay from "../../../components/overlays/SwingLiquidityOverlay";
 
-// ---------- Config ----------
+/* ------------------------------ Config ------------------------------ */
 const SEED_LIMIT = 6000; // ~1 month of 10m bars + buffer
 
 const DEFAULTS = {
@@ -38,12 +39,9 @@ const TF_SEC = {
 };
 const LIVE_TF = "1m";
 
-// ---------- AZ time helpers ----------
+/* --------------------------- AZ time utils --------------------------- */
 function phoenixTime(ts, isDaily = false) {
-  const seconds =
-    typeof ts === "number"
-      ? ts
-      : (ts && (ts.timestamp ?? ts.time)) || 0;
+  const seconds = typeof ts === "number" ? ts : (ts && (ts.timestamp ?? ts.time)) || 0;
   return new Intl.DateTimeFormat("en-US", {
     timeZone: "America/Phoenix",
     hour12: true,
@@ -51,10 +49,9 @@ function phoenixTime(ts, isDaily = false) {
   }).format(new Date(seconds * 1000));
 }
 
-// TradingView-style ticks: seconds on 1m; hh:mm on intraday; date on daily
 function makeTickFormatter(tf) {
   const showSeconds = tf === "1m";
-  const isDailyTF   = tf === "1d";
+  const isDailyTF = tf === "1d";
 
   const fmtTime = new Intl.DateTimeFormat("en-US", {
     timeZone: "America/Phoenix",
@@ -82,27 +79,27 @@ function makeTickFormatter(tf) {
     const d = new Date(seconds * 1000);
     if (isDailyTF) return fmtDaily.format(d);
     const isMidnight = d.getHours() === 0 && d.getMinutes() === 0;
-    const onHour     = d.getMinutes() === 0;
-    return (isMidnight || onHour) ? fmtBoundary.format(d) : fmtTime.format(d);
+    const onHour = d.getMinutes() === 0;
+    return isMidnight || onHour ? fmtBoundary.format(d) : fmtTime.format(d);
   };
 }
 
-// ---------- Small utils ----------
+/* ------------------------------ Helpers ----------------------------- */
 function calcEMA(barsAsc, length) {
   if (!Array.isArray(barsAsc) || !barsAsc.length || !Number.isFinite(length) || length <= 1) return [];
   const k = 2 / (length + 1);
   const out = [];
-  let ema = undefined;
+  let ema;
   for (let i = 0; i < barsAsc.length; i++) {
     const c = Number(barsAsc[i].close);
     if (!Number.isFinite(c)) continue;
-    if (ema === undefined) ema = c; else ema = c * k + ema * (1 - k);
+    ema = ema === undefined ? c : c * k + ema * (1 - k);
     out.push({ time: barsAsc[i].time, value: ema });
   }
   return out;
 }
 
-// Flexible overlay attach (works with class, factory, or {attach})
+// Flexible overlay attach (class, factory, or {attach})
 function attachOverlay(Module, args) {
   try {
     if (!Module) return null;
@@ -113,11 +110,12 @@ function attachOverlay(Module, args) {
   return { update() {}, destroy() {} };
 }
 
+/* ------------------------------ Component --------------------------- */
 export default function RowChart({
   defaultSymbol = "SPY",
   defaultTimeframe = "10m",
   showDebug = false,
-  fullScreen = false, // if true (on /chart), we can use 100vh
+  fullScreen = false, // FullChart passes true
 }) {
   // DOM / series refs
   const containerRef = useRef(null);
@@ -129,49 +127,49 @@ export default function RowChart({
   const ema50Ref = useRef(null);
   const roRef = useRef(null);
 
-  // Overlay instances
+  // Overlay refs
   const moneyFlowRef = useRef(null);
   const rightProfileRef = useRef(null);
   const sessionShadeRef = useRef(null);
   const swingLiqRef = useRef(null);
 
-  // Bars state
+  // Bars
   const [bars, setBars] = useState([]);
   const barsRef = useRef([]);
 
-  // Fit/interaction guards
-  const didFitOnceRef = useRef(false);     // set true after seed fit or Range click
-  const userInteractedRef = useRef(false); // set true on wheel/drag once
+  // Guards
+  const didFitOnceRef = useRef(false);     // fit once after seed / explicit Range
+  const userInteractedRef = useRef(false); // wheel/drag happened
 
-  // UI / Indicators state
+  // UI state
   const [state, setState] = useState({
     symbol: defaultSymbol,
     timeframe: defaultTimeframe,
     range: "ALL",
     disabled: false,
 
-    // Indicators (defaults show EMA + Volume only)
+    // Indicators (defaults)
     showEma: true,
     ema10: true,
     ema20: true,
     ema50: true,
     volume: true,
     moneyFlow: false,
-    luxSr: false,            // mapped to SessionShadingOverlay below
+    luxSr: false,            // mapped to session shading overlay
     swingLiquidity: false,
   });
 
   const symbols = useMemo(() => ["SPY", "QQQ", "IWM"], []);
   const timeframes = useMemo(() => ["1m", "5m", "10m", "15m", "30m", "1h", "4h", "1d"], []);
 
-  // ---------- Mount chart ----------
+  /* -------------------------- Mount / Resize ------------------------- */
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
 
     const chart = createChart(el, {
       width: el.clientWidth,
-      height: fullScreen ? el.clientHeight : el.clientHeight, // parent controls height
+      height: el.clientHeight,        // parent controls height
       layout: { background: { color: DEFAULTS.bg }, textColor: "#d1d5db" },
       grid: { vertLines: { color: DEFAULTS.gridColor }, horzLines: { color: DEFAULTS.gridColor } },
       rightPriceScale: { borderColor: DEFAULTS.border, scaleMargins: { top: 0.1, bottom: 0.2 } },
@@ -185,11 +183,6 @@ export default function RowChart({
       crosshair: { mode: 0 },
     });
     chartRef.current = chart;
-
-    // mark user interaction (prevents any auto-fit in future)
-    const markInteract = () => { userInteractedRef.current = true; };
-    el.addEventListener("wheel", markInteract, { passive: true });
-    el.addEventListener("mousedown", markInteract);
 
     const price = chart.addCandlestickSeries({
       upColor: DEFAULTS.upColor,
@@ -205,7 +198,15 @@ export default function RowChart({
     vol.priceScale().applyOptions({ scaleMargins: { top: 0.8, bottom: 0 } });
     volSeriesRef.current = vol;
 
-    const ro = new ResizeObserver(() => chart.resize(el.clientWidth, el.clientHeight));
+    // mark interaction to disable auto-fit afterwards
+    const markInteract = () => { userInteractedRef.current = true; };
+    el.addEventListener("wheel", markInteract, { passive: true });
+    el.addEventListener("mousedown", markInteract);
+
+    // resize with container
+    const ro = new ResizeObserver(() => {
+      try { chart.resize(el.clientWidth, el.clientHeight); } catch {}
+    });
     ro.observe(el);
     roRef.current = ro;
 
@@ -219,9 +220,9 @@ export default function RowChart({
       ema10Ref.current = ema20Ref.current = ema50Ref.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fullScreen]);
+  }, [fullScreen]); // new container size in FullChart/Dashboard
 
-  // Keep AZ formatters + secondsVisible correct on TF change; also reset fit guard
+  /* ---------------------- TF / AZ format updates --------------------- */
   useEffect(() => {
     const chart = chartRef.current;
     if (!chart) return;
@@ -233,26 +234,26 @@ export default function RowChart({
       },
       localization: { timeFormatter: (t) => phoenixTime(t, tf === "1d") },
     });
-    // new TF: allow a fresh single fit after seed
-    didFitOnceRef.current = false;
+    didFitOnceRef.current = false; // allow single fit on next seed
   }, [state.timeframe]);
 
-  // ---------- Historical seed (fit ONCE here) ----------
+  /* ---------------------------- Seed (fit once) ---------------------- */
   useEffect(() => {
     let cancelled = false;
+
     async function loadSeed() {
       setState((s) => ({ ...s, disabled: true }));
       try {
         const seed = await getOHLC(state.symbol, state.timeframe, SEED_LIMIT);
         if (cancelled) return;
+
         const asc = (Array.isArray(seed) ? seed : []).slice().sort((a, b) => a.time - b.time);
         barsRef.current = asc;
         setBars(asc);
 
         const chart = chartRef.current;
         if (chart && state.range === "ALL" && !didFitOnceRef.current && !userInteractedRef.current) {
-          // Fit ONCE immediately after seed (no further auto-fit on ticks)
-          chart.timeScale().fitContent();
+          chart.timeScale().fitContent(); // ONE fit after seed
           didFitOnceRef.current = true;
         }
 
@@ -269,11 +270,12 @@ export default function RowChart({
         if (!cancelled) setState((s) => ({ ...s, disabled: false }));
       }
     }
+
     loadSeed();
     return () => { cancelled = true; };
-  }, [state.symbol, state.timeframe, showDebug, state.range]);
+  }, [state.symbol, state.timeframe, state.range, showDebug]);
 
-  // ---------- Render + range (NO auto-fit on every tick) ----------
+  /* -------------------------- Render + Range ------------------------- */
   useEffect(() => {
     const chart = chartRef.current;
     const price = seriesRef.current;
@@ -297,13 +299,11 @@ export default function RowChart({
       }
     }
 
-    // Respect Range buttons (explicit user action)
     const ts = chart.timeScale();
     const len = bars.length;
     if (!len) return;
 
     if (state.range === "ALL") {
-      // Only fit if we haven't already fit after seed, and user hasn't interacted.
       if (!didFitOnceRef.current && !userInteractedRef.current) {
         ts.fitContent();
         didFitOnceRef.current = true;
@@ -316,9 +316,8 @@ export default function RowChart({
     }
   }, [bars, state.range, state.volume]);
 
-  // ---------- Live stream: 1m → selected TF aggregation ----------
+  /* --------------- Live 1m stream → selected TF aggregation ---------- */
   useEffect(() => {
-    // when TF/symbol changes, this effect cleans up previous subscription automatically
     if (!seriesRef.current || !volSeriesRef.current) return;
 
     const tfSec = TF_SEC[state.timeframe] ?? TF_SEC["10m"];
@@ -337,10 +336,10 @@ export default function RowChart({
       const t = Number(oneMin.time);
       if (!Number.isFinite(t)) return;
 
-      // 1m TF: push finished bar to state only when a NEW minute bar begins
+      // 1m TF: push minute bar
       if (tfSec === TF_SEC["1m"]) {
         seriesRef.current.update(oneMin);
-        if (state.volume && volSeriesRef.current) {
+        if (state.volume) {
           volSeriesRef.current.update({
             time: oneMin.time,
             value: Number(oneMin.volume || 0),
@@ -362,22 +361,20 @@ export default function RowChart({
         return;
       }
 
-      // Aggregated TFs: update rolling bucket live, commit to state ONLY when bucket closes
+      // Aggregated TFs
       const start = floorToBucket(t);
 
-      // bucket rollover: commit the previous bucket (CLOSE) to state once
+      // bucket rollover: commit closed bar
       if (bucketStart === null || start > bucketStart) {
         if (rolling && (!lastSeed || rolling.time >= lastSeed.time)) {
-          // Paint the final closed bucket to series & vol
           seriesRef.current.update(rolling);
-          if (state.volume && volSeriesRef.current) {
+          if (state.volume) {
             volSeriesRef.current.update({
               time: rolling.time,
               value: Number(rolling.volume || 0),
               color: rolling.close >= rolling.open ? DEFAULTS.volUp : DEFAULTS.volDown,
             });
           }
-          // Commit closed bucket to React state ONCE per bucket
           const next = [...barsRef.current];
           const last = next[next.length - 1];
           if (!last || rolling.time > last.time) next.push(rolling);
@@ -404,9 +401,9 @@ export default function RowChart({
         rolling.volume = Number(rolling.volume || 0) + Number(oneMin.volume || 0);
       }
 
-      // paint current open bucket to the chart (no React state change yet)
+      // paint open bucket live
       seriesRef.current.update(rolling);
-      if (state.volume && volSeriesRef.current) {
+      if (state.volume) {
         volSeriesRef.current.update({
           time: rolling.time,
           value: Number(rolling.volume || 0),
@@ -418,7 +415,7 @@ export default function RowChart({
     return () => unsub?.();
   }, [state.symbol, state.timeframe, state.volume]);
 
-  // ---------- EMA lines ----------
+  /* ---------------------------- EMA lines ----------------------------- */
   useEffect(() => {
     const chart = chartRef.current;
     const price = seriesRef.current;
@@ -460,7 +457,7 @@ export default function RowChart({
     }
   }, [bars, state.showEma, state.ema10, state.ema20, state.ema50]);
 
-  // ---------- Overlays ----------
+  /* ----------------------------- Overlays ---------------------------- */
   useEffect(() => {
     const chart = chartRef.current; const price = seriesRef.current;
     if (!chart || !price) return;
@@ -514,7 +511,7 @@ export default function RowChart({
     }
   }, [state.swingLiquidity, bars]);
 
-  // ---------- Controls ----------
+  /* ----------------------------- Handlers ---------------------------- */
   const handleControlsChange = (patch) => setState((s) => ({ ...s, ...patch }));
 
   const applyRange = (nextRange) => {
@@ -530,8 +527,8 @@ export default function RowChart({
 
     if (nextRange === "ALL") {
       ts.fitContent();
-      didFitOnceRef.current = true;             // lock: no further auto-fit
-      userInteractedRef.current = true;         // treat as explicit user choice
+      didFitOnceRef.current = true;
+      userInteractedRef.current = true;
       return;
     }
     const r = Number(nextRange);
@@ -548,24 +545,44 @@ export default function RowChart({
     userInteractedRef.current = true;
   };
 
-  // ---------- Toolbar ----------
-  const handleIndicatorsChange = (patch) => setState((s) => ({ ...s, ...patch }));
-  const handleIndicatorsReset = () =>
-    setState((s) => ({
-      ...s,
-      showEma: true, ema10: true, ema20: true, ema50: true,
-      volume: true, moneyFlow: false, luxSr: false, swingLiquidity: false,
-    }));
-
   const toolbarProps = {
     showEma: state.showEma,
     ema10: state.ema10, ema20: state.ema20, ema50: state.ema50,
     volume: state.volume,
     moneyFlow: state.moneyFlow, luxSr: state.luxSr, swingLiquidity: state.swingLiquidity,
     showSmiToggle: false,
-    onChange: handleIndicatorsChange,
-    onReset: handleIndicatorsReset,
+    onChange: handleControlsChange,
+    onReset: () =>
+      setState((s) => ({
+        ...s,
+        showEma: true, ema10: true, ema20: true, ema50: true,
+        volume: true, moneyFlow: false, luxSr: false, swingLiquidity: false,
+      })),
   };
+
+  /* ------------------------------ Render ----------------------------- */
+  // Height rule: dashboard fixed 520px; FullChart fills parent 100%
+  const containerStyle = useMemo(() => {
+    return fullScreen
+      ? {
+          width: "100%",
+          height: "100%",
+          minHeight: 0,
+          maxHeight: "none",
+          flex: "1 1 auto",
+          overflow: "hidden",
+          background: DEFAULTS.bg,
+        }
+      : {
+          width: "100%",
+          height: "520px",
+          minHeight: 520,
+          maxHeight: 520,
+          flex: "0 0 auto",
+          overflow: "hidden",
+          background: DEFAULTS.bg,
+        };
+  }, [fullScreen]);
 
   return (
     <div
@@ -578,33 +595,18 @@ export default function RowChart({
         background: DEFAULTS.bg,
       }}
     >
-     <Controls
-  symbols={symbols}
-  timeframes={timeframes}
-  value={state}
-  onChange={handleControlsChange}
-  onRange={applyRange}
-/>
+      <Controls
+        symbols={symbols}
+        timeframes={timeframes}
+        value={state}
+        onChange={handleControlsChange}
+        onRange={applyRange}
+      />
 
-<IndicatorsToolbar {...toolbarProps} />
+      <IndicatorsToolbar {...toolbarProps} />
 
-{ /* chart container – parent determines height */ }
-{(() => {
-  const H = fullScreen ? "100%" : "520px";
-  return (
-    <div
-      ref={containerRef}
-      style={{
-        width: "100%",
-        height: H,                         // fullscreen fills parent; dashboard fixed
-        minHeight: fullScreen ? 0 : 520,
-        maxHeight: fullScreen ? "none" : 520,
-        flex: fullScreen ? "1 1 auto" : "0 0 auto",
-        overflow: "hidden",
-        background: DEFAULTS.bg,
-      }}
-    >
-      {/* chart host */}
+      {/* Chart container – parent determines height */}
+      <div ref={containerRef} style={containerStyle} />
     </div>
   );
-})()}
+}
