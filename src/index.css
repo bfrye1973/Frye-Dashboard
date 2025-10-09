@@ -254,3 +254,68 @@ html, body, #root {
   max-width: 100% !important;
   box-sizing: border-box !important;
 }
+/* ===== Full Chart (true full-screen) ===== */
+.fullchart-page{
+  position: fixed;
+  inset: 0;
+  background: #0b0b14;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  z-index: 9999;               /* above dashboard */
+}
+
+.fullchart-topbar{
+  height: 48px;                /* adjust if you want taller/shorter */
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 12px;
+  border-bottom: 1px solid #1f2a44;
+  color: #d1d5db;
+}
+
+.fullchart-back{
+  background: #111827;
+  color: #e5e7eb;
+  border: 1px solid #374151;
+  padding: 6px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.fullchart-title{ opacity: .7; }
+.fullchart-meta{ margin-left: auto; opacity: .6; }
+
+.fullchart-body{
+  /* take all remaining height */
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;            /* chart owns scroll internally if needed */
+  display: flex;
+  flex-direction: column;
+}
+
+/* Inside full screen, kill any panel chrome and force the canvas to fill */
+.fullchart-body .panel,
+.fullchart-body .panel-head{
+  display: none !important;
+}
+
+.fullchart-body .row6-shell,
+.fullchart-body .chart-shell{
+  height: 100% !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+}
+
+.fullchart-body .tv-lightweight-charts{
+  width: 100% !important;
+  height: 100% !important;
+  padding: 0 !important;       /* no extra bottom space in fullscreen */
+  position: relative;
+  overflow: hidden;
+}
