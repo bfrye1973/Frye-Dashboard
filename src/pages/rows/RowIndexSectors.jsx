@@ -477,7 +477,7 @@ export default function RowIndexSectors() {
           <div
             onClick={(e) => e.stopPropagation()}
             style={{
-              width:"min(880px, 92vw)", background:"#0b0b0c", border:"1px solid "#2b2b2b",
+              width:"min(880px, 92vw)", background:"#0b0b0c", border: "1px solid #2b2b2b",
               borderRadius:12, padding:16, boxShadow:"0 10px 30px rgba(0,0,0,0.35)",
             }}
           >
