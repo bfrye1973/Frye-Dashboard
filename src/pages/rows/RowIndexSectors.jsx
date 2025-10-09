@@ -1,5 +1,5 @@
 // src/pages/rows/RowIndexSectors.jsx
-// v4.6 — /live env URLs, stable Δ10m via refs, Δ1h fallback, bigger cards/fonts.
+// v4.7 — Bigger, wider cards + Δ5m & Δ10m restored (stable), /live env URLs only.
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
@@ -54,7 +54,7 @@ function Badge({ text, tone = "info" }) {
     }[tone] || { bg: "#0b0f17", fg: "#93c5fd", bd: "#334155" };
   return (
     <span style={{
-      padding:"4px 8px", borderRadius:8, fontSize:12, fontWeight:700,
+      padding:"4px 10px", borderRadius:10, fontSize:13, fontWeight:800,
       background: map.bg, color: map.fg, border:`1px solid ${map.bd}`
     }}>{text}</span>
   );
@@ -69,9 +69,9 @@ function Pill({ label, value }) {
     <span
       title={`${label}: ${v >= 0 ? "+" : ""}${v.toFixed(2)}`}
       style={{
-        display:"inline-flex", alignItems:"center", gap:6,
-        borderRadius:8, padding:"2px 6px", fontSize:12, lineHeight:1.1,
-        fontWeight:700, background:"#0b0f17", color:tone, border:`1px solid ${tone}33`,
+        display:"inline-flex", alignItems:"center", gap:8,
+        borderRadius:10, padding:"3px 10px", fontSize:14, lineHeight:1.1,
+        fontWeight:800, background:"#0b0f17", color:tone, border:`1px solid ${tone}33`,
         whiteSpace:"nowrap",
       }}
     >
@@ -148,7 +148,7 @@ export default function RowIndexSectors() {
         prev10mMapRef.current = nowMap;
         prev10mTsRef.current  = ts;
 
-        // Read sandbox deltas if present in same payload
+        // If deltas are embedded in intraday (some payloads), capture them
         const ds = j?.deltas?.sectors || {};
         if (ds && typeof ds === "object") {
           const map = {};
@@ -250,7 +250,7 @@ export default function RowIndexSectors() {
     return () => { if (timer) clearInterval(timer); ctrl.abort(); };
   }, [EOD_URL, sourceTf, eod.cards]);
 
-  /* -------------------- Optional: pull standalone sandbox deltas ------------- */
+  /* -------------------- Standalone sandbox deltas (5m) -------------------- */
   useEffect(() => {
     let stop = false;
     async function loadSandbox() {
@@ -334,9 +334,9 @@ export default function RowIndexSectors() {
         <div
           style={{
             display:"grid",
-            gridTemplateColumns:"repeat(auto-fill, minmax(280px, 1fr))", // bigger cards
-            gap:10,
-            marginTop:6,
+            gridTemplateColumns:"repeat(auto-fill, minmax(360px, 1fr))", // longer/wider cards
+            gap:12,
+            marginTop:8,
           }}
         >
           {cards.map((c, i) => {
@@ -365,30 +365,33 @@ export default function RowIndexSectors() {
                 key={c?.sector || i}
                 className="panel"
                 style={{
-                  padding:12,
-                  minWidth:280, maxWidth:340, // bigger
-                  borderRadius:12,
+                  padding:14,
+                  minWidth:360, maxWidth:520, // longer horizontal card
+                  borderRadius:14,
                   border:"1px solid #2b2b2b",
                   background:"#0b0b0c",
-                  boxShadow:"0 8px 20px rgba(0,0,0,0.25)",
+                  boxShadow:"0 10px 24px rgba(0,0,0,0.28)",
                 }}
               >
-                <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:6 }}>
-                  <div className="panel-title small" style={{ color:"#f3f4f6", fontSize:15, fontWeight:800 }}>
+                <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:8 }}>
+                  <div className="panel-title small" style={{ color:"#f3f4f6", fontSize:18, fontWeight:900, letterSpacing:"0.3px" }}>
                     {c?.sector || "Sector"}
                   </div>
                   <Badge text={c?.outlook || "Neutral"} tone={tone} />
                 </div>
 
-                {/* Compact Δ row */}
-                <div style={{ display:"flex", gap:8, margin:"0 0 6px 0", alignItems:"center", flexWrap:"wrap" }}>
+                {/* Single-line pill row; keep horizontally aligned */}
+                <div style={{
+                  display:"flex", gap:10, margin:"0 0 8px 0", alignItems:"center",
+                  flexWrap:"nowrap", overflow:"hidden"
+                }}>
                   {show5 && <Pill label="Δ5m" value={d5} />}
                   <Pill label="Δ10m" value={Number.isFinite(d10) ? d10 : undefined} />
                   <Pill label="Δ1h"  value={Number.isFinite(d1h) ? d1h : undefined} />
                   <Pill label="Δ1d"  value={Number.isFinite(d1d) ? d1d : undefined} />
                 </div>
 
-                <div style={{ fontSize:13, color:"#cbd5e1", display:"grid", gap:3 }}>
+                <div style={{ fontSize:15, color:"#cbd5e1", lineHeight:1.5, display:"grid", gap:6 }}>
                   <div> Breadth Tilt: <b style={{ color:"#f3f4f6" }}>{Number.isFinite(breadth) ? `${breadth.toFixed(1)}%` : "—"}</b> </div>
                   <div> Momentum:     <b style={{ color:"#f3f4f6" }}>{Number.isFinite(momentum) ? `${momentum.toFixed(1)}%` : "—"}</b> </div>
                   <div>
@@ -401,9 +404,9 @@ export default function RowIndexSectors() {
           })}
         </div>
       ) : (
-        <div className="small muted" style={{ padding:6 }}>
+        <div className="small muted" style={{ padding:8 }}>
           {(!INTRADAY_URL && "Missing REACT_APP_INTRADAY_URL") ||
-            (active.err ? `Failed to load sectors. ${active.err}` : "No sector cards in payload.")}
+            (intraday.err ? `Failed to load sectors. ${intraday.err}` : "No sector cards in payload.")}
         </div>
       )}
 
@@ -430,10 +433,10 @@ export default function RowIndexSectors() {
               Outlook
             </div>
             <div style={{ color:"#d1d5db", fontSize:12 }}>
-              <b>Δ5m</b> from sandbox (netTilt).<br/>
-              <b>Δ10m</b> from live intraday vs prior intraday (session).<br/>
-              <b>Δ1h</b> from live hourly vs prior hourly (session; falls back to intraday−last-hourly until next hourly closes).<br/>
-              <b>Δ1d</b> from live EOD vs prior EOD (session).
+              <b>Δ5m</b> sandbox netTilt (5-minute cadence).<br/>
+              <b>Δ10m</b> live intraday vs prior intraday (session).<br/>
+              <b>Δ1h</b> live hourly vs prior hourly (session; falls back to intraday−last-hourly until next hourly closes).<br/>
+              <b>Δ1d</b> live EOD vs prior EOD (session).
             </div>
             <div style={{ display:"flex", justifyContent:"flex-end", marginTop:12 }}>
               <button
