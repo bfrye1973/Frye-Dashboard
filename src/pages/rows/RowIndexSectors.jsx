@@ -440,10 +440,10 @@ export default function RowIndexSectors() {
                   display:"flex", gap:10, margin:"0 0 8px 0", alignItems:"center",
                   whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis"
                 }}>
-                  <Pill label="Δ5m"  value={Number.isFinite(d5)  ? d5  : 0} />
-                  <Pill label="Δ10m" value={Number.isFinite(d10) ? d10 : 0} />
-                  <Pill label="Δ1h"  value={Number.isFinite(d1h) ? d1h : 0} />
-                  <Pill label="Δ1d"  value={Number.isFinite(d1d) ? d1d : 0} />
+                  <Pill label="Δ5m"  value={Number.isFinite(d5)  ? d5  : undefined} />
+                  <Pill label="Δ10m" value={Number.isFinite(d10) ? d10 : undefined} />
+                  <Pill label="Δ1h"  value={Number.isFinite(d1h) ? d1h : undefined} />
+                  <Pill label="Δ1d"  value={Number.isFinite(d1d) ? d1d : undefined} />
                 </div>
 
                 <div style={{ fontSize:15, color:"#cbd5e1", lineHeight:1.5, display:"grid", gap:6 }}>
