@@ -578,29 +578,33 @@ export default function RowChart({
         background: DEFAULTS.bg,
       }}
     >
-      <Controls
-        symbols={symbols}
-        timeframes={timeframes}
-        value={state}
-        onChange={handleControlsChange}
-        onRange={applyRange}
-      />
+     <Controls
+  symbols={symbols}
+  timeframes={timeframes}
+  value={state}
+  onChange={handleControlsChange}
+  onRange={applyRange}
+/>
 
-      <IndicatorsToolbar {...toolbarProps} />
+<IndicatorsToolbar {...toolbarProps} />
 
-     const H = fullScreen ? "100%" : "520px";
-
-<div
-  ref={containerRef}
-  style={{
-    width: "100%",
-    height: H,                 // full screen fills parent; dashboard fixed
-    minHeight: fullScreen ? 0 : 520,
-    maxHeight: fullScreen ? "none" : 520,
-    flex: fullScreen ? "1 1 auto" : "0 0 auto",
-    overflow: "hidden",
-    background: DEFAULTS.bg,   // keep whatever you had here
-  }}
->
-  {/* chart host */}
-</div>
+{ /* chart container – parent determines height */ }
+{(() => {
+  const H = fullScreen ? "100%" : "520px";
+  return (
+    <div
+      ref={containerRef}
+      style={{
+        width: "100%",
+        height: H,                         // fullscreen fills parent; dashboard fixed
+        minHeight: fullScreen ? 0 : 520,
+        maxHeight: fullScreen ? "none" : 520,
+        flex: fullScreen ? "1 1 auto" : "0 0 auto",
+        overflow: "hidden",
+        background: DEFAULTS.bg,
+      }}
+    >
+      {/* chart host */}
+    </div>
+  );
+})()}
