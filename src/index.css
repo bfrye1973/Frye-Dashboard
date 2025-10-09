@@ -227,3 +227,12 @@ html body #root {
   height: auto !important;
   overflow: auto !important;
 }
+/* ==== GLOBAL PAGE WIDTH FIX ==== */
+.dashboard-grid {
+  max-width: 100vw !important;     /* never exceed visible screen width */
+  overflow-x: hidden !important;   /* hide any stray horizontal overflow */
+}
+
+#root, body {
+  overflow-x: hidden !important;   /* ensure no scrollbars from parent containers */
+}
