@@ -1,12 +1,7 @@
 // src/pages/rows/RowIndexSectors.jsx
-// v4.5 — /live/* env URLs + session Δ pills; compact, no layout changes.
-// - Δ5m  = sandbox netTilt (read-only)
-// - Δ10m = current intraday vs prior intraday (session)
-// - Δ1h  = current hourly vs prior hourly (session)
-//          Fallback: intraday vs last-hourly until next hourly closes
-// - Δ1d  = current EOD vs prior EOD (session)
+// v4.6 — /live env URLs, stable Δ10m via refs, Δ1h fallback, bigger cards/fonts.
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 
 /* ------------------------------ ENV URLS ------------------------------ */
 const INTRADAY_URL = (process.env.REACT_APP_INTRADAY_URL || "").replace(/\/+$/, "");
@@ -31,6 +26,16 @@ const orderKey = (name = "") => {
   const i = ORDER.indexOf(norm(name));
   return i === -1 ? 999 : i;
 };
+
+const ALIASES = {
+  healthcare: "Health Care", "health care": "Health Care",
+  "info tech": "Information Technology", "information technology": "Information Technology",
+  communications: "Communication Services", "communication services": "Communication Services",
+  "consumer staples": "Consumer Staples", "consumer discretionary": "Consumer Discretionary",
+  financials: "Financials", industrials: "Industrials", materials: "Materials",
+  "real estate": "Real Estate", utilities: "Utilities", energy: "Energy",
+};
+
 const toneFor = (o) => {
   const s = String(o || "").toLowerCase();
   if (s.startsWith("bull")) return "ok";
@@ -64,9 +69,9 @@ function Pill({ label, value }) {
     <span
       title={`${label}: ${v >= 0 ? "+" : ""}${v.toFixed(2)}`}
       style={{
-        display:"inline-flex", alignItems:"center", gap:4,
-        borderRadius:6, padding:"1px 4px", fontSize:11, lineHeight:1.1,
-        fontWeight:600, background:"#0b0f17", color:tone, border:`1px solid ${tone}33`,
+        display:"inline-flex", alignItems:"center", gap:6,
+        borderRadius:8, padding:"2px 6px", fontSize:12, lineHeight:1.1,
+        fontWeight:700, background:"#0b0f17", color:tone, border:`1px solid ${tone}33`,
         whiteSpace:"nowrap",
       }}
     >
@@ -74,16 +79,6 @@ function Pill({ label, value }) {
     </span>
   );
 }
-
-/* ------------------------------ Aliases ------------------------------ */
-const ALIASES = {
-  healthcare: "Health Care", "health care": "Health Care",
-  "info tech": "Information Technology", "information technology": "Information Technology",
-  communications: "Communication Services", "communication services": "Communication Services",
-  "consumer staples": "Consumer Staples", "consumer discretionary": "Consumer Discretionary",
-  financials: "Financials", industrials: "Industrials", materials: "Materials",
-  "real estate": "Real Estate", utilities: "Utilities", energy: "Energy",
-};
 
 /* ------------------------------ Fetch util ------------------------------ */
 async function fetchJSON(url, signal) {
@@ -108,29 +103,29 @@ function netNHMapFromCards(cards = []) {
 
 /* -------------------------------- Main -------------------------------- */
 export default function RowIndexSectors() {
-  const [sourceTf, setSourceTf] = useState("10m"); // "10m" | "eod"
+  const [sourceTf, setSourceTf] = useState("10m");
 
   const [intraday, setIntraday] = useState({ ts: null, cards: [], err: null });
   const [hourly,   setHourly]   = useState({ ts: null, cards: [], err: null });
   const [eod,      setEod]      = useState({ ts: null, cards: [], err: null });
 
-  // Session delta maps
+  // Session deltas
   const [d10mSess, setD10mSess] = useState({});
   const [d1hSess,  setD1hSess]  = useState({});
   const [d1dSess,  setD1dSess]  = useState({});
 
-  // Last snapshots for session deltas
-  const [last10m, setLast10m] = useState(null);
-  const [last1h,  setLast1h]  = useState(null);
-  const [last1d,  setLast1d]  = useState(null);
+  // Stable refs for Δ10m previous snapshot
+  const prev10mMapRef = useRef(null);
+  const prev10mTsRef  = useRef(null);
 
   // Δ5m sandbox
   const [d5mMap, setD5mMap] = useState({});
   const [deltasUpdatedAt, setDeltasUpdatedAt] = useState(null);
 
-  /* -------------------- Poll intraday (10m) + Δ10m session -------------------- */
+  /* -------------------- Poll intraday (10m) + Δ10m via refs -------------------- */
   useEffect(() => {
     const ctrl = new AbortController();
+
     async function load() {
       if (!INTRADAY_URL) { setIntraday(p => ({ ...p, err: "Missing INTRADAY_URL" })); return; }
       try {
@@ -139,27 +134,45 @@ export default function RowIndexSectors() {
         const cards = Array.isArray(j?.sectorCards) ? j.sectorCards.slice() : [];
         setIntraday({ ts, cards, err: null });
 
-        // Session Δ10m
+        // Compute Δ10m only when backend timestamp advances
         const nowMap = netNHMapFromCards(cards);
-        if (last10m) {
+        if (prev10mMapRef.current && prev10mTsRef.current && ts && ts !== prev10mTsRef.current) {
           const d = {};
-          const keys = new Set([...Object.keys(nowMap), ...Object.keys(last10m)]);
-          for (const k of keys) if (Number.isFinite(nowMap[k]) && Number.isFinite(last10m[k])) d[k] = nowMap[k] - last10m[k];
+          const keys = new Set([...Object.keys(nowMap), ...Object.keys(prev10mMapRef.current)]);
+          for (const k of keys) {
+            const a = nowMap[k], b = prev10mMapRef.current[k];
+            if (Number.isFinite(a) && Number.isFinite(b)) d[k] = a - b;
+          }
           setD10mSess(d);
         }
-        setLast10m(nowMap);
+        prev10mMapRef.current = nowMap;
+        prev10mTsRef.current  = ts;
+
+        // Read sandbox deltas if present in same payload
+        const ds = j?.deltas?.sectors || {};
+        if (ds && typeof ds === "object") {
+          const map = {};
+          for (const key of Object.keys(ds)) {
+            const canon = ALIASES[norm(key)] || key;
+            map[norm(canon)] = Number(ds[key]?.netTilt ?? NaN);
+          }
+          setD5mMap(map);
+          setDeltasUpdatedAt(j?.deltasUpdatedAt || null);
+        }
       } catch (err) {
         setIntraday(p => ({ ...p, err: String(err) }));
       }
     }
+
     load();
     const t = setInterval(load, 60_000);
     return () => { ctrl.abort(); clearInterval(t); };
-  }, [last10m]);
+  }, [INTRADAY_URL]);
 
-  /* -------------------- Poll hourly + Δ1h session (+fallback) -------------------- */
+  /* -------------------- Poll hourly + Δ1h (fallback intraday−lastHourly) ----- */
   useEffect(() => {
     const ctrl = new AbortController();
+
     async function load() {
       if (!HOURLY_URL) { setHourly(p => ({ ...p, err: "Missing HOURLY_URL" })); return; }
       try {
@@ -170,38 +183,42 @@ export default function RowIndexSectors() {
 
         const nowH = netNHMapFromCards(cards);
 
-        // Normal: hour-over-hour
-        if (last1h) {
+        // Hour-over-hour when we have two distinct hourly pulls
+        if (hourly.ts && ts && ts !== hourly.ts) {
+          const prevH = netNHMapFromCards(hourly.cards || []);
           const d = {};
-          const keys = new Set([...Object.keys(nowH), ...Object.keys(last1h)]);
-          for (const k of keys) if (Number.isFinite(nowH[k]) && Number.isFinite(last1h[k])) d[k] = nowH[k] - last1h[k];
+          const keys = new Set([...Object.keys(nowH), ...Object.keys(prevH)]);
+          for (const k of keys) {
+            const a = nowH[k], b = prevH[k];
+            if (Number.isFinite(a) && Number.isFinite(b)) d[k] = a - b;
+          }
           setD1hSess(d);
-        }
-
-        // Fallback until next hourly bar closes:
-        // Δ1h = current intraday NetNH - last hourly NetNH
-        if (intraday.cards?.length && last1h && (!ts || ts === hourly.ts)) {
+        } else if (intraday.cards?.length) {
+          // Fallback: Δ1h = current intraday NetNH - last hourly NetNH
           const now10 = netNHMapFromCards(intraday.cards);
           const dAlt = {};
-          const keys = new Set([...Object.keys(now10), ...Object.keys(last1h)]);
-          for (const k of keys) if (Number.isFinite(now10[k]) && Number.isFinite(last1h[k])) dAlt[k] = now10[k] - last1h[k];
+          const keys = new Set([...Object.keys(now10), ...Object.keys(nowH)]);
+          for (const k of keys) {
+            const a = now10[k], b = nowH[k];
+            if (Number.isFinite(a) && Number.isFinite(b)) dAlt[k] = a - b;
+          }
           setD1hSess(dAlt);
         }
-
-        setLast1h(nowH);
       } catch (err) {
         setHourly(p => ({ ...p, err: String(err) }));
       }
     }
+
     load();
     const t = setInterval(load, 60_000);
     return () => { ctrl.abort(); clearInterval(t); };
-  }, [intraday.cards, last1h, hourly.ts]);
+  }, [HOURLY_URL, intraday.cards, hourly.ts]);
 
-  /* -------------------- Fetch EOD on demand + Δ1d session -------------------- */
+  /* -------------------- Poll EOD on demand + Δ1d (session) -------------------- */
   useEffect(() => {
     let timer = null;
     const ctrl = new AbortController();
+
     async function load() {
       if (!EOD_URL) { setEod(p => ({ ...p, err: "Missing EOD_URL" })); return; }
       try {
@@ -210,26 +227,30 @@ export default function RowIndexSectors() {
         const cards = Array.isArray(j?.sectorCards) ? j.sectorCards.slice() : [];
         setEod({ ts, cards, err: null });
 
-        const nowMap = netNHMapFromCards(cards);
-        if (last1d) {
+        if (eod.cards?.length) {
+          const nowMap = netNHMapFromCards(cards);
+          const prev   = netNHMapFromCards(eod.cards);
           const d = {};
-          const keys = new Set([...Object.keys(nowMap), ...Object.keys(last1d)]);
-          for (const k of keys) if (Number.isFinite(nowMap[k]) && Number.isFinite(last1d[k])) d[k] = nowMap[k] - last1d[k];
+          const keys = new Set([...Object.keys(nowMap), ...Object.keys(prev)]);
+          for (const k of keys) {
+            const a = nowMap[k], b = prev[k];
+            if (Number.isFinite(a) && Number.isFinite(b)) d[k] = a - b;
+          }
           setD1dSess(d);
         }
-        setLast1d(nowMap);
       } catch (err) {
         setEod(p => ({ ...p, err: String(err) }));
       }
     }
+
     if (sourceTf === "eod") {
       load();
       timer = setInterval(load, 300_000);
     }
     return () => { if (timer) clearInterval(timer); ctrl.abort(); };
-  }, [sourceTf, last1d]);
+  }, [EOD_URL, sourceTf, eod.cards]);
 
-  /* -------------------- Pull 5m sandbox deltas (read-only) -------------------- */
+  /* -------------------- Optional: pull standalone sandbox deltas ------------- */
   useEffect(() => {
     let stop = false;
     async function loadSandbox() {
@@ -240,8 +261,8 @@ export default function RowIndexSectors() {
         const j = await r.json();
         if (stop) return;
 
-        const map = {};
         const ds = j?.deltas?.sectors || {};
+        const map = {};
         for (const key of Object.keys(ds)) {
           const canon = ALIASES[norm(key)] || key;
           map[norm(canon)] = Number(ds[key]?.netTilt ?? NaN);
@@ -263,9 +284,6 @@ export default function RowIndexSectors() {
     const arr = Array.isArray(active.cards) ? active.cards.slice() : [];
     return arr.sort((a, b) => orderKey(a?.sector) - orderKey(b?.sector));
   }, [active.cards]);
-
-  // Repaint per backend tick
-  const stableKey = `${active.ts || "no-ts"}•${cards.length}`;
 
   // Legend modal
   const [legendOpen, setLegendOpen] = useState(false);
@@ -313,7 +331,14 @@ export default function RowIndexSectors() {
 
       {/* Body */}
       {cards.length > 0 ? (
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(220px, 1fr))", gap:8, marginTop:6 }}>
+        <div
+          style={{
+            display:"grid",
+            gridTemplateColumns:"repeat(auto-fill, minmax(280px, 1fr))", // bigger cards
+            gap:10,
+            marginTop:6,
+          }}
+        >
           {cards.map((c, i) => {
             const key = norm(c?.sector || "");
 
@@ -340,24 +365,30 @@ export default function RowIndexSectors() {
                 key={c?.sector || i}
                 className="panel"
                 style={{
-                  padding:10, minWidth:220, maxWidth:260, borderRadius:12,
-                  border:"1px solid #2b2b2b", background:"#0b0b0c", boxShadow:"0 8px 20px rgba(0,0,0,0.25)",
+                  padding:12,
+                  minWidth:280, maxWidth:340, // bigger
+                  borderRadius:12,
+                  border:"1px solid #2b2b2b",
+                  background:"#0b0b0c",
+                  boxShadow:"0 8px 20px rgba(0,0,0,0.25)",
                 }}
               >
-                <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:4 }}>
-                  <div className="panel-title small" style={{ color:"#f3f4f6" }}>{c?.sector || "Sector"}</div>
+                <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:6 }}>
+                  <div className="panel-title small" style={{ color:"#f3f4f6", fontSize:15, fontWeight:800 }}>
+                    {c?.sector || "Sector"}
+                  </div>
                   <Badge text={c?.outlook || "Neutral"} tone={tone} />
                 </div>
 
                 {/* Compact Δ row */}
-                <div style={{ display:"flex", gap:6, margin:"0 0 4px 0", alignItems:"center", flexWrap:"wrap" }}>
+                <div style={{ display:"flex", gap:8, margin:"0 0 6px 0", alignItems:"center", flexWrap:"wrap" }}>
                   {show5 && <Pill label="Δ5m" value={d5} />}
                   <Pill label="Δ10m" value={Number.isFinite(d10) ? d10 : undefined} />
                   <Pill label="Δ1h"  value={Number.isFinite(d1h) ? d1h : undefined} />
                   <Pill label="Δ1d"  value={Number.isFinite(d1d) ? d1d : undefined} />
                 </div>
 
-                <div style={{ fontSize:12, color:"#cbd5e1", display:"grid", gap:2 }}>
+                <div style={{ fontSize:13, color:"#cbd5e1", display:"grid", gap:3 }}>
                   <div> Breadth Tilt: <b style={{ color:"#f3f4f6" }}>{Number.isFinite(breadth) ? `${breadth.toFixed(1)}%` : "—"}</b> </div>
                   <div> Momentum:     <b style={{ color:"#f3f4f6" }}>{Number.isFinite(momentum) ? `${momentum.toFixed(1)}%` : "—"}</b> </div>
                   <div>
