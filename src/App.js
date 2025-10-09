@@ -159,6 +159,31 @@ function HealthStatusBar() {
     </div>
   );
 }
+import { useEffect } from "react";
+
+useEffect(() => {
+  const fixWidth = () => {
+    const grid = document.querySelector(".dashboard-grid");
+    if (grid) {
+      grid.style.width = "100%";
+      grid.style.maxWidth = "100vw";
+      grid.style.overflowX = "hidden";
+    }
+  };
+
+  // Run once on mount
+  fixWidth();
+
+  // Run again whenever the window resizes or zooms
+  window.addEventListener("resize", fixWidth);
+  window.addEventListener("orientationchange", fixWidth);
+
+  // Cleanup
+  return () => {
+    window.removeEventListener("resize", fixWidth);
+    window.removeEventListener("orientationchange", fixWidth);
+  };
+}, []);
 
 /* --------------------------------- App --------------------------------- */
 export default function App() {
