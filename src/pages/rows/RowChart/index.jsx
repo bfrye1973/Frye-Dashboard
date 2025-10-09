@@ -588,16 +588,19 @@ export default function RowChart({
 
       <IndicatorsToolbar {...toolbarProps} />
 
-      {/* Chart container — parent determines height (dashboard row fixed height) */}
-      <div
-        ref={containerRef}
-        style={{
-           width: "100%",
-           height: fullScreen ? "100%" : "520px",  // <-- only fullScreen grows
-           minHeight: fullScreen ? 0 : 360,
-           background: DEFAULTS.bg,
-        }}
-      />
-    </div>
-  );
-}
+     const H = fullScreen ? "100%" : "520px";
+
+<div
+  ref={containerRef}
+  style={{
+    width: "100%",
+    height: H,                 // full screen fills parent; dashboard fixed
+    minHeight: fullScreen ? 0 : 520,
+    maxHeight: fullScreen ? "none" : 520,
+    flex: fullScreen ? "1 1 auto" : "0 0 auto",
+    overflow: "hidden",
+    background: DEFAULTS.bg,   // keep whatever you had here
+  }}
+>
+  {/* chart host */}
+</div>
