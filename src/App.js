@@ -2,7 +2,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import NewDashboard from "./pages/NewDashboard";
-import ErrorBoundary from "./components/ErrorBoundary"; // <- components path
+import ErrorBoundary from "./ErrorBoundary";
 import "./index.css";
 import UIScaler from "./components/UIScaler";
 import { ModeProvider, ViewModes } from "./context/ModeContext";
