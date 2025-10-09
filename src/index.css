@@ -13,7 +13,7 @@ html { zoom:1 !important; }
 
   /* 33/34" ULTRA-WIDE baseline (global UI size knob) */
   /* bigger overall → bump 15→16 or 19→20; smaller → lower them */
-  --base-font: clamp(18px, 0.35vw + 12px, 24px);
+  --base-font: clamp(18px, 0.35vw + 13px, 28px);
 
 }
 
