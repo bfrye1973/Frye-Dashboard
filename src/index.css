@@ -342,7 +342,3 @@ html, body, #root {
   flex: 1 1 auto !important;
   min-height: 0 !important;
 }
-/* give chart 12px breathing room for watermark text */
-.tv-lightweight-charts {
-  margin-top: 12px !important;
-}
