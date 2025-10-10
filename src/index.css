@@ -342,3 +342,17 @@ html, body, #root {
   flex: 1 1 auto !important;
   min-height: 0 !important;
 }
+/* keep TradingView watermark / top text visible */
+.tv-lightweight-charts {
+  padding-top: 14px !important;    /* a small, safe buffer */
+}
+
+/* in Full Chart we have a tighter top bar, give it a touch more */
+.fullchart-body .tv-lightweight-charts {
+  padding-top: 18px !important;
+}
+
+/* if you use absolute overlays, make them respect that top buffer too */
+.overlay-leave-axis-gap {
+  inset: 14px 0 var(--axis-gap) 0 !important;  /* top=14px, bottom=axis gap */
+}
