@@ -1,21 +1,20 @@
 // src/components/trading/TradeDrawer.jsx
-// Safe Paper-Trading Drawer (Options on Core, Paper on Streamer)
-// - Core (Backend-1):  /api/options/meta  |  /api/options/chain
-// - Streamer (Backend-2):  /paper/status (SSE), /paper/execute, /paper/positions, /paper/orders
+// Safe Paper-Trading Drawer (Core for Options, Streamer for Paper).
+// - Core (Backend-1):  /api/options/meta , /api/options/chain
+// - Streamer (Backend-2):  /paper/status (SSE), /paper/execute
 //
 // Notes:
-// * Adds a small "Exec Price" field used when sending MKT orders (paper API requires a price).
-// * Positions/Orders tabs now display the live snapshot from /paper/status (read-only).
-// * We leave your old REST polling in place for executions/risk, but paper positions/orders come from the stream.
+// * Exec Price is required for MKT paper orders (until we auto-mark from candles).
+// * Positions/Orders tabs render the live snapshot from /paper/status (read-only).
+// * No changes to chart layout; this is fully isolated.
 
 import React, { useEffect, useMemo, useState } from "react";
 import usePaperStatus from "../../hooks/usePaperStatus";
 
-/* --------------------- Core & Streamer base resolvers --------------------- */
+/* ----------------------- Core & Streamer base resolvers ------------------- */
 function getCoreBase() {
   // Backend-1 (Core)
-  const DEFAULT = "https://frye-market-backend-1.onrender.com";
-  return DEFAULT;
+  return "https://frye-market-backend-1.onrender.com";
 }
 function getStreamBase() {
   // Backend-2 (Streamer)
@@ -28,7 +27,7 @@ function getStreamBase() {
   return env.replace(/\/+$/, "");
 }
 
-/* ------------------------------ time helpers ------------------------------ */
+/* -------------------------------- time helper ----------------------------- */
 const fmtAz = (iso) => {
   if (!iso) return "—";
   try {
@@ -46,7 +45,7 @@ const fmtAz = (iso) => {
   }
 };
 
-/* ------------------------------- net utils -------------------------------- */
+/* -------------------------------- net utils ------------------------------- */
 async function safeGet(url) {
   try {
     const res = await fetch(url, { cache: "no-store" });
@@ -80,7 +79,7 @@ async function safeDelete(url) {
   }
 }
 
-/* ------------------------------- helpers ---------------------------------- */
+/* -------------------------------- helpers -------------------------------- */
 function uuidv4() {
   return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
     const r = (Math.random() * 16) | 0;
@@ -94,7 +93,7 @@ function numberOrNull(v) {
   return Number.isFinite(n) ? n : null;
 }
 
-/* ------------------------------ small UI bits ----------------------------- */
+/* -------------------------------- UI atoms -------------------------------- */
 function Pill({ color = "#374151", children }) {
   return (
     <span
@@ -113,74 +112,16 @@ function Pill({ color = "#374151", children }) {
     </span>
   );
 }
-function SimpleTable({ columns, rows, emptyText }) {
-  return (
-    <div style={{ overflowX: "auto" }}>
-      <table style={{ width: "100%", borderCollapse: "collapse" }}>
-        <thead>
-          <tr>
-            {columns.map((c) => (
-              <th
-                key={c.key}
-                style={{
-                  textAlign: c.align || "left",
-                  padding: "8px 10px",
-                  fontSize: 12,
-                  color: "#9ca3af",
-                  borderBottom: "1px solid #1f2937",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {c.label}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.length === 0 ? (
-            <tr>
-              <td colSpan={columns.length} style={{ padding: 12, color: "#6b7280", fontSize: 13 }}>
-                {emptyText}
-              </td>
-            </tr>
-          ) : (
-            rows.map((r, i) => (
-              <tr key={i} style={{ borderBottom: "1px solid #111827" }}>
-                {columns.map((c) => (
-                  <td
-                    key={c.key}
-                    style={{
-                      padding: "8px 10px",
-                      textAlign: c.align || "left",
-                      fontSize: 13,
-                      color: "#e5e7eb",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {c.render ? c.render(r[c.key], r) : r[c.key]}
-                  </td>
-                ))}
-              </tr>
-            ))
-          )}
-        </tbody>
-      </table>
-    </div>
-  );
-}
 
 /* --------------------------------- Drawer -------------------------------- */
 export default function TradeDrawer({ open, onClose, defaultSymbol = "SPY" }) {
-  const coreBase = getCoreBase();              // Backend-1 (Core)
-  const streamBase = getStreamBase();          // Backend-2 (Streamer)
+  const coreBase = getCoreBase();     // Backend-1 (Core)
+  const streamBase = getStreamBase(); // Backend-2 (Streamer)
 
-  const [tab, setTab] = useState("ticket");    // ticket | positions | orders | executions | journal | options | risk
+  const [tab, setTab] = useState("ticket"); // ticket | positions | orders | executions | journal | options | risk
   const [symbol, setSymbol] = useState(defaultSymbol);
 
-  // Asset type toggle
-  const [assetType, setAssetType] = useState("OPTION"); // OPTION | EQUITY
-
-  // LIVE/PAPER status from Core (unchanged, read-only)
+  // LIVE/PAPER status from Core (read-only)
   const [status, setStatus] = useState({ mode: "PAPER", liveEnabled: false, connected: false });
   const statusUrl = useMemo(() => `${coreBase.replace(/\/+$/, "")}/api/trading/status`, [coreBase]);
 
@@ -193,8 +134,8 @@ export default function TradeDrawer({ open, onClose, defaultSymbol = "SPY" }) {
       if (res.ok && res.data) {
         setStatus({
           mode: res.data.mode || "PAPER",
-          liveEnabled: Boolean(res.data.liveEnabled),
-          connected: Boolean(res.data.connected),
+          liveEnabled: !!res.data.liveEnabled,
+          connected: !!res.data.connected,
         });
       }
     })();
@@ -204,8 +145,8 @@ export default function TradeDrawer({ open, onClose, defaultSymbol = "SPY" }) {
       if (res.ok && res.data) {
         setStatus({
           mode: res.data.mode || "PAPER",
-          liveEnabled: Boolean(res.data.liveEnabled),
-          connected: Boolean(res.data.connected),
+          liveEnabled: !!res.data.liveEnabled,
+          connected: !!res.data.connected,
         });
       }
     }, 15000);
@@ -230,10 +171,9 @@ export default function TradeDrawer({ open, onClose, defaultSymbol = "SPY" }) {
       paperExecute: `${stream}/paper/execute`,
       paperPositions: `${stream}/paper/positions`,
       paperOrders: `${stream}/paper/orders`,
-      // Risk/kill remains on Core (if you want to keep it)
+      // Risk endpoints on Core (optional)
       riskStatus: `${core}/api/risk/status`,
       riskKill: `${core}/api/risk/kill`,
-      // (Old core trading endpoints kept for reference; no longer used for paper)
     };
   }, [coreBase, streamBase, symbol]);
 
@@ -242,21 +182,18 @@ export default function TradeDrawer({ open, onClose, defaultSymbol = "SPY" }) {
     connected: paperConnected,
     error: paperError,
     snapshot: paperSnap,
-  } = usePaperStatus();
-  // paperSnap: { ts, positions: {SYM: {qty, avgPrice, last, realizedPnL, unrealizedPnL, updated}}, orders: [...] }
+  } = usePaperStatus(); // { ts, positions: {SYM:{...}}, orders: [...] }
 
-  /* ------------------------------ Options data ---------------------------- */
+  /* ------------------------------ Options data ----------------------------- */
   const [expirations, setExpirations] = useState([]);
   const [expiration, setExpiration] = useState("");
   const [optSide, setOptSide] = useState("call"); // call | put
   const [chainRows, setChainRows] = useState([]);
   const [chainAvail, setChainAvail] = useState(null);
   const [strike, setStrike] = useState("");
-
-  // manual fallback for options fields (when options endpoints not live)
   const [manualOpt, setManualOpt] = useState(false);
 
-  // Load expirations (Core) when visible
+  // Expirations from Core
   useEffect(() => {
     if (!open) return;
     if (tab !== "ticket" && tab !== "options") return;
@@ -273,9 +210,9 @@ export default function TradeDrawer({ open, onClose, defaultSymbol = "SPY" }) {
       alive = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [URLS.optionsMeta, open, tab, assetType, manualOpt]);
+  }, [URLS.optionsMeta, open, tab, manualOpt]);
 
-  // Load chain (Core) when visible
+  // Chain rows from Core
   useEffect(() => {
     if (!open) return;
     if (tab !== "ticket" && tab !== "options") return;
@@ -295,7 +232,7 @@ export default function TradeDrawer({ open, onClose, defaultSymbol = "SPY" }) {
     return () => {
       alive = false;
     };
-  }, [URLS, expiration, optSide, open, tab, assetType, manualOpt]);
+  }, [URLS, expiration, optSide, open, tab, manualOpt]);
 
   /* ----------------------------------- Risk -------------------------------- */
   const [risk, setRisk] = useState({ killSwitch: false, caps: null, last: null });
@@ -305,7 +242,7 @@ export default function TradeDrawer({ open, onClose, defaultSymbol = "SPY" }) {
     (async () => {
       const r = await safeGet(URLS.riskStatus);
       if (!alive) return;
-      setRisk({ killSwitch: Boolean(r.data?.killSwitch), caps: r.data?.caps || null, last: new Date().toISOString() });
+      setRisk({ killSwitch: !!r.data?.killSwitch, caps: r.data?.caps || null, last: new Date().toISOString() });
     })();
   }, [URLS.riskStatus, tab, open]);
 
@@ -315,21 +252,21 @@ export default function TradeDrawer({ open, onClose, defaultSymbol = "SPY" }) {
     const res = await safePost(URLS.riskKill, {});
     if (res.ok) {
       alert("Kill Switch engaged.");
-      // No-op for paper stream; left here in case you keep Core risk.
     } else {
       alert("Kill Switch failed or endpoint not available.");
     }
   }
 
-  /* ------------------------------ Ticket state ---------------------------- */
-  // Shared
+  /* ------------------------------ Ticket state ----------------------------- */
+  const [assetType, setAssetType] = useState("OPTION"); // OPTION | EQUITY
+
+  // Shared controls
   const [sideIn, setSideIn] = useState("BUY");
   const [tif, setTif] = useState("DAY");
   const [type, setType] = useState("MKT"); // MKT|LMT|STOP|STOP-LMT
   const [limitPrice, setLimitPrice] = useState("");
   const [stopPrice, setStopPrice] = useState("");
-  // NEW: Exec price (used when sending MKT orders to paper API)
-  const [execPrice, setExecPrice] = useState("");
+  const [execPrice, setExecPrice] = useState(""); // used for MKT paper orders
 
   // Equity
   const [equityQty, setEquityQty] = useState(100);
@@ -357,7 +294,7 @@ export default function TradeDrawer({ open, onClose, defaultSymbol = "SPY" }) {
       if (!Number.isFinite(Number(contracts)) || Number(contracts) < 1) errors.push("Contracts must be ≥ 1.");
       if (!Number.isFinite(Number(strike))) errors.push("Choose a strike.");
     }
-    // Price rules for paper:
+    // Paper price checks
     if (type === "LMT" && numberOrNull(limitPrice) == null) errors.push("Limit price required for LMT.");
     if ((type === "STOP" || type === "STOP-LMT") && numberOrNull(stopPrice) == null)
       errors.push("Stop price required for STOP/STOP-LMT.");
@@ -382,7 +319,7 @@ export default function TradeDrawer({ open, onClose, defaultSymbol = "SPY" }) {
     setBusy(true);
     const idem = uuidv4();
 
-    // Determine price to send to paper API
+    // Determine price sent to paper API
     const price =
       type === "LMT" ? numberOrNull(limitPrice)
       : (type === "MKT" ? numberOrNull(execPrice)
@@ -392,20 +329,18 @@ export default function TradeDrawer({ open, onClose, defaultSymbol = "SPY" }) {
     if (assetType === "EQUITY") {
       payload = {
         symbol: String(symbol).toUpperCase(),
-        side: sideIn,              // BUY|SELL
-        qty: Number(equityQty),    // shares
-        price: Number(price || 0), // required by paper API
+        side: sideIn,
+        qty: Number(equityQty),
+        price: Number(price || 0),
         ts: Math.floor(Date.now() / 1000),
       };
     } else {
-      // Option — for MVP we still send a single price (premium) to paper
       payload = {
-        symbol: String(symbol).toUpperCase(), // underlying symbol for paper
-        side: sideIn,                         // BUY|SELL (of the option)
-        qty: Number(contracts),               // contracts
-        price: Number(price || 0),            // premium per contract
+        symbol: String(symbol).toUpperCase(), // underlying symbol (paper MVP)
+        side: sideIn,
+        qty: Number(contracts),
+        price: Number(price || 0),            // option premium per contract
         ts: Math.floor(Date.now() / 1000),
-        // NOTE: paper API currently ignores right/expiration/strike (we can extend later)
       };
     }
 
@@ -416,7 +351,7 @@ export default function TradeDrawer({ open, onClose, defaultSymbol = "SPY" }) {
     if (res.ok && res.data?.ok) {
       setLastNote(`Submitted: ${payload.side} ${payload.qty} ${symbol.toUpperCase()} @ ${payload.price}`);
       setTab("orders");
-      // positions/orders update automatically via /paper/status stream
+      // live snapshot updates via /paper/status
     } else {
       alert(
         `Order submit failed (${res.status || "network"}). ` +
@@ -425,7 +360,7 @@ export default function TradeDrawer({ open, onClose, defaultSymbol = "SPY" }) {
     }
   }
 
-  /* --------------------------------- UI ----------------------------------- */
+  /* ----------------------------------- UI --------------------------------- */
   if (!open) return null;
 
   return (
@@ -446,7 +381,7 @@ export default function TradeDrawer({ open, onClose, defaultSymbol = "SPY" }) {
           display: "flex",
           flexDirection: "column",
           boxShadow: "-4px 0 25px rgba(0,0,0,0.6)",
-          overflow: "hidden", // no scroll bleed
+          overflow: "hidden", // avoids scroll bleed
         }}
       >
         {/* Header */}
@@ -527,17 +462,9 @@ export default function TradeDrawer({ open, onClose, defaultSymbol = "SPY" }) {
             </button>
           ))}
         </div>
-            style={{
-              flex: 1,
-              overflow: "auto",
-              padding: "12px 12px 16px", // <-- add bottom padding only here
-              display: "grid",
-              gap: 12,
-            }}
-           >
-        {/* Body */}
-        <div 
-          
+
+        {/* Body (scrollable) */}
+        <div style={{ flex: 1, overflow: "auto", padding: "12px 12px 16px", display: "grid", gap: 12 }}>
           {/* Ticket */}
           {tab === "ticket" && (
             <div style={{ display: "grid", gap: 10 }}>
@@ -548,7 +475,7 @@ export default function TradeDrawer({ open, onClose, defaultSymbol = "SPY" }) {
               )}
 
               {/* Asset Type Toggle */}
-              <div style={{ display: "flex", gap: 8 }}>
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                 <label style={{ color: "#93c5fd", fontSize: 12, paddingTop: 6 }}>Asset:</label>
                 <button onClick={() => setAssetType("OPTION")} style={assetType === "OPTION" ? chipOn : chipOff}>Option</button>
                 <button onClick={() => setAssetType("EQUITY")} style={assetType === "EQUITY" ? chipOn : chipOff}>Equity</button>
@@ -606,7 +533,7 @@ export default function TradeDrawer({ open, onClose, defaultSymbol = "SPY" }) {
                       <label style={{ color: "#93c5fd", fontSize: 12 }}>Contracts</label>
                       <input type="number" value={contracts} min={1} onChange={(e) => setContracts(Number(e.target.value))} style={inputStyle} />
                     </div>
-                    {/* Exec Price (used when sending MKT orders to paper) */}
+                    {/* Exec Price (used for MKT paper orders) */}
                     <div>
                       <label style={{ color: "#93c5fd", fontSize: 12 }}>Exec Price (paper)</label>
                       <input
@@ -732,8 +659,7 @@ export default function TradeDrawer({ open, onClose, defaultSymbol = "SPY" }) {
                         {type === "MKT"   && ` @ ${execPrice}`}
                         {type === "LMT"   && ` @ ${limitPrice}`}
                         {type === "STOP"  && ` stop ${stopPrice}`}
-                        {type === "STOP-LMT" && ` stop ${stopPrice} / limit ${limitPrice}`}
-                        • {tif}
+                        {type === "STOP-LMT" && ` stop ${stopPrice} / limit ${limitPrice}`} • {tif}
                       </>
                     ) : (
                       <>
@@ -741,8 +667,7 @@ export default function TradeDrawer({ open, onClose, defaultSymbol = "SPY" }) {
                         {type === "MKT"   && ` @ ${execPrice}`}
                         {type === "LMT"   && ` @ ${limitPrice}`}
                         {type === "STOP"  && ` stop ${stopPrice}`}
-                        {type === "STOP-LMT" && ` stop ${stopPrice} / limit ${limitPrice}`}
-                        • {tif}
+                        {type === "STOP-LMT" && ` stop ${stopPrice} / limit ${limitPrice}`} • {tif}
                       </>
                     )}
                   </div>
@@ -835,10 +760,10 @@ export default function TradeDrawer({ open, onClose, defaultSymbol = "SPY" }) {
             </div>
           )}
 
-          {/* Executions (placeholder; leave your old logic or wire later) */}
+          {/* Executions (placeholder) */}
           {tab === "executions" && (
             <div style={{ color: "#9ca3af", fontSize: 13 }}>
-              Executions list (optional) — you can render these from /paper/orders if you track partial fills later.
+              Executions (optional). You can derive fills from "orders" if needed.
             </div>
           )}
 
@@ -846,7 +771,7 @@ export default function TradeDrawer({ open, onClose, defaultSymbol = "SPY" }) {
           {tab === "journal" && (
             <div style={{ display: "grid", gap: 8 }}>
               <div style={{ color: "#9ca3af", fontSize: 13 }}>
-                Quick Trading Journal (local text for now; backend wiring next).
+                Quick Trading Journal (local text for now).
               </div>
               <textarea
                 rows={8}
@@ -863,54 +788,18 @@ export default function TradeDrawer({ open, onClose, defaultSymbol = "SPY" }) {
             </div>
           )}
 
-          {/* Options (read-only chain viewer, stays on Core) */}
+          {/* Options (read-only chain viewer, Core) */}
           {tab === "options" && (
             <div style={{ display: "grid", gap: 10 }}>
               <div style={{ color: "#9ca3af", fontSize: 13 }}>
-                Options Chain (read-only). Backend should expose:
-                <code> /api/options/meta?symbol=SPY </code> → {"{ expirations: [...] }"} and
+                Options Chain from Core:  
+                <code> /api/options/meta?symbol=SPY </code> and  
                 <code> /api/options/chain?symbol=SPY&expiration=YYYY-MM-DD&side=call|put </code>
               </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
-                <div>
-                  <label style={{ color: "#93c5fd", fontSize: 12 }}>Expiration</label>
-                  <select value={expiration} onChange={(e) => setExpiration(e.target.value)} style={selStyle}>
-                    {expirations.length === 0 && <option value="">(not available yet)</option>}
-                    {expirations.map((d) => (
-                      <option key={d} value={d}>
-                        {d}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label style={{ color: "#93c5fd", fontSize: 12 }}>Side</label>
-                  <select value={optSide} onChange={(e) => setOptSide(e.target.value)} style={selStyle}>
-                    <option value="call">Calls</option>
-                    <option value="put">Puts</option>
-                  </select>
-                </div>
-                <div>
-                  <label style={{ color: "#93c5fd", fontSize: 12 }}>Strikes (view)</label>
-                  <input placeholder="e.g., 5 OTM each side" style={inputStyle} disabled />
-                </div>
+              <div style={{ color: "#9ca3af", fontSize: 12, marginBottom: 6 }}>
+                (Ticket sends paper orders to Streamer only.)
               </div>
-              <SimpleTable
-                emptyText={chainAvail === false ? "Options chain endpoint not available yet." : "No rows."}
-                columns={[
-                  { key: "strike", label: "Strike", align: "right" },
-                  { key: "mark", label: "Mark", align: "right" },
-                  { key: "bid", label: "Bid", align: "right" },
-                  { key: "ask", label: "Ask", align: "right" },
-                  { key: "delta", label: "Δ", align: "right" },
-                  { key: "theta", label: "Θ", align: "right" },
-                  { key: "gamma", label: "Γ", align: "right" },
-                  { key: "vega", label: "V", align: "right" },
-                  { key: "oi", label: "OI", align: "right" },
-                  { key: "volume", label: "Vol", align: "right" },
-                ]}
-                rows={chainRows}
-              />
+              {/* You can leave the chain table out or render chainRows here */}
             </div>
           )}
 
@@ -940,7 +829,7 @@ export default function TradeDrawer({ open, onClose, defaultSymbol = "SPY" }) {
   );
 }
 
-/* ------------------------------- styles ---------------------------------- */
+/* -------------------------------- styles ---------------------------------- */
 const inputStyle = {
   width: "100%",
   background: "#0f172a",
