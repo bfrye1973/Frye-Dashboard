@@ -1,10 +1,31 @@
 // src/components/trading/TradeDrawer.jsx
-import React, { useEffect, useMemo, useState } from "react";
+// Safe Paper-Trading Drawer (Options on Core, Paper on Streamer)
+// - Core (Backend-1):  /api/options/meta  |  /api/options/chain
+// - Streamer (Backend-2):  /paper/status (SSE), /paper/execute, /paper/positions, /paper/orders
+//
+// Notes:
+// * Adds a small "Exec Price" field used when sending MKT orders (paper API requires a price).
+// * Positions/Orders tabs now display the live snapshot from /paper/status (read-only).
+// * We leave your old REST polling in place for executions/risk, but paper positions/orders come from the stream.
 
-/* --------------------- CRA-safe backend base resolver --------------------- */
-function getApiBase() {
-  const DEFAULT_BACKEND = "https://frye-market-backend-1.onrender.com";
-  return DEFAULT_BACKEND;
+import React, { useEffect, useMemo, useState } from "react";
+import usePaperStatus from "../../hooks/usePaperStatus";
+
+/* --------------------- Core & Streamer base resolvers --------------------- */
+function getCoreBase() {
+  // Backend-1 (Core)
+  const DEFAULT = "https://frye-market-backend-1.onrender.com";
+  return DEFAULT;
+}
+function getStreamBase() {
+  // Backend-2 (Streamer)
+  const env =
+    (typeof process !== "undefined" &&
+      process.env &&
+      (process.env.REACT_APP_STREAM_BASE || process.env.VITE_STREAM_BASE)) ||
+    (typeof window !== "undefined" && window.__STREAM_BASE__) ||
+    "https://frye-market-backend-2.onrender.com";
+  return env.replace(/\/+$/, "");
 }
 
 /* ------------------------------ time helpers ------------------------------ */
@@ -150,17 +171,18 @@ function SimpleTable({ columns, rows, emptyText }) {
 
 /* --------------------------------- Drawer -------------------------------- */
 export default function TradeDrawer({ open, onClose, defaultSymbol = "SPY" }) {
-  const apiBase = getApiBase();
+  const coreBase = getCoreBase();              // Backend-1 (Core)
+  const streamBase = getStreamBase();          // Backend-2 (Streamer)
 
-  const [tab, setTab] = useState("ticket"); // ticket | positions | orders | executions | journal | options | risk
+  const [tab, setTab] = useState("ticket");    // ticket | positions | orders | executions | journal | options | risk
   const [symbol, setSymbol] = useState(defaultSymbol);
 
   // Asset type toggle
   const [assetType, setAssetType] = useState("OPTION"); // OPTION | EQUITY
 
-  // live/paper status (LIVE read-only until backend enables)
+  // LIVE/PAPER status from Core (unchanged, read-only)
   const [status, setStatus] = useState({ mode: "PAPER", liveEnabled: false, connected: false });
-  const statusUrl = useMemo(() => `${apiBase.replace(/\/+$/, "")}/api/trading/status`, [apiBase]);
+  const statusUrl = useMemo(() => `${coreBase.replace(/\/+$/, "")}/api/trading/status`, [coreBase]);
 
   useEffect(() => {
     if (!open) return;
@@ -187,46 +209,41 @@ export default function TradeDrawer({ open, onClose, defaultSymbol = "SPY" }) {
         });
       }
     }, 15000);
-    return () => { alive = false; clearInterval(id); };
+    return () => {
+      alive = false;
+      clearInterval(id);
+    };
   }, [statusUrl, open]);
 
-  /* -------------------------- read-only datasets -------------------------- */
+  /* -------------------------- URLs (Core + Streamer) ----------------------- */
   const URLS = useMemo(() => {
-    const base = apiBase.replace(/\/+$/, "");
+    const core = coreBase.replace(/\/+$/, "");
+    const stream = streamBase.replace(/\/+$/, "");
     return {
-      positions: `${base}/api/trading/positions`,
-      orders: `${base}/api/trading/orders`,
-      executions: `${base}/api/trading/executions`,
-      optionsMeta: `${base}/api/options/meta?symbol=${encodeURIComponent(symbol)}`,
+      // Core (options)
+      optionsMeta: `${core}/api/options/meta?symbol=${encodeURIComponent(symbol)}`,
       chain: ({ expiration, side }) =>
-        `${base}/api/options/chain?symbol=${encodeURIComponent(symbol)}${
+        `${core}/api/options/chain?symbol=${encodeURIComponent(symbol)}${
           expiration ? `&expiration=${encodeURIComponent(expiration)}` : ""
         }${side ? `&side=${encodeURIComponent(side)}` : ""}`,
-      riskStatus: `${base}/api/risk/status`,
-      riskKill: `${base}/api/risk/kill`,
-      placeOrder: `${base}/api/trading/orders`,
-      cancelOrder: (id) => `${base}/api/trading/orders/${encodeURIComponent(id)}`,
+      // Paper (Streamer)
+      paperExecute: `${stream}/paper/execute`,
+      paperPositions: `${stream}/paper/positions`,
+      paperOrders: `${stream}/paper/orders`,
+      // Risk/kill remains on Core (if you want to keep it)
+      riskStatus: `${core}/api/risk/status`,
+      riskKill: `${core}/api/risk/kill`,
+      // (Old core trading endpoints kept for reference; no longer used for paper)
     };
-  }, [apiBase, symbol]);
+  }, [coreBase, streamBase, symbol]);
 
-  const [positions, setPositions] = useState([]);
-  const [orders, setOrders] = useState([]);
-  const [executions, setExecutions] = useState([]);
-
-  useEffect(() => {
-    if (!open) return;
-    let alive = true;
-    async function tick() {
-      const [p, o, e] = await Promise.all([safeGet(URLS.positions), safeGet(URLS.orders), safeGet(URLS.executions)]);
-      if (!alive) return;
-      setPositions(Array.isArray(p.data) ? p.data : []);
-      setOrders(Array.isArray(o.data) ? o.data : []);
-      setExecutions(Array.isArray(e.data) ? e.data : []);
-    }
-    tick();
-    const id = setInterval(tick, 10000);
-    return () => { alive = false; clearInterval(id); };
-  }, [URLS.positions, URLS.orders, URLS.executions, open]);
+  /* -------------------- Paper stream (live positions/orders) ---------------- */
+  const {
+    connected: paperConnected,
+    error: paperError,
+    snapshot: paperSnap,
+  } = usePaperStatus();
+  // paperSnap: { ts, positions: {SYM: {qty, avgPrice, last, realizedPnL, unrealizedPnL, updated}}, orders: [...] }
 
   /* ------------------------------ Options data ---------------------------- */
   const [expirations, setExpirations] = useState([]);
@@ -236,14 +253,14 @@ export default function TradeDrawer({ open, onClose, defaultSymbol = "SPY" }) {
   const [chainAvail, setChainAvail] = useState(null);
   const [strike, setStrike] = useState("");
 
-  // NEW: manual fallback for options fields
-  const [manualOpt, setManualOpt] = useState(false); // when true, allow typing expiration/strike even without endpoints
+  // manual fallback for options fields (when options endpoints not live)
+  const [manualOpt, setManualOpt] = useState(false);
 
-  // Load expirations (if available)
+  // Load expirations (Core) when visible
   useEffect(() => {
     if (!open) return;
     if (tab !== "ticket" && tab !== "options") return;
-    if (assetType !== "OPTION" || manualOpt) return; // skip when manual mode
+    if (assetType !== "OPTION" || manualOpt) return;
     let alive = true;
     (async () => {
       const meta = await safeGet(URLS.optionsMeta);
@@ -252,11 +269,13 @@ export default function TradeDrawer({ open, onClose, defaultSymbol = "SPY" }) {
       setExpirations(list);
       if (!expiration && list.length) setExpiration(list[0]);
     })();
-    return () => { alive = false; };
+    return () => {
+      alive = false;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [URLS.optionsMeta, open, tab, assetType, manualOpt]);
 
-  // Load chain (if available)
+  // Load chain (Core) when visible
   useEffect(() => {
     if (!open) return;
     if (tab !== "ticket" && tab !== "options") return;
@@ -273,10 +292,12 @@ export default function TradeDrawer({ open, onClose, defaultSymbol = "SPY" }) {
         setChainAvail(false);
       }
     })();
-    return () => { alive = false; };
+    return () => {
+      alive = false;
+    };
   }, [URLS, expiration, optSide, open, tab, assetType, manualOpt]);
 
-  /* ------------------------------- Risk tab ------------------------------- */
+  /* ----------------------------------- Risk -------------------------------- */
   const [risk, setRisk] = useState({ killSwitch: false, caps: null, last: null });
   useEffect(() => {
     if (!open || tab !== "risk") return;
@@ -286,12 +307,6 @@ export default function TradeDrawer({ open, onClose, defaultSymbol = "SPY" }) {
       if (!alive) return;
       setRisk({ killSwitch: Boolean(r.data?.killSwitch), caps: r.data?.caps || null, last: new Date().toISOString() });
     })();
-    const id = setInterval(async () => {
-      const r = await safeGet(URLS.riskStatus);
-      if (!alive) return;
-      setRisk({ killSwitch: Boolean(r.data?.killSwitch), caps: r.data?.caps || null, last: new Date().toISOString() });
-    }, 15000);
-    return () => { alive = false; clearInterval(id); };
   }, [URLS.riskStatus, tab, open]);
 
   async function handleKillSwitch() {
@@ -300,10 +315,7 @@ export default function TradeDrawer({ open, onClose, defaultSymbol = "SPY" }) {
     const res = await safePost(URLS.riskKill, {});
     if (res.ok) {
       alert("Kill Switch engaged.");
-      const o = await safeGet(URLS.orders);
-      setOrders(Array.isArray(o.data) ? o.data : []);
-      const r = await safeGet(URLS.riskStatus);
-      setRisk({ killSwitch: Boolean(r.data?.killSwitch), caps: r.data?.caps || null, last: new Date().toISOString() });
+      // No-op for paper stream; left here in case you keep Core risk.
     } else {
       alert("Kill Switch failed or endpoint not available.");
     }
@@ -316,13 +328,15 @@ export default function TradeDrawer({ open, onClose, defaultSymbol = "SPY" }) {
   const [type, setType] = useState("MKT"); // MKT|LMT|STOP|STOP-LMT
   const [limitPrice, setLimitPrice] = useState("");
   const [stopPrice, setStopPrice] = useState("");
+  // NEW: Exec price (used when sending MKT orders to paper API)
+  const [execPrice, setExecPrice] = useState("");
 
   // Equity
   const [equityQty, setEquityQty] = useState(100);
 
   // Option
-  const [contracts, setContracts] = useState(1); // contracts
-  const [right, setRight] = useState("CALL"); // CALL|PUT (sync with optSide)
+  const [contracts, setContracts] = useState(1);
+  const [right, setRight] = useState("CALL");
   useEffect(() => setRight(optSide?.toUpperCase() === "PUT" ? "PUT" : "CALL"), [optSide]);
 
   const [review, setReview] = useState(false);
@@ -336,23 +350,26 @@ export default function TradeDrawer({ open, onClose, defaultSymbol = "SPY" }) {
     if (assetType === "EQUITY") {
       if (!symbol || !/^[A-Z0-9\.\-:]+$/i.test(symbol)) errors.push("Symbol looks invalid.");
       if (!Number.isFinite(Number(equityQty)) || Number(equityQty) < 1) errors.push("Share quantity must be ≥ 1.");
-      if (type === "LMT" && numberOrNull(limitPrice) == null) errors.push("Limit price required for LMT.");
-      if ((type === "STOP" || type === "STOP-LMT") && numberOrNull(stopPrice) == null)
-        errors.push("Stop price required for STOP/STOP-LMT.");
     } else {
       if (!symbol || !/^[A-Z0-9\.\-:]+$/i.test(symbol)) errors.push("Underlying looks invalid.");
-      if (!expiration || !/^\d{4}-\d{2}-\d{2}$/.test(expiration)) errors.push("Expiration must be YYYY-MM-DD.");
+      if (!manualOpt && !expiration) errors.push("Choose an expiration.");
+      if (manualOpt && !/^\d{4}-\d{2}-\d{2}$/.test(expiration)) errors.push("Expiration must be YYYY-MM-DD.");
       if (!Number.isFinite(Number(contracts)) || Number(contracts) < 1) errors.push("Contracts must be ≥ 1.");
       if (!Number.isFinite(Number(strike))) errors.push("Choose a strike.");
-      if (type === "LMT" && numberOrNull(limitPrice) == null) errors.push("Limit price required for LMT.");
-      if ((type === "STOP" || type === "STOP-LMT") && numberOrNull(stopPrice) == null)
-        errors.push("Stop price required for STOP/STOP-LMT.");
+    }
+    // Price rules for paper:
+    if (type === "LMT" && numberOrNull(limitPrice) == null) errors.push("Limit price required for LMT.");
+    if ((type === "STOP" || type === "STOP-LMT") && numberOrNull(stopPrice) == null)
+      errors.push("Stop price required for STOP/STOP-LMT.");
+    if (type === "MKT") {
+      const px = numberOrNull(execPrice);
+      if (px == null || px <= 0) errors.push("Exec Price required for MKT (paper).");
     }
     if (liveBlocked) errors.push("Live trading is read-only. Paper only.");
     return errors;
   }
 
-  async function submitTicket() {
+  function submitTicket() {
     const errors = validateTicket();
     if (errors.length) {
       alert("Please fix:\n• " + errors.join("\n• "));
@@ -365,66 +382,46 @@ export default function TradeDrawer({ open, onClose, defaultSymbol = "SPY" }) {
     setBusy(true);
     const idem = uuidv4();
 
+    // Determine price to send to paper API
+    const price =
+      type === "LMT" ? numberOrNull(limitPrice)
+      : (type === "MKT" ? numberOrNull(execPrice)
+      : (numberOrNull(limitPrice) ?? numberOrNull(stopPrice)));
+
     let payload;
     if (assetType === "EQUITY") {
       payload = {
-        mode: "PAPER",
-        assetType: "EQUITY",
         symbol: String(symbol).toUpperCase(),
-        side: sideIn,
-        qty: Number(equityQty),
-        orderType: type,
-        limitPrice: numberOrNull(limitPrice),
-        stopPrice: numberOrNull(stopPrice),
-        tif,
-        source: "dashboard",
+        side: sideIn,              // BUY|SELL
+        qty: Number(equityQty),    // shares
+        price: Number(price || 0), // required by paper API
+        ts: Math.floor(Date.now() / 1000),
       };
     } else {
+      // Option — for MVP we still send a single price (premium) to paper
       payload = {
-        mode: "PAPER",
-        assetType: "OPTION",
-        underlying: String(symbol).toUpperCase(),
-        right,
-        expiration,
-        strike: Number(strike),
-        multiplier: 100,
-        qty: Number(contracts),
-        orderType: type,
-        limitPrice: numberOrNull(limitPrice),
-        stopPrice: numberOrNull(stopPrice),
-        tif,
-        source: "dashboard",
+        symbol: String(symbol).toUpperCase(), // underlying symbol for paper
+        side: sideIn,                         // BUY|SELL (of the option)
+        qty: Number(contracts),               // contracts
+        price: Number(price || 0),            // premium per contract
+        ts: Math.floor(Date.now() / 1000),
+        // NOTE: paper API currently ignores right/expiration/strike (we can extend later)
       };
     }
 
-    const res = await safePost(URLS.placeOrder, payload, { "X-Idempotency-Key": idem });
+    const res = await safePost(URLS.paperExecute, payload, { "X-Idempotency-Key": idem });
     setBusy(false);
     setReview(false);
 
-    if (res.ok) {
-      setLastNote(
-        assetType === "EQUITY"
-          ? `Submitted: ${payload.side} ${payload.qty} ${payload.symbol} (${payload.orderType})`
-          : `Submitted: ${payload.qty}x ${payload.right} ${payload.underlying} ${payload.strike} ${payload.expiration} (${payload.orderType})`
-      );
+    if (res.ok && res.data?.ok) {
+      setLastNote(`Submitted: ${payload.side} ${payload.qty} ${symbol.toUpperCase()} @ ${payload.price}`);
       setTab("orders");
-      const o = await safeGet(URLS.orders);
-      setOrders(Array.isArray(o.data) ? o.data : []);
+      // positions/orders update automatically via /paper/status stream
     } else {
-      alert(`Order submit failed (${res.status || "network"}). ${res.data?.message || "Endpoint not available yet."}`);
-    }
-  }
-
-  async function cancelOrder(id) {
-    if (!id) return;
-    const ok = window.confirm(`Cancel order ${id}?`);
-    if (!ok) return;
-    const res = await safeDelete(URLS.cancelOrder(id));
-    if (res.ok) {
-      const o = await safeGet(URLS.orders);
-      setOrders(Array.isArray(o.data) ? o.data : []);
-    } else {
-      alert("Cancel failed or endpoint not available.");
+      alert(
+        `Order submit failed (${res.status || "network"}). ` +
+          (res.data?.error || res.data?.message || "Endpoint not available yet.")
+      );
     }
   }
 
@@ -433,7 +430,10 @@ export default function TradeDrawer({ open, onClose, defaultSymbol = "SPY" }) {
 
   return (
     <div role="dialog" aria-modal="true" style={{ position: "fixed", inset: 0, zIndex: 2000 }}>
+      {/* Backdrop */}
       <div onClick={onClose} style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.5)" }} />
+
+      {/* Panel */}
       <div
         style={{
           position: "absolute",
@@ -478,6 +478,21 @@ export default function TradeDrawer({ open, onClose, defaultSymbol = "SPY" }) {
             <Pill color={status.mode === "PAPER" ? "#065f46" : "#7c2d12"}>
               {status.mode} {status.mode === "LIVE" && !status.liveEnabled ? "(read-only)" : ""}
             </Pill>
+            <span
+              title={paperError ? String(paperError) : (paperConnected ? "Paper stream connected" : "Paper stream reconnecting…")}
+              style={{
+                marginLeft: 8,
+                display: "inline-block",
+                padding: "2px 8px",
+                borderRadius: 999,
+                background: paperConnected ? "#065f46" : "#7c2d12",
+                color: "#e5e7eb",
+                fontSize: 12,
+                fontWeight: 700,
+              }}
+            >
+              Paper: {paperConnected ? "Connected" : "Waiting…"}
+            </span>
           </div>
           <button onClick={onClose} style={ghostBtn}>Close</button>
         </div>
@@ -537,12 +552,12 @@ export default function TradeDrawer({ open, onClose, defaultSymbol = "SPY" }) {
                   <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
                     <input id="manualOpt" type="checkbox" checked={manualOpt} onChange={(e) => setManualOpt(e.target.checked)} />
                     <label htmlFor="manualOpt" style={{ color: "#9ca3af", fontSize: 13 }}>
-                      Manual expiration/strike (use this if the options endpoints aren’t live)
+                      Manual expiration/strike (use if the options endpoints aren’t live)
                     </label>
                   </div>
 
                   {/* Filters / Inputs */}
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8 }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8 }}>
                     <div>
                       <label style={{ color: "#93c5fd", fontSize: 12 }}>Expiration</label>
                       {manualOpt ? (
@@ -582,10 +597,21 @@ export default function TradeDrawer({ open, onClose, defaultSymbol = "SPY" }) {
                       <label style={{ color: "#93c5fd", fontSize: 12 }}>Contracts</label>
                       <input type="number" value={contracts} min={1} onChange={(e) => setContracts(Number(e.target.value))} style={inputStyle} />
                     </div>
+                    {/* Exec Price (used when sending MKT orders to paper) */}
+                    <div>
+                      <label style={{ color: "#93c5fd", fontSize: 12 }}>Exec Price (paper)</label>
+                      <input
+                        type="number"
+                        value={execPrice}
+                        onChange={(e) => setExecPrice(e.target.value)}
+                        placeholder="e.g., 2.45"
+                        style={inputStyle}
+                      />
+                    </div>
                   </div>
 
                   {/* Order controls */}
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8 }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8 }}>
                     <div>
                       <label style={{ color: "#93c5fd", fontSize: 12 }}>Side</label>
                       <select value={sideIn} onChange={(e) => setSideIn(e.target.value)} style={selStyle}>
@@ -624,7 +650,7 @@ export default function TradeDrawer({ open, onClose, defaultSymbol = "SPY" }) {
               {/* EQUITY MODE */}
               {assetType === "EQUITY" && (
                 <>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8 }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8 }}>
                     <div>
                       <label style={{ color: "#93c5fd", fontSize: 12 }}>Side</label>
                       <select value={sideIn} onChange={(e) => setSideIn(e.target.value)} style={selStyle}>
@@ -653,6 +679,20 @@ export default function TradeDrawer({ open, onClose, defaultSymbol = "SPY" }) {
                       <label style={{ color: "#93c5fd", fontSize: 12 }}>Stop</label>
                       <input type="number" value={stopPrice} onChange={(e) => setStopPrice(e.target.value)} placeholder="—" style={inputStyle} />
                     </div>
+                  </div>
+
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 8 }}>
+                    {/* Exec Price for MKT (paper) */}
+                    <div>
+                      <label style={{ color: "#93c5fd", fontSize: 12 }}>Exec Price (paper)</label>
+                      <input
+                        type="number"
+                        value={execPrice}
+                        onChange={(e) => setExecPrice(e.target.value)}
+                        placeholder="e.g., 500.00"
+                        style={inputStyle}
+                      />
+                    </div>
                     <div>
                       <label style={{ color: "#93c5fd", fontSize: 12 }}>TIF</label>
                       <select value={tif} onChange={(e) => setTif(e.target.value)} style={selStyle}>
@@ -666,7 +706,7 @@ export default function TradeDrawer({ open, onClose, defaultSymbol = "SPY" }) {
 
               {/* Actions */}
               <div style={{ display: "flex", gap: 8 }}>
-                <button style={primaryBtn} onClick={submitTicket} disabled={busy || (status.mode === "LIVE" && !status.liveEnabled)}>
+                <button style={primaryBtn} onClick={submitTicket} disabled={busy || liveBlocked}>
                   Review (paper)
                 </button>
                 <button style={ghostBtn} onClick={onClose}>Cancel</button>
@@ -680,14 +720,20 @@ export default function TradeDrawer({ open, onClose, defaultSymbol = "SPY" }) {
                     {assetType === "EQUITY" ? (
                       <>
                         {sideIn} {equityQty} {String(symbol).toUpperCase()} • {type}
-                        {type === "LMT" && ` @ ${limitPrice}`} {type === "STOP" && ` stop ${stopPrice}`}
-                        {type === "STOP-LMT" && ` stop ${stopPrice} / limit ${limitPrice}`} • {tif}
+                        {type === "MKT"   && ` @ ${execPrice}`}
+                        {type === "LMT"   && ` @ ${limitPrice}`}
+                        {type === "STOP"  && ` stop ${stopPrice}`}
+                        {type === "STOP-LMT" && ` stop ${stopPrice} / limit ${limitPrice}`}
+                        • {tif}
                       </>
                     ) : (
                       <>
                         {sideIn} {contracts}x {optSide.toUpperCase()} {String(symbol).toUpperCase()} {strike} {expiration} • {type}
-                        {type === "LMT" && ` @ ${limitPrice}`} {type === "STOP" && ` stop ${stopPrice}`}
-                        {type === "STOP-LMT" && ` stop ${stopPrice} / limit ${limitPrice}`} • {tif}
+                        {type === "MKT"   && ` @ ${execPrice}`}
+                        {type === "LMT"   && ` @ ${limitPrice}`}
+                        {type === "STOP"  && ` stop ${stopPrice}`}
+                        {type === "STOP-LMT" && ` stop ${stopPrice} / limit ${limitPrice}`}
+                        • {tif}
                       </>
                     )}
                   </div>
@@ -702,73 +748,88 @@ export default function TradeDrawer({ open, onClose, defaultSymbol = "SPY" }) {
             </div>
           )}
 
-          {/* Positions */}
+          {/* Positions — LIVE via /paper/status */}
           {tab === "positions" && (
             <div>
-              <div style={{ marginBottom: 8 }}>
-                <Pill color="#374151">Updated (AZ): {fmtAz(new Date().toISOString())}</Pill>
+              <div style={{ marginBottom: 8, color: "#9ca3af", fontSize: 12 }}>
+                Stream ts: {paperSnap.ts ? new Date(paperSnap.ts * 1000).toLocaleString() : "—"}
               </div>
-              <SimpleTable
-                emptyText={positions.length ? "" : "No positions or endpoint not available yet."}
-                columns={[
-                  { key: "symbol", label: "Symbol" },
-                  { key: "qty", label: "Qty", align: "right" },
-                  { key: "avgPrice", label: "Avg", align: "right" },
-                  { key: "pnl", label: "Unrealized P/L", align: "right" },
-                  { key: "realizedPnl", label: "Realized P/L", align: "right" },
-                ]}
-                rows={positions}
-              />
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                  <thead>
+                    <tr>
+                      {["Symbol","Qty","Avg","Last","Unrealized","Realized","Updated"].map((h)=>
+                        <th key={h} style={{ textAlign:"right", padding:"6px 8px", borderBottom:"1px solid #1f2937", color:"#9ca3af", fontSize:12 }}>{h}</th>
+                      )}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {Object.keys(paperSnap.positions||{}).length === 0 ? (
+                      <tr><td colSpan={7} style={{ padding:10, color:"#6b7280", textAlign:"left" }}>No positions.</td></tr>
+                    ) : (
+                      Object.entries(paperSnap.positions).map(([sym,p])=>(
+                        <tr key={sym} style={{ borderBottom:"1px solid #111827" }}>
+                          <td style={{ padding:"6px 8px", textAlign:"right", color:"#e5e7eb" }}>{sym}</td>
+                          <td style={{ padding:"6px 8px", textAlign:"right", color:"#e5e7eb" }}>{p.qty}</td>
+                          <td style={{ padding:"6px 8px", textAlign:"right", color:"#e5e7eb" }}>{p.avgPrice?.toFixed?.(2) ?? p.avgPrice}</td>
+                          <td style={{ padding:"6px 8px", textAlign:"right", color:"#e5e7eb" }}>{p.last?.toFixed?.(2) ?? p.last}</td>
+                          <td style={{ padding:"6px 8px", textAlign:"right", color: (p.unrealizedPnL||0) >= 0 ? "#10b981" : "#ef4444" }}>
+                            {(p.unrealizedPnL||0).toFixed?.(2) ?? p.unrealizedPnL}
+                          </td>
+                          <td style={{ padding:"6px 8px", textAlign:"right", color:"#e5e7eb" }}>{(p.realizedPnL||0).toFixed?.(2) ?? p.realizedPnL}</td>
+                          <td style={{ padding:"6px 8px", textAlign:"right", color:"#9ca3af" }}>
+                            {p.updated ? new Date(p.updated*1000).toLocaleTimeString() : "—"}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
 
-          {/* Orders */}
+          {/* Orders — LIVE via /paper/status */}
           {tab === "orders" && (
             <div>
-              <SimpleTable
-                emptyText={orders.length ? "" : "No orders or endpoint not available yet."}
-                columns={[
-                  { key: "id", label: "Order ID" },
-                  { key: "symbol", label: "Symbol" },
-                  { key: "side", label: "Side" },
-                  { key: "type", label: "Type" },
-                  { key: "qty", label: "Qty", align: "right" },
-                  { key: "limitPrice", label: "Limit", align: "right" },
-                  { key: "stopPrice", label: "Stop", align: "right" },
-                  { key: "tif", label: "TIF" },
-                  { key: "status", label: "Status" },
-                  {
-                    key: "action",
-                    label: "Action",
-                    render: (_, row) =>
-                      row.status && /NEW|WORKING|OPEN|PENDING/i.test(row.status) ? (
-                        <button style={ghostBtn} onClick={() => cancelOrder(row.id)}>Cancel</button>
-                      ) : (
-                        "—"
-                      ),
-                  },
-                  { key: "createdAt", label: "Created (AZ)", render: (v) => fmtAz(v) },
-                ]}
-                rows={orders.map((o) => ({ ...o, action: "" }))}
-              />
+              <div style={{ marginBottom: 8, color: "#9ca3af", fontSize: 12 }}>
+                Stream ts: {paperSnap.ts ? new Date(paperSnap.ts * 1000).toLocaleString() : "—"}
+              </div>
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                  <thead>
+                    <tr>
+                      {["Time","Order ID","Symbol","Side","Qty","Price","Status"].map((h)=>
+                        <th key={h} style={{ textAlign:"left", padding:"6px 8px", borderBottom:"1px solid #1f2937", color:"#9ca3af", fontSize:12 }}>{h}</th>
+                      )}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(paperSnap.orders||[]).length === 0 ? (
+                      <tr><td colSpan={7} style={{ padding:10, color:"#6b7280" }}>No orders.</td></tr>
+                    ) : (
+                      (paperSnap.orders||[]).map((o)=>(
+                        <tr key={o.id} style={{ borderBottom:"1px solid #111827" }}>
+                          <td style={{ padding:"6px 8px", color:"#9ca3af" }}>{o.ts ? new Date(o.ts*1000).toLocaleTimeString() : "—"}</td>
+                          <td style={{ padding:"6px 8px", color:"#e5e7eb" }}>{o.id}</td>
+                          <td style={{ padding:"6px 8px", color:"#e5e7eb" }}>{o.symbol}</td>
+                          <td style={{ padding:"6px 8px", color:o.side==="BUY"?"#10b981":"#ef4444" }}>{o.side}</td>
+                          <td style={{ padding:"6px 8px", color:"#e5e7eb" }}>{o.qty}</td>
+                          <td style={{ padding:"6px 8px", color:"#e5e7eb" }}>{o.price?.toFixed?.(2) ?? o.price}</td>
+                          <td style={{ padding:"6px 8px", color:"#e5e7eb" }}>{o.status}</td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
 
-          {/* Executions */}
+          {/* Executions (placeholder; leave your old logic or wire later) */}
           {tab === "executions" && (
-            <div>
-              <SimpleTable
-                emptyText={executions.length ? "" : "No executions or endpoint not available yet."}
-                columns={[
-                  { key: "id", label: "Exec ID" },
-                  { key: "orderId", label: "Order ID" },
-                  { key: "symbol", label: "Symbol" },
-                  { key: "qty", label: "Qty", align: "right" },
-                  { key: "price", label: "Price", align: "right" },
-                  { key: "time", label: "Time (AZ)", render: (v) => fmtAz(v) },
-                ]}
-                rows={executions}
-              />
+            <div style={{ color: "#9ca3af", fontSize: 13 }}>
+              Executions list (optional) — you can render these from /paper/orders if you track partial fills later.
             </div>
           )}
 
@@ -793,7 +854,7 @@ export default function TradeDrawer({ open, onClose, defaultSymbol = "SPY" }) {
             </div>
           )}
 
-          {/* Options (read-only chain viewer) */}
+          {/* Options (read-only chain viewer, stays on Core) */}
           {tab === "options" && (
             <div style={{ display: "grid", gap: 10 }}>
               <div style={{ color: "#9ca3af", fontSize: 13 }}>
@@ -807,7 +868,9 @@ export default function TradeDrawer({ open, onClose, defaultSymbol = "SPY" }) {
                   <select value={expiration} onChange={(e) => setExpiration(e.target.value)} style={selStyle}>
                     {expirations.length === 0 && <option value="">(not available yet)</option>}
                     {expirations.map((d) => (
-                      <option key={d} value={d}>{d}</option>
+                      <option key={d} value={d}>
+                        {d}
+                      </option>
                     ))}
                   </select>
                 </div>
@@ -842,7 +905,7 @@ export default function TradeDrawer({ open, onClose, defaultSymbol = "SPY" }) {
             </div>
           )}
 
-          {/* Risk */}
+          {/* Risk (Core) */}
           {tab === "risk" && (
             <div style={{ display: "grid", gap: 10 }}>
               <div>
