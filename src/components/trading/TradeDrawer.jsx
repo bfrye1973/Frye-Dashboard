@@ -527,9 +527,17 @@ export default function TradeDrawer({ open, onClose, defaultSymbol = "SPY" }) {
             </button>
           ))}
         </div>
-
+            style={{
+              flex: 1,
+              overflow: "auto",
+              padding: "12px 12px 16px", // <-- add bottom padding only here
+              display: "grid",
+              gap: 12,
+            }}
+           >
         {/* Body */}
-        <div style={{ flex: 1, overflow: "auto", padding: 12, display: "grid", gap: 12 }}>
+        <div 
+          
           {/* Ticket */}
           {tab === "ticket" && (
             <div style={{ display: "grid", gap: 10 }}>
