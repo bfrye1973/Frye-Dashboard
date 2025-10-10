@@ -1,5 +1,5 @@
 // src/pages/rows/RowIndexSectors.jsx
-// v5.1 — First-run seeding for Δ10m/Δ5m + lean fetch + stable UI
+// v5.2 — First-run seeding + strict value guards (no fake 0.00)
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
@@ -175,17 +175,18 @@ export default function RowIndexSectors() {
 
         const nowMap = netNHMapFromCards(cards);
 
-        // FIRST RUN: if we have no previous snapshot, seed and show zeros immediately
+        // FIRST RUN: seed previous and show zeros (not blanks)
         if (!prev10mMapRef.current || !prev10mTsRef.current) {
           prev10mMapRef.current = nowMap;
           prev10mTsRef.current  = ts;
           savePrev10m(ts, nowMap);
-          setD10mSess(zeroMapFrom(nowMap));   // show 0.00 instead of blanks
-          saveLastD10m(zeroMapFrom(nowMap));
-          return; // wait for next 10m tick to compute real deltas
+          const zeros = zeroMapFrom(nowMap);
+          setD10mSess(zeros);
+          saveLastD10m(zeros);
+          return;
         }
 
-        // NORMAL RUN: only compute when backend timestamp advances
+        // NORMAL RUN: compute when timestamp advances
         if (ts && ts !== prev10mTsRef.current) {
           const d = {};
           const keys = new Set([...Object.keys(nowMap), ...Object.keys(prev10mMapRef.current)]);
@@ -200,14 +201,15 @@ export default function RowIndexSectors() {
           savePrev10m(ts, nowMap);
         }
 
-        // OPTIONAL: if intraday also embeds deltas, accept them (won't flicker)
+        // OPTIONAL: if intraday embeds deltas, accept them with strict guards
         const ds = j?.deltas?.sectors || null;
         const dts = j?.deltasUpdatedAt || null;
         if (ds && dts && dts !== prevD5StampRef.current) {
           const map = {};
           for (const key of Object.keys(ds)) {
-            const canon = ALIASES[norm(key)] || key;
-            map[norm(canon)] = Number(ds[key]?.netTilt ?? NaN);
+            const canonKey = norm(ALIASES[norm(key)] || key);
+            const v = ds[key]?.netTilt;
+            map[canonKey] = (typeof v === "number" && Number.isFinite(v)) ? v : NaN;
           }
           setD5mMap(map);
           setDeltasUpdatedAt(dts);
@@ -320,12 +322,13 @@ export default function RowIndexSectors() {
         const ds = j?.deltas?.sectors || {};
         const map = {};
         for (const key of Object.keys(ds)) {
-          const canon = ALIASES[norm(key)] || key;
-          map[norm(canon)] = Number(ds[key]?.netTilt ?? NaN);
+          const canonKey = norm(ALIASES[norm(key)] || key);
+          const v = ds[key]?.netTilt;
+          map[canonKey] = (typeof v === "number" && Number.isFinite(v)) ? v : NaN; // strict guard
         }
         const dts = j?.deltasUpdatedAt || j?.barTs || null;
 
-        // FIRST RUN: if we never set a 5m map, show current immediately
+        // FIRST RUN: show immediately
         if (!prevD5StampRef.current) {
           setD5mMap(map);
           setDeltasUpdatedAt(dts || null);
@@ -334,7 +337,7 @@ export default function RowIndexSectors() {
           return;
         }
 
-        // NORMAL: only update when stamp advances
+        // NORMAL: only when stamp advances
         if (dts && dts !== prevD5StampRef.current) {
           setD5mMap(map);
           setDeltasUpdatedAt(dts);
