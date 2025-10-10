@@ -445,7 +445,8 @@ export default function TradeDrawer({ open, onClose, defaultSymbol = "SPY" }) {
           borderLeft: "1px solid #1f2937",
           display: "flex",
           flexDirection: "column",
-          boxShadow: "0 0 0 1px rgba(0,0,0,0.3)",
+          boxShadow: "-4px 0 25px rgba(0,0,0,0.6)",
+          overflow: "hidden", // no scroll bleed
         }}
       >
         {/* Header */}
