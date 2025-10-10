@@ -66,13 +66,14 @@ function Badge({ text, tone = "info" }) {
 }
 
 function Pill({ label, value }) {
-  if (!Number.isFinite(value)) return null;
-  const v = Number(value);
-  const tone  = v > 0 ? "#22c55e" : v < 0 ? "#ef4444" : "#9ca3af";
-  const arrow = v > 0 ? "▲" : v < 0 ? "▼" : "→";
+  const isNum = Number.isFinite(value);
+  const v = isNum ? Number(value) : null;
+  const tone  = isNum ? (v > 0 ? "#22c55e" : v < 0 ? "#ef4444" : "#9ca3af") : "#9ca3af";
+  const arrow = isNum ? (v > 0 ? "▲" : v < 0 ? "▼" : "→") : "—";
+  const text  = isNum ? v.toFixed(2) : "—";
   return (
     <span
-      title={`${label}: ${v >= 0 ? "+" : ""}${v.toFixed(2)}`}
+      title={`${label}: ${isNum ? (v >= 0 ? "+" : "") + v.toFixed(2) : "—"}`}
       style={{
         display:"inline-flex", alignItems:"center", gap:8,
         borderRadius:10, padding:"3px 10px", fontSize:14, lineHeight:1.1,
@@ -80,7 +81,7 @@ function Pill({ label, value }) {
         whiteSpace:"nowrap",
       }}
     >
-      {label}: {arrow} {v >= 0 ? "+" : ""}{v.toFixed(2)}
+      {label}: {arrow} {isNum && v >= 0 ? "+" : ""}{text}
     </span>
   );
 }
@@ -435,16 +436,27 @@ export default function RowIndexSectors() {
                   <Badge text={c?.outlook || "Neutral"} tone={tone} />
                 </div>
 
-                {/* Single-line pill row (never wraps) */}
-                <div style={{
-                  display:"flex", gap:10, margin:"0 0 8px 0", alignItems:"center",
-                  whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis"
-                }}>
-                  <Pill label="Δ5m"  value={Number.isFinite(d5)  ? d5  : undefined} />
-                  <Pill label="Δ10m" value={Number.isFinite(d10) ? d10 : undefined} />
-                  <Pill label="Δ1h"  value={Number.isFinite(d1h) ? d1h : undefined} />
-                  <Pill label="Δ1d"  value={Number.isFinite(d1d) ? d1d : undefined} />
-                </div>
+                {/* Two-row pill layout */}
+               <div style={{ display:"grid", gridTemplateRows:"auto auto", rowGap:6, margin:"0 0 8px 0" }}>
+                 {/* Top row: 5m + 10m */}
+                 <div style={{
+                   display:"flex", gap:10, alignItems:"center",
+                   whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis"
+                 }}>
+                   <Pill label="Δ5m"  value={d5}  />
+                   <Pill label="Δ10m" value={d10} />
+                 </div>
+
+                 {/* Bottom row: 1h + 1d */}
+                 <div style={{
+                   display:"flex", gap:10, alignItems:"center",
+                   whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis"
+                 }}>
+                   <Pill label="Δ1h"  value={d1h} />
+                   <Pill label="Δ1d"  value={d1d} />
+                 </div>
+               </div>
+
 
                 <div style={{ fontSize:15, color:"#cbd5e1", lineHeight:1.5, display:"grid", gap:6 }}>
                   <div> Breadth Tilt: <b style={{ color:"#f3f4f6" }}>{Number.isFinite(breadth) ? `${breadth.toFixed(1)}%` : "—"}</b> </div>
