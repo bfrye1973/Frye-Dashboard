@@ -1,12 +1,5 @@
 // src/pages/rows/RowIndexSectors.jsx
-// v5.0 — Fast, resilient pills + readable cards
-// - /live env URLs (no /api)
-// - REACT_APP_SANDBOX_URL → backend proxy /live/intraday-deltas (30s poll)
-// - Δ10m: stable refs + localStorage (persists across refresh)
-// - Δ5m: persists, shows last known; updates only when deltas stamp advances
-// - Δ1h: hour-over-hour OR intraday−lastHourly fallback
-// - Pill layout: Top = Δ5m, Δ10m; Bottom = Δ1h, Δ1d
-// - Wider cards, larger fonts, no flicker / zeroing
+// v5.1 — First-run seeding for Δ10m/Δ5m + lean fetch + stable UI
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
@@ -18,12 +11,6 @@ const SANDBOX_URL  = (process.env.REACT_APP_SANDBOX_URL  || "").replace(/\/+$/, 
 
 /* ------------------------------- helpers ------------------------------- */
 const norm = (s = "") => s.trim().toLowerCase();
-const isStale = (ts, maxMs = 12 * 60 * 1000) => {
-  if (!ts) return true;
-  const t = new Date(ts).getTime();
-  return !Number.isFinite(t) || Date.now() - t > maxMs;
-};
-
 const ORDER = [
   "information technology","materials","health care","communication services",
   "real estate","energy","consumer staples","consumer discretionary",
@@ -107,6 +94,8 @@ function netNHMapFromCards(cards = []) {
   }
   return out;
 }
+const zeroMapFrom = (m = {}) =>
+  Object.fromEntries(Object.keys(m).map((k) => [k, 0]));
 
 /* --------------------------- localStorage helpers --------------------------- */
 const LS_PREV_10M_TS   = "idx_prev10m_ts";
@@ -129,7 +118,6 @@ function savePrev10m(ts, mapObj) {
   if (ts) safeSet(LS_PREV_10M_TS, ts);
   if (mapObj) safeSet(LS_PREV_10M_MAP, JSON.stringify(mapObj));
 }
-
 function loadLastD10m() {
   try { const raw = safeGet(LS_LAST_D10M_MAP); return raw ? JSON.parse(raw) : {}; }
   catch { return {}; }
@@ -137,7 +125,6 @@ function loadLastD10m() {
 function saveLastD10m(mapObj) {
   if (mapObj) safeSet(LS_LAST_D10M_MAP, JSON.stringify(mapObj));
 }
-
 function loadLastD5m() {
   try {
     const ts  = safeGet(LS_LAST_D5M_TS);
@@ -186,23 +173,34 @@ export default function RowIndexSectors() {
         const cards = Array.isArray(j?.sectorCards) ? j.sectorCards.slice() : [];
         setIntraday({ ts, cards, err: null });
 
-        // Only compute when backend timestamp advanced
         const nowMap = netNHMapFromCards(cards);
-        if (prev10mMapRef.current && prev10mTsRef.current && ts && ts !== prev10mTsRef.current) {
+
+        // FIRST RUN: if we have no previous snapshot, seed and show zeros immediately
+        if (!prev10mMapRef.current || !prev10mTsRef.current) {
+          prev10mMapRef.current = nowMap;
+          prev10mTsRef.current  = ts;
+          savePrev10m(ts, nowMap);
+          setD10mSess(zeroMapFrom(nowMap));   // show 0.00 instead of blanks
+          saveLastD10m(zeroMapFrom(nowMap));
+          return; // wait for next 10m tick to compute real deltas
+        }
+
+        // NORMAL RUN: only compute when backend timestamp advances
+        if (ts && ts !== prev10mTsRef.current) {
           const d = {};
           const keys = new Set([...Object.keys(nowMap), ...Object.keys(prev10mMapRef.current)]);
           for (const k of keys) {
             const a = nowMap[k], b = prev10mMapRef.current[k];
-            if (Number.isFinite(a) && Number.isFinite(b)) d[k] = a - b;
+            d[k] = (Number.isFinite(a) && Number.isFinite(b)) ? +(a - b).toFixed(2) : 0;
           }
           setD10mSess(d);
-          saveLastD10m(d); // persist
+          saveLastD10m(d);
+          prev10mMapRef.current = nowMap;
+          prev10mTsRef.current  = ts;
+          savePrev10m(ts, nowMap);
         }
-        prev10mMapRef.current = nowMap;
-        prev10mTsRef.current  = ts;
-        savePrev10m(ts, nowMap);
 
-        // If server embeds deltas (optional), accept them too
+        // OPTIONAL: if intraday also embeds deltas, accept them (won't flicker)
         const ds = j?.deltas?.sectors || null;
         const dts = j?.deltasUpdatedAt || null;
         if (ds && dts && dts !== prevD5StampRef.current) {
@@ -240,24 +238,24 @@ export default function RowIndexSectors() {
 
         const nowH = netNHMapFromCards(cards);
 
-        // Hour-over-hour if two distinct hourly ts exist
         if (hourly.ts && ts && ts !== hourly.ts) {
+          // Hour-over-hour
           const prevH = netNHMapFromCards(hourly.cards || []);
           const d = {};
           const keys = new Set([...Object.keys(nowH), ...Object.keys(prevH)]);
           for (const k of keys) {
             const a = nowH[k], b = prevH[k];
-            if (Number.isFinite(a) && Number.isFinite(b)) d[k] = a - b;
+            d[k] = (Number.isFinite(a) && Number.isFinite(b)) ? +(a - b).toFixed(2) : 0;
           }
           setD1hSess(d);
         } else if (intraday.cards?.length) {
-          // Fallback: intraday − lastHourly (keeps pill live between hourly ticks)
+          // Fallback: intraday − lastHourly
           const now10 = netNHMapFromCards(intraday.cards);
           const dAlt = {};
           const keys = new Set([...Object.keys(now10), ...Object.keys(nowH)]);
           for (const k of keys) {
             const a = now10[k], b = nowH[k];
-            if (Number.isFinite(a) && Number.isFinite(b)) dAlt[k] = a - b;
+            dAlt[k] = (Number.isFinite(a) && Number.isFinite(b)) ? +(a - b).toFixed(2) : 0;
           }
           setD1hSess(dAlt);
         }
@@ -291,7 +289,7 @@ export default function RowIndexSectors() {
           const keys = new Set([...Object.keys(nowMap), ...Object.keys(prev)]);
           for (const k of keys) {
             const a = nowMap[k], b = prev[k];
-            if (Number.isFinite(a) && Number.isFinite(b)) d[k] = a - b;
+            d[k] = (Number.isFinite(a) && Number.isFinite(b)) ? +(a - b).toFixed(2) : 0;
           }
           setD1dSess(d);
         }
@@ -325,19 +323,31 @@ export default function RowIndexSectors() {
           const canon = ALIASES[norm(key)] || key;
           map[norm(canon)] = Number(ds[key]?.netTilt ?? NaN);
         }
-        // Only update when sandbox stamp advances
         const dts = j?.deltasUpdatedAt || j?.barTs || null;
+
+        // FIRST RUN: if we never set a 5m map, show current immediately
+        if (!prevD5StampRef.current) {
+          setD5mMap(map);
+          setDeltasUpdatedAt(dts || null);
+          saveLastD5m(dts || "first", map);
+          prevD5StampRef.current = dts || "first";
+          return;
+        }
+
+        // NORMAL: only update when stamp advances
         if (dts && dts !== prevD5StampRef.current) {
           setD5mMap(map);
           setDeltasUpdatedAt(dts);
           saveLastD5m(dts, map);
           prevD5StampRef.current = dts;
         }
-      } catch { /* keep last persisted values */ }
+      } catch {
+        /* keep last persisted values */
+      }
     }
 
     loadSandbox();
-    const t = setInterval(loadSandbox, 30_000); // 30s cadence
+    const t = setInterval(loadSandbox, 30_000);
     return () => { stop = true; try { ctrl.abort(); } catch {}; clearInterval(t); };
   }, []);
 
@@ -396,19 +406,17 @@ export default function RowIndexSectors() {
         <div
           style={{
             display:"grid",
-            gridTemplateColumns:"repeat(auto-fill, minmax(360px, 1fr))", // longer cards
+            gridTemplateColumns:"repeat(auto-fill, minmax(360px, 1fr))",
             gap:12,
             marginTop:8,
           }}
         >
           {cards.map((c, i) => {
             const key = norm(c?.sector || "");
-
-            // Δ5m from sandbox (persisted)
             const canon = ALIASES[key] || c?.sector || "";
-            const d5 = d5mMap[norm(canon)];
 
-            // Session deltas (persisted Δ10m; live fallback Δ1h; daily Δ1d)
+            // Δ maps
+            const d5  = d5mMap[norm(canon)];
             const d10 = d10mSess[key];
             const d1h = d1hSess[key];
             const d1d = d1dSess[key];
