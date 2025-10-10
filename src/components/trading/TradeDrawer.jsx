@@ -347,14 +347,14 @@ export default function TradeDrawer({ open, onClose, defaultSymbol = "SPY" }) {
   }
 
   function cryptoRandom() {
-    try {
-      const a = new Uint8Array(16);
-      (window.crypto || globalThis.crypto).getRandomValues(a);
-      return Array.from(a, (x) => x.toString(16).padStart(2, "0")).join("");
-    } catch {
-      return String(Date.now());
-    }
+  try {
+    const a = new Uint8Array(16);
+    (window.crypto || {}).getRandomValues?.(a);
+    return Array.from(a, (x) => x.toString(16).padStart(2, "0")).join("");
+  } catch {
+    return String(Date.now());
   }
+}
 
   async function confirmSubmit() {
     setReview(false);
