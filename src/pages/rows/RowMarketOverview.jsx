@@ -22,6 +22,7 @@ const API =
 
 /* ------------------------------ utils ------------------------------ */
 const clamp01 = (n) => Math.max(0, Math.min(100, Number(n)));
+const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, Number(n)));
 const num = (v) => {
   const n = Number(v);
   return Number.isFinite(n) ? n : NaN;
@@ -43,6 +44,55 @@ function newer(a, b) {
   return new Date(ta).getTime() >= new Date(tb).getTime() ? a : b;
 }
 
+/** map Liquidity PSI (0..120) → percent 0..100 for scoring */
+function mapPsiToPct(psi) {
+  if (!Number.isFinite(psi)) return NaN;
+  return clamp((psi / 120) * 100, 0, 100);
+}
+
+/** overall intraday score (0..100) combining all 10m lights */
+function overallIntradayScore(m, intraday) {
+  if (!m) return NaN;
+
+  const breadth   = num(m.breadth_pct);                 // 0..100
+  const momentum  = num(m.momentum_pct);                // 0..100
+  const squeezeOk = Number.isFinite(m.squeeze_intraday_pct)
+    ? clamp(100 - m.squeeze_intraday_pct, 0, 100)       // lower squeeze → better
+    : NaN;
+  const volOk     = Number.isFinite(m.volatility_pct)
+    ? clamp(100 - m.volatility_pct, 0, 100)             // lower vol → better
+    : NaN;
+  const liqPct    = mapPsiToPct(m.liquidity_psi);       // PSI → %
+  const sectorDir = num(intraday?.sectorDirection10m?.risingPct);
+  const riskOn    = num(intraday?.riskOn10m?.riskOnPct);
+
+  // Weights (sum ≈ 1). Lead with Breadth & Momentum; mid with Squeeze/Vol/Liq; light influence from Sector/RiskOn.
+  const w = {
+    breadth:   0.22,
+    momentum:  0.22,
+    squeezeOk: 0.18,
+    volOk:     0.14,
+    liqPct:    0.14,
+    sectorDir: 0.05,
+    riskOn:    0.05,
+  };
+
+  const parts = [
+    { v: breadth,   w: w.breadth },
+    { v: momentum,  w: w.momentum },
+    { v: squeezeOk, w: w.squeezeOk },
+    { v: volOk,     w: w.volOk },
+    { v: liqPct,    w: w.liqPct },
+    { v: sectorDir, w: w.sectorDir },
+    { v: riskOn,    w: w.riskOn },
+  ].filter(p => Number.isFinite(p.v));
+
+  if (!parts.length) return NaN;
+  const totalW = parts.reduce((s,p)=>s+p.w,0);
+  const score  = parts.reduce((s,p)=>s + p.v*p.w, 0) / (totalW || 1);
+  return clamp(score, 0, 100);
+}
+
 /** tone helpers for Market Meter (finalized thresholds) */
 function toneForBreadth(v){ if (!Number.isFinite(v)) return "info"; if (v >= 65) return "ok"; if (v >= 35) return "warn"; return "danger"; }
 function toneForMomentum(v){ if (!Number.isFinite(v)) return "info"; if (v >= 65) return "ok"; if (v >= 35) return "warn"; return "danger"; }
@@ -61,8 +111,8 @@ function toneForVolBand(band){ return band === "high" ? "danger" : band === "ele
 function toneForLiqBand(band){ return band === "good" ? "ok" : band === "normal" ? "warn" : band ? "danger" : "info"; }
 
 /* ---------------------------- Stoplight ---------------------------- */
-/** 
- * clamp: if true, clamp to [0,100] (use for %). 
+/**
+ * clamp: if true, clamp to [0,100] (use for %).
  * For PSI or raw indices, set clamp={false} and provide unit="PSI" (or "").
  */
 function Stoplight({
@@ -330,6 +380,11 @@ export default function RowMarketOverview() {
   const data  = chosen || {};
   const daily = liveDaily || {};
 
+  /* Prefer intraday.* from the LIVE payload even if polled wins */
+  const intradayLive = liveIntraday?.intraday;
+  const intradayAny  = data?.intraday;
+  const intraday     = intradayLive || intradayAny || null;
+
   /* -------------------- INTRADAY LEFT (metrics + intraday) -------------------- */
   const { deltaMkt, deltasUpdatedAt, stale } = useSandboxDeltas();
 
@@ -342,9 +397,12 @@ export default function RowMarketOverview() {
   const liquidity    = num(m.liquidity_psi);      // PSI, not %
   const volatility   = num(m.volatility_pct);
 
-  const sectorDirCount = data?.intraday?.sectorDirection10m?.risingCount ?? null;
-  const sectorDirPct   = num(data?.intraday?.sectorDirection10m?.risingPct);
-  const riskOn10m      = num(data?.intraday?.riskOn10m?.riskOnPct);
+  const sectorDirCount = intraday?.sectorDirection10m?.risingCount ?? null;
+  const sectorDirPct   = num(intraday?.sectorDirection10m?.risingPct);
+  const riskOn10m      = num(intraday?.riskOn10m?.riskOnPct);
+
+  // overall (10m)
+  const overall10m    = overallIntradayScore(m, intraday);
 
   // baselines for intraday (persist for the day)
   const bBreadth   = useDailyBaseline("breadth", breadth);
@@ -352,6 +410,7 @@ export default function RowMarketOverview() {
   const bSqueezeIn = useDailyBaseline("squeezeIntraday", squeezeIntra);
   const bLiquidity = useDailyBaseline("liquidity", liquidity);
   const bVol       = useDailyBaseline("volatility", volatility);
+  const bOverall   = useDailyBaseline("overall10m", overall10m);
 
   /* -------------------- DAILY RIGHT (trendDaily + daily metrics) --------------- */
   const td = daily?.trendDaily || {};
@@ -445,6 +504,13 @@ export default function RowMarketOverview() {
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           <div className="small" style={{ color: "#9ca3af", fontWeight: 800 }}>Intraday Scalp Lights</div>
           <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+            {/* NEW overall roll-up light */}
+            <Stoplight
+              label="Overall (10m)"
+              value={overall10m}
+              baseline={bOverall}
+              toneOverride={toneForPercent(overall10m)}
+            />
             <Stoplight
               label="Breadth"
               value={breadth}
