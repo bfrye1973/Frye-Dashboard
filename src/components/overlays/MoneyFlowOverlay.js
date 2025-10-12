@@ -4,14 +4,7 @@
 // - Renders on its own <canvas> absolutely positioned over the chart
 // - Public API: { update(candles), destroy() }
 
-let computeMoneyFlowProfile = null;
-try {
-  // Must exist at: src/lib/indicators/moneyFlowProfile.js
-  ({ computeMoneyFlowProfile } =
-    require("../../lib/indicators/moneyFlowProfile.js"));
-} catch {
-  // Soft-fail: we'll watermark if the function is missing
-}
+import { computeMoneyFlowProfile } from "../../lib/indicators/moneyFlowProfile";
 
 export default function MoneyFlowOverlay({ chartContainer }) {
   if (!chartContainer) return { update() {}, destroy() {} };
