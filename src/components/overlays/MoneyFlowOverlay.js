@@ -3,57 +3,64 @@
 // and yellow HVN bands across the chart price area.
 // Leaves a bottom gap so it never covers the chart's time axis.
 //
-// Requires: src/lib/indicators/moneyFlowProfile.js
-import React, { useEffect, useRef } from "react";
+// Usage (RowChart):
+//   const overlay = MoneyFlowOverlay({ chartContainer: containerRef.current });
+//   overlay.update(bars);
+//   overlay.destroy();
 
-// soft import so the page still renders even if the file is missing
 let computeMoneyFlowProfile = null;
+// soft import so the page still renders even if the file is missing
 try {
   ({ computeMoneyFlowProfile } =
     require("../../lib/indicators/moneyFlowProfile.js"));
 } catch {
-  /* noop — we'll watermark to show the overlay mounted */
+  /* noop — when missing, we just draw a watermark */
 }
 
-export default function MoneyFlowOverlay({ chartContainer, candles }) {
-  const canvasRef = useRef(null);
+export default function MoneyFlowOverlay({ chartContainer }) {
+  if (!chartContainer) {
+    // return safe no-op so RowChart doesn't crash
+    return { update() {}, destroy() {} };
+  }
 
-  // keep canvas size in sync with the chart container
-  useEffect(() => {
-    if (!chartContainer || !canvasRef.current) return;
-    const cnv = canvasRef.current;
+  // Ensure container can host absolutely-positioned overlays
+  if (getComputedStyle(chartContainer).position === "static") {
+    chartContainer.style.position = "relative";
+  }
 
-    const syncSize = () => {
-      if (!chartContainer) return;
-      const w = chartContainer.clientWidth || 300;
-      const h = chartContainer.clientHeight || 200;
-      const dpr = Math.max(1, window.devicePixelRatio || 1);
-      cnv.width = Math.max(1, Math.floor(w * dpr));
-      cnv.height = Math.max(1, Math.floor(h * dpr));
-      cnv.style.width = `${w}px`;
-      cnv.style.height = `${h}px`;
-      const ctx = cnv.getContext("2d");
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      draw();
-    };
+  // Create canvas
+  const cnv = document.createElement("canvas");
+  cnv.className = "overlay-leave-axis-gap";
+  Object.assign(cnv.style, {
+    position: "absolute",
+    left: 0,
+    top: 0,
+    right: 0,
+    bottom: 0,
+    pointerEvents: "none",
+    zIndex: 10,
+  });
+  chartContainer.appendChild(cnv);
 
-    const ro = new ResizeObserver(syncSize);
-    ro.observe(chartContainer);
-    syncSize();
+  // Keep canvas size in sync with container
+  const syncSize = () => {
+    const w = chartContainer.clientWidth || 300;
+    const h = chartContainer.clientHeight || 200;
+    const dpr = Math.max(1, window.devicePixelRatio || 1);
+    cnv.width = Math.max(1, Math.floor(w * dpr));
+    cnv.height = Math.max(1, Math.floor(h * dpr));
+    cnv.style.width = `${w}px`;
+    cnv.style.height = `${h}px`;
+    const ctx = cnv.getContext("2d");
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  };
 
-    return () => ro.disconnect();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chartContainer]);
+  const ro = new ResizeObserver(syncSize);
+  ro.observe(chartContainer);
+  syncSize();
 
-  // redraw when candles change
-  useEffect(() => {
-    draw();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [candles]);
-
-  function draw() {
-    const cnv = canvasRef.current;
-    if (!cnv) return;
+  // ---- drawing helpers
+  const draw = (candles) => {
     const ctx = cnv.getContext("2d");
     const w = cnv.clientWidth;
     const h = cnv.clientHeight;
@@ -77,7 +84,7 @@ export default function MoneyFlowOverlay({ chartContainer, candles }) {
     const mfp = computeMoneyFlowProfile(candles, {
       lookback: 200,
       rows: 25,
-      source: "Volume",        // change to 'Money Flow' to weight by price*vol
+      source: "Volume",        // or 'Money Flow' to weight by price*vol
       sentiment: "Bar Polarity",
       highNodePct: 0.53,       // HVN threshold (as % of PoC)
       lowNodePct:  0.37,       // LVN threshold (unused visually here)
@@ -188,20 +195,17 @@ export default function MoneyFlowOverlay({ chartContainer, candles }) {
       ctx.stroke();
       ctx.restore();
     }
-  }
+  };
 
-  return (
-    <>
-      {/* Class ensures the canvas leaves room for the time axis */}
-      <canvas
-        ref={canvasRef}
-        className="overlay-leave-axis-gap"
-        style={{
-          position: "absolute",
-          pointerEvents: "none",
-          zIndex: 10,
-        }}
-      />
-    </>
-  );
+  // public API
+  return {
+    update(candles) {
+      syncSize();
+      draw(candles);
+    },
+    destroy() {
+      try { ro.disconnect(); } catch {}
+      try { cnv.remove(); } catch {}
+    }
+  };
 }
