@@ -280,7 +280,7 @@ export default function RowChart({
       });
     }
     window.__refLine.setData([
-      { time: last.time - 600 * 30, value: last.close }, // 30 * 10m back
+      { time: last.time - 600 * 5, value: last.close }, // 30 * 10m back
       { time: last.time,            value: last.close },
     ]);
   }
