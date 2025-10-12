@@ -458,18 +458,34 @@ export default function RowChart({
 
   /* ----------------------------- Overlays ---------------------------- */
   useEffect(() => {
-    const chart = chartRef.current; const price = seriesRef.current;
-    if (!chart || !price) return;
-    if (state.moneyFlow) { 
-      if (!moneyFlowRef.current) {moneyFlowRef.current = attachOverlay(MoneyFlowOverlay, {
-           chartContainer: containerRef.current
-         });
-      try { moneyFlowRef.current.update?.(bars); } catch {}
-    } else {
-      try { moneyFlowRef.current?.destroy?.(); } catch {}
-      moneyFlowRef.current = null;
+  const chart = chartRef.current;
+  const price = seriesRef.current;
+  if (!chart || !price) return;
+
+  if (state.moneyFlow) {
+    // create once
+    if (!moneyFlowRef.current) {
+      moneyFlowRef.current = attachOverlay(MoneyFlowOverlay, {
+        chartContainer: containerRef.current,
+      });
     }
-  }, [state.moneyFlow, bars]);
+    // update on every bars change
+    try {
+      moneyFlowRef.current?.update?.(bars);
+    } catch (e) {
+      console.warn("[MoneyFlow] update failed:", e);
+    }
+  } else {
+    // toggle off → clean up
+    try {
+      moneyFlowRef.current?.destroy?.();
+    } catch (e) {
+      console.warn("[MoneyFlow] destroy failed:", e);
+    }
+    moneyFlowRef.current = null;
+  }
+}, [state.moneyFlow, bars]);
+
 
   useEffect(() => {
     const chart = chartRef.current; const price = seriesRef.current;
