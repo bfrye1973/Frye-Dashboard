@@ -13,6 +13,7 @@ import { createChart } from "lightweight-charts";
 import Controls from "./Controls";
 import IndicatorsToolbar from "./IndicatorsToolbar";
 import { getOHLC, subscribeStream } from "../../../lib/ohlcClient";
+import { SYMBOLS, TIMEFRAMES } from "./constants"; // ← use constants for menus
 
 // Overlays (optional; attach gracefully)
 import MoneyFlowOverlay from "../../../components/overlays/MoneyFlowOverlay";
@@ -21,7 +22,7 @@ import SessionShadingOverlay from "../../../components/overlays/SessionShadingOv
 import SwingLiquidityOverlay from "../../../components/overlays/SwingLiquidityOverlay";
 
 /* ------------------------------ Config ------------------------------ */
-const SEED_LIMIT = 6000; // ~1 month of 10m bars + buffer
+const SEED_LIMIT = 6000; // deeper seed window
 
 const DEFAULTS = {
   upColor: "#26a69a",
@@ -158,8 +159,9 @@ export default function RowChart({
     swingLiquidity: false,
   });
 
-  const symbols = useMemo(() => ["SPY", "QQQ", "IWM"], []);
-  const timeframes = useMemo(() => ["1m", "5m", "10m", "15m", "30m", "1h", "4h", "1d"], []);
+  // Use constants for menus (keeps your file logic; no parent changes)
+  const symbols = useMemo(() => SYMBOLS, []);
+  const timeframes = useMemo(() => TIMEFRAMES, []);
 
   /* -------------------------- Mount / Resize ------------------------- */
   useEffect(() => {
@@ -548,7 +550,7 @@ export default function RowChart({
     volume: state.volume,
     moneyFlow: state.moneyFlow, luxSr: state.luxSr, swingLiquidity: state.swingLiquidity,
     showSmiToggle: false,
-    onChange: handleControlsChange,
+    onChange: handleControlsChange, // toolbar sends patches with the exact keys above
     onReset: () =>
       setState((s) => ({
         ...s,
