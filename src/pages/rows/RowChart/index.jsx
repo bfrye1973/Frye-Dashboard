@@ -549,7 +549,6 @@ export default function RowChart({
     ema10: state.ema10, ema20: state.ema20, ema50: state.ema50,
     volume: state.volume,
     moneyFlow: state.moneyFlow, luxSr: state.luxSr, swingLiquidity: state.swingLiquidity,
-    showSmiToggle: false,
     onChange: handleControlsChange, // toolbar sends patches with the exact keys above
     onReset: () =>
       setState((s) => ({
