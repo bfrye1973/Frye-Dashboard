@@ -120,10 +120,19 @@ export default function IntradayLegend() {
         ]}
       />
 
-      {/* Direction & Risk-On (text helpers) */}
+      {/* NEW — Risk On (10m) */}
+      <Row
+        label="Risk On (10m)"
+        bullets={[
+          { range: "< 45",   chips: [{ tone: "weak",    text: "Risk-off" }] },
+          { range: "45–59",  chips: [{ tone: "neutral", text: "Neutral" }] },
+          { range: "≥ 60",   chips: [{ tone: "strong",  text: "Risk-on" }] },
+        ]}
+      />
+
+      {/* Direction & Risk-On note (kept for quick reference) */}
       <div style={{ color: "#e5e7eb", fontSize: 12, lineHeight: 1.6, marginTop: 8 }}>
         <div><b>Sector Direction (10m)</b>: Green ≥ 60% sectors rising; Yellow 45–59%; Red &lt;45%.</div>
-        <div><b>Risk On (10m)</b>: Green ≥ 60; Yellow 45–59; Red &lt;45.</div>
       </div>
     </div>
   );
