@@ -461,7 +461,7 @@ export default function RowChart({
     const chart = chartRef.current; const price = seriesRef.current;
     if (!chart || !price) return;
     if (state.moneyFlow) { 
-      if moneyFlowRef.current = attachOverlay(MoneyFlowOverlay, {
+      if (!moneyFlowRef.current) {moneyFlowRef.current = attachOverlay(MoneyFlowOverlay, {
            chartContainer: containerRef.current
          });
       try { moneyFlowRef.current.update?.(bars); } catch {}
