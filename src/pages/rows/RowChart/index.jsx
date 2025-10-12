@@ -487,57 +487,62 @@ export default function RowChart({
 }, [state.moneyFlow, bars]);
 
 
-  useEffect(() => {
-    const chart = chartRef.current; const price = seriesRef.current;
-    if (!chart || !price) return;
-    if (state.volume && !rightProfileRef.current) {
-      rightProfileRef.current = attachOverlay(RightProfileOverlay, { chart, series: price });
-    }
-    if (rightProfileRef.current) {
-      try { rightProfileRef.current.update?.(bars); } catch {}
-    }
-  }, [state.volume, bars]);
+   // Right Profile (tie to Volume for now)
+ useEffect(() => {
+   const chart = chartRef.current; const price = seriesRef.current;
+   if (!chart || !price) return;
 
-   // Lux S/R → Session shading
-  useEffect(() => {
-    const chart = chartRef.current;
-    const price = seriesRef.current;
-    if (!chart || !price) return;
-
-    if (state.luxSr) {
-      // create once
-      if (!sessionShadeRef.current) {
-      sessionShadeRef.current = attachOverlay(SessionShadingOverlay, {
-        chartContainer: containerRef.current,   // << pass container
+   if (state.volume) {
+     if (!rightProfileRef.current) {
+       rightProfileRef.current = attachOverlay(RightProfileOverlay, {
+         chartContainer: containerRef.current,   // << pass container
       });
     }
-    // update every time bars/timeframe change
+    try { rightProfileRef.current.update?.(bars); } catch {}
+  } else {
+    try { rightProfileRef.current?.destroy?.(); } catch {}
+    rightProfileRef.current = null;
+  }
+}, [state.volume, bars]);
+
+  // Lux S/R → Session shading
+ useEffect(() => {
+   const chart = chartRef.current; const price = seriesRef.current;
+   if (!chart || !price) return;
+
+   if (state.luxSr) {
+     if (!sessionShadeRef.current) {
+       sessionShadeRef.current = attachOverlay(SessionShadingOverlay, {
+         chartContainer: containerRef.current,   // << container
+      });
+    }
     try {
       sessionShadeRef.current.update?.(bars, { timeframe: state.timeframe });
     } catch {}
   } else {
-    // toggle off → clean up
-    try {
-      sessionShadeRef.current?.destroy?.();
-    } catch {}
+    try { sessionShadeRef.current?.destroy?.(); } catch {}
     sessionShadeRef.current = null;
   }
 }, [state.luxSr, state.timeframe, bars]);
 
 
-  useEffect(() => {
-    const chart = chartRef.current; const price = seriesRef.current;
-    if (!chart || !price) return;
-    if (state.swingLiquidity) {
-      if (!swingLiqRef.current) {
-        swingLiqRef.current = attachOverlay(SwingLiquidityOverlay, { chart, series: price });
-      }
-      try { swingLiqRef.current.update?.(bars); } catch {}
-    } else {
-      try { swingLiqRef.current?.destroy?.(); } catch {}
-      swingLiqRef.current = null;
+  // Swing Liquidity (pivots)
+ useEffect(() => {
+   const chart = chartRef.current; const price = seriesRef.current;
+   if (!chart || !price) return;
+
+   if (state.swingLiquidity) {
+    if (!swingLiqRef.current) {
+       swingLiqRef.current = attachOverlay(SwingLiquidityOverlay, {
+         chart,                    // << pass chart instance
+      });
     }
-  }, [state.swingLiquidity, bars]);
+    try { swingLiqRef.current.update?.(bars); } catch {}
+  } else {
+    try { swingLiqRef.current?.destroy?.(); } catch {}
+    swingLiqRef.current = null;
+  }
+}, [state.swingLiquidity, bars]);
 
   /* ----------------------------- Handlers ---------------------------- */
   const handleControlsChange = (patch) => setState((s) => ({ ...s, ...patch }));
