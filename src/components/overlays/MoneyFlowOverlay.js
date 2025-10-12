@@ -1,79 +1,59 @@
-// src/components/overlays/MoneyFlowOverlay.js
-// DEBUG OVERLAY — draws a big semi-transparent box + text so we can verify
-// the overlay mounts, sizes, and sits ABOVE the chart.
-// Once we confirm it shows, we’ll switch back to the real money flow drawing.
+/* ----------------------------- Overlays — DEBUG MoneyFlow ---------------------------- */
+// This bypasses the overlay module and just paints a visible layer directly.
+// If this shows up, layering is fine and the problem is in the overlay module/import.
+// If this does NOT show up, the toggle isn't flipping or the container needs positioning.
+useEffect(() => {
+  const container = containerRef.current;
+  if (!container) return;
 
-export default function MoneyFlowOverlay({ chartContainer }) {
-  if (!chartContainer) return { update() {}, destroy() {} };
+  // ensure container can host absolute children
+  const cs = getComputedStyle(container);
+  if (cs.position === "static") {
+    container.style.position = "relative";
+  }
 
-  // Ensure container can host absolute children
-  const cs = getComputedStyle(chartContainer);
-  if (cs.position === "static") chartContainer.style.position = "relative";
+  // toggle OFF → remove if present
+  if (!state.moneyFlow) {
+    const el = moneyFlowRef.current;
+    if (el && el.nodeType === 1) {
+      try { el.remove(); } catch {}
+    }
+    moneyFlowRef.current = null;
+    return;
+  }
 
-  // Create canvas
-  const cnv = document.createElement("canvas");
-  Object.assign(cnv.style, {
-    position: "absolute",
-    left: 0,
-    top: 0,
-    right: 0,
-    bottom: 0,
-    pointerEvents: "none",
-    zIndex: 10, // must be above candles
-  });
-  chartContainer.appendChild(cnv);
+  // toggle ON → create once
+  if (!moneyFlowRef.current) {
+    const div = document.createElement("div");
+    Object.assign(div.style, {
+      position: "absolute",
+      left: 0,
+      top: 0,
+      right: 0,
+      bottom: 0,
+      background: "rgba(0, 255, 136, 0.08)", // faint green tint
+      pointerEvents: "none",
+      zIndex: 99999, // stack above everything
+    });
 
-  // Size sync
-  const syncSize = () => {
-    const w = chartContainer.clientWidth || 300;
-    const h = chartContainer.clientHeight || 200;
-    const dpr = Math.max(1, window.devicePixelRatio || 1);
-    cnv.width = Math.max(1, Math.floor(w * dpr));
-    cnv.height = Math.max(1, Math.floor(h * dpr));
-    cnv.style.width = `${w}px`;
-    cnv.style.height = `${h}px`;
-    const ctx = cnv.getContext("2d");
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  };
-  const ro = new ResizeObserver(syncSize);
-  ro.observe(chartContainer);
-  syncSize();
+    // banner to prove visibility
+    const banner = document.createElement("div");
+    Object.assign(banner.style, {
+      position: "absolute",
+      left: "10px",
+      top: "10px",
+      padding: "6px 10px",
+      font: "bold 14px system-ui, -apple-system, Segoe UI, Roboto, Arial",
+      color: "#0b0f14",
+      background: "#00ff88",
+      borderRadius: "6px",
+    });
+    banner.textContent = "DEBUG: MoneyFlow overlay visible";
+    div.appendChild(banner);
 
-  // Very visible draw
-  const drawDebug = () => {
-    const ctx = cnv.getContext("2d");
-    const w = cnv.clientWidth;
-    const h = cnv.clientHeight;
+    container.appendChild(div);
+    moneyFlowRef.current = div;
+  }
 
-    // clear
-    ctx.clearRect(0, 0, w, h);
-
-    // a translucent pane across the whole chart
-    ctx.save();
-    ctx.globalAlpha = 0.08;
-    ctx.fillStyle = "#00ff88";
-    ctx.fillRect(0, 0, w, h);
-    ctx.restore();
-
-    // a bright banner in the top-left
-    ctx.save();
-    ctx.globalAlpha = 0.9;
-    ctx.fillStyle = "#00ff88";
-    ctx.fillRect(10, 10, 220, 28);
-    ctx.fillStyle = "#0b0f14";
-    ctx.font = "bold 14px system-ui, -apple-system, Segoe UI, Roboto, Arial";
-    ctx.fillText("DEBUG: MoneyFlowOverlay visible", 16, 30);
-    ctx.restore();
-  };
-
-  return {
-    update() {
-      syncSize();
-      drawDebug();
-    },
-    destroy() {
-      try { ro.disconnect(); } catch {}
-      try { cnv.remove(); } catch {}
-    },
-  };
-}
+  // on bars change we don't need to do anything for this debug layer
+}, [state.moneyFlow, bars]);
