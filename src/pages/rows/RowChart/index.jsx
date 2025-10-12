@@ -269,6 +269,22 @@ export default function RowChart({
         if (!cancelled) setState((s) => ({ ...s, disabled: false }));
       }
     }
+    // TEMP smoke test: white line at last close across ~30 bars
+    try {
+      const last = barsRef.current.at(-1);
+      if (last && chartRef.current) {
+        if (!window.__refLine) {
+         window.__refLine = chartRef.current.addLineSeries({
+         color: '#ffffff88', lineWidth: 1,
+         lastValueVisible: false, priceLineVisible: false,
+      });
+    }
+    window.__refLine.setData([
+      { time: last.time - 600 * 30, value: last.close }, // 30 * 10m back
+      { time: last.time,            value: last.close },
+    ]);
+  }
+} catch {}
 
     loadSeed();
     return () => { cancelled = true; };
