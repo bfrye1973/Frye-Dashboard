@@ -57,6 +57,16 @@ export default function IntradayLegend() {
         Market Meter — Intraday Legend
       </div>
 
+      {/* NEW — Overall composite */}
+      <Row
+        label="Overall (10m)"
+        bullets={[
+          { range: "0–44%",  chips: [{ tone: "weak",    text: "Weak / risk-off" }] },
+          { range: "45–64%", chips: [{ tone: "neutral", text: "Neutral / mixed" }] },
+          { range: "≥ 65%",  chips: [{ tone: "strong",  text: "Strong / risk-on" }] },
+        ]}
+      />
+
       {/* Breadth */}
       <Row
         label="Breadth (NH/(NH+NL)%)"
@@ -85,8 +95,8 @@ export default function IntradayLegend() {
         bullets={[
           { range: "0–34%",  chips: [{ tone: "strong", text: "Expanded" }] },
           { range: "35–64%", chips: [{ tone: "neutral", text: "Normal" }] },
-          { range: "65–84%", chips: [{ tone: "warn", text: "Tight" }] },
-          { range: "85–100%", chips: [{ tone: "weak", text: "Critical" }] },
+          { range: "65–84%", chips: [{ tone: "warn",   text: "Tight" }] },
+          { range: "85–100%", chips: [{ tone: "weak",   text: "Critical" }] },
         ]}
       />
 
@@ -94,9 +104,9 @@ export default function IntradayLegend() {
       <Row
         label="Volatility (%ATR)"
         bullets={[
-          { range: "< 30%",  chips: [{ tone: "strong", text: "Calm" }] },
+          { range: "< 30%",  chips: [{ tone: "strong",  text: "Calm" }] },
           { range: "30–60%", chips: [{ tone: "neutral", text: "Elevated" }] },
-          { range: "> 60%",  chips: [{ tone: "weak", text: "High" }] },
+          { range: "> 60%",  chips: [{ tone: "weak",    text: "High" }] },
         ]}
       />
 
@@ -104,9 +114,9 @@ export default function IntradayLegend() {
       <Row
         label="Liquidity (PSI)"
         bullets={[
-          { range: "> 60",    chips: [{ tone: "strong", text: "Good" }] },
-          { range: "40–59",   chips: [{ tone: "neutral", text: "Normal" }] },
-          { range: "0–39",    chips: [{ tone: "weak", text: "Thin" }] },
+          { range: "≥ 60",   chips: [{ tone: "strong",  text: "Good" }] },
+          { range: "40–59",  chips: [{ tone: "neutral", text: "Normal" }] },
+          { range: "< 40",   chips: [{ tone: "weak",    text: "Thin" }] },
         ]}
       />
 
