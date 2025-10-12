@@ -460,8 +460,10 @@ export default function RowChart({
   useEffect(() => {
     const chart = chartRef.current; const price = seriesRef.current;
     if (!chart || !price) return;
-    if (state.moneyFlow) {
-      if (!moneyFlowRef.current) moneyFlowRef.current = attachOverlay(MoneyFlowOverlay, { chart, series: price });
+    if (state.moneyFlow) { 
+      if moneyFlowRef.current = attachOverlay(MoneyFlowOverlay, {
+           chartContainer: containerRef.current
+         });
       try { moneyFlowRef.current.update?.(bars); } catch {}
     } else {
       try { moneyFlowRef.current?.destroy?.(); } catch {}
@@ -591,6 +593,7 @@ export default function RowChart({
           flex: "1 1 auto",
           overflow: "hidden",
           background: DEFAULTS.bg,
+          position: "relative",  
         }
       : {
           width: "100%",
@@ -600,6 +603,7 @@ export default function RowChart({
           flex: "0 0 auto",
           overflow: "hidden",
           background: DEFAULTS.bg,
+          position: "relative", 
         };
   }, [fullScreen]);
 
