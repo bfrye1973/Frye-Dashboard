@@ -282,10 +282,17 @@ export default function RowChart({
     window.__refLine.setData([
       { time: last.time - 600 * 5, value: last.close }, // 30 * 10m back
       { time: last.time,            value: last.close },
-    ]);
-  }
-} catch {}
-
+    ]); // 
+      make the line fully opaque and thick so it's obvious
+      try {
+        window.__refLine.applyOptions({
+        color: '#ffffff',
+        lineWidth: 3,
+        lineStyle: 0,              // Solid
+        lastValueVisible: true,    // show axis marker
+        priceLineVisible: true,    // show horizontal price line
+      });
+    } catch {}
     loadSeed();
     return () => { cancelled = true; };
   }, [state.symbol, state.timeframe, state.range, showDebug]);
