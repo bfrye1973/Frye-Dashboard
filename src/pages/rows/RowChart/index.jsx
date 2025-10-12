@@ -498,21 +498,32 @@ export default function RowChart({
     }
   }, [state.volume, bars]);
 
+   // Lux S/R → Session shading
   useEffect(() => {
-    const chart = chartRef.current; const price = seriesRef.current;
+    const chart = chartRef.current;
+    const price = seriesRef.current;
     if (!chart || !price) return;
+
     if (state.luxSr) {
+      // create once
       if (!sessionShadeRef.current) {
-        sessionShadeRef.current = attachOverlay(SessionShadingOverlay, {
-          chart, series: price, timezone: "America/Phoenix",
-        });
-      }
-      try { sessionShadeRef.current.update?.(bars, { timeframe: state.timeframe }); } catch {}
-    } else {
-      try { sessionShadeRef.current?.destroy?.(); } catch {}
-      sessionShadeRef.current = null;
+      sessionShadeRef.current = attachOverlay(SessionShadingOverlay, {
+        chartContainer: containerRef.current,   // << pass container
+      });
     }
-  }, [state.luxSr, state.timeframe, bars]);
+    // update every time bars/timeframe change
+    try {
+      sessionShadeRef.current.update?.(bars, { timeframe: state.timeframe });
+    } catch {}
+  } else {
+    // toggle off → clean up
+    try {
+      sessionShadeRef.current?.destroy?.();
+    } catch {}
+    sessionShadeRef.current = null;
+  }
+}, [state.luxSr, state.timeframe, bars]);
+
 
   useEffect(() => {
     const chart = chartRef.current; const price = seriesRef.current;
