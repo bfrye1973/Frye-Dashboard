@@ -1,36 +1,17 @@
 // src/components/overlays/MoneyFlowOverlay.js
-// Lightweight overlay that draws LEFT + RIGHT money/volume profile
-// and yellow HVN bands across the chart price area.
-// Leaves a bottom gap so it never covers the chart's time axis.
-//
-// Usage (RowChart):
-//   const overlay = MoneyFlowOverlay({ chartContainer: containerRef.current });
-//   overlay.update(bars);
-//   overlay.destroy();
-
-let computeMoneyFlowProfile = null;
-// soft import so the page still renders even if the file is missing
-try {
-  ({ computeMoneyFlowProfile } =
-    require("../../lib/indicators/moneyFlowProfile.js"));
-} catch {
-  /* noop — when missing, we just draw a watermark */
-}
+// DEBUG OVERLAY — draws a big semi-transparent box + text so we can verify
+// the overlay mounts, sizes, and sits ABOVE the chart.
+// Once we confirm it shows, we’ll switch back to the real money flow drawing.
 
 export default function MoneyFlowOverlay({ chartContainer }) {
-  if (!chartContainer) {
-    // return safe no-op so RowChart doesn't crash
-    return { update() {}, destroy() {} };
-  }
+  if (!chartContainer) return { update() {}, destroy() {} };
 
-  // Ensure container can host absolutely-positioned overlays
-  if (getComputedStyle(chartContainer).position === "static") {
-    chartContainer.style.position = "relative";
-  }
+  // Ensure container can host absolute children
+  const cs = getComputedStyle(chartContainer);
+  if (cs.position === "static") chartContainer.style.position = "relative";
 
   // Create canvas
   const cnv = document.createElement("canvas");
-  cnv.className = "overlay-leave-axis-gap";
   Object.assign(cnv.style, {
     position: "absolute",
     left: 0,
@@ -38,11 +19,11 @@ export default function MoneyFlowOverlay({ chartContainer }) {
     right: 0,
     bottom: 0,
     pointerEvents: "none",
-    zIndex: 10,
+    zIndex: 10, // must be above candles
   });
   chartContainer.appendChild(cnv);
 
-  // Keep canvas size in sync with container
+  // Size sync
   const syncSize = () => {
     const w = chartContainer.clientWidth || 300;
     const h = chartContainer.clientHeight || 200;
@@ -54,13 +35,12 @@ export default function MoneyFlowOverlay({ chartContainer }) {
     const ctx = cnv.getContext("2d");
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   };
-
   const ro = new ResizeObserver(syncSize);
   ro.observe(chartContainer);
   syncSize();
 
-  // ---- drawing helpers
-  const draw = (candles) => {
+  // Very visible draw
+  const drawDebug = () => {
     const ctx = cnv.getContext("2d");
     const w = cnv.clientWidth;
     const h = cnv.clientHeight;
@@ -68,144 +48,32 @@ export default function MoneyFlowOverlay({ chartContainer }) {
     // clear
     ctx.clearRect(0, 0, w, h);
 
-    // watermark if math missing / no data
-    if (!computeMoneyFlowProfile || !candles?.length) {
-      ctx.save();
-      ctx.globalAlpha = 0.6;
-      ctx.fillStyle = "#88a8c3";
-      ctx.font = "12px system-ui, -apple-system, Segoe UI, Roboto, Arial";
-      ctx.textAlign = "left";
-      ctx.fillText("Money Flow Overlay ready", 12, 18);
-      ctx.restore();
-      return;
-    }
-
-    // compute fixed-range profile on latest N bars
-    const mfp = computeMoneyFlowProfile(candles, {
-      lookback: 200,
-      rows: 25,
-      source: "Volume",        // or 'Money Flow' to weight by price*vol
-      sentiment: "Bar Polarity",
-      highNodePct: 0.53,       // HVN threshold (as % of PoC)
-      lowNodePct:  0.37,       // LVN threshold (unused visually here)
-    });
-
-    // geometry
-    const marginSide = 8;
-    const colW = Math.max(60, Math.round(w * 0.18)); // ~18% columns
-    const rightXLeft = w - marginSide - colW;
-    const leftXLeft  = marginSide;
-
-    // background columns
+    // a translucent pane across the whole chart
     ctx.save();
-    ctx.globalAlpha = 0.10;
-    ctx.fillStyle = "#1a2536";
-    ctx.fillRect(rightXLeft, 0, colW, h); // right column
-    ctx.fillRect(leftXLeft,  0, colW, h); // left column
+    ctx.globalAlpha = 0.08;
+    ctx.fillStyle = "#00ff88";
+    ctx.fillRect(0, 0, w, h);
     ctx.restore();
 
-    if (!mfp?.bins?.length) {
-      ctx.save();
-      ctx.globalAlpha = 0.6;
-      ctx.fillStyle = "#88a8c3";
-      ctx.font = "12px system-ui, -apple-system, Segoe UI, Roboto, Arial";
-      ctx.textAlign = "center";
-      ctx.fillText("No profile yet", rightXLeft + colW / 2, 16);
-      ctx.restore();
-      return;
-    }
-
-    // scale bars by max node
-    const maxVal = Math.max(...mfp.bins.map(b => b.total), 1);
-    const barMax = colW - 14; // inner padding
-
-    // map price to y
-    const pMin = mfp.bins[0].low;
-    const pMax = mfp.bins[mfp.bins.length - 1].high;
-    const yOf = (price) => {
-      const t = (price - pMin) / Math.max(1e-9, (pMax - pMin));
-      return h - Math.round(t * h);
-    };
-
-    // HVN yellow bands across entire chart width
-    const threshold = mfp.percentile?.highThreshold ?? (maxVal * 0.53);
-    let i = 0;
-    while (i < mfp.bins.length) {
-      if (mfp.bins[i].total >= threshold) {
-        const start = i;
-        while (i < mfp.bins.length && mfp.bins[i].total >= threshold) i++;
-        const end = i - 1;
-
-        const yTop = yOf(mfp.bins[start].high);
-        const yBot = yOf(mfp.bins[end].low);
-        const bandH = Math.max(2, yBot - yTop);
-
-        ctx.save();
-        ctx.globalAlpha = 0.18;
-        ctx.fillStyle = "rgba(255,215,0,1)";
-        ctx.fillRect(0, yTop, w, bandH);
-        ctx.restore();
-      } else {
-        i++;
-      }
-    }
-
-    // draw LEFT + RIGHT profile bars
-    const drawColumn = (xLeft) => {
-      ctx.save();
-      for (const b of mfp.bins) {
-        const yTop = yOf(b.high);
-        const yBot = yOf(b.low);
-        const bh = Math.max(2, yBot - yTop - 2);
-        const bw = Math.round((b.total / maxVal) * barMax);
-        const x = xLeft + 7;
-
-        if (b.buy || b.sell) {
-          const total = Math.max(1e-9, b.buy + b.sell);
-          const buyW = Math.round((b.buy / total) * bw);
-          const sellW = bw - buyW;
-
-          ctx.globalAlpha = 0.85;
-          ctx.fillStyle = "rgba(0,180,120,0.55)";
-          ctx.fillRect(x, yTop, buyW, bh);
-
-          ctx.fillStyle = "rgba(220,80,80,0.55)";
-          ctx.fillRect(x + buyW, yTop, sellW, bh);
-        } else {
-          ctx.globalAlpha = 0.85;
-          ctx.fillStyle = "rgba(120,160,220,0.55)";
-          ctx.fillRect(x, yTop, bw, bh);
-        }
-      }
-      ctx.restore();
-    };
-
-    drawColumn(rightXLeft);
-    drawColumn(leftXLeft);
-
-    // PoC line
-    if (mfp.pocIndex >= 0) {
-      const pocY = yOf(mfp.bins[mfp.pocIndex].center);
-      ctx.save();
-      ctx.strokeStyle = "rgba(255,215,0,0.9)";
-      ctx.setLineDash([4, 3]);
-      ctx.beginPath();
-      ctx.moveTo(leftXLeft, pocY);
-      ctx.lineTo(w - marginSide, pocY);
-      ctx.stroke();
-      ctx.restore();
-    }
+    // a bright banner in the top-left
+    ctx.save();
+    ctx.globalAlpha = 0.9;
+    ctx.fillStyle = "#00ff88";
+    ctx.fillRect(10, 10, 220, 28);
+    ctx.fillStyle = "#0b0f14";
+    ctx.font = "bold 14px system-ui, -apple-system, Segoe UI, Roboto, Arial";
+    ctx.fillText("DEBUG: MoneyFlowOverlay visible", 16, 30);
+    ctx.restore();
   };
 
-  // public API
   return {
-    update(candles) {
+    update() {
       syncSize();
-      draw(candles);
+      drawDebug();
     },
     destroy() {
       try { ro.disconnect(); } catch {}
       try { cnv.remove(); } catch {}
-    }
+    },
   };
 }
