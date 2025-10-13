@@ -379,6 +379,7 @@ export default function RowChart({
 
         mgr.attachAll({ bars: asc });
         mgr.seedAll(asc);
+        mgr.updateAll(asc[asc.length - 1]); // <-- immediate visible paint
 
       } catch (e) {
         console.error("[RowChart] OHLC seed error:", e);
