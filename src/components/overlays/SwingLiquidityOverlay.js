@@ -1,29 +1,27 @@
 // src/components/overlays/SwingLiquidityOverlay.js
-// Swing Liquidity (pivot highs/lows) — Lightweight-Charts overlay
-// - Price-pane canvas overlay (absolute, z-index:10)
-// - Uses chart.timeScale().timeToCoordinate(time) for X
-// - Uses priceSeries.priceToCoordinate(price) for Y
-// - DPR-aware resize; safe attach/seed/update/destroy lifecycle
+// Swing Liquidity (pivot highs/lows) — Lightweight-Charts price-pane overlay.
+// Alignment comes from the chart’s OWN scales:
+//   X: chart.timeScale().timeToCoordinate(timeSeconds)
+//   Y: priceSeries.priceToCoordinate(price)
+// Canvas is DPR-aware and sits above the chart (z-index: 10).
 
-export default function SwingLiquidityOverlay({ chart, priceSeries, chartContainer, timeframe }) {
-  // ====== Guards ======
+export default function createSwingLiquidityOverlay({ chart, priceSeries, chartContainer }) {
+  // ---- Guards --------------------------------------------------------
   if (!chart || !priceSeries || !chartContainer) {
-    console.warn("[SwingLiquidity] missing { chart, priceSeries, chartContainer }");
+    console.warn("[SwingLiquidity] missing required args");
     return { seed() {}, update() {}, destroy() {} };
   }
 
-  // ====== Tunables (feel free to tweak) ======
-  const LEFT = 10;           // bars left for pivot check
-  const RIGHT = 10;          // bars right for pivot check
-  const MAX_DRAW_BARS = 800; // lookback window for drawing
-  const TICK = 6;            // half-length of small tick marks (px)
+  // ---- Config (tune freely) -----------------------------------------
+  const L = 10;                   // bars LEFT of pivot
+  const R = 10;                   // bars RIGHT of pivot
+  const MAX_BARS = 800;           // draw last N bars for speed
+  const TICK = 6;                 // half-length of the H/L tick (px)
   const FONT = "11px system-ui, -apple-system, Segoe UI, Roboto, Arial";
+  const COL_H = "#ff4d4f";        // red  (swing high)
+  const COL_L = "#22c55e";        // green (swing low)
 
-  // Colors
-  const COL_H = "#ff4d4f";   // swing high (red)
-  const COL_L = "#22c55e";   // swing low (green");
-
-  // ====== Canvas setup (absolute overlay) ======
+  // ---- Canvas --------------------------------------------------------
   const cnv = document.createElement("canvas");
   Object.assign(cnv.style, {
     position: "absolute",
@@ -35,37 +33,37 @@ export default function SwingLiquidityOverlay({ chart, priceSeries, chartContain
   chartContainer.appendChild(cnv);
   const ctx = cnv.getContext("2d");
 
-  // DPR resize
   const resize = () => {
     const rect = chartContainer.getBoundingClientRect();
     const dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
-    cnv.width = Math.max(1, Math.floor(rect.width * dpr));
+    cnv.width  = Math.max(1, Math.floor(rect.width  * dpr));
     cnv.height = Math.max(1, Math.floor(rect.height * dpr));
-    cnv.style.width = rect.width + "px";
+    cnv.style.width  = rect.width + "px";
     cnv.style.height = rect.height + "px";
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.scale(dpr, dpr);
   };
+
   const ro = new ResizeObserver(resize);
   ro.observe(chartContainer);
   const onWinResize = () => resize();
   window.addEventListener("resize", onWinResize);
   resize();
 
-  // ====== Data cache ======
-  let barsCache = []; // [{time, open, high, low, close, volume}, ...] ascending by time
+  // ---- Data cache ----------------------------------------------------
+  let barsAsc = []; // ascending time [{ time, open, high, low, close, volume }]
 
-  // ====== Helpers ======
-  const yFor = (price) => {
-    const y = priceSeries.priceToCoordinate(Number(price));
-    return Number.isFinite(y) ? y : null;
-  };
+  // ---- Coordinate helpers (the KEY to alignment) --------------------
   const xFor = (timeSec) => {
     const x = chart.timeScale().timeToCoordinate(timeSec);
     return Number.isFinite(x) ? x : null;
   };
+  const yFor = (price) => {
+    const y = priceSeries.priceToCoordinate(Number(price));
+    return Number.isFinite(y) ? y : null;
+  };
 
-  // pivot detection
+  // ---- Pivot tests ---------------------------------------------------
   const isSwingHigh = (arr, i, L, R) => {
     const v = arr[i].high;
     for (let j = i - L; j <= i + R; j++) {
@@ -83,52 +81,29 @@ export default function SwingLiquidityOverlay({ chart, priceSeries, chartContain
     return true;
   };
 
-  // find visible range (time -> x) for quick culling
-  const getVisibleTimeBounds = () => {
-    const ts = chart.timeScale();
-    try {
-      const logical = ts.getVisibleLogicalRange?.();
-      if (!logical) return null;
-      const leftTime = ts.coordinateToTime(ts.logicalToCoordinate(logical.from));
-      const rightTime = ts.coordinateToTime(ts.logicalToCoordinate(logical.to));
-      const l = typeof leftTime === "object" ? leftTime.timestamp ?? leftTime.time : leftTime;
-      const r = typeof rightTime === "object" ? rightTime.timestamp ?? rightTime.time : rightTime;
-      if (!Number.isFinite(l) || !Number.isFinite(r)) return null;
-      return { l: l|0, r: r|0 };
-    } catch {
-      return null;
-    }
-  };
-
-  // draw all swings in window
+  // ---- Draw ----------------------------------------------------------
   const draw = () => {
     const rect = chartContainer.getBoundingClientRect();
     ctx.clearRect(0, 0, rect.width, rect.height);
-    if (!barsCache?.length) return;
+    if (!barsAsc.length) return;
 
-    // Choose bars to scan (last MAX_DRAW_BARS to stay light)
-    const startIdx = Math.max(0, barsCache.length - MAX_DRAW_BARS);
-    const scan = barsCache.slice(startIdx);
-
-    // Optional: use visible time bounds to skip offscreen swings
-    const vis = getVisibleTimeBounds();
+    // draw the last N bars for perf
+    const start = Math.max(0, barsAsc.length - MAX_BARS);
+    const scan = barsAsc.slice(start);
 
     ctx.lineWidth = 1;
     ctx.font = FONT;
     ctx.textAlign = "center";
 
-    for (let i = LEFT; i < scan.length - RIGHT; i++) {
+    for (let i = L; i < scan.length - R; i++) {
       const b = scan[i];
-      const time = b.time; // epoch seconds
+      const timeSec = b.time > 1e12 ? Math.floor(b.time / 1000) : b.time;
 
-      if (vis && (time < vis.l || time > vis.r)) continue; // skip offscreen by time
-
-      // Compute coordinates
-      const x = xFor(time);
-      if (!Number.isFinite(x)) continue;
+      const x = xFor(timeSec);
+      if (x == null) continue;
 
       // High
-      if (isSwingHigh(scan, i, LEFT, RIGHT)) {
+      if (isSwingHigh(scan, i, L, R)) {
         const y = yFor(b.high);
         if (y != null) {
           ctx.strokeStyle = COL_H;
@@ -143,7 +118,7 @@ export default function SwingLiquidityOverlay({ chart, priceSeries, chartContain
       }
 
       // Low
-      if (isSwingLow(scan, i, LEFT, RIGHT)) {
+      if (isSwingLow(scan, i, L, R)) {
         const y = yFor(b.low);
         if (y != null) {
           ctx.strokeStyle = COL_L;
@@ -159,27 +134,24 @@ export default function SwingLiquidityOverlay({ chart, priceSeries, chartContain
     }
   };
 
-  // ====== Lifecycle ======
-  console.log("[SwingLiquidity] ATTACH");
-
+  // ---- Lifecycle -----------------------------------------------------
   return {
     seed(bars) {
-      // Expect ascending time; coerce ms -> s if needed
-      barsCache = (bars || []).map(b => ({
+      barsAsc = (bars || []).map(b => ({
         ...b,
-        time: b.time > 1e12 ? Math.floor(b.time / 1000) : b.time,
+        time: b.time > 1e12 ? Math.floor(b.time / 1000) : b.time, // ms→s if needed
       }));
       draw();
     },
     update(latest) {
       if (!latest) return;
       const t = latest.time > 1e12 ? Math.floor(latest.time / 1000) : latest.time;
-      const last = barsCache[barsCache.length - 1];
+      const last = barsAsc.at(-1);
 
       if (!last || t > last.time) {
-        barsCache.push({ ...latest, time: t });
+        barsAsc.push({ ...latest, time: t });
       } else if (t === last.time) {
-        barsCache[barsCache.length - 1] = { ...latest, time: t };
+        barsAsc[barsAsc.length - 1] = { ...latest, time: t };
       } else {
         // out-of-order; ignore
         return;
@@ -190,7 +162,6 @@ export default function SwingLiquidityOverlay({ chart, priceSeries, chartContain
       try { ro.disconnect(); } catch {}
       window.removeEventListener("resize", onWinResize);
       try { cnv.remove(); } catch {}
-      // console.log("[SwingLiquidity] DESTROY");
     },
   };
 }
