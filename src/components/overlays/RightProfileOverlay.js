@@ -2,25 +2,28 @@
 export default function RightProfileOverlay({ chartContainer }) {
   if (!chartContainer) {
     console.warn("[RightProfile] no chartContainer");
-    return { update() {}, destroy() {} };
+    return { seed() {}, update() {}, destroy() {} };
   }
 
+  // Ensure container can host absolute overlays
   const cs = getComputedStyle(chartContainer);
   if (cs.position === "static") chartContainer.style.position = "relative";
 
+  // Canvas
   const cnv = document.createElement("canvas");
   Object.assign(cnv.style, {
     position: "absolute",
     inset: 0,
     pointerEvents: "none",
-    zIndex: 9999, // crank it up for debug
-    background: "rgba(255,0,0,0.12)", // <-- TEMP: make it obvious
+    zIndex: 10,                 // above LWC canvases
+    // NOTE: no debug background tint in production
   });
   cnv.className = "overlay-canvas right-profile";
   chartContainer.appendChild(cnv);
 
   const ctx = cnv.getContext("2d");
 
+  // DPR-aware resize
   const resize = () => {
     const rect = chartContainer.getBoundingClientRect();
     const dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
@@ -28,8 +31,9 @@ export default function RightProfileOverlay({ chartContainer }) {
     cnv.height = Math.max(1, Math.floor(rect.height * dpr));
     cnv.style.width  = rect.width + "px";
     cnv.style.height = rect.height + "px";
-    ctx.setTransform(1,0,0,1,0,0);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.scale(dpr, dpr);
+    // debug
     console.log("[RightProfile] resize", { w: rect.width, h: rect.height, dpr });
   };
 
@@ -39,25 +43,27 @@ export default function RightProfileOverlay({ chartContainer }) {
   window.addEventListener("resize", onWinResize);
   resize();
 
-  function clear() {
+  // Helpers
+  const clear = () => {
     const rect = chartContainer.getBoundingClientRect();
     ctx.clearRect(0, 0, rect.width, rect.height);
-  }
+  };
 
   function drawPlaceholder(tag = "seed") {
     const rect = chartContainer.getBoundingClientRect();
     clear();
-    // Right gutter block (visible)
+
+    // Right-side placeholder “profile gutter”
     const gutterW = Math.max(80, Math.min(160, Math.floor(rect.width * 0.12)));
     ctx.globalAlpha = 0.9;
     ctx.fillStyle = "#334155";
     ctx.fillRect(rect.width - gutterW - 12, 16, gutterW, Math.max(1, rect.height - 32));
 
-    // Loud label
+    // Label
     ctx.globalAlpha = 1;
     ctx.fillStyle = "#e5e7eb";
-    ctx.font = "bold 18px system-ui, -apple-system, Segoe UI, Roboto, Arial";
-    ctx.fillText(`RIGHT PROFILE: ${tag}`, 16, 28);
+    ctx.font = "14px system-ui, -apple-system, Segoe UI, Roboto, Arial";
+    ctx.fillText(`Right Profile: ${tag}`, 16, 24);
   }
 
   console.log("[RightProfile] ATTACH", { node: cnv });
