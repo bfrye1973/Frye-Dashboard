@@ -1,16 +1,29 @@
 // src/components/overlays/SwingLiquidityOverlay.js
-// Lightweight-Charts overlay that marks swing highs/lows with short lines & labels.
-// Simplified port of “Swing Points & Liquidity – By Leviathan”.
-// Works on any timeframe once priceSeries is passed in.
+// Swing Liquidity (pivot highs/lows) — Lightweight-Charts overlay
+// - Price-pane canvas overlay (absolute, z-index:10)
+// - Uses chart.timeScale().timeToCoordinate(time) for X
+// - Uses priceSeries.priceToCoordinate(price) for Y
+// - DPR-aware resize; safe attach/seed/update/destroy lifecycle
 
-export default function SwingLiquidityOverlay({ chartContainer, priceSeries }) {
-  if (!chartContainer || !priceSeries)
+export default function SwingLiquidityOverlay({ chart, priceSeries, chartContainer, timeframe }) {
+  // ====== Guards ======
+  if (!chart || !priceSeries || !chartContainer) {
+    console.warn("[SwingLiquidity] missing { chart, priceSeries, chartContainer }");
     return { seed() {}, update() {}, destroy() {} };
+  }
 
-  /* ---------- basic canvas setup ---------- */
-  const cs = getComputedStyle(chartContainer);
-  if (cs.position === "static") chartContainer.style.position = "relative";
+  // ====== Tunables (feel free to tweak) ======
+  const LEFT = 10;           // bars left for pivot check
+  const RIGHT = 10;          // bars right for pivot check
+  const MAX_DRAW_BARS = 800; // lookback window for drawing
+  const TICK = 6;            // half-length of small tick marks (px)
+  const FONT = "11px system-ui, -apple-system, Segoe UI, Roboto, Arial";
 
+  // Colors
+  const COL_H = "#ff4d4f";   // swing high (red)
+  const COL_L = "#22c55e";   // swing low (green");
+
+  // ====== Canvas setup (absolute overlay) ======
   const cnv = document.createElement("canvas");
   Object.assign(cnv.style, {
     position: "absolute",
@@ -22,11 +35,12 @@ export default function SwingLiquidityOverlay({ chartContainer, priceSeries }) {
   chartContainer.appendChild(cnv);
   const ctx = cnv.getContext("2d");
 
+  // DPR resize
   const resize = () => {
     const rect = chartContainer.getBoundingClientRect();
-    const dpr = Math.max(1, window.devicePixelRatio || 1);
-    cnv.width = rect.width * dpr;
-    cnv.height = rect.height * dpr;
+    const dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
+    cnv.width = Math.max(1, Math.floor(rect.width * dpr));
+    cnv.height = Math.max(1, Math.floor(rect.height * dpr));
     cnv.style.width = rect.width + "px";
     cnv.style.height = rect.height + "px";
     ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -34,91 +48,149 @@ export default function SwingLiquidityOverlay({ chartContainer, priceSeries }) {
   };
   const ro = new ResizeObserver(resize);
   ro.observe(chartContainer);
+  const onWinResize = () => resize();
+  window.addEventListener("resize", onWinResize);
   resize();
 
-  /* ---------- helpers ---------- */
-  const clear = () => {
+  // ====== Data cache ======
+  let barsCache = []; // [{time, open, high, low, close, volume}, ...] ascending by time
+
+  // ====== Helpers ======
+  const yFor = (price) => {
+    const y = priceSeries.priceToCoordinate(Number(price));
+    return Number.isFinite(y) ? y : null;
+  };
+  const xFor = (timeSec) => {
+    const x = chart.timeScale().timeToCoordinate(timeSec);
+    return Number.isFinite(x) ? x : null;
+  };
+
+  // pivot detection
+  const isSwingHigh = (arr, i, L, R) => {
+    const v = arr[i].high;
+    for (let j = i - L; j <= i + R; j++) {
+      if (j === i || j < 0 || j >= arr.length) continue;
+      if (arr[j].high > v) return false;
+    }
+    return true;
+  };
+  const isSwingLow = (arr, i, L, R) => {
+    const v = arr[i].low;
+    for (let j = i - L; j <= i + R; j++) {
+      if (j === i || j < 0 || j >= arr.length) continue;
+      if (arr[j].low < v) return false;
+    }
+    return true;
+  };
+
+  // find visible range (time -> x) for quick culling
+  const getVisibleTimeBounds = () => {
+    const ts = chart.timeScale();
+    try {
+      const logical = ts.getVisibleLogicalRange?.();
+      if (!logical) return null;
+      const leftTime = ts.coordinateToTime(ts.logicalToCoordinate(logical.from));
+      const rightTime = ts.coordinateToTime(ts.logicalToCoordinate(logical.to));
+      const l = typeof leftTime === "object" ? leftTime.timestamp ?? leftTime.time : leftTime;
+      const r = typeof rightTime === "object" ? rightTime.timestamp ?? rightTime.time : rightTime;
+      if (!Number.isFinite(l) || !Number.isFinite(r)) return null;
+      return { l: l|0, r: r|0 };
+    } catch {
+      return null;
+    }
+  };
+
+  // draw all swings in window
+  const draw = () => {
     const rect = chartContainer.getBoundingClientRect();
     ctx.clearRect(0, 0, rect.width, rect.height);
-  };
-  const yFor = (price) =>
-    typeof priceSeries.priceToCoordinate === "function"
-      ? priceSeries.priceToCoordinate(price)
-      : null;
+    if (!barsCache?.length) return;
 
-  // detect swing highs/lows in last N bars
-  const isSwingHigh = (bars, i, left, right) => {
-    const val = bars[i].high;
-    for (let j = i - left; j < i + right; j++) {
-      if (j === i || j < 0 || j >= bars.length) continue;
-      if (bars[j].high > val) return false;
-    }
-    return true;
-  };
-  const isSwingLow = (bars, i, left, right) => {
-    const val = bars[i].low;
-    for (let j = i - left; j < i + right; j++) {
-      if (j === i || j < 0 || j >= bars.length) continue;
-      if (bars[j].low < val) return false;
-    }
-    return true;
-  };
+    // Choose bars to scan (last MAX_DRAW_BARS to stay light)
+    const startIdx = Math.max(0, barsCache.length - MAX_DRAW_BARS);
+    const scan = barsCache.slice(startIdx);
 
-  /* ---------- draw ---------- */
-  const drawSwings = (bars) => {
-    clear();
-    if (!bars?.length) return;
-    const rect = chartContainer.getBoundingClientRect();
-    const w = rect.width;
-    const step = w / Math.max(1, bars.length);
+    // Optional: use visible time bounds to skip offscreen swings
+    const vis = getVisibleTimeBounds();
 
     ctx.lineWidth = 1;
-    ctx.font = "11px system-ui";
+    ctx.font = FONT;
     ctx.textAlign = "center";
 
-    for (let i = 15; i < bars.length - 15; i++) {
-      const bar = bars[i];
-      const x = step * i + step / 2;
-      const yHigh = yFor(bar.high);
-      const yLow = yFor(bar.low);
-      if (isSwingHigh(bars, i, 10, 10) && yHigh != null) {
-        ctx.strokeStyle = "#ff4d4f";
-        ctx.beginPath();
-        ctx.moveTo(x - 6, yHigh);
-        ctx.lineTo(x + 6, yHigh);
-        ctx.stroke();
-        ctx.fillStyle = "#ff4d4f";
-        ctx.fillText("H", x, yHigh - 6);
+    for (let i = LEFT; i < scan.length - RIGHT; i++) {
+      const b = scan[i];
+      const time = b.time; // epoch seconds
+
+      if (vis && (time < vis.l || time > vis.r)) continue; // skip offscreen by time
+
+      // Compute coordinates
+      const x = xFor(time);
+      if (!Number.isFinite(x)) continue;
+
+      // High
+      if (isSwingHigh(scan, i, LEFT, RIGHT)) {
+        const y = yFor(b.high);
+        if (y != null) {
+          ctx.strokeStyle = COL_H;
+          ctx.beginPath();
+          ctx.moveTo(x - TICK, y);
+          ctx.lineTo(x + TICK, y);
+          ctx.stroke();
+
+          ctx.fillStyle = COL_H;
+          ctx.fillText("H", x, y - 6);
+        }
       }
-      if (isSwingLow(bars, i, 10, 10) && yLow != null) {
-        ctx.strokeStyle = "#22c55e";
-        ctx.beginPath();
-        ctx.moveTo(x - 6, yLow);
-        ctx.lineTo(x + 6, yLow);
-        ctx.stroke();
-        ctx.fillStyle = "#22c55e";
-        ctx.fillText("L", x, yLow + 12);
+
+      // Low
+      if (isSwingLow(scan, i, LEFT, RIGHT)) {
+        const y = yFor(b.low);
+        if (y != null) {
+          ctx.strokeStyle = COL_L;
+          ctx.beginPath();
+          ctx.moveTo(x - TICK, y);
+          ctx.lineTo(x + TICK, y);
+          ctx.stroke();
+
+          ctx.fillStyle = COL_L;
+          ctx.fillText("L", x, y + 12);
+        }
       }
     }
   };
 
+  // ====== Lifecycle ======
   console.log("[SwingLiquidity] ATTACH");
 
   return {
     seed(bars) {
-      console.log("[SwingLiquidity] SEED", bars?.length);
-      resize();
-      drawSwings(bars);
+      // Expect ascending time; coerce ms -> s if needed
+      barsCache = (bars || []).map(b => ({
+        ...b,
+        time: b.time > 1e12 ? Math.floor(b.time / 1000) : b.time,
+      }));
+      draw();
     },
     update(latest) {
-      // update runs for every new candle
-      resize();
-      drawSwings(priceSeries._data || []); // use whatever bars the series holds
+      if (!latest) return;
+      const t = latest.time > 1e12 ? Math.floor(latest.time / 1000) : latest.time;
+      const last = barsCache[barsCache.length - 1];
+
+      if (!last || t > last.time) {
+        barsCache.push({ ...latest, time: t });
+      } else if (t === last.time) {
+        barsCache[barsCache.length - 1] = { ...latest, time: t };
+      } else {
+        // out-of-order; ignore
+        return;
+      }
+      draw();
     },
     destroy() {
-      console.log("[SwingLiquidity] DESTROY");
       try { ro.disconnect(); } catch {}
+      window.removeEventListener("resize", onWinResize);
       try { cnv.remove(); } catch {}
+      // console.log("[SwingLiquidity] DESTROY");
     },
   };
 }
