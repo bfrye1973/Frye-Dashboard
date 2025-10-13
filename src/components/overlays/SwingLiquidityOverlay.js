@@ -1,9 +1,8 @@
 // src/components/overlays/SwingLiquidityOverlay.js
-// STEP 1 — Baseline (inert, guaranteed visible)
-// - Draw the most-recent 2 swing highs + 2 swing lows as shaded bands
-// - Bands run from the pivot bar → latest bar (left → right)
-// - NO observers, NO DPR scaling, NO timeScale subscriptions, NO zoom/fit calls
-// - Pure paint layer; won’t affect chart zoom/scale at all.
+// STEP 2 — Baseline bands + pan/zoom redraw (inert)
+// - Draw latest 2 swing highs + 2 swing lows (left→right from pivot to latest)
+// - Tracks pan/zoom via timeScale subscriptions (only redraw — never sets zoom)
+// - NO ResizeObserver, NO DPR scaling, NO fitContent, NO setVisibleRange
 
 export default function createSwingLiquidityOverlay({ chart, priceSeries, chartContainer }) {
   if (!chart || !priceSeries || !chartContainer) {
@@ -11,24 +10,26 @@ export default function createSwingLiquidityOverlay({ chart, priceSeries, chartC
     return { seed() {}, update() {}, destroy() {} };
   }
 
-  // Tunables (tiny)
-  const LOOKBACK = 600;      // scan last N bars
-  const L = 10, R = 10;      // pivot tightness
-  const BAND_BPS = 8;        // half-band width (0.08% of last price)
+  // Tunables
+  const LOOKBACK = 600;
+  const L = 10, R = 10;
+  const BAND_BPS = 8;        // half-band width (0.08% of last close)
   const FILL_ALPHA = 0.22;
   const STROKE_W = 2;
   const FONT = "11px system-ui, -apple-system, Segoe UI, Roboto, Arial";
   const COL_SUP = "#ff4d4f";
   const COL_DEM = "#22c55e";
 
-  // Simple state
-  let bars = [];             // ascending [{time, open, high, low, close, volume}]
-  let bands = [];            // [{ side:"SUP"|"DEM", pLo, pHi, tPivot }]
+  // State
+  let bars = [];           // ascending [{time, open, high, low, close, volume}]
+  let bands = [];          // [{ side:"SUP"|"DEM", pLo, pHi, tPivot }]
+  let rafId = null;        // rAF throttle for redraw
+  const ts = chart.timeScale();
 
   // Helpers
   const toSec = (t) => (t > 1e12 ? Math.floor(t / 1000) : t);
   const xFor = (tSec) => {
-    const x = chart.timeScale().timeToCoordinate(tSec);
+    const x = ts.timeToCoordinate(tSec);
     return Number.isFinite(x) ? x : null;
   };
   const yFor = (p) => {
@@ -36,7 +37,6 @@ export default function createSwingLiquidityOverlay({ chart, priceSeries, chartC
     return Number.isFinite(y) ? y : null;
   };
 
-  // Pivot tests (high/low)
   const isSwingHigh = (arr, i) => {
     const v = arr[i].high;
     for (let j = i - L; j <= i + R; j++) {
@@ -54,7 +54,6 @@ export default function createSwingLiquidityOverlay({ chart, priceSeries, chartC
     return true;
   };
 
-  // Build latest 2 highs + 2 lows → bands
   function rebuildBands() {
     bands = [];
     if (!bars.length) return;
@@ -75,9 +74,8 @@ export default function createSwingLiquidityOverlay({ chart, priceSeries, chartC
       if (isSwingLow (bars, g)) lows .push({ p: b.low,  t: toSec(b.time) });
     }
 
-    // Most-recent first; avoid near-duplicates
     highs.sort((a,b)=>b.t-a.t);
-    lows.sort ((a,b)=>b.t-a.t);
+    lows .sort((a,b)=>b.t-a.t);
 
     const take = (arr, side, max=2) => {
       const out = [];
@@ -86,26 +84,20 @@ export default function createSwingLiquidityOverlay({ chart, priceSeries, chartC
         if (out.length >= max) break;
         if (used.some(u => Math.abs(u - z.p) <= half * 0.75)) continue;
         used.push(z.p);
-        out.push({
-          side,
-          pLo: z.p - half,
-          pHi: z.p + half,
-          tPivot: z.t,
-        });
+        out.push({ side, pLo: z.p - half, pHi: z.p + half, tPivot: z.t });
       }
       return out;
     };
 
     bands = [
       ...take(highs, "SUP", 2),
-      ...take(lows,  "DEM", 2),
+      ...take(lows , "DEM", 2),
     ];
   }
 
-  // One-shot draw (inert)
-  function draw() {
-    // Size canvas ONCE using current container dims (no observers)
-    const w = chartContainer.clientWidth || 1;
+  function doDraw() {
+    // Size canvas each draw to match container (no observers, no DPR scaling)
+    const w = chartContainer.clientWidth  || 1;
     const h = chartContainer.clientHeight || 1;
 
     let cnv = chartContainer.querySelector("canvas.overlay-canvas.swing-liquidity");
@@ -145,12 +137,10 @@ export default function createSwingLiquidityOverlay({ chart, priceSeries, chartC
       const rectW = Math.max(1, xEnd - xPivot);
       const rectH = Math.max(2, yMax - yMin);
 
-      // band fill
       ctx.globalAlpha = FILL_ALPHA;
       ctx.fillStyle = color;
       ctx.fillRect(xPivot, yMin, rectW, rectH);
 
-      // outline
       ctx.globalAlpha = 1;
       ctx.lineWidth = STROKE_W;
       ctx.strokeStyle = color;
@@ -158,14 +148,31 @@ export default function createSwingLiquidityOverlay({ chart, priceSeries, chartC
     }
   }
 
-  // API (inert)
+  // rAF throttle so pan/zoom redraws don’t spam
+  function scheduleDraw() {
+    if (rafId != null) return;
+    rafId = requestAnimationFrame(() => {
+      rafId = null;
+      doDraw();
+    });
+  }
+
+  // Subscriptions (read-only redraw)
+  const onLogical = () => scheduleDraw();
+  const onVisible = () => scheduleDraw();
+
+  ts.subscribeVisibleLogicalRangeChange?.(onLogical);
+  ts.subscribeVisibleTimeRangeChange?.(onVisible);
+  window.addEventListener("resize", scheduleDraw);
+
+  // API
   return {
     seed(rawBarsAsc) {
       bars = (rawBarsAsc || [])
         .map(b => ({ ...b, time: toSec(b.time) }))
         .sort((a,b)=>a.time - b.time);
       rebuildBands();
-      draw();
+      doDraw();
     },
     update(latest) {
       if (!latest) return;
@@ -176,14 +183,16 @@ export default function createSwingLiquidityOverlay({ chart, priceSeries, chartC
       } else if (t === last.time) {
         bars[bars.length - 1] = { ...latest, time: t };
       } else {
-        // out-of-order → ignore
-        return;
+        return; // out-of-order ignored
       }
       rebuildBands();
-      draw();
+      doDraw();
     },
     destroy() {
-      // keep it simple; canvas will be removed by RowChart cleanup
+      try { ts.unsubscribeVisibleLogicalRangeChange?.(onLogical); } catch {}
+      try { ts.unsubscribeVisibleTimeRangeChange?.(onVisible); } catch {}
+      window.removeEventListener("resize", scheduleDraw);
+      // canvas will be removed by RowChart cleanup
     },
   };
 }
