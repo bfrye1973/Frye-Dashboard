@@ -1,9 +1,13 @@
 // src/components/overlays/SwingLiquidityOverlay.js
-// Swing Liquidity — SAFE MODE (guaranteed visible)
-// - Picks the most recent 2 swing highs + 2 swing lows (L/R pivots)
-// - Draws shaded bands that extend until broken (break on close beyond band)
-// - No heavy scoring/filters → always shows something
-// - Redraws on seed/update + pan/zoom + DPR resize
+// Swing Liquidity — SAFE MODE (left-extended bands)
+// Implements 1–5:
+// 1) Bands extend RIGHT → LEFT (historical) from the pivot
+// 2) Volume/anchor tag on the LEFT edge
+// 3) Labels on the LEFT
+// 4) Redraws on pan/zoom/resize (DPR-aware)
+// 5) Simple historical render (no "broken" fade)
+//
+// Shows the most-recent 2 swing highs + 2 swing lows.
 
 export default function createSwingLiquidityOverlay({ chart, priceSeries, chartContainer }) {
   if (!chart || !priceSeries || !chartContainer) {
@@ -16,12 +20,14 @@ export default function createSwingLiquidityOverlay({ chart, priceSeries, chartC
   const L = 10, R = 10;       // pivot tightness
   const MAX_PER_SIDE = 2;     // 2 highs + 2 lows
   const BAND_BPS = 8;         // band half-width in bps (0.08%); total ~16 bps
-  const FILL_ALPHA = 0.22;    // active band opacity
-  const BROKEN_ALPHA = 0.10;  // broken band opacity
+  const FILL_ALPHA = 0.22;    // band opacity
   const STROKE_W = 2;         // outline thickness
+  const TAG_W = 10;           // left-edge tag width
+  const TAG_MIN_H = 4;        // min tag height (px)
   const FONT = "11px system-ui, -apple-system, Segoe UI, Roboto, Arial";
   const COL_SUP = "#ff4d4f";  // supply (red)
   const COL_DEM = "#22c55e";  // demand (green)
+  const COL_EDGE = "#0b0f17";
 
   // ---------- Canvas ----------
   const cnv = document.createElement("canvas");
@@ -52,32 +58,20 @@ export default function createSwingLiquidityOverlay({ chart, priceSeries, chartC
 
   // ---------- State ----------
   let barsAsc = []; // ascending [{time, open, high, low, close, volume}]
-  let bands = [];   // [{side:"SUP"|"DEM", pLo, pHi, i0, t0, active, brokenT}]
+  let bands = [];   // [{side:"SUP"|"DEM", pLo, pHi, i0, t0, volSum}]
 
   const toSec = (t) => (t > 1e12 ? Math.floor(t/1000) : t);
-  const xFor = (tSec) => {
-    const x = ts.timeToCoordinate(tSec);
-    return Number.isFinite(x) ? x : null;
-  };
-  const yFor = (p) => {
-    const y = priceSeries.priceToCoordinate(Number(p));
-    return Number.isFinite(y) ? y : null;
-  };
+  const xFor  = (tSec) => { const x = ts.timeToCoordinate(tSec); return Number.isFinite(x) ? x : null; };
+  const yFor  = (p) => { const y = priceSeries.priceToCoordinate(Number(p)); return Number.isFinite(y) ? y : null; };
 
   const isSwingHigh = (arr, i, L, R) => {
     const v = arr[i].high;
-    for (let j=i-L; j<=i+R; j++) {
-      if (j===i || j<0 || j>=arr.length) continue;
-      if (arr[j].high > v) return false;
-    }
+    for (let j=i-L; j<=i+R; j++) { if (j===i || j<0 || j>=arr.length) continue; if (arr[j].high > v) return false; }
     return true;
   };
   const isSwingLow = (arr, i, L, R) => {
     const v = arr[i].low;
-    for (let j=i-L; j<=i+R; j++) {
-      if (j===i || j<0 || j>=arr.length) continue;
-      if (arr[j].low < v) return false;
-    }
+    for (let j=i-L; j<=i+R; j++) { if (j===i || j<0 || j>=arr.length) continue; if (arr[j].low < v) return false; }
     return true;
   };
 
@@ -109,9 +103,15 @@ export default function createSwingLiquidityOverlay({ chart, priceSeries, chartC
       const used = [];
       for (const z of arr) {
         if (out.length >= MAX_PER_SIDE) break;
-        // avoid near-duplicates: skip if within ~half-band
+        // avoid near-duplicates (within ~half-band)
         if (used.some(u => Math.abs(u - z.price) <= halfBand*0.75)) continue;
         used.push(z.price);
+
+        // accumulate simple volume from the left-extended region
+        // (leftwards from pivot to the earliest bar)
+        let volSum = 0;
+        for (let k=0; k<=z.i0; k++) volSum += Number(barsAsc[k].volume||0);
+
         const pMid = z.price;
         out.push({
           side,
@@ -119,8 +119,7 @@ export default function createSwingLiquidityOverlay({ chart, priceSeries, chartC
           pHi: pMid + halfBand,
           i0: z.i0,
           t0: z.t0,
-          active: true,
-          brokenT: undefined
+          volSum
         });
       }
       return out;
@@ -130,15 +129,6 @@ export default function createSwingLiquidityOverlay({ chart, priceSeries, chartC
       ...pick(highs, "SUP"),
       ...pick(lows,  "DEM"),
     ];
-
-    // mark broken by walking forward from formation
-    for (const bd of bands) {
-      for (let k=bd.i0+1; k<barsAsc.length; k++) {
-        const br = barsAsc[k];
-        if (bd.side==="SUP" && br.close > bd.pHi) { bd.active=false; bd.brokenT=toSec(br.time); break; }
-        if (bd.side==="DEM" && br.close < bd.pLo) { bd.active=false; bd.brokenT=toSec(br.time); break; }
-      }
-    }
   }
 
   function onBar(latest) {
@@ -147,7 +137,7 @@ export default function createSwingLiquidityOverlay({ chart, priceSeries, chartC
     if (!last || t > last.time) barsAsc.push({ ...latest, time:t });
     else if (t === last.time)   barsAsc[barsAsc.length-1] = { ...latest, time:t };
     else return;
-    // Rebuild occasionally so newest pivots get picked up
+
     if (barsAsc.length % 5 === 0) rebuildBands();
   }
 
@@ -162,33 +152,41 @@ export default function createSwingLiquidityOverlay({ chart, priceSeries, chartC
       const yTop = yFor(bd.pHi), yBot = yFor(bd.pLo);
       if (yTop == null || yBot == null) continue;
 
-      const x0 = xFor(barsAsc[Math.max(0, bd.i0)].time);
-      if (x0 == null) continue;
+      // Pivot X (right side of the band), and LEFT edge is the viewport's left
+      const xPivot = xFor(barsAsc[Math.max(0, bd.i0)].time);
+      if (xPivot == null) continue;
 
-      const xRight = r.width - 6;
-      const xEnd = bd.active ? xRight : (xFor(bd.brokenT) ?? xRight);
+      const xLeft = 6; // small left padding, extends fully to the left
 
       const color = bd.side==="SUP" ? COL_SUP : COL_DEM;
-      const alpha = bd.active ? FILL_ALPHA : BROKEN_ALPHA;
-
       const yMin = Math.min(yTop, yBot), yMax = Math.max(yTop, yBot);
       const h = Math.max(2, yMax - yMin);
 
-      // fill band
-      ctx.globalAlpha = alpha;
+      // fill band (extend LEFT from pivot)
+      ctx.globalAlpha = FILL_ALPHA;
       ctx.fillStyle = color;
-      ctx.fillRect(x0, yMin, Math.max(1, xEnd - x0), h);
+      ctx.fillRect(xLeft, yMin, Math.max(1, xPivot - xLeft), h);
 
       // outline
       ctx.globalAlpha = 1;
       ctx.lineWidth = STROKE_W;
       ctx.strokeStyle = color;
-      ctx.strokeRect(x0 + 0.5, yMin + 0.5, Math.max(1, xEnd - x0) - 1, h - 1);
+      ctx.strokeRect(xLeft + 0.5, yMin + 0.5, Math.max(1, xPivot - xLeft) - 1, h - 1);
 
-      // price label
+      // left-edge volume/anchor tag (height proportional to volSum)
+      const volScaleH = Math.max(0.12 * r.height, 10); // simple proportional visual
+      const tagH = Math.max(TAG_MIN_H, Math.min(h, Math.sqrt(bd.volSum) % volScaleH)); // bounded visual proxy
+      const tagX = xLeft;
+      const tagY = Math.max(2, Math.min(r.height - tagH - 2, yMin + (h - tagH)/2));
+      ctx.fillStyle = color;
+      ctx.fillRect(tagX, tagY, TAG_W, tagH);
+      ctx.strokeStyle = COL_EDGE; ctx.lineWidth = 1;
+      ctx.strokeRect(tagX + 0.5, tagY + 0.5, TAG_W - 1, tagH - 1);
+
+      // LEFT label (price band)
       const lbl = `${fmt(bd.pLo)}–${fmt(bd.pHi)}`;
       ctx.fillStyle = color;
-      ctx.fillText(lbl, x0 + 6, yMin - 4);
+      ctx.fillText(lbl, xLeft + TAG_W + 6, yMin - 4);
     }
   }
 
