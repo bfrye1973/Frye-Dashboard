@@ -1,29 +1,34 @@
 // src/components/overlays/RightProfileOverlay.js
-export default function RightProfileOverlay({ chartContainer }) {
+// Canvas overlay that sits on the PRICE pane.
+// - DPR-aware resize
+// - Seed + Update lifecycle
+// - Draws a single dot at the last close (proves price→y mapping works)
+
+export default function RightProfileOverlay({ chartContainer, priceSeries }) {
   if (!chartContainer) {
     console.warn("[RightProfile] no chartContainer");
     return { seed() {}, update() {}, destroy() {} };
   }
 
-  // Ensure container can host absolute overlays
+  // --- allow absolute children ---
   const cs = getComputedStyle(chartContainer);
   if (cs.position === "static") chartContainer.style.position = "relative";
 
-  // Canvas
+  // --- canvas node ---
   const cnv = document.createElement("canvas");
   Object.assign(cnv.style, {
     position: "absolute",
     inset: 0,
     pointerEvents: "none",
-    zIndex: 10,                 // above LWC canvases
-    // NOTE: no debug background tint in production
+    zIndex: 10, // above LWC canvases
   });
   cnv.className = "overlay-canvas right-profile";
   chartContainer.appendChild(cnv);
 
   const ctx = cnv.getContext("2d");
+  const ps = priceSeries; // we need this to convert price → y
 
-  // DPR-aware resize
+  // --- DPR-aware resize ---
   const resize = () => {
     const rect = chartContainer.getBoundingClientRect();
     const dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
@@ -33,8 +38,6 @@ export default function RightProfileOverlay({ chartContainer }) {
     cnv.style.height = rect.height + "px";
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.scale(dpr, dpr);
-    // debug
-    console.log("[RightProfile] resize", { w: rect.width, h: rect.height, dpr });
   };
 
   const ro = new ResizeObserver(resize);
@@ -43,41 +46,58 @@ export default function RightProfileOverlay({ chartContainer }) {
   window.addEventListener("resize", onWinResize);
   resize();
 
-  // Helpers
+  // --- helpers ---
   const clear = () => {
     const rect = chartContainer.getBoundingClientRect();
     ctx.clearRect(0, 0, rect.width, rect.height);
   };
 
-  function drawPlaceholder(tag = "seed") {
+  const yFor = (price) => {
+    if (!ps || typeof ps.priceToCoordinate !== "function") return null;
+    const y = ps.priceToCoordinate(Number(price));
+    return Number.isFinite(y) ? y : null;
+  };
+
+  const drawDotAtPrice = (price, tag = "") => {
     const rect = chartContainer.getBoundingClientRect();
     clear();
+    const y = yFor(price);
+    const x = rect.width - 20; // near right edge
+    if (y != null) {
+      ctx.beginPath();
+      ctx.arc(x, y, 4, 0, Math.PI * 2);
+      ctx.fillStyle = "#00e5ff";
+      ctx.fill();
+      ctx.fillStyle = "#e5e7eb";
+      ctx.font = "12px system-ui, -apple-system, Segoe UI, Roboto, Arial";
+      ctx.fillText(tag || "dot@", x - 28, y - 8);
+    } else {
+      // fallback label if mapping failed
+      ctx.fillStyle = "#e5e7eb";
+      ctx.font = "12px system-ui, -apple-system, Segoe UI, Roboto, Arial";
+      ctx.fillText("no y", x - 24, 20);
+    }
+  };
 
-    // Right-side placeholder “profile gutter”
-    const gutterW = Math.max(80, Math.min(160, Math.floor(rect.width * 0.12)));
-    ctx.globalAlpha = 0.9;
-    ctx.fillStyle = "#334155";
-    ctx.fillRect(rect.width - gutterW - 12, 16, gutterW, Math.max(1, rect.height - 32));
-
-    // Label
-    ctx.globalAlpha = 1;
-    ctx.fillStyle = "#e5e7eb";
-    ctx.font = "14px system-ui, -apple-system, Segoe UI, Roboto, Arial";
-    ctx.fillText(`Right Profile: ${tag}`, 16, 24);
-  }
-
-  console.log("[RightProfile] ATTACH", { node: cnv });
+  console.log("[RightProfile] ATTACH");
 
   return {
     seed(bars) {
       console.log("[RightProfile] SEED", { count: bars?.length });
       resize();
-      drawPlaceholder("seed");
+      if (Array.isArray(bars) && bars.length) {
+        drawDotAtPrice(bars[bars.length - 1].close, "seed");
+      } else {
+        clear();
+      }
     },
     update(latest) {
+      // latest is the newest candle with { time, open, high, low, close, volume }
       console.log("[RightProfile] UPDATE", { t: latest?.time, c: latest?.close });
       resize();
-      drawPlaceholder("update");
+      if (latest && typeof latest.close === "number") {
+        drawDotAtPrice(latest.close, "upd");
+      }
     },
     destroy() {
       console.log("[RightProfile] DESTROY");
