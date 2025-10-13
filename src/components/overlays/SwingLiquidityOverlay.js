@@ -1,6 +1,7 @@
 // src/components/overlays/SwingLiquidityOverlay.js
-// STEP 2 — Baseline bands + pan/zoom redraw (inert)
-// - Draw latest 2 swing highs + 2 swing lows (left→right from pivot to latest)
+// STEP 2 — Baseline bands + pan/zoom redraw (inert, LEFT-EXTENDED)
+// - Draw latest 2 swing highs + 2 swing lows
+// - Bands now run from LEFT EDGE → pivot time (so they cover all candles to the left)
 // - Tracks pan/zoom via timeScale subscriptions (only redraw — never sets zoom)
 // - NO ResizeObserver, NO DPR scaling, NO fitContent, NO setVisibleRange
 
@@ -121,9 +122,8 @@ export default function createSwingLiquidityOverlay({ chart, priceSeries, chartC
 
     if (!bands.length || bars.length < 2) return;
 
-    const tLatest = toSec(bars.at(-1).time);
-    const xEnd = xFor(tLatest);
-    if (xEnd == null) return;
+    // LEFT edge of viewport/container
+    const xLeftEdge = 0;
 
     for (const bd of bands) {
       const yTop = yFor(bd.pHi);
@@ -134,17 +134,18 @@ export default function createSwingLiquidityOverlay({ chart, priceSeries, chartC
       const color = bd.side === "SUP" ? COL_SUP : COL_DEM;
       const yMin = Math.min(yTop, yBot);
       const yMax = Math.max(yTop, yBot);
-      const rectW = Math.max(1, xEnd - xPivot);
+      const rectX = Math.min(xLeftEdge, xPivot);           // ensure positive width even if pivot is left of 0
+      const rectW = Math.max(1, Math.abs(xPivot - xLeftEdge));
       const rectH = Math.max(2, yMax - yMin);
 
       ctx.globalAlpha = FILL_ALPHA;
       ctx.fillStyle = color;
-      ctx.fillRect(xPivot, yMin, rectW, rectH);
+      ctx.fillRect(rectX, yMin, rectW, rectH);
 
       ctx.globalAlpha = 1;
       ctx.lineWidth = STROKE_W;
       ctx.strokeStyle = color;
-      ctx.strokeRect(xPivot + 0.5, yMin + 0.5, rectW - 1, rectH - 1);
+      ctx.strokeRect(rectX + 0.5, yMin + 0.5, rectW - 1, rectH - 1);
     }
   }
 
@@ -192,7 +193,7 @@ export default function createSwingLiquidityOverlay({ chart, priceSeries, chartC
       try { ts.unsubscribeVisibleLogicalRangeChange?.(onLogical); } catch {}
       try { ts.unsubscribeVisibleTimeRangeChange?.(onVisible); } catch {}
       window.removeEventListener("resize", scheduleDraw);
-      // canvas will be removed by RowChart cleanup
+      // canvas removed by RowChart cleanup
     },
   };
 }
