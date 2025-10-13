@@ -1,5 +1,5 @@
 // src/pages/rows/RowIndexSectors.jsx
-// v6.3 — Fixed-size sector cards + 4-pill row (Δ5m, Δ10m, Δ1h, Δ1d placeholder)
+// v6.2 — Pills from /live/pills (Δ5m, Δ10m) + Hourly Δ1h + Cards from /live/intraday
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
@@ -15,6 +15,7 @@ const ORDER = [
   "real estate","energy","consumer staples","consumer discretionary",
   "financials","utilities","industrials",
 ];
+const orderKey = (name="") => { const i = ORDER.indexOf(norm(name)); return i === -1 ? 999 : i; };
 const ALIASES = {
   healthcare:"health care","health-care":"health care","health care":"health care",
   "info tech":"information technology","technology":"information technology","tech":"information technology",
@@ -37,21 +38,13 @@ function Pill({ label, value }) {
   const text  = ok ? v.toFixed(2) : "—";
   return (
     <span title={`${label}: ${ok? (v>=0?"+":"")+v.toFixed(2) : "—"}`}
-      style={{display:"inline-flex",alignItems:"center",gap:8,borderRadius:10,padding:"4px 12px",
-              fontSize:14,fontWeight:800,background:"#0b0f17",color:tone,border:`1px solid ${tone}33`,whiteSpace:"nowrap",
-              flex: "0 0 auto"}}
-    >
+      style={{display:"inline-flex",alignItems:"center",gap:8,borderRadius:10,padding:"3px 10px",fontSize:14,fontWeight:800,
+              background:"#0b0f17",color:tone,border:`1px solid ${tone}33`,whiteSpace:"nowrap"}}>
       {label}: {arrow} {ok && v>=0 ? "+" : ""}{text}
     </span>
   );
 }
 async function fetchJSON(url, opts={}) { const r = await fetch(url,{cache:"no-store",...opts}); if(!r.ok) throw new Error(`HTTP ${r.status} ${url}`); return r.json(); }
-
-/* ------------------------------ layout knobs ------------------------------ */
-/** Fixed card sizing so it doesn't collapse/expand when zooming */
-const CARD_MIN_PX = 480;   // make cards bigger
-const CARD_MAX_PX = 480;   // fixed width (min = max locks width)
-const GRID_GAP_PX = 14;
 
 /* -------------------------------- Main -------------------------------- */
 export default function RowIndexSectors() {
@@ -127,7 +120,7 @@ export default function RowIndexSectors() {
         const prev = lastHourlyRef.current;
 
         if (!prev.ts || !prev.map) {
-          // first run: seed zeros so the pill always shows
+          // first run: seed zeros (always-visible pill like before)
           const zeros = Object.fromEntries(ORDER.map(k => [norm(k), 0]));
           setD1hMap(zeros);
           lastHourlyRef.current = { ts, map: now };
@@ -171,22 +164,12 @@ export default function RowIndexSectors() {
         {err && <div style={{ color:"#fca5a5", fontSize:12 }}>{err}</div>}
       </div>
 
-      <div
-        style={{
-          display:"grid",
-          gridTemplateColumns:`repeat(auto-fill, minmax(${CARD_MIN_PX}px, 1fr))`,
-          gap:GRID_GAP_PX,
-          marginTop:8,
-        }}
-      >
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(360px, 1fr))", gap:12, marginTop:8 }}>
         {view.map(({ key, name, card }, i) => {
           const pd = pills.sectors?.[key] || pills.sectors?.[name] || {};
           const d5  = (typeof pd.d5m  === "number" && Number.isFinite(pd.d5m))  ? pd.d5m  : null;
           const d10 = (typeof pd.d10m === "number" && Number.isFinite(pd.d10m)) ? pd.d10m : null;
           const d1h = (typeof d1hMap[key] === "number" && Number.isFinite(d1hMap[key])) ? d1hMap[key] : null;
-
-          // placeholder for Δ1d (we reserve slot so we always have 4 pills)
-          const d1d = null;
 
           const breadth  = Number(card?.breadth_pct ?? NaN);
           const momentum = Number(card?.momentum_pct ?? NaN);
@@ -196,41 +179,21 @@ export default function RowIndexSectors() {
           const tone = toneFor(card?.outlook);
 
           return (
-            <div
-              key={name || i}
-              className="panel"
-              style={{
-                padding:16,
-                minWidth:CARD_MIN_PX, maxWidth:CARD_MAX_PX,  // lock card width
-                flex: "0 0 auto",                              // don't shrink
-                borderRadius:14,
-                border:"1px solid #2b2b2b",
-                background:"#0b0b0c",
-                boxShadow:"0 10px 24px rgba(0,0,0,0.28)",
-              }}
-            >
-              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
-                <div className="panel-title small" style={{ color:"#f3f4f6", fontSize:19, fontWeight:900, letterSpacing:"0.3px" }}>
+            <div key={name || i} className="panel"
+              style={{ padding:14, minWidth:360, maxWidth:560, borderRadius:14,
+                       border:"1px solid #2b2b2b", background:"#0b0b0c", boxShadow:"0 10px 24px rgba(0,0,0,0.28)" }}>
+              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:8 }}>
+                <div className="panel-title small" style={{ color:"#f3f4f6", fontSize:18, fontWeight:900, letterSpacing:"0.3px" }}>
                   {name}
                 </div>
                 <Badge text={card?.outlook || "Neutral"} tone={tone} />
               </div>
 
-              {/* Four fixed pills in one row */}
-              <div
-                style={{
-                  display:"grid",
-                  gridTemplateColumns:"repeat(4, max-content)",
-                  columnGap:10,
-                  alignItems:"center",
-                  margin:"0 0 10px 0",
-                  overflow:"hidden",
-                }}
-              >
-                <Pill label="Δ5m"  value={d5}  />
+              {/* Pills: Δ5m, Δ10m, Δ1h */}
+              <div style={{ display:"flex", gap:10, alignItems:"center", whiteSpace:"nowrap", overflow:"hidden", margin:"0 0 8px 0" }}>
+                <Pill label="Δ5m"  value={d5} />
                 <Pill label="Δ10m" value={d10} />
                 <Pill label="Δ1h"  value={d1h} />
-                <Pill label="Δ1d"  value={d1d} /> {/* reserved slot */}
               </div>
 
               {/* Metrics */}
