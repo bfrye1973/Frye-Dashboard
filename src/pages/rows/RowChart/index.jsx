@@ -269,30 +269,7 @@ export default function RowChart({
         if (!cancelled) setState((s) => ({ ...s, disabled: false }));
       }
     }
-    // TEMP smoke test: white line at last close across ~30 bars
-    try {
-      const last = barsRef.current.at(-1);
-      if (last && chartRef.current) {
-        if (!window.__refLine) {
-         window.__refLine = chartRef.current.addLineSeries({
-         color: '#ffffff88', lineWidth: 1,
-         lastValueVisible: false, priceLineVisible: false,
-      });
-    }
-    window.__refLine.setData([
-      { time: last.time - 600 * 5, value: last.close }, // 30 * 10m back
-      { time: last.time,            value: last.close },
-    ]); // 
-      make the line fully opaque and thick so it's obvious
-      try {
-        window.__refLine.applyOptions({
-        color: '#ffffff',
-        lineWidth: 3,
-        lineStyle: 0,              // Solid
-        lastValueVisible: true,    // show axis marker
-        priceLineVisible: true,    // show horizontal price line
-      });
-    } catch {}
+
     loadSeed();
     return () => { cancelled = true; };
   }, [state.symbol, state.timeframe, state.range, showDebug]);
