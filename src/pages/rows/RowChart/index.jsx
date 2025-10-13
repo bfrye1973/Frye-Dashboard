@@ -1,16 +1,17 @@
 // src/pages/rows/RowChart/index.jsx
 // ============================================================
-// RowChart — seed + live 1m aggregation + indicators & overlays
+// RowChart — seed + live aggregation + indicators & overlays
 // - AZ timezone on axis + tooltip
 // - Range support ("ALL" fits once; no auto-fit on every tick)
 // - IndicatorsToolbar: EMA10/20/50, Volume, MoneyFlow, RightProfile,
 //   SessionShading (luxSr), SwingLiquidity
 // - fullScreen=true → fills parent (FullChart); false → 520px (dashboard)
-// - FIXES (2025-10-13):
+// - Wiring (2025-10-13):
 //   • Overlays attach ONLY after candles.setData() + one-time fitContent()
-//   • Overlays share price pane/scale; z-index-safe for custom canvases
-//   • Standardized overlay lifecycle: attach → seed → update → destroy
-//   • Replace-or-append merge rule for live updates (epoch-seconds @ bucket start)
+//   • Overlays share price pane/scale; z-index-safe canvases
+//   • Standard lifecycle: attach → seed → update → destroy
+//   • Replace-or-append merge rule; epoch-seconds @ bucket start
+//   • Debug: window.__indicators { get(), set(patch) } + registration log
 // ============================================================
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
@@ -20,14 +21,14 @@ import IndicatorsToolbar from "./IndicatorsToolbar";
 import { getOHLC, subscribeStream } from "../../../lib/ohlcClient";
 import { SYMBOLS, TIMEFRAMES } from "./constants";
 
-// Overlays (existing)
+// Overlays (custom canvases or series helpers)
 import MoneyFlowOverlay from "../../../components/overlays/MoneyFlowOverlay";
 import RightProfileOverlay from "../../../components/overlays/RightProfileOverlay";
 import SessionShadingOverlay from "../../../components/overlays/SessionShadingOverlay";
 import SwingLiquidityOverlay from "../../../components/overlays/SwingLiquidityOverlay";
 
 /* ------------------------------ Config ------------------------------ */
-const SEED_LIMIT = 6000; // deeper seed window
+const SEED_LIMIT = 6000;
 
 const DEFAULTS = {
   upColor: "#26a69a",
@@ -105,85 +106,15 @@ function calcEMA(barsAsc, length) {
   return out;
 }
 
-// Attach overlay that might be a class, factory, or {attach()}
+// Accept class, factory, or {attach()...} style modules
 function attachOverlay(Module, args) {
   try {
     if (!Module) return null;
     try { const inst = new Module(args); if (inst && (inst.update || inst.destroy || inst.seed)) return inst; } catch {}
-    try { const inst = Module(args); if (inst && (inst.update || inst.destroy || inst.seed)) return inst; } catch {}
+    try { const inst = Module(args);      if (inst && (inst.update || inst.destroy || inst.seed)) return inst; } catch {}
     if (typeof Module.attach === "function") return Module.attach(args);
   } catch {}
   return { attach() {}, seed() {}, update() {}, destroy() {} };
-}
-
-/* ------------------------- Inline Overlay Manager -------------------- */
-/** Simple manager so overlays share chart lifecycle */
-function createOverlayManager() {
-  let chart = null, priceSeries = null, bucketSizeSec = 60, overlays = [], seeded = false;
-
-  return {
-    init({ chartRef, priceSeriesRef, bucketSizeSec: bsec }) {
-      chart = chartRef;
-      priceSeries = priceSeriesRef;
-      bucketSizeSec = bsec || 60;
-      overlays.forEach(o => o.destroy?.());
-      overlays = [];
-      seeded = false;
-      return {
-        register: (o) => { if (o) overlays.push(o); },
-      };
-    },
-    attachAll({ bars }) {
-      overlays.forEach(o => o.attach?.({ chart, priceSeries, bars, bucketSizeSec }));
-    },
-    seedAll(bars) {
-      overlays.forEach(o => o.seed?.(bars));
-      seeded = true;
-    },
-    updateAll(bar) {
-      if (!seeded) return;
-      overlays.forEach(o => o.update?.(bar));
-    },
-    destroyAll() {
-      overlays.forEach(o => o.destroy?.());
-      overlays = [];
-      chart = null; priceSeries = null; seeded = false;
-    }
-  };
-}
-
-/* -------------------------- Optional Smoke Test ---------------------- */
-// Renders a horizontal line near the last close across last 2 bars (price pane)
-function WhiteLineOverlay() {
-  let line = null, priceScaleId = null;
-
-  return {
-    attach({ chart, priceSeries, bars }) {
-      priceScaleId = priceSeries.priceScale().id();
-      line = chart.addLineSeries({
-        priceLineVisible: false,
-        lastValueVisible: false,
-        lineWidth: 2,
-        priceScaleId,
-      });
-      if (typeof window !== "undefined") window.__refLine = line;
-    },
-    seed(bars) {
-      if (!line || !bars?.length) return;
-      const last = bars[bars.length - 1];
-      const prev = bars[Math.max(0, bars.length - 2)];
-      const val = last.close;
-      line.setData([
-        { time: prev.time, value: val },
-        { time: last.time, value: val },
-      ]);
-    },
-    update(bar) {
-      if (!line || !bar) return;
-      line.update({ time: bar.time, value: bar.close });
-    },
-    destroy() { /* LWC cleans up with chart.remove(); keep light */ }
-  };
 }
 
 /* ------------------------------ Component --------------------------- */
@@ -191,7 +122,7 @@ export default function RowChart({
   defaultSymbol = "SPY",
   defaultTimeframe = "10m",
   showDebug = false,
-  fullScreen = false, // FullChart passes true
+  fullScreen = false,
 }) {
   // DOM / series refs
   const containerRef = useRef(null);
@@ -203,8 +134,8 @@ export default function RowChart({
   const ema50Ref = useRef(null);
   const roRef = useRef(null);
 
-  // Overlay Manager
-  const mgrRef = useRef(createOverlayManager());
+  // Overlays
+  const overlayInstancesRef = useRef([]); // keep attached overlay instances
 
   // Data
   const [bars, setBars] = useState([]);
@@ -225,13 +156,25 @@ export default function RowChart({
     ema10: true,
     ema20: true,
     ema50: true,
+
     volume: true,
     moneyFlow: false,
     luxSr: false,
     swingLiquidity: false,
   });
 
-  // Use constants for menus
+  // 🔽 START: DEBUG INDICATOR HOOK (safe console toggles)
+  if (typeof window !== "undefined") {
+    window.__indicators = {
+      get: () => state,
+      set: (patch) => setState((s) => ({ ...s, ...patch })),
+    };
+    window.__on  = (k) => window.__indicators.set({ [k]: true });
+    window.__off = (k) => window.__indicators.set({ [k]: false });
+  }
+  // 🔼 END: DEBUG INDICATOR HOOK
+
+  // Menus
   const symbols = useMemo(() => SYMBOLS, []);
   const timeframes = useMemo(() => TIMEFRAMES, []);
 
@@ -284,7 +227,8 @@ export default function RowChart({
     return () => {
       try { ro.disconnect(); } catch {}
       try { el.removeEventListener("wheel", markInteract); el.removeEventListener("mousedown", markInteract); } catch {}
-      try { mgrRef.current?.destroyAll(); } catch {}
+      try { overlayInstancesRef.current.forEach(o => o?.destroy?.()); } catch {}
+      overlayInstancesRef.current = [];
       try { chart.remove(); } catch {}
       chartRef.current = null;
       seriesRef.current = null;
@@ -300,10 +244,7 @@ export default function RowChart({
     if (!chart) return;
     const tf = state.timeframe;
     chart.applyOptions({
-      timeScale: {
-        tickMarkFormatter: makeTickFormatter(tf),
-        secondsVisible: tf === "1m",
-      },
+      timeScale: { tickMarkFormatter: makeTickFormatter(tf), secondsVisible: tf === "1m" },
       localization: { timeFormatter: (t) => phoenixTime(t, tf === "1d") },
     });
     didFitOnceRef.current = false; // allow one fit after next seed
@@ -319,7 +260,6 @@ export default function RowChart({
         const seed = await getOHLC(state.symbol, state.timeframe, SEED_LIMIT);
         if (cancelled) return;
 
-        // Coerce ms→s if ever needed, ensure ascending by time
         const asc = (Array.isArray(seed) ? seed : [])
           .map(b => ({ ...b, time: b.time > 1e12 ? Math.floor(b.time / 1000) : b.time }))
           .sort((a, b) => a.time - b.time);
@@ -327,59 +267,86 @@ export default function RowChart({
         barsRef.current = asc;
         setBars(asc);
 
+        // paint seed
+        const price = seriesRef.current;
+        const vol = volSeriesRef.current;
+        price?.setData(asc.map(b => ({ time: b.time, open: b.open, high: b.high, low: b.low, close: b.close })));
+        if (vol) {
+          if (state.volume) {
+            vol.applyOptions({ visible: true });
+            vol.setData(asc.map(b => ({
+              time: b.time, value: Number(b.volume || 0),
+              color: b.close >= b.open ? DEFAULTS.volUp : DEFAULTS.volDown,
+            })));
+          } else {
+            vol.applyOptions({ visible: false }); vol.setData([]);
+          }
+        }
+
+        // one-time fit so overlays land in view
         const chart = chartRef.current;
         if (chart && state.range === "ALL" && !didFitOnceRef.current && !userInteractedRef.current) {
-          chart.timeScale().fitContent();       // one-time fit so overlays land in view
+          chart.timeScale().fitContent();
           didFitOnceRef.current = true;
         }
 
         if (showDebug) {
           console.log("[RowChart] Seed:", {
-            tf: state.timeframe, count: asc.length, first: asc[0], last: asc[asc.length - 1],
+            symbol: state.symbol, tf: state.timeframe, count: asc.length, first: asc[0], last: asc.at(-1),
           });
         }
 
-        // === Attach + seed overlays AFTER candles + fit ===
-        const bucketSizeSec = TF_SEC[state.timeframe] ?? TF_SEC["10m"];
-        const mgr = mgrRef.current;
-        mgr.destroyAll();
-        const reg = mgr.init({
-          chartRef: chartRef.current,
-          priceSeriesRef: seriesRef.current,
-          bucketSizeSec,
+        // ===== Attach + seed overlays AFTER candles + fit =====
+        // Cleanup previous overlay instances
+        try { overlayInstancesRef.current.forEach(o => o?.destroy?.()); } catch {}
+        overlayInstancesRef.current = [];
+
+        console.log("[RowChart] registering overlays", {
+          moneyFlow: state.moneyFlow,
+          luxSr: state.luxSr,
+          swingLiquidity: state.swingLiquidity,
         });
 
-        // Register overlays conditionally (price pane by default)
-        if (showDebug) reg.register(WhiteLineOverlay()); // smoke test line
+        const reg = (inst) => inst && overlayInstancesRef.current.push(inst);
 
-        if (state.moneyFlow) reg.register(attachOverlay(MoneyFlowOverlay, {
-          chart: chartRef.current,
-          priceSeries: seriesRef.current,
-          chartContainer: containerRef.current,
-          timeframe: state.timeframe,
-        }));
-        if (state.volume) reg.register(attachOverlay(RightProfileOverlay, {
-          chart: chartRef.current,
-          priceSeries: seriesRef.current,
-          chartContainer: containerRef.current,
-          timeframe: state.timeframe,
-        }));
-        if (state.luxSr) reg.register(attachOverlay(SessionShadingOverlay, {
-          chart: chartRef.current,
-          priceSeries: seriesRef.current,
-          chartContainer: containerRef.current,
-          timeframe: state.timeframe,
-        }));
-        if (state.swingLiquidity) reg.register(attachOverlay(SwingLiquidityOverlay, {
-          chart: chartRef.current,
-          priceSeries: seriesRef.current,
-          chartContainer: containerRef.current,
-          timeframe: state.timeframe,
-        }));
+        if (state.moneyFlow) {
+          reg(attachOverlay(MoneyFlowOverlay, {
+            chart: chartRef.current,
+            priceSeries: seriesRef.current,
+            chartContainer: containerRef.current,
+            timeframe: state.timeframe,
+          }));
+        }
 
-        mgr.attachAll({ bars: asc });
-        mgr.seedAll(asc);
-        mgr.updateAll(asc[asc.length - 1]); // <-- immediate visible paint
+        if (state.volume) {
+          reg(attachOverlay(RightProfileOverlay, {
+            chart: chartRef.current,
+            priceSeries: seriesRef.current,           // price pane mapping
+            chartContainer: containerRef.current,
+            timeframe: state.timeframe,
+          }));
+        }
+
+        if (state.luxSr) {
+          reg(attachOverlay(SessionShadingOverlay, {
+            chart: chartRef.current,
+            priceSeries: seriesRef.current,
+            chartContainer: containerRef.current,
+            timeframe: state.timeframe,
+          }));
+        }
+
+        if (state.swingLiquidity) {
+          reg(attachOverlay(SwingLiquidityOverlay, {
+            chart: chartRef.current,
+            priceSeries: seriesRef.current,           // REQUIRED
+            chartContainer: containerRef.current,
+            timeframe: state.timeframe,
+          }));
+        }
+
+        // seed all
+        try { overlayInstancesRef.current.forEach(o => o?.seed?.(asc)); } catch {}
 
       } catch (e) {
         console.error("[RowChart] OHLC seed error:", e);
@@ -392,6 +359,7 @@ export default function RowChart({
 
     loadSeed();
     return () => { cancelled = true; };
+    // re-run when any overlay toggle flips (so registration reflects it)
   }, [state.symbol, state.timeframe, state.range, state.moneyFlow, state.luxSr, state.swingLiquidity, state.volume, showDebug]);
 
   /* -------------------------- Render + Range ------------------------- */
@@ -452,11 +420,10 @@ export default function RowChart({
     }
 
     const unsub = subscribeStream(state.symbol, LIVE_TF, (oneMin) => {
-      // Coerce ms→s defensively; ensure number
       const tSec = Number(oneMin.time > 1e12 ? Math.floor(oneMin.time / 1000) : oneMin.time);
       if (!Number.isFinite(tSec)) return;
 
-      // 1m TF: push minute bar directly
+      // Raw 1m TF: push directly
       if (tfSec === TF_SEC["1m"]) {
         const bar = { ...oneMin, time: tSec };
         seriesRef.current.update(bar);
@@ -471,15 +438,14 @@ export default function RowChart({
         const prev = barsRef.current[barsRef.current.length - 1];
         if (!prev || bar.time > prev.time) {
           const next = [...barsRef.current, bar];
-          barsRef.current = next;
-          setBars(next);
+          barsRef.current = next; setBars(next);
         } else if (bar.time === prev.time) {
           const next = [...barsRef.current];
-          next[next.length - 1] = bar; // replace final revision
-          barsRef.current = next;
-          setBars(next);
+          next[next.length - 1] = bar;
+          barsRef.current = next; setBars(next);
         }
-        mgrRef.current.updateAll(bar);
+
+        try { overlayInstancesRef.current.forEach(o => o?.update?.(bar)); } catch {}
         return;
       }
 
@@ -501,9 +467,8 @@ export default function RowChart({
           const last = next[next.length - 1];
           if (!last || rolling.time > last.time) next.push(rolling);
           else next[next.length - 1] = rolling;
-          barsRef.current = next;
-          setBars(next);
-          mgrRef.current.updateAll(rolling);
+          barsRef.current = next; setBars(next);
+          try { overlayInstancesRef.current.forEach(o => o?.update?.(rolling)); } catch {}
         }
 
         // start new bucket
@@ -533,7 +498,7 @@ export default function RowChart({
           color: rolling.close >= rolling.open ? DEFAULTS.volUp : DEFAULTS.volDown,
         });
       }
-      mgrRef.current.updateAll(rolling);
+      try { overlayInstancesRef.current.forEach(o => o?.update?.(rolling)); } catch {}
     });
 
     return () => unsub?.();
@@ -564,21 +529,9 @@ export default function RowChart({
 
     if (!state.showEma || bars.length === 0) return;
 
-    if (state.ema10) {
-      const l = ensureLine(ema10Ref, "#f59e0b");
-      l.setData(calcEMA(bars, 10));
-      l.applyOptions({ visible: true });
-    }
-    if (state.ema20) {
-      const l = ensureLine(ema20Ref, "#3b82f6");
-      l.setData(calcEMA(bars, 20));
-      l.applyOptions({ visible: true });
-    }
-    if (state.ema50) {
-      const l = ensureLine(ema50Ref, "#10b981");
-      l.setData(calcEMA(bars, 50));
-      l.applyOptions({ visible: true });
-    }
+    if (state.ema10) { const l = ensureLine(ema10Ref, "#f59e0b"); l.setData(calcEMA(bars, 10)); l.applyOptions({ visible: true }); }
+    if (state.ema20) { const l = ensureLine(ema20Ref, "#3b82f6"); l.setData(calcEMA(bars, 20)); l.applyOptions({ visible: true }); }
+    if (state.ema50) { const l = ensureLine(ema50Ref, "#10b981"); l.setData(calcEMA(bars, 50)); l.applyOptions({ visible: true }); }
   }, [bars, state.showEma, state.ema10, state.ema20, state.ema50]);
 
   /* ----------------------------- Handlers ---------------------------- */
@@ -632,47 +585,14 @@ export default function RowChart({
   /* ------------------------------ Render ----------------------------- */
   const wrapperStyle = useMemo(() => {
     return fullScreen
-      ? {
-          display: "flex",
-          flexDirection: "column",
-          flex: "1 1 auto",
-          minHeight: 0,
-          overflow: "hidden",
-          background: DEFAULTS.bg,
-        }
-      : {
-          display: "flex",
-          flexDirection: "column",
-          border: `1px solid ${DEFAULTS.border}`,
-          borderRadius: 8,
-          overflow: "hidden",
-          background: DEFAULTS.bg,
-        };
+      ? { display: "flex", flexDirection: "column", flex: "1 1 auto", minHeight: 0, overflow: "hidden", background: DEFAULTS.bg }
+      : { display: "flex", flexDirection: "column", border: `1px solid ${DEFAULTS.border}`, borderRadius: 8, overflow: "hidden", background: DEFAULTS.bg };
   }, [fullScreen]);
 
-  // IMPORTANT: container is position:relative so overlay canvases can use absolute + z-index:10
   const containerStyle = useMemo(() => {
     return fullScreen
-      ? {
-          width: "100%",
-          height: "100%",
-          minHeight: 0,
-          maxHeight: "none",
-          flex: "1 1 auto",
-          overflow: "hidden",
-          background: DEFAULTS.bg,
-          position: "relative",
-        }
-      : {
-          width: "100%",
-          height: "520px",
-          minHeight: 520,
-          maxHeight: 520,
-          flex: "0 0 auto",
-          overflow: "hidden",
-          background: DEFAULTS.bg,
-          position: "relative",
-        };
+      ? { width: "100%", height: "100%", minHeight: 0, maxHeight: "none", flex: "1 1 auto", overflow: "hidden", background: DEFAULTS.bg, position: "relative" }
+      : { width: "100%", height: "520px", minHeight: 520, maxHeight: 520, flex: "0 0 auto", overflow: "hidden", background: DEFAULTS.bg, position: "relative" };
   }, [fullScreen]);
 
   return (
