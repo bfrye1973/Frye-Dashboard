@@ -1,132 +1,124 @@
 // src/components/overlays/SwingLiquidityOverlay.js
-// Swing Liquidity overlay (factory):
-// - draws simple pivot high/low markers as colored squares
-// - uses the Lightweight-Charts chart instance to add a temp host series if needed
-// - returns { update(candles), destroy() }
+// Lightweight-Charts overlay that marks swing highs/lows with short lines & labels.
+// Simplified port of “Swing Points & Liquidity – By Leviathan”.
+// Works on any timeframe once priceSeries is passed in.
 
-import { LineStyle } from "lightweight-charts";
+export default function SwingLiquidityOverlay({ chartContainer, priceSeries }) {
+  if (!chartContainer || !priceSeries)
+    return { seed() {}, update() {}, destroy() {} };
 
-export default function SwingLiquidityOverlay({
-  chart,          // Lightweight-Charts chart instance
-}) {
-  if (!chart) return { update() {}, destroy() {} };
+  /* ---------- basic canvas setup ---------- */
+  const cs = getComputedStyle(chartContainer);
+  if (cs.position === "static") chartContainer.style.position = "relative";
 
-  // host “ghost” lineSeries (to own markers if you want later)
-  let hostSeries = chart.addLineSeries({
-    color: "rgba(0,0,0,0)",
-    lineWidth: 1,
-    visible: true,
-    lastValueVisible: false,
-    crosshairMarkerVisible: false,
-    priceLineVisible: false,
-  });
-
-  // For drawing simple markers without thousands of series,
-  // we’ll render into our own canvas on top of the chart container.
-  // Find pane container from chart; fallback to document layering if needed.
-  const container = chart._container || chart._chartWidget?._tableElement || chart.chartElement || null;
-  // If we can’t find an internal container, we require RowChart to set position:relative on parent and pass us that instead.
-  // But in our RowChart we use our own top-level container for other overlays, so we keep it simple:
-  // create absolutely positioned canvas sibling on top of chart DOM.
-
-  let overlayCanvas = document.createElement("canvas");
-  Object.assign(overlayCanvas.style, {
+  const cnv = document.createElement("canvas");
+  Object.assign(cnv.style, {
     position: "absolute",
-    left: 0, top: 0, right: 0, bottom: 0,
+    inset: 0,
     pointerEvents: "none",
-    zIndex: 9995,
+    zIndex: 10,
   });
+  cnv.className = "overlay-canvas swing-liquidity";
+  chartContainer.appendChild(cnv);
+  const ctx = cnv.getContext("2d");
 
-  // Attach to the same DOM parent as hostSeries container if possible,
-  // otherwise the user must put position:relative on container and append overlay there.
-  // Here we attempt to append to chart’s container node if present:
-  let attachNode = chart._chartWidget?._paneWidgets?.[0]?._canvas?.parentElement
-                || chart._chartWidget?._tableElement
-                || overlayCanvas.parentElement;
-  if (!attachNode) {
-    // As a fallback, attach to document body (not ideal). RowChart sets container position:relative,
-    // but for this factory, RowChart will not pass chartContainer here; so we try chart’s widget parent:
-    attachNode = chart._container || document.body;
-  }
-  attachNode.appendChild(overlayCanvas);
-
-  const syncSize = () => {
-    const rect = attachNode.getBoundingClientRect();
+  const resize = () => {
+    const rect = chartContainer.getBoundingClientRect();
     const dpr = Math.max(1, window.devicePixelRatio || 1);
-    overlayCanvas.style.width  = `${rect.width}px`;
-    overlayCanvas.style.height = `${rect.height}px`;
-    overlayCanvas.width  = Math.max(1, Math.floor(rect.width  * dpr));
-    overlayCanvas.height = Math.max(1, Math.floor(rect.height * dpr));
-    const ctx = overlayCanvas.getContext("2d");
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    cnv.width = rect.width * dpr;
+    cnv.height = rect.height * dpr;
+    cnv.style.width = rect.width + "px";
+    cnv.style.height = rect.height + "px";
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.scale(dpr, dpr);
+  };
+  const ro = new ResizeObserver(resize);
+  ro.observe(chartContainer);
+  resize();
+
+  /* ---------- helpers ---------- */
+  const clear = () => {
+    const rect = chartContainer.getBoundingClientRect();
+    ctx.clearRect(0, 0, rect.width, rect.height);
+  };
+  const yFor = (price) =>
+    typeof priceSeries.priceToCoordinate === "function"
+      ? priceSeries.priceToCoordinate(price)
+      : null;
+
+  // detect swing highs/lows in last N bars
+  const isSwingHigh = (bars, i, left, right) => {
+    const val = bars[i].high;
+    for (let j = i - left; j < i + right; j++) {
+      if (j === i || j < 0 || j >= bars.length) continue;
+      if (bars[j].high > val) return false;
+    }
+    return true;
+  };
+  const isSwingLow = (bars, i, left, right) => {
+    const val = bars[i].low;
+    for (let j = i - left; j < i + right; j++) {
+      if (j === i || j < 0 || j >= bars.length) continue;
+      if (bars[j].low < val) return false;
+    }
+    return true;
   };
 
-  const ro = new ResizeObserver(syncSize);
-  ro.observe(attachNode);
-  syncSize();
+  /* ---------- draw ---------- */
+  const drawSwings = (bars) => {
+    clear();
+    if (!bars?.length) return;
+    const rect = chartContainer.getBoundingClientRect();
+    const w = rect.width;
+    const step = w / Math.max(1, bars.length);
 
-  function draw(candles) {
-    const ctx = overlayCanvas.getContext("2d");
-    const w = overlayCanvas.clientWidth;
-    const h = overlayCanvas.clientHeight;
-    ctx.clearRect(0, 0, w, h);
+    ctx.lineWidth = 1;
+    ctx.font = "11px system-ui";
+    ctx.textAlign = "center";
 
-    if (!candles?.length) return;
-
-    // screen-space mapping (approx): x by index, y by price
-    const N = candles.length;
-    const px = (i) => Math.round((i / Math.max(1, N - 1)) * w);
-
-    let pMin = Infinity, pMax = -Infinity;
-    for (const c of candles) {
-      if (c.low  < pMin) pMin = c.low;
-      if (c.high > pMax) pMax = c.high;
-    }
-    const yOf = (p) => {
-      const t = (p - pMin) / Math.max(1e-9, (pMax - pMin));
-      return h - Math.round(t * h);
-    };
-
-    const isPivotHigh = (i) =>
-      i > 0 && i < N - 1 &&
-      candles[i].high > candles[i - 1].high &&
-      candles[i].high > candles[i + 1].high;
-
-    const isPivotLow = (i) =>
-      i > 0 && i < N - 1 &&
-      candles[i].low < candles[i - 1].low &&
-      candles[i].low < candles[i + 1].low;
-
-    ctx.save();
-    ctx.globalAlpha = 0.28;
-
-    for (let i = 1; i < N - 1; i++) {
-      if (isPivotHigh(i)) {
-        const x = px(i);
-        const y = yOf(candles[i].high);
-        ctx.fillStyle = "rgba(255,80,80,0.45)"; // resistance
-        ctx.fillRect(x - 3, y - 3, 6, 6);
+    for (let i = 15; i < bars.length - 15; i++) {
+      const bar = bars[i];
+      const x = step * i + step / 2;
+      const yHigh = yFor(bar.high);
+      const yLow = yFor(bar.low);
+      if (isSwingHigh(bars, i, 10, 10) && yHigh != null) {
+        ctx.strokeStyle = "#ff4d4f";
+        ctx.beginPath();
+        ctx.moveTo(x - 6, yHigh);
+        ctx.lineTo(x + 6, yHigh);
+        ctx.stroke();
+        ctx.fillStyle = "#ff4d4f";
+        ctx.fillText("H", x, yHigh - 6);
       }
-      if (isPivotLow(i)) {
-        const x = px(i);
-        const y = yOf(candles[i].low);
-        ctx.fillStyle = "rgba(80,200,120,0.45)"; // support
-        ctx.fillRect(x - 3, y - 3, 6, 6);
+      if (isSwingLow(bars, i, 10, 10) && yLow != null) {
+        ctx.strokeStyle = "#22c55e";
+        ctx.beginPath();
+        ctx.moveTo(x - 6, yLow);
+        ctx.lineTo(x + 6, yLow);
+        ctx.stroke();
+        ctx.fillStyle = "#22c55e";
+        ctx.fillText("L", x, yLow + 12);
       }
     }
-    ctx.restore();
-  }
+  };
+
+  console.log("[SwingLiquidity] ATTACH");
 
   return {
-    update(candles) {
-      syncSize();
-      draw(candles);
+    seed(bars) {
+      console.log("[SwingLiquidity] SEED", bars?.length);
+      resize();
+      drawSwings(bars);
+    },
+    update(latest) {
+      // update runs for every new candle
+      resize();
+      drawSwings(priceSeries._data || []); // use whatever bars the series holds
     },
     destroy() {
+      console.log("[SwingLiquidity] DESTROY");
       try { ro.disconnect(); } catch {}
-      try { overlayCanvas.remove(); } catch {}
-      try { chart.removeSeries(hostSeries); } catch {}
-      hostSeries = null;
-    }
+      try { cnv.remove(); } catch {}
+    },
   };
 }
