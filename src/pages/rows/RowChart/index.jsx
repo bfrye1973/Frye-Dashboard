@@ -6,6 +6,11 @@
 // - IndicatorsToolbar: EMA10/20/50, Volume, MoneyFlow, RightProfile,
 //   SessionShading (luxSr), SwingLiquidity
 // - fullScreen=true → fills parent (FullChart); false → 520px (dashboard)
+// - FIXES (2025-10-13):
+//   • Overlays attach ONLY after candles.setData() + one-time fitContent()
+//   • Overlays share price pane/scale; z-index-safe for custom canvases
+//   • Standardized overlay lifecycle: attach → seed → update → destroy
+//   • Replace-or-append merge rule for live updates (epoch-seconds @ bucket start)
 // ============================================================
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
@@ -13,9 +18,9 @@ import { createChart } from "lightweight-charts";
 import Controls from "./Controls";
 import IndicatorsToolbar from "./IndicatorsToolbar";
 import { getOHLC, subscribeStream } from "../../../lib/ohlcClient";
-import { SYMBOLS, TIMEFRAMES } from "./constants"; // ← use constants for menus
+import { SYMBOLS, TIMEFRAMES } from "./constants";
 
-// Overlays (optional; attach gracefully)
+// Overlays (existing)
 import MoneyFlowOverlay from "../../../components/overlays/MoneyFlowOverlay";
 import RightProfileOverlay from "../../../components/overlays/RightProfileOverlay";
 import SessionShadingOverlay from "../../../components/overlays/SessionShadingOverlay";
@@ -104,11 +109,81 @@ function calcEMA(barsAsc, length) {
 function attachOverlay(Module, args) {
   try {
     if (!Module) return null;
-    try { const inst = new Module(args); if (inst && (inst.update || inst.destroy)) return inst; } catch {}
-    try { const inst = Module(args); if (inst && (inst.update || inst.destroy)) return inst; } catch {}
+    try { const inst = new Module(args); if (inst && (inst.update || inst.destroy || inst.seed)) return inst; } catch {}
+    try { const inst = Module(args); if (inst && (inst.update || inst.destroy || inst.seed)) return inst; } catch {}
     if (typeof Module.attach === "function") return Module.attach(args);
   } catch {}
-  return { update() {}, destroy() {} };
+  return { attach() {}, seed() {}, update() {}, destroy() {} };
+}
+
+/* ------------------------- Inline Overlay Manager -------------------- */
+/** Simple manager so overlays share chart lifecycle */
+function createOverlayManager() {
+  let chart = null, priceSeries = null, bucketSizeSec = 60, overlays = [], seeded = false;
+
+  return {
+    init({ chartRef, priceSeriesRef, bucketSizeSec: bsec }) {
+      chart = chartRef;
+      priceSeries = priceSeriesRef;
+      bucketSizeSec = bsec || 60;
+      overlays.forEach(o => o.destroy?.());
+      overlays = [];
+      seeded = false;
+      return {
+        register: (o) => { if (o) overlays.push(o); },
+      };
+    },
+    attachAll({ bars }) {
+      overlays.forEach(o => o.attach?.({ chart, priceSeries, bars, bucketSizeSec }));
+    },
+    seedAll(bars) {
+      overlays.forEach(o => o.seed?.(bars));
+      seeded = true;
+    },
+    updateAll(bar) {
+      if (!seeded) return;
+      overlays.forEach(o => o.update?.(bar));
+    },
+    destroyAll() {
+      overlays.forEach(o => o.destroy?.());
+      overlays = [];
+      chart = null; priceSeries = null; seeded = false;
+    }
+  };
+}
+
+/* -------------------------- Optional Smoke Test ---------------------- */
+// Renders a horizontal line near the last close across last 2 bars (price pane)
+function WhiteLineOverlay() {
+  let line = null, priceScaleId = null;
+
+  return {
+    attach({ chart, priceSeries, bars }) {
+      priceScaleId = priceSeries.priceScale().id();
+      line = chart.addLineSeries({
+        priceLineVisible: false,
+        lastValueVisible: false,
+        lineWidth: 2,
+        priceScaleId,
+      });
+      if (typeof window !== "undefined") window.__refLine = line;
+    },
+    seed(bars) {
+      if (!line || !bars?.length) return;
+      const last = bars[bars.length - 1];
+      const prev = bars[Math.max(0, bars.length - 2)];
+      const val = last.close;
+      line.setData([
+        { time: prev.time, value: val },
+        { time: last.time, value: val },
+      ]);
+    },
+    update(bar) {
+      if (!line || !bar) return;
+      line.update({ time: bar.time, value: bar.close });
+    },
+    destroy() { /* LWC cleans up with chart.remove(); keep light */ }
+  };
 }
 
 /* ------------------------------ Component --------------------------- */
@@ -128,11 +203,8 @@ export default function RowChart({
   const ema50Ref = useRef(null);
   const roRef = useRef(null);
 
-  // Overlay refs
-  const moneyFlowRef = useRef(null);
-  const rightProfileRef = useRef(null);
-  const sessionShadeRef = useRef(null);
-  const swingLiqRef = useRef(null);
+  // Overlay Manager
+  const mgrRef = useRef(createOverlayManager());
 
   // Data
   const [bars, setBars] = useState([]);
@@ -159,7 +231,7 @@ export default function RowChart({
     swingLiquidity: false,
   });
 
-  // Use constants for menus (keeps your file logic; no parent changes)
+  // Use constants for menus
   const symbols = useMemo(() => SYMBOLS, []);
   const timeframes = useMemo(() => TIMEFRAMES, []);
 
@@ -170,7 +242,7 @@ export default function RowChart({
 
     const chart = createChart(el, {
       width: el.clientWidth,
-      height: el.clientHeight, // parent controls height (dashboard=520px; full=100%)
+      height: el.clientHeight,
       layout: { background: { color: DEFAULTS.bg }, textColor: "#d1d5db" },
       grid: { vertLines: { color: DEFAULTS.gridColor }, horzLines: { color: DEFAULTS.gridColor } },
       rightPriceScale: { borderColor: DEFAULTS.border, scaleMargins: { top: 0.1, bottom: 0.2 } },
@@ -212,6 +284,7 @@ export default function RowChart({
     return () => {
       try { ro.disconnect(); } catch {}
       try { el.removeEventListener("wheel", markInteract); el.removeEventListener("mousedown", markInteract); } catch {}
+      try { mgrRef.current?.destroyAll(); } catch {}
       try { chart.remove(); } catch {}
       chartRef.current = null;
       seriesRef.current = null;
@@ -246,13 +319,17 @@ export default function RowChart({
         const seed = await getOHLC(state.symbol, state.timeframe, SEED_LIMIT);
         if (cancelled) return;
 
-        const asc = (Array.isArray(seed) ? seed : []).slice().sort((a, b) => a.time - b.time);
+        // Coerce ms→s if ever needed, ensure ascending by time
+        const asc = (Array.isArray(seed) ? seed : [])
+          .map(b => ({ ...b, time: b.time > 1e12 ? Math.floor(b.time / 1000) : b.time }))
+          .sort((a, b) => a.time - b.time);
+
         barsRef.current = asc;
         setBars(asc);
 
         const chart = chartRef.current;
         if (chart && state.range === "ALL" && !didFitOnceRef.current && !userInteractedRef.current) {
-          chart.timeScale().fitContent();
+          chart.timeScale().fitContent();       // one-time fit so overlays land in view
           didFitOnceRef.current = true;
         }
 
@@ -261,6 +338,48 @@ export default function RowChart({
             tf: state.timeframe, count: asc.length, first: asc[0], last: asc[asc.length - 1],
           });
         }
+
+        // === Attach + seed overlays AFTER candles + fit ===
+        const bucketSizeSec = TF_SEC[state.timeframe] ?? TF_SEC["10m"];
+        const mgr = mgrRef.current;
+        mgr.destroyAll();
+        const reg = mgr.init({
+          chartRef: chartRef.current,
+          priceSeriesRef: seriesRef.current,
+          bucketSizeSec,
+        });
+
+        // Register overlays conditionally (price pane by default)
+        if (showDebug) reg.register(WhiteLineOverlay()); // smoke test line
+
+        if (state.moneyFlow) reg.register(attachOverlay(MoneyFlowOverlay, {
+          chart: chartRef.current,
+          priceSeries: seriesRef.current,
+          chartContainer: containerRef.current,
+          timeframe: state.timeframe,
+        }));
+        if (state.volume) reg.register(attachOverlay(RightProfileOverlay, {
+          chart: chartRef.current,
+          priceSeries: seriesRef.current,
+          chartContainer: containerRef.current,
+          timeframe: state.timeframe,
+        }));
+        if (state.luxSr) reg.register(attachOverlay(SessionShadingOverlay, {
+          chart: chartRef.current,
+          priceSeries: seriesRef.current,
+          chartContainer: containerRef.current,
+          timeframe: state.timeframe,
+        }));
+        if (state.swingLiquidity) reg.register(attachOverlay(SwingLiquidityOverlay, {
+          chart: chartRef.current,
+          priceSeries: seriesRef.current,
+          chartContainer: containerRef.current,
+          timeframe: state.timeframe,
+        }));
+
+        mgr.attachAll({ bars: asc });
+        mgr.seedAll(asc);
+
       } catch (e) {
         console.error("[RowChart] OHLC seed error:", e);
         barsRef.current = [];
@@ -272,7 +391,7 @@ export default function RowChart({
 
     loadSeed();
     return () => { cancelled = true; };
-  }, [state.symbol, state.timeframe, state.range, showDebug]);
+  }, [state.symbol, state.timeframe, state.range, state.moneyFlow, state.luxSr, state.swingLiquidity, state.volume, showDebug]);
 
   /* -------------------------- Render + Range ------------------------- */
   useEffect(() => {
@@ -332,40 +451,43 @@ export default function RowChart({
     }
 
     const unsub = subscribeStream(state.symbol, LIVE_TF, (oneMin) => {
-      const t = Number(oneMin.time);
-      if (!Number.isFinite(t)) return;
+      // Coerce ms→s defensively; ensure number
+      const tSec = Number(oneMin.time > 1e12 ? Math.floor(oneMin.time / 1000) : oneMin.time);
+      if (!Number.isFinite(tSec)) return;
 
-      // 1m TF: push minute bar
+      // 1m TF: push minute bar directly
       if (tfSec === TF_SEC["1m"]) {
-        seriesRef.current.update(oneMin);
+        const bar = { ...oneMin, time: tSec };
+        seriesRef.current.update(bar);
         if (state.volume) {
           volSeriesRef.current.update({
-            time: oneMin.time,
-            value: Number(oneMin.volume || 0),
-            color: oneMin.close >= oneMin.open ? DEFAULTS.volUp : DEFAULTS.volDown,
+            time: bar.time,
+            value: Number(bar.volume || 0),
+            color: bar.close >= bar.open ? DEFAULTS.volUp : DEFAULTS.volDown,
           });
         }
 
         const prev = barsRef.current[barsRef.current.length - 1];
-        if (!prev || oneMin.time > prev.time) {
-          const next = [...barsRef.current, oneMin];
+        if (!prev || bar.time > prev.time) {
+          const next = [...barsRef.current, bar];
           barsRef.current = next;
           setBars(next);
-        } else {
+        } else if (bar.time === prev.time) {
           const next = [...barsRef.current];
-          next[next.length - 1] = oneMin;
+          next[next.length - 1] = bar; // replace final revision
           barsRef.current = next;
           setBars(next);
         }
+        mgrRef.current.updateAll(bar);
         return;
       }
 
-      // Aggregated TFs
-      const start = floorToBucket(t);
+      // Aggregated TFs from 1m
+      const start = floorToBucket(tSec);
 
       // bucket rollover: commit closed bar
       if (bucketStart === null || start > bucketStart) {
-        if (rolling && (!lastSeed || rolling.time >= lastSeed.time)) {
+        if (rolling) {
           seriesRef.current.update(rolling);
           if (state.volume) {
             volSeriesRef.current.update({
@@ -380,6 +502,7 @@ export default function RowChart({
           else next[next.length - 1] = rolling;
           barsRef.current = next;
           setBars(next);
+          mgrRef.current.updateAll(rolling);
         }
 
         // start new bucket
@@ -400,7 +523,7 @@ export default function RowChart({
         rolling.volume = Number(rolling.volume || 0) + Number(oneMin.volume || 0);
       }
 
-      // paint open bucket
+      // paint open bucket as it evolves
       seriesRef.current.update(rolling);
       if (state.volume) {
         volSeriesRef.current.update({
@@ -409,6 +532,7 @@ export default function RowChart({
           color: rolling.close >= rolling.open ? DEFAULTS.volUp : DEFAULTS.volDown,
         });
       }
+      mgrRef.current.updateAll(rolling);
     });
 
     return () => unsub?.();
@@ -456,94 +580,6 @@ export default function RowChart({
     }
   }, [bars, state.showEma, state.ema10, state.ema20, state.ema50]);
 
-  /* ----------------------------- Overlays ---------------------------- */
-  useEffect(() => {
-  const chart = chartRef.current;
-  const price = seriesRef.current;
-  if (!chart || !price) return;
-
-  if (state.moneyFlow) {
-    // create once
-    if (!moneyFlowRef.current) {
-      moneyFlowRef.current = attachOverlay(MoneyFlowOverlay, {
-        chartContainer: containerRef.current,
-      });
-    }
-    // update on every bars change
-    try {
-      moneyFlowRef.current?.update?.(bars);
-    } catch (e) {
-      console.warn("[MoneyFlow] update failed:", e);
-    }
-  } else {
-    // toggle off → clean up
-    try {
-      moneyFlowRef.current?.destroy?.();
-    } catch (e) {
-      console.warn("[MoneyFlow] destroy failed:", e);
-    }
-    moneyFlowRef.current = null;
-  }
-}, [state.moneyFlow, bars]);
-
-
-   // Right Profile (tie to Volume for now)
- useEffect(() => {
-   const chart = chartRef.current; const price = seriesRef.current;
-   if (!chart || !price) return;
-
-   if (state.volume) {
-     if (!rightProfileRef.current) {
-       rightProfileRef.current = attachOverlay(RightProfileOverlay, {
-         chartContainer: containerRef.current,   // << pass container
-      });
-    }
-    try { rightProfileRef.current.update?.(bars); } catch {}
-  } else {
-    try { rightProfileRef.current?.destroy?.(); } catch {}
-    rightProfileRef.current = null;
-  }
-}, [state.volume, bars]);
-
-  // Lux S/R → Session shading
- useEffect(() => {
-   const chart = chartRef.current; const price = seriesRef.current;
-   if (!chart || !price) return;
-
-   if (state.luxSr) {
-     if (!sessionShadeRef.current) {
-       sessionShadeRef.current = attachOverlay(SessionShadingOverlay, {
-         chartContainer: containerRef.current,   // << container
-      });
-    }
-    try {
-      sessionShadeRef.current.update?.(bars, { timeframe: state.timeframe });
-    } catch {}
-  } else {
-    try { sessionShadeRef.current?.destroy?.(); } catch {}
-    sessionShadeRef.current = null;
-  }
-}, [state.luxSr, state.timeframe, bars]);
-
-
-  // Swing Liquidity (pivots)
- useEffect(() => {
-   const chart = chartRef.current; const price = seriesRef.current;
-   if (!chart || !price) return;
-
-   if (state.swingLiquidity) {
-    if (!swingLiqRef.current) {
-       swingLiqRef.current = attachOverlay(SwingLiquidityOverlay, {
-         chart,                    // << pass chart instance
-      });
-    }
-    try { swingLiqRef.current.update?.(bars); } catch {}
-  } else {
-    try { swingLiqRef.current?.destroy?.(); } catch {}
-    swingLiqRef.current = null;
-  }
-}, [state.swingLiquidity, bars]);
-
   /* ----------------------------- Handlers ---------------------------- */
   const handleControlsChange = (patch) => setState((s) => ({ ...s, ...patch }));
 
@@ -583,7 +619,7 @@ export default function RowChart({
     ema10: state.ema10, ema20: state.ema20, ema50: state.ema50,
     volume: state.volume,
     moneyFlow: state.moneyFlow, luxSr: state.luxSr, swingLiquidity: state.swingLiquidity,
-    onChange: handleControlsChange, // toolbar sends patches with the exact keys above
+    onChange: handleControlsChange,
     onReset: () =>
       setState((s) => ({
         ...s,
@@ -593,7 +629,6 @@ export default function RowChart({
   };
 
   /* ------------------------------ Render ----------------------------- */
-  // Wrapper: fullscreen fills parent; dashboard keeps border chrome
   const wrapperStyle = useMemo(() => {
     return fullScreen
       ? {
@@ -614,7 +649,7 @@ export default function RowChart({
         };
   }, [fullScreen]);
 
-  // Chart container: dashboard fixed 520px; FullChart = 100%
+  // IMPORTANT: container is position:relative so overlay canvases can use absolute + z-index:10
   const containerStyle = useMemo(() => {
     return fullScreen
       ? {
@@ -625,7 +660,7 @@ export default function RowChart({
           flex: "1 1 auto",
           overflow: "hidden",
           background: DEFAULTS.bg,
-          position: "relative",  
+          position: "relative",
         }
       : {
           width: "100%",
@@ -635,7 +670,7 @@ export default function RowChart({
           flex: "0 0 auto",
           overflow: "hidden",
           background: DEFAULTS.bg,
-          position: "relative", 
+          position: "relative",
         };
   }, [fullScreen]);
 
