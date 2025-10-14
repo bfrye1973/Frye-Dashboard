@@ -1,7 +1,7 @@
 // src/components/overlays/SwingLiquidityOverlay.js
-// Pivot Shelves + 1h Consolidation + Wick Clusters (Dwell + Retests + Scoring)
-// Step 7-B Visuals: clear hierarchy — Primary (thick + glow + label), Secondary (dashed ghost).
-// Inert: read-only pan/zoom redraw; NO zoom/fit calls; NO ResizeObserver/DPR.
+// Pivot Shelves + Dual 1h Consolidation Zones (Primary + Secondary) + Wick Clusters (P1)
+// Inert (paint-only): NO fit/visibleRange calls; NO ResizeObserver/DPR.
+// RowChart owns lifecycle via attachOverlay(); this file self-mounts its canvas.
 
 export default function createSwingLiquidityOverlay({ chart, priceSeries, chartContainer }) {
   if (!chart || !priceSeries || !chartContainer) {
@@ -24,48 +24,60 @@ export default function createSwingLiquidityOverlay({ chart, priceSeries, chartC
   const TEXT_PAD = 6;
   const FONT = "bold 16px system-ui, -apple-system, Segoe UI, Roboto, Arial";
 
-  // 1-hour consolidation
-  const TEST_LOOKBACK_HOURS = 24 * 30; // ~30 days
+  // 1h consolidation scanning
+  const TEST_LOOKBACK_HOURS = 24 * 30; // ~30 trading days
   const BOX_MIN_HRS = 16;
   const BOX_MAX_HRS = 24;
-  const BOX_BPS_LIMIT = 35;            // ≤ 0.35%
 
-  // Wick clustering + dwell + retests
-  const BUCKET_BPS = 5;                // 0.05% bucket
+  // Tightness limits
+  const BOX_BPS_LIMIT_STRICT = 35; // 0.35% (SPY/QQQ-like)
+  const BOX_BPS_LIMIT_TSLA   = 55; // 0.55% first-pass for TSLA-like names
+  const FALLBACK_TO_TIGHTEST = true;
+
+  // Wick clustering + dwell + retests (for Primary)
+  const BUCKET_BPS = 5;                // 0.05%
   const MERGE_BPS  = 10;               // merge ≤ 0.10%
   const MIN_TOUCHES_CLUSTER = 3;
-  const DWELL_MIN_HOURS = 8;
+  const DWELL_MIN_HOURS     = 8;
   const DWELL_BAND_EXPAND_BUCKETS = 1;
-  const RETEST_LOOKAHEAD_HRS = 30;     // scan forward
+  const RETEST_LOOKAHEAD_HRS = 30;
   const RETEST_BUFFER_BPS    = 8;
-  const RETEST_MIN_COUNT     = 2;      // “major” threshold
+  const RETEST_MIN_COUNT     = 2;
 
-  // Drawing for clusters
+  // Adaptive relax (if strict yields nothing)
+  const RELAX_TOUCHES  = 2;
+  const RELAX_DWELL_H  = 6;
+  const RELAX_RETEST_H = 48;
+
+  // Scoring weights (0..1 normalized per side)
+  const W_VOL = 0.45;
+  const W_TCH = 0.30;
+  const W_RTS = 0.15;
+  const W_REC = 0.10;
+
+  // Visuals
   const INNER_H_NORMAL   = 3;
-  const INNER_H_PRIMARY  = 5;          // thicker for Primary (P1)
-  const COL_SUP          = "#ff4d4f";  // supply (pivot shelves)
-  const COL_DEM          = "#22c55e";  // demand (pivot shelves)
-  const COL_EDGE         = "#0b0f17";  // plate edge
-  const COL_TEST         = "#3b82f6";  // blue consolidation band
-  const COL_CLUSTER      = "#60a5fa";  // cyan-ish
-  const COL_CLUSTER_P1   = "#3b82f6";  // brighter electric blue
-  const COL_CLUSTER_GHOST= "rgba(56,189,248,0.6)"; // cyan @60% opacity dashed
-  const TEST_ALPHA       = 0.16;
-
-  // Scoring weights (0–1 scaled)
-  const W_VOL = 0.45, W_TCH = 0.30, W_RTS = 0.15, W_REC = 0.10;
-
-  // Visual alpha scaling for primary lines (by score)
+  const INNER_H_PRIMARY  = 5;
   const ALPHA_MIN = 0.30, ALPHA_MAX = 1.00;
 
-  /* ---------------- State ---------------- */
-  let bars = [];        // ascending [{time, open, high, low, close, volume}]
-  let bands = [];       // pivot shelves [{side, pLo, pHi, tPivot, volSum}]
-  let testBox = null;   // 1h consolidation {tStart, tEnd, pLo, pHi}
+  // Colors
+  const COL_SUP  = "#ff4d4f";      // pivot shelves (supply)
+  const COL_DEM  = "#22c55e";      // pivot shelves (demand)
+  const COL_EDGE = "#0b0f17";      // plate edge
+  const COL_P1_BOX = "#3b82f6";    // Primary (blue)
+  const COL_P1     = "#3b82f6";    // Primary cluster line
+  const COL_P2_BOX_FILL = "rgba(255,255,0,0.25)"; // Secondary (yellow) fill
+  const COL_P2_BOX_STROKE = "rgba(255,255,0,0.9)"; // Secondary border
+  const COL_P2_DASH = "rgba(255,255,0,0.8)";
+  const TEST_ALPHA = 0.16;
 
-  // wickClusters: { top:{primary?, secondary?}, bottom:{primary?, secondary?} }
-  // Each cluster: { pLo,pHi,touches,dwell,retests,score }
-  let wickClusters = null;
+  /* ---------------- State ---------------- */
+  let bars = [];          // asc [{time,open,high,low,close,volume}] (seconds)
+  let bands = [];         // pivot shelves
+  let zoneP1 = null;      // Primary 1h box {tStart,tEnd,pLo,pHi,score,touches,dwell,retests,spanHrs,bps}
+  let zoneP2 = null;      // Secondary 1h box {...}
+  let wickClusters = null;// { top:{primary?,secondary?}, bottom:{...} } — for Primary only
+  let lastHourBucket = null;
 
   let rafId = null;
   const ts = chart.timeScale();
@@ -74,8 +86,13 @@ export default function createSwingLiquidityOverlay({ chart, priceSeries, chartC
   const toSec = (t) => (t > 1e12 ? Math.floor(t/1000) : t);
   const xFor  = (tSec) => { const x = ts.timeToCoordinate(tSec); return Number.isFinite(x) ? x : null; };
   const yFor  = (p)   => { const y = priceSeries.priceToCoordinate(Number(p)); return Number.isFinite(y) ? y : null; };
-  const isSwingHigh = (arr, i) => { const v=arr[i].high; for(let j=i-L;j<=i+R;j++){ if(j===i||j<0||j>=arr.length) continue; if(arr[j].high>v) return false; } return true; };
-  const isSwingLow  = (arr, i) => { const v=arr[i].low;  for(let j=i-L;j<=i+R;j++){ if(j===i||j<0||j>=arr.length) continue; if(arr[j].low <v) return false; } return true; };
+
+  const isSwingHigh = (arr, i) => {
+    const v=arr[i].high; for(let j=i-L;j<=i+R;j++){ if(j===i||j<0||j>=arr.length) continue; if(arr[j].high>v) return false; } return true;
+  };
+  const isSwingLow  = (arr, i) => {
+    const v=arr[i].low ; for(let j=i-L;j<=i+R;j++){ if(j===i||j<0||j>=arr.length) continue; if(arr[j].low <v) return false; } return true;
+  };
 
   function fmtVol(v) {
     if (v >= 1e9) return (v/1e9).toFixed(2)+"B";
@@ -84,16 +101,13 @@ export default function createSwingLiquidityOverlay({ chart, priceSeries, chartC
     return String(Math.round(v));
   }
 
-  /* -------------- Pivot shelves (left-extended) -------------- */
+  /* ---------------- Pivot shelves (left-extended) ---------------- */
   function rebuildBands() {
     bands = [];
     if (!bars.length) return;
 
     const start = Math.max(0, bars.length - LOOKBACK);
-    const scan  = bars.slice(start);
-    if (!scan.length) return;
-
-    const lastClose = scan.at(-1).close || 0;
+    const lastClose = bars.at(-1).close || 0;
     const half = (BAND_BPS / 10000) * (lastClose || 1);
 
     const highs=[], lows=[];
@@ -109,7 +123,7 @@ export default function createSwingLiquidityOverlay({ chart, priceSeries, chartC
       const out=[], used=[];
       for (const z of arr) {
         if (out.length >= max) break;
-        if (used.some(u => Math.abs(u - z.p) <= half*0.75)) continue;
+        if (used.some(u => Math.abs(u - z.p) <= half*0.75)) continue; // suppress near-duplicates
         used.push(z.p);
         out.push({ side, pLo: z.p - half, pHi: z.p + half, tPivot: z.t, volSum: 0 });
       }
@@ -134,7 +148,7 @@ export default function createSwingLiquidityOverlay({ chart, priceSeries, chartC
     }
   }
 
-  /* -------------- 1-hour resample & test band -------------- */
+  /* ---------------- 1h resample ---------------- */
   function resampleTo1h(barsAsc){
     if(!barsAsc?.length) return [];
     const out=[]; let cur=null;
@@ -154,45 +168,34 @@ export default function createSwingLiquidityOverlay({ chart, priceSeries, chartC
     return out.slice(-TEST_LOOKBACK_HOURS);
   }
 
-  function rebuildTestBox(){
-    testBox = null;
-    wickClusters = null;
-    const b1h = resampleTo1h(bars);
-    if (b1h.length < BOX_MIN_HRS) return;
-
-    let best=null; const n=b1h.length;
-    for(let span=BOX_MIN_HRS; span<=BOX_MAX_HRS; span++){
-      for(let i=0; i+span<=n; i++){
+  /* ---------------- Candidate generation + scoring ---------------- */
+  function slideBoxes(b1h, bpsLimit) {
+    const n=b1h.length, out=[];
+    for (let span=BOX_MIN_HRS; span<=BOX_MAX_HRS; span++){
+      for (let i=0; i+span<=n; i++){
         const j=i+span-1;
         let lo=+Infinity, hi=-Infinity;
-        for(let k=i;k<=j;k++){ lo=Math.min(lo,b1h[k].low); hi=Math.max(hi,b1h[k].high); }
-        const mid=(lo+hi)/2;
-        const bps=((hi-lo)/Math.max(1e-6,mid))*10000;
-        if(bps>BOX_BPS_LIMIT) continue;
-        if(!best || bps<best.bps) best={iStart:i,iEnd:j,pLo:lo,pHi:hi,bps};
+        for (let k=i;k<=j;k++){ lo=Math.min(lo,b1h[k].low); hi=Math.max(hi,b1h[k].high); }
+        const mid=(lo+hi)/2, bps=((hi-lo)/Math.max(1e-6,mid))*10000;
+        if (bpsLimit!=null && bps>bpsLimit) continue;
+        out.push({ iStart:i, iEnd:j, pLo:lo, pHi:hi, bps, spanHrs: span, tStart:b1h[i].time, tEnd:b1h[j].time });
       }
     }
-    if(!best) return;
-    testBox = { tStart:b1h[best.iStart].time, tEnd:b1h[best.iEnd].time, pLo:best.pLo, pHi:best.pHi };
-
-    wickClusters = buildClustersWithStats(b1h, best); // dwell+retests+scoring, primary+secondary
+    return out;
   }
 
-  /* -------------- Clusters WITH DWELL + RETESTS + SCORING -------------- */
-  function buildClustersWithStats(b1h, best) {
+  function buildClustersWithStats(b1h, best, cfg) {
     const { iStart, iEnd } = best;
     const spanBars = b1h.slice(iStart, iEnd + 1);
     if (!spanBars.length) return null;
 
     const lastClose = b1h.at(-1).close || spanBars.at(-1).close;
-    const step = (BUCKET_BPS / 10000) * lastClose;
-    const mergeStep = (MERGE_BPS / 10000) * lastClose;
+    const step = (cfg.bucketBps / 10000) * lastClose;
+    const mergeStep = (cfg.mergeBps / 10000) * lastClose;
 
-    const top = new Map();    // key -> {touches}
-    const bottom = new Map();
+    const top = new Map(), bottom = new Map();
     const keyOf = (price) => Math.floor(price / step) * step;
 
-    // bucket wick tips by edge
     for (const b of spanBars) {
       if (b.high > Math.max(b.open, b.close)) {
         const key = keyOf(b.high); const o = top.get(key) || { touches:0 };
@@ -204,7 +207,6 @@ export default function createSwingLiquidityOverlay({ chart, priceSeries, chartC
       }
     }
 
-    // merge adjacent buckets
     const mergeMap = (m) => {
       const keys = Array.from(m.keys()).sort((a,b)=>a-b);
       const out=[]; let cur=null;
@@ -218,10 +220,10 @@ export default function createSwingLiquidityOverlay({ chart, priceSeries, chartC
       return out;
     };
 
-    let topZones = mergeMap(top).filter(z => z.touches >= MIN_TOUCHES_CLUSTER);
-    let botZones = mergeMap(bottom).filter(z => z.touches >= MIN_TOUCHES_CLUSTER);
+    let topZones = mergeMap(top);
+    let botZones = mergeMap(bottom);
 
-    // dwell: body overlap hours within cluster band ± expand
+    // dwell (within band ± expand)
     const expand = DWELL_BAND_EXPAND_BUCKETS * step;
     const dwellFor = (loBand, hiBand) => {
       let dwell = 0;
@@ -229,22 +231,25 @@ export default function createSwingLiquidityOverlay({ chart, priceSeries, chartC
       for (const b of spanBars) {
         const bodyLo = Math.min(b.open, b.close);
         const bodyHi = Math.max(b.open, b.close);
-        if (bodyHi >= lo && bodyLo <= hi) dwell += 1; // 1 hour per bar
+        if (bodyHi >= lo && bodyLo <= hi) dwell += 1; // 1h per bar
       }
       return dwell;
     };
     for (const z of topZones) z.dwell = dwellFor(z.pLo, z.pHi);
     for (const z of botZones) z.dwell = dwellFor(z.pLo, z.pHi);
 
-    // retests: scan forward after the box end
+    // floors
+    topZones = topZones.filter(z => z.touches >= cfg.minTouches && z.dwell >= cfg.dwellMinH);
+    botZones = botZones.filter(z => z.touches >= cfg.minTouches && z.dwell >= cfg.dwellMinH);
+
+    // retests (forward)
     const retestFor = (loBand, hiBand) => {
-      const buf = (RETEST_BUFFER_BPS / 10000) * lastClose;
+      const buf = (cfg.retestBufBps / 10000) * lastClose;
       const lo = loBand - buf, hi = hiBand + buf;
 
-      let count = 0;
-      let inTouch = false;
+      let count = 0, inTouch = false;
       const startIdx = best.iEnd + 1;
-      const endIdx   = Math.min(b1h.length - 1, best.iEnd + RETEST_LOOKAHEAD_HRS);
+      const endIdx   = Math.min(b1h.length - 1, best.iEnd + cfg.retestLookaheadH);
 
       for (let i = startIdx; i <= endIdx; i++) {
         const b = b1h[i];
@@ -259,41 +264,152 @@ export default function createSwingLiquidityOverlay({ chart, priceSeries, chartC
     for (const z of topZones) z.retests = retestFor(z.pLo, z.pHi);
     for (const z of botZones) z.retests = retestFor(z.pLo, z.pHi);
 
-    // SCORING — normalize within-side (0..1) and compute weighted score
+    // scoring per side
     const scoreSide = (list) => {
       if (!list.length) return;
       const maxD = Math.max(...list.map(z=>z.dwell), 1);
       const maxT = Math.max(...list.map(z=>z.touches), 1);
       const maxR = Math.max(...list.map(z=>z.retests), 1);
-      const recN = 1; // same window → constant for now
+      const recN = 1; // same window for now
       for (const z of list) {
-        const volN = z.dwell / maxD;     // use dwell as a cheap proxy for volume parked
+        const volN = z.dwell / maxD; // dwell as proxy for parked volume
         const tchN = z.touches / maxT;
         const rtsN = z.retests / maxR;
         z.score = W_VOL*volN + W_TCH*tchN + W_RTS*rtsN + W_REC*recN;
       }
       list.sort((a,b)=>b.score - a.score);
     };
-
     scoreSide(topZones);
     scoreSide(botZones);
 
     const pack = (arr) => {
       if (!arr.length) return { primary:null, secondary:null };
-      const primary   = arr[0] || null;
-      const secondary = arr[1] || null;
-      return { primary, secondary };
+      return { primary:arr[0] || null, secondary:arr[1] || null };
     };
 
     return {
-      top: pack(topZones.filter(z => z.dwell >= DWELL_MIN_HOURS)),
-      bottom: pack(botZones.filter(z => z.dwell >= DWELL_MIN_HOURS)),
+      top: pack(topZones),
+      bottom: pack(botZones),
     };
   }
 
-  /* ---------------- Draw (read-only) ---------------- */
+  function buildClustersWithStatsAdaptive(b1h, best) {
+    // strict
+    let res = buildClustersWithStats(b1h, best, {
+      bucketBps: BUCKET_BPS, mergeBps: MERGE_BPS,
+      minTouches: MIN_TOUCHES_CLUSTER, dwellMinH: DWELL_MIN_HOURS,
+      retestLookaheadH: RETEST_LOOKAHEAD_HRS, retestBufBps: RETEST_BUFFER_BPS
+    });
+    const hasPrimary = (res?.top?.primary || res?.bottom?.primary);
+    if (hasPrimary) return res;
+
+    // relaxed
+    return buildClustersWithStats(b1h, best, {
+      bucketBps: BUCKET_BPS, mergeBps: MERGE_BPS,
+      minTouches: RELAX_TOUCHES, dwellMinH: RELAX_DWELL_H,
+      retestLookaheadH: RELAX_RETEST_H, retestBufBps: RETEST_BUFFER_BPS
+    });
+  }
+
+  /* ---------------- Dual-pass selection ---------------- */
+  function nonOverlap(a, b) {
+    if (!a || !b) return true;
+    return (a.tEnd < b.tStart) || (b.tEnd < a.tStart);
+  }
+
+  function rebuildDualZones(){
+    zoneP1 = null;
+    zoneP2 = null;
+    wickClusters = null;
+
+    const b1h = resampleTo1h(bars);
+    if (b1h.length < BOX_MIN_HRS) {
+      window.__last1hBoxPrimary = null;
+      window.__last1hBoxSecondary = null;
+      window.__lastWickClusters = null;
+      return;
+    }
+
+    // Candidates (TSLA-friendly first, else fallback/tightest)
+    let candidates = slideBoxes(b1h, BOX_BPS_LIMIT_TSLA);
+    if (!candidates.length && FALLBACK_TO_TIGHTEST) candidates = slideBoxes(b1h, null);
+    if (!candidates.length) {
+      window.__last1hBoxPrimary = null;
+      window.__last1hBoxSecondary = null;
+      window.__lastWickClusters = null;
+      return;
+    }
+
+    // Score each candidate using cluster stats (adaptive)
+    const scored = [];
+    for (const c of candidates) {
+      const clusters = buildClustersWithStatsAdaptive(b1h, c);
+      const topP = clusters?.top?.primary, botP = clusters?.bottom?.primary;
+      const primarySide = topP && botP
+        ? (topP.score >= botP.score ? topP : botP)
+        : (topP || botP || null);
+
+      if (!primarySide) continue; // need at least one meaningful edge
+      const score = primarySide.score || 0;
+      const touches = primarySide.touches || 0;
+      const dwell = primarySide.dwell || 0;
+      const retests = primarySide.retests || 0;
+      scored.push({ ...c, score, touches, dwell, retests, clusters });
+    }
+    if (!scored.length) {
+      window.__last1hBoxPrimary = null;
+      window.__last1hBoxSecondary = null;
+      window.__lastWickClusters = null;
+      return;
+    }
+
+    // ---- Pass A: Primary = argmax(score) ----
+    scored.sort((a,b)=> b.score - a.score || b.spanHrs - a.spanHrs);
+    const A = scored[0];
+
+    zoneP1 = {
+      tStart: A.tStart, tEnd: A.tEnd, pLo: A.pLo, pHi: A.pHi,
+      score: A.score, touches: A.touches, dwell: A.dwell, retests: A.retests,
+      spanHrs: A.spanHrs, bps: A.bps
+    };
+    wickClusters = A.clusters; // draw clusters for Primary
+
+    // ---- Pass B: Secondary = most recent valid non-overlap ----
+    const remaining = scored.filter(c => nonOverlap(
+      { tStart:A.tStart, tEnd:A.tEnd },
+      { tStart:c.tStart, tEnd:c.tEnd }
+    ));
+    if (remaining.length){
+      remaining.sort((a,b)=> a.tEnd - b.tEnd); // ascending
+      const latestEnd = remaining.at(-1).tEnd;
+      const near = remaining.filter(c => c.tEnd === latestEnd);
+      const B = (near.length>1)
+        ? near.sort((a,b)=> b.score - a.score || b.spanHrs - a.spanHrs)[0]
+        : near[0];
+
+      if (B){
+        zoneP2 = {
+          tStart: B.tStart, tEnd: B.tEnd, pLo: B.pLo, pHi: B.pHi,
+          score: B.score, touches: B.touches, dwell: B.dwell, retests: B.retests,
+          spanHrs: B.spanHrs, bps: B.bps
+        };
+      }
+    }
+
+    // Debug taps
+    window.__last1hBoxPrimary   = zoneP1;
+    window.__last1hBoxSecondary = zoneP2;
+    window.__lastWickClusters   = wickClusters;
+    window.__lastScanMeta = {
+      lookbackHours: TEST_LOOKBACK_HOURS,
+      spanRange: [BOX_MIN_HRS, BOX_MAX_HRS],
+      bpsLimit: BOX_BPS_LIMIT_TSLA,
+      bucketsBps: BUCKET_BPS, mergeBps: MERGE_BPS
+    };
+  }
+
+  /* ---------------- Draw (paint-only) ---------------- */
   function doDraw(){
-    // size canvas each draw (no observers/DPR)
     const w = chartContainer.clientWidth  || 1;
     const h = chartContainer.clientHeight || 1;
 
@@ -304,19 +420,17 @@ export default function createSwingLiquidityOverlay({ chart, priceSeries, chartC
       Object.assign(cnv.style,{ position:"absolute", inset:0, pointerEvents:"none", zIndex:10 });
       chartContainer.appendChild(cnv);
     }
-    cnv.width = Math.max(1,w);
-    cnv.height= Math.max(1,h);
+    if (!w || !h) return; // wait for layout
+    cnv.width = w; cnv.height= h;
+
     const ctx = cnv.getContext("2d");
     ctx.clearRect(0,0,w,h);
     ctx.font = FONT;
 
-    // scale for tag height
     const volMax = Math.max(1, ...bands.map(b=>b.volSum||0));
+    const xLeft = 0; // extend shelves fully left
 
-    // extend pivot shelves fully left
-    const xLeft = 0;
-
-    // 1) Pivot shelves (left-extended) + right-edge volume plates
+    // (1) Pivot shelves + volume plates
     for (const bd of bands){
       const yTop=yFor(bd.pHi), yBot=yFor(bd.pLo), xPivot=xFor(bd.tPivot);
       if (yTop==null||yBot==null||xPivot==null) continue;
@@ -327,13 +441,12 @@ export default function createSwingLiquidityOverlay({ chart, priceSeries, chartC
       const rectW=Math.max(1,Math.abs(xPivot-xLeft));
       const rectH=Math.max(2,yMax-yMin);
 
-      // band fill + outline
       ctx.globalAlpha=FILL_ALPHA; ctx.fillStyle=color;
       ctx.fillRect(rectX,yMin,rectW,rectH);
       ctx.globalAlpha=1; ctx.lineWidth=STROKE_W; ctx.strokeStyle=color;
       ctx.strokeRect(rectX+0.5,yMin+0.5,rectW-1,rectH-1);
 
-      // right-edge tag + volume plate
+      // tag + plate
       const frac = Math.max(0,(bd.volSum||0)/volMax);
       const tagH = Math.max(TAG_MIN_H, Math.floor(h*0.15*frac));
       const tagX = xPivot - TAG_W;
@@ -359,45 +472,68 @@ export default function createSwingLiquidityOverlay({ chart, priceSeries, chartC
       ctx.fillText(txt, textX, textY);
     }
 
-    // 2) 1-hour consolidation band (blue outer)
-    if (testBox){
-      const yTop=yFor(testBox.pHi), yBot=yFor(testBox.pLo);
-      const xS=xFor(testBox.tStart), xE=xFor(testBox.tEnd);
+    // (2) Secondary 1h box (Yellow) — draw UNDER Primary for clean overlap
+    if (zoneP2){
+      const yTop=yFor(zoneP2.pHi), yBot=yFor(zoneP2.pLo);
+      const xS=xFor(zoneP2.tStart), xE=xFor(zoneP2.tEnd);
       if (yTop!=null && yBot!=null && xS!=null && xE!=null){
         const yMin=Math.min(yTop,yBot), yMax=Math.max(yTop,yBot);
         const xLeftB=Math.min(xS,xE),  xRightB=Math.max(xS,xE);
         const rectH=Math.max(2,yMax-yMin);
 
-        ctx.globalAlpha=TEST_ALPHA; ctx.fillStyle=COL_TEST;
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = COL_P2_BOX_FILL;
         ctx.fillRect(xLeftB,yMin,Math.max(1,xRightB-xLeftB),rectH);
-        ctx.globalAlpha=1; ctx.lineWidth=STROKE_W; ctx.strokeStyle=COL_TEST;
+
+        ctx.save();
+        ctx.setLineDash([6,6]);
+        ctx.lineWidth = STROKE_W;
+        ctx.strokeStyle = COL_P2_BOX_STROKE;
+        ctx.strokeRect(xLeftB+0.5,yMin+0.5,Math.max(1,xRightB-xLeftB)-1,rectH-1);
+        ctx.restore();
+      }
+    }
+
+    // (3) Primary 1h box (Blue) + clusters (P1 labels/lines)
+    if (zoneP1){
+      const yTop=yFor(zoneP1.pHi), yBot=yFor(zoneP1.pLo);
+      const xS=xFor(zoneP1.tStart), xE=xFor(zoneP1.tEnd);
+      if (yTop!=null && yBot!=null && xS!=null && xE!=null){
+        const yMin=Math.min(yTop,yBot), yMax=Math.max(yTop,yBot);
+        const xLeftB=Math.min(xS,xE),  xRightB=Math.max(xS,xE);
+        const rectH=Math.max(2,yMax-yMin);
+
+        ctx.globalAlpha=TEST_ALPHA; ctx.fillStyle=COL_P1_BOX;
+        ctx.fillRect(xLeftB,yMin,Math.max(1,xRightB-xLeftB),rectH);
+        ctx.globalAlpha=1; ctx.lineWidth=STROKE_W; ctx.strokeStyle=COL_P1_BOX;
         ctx.strokeRect(xLeftB+0.5,yMin+0.5,Math.max(1,xRightB-xLeftB)-1,rectH-1);
 
-        // 3) Clusters — extend full viewport, primary vs secondary visuals
+        // Clusters (Primary lines across full viewport)
         if (wickClusters) {
-          const drawPrimary = (cl) => {
+          const viewLeft  = 0;
+          const viewRight = chartContainer.clientWidth || 1;
+          const viewW     = Math.max(1, viewRight - viewLeft);
+
+          const drawPrimaryLine = (cl) => {
+            if (!cl) return;
             const yLo = yFor(cl.pLo), yHi = yFor(cl.pHi);
             if (yLo == null || yHi == null) return;
             const yMid = (yLo + yHi) / 2;
-            const viewLeft  = 0, viewRight = chartContainer.clientWidth || 1, viewW = Math.max(1, viewRight - viewLeft);
-
-            // alpha scales by score; glow underlay
             const alpha = Math.max(ALPHA_MIN, Math.min(ALPHA_MAX, (cl.score || 0) * 1.2));
             const lineH = (cl.retests || 0) >= RETEST_MIN_COUNT ? INNER_H_PRIMARY : INNER_H_NORMAL;
 
-            // glow underlay
+            // glow
             ctx.globalAlpha = alpha * 0.35;
-            ctx.fillStyle = COL_CLUSTER_P1;
+            ctx.fillStyle = COL_P1;
             ctx.fillRect(viewLeft, yMid - (lineH+4)/2, viewW, (lineH+4));
 
             // main line
             ctx.globalAlpha = alpha;
-            ctx.fillStyle = COL_CLUSTER_P1;
+            ctx.fillStyle = COL_P1;
             ctx.fillRect(viewLeft, yMid - lineH/2, viewW, lineH);
-
             ctx.globalAlpha = 1;
 
-            // label at viewport right: "T · h · R · score%  (P1)"
+            // label (P1)
             const pct = Math.round((cl.score || 0) * 100);
             const label = `${cl.touches||0}T · ${cl.dwell||0}h` + (cl.retests?` · ${cl.retests}R`:"") + (pct?` · ${pct}%`:"") + "  (P1)";
             const m = ctx.measureText(label);
@@ -416,53 +552,30 @@ export default function createSwingLiquidityOverlay({ chart, priceSeries, chartC
             ctx.fillText(label, tx, ty);
           };
 
-          const drawSecondary = (cl) => {
+          const drawSecondaryGuide = (cl) => {
+            if (!cl) return;
             const yLo = yFor(cl.pLo), yHi = yFor(cl.pHi);
             if (yLo == null || yHi == null) return;
             const yMid = (yLo + yHi) / 2;
-            const viewLeft  = 0, viewRight = chartContainer.clientWidth || 1;
 
             ctx.save();
             ctx.setLineDash([6,6]);
             ctx.lineWidth = 2;
-            ctx.strokeStyle = COL_CLUSTER_GHOST;
+            ctx.strokeStyle = COL_P2_DASH;
             ctx.beginPath();
-            ctx.moveTo(viewLeft, yMid);
-            ctx.lineTo(viewRight, yMid);
+            ctx.moveTo(0, yMid);
+            ctx.lineTo(chartContainer.clientWidth || 1, yMid);
             ctx.stroke();
-            ctx.setLineDash([]);
             ctx.restore();
-
-            // small score-only plate "P2 64%"
-            const pct = Math.round((cl.score || 0) * 100);
-            const tag = `P2 ${pct}%`;
-            const m = ctx.measureText(tag);
-            const tW = Math.ceil(m.width), tH = 16;
-            let px = viewRight - TEXT_PAD - (tW + 2*6);
-            let py = yMid - tH/2;
-
-            ctx.globalAlpha = 0.85; ctx.fillStyle = "#0b0f17";
-            ctx.fillRect(px, py, tW + 2*6, tH);
-            ctx.globalAlpha = 1; ctx.lineWidth=1; ctx.strokeStyle="#1f2a44";
-            ctx.strokeRect(px+0.5, py+0.5, (tW + 2*6)-1, tH-1);
-
-            const tx = px + 6, ty = py + tH - 3;
-            ctx.fillStyle="#e5e7eb"; ctx.strokeStyle="#000"; ctx.lineWidth=2;
-            ctx.strokeText(tag, tx, ty);
-            ctx.fillText(tag, tx, ty);
           };
 
-          // top (supply)
           if (wickClusters.top) {
-            const { primary, secondary } = wickClusters.top;
-            if (secondary) drawSecondary(secondary);
-            if (primary)   drawPrimary(primary);
+            drawSecondaryGuide(wickClusters.top.secondary);
+            drawPrimaryLine   (wickClusters.top.primary);
           }
-          // bottom (demand)
           if (wickClusters.bottom) {
-            const { primary, secondary } = wickClusters.bottom;
-            if (secondary) drawSecondary(secondary);
-            if (primary)   drawPrimary(primary);
+            drawSecondaryGuide(wickClusters.bottom.secondary);
+            drawPrimaryLine   (wickClusters.bottom.primary);
           }
         }
       }
@@ -486,7 +599,12 @@ export default function createSwingLiquidityOverlay({ chart, priceSeries, chartC
     seed(rawBarsAsc){
       bars = (rawBarsAsc||[]).map(b=>({...b, time:toSec(b.time)})).sort((a,b)=>a.time-b.time);
       rebuildBands();
-      rebuildTestBox();  // 1h band + wickClusters (dwell + retests + scoring)
+
+      // hour-aware rebuild
+      const last = bars.at(-1);
+      lastHourBucket = last ? Math.floor(toSec(last.time)/3600) : null;
+      rebuildDualZones();
+
       doDraw();
     },
     update(latest){
@@ -497,14 +615,30 @@ export default function createSwingLiquidityOverlay({ chart, priceSeries, chartC
       else return;
 
       rebuildBands();
-      if (bars.length % 3 === 0) rebuildTestBox(); // light rebuild cadence
+
+      // only rebuild 1h scan when the hour bucket flips
+      const bucket = Math.floor(t/3600);
+      if (bucket !== lastHourBucket) {
+        lastHourBucket = bucket;
+        rebuildDualZones();
+      }
       doDraw();
     },
     destroy(){
       try { ts.unsubscribeVisibleLogicalRangeChange?.(onLogical); } catch {}
       try { ts.unsubscribeVisibleTimeRangeChange?.(onVisible); } catch {}
       window.removeEventListener("resize", scheduleDraw);
-      // canvas removed by RowChart cleanup
+      // RowChart cleans chartContainer; we intentionally leave canvas cleanup to it.
     },
+
+    // Optional programmatic access for Strategy row
+    getConsolidationZones(){
+      const lastClose = bars.at(-1)?.close ?? null;
+      const dist = (z) => (z && lastClose!=null) ? Math.min(Math.abs(lastClose - z.pLo), Math.abs(lastClose - z.pHi)) : null;
+      return {
+        primary:   zoneP1 ? { ...zoneP1, distToPrice: dist(zoneP1) } : null,
+        secondary: zoneP2 ? { ...zoneP2, distToPrice: dist(zoneP2) } : null
+      };
+    }
   };
 }
