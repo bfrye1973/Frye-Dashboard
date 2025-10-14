@@ -1,9 +1,12 @@
 // src/components/overlays/SwingLiquidityOverlay.js
-// Pivot Shelves + 1h Consolidation (inert, pan/zoom redraw)
-// ---------------------------------------------------------
-// • Red/Green pivot shelves (Top-3 highs + Top-3 lows), left-extended,
-//   with RIGHT-edge volume tags and LARGE readable text plates.
+// Pivot Shelves + 1h Consolidation + Wick Clusters (inert, pan/zoom redraw)
+// -------------------------------------------------------------------------
+// • Red/Green pivot shelves (Top-3 highs + Top-3 lows), left-extended
+//   with RIGHT-edge volume tags and LARGE text plates.
 // • Blue 1-hour consolidation band: tightest 16–24h window in ~30 days.
+// • NEW: Wick clustering inside the 1h band (5 bps buckets, merged ≤10 bps).
+//   Draws thin bright-blue inner bands for top clusters (supply & demand)
+//   and a "touches" count plate at the band’s right edge.
 // • Read-only pan/zoom redraw (no zoom/fit changes). No ResizeObserver, no DPR scaling.
 
 export default function createSwingLiquidityOverlay({ chart, priceSeries, chartContainer }) {
@@ -27,23 +30,31 @@ export default function createSwingLiquidityOverlay({ chart, priceSeries, chartC
   const TEXT_PAD = 6;
   const FONT = "bold 16px system-ui, -apple-system, Segoe UI, Roboto, Arial";
 
-  // 1-hour test band (consolidation)
+  // 1-hour consolidation band
   const TEST_LOOKBACK_HOURS = 24 * 30;   // ~30 days
   const BOX_MIN_HRS = 16;                // 16–24 bars (hours)
   const BOX_MAX_HRS = 24;
-  const BOX_BPS_LIMIT = 35;              // ≤ 0.35% total range (loose for now)
+  const BOX_BPS_LIMIT = 35;              // ≤ 0.35% total range (loose initial)
+
+  // Wick clustering
+  const BUCKET_BPS = 5;                  // bucket width (0.05%)
+  const MERGE_BPS  = 10;                 // merge adjacent clusters within 10 bps
+  const MIN_TOUCHES_CLUSTER = 3;         // minimum touches to consider cluster
+  const INNER_LINE_H = 3;                // thickness (px) of inner blue cluster band
 
   // Colors
   const COL_SUP  = "#ff4d4f";     // supply (red)
   const COL_DEM  = "#22c55e";     // demand (green)
   const COL_EDGE = "#0b0f17";     // dark edge for plates
   const COL_TEST = "#3b82f6";     // blue 1h band
+  const COL_CLUSTER = "#60a5fa";  // brighter blue for clusters
   const TEST_ALPHA = 0.16;
 
   /* ---------------- State ---------------- */
   let bars = [];        // ascending [{time, open, high, low, close, volume}]
   let bands = [];       // pivot shelves [{side, pLo, pHi, tPivot, volSum}]
   let testBox = null;   // 1h consolidation {tStart, tEnd, pLo, pHi}
+  let wickClusters = null; // { top?: {pLo,pHi,touches}, bottom?: {pLo,pHi,touches} }
   let rafId = null;
   const ts = chart.timeScale();
 
@@ -151,6 +162,65 @@ export default function createSwingLiquidityOverlay({ chart, priceSeries, chartC
     }
     if(!best) return;
     testBox = { tStart:b1h[best.iStart].time, tEnd:b1h[best.iEnd].time, pLo:best.pLo, pHi:best.pHi };
+    // build wick clusters for this window
+    wickClusters = buildWickClusters(b1h, best);
+  }
+
+  /* -------------- Wick clustering inside 1h box -------------- */
+  function buildWickClusters(b1h, best) {
+    const { iStart, iEnd } = best;
+    const spanBars = b1h.slice(iStart, iEnd + 1);
+    if (!spanBars.length) return null;
+
+    const lastClose = b1h.at(-1).close || spanBars.at(-1).close;
+    const step = (BUCKET_BPS / 10000) * lastClose;
+    const mergeStep = (MERGE_BPS / 10000) * lastClose;
+
+    // top wicks = [close, high], bottom wicks = [low, open]
+    const top = new Map();    // key -> {touches}
+    const bottom = new Map();
+
+    const keyOf = (price) => Math.floor(price / step) * step;
+
+    for (const b of spanBars) {
+      // top wick touches
+      if (b.high > Math.max(b.open, b.close)) {
+        const tip = b.high;                    // wick tip
+        const key = keyOf(tip);
+        const obj = top.get(key) || { touches: 0 };
+        obj.touches += 1; top.set(key, obj);
+      }
+      // bottom wick touches
+      if (b.low < Math.min(b.open, b.close)) {
+        const tip = b.low;
+        const key = keyOf(tip);
+        const obj = bottom.get(key) || { touches: 0 };
+        obj.touches += 1; bottom.set(key, obj);
+      }
+    }
+
+    const mergeMap = (m) => {
+      const keys = Array.from(m.keys()).sort((a,b)=>a-b);
+      const out=[]; let cur=null;
+      for (const k of keys) {
+        const t = m.get(k).touches;
+        if (!cur) { cur = { pLo:k, pHi:k+step, touches:t }; continue; }
+        if (k - cur.pHi <= mergeStep) { cur.pHi += step; cur.touches += t; }
+        else { out.push(cur); cur = { pLo:k, pHi:k+step, touches:t }; }
+      }
+      if (cur) out.push(cur);
+      return out;
+    };
+
+    const topZones = mergeMap(top).filter(z => z.touches >= MIN_TOUCHES_CLUSTER);
+    const botZones = mergeMap(bottom).filter(z => z.touches >= MIN_TOUCHES_CLUSTER);
+
+    const pickMax = (arr) => arr.length ? arr.sort((a,b)=>b.touches-a.touches)[0] : null;
+
+    return {
+      top: pickMax(topZones),
+      bottom: pickMax(botZones),
+    };
   }
 
   /* ---------------- Draw (read-only) ---------------- */
@@ -195,7 +265,7 @@ export default function createSwingLiquidityOverlay({ chart, priceSeries, chartC
       ctx.globalAlpha=1; ctx.lineWidth=STROKE_W; ctx.strokeStyle=color;
       ctx.strokeRect(rectX+0.5,yMin+0.5,rectW-1,rectH-1);
 
-      // right-edge tag (pivot edge) + plate w/ outlined text
+      // right-edge tag + volume plate
       const frac = Math.max(0,(bd.volSum||0)/volMax);
       const tagH = Math.max(TAG_MIN_H, Math.floor(h*0.15*frac));
       const tagX = xPivot - TAG_W;
@@ -203,7 +273,7 @@ export default function createSwingLiquidityOverlay({ chart, priceSeries, chartC
       ctx.fillStyle = color; ctx.fillRect(tagX,tagY,TAG_W,tagH);
       ctx.lineWidth=1; ctx.strokeStyle=COL_EDGE; ctx.strokeRect(tagX+0.5,tagY+0.5,TAG_W-1,tagH-1);
 
-      // volume text plate
+      // volume text plate (large, readable)
       const txt = fmtVol(bd.volSum||0);
       const metrics = ctx.measureText(txt);
       const textW = Math.ceil(metrics.width), textH = 18;
@@ -222,7 +292,7 @@ export default function createSwingLiquidityOverlay({ chart, priceSeries, chartC
       ctx.fillText(txt, textX, textY);
     }
 
-    // 2) 1-hour consolidation test band (blue)
+    // 2) 1-hour consolidation band (blue outer)
     if (testBox){
       const yTop=yFor(testBox.pHi), yBot=yFor(testBox.pLo);
       const xS=xFor(testBox.tStart), xE=xFor(testBox.tEnd);
@@ -234,6 +304,40 @@ export default function createSwingLiquidityOverlay({ chart, priceSeries, chartC
         ctx.fillRect(xLeftB,yMin,Math.max(1,xRightB-xLeftB),rectH);
         ctx.globalAlpha=1; ctx.lineWidth=STROKE_W; ctx.strokeStyle=COL_TEST;
         ctx.strokeRect(xLeftB+0.5,yMin+0.5,Math.max(1,xRightB-xLeftB)-1,rectH-1);
+
+        // 3) Wick clusters (inner bright-blue bands + touches label)
+        if (wickClusters) {
+          const drawCluster = (cl) => {
+            if (!cl || !Number.isFinite(cl.pLo) || !Number.isFinite(cl.pHi) || !cl.touches) return;
+            const yLo = yFor(cl.pLo), yHi = yFor(cl.pHi);
+            if (yLo == null || yHi == null) return;
+            const yMid = (yLo + yHi) / 2;
+            ctx.globalAlpha = 0.75; ctx.fillStyle = COL_CLUSTER;
+            ctx.fillRect(xLeftB, yMid - INNER_LINE_H/2, Math.max(1, xRightB - xLeftB), INNER_LINE_H);
+            ctx.globalAlpha = 1;
+
+            // touches plate at right edge of the blue band
+            const touchesTxt = `${cl.touches} touches`;
+            const m = ctx.measureText(touchesTxt);
+            const tW = Math.ceil(m.width), tH = 18;
+            let px = xRightB + TEXT_PAD, py = yMid - tH/2;
+            const pW = tW + 2*6;
+            if (px + pW > (chartContainer.clientWidth||1) - 2) px = xRightB - TEXT_PAD - pW;
+
+            ctx.globalAlpha = 0.85; ctx.fillStyle = "#0b0f17";
+            ctx.fillRect(px, py, pW, tH);
+            ctx.globalAlpha = 1; ctx.lineWidth=1; ctx.strokeStyle="#1f2a44";
+            ctx.strokeRect(px+0.5, py+0.5, pW-1, tH-1);
+
+            const tx = px + 6, ty = py + tH - 4;
+            ctx.fillStyle="#e5e7eb"; ctx.strokeStyle="#000"; ctx.lineWidth=2;
+            ctx.strokeText(touchesTxt, tx, ty);
+            ctx.fillText(touchesTxt, tx, ty);
+          };
+
+          drawCluster(wickClusters.top);
+          drawCluster(wickClusters.bottom);
+        }
       }
     }
   }
@@ -254,26 +358,8 @@ export default function createSwingLiquidityOverlay({ chart, priceSeries, chartC
   return {
     seed(rawBarsAsc){
       bars = (rawBarsAsc||[]).map(b=>({...b, time:toSec(b.time)})).sort((a,b)=>a.time-b.time);
-      // build shelves + 1h test band
-      (function rebuildAll(){
-        rebuildBands();
-        // Build the 1h test box after bands; they’re independent
-        (function rebuildTest(){
-          const b1h = resampleTo1h(bars);
-          if (b1h.length < BOX_MIN_HRS){ testBox=null; return; }
-          let best=null; const n=b1h.length;
-          for(let span=BOX_MIN_HRS; span<=BOX_MAX_HRS; span++){
-            for(let i=0;i+span<=n;i++){
-              const j=i+span-1; let lo=+Infinity, hi=-Infinity;
-              for(let k=i;k<=j;k++){ lo=Math.min(lo,b1h[k].low); hi=Math.max(hi,b1h[k].high); }
-              const mid=(lo+hi)/2; const bps=((hi-lo)/Math.max(1e-6,mid))*10000;
-              if(bps>BOX_BPS_LIMIT) continue;
-              if(!best || bps<best.bps) best={iStart:i,iEnd:j,pLo:lo,pHi:hi,bps};
-            }
-          }
-          testBox = best ? { tStart:b1h[best.iStart].time, tEnd:b1h[best.iEnd].time, pLo:best.pLo, pHi:best.pHi } : null;
-        })();
-      })();
+      rebuildBands();
+      rebuildTestBox();  // 1h band + wickClusters
       doDraw();
     },
     update(latest){
@@ -283,9 +369,8 @@ export default function createSwingLiquidityOverlay({ chart, priceSeries, chartC
       else if (t===last.time)   bars[bars.length-1] = {...latest,time:t};
       else return;
 
-      // light rebuilds
       rebuildBands();
-      if (bars.length % 3 === 0) rebuildTestBox();
+      if (bars.length % 3 === 0) rebuildTestBox(); // light rebuild cadence
       doDraw();
     },
     destroy(){
