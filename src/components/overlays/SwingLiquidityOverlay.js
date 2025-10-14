@@ -1,12 +1,13 @@
 // src/components/overlays/SwingLiquidityOverlay.js
 // Pivot Shelves + Dual 1h Consolidation Zones (Primary + Secondary) + Wick Clusters (P1)
+// Full-width bands (blue/yellow) across the entire viewport, with optional ticks at original box edges.
 // Inert (paint-only): NO fit/visibleRange calls; NO ResizeObserver/DPR.
 // RowChart owns lifecycle via attachOverlay(); this file self-mounts its canvas.
 
 export default function createSwingLiquidityOverlay({ chart, priceSeries, chartContainer }) {
   if (!chart || !priceSeries || !chartContainer) {
     console.warn("[SwingLiquidity] missing args");
-    return { seed() {}, update() {}, destroy() {} };
+    return { seed() {}, update() {}, destroy() {}, getConsolidationZones() { return { primary:null, secondary:null }; } };
   }
 
   /* ---------------- Tunables ---------------- */
@@ -29,10 +30,10 @@ export default function createSwingLiquidityOverlay({ chart, priceSeries, chartC
   const BOX_MIN_HRS = 16;
   const BOX_MAX_HRS = 24;
 
-  // Tightness limits
-  const BOX_BPS_LIMIT_STRICT = 35; // 0.35% (SPY/QQQ-like)
+  // Tightness limits (TSLA-friendly first)
+  const BOX_BPS_LIMIT_STRICT = 35; // 0.35% (SPY/QQQ-like; available if you want to force strict)
   const BOX_BPS_LIMIT_TSLA   = 55; // 0.55% first-pass for TSLA-like names
-  const FALLBACK_TO_TIGHTEST = true;
+  const FALLBACK_TO_TIGHTEST = true; // if no candidate under TSLA cap, pick tightest regardless
 
   // Wick clustering + dwell + retests (for Primary)
   const BUCKET_BPS = 5;                // 0.05%
@@ -50,7 +51,7 @@ export default function createSwingLiquidityOverlay({ chart, priceSeries, chartC
   const RELAX_RETEST_H = 48;
 
   // Scoring weights (0..1 normalized per side)
-  const W_VOL = 0.45;
+  const W_VOL = 0.45;   // dwell proxy
   const W_TCH = 0.30;
   const W_RTS = 0.15;
   const W_REC = 0.10;
@@ -66,10 +67,15 @@ export default function createSwingLiquidityOverlay({ chart, priceSeries, chartC
   const COL_EDGE = "#0b0f17";      // plate edge
   const COL_P1_BOX = "#3b82f6";    // Primary (blue)
   const COL_P1     = "#3b82f6";    // Primary cluster line
-  const COL_P2_BOX_FILL = "rgba(255,255,0,0.25)"; // Secondary (yellow) fill
+  const COL_P2_BOX_FILL = "rgba(255,255,0,0.25)";  // Secondary (yellow) fill
   const COL_P2_BOX_STROKE = "rgba(255,255,0,0.9)"; // Secondary border
   const COL_P2_DASH = "rgba(255,255,0,0.8)";
   const TEST_ALPHA = 0.16;
+
+  // Drawing switches
+  const FULL_WIDTH_SHELVES = true;   // make blue/yellow span full width
+  const SHOW_BOX_TICKS     = true;   // faint vertical ticks at original box edges
+  const FULL_WIDTH_PIVOTS  = false;  // set true if you want green/red pivot shelves full width too
 
   /* ---------------- State ---------------- */
   let bars = [];          // asc [{time,open,high,low,close,volume}] (seconds)
@@ -196,6 +202,7 @@ export default function createSwingLiquidityOverlay({ chart, priceSeries, chartC
     const top = new Map(), bottom = new Map();
     const keyOf = (price) => Math.floor(price / step) * step;
 
+    // bucket wick tips
     for (const b of spanBars) {
       if (b.high > Math.max(b.open, b.close)) {
         const key = keyOf(b.high); const o = top.get(key) || { touches:0 };
@@ -207,6 +214,7 @@ export default function createSwingLiquidityOverlay({ chart, priceSeries, chartC
       }
     }
 
+    // merge adjacent buckets
     const mergeMap = (m) => {
       const keys = Array.from(m.keys()).sort((a,b)=>a-b);
       const out=[]; let cur=null;
@@ -380,7 +388,7 @@ export default function createSwingLiquidityOverlay({ chart, priceSeries, chartC
       { tStart:c.tStart, tEnd:c.tEnd }
     ));
     if (remaining.length){
-      remaining.sort((a,b)=> a.tEnd - b.tEnd); // ascending
+      remaining.sort((a,b)=> a.tEnd - b.tEnd); // ascending by end time
       const latestEnd = remaining.at(-1).tEnd;
       const near = remaining.filter(c => c.tEnd === latestEnd);
       const B = (near.length>1)
@@ -421,32 +429,39 @@ export default function createSwingLiquidityOverlay({ chart, priceSeries, chartC
       chartContainer.appendChild(cnv);
     }
     if (!w || !h) return; // wait for layout
-    cnv.width = w; cnv.height= h;
+    cnv.width = w; 
+    cnv.height= h;
 
     const ctx = cnv.getContext("2d");
     ctx.clearRect(0,0,w,h);
     ctx.font = FONT;
 
     const volMax = Math.max(1, ...bands.map(b=>b.volSum||0));
-    const xLeft = 0; // extend shelves fully left
+
+    const viewLeft  = 0;
+    const viewRight = chartContainer.clientWidth || 1;
+    const viewW     = Math.max(1, viewRight - viewLeft);
 
     // (1) Pivot shelves + volume plates
     for (const bd of bands){
-      const yTop=yFor(bd.pHi), yBot=yFor(bd.pLo), xPivot=xFor(bd.tPivot);
+      const yTop=yFor(bd.pHi), yBot=yFor(bd.pLo);
+      const xPivot=xFor(bd.tPivot);
       if (yTop==null||yBot==null||xPivot==null) continue;
 
       const color = bd.side==="SUP" ? COL_SUP : COL_DEM;
       const yMin=Math.min(yTop,yBot), yMax=Math.max(yTop,yBot);
-      const rectX=Math.min(xLeft,xPivot);
-      const rectW=Math.max(1,Math.abs(xPivot-xLeft));
       const rectH=Math.max(2,yMax-yMin);
 
+      const rectX = FULL_WIDTH_PIVOTS ? viewLeft : Math.min(0, xPivot);
+      const rectW = FULL_WIDTH_PIVOTS ? viewW : Math.max(1, Math.abs((xPivot) - 0));
+
+      // band fill + outline
       ctx.globalAlpha=FILL_ALPHA; ctx.fillStyle=color;
       ctx.fillRect(rectX,yMin,rectW,rectH);
       ctx.globalAlpha=1; ctx.lineWidth=STROKE_W; ctx.strokeStyle=color;
       ctx.strokeRect(rectX+0.5,yMin+0.5,rectW-1,rectH-1);
 
-      // tag + plate
+      // right-edge tag + volume plate (still anchored at pivot)
       const frac = Math.max(0,(bd.volSum||0)/volMax);
       const tagH = Math.max(TAG_MIN_H, Math.floor(h*0.15*frac));
       const tagX = xPivot - TAG_W;
@@ -472,48 +487,103 @@ export default function createSwingLiquidityOverlay({ chart, priceSeries, chartC
       ctx.fillText(txt, textX, textY);
     }
 
-    // (2) Secondary 1h box (Yellow) — draw UNDER Primary for clean overlap
+    // (2) Secondary 1h box (Yellow) — full-width band UNDER Primary for clean overlap
     if (zoneP2){
       const yTop=yFor(zoneP2.pHi), yBot=yFor(zoneP2.pLo);
-      const xS=xFor(zoneP2.tStart), xE=xFor(zoneP2.tEnd);
-      if (yTop!=null && yBot!=null && xS!=null && xE!=null){
+      if (yTop!=null && yBot!=null){
         const yMin=Math.min(yTop,yBot), yMax=Math.max(yTop,yBot);
-        const xLeftB=Math.min(xS,xE),  xRightB=Math.max(xS,xE);
         const rectH=Math.max(2,yMax-yMin);
 
-        ctx.globalAlpha = 1;
-        ctx.fillStyle = COL_P2_BOX_FILL;
-        ctx.fillRect(xLeftB,yMin,Math.max(1,xRightB-xLeftB),rectH);
+        // Full-width yellow band
+        if (FULL_WIDTH_SHELVES) {
+          ctx.globalAlpha = 1;
+          ctx.fillStyle = COL_P2_BOX_FILL;
+          ctx.fillRect(viewLeft, yMin, viewW, rectH);
 
-        ctx.save();
-        ctx.setLineDash([6,6]);
-        ctx.lineWidth = STROKE_W;
-        ctx.strokeStyle = COL_P2_BOX_STROKE;
-        ctx.strokeRect(xLeftB+0.5,yMin+0.5,Math.max(1,xRightB-xLeftB)-1,rectH-1);
-        ctx.restore();
+          ctx.save();
+          ctx.setLineDash([6,6]);
+          ctx.lineWidth = STROKE_W;
+          ctx.strokeStyle = COL_P2_BOX_STROKE;
+          ctx.strokeRect(viewLeft+0.5, yMin+0.5, viewW-1, rectH-1);
+          ctx.restore();
+        } else {
+          const xS=xFor(zoneP2.tStart), xE=xFor(zoneP2.tEnd);
+          if (xS!=null && xE!=null){
+            const xLeftB=Math.min(xS,xE), xRightB=Math.max(xS,xE);
+            ctx.globalAlpha = 1;
+            ctx.fillStyle = COL_P2_BOX_FILL;
+            ctx.fillRect(xLeftB, yMin, Math.max(1, xRightB-xLeftB), rectH);
+            ctx.save();
+            ctx.setLineDash([6,6]);
+            ctx.lineWidth = STROKE_W;
+            ctx.strokeStyle = COL_P2_BOX_STROKE;
+            ctx.strokeRect(xLeftB+0.5, yMin+0.5, Math.max(1, xRightB-xLeftB)-1, rectH-1);
+            ctx.restore();
+          }
+        }
+
+        // Optional faint ticks at original box edges
+        if (SHOW_BOX_TICKS) {
+          const xS = xFor(zoneP2.tStart), xE = xFor(zoneP2.tEnd);
+          if (xS!=null && xE!=null){
+            ctx.save();
+            ctx.globalAlpha = 0.25;
+            ctx.setLineDash([2,4]);
+            ctx.strokeStyle = COL_P2_BOX_STROKE;
+            ctx.beginPath(); ctx.moveTo(xS, yMin); ctx.lineTo(xS, yMax); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(xE, yMin); ctx.lineTo(xE, yMax); ctx.stroke();
+            ctx.restore();
+          }
+        }
       }
     }
 
     // (3) Primary 1h box (Blue) + clusters (P1 labels/lines)
     if (zoneP1){
       const yTop=yFor(zoneP1.pHi), yBot=yFor(zoneP1.pLo);
-      const xS=xFor(zoneP1.tStart), xE=xFor(zoneP1.tEnd);
-      if (yTop!=null && yBot!=null && xS!=null && xE!=null){
+      if (yTop!=null && yBot!=null){
         const yMin=Math.min(yTop,yBot), yMax=Math.max(yTop,yBot);
-        const xLeftB=Math.min(xS,xE),  xRightB=Math.max(xS,xE);
         const rectH=Math.max(2,yMax-yMin);
 
-        ctx.globalAlpha=TEST_ALPHA; ctx.fillStyle=COL_P1_BOX;
-        ctx.fillRect(xLeftB,yMin,Math.max(1,xRightB-xLeftB),rectH);
-        ctx.globalAlpha=1; ctx.lineWidth=STROKE_W; ctx.strokeStyle=COL_P1_BOX;
-        ctx.strokeRect(xLeftB+0.5,yMin+0.5,Math.max(1,xRightB-xLeftB)-1,rectH-1);
+        // Full-width blue band
+        if (FULL_WIDTH_SHELVES) {
+          ctx.globalAlpha=TEST_ALPHA; 
+          ctx.fillStyle=COL_P1_BOX;
+          ctx.fillRect(viewLeft, yMin, viewW, rectH);
+          ctx.globalAlpha=1; 
+          ctx.lineWidth=STROKE_W; 
+          ctx.strokeStyle=COL_P1_BOX;
+          ctx.strokeRect(viewLeft+0.5, yMin+0.5, viewW-1, rectH-1);
+        } else {
+          const xS=xFor(zoneP1.tStart), xE=xFor(zoneP1.tEnd);
+          if (xS!=null && xE!=null){
+            const xLeftB=Math.min(xS,xE),  xRightB=Math.max(xS,xE);
+            ctx.globalAlpha=TEST_ALPHA; 
+            ctx.fillStyle=COL_P1_BOX;
+            ctx.fillRect(xLeftB, yMin, Math.max(1, xRightB-xLeftB), rectH);
+            ctx.globalAlpha=1; 
+            ctx.lineWidth=STROKE_W; 
+            ctx.strokeStyle=COL_P1_BOX;
+            ctx.strokeRect(xLeftB+0.5, yMin+0.5, Math.max(1, xRightB-xLeftB)-1, rectH-1);
+          }
+        }
+
+        // Optional faint ticks at original box edges
+        if (SHOW_BOX_TICKS) {
+          const xS = xFor(zoneP1.tStart), xE = xFor(zoneP1.tEnd);
+          if (xS!=null && xE!=null){
+            ctx.save();
+            ctx.globalAlpha = 0.25;
+            ctx.setLineDash([2,4]);
+            ctx.strokeStyle = COL_P1_BOX;
+            ctx.beginPath(); ctx.moveTo(xS, yMin); ctx.lineTo(xS, yMax); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(xE, yMin); ctx.lineTo(xE, yMax); ctx.stroke();
+            ctx.restore();
+          }
+        }
 
         // Clusters (Primary lines across full viewport)
         if (wickClusters) {
-          const viewLeft  = 0;
-          const viewRight = chartContainer.clientWidth || 1;
-          const viewW     = Math.max(1, viewRight - viewLeft);
-
           const drawPrimaryLine = (cl) => {
             if (!cl) return;
             const yLo = yFor(cl.pLo), yHi = yFor(cl.pHi);
@@ -535,7 +605,10 @@ export default function createSwingLiquidityOverlay({ chart, priceSeries, chartC
 
             // label (P1)
             const pct = Math.round((cl.score || 0) * 100);
-            const label = `${cl.touches||0}T · ${cl.dwell||0}h` + (cl.retests?` · ${cl.retests}R`:"") + (pct?` · ${pct}%`:"") + "  (P1)";
+            const label = `${cl.touches||0}T · ${cl.dwell||0}h`
+              + (cl.retests ? ` · ${cl.retests}R` : "")
+              + (pct ? ` · ${pct}%` : "")
+              + "  (P1)";
             const m = ctx.measureText(label);
             const tW = Math.ceil(m.width), tH = 18;
             let px = viewRight - TEXT_PAD - (tW + 2*6);
@@ -563,8 +636,8 @@ export default function createSwingLiquidityOverlay({ chart, priceSeries, chartC
             ctx.lineWidth = 2;
             ctx.strokeStyle = COL_P2_DASH;
             ctx.beginPath();
-            ctx.moveTo(0, yMid);
-            ctx.lineTo(chartContainer.clientWidth || 1, yMid);
+            ctx.moveTo(viewLeft, yMid);
+            ctx.lineTo(viewRight, yMid);
             ctx.stroke();
             ctx.restore();
           };
@@ -631,7 +704,7 @@ export default function createSwingLiquidityOverlay({ chart, priceSeries, chartC
       // RowChart cleans chartContainer; we intentionally leave canvas cleanup to it.
     },
 
-    // Optional programmatic access for Strategy row
+    // Programmatic access for Strategy row
     getConsolidationZones(){
       const lastClose = bars.at(-1)?.close ?? null;
       const dist = (z) => (z && lastClose!=null) ? Math.min(Math.abs(lastClose - z.pLo), Math.abs(lastClose - z.pHi)) : null;
