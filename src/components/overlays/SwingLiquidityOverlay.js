@@ -1,13 +1,7 @@
 // src/components/overlays/SwingLiquidityOverlay.js
-// Pivot Shelves + 1h Consolidation + Wick Clusters (with Dwell)
-// Final: big volume plates, cluster lines extend across viewport, inert pan/zoom redraw.
-// -----------------------------------------------------------------------------
-// • Red/Green pivot shelves (Top-3 highs + Top-3 lows), left-extended,
-//   RIGHT-edge volume tags with large readable plates.
-// • Blue 1-hour consolidation band: tightest 16–24h window in ~30 days.
-// • Wick clustering (5 bps buckets, merged ≤10 bps) + DWELL ≥ 8h near edge.
-// • Cluster lines extend fully left → right across viewport; label shows "touches · dwell".
-// • Read-only pan/zoom redraw (rAF throttle). No zoom/fit changes. No ResizeObserver/DPR.
+// Pivot Shelves + 1h Consolidation + Wick Clusters (Dwell + Retests)
+// Final Step 6: thicker/bright cluster lines when retests >= 2.
+// Inert, read-only pan/zoom redraw; no zoom/fit calls; no ResizeObserver/DPR.
 
 export default function createSwingLiquidityOverlay({ chart, priceSeries, chartContainer }) {
   if (!chart || !priceSeries || !chartContainer) {
@@ -34,7 +28,7 @@ export default function createSwingLiquidityOverlay({ chart, priceSeries, chartC
   const TEST_LOOKBACK_HOURS = 24 * 30;   // ~30 days
   const BOX_MIN_HRS = 16;                // 16–24 bars
   const BOX_MAX_HRS = 24;
-  const BOX_BPS_LIMIT = 35;              // ≤ 0.35% total range (loose starter)
+  const BOX_BPS_LIMIT = 35;              // ≤ 0.35% total range (starter)
 
   // Wick clustering + dwell
   const BUCKET_BPS = 5;                  // 0.05% bucket
@@ -42,21 +36,30 @@ export default function createSwingLiquidityOverlay({ chart, priceSeries, chartC
   const MIN_TOUCHES_CLUSTER = 3;         // minimum wick touches
   const DWELL_MIN_HOURS = 8;             // require ≥ 8 hours of body dwell
   const DWELL_BAND_EXPAND_BUCKETS = 1;   // expand cluster band ±1 bucket for dwell
-  const INNER_LINE_H = 3;                // cluster line thickness (px)
+
+  // Retests
+  const RETEST_LOOKAHEAD_HRS = 30;       // scan forward after box end
+  const RETEST_BUFFER_BPS    = 8;        // band ± retest buffer in bps (0.08%)
+  const RETEST_MIN_COUNT     = 2;        // highlight when >= 2 retests
+  const INNER_LINE_H         = 3;        // normal cluster line thickness
+  const INNER_LINE_H_MAJOR   = 5;        // thicker when major (>=2 retests)
 
   // Colors
   const COL_SUP  = "#ff4d4f";     // supply (red)
   const COL_DEM  = "#22c55e";     // demand (green)
   const COL_EDGE = "#0b0f17";     // plate edge
   const COL_TEST = "#3b82f6";     // blue consolidation band
-  const COL_CLUSTER = "#60a5fa";  // brighter cluster line
+  const COL_CLUSTER = "#60a5fa";  // normal cluster line
+  const COL_CLUSTER_MAJOR = "#3b82f6"; // brighter when major
   const TEST_ALPHA = 0.16;
 
   /* ---------------- State ---------------- */
   let bars = [];        // ascending [{time, open, high, low, close, volume}]
   let bands = [];       // pivot shelves [{side, pLo, pHi, tPivot, volSum}]
   let testBox = null;   // 1h consolidation {tStart, tEnd, pLo, pHi}
-  let wickClusters = null; // { top?: {pLo,pHi,touches,dwell}, bottom?: {…} }
+  // clusters: { top?: {pLo,pHi,touches,dwell,retests}, bottom?: {…} }
+  let wickClusters = null;
+
   let rafId = null;
   const ts = chart.timeScale();
 
@@ -99,7 +102,7 @@ export default function createSwingLiquidityOverlay({ chart, priceSeries, chartC
       const out=[], used=[];
       for (const z of arr) {
         if (out.length >= max) break;
-        if (used.some(u => Math.abs(u - z.p) <= half*0.75)) continue; // collapse near-dupes
+        if (used.some(u => Math.abs(u - z.p) <= half*0.75)) continue;
         used.push(z.p);
         out.push({ side, pLo: z.p - half, pHi: z.p + half, tPivot: z.t, volSum: 0 });
       }
@@ -108,7 +111,7 @@ export default function createSwingLiquidityOverlay({ chart, priceSeries, chartC
 
     bands = [...take(highs,"SUP",TOP_PER_SIDE), ...take(lows,"DEM",TOP_PER_SIDE)];
 
-    // compute per-band volume from left edge → pivot time
+    // per-band volume from left edge → pivot time
     if (bands.length) {
       const tMin = toSec(bars[0].time);
       for (const bd of bands) {
@@ -144,7 +147,7 @@ export default function createSwingLiquidityOverlay({ chart, priceSeries, chartC
     return out.slice(-TEST_LOOKBACK_HOURS);
   }
 
-  // pick ONE tightest 16–24h window (≤ BOX_BPS_LIMIT) and compute wick clusters + dwell
+  // pick ONE tightest 16–24h window (≤ BOX_BPS_LIMIT) and compute wick clusters + dwell + retests
   function rebuildTestBox(){
     testBox = null;
     wickClusters = null;
@@ -166,12 +169,12 @@ export default function createSwingLiquidityOverlay({ chart, priceSeries, chartC
     if(!best) return;
     testBox = { tStart:b1h[best.iStart].time, tEnd:b1h[best.iEnd].time, pLo:best.pLo, pHi:best.pHi };
 
-    // Wick clusters + dwell computation
-    wickClusters = buildWickClustersWithDwell(b1h, best);
+    // Wick clusters + dwell + retests
+    wickClusters = buildWickClustersWithStats(b1h, best);
   }
 
-  /* -------------- Wick clustering WITH DWELL -------------- */
-  function buildWickClustersWithDwell(b1h, best) {
+  /* -------------- Wick clustering WITH DWELL + RETESTS -------------- */
+  function buildWickClustersWithStats(b1h, best) {
     const { iStart, iEnd } = best;
     const spanBars = b1h.slice(iStart, iEnd + 1);
     if (!spanBars.length) return null;
@@ -231,6 +234,30 @@ export default function createSwingLiquidityOverlay({ chart, priceSeries, chartC
     const topKeep = topZones.filter(z => z.dwell >= DWELL_MIN_HOURS);
     const botKeep = botZones.filter(z => z.dwell >= DWELL_MIN_HOURS);
 
+    // retests: scan forward after the box end
+    const retestFor = (loBand, hiBand) => {
+      const buf = (RETEST_BUFFER_BPS / 10000) * lastClose;
+      const lo = loBand - buf, hi = hiBand + buf;
+
+      let count = 0;
+      let inTouch = false;
+      const startIdx = best.iEnd + 1;
+      const endIdx   = Math.min(b1h.length - 1, best.iEnd + RETEST_LOOKAHEAD_HRS);
+
+      for (let i = startIdx; i <= endIdx; i++) {
+        const b = b1h[i];
+        const wickLo = Math.min(b.open, b.close, b.low);
+        const wickHi = Math.max(b.open, b.close, b.high);
+        const touch = wickHi >= lo && wickLo <= hi;
+        if (touch && !inTouch) { count += 1; inTouch = true; }
+        else if (!touch && inTouch) { inTouch = false; }
+      }
+      return count;
+    };
+
+    for (const z of topKeep) z.retests = retestFor(z.pLo, z.pHi);
+    for (const z of botKeep) z.retests = retestFor(z.pLo, z.pHi);
+
     const pickMax = (arr) => arr.length ? arr.sort((a,b)=>b.touches-a.touches)[0] : null;
 
     return {
@@ -281,7 +308,7 @@ export default function createSwingLiquidityOverlay({ chart, priceSeries, chartC
       ctx.globalAlpha=1; ctx.lineWidth=STROKE_W; ctx.strokeStyle=color;
       ctx.strokeRect(rectX+0.5,yMin+0.5,rectW-1,rectH-1);
 
-      // right-edge tag + volume text plate
+      // right-edge tag + volume plate
       const frac = Math.max(0,(bd.volSum||0)/volMax);
       const tagH = Math.max(TAG_MIN_H, Math.floor(h*0.15*frac));
       const tagX = xPivot - TAG_W;
@@ -330,18 +357,18 @@ export default function createSwingLiquidityOverlay({ chart, priceSeries, chartC
             if (yLo == null || yHi == null) return;
             const yMid = (yLo + yHi) / 2;
 
-            // extend across entire viewport
             const viewLeft  = 0;
             const viewRight = chartContainer.clientWidth || 1;
             const viewW     = Math.max(1, viewRight - viewLeft);
 
-            ctx.globalAlpha = 0.75; 
-            ctx.fillStyle   = COL_CLUSTER;
-            ctx.fillRect(viewLeft, yMid - INNER_LINE_H/2, viewW, INNER_LINE_H);
+            const isMajor = (cl.retests || 0) >= RETEST_MIN_COUNT;
+            ctx.globalAlpha = 0.85;
+            ctx.fillStyle   = isMajor ? COL_CLUSTER_MAJOR : COL_CLUSTER;
+            ctx.fillRect(viewLeft, yMid - (isMajor ? INNER_LINE_H_MAJOR : INNER_LINE_H)/2, viewW, (isMajor ? INNER_LINE_H_MAJOR : INNER_LINE_H));
             ctx.globalAlpha = 1;
 
-            // label anchored at viewport right edge: "touches · dwell"
-            const label = `${cl.touches}T · ${cl.dwell}h`;
+            // label anchored at viewport right edge: "touches · dwell · retests"
+            const label = `${cl.touches}T · ${cl.dwell}h` + (cl.retests ? ` · ${cl.retests}R` : "");
             const m = ctx.measureText(label);
             const tW = Math.ceil(m.width), tH = 18;
             let px = viewRight - TEXT_PAD - (tW + 2*6);
@@ -382,7 +409,7 @@ export default function createSwingLiquidityOverlay({ chart, priceSeries, chartC
     seed(rawBarsAsc){
       bars = (rawBarsAsc||[]).map(b=>({...b, time:toSec(b.time)})).sort((a,b)=>a.time-b.time);
       rebuildBands();
-      rebuildTestBox();  // 1h band + wickClusters (with dwell)
+      rebuildTestBox();  // 1h band + wickClusters (dwell + retests)
       doDraw();
     },
     update(latest){
