@@ -1,6 +1,6 @@
 // src/components/overlays/SwingLiquidityOverlay.js
 // Pivot Shelves + 1h Consolidation + Wick Clusters (Dwell + Retests + Scoring)
-// Step 7: primary + secondary cluster per side (secondary = faint dashed ghost).
+// Step 7-B Visuals: clear hierarchy — Primary (thick + glow + label), Secondary (dashed ghost).
 // Inert: read-only pan/zoom redraw; NO zoom/fit calls; NO ResizeObserver/DPR.
 
 export default function createSwingLiquidityOverlay({ chart, priceSeries, chartContainer }) {
@@ -13,10 +13,10 @@ export default function createSwingLiquidityOverlay({ chart, priceSeries, chartC
   // Pivot shelves
   const LOOKBACK = 600;
   const L = 10, R = 10;
-  const BAND_BPS = 8;            // half-band width (0.08% of last close)
-  const TOP_PER_SIDE = 3;        // Top-3 highs + Top-3 lows
+  const BAND_BPS = 8;                 // half-band width (0.08% of last close)
+  const TOP_PER_SIDE = 3;             // Top-3 highs + Top-3 lows
 
-  // Volume tags + text plates
+  // Volume plates
   const FILL_ALPHA = 0.22;
   const STROKE_W = 2;
   const TAG_W = 12;
@@ -24,39 +24,39 @@ export default function createSwingLiquidityOverlay({ chart, priceSeries, chartC
   const TEXT_PAD = 6;
   const FONT = "bold 16px system-ui, -apple-system, Segoe UI, Roboto, Arial";
 
-  // 1-hour consolidation band
-  const TEST_LOOKBACK_HOURS = 24 * 30;   // ~30 days
-  const BOX_MIN_HRS = 16;                // 16–24 bars
+  // 1-hour consolidation
+  const TEST_LOOKBACK_HOURS = 24 * 30; // ~30 days
+  const BOX_MIN_HRS = 16;
   const BOX_MAX_HRS = 24;
-  const BOX_BPS_LIMIT = 35;              // ≤ 0.35% total range (starter, safe)
+  const BOX_BPS_LIMIT = 35;            // ≤ 0.35%
 
   // Wick clustering + dwell + retests
-  const BUCKET_BPS = 5;                  // 0.05% bucket
-  const MERGE_BPS  = 10;                 // merge ≤ 0.10%
-  const MIN_TOUCHES_CLUSTER = 3;         // minimum wick touches
-  const DWELL_MIN_HOURS = 8;             // require ≥ 8 hours of body dwell
-  const DWELL_BAND_EXPAND_BUCKETS = 1;   // expand cluster band ±1 bucket for dwell
-  const RETEST_LOOKAHEAD_HRS = 30;       // scan forward after box end
-  const RETEST_BUFFER_BPS    = 8;        // band ± retest buffer in bps
-  const RETEST_MIN_COUNT     = 2;        // highlight when >= 2 retests
+  const BUCKET_BPS = 5;                // 0.05% bucket
+  const MERGE_BPS  = 10;               // merge ≤ 0.10%
+  const MIN_TOUCHES_CLUSTER = 3;
+  const DWELL_MIN_HOURS = 8;
+  const DWELL_BAND_EXPAND_BUCKETS = 1;
+  const RETEST_LOOKAHEAD_HRS = 30;     // scan forward
+  const RETEST_BUFFER_BPS    = 8;
+  const RETEST_MIN_COUNT     = 2;      // “major” threshold
 
-  // Drawing
-  const INNER_LINE_H         = 3;        // cluster line thickness (normal)
-  const INNER_LINE_H_MAJOR   = 5;        // thicker when major (>=2 retests)
-  const COL_SUP  = "#ff4d4f";     // supply (red)
-  const COL_DEM  = "#22c55e";     // demand (green)
-  const COL_EDGE = "#0b0f17";     // plate edge
-  const COL_TEST = "#3b82f6";     // blue consolidation band
-  const COL_CLUSTER = "#60a5fa";  // normal cluster line
-  const COL_CLUSTER_MAJOR = "#3b82f6"; // brighter when major
-  const COL_CLUSTER_GHOST = "rgba(96,165,250,0.25)"; // faint dashed
-  const TEST_ALPHA = 0.16;
+  // Drawing for clusters
+  const INNER_H_NORMAL   = 3;
+  const INNER_H_PRIMARY  = 5;          // thicker for Primary (P1)
+  const COL_SUP          = "#ff4d4f";  // supply (pivot shelves)
+  const COL_DEM          = "#22c55e";  // demand (pivot shelves)
+  const COL_EDGE         = "#0b0f17";  // plate edge
+  const COL_TEST         = "#3b82f6";  // blue consolidation band
+  const COL_CLUSTER      = "#60a5fa";  // cyan-ish
+  const COL_CLUSTER_P1   = "#3b82f6";  // brighter electric blue
+  const COL_CLUSTER_GHOST= "rgba(56,189,248,0.6)"; // cyan @60% opacity dashed
+  const TEST_ALPHA       = 0.16;
 
-  // Scoring weights (0–1 normalized terms)
-  const W_VOL = 0.45;   // volume while parked near cluster
-  const W_TCH = 0.30;   // touches
-  const W_RTS = 0.15;   // retests
-  const W_REC = 0.10;   // recency (box nearer to right)
+  // Scoring weights (0–1 scaled)
+  const W_VOL = 0.45, W_TCH = 0.30, W_RTS = 0.15, W_REC = 0.10;
+
+  // Visual alpha scaling for primary lines (by score)
+  const ALPHA_MIN = 0.30, ALPHA_MAX = 1.00;
 
   /* ---------------- State ---------------- */
   let bars = [];        // ascending [{time, open, high, low, close, volume}]
@@ -174,10 +174,11 @@ export default function createSwingLiquidityOverlay({ chart, priceSeries, chartC
     }
     if(!best) return;
     testBox = { tStart:b1h[best.iStart].time, tEnd:b1h[best.iEnd].time, pLo:best.pLo, pHi:best.pHi };
+
     wickClusters = buildClustersWithStats(b1h, best); // dwell+retests+scoring, primary+secondary
   }
 
-  /* -------------- Wick clustering WITH DWELL + RETESTS + SCORING -------------- */
+  /* -------------- Clusters WITH DWELL + RETESTS + SCORING -------------- */
   function buildClustersWithStats(b1h, best) {
     const { iStart, iEnd } = best;
     const spanBars = b1h.slice(iStart, iEnd + 1);
@@ -261,12 +262,12 @@ export default function createSwingLiquidityOverlay({ chart, priceSeries, chartC
     // SCORING — normalize within-side (0..1) and compute weighted score
     const scoreSide = (list) => {
       if (!list.length) return;
-      const maxVol = Math.max(...list.map(z=>z.dwell), 1); // dwell can proxy span volume exposure (safe)
-      const maxT   = Math.max(...list.map(z=>z.touches), 1);
-      const maxR   = Math.max(...list.map(z=>z.retests), 1);
-      const recN   = 1; // same window → small constant for now
+      const maxD = Math.max(...list.map(z=>z.dwell), 1);
+      const maxT = Math.max(...list.map(z=>z.touches), 1);
+      const maxR = Math.max(...list.map(z=>z.retests), 1);
+      const recN = 1; // same window → constant for now
       for (const z of list) {
-        const volN = (z.dwell) / maxVol;  // simple proxy (keeps it bounded & cheap)
+        const volN = z.dwell / maxD;     // use dwell as a cheap proxy for volume parked
         const tchN = z.touches / maxT;
         const rtsN = z.retests / maxR;
         z.score = W_VOL*volN + W_TCH*tchN + W_RTS*rtsN + W_REC*recN;
@@ -312,7 +313,7 @@ export default function createSwingLiquidityOverlay({ chart, priceSeries, chartC
     // scale for tag height
     const volMax = Math.max(1, ...bands.map(b=>b.volSum||0));
 
-    // LEFT edge for pivot shelves
+    // extend pivot shelves fully left
     const xLeft = 0;
 
     // 1) Pivot shelves (left-extended) + right-edge volume plates
@@ -372,44 +373,33 @@ export default function createSwingLiquidityOverlay({ chart, priceSeries, chartC
         ctx.globalAlpha=1; ctx.lineWidth=STROKE_W; ctx.strokeStyle=COL_TEST;
         ctx.strokeRect(xLeftB+0.5,yMin+0.5,Math.max(1,xRightB-xLeftB)-1,rectH-1);
 
-        // 3) Wick clusters (extend fully across viewport + label at viewport right)
+        // 3) Clusters — extend full viewport, primary vs secondary visuals
         if (wickClusters) {
-          const drawCluster = (cl, isGhost=false) => {
-            if (!cl || !Number.isFinite(cl.pLo) || !Number.isFinite(cl.pHi)) return;
+          const drawPrimary = (cl) => {
             const yLo = yFor(cl.pLo), yHi = yFor(cl.pHi);
             if (yLo == null || yHi == null) return;
             const yMid = (yLo + yHi) / 2;
+            const viewLeft  = 0, viewRight = chartContainer.clientWidth || 1, viewW = Math.max(1, viewRight - viewLeft);
 
-            const viewLeft  = 0;
-            const viewRight = chartContainer.clientWidth || 1;
-            const viewW     = Math.max(1, viewRight - viewLeft);
+            // alpha scales by score; glow underlay
+            const alpha = Math.max(ALPHA_MIN, Math.min(ALPHA_MAX, (cl.score || 0) * 1.2));
+            const lineH = (cl.retests || 0) >= RETEST_MIN_COUNT ? INNER_H_PRIMARY : INNER_H_NORMAL;
 
-            // dashed faint ghost
-            if (isGhost) {
-              ctx.save();
-              ctx.setLineDash([6,6]);
-              ctx.lineWidth = 2;
-              ctx.strokeStyle = COL_CLUSTER_GHOST;
-              ctx.beginPath();
-              ctx.moveTo(viewLeft, yMid);
-              ctx.lineTo(viewRight, yMid);
-              ctx.stroke();
-              ctx.setLineDash([]);
-              ctx.restore();
-              return;
-            }
+            // glow underlay
+            ctx.globalAlpha = alpha * 0.35;
+            ctx.fillStyle = COL_CLUSTER_P1;
+            ctx.fillRect(viewLeft, yMid - (lineH+4)/2, viewW, (lineH+4));
 
-            // primary
-            const isMajor = (cl.retests || 0) >= RETEST_MIN_COUNT;
-            ctx.globalAlpha = 0.9;
-            ctx.fillStyle   = isMajor ? COL_CLUSTER_MAJOR : COL_CLUSTER;
-            const lineH = isMajor ? INNER_LINE_H_MAJOR : INNER_LINE_H;
+            // main line
+            ctx.globalAlpha = alpha;
+            ctx.fillStyle = COL_CLUSTER_P1;
             ctx.fillRect(viewLeft, yMid - lineH/2, viewW, lineH);
+
             ctx.globalAlpha = 1;
 
-            // label anchored at viewport right edge: "T · h · R · score%"
+            // label at viewport right: "T · h · R · score%  (P1)"
             const pct = Math.round((cl.score || 0) * 100);
-            const label = `${cl.touches||0}T · ${cl.dwell||0}h` + (cl.retests?` · ${cl.retests}R`:"") + (pct?` · ${pct}%`:"");
+            const label = `${cl.touches||0}T · ${cl.dwell||0}h` + (cl.retests?` · ${cl.retests}R`:"") + (pct?` · ${pct}%`:"") + "  (P1)";
             const m = ctx.measureText(label);
             const tW = Math.ceil(m.width), tH = 18;
             let px = viewRight - TEXT_PAD - (tW + 2*6);
@@ -426,17 +416,53 @@ export default function createSwingLiquidityOverlay({ chart, priceSeries, chartC
             ctx.fillText(label, tx, ty);
           };
 
+          const drawSecondary = (cl) => {
+            const yLo = yFor(cl.pLo), yHi = yFor(cl.pHi);
+            if (yLo == null || yHi == null) return;
+            const yMid = (yLo + yHi) / 2;
+            const viewLeft  = 0, viewRight = chartContainer.clientWidth || 1;
+
+            ctx.save();
+            ctx.setLineDash([6,6]);
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = COL_CLUSTER_GHOST;
+            ctx.beginPath();
+            ctx.moveTo(viewLeft, yMid);
+            ctx.lineTo(viewRight, yMid);
+            ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.restore();
+
+            // small score-only plate "P2 64%"
+            const pct = Math.round((cl.score || 0) * 100);
+            const tag = `P2 ${pct}%`;
+            const m = ctx.measureText(tag);
+            const tW = Math.ceil(m.width), tH = 16;
+            let px = viewRight - TEXT_PAD - (tW + 2*6);
+            let py = yMid - tH/2;
+
+            ctx.globalAlpha = 0.85; ctx.fillStyle = "#0b0f17";
+            ctx.fillRect(px, py, tW + 2*6, tH);
+            ctx.globalAlpha = 1; ctx.lineWidth=1; ctx.strokeStyle="#1f2a44";
+            ctx.strokeRect(px+0.5, py+0.5, (tW + 2*6)-1, tH-1);
+
+            const tx = px + 6, ty = py + tH - 3;
+            ctx.fillStyle="#e5e7eb"; ctx.strokeStyle="#000"; ctx.lineWidth=2;
+            ctx.strokeText(tag, tx, ty);
+            ctx.fillText(tag, tx, ty);
+          };
+
           // top (supply)
           if (wickClusters.top) {
             const { primary, secondary } = wickClusters.top;
-            if (secondary) drawCluster(secondary, true);   // ghost first
-            if (primary)   drawCluster(primary, false);    // then primary
+            if (secondary) drawSecondary(secondary);
+            if (primary)   drawPrimary(primary);
           }
           // bottom (demand)
           if (wickClusters.bottom) {
             const { primary, secondary } = wickClusters.bottom;
-            if (secondary) drawCluster(secondary, true);
-            if (primary)   drawCluster(primary, false);
+            if (secondary) drawSecondary(secondary);
+            if (primary)   drawPrimary(primary);
           }
         }
       }
