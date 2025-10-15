@@ -1,6 +1,6 @@
 // src/pages/rows/RowMarketOverview.jsx
 import React from "react";
-import { useDashboardPoll } from "../../lib/dashboardApi";
+import { useDashboardPoll } from "../lib/dashboardApiSafe";
 import { LastUpdated } from "../../components/LastUpdated";
 import {
   MarketMeterIntradayLegend,
