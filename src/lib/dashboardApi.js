@@ -115,7 +115,7 @@ function transformToUi(raw) {
 export async function fetchDashboard() {
   try {
     const r = await fetch(`${API}/api/dashboard`, { cache: "no-store" });
-    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    if (!r.ok) return transformToUi({});
     const raw = await r.json();
     return transformToUi(raw);
   } catch (e) {
