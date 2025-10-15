@@ -1,6 +1,6 @@
 // src/components/SectorsGrid.jsx
 import React from "react";
-import { useDashboardPoll } from "../lib/dashboardApi";
+import { useDashboardPoll } from "../lib/dashboardApiSafe";
 
 export default function SectorsGrid() {
   const { data } = useDashboardPoll(5000);
