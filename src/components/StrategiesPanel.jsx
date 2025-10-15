@@ -1,6 +1,6 @@
 // src/components/StrategiesPanel.jsx
 import React from "react";
-import { useDashboardPoll } from "../lib/dashboardApi";
+import { useDashboardPoll } from "../lib/dashboardApiSafe";
 
 const card = { border:"1px solid #1f2a44", borderRadius:12, padding:12, background:"#0e1526" };
 const header = { fontWeight:700, marginBottom:8, display:"flex", alignItems:"center", gap:8 };
