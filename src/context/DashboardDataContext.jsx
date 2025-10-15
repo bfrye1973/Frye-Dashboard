@@ -1,6 +1,6 @@
 // src/context/DashboardDataContext.jsx
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
-import { useDashboardPoll } from "../lib/dashboardApi"; // your adapter (reads squeezeDaily, meter, etc.)
+import { useDashboardPoll } from "../lib/dashboardApiSafe"; // your adapter (reads squeezeDaily, meter, etc.)
 
 const DashboardDataContext = createContext(null);
 
