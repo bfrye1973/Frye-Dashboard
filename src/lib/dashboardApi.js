@@ -1,8 +1,25 @@
 // src/lib/dashboardApi.js
 import { useEffect, useRef, useState } from "react";
 
-// FINAL CANONICAL BACKEND (the working one)
-const API = "https://frye-market-backend-1.onrender.com";
+/* ----------------------- API base resolution ----------------------- */
+/** Prefer runtime globals/env, fall back to your Render backend. */
+const RAW_BASE =
+  (typeof window !== "undefined" && (window.__API_BASE__ || "")) ||
+  process.env.REACT_APP_API_BASE ||
+  process.env.VITE_API_BASE ||
+  "https://frye-market-backend-1.onrender.com/api";
+
+/** Normalize once to avoid double slashes and handle with/without `/api` */
+function normalizeBase(b) {
+  const s = String(b || "").replace(/\/+$/g, ""); // trim trailing /
+  // ensure there is exactly one `/api` segment at end
+  if (/\/api$/i.test(s)) return s;
+  return s + "/api";
+}
+const API_BASE = normalizeBase(RAW_BASE);
+
+/** Safe join: API_BASE + '/dashboard' -> '.../api/dashboard' */
+const apiJoin = (p) => `${API_BASE}/${String(p || "").replace(/^\/+/, "")}`;
 
 /* ----------------------- utils ----------------------- */
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
@@ -25,22 +42,24 @@ export function getPollMs() {
       minute: "2-digit",
       hour12: false,
       weekday: "short",
-    }).formatToParts(now).map(p => [p.type, p.value])
+    })
+      .formatToParts(now)
+      .map((p) => [p.type, p.value])
   );
   const hh = parseInt(parts.hour, 10);
   const mm = parseInt(parts.minute, 10);
   const wd = parts.weekday; // Mon..Sun
 
-  const inWeek = ["Mon","Tue","Wed","Thu","Fri"].includes(wd);
+  const inWeek = ["Mon", "Tue", "Wed", "Thu", "Fri"].includes(wd);
   const minutes = hh * 60 + mm;
 
-  const preStart = 8*60;      // 08:00
-  const open     = 9*60 + 30; // 09:30
-  const close    = 16*60;     // 16:00
-  const postEnd  = 18*60;     // 18:00
+  const preStart = 8 * 60; // 08:00
+  const open = 9 * 60 + 30; // 09:30
+  const close = 16 * 60; // 16:00
+  const postEnd = 18 * 60; // 18:00
 
-  if (!inWeek) return 120000;                        // weekends
-  if (minutes >= open && minutes <= close) return 15000;   // RTH
+  if (!inWeek) return 120000; // weekends
+  if (minutes >= open && minutes <= close) return 15000; // RTH
   if (minutes >= preStart && minutes <= postEnd) return 30000; // pre/post
   return 120000; // overnight
 }
@@ -66,27 +85,22 @@ function transformToUi(raw) {
   const expansionPotential = compressionPct == null ? null : 100 - compressionPct;
 
   const breadthIdx =
-    raw?.summary?.breadthIdx ??
-    raw?.breadthIdx ??
-    (Number.isFinite(rpmPct) ? rpmPct : 50);
+    raw?.summary?.breadthIdx ?? raw?.breadthIdx ?? (Number.isFinite(rpmPct) ? rpmPct : 50);
 
   const momentumIdx =
-    raw?.summary?.momentumIdx ??
-    raw?.momentumIdx ??
-    (Number.isFinite(spdPct) ? spdPct : 50);
+    raw?.summary?.momentumIdx ?? raw?.momentumIdx ?? (Number.isFinite(spdPct) ? spdPct : 50);
 
   // Market Meter (with daily squeeze blend)
-  const base =
-    0.40 * breadthIdx +
-    0.40 * momentumIdx +
-    0.20 * (expansionPotential ?? 50);
+  const base = 0.4 * breadthIdx + 0.4 * momentumIdx + 0.2 * (expansionPotential ?? 50);
 
-  const Sdy = Number.isFinite(squeezeDailyPct) ? (clamp(squeezeDailyPct, 0, 100) / 100) : 0;
+  const Sdy = Number.isFinite(squeezeDailyPct)
+    ? clamp(squeezeDailyPct, 0, 100) / 100
+    : 0;
   const overall = (1 - Sdy) * base + Sdy * 50;
 
   return {
     gauges: {
-      rpm:   pctTo1000(rpmPct),
+      rpm: pctTo1000(rpmPct),
       speed: pctTo1000(spdPct),
       fuelPct: compressionPct,
       waterTemp: g.water?.degF ?? null,
@@ -98,7 +112,8 @@ function transformToUi(raw) {
       breadthOdometer: Math.round(clamp(breadthIdx, 0, 100)),
       momentumOdometer: Math.round(clamp(momentumIdx, 0, 100)),
       squeezeCompressionPct: compressionPct,
-      expansionPotential: expansionPotential == null ? null : Math.round(expansionPotential),
+      expansionPotential:
+        expansionPotential == null ? null : Math.round(expansionPotential),
       marketMeter: Math.round(clamp(overall, 0, 100)),
       meterNote: null,
     },
@@ -111,29 +126,19 @@ function transformToUi(raw) {
   };
 }
 
+/* --------------- neutral fallback (no errors) -------- */
+const NEUTRAL = transformToUi({});
+
 /* ------------------- fetch / poll -------------------- */
 export async function fetchDashboard() {
   try {
-    const r = await fetch(`${API}/api/dashboard`, { cache: "no-store" });
-    if (!r.ok) return transformToUi({});
+    const r = await fetch(apiJoin("/dashboard"), { cache: "no-store" });
+    if (!r.ok) return NEUTRAL; // avoid console noise on 404/500
     const raw = await r.json();
     return transformToUi(raw);
   } catch (e) {
-    console.error("fetchDashboard failed:", e);
-    return {
-      gauges: { rpm: 0, speed: 0, fuelPct: null, waterTemp: null, oilPsi: null, volatilityPct: null, squeezeDaily: null },
-      odometers: {
-        breadthOdometer: 50,
-        momentumOdometer: 50,
-        squeezeCompressionPct: null,
-        expansionPotential: null,
-        marketMeter: 50,
-        meterNote: null,
-      },
-      outlook: { dailyOutlook: 50, sectorCards: [] },
-      signals: {},
-      meta: { ts: new Date().toISOString() },
-    };
+    // Keep console quiet; return neutral object so UI stays up
+    return NEUTRAL;
   }
 }
 
@@ -166,10 +171,12 @@ export function useDashboardPoll(intervalMs = "dynamic") {
   };
 
   const load = async () => {
-    setLoading(true); setError(null);
+    setLoading(true);
+    setError(null);
     try {
       const d = await fetchDashboard();
-      setData(d); setLastFetchAt(Date.now());
+      setData(d);
+      setLastFetchAt(Date.now());
     } catch (e) {
       setError(e);
     } finally {
