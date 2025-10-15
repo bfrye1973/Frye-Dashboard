@@ -37,7 +37,7 @@ const TF_SEC = {
   "1m": 60, "5m": 300, "10m": 600, "15m": 900, "30m": 1800,
   "1h": 3600, "4h": 14400, "1d": 86400,
 };
-const LIVE_TF = "1m";
+const LIVE_TF = "10m";
 
 /* --------------------------- AZ time utils --------------------------- */
 function phoenixTime(ts, isDaily = false) {
