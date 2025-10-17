@@ -22,6 +22,7 @@ const API =
 
 /* ------------------------------ utils ------------------------------ */
 const clamp01 = (n) => Math.max(0, Math.min(100, Number(n)));
+const clamp   = (n, lo, hi) => Math.max(lo, Math.min(hi, Number(n)));
 const num = (v) => {
   const n = Number(v);
   return Number.isFinite(n) ? n : NaN;
@@ -43,6 +44,44 @@ function newer(a, b) {
   return new Date(ta).getTime() >= new Date(tb).getTime() ? a : b;
 }
 
+/** map Liquidity PSI (0..120) → percent 0..100 for scoring */
+function mapPsiToPct(psi) {
+  if (!Number.isFinite(psi)) return NaN;
+  return clamp((psi / 120) * 100, 0, 100);
+}
+
+/** overall intraday score (0..100) combining 10m lights (fallback if backend overall10m is missing) */
+function overallIntradayScore(m, intraday) {
+  if (!m) return NaN;
+  const breadth   = num(m.breadth_pct);                        // 0..100
+  const momentum  = num(m.momentum_pct);                       // 0..100
+  const squeezeOk = Number.isFinite(m.squeeze_intraday_pct ?? m.squeeze_pct)
+    ? clamp(100 - (m.squeeze_intraday_pct ?? m.squeeze_pct), 0, 100)  // lower squeeze → better
+    : NaN;
+  const volOk     = Number.isFinite(m.volatility_pct)
+    ? clamp(100 - m.volatility_pct, 0, 100)                    // lower vol → better
+    : NaN;
+  const liqPct    = mapPsiToPct(num(m.liquidity_psi ?? m.liquidity_pct));
+  const sectorDir = num(intraday?.sectorDirection10m?.risingPct);
+  const riskOn    = num(intraday?.riskOn10m?.riskOnPct);
+
+  // Weights (sum ≈ 1). Lead with Breadth & Momentum; mid with Squeeze/Vol/Liq; light influence from Sector/RiskOn.
+  const w = { breadth:.22, momentum:.22, squeezeOk:.18, volOk:.14, liqPct:.14, sectorDir:.05, riskOn:.05 };
+  const parts = [
+    { v: breadth,   w: w.breadth },
+    { v: momentum,  w: w.momentum },
+    { v: squeezeOk, w: w.squeezeOk },
+    { v: volOk,     w: w.volOk },
+    { v: liqPct,    w: w.liqPct },
+    { v: sectorDir, w: w.sectorDir },
+    { v: riskOn,    w: w.riskOn },
+  ].filter(p => Number.isFinite(p.v));
+  if (!parts.length) return NaN;
+  const totalW = parts.reduce((s,p)=>s+p.w,0);
+  const score  = parts.reduce((s,p)=>s + p.v*p.w, 0) / (totalW || 1);
+  return clamp(score, 0, 100);
+}
+
 /** tone helpers for Market Meter (finalized thresholds) */
 function toneForBreadth(v){ if (!Number.isFinite(v)) return "info"; if (v >= 65) return "ok"; if (v >= 35) return "warn"; return "danger"; }
 function toneForMomentum(v){ if (!Number.isFinite(v)) return "info"; if (v >= 65) return "ok"; if (v >= 35) return "warn"; return "danger"; }
@@ -60,9 +99,18 @@ function toneForLuxDaily(v){ if (!Number.isFinite(v)) return "info"; if (v >= 85
 function toneForVolBand(band){ return band === "high" ? "danger" : band === "elevated" ? "warn" : band ? "ok" : "info"; }
 function toneForLiqBand(band){ return band === "good" ? "ok" : band === "normal" ? "warn" : band ? "danger" : "info"; }
 
+/** Overall tone: prefer backend state if present; else use score thresholds */
+function toneForOverallState(state, score){
+  const s = (state || "").toLowerCase();
+  if (s === "bull")    return "ok";
+  if (s === "bear")    return "danger";
+  if (s === "neutral") return "warn";
+  return toneForPercent(score);
+}
+
 /* ---------------------------- Stoplight ---------------------------- */
-/** 
- * clamp: if true, clamp to [0,100] (use for %). 
+/**
+ * clamp: if true, clamp to [0,100] (use for %).
  * For PSI or raw indices, set clamp={false} and provide unit="PSI" (or "").
  */
 function Stoplight({
@@ -330,6 +378,11 @@ export default function RowMarketOverview() {
   const data  = chosen || {};
   const daily = liveDaily || {};
 
+  /* Prefer intraday.* from the LIVE payload even if polled wins */
+  const intradayLive = liveIntraday?.intraday;
+  const intradayAny  = data?.intraday;
+  const intraday     = intradayLive || intradayAny || null;
+
   /* -------------------- INTRADAY LEFT (metrics + intraday) -------------------- */
   const { deltaMkt, deltasUpdatedAt, stale } = useSandboxDeltas();
 
@@ -338,15 +391,23 @@ export default function RowMarketOverview() {
 
   const breadth      = num(m.breadth_pct);
   const momentum     = num(m.momentum_pct);
-  const squeezeIntra = num(m.squeeze_intraday_pct);
-  const liquidity    = num(m.liquidity_psi);      // PSI, not %
+  const squeezeIntra = num(m.squeeze_intraday_pct ?? m.squeeze_pct); // alias-safe
+  const liquidity    = num(m.liquidity_psi        ?? m.liquidity_pct); // PSI, alias-safe
   const volatility   = num(m.volatility_pct);
 
-  const sectorDirCount = data?.intraday?.sectorDirection10m?.risingCount ?? null;
-  const sectorDirPct   = num(data?.intraday?.sectorDirection10m?.risingPct);
-  const riskOn10m      = num(data?.intraday?.riskOn10m?.riskOnPct);
+  const sectorDirCount = intraday?.sectorDirection10m?.risingCount ?? null;
+  const sectorDirPct   = num(intraday?.sectorDirection10m?.risingPct);
+  const riskOn10m      = num(intraday?.riskOn10m?.riskOnPct);
+
+  // Overall (10m): prefer backend value if present; else fallback to client compute
+  const overallFromBackend = intraday?.overall10m || null; // {state, score}
+  const overallState = overallFromBackend?.state || null;
+  const overallScoreBk = num(overallFromBackend?.score);
+  const overall10mComputed = overallIntradayScore(m, intraday);
+  const overall10mVal = Number.isFinite(overallScoreBk) ? overallScoreBk : overall10mComputed;
 
   // baselines for intraday (persist for the day)
+  const bOverall   = useDailyBaseline("overall10m", overall10mVal);
   const bBreadth   = useDailyBaseline("breadth", breadth);
   const bMomentum  = useDailyBaseline("momentum", momentum);
   const bSqueezeIn = useDailyBaseline("squeezeIntraday", squeezeIntra);
@@ -445,6 +506,13 @@ export default function RowMarketOverview() {
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           <div className="small" style={{ color: "#9ca3af", fontWeight: 800 }}>Intraday Scalp Lights</div>
           <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+            {/* Overall (10m) first */}
+            <Stoplight
+              label="Overall (10m)"
+              value={overall10mVal}
+              baseline={bOverall}
+              toneOverride={toneForOverallState(overallState, overall10mVal)}
+            />
             <Stoplight
               label="Breadth"
               value={breadth}
