@@ -92,15 +92,15 @@ export default function IntradayLegend() {
 
       {/* Intraday Squeeze (BB/KC over last ~6 x 10m bars; higher = tighter) */}
       <Row
-        label="Intraday Squeeze"
-        sub="BB/KC ratio over the last ~6 × 10-minute bars; higher = tighter"
+        label="Intraday Squeeze (Expansion %)"
         bullets={[
-          { range: "0–34%",  chips: [{ tone: "strong",  text: "Expanded" }] },
+          { range: "0–34%",  chips: [{ tone: "weak", text: "Tight / compressed" }] },
           { range: "35–64%", chips: [{ tone: "neutral", text: "Normal" }] },
-          { range: "65–84%", chips: [{ tone: "warn",    text: "Tight" }] },
-          { range: "85–100%",chips: [{ tone: "weak",    text: "Critical compression" }] },
+          { range: "65–84%", chips: [{ tone: "strong", text: "Expanding" }] },
+          { range: "85–100%", chips: [{ tone: "strong", text: "Breakout / trending" }] },
         ]}
       />
+
 
       {/* Volatility = 100 * EMA(TR,3) / Close — raw 10m; scaled≈ ×6.25 for daily feel */}
       <Row
