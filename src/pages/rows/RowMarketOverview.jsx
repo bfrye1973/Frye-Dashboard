@@ -54,7 +54,8 @@ function mapPsiToPct(psi) {
 function overallIntradayScore(m, intraday) {
   if (!m) return NaN;
   const breadth   = num(m.breadth_pct);                        // 0..100
-  const momentum  = num(m.momentum_pct);                       // 0..100
+  // NEW: prefer blended momentum if present
+  const momentum  = num(m.momentum_combo_pct ?? m.momentum_pct); // 0..100
   const squeezeOk = Number.isFinite(m.squeeze_intraday_pct ?? m.squeeze_pct)
     ? clamp(100 - (m.squeeze_intraday_pct ?? m.squeeze_pct), 0, 100)  // lower squeeze → better
     : NaN;
@@ -140,7 +141,7 @@ function Stoplight({
   const arrow =
     !Number.isFinite(delta) ? "→" :
     Math.abs(delta) < 0.5   ? "→" :
-    delta > 0               ? "↑" : "↓";
+    delta > 0               ? "↑" : "↓
 
   const deltaColor =
     !Number.isFinite(delta) ? "#94a3b8" :
@@ -390,7 +391,8 @@ export default function RowMarketOverview() {
   const ts  = data?.updated_at ?? data?.ts ?? null;
 
   const breadth      = num(m.breadth_pct);
-  const momentum     = num(m.momentum_pct);
+  // NEW: Momentum prefers blended value
+  const momentum     = num(m.momentum_combo_pct ?? m.momentum_pct);
   const squeezeIntra = num(m.squeeze_intraday_pct ?? m.squeeze_pct); // alias-safe
   const liquidity    = num(m.liquidity_psi        ?? m.liquidity_pct); // PSI, alias-safe
   const volatility   = num(m.volatility_pct);
@@ -399,7 +401,7 @@ export default function RowMarketOverview() {
   const sectorDirPct   = num(intraday?.sectorDirection10m?.risingPct);
   const riskOn10m      = num(intraday?.riskOn10m?.riskOnPct);
 
-  // Overall (10m): prefer backend value if present; else fallback to client compute
+  // Overall (10m): prefer backend value if present; else fallback to client compute (uses blended momentum if available)
   const overallFromBackend = intraday?.overall10m || null; // {state, score}
   const overallState = overallFromBackend?.state || null;
   const overallScoreBk = num(overallFromBackend?.score);
