@@ -1,5 +1,5 @@
 // src/pages/rows/RowChart/IndicatorsToolbar.jsx
-// v3.0 — SMI removed. Simple, predictable toggles.
+// v3.1 — Adds SMI (1h) toggle (bottom pane). Simple, predictable toggles.
 // Defaults: EMAs + Volume visible; overlays off until enabled.
 
 import React from "react";
@@ -10,6 +10,7 @@ import React from "react";
  * - showEma, ema10, ema20, ema50
  * - volume
  * - moneyFlow, luxSr, swingLiquidity
+ * - smi1h  <-- NEW (1-hour SMI overlay under chart)
  * - onChange(patch), onReset()
  */
 export default function IndicatorsToolbar({
@@ -26,6 +27,9 @@ export default function IndicatorsToolbar({
   moneyFlow = false,
   luxSr = false,
   swingLiquidity = false,
+
+  // Oscillators (bottom pane)
+  smi1h = false, // NEW
 
   // Handlers
   onChange,
@@ -136,7 +140,7 @@ export default function IndicatorsToolbar({
 
               {divider}
 
-              {/* Overlays */}
+              {/* Overlays (price pane) */}
               <div style={{ color: "#9ca3af", fontSize: 12, margin: "6px 0 4px" }}>Overlays</div>
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                 <label>
@@ -162,6 +166,21 @@ export default function IndicatorsToolbar({
                     onChange={(e) => onChange?.({ swingLiquidity: e.target.checked })}
                   />{" "}
                   Swing Liquidity (pivots)
+                </label>
+              </div>
+
+              {divider}
+
+              {/* Oscillators (bottom pane) */}
+              <div style={{ color: "#9ca3af", fontSize: 12, margin: "6px 0 4px" }}>Oscillators</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={!!smi1h}
+                    onChange={(e) => onChange?.({ smi1h: e.target.checked })}
+                  />{" "}
+                  SMI (1h) — bottom pane
                 </label>
               </div>
 
