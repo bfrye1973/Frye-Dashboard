@@ -141,7 +141,7 @@ function Stoplight({
   const arrow =
     !Number.isFinite(delta) ? "→" :
     Math.abs(delta) < 0.5   ? "→" :
-    delta > 0               ? "↑" : "↓
+    delta > 0               ? "↑" : "↓";
 
   const deltaColor =
     !Number.isFinite(delta) ? "#94a3b8" :
