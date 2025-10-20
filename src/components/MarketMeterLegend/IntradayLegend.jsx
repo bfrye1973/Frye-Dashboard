@@ -66,10 +66,10 @@ export default function IntradayLegend() {
         ]}
       />
 
-      {/* Breadth = ΣNH / (ΣNH + ΣNL) */}
+      {/* Breadth (10m) — 60/40 Alignment + Bar Breadth on the 11 sector ETFs */}
       <Row
         label="Breadth"
-        sub="Formula: Breadth% = ΣNH / (ΣNH + ΣNL)"
+        sub="Breadth (10m) = 60% Alignment (EMA10>EMA20 across XLK,XLY,XLC,XLP,XLU,XLV,XLRE,XLE,XLF,XLB,XLI) + 40% Bar Breadth (close>open); lightly smoothed (L=2)."
         bullets={[
           { range: "0–34%",  chips: [{ tone: "weak",    text: "Weak" }] },
           { range: "35–64%", chips: [{ tone: "neutral", text: "Neutral" }] },
@@ -78,10 +78,10 @@ export default function IntradayLegend() {
         ]}
       />
 
-      {/* Momentum = ΣUp / (ΣUp + ΣDown) */}
+      {/* Momentum (10m) — SPY-only 3-engine blend */}
       <Row
         label="Momentum"
-        sub="Formula: Momentum% = ΣUp / (ΣUp + ΣDown)"
+        sub="Momentum (10m, SPY-only) = 0.60 × EMA posture (gap + fresh-cross bonus) + 0.15 × SMI(10m) + 0.25 × SMI(1h rolling 60m). SMI params: %K=12, %D=7, EMA=5."
         bullets={[
           { range: "0–34%",  chips: [{ tone: "weak",    text: "Bearish" }] },
           { range: "35–64%", chips: [{ tone: "neutral", text: "Neutral" }] },
@@ -101,15 +101,14 @@ export default function IntradayLegend() {
         ]}
       />
 
-
       {/* Volatility = 100 * EMA(TR,3) / Close — raw 10m; scaled≈ ×6.25 for daily feel */}
       <Row
         label="Volatility (10-minute ATR%)"
         sub="Raw: 100 × EMA(TR, 3) ÷ Close on 10-minute bars. For display, daily-scaled ≈ ×6.25."
         bullets={[
-          { range: "< 0.40%",  chips: [{ tone: "strong",  text: "Calm" }] },
+          { range: "< 0.40%",    chips: [{ tone: "strong",  text: "Calm" }] },
           { range: "0.40–1.00%", chips: [{ tone: "neutral", text: "Normal" }] },
-          { range: "> 1.00%",   chips: [{ tone: "weak",    text: "High / expanding" }] },
+          { range: "> 1.00%",    chips: [{ tone: "weak",    text: "High / expanding" }] },
         ]}
       />
 
@@ -136,7 +135,7 @@ export default function IntradayLegend() {
       />
 
       <Row
-        label="Risk-On (10m)"
+        label="Risk On (10m)"
         sub="(# offensive sectors > 50) + (# defensive sectors < 50) normalized over considered"
         bullets={[
           { range: "< 45",   chips: [{ tone: "weak",    text: "Risk-off" }] },
