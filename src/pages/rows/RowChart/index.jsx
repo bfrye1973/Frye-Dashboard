@@ -6,6 +6,7 @@
 //   • Effect B: attach/seed overlays (deps: toggles + bars ready)
 //   • RightProfile no longer tied to Volume toggle
 //   • Swing overlay redraws on pan/zoom (in its own file)
+//   • NEW: SMI (1h) overlay (inert, resamples 10m→1h internally)
 // ============================================================
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
@@ -19,6 +20,7 @@ import MoneyFlowOverlay from "../../../components/overlays/MoneyFlowOverlay";
 import RightProfileOverlay from "../../../components/overlays/RightProfileOverlay";
 import SessionShadingOverlay from "../../../components/overlays/SessionShadingOverlay";
 import createSwingLiquidityOverlay from "../../../components/overlays/SwingLiquidityOverlay";
+import createSMI1hOverlay from "../../../components/overlays/SMI1hOverlay"; // <-- NEW
 
 /* ------------------------------ Config ------------------------------ */
 const SEED_LIMIT = 6000;
@@ -146,6 +148,7 @@ export default function RowChart({
     moneyFlow: false,   // <-- RightProfile / MoneyFlow live under this toggle
     luxSr: false,
     swingLiquidity: false,
+    smi1h: false,       // <-- NEW toggle
   });
 
   // Debug hook
@@ -330,9 +333,19 @@ export default function RowChart({
       }));
     }
 
+    // NEW: SMI (1h) overlay — resamples internal bars to 1h; inert paint layer
+    if (state.smi1h) {
+      reg(attachOverlay(createSMI1hOverlay, {
+        chart: chartRef.current,
+        priceSeries: seriesRef.current,
+        chartContainer: containerRef.current,
+        timeframe: state.timeframe,
+      }));
+    }
+
     // seed overlays with existing bars (no refit, no volume changes)
     try { overlayInstancesRef.current.forEach(o => o?.seed?.(barsRef.current)); } catch {}
-  }, [state.moneyFlow, state.luxSr, state.swingLiquidity, state.timeframe, bars]); // bars to pick up the first seed once
+  }, [state.moneyFlow, state.luxSr, state.swingLiquidity, state.smi1h, state.timeframe, bars]); // <-- added smi1h
 
   /* -------------------------- Render + Range ------------------------- */
   useEffect(() => {
@@ -517,13 +530,13 @@ export default function RowChart({
     showEma: state.showEma,
     ema10: state.ema10, ema20: state.ema20, ema50: state.ema50,
     volume: state.volume,
-    moneyFlow: state.moneyFlow, luxSr: state.luxSr, swingLiquidity: state.swingLiquidity,
+    moneyFlow: state.moneyFlow, luxSr: state.luxSr, swingLiquidity: state.swingLiquidity, smi1h: state.smi1h, // <-- NEW
     onChange: handleControlsChange,
     onReset: () =>
       setState((s) => ({
         ...s,
         showEma: true, ema10: true, ema20: true, ema50: true,
-        volume: true, moneyFlow: false, luxSr: false, swingLiquidity: false,
+        volume: true, moneyFlow: false, luxSr: false, swingLiquidity: false, smi1h: false, // <-- NEW
       })),
   };
 
