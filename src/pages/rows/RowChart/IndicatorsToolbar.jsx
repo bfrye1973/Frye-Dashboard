@@ -178,7 +178,14 @@ export default function IndicatorsToolbar({
                   Shelves (Dual 1h) — blue/yellow
                 </label>
               </div>
-
+                <label>
+                 <input
+                   type="checkbox"
+                   checked={!!shelvesFour}
+                   onChange={(e) => onChange?.({ shelvesFour: e.target.checked })}
+              />{" "}
+              Shelves (1h + 10m) — 2×Blue/Yellow
+            </lab
               {divider}
 
               {/* Oscillators (bottom pane) */}
