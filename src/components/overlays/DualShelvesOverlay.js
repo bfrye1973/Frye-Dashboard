@@ -1,66 +1,77 @@
-// src/components/overlays/DualShelvesOverlay.js
-// Liquidity Shelves (Dual 1h) — Primary Blue + Secondary Yellow (sticky)
-// NO pivot shelves here (kept separate in Swing Liquidity).
-// - 1h tuning (L/R=6), min touches ≥3
-// - Band-height cap (0.35%), full-width zones
-// - Wick-density scoring
-// - Sticky Secondary: yellow inherits prior blue (±1h tolerance & small-overlap allowance)
-// - Inert (no fit/visibleRange), hour-aware recompute
-// - zIndex=20 and bold contrast so yellow is never hidden by Lux S/R
+// src/components/overlays/FourShelvesOverlay.js
+// Four Shelves Overlay — draws TWO shelves per timeframe:
+//   Major (1h):   Blue (primary) + Yellow (secondary)
+//   Micro (10m):  Blue (primary) + Yellow (secondary)
+// Window-only rectangles (tStart→tEnd), non-overlap within each TF, inert (no fit/visibleRange)
+// Recomputes: micro on each 10m close, major on each 1h close
+// Fully removes canvas on destroy()
 
-export default function createDualShelvesOverlay({ chart, priceSeries, chartContainer, timeframe }) {
+export default function createFourShelvesOverlay({ chart, priceSeries, chartContainer, timeframe }) {
   if (!chart || !priceSeries || !chartContainer) {
-    console.warn("[DualShelves] missing args");
+    console.warn("[FourShelves] missing args");
     return { seed() {}, update() {}, destroy() {} };
   }
 
-  /* ---------------- Tunables ---------------- */
-  const L = timeframe === "1h" ? 6 : 10;
-  const R = timeframe === "1h" ? 6 : 10;
-
-  const TEST_LOOKBACK_HOURS = 24 * 30; // ~30 days
-  const BOX_MIN_HRS = 16;
-  const BOX_MAX_HRS = 24;
-  const BOX_BPS_LIMIT = timeframe === "1h" ? 35 : 55; // 0.35% cap on 1h
-
-  const BUCKET_BPS = 5;  // 0.05%
-  const MERGE_BPS  = 10; // merge ≤0.10%
-  const MIN_TOUCHES_CLUSTER = 3;
-  const DWELL_MIN_HOURS     = 8;
-  const DWELL_BAND_EXPAND_BUCKETS = 1;
-  const RETEST_LOOKAHEAD_HRS = 30;
-  const RETEST_BUFFER_BPS    = 8;
-  const RETEST_MIN_COUNT     = 2;
-
-  // scoring
-  const W_DENS = 0.35;  // touches/hour
-  const W_VOL  = 0.30;  // dwell proxy
-  const W_TCH  = 0.20;
-  const W_RTS  = 0.10;
-  const W_REC  = 0.05;
-
-  // visuals
-  const ALPHA_MIN = 0.30, ALPHA_MAX = 1.00;
+  /* ---------------- Visuals ---------------- */
+  const Z = 20; // canvas zIndex
   const STROKE_W = 2;
-  const FONT = "bold 16px system-ui, -apple-system, Segoe UI, Roboto, Arial";
+  const FONT = "bold 12px system-ui, -apple-system, Segoe UI, Roboto, Arial";
 
-  const COL_P1_BOX = "#3b82f6";                // Blue
-  const COL_P2_FILL = "rgba(255,255,0,0.35)";  // Yellow (stronger fill)
-  const COL_P2_STROKE = "rgba(255,255,0,0.95)";
-  const COL_P2_DASH = "rgba(255,255,0,0.85)";
-  const COL_P1      = "#3b82f6";
-  const TEST_ALPHA  = 0.16;
+  // 1h colors (darker)
+  const COL_MAJOR_B_FILL = "rgba( 59,130,246,0.22)"; // dark blue
+  const COL_MAJOR_B_STRO = "rgba( 59,130,246,0.90)";
+  const COL_MAJOR_Y_FILL = "rgba(255,221,  0,0.24)";
+  const COL_MAJOR_Y_STRO = "rgba(255,221,  0,0.95)";
 
-  const FULL_WIDTH_ZONES = true;
-  const SHOW_BOX_TICKS   = true;
+  // 10m colors (lighter variants to distinguish)
+  const COL_MICRO_B_FILL = "rgba( 59,130,246,0.16)"; // light blue
+  const COL_MICRO_B_STRO = "rgba( 59,130,246,0.70)";
+  const COL_MICRO_Y_FILL = "rgba(255,237,  0,0.18)";
+  const COL_MICRO_Y_STRO = "rgba(255,237,  0,0.85)";
+
+  // border styles
+  const DASH_MAJOR_Y = [6, 6]; // dashed
+  const DASH_MICRO_Y = [3, 5]; // dotted-ish
+  const DASH_MICRO_B = [5, 4]; // micro-blue dashed
+  // major-blue is solid
+
+  /* --------------- Parameters per timeframe --------------- */
+  // Major (1h baseline)
+  const MAJOR = {
+    spanMin: 16, spanMax: 24,             // hours
+    tightBpsCap: 35,                       // ≤ 0.35%
+    minTouches: 3, minDwell: 8, minRetests: 2,
+    stickyTolSec: 2 * 3600,               // ±2h tolerance for sticky matching
+    stickyOverlapMax: 0.5,                // ≤ 50% overlap allowed for sticky
+    fallbackOverlapMax: 0.65,             // ≤ 65% if we must fallback
+    sameTfOverlapMax: 0.20,               // ≤ 20% between major blue & yellow
+  };
+
+  // Micro (10m baseline)
+  const MICRO = {
+    spanMin: 8, spanMax: 16,              // 80–160 minutes
+    tightBpsCap: 25,                       // ≤ 0.25%
+    minTouches: 4, minDwell: 6, minRetests: 2,
+    stickyTolSec: 20 * 60,                // ±20m tolerance
+    stickyOverlapMax: 0.20,               // stricter: ≤ 20%
+    fallbackOverlapMax: 0.35,             // ≤ 35% fallback
+    sameTfOverlapMax: 0.20,               // ≤ 20% between micro blue & yellow
+  };
 
   /* ---------------- State ---------------- */
-  let bars = [];            // asc [{time,open,high,low,close,volume}]
-  let zoneP1 = null;        // {tStart,tEnd,pLo,pHi,...}
-  let zoneP2 = null;        // sticky secondary
-  let wickClusters = null;  // kept minimal for now
-  let lastHourBucket = null;
-  let prevPrimary = null;   // sticky memory
+  let barsAsc = [];        // asc [{time,open,high,low,close,volume}]
+  let last10mBucket = null;
+  let last1hBucket  = null;
+
+  // zones per TF (each: { tStart,tEnd,pLo,pHi,score,touches,dwell,retests,spanBars,bps })
+  let majorBlue   = null;  // 1h primary
+  let majorYellow = null;  // 1h secondary (sticky)
+  let microBlue   = null;  // 10m primary
+  let microYellow = null;  // 10m secondary (sticky)
+
+  // sticky memory for each TF
+  let prevMajorBlue = null;
+  let prevMicroBlue = null;
 
   let rafId = null;
   const ts = chart.timeScale();
@@ -68,248 +79,244 @@ export default function createDualShelvesOverlay({ chart, priceSeries, chartCont
   /* ---------------- Helpers ---------------- */
   const toSec = (t) => (t > 1e12 ? Math.floor(t/1000) : t);
   const xFor  = (tSec) => { const x = ts.timeToCoordinate(tSec); return Number.isFinite(x) ? x : null; };
-  const yFor  = (p)   => { const y = priceSeries.priceToCoordinate(Number(p)); return Number.isFinite(y) ? y : null; };
+  const yFor  = (p)    => { const y = priceSeries.priceToCoordinate(Number(p)); return Number.isFinite(y) ? y : null; };
 
-  const isSwingHigh = (arr, i) => {
-    const v=arr[i].high; for(let j=i-L;j<=i+R;j++){ if(j===i||j<0||j>=arr.length) continue; if(arr[j].high>v) return false; } return true;
-  };
-  const isSwingLow  = (arr, i) => {
-    const v=arr[i].low ; for(let j=i-L;j<=i+R;j++){ if(j===i||j<0||j>=arr.length) continue; if(arr[j].low <v) return false; } return true;
+  // 10m & 1h bucketing
+  const floorTo = (t, sec) => Math.floor(t / sec) * sec;
+
+  const overlapRatio = (a, b) => {
+    const lo = Math.max(a.tStart, b.tStart);
+    const hi = Math.min(a.tEnd,   b.tEnd);
+    if (hi <= lo) return 0;
+    const union = Math.max(a.tEnd, b.tEnd) - Math.min(a.tStart, b.tStart);
+    return union <= 0 ? 0 : (hi - lo) / union;
   };
 
-  function resampleTo1h(barsAsc){
-    if(!barsAsc?.length) return [];
-    const out=[]; let cur=null;
-    for(const b of barsAsc){
-      const t=toSec(b.time), bucket=Math.floor(t/3600)*3600;
-      if(!cur || bucket!==cur.time){
-        if(cur) out.push(cur);
-        cur = { time:bucket, open:b.open, high:b.high, low:b.low, close:b.close, volume:Number(b.volume||0) };
-      }else{
-        cur.high=Math.max(cur.high,b.high);
-        cur.low =Math.min(cur.low ,b.low );
-        cur.close=b.close;
-        cur.volume=Number(cur.volume||0)+Number(b.volume||0);
+  function resampleTF(bars, bucketSec) {
+    if (!bars?.length) return [];
+    const out = [];
+    let cur = null;
+    for (const b of bars) {
+      const t = toSec(b.time);
+      const bucket = floorTo(t, bucketSec);
+      if (!cur || bucket !== cur.time) {
+        if (cur) out.push(cur);
+        cur = { time: bucket, open: b.open, high: b.high, low: b.low, close: b.close, volume: Number(b.volume || 0) };
+      } else {
+        cur.high = Math.max(cur.high, b.high);
+        cur.low  = Math.min(cur.low , b.low );
+        cur.close = b.close;
+        cur.volume = Number(cur.volume || 0) + Number(b.volume || 0);
       }
     }
-    if(cur) out.push(cur);
-    return out.slice(-TEST_LOOKBACK_HOURS);
+    if (cur) out.push(cur);
+    return out;
   }
 
-  function slideBoxes(b1h, bpsLimit) {
-    const n=b1h.length, out=[];
-    for (let span=BOX_MIN_HRS; span<=BOX_MAX_HRS; span++){
+  // highest high / lowest low rolling window
+  function hhll(arr, len) {
+    const n = arr.length;
+    const HH = new Array(n), LL = new Array(n);
+    for (let i=0;i<n;i++){
+      const i0 = Math.max(0, i - (len - 1));
+      let hh = -Infinity, ll = Infinity;
+      for (let j=i0;j<=i;j++){ const b = arr[j]; if (b.high > hh) hh=b.high; if (b.low < ll) ll=b.low; }
+      HH[i] = hh; LL[i] = ll;
+    }
+    return {HH,LL};
+  }
+
+  // find candidate windows with tightness cap
+  function slideCandidates(barsTF, spanMin, spanMax, tightBpsCap) {
+    const n = barsTF.length, out = [];
+    if (n < spanMin) return out;
+    const {HH,LL} = hhll(barsTF, 1); // we’ll calc per-window below
+
+    for (let span=spanMin; span<=spanMax; span++){
       for (let i=0; i+span<=n; i++){
-        const j=i+span-1;
-        let lo=+Infinity, hi=-Infinity;
-        for (let k=i;k<=j;k++){ lo=Math.min(lo,b1h[k].low); hi=Math.max(hi,b1h[k].high); }
-        const mid=(lo+hi)/2, bps=((hi-lo)/Math.max(1e-6,mid))*10000;
-        if (bpsLimit!=null && bps>bpsLimit) continue;
-        out.push({ iStart:i, iEnd:j, pLo:lo, pHi:hi, bps, spanHrs: span, tStart:b1h[i].time, tEnd:b1h[j].time });
+        const j = i + span - 1;
+        // compute lo/hi inside window
+        let lo = +Infinity, hi = -Infinity;
+        for (let k=i; k<=j; k++){ if (barsTF[k].low < lo) lo=barsTF[k].low; if (barsTF[k].high > hi) hi=barsTF[k].high; }
+        const mid = (lo + hi) / 2;
+        const bps = ((hi - lo) / Math.max(1e-9, mid)) * 10000;
+        if (bps > tightBpsCap) continue;
+        out.push({
+          iStart: i, iEnd: j,
+          tStart: barsTF[i].time, tEnd: barsTF[j].time,
+          pLo: lo, pHi: hi,
+          bps,
+          spanBars: span,
+        });
       }
     }
     return out;
   }
 
-  function buildClustersWithStats(b1h, best) {
-    const { iStart, iEnd } = best;
-    const spanBars = b1h.slice(iStart, iEnd + 1);
-    if (!spanBars.length) return null;
+  // count touches (wick tips at edges) / dwell (body overlap near edges) / retests
+  function annotateStats(barsTF, cand, cfg){
+    const { iStart, iEnd, pLo, pHi } = cand;
+    const spanBars = barsTF.slice(iStart, iEnd+1);
+    // bucketize wicks near edge bands
+    const lastClose = barsTF.at(-1).close || spanBars.at(-1).close;
+    const step = (5 / 10000) * lastClose; // 5 bps bucket
+    const expand = cfg.minDwell > 0 ? step : 0;
 
-    const lastClose = b1h.at(-1).close || spanBars.at(-1).close;
-    const step = (BUCKET_BPS / 10000) * lastClose;
-    const mergeStep = (MERGE_BPS / 10000) * lastClose;
-
-    const top = new Map(), bottom = new Map();
-    const keyOf = (price) => Math.floor(price / step) * step;
-
-    for (const b of spanBars) {
-      if (b.high > Math.max(b.open, b.close)) {
-        const key = keyOf(b.high); const o = top.get(key) || { touches:0 };
-        o.touches += 1; top.set(key,o);
-      }
-      if (b.low < Math.min(b.open, b.close)) {
-        const key = keyOf(b.low);  const o = bottom.get(key) || { touches:0 };
-        o.touches += 1; bottom.set(key,o);
-      }
-    }
-
-    const mergeMap = (m) => {
-      const keys = Array.from(m.keys()).sort((a,b)=>a-b);
-      const out=[]; let cur=null;
-      for(const k of keys){
-        const t = m.get(k).touches;
-        if(!cur){ cur={ pLo:k, pHi:k+step, touches:t }; continue; }
-        if(k - cur.pHi <= mergeStep){ cur.pHi += step; cur.touches += t; }
-        else { out.push(cur); cur={ pLo:k, pHi:k+step, touches:t }; }
-      }
-      if(cur) out.push(cur);
-      return out;
+    const edgeBand = (price, side) => {
+      // near the top/bottom band (within one bucket)
+      return side === "top"
+        ? { lo: pHi - step, hi: pHi + step }
+        : { lo: pLo - step, hi: pLo + step };
     };
 
-    let topZones = mergeMap(top);
-    let botZones = mergeMap(bottom);
+    function touchesNear(side){
+      const band = edgeBand(0, side);
+      let touches = 0;
+      for (const b of spanBars){
+        const wickHi = Math.max(b.open,b.close,b.high);
+        const wickLo = Math.min(b.open,b.close,b.low);
+        const touched = !(wickHi < band.lo || wickLo > band.hi);
+        if (touched) touches++;
+      }
+      return touches;
+    }
 
-    // dwell near band ± expand
-    const expand = DWELL_BAND_EXPAND_BUCKETS * step;
-    const dwellFor = (loBand, hiBand) => {
+    function dwellNear(side){
+      const band = edgeBand(0, side);
       let dwell = 0;
-      const lo = loBand - expand, hi = hiBand + expand;
-      for (const b of spanBars) {
-        const bodyLo = Math.min(b.open, b.close);
-        const bodyHi = Math.max(b.open, b.close);
-        if (bodyHi >= lo && bodyLo <= hi) dwell += 1; // 1h per bar
+      for (const b of spanBars){
+        const bodyLo = Math.min(b.open,b.close);
+        const bodyHi = Math.max(b.open,b.close);
+        const overlap = !(bodyHi < (band.lo - expand) || bodyLo > (band.hi + expand));
+        if (overlap) dwell++;
       }
       return dwell;
-    };
-    for (const z of topZones) z.dwell = dwellFor(z.pLo, z.pHi);
-    for (const z of botZones) z.dwell = dwellFor(z.pLo, z.pHi);
+    }
 
-    // floors
-    topZones = topZones.filter(z => z.touches >= MIN_TOUCHES_CLUSTER && z.dwell >= DWELL_MIN_HOURS);
-    botZones = botZones.filter(z => z.touches >= MIN_TOUCHES_CLUSTER && z.dwell >= DWELL_MIN_HOURS);
+    // pick the dominant edge (top or bottom) for this box (where touches are higher)
+    const tTop = touchesNear("top"), tBot = touchesNear("bot");
+    const dTop = dwellNear("top"),   dBot = dwellNear("bot");
+    const side = (tTop >= tBot) ? "top" : "bot";
 
-    // retests forward
-    const retestFor = (loBand, hiBand) => {
-      const buf = (RETEST_BUFFER_BPS / 10000) * lastClose;
-      const lo = loBand - buf, hi = hiBand + buf;
-
+    // forward retests after iEnd
+    function retests(side){
+      const band = edgeBand(0, side);
       let count = 0, inTouch = false;
-      const startIdx = best.iEnd + 1;
-      const endIdx   = Math.min(b1h.length - 1, best.iEnd + RETEST_LOOKAHEAD_HRS);
-
-      for (let i = startIdx; i <= endIdx; i++) {
-        const b = b1h[i];
-        const wickLo = Math.min(b.open, b.close, b.low);
-        const wickHi = Math.max(b.open, b.close, b.high);
-        const touch = wickHi >= lo && wickLo <= hi;
-        if (touch && !inTouch) { count += 1; inTouch = true; }
-        else if (!touch && inTouch) { inTouch = false; }
+      const start = iEnd + 1;
+      const end = Math.min(barsTF.length - 1, iEnd + (cfg.retestLookahead || 24));
+      for (let i = start; i <= end; i++){
+        const b = barsTF[i];
+        const wHi = Math.max(b.open,b.close,b.high);
+        const wLo = Math.min(b.open,b.close,b.low);
+        const touch = !(wHi < (band.lo) || wLo > (band.hi));
+        if (touch && !inTouch){ count++; inTouch = true; }
+        else if (!touch && inTouch){ inTouch = false; }
       }
       return count;
+    }
+
+    const touches = side === "top" ? tTop : tBot;
+    const dwell   = side === "top" ? dTop : dBot;
+    const rtests  = retests(side);
+
+    return {
+      ...cand, side, touches, dwell, retests: rtests
     };
-    for (const z of topZones) z.retests = retestFor(z.pLo, z.pHi);
-    for (const z of botZones) z.retests = retestFor(z.pLo, z.pHi);
-
-    // wick-density (touches per hour)
-    const spanH = Math.max(1, best.iEnd - best.iStart + 1);
-    for (const z of topZones) z.density = z.touches / spanH;
-    for (const z of botZones) z.density = z.touches / spanH;
-
-    // scoring
-    const scoreSide = (list) => {
-      if (!list.length) return;
-      const maxDwell = Math.max(...list.map(z=>z.dwell), 1);
-      const maxT     = Math.max(...list.map(z=>z.touches), 1);
-      const maxR     = Math.max(...list.map(z=>z.retests), 1);
-      const maxDen   = Math.max(...list.map(z=>z.density), 1e-6);
-      const recN = 1;
-      for (const z of list) {
-        const densN = z.density / maxDen;
-        const volN  = z.dwell   / maxDwell;
-        const tchN  = z.touches / maxT;
-        const rtsN  = z.retests / maxR;
-        z.score = W_DENS*densN + W_VOL*volN + W_TCH*tchN + W_RTS*rtsN + W_REC*recN;
-      }
-      list.sort((a,b)=>b.score - a.score);
-    };
-    scoreSide(topZones);
-    scoreSide(botZones);
-
-    const pack = (arr) => {
-      if (!arr.length) return { primary:null, secondary:null };
-      return { primary:arr[0] || null, secondary:arr[1] || null };
-    };
-
-    return { top: pack(topZones), bottom: pack(botZones) };
   }
 
-  function rebuildDualZones(){
-    zoneP1 = null; zoneP2 = null; wickClusters = null;
+  // score & choose primary/secondary with non-overlap constraint
+  function pickTwoZones(barsTF, cfg){
+    const cands = slideCandidates(barsTF, cfg.spanMin, cfg.spanMax, cfg.tightBpsCap);
+    if (!cands.length) return { blue:null, yellow:null, all:[] };
 
-    const b1h = resampleTo1h(bars);
-    if (b1h.length < BOX_MIN_HRS) return;
+    const ann = cands.map(c => annotateStats(barsTF, c, { minDwell:cfg.minDwell, retestLookahead: cfg.spanMax + 6 }));
+    // filter by floors
+    const ok = ann.filter(z => z.touches >= cfg.minTouches && z.dwell >= cfg.minDwell && z.retests >= cfg.minRetests);
+    if (!ok.length) return { blue:null, yellow:null, all:[] };
 
-    const candidates = slideBoxes(b1h, BOX_BPS_LIMIT);
-    if (!candidates.length) return;
-
-    const scored = [];
-    for (const c of candidates) {
-      const clusters = buildClustersWithStats(b1h, c);
-      const topP = clusters?.top?.primary, botP = clusters?.bottom?.primary;
-      const p = topP && botP ? (topP.score >= botP.score ? topP : botP) : (topP || botP || null);
-      if (!p) continue;
-      scored.push({ ...c, score: p.score, touches: p.touches, dwell: p.dwell, retests: p.retests, density: p.density, clusters });
-    }
-    if (!scored.length) return;
-
-    // A: strongest (blue)
-    scored.sort((a,b)=> b.score - a.score || b.spanHrs - a.spanHrs);
-    const A = scored[0];
-    zoneP1 = { tStart:A.tStart, tEnd:A.tEnd, pLo:A.pLo, pHi:A.pHi, score:A.score, touches:A.touches, dwell:A.dwell, retests:A.retests, spanHrs:A.spanHrs, bps:A.bps };
-    wickClusters = A.clusters;
-
-    // B: sticky previous Primary if valid; else most-recent non-overlap
-    const nonOverlap = (a,b) => (a.tEnd < b.tStart) || (b.tEnd < a.tStart);
-    const overlapRatio = (a,b) => {
-      const lo = Math.max(a.tStart, b.tStart);
-      const hi = Math.min(a.tEnd,   b.tEnd);
-      return hi <= lo ? 0 : (hi - lo) / Math.max(1, (Math.max(a.tEnd,b.tEnd) - Math.min(a.tStart,b.tStart)));
-    };
-    const asZone = (C) => C && ({
-      tStart: C.tStart, tEnd: C.tEnd, pLo: C.pLo, pHi: C.pHi,
-      score: C.score, touches: C.touches, dwell: C.dwell, retests: C.retests,
-      spanHrs: C.spanHrs, bps: C.bps
+    // scoring (density + dwell + touches + retests)
+    const maxD = Math.max(...ok.map(z=>z.dwell),1);
+    const maxT = Math.max(...ok.map(z=>z.touches),1);
+    const maxR = Math.max(...ok.map(z=>z.retests),1);
+    const spanH = (barsTF[1]?.time || 0) - (barsTF[0]?.time || 0); // step sec
+    ok.forEach(z => {
+      const density = z.touches / Math.max(1, z.spanBars);
+      const maxDen  = Math.max(...ok.map(m => m.touches / Math.max(1,m.spanBars)));
+      const densN = maxDen ? (density / maxDen) : 0;
+      const volN  = z.dwell / maxD;
+      const tchN  = z.touches / maxT;
+      const rtsN  = z.retests / maxR;
+      z.score = 0.35*densN + 0.30*volN + 0.20*tchN + 0.10*rtsN + 0.05*1;
     });
 
-    let Bz = null;
-    if (prevPrimary) {
-      const tol = 3600; // +/-1h tolerance
-      const matchPrev = scored.find(c =>
-        Math.abs(c.tStart - prevPrimary.tStart) <= tol &&
-        Math.abs(c.tEnd   - prevPrimary.tEnd)   <= tol
-      );
-      if (matchPrev && nonOverlap({tStart:A.tStart,tEnd:A.tEnd}, {tStart:matchPrev.tStart,tEnd:matchPrev.tEnd})) {
-        Bz = asZone(matchPrev);
-      }
-      if (!Bz) {
-        const smallOverlap = overlapRatio({tStart:A.tStart,tEnd:A.tEnd}, prevPrimary) < 0.30;
-        if (smallOverlap) Bz = { ...prevPrimary };
-      }
-    }
-    if (!Bz) {
-      const remaining = scored.filter(c => nonOverlap({tStart:A.tStart,tEnd:A.tEnd},{tStart:c.tStart,tEnd:c.tEnd}));
-      if (remaining.length){
-        remaining.sort((a,b)=> a.tEnd - b.tEnd);
-        const latestEnd = remaining.at(-1).tEnd;
-        const near = remaining.filter(c => c.tEnd === latestEnd);
-        const B = (near.length>1) ? near.sort((a,b)=> b.score - a.score || b.spanHrs - a.spanHrs)[0] : near[0];
-        Bz = asZone(B);
-      }
-    }
-    zoneP2 = Bz || null;
+    ok.sort((a,b)=> b.score - a.score || b.spanBars - a.spanBars);
+    const blue = ok[0];
 
-    prevPrimary = { ...zoneP1 };
-
-    if (typeof window !== "undefined") {
-      window.__DUALSHELVES = {
-        zoneP1: zoneP1 ? { ...zoneP1 } : null,
-        zoneP2: zoneP2 ? { ...zoneP2 } : null,
-        prevPrimary: prevPrimary ? { ...prevPrimary } : null,
-      };
+    // pick yellow with non-overlap
+    let yellow = null;
+    for (let k=1;k<ok.length;k++){
+      const z = ok[k];
+      if (overlapRatio(blue,z) <= cfg.sameTfOverlapMax){ yellow = z; break; }
     }
+    return { blue, yellow, all: ok };
   }
 
-  /* ---------------- Draw (zones only, full width) ---------------- */
-  function doDraw(){
+  // sticky secondary reuse
+  function stickyYellow(currentBlue, prevBlue, list, cfg){
+    // try to reuse prevBlue if close in time and non-overlap within sticky constraints
+    if (prevBlue && currentBlue){
+      const timeClose = (Math.abs(prevBlue.tStart - currentBlue.tStart) <= cfg.stickyTolSec) ||
+                        (Math.abs(prevBlue.tEnd   - currentBlue.tEnd)   <= cfg.stickyTolSec);
+      const ov = overlapRatio(currentBlue, prevBlue);
+      if (timeClose && ov <= cfg.stickyOverlapMax) {
+        // ensure within same list time scale: find the matching window in list
+        const match = list.find(c =>
+          Math.abs(c.tStart - prevBlue.tStart) <= cfg.stickyTolSec &&
+          Math.abs(c.tEnd   - prevBlue.tEnd)   <= cfg.stickyTolSec
+        );
+        if (match) return match;
+        return prevBlue; // fallback use previous directly
+      }
+    }
+    // otherwise choose best recent non-overlap or mild-overlap fallback
+    const nonOverlap = list.find(z => overlapRatio(currentBlue, z) <= cfg.sameTfOverlapMax && z !== currentBlue);
+    if (nonOverlap) return nonOverlap;
+
+    // last resort: allow mild overlap ≤ fallbackOverlapMax
+    return list.find(z => overlapRatio(currentBlue, z) <= cfg.fallbackOverlapMax && z !== currentBlue) || null;
+  }
+
+  /* ---------------- Rebuild per TF ---------------- */
+  function rebuildMajor(){
+    // resample to 1h
+    const bars1h = resampleTF(barsAsc, 3600);
+    const {blue, yellow, all} = pickTwoZones(bars1h, MAJOR);
+    majorBlue = blue || null;
+    majorYellow = stickyYellow(majorBlue, prevMajorBlue, all, MAJOR);
+    prevMajorBlue = majorBlue ? { ...majorBlue } : prevMajorBlue;
+  }
+
+  function rebuildMicro(){
+    // native 10m bars: derive 10m from seed (chart TF can vary; we compute from raw seed we received)
+    const bars10m = resampleTF(barsAsc, 600);
+    const {blue, yellow, all} = pickTwoZones(bars10m, MICRO);
+    microBlue = blue || null;
+    microYellow = stickyYellow(microBlue, prevMicroBlue, all, MICRO);
+    prevMicroBlue = microBlue ? { ...microBlue } : prevMicroBlue;
+  }
+
+  /* ---------------- Canvas draw (window-only rectangles) ---------------- */
+  function scheduleDraw(){ if (rafId!=null) return; rafId = requestAnimationFrame(()=>{ rafId=null; draw(); }); }
+
+  function draw(){
     const w = chartContainer.clientWidth  || 1;
     const h = chartContainer.clientHeight || 1;
 
-    let cnv = chartContainer.querySelector("canvas.overlay-canvas.dual-shelves");
+    let cnv = chartContainer.querySelector("canvas.overlay-canvas.four-shelves");
     if(!cnv){
       cnv = document.createElement("canvas");
-      cnv.className = "overlay-canvas dual-shelves";
-      Object.assign(cnv.style,{ position:"absolute", inset:0, pointerEvents:"none", zIndex:20 }); // zIndex ↑
+      cnv.className = "overlay-canvas four-shelves";
+      Object.assign(cnv.style,{ position:"absolute", inset:0, pointerEvents:"none", zIndex:Z });
       chartContainer.appendChild(cnv);
     }
     if (!w || !h) return;
@@ -319,82 +326,40 @@ export default function createDualShelvesOverlay({ chart, priceSeries, chartCont
     ctx.clearRect(0,0,w,h);
     ctx.font = FONT;
 
-    const viewLeft  = 0;
-    const viewRight = chartContainer.clientWidth || 1;
-    const viewW     = Math.max(1, viewRight - viewLeft);
+    function rectFor(zone, fill, stroke, dash){
+      if (!zone) return;
+      const yTop = yFor(zone.pHi), yBot = yFor(zone.pLo);
+      const xS   = xFor(zone.tStart), xE = xFor(zone.tEnd);
+      if (yTop==null||yBot==null||xS==null||xE==null) return;
+      const yMin = Math.min(yTop,yBot),  yMax = Math.max(yTop,yBot);
+      const xL   = Math.min(xS,xE),      xR   = Math.max(xS,xE);
+      const rectW = Math.max(1, xR-xL),  rectH = Math.max(2, yMax-yMin);
 
-    // Secondary (Yellow)
-    if (zoneP2){
-      const yTop=yFor(zoneP2.pHi), yBot=yFor(zoneP2.pLo);
-      if (yTop!=null && yBot!=null){
-        const yMin=Math.min(yTop,yBot), yMax=Math.max(yTop,yBot);
-        const rectH=Math.max(2,yMax-yMin);
+      // fill
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = fill;
+      ctx.fillRect(xL, yMin, rectW, rectH);
 
-        // fill
-        ctx.globalAlpha = 1;
-        ctx.fillStyle = COL_P2_FILL;
-        ctx.fillRect(viewLeft, yMin, viewW, rectH);
-
-        // dark under-outline for contrast
-        ctx.save();
-        ctx.lineWidth = STROKE_W + 2;
-        ctx.strokeStyle = "rgba(0,0,0,0.35)";
-        ctx.strokeRect(viewLeft + 0.5, yMin + 0.5, viewW - 1, rectH - 1);
-        ctx.restore();
-
-        // dashed yellow border on top
-        ctx.save();
-        ctx.setLineDash([6,6]);
-        ctx.lineWidth = STROKE_W + 1;
-        ctx.strokeStyle = COL_P2_STROKE;
-        ctx.strokeRect(viewLeft + 0.5, yMin + 0.5, viewW - 1, rectH - 1);
-        ctx.restore();
-
-        if (SHOW_BOX_TICKS) {
-          const xS = xFor(zoneP2.tStart), xE = xFor(zoneP2.tEnd);
-          if (xS!=null && xE!=null){
-            ctx.save();
-            ctx.globalAlpha = 0.25;
-            ctx.setLineDash([2,4]);
-            ctx.strokeStyle = COL_P2_STROKE;
-            ctx.beginPath(); ctx.moveTo(xS, yMin); ctx.lineTo(xS, yMax); ctx.stroke();
-            ctx.beginPath(); ctx.moveTo(xE, yMin); ctx.lineTo(xE, yMax); ctx.stroke();
-            ctx.restore();
-          }
-        }
-      }
+      // border
+      ctx.save();
+      if (dash && dash.length) ctx.setLineDash(dash);
+      ctx.lineWidth = STROKE_W;
+      ctx.strokeStyle = stroke;
+      ctx.strokeRect(xL + 0.5, yMin + 0.5, rectW - 1, rectH - 1);
+      ctx.restore();
     }
 
-    // Primary (Blue)
-    if (zoneP1){
-      const yTop=yFor(zoneP1.pHi), yBot=yFor(zoneP1.pLo);
-      if (yTop!=null && yBot!=null){
-        const yMin=Math.min(yTop,yBot), yMax=Math.max(yTop,yBot);
-        const rectH=Math.max(2,yMax-yMin);
+    // Draw order: major first, then micro on top (micro is “finer”)
+    // Major 1h: Blue (solid) + Yellow (dashed)
+    rectFor(majorYellow, COL_MAJOR_Y_FILL, COL_MAJOR_Y_STRO, DASH_MAJOR_Y);
+    rectFor(majorBlue,   COL_MAJOR_B_FILL, COL_MAJOR_B_STRO, null);
 
-        ctx.globalAlpha=TEST_ALPHA; ctx.fillStyle=COL_P1_BOX;
-        ctx.fillRect(viewLeft, yMin, viewW, rectH);
-        ctx.globalAlpha=1; ctx.lineWidth=STROKE_W; ctx.strokeStyle=COL_P1_BOX;
-        ctx.strokeRect(viewLeft+0.5,yMin+0.5,viewW-1,rectH-1);
-
-        if (SHOW_BOX_TICKS) {
-          const xS = xFor(zoneP1.tStart), xE = xFor(zoneP1.tEnd);
-          if (xS!=null && xE!=null){
-            ctx.save();
-            ctx.globalAlpha = 0.25;
-            ctx.setLineDash([2,4]);
-            ctx.strokeStyle = COL_P1_BOX;
-            ctx.beginPath(); ctx.moveTo(xS, yMin); ctx.lineTo(xS, yMax); ctx.stroke();
-            ctx.beginPath(); ctx.moveTo(xE, yMin); ctx.lineTo(xE, yMax); ctx.stroke();
-            ctx.restore();
-          }
-        }
-      }
-    }
+    // Micro 10m: Blue (dashed) + Yellow (dotted)
+    rectFor(microYellow, COL_MICRO_Y_FILL, COL_MICRO_Y_STRO, DASH_MICRO_Y);
+    rectFor(microBlue,   COL_MICRO_B_FILL, COL_MICRO_B_STRO, DASH_MICRO_B);
   }
 
-  // rAF throttle
-  function scheduleDraw(){ if (rafId!=null) return; rafId = requestAnimationFrame(()=>{ rafId=null; doDraw(); }); }
+  /* ---------------- Subscriptions ---------------- */
   const onLogical = () => scheduleDraw();
   const onVisible = () => scheduleDraw();
   ts.subscribeVisibleLogicalRangeChange?.(onLogical);
@@ -404,33 +369,43 @@ export default function createDualShelvesOverlay({ chart, priceSeries, chartCont
   /* ---------------- API ---------------- */
   return {
     seed(rawBarsAsc){
-      bars = (rawBarsAsc||[]).map(b=>({...b, time:toSec(b.time)})).sort((a,b)=>a.time-b.time);
+      barsAsc = (rawBarsAsc||[]).map(b => ({ ...b, time: toSec(b.time) })).sort((a,b)=>a.time-b.time);
 
-      const last = bars.at(-1);
-      lastHourBucket = last ? Math.floor(toSec(last.time)/3600) : null;
-      rebuildDualZones();
-      doDraw();
+      // initialize buckets
+      const last = barsAsc.at(-1);
+      last10mBucket = last ? floorTo(last.time, 600)  : null;
+      last1hBucket  = last ? floorTo(last.time, 3600) : null;
+
+      rebuildMajor();
+      rebuildMicro();
+      draw();
     },
     update(latest){
       if (!latest) return;
-      const t=toSec(latest.time); const last=bars.at(-1);
-      if (!last || t>last.time) bars.push({...latest,time:t});
-      else if (t===last.time)   bars[bars.length-1] = {...latest,time:t};
+      const t = toSec(latest.time);
+      const last = barsAsc.at(-1);
+      if (!last || t > last.time) barsAsc.push({ ...latest, time: t });
+      else if (t === last.time)   barsAsc[barsAsc.length-1] = { ...latest, time: t };
       else return;
 
-      const bucket = Math.floor(t/3600);
-      if (bucket !== lastHourBucket) {
-        lastHourBucket = bucket;
-        rebuildDualZones();
+      // recompute on bucket closures
+      const b10 = floorTo(t, 600);
+      const b60 = floorTo(t, 3600);
+      if (b10 !== last10mBucket){
+        last10mBucket = b10;
+        rebuildMicro();
       }
-      doDraw();
+      if (b60 !== last1hBucket){
+        last1hBucket = b60;
+        rebuildMajor();
+      }
+      draw();
     },
     destroy(){
       try { ts.unsubscribeVisibleLogicalRangeChange?.(onLogical); } catch {}
       try { ts.unsubscribeVisibleTimeRangeChange?.(onVisible); } catch {}
       window.removeEventListener("resize", scheduleDraw);
-      // remove canvas so toggle OFF hides immediately
-      const cnv = chartContainer.querySelector("canvas.overlay-canvas.dual-shelves");
+      const cnv = chartContainer.querySelector("canvas.overlay-canvas.four-shelves");
       if (cnv && cnv.parentNode === chartContainer) chartContainer.removeChild(cnv);
     },
   };
