@@ -18,6 +18,8 @@ import SessionShadingOverlay from "../../../components/overlays/SessionShadingOv
 import createSwingLiquidityOverlay from "../../../components/overlays/SwingLiquidityOverlay";
 import createSMI1hOverlay from "../../../components/overlays/SMI1hOverlay";
 import createDualShelvesOverlay from "../../../components/overlays/DualShelvesOverlay"; // NEW
+import createFourShelvesOverlay from "../../../components/overlays/FourShelvesOverlay";
+
 
 /* ------------------------------ Config ------------------------------ */
 const SEED_LIMIT = 6000;
@@ -146,6 +148,8 @@ export default function RowChart({
     luxSr: false,
     swingLiquidity: false, // original overlay untouched
     smi1h: false,
+    shelvesFour: false,   // NEW
+
     shelvesDual: false,    // NEW overlay
   });
 
@@ -341,7 +345,14 @@ export default function RowChart({
         timeframe: state.timeframe,
       }));
     }
-
+    if (state.shelvesFour) {
+      reg(attachOverlay(createFourShelvesOverlay, {
+        chart: chartRef.current,
+        priceSeries: seriesRef.current,
+        chartContainer: containerRef.current,
+        timeframe: state.timeframe,
+      }));
+    }
     try { overlayInstancesRef.current.forEach(o => o?.seed?.(barsRef.current)); } catch {}
   }, [state.moneyFlow, state.luxSr, state.swingLiquidity, state.shelvesDual, state.smi1h, state.timeframe, bars]);
 
