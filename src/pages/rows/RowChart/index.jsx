@@ -1,8 +1,13 @@
 // src/pages/rows/RowChart/index.jsx
 // ============================================================
 // RowChart — seed + live aggregation + indicators & overlays
-//   • NEW: Dual Shelves overlay (blue/yellow) mounted via `shelvesDual`.
-//   • Swing Liquidity remains unchanged and can be toggled separately.
+// Stable volume + overlays (2025-10-22):
+//   • Effect A: fetch/seed candles+volume (deps: symbol, timeframe, range)
+//   • Effect B: attach/seed overlays (deps: toggles + bars ready)
+//   • RightProfile no longer tied to Volume toggle
+//   • Swing overlay redraws on pan/zoom (in its own file)
+//   • SMI (1h) overlay (inert, resamples 10m→1h internally)
+//   • NEW: Four Shelves overlay (1h Blue/Yellow + 10m Blue/Yellow)
 // ============================================================
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
@@ -17,9 +22,7 @@ import RightProfileOverlay from "../../../components/overlays/RightProfileOverla
 import SessionShadingOverlay from "../../../components/overlays/SessionShadingOverlay";
 import createSwingLiquidityOverlay from "../../../components/overlays/SwingLiquidityOverlay";
 import createSMI1hOverlay from "../../../components/overlays/SMI1hOverlay";
-import createDualShelvesOverlay from "../../../components/overlays/DualShelvesOverlay"; // NEW
-import createFourShelvesOverlay from "../../../components/overlays/FourShelvesOverlay";
-
+import createFourShelvesOverlay from "../../../components/overlays/FourShelvesOverlay"; // <-- NEW
 
 /* ------------------------------ Config ------------------------------ */
 const SEED_LIMIT = 6000;
@@ -144,15 +147,20 @@ export default function RowChart({
     ema50: true,
 
     volume: true,
+
+    // Overlays (price pane, custom canvases)
     moneyFlow: false,
     luxSr: false,
-    swingLiquidity: false, // original overlay untouched
-    smi1h: false,
-    shelvesFour: false,   // NEW
+    swingLiquidity: false,
 
-    shelvesDual: false,    // NEW overlay
+    // Oscillators
+    smi1h: false,
+
+    // NEW: Four Shelves overlay (1h Blue/Yellow + 10m Blue/Yellow)
+    shelvesFour: false,
   });
 
+  // Debug hook (unchanged)
   if (typeof window !== "undefined") {
     window.__indicators = {
       get: () => state,
@@ -222,6 +230,7 @@ export default function RowChart({
       volSeriesRef.current = null;
       ema10Ref.current = ema20Ref.current = ema50Ref.current = null;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fullScreen]);
 
   /* ---------------------- TF / AZ format updates --------------------- */
@@ -255,10 +264,12 @@ export default function RowChart({
         barsRef.current = asc;
         setBars(asc);
 
+        // seed price
         seriesRef.current?.setData(asc.map(b => ({
           time: b.time, open: b.open, high: b.high, low: b.low, close: b.close,
         })));
 
+        // seed volume (only respects state.volume)
         if (volSeriesRef.current) {
           if (state.volume) {
             volSeriesRef.current.applyOptions({ visible: true });
@@ -273,6 +284,7 @@ export default function RowChart({
           }
         }
 
+        // one-time fit so overlays land in view
         const chart = chartRef.current;
         if (chart && state.range === "ALL" && !didFitOnceRef.current && !userInteractedRef.current) {
           chart.timeScale().fitContent();
@@ -288,10 +300,11 @@ export default function RowChart({
 
     seedSeries();
     return () => { cancelled = true; };
-  }, [state.symbol, state.timeframe, state.range, state.volume]);
+  }, [state.symbol, state.timeframe, state.range, state.volume]); // <-- overlay toggles NOT included
 
   /* =================== Effect B: Attach/Seed Overlays =================== */
   useEffect(() => {
+    // need bars + chart + series
     if (!chartRef.current || !seriesRef.current || barsRef.current.length === 0) return;
 
     try { overlayInstancesRef.current.forEach(o => o?.destroy?.()); } catch {}
@@ -299,6 +312,7 @@ export default function RowChart({
 
     const reg = (inst) => inst && overlayInstancesRef.current.push(inst);
 
+    // Money Flow / RightProfile tied to moneyFlow toggle (not Volume)
     if (state.moneyFlow) {
       reg(attachOverlay(RightProfileOverlay, {
         chart: chartRef.current,
@@ -306,8 +320,8 @@ export default function RowChart({
         chartContainer: containerRef.current,
         timeframe: state.timeframe,
       }));
-      // If you have a separate MoneyFlowOverlay, mount here as well.
-      // reg(attachOverlay(MoneyFlowOverlay, {...}));
+      // If you also have a separate MoneyFlowOverlay, register it here as well.
+      // reg(attachOverlay(MoneyFlowOverlay, { chart:..., priceSeries:..., chartContainer:..., timeframe:... }));
     }
 
     if (state.luxSr) {
@@ -328,23 +342,7 @@ export default function RowChart({
       }));
     }
 
-    if (state.shelvesDual) {
-      reg(attachOverlay(createDualShelvesOverlay, {
-        chart: chartRef.current,
-        priceSeries: seriesRef.current,
-        chartContainer: containerRef.current,
-        timeframe: state.timeframe,
-      }));
-    }
-
-    if (state.smi1h) {
-      reg(attachOverlay(createSMI1hOverlay, {
-        chart: chartRef.current,
-        priceSeries: seriesRef.current,
-        chartContainer: containerRef.current,
-        timeframe: state.timeframe,
-      }));
-    }
+    // NEW: Four Shelves overlay (1h + 10m, Blue/Yellow each)
     if (state.shelvesFour) {
       reg(attachOverlay(createFourShelvesOverlay, {
         chart: chartRef.current,
@@ -353,8 +351,28 @@ export default function RowChart({
         timeframe: state.timeframe,
       }));
     }
+
+    // SMI (1h) bottom band
+    if (state.smi1h) {
+      reg(attachOverlay(createSMI1hOverlay, {
+        chart: chartRef.current,
+        priceSeries: seriesRef.current,
+        chartContainer: containerRef.current,
+        timeframe: state.timeframe,
+      }));
+    }
+
+    // seed overlays with existing bars (no refit, no volume changes)
     try { overlayInstancesRef.current.forEach(o => o?.seed?.(barsRef.current)); } catch {}
-  }, [state.moneyFlow, state.luxSr, state.swingLiquidity, state.shelvesDual, state.smi1h, state.timeframe, bars]);
+  }, [
+    state.moneyFlow,
+    state.luxSr,
+    state.swingLiquidity,
+    state.shelvesFour,   // <-- added
+    state.smi1h,
+    state.timeframe,
+    bars
+  ]); // bars to pick up the first seed once
 
   /* -------------------------- Render + Range ------------------------- */
   useEffect(() => {
@@ -539,14 +557,17 @@ export default function RowChart({
     showEma: state.showEma,
     ema10: state.ema10, ema20: state.ema20, ema50: state.ema50,
     volume: state.volume,
-    moneyFlow: state.moneyFlow, luxSr: state.luxSr, swingLiquidity: state.swingLiquidity, smi1h: state.smi1h,
-    shelvesDual: state.shelvesDual, // NEW
+    moneyFlow: state.moneyFlow, luxSr: state.luxSr, swingLiquidity: state.swingLiquidity,
+    smi1h: state.smi1h,
+    shelvesFour: state.shelvesFour, // NEW
     onChange: handleControlsChange,
     onReset: () =>
       setState((s) => ({
         ...s,
         showEma: true, ema10: true, ema20: true, ema50: true,
-        volume: true, moneyFlow: false, luxSr: false, swingLiquidity: false, smi1h: false, shelvesDual: false,
+        volume: true,
+        moneyFlow: false, luxSr: false, swingLiquidity: false,
+        smi1h: false, shelvesFour: false, // NEW
       })),
   };
 
