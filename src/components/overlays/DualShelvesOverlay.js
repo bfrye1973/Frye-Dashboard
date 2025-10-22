@@ -1,10 +1,12 @@
 // src/components/overlays/DualShelvesOverlay.js
 // Liquidity Shelves (Dual 1h) — Primary Blue + Secondary Yellow (sticky)
-// - Does NOT replace Swing Liquidity; totally separate overlay.
-// - 1h tuning (L/R=6), min touches ≥3, band-height cap (0.35%),
-//   full-width shelves, wick-density scoring,
-//   sticky Secondary (yellow inherits previous blue with ±1h tolerance & small-overlap).
-// - Inert (no fit/visibleRange); hour-aware recompute.
+// NO pivot shelves here (kept separate in Swing Liquidity).
+// - 1h tuning (L/R=6), min touches ≥3
+// - Band-height cap (0.35%), full-width zones
+// - Wick-density scoring
+// - Sticky Secondary: yellow inherits prior blue (±1h tolerance & small-overlap allowance)
+// - Inert (no fit/visibleRange), hour-aware recompute
+// - zIndex=20 and bold contrast so yellow is never hidden by Lux S/R
 
 export default function createDualShelvesOverlay({ chart, priceSeries, chartContainer, timeframe }) {
   if (!chart || !priceSeries || !chartContainer) {
@@ -16,24 +18,13 @@ export default function createDualShelvesOverlay({ chart, priceSeries, chartCont
   const L = timeframe === "1h" ? 6 : 10;
   const R = timeframe === "1h" ? 6 : 10;
 
-  const LOOKBACK = 600;
-  const BAND_BPS_BASE = 8;     // default half-band ~0.08%
-  const MAX_BAND_BPS   = 35;   // cap total height ≤0.35%
-
-  const FILL_ALPHA = 0.22;
-  const STROKE_W = 2;
-  const TAG_W = 12;
-  const TAG_MIN_H = 4;
-  const TEXT_PAD = 6;
-  const FONT = "bold 16px system-ui, -apple-system, Segoe UI, Roboto, Arial";
-
-  const TEST_LOOKBACK_HOURS = 24 * 30;
+  const TEST_LOOKBACK_HOURS = 24 * 30; // ~30 days
   const BOX_MIN_HRS = 16;
   const BOX_MAX_HRS = 24;
-  const BOX_BPS_LIMIT = timeframe === "1h" ? 35 : 55;
+  const BOX_BPS_LIMIT = timeframe === "1h" ? 35 : 55; // 0.35% cap on 1h
 
-  const BUCKET_BPS = 5;
-  const MERGE_BPS  = 10;
+  const BUCKET_BPS = 5;  // 0.05%
+  const MERGE_BPS  = 10; // merge ≤0.10%
   const MIN_TOUCHES_CLUSTER = 3;
   const DWELL_MIN_HOURS     = 8;
   const DWELL_BAND_EXPAND_BUCKETS = 1;
@@ -41,38 +32,35 @@ export default function createDualShelvesOverlay({ chart, priceSeries, chartCont
   const RETEST_BUFFER_BPS    = 8;
   const RETEST_MIN_COUNT     = 2;
 
-  const W_DENS = 0.35;
-  const W_VOL  = 0.30;
+  // scoring
+  const W_DENS = 0.35;  // touches/hour
+  const W_VOL  = 0.30;  // dwell proxy
   const W_TCH  = 0.20;
   const W_RTS  = 0.10;
   const W_REC  = 0.05;
 
-  const INNER_H_NORMAL   = 3;
-  const INNER_H_PRIMARY  = 5;
+  // visuals
   const ALPHA_MIN = 0.30, ALPHA_MAX = 1.00;
+  const STROKE_W = 2;
+  const FONT = "bold 16px system-ui, -apple-system, Segoe UI, Roboto, Arial";
 
-  const COL_SUP  = "#ff4d4f";
-  const COL_DEM  = "#22c55e";
-  const COL_EDGE = "#0b0f17";
-  const COL_P1_BOX = "#3b82f6";
-  const COL_P1     = "#3b82f6";
-  const COL_P2_BOX_FILL   = "rgba(255,255,0,0.25)";
-  const COL_P2_BOX_STROKE = "rgba(255,255,0,0.9)";
-  const COL_P2_DASH       = "rgba(255,255,0,0.8)";
-  const TEST_ALPHA = 0.16;
+  const COL_P1_BOX = "#3b82f6";                // Blue
+  const COL_P2_FILL = "rgba(255,255,0,0.35)";  // Yellow (stronger fill)
+  const COL_P2_STROKE = "rgba(255,255,0,0.95)";
+  const COL_P2_DASH = "rgba(255,255,0,0.85)";
+  const COL_P1      = "#3b82f6";
+  const TEST_ALPHA  = 0.16;
 
-  const FULL_WIDTH_SHELVES = true;
-  const FULL_WIDTH_PIVOTS  = true;
-  const SHOW_BOX_TICKS     = true;
+  const FULL_WIDTH_ZONES = true;
+  const SHOW_BOX_TICKS   = true;
 
   /* ---------------- State ---------------- */
-  let bars = [];
-  let bands = [];
-  let zoneP1 = null;
-  let zoneP2 = null;
-  let wickClusters = null;
+  let bars = [];            // asc [{time,open,high,low,close,volume}]
+  let zoneP1 = null;        // {tStart,tEnd,pLo,pHi,...}
+  let zoneP2 = null;        // sticky secondary
+  let wickClusters = null;  // kept minimal for now
   let lastHourBucket = null;
-  let prevPrimary = null; // sticky memory
+  let prevPrimary = null;   // sticky memory
 
   let rafId = null;
   const ts = chart.timeScale();
@@ -89,65 +77,6 @@ export default function createDualShelvesOverlay({ chart, priceSeries, chartCont
     const v=arr[i].low ; for(let j=i-L;j<=i+R;j++){ if(j===i||j<0||j>=arr.length) continue; if(arr[j].low <v) return false; } return true;
   };
 
-  function fmtVol(v) {
-    if (v >= 1e9) return (v/1e9).toFixed(2)+"B";
-    if (v >= 1e6) return (v/1e6).toFixed(2)+"M";
-    if (v >= 1e3) return (v/1e3).toFixed(2)+"K";
-    return String(Math.round(v));
-  }
-
-  /* ---------------- Pivot shelves (full-width) ---------------- */
-  function rebuildBands() {
-    bands = [];
-    if (!bars.length) return;
-
-    const start = Math.max(0, bars.length - LOOKBACK);
-    const scan  = bars.slice(start);
-    if (!scan.length) return;
-
-    const lastClose = scan.at(-1).close || 0;
-    const halfDefault = (BAND_BPS_BASE / 10000) * (lastClose || 1);
-    const maxHalf     = (MAX_BAND_BPS  / 10000) * (lastClose || 1) / 2;
-
-    const highs=[], lows=[];
-    for (let g = start + L; g < bars.length - R; g++) {
-      const b = bars[g];
-      if (isSwingHigh(bars, g)) highs.push({ p: b.high, t: toSec(b.time) });
-      if (isSwingLow (bars, g)) lows .push({ p: b.low , t: toSec(b.time) });
-    }
-    highs.sort((a,b)=>b.t-a.t);
-    lows .sort((a,b)=>b.t-a.t);
-
-    const take = (arr, side, max=3) => {
-      const out=[], used=[];
-      for (const z of arr) {
-        if (out.length >= max) break;
-        if (used.some(u => Math.abs(u - z.p) <= halfDefault*0.75)) continue;
-        used.push(z.p);
-        const half = Math.min(halfDefault, maxHalf);
-        out.push({ side, pLo: z.p - half, pHi: z.p + half, tPivot: z.t, volSum: 0 });
-      }
-      return out;
-    };
-
-    bands = [...take(highs,"SUP",3), ...take(lows,"DEM",3)];
-
-    if (bands.length) {
-      const tMin = toSec(bars[0].time);
-      for (const bd of bands) {
-        let v = 0;
-        for (let i=0;i<bars.length;i++){
-          const bt = toSec(bars[i].time);
-          if (bt < tMin || bt > bd.tPivot) continue;
-          const lo = bars[i].low, hi = bars[i].high;
-          if (hi >= bd.pLo && lo <= bd.pHi) v += Number(bars[i].volume||0);
-        }
-        bd.volSum = v;
-      }
-    }
-  }
-
-  /* ---------------- 1h resample & candidates ---------------- */
   function resampleTo1h(barsAsc){
     if(!barsAsc?.length) return [];
     const out=[]; let cur=null;
@@ -194,7 +123,6 @@ export default function createDualShelvesOverlay({ chart, priceSeries, chartCont
     const top = new Map(), bottom = new Map();
     const keyOf = (price) => Math.floor(price / step) * step;
 
-    // bucket wick tips
     for (const b of spanBars) {
       if (b.high > Math.max(b.open, b.close)) {
         const key = keyOf(b.high); const o = top.get(key) || { touches:0 };
@@ -293,10 +221,7 @@ export default function createDualShelvesOverlay({ chart, priceSeries, chartCont
       return { primary:arr[0] || null, secondary:arr[1] || null };
     };
 
-    return {
-      top: pack(topZones),
-      bottom: pack(botZones),
-    };
+    return { top: pack(topZones), bottom: pack(botZones) };
   }
 
   function rebuildDualZones(){
@@ -324,7 +249,7 @@ export default function createDualShelvesOverlay({ chart, priceSeries, chartCont
     zoneP1 = { tStart:A.tStart, tEnd:A.tEnd, pLo:A.pLo, pHi:A.pHi, score:A.score, touches:A.touches, dwell:A.dwell, retests:A.retests, spanHrs:A.spanHrs, bps:A.bps };
     wickClusters = A.clusters;
 
-    // B: sticky previous Primary if valid, else fallback to most-recent non-overlap
+    // B: sticky previous Primary if valid; else most-recent non-overlap
     const nonOverlap = (a,b) => (a.tEnd < b.tStart) || (b.tEnd < a.tStart);
     const overlapRatio = (a,b) => {
       const lo = Math.max(a.tStart, b.tStart);
@@ -338,7 +263,6 @@ export default function createDualShelvesOverlay({ chart, priceSeries, chartCont
     });
 
     let Bz = null;
-
     if (prevPrimary) {
       const tol = 3600; // +/-1h tolerance
       const matchPrev = scored.find(c =>
@@ -353,7 +277,6 @@ export default function createDualShelvesOverlay({ chart, priceSeries, chartCont
         if (smallOverlap) Bz = { ...prevPrimary };
       }
     }
-
     if (!Bz) {
       const remaining = scored.filter(c => nonOverlap({tStart:A.tStart,tEnd:A.tEnd},{tStart:c.tStart,tEnd:c.tEnd}));
       if (remaining.length){
@@ -377,7 +300,7 @@ export default function createDualShelvesOverlay({ chart, priceSeries, chartCont
     }
   }
 
-  /* ---------------- Draw (paint-only, full-width) ---------------- */
+  /* ---------------- Draw (zones only, full width) ---------------- */
   function doDraw(){
     const w = chartContainer.clientWidth  || 1;
     const h = chartContainer.clientHeight || 1;
@@ -386,7 +309,7 @@ export default function createDualShelvesOverlay({ chart, priceSeries, chartCont
     if(!cnv){
       cnv = document.createElement("canvas");
       cnv.className = "overlay-canvas dual-shelves";
-      Object.assign(cnv.style,{ position:"absolute", inset:0, pointerEvents:"none", zIndex:10 });
+      Object.assign(cnv.style,{ position:"absolute", inset:0, pointerEvents:"none", zIndex:20 }); // zIndex ↑
       chartContainer.appendChild(cnv);
     }
     if (!w || !h) return;
@@ -396,75 +319,34 @@ export default function createDualShelvesOverlay({ chart, priceSeries, chartCont
     ctx.clearRect(0,0,w,h);
     ctx.font = FONT;
 
-    const volMax = Math.max(1, ...bands.map(b=>b.volSum||0));
-
     const viewLeft  = 0;
     const viewRight = chartContainer.clientWidth || 1;
     const viewW     = Math.max(1, viewRight - viewLeft);
 
-    // (1) Pivot shelves (full width)
-    for (const bd of bands){
-      const yTop=yFor(bd.pHi), yBot=yFor(bd.pLo);
-      const xPivot=xFor(bd.tPivot);
-      if (yTop==null||yBot==null||xPivot==null) continue;
-
-      const color = bd.side==="SUP" ? COL_SUP : COL_DEM;
-      const yMin=Math.min(yTop,yBot), yMax=Math.max(yTop,yBot);
-      const rectH=Math.max(2,yMax-yMin);
-
-      const rectX = FULL_WIDTH_PIVOTS ? viewLeft : Math.min(0, xPivot);
-      const rectW = FULL_WIDTH_PIVOTS ? viewW : Math.max(1, Math.abs(xPivot - 0));
-
-      ctx.globalAlpha=FILL_ALPHA; ctx.fillStyle=color;
-      ctx.fillRect(rectX,yMin,rectW,rectH);
-      ctx.globalAlpha=1; ctx.lineWidth=STROKE_W; ctx.strokeStyle=color;
-      ctx.strokeRect(rectX+0.5,yMin+0.5,rectW-1,rectH-1);
-
-      // tag + plate at pivot
-      const tagFrac = Math.max(0,(bd.volSum||0)/volMax);
-      const tagH = Math.max(TAG_MIN_H, Math.floor(h*0.15*tagFrac));
-      const tagX = xPivot - TAG_W;
-      const tagY = Math.max(2, Math.min(h-tagH-2, yMin + (rectH - tagH)/2));
-      ctx.fillStyle = color; ctx.fillRect(tagX,tagY,TAG_W,tagH);
-      ctx.lineWidth=1; ctx.strokeStyle=COL_EDGE; ctx.strokeRect(tagX+0.5,tagY+0.5,TAG_W-1,tagH-1);
-
-      const txt = fmtVol(bd.volSum||0);
-      const m = ctx.measureText(txt);
-      const plateW = Math.ceil(m.width) + 12;
-      let plateX = tagX + TAG_W + TEXT_PAD, plateY = tagY + Math.max(0,(tagH - 18)/2);
-      if (plateX + plateW > viewRight - 2) plateX = tagX - TEXT_PAD - plateW;
-
-      ctx.globalAlpha=0.85; ctx.fillStyle="#0b0f17";
-      ctx.fillRect(plateX, plateY, plateW, 18);
-      ctx.globalAlpha=1; ctx.lineWidth=1; ctx.strokeStyle="#1f2a44";
-      ctx.strokeRect(plateX+0.5, plateY+0.5, plateW-1, 17);
-
-      const tx = plateX + 6, ty = plateY + 14;
-      ctx.fillStyle="#e5e7eb"; ctx.strokeStyle="#000"; ctx.lineWidth=2;
-      ctx.strokeText(txt, tx, ty); ctx.fillText(txt, tx, ty);
-    }
-
-    // (2) Secondary (Yellow) — full width, with contrast outline
+    // Secondary (Yellow)
     if (zoneP2){
       const yTop=yFor(zoneP2.pHi), yBot=yFor(zoneP2.pLo);
       if (yTop!=null && yBot!=null){
         const yMin=Math.min(yTop,yBot), yMax=Math.max(yTop,yBot);
         const rectH=Math.max(2,yMax-yMin);
 
+        // fill
         ctx.globalAlpha = 1;
-        ctx.fillStyle = COL_P2_BOX_FILL;
+        ctx.fillStyle = COL_P2_FILL;
         ctx.fillRect(viewLeft, yMin, viewW, rectH);
 
+        // dark under-outline for contrast
         ctx.save();
         ctx.lineWidth = STROKE_W + 2;
         ctx.strokeStyle = "rgba(0,0,0,0.35)";
         ctx.strokeRect(viewLeft + 0.5, yMin + 0.5, viewW - 1, rectH - 1);
         ctx.restore();
 
+        // dashed yellow border on top
         ctx.save();
         ctx.setLineDash([6,6]);
         ctx.lineWidth = STROKE_W + 1;
-        ctx.strokeStyle = COL_P2_BOX_STROKE;
+        ctx.strokeStyle = COL_P2_STROKE;
         ctx.strokeRect(viewLeft + 0.5, yMin + 0.5, viewW - 1, rectH - 1);
         ctx.restore();
 
@@ -474,7 +356,7 @@ export default function createDualShelvesOverlay({ chart, priceSeries, chartCont
             ctx.save();
             ctx.globalAlpha = 0.25;
             ctx.setLineDash([2,4]);
-            ctx.strokeStyle = COL_P2_BOX_STROKE;
+            ctx.strokeStyle = COL_P2_STROKE;
             ctx.beginPath(); ctx.moveTo(xS, yMin); ctx.lineTo(xS, yMax); ctx.stroke();
             ctx.beginPath(); ctx.moveTo(xE, yMin); ctx.lineTo(xE, yMax); ctx.stroke();
             ctx.restore();
@@ -483,7 +365,7 @@ export default function createDualShelvesOverlay({ chart, priceSeries, chartCont
       }
     }
 
-    // (3) Primary (Blue) + cluster guides
+    // Primary (Blue)
     if (zoneP1){
       const yTop=yFor(zoneP1.pHi), yBot=yFor(zoneP1.pLo);
       if (yTop!=null && yBot!=null){
@@ -507,8 +389,6 @@ export default function createDualShelvesOverlay({ chart, priceSeries, chartCont
             ctx.restore();
           }
         }
-
-        // Optional cluster guides from primary window (kept minimal)
       }
     }
   }
@@ -525,7 +405,7 @@ export default function createDualShelvesOverlay({ chart, priceSeries, chartCont
   return {
     seed(rawBarsAsc){
       bars = (rawBarsAsc||[]).map(b=>({...b, time:toSec(b.time)})).sort((a,b)=>a.time-b.time);
-      rebuildBands();
+
       const last = bars.at(-1);
       lastHourBucket = last ? Math.floor(toSec(last.time)/3600) : null;
       rebuildDualZones();
@@ -538,8 +418,6 @@ export default function createDualShelvesOverlay({ chart, priceSeries, chartCont
       else if (t===last.time)   bars[bars.length-1] = {...latest,time:t};
       else return;
 
-      rebuildBands();
-
       const bucket = Math.floor(t/3600);
       if (bucket !== lastHourBucket) {
         lastHourBucket = bucket;
@@ -551,6 +429,9 @@ export default function createDualShelvesOverlay({ chart, priceSeries, chartCont
       try { ts.unsubscribeVisibleLogicalRangeChange?.(onLogical); } catch {}
       try { ts.unsubscribeVisibleTimeRangeChange?.(onVisible); } catch {}
       window.removeEventListener("resize", scheduleDraw);
+      // remove canvas so toggle OFF hides immediately
+      const cnv = chartContainer.querySelector("canvas.overlay-canvas.dual-shelves");
+      if (cnv && cnv.parentNode === chartContainer) chartContainer.removeChild(cnv);
     },
   };
 }
