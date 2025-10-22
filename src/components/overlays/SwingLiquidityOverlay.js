@@ -1,8 +1,8 @@
 // src/components/overlays/SwingLiquidityOverlay.js
 // Swing Liquidity — Dual 1h (Primary Blue + Secondary Yellow) + Pivot Shelves
-// v2.1: 1h tuning (L/R=6), min touches ≥3, band-height cap (0.35%),
+// v2.2: 1h tuning (L/R=6), min touches ≥3, band-height cap (0.35%),
 //       full-width shelves, wick-density scoring, and “sticky Secondary”
-//       (yellow inherits the previous blue when still valid).
+//       (yellow inherits the previous blue with ±1h tolerance & small-overlap).
 // Inert (no fit/visibleRange); hour-aware recompute.
 
 export default function createSwingLiquidityOverlay({ chart, priceSeries, chartContainer, timeframe }) {
@@ -335,19 +335,24 @@ export default function createSwingLiquidityOverlay({ chart, priceSeries, chartC
     zoneP1 = { tStart:A.tStart, tEnd:A.tEnd, pLo:A.pLo, pHi:A.pHi, score:A.score, touches:A.touches, dwell:A.dwell, retests:A.retests, spanHrs:A.spanHrs, bps:A.bps };
     wickClusters = A.clusters;
 
-    // ---- B: “Sticky” Secondary = previous Primary if still valid & non-overlapping; else fallback ----
+    // ---- B: “Sticky” Secondary = previous Primary if still valid; else fallback ----
     const nonOverlap = (a,b) => (a.tEnd < b.tStart) || (b.tEnd < a.tStart);
-
-    // helper: convert a scored candidate into zone shape
-    const asZone = (C) => C && {
+    const overlapRatio = (a,b) => {
+      const lo = Math.max(a.tStart, b.tStart);
+      const hi = Math.min(a.tEnd,   b.tEnd);
+      return hi <= lo ? 0 : (hi - lo) / Math.max(1, (Math.max(a.tEnd,b.tEnd) - Math.min(a.tStart,b.tStart)));
+    };
+    const asZone = (C) => C && ({
       tStart: C.tStart, tEnd: C.tEnd, pLo: C.pLo, pHi: C.pHi,
       score: C.score, touches: C.touches, dwell: C.dwell, retests: C.retests,
       spanHrs: C.spanHrs, bps: C.bps
-    };
+    });
 
     let Bz = null;
+
+    // Sticky (±1h tolerance)
     if (prevPrimary) {
-      const tol = 0; // exact same 1h window; change to 3600 for +/-1h tolerance
+      const tol = 3600; // treat +/-1h as same shelf
       const matchPrev = scored.find(c =>
         Math.abs(c.tStart - prevPrimary.tStart) <= tol &&
         Math.abs(c.tEnd   - prevPrimary.tEnd)   <= tol
@@ -355,8 +360,16 @@ export default function createSwingLiquidityOverlay({ chart, priceSeries, chartC
       if (matchPrev && nonOverlap({tStart:A.tStart,tEnd:A.tEnd}, {tStart:matchPrev.tStart,tEnd:matchPrev.tEnd})) {
         Bz = asZone(matchPrev);
       }
+      // Small-overlap allowance (<30%) — still reuse prior blue
+      if (!Bz) {
+        const smallOverlap = overlapRatio({tStart:A.tStart,tEnd:A.tEnd}, prevPrimary) < 0.30;
+        if (smallOverlap) {
+          Bz = { ...prevPrimary };
+        }
+      }
     }
 
+    // Fallback: most-recent valid non-overlap (original rule)
     if (!Bz) {
       const remaining = scored.filter(c => nonOverlap({tStart:A.tStart,tEnd:A.tEnd},{tStart:c.tStart,tEnd:c.tEnd}));
       if (remaining.length){
@@ -371,6 +384,15 @@ export default function createSwingLiquidityOverlay({ chart, priceSeries, chartC
 
     // Update sticky memory for next cycle
     prevPrimary = { ...zoneP1 };
+
+    // Debug surfacing
+    if (typeof window !== "undefined") {
+      window.__SLZONES = {
+        zoneP1: zoneP1 ? { ...zoneP1 } : null,
+        zoneP2: zoneP2 ? { ...zoneP2 } : null,
+        prevPrimary: prevPrimary ? { ...prevPrimary } : null,
+      };
+    }
   }
 
   /* ---------------- Draw (paint-only, full-width) ---------------- */
@@ -440,22 +462,31 @@ export default function createSwingLiquidityOverlay({ chart, priceSeries, chartC
       ctx.strokeText(txt, tx, ty); ctx.fillText(txt, tx, ty);
     }
 
-    // (2) Secondary 1h (Yellow) — full width
+    // (2) Secondary 1h (Yellow) — full width (with contrast outline)
     if (zoneP2){
       const yTop=yFor(zoneP2.pHi), yBot=yFor(zoneP2.pLo);
       if (yTop!=null && yBot!=null){
         const yMin=Math.min(yTop,yBot), yMax=Math.max(yTop,yBot);
         const rectH=Math.max(2,yMax-yMin);
 
+        // fill
         ctx.globalAlpha = 1;
         ctx.fillStyle = COL_P2_BOX_FILL;
         ctx.fillRect(viewLeft, yMin, viewW, rectH);
 
+        // dark outline under border to pop over red lines
+        ctx.save();
+        ctx.lineWidth = STROKE_W + 2;
+        ctx.strokeStyle = "rgba(0,0,0,0.35)";
+        ctx.strokeRect(viewLeft + 0.5, yMin + 0.5, viewW - 1, rectH - 1);
+        ctx.restore();
+
+        // dashed yellow border on top
         ctx.save();
         ctx.setLineDash([6,6]);
-        ctx.lineWidth = STROKE_W;
+        ctx.lineWidth = STROKE_W + 1;
         ctx.strokeStyle = COL_P2_BOX_STROKE;
-        ctx.strokeRect(viewLeft+0.5, yMin+0.5, viewW-1, rectH-1);
+        ctx.strokeRect(viewLeft + 0.5, yMin + 0.5, viewW - 1, rectH - 1);
         ctx.restore();
 
         if (SHOW_BOX_TICKS) {
