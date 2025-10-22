@@ -54,7 +54,7 @@ function mapPsiToPct(psi) {
 function overallIntradayScore(m, intraday) {
   if (!m) return NaN;
   const breadth   = num(m.breadth_pct);                        // 0..100
-  // NEW: prefer blended momentum if present
+  // prefer blended momentum if present
   const momentum  = num(m.momentum_combo_pct ?? m.momentum_pct); // 0..100
   const squeezeOk = Number.isFinite(m.squeeze_intraday_pct ?? m.squeeze_pct)
     ? clamp(100 - (m.squeeze_intraday_pct ?? m.squeeze_pct), 0, 100)  // lower squeeze → better
@@ -390,8 +390,8 @@ export default function RowMarketOverview() {
   const m   = data?.metrics ?? {};
   const ts  = data?.updated_at ?? data?.ts ?? null;
 
-  const breadth      = num(m.breadth_pct);
-  // NEW: Momentum prefers blended value
+  // v1 reads (Breadth now uses breadth_10m_pct first)
+  const breadth      = num(m.breadth_10m_pct ?? m.breadth_pct);
   const momentum     = num(m.momentum_combo_pct ?? m.momentum_pct);
   const squeezeIntra = num(m.squeeze_intraday_pct ?? m.squeeze_pct); // alias-safe
   const liquidity    = num(m.liquidity_psi        ?? m.liquidity_pct); // PSI, alias-safe
