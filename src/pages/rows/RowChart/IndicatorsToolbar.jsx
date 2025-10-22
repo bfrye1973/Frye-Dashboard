@@ -1,38 +1,32 @@
 // src/pages/rows/RowChart/IndicatorsToolbar.jsx
-// v3.2 — Adds Shelves (Dual 1h) toggle alongside existing overlays.
+// v3.3 — Adds Shelves (1h + 10m) toggle
 
 import React from "react";
 
 /**
  * IndicatorsToolbar
- * Props (all optional; parent RowChart supplies live state):
+ * Props:
  * - showEma, ema10, ema20, ema50
  * - volume
  * - moneyFlow, luxSr, swingLiquidity
  * - smi1h
- * - shelvesDual   <-- NEW (blue/yellow dual shelves)
+ * - shelvesFour   <-- NEW
  * - onChange(patch), onReset()
  */
 export default function IndicatorsToolbar({
-  // EMAs
   showEma = true,
   ema10 = true,
   ema20 = true,
   ema50 = true,
 
-  // Volume
   volume = true,
 
-  // Overlays (price pane)
   moneyFlow = false,
   luxSr = false,
   swingLiquidity = false,
 
-  // Oscillators (bottom pane)
   smi1h = false,
-
-  // New shelves overlay (price pane)
-  shelvesDual = false,
+  shelvesFour = false, // NEW
 
   onChange,
   onReset,
@@ -142,7 +136,7 @@ export default function IndicatorsToolbar({
 
               {divider}
 
-              {/* Overlays (price pane) */}
+              {/* Overlays */}
               <div style={{ color: "#9ca3af", fontSize: 12, margin: "6px 0 4px" }}>Overlays</div>
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                 <label>
@@ -172,23 +166,16 @@ export default function IndicatorsToolbar({
                 <label>
                   <input
                     type="checkbox"
-                    checked={!!shelvesDual}
-                    onChange={(e) => onChange?.({ shelvesDual: e.target.checked })}
+                    checked={!!shelvesFour}
+                    onChange={(e) => onChange?.({ shelvesFour: e.target.checked })}
                   />{" "}
-                  Shelves (Dual 1h) — blue/yellow
+                  Shelves (1h + 10m) — 2×Blue/Yellow
                 </label>
               </div>
-                <label>
-                 <input
-                   type="checkbox"
-                   checked={!!shelvesFour}
-                   onChange={(e) => onChange?.({ shelvesFour: e.target.checked })}
-              />{" "}
-              Shelves (1h + 10m) — 2×Blue/Yellow
-            </lab
+
               {divider}
 
-              {/* Oscillators (bottom pane) */}
+              {/* Oscillator */}
               <div style={{ color: "#9ca3af", fontSize: 12, margin: "6px 0 4px" }}>Oscillators</div>
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                 <label>
@@ -197,13 +184,12 @@ export default function IndicatorsToolbar({
                     checked={!!smi1h}
                     onChange={(e) => onChange?.({ smi1h: e.target.checked })}
                   />{" "}
-                    SMI (1h) — bottom pane
+                  SMI (1h) — bottom pane
                 </label>
               </div>
 
               {divider}
 
-              {/* Reset */}
               <button
                 type="button"
                 onClick={() => onReset?.()}
