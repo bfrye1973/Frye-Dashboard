@@ -1,16 +1,16 @@
 // src/pages/rows/RowChart/IndicatorsToolbar.jsx
-// v3.1 — Adds SMI (1h) toggle (bottom pane). Simple, predictable toggles.
-// Defaults: EMAs + Volume visible; overlays off until enabled.
+// v3.2 — Adds Shelves (Dual 1h) toggle alongside existing overlays.
 
 import React from "react";
 
 /**
  * IndicatorsToolbar
- * Props (all optional; parent RowChart typically supplies live state):
+ * Props (all optional; parent RowChart supplies live state):
  * - showEma, ema10, ema20, ema50
  * - volume
  * - moneyFlow, luxSr, swingLiquidity
- * - smi1h  <-- NEW (1-hour SMI overlay under chart)
+ * - smi1h
+ * - shelvesDual   <-- NEW (blue/yellow dual shelves)
  * - onChange(patch), onReset()
  */
 export default function IndicatorsToolbar({
@@ -20,18 +20,20 @@ export default function IndicatorsToolbar({
   ema20 = true,
   ema50 = true,
 
-  // Volume (separate pane)
+  // Volume
   volume = true,
 
-  // Overlays (price pane, custom canvases)
+  // Overlays (price pane)
   moneyFlow = false,
   luxSr = false,
   swingLiquidity = false,
 
   // Oscillators (bottom pane)
-  smi1h = false, // NEW
+  smi1h = false,
 
-  // Handlers
+  // New shelves overlay (price pane)
+  shelvesDual = false,
+
   onChange,
   onReset,
 }) {
@@ -167,6 +169,14 @@ export default function IndicatorsToolbar({
                   />{" "}
                   Swing Liquidity (pivots)
                 </label>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={!!shelvesDual}
+                    onChange={(e) => onChange?.({ shelvesDual: e.target.checked })}
+                  />{" "}
+                  Shelves (Dual 1h) — blue/yellow
+                </label>
               </div>
 
               {divider}
@@ -180,7 +190,7 @@ export default function IndicatorsToolbar({
                     checked={!!smi1h}
                     onChange={(e) => onChange?.({ smi1h: e.target.checked })}
                   />{" "}
-                  SMI (1h) — bottom pane
+                    SMI (1h) — bottom pane
                 </label>
               </div>
 
