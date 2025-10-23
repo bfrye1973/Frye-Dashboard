@@ -1,12 +1,11 @@
 // src/components/overlays/FourShelvesOverlay.js
-// Four Shelves Overlay — TWO shelves per timeframe:
-//   Major (1h):   Blue (primary) + Yellow (secondary)
-//   Micro (10m):  Blue (primary) + Yellow (secondary)
-// Window-only rectangles (tStart→tEnd), inert (no fit/visibleRange)
-// Rebuild cadence: micro on each 10m close, major on each 1h close
+// Four Shelves — full-width bands:
+//   1h   : Blue (primary) + Yellow (secondary)
+//   10m  : Blue (primary) + Yellow (secondary)
+// Inert (no fit/visibleRange). Cleans canvas on destroy().
 // Diagnostics: window.__DUALSHELVES.{why1hY,why10mY,why10mB}
 // Labels: “1h B”, “1h Y”, “10m B”, “10m Y”
-// UPDATE: Micro (10m) analysis uses **last 10 calendar days** of bars only.
+// Micro analysis uses only the last 10 days of source bars.
 
 export default function createFourShelvesOverlay({ chart, priceSeries, chartContainer, timeframe }) {
   if (!chart || !priceSeries || !chartContainer) {
@@ -19,52 +18,56 @@ export default function createFourShelvesOverlay({ chart, priceSeries, chartCont
   const STROKE_W = 2;
   const FONT = "bold 12px system-ui, -apple-system, Segoe UI, Roboto, Arial";
 
-  // 1h colors (darker)
+  // 1h (major) colors
   const COL_MAJOR_B_FILL = "rgba( 59,130,246,0.22)";
   const COL_MAJOR_B_STRO = "rgba( 59,130,246,0.95)";
   const COL_MAJOR_Y_FILL = "rgba(255,221,  0,0.24)";
   const COL_MAJOR_Y_STRO = "rgba(255,221,  0,0.95)";
 
-  // 10m colors (lighter variants to distinguish)
+  // 10m (micro) colors
   const COL_MICRO_B_FILL = "rgba( 59,130,246,0.16)";
-  const COL_MICRO_B_STRO = "rgba( 59,130,246,0.80)";
-  const COL_MICRO_Y_FILL = "rgba(255,237,  0,0.18)";
-  const COL_MICRO_Y_STRO = "rgba(255,237,  0,0.90)";
+  const COL_MICRO_B_STRO = "rgba( 59,130,246,0.85)";
+  const COL_MICRO_Y_FILL = "rgba(255,237,  0,0.20)";
+  const COL_MICRO_Y_STRO = "rgba(255,237,  0,0.95)";
 
   const DASH_MAJOR_Y = [6, 6]; // dashed
   const DASH_MICRO_Y = [3, 5]; // dotted-ish
   const DASH_MICRO_B = [5, 4]; // micro-blue dashed
 
+  // draw full-width bands? (requested)
+  const FULL_WIDTH = true;
+  const SHOW_TICKS = true; // faint markers at tStart/tEnd for context
+
   /* --------------- Parameters per timeframe --------------- */
-  // Major (1h baseline) — unchanged
+  // 1h (keep strict — this is the “perfect” one)
   const MAJOR = {
     spanMin: 16, spanMax: 24,             // hours
     tightBpsCap: 35,                       // ≤ 0.35%
     minTouches: 3, minDwell: 8, minRetests: 2,
-    stickyTolSec: 2 * 3600,                // ±2h tolerance
-    stickyOverlapMax: 0.50,                // ≤ 50% for sticky reuse
-    fallbackOverlapMax: 0.65,              // last resort
-    sameTfOverlapMax: 0.20,                // blue vs yellow (same TF)
+    stickyTolSec: 2 * 3600,               // ±2h tolerance
+    stickyOverlapMax: 0.50,               // sticky allowed up to 50% overlap
+    fallbackOverlapMax: 0.65,             // mild overlap fallback
+    sameTfOverlapMax: 0.20,               // 1h blue vs 1h yellow
   };
 
-  // Micro (10m baseline) — relaxed so it shows on 10m view
+  // 10m (slightly relaxed so it shows consistently)
   const MICRO = {
-    spanMin: 10, spanMax: 24,             // 100–240 minutes (broader)
+    spanMin: 10, spanMax: 24,             // 100–240 min
     tightBpsCap: 28,                       // ≤ 0.28%
     minTouches: 3, minDwell: 5, minRetests: 1,
-    stickyTolSec: 20 * 60,                 // ±20m
+    stickyTolSec: 20 * 60,                // ±20m
     stickyOverlapMax: 0.20,
     fallbackOverlapMax: 0.35,
-    sameTfOverlapMax: 0.20,
-    minGapPct: 0.0010,                     // ≥ 0.10% price-gap when using mild-overlap fallback
+    sameTfOverlapMax: 0.20,               // 10m blue vs 10m yellow
+    minGapPct: 0.0010,                    // ≥ 0.10% price gap for mild-overlap
   };
 
-  // Micro history window (NEW): limit to last 10 days of source bars
+  // Micro analysis lookback: last 10 calendar days
   const MICRO_LOOKBACK_DAYS = 10;
   const SECONDS_PER_DAY = 86400;
 
   /* ---------------- State ---------------- */
-  let barsAsc = [];        // asc [{time,open,high,low,close,volume}]
+  let barsAsc = [];        // asc bars [{time,open,high,low,close,volume}]
   let last10mBucket = null;
   let last1hBucket  = null;
 
@@ -74,7 +77,8 @@ export default function createFourShelvesOverlay({ chart, priceSeries, chartCont
   let prevMajorBlue = null;
   let prevMicroBlue = null;
 
-  let why1hY = "";   // diagnostics
+  // diagnostics
+  let why1hY = "";
   let why10mB = "";
   let why10mY = "";
 
@@ -243,7 +247,7 @@ export default function createFourShelvesOverlay({ chart, priceSeries, chartCont
   }
 
   function stickyYellow(currentBlue, prevBlue, list, cfg, diagPrefix, midHint){
-    // try sticky reuse
+    // sticky reuse if close in time and overlap within limit
     if (prevBlue && currentBlue){
       const timeClose = (Math.abs(prevBlue.tStart - currentBlue.tStart) <= cfg.stickyTolSec) ||
                         (Math.abs(prevBlue.tEnd   - currentBlue.tEnd)   <= cfg.stickyTolSec);
@@ -259,7 +263,7 @@ export default function createFourShelvesOverlay({ chart, priceSeries, chartCont
       }
     }
 
-    // best non-overlap already attempted before calling sticky; if still none, allow mild overlap
+    // best non-overlap already tried; allow mild overlap with min price gap
     const mild = list.find(z => {
       if (z === currentBlue) return false;
       const ov = overlapRatio(currentBlue, z);
@@ -268,7 +272,7 @@ export default function createFourShelvesOverlay({ chart, priceSeries, chartCont
         const mid = (z.pLo + z.pHi)/2;
         const midB= (currentBlue.pLo + currentBlue.pHi)/2;
         const gap = Math.abs(mid - midB) / Math.max(1e-9, midB);
-        if (gap < cfg.minGapPct) return false; // too close — would sit on top
+        if (gap < cfg.minGapPct) return false;
       }
       return true;
     });
@@ -298,18 +302,16 @@ export default function createFourShelvesOverlay({ chart, priceSeries, chartCont
     prevMajorBlue = majorBlue ? { ...majorBlue } : prevMajorBlue;
   }
 
-  // NEW: limit micro analysis window to last 10 days of source bars
   function microSourceSlice() {
     if (!barsAsc.length) return [];
     const lastT = barsAsc[barsAsc.length - 1].time;
     const cutoff = lastT - MICRO_LOOKBACK_DAYS * SECONDS_PER_DAY;
-    // slice only recent bars (keep order)
     const i0 = barsAsc.findIndex(b => b.time >= cutoff);
     return i0 === -1 ? barsAsc.slice() : barsAsc.slice(i0);
   }
 
   function rebuildMicro(){
-    const recent = microSourceSlice();                // ← only last 10 days
+    const recent = microSourceSlice();
     const bars10m = resampleTF(recent, 600);
     let {blue, yellow, all} = pickTwoZones(bars10m, MICRO, "10m");
     microBlue = blue || null;
@@ -322,7 +324,7 @@ export default function createFourShelvesOverlay({ chart, priceSeries, chartCont
     prevMicroBlue = microBlue ? { ...microBlue } : prevMicroBlue;
   }
 
-  /* ---------------- Canvas draw (window-only rectangles) ---------------- */
+  /* ---------------- Canvas draw (FULL-WIDTH bands) ---------------- */
   function scheduleDraw(){ if (rafId!=null) return; rafId = requestAnimationFrame(()=>{ rafId=null; draw(); }); }
 
   function drawLabel(ctx, xR, yMid, tag) {
@@ -362,39 +364,54 @@ export default function createFourShelvesOverlay({ chart, priceSeries, chartCont
     ctx.clearRect(0,0,w,h);
     ctx.font = FONT;
 
-    function rectFor(zone, fill, stroke, dash, label){
+    const viewLeft  = 0;
+    const viewRight = w;
+    const viewW     = Math.max(1, viewRight - viewLeft);
+
+    function bandFor(zone, fill, stroke, dash, label){
       if (!zone) return;
       const yTop = yFor(zone.pHi), yBot = yFor(zone.pLo);
       const xS   = xFor(zone.tStart), xE = xFor(zone.tEnd);
-      if (yTop==null||yBot==null||xS==null||xE==null) return;
+      if (yTop==null||yBot==null) return;
       const yMin = Math.min(yTop,yBot),  yMax = Math.max(yTop,yBot);
-      const xL   = Math.min(xS,xE),      xR   = Math.max(xS,xE);
-      const rectW = Math.max(1, xR-xL),  rectH = Math.max(2, yMax-yMin);
+      const rectH = Math.max(2, yMax - yMin);
 
+      // FULL WIDTH fill + border
       ctx.globalAlpha = 1;
       ctx.fillStyle = fill;
-      ctx.fillRect(xL, yMin, rectW, rectH);
+      ctx.fillRect(viewLeft, yMin, viewW, rectH);
 
       ctx.save();
       if (dash && dash.length) ctx.setLineDash(dash);
       ctx.lineWidth = STROKE_W;
       ctx.strokeStyle = stroke;
-      ctx.strokeRect(xL + 0.5, yMin + 0.5, rectW - 1, rectH - 1);
+      ctx.strokeRect(viewLeft + 0.5, yMin + 0.5, viewW - 1, rectH - 1);
       ctx.restore();
+
+      // optional ticks at the real window edges
+      if (SHOW_TICKS && xS!=null && xE!=null){
+        ctx.save();
+        ctx.globalAlpha = 0.25;
+        ctx.setLineDash([2,4]);
+        ctx.strokeStyle = stroke;
+        ctx.beginPath(); ctx.moveTo(xS, yMin); ctx.lineTo(xS, yMax); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(xE, yMin); ctx.lineTo(xE, yMax); ctx.stroke();
+        ctx.restore();
+      }
 
       if (label) {
         const yMid = (yMin + yMax)/2;
-        drawLabel(ctx, xR, yMid, label);
+        drawLabel(ctx, viewRight, yMid, label);
       }
     }
 
-    // Draw order: major first (blue then yellow), then micro on top
-    rectFor(majorBlue,   COL_MAJOR_B_FILL, COL_MAJOR_B_STRO, null,         "1h B");
-    rectFor(majorYellow, COL_MAJOR_Y_FILL, COL_MAJOR_Y_STRO, DASH_MAJOR_Y, "1h Y");
-    rectFor(microBlue,   COL_MICRO_B_FILL, COL_MICRO_B_STRO, DASH_MICRO_B, "10m B");
-    rectFor(microYellow, COL_MICRO_Y_FILL, COL_MICRO_Y_STRO, DASH_MICRO_Y, "10m Y");
+    // Draw order: major (blue then yellow), then micro on top
+    bandFor(majorBlue,   COL_MAJOR_B_FILL, COL_MAJOR_B_STRO, null,         "1h B");
+    bandFor(majorYellow, COL_MAJOR_Y_FILL, COL_MAJOR_Y_STRO, DASH_MAJOR_Y, "1h Y");
+    bandFor(microBlue,   COL_MICRO_B_FILL, COL_MICRO_B_STRO, DASH_MICRO_B, "10m B");
+    bandFor(microYellow, COL_MICRO_Y_FILL, COL_MICRO_Y_STRO, DASH_MICRO_Y, "10m Y");
 
-    // expose diagnostics
+    // diagnostics
     if (typeof window !== "undefined") {
       window.__DUALSHELVES = {
         zone1hB: majorBlue, zone1hY: majorYellow,
