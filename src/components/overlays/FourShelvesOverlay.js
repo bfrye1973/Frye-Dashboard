@@ -1,12 +1,12 @@
 // src/components/overlays/FourShelvesOverlay.js
-// Four Shelves Overlay — draws TWO shelves per timeframe:
+// Four Shelves Overlay — TWO shelves per timeframe:
 //   Major (1h):   Blue (primary) + Yellow (secondary)
 //   Micro (10m):  Blue (primary) + Yellow (secondary)
-// Window-only rectangles (tStart→tEnd), non-overlap within each TF, inert (no fit/visibleRange)
+// Window-only rectangles (tStart→tEnd), inert (no fit/visibleRange)
 // Rebuild cadence: micro on each 10m close, major on each 1h close
-// Adds diagnostics: window.__DUALSHELVES.{why1hY,why10mY,why10mB}
-// Adds small right-edge labels: “1h B”, “1h Y”, “10m B”, “10m Y”
-// Draw order keeps micro above major.
+// Diagnostics: window.__DUALSHELVES.{why1hY,why10mY,why10mB}
+// Labels: “1h B”, “1h Y”, “10m B”, “10m Y”
+// UPDATE: Micro (10m) analysis uses **last 10 calendar days** of bars only.
 
 export default function createFourShelvesOverlay({ chart, priceSeries, chartContainer, timeframe }) {
   if (!chart || !priceSeries || !chartContainer) {
@@ -36,12 +36,12 @@ export default function createFourShelvesOverlay({ chart, priceSeries, chartCont
   const DASH_MICRO_B = [5, 4]; // micro-blue dashed
 
   /* --------------- Parameters per timeframe --------------- */
-  // Major (1h baseline) — unchanged (your “perfect” result)
+  // Major (1h baseline) — unchanged
   const MAJOR = {
     spanMin: 16, spanMax: 24,             // hours
     tightBpsCap: 35,                       // ≤ 0.35%
     minTouches: 3, minDwell: 8, minRetests: 2,
-    stickyTolSec: 2 * 3600,               // ±2h tolerance
+    stickyTolSec: 2 * 3600,                // ±2h tolerance
     stickyOverlapMax: 0.50,                // ≤ 50% for sticky reuse
     fallbackOverlapMax: 0.65,              // last resort
     sameTfOverlapMax: 0.20,                // blue vs yellow (same TF)
@@ -50,14 +50,18 @@ export default function createFourShelvesOverlay({ chart, priceSeries, chartCont
   // Micro (10m baseline) — relaxed so it shows on 10m view
   const MICRO = {
     spanMin: 10, spanMax: 24,             // 100–240 minutes (broader)
-    tightBpsCap: 28,                       // ≤ 0.28% (thin but not too strict)
+    tightBpsCap: 28,                       // ≤ 0.28%
     minTouches: 3, minDwell: 5, minRetests: 1,
-    stickyTolSec: 20 * 60,                // ±20m
-    stickyOverlapMax: 0.20,               // strict non-overlap for sticky
-    fallbackOverlapMax: 0.35,             // allow mild overlap if needed
-    sameTfOverlapMax: 0.20,               // blue vs yellow within TF
-    minGapPct: 0.0010,                    // ≥ 0.10% price gap when using mild-overlap fallback
+    stickyTolSec: 20 * 60,                 // ±20m
+    stickyOverlapMax: 0.20,
+    fallbackOverlapMax: 0.35,
+    sameTfOverlapMax: 0.20,
+    minGapPct: 0.0010,                     // ≥ 0.10% price-gap when using mild-overlap fallback
   };
+
+  // Micro history window (NEW): limit to last 10 days of source bars
+  const MICRO_LOOKBACK_DAYS = 10;
+  const SECONDS_PER_DAY = 86400;
 
   /* ---------------- State ---------------- */
   let barsAsc = [];        // asc [{time,open,high,low,close,volume}]
@@ -294,8 +298,19 @@ export default function createFourShelvesOverlay({ chart, priceSeries, chartCont
     prevMajorBlue = majorBlue ? { ...majorBlue } : prevMajorBlue;
   }
 
+  // NEW: limit micro analysis window to last 10 days of source bars
+  function microSourceSlice() {
+    if (!barsAsc.length) return [];
+    const lastT = barsAsc[barsAsc.length - 1].time;
+    const cutoff = lastT - MICRO_LOOKBACK_DAYS * SECONDS_PER_DAY;
+    // slice only recent bars (keep order)
+    const i0 = barsAsc.findIndex(b => b.time >= cutoff);
+    return i0 === -1 ? barsAsc.slice() : barsAsc.slice(i0);
+  }
+
   function rebuildMicro(){
-    const bars10m = resampleTF(barsAsc, 600);
+    const recent = microSourceSlice();                // ← only last 10 days
+    const bars10m = resampleTF(recent, 600);
     let {blue, yellow, all} = pickTwoZones(bars10m, MICRO, "10m");
     microBlue = blue || null;
 
@@ -374,7 +389,7 @@ export default function createFourShelvesOverlay({ chart, priceSeries, chartCont
     }
 
     // Draw order: major first (blue then yellow), then micro on top
-    rectFor(majorBlue,   COL_MAJOR_B_FILL, COL_MAJOR_B_STRO, null,      "1h B");
+    rectFor(majorBlue,   COL_MAJOR_B_FILL, COL_MAJOR_B_STRO, null,         "1h B");
     rectFor(majorYellow, COL_MAJOR_Y_FILL, COL_MAJOR_Y_STRO, DASH_MAJOR_Y, "1h Y");
     rectFor(microBlue,   COL_MICRO_B_FILL, COL_MICRO_B_STRO, DASH_MICRO_B, "10m B");
     rectFor(microYellow, COL_MICRO_Y_FILL, COL_MICRO_Y_STRO, DASH_MICRO_Y, "10m Y");
