@@ -4,7 +4,9 @@
 //   Micro (10m):  Blue (primary) + Yellow (secondary)
 // Window-only rectangles (tStart→tEnd), non-overlap within each TF, inert (no fit/visibleRange)
 // Rebuild cadence: micro on each 10m close, major on each 1h close
-// Fully removes canvas on destroy()
+// Adds diagnostics: window.__DUALSHELVES.{why1hY,why10mY,why10mB}
+// Adds small right-edge labels: “1h B”, “1h Y”, “10m B”, “10m Y”
+// Draw order keeps micro above major.
 
 export default function createFourShelvesOverlay({ chart, priceSeries, chartContainer, timeframe }) {
   if (!chart || !priceSeries || !chartContainer) {
@@ -34,7 +36,7 @@ export default function createFourShelvesOverlay({ chart, priceSeries, chartCont
   const DASH_MICRO_B = [5, 4]; // micro-blue dashed
 
   /* --------------- Parameters per timeframe --------------- */
-  // Major (1h baseline)
+  // Major (1h baseline) — unchanged (your “perfect” result)
   const MAJOR = {
     spanMin: 16, spanMax: 24,             // hours
     tightBpsCap: 35,                       // ≤ 0.35%
@@ -45,15 +47,16 @@ export default function createFourShelvesOverlay({ chart, priceSeries, chartCont
     sameTfOverlapMax: 0.20,                // blue vs yellow (same TF)
   };
 
-  // Micro (10m baseline)
+  // Micro (10m baseline) — relaxed so it shows on 10m view
   const MICRO = {
-    spanMin: 8, spanMax: 16,              // 80–160 minutes
-    tightBpsCap: 25,                       // ≤ 0.25% (thin)
-    minTouches: 4, minDwell: 6, minRetests: 2,
+    spanMin: 10, spanMax: 24,             // 100–240 minutes (broader)
+    tightBpsCap: 28,                       // ≤ 0.28% (thin but not too strict)
+    minTouches: 3, minDwell: 5, minRetests: 1,
     stickyTolSec: 20 * 60,                // ±20m
-    stickyOverlapMax: 0.20,
-    fallbackOverlapMax: 0.35,
-    sameTfOverlapMax: 0.20,
+    stickyOverlapMax: 0.20,               // strict non-overlap for sticky
+    fallbackOverlapMax: 0.35,             // allow mild overlap if needed
+    sameTfOverlapMax: 0.20,               // blue vs yellow within TF
+    minGapPct: 0.0010,                    // ≥ 0.10% price gap when using mild-overlap fallback
   };
 
   /* ---------------- State ---------------- */
@@ -66,6 +69,10 @@ export default function createFourShelvesOverlay({ chart, priceSeries, chartCont
 
   let prevMajorBlue = null;
   let prevMicroBlue = null;
+
+  let why1hY = "";   // diagnostics
+  let why10mB = "";
+  let why10mY = "";
 
   let rafId = null;
   const ts = chart.timeScale();
@@ -189,13 +196,18 @@ export default function createFourShelvesOverlay({ chart, priceSeries, chartCont
     return { ...cand, side, touches, dwell, retests: rtests };
   }
 
-  function pickTwoZones(barsTF, cfg){
+  function pickTwoZones(barsTF, cfg, diagPrefix){
     const cands = slideCandidates(barsTF, cfg.spanMin, cfg.spanMax, cfg.tightBpsCap);
-    if (!cands.length) return { blue:null, yellow:null, all:[] };
-
+    if (!cands.length) {
+      if (diagPrefix === "10m") why10mB = "no_candidates";
+      return { blue:null, yellow:null, all:[] };
+    }
     const ann = cands.map(c => annotateStats(barsTF, c, cfg));
     const ok = ann.filter(z => z.touches >= cfg.minTouches && z.dwell >= cfg.minDwell && z.retests >= cfg.minRetests);
-    if (!ok.length) return { blue:null, yellow:null, all:[] };
+    if (!ok.length) {
+      if (diagPrefix === "10m") why10mB = "floors_filtered_all";
+      return { blue:null, yellow:null, all:[] };
+    }
 
     const maxD = Math.max(...ok.map(z=>z.dwell),1);
     const maxT = Math.max(...ok.map(z=>z.touches),1);
@@ -212,16 +224,22 @@ export default function createFourShelvesOverlay({ chart, priceSeries, chartCont
 
     ok.sort((a,b)=> b.score - a.score || b.spanBars - a.spanBars);
     const blue = ok[0];
+    if (diagPrefix === "10m") why10mB = "ok";
 
+    // default yellow with non-overlap
     let yellow = null;
     for (let k=1;k<ok.length;k++){
       const z = ok[k];
       if (overlapRatio(blue,z) <= cfg.sameTfOverlapMax){ yellow = z; break; }
     }
+    if (!yellow && diagPrefix === "1h") { why1hY = "nonoverlap_none"; }
+    if (!yellow && diagPrefix === "10m") { why10mY = "nonoverlap_none"; }
+
     return { blue, yellow, all: ok };
   }
 
-  function stickyYellow(currentBlue, prevBlue, list, cfg){
+  function stickyYellow(currentBlue, prevBlue, list, cfg, diagPrefix, midHint){
+    // try sticky reuse
     if (prevBlue && currentBlue){
       const timeClose = (Math.abs(prevBlue.tStart - currentBlue.tStart) <= cfg.stickyTolSec) ||
                         (Math.abs(prevBlue.tEnd   - currentBlue.tEnd)   <= cfg.stickyTolSec);
@@ -231,34 +249,85 @@ export default function createFourShelvesOverlay({ chart, priceSeries, chartCont
           Math.abs(c.tStart - prevBlue.tStart) <= cfg.stickyTolSec &&
           Math.abs(c.tEnd   - prevBlue.tEnd)   <= cfg.stickyTolSec
         );
-        if (match) return match;
-        return prevBlue;
+        if (diagPrefix === "1h") why1hY = "sticky_reused";
+        if (diagPrefix === "10m") why10mY = "sticky_reused";
+        return match || prevBlue;
       }
     }
-    const nonOverlap = list.find(z => overlapRatio(currentBlue, z) <= cfg.sameTfOverlapMax && z !== currentBlue);
-    if (nonOverlap) return nonOverlap;
-    return list.find(z => overlapRatio(currentBlue, z) <= cfg.fallbackOverlapMax && z !== currentBlue) || null;
+
+    // best non-overlap already attempted before calling sticky; if still none, allow mild overlap
+    const mild = list.find(z => {
+      if (z === currentBlue) return false;
+      const ov = overlapRatio(currentBlue, z);
+      if (ov > cfg.fallbackOverlapMax) return false;
+      if (cfg.minGapPct && midHint){
+        const mid = (z.pLo + z.pHi)/2;
+        const midB= (currentBlue.pLo + currentBlue.pHi)/2;
+        const gap = Math.abs(mid - midB) / Math.max(1e-9, midB);
+        if (gap < cfg.minGapPct) return false; // too close — would sit on top
+      }
+      return true;
+    });
+    if (mild) {
+      if (diagPrefix === "1h") why1hY = "mild_overlap_ok";
+      if (diagPrefix === "10m") why10mY = "mild_overlap_ok";
+      return mild;
+    }
+
+    if (diagPrefix === "1h") why1hY = "no_secondary";
+    if (diagPrefix === "10m") why10mY = "no_secondary";
+    return null;
   }
 
   /* ---------------- Rebuild per TF ---------------- */
   function rebuildMajor(){
     const bars1h = resampleTF(barsAsc, 3600);
-    const {blue, yellow, all} = pickTwoZones(bars1h, MAJOR);
+    let {blue, yellow, all} = pickTwoZones(bars1h, MAJOR, "1h");
     majorBlue = blue || null;
-    majorYellow = stickyYellow(majorBlue, prevMajorBlue, all, MAJOR);
+
+    why1hY = yellow ? "nonoverlap_ok" : why1hY || "nonoverlap_none";
+    if (!yellow && majorBlue) {
+      const midB = (majorBlue.pLo + majorBlue.pHi)/2;
+      yellow = stickyYellow(majorBlue, prevMajorBlue, all, MAJOR, "1h", midB);
+    }
+    majorYellow = yellow || null;
     prevMajorBlue = majorBlue ? { ...majorBlue } : prevMajorBlue;
   }
 
   function rebuildMicro(){
     const bars10m = resampleTF(barsAsc, 600);
-    const {blue, yellow, all} = pickTwoZones(bars10m, MICRO);
+    let {blue, yellow, all} = pickTwoZones(bars10m, MICRO, "10m");
     microBlue = blue || null;
-    microYellow = stickyYellow(microBlue, prevMicroBlue, all, MICRO);
+
+    if (!yellow && microBlue) {
+      const midB = (microBlue.pLo + microBlue.pHi)/2;
+      yellow = stickyYellow(microBlue, prevMicroBlue, all, MICRO, "10m", midB);
+    }
+    microYellow = yellow || null;
     prevMicroBlue = microBlue ? { ...microBlue } : prevMicroBlue;
   }
 
   /* ---------------- Canvas draw (window-only rectangles) ---------------- */
   function scheduleDraw(){ if (rafId!=null) return; rafId = requestAnimationFrame(()=>{ rafId=null; draw(); }); }
+
+  function drawLabel(ctx, xR, yMid, tag) {
+    ctx.save();
+    const pad = 4, h = 16;
+    ctx.font = FONT;
+    const w = Math.ceil(ctx.measureText(tag).width) + pad*2;
+    const x = Math.max(0, xR - w - 6);
+    const y = Math.max(0, Math.round(yMid - h/2));
+    ctx.globalAlpha = 0.9;
+    ctx.fillStyle = "rgba(11,15,23,0.9)";
+    ctx.fillRect(x, y, w, h);
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = "rgba(31,42,68,0.9)";
+    ctx.lineWidth = 1;
+    ctx.strokeRect(x+0.5, y+0.5, w-1, h-1);
+    ctx.fillStyle = "#e5e7eb";
+    ctx.fillText(tag, x+pad, y + h - 4);
+    ctx.restore();
+  }
 
   function draw(){
     const w = chartContainer.clientWidth  || 1;
@@ -278,7 +347,7 @@ export default function createFourShelvesOverlay({ chart, priceSeries, chartCont
     ctx.clearRect(0,0,w,h);
     ctx.font = FONT;
 
-    function rectFor(zone, fill, stroke, dash){
+    function rectFor(zone, fill, stroke, dash, label){
       if (!zone) return;
       const yTop = yFor(zone.pHi), yBot = yFor(zone.pLo);
       const xS   = xFor(zone.tStart), xE = xFor(zone.tEnd);
@@ -297,14 +366,27 @@ export default function createFourShelvesOverlay({ chart, priceSeries, chartCont
       ctx.strokeStyle = stroke;
       ctx.strokeRect(xL + 0.5, yMin + 0.5, rectW - 1, rectH - 1);
       ctx.restore();
+
+      if (label) {
+        const yMid = (yMin + yMax)/2;
+        drawLabel(ctx, xR, yMid, label);
+      }
     }
 
-    // Draw order: major first, then micro
-    rectFor(majorYellow, COL_MAJOR_Y_FILL, COL_MAJOR_Y_STRO, DASH_MAJOR_Y);
-    rectFor(majorBlue,   COL_MAJOR_B_FILL, COL_MAJOR_B_STRO, null);
+    // Draw order: major first (blue then yellow), then micro on top
+    rectFor(majorBlue,   COL_MAJOR_B_FILL, COL_MAJOR_B_STRO, null,      "1h B");
+    rectFor(majorYellow, COL_MAJOR_Y_FILL, COL_MAJOR_Y_STRO, DASH_MAJOR_Y, "1h Y");
+    rectFor(microBlue,   COL_MICRO_B_FILL, COL_MICRO_B_STRO, DASH_MICRO_B, "10m B");
+    rectFor(microYellow, COL_MICRO_Y_FILL, COL_MICRO_Y_STRO, DASH_MICRO_Y, "10m Y");
 
-    rectFor(microYellow, COL_MICRO_Y_FILL, COL_MICRO_Y_STRO, DASH_MICRO_Y);
-    rectFor(microBlue,   COL_MICRO_B_FILL, COL_MICRO_B_STRO, DASH_MICRO_B);
+    // expose diagnostics
+    if (typeof window !== "undefined") {
+      window.__DUALSHELVES = {
+        zone1hB: majorBlue, zone1hY: majorYellow,
+        zone10mB: microBlue, zone10mY: microYellow,
+        why1hY, why10mB, why10mY,
+      };
+    }
   }
 
   /* ---------------- Subscriptions ---------------- */
