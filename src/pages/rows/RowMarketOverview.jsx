@@ -9,7 +9,7 @@ import {
 
 // Proxied Render endpoints (set in .env.local)
 const INTRADAY_URL = process.env.REACT_APP_INTRADAY_URL; // /live/intraday
-const HOURLY_URL   = process.env.REACT_APP_HOURLY_URL;   // /live/hourly  <-- NEW
+const HOURLY_URL   = process.env.REACT_APP_HOURLY_URL;   // /live/hourly  // <-- NEW
 const EOD_URL      = process.env.REACT_APP_EOD_URL;      // /live/eod
 
 // Read-only sandbox URL for 5m deltas
@@ -315,9 +315,12 @@ export default function RowMarketOverview() {
   // Legend state (two independent modals)
   const [legendOpen, setLegendOpen] = React.useState(null); // "intraday" | "daily" | null
 
-  // LIVE fetch (intraday + daily) — initial pull + 60s polling
+  // timeframe switch for the single row: "10m" | "1h" | "eod"
+  const [tf, setTf] = React.useState("10m");
+
+  // LIVE fetch (intraday + hourly + daily) — initial pull + 60s polling
   const [liveIntraday, setLiveIntraday] = React.useState(null);
-  const [liveHourly,   setLiveHourly]   = React.useState(null);  // <-- NEW
+  const [liveHourly,   setLiveHourly]   = React.useState(null);
   const [liveDaily,    setLiveDaily]    = React.useState(null);
 
   React.useEffect(() => {
@@ -329,7 +332,7 @@ export default function RowMarketOverview() {
           const j = await r.json();
           if (!stop) setLiveIntraday(j);
         }
-        if (HOURLY_URL) { // NEW hourly poll (60s)
+        if (HOURLY_URL) {
           const rH = await fetch(`${HOURLY_URL}?t=${Date.now()}`, { cache: "no-store" });
           const jH = await rH.json();
           if (!stop) setLiveHourly(jH);
@@ -346,156 +349,118 @@ export default function RowMarketOverview() {
     return () => { stop = true; clearInterval(id); };
   }, []);
 
-  // Replay
-  const [on, setOn] = React.useState(false);
-  const [granularity, setGranularity] = React.useState("10min");
-  const [tsSel, setTsSel] = React.useState("");
-  const [indexOptions, setIndexOptions] = React.useState([]);
-  const [loadingIdx, setLoadingIdx] = React.useState(false);
-  const [snap, setSnap] = React.useState(null);
-  const [loadingSnap, setLoadingSnap] = React.useState(false);
-  const granParam = granularity === "10min" ? "10min" : (granularity === "1h" ? "hourly" : "eod");
-
-  React.useEffect(() => {
-    if (!on) { setIndexOptions([]); return; }
-    (async () => {
-      try {
-        setLoadingIdx(true);
-        const r = await fetch(`${API}/api/replay/index?granularity=${granParam}&t=${Date.now()}`, { cache: "no-store" });
-        const j = await r.json();
-        const items = Array.isArray(j?.items) ? j.items : [];
-        setIndexOptions(items);
-        if (items.length && !tsSel) setTsSel(items[0].ts);
-      } finally { setLoadingIdx(false); }
-    })();
-  }, [on, granParam]);
-
-  React.useEffect(() => {
-    if (!on || !tsSel) { setSnap(null); return; }
-    (async () => {
-      try {
-        setLoadingSnap(true);
-        const r = await fetch(`${API}/api/replay/at?granularity=${granParam}&ts=${encodeURIComponent(tsSel)}&t=${Date.now()}`, { cache: "no-store" });
-        const j = await r.json();
-        setSnap(j);
-      } catch { setSnap(null); }
-      finally { setLoadingSnap(false); }
-    })();
-  }, [on, tsSel, granParam]);
-
-  // choose data: replay → newer(live vs polled)
-  const chosen = on && snap && snap.ok !== false ? snap : newer(liveIntraday, polled);
+  // choose latest
+  const chosen = newer(liveIntraday, polled);
   const data  = chosen || {};
+  const m10   = data?.metrics ?? {};
+  const intr  = data?.intraday ?? {};
+
+  const h     = liveHourly || {};
+  const m1h   = h?.metrics ?? {};
+  const hrblk = h?.hourly ?? {};
+
   const daily = liveDaily || {};
-  const hourly = liveHourly || {}; // NEW
 
-  /* Prefer intraday.* from the LIVE payload even if polled wins */
-  const intradayLive = liveIntraday?.intraday;
-  const intradayAny  = data?.intraday;
-  const intraday     = intradayLive || intradayAny || null;
+  // build the single-line metrics based on timeframe switch
+  let title = "Intraday Scalp Lights (10m)";
+  let breadth = num(m10.breadth_10m_pct ?? m10.breadth_pct);
+  let momentum = num(m10.momentum_combo_pct ?? m10.momentum_pct);
+  let squeeze = num(m10.squeeze_intraday_pct ?? m10.squeeze_pct);      // PSI or expansion per backend
+  let liquidity = num(m10.liquidity_psi ?? m10.liquidity_pct);
+  let volatility = num(m10.volatility_pct);
+  let rising = num(intr?.sectorDirection10m?.risingPct);
+  let riskon = num(intr?.riskOn10m?.riskOnPct);
+  let overallScore = num(intr?.overall10m?.score);
+  let overallState = intr?.overall10m?.state || null;
+  let squeezeTone = toneForSqueeze;
 
-  /* -------------------- INTRADAY LEFT (metrics + intraday) -------------------- */
-  const { deltaMkt, deltasUpdatedAt, stale } = useSandboxDeltas();
+  if (tf === "1h" && liveHourly) {
+    title = "Hourly Valuation (1h)";
+    breadth   = num(m1h.breadth_1h_pct);
+    momentum  = num(m1h.momentum_combo_1h_pct ?? m1h.momentum_1h_pct);
+    squeeze   = num(m1h.squeeze_1h_pct);               // Expansion% (higher = better)
+    liquidity = num(m1h.liquidity_1h);
+    volatility= num(m1h.volatility_1h_scaled ?? m1h.volatility_1h_pct);
+    rising    = num(hrblk?.sectorDirection1h?.risingPct);
+    riskon    = num(hrblk?.riskOn1h?.riskOnPct);
+    overallScore = num(hrblk?.overall1h?.score);
+    overallState = hrblk?.overall1h?.state || null;
+    squeezeTone  = toneForSqueeze1h;                   // different tone for expansion
+  }
 
-  const m   = data?.metrics ?? {};
-  const ts  = data?.updated_at ?? data?.ts ?? null;
-
-  // v1 reads (10m)
-  const breadth      = num(m.breadth_10m_pct ?? m.breadth_pct);
-  const momentum     = num(m.momentum_combo_pct ?? m.momentum_pct);
-  const squeezeIntra = num(m.squeeze_intraday_pct ?? m.squeeze_pct); // alias-safe (10m PSI or expansion)
-  const liquidity    = num(m.liquidity_psi        ?? m.liquidity_pct); // PSI
-  const volatility   = num(m.volatility_pct);
-
-  const sectorDirCount = intraday?.sectorDirection10m?.risingCount ?? null;
-  const sectorDirPct   = num(intraday?.sectorDirection10m?.risingPct);
-  const riskOn10m      = num(intraday?.riskOn10m?.riskOnPct);
-
-  // Overall 10m
-  const overallFromBackend = intraday?.overall10m || null;
-  const overallState = overallFromBackend?.state || null;
-  const overallScoreBk = num(overallFromBackend?.score);
-  const overall10mComputed = overallIntradayScore(m, intraday);
-  const overall10mVal = Number.isFinite(overallScoreBk) ? overallScoreBk : overall10mComputed;
-
-  // baselines (10m)
-  const bOverall   = useDailyBaseline("overall10m", overall10mVal);
-  const bBreadth   = useDailyBaseline("breadth", breadth);
-  const bMomentum  = useDailyBaseline("momentum", momentum);
-  const bSqueezeIn = useDailyBaseline("squeezeIntraday", squeezeIntra);
-  const bLiquidity = useDailyBaseline("liquidity", liquidity);
-  const bVol       = useDailyBaseline("volatility", volatility);
-
-  /* -------------------- HOURLY MIDDLE (metrics + hourly) -------------------- */
-  const hm  = hourly?.metrics ?? {};
-  const hb  = hourly?.hourly ?? {};
-
-  const breadth1h   = num(hm.breadth_1h_pct);
-  const momentum1h  = num(hm.momentum_combo_1h_pct ?? hm.momentum_1h_pct);
-  const squeeze1h   = num(hm.squeeze_1h_pct);        // Expansion% (0=tight, 100=expanded)
-  const liquidity1h = num(hm.liquidity_1h);          // PSI
-  const vol1h       = num(hm.volatility_1h_scaled ?? hm.volatility_1h_pct);
-
-  const sectorDir1h = num(hb?.sectorDirection1h?.risingPct);
-  const riskOn1h    = num(hb?.riskOn1h?.riskOnPct);
-
-  const overall1hScore = num(hb?.overall1h?.score);
-  const overall1hState = hb?.overall1h?.state || null;
-
-  // baselines (1h)
-  const bBreadth1h   = useDailyBaseline("breadth1h", breadth1h);
-  const bMomentum1h  = useDailyBaseline("momentum1h", momentum1h);
-  const bSqueeze1h   = useDailyBaseline("squeeze1h", squeeze1h);
-  const bLiquidity1h = useDailyBaseline("liquidity1h", liquidity1h);
-  const bVol1h       = useDailyBaseline("volatility1h", vol1h);
-  const bOverall1h   = useDailyBaseline("overall1h", overall1hScore);
-
-  /* -------------------- DAILY RIGHT (trendDaily + daily metrics) --------------- */
-  const td = daily?.trendDaily || {};
-
-  const tdSlope   = num(td?.trend?.emaSlope);
-  const tdTrend   = td?.trend?.state || null;
-  const tdTrendVal= Number.isFinite(num(tdSlope)) ? (tdSlope > 5 ? 75 : tdSlope < -5 ? 25 : 50) : NaN;
-
-  const tdPartPct = num(td?.participation?.pctAboveMA);
-  const tdVolPct  = num(td?.volatilityRegime?.atrPct);
-  const tdVolBand = td?.volatilityRegime?.band || null;
-
-  const tdLiqPsi  = num(td?.liquidityRegime?.psi);
-  const tdLiqBand = td?.liquidityRegime?.band || null;
-
-  const tdRiskOn  = num(td?.rotation?.riskOnPct);
-  const tdSdyDaily= Number.isFinite(num(daily?.metrics?.squeeze_daily_pct))
-                    ? num(daily.metrics.squeeze_daily_pct)
-                    : (Number.isFinite(num(data?.gauges?.squeezeDaily?.pct)) ? num(data.gauges.squeezeDaily.pct) : NaN);
-
-  const tdUpdatedAt = daily?.updated_at || null;
+  if (tf === "eod" && liveDaily) {
+    title = "Daily Structure (EOD)";
+    // If you decide to surface EOD lights in the single row, bind here to EOD fields.
+    // For now we keep the right-side daily panel unchanged.
+  }
 
   return (
-    <section id="row-2" className="panel" style={{ padding: 10 }} key={ts || "live"}>
-      {/* Legend modal */}
+    <section id="row-2" className="panel" style={{ padding: 10 }}>
+      {/* Header */}
+      <div className="panel-head" style={{ alignItems: "center" }}>
+        <div className="panel-title">Market Meter — Stoplights</div>
+
+        {/* timeframe switch: one row only */}
+        <div style={{ marginLeft: 8, display: "flex", gap: 6 }}>
+          {["10m","1h","eod"].map(k => (
+            <button key={k}
+              onClick={() => setTf(k)}
+              className={`px-2 py-1 rounded-md text-sm ${tf===k ? "bg-yellow-500 text-black" : "bg-neutral-800 text-neutral-300"}`}>
+              {k.toUpperCase()}
+            </button>
+          ))}
+        </div>
+
+        {/* Legend buttons */}
+        <div style={{ marginLeft: 8 }}>
+          <button
+            onClick={() => setLegendOpen("intraday")}
+            className="px-2 py-1 rounded-md bg-neutral-900 text-neutral-200 border border-neutral-700 text-sm"
+            style={{ marginRight: 6 }}
+          >
+            Intraday Legend
+          </button>
+          <button
+            onClick={() => setLegendOpen("daily")}
+            className="px-2 py-1 rounded-md bg-neutral-900 text-neutral-200 border border-neutral-700 text-sm"
+          >
+            Daily Legend
+          </button>
+        </div>
+
+        <div className="spacer" />
+        <LastUpdated ts={tsOf(tf==="1h" ? liveHourly : tf==="eod" ? liveDaily : liveIntraday)} />
+      </div>
+
+      {/* SINGLE ROW (lights) */}
+      <div className="small" style={{ color: "#9ca3af", fontWeight: 800, marginTop: 6 }}>{title}</div>
+      <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+        <Stoplight label={`Overall (${tf})`} value={overallScore} toneOverride={toneForOverallState(overallState, overallScore)} />
+        <Stoplight label="Breadth"          value={breadth}      toneOverride={toneForBreadth(breadth)} />
+        <Stoplight label="Momentum"         value={momentum}     toneOverride={toneForMomentum(momentum)} />
+        <Stoplight label="Squeeze"          value={squeeze}      toneOverride={squeezeTone(squeeze)} />
+        <Stoplight label="Liquidity"        value={liquidity}    unit="PSI" clamp={false} toneOverride={toneForLiquidity(liquidity)} />
+        <Stoplight label="Volatility"       value={volatility}   toneOverride={toneForVol(volatility)} />
+        <Stoplight label={`Sector Dir (${tf})`} value={rising}   toneOverride={toneForPercent(rising)} />
+        <Stoplight label={`Risk-On (${tf})`}   value={riskon}    toneOverride={toneForPercent(riskon)} />
+      </div>
+
+      {/* Legend modals (unchanged) */}
       {legendOpen && (
         <div
           role="dialog" aria-modal="true" onClick={() => setLegendOpen(null)}
-          style={{
-            position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)",
-            display: "flex", alignItems: "center", justifyContent: "center", zIndex: 60
-          }}
+          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 60 }}
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            style={{
-              width: "min(880px,92vw)", background: "#0b0b0c", border: "1px solid #2b2b2b",
-              borderRadius: 12, padding: 16, boxShadow: "0 10px 30px rgba(0,0,0,0.35)"
-            }}
+            style={{ width: "min(880px,92vw)", background: "#0b0b0c", border: "1px solid #2b2b2b", borderRadius: 12, padding: 16, boxShadow: "0 10px 30px rgba(0,0,0,0.35)" }}
           >
             {legendOpen === "intraday" && <MarketMeterIntradayLegend />}
             {legendOpen === "daily"    && <MarketMeterDailyLegend />}
             <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}>
               <button
                 onClick={() => setLegendOpen(null)}
-                style={{ background: "#eab308", color: "#111827", border: "none",
-                  borderRadius: 8, padding: "8px 12px", fontWeight: 700, cursor: "pointer" }}
+                style={{ background: "#eab308", color: "#111827", border: "none", borderRadius: 8, padding: "8px 12px", fontWeight: 700, cursor: "pointer" }}
               >
                 Close
               </button>
@@ -503,106 +468,6 @@ export default function RowMarketOverview() {
           </div>
         </div>
       )}
-
-      {/* Header */}
-      <div className="panel-head" style={{ alignItems: "center" }}>
-        <div className="panel-title">Market Meter — Stoplights</div>
-
-        {/* Legend buttons */}
-        <button
-          onClick={() => setLegendOpen("intraday")}
-          style={{ marginLeft: 8, background: "#0b0b0b", color: "#e5e7eb",
-            border: "1px solid #2b2b2b", borderRadius: 8, padding: "6px 10px", fontWeight: 600 }}
-        >
-          Intraday Legend
-        </button>
-        <button
-          onClick={() => setLegendOpen("daily")}
-          style={{ marginLeft: 6, background: "#0b0b0b", color: "#e5e7eb",
-            border: "1px solid #2b2b2b", borderRadius: 8, padding: "6px 10px", fontWeight: 600 }}
-        >
-          Daily Legend
-        </button>
-
-        <div className="spacer" />
-        <LastUpdated ts={ts} />
-
-        {/* Replay controls (unchanged) */}
-        <ReplayControls
-          on={on} setOn={setOn}
-          granularity={granularity} setGranularity={setGranularity}
-          ts={tsSel} setTs={setTsSel}
-          options={indexOptions} loading={loadingIdx}
-        />
-      </div>
-
-      {/* Two labeled halves + Hourly middle */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 14, marginTop: 8 }}>
-
-        {/* LEFT: Intraday Scalp Lights (existing) */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          <div className="small" style={{ color: "#9ca3af", fontWeight: 800 }}>Intraday Scalp Lights (10m)</div>
-          <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-            <Stoplight label="Overall (10m)" value={overall10mVal} toneOverride={toneForOverallState(overallState, overall10mVal)} />
-            <Stoplight label="Breadth"       value={breadth}      toneOverride={toneForBreadth(breadth)} />
-            <Stoplight label="Momentum"      value={momentum}     toneOverride={toneForMomentum(momentum)} />
-            <Stoplight label="Squeeze"       value={squeezeIntra} toneOverride={toneForSqueeze(squeezeIntra)} />
-            <Stoplight label="Liquidity"     value={liquidity}    unit="PSI" clamp={false} toneOverride={toneForLiquidity(liquidity)} />
-            <Stoplight label="Volatility"    value={volatility}   toneOverride={toneForVol(volatility)} />
-            <Stoplight label="Sector Dir"    value={sectorDirPct} toneOverride={toneForPercent(sectorDirPct)} />
-            <Stoplight label="Risk-On"       value={riskOn10m}    toneOverride={toneForPercent(riskOn10m)} />
-          </div>
-          {/* Δ5m pills */}
-          {SANDBOX_URL && (
-            <div className="text-xs" style={{ color: "#9ca3af", marginTop: 4 }}>
-              Δ5m updated {fmtIso(deltasUpdatedAt)} {stale ? "• STALE" : ""}
-            </div>
-          )}
-        </div>
-
-        {/* MIDDLE: Hourly Valuation (NEW) */}
-        {liveHourly && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            <div className="small" style={{ color: "#9ca3af", fontWeight: 800 }}>Hourly Valuation (1h)</div>
-            <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-              <Stoplight label="Overall (1h)" value={overall1hScore} toneOverride={toneForOverallState(overall1hState, overall1hScore)} />
-              <Stoplight label="Breadth (1h)" value={breadth1h}      toneOverride={toneForBreadth(breadth1h)} />
-              <Stoplight label="Momentum (1h)" value={momentum1h}    toneOverride={toneForMomentum(momentum1h)} />
-              <Stoplight label="Squeeze (1h)" value={squeeze1h}      toneOverride={toneForSqueeze1h(squeeze1h)} />
-              <Stoplight label="Liquidity (1h)" value={liquidity1h}  unit="PSI" clamp={false} toneOverride={toneForLiquidity(liquidity1h)} />
-              <Stoplight label="Volatility (1h)" value={vol1h}       toneOverride={toneForVol(vol1h)} />
-              <Stoplight label="Sector Dir (1h)" value={sectorDir1h} toneOverride={toneForPercent(sectorDir1h)} />
-              <Stoplight label="Risk-On (1h)"    value={riskOn1h}    toneOverride={toneForPercent(riskOn1h)} />
-            </div>
-            <div className="text-xs" style={{ color: "#9ca3af", marginTop: 2 }}>
-              Hourly updated {fmtIso(liveHourly?.updated_at)}
-            </div>
-          </div>
-        )}
-
-        {/* RIGHT: Overall Market Trend Daily (existing) */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          <div className="small" style={{ color: "#9ca3af", fontWeight: 800 }}>Overall Market Trend Daily</div>
-          <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-            <Stoplight label="Daily Trend"       value={tdTrendVal} subtitle={tdTrend || undefined} toneOverride={toneForDailyTrend(tdSlope)} />
-            <Stoplight label="Participation"     value={tdPartPct}  toneOverride={toneForPercent(tdPartPct)} />
-            <Stoplight label="Daily Squeeze"     value={tdSdyDaily} toneOverride={toneForLuxDaily(tdSdyDaily)} />
-            <Stoplight label="Volatility Regime" value={tdVolPct}   toneOverride={toneForVolBand(tdVolBand)} />
-            <Stoplight label="Liquidity Regime"  value={tdLiqPsi}   unit="PSI" clamp={false} toneOverride={toneForLiqBand(tdLiqBand)} />
-            <Stoplight label="Risk On (Daily)"   value={tdRiskOn}   toneOverride={toneForPercent(tdRiskOn)} />
-          </div>
-          {tdUpdatedAt && (
-            <div className="text-xs" style={{ color: "#9ca3af", textAlign: "right" }}>
-              Daily updated {fmtIso(tdUpdatedAt)}
-            </div>
-          )}
-        </div>
-
-      </div>
-
-      <div className="text-xs text-neutral-500" style={{ marginTop: 4 }}>
-        {on ? (ts ? `Snapshot: ${fmtIso(ts)}` : "Replay ready") : (ts ? `Updated ${fmtIso(ts)}` : "")}
-      </div>
     </section>
   );
 }
