@@ -1,5 +1,6 @@
 // src/pages/rows/EngineLights.jsx
-// v6.0 — Lux-aligned tones (green/purple/red), 10m + 1h timestamps, all families
+// v7.0 — Lux colors, 10m/1h timestamps, pills (10m/1h/NOW/Legacy)
+//         + right-side Lux trend capsules (10m & 1h) in the same row.
 
 import React, { useEffect, useRef, useState } from "react";
 import { LastUpdated } from "../../components/LastUpdated";
@@ -12,8 +13,7 @@ function resolveLiveIntraday() {
     typeof window !== "undefined" && window.__LIVE_INTRADAY_URL
       ? String(window.__LIVE_INTRADAY_URL).trim()
       : "";
-  if (win) return win.replace(/\/+$/, "");
-  return "https://frye-market-backend-1.onrender.com/live/intraday";
+  return (win || "https://frye-market-backend-1.onrender.com/live/intraday").replace(/\/+$/, "");
 }
 function resolveLiveHourly() {
   const env = (process.env.REACT_APP_HOURLY_URL || "").trim();
@@ -22,38 +22,30 @@ function resolveLiveHourly() {
     typeof window !== "undefined" && window.__LIVE_HOURLY_URL
       ? String(window.__LIVE_HOURLY_URL).trim()
       : "";
-  if (win) return win.replace(/\/+$/, "");
-  return "https://frye-market-backend-1.onrender.com/live/hourly";
+  return (win || "https://frye-market-backend-1.onrender.com/live/hourly").replace(/\/+$/, "");
 }
 function guardLive(url) {
   return url.replace(/\/api\/live\//, "/live/").replace(/\/api\/?(\?|$)/, "/");
 }
 
 /* ---------------- Lux colors ---------------- */
-const LUX_COLORS = {
+const LUX = {
   green:  { bg:"#22c55e", fg:"#0b1220", bd:"#16a34a", sh:"#16a34a" },  // bullish / expansion
   red:    { bg:"#ef4444", fg:"#fee2e2", bd:"#b91c1c", sh:"#b91c1c" },  // bearish / risk-off
   purple: { bg:"#8b5cf6", fg:"#0b1220", bd:"#7c3aed", sh:"#7c3aed" },  // compression / neutral / early-warn
   off:    { bg:"#0b0f17", fg:"#6b7280", bd:"#1f2937", sh:"#111827" },  // inactive
-  info:   { bg:"#0b1220", fg:"#93c5fd", bd:"#334155", sh:"#334155" },  // generic info
+  info:   { bg:"#0b1220", fg:"#93c5fd", bd:"#334155", sh:"#334155" },
 };
-
-/* Tone token -> palette */
 function toneToPalette(t) {
   return (
-    {
-      "luxGreen": LUX_COLORS.green,
-      "luxRed":   LUX_COLORS.red,
-      "luxPurple":LUX_COLORS.purple,
-      "off":      LUX_COLORS.off,
-      "info":     LUX_COLORS.info,
-    }[t] || LUX_COLORS.off
+    { luxGreen:LUX.green, luxRed:LUX.red, luxPurple:LUX.purple, off:LUX.off, info:LUX.info }[t] ||
+    LUX.off
   );
 }
 
-/* ---------------- Light pill ---------------- */
+/* ---------------- Pills ---------------- */
 function Light({ label, tone = "info", active = true, title }) {
-  const palette = toneToPalette(active ? tone : "off");
+  const p = toneToPalette(active ? tone : "off");
   return (
     <span
       title={title || label}
@@ -61,14 +53,32 @@ function Light({ label, tone = "info", active = true, title }) {
         display:"inline-flex", alignItems:"center",
         padding:"6px 10px", marginRight:8,
         borderRadius:8, fontWeight:700, fontSize:12,
-        background: palette.bg, color: palette.fg, border:`1px solid ${palette.bd}`,
-        boxShadow: `0 0 10px ${palette.sh}55`,
+        background:p.bg, color:p.fg, border:`1px solid ${p.bd}`,
+        boxShadow:`0 0 10px ${p.sh}55`,
         opacity: active ? 1 : 0.45, filter: active ? "none" : "grayscale(40%)",
-        transition: "opacity 120ms ease", whiteSpace:"nowrap"
+        transition:"opacity 120ms ease", whiteSpace:"nowrap"
       }}
     >
       {label}
     </span>
+  );
+}
+
+/* ---------------- Lux Trend Capsules (right side) ---------------- */
+function Capsule({ title, color, ts, reason }) {
+  const p = toneToPalette(color || "off");
+  return (
+    <div style={{display:"inline-flex",alignItems:"center",gap:8}}>
+      <span title={reason || title}
+        style={{
+          background:p.bg,color:p.fg,border:`1px solid ${p.bd}`,
+          boxShadow:`0 0 10px ${p.sh}55`,borderRadius:10,
+          padding:"6px 12px",fontWeight:700
+        }}>
+        {title}
+      </span>
+      <span className="small muted"><LastUpdated ts={ts} /></span>
+    </div>
   );
 }
 
@@ -111,7 +121,7 @@ const R11_NOW_DEF = [
   { k:"sigNowBear",      label:"Now Bear",       tone:()=>"luxRed" },
 ];
 
-// Legacy (kept for compatibility; tones converted to Lux)
+// Legacy (Lux colors)
 const LEGACY_DEF = [
   { k:"sigBreakout",       label:"Breakout",         tone:()=>"luxGreen" },
   { k:"sigDistribution",   label:"Distribution",     tone:()=>"luxRed" },
@@ -152,15 +162,19 @@ export default function EngineLights() {
 
   const [ts10, setTs10] = useState(null);
   const [ts1h, setTs1h] = useState(null);
+  const [signals, setSignals] = useState({});
   const [live, setLive] = useState(false);
   const [mode, setMode] = useState(null);
-  const [signals, setSignals] = useState({});
   const [err, setErr] = useState(null);
+
+  // trend capsules
+  const [trend10, setTrend10] = useState({ state:null, reason:"", ts:null });
+  const [trend1h, setTrend1h] = useState({ state:null, reason:"", ts:null });
+
   const poll10Ref = useRef(null);
   const poll1hRef = useRef(null);
   const [legendOpen, setLegendOpen] = useState(false);
 
-  // 10m pills (every 30s)
   async function fetch10m(abortSignal) {
     const url = guardLive(`${LIVE_10_URL}?t=${Date.now()}`);
     try {
@@ -173,22 +187,30 @@ export default function EngineLights() {
       setLive(!!eng?.live);
       setMode(eng?.mode || null);
       setErr(null);
+
+      // trend10m + trend1h (mirrored) if present
+      const st = j?.intraday?.strategy || {};
+      if (st?.trend10m) setTrend10({ state:st.trend10m.state, reason:st.trend10m.reason||"", ts: st.trend10m.updatedAt || j.updated_at || j.ts || null });
+      if (st?.trend1h)  setTrend1h ({ state:st.trend1h.state,  reason:st.trend1h.reason ||"", ts: st.trend1h.updatedAt  || j.updated_at || j.ts || null });
     } catch (e) {
       console.warn("[EngineLights] 10m fetch failed:", e);
       setErr(String(e));
     }
   }
-
-  // 1h timestamp (every 60s)
   async function fetch1h(abortSignal) {
     const url = guardLive(`${LIVE_1H_URL}?t=${Date.now()}`);
     try {
       const res = await fetch(url, { cache:"no-store", signal:abortSignal });
-      if (!res.ok) throw new Error(`HTTP ${res.status} ${url}`);
+      if (!res.ok) return;
       const j = await res.json();
       setTs1h(j?.updated_at || j?.updated_at_utc || j?.ts || null);
+      if (!trend1h.state && j?.strategy?.trend1h) {
+        // only fill if not mirrored already
+        const s = j.strategy.trend1h;
+        setTrend1h({ state:s.state, reason:s.reason||"", ts:s.updatedAt || j.updated_at || j.updated_at_utc || j.ts || null });
+      }
     } catch (e) {
-      console.warn("[EngineLights] 1h fetch failed:", e);
+      // quiet
     }
   }
 
@@ -215,35 +237,38 @@ export default function EngineLights() {
 
   const stableKey = `${ts10 || "no-ts"}•${Object.entries(signals).map(([k,v])=>`${k}:${v?.active?1:0}-${v?.severity||""}`).join("|")}`;
 
+  // capsule color mapping
+  const color10 = trend10.state==="green" ? "luxGreen" : trend10.state==="red" ? "luxRed" :
+                  trend10.state==="purple" ? "luxPurple" : "off";
+  const color1h = trend1h.state==="green" ? "luxGreen" : trend1h.state==="red" ? "luxRed" :
+                  trend1h.state==="purple" ? "luxPurple" : "off";
+
   return (
     <section id="row-3" className="panel" aria-label="Engine Lights" key={stableKey}>
-      {/* Header */}
-      <div className="panel-head" style={{ alignItems:"center", gap:8 }}>
-        <div className="panel-title">Engine Lights</div>
-        <button
-          onClick={()=> setLegendOpen(true)}
-          style={{ background:"#0b0b0b", color:"#e5e7eb", border:"1px solid #2b2b2b", borderRadius:8, padding:"6px 10px", fontWeight:600, cursor:"pointer", marginLeft:8 }}
-          title="Legend"
-        >
-          Legend
-        </button>
-        <div className="spacer" />
-        {live && (
-          <span className="small"
-                style={{ marginRight:8, padding:"3px 8px", borderRadius:6, background:"#16a34a", color:"#0b1220", fontWeight:800, border:"1px solid #0f7a2a" }}
-                title={mode ? `Mode: ${mode}` : "Live intraday"}>
-            LIVE
-          </span>
-        )}
-        <span className="small muted" style={{ marginRight:12 }}>
-          <strong>10m:</strong> <LastUpdated ts={ts10} />
-        </span>
-        <span className="small muted">
-          <strong>1h:</strong> <LastUpdated ts={ts1h} />
-        </span>
+      {/* top bar split: left pills title, right trend capsules + timestamps */}
+      <div className="panel-head" style={{ display:"flex", alignItems:"center" }}>
+        <div style={{ display:"flex", alignItems:"center", gap:8, flex:1 }}>
+          <div className="panel-title">Engine Lights</div>
+          <button
+            onClick={()=> setLegendOpen(true)}
+            style={{ background:"#0b0b0b", color:"#e5e7eb", border:"1px solid #2b2b2b",
+                     borderRadius:8, padding:"6px 10px", fontWeight:600, cursor:"pointer", marginLeft:8 }}
+            title="Legend">
+            Legend
+          </button>
+          {err && <span className="small muted" style={{ marginLeft:8 }} title={err}>fetch error</span>}
+        </div>
+
+        <div style={{ display:"flex", alignItems:"center", gap:14 }}>
+          <Capsule title="10m Trend" color={color10} ts={trend10.ts || ts10} reason={trend10.reason} />
+          <Capsule title="1h Trend"  color={color1h} ts={trend1h.ts || ts1h} reason={trend1h.reason} />
+          { /* timestamps as chips (also kept in header for quick glance) */ }
+          <span className="small muted"><strong>10m:</strong> <LastUpdated ts={ts10} /></span>
+          <span className="small muted" style={{ marginLeft:6 }}><strong>1h:</strong> <LastUpdated ts={ts1h} /></span>
+        </div>
       </div>
 
-      {/* Pills */}
+      {/* Pills: stack vertically below the header */}
       <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
         {fam.hasR11Core && (
           <div style={{ display:"flex", alignItems:"center", gap:12 }}>
@@ -270,7 +295,7 @@ export default function EngineLights() {
         )}
       </div>
 
-      {/* Legend modal */}
+      {/* Legend */}
       {legendOpen && (
         <div role="dialog" aria-modal="true" onClick={()=> setLegendOpen(false)}
              style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.5)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:60 }}>
@@ -284,7 +309,7 @@ export default function EngineLights() {
               <br/>• 10m Core (Overall/EMA10/Accel/Risk/Sector, +Expansion/Compression)
               <br/>• 1h Crosses (EMA1h/SMI1h/Accel1h/Overall1h)
               <br/>• NOW (5-min sandbox)
-              <br/>• Legacy (Breakout/Distribution/…)
+              <br/>• Legacy (Breakout / Distribution / …)
             </p>
             <div style={{ display:"flex", justifyContent:"flex-end", marginTop:12 }}>
               <button onClick={()=> setLegendOpen(false)}
