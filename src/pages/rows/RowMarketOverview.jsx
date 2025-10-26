@@ -6,9 +6,9 @@ import {
   MarketMeterDailyLegend,
 } from "../../components/MarketMeterLegend";
 
-const INTRADAY_URL = process.env.REACT_APP_INTRADAY_URL; // /live/intraday
-const HOURLY_URL   = process.env.REACT_APP_HOURLY_URL;   // /live/hourly
-const EOD_URL      = process.env.REACT_APP_EOD_URL;      // /live/eod
+const INTRADAY_URL = process.env.REACT_APP_INTRADAY_URL;  // /live/intraday
+const HOURLY_URL   = process.env.REACT_APP_HOURLY_URL;    // /live/hourly
+const EOD_URL      = process.env.REACT_APP_EOD_URL;       // /live/eod
 const SANDBOX_URL  = process.env.REACT_APP_INTRADAY_SANDBOX_URL || "";
 const API =
   (typeof window !== "undefined" && (window.__API_BASE__ || "")) ||
@@ -42,7 +42,7 @@ function toneForLiqBand(b){ return b==="good"?"ok":b==="normal"?"warn":b?"danger
 function toneForOverallState(state,score){ const s=(state||"").toLowerCase(); if(s==="bull") return "ok"; if(s==="bear") return "danger"; if(s==="neutral") return "warn"; return toneForPercent(score); }
 
 /* ---------------------------- Stoplight ---------------------------- */
-function Stoplight({ label, value, unit="%", toneOverride="info" }) {
+function Stoplight({ label, value, unit="%", toneOverride="info", size=50, minWidth=90 }) {
   const v = Number.isFinite(value) ? value : NaN;
   const colors = {
     ok:{bg:"#22c55e",glow:"rgba(34,197,94,.45)"},
@@ -52,14 +52,15 @@ function Stoplight({ label, value, unit="%", toneOverride="info" }) {
   }[toneOverride];
   const valText = Number.isFinite(v) ? `${v.toFixed(1)}${unit}` : "—";
   return (
-    <div style={{ textAlign:"center", minWidth:92 }}>
+    <div style={{ textAlign:"center", minWidth }}>
       <div style={{
-        width:54, height:54, borderRadius:"50%", background:colors.bg, boxShadow:`0 0 12px ${colors.glow}`,
-        display:"flex", alignItems:"center", justifyContent:"center", border:"4px solid #0c1320", margin:"0 auto"
+        width:size, height:size, borderRadius:"50%", background:colors.bg,
+        boxShadow:`0 0 12px ${colors.glow}`, display:"flex", alignItems:"center",
+        justifyContent:"center", border:"4px solid #0c1320", margin:"0 auto"
       }}>
         <div style={{ fontWeight:800, color:"#0b1220" }}>{valText}</div>
       </div>
-      <div style={{ fontSize:13, fontWeight:700, color:"#e5e7eb", marginTop:4 }}>{label}</div>
+      <div style={{ fontSize:12.5, fontWeight:700, color:"#e5e7eb", marginTop:4 }}>{label}</div>
     </div>
   );
 }
@@ -86,56 +87,13 @@ function useSandboxDeltas(){
     }
     pull(); const id=setInterval(pull,60_000); return ()=>{stop=true; clearInterval(id);};
   },[]);
-  return { delta, ts };
-}
-
-/* -------------------------- Replay UI ----------------------------- */
-function ReplayControls({ on, setOn, granularity, setGranularity, ts, setTs, options, loading }) {
-  return (
-    <div className="flex items-center gap-2">
-      <button
-        onClick={()=>setOn(!on)}
-        className={`px-3 py-1 rounded-full border text-sm ${on?"border-yellow-400 text-yellow-300 bg-neutral-800":"border-neutral-700 text-neutral-300 bg-neutral-900 hover:border-neutral-500"}`}
-      >
-        {on ? "Replay: ON" : "Replay: OFF"}
-      </button>
-      <select
-        value={granularity}
-        onChange={(e)=>setGranularity(e.target.value)}
-        disabled={!on}
-        className="px-2 py-1 rounded-md border border-neutral-700 bg-neutral-900 text-neutral-200 text-sm"
-      >
-        <option value="10min">10m</option>
-        <option value="1h">1h</option>
-        <option value="1d">1d</option>
-      </select>
-      <select
-        value={ts || ""}
-        onChange={(e)=>setTs(e.target.value)}
-        disabled={!on || loading || options.length===0}
-        className="min-w-[220px] px-2 py-1 rounded-md border border-neutral-700 bg-neutral-900 text-neutral-200 text-sm"
-      >
-        {loading && <option value="">Loading…</option>}
-        {!loading && options.length===0 && <option value="">No snapshots</option>}
-        {!loading && options.length>0 && (
-          <>
-            <option value="">Select time…</option>
-            {options.map(o=><option key={o.ts} value={o.ts}>{fmtIso(o.ts)}</option>)}
-          </>
-        )}
-      </select>
-    </div>
-  );
+  return { delta, ts:ts };
 }
 
 /* ========================== Main ========================== */
 export default function RowMarketOverview(){
   const { data: polled } = useDashboardPoll("dynamic");
 
-  // single-row timeframe switch
-  const [tf,setTf] = React.useState("10m"); // "10m"|"1h"|"eod"
-
-  // legend state (unchanged)
   const [legendOpen,setLegendOpen]=React.useState(null);
 
   // live pulls
@@ -158,67 +116,72 @@ export default function RowMarketOverview(){
   // Δ5m for stamps
   const { delta, ts:deltaTs } = useSandboxDeltas();
 
-  // Choose latest intraday (keeps your replay behaviour unchanged)
+  // latest intraday vs polled
   const chosen = newer(live10, polled);
   const d10 = chosen || {};
   const m10 = d10?.metrics ?? {};
   const i10 = d10?.intraday ?? {};
+  const ts10 = d10?.updated_at;
 
-  const d1h = live1h || {}; const m1h=d1h?.metrics ?? {}; const h1=d1h?.hourly ?? {};
+  const d1h = live1h || {};
+  const m1h = d1h?.metrics ?? {};
+  const h1  = d1h?.hourly ?? {};
+  const ts1h= d1h?.updated_at;
+
   const dd  = liveEOD || {};
+  const tsEOD = dd?.updated_at;
 
-  // Build single-row values based on TF
-  let title="Intraday Scalp Lights (10m)";
-  let squeezeTone=toneForSqueeze;
-  let breadth   = num(m10.breadth_10m_pct ?? m10.breadth_pct);
-  let momentum  = num(m10.momentum_combo_pct ?? m10.momentum_pct);
-  let squeeze   = num(m10.squeeze_intraday_pct ?? m10.squeeze_pct);
-  let liquidity = num(m10.liquidity_psi ?? m10.liquidity_pct);
-  let volatility= num(m10.volatility_pct);
-  let rising    = num(i10?.sectorDirection10m?.risingPct);
-  let riskon    = num(i10?.riskOn10m?.riskOnPct);
-  let overallScore = num(i10?.overall10m?.score);
-  let overallState = i10?.overall10m?.state || null;
-  let rowTs = d10?.updated_at;
+  /* ---- extract values ---- */
+  // 10m strip
+  const breadth10   = num(m10.breadth_10m_pct ?? m10.breadth_pct);
+  const mom10       = num(m10.momentum_combo_pct ?? m10.momentum_pct);
+  const sq10        = num(m10.squeeze_intraday_pct ?? m10.squeeze_pct);     // PSI or expansion per backend
+  const liq10       = num(m10.liquidity_psi ?? m10.liquidity_pct);
+  const vol10       = num(m10.volatility_pct);
+  const rising10    = num(i10?.sectorDirection10m?.risingPct);
+  const risk10      = num(i10?.riskOn10m?.riskOnPct);
+  const overall10   = num(i10?.overall10m?.score);
+  const state10     = i10?.overall10m?.state || null;
 
-  if(tf==="1h" && live1h){
-    title="Hourly Valuation (1h)";
-    squeezeTone=toneForSqueeze1h;
-    breadth   = num(m1h.breadth_1h_pct);
-    momentum  = num(m1h.momentum_combo_1h_pct ?? m1h.momentum_1h_pct);
-    squeeze   = num(m1h.squeeze_1h_pct);                 // Expansion%
-    liquidity = num(m1h.liquidity_1h);
-    volatility= num(m1h.volatility_1h_scaled ?? m1h.volatility_1h_pct);
-    rising    = num(h1?.sectorDirection1h?.risingPct);
-    riskon    = num(h1?.riskOn1h?.riskOnPct);
-    overallScore = num(h1?.overall1h?.score);
-    overallState = h1?.overall1h?.state || null;
-    rowTs = d1h?.updated_at;
-  }
-  if(tf==="eod" && liveEOD){
-    title="Daily Structure (EOD)";
-    // keep right-hand daily block for detail; single-row keeps TF controls only
-    rowTs = dd?.updated_at;
-  }
+  // 1h strip
+  const breadth1    = num(m1h.breadth_1h_pct);
+  const mom1        = num(m1h.momentum_combo_1h_pct ?? m1h.momentum_1h_pct);
+  const sq1         = num(m1h.squeeze_1h_pct);                               // Expansion%
+  const liq1        = num(m1h.liquidity_1h);
+  const vol1        = num(m1h.volatility_1h_scaled ?? m1h.volatility_1h_pct);
+  const rising1     = num(h1?.sectorDirection1h?.risingPct);
+  const risk1       = num(h1?.riskOn1h?.riskOnPct);
+  const overall1    = num(h1?.overall1h?.score);
+  const state1      = h1?.overall1h?.state || null;
+
+  // Daily values used for the daily strip (unchanged bindings)
+  const td = dd?.trendDaily || {};
+  const tdSlope   = num(td?.trend?.emaSlope);
+  const tdTrend   = td?.trend?.state || null;
+  const tdTrendVal= Number.isFinite(num(tdSlope)) ? (tdSlope > 5 ? 75 : tdSlope < -5 ? 25 : 50) : NaN;
+  const tdPartPct = num(td?.participation?.pctAboveMA);
+  const tdVolPct  = num(td?.volatilityRegime?.atrPct);
+  const tdVolBand = td?.volatilityRegime?.band || null;
+  const tdLiqPsi  = num(td?.liquidityRegime?.psi);
+  const tdLiqBand = td?.liquidityRegime?.band || null;
+  const tdRiskOn  = num(td?.rotation?.riskOnPct);
+  const tdSdyDaily= Number.isFinite(num(dd?.metrics?.squeeze_daily_pct))
+                    ? num(dd.metrics.squeeze_daily_pct) : NaN;
+
+  /* ---------- layout: three strips side-by-side ---------- */
+  const stripBox = {
+    display:"flex", flexDirection:"column", gap:6, minWidth: 820, /* each strip stays on one line */
+  };
+  const lineBox = {
+    display:"flex", gap:12, alignItems:"center", whiteSpace:"nowrap", overflowX:"auto", paddingBottom:2
+  };
 
   return (
     <section id="row-2" className="panel" style={{padding:10}}>
-      {/* Header */}
+      {/* header */}
       <div className="panel-head" style={{alignItems:"center"}}>
         <div className="panel-title">Market Meter — Stoplights</div>
 
-        {/* timeframe buttons (single-row view) */}
-        <div style={{ marginLeft: 8, display:"flex", gap: 6 }}>
-          {["10m","1h","eod"].map(k=>(
-            <button key={k}
-              onClick={()=>setTf(k)}
-              className={`px-2 py-1 rounded-md text-sm ${tf===k?"bg-yellow-500 text-black":"bg-neutral-800 text-neutral-300"}`}>
-              {k.toUpperCase()}
-            </button>
-          ))}
-        </div>
-
-        {/* Legend buttons (unchanged) */}
         <div style={{ marginLeft: 8 }}>
           <button onClick={()=>setLegendOpen("intraday")}
             className="px-2 py-1 rounded-md bg-neutral-900 text-neutral-200 border border-neutral-700 text-sm" style={{marginRight:6}}>
@@ -231,39 +194,64 @@ export default function RowMarketOverview(){
         </div>
 
         <div className="spacer"/>
-        <LastUpdated ts={rowTs}/>
+        <LastUpdated ts={tsOf(live10 || live1h || liveEOD)} />
       </div>
 
-      {/* SINGLE LINE of lights */}
-      <div className="small" style={{ color:"#9ca3af", fontWeight:800, marginTop:6 }}>{title}</div>
-      <div style={{
-        display:"flex",
-        gap:12,
-        alignItems:"center",
-        whiteSpace:"nowrap",
-        overflowX:"auto",
-        paddingBottom:4
-      }}>
-        <Stoplight label={`Overall (${tf})`} value={overallScore} toneOverride={toneForOverallState(overallState, overallScore)} />
-        <Stoplight label="Breadth"          value={breadth}      toneOverride={toneForBreadth(breadth)} />
-        <Stoplight label="Momentum"         value={momentum}     toneOverride={toneForMomentum(momentum)} />
-        <Stoplight label="Squeeze"          value={squeeze}      toneOverride={squeezeTone(squeeze)} />
-        <Stoplight label="Liquidity"        value={liquidity}    unit="PSI" toneOverride={toneForLiquidity(liquidity)} />
-        <Stoplight label="Volatility"       value={volatility}   toneOverride={toneForVol(volatility)} />
-        <Stoplight label={`Sector Dir (${tf})`} value={rising}   toneOverride={toneForPercent(rising)} />
-        <Stoplight label={`Risk-On (${tf})`}   value={riskon}    toneOverride={toneForPercent(riskon)} />
-      </div>
+      {/* three strips horizontally */}
+      <div style={{ display:"flex", gap:28, alignItems:"flex-start", flexWrap:"wrap", marginTop:8 }}>
 
-      {/* Time stamps under the row (like your original) */}
-      <div style={{ display:"flex", gap:18, color:"#9ca3af", fontSize:12, marginTop:4, flexWrap:"wrap" }}>
-        {tf==="10m" && (
-          <>
-            <div>Last 10-min: <strong>{fmtIso(live10?.updated_at)}</strong></div>
-            <div>Δ5m updated: <strong>{fmtIso(deltaTs) || "—"}</strong></div>
-          </>
-        )}
-        {tf==="1h"  && <div>Last 1-hour: <strong>{fmtIso(live1h?.updated_at)}</strong></div>}
-        {tf==="eod" && <div>Daily updated: <strong>{fmtIso(liveEOD?.updated_at)}</strong></div>}
+        {/* 10m strip */}
+        <div style={stripBox}>
+          <div className="small" style={{ color:"#9ca3af", fontWeight:800 }}>10m — Intraday Scalp</div>
+          <div style={lineBox}>
+            <Stoplight label="Overall" value={overall10} toneOverride={toneForOverallState(state10, overall10)} />
+            <Stoplight label="Breadth" value={breadth10} toneOverride={toneForBreadth(breadth10)} />
+            <Stoplight label="Momentum" value={mom10} toneOverride={toneForMomentum(mom10)} />
+            <Stoplight label="Squeeze" value={sq10} toneOverride={toneForSqueeze(sq10)} />
+            <Stoplight label="Liquidity" value={liq10} unit="PSI" toneOverride={toneForLiquidity(liq10)} />
+            <Stoplight label="Volatility" value={vol10} toneOverride={toneForVol(vol10)} />
+            <Stoplight label="Sector Dir" value={rising10} toneOverride={toneForPercent(rising10)} />
+            <Stoplight label="Risk-On" value={risk10} toneOverride={toneForPercent(risk10)} />
+          </div>
+          <div style={{ color:"#9ca3af", fontSize:12 }}>
+            Last 10-min: <strong>{fmtIso(ts10)}</strong>&nbsp;&nbsp;|&nbsp;&nbsp;Δ5m updated: <strong>{fmtIso(deltaTs) || "—"}</strong>
+          </div>
+        </div>
+
+        {/* 1h strip */}
+        <div style={stripBox}>
+          <div className="small" style={{ color:"#9ca3af", fontWeight:800 }}>1h — Hourly Valuation</div>
+          <div style={lineBox}>
+            <Stoplight label="Overall" value={overall1} toneOverride={toneForOverallState(state1, overall1)} />
+            <Stoplight label="Breadth" value={breadth1} toneOverride={toneForBreadth(breadth1)} />
+            <Stoplight label="Momentum" value={mom1} toneOverride={toneForMomentum(mom1)} />
+            <Stoplight label="Squeeze" value={sq1} toneOverride={toneForSqueeze1h(sq1)} />
+            <Stoplight label="Liquidity" value={liq1} unit="PSI" toneOverride={toneForLiquidity(liq1)} />
+            <Stoplight label="Volatility" value={vol1} toneOverride={toneForVol(vol1)} />
+            <Stoplight label="Sector Dir" value={rising1} toneOverride={toneForPercent(rising1)} />
+            <Stoplight label="Risk-On" value={risk1} toneOverride={toneForPercent(risk1)} />
+          </div>
+          <div style={{ color:"#9ca3af", fontSize:12 }}>
+            Last 1-hour: <strong>{fmtIso(ts1h)}</strong>
+          </div>
+        </div>
+
+        {/* EOD strip (daily) */}
+        <div style={stripBox}>
+          <div className="small" style={{ color:"#9ca3af", fontWeight:800 }}>EOD — Daily Structure</div>
+          <div style={lineBox}>
+            <Stoplight label="Daily Trend" value={tdTrendVal} toneOverride={toneForDailyTrend(tdSlope)} />
+            <Stoplight label="Participation" value={tdPartPct} toneOverride={toneForPercent(tdPartPct)} />
+            <Stoplight label="Daily Squeeze" value={tdSdyDaily} toneOverride={toneForLuxDaily(tdSdyDaily)} />
+            <Stoplight label="Vol Regime" value={tdVolPct} toneOverride={toneForVolBand(tdVolBand)} />
+            <Stoplight label="Liq Regime" value={tdLiqPsi} unit="PSI" toneOverride={toneForLiqBand(tdLiqBand)} />
+            <Stoplight label="Risk-On" value={tdRiskOn} toneOverride={toneForPercent(tdRiskOn)} />
+          </div>
+          <div style={{ color:"#9ca3af", fontSize:12 }}>
+            Daily updated: <strong>{fmtIso(tsEOD)}</strong>
+          </div>
+        </div>
+
       </div>
 
       {/* Legend modals */}
@@ -276,8 +264,8 @@ export default function RowMarketOverview(){
             onClick={(e)=>e.stopPropagation()}
             style={{ width:"min(880px,92vw)", background:"#0b0b0c", border:"1px solid #2b2b2b", borderRadius:12, padding:16, boxShadow:"0 10px 30px rgba(0,0,0,0.35)" }}
           >
-            {legendOpen==="intraday" && <MarketMeterIntradayLegend/>}
-            {legendOpen==="daily"    && <MarketMeterDailyLegend/>}
+            <MarketMeterIntradayLegend />
+            <MarketMeterDailyLegend />
             <div style={{ display:"flex", justifyContent:"flex-end", marginTop:12 }}>
               <button
                 onClick={()=>setLegendOpen(null)}
