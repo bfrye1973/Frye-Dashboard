@@ -1,5 +1,5 @@
 // src/pages/rows/EngineLights.jsx
-// v4.1 — Hybrid renderer (R11 + Legacy), strict /live binding, 30s poll
+// v5.0 — adds 1h pill family; renders 10m + 1h + NOW + legacy; strict /live binding
 
 import React, { useEffect, useRef, useState } from "react";
 import { LastUpdated } from "../../components/LastUpdated";
@@ -8,12 +8,17 @@ import { LastUpdated } from "../../components/LastUpdated";
 function resolveLiveIntraday() {
   const env = (process.env.REACT_APP_INTRADAY_URL || "").trim();
   if (env) return env.replace(/\/+$/, "");
-  const win = (typeof window !== "undefined" && window.__LIVE_INTRADAY_URL) ? String(window.__LIVE_INTRADAY_URL).trim() : "";
+  const win =
+    typeof window !== "undefined" && window.__LIVE_INTRADAY_URL
+      ? String(window.__LIVE_INTRADAY_URL).trim()
+      : "";
   if (win) return win.replace(/\/+$/, "");
   return "https://frye-market-backend-1.onrender.com/live/intraday";
 }
 function guardLive(url) {
-  return url.replace(/\/api\/live\//, "/live/").replace(/\/api\/?(\?|$)/, "/");
+  return url
+    .replace(/\/api\/live\//, "/live/")
+    .replace(/\/api\/?(\?|$)/, "/");
 }
 
 /* ---------------- Light pill ---------------- */
@@ -47,7 +52,7 @@ function Light({ label, tone = "info", active = true, title }) {
 }
 
 /* ---------------- Signal dictionaries ---------------- */
-// Legacy family (before R11)
+// Legacy family
 const LEGACY_DEF = [
   { k:"sigBreakout",       label:"Breakout",         tone:(s)=> s.severity==="danger"?"danger":"ok" },
   { k:"sigDistribution",   label:"Distribution",     tone:()=>"danger" },
@@ -60,12 +65,14 @@ const LEGACY_DEF = [
   { k:"sigVolatilityHigh", label:"Volatility High",  tone:(s)=> s.severity==="danger"?"danger":"warn" },
 ];
 
-// R11 core 10-minute family
+// R11 10m core
 const R11_CORE_DEF = [
   { k:"sigOverallBull",     label:"Overall Bull",     tone:()=>"ok" },
   { k:"sigOverallBear",     label:"Overall Bear",     tone:()=>"danger" },
   { k:"sigEMA10BullCross",  label:"EMA10 Bull Cross", tone:()=>"ok" },
   { k:"sigEMA10BearCross",  label:"EMA10 Bear Cross", tone:()=>"danger" },
+  { k:"sigEMA10BullCrossEarlyWarn", label:"EMA10 Bull ⚠️", tone:()=>"warn" },
+  { k:"sigEMA10BearCrossEarlyWarn", label:"EMA10 Bear ⚠️", tone:()=>"warn" },
   { k:"sigAccelUp",         label:"Accel Up",         tone:()=>"ok" },
   { k:"sigAccelDown",       label:"Accel Down",       tone:()=>"danger" },
   { k:"sigRiskOn",          label:"Risk-On",          tone:()=>"ok" },
@@ -74,12 +81,24 @@ const R11_CORE_DEF = [
   { k:"sigSectorWeak",      label:"Sector Weak",      tone:()=>"danger" },
 ];
 
-// R11 NOW 5-minute sandbox family
+// R11 NOW (5m sandbox)
 const R11_NOW_DEF = [
   { k:"sigNowAccelUp",   label:"Now Accel Up",   tone:()=>"ok" },
   { k:"sigNowAccelDown", label:"Now Accel Down", tone:()=>"danger" },
   { k:"sigNowBull",      label:"Now Bull",       tone:()=>"ok" },
   { k:"sigNowBear",      label:"Now Bear",       tone:()=>"danger" },
+];
+
+// NEW — R11 1-Hour family (mirrored into /live/intraday by 10m builder)
+const R11_1H_DEF = [
+  { k:"sigEMA1hBullCross",  label:"EMA1h Bull Cross",  tone:()=>"ok" },
+  { k:"sigEMA1hBearCross",  label:"EMA1h Bear Cross",  tone:()=>"danger" },
+  { k:"sigSMI1hBullCross",  label:"SMI1h Bull Cross",  tone:()=>"ok" },
+  { k:"sigSMI1hBearCross",  label:"SMI1h Bear Cross",  tone:()=>"danger" },
+  { k:"sigAccelUp1h",       label:"Accel Up (1h)",     tone:()=>"ok" },
+  { k:"sigAccelDown1h",     label:"Accel Down (1h)",   tone:()=>"danger" },
+  { k:"sigOverallBull1h",   label:"Overall Bull (1h)", tone:()=>"ok" },
+  { k:"sigOverallBear1h",   label:"Overall Bear (1h)", tone:()=>"danger" },
 ];
 
 /* ---------------- Render helpers ---------------- */
@@ -90,18 +109,19 @@ function toPills(defs, sigs) {
     const tn = active ? tone(s) : "off";
     const reason = (s.reason || "").trim();
     const when = s.lastChanged ? ` • ${new Date(s.lastChanged).toLocaleString()}` : "";
-    const title = `${label} — ${active ? s.severity?.toUpperCase() || "ON" : "OFF"}${reason ? ` • ${reason}` : ""}${when}`;
+    const title = `${label} — ${active ? (s.severity?.toUpperCase() || "ON") : "OFF"}${reason ? ` • ${reason}` : ""}${when}`;
     return { key:k, label, active, tone:tn, title };
   });
 }
 
-// family detector
+// detect families present
 function detectFamily(signals) {
   const keys = Object.keys(signals || {});
-  const hasR11Core = keys.some(k => /^sig(Overall|EMA10|Accel|Risk|Sector)/.test(k));
+  const hasR11Core = keys.some(k => /^sig(Overall(Bull|Bear)|EMA10|Accel(Up|Down)|Risk(On|Off)|Sector(Thrust|Weak))/.test(k));
   const hasR11Now  = keys.some(k => /^sigNow/.test(k));
   const hasLegacy  = keys.some(k => /^sig(Breakout|Distribution|Compression|Expansion|Overheat|Turbo|Divergence|LowLiquidity|VolatilityHigh)$/.test(k));
-  return { hasR11Core, hasR11Now, hasLegacy };
+  const hasR11H1   = keys.some(k => /^sig(EMA1h(Bull|Bear)Cross|SMI1h(Bull|Bear)Cross|Accel(Up|Down)1h|Overall(Bull|Bear)1h)$/.test(k));
+  return { hasR11Core, hasR11Now, hasLegacy, hasR11H1 };
 }
 
 /* --------------------------- Main ---------------------------- */
@@ -147,6 +167,7 @@ export default function EngineLights() {
   const legacyPills = fam.hasLegacy   ? toPills(LEGACY_DEF,   signals) : [];
   const corePills   = fam.hasR11Core  ? toPills(R11_CORE_DEF, signals) : [];
   const nowPills    = fam.hasR11Now   ? toPills(R11_NOW_DEF,  signals) : [];
+  const h1Pills     = fam.hasR11H1    ? toPills(R11_1H_DEF,   signals) : [];
 
   // stable key to force repaint when any signal flips
   const stableKey = `${ts || "no-ts"}•${Object.entries(signals).map(([k,v])=>`${k}:${v?.active?1:0}-${v?.severity||""}`).join("|")}`;
@@ -184,6 +205,11 @@ export default function EngineLights() {
             {corePills.map(p => <Light key={p.key} label={p.label} tone={p.tone} active={p.active} title={p.title} />)}
           </div>
         )}
+        {fam.hasR11H1 && (
+          <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+            {h1Pills.map(p => <Light key={p.key} label={p.label} tone={p.tone} active={p.active} title={p.title} />)}
+          </div>
+        )}
         {fam.hasR11Now && (
           <div style={{ display:"flex", alignItems:"center", gap:12 }}>
             {nowPills.map(p => <Light key={p.key} label={p.label} tone={p.tone} active={p.active} title={p.title} />)}
@@ -194,7 +220,7 @@ export default function EngineLights() {
             {legacyPills.map(p => <Light key={p.key} label={p.label} tone={p.tone} active={p.active} title={p.title} />)}
           </div>
         )}
-        {!fam.hasR11Core && !fam.hasR11Now && !fam.hasLegacy && (
+        {!fam.hasR11Core && !fam.hasR11H1 && !fam.hasR11Now && !fam.hasLegacy && (
           <div className="small muted">No signals present in payload.</div>
         )}
       </div>
@@ -205,10 +231,11 @@ export default function EngineLights() {
           <div onClick={(e)=> e.stopPropagation()} style={{ width:"min(880px, 92vw)", background:"#0b0b0c", border:"1px solid #2b2b2b", borderRadius:12, padding:16, boxShadow:"0 10px 30px rgba(0,0,0,0.35)" }}>
             <div style={{ color:"#f9fafb", fontSize:14, fontWeight:800, marginBottom:8 }}>Engine Lights — Legend</div>
             <p className="small muted" style={{ marginBottom:8 }}>
-              This row auto-detects the signal family:
-              <br/>• R11 Core (Overall/EMA10/Accel/Risk/Sector)
-              <br/>• R11 NOW (5-min sandbox)
-              <br/>• Legacy (Breakout/Distribution/…)
+              Families auto-detected from the payload:<br/>
+              • 10m Core (Overall / EMA10 / Accel / Risk / Sector)<br/>
+              • 1h Crosses (EMA1h / SMI1h / Accel1h / Overall1h)<br/>
+              • NOW (5-min sandbox)<br/>
+              • Legacy (Breakout/Distribution/…)
             </p>
             <div className="small muted">Hover a pill to see <em>reason</em> and <em>last changed</em>.</div>
             <div style={{ display:"flex", justifyContent:"flex-end", marginTop:12 }}>
