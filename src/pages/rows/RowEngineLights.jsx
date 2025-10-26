@@ -1,5 +1,5 @@
 // src/pages/rows/EngineLights.jsx
-// v5.1 — Renders 10m + 1h + NOW + Legacy pill families; adds 10m/1h timestamps
+// v6.0 — Lux-aligned tones (green/purple/red), 10m + 1h timestamps, all families
 
 import React, { useEffect, useRef, useState } from "react";
 import { LastUpdated } from "../../components/LastUpdated";
@@ -29,17 +29,31 @@ function guardLive(url) {
   return url.replace(/\/api\/live\//, "/live/").replace(/\/api\/?(\?|$)/, "/");
 }
 
+/* ---------------- Lux colors ---------------- */
+const LUX_COLORS = {
+  green:  { bg:"#22c55e", fg:"#0b1220", bd:"#16a34a", sh:"#16a34a" },  // bullish / expansion
+  red:    { bg:"#ef4444", fg:"#fee2e2", bd:"#b91c1c", sh:"#b91c1c" },  // bearish / risk-off
+  purple: { bg:"#8b5cf6", fg:"#0b1220", bd:"#7c3aed", sh:"#7c3aed" },  // compression / neutral / early-warn
+  off:    { bg:"#0b0f17", fg:"#6b7280", bd:"#1f2937", sh:"#111827" },  // inactive
+  info:   { bg:"#0b1220", fg:"#93c5fd", bd:"#334155", sh:"#334155" },  // generic info
+};
+
+/* Tone token -> palette */
+function toneToPalette(t) {
+  return (
+    {
+      "luxGreen": LUX_COLORS.green,
+      "luxRed":   LUX_COLORS.red,
+      "luxPurple":LUX_COLORS.purple,
+      "off":      LUX_COLORS.off,
+      "info":     LUX_COLORS.info,
+    }[t] || LUX_COLORS.off
+  );
+}
+
 /* ---------------- Light pill ---------------- */
 function Light({ label, tone = "info", active = true, title }) {
-  const palette =
-    {
-      ok:     { bg:"#22c55e", fg:"#0b1220", bd:"#16a34a", sh:"#16a34a" },
-      warn:   { bg:"#facc15", fg:"#111827", bd:"#ca8a04", sh:"#ca8a04" },
-      danger: { bg:"#ef4444", fg:"#fee2e2", bd:"#b91c1c", sh:"#b91c1c" },
-      info:   { bg:"#0b1220", fg:"#93c5fd", bd:"#334155", sh:"#334155" },
-      off:    { bg:"#0b0f17", fg:"#6b7280", bd:"#1f2937", sh:"#111827" },
-    }[tone] || { bg:"#0b0f17", fg:"#6b7280", bd:"#1f2937", sh:"#111827" };
-
+  const palette = toneToPalette(active ? tone : "off");
   return (
     <span
       title={title || label}
@@ -59,53 +73,55 @@ function Light({ label, tone = "info", active = true, title }) {
 }
 
 /* ---------------- Signal dictionaries ---------------- */
-// Legacy
-const LEGACY_DEF = [
-  { k:"sigBreakout",       label:"Breakout",         tone:(s)=> s.severity==="danger"?"danger":"ok" },
-  { k:"sigDistribution",   label:"Distribution",     tone:()=>"danger" },
-  { k:"sigCompression",    label:"Compression",      tone:()=>"warn" },
-  { k:"sigExpansion",      label:"Expansion",        tone:()=>"ok" },
-  { k:"sigOverheat",       label:"Overheat",         tone:(s)=> s.severity==="danger"?"danger":"warn" },
-  { k:"sigTurbo",          label:"Turbo",            tone:()=>"ok" },
-  { k:"sigDivergence",     label:"Divergence",       tone:()=>"warn" },
-  { k:"sigLowLiquidity",   label:"Low Liquidity",    tone:(s)=> s.severity==="danger"?"danger":"warn" },
-  { k:"sigVolatilityHigh", label:"Volatility High",  tone:(s)=> s.severity==="danger"?"danger":"warn" },
-];
-
 // 10m core
 const R11_CORE_DEF = [
-  { k:"sigOverallBull",     label:"Overall Bull",     tone:()=>"ok" },
-  { k:"sigOverallBear",     label:"Overall Bear",     tone:()=>"danger" },
-  { k:"sigEMA10BullCross",  label:"EMA10 Bull Cross", tone:()=>"ok" },
-  { k:"sigEMA10BearCross",  label:"EMA10 Bear Cross", tone:()=>"danger" },
-  { k:"sigEMA10BullCrossEarlyWarn", label:"EMA10 Bull ⚠️", tone:()=>"warn" },
-  { k:"sigEMA10BearCrossEarlyWarn", label:"EMA10 Bear ⚠️", tone:()=>"warn" },
-  { k:"sigAccelUp",         label:"Accel Up",         tone:()=>"ok" },
-  { k:"sigAccelDown",       label:"Accel Down",       tone:()=>"danger" },
-  { k:"sigRiskOn",          label:"Risk-On",          tone:()=>"ok" },
-  { k:"sigRiskOff",         label:"Risk-Off",         tone:()=>"danger" },
-  { k:"sigSectorThrust",    label:"Sector Thrust",    tone:()=>"ok" },
-  { k:"sigSectorWeak",      label:"Sector Weak",      tone:()=>"danger" },
+  { k:"sigOverallBull",     label:"Overall Bull",     tone:()=>"luxGreen" },
+  { k:"sigOverallBear",     label:"Overall Bear",     tone:()=>"luxRed" },
+  { k:"sigEMA10BullCross",  label:"EMA10 Bull Cross", tone:()=>"luxGreen" },
+  { k:"sigEMA10BearCross",  label:"EMA10 Bear Cross", tone:()=>"luxRed" },
+  { k:"sigEMA10BullCrossEarlyWarn", label:"EMA10 Bull ⚠️", tone:()=>"luxPurple" },
+  { k:"sigEMA10BearCrossEarlyWarn", label:"EMA10 Bear ⚠️", tone:()=>"luxPurple" },
+  { k:"sigAccelUp",         label:"Accel Up",         tone:()=>"luxGreen" },
+  { k:"sigAccelDown",       label:"Accel Down",       tone:()=>"luxRed" },
+  { k:"sigExpansion",       label:"Expansion",        tone:()=>"luxGreen" },
+  { k:"sigCompression",     label:"Compression",      tone:()=>"luxPurple" },
+  { k:"sigRiskOn",          label:"Risk-On",          tone:()=>"luxGreen" },
+  { k:"sigRiskOff",         label:"Risk-Off",         tone:()=>"luxRed" },
+  { k:"sigSectorThrust",    label:"Sector Thrust",    tone:()=>"luxGreen" },
+  { k:"sigSectorWeak",      label:"Sector Weak",      tone:()=>"luxRed" },
 ];
 
-// 5m NOW
-const R11_NOW_DEF = [
-  { k:"sigNowAccelUp",   label:"Now Accel Up",   tone:()=>"ok" },
-  { k:"sigNowAccelDown", label:"Now Accel Down", tone:()=>"danger" },
-  { k:"sigNowBull",      label:"Now Bull",       tone:()=>"ok" },
-  { k:"sigNowBear",      label:"Now Bear",       tone:()=>"danger" },
-];
-
-// NEW — 1h family
+// 1h family
 const R11_1H_DEF = [
-  { k:"sigEMA1hBullCross",  label:"EMA1h Bull Cross",  tone:()=>"ok" },
-  { k:"sigEMA1hBearCross",  label:"EMA1h Bear Cross",  tone:()=>"danger" },
-  { k:"sigSMI1hBullCross",  label:"SMI1h Bull Cross",  tone:()=>"ok" },
-  { k:"sigSMI1hBearCross",  label:"SMI1h Bear Cross",  tone:()=>"danger" },
-  { k:"sigAccelUp1h",       label:"Accel Up (1h)",     tone:()=>"ok" },
-  { k:"sigAccelDown1h",     label:"Accel Down (1h)",   tone:()=>"danger" },
-  { k:"sigOverallBull1h",   label:"Overall Bull (1h)", tone:()=>"ok" },
-  { k:"sigOverallBear1h",   label:"Overall Bear (1h)", tone:()=>"danger" },
+  { k:"sigEMA1hBullCross",  label:"EMA1h Bull Cross",  tone:()=>"luxGreen" },
+  { k:"sigEMA1hBearCross",  label:"EMA1h Bear Cross",  tone:()=>"luxRed" },
+  { k:"sigSMI1hBullCross",  label:"SMI1h Bull Cross",  tone:()=>"luxGreen" },
+  { k:"sigSMI1hBearCross",  label:"SMI1h Bear Cross",  tone:()=>"luxRed" },
+  { k:"sigAccelUp1h",       label:"Accel Up (1h)",     tone:()=>"luxGreen" },
+  { k:"sigAccelDown1h",     label:"Accel Down (1h)",   tone:()=>"luxRed" },
+  { k:"sigOverallBull1h",   label:"Overall Bull (1h)", tone:()=>"luxGreen" },
+  { k:"sigOverallBear1h",   label:"Overall Bear (1h)", tone:()=>"luxRed" },
+];
+
+// NOW (5m)
+const R11_NOW_DEF = [
+  { k:"sigNowAccelUp",   label:"Now Accel Up",   tone:()=>"luxGreen" },
+  { k:"sigNowAccelDown", label:"Now Accel Down", tone:()=>"luxRed" },
+  { k:"sigNowBull",      label:"Now Bull",       tone:()=>"luxGreen" },
+  { k:"sigNowBear",      label:"Now Bear",       tone:()=>"luxRed" },
+];
+
+// Legacy (kept for compatibility; tones converted to Lux)
+const LEGACY_DEF = [
+  { k:"sigBreakout",       label:"Breakout",         tone:()=>"luxGreen" },
+  { k:"sigDistribution",   label:"Distribution",     tone:()=>"luxRed" },
+  { k:"sigCompression",    label:"Compression",      tone:()=>"luxPurple" },
+  { k:"sigExpansion",      label:"Expansion",        tone:()=>"luxGreen" },
+  { k:"sigOverheat",       label:"Overheat",         tone:()=>"luxRed" },
+  { k:"sigTurbo",          label:"Turbo",            tone:()=>"luxGreen" },
+  { k:"sigDivergence",     label:"Divergence",       tone:()=>"luxPurple" },
+  { k:"sigLowLiquidity",   label:"Low Liquidity",    tone:()=>"luxPurple" },
+  { k:"sigVolatilityHigh", label:"Volatility High",  tone:()=>"luxPurple" },
 ];
 
 /* ---------------- Render helpers ---------------- */
@@ -122,17 +138,17 @@ function toPills(defs, sigs) {
 }
 function detectFamily(signals) {
   const keys = Object.keys(signals || {});
-  const hasR11Core = keys.some(k => /^sig(Overall(Bull|Bear)|EMA10|Accel(Up|Down)|Risk(On|Off)|Sector(Thrust|Weak))/.test(k));
+  const hasR11Core = keys.some(k => /^sig(Overall(Bull|Bear)|EMA10|Accel(Up|Down)|Risk(On|Off)|Sector(Thrust|Weak)|Expansion|Compression)/.test(k));
+  const hasR11H1   = keys.some(k => /^sig(EMA1h(Bull|Bear)Cross|SMI1h(Bull|Bear)Cross|Accel(Up|Down)1h|Overall(Bull|Bear)1h)$/.test(k));
   const hasR11Now  = keys.some(k => /^sigNow/.test(k));
   const hasLegacy  = keys.some(k => /^sig(Breakout|Distribution|Compression|Expansion|Overheat|Turbo|Divergence|LowLiquidity|VolatilityHigh)$/.test(k));
-  const hasR11H1   = keys.some(k => /^sig(EMA1h(Bull|Bear)Cross|SMI1h(Bull|Bear)Cross|Accel(Up|Down)1h|Overall(Bull|Bear)1h)$/.test(k));
-  return { hasR11Core, hasR11Now, hasLegacy, hasR11H1 };
+  return { hasR11Core, hasR11H1, hasR11Now, hasLegacy };
 }
 
 /* --------------------------- Component ---------------------------- */
 export default function EngineLights() {
-  const LIVE_10_URL = resolveLiveIntraday();   // /live/intraday (pills)
-  const LIVE_1H_URL = resolveLiveHourly();     // /live/hourly (timestamp only)
+  const LIVE_10_URL = resolveLiveIntraday();
+  const LIVE_1H_URL = resolveLiveHourly();
 
   const [ts10, setTs10] = useState(null);
   const [ts1h, setTs1h] = useState(null);
@@ -140,11 +156,11 @@ export default function EngineLights() {
   const [mode, setMode] = useState(null);
   const [signals, setSignals] = useState({});
   const [err, setErr] = useState(null);
-  const [legendOpen, setLegendOpen] = useState(false);
   const poll10Ref = useRef(null);
   const poll1hRef = useRef(null);
+  const [legendOpen, setLegendOpen] = useState(false);
 
-  // 10m fetch (30s)
+  // 10m pills (every 30s)
   async function fetch10m(abortSignal) {
     const url = guardLive(`${LIVE_10_URL}?t=${Date.now()}`);
     try {
@@ -163,7 +179,7 @@ export default function EngineLights() {
     }
   }
 
-  // 1h fetch (60s) — used for timestamp chip only
+  // 1h timestamp (every 60s)
   async function fetch1h(abortSignal) {
     const url = guardLive(`${LIVE_1H_URL}?t=${Date.now()}`);
     try {
@@ -191,14 +207,12 @@ export default function EngineLights() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [LIVE_10_URL, LIVE_1H_URL]);
 
-  // Build pill groups
   const fam = detectFamily(signals);
-  const legacyPills = fam.hasLegacy   ? toPills(LEGACY_DEF,   signals) : [];
-  const corePills   = fam.hasR11Core  ? toPills(R11_CORE_DEF, signals) : [];
-  const h1Pills     = fam.hasR11H1    ? toPills(R11_1H_DEF,   signals) : [];
-  const nowPills    = fam.hasR11Now   ? toPills(R11_NOW_DEF,  signals) : [];
+  const corePills   = fam.hasR11Core ? toPills(R11_CORE_DEF, signals) : [];
+  const h1Pills     = fam.hasR11H1   ? toPills(R11_1H_DEF,   signals) : [];
+  const nowPills    = fam.hasR11Now  ? toPills(R11_NOW_DEF,  signals) : [];
+  const legacyPills = fam.hasLegacy  ? toPills(LEGACY_DEF,   signals) : [];
 
-  // Force repaint when any signal flips
   const stableKey = `${ts10 || "no-ts"}•${Object.entries(signals).map(([k,v])=>`${k}:${v?.active?1:0}-${v?.severity||""}`).join("|")}`;
 
   return (
@@ -214,22 +228,17 @@ export default function EngineLights() {
           Legend
         </button>
         <div className="spacer" />
-        {/* LIVE badge from 10m */}
         {live && (
-          <span
-            className="small"
-            style={{ marginRight:8, padding:"3px 8px", borderRadius:6, background:"#16a34a", color:"#0b1220", fontWeight:800, border:"1px solid #0f7a2a" }}
-            title={mode ? `Mode: ${mode}` : "Live intraday"}
-          >
+          <span className="small"
+                style={{ marginRight:8, padding:"3px 8px", borderRadius:6, background:"#16a34a", color:"#0b1220", fontWeight:800, border:"1px solid #0f7a2a" }}
+                title={mode ? `Mode: ${mode}` : "Live intraday"}>
             LIVE
           </span>
         )}
-
-        {/* Timestamp chips */}
         <span className="small muted" style={{ marginRight:12 }}>
           <strong>10m:</strong> <LastUpdated ts={ts10} />
         </span>
-        <span className="small muted" style={{ marginRight:0 }}>
+        <span className="small muted">
           <strong>1h:</strong> <LastUpdated ts={ts1h} />
         </span>
       </div>
@@ -270,16 +279,17 @@ export default function EngineLights() {
                         borderRadius:12, padding:16, boxShadow:"0 10px 30px rgba(0,0,0,0.35)" }}>
             <div style={{ color:"#f9fafb", fontSize:14, fontWeight:800, marginBottom:8 }}>Engine Lights — Legend</div>
             <p className="small muted" style={{ marginBottom:8 }}>
-              Families auto-detected from payload:<br/>
-              • 10m Core (Overall / EMA10 / Accel / Risk / Sector)<br/>
-              • 1h Crosses (EMA1h / SMI1h / Accel1h / Overall1h)<br/>
-              • NOW (5-min sandbox)<br/>
-              • Legacy (Breakout / Distribution / …)
+              Color scheme aligned to LuxAlgo: <strong>Green</strong> = bullish/expansion, <strong>Purple</strong> = compression/neutral/early-warn, <strong>Red</strong> = bearish/risk-off.
+              <br/> Families auto-detected from payload:
+              <br/>• 10m Core (Overall/EMA10/Accel/Risk/Sector, +Expansion/Compression)
+              <br/>• 1h Crosses (EMA1h/SMI1h/Accel1h/Overall1h)
+              <br/>• NOW (5-min sandbox)
+              <br/>• Legacy (Breakout/Distribution/…)
             </p>
-            <div className="small muted">Hover a pill to see <em>reason</em> and <em>last changed</em>.</div>
             <div style={{ display:"flex", justifyContent:"flex-end", marginTop:12 }}>
               <button onClick={()=> setLegendOpen(false)}
-                      style={{ background:"#eab308", color:"#111827", border:"none", borderRadius:8, padding:"8px 12px", fontWeight:700, cursor:"pointer" }}>
+                      style={{ background:"#eab308", color:"#111827", border:"none", borderRadius:8,
+                               padding:"8px 12px", fontWeight:700, cursor:"pointer" }}>
                 Close
               </button>
             </div>
