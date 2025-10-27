@@ -1,5 +1,5 @@
 // src/pages/rows/RowIndexSectors.jsx
-// v6.2 — Pills from /live/pills (Δ5m, Δ10m) + Hourly Δ1h + Cards from /live/intraday
+// v7 — 3-way toggle (10m / 1h / EOD) + robust card loader + Δ5m/Δ10m/Δ1h pills
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
@@ -7,6 +7,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 const PILLS_URL     = (process.env.REACT_APP_PILLS_URL     || "https://frye-market-backend-1.onrender.com/live/pills").replace(/\/+$/,"");
 const INTRADAY_URL  = (process.env.REACT_APP_INTRADAY_URL  || "https://frye-market-backend-1.onrender.com/live/intraday").replace(/\/+$/,"");
 const HOURLY_URL    = (process.env.REACT_APP_HOURLY_URL    || "https://frye-market-backend-1.onrender.com/live/hourly").replace(/\/+$/,"");
+const EOD_URL       = (process.env.REACT_APP_EOD_URL       || "https://frye-market-backend-1.onrender.com/live/eod").replace(/\/+$/,"");
 
 /* ------------------------------- helpers ------------------------------- */
 const norm = (s="") => s.trim().toLowerCase();
@@ -24,6 +25,15 @@ const ALIASES = {
   finance:"financials","industry":"industrials","reit":"real estate","reits":"real estate",
 };
 const toneFor = (o) => { const s=String(o||"").toLowerCase(); if (s.startsWith("bull")) return "ok"; if (s.startsWith("bear")) return "danger"; if (s.startsWith("neut")) return "warn"; return "info"; };
+
+const labelOutlook = (b, m) => {
+  const B = Number(b), M = Number(m);
+  if (Number.isFinite(B) && Number.isFinite(M)) {
+    if (B >= 55 && M >= 55) return "Bullish";
+    if (B <= 45 && M <= 45) return "Bearish";
+  }
+  return "Neutral";
+};
 
 function Badge({ text, tone="info" }) {
   const map={ ok:{bg:"#22c55e",fg:"#0b1220",bd:"#16a34a"}, warn:{bg:"#facc15",fg:"#111827",bd:"#ca8a04"},
@@ -48,14 +58,17 @@ async function fetchJSON(url, opts={}) { const r = await fetch(url,{cache:"no-st
 
 /* -------------------------------- Main -------------------------------- */
 export default function RowIndexSectors() {
+  // timeframe for cards: "10m" | "1h" | "eod"
+  const [cardsSource, setCardsSource] = useState("10m");
+
   // pills payload (Δ5m/Δ10m)
   const [pills, setPills] = useState({ stamp5:null, stamp10:null, sectors:{} });
 
-  // intraday cards payload
+  // sector cards + timestamp (from selected source)
   const [cardsTs, setCardsTs] = useState(null);
   const [cards, setCards] = useState([]);
 
-  // Δ1h map
+  // Δ1h map (hour-over-hour)
   const [d1hMap, setD1hMap] = useState({});
   const lastHourlyRef = useRef({ ts:null, map:null });
 
@@ -83,21 +96,44 @@ export default function RowIndexSectors() {
     return ()=>{ stop=true; ctrl.abort(); clearInterval(t); };
   }, []);
 
-  /* --------- /live/intraday (cards; 60s) --------- */
+  /* --------- Cards loader (10m / 1h / EOD) --------- */
   useEffect(() => {
     let stop=false; const ctrl=new AbortController();
-    async function load() {
-      try{
-        const u = INTRADAY_URL + (INTRADAY_URL.includes("?")?"&":"?") + "t=" + Date.now();
-        const j = await fetchJSON(u,{ signal: ctrl.signal });
+
+    async function loadCards() {
+      try {
+        const base = cardsSource === "10m" ? INTRADAY_URL : cardsSource === "1h" ? HOURLY_URL : EOD_URL;
+        const u = base + (base.includes("?") ? "&" : "?") + "t=" + Date.now();
+        const j = await fetchJSON(u, { signal: ctrl.signal });
         if (stop) return;
-        setCardsTs(j?.sectorsUpdatedAt || j?.updated_at || null);
-        setCards(Array.isArray(j?.sectorCards) ? j.sectorCards.slice() : []);
-      }catch(e){ setErr(String(e?.message || e)); }
+
+        const ts = j?.sectorsUpdatedAt || j?.updated_at || null;
+        setCardsTs(ts);
+
+        // Cards block can live at sectorCards or (rarely) sectors
+        let arr = Array.isArray(j?.sectorCards) ? j.sectorCards.slice() : [];
+        if (!arr.length && Array.isArray(j?.sectors)) arr = j.sectors.slice();
+
+        // Fallback: derive outlook if missing
+        const withOutlooks = arr.map(c => {
+          const o = c?.outlook || labelOutlook(c?.breadth_pct, c?.momentum_pct);
+          return { ...c, outlook: o };
+        });
+
+        setCards(withOutlooks);
+        setErr(null);
+      } catch(e) {
+        setErr(String(e?.message || e));
+        setCards([]);
+        setCardsTs(null);
+      }
     }
-    load(); const t=setInterval(load,60_000);
+
+    loadCards();
+    const ms = cardsSource === "eod" ? 5*60_000 : 60_000; // EOD slower
+    const t = setInterval(loadCards, ms);
     return ()=>{ stop=true; ctrl.abort(); clearInterval(t); };
-  }, []);
+  }, [cardsSource]);
 
   /* --------- /live/hourly → Δ1h (hour-over-hour; 60s) --------- */
   useEffect(() => {
@@ -120,13 +156,11 @@ export default function RowIndexSectors() {
         const prev = lastHourlyRef.current;
 
         if (!prev.ts || !prev.map) {
-          // first run: seed zeros (always-visible pill like before)
           const zeros = Object.fromEntries(ORDER.map(k => [norm(k), 0]));
           setD1hMap(zeros);
           lastHourlyRef.current = { ts, map: now };
           return;
         }
-
         if (ts && ts !== prev.ts) {
           const keys = new Set([...Object.keys(now), ...Object.keys(prev.map)]);
           const d={}; for (const k of keys) {
@@ -143,7 +177,7 @@ export default function RowIndexSectors() {
     return ()=>{ stop=true; ctrl.abort(); clearInterval(t); };
   }, []);
 
-  // normalize + order cards
+  // Normalize + order cards
   const view = useMemo(() => {
     const byKey = {};
     for (const c of cards) {
@@ -157,8 +191,25 @@ export default function RowIndexSectors() {
     <section id="row-4" className="panel index-sectors" aria-label="Index Sectors">
       <div className="panel-head" style={{ alignItems:"center" }}>
         <div className="panel-title">Index Sectors</div>
-        <div style={{ marginLeft:8, color:"#9ca3af", fontSize:12 }}>
-          Δ5m last: {pills.stamp5 || "—"} • Δ10m last: {pills.stamp10 || "—"} • Cards: {cardsTs || "—"}
+
+        {/* timeframe toggle */}
+        <div style={{ marginLeft:12, display:"inline-flex", gap:6 }}>
+          {["10m","1h","eod"].map(tf => (
+            <button key={tf}
+              onClick={()=>setCardsSource(tf)}
+              style={{
+                padding:"4px 8px", borderRadius:6, fontSize:12, fontWeight:700, cursor:"pointer",
+                color: cardsSource===tf ? "#0b1220" : "#e5e7eb",
+                background: cardsSource===tf ? "#facc15" : "#0b0b0b",
+                border: "1px solid #2b2b2b"
+              }}>
+              {tf.toUpperCase()}
+            </button>
+          ))}
+        </div>
+
+        <div style={{ marginLeft:12, color:"#9ca3af", fontSize:12 }}>
+          Δ5m: {pills.stamp5 || "—"} • Δ10m: {pills.stamp10 || "—"} • Cards[{cardsSource}]: {cardsTs || "—"}
         </div>
         <div className="spacer" />
         {err && <div style={{ color:"#fca5a5", fontSize:12 }}>{err}</div>}
@@ -176,7 +227,10 @@ export default function RowIndexSectors() {
           const nh = Number(card?.nh ?? NaN);
           const nl = Number(card?.nl ?? NaN);
           const netNH = (Number.isFinite(nh) && Number.isFinite(nl)) ? nh - nl : null;
-          const tone = toneFor(card?.outlook);
+
+          // outlook: use backend value or compute client-side as a safety net
+          const badgeText = card?.outlook || labelOutlook(breadth, momentum);
+          const tone = toneFor(badgeText);
 
           return (
             <div key={name || i} className="panel"
@@ -186,7 +240,7 @@ export default function RowIndexSectors() {
                 <div className="panel-title small" style={{ color:"#f3f4f6", fontSize:18, fontWeight:900, letterSpacing:"0.3px" }}>
                   {name}
                 </div>
-                <Badge text={card?.outlook || "Neutral"} tone={tone} />
+                <Badge text={badgeText} tone={tone} />
               </div>
 
               {/* Pills: Δ5m, Δ10m, Δ1h */}
