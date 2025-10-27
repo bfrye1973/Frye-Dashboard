@@ -285,3 +285,20 @@ html, body, #root {
   max-width: 100%;
   box-sizing: border-box;
 }
+
+/* --------------------------
+   Engine Lights anti-stretch guards
+--------------------------- */
+#row-3.panel { overflow: hidden; }
+
+#row-3 .pill,
+#row-3 .lux-chip {
+  flex: 0 0 auto;          /* never grow */
+  white-space: nowrap;     /* keep compact */
+}
+
+#row-3 .btn.btn-xs {
+  font-size: 12px;
+  line-height: 18px;
+  padding: 2px 8px;
+}
