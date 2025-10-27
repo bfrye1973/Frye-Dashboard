@@ -1,228 +1,162 @@
 // src/pages/rows/EngineLights.jsx
-// v6.0 — Stable/compact Engine Lights row (10m pills + NOW + Legacy; 1h timestamp chip)
-// - No TrendCard / TrendRow (prevents undefined build errors)
-// - No runtime process.env usage (guarded fallbacks)
-// - Lux colors (ok=green, danger=red, warn=amber)
-// - One section (row-3) only; compact vertical stack
+import React, { useEffect, useMemo, useState } from "react";
+import LuxTrendChip from "@/components/LuxTrendChip";
+import LastUpdated from "@/components/LastUpdated";
 
-import React, { useEffect, useRef, useState } from "react";
-import { LastUpdated } from "../../components/LastUpdated";
+// ---- Config ----
+const INTRADAY_URL = "https://frye-market-backend-1.onrender.com/live/intraday";
+const HOURLY_URL   = "https://frye-market-backend-1.onrender.com/live/hourly";
+const EOD_URL      = "https://frye-market-backend-1.onrender.com/live/eod"; // or /live/daily if that’s your proxy
 
-/* ---------------- URL helpers (safe, no process.env at runtime) ---------------- */
-function safeEnv(name) {
-  try {
-    // some bundlers replace process.env at build time; this keeps us from crashing at runtime
-    // if it's not injected.
-    // eslint-disable-next-line no-undef
-    return (typeof process !== "undefined" && process.env && process.env[name]) || "";
-  } catch {
-    return "";
-  }
-}
-function resolveLiveIntraday() {
-  const env = (safeEnv("REACT_APP_INTRADAY_URL") || "").trim();
-  if (env) return env.replace(/\/+$/, "");
-  const win = (typeof window !== "undefined" && window.__LIVE_INTRADAY_URL) ? String(window.__LIVE_INTRADAY_URL).trim() : "";
-  if (win) return win.replace(/\/+$/, "");
-  return "https://frye-market-backend-1.onrender.com/live/intraday";
-}
-function resolveLiveHourly() {
-  const env = (safeEnv("REACT_APP_HOURLY_URL") || "").trim();
-  if (env) return env.replace(/\/+$/, "");
-  const win = (typeof window !== "undefined" && window.__LIVE_HOURLY_URL) ? String(window.__LIVE_HOURLY_URL).trim() : "";
-  if (win) return win.replace(/\/+$/, "");
-  return "https://frye-market-backend-1.onrender.com/live/hourly";
-}
-function guardLive(url) {
-  return url.replace(/\/api\/live\//, "/live/").replace(/\/api\/?(\?|$)/, "/");
-}
-
-/* ---------------- Light pill (Lux palette) ---------------- */
-function Light({ label, tone = "info", active = true, title }) {
-  const palette =
-    {
-      ok:     { bg:"#22c55e", fg:"#0b1220", bd:"#16a34a", sh:"#16a34a" },  // green
-      warn:   { bg:"#facc15", fg:"#111827", bd:"#ca8a04", sh:"#ca8a04" },  // amber
-      danger: { bg:"#ef4444", fg:"#fee2e2", bd:"#b91c1c", sh:"#b91c1c" },  // red
-      info:   { bg:"#0b1220", fg:"#93c5fd", bd:"#334155", sh:"#334155" },  // blue
-      off:    { bg:"#0b0f17", fg:"#6b7280", bd:"#1f2937", sh:"#111827" },  // muted
-    }[tone] || { bg:"#0b0f17", fg:"#6b7280", bd:"#1f2937", sh:"#111827" };
-
-  return (
-    <span
-      title={title || label}
-      style={{
-        display:"inline-flex", alignItems:"center",
-        padding:"6px 10px", marginRight:8,
-        borderRadius:8, fontWeight:700, fontSize:12,
-        background: palette.bg, color: palette.fg, border:`1px solid ${palette.bd}`,
-        boxShadow: `0 0 10px ${palette.sh}55`,
-        opacity: active ? 1 : 0.45, filter: active ? "none" : "grayscale(40%)",
-        transition: "opacity 120ms ease", whiteSpace:"nowrap"
-      }}
-    >
-      {label}
-    </span>
-  );
-}
-
-/* ---------------- Families ---------------- */
-const LEGACY_DEF = [
-  { k:"sigBreakout",       label:"Breakout",         tone:(s)=> s.severity==="danger"?"danger":"ok" },
-  { k:"sigDistribution",   label:"Distribution",     tone:()=>"danger" },
-  { k:"sigCompression",    label:"Compression",      tone:()=>"warn" },
-  { k:"sigExpansion",      label:"Expansion",        tone:()=>"ok" },
-  { k:"sigOverheat",       label:"Overheat",         tone:(s)=> s.severity==="danger"?"danger":"warn" },
-  { k:"sigTurbo",          label:"Turbo",            tone:()=>"ok" },
-  { k:"sigDivergence",     label:"Divergence",       tone:()=>"warn" },
-  { k:"sigLowLiquidity",   label:"Low Liquidity",    tone:(s)=> s.severity==="danger"?"danger":"warn" },
-  { k:"sigVolatilityHigh", label:"Volatility High",  tone:(s)=> s.severity==="danger"?"danger":"warn" },
+// 10m pill definition (render whatever your existing keys are; sample kept generic)
+const R10_DEF = [
+  { k:"sigEMA10BullCross", label:"EMA10 Bull", tone:"ok" },
+  { k:"sigEMA10BearCross", label:"EMA10 Bear", tone:"danger" },
+  { k:"sigAccelUp",        label:"Accel Up",   tone:"ok" },
+  { k:"sigAccelDown",      label:"Accel Down", tone:"danger" },
+  { k:"sigRiskOn",         label:"Risk On",    tone:"ok" },
+  { k:"sigRiskOff",        label:"Risk Off",   tone:"danger" },
+  // ...add your other 10m pills as needed
 ];
 
-const CORE_10M_DEF = [
-  { k:"sigOverallBull",     label:"Overall Bull",     tone:()=>"ok" },
-  { k:"sigOverallBear",     label:"Overall Bear",     tone:()=>"danger" },
-  { k:"sigEMA10BullCross",  label:"EMA10 Bull Cross", tone:()=>"ok" },
-  { k:"sigEMA10BearCross",  label:"EMA10 Bear Cross", tone:()=>"danger" },
-  { k:"sigEMA10BullCrossEarlyWarn", label:"EMA10 Bull ⚠", tone:()=>"warn" },
-  { k:"sigEMA10BearCrossEarlyWarn", label:"EMA10 Bear ⚠", tone:()=>"warn" },
-  { k:"sigAccelUp",         label:"Accel Up",         tone:()=>"ok" },
-  { k:"sigAccelDown",       label:"Accel Down",       tone:()=>"danger" },
-  { k:"sigRiskOn",          label:"Risk-On",          tone:()=>"ok" },
-  { k:"sigRiskOff",         label:"Risk-Off",         tone:()=>"danger" },
-  { k:"sigSectorThrust",    label:"Sector Thrust",    tone:()=>"ok" },
-  { k:"sigSectorWeak",      label:"Sector Weak",      tone:()=>"danger" },
+// 1h (Option A) — four pills only
+const R11_1H_DEF = [
+  { k:"sigEMA1hBullCross",  label:"EMA1h Bull Cross",  tone:"ok" },
+  { k:"sigEMA1hBearCross",  label:"EMA1h Bear Cross",  tone:"danger" },
+  { k:"sigSMI1hBullCross",  label:"SMI1h Bull Cross",  tone:"ok" },
+  { k:"sigSMI1hBearCross",  label:"SMI1h Bear Cross",  tone:"danger" },
 ];
 
-const NOW_5M_DEF = [
-  { k:"sigNowAccelUp",   label:"Now Accel Up",   tone:()=>"ok" },
-  { k:"sigNowAccelDown", label:"Now Accel Down", tone:()=>"danger" },
-  { k:"sigNowBull",      label:"Now Bull",       tone:()=>"ok" },
-  { k:"sigNowBear",      label:"Now Bear",       tone:()=>"danger" },
-];
-
-function toPills(defs, sigs) {
-  return defs.map(({k,label,tone}) => {
-    const s = sigs?.[k] || {};
-    const active = !!s.active;
-    const tn = active ? tone(s) : "off";
-    const reason = (s.reason || "").trim();
-    const when = s.lastChanged ? ` • ${new Date(s.lastChanged).toLocaleString()}` : "";
-    const title = `${label} — ${active ? (s.severity?.toUpperCase() || "ON") : "OFF"}${reason ? ` • ${reason}` : ""}${when}`;
-    return { key:k, label, active, tone:tn, title };
-  });
-}
-function detectFamily(signals) {
-  const keys = Object.keys(signals || {});
-  const hasCore = keys.some(k => /^sig(Overall(Bull|Bear)|EMA10|Accel(Up|Down)|Risk(On|Off)|Sector(Thrust|Weak))/.test(k));
-  const hasNow  = keys.some(k => /^sigNow/.test(k));
-  const hasLeg  = keys.some(k => /^sig(Breakout|Distribution|Compression|Expansion|Overheat|Turbo|Divergence|LowLiquidity|VolatilityHigh)$/.test(k));
-  return { hasCore, hasNow, hasLeg };
+function Pill({ active, label, tone }) {
+  const map = {
+    ok:     { bg: "var(--ok)",     fg: "#001b0a" },
+    danger: { bg: "var(--danger)", fg: "#2b0000" },
+    warn:   { bg: "var(--warn)",   fg: "#221a00" },
+    info:   { bg: "var(--info)",   fg: "#001221" },
+    off:    { bg: "rgba(148,163,184,0.25)", fg: "var(--text)", dim: true },
+  };
+  const t = active ? (map[tone] || map.ok) : map.off;
+  const style = {
+    background: t.bg,
+    color: t.fg,
+    opacity: t.dim ? 0.45 : 1,
+    borderRadius: 999,
+    fontSize: 12,
+    padding: "4px 10px",
+    lineHeight: "18px",
+    whiteSpace: "nowrap",
+  };
+  return <span className="pill" style={style}>{label}</span>;
 }
 
-/* ---------------- Component ---------------- */
 export default function EngineLights() {
-  const LIVE10 = resolveLiveIntraday();
-  const LIVE1H = resolveLiveHourly();
+  const [j10, setJ10] = useState(null);
+  const [j1h, setJ1h] = useState(null);
+  const [jd,  setJd]  = useState(null);
 
-  const [ts10, setTs10] = useState(null);
-  const [ts1h, setTs1h] = useState(null);
-  const [live, setLive] = useState(false);
-  const [mode, setMode] = useState(null);
-  const [signals, setSignals] = useState({});
-  const [err, setErr] = useState(null);
-  const [legendOpen, setLegendOpen] = useState(false);
-  const poll10Ref = useRef(null);
-  const poll1hRef = useRef(null);
-
-  async function fetch10m(abortSignal) {
-    try {
-      const res = await fetch(guardLive(`${LIVE10}?t=${Date.now()}`), { cache:"no-store", signal:abortSignal });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const j = await res.json();
-      const eng = j?.engineLights || {};
-      setSignals(eng?.signals || {});
-      setTs10(eng?.updatedAt || j?.updated_at || j?.ts || null);
-      setLive(!!eng?.live);
-      setMode(eng?.mode || null);
-      setErr(null);
-    } catch (e) {
-      setErr(String(e));
-    }
-  }
-  async function fetch1h(abortSignal) {
-    try {
-      const res = await fetch(guardLive(`${LIVE1H}?t=${Date.now()}`), { cache:"no-store", signal:abortSignal });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const j = await res.json();
-      setTs1h(j?.updated_at || j?.updated_at_utc || j?.ts || null);
-    } catch {}
-  }
-
+  // --- Fetchers (simple) ---
   useEffect(() => {
-    const c10 = new AbortController(); const c1h = new AbortController();
-    fetch10m(c10.signal);    fetch1h(c1h.signal);
-    poll10Ref.current = setInterval(() => fetch10m(c10.signal), 30_000);
-    poll1hRef.current = setInterval(() => fetch1h(c1h.signal), 60_000);
-    return () => { try { c10.abort(); c1h.abort(); } catch {} if (poll10Ref.current) clearInterval(poll10Ref.current); if (poll1hRef.current) clearInterval(poll1hRef.current); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [LIVE10, LIVE1H]);
+    let alive = true;
 
-  const fam = detectFamily(signals);
-  const corePills = fam.hasCore ? toPills(CORE_10M_DEF, signals) : [];
-  const nowPills  = fam.hasNow  ? toPills(NOW_5M_DEF,  signals) : [];
-  const legPills  = fam.hasLeg  ? toPills(LEGACY_DEF,   signals) : [];
+    async function pull10() {
+      try {
+        const r = await fetch(INTRADAY_URL, { cache: "no-store" });
+        const j = await r.json();
+        if (alive) setJ10(j);
+      } catch {}
+    }
+    async function pull1h() {
+      try {
+        const r = await fetch(HOURLY_URL, { cache: "no-store" });
+        const j = await r.json();
+        if (alive) setJ1h(j);
+      } catch {}
+    }
+    async function pullEOD() {
+      try {
+        const r = await fetch(EOD_URL, { cache: "no-store" });
+        const j = await r.json();
+        if (alive) setJd(j);
+      } catch {}
+    }
 
-  const stableKey = `${ts10 || "no-ts"}•${Object.entries(signals).map(([k,v])=>`${k}:${v?.active?1:0}-${v?.severity||""}`).join("|")}`;
+    pull10(); pull1h(); pullEOD();
+    const t10 = setInterval(pull10, 60 * 1000);
+    const t1h = setInterval(pull1h, 60 * 1000);
+    const td  = setInterval(pullEOD, 10 * 60 * 1000);
+    return () => { alive = false; clearInterval(t10); clearInterval(t1h); clearInterval(td); };
+  }, []);
+
+  // --- Extractors ---
+  const signals10 = useMemo(() => (j10?.engineLights?.signals) || {}, [j10]);
+  const sig1h     = useMemo(() => (j1h?.hourly?.signals) || {}, [j1h]);
+
+  const ts10 = j10?.updated_at || j10?.engineLights?.updatedAt || j10?.updated_at_utc;
+  const ts1h = j1h?.updated_at || j1h?.updated_at_utc;
+  const ts1d = jd?.updated_at  || jd?.updated_at_utc;
+
+  const lux10 = useMemo(() => {
+    // Live 10m state: prefer strategy.trend10m if you add it later, else derive from overall if available
+    const st = j10?.strategy?.trend10m?.state
+            || j10?.engineLights?.overall?.state
+            || null;
+    const reason = j10?.strategy?.trend10m?.reason || "";
+    return { state: st, reason };
+  }, [j10]);
+
+  const lux1h = useMemo(() => {
+    const t = j1h?.strategy?.trend1h;
+    return { state: t?.state, reason: t?.reason };
+  }, [j1h]);
+
+  const luxEOD = useMemo(() => {
+    const t = jd?.strategy?.trendEOD;
+    const fallback = jd?.trendDaily?.trend; // if you’re still mirroring there
+    return { state: (t?.state || fallback?.state), reason: (t?.reason || "") };
+  }, [jd]);
+
+  // --- Styles: all left-aligned, wrap-safe ---
+  const rowWrap = { display: "inline-flex", alignItems: "center", gap: 8, flexWrap: "wrap", maxWidth: "100%" };
+  const header  = { display: "inline-flex", alignItems: "center", gap: 10, flexWrap: "wrap", maxWidth: "100%" };
 
   return (
-    <section id="row-3" className="panel" aria-label="Engine Lights" key={stableKey}>
-      {/* Header: compact; timestamps left */}
-      <div className="panel-head" style={{ alignItems:"center", gap:8 }}>
-        <div className="panel-title">Engine Lights</div>
-        <button onClick={()=> setLegendOpen(true)} style={{ background:"#0b0b0b", color:"#e5e7eb", border:"1px solid #2b2b2b", borderRadius:8, padding:"6px 10px", fontWeight:600, cursor:"pointer", marginLeft:8 }}>Legend</button>
-        <div className="spacer" />
-        {live && (
-          <span className="small" style={{ marginRight:8, padding:"3px 8px", borderRadius:6, background:"#16a34a", color:"#0b1220", fontWeight:800, border:"1px solid #0f7a2a" }}>LIVE</span>
-        )}
-        <span className="small muted" style={{ marginRight:12 }}><strong>10m:</strong> <LastUpdated ts={ts10} /></span>
-        <span className="small muted"><strong>1h:</strong> <LastUpdated ts={ts1h} /></span>
+    <section id="row-3" className="panel">
+      {/* Header: left-aligned only */}
+      <div style={header}>
+        <h3 style={{ margin: 0 }}>Engine Lights</h3>
+        <button className="btn btn-xs" title="Legend">Legend</button>
+        {/* tiny timestamp chips inline on the left too */}
+        {ts10 ? <LastUpdated label="10m" ts={ts10} tiny /> : null}
+        {ts1h ? <LastUpdated label="1h" ts={ts1h} tiny /> : null}
+        {ts1d ? <LastUpdated label="EOD" ts={ts1d} tiny /> : null}
       </div>
 
-      {/* Pill rows: compact vertical stack */}
-      <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
-        {fam.hasCore && (
-          <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-            {corePills.map(p => <Light key={p.key} label={p.label} tone={p.tone} active={p.active} title={p.title} />)}
-          </div>
-        )}
-        {fam.hasNow && (
-          <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-            {nowPills.map(p => <Light key={p.key} label={p.label} tone={p.tone} active={p.active} title={p.title} />)}
-          </div>
-        )}
-        {fam.hasLeg && (
-          <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-            {legPills.map(p => <Light key={p.key} label={p.label} tone={p.tone} active={p.active} title={p.title} />)}
-          </div>
-        )}
-        {!fam.hasCore && !fam.hasNow && !fam.hasLeg && (
-          <div className="small muted">No signals present in payload.</div>
-        )}
+      {/* Row 1: 10m pills + Lux(10m) — left aligned */}
+      <div style={{ ...rowWrap, marginTop: 8 }}>
+        {R10_DEF.map(def => (
+          <Pill
+            key={def.k}
+            label={def.label}
+            tone={def.tone}
+            active={Boolean(signals10?.[def.k]?.active)}
+          />
+        ))}
+        <LuxTrendChip state={lux10.state} reason={lux10.reason} label="Lux 10m" />
       </div>
 
-      {/* Legend */}
-      {legendOpen && (
-        <div role="dialog" aria-modal="true" onClick={()=> setLegendOpen(false)} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.5)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:60 }}>
-          <div onClick={(e)=> e.stopPropagation()} style={{ width:"min(880px, 92vw)", background:"#0b0b0c", border:"1px solid #2b2b2b", borderRadius:12, padding:16, boxShadow:"0 10px 30px rgba(0,0,0,0.35)" }}>
-            <div style={{ color:"#f9fafb", fontSize:14, fontWeight:800, marginBottom:8 }}>Engine Lights — Legend</div>
-            <div className="small muted">10m Core, NOW (5m), and Legacy families are auto-detected. Colors are Lux-aligned: green=ok, red=danger, amber=warn.</div>
-            <div style={{ display:"flex", justifyContent:"flex-end", marginTop:12 }}>
-              <button onClick={()=> setLegendOpen(false)} style={{ background:"#eab308", color:"#111827", border:"none", borderRadius:8, padding:"8px 12px", fontWeight:700, cursor:"pointer" }}>Close</button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Row 2: 1h (four pills) + Lux(1h) + Lux(EOD) — left aligned */}
+      <div style={{ ...rowWrap, marginTop: 8 }}>
+        {R11_1H_DEF.map(def => (
+          <Pill
+            key={def.k}
+            label={def.label}
+            tone={def.tone}
+            active={Boolean(sig1h?.[def.k]?.active)}
+          />
+        ))}
+        <LuxTrendChip state={lux1h.state} reason={lux1h.reason} label="Lux 1h" />
+        <LuxTrendChip state={luxEOD.state} reason={luxEOD.reason} label="Lux EOD" />
+      </div>
     </section>
   );
 }
