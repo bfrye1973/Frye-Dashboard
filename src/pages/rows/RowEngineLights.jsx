@@ -1,14 +1,11 @@
 import React, { useEffect, useMemo, useState } from "react";
 
-/* -----------------------------------------------------------
-   Data source & utils
------------------------------------------------------------ */
+/* ------------------ Data Source ------------------ */
 function resolveLiveIntraday() {
   const env = (process.env.REACT_APP_INTRADAY_URL || "").trim();
   if (env) return env.replace(/\/+$/, "");
   const w = typeof window !== "undefined" ? (window.__LIVE_INTRADAY_URL || "") : "";
-  if (w) return String(w).trim().replace(/\/+$/, "");
-  return "https://frye-market-backend-1.onrender.com/live/intraday";
+  return (w || "https://frye-market-backend-1.onrender.com/live/intraday");
 }
 
 function fmtTime(ts) {
@@ -16,11 +13,10 @@ function fmtTime(ts) {
   try {
     const d = new Date(ts);
     return d.toLocaleString();
-  } catch {
-    return String(ts);
-  }
+  } catch { return String(ts); }
 }
 
+/* ------------------ Pill + Colors ------------------ */
 const CHIP = {
   green:   { bg: "#16a34a", fg: "#0b1220", bd: "#0b7a32" },
   red:     { bg: "#ef4444", fg: "#fff0f0", bd: "#b91c1c" },
@@ -54,150 +50,134 @@ function Pill({ text, tone = "neutral" }) {
   );
 }
 
-function TrendCard({ title, trend }) {
-  const state = (trend?.state || "neutral").toString();
+/* ------------------ Trend Capsules ------------------ */
+function TrendCapsule({ label, trend }) {
+  const state = (trend?.state || "neutral").toLowerCase();
   const c =
-    state === "green" ? CHIP.green :
-    state === "red"   ? CHIP.red   :
-    state === "purple"? CHIP.purple:
-                        CHIP.neutral;
+    state === "green" ? CHIP.green
+    : state === "red" ? CHIP.red
+    : state === "purple" ? CHIP.purple
+    : CHIP.neutral;
+
   return (
     <div
       style={{
         border: "1px solid #1f2937",
         background: "#0b0f14",
         borderRadius: 10,
-        padding: 12,
-        minWidth: 260,
-        maxWidth: 360,
-        flex: "1 1 300px"
+        display: "grid",
+        gridTemplateColumns: "auto 1fr",
+        gridColumnGap: 10,
+        gridRowGap: 4,
+        padding: "8px 10px",
+        minWidth: 220,
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", marginBottom: 8 }}>
-        <div
-          style={{
-            width: 10, height: 10, borderRadius: 999,
-            background: c.bg, border: `1px solid ${c.bd}`, marginRight: 8
-          }}
-        />
-        <div style={{ fontWeight: 700, color: "#d1d5db" }}>{title}</div>
+      <div
+        style={{
+          gridColumn: "1 / span 1",
+          gridRow: "1 / span 2",
+          width: 12,
+          height: 12,
+          marginTop: 2,
+          borderRadius: "50%",
+          background: c.bg,
+          border: `1px solid ${c.bd}`,
+        }}
+        title={state.toUpperCase()}
+      />
+      <div style={{ gridColumn: "2 / span 1", fontSize: 12, color: "#d1d5db", fontWeight: 700 }}>
+        {label}
       </div>
-      <div style={{ fontSize: 12, color: "#9ca3af", lineHeight: 1.45 }}>
-        <div>
-          <strong>State:</strong>{" "}
-          <span style={{ background: c.bg, color: c.fg, padding: "1px 6px", borderRadius: 6 }}>
-            {state.toUpperCase()}
-          </span>
-        </div>
-        {trend?.reason && (
-          <div><strong>Reason:</strong> {trend.reason}</div>
-        )}
+      <div style={{ gridColumn: "2 / span 1", fontSize: 11, color: "#9ca3af" }}>
+        <div><strong>State:</strong> <span style={{ color: c.fg, background: c.bg, padding: "0 6px", borderRadius: 6 }}>{state.toUpperCase()}</span></div>
         <div><strong>Updated:</strong> {fmtTime(trend?.updatedAt)}</div>
       </div>
     </div>
   );
 }
 
-/* ----------------------------------------------------------------
-   Mapping logic: convert your signal keys → compact pill labels
-   Supports both your original (`sigBreakout`, `sigCompression`, etc.)
-   and your new 10m/1h pills (`sigEMA10BullCross`, `sigSMI1h_BullCross`, ...)
------------------------------------------------------------------ */
-function mapSignalToPill(key, obj) {
-  const on = obj?.active === true;
-  if (!on) return null;
+/* map signal keys to pill labels; supports both new + legacy keys */
+const SIGNAL_MAP = {
+  sigEMA10BullCross:  { text: "10m EMA↑", tone: "green" },
+  sigEMA10BearCross:  { text: "10m EMA↓", tone: "red"   },
+  sigAccelUp:         { text: "Accel↑",   tone: "green" },
+  sigAccelDown:       { text: "Accel↓",   tone: "red"   },
+  sigOverallBull:     { text: "Overall Bull", tone: "green" },
+  sigOverallBear:     { text: "Overall Bear", tone: "red"   },
+  // 1h
+  sigSMI1h_BullCross: { text: "1h SMI↑", tone: "green" },
+  sigSMI1h_BearCross: { text: "1h SMI↓", tone: "red"   },
+  sigEMA1h_BullCross: { text: "1h EMA↑", tone: "green" },
+  sigEMA1h_BearCross: { text: "1h EMA↓", tone: "red"   },
+  // common/original names
+  sigBreakout:        { text: "Breakout",    tone: "green" },
+  sigCompression:     { text: "Compression", tone: "warn"  },
+  sigOverheat:        { text: "Overheat",    tone: "red"   },
+  sigVolatilityHigh:  { text: "Vol High",    tone: "warn"  },
+  sigLowLiquidity:    { text: "Low Liquidity", tone: "warn" },
+  sigSqueezeTight:    { text: "Tight",       tone: "purple" },
+};
 
-  const nm = (key || "").toLowerCase();
-  const reason = (obj?.reason || "").toLowerCase();
-
-  // hard-coded common keys → nice short label + tone
-  const direct = {
-    sigbreakout:        { label: "Breakout",     tone: "green" },
-    sigcompression:     { label: "Compression",  tone: "warn" },
-    sigovertheat:       { label: "Overheat",     tone: "red" },
-    sigvolatilityhigh:  { label: "Vol High",     tone: "warn" },
-    siglowliquidity:    { label: "Low Liquidity",tone: "warn" },
-    sigoverallbull:     { label: "Overall Bull", tone: "green" },
-    sigoverallbear:     { label: "Overall Bear", tone: "red" },
-    sigema10bullcross:  { label: "10m EMA↑",     tone: "green" },
-    sigema10bearcross:  { label: "10m EMA↓",     tone: "red" },
-    sigaccelup:         { label: "Accel↑",       tone: "green" },
-    sigacceldown:       { label: "Accel↓",       tone: "red" },
-    sigsmi1h_bullcross: { label: "1h SMI↑",      tone: "green" },
-    sigsmi1h_bearcross: { label: "1h SMI↓",      tone: "red" },
-    sigema1h_bullcross: { label: "1h EMA↑",      tone: "green" },
-    sigema1h_bearcross: { label: "1h EMA↓",      tone: "red" },
-  };
-  if (direct[nm]) return direct[nm];
-
-  // Fallback heuristics (covers any new names)
-  if (/bull|up|long/.test(nm))  return { label: key, tone: "green" };
-  if (/bear|down|short/.test(nm)) return { label: key, tone: "red" };
-  if (/tight|squeez|purple/.test(nm) || /tight/.test(reason)) return { label: "Tight", tone: "purple" };
-  if (/overheat|risk\s*off|vol.?high/.test(nm) || /overheat|risk/.test(reason)) return { label: key, tone: "red" };
-  return { label: key, tone: "neutral" };
-}
-
-/* -----------------------------------------------------------
-   Component
------------------------------------------------------------ */
+/* ------------------ Component ------------------ */
 export default function RowEngineLights() {
-  const [payload, setPayload] = useState(null);
-  const [error, setError] = useState("");
+  const [data, setData] = useState(null);
+  const [err, setErr] = useState("");
 
   useEffect(() => {
     let alive = true;
     const url = `${resolveLiveIntraday()}?v=${Date.now()}`;
     (async () => {
       try {
-        const res = await fetch(url);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const j = await res.json();
+        const r = await fetch(url);
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        const j = await r.json();
         if (!alive) return;
-        setPayload(j);
+        setData(j);
       } catch (e) {
-        setError(String(e));
+        setErr(String(e));
       }
     })();
     return () => { alive = false; };
   }, []);
 
-  const intraday  = payload?.intraday || {};
-  const strategy  = intraday?.strategy || {};
-  const signals   = payload?.engineLights?.signals || {};
-  const updatedAt = payload?.updated_at || payload?.updated_at_utc || strategy?.trend10m?.updatedAt || null;
+  const intraday = data?.intraday || {};
+  const strategy = intraday?.strategy || {};
+  const signals  = data?.engineLights?.signals || {};
+
+  const trend10 = strategy?.trend10m || null;
+  const trend1h  = strategy?.trend1h || null;
+  const trendD   = strategy?.trendDaily || data?.strategy?.trendDaily || null; // daily mirror
+  const updatedAt =
+    data?.updated_at || data?.updated_at_utc ||
+    strategy?.trend10m?.updatedAt ||
+    null;
 
   const pills = useMemo(() => {
-    const arr = [];
-    Object.keys(signals || {}).forEach((k) => {
-      const pill = mapSignalToPill(k, signals[k]);
-      if (pill) arr.push(pill);
+    const list = [];
+    Object.entries(signals || {}).forEach(([k, obj]) => {
+      if (!obj?.active) return;
+      const m = SIGNAL_MAP[k.toString()];
+      if (m) list.push(m);
     });
-    // keep stable order by label then tone
-    return arr.sort((a, b) => a.label.localeCompare(b.label));
+    // stable deterministic order: by label then tone
+    return list.sort((a, b) => (a.text || "").localeCompare(b.text || ""));
   }, [signals]);
 
-  // Extract trends (uses intraday.strategy.trend10m, trend1h if mirrored, and trendDaily)
-  const trend10 = strategy?.trend10m || null;
-  const trend1h = strategy?.trend1h || null;
-  const trendD  = strategy?.trendDaily || payload?.strategy?.trendDaily || null;
-
   return (
-    <section style={{ padding: "8px 12px 8px 12px" }}>
-      {error && <div style={{ color: "#ef4444", marginBottom: 8 }}>Engine Lights error: {error}</div>}
+    <section style={{ padding: "8px 12px 4px 12px" }}>
+      {err && <div style={{ color: "#ef4444", marginBottom: 8 }}>Engine Lights error: {String(err)}</div>}
 
-      {/* Left: Pills / Right: Trend cards */}
+      {/* 2-column grid, single row; left pills, right trend capsules */}
       <div
         style={{
-          display: "flex",
-          alignItems: "flex-start",
-          justifyContent: "space-between",
+          display: "grid",
+          gridTemplateColumns: "minmax(520px, 1fr) minmax(420px, 1fr)",
           gap: 16,
-          flexWrap: "wrap",
+          alignItems: "start",
         }}
       >
-        {/* Left column: signal pills */}
-        <div style={{ flex: "2 1 560px", minWidth: 520 }}>
+        <div>
           <div style={{ color: "#9ca3af", fontSize: 12, marginBottom: 6 }}>
             <strong>Signals</strong> (updated {fmtTime(updatedAt)})
           </div>
@@ -216,25 +196,24 @@ export default function RowEngineLights() {
             {pills.length === 0 ? (
               <div style={{ color: "#9ca3af", fontSize: 12 }}>No active signals</div>
             ) : (
-              pills.map((p, idx) => <Pill key={`${p.label}-${idx}`} text={p.label} tone={p.tone} />)
+              pills.map((p, i) => (
+                <Pill key={`${p.text}-${i}`} text={p.text} tone={p.tone} />
+              ))
             )}
           </div>
         </div>
 
-        {/* Right column: trend cards */}
         <div
           style={{
-            flex: "1 1 480px",
-            minWidth: 420,
             display: "flex",
-            flexWrap: "wrap",
             gap: 12,
+            flexWrap: "wrap",
             justifyContent: "flex-end",
           }}
         >
           <TrendCard title="10-Minute Trend" trend={trend10} />
-          <TrendCard title="1-Hour Trend"   trend={trend1h} />
-          <TrendCard title="Daily Trend"    trend={trendD} />
+          <TrendCard title="1-Hour Trend" trend={trend1h} />
+          <TrendCard title="Daily Trend" trend={trendD} />
         </div>
       </div>
     </section>
