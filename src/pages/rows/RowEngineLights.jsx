@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useState } from "react";
 
-/* ------------------ Data Source ------------------ */
+/* ---------------------------------------
+   Data source
+----------------------------------------*/
 function resolveLiveIntraday() {
   const env = (process.env.REACT_APP_INTRADAY_URL || "").trim();
   if (env) return env.replace(/\/+$/, "");
@@ -16,7 +18,9 @@ function fmtTime(ts) {
   } catch { return String(ts); }
 }
 
-/* ------------------ Pill + Colors ------------------ */
+/* ---------------------------------------
+   Colors & small UI bits
+----------------------------------------*/
 const CHIP = {
   green:   { bg: "#16a34a", fg: "#0b1220", bd: "#0b7a32" },
   red:     { bg: "#ef4444", fg: "#fff0f0", bd: "#b91c1c" },
@@ -50,14 +54,12 @@ function Pill({ text, tone = "neutral" }) {
   );
 }
 
-/* ------------------ Trend Capsules ------------------ */
-function TrendCapsule({ label, trend }) {
+function TrendBox({ title, trend }) {
   const state = (trend?.state || "neutral").toLowerCase();
   const c =
-    state === "green" ? CHIP.green
-    : state === "red" ? CHIP.red
-    : state === "purple" ? CHIP.purple
-    : CHIP.neutral;
+    state === "green" ? CHIP.green :
+    state === "red"   ? CHIP.red   :
+    state === "purple" ? CHIP.purple : CHIP.neutral;
 
   return (
     <div
@@ -65,91 +67,94 @@ function TrendCapsule({ label, trend }) {
         border: "1px solid #1f2937",
         background: "#0b0f14",
         borderRadius: 10,
-        display: "grid",
-        gridTemplateColumns: "auto 1fr",
-        gridColumnGap: 10,
-        gridRowGap: 4,
-        padding: "8px 10px",
+        padding: 10,
         minWidth: 220,
       }}
     >
-      <div
-        style={{
-          gridColumn: "1 / span 1",
-          gridRow: "1 / span 2",
-          width: 12,
-          height: 12,
-          marginTop: 2,
-          borderRadius: "50%",
-          background: c.bg,
-          border: `1px solid ${c.bd}`,
-        }}
-        title={state.toUpperCase()}
-      />
-      <div style={{ gridColumn: "2 / span 1", fontSize: 12, color: "#d1d5db", fontWeight: 700 }}>
-        {label}
+      <div style={{ display: "flex", alignItems: "center", marginBottom: 6 }}>
+        <div
+          style={{
+            width: 10, height: 10, borderRadius: 999,
+            background: c.bg, border: `1px solid ${c.bd}`, marginRight: 8
+          }}
+        />
+        <div style={{ fontWeight: 700, color: "#d1d5db", fontSize: 12 }}>{title}</div>
       </div>
-      <div style={{ gridColumn: "2 / span 1", fontSize: 11, color: "#9ca3af" }}>
-        <div><strong>State:</strong> <span style={{ color: c.fg, background: c.bg, padding: "0 6px", borderRadius: 6 }}>{state.toUpperCase()}</span></div>
+      <div style={{ fontSize: 12, color: "#9ca3af", lineHeight: 1.4 }}>
+        <div>
+          <strong>State:</strong>{" "}
+          <span style={{ background: c.bg, color: c.fg, padding: "1px 6px", borderRadius: 6 }}>
+            {state.toUpperCase()}
+          </span>
+        </div>
         <div><strong>Updated:</strong> {fmtTime(trend?.updatedAt)}</div>
       </div>
     </div>
   );
 }
 
-/* map signal keys to pill labels; supports both new + legacy keys */
+/* ---------------------------------------
+   Map signal keys → pills (supports old + new)
+----------------------------------------*/
 const SIGNAL_MAP = {
-  sigEMA10BullCross:  { text: "10m EMA↑", tone: "green" },
-  sigEMA10BearCross:  { text: "10m EMA↓", tone: "red"   },
-  sigAccelUp:         { text: "Accel↑",   tone: "green" },
-  sigAccelDown:       { text: "Accel↓",   tone: "red"   },
-  sigOverallBull:     { text: "Overall Bull", tone: "green" },
-  sigOverallBear:     { text: "Overall Bear", tone: "red"   },
-  // 1h
-  sigSMI1h_BullCross: { text: "1h SMI↑", tone: "green" },
-  sigSMI1h_BearCross: { text: "1h SMI↓", tone: "red"   },
-  sigEMA1h_BullCross: { text: "1h EMA↑", tone: "green" },
-  sigEMA1h_BearCross: { text: "1h EMA↓", tone: "red"   },
-  // common/original names
-  sigBreakout:        { text: "Breakout",    tone: "green" },
-  sigCompression:     { text: "Compression", tone: "warn"  },
-  sigOverheat:        { text: "Overheat",    tone: "red"   },
-  sigVolatilityHigh:  { text: "Vol High",    tone: "warn"  },
+  // 10m
+  sigEMA10BullCross:  { text: "10m EMA↑",  tone: "green" },
+  sigEMA10BearCross:  { text: "10m EMA↓",  tone: "red"   },
+  sigAccelUp:         { text: "Accel↑",    tone: "green" },
+  sigAccelDown:       { text: "Accel↓",    tone: "red"   },
+  sigOverallBull:     { text: "Overall↑",  tone: "green" },
+  sigOverallBear:     { text: "Overall↓",  tone: "red"   },
+
+  // 1h (if you mirror them into intraday)
+  sigSMI1h_BullCross: { text: "1h SMI↑",   tone: "green" },
+  sigSMI1h_BearCross: { text: "1h SMI↓",   tone: "red"   },
+  sigEMA1h_BullCross: { text: "1h EMA↑",   tone: "green" },
+  sigEMA1h_BearCross: { text: "1h EMA↓",   tone: "red"   },
+
+  // legacy / extra
+  sigBreakout:        { text: "Breakout",  tone: "green" },
+  sigCompression:     { text: "Compression", tone: "warn" },
+  sigOverheat:        { text: "Overheat",  tone: "red"   },
+  sigVolatilityHigh:  { text: "Vol High",  tone: "warn"  },
   sigLowLiquidity:    { text: "Low Liquidity", tone: "warn" },
-  sigSqueezeTight:    { text: "Tight",       tone: "purple" },
+  sigSqueezeTight:    { text: "Tight",     tone: "purple" },
 };
 
-/* ------------------ Component ------------------ */
+/* ---------------------------------------
+   Main component
+----------------------------------------*/
 export default function RowEngineLights() {
-  const [data, setData] = useState(null);
-  const [err, setErr] = useState("");
+  const [payload, setPayload] = useState(null);
+  const [loadErr, setLoadErr] = useState("");
 
   useEffect(() => {
     let alive = true;
     const url = `${resolveLiveIntraday()}?v=${Date.now()}`;
     (async () => {
       try {
-        const r = await fetch(url);
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        const j = await r.json();
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const j = await res.json();
         if (!alive) return;
-        setData(j);
+        setPayload(j);
       } catch (e) {
-        setErr(String(e));
+        setLoadErr(String(e));
       }
     })();
     return () => { alive = false; };
   }, []);
 
-  const intraday = data?.intraday || {};
+  const intraday = payload?.intraday || {};
   const strategy = intraday?.strategy || {};
-  const signals  = data?.engineLights?.signals || {};
+  const signals  = payload?.engineLights?.signals || {};
 
-  const trend10 = strategy?.trend10m || null;
-  const trend1h  = strategy?.trend1h || null;
-  const trendD   = strategy?.trendDaily || data?.strategy?.trendDaily || null; // daily mirror
+  const trend10  = strategy?.trend10m || null;
+  const trend1h  = strategy?.trend1h || null;   // mirrored by 1h job (optional)
+  const trendD   = strategy?.trendDaily || payload?.strategy?.trendDaily || null;
+
   const updatedAt =
-    data?.updated_at || data?.updated_at_utc ||
+    payload?.updated_at ||
+    payload?.updated_at_utc ||
     strategy?.trend10m?.updatedAt ||
     null;
 
@@ -157,26 +162,26 @@ export default function RowEngineLights() {
     const list = [];
     Object.entries(signals || {}).forEach(([k, obj]) => {
       if (!obj?.active) return;
-      const m = SIGNAL_MAP[k.toString()];
-      if (m) list.push(m);
+      const def = SIGNAL_MAP[k] || null;
+      if (def) list.push(def);
     });
-    // stable deterministic order: by label then tone
     return list.sort((a, b) => (a.text || "").localeCompare(b.text || ""));
   }, [signals]);
 
   return (
     <section style={{ padding: "8px 12px 4px 12px" }}>
-      {err && <div style={{ color: "#ef4444", marginBottom: 8 }}>Engine Lights error: {String(err)}</div>}
+      {loadErr && <div style={{ color: "#ef4444", marginBottom: 8 }}>Engine Lights error: {loadErr}</div>}
 
-      {/* 2-column grid, single row; left pills, right trend capsules */}
       <div
+        /* One single row; left = pills, right = trends; no extra full-width container */
         style={{
           display: "grid",
-          gridTemplateColumns: "minmax(520px, 1fr) minmax(420px, 1fr)",
+          gridTemplateColumns: "minmax(540px, 1fr) minmax(420px, 1fr)",
           gap: 16,
           alignItems: "start",
         }}
       >
+        {/* Pills (left) */}
         <div>
           <div style={{ color: "#9ca3af", fontSize: 12, marginBottom: 6 }}>
             <strong>Signals</strong> (updated {fmtTime(updatedAt)})
@@ -196,24 +201,23 @@ export default function RowEngineLights() {
             {pills.length === 0 ? (
               <div style={{ color: "#9ca3af", fontSize: 12 }}>No active signals</div>
             ) : (
-              pills.map((p, i) => (
-                <Pill key={`${p.text}-${i}`} text={p.text} tone={p.tone} />
-              ))
+              pills.map((p, i) => <Pill key={`${p.text}-${i}`} text={p.text} tone={p.tone} />)
             )}
           </div>
         </div>
 
+        {/* Trend capsules (right) */}
         <div
           style={{
             display: "flex",
-            gap: 12,
-            flexWrap: "wrap",
             justifyContent: "flex-end",
+            gap: 10,
+            flexWrap: "wrap",
           }}
         >
-          <TrendCard title="10-Minute Trend" trend={trend10} />
-          <TrendCard title="1-Hour Trend" trend={trend1h} />
-          <TrendCard title="Daily Trend" trend={trendD} />
+          <TrendBox title="10-Minute Trend" trend={trend10} />
+          <TrendBox title="1-Hour Trend"    trend={trend1h} />
+          <TrendBox title="Daily Trend"      trend={trendD} />
         </div>
       </div>
     </section>
