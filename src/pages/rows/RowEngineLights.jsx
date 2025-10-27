@@ -1,7 +1,7 @@
 // src/pages/rows/EngineLights.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import LuxTrendChip from "../../components/LuxTrendChip";
-import LastUpdated from "../../components/LastUpdated";
+import { LastUpdated } from "../../components/LastUpdated";
 
 /* ---------------------------
    Data endpoints (proxies)
