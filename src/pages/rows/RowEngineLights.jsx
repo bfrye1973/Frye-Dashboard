@@ -1,11 +1,12 @@
 // src/pages/rows/EngineLights.jsx
-// v5.2 — Stable layout, 10m/1h/NOW/Legacy pills + compact trend capsules on right,
-//        no extra wrappers; timestamps on the left; minimal risk changes.
+// v5.3 — Stable layout; 10m/1h/NOW/Legacy pill families + compact 10m/1h/Daily trend capsules.
+//         Timestamps on left; no extra section wrappers; React/ESLint clean.
 
-import React, { useEffect, useRef, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { LastUpdated } from "../../components/LastUpdated";
 
-/* ---------------- URL helpers ---------------- */
+/* -------------------------------- URLs -------------------------------- */
+
 function resolveLiveIntraday() {
   const env = (process.env.REACT_APP_INTRADAY_URL || "").trim();
   if (env) return env.replace(/\/+$/, "");
@@ -30,15 +31,24 @@ function guardLive(url) {
   return url.replace(/\/api\/live\//, "/live/").replace(/\/api\/?(\?|$)/, "/");
 }
 
-/* ---------------- Small UI Helpers ---------------- */
+/* ----------------------------- Tiny helpers ---------------------------- */
+
+function ac() {
+  return typeof AbortController !== "undefined"
+    ? new AbortController()
+    : { abort: () => {}, signal: undefined };
+}
+
+/* ----------------------------- Pill component -------------------------- */
+
 function Pill({ label, tone = "info", active = true, title }) {
   const palette =
     {
-      ok: { bg: "#22c55e", fg: "#0b1220", bd: "#16a34a", sh: "#16a34a" },
-      warn: { bg: "#facc15", fg: "#111827", bd: "#ca8a04", sh: "#ca8a04" },
+      ok:     { bg: "#22c55e", fg: "#0b1220", bd: "#16a34a", sh: "#16a34a" },
+      warn:   { bg: "#facc15", fg: "#111827", bd: "#ca8a04", sh: "#ca8a04" },
       danger: { bg: "#ef4444", fg: "#fee2e2", bd: "#b91c1c", sh: "#b91c1c" },
-      info: { bg: "#0b1220", fg: "#93c5fd", bd: "#334155", sh: "#334155" },
-      off: { bg: "#0b0f17", fg: "#6b7280", bd: "#1f2937", sh: "#0b1220" },
+      info:   { bg: "#0b1220", fg: "#93c5fd", bd: "#334155", sh: "#334155" },
+      off:    { bg: "#0b0f17", fg: "#6b7280", bd: "#1f2937", sh: "#0b1220" },
     }[tone] || { bg: "#0b0f17", fg: "#6b7280", bd: "#1f2937", sh: "#0b1220" };
 
   return (
@@ -67,13 +77,16 @@ function Pill({ label, tone = "info", active = true, title }) {
   );
 }
 
-// compact capsule — shows a single trend with timestamp; no layout side-effects
+/* ------------------------ Compact trend capsule ------------------------ */
+
 function TrendTiny({ title, trend }) {
   const state = (trend?.state || "").toLowerCase();
   const chip =
-    state === "green" ? { bg: "#16a34a", fg: "#0b1220", bd: "#0b7a32" } :
-    state === "red"   ? { bg: "#ef4444", fg: "#fff0f0", bd: "#991b1b" } :
-                        { bg: "#0b1220", fg: "#93c5fd", bd: "#334155" };
+    state === "green"
+      ? { bg: "#16a34a", fg: "#0b1220", bd: "#0b7a32" }
+      : state === "red"
+      ? { bg: "#ef4444", fg: "#fff0f0", bd: "#991b1b" }
+      : { bg: "#0b1220", fg: "#93c5fd", bd: "#334155" };
 
   const ts = trend?.updatedAt
     ? new Date(trend.updatedAt).toLocaleString()
@@ -88,6 +101,7 @@ function TrendTiny({ title, trend }) {
         padding: 10,
         minWidth: 200,
       }}
+      title={`${title} — ${trend?.state || "—"} • ${ts}`}
     >
       <div style={{ display: "flex", alignItems: "center", marginBottom: 6 }}>
         <div
@@ -126,8 +140,9 @@ function TrendTiny({ title, trend }) {
   );
 }
 
-/* ---------------- Signal dictionaries ---------------- */
-// Legacy (unchanged)
+/* ---------------------- Families & transforms -------------------------- */
+
+// Legacy
 const LEGACY_DEF = [
   { k: "sigBreakout",       label: "Breakout",         tone: (s) => (s.severity === "danger" ? "danger" : "ok") },
   { k: "sigDistribution",   label: "Distribution",     tone: () => "danger" },
@@ -154,27 +169,26 @@ const R11_CORE_DEF = [
   { k: "sigSectorWeak",      label: "Sector Weak",      tone: () => "danger" },
 ];
 
-// 5m (NOW)
+// 5m NOW
 const R11_NOW_DEF = [
   { k: "sigNowAccelUp",   label: "NOW Accel ↑", tone: () => "ok" },
-  { k: "sigNowAccelDown", tone: () => "danger" },
+  { k: "sigNowAccelDown", label: "NOW Accel ↓", tone: () => "danger" },
   { k: "sigNowBull",      label: "NOW Bull",    tone: () => "ok" },
   { k: "sigNowBear",      label: "NOW Bear",    tone: () => "danger" },
 ];
 
-// 1h (only if present in the intraday payload; we don’t change layout if absent)
+// 1h (optional if mirrored into intraday payload)
 const R11_1H_DEF = [
-  { k: "sigEMA1hBullCross",  label: "EMA1h ↑",     tone: () => "ok" },
-  { k: "sigEMA1hBearCross",  label: "EMA1h ↓",     tone: () => "danger" },
-  { k: "sigSMI1hBullCross",  label: "SMI1h ↑",     tone: () => "ok" },
-  { k: "sigSMI1hBearCross",  label: "SMI1h ↓",     tone: () => "danger" },
+  { k: "sigEMA1hBullCross",  label: "EMA1h ↑",      tone: () => "ok" },
+  { k: "sigEMA1hBearCross",  label: "EMA1h ↓",      tone: () => "danger" },
+  { k: "sigSMI1hBullCross",  label: "SMI1h ↑",      tone: () => "ok" },
+  { k: "sigSMI1hBearCross",  label: "SMI1h ↓",      tone: () => "danger" },
   { k: "sigAccelUp1h",       label: "Accel ↑ (1h)", tone: () => "ok" },
   { k: "sigAccelDown1h",     label: "Accel ↓ (1h)", tone: () => "danger" },
   { k: "sigOverallBull1h",   label: "Overall ↑ (1h)", tone: () => "ok" },
   { k: "sigOverallBear1h",   label: "Overall ↓ (1h)", tone: () => "danger" },
 ];
 
-/* ---------------- Utility for converting signals ---------------- */
 function toPills(defs, sigs) {
   return defs
     .map(({ k, label, tone }) => {
@@ -183,105 +197,105 @@ function toPills(defs, sigs) {
       const t = active ? tone(s) : "off";
       const reason = s?.reason?.trim() || "";
       const when = s?.lastChanged ? ` • ${new Date(s.lastChanged).toLocaleString()}` : "";
-      return {
-        key: k,
-        text: label,
-        tone: t,
-        title: `${label} — ${active ? (s?.severity || "ON").toUpperCase()}${reason ? ` • ${reason}` : ""}${when}`,
-        active,
-      };
+      const title = `${label} — ${active ? (s?.severity || "ON").toUpperCase() : "OFF"}${
+        reason ? ` • ${reason}` : ""
+      }${when}`;
+      return { key: k, label, tone: t, title, active };
     })
     .filter(Boolean);
 }
 
-/* ---------------- Main component ---------------- */
-export default function EngineLights() {
-  const LIVE_10_URL = resolveLiveIntraday();
-  const LIVE_1H_URL = resolveLiveHourly();
+function detectFamily(signals) {
+  const keys = Object.keys(signals || {});
+  const hasR11Core = keys.some((k) =>
+    /^sig(Overall(Bull|Bear)|EMA10(Bull|Bear)Cross|Accel(Up|Down)|Risk(On|Off)|Sector(Thrust|Weak))$/.test(k)
+  );
+  const hasR11Now = keys.some((k) => /^sigNow/.test(k));
+  const hasLegacy = keys.some((k) =>
+    /^sig(Breakout|Distribution|Compression|Expansion|Overheat|Turbo|Divergence|LowLiquidity|VolatilityHigh)$/.test(k)
+  );
+  const hasR11H1 = keys.some((k) =>
+    /^sig(EMA1h(Bull|Bear)Cross|SMI1h(Bull|Bear)Cross|Accel(Up|Down)1h|Overall(Bull|Bear)1h)$/.test(k)
+  );
+  return { hasR11Core, hasR11Now, hasLegacy, hasR11H1 };
+}
 
-  const [payload, setPayload] = useState(null);
+/* ------------------------------ Component ------------------------------ */
+
+export default function EngineLights() {
+  const LIVE10 = resolveLiveIntraday();
+  const LIVE1H = resolveLiveHourly();
+
+  const [intraday, setIntraday] = useState(null); // entire /live/intraday payload
   const [ts10, setTs10] = useState(null);
   const [ts1h, setTs1h] = useState(null);
   const [err, setErr] = useState("");
-  const [legendOpen, setLegendOpen] = useState(false);
 
   const poll10Ref = useRef(null);
   const poll1hRef = useRef(null);
 
-  // fetch 10m intraday (pills + 10m trend)
+  // 10m payload (pills + optional strategy.trendX)
   useEffect(() => {
-    let abort = false;
-    const ctrl = new AbortController();
+    const ctrl = ac();
 
-    const fetch10 = async () => {
+    const load = async () => {
       try {
-        const res = await fetch(`${guardLive(LIVE_10_URL)}?v=${Date.now()}`, {
+        const r = await fetch(`${guardLive(LIVE10)}?v=${Date.now()}`, {
           cache: "no-store",
           signal: ctrl.signal,
         });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const j = await res.json();
-        if (abort) return;
-        setPayload(j);
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        const j = await r.json();
+        setIntraday(j);
         setTs10(j?.engineLights?.updatedAt || j?.updated_at || j?.ts || null);
         setErr("");
       } catch (e) {
-        if (!abort) setErr(String(e));
+        setErr(String(e));
       }
     };
 
-    fetch10();
-    poll10Ref.current = setInterval(fetch10, 30000);
-
+    load();
+    poll10Ref.current = setInterval(load, 30000);
     return () => {
-      abort = true;
       try { ctrl.abort(); } catch {}
       if (poll10Ref.current) clearInterval(poll10Ref.current);
     };
-  }, [LIVE_10_URL]);
+  }, [LIVE10]);
 
-  // fetch 1h timestamp only (for timestamp chip and optional mirrored pills)
+  // 1h timestamp only
   useEffect(() => {
-    let abort = false;
     const ctrl = ac();
-    const fetch1h = async () => {
+
+    const load1h = async () => {
       try {
-        const res = await fetch(`${guardLive(LIVE_1H_URL)}?v=${Date.now()}`, {
+        const r = await fetch(`${guardLive(LIVE1H)}?v=${Date.now()}`, {
           cache: "no-store",
           signal: ctrl.signal,
         });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const j = await res.json();
-        if (abort) return;
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        const j = await r.json();
         setTs1h(j?.updated_at || j?.updated_at_utc || j?.ts || null);
-      } catch (e) {
-        /* do not surface, keep stable */
+      } catch (_) {
+        /* ignore hourly fetch errors for stability */
       }
     };
-    fetch1h();
-    poll1hRef.current = setInterval(fetch1h, 60000);
 
+    load1h();
+    poll1hRef.current = setInterval(load1h, 60000);
     return () => {
-      abort = true;
       try { ctrl.abort(); } catch {}
       if (poll1hRef.current) clearInterval(poll1hRef.current);
     };
-  }, [LIVE_1H_URL]);
+  }, [LIVE1H]);
 
-  // data derivation
-  const intraday = payload?.intraday || {};
-  const strategy = intraday?.strategy || {};
-  const signals = payload?.engineLights?.signals || {};
-  const trend10 = strategy?.trend10m || null;
-  const trend1h = strategy?.trend1h || null;  // present if mirrored by 1h job
-  const trendD  = strategy?.trendDaily || null;
-
+  const signals = intraday?.engineLights?.signals || {};
+  const strategy = intraday?.intraday?.strategy || {};
   const families = useMemo(() => detectFamily(signals), [signals]);
 
-  const pillsCore  = useMemo(() => (families.hasR11Core ? toPills(R11_CORE_DEF, signals) : []), [families, signals]);
-  const pills1h    = useMemo(() => (families.hasR11H1   ? toPills(R11_1H_DEF,   signals) : []), [families, signals]);
-  const pillsNow   = useMemo(() => (families.hasR11Now  ? toPills(R11_NOW_DEF,  signals) : []), [families, signals]);
-  const pillsLegacy= useMemo(() => (families.hasLegacy  ? toPills(LEGACY_DEF,   signals) : []), [families, signals]);
+  const pillsCore   = useMemo(() => (families.hasR11Core ? toPills(R11_CORE_DEF, signals) : []), [families, signals]);
+  const pills1h     = useMemo(() => (families.hasR11H1   ? toPills(R11_1H_DEF,   signals) : []), [families, signals]);
+  const pillsNow    = useMemo(() => (families.hasR11Now  ? toPills(R11_NOW_DEF,  signals) : []), [families, signals]);
+  const pillsLegacy = useMemo(() => (families.hasLegacy  ? toPills(LEGACY_DEF,   signals) : []), [families, signals]);
 
   const stableKey = useMemo(() => {
     const sigStr = Object.entries(signals)
@@ -290,63 +304,51 @@ export default function EngineLights() {
     return `${ts10 || "no-ts"}|${sigStr}`;
   }, [signals, ts10]);
 
+  const trend10 = strategy?.trend10m || null;
+  const trend1h = strategy?.trend1h || null;
+  const trendD  = strategy?.trendDaily || null;
+
   return (
     <section id="row-3" className="panel" aria-label="Engine Lights" key={stableKey}>
-      {/* Header (unchanged) */}
+      {/* Header – timestamps on the left */}
       <div className="panel-head" style={{ alignItems: "center", gap: 8 }}>
         <div className="panel-title">Engine Lights</div>
-        <button
-          onClick={() => setLegendOpen(true)}
-          style={{
-            background: "#0b0b0b",
-            color: "#e5e7eb",
-            border: "1px solid #2b2b2b",
-            borderRadius: 8,
-            padding: "6px 10px",
-            fontWeight: 600,
-            cursor: "pointer",
-            marginLeft: 8,
-          }}
-          title="Legend"
-        >
-          Legend
-        </button>
         <div className="spacer" />
         <span className="small muted" style={{ marginRight: 12 }}>
           <strong>10m:</strong> <LastUpdated ts={ts10} />
         </span>
-        <span className="small muted" style={{ marginRight: 0 }}>
+        <span className="small muted">
           <strong>1h:</strong> <LastUpdated ts={ts1h} />
         </span>
       </div>
 
-      {/* Pills: existing stacks remain; no new wrappers added above or below */}
+      {/* Pills — no extra wrappers to avoid row stretch */}
       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
         {pillsCore.length > 0 && (
           <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center" }}>
             {pillsCore.map((p) => (
-              <Pill key={p.key} label={p.text} tone={p.tone} title={p.title} />
+              <Pill key={p.key} label={p.label} tone={p.tone} title={p.title} />
             ))}
           </div>
         )}
         {pills1h.length > 0 && (
           <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center" }}>
             {pills1h.map((p) => (
-              <Pill key={p.key} label={p.text} tone={p.tone} title={p.title} />
+              <Pill key={p.key} label={p.label} tone={p.tone} title={p.title} />
             ))}
           </div>
         )}
         {pillsNow.length > 0 && (
           <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center" }}>
             {pillsNow.map((p) => (
-              <Pill key={p.key} label={p.text} tone={p.tone} title={p.title} />
+              <Pill key={p.key} label={p.label} tone={p.tone} title={p.title} />
             ))}
           </div>
         )}
         {pillsLegacy.length > 0 && (
           <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center" }}>
             {pillsLegacy.map((p) => (
-              <Pill key={p.key} label={p.text} tone={p.tone} title={p.title} />
+              <Pill key={p.key} label={p.label} tone={p.tone} title={p.title} />
             ))}
           </div>
         )}
@@ -355,74 +357,12 @@ export default function EngineLights() {
         )}
       </div>
 
-      {/* Compact Trends on the right — appended inline, no new outer containers */}
+      {/* Compact trend capsules (right-aligned). No extra outer wrapper above/below. */}
       <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 8 }}>
         <TrendTiny title="10m Trend"   trend={trend10} />
         <TrendTiny title="1h Trend"    trend={trend1h} />
         <TrendTiny title="Daily Trend" trend={trendD} />
       </div>
-
-      {/* Legend Modal (unchanged) */}
-      {legendOpen && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          onClick={() => setLegendOpen(false)}
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.5)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 60,
-          }}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              width: "min(880px, 92vw)",
-              background: "#0b0b0c",
-              border: "1px solid #2b2b2b",
-              borderRadius: 12,
-              padding: 16,
-              boxShadow: "0 10px 30px rgba(0,0,0,0.35)",
-            }}
-          >
-            <div style={{ color: "#f9faff", fontSize: 14, fontWeight: 800, marginBottom: 8 }}>
-              Engine Lights — Legend
-            </div>
-            <p className="small muted" style={{ marginBottom: 8 }}>
-              Pill families auto-detected from intraday payload:<br />
-              • 10m Core (Overall / EMA10 / Accel / Risk / Sector)<br />
-              • 1h Crosses (if mirrored from hourly) — EMA1h / SMI1h / Accel1h / Overall1h<br />
-              • 5m NOW sandbox (acceleration & bias)<br />
-              • Legacy (Breakout / Distribution / Compression / …)
-            </p>
-            <div className="small muted">
-              Hover a pill to see its “reason” and “lastChanged” detail.
-            </div>
-            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}>
-              <button
-                onClick={() => setLegendOpen(false)}
-                style={{
-                  background: "#eab308", color: "#111827", border: "none",
-                  borderRadius: 8, padding: "8px 12px", fontWeight: 700
-                }}
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </section>
   );
-}
-
-/* Utility to create AbortController in older browser/runtime */
-function ac() {
-  return typeof AbortController !== "undefined"
-    ? new AbortController()
-    : { abort: () => {}, signal: undefined };
 }
