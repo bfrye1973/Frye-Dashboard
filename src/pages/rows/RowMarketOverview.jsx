@@ -144,15 +144,15 @@ export default function RowMarketOverview(){
   const state10     = i10?.overall10m?.state || null;
 
   // 1h strip
-  const breadth1    = num(m1h.breadth_1h_pct);
-  const mom1        = num(m1h.momentum_combo_1h_pct ?? m1h.momentum_1h_pct);
-  const sq1         = num(m1h.squeeze_1h_pct);                               // Expansion%
-  const liq1        = num(m1h.liquidity_1h);
-  const vol1        = num(m1h.volatility_1h_scaled ?? m1h.volatility_1h_pct);
-  const rising1     = num(h1?.sectorDirection1h?.risingPct);
-  const risk1       = num(h1?.riskOn1h?.riskOnPct);
-  const overall1    = num(h1?.overall1h?.score);
-  const state1      = h1?.overall1h?.state || null;
+  const breadth1 = num(m1h.breadth_1h_pct);
++ const mom1     = num(m1h.momentum_combo_1h_pct ?? m1h.momentum_1h_pct ?? m1h.momentum_pct);
++ const sq1      = num(m1h.squeeze_1h_pct);                      // Expansion %
++ const liq1     = num(m1h.liquidity_1h);
++ const vol1     = num(m1h.volatility_1h_scaled ?? m1h.volatility_1h_pct);
++ const rising1  = num(h1?.sectorDirection1h?.risingPct);
++ const risk1    = num(h1?.riskOn1h?.riskOnPct);
++ const overall1 = num(h1?.overall1h?.score);
++ const state1   = h1?.overall1h?.state || null;
 
   // Daily values used for the daily strip (unchanged bindings)
   const td = dd?.trendDaily || {};
