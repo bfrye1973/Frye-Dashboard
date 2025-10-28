@@ -134,7 +134,7 @@ export default function RowMarketOverview(){
   /* ---- extract values ---- */
   // 10m strip
   const breadth10   = num(m10.breadth_10m_pct ?? m10.breadth_pct);
-  const mom10       = num(m10.momentum_combo_pct ?? m10.momentum_pct);
+  const mom10       = num(m.momentum_combo_10m_pct ?? m.momentum_10m_pct ?? m.momentum_pct);
   const sq10        = num(m10.squeeze_intraday_pct ?? m10.squeeze_pct);     // PSI or expansion per backend
   const liq10       = num(m10.liquidity_psi ?? m10.liquidity_pct);
   const vol10       = num(m10.volatility_pct);
