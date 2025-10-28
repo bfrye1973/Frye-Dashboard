@@ -12,7 +12,7 @@ export default function LuxTrendChip({ state, reason, label }) {
   const s = String(state).toLowerCase();
   const tone = s.includes("green") || s.includes("bull") ? "green"
              : s.includes("red")   || s.includes("bear") ? "red"
-             : "purple";
+             : "yellow";
   const style = {
     background: (toneMap[tone] || toneMap.purple).bg,
     color: "#000",
