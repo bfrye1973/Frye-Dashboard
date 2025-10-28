@@ -181,11 +181,17 @@ export default function RowMarketOverview() {
   const risk10    = num(i10?.riskOn10m?.riskOnPct);
   const overall10 = num(i10?.overall10m?.score);
   const state10   = i10?.overall10m?.state || null;
-
+  // Squeeze (1h) — prefer expansion %, compute from PSI if provided
++ const sq1 = num(
++   m1h.squeeze_1h_pct ??
++   m1h.squeeze_expansion_pct ??
++   (Number.isFinite(m1h.squeeze_psi_1h_pct) ? 100 - m1h.squeeze_psi_1h_pct : NaN) ??
++   (Number.isFinite(m1h.squeeze_psi_1h)     ? 100 - m1h.squeeze_psi_1h     : NaN)
++);
   /* ---------- 1h strip ---------- */
   const breadth1  = num(m1h.breadth_1h_pct);
   const mom1      = num(m1h.momentum_combo_1h_pct ?? m1h.momentum_1h_pct ?? m1h.momentum_pct);
-  const sq1       = num(m1h.squeeze_1h_pct);
+  
   const liq1      = num(m1h.liquidity_1h);
   const vol1      = num(m1h.volatility_1h_scaled ?? m1h.volatility_1h_pct);
   const rising1   = num(h1?.sectorDirection1h?.risingPct);
