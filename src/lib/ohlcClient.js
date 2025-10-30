@@ -98,9 +98,9 @@ export async function getOHLC(symbol = "SPY", timeframe = "1m", limit = 1500) {
   const tfSec = TF_SEC[tf] || 600; // default to 10m if unknown
   const needAgg = tfSec !== 60;
 
-  // Raise ceiling so 10m can show ~1 month (and more if needed)
+  // Ceiling for 1m fetch; overshoot to cover gaps
   const MAX_1M_FETCH = 50000;
-  const overshoot = 3; // safety factor for gaps/pauses
+  const overshoot = 3;
   const need1mCount = Math.min(
     MAX_1M_FETCH,
     Math.max(needAgg ? Math.ceil((limit * tfSec) / 60) * overshoot : limit, 50)
@@ -110,7 +110,7 @@ export async function getOHLC(symbol = "SPY", timeframe = "1m", limit = 1500) {
     `${API}/api/v1/ohlc?symbol=${encodeURIComponent(sym)}` +
     `&timeframe=1m&limit=${need1mCount}`;
 
-  // DEBUG: print the exact URL the bundle is calling
+  // DEBUG: exact URL used
   console.log("[getOHLC] →", url, { sym, tf, tfSec, need1mCount, limit });
 
   const r = await fetch(url, { cache: "no-store" });
@@ -144,13 +144,11 @@ export function subscribeStream(symbol, timeframe, onBar) {
     sym
   )}&tf=${encodeURIComponent(tf)}`;
 
-  // DEBUG: show live stream URL too
   console.log("[subscribeStream] →", url, { sym, tf });
 
   const es = new EventSource(url);
 
   es.onmessage = (ev) => {
-    // Stream sends :ping keepalives and JSON lines
     if (!ev?.data || ev.data === ":ping" || ev.data.trim() === "") return;
 
     try {
@@ -186,5 +184,4 @@ export function subscribeStream(symbol, timeframe, onBar) {
   };
 }
 
-// Default export for legacy import styles
 export default { getOHLC, fetchOHLCResilient, subscribeStream };
