@@ -1,11 +1,16 @@
 // src/components/overlays/FourShelvesOverlay.js
 // Four Shelves — full-width bands:
-//   1h   : Blue (primary) + Yellow (secondary)
-//   10m  : Blue (primary) + Yellow (secondary)
+//   1h   : Blue (primary) + Yellow (secondary)  [Major]
+//   10m  : Blue (primary) + Yellow (secondary)  [Micro]
 // Inert (no fit/visibleRange). Cleans canvas on destroy().
+//
+// Micro changes:
+// - Uses only RTH bars (13:30–20:00 UTC) from the last 10 days
+// - Shelf height from price-by-time density (5 bps histogram over wicks)
+//   Band = mode ± percentile envelope (25–75%), with optional snap to POC/round
+//
 // Diagnostics: window.__DUALSHELVES.{why1hY,why10mY,why10mB}
 // Labels: “1h B”, “1h Y”, “10m B”, “10m Y”
-// Micro analysis uses only the last 10 days of source bars.
 
 export default function createFourShelvesOverlay({ chart, priceSeries, chartContainer, timeframe }) {
   if (!chart || !priceSeries || !chartContainer) {
@@ -34,9 +39,8 @@ export default function createFourShelvesOverlay({ chart, priceSeries, chartCont
   const DASH_MICRO_Y = [3, 5]; // dotted-ish
   const DASH_MICRO_B = [5, 4]; // micro-blue dashed
 
-  // draw full-width bands? (requested)
   const FULL_WIDTH = true;
-  const SHOW_TICKS = true; // faint markers at tStart/tEnd for context
+  const SHOW_TICKS = true; // faint markers at tStart/tEnd
 
   /* --------------- Parameters per timeframe --------------- */
   // 1h (keep strict — this is the “perfect” one)
@@ -65,6 +69,14 @@ export default function createFourShelvesOverlay({ chart, priceSeries, chartCont
   // Micro analysis lookback: last 10 calendar days
   const MICRO_LOOKBACK_DAYS = 10;
   const SECONDS_PER_DAY = 86400;
+
+  // Density config (micro)
+  const DENSITY_BPS = 5;          // 5 bps bucket
+  const P_LO_PCT = 0.25;          // percentile low
+  const P_HI_PCT = 0.75;          // percentile high
+  const SNAP_POC_THRESH = 0.0005; // 0.05% to snap to POC
+  const SNAP_ROUND_THRESH = 0.0003; // 0.03% to snap round (.00/.50 etc.)
+  const MIN_BAND_BUCKETS = 2;     // ensure at least this many buckets height
 
   /* ---------------- State ---------------- */
   let barsAsc = [];        // asc bars [{time,open,high,low,close,volume}]
@@ -120,6 +132,24 @@ export default function createFourShelvesOverlay({ chart, priceSeries, chartCont
     return out;
   }
 
+  // RTH (13:30–20:00 UTC) filter
+  function isRTH_UTC(tSec) {
+    const d = new Date(tSec * 1000);
+    const h = d.getUTCHours();
+    const m = d.getUTCMinutes();
+    const mins = h * 60 + m;
+    return mins >= (13*60 + 30) && mins < (20*60); // 13:30 ≤ t < 20:00 UTC
+  }
+
+  // Slice micro source bars: last 10 days AND RTH-only
+  function microSourceSliceRTH() {
+    if (!barsAsc.length) return [];
+    const lastT = barsAsc[barsAsc.length - 1].time;
+    const cutoff = lastT - MICRO_LOOKBACK_DAYS * SECONDS_PER_DAY;
+    const recent = barsAsc.filter(b => b.time >= cutoff && isRTH_UTC(b.time));
+    return recent.length ? recent : barsAsc.filter(b => isRTH_UTC(b.time)); // fallback: just RTH
+  }
+
   function slideCandidates(barsTF, spanMin, spanMax, tightBpsCap) {
     const n = barsTF.length, out = [];
     if (n < spanMin) return out;
@@ -142,6 +172,7 @@ export default function createFourShelvesOverlay({ chart, priceSeries, chartCont
     return out;
   }
 
+  // annotate touches/dwell/retests on window for selection scoring
   function annotateStats(barsTF, cand, cfg){
     const { iStart, iEnd, pLo, pHi } = cand;
     const spanBars = barsTF.slice(iStart, iEnd+1);
@@ -287,6 +318,100 @@ export default function createFourShelvesOverlay({ chart, priceSeries, chartCont
     return null;
   }
 
+  /* ---------- Micro density refinement (mode ± percentiles) ---------- */
+  function refineBandDensity(barsTF, cand) {
+    const { iStart, iEnd } = cand;
+    const spanBars = barsTF.slice(iStart, iEnd+1);
+    if (!spanBars.length) return { ...cand };
+
+    // Reference price for step
+    const ref = barsTF.at(-1).close || spanBars.at(-1).close;
+    const step = (DENSITY_BPS / 10000) * Math.max(1e-9, ref);
+
+    // Build histogram using wicks; include each bar's wick coverage in buckets
+    let lo = +Infinity, hi = -Infinity;
+    for (const b of spanBars){ if (b.low < lo) lo=b.low; if (b.high > hi) hi=b.high; }
+    if (!(hi > lo)) return { ...cand };
+    const nb = Math.max(1, Math.ceil((hi - lo) / step) + 2); // +2 guard
+    const hist = new Array(nb).fill(0);
+    const volw = new Array(nb).fill(0);
+
+    for (const b of spanBars){
+      const wLo = Math.min(b.open,b.close,b.low);
+      const wHi = Math.max(b.open,b.close,b.high);
+      let i0 = Math.max(0, Math.floor((wLo - lo) / step));
+      let i1 = Math.min(nb - 1, Math.floor((wHi - lo) / step));
+      for (let i=i0; i<=i1; i++){
+        hist[i] += 1;
+        volw[i] += Number(b.volume || 0);
+      }
+    }
+
+    // mode index (most touches)
+    let modeI = 0, best = -1;
+    for (let i=0;i<nb;i++){ if (hist[i] > best){ best = hist[i]; modeI = i; } }
+    const total = hist.reduce((a,b)=>a+b,0) || 1;
+
+    // CDF to pick percentiles (25–75)
+    const cdf = new Array(nb);
+    let run = 0;
+    for (let i=0;i<nb;i++){ run += hist[i]; cdf[i] = run / total; }
+
+    function idxForPct(p){
+      for (let i=0;i<nb;i++){ if (cdf[i] >= p) return i; }
+      return nb - 1;
+    }
+    // choose indices but **center around mode** when possible
+    let iLo = idxForPct(P_LO_PCT);
+    let iHi = idxForPct(P_HI_PCT);
+    if (iHi - iLo < MIN_BAND_BUCKETS) {
+      // widen symmetrically about mode
+      iLo = Math.max(0, modeI - Math.ceil(MIN_BAND_BUCKETS/2));
+      iHi = Math.min(nb-1, iLo + MIN_BAND_BUCKETS);
+    }
+
+    // optional snap: POC by volume
+    let pocI = 0, pocMax = -1;
+    for (let i=0;i<nb;i++){ if (volw[i] > pocMax){ pocMax = volw[i]; pocI = i; } }
+
+    const pMid = lo + modeI * step;
+    const pocP = lo + pocI * step;
+
+    let bandMid = pMid;
+    if (Math.abs((pocP - pMid) / Math.max(1e-9, pMid)) <= SNAP_POC_THRESH) {
+      bandMid = pocP;
+    } else {
+      // snap to .00/.50 if very close
+      const roundLevels = [
+        Math.round(bandMid),                        // .00
+        Math.floor(bandMid) + 0.5                   // .50
+      ];
+      for (const lvl of roundLevels){
+        if (Math.abs((lvl - bandMid) / Math.max(1e-9, bandMid)) <= SNAP_ROUND_THRESH) {
+          bandMid = lvl; break;
+        }
+      }
+    }
+
+    // final band
+    let pLo = lo + iLo * step;
+    let pHi = lo + iHi * step;
+    if (pHi - pLo < MIN_BAND_BUCKETS * step) {
+      // enforce minimum band thickness
+      const extra = (MIN_BAND_BUCKETS * step - (pHi - pLo)) / 2;
+      pLo = Math.max(0, pLo - extra);
+      pHi = pHi + extra;
+    }
+
+    // ensure band still within original window envelope (soft clamp)
+    const wLo = Math.min(...spanBars.map(b=>b.low));
+    const wHi = Math.max(...spanBars.map(b=>b.high));
+    pLo = Math.max(wLo, pLo);
+    pHi = Math.min(wHi, pHi);
+
+    return { ...cand, pLo, pHi, pMid: bandMid };
+  }
+
   /* ---------------- Rebuild per TF ---------------- */
   function rebuildMajor(){
     const bars1h = resampleTF(barsAsc, 3600);
@@ -302,25 +427,21 @@ export default function createFourShelvesOverlay({ chart, priceSeries, chartCont
     prevMajorBlue = majorBlue ? { ...majorBlue } : prevMajorBlue;
   }
 
-  function microSourceSlice() {
-    if (!barsAsc.length) return [];
-    const lastT = barsAsc[barsAsc.length - 1].time;
-    const cutoff = lastT - MICRO_LOOKBACK_DAYS * SECONDS_PER_DAY;
-    const i0 = barsAsc.findIndex(b => b.time >= cutoff);
-    return i0 === -1 ? barsAsc.slice() : barsAsc.slice(i0);
-  }
-
   function rebuildMicro(){
-    const recent = microSourceSlice();
-    const bars10m = resampleTF(recent, 600);
+    const recentRTH = microSourceSliceRTH();
+    const bars10m = resampleTF(recentRTH, 600);
+
+    // 1) pick windows with hi/lo logic (good for selection), then
+    // 2) refine each chosen window to density band (mode ± percentiles)
     let {blue, yellow, all} = pickTwoZones(bars10m, MICRO, "10m");
-    microBlue = blue || null;
+    microBlue = blue ? refineBandDensity(bars10m, blue) : null;
 
     if (!yellow && microBlue) {
-      const midB = (microBlue.pLo + microBlue.pHi)/2;
+      const midB = (microBlue.pMid ?? (microBlue.pLo + microBlue.pHi)/2);
       yellow = stickyYellow(microBlue, prevMicroBlue, all, MICRO, "10m", midB);
     }
-    microYellow = yellow || null;
+    microYellow = yellow ? refineBandDensity(bars10m, yellow) : null;
+
     prevMicroBlue = microBlue ? { ...microBlue } : prevMicroBlue;
   }
 
