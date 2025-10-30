@@ -2,6 +2,8 @@
 // ============================================================
 // RowChart — seed + live aggregation + indicators & overlays
 //   • NEW: Four Shelves overlay (1h Blue/Yellow + 10m Blue/Yellow)
+//   • Fonts 2× larger on price/time axes (layout.fontSize)
+//   • Dynamic seed limit (~6 months of data per timeframe)
 // ============================================================
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
@@ -16,10 +18,15 @@ import RightProfileOverlay from "../../../components/overlays/RightProfileOverla
 import SessionShadingOverlay from "../../../components/overlays/SessionShadingOverlay";
 import createSwingLiquidityOverlay from "../../../components/overlays/SwingLiquidityOverlay";
 import createSMI1hOverlay from "../../../components/overlays/SMI1hOverlay";
-import createFourShelvesOverlay from "../../../components/overlays/FourShelvesOverlay"; // <-- path must exist
+import createFourShelvesOverlay from "../../../components/overlays/FourShelvesOverlay";
 
 /* ------------------------------ Config ------------------------------ */
-const SEED_LIMIT = 6000;
+// Target history window (rough) used to compute how many bars to request
+const HISTORY_MONTHS = 6;                 // ~6 months
+const TRADING_DAYS_PER_MONTH = 21;        // rough, good enough
+
+// Axis/label font size (≈ double the default 11–12px)
+const AXIS_FONT_SIZE = 22;
 
 const DEFAULTS = {
   upColor: "#26a69a",
@@ -36,6 +43,26 @@ const TF_SEC = {
   "1h": 3600, "4h": 14400, "1d": 86400,
 };
 const LIVE_TF = "10m";
+
+/* -------------------- Helper: dynamic seed limit -------------------- */
+function barsPerDay(tf) {
+  switch (tf) {
+    case "1m":  return 390;  // 6.5h * 60
+    case "5m":  return 78;
+    case "10m": return 39;
+    case "15m": return 26;
+    case "30m": return 13;
+    case "1h":  return 7;    // 6–7 bars per RTH day
+    case "4h":  return 2;    // 1–2 bars per day
+    case "1d":  return 1;
+    default:    return 39;   // safe default
+  }
+}
+function seedLimitFor(tf, months = HISTORY_MONTHS) {
+  const days = months * TRADING_DAYS_PER_MONTH;
+  const estimate = days * barsPerDay(tf);
+  return Math.ceil(estimate * 1.3); // 30% headroom
+}
 
 /* --------------------------- AZ time utils --------------------------- */
 function phoenixTime(ts, isDaily = false) {
@@ -148,7 +175,7 @@ export default function RowChart({
 
     smi1h: false,
 
-    shelvesFour: false,   // NEW overlay toggle
+    shelvesFour: false,   // Four Shelves overlay toggle
   });
 
   // Debug hook
@@ -172,7 +199,11 @@ export default function RowChart({
     const chart = createChart(el, {
       width: el.clientWidth,
       height: el.clientHeight,
-      layout: { background: { color: DEFAULTS.bg }, textColor: "#d1d5db" },
+      layout: {
+        background: { color: DEFAULTS.bg },
+        textColor: "#d1d5db",
+        fontSize: AXIS_FONT_SIZE,           // ⬅️ 2× axis/time label font
+      },
       grid: { vertLines: { color: DEFAULTS.gridColor }, horzLines: { color: DEFAULTS.gridColor } },
       rightPriceScale: { borderColor: DEFAULTS.border, scaleMargins: { top: 0.1, bottom: 0.2 } },
       timeScale: {
@@ -234,6 +265,7 @@ export default function RowChart({
         secondsVisible: tf === "1m",
       },
       localization: { timeFormatter: (t) => phoenixTime(t, tf === "1d") },
+      layout: { fontSize: AXIS_FONT_SIZE },   // ⬅️ keep labels large after TF change
     });
     didFitOnceRef.current = false;
   }, [state.timeframe]);
@@ -245,8 +277,11 @@ export default function RowChart({
     async function seedSeries() {
       setState((s) => ({ ...s, disabled: true }));
       try {
-        const seed = await getOHLC(state.symbol, state.timeframe, SEED_LIMIT);
+        // dynamic limit for ~6 months
+        const limit = seedLimitFor(state.timeframe);
+        const seed = await getOHLC(state.symbol, state.timeframe, limit);
         if (cancelled) return;
+
         const asc = (Array.isArray(seed) ? seed : [])
           .map(b => ({ ...b, time: b.time > 1e12 ? Math.floor(b.time / 1000) : b.time }))
           .sort((a, b) => a.time - b.time);
@@ -254,10 +289,12 @@ export default function RowChart({
         barsRef.current = asc;
         setBars(asc);
 
+        // seed price
         seriesRef.current?.setData(asc.map(b => ({
           time: b.time, open: b.open, high: b.high, low: b.low, close: b.close,
         })));
 
+        // seed volume (only respects state.volume)
         if (volSeriesRef.current) {
           if (state.volume) {
             volSeriesRef.current.applyOptions({ visible: true });
@@ -272,6 +309,7 @@ export default function RowChart({
           }
         }
 
+        // one-time fit so overlays land in view
         const chart = chartRef.current;
         if (chart && state.range === "ALL" && !didFitOnceRef.current && !userInteractedRef.current) {
           chart.timeScale().fitContent();
