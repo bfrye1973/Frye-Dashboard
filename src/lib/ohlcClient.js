@@ -90,35 +90,41 @@ function aggregateToTf(barsAsc, tfSec) {
   return out;
 }
 
-// ---------------- API: getOHLC ----------------
-// Always fetch 1m from Backend-1 and aggregate locally (robust against backend TF gaps).
-export async function getOHLC(symbol = "SPY", timeframe = "1m", limit = 1500) {
-  const sym = String(symbol || "SPY").toUpperCase();
-  const tf = String(timeframe || "1m");
-  const tfSec = TF_SEC[tf] || 600; // default to 10m if unknown
-  const needAgg = tfSec !== 60;
+// --------------------------------------------------------------
+// Preferred: fetch DIRECT timeframe first (e.g., 10m, 1h, 4h, 1d)
+// Fallback:  aggregate from 1m if direct TF is unavailable/too short
+// --------------------------------------------------------------
+async function fetchDirectTF(sym, tf, limit) {
+  const url = `${API}/api/v1/ohlc?symbol=${encodeURIComponent(sym)}&timeframe=${encodeURIComponent(tf)}&limit=${limit}`;
+  console.log("[getOHLC:directTF] →", url);
+  const r = await fetch(url, { cache: "no-store" });
+  if (!r.ok) throw new Error(`OHLC(direct:${tf}) ${r.status}`);
+  const data = await r.json();
+  const bars = normalizeBars(Array.isArray(data) ? data : data?.bars || []);
+  bars.sort((a, b) => a.time - b.time);
+  return bars;
+}
 
-  // Ceiling for 1m fetch; overshoot to cover gaps
-  const MAX_1M_FETCH = 50000;
-  const overshoot = 3;
+async function fetchFrom1mAgg(sym, tf, limit) {
+  const tfSec = TF_SEC[tf] || 600;
+  const needAgg = tfSec !== 60;
+  const MAX_1M_FETCH = 50000;       // server-side ceiling
+  const overshoot = 3;              // coverage for gaps
+
   const need1mCount = Math.min(
     MAX_1M_FETCH,
     Math.max(needAgg ? Math.ceil((limit * tfSec) / 60) * overshoot : limit, 50)
   );
 
-  const url =
-    `${API}/api/v1/ohlc?symbol=${encodeURIComponent(sym)}` +
-    `&timeframe=1m&limit=${need1mCount}`;
-
-  // DEBUG: exact URL used
-  console.log("[getOHLC] →", url, { sym, tf, tfSec, need1mCount, limit });
+  const url = `${API}/api/v1/ohlc?symbol=${encodeURIComponent(sym)}&timeframe=1m&limit=${need1mCount}`;
+  console.log("[getOHLC:1m-agg] →", url, { need1mCount, tf, limit });
 
   const r = await fetch(url, { cache: "no-store" });
-  if (!r.ok) throw new Error(`OHLC ${r.status}`);
+  if (!r.ok) throw new Error(`OHLC(1m) ${r.status}`);
 
   const data = await r.json();
   const oneMin = normalizeBars(Array.isArray(data) ? data : data?.bars || []);
-  oneMin.sort((a, b) => a.time - b.time); // ascending
+  oneMin.sort((a, b) => a.time - b.time);
 
   if (!needAgg) return oneMin.slice(-limit);
 
@@ -126,10 +132,35 @@ export async function getOHLC(symbol = "SPY", timeframe = "1m", limit = 1500) {
   return agg.slice(-limit);
 }
 
+// ---------------- API: getOHLC ----------------
+export async function getOHLC(symbol = "SPY", timeframe = "1m", limit = 1500) {
+  const sym = String(symbol || "SPY").toUpperCase();
+  const tf = String(timeframe || "1m");
+  const tfSec = TF_SEC[tf] || 600;
+
+  try {
+    // 1) Try DIRECT TF first — this is how we break the 1m server cap
+    const direct = await fetchDirectTF(sym, tf, limit);
+    // If server returned plenty (or exactly what we asked), use it.
+    if (direct.length >= Math.min(limit * 0.9, limit - 10)) {
+      console.log("[getOHLC] using direct TF bars:", direct.length);
+      return direct.slice(-limit);
+    }
+    console.warn("[getOHLC] direct TF too short (", direct.length, "), falling back to 1m aggregation");
+  } catch (e) {
+    console.warn("[getOHLC] direct TF fetch failed, fallback to 1m:", e?.message || e);
+  }
+
+  // 2) Fallback: 1m → aggregate locally
+  const agg = await fetchFrom1mAgg(sym, tf, limit);
+  console.log("[getOHLC] using 1m→", tf, "bars:", agg.length);
+  return agg;
+}
+
 // ---------------- API: compat shim ----------------
 export async function fetchOHLCResilient({ symbol, timeframe, limit = 1500 }) {
   const bars = await getOHLC(symbol, timeframe, limit);
-  return { source: "api/v1/ohlc (1m→tf client agg)", bars };
+  return { source: "api/v1/ohlc (direct or 1m→tf client agg)", bars };
 }
 
 // ---------------- Live SSE subscribe ----------------
