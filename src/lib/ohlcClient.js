@@ -1,16 +1,25 @@
 // src/lib/ohlcClient.js
-// ------------------------------------------------------------
-// Always fetch 1-minute history from backend and resample
-// to requested timeframe. This guarantees deep history even
-// if non-1m endpoints are capped server-side.
-// ------------------------------------------------------------
+// Canonical OHLC client (compat-safe)
+//
+// Exports:
+//   - getOHLC(symbol, timeframe, limit) -> plain bars in UNIX SECONDS
+//   - fetchOHLCResilient({ symbol, timeframe, limit }) -> { source, bars }
+//   - subscribeStream(symbol, timeframe, onBar) -> live SSE bars (UNIX SECONDS)
 
-const API =
+const BACKEND =
   (typeof window !== "undefined" && (window.__API_BASE__ || "")) ||
-  (typeof process !== "undefined" ? process.env?.REACT_APP_API_BASE : "") ||
-  "";
+  (typeof process !== "undefined" && process.env && process.env.REACT_APP_API_BASE) ||
+  (typeof process !== "undefined" && process.env && process.env.REACT_APP_API_URL) ||
+  "https://frye-market-backend-1.onrender.com";
 
-// seconds per bar for each TF
+const STREAM_BASE =
+  (typeof window !== "undefined" && (window.__STREAM_BASE__ || "")) ||
+  (typeof process !== "undefined" && process.env && process.env.REACT_APP_STREAM_BASE) ||
+  ""; // e.g. https://frye-market-backend-2.onrender.com
+
+const API = (BACKEND || "").replace(/\/+$/, "");
+
+// ---------------- utils ----------------
 const TF_SEC = {
   "1m": 60,
   "5m": 300,
@@ -22,78 +31,158 @@ const TF_SEC = {
   "1d": 86400,
 };
 
-const ONE_MIN = 60;
-const MAX_MINUTE_BARS = 50000;
+const isMs = (t) => typeof t === "number" && t > 1e12;
+const toSec = (t) => (isMs(t) ? Math.floor(t / 1000) : t);
 
-// fetch N most-recent 1-minute bars from backend
-async function fetchMinuteBars(symbol, minuteCount) {
-  const perRequest = Math.min(Math.max(1000, Math.ceil(minuteCount * 1.1)), MAX_MINUTE_BARS);
-  const url = `${API}/api/v1/ohlc?symbol=${encodeURIComponent(
-    symbol
-  )}&timeframe=1m&limit=${perRequest}`;
-  const res = await fetch(url, { cache: "no-store" });
-  if (!res.ok) throw new Error(`getOHLC 1m failed: ${res.status}`);
-  const arr = await res.json();
-  const rows = Array.isArray(arr) ? arr : [];
-  return rows
-    .map((r) => ({
-      time: typeof r.time === "number" ? r.time : Number(r.time),
-      open: +r.open,
-      high: +r.high,
-      low: +r.low,
-      close: +r.close,
-      volume: +r.volume || 0,
+function normalizeBars(arr) {
+  if (!Array.isArray(arr)) return [];
+  return arr
+    .filter(Boolean)
+    .map((b) => ({
+      time: toSec(b.time ?? b.t ?? b.ts ?? b.timestamp),
+      open: Number(b.open ?? b.o),
+      high: Number(b.high ?? b.h),
+      low: Number(b.low ?? b.l),
+      close: Number(b.close ?? b.c),
+      volume: Number(b.volume ?? b.v ?? 0),
     }))
-    .filter((b) => Number.isFinite(b.time));
+    .filter(
+      (b) =>
+        Number.isFinite(b.time) &&
+        Number.isFinite(b.open) &&
+        Number.isFinite(b.high) &&
+        Number.isFinite(b.low) &&
+        Number.isFinite(b.close)
+    );
 }
 
-// resample minute bars to target timeframe
-function resampleToTF(minBars, targetSec) {
-  if (!minBars?.length) return [];
-  if (targetSec === ONE_MIN) return minBars.slice();
-
+// Aggregate ascending 1m bars to target timeframe (seconds)
+function aggregateToTf(barsAsc, tfSec) {
+  if (!Array.isArray(barsAsc) || !barsAsc.length || tfSec === 60) return barsAsc || [];
   const out = [];
-  let bucket = null;
+  let bucketStart = null;
+  let cur = null;
 
-  for (const b of minBars) {
-    const t = Math.floor(b.time / targetSec) * targetSec;
-    if (!bucket || bucket.time !== t) {
-      if (bucket) out.push(bucket);
-      bucket = { time: t, open: b.open, high: b.high, low: b.low, close: b.close, volume: b.volume || 0 };
+  for (const b of barsAsc) {
+    const t = Number(b.time);
+    if (!Number.isFinite(t)) continue;
+    const start = Math.floor(t / tfSec) * tfSec;
+
+    if (bucketStart === null || start > bucketStart) {
+      if (cur) out.push(cur);
+      bucketStart = start;
+      cur = {
+        time: start,
+        open: b.open,
+        high: b.high,
+        low: b.low,
+        close: b.close,
+        volume: Number(b.volume || 0),
+      };
     } else {
-      if (b.high > bucket.high) bucket.high = b.high;
-      if (b.low  < bucket.low ) bucket.low  = b.low;
-      bucket.close = b.close;
-      bucket.volume = (bucket.volume || 0) + (b.volume || 0);
+      cur.high = Math.max(cur.high, b.high);
+      cur.low = Math.min(cur.low, b.low);
+      cur.close = b.close;
+      cur.volume = Number(cur.volume || 0) + Number(b.volume || 0);
     }
   }
-  if (bucket) out.push(bucket);
+  if (cur) out.push(cur);
   return out;
 }
 
-// public API
-export async function getOHLC(symbol, timeframe, desiredBars) {
-  const tf = timeframe in TF<|vq_2915|>  return aggregated.slice(-desiredBars);
-}
+// ---------------- API: getOHLC ----------------
+// Always fetch 1m from Backend-1 and aggregate locally (robust against backend TF gaps).
+export async function getOHLC(symbol = "SPY", timeframe = "1m", limit = 1500) {
+  const sym = String(symbol || "SPY").toUpperCase();
+  const tf = String(timeframe || "1m");
+  const tfSec = TF_SEC[tf] || 600; // default to 10m if unknown
+  const needAgg = tfSec !== 60;
 
-// live stream passthrough: keep your existing 10m stream choice
-export function subscribeStream(symbol, baseTf = "10m", onPoint) {
+  // Raise ceiling so we can cover larger windows; backend may cap at ~50k
+  const MAX_1M_FETCH = 50000;
+  const overshoot = 3; // safety factor for gaps/pauses
+  const need1mCount = Math.min(
+    MAX_1M_FETCH,
+    Math.max(needAgg ? Math.ceil((limit * tfSec) / 60) * overshoot : limit, 50)
+  );
+
   const url =
-    `${API}/api/v1/ohlc?timeframe=${encodeURIComponent(baseTf)}&symbol=${encodeURIComponent(
-      symbol
-    )}&stream=1`;
-  const es = new EventSource(url);
-  es.onmessage = (evt) => {
-    try {
-      const row = JSON.parse(evt.data);
-      onPoint({
-        time: typeof row.time === "number" ? row.time : Number(row.time),
-        open: +row.open, high: +row.high, low: +row.low, close: +row.close, volume: +row.volume || 0,
-      });
-    } catch {}
-  };
-  es.onerror = () => { try { es.close(); } catch {} };
-  return () => { try { es.close(); } catch {} };
+    `${API}/api/v1/ohlc?symbol=${encodeURIComponent(sym)}` +
+    `&timeframe=1m&limit=${need1mCount}`;
+
+  // Optional debug
+  // console.log("[getOHLC] →", url, { sym, tf, tfSec, need1mCount, limit });
+
+  const r = await fetch(url, { cache: "no-store" });
+  if (!r.ok) throw new Error(`OHLC ${r.status}`);
+
+  const data = await r.json();
+  const oneMin = normalizeBars(Array.isArray(data) ? data : data?.bars || []);
+  oneMin.sort((a, b) => a.time - b.time); // ascending
+
+  if (!needAgg) return oneMin.slice(-limit);
+
+  const agg = aggregateToTf(oneMin, tfSec);
+  return agg.slice(-limit);
 }
 
-export default { getOHLC, subscribeStream };
+// ---------------- API: compat shim ----------------
+export async function fetchOHLCResilient({ symbol, timeframe, limit = 1500 }) {
+  const bars = await getOHLC(symbol, timeframe, limit);
+  return { source: "api/v1/ohlc (1m→tf client agg)", bars };
+}
+
+// ---------------- Live SSE subscribe ----------------
+export function subscribeStream(symbol, timeframe, onBar) {
+  if (!STREAM_BASE) {
+    console.warn("[subscribeStream] STREAM_BASE missing");
+    return () => {};
+  }
+  const sym = String(symbol || "SPY").toUpperCase();
+  const tf = String(timeframe || "1m");
+  const url = `${STREAM_BASE.replace(/\/+$/, "")}/stream/agg?symbol=${encodeURIComponent(
+    sym
+  )}&tf=${encodeURIComponent(tf)}`;
+
+  // Optional debug
+  // console.log("[subscribeStream] →", url, { sym, tf });
+
+  const es = new EventSource(url);
+
+  es.onmessage = (ev) => {
+    // Stream sends :ping keepalives and JSON lines
+    if (!ev?.data || ev.data === ":ping" || ev.data.trim() === "") return;
+
+    try {
+      const msg = JSON.parse(ev.data);
+      if (msg?.type === "bar" && msg.bar) {
+        const b = msg.bar;
+        const bar = {
+          time: toSec(b.time ?? b.t ?? b.ts ?? b.timestamp),
+          open: Number(b.open ?? b.o),
+          high: Number(b.high ?? b.h),
+          low: Number(b.low ?? b.l),
+          close: Number(b.close ?? b.c),
+          volume: Number(b.volume ?? b.v ?? 0),
+        };
+        if (Number.isFinite(bar.time) && Number.isFinite(bar.open)) onBar(bar);
+      } else if (msg?.type === "diag") {
+        // console.debug("[stream diag]", msg);
+      }
+    } catch {
+      // swallow non-JSON heartbeat lines
+    }
+  };
+
+  es.onerror = (e) => {
+    console.warn("[subscribeStream] error (closing)", e);
+    try { es.close(); } catch {}
+  };
+
+  return () => {
+    try { es.close(); } catch {}
+  };
+}
+
+// Default export for legacy import styles
+export default { getOHLC, fetchOHLCResilient, subscribeStream };
