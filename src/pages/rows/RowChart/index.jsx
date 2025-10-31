@@ -1,9 +1,9 @@
 // src/pages/rows/RowChart/index.jsx
 // ============================================================
 // RowChart — seed + live aggregation + indicators & overlays
-//   • Four Shelves overlay wiring preserved
+//   • NEW: Four Shelves overlay (1h Blue/Yellow + 10m Blue/Yellow)
 //   • Fonts 2× larger on price/time axes (layout.fontSize)
-//   • Dynamic seed limit per timeframe (2m for 5/10/30m; 4m for 1h/4h; 6m for 1d)
+//   • Dynamic seed limit (2m for 5/10/15/30m; 4m for 1h/4h; 6m for 1d)
 // ============================================================
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
@@ -21,7 +21,6 @@ import createSMI1hOverlay from "../../../components/overlays/SMI1hOverlay";
 import createFourShelvesOverlay from "../../../components/overlays/FourShelvesOverlay";
 
 /* ------------------------------ Config ------------------------------ */
-
 // Target history window per timeframe (months)
 const HISTORY_MONTHS_BY_TF = {
   "1m": 2,
@@ -33,9 +32,10 @@ const HISTORY_MONTHS_BY_TF = {
   "4h": 4,
   "1d": 6,
 };
+const TRADING_DAYS_PER_MONTH = 21; // rough, good enough
 
-const TRADING_DAYS_PER_MONTH = 21; // rough average
-const AXIS_FONT_SIZE = 22;         // ~2× default label size
+// Axis/label font size (≈ double the default 11–12px)
+const AXIS_FONT_SIZE = 22;
 
 const DEFAULTS = {
   upColor: "#26a69a",
@@ -56,47 +56,64 @@ const LIVE_TF = "10m";
 /* -------------------- Helper: dynamic seed limit -------------------- */
 function barsPerDay(tf) {
   switch (tf) {
-    case "1m":  return 390; // 6.5h * 60
+    case "1m":  return 390;  // 6.5h * 60
     case "5m":  return 78;
     case "10m": return 39;
     case "15m": return 26;
     case "30m": return 13;
-    case "1h":  return 7;   // ~6–7 bars per RTH day
-    case "4h":  return 2;
+    case "1h":  return 7;    // 6–7 bars per RTH day
+    case "4h":  return 2;    // 1–2 bars per day
     case "1d":  return 1;
-    default:    return 39;
+    default:    return 39;   // safe default
   }
 }
 function seedLimitFor(tf) {
   const months = HISTORY_MONTHS_BY_TF[tf] ?? 6;
   const days = months * TRADING_DAYS_PER_MONTH;
   const estimate = days * barsPerDay(tf);
-  return Math.ceil(estimate * 1.3); // headroom for gaps
+  return Math.ceil(estimate * 1.3); // 30% headroom
 }
 
 /* --------------------------- AZ time utils --------------------------- */
 function phoenixTime(ts, isDaily = false) {
-  const seconds = typeof ts === "number" ? ts : (ts?.timestamp ?? ts?.time ?? 0);
-  return new Date(seconds * 1000).toLocaleString("en-US", {
+  const seconds = typeof ts === "number" ? ts : (ts && (ts.timestamp ?? ts.time)) || 0;
+  return new Intl.DateTimeFormat("en-US", {
     timeZone: "America/Phoenix",
-    ...(isDaily ? { month: "short", day: "2-digit" } : { hour: "2-digit", minute: "2-digit" }),
-  });
+    hour12: true,
+    ...(isDaily ? { month: "short", day: "2-digit" } : { hour: "numeric", minute: "2-digit" }),
+  }).format(new Date(seconds * 1000));
 }
 
 function makeTickFormatter(tf) {
   const showSeconds = tf === "1m";
   const isDailyTF = tf === "1d";
+
+  const fmtTime = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Phoenix",
+    hour: "numeric",
+    minute: "2-digit",
+    ...(showSeconds ? { second: "2-digit" } : {}),
+  });
+  const fmtBoundary = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Phoenix",
+    month: "short",
+    day: "2-digit",
+    hour: "numeric",
+    ...(showSeconds ? { minute: "2-digit" } : {}),
+  });
+  const fmtDaily = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Phoenix",
+    month: "short",
+    day: "2-digit",
+  });
+
   return (t) => {
-    const s = typeof t === "number" ? t : t?.time;
-    const d = new Date(s * 1000);
-    if (isDailyTF) {
-      return d.toLocaleDateString("en-US", { month: "short", day: "2-digit" });
-    }
-    return d.toLocaleTimeString("en-US", {
-      hour: "2-digit",
-      minute: "2-digit",
-      ...(showSeconds ? { second: "2-digit" } : {}),
-    });
+    const seconds = typeof t === "number" ? t : (t?.timestamp ?? t?.time ?? 0);
+    const d = new Date(seconds * 1000);
+    if (isDailyTF) return fmtDaily.format(d);
+    const isMidnight = d.getHours() === 0 && d.getMinutes() === 0;
+    const onHour = d.getMinutes() === 0;
+    return (isMidnight || onHour) ? fmtBoundary.format(d) : fmtTime.format(d);
   };
 }
 
@@ -109,7 +126,7 @@ function calcEMA(barsAsc, length) {
   for (let i = 0; i < barsAsc.length; i++) {
     const c = Number(barsAsc[i].close);
     if (!Number.isFinite(c)) continue;
-    ema = ema === undefined ? c : c + (c - ema) * k;
+    ema = ema === undefined ? c : c * k + ema * (1 - k);
     out.push({ time: barsAsc[i].time, value: ema });
   }
   return out;
@@ -136,6 +153,10 @@ export default function RowChart({
   const chartRef = useRef(null);
   const seriesRef = useRef(null);
   const volSeriesRef = useRef(null);
+  const ema10Ref = useRef(null);
+  const ema20Ref = useRef(null);
+  const ema50Ref = useRef(null);
+  const roRef = useRef(null);
 
   const overlayInstancesRef = useRef([]);
 
@@ -167,14 +188,14 @@ export default function RowChart({
     shelvesFour: false,   // Four Shelves overlay toggle
   });
 
-  // Debug toggle helper
+  // Debug hook
   if (typeof window !== "undefined") {
     window.__indicators = {
       get: () => state,
       set: (patch) => setState((s) => ({ ...s, ...patch })),
     };
-    window.__on  = (k) => setState((s) => ({ ...s, [k]: true }));
-    window.__off = (k) => setState((s) => ({ ...s, [k]: false }));
+    window.__on  = (k) => window.__indicators.set({ [k]: true });
+    window.__off = (k) => window.__indicators.set({ [k]: false });
   }
 
   const symbols = useMemo(() => SYMBOLS, []);
@@ -188,7 +209,11 @@ export default function RowChart({
     const chart = createChart(el, {
       width: el.clientWidth,
       height: el.clientHeight,
-      layout: { background: { color: DEFAULTS.bg }, textColor: "#d1d5db", fontSize: AXIS_FONT_SIZE },
+      layout: {
+        background: { color: DEFAULTS.bg },
+        textColor: "#d1d5db",
+        fontSize: AXIS_FONT_SIZE,           // ⬅️ 2× axis/time label font
+      },
       grid: { vertLines: { color: DEFAULTS.gridColor }, horzLines: { color: DEFAULTS.gridColor } },
       rightPriceScale: { borderColor: DEFAULTS.border, scaleMargins: { top: 0.1, bottom: 0.2 } },
       timeScale: {
@@ -224,6 +249,7 @@ export default function RowChart({
       try { chart.resize(el.clientWidth, el.clientHeight); } catch {}
     });
     ro.observe(el);
+    roRef.current = ro;
 
     return () => {
       try { ro.disconnect(); } catch {}
@@ -234,8 +260,9 @@ export default function RowChart({
       chartRef.current = null;
       seriesRef.current = null;
       volSeriesRef.current = null;
+      ema10Ref.current = ema20Ref.current = ema50Ref.current = null;
     };
-  }, [fullScreen, state.timeframe]);
+  }, [fullScreen]);
 
   /* ---------------------- TF / AZ format updates --------------------- */
   useEffect(() => {
@@ -248,7 +275,7 @@ export default function RowChart({
         secondsVisible: tf === "1m",
       },
       localization: { timeFormatter: (t) => phoenixTime(t, tf === "1d") },
-      layout: { fontSize: AXIS_FONT_SIZE }, // keep labels large after TF changes
+      layout: { fontSize: AXIS_FONT_SIZE },   // ⬅️ keep labels large after TF change
     });
     didFitOnceRef.current = false;
   }, [state.timeframe]);
@@ -260,6 +287,7 @@ export default function RowChart({
     async function seedSeries() {
       setState((s) => ({ ...s, disabled: true }));
       try {
+        // dynamic limit (2/4/6 months by TF)
         const limit = seedLimitFor(state.timeframe);
         const seed = await getOHLC(state.symbol, state.timeframe, limit);
         if (cancelled) return;
@@ -271,10 +299,12 @@ export default function RowChart({
         barsRef.current = asc;
         setBars(asc);
 
+        // seed price
         seriesRef.current?.setData(asc.map(b => ({
           time: b.time, open: b.open, high: b.high, low: b.low, close: b.close,
         })));
 
+        // seed volume (only respects state.volume)
         if (volSeriesRef.current) {
           if (state.volume) {
             volSeriesRef.current.applyOptions({ visible: true });
@@ -289,7 +319,7 @@ export default function RowChart({
           }
         }
 
-        // Fit once on fresh data (unless the user already moved)
+        // one-time fit so overlays land in view
         const chart = chartRef.current;
         if (chart && state.range === "ALL" && !didFitOnceRef.current && !userInteractedRef.current) {
           chart.timeScale().fitContent();
@@ -323,7 +353,6 @@ export default function RowChart({
         chartContainer: containerRef.current,
         timeframe: state.timeframe,
       }));
-      // If you also have a separate MoneyFlowOverlay, mount here as well.
       // reg(attachOverlay(MoneyFlowOverlay, {...}));
     }
 
@@ -523,16 +552,9 @@ export default function RowChart({
 
     if (!state.showEma || bars.length === 0) return;
 
-    const data10 = calcEMA(bars, 10);
-    const data20 = calcEMA(bars, 20);
-    const data50 = calcEMA(bars, 50);
-
-    const l10 = ensureLine(useRef(null), "#f59e0b");
-    const l20 = ensureLine(useRef(null), "#3b82f6");
-    const l50 = ensureLine(useRef(null), "#10b981");
-    l10.setData(data10); l10.applyOptions({ visible: state.ema10 });
-    l20.setData(data20); l20.applyOptions({ visible: state.ema20 });
-    l50.setData(data50); l50.applyOptions({ visible: state.ema50 });
+    if (state.ema10) { const l = ensureLine(ema10Ref, "#f59e0b"); l.setData(calcEMA(bars, 10)); l.applyOptions({ visible: true }); }
+    if (state.ema20) { const l = ensureLine(ema20Ref, "#3b82f6"); l.setData(calcEMA(bars, 20)); l.applyOptions({ visible: true }); }
+    if (state.ema50) { const l = ensureLine(ema50Ref, "#10b981"); l.setData(calcEMA(bars, 50)); l.applyOptions({ visible: true }); }
   }, [bars, state.showEma, state.ema10, state.ema20, state.ema50]);
 
   const handleControlsChange = (patch) => setState((s) => ({ ...s, ...patch }));
@@ -594,7 +616,7 @@ export default function RowChart({
     <div style={wrapperStyle}>
       <Controls
         symbols={symbols}
-        timeframes={TIMEFRAMES}
+        timeframes={timeframes}
         value={state}
         onChange={handleControlsChange}
         onRange={applyRange}
