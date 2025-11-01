@@ -1,28 +1,25 @@
 // src/lib/ohlcClient.js
-// Canonical OHLC client
+// Canonical OHLC client (compat-safe)
 //
-// Strategy:
-// 1) Try to fetch the requested timeframe directly with the full limit.
-// 2) If the server returns too few bars or errors, fall back to fetching
-//    1-minute history and aggregate locally to the target TF.
-//
-// This avoids the "1m cap ~1 month" problem while keeping the 1m path as a
-// safe fallback so charts still work if a TF isn't supported upstream.
+// Exports:
+//   - getOHLC(symbol, timeframe, limit) -> plain bars in UNIX SECONDS
+//   - fetchOHLCResilient({ symbol, timeframe, limit }) -> { source, bars }
+//   - subscribeStream(symbol, timeframe, onBar) -> live SSE bars (UNIX SECONDS)
 
 const BACKEND =
   (typeof window !== "undefined" && (window.__API_BASE__ || "")) ||
-  (typeof process !== "undefined" && process.env && process.env.REACT_APP_API_BASE) ||
-  (typeof process !== "undefined" && process.env && process.env.REACT_APP_API_URL) ||
+  process.env.REACT_APP_API_BASE ||
+  process.env.REACT_APP_API_URL ||
   "https://frye-market-backend-1.onrender.com";
 
 const STREAM_BASE =
   (typeof window !== "undefined" && (window.__STREAM_BASE__ || "")) ||
-  (typeof process !== "undefined" && process.env && process.env.REACT_APP_STREAM_BASE) ||
-  "";
+  process.env.REACT_APP_STREAM_BASE ||
+  ""; // e.g. https://frye-market-backend-2.onrender.com
 
 const API = (BACKEND || "").replace(/\/+$/, "");
 
-// ---- TF seconds
+// ---------------- utils ----------------
 const TF_SEC = {
   "1m": 60,
   "5m": 300,
@@ -34,7 +31,6 @@ const TF_SEC = {
   "1d": 86400,
 };
 
-// ---- utils
 const isMs = (t) => typeof t === "number" && t > 1e12;
 const toSec = (t) => (isMs(t) ? Math.floor(t / 1000) : t);
 
@@ -60,6 +56,7 @@ function normalizeBars(arr) {
     );
 }
 
+// Aggregate ascending 1m bars to target timeframe (seconds)
 function aggregateToTf(barsAsc, tfSec) {
   if (!Array.isArray(barsAsc) || !barsAsc.length || tfSec === 60) return barsAsc || [];
   const out = [];
@@ -83,8 +80,8 @@ function aggregateToTf(barsAsc, tfSec) {
         volume: Number(b.volume || 0),
       };
     } else {
-      if (b.high > cur.high) cur.high = b.high;
-      if (b.low  < cur.low ) cur.low  = b.low;
+      cur.high = Math.max(cur.high, b.high);
+      cur.low = Math.min(cur.low, b.low);
       cur.close = b.close;
       cur.volume = Number(cur.volume || 0) + Number(b.volume || 0);
     }
@@ -93,33 +90,37 @@ function aggregateToTf(barsAsc, tfSec) {
   return out;
 }
 
-// ---- direct TF fetch
+// --------------------------------------------------------------
+// Preferred: fetch DIRECT timeframe first (e.g., 10m, 1h, 4h, 1d)
+// Fallback:  aggregate from 1m if direct TF is unavailable/too short
+// --------------------------------------------------------------
 async function fetchDirectTF(sym, tf, limit) {
   const url = `${API}/api/v1/ohlc?symbol=${encodeURIComponent(sym)}&timeframe=${encodeURIComponent(tf)}&limit=${limit}`;
+  console.log("[getOHLC:directTF] →", url);
   const r = await fetch(url, { cache: "no-store" });
-  if (!r.ok) throw new Error(`directTF ${tf} ${r.status}`);
+  if (!r.ok) throw new Error(`OHLC(direct:${tf}) ${r.status}`);
   const data = await r.json();
   const bars = normalizeBars(Array.isArray(data) ? data : data?.bars || []);
   bars.sort((a, b) => a.time - b.time);
   return bars;
 }
 
-// ---- 1m aggregate fallback
 async function fetchFrom1mAgg(sym, tf, limit) {
   const tfSec = TF_SEC[tf] || 600;
   const needAgg = tfSec !== 60;
+  const MAX_1M_FETCH = 50000;       // server-side ceiling
+  const overshoot = 3;              // coverage for gaps
 
-  // Server-side ceiling for 1m; overshoot to cover gaps
-  const MAX_1M_FETCH = 50000;
-  const overshoot = 3;
   const need1mCount = Math.min(
     MAX_1M_FETCH,
     Math.max(needAgg ? Math.ceil((limit * tfSec) / 60) * overshoot : limit, 50)
   );
 
   const url = `${API}/api/v1/ohlc?symbol=${encodeURIComponent(sym)}&timeframe=1m&limit=${need1mCount}`;
+  console.log("[getOHLC:1m-agg] →", url, { need1mCount, tf, limit });
+
   const r = await fetch(url, { cache: "no-store" });
-  if (!r.ok) throw new Error(`1m ${r.status}`);
+  if (!r.ok) throw new Error(`OHLC(1m) ${r.status}`);
 
   const data = await r.json();
   const oneMin = normalizeBars(Array.isArray(data) ? data : data?.bars || []);
@@ -137,25 +138,23 @@ export async function getOHLC(symbol = "SPY", timeframe = "1m", limit = 1500) {
   const tf = String(timeframe || "1m");
   const tfSec = TF_SEC[tf] || 600;
 
-  // 1) Prefer direct timeframe (avoids 1m cap)
-  if (tf !== "1m") {
-    try {
-      const direct = await fetchDirectTF(sym, tf, limit);
-      // basic freshness & sufficiency checks
-      const last = direct[direct.length - 1];
-      const freshEnough = last ? (Date.now() / 1000 - last.time) <= 3 * tfSec : false;
-      const enoughBars = direct.length >= Math.min(limit * 0.9, limit - 10);
-      if (freshEnough || enoughBars) {
-        return direct.slice(-limit);
-      }
-      // else fall through to 1m
-    } catch {
-      // ignore and fallback
+  try {
+    // 1) Try DIRECT TF first — this is how we break the 1m server cap
+    const direct = await fetchDirectTF(sym, tf, limit);
+    // If server returned plenty (or exactly what we asked), use it.
+    if (direct.length >= Math.min(limit * 0.9, limit - 10)) {
+      console.log("[getOHLC] using direct TF bars:", direct.length);
+      return direct.slice(-limit);
     }
+    console.warn("[getOHLC] direct TF too short (", direct.length, "), falling back to 1m aggregation");
+  } catch (e) {
+    console.warn("[getOHLC] direct TF fetch failed, fallback to 1m:", e?.message || e);
   }
 
   // 2) Fallback: 1m → aggregate locally
-  return await fetchFrom1mAgg(sym, tf, limit);
+  const agg = await fetchFrom1mAgg(sym, tf, limit);
+  console.log("[getOHLC] using 1m→", tf, "bars:", agg.length);
+  return agg;
 }
 
 // ---------------- API: compat shim ----------------
@@ -176,10 +175,13 @@ export function subscribeStream(symbol, timeframe, onBar) {
     sym
   )}&tf=${encodeURIComponent(tf)}`;
 
+  console.log("[subscribeStream] →", url, { sym, tf });
+
   const es = new EventSource(url);
 
   es.onmessage = (ev) => {
     if (!ev?.data || ev.data === ":ping" || ev.data.trim() === "") return;
+
     try {
       const msg = JSON.parse(ev.data);
       if (msg?.type === "bar" && msg.bar) {
@@ -193,13 +195,18 @@ export function subscribeStream(symbol, timeframe, onBar) {
           volume: Number(b.volume ?? b.v ?? 0),
         };
         if (Number.isFinite(bar.time) && Number.isFinite(bar.open)) onBar(bar);
+      } else if (msg?.type === "diag") {
+        console.debug("[stream diag]", msg);
       }
     } catch {
-      // ignore non-JSON lines
+      if (process?.env?.NODE_ENV !== "production") {
+        console.debug("[subscribeStream] non-JSON line:", ev.data);
+      }
     }
   };
 
-  es.onerror = () => {
+  es.onerror = (e) => {
+    console.warn("[subscribeStream] error (closing)", e);
     try { es.close(); } catch {}
   };
 
