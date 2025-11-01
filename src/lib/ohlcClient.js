@@ -1,10 +1,13 @@
 // src/lib/ohlcClient.js
-// Canonical OHLC client (compat-safe)
+// Canonical OHLC client
 //
-// Exports:
-//   - getOHLC(symbol, timeframe, limit) -> plain bars in UNIX SECONDS
-//   - fetchOHLCResilient({ symbol, timeframe, limit }) -> { source, bars }
-//   - subscribeStream(symbol, timeframe, onBar) -> live SSE bars (UNIX SECONDS)
+// Strategy:
+// 1) Try to fetch the requested timeframe directly with the full limit.
+// 2) If the server returns too few bars or errors, fall back to fetching
+//    1-minute history and aggregate locally to the target TF.
+//
+// This avoids the "1m cap ~1 month" problem while keeping the 1m path as a
+// safe fallback so charts still work if a TF isn't supported upstream.
 
 const BACKEND =
   (typeof window !== "undefined" && (window.__API_BASE__ || "")) ||
@@ -15,11 +18,11 @@ const BACKEND =
 const STREAM_BASE =
   (typeof window !== "undefined" && (window.__STREAM_BASE__ || "")) ||
   (typeof process !== "undefined" && process.env && process.env.REACT_APP_STREAM_BASE) ||
-  ""; // e.g. https://frye-market-backend-2.onrender.com
+  "";
 
 const API = (BACKEND || "").replace(/\/+$/, "");
 
-// ---------------- utils ----------------
+// ---- TF seconds
 const TF_SEC = {
   "1m": 60,
   "5m": 300,
@@ -31,6 +34,7 @@ const TF_SEC = {
   "1d": 86400,
 };
 
+// ---- utils
 const isMs = (t) => typeof t === "number" && t > 1e12;
 const toSec = (t) => (isMs(t) ? Math.floor(t / 1000) : t);
 
@@ -56,7 +60,6 @@ function normalizeBars(arr) {
     );
 }
 
-// Aggregate ascending 1m bars to target timeframe (seconds)
 function aggregateToTf(barsAsc, tfSec) {
   if (!Array.isArray(barsAsc) || !barsAsc.length || tfSec === 60) return barsAsc || [];
   const out = [];
@@ -80,8 +83,8 @@ function aggregateToTf(barsAsc, tfSec) {
         volume: Number(b.volume || 0),
       };
     } else {
-      cur.high = Math.max(cur.high, b.high);
-      cur.low = Math.min(cur.low, b.low);
+      if (b.high > cur.high) cur.high = b.high;
+      if (b.low  < cur.low ) cur.low  = b.low;
       cur.close = b.close;
       cur.volume = Number(cur.volume || 0) + Number(b.volume || 0);
     }
@@ -90,8 +93,7 @@ function aggregateToTf(barsAsc, tfSec) {
   return out;
 }
 
-/* ---------- helpers: direct TF fetch, then 1m fallback ---------- */
-
+// ---- direct TF fetch
 async function fetchDirectTF(sym, tf, limit) {
   const url = `${API}/api/v1/ohlc?symbol=${encodeURIComponent(sym)}&timeframe=${encodeURIComponent(tf)}&limit=${limit}`;
   const r = await fetch(url, { cache: "no-store" });
@@ -102,11 +104,12 @@ async function fetchDirectTF(sym, tf, limit) {
   return bars;
 }
 
+// ---- 1m aggregate fallback
 async function fetchFrom1mAgg(sym, tf, limit) {
   const tfSec = TF_SEC[tf] || 600;
   const needAgg = tfSec !== 60;
 
-  // ceiling for 1m; overshoot to cover gaps
+  // Server-side ceiling for 1m; overshoot to cover gaps
   const MAX_1M_FETCH = 50000;
   const overshoot = 3;
   const need1mCount = Math.min(
@@ -132,16 +135,20 @@ async function fetchFrom1mAgg(sym, tf, limit) {
 export async function getOHLC(symbol = "SPY", timeframe = "1m", limit = 1500) {
   const sym = String(symbol || "SPY").toUpperCase();
   const tf = String(timeframe || "1m");
+  const tfSec = TF_SEC[tf] || 600;
 
-  // 1) Try DIRECT TF first for non-1m (this avoids the 50k 1m cap)
+  // 1) Prefer direct timeframe (avoids 1m cap)
   if (tf !== "1m") {
     try {
       const direct = await fetchDirectTF(sym, tf, limit);
-      // if we got most of what we asked for, use it
-      if (direct.length >= Math.min(limit * 0.9, limit - 10)) {
+      // basic freshness & sufficiency checks
+      const last = direct[direct.length - 1];
+      const freshEnough = last ? (Date.now() / 1000 - last.time) <= 3 * tfSec : false;
+      const enoughBars = direct.length >= Math.min(limit * 0.9, limit - 10);
+      if (freshEnough || enoughBars) {
         return direct.slice(-limit);
       }
-      // Otherwise, fall through to 1m aggregation
+      // else fall through to 1m
     } catch {
       // ignore and fallback
     }
@@ -154,7 +161,7 @@ export async function getOHLC(symbol = "SPY", timeframe = "1m", limit = 1500) {
 // ---------------- API: compat shim ----------------
 export async function fetchOHLCResilient({ symbol, timeframe, limit = 1500 }) {
   const bars = await getOHLC(symbol, timeframe, limit);
-  return { source: "api/v1/ohlc (direct-or-1m→tf client agg)", bars };
+  return { source: "api/v1/ohlc (direct or 1m→tf client agg)", bars };
 }
 
 // ---------------- Live SSE subscribe ----------------
@@ -201,5 +208,4 @@ export function subscribeStream(symbol, timeframe, onBar) {
   };
 }
 
-// Default export
 export default { getOHLC, fetchOHLCResilient, subscribeStream };
