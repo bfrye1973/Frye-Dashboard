@@ -1,5 +1,5 @@
 // src/pages/rows/RowChart/IndicatorsToolbar.jsx
-// v3.3 — Adds Shelves (1h + 10m) toggle
+// v3.4 — Adds Smart Money Zones (Wick & Candle) toggle + keeps Shelves (1h + 10m)
 
 import React from "react";
 
@@ -10,28 +10,43 @@ import React from "react";
  * - volume
  * - moneyFlow, luxSr, swingLiquidity
  * - smi1h
- * - shelvesFour   <-- NEW
+ * - shelvesFour
+ * - wickPaZones           <-- NEW (Smart Money Zones — Wick & Candle)
  * - onChange(patch), onReset()
  */
 export default function IndicatorsToolbar({
+  // EMA block
   showEma = true,
   ema10 = true,
   ema20 = true,
   ema50 = true,
 
+  // Volume
   volume = true,
 
+  // Overlays
   moneyFlow = false,
   luxSr = false,
   swingLiquidity = false,
+  shelvesFour = false,   // Shelves (1h + 10m)
+  wickPaZones = false,   // NEW — Smart Money Zones (Wick & Candle)
 
+  // Oscillators
   smi1h = false,
-  shelvesFour = false, // NEW
 
+  // Handlers
   onChange,
   onReset,
 }) {
-  const divider = <div style={{ height: 1, background: "#2b2b2b", margin: "10px 0" }} />;
+  const divider = (
+    <div
+      style={{
+        height: 1,
+        background: "#2b2b2b",
+        margin: "10px 0",
+      }}
+    />
+  );
 
   const wrap = (children) => (
     <div
@@ -171,11 +186,21 @@ export default function IndicatorsToolbar({
                   />{" "}
                   Shelves (1h + 10m) — 2×Blue/Yellow
                 </label>
+
+                {/* NEW: Smart Money Zones — Wick & Candle */}
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={!!wickPaZones}
+                    onChange={(e) => onChange?.({ wickPaZones: e.target.checked })}
+                  />{" "}
+                  Smart Money Zones (Wick &amp; Candle)
+                </label>
               </div>
 
               {divider}
 
-              {/* Oscillator */}
+              {/* Oscillators */}
               <div style={{ color: "#9ca3af", fontSize: 12, margin: "6px 0 4px" }}>Oscillators</div>
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                 <label>
