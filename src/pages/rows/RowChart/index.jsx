@@ -383,7 +383,14 @@ export default function RowChart({
         timeframe: state.timeframe,
       }));
     }
-
+    if (state.wickPaZones) {
+      reg(attachOverlay(createWickCandleZonesOverlay, {
+        chart: chartRef.current,
+        priceSeries: seriesRef.current,
+        chartContainer: containerRef.current,
+        timeframe: state.timeframe,
+      }));
+    }
     try { overlayInstancesRef.current.forEach(o => o?.seed?.(barsRef.current)); } catch {}
   }, [
     state.moneyFlow,
