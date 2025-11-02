@@ -19,6 +19,8 @@ import SessionShadingOverlay from "../../../components/overlays/SessionShadingOv
 import createSwingLiquidityOverlay from "../../../components/overlays/SwingLiquidityOverlay";
 import createSMI1hOverlay from "../../../components/overlays/SMI1hOverlay";
 import createFourShelvesOverlay from "../../../components/overlays/FourShelvesOverlay";
+import createWickCandleZonesOverlay from "../../../components/overlays/WickCandleZonesOverlay";
+
 
 /* ------------------------------ Config ------------------------------ */
 // Target history window (rough) used to compute how many bars to request
