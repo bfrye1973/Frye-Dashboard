@@ -142,7 +142,7 @@ function attachOverlay(Module, args) {
 export default function RowChart({
   defaultSymbol = "SPY",
   defaultTimeframe = "10m",
-  showDebug = false,
+  showDebug = true,
   fullScreen = false,
 }) {
   const containerRef = useRef(null);
@@ -435,18 +435,23 @@ export default function RowChart({
         bars10m: bars10mRef.current,
         bars1h:  bars1hRef.current,
         bars4h:  bars4hRef.current,
-      });
-      const smz = attachOverlay(createSmartMoneyZonesOverlay, {
-        chart: chartRef.current,
-        priceSeries: seriesRef.current,
-        chartContainer: containerRef.current,
-        timeframe: state.timeframe,
-      });
-      smz?.seed?.(payload);
-      reg(smz);
-      // Expose for quick debug (optional)
-      if (showDebug) { window.__smz = payload; }
-    }
+     });
+     if (showDebug) console.log("SMZ payload:",
+       payload?.zones?.length ?? 0,
+       payload?.gaps?.length ?? 0,
+       payload?.alerts?.length ?? 0
+     );
+     const smz = attachOverlay(createSmartMoneyZonesOverlay, {
+       chart: chartRef.current,
+       priceSeries: seriesRef.current,
+       chartContainer: containerRef.current,
+       timeframe: state.timeframe,
+     });
+     smz?.seed?.(payload);
+     reg(smz);
+     if (showDebug) window.__smz = payload; // optional
+   }
+
 
     try { overlayInstancesRef.current.forEach(o => o?.seed?.(barsRef.current)); } catch {}
   }, [
