@@ -1,9 +1,11 @@
 // src/pages/rows/RowChart/index.jsx
 // ============================================================
 // RowChart — seed + live aggregation + indicators & overlays
+//   • NEW: Smart-Money Zones v1.1 (wick + candle, 4h controller, gap magnets)
 //   • NEW: Four Shelves overlay (1h Blue/Yellow + 10m Blue/Yellow)
 //   • Fonts 2× larger on price/time axes (layout.fontSize)
 //   • Dynamic seed limit (~6 months of data per timeframe)
+//   • Multi-TF snapshots for engine (10m / 1h / 4h, last 10 days)
 // ============================================================
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
@@ -19,8 +21,10 @@ import SessionShadingOverlay from "../../../components/overlays/SessionShadingOv
 import createSwingLiquidityOverlay from "../../../components/overlays/SwingLiquidityOverlay";
 import createSMI1hOverlay from "../../../components/overlays/SMI1hOverlay";
 import createFourShelvesOverlay from "../../../components/overlays/FourShelvesOverlay";
-import createWickCandleZonesOverlay from "../../../components/overlays/WickCandleZonesOverlay";
 
+// NEW: Smart-Money Zones engine + overlay
+import { computeSmartMoneyZones } from "../../../indicators/smz/engine";
+import createSmartMoneyZonesOverlay from "../../../components/overlays/SmartMoneyZonesOverlay";
 
 /* ------------------------------ Config ------------------------------ */
 // Target history window (rough) used to compute how many bars to request
@@ -111,7 +115,7 @@ function makeTickFormatter(tf) {
 
 /* ------------------------------ Helpers ----------------------------- */
 function calcEMA(barsAsc, length) {
-  if (!Array.isArray(barsAsc) || !barsAsc.length || !Number.isFinite(length) || length <= 1) return [];
+  if (!Array.isArray(barsAsc) || barsAsc.length === 0 || !Number.isFinite(length) || length <= 1) return [];
   const k = 2 / (length + 1);
   const out = [];
   let ema;
@@ -155,6 +159,11 @@ export default function RowChart({
   const [bars, setBars] = useState([]);
   const barsRef = useRef([]);
 
+  // NEW: multi-TF snapshots for the SMZ engine (10-day scope)
+  const bars10mRef = useRef([]);
+  const bars1hRef  = useRef([]);
+  const bars4hRef  = useRef([]);
+
   const didFitOnceRef = useRef(false);
   const userInteractedRef = useRef(false);
 
@@ -178,6 +187,9 @@ export default function RowChart({
     smi1h: false,
 
     shelvesFour: false,   // Four Shelves overlay toggle
+
+    // NEW: Smart-Money Zones (wick + candle)
+    wickPaZones: false,
   });
 
   // Debug hook
@@ -204,7 +216,7 @@ export default function RowChart({
       layout: {
         background: { color: DEFAULTS.bg },
         textColor: "#d1d5db",
-        fontSize: AXIS_FONT_SIZE,           // ⬅️ 2× axis/time label font
+        fontSize: AXIS_FONT_SIZE, // ⬅️ 2× axis/time label font
       },
       grid: { vertLines: { color: DEFAULTS.gridColor }, horzLines: { color: DEFAULTS.gridColor } },
       rightPriceScale: { borderColor: DEFAULTS.border, scaleMargins: { top: 0.1, bottom: 0.2 } },
@@ -267,7 +279,7 @@ export default function RowChart({
         secondsVisible: tf === "1m",
       },
       localization: { timeFormatter: (t) => phoenixTime(t, tf === "1d") },
-      layout: { fontSize: AXIS_FONT_SIZE },   // ⬅️ keep labels large after TF change
+      layout: { fontSize: AXIS_FONT_SIZE }, // ⬅️ keep labels large after TF change
     });
     didFitOnceRef.current = false;
   }, [state.timeframe]);
@@ -279,7 +291,7 @@ export default function RowChart({
     async function seedSeries() {
       setState((s) => ({ ...s, disabled: true }));
       try {
-        // dynamic limit for ~6 months
+        // dynamic limit for selected TF (~6 months)
         const limit = seedLimitFor(state.timeframe);
         const seed = await getOHLC(state.symbol, state.timeframe, limit);
         if (cancelled) return;
@@ -328,6 +340,39 @@ export default function RowChart({
     seedSeries();
     return () => { cancelled = true; };
   }, [state.symbol, state.timeframe, state.range, state.volume]);
+
+  /* ================== Effect A2: fetch multi-TF snapshots (10 days) ================== */
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadSnapshots() {
+      try {
+        const [d10, d1h, d4h] = await Promise.all([
+          getOHLC(state.symbol, "10m", 10 * barsPerDay("10m")), // ~10 days
+          getOHLC(state.symbol, "1h",  10 * barsPerDay("1h")),
+          getOHLC(state.symbol, "4h",  10 * barsPerDay("4h")),
+        ]);
+
+        if (cancelled) return;
+
+        const norm = (arr) => (Array.isArray(arr) ? arr : [])
+          .map(b => ({ ...b, time: b.time > 1e12 ? Math.floor(b.time / 1000) : b.time }))
+          .sort((a, b) => a.time - b.time);
+
+        bars10mRef.current = norm(d10);
+        bars1hRef.current  = norm(d1h);
+        bars4hRef.current  = norm(d4h);
+      } catch (e) {
+        console.warn("[RowChart] loadSnapshots error:", e);
+        bars10mRef.current = [];
+        bars1hRef.current  = [];
+        bars4hRef.current  = [];
+      }
+    }
+
+    loadSnapshots();
+    return () => { cancelled = true; };
+  }, [state.symbol]); // refetch when symbol changes
 
   /* =================== Effect B: Attach/Seed Overlays =================== */
   useEffect(() => {
@@ -383,14 +428,26 @@ export default function RowChart({
         timeframe: state.timeframe,
       }));
     }
+
+    // NEW: Smart-Money Zones — run engine and seed overlay
     if (state.wickPaZones) {
-      reg(attachOverlay(createWickCandleZonesOverlay, {
+      const payload = computeSmartMoneyZones({
+        bars10m: bars10mRef.current,
+        bars1h:  bars1hRef.current,
+        bars4h:  bars4hRef.current,
+      });
+      const smz = attachOverlay(createSmartMoneyZonesOverlay, {
         chart: chartRef.current,
         priceSeries: seriesRef.current,
         chartContainer: containerRef.current,
         timeframe: state.timeframe,
-      }));
+      });
+      smz?.seed?.(payload);
+      reg(smz);
+      // Expose for quick debug (optional)
+      if (showDebug) { window.__smz = payload; }
     }
+
     try { overlayInstancesRef.current.forEach(o => o?.seed?.(barsRef.current)); } catch {}
   }, [
     state.moneyFlow,
@@ -398,6 +455,7 @@ export default function RowChart({
     state.swingLiquidity,
     state.shelvesFour,
     state.smi1h,
+    state.wickPaZones,   // NEW
     state.timeframe,
     bars
   ]);
@@ -588,6 +646,8 @@ export default function RowChart({
     moneyFlow: state.moneyFlow, luxSr: state.luxSr, swingLiquidity: state.swingLiquidity,
     smi1h: state.smi1h,
     shelvesFour: state.shelvesFour,
+    // NEW: expose Smart-Money toggle to toolbar
+    wickPaZones: state.wickPaZones,
     onChange: handleControlsChange,
     onReset: () =>
       setState((s) => ({
@@ -595,7 +655,7 @@ export default function RowChart({
         showEma: true, ema10: true, ema20: true, ema50: true,
         volume: true,
         moneyFlow: false, luxSr: false, swingLiquidity: false,
-        smi1h: false, shelvesFour: false,
+        smi1h: false, shelvesFour: false, wickPaZones: false,
       })),
   };
 
