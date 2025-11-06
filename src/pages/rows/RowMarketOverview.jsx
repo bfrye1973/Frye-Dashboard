@@ -1,6 +1,7 @@
 import React from "react";
 import { useDashboardPoll } from "../../lib/dashboardApiSafe";
 import { LastUpdated } from "../../components/LastUpdated";
+import PulseIcon10m from "../../components/meter/PulseIcon10m";
 import {
   MarketMeterIntradayLegend,
   MarketMeterDailyLegend,
