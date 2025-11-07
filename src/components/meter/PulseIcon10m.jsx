@@ -1,125 +1,103 @@
-import React, { useMemo } from "react";
+import React from "react";
 
-type PulseData = {
-  signal?: number;
-  pulseDelta?: number;
-  offenseTilt?: number;
-  defensiveTilt?: number;
-  risingPct?: number;
-};
-
-type Props = {
-  /** Root intraday JSON already loaded at this level */
-  data: any;
-  /** Optional className to match your header row */
-  className?: string;
-  /** Compact label right of the icon (default true) */
-  showLabel?: boolean;
-  /** Override thresholds if needed */
-  thresholds?: { green: number; red: number };
-};
-
-/** Pulls from pulse10m or mirrors in metrics */
-function selectPulse10m(root: any): PulseData {
-  const p = root?.pulse10m ?? {};
-  const m = root?.metrics ?? {};
+/**
+ * PulseIcon10m
+ * Renders a small bar-chart icon + Signal number for the 10-minute Sector Rotation Pulse.
+ * Reads from:
+ *   - data.pulse10m.{signal,pulseDelta,offenseTilt,defensiveTilt,risingPct}
+ *   - falls back to data.metrics.pulse10m_* mirrors
+ */
+export default function PulseIcon10m({ data }) {
+  const p = (data && data.pulse10m) || {};
+  const m = (data && data.metrics) || {};
 
   const signal =
     typeof p.signal === "number"
       ? p.signal
       : typeof m.pulse10m_signal === "number"
       ? m.pulse10m_signal
-      : undefined;
+      : null;
 
   const pulseDelta =
-    typeof p.pulseDelta === "number" ? p.pulseDelta : undefined;
+    typeof p.pulseDelta === "number" ? p.pulseDelta : null;
 
   const offenseTilt =
     typeof p.offenseTilt === "number"
       ? p.offenseTilt
       : typeof m.pulse10m_offenseTilt === "number"
       ? m.pulse10m_offenseTilt
-      : undefined;
+      : null;
 
   const defensiveTilt =
     typeof p.defensiveTilt === "number"
       ? p.defensiveTilt
       : typeof m.pulse10m_defenseTilt === "number"
       ? m.pulse10m_defenseTilt
-      : undefined;
+      : null;
 
   const risingPct =
     typeof p.risingPct === "number"
       ? p.risingPct
       : typeof m.pulse10m_risingPct === "number"
       ? m.pulse10m_risingPct
-      : undefined;
+      : null;
 
-  return { signal, pulseDelta, offenseTilt, defensiveTilt, risingPct };
-}
+  const band = (s) => {
+    if (s == null || Number.isNaN(s)) return "muted";
+    return s >= 60 ? "ok" : s < 40 ? "red" : "warn";
+  };
 
-/** map 0..100 signal to ok / warn / red */
-function bandSignal(v?: number, th={green:60, red:40}): "ok"|"warn"|"red"|"muted" {
-  if (typeof v !== "number") return "muted";
-  if (v >= th.green) return "ok";
-  if (v < th.red) return "red";
-  return "warn";
-}
+  const fillColor = {
+    ok:   "#19c37d",
+    warn: "#e5b454",
+    red:  "#ff5a5a",
+    muted:"#93a1b2",
+  }[band(signal)];
 
-/** Simple inline bar-chart glyph (SVG) with band-colored fill */
-function BarChartIcon({ band="muted" }:{band:"ok"|"warn"|"red"|"muted"}) {
-  const fill =
-    band === "ok" ? "#19c37d" :
-    band === "red" ? "#ff5a5a" :
-    band === "warn" ? "#e5b454" : "#93a1b2";
-  return (
-    <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden focusable="false">
-      <rect x="1"  y="9"  width="3" height="6" rx="1" fill={fill} />
-      <rect x="6"  y="6"  width="3" height="9" rx="1" fill={fill} opacity="0.88" />
-      <rect x="11" y="3"  width="3" height="12" rx="1" fill={fill} opacity="0.76" />
-    </svg>
-  );
-}
+  const container = {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 6,
+    padding: "2px 6px",
+    borderRadius: 8,
+    border: "1px solid rgba(120,150,190,.25)",
+    background: "rgba(8,12,20,.55)",
+    color: "#e5e7eb",
+    lineHeight: 1.1,
+  };
 
-export default function PulseIcon10m({
-  data,
-  className,
-  showLabel = true,
-  thresholds = { green: 60, red: 40 },
-}: Props) {
-  const pulse = useMemo(() => selectPulse10m(data), [data]);
-  const band = bandSignal(pulse.signal, thresholds);
+  const valStyle = {
+    fontWeight: 700,
+    fontSize: 12,
+    fontVariantNumeric: "tabular-nums"
+  };
 
-  // tiny arrow for delta if available
-  const delta = typeof pulse.pulseDelta === "number" ? pulse.pulseDelta : undefined;
-  const deltaTxt =
-    typeof delta === "number"
-      ? (delta > 0 ? `+${delta.toFixed(1)}` : `${delta.toFixed(1)}`)
-      : undefined;
+  const lblStyle = {
+    fontSize: 10,
+    opacity: 0.85
+  };
 
   const title =
-    `Pulse 10m • Signal: ${pulse.signal ?? "—"}`
-    + (typeof pulse.risingPct === "number" ? ` • Rising: ${pulse.risingPct.toFixed(1)}%` : "")
-    + (typeof pulse.offenseTilt === "number" ? ` • Off: ${pulse.offenseTilt.toFixed(1)}` : "")
-    + (typeof pulse.defensiveTilt === "number" ? ` • Def: ${pulse.defensiveTilt.toFixed(1)}` : "")
-    + (typeof delta === "number" ? ` • Δ: ${deltaTxt}` : "");
-
-  const cls = `mmPulse ${className ?? ""} mmPulse--${band}`;
+    `Pulse 10m • Signal: ${signal ?? "—"}`
+    + (risingPct != null ? ` • Rising: ${risingPct}%` : "")
+    + (offenseTilt != null ? ` • Off: ${offenseTilt}` : "")
+    + (defensiveTilt != null ? ` • Def: ${defensiveTilt}` : "")
+    + (pulseDelta != null ? ` • Δ: ${(pulseDelta > 0 ? "+" : "") + pulseDelta.toFixed(1)}` : "");
 
   return (
-    <div className={cls} title={title}>
-      <div className="mmPulse__icon"><BarChartIcon band={band}/></div>
-      <div className="mmPulse__text">
-        <span className="mmPulse__val">
-          {typeof pulse.signal === "number" ? pulse.signal.toFixed(1) : "—"}
-        </span>
-        {showLabel && <span className="mmPulse__lbl">Pulse</span>}
+    <div style={container} title={title}>
+      {/* bar-chart glyph */}
+      <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden>
+        <rect x="1"  y="9" width="3" height="6" rx="1" fill={fillColor} />
+        <rect x="6"  y="6" width="3" height="9" rx="1" fill={fillColor} opacity=".9" />
+        <rect x="11" y="3" width="3" height="12" rx="1" fill={fillColor} opacity=".8" />
+      </svg>
+
+      {/* value + label */}
+      <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-start" }}>
+        <span style={valStyle}>{signal != null ? signal.toFixed(1) : "—"}</span>
+        <span style={lblStyle}>Pulse</span>
       </div>
-      {typeof delta === "number" && (
-        <div className={`mmPulse__delta ${delta > 0 ? "up" : delta < 0 ? "down" : "flat"}`}>
-          {deltaTxt}
-        </div>
-      )}
     </div>
   );
 }
