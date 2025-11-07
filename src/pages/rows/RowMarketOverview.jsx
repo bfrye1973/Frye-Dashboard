@@ -146,7 +146,6 @@ export default function RowMarketOverview(){
   /* ---------- 1h strip ---------- */
   const breadth1 = num(m1h.breadth_1h_pct);
   const mom1     = num(m1h.momentum_combo_1h_pct ?? m1h.momentum_1h_pct ?? m1h.momentum_pct);
-  // prefer explicit expansion percent; fallback to computed 100 - PSI if only tightness is supplied
   const sq1 = num(
     m1h.squeeze_1h_pct ??
     m1h.squeeze_expansion_pct ??
@@ -206,8 +205,13 @@ export default function RowMarketOverview(){
             <Stoplight label="Sector Dir" value={rising10}  tone={toneForPct(rising10)} />
             <Stoplight label="Risk-On"    value={risk10}    tone={toneForPct(risk10)} />
           </div>
-          <div style={{ color:"#9ca3af", fontSize:12 }}>
-            Last 10-min: <strong>{fmtIso(ts10)}</strong> &nbsp;|&nbsp; Δ5m updated: <strong>{fmtIso(deltaTs) || "—"}</strong>
+
+          {/* timestamps + Pulse icon to the RIGHT */}
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", color:"#9ca3af", fontSize:12 }}>
+            <div>
+              Last 10-min: <strong>{fmtIso(ts10)}</strong> &nbsp;|&nbsp; Δ5m updated: <strong>{fmtIso(deltaTs) || "—"}</strong>
+            </div>
+            <PulseIcon10m data={d10} />
           </div>
         </div>
 
