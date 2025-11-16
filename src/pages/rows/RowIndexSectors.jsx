@@ -8,6 +8,8 @@ const PILLS_URL     = (process.env.REACT_APP_PILLS_URL     || "https://frye-mark
 const INTRADAY_URL  = (process.env.REACT_APP_INTRADAY_URL  || "https://frye-market-backend-1.onrender.com/live/intraday").replace(/\/+$/,"");
 const HOURLY_URL    = (process.env.REACT_APP_HOURLY_URL    || "https://frye-market-backend-1.onrender.com/live/hourly").replace(/\/+$/,"");
 const EOD_URL       = (process.env.REACT_APP_EOD_URL       || "https://frye-market-backend-1.onrender.com/live/eod").replace(/\/+$/,"");
+/* NEW: enhanced 10m sectorCards API */
+const SECTORCARDS_10M_URL = (process.env.REACT_APP_SECTORCARDS_10M_URL || "https://frye-market-backend-1.onrender.com/api/sectorcards-10m").replace(/\/+$/,"");
 
 /* ------------------------------- helpers ------------------------------- */
 const norm = (s="") => s.trim().toLowerCase();
@@ -102,17 +104,45 @@ export default function RowIndexSectors() {
 
     async function loadCards() {
       try {
-        const base = cardsSource === "10m" ? INTRADAY_URL : cardsSource === "1h" ? HOURLY_URL : EOD_URL;
-        const u = base + (base.includes("?") ? "&" : "?") + "t=" + Date.now();
-        const j = await fetchJSON(u, { signal: ctrl.signal });
+        let ts = null;
+        let arr = [];
+
+        if (cardsSource === "10m") {
+          // 1) Try enhanced 10m API
+          const apiBase = SECTORCARDS_10M_URL;
+          const apiUrl = apiBase + (apiBase.includes("?") ? "&" : "?") + "t=" + Date.now();
+          let api = null;
+          try {
+            api = await fetchJSON(apiUrl, { signal: ctrl.signal });
+          } catch (e) {
+            console.warn("[RowIndexSectors] sectorcards-10m API error:", e);
+          }
+
+          if (api && api.ok && Array.isArray(api.sectorCards)) {
+            ts  = api.updated_at || null;
+            arr = api.sectorCards.slice();
+          } else {
+            // 2) Fallback to /live/intraday
+            const base = INTRADAY_URL;
+            const u = base + (base.includes("?") ? "&" : "?") + "t=" + Date.now();
+            const j = await fetchJSON(u, { signal: ctrl.signal });
+            ts = j?.sectorsUpdatedAt || j?.updated_at || null;
+            arr = Array.isArray(j?.sectorCards) ? j.sectorCards.slice() : [];
+            if (!arr.length && Array.isArray(j?.sectors)) arr = j.sectors.slice();
+          }
+        } else {
+          // 1h or EOD — unchanged
+          const base = cardsSource === "1h" ? HOURLY_URL : EOD_URL;
+          const u = base + (base.includes("?") ? "&" : "?") + "t=" + Date.now();
+          const j = await fetchJSON(u, { signal: ctrl.signal });
+          ts = j?.sectorsUpdatedAt || j?.updated_at || null;
+          arr = Array.isArray(j?.sectorCards) ? j.sectorCards.slice() : [];
+          if (!arr.length && Array.isArray(j?.sectors)) arr = j.sectors.slice();
+        }
+
         if (stop) return;
 
-        const ts = j?.sectorsUpdatedAt || j?.updated_at || null;
         setCardsTs(ts);
-
-        // Cards block can live at sectorCards or (rarely) sectors
-        let arr = Array.isArray(j?.sectorCards) ? j.sectorCards.slice() : [];
-        if (!arr.length && Array.isArray(j?.sectors)) arr = j.sectors.slice();
 
         // Fallback: derive outlook if missing
         const withOutlooks = arr.map(c => {
