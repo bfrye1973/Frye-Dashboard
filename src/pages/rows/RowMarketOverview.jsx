@@ -26,10 +26,15 @@ const toneForBreadth   = toneForPct;
 const toneForMomentum  = toneForPct;
 const toneForLiquidity = (v)=> !Number.isFinite(v) ? "info" : v>=60 ? "ok" : v>=40 ? "warn" : "danger";
 const toneForVol       = (v)=> !Number.isFinite(v) ? "info" : v>60 ? "danger" : v>30 ? "warn" : "ok";
-// 10m squeeze is PSI (higher=tighter/worse)
-const toneForSqueeze10 = (v)=> !Number.isFinite(v) ? "info" : v>=85 ? "danger" : v>=65 ? "warn" : v>=35 ? "warn" : "ok";
-// 1h squeeze is Expansion% (higher=better)
+
+/**
+ * IMPORTANT CHANGE:
+ * 10m squeeze now uses `metrics.squeeze_pct` = expansion% (higher = better),
+ * so tone logic matches the 1h version (high = ok, low = danger).
+ */
+const toneForSqueeze10 = (v)=> !Number.isFinite(v) ? "info" : v>=65 ? "ok" : v>=35 ? "warn" : "danger";
 const toneForSqueeze1h = (v)=> !Number.isFinite(v) ? "info" : v>=65 ? "ok" : v>=35 ? "warn" : "danger";
+
 const toneForDailyTrend = (s)=> !Number.isFinite(s) ? "info" : s>5 ? "ok" : s>=-5 ? "warn" : "danger";
 const toneForVolBand = (b)=> b==="high" ? "danger" : b==="elevated" ? "warn" : b ? "ok" : "info";
 const toneForLiqBand = (b)=> b==="good" ? "ok" : b==="normal" ? "warn" : b ? "danger" : "info";
@@ -105,9 +110,21 @@ export default function RowMarketOverview(){
     let stop=false;
     async function pull(){
       try {
-        if (INTRADAY_URL){ const r=await fetch(`${INTRADAY_URL}?t=${Date.now()}`,{cache:"no-store"}); const j=await r.json(); if(!stop) setLive10(j); }
-        if (HOURLY_URL){  const r=await fetch(`${HOURLY_URL}?t=${Date.now()}`,{cache:"no-store"});   const j=await r.json(); if(!stop) setLive1h(j); }
-        if (EOD_URL){     const r=await fetch(`${EOD_URL}?t=${Date.now()}`,{cache:"no-store"});      const j=await r.json(); if(!stop) setLiveEOD(j); }
+        if (INTRADAY_URL){
+          const r=await fetch(`${INTRADAY_URL}?t=${Date.now()}`,{cache:"no-store"});
+          const j=await r.json();
+          if(!stop) setLive10(j);
+        }
+        if (HOURLY_URL){
+          const r=await fetch(`${HOURLY_URL}?t=${Date.now()}`,{cache:"no-store"});
+          const j=await r.json();
+          if(!stop) setLive1h(j);
+        }
+        if (EOD_URL){
+          const r=await fetch(`${EOD_URL}?t=${Date.now()}`,{cache:"no-store"});
+          const j=await r.json();
+          if(!stop) setLiveEOD(j);
+        }
       } catch {}
     }
     pull();
@@ -121,6 +138,7 @@ export default function RowMarketOverview(){
   const chosen = newer(live10, polled);
   const d10    = chosen || {};
   const m10    = d10.metrics || {};
+  const eng10  = (d10.engineLights || {})["10m"] || {};
   const i10    = d10.intraday || {};
   const ts10   = d10.updated_at;
 
@@ -133,15 +151,17 @@ export default function RowMarketOverview(){
   const tsEOD  = dd.updated_at;
 
   /* ---------- 10m strip ---------- */
-  const breadth10 = num(m10.breadth_10m_pct ?? m10.breadth_pct);
-  const mom10     = num(m10.momentum_combo_10m_pct ?? m10.momentum_10m_pct ?? m10.momentum_pct);
-  const sq10      = num(m10.squeeze_intraday_pct ?? m10.squeeze_pct ?? m10.squeeze_psi_10m_pct);
-  const liq10     = num(m10.liquidity_psi ?? m10.liquidity_pct);
+  // Use new metric keys confirmed by Market Meter teammate
+  const breadth10 = num(m10.breadth_10m_pct);
+  const mom10     = num(m10.momentum_10m_pct ?? m10.momentum_pct);
+  const sq10      = num(m10.squeeze_pct ?? m10.squeeze_psi_10m_pct);
+  const liq10     = num(m10.liquidity_psi);
   const vol10     = num(m10.volatility_pct);
+
   const rising10  = num(i10?.sectorDirection10m?.risingPct);
-  const risk10    = num(i10?.riskOn10m?.riskOnPct);
-  const overall10 = num(i10?.overall10m?.score);
-  const state10   = i10?.overall10m?.state || null;
+  const risk10    = num(m10.riskOn_10m_pct ?? i10?.riskOn10m?.riskOnPct);
+  const overall10 = num(eng10.score ?? i10?.overall10m?.score);
+  const state10   = eng10.state ?? i10?.overall10m?.state || null;
 
   /* ---------- 1h strip ---------- */
   const breadth1 = num(m1h.breadth_1h_pct);
@@ -261,18 +281,9 @@ export default function RowMarketOverview(){
         >
           <div
             onClick={(e)=>e.stopPropagation()}
-            style={{ width:"min(880px,92vw)", background:"#0b0b0c", border:"1px solid #2b2b2b", borderRadius:12, padding:16, boxShadow:"0 10px 30px rgba(0,0,0,0.35)" }}
+            style={{ width:"min(880px,92vw)", background:"#0b0b0c", border:"1px solid #2b2b2b", borderRadius:12, padding:16 }}
           >
-            <MarketMeterIntradayLegend />
-            <MarketMeterDailyLegend />
-            <div style={{ display:"flex", justifyContent:"flex-end", marginTop:12 }}>
-              <button
-                onClick={()=>setLegendOpen(null)}
-                style={{ background:"#eab308", color:"#111827", border:"none", borderRadius:8, padding:"8px 12px", fontWeight:700, cursor:"pointer" }}
-              >
-                Close
-              </button>
-            </div>
+            {legendOpen === "intraday" ? <MarketMeterIntradayLegend /> : <MarketMeterDailyLegend />}
           </div>
         </div>
       )}
