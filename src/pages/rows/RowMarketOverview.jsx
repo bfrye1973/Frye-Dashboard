@@ -28,9 +28,7 @@ const toneForLiquidity = (v)=> !Number.isFinite(v) ? "info" : v>=60 ? "ok" : v>=
 const toneForVol       = (v)=> !Number.isFinite(v) ? "info" : v>60 ? "danger" : v>30 ? "warn" : "ok";
 
 /**
- * IMPORTANT CHANGE:
- * 10m squeeze now uses `metrics.squeeze_pct` = expansion% (higher = better),
- * so tone logic matches the 1h version (high = ok, low = danger).
+ * 10m & 1h squeeze now use expansion % (higher = better)
  */
 const toneForSqueeze10 = (v)=> !Number.isFinite(v) ? "info" : v>=65 ? "ok" : v>=35 ? "warn" : "danger";
 const toneForSqueeze1h = (v)=> !Number.isFinite(v) ? "info" : v>=65 ? "ok" : v>=35 ? "warn" : "danger";
@@ -151,7 +149,7 @@ export default function RowMarketOverview(){
   const tsEOD  = dd.updated_at;
 
   /* ---------- 10m strip ---------- */
-  // Use new metric keys confirmed by Market Meter teammate
+  // New metrics from teammate’s contract
   const breadth10 = num(m10.breadth_10m_pct);
   const mom10     = num(m10.momentum_10m_pct ?? m10.momentum_pct);
   const sq10      = num(m10.squeeze_pct ?? m10.squeeze_psi_10m_pct);
@@ -159,21 +157,37 @@ export default function RowMarketOverview(){
   const vol10     = num(m10.volatility_pct);
 
   const rising10  = num(i10?.sectorDirection10m?.risingPct);
-  const risk10    = num(m10.riskOn_10m_pct ?? i10?.riskOn10m?.riskOnPct);
-  const overall10 = num(eng10.score ?? i10?.overall10m?.score);
+
+  let risk10 = num(m10.riskOn_10m_pct);
+  if (!Number.isFinite(risk10)) {
+    risk10 = num(i10?.riskOn10m?.riskOnPct);
+  }
+
+  let overall10 = num(eng10.score);
+  if (!Number.isFinite(overall10)) {
+    overall10 = num(i10?.overall10m?.score);
+  }
   const state10   = eng10.state ?? i10?.overall10m?.state || null;
 
   /* ---------- 1h strip ---------- */
   const breadth1 = num(m1h.breadth_1h_pct);
-  const mom1     = num(m1h.momentum_combo_1h_pct ?? m1h.momentum_1h_pct ?? m1h.momentum_pct);
-  const sq1 = num(
-    m1h.squeeze_1h_pct ??
-    m1h.squeeze_expansion_pct ??
-    (Number.isFinite(m1h.squeeze_psi_1h_pct) ? 100 - m1h.squeeze_psi_1h_pct : NaN) ??
-    (Number.isFinite(m1h.squeeze_psi_1h)     ? 100 - m1h.squeeze_psi_1h     : NaN)
-  );
+  const mom1     = num(m1h.momentum_combo_1h_pct || m1h.momentum_1h_pct || m1h.momentum_pct);
+
+  // safer fallback without nullish coalescing
+  let rawSq1 = NaN;
+  if (Number.isFinite(m1h.squeeze_1h_pct)) {
+    rawSq1 = m1h.squeeze_1h_pct;
+  } else if (Number.isFinite(m1h.squeeze_expansion_pct)) {
+    rawSq1 = m1h.squeeze_expansion_pct;
+  } else if (Number.isFinite(m1h.squeeze_psi_1h_pct)) {
+    rawSq1 = 100 - m1h.squeeze_psi_1h_pct;
+  } else if (Number.isFinite(m1h.squeeze_psi_1h)) {
+    rawSq1 = 100 - m1h.squeeze_psi_1h;
+  }
+  const sq1 = num(rawSq1);
+
   const liq1     = num(m1h.liquidity_1h);
-  const vol1     = num(m1h.volatility_1h_scaled ?? m1h.volatility_1h_pct);
+  const vol1     = num(m1h.volatility_1h_scaled || m1h.volatility_1h_pct);
   const rising1  = num(h1?.sectorDirection1h?.risingPct);
   const risk1    = num(h1?.riskOn1h?.riskOnPct);
   const overall1 = num(h1?.overall1h?.score);
@@ -284,6 +298,14 @@ export default function RowMarketOverview(){
             style={{ width:"min(880px,92vw)", background:"#0b0b0c", border:"1px solid #2b2b2b", borderRadius:12, padding:16 }}
           >
             {legendOpen === "intraday" ? <MarketMeterIntradayLegend /> : <MarketMeterDailyLegend />}
+            <div style={{ display:"flex", justifyContent:"flex-end", marginTop:12 }}>
+              <button
+                onClick={()=>setLegendOpen(null)}
+                style={{ background:"#eab308", color:"#111827", border:"none", borderRadius:8, padding:"8px 12px", fontWeight:700, cursor:"pointer" }}
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}
