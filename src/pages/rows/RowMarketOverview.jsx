@@ -1,3 +1,6 @@
+// src/pages/rows/RowMarketOverview.jsx
+// Updated: wired to new 10m metrics + engineLights["10m"], no nullish-coalescing
+
 import React from "react";
 import { useDashboardPoll } from "../../lib/dashboardApiSafe";
 import { LastUpdated } from "../../components/LastUpdated";
@@ -17,8 +20,13 @@ const SANDBOX_URL  = process.env.REACT_APP_INTRADAY_SANDBOX_URL || "";
 const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, Number(n)));
 const num   = (v) => { const n = Number(v); return Number.isFinite(n) ? n : NaN; };
 const fmtIso = (ts) => { try { return new Date(ts).toLocaleString(); } catch { return ts; } };
-const tsOf   = (x)  => (x?.updated_at || x?.ts || null);
-const newer  = (a,b)=>{ const ta=tsOf(a),tb=tsOf(b); if(!ta) return b; if(!tb) return a; return new Date(ta).getTime() >= new Date(tb).getTime() ? a : b; };
+const tsOf   = (x)  => (x && (x.updated_at || x.ts)) || null;
+const newer  = (a,b)=>{
+  const ta=tsOf(a), tb=tsOf(b);
+  if(!ta) return b;
+  if(!tb) return a;
+  return new Date(ta).getTime() >= new Date(tb).getTime() ? a : b;
+};
 
 /* ------------------- Tone helpers ------------------- */
 const toneForPct  = (v)=> !Number.isFinite(v) ? "info" : v>=60 ? "ok" : v>=45 ? "warn" : "danger";
@@ -27,9 +35,7 @@ const toneForMomentum  = toneForPct;
 const toneForLiquidity = (v)=> !Number.isFinite(v) ? "info" : v>=60 ? "ok" : v>=40 ? "warn" : "danger";
 const toneForVol       = (v)=> !Number.isFinite(v) ? "info" : v>60 ? "danger" : v>30 ? "warn" : "ok";
 
-/**
- * 10m & 1h squeeze now use expansion % (higher = better)
- */
+/** 10m & 1h squeeze use expansion% (higher = better) */
 const toneForSqueeze10 = (v)=> !Number.isFinite(v) ? "info" : v>=65 ? "ok" : v>=35 ? "warn" : "danger";
 const toneForSqueeze1h = (v)=> !Number.isFinite(v) ? "info" : v>=65 ? "ok" : v>=35 ? "warn" : "danger";
 
@@ -80,10 +86,10 @@ function useSandboxDeltas(){
         const j = await r.json();
         if (stop) return;
         setVal({
-          dB: Number(j?.deltas?.market?.dBreadthPct ?? null),
-          dM: Number(j?.deltas?.market?.dMomentumPct ?? null),
-          riskOn: Number(j?.deltas?.market?.riskOnPct ?? null),
-          ts: j?.deltasUpdated || j?.deltasUpdatedAt || null
+          dB: Number(j && j.deltas && j.deltas.market && j.deltas.market.dBreadthPct),
+          dM: Number(j && j.deltas && j.deltas.market && j.deltas.market.dMomentumPct),
+          riskOn: Number(j && j.deltas && j.deltas.market && j.deltas.market.riskOnPct),
+          ts: j && (j.deltasUpdated || j.deltasUpdatedAt) || null
         });
       }catch{
         if(!stop) setVal({ dB:null, dM:null, riskOn:null, ts:null });
@@ -136,7 +142,7 @@ export default function RowMarketOverview(){
   const chosen = newer(live10, polled);
   const d10    = chosen || {};
   const m10    = d10.metrics || {};
-  const eng10  = (d10.engineLights || {})["10m"] || {};
+  const eng10  = (d10.engineLights && d10.engineLights["10m"]) || {};
   const i10    = d10.intraday || {};
   const ts10   = d10.updated_at;
 
@@ -149,31 +155,38 @@ export default function RowMarketOverview(){
   const tsEOD  = dd.updated_at;
 
   /* ---------- 10m strip ---------- */
-  // New metrics from teammate’s contract
-  const breadth10 = num(m10.breadth_10m_pct);
-  const mom10     = num(m10.momentum_10m_pct ?? m10.momentum_pct);
-  const sq10      = num(m10.squeeze_pct ?? m10.squeeze_psi_10m_pct);
-  const liq10     = num(m10.liquidity_psi);
-  const vol10     = num(m10.volatility_pct);
+  let breadth10 = num(m10.breadth_10m_pct);
+  if (!Number.isFinite(breadth10)) breadth10 = num(m10.breadth_pct);
 
-  const rising10  = num(i10?.sectorDirection10m?.risingPct);
+  let mom10 = num(m10.momentum_10m_pct);
+  if (!Number.isFinite(mom10)) mom10 = num(m10.momentum_combo_10m_pct || m10.momentum_pct);
+
+  let sq10 = num(m10.squeeze_pct);
+  if (!Number.isFinite(sq10)) sq10 = num(m10.squeeze_psi_10m_pct || m10.squeeze_intraday_pct);
+
+  let liq10 = num(m10.liquidity_psi);
+  if (!Number.isFinite(liq10)) liq10 = num(m10.liquidity_pct);
+
+  const vol10 = num(m10.volatility_pct);
+
+  const rising10  = num(i10 && i10.sectorDirection10m && i10.sectorDirection10m.risingPct);
 
   let risk10 = num(m10.riskOn_10m_pct);
   if (!Number.isFinite(risk10)) {
-    risk10 = num(i10?.riskOn10m?.riskOnPct);
+    risk10 = num(i10 && i10.riskOn10m && i10.riskOn10m.riskOnPct);
   }
 
   let overall10 = num(eng10.score);
   if (!Number.isFinite(overall10)) {
-    overall10 = num(i10?.overall10m?.score);
+    overall10 = num(i10 && i10.overall10m && i10.overall10m.score);
   }
-  const state10   = eng10.state ?? i10?.overall10m?.state || null;
+  const state10 = (eng10.state || (i10 && i10.overall10m && i10.overall10m.state)) || null;
 
   /* ---------- 1h strip ---------- */
   const breadth1 = num(m1h.breadth_1h_pct);
   const mom1     = num(m1h.momentum_combo_1h_pct || m1h.momentum_1h_pct || m1h.momentum_pct);
 
-  // safer fallback without nullish coalescing
+  // 1h squeeze: choose best available field without ??
   let rawSq1 = NaN;
   if (Number.isFinite(m1h.squeeze_1h_pct)) {
     rawSq1 = m1h.squeeze_1h_pct;
@@ -188,23 +201,25 @@ export default function RowMarketOverview(){
 
   const liq1     = num(m1h.liquidity_1h);
   const vol1     = num(m1h.volatility_1h_scaled || m1h.volatility_1h_pct);
-  const rising1  = num(h1?.sectorDirection1h?.risingPct);
-  const risk1    = num(h1?.riskOn1h?.riskOnPct);
-  const overall1 = num(h1?.overall1h?.score);
-  const state1   = h1?.overall1h?.state || null;
+  const rising1  = num(h1 && h1.sectorDirection1h && h1.sectorDirection1h.risingPct);
+  const risk1    = num(h1 && h1.riskOn1h && h1.riskOn1h.riskOnPct);
+  const overall1 = num(h1 && h1.overall1h && h1.overall1h.score);
+  const state1   = (h1 && h1.overall1h && h1.overall1h.state) || null;
 
-  /* ---------- EOD strip (trendDaily mirror) ---------- */
+  /* ---------- EOD strip ---------- */
   const td        = dd.trendDaily || {};
-  const tdSlope   = num(td?.trend?.emaSlope);
-  const tdTrend   = td?.trend?.state || null;
+  const tdSlope   = num(td && td.trend && td.trend.emaSlope);
+  const tdTrend   = td && td.trend && td.trend.state || null;
   const tdTrendVal= Number.isFinite(tdSlope) ? (tdSlope > 5 ? 75 : tdSlope < -5 ? 25 : 50) : NaN;
-  const tdPartPct = num(td?.participation?.pctAboveMA);
-  const tdVolPct  = num(td?.volatilityRegime?.atrPct);
-  const tdVolBand = td?.volatilityRegime?.band || null;
-  const tdLiqPsi  = num(td?.liquidityRegime?.psi);
-  const tdLiqBand = td?.liquidityRegime?.band || null;
-  const tdRiskOn  = num(dd?.rotation?.riskOnPct);
-  const tdSdyDaily= num(dd?.metrics?.squeeze_daily_pct);
+  const tdPartPct = num(td && td.participation && td.participation.pctAboveMA);
+  const tdVolReg  = td && td.volatilityRegime || {};
+  const tdVolPct  = num(tdVolReg.atrPct);
+  const tdVolBand = tdVolReg.band || null;
+  const tdLiqReg  = td && td.liquidityRegime || {};
+  const tdLiqPsi  = num(tdLiqReg.psi);
+  const tdLiqBand = tdLiqReg.band || null;
+  const tdRiskOn  = num(dd && dd.rotation && dd.rotation.riskOnPct);
+  const tdSdyDaily= num(dd && dd.metrics && dd.metrics.squeeze_daily_pct);
 
   /* ---------- Layout ---------- */
   const stripBox = { display:"flex", flexDirection:"column", gap:6, minWidth:820 };
@@ -216,8 +231,19 @@ export default function RowMarketOverview(){
       <div className="panel-head" style={{ alignItems:"center" }}>
         <div className="panel-title">Market Meter — Stoplights</div>
         <div style={{ marginLeft:8 }}>
-          <button onClick={()=>setLegendOpen("intraday")} className="px-2 py-1 rounded-md bg-neutral-900 text-neutral-200 border border-neutral-700 text-sm" style={{ marginRight:6 }}>Intraday Legend</button>
-          <button onClick={()=>setLegendOpen("daily")}    className="px-2 py-1 rounded-md bg-neutral-900 text-neutral-200 border border-neutral-700 text-sm">Daily Legend</button>
+          <button
+            onClick={()=>setLegendOpen("intraday")}
+            className="px-2 py-1 rounded-md bg-neutral-900 text-neutral-200 border border-neutral-700 text-sm"
+            style={{ marginRight:6 }}
+          >
+            Intraday Legend
+          </button>
+          <button
+            onClick={()=>setLegendOpen("daily")}
+            className="px-2 py-1 rounded-md bg-neutral-900 text-neutral-200 border border-neutral-700 text-sm"
+          >
+            Daily Legend
+          </button>
         </div>
         <div className="spacer" />
         <LastUpdated ts={tsOf(live10 || live1h || liveEOD)} />
@@ -240,7 +266,6 @@ export default function RowMarketOverview(){
             <Stoplight label="Risk-On"    value={risk10}    tone={toneForPct(risk10)} />
           </div>
 
-          {/* timestamps + Pulse icon to the RIGHT */}
           <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", color:"#9ca3af", fontSize:12 }}>
             <div>
               Last 10-min: <strong>{fmtIso(ts10)}</strong> &nbsp;|&nbsp; Δ5m updated: <strong>{fmtIso(deltaTs) || "—"}</strong>
@@ -271,7 +296,7 @@ export default function RowMarketOverview(){
         <div style={stripBox}>
           <div className="small" style={{ color:"#9ca3af", fontWeight:800 }}>EOD — Daily Structure</div>
           <div style={lineBox}>
-            <Stoplight label="Daily Trend"   value={tdTrendVal} tone={toneForDailyTrend(num(td?.trend?.emaSlope))} />
+            <Stoplight label="Daily Trend"   value={tdTrendVal} tone={toneForDailyTrend(tdSlope)} />
             <Stoplight label="Participation" value={tdPartPct}  tone={toneForPct(tdPartPct)} />
             <Stoplight label="Daily Squeeze" value={tdSdyDaily} tone={(v)=> ( !Number.isFinite(v) ? "info" : v>=85 ? "danger" : v>=80 ? "warn" : "ok" )} />
             <Stoplight label="Vol Regime"    value={tdVolPct}   tone={toneForVolBand(tdVolBand)} />
