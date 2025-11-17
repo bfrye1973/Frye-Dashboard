@@ -1,5 +1,5 @@
 // src/pages/rows/RowMarketOverview.jsx
-// Updated: wired to new 10m metrics + engineLights["10m"], no nullish-coalescing
+// Updated: 10m Market Meter wired to new metrics + Lux PSI squeeze tone
 
 import React from "react";
 import { useDashboardPoll } from "../../lib/dashboardApiSafe";
@@ -35,8 +35,22 @@ const toneForMomentum  = toneForPct;
 const toneForLiquidity = (v)=> !Number.isFinite(v) ? "info" : v>=60 ? "ok" : v>=40 ? "warn" : "danger";
 const toneForVol       = (v)=> !Number.isFinite(v) ? "info" : v>60 ? "danger" : v>30 ? "warn" : "ok";
 
-/** 10m & 1h squeeze use expansion% (higher = better) */
-const toneForSqueeze10 = (v)=> !Number.isFinite(v) ? "info" : v>=65 ? "ok" : v>=35 ? "warn" : "danger";
+/**
+ * 10m Squeeze:
+ *   - value = expansion (100 - PSI)
+ *   - tone  = PSI ranges:
+ *       0–15   => ok (no real squeeze)
+ *       15–80  => warn (sweet squeeze zone)
+ *       81–100 => danger (hard coil)
+ */
+const toneForSqueeze10Psi = (psi) => {
+  if (!Number.isFinite(psi)) return "info";
+  if (psi >= 81) return "danger"; // hard squeeze
+  if (psi >= 15) return "warn";   // great squeeze zone
+  return "ok";                    // near no squeeze
+};
+
+/** 1h Squeeze: expansion% (higher=better) */
 const toneForSqueeze1h = (v)=> !Number.isFinite(v) ? "info" : v>=65 ? "ok" : v>=35 ? "warn" : "danger";
 
 const toneForDailyTrend = (s)=> !Number.isFinite(s) ? "info" : s>5 ? "ok" : s>=-5 ? "warn" : "danger";
@@ -159,10 +173,11 @@ export default function RowMarketOverview(){
   if (!Number.isFinite(breadth10)) breadth10 = num(m10.breadth_pct);
 
   let mom10 = num(m10.momentum_10m_pct);
-  if (!Number.isFinite(mom10)) mom10 = num(m10.momentum_combo_10m_pct || m10.momentum_pct);
+  if (!Number.isFinite(mom10)) mom10 = num(m10.momentum_pct);
 
-  let sq10 = num(m10.squeeze_pct);
-  if (!Number.isFinite(sq10)) sq10 = num(m10.squeeze_psi_10m_pct || m10.squeeze_intraday_pct);
+  const psi10 = num(m10.squeeze_psi_10m_pct);     // Lux PSI 0..100
+  const exp10 = num(m10.squeeze_pct);             // expansion = 100 - psi (already written)
+  const sq10  = exp10;
 
   let liq10 = num(m10.liquidity_psi);
   if (!Number.isFinite(liq10)) liq10 = num(m10.liquidity_pct);
@@ -259,7 +274,7 @@ export default function RowMarketOverview(){
             <Stoplight label="Overall"    value={overall10} tone={toneForOverallState(state10, overall10)} />
             <Stoplight label="Breadth"    value={breadth10} tone={toneForBreadth(breadth10)} />
             <Stoplight label="Momentum"   value={mom10}     tone={toneForMomentum(mom10)} />
-            <Stoplight label="Squeeze"    value={sq10}      tone={toneForSqueeze10(sq10)} />
+            <Stoplight label="Squeeze"    value={sq10}      tone={toneForSqueeze10Psi(psi10)} />
             <Stoplight label="Liquidity"  value={liq10}     unit="PSI" tone={toneForLiquidity(liq10)} />
             <Stoplight label="Volatility" value={vol10}     tone={toneForVol(vol10)} />
             <Stoplight label="Sector Dir" value={rising10}  tone={toneForPct(rising10)} />
