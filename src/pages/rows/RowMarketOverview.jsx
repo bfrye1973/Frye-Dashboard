@@ -110,7 +110,7 @@ function useSandboxDeltas(){
       }
     }
     pull();
-    const id=setInterval(pull, 60_000);
+    const id=setInterval(pull, 30_000);
     return ()=>{ stop=true; clearInterval(id); };
   },[]);
   return val;
