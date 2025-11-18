@@ -220,7 +220,7 @@ export default function RowIndexSectors() {
     }
 
     loadCards();
-    const t = setInterval(loadCards, cardsSource==="eod" ? 5*60000 : 60000);
+    const t = setInterval(loadCards, cardsSource==="eod" ? 30000 : 30000);
     return ()=>{ stop=true; ctrl.abort(); clearInterval(t); };
   }, [cardsSource]);
 
