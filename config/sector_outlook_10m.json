@@ -1,9 +1,9 @@
 {
-  "bullish_breadth": 52,
-  "bullish_momentum": 52,
+  "bullish_breadth": 53,
+  "bullish_momentum": 53,
 
-  "bearish_breadth": 52,
-  "bearish_momentum": 52,
+  "bearish_breadth": 53,
+  "bearish_momentum": 53,
 
   "default": "Neutral"
 }
