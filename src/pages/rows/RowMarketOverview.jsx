@@ -11,9 +11,9 @@ import {
 } from "../../components/MarketMeterLegend";
 
 /* ------------------- API endpoints ------------------- */
-const INTRADAY_URL = process.env.REACT_APP_INTRADAY_URL;  // /live/intraday
-const HOURLY_URL   = process.env.REACT_APP_HOURLY_URL;    // /live/hourly
-const EOD_URL      = process.env.REACT_APP_EOD_URL;       // /live/eod
+const INTRADAY_URL = process.env.REACT_APP_INTRADAY_URL;  
+const HOURLY_URL   = process.env.REACT_APP_HOURLY_URL;    
+const EOD_URL      = process.env.REACT_APP_EOD_URL;       
 const SANDBOX_URL  = process.env.REACT_APP_INTRADAY_SANDBOX_URL || "";
 
 /* ------------------- Utilities ------------------- */
