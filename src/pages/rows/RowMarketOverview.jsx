@@ -1,112 +1,245 @@
 // src/pages/rows/RowMarketOverview.jsx
-// Updated: 10m/1h/EOD Market Meter wired to new metrics + Lux PSI squeeze tone
-
 import React from "react";
 import { useDashboardPoll } from "../../lib/dashboardApiSafe";
 import { LastUpdated } from "../../components/LastUpdated";
-import PulseIcon10m from "../../components/meter/PulseIcon10m";
 import {
   MarketMeterIntradayLegend,
   MarketMeterDailyLegend,
 } from "../../components/MarketMeterLegend";
 
-/* --------------------- API endpoints --------------------- */
-const INTRADAY_URL = process.env.REACT_APP_INTRADAY_URL;         // /live/intraday
-const HOURLY_URL   = process.env.REACT_APP_HOURLY_URL;           // /live/hourly
-const EOD_URL      = process.env.REACT_APP_EOD_URL;              // /live/eod
-const SANDBOX_URL  = process.env.REACT_APP_INTRADAY_SANDBOX_URL || ""; // /live/intraday-deltas
+// --------- API endpoints (env-configured) ----------
+const INTRADAY_URL = process.env.REACT_APP_INTRADAY_URL;      // /live/intraday
+const HOURLY_URL   = process.env.REACT_APP_HOURLY_URL;        // /live/hourly
+const EOD_URL      = process.env.REACT_APP_EOD_URL;           // /live/eod
+const SANDBOX_URL  = process.env.REACT_APP_INTRADAY_SANDBOX_URL || "";
 
-/* ----------------------- Utilities ------------------------ */
+// ---------------- Utilities ----------------
 const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, Number(n)));
 const num = (v) => {
   const n = Number(v);
   return Number.isFinite(n) ? n : NaN;
 };
-const fmtIso = (ts) => {
-  if (!ts) return "";
+
+function fmtIso(ts) {
   try {
     return new Date(ts).toLocaleString();
   } catch {
-    return String(ts);
+    return ts;
   }
+}
+
+const isStale = (ts, maxMs = 12 * 60 * 1000) => {
+  if (!ts) return true;
+  const t = new Date(ts).getTime();
+  return !Number.isFinite(t) || Date.now() - t > maxMs;
 };
 
-const tsOf = (x) => (x && (x.updated_at || x.ts)) || null;
-const newer = (a, b) => {
+function tsOf(x) {
+  return x?.updated_at || x?.ts || null;
+}
+
+function newer(a, b) {
   const ta = tsOf(a);
   const tb = tsOf(b);
   if (!ta) return b;
   if (!tb) return a;
   return new Date(ta).getTime() >= new Date(tb).getTime() ? a : b;
-};
+}
 
-/* ---------------------- Tone helpers ---------------------- */
-const toneForPct = (v) =>
-  !Number.isFinite(v) ? "info" : v >= 60 ? "ok" : v >= 45 ? "warn" : "danger";
+// Map Liquidity PSI (0..120) → 0..100
+function mapPsiToPct(psi) {
+  if (!Number.isFinite(psi)) return NaN;
+  return clamp((psi / 120) * 100, 0, 100);
+}
 
-const toneForBreadth = toneForPct;
-const toneForMomentum = toneForPct;
-const toneForLiquidity = (v) =>
-  !Number.isFinite(v) ? "info" : v >= 60 ? "ok" : v >= 40 ? "warn" : "danger";
-const toneForVol = (v) =>
-  !Number.isFinite(v) ? "info" : v > 60 ? "danger" : v > 30 ? "warn" : "ok";
+// --------- Intraday overall scoring (unchanged) ----------
+function overallIntradayScore(m, intraday) {
+  if (!m) return NaN;
 
-/**
- * 10m Squeeze:
- *   PSI = metrics.squeeze_psi_10m_pct (0–100, high = tight)
- *   expansion = metrics.squeeze_pct = 100 - PSI
- *   Tile shows expansion value, but color by PSI ranges:
- *     0–15   → ok   (no / very light squeeze)
- *     15–80  → warn (good squeeze zone)
- *     81–100 → danger (hard coil)
- */
-const toneForSqueeze10Psi = (psi) => {
-  if (!Number.isFinite(psi)) return "info";
-  if (psi >= 81) return "danger";
-  if (psi >= 15) return "warn";
+  const breadth   = num(m.breadth_10m_pct ?? m.breadth_pct);
+  const momentum  = num(m.momentum_combo_pct ?? m.momentum_pct);
+
+  // For scoring we still use EXPANSION (high = wide / “hot”)
+  const sqRaw = num(m.squeeze_intraday_pct ?? m.squeeze_pct);
+  const squeezeOk = Number.isFinite(sqRaw)
+    ? clamp(100 - sqRaw, 0, 100)
+    : NaN;
+
+  const volOk = Number.isFinite(m.volatility_pct)
+    ? clamp(100 - m.volatility_pct, 0, 100)
+    : NaN;
+
+  const liqPct  = mapPsiToPct(num(m.liquidity_psi ?? m.liquidity_pct));
+  const sectorDir = num(intraday?.sectorDirection10m?.risingPct);
+  const riskOn    = num(intraday?.riskOn10m?.riskOnPct);
+
+  // weights
+  const w = {
+    breadth:    0.22,
+    momentum:   0.22,
+    squeezeOk:  0.18,
+    volOk:      0.14,
+    liqPct:     0.14,
+    sectorDir:  0.05,
+    riskOn:     0.05,
+  };
+
+  const parts = [
+    { v: breadth,   w: w.breadth },
+    { v: momentum,  w: w.momentum },
+    { v: squeezeOk, w: w.squeezeOk },
+    { v: volOk,     w: w.volOk },
+    { v: liqPct,    w: w.liqPct },
+    { v: sectorDir, w: w.sectorDir },
+    { v: riskOn,    w: w.riskOn },
+  ].filter((p) => Number.isFinite(p.v));
+
+  if (!parts.length) return NaN;
+
+  const totalW = parts.reduce((s, p) => s + p.w, 0);
+  const score  = parts.reduce((s, p) => s + p.v * p.w, 0) / (totalW || 1);
+  return clamp(score, 0, 100);
+}
+
+// --------- Tone helpers ----------
+function toneForBreadth(v) {
+  if (!Number.isFinite(v)) return "drill";
+  if (v >= 65) return "ok";
+  if (v >= 35) return "warn";
+  return "danger";
+}
+
+function toneForMomentum(v) {
+  if (!Number.isFinite(v)) return "info";
+  if (v >= 65) return "ok";
+  if (v >= 35) return "warn";
+  return "danger";
+}
+
+// 10m: squeeze tile is now TIGHTNESS (0..100, high = tight = “danger”)
+function toneForSqueeze(v) {
+  if (!Number.isFinite(v)) return "info";
+  if (v >= 85) return "danger";  // very tight
+  if (v >= 65) return "warn";    // starting to compress
+  if (v >= 35) return "ok";
   return "ok";
-};
+}
 
-/** 1h Squeeze: expansion% (higher=better) */
-const toneForSqueeze1h = (v) =>
-  !Number.isFinite(v) ? "info" : v >= 65 ? "ok" : v >= 35 ? "warn" : "danger";
+// 1h: expansion % (higher = more expanded / “hot”)
+function toneForSqueeze1h(v) {
+  if (!Number.isFinite(v)) return "info";
+  if (v >= 85) return "danger"; // fully blown out / “hot”
+  if (v >= 65) return "warn";
+  return "ok";
+}
 
-/** Daily Lux Squeeze (PSI tightness) */
-const toneForDailySqueeze = (v) =>
-  !Number.isFinite(v) ? "info" : v >= 85 ? "danger" : v >= 80 ? "warn" : "ok";
+// Volatility: higher = worse
+function toneForVol(v) {
+  if (!Number.isFinite(v)) return "info";
+  if (v > 60) return "danger";
+  if (v > 30) return "warn";
+  return "ok";
+}
 
-const toneForDailyTrend = (s) =>
-  !Number.isFinite(s) ? "info" : s > 5 ? "ok" : s >= -5 ? "warn" : "danger";
+// Simple percent tone
+function toneForPercent(v) {
+  if (!Number.isFinite(v)) return "info";
+  if (v >= 60) return "ok";
+  if (v >= 45) return "warn";
+  return "danger";
+}
 
-const toneForVolBand = (b) =>
-  b === "high" ? "danger" : b === "elevated" ? "warn" : b ? "ok" : "info";
+// Daily trend slope
+function toneForDailyTrend(slope) {
+  if (!Number.isFinite(slope)) return "info";
+  if (slope > 5) return "ok";
+  if (slope >= -5) return "warn";
+  return "danger";
+}
 
-const toneForLiqBand = (b) =>
-  b === "good" ? "ok" : b === "normal" ? "warn" : b ? "danger" : "info";
+// Daily squeeze (Lux-style: high = danger)
+function toneForLuxDaily(v) {
+  if (!Number.isFinite(v)) return "info";
+  if (v >= 85) return "danger";
+  if (v >= 80) return "warn";
+  return "ok";
+}
 
-const toneForOverallState = (state, score) => {
+// Volatility band (“calm / elevated / high”)
+function toneForVolBand(band) {
+  if (band === "high") return "danger";
+  if (band === "elevated") return "warn";
+  if (band) return "ok";
+  return "info";
+}
+
+// Liquidity band (“good / normal / thin”)
+function toneForLiqBand(band) {
+  if (band === "good") return "ok";
+  if (band === "normal") return "warn";
+  if (band) return "danger";
+  return "info";
+}
+
+function toneForOverallState(state, score) {
   const s = (state || "").toLowerCase();
   if (s === "bull") return "ok";
   if (s === "bear") return "danger";
   if (s === "neutral") return "warn";
-  return toneForPct(score);
-};
+  return toneForPercent(score);
+}
 
-/* ------------------------ Stoplight ----------------------- */
-function Stoplight({ label, value, unit = "%", tone = "info", size = 50, minWidth = 90 }) {
-  const v = Number.isFinite(value) ? value : NaN;
+// --------- Stoplight component ----------
+function Stoplight({
+  label,
+  value,
+  baseline,
+  size = 54,
+  unit = "%",
+  subtitle,
+  toneOverride,
+  extraBelow,
+  clampValue = true,
+}) {
+  const rawV = Number.isFinite(value) ? Number(value) : NaN;
+  const v = clampValue ? (Number.isFinite(rawV) ? clamp(rawV, 0, 100) : NaN) : rawV;
+
+  const rawB = Number.isFinite(baseline) ? Number(baseline) : NaN;
+  const delta = Number.isFinite(v) && Number.isFinite(rawB) ? v - rawB : NaN;
+
+  const tone = toneOverride || "info";
   const colors = {
-    ok: { bg: "#22c55e", glow: "rgba(34,197,94,.45)" },
-    warn: { bg: "#fbbf24", glow: "rgba(251,191,36,.45)" },
-    danger: { bg: "#ef4444", glow: "rgba(239,68,68,.45)" },
-    info: { bg: "#334155", glow: "rgba(51,65,85,.35)" },
-  }[tone] || { bg: "#334155", glow: "rgba(51,65,85,.35)" };
+    ok:     { bg: "#22c55e", glow: "rgba(34, 197, 94, 0.45)" },
+    warn:   { bg: "#fbbf24", glow: "rgba(251, 191, 36, 0.45)" },
+    danger: { bg: "#ef4444", glow: "rgba(239, 68, 68, 0.45)" },
+    info:   { bg: "#334155", glow: "rgba(51, 65, 85, 0.35)" },
+  }[tone];
 
-  const valText = Number.isFinite(v) ? `${v.toFixed(1)}${unit}` : "—";
+  const valueText = Number.isFinite(v)
+    ? `${v.toFixed(1)}${unit === "%" ? "%" : unit ? ` ${unit}` : ""}`
+    : "—";
+
+  const deltaText = Number.isFinite(delta)
+    ? `${delta.toFixed(1)}${unit === "%" ? "%" : unit ? ` ${unit}` : ""}`
+    : unit === "%"
+      ? "0.0%"
+      : "0.0";
+
+  const arrow =
+    !Number.isFinite(delta) ? "→" : delta > 0 ? "↑" : delta < 0 ? "↓" : "→";
 
   return (
-    <div style={{ textAlign: "center", minWidth }}>
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        gap: 4,
+        minWidth: size + 36,
+      }}
+    >
       <div
+        title={`${label}: ${valueText}`}
         style={{
           width: size,
           height: size,
@@ -117,491 +250,55 @@ function Stoplight({ label, value, unit = "%", tone = "info", size = 50, minWidt
           alignItems: "center",
           justifyContent: "center",
           border: "4px solid #0c1320",
-          margin: "0 auto",
         }}
       >
-        <div style={{ fontWeight: 800, color: "#0b1220" }}>{valText}</div>
+        <div
+          style={{
+            fontWeight: 800,
+            fontSize: size >= 100 ? 20 : 16,
+            color: "#0b1220",
+          }}
+        >
+          {valueText}
+        </div>
       </div>
       <div
-        style={{
-          fontSize: 12.5,
-          fontWeight: 700,
-          color: "#e5e7eb",
-          marginTop: 4,
-        }}
+        className="small"
+        style={{ color: "#e5e7eb", fontWeight: 700, fontSize: 15, textAlign: "center" }}
       >
         {label}
       </div>
+      {subtitle && (
+        <div
+          style={{
+            color: "#94a3b8",
+            fontSize: 12,
+            fontWeight: 600,
+            textAlign: "center",
+          }}
+        >
+          {subtitle}
+        </div>
+      )}
+      <div style={{ color: "#94a3b8", fontSize: 13, fontWeight: 600 }}>
+        {arrow} {deltaText}
+      </div>
+      {extraBelow || null}
     </div>
   );
 }
 
-/* ------------------ Δ5m sandbox fetch -------------------- */
+// --------- 5m delta (from sandbox) ----------
 function useSandboxDeltas() {
-  const [val, setVal] = React.useState({
+  const [deltaMkt, setDeltaMkt] = React.useState({
     dB: null,
     dM: null,
     riskOn: null,
-    ts: null,
   });
-
-  React.useEffect(() => {
-    let stop = false;
-    async function pull() {
-      if (!SANDBOX_URL) return;
-      try {
-        const sep = SANDBOX_URL.includes("?") ? "&" : "?";
-        const r = await fetch(`${SANDBOX_URL}${sep}t=${Date.now()}`, {
-          cache: "no-store",
-        });
-        const j = await r.json();
-        if (stop) return;
-        setVal({
-          dB: Number(j?.deltas?.market?.dBreadthPct ?? null),
-          dM: Number(j?.deltas?.market?.dMomentumPct ?? null),
-          riskOn: Number(j?.deltas?.market?.riskOnPct ?? null),
-          ts: j?.deltasUpdatedAt || j?.deltasUpdated || null,
-        });
-      } catch {
-        if (!stop) {
-          setVal({ dB: null, dM: null, riskOn: null, ts: null });
-        }
-      }
-    }
-    pull();
-    const id = setInterval(pull, 30_000);
-    return () => {
-      stop = true;
-      clearInterval(id);
-    };
-  }, []);
-
-  return val;
-}
-
-/* ======================== Main =========================== */
-export default function RowMarketOverview() {
-  const { data: polled } = useDashboardPoll("dynamic");
-
-  const [legendOpen, setLegendOpen] = React.useState(null);
-  const [live10, setLive10] = React.useState(null);
-  const [live1h, setLive1h] = React.useState(null);
-  const [liveEOD, setLiveEOD] = React.useState(null);
+  const [deltasUpdatedAt, setDUA] = React.useState(null);
 
   React.useEffect(() => {
     let stop = false;
 
-    async function pull() {
-      try {
-        if (INTRADAY_URL) {
-          const r = await fetch(`${INTRADAY_URL}?t=${Date.now()}`, {
-            cache: "no-store",
-          });
-          const j = await r.json();
-          if (!stop) setLive10(j);
-        }
-        if (HOURLY_URL) {
-          const r = await fetch(`${HOURLY_URL}?t=${Date.now()}`, {
-            cache: "no-store",
-          });
-          const j = await r.json();
-          if (!stop) setLive1h(j);
-        }
-        if (EOD_URL) {
-          const r = await fetch(`${EOD_URL}?t=${Date.now()}`, {
-            cache: "no-store",
-          });
-          const j = await r.json();
-          if (!stop) setLiveEOD(j);
-        }
-      } catch {
-        // ignore fetch errors; next poll will retry
-      }
-    }
-
-    pull();
-    const id = setInterval(pull, 60_000);
-    return () => {
-      stop = true;
-      clearInterval(id);
-    };
-  }, []);
-
-  const { dB: deltaB, dM: deltaM, riskOn: deltaRisk, ts: deltaTs } = useSandboxDeltas();
-
-  /* ---------- pick latest intraday (polled vs live) ---------- */
-  const chosen = newer(live10, polled);
-  const d10 = chosen || {};
-  const m10 = d10.metrics || {};
-  const eng10 = (d10.engineLights && d10.engineLights["10m"]) || {};
-  const i10 = d10.intraday || {};
-  const ts10 = d10.updated_at;
-
-  const d1h = live1h || {};
-  const m1h = d1h.metrics || {};
-  const h1 = d1h.hourly || {};
-  const ts1h = d1h.updated_at;
-
-  const dd = liveEOD || {};
-  const tsEOD = dd.updated_at;
-
-  /* --------------------- 10m strip ---------------------- */
-  let breadth10 = num(m10.breadth_10m_pct);
-  if (!Number.isFinite(breadth10)) breadth10 = num(m10.breadth_pct);
-
-  let mom10 = num(m10.momentum_10m_pct);
-  if (!Number.isFinite(mom10)) mom10 = num(m10.momentum_combo_10m_pct);
-  if (!Number.isFinite(mom10)) mom10 = num(m10.momentum_pct);
-
-  const psi10 = num(m10.squeeze_psi_10m_pct); // 0–100 tightness
-  const exp10 = num(m10.squeeze_pct); // expansion = 100 - PSI (already written)
-  const sq10 = exp10;
-
-  let liq10 = num(m10.liquidity_psi);
-  if (!Number.isFinite(liq10)) liq10 = num(m10.liquidity_pct);
-
-  const vol10 = num(m10.volatility_pct);
-
-  const rising10 = num(i10?.sectorDirection10m?.risingPct);
-
-  let risk10 = num(m10.riskOn_10m_pct);
-  if (!Number.isFinite(risk10)) {
-    risk10 = num(i10?.riskOn10m?.riskOnPct);
-  }
-
-  let overall10 = num(eng10.score);
-  if (!Number.isFinite(overall10)) {
-    overall10 = num(i10?.overall10m?.score);
-  }
-  const state10 =
-    eng10.state || (i10 && i10.overall10m && i10.overall10m.state) || null;
-
-  /* --------------------- 1h strip ---------------------- */
-  const breadth1 = num(m1h.breadth_1h_pct);
-
-  let mom1 = num(m1h.momentum_combo_1h_pct);
-  if (!Number.isFinite(mom1)) {
-    mom1 = num(m1h.momentum_1h_pct);
-  }
-  if (!Number.isFinite(mom1)) {
-    mom1 = num(m1h.momentum_pct);
-  }
-
-  // 1h squeeze: use expansion if present; else derive from PSI
-  let rawSq1 = NaN;
-  if (Number.isFinite(m1h.squeeze_1h_pct)) {
-    rawSq1 = m1h.squeeze_1h_pct;
-  } else if (Number.isFinite(m1h.squeeze_expansion_pct)) {
-    rawSq1 = m1h.squeeze_expansion_pct;
-  } else if (Number.isFinite(m1h.squeeze_psi_1h_pct)) {
-    rawSq1 = 100 - m1h.squeeze_psi_1h_pct;
-  } else if (Number.isFinite(m1h.squeeze_psi_1h)) {
-    rawSq1 = 100 - m1h.squeeze_psi_1h;
-  }
-  const sq1 = num(rawSq1);
-
-  const liq1 = num(m1h.liquidity_1h);
-  const vol1 = num(m1h.volatility_1h_scaled || m1h.volatility_1h_pct);
-  const rising1 = num(h1?.sectorDirection1h?.risingPct);
-  const risk1 = num(h1?.riskOn1h?.riskOnPct);
-  const overall1 = num(h1?.overall1h?.score);
-  const state1 = (h1?.overall1h && h1.overall1h.state) || null;
-
-  /* --------------------- EOD strip ---------------------- */
-  const td = dd.trendDaily || {};
-  const tdSlope = num(td?.trend?.emaSlope);
-  const tdTrend = (td?.trend && td.trend.state) || null;
-  const tdTrendVal = Number.isFinite(tdSlope)
-    ? tdSlope > 5
-      ? 75
-      : tdSlope < -5
-      ? 25
-      : 50
-    : NaN;
-
-  const tdPartPct = num(td?.participation?.pctAboveMA);
-
-  const tdVolReg = td.volatilityRegime || {};
-  const tdVolPct = num(tdVolReg.atrPct);
-  const tdVolBand = tdVolReg.band || null;
-
-  const tdLiqReg = td.liquidityRegime || {};
-  const tdLiqPsi = num(tdLiqReg.psi);
-  const tdLiqBand = tdLiqReg.band || null;
-
-  const tdRiskOn = num(dd?.rotation?.riskOnPct);
-  const tdSdyDaily = num(dd?.metrics?.squeeze_daily_pct);
-
-  /* ------------------------ Layout ---------------------- */
-  const stripBox = {
-    display: "flex",
-    flexDirection: "column",
-    gap: 6,
-    minWidth: 820,
-  };
-  const lineBox = {
-    display: "flex",
-    gap: 12,
-    alignItems: "center",
-    whiteSpace: "nowrap",
-    overflowX: "auto",
-    paddingBottom: 2,
-  };
-
-  return (
-    <section id="row-2" className="panel" style={{ padding: 10 }}>
-      {/* Header */}
-      <div className="panel-head" style={{ alignItems: "center" }}>
-        <div className="panel-title">Market Meter — Stoplights</div>
-        <div style={{ marginLeft: 8 }}>
-          <button
-            onClick={() => setLegendOpen("intraday")}
-            className="px-2 py-1 rounded-md bg-neutral-900 text-neutral-200 border border-neutral-700 text-sm"
-            style={{ marginRight: 6 }}
-          >
-            Intraday Legend
-          </button>
-          <button
-            onClick={() => setLegendOpen("daily")}
-            className="px-2 py-1 rounded-md bg-neutral-900 text-neutral-200 border border-neutral-700 text-sm"
-          >
-            Daily Legend
-          </button>
-        </div>
-        <div className="spacer" />
-        <LastUpdated ts={tsOf(live10 || live1h || liveEOD)} />
-      </div>
-
-      {/* Three strips */}
-      <div
-        style={{
-          display: "flex",
-          gap: 28,
-          alignItems: "flex-start",
-          flexWrap: "wrap",
-          marginTop: 8,
-        }}
-      >
-        {/* 10m strip */}
-        <div style={stripBox}>
-          <div className="small" style={{ color: "#9ca3af", fontWeight: 800 }}>
-            10m — Intraday Scalp
-          </div>
-          <div style={lineBox}>
-            <Stoplight
-              label="Overall"
-              value={overall10}
-              tone={toneForOverallState(state10, overall10)}
-            />
-            <Stoplight
-              label="Breadth"
-              value={breadth10}
-              tone={toneForBreadth(breadth10)}
-            />
-            <Stoplight
-              label="Momentum"
-              value={mom10}
-              tone={toneForMomentum(mom10)}
-            />
-            <Stoplight
-              label="Squeeze"
-              value={sq10}
-              tone={toneForSqueeze10Psi(psi10)}
-            />
-            <Stoplight
-              label="Liquidity"
-              value={liq10}
-              unit="PSI"
-              tone={toneForLiquidity(liq10)}
-            />
-            <Stoplight
-              label="Volatility"
-              value={vol10}
-              tone={toneForVol(vol10)}
-            />
-            <Stoplight
-              label="Sector Dir"
-              value={rising10}
-              tone={toneForPct(rising10)}
-            />
-            <Stoplight
-              label="Risk-On"
-              value={risk10}
-              tone={toneForPct(risk10)}
-            />
-          </div>
-
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              color: "#9ca3af",
-              fontSize: 12,
-            }}
-          >
-            <div>
-              Last 10-min: <strong>{fmtIso(ts10)}</strong>
-              &nbsp;|&nbsp; Δ5m updated:{" "}
-              <strong>{fmtIso(deltaTs) || "—"}</strong>
-            </div>
-            <PulseIcon10m data={d10} />
-          </div>
-        </div>
-
-        {/* 1h strip */}
-        <div style={stripBox}>
-          <div className="small" style={{ color: "#9ca3af", fontWeight: 800 }}>
-            1h — Hourly Valuation
-          </div>
-          <div style={lineBox}>
-            <Stoplight
-              label="Overall"
-              value={overall1}
-              tone={toneForOverallState(state1, overall1)}
-            />
-            <Stoplight
-              label="Breadth"
-              value={breadth1}
-              tone={toneForBreadth(breadth1)}
-            />
-            <Stoplight
-              label="Momentum"
-              value={mom1}
-              tone={toneForMomentum(mom1)}
-            />
-            <Stoplight
-              label="Squeeze"
-              value={sq1}
-              tone={toneForSqueeze1h(sq1)}
-            />
-            <Stoplight
-              label="Liquidity"
-              value={liq1}
-              unit="PSI"
-              tone={toneForLiquidity(liq1)}
-            />
-            <Stoplight
-              label="Volatility"
-              value={vol1}
-              tone={toneForVol(vol1)}
-            />
-            <Stoplight
-              label="Sector Dir"
-              value={rising1}
-              tone={toneForPct(rising1)}
-            />
-            <Stoplight
-              label="Risk-On"
-              value={risk1}
-              tone={toneForPct(risk1)}
-            />
-          </div>
-          <div style={{ color: "#9ca3af", fontSize: 12 }}>
-            Last 1-hour: <strong>{fmtIso(ts1h)}</strong>
-          </div>
-        </div>
-
-        {/* EOD strip */}
-        <div style={stripBox}>
-          <div className="small" style={{ color: "#9ca3af", fontWeight: 800 }}>
-            EOD — Daily Structure
-          </div>
-          <div style={lineBox}>
-            <Stoplight
-              label="Daily Trend"
-              value={tdTrendVal}
-              tone={toneForDailyTrend(tdSlope)}
-            />
-            <Stoplight
-              label="Participation"
-              value={tdPartPct}
-              tone={toneForPct(tdPartPct)}
-            />
-            <Stoplight
-              label="Daily Squeeze"
-              value={tdSdyDaily}
-              tone={toneForDailySqueeze(tdSdyDaily)}
-            />
-            <Stoplight
-              label="Vol Regime"
-              value={tdVolPct}
-              tone={toneForVolBand(tdVolBand)}
-            />
-            <Stoplight
-              label="Liq Regime"
-              value={tdLiqPsi}
-              unit="PSI"
-              tone={toneForLiqBand(tdLiqBand)}
-            />
-            <Stoplight
-              label="Risk-On"
-              value={tdRiskOn}
-              tone={toneForPct(tdRiskOn)}
-            />
-          </div>
-          <div style={{ color: "#9ca3af", fontSize: 12 }}>
-            Daily updated: <strong>{fmtIso(tsEOD)}</strong>
-          </div>
-        </div>
-      </div>
-
-      {/* Legend modal */}
-      {legendOpen && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          onClick={() => setLegendOpen(null)}
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.5)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 60,
-          }}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              width: "min(880px,92vw)",
-              background: "#0b0b0c",
-              border: "1px solid #2b2b2b",
-              borderRadius: 12,
-              padding: 16,
-            }}
-          >
-            {legendOpen === "intraday" ? (
-              <MarketMeterIntradayLegend />
-            ) : (
-              <MarketMeterDailyLegend />
-            )}
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "flex-end",
-                marginTop: 12,
-              }}
-            >
-              <button
-                onClick={() => setLegendOpen(null)}
-                style={{
-                  background: "#eab308",
-                  color: "#111827",
-                  border: "none",
-                  borderRadius: 8,
-                  padding: "8px 12px",
-                  fontWeight: 700,
-                  cursor: "pointer",
-                }}
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </section>
-  );
-}
+    async function load() {
+      if (!SAN
