@@ -282,21 +282,18 @@ export default function RowMarketOverview() {
     num(m10.momentum_pct);
 
   // Lux Squeeze 10m:
+  //
   // Backend gives:
   //   - metrics.squeeze_psi_10m_pct  (PSI, tightness)
-  //   - metrics.squeeze_expansion_pct
-  //   - metrics.squeeze_pct          (expansion)
+  //   - metrics.squeeze_expansion_pct (100 - PSI)
+  //   - metrics.squeeze_pct          (currently expansion)
   //
-  // CONTRACT:
-  //   Tile shows EXPANSION (100 - PSI).
+  // For now we want the tile to MATCH Lux, so:
+  //   Tile shows PSI.
   //   Tone uses PSI.
+  //
   const psi10 = num(m10.squeeze_psi_10m_pct); // PSI (tightness)
-  let sq10 = num(m10.squeeze_pct ?? m10.squeeze_expansion_pct); // expansion
-
-  if (Number.isFinite(psi10)) {
-    // derive expansion directly from PSI for consistency
-    sq10 = clamp(100 - psi10, 0, 100);
-  }
+  const sq10 = psi10; // tile value = PSI (matches Lux)
 
   const liq10 = num(m10.liquidity_psi ?? m10.liquidity_pct);
   const vol10 = num(m10.volatility_pct);
@@ -323,21 +320,18 @@ export default function RowMarketOverview() {
     num(m1h.momentum_pct);
 
   // Lux Squeeze 1h:
+  //
   // Backend gives:
   //   - metrics.squeeze_psi_1h_pct       (PSI, tightness)
   //   - metrics.squeeze_1h_pct           (expansion)
   //   - metrics.squeeze_expansion_pct    (expansion)
   //
-  // CONTRACT:
-  //   Tile shows EXPANSION (100 - PSI).
+  // For now we want the tile to MATCH Lux, so:
+  //   Tile shows PSI.
   //   Tone uses PSI.
+  //
   const psi1 = num(m1h.squeeze_psi_1h_pct ?? m1h.squeeze_psi_1h); // PSI
-  let sq1 = num(m1h.squeeze_1h_pct ?? m1h.squeeze_expansion_pct); // expansion
-
-  if (Number.isFinite(psi1)) {
-    // derive expansion directly from PSI to mirror 10m behavior
-    sq1 = clamp(100 - psi1, 0, 100);
-  }
+  const sq1 = psi1; // tile value = PSI (matches Lux)
 
   const liq1 = num(m1h.liquidity_1h);
   const vol1 = num(m1h.volatility_1h_scaled ?? m1h.volatility_1h_pct);
@@ -466,7 +460,7 @@ export default function RowMarketOverview() {
             />
             <Stoplight
               label="Squeeze"
-              value={sq10} // EXPANSION (100 - PSI)
+              value={psi10} // PSI (matches Lux)
               tone={toneForSqueeze10Psi(psi10)} // PSI-based tone
             />
             <Stoplight
@@ -535,7 +529,7 @@ export default function RowMarketOverview() {
             />
             <Stoplight
               label="Squeeze"
-              value={sq1} // EXPANSION (100 - PSI)
+              value={psi1} // PSI (matches Lux)
               tone={toneForSqueeze1hPsi(psi1)} // PSI-based tone
             />
             <Stoplight
