@@ -1,12 +1,12 @@
 {
-  "noiseThreshold": 3.0,
-  "smoothK": 0.26,
-  "decay": 0.93,
+  "noiseThreshold": 1.5,
+  "smoothK": 0.44,
+  "decay": 0.82,
 
-  "greenOn": 66,
-  "greenOff": 63,
-  "redOn": 39,
-  "redOff": 42,
+  "greenOn": 60,
+  "greenOff": 55,
+  "redOn": 45,
+  "redOff": 50,
 
   "hysteresisCycles": 1
 }
