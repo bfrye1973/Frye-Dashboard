@@ -11,13 +11,14 @@ import {
 } from "../../components/MarketMeterLegend";
 
 // ----------------- API endpoints -----------------
-const INTRADAY_URL = process.env.REACT_APP_INTRADAY_URL;        // /live/intraday
-const HOURLY_URL   = process.env.REACT_APP_HOURLY_URL;          // /live/hourly
-const EOD_URL      = process.env.REACT_APP_EOD_URL;             // /live/eod
-const SANDBOX_URL  = process.env.REACT_APP_INTRADAY_SANDBOX_URL || "";
+const INTRADAY_URL = process.env.REACT_APP_INTRADAY_URL; // /live/intraday
+const HOURLY_URL = process.env.REACT_APP_HOURLY_URL; // /live/hourly
+const EOD_URL = process.env.REACT_APP_EOD_URL; // /live/eod
+const SANDBOX_URL = process.env.REACT_APP_INTRADAY_SANDBOX_URL || "";
 
 // ----------------- Utilities -----------------
 const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, Number(n)));
+
 const num = (v) => {
   const n = Number(v);
   return Number.isFinite(n) ? n : NaN;
@@ -33,6 +34,7 @@ const fmtIso = (ts) => {
 };
 
 const tsOf = (x) => (x && (x.updated_at || x.ts)) || null;
+
 const newer = (a, b) => {
   const ta = tsOf(a);
   const tb = tsOf(b);
@@ -47,6 +49,7 @@ const toneForPct = (v) =>
 
 const toneForBreadth = toneForPct;
 const toneForMomentum = toneForPct;
+
 const toneForLiquidity = (v) =>
   !Number.isFinite(v) ? "info" : v >= 60 ? "ok" : v >= 40 ? "warn" : "danger";
 
@@ -58,6 +61,14 @@ const toneForVol = (v) =>
  *   psi >= 85 → danger (hard coil)
  *   15 <= psi < 85 → warn (working squeeze)
  *   psi < 15 → ok (no real squeeze)
+ *
+ * This is used for:
+ *   - 10m Squeeze
+ *   - 1h Squeeze
+ *   - EOD Daily Squeeze
+ *
+ * IMPORTANT:
+ *   - When PSI is missing, we return "info" (matches Stoplight tone set).
  */
 const toneForSqueezePsi = (psi) => {
   if (!Number.isFinite(psi)) return "info";
@@ -72,6 +83,12 @@ const toneForSqueeze1hPsi = toneForSqueezePsi;
 const toneForDailyTrend = (s) =>
   !Number.isFinite(s) ? "info" : s > 5 ? "ok" : s >= -5 ? "warn" : "danger";
 
+/**
+ * Daily Lux Squeeze band (PSI, tightness)
+ *   PSI ≥ 85 → danger
+ *   PSI ≥ 80 → warn
+ *   else     → ok
+ */
 const toneForLuxDaily = (v) =>
   !Number.isFinite(v) ? "info" : v >= 85 ? "danger" : v >= 80 ? "warn" : "ok";
 
@@ -99,12 +116,13 @@ function Stoplight({
   minWidth = 90,
 }) {
   const v = Number.isFinite(value) ? value : NaN;
-  const colors = {
-    ok: { bg: "#22c55e", glow: "rgba(34,197,94,.45)" },
-    warn: { bg: "#fbbf24", glow: "rgba(251,191,36,.45)" },
-    danger: { bg: "#ef4444", glow: "rgba(239,68,68,.45)" },
-    info: { bg: "#334155", glow: "rgba(51,65,85,.35)" },
-  }[tone] || { bg: "#334155", glow: "rgba(51,65,85,.35)" };
+  const colors =
+    {
+      ok: { bg: "#22c55e", glow: "rgba(34,197,94,.45)" },
+      warn: { bg: "#fbbf24", glow: "rgba(251,191,36,.45)" },
+      danger: { bg: "#ef4444", glow: "rgba(239,68,68,.45)" },
+      info: { bg: "#334155", glow: "rgba(51,65,85,.35)" },
+    }[tone] || { bg: "#334155", glow: "rgba(51,65,85,.35)" };
 
   const valText = Number.isFinite(v) ? `${v.toFixed(1)}${unit}` : "—";
 
@@ -195,6 +213,7 @@ export default function RowMarketOverview() {
   const [live1h, setLive1h] = React.useState(null);
   const [liveEOD, setLiveEOD] = React.useState(null);
 
+  // Pull direct /live feeds (10m, 1h, EOD)
   React.useEffect(() => {
     let stop = false;
 
@@ -237,7 +256,7 @@ export default function RowMarketOverview() {
   const { dB: deltaB, dM: deltaM, riskOn: deltaRisk, ts: deltaTs } =
     useSandboxDeltas();
 
-  // choose freshest intraday
+  // choose freshest intraday between live10 and polled
   const chosen10 = newer(live10, polled);
   const d10 = chosen10 || {};
   const m10 = d10.metrics || {};
@@ -254,17 +273,28 @@ export default function RowMarketOverview() {
   const tsEOD = dd.updated_at;
 
   /* ---------- 10m strip ---------- */
+
   const breadth10 = num(m10.breadth_10m_pct ?? m10.breadth_pct);
+
   const mom10 =
     num(m10.momentum_10m_pct) ||
     num(m10.momentum_combo_10m_pct) ||
     num(m10.momentum_pct);
 
-  // PSI & expansion (backend writes both)
-  const psi10 = num(m10.squeeze_psi_10m_pct);
-  // tile shows expansion = 100 - PSI for 10m
-  let sq10 = num(m10.squeeze_pct ?? m10.squeeze_expansion_pct);
+  // Lux Squeeze 10m:
+  // Backend gives:
+  //   - metrics.squeeze_psi_10m_pct  (PSI, tightness)
+  //   - metrics.squeeze_expansion_pct
+  //   - metrics.squeeze_pct          (expansion)
+  //
+  // CONTRACT:
+  //   Tile shows EXPANSION (100 - PSI).
+  //   Tone uses PSI.
+  const psi10 = num(m10.squeeze_psi_10m_pct); // PSI (tightness)
+  let sq10 = num(m10.squeeze_pct ?? m10.squeeze_expansion_pct); // expansion
+
   if (Number.isFinite(psi10)) {
+    // derive expansion directly from PSI for consistency
     sq10 = clamp(100 - psi10, 0, 100);
   }
 
@@ -281,20 +311,31 @@ export default function RowMarketOverview() {
   if (!Number.isFinite(overall10)) {
     overall10 = num(eng10.score);
   }
-  const state10 =
-    i10?.overall10m?.state || eng10.state || "neutral";
+  const state10 = i10?.overall10m?.state || eng10.state || "neutral";
 
   /* ---------- 1h strip ---------- */
+
   const breadth1 = num(m1h.breadth_1h_pct);
+
   const mom1 =
     num(m1h.momentum_combo_1h_pct) ||
     num(m1h.momentum_1h_pct) ||
     num(m1h.momentum_pct);
 
-  const psi1 = num(m1h.squeeze_psi_1h_pct ?? m1h.squeeze_psi_1h);
-  // tile shows expansion = 100 - PSI for 1h (mirror 10m behavior)
-  let sq1 = num(m1h.squeeze_1h_pct ?? m1h.squeeze_expansion_pct);
+  // Lux Squeeze 1h:
+  // Backend gives:
+  //   - metrics.squeeze_psi_1h_pct       (PSI, tightness)
+  //   - metrics.squeeze_1h_pct           (expansion)
+  //   - metrics.squeeze_expansion_pct    (expansion)
+  //
+  // CONTRACT:
+  //   Tile shows EXPANSION (100 - PSI).
+  //   Tone uses PSI.
+  const psi1 = num(m1h.squeeze_psi_1h_pct ?? m1h.squeeze_psi_1h); // PSI
+  let sq1 = num(m1h.squeeze_1h_pct ?? m1h.squeeze_expansion_pct); // expansion
+
   if (Number.isFinite(psi1)) {
+    // derive expansion directly from PSI to mirror 10m behavior
     sq1 = clamp(100 - psi1, 0, 100);
   }
 
@@ -306,9 +347,11 @@ export default function RowMarketOverview() {
   const state1 = h1?.overall1h?.state || "neutral";
 
   /* ---------- EOD strip ---------- */
+
   const td = dd.trendDaily || {};
   const tdSlope = num(td?.trend?.emaSlope);
   const tdTrend = td?.trend?.state || null;
+
   const tdTrendVal = Number.isFinite(tdSlope)
     ? tdSlope > 5
       ? 75
@@ -318,6 +361,7 @@ export default function RowMarketOverview() {
     : NaN;
 
   const tdPartPct = num(td?.participation?.pctAboveMA);
+
   const tdVolReg = td?.volatilityRegime || {};
   const tdVolPct = num(tdVolReg.atrPct);
   const tdVolBand = tdVolReg.band || null;
@@ -327,15 +371,32 @@ export default function RowMarketOverview() {
   const tdLiqBand = tdLiqReg.band || null;
 
   const tdRiskOn = num(dd?.rotation?.riskOnPct);
-  const tdSdyDaily = num(dd?.metrics?.squeeze_daily_pct);
+
+  // Daily Squeeze PSI:
+  // Backend can expose:
+  //   metrics.daily_squeeze_pct  (PSI)
+  //   metrics.squeezePct         (PSI)
+  //   metrics.squeeze_daily_pct  (legacy PSI field)
+  //
+  // CONTRACT:
+  //   EOD tile shows PSI.
+  //   Tone uses PSI (same function as 10m/1h).
+  const dMetrics = dd.metrics || {};
+  const tdSdyDaily = num(
+    dMetrics.daily_squeeze_pct ??
+      dMetrics.squeezePct ??
+      dMetrics.squeeze_daily_pct
+  ); // PSI (tightness)
 
   /* ---------- Layout ---------- */
+
   const stripBox = {
     display: "flex",
     flexDirection: "column",
     gap: 6,
     minWidth: 820,
   };
+
   const lineBox = {
     display: "flex",
     gap: 12,
@@ -405,8 +466,8 @@ export default function RowMarketOverview() {
             />
             <Stoplight
               label="Squeeze"
-              value={sq10}
-              tone={toneForSqueeze10Psi(psi10)}
+              value={sq10} // EXPANSION (100 - PSI)
+              tone={toneForSqueeze10Psi(psi10)} // PSI-based tone
             />
             <Stoplight
               label="Liquidity"
@@ -474,8 +535,8 @@ export default function RowMarketOverview() {
             />
             <Stoplight
               label="Squeeze"
-              value={sq1}
-              tone={toneForSqueeze1hPsi(psi1)}
+              value={sq1} // EXPANSION (100 - PSI)
+              tone={toneForSqueeze1hPsi(psi1)} // PSI-based tone
             />
             <Stoplight
               label="Liquidity"
@@ -525,8 +586,8 @@ export default function RowMarketOverview() {
             />
             <Stoplight
               label="Daily Squeeze"
-              value={tdSdyDaily}
-              tone={toneForLuxDaily(tdSdyDaily)}
+              value={tdSdyDaily} // PSI
+              tone={toneForLuxDaily(tdSdyDaily)} // PSI bands
             />
             <Stoplight
               label="Vol Regime"
