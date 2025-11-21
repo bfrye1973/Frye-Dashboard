@@ -1,11 +1,10 @@
 // src/components/meter/PulseIcon10m.jsx
-// Ferrari Dashboard — 10m Pulse Icon (R12.8 + Balanced Mode, 7-bar visual, BIGGER)
+// Ferrari Dashboard — 10m Pulse Icon (R12.8 + Balanced Mode, 7-bar signal)
 
 import React from "react";
 import { computeMarketPulse } from "../../algos/pulse/formulas";
 import pulseConfig from "../../algos/pulse/config.json";
 
-// Prefer dedicated Pulse URL, fallback to sandbox if needed.
 const PULSE_URL =
   process.env.REACT_APP_PULSE_URL ||
   process.env.REACT_APP_INTRADAY_SANDBOX_URL ||
@@ -92,15 +91,15 @@ function useMarketPulse10m() {
 }
 
 /**
- * 7-bar Pulse visual (bigger)
- * - 7 vertical bars, center tallest (like an EQ / signal meter)
- * - More positive pulse → more bars lit + darker green
- * - More negative pulse → more bars lit + darker red
+ * 7-bar Pulse visual:
+ *  - 7 vertical bars (center tallest)
+ *  - More bullish pulse → more bars lit + darker green
+ *  - More bearish pulse → more bars lit + darker red
+ *  - Neutral → gray bars
  */
 export default function PulseIcon10m(/* { data } */) {
   const { pulseState, visualMode } = useMarketPulse10m();
   const score = pulseState?.pulse;
-
   const intensity = Number.isFinite(score) ? score : 50;
 
   // Map score 0–100 to 0–7 "lit" bars for each direction
@@ -108,18 +107,17 @@ export default function PulseIcon10m(/* { data } */) {
   if (visualMode === "up") {
     litBars = Math.round((intensity / 100) * 7);
   } else if (visualMode === "down") {
-    // For down, invert so lower score = more red bars
-    const neg = 100 - intensity;
+    const neg = 100 - intensity; // lower score → more bearish
     litBars = Math.round((neg / 100) * 7);
   } else {
     litBars = 0;
   }
   litBars = Math.max(0, Math.min(7, litBars));
 
-  // Taller bar heights (pixels) – center tallest
+  // Bar heights (pixels) – center tallest
   const heights = [10, 16, 22, 28, 22, 16, 10];
 
-  // Color ramps (light → dark) for 7 levels
+  // Color ramps for 7 levels (light → dark)
   const greenRamp = [
     "#bbf7d0",
     "#86efac",
@@ -140,14 +138,13 @@ export default function PulseIcon10m(/* { data } */) {
   ];
   const neutralRamp = [
     "#e5e7eb",
-    "#e5e7eb",
     "#d1d5db",
     "#9ca3af",
     "#6b7280",
     "#4b5563",
     "#374151",
+    "#111827",
   ];
-
   const muted = "#1f2933";
 
   const getBarColor = (index) => {
@@ -166,23 +163,17 @@ export default function PulseIcon10m(/* { data } */) {
     return neutralRamp[Math.min(neutralLevel, neutralRamp.length - 1)];
   };
 
-  // Background highlight by mode
-  let bg;
-  if (visualMode === "up") bg = "rgba(34,197,94,0.16)";
-  else if (visualMode === "down") bg = "rgba(239,68,68,0.16)";
-  else bg = "rgba(15,23,42,0.7)";
-
   const container = {
     display: "inline-flex",
     alignItems: "center",
     gap: 10,
-    padding: "4px 12px",
+    padding: "4px 10px",
     borderRadius: 999,
     border: "1px solid rgba(148,163,184,.5)",
-    background: bg,
+    background: "rgba(15,23,42,0.9)", // always neutral background
     color: "#e5e7eb",
     lineHeight: 1.1,
-    minWidth: 110,
+    minWidth: 120,
   };
 
   const valStyle = {
@@ -207,7 +198,7 @@ export default function PulseIcon10m(/* { data } */) {
 
   return (
     <div style={container} title={title}>
-      {/* BIG 7-bar signal graph */}
+      {/* 7-bar signal graph */}
       <svg
         width="56"
         height="32"
