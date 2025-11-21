@@ -242,10 +242,7 @@ export default function RowMarketOverview() {
 
   // PSI + expansion: tile shows 100 - PSI, tone uses PSI
   const psi10 = num(m10.squeeze_psi_10m_pct);
-  let sq10 = num(m10.squeeze_pct);
-  if (Number.isFinite(psi10)) {
-    sq10 = 100 - psi10;
-  }
+  let sq10    = Number.isFinite(psi10) ? psi10 : num(m10.squeeze_pct);
 
   let liq10 = num(m10.liquidity_psi);
   if (!Number.isFinite(liq10)) liq10 = num(m10.liquidity_pct);
