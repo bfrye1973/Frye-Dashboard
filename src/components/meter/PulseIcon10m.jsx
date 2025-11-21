@@ -1,103 +1,121 @@
+// src/components/meter/PulseIcon10m.jsx
+// Ferrari Dashboard — 10m Pulse Icon (R12.8)
+
 import React from "react";
+import {
+  computeMarketPulse,
+  classifyPulse,
+} from "../../algos/pulse/formulas";
 
-/**
- * PulseIcon10m
- * Renders a small bar-chart icon + Signal number for the 10-minute Sector Rotation Pulse.
- * Reads from:
- *   - data.pulse10m.{signal,pulseDelta,offenseTilt,defensiveTilt,risingPct}
- *   - falls back to data.metrics.pulse10m_* mirrors
- */
-export default function PulseIcon10m({ data }) {
-  const p = (data && data.pulse10m) || {};
-  const m = (data && data.metrics) || {};
+// We reuse the same env var as the sandbox deltas workflow.
+// This should point at /live/pills or the intraday deltas endpoint.
+const PULSE_URL = process.env.REACT_APP_INTRADAY_SANDBOX_URL || "";
 
-  const signal =
-    typeof p.signal === "number"
-      ? p.signal
-      : typeof m.pulse10m_signal === "number"
-      ? m.pulse10m_signal
-      : null;
+function useMarketPulse10m() {
+  const [pulseState, setPulseState] = React.useState(null);
 
-  const pulseDelta =
-    typeof p.pulseDelta === "number" ? p.pulseDelta : null;
+  React.useEffect(() => {
+    if (!PULSE_URL) return;
 
-  const offenseTilt =
-    typeof p.offenseTilt === "number"
-      ? p.offenseTilt
-      : typeof m.pulse10m_offenseTilt === "number"
-      ? m.pulse10m_offenseTilt
-      : null;
+    let stop = false;
+    let currentState = pulseState || null;
 
-  const defensiveTilt =
-    typeof p.defensiveTilt === "number"
-      ? p.defensiveTilt
-      : typeof m.pulse10m_defenseTilt === "number"
-      ? m.pulse10m_defenseTilt
-      : null;
+    async function pull() {
+      try {
+        const sep = PULSE_URL.includes("?") ? "&" : "?";
+        const r = await fetch(`${PULSE_URL}${sep}t=${Date.now()}`, {
+          cache: "no-store",
+        });
+        const j = await r.json();
 
-  const risingPct =
-    typeof p.risingPct === "number"
-      ? p.risingPct
-      : typeof m.pulse10m_risingPct === "number"
-      ? m.pulse10m_risingPct
-      : null;
+        const market = j?.deltas?.market || {};
+        // Compute smoothed / decayed pulse state
+        const next = computeMarketPulse(currentState, {
+          dBreadthPct: Number(market.dBreadthPct ?? null),
+          dMomentumPct: Number(market.dMomentumPct ?? null),
+          riskOnPct: Number(market.riskOnPct ?? null),
+        });
 
-  const band = (s) => {
-    if (s == null || Number.isNaN(s)) return "muted";
-    return s >= 60 ? "ok" : s < 40 ? "red" : "warn";
-  };
+        currentState = next;
+        if (!stop) {
+          setPulseState(next);
+        }
+      } catch {
+        if (!stop) {
+          setPulseState(null);
+        }
+      }
+    }
 
-  const fillColor = {
-    ok:   "#19c37d",
-    warn: "#e5b454",
-    red:  "#ff5a5a",
-    muted:"#93a1b2",
-  }[band(signal)];
+    pull();
+    const id = setInterval(pull, 30_000);
+    return () => {
+      stop = true;
+      clearInterval(id);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // PULSE_URL is effectively constant at runtime
 
-  const container = {
-    display: "inline-flex",
-    alignItems: "center",
-    gap: 6,
-    padding: "2px 6px",
-    borderRadius: 8,
-    border: "1px solid rgba(120,150,190,.25)",
-    background: "rgba(8,12,20,.55)",
-    color: "#e5e7eb",
-    lineHeight: 1.1,
-  };
+  return pulseState;
+}
 
-  const valStyle = {
-    fontWeight: 700,
-    fontSize: 12,
-    fontVariantNumeric: "tabular-nums"
-  };
+export default function PulseIcon10m() {
+  const pulse = useMarketPulse10m();
+  const score = pulse?.pulse;
 
-  const lblStyle = {
-    fontSize: 10,
-    opacity: 0.85
-  };
+  const mode = classifyPulse(score); // "up" | "down" | "flat"
 
-  const title =
-    `Pulse 10m • Signal: ${signal ?? "—"}`
-    + (risingPct != null ? ` • Rising: ${risingPct}%` : "")
-    + (offenseTilt != null ? ` • Off: ${offenseTilt}` : "")
-    + (defensiveTilt != null ? ` • Def: ${defensiveTilt}` : "")
-    + (pulseDelta != null ? ` • Δ: ${(pulseDelta > 0 ? "+" : "") + pulseDelta.toFixed(1)}` : "");
+  let bg;
+  let shadow;
+  if (mode === "up") {
+    bg = "#22c55e";
+    shadow = "0 0 8px rgba(34,197,94,0.7)";
+  } else if (mode === "down") {
+    bg = "#ef4444";
+    shadow = "0 0 8px rgba(239,68,68,0.7)";
+  } else {
+    bg = "#e5e7eb";
+    shadow = "0 0 6px rgba(148,163,184,0.4)";
+  }
+
+  const label =
+    Number.isFinite(score) && score !== null ? score.toFixed(0) : "—";
+
+  const tooltip = Number.isFinite(score)
+    ? `Market Pulse: ${score.toFixed(1)}`
+    : "Market Pulse: n/a";
 
   return (
-    <div style={container} title={title}>
-      {/* bar-chart glyph */}
-      <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden>
-        <rect x="1"  y="9" width="3" height="6" rx="1" fill={fillColor} />
-        <rect x="6"  y="6" width="3" height="9" rx="1" fill={fillColor} opacity=".9" />
-        <rect x="11" y="3" width="3" height="12" rx="1" fill={fillColor} opacity=".8" />
-      </svg>
-
-      {/* value + label */}
-      <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-start" }}>
-        <span style={valStyle}>{signal != null ? signal.toFixed(1) : "—"}</span>
-        <span style={lblStyle}>Pulse</span>
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 6,
+        fontSize: 11,
+        color: "#9ca3af",
+        fontWeight: 600,
+      }}
+    >
+      <div
+        title={tooltip}
+        style={{
+          width: 22,
+          height: 22,
+          borderRadius: "999px",
+          border: "2px solid #020617",
+          background: bg,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          boxShadow: shadow,
+          fontSize: 11,
+          fontWeight: 700,
+          color: mode === "flat" ? "#111827" : "#0b1120",
+        }}
+      >
+        {label}
       </div>
+      <span>Pulse</span>
     </div>
   );
 }
