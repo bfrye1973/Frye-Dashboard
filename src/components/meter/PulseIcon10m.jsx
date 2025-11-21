@@ -161,4 +161,93 @@ export default function PulseIcon10m(/* { data } */) {
     }
     // Neutral mode: soft gray ramp based on distance from 50
     const neutralLevel = Math.round(
-      (Math.
+      (Math.abs(intensity - 50) / 50) * (neutralRamp.length - 1)
+    );
+    return neutralRamp[Math.min(neutralLevel, neutralRamp.length - 1)];
+  };
+
+  // Background highlight by mode
+  let bg;
+  if (visualMode === "up") bg = "rgba(34,197,94,0.16)";
+  else if (visualMode === "down") bg = "rgba(239,68,68,0.16)";
+  else bg = "rgba(15,23,42,0.7)";
+
+  const container = {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 10,
+    padding: "4px 12px",
+    borderRadius: 999,
+    border: "1px solid rgba(148,163,184,.5)",
+    background: bg,
+    color: "#e5e7eb",
+    lineHeight: 1.1,
+    minWidth: 110,
+  };
+
+  const valStyle = {
+    fontWeight: 800,
+    fontSize: 14,
+    fontVariantNumeric: "tabular-nums",
+  };
+
+  const lblStyle = {
+    fontSize: 11,
+    opacity: 0.9,
+  };
+
+  const title =
+    `Pulse 10m • Score: ${
+      Number.isFinite(score) ? score.toFixed(1) : "—"
+    }` + (pulseState
+      ? ` • d5m: ${pulseState.d5m.toFixed(1)} • d10m: ${pulseState.d10m.toFixed(
+          1
+        )}`
+      : "");
+
+  return (
+    <div style={container} title={title}>
+      {/* BIG 7-bar signal graph */}
+      <svg
+        width="56"
+        height="32"
+        viewBox="0 0 56 32"
+        aria-hidden
+        style={{ display: "block" }}
+      >
+        {heights.map((h, i) => {
+          const barWidth = 5;
+          const gap = 3;
+          const x = i * (barWidth + gap);
+          const y = 32 - h;
+          const fill = getBarColor(i);
+          return (
+            <rect
+              key={i}
+              x={x}
+              y={y}
+              width={barWidth}
+              height={h}
+              rx="2"
+              fill={fill}
+            />
+          );
+        })}
+      </svg>
+
+      {/* value + label */}
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "flex-start",
+        }}
+      >
+        <span style={valStyle}>
+          {Number.isFinite(score) ? score.toFixed(1) : "—"}
+        </span>
+        <span style={lblStyle}>Pulse</span>
+      </div>
+    </div>
+  );
+}
