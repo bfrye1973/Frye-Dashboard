@@ -1,5 +1,5 @@
 // src/components/meter/PulseIcon10m.jsx
-// Ferrari Dashboard — 10m Pulse Icon (R12.8 + Balanced Mode, 7-bar visual)
+// Ferrari Dashboard — 10m Pulse Icon (R12.8 + Balanced Mode, 7-bar visual, BIGGER)
 
 import React from "react";
 import { computeMarketPulse } from "../../algos/pulse/formulas";
@@ -92,7 +92,7 @@ function useMarketPulse10m() {
 }
 
 /**
- * 7-bar Pulse visual
+ * 7-bar Pulse visual (bigger)
  * - 7 vertical bars, center tallest (like an EQ / signal meter)
  * - More positive pulse → more bars lit + darker green
  * - More negative pulse → more bars lit + darker red
@@ -116,8 +116,8 @@ export default function PulseIcon10m(/* { data } */) {
   }
   litBars = Math.max(0, Math.min(7, litBars));
 
-  // Bar heights (pixels) – center tallest, outer bars shorter
-  const heights = [6, 9, 12, 15, 12, 9, 6];
+  // Taller bar heights (pixels) – center tallest
+  const heights = [10, 16, 22, 28, 22, 16, 10];
 
   // Color ramps (light → dark) for 7 levels
   const greenRamp = [
@@ -148,11 +148,10 @@ export default function PulseIcon10m(/* { data } */) {
     "#374151",
   ];
 
-  const muted = "#4b5563";
+  const muted = "#1f2933";
 
   const getBarColor = (index) => {
     if (visualMode === "up" && litBars > 0) {
-      // For green: use darker shades as more bars light up
       const shadeIndex = Math.min(litBars - 1, greenRamp.length - 1);
       return index < litBars ? greenRamp[shadeIndex] : muted;
     }
@@ -160,86 +159,6 @@ export default function PulseIcon10m(/* { data } */) {
       const shadeIndex = Math.min(litBars - 1, redRamp.length - 1);
       return index < litBars ? redRamp[shadeIndex] : muted;
     }
-    // Neutral mode: soft gray ramp based on score proximity to 50
-    const neutralLevel = Math.round(Math.abs(intensity - 50) / 50 * 6);
-    return neutralRamp[Math.min(neutralLevel, neutralRamp.length - 1)];
-  };
-
-  const container = {
-    display: "inline-flex",
-    alignItems: "center",
-    gap: 8,
-    padding: "2px 8px",
-    borderRadius: 8,
-    border: "1px solid rgba(120,150,190,.25)",
-    background: "rgba(8,12,20,.55)",
-    color: "#e5e7eb",
-    lineHeight: 1.1,
-  };
-
-  const valStyle = {
-    fontWeight: 700,
-    fontSize: 12,
-    fontVariantNumeric: "tabular-nums",
-  };
-
-  const lblStyle = {
-    fontSize: 10,
-    opacity: 0.85,
-  };
-
-  const title =
-    `Pulse 10m • Score: ${
-      Number.isFinite(score) ? score.toFixed(1) : "—"
-    }` + (pulseState
-      ? ` • d5m: ${pulseState.d5m.toFixed(1)} • d10m: ${pulseState.d10m.toFixed(
-          1
-        )}`
-      : "");
-
-  return (
-    <div style={container} title={title}>
-      {/* 7-bar signal graph */}
-      <svg
-        width="32"
-        height="18"
-        viewBox="0 0 32 18"
-        aria-hidden
-        style={{ display: "block" }}
-      >
-        {heights.map((h, i) => {
-          const barWidth = 3;
-          const gap = 1;
-          const x = i * (barWidth + gap);
-          const y = 18 - h;
-          const fill = getBarColor(i);
-          return (
-            <rect
-              key={i}
-              x={x}
-              y={y}
-              width={barWidth}
-              height={h}
-              rx="1"
-              fill={fill}
-            />
-          );
-        })}
-      </svg>
-
-      {/* value + label */}
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "flex-start",
-        }}
-      >
-        <span style={valStyle}>
-          {Number.isFinite(score) ? score.toFixed(1) : "—"}
-        </span>
-        <span style={lblStyle}>Pulse</span>
-      </div>
-    </div>
-  );
-}
+    // Neutral mode: soft gray ramp based on distance from 50
+    const neutralLevel = Math.round(
+      (Math.
