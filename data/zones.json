@@ -7,7 +7,7 @@
       "id": "DIST_684_686_2025-11-05T14:30Z",
       "symbol": "SPY",
 
-      "side": "bear",                      
+      "side": "bear",
       "label": "Smart Money Distribution 684–686",
       "type": "smart_money",
 
@@ -17,10 +17,10 @@
       "timeframe": ["10m", "30m", "1h", "4h"],
 
       "firstDetected": "2025-11-05T14:30:00Z",
-      "lastTouched":   "2025-11-21T13:50:00Z",
+      "lastTouched": "2025-11-21T13:50:00Z",
       "touchCount": 7,
 
-      "status": "active",                  
+      "status": "active",
       "gapId": "GAPDN_672_2025-11-06",
 
       "score": 95,
@@ -53,7 +53,7 @@
       "timeframe": ["10m", "30m", "1h"],
 
       "firstDetected": "2025-11-10T10:00:00Z",
-      "lastTouched":   "2025-11-20T15:10:00Z",
+      "lastTouched": "2025-11-20T15:10:00Z",
       "touchCount": 5,
 
       "status": "active",
@@ -89,7 +89,7 @@
       "timeframe": ["10m", "30m", "1h", "4h"],
 
       "firstDetected": "2025-11-07T09:40:00Z",
-      "lastTouched":   "2025-11-18T14:20:00Z",
+      "lastTouched": "2025-11-18T14:20:00Z",
       "touchCount": 6,
 
       "status": "active",
