@@ -7,14 +7,14 @@ import { useEffect } from "react";
  *  - dashed horizontal lines for single "price" levels
  *  - soft filled bands for "priceRange" levels
  *
- * This assumes the RowChart `chart` object exposes helper methods
- * like addHorizontalLine / removeHorizontalLine / addBox / removeBox,
- * same pattern as your other overlays.
+ * Accumulation zones = RED
+ * Distribution zones = BLUE
  */
 export default function SMZLevelsOverlay({
   chart,
-  lineColorAcc = "#00ff55",
-  lineColorDist = "#ff3355"
+  // Accumulation = red, Distribution = blue
+  lineColorAcc = "#ff3355",   // red
+  lineColorDist = "#3380ff"   // blue
 }) {
   useEffect(() => {
     if (!chart) return;
