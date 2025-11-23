@@ -1,6 +1,5 @@
 // src/components/overlays/SmartMoneyZonesOverlay.js
 // Canvas overlay for Smart-Money Zones (simple bands from zones.json)
-// This version only uses the zones passed into seed({ zones: [...] })
 
 export default function createSmartMoneyZonesOverlay({
   chart,
@@ -54,7 +53,6 @@ export default function createSmartMoneyZonesOverlay({
     const ctx = cnv.getContext("2d");
     ctx.clearRect(0, 0, w, h);
 
-    // Draw each zone as a horizontal band across full visible width
     zones.forEach((z) => {
       if (z.top == null || z.bottom == null) return;
       const yTop = priceToY(z.top);
@@ -64,16 +62,11 @@ export default function createSmartMoneyZonesOverlay({
       const y = Math.min(yTop, yBot);
       const hBand = Math.max(2, Math.abs(yBot - yTop));
 
-      // Color scheme:
-      //  - bear  (distribution): red
-      //  - bull  (accumulation): teal/green
-      //  - smart_money type could be highlighted if needed
-      let fill = "rgba(239, 83, 80, 0.18)";
-      let stroke = "rgba(239, 83, 80, 0.9)";
-      if (z.side === "bull") {
-        fill = "rgba(16, 185, 129, 0.20)";
-        stroke = "rgba(16, 185, 129, 0.95)";
-      }
+      // ------------------------------------
+      // YELLOW ZONE COLOR (updated)
+      // ------------------------------------
+      const fill = "rgba(255, 215, 0, 0.22)";  // yellow soft fill
+      const stroke = "rgba(255, 215, 0, 0.95)"; // yellow strong outline
 
       // Draw band fill
       ctx.fillStyle = fill;
@@ -86,17 +79,25 @@ export default function createSmartMoneyZonesOverlay({
       ctx.rect(0.5, y + 0.5, w - 1, hBand - 1);
       ctx.stroke();
 
-      // Label text in the top-left of band
-      const label = z.label || `${z.side === "bear" ? "Dist" : "Accum"} ${z.bottom}–${z.top}`;
+      // ------------------------------------
+      // LABEL — moved to TOP RIGHT (updated)
+      // ------------------------------------
+      const label =
+        z.label || `${z.side === "bear" ? "Dist" : "Accum"} ${z.bottom}–${z.top}`;
+
       ctx.font = "11px system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif";
-      ctx.fillStyle = "#e5e7eb";
+      ctx.fillStyle = "#e5e7eb"; // light grey text
       ctx.textBaseline = "top";
-      ctx.fillText(label, 6, y + 2);
+
+      // right edge padding = 6px
+      const textWidth = ctx.measureText(label).width;
+      const xRight = w - textWidth - 6;
+
+      ctx.fillText(label, xRight, y + 2);
     });
   }
 
   function seed(payload) {
-    // Expect payload to be the JSON object from zones.json
     if (!payload || !Array.isArray(payload.zones)) {
       zones = [];
     } else {
@@ -106,7 +107,6 @@ export default function createSmartMoneyZonesOverlay({
   }
 
   function update() {
-    // For now, just re-draw on updates (resize/move)
     draw();
   }
 
@@ -115,15 +115,13 @@ export default function createSmartMoneyZonesOverlay({
       if (canvas && canvas.parentNode === chartContainer) {
         chartContainer.removeChild(canvas);
       }
-    } catch (e) {
-      // ignore
-    }
+    } catch (e) {}
     canvas = null;
     zones = [];
   }
 
-  // Re-draw when time range changes
-  const unsubVisible = ts.subscribeVisibleLogicalRangeChange?.(() => draw()) || (() => {});
+  const unsubVisible =
+    ts.subscribeVisibleLogicalRangeChange?.(() => draw()) || (() => {});
 
   return {
     seed,
