@@ -14,7 +14,10 @@ import {
 const INTRADAY_URL = process.env.REACT_APP_INTRADAY_URL; // /live/intraday
 const HOURLY_URL = process.env.REACT_APP_HOURLY_URL; // /live/hourly
 const EOD_URL = process.env.REACT_APP_EOD_URL; // /live/eod
-const SANDBOX_URL = process.env.REACT_APP_INTRADAY_SANDBOX_URL || "";
+const SANDBOX_URL =  
+  process.env.REACT_APP_PULSE_URL ||
+  process.env.REACT_APP_INTRADAY_SANDBOX_URL ||
+  "";
 
 // ----------------- Utilities -----------------
 const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, Number(n)));
