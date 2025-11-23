@@ -25,6 +25,8 @@ import createFourShelvesOverlay from "../../../components/overlays/FourShelvesOv
 // NEW: Smart-Money Zones engine + overlay
 import { computeSmartMoneyZones } from "../../../indicators/smz/engine";
 import createSmartMoneyZonesOverlay from "../../../components/overlays/SmartMoneyZonesOverlay";
+import SmartMoneyZonesPanel from "../../../components/smz/SmartMoneyZonesPanel";
+
 
 /* ------------------------------ Config ------------------------------ */
 // Target history window (rough) used to compute how many bars to request
