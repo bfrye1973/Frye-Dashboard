@@ -677,18 +677,31 @@ export default function RowChart({
       ? { width: "100%", height: "100%", minHeight: 0, maxHeight: "none", flex: "1 1 auto", overflow: "hidden", background: DEFAULTS.bg, position: "relative" }
       : { width: "100%", height: "520px", minHeight: 520, maxHeight: 520, flex: "0 0 auto", overflow: "hidden", background: DEFAULTS.bg, position: "relative" }
   ), [fullScreen]);
-
+ 
   return (
-    <div style={wrapperStyle}>
-      <Controls
-        symbols={symbols}
-        timeframes={timeframes}
-        value={state}
-        onChange={handleControlsChange}
-        onRange={applyRange}
+  <div style={wrapperStyle}>
+    <Controls
+      symbols={symbols}
+      timeframes={timeframes}
+      value={state}
+      onChange={handleControlsChange}
+      onRange={applyRange}
+    />
+    <IndicatorsToolbar {...toolbarProps} />
+
+    {/* Chart + Smart Money panel side by side */}
+    <div style={{ display: "flex", flexDirection: "row", width: "100%", height: "100%" }}>
+      <div
+        ref={containerRef}
+        style={{
+          ...containerStyle,
+          flex: 1,            // chart takes remaining space
+          minWidth: 0
+        }}
       />
-      <IndicatorsToolbar {...toolbarProps} />
-      <div ref={containerRef} style={containerStyle} />
+      <SmartMoneyZonesPanel />
     </div>
-  );
-}
+  </div>
+);
+
+ 
