@@ -1,0 +1,11 @@
+{
+  "levels": [
+    { "type": "distribution", "price": 689, "strength": 82 },
+    { "type": "distribution", "price": 676, "strength": 75 },
+
+    { "type": "accumulation", "priceRange": [665, 663], "strength": 88 },
+
+    { "type": "accumulation", "price": 655, "strength": 70 },
+    { "type": "distribution", "price": 701, "strength": 65 }
+  ]
+}
