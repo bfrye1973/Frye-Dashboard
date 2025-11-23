@@ -19,6 +19,7 @@
       "status": "active",
       "gapId": "GAPDN_672_2025-11-06",
       "score": 95,
+      "color": "rgba(255, 215, 0, 0.22)",
       "checks": {
         "hrHits3": true,
         "m10Hits7": true,
@@ -48,6 +49,7 @@
       "status": "active",
       "gapId": null,
       "score": 72,
+      "color": "rgba(255, 215, 0, 0.22)",
       "checks": {
         "hrHits3": true,
         "m10Hits7": true,
@@ -77,6 +79,7 @@
       "status": "active",
       "gapId": null,
       "score": 90,
+      "color": "rgba(255, 215, 0, 0.22)",
       "checks": {
         "hrHits3": true,
         "m10Hits7": true,
