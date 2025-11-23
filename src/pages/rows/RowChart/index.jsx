@@ -525,32 +525,54 @@ export default function RowChart({
 
     // Smart-Money Zones overlay (only when toggle is on and engine file exists)
     if (state.wickPaZones) {
-      const smz = attachOverlay(createSmartMoneyZonesOverlay, {
-        chart: chartRef.current,
-        priceSeries: seriesRef.current,
-        chartContainer: containerRef.current,
-        timeframe: state.timeframe,
-      });
-      reg(smz);
+  // -------------------------
+  // Big Smart Money Zones (yellow)
+  // -------------------------
+  const smz = attachOverlay(createSmartMoneyZonesOverlay, {
+    chart: chartRef.current,
+    priceSeries: seriesRef.current,
+    chartContainer: containerRef.current,
+    timeframe: state.timeframe,
+  });
+  reg(smz);
 
-      (async () => {
-        try {
-          const res = await fetch("/data/zones.json");
-          if (!res.ok) throw new Error(`HTTP ${res.status}`);
-          const json = await res.json();
-          if (showDebug) {
-            console.log("SMZ zones.json payload:", json?.zones?.length ?? 0);
-          }
-          smz?.seed?.(json);
-          if (showDebug) window.__smz = json;
-        } catch (e) {
-          console.warn(
-            "[RowChart] error loading zones.json for SMZ overlay:",
-            e
-          );
-        }
-      })();
+  // -------------------------
+  // Accumulation / Distribution Levels (red/blue)
+  // -------------------------
+  reg(
+    attachOverlay(SMZLevelsOverlay, {
+      chart: chartRef.current,
+      priceSeries: seriesRef.current,
+      chartContainer: containerRef.current,
+      timeframe: state.timeframe,
+    })
+  );
+
+  // -------------------------
+  // Load Smart Money zones.json data
+  // -------------------------
+  (async () => {
+    try {
+      const res = await fetch("/data/zones.json");
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = await res.json();
+
+      if (showDebug) {
+        console.log("SMZ zones.json payload:", json?.zones?.length ?? 0);
+      }
+
+      smz?.seed?.(json);
+
+      if (showDebug) window.__smz = json;
+    } catch (e) {
+      console.warn(
+        "[RowChart] error loading zones.json for SMZ overlay:",
+        e
+      );
     }
+  })();
+}
+
     try {
       overlayInstancesRef.current.forEach((o) => o?.seed?.(barsRef.current));
     } catch {}
