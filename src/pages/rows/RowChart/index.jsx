@@ -27,6 +27,9 @@ import { computeSmartMoneyZones } from "../../../indicators/smz/engine";
 import createSmartMoneyZonesOverlay from "../../../components/overlays/SmartMoneyZonesOverlay";
 import SmartMoneyZonesPanel from "../../../components/smz/SmartMoneyZonesPanel";
 
+// Accumulation / Distribution levels overlay (10m precision zones)
+import SMZLevelsOverlay from "./overlays/SMZLevelsOverlay";
+
 /* ------------------------------ Config ------------------------------ */
 // Target history window (rough) used to compute how many bars to request
 const HISTORY_MONTHS = 6; // ~6 months
@@ -523,55 +526,55 @@ export default function RowChart({
       );
     }
 
-    // Smart-Money Zones overlay (only when toggle is on and engine file exists)
+    // Smart-Money Zones + Accumulation/Distribution levels
     if (state.wickPaZones) {
-  // -------------------------
-  // Big Smart Money Zones (yellow)
-  // -------------------------
-  const smz = attachOverlay(createSmartMoneyZonesOverlay, {
-    chart: chartRef.current,
-    priceSeries: seriesRef.current,
-    chartContainer: containerRef.current,
-    timeframe: state.timeframe,
-  });
-  reg(smz);
+      // -------------------------
+      // Big Smart Money Zones (yellow)
+      // -------------------------
+      const smz = attachOverlay(createSmartMoneyZonesOverlay, {
+        chart: chartRef.current,
+        priceSeries: seriesRef.current,
+        chartContainer: containerRef.current,
+        timeframe: state.timeframe,
+      });
+      reg(smz);
 
-  // -------------------------
-  // Accumulation / Distribution Levels (red/blue)
-  // -------------------------
-  reg(
-    attachOverlay(SMZLevelsOverlay, {
-      chart: chartRef.current,
-      priceSeries: seriesRef.current,
-      chartContainer: containerRef.current,
-      timeframe: state.timeframe,
-    })
-  );
-
-  // -------------------------
-  // Load Smart Money zones.json data
-  // -------------------------
-  (async () => {
-    try {
-      const res = await fetch("/data/zones.json");
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = await res.json();
-
-      if (showDebug) {
-        console.log("SMZ zones.json payload:", json?.zones?.length ?? 0);
-      }
-
-      smz?.seed?.(json);
-
-      if (showDebug) window.__smz = json;
-    } catch (e) {
-      console.warn(
-        "[RowChart] error loading zones.json for SMZ overlay:",
-        e
+      // -------------------------
+      // Accumulation / Distribution Levels (red/blue)
+      // -------------------------
+      reg(
+        attachOverlay(SMZLevelsOverlay, {
+          chart: chartRef.current,
+          priceSeries: seriesRef.current,
+          chartContainer: containerRef.current,
+          timeframe: state.timeframe,
+        })
       );
+
+      // -------------------------
+      // Load Smart Money zones.json data
+      // -------------------------
+      (async () => {
+        try {
+          const res = await fetch("/data/zones.json");
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const json = await res.json();
+
+          if (showDebug) {
+            console.log("SMZ zones.json payload:", json?.zones?.length ?? 0);
+          }
+
+          smz?.seed?.(json);
+
+          if (showDebug) window.__smz = json;
+        } catch (e) {
+          console.warn(
+            "[RowChart] error loading zones.json for SMZ overlay:",
+            e
+          );
+        }
+      })();
     }
-  })();
-}
 
     try {
       overlayInstancesRef.current.forEach((o) => o?.seed?.(barsRef.current));
