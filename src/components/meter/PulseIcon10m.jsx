@@ -7,6 +7,7 @@ import pulseConfig from "../../algos/pulse/config.json";
 
 const PULSE_URL =
   process.env.REACT_APP_PULSE_URL ||
+  process.env.REACT_APP_PILLS_URL ||        // optional legacy fallback
   process.env.REACT_APP_INTRADAY_SANDBOX_URL ||
   "";
 
@@ -56,13 +57,30 @@ function useMarketPulse10m() {
           cache: "no-store",
         });
         const j = await r.json();
-        const market = j?.deltas?.market || {};
+
+        // j.sectors: { sectorKey: { d5m, d10m } }
+        const sectors = j?.sectors || {};
+        const sectorList = Object.values(sectors);
+
+        // Compute simple averages across all sectors for fast + trend deltas
+        let avgD5m = 0;
+        let avgD10m = 0;
+        if (sectorList.length > 0) {
+          let sumD5 = 0;
+          let sumD10 = 0;
+          for (const s of sectorList) {
+            sumD5 += Number(s?.d5m ?? 0);
+            sumD10 += Number(s?.d10m ?? 0);
+          }
+          avgD5m = sumD5 / sectorList.length;
+          avgD10m = sumD10 / sectorList.length;
+        }
 
         setPulseState((prev) => {
           const next = computeMarketPulse(prev, {
-            dBreadthPct: Number(market.dBreadthPct ?? null),
-            dMomentumPct: Number(market.dMomentumPct ?? null),
-            riskOnPct: Number(market.riskOnPct ?? null),
+            dBreadthPct: avgD5m,   // treat avg d5m as fast delta
+            dMomentumPct: avgD10m, // treat avg d10m as trend delta
+            riskOnPct: 0,          // placeholder; wire real risk-on later
           });
 
           setVisualMode((prevMode) =>
@@ -191,9 +209,9 @@ export default function PulseIcon10m(/* { data } */) {
     `Pulse 10m • Score: ${
       Number.isFinite(score) ? score.toFixed(1) : "—"
     }` + (pulseState
-      ? ` • d5m: ${pulseState.d5m.toFixed(1)} • d10m: ${pulseState.d10m.toFixed(
-          1
-        )}`
+      ? ` • d5m: ${pulseState.d5m?.toFixed?.(1) ?? "n/a"} • d10m: ${
+          pulseState.d10m?.toFixed?.(1) ?? "n/a"
+        }`
       : "");
 
   return (
