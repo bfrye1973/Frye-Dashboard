@@ -889,7 +889,7 @@ export default function RowChart({
           display: "flex",
           flexDirection: "row",
           width: "100%",
-          // height: "100%",  ← removed this line
+          height: fullScreen ? "100%" : undefined,
         }}
       >
         <div
