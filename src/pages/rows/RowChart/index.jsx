@@ -523,30 +523,34 @@ export default function RowChart({
       );
     }
 
-    // Smart-Money Zones (from zones.json) — draw manually-defined zones
+    // Smart-Money Zones overlay (only when toggle is on and engine file exists)
     if (state.wickPaZones) {
-      const smz = attachOverlay(createSmartMoneyZonesOverlay, {
-        chart: chartRef.current,
-        priceSeries: seriesRef.current,
-        chartContainer: containerRef.current,
-        timeframe: state.timeframe,
-      });
-      reg(smz);
-
-      (async () => {
-        try {
-          const res = await fetch("/data/zones.json");
-          if (!res.ok) throw new Error(`HTTP ${res.status}`);
-          const json = await res.json();
-          if (showDebug) {
-            console.log("SMZ zones.json payload:", json?.zones?.length ?? 0);
-          }
-          smz?.seed?.(json);
-          if (showDebug) window.__smz = json;
-        } catch (e) {
-          console.warn("[RowChart] error loading zones.json for SMZ overlay:", e);
+      try {
+        const payload = computeSmartMoneyZones({
+          bars10m: bars10mRef.current,
+          bars1h: bars1hRef.current,
+          bars4h: bars4hRef.current,
+        });
+        if (showDebug) {
+          console.log(
+            "SMZ payload:",
+            payload?.zones?.length ?? 0,
+            payload?.gaps?.length ?? 0,
+            payload?.alerts?.length ?? 0
+          );
         }
-      })();
+        const smz = attachOverlay(createSmartMoneyZonesOverlay, {
+          chart: chartRef.current,
+          priceSeries: seriesRef.current,
+          chartContainer: containerRef.current,
+          timeframe: state.timeframe,
+        });
+        smz?.seed?.(payload);
+        reg(smz);
+        if (showDebug) window.__smz = payload;
+      } catch (e) {
+        console.warn("[RowChart] SMZ overlay error:", e);
+      }
     }
 
     try {
@@ -887,6 +891,7 @@ export default function RowChart({
           display: "flex",
           flexDirection: "row",
           width: "100%",
+          height: "100%",
         }}
       >
         <div
