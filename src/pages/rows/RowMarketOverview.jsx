@@ -353,7 +353,6 @@ export default function RowMarketOverview() {
 
   /* ---------- EOD strip ---------- */
   const td = dd.trendDaily || {};
-  const dm = dd.metrics || {};
   // Prefer the real EOD composite score from backend, fallback to slope-based if missing
   const overallEodScore = num(dm.overall_eod_score ?? dd?.overallEOD?.score);
   const tdSlope = num(td?.trend?.emaSlope);
