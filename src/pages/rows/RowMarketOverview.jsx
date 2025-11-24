@@ -15,7 +15,7 @@ const INTRADAY_URL = process.env.REACT_APP_INTRADAY_URL; // /live/intraday
 const HOURLY_URL = process.env.REACT_APP_HOURLY_URL; // /live/hourly
 const EOD_URL = process.env.REACT_APP_EOD_URL; // /live/eod
 
-// 5-minute deltas (pills) — prefer PULSE_URL, fall back to legacy sandbox if present
+// 5-minute deltas (pills) — prefer PULSE_URL, fall back to legacy if present
 const SANDBOX_URL =
   process.env.REACT_APP_PULSE_URL ||
   process.env.REACT_APP_PILLS_URL ||
@@ -175,7 +175,7 @@ function useSandboxDeltas() {
     async function pull() {
       try {
         const sep = SANDBOX_URL.includes("?") ? "&" : "?";
-        const res = await fetch(`${SANDBOX_URL}?${sep}${Date.now()}`, {
+        const res = await fetch(`${SANDBOX_URL}${sep}t=${Date.now()}`, {
           cache: "no-store",
         });
         const j = await res.json();
@@ -353,20 +353,21 @@ export default function RowMarketOverview() {
 
   /* ---------- EOD strip ---------- */
   const td = dd.trendDaily || {};
+  const dm = dd.metrics || {};
+
   // Prefer the real EOD composite score from backend, fallback to slope-based if missing
   const overallEodScore = num(dm.overall_eod_score ?? dd?.overallEOD?.score);
   const tdSlope = num(td?.trend?.emaSlope);
 
-  // If we have a score, use it, else map slope -> 25/50/75 as before
   const tdTrendVal = Number.isFinite(overallEodScore)
     ? overallEodScore
     : Number.isFinite(tdSlope)
-      ? tdSlope > 5
-        ? 75
-        : tdSlope < -5
-        ? 25
-        : 50
-      : NaN;
+    ? tdSlope > 5
+      ? 75
+      : tdSlope < -5
+      ? 25
+      : 50
+    : NaN;
 
   const tdPartPct = num(td?.participation?.pctAboveMA);
   const tdVolReg = td?.volatilityRegime || {};
@@ -380,13 +381,6 @@ export default function RowMarketOverview() {
   const tdRiskOn = num(dd?.rotation?.riskOnPct);
 
   const tdSdyDaily = num(
-    dm.daily_squeeze_pct ?? dm.squeezePct ?? dm.squeeze_daily_pct
-  );
-
-  
-   // Daily squeeze tile shows PSI directly
-  const dm = dd.metrics || {};
-  const tdSqueezePsi = num(
     dm.daily_squeeze_pct ?? dm.squeezePct ?? dm.squeeze_daily_pct
   );
 
@@ -587,10 +581,9 @@ export default function RowMarketOverview() {
             />
             <Stoplight
               label="Daily Squeeze"
-              value={tdSdyDaily}        // PSI
+              value={tdSdyDaily} // PSI
               tone={toneForLuxDaily(tdSdyDaily)} // PSI bands
-             />
-            
+            />
             <Stoplight
               label="Vol Regime"
               value={tdVolPct}
@@ -601,9 +594,7 @@ export default function RowMarketOverview() {
               value={tdLiqPsi}
               unit="PSI"
               tone={toneForLiqBand(tdLiqBand)}
-             />
-
-         
+            />
             <Stoplight
               label="Risk-On"
               value={tdRiskOn}
@@ -616,7 +607,7 @@ export default function RowMarketOverview() {
         </div>
       </div>
 
-           {/* Legend modal */}
+      {/* Legend modal */}
       {legendOpen && (
         <div
           role="dialog"
