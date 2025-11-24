@@ -918,25 +918,24 @@ export default function RowChart({
           height: fullScreen ? "100%" : undefined,
         }}
       >
-        <div
-          ref={containerRef}
-          style={{
-            ...containerStyle,
-            flex: 1,
-            minWidth: 0,
-          }}
-        />
+      <div
+        ref={containerRef}
+        style={{
+          ...containerStyle,
+          flex: 1,
+          minWidth: 0,
+        }}
+      />
 
-        {/* Right column: main Smart Money zone panel + Acc/Dist panel */}
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            minWidth: 230,
-            maxWidth: 260,
-          }}
-        >
-          <SmartMoneyZonesPanel />
-          <AccDistZonesPanel />
-        </div>
+      {/* Right column: main Smart Money zone panel + Acc/Dist panel */}
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          minWidth: 230,
+          maxWidth: 260,
+        }}
+      >
+        <SmartMoneyZonesPanel />
+        <AccDistZonesPanel />
       </div>
