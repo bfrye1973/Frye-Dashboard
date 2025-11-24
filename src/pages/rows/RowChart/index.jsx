@@ -926,8 +926,17 @@ export default function RowChart({
             minWidth: 0,
           }}
         />
-        <SmartMoneyZonesPanel />
+
+        {/* Right column: main Smart Money zone panel + Acc/Dist panel */}
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            minWidth: 230,
+            maxWidth: 260,
+          }}
+        >
+          <SmartMoneyZonesPanel />
+          <AccDistZonesPanel />
+        </div>
       </div>
-    </div>
-  );
-}
