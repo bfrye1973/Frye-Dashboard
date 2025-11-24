@@ -26,6 +26,7 @@ import createFourShelvesOverlay from "../../../components/overlays/FourShelvesOv
 import { computeSmartMoneyZones } from "../../../indicators/smz/engine";
 import createSmartMoneyZonesOverlay from "../../../components/overlays/SmartMoneyZonesOverlay";
 import SmartMoneyZonesPanel from "../../../components/smz/SmartMoneyZonesPanel";
+import AccDistZonesPanel from "../../../components/smz/AccDistZonesPanel";
 
 // Accumulation / Distribution levels overlay (10m precision zones)
 import SMZLevelsOverlay from "./overlays/SMZLevelsOverlay";
