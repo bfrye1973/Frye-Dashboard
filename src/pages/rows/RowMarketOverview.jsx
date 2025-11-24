@@ -576,9 +576,10 @@ export default function RowMarketOverview() {
             />
             <Stoplight
               label="Daily Squeeze"
-              value={tdSqueezePsi}
-              tone={toneForLuxDaily(tdSqueezePsi)}
-            />
+              value={tdSdyDaily}        // PSI
+              tone={toneForLuxDaily(tdSdyDaily)} // PSI bands
+             />
+            
             <Stoplight
               label="Vol Regime"
               value={tdVolPct}
@@ -587,9 +588,11 @@ export default function RowMarketOverview() {
             <Stoplight
               label="Liq Regime"
               value={tdLiqPsi}
-              unit="%"
+              unit="PSI"
               tone={toneForLiqBand(tdLiqBand)}
-            />
+             />
+
+         
             <Stoplight
               label="Risk-On"
               value={tdRiskOn}
