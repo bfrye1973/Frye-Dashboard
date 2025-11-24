@@ -1,8 +1,8 @@
 // src/pages/rows/RowChart/overlays/SMZLevelsOverlay.jsx
 // Canvas overlay for Accumulation / Distribution levels
-// Reads /data/smz-levels.json and draws:
-//  - thin red bands for accumulation
-//  - thin blue bands for distribution
+// Reads /smz-levels.json and draws:
+//  - red bands for accumulation
+//  - blue $1 bands for distribution
 
 export default function createSMZLevelsOverlay({
   chart,
@@ -28,7 +28,7 @@ export default function createSMZLevelsOverlay({
       position: "absolute",
       inset: 0,
       pointerEvents: "none",
-      zIndex: 13, // just above zones
+      zIndex: 13, // above yellow zones
     });
     chartContainer.appendChild(cnv);
     canvas = cnv;
@@ -41,13 +41,6 @@ export default function createSMZLevelsOverlay({
   }
 
   function draw() {
-    if (!levels || levels.length === 0) {
-      const cnv = ensureCanvas();
-      const ctx = cnv.getContext("2d");
-      ctx.clearRect(0, 0, cnv.width, cnv.height);
-      return;
-    }
-
     const cnv = ensureCanvas();
     const w = chartContainer.clientWidth || 1;
     const h = chartContainer.clientHeight || 1;
@@ -56,14 +49,18 @@ export default function createSMZLevelsOverlay({
     const ctx = cnv.getContext("2d");
     ctx.clearRect(0, 0, w, h);
 
+    if (!levels || levels.length === 0) return;
+
     levels.forEach((lvl) => {
       const isAccum = lvl.type === "accumulation";
-      const fill =
-        isAccum ? "rgba(255, 51, 85, 0.25)" : "rgba(51, 128, 255, 0.25)";
-      const stroke =
-        isAccum ? "rgba(255, 51, 85, 0.9)" : "rgba(51, 128, 255, 0.9)";
+      const fill = isAccum
+        ? "rgba(255, 51, 85, 0.25)"   // red
+        : "rgba(51, 128, 255, 0.25)"; // blue
+      const stroke = isAccum
+        ? "rgba(255, 51, 85, 0.9)"
+        : "rgba(51, 128, 255, 0.9)";
 
-      // 1) Single price level → thin horizontal band
+      // 1) Single price → $1 range band (hi = price, lo = price - 1)
       if (typeof lvl.price === "number") {
         const hi = lvl.price;
         const lo = lvl.price - 1;
@@ -83,19 +80,13 @@ export default function createSMZLevelsOverlay({
         ctx.beginPath();
         ctx.rect(0.5, y + 0.5, w - 1, hBand - 1);
         ctx.stroke();
-       }
-
-        ctx.strokeStyle = stroke;
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(0, y + 0.5);
-        ctx.lineTo(w, y + 0.5);
-        ctx.stroke();
       }
 
-      // 2) Price range → filled band
+      // 2) Explicit price range → filled band between [hi, lo]
       if (Array.isArray(lvl.priceRange) && lvl.priceRange.length === 2) {
-        const [hi, lo] = lvl.priceRange;
+        const hi = lvl.priceRange[0];
+        const lo = lvl.priceRange[1];
+
         const yTop = priceToY(hi);
         const yBot = priceToY(lo);
         if (yTop == null || yBot == null) return;
@@ -117,7 +108,7 @@ export default function createSMZLevelsOverlay({
 
   async function loadLevels() {
     try {
-      const res = await fetch("/smz-levels.json");
+      const res = await fetch("/smz-levels.json"); // NOTE: file in /public root
       if (!res.ok) return;
       const json = await res.json();
       levels = Array.isArray(json.levels) ? json.levels : [];
@@ -131,7 +122,6 @@ export default function createSMZLevelsOverlay({
   loadLevels();
 
   function seed() {
-    // We don't need bar data here, but keep the method for API compatibility.
     draw();
   }
 
@@ -144,7 +134,9 @@ export default function createSMZLevelsOverlay({
       if (canvas && canvas.parentNode === chartContainer) {
         chartContainer.removeChild(canvas);
       }
-    } catch {}
+    } catch (e) {
+      // ignore
+    }
     canvas = null;
   }
 
