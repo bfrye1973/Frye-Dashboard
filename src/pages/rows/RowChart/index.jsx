@@ -741,7 +741,7 @@ export default function RowChart({
   useEffect(() => {
     const chart = chartRef.current;
     const price = seriesRef.current;
-    if (!chart || !price) return);
+    if (!chart || !price) return;
 
     const ensureLine = (ref, color) => {
       if (!ref.current) {
