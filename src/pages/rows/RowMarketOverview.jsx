@@ -605,9 +605,62 @@ export default function RowMarketOverview() {
         </div>
       </div>
 
-      {/* Legend modal */}
+           {/* Legend modal */}
       {legendOpen && (
         <div
           role="dialog"
           aria-modal="true"
-          onClick={() => setPCell }
+          onClick={() => setLegendOpen(null)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 60,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: "min(880px,92vw)",
+              background: "#0b0b0c",
+              border: "1px solid #2b2b2b",
+              borderRadius: 12,
+              padding: 16,
+            }}
+          >
+            {legendOpen === "intraday" ? (
+              <MarketMeterIntradayLegend />
+            ) : (
+              <MarketMeterDailyLegend />
+            )}
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "flex-end",
+                marginTop: 12,
+              }}
+            >
+              <button
+                onClick={() => setLegendOpen(null)}
+                style={{
+                  background: "#eab308",
+                  color: "#111827",
+                  border: "none",
+                  borderRadius: 8,
+                  padding: "8px 12px",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                }}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
