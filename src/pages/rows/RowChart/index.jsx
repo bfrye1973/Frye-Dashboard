@@ -1,11 +1,6 @@
 // src/pages/rows/RowChart/index.jsx
 // ============================================================
 // RowChart — seed + live aggregation + indicators & overlays
-//   • Smart-Money Zones v1.1 (wick + candle, 4h controller, gap magnets)
-//   • Four Shelves overlay (1h Blue/Yellow + 10m Blue/Yellow)
-//   • Fonts 2× larger on price/time axes (layout.fontSize)
-//   • Dynamic seed limit (~6 months of data per timeframe)
-//   • Multi-TF snapshots for engine (10m / 1h / 4h, last 10 days)
 // ============================================================
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
@@ -22,21 +17,19 @@ import createSwingLiquidityOverlay from "../../../components/overlays/SwingLiqui
 import createSMI1hOverlay from "../../../components/overlays/SMI1hOverlay";
 import createFourShelvesOverlay from "../../../components/overlays/FourShelvesOverlay";
 
-// Smart-Money Zones engine + overlay (you must have these files)
+// Smart-Money Zones engine + overlay
 import { computeSmartMoneyZones } from "../../../indicators/smz/engine";
 import createSmartMoneyZonesOverlay from "../../../components/overlays/SmartMoneyZonesOverlay";
 import SmartMoneyZonesPanel from "../../../components/smz/SmartMoneyZonesPanel";
+
+// Accumulation / Distribution precision levels
+import SMZLevelsOverlay from "./overlays/SMZLevelsOverlay";
 import AccDistZonesPanel from "../../../components/smz/AccDistZonesPanel";
 
-// Accumulation / Distribution levels overlay (10m precision zones)
-import SMZLevelsOverlay from "./overlays/SMZLevelsOverlay";
-
 /* ------------------------------ Config ------------------------------ */
-// Target history window (rough) used to compute how many bars to request
-const HISTORY_MONTHS = 6; // ~6 months
-const TRADING_DAYS_PER_MONTH = 21; // rough, good enough
 
-// Axis/label font size (≈ double the default 11–12px)
+const HISTORY_MONTHS = 6;
+const TRADING_DAYS_PER_MONTH = 21;
 const AXIS_FONT_SIZE = 22;
 
 const DEFAULTS = {
@@ -63,10 +56,11 @@ const TF_SEC = {
 const LIVE_TF = "10m";
 
 /* -------------------- Helper: dynamic seed limit -------------------- */
+
 function barsPerDay(tf) {
   switch (tf) {
     case "1m":
-      return 390; // 6.5h * 60
+      return 390;
     case "5m":
       return 78;
     case "10m":
@@ -76,23 +70,24 @@ function barsPerDay(tf) {
     case "30m":
       return 13;
     case "1h":
-      return 7; // 6–7 bars per RTH day
+      return 7;
     case "4h":
-      return 2; // 1–2 bars per day
+      return 2;
     case "1d":
       return 1;
     default:
-      return 39; // safe default
+      return 39;
   }
 }
 
 function seedLimitFor(tf, months = HISTORY_MONTHS) {
   const days = months * TRADING_DAYS_PER_MONTH;
   const estimate = days * barsPerDay(tf);
-  return Math.ceil(estimate * 1.3); // 30% headroom
+  return Math.ceil(estimate * 1.3);
 }
 
 /* --------------------------- AZ time utils --------------------------- */
+
 function phoenixTime(ts, isDaily = false) {
   const seconds =
     typeof ts === "number" ? ts : (ts && (ts.timestamp ?? ts.time)) || 0;
@@ -140,6 +135,7 @@ function makeTickFormatter(tf) {
 }
 
 /* ------------------------------ Helpers ----------------------------- */
+
 function calcEMA(barsAsc, length) {
   if (
     !Array.isArray(barsAsc) ||
@@ -177,6 +173,7 @@ function attachOverlay(Module, args) {
 }
 
 /* ------------------------------ Component --------------------------- */
+
 export default function RowChart({
   defaultSymbol = "SPY",
   defaultTimeframe = "10m",
@@ -197,7 +194,6 @@ export default function RowChart({
   const [bars, setBars] = useState([]);
   const barsRef = useRef([]);
 
-  // Multi-TF snapshots for the SMZ engine (10-day scope)
   const bars10mRef = useRef([]);
   const bars1hRef = useRef([]);
   const bars4hRef = useRef([]);
@@ -225,11 +221,9 @@ export default function RowChart({
     smi1h: false,
     shelvesFour: false,
 
-    // Smart-Money Zones overlay toggle
     wickPaZones: false,
   });
 
-  // Debug hook
   if (typeof window !== "undefined") {
     window.__indicators = {
       get: () => state,
@@ -243,6 +237,7 @@ export default function RowChart({
   const timeframes = useMemo(() => TIMEFRAMES, []);
 
   /* -------------------------- Mount / Resize ------------------------- */
+
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -330,6 +325,7 @@ export default function RowChart({
   }, [fullScreen, state.timeframe]);
 
   /* ---------------------- TF / AZ format updates --------------------- */
+
   useEffect(() => {
     const chart = chartRef.current;
     if (!chart) return;
@@ -348,6 +344,7 @@ export default function RowChart({
   }, [state.timeframe]);
 
   /* ==================== Effect A: Fetch + Seed Series ==================== */
+
   useEffect(() => {
     let cancelled = false;
 
@@ -420,7 +417,8 @@ export default function RowChart({
     };
   }, [state.symbol, state.timeframe, state.range, state.volume]);
 
-  /* ================== Effect A2: fetch multi-TF snapshots (10 days) ================== */
+  /* ================== Effect A2: multi-TF snapshots (10 days) ================ */
+
   useEffect(() => {
     let cancelled = false;
 
@@ -460,6 +458,7 @@ export default function RowChart({
   }, [state.symbol]);
 
   /* =================== Effect B: Attach/Seed Overlays =================== */
+
   useEffect(() => {
     if (!chartRef.current || !seriesRef.current || barsRef.current.length === 0)
       return;
@@ -480,7 +479,6 @@ export default function RowChart({
           timeframe: state.timeframe,
         })
       );
-      // Optionally: attachOverlay(MoneyFlowOverlay, {...})
     }
 
     if (state.luxSr) {
@@ -527,11 +525,8 @@ export default function RowChart({
       );
     }
 
-    // Smart-Money Zones + Accumulation/Distribution levels
+    // Smart-Money Zones + Accumulation / Distribution precision levels
     if (state.wickPaZones) {
-      // -------------------------
-      // Big Smart Money Zones (yellow)
-      // -------------------------
       const smz = attachOverlay(createSmartMoneyZonesOverlay, {
         chart: chartRef.current,
         priceSeries: seriesRef.current,
@@ -540,9 +535,6 @@ export default function RowChart({
       });
       reg(smz);
 
-      // -------------------------
-      // Accumulation / Distribution Levels (red/blue)
-      // -------------------------
       reg(
         attachOverlay(SMZLevelsOverlay, {
           chart: chartRef.current,
@@ -552,9 +544,6 @@ export default function RowChart({
         })
       );
 
-      // -------------------------
-      // Load Smart Money zones.json data
-      // -------------------------
       (async () => {
         try {
           const res = await fetch("/data/zones.json");
@@ -593,6 +582,7 @@ export default function RowChart({
   ]);
 
   /* -------------------------- Render + Range ------------------------- */
+
   useEffect(() => {
     const chart = chartRef.current;
     const price = seriesRef.current;
@@ -634,6 +624,7 @@ export default function RowChart({
   }, [bars, state.range, state.volume]);
 
   /* --------------- Live 1m stream → selected TF aggregation ---------- */
+
   useEffect(() => {
     if (!seriesRef.current || !volSeriesRef.current) return;
 
@@ -746,10 +737,11 @@ export default function RowChart({
   }, [state.symbol, state.timeframe, state.volume]);
 
   /* ---------------------------- EMA lines ----------------------------- */
+
   useEffect(() => {
     const chart = chartRef.current;
     const price = seriesRef.current;
-    if (!chart || !price) return;
+    if (!chart || !price) return);
 
     const ensureLine = (ref, color) => {
       if (!ref.current) {
@@ -909,7 +901,7 @@ export default function RowChart({
       />
       <IndicatorsToolbar {...toolbarProps} />
 
-      {/* Chart + Smart Money panel side by side */}
+      {/* Chart + right-side Smart Money panels */}
       <div
         style={{
           display: "flex",
@@ -918,24 +910,27 @@ export default function RowChart({
           height: fullScreen ? "100%" : undefined,
         }}
       >
-      <div
-        ref={containerRef}
-        style={{
-          ...containerStyle,
-          flex: 1,
-          minWidth: 0,
-        }}
-      />
+        <div
+          ref={containerRef}
+          style={{
+            ...containerStyle,
+            flex: 1,
+            minWidth: 0,
+          }}
+        />
 
-      {/* Right column: main Smart Money zone panel + Acc/Dist panel */}
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          minWidth: 230,
-          maxWidth: 260,
-        }}
-      >
-        <SmartMoneyZonesPanel />
-        <AccDistZonesPanel />
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            minWidth: 230,
+            maxWidth: 260,
+          }}
+        >
+          <SmartMoneyZonesPanel />
+          <AccDistZonesPanel />
+        </div>
       </div>
+    </div>
+  );
+}
