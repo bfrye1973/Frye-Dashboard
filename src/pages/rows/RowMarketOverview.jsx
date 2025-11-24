@@ -178,6 +178,7 @@ function useSandboxDeltas() {
         const res = await fetch(`${SANDBOX_URL}${sep}t=${Date.now()}`, {
           cache: "no-store",
         });
+      
         const j = await res.json();
 
         // Expected /live/pills schema:
