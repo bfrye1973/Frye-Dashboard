@@ -171,23 +171,44 @@ function useSandboxDeltas() {
   });
 
   React.useEffect(() => {
+    if (!SANDBOX_URL) return;
+
     let stop = false;
 
     async function pull() {
-      if (!SANDBOX_URL) return;
       try {
         const sep = SANDBOX_URL.includes("?") ? "&" : "?";
         const r = await fetch(`${SANDBOX_URL}${sep}t=${Date.now()}`, {
           cache: "no-store",
         });
         const j = await r.json();
-        const market = j?.deltas?.market || {};
+
+        // /live/pills schema:
+        // { stamp5, stamp10, sectors: { <sector>: { d5m, d10m } } }
+        const sectors = j?.sectors || {};
+        const list = Object.values(sectors);
+
+        let avgD5m = null;
+        let avgD10m = null;
+
+        if (list.length > 0) {
+          let sumD5 = 0;
+          let sumD10 = 0;
+          for (const s of list) {
+            sumD5 += Number(s?.d5m ?? 0);
+            sumD10 += Number(s?.d10m ?? 0);
+          }
+          avgD5m = sumD5 / list.length;
+          avgD10m = sumD10 / list.length;
+        }
+
         if (stop) return;
+
         setState({
-          dB: Number(market.dBreadthPct ?? null),
-          dM: Number(market.dMomentumPct ?? null),
-          riskOn: Number(market.riskOnPct ?? null),
-          ts: j?.deltasUpdatedAt || j?.deltasUpdated || null,
+          dB: avgD5m,           // average 5m delta across sectors
+          dM: avgD10m,          // average 10m delta across sectors
+          riskOn: null,         // can wire real risk-on later if needed
+          ts: j?.stamp5 || null // 5m timestamp from pills
         });
       } catch {
         if (!stop) {
@@ -206,6 +227,7 @@ function useSandboxDeltas() {
 
   return state;
 }
+
 
 /* ===================== Main Component ===================== */
 export default function RowMarketOverview() {
