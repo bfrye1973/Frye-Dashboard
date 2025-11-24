@@ -107,7 +107,7 @@ export default function createSMZLevelsOverlay({
 
   async function loadLevels() {
     try {
-      const res = await fetch("/data/smz-levels.json");
+      const res = await fetch("/smz-levels.json");
       if (!res.ok) return;
       const json = await res.json();
       levels = Array.isArray(json.levels) ? json.levels : [];
