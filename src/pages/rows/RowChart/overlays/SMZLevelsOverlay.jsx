@@ -65,15 +65,25 @@ export default function createSMZLevelsOverlay({
 
       // 1) Single price level → thin horizontal band
       if (typeof lvl.price === "number") {
-        const y = priceToY(lvl.price);
-        if (y == null) return;
-        const bandH = 4; // pixels
+        const hi = lvl.price;
+        const lo = lvl.price - 1;
 
-        const top = y - bandH / 2;
-        const height = bandH;
+        const yTop = priceToY(hi);
+        const yBot = priceToY(lo);
+        if (yTop == null || yBot == null) return;
+
+        const y = Math.min(yTop, yBot);
+        const hBand = Math.max(2, Math.abs(yBot - yTop));
 
         ctx.fillStyle = fill;
-        ctx.fillRect(0, top, w, height);
+        ctx.fillRect(0, y, w, hBand);
+
+        ctx.strokeStyle = stroke;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.rect(0.5, y + 0.5, w - 1, hBand - 1);
+        ctx.stroke();
+       }
 
         ctx.strokeStyle = stroke;
         ctx.lineWidth = 1;
