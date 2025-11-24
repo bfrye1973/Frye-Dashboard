@@ -353,27 +353,39 @@ export default function RowMarketOverview() {
 
   /* ---------- EOD strip ---------- */
   const td = dd.trendDaily || {};
+  const dm = dd.metrics || {};
+  // Prefer the real EOD composite score from backend, fallback to slope-based if missing
+  const overallEodScore = num(dm.overall_eod_score ?? dd?.overallEOD?.score);
   const tdSlope = num(td?.trend?.emaSlope);
-  const tdTrendVal = Number.isFinite(tdSlope)
-    ? tdSlope > 5
-      ? 75
-      : tdSlope < -5
-      ? 25
-      : 50
-    : NaN;
+
+  // If we have a score, use it, else map slope -> 25/50/75 as before
+  const tdTrendVal = Number.isFinite(overallEodScore)
+    ? overallEodScore
+    : Number.isFinite(tdSlope)
+      ? tdSlope > 5
+        ? 75
+        : tdSlope < -5
+        ? 25
+        : 50
+      : NaN;
 
   const tdPartPct = num(td?.participation?.pctAboveMA);
-  const tdVolReg = dd?.volatilityRegime || td?.volatilityRegime || {};
+  const tdVolReg = td?.volatilityRegime || {};
   const tdVolPct = num(tdVolReg.atrPct);
   const tdVolBand = tdVolReg.band || null;
 
-  const tdLiqReg = dd?.liquidityRegime || {};
+  const tdLiqReg = td?.liquidityRegime || {};
   const tdLiqPsi = num(tdLiqReg.psi);
   const tdLiqBand = tdLiqReg.band || null;
 
   const tdRiskOn = num(dd?.rotation?.riskOnPct);
 
-  // Daily squeeze tile shows PSI directly
+  const tdSdyDaily = num(
+    dm.daily_squeeze_pct ?? dm.squeezePct ?? dm.squeeze_daily_pct
+  );
+
+  
+   // Daily squeeze tile shows PSI directly
   const dm = dd.metrics || {};
   const tdSqueezePsi = num(
     dm.daily_squeeze_pct ?? dm.squeezePct ?? dm.squeeze_daily_pct
