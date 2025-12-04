@@ -390,3 +390,150 @@ export function computeSmartMoneyZones({ bars10m, bars1h, bars4h }, options = {}
 
   return { zones: capped, gaps, alerts, meta: { drawLimit: p.drawLimit, minRectPx: p.minRectPx } };
 }
+/**
+ * Compute Accumulation / Distribution levels from intraday bars.
+ *
+ * Input:  bars = [{ time, open, high, low, close, volume }, ...]  (ascending time, e.g. 10m)
+ * Output: array of levels:
+ *   - { type: "distribution", price, strength }
+ *   - { type: "accumulation", priceRange: [hi, lo], strength }
+ */
+export function computeAccDistLevelsFromBars(bars, opts = {}) {
+  if (!Array.isArray(bars) || bars.length < 20) return [];
+
+  const swingLookback = opts.swingLookback ?? 3;     // bars on each side for swing high/low
+  const lookaheadBars = opts.lookaheadBars ?? 15;    // how far we look for reaction
+  const minMovePct = opts.minMovePct ?? 0.006;       // ~0.6% move to count as reaction
+  const clusterTolerance = opts.clusterTolerance ?? 1.0; // dollars to merge nearby levels
+
+  const levels = [];
+
+  // --- 1. Find swing highs/lows ---
+  const isSwingHigh = (i) => {
+    const h = bars[i].high;
+    for (let k = 1; k <= swingLookback; k++) {
+      if (i - k < 0 || i + k >= bars.length) return false;
+      if (bars[i - k].high >= h || bars[i + k].high >= h) return false;
+    }
+    return true;
+  };
+
+  const isSwingLow = (i) => {
+    const l = bars[i].low;
+    for (let k = 1; k <= swingLookback; k++) {
+      if (i - k < 0 || i + k >= bars.length) return false;
+      if (bars[i - k].low <= l || bars[i + k].low <= l) return false;
+    }
+    return true;
+  };
+
+  // --- 2. For each swing, measure reaction + touches ---
+  for (let i = swingLookback; i < bars.length - swingLookback; i++) {
+    const b = bars[i];
+
+    // --- Distribution candidate (swing high, price rejects down) ---
+    if (isSwingHigh(i)) {
+      const anchor = b.high;
+      let maxDropPct = 0;
+      let touchCount = 0;
+
+      for (let j = i + 1; j < Math.min(bars.length, i + 1 + lookaheadBars); j++) {
+        const bj = bars[j];
+
+        const dropPct = (anchor - bj.low) / anchor;
+        if (dropPct > maxDropPct) maxDropPct = dropPct;
+
+        const mid = (bj.high + bj.low) / 2;
+        if (Math.abs(mid - anchor) <= 0.4) touchCount++;
+      }
+
+      if (maxDropPct >= minMovePct && touchCount >= 2) {
+        const strength = Math.round(
+          40 * Math.min(maxDropPct / minMovePct, 2) +
+            10 * Math.min(touchCount, 5)
+        );
+        levels.push({
+          type: "distribution",
+          price: anchor,
+          strength: Math.min(strength, 100),
+        });
+      }
+    }
+
+    // --- Accumulation candidate (swing low, price rejects up) ---
+    if (isSwingLow(i)) {
+      const anchor = b.low;
+      let maxRallyPct = 0;
+      let touchCount = 0;
+
+      for (let j = i + 1; j < Math.min(bars.length, i + 1 + lookaheadBars); j++) {
+        const bj = bars[j];
+
+        const rallyPct = (bj.high - anchor) / anchor;
+        if (rallyPct > maxRallyPct) maxRallyPct = rallyPct;
+
+        const mid = (bj.high + bj.low) / 2;
+        if (Math.abs(mid - anchor) <= 0.4) touchCount++;
+      }
+
+      if (maxRallyPct >= minMovePct && touchCount >= 2) {
+        const hi = anchor + 1;        // simple $1 band for now
+        const lo = anchor;
+
+        const strength = Math.round(
+          40 * Math.min(maxRallyPct / minMovePct, 2) +
+            10 * Math.min(touchCount, 5)
+        );
+
+        levels.push({
+          type: "accumulation",
+          priceRange: [hi, lo],
+          strength: Math.min(strength, 100),
+        });
+      }
+    }
+  }
+
+  // --- 3. Cluster nearby levels (merge within $1) ---
+  levels.sort((a, b) => {
+    const pa = a.price ?? ((a.priceRange[0] + a.priceRange[1]) / 2);
+    const pb = b.price ?? ((b.priceRange[0] + b.priceRange[1]) / 2);
+    return pa - pb;
+  });
+
+  const clustered = [];
+  for (const lvl of levels) {
+    const center =
+      lvl.price ?? (lvl.priceRange[0] + lvl.priceRange[1]) / 2;
+
+    const last = clustered[clustered.length - 1];
+    if (!last) {
+      clustered.push({ ...lvl, _center: center });
+      continue;
+    }
+
+    if (Math.abs(center - last._center) <= clusterTolerance && lvl.type === last.type) {
+      const s1 = last.strength ?? 0;
+      const s2 = lvl.strength ?? 0;
+      last.strength = Math.max(s1, s2);
+
+      if (lvl.priceRange && last.priceRange) {
+        last.priceRange = [
+          Math.max(last.priceRange[0], lvl.priceRange[0]),
+          Math.min(last.priceRange[1], lvl.priceRange[1]),
+        ];
+      } else if (typeof lvl.price === "number" && typeof last.price === "number") {
+        last.price = (last.price + lvl.price) / 2;
+      }
+
+      last._center = (last._center + center) / 2;
+    } else {
+      clustered.push({ ...lvl, _center: center });
+    }
+  }
+
+  return clustered.map((lvl) => {
+    const { _center, ...rest } = lvl;
+    return rest;
+  });
+}
