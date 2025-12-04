@@ -422,7 +422,7 @@ export default function RowChart({
 
   /* ================== Effect A2: multi-TF snapshots (10 days) ================ */
 
-  useEffect(() => {
+   useEffect(() => {
     let cancelled = false;
 
     async function loadSnapshots() {
@@ -441,4 +441,39 @@ export default function RowChart({
               ...b,
               time: b.time > 1e12 ? Math.floor(b.time / 1000) : b.time,
             }))
-            .sort((a, b) => a.time - b.tim
+            .sort((a, b) => a.time - b.time);
+
+        bars10mRef.current = norm(d10);
+        bars1hRef.current = norm(d1h);
+        bars4hRef.current = norm(d4h);
+
+        // ---- Auto-compute Accumulation / Distribution levels (debug only) ----
+        try {
+          const levels = computeAccDistLevelsFromBars(
+            bars10mRef.current || []
+          );
+          if (typeof window !== "undefined") {
+            window.__accdist = levels;
+            if (showDebug) {
+              console.log("Auto Acc/Dist levels:", levels);
+            }
+          }
+        } catch (e) {
+          console.warn(
+            "[RowChart] computeAccDistLevelsFromBars error:",
+            e
+          );
+        }
+      } catch (e) {
+        console.warn("[RowChart] loadSnapshots error:", e);
+        bars10mRef.current = [];
+        bars1hRef.current = [];
+        bars4hRef.current = [];
+      }
+    }
+
+    loadSnapshots();
+    return () => {
+      cancelled = true;
+    };
+  }, [state.symbol, showDebug]);
