@@ -29,10 +29,10 @@ function turboFromAvgD5m(avgD5m) {
  * useFiveMinuteBias
  *
  * Returns:
- *   avgD5m    → smoothed average d5m across sectors
- *   bias      → "bull" | "neutral" | "bear"
- *   turbo     → "bull" | "bear" | null  (strong micro impulse)
- *   ts        → latest stamp5 / deltasUpdatedAt from /live/pills
+ *   avgD5m → smoothed average d5m across sectors
+ *   bias   → "bull" | "neutral" | "bear"
+ *   turbo  → "bull" | "bear" | null  (strong micro impulse)
+ *   ts     → latest stamp5 / deltasUpdatedAt from /live/pills
  */
 export function useFiveMinuteBias() {
   const [state, setState] = React.useState({
@@ -46,7 +46,7 @@ export function useFiveMinuteBias() {
     if (!PULSE_URL) return;
 
     let stop = false;
-    let prevAvg = null; // for EMA smoothing
+    let prevAvg = null; // EMA memory
 
     async function pull() {
       try {
@@ -56,13 +56,12 @@ export function useFiveMinuteBias() {
         });
         const j = await res.json();
 
-        // Expected /live/pills schema:
+        // /live/pills schema:
         // { stamp5, stamp10, sectors: { key: { d5m, d10m } } }
         const sectors = j?.sectors || {};
         const values = Object.values(sectors);
 
         let avgD5mRaw = null;
-
         if (values.length > 0) {
           let sum = 0;
           let count = 0;
@@ -80,7 +79,7 @@ export function useFiveMinuteBias() {
         let avgSmooth = avgD5mRaw;
         if (Number.isFinite(avgD5mRaw)) {
           if (Number.isFinite(prevAvg)) {
-            // 0.7 old, 0.3 new
+            // 70% old, 30% new
             avgSmooth = prevAvg + 0.3 * (avgD5mRaw - prevAvg);
           }
           prevAvg = avgSmooth;
