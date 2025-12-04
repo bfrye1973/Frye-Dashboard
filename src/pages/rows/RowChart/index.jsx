@@ -18,7 +18,10 @@ import createSMI1hOverlay from "../../../components/overlays/SMI1hOverlay";
 import createFourShelvesOverlay from "../../../components/overlays/FourShelvesOverlay";
 
 // Smart-Money Zones engine + overlay
-import { computeSmartMoneyZones } from "../../../indicators/smz/engine";
+import {
+  computeSmartMoneyZones,
+  computeAccDistLevelsFromBars,
+} from "../../../indicators/smz/engine";
 import createSmartMoneyZonesOverlay from "../../../components/overlays/SmartMoneyZonesOverlay";
 import SmartMoneyZonesPanel from "../../../components/smz/SmartMoneyZonesPanel";
 
