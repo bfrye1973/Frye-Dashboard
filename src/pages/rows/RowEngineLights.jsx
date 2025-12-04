@@ -1,13 +1,14 @@
 // src/pages/rows/EngineLights.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import LuxTrendChip from "../../components/LuxTrendChip";
-import LuxTrendDialog from "../../components/LuxTrendDialog"; // keep for now (can remove if you want only big panels)
+import LuxTrendDialog from "../../components/LuxTrendDialog";
 import LuxTrendPanel from "../../components/LuxTrendPanel";
+import { useFiveMinuteBias } from "../../algos/pulse/useFiveMinuteBias";
 
 /* Endpoints */
 const INTRADAY_URL = "https://frye-market-backend-1.onrender.com/live/intraday";
 const HOURLY_URL   = "https://frye-market-backend-1.onrender.com/live/hourly";
-const EOD_URL      = "https://frye-market-backend-1.onrender.com/live/eod"; // change if your proxy differs
+const EOD_URL      = "https://frye-market-backend-1.onrender.com/live/eod";
 
 /* Always-on pills */
 const P10 = [
@@ -16,6 +17,7 @@ const P10 = [
   { k: "sigAccel10m",   label: "Accel (10m)"   },
   { k: "sigCandle10m",  label: "Candle (10m)"  },
 ];
+
 const P1H = [
   { k: "sigOverall1h",  label: "Overall (1h)"  },
   { k: "sigEMA1h",      label: "EMA (1h)"      },
@@ -31,17 +33,24 @@ const fmtAZ = (ts) => {
   try {
     return new Date(ts).toLocaleString("en-US", {
       timeZone: "America/Phoenix",
-      hour12: false, month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit",
+      hour12: false,
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
     });
-  } catch { return String(ts); }
+  } catch {
+    return String(ts);
+  }
 };
 
 function toneFromState(state) {
   const s = String(state || "").toLowerCase();
-  if (s === "bull")  return "ok";
-  if (s === "bear")  return "danger";
+  if (s === "bull") return "ok";
+  if (s === "bear") return "danger";
   return "warn";
 }
+
 function Pill({ label, state, recentCross }) {
   const tone = toneFromState(state);
   const map = {
@@ -50,9 +59,36 @@ function Pill({ label, state, recentCross }) {
     warn:   { bg: "var(--warn)",   fg: "#221a00" },
   };
   const t = map[tone] || map.warn;
-  const style = { background: t.bg, color: t.fg, borderRadius: 999, fontSize: 12, padding: "4px 10px", lineHeight: "18px", whiteSpace: "nowrap", position: "relative" };
-  const dot = { content: '""', position: "absolute", right: 4, top: 3, width: 6, height: 6, borderRadius: "50%", background: recentCross ? "#fff" : "transparent", opacity: 0.9 };
-  return <span className="pill" style={style}>{label}<i style={dot} /></span>;
+
+  const style = {
+    background: t.bg,
+    color: t.fg,
+    borderRadius: 999,
+    fontSize: 12,
+    padding: "4px 10px",
+    lineHeight: "18px",
+    whiteSpace: "nowrap",
+    position: "relative",
+  };
+
+  const dot = {
+    content: '""',
+    position: "absolute",
+    right: 4,
+    top: 3,
+    width: 6,
+    height: 6,
+    borderRadius: "50%",
+    background: recentCross ? "#fff" : "transparent",
+    opacity: 0.9,
+  };
+
+  return (
+    <span className="pill" style={style}>
+      {label}
+      <i style={dot} />
+    </span>
+  );
 }
 
 /* Fallback derivation (until backend keys are present) */
@@ -68,6 +104,7 @@ const derive10mState = (sigKey, j10, lux10) => {
     default: return "neutral";
   }
 };
+
 const derive1hState = (sigKey, j1h, lux1h) => {
   const overall = (j1h?.hourly?.overall1h?.state || "").toLowerCase();
   const lux     = (lux1h?.state || "").toLowerCase();
@@ -85,16 +122,34 @@ export default function EngineLights() {
   const [j1h, setJ1h] = useState(null);
   const [jd,  setJd]  = useState(null);
 
+  // Fetch intraday / hourly / eod
   useEffect(() => {
     let alive = true;
-    const pull = async (url, setter) => { try { const r = await fetch(url, { cache: "no-store" }); const j = await r.json(); if (alive) setter(j); } catch {} };
+
+    const pull = async (url, setter) => {
+      try {
+        const r = await fetch(url, { cache: "no-store" });
+        const j = await r.json();
+        if (alive) setter(j);
+      } catch {
+        // ignore
+      }
+    };
+
     pull(INTRADAY_URL, setJ10);
     pull(HOURLY_URL,   setJ1h);
     pull(EOD_URL,      setJd);
+
     const t10 = setInterval(() => pull(INTRADAY_URL, setJ10), 60 * 1000);
     const t1h = setInterval(() => pull(HOURLY_URL,   setJ1h), 60 * 1000);
     const td  = setInterval(() => pull(EOD_URL,      setJd),  10 * 60 * 1000);
-    return () => { alive = false; clearInterval(t10); clearInterval(t1h); clearInterval(td); };
+
+    return () => {
+      alive = false;
+      clearInterval(t10);
+      clearInterval(t1h);
+      clearInterval(td);
+    };
   }, []);
 
   const s10 = useMemo(() => (j10?.engineLights?.signals) || {}, [j10]);
@@ -107,24 +162,30 @@ export default function EngineLights() {
   // Lux states
   const lux10 = useMemo(() => {
     const t = j10?.strategy?.trend10m;
-    return { state:  safeStr(t?.state || j10?.engineLights?.overall?.state || "yellow"),
-             reason: safeStr(t?.reason || "Neutral/transition"),
-             updatedAt: safeStr(t?.updatedAt || ts10 || "") };
+    return {
+      state:  safeStr(t?.state || j10?.engineLights?.overall?.state || "yellow"),
+      reason: safeStr(t?.reason || "Neutral/transition"),
+      updatedAt: safeStr(t?.updatedAt || ts10 || ""),
+    };
   }, [j10, ts10]);
 
   const lux1h = useMemo(() => {
     const t = j1h?.strategy?.trend1h;
-    return { state:  safeStr(t?.state || j1h?.hourly?.overall1h?.state || "yellow"),
-             reason: safeStr(t?.reason || "Neutral/transition"),
-             updatedAt: safeStr(t?.updatedAt || ts1h || "") };
+    return {
+      state:  safeStr(t?.state || j1h?.hourly?.overall1h?.state || "yellow"),
+      reason: safeStr(t?.reason || "Neutral/transition"),
+      updatedAt: safeStr(t?.updatedAt || ts1h || ""),
+    };
   }, [j1h, ts1h]);
 
   const luxEOD = useMemo(() => {
     const t = jd?.strategy?.trendEOD;
     const fallback = jd?.trendDaily?.trend;
-    return { state:  safeStr(t?.state || fallback?.state || "yellow"),
-             reason: safeStr(t?.reason || "Neutral/transition"),
-             updatedAt: safeStr(t?.updatedAt || ts1d || "") };
+    return {
+      state:  safeStr(t?.state || fallback?.state || "yellow"),
+      reason: safeStr(t?.reason || "Neutral/transition"),
+      updatedAt: safeStr(t?.updatedAt || ts1d || ""),
+    };
   }, [jd, ts1d]);
 
   /* —— Extract panel metrics with safe fallbacks —— */
@@ -132,7 +193,7 @@ export default function EngineLights() {
   const m1h = j1h?.metrics || {};
   const md  = jd?.metrics  || {};
 
-  // 10m proxies (use your existing metrics if present)
+  // 10m metrics
   const tstr10  = m10.trend_strength_10m ?? j10?.engineLights?.overall?.score ?? "—";
   const vol10   = m10.volatility_pct     ?? "—";
   const sqz10   = m10.squeeze_pct        ?? "—";
@@ -145,18 +206,49 @@ export default function EngineLights() {
   const vsent1h = m1h.volume_sentiment_1h ?? "—";
 
   // EOD metrics
-  const tstr1d  = md.daily_trend_pct ?? "—";
-  const vol1d   = md.volatility_pct ?? "—";
-  const sqz1d   = md.squeeze_daily_pct ?? "—";
+  const tstr1d  = md.overall_eod_score ?? md.daily_trend_pct ?? "—";
+  const vol1d   = md.volatility_eod_pct ?? md.volatility_pct ?? "—";
+  const sqz1d   = md.daily_squeeze_pct ?? md.squeeze_daily_pct ?? "—";
   const vsent1d = md.volume_sentiment_daily ?? "—";
 
-  // Layout
-  const header  = { display: "inline-flex", alignItems: "center", gap: 10, flexWrap: "wrap", maxWidth: "100%" };
-  const body    = { display: "flex", flexDirection: "column", gap: 8, marginTop: 8 };
-  const rowWrap = { display: "inline-flex", alignItems: "center", gap: 8, flexWrap: "wrap", maxWidth: "100%" };
-  const tsChip  = { fontSize: 12, opacity: .75, background:"#0b1220", border:"1px solid var(--border)", borderRadius:999, padding:"2px 8px" };
+  // 5m micro bias from /live/pills
+  const { avgD5m, bias: bias5m, turbo: turbo5m, ts: ts5 } = useFiveMinuteBias();
 
-  // Panels Row (3 big cards, same height)
+  const microLabel =
+    bias5m === "bull"
+      ? turbo5m === "bull"
+        ? "5m Micro (Turbo ↑)"
+        : "5m Micro (Bull)"
+      : bias5m === "bear"
+      ? turbo5m === "bear"
+        ? "5m Micro (Turbo ↓)"
+        : "5m Micro (Bear)"
+      : "5m Micro (Neutral)";
+
+  // Layout
+  const header  = {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 10,
+    flexWrap: "wrap",
+    maxWidth: "100%",
+  };
+  const body    = { display: "flex", flexDirection: "column", gap: 8, marginTop: 8 };
+  const rowWrap = {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 8,
+    flexWrap: "wrap",
+    maxWidth: "100%",
+  };
+  const tsChip  = {
+    fontSize: 12,
+    opacity: 0.75,
+    background: "#0b1220",
+    border: "1px solid var(--border)",
+    borderRadius: 999,
+    padding: "2px 8px",
+  };
   const panelsRow = {
     display: "grid",
     gridTemplateColumns: "repeat(3, minmax(240px, 1fr))",
@@ -170,48 +262,98 @@ export default function EngineLights() {
       {/* Header (AZ timestamps) */}
       <div className="panel-head" style={header}>
         <span className="panel-title">Engine Lights</span>
-        <button className="btn btn-xs" title="Legend">Legend</button>
+        <button className="btn btn-xs" title="Legend">
+          Legend
+        </button>
         {ts10 ? <span style={tsChip}>10m: {fmtAZ(ts10)}</span> : null}
         {ts1h ? <span style={tsChip}>1h: {fmtAZ(ts1h)}</span>   : null}
         {ts1d ? <span style={tsChip}>EOD: {fmtAZ(ts1d)}</span>  : null}
+        {ts5  ? <span style={tsChip}>5m: {fmtAZ(ts5)}</span>    : null}
       </div>
 
-      {/* Two pill rows (left-locked) */}
+      {/* Body */}
       <div className="eng-body" style={body}>
+        {/* 10m pills */}
         <div className="eng-row" style={rowWrap}>
-          {P10.map(def => {
-            const sig   = getSig(s10, def.k);
-            const state = safeStr(sig.state || derive10mState(def.k, j10, lux10) || "neutral");
-            const recent= Boolean(sig.recentCross);
-            return <Pill key={def.k} label={def.label} state={state} recentCross={recent} />;
+          {P10.map((def) => {
+            const sig = getSig(s10, def.k);
+            const state = safeStr(
+              sig.state || derive10mState(def.k, j10, lux10) || "neutral"
+            );
+            const recent = Boolean(sig.recentCross);
+            return (
+              <Pill
+                key={def.k}
+                label={def.label}
+                state={state}
+                recentCross={recent}
+              />
+            );
           })}
         </div>
 
+        {/* 1h pills */}
         <div className="eng-row" style={rowWrap}>
-          {P1H.map(def => {
-            const sig   = getSig(s1h, def.k);
-            const state = safeStr(sig.state || derive1hState(def.k, j1h, lux1h) || "neutral");
-            const recent= Boolean(sig.recentCross);
-            return <Pill key={def.k} label={def.label} state={state} recentCross={recent} />;
+          {P1H.map((def) => {
+            const sig = getSig(s1h, def.k);
+            const state = safeStr(
+              sig.state || derive1hState(def.k, j1h, lux1h) || "neutral"
+            );
+            const recent = Boolean(sig.recentCross);
+            return (
+              <Pill
+                key={def.k}
+                label={def.label}
+                state={state}
+                recentCross={recent}
+              />
+            );
           })}
         </div>
 
-        {/* Three bigger Lux panels — fill remaining height, no stretch sidewise */}
+        {/* 5m Micro Bias pill */}
+        <div className="eng-row" style={rowWrap}>
+          <Pill
+            label={microLabel}
+            state={bias5m} // "bull" | "neutral" | "bear"
+            recentCross={Boolean(turbo5m)}
+          />
+          {Number.isFinite(avgD5m) ? (
+            <span style={tsChip}>avg d5m: {avgD5m.toFixed(1)}</span>
+          ) : null}
+        </div>
+
+        {/* 3 Lux Panels */}
         <div style={panelsRow}>
           <LuxTrendPanel
             title="Lux 10m"
-            state={lux10.state} reason={lux10.reason} updatedAt={fmtAZ(lux10.updatedAt)}
-            trendStrength={tstr10} volatility={vol10} squeeze={sqz10} volumeSentiment={vsent10}
+            state={lux10.state}
+            reason={lux10.reason}
+            updatedAt={fmtAZ(lux10.updatedAt)}
+            trendStrength={tstr10}
+            volatility={vol10}
+            squeeze={sqz10}
+            volumeSentiment={vsent10}
           />
           <LuxTrendPanel
             title="Lux 1h"
-            state={lux1h.state} reason={lux1h.reason} updatedAt={fmtAZ(lux1h.updatedAt)}
-            trendStrength={tstr1h} volatility={vol1h} squeeze={sqz1h} volumeSentiment={vsent1h}
+            state={lux1h.state}
+            reason={lux1h.reason}
+            updatedAt={fmtAZ(lux1h.updatedAt)}
+            trendStrength={tstr1h}
+            volatility={vol1h}
+            squeeze={sqz1h}
+            volumeSentiment={vsent1h}
           />
           <LuxTrendPanel
             title="Lux EOD"
-            state={luxEOD.state} reason={luxEOD.reason} updatedAt={fmtAZ(luxEOD.updatedAt)}
-            trendStrength={tstr1d} volatility={vol1d} squeeze={sqz1d} volumeSentiment={vsent1d}
+            state={luxEOD.state}
+            reason={luxEOD.reason}
+            updatedAt={fmtAZ(luxEOD.updatedAt)}
+            trendStrength={tstr1d}
+            volatility={vol1d}
+            squeeze={sqz1d}
+            volumeSentiment={vsent1d}
           />
         </div>
       </div>
