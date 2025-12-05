@@ -541,6 +541,38 @@ export default function RowChart({
       });
       reg(smz);
 
+      (async () => {
+        try {
+          const res = await fetch("/data/zones.json");
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const json = await res.json();
+          if (showDebug) {
+            console.log("SMZ zones.json payload:", json?.zones?.length ?? 0);
+          }
+          smz?.seed?.(json);
+          if (showDebug) window.__smz = json;
+        } catch (e) {
+          console.warn(
+            "[RowChart] error loading zones.json for SMZ overlay:",
+            e
+          );
+         }
+       })();
+      }
+
+      // Blue/Red auto Acc/Dist levels (backend engine)
+      if (state.accDistLevels) {
+        reg(
+          attachOverlay(SMZLevelsOverlay, {
+            chart: chartRef.current,
+            priceSeries: seriesRef.current,
+            chartContainer: containerRef.current,
+            timeframe: state.timeframe,
+          })
+        );
+      } 
+     
+ 
       reg(
         attachOverlay(SMZLevelsOverlay, {
           chart: chartRef.current,
