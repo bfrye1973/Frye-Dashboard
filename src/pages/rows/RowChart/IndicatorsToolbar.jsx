@@ -29,6 +29,7 @@ export default function IndicatorsToolbar({
   luxSr = false,
   swingLiquidity = false,
   shelvesFour = false,   // Shelves (1h + 10m)
+  accDistLevels,
   wickPaZones = false,   // NEW — Smart Money Zones (Wick & Candle)
 
   // Oscillators
