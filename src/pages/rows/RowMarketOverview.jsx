@@ -287,12 +287,14 @@ export default function RowMarketOverview() {
     useSandboxDeltas();
 
   // choose freshest intraday snapshot between polled + live
-  const d10 = newer(live10, polled) || {};
+  const { data: polled } = useDashboardPoll("dynamic");
+
+  // Use canonical /live/intraday when available, otherwise fallback to polled
+  const d10 = live10 || polled || {};
   const m10 = d10.metrics || {};
   const i10 = d10.intraday || {};
   const eng10 = (d10.engineLights && d10.engineLights["10m"]) || {};
   const ts10 = d10.updated_at || d10.updated_at_utc || null;
-
   const d1h = live1h || {};
   const m1h = d1h.metrics || {};
   const h1 = d1h.hourly || {};
