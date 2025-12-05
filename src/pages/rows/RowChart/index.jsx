@@ -17,15 +17,10 @@ import createSwingLiquidityOverlay from "../../../components/overlays/SwingLiqui
 import createSMI1hOverlay from "../../../components/overlays/SMI1hOverlay";
 import createFourShelvesOverlay from "../../../components/overlays/FourShelvesOverlay";
 
-// Smart-Money Zones engine + overlay
-import {
-  computeSmartMoneyZones,
-  computeAccDistLevelsFromBars,
-} from "../../../indicators/smz/engine";
 import createSmartMoneyZonesOverlay from "../../../components/overlays/SmartMoneyZonesOverlay";
 import SmartMoneyZonesPanel from "../../../components/smz/SmartMoneyZonesPanel";
 
-// Accumulation / Distribution precision levels
+// Accumulation / Distribution precision levels (backend)
 import SMZLevelsOverlay from "./overlays/SMZLevelsOverlay";
 import AccDistZonesPanel from "../../../components/smz/AccDistZonesPanel";
 
@@ -223,13 +218,12 @@ export default function RowChart({
 
     smi1h: false,
     shelvesFour: false,
-    smi1h: false,
-    shelvesFour: false,
 
-    accDistLevels: false,   // NEW: auto Acc/Dist overlay
-    wickPaZones: false,
+    accDistLevels: false, // NEW: backend Acc/Dist overlay
+    wickPaZones: false, // Yellow Smart Money zones
   });
 
+  // Debug hook
   if (typeof window !== "undefined") {
     window.__indicators = {
       get: () => state,
@@ -476,6 +470,7 @@ export default function RowChart({
 
     const reg = (inst) => inst && overlayInstancesRef.current.push(inst);
 
+    // Money Flow Profile (right)
     if (state.moneyFlow) {
       reg(
         attachOverlay(RightProfileOverlay, {
@@ -487,6 +482,7 @@ export default function RowChart({
       );
     }
 
+    // Lux S/R
     if (state.luxSr) {
       reg(
         attachOverlay(SessionShadingOverlay, {
@@ -498,6 +494,7 @@ export default function RowChart({
       );
     }
 
+    // Swing Liquidity
     if (state.swingLiquidity) {
       reg(
         attachOverlay(createSwingLiquidityOverlay, {
@@ -509,6 +506,7 @@ export default function RowChart({
       );
     }
 
+    // Four Shelves
     if (state.shelvesFour) {
       reg(
         attachOverlay(createFourShelvesOverlay, {
@@ -520,6 +518,7 @@ export default function RowChart({
       );
     }
 
+    // SMI 1h
     if (state.smi1h) {
       reg(
         attachOverlay(createSMI1hOverlay, {
@@ -531,7 +530,7 @@ export default function RowChart({
       );
     }
 
-    // Smart-Money Zones + Accumulation / Distribution precision levels
+    // Yellow Smart Money zones (wick & candle from zones.json)
     if (state.wickPaZones) {
       const smz = attachOverlay(createSmartMoneyZonesOverlay, {
         chart: chartRef.current,
@@ -546,50 +545,12 @@ export default function RowChart({
           const res = await fetch("/data/zones.json");
           if (!res.ok) throw new Error(`HTTP ${res.status}`);
           const json = await res.json();
-          if (showDebug) {
-            console.log("SMZ zones.json payload:", json?.zones?.length ?? 0);
-          }
-          smz?.seed?.(json);
-          if (showDebug) window.__smz = json;
-        } catch (e) {
-          console.warn(
-            "[RowChart] error loading zones.json for SMZ overlay:",
-            e
-          );
-         }
-       })();
-      }
-
-      // Blue/Red auto Acc/Dist levels (backend engine)
-      if (state.accDistLevels) {
-        reg(
-          attachOverlay(SMZLevelsOverlay, {
-            chart: chartRef.current,
-            priceSeries: seriesRef.current,
-            chartContainer: containerRef.current,
-            timeframe: state.timeframe,
-          })
-        );
-      } 
-     
- 
-      reg(
-        attachOverlay(SMZLevelsOverlay, {
-          chart: chartRef.current,
-          priceSeries: seriesRef.current,
-          chartContainer: containerRef.current,
-          timeframe: state.timeframe,
-        })
-      );
-
-      (async () => {
-        try {
-          const res = await fetch("/data/zones.json");
-          if (!res.ok) throw new Error(`HTTP ${res.status}`);
-          const json = await res.json();
 
           if (showDebug) {
-            console.log("SMZ zones.json payload:", json?.zones?.length ?? 0);
+            console.log(
+              "SMZ zones.json payload:",
+              json?.zones?.length ?? 0
+            );
           }
 
           smz?.seed?.(json);
@@ -604,8 +565,23 @@ export default function RowChart({
       })();
     }
 
+    // Blue/Red auto Acc/Dist levels (backend engine)
+    if (state.accDistLevels) {
+      reg(
+        attachOverlay(SMZLevelsOverlay, {
+          chart: chartRef.current,
+          priceSeries: seriesRef.current,
+          chartContainer: containerRef.current,
+          timeframe: state.timeframe,
+        })
+      );
+    }
+
+    // Seed all overlays with current bars
     try {
-      overlayInstancesRef.current.forEach((o) => o?.seed?.(barsRef.current));
+      overlayInstancesRef.current.forEach((o) =>
+        o?.seed?.(barsRef.current)
+      );
     } catch {}
   }, [
     state.moneyFlow,
@@ -614,6 +590,7 @@ export default function RowChart({
     state.shelvesFour,
     state.smi1h,
     state.wickPaZones,
+    state.accDistLevels,
     state.timeframe,
     bars,
     showDebug,
@@ -876,7 +853,7 @@ export default function RowChart({
         swingLiquidity: false,
         smi1h: false,
         shelvesFour: false,
-        accDistLevels: false, 
+        accDistLevels: false,
         wickPaZones: false,
       })),
   };
