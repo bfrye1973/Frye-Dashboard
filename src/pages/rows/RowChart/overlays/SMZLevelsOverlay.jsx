@@ -64,13 +64,13 @@ export default function SMZLevelsOverlay({
     levels.forEach((lvl) => {
       const isAccum = lvl.type === "accumulation";
 
-      // Bright colors so we can clearly see them
+      // NOW: Accumulation = BLUE, Distribution = RED
       const fill = isAccum
-        ? "rgba(255, 0, 0, 0.6)" // bright red
-        : "rgba(0, 128, 255, 0.6)"; // bright blue
+        ? "rgba(0, 128, 255, 0.6)" // blue
+        : "rgba(255, 0, 0, 0.6)"; // red
       const stroke = isAccum
-        ? "rgba(255, 0, 0, 1)"
-        : "rgba(0, 128, 255, 1)";
+        ? "rgba(0, 128, 255, 1)"
+        : "rgba(255, 0, 0, 1)";
 
       // Single price → $1 range band
       if (typeof lvl.price === "number") {
@@ -143,6 +143,9 @@ export default function SMZLevelsOverlay({
     draw();
   }
 
+  const unsubVisible =
+    ts.subscribeVisibleLogicalRangeChange?.(() => draw()) || (() => {});
+
   function destroy() {
     try {
       if (canvas && canvas.parentNode === chartContainer) {
@@ -153,9 +156,6 @@ export default function SMZLevelsOverlay({
     levels = [];
     unsubVisible();
   }
-
-  const unsubVisible =
-    ts.subscribeVisibleLogicalRangeChange?.(() => draw()) || (() => {});
 
   return {
     seed,
