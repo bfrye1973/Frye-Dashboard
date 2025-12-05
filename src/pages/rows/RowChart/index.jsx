@@ -223,7 +223,10 @@ export default function RowChart({
 
     smi1h: false,
     shelvesFour: false,
+    smi1h: false,
+    shelvesFour: false,
 
+    accDistLevels: false,   // NEW: auto Acc/Dist overlay
     wickPaZones: false,
   });
 
@@ -825,6 +828,7 @@ export default function RowChart({
     swingLiquidity: state.swingLiquidity,
     smi1h: state.smi1h,
     shelvesFour: state.shelvesFour,
+    accDistLevels: state.accDistLevels,
     wickPaZones: state.wickPaZones,
     onChange: handleControlsChange,
     onReset: () =>
@@ -840,6 +844,7 @@ export default function RowChart({
         swingLiquidity: false,
         smi1h: false,
         shelvesFour: false,
+        accDistLevels: false, 
         wickPaZones: false,
       })),
   };
