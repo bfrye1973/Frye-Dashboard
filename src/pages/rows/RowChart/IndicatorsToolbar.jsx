@@ -187,7 +187,14 @@ export default function IndicatorsToolbar({
                   />{" "}
                   Shelves (1h + 10m) — 2×Blue/Yellow
                 </label>
-
+                <label>
+                <input
+                  type="checkbox"
+                  checked={accDistLevels}
+                  onChange={(e) => onChange({ accDistLevels: e.target.checked })}
+                />
+                Acc/Dist Levels (auto)
+              </label>
                 {/* NEW: Smart Money Zones — Wick & Candle */}
                 <label>
                   <input
