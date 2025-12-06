@@ -64,7 +64,7 @@ export default function SMZLevelsOverlay({
     levels.forEach((lvl) => {
       const isAccum = lvl.type === "accumulation";
 
-      // NOW: Accumulation = BLUE, Distribution = RED
+      // Accumulation = BLUE, Distribution = RED
       const fill = isAccum
         ? "rgba(0, 128, 255, 0.6)" // blue
         : "rgba(255, 0, 0, 0.6)"; // red
@@ -72,11 +72,9 @@ export default function SMZLevelsOverlay({
         ? "rgba(0, 128, 255, 1)"
         : "rgba(255, 0, 0, 1)";
 
-      // Single price → $1 range band
-      if (typeof lvl.price === "number") {
-        const hi = lvl.price;
-        const lo = lvl.price - 1;
-
+      // 1) Price RANGE → use [hi, lo] if present
+      if (Array.isArray(lvl.priceRange) && lvl.priceRange.length === 2) {
+        const [hi, lo] = lvl.priceRange;
         const yTop = priceToY(hi);
         const yBot = priceToY(lo);
         if (yTop == null || yBot == null) return;
@@ -92,13 +90,13 @@ export default function SMZLevelsOverlay({
         ctx.beginPath();
         ctx.rect(0.5, y + 0.5, w - 1, hBand - 1);
         ctx.stroke();
+        return;
       }
 
-      // priceRange → band between hi/lo
-      if (Array.isArray(lvl.priceRange) && lvl.priceRange.length === 2) {
-        const hi = lvl.priceRange[0];
-        const lo = lvl.priceRange[1];
-
+      // 2) Single price → fallback $1 band
+      if (typeof lvl.price === "number") {
+        const hi = lvl.price + 0.5;
+        const lo = lvl.price - 0.5;
         const yTop = priceToY(hi);
         const yBot = priceToY(lo);
         if (yTop == null || yBot == null) return;
