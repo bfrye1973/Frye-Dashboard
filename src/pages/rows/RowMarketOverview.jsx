@@ -287,7 +287,11 @@ export default function RowMarketOverview() {
   const m10 = d10.metrics || {};
   const i10 = d10.intraday || {};
   const eng10 = (d10.engineLights && d10.engineLights["10m"]) || {};
-  const ts10 = d10.updated_at || d10.updated_at_utc || null;
+  const ts10 =
+    (d10.meta && d10.meta.last_full_run_utc) ||
+    d10.updated_at ||
+    d10.updated_at_utc ||
+    null;
 
   const d1h = live1h || {};
   const m1h = d1h.metrics || {};
