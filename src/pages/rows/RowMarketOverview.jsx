@@ -251,33 +251,34 @@ export default function RowMarketOverview() {
           });
           const j = await r.json();
           if (!stop) setLive10(j);
-        }
-        if (HOURLY_URL) {
-          const r = await fetch(`${HOURLY_URL}?t=${Date.now()}`, {
-            cache: "no-store",
-          });
-          const j = await r.json();
-          if (!stop) setLive1h(j);
-        }
-        if (EOD_URL) {
-          const r = await fetch(`${EOD_URL}?t=${Date.now()}`, {
-            cache: "no-store",
-          });
-          const j = await r.json();
-          if (!stop) setLiveEOD(j);
-        }
-      } catch {
-        // ignore fetch errors; next poll will try again
+       }
+       if (HOURLY_URL) {
+        const r = await fetch(`${HOURLY_URL}?t=${Date.now()}`, {
+          cache: "no-store",
+        });
+        const j = await r.json();
+        if (!stop) setLive1h(j);
       }
+      if (EOD_URL) {
+        const r = await fetch(`${EOD_URL}?t=${Date.now()}`, {
+          cache: "no-store",
+        });
+        const j = await r.json();
+        if (!stop) setLiveEOD(j);
+      }
+    } catch {
+      // ignore
     }
+  }
 
-    pull();
-    const id = setInterval(pull, 60_000);
-    return () => {
-      stop = true;
-      clearInterval(id);
-    };
-  }, []);
+  pull();
+  const id = setInterval(pull, 15000);
+  return () => {
+    stop = true;
+    clearInterval(id);
+  };
+}, []);
+
 
   const { dB: deltaB, dM: deltaM, riskOn: deltaRisk, ts: deltaTs } =
     useSandboxDeltas();
