@@ -122,7 +122,7 @@ export default function EngineLights() {
   const [j1h, setJ1h] = useState(null);
   const [jd,  setJd]  = useState(null);
 
-  // Fetch intraday / hourly / eod
+  // Fetch intraday / hourly / eod with faster polling
   useEffect(() => {
     let alive = true;
 
@@ -136,13 +136,15 @@ export default function EngineLights() {
       }
     };
 
+    // initial fetch
     pull(INTRADAY_URL, setJ10);
     pull(HOURLY_URL,   setJ1h);
     pull(EOD_URL,      setJd);
 
-    const t10 = setInterval(() => pull(INTRADAY_URL, setJ10), 60 * 1000);
-    const t1h = setInterval(() => pull(HOURLY_URL,   setJ1h), 60 * 1000);
-    const td  = setInterval(() => pull(EOD_URL,      setJd),  10 * 60 * 1000);
+    // faster refresh: 15s for 10m & 1h, 5m for EOD (still light)
+    const t10 = setInterval(() => pull(INTRADAY_URL, setJ10), 15 * 1000);
+    const t1h = setInterval(() => pull(HOURLY_URL,   setJ1h), 15 * 1000);
+    const td  = setInterval(() => pull(EOD_URL,      setJd),  5 * 60 * 1000);
 
     return () => {
       alive = false;
@@ -155,6 +157,7 @@ export default function EngineLights() {
   const s10 = useMemo(() => (j10?.engineLights?.signals) || {}, [j10]);
   const s1h = useMemo(() => (j1h?.hourly?.signals)       || {}, [j1h]);
 
+  // ✅ Use canonical 10m timestamp from meta (per teammate contract)
   const ts10 = j10?.meta?.last_full_run_utc || null;
   const ts1h = j1h?.updated_at_utc || j1h?.updated_at || null;
   const ts1d = jd?.updated_at_utc  || jd?.updated_at  || null;
