@@ -155,7 +155,7 @@ export default function EngineLights() {
   const s10 = useMemo(() => (j10?.engineLights?.signals) || {}, [j10]);
   const s1h = useMemo(() => (j1h?.hourly?.signals)       || {}, [j1h]);
 
-  const ts10 = j10?.updated_at_utc || j10?.engineLights?.updatedAt || j10?.updated_at || null;
+  const ts10 = j10?.meta?.last_full_run_utc || null;
   const ts1h = j1h?.updated_at_utc || j1h?.updated_at || null;
   const ts1d = jd?.updated_at_utc  || jd?.updated_at  || null;
 
