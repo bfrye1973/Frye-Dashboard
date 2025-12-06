@@ -1,8 +1,11 @@
 // src/components/smz/AccDistZonesPanel.jsx
-// Simple read-only panel that lists Accumulation / Distribution levels
-// from /smz-levels.json so you can see their labels + ranges.
+// Acc / Dist Levels panel — reads live Smart Money levels
+// from backend: GET /api/v1/smz-levels
 
 import React, { useEffect, useState } from "react";
+
+const SMZ_URL =
+  "https://frye-market-backend-1.onrender.com/api/v1/smz-levels";
 
 const CARD_STYLE = {
   display: "flex",
@@ -11,7 +14,8 @@ const CARD_STYLE = {
   borderLeft: "1px solid #1f2937",
   padding: "8px 10px",
   color: "#e5e7eb",
-  fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+  fontFamily:
+    'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
   fontSize: 12,
   minWidth: 220,
 };
@@ -30,7 +34,7 @@ const ITEM_STYLE = {
 
 const LABEL_STYLE = (type) => ({
   fontWeight: 600,
-  color: type === "accumulation" ? "#f97373" : "#60a5fa", // red / blue
+  color: type === "accumulation" ? "#60a5fa" : "#f97373", // blue / red
 });
 
 export default function AccDistZonesPanel() {
@@ -41,24 +45,40 @@ export default function AccDistZonesPanel() {
 
     async function load() {
       try {
-        const res = await fetch("/smz-levels.json");
-        if (!res.ok) return;
+        const res = await fetch(SMZ_URL, { cache: "no-store" });
+        if (!res.ok) {
+          console.warn("[AccDistZonesPanel] HTTP", res.status);
+          return;
+        }
         const json = await res.json();
         if (cancelled) return;
-        setLevels(Array.isArray(json.levels) ? json.levels : []);
+        const arr = Array.isArray(json.levels) ? json.levels : [];
+        setLevels(arr);
       } catch (e) {
-        console.warn("[AccDistZonesPanel] failed to load smz-levels.json", e);
+        console.warn("[AccDistZonesPanel] failed to load smz-levels:", e);
       }
     }
 
     load();
+
+    // optional: refresh every 30s
+    const id = setInterval(load, 30 * 1000);
+
     return () => {
       cancelled = true;
+      clearInterval(id);
     };
   }, []);
 
   if (!levels.length) {
-    return null; // hide panel if nothing there
+    return (
+      <div style={CARD_STYLE}>
+        <div style={HEADER_STYLE}>Acc / Dist Levels</div>
+        <div style={{ fontSize: 11, color: "#9ca3af" }}>
+          No Smart Money levels yet.
+        </div>
+      </div>
+    );
   }
 
   const formatRange = (lvl) => {
