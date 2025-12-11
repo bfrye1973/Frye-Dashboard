@@ -1,5 +1,5 @@
 // src/pages/rows/RowChart/overlays/SMZLevelsOverlay.jsx
-// Module-style overlay for Accumulation / Distribution levels
+// Module-style overlay for Accumulation / Distribution / Institutional levels
 // Used via attachOverlay(SMZLevelsOverlay, { chart, priceSeries, chartContainer, timeframe })
 
 const SMZ_URL =
@@ -54,49 +54,42 @@ export default function SMZLevelsOverlay({
     const ctx = cnv.getContext("2d");
     ctx.clearRect(0, 0, w, h);
 
-    console.log(
-      "[SMZLevelsOverlay] draw called, level count =",
-      levels?.length || 0
-    );
-
     if (!levels || levels.length === 0) return;
 
     levels.forEach((lvl) => {
+      if (!lvl) return;
+
+      // --- Color by zone type ---
+      const isInst = lvl.type === "institutional";
       const isAccum = lvl.type === "accumulation";
-    // Color by zone type
-      const isInst  = lvl.type === "institutional";
-      const isAccum = lvl.type === "accumulation";
-      const isDist  = lvl.type === "distribution" || (!isInst && !isAccum);
+      const isDist =
+        lvl.type === "distribution" || (!isInst && !isAccum);
 
       let fill, stroke;
       if (isInst) {
         // Institutional = YELLOW
-        fill   = "rgba(255, 215, 0, 0.35)";
+        fill = "rgba(255, 215, 0, 0.35)";
         stroke = "rgba(255, 215, 0, 0.9)";
       } else if (isAccum) {
         // Accumulation = BLUE
-        fill   = "rgba(0, 128, 255, 0.6)";
+        fill = "rgba(0, 128, 255, 0.6)";
         stroke = "rgba(0, 128, 255, 1)";
       } else if (isDist) {
         // Distribution = RED
-        fill   = "rgba(255, 0, 0, 0.6)";
+        fill = "rgba(255, 0, 0, 0.6)";
         stroke = "rgba(255, 0, 0, 1)";
       } else {
         // Fallback (shouldn't happen)
-        fill   = "rgba(128, 128, 128, 0.4)";
+        fill = "rgba(128, 128, 128, 0.4)";
         stroke = "rgba(128, 128, 128, 0.9)";
       }
 
-      // 1) Price RANGE → use [hi, lo] if present
+      // --- 1) Price RANGE → use [hi, lo] if present ---
       if (Array.isArray(lvl.priceRange) && lvl.priceRange.length === 2) {
         const [hi, lo] = lvl.priceRange;
         const yTop = priceToY(hi);
         const yBot = priceToY(lo);
         if (yTop == null || yBot == null) return;
-
-        const y = Math.min(yTop, yBot);
-        const hBand = Math.max(2, Math.abs(yBot - yTop));
-      
 
         const y = Math.min(yTop, yBot);
         const hBand = Math.max(2, Math.abs(yBot - yTop));
@@ -112,7 +105,7 @@ export default function SMZLevelsOverlay({
         return;
       }
 
-      // 2) Single price → fallback $1 band
+      // --- 2) Single price → fallback $1 band ---
       if (typeof lvl.price === "number") {
         const hi = lvl.price + 0.5;
         const lo = lvl.price - 0.5;
@@ -141,7 +134,6 @@ export default function SMZLevelsOverlay({
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json();
       const arr = Array.isArray(json.levels) ? json.levels : [];
-      console.log("[SMZLevelsOverlay] loaded levels:", arr);
       levels = arr;
       draw();
     } catch (e) {
