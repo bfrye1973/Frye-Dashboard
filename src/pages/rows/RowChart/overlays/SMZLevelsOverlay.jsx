@@ -63,14 +63,29 @@ export default function SMZLevelsOverlay({
 
     levels.forEach((lvl) => {
       const isAccum = lvl.type === "accumulation";
+    // Color by zone type
+      const isInst  = lvl.type === "institutional";
+      const isAccum = lvl.type === "accumulation";
+      const isDist  = lvl.type === "distribution" || (!isInst && !isAccum);
 
-      // Accumulation = BLUE, Distribution = RED
-      const fill = isAccum
-        ? "rgba(0, 128, 255, 0.6)" // blue
-        : "rgba(255, 0, 0, 0.6)"; // red
-      const stroke = isAccum
-        ? "rgba(0, 128, 255, 1)"
-        : "rgba(255, 0, 0, 1)";
+      let fill, stroke;
+      if (isInst) {
+        // Institutional = YELLOW
+        fill   = "rgba(255, 215, 0, 0.35)";
+        stroke = "rgba(255, 215, 0, 0.9)";
+      } else if (isAccum) {
+        // Accumulation = BLUE
+        fill   = "rgba(0, 128, 255, 0.6)";
+        stroke = "rgba(0, 128, 255, 1)";
+      } else if (isDist) {
+        // Distribution = RED
+        fill   = "rgba(255, 0, 0, 0.6)";
+        stroke = "rgba(255, 0, 0, 1)";
+      } else {
+        // Fallback (shouldn't happen)
+        fill   = "rgba(128, 128, 128, 0.4)";
+        stroke = "rgba(128, 128, 128, 0.9)";
+      }
 
       // 1) Price RANGE → use [hi, lo] if present
       if (Array.isArray(lvl.priceRange) && lvl.priceRange.length === 2) {
@@ -78,6 +93,10 @@ export default function SMZLevelsOverlay({
         const yTop = priceToY(hi);
         const yBot = priceToY(lo);
         if (yTop == null || yBot == null) return;
+
+        const y = Math.min(yTop, yBot);
+        const hBand = Math.max(2, Math.abs(yBot - yTop));
+      
 
         const y = Math.min(yTop, yBot);
         const hBand = Math.max(2, Math.abs(yBot - yTop));
