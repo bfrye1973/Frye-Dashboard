@@ -473,6 +473,15 @@ export default function RowChart({
           .forEach((c) => c.parentNode?.removeChild(c));
     }
   } catch {}
+    // Hard cleanup: prevent duplicate shelves canvases
+    try {
+      const root = containerRef.current;
+      if (root) {
+        root
+          .querySelectorAll("canvas.overlay-canvas.smz-shelves")
+          .forEach((c) => c.parentNode?.removeChild(c));
+     }
+   } catch {}
 
 
     const reg = (inst) => inst && overlayInstancesRef.current.push(inst);
