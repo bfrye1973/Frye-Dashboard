@@ -481,67 +481,7 @@ export default function RowChart({
 
     const reg = (inst) => inst && overlayInstancesRef.current.push(inst);
 
-    // Money Flow Profile (right)
-    if (state.moneyFlow) {
-      reg(
-        attachOverlay(RightProfileOverlay, {
-          chart: chartRef.current,
-          priceSeries: seriesRef.current,
-          chartContainer: containerRef.current,
-          timeframe: state.timeframe,
-        })
-      );
-    }
-
-    // Lux S/R
-    if (state.luxSr) {
-      reg(
-        attachOverlay(SessionShadingOverlay, {
-          chart: chartRef.current,
-          priceSeries: seriesRef.current,
-          chartContainer: containerRef.current,
-          timeframe: state.timeframe,
-        })
-      );
-    }
-
-    // Swing Liquidity
-    if (state.swingLiquidity) {
-      reg(
-        attachOverlay(createSwingLiquidityOverlay, {
-          chart: chartRef.current,
-          priceSeries: seriesRef.current,
-          chartContainer: containerRef.current,
-          timeframe: state.timeframe,
-        })
-      );
-    }
-
-    // Four Shelves
-    if (state.shelvesFour) {
-      reg(
-        attachOverlay(createFourShelvesOverlay, {
-          chart: chartRef.current,
-          priceSeries: seriesRef.current,
-          chartContainer: containerRef.current,
-          timeframe: state.timeframe,
-        })
-      );
-    }
-
-    // SMI 1h
-    if (state.smi1h) {
-      reg(
-        attachOverlay(createSMI1hOverlay, {
-          chart: chartRef.current,
-          priceSeries: seriesRef.current,
-          chartContainer: containerRef.current,
-          timeframe: state.timeframe,
-        })
-      );
-    }
-
-    
+      
     // Institutional Zones (auto) — backend engine (YELLOW) /api/v1/smz-levels
     if (state.institutionalZonesAuto) {
       reg(
