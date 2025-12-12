@@ -212,13 +212,9 @@ export default function RowChart({
     ema50: true,
 
     volume: true,
-
-    moneyFlow: false,
-    luxSr: false,
-    swingLiquidity: false,
-
-    smi1h: false,
-    shelvesFour: false,
+    
+    institutionalZonesAuto: false,
+    smzShelvesAuto: false,
 
     accDistLevels: false, // NEW: backend Acc/Dist overlay
     wickPaZones: false, // Yellow Smart Money zones
