@@ -2,8 +2,7 @@
 // Module-style overlay for Accumulation / Distribution / Institutional levels
 // Used via attachOverlay(SMZLevelsOverlay, { chart, priceSeries, chartContainer, timeframe })
 
-const SMZ_URL =
-  const SMZ_URL = "https://frye-market-backend-1.onrender.com/api/v1/smz-shelves"
+const SMZ_URL = "https://frye-market-backend-1.onrender.com/api/v1/smz-shelves";
 
 export default function SMZLevelsOverlay({
   chart,
@@ -12,9 +11,7 @@ export default function SMZLevelsOverlay({
   timeframe,
 }) {
   if (!chart || !priceSeries || !chartContainer) {
-    console.warn(
-      "[SMZLevelsOverlay] missing chart/priceSeries/chartContainer"
-    );
+    console.warn("[SMZLevelsOverlay] missing chart/priceSeries/chartContainer");
     return { seed() {}, update() {}, destroy() {} };
   }
 
@@ -51,6 +48,7 @@ export default function SMZLevelsOverlay({
     const h = chartContainer.clientHeight || 1;
     cnv.width = w;
     cnv.height = h;
+
     const ctx = cnv.getContext("2d");
     ctx.clearRect(0, 0, w, h);
 
@@ -62,8 +60,7 @@ export default function SMZLevelsOverlay({
       // --- Color by zone type ---
       const isInst = lvl.type === "institutional";
       const isAccum = lvl.type === "accumulation";
-      const isDist =
-        lvl.type === "distribution" || (!isInst && !isAccum);
+      const isDist = lvl.type === "distribution" || (!isInst && !isAccum);
 
       let fill, stroke;
       if (isInst) {
@@ -79,7 +76,7 @@ export default function SMZLevelsOverlay({
         fill = "rgba(255, 0, 0, 0.6)";
         stroke = "rgba(255, 0, 0, 1)";
       } else {
-        // Fallback (shouldn't happen)
+        // Fallback
         fill = "rgba(128, 128, 128, 0.4)";
         stroke = "rgba(128, 128, 128, 0.9)";
       }
@@ -133,11 +130,19 @@ export default function SMZLevelsOverlay({
       const res = await fetch(SMZ_URL, { cache: "no-store" });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json();
-      const arr = Array.isArray(json.levels) ? json.levels : [];
+
+      // Shelves endpoint returns { ok: true, shelves: [...] }
+      // Keep fallback to levels in case of future merge
+      const arr = Array.isArray(json.shelves)
+        ? json.shelves
+        : Array.isArray(json.levels)
+        ? json.levels
+        : [];
+
       levels = arr;
       draw();
     } catch (e) {
-      console.warn("[SMZLevelsOverlay] failed to load smz-levels:", e);
+      console.warn("[SMZLevelsOverlay] failed to load smz shelves:", e);
     }
   }
 
