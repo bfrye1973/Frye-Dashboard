@@ -565,8 +565,8 @@ export default function RowChart({
       })();
     }
 
-    // Blue/Red auto Acc/Dist levels (backend engine)
-    if (state.accDistLevels) {
+    // Institutional Zones (auto) — backend engine (YELLOW) /api/v1/smz-levels
+    if (state.institutionalZonesAuto) {
       reg(
         attachOverlay(SMZLevelsOverlay, {
           chart: chartRef.current,
@@ -576,6 +576,19 @@ export default function RowChart({
         })
       );
     }
+
+    // Acc/Dist Shelves (auto) — Script #2 (BLUE/RED) /api/v1/smz-shelves
+    if (state.smzShelvesAuto) {
+      reg(
+        attachOverlay(SMZShelvesOverlay, {
+          chart: chartRef.current,
+          priceSeries: seriesRef.current,
+          chartContainer: containerRef.current,
+          timeframe: state.timeframe,
+        })
+      );
+    }
+
 
     // Seed all overlays with current bars
     try {
