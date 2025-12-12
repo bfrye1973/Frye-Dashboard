@@ -3,7 +3,7 @@
 // Used via attachOverlay(SMZLevelsOverlay, { chart, priceSeries, chartContainer, timeframe })
 
 const SMZ_URL =
-  "https://frye-market-backend-1.onrender.com/api/v1/smz-levels";
+  const SMZ_URL = "https://frye-market-backend-1.onrender.com/api/v1/smz-shelves"
 
 export default function SMZLevelsOverlay({
   chart,
