@@ -468,6 +468,16 @@ export default function RowChart({
       overlayInstancesRef.current.forEach((o) => o?.destroy?.());
     } catch {}
     overlayInstancesRef.current = [];
+    // Hard cleanup: remove any leftover SMZ canvases (older overlay leaked them)
+    try {
+      const root = containerRef.current;
+      if (root) {
+        root
+          .querySelectorAll("canvas.overlay-canvas.smz")
+          .forEach((c) => c.parentNode?.removeChild(c));
+    }
+  } catch {}
+
 
     const reg = (inst) => inst && overlayInstancesRef.current.push(inst);
 
