@@ -509,18 +509,14 @@ export default function RowChart({
         o?.seed?.(barsRef.current)
       );
     } catch {}
-  }, [
-    state.moneyFlow,
-    state.luxSr,
-    state.swingLiquidity,
-    state.shelvesFour,
-    state.smi1h,
-    state.wickPaZones,
-    state.accDistLevels,
-    state.timeframe,
-    bars,
-    showDebug,
-  ]);
+      }, [
+        state.institutionalZonesAuto,
+        state.smzShelvesAuto,
+        state.timeframe,
+        bars,
+        showDebug,
+      ]);
+
 
   /* -------------------------- Render + Range ------------------------- */
 
