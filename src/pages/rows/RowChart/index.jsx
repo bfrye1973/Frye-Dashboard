@@ -749,36 +749,29 @@ export default function RowChart({
   };
 
   const toolbarProps = {
-    showEma: state.showEma,
-    ema10: state.ema10,
-    ema20: state.ema20,
-    ema50: state.ema50,
-    volume: state.volume,
-    moneyFlow: state.moneyFlow,
-    luxSr: state.luxSr,
-    swingLiquidity: state.swingLiquidity,
-    smi1h: state.smi1h,
-    shelvesFour: state.shelvesFour,
-    accDistLevels: state.accDistLevels,
-    wickPaZones: state.wickPaZones,
-    onChange: handleControlsChange,
-    onReset: () =>
-      setState((s) => ({
-        ...s,
-        showEma: true,
-        ema10: true,
-        ema20: true,
-        ema50: true,
-        volume: true,
-        moneyFlow: false,
-        luxSr: false,
-        swingLiquidity: false,
-        smi1h: false,
-        shelvesFour: false,
-        accDistLevels: false,
-        wickPaZones: false,
-      })),
-  };
+  showEma: state.showEma,
+  ema10: state.ema10,
+  ema20: state.ema20,
+  ema50: state.ema50,
+  volume: state.volume,
+
+  institutionalZonesAuto: state.institutionalZonesAuto,
+  smzShelvesAuto: state.smzShelvesAuto,
+
+  onChange: handleControlsChange,
+  onReset: () =>
+    setState((s) => ({
+      ...s,
+      showEma: true,
+      ema10: true,
+      ema20: true,
+      ema50: true,
+      volume: true,
+      institutionalZonesAuto: false,
+      smzShelvesAuto: false,
+    })),
+};
+
 
   const wrapperStyle = useMemo(
     () =>
