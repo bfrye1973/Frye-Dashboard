@@ -1,5 +1,8 @@
 // src/pages/rows/RowChart/IndicatorsToolbar.jsx
-// v3.4 — Adds Smart Money Zones (Wick & Candle) toggle + keeps Shelves (1h + 10m)
+// v3.5 — Splits SMZ into:
+// 1) Institutional Zones (auto)  -> yellow (smz-levels)
+// 2) Acc/Dist Shelves (auto)     -> blue/red (smz-shelves)
+// Keeps Smart Money Zones (Wick & Candle) toggle + Shelves (1h + 10m)
 
 import React from "react";
 
@@ -11,7 +14,9 @@ import React from "react";
  * - moneyFlow, luxSr, swingLiquidity
  * - smi1h
  * - shelvesFour
- * - wickPaZones           <-- NEW (Smart Money Zones — Wick & Candle)
+ * - institutionalZonesAuto   <-- NEW name (was accDistLevels)
+ * - smzShelvesAuto           <-- NEW (blue/red shelves from Script #2)
+ * - wickPaZones              <-- Smart Money Zones — Wick & Candle
  * - onChange(patch), onReset()
  */
 export default function IndicatorsToolbar({
@@ -28,9 +33,14 @@ export default function IndicatorsToolbar({
   moneyFlow = false,
   luxSr = false,
   swingLiquidity = false,
-  shelvesFour = false,   // Shelves (1h + 10m)
-  accDistLevels,
-  wickPaZones = false,   // NEW — Smart Money Zones (Wick & Candle)
+  shelvesFour = false, // Shelves (1h + 10m)
+
+  // SMZ overlays
+  institutionalZonesAuto = false, // 🟨 Institutional Zones (auto)
+  smzShelvesAuto = false,         // 🔵🔴 Acc/Dist Shelves (auto)
+
+  // Smart Money Zones (Wick & Candle)
+  wickPaZones = false,
 
   // Oscillators
   smi1h = false,
@@ -101,7 +111,9 @@ export default function IndicatorsToolbar({
           {wrap(
             <>
               {/* EMAs */}
-              <div style={{ color: "#9ca3af", fontSize: 12, margin: "6px 0 4px" }}>EMA</div>
+              <div style={{ color: "#9ca3af", fontSize: 12, margin: "6px 0 4px" }}>
+                EMA
+              </div>
               <label>
                 <input
                   type="checkbox"
@@ -110,6 +122,7 @@ export default function IndicatorsToolbar({
                 />{" "}
                 Enable EMA
               </label>
+
               <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 6 }}>
                 <label>
                   <input
@@ -140,7 +153,9 @@ export default function IndicatorsToolbar({
               {divider}
 
               {/* Volume */}
-              <div style={{ color: "#9ca3af", fontSize: 12, margin: "6px 0 4px" }}>Volume</div>
+              <div style={{ color: "#9ca3af", fontSize: 12, margin: "6px 0 4px" }}>
+                Volume
+              </div>
               <label>
                 <input
                   type="checkbox"
@@ -153,7 +168,9 @@ export default function IndicatorsToolbar({
               {divider}
 
               {/* Overlays */}
-              <div style={{ color: "#9ca3af", fontSize: 12, margin: "6px 0 4px" }}>Overlays</div>
+              <div style={{ color: "#9ca3af", fontSize: 12, margin: "6px 0 4px" }}>
+                Overlays
+              </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                 <label>
                   <input
@@ -163,6 +180,7 @@ export default function IndicatorsToolbar({
                   />{" "}
                   Money Flow Profile (right)
                 </label>
+
                 <label>
                   <input
                     type="checkbox"
@@ -171,6 +189,7 @@ export default function IndicatorsToolbar({
                   />{" "}
                   Lux S/R (lines + breaks)
                 </label>
+
                 <label>
                   <input
                     type="checkbox"
@@ -179,6 +198,7 @@ export default function IndicatorsToolbar({
                   />{" "}
                   Swing Liquidity (pivots)
                 </label>
+
                 <label>
                   <input
                     type="checkbox"
@@ -187,15 +207,28 @@ export default function IndicatorsToolbar({
                   />{" "}
                   Shelves (1h + 10m) — 2×Blue/Yellow
                 </label>
+
+                {/* 🟨 Institutional zones (auto) — from /api/v1/smz-levels */}
                 <label>
-                <input
-                  type="checkbox"
-                  checked={accDistLevels}
-                  onChange={(e) => onChange({ accDistLevels: e.target.checked })}
-                />
-                Acc/Dist Levels (auto)
-              </label>
-                {/* NEW: Smart Money Zones — Wick & Candle */}
+                  <input
+                    type="checkbox"
+                    checked={!!institutionalZonesAuto}
+                    onChange={(e) => onChange?.({ institutionalZonesAuto: e.target.checked })}
+                  />{" "}
+                  Institutional Zones (auto)
+                </label>
+
+                {/* 🔵🔴 Acc/Dist shelves (auto) — from /api/v1/smz-shelves */}
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={!!smzShelvesAuto}
+                    onChange={(e) => onChange?.({ smzShelvesAuto: e.target.checked })}
+                  />{" "}
+                  Acc/Dist Shelves (auto)
+                </label>
+
+                {/* Smart Money Zones — Wick & Candle */}
                 <label>
                   <input
                     type="checkbox"
@@ -209,7 +242,9 @@ export default function IndicatorsToolbar({
               {divider}
 
               {/* Oscillators */}
-              <div style={{ color: "#9ca3af", fontSize: 12, margin: "6px 0 4px" }}>Oscillators</div>
+              <div style={{ color: "#9ca3af", fontSize: 12, margin: "6px 0 4px" }}>
+                Oscillators
+              </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                 <label>
                   <input
