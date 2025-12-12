@@ -22,6 +22,7 @@ import SmartMoneyZonesPanel from "../../../components/smz/SmartMoneyZonesPanel";
 
 // Accumulation / Distribution precision levels (backend)
 import SMZLevelsOverlay from "./overlays/SMZLevelsOverlay";
+import SMZShelvesOverlay from "./overlays/SMZShelvesOverlay";
 import AccDistZonesPanel from "../../../components/smz/AccDistZonesPanel";
 
 /* ------------------------------ Config ------------------------------ */
