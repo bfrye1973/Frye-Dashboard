@@ -340,11 +340,17 @@ export default function RowMarketOverview() {
     num(m1h.momentum_combo_1h_pct) ||
     num(m1h.momentum_pct);
 
+  // --- Lux Squeeze (1H) ---
+  // Backend provides PSI = tightness (0..100, higher = tighter)
+  // Dashboard displays EXPANSION = 100 - PSI (TradingView style)
+
   const psi1 = num(m1h.squeeze_psi_1h_pct ?? m1h.squeeze_psi_1h);
-  let sq1 = num(m1h.squeeze_1h_pct ?? m1h.squeeze_1h_expansion_pct);
-  if (Number.isFinite(psi1)) {
-    sq1 = clamp(100 - psi1, 0, 100);
-  }
+
+  // Display value (matches TradingView LuxAlgo)
+  const sq1 = Number.isFinite(psi1)
+    ? clamp(100 - psi1, 0, 100)
+    : num(m1h.squeeze_1h_pct ?? m1h.squeeze_1h_expansion_pct);
+
 
   const liq1 = num(m1h.liquidity_1h);
   const vol1 = num(m1h.volatility_1h_scaled ?? m1h.volatility_1h_pct);
