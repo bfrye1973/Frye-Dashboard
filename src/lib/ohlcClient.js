@@ -56,76 +56,35 @@ function normalizeBars(arr) {
     );
 }
 
-// Aggregate ascending 1m bars to target timeframe (seconds)
-function aggregateToTf(barsAsc, tfSec) {
-  if (!Array.isArray(barsAsc) || !barsAsc.length || tfSec === 60) return barsAsc || [];
-  const out = [];
-  let bucketStart = null;
-  let cur = null;
-
-  for (const b of barsAsc) {
-    const t = Number(b.time);
-    if (!Number.isFinite(t)) continue;
-    const start = Math.floor(t / tfSec) * tfSec;
-
-    if (bucketStart === null || start > bucketStart) {
-      if (cur) out.push(cur);
-      bucketStart = start;
-      cur = {
-        time: start,
-        open: b.open,
-        high: b.high,
-        low: b.low,
-        close: b.close,
-        volume: Number(b.volume || 0),
-      };
-    } else {
-      cur.high = Math.max(cur.high, b.high);
-      cur.low = Math.min(cur.low, b.low);
-      cur.close = b.close;
-      cur.volume = Number(cur.volume || 0) + Number(b.volume || 0);
-    }
-  }
-  if (cur) out.push(cur);
-  return out;
-}
-
 // ---------------- API: getOHLC ----------------
-export async function getOHLC(symbol = "SPY", timeframe = "1m", limit = 1500) {
+// IMPORTANT: Do NOT always fetch 1m and client-aggregate.
+// Server already supports timeframe bucketing and this avoids "DELAYED 1m" issues.
+export async function getOHLC(symbol = "SPY", timeframe = "10m", limit = 1500) {
   const sym = String(symbol || "SPY").toUpperCase();
-  const tf = String(timeframe || "1m");
-  const tfSec = TF_SEC[tf] || 600; // default to 10m if unknown
-  const needAgg = tfSec !== 60;
+  const tf = String(timeframe || "10m").toLowerCase();
+  const safeLimit = Math.max(1, Math.min(50000, Number(limit || 1500)));
 
-  // Raise ceiling so 10m can show ~1 month (and more if needed)
-  const MAX_1M_FETCH = 50000;
-  const overshoot = 3; // safety factor for gaps/pauses
-  const need1mCount = Math.min(
-    MAX_1M_FETCH,
-    Math.max(needAgg ? Math.ceil((limit * tfSec) / 60) * overshoot : limit, 50)
-  );
+  // If unknown TF, default to 10m (backend supports it)
+  const tfFinal = TF_SEC[tf] ? tf : "10m";
 
   const url =
     `${API}/api/v1/ohlc?symbol=${encodeURIComponent(sym)}` +
-    `&timeframe=1m&limit=${need1mCount}`;
+    `&timeframe=${encodeURIComponent(tfFinal)}` +
+    `&limit=${encodeURIComponent(safeLimit)}`;
 
   const r = await fetch(url, { cache: "no-store" });
   if (!r.ok) throw new Error(`OHLC ${r.status}`);
 
   const data = await r.json();
-  const oneMin = normalizeBars(Array.isArray(data) ? data : data?.bars || []);
-  oneMin.sort((a, b) => a.time - b.time); // ascending
-
-  if (!needAgg) return oneMin.slice(-limit);
-
-  const agg = aggregateToTf(oneMin, tfSec);
-  return agg.slice(-limit);
+  const bars = normalizeBars(Array.isArray(data) ? data : data?.bars || []);
+  bars.sort((a, b) => a.time - b.time); // ascending
+  return bars.slice(-safeLimit);
 }
 
 // ---------------- API: compat shim ----------------
 export async function fetchOHLCResilient({ symbol, timeframe, limit = 1500 }) {
   const bars = await getOHLC(symbol, timeframe, limit);
-  return { source: "api/v1/ohlc (1m→tf client agg)", bars };
+  return { source: `api/v1/ohlc (${String(timeframe || "10m")})`, bars };
 }
 
 // ---------------- Live SSE subscribe ----------------
@@ -134,6 +93,7 @@ export function subscribeStream(symbol, timeframe, onBar) {
     console.warn("[subscribeStream] STREAM_BASE missing");
     return () => {};
   }
+
   const sym = String(symbol || "SPY").toUpperCase();
   const tf = String(timeframe || "1m");
   const url = `${STREAM_BASE.replace(/\/+$/, "")}/stream/agg?symbol=${encodeURIComponent(
@@ -162,12 +122,16 @@ export function subscribeStream(symbol, timeframe, onBar) {
     } catch {}
   };
 
-  es.onerror = (e) => {
-    try { es.close(); } catch {}
+  es.onerror = () => {
+    try {
+      es.close();
+    } catch {}
   };
 
   return () => {
-    try { es.close(); } catch {}
+    try {
+      es.close();
+    } catch {}
   };
 }
 
