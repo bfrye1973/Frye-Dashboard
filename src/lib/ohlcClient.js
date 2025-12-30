@@ -5,6 +5,11 @@
 //   - getOHLC(symbol, timeframe, limit) -> plain bars in UNIX SECONDS
 //   - fetchOHLCResilient({ symbol, timeframe, limit }) -> { source, bars }
 //   - subscribeStream(symbol, timeframe, onBar) -> live SSE bars (UNIX SECONDS)
+//
+// NEW behavior (per your request):
+// - Seed from backend-2 snapshots FIRST for ALL intraday timeframes (10m/30m/1h/4h)
+// - Fallback to backend-1 /api/v1/ohlc for history if snapshot is missing/empty
+// - Stream still handled via subscribeStream (SSE)
 
 const BACKEND =
   (typeof window !== "undefined" && (window.__API_BASE__ || "")) ||
@@ -56,15 +61,57 @@ function normalizeBars(arr) {
     );
 }
 
+function isIntradayTf(tf) {
+  const t = String(tf || "").toLowerCase();
+  // per your spec: seed from snapshots for 10m/30m/1h/4h
+  return t === "10m" || t === "30m" || t === "1h" || t === "4h";
+}
+
+async function trySnapshot(symbol, timeframe, limit) {
+  if (!STREAM_BASE) return null;
+
+  const sym = String(symbol || "SPY").toUpperCase();
+  const tf = String(timeframe || "10m").toLowerCase();
+
+  // backend-2 expects tf like "10m","30m","1h","4h"
+  const url =
+    `${STREAM_BASE.replace(/\/+$/, "")}/stream/snapshot` +
+    `?symbol=${encodeURIComponent(sym)}` +
+    `&tf=${encodeURIComponent(tf)}` +
+    `&limit=${encodeURIComponent(limit)}`;
+
+  const r = await fetch(url, { cache: "no-store" });
+  if (!r.ok) return null;
+
+  const j = await r.json().catch(() => null);
+  const barsRaw = Array.isArray(j?.bars) ? j.bars : [];
+  if (!barsRaw.length) return null;
+
+  const bars = normalizeBars(barsRaw);
+  bars.sort((a, b) => a.time - b.time);
+  return bars.slice(-limit);
+}
+
 // ---------------- API: getOHLC ----------------
-// IMPORTANT: Do NOT always fetch 1m and client-aggregate.
-// Server already supports timeframe bucketing and this avoids "DELAYED 1m" issues.
+// Behavior:
+// - For intraday TFs (10m/30m/1h/4h): try backend-2 snapshot first (includes today after close)
+// - Fallback to backend-1 REST /api/v1/ohlc for history
 export async function getOHLC(symbol = "SPY", timeframe = "10m", limit = 1500) {
   const sym = String(symbol || "SPY").toUpperCase();
   const tf = String(timeframe || "10m").toLowerCase();
   const safeLimit = Math.max(1, Math.min(50000, Number(limit || 1500)));
 
-  // If unknown TF, default to 10m (backend supports it)
+  // 1) Snapshot seed for your intraday TFs
+  if (isIntradayTf(tf)) {
+    try {
+      const snapBars = await trySnapshot(sym, tf, safeLimit);
+      if (snapBars && snapBars.length) return snapBars;
+    } catch {
+      // ignore snapshot failure and fall back
+    }
+  }
+
+  // 2) Fallback to backend-1 REST for history (and for daily/other TFs)
   const tfFinal = TF_SEC[tf] ? tf : "10m";
 
   const url =
@@ -77,12 +124,21 @@ export async function getOHLC(symbol = "SPY", timeframe = "10m", limit = 1500) {
 
   const data = await r.json();
   const bars = normalizeBars(Array.isArray(data) ? data : data?.bars || []);
-  bars.sort((a, b) => a.time - b.time); // ascending
+  bars.sort((a, b) => a.time - b.time);
   return bars.slice(-safeLimit);
 }
 
 // ---------------- API: compat shim ----------------
 export async function fetchOHLCResilient({ symbol, timeframe, limit = 1500 }) {
+  const tf = String(timeframe || "10m").toLowerCase();
+
+  // report source truthfully
+  if (isIntradayTf(tf) && STREAM_BASE) {
+    // we "prefer snapshot" but may fall back; keep label simple
+    const bars = await getOHLC(symbol, tf, limit);
+    return { source: `snapshot→fallback (${tf})`, bars };
+  }
+
   const bars = await getOHLC(symbol, timeframe, limit);
   return { source: `api/v1/ohlc (${String(timeframe || "10m")})`, bars };
 }
@@ -107,6 +163,8 @@ export function subscribeStream(symbol, timeframe, onBar) {
 
     try {
       const msg = JSON.parse(ev.data);
+
+      // Optional: if backend-2 sends type:"snapshot" over SSE, we ignore here.
       if (msg?.type === "bar" && msg.bar) {
         const b = msg.bar;
         const bar = {
