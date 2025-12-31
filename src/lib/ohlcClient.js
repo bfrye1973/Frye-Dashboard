@@ -1,11 +1,10 @@
 // src/lib/ohlcClient.js
-// Canonical OHLC client (snapshot-seeded + live SSE updates)
+// Canonical OHLC client (compat-safe)
 //
-// Guarantees:
-// - Snapshot seeds chart FIRST (backend-2)
-// - Live SSE bars ALWAYS update current candle
-// - RTH mode enforced for intraday charts
-// - UNIX SECONDS everywhere
+// Exports:
+//   - getOHLC(symbol, timeframe, limit) -> plain bars in UNIX SECONDS
+//   - fetchOHLCResilient({ symbol, timeframe, limit }) -> { source, bars }
+//   - subscribeStream(symbol, timeframe, onBar) -> live SSE bars (UNIX SECONDS)
 
 const BACKEND =
   (typeof window !== "undefined" && (window.__API_BASE__ || "")) ||
@@ -16,17 +15,29 @@ const BACKEND =
 const STREAM_BASE =
   (typeof window !== "undefined" && (window.__STREAM_BASE__ || "")) ||
   process.env.REACT_APP_STREAM_BASE ||
-  "https://frye-market-backend-2.onrender.com";
+  ""; // e.g. https://frye-market-backend-2.onrender.com
 
-const API = BACKEND.replace(/\/+$/, "");
+const API = (BACKEND || "").replace(/\/+$/, "");
 
 // ---------------- utils ----------------
+const TF_SEC = {
+  "1m": 60,
+  "5m": 300,
+  "10m": 600,
+  "15m": 900,
+  "30m": 1800,
+  "1h": 3600,
+  "4h": 14400,
+  "1d": 86400,
+};
+
 const isMs = (t) => typeof t === "number" && t > 1e12;
-const toSec = (t) => (isMs(t) ? Math.floor(t / 1000) : Number(t));
+const toSec = (t) => (isMs(t) ? Math.floor(t / 1000) : t);
 
 function normalizeBars(arr) {
   if (!Array.isArray(arr)) return [];
   return arr
+    .filter(Boolean)
     .map((b) => ({
       time: toSec(b.time ?? b.t ?? b.ts ?? b.timestamp),
       open: Number(b.open ?? b.o),
@@ -45,112 +56,113 @@ function normalizeBars(arr) {
     );
 }
 
-function normalizeTf(tf) {
-  const t = String(tf || "10m").toLowerCase();
-  if (t.endsWith("m") || t.endsWith("h") || t === "1d") return t;
-  return `${t}m`; // enforce "10m" style
-}
+// Aggregate ascending 1m bars to target timeframe (seconds)
+function aggregateToTf(barsAsc, tfSec) {
+  if (!Array.isArray(barsAsc) || !barsAsc.length || tfSec === 60) return barsAsc || [];
+  const out = [];
+  let bucketStart = null;
+  let cur = null;
 
-function isIntradayTf(tf) {
-  return tf === "10m" || tf === "30m" || tf === "1h" || tf === "4h";
-}
+  for (const b of barsAsc) {
+    const t = Number(b.time);
+    if (!Number.isFinite(t)) continue;
+    const start = Math.floor(t / tfSec) * tfSec;
 
-// ---------------- Snapshot seed ----------------
-async function trySnapshot(symbol, timeframe, limit) {
-  if (!STREAM_BASE) return null;
-
-  const url =
-    `${STREAM_BASE.replace(/\/+$/, "")}/stream/snapshot` +
-    `?symbol=${encodeURIComponent(symbol)}` +
-    `&tf=${encodeURIComponent(timeframe)}` +
-    `&limit=${encodeURIComponent(limit)}` +
-    `&mode=rth`;
-
-  const r = await fetch(url, { cache: "no-store" });
-  if (!r.ok) return null;
-
-  const j = await r.json().catch(() => null);
-  const bars = normalizeBars(j?.bars || []);
-  if (!bars.length) return null;
-
-  bars.sort((a, b) => a.time - b.time);
-  return bars.slice(-limit);
+    if (bucketStart === null || start > bucketStart) {
+      if (cur) out.push(cur);
+      bucketStart = start;
+      cur = {
+        time: start,
+        open: b.open,
+        high: b.high,
+        low: b.low,
+        close: b.close,
+        volume: Number(b.volume || 0),
+      };
+    } else {
+      cur.high = Math.max(cur.high, b.high);
+      cur.low = Math.min(cur.low, b.low);
+      cur.close = b.close;
+      cur.volume = Number(cur.volume || 0) + Number(b.volume || 0);
+    }
+  }
+  if (cur) out.push(cur);
+  return out;
 }
 
 // ---------------- API: getOHLC ----------------
-export async function getOHLC(symbol = "SPY", timeframe = "10m", limit = 1500) {
-  const sym = String(symbol).toUpperCase();
-  const tf = normalizeTf(timeframe);
-  const safeLimit = Math.max(1, Math.min(50000, Number(limit)));
+export async function getOHLC(symbol = "SPY", timeframe = "1m", limit = 1500) {
+  const sym = String(symbol || "SPY").toUpperCase();
+  const tf = String(timeframe || "1m");
+  const tfSec = TF_SEC[tf] || 600; // default to 10m if unknown
+  const needAgg = tfSec !== 60;
 
-  // 1️⃣ Snapshot-first for intraday
-  if (isIntradayTf(tf)) {
-    const snap = await trySnapshot(sym, tf, safeLimit);
-    if (snap) return snap;
-  }
+  // Raise ceiling so 10m can show ~1 month (and more if needed)
+  const MAX_1M_FETCH = 50000;
+  const overshoot = 3; // safety factor for gaps/pauses
+  const need1mCount = Math.min(
+    MAX_1M_FETCH,
+    Math.max(needAgg ? Math.ceil((limit * tfSec) / 60) * overshoot : limit, 50)
+  );
 
-  // 2️⃣ REST fallback
   const url =
     `${API}/api/v1/ohlc?symbol=${encodeURIComponent(sym)}` +
-    `&timeframe=${encodeURIComponent(tf)}` +
-    `&limit=${encodeURIComponent(safeLimit)}`;
+    `&timeframe=1m&limit=${need1mCount}`;
 
   const r = await fetch(url, { cache: "no-store" });
   if (!r.ok) throw new Error(`OHLC ${r.status}`);
 
-  const j = await r.json();
-  const bars = normalizeBars(Array.isArray(j) ? j : j?.bars || []);
-  bars.sort((a, b) => a.time - b.time);
-  return bars.slice(-safeLimit);
+  const data = await r.json();
+  const oneMin = normalizeBars(Array.isArray(data) ? data : data?.bars || []);
+  oneMin.sort((a, b) => a.time - b.time); // ascending
+
+  if (!needAgg) return oneMin.slice(-limit);
+
+  const agg = aggregateToTf(oneMin, tfSec);
+  return agg.slice(-limit);
 }
 
-// ---------------- Compat shim ----------------
+// ---------------- API: compat shim ----------------
 export async function fetchOHLCResilient({ symbol, timeframe, limit = 1500 }) {
   const bars = await getOHLC(symbol, timeframe, limit);
-  return { source: "snapshot→stream→fallback", bars };
+  return { source: "api/v1/ohlc (1m→tf client agg)", bars };
 }
 
 // ---------------- Live SSE subscribe ----------------
 export function subscribeStream(symbol, timeframe, onBar) {
-  if (!STREAM_BASE) return () => {};
-
-  const sym = String(symbol).toUpperCase();
-  const tf = normalizeTf(timeframe);
-
-  const url =
-    `${STREAM_BASE.replace(/\/+$/, "")}/stream/agg` +
-    `?symbol=${encodeURIComponent(sym)}` +
-    `&tf=${encodeURIComponent(tf)}` +
-    `&mode=rth`;
+  if (!STREAM_BASE) {
+    console.warn("[subscribeStream] STREAM_BASE missing");
+    return () => {};
+  }
+  const sym = String(symbol || "SPY").toUpperCase();
+  const tf = String(timeframe || "1m");
+  const url = `${STREAM_BASE.replace(/\/+$/, "")}/stream/agg?symbol=${encodeURIComponent(
+    sym
+  )}&tf=${encodeURIComponent(tf)}`;
 
   const es = new EventSource(url);
 
   es.onmessage = (ev) => {
-    if (!ev?.data || ev.data.startsWith(":")) return;
+    if (!ev?.data || ev.data === ":ping" || ev.data.trim() === "") return;
 
     try {
       const msg = JSON.parse(ev.data);
-
       if (msg?.type === "bar" && msg.bar) {
         const b = msg.bar;
         const bar = {
-          time: toSec(b.time),
-          open: Number(b.open),
-          high: Number(b.high),
-          low: Number(b.low),
-          close: Number(b.close),
-          volume: Number(b.volume ?? 0),
+          time: toSec(b.time ?? b.t ?? b.ts ?? b.timestamp),
+          open: Number(b.open ?? b.o),
+          high: Number(b.high ?? b.h),
+          low: Number(b.low ?? b.l),
+          close: Number(b.close ?? b.c),
+          volume: Number(b.volume ?? b.v ?? 0),
         };
-
-        if (Number.isFinite(bar.time)) {
-          // 🔑 THIS is what fixes “stuck on yesterday”
-          onBar(bar);
-        }
+        if (Number.isFinite(bar.time) && Number.isFinite(bar.open)) onBar(bar);
       }
     } catch {}
   };
 
-  es.onerror = () => {
+  es.onerror = (e) => {
     try { es.close(); } catch {}
   };
 
