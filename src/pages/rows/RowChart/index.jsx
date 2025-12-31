@@ -52,7 +52,7 @@ const TF_SEC = {
   "1d": 86400,
 };
 
-const LIVE_TF = "10m";
+const LIVE_TF = "1m";
 
 /* -------------------- Helper: dynamic seed limit -------------------- */
 
