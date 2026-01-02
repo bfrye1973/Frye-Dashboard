@@ -1,6 +1,7 @@
 // src/pages/rows/RowChart/index.jsx
 // ============================================================
 // RowChart — seed + live aggregation + indicators & overlays
+// FIX: ensure SSE subscription actually starts (chartReady state)
 // ============================================================
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
@@ -52,6 +53,7 @@ const TF_SEC = {
   "1d": 86400,
 };
 
+// LIVE stream should always be 1m, then aggregate to selected TF
 const LIVE_TF = "1m";
 
 /* -------------------- Helper: dynamic seed limit -------------------- */
@@ -200,6 +202,10 @@ export default function RowChart({
   const didFitOnceRef = useRef(false);
   const userInteractedRef = useRef(false);
 
+  // ✅ IMPORTANT: this state forces a re-render when chart + series exist
+  // Without it, the live stream effect can "return early" once and never retry.
+  const [chartReady, setChartReady] = useState(false);
+
   const [state, setState] = useState({
     symbol: defaultSymbol,
     timeframe: defaultTimeframe,
@@ -212,12 +218,12 @@ export default function RowChart({
     ema50: true,
 
     volume: true,
-    
+
     institutionalZonesAuto: false,
     smzShelvesAuto: false,
 
-    accDistLevels: false, // NEW: backend Acc/Dist overlay
-    wickPaZones: false, // Yellow Smart Money zones
+    accDistLevels: false,
+    wickPaZones: false,
   });
 
   // Debug hook
@@ -238,6 +244,9 @@ export default function RowChart({
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
+
+    // chart not ready until we successfully create it
+    setChartReady(false);
 
     const chart = createChart(el, {
       width: el.clientWidth,
@@ -285,6 +294,9 @@ export default function RowChart({
     vol.priceScale().applyOptions({ scaleMargins: { top: 0.8, bottom: 0 } });
     volSeriesRef.current = vol;
 
+    // ✅ Now chart + series exist
+    setChartReady(true);
+
     const markInteract = () => {
       userInteractedRef.current = true;
     };
@@ -300,6 +312,9 @@ export default function RowChart({
     roRef.current = ro;
 
     return () => {
+      // mark as not ready so live effect cleans up correctly
+      setChartReady(false);
+
       try {
         ro.disconnect();
       } catch {}
@@ -379,8 +394,7 @@ export default function RowChart({
               asc.map((b) => ({
                 time: b.time,
                 value: Number(b.volume || 0),
-                color:
-                  b.close >= b.open ? DEFAULTS.volUp : DEFAULTS.volDown,
+                color: b.close >= b.open ? DEFAULTS.volUp : DEFAULTS.volDown,
               }))
             );
           } else {
@@ -464,6 +478,7 @@ export default function RowChart({
       overlayInstancesRef.current.forEach((o) => o?.destroy?.());
     } catch {}
     overlayInstancesRef.current = [];
+
     // Hard cleanup: remove any leftover SMZ canvases (older overlay leaked them)
     try {
       const root = containerRef.current;
@@ -471,8 +486,9 @@ export default function RowChart({
         root
           .querySelectorAll("canvas.overlay-canvas.smz")
           .forEach((c) => c.parentNode?.removeChild(c));
-    }
-  } catch {}
+      }
+    } catch {}
+
     // Hard cleanup: prevent duplicate shelves canvases
     try {
       const root = containerRef.current;
@@ -480,13 +496,11 @@ export default function RowChart({
         root
           .querySelectorAll("canvas.overlay-canvas.smz-shelves")
           .forEach((c) => c.parentNode?.removeChild(c));
-     }
-   } catch {}
-
+      }
+    } catch {}
 
     const reg = (inst) => inst && overlayInstancesRef.current.push(inst);
 
-      
     // Institutional Zones (auto) — backend engine (YELLOW) /api/v1/smz-levels
     if (state.institutionalZonesAuto) {
       reg(
@@ -511,21 +525,17 @@ export default function RowChart({
       );
     }
 
-
     // Seed all overlays with current bars
     try {
-      overlayInstancesRef.current.forEach((o) =>
-        o?.seed?.(barsRef.current)
-      );
+      overlayInstancesRef.current.forEach((o) => o?.seed?.(barsRef.current));
     } catch {}
-      }, [
-        state.institutionalZonesAuto,
-        state.smzShelvesAuto,
-        state.timeframe,
-        bars,
-        showDebug,
-      ]);
-
+  }, [
+    state.institutionalZonesAuto,
+    state.smzShelvesAuto,
+    state.timeframe,
+    bars,
+    showDebug,
+  ]);
 
   /* -------------------------- Render + Range ------------------------- */
 
@@ -570,9 +580,10 @@ export default function RowChart({
   }, [bars, state.range, state.volume]);
 
   /* --------------- Live 1m stream → selected TF aggregation ---------- */
+  // ✅ FIX: dependency includes chartReady so subscription starts once chart exists
 
   useEffect(() => {
-    if (!seriesRef.current || !volSeriesRef.current) return;
+    if (!chartReady || !seriesRef.current) return;
 
     const tfSec = TF_SEC[state.timeframe] ?? TF_SEC["10m"];
     const floorToBucket = (tSec) => Math.floor(tSec / tfSec) * tfSec;
@@ -586,23 +597,35 @@ export default function RowChart({
       rolling = { ...lastSeed };
     }
 
+    if (showDebug) {
+      console.log("[RowChart] subscribing stream", {
+        symbol: state.symbol,
+        liveTf: LIVE_TF,
+        tf: state.timeframe,
+        chartReady,
+      });
+    }
+
     const unsub = subscribeStream(state.symbol, LIVE_TF, (oneMin) => {
-      const tSec =
-        Number(
-          oneMin.time > 1e12 ? Math.floor(oneMin.time / 1000) : oneMin.time
-        );
+      const tSec = Number(
+        oneMin.time > 1e12 ? Math.floor(oneMin.time / 1000) : oneMin.time
+      );
       if (!Number.isFinite(tSec)) return;
 
+      // --- If viewing 1m, update directly ---
       if (tfSec === TF_SEC["1m"]) {
         const bar = { ...oneMin, time: tSec };
-        seriesRef.current.update(bar);
-        if (state.volume) {
+        seriesRef.current?.update(bar);
+
+        if (state.volume && volSeriesRef.current) {
           volSeriesRef.current.update({
             time: bar.time,
             value: Number(bar.volume || 0),
             color: bar.close >= bar.open ? DEFAULTS.volUp : DEFAULTS.volDown,
           });
         }
+
+        // only push/replace in React state when time changes (prevents UI choking)
         const prev = barsRef.current[barsRef.current.length - 1];
         if (!prev || bar.time > prev.time) {
           const next = [...barsRef.current, bar];
@@ -612,40 +635,46 @@ export default function RowChart({
           const next = [...barsRef.current];
           next[next.length - 1] = bar;
           barsRef.current = next;
+          // optional: you can comment this out if you want max performance
           setBars(next);
         }
+
         try {
           overlayInstancesRef.current.forEach((o) => o?.update?.(bar));
         } catch {}
         return;
       }
 
+      // --- Aggregate 1m into selected TF ---
       const start = floorToBucket(tSec);
+
+      // boundary crossed → finalize old candle + start new one
       if (bucketStart === null || start > bucketStart) {
         if (rolling) {
-          seriesRef.current.update(rolling);
-          if (state.volume) {
+          seriesRef.current?.update(rolling);
+
+          if (state.volume && volSeriesRef.current) {
             volSeriesRef.current.update({
               time: rolling.time,
               value: Number(rolling.volume || 0),
-              color:
-                rolling.close >= rolling.open
-                  ? DEFAULTS.volUp
-                  : DEFAULTS.volDown,
+              color: rolling.close >= rolling.open ? DEFAULTS.volUp : DEFAULTS.volDown,
             });
           }
+
+          // push/replace finalized bar
           const next = [...barsRef.current];
           const last = next[next.length - 1];
           if (!last || rolling.time > last.time) next.push(rolling);
           else next[next.length - 1] = rolling;
+
           barsRef.current = next;
           setBars(next);
+
           try {
-            overlayInstancesRef.current.forEach((o) =>
-              o?.update?.(rolling)
-            );
+            overlayInstancesRef.current.forEach((o) => o?.update?.(rolling));
           } catch {}
         }
+
         bucketStart = start;
         rolling = {
           time: start,
@@ -656,31 +685,30 @@ export default function RowChart({
           volume: Number(oneMin.volume || 0),
         };
       } else {
+        // same bucket → update rolling
         rolling.high = Math.max(rolling.high, oneMin.high);
         rolling.low = Math.min(rolling.low, oneMin.low);
         rolling.close = oneMin.close;
-        rolling.volume =
-          Number(rolling.volume || 0) + Number(oneMin.volume || 0);
+        rolling.volume = Number(rolling.volume || 0) + Number(oneMin.volume || 0);
       }
 
-      seriesRef.current.update(rolling);
-      if (state.volume) {
+      // live update current rolling candle
+      seriesRef.current?.update(rolling);
+      if (state.volume && volSeriesRef.current) {
         volSeriesRef.current.update({
           time: rolling.time,
           value: Number(rolling.volume || 0),
-          color:
-            rolling.close >= rolling.open
-              ? DEFAULTS.volUp
-              : DEFAULTS.volDown,
+          color: rolling.close >= rolling.open ? DEFAULTS.volUp : DEFAULTS.volDown,
         });
       }
+
       try {
         overlayInstancesRef.current.forEach((o) => o?.update?.(rolling));
       } catch {}
     });
 
     return () => unsub?.();
-  }, [state.symbol, state.timeframe, state.volume]);
+  }, [chartReady, state.symbol, state.timeframe, state.volume, showDebug]);
 
   /* ---------------------------- EMA lines ----------------------------- */
 
@@ -724,8 +752,7 @@ export default function RowChart({
     }
   }, [bars, state.showEma, state.ema10, state.ema20, state.ema50]);
 
-  const handleControlsChange = (patch) =>
-    setState((s) => ({ ...s, ...patch }));
+  const handleControlsChange = (patch) => setState((s) => ({ ...s, ...patch }));
 
   const applyRange = (nextRange) => {
     const chart = chartRef.current;
@@ -758,29 +785,26 @@ export default function RowChart({
   };
 
   const toolbarProps = {
-  showEma: state.showEma,
-  ema10: state.ema10,
-  ema20: state.ema20,
-  ema50: state.ema50,
-  volume: state.volume,
-
-  institutionalZonesAuto: state.institutionalZonesAuto,
-  smzShelvesAuto: state.smzShelvesAuto,
-
-  onChange: handleControlsChange,
-  onReset: () =>
-    setState((s) => ({
-      ...s,
-      showEma: true,
-      ema10: true,
-      ema20: true,
-      ema50: true,
-      volume: true,
-      institutionalZonesAuto: false,
-      smzShelvesAuto: false,
-    })),
-};
-
+    showEma: state.showEma,
+    ema10: state.ema10,
+    ema20: state.ema20,
+    ema50: state.ema50,
+    volume: state.volume,
+    institutionalZonesAuto: state.institutionalZonesAuto,
+    smzShelvesAuto: state.smzShelvesAuto,
+    onChange: handleControlsChange,
+    onReset: () =>
+      setState((s) => ({
+        ...s,
+        showEma: true,
+        ema10: true,
+        ema20: true,
+        ema50: true,
+        volume: true,
+        institutionalZonesAuto: false,
+        smzShelvesAuto: false,
+      })),
+  };
 
   const wrapperStyle = useMemo(
     () =>
@@ -830,7 +854,6 @@ export default function RowChart({
     [fullScreen]
   );
 
-  // ----------- RETURN UI -----------
   return (
     <div style={wrapperStyle}>
       <Controls
@@ -842,7 +865,6 @@ export default function RowChart({
       />
       <IndicatorsToolbar {...toolbarProps} />
 
-      {/* Chart + right-side Smart Money panels */}
       <div
         style={{
           display: "flex",
