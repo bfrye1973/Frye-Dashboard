@@ -1,7 +1,5 @@
 // src/lib/ohlcClient.js
-// Canonical OHLC client (direct TF fetch from backend-1)
-// - getOHLC(symbol, timeframe, limit) -> bars in UNIX SECONDS
-// - subscribeStream(symbol, timeframe, onBar) -> SSE bars (UNIX SECONDS)
+// Canonical OHLC client (direct TF fetch from backend-1 + SSE stream from backend-2)
 
 const BACKEND =
   (typeof window !== "undefined" && (window.__API_BASE__ || "")) ||
@@ -16,6 +14,7 @@ const STREAM_BASE =
 
 const API = (BACKEND || "").replace(/\/+$/, "");
 
+// ---------------- utils ----------------
 const TF_SEC = {
   "1m": 60,
   "5m": 300,
@@ -80,12 +79,9 @@ export async function getOHLC(symbol = "SPY", timeframe = "10m", limit = 1500) {
   if (!r.ok) throw new Error(`OHLC ${r.status}`);
 
   const data = await r.json().catch(() => null);
-
-  // backend-1 returns array; but support {bars:[]} too
   const raw = Array.isArray(data) ? data : Array.isArray(data?.bars) ? data.bars : [];
   const bars = normalizeBars(raw);
 
-  // return last N bars
   return bars.length > safeLimit ? bars.slice(-safeLimit) : bars;
 }
 
@@ -105,7 +101,6 @@ export function subscribeStream(symbol, timeframe, onBar) {
   const sym = String(symbol || "SPY").toUpperCase();
   const tf = normalizeTf(timeframe);
 
-  // NOTE: streamer supports mode=rth|eth; keep rth for strategy consistency
   const url =
     `${STREAM_BASE.replace(/\/+$/, "")}/stream/agg` +
     `?symbol=${encodeURIComponent(sym)}` +
@@ -135,17 +130,16 @@ export function subscribeStream(symbol, timeframe, onBar) {
     } catch {}
   };
 
-  // Allow native EventSource auto-reconnect
+  // IMPORTANT: do not close on error; allow native auto-reconnect
   es.onerror = () => {
     // intentionally empty
   };
 
-  // Cleanup ONLY when caller unsubscribes (component unmount)
   return () => {
     try {
       es.close();
     } catch {}
   };
-
+}
 
 export default { getOHLC, fetchOHLCResilient, subscribeStream };
