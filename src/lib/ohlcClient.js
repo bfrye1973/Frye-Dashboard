@@ -1,10 +1,7 @@
 // src/lib/ohlcClient.js
-// Canonical OHLC client (compat-safe)
-//
-// Exports:
-//   - getOHLC(symbol, timeframe, limit) -> plain bars in UNIX SECONDS
-//   - fetchOHLCResilient({ symbol, timeframe, limit }) -> { source, bars }
-//   - subscribeStream(symbol, timeframe, onBar) -> live SSE bars (UNIX SECONDS)
+// Canonical OHLC client (direct TF fetch from backend-1)
+// - getOHLC(symbol, timeframe, limit) -> bars in UNIX SECONDS
+// - subscribeStream(symbol, timeframe, onBar) -> SSE bars (UNIX SECONDS)
 
 const BACKEND =
   (typeof window !== "undefined" && (window.__API_BASE__ || "")) ||
@@ -15,11 +12,10 @@ const BACKEND =
 const STREAM_BASE =
   (typeof window !== "undefined" && (window.__STREAM_BASE__ || "")) ||
   process.env.REACT_APP_STREAM_BASE ||
-  ""; // e.g. https://frye-market-backend-2.onrender.com
+  ""; // https://frye-market-backend-2.onrender.com
 
 const API = (BACKEND || "").replace(/\/+$/, "");
 
-// ---------------- utils ----------------
 const TF_SEC = {
   "1m": 60,
   "5m": 300,
@@ -32,7 +28,18 @@ const TF_SEC = {
 };
 
 const isMs = (t) => typeof t === "number" && t > 1e12;
-const toSec = (t) => (isMs(t) ? Math.floor(t / 1000) : t);
+const toSec = (t) => (isMs(t) ? Math.floor(t / 1000) : Number(t));
+
+function normalizeTf(tf) {
+  const t = String(tf || "10m").toLowerCase().trim();
+  return TF_SEC[t] ? t : "10m";
+}
+
+function clampLimit(n, fallback = 1500) {
+  const x = Number(n);
+  if (!Number.isFinite(x) || x <= 0) return fallback;
+  return Math.max(1, Math.min(50000, Math.floor(x)));
+}
 
 function normalizeBars(arr) {
   if (!Array.isArray(arr)) return [];
@@ -53,79 +60,39 @@ function normalizeBars(arr) {
         Number.isFinite(b.high) &&
         Number.isFinite(b.low) &&
         Number.isFinite(b.close)
-    );
-}
-
-// Aggregate ascending 1m bars to target timeframe (seconds)
-function aggregateToTf(barsAsc, tfSec) {
-  if (!Array.isArray(barsAsc) || !barsAsc.length || tfSec === 60) return barsAsc || [];
-  const out = [];
-  let bucketStart = null;
-  let cur = null;
-
-  for (const b of barsAsc) {
-    const t = Number(b.time);
-    if (!Number.isFinite(t)) continue;
-    const start = Math.floor(t / tfSec) * tfSec;
-
-    if (bucketStart === null || start > bucketStart) {
-      if (cur) out.push(cur);
-      bucketStart = start;
-      cur = {
-        time: start,
-        open: b.open,
-        high: b.high,
-        low: b.low,
-        close: b.close,
-        volume: Number(b.volume || 0),
-      };
-    } else {
-      cur.high = Math.max(cur.high, b.high);
-      cur.low = Math.min(cur.low, b.low);
-      cur.close = b.close;
-      cur.volume = Number(cur.volume || 0) + Number(b.volume || 0);
-    }
-  }
-  if (cur) out.push(cur);
-  return out;
+    )
+    .sort((a, b) => a.time - b.time);
 }
 
 // ---------------- API: getOHLC ----------------
-export async function getOHLC(symbol = "SPY", timeframe = "1m", limit = 1500) {
+// OPTION B: Fetch requested timeframe directly from backend-1.
+export async function getOHLC(symbol = "SPY", timeframe = "10m", limit = 1500) {
   const sym = String(symbol || "SPY").toUpperCase();
-  const tf = String(timeframe || "1m");
-  const tfSec = TF_SEC[tf] || 600; // default to 10m if unknown
-  const needAgg = tfSec !== 60;
-
-  // Raise ceiling so 10m can show ~1 month (and more if needed)
-  const MAX_1M_FETCH = 50000;
-  const overshoot = 3; // safety factor for gaps/pauses
-  const need1mCount = Math.min(
-    MAX_1M_FETCH,
-    Math.max(needAgg ? Math.ceil((limit * tfSec) / 60) * overshoot : limit, 50)
-  );
+  const tf = normalizeTf(timeframe);
+  const safeLimit = clampLimit(limit, 1500);
 
   const url =
     `${API}/api/v1/ohlc?symbol=${encodeURIComponent(sym)}` +
-    `&timeframe=1m&limit=${need1mCount}`;
+    `&timeframe=${encodeURIComponent(tf)}` +
+    `&limit=${encodeURIComponent(safeLimit)}`;
 
   const r = await fetch(url, { cache: "no-store" });
   if (!r.ok) throw new Error(`OHLC ${r.status}`);
 
-  const data = await r.json();
-  const oneMin = normalizeBars(Array.isArray(data) ? data : data?.bars || []);
-  oneMin.sort((a, b) => a.time - b.time); // ascending
+  const data = await r.json().catch(() => null);
 
-  if (!needAgg) return oneMin.slice(-limit);
+  // backend-1 returns array; but support {bars:[]} too
+  const raw = Array.isArray(data) ? data : Array.isArray(data?.bars) ? data.bars : [];
+  const bars = normalizeBars(raw);
 
-  const agg = aggregateToTf(oneMin, tfSec);
-  return agg.slice(-limit);
+  // return last N bars
+  return bars.length > safeLimit ? bars.slice(-safeLimit) : bars;
 }
 
 // ---------------- API: compat shim ----------------
 export async function fetchOHLCResilient({ symbol, timeframe, limit = 1500 }) {
   const bars = await getOHLC(symbol, timeframe, limit);
-  return { source: "api/v1/ohlc (1m→tf client agg)", bars };
+  return { source: "api/v1/ohlc (direct tf)", bars };
 }
 
 // ---------------- Live SSE subscribe ----------------
@@ -134,19 +101,25 @@ export function subscribeStream(symbol, timeframe, onBar) {
     console.warn("[subscribeStream] STREAM_BASE missing");
     return () => {};
   }
+
   const sym = String(symbol || "SPY").toUpperCase();
-  const tf = String(timeframe || "1m");
-  const url = `${STREAM_BASE.replace(/\/+$/, "")}/stream/agg?symbol=${encodeURIComponent(
-    sym
-  )}&tf=${encodeURIComponent(tf)}`;
+  const tf = normalizeTf(timeframe);
+
+  // NOTE: streamer supports mode=rth|eth; keep rth for strategy consistency
+  const url =
+    `${STREAM_BASE.replace(/\/+$/, "")}/stream/agg` +
+    `?symbol=${encodeURIComponent(sym)}` +
+    `&tf=${encodeURIComponent(tf)}` +
+    `&mode=rth`;
 
   const es = new EventSource(url);
 
   es.onmessage = (ev) => {
-    if (!ev?.data || ev.data === ":ping" || ev.data.trim() === "") return;
+    if (!ev?.data || ev.data.startsWith(":") || ev.data.trim() === "") return;
 
     try {
       const msg = JSON.parse(ev.data);
+
       if (msg?.type === "bar" && msg.bar) {
         const b = msg.bar;
         const bar = {
@@ -162,7 +135,7 @@ export function subscribeStream(symbol, timeframe, onBar) {
     } catch {}
   };
 
-  es.onerror = (e) => {
+  es.onerror = () => {
     try { es.close(); } catch {}
   };
 
