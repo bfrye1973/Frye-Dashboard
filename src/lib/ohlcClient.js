@@ -135,13 +135,17 @@ export function subscribeStream(symbol, timeframe, onBar) {
     } catch {}
   };
 
+  // Allow native EventSource auto-reconnect
   es.onerror = () => {
-    // DO NOTHING
-    // Let EventSource auto-reconnect
+    // intentionally empty
   };
+
+  // Cleanup ONLY when caller unsubscribes (component unmount)
   return () => {
-    try { es.close(); } catch {}
+    try {
+      es.close();
+    } catch {}
   };
-}
+
 
 export default { getOHLC, fetchOHLCResilient, subscribeStream };
