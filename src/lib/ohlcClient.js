@@ -136,9 +136,9 @@ export function subscribeStream(symbol, timeframe, onBar) {
   };
 
   es.onerror = () => {
-    try { es.close(); } catch {}
+    // DO NOTHING
+    // Let EventSource auto-reconnect
   };
-
   return () => {
     try { es.close(); } catch {}
   };
