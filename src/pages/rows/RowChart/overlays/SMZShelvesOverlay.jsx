@@ -1,6 +1,6 @@
 // src/pages/rows/RowChart/overlays/SMZShelvesOverlay.jsx
 // Overlay for Accumulation / Distribution shelves (blue/red)
-// Reads /api/v1/smz-shelves -> { ok:true, shelves:[...] }
+// Reads /api/v1/smz-shelves -> { ok:true, meta:{...}, levels:[...] }
 
 const SMZ_SHELVES_URL =
   "https://frye-market-backend-1.onrender.com/api/v1/smz-shelves";
@@ -16,13 +16,15 @@ export default function SMZShelvesOverlay({
     return { seed() {}, update() {}, destroy() {} };
   }
 
-  let shelves = [];
+  let levels = [];
   let canvas = null;
+  let destroyed = false;
 
   const ts = chart.timeScale();
 
   function ensureCanvas() {
     if (canvas) return canvas;
+
     const cnv = document.createElement("canvas");
     cnv.className = "overlay-canvas smz-shelves";
     Object.assign(cnv.style, {
@@ -31,6 +33,7 @@ export default function SMZShelvesOverlay({
       pointerEvents: "none",
       zIndex: 13,
     });
+
     chartContainer.appendChild(cnv);
     canvas = cnv;
     return canvas;
@@ -41,90 +44,127 @@ export default function SMZShelvesOverlay({
     return Number.isFinite(y) ? y : null;
   }
 
-  function draw() {
-    if (!canvas && (!shelves || shelves.length === 0)) return;
-
-    const cnv = ensureCanvas();
+  function resizeCanvas(cnv) {
     const w = chartContainer.clientWidth || 1;
     const h = chartContainer.clientHeight || 1;
-    cnv.width = w;
-    cnv.height = h;
+
+    // Only resize if changed (helps performance)
+    if (cnv.width !== w) cnv.width = w;
+    if (cnv.height !== h) cnv.height = h;
+
+    return { w, h };
+  }
+
+  function draw() {
+    if (destroyed) return;
+
+    // Always ensure canvas exists once overlay is active
+    const cnv = ensureCanvas();
+    const { w, h } = resizeCanvas(cnv);
 
     const ctx = cnv.getContext("2d");
     ctx.clearRect(0, 0, w, h);
 
-    if (!shelves || shelves.length === 0) return;
+    if (!Array.isArray(levels) || levels.length === 0) return;
 
-    shelves.forEach((lvl) => {
-      if (!lvl) return;
+    for (const lvl of levels) {
+      if (!lvl) continue;
 
-      const isAccum = lvl.type === "accumulation";
-      const isDist = lvl.type === "distribution" || !isAccum;
+      const t = String(lvl.type || "").toLowerCase();
+      const isAccum = t === "accumulation";
+      const isDist = t === "distribution";
 
-      let fill, stroke;
-      if (isAccum) {
-        fill = "rgba(0, 128, 255, 0.55)";
-        stroke = "rgba(0, 128, 255, 1)";
-      } else {
-        fill = "rgba(255, 0, 0, 0.55)";
-        stroke = "rgba(255, 0, 0, 1)";
-      }
+      // Only draw these two types
+      if (!isAccum && !isDist) continue;
 
-      if (Array.isArray(lvl.priceRange) && lvl.priceRange.length === 2) {
-        const [hi, lo] = lvl.priceRange;
-        const yTop = priceToY(hi);
-        const yBot = priceToY(lo);
-        if (yTop == null || yBot == null) return;
+      const fill = isAccum
+        ? "rgba(0, 128, 255, 0.30)"   // blue
+        : "rgba(255, 0, 0, 0.28)";    // red
 
-        const y = Math.min(yTop, yBot);
-        const hBand = Math.max(2, Math.abs(yBot - yTop));
+      const stroke = isAccum
+        ? "rgba(0, 128, 255, 0.95)"
+        : "rgba(255, 0, 0, 0.95)";
 
-        ctx.fillStyle = fill;
-        ctx.fillRect(0, y, w, hBand);
+      const pr = lvl.priceRange;
+      if (!Array.isArray(pr) || pr.length !== 2) continue;
 
-        ctx.strokeStyle = stroke;
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.rect(0.5, y + 0.5, w - 1, hBand - 1);
-        ctx.stroke();
-      }
-    });
+      const hi = Number(pr[0]);
+      const lo = Number(pr[1]);
+      if (!Number.isFinite(hi) || !Number.isFinite(lo)) continue;
+
+      const yTop = priceToY(hi);
+      const yBot = priceToY(lo);
+      if (yTop == null || yBot == null) continue;
+
+      const y = Math.min(yTop, yBot);
+      const bandH = Math.max(2, Math.abs(yBot - yTop));
+
+      ctx.fillStyle = fill;
+      ctx.fillRect(0, y, w, bandH);
+
+      ctx.strokeStyle = stroke;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.rect(0.5, y + 0.5, w - 1, Math.max(1, bandH - 1));
+      ctx.stroke();
+    }
   }
 
   async function loadShelves() {
     try {
       const res = await fetch(SMZ_SHELVES_URL, { cache: "no-store" });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
       const json = await res.json();
-      const arr = Array.isArray(json.shelves) ? json.shelves : [];
-      shelves = arr;
+
+      // ✅ Correct field name is "levels"
+      const arr = Array.isArray(json.levels) ? json.levels : [];
+
+      levels = arr;
       draw();
     } catch (e) {
       console.warn("[SMZShelvesOverlay] failed to load smz shelves:", e);
+      levels = [];
+      draw(); // still creates canvas; just empty
     }
   }
 
+  // Load immediately
   loadShelves();
+
+  // Redraw hooks
+  const unsubVisible =
+    ts.subscribeVisibleLogicalRangeChange?.(() => draw()) || (() => {});
+
+  // Resize observer so shelves stay aligned
+  const ro = new ResizeObserver(() => draw());
+  try {
+    ro.observe(chartContainer);
+  } catch {}
 
   function seed() {
     draw();
   }
+
   function update() {
     draw();
   }
 
-  const unsubVisible =
-    ts.subscribeVisibleLogicalRangeChange?.(() => draw()) || (() => {});
-
   function destroy() {
+    destroyed = true;
+    try {
+      unsubVisible();
+    } catch {}
+    try {
+      ro.disconnect();
+    } catch {}
     try {
       if (canvas && canvas.parentNode === chartContainer) {
         chartContainer.removeChild(canvas);
       }
     } catch {}
     canvas = null;
-    shelves = [];
-    unsubVisible();
+    levels = [];
   }
 
   return { seed, update, destroy };
