@@ -1,13 +1,14 @@
 // src/pages/rows/RowIndexSectors.jsx
-// v8 — FIXED IT & HEALTHCARE — Full Rewrite With Correct Aliases & Normalization
+// v9 — Adds 4H Toggle + /live/4h support (full rewrite, no partial edits)
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
 /* ------------------------------ ENV URLs ------------------------------ */
-const PILLS_URL     = (process.env.REACT_APP_PILLS_URL     || "https://frye-market-backend-1.onrender.com/live/pills").replace(/\/+$/,"");
-const INTRADAY_URL  = (process.env.REACT_APP_INTRADAY_URL  || "https://frye-market-backend-1.onrender.com/live/intraday").replace(/\/+$/,"");
-const HOURLY_URL    = (process.env.REACT_APP_HOURLY_URL    || "https://frye-market-backend-1.onrender.com/live/hourly").replace(/\/+$/,"");
-const EOD_URL       = (process.env.REACT_APP_EOD_URL       || "https://frye-market-backend-1.onrender.com/live/eod").replace(/\/+$/,"");
+const PILLS_URL    = (process.env.REACT_APP_PILLS_URL    || "https://frye-market-backend-1.onrender.com/live/pills").replace(/\/+$/,"");
+const INTRADAY_URL = (process.env.REACT_APP_INTRADAY_URL || "https://frye-market-backend-1.onrender.com/live/intraday").replace(/\/+$/,"");
+const HOURLY_URL   = (process.env.REACT_APP_HOURLY_URL   || "https://frye-market-backend-1.onrender.com/live/hourly").replace(/\/+$/,"");
+const H4_URL       = (process.env.REACT_APP_4H_URL       || "https://frye-market-backend-1.onrender.com/live/4h").replace(/\/+$/,""); // ✅ NEW
+const EOD_URL      = (process.env.REACT_APP_EOD_URL      || "https://frye-market-backend-1.onrender.com/live/eod").replace(/\/+$/,"");
 
 /* ------------------------------ NORMALIZATION ------------------------------ */
 const norm = (s = "") => s.trim().toLowerCase();
@@ -162,7 +163,7 @@ export default function RowIndexSectors() {
 
   /* -------------------- Load Δ5m & Δ10m Pills -------------------- */
   useEffect(() => {
-    let stop=false; const ctrl=new AbortController();
+    const ctrl = new AbortController();
 
     async function load() {
       try {
@@ -178,30 +179,32 @@ export default function RowIndexSectors() {
           last10Ref.current = s10;
         }
         setErr(null);
-      } catch(e) { setErr(String(e)); }
+      } catch(e) {
+        setErr(String(e));
+      }
     }
 
     load();
     const t = setInterval(load, 30000);
-    return ()=>{ stop=true; ctrl.abort(); clearInterval(t); };
+    return ()=>{ ctrl.abort(); clearInterval(t); };
   }, []);
 
-  /* -------------------- Load 10m / 1h / EOD Cards -------------------- */
+  /* -------------------- Load 10m / 1h / 4h / EOD Cards -------------------- */
   useEffect(() => {
-    let stop=false; const ctrl=new AbortController();
+    const ctrl=new AbortController();
 
     async function loadCards() {
       try {
-        const base = cardsSource==="10m"
-          ? INTRADAY_URL
-          : cardsSource==="1h"
-            ? HOURLY_URL
-            : EOD_URL;
+        const base =
+          cardsSource === "10m" ? INTRADAY_URL :
+          cardsSource === "1h"  ? HOURLY_URL   :
+          cardsSource === "4h"  ? H4_URL       : // ✅ NEW
+          EOD_URL;
 
         const u = base + "?t=" + Date.now();
         const j = await fetchJSON(u, { signal:ctrl.signal });
 
-        const ts = j?.sectorsUpdatedAt || j?.updated_at || null;
+        const ts = j?.sectorsUpdatedAt || j?.updated_at || j?.updated_at_utc || null;
         setCardsTs(ts);
 
         let arr = Array.isArray(j?.sectorCards) ? j.sectorCards.slice() : [];
@@ -220,13 +223,13 @@ export default function RowIndexSectors() {
     }
 
     loadCards();
-    const t = setInterval(loadCards, cardsSource==="eod" ? 30000 : 30000);
-    return ()=>{ stop=true; ctrl.abort(); clearInterval(t); };
+    const t = setInterval(loadCards, 30000);
+    return ()=>{ ctrl.abort(); clearInterval(t); };
   }, [cardsSource]);
 
   /* -------------------- Load Δ1h (Hourly Deltas) -------------------- */
   useEffect(() => {
-    let stop=false; const ctrl=new AbortController();
+    const ctrl=new AbortController();
 
     const toMap = (arr=[]) => {
       const m={};
@@ -245,7 +248,7 @@ export default function RowIndexSectors() {
         const u = HOURLY_URL + "?t=" + Date.now();
         const j = await fetchJSON(u, { signal:ctrl.signal });
 
-        const ts = j?.sectorsUpdatedAt || j?.updated_at || null;
+        const ts = j?.sectorsUpdatedAt || j?.updated_at || j?.updated_at_utc || null;
         const now = toMap(j?.sectorCards || []);
 
         const prev = lastHourlyRef.current;
@@ -266,12 +269,14 @@ export default function RowIndexSectors() {
           setD1hMap(d);
           lastHourlyRef.current = { ts, map:now };
         }
-      } catch(e){ setErr(String(e)); }
+      } catch(e){
+        setErr(String(e));
+      }
     }
 
     load();
     const t = setInterval(load, 60000);
-    return ()=>{ stop=true; ctrl.abort(); clearInterval(t); };
+    return ()=>{ ctrl.abort(); clearInterval(t); };
   }, []);
 
   /* -------------------- NORMALIZE CARDS INTO VIEW -------------------- */
@@ -280,11 +285,10 @@ export default function RowIndexSectors() {
 
     for (const c of cards) {
       const raw = norm(c?.sector || "");
-      const canon = ALIASES[raw] || raw;   // FIXED
+      const canon = ALIASES[raw] || raw;
       byKey[canon] = c;
     }
 
-    // ORDER gives exact UI order
     return ORDER.map(name => ({
       key: name,
       name,
@@ -295,13 +299,12 @@ export default function RowIndexSectors() {
   /* ------------------------------ UI ------------------------------ */
   return (
     <section id="row-4" className="panel index-sectors">
-      
       <div className="panel-head" style={{ alignItems:"center" }}>
         <div className="panel-title">Index Sectors</div>
 
         {/* Toggle Timeframes */}
         <div style={{ marginLeft:12, display:"inline-flex", gap:6 }}>
-          {["10m","1h","eod"].map(tf => (
+          {["10m","1h","4h","eod"].map(tf => (
             <button key={tf}
               onClick={()=>setCardsSource(tf)}
               style={{
@@ -331,7 +334,7 @@ export default function RowIndexSectors() {
         gap:12,
         marginTop:8
       }}>
-        {view.map(({ key, name, card }, i) => {
+        {view.map(({ key, name, card }) => {
           const pd = pills.sectors?.[key] || pills.sectors?.[name] || {};
           const d5  = Number.isFinite(pd.d5m)  ? pd.d5m  : null;
           const d10 = Number.isFinite(pd.d10m) ? pd.d10m : null;
@@ -353,7 +356,7 @@ export default function RowIndexSectors() {
                 borderRadius:14, border:"1px solid #2b2b2b",
                 background:"#0b0b0c", boxShadow:"0 10px 24px rgba(0,0,0,0.28)"
               }}>
-              
+
               <div style={{ display:"flex", justifyContent:"space-between", marginBottom:8 }}>
                 <div className="panel-title small"
                      style={{ color:"#f3f4f6", fontSize:18, fontWeight:900 }}>
