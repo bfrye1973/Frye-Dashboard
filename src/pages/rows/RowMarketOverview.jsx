@@ -1,5 +1,6 @@
 // src/pages/rows/RowMarketOverview.jsx
 // Market Meter — 10m / 1h / 4h / EOD stoplights with Lux PSI (tightness) aligned + 5m Pulse
+// ✅ EOD FIX: Use daily.overallEOD + metrics fallbacks so Overall/Participation never disappear.
 
 import React from "react";
 import { useDashboardPoll } from "../../lib/dashboardApiSafe";
@@ -13,10 +14,9 @@ import {
 // ----------------- API endpoints -----------------
 const INTRADAY_URL = process.env.REACT_APP_INTRADAY_URL; // /live/intraday
 const HOURLY_URL = process.env.REACT_APP_HOURLY_URL; // /live/hourly
-const H4_URL = process.env.REACT_APP_4H_URL; // /live/4h   ✅ NEW
+const H4_URL = process.env.REACT_APP_4H_URL; // /live/4h
 const EOD_URL = process.env.REACT_APP_EOD_URL; // /live/eod
 
-// 5m deltas (pills) — use PULSE_URL, fall back to legacy if present
 const SANDBOX_URL =
   process.env.REACT_APP_PULSE_URL ||
   process.env.REACT_APP_PILLS_URL ||
@@ -24,8 +24,6 @@ const SANDBOX_URL =
   "";
 
 // ----------------- Utilities -----------------
-const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, Number(n)));
-
 const num = (v) => {
   const n = Number(v);
   return Number.isFinite(n) ? n : NaN;
@@ -58,9 +56,9 @@ const toneForVol = (v) =>
   !Number.isFinite(v) ? "info" : v > 60 ? "danger" : v > 30 ? "warn" : "OK";
 
 /**
- * Lux Squeeze tone (PSI tightness, 0..100):
+ * Lux PSI tone (tightness, 0..100):
  *   psi >= 85 → danger (hard coil)
- *   15 <= psi < 85 → warn (working squeeze)
+ *   15 <= psi < 85 → warn
  *   psi < 15 → OK (open)
  */
 const toneForSqueezePsi = (psi) => {
@@ -69,28 +67,6 @@ const toneForSqueezePsi = (psi) => {
   if (psi >= 15) return "warn";
   return "OK";
 };
-
-const toneForSqueeze10Psi = toneForSqueezePsi;
-const toneForSqueeze1hPsi = toneForSqueezePsi;
-const toneForSqueeze4hPsi = toneForSqueezePsi;
-
-const toneForDailyTrend = (s) =>
-  !Number.isFinite(s) ? "info" : s > 5 ? "OK" : s >= -5 ? "warn" : "danger";
-
-/**
- * EOD Lux squeeze tone (PSI):
- *   ≥85 → danger
- *   80–84.9 → warn
- *   else → OK
- */
-const toneForLuxDaily = (v) =>
-  !Number.isFinite(v) ? "info" : v >= 85 ? "danger" : v >= 80 ? "warn" : "OK";
-
-const toneForVolBand = (b) =>
-  b === "high" ? "danger" : b === "elevated" ? "warn" : b ? "OK" : "info";
-
-const toneForLiqBand = (b) =>
-  b === "good" ? "OK" : b === "normal" ? "warn" : b ? "danger" : "info";
 
 const toneForOverallState = (state, score) => {
   const s = (state || "").toLowerCase();
@@ -101,14 +77,7 @@ const toneForOverallState = (state, score) => {
 };
 
 // ----------------- Stoplight -----------------
-function Stoplight({
-  label,
-  value,
-  unit = "%",
-  tone = "info",
-  size = 50,
-  minWidth = 90,
-}) {
+function Stoplight({ label, value, unit = "%", tone = "info", size = 50, minWidth = 90 }) {
   const v = Number.isFinite(value) ? value : NaN;
   const colors =
     {
@@ -138,14 +107,7 @@ function Stoplight({
       >
         <div style={{ fontWeight: 800, color: "#0b1220" }}>{valText}</div>
       </div>
-      <div
-        style={{
-          fontSize: 12.5,
-          fontWeight: 700,
-          color: "#e5e7eb",
-          marginTop: 4,
-        }}
-      >
+      <div style={{ fontSize: 12.5, fontWeight: 700, color: "#e5e7eb", marginTop: 4 }}>
         {label}
       </div>
     </div>
@@ -154,12 +116,7 @@ function Stoplight({
 
 // ----------------- 5m DELTAS hook (/live/pills) -----------------
 function useSandboxDeltas() {
-  const [state, setState] = React.useState({
-    dB: null, // avg d5m
-    dM: null, // avg d10m
-    riskOn: null, // reserved
-    ts: null, // stamp5
-  });
+  const [state, setState] = React.useState({ dB: null, dM: null, riskOn: null, ts: null });
 
   React.useEffect(() => {
     if (!SANDBOX_URL) return;
@@ -169,9 +126,7 @@ function useSandboxDeltas() {
     async function pull() {
       try {
         const sep = SANDBOX_URL.includes("?") ? "&" : "?";
-        const res = await fetch(`${SANDBOX_URL}${sep}t=${Date.now()}`, {
-          cache: "no-store",
-        });
+        const res = await fetch(`${SANDBOX_URL}${sep}t=${Date.now()}`, { cache: "no-store" });
         const j = await res.json();
 
         const sectors = j?.sectors || {};
@@ -205,18 +160,11 @@ function useSandboxDeltas() {
           dB: avgD5m,
           dM: avgD10m,
           riskOn: null,
-          ts:
-            j?.stamp5 ||
-            j?.deltasUpdatedAt ||
-            j?.sectorsUpdatedAt ||
-            j?.updated_at ||
-            null,
+          ts: j?.stamp5 || j?.deltasUpdatedAt || j?.sectorsUpdatedAt || j?.updated_at || null,
         });
       } catch (err) {
         console.error("[RowMarketOverview] useSandboxDeltas error:", err);
-        if (!stop) {
-          setState({ dB: null, dM: null, riskOn: null, ts: null });
-        }
+        if (!stop) setState({ dB: null, dM: null, riskOn: null, ts: null });
       }
     }
 
@@ -235,43 +183,35 @@ function useSandboxDeltas() {
 export default function RowMarketOverview() {
   const { data: polled } = useDashboardPoll("dynamic");
 
-  const [legendOpen, setLegendOpen] = React.useState(null); // "intraday" | "daily" | null
+  const [legendOpen, setLegendOpen] = React.useState(null);
   const [live10, setLive10] = React.useState(null);
   const [live1h, setLive1h] = React.useState(null);
-  const [live4h, setLive4h] = React.useState(null); // ✅ NEW
+  const [live4h, setLive4h] = React.useState(null);
   const [liveEOD, setLiveEOD] = React.useState(null);
 
-  // Pull direct /live feeds (10m, 1h, 4h, EOD)
+  // Pull direct /live feeds
   React.useEffect(() => {
     let stop = false;
 
     async function pull() {
       try {
         if (INTRADAY_URL) {
-          const r = await fetch(`${INTRADAY_URL}?t=${Date.now()}`, {
-            cache: "no-store",
-          });
+          const r = await fetch(`${INTRADAY_URL}?t=${Date.now()}`, { cache: "no-store" });
           const j = await r.json();
           if (!stop) setLive10(j);
         }
         if (HOURLY_URL) {
-          const r = await fetch(`${HOURLY_URL}?t=${Date.now()}`, {
-            cache: "no-store",
-          });
+          const r = await fetch(`${HOURLY_URL}?t=${Date.now()}`, { cache: "no-store" });
           const j = await r.json();
           if (!stop) setLive1h(j);
         }
         if (H4_URL) {
-          const r = await fetch(`${H4_URL}?t=${Date.now()}`, {
-            cache: "no-store",
-          });
+          const r = await fetch(`${H4_URL}?t=${Date.now()}`, { cache: "no-store" });
           const j = await r.json();
           if (!stop) setLive4h(j);
         }
         if (EOD_URL) {
-          const r = await fetch(`${EOD_URL}?t=${Date.now()}`, {
-            cache: "no-store",
-          });
+          const r = await fetch(`${EOD_URL}?t=${Date.now()}`, { cache: "no-store" });
           const j = await r.json();
           if (!stop) setLiveEOD(j);
         }
@@ -288,68 +228,38 @@ export default function RowMarketOverview() {
     };
   }, []);
 
-  const { dB: deltaB, dM: deltaM, riskOn: deltaRisk, ts: deltaTs } =
-    useSandboxDeltas();
+  const { ts: deltaTs } = useSandboxDeltas();
 
-  // 10m uses canonical /live/intraday; only fall back to polled if live10 missing
+  // 10m
   const d10 = live10 || polled || {};
   const m10 = d10.metrics || {};
   const i10 = d10.intraday || {};
   const eng10 = (d10.engineLights && d10.engineLights["10m"]) || {};
-  const ts10 =
-    (d10.meta && d10.meta.last_full_run_utc) ||
-    d10.updated_at ||
-    d10.updated_at_utc ||
-    null;
+  const ts10 = (d10.meta && d10.meta.last_full_run_utc) || d10.updated_at || d10.updated_at_utc || null;
 
+  const breadth10 = num(m10.breadth_10m_pct ?? m10.breadth_pct);
+  const mom10 = num(m10.momentum_10m_pct) || num(m10.momentum_combo_10m_pct) || num(m10.momentum_pct);
+  const psi10 = num(m10.squeeze_psi_10m_pct ?? m10.squeeze_psi ?? m10.psi);
+  const sq10 = psi10;
+  const liq10 = num(m10.liquidity_psi ?? m10.liquidity_10m ?? m10.liquidity_pct);
+  const vol10 = num(m10.volatility_10m_pct ?? m10.volatility_pct);
+  const rising10 = num(i10?.sectorDirection10m?.risingPct);
+  let risk10 = num(m10.riskOn_10m_pct);
+  if (!Number.isFinite(risk10)) risk10 = num(i10?.riskOn10m?.riskOnPct);
+  let overall10 = num(i10?.overall10m?.score);
+  if (!Number.isFinite(overall10)) overall10 = num(eng10.score);
+  const state10 = i10?.overall10m?.state || eng10.state || "neutral";
+
+  // 1h
   const d1h = live1h || {};
   const m1h = d1h.metrics || {};
   const h1 = d1h.hourly || {};
   const ts1h = d1h.updated_at || d1h.updated_at_utc || null;
 
-  const d4h = live4h || {};
-  const m4h = d4h.metrics || {};
-  const h4 = d4h.fourHour || {};
-  const ts4h = d4h.updated_at || d4h.updated_at_utc || null;
-
-  const dd = liveEOD || {};
-  const tsEod = dd.updated_at || dd.updated_at_utc || null;
-
-  /* ---------- 10m strip ---------- */
-  const breadth10 = num(m10.breadth_10m_pct ?? m10.breadth_pct);
-
-  const mom10 =
-    num(m10.momentum_10m_pct) ||
-    num(m10.momentum_combo_10m_pct) ||
-    num(m10.momentum_pct);
-
-  // ✅ 10m squeeze: PSI tightness
-  const psi10 = num(m10.squeeze_psi_10m_pct ?? m10.squeeze_psi ?? m10.psi);
-  const sq10 = psi10;
-
-  const liq10 = num(m10.liquidity_psi ?? m10.liquidity_10m ?? m10.liquidity_pct);
-  const vol10 = num(m10.volatility_10m_pct ?? m10.volatility_pct);
-  const rising10 = num(i10?.sectorDirection10m?.risingPct);
-
-  let risk10 = num(m10.riskOn_10m_pct);
-  if (!Number.isFinite(risk10)) risk10 = num(i10?.riskOn10m?.riskOnPct);
-
-  let overall10 = num(i10?.overall10m?.score);
-  if (!Number.isFinite(overall10)) overall10 = num(eng10.score);
-  const state10 = i10?.overall10m?.state || eng10.state || "neutral";
-
-  /* ---------- 1h strip ---------- */
   const breadth1 = num(m1h.breadth_1h_pct);
-
-  const mom1 =
-    num(m1h.momentum_1h_pct) ||
-    num(m1h.momentum_combo_1h_pct) ||
-    num(m1h.momentum_pct);
-
-  // ✅ 1h squeeze: PSI tightness
+  const mom1 = num(m1h.momentum_1h_pct) || num(m1h.momentum_combo_1h_pct) || num(m1h.momentum_pct);
   const psi1 = num(m1h.squeeze_psi_1h_pct ?? m1h.squeeze_psi_1h ?? m1h.squeeze_psi);
   const sq1 = psi1;
-
   const liq1 = num(m1h.liquidity_1h);
   const vol1 = num(m1h.volatility_1h_scaled ?? m1h.volatility_1h_pct);
   const rising1 = num(h1?.sectorDirection1h?.risingPct);
@@ -357,17 +267,16 @@ export default function RowMarketOverview() {
   const overall1 = num(h1?.overall1h?.score);
   const state1 = h1?.overall1h?.state || "neutral";
 
-  /* ---------- 4h strip (NEW) ---------- */
+  // 4h
+  const d4h = live4h || {};
+  const m4h = d4h.metrics || {};
+  const h4 = d4h.fourHour || {};
+  const ts4h = d4h.updated_at || d4h.updated_at_utc || null;
+
   const breadth4 = num(m4h.breadth_4h_pct);
-  const mom4 =
-    num(m4h.momentum_4h_pct) ||
-    num(m4h.momentum_combo_4h_pct) ||
-    num(m4h.momentum_pct);
-
-  // ✅ 4h squeeze: PSI tightness
-  const psi4 = num(m4h.squeeze_psi_4h_pct ?? m4h.squeeze_psi_4h ?? m4h.squeeze_psi);
+  const mom4 = num(m4h.momentum_4h_pct) || num(m4h.momentum_combo_4h_pct) || num(m4h.momentum_pct);
+  const psi4 = num(m4h.squeeze_psi_4h_pct ?? m4h.squeeze_psi_4h ?? m4h.squeeze_psi ?? m4h.squeeze_psi_4h);
   const sq4 = psi4;
-
   const liq4 = num(m4h.liquidity_4h);
   const vol4 = num(m4h.volatility_4h_scaled ?? m4h.volatility_4h_pct);
   const rising4 = num(h4?.sectorDirection4h?.risingPct ?? m4h.sector_dir_4h_pct);
@@ -375,57 +284,67 @@ export default function RowMarketOverview() {
   const overall4 = num(h4?.overall4h?.score ?? m4h.trend_strength_4h_pct);
   const state4 = h4?.overall4h?.state || "neutral";
 
-  /* ---------- EOD strip ---------- */
-  const td = dd.trendDaily || {};
+  // ✅ EOD FIXED extraction (new contract + fallbacks)
+  const dd = liveEOD || {};
+  const tsEod = dd.updated_at || dd.updated_at_utc || null;
   const dMetrics = dd.metrics || {};
+  const daily = dd.daily || {};
+  const overallEOD = daily?.overallEOD || {};
+  const compsEOD = overallEOD?.components || {};
 
-  const tdSlope = num(td?.trend?.emaSlope);
-  const tdTrendVal = Number.isFinite(tdSlope)
-    ? tdSlope > 5
-      ? 75
-      : tdSlope < -5
-      ? 25
-      : 50
-    : NaN;
+  // Use overall score as "Daily Trend" gauge (always exists in new system)
+  const eodScore =
+    num(overallEOD?.score) ||
+    num(dMetrics?.overall_eod_score) ||
+    num(dMetrics?.overall_score) ||
+    NaN;
 
-  const tdPartPct = num(td?.participation?.pctAboveMA);
+  // Participation: pull from components or metrics
+  const eodParticipation =
+    num(compsEOD?.participation) ||
+    num(dMetrics?.participation_pct) ||
+    num(dMetrics?.participation_eod_pct) ||
+    NaN;
 
+  // Daily squeeze PSI (tightness)
+  const eodSqueezePsi =
+    num(dMetrics?.daily_squeeze_pct ?? dMetrics?.squeeze_daily_pct ?? dMetrics?.squeezePct) ||
+    NaN;
+
+  // Vol / Liq regimes (if trendDaily exists use it; else fallback to metrics)
+  const td = dd.trendDaily || {};
   const tdVolReg = td?.volatilityRegime || {};
-  const tdVolPct = num(tdVolReg.atrPct);
-  const tdVolBand = tdVolReg.band || null;
-
   const tdLiqReg = td?.liquidityRegime || {};
-  const tdLiqPsi = num(tdLiqReg.psi);
-  const tdLiqBand = tdLiqReg.band || null;
 
-  const tdRiskOn = num(dd?.rotation?.riskOnPct);
+  const eodVol =
+    num(tdVolReg?.atrPct) ||
+    num(dMetrics?.volatility_pct) ||
+    NaN;
 
-  const tdSdyDaily = num(
-    dMetrics.daily_squeeze_pct ??
-      dMetrics.squeezePct ??
-      dMetrics.squeeze_daily_pct
-  );
+  const eodVolBand = tdVolReg?.band || null;
 
-  /* ---------- Layout ---------- */
-  const stripBox = {
-    display: "flex",
-    flexDirection: "column",
-    gap: 6,
-    minWidth: 820,
-  };
+  const eodLiq =
+    num(tdLiqReg?.psi) ||
+    num(dMetrics?.liquidity_pct) ||
+    NaN;
 
-  const lineBox = {
-    display: "flex",
-    gap: 12,
-    alignItems: "center",
-    whiteSpace: "nowrap",
-    overflowX: "auto",
-    paddingBottom: 2,
-  };
+  const eodLiqBand = tdLiqReg?.band || null;
+
+  const eodRiskOn =
+    num(daily?.riskOnPct) ||
+    num(dMetrics?.risk_on_daily_pct) ||
+    num(dd?.rotation?.riskOnPct) ||
+    NaN;
+
+  const eodState =
+    (overallEOD?.state || dMetrics?.overall_eod_state || daily?.state || "neutral");
+
+  // Layout
+  const stripBox = { display: "flex", flexDirection: "column", gap: 6, minWidth: 820 };
+  const lineBox = { display: "flex", gap: 12, alignItems: "center", whiteSpace: "nowrap", overflowX: "auto", paddingBottom: 2 };
 
   return (
     <section id="row-2" className="panel" style={{ padding: 10 }}>
-      {/* Header */}
       <div className="panel-head" style={{ alignItems: "center" }}>
         <div className="panel-title">Market Meter — Stoplights</div>
         <div style={{ marginLeft: 8 }}>
@@ -447,59 +366,33 @@ export default function RowMarketOverview() {
         <LastUpdated ts={tsOf(d10 || d1h || d4h || dd || polled)} />
       </div>
 
-      {/* Strips */}
-      <div
-        style={{
-          display: "flex",
-          gap: 28,
-          alignItems: "flex-start",
-          flexWrap: "wrap",
-          marginTop: 8,
-        }}
-      >
-        {/* 10m strip */}
+      <div style={{ display: "flex", gap: 28, alignItems: "flex-start", flexWrap: "wrap", marginTop: 8 }}>
+        {/* 10m */}
         <div style={stripBox}>
-          <div className="small" style={{ color: "#e5e7eb", fontWeight: 800 }}>
-            10m — Intraday Scalp
-          </div>
+          <div className="small" style={{ color: "#e5e7eb", fontWeight: 800 }}>10m — Intraday Scalp</div>
           <div style={lineBox}>
             <Stoplight label="Overall" value={overall10} tone={toneForOverallState(state10, overall10)} />
             <Stoplight label="Breadth" value={breadth10} tone={toneForBreadth(breadth10)} />
             <Stoplight label="Momentum" value={mom10} tone={toneForMomentum(mom10)} />
-            <Stoplight label="Squeeze" value={sq10} tone={toneForSqueeze10Psi(psi10)} />
+            <Stoplight label="Squeeze" value={sq10} tone={toneForSqueezePsi(psi10)} />
             <Stoplight label="Liquidity" value={liq10} unit="%" tone={toneForLiquidity(liq10)} />
             <Stoplight label="Volatility" value={vol10} tone={toneForVol(vol10)} />
             <Stoplight label="Sector Dir" value={rising10} tone={toneForPct(rising10)} />
             <Stoplight label="Risk-On" value={risk10} tone={toneForPct(risk10)} />
           </div>
-          <div
-            style={{
-              color: "#9ca3af",
-              fontSize: 12,
-              marginTop: 4,
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-            }}
-          >
-            <div>
-              Last 10-min: <strong>{fmtIso(ts10)}</strong> &nbsp;|&nbsp; Δ5m updated:{" "}
-              <strong>{fmtIso(deltaTs)}</strong>
-            </div>
-            <PulseIcon10m />
+          <div style={{ color: "#9ca3af", fontSize: 12, marginTop: 4 }}>
+            Last 10-min: <strong>{fmtIso(ts10)}</strong> &nbsp;|&nbsp; Δ5m updated: <strong>{fmtIso(deltaTs)}</strong>
           </div>
         </div>
 
-        {/* 1h strip */}
+        {/* 1h */}
         <div style={stripBox}>
-          <div className="small" style={{ color: "#e5e7eb", fontWeight: 800 }}>
-            1h — Hourly Valuation
-          </div>
+          <div className="small" style={{ color: "#e5e7eb", fontWeight: 800 }}>1h — Hourly Valuation</div>
           <div style={lineBox}>
             <Stoplight label="Overall" value={overall1} tone={toneForOverallState(state1, overall1)} />
             <Stoplight label="Breadth" value={breadth1} tone={toneForBreadth(breadth1)} />
             <Stoplight label="Momentum" value={mom1} tone={toneForMomentum(mom1)} />
-            <Stoplight label="Squeeze" value={sq1} tone={toneForSqueeze1hPsi(psi1)} />
+            <Stoplight label="Squeeze" value={sq1} tone={toneForSqueezePsi(psi1)} />
             <Stoplight label="Liquidity" value={liq1} unit="%" tone={toneForLiquidity(liq1)} />
             <Stoplight label="Volatility" value={vol1} tone={toneForVol(vol1)} />
             <Stoplight label="Sector Dir" value={rising1} tone={toneForPct(rising1)} />
@@ -510,16 +403,14 @@ export default function RowMarketOverview() {
           </div>
         </div>
 
-        {/* 4h strip (NEW, placed between 1h and EOD) */}
+        {/* 4h */}
         <div style={stripBox}>
-          <div className="small" style={{ color: "#e5e7eb", fontWeight: 800 }}>
-            4h — Bridge Valuation
-          </div>
+          <div className="small" style={{ color: "#e5e7eb", fontWeight: 800 }}>4h — Bridge Valuation</div>
           <div style={lineBox}>
             <Stoplight label="Overall" value={overall4} tone={toneForOverallState(state4, overall4)} />
             <Stoplight label="Breadth" value={breadth4} tone={toneForBreadth(breadth4)} />
             <Stoplight label="Momentum" value={mom4} tone={toneForMomentum(mom4)} />
-            <Stoplight label="Squeeze" value={sq4} tone={toneForSqueeze4hPsi(psi4)} />
+            <Stoplight label="Squeeze" value={sq4} tone={toneForSqueezePsi(psi4)} />
             <Stoplight label="Liquidity" value={liq4} unit="%" tone={toneForLiquidity(liq4)} />
             <Stoplight label="Volatility" value={vol4} tone={toneForVol(vol4)} />
             <Stoplight label="Sector Dir" value={rising4} tone={toneForPct(rising4)} />
@@ -530,18 +421,16 @@ export default function RowMarketOverview() {
           </div>
         </div>
 
-        {/* EOD strip */}
+        {/* EOD */}
         <div style={stripBox}>
-          <div className="small" style={{ color: "#e5e7eb", fontWeight: 800 }}>
-            EOD — Daily Structure
-          </div>
+          <div className="small" style={{ color: "#e5e7eb", fontWeight: 800 }}>EOD — Daily Structure</div>
           <div style={lineBox}>
-            <Stoplight label="Daily Trend" value={tdTrendVal} tone={toneForDailyTrend(tdSlope)} />
-            <Stoplight label="Participation" value={tdPartPct} tone={toneForPct(tdPartPct)} />
-            <Stoplight label="Daily Squeeze" value={tdSdyDaily} tone={toneForLuxDaily(tdSdyDaily)} />
-            <Stoplight label="Vol Regime" value={tdVolPct} tone={toneForVolBand(tdVolBand)} />
-            <Stoplight label="Liq Regime" value={tdLiqPsi} unit="PSI" tone={toneForLiqBand(tdLiqBand)} />
-            <Stoplight label="Risk-On" value={tdRiskOn} tone={toneForPct(tdRiskOn)} />
+            <Stoplight label="Overall" value={eodScore} tone={toneForOverallState(eodState, eodScore)} />
+            <Stoplight label="Participation" value={eodParticipation} tone={toneForPct(eodParticipation)} />
+            <Stoplight label="Daily Squeeze" value={eodSqueezePsi} tone={toneForSqueezePsi(eodSqueezePsi)} />
+            <Stoplight label="Vol Regime" value={eodVol} tone={toneForVol(eodVol)} />
+            <Stoplight label="Liq Regime" value={eodLiq} unit="%" tone={toneForLiquidity(eodLiq)} />
+            <Stoplight label="Risk-On" value={eodRiskOn} tone={toneForPct(eodRiskOn)} />
           </div>
           <div style={{ color: "#9ca3af", fontSize: 12, marginTop: 4 }}>
             Daily updated: <strong>{fmtIso(tsEod)}</strong>
@@ -549,7 +438,6 @@ export default function RowMarketOverview() {
         </div>
       </div>
 
-      {/* Legend modal */}
       {legendOpen && (
         <div
           role="dialog"
@@ -575,11 +463,7 @@ export default function RowMarketOverview() {
               padding: 16,
             }}
           >
-            {legendOpen === "intraday" ? (
-              <MarketMeterIntradayLegend />
-            ) : (
-              <MarketMeterDailyLegend />
-            )}
+            {legendOpen === "intraday" ? <MarketMeterIntradayLegend /> : <MarketMeterDailyLegend />}
             <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}>
               <button
                 onClick={() => setLegendOpen(null)}
