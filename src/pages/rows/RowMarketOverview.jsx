@@ -1,5 +1,9 @@
 // src/pages/rows/RowMarketOverview.jsx
 // Market Meter — 10m / 1h / EOD stoplights with Lux Squeeze aligned + 5m Pulse
+// ✅ SQUEEZE DISPLAY MODE (LOCKED): Show Lux PSI tightness (same number as LuxAlgo PSI plot)
+//    - 10m Squeeze tile shows PSI (tightness)
+//    - 1h  Squeeze tile shows PSI (tightness)
+//    - EOD already shows PSI (tightness)
 
 import React from "react";
 import { useDashboardPoll } from "../../lib/dashboardApiSafe";
@@ -251,34 +255,33 @@ export default function RowMarketOverview() {
           });
           const j = await r.json();
           if (!stop) setLive10(j);
-       }
-       if (HOURLY_URL) {
-        const r = await fetch(`${HOURLY_URL}?t=${Date.now()}`, {
-          cache: "no-store",
-        });
-        const j = await r.json();
-        if (!stop) setLive1h(j);
+        }
+        if (HOURLY_URL) {
+          const r = await fetch(`${HOURLY_URL}?t=${Date.now()}`, {
+            cache: "no-store",
+          });
+          const j = await r.json();
+          if (!stop) setLive1h(j);
+        }
+        if (EOD_URL) {
+          const r = await fetch(`${EOD_URL}?t=${Date.now()}`, {
+            cache: "no-store",
+          });
+          const j = await r.json();
+          if (!stop) setLiveEOD(j);
+        }
+      } catch {
+        // ignore
       }
-      if (EOD_URL) {
-        const r = await fetch(`${EOD_URL}?t=${Date.now()}`, {
-          cache: "no-store",
-        });
-        const j = await r.json();
-        if (!stop) setLiveEOD(j);
-      }
-    } catch {
-      // ignore
     }
-  }
 
-  pull();
-  const id = setInterval(pull, 15000);
-  return () => {
-    stop = true;
-    clearInterval(id);
-  };
-}, []);
-
+    pull();
+    const id = setInterval(pull, 15000);
+    return () => {
+      stop = true;
+      clearInterval(id);
+    };
+  }, []);
 
   const { dB: deltaB, dM: deltaM, riskOn: deltaRisk, ts: deltaTs } =
     useSandboxDeltas();
@@ -310,12 +313,9 @@ export default function RowMarketOverview() {
     num(m10.momentum_combo_10m_pct) ||
     num(m10.momentum_pct);
 
-  // 10m squeeze: tile shows expansion (100 - PSI), tone uses PSI
-  const psi10 = num(m10.squeeze_psi_10m_pct);
-  let sq10 = num(m10.squeeze_pct ?? m10.squeeze_expansion_pct);
-  if (Number.isFinite(psi10)) {
-    sq10 = clamp(100 - psi10, 0, 100);
-  }
+  // ✅ 10m squeeze: SHOW PSI tightness (Lux PSI plot value)
+  const psi10 = num(m10.squeeze_psi_10m_pct ?? m10.squeeze_psi ?? m10.psi);
+  const sq10 = psi10;
 
   const liq10 = num(m10.liquidity_psi ?? m10.liquidity_10m ?? m10.liquidity_pct);
   const vol10 = num(m10.volatility_10m_pct ?? m10.volatility_pct);
@@ -340,17 +340,9 @@ export default function RowMarketOverview() {
     num(m1h.momentum_combo_1h_pct) ||
     num(m1h.momentum_pct);
 
-  // --- Lux Squeeze (1H) ---
-  // Backend provides PSI = tightness (0..100, higher = tighter)
-  // Dashboard displays EXPANSION = 100 - PSI (TradingView style)
-
-  const psi1 = num(m1h.squeeze_psi_1h_pct ?? m1h.squeeze_psi_1h);
-
-  // Display value (matches TradingView LuxAlgo)
-  const sq1 = Number.isFinite(psi1)
-    ? clamp(100 - psi1, 0, 100)
-    : num(m1h.squeeze_1h_pct ?? m1h.squeeze_1h_expansion_pct);
-
+  // ✅ 1h squeeze: SHOW PSI tightness (Lux PSI plot value)
+  const psi1 = num(m1h.squeeze_psi_1h_pct ?? m1h.squeeze_psi_1h ?? m1h.squeeze_psi);
+  const sq1 = psi1;
 
   const liq1 = num(m1h.liquidity_1h);
   const vol1 = num(m1h.volatility_1h_scaled ?? m1h.volatility_1h_pct);
@@ -443,10 +435,7 @@ export default function RowMarketOverview() {
       >
         {/* 10m strip */}
         <div style={stripBox}>
-          <div
-            className="small"
-            style={{ color: "#e5e7eb", fontWeight: 800 }}
-          >
+          <div className="small" style={{ color: "#e5e7eb", fontWeight: 800 }}>
             10m — Intraday Scalp
           </div>
           <div style={lineBox}>
@@ -455,42 +444,13 @@ export default function RowMarketOverview() {
               value={overall10}
               tone={toneForOverallState(state10, overall10)}
             />
-            <Stoplight
-              label="Breadth"
-              value={breadth10}
-              tone={toneForBreadth(breadth10)}
-            />
-            <Stoplight
-              label="Momentum"
-              value={mom10}
-              tone={toneForMomentum(mom10)}
-            />
-            <Stoplight
-              label="Squeeze"
-              value={sq10}
-              tone={toneForSqueeze10Psi(psi10)}
-            />
-            <Stoplight
-              label="Liquidity"
-              value={liq10}
-              unit="%"
-              tone={toneForLiquidity(liq10)}
-            />
-            <Stoplight
-              label="Volatility"
-              value={vol10}
-              tone={toneForVol(vol10)}
-            />
-            <Stoplight
-              label="Sector Dir"
-              value={rising10}
-              tone={toneForPct(rising10)}
-            />
-            <Stoplight
-              label="Risk-On"
-              value={risk10}
-              tone={toneForPct(risk10)}
-            />
+            <Stoplight label="Breadth" value={breadth10} tone={toneForBreadth(breadth10)} />
+            <Stoplight label="Momentum" value={mom10} tone={toneForMomentum(mom10)} />
+            <Stoplight label="Squeeze" value={sq10} tone={toneForSqueeze10Psi(psi10)} />
+            <Stoplight label="Liquidity" value={liq10} unit="%" tone={toneForLiquidity(liq10)} />
+            <Stoplight label="Volatility" value={vol10} tone={toneForVol(vol10)} />
+            <Stoplight label="Sector Dir" value={rising10} tone={toneForPct(rising10)} />
+            <Stoplight label="Risk-On" value={risk10} tone={toneForPct(risk10)} />
           </div>
           <div
             style={{
@@ -503,8 +463,8 @@ export default function RowMarketOverview() {
             }}
           >
             <div>
-              Last 10-min: <strong>{fmtIso(ts10)}</strong> &nbsp;|&nbsp; Δ5m
-              updated: <strong>{fmtIso(deltaTs)}</strong>
+              Last 10-min: <strong>{fmtIso(ts10)}</strong> &nbsp;|&nbsp; Δ5m updated:{" "}
+              <strong>{fmtIso(deltaTs)}</strong>
             </div>
             <PulseIcon10m />
           </div>
@@ -512,54 +472,18 @@ export default function RowMarketOverview() {
 
         {/* 1h strip */}
         <div style={stripBox}>
-          <div
-            className="small"
-            style={{ color: "#e5e7eb", fontWeight: 800 }}
-          >
+          <div className="small" style={{ color: "#e5e7eb", fontWeight: 800 }}>
             1h — Hourly Valuation
           </div>
           <div style={lineBox}>
-            <Stoplight
-              label="Overall"
-              value={overall1}
-              tone={toneForOverallState(state1, overall1)}
-            />
-            <Stoplight
-              label="Breadth"
-              value={breadth1}
-              tone={toneForBreadth(breadth1)}
-            />
-            <Stoplight
-              label="Momentum"
-              value={mom1}
-              tone={toneForMomentum(mom1)}
-            />
-            <Stoplight
-              label="Squeeze"
-              value={sq1}
-              tone={toneForSqueeze1hPsi(psi1)}
-            />
-            <Stoplight
-              label="Liquidity"
-              value={liq1}
-              unit="%"
-              tone={toneForLiquidity(liq1)}
-            />
-            <Stoplight
-              label="Volatility"
-              value={vol1}
-              tone={toneForVol(vol1)}
-            />
-            <Stoplight
-              label="Sector Dir"
-              value={rising1}
-              tone={toneForPct(rising1)}
-            />
-            <Stoplight
-              label="Risk-On"
-              value={risk1}
-              tone={toneForPct(risk1)}
-            />
+            <Stoplight label="Overall" value={overall1} tone={toneForOverallState(state1, overall1)} />
+            <Stoplight label="Breadth" value={breadth1} tone={toneForBreadth(breadth1)} />
+            <Stoplight label="Momentum" value={mom1} tone={toneForMomentum(mom1)} />
+            <Stoplight label="Squeeze" value={sq1} tone={toneForSqueeze1hPsi(psi1)} />
+            <Stoplight label="Liquidity" value={liq1} unit="%" tone={toneForLiquidity(liq1)} />
+            <Stoplight label="Volatility" value={vol1} tone={toneForVol(vol1)} />
+            <Stoplight label="Sector Dir" value={rising1} tone={toneForPct(rising1)} />
+            <Stoplight label="Risk-On" value={risk1} tone={toneForPct(risk1)} />
           </div>
           <div style={{ color: "#9ca3af", fontSize: 12, marginTop: 4 }}>
             Last 1-hour: <strong>{fmtIso(ts1h)}</strong>
@@ -568,44 +492,16 @@ export default function RowMarketOverview() {
 
         {/* EOD strip */}
         <div style={stripBox}>
-          <div
-            className="small"
-            style={{ color: "#e5e7eb", fontWeight: 800 }}
-          >
+          <div className="small" style={{ color: "#e5e7eb", fontWeight: 800 }}>
             EOD — Daily Structure
           </div>
           <div style={lineBox}>
-            <Stoplight
-              label="Daily Trend"
-              value={tdTrendVal}
-              tone={toneForDailyTrend(tdSlope)}
-            />
-            <Stoplight
-              label="Participation"
-              value={tdPartPct}
-              tone={toneForPct(tdPartPct)}
-            />
-            <Stoplight
-              label="Daily Squeeze"
-              value={tdSdyDaily}
-              tone={toneForLuxDaily(tdSdyDaily)}
-            />
-            <Stoplight
-              label="Vol Regime"
-              value={tdVolPct}
-              tone={toneForVolBand(tdVolBand)}
-            />
-            <Stoplight
-              label="Liq Regime"
-              value={tdLiqPsi}
-              unit="PSI"
-              tone={toneForLiqBand(tdLiqBand)}
-            />
-            <Stoplight
-              label="Risk-On"
-              value={tdRiskOn}
-              tone={toneForPct(tdRiskOn)}
-            />
+            <Stoplight label="Daily Trend" value={tdTrendVal} tone={toneForDailyTrend(tdSlope)} />
+            <Stoplight label="Participation" value={tdPartPct} tone={toneForPct(tdPartPct)} />
+            <Stoplight label="Daily Squeeze" value={tdSdyDaily} tone={toneForLuxDaily(tdSdyDaily)} />
+            <Stoplight label="Vol Regime" value={tdVolPct} tone={toneForVolBand(tdVolBand)} />
+            <Stoplight label="Liq Regime" value={tdLiqPsi} unit="PSI" tone={toneForLiqBand(tdLiqBand)} />
+            <Stoplight label="Risk-On" value={tdRiskOn} tone={toneForPct(tdRiskOn)} />
           </div>
           <div style={{ color: "#9ca3af", fontSize: 12, marginTop: 4 }}>
             Daily updated: <strong>{fmtIso(tsEod)}</strong>
@@ -644,13 +540,7 @@ export default function RowMarketOverview() {
             ) : (
               <MarketMeterDailyLegend />
             )}
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "flex-end",
-                marginTop: 12,
-              }}
-            >
+            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}>
               <button
                 onClick={() => setLegendOpen(null)}
                 style={{
