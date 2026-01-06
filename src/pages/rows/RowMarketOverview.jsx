@@ -1,6 +1,6 @@
 // src/pages/rows/RowMarketOverview.jsx
 // Market Meter — 10m / 1h / 4h / EOD stoplights with Lux PSI (tightness) aligned + 5m Pulse
-// ✅ Adds EOD "INTERNALS WEAK — NO LONG ENTRIES" banner from new make_eod.py R13.0 fields.
+// ✅ EOD FIX: Use daily.overallEOD + metrics fallbacks so Overall/Participation never disappear.
 
 import React from "react";
 import { useDashboardPoll } from "../../lib/dashboardApiSafe";
@@ -114,41 +114,6 @@ function Stoplight({ label, value, unit = "%", tone = "info", size = 50, minWidt
   );
 }
 
-// ----------------- Banner -----------------
-function Banner({ tone = "danger", title, detail }) {
-  const styles =
-    tone === "danger"
-      ? { bg: "rgba(239,68,68,.12)", bd: "rgba(239,68,68,.45)", fg: "#fecaca" }
-      : tone === "warn"
-      ? { bg: "rgba(251,191,36,.12)", bd: "rgba(251,191,36,.45)", fg: "#fde68a" }
-      : { bg: "rgba(34,197,94,.12)", bd: "rgba(34,197,94,.35)", fg: "#bbf7d0" };
-
-  return (
-    <div
-      style={{
-        marginTop: 10,
-        padding: "10px 12px",
-        borderRadius: 12,
-        border: `1px solid ${styles.bd}`,
-        background: styles.bg,
-        color: styles.fg,
-        display: "flex",
-        alignItems: "flex-start",
-        gap: 10,
-      }}
-    >
-      <div style={{ fontWeight: 900, fontSize: 13, lineHeight: "18px" }}>
-        {title}
-      </div>
-      {detail ? (
-        <div style={{ fontSize: 12.5, lineHeight: "18px", color: "#e5e7eb" }}>
-          {detail}
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
 // ----------------- 5m DELTAS hook (/live/pills) -----------------
 function useSandboxDeltas() {
   const [state, setState] = React.useState({ dB: null, dM: null, riskOn: null, ts: null });
@@ -224,6 +189,7 @@ export default function RowMarketOverview() {
   const [live4h, setLive4h] = React.useState(null);
   const [liveEOD, setLiveEOD] = React.useState(null);
 
+  // Pull direct /live feeds
   React.useEffect(() => {
     let stop = false;
 
@@ -318,40 +284,62 @@ export default function RowMarketOverview() {
   const overall4 = num(h4?.overall4h?.score ?? m4h.trend_strength_4h_pct);
   const state4 = h4?.overall4h?.state || "neutral";
 
-  // EOD (new R13.0 fields)
+  // ✅ EOD FIXED extraction (new contract + fallbacks)
   const dd = liveEOD || {};
   const tsEod = dd.updated_at || dd.updated_at_utc || null;
+  const dMetrics = dd.metrics || {};
   const daily = dd.daily || {};
-  const metrics = dd.metrics || {};
   const overallEOD = daily?.overallEOD || {};
-  const tradeGate = daily?.tradeGate || {};
-  const eng = dd.engineLights || {};
+  const compsEOD = overallEOD?.components || {};
 
-  const eodOverall = num(overallEOD?.score ?? metrics?.overall_eod_score);
-  const eodState = overallEOD?.state || metrics?.overall_eod_state || daily?.state || "neutral";
-  const eodParticipation = num(metrics?.participation_daily_pct ?? daily?.participationDailyPct);
-  const eodSqueezePsi = num(metrics?.daily_squeeze_pct ?? daily?.squeezePsi);
-  const eodRiskOn = num(metrics?.risk_on_daily_pct ?? daily?.riskOnPct);
+  // Use overall score as "Daily Trend" gauge (always exists in new system)
+  const eodScore =
+    num(overallEOD?.score) ||
+    num(dMetrics?.overall_eod_score) ||
+    num(dMetrics?.overall_score) ||
+    NaN;
 
-  const internalsActive =
-    !!daily?.internalsWeak ||
-    !!eng?.eodInternals?.active ||
-    (tradeGate?.mode && String(tradeGate.mode).toUpperCase().includes("INTERNALS WEAK"));
+  // Participation: pull from components or metrics
+  const eodParticipation =
+    num(compsEOD?.participation) ||
+    num(dMetrics?.participation_pct) ||
+    num(dMetrics?.participation_eod_pct) ||
+    NaN;
 
-  const internalsReason =
-    daily?.internalsWeakReason ||
-    eng?.eodInternals?.reason ||
-    "";
+  // Daily squeeze PSI (tightness)
+  const eodSqueezePsi =
+    num(dMetrics?.daily_squeeze_pct ?? dMetrics?.squeeze_daily_pct ?? dMetrics?.squeezePct) ||
+    NaN;
 
-  const redCount =
-    Number.isFinite(num(daily?.redSectorsCount)) ? num(daily?.redSectorsCount)
-    : Number.isFinite(num(eng?.eodInternals?.redSectors)) ? num(eng?.eodInternals?.redSectors)
-    : null;
+  // Vol / Liq regimes (if trendDaily exists use it; else fallback to metrics)
+  const td = dd.trendDaily || {};
+  const tdVolReg = td?.volatilityRegime || {};
+  const tdLiqReg = td?.liquidityRegime || {};
 
-  const gateEntries = tradeGate?.allowEntries;
-  const gateMode = tradeGate?.mode;
+  const eodVol =
+    num(tdVolReg?.atrPct) ||
+    num(dMetrics?.volatility_pct) ||
+    NaN;
 
-  // Layout helpers
+  const eodVolBand = tdVolReg?.band || null;
+
+  const eodLiq =
+    num(tdLiqReg?.psi) ||
+    num(dMetrics?.liquidity_pct) ||
+    NaN;
+
+  const eodLiqBand = tdLiqReg?.band || null;
+
+  const eodRiskOn =
+    num(daily?.riskOnPct) ||
+    num(dMetrics?.risk_on_daily_pct) ||
+    num(dd?.rotation?.riskOnPct) ||
+    NaN;
+
+  const eodState =
+    (overallEOD?.state || dMetrics?.overall_eod_state || daily?.state || "neutral");
+
+  // Layout
   const stripBox = { display: "flex", flexDirection: "column", gap: 6, minWidth: 820 };
   const lineBox = { display: "flex", gap: 12, alignItems: "center", whiteSpace: "nowrap", overflowX: "auto", paddingBottom: 2 };
 
@@ -377,28 +365,6 @@ export default function RowMarketOverview() {
         <div className="spacer" />
         <LastUpdated ts={tsOf(d10 || d1h || d4h || dd || polled)} />
       </div>
-
-      {/* ✅ EOD Internals banner */}
-      {internalsActive && (
-        <Banner
-          tone="danger"
-          title={`INTERNALS WEAK — NO LONG ENTRIES${Number.isFinite(redCount) ? ` (${redCount}/11 sectors red)` : ""}`}
-          detail={
-            `${internalsReason || ""}${
-              gateMode ? `  • Gate: ${gateMode}` : ""
-            }`
-          }
-        />
-      )}
-
-      {/* ✅ EOD Squeeze danger banner (independent) */}
-      {!internalsActive && Number.isFinite(eodSqueezePsi) && eodSqueezePsi >= 90 && (
-        <Banner
-          tone="danger"
-          title={`SQUEEZE DANGER (PSI ${eodSqueezePsi.toFixed(1)}) — NO ENTRIES`}
-          detail="High compression regime. Expect wicks and stop hunts. Exits allowed; wait for expansion."
-        />
-      )}
 
       <div style={{ display: "flex", gap: 28, alignItems: "flex-start", flexWrap: "wrap", marginTop: 8 }}>
         {/* 10m */}
@@ -459,11 +425,11 @@ export default function RowMarketOverview() {
         <div style={stripBox}>
           <div className="small" style={{ color: "#e5e7eb", fontWeight: 800 }}>EOD — Daily Structure</div>
           <div style={lineBox}>
-            <Stoplight label="Overall" value={eodOverall} tone={toneForOverallState(eodState, eodOverall)} />
+            <Stoplight label="Overall" value={eodScore} tone={toneForOverallState(eodState, eodScore)} />
             <Stoplight label="Participation" value={eodParticipation} tone={toneForPct(eodParticipation)} />
             <Stoplight label="Daily Squeeze" value={eodSqueezePsi} tone={toneForSqueezePsi(eodSqueezePsi)} />
-            <Stoplight label="Liq Regime" value={num(metrics?.liquidity_pct ?? daily?.liquidityPct)} unit="%" tone={toneForLiquidity(num(metrics?.liquidity_pct ?? daily?.liquidityPct))} />
-            <Stoplight label="Vol Regime" value={num(metrics?.volatility_pct ?? daily?.volatilityPct)} tone={toneForVol(num(metrics?.volatility_pct ?? daily?.volatilityPct))} />
+            <Stoplight label="Vol Regime" value={eodVol} tone={toneForVol(eodVol)} />
+            <Stoplight label="Liq Regime" value={eodLiq} unit="%" tone={toneForLiquidity(eodLiq)} />
             <Stoplight label="Risk-On" value={eodRiskOn} tone={toneForPct(eodRiskOn)} />
           </div>
           <div style={{ color: "#9ca3af", fontSize: 12, marginTop: 4 }}>
