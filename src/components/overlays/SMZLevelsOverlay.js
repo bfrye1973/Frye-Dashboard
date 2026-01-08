@@ -66,13 +66,15 @@ export default function SMZLevelsOverlay({ chart, symbol = "SPY" }) {
           // Draw bands for structure/pocket
           if ((tier === "structure" || tier === "pocket") && high != null && low != null && high > low) {
             addBox({
-              top: high,
-              bottom: low,
-              color: bandColor,
-              opacity: bandOpacity,
-              borderColor,
-            });
-          }
+             top: high,
+             bottom: low,
+             fillColor: bandColor,   // ✅ important
+             color: bandColor,       // keep for backward compatibility
+             opacity: bandOpacity,
+             borderColor,
+             borderWidth: tier === "pocket" ? 2 : 1,
+           });
+
 
           // MICRO: draw only a dashed orange line at midpoint
           if (tier === "micro") {
