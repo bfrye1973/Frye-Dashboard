@@ -14,27 +14,21 @@ export default function SMZLevelsOverlay({ chart, symbol = "SPY" }) {
       try {
         const line = chart.addHorizontalLine(opts);
         lines.push(line);
-      } catch (e) {
-        // ignore chart API failures
-      }
+      } catch {}
     };
 
     const addBox = (opts) => {
       try {
         const box = chart.addBox(opts);
         boxes.push(box);
-      } catch (e) {
-        // ignore chart API failures
-      }
+      } catch {}
     };
 
     async function loadLevels() {
       try {
-        // cache buster ensures you see fresh output every refresh
         const url = `/api/v1/smz-levels?symbol=${encodeURIComponent(symbol)}&_=${Date.now()}`;
         const res = await fetch(url, { cache: "no-store" });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
-
         const json = await res.json();
         if (cancelled) return;
 
@@ -44,7 +38,7 @@ export default function SMZLevelsOverlay({ chart, symbol = "SPY" }) {
           const tier = level?.tier ?? "micro";
           const strength = safeNum(level?.strength) ?? 0;
 
-          // Backend contract: priceRange = [high, low]
+          // backend: priceRange = [high, low]
           const pr = Array.isArray(level?.priceRange) ? level.priceRange : null;
           const high = pr ? safeNum(pr[0]) : null;
           const low = pr ? safeNum(pr[1]) : null;
@@ -52,23 +46,25 @@ export default function SMZLevelsOverlay({ chart, symbol = "SPY" }) {
           const facts = level?.details?.facts ?? {};
           const negotiationMid = safeNum(facts?.negotiationMid);
 
-          // ---------- STYLE BY TIER ----------
-          // STRUCTURE: yellow band
-          // POCKET: blue band
-          // MICRO: orange dashed line at midpoint
+          // defaults (structure)
           let bandColor = "rgba(255, 210, 0, 1)";
           let borderColor = "rgba(255, 210, 0, 1)";
-          let bandOpacity = strength >= 90 ? 0.18 : 0.14;
+          let bandOpacity = 0.10; // lower so pockets pop
 
+          // POCKET must be impossible to miss
           if (tier === "pocket") {
             bandColor = "rgba(80, 170, 255, 1)";
             borderColor = "rgba(80, 170, 255, 1)";
-            bandOpacity = 0.28;
+            bandOpacity = 0.55;
           }
 
-          // ---------- DRAW BANDS (structure/pocket) ----------
-          const isBand = tier === "structure" || tier === "pocket";
-          if (isBand && high != null && low != null && high > low) {
+          // Slightly boost structure if score is 90+
+          if (tier === "structure" && strength >= 90) {
+            bandOpacity = 0.12;
+          }
+
+          // Draw bands for structure/pocket
+          if ((tier === "structure" || tier === "pocket") && high != null && low != null && high > low) {
             addBox({
               top: high,
               bottom: low,
@@ -78,34 +74,31 @@ export default function SMZLevelsOverlay({ chart, symbol = "SPY" }) {
             });
           }
 
-          // ---------- DRAW MICRO LINE ----------
+          // MICRO: draw only a dashed orange line at midpoint
           if (tier === "micro") {
             let y = safeNum(level?.price);
             if (y == null && high != null && low != null) y = (high + low) / 2;
-
             if (y != null) {
               addLine({
                 price: y,
-                color: "rgba(255, 165, 0, 1)", // orange
+                color: "rgba(255, 165, 0, 1)",
                 lineWidth: 2,
-                lineStyle: 2, // dashed
+                lineStyle: 2,
               });
             }
           }
 
-          // ---------- DRAW NEGOTIATION MIDLINE (pink dashed) ----------
-          // Primary goal: pocket zones have negotiationMid, draw it prominently.
+          // Negotiation midline (pink dashed) — thicker for pockets
           if (negotiationMid != null) {
             addLine({
               price: negotiationMid,
-              color: "rgba(255, 55, 200, 1)", // pink
-              lineWidth: tier === "pocket" ? 3 : 2,
-              lineStyle: 2, // dashed
+              color: "rgba(255, 55, 200, 1)",
+              lineWidth: tier === "pocket" ? 4 : 2,
+              lineStyle: 2,
             });
           }
         }
       } catch (err) {
-        // Overlay should never crash the chart
         console.error("[SMZLevelsOverlay] Failed to load SMZ levels:", err);
       }
     }
@@ -114,12 +107,8 @@ export default function SMZLevelsOverlay({ chart, symbol = "SPY" }) {
 
     return () => {
       cancelled = true;
-      try {
-        lines.forEach((l) => chart.removeHorizontalLine(l));
-      } catch {}
-      try {
-        boxes.forEach((b) => chart.removeBox(b));
-      } catch {}
+      try { lines.forEach((l) => chart.removeHorizontalLine(l)); } catch {}
+      try { boxes.forEach((b) => chart.removeBox(b)); } catch {}
       lines = [];
       boxes = [];
     };
