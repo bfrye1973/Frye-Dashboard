@@ -1,100 +1,111 @@
 import { useEffect } from "react";
 
-export default function SMZLevelsOverlay({ chart }) {
+export default function SMZLevelsOverlay({ chart, symbol = "SPY" }) {
   useEffect(() => {
     if (!chart) return;
 
     let lines = [];
     let boxes = [];
+    let cancelled = false;
+
+    const safeNum = (v) => (Number.isFinite(Number(v)) ? Number(v) : null);
+
+    const addLine = (opts) => {
+      try {
+        const line = chart.addHorizontalLine(opts);
+        lines.push(line);
+      } catch (e) {
+        // ignore chart API failures
+      }
+    };
+
+    const addBox = (opts) => {
+      try {
+        const box = chart.addBox(opts);
+        boxes.push(box);
+      } catch (e) {
+        // ignore chart API failures
+      }
+    };
 
     async function loadLevels() {
       try {
-        const res = await fetch("/data/smz-levels.json", { cache: "no-store" });
+        // cache buster ensures you see fresh output every refresh
+        const url = `/api/v1/smz-levels?symbol=${encodeURIComponent(symbol)}&_=${Date.now()}`;
+        const res = await fetch(url, { cache: "no-store" });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
         const json = await res.json();
+        if (cancelled) return;
 
         const levels = Array.isArray(json?.levels) ? json.levels : [];
 
         for (const level of levels) {
           const tier = level?.tier ?? "micro";
+          const strength = safeNum(level?.strength) ?? 0;
 
-          // Backend contract: priceRange is [high, low]
+          // Backend contract: priceRange = [high, low]
           const pr = Array.isArray(level?.priceRange) ? level.priceRange : null;
-          const high = pr ? Number(pr[0]) : null;
-          const low = pr ? Number(pr[1]) : null;
+          const high = pr ? safeNum(pr[0]) : null;
+          const low = pr ? safeNum(pr[1]) : null;
 
-          const strength = Number(level?.strength ?? 0);
           const facts = level?.details?.facts ?? {};
-          const negotiationMid = Number.isFinite(facts?.negotiationMid) ? Number(facts.negotiationMid) : null;
+          const negotiationMid = safeNum(facts?.negotiationMid);
 
           // ---------- STYLE BY TIER ----------
-          // You can tweak these visually later without touching backend logic.
-          let bandColor = "rgba(255, 210, 0, 1)"; // default yellow
-          let bandOpacity = 0.14;
+          // STRUCTURE: yellow band
+          // POCKET: blue band
+          // MICRO: orange dashed line at midpoint
+          let bandColor = "rgba(255, 210, 0, 1)";
           let borderColor = "rgba(255, 210, 0, 1)";
+          let bandOpacity = strength >= 90 ? 0.18 : 0.14;
 
-          let midlineColor = "rgba(255, 55, 200, 1)"; // pink
-          let midlineStyle = 2; // dashed
-
-          // POCKET: blue box + pink midline
           if (tier === "pocket") {
             bandColor = "rgba(80, 170, 255, 1)";
             borderColor = "rgba(80, 170, 255, 1)";
-            bandOpacity = 0.22;
+            bandOpacity = 0.28;
           }
 
-          // STRUCTURE: yellow band (slightly stronger if >=90)
-          if (tier === "structure") {
-            bandColor = "rgba(255, 210, 0, 1)";
-            borderColor = "rgba(255, 210, 0, 1)";
-            bandOpacity = strength >= 90 ? 0.18 : 0.14;
-          }
-
-          // MICRO: no band, just a dashed orange line at zone midpoint
-          const isMicro = tier === "micro";
-
-          // ---------- DRAW ----------
-          // Draw band for structure/pocket
-          if (!isMicro && Number.isFinite(high) && Number.isFinite(low) && high > low) {
-            const box = chart.addBox({
+          // ---------- DRAW BANDS (structure/pocket) ----------
+          const isBand = tier === "structure" || tier === "pocket";
+          if (isBand && high != null && low != null && high > low) {
+            addBox({
               top: high,
               bottom: low,
               color: bandColor,
               opacity: bandOpacity,
               borderColor,
             });
-            boxes.push(box);
           }
 
-          // Draw micro line (midpoint of range or price)
-          if (isMicro) {
-            let y = null;
-            if (Number.isFinite(level?.price)) y = Number(level.price);
-            else if (Number.isFinite(high) && Number.isFinite(low)) y = (high + low) / 2;
+          // ---------- DRAW MICRO LINE ----------
+          if (tier === "micro") {
+            let y = safeNum(level?.price);
+            if (y == null && high != null && low != null) y = (high + low) / 2;
 
-            if (Number.isFinite(y)) {
-              const line = chart.addHorizontalLine({
+            if (y != null) {
+              addLine({
                 price: y,
                 color: "rgba(255, 165, 0, 1)", // orange
                 lineWidth: 2,
                 lineStyle: 2, // dashed
               });
-              lines.push(line);
             }
           }
 
-          // Draw negotiation midline when available (main goal)
-          if (Number.isFinite(negotiationMid)) {
-            const midLine = chart.addHorizontalLine({
+          // ---------- DRAW NEGOTIATION MIDLINE (pink dashed) ----------
+          // Primary goal: pocket zones have negotiationMid, draw it prominently.
+          if (negotiationMid != null) {
+            addLine({
               price: negotiationMid,
-              color: midlineColor,
+              color: "rgba(255, 55, 200, 1)", // pink
               lineWidth: tier === "pocket" ? 3 : 2,
-              lineStyle: midlineStyle,
+              lineStyle: 2, // dashed
             });
-            lines.push(midLine);
           }
         }
       } catch (err) {
-        // Fail silently (overlay should never crash chart)
+        // Overlay should never crash the chart
         console.error("[SMZLevelsOverlay] Failed to load SMZ levels:", err);
       }
     }
@@ -102,10 +113,17 @@ export default function SMZLevelsOverlay({ chart }) {
     loadLevels();
 
     return () => {
-      lines.forEach((l) => chart.removeHorizontalLine(l));
-      boxes.forEach((b) => chart.removeBox(b));
+      cancelled = true;
+      try {
+        lines.forEach((l) => chart.removeHorizontalLine(l));
+      } catch {}
+      try {
+        boxes.forEach((b) => chart.removeBox(b));
+      } catch {}
+      lines = [];
+      boxes = [];
     };
-  }, [chart]);
+  }, [chart, symbol]);
 
   return null;
 }
