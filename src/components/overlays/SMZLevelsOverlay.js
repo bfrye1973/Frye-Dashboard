@@ -1,6 +1,15 @@
 import { useEffect } from "react";
 
-export default function SMZLevelsOverlay({ chart, symbol = "SPY" }) {
+export default function SMZLevelsOverlay({
+  chart,
+  symbol = "SPY",
+  // ✅ Original plan: hide MICRO by default
+  showMicro = false,
+  // ✅ Original plan: hide STRUCTURE if you ever want "pocket-only" mode later
+  showStructure = true,
+  // ✅ Remove tiny black gaps between adjacent structure zones (visual only)
+  structurePadPts = 0.15,
+}) {
   useEffect(() => {
     if (!chart) return;
 
@@ -17,14 +26,20 @@ export default function SMZLevelsOverlay({ chart, symbol = "SPY" }) {
       try {
         const line = chart.addHorizontalLine(opts);
         lines.push(line);
-      } catch {}
+        return line;
+      } catch {
+        return null;
+      }
     };
 
     const addBox = (opts) => {
       try {
         const box = chart.addBox(opts);
         boxes.push(box);
-      } catch {}
+        return box;
+      } catch {
+        return null;
+      }
     };
 
     async function loadLevels() {
@@ -37,70 +52,101 @@ export default function SMZLevelsOverlay({ chart, symbol = "SPY" }) {
 
         const levels = Array.isArray(json?.levels) ? json.levels : [];
 
-        // ✅ TradingView-style draw order
+        // Draw order matters: STRUCTURE → POCKET → MIDLINES → (optional MICRO)
         const structures = levels.filter((l) => (l?.tier ?? "micro") === "structure");
         const pockets = levels.filter((l) => (l?.tier ?? "micro") === "pocket");
+        const micros = levels.filter((l) => (l?.tier ?? "micro") === "micro");
 
-        // ---- STRUCTURE (yellow faint) ----
-        for (const level of structures) {
+        const drawBand = (level, tier) => {
           const strength = safeNum(level?.strength) ?? 0;
 
           // backend: priceRange = [high, low]
           const pr = Array.isArray(level?.priceRange) ? level.priceRange : null;
           let high = pr ? safeNum(pr[0]) : null;
           let low = pr ? safeNum(pr[1]) : null;
-          if (high == null || low == null || high <= low) continue;
+          if (high == null || low == null || high <= low) return;
 
-          // Slight visual pad to remove hairline gaps (visual only)
-          const pad = 0.15;
-          high = high + pad;
-          low = low - pad;
+          // Colors/opacity
+          let fillColor = "rgba(255, 210, 0, 1)";     // structure yellow
+          let borderColor = "rgba(255, 210, 0, 1)";
+          let opacity = 0.10;
 
-          // Very faint — structure is background context
-          const opacity = strength >= 90 ? 0.12 : 0.08;
+          if (tier === "structure") {
+            if (!showStructure) return;
+
+            // Slightly boost “true institutional” structures
+            opacity = strength >= 90 ? 0.12 : 0.08;
+
+            // ✅ Visual padding to remove hairline gaps (structure only)
+            const pad = safeNum(structurePadPts) ?? 0;
+            if (pad > 0) {
+              high = high + pad;
+              low = low - pad;
+            }
+          }
+
+          if (tier === "pocket") {
+            fillColor = "rgba(80, 170, 255, 1)";      // pocket blue
+            borderColor = "rgba(80, 170, 255, 1)";
+            opacity = 0.55;
+          }
 
           addBox({
             top: high,
             bottom: low,
-            fillColor: "rgba(255, 210, 0, 1)",
-            color: "rgba(255, 210, 0, 1)",
+            fillColor,
+            color: fillColor, // compatibility
             opacity,
-            borderColor: "rgba(255, 210, 0, 1)",
-            borderWidth: 1,
+            borderColor,
+            borderWidth: tier === "pocket" ? 2 : 1,
           });
-        }
+        };
 
-        // ---- POCKET (blue bold) + MIDLINE (pink dashed) ----
-        for (const level of pockets) {
-          // backend: priceRange = [high, low]
+        const drawMidlineIfAny = (level, tier) => {
+          const facts = level?.details?.facts ?? {};
+          const negotiationMid = safeNum(facts?.negotiationMid);
+          if (negotiationMid == null) return;
+
+          addLine({
+            price: negotiationMid,
+            color: "rgba(255, 55, 200, 1)", // pink
+            lineWidth: tier === "pocket" ? 4 : 2,
+            lineStyle: 2, // dashed
+          });
+        };
+
+        const drawMicroIfEnabled = (level) => {
+          if (!showMicro) return;
+
+          // MICRO: dashed orange line at midpoint
           const pr = Array.isArray(level?.priceRange) ? level.priceRange : null;
           const high = pr ? safeNum(pr[0]) : null;
           const low = pr ? safeNum(pr[1]) : null;
-          if (high == null || low == null || high <= low) continue;
 
-          addBox({
-            top: high,
-            bottom: low,
-            fillColor: "rgba(80, 170, 255, 1)",
-            color: "rgba(80, 170, 255, 1)",
-            opacity: 0.55,
-            borderColor: "rgba(80, 170, 255, 1)",
-            borderWidth: 2,
+          let y = safeNum(level?.price);
+          if (y == null && high != null && low != null) y = (high + low) / 2;
+          if (y == null) return;
+
+          addLine({
+            price: y,
+            color: "rgba(255, 165, 0, 1)",
+            lineWidth: 2,
+            lineStyle: 2,
           });
+        };
 
-          const facts = level?.details?.facts ?? {};
-          const negotiationMid = safeNum(facts?.negotiationMid);
-          if (negotiationMid != null) {
-            addLine({
-              price: negotiationMid,
-              color: "rgba(255, 55, 200, 1)",
-              lineWidth: 4,
-              lineStyle: 2, // dashed
-            });
-          }
-        }
+        // 1) STRUCTURE bands
+        for (const z of structures) drawBand(z, "structure");
 
-        // ❌ MICRO: DO NOTHING (no lines, no boxes) — locked
+        // 2) POCKET bands
+        for (const z of pockets) drawBand(z, "pocket");
+
+        // 3) Midlines (pockets first, then structures if any ever carry a midline)
+        for (const z of pockets) drawMidlineIfAny(z, "pocket");
+        for (const z of structures) drawMidlineIfAny(z, "structure");
+
+        // 4) MICRO lines (optional)
+        for (const z of micros) drawMicroIfEnabled(z);
       } catch (err) {
         console.error("[SMZLevelsOverlay] Failed to load SMZ levels:", err);
       }
@@ -119,7 +165,7 @@ export default function SMZLevelsOverlay({ chart, symbol = "SPY" }) {
       lines = [];
       boxes = [];
     };
-  }, [chart, symbol]);
+  }, [chart, symbol, showMicro, showStructure, structurePadPts]);
 
   return null;
 }
