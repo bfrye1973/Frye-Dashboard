@@ -40,39 +40,35 @@ export default function SMZLevelsOverlay({ chart, symbol = "SPY" }) {
         const levels = Array.isArray(json?.levels) ? json.levels : [];
         const pocketsActive = Array.isArray(json?.pockets_active) ? json.pockets_active : [];
 
-        // ✅ DEBUG (TEMP): prove overlay is receiving active pockets
+        // ✅ DEBUG: confirm overlay sees active pockets
         try {
           console.log(
             "[SMZ OVERLAY]",
             "levels:", levels.length,
             "structures:", levels.filter((l) => l?.tier === "structure").length,
             "pockets:", levels.filter((l) => l?.tier === "pocket").length,
-            "active_pockets:", pocketsActive.length
+            "pockets_active:", pocketsActive.length
           );
         } catch {}
 
-        // ---- TradingView-style draw order ----
         const structures = levels.filter((l) => (l?.tier ?? "") === "structure");
-        const pockets = levels.filter((l) => (l?.tier ?? "") === "pocket");
+        const completedPockets = levels.filter((l) => (l?.tier ?? "") === "pocket");
 
-        // -----------------------------
-        // 1) STRUCTURE BANDS (yellow faint)
-        // -----------------------------
+        // 1) STRUCTURE (yellow faint)
         for (const level of structures) {
           const strength = safeNum(level?.strength) ?? 0;
 
           const pr = Array.isArray(level?.priceRange) ? level.priceRange : null;
-          let high = pr ? safeNum(pr[0]) : null; // [high, low]
+          let high = pr ? safeNum(pr[0]) : null;
           let low = pr ? safeNum(pr[1]) : null;
-
           if (high == null || low == null || high <= low) continue;
 
-          // visual pad to avoid hairline gaps
+          // visual pad
           const pad = 0.15;
           high += pad;
           low -= pad;
 
-          // ✅ Make structure truly background so teal pockets show
+          // keep structure in background
           const opacity = strength >= 90 ? 0.06 : 0.04;
 
           addBox({
@@ -86,10 +82,8 @@ export default function SMZLevelsOverlay({ chart, symbol = "SPY" }) {
           });
         }
 
-        // -----------------------------
-        // 2) COMPLETED POCKETS (blue bold) + PINK MIDLINE
-        // -----------------------------
-        for (const level of pockets) {
+        // 2) COMPLETED POCKETS (blue) + pink midline
+        for (const level of completedPockets) {
           const pr = Array.isArray(level?.priceRange) ? level.priceRange : null;
           const high = pr ? safeNum(pr[0]) : null;
           const low = pr ? safeNum(pr[1]) : null;
@@ -110,16 +104,15 @@ export default function SMZLevelsOverlay({ chart, symbol = "SPY" }) {
           if (negotiationMid != null) {
             addLine({
               price: negotiationMid,
-              color: "rgba(255, 55, 200, 1)", // pink
+              color: "rgba(255, 55, 200, 1)",
               lineWidth: 4,
-              lineStyle: 2, // dashed
+              lineStyle: 2,
             });
           }
         }
 
-        // -----------------------------
-        // 3) ACTIVE POCKETS (teal/cyan) + TEAL MIDLINE
-        // -----------------------------
+        // 3) ACTIVE POCKETS (teal) + teal midline
+        // IMPORTANT: active pockets are tier:"pocket" with status:"building"
         const activeSorted = pocketsActive
           .slice()
           .sort((a, b) => {
@@ -132,30 +125,33 @@ export default function SMZLevelsOverlay({ chart, symbol = "SPY" }) {
           });
 
         for (const p of activeSorted) {
-          if ((p?.tier ?? "") !== "pocket_active") continue;
+          const tier = p?.tier ?? "";
+          const status = p?.status ?? "";
+
+          // ✅ Correct filter for active pockets
+          if (tier !== "pocket" || status !== "building") continue;
 
           const pr = Array.isArray(p?.priceRange) ? p.priceRange : null;
           const high = pr ? safeNum(pr[0]) : null;
           const low = pr ? safeNum(pr[1]) : null;
           if (high == null || low == null || high <= low) continue;
 
-          const relevance = safeNum(p?.relevanceScore);     // 0..100
-          const strengthTotal = safeNum(p?.strengthTotal);  // 0..100
+          const relevance = safeNum(p?.relevanceScore);
+          const strengthTotal = safeNum(p?.strengthTotal);
           const mid = safeNum(p?.negotiationMid);
 
           const rel01 = relevance == null ? 0.5 : clamp01(relevance / 100);
           const str01 = strengthTotal == null ? 0.5 : clamp01(strengthTotal / 100);
 
-          // Opacity driven by relevance + strength (more visible near price)
-          const opacity = 0.18 + (rel01 * 0.25) + (str01 * 0.12); // ~0.18..0.55
+          const opacity = 0.18 + rel01 * 0.25 + str01 * 0.12; // ~0.18..0.55
 
           addBox({
             top: high,
             bottom: low,
-            fillColor: "rgba(0, 220, 200, 1)",   // teal fill
+            fillColor: "rgba(0, 220, 200, 1)",
             color: "rgba(0, 220, 200, 1)",
             opacity,
-            borderColor: "rgba(0, 220, 200, 1)", // teal border
+            borderColor: "rgba(0, 220, 200, 1)",
             borderWidth: 2,
           });
 
@@ -164,12 +160,12 @@ export default function SMZLevelsOverlay({ chart, symbol = "SPY" }) {
               price: mid,
               color: "rgba(0, 220, 200, 1)",
               lineWidth: 3,
-              lineStyle: 2, // dashed
+              lineStyle: 2,
             });
           }
         }
 
-        // ❌ MICRO: do nothing
+        // MICRO: do nothing
       } catch (err) {
         console.error("[SMZLevelsOverlay] Failed to load SMZ levels:", err);
       }
