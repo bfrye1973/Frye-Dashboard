@@ -61,10 +61,12 @@ export default function SMZLevelsOverlay({ chart, priceSeries, chartContainer })
     return { hi, lo };
   }
 
-  function drawBand(ctx, w, hi, lo, fill, stroke, strokeWidth = 2) {
-    const yTop = priceToY(hi);
-    const yBot = priceToY(lo);
-    if (yTop == null || yBot == null) return;
+  drawBand(ctx, w, hi, lo,
+    "rgba(255,215,0,0.10)",  // fill
+    "rgba(255,215,0,0.55)",  // border
+    1
+  );
+
 
     const y = Math.min(yTop, yBot);
     const hBand = Math.max(2, Math.abs(yBot - yTop));
