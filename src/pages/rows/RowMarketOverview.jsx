@@ -1,6 +1,6 @@
 // src/pages/rows/RowMarketOverview.jsx
 // Market Meter — 10m / 1h / 4h / EOD stoplights with Lux PSI (tightness) aligned + 5m Pulse
-// ✅ Adds MASTER stoplight (1h+4h+EOD) to the left of EOD lights (10m excluded; entries only).
+// ✅ Adds MASTER Overall Score (1h+4h+EOD) to the RIGHT of EOD lights with a header.
 
 import React from "react";
 import { useDashboardPoll } from "../../lib/dashboardApiSafe";
@@ -87,9 +87,12 @@ const toneForOverallState = (state, score) => {
   return toneForPct(score);
 };
 
-// MASTER tone (stricter than pct)
+// MASTER color ranges (simple)
+// Green: 70–100 (Go long & stay long)
+// Yellow: 45–69 (Hold / manage / wait)
+// Red: <45 (Start looking for shorts)
 const toneForMaster = (v) =>
-  !Number.isFinite(v) ? "info" : v >= 80 ? "OK" : v >= 65 ? "warn" : "danger";
+  !Number.isFinite(v) ? "info" : v >= 70 ? "OK" : v >= 45 ? "warn" : "danger";
 
 // ----------------- Stoplight -----------------
 function Stoplight({
@@ -313,7 +316,10 @@ export default function RowMarketOverview() {
   const ts1h = d1h.updated_at || d1h.updated_at_utc || null;
 
   const breadth1 = num(m1h.breadth_1h_pct);
-  const mom1 = num(m1h.momentum_1h_pct) || num(m1h.momentum_combo_1h_pct) || num(m1h.momentum_pct);
+  const mom1 =
+    num(m1h.momentum_1h_pct) ||
+    num(m1h.momentum_combo_1h_pct) ||
+    num(m1h.momentum_pct);
   const psi1 = num(m1h.squeeze_psi_1h_pct ?? m1h.squeeze_psi_1h ?? m1h.squeeze_psi);
   const sq1 = psi1;
   const liq1 = num(m1h.liquidity_1h);
@@ -334,7 +340,12 @@ export default function RowMarketOverview() {
     num(m4h.momentum_4h_pct) ||
     num(m4h.momentum_combo_4h_pct) ||
     num(m4h.momentum_pct);
-  const psi4 = num(m4h.squeeze_psi_4h_pct ?? m4h.squeeze_psi_4h ?? m4h.squeeze_psi ?? m4h.squeeze_psi_4h);
+  const psi4 = num(
+    m4h.squeeze_psi_4h_pct ??
+      m4h.squeeze_psi_4h ??
+      m4h.squeeze_psi ??
+      m4h.squeeze_psi_4h
+  );
   const sq4 = psi4;
   const liq4 = num(m4h.liquidity_4h);
   const vol4 = num(m4h.volatility_4h_scaled ?? m4h.volatility_4h_pct);
@@ -352,14 +363,17 @@ export default function RowMarketOverview() {
   const compsEOD = overallEOD?.components || {};
 
   const eodScore = num(overallEOD?.score) || num(dMetrics?.overall_eod_score) || NaN;
-  const eodParticipation = num(compsEOD?.participation) || num(dMetrics?.participation_daily_pct) || NaN;
+  const eodParticipation =
+    num(compsEOD?.participation) || num(dMetrics?.participation_daily_pct) || NaN;
   const eodSqueezePsi = num(dMetrics?.daily_squeeze_pct ?? daily?.squeezePsi) || NaN;
   const eodVol = num(dMetrics?.volatility_pct ?? daily?.volatilityPct) || NaN;
   const eodLiq = num(dMetrics?.liquidity_pct ?? daily?.liquidityPct) || NaN;
-  const eodRiskOn = num(dMetrics?.risk_on_daily_pct ?? daily?.riskOnPct ?? dd?.rotation?.riskOnPct) || NaN;
+  const eodRiskOn =
+    num(dMetrics?.risk_on_daily_pct ?? daily?.riskOnPct ?? dd?.rotation?.riskOnPct) ||
+    NaN;
   const eodState = overallEOD?.state || dMetrics?.overall_eod_state || daily?.state || "neutral";
 
-  // MASTER (1h + 4h + EOD only; 10m excluded)
+  // MASTER = 1h + 4h + EOD (10m excluded)
   const masterScore = weightedBlend([
     { v: overall1, w: 0.20 },
     { v: overall4, w: 0.35 },
@@ -367,12 +381,20 @@ export default function RowMarketOverview() {
   ]);
 
   const stripBox = { display: "flex", flexDirection: "column", gap: 6, minWidth: 820 };
-  const lineBox = { display: "flex", gap: 12, alignItems: "center", whiteSpace: "nowrap", overflowX: "auto", paddingBottom: 2 };
+  const lineBox = {
+    display: "flex",
+    gap: 12,
+    alignItems: "center",
+    whiteSpace: "nowrap",
+    overflowX: "auto",
+    paddingBottom: 2,
+  };
 
   return (
     <section id="row-2" className="panel" style={{ padding: 10 }}>
       <div className="panel-head" style={{ alignItems: "center" }}>
         <div className="panel-title">Market Meter — Stoplights</div>
+
         <div style={{ marginLeft: 8 }}>
           <button
             onClick={() => setLegendOpen("intraday")}
@@ -388,14 +410,26 @@ export default function RowMarketOverview() {
             Daily Legend
           </button>
         </div>
+
         <div className="spacer" />
         <LastUpdated ts={tsOf(d10 || d1h || d4h || dd || polled)} />
       </div>
 
-      <div style={{ display: "flex", gap: 28, alignItems: "flex-start", flexWrap: "wrap", marginTop: 8 }}>
+      <div
+        style={{
+          display: "flex",
+          gap: 28,
+          alignItems: "flex-start",
+          flexWrap: "wrap",
+          marginTop: 8,
+        }}
+      >
         {/* 10m */}
         <div style={stripBox}>
-          <div className="small" style={{ color: "#e5e7eb", fontWeight: 800 }}>10m — Intraday Scalp</div>
+          <div className="small" style={{ color: "#e5e7eb", fontWeight: 800 }}>
+            10m — Intraday Scalp
+          </div>
+
           <div style={lineBox}>
             <Stoplight label="Overall" value={overall10} tone={toneForOverallState(state10, overall10)} />
             <Stoplight label="Breadth" value={breadth10} tone={toneForBreadth(breadth10)} />
@@ -435,7 +469,10 @@ export default function RowMarketOverview() {
 
         {/* 1h */}
         <div style={stripBox}>
-          <div className="small" style={{ color: "#e5e7eb", fontWeight: 800 }}>1h — Hourly Valuation</div>
+          <div className="small" style={{ color: "#e5e7eb", fontWeight: 800 }}>
+            1h — Hourly Valuation
+          </div>
+
           <div style={lineBox}>
             <Stoplight label="Overall" value={overall1} tone={toneForOverallState(state1, overall1)} />
             <Stoplight label="Breadth" value={breadth1} tone={toneForBreadth(breadth1)} />
@@ -446,6 +483,7 @@ export default function RowMarketOverview() {
             <Stoplight label="Sector Dir" value={rising1} tone={toneForPct(rising1)} />
             <Stoplight label="Risk-On" value={risk1} tone={toneForPct(risk1)} />
           </div>
+
           <div style={{ color: "#9ca3af", fontSize: 12, marginTop: 4 }}>
             Last 1-hour: <strong>{fmtIso(ts1h)}</strong>
           </div>
@@ -453,7 +491,10 @@ export default function RowMarketOverview() {
 
         {/* 4h */}
         <div style={stripBox}>
-          <div className="small" style={{ color: "#e5e7eb", fontWeight: 800 }}>4h — Bridge Valuation</div>
+          <div className="small" style={{ color: "#e5e7eb", fontWeight: 800 }}>
+            4h — Bridge Valuation
+          </div>
+
           <div style={lineBox}>
             <Stoplight label="Overall" value={overall4} tone={toneForOverallState(state4, overall4)} />
             <Stoplight label="Breadth" value={breadth4} tone={toneForBreadth(breadth4)} />
@@ -464,67 +505,40 @@ export default function RowMarketOverview() {
             <Stoplight label="Sector Dir" value={rising4} tone={toneForPct(rising4)} />
             <Stoplight label="Risk-On" value={risk4} tone={toneForPct(risk4)} />
           </div>
+
           <div style={{ color: "#9ca3af", fontSize: 12, marginTop: 4 }}>
             Last 4-hour: <strong>{fmtIso(ts4h)}</strong>
           </div>
         </div>
 
         {/* EOD */}
-       <div style={stripBox}>
+        <div style={stripBox}>
           <div className="small" style={{ color: "#e5e7eb", fontWeight: 800 }}>
             EOD — Daily Structure
           </div>
 
           <div style={lineBox}>
-          <Stoplight
-            label="Overall"
-            value={eodScore}
-            tone={toneForOverallState(eodState, eodScore)}
-          />
-          <Stoplight
-            label="Participation"
-            value={eodParticipation}
-            tone={toneForPct(eodParticipation)}
-          />
-          <Stoplight
-            label="Daily Squeeze"
-            value={eodSqueezePsi}
-            tone={toneForSqueezePsi(eodSqueezePsi)}
-          />
-          <Stoplight label="Vol Regime" value={eodVol} tone={toneForVol(eodVol)} />
-          <Stoplight
-            label="Liq Regime"
-            value={eodLiq}
-            unit="%"
-            tone={toneForLiquidity(eodLiq)}
-          />
-          <Stoplight label="Risk-On" value={eodRiskOn} tone={toneForPct(eodRiskOn)} />
+            <Stoplight label="Overall" value={eodScore} tone={toneForOverallState(eodState, eodScore)} />
+            <Stoplight label="Participation" value={eodParticipation} tone={toneForPct(eodParticipation)} />
+            <Stoplight label="Daily Squeeze" value={eodSqueezePsi} tone={toneForSqueezePsi(eodSqueezePsi)} />
+            <Stoplight label="Vol Regime" value={eodVol} tone={toneForVol(eodVol)} />
+            <Stoplight label="Liq Regime" value={eodLiq} unit="%" tone={toneForLiquidity(eodLiq)} />
+            <Stoplight label="Risk-On" value={eodRiskOn} tone={toneForPct(eodRiskOn)} />
 
-          {/* MASTER (right of EOD lights) */}
-          <div style={{ textAlign: "center", minWidth: 110 }}>
-            <div
-              style={{
-              fontSize: 12,
-              fontWeight: 800,
-              color: "#9ca3af",
-              marginBottom: 6,
-            }}
-          >
-            Master Overall Score
+            {/* MASTER (to the RIGHT of EOD lights) */}
+            <div style={{ textAlign: "center", minWidth: 120 }}>
+              <div style={{ fontSize: 12, fontWeight: 800, color: "#9ca3af", marginBottom: 6 }}>
+                Master Overall Score
+              </div>
+              <Stoplight label="MASTER" value={masterScore} tone={toneForMaster(masterScore)} minWidth={120} />
+            </div>
           </div>
-          <Stoplight
-            label="MASTER"
-            value={masterScore}
-            tone={toneForMaster(masterScore)}
-            minWidth={110}
-         />
-       </div>
-     </div>
 
-     <div style={{ color: "#9ca3af", fontSize: 12, marginTop: 4 }}>
-       Daily updated: <strong>{fmtIso(tsEod)}</strong>
-     </div>
-   </div>
+          <div style={{ color: "#9ca3af", fontSize: 12, marginTop: 4 }}>
+            Daily updated: <strong>{fmtIso(tsEod)}</strong>
+          </div>
+        </div>
+      </div>
 
       {legendOpen && (
         <div
@@ -552,6 +566,7 @@ export default function RowMarketOverview() {
             }}
           >
             {legendOpen === "intraday" ? <MarketMeterIntradayLegend /> : <MarketMeterDailyLegend />}
+
             <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}>
               <button
                 onClick={() => setLegendOpen(null)}
