@@ -159,7 +159,7 @@ export default function SMZLevelsOverlay({
       }
     });
 
-    // 3) ACTIVE POCKETS (teal) + teal midline (dashed)
+    // 3) ACTIVE POCKETS (teal, red if score>=90) + teal/red dashed midline
     const activeSorted = (pocketsActive || [])
       .slice()
       .filter((p) => (p?.tier ?? "") === "pocket_active" && (p?.status ?? "building") === "building")
@@ -170,30 +170,28 @@ export default function SMZLevelsOverlay({
         const sa = safeNum(a?.strengthTotal) ?? 0;
         const sb = safeNum(b?.strengthTotal) ?? 0;
         return sb - sa;
-      })
-      .slice(0, 12);
+     })
+     .slice(0, 12);
 
-    activeSorted.forEach((p) => {
-      const r = getHiLo(p?.priceRange);
-      if (!r) return;
+   activeSorted.forEach((p) => {
+     const r = getHiLo(p?.priceRange);
+     if (!r) return;
 
-      // Slightly stronger visuals so it stands out above yellow
-      drawBand(
-        ctx,
-        w,
-        r.hi,
-        r.lo,
-        "rgba(0, 220, 200, 0.18)",
-        "rgba(0, 220, 200, 0.95)",
-        2
-      );
+     const mid = safeNum(p?.negotiationMid);
+     const st = safeNum(p?.strengthTotal) ?? 0;
 
-      const mid = safeNum(p?.negotiationMid);
-      if (mid != null) {
-        drawDashedMid(ctx, w, mid, "rgba(0, 220, 200, 0.95)", 2);
-      }
-    });
-  }
+     const isAPlus = st >= 90; // ✅ NEW: 90+ = red pocket
+     const fill = isAPlus ? "rgba(255, 50, 50, 0.22)" : "rgba(0, 220, 200, 0.18)";
+     const stroke = isAPlus ? "rgba(255, 50, 50, 1.0)" : "rgba(0, 220, 200, 1.0)";
+     const midColor = stroke;
+
+     drawBand(ctx, w, r.hi, r.lo, fill, stroke, isAPlus ? 3 : 2);
+
+     if (mid != null) {
+       drawDashedMid(ctx, w, mid, midColor, 2);
+     }
+   });
+
 
   async function loadLevels() {
     try {
