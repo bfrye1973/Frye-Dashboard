@@ -1,15 +1,15 @@
 // src/pages/rows/RowChart/overlays/SMZLevelsOverlay.jsx
-// Engine 1 Overlay — STRUCTURE (yellow) + POCKET (blue) + ACTIVE POCKETS (teal)
+// Engine 1 Overlay — STRUCTURE (yellow) + POCKET (blue) + ACTIVE POCKETS (teal / red if 90+)
+//
+// - STRUCTURE: tier:"structure"  (yellow faint)
+// - POCKET: tier:"pocket"        (blue + pink dashed mid)
+// - ACTIVE: pockets_active[]     (teal, but red if strengthTotal >= 90)
+//
+// NOTE: This overlay reads from backend-1 /api/v1/smz-levels?symbol=SPY
 
-const SMZ_URL =
-  "https://frye-market-backend-1.onrender.com/api/v1/smz-levels?symbol=SPY";
+const SMZ_URL = "https://frye-market-backend-1.onrender.com/api/v1/smz-levels?symbol=SPY";
 
-export default function SMZLevelsOverlay({
-  chart,
-  priceSeries,
-  chartContainer,
-  timeframe,
-}) {
+export default function SMZLevelsOverlay({ chart, priceSeries, chartContainer }) {
   if (!chart || !priceSeries || !chartContainer) {
     console.warn("[SMZLevelsOverlay] missing chart/priceSeries/chartContainer");
     return { seed() {}, update() {}, destroy() {} };
@@ -46,7 +46,7 @@ export default function SMZLevelsOverlay({
     return Number.isFinite(y) ? y : null;
   }
 
-  // Contract: Engine 1 uses priceRange [HIGH, LOW]
+  // Contract: priceRange is [HIGH, LOW]
   function getHiLo(priceRange) {
     if (!Array.isArray(priceRange) || priceRange.length < 2) return null;
     let hi = safeNum(priceRange[0]);
@@ -94,13 +94,7 @@ export default function SMZLevelsOverlay({
   }
 
   function draw() {
-    // If nothing to draw, don't even create a canvas
-    if (
-      (!levels || levels.length === 0) &&
-      (!pocketsActive || pocketsActive.length === 0)
-    ) {
-      return;
-    }
+    if ((!levels || levels.length === 0) && (!pocketsActive || pocketsActive.length === 0)) return;
 
     const cnv = ensureCanvas();
     const w = chartContainer.clientWidth || 1;
@@ -111,55 +105,36 @@ export default function SMZLevelsOverlay({
     const ctx = cnv.getContext("2d");
     ctx.clearRect(0, 0, w, h);
 
-    // Split levels by tier
     const structures = (levels || []).filter((l) => (l?.tier ?? "") === "structure");
     const completedPockets = (levels || []).filter((l) => (l?.tier ?? "") === "pocket");
 
-    // 1) STRUCTURES (yellow faint, background)
+    // 1) STRUCTURES — yellow faint
     structures.forEach((lvl) => {
       const r = getHiLo(lvl?.priceRange);
       if (!r) return;
 
-      // subtle padding so it reads cleanly
-      const pad = 0.15;
+      const pad = 0.12;
       const hi = r.hi + pad;
       const lo = r.lo - pad;
 
-      drawBand(
-        ctx,
-        w,
-        hi,
-        lo,
-        "rgba(255, 215, 0, 0.10)", // faint fill
-        "rgba(255, 215, 0, 0.55)", // soft stroke
-        1
-      );
+      drawBand(ctx, w, hi, lo, "rgba(255,215,0,0.06)", "rgba(255,215,0,0.35)", 1);
     });
 
-    // 2) COMPLETED POCKETS (blue) + pink midline (dashed)
+    // 2) COMPLETED POCKETS — blue + pink dashed midline
     completedPockets.forEach((lvl) => {
       const r = getHiLo(lvl?.priceRange);
       if (!r) return;
 
-      drawBand(
-        ctx,
-        w,
-        r.hi,
-        r.lo,
-        "rgba(80, 170, 255, 0.22)",
-        "rgba(80, 170, 255, 0.95)",
-        2
-      );
+      drawBand(ctx, w, r.hi, r.lo, "rgba(80,170,255,0.22)", "rgba(80,170,255,0.95)", 2);
 
-      // midline is stored (in your completed pocket payload) under details.facts.negotiationMid
       const facts = lvl?.details?.facts ?? {};
       const mid = safeNum(facts?.negotiationMid);
       if (mid != null) {
-        drawDashedMid(ctx, w, mid, "rgba(255, 55, 200, 0.95)", 2);
+        drawDashedMid(ctx, w, mid, "rgba(255,55,200,0.95)", 2);
       }
     });
 
-    // 3) ACTIVE POCKETS (teal, red if score>=90) + teal/red dashed midline
+    // 3) ACTIVE POCKETS — teal, BUT red if strengthTotal >= 90
     const activeSorted = (pocketsActive || [])
       .slice()
       .filter((p) => (p?.tier ?? "") === "pocket_active" && (p?.status ?? "building") === "building")
@@ -170,34 +145,32 @@ export default function SMZLevelsOverlay({
         const sa = safeNum(a?.strengthTotal) ?? 0;
         const sb = safeNum(b?.strengthTotal) ?? 0;
         return sb - sa;
-     })
-     .slice(0, 12);
+      })
+      .slice(0, 12);
 
-   activeSorted.forEach((p) => {
-     const r = getHiLo(p?.priceRange);
-     if (!r) return;
+    activeSorted.forEach((p) => {
+      const r = getHiLo(p?.priceRange);
+      if (!r) return;
 
-     const mid = safeNum(p?.negotiationMid);
-     const st = safeNum(p?.strengthTotal) ?? 0;
+      const mid = safeNum(p?.negotiationMid);
+      const st = safeNum(p?.strengthTotal) ?? 0;
 
-     const isAPlus = st >= 90; // ✅ NEW: 90+ = red pocket
-     const fill = isAPlus ? "rgba(255, 50, 50, 0.22)" : "rgba(0, 220, 200, 0.18)";
-     const stroke = isAPlus ? "rgba(255, 50, 50, 1.0)" : "rgba(0, 220, 200, 1.0)";
-     const midColor = stroke;
+      const isAPlus = st >= 90;
+      const fill = isAPlus ? "rgba(255,50,50,0.20)" : "rgba(0,220,200,0.16)";
+      const stroke = isAPlus ? "rgba(255,50,50,1.0)" : "rgba(0,220,200,1.0)";
+      const borderW = isAPlus ? 3 : 2;
 
-     drawBand(ctx, w, r.hi, r.lo, fill, stroke, isAPlus ? 3 : 2);
+      drawBand(ctx, w, r.hi, r.lo, fill, stroke, borderW);
 
-     if (mid != null) {
-       drawDashedMid(ctx, w, mid, midColor, 2);
-     }
-   });
-
+      if (mid != null) {
+        drawDashedMid(ctx, w, mid, stroke, 2);
+      }
+    });
+  }
 
   async function loadLevels() {
     try {
-      // Add cache buster so you always see fresh JSON
-      const url = `${SMZ_URL}&_=${Date.now()}`;
-      const res = await fetch(url, { cache: "no-store" });
+      const res = await fetch(`${SMZ_URL}&_=${Date.now()}`, { cache: "no-store" });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json();
 
@@ -206,7 +179,7 @@ export default function SMZLevelsOverlay({
 
       draw();
     } catch (e) {
-      console.warn("[SMZLevelsOverlay] failed to load SMZ levels:", e);
+      console.warn("[SMZLevelsOverlay] failed to load smz-levels:", e);
     }
   }
 
@@ -220,19 +193,18 @@ export default function SMZLevelsOverlay({
     draw();
   }
 
-  const unsubVisible =
-    ts.subscribeVisibleLogicalRangeChange?.(() => draw()) || (() => {});
+  const unsubVisible = ts.subscribeVisibleLogicalRangeChange?.(() => draw()) || (() => {});
 
   function destroy() {
     try {
-      if (canvas && canvas.parentNode === chartContainer) {
-        chartContainer.removeChild(canvas);
-      }
+      if (canvas && canvas.parentNode === chartContainer) chartContainer.removeChild(canvas);
     } catch {}
     canvas = null;
     levels = [];
     pocketsActive = [];
-    unsubVisible();
+    try {
+      unsubVisible();
+    } catch {}
   }
 
   return { seed, update, destroy };
