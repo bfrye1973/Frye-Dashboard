@@ -1,8 +1,8 @@
 // src/pages/rows/RowChart/overlays/SMZLevelsOverlay.jsx
-// Overlay for INSTITUTIONAL Smart Money Zones (YELLOW ONLY)
+// Engine 1 Overlay — STRUCTURE (yellow) + POCKET (blue) + ACTIVE POCKETS (teal)
 
 const SMZ_URL =
-  "https://frye-market-backend-1.onrender.com/api/v1/smz-levels";
+  "https://frye-market-backend-1.onrender.com/api/v1/smz-levels?symbol=SPY";
 
 export default function SMZLevelsOverlay({
   chart,
@@ -16,6 +16,7 @@ export default function SMZLevelsOverlay({
   }
 
   let levels = [];
+  let pocketsActive = [];
   let canvas = null;
 
   const ts = chart.timeScale();
@@ -35,13 +36,71 @@ export default function SMZLevelsOverlay({
     return canvas;
   }
 
+  function safeNum(v) {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  }
+
   function priceToY(price) {
     const y = priceSeries.priceToCoordinate(Number(price));
     return Number.isFinite(y) ? y : null;
   }
 
+  // Contract: Engine 1 uses priceRange [HIGH, LOW]
+  function getHiLo(priceRange) {
+    if (!Array.isArray(priceRange) || priceRange.length < 2) return null;
+    let hi = safeNum(priceRange[0]);
+    let lo = safeNum(priceRange[1]);
+    if (hi == null || lo == null) return null;
+    if (lo > hi) {
+      const t = hi;
+      hi = lo;
+      lo = t;
+    }
+    if (!(hi > lo)) return null;
+    return { hi, lo };
+  }
+
+  function drawBand(ctx, w, hi, lo, fill, stroke, strokeWidth = 2) {
+    const yTop = priceToY(hi);
+    const yBot = priceToY(lo);
+    if (yTop == null || yBot == null) return;
+
+    const y = Math.min(yTop, yBot);
+    const hBand = Math.max(2, Math.abs(yBot - yTop));
+
+    ctx.fillStyle = fill;
+    ctx.fillRect(0, y, w, hBand);
+
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = strokeWidth;
+    ctx.beginPath();
+    ctx.rect(0.5, y + 0.5, w - 1, hBand - 1);
+    ctx.stroke();
+  }
+
+  function drawDashedMid(ctx, w, midPrice, color, lineWidth = 2) {
+    const y = priceToY(midPrice);
+    if (y == null) return;
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = lineWidth;
+    ctx.setLineDash([10, 8]);
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(w, y);
+    ctx.stroke();
+    ctx.restore();
+  }
+
   function draw() {
-    if (!canvas && (!levels || levels.length === 0)) return;
+    // If nothing to draw, don't even create a canvas
+    if (
+      (!levels || levels.length === 0) &&
+      (!pocketsActive || pocketsActive.length === 0)
+    ) {
+      return;
+    }
 
     const cnv = ensureCanvas();
     const w = chartContainer.clientWidth || 1;
@@ -52,40 +111,104 @@ export default function SMZLevelsOverlay({
     const ctx = cnv.getContext("2d");
     ctx.clearRect(0, 0, w, h);
 
-    if (!levels || levels.length === 0) return;
+    // Split levels by tier
+    const structures = (levels || []).filter((l) => (l?.tier ?? "") === "structure");
+    const completedPockets = (levels || []).filter((l) => (l?.tier ?? "") === "pocket");
 
-    levels.forEach((lvl) => {
-      if (!lvl || !Array.isArray(lvl.priceRange)) return;
+    // 1) STRUCTURES (yellow faint, background)
+    structures.forEach((lvl) => {
+      const r = getHiLo(lvl?.priceRange);
+      if (!r) return;
 
-      const [hi, lo] = lvl.priceRange;
-      const yTop = priceToY(hi);
-      const yBot = priceToY(lo);
-      if (yTop == null || yBot == null) return;
+      // subtle padding so it reads cleanly
+      const pad = 0.15;
+      const hi = r.hi + pad;
+      const lo = r.lo - pad;
 
-      const y = Math.min(yTop, yBot);
-      const hBand = Math.max(2, Math.abs(yBot - yTop));
+      drawBand(
+        ctx,
+        w,
+        hi,
+        lo,
+        "rgba(255, 215, 0, 0.10)", // faint fill
+        "rgba(255, 215, 0, 0.55)", // soft stroke
+        1
+      );
+    });
 
-      // INSTITUTIONAL = YELLOW
-      ctx.fillStyle = "rgba(255, 215, 0, 0.35)";
-      ctx.fillRect(0, y, w, hBand);
+    // 2) COMPLETED POCKETS (blue) + pink midline (dashed)
+    completedPockets.forEach((lvl) => {
+      const r = getHiLo(lvl?.priceRange);
+      if (!r) return;
 
-      ctx.strokeStyle = "rgba(255, 215, 0, 0.9)";
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.rect(0.5, y + 0.5, w - 1, hBand - 1);
-      ctx.stroke();
+      drawBand(
+        ctx,
+        w,
+        r.hi,
+        r.lo,
+        "rgba(80, 170, 255, 0.22)",
+        "rgba(80, 170, 255, 0.95)",
+        2
+      );
+
+      // midline is stored (in your completed pocket payload) under details.facts.negotiationMid
+      const facts = lvl?.details?.facts ?? {};
+      const mid = safeNum(facts?.negotiationMid);
+      if (mid != null) {
+        drawDashedMid(ctx, w, mid, "rgba(255, 55, 200, 0.95)", 2);
+      }
+    });
+
+    // 3) ACTIVE POCKETS (teal) + teal midline (dashed)
+    const activeSorted = (pocketsActive || [])
+      .slice()
+      .filter((p) => (p?.tier ?? "") === "pocket_active" && (p?.status ?? "building") === "building")
+      .sort((a, b) => {
+        const ra = safeNum(a?.relevanceScore) ?? 0;
+        const rb = safeNum(b?.relevanceScore) ?? 0;
+        if (rb !== ra) return rb - ra;
+        const sa = safeNum(a?.strengthTotal) ?? 0;
+        const sb = safeNum(b?.strengthTotal) ?? 0;
+        return sb - sa;
+      })
+      .slice(0, 12);
+
+    activeSorted.forEach((p) => {
+      const r = getHiLo(p?.priceRange);
+      if (!r) return;
+
+      // Slightly stronger visuals so it stands out above yellow
+      drawBand(
+        ctx,
+        w,
+        r.hi,
+        r.lo,
+        "rgba(0, 220, 200, 0.18)",
+        "rgba(0, 220, 200, 0.95)",
+        2
+      );
+
+      const mid = safeNum(p?.negotiationMid);
+      if (mid != null) {
+        drawDashedMid(ctx, w, mid, "rgba(0, 220, 200, 0.95)", 2);
+      }
     });
   }
 
   async function loadLevels() {
     try {
-      const res = await fetch(SMZ_URL, { cache: "no-store" });
+      // Add cache buster so you always see fresh JSON
+      const url = `${SMZ_URL}&_=${Date.now()}`;
+      const res = await fetch(url, { cache: "no-store" });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json();
-      levels = Array.isArray(json.levels) ? json.levels : [];
+
+      levels = Array.isArray(json?.levels) ? json.levels : [];
+      pocketsActive = Array.isArray(json?.pockets_active) ? json.pockets_active : [];
+
       draw();
     } catch (e) {
-      console.warn("[SMZLevelsOverlay] failed to load institutional levels:", e);
+      console.warn("[SMZLevelsOverlay] failed to load SMZ levels:", e);
     }
   }
 
@@ -110,6 +233,7 @@ export default function SMZLevelsOverlay({
     } catch {}
     canvas = null;
     levels = [];
+    pocketsActive = [];
     unsubVisible();
   }
 
