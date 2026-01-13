@@ -188,9 +188,7 @@ export default function SMZLevelsOverlay({
       const fillFaint = isAPlus ? "rgba(255,50,50,0.10)" : "rgba(0,220,200,0.08)";
       const fillExec = isAPlus ? "rgba(255,50,50,0.25)" : "rgba(0,220,200,0.18)";
 
-      // Full pocket (faint)
-      drawBand(ctx, w, r.hi, r.lo, fillFaint, stroke, 1);
-
+      
       // Execution band (middle 50%)
       const band = computeExecBand(r.hi, r.lo, EXEC_BAND_PCT);
       if (band) {
