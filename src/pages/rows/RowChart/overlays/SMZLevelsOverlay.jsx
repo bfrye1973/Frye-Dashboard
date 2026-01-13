@@ -1,15 +1,15 @@
 // src/pages/rows/RowChart/overlays/SMZLevelsOverlay.jsx
 // Engine 1 Overlay — STRUCTURE (yellow) + POCKET (blue) + ACTIVE POCKETS (teal / red if 90+)
-//
-// - STRUCTURE: tier:"structure"  (yellow faint)
-// - POCKET: tier:"pocket"        (blue + pink dashed mid)
-// - ACTIVE: pockets_active[]     (teal, but red if strengthTotal >= 90)
-//
-// NOTE: This overlay reads from backend-1 /api/v1/smz-levels?symbol=SPY
 
-const SMZ_URL = "https://frye-market-backend-1.onrender.com/api/v1/smz-levels?symbol=SPY";
+const SMZ_URL =
+  "https://frye-market-backend-1.onrender.com/api/v1/smz-levels?symbol=SPY";
 
-export default function SMZLevelsOverlay({ chart, priceSeries, chartContainer }) {
+export default function SMZLevelsOverlay({
+  chart,
+  priceSeries,
+  chartContainer,
+  timeframe,
+}) {
   if (!chart || !priceSeries || !chartContainer) {
     console.warn("[SMZLevelsOverlay] missing chart/priceSeries/chartContainer");
     return { seed() {}, update() {}, destroy() {} };
@@ -61,12 +61,10 @@ export default function SMZLevelsOverlay({ chart, priceSeries, chartContainer })
     return { hi, lo };
   }
 
-  drawBand(ctx, w, hi, lo,
-    "rgba(255,215,0,0.10)",  // fill
-    "rgba(255,215,0,0.55)",  // border
-    1
-  );
-
+  function drawBand(ctx, w, hi, lo, fill, stroke, strokeWidth = 2) {
+    const yTop = priceToY(hi);
+    const yBot = priceToY(lo);
+    if (yTop == null || yBot == null) return;
 
     const y = Math.min(yTop, yBot);
     const hBand = Math.max(2, Math.abs(yBot - yTop));
@@ -96,7 +94,9 @@ export default function SMZLevelsOverlay({ chart, priceSeries, chartContainer })
   }
 
   function draw() {
-    if ((!levels || levels.length === 0) && (!pocketsActive || pocketsActive.length === 0)) return;
+    if ((!levels || levels.length === 0) && (!pocketsActive || pocketsActive.length === 0)) {
+      return;
+    }
 
     const cnv = ensureCanvas();
     const w = chartContainer.clientWidth || 1;
@@ -110,7 +110,7 @@ export default function SMZLevelsOverlay({ chart, priceSeries, chartContainer })
     const structures = (levels || []).filter((l) => (l?.tier ?? "") === "structure");
     const completedPockets = (levels || []).filter((l) => (l?.tier ?? "") === "pocket");
 
-    // 1) STRUCTURES — yellow faint
+    // 1) STRUCTURES — yellow (visible but not overwhelming)
     structures.forEach((lvl) => {
       const r = getHiLo(lvl?.priceRange);
       if (!r) return;
@@ -119,7 +119,7 @@ export default function SMZLevelsOverlay({ chart, priceSeries, chartContainer })
       const hi = r.hi + pad;
       const lo = r.lo - pad;
 
-      drawBand(ctx, w, hi, lo, "rgba(255,215,0,0.06)", "rgba(255,215,0,0.35)", 1);
+      drawBand(ctx, w, hi, lo, "rgba(255,215,0,0.10)", "rgba(255,215,0,0.55)", 1);
     });
 
     // 2) COMPLETED POCKETS — blue + pink dashed midline
@@ -136,7 +136,7 @@ export default function SMZLevelsOverlay({ chart, priceSeries, chartContainer })
       }
     });
 
-    // 3) ACTIVE POCKETS — teal, BUT red if strengthTotal >= 90
+    // 3) ACTIVE POCKETS — teal, but red if strengthTotal >= 90
     const activeSorted = (pocketsActive || [])
       .slice()
       .filter((p) => (p?.tier ?? "") === "pocket_active" && (p?.status ?? "building") === "building")
@@ -199,7 +199,9 @@ export default function SMZLevelsOverlay({ chart, priceSeries, chartContainer })
 
   function destroy() {
     try {
-      if (canvas && canvas.parentNode === chartContainer) chartContainer.removeChild(canvas);
+      if (canvas && canvas.parentNode === chartContainer) {
+        chartContainer.removeChild(canvas);
+      }
     } catch {}
     canvas = null;
     levels = [];
