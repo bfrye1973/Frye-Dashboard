@@ -1,6 +1,6 @@
 // src/pages/rows/RowMarketOverview.jsx
 // Market Meter — 10m / 1h / 4h / EOD stoplights with Lux PSI (tightness) aligned + 5m Pulse
-// ✅ Restores Pulse widget rendering (PulseIcon10m) and keeps 4H bridge + EOD fix.
+// ✅ Adds MASTER stoplight (1h+4h+EOD) to the left of EOD lights (10m excluded; entries only).
 
 import React from "react";
 import { useDashboardPoll } from "../../lib/dashboardApiSafe";
@@ -42,6 +42,17 @@ const fmtIso = (ts) => {
 
 const tsOf = (x) => (x && (x.updated_at || x.updated_at_utc || x.ts)) || null;
 
+const weightedBlend = (items) => {
+  // items: [{ v: number, w: number }]
+  const valid = items.filter(
+    (x) => Number.isFinite(x?.v) && Number.isFinite(x?.w) && x.w > 0
+  );
+  if (!valid.length) return NaN;
+  const wSum = valid.reduce((a, x) => a + x.w, 0);
+  if (wSum <= 0) return NaN;
+  return valid.reduce((a, x) => a + x.v * (x.w / wSum), 0);
+};
+
 // ----------------- Tone helpers -----------------
 const toneForPct = (v) =>
   !Number.isFinite(v) ? "info" : v >= 60 ? "OK" : v >= 45 ? "warn" : "danger";
@@ -76,8 +87,19 @@ const toneForOverallState = (state, score) => {
   return toneForPct(score);
 };
 
+// MASTER tone (stricter than pct)
+const toneForMaster = (v) =>
+  !Number.isFinite(v) ? "info" : v >= 80 ? "OK" : v >= 65 ? "warn" : "danger";
+
 // ----------------- Stoplight -----------------
-function Stoplight({ label, value, unit = "%", tone = "info", size = 50, minWidth = 90 }) {
+function Stoplight({
+  label,
+  value,
+  unit = "%",
+  tone = "info",
+  size = 50,
+  minWidth = 90,
+}) {
   const v = Number.isFinite(value) ? value : NaN;
   const colors =
     {
@@ -107,7 +129,14 @@ function Stoplight({ label, value, unit = "%", tone = "info", size = 50, minWidt
       >
         <div style={{ fontWeight: 800, color: "#0b1220" }}>{valText}</div>
       </div>
-      <div style={{ fontSize: 12.5, fontWeight: 700, color: "#e5e7eb", marginTop: 4 }}>
+      <div
+        style={{
+          fontSize: 12.5,
+          fontWeight: 700,
+          color: "#e5e7eb",
+          marginTop: 4,
+        }}
+      >
         {label}
       </div>
     </div>
@@ -116,7 +145,12 @@ function Stoplight({ label, value, unit = "%", tone = "info", size = 50, minWidt
 
 // ----------------- 5m DELTAS hook (/live/pills) -----------------
 function useSandboxDeltas() {
-  const [state, setState] = React.useState({ dB: null, dM: null, riskOn: null, ts: null });
+  const [state, setState] = React.useState({
+    dB: null,
+    dM: null,
+    riskOn: null,
+    ts: null,
+  });
 
   React.useEffect(() => {
     if (!SANDBOX_URL) return;
@@ -126,7 +160,9 @@ function useSandboxDeltas() {
     async function pull() {
       try {
         const sep = SANDBOX_URL.includes("?") ? "&" : "?";
-        const res = await fetch(`${SANDBOX_URL}${sep}t=${Date.now()}`, { cache: "no-store" });
+        const res = await fetch(`${SANDBOX_URL}${sep}t=${Date.now()}`, {
+          cache: "no-store",
+        });
         const j = await res.json();
 
         const sectors = j?.sectors || {};
@@ -160,7 +196,12 @@ function useSandboxDeltas() {
           dB: avgD5m,
           dM: avgD10m,
           riskOn: null,
-          ts: j?.stamp5 || j?.deltasUpdatedAt || j?.sectorsUpdatedAt || j?.updated_at || null,
+          ts:
+            j?.stamp5 ||
+            j?.deltasUpdatedAt ||
+            j?.sectorsUpdatedAt ||
+            j?.updated_at ||
+            null,
         });
       } catch (err) {
         console.error("[RowMarketOverview] useSandboxDeltas error:", err);
@@ -196,22 +237,30 @@ export default function RowMarketOverview() {
     async function pull() {
       try {
         if (INTRADAY_URL) {
-          const r = await fetch(`${INTRADAY_URL}?t=${Date.now()}`, { cache: "no-store" });
+          const r = await fetch(`${INTRADAY_URL}?t=${Date.now()}`, {
+            cache: "no-store",
+          });
           const j = await r.json();
           if (!stop) setLive10(j);
         }
         if (HOURLY_URL) {
-          const r = await fetch(`${HOURLY_URL}?t=${Date.now()}`, { cache: "no-store" });
+          const r = await fetch(`${HOURLY_URL}?t=${Date.now()}`, {
+            cache: "no-store",
+          });
           const j = await r.json();
           if (!stop) setLive1h(j);
         }
         if (H4_URL) {
-          const r = await fetch(`${H4_URL}?t=${Date.now()}`, { cache: "no-store" });
+          const r = await fetch(`${H4_URL}?t=${Date.now()}`, {
+            cache: "no-store",
+          });
           const j = await r.json();
           if (!stop) setLive4h(j);
         }
         if (EOD_URL) {
-          const r = await fetch(`${EOD_URL}?t=${Date.now()}`, { cache: "no-store" });
+          const r = await fetch(`${EOD_URL}?t=${Date.now()}`, {
+            cache: "no-store",
+          });
           const j = await r.json();
           if (!stop) setLiveEOD(j);
         }
@@ -235,10 +284,17 @@ export default function RowMarketOverview() {
   const m10 = d10.metrics || {};
   const i10 = d10.intraday || {};
   const eng10 = (d10.engineLights && d10.engineLights["10m"]) || {};
-  const ts10 = (d10.meta && d10.meta.last_full_run_utc) || d10.updated_at || d10.updated_at_utc || null;
+  const ts10 =
+    (d10.meta && d10.meta.last_full_run_utc) ||
+    d10.updated_at ||
+    d10.updated_at_utc ||
+    null;
 
   const breadth10 = num(m10.breadth_10m_pct ?? m10.breadth_pct);
-  const mom10 = num(m10.momentum_10m_pct) || num(m10.momentum_combo_10m_pct) || num(m10.momentum_pct);
+  const mom10 =
+    num(m10.momentum_10m_pct) ||
+    num(m10.momentum_combo_10m_pct) ||
+    num(m10.momentum_pct);
   const psi10 = num(m10.squeeze_psi_10m_pct ?? m10.squeeze_psi ?? m10.psi);
   const sq10 = psi10;
   const liq10 = num(m10.liquidity_psi ?? m10.liquidity_10m ?? m10.liquidity_pct);
@@ -274,7 +330,10 @@ export default function RowMarketOverview() {
   const ts4h = d4h.updated_at || d4h.updated_at_utc || null;
 
   const breadth4 = num(m4h.breadth_4h_pct);
-  const mom4 = num(m4h.momentum_4h_pct) || num(m4h.momentum_combo_4h_pct) || num(m4h.momentum_pct);
+  const mom4 =
+    num(m4h.momentum_4h_pct) ||
+    num(m4h.momentum_combo_4h_pct) ||
+    num(m4h.momentum_pct);
   const psi4 = num(m4h.squeeze_psi_4h_pct ?? m4h.squeeze_psi_4h ?? m4h.squeeze_psi ?? m4h.squeeze_psi_4h);
   const sq4 = psi4;
   const liq4 = num(m4h.liquidity_4h);
@@ -298,7 +357,14 @@ export default function RowMarketOverview() {
   const eodVol = num(dMetrics?.volatility_pct ?? daily?.volatilityPct) || NaN;
   const eodLiq = num(dMetrics?.liquidity_pct ?? daily?.liquidityPct) || NaN;
   const eodRiskOn = num(dMetrics?.risk_on_daily_pct ?? daily?.riskOnPct ?? dd?.rotation?.riskOnPct) || NaN;
-  const eodState = (overallEOD?.state || dMetrics?.overall_eod_state || daily?.state || "neutral");
+  const eodState = overallEOD?.state || dMetrics?.overall_eod_state || daily?.state || "neutral";
+
+  // MASTER (1h + 4h + EOD only; 10m excluded)
+  const masterScore = weightedBlend([
+    { v: overall1, w: 0.20 },
+    { v: overall4, w: 0.35 },
+    { v: eodScore, w: 0.45 },
+  ]);
 
   const stripBox = { display: "flex", flexDirection: "column", gap: 6, minWidth: 820 };
   const lineBox = { display: "flex", gap: 12, alignItems: "center", whiteSpace: "nowrap", overflowX: "auto", paddingBottom: 2 };
@@ -407,6 +473,9 @@ export default function RowMarketOverview() {
         <div style={stripBox}>
           <div className="small" style={{ color: "#e5e7eb", fontWeight: 800 }}>EOD — Daily Structure</div>
           <div style={lineBox}>
+            {/* MASTER (left of EOD lights) */}
+            <Stoplight label="MASTER" value={masterScore} tone={toneForMaster(masterScore)} />
+
             <Stoplight label="Overall" value={eodScore} tone={toneForOverallState(eodState, eodScore)} />
             <Stoplight label="Participation" value={eodParticipation} tone={toneForPct(eodParticipation)} />
             <Stoplight label="Daily Squeeze" value={eodSqueezePsi} tone={toneForSqueezePsi(eodSqueezePsi)} />
