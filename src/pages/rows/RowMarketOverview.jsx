@@ -470,24 +470,61 @@ export default function RowMarketOverview() {
         </div>
 
         {/* EOD */}
-        <div style={stripBox}>
-          <div className="small" style={{ color: "#e5e7eb", fontWeight: 800 }}>EOD — Daily Structure</div>
-          <div style={lineBox}>
-            {/* MASTER (left of EOD lights) */}
-            <Stoplight label="MASTER" value={masterScore} tone={toneForMaster(masterScore)} />
+       <div style={stripBox}>
+          <div className="small" style={{ color: "#e5e7eb", fontWeight: 800 }}>
+            EOD — Daily Structure
+          </div>
 
-            <Stoplight label="Overall" value={eodScore} tone={toneForOverallState(eodState, eodScore)} />
-            <Stoplight label="Participation" value={eodParticipation} tone={toneForPct(eodParticipation)} />
-            <Stoplight label="Daily Squeeze" value={eodSqueezePsi} tone={toneForSqueezePsi(eodSqueezePsi)} />
-            <Stoplight label="Vol Regime" value={eodVol} tone={toneForVol(eodVol)} />
-            <Stoplight label="Liq Regime" value={eodLiq} unit="%" tone={toneForLiquidity(eodLiq)} />
-            <Stoplight label="Risk-On" value={eodRiskOn} tone={toneForPct(eodRiskOn)} />
+          <div style={lineBox}>
+          <Stoplight
+            label="Overall"
+            value={eodScore}
+            tone={toneForOverallState(eodState, eodScore)}
+          />
+          <Stoplight
+            label="Participation"
+            value={eodParticipation}
+            tone={toneForPct(eodParticipation)}
+          />
+          <Stoplight
+            label="Daily Squeeze"
+            value={eodSqueezePsi}
+            tone={toneForSqueezePsi(eodSqueezePsi)}
+          />
+          <Stoplight label="Vol Regime" value={eodVol} tone={toneForVol(eodVol)} />
+          <Stoplight
+            label="Liq Regime"
+            value={eodLiq}
+            unit="%"
+            tone={toneForLiquidity(eodLiq)}
+          />
+          <Stoplight label="Risk-On" value={eodRiskOn} tone={toneForPct(eodRiskOn)} />
+
+          {/* MASTER (right of EOD lights) */}
+          <div style={{ textAlign: "center", minWidth: 110 }}>
+            <div
+              style={{
+              fontSize: 12,
+              fontWeight: 800,
+              color: "#9ca3af",
+              marginBottom: 6,
+            }}
+          >
+            Master Overall Score
           </div>
-          <div style={{ color: "#9ca3af", fontSize: 12, marginTop: 4 }}>
-            Daily updated: <strong>{fmtIso(tsEod)}</strong>
-          </div>
-        </div>
-      </div>
+          <Stoplight
+            label="MASTER"
+            value={masterScore}
+            tone={toneForMaster(masterScore)}
+            minWidth={110}
+         />
+       </div>
+     </div>
+
+     <div style={{ color: "#9ca3af", fontSize: 12, marginTop: 4 }}>
+       Daily updated: <strong>{fmtIso(tsEod)}</strong>
+     </div>
+   </div>
 
       {legendOpen && (
         <div
