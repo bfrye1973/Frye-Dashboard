@@ -12,6 +12,7 @@
 //
 // Contract:
 // - priceRange is [HIGH, LOW]
+// - sticky may include manualRange; if so, manualRange must be used for rendering.
 
 const SMZ_URL =
   "https://frye-market-backend-1.onrender.com/api/v1/smz-levels?symbol=SPY";
@@ -70,18 +71,30 @@ export default function SMZLevelsOverlay({
     return Number.isFinite(y) ? y : null;
   }
 
-  // Contract: priceRange is [HIGH, LOW]
-  function getHiLo(priceRange) {
-    if (!Array.isArray(priceRange) || priceRange.length < 2) return null;
-    let hi = safeNum(priceRange[0]);
-    let lo = safeNum(priceRange[1]);
+  // Prefer manualRange for sticky zones if present.
+  // Contract: ranges are [HIGH, LOW]
+  function effectiveRange(z) {
+    const mr = z?.manualRange;
+    if (Array.isArray(mr) && mr.length === 2) return mr;
+    const pr = z?.priceRange;
+    return Array.isArray(pr) && pr.length === 2 ? pr : null;
+  }
+
+  // Contract: range is [HIGH, LOW]
+  function getHiLo(range) {
+    if (!Array.isArray(range) || range.length < 2) return null;
+
+    let hi = safeNum(range[0]);
+    let lo = safeNum(range[1]);
     if (hi == null || lo == null) return null;
+
     if (lo > hi) {
       const t = hi;
       hi = lo;
       lo = t;
     }
     if (!(hi > lo)) return null;
+
     return { hi, lo, mid: (hi + lo) / 2 };
   }
 
@@ -151,15 +164,17 @@ export default function SMZLevelsOverlay({
   }
 
   function buildStructureRanges(structuresArr) {
-    return (structuresArr || []).map((s) => getHiLo(s?.priceRange)).filter(Boolean);
+    return (structuresArr || [])
+      .map((s) => getHiLo(effectiveRange(s)))
+      .filter(Boolean);
   }
 
   function pocketOverlapsAnyStructure(pocketRange, structureRanges) {
     if (!pocketRange) return false;
     for (const sr of structureRanges || []) {
-      // Modest overlap threshold so pockets inside a structure get suppressed
+      // Suppress if any modest overlap
       if (rangesOverlap(pocketRange, sr, 0.10)) return true;
-      // Also suppress if pocket is fully inside a structure
+      // Also suppress if pocket fully inside structure
       if (pocketRange.hi <= sr.hi && pocketRange.lo >= sr.lo) return true;
     }
     return false;
@@ -178,12 +193,12 @@ export default function SMZLevelsOverlay({
       .map((z) => ({ ...z, tier: "structure" })); // draw as structure
 
     sticky.forEach((sz) => {
-      const sr = getHiLo(sz?.priceRange);
+      const sr = getHiLo(effectiveRange(sz));
       if (!sr) return;
 
       // Remove any live structure that overlaps sticky (sticky wins)
       for (let i = out.length - 1; i >= 0; i--) {
-        const lr = getHiLo(out[i]?.priceRange);
+        const lr = getHiLo(effectiveRange(out[i]));
         if (!lr) continue;
         if (lr.hi >= sr.lo && lr.lo <= sr.hi) out.splice(i, 1);
       }
@@ -213,12 +228,19 @@ export default function SMZLevelsOverlay({
     ctx.clearRect(0, 0, w, h);
 
     // Raw lists from API
-    const structuresLive = (levels || []).filter((l) => (l?.tier ?? "") === "structure");
+    const structuresLive = (levels || []).filter(
+      (l) => (l?.tier ?? "") === "structure"
+    );
     const micros = (levels || []).filter((l) => (l?.tier ?? "") === "micro");
-    const completedPocketsAll = (levels || []).filter((l) => (l?.tier ?? "") === "pocket");
+    const completedPocketsAll = (levels || []).filter(
+      (l) => (l?.tier ?? "") === "pocket"
+    );
 
     // ✅ Effective structures = live with sticky overrides applied
-    const structuresEffective = mergeStickyOverLive(structuresLive, stickyStructures);
+    const structuresEffective = mergeStickyOverLive(
+      structuresLive,
+      stickyStructures
+    );
 
     // Structure ranges used to suppress completed pockets AND active pockets
     const structureRanges = buildStructureRanges(structuresEffective);
@@ -229,7 +251,7 @@ export default function SMZLevelsOverlay({
       stickyStructures
         .filter((z) => (z?.tier ?? "") === "structure_sticky")
         .forEach((lvl) => {
-          const r = getHiLo(lvl?.priceRange);
+          const r = getHiLo(effectiveRange(lvl));
           if (!r) return;
           drawDashedBox(ctx, w, r.hi, r.lo, "rgba(255,215,0,0.55)", 1);
         });
@@ -240,7 +262,7 @@ export default function SMZLevelsOverlay({
       micros
         .filter((m) => (safeNum(m?.strength) ?? 0) >= MICRO_MIN_STRENGTH)
         .forEach((lvl) => {
-          const r = getHiLo(lvl?.priceRange);
+          const r = getHiLo(effectiveRange(lvl));
           if (!r) return;
           drawBand(ctx, w, r.hi, r.lo, "rgba(255,215,0,0.04)", "rgba(0,0,0,0)", 0);
           drawDashedBox(ctx, w, r.hi, r.lo, "rgba(255,215,0,0.35)", 1);
@@ -249,7 +271,7 @@ export default function SMZLevelsOverlay({
 
     // 2) STRUCTURES — yellow (effective structures, sticky wins)
     structuresEffective.forEach((lvl) => {
-      const r = getHiLo(lvl?.priceRange);
+      const r = getHiLo(effectiveRange(lvl));
       if (!r) return;
 
       const pad = 0.12;
@@ -261,13 +283,13 @@ export default function SMZLevelsOverlay({
 
     // 3) COMPLETED POCKETS — blue, BUT suppressed if overlapping any STRUCTURE
     const completedPockets = completedPocketsAll.filter((lvl) => {
-      const r = getHiLo(lvl?.priceRange);
+      const r = getHiLo(effectiveRange(lvl));
       if (!r) return false;
       return !pocketOverlapsAnyStructure(r, structureRanges);
     });
 
     completedPockets.forEach((lvl) => {
-      const r = getHiLo(lvl?.priceRange);
+      const r = getHiLo(effectiveRange(lvl));
       if (!r) return;
 
       drawBand(ctx, w, r.hi, r.lo, "rgba(80,170,255,0.22)", "rgba(80,170,255,0.95)", 2);
@@ -282,7 +304,11 @@ export default function SMZLevelsOverlay({
     // 4) ACTIVE POCKETS — execution band ONLY (no halo) AND NO-MAN’S-LAND ONLY
     const activeSorted = (pocketsActive || [])
       .slice()
-      .filter((p) => (p?.tier ?? "") === "pocket_active" && (p?.status ?? "building") === "building")
+      .filter(
+        (p) =>
+          (p?.tier ?? "") === "pocket_active" &&
+          (p?.status ?? "building") === "building"
+      )
       .sort((a, b) => {
         const ra = safeNum(a?.relevanceScore) ?? 0;
         const rb = safeNum(b?.relevanceScore) ?? 0;
@@ -294,7 +320,7 @@ export default function SMZLevelsOverlay({
       .slice(0, 12);
 
     activeSorted.forEach((p) => {
-      const r = getHiLo(p?.priceRange);
+      const r = getHiLo(effectiveRange(p));
       if (!r) return;
 
       // ✅ NO MAN’S LAND RULE: do NOT draw inside any structure range
