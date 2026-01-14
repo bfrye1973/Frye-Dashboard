@@ -4,8 +4,11 @@
 // ✅ RULES (LOCKED BY YOU):
 // 1) Institutional STRUCTURES always win visually.
 //    If a POCKET overlaps any STRUCTURE range, the POCKET is NOT drawn.
-// 2) Active pockets draw ONLY the narrow execution band (no full-range halo).
-// 3) Optional: show high-score MICRO zones as faint dashed yellow "proto-structure" (so important zones never vanish).
+// 2) Active pockets draw ONLY the narrow execution band (no full-range halo)
+//    AND only in "no man’s land" (NOT inside any STRUCTURE).
+// 3) Optional: show high-score MICRO zones as faint dashed yellow "proto-structure".
+// 4) Sticky registry zones MUST render as STRUCTURES and override live if overlapping.
+//    (You manually edit sticky ranges; they must appear on map.)
 //
 // Contract:
 // - priceRange is [HIGH, LOW]
@@ -33,16 +36,13 @@ export default function SMZLevelsOverlay({
 
   // === ACTIVE POCKET EXECUTION BAND SETTINGS ===
   // 0.40 = tight, 0.30 = very tight, 0.50 = wider
-  const EXEC_BAND_PCT = 0.40;
+  const EXEC_BAND_PCT = 0.4;
 
   // === MICRO DISPLAY SETTINGS ===
-  // Show "proto institutional" micro zones (when engine demotes a major area)
   const SHOW_MICRO = true;
   const MICRO_MIN_STRENGTH = 85;
 
   // === STICKY DISPLAY SETTINGS ===
-  // If your backend provides structures_sticky[], we can show it distinctly.
-  // Keep subtle so it doesn't overwhelm live structures.
   const SHOW_STICKY = true;
 
   function ensureCanvas() {
@@ -151,20 +151,47 @@ export default function SMZLevelsOverlay({
   }
 
   function buildStructureRanges(structuresArr) {
-    return (structuresArr || [])
-      .map((s) => getHiLo(s?.priceRange))
-      .filter(Boolean);
+    return (structuresArr || []).map((s) => getHiLo(s?.priceRange)).filter(Boolean);
   }
 
   function pocketOverlapsAnyStructure(pocketRange, structureRanges) {
     if (!pocketRange) return false;
     for (const sr of structureRanges || []) {
-      // Use modest overlap threshold so pockets inside a structure get suppressed
+      // Modest overlap threshold so pockets inside a structure get suppressed
       if (rangesOverlap(pocketRange, sr, 0.10)) return true;
       // Also suppress if pocket is fully inside a structure
       if (pocketRange.hi <= sr.hi && pocketRange.lo >= sr.lo) return true;
     }
     return false;
+  }
+
+  // ✅ Sticky must appear as STRUCTURE and override live if overlapping.
+  // We do this by:
+  // - taking live structures
+  // - removing any live structure that overlaps a sticky zone
+  // - adding sticky as tier:"structure"
+  function mergeStickyOverLive(structuresLive, structuresSticky) {
+    const out = (structuresLive || []).slice();
+
+    const sticky = (structuresSticky || [])
+      .filter((z) => (z?.tier ?? "") === "structure_sticky")
+      .map((z) => ({ ...z, tier: "structure" })); // draw as structure
+
+    sticky.forEach((sz) => {
+      const sr = getHiLo(sz?.priceRange);
+      if (!sr) return;
+
+      // Remove any live structure that overlaps sticky (sticky wins)
+      for (let i = out.length - 1; i >= 0; i--) {
+        const lr = getHiLo(out[i]?.priceRange);
+        if (!lr) continue;
+        if (lr.hi >= sr.lo && lr.lo <= sr.hi) out.splice(i, 1);
+      }
+
+      out.push(sz);
+    });
+
+    return out;
   }
 
   function draw() {
@@ -185,21 +212,27 @@ export default function SMZLevelsOverlay({
     const ctx = cnv.getContext("2d");
     ctx.clearRect(0, 0, w, h);
 
-    const structures = (levels || []).filter((l) => (l?.tier ?? "") === "structure");
+    // Raw lists from API
+    const structuresLive = (levels || []).filter((l) => (l?.tier ?? "") === "structure");
     const micros = (levels || []).filter((l) => (l?.tier ?? "") === "micro");
     const completedPocketsAll = (levels || []).filter((l) => (l?.tier ?? "") === "pocket");
 
-    const structureRanges = buildStructureRanges(structures);
+    // ✅ Effective structures = live with sticky overrides applied
+    const structuresEffective = mergeStickyOverLive(structuresLive, stickyStructures);
 
-    // 0) STICKY STRUCTURES (optional) — subtle memory lane
+    // Structure ranges used to suppress completed pockets AND active pockets
+    const structureRanges = buildStructureRanges(structuresEffective);
+
+    // 0) STICKY STRUCTURES (optional) — subtle memory lane (outline only)
+    // Note: They are ALSO drawn as full yellow structures below (because sticky becomes tier:"structure").
     if (SHOW_STICKY && Array.isArray(stickyStructures) && stickyStructures.length) {
-      stickyStructures.forEach((lvl) => {
-        const r = getHiLo(lvl?.priceRange);
-        if (!r) return;
-
-        // draw a thin dashed gold outline only (no fill)
-        drawDashedBox(ctx, w, r.hi, r.lo, "rgba(255,215,0,0.55)", 1);
-      });
+      stickyStructures
+        .filter((z) => (z?.tier ?? "") === "structure_sticky")
+        .forEach((lvl) => {
+          const r = getHiLo(lvl?.priceRange);
+          if (!r) return;
+          drawDashedBox(ctx, w, r.hi, r.lo, "rgba(255,215,0,0.55)", 1);
+        });
     }
 
     // 1) MICRO (proto-structure) — faint dashed yellow (only strong ones)
@@ -209,15 +242,13 @@ export default function SMZLevelsOverlay({
         .forEach((lvl) => {
           const r = getHiLo(lvl?.priceRange);
           if (!r) return;
-
-          // very light fill + dashed border so it reads as "proto"
           drawBand(ctx, w, r.hi, r.lo, "rgba(255,215,0,0.04)", "rgba(0,0,0,0)", 0);
           drawDashedBox(ctx, w, r.hi, r.lo, "rgba(255,215,0,0.35)", 1);
         });
     }
 
-    // 2) STRUCTURES — yellow (live truth) — draw after micro so it wins
-    structures.forEach((lvl) => {
+    // 2) STRUCTURES — yellow (effective structures, sticky wins)
+    structuresEffective.forEach((lvl) => {
       const r = getHiLo(lvl?.priceRange);
       if (!r) return;
 
@@ -229,7 +260,6 @@ export default function SMZLevelsOverlay({
     });
 
     // 3) COMPLETED POCKETS — blue, BUT suppressed if overlapping any STRUCTURE
-    // ✅ your rule: "If institutional zone covers it, delete the blue pocket"
     const completedPockets = completedPocketsAll.filter((lvl) => {
       const r = getHiLo(lvl?.priceRange);
       if (!r) return false;
@@ -249,9 +279,7 @@ export default function SMZLevelsOverlay({
       }
     });
 
-    // 4) ACTIVE POCKETS — execution band ONLY (no halo)
-    // If you want active pockets to also yield to structures, we can suppress them too,
-    // but for now we keep them because they represent actionable trade bands.
+    // 4) ACTIVE POCKETS — execution band ONLY (no halo) AND NO-MAN’S-LAND ONLY
     const activeSorted = (pocketsActive || [])
       .slice()
       .filter((p) => (p?.tier ?? "") === "pocket_active" && (p?.status ?? "building") === "building")
@@ -267,12 +295,10 @@ export default function SMZLevelsOverlay({
 
     activeSorted.forEach((p) => {
       const r = getHiLo(p?.priceRange);
-      if (!r) return; 
+      if (!r) return;
 
-    // ✅ NO MAN’S LAND RULE:
-    // If this active pocket overlaps ANY live STRUCTURE range, do NOT draw it.
-    if (pocketOverlapsAnyStructure(r, structureRanges)) return;
- 
+      // ✅ NO MAN’S LAND RULE: do NOT draw inside any structure range
+      if (pocketOverlapsAnyStructure(r, structureRanges)) return;
 
       const mid = safeNum(p?.negotiationMid);
       if (mid == null) return;
@@ -299,7 +325,7 @@ export default function SMZLevelsOverlay({
       drawDashedMid(ctx, w, mid, stroke, 2);
     });
   }
-  
+
   async function loadLevels() {
     try {
       const res = await fetch(`${SMZ_URL}&_=${Date.now()}`, { cache: "no-store" });
@@ -326,7 +352,8 @@ export default function SMZLevelsOverlay({
     draw();
   }
 
-  const unsubVisible = ts.subscribeVisibleLogicalRangeChange?.(() => draw()) || (() => {});
+  const unsubVisible =
+    ts.subscribeVisibleLogicalRangeChange?.(() => draw()) || (() => {});
 
   function destroy() {
     try {
