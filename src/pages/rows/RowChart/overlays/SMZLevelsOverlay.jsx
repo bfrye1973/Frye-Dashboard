@@ -267,7 +267,12 @@ export default function SMZLevelsOverlay({
 
     activeSorted.forEach((p) => {
       const r = getHiLo(p?.priceRange);
-      if (!r) return;
+      if (!r) return; 
+
+    // ✅ NO MAN’S LAND RULE:
+    // If this active pocket overlaps ANY live STRUCTURE range, do NOT draw it.
+    if (pocketOverlapsAnyStructure(r, structureRanges)) return;
+ 
 
       const mid = safeNum(p?.negotiationMid);
       if (mid == null) return;
@@ -294,7 +299,7 @@ export default function SMZLevelsOverlay({
       drawDashedMid(ctx, w, mid, stroke, 2);
     });
   }
-
+  
   async function loadLevels() {
     try {
       const res = await fetch(`${SMZ_URL}&_=${Date.now()}`, { cache: "no-store" });
