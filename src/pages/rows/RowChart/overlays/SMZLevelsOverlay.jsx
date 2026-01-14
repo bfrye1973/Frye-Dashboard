@@ -1,11 +1,9 @@
 // src/pages/rows/RowChart/overlays/SMZLevelsOverlay.jsx
-// Engine 1 Overlay — STRUCTURE (yellow) + POCKET (blue) + ACTIVE POCKETS (teal/red)
-// ✅ NEW: active pockets draw a tighter "execution band" (middle 50%) for readability
+// Engine 1 Overlay — STRUCTURE (yellow) + POCKET (blue) + ACTIVE POCKETS (execution band only)
+// ✅ Active pockets now draw ONLY the narrow execution band (no full-range "halo")
 
 const SMZ_URL =
   "https://frye-market-backend-1.onrender.com/api/v1/smz-levels?symbol=SPY";
-
-const EXEC_BAND_PCT = 0.50; // middle 50% of pocket range (you can tune later: 0.40..0.70)
 
 export default function SMZLevelsOverlay({
   chart,
@@ -23,6 +21,11 @@ export default function SMZLevelsOverlay({
   let canvas = null;
 
   const ts = chart.timeScale();
+
+  // === EXECUTION BAND SETTINGS ===
+  // Percent of full active pocket height used for the tradable "execution band"
+  // 0.40 = tight, 0.30 = very tight, 0.50 = wider
+  const EXEC_BAND_PCT = 0.40;
 
   function ensureCanvas() {
     if (canvas) return canvas;
@@ -96,32 +99,11 @@ export default function SMZLevelsOverlay({
     ctx.restore();
   }
 
-  function clamp(v, lo, hi) {
-    return Math.max(lo, Math.min(hi, v));
-  }
-
-  function computeExecBand(hi, lo, pct = 0.5) {
-    const width = hi - lo;
-    if (!(width > 0)) return null;
-
-    const mid = (hi + lo) / 2;
-    const p = clamp(pct, 0.1, 1.0); // safety
-    const execWidth = width * p;
-    const half = execWidth / 2;
-
-    const execHi = mid + half;
-    const execLo = mid - half;
-
-    // ensure inside original bounds
-    const eHi = Math.min(hi, execHi);
-    const eLo = Math.max(lo, execLo);
-    if (!(eHi > eLo)) return null;
-
-    return { mid, execHi: eHi, execLo: eLo };
-  }
-
   function draw() {
-    if ((!levels || levels.length === 0) && (!pocketsActive || pocketsActive.length === 0)) {
+    if (
+      (!levels || levels.length === 0) &&
+      (!pocketsActive || pocketsActive.length === 0)
+    ) {
       return;
     }
 
@@ -134,8 +116,12 @@ export default function SMZLevelsOverlay({
     const ctx = cnv.getContext("2d");
     ctx.clearRect(0, 0, w, h);
 
-    const structures = (levels || []).filter((l) => (l?.tier ?? "") === "structure");
-    const completedPockets = (levels || []).filter((l) => (l?.tier ?? "") === "pocket");
+    const structures = (levels || []).filter(
+      (l) => (l?.tier ?? "") === "structure"
+    );
+    const completedPockets = (levels || []).filter(
+      (l) => (l?.tier ?? "") === "pocket"
+    );
 
     // 1) STRUCTURES — yellow (visible but not overwhelming)
     structures.forEach((lvl) => {
@@ -146,7 +132,15 @@ export default function SMZLevelsOverlay({
       const hi = r.hi + pad;
       const lo = r.lo - pad;
 
-      drawBand(ctx, w, hi, lo, "rgba(255,215,0,0.10)", "rgba(255,215,0,0.55)", 1);
+      drawBand(
+        ctx,
+        w,
+        hi,
+        lo,
+        "rgba(255,215,0,0.10)",
+        "rgba(255,215,0,0.55)",
+        1
+      );
     });
 
     // 2) COMPLETED POCKETS — blue + pink dashed midline
@@ -154,7 +148,15 @@ export default function SMZLevelsOverlay({
       const r = getHiLo(lvl?.priceRange);
       if (!r) return;
 
-      drawBand(ctx, w, r.hi, r.lo, "rgba(80,170,255,0.22)", "rgba(80,170,255,0.95)", 2);
+      drawBand(
+        ctx,
+        w,
+        r.hi,
+        r.lo,
+        "rgba(80,170,255,0.22)",
+        "rgba(80,170,255,0.95)",
+        2
+      );
 
       const facts = lvl?.details?.facts ?? {};
       const mid = safeNum(facts?.negotiationMid);
@@ -163,10 +165,14 @@ export default function SMZLevelsOverlay({
       }
     });
 
-    // 3) ACTIVE POCKETS — draw full pocket faint + execution band bold + midline dashed
+    // 3) ACTIVE POCKETS — execution band ONLY (no full-range context band)
     const activeSorted = (pocketsActive || [])
       .slice()
-      .filter((p) => (p?.tier ?? "") === "pocket_active" && (p?.status ?? "building") === "building")
+      .filter(
+        (p) =>
+          (p?.tier ?? "") === "pocket_active" &&
+          (p?.status ?? "building") === "building"
+      )
       .sort((a, b) => {
         const ra = safeNum(a?.relevanceScore) ?? 0;
         const rb = safeNum(b?.relevanceScore) ?? 0;
@@ -181,25 +187,35 @@ export default function SMZLevelsOverlay({
       const r = getHiLo(p?.priceRange);
       if (!r) return;
 
+      const mid = safeNum(p?.negotiationMid);
+      if (mid == null) return; // execution band requires mid
+
       const st = safeNum(p?.strengthTotal) ?? 0;
       const isAPlus = st >= 90;
 
+      const fullWidth = r.hi - r.lo;
+      const halfBand = Math.max(0.05, fullWidth * 0.5 * EXEC_BAND_PCT);
+
+      let execHi = mid + halfBand;
+      let execLo = mid - halfBand;
+
+      // Clamp inside pocket range
+      execHi = Math.min(execHi, r.hi);
+      execLo = Math.max(execLo, r.lo);
+
+      if (!(execHi > execLo)) return;
+
+      const fillExec = isAPlus
+        ? "rgba(255,50,50,0.22)"
+        : "rgba(0,220,200,0.18)";
       const stroke = isAPlus ? "rgba(255,50,50,1.0)" : "rgba(0,220,200,1.0)";
-      const fillFaint = isAPlus ? "rgba(255,50,50,0.10)" : "rgba(0,220,200,0.08)";
-      const fillExec = isAPlus ? "rgba(255,50,50,0.25)" : "rgba(0,220,200,0.18)";
+      const borderW = isAPlus ? 3 : 2;
 
-      // Full pocket (faint)
-      drawBand(ctx, w, r.hi, r.lo, fillFaint, stroke, 1);
+      // ✅ ONLY draw the narrow execution band (no halo)
+      drawBand(ctx, w, execHi, execLo, fillExec, stroke, borderW);
 
-      // Execution band (middle 50%)
-      const band = computeExecBand(r.hi, r.lo, EXEC_BAND_PCT);
-      if (band) {
-        drawBand(ctx, w, band.execHi, band.execLo, fillExec, stroke, isAPlus ? 3 : 2);
-
-        // Midline: prefer backend mid if present, else computed mid
-        const mid = safeNum(p?.negotiationMid) ?? band.mid;
-        drawDashedMid(ctx, w, mid, stroke, 2);
-      }
+      // Midline inside execution band
+      drawDashedMid(ctx, w, mid, stroke, 2);
     });
   }
 
@@ -228,7 +244,8 @@ export default function SMZLevelsOverlay({
     draw();
   }
 
-  const unsubVisible = ts.subscribeVisibleLogicalRangeChange?.(() => draw()) || (() => {});
+  const unsubVisible =
+    ts.subscribeVisibleLogicalRangeChange?.(() => draw()) || (() => {});
 
   function destroy() {
     try {
