@@ -5,7 +5,7 @@
 const SMZ_URL =
   "https://frye-market-backend-1.onrender.com/api/v1/smz-levels?symbol=SPY";
 
-const EXEC_BAND_PCT = 0.40; // middle 50% of pocket range (you can tune later: 0.40..0.70)
+const EXEC_BAND_PCT = 0.50; // middle 50% of pocket range (you can tune later: 0.40..0.70)
 
 export default function SMZLevelsOverlay({
   chart,
