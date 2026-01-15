@@ -1,8 +1,12 @@
 // src/pages/rows/RowChart/overlays/FibLevelsOverlay.jsx
-// Engine 2 Overlay — Fib levels + Anchor lines + Extensions (Wave 3 targets)
-// - Draws: Anchor Low/High, 0.382/0.5/0.618, INV(74), + extensions 1.168 and 2.618
-// - Bigger, readable labels (Ferrari dashboard friendly)
-// - Minimal clutter: thin lines, right-side tags, anchor dots
+// Engine 2 Overlay — BIG + CENTER labels + THICK lines + EXTENSIONS
+//
+// User requirements (LOCKED):
+// - Font 3x bigger
+// - Labels in middle of chart (not on right axis)
+// - Lines 4x thicker
+// - Show extensions: 1.168, 1.618, 2.0, 2.618
+// - Keep: anchors, 0.382/0.5/0.618, INV(74)
 
 const FIB_URL =
   "https://frye-market-backend-1.onrender.com/api/v1/fib-levels?symbol=SPY&tf=1h";
@@ -11,7 +15,6 @@ export default function FibLevelsOverlay({
   chart,
   priceSeries,
   chartContainer,
-  timeFrame,
   enabled = false,
 }) {
   if (!chart || !priceSeries || !chartContainer) {
@@ -22,19 +25,22 @@ export default function FibLevelsOverlay({
   let canvas = null;
   let raf = null;
   let disposed = false;
-
   let fibData = null;
 
   const ts = chart.timeScale();
 
-  // --- Style knobs (readability) ---
-  const FONT = '14px system-ui, -apple-system, Segoe UI, Roboto, Arial';
-  const HEADER_FONT = '15px system-ui, -apple-system, Segoe UI, Roboto, Arial';
-  const LABEL_PAD_X = 10;
-  const LABEL_W_MIN = 130;
-  const LABEL_H = 22;
-  const LABEL_BG = "rgba(0,0,0,0.70)";
-  const LABEL_STROKE = "rgba(255,255,255,0.16)";
+  // ===== BIG STYLE (3x text, 4x lines) =====
+  const FONT = "42px system-ui, -apple-system, Segoe UI, Roboto, Arial"; // ~3x
+  const HEADER_FONT = "44px system-ui, -apple-system, Segoe UI, Roboto, Arial";
+  const LINE_BASE = 4.8; // ~4x thicker than before
+  const LINE_EXT = 5.5;
+  const LINE_GATE = 6.0;
+
+  const LABEL_BG = "rgba(0,0,0,0.72)";
+  const LABEL_STROKE = "rgba(255,255,255,0.22)";
+  const LABEL_PAD_X = 18;
+  const LABEL_H = 54;
+  const LABEL_RADIUS = 10;
 
   function ensureCanvas() {
     if (canvas) return canvas;
@@ -45,7 +51,7 @@ export default function FibLevelsOverlay({
     canvas.style.width = "100%";
     canvas.style.height = "100%";
     canvas.style.pointerEvents = "none";
-    canvas.style.zIndex = "6";
+    canvas.style.zIndex = "50"; // ensure above other overlays
     chartContainer.appendChild(canvas);
     resizeCanvas();
     return canvas;
@@ -71,15 +77,13 @@ export default function FibLevelsOverlay({
     const span = high - low;
     if (!Number.isFinite(span) || span <= 0) return null;
 
-    // Wave-3 style targets above the high:
-    // 1.168 and 2.618 extensions from low->high impulse
-    const ext1168 = high + 1.168 * span;
-    const ext2618 = high + 2.618 * span;
-
+    // Extensions above Wave-1 high:
     return {
       span,
-      ext1168,
-      ext2618,
+      ext1168: high + 1.168 * span,
+      ext1618: high + 1.618 * span,
+      ext2000: high + 2.0 * span,
+      ext2618: high + 2.618 * span,
     };
   }
 
@@ -101,11 +105,11 @@ export default function FibLevelsOverlay({
     const rect = chartContainer.getBoundingClientRect();
     const dpr = window.devicePixelRatio || 1;
 
-    // Clear
+    // clear
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, c.width, c.height);
 
-    // Scale for DPR
+    // DPR scale
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
     const anchors = fibData.anchors || {};
@@ -114,40 +118,42 @@ export default function FibLevelsOverlay({
 
     const low = Number(anchors.low);
     const high = Number(anchors.high);
-
     const exts = computeExtensions(low, high);
 
     const levels = [
-      // Anchors
-      { key: "A_LOW", price: low, label: `A Low  ${fmt(low)}`, kind: "anchor" },
-      { key: "A_HIGH", price: high, label: `A High ${fmt(high)}`, kind: "anchor" },
+      // anchors
+      { key: "A_LOW", price: low, label: `A LOW  ${fmt(low)}`, kind: "anchor" },
+      { key: "A_HIGH", price: high, label: `A HIGH ${fmt(high)}`, kind: "anchor" },
 
-      // Retrace
+      // retrace
       { key: "R382", price: fib.r382, label: `0.382  ${fmt(fib.r382)}`, kind: "fib" },
       { key: "R500", price: fib.r500, label: `0.500  ${fmt(fib.r500)}`, kind: "fib" },
       { key: "R618", price: fib.r618, label: `0.618  ${fmt(fib.r618)}`, kind: "fib" },
 
-      // Invalidation (gate)
+      // invalidation
       { key: "INV", price: fib.invalidation, label: `INV 74%  ${fmt(fib.invalidation)}`, kind: "gate" },
     ].filter((x) => Number.isFinite(x.price));
 
-    // Extensions (Wave 3 targets) — only if anchors valid
     if (exts) {
       levels.push(
         { key: "EXT1168", price: exts.ext1168, label: `1.168  ${fmt(exts.ext1168)}`, kind: "ext" },
+        { key: "EXT1618", price: exts.ext1618, label: `1.618  ${fmt(exts.ext1618)}`, kind: "ext" },
+        { key: "EXT2000", price: exts.ext2000, label: `2.000  ${fmt(exts.ext2000)}`, kind: "ext" },
         { key: "EXT2618", price: exts.ext2618, label: `2.618  ${fmt(exts.ext2618)}`, kind: "ext" }
       );
     }
 
-    // Header (top-right)
+    // === header (top middle) ===
     const tag = anchors.context || signals.tag;
-    const header = tag ? `FIB ${tag} (1h)` : "FIB (1h)";
+    const header = tag ? `FIB ${tag} (ENGINE 2)` : "FIB (ENGINE 2)";
     ctx.font = HEADER_FONT;
-    ctx.fillStyle = "rgba(255,255,255,0.82)";
-    const headerW = ctx.measureText(header).width;
-    ctx.fillText(header, rect.width - headerW - 12, 18);
+    ctx.fillStyle = "rgba(255,255,255,0.90)";
+    const hw = ctx.measureText(header).width;
+    ctx.fillText(header, (rect.width - hw) / 2, 54);
 
-    // Draw each level
+    // Label X position: center-ish (middle of chart)
+    const labelX = Math.round(rect.width * 0.52);
+
     for (const lv of levels) {
       const y = priceSeries.priceToCoordinate(lv.price);
       if (y == null || !Number.isFinite(y)) continue;
@@ -157,19 +163,19 @@ export default function FibLevelsOverlay({
       const isExt = lv.kind === "ext";
 
       const stroke =
-        isGate ? "rgba(255,90,90,0.98)" :
-        isAnchor ? "rgba(255,255,255,0.92)" :
-        isExt ? "rgba(255,210,90,0.95)" :
-        "rgba(120,210,255,0.92)";
+        isGate ? "rgba(255,60,60,0.98)" :
+        isAnchor ? "rgba(255,255,255,0.98)" :
+        isExt ? "rgba(255,210,90,0.98)" :
+        "rgba(120,220,255,0.98)";
 
-      // line
+      // line (VERY THICK)
       ctx.save();
       ctx.strokeStyle = stroke;
-      ctx.lineWidth = isGate ? 1.8 : isExt ? 1.6 : 1.2;
+      ctx.lineWidth = isGate ? LINE_GATE : isExt ? LINE_EXT : LINE_BASE;
 
-      if (isGate) ctx.setLineDash([7, 4]);
-      else if (isAnchor) ctx.setLineDash([2, 4]);
-      else if (isExt) ctx.setLineDash([10, 6]);
+      if (isGate) ctx.setLineDash([14, 10]);
+      else if (isExt) ctx.setLineDash([22, 14]);
+      else if (isAnchor) ctx.setLineDash([10, 10]);
       else ctx.setLineDash([]);
 
       ctx.beginPath();
@@ -178,34 +184,35 @@ export default function FibLevelsOverlay({
       ctx.stroke();
       ctx.restore();
 
-      // right label box
+      // center label box
+      ctx.save();
       ctx.font = FONT;
       const label = lv.label;
       const tw = ctx.measureText(label).width;
-      const boxW = Math.max(LABEL_W_MIN, tw + LABEL_PAD_X * 2);
-      const bx = rect.width - boxW - 10;
+      const boxW = Math.max(260, tw + LABEL_PAD_X * 2);
+      const bx = Math.min(Math.max(12, labelX - boxW / 2), rect.width - boxW - 12);
       const by = y - LABEL_H / 2;
 
-      ctx.save();
       ctx.fillStyle = LABEL_BG;
       ctx.strokeStyle = LABEL_STROKE;
-      ctx.lineWidth = 1;
-      roundRect(ctx, bx, by, boxW, LABEL_H, 5);
+      ctx.lineWidth = 2;
+
+      roundRect(ctx, bx, by, boxW, LABEL_H, LABEL_RADIUS);
       ctx.fill();
       ctx.stroke();
 
       ctx.fillStyle = stroke;
-      ctx.fillText(label, bx + LABEL_PAD_X, by + 15);
+      ctx.fillText(label, bx + LABEL_PAD_X, by + 40);
       ctx.restore();
 
-      // anchor dot left side
+      // anchor dots left side (bigger)
       if (isAnchor) {
         ctx.save();
         ctx.fillStyle = stroke;
-        ctx.strokeStyle = "rgba(0,0,0,0.65)";
-        ctx.lineWidth = 1;
+        ctx.strokeStyle = "rgba(0,0,0,0.75)";
+        ctx.lineWidth = 2;
         ctx.beginPath();
-        ctx.arc(12, y, 4.2, 0, Math.PI * 2);
+        ctx.arc(22, y, 9, 0, Math.PI * 2);
         ctx.fill();
         ctx.stroke();
         ctx.restore();
@@ -256,7 +263,6 @@ export default function FibLevelsOverlay({
 
   window.addEventListener("resize", onResize);
 
-  // Redraw on scroll/zoom
   const cb = () => scheduleDraw();
   ts.subscribeVisibleTimeRangeChange(cb);
 
