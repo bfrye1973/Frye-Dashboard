@@ -2,6 +2,7 @@
 // ============================================================
 // RowChart — seed + live aggregation + indicators & overlays
 // FIX: ensure SSE subscription actually starts (chartReady state)
+// ADD: Engine 2 Fib overlay (toggle + attach overlay)
 // ============================================================
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
@@ -25,6 +26,9 @@ import SmartMoneyZonesPanel from "../../../components/smz/SmartMoneyZonesPanel";
 import SMZLevelsOverlay from "./overlays/SMZLevelsOverlay";
 import SMZShelvesOverlay from "./overlays/SMZShelvesOverlay";
 import AccDistZonesPanel from "../../../components/smz/AccDistZonesPanel";
+
+// ✅ Engine 2 Fib overlay (NEW)
+import FibLevelsOverlay from "./overlays/FibLevelsOverlay";
 
 /* ------------------------------ Config ------------------------------ */
 
@@ -203,7 +207,6 @@ export default function RowChart({
   const userInteractedRef = useRef(false);
 
   // ✅ IMPORTANT: this state forces a re-render when chart + series exist
-  // Without it, the live stream effect can "return early" once and never retry.
   const [chartReady, setChartReady] = useState(false);
 
   const [state, setState] = useState({
@@ -221,6 +224,9 @@ export default function RowChart({
 
     institutionalZonesAuto: false,
     smzShelvesAuto: false,
+
+    // ✅ Engine 2 Fib toggle (NEW)
+    fibLevels: false,
 
     accDistLevels: false,
     wickPaZones: false,
@@ -245,7 +251,6 @@ export default function RowChart({
     const el = containerRef.current;
     if (!el) return;
 
-    // chart not ready until we successfully create it
     setChartReady(false);
 
     const chart = createChart(el, {
@@ -312,7 +317,6 @@ export default function RowChart({
     roRef.current = ro;
 
     return () => {
-      // mark as not ready so live effect cleans up correctly
       setChartReady(false);
 
       try {
@@ -322,10 +326,12 @@ export default function RowChart({
         el.removeEventListener("wheel", markInteract);
         el.removeEventListener("mousedown", markInteract);
       } catch {}
+
       try {
         overlayInstancesRef.current.forEach((o) => o?.destroy?.());
       } catch {}
       overlayInstancesRef.current = [];
+
       try {
         chart.remove();
       } catch {}
@@ -501,7 +507,7 @@ export default function RowChart({
 
     const reg = (inst) => inst && overlayInstancesRef.current.push(inst);
 
-    // Institutional Zones (auto) — backend engine (YELLOW) /api/v1/smz-levels
+    // Engine 1 — Institutional Zones (auto) — /api/v1/smz-levels
     if (state.institutionalZonesAuto) {
       reg(
         attachOverlay(SMZLevelsOverlay, {
@@ -513,7 +519,7 @@ export default function RowChart({
       );
     }
 
-    // Acc/Dist Shelves (auto) — Script #2 (BLUE/RED) /api/v1/smz-shelves
+    // Engine 1 — Acc/Dist Shelves (auto) — /api/v1/smz-shelves
     if (state.smzShelvesAuto) {
       reg(
         attachOverlay(SMZShelvesOverlay, {
@@ -525,6 +531,20 @@ export default function RowChart({
       );
     }
 
+    // ✅ Engine 2 — Fib Levels (NEW) — /api/v1/fib-levels (1h only v1)
+    // Note: overlay itself fetches SPY 1h, and draws anchors + fib lines.
+    if (state.fibLevels) {
+      reg(
+        attachOverlay(FibLevelsOverlay, {
+          chart: chartRef.current,
+          priceSeries: seriesRef.current,
+          chartContainer: containerRef.current,
+          timeframe: state.timeframe,
+          enabled: true,
+        })
+      );
+    }
+
     // Seed all overlays with current bars
     try {
       overlayInstancesRef.current.forEach((o) => o?.seed?.(barsRef.current));
@@ -532,6 +552,7 @@ export default function RowChart({
   }, [
     state.institutionalZonesAuto,
     state.smzShelvesAuto,
+    state.fibLevels,
     state.timeframe,
     bars,
     showDebug,
@@ -625,7 +646,6 @@ export default function RowChart({
           });
         }
 
-        // only push/replace in React state when time changes (prevents UI choking)
         const prev = barsRef.current[barsRef.current.length - 1];
         if (!prev || bar.time > prev.time) {
           const next = [...barsRef.current, bar];
@@ -635,7 +655,6 @@ export default function RowChart({
           const next = [...barsRef.current];
           next[next.length - 1] = bar;
           barsRef.current = next;
-          // optional: you can comment this out if you want max performance
           setBars(next);
         }
 
@@ -648,7 +667,6 @@ export default function RowChart({
       // --- Aggregate 1m into selected TF ---
       const start = floorToBucket(tSec);
 
-      // boundary crossed → finalize old candle + start new one
       if (bucketStart === null || start > bucketStart) {
         if (rolling) {
           seriesRef.current?.update(rolling);
@@ -657,11 +675,13 @@ export default function RowChart({
             volSeriesRef.current.update({
               time: rolling.time,
               value: Number(rolling.volume || 0),
-              color: rolling.close >= rolling.open ? DEFAULTS.volUp : DEFAULTS.volDown,
+              color:
+                rolling.close >= rolling.open
+                  ? DEFAULTS.volUp
+                  : DEFAULTS.volDown,
             });
           }
 
-          // push/replace finalized bar
           const next = [...barsRef.current];
           const last = next[next.length - 1];
           if (!last || rolling.time > last.time) next.push(rolling);
@@ -685,14 +705,13 @@ export default function RowChart({
           volume: Number(oneMin.volume || 0),
         };
       } else {
-        // same bucket → update rolling
         rolling.high = Math.max(rolling.high, oneMin.high);
         rolling.low = Math.min(rolling.low, oneMin.low);
         rolling.close = oneMin.close;
-        rolling.volume = Number(rolling.volume || 0) + Number(oneMin.volume || 0);
+        rolling.volume =
+          Number(rolling.volume || 0) + Number(oneMin.volume || 0);
       }
 
-      // live update current rolling candle
       seriesRef.current?.update(rolling);
       if (state.volume && volSeriesRef.current) {
         volSeriesRef.current.update({
@@ -792,6 +811,10 @@ export default function RowChart({
     volume: state.volume,
     institutionalZonesAuto: state.institutionalZonesAuto,
     smzShelvesAuto: state.smzShelvesAuto,
+
+    // ✅ Engine 2 toggle
+    fibLevels: state.fibLevels,
+
     onChange: handleControlsChange,
     onReset: () =>
       setState((s) => ({
@@ -803,6 +826,9 @@ export default function RowChart({
         volume: true,
         institutionalZonesAuto: false,
         smzShelvesAuto: false,
+
+        // ✅ reset fib to off (minimal default)
+        fibLevels: false,
       })),
   };
 
