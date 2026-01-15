@@ -1,10 +1,12 @@
 // src/pages/rows/RowChart/IndicatorsToolbar.jsx
-// v3.6 — Minimal toolbar for SMZ system
-// Keeps ONLY:
+// v3.7 — Minimal toolbar for SMZ system + Engine 2 Fib
+// Keeps:
 // - EMA
 // - Volume
 // - Institutional Zones (auto)
 // - Acc/Dist Shelves (auto)
+// Adds:
+// - Fib Levels (Engine 2)
 
 import React from "react";
 
@@ -15,6 +17,7 @@ import React from "react";
  * - volume
  * - institutionalZonesAuto
  * - smzShelvesAuto
+ * - fibLevels                 ✅ Engine 2
  * - onChange(patch), onReset()
  */
 export default function IndicatorsToolbar({
@@ -30,6 +33,9 @@ export default function IndicatorsToolbar({
   // SMZ overlays
   institutionalZonesAuto = false, // 🟨 Institutional Zones (auto)
   smzShelvesAuto = false,         // 🔵🔴 Acc/Dist Shelves (auto)
+
+  // Engine 2 (Fib)
+  fibLevels = false,              // 🟦 Fib Levels (Engine 2)
 
   // Handlers
   onChange,
@@ -181,6 +187,24 @@ export default function IndicatorsToolbar({
                     onChange={(e) => onChange?.({ smzShelvesAuto: e.target.checked })}
                   />{" "}
                   Acc/Dist Shelves (auto)
+                </label>
+              </div>
+
+              {divider}
+
+              {/* Engine 2 (Fib) */}
+              <div style={{ color: "#9ca3af", fontSize: 12, margin: "6px 0 4px" }}>
+                Engine 2 (Fib)
+              </div>
+
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={!!fibLevels}
+                    onChange={(e) => onChange?.({ fibLevels: e.target.checked })}
+                  />{" "}
+                  Fib Levels (Engine 2)
                 </label>
               </div>
 
