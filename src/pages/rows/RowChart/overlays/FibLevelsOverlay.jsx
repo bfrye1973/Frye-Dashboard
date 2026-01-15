@@ -1,187 +1,246 @@
-import React, { useEffect, useMemo, useState } from "react";
+// src/pages/rows/RowChart/overlays/FibLevelsOverlay.jsx
+// Engine 2 Overlay — Fib levels + Anchor lines (minimal clutter)
+// Draws on the same chart canvas system as SMZ overlay (Lightweight Charts).
 
-/**
- * FibLevelsOverlay
- * - Reads backend-1: /api/v1/fib-levels?symbol=SPY&tf=1h
- * - Draws: anchors (low/high) + fib lines (38.2/50/61.8) + invalidation (74% gate)
- * - Minimal clutter: thin lines + compact labels on right edge
- *
- * Expected chart props (same pattern as other overlays):
- * - width, height
- * - yScale: function(price)->y (or { priceToY })
- * - chartPadding: { left, right, top, bottom } (optional)
- * - symbol (default "SPY")
- * - tf (default "1h")
- * - apiBase (optional) e.g. process.env.REACT_APP_API_BASE
- * - enabled (boolean)
- */
+const FIB_URL =
+  "https://frye-market-backend-1.onrender.com/api/v1/fib-levels?symbol=SPY&tf=1h";
+
 export default function FibLevelsOverlay({
+  chart,
+  priceSeries,
+  chartContainer,
+  timeFrame,
   enabled = false,
-  width,
-  height,
-  yScale,
-  chartPadding,
-  symbol = "SPY",
-  tf = "1h",
-  apiBase,
 }) {
-  const [data, setData] = useState(null);
-
-  const pad = chartPadding || { left: 0, right: 0, top: 0, bottom: 0 };
-  const leftX = pad.left + 4;
-  const rightX = (width ?? 0) - pad.right - 4;
-
-  const priceToY = useMemo(() => {
-    // Support either a function or object style.
-    if (!yScale) return null;
-    if (typeof yScale === "function") return yScale;
-    if (typeof yScale.priceToY === "function") return yScale.priceToY;
-    return null;
-  }, [yScale]);
-
-  useEffect(() => {
-    if (!enabled) return;
-
-    let alive = true;
-
-    const base =
-      apiBase ||
-      process.env.REACT_APP_API_BASE ||
-      ""; // allow relative in same origin setups
-
-    const url = `${base}/api/v1/fib-levels?symbol=${encodeURIComponent(
-      symbol
-    )}&tf=${encodeURIComponent(tf)}`;
-
-    fetch(url)
-      .then((r) => r.json())
-      .then((json) => {
-        if (!alive) return;
-        setData(json);
-      })
-      .catch(() => {
-        if (!alive) return;
-        setData({ ok: false, reason: "FETCH_FAILED" });
-      });
-
-    return () => {
-      alive = false;
-    };
-  }, [enabled, apiBase, symbol, tf]);
-
-  if (!enabled) return null;
-  if (!width || !height) return null;
-  if (!priceToY) return null;
-
-  if (!data || data.ok !== true) {
-    return null; // keep it quiet (no clutter)
+  if (!chart || !priceSeries || !chartContainer) {
+    console.warn("[FibLevelsOverlay] missing chart/priceSeries/chartContainer");
+    return { seed() {}, update() {}, destroy() {} };
   }
 
-  const anchors = data.anchors || {};
-  const fib = data.fib || {};
-  const signals = data.signals || {};
+  let canvas = null;
+  let raf = null;
+  let disposed = false;
 
-  const levels = [
-    // Anchors
-    { key: "A_LOW", price: anchors.low, label: `A Low ${fmt(anchors.low)}`, kind: "anchor" },
-    { key: "A_HIGH", price: anchors.high, label: `A High ${fmt(anchors.high)}`, kind: "anchor" },
+  let fibData = null; // latest API payload
 
-    // Fibs
-    { key: "R382", price: fib.r382, label: `0.382 ${fmt(fib.r382)}`, kind: "fib" },
-    { key: "R500", price: fib.r500, label: `0.500 ${fmt(fib.r500)}`, kind: "fib" },
-    { key: "R618", price: fib.r618, label: `0.618 ${fmt(fib.r618)}`, kind: "fib" },
+  const ts = chart.timeScale();
 
-    // Gate
-    { key: "INV", price: fib.invalidation, label: `INV(74) ${fmt(fib.invalidation)}`, kind: "gate" },
-  ].filter((x) => Number.isFinite(x.price));
+  function ensureCanvas() {
+    if (canvas) return canvas;
+    canvas = document.createElement("canvas");
+    canvas.style.position = "absolute";
+    canvas.style.left = "0";
+    canvas.style.top = "0";
+    canvas.style.width = "100%";
+    canvas.style.height = "100%";
+    canvas.style.pointerEvents = "none";
+    canvas.style.zIndex = "6"; // above candles, below tooltips if any
+    chartContainer.appendChild(canvas);
+    resizeCanvas();
+    return canvas;
+  }
 
-  const contextTag = anchors.context || signals.tag || null; // manual only (W2/W4)
-  const header = contextTag ? `FIB ${contextTag}` : "FIB";
+  function removeCanvas() {
+    if (!canvas) return;
+    try {
+      canvas.remove();
+    } catch {}
+    canvas = null;
+  }
 
-  return (
-    <g className="fib-levels-overlay" style={{ pointerEvents: "none" }}>
-      {/* Small header top-right */}
-      <text
-        x={rightX}
-        y={pad.top + 14}
-        textAnchor="end"
-        fontSize="11"
-        fill="rgba(255,255,255,0.75)"
-      >
-        {header}
-      </text>
+  function resizeCanvas() {
+    if (!canvas) return;
+    const rect = chartContainer.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = Math.floor(rect.width * dpr);
+    canvas.height = Math.floor(rect.height * dpr);
+  }
 
-      {levels.map((lv) => {
-        const y = priceToY(lv.price);
-        if (!Number.isFinite(y)) return null;
+  function draw() {
+    if (disposed) return;
+    if (!enabled) {
+      removeCanvas();
+      return;
+    }
+    if (!fibData || fibData.ok !== true) {
+      // Nothing to draw (keep silent)
+      removeCanvas();
+      return;
+    }
 
-        const isGate = lv.kind === "gate";
-        const isAnchor = lv.kind === "anchor";
+    const c = ensureCanvas();
+    const ctx = c.getContext("2d");
+    if (!ctx) return;
 
-        const stroke =
-          isGate ? "rgba(255,90,90,0.95)" :
-          isAnchor ? "rgba(255,255,255,0.80)" :
-          "rgba(120,210,255,0.85)";
+    const rect = chartContainer.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
 
-        const dash =
-          isGate ? "6 3" :
-          isAnchor ? "2 4" :
-          "0";
+    // Clear
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, c.width, c.height);
 
-        const strokeWidth = isGate ? 1.6 : 1.1;
+    // Scale for DPR
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-        return (
-          <g key={lv.key}>
-            {/* Horizontal line */}
-            <line
-              x1={pad.left}
-              x2={(width ?? 0) - pad.right}
-              y1={y}
-              y2={y}
-              stroke={stroke}
-              strokeWidth={strokeWidth}
-              strokeDasharray={dash}
-            />
+    const anchors = fibData.anchors || {};
+    const fib = fibData.fib || {};
+    const signals = fibData.signals || {};
 
-            {/* Right-side label */}
-            <rect
-              x={rightX - 95}
-              y={y - 9}
-              width={95}
-              height={16}
-              rx={3}
-              fill="rgba(0,0,0,0.45)"
-              stroke="rgba(255,255,255,0.10)"
-            />
-            <text
-              x={rightX - 6}
-              y={y + 3}
-              textAnchor="end"
-              fontSize="11"
-              fill={stroke}
-            >
-              {lv.label}
-            </text>
+    const levels = [
+      { key: "A_LOW", price: anchors.low, label: `A Low ${fmt(anchors.low)}`, kind: "anchor" },
+      { key: "A_HIGH", price: anchors.high, label: `A High ${fmt(anchors.high)}`, kind: "anchor" },
+      { key: "R382", price: fib.r382, label: `0.382 ${fmt(fib.r382)}`, kind: "fib" },
+      { key: "R500", price: fib.r500, label: `0.500 ${fmt(fib.r500)}`, kind: "fib" },
+      { key: "R618", price: fib.r618, label: `0.618 ${fmt(fib.r618)}`, kind: "fib" },
+      { key: "INV", price: fib.invalidation, label: `INV(74) ${fmt(fib.invalidation)}`, kind: "gate" },
+    ].filter((x) => Number.isFinite(x.price));
 
-            {/* Anchor tick marks (small) */}
-            {isAnchor ? (
-              <circle
-                cx={pad.left + 10}
-                cy={y}
-                r={3.2}
-                fill={stroke}
-                stroke="rgba(0,0,0,0.6)"
-                strokeWidth={1}
-              />
-            ) : null}
-          </g>
-        );
-      })}
-    </g>
-  );
+    // Header (top-right)
+    const header = anchors.context || signals.tag ? `FIB ${anchors.context || signals.tag}` : "FIB";
+    ctx.font = "12px system-ui, -apple-system, Segoe UI, Roboto, Arial";
+    ctx.fillStyle = "rgba(255,255,255,0.70)";
+    const headerW = ctx.measureText(header).width;
+    ctx.fillText(header, rect.width - headerW - 10, 16);
+
+    // Draw each level
+    for (const lv of levels) {
+      const y = priceSeries.priceToCoordinate(lv.price);
+      if (y == null || !Number.isFinite(y)) continue;
+
+      const isGate = lv.kind === "gate";
+      const isAnchor = lv.kind === "anchor";
+
+      const stroke =
+        isGate ? "rgba(255,90,90,0.95)" :
+        isAnchor ? "rgba(255,255,255,0.80)" :
+        "rgba(120,210,255,0.85)";
+
+      // line
+      ctx.save();
+      ctx.strokeStyle = stroke;
+      ctx.lineWidth = isGate ? 1.6 : 1.1;
+
+      if (isGate) {
+        ctx.setLineDash([6, 3]);
+      } else if (isAnchor) {
+        ctx.setLineDash([2, 4]);
+      } else {
+        ctx.setLineDash([]);
+      }
+
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(rect.width, y);
+      ctx.stroke();
+      ctx.restore();
+
+      // right label box
+      const label = lv.label;
+      ctx.font = "12px system-ui, -apple-system, Segoe UI, Roboto, Arial";
+      const tw = ctx.measureText(label).width;
+      const boxW = Math.max(92, tw + 14);
+      const boxH = 18;
+      const bx = rect.width - boxW - 8;
+      const by = y - boxH / 2;
+
+      ctx.save();
+      ctx.fillStyle = "rgba(0,0,0,0.45)";
+      ctx.strokeStyle = "rgba(255,255,255,0.10)";
+      roundRect(ctx, bx, by, boxW, boxH, 4);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = stroke;
+      ctx.fillText(label, bx + 7, by + 13);
+      ctx.restore();
+
+      // anchor dot left side
+      if (isAnchor) {
+        ctx.save();
+        ctx.fillStyle = stroke;
+        ctx.strokeStyle = "rgba(0,0,0,0.6)";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.arc(10, y, 3.4, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
+  }
+
+  async function fetchFib() {
+    try {
+      const res = await fetch(FIB_URL, { headers: { accept: "application/json" } });
+      fibData = await res.json();
+    } catch (e) {
+      fibData = null;
+    }
+  }
+
+  function scheduleDraw() {
+    if (disposed) return;
+    if (raf) cancelAnimationFrame(raf);
+    raf = requestAnimationFrame(draw);
+  }
+
+  function onResize() {
+    resizeCanvas();
+    scheduleDraw();
+  }
+
+  // Hook chart events similar to other overlays
+  function seed() {
+    if (!enabled) return;
+    fetchFib().then(scheduleDraw);
+  }
+
+  function update() {
+    if (!enabled) {
+      removeCanvas();
+      return;
+    }
+    fetchFib().then(scheduleDraw);
+  }
+
+  function destroy() {
+    disposed = true;
+    if (raf) cancelAnimationFrame(raf);
+    raf = null;
+    window.removeEventListener("resize", onResize);
+    removeCanvas();
+  }
+
+  // Init
+  window.addEventListener("resize", onResize);
+
+  // Also redraw when visible range changes (scroll/zoom)
+  const unsub = ts.subscribeVisibleTimeRangeChange(() => scheduleDraw());
+
+  return {
+    seed,
+    update,
+    destroy: () => {
+      try {
+        ts.unsubscribeVisibleTimeRangeChange(unsub);
+      } catch {}
+      destroy();
+    },
+  };
 }
 
 function fmt(x) {
   if (!Number.isFinite(x)) return "";
-  return x.toFixed(2);
+  return Number(x).toFixed(2);
+}
+
+function roundRect(ctx, x, y, w, h, r) {
+  const rr = Math.min(r, w / 2, h / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + rr, y);
+  ctx.arcTo(x + w, y, x + w, y + h, rr);
+  ctx.arcTo(x + w, y + h, x, y + h, rr);
+  ctx.arcTo(x, y + h, x, y, rr);
+  ctx.arcTo(x, y, x + w, y, rr);
+  ctx.closePath();
 }
