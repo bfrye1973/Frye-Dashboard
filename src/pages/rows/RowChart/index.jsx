@@ -2,7 +2,8 @@
 // ============================================================
 // RowChart — seed + live aggregation + indicators & overlays
 // FIX: ensure SSE subscription actually starts (chartReady state)
-// ADD: Engine 2 Fib multi-degree toggles + styles wiring
+// ADD: Engine 2 Fib multi-degree toggles + styles wiring (Primary/Intermediate/Minor/Minute)
+// ADD: Elliott manual wave label/line style wiring
 // ============================================================
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
@@ -57,7 +58,6 @@ const TF_SEC = {
   "1d": 86400,
 };
 
-// LIVE stream should always be 1m, then aggregate to selected TF
 const LIVE_TF = "1m";
 
 /* -------------------- Helper: dynamic seed limit -------------------- */
@@ -177,6 +177,26 @@ function attachOverlay(Module, args) {
   return { attach() {}, seed() {}, update() {}, destroy() {} };
 }
 
+// Helper: build a consistent default fib style object including Elliott settings
+function makeFibStyle(color, fontPx, lineWidth, showExtensions = true) {
+  return {
+    color,
+    fontPx,
+    lineWidth,
+    showExtensions,
+    showRetrace: true,
+    showAnchors: true,
+
+    // Elliott manual overlays (labels + lines)
+    showWaveLabels: false,
+    showWaveLines: false,
+    waveLabelColor: color,
+    waveLabelFontPx: fontPx,
+    waveLineColor: color,
+    waveLineWidth: lineWidth,
+  };
+}
+
 /* ------------------------------ Component --------------------------- */
 
 export default function RowChart({
@@ -206,7 +226,6 @@ export default function RowChart({
   const didFitOnceRef = useRef(false);
   const userInteractedRef = useRef(false);
 
-  // ✅ chartReady forces a rerender when chart + series exist
   const [chartReady, setChartReady] = useState(false);
 
   const [state, setState] = useState({
@@ -226,41 +245,21 @@ export default function RowChart({
     smzShelvesAuto: false,
 
     // ✅ Engine 2 Fib (multi-degree toggles)
+    fibPrimary: false,
     fibIntermediate: false,
     fibMinor: false,
     fibMinute: false,
 
     // ✅ per-degree styles (edited in toolbar ⚙)
-    fibIntermediateStyle: {
-      color: "#ffd54a",
-      fontPx: 18,
-      lineWidth: 3.5,
-      showExtensions: true,
-      showRetrace: true,
-      showAnchors: true,
-    },
-    fibMinorStyle: {
-      color: "#22c55e",
-      fontPx: 16,
-      lineWidth: 3.0,
-      showExtensions: true,
-      showRetrace: true,
-      showAnchors: true,
-    },
-    fibMinuteStyle: {
-      color: "#60a5fa",
-      fontPx: 14,
-      lineWidth: 2.5,
-      showExtensions: true,
-      showRetrace: true,
-      showAnchors: true,
-    },
+    fibPrimaryStyle: makeFibStyle("#ff5ad6", 18, 3.5, true),        // magenta-ish for Primary
+    fibIntermediateStyle: makeFibStyle("#ffd54a", 18, 3.5, true),   // gold
+    fibMinorStyle: makeFibStyle("#22c55e", 16, 3.0, true),          // green
+    fibMinuteStyle: makeFibStyle("#60a5fa", 14, 2.5, true),         // blue
 
     accDistLevels: false,
     wickPaZones: false,
   });
 
-  // Debug hook
   if (typeof window !== "undefined") {
     window.__indicators = {
       get: () => state,
@@ -346,22 +345,16 @@ export default function RowChart({
     return () => {
       setChartReady(false);
 
-      try {
-        ro.disconnect();
-      } catch {}
+      try { ro.disconnect(); } catch {}
       try {
         el.removeEventListener("wheel", markInteract);
         el.removeEventListener("mousedown", markInteract);
       } catch {}
 
-      try {
-        overlayInstancesRef.current.forEach((o) => o?.destroy?.());
-      } catch {}
+      try { overlayInstancesRef.current.forEach((o) => o?.destroy?.()); } catch {}
       overlayInstancesRef.current = [];
 
-      try {
-        chart.remove();
-      } catch {}
+      try { chart.remove(); } catch {}
       chartRef.current = null;
       seriesRef.current = null;
       volSeriesRef.current = null;
@@ -461,79 +454,17 @@ export default function RowChart({
     };
   }, [state.symbol, state.timeframe, state.range, state.volume]);
 
-  /* ================== Effect A2: multi-TF snapshots (10 days) ================ */
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadSnapshots() {
-      try {
-        const [d10, d1h, d4h] = await Promise.all([
-          getOHLC(state.symbol, "10m", 10 * barsPerDay("10m")),
-          getOHLC(state.symbol, "1h", 10 * barsPerDay("1h")),
-          getOHLC(state.symbol, "4h", 10 * barsPerDay("4h")),
-        ]);
-
-        if (cancelled) return;
-
-        const norm = (arr) =>
-          (Array.isArray(arr) ? arr : [])
-            .map((b) => ({
-              ...b,
-              time: b.time > 1e12 ? Math.floor(b.time / 1000) : b.time,
-            }))
-            .sort((a, b) => a.time - b.time);
-
-        bars10mRef.current = norm(d10);
-        bars1hRef.current = norm(d1h);
-        bars4hRef.current = norm(d4h);
-      } catch (e) {
-        console.warn("[RowChart] loadSnapshots error:", e);
-        bars10mRef.current = [];
-        bars1hRef.current = [];
-        bars4hRef.current = [];
-      }
-    }
-
-    loadSnapshots();
-    return () => {
-      cancelled = true;
-    };
-  }, [state.symbol]);
-
   /* =================== Effect B: Attach/Seed Overlays =================== */
 
   useEffect(() => {
-    if (!chartRef.current || !seriesRef.current || barsRef.current.length === 0)
-      return;
+    if (!chartRef.current || !seriesRef.current || barsRef.current.length === 0) return;
 
-    try {
-      overlayInstancesRef.current.forEach((o) => o?.destroy?.());
-    } catch {}
+    try { overlayInstancesRef.current.forEach((o) => o?.destroy?.()); } catch {}
     overlayInstancesRef.current = [];
-
-    // cleanup old leaked canvases (SMZ)
-    try {
-      const root = containerRef.current;
-      if (root) {
-        root
-          .querySelectorAll("canvas.overlay-canvas.smz")
-          .forEach((c) => c.parentNode?.removeChild(c));
-      }
-    } catch {}
-
-    try {
-      const root = containerRef.current;
-      if (root) {
-        root
-          .querySelectorAll("canvas.overlay-canvas.smz-shelves")
-          .forEach((c) => c.parentNode?.removeChild(c));
-      }
-    } catch {}
 
     const reg = (inst) => inst && overlayInstancesRef.current.push(inst);
 
-    // Engine 1 — Institutional Zones (auto)
+    // Engine 1
     if (state.institutionalZonesAuto) {
       reg(
         attachOverlay(SMZLevelsOverlay, {
@@ -544,8 +475,6 @@ export default function RowChart({
         })
       );
     }
-
-    // Engine 1 — Acc/Dist Shelves (auto)
     if (state.smzShelvesAuto) {
       reg(
         attachOverlay(SMZShelvesOverlay, {
@@ -557,7 +486,22 @@ export default function RowChart({
       );
     }
 
-    // ✅ Engine 2 — Fib (Intermediate) 1h
+    // ✅ Engine 2 — Primary (1d)
+    if (state.fibPrimary) {
+      reg(
+        attachOverlay(FibLevelsOverlay, {
+          chart: chartRef.current,
+          priceSeries: seriesRef.current,
+          chartContainer: containerRef.current,
+          enabled: true,
+          degree: "primary",
+          tf: "1d",
+          style: state.fibPrimaryStyle,
+        })
+      );
+    }
+
+    // ✅ Engine 2 — Intermediate (1h)
     if (state.fibIntermediate) {
       reg(
         attachOverlay(FibLevelsOverlay, {
@@ -572,7 +516,7 @@ export default function RowChart({
       );
     }
 
-    // ✅ Engine 2 — Fib (Minor) 1h
+    // ✅ Engine 2 — Minor (1h)
     if (state.fibMinor) {
       reg(
         attachOverlay(FibLevelsOverlay, {
@@ -587,7 +531,7 @@ export default function RowChart({
       );
     }
 
-    // ✅ Engine 2 — Fib (Minute) 10m
+    // ✅ Engine 2 — Minute (10m)
     if (state.fibMinute) {
       reg(
         attachOverlay(FibLevelsOverlay, {
@@ -602,18 +546,17 @@ export default function RowChart({
       );
     }
 
-    // Seed overlays
-    try {
-      overlayInstancesRef.current.forEach((o) => o?.seed?.(barsRef.current));
-    } catch {}
+    try { overlayInstancesRef.current.forEach((o) => o?.seed?.(barsRef.current)); } catch {}
   }, [
     state.institutionalZonesAuto,
     state.smzShelvesAuto,
 
-    // fib toggles + styles (needed so changes redraw)
+    state.fibPrimary,
     state.fibIntermediate,
     state.fibMinor,
     state.fibMinute,
+
+    state.fibPrimaryStyle,
     state.fibIntermediateStyle,
     state.fibMinorStyle,
     state.fibMinuteStyle,
@@ -622,48 +565,6 @@ export default function RowChart({
     bars,
     showDebug,
   ]);
-
-  /* -------------------------- Render + Range ------------------------- */
-
-  useEffect(() => {
-    const chart = chartRef.current;
-    const price = seriesRef.current;
-    const vol = volSeriesRef.current;
-    if (!chart || !price) return;
-
-    price.setData(bars);
-
-    if (vol) {
-      vol.applyOptions({ visible: !!state.volume });
-      if (state.volume) {
-        vol.setData(
-          bars.map((b) => ({
-            time: b.time,
-            value: Number(b.volume || 0),
-            color: b.close >= b.open ? DEFAULTS.volUp : DEFAULTS.volDown,
-          }))
-        );
-      } else {
-        vol.setData([]);
-      }
-    }
-
-    const ts = chart.timeScale();
-    const len = bars.length;
-    if (!len) return;
-
-    if (state.range === "ALL") {
-      if (!didFitOnceRef.current && !userInteractedRef.current) {
-        ts.fitContent();
-        didFitOnceRef.current = true;
-      }
-    } else if (typeof state.range === "number") {
-      const to = len - 1;
-      const from = Math.max(0, to - (state.range - 1));
-      ts.setVisibleLogicalRange({ from, to });
-      didFitOnceRef.current = true;
-    }
-  }, [bars, state.range, state.volume]);
 
   /* --------------- Live 1m stream → selected TF aggregation ---------- */
 
@@ -682,22 +583,10 @@ export default function RowChart({
       rolling = { ...lastSeed };
     }
 
-    if (showDebug) {
-      console.log("[RowChart] subscribing stream", {
-        symbol: state.symbol,
-        liveTf: LIVE_TF,
-        tf: state.timeframe,
-        chartReady,
-      });
-    }
-
     const unsub = subscribeStream(state.symbol, LIVE_TF, (oneMin) => {
-      const tSec = Number(
-        oneMin.time > 1e12 ? Math.floor(oneMin.time / 1000) : oneMin.time
-      );
+      const tSec = Number(oneMin.time > 1e12 ? Math.floor(oneMin.time / 1000) : oneMin.time);
       if (!Number.isFinite(tSec)) return;
 
-      // If viewing 1m, update directly
       if (tfSec === TF_SEC["1m"]) {
         const bar = { ...oneMin, time: tSec };
         seriesRef.current?.update(bar);
@@ -722,13 +611,10 @@ export default function RowChart({
           setBars(next);
         }
 
-        try {
-          overlayInstancesRef.current.forEach((o) => o?.update?.(bar));
-        } catch {}
+        try { overlayInstancesRef.current.forEach((o) => o?.update?.(bar)); } catch {}
         return;
       }
 
-      // Aggregate 1m into selected TF
       const start = floorToBucket(tSec);
 
       if (bucketStart === null || start > bucketStart) {
@@ -751,9 +637,7 @@ export default function RowChart({
           barsRef.current = next;
           setBars(next);
 
-          try {
-            overlayInstancesRef.current.forEach((o) => o?.update?.(rolling));
-          } catch {}
+          try { overlayInstancesRef.current.forEach((o) => o?.update?.(rolling)); } catch {}
         }
 
         bucketStart = start;
@@ -781,9 +665,7 @@ export default function RowChart({
         });
       }
 
-      try {
-        overlayInstancesRef.current.forEach((o) => o?.update?.(rolling));
-      } catch {}
+      try { overlayInstancesRef.current.forEach((o) => o?.update?.(rolling)); } catch {}
     });
 
     return () => unsub?.();
@@ -838,27 +720,27 @@ export default function RowChart({
     if (!chart) return;
     setState((s) => ({ ...s, range: nextRange }));
 
-    const ts = chart.timeScale();
+    const tsLocal = chart.timeScale();
     const list = barsRef.current;
     const len = list.length;
     if (!len) return;
 
     if (nextRange === "ALL") {
-      ts.fitContent();
+      tsLocal.fitContent();
       didFitOnceRef.current = true;
       userInteractedRef.current = true;
       return;
     }
     const r = Number(nextRange);
     if (!Number.isFinite(r) || r <= 0) {
-      ts.fitContent();
+      tsLocal.fitContent();
       didFitOnceRef.current = true;
       userInteractedRef.current = true;
       return;
     }
     const to = len - 1;
     const from = Math.max(0, to - (r - 1));
-    ts.setVisibleLogicalRange({ from, to });
+    tsLocal.setVisibleLogicalRange({ from, to });
     didFitOnceRef.current = true;
     userInteractedRef.current = true;
   };
@@ -873,11 +755,12 @@ export default function RowChart({
     institutionalZonesAuto: state.institutionalZonesAuto,
     smzShelvesAuto: state.smzShelvesAuto,
 
-    // ✅ fib toggles + styles (for toolbar)
+    fibPrimary: state.fibPrimary,
     fibIntermediate: state.fibIntermediate,
     fibMinor: state.fibMinor,
     fibMinute: state.fibMinute,
 
+    fibPrimaryStyle: state.fibPrimaryStyle,
     fibIntermediateStyle: state.fibIntermediateStyle,
     fibMinorStyle: state.fibMinorStyle,
     fibMinuteStyle: state.fibMinuteStyle,
@@ -894,7 +777,7 @@ export default function RowChart({
         institutionalZonesAuto: false,
         smzShelvesAuto: false,
 
-        // ✅ reset fib toggles OFF (styles remain)
+        fibPrimary: false,
         fibIntermediate: false,
         fibMinor: false,
         fibMinute: false,
