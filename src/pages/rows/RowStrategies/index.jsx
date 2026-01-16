@@ -1,11 +1,17 @@
 // src/pages/rows/RowStrategies/index.jsx
-// RowStrategies — SMZ Setup Scoring (Engine 1 + Engine 2)
-// Replaces old Alignment Scalper card with:
-// - SMZ Strength (0–80)
-// - Fib Confluence (0–20)
-// - Hard gate: Fib invalidated (74%) => score 0
-//
-// Primary symbol: SPY (v1). QQQ tab loads chart but score remains SPY until QQQ is enabled backend-side.
+// Strategy Scoring (Phase 1) — Engine 1 (Hierarchy) + Engine 2 (Fib)
+// LOCKED SPEC (per latest teammate guidance):
+// - SMZ selection MUST use /api/v1/smz-hierarchy (reducer truth), not raw sticky lists
+// - SMZ contributes 0–80: inst.strength * 0.80
+// - Fib contributes 0–20: +10 inRetraceZone +10 near50
+// - Hard gates (score=0, invalid=true):
+//    * FIB_INVALIDATION_74
+//    * NO_INSTITUTIONAL_CONTEXT (no institutional zone selected)
+//    * ZONE_ARCHIVED_OR_EXITED (behavioral invalidation evidence; no single boolean exists)
+// - Pockets: optional if available; do not penalize if missing (Phase 1 shows status only)
+// - Display labels (display-only):
+//    A+ ≥ 90, A 80–89, B 70–79, C 60–69, <60 IGNORE
+// - Poll every 30s, but skip polling when tab hidden
 
 import React, { useEffect, useMemo, useState } from "react";
 import { useSelection } from "../../../context/ModeContext";
@@ -20,179 +26,279 @@ function env(name, fb = "") {
   } catch {}
   return fb;
 }
+
 const API_BASE = env("REACT_APP_API_BASE", "https://frye-market-backend-1.onrender.com");
 const AZ_TZ = "America/Phoenix";
 
 /* -------------------- endpoints -------------------- */
-const SMZ_URL = `${API_BASE}/api/v1/smz-levels?symbol=SPY`;
+const HIER_URL = `${API_BASE}/api/v1/smz-hierarchy?symbol=SPY`;
 const FIB_URL = `${API_BASE}/api/v1/fib-levels?symbol=SPY&tf=1h`;
 
 /* -------------------- utils -------------------- */
 const nowIso = () => new Date().toISOString();
+
 function toAZ(iso, withSeconds = false) {
   try {
-    return new Date(iso).toLocaleTimeString("en-US", {
-      hour: "2-digit",
-      minute: "2-digit",
-      second: withSeconds ? "2-digit" : undefined,
-      timeZone: AZ_TZ,
-    }) + " AZ";
+    return (
+      new Date(iso).toLocaleTimeString("en-US", {
+        hour: "2-digit",
+        minute: "2-digit",
+        second: withSeconds ? "2-digit" : undefined,
+        timeZone: AZ_TZ,
+      }) + " AZ"
+    );
   } catch {
     return "—";
   }
 }
+
 function minutesAgo(iso) {
   if (!iso) return Infinity;
   const ms = Date.now() - new Date(iso).getTime();
   return ms / 60000;
 }
+
 function clamp100(x) {
   if (!Number.isFinite(x)) return 0;
   return Math.max(0, Math.min(100, x));
 }
+
 function fmt2(x) {
   return Number.isFinite(x) ? Number(x).toFixed(2) : "—";
 }
+
 function inRange(p, lo, hi) {
   if (!Number.isFinite(p) || !Number.isFinite(lo) || !Number.isFinite(hi)) return false;
   const a = Math.min(lo, hi);
   const b = Math.max(lo, hi);
   return p >= a && p <= b;
 }
-function mid(lo, hi) {
-  if (!Number.isFinite(lo) || !Number.isFinite(hi)) return null;
-  return (Number(lo) + Number(hi)) / 2;
-}
-function distToRange(p, lo, hi) {
-  if (!Number.isFinite(p) || !Number.isFinite(lo) || !Number.isFinite(hi)) return Infinity;
-  const a = Math.min(lo, hi);
-  const b = Math.max(lo, hi);
-  if (p < a) return a - p;
-  if (p > b) return p - b;
-  return 0;
+
+function distBelow(price, zoneHi) {
+  if (!Number.isFinite(price) || !Number.isFinite(zoneHi)) return Infinity;
+  if (zoneHi > price) return Infinity;
+  return price - zoneHi;
 }
 
-/* -------------------- SMZ zone selection (Rule C) --------------------
-   1) If price inside any sticky structure -> pick highest score
-   2) Else nearest sticky structure BELOW price
-   3) Else nearest sticky structure overall
---------------------------------------------------------------------- */
-function pickRelevantStickyStructure({ structuresSticky = [], price }) {
-  const list = (Array.isArray(structuresSticky) ? structuresSticky : [])
-    .map((z) => {
-      // normalize range
-      const hi = Number(z?.priceRange?.[0] ?? z?.hi ?? z?.high ?? z?.top);
-      const lo = Number(z?.priceRange?.[1] ?? z?.lo ?? z?.low ?? z?.bottom);
-      const score = Number(
-        z?.score ??
-          z?.institutionalScore ??
-          z?.strength ??
-          z?.rubricScore ??
-          z?.scoreTotal ??
-          0
-      );
+function grade(score) {
+  const s = clamp100(score);
+  if (s >= 90) return "A+";
+  if (s >= 80) return "A";
+  if (s >= 70) return "B";
+  if (s >= 60) return "C";
+  return "IGNORE";
+}
+
+/* -------------------- Institutional selection (Hierarchy) --------------------
+Rule:
+- Prefer zone that CONTAINS price.
+- Else closest below price.
+- Else null -> NO_INSTITUTIONAL_CONTEXT
+-------------------------------------------------------------------------- */
+function pickInstitutionalFromHierarchy({ hierarchy, price }) {
+  const inst = hierarchy?.render?.institutional;
+  const list = Array.isArray(inst) ? inst : [];
+
+  const norm = list
+    .map((z, idx) => {
+      const hi = Number(z?.hi ?? z?.high ?? z?.top ?? z?.priceRange?.[0]);
+      const lo = Number(z?.lo ?? z?.low ?? z?.bottom ?? z?.priceRange?.[1]);
+      const strength = Number(z?.strength ?? z?.score ?? z?.institutionalScore ?? 0);
+      const details = z?.details || z?.debug || null;
       return {
+        idx,
         raw: z,
         hi,
         lo,
-        score: Number.isFinite(score) ? score : 0,
-        mid: mid(lo, hi),
-        inside: inRange(price, lo, hi),
+        strength: Number.isFinite(strength) ? strength : 0,
+        contains: inRange(price, lo, hi),
+        details,
       };
     })
     .filter((z) => Number.isFinite(z.hi) && Number.isFinite(z.lo));
 
-  if (!list.length) return null;
+  if (!norm.length) return null;
 
-  // 1) inside -> highest score
-  const inside = list.filter((z) => z.inside);
+  const inside = norm.filter((z) => z.contains);
   if (inside.length) {
-    inside.sort((a, b) => b.score - a.score);
+    inside.sort((a, b) => b.strength - a.strength);
     return inside[0];
   }
 
-  // 2) nearest below price (structure whose hi <= price, closest distance)
-  const below = list
-    .filter((z) => Number.isFinite(price) && z.hi <= price)
-    .sort((a, b) => (price - a.hi) - (price - b.hi));
-  if (below.length) return below[0];
+  // closest below
+  const below = norm
+    .map((z) => ({ ...z, belowDist: distBelow(price, z.hi) }))
+    .filter((z) => Number.isFinite(z.belowDist) && z.belowDist !== Infinity)
+    .sort((a, b) => a.belowDist - b.belowDist);
 
-  // 3) nearest overall
-  list.sort((a, b) => distToRange(price, a.lo, a.hi) - distToRange(price, b.lo, b.hi));
-  return list[0];
+  return below.length ? below[0] : null;
 }
 
-/* -------------------- Scoring (Engine 1 + Engine 2) --------------------
-   SMZ contributes up to 80 points (score * 0.8)
-   Fib contributes up to 20 points (+10 inRetraceZone, +10 near50)
-   Hard gate: fib invalidated -> score=0 invalid
---------------------------------------------------------------------- */
-function scoreSmzFib({ smzScore, fib }) {
-  // Hard invalidations
+/* -------------------- Behavioral invalidation (no single boolean) --------------------
+Hard gate: ZONE_ARCHIVED_OR_EXITED
+Triggers if any strong evidence exists that zone is no longer defending:
+A) sticky archived: details.facts.sticky.status === "archived" OR archivedUtc exists
+B) sticky exits: distinctExitCount>=2 OR exits.length>=2
+C) structure exit facts: details.facts.exitSide1h exists AND exitBars1h indicates an exit
+------------------------------------------------------------------------- */
+function zoneArchivedOrExited(inst) {
+  const facts =
+    inst?.raw?.details?.facts ||
+    inst?.details?.facts ||
+    inst?.raw?.facts ||
+    null;
+
+  if (!facts || typeof facts !== "object") return false;
+
+  const sticky = facts.sticky || null;
+
+  // A) archived
+  if (sticky) {
+    const st = String(sticky.status || "").toLowerCase();
+    if (st === "archived") return true;
+    if (sticky.archivedUtc) return true;
+  }
+
+  // B) exits evidence
+  if (sticky) {
+    const distinctExitCount = Number(sticky.distinctExitCount);
+    if (Number.isFinite(distinctExitCount) && distinctExitCount >= 2) return true;
+
+    const exits = Array.isArray(sticky.exits) ? sticky.exits : [];
+    if (exits.length >= 2) return true;
+  }
+
+  // C) exitSide1h + exitBars1h
+  const exitSide1h = facts.exitSide1h ?? null;
+  const exitBars1h = facts.exitBars1h ?? null;
+
+  // Accept several possible shapes for exitBars1h
+  const exitBarsCount =
+    typeof exitBars1h === "number"
+      ? exitBars1h
+      : typeof exitBars1h === "string"
+      ? Number(exitBars1h)
+      : Array.isArray(exitBars1h)
+      ? exitBars1h.length
+      : exitBars1h && typeof exitBars1h === "object"
+      ? Number(exitBars1h.count ?? exitBars1h.n ?? exitBars1h.bars ?? 0)
+      : 0;
+
+  if (exitSide1h && Number.isFinite(exitBarsCount) && exitBarsCount > 0) return true;
+
+  return false;
+}
+
+/* -------------------- Optional pockets (Phase 1 display only) --------------------
+We try to detect whether hierarchy output includes any pockets so UI can show:
+- "Pocket: Present" or "Pocket: None"
+No score impact in Phase 1 (pocketScore=0 if missing).
+------------------------------------------------------------------------- */
+function detectPocketPresence(hierarchy) {
+  const render = hierarchy?.render || {};
+  const candidates = [
+    render.pockets,
+    render.pockets_active,
+    render.executionPockets,
+    hierarchy?.pockets_active,
+  ];
+  for (const c of candidates) {
+    if (Array.isArray(c) && c.length) return true;
+  }
+  return false;
+}
+
+/* -------------------- Scoring (Phase 1) -------------------- */
+function scoreSmzFib({ inst, fib }) {
+  // Gate: fib must exist + be ok
   if (!fib || fib.ok !== true) {
-    return {
-      invalid: true,
-      total: 0,
-      reasons: ["FIB_NO_DATA"],
-      smzPart: 0,
-      fibBoost: 0,
-    };
+    return invalidResult("FIB_NO_DATA");
   }
   if (fib?.signals?.invalidated) {
-    return {
-      invalid: true,
-      total: 0,
-      reasons: ["FIB_INVALIDATION_74"],
-      smzPart: 0,
-      fibBoost: 0,
-    };
+    return invalidResult("FIB_INVALIDATION_74");
   }
 
-  const smzPart = clamp100(Number(smzScore)) * 0.8;
+  // Gate: must have institutional context
+  if (!inst) {
+    return invalidResult("NO_INSTITUTIONAL_CONTEXT");
+  }
 
+  // Gate: behavioral invalidation
+  if (zoneArchivedOrExited(inst)) {
+    return invalidResult("ZONE_ARCHIVED_OR_EXITED");
+  }
+
+  // Base SMZ score
+  const instStrength = clamp100(Number(inst.strength));
+  const smzPart = instStrength * 0.8; // 0–80
+
+  // Fib boost (0–20)
   let fibBoost = 0;
   if (fib?.signals?.inRetraceZone) fibBoost += 10;
   if (fib?.signals?.near50) fibBoost += 10;
 
-  // Optional: if context W4, cap boost
-  if (fib?.anchors?.context === "W4") fibBoost = Math.min(fibBoost, 10);
+  // Remove W4 cap unless explicitly tagged as W4 (manual only)
+  if (fib?.anchors?.context === "W4") {
+    // Context is manual input. Only cap in this explicit case.
+    fibBoost = Math.min(fibBoost, 10);
+  }
 
   const total = clamp100(smzPart + fibBoost);
 
   const reasons = [];
   if (!fib?.signals?.inRetraceZone) reasons.push("FIB_OUTSIDE_RETRACE_ZONE");
 
-  return { invalid: false, total, reasons, smzPart, fibBoost };
+  return {
+    invalid: false,
+    total,
+    reasons,
+    smzPart,
+    fibBoost,
+    instStrength,
+  };
+}
+
+function invalidResult(code) {
+  return {
+    invalid: true,
+    total: 0,
+    reasons: [code],
+    smzPart: 0,
+    fibBoost: 0,
+    instStrength: 0,
+  };
 }
 
 /* -------------------- component -------------------- */
 export default function RowStrategies() {
   const { selection, setSelection } = useSelection();
 
-  const [smzRes, setSmzRes] = useState({ ok: false, data: null, err: null, lastFetch: null });
-  const [fibRes, setFibRes] = useState({ ok: false, data: null, err: null, lastFetch: null });
+  const [hierRes, setHierRes] = useState({ data: null, err: null, lastFetch: null });
+  const [fibRes, setFibRes] = useState({ data: null, err: null, lastFetch: null });
 
-  // Poll SMZ + Fib (30s)
+  // Poll hierarchy + fib every 30s (skip when hidden)
   useEffect(() => {
     let alive = true;
 
     async function pull() {
+      if (typeof document !== "undefined" && document.hidden) return;
+
       try {
-        const [smzR, fibR] = await Promise.all([
-          fetch(`${SMZ_URL}&t=${Date.now()}`, { cache: "no-store", headers: { "Cache-Control": "no-store" } }),
+        const [hR, fR] = await Promise.all([
+          fetch(`${HIER_URL}&t=${Date.now()}`, { cache: "no-store", headers: { "Cache-Control": "no-store" } }),
           fetch(`${FIB_URL}&t=${Date.now()}`, { cache: "no-store", headers: { "Cache-Control": "no-store" } }),
         ]);
 
-        const smzJ = await smzR.json();
-        const fibJ = await fibR.json();
+        const hJ = await hR.json();
+        const fJ = await fR.json();
         if (!alive) return;
 
-        setSmzRes({ ok: true, data: smzJ, err: null, lastFetch: nowIso() });
-        setFibRes({ ok: true, data: fibJ, err: null, lastFetch: nowIso() });
+        setHierRes({ data: hJ, err: null, lastFetch: nowIso() });
+        setFibRes({ data: fJ, err: null, lastFetch: nowIso() });
       } catch (e) {
         if (!alive) return;
         const msg = String(e?.message || e);
-        setSmzRes((s) => ({ ...s, err: msg, lastFetch: nowIso() }));
+        setHierRes((s) => ({ ...s, err: msg, lastFetch: nowIso() }));
         setFibRes((s) => ({ ...s, err: msg, lastFetch: nowIso() }));
       }
     }
@@ -206,83 +312,96 @@ export default function RowStrategies() {
   }, []);
 
   const view = useMemo(() => {
-    const smz = smzRes.data;
+    const hierarchy = hierRes.data;
     const fib = fibRes.data;
 
-    // Determine a "current price" for zone relevance.
-    // Preferred: fib.diagnostics.price (it’s computed from latest close on 1h bars).
+    // Current price source: fib diagnostics (1h close) if available
     const price = Number(fib?.diagnostics?.price);
     const priceOk = Number.isFinite(price) ? price : null;
 
-    // Sticky structures are authoritative (manual + auto)
-    const structuresSticky = smz?.structures_sticky || smz?.structuresSticky || [];
-    const chosen = pickRelevantStickyStructure({ structuresSticky, price: priceOk });
+    // Institutional selection (hierarchy truth)
+    const inst = pickInstitutionalFromHierarchy({ hierarchy, price: priceOk });
 
-    const smzScore = chosen ? chosen.score : 0;
+    // Optional pocket presence (display only)
+    const pocketPresent = detectPocketPresence(hierarchy);
 
-    const scored = scoreSmzFib({ smzScore, fib });
+    // Score
+    const scored = scoreSmzFib({ inst, fib });
 
-    // Live dot
-    const smzFresh = minutesAgo(smzRes.lastFetch) <= 2;
+    // Live indicator
+    const hierFresh = minutesAgo(hierRes.lastFetch) <= 2;
     const fibFresh = minutesAgo(fibRes.lastFetch) <= 2;
     const liveStatus =
-      smzRes.err || fibRes.err ? "red" : (!smzFresh || !fibFresh ? "yellow" : "green");
+      hierRes.err || fibRes.err ? "red" : (!hierFresh || !fibFresh ? "yellow" : "green");
     const liveTip =
-      `SMZ fetch: ${smzRes.lastFetch ? toAZ(smzRes.lastFetch, true) : "—"} • ` +
+      `HIER fetch: ${hierRes.lastFetch ? toAZ(hierRes.lastFetch, true) : "—"} • ` +
       `FIB fetch: ${fibRes.lastFetch ? toAZ(fibRes.lastFetch, true) : "—"} • ` +
       `Price (1h): ${priceOk ? fmt2(priceOk) : "—"}`;
 
-    // Pills
+    // Fib flags for UI
     const fibInvalid = fib?.signals?.invalidated === true;
     const fibInZone = fib?.signals?.inRetraceZone === true;
     const fibNear50 = fib?.signals?.near50 === true;
 
+    // Permission placeholder (later Engine 6)
+    // For now: simple display heuristic:
+    const permission =
+      scored.invalid
+        ? "STAND DOWN"
+        : (fibInZone && (inst?.contains ?? false))
+        ? "FULL"
+        : "REDUCED";
+
     return {
       price: priceOk,
-      chosen,
-      smzScore,
+
+      inst,
+      pocketPresent,
+
       total: scored.total,
+      label: grade(scored.total),
       invalid: scored.invalid,
       reasons: scored.reasons,
       smzPart: scored.smzPart,
       fibBoost: scored.fibBoost,
+      instStrength: scored.instStrength,
 
       fibInvalid,
       fibInZone,
       fibNear50,
+
       liveStatus,
       liveTip,
       context: fib?.anchors?.context || fib?.signals?.tag || null,
       anchors: fib?.anchors || null,
+      permission,
     };
-  }, [smzRes, fibRes]);
+  }, [hierRes, fibRes]);
 
   function load(sym) {
-    // Chart load helper
     setSelection({ symbol: sym, timeframe: "10m", strategy: "smz" });
   }
 
   const rightPills = [
     { text: view.invalid ? "INVALID" : "LIVE", tone: view.invalid ? "warn" : "live" },
-    { text: view.context ? `CTX ${view.context}` : "CTX —", tone: view.context ? "info" : "muted" },
-    { text: view.fibInvalid ? "Fib Invalid" : view.fibInZone ? "Fib In Zone" : "Fib Outside", tone: view.fibInvalid ? "warn" : view.fibInZone ? "ok" : "muted" },
+    { text: `Label ${view.label}`, tone: view.label === "A+" ? "ok" : view.label === "A" ? "info" : "muted" },
+    { text: view.permission, tone: view.permission === "FULL" ? "ok" : view.permission === "REDUCED" ? "warn" : "muted" },
   ];
 
-  // Mini breakdown bar: SMZ (0–80) + Fib (0–20)
-  const smzPct = clamp100((view.smzPart / 80) * 100); // normalize to bucket
+  const smzPct = clamp100((view.smzPart / 80) * 100);
   const fibPct = clamp100((view.fibBoost / 20) * 100);
 
   return (
     <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0,1fr))", gap: 10 }}>
       <Card
-        title="SMZ Confluence Score (Engine 1 + Engine 2)"
+        title="SMZ Confluence Score (Hierarchy + Fib)"
         timeframe="10m"
         rightPills={rightPills}
         score={view.total}
-        last={smzRes.lastFetch ? toAZ(smzRes.lastFetch) : "—"}
+        last={hierRes.lastFetch ? toAZ(hierRes.lastFetch) : "—"}
         extraRight={<LiveDot status={view.liveStatus} tip={view.liveTip} />}
       >
-        {/* Quick summary */}
+        {/* Summary */}
         <div style={{ display: "grid", gap: 6, marginTop: 2 }}>
           <div style={{ fontSize: 12, color: "#cbd5e1" }}>
             <b>Price (1h):</b> {view.price ? fmt2(view.price) : "—"}{" "}
@@ -292,40 +411,41 @@ export default function RowStrategies() {
           </div>
 
           <div style={{ fontSize: 12, color: "#cbd5e1" }}>
-            <b>Chosen Structure:</b>{" "}
-            {view.chosen ? (
+            <b>Active Institutional:</b>{" "}
+            {view.inst ? (
               <>
-                {fmt2(view.chosen.lo)}–{fmt2(view.chosen.hi)}{" "}
+                {fmt2(view.inst.lo)}–{fmt2(view.inst.hi)}{" "}
                 <span style={{ color: "#94a3b8" }}>
-                  • SMZ Strength {clamp100(view.smzScore).toFixed(0)}/100
+                  • Strength {clamp100(view.instStrength).toFixed(0)}/100
+                  {view.inst.contains ? " • (inside)" : ""}
                 </span>
               </>
             ) : (
-              <span style={{ color: "#94a3b8" }}>— (no sticky structures found)</span>
+              <span style={{ color: "#fbbf24" }}>NONE (gate will stand down)</span>
             )}
           </div>
 
-          {/* Breakdown bar */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-            <MiniBar
-              label="SMZ (0–80)"
-              value={`${Math.round(view.smzPart)}`}
-              pct={smzPct}
-              tone="smz"
-            />
-            <MiniBar
-              label="Fib (0–20)"
-              value={`${view.fibBoost}`}
-              pct={fibPct}
-              tone="fib"
-            />
+          <div style={{ fontSize: 12, color: "#cbd5e1" }}>
+            <b>Execution Pocket:</b>{" "}
+            {view.pocketPresent ? (
+              <span style={{ color: "#86efac" }}>Present (optional)</span>
+            ) : (
+              <span style={{ color: "#94a3b8" }}>None (no penalty Phase 1)</span>
+            )}
           </div>
 
-          {/* Gate chips */}
+          {/* Breakdown bars */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+            <MiniBar label="SMZ (0–80)" value={`${Math.round(view.smzPart)}`} pct={smzPct} tone="smz" />
+            <MiniBar label="Fib (0–20)" value={`${view.fibBoost}`} pct={fibPct} tone="fib" />
+          </div>
+
+          {/* Gates */}
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 2, fontSize: 11 }}>
-            <Check ok={!view.invalid} label="Fib Valid (74% gate)" />
+            <Check ok={!view.invalid} label="Valid" />
+            <Check ok={!view.fibInvalid} label="Fib Valid (74% gate)" />
             <Check ok={view.fibInZone} label="In Retrace Zone" />
-            <Check ok={view.fibNear50} label="Near 50% (gravity)" />
+            <Check ok={view.fibNear50} label="Near 50%" />
           </div>
 
           {/* Reasons */}
@@ -338,10 +458,16 @@ export default function RowStrategies() {
           {/* Tabs */}
           <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6, fontSize: 11 }}>
             <span style={{ color: "#9ca3af" }}>Load chart:</span>
-            <button onClick={() => load("SPY")} style={{ ...styles.tab, ...(selection?.symbol === "SPY" ? styles.tabActive : null) }}>
+            <button
+              onClick={() => load("SPY")}
+              style={{ ...styles.tab, ...(selection?.symbol === "SPY" ? styles.tabActive : null) }}
+            >
               SPY
             </button>
-            <button onClick={() => load("QQQ")} style={{ ...styles.tab, ...(selection?.symbol === "QQQ" ? styles.tabActive : null) }}>
+            <button
+              onClick={() => load("QQQ")}
+              style={{ ...styles.tab, ...(selection?.symbol === "QQQ" ? styles.tabActive : null) }}
+            >
               QQQ
             </button>
           </div>
@@ -352,7 +478,6 @@ export default function RowStrategies() {
 }
 
 /* -------------------- subcomponents & styles -------------------- */
-
 function Check({ ok, label }) {
   const style = ok ? styles.chkOk : styles.chkNo;
   return (
@@ -364,14 +489,15 @@ function Check({ ok, label }) {
 }
 
 function MiniBar({ label, value, pct, tone }) {
-  const fill = tone === "fib"
-    ? "linear-gradient(90deg,#60a5fa 0%,#38bdf8 40%,#fbbf24 100%)"
-    : "linear-gradient(90deg,#22c55e 0%,#84cc16 45%,#f59e0b 100%)";
+  const fill =
+    tone === "fib"
+      ? "linear-gradient(90deg,#60a5fa 0%,#38bdf8 40%,#fbbf24 100%)"
+      : "linear-gradient(90deg,#22c55e 0%,#84cc16 45%,#f59e0b 100%)";
 
   return (
     <div style={{ background: "#0b0b0b", border: "1px solid #2b2b2b", borderRadius: 10, padding: 8 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-        <div style={{ color: "#9ca3af", fontSize: 11, fontWeight: 700 }}>{label}</div>
+        <div style={{ color: "#9ca3af", fontSize: 11, fontWeight: 800 }}>{label}</div>
         <div style={{ color: "#e5e7eb", fontSize: 12, fontWeight: 900 }}>{value}</div>
       </div>
       <div style={{ marginTop: 6, background: "#1f2937", borderRadius: 8, height: 8, overflow: "hidden", border: "1px solid #334155" }}>
@@ -406,7 +532,7 @@ function Card({ title, timeframe, rightPills = [], score = 0, last = "—", chil
 
       <div style={styles.metaRow}>
         <div><span style={styles.metaKey}>Last:</span> {last}</div>
-        <div><span style={styles.metaKey}>Status:</span> Engine 2 gate + boost</div>
+        <div><span style={styles.metaKey}>Label bands:</span> A+≥90 A≥80 B≥70 C≥60</div>
       </div>
 
       {children}
@@ -424,12 +550,12 @@ const styles = {
     display: "flex",
     flexDirection: "column",
     gap: 8,
-    minHeight: 140,
+    minHeight: 160,
   },
   head: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 },
-  title: { fontWeight: 800, fontSize: 14, lineHeight: "16px" },
-  badge: { background: "#0b0b0b", border: "1px solid #2b2b2b", color: "#9ca3af", fontSize: 10, padding: "1px 6px", borderRadius: 999, fontWeight: 800 },
-  pill: { fontSize: 10, padding: "2px 8px", borderRadius: 999, border: "1px solid #2b2b2b", fontWeight: 800, lineHeight: "14px" },
+  title: { fontWeight: 900, fontSize: 14, lineHeight: "16px" },
+  badge: { background: "#0b0b0b", border: "1px solid #2b2b2b", color: "#9ca3af", fontSize: 10, padding: "1px 6px", borderRadius: 999, fontWeight: 900 },
+  pill: { fontSize: 10, padding: "2px 8px", borderRadius: 999, border: "1px solid #2b2b2b", fontWeight: 900, lineHeight: "14px" },
 
   scoreRow: { display: "grid", gridTemplateColumns: "44px 1fr 28px", alignItems: "center", gap: 6 },
   scoreLabel: { color: "#9ca3af", fontSize: 10 },
@@ -438,13 +564,13 @@ const styles = {
   scoreVal: { textAlign: "right", fontWeight: 900, fontSize: 12 },
 
   metaRow: { display: "grid", gridTemplateColumns: "1fr auto", gap: 6, fontSize: 11, color: "#cbd5e1" },
-  metaKey: { color: "#9ca3af", marginRight: 4, fontWeight: 700 },
+  metaKey: { color: "#9ca3af", marginRight: 4, fontWeight: 800 },
 
   chk: { display: "flex", alignItems: "center", gap: 6, fontSize: 11 },
   chkOk: { color: "#86efac", fontWeight: 900 },
   chkNo: { color: "#94a3b8", fontWeight: 900 },
 
-  tab: { background: "#141414", color: "#cbd5e1", border: "1px solid #2a2a2a", borderRadius: 7, padding: "3px 10px", fontSize: 11, fontWeight: 800, cursor: "pointer" },
+  tab: { background: "#141414", color: "#cbd5e1", border: "1px solid #2a2a2a", borderRadius: 7, padding: "3px 10px", fontSize: 11, fontWeight: 900, cursor: "pointer" },
   tabActive: { background: "#1f2937", color: "#e5e7eb", border: "1px solid #3b82f6", boxShadow: "0 0 0 1px #3b82f6 inset" },
 };
 
