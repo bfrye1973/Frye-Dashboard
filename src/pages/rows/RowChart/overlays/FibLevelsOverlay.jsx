@@ -1,10 +1,13 @@
 // src/pages/rows/RowChart/overlays/FibLevelsOverlay.jsx
-// Engine 2 Fib Overlay (Multi-degree, W1+W4 smart) + Manual Elliott marks (labels + connector lines)
+// Engine 2 Fib Overlay (Multi-degree)
+// - Fetches /api/v1/fib-levels for W1 and W4 (if present)
+// - Draws fib levels per settings
+// - Draws MANUAL Elliott waveMarks (W1–W5) as labels locked to candles using tSec
+// - Draws optional connector lines between wave marks
 //
-// Fetches W1 and W4 for symbol=SPY, tf, degree.
-// Uses backend-provided anchors.a/b and anchors.waveMarks with tSec to place labels on candles.
-//
-// IMPORTANT: No auto Elliott counting. Only draws marks you manually provide.
+// IMPORTANT:
+// - No auto Elliott counting.
+// - Labels/lines require waveMarks.*.tSec to lock to candle. Backend must provide tSec.
 
 const API_BASE =
   (typeof process !== "undefined" && process.env && process.env.REACT_APP_API_BASE) ||
@@ -16,8 +19,8 @@ export default function FibLevelsOverlay({
   chartContainer,
   enabled = false,
 
-  degree = "intermediate",
-  tf = "1h",
+  degree = "minor", // primary|intermediate|minor|minute
+  tf = "1h",        // 1d|1h|10m etc
 
   style = {},
 }) {
@@ -25,8 +28,9 @@ export default function FibLevelsOverlay({
     return { seed() {}, update() {}, destroy() {} };
   }
 
+  // Style defaults
   const s = {
-    // fib styling
+    // fib visuals
     color: style.color || "#ffd54a",
     fontPx: Number.isFinite(style.fontPx) ? style.fontPx : 18,
     lineWidth: Number.isFinite(style.lineWidth) ? style.lineWidth : 3,
@@ -34,21 +38,21 @@ export default function FibLevelsOverlay({
     showRetrace: style.showRetrace !== false,
     showAnchors: style.showAnchors !== false,
 
-    // new: wave label + line styling
+    // elliott visuals
     showWaveLabels: style.showWaveLabels === true,
     showWaveLines: style.showWaveLines === true,
     waveLabelColor: style.waveLabelColor || (style.color || "#ffd54a"),
-    waveLabelFontPx: Number.isFinite(style.waveLabelFontPx) ? style.waveLabelFontPx : Math.max(12, (style.fontPx || 18)),
+    waveLabelFontPx: Number.isFinite(style.waveLabelFontPx) ? style.waveLabelFontPx : (Number.isFinite(style.fontPx) ? style.fontPx : 18),
     waveLineColor: style.waveLineColor || (style.color || "#ffd54a"),
-    waveLineWidth: Number.isFinite(style.waveLineWidth) ? style.waveLineWidth : Math.max(2, (style.lineWidth || 3)),
+    waveLineWidth: Number.isFinite(style.waveLineWidth) ? style.waveLineWidth : Math.max(2, Number.isFinite(style.lineWidth) ? style.lineWidth : 3),
   };
 
   let canvas = null;
   let raf = null;
   let disposed = false;
 
-  let w1 = null;
-  let w4 = null;
+  let w1 = null; // W1 payload
+  let w4 = null; // W4 payload (optional)
 
   const ts = chart.timeScale();
 
@@ -71,7 +75,7 @@ export default function FibLevelsOverlay({
     canvas.style.width = "100%";
     canvas.style.height = "100%";
     canvas.style.pointerEvents = "none";
-    canvas.style.zIndex = "60";
+    canvas.style.zIndex = "80";
     chartContainer.appendChild(canvas);
     resizeCanvas();
     return canvas;
@@ -107,6 +111,17 @@ export default function FibLevelsOverlay({
     }
   }
 
+  function timeToX(timeSec) {
+    if (!Number.isFinite(timeSec)) return null;
+    try {
+      const x = ts.timeToCoordinate(timeSec);
+      return Number.isFinite(x) ? x : null;
+    } catch {
+      return null;
+    }
+  }
+
+  // W4 projection uses W1 span and W4 low as base.
   function computeW5Targets(w1Anchors, w4Anchors) {
     const w1Low = Number(w1Anchors?.low);
     const w1High = Number(w1Anchors?.high);
@@ -123,78 +138,68 @@ export default function FibLevelsOverlay({
     };
   }
 
-  function timeToX(timeSec) {
-    if (!Number.isFinite(timeSec)) return null;
-    try {
-      const x = ts.timeToCoordinate(timeSec);
-      return Number.isFinite(x) ? x : null;
-    } catch {
-      return null;
-    }
-  }
-
   function drawWaveMarks(ctx, rect) {
     if (!s.showWaveLabels && !s.showWaveLines) return;
+    if (!w1 || !w1.anchors) return;
 
-    // We read waveMarks from W1 payload (recommended place to store it)
-    const marks = w1?.anchors?.waveMarks || null;
-    if (!marks || typeof marks !== "object") return;
+    const observe = w1?.anchors?.waveMarks;
+    if (!observe || typeof observe !== "object") return;
 
-    // Build ordered list W1..W5 using available marks + anchors a/b if present.
-    // For W1, prefer anchors.a/b times if present.
-    const ordered = [];
+    // Build ordered points (only ones that have price)
+    const order = ["W1", "W2", "W3", "W4", "W5"];
+    const pts = [];
 
-    // W1 low/high as two points (optional) — label them as W1L/W1H
-    const A = w1?.anchors?.a;
-    const B = w1?.anchors?.b;
-
-    if (s.showWaveLabels && A?.tSec && Number.isFinite(A?.p)) {
-      ordered.push({ k: "W1", label: "W1", tSec: A.tSec, p: A.p });
-    }
-    if (s.showWaveLabels && B?.tSec && Number.isFinite(B?.p)) {
-      // you may not want two W1 labels; keep one if desired
-      // We'll only label the first W1 point (A). B is handled by fib anchors already.
-    }
-
-    // W2..W5 marks
-    const keys = ["W2", "W3", "W4", "W5"];
-    for (const k of keys) {
-      const m = marks[k];
+    for (const k of order) {
+      const m = observe[k];
       if (!m) continue;
+
       const p = Number(m.p);
       if (!Number.isFinite(p)) continue;
 
-      ordered.push({
-        k,
-        label: k,
-        tSec: Number.isFinite(m.tSec) ? m.tSec : null,
-        p,
-      });
+      const tSec = Number(m.tSec);
+      if (!Number.isFinite(tSec)) {
+        // If time is missing, we cannot lock to candle → skip (per your requirement)
+        continue;
+      }
+
+      const x = timeToX(tSec);
+      const y = priceSeries.priceToCoordinate(p);
+      if (x == null || y == null) continue;
+      if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+
+      pts.push({ k, x, y, p });
     }
 
-    // Draw labels (if enabled)
+    if (!pts.length) return;
+
+    // Connector lines
+    if (s.showWaveLines && pts.length >= 2) {
+      ctx.save();
+      ctx.strokeStyle = s.waveLineColor;
+      ctx.lineWidth = Math.max(1, s.waveLineWidth);
+      ctx.setLineDash([]);
+      ctx.beginPath();
+      ctx.moveTo(pts[0].x, pts[0].y);
+      for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // Labels
     if (s.showWaveLabels) {
-      const FONT = `${Math.max(10, Math.min(72, s.waveLabelFontPx))}px system-ui, -apple-system, Segoe UI, Roboto, Arial`;
+      const FONT = `${Math.max(10, Math.min(96, s.waveLabelFontPx))}px system-ui, -apple-system, Segoe UI, Roboto, Arial`;
       ctx.font = FONT;
-      ctx.fillStyle = s.waveLabelColor;
-      ctx.strokeStyle = "rgba(0,0,0,0.65)";
-      ctx.lineWidth = 3;
 
-      for (const pt of ordered) {
-        const y = priceSeries.priceToCoordinate(pt.p);
-        if (y == null || !Number.isFinite(y)) continue;
-
-        // if time missing, place near right-middle
-        const x = timeToX(pt.tSec) ?? Math.round(rect.width * 0.85);
-
-        // label with small background
-        const text = pt.label;
-        const tw = ctx.measureText(text).width;
+      for (const pt of pts) {
+        const text = pt.k;
         const pad = 10;
+
+        // label box
+        const tw = ctx.measureText(text).width;
         const boxW = Math.max(44, tw + pad * 2);
         const boxH = Math.max(26, Math.floor(s.waveLabelFontPx * 1.2));
-        const bx = Math.min(Math.max(8, x - boxW / 2), rect.width - boxW - 8);
-        const by = y - boxH - 8;
+        const bx = Math.min(Math.max(8, pt.x - boxW / 2), rect.width - boxW - 8);
+        const by = pt.y - boxH - 10;
 
         ctx.save();
         ctx.fillStyle = "rgba(0,0,0,0.55)";
@@ -209,32 +214,6 @@ export default function FibLevelsOverlay({
         ctx.lineWidth = 3;
         ctx.strokeText(text, bx + pad, by + Math.floor(boxH * 0.78));
         ctx.fillText(text, bx + pad, by + Math.floor(boxH * 0.78));
-        ctx.restore();
-      }
-    }
-
-    // Draw connector lines (if enabled)
-    if (s.showWaveLines) {
-      // Keep only points with time (otherwise line placement is nonsense)
-      const pts = ordered
-        .map((pt) => {
-          const x = timeToX(pt.tSec);
-          const y = priceSeries.priceToCoordinate(pt.p);
-          if (x == null || y == null) return null;
-          if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
-          return { x, y };
-        })
-        .filter(Boolean);
-
-      if (pts.length >= 2) {
-        ctx.save();
-        ctx.strokeStyle = s.waveLineColor;
-        ctx.lineWidth = Math.max(1, s.waveLineWidth);
-        ctx.setLineDash([]); // solid
-        ctx.beginPath();
-        ctx.moveTo(pts[0].x, pts[0].y);
-        for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
-        ctx.stroke();
         ctx.restore();
       }
     }
@@ -263,11 +242,13 @@ export default function FibLevelsOverlay({
     ctx.clearRect(0, 0, c.width, c.height);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
+    // Fonts
     const FONT = `${Math.max(10, Math.min(64, s.fontPx))}px system-ui, -apple-system, Segoe UI, Roboto, Arial`;
     const HEADER = `${Math.max(10, Math.min(72, s.fontPx + 2))}px system-ui, -apple-system, Segoe UI, Roboto, Arial`;
 
     const labelX = Math.round(rect.width * 0.52);
 
+    // Colors
     const cGate = "rgba(255,60,60,0.98)";
     const cAnchor = "rgba(255,255,255,0.92)";
     const cRetrace = "rgba(120,220,255,0.92)";
@@ -275,6 +256,7 @@ export default function FibLevelsOverlay({
 
     const mode = w4 ? "W4" : "W1";
 
+    // Header
     ctx.font = HEADER;
     ctx.fillStyle = "rgba(255,255,255,0.90)";
     const title = `FIB ${degree.toUpperCase()} • ${tf} • ${mode}`;
@@ -284,6 +266,7 @@ export default function FibLevelsOverlay({
     const levels = [];
 
     if (mode === "W4") {
+      // W4 anchors + W5 projections
       if (s.showAnchors && w4?.anchors) {
         levels.push(
           { kind: "anchor", price: Number(w4.anchors.low), label: `W4 LOW  ${fmt(w4.anchors.low)}`, color: cAnchor, dash: [10, 10] },
@@ -303,6 +286,7 @@ export default function FibLevelsOverlay({
         }
       }
     } else {
+      // W1 retrace + invalidation + extensions
       if (s.showAnchors && w1?.anchors) {
         levels.push(
           { kind: "anchor", price: Number(w1.anchors.low), label: `W1 LOW  ${fmt(w1.anchors.low)}`, color: cAnchor, dash: [10, 10] },
@@ -317,7 +301,13 @@ export default function FibLevelsOverlay({
         );
       }
       if (w1?.fib) {
-        levels.push({ kind: "gate", price: Number(w1.fib.invalidation), label: `INV 74%  ${fmt(w1.fib.invalidation)}`, color: cGate, dash: [14, 10] });
+        levels.push({
+          kind: "gate",
+          price: Number(w1.fib.invalidation),
+          label: `INV 74%  ${fmt(w1.fib.invalidation)}`,
+          color: cGate,
+          dash: [14, 10],
+        });
       }
       if (s.showExtensions && w1?.anchors) {
         const low = Number(w1.anchors.low);
@@ -341,9 +331,11 @@ export default function FibLevelsOverlay({
     // Draw fib lines + centered labels
     for (const lv of levels) {
       if (!Number.isFinite(lv.price)) continue;
+
       const y = priceSeries.priceToCoordinate(lv.price);
       if (y == null || !Number.isFinite(y)) continue;
 
+      // line
       ctx.save();
       ctx.strokeStyle = lv.color;
       ctx.lineWidth = Math.max(1, s.lineWidth) * (lv.kind === "gate" ? 1.4 : lv.kind === "ext" ? 1.2 : 1.0);
@@ -354,6 +346,7 @@ export default function FibLevelsOverlay({
       ctx.stroke();
       ctx.restore();
 
+      // label box (center)
       ctx.save();
       ctx.font = FONT;
 
@@ -376,7 +369,7 @@ export default function FibLevelsOverlay({
       ctx.restore();
     }
 
-    // Draw manual Elliott marks after fib so they sit on top
+    // Draw Elliott labels/lines on top
     drawWaveMarks(ctx, rect);
   }
 
