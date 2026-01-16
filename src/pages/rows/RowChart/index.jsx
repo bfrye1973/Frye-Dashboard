@@ -2,7 +2,7 @@
 // ============================================================
 // RowChart — seed + live aggregation + indicators & overlays
 // FIX: ensure SSE subscription actually starts (chartReady state)
-// ADD: Engine 2 Fib overlay (toggle + attach overlay)
+// ADD: Engine 2 Fib multi-degree toggles + styles wiring
 // ============================================================
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
@@ -22,12 +22,12 @@ import createFourShelvesOverlay from "../../../components/overlays/FourShelvesOv
 import createSmartMoneyZonesOverlay from "../../../components/overlays/SmartMoneyZonesOverlay";
 import SmartMoneyZonesPanel from "../../../components/smz/SmartMoneyZonesPanel";
 
-// Accumulation / Distribution precision levels (backend)
+// Engine 1 overlays (backend)
 import SMZLevelsOverlay from "./overlays/SMZLevelsOverlay";
 import SMZShelvesOverlay from "./overlays/SMZShelvesOverlay";
 import AccDistZonesPanel from "../../../components/smz/AccDistZonesPanel";
 
-// ✅ Engine 2 Fib overlay (NEW)
+// ✅ Engine 2 overlay (multi-degree)
 import FibLevelsOverlay from "./overlays/FibLevelsOverlay";
 
 /* ------------------------------ Config ------------------------------ */
@@ -206,7 +206,7 @@ export default function RowChart({
   const didFitOnceRef = useRef(false);
   const userInteractedRef = useRef(false);
 
-  // ✅ IMPORTANT: this state forces a re-render when chart + series exist
+  // ✅ chartReady forces a rerender when chart + series exist
   const [chartReady, setChartReady] = useState(false);
 
   const [state, setState] = useState({
@@ -225,8 +225,36 @@ export default function RowChart({
     institutionalZonesAuto: false,
     smzShelvesAuto: false,
 
-    // ✅ Engine 2 Fib toggle (NEW)
-    fibLevels: false,
+    // ✅ Engine 2 Fib (multi-degree toggles)
+    fibIntermediate: false,
+    fibMinor: false,
+    fibMinute: false,
+
+    // ✅ per-degree styles (edited in toolbar ⚙)
+    fibIntermediateStyle: {
+      color: "#ffd54a",
+      fontPx: 18,
+      lineWidth: 3.5,
+      showExtensions: true,
+      showRetrace: true,
+      showAnchors: true,
+    },
+    fibMinorStyle: {
+      color: "#22c55e",
+      fontPx: 16,
+      lineWidth: 3.0,
+      showExtensions: true,
+      showRetrace: true,
+      showAnchors: true,
+    },
+    fibMinuteStyle: {
+      color: "#60a5fa",
+      fontPx: 14,
+      lineWidth: 2.5,
+      showExtensions: true,
+      showRetrace: true,
+      showAnchors: true,
+    },
 
     accDistLevels: false,
     wickPaZones: false,
@@ -299,7 +327,6 @@ export default function RowChart({
     vol.priceScale().applyOptions({ scaleMargins: { top: 0.8, bottom: 0 } });
     volSeriesRef.current = vol;
 
-    // ✅ Now chart + series exist
     setChartReady(true);
 
     const markInteract = () => {
@@ -485,7 +512,7 @@ export default function RowChart({
     } catch {}
     overlayInstancesRef.current = [];
 
-    // Hard cleanup: remove any leftover SMZ canvases (older overlay leaked them)
+    // cleanup old leaked canvases (SMZ)
     try {
       const root = containerRef.current;
       if (root) {
@@ -495,7 +522,6 @@ export default function RowChart({
       }
     } catch {}
 
-    // Hard cleanup: prevent duplicate shelves canvases
     try {
       const root = containerRef.current;
       if (root) {
@@ -507,7 +533,7 @@ export default function RowChart({
 
     const reg = (inst) => inst && overlayInstancesRef.current.push(inst);
 
-    // Engine 1 — Institutional Zones (auto) — /api/v1/smz-levels
+    // Engine 1 — Institutional Zones (auto)
     if (state.institutionalZonesAuto) {
       reg(
         attachOverlay(SMZLevelsOverlay, {
@@ -519,7 +545,7 @@ export default function RowChart({
       );
     }
 
-    // Engine 1 — Acc/Dist Shelves (auto) — /api/v1/smz-shelves
+    // Engine 1 — Acc/Dist Shelves (auto)
     if (state.smzShelvesAuto) {
       reg(
         attachOverlay(SMZShelvesOverlay, {
@@ -531,28 +557,67 @@ export default function RowChart({
       );
     }
 
-    // ✅ Engine 2 — Fib Levels (NEW) — /api/v1/fib-levels (1h only v1)
-    // Note: overlay itself fetches SPY 1h, and draws anchors + fib lines.
-    if (state.fibLevels) {
+    // ✅ Engine 2 — Fib (Intermediate) 1h
+    if (state.fibIntermediate) {
       reg(
         attachOverlay(FibLevelsOverlay, {
           chart: chartRef.current,
           priceSeries: seriesRef.current,
           chartContainer: containerRef.current,
-          timeframe: state.timeframe,
           enabled: true,
+          degree: "intermediate",
+          tf: "1h",
+          style: state.fibIntermediateStyle,
         })
       );
     }
 
-    // Seed all overlays with current bars
+    // ✅ Engine 2 — Fib (Minor) 1h
+    if (state.fibMinor) {
+      reg(
+        attachOverlay(FibLevelsOverlay, {
+          chart: chartRef.current,
+          priceSeries: seriesRef.current,
+          chartContainer: containerRef.current,
+          enabled: true,
+          degree: "minor",
+          tf: "1h",
+          style: state.fibMinorStyle,
+        })
+      );
+    }
+
+    // ✅ Engine 2 — Fib (Minute) 10m
+    if (state.fibMinute) {
+      reg(
+        attachOverlay(FibLevelsOverlay, {
+          chart: chartRef.current,
+          priceSeries: seriesRef.current,
+          chartContainer: containerRef.current,
+          enabled: true,
+          degree: "minute",
+          tf: "10m",
+          style: state.fibMinuteStyle,
+        })
+      );
+    }
+
+    // Seed overlays
     try {
       overlayInstancesRef.current.forEach((o) => o?.seed?.(barsRef.current));
     } catch {}
   }, [
     state.institutionalZonesAuto,
     state.smzShelvesAuto,
-    state.fibLevels,
+
+    // fib toggles + styles (needed so changes redraw)
+    state.fibIntermediate,
+    state.fibMinor,
+    state.fibMinute,
+    state.fibIntermediateStyle,
+    state.fibMinorStyle,
+    state.fibMinuteStyle,
+
     state.timeframe,
     bars,
     showDebug,
@@ -601,7 +666,6 @@ export default function RowChart({
   }, [bars, state.range, state.volume]);
 
   /* --------------- Live 1m stream → selected TF aggregation ---------- */
-  // ✅ FIX: dependency includes chartReady so subscription starts once chart exists
 
   useEffect(() => {
     if (!chartReady || !seriesRef.current) return;
@@ -633,7 +697,7 @@ export default function RowChart({
       );
       if (!Number.isFinite(tSec)) return;
 
-      // --- If viewing 1m, update directly ---
+      // If viewing 1m, update directly
       if (tfSec === TF_SEC["1m"]) {
         const bar = { ...oneMin, time: tSec };
         seriesRef.current?.update(bar);
@@ -664,7 +728,7 @@ export default function RowChart({
         return;
       }
 
-      // --- Aggregate 1m into selected TF ---
+      // Aggregate 1m into selected TF
       const start = floorToBucket(tSec);
 
       if (bucketStart === null || start > bucketStart) {
@@ -675,10 +739,7 @@ export default function RowChart({
             volSeriesRef.current.update({
               time: rolling.time,
               value: Number(rolling.volume || 0),
-              color:
-                rolling.close >= rolling.open
-                  ? DEFAULTS.volUp
-                  : DEFAULTS.volDown,
+              color: rolling.close >= rolling.open ? DEFAULTS.volUp : DEFAULTS.volDown,
             });
           }
 
@@ -708,8 +769,7 @@ export default function RowChart({
         rolling.high = Math.max(rolling.high, oneMin.high);
         rolling.low = Math.min(rolling.low, oneMin.low);
         rolling.close = oneMin.close;
-        rolling.volume =
-          Number(rolling.volume || 0) + Number(oneMin.volume || 0);
+        rolling.volume = Number(rolling.volume || 0) + Number(oneMin.volume || 0);
       }
 
       seriesRef.current?.update(rolling);
@@ -809,11 +869,18 @@ export default function RowChart({
     ema20: state.ema20,
     ema50: state.ema50,
     volume: state.volume,
+
     institutionalZonesAuto: state.institutionalZonesAuto,
     smzShelvesAuto: state.smzShelvesAuto,
 
-    // ✅ Engine 2 toggle
-    fibLevels: state.fibLevels,
+    // ✅ fib toggles + styles (for toolbar)
+    fibIntermediate: state.fibIntermediate,
+    fibMinor: state.fibMinor,
+    fibMinute: state.fibMinute,
+
+    fibIntermediateStyle: state.fibIntermediateStyle,
+    fibMinorStyle: state.fibMinorStyle,
+    fibMinuteStyle: state.fibMinuteStyle,
 
     onChange: handleControlsChange,
     onReset: () =>
@@ -827,8 +894,10 @@ export default function RowChart({
         institutionalZonesAuto: false,
         smzShelvesAuto: false,
 
-        // ✅ reset fib to off (minimal default)
-        fibLevels: false,
+        // ✅ reset fib toggles OFF (styles remain)
+        fibIntermediate: false,
+        fibMinor: false,
+        fibMinute: false,
       })),
   };
 
