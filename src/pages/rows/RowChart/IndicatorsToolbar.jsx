@@ -1,14 +1,8 @@
 // src/pages/rows/RowChart/IndicatorsToolbar.jsx
-// v4.0 — Minimal toolbar for SMZ system + Engine 2 Fib (Multi-degree + full settings)
-// Keeps:
-// - EMA
-// - Volume
-// - Institutional Zones (auto)
-// - Acc/Dist Shelves (auto)
-// Adds:
-// - Fib (Intermediate/Minor/Minute) + ⚙ settings
-//   - Fib line settings: color / font / thickness / show anchors/retrace/extensions
-//   - Elliott settings: show wave labels / show wave lines / label color+font / line color+width
+// v4.1 — Minimal toolbar for SMZ system + Engine 2 Fib (Primary/Intermediate/Minor/Minute)
+// Includes full per-degree ⚙ settings:
+// - Fib visuals: color / font / thickness / show anchors/retrace/extensions
+// - Elliott (manual): show wave labels / show wave lines / label color+font / line color+width
 
 import React from "react";
 
@@ -73,7 +67,7 @@ function SettingsBlock({ styleObj, onPatch }) {
     <div
       style={{
         marginTop: 8,
-        width: 290,
+        width: 300,
         background: "#0b0b0b",
         border: "1px solid #2b2b2b",
         borderRadius: 10,
@@ -89,7 +83,7 @@ function SettingsBlock({ styleObj, onPatch }) {
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "90px 1fr",
+          gridTemplateColumns: "95px 1fr",
           alignItems: "center",
           gap: 10,
           marginBottom: 10,
@@ -106,7 +100,7 @@ function SettingsBlock({ styleObj, onPatch }) {
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "90px 1fr",
+          gridTemplateColumns: "95px 1fr",
           gap: 10,
           marginBottom: 10,
         }}
@@ -122,7 +116,7 @@ function SettingsBlock({ styleObj, onPatch }) {
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "90px 1fr",
+          gridTemplateColumns: "95px 1fr",
           gap: 10,
           marginBottom: 10,
         }}
@@ -137,20 +131,12 @@ function SettingsBlock({ styleObj, onPatch }) {
       {/* Fib toggles */}
       <div style={{ display: "grid", gap: 6, marginBottom: 12 }}>
         <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12 }}>
-          <input
-            type="checkbox"
-            checked={showAnchors}
-            onChange={(e) => onPatch?.({ showAnchors: e.target.checked })}
-          />
+          <input type="checkbox" checked={showAnchors} onChange={(e) => onPatch?.({ showAnchors: e.target.checked })} />
           Show Anchors
         </label>
 
         <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12 }}>
-          <input
-            type="checkbox"
-            checked={showRetrace}
-            onChange={(e) => onPatch?.({ showRetrace: e.target.checked })}
-          />
+          <input type="checkbox" checked={showRetrace} onChange={(e) => onPatch?.({ showRetrace: e.target.checked })} />
           Show Retrace
         </label>
 
@@ -193,7 +179,7 @@ function SettingsBlock({ styleObj, onPatch }) {
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "90px 1fr",
+          gridTemplateColumns: "95px 1fr",
           alignItems: "center",
           gap: 10,
           marginBottom: 10,
@@ -209,20 +195,14 @@ function SettingsBlock({ styleObj, onPatch }) {
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "90px 1fr",
+          gridTemplateColumns: "95px 1fr",
           gap: 10,
           marginBottom: 10,
         }}
       >
         <div style={{ color: "#9ca3af", fontSize: 12 }}>Label Font</div>
         <div>
-          <Slider
-            min={10}
-            max={72}
-            step={1}
-            value={waveLabelFontPx}
-            onChange={(v) => onPatch?.({ waveLabelFontPx: v })}
-          />
+          <Slider min={10} max={72} step={1} value={waveLabelFontPx} onChange={(v) => onPatch?.({ waveLabelFontPx: v })} />
           <div style={{ color: "#9ca3af", fontSize: 12, marginTop: 4 }}>{waveLabelFontPx}px</div>
         </div>
       </div>
@@ -231,7 +211,7 @@ function SettingsBlock({ styleObj, onPatch }) {
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "90px 1fr",
+          gridTemplateColumns: "95px 1fr",
           alignItems: "center",
           gap: 10,
           marginBottom: 10,
@@ -247,19 +227,13 @@ function SettingsBlock({ styleObj, onPatch }) {
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "90px 1fr",
+          gridTemplateColumns: "95px 1fr",
           gap: 10,
         }}
       >
         <div style={{ color: "#9ca3af", fontSize: 12 }}>Line Width</div>
         <div>
-          <Slider
-            min={1}
-            max={12}
-            step={0.5}
-            value={waveLineWidth}
-            onChange={(v) => onPatch?.({ waveLineWidth: v })}
-          />
+          <Slider min={1} max={12} step={0.5} value={waveLineWidth} onChange={(v) => onPatch?.({ waveLineWidth: v })} />
           <div style={{ color: "#9ca3af", fontSize: 12, marginTop: 4 }}>{waveLineWidth}px</div>
         </div>
       </div>
@@ -302,8 +276,8 @@ function FibRow({ label, enabled, styleObj, onToggle, onStylePatch }) {
  * - volume
  * - institutionalZonesAuto
  * - smzShelvesAuto
- * - fibIntermediate, fibMinor, fibMinute
- * - fibIntermediateStyle, fibMinorStyle, fibMinuteStyle
+ * - fibPrimary, fibIntermediate, fibMinor, fibMinute
+ * - fibPrimaryStyle, fibIntermediateStyle, fibMinorStyle, fibMinuteStyle
  * - onChange(patch), onReset()
  */
 export default function IndicatorsToolbar({
@@ -321,11 +295,13 @@ export default function IndicatorsToolbar({
   smzShelvesAuto = false,
 
   // Fib toggles
+  fibPrimary = false,
   fibIntermediate = false,
   fibMinor = false,
   fibMinute = false,
 
   // Fib styles
+  fibPrimaryStyle,
   fibIntermediateStyle,
   fibMinorStyle,
   fibMinuteStyle,
@@ -346,7 +322,7 @@ export default function IndicatorsToolbar({
         border: "1px solid #2b2b2b",
         borderRadius: 8,
         padding: 10,
-        minWidth: 360,
+        minWidth: 380,
         color: "#e5e7eb",
         boxShadow: "0 6px 24px rgba(0,0,0,0.35)",
       }}
@@ -457,6 +433,16 @@ export default function IndicatorsToolbar({
               </div>
 
               <div style={{ display: "grid", gap: 10 }}>
+                <FibRow
+                  label="Fib (Primary)"
+                  enabled={fibPrimary}
+                  styleObj={fibPrimaryStyle}
+                  onToggle={(v) => onChange?.({ fibPrimary: v })}
+                  onStylePatch={(patch) =>
+                    onChange?.({ fibPrimaryStyle: { ...(fibPrimaryStyle || {}), ...patch } })
+                  }
+                />
+
                 <FibRow
                   label="Fib (Intermediate)"
                   enabled={fibIntermediate}
