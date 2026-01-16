@@ -1,14 +1,14 @@
 // src/pages/rows/RowChart/IndicatorsToolbar.jsx
-// v3.9 — Minimal toolbar for SMZ system + Engine 2 Fib (Multi-degree + per-toggle settings)
+// v4.0 — Minimal toolbar for SMZ system + Engine 2 Fib (Multi-degree + full settings)
 // Keeps:
 // - EMA
 // - Volume
 // - Institutional Zones (auto)
 // - Acc/Dist Shelves (auto)
 // Adds:
-// - Fib (Intermediate) + ⚙ settings
-// - Fib (Minor) + ⚙ settings
-// - Fib (Minute) + ⚙ settings
+// - Fib (Intermediate/Minor/Minute) + ⚙ settings
+//   - Fib line settings: color / font / thickness / show anchors/retrace/extensions
+//   - Elliott settings: show wave labels / show wave lines / label color+font / line color+width
 
 import React from "react";
 
@@ -46,27 +46,50 @@ function Slider({ min, max, step, value, onChange }) {
   );
 }
 
+/* -------------------- settings block -------------------- */
 function SettingsBlock({ styleObj, onPatch }) {
   const s = styleObj || {};
+
+  // Fib styling
+  const color = s.color || "#ffd54a";
   const fontPx = Number.isFinite(s.fontPx) ? s.fontPx : 18;
   const lineWidth = Number.isFinite(s.lineWidth) ? s.lineWidth : 3;
+
+  const showAnchors = s.showAnchors !== false;
+  const showRetrace = s.showRetrace !== false;
+  const showExtensions = s.showExtensions !== false;
+
+  // Elliott styling
+  const showWaveLabels = s.showWaveLabels === true;
+  const showWaveLines = s.showWaveLines === true;
+
+  const waveLabelColor = s.waveLabelColor || color;
+  const waveLabelFontPx = Number.isFinite(s.waveLabelFontPx) ? s.waveLabelFontPx : fontPx;
+
+  const waveLineColor = s.waveLineColor || color;
+  const waveLineWidth = Number.isFinite(s.waveLineWidth) ? s.waveLineWidth : Math.max(2, lineWidth);
 
   return (
     <div
       style={{
         marginTop: 8,
-        width: 260,
+        width: 290,
         background: "#0b0b0b",
         border: "1px solid #2b2b2b",
         borderRadius: 10,
         padding: 10,
       }}
     >
+      {/* ---------- Fib visuals ---------- */}
+      <div style={{ color: "#9ca3af", fontSize: 12, fontWeight: 800, marginBottom: 8 }}>
+        Fib Visuals
+      </div>
+
       {/* Color */}
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "80px 1fr",
+          gridTemplateColumns: "90px 1fr",
           alignItems: "center",
           gap: 10,
           marginBottom: 10,
@@ -74,8 +97,8 @@ function SettingsBlock({ styleObj, onPatch }) {
       >
         <div style={{ color: "#9ca3af", fontSize: 12 }}>Color</div>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <ColorInput value={s.color || "#ffd54a"} onChange={(v) => onPatch?.({ color: v })} />
-          <span style={{ color: "#9ca3af", fontSize: 12 }}>{s.color || "#ffd54a"}</span>
+          <ColorInput value={color} onChange={(v) => onPatch?.({ color: v })} />
+          <span style={{ color: "#9ca3af", fontSize: 12 }}>{color}</span>
         </div>
       </div>
 
@@ -83,7 +106,7 @@ function SettingsBlock({ styleObj, onPatch }) {
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "80px 1fr",
+          gridTemplateColumns: "90px 1fr",
           gap: 10,
           marginBottom: 10,
         }}
@@ -99,7 +122,7 @@ function SettingsBlock({ styleObj, onPatch }) {
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "80px 1fr",
+          gridTemplateColumns: "90px 1fr",
           gap: 10,
           marginBottom: 10,
         }}
@@ -111,12 +134,12 @@ function SettingsBlock({ styleObj, onPatch }) {
         </div>
       </div>
 
-      {/* Toggles */}
-      <div style={{ display: "grid", gap: 6 }}>
+      {/* Fib toggles */}
+      <div style={{ display: "grid", gap: 6, marginBottom: 12 }}>
         <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12 }}>
           <input
             type="checkbox"
-            checked={s.showAnchors !== false}
+            checked={showAnchors}
             onChange={(e) => onPatch?.({ showAnchors: e.target.checked })}
           />
           Show Anchors
@@ -125,7 +148,7 @@ function SettingsBlock({ styleObj, onPatch }) {
         <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12 }}>
           <input
             type="checkbox"
-            checked={s.showRetrace !== false}
+            checked={showRetrace}
             onChange={(e) => onPatch?.({ showRetrace: e.target.checked })}
           />
           Show Retrace
@@ -134,23 +157,117 @@ function SettingsBlock({ styleObj, onPatch }) {
         <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12 }}>
           <input
             type="checkbox"
-            checked={s.showExtensions !== false}
+            checked={showExtensions}
             onChange={(e) => onPatch?.({ showExtensions: e.target.checked })}
           />
           Show Extensions
         </label>
       </div>
+
+      {/* ---------- Elliott visuals ---------- */}
+      <div style={{ color: "#9ca3af", fontSize: 12, fontWeight: 800, marginBottom: 8 }}>
+        Elliott (Manual) Labels & Lines
+      </div>
+
+      <div style={{ display: "grid", gap: 6, marginBottom: 10 }}>
+        <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12 }}>
+          <input
+            type="checkbox"
+            checked={showWaveLabels}
+            onChange={(e) => onPatch?.({ showWaveLabels: e.target.checked })}
+          />
+          Show Wave Labels
+        </label>
+
+        <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12 }}>
+          <input
+            type="checkbox"
+            checked={showWaveLines}
+            onChange={(e) => onPatch?.({ showWaveLines: e.target.checked })}
+          />
+          Show Wave Lines (connect dots)
+        </label>
+      </div>
+
+      {/* Wave label color + font */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "90px 1fr",
+          alignItems: "center",
+          gap: 10,
+          marginBottom: 10,
+        }}
+      >
+        <div style={{ color: "#9ca3af", fontSize: 12 }}>Label Color</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <ColorInput value={waveLabelColor} onChange={(v) => onPatch?.({ waveLabelColor: v })} />
+          <span style={{ color: "#9ca3af", fontSize: 12 }}>{waveLabelColor}</span>
+        </div>
+      </div>
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "90px 1fr",
+          gap: 10,
+          marginBottom: 10,
+        }}
+      >
+        <div style={{ color: "#9ca3af", fontSize: 12 }}>Label Font</div>
+        <div>
+          <Slider
+            min={10}
+            max={72}
+            step={1}
+            value={waveLabelFontPx}
+            onChange={(v) => onPatch?.({ waveLabelFontPx: v })}
+          />
+          <div style={{ color: "#9ca3af", fontSize: 12, marginTop: 4 }}>{waveLabelFontPx}px</div>
+        </div>
+      </div>
+
+      {/* Wave line color + width */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "90px 1fr",
+          alignItems: "center",
+          gap: 10,
+          marginBottom: 10,
+        }}
+      >
+        <div style={{ color: "#9ca3af", fontSize: 12 }}>Line Color</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <ColorInput value={waveLineColor} onChange={(v) => onPatch?.({ waveLineColor: v })} />
+          <span style={{ color: "#9ca3af", fontSize: 12 }}>{waveLineColor}</span>
+        </div>
+      </div>
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "90px 1fr",
+          gap: 10,
+        }}
+      >
+        <div style={{ color: "#9ca3af", fontSize: 12 }}>Line Width</div>
+        <div>
+          <Slider
+            min={1}
+            max={12}
+            step={0.5}
+            value={waveLineWidth}
+            onChange={(v) => onPatch?.({ waveLineWidth: v })}
+          />
+          <div style={{ color: "#9ca3af", fontSize: 12, marginTop: 4 }}>{waveLineWidth}px</div>
+        </div>
+      </div>
     </div>
   );
 }
 
-function FibRow({
-  label,
-  enabled,
-  styleObj,
-  onToggle,
-  onStylePatch,
-}) {
+function FibRow({ label, enabled, styleObj, onToggle, onStylePatch }) {
   return (
     <div style={{ display: "grid", gap: 6 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
@@ -190,7 +307,7 @@ function FibRow({
  * - onChange(patch), onReset()
  */
 export default function IndicatorsToolbar({
-  // EMA block
+  // EMA
   showEma = true,
   ema10 = true,
   ema20 = true,
@@ -199,26 +316,25 @@ export default function IndicatorsToolbar({
   // Volume
   volume = true,
 
-  // SMZ overlays
+  // SMZ
   institutionalZonesAuto = false,
   smzShelvesAuto = false,
 
-  // Engine 2 Fib (multi-degree)
+  // Fib toggles
   fibIntermediate = false,
   fibMinor = false,
   fibMinute = false,
 
+  // Fib styles
   fibIntermediateStyle,
   fibMinorStyle,
   fibMinuteStyle,
 
-  // Handlers
+  // handlers
   onChange,
   onReset,
 }) {
-  const divider = (
-    <div style={{ height: 1, background: "#2b2b2b", margin: "10px 0" }} />
-  );
+  const divider = <div style={{ height: 1, background: "#2b2b2b", margin: "10px 0" }} />;
 
   const wrap = (children) => (
     <div
@@ -230,7 +346,7 @@ export default function IndicatorsToolbar({
         border: "1px solid #2b2b2b",
         borderRadius: 8,
         padding: 10,
-        minWidth: 340,
+        minWidth: 360,
         color: "#e5e7eb",
         boxShadow: "0 6px 24px rgba(0,0,0,0.35)",
       }}
@@ -271,10 +387,8 @@ export default function IndicatorsToolbar({
 
           {wrap(
             <>
-              {/* EMAs */}
-              <div style={{ color: "#9ca3af", fontSize: 12, margin: "6px 0 4px" }}>
-                EMA
-              </div>
+              {/* EMA */}
+              <div style={{ color: "#9ca3af", fontSize: 12, margin: "6px 0 4px" }}>EMA</div>
 
               <label>
                 <input
@@ -287,29 +401,15 @@ export default function IndicatorsToolbar({
 
               <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 6 }}>
                 <label>
-                  <input
-                    type="checkbox"
-                    checked={!!ema10}
-                    onChange={(e) => onChange?.({ ema10: e.target.checked })}
-                  />{" "}
+                  <input type="checkbox" checked={!!ema10} onChange={(e) => onChange?.({ ema10: e.target.checked })} />{" "}
                   EMA 10
                 </label>
-
                 <label>
-                  <input
-                    type="checkbox"
-                    checked={!!ema20}
-                    onChange={(e) => onChange?.({ ema20: e.target.checked })}
-                  />{" "}
+                  <input type="checkbox" checked={!!ema20} onChange={(e) => onChange?.({ ema20: e.target.checked })} />{" "}
                   EMA 20
                 </label>
-
                 <label>
-                  <input
-                    type="checkbox"
-                    checked={!!ema50}
-                    onChange={(e) => onChange?.({ ema50: e.target.checked })}
-                  />{" "}
+                  <input type="checkbox" checked={!!ema50} onChange={(e) => onChange?.({ ema50: e.target.checked })} />{" "}
                   EMA 50
                 </label>
               </div>
@@ -317,25 +417,17 @@ export default function IndicatorsToolbar({
               {divider}
 
               {/* Volume */}
-              <div style={{ color: "#9ca3af", fontSize: 12, margin: "6px 0 4px" }}>
-                Volume
-              </div>
+              <div style={{ color: "#9ca3af", fontSize: 12, margin: "6px 0 4px" }}>Volume</div>
 
               <label>
-                <input
-                  type="checkbox"
-                  checked={!!volume}
-                  onChange={(e) => onChange?.({ volume: e.target.checked })}
-                />{" "}
+                <input type="checkbox" checked={!!volume} onChange={(e) => onChange?.({ volume: e.target.checked })} />{" "}
                 Show Volume Histogram
               </label>
 
               {divider}
 
-              {/* SMZ Overlays */}
-              <div style={{ color: "#9ca3af", fontSize: 12, margin: "6px 0 4px" }}>
-                SMZ Overlays
-              </div>
+              {/* SMZ */}
+              <div style={{ color: "#9ca3af", fontSize: 12, margin: "6px 0 4px" }}>SMZ Overlays</div>
 
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                 <label>
@@ -359,7 +451,7 @@ export default function IndicatorsToolbar({
 
               {divider}
 
-              {/* Engine 2 (Fib) — Multi-degree */}
+              {/* Fib Multi-degree */}
               <div style={{ color: "#9ca3af", fontSize: 12, margin: "6px 0 8px" }}>
                 Engine 2 (Fib) — Multi-Degree
               </div>
@@ -371,9 +463,7 @@ export default function IndicatorsToolbar({
                   styleObj={fibIntermediateStyle}
                   onToggle={(v) => onChange?.({ fibIntermediate: v })}
                   onStylePatch={(patch) =>
-                    onChange?.({
-                      fibIntermediateStyle: { ...(fibIntermediateStyle || {}), ...patch },
-                    })
+                    onChange?.({ fibIntermediateStyle: { ...(fibIntermediateStyle || {}), ...patch } })
                   }
                 />
 
@@ -383,9 +473,7 @@ export default function IndicatorsToolbar({
                   styleObj={fibMinorStyle}
                   onToggle={(v) => onChange?.({ fibMinor: v })}
                   onStylePatch={(patch) =>
-                    onChange?.({
-                      fibMinorStyle: { ...(fibMinorStyle || {}), ...patch },
-                    })
+                    onChange?.({ fibMinorStyle: { ...(fibMinorStyle || {}), ...patch } })
                   }
                 />
 
@@ -395,9 +483,7 @@ export default function IndicatorsToolbar({
                   styleObj={fibMinuteStyle}
                   onToggle={(v) => onChange?.({ fibMinute: v })}
                   onStylePatch={(patch) =>
-                    onChange?.({
-                      fibMinuteStyle: { ...(fibMinuteStyle || {}), ...patch },
-                    })
+                    onChange?.({ fibMinuteStyle: { ...(fibMinuteStyle || {}), ...patch } })
                   }
                 />
               </div>
