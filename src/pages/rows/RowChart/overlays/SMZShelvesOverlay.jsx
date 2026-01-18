@@ -55,6 +55,46 @@ export default function SMZShelvesOverlay({
     return { w, h };
   }
 
+  function drawMidline(ctx, x0, x1, y, stroke) {
+    ctx.save();
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = 1;
+    ctx.setLineDash([6, 4]); // dashed
+    ctx.beginPath();
+    ctx.moveTo(x0, y + 0.5);
+    ctx.lineTo(x1, y + 0.5);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawLabel(ctx, x, y, text, stroke) {
+    ctx.save();
+    ctx.font = "12px system-ui, -apple-system, Segoe UI, Roboto, Arial";
+    ctx.textBaseline = "top";
+    ctx.fillStyle = stroke;
+
+    // simple dark backing for readability
+    const padX = 6;
+    const padY = 3;
+    const metrics = ctx.measureText(text);
+    const tw = Math.ceil(metrics.width);
+    const th = 14;
+
+    ctx.fillStyle = "rgba(0,0,0,0.40)";
+    ctx.fillRect(x, y, tw + padX * 2, th + padY * 2);
+
+    ctx.fillStyle = stroke;
+    ctx.fillText(text, x + padX, y + padY);
+    ctx.restore();
+  }
+
+  function clipText(s, max = 28) {
+    const t = String(s || "").trim();
+    if (!t) return "";
+    if (t.length <= max) return t;
+    return t.slice(0, max - 1) + "…";
+  }
+
   function draw() {
     if (destroyed) return;
 
@@ -99,6 +139,7 @@ export default function SMZShelvesOverlay({
       const y = Math.min(yTop, yBot);
       const bandH = Math.max(2, Math.abs(yBot - yTop));
 
+      // --- band ---
       ctx.fillStyle = fill;
       ctx.fillRect(0, y, w, bandH);
 
@@ -107,6 +148,32 @@ export default function SMZShelvesOverlay({
       ctx.beginPath();
       ctx.rect(0.5, y + 0.5, w - 1, Math.max(1, bandH - 1));
       ctx.stroke();
+
+      // --- midline ---
+      const mid = (hi + lo) / 2;
+      const yMid = priceToY(mid);
+      if (yMid != null && yMid >= 0 && yMid <= h) {
+        drawMidline(ctx, 0, w, yMid, stroke);
+      }
+
+      // --- label ---
+      const labelBase = isAccum ? "Accumulation" : "Distribution";
+
+      // show score if present
+      const score = Number(lvl.scoreOverride ?? lvl.strength ?? NaN);
+      const scoreText = Number.isFinite(score) ? ` ${Math.round(score)}` : "";
+
+      // optional short comment
+      const comment = clipText(lvl.comment, 26);
+      const commentText = comment ? ` — ${comment}` : "";
+
+      const label = `${labelBase}${scoreText}${commentText}`;
+
+      // place label near top-left of band, with bounds guard
+      const labelX = 10;
+      const labelY = Math.max(6, Math.min(h - 26, y + 6));
+
+      drawLabel(ctx, labelX, labelY, label, stroke);
     }
   }
 
