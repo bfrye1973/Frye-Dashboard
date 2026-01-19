@@ -1,14 +1,6 @@
 // src/pages/rows/RowChart/overlays/SMZLevelsOverlay.jsx
-// Engine 1 Overlay — STRUCTURE (yellow) + POCKET (blue) + ACTIVE POCKETS (execution-only)
-//
-// ✅ RULES (LOCKED BY YOU):
-// 1) Institutional STRUCTURES always win visually.
-//    If a POCKET overlaps any STRUCTURE range, the POCKET is NOT drawn.
-// 2) Active pockets draw ONLY the narrow execution band (no full-range halo)
-//    AND only in "no man’s land" (NOT inside any STRUCTURE).
-// 3) Optional: show high-score MICRO zones as faint dashed yellow "proto-structure".
-// 4) Sticky registry zones MUST render as STRUCTURES and override live if overlapping.
-//    (You manually edit sticky ranges; they must appear on map.)
+// Engine 1 Overlay — STRUCTURE (yellow)
+// Pockets are deprecated and replaced by Shelves.
 //
 // Contract:
 // - priceRange is [HIGH, LOW]
@@ -29,15 +21,10 @@ export default function SMZLevelsOverlay({
   }
 
   let levels = [];
-  let pocketsActive = [];
   let stickyStructures = [];
   let canvas = null;
 
   const ts = chart.timeScale();
-
-  // === ACTIVE POCKET EXECUTION BAND SETTINGS ===
-  // 0.40 = tight, 0.30 = very tight, 0.50 = wider
-  const EXEC_BAND_PCT = 0.4;
 
   // === MICRO DISPLAY SETTINGS ===
   const SHOW_MICRO = true;
@@ -54,6 +41,7 @@ export default function SMZLevelsOverlay({
       position: "absolute",
       inset: 0,
       pointerEvents: "none",
+      // Institutional fill below shelves (shelves zIndex = 14)
       zIndex: 12,
     });
     chartContainer.appendChild(cnv);
@@ -72,7 +60,6 @@ export default function SMZLevelsOverlay({
   }
 
   // Prefer manualRange for sticky zones if present.
-  // Contract: ranges are [HIGH, LOW]
   function effectiveRange(z) {
     const mr = z?.manualRange;
     if (Array.isArray(mr) && mr.length === 2) return mr;
@@ -80,7 +67,6 @@ export default function SMZLevelsOverlay({
     return Array.isArray(pr) && pr.length === 2 ? pr : null;
   }
 
-  // Contract: range is [HIGH, LOW]
   function getHiLo(range) {
     if (!Array.isArray(range) || range.length < 2) return null;
 
@@ -98,25 +84,10 @@ export default function SMZLevelsOverlay({
     return { hi, lo, mid: (hi + lo) / 2 };
   }
 
-  function overlapRatio(aHi, aLo, bHi, bLo) {
-    const lo = Math.max(aLo, bLo);
-    const hi = Math.min(aHi, bHi);
-    const inter = hi - lo;
-    if (inter <= 0) return 0;
-    const denom = Math.min(aHi - aLo, bHi - bLo);
-    return denom > 0 ? inter / denom : 0;
-  }
-
-  function rangesOverlap(a, b, minOv = 0.01) {
-    if (!a || !b) return false;
-    const ov = overlapRatio(a.hi, a.lo, b.hi, b.lo);
-    return ov >= minOv;
-  }
-
-  function drawBand(ctx, w, hi, lo, fill, stroke, strokeWidth = 2) {
+  function drawBand(ctx, w, hi, lo, fill, stroke, strokeWidth = 1) {
     const yTop = priceToY(hi);
     const yBot = priceToY(lo);
-    if (yTop == null || yBot == null) return;
+    if (yTop == null || yBot == null) return { y: null, hBand: null };
 
     const y = Math.min(yTop, yBot);
     const hBand = Math.max(2, Math.abs(yBot - yTop));
@@ -127,8 +98,28 @@ export default function SMZLevelsOverlay({
     ctx.strokeStyle = stroke;
     ctx.lineWidth = strokeWidth;
     ctx.beginPath();
-    ctx.rect(0.5, y + 0.5, w - 1, hBand - 1);
+    ctx.rect(0.5, y + 0.5, w - 1, Math.max(1, hBand - 1));
     ctx.stroke();
+
+    return { y, hBand };
+  }
+
+  function drawDashedBox(ctx, w, hi, lo, stroke, strokeWidth = 1) {
+    const yTop = priceToY(hi);
+    const yBot = priceToY(lo);
+    if (yTop == null || yBot == null) return;
+
+    const y = Math.min(yTop, yBot);
+    const hBand = Math.max(2, Math.abs(yBot - yTop));
+
+    ctx.save();
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = strokeWidth;
+    ctx.setLineDash([8, 7]);
+    ctx.beginPath();
+    ctx.rect(1, y + 1, w - 2, Math.max(1, hBand - 2));
+    ctx.stroke();
+    ctx.restore();
   }
 
   function drawDashedMid(ctx, w, midPrice, color, lineWidth = 2) {
@@ -145,51 +136,16 @@ export default function SMZLevelsOverlay({
     ctx.restore();
   }
 
-  function drawDashedBox(ctx, w, hi, lo, stroke, strokeWidth = 1) {
-    const yTop = priceToY(hi);
-    const yBot = priceToY(lo);
-    if (yTop == null || yBot == null) return;
-
-    const y = Math.min(yTop, yBot);
-    const hBand = Math.max(2, Math.abs(yBot - yTop));
-
-    ctx.save();
-    ctx.strokeStyle = stroke;
-    ctx.lineWidth = strokeWidth;
-    ctx.setLineDash([8, 7]);
-    ctx.beginPath();
-    ctx.rect(1, y + 1, w - 2, hBand - 2);
-    ctx.stroke();
-    ctx.restore();
+  function isStickyZone(z) {
+    return (z?.tier ?? "") === "structure_sticky";
   }
 
-  function buildStructureRanges(structuresArr) {
-    return (structuresArr || [])
-      .map((s) => getHiLo(effectiveRange(s)))
-      .filter(Boolean);
-  }
-
-  function pocketOverlapsAnyStructure(pocketRange, structureRanges) {
-    if (!pocketRange) return false;
-    for (const sr of structureRanges || []) {
-      // Suppress if any modest overlap
-      if (rangesOverlap(pocketRange, sr, 0.10)) return true;
-      // Also suppress if pocket fully inside structure
-      if (pocketRange.hi <= sr.hi && pocketRange.lo >= sr.lo) return true;
-    }
-    return false;
-  }
-
-  // ✅ Sticky must appear as STRUCTURE and override live if overlapping.
-  // We do this by:
-  // - taking live structures
-  // - removing any live structure that overlaps a sticky zone
-  // - adding sticky as tier:"structure"
+  // Sticky overrides live structures if overlapping
   function mergeStickyOverLive(structuresLive, structuresSticky) {
     const out = (structuresLive || []).slice();
 
     const sticky = (structuresSticky || [])
-      .filter((z) => (z?.tier ?? "") === "structure_sticky")
+      .filter(isStickyZone)
       .map((z) => ({ ...z, tier: "structure" })); // draw as structure
 
     sticky.forEach((sz) => {
@@ -209,15 +165,48 @@ export default function SMZLevelsOverlay({
     return out;
   }
 
-  function draw() {
-    if (
-      (!levels || levels.length === 0) &&
-      (!pocketsActive || pocketsActive.length === 0) &&
-      (!stickyStructures || stickyStructures.length === 0)
-    ) {
-      return;
-    }
+  function clipText(s, max = 30) {
+    const t = String(s || "").trim();
+    if (!t) return "";
+    if (t.length <= max) return t;
+    return t.slice(0, max - 1) + "…";
+  }
 
+  function drawCenteredLabel(ctx, xMid, yMid, text, color, boundsW, boundsH) {
+    ctx.save();
+    ctx.font = "12px system-ui, -apple-system, Segoe UI, Roboto, Arial";
+    ctx.textBaseline = "middle";
+    ctx.textAlign = "center";
+
+    const padX = 8;
+    const padY = 5;
+    const metrics = ctx.measureText(text);
+    const tw = Math.ceil(metrics.width);
+    const th = 14;
+
+    let x = Math.round(xMid);
+    let y = Math.round(yMid);
+
+    const boxW = tw + padX * 2;
+    const boxH = th + padY * 2;
+
+    const minX = Math.ceil(boxW / 2) + 2;
+    const maxX = boundsW - Math.ceil(boxW / 2) - 2;
+    const minY = Math.ceil(boxH / 2) + 2;
+    const maxY = boundsH - Math.ceil(boxH / 2) - 2;
+
+    x = Math.max(minX, Math.min(maxX, x));
+    y = Math.max(minY, Math.min(maxY, y));
+
+    ctx.fillStyle = "rgba(0,0,0,0.45)";
+    ctx.fillRect(x - boxW / 2, y - boxH / 2, boxW, boxH);
+
+    ctx.fillStyle = color;
+    ctx.fillText(text, x, y);
+    ctx.restore();
+  }
+
+  function draw() {
     const cnv = ensureCanvas();
     const w = chartContainer.clientWidth || 1;
     const h = chartContainer.clientHeight || 1;
@@ -227,129 +216,78 @@ export default function SMZLevelsOverlay({
     const ctx = cnv.getContext("2d");
     ctx.clearRect(0, 0, w, h);
 
-    // Raw lists from API
-    const structuresLive = (levels || []).filter(
-      (l) => (l?.tier ?? "") === "structure"
-    );
+    if ((!levels || levels.length === 0) && (!stickyStructures || stickyStructures.length === 0)) {
+      return;
+    }
+
+    const structuresLive = (levels || []).filter((l) => (l?.tier ?? "") === "structure");
     const micros = (levels || []).filter((l) => (l?.tier ?? "") === "micro");
-    const completedPocketsAll = (levels || []).filter(
-      (l) => (l?.tier ?? "") === "pocket"
-    );
 
-    // ✅ Effective structures = live with sticky overrides applied
-    const structuresEffective = mergeStickyOverLive(
-      structuresLive,
-      stickyStructures
-    );
+    const structuresEffective = mergeStickyOverLive(structuresLive, stickyStructures);
 
-    // Structure ranges used to suppress completed pockets AND active pockets
-    const structureRanges = buildStructureRanges(structuresEffective);
-
-    // 0) STICKY STRUCTURES (optional) — subtle memory lane (outline only)
-    // Note: They are ALSO drawn as full yellow structures below (because sticky becomes tier:"structure").
+    // 0) Sticky outline (optional)
     if (SHOW_STICKY && Array.isArray(stickyStructures) && stickyStructures.length) {
       stickyStructures
-        .filter((z) => (z?.tier ?? "") === "structure_sticky")
+        .filter(isStickyZone)
         .forEach((lvl) => {
           const r = getHiLo(effectiveRange(lvl));
           if (!r) return;
-          drawDashedBox(ctx, w, r.hi, r.lo, "rgba(255,215,0,0.55)", 1);
+          drawDashedBox(ctx, w, r.hi, r.lo, "rgba(255,215,0,0.45)", 1);
         });
     }
 
-    // 1) MICRO (proto-structure) — faint dashed yellow (only strong ones)
+    // 1) Micro proto-structure dashed (optional)
     if (SHOW_MICRO) {
       micros
         .filter((m) => (safeNum(m?.strength) ?? 0) >= MICRO_MIN_STRENGTH)
         .forEach((lvl) => {
           const r = getHiLo(effectiveRange(lvl));
           if (!r) return;
-          drawBand(ctx, w, r.hi, r.lo, "rgba(255,215,0,0.04)", "rgba(0,0,0,0)", 0);
-          drawDashedBox(ctx, w, r.hi, r.lo, "rgba(255,215,0,0.35)", 1);
+          drawBand(ctx, w, r.hi, r.lo, "rgba(255,215,0,0.03)", "rgba(0,0,0,0)", 0);
+          drawDashedBox(ctx, w, r.hi, r.lo, "rgba(255,215,0,0.28)", 1);
         });
     }
 
-    // 2) STRUCTURES — yellow (effective structures, sticky wins)
+    // 2) Structures (effective)
     structuresEffective.forEach((lvl) => {
       const r = getHiLo(effectiveRange(lvl));
       if (!r) return;
 
+      // Slight pad for aesthetics
       const pad = 0.12;
       const hi = r.hi + pad;
       const lo = r.lo - pad;
 
-      drawBand(ctx, w, hi, lo, "rgba(255,215,0,0.10)", "rgba(255,215,0,0.55)", 1);
-    });
+      // ✅ slightly lower opacity to keep shelves readable
+      const fill = "rgba(255,215,0,0.08)";
+      const stroke = "rgba(255,215,0,0.45)";
 
-    // 3) COMPLETED POCKETS — blue, BUT suppressed if overlapping any STRUCTURE
-    const completedPockets = completedPocketsAll.filter((lvl) => {
-      const r = getHiLo(effectiveRange(lvl));
-      if (!r) return false;
-      return !pocketOverlapsAnyStructure(r, structureRanges);
-    });
+      const { y, hBand } = drawBand(ctx, w, hi, lo, fill, stroke, 1);
+      if (y == null || hBand == null) return;
 
-    completedPockets.forEach((lvl) => {
-      const r = getHiLo(effectiveRange(lvl));
-      if (!r) return;
-
-      drawBand(ctx, w, r.hi, r.lo, "rgba(80,170,255,0.22)", "rgba(80,170,255,0.95)", 2);
+      // Centered label: Institutional + score
+      const strength = safeNum(lvl?.strength);
+      const scoreText = strength != null ? ` ${Math.round(strength)}` : "";
 
       const facts = lvl?.details?.facts ?? {};
-      const mid = safeNum(facts?.negotiationMid);
-      if (mid != null) {
-        drawDashedMid(ctx, w, mid, "rgba(255,55,200,0.95)", 2);
-      }
+      const sticky = facts?.sticky ?? null;
+
+      // If manual sticky has notes, show short note
+      const note = clipText(sticky?.notes ?? lvl?.notes ?? "", 26);
+      const noteText = note ? ` — ${note}` : "";
+
+      const label = `Institutional${scoreText}${noteText}`;
+
+      const xCenter = w / 2;
+      const yCenter = y + hBand / 2;
+
+      drawCenteredLabel(ctx, xCenter, yCenter, label, "rgba(255,215,0,0.95)", w, h);
+
+      // Optional dashed midline for structure midpoint (helps visual match)
+      drawDashedMid(ctx, w, r.mid, "rgba(255,215,0,0.35)", 1);
     });
 
-    // 4) ACTIVE POCKETS — execution band ONLY (no halo) AND NO-MAN’S-LAND ONLY
-    const activeSorted = (pocketsActive || [])
-      .slice()
-      .filter(
-        (p) =>
-          (p?.tier ?? "") === "pocket_active" &&
-          (p?.status ?? "building") === "building"
-      )
-      .sort((a, b) => {
-        const ra = safeNum(a?.relevanceScore) ?? 0;
-        const rb = safeNum(b?.relevanceScore) ?? 0;
-        if (rb !== ra) return rb - ra;
-        const sa = safeNum(a?.strengthTotal) ?? 0;
-        const sb = safeNum(b?.strengthTotal) ?? 0;
-        return sb - sa;
-      })
-      .slice(0, 12);
-
-    activeSorted.forEach((p) => {
-      const r = getHiLo(effectiveRange(p));
-      if (!r) return;
-
-      // ✅ NO MAN’S LAND RULE: do NOT draw inside any structure range
-      if (pocketOverlapsAnyStructure(r, structureRanges)) return;
-
-      const mid = safeNum(p?.negotiationMid);
-      if (mid == null) return;
-
-      const st = safeNum(p?.strengthTotal) ?? 0;
-      const isAPlus = st >= 90;
-
-      const fullWidth = r.hi - r.lo;
-      const halfBand = Math.max(0.05, fullWidth * 0.5 * EXEC_BAND_PCT);
-
-      let execHi = mid + halfBand;
-      let execLo = mid - halfBand;
-
-      execHi = Math.min(execHi, r.hi);
-      execLo = Math.max(execLo, r.lo);
-
-      if (!(execHi > execLo)) return;
-
-      const fillExec = isAPlus ? "rgba(255,50,50,0.22)" : "rgba(0,220,200,0.18)";
-      const stroke = isAPlus ? "rgba(255,50,50,1.0)" : "rgba(0,220,200,1.0)";
-      const borderW = isAPlus ? 3 : 2;
-
-      drawBand(ctx, w, execHi, execLo, fillExec, stroke, borderW);
-      drawDashedMid(ctx, w, mid, stroke, 2);
-    });
+    // ✅ No pockets drawn (deprecated)
   }
 
   async function loadLevels() {
@@ -359,12 +297,14 @@ export default function SMZLevelsOverlay({
       const json = await res.json();
 
       levels = Array.isArray(json?.levels) ? json.levels : [];
-      pocketsActive = Array.isArray(json?.pockets_active) ? json.pockets_active : [];
       stickyStructures = Array.isArray(json?.structures_sticky) ? json.structures_sticky : [];
 
       draw();
     } catch (e) {
       console.warn("[SMZLevelsOverlay] failed to load smz-levels:", e);
+      levels = [];
+      stickyStructures = [];
+      draw();
     }
   }
 
@@ -389,7 +329,6 @@ export default function SMZLevelsOverlay({
     } catch {}
     canvas = null;
     levels = [];
-    pocketsActive = [];
     stickyStructures = [];
     try {
       unsubVisible();
