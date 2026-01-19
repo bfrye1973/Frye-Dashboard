@@ -475,16 +475,20 @@ export default function RowChart({
         })
       );
     }
-    if (state.smzShelvesAuto) {
+    const engine1On = state.institutionalZonesAuto; // master
+    const shelvesOn = state.smzShelvesAuto || engine1On;
+
+    if (shelvesOn) {
       reg(
         attachOverlay(SMZShelvesOverlay, {
-          chart: chartRef.current,
-          priceSeries: seriesRef.current,
-          chartContainer: containerRef.current,
-          timeframe: state.timeframe,
-        })
-      );
-    }
+        chart: chartRef.current,
+        priceSeries: seriesRef.current,
+        chartContainer: containerRef.current,
+        timeframe: state.timeframe,
+      })
+    );
+  }
+
 
     // ✅ Engine 2 — Primary (1d)
     if (state.fibPrimary) {
