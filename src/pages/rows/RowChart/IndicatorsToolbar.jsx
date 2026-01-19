@@ -3,6 +3,10 @@
 // Includes full per-degree ⚙ settings:
 // - Fib visuals: color / font / thickness / show anchors/retrace/extensions
 // - Elliott (manual): show wave labels / show wave lines / label color+font / line color+width
+//
+// ✅ UPDATE (ENGINE 1 MASTER TOGGLE):
+// Institutional Zones (auto) now also toggles Acc/Dist Shelves (auto)
+// so both Engine 1 overlays update together.
 
 import React from "react";
 
@@ -202,7 +206,13 @@ function SettingsBlock({ styleObj, onPatch }) {
       >
         <div style={{ color: "#9ca3af", fontSize: 12 }}>Label Font</div>
         <div>
-          <Slider min={10} max={72} step={1} value={waveLabelFontPx} onChange={(v) => onPatch?.({ waveLabelFontPx: v })} />
+          <Slider
+            min={10}
+            max={72}
+            step={1}
+            value={waveLabelFontPx}
+            onChange={(v) => onPatch?.({ waveLabelFontPx: v })}
+          />
           <div style={{ color: "#9ca3af", fontSize: 12, marginTop: 4 }}>{waveLabelFontPx}px</div>
         </div>
       </div>
@@ -233,7 +243,13 @@ function SettingsBlock({ styleObj, onPatch }) {
       >
         <div style={{ color: "#9ca3af", fontSize: 12 }}>Line Width</div>
         <div>
-          <Slider min={1} max={12} step={0.5} value={waveLineWidth} onChange={(v) => onPatch?.({ waveLineWidth: v })} />
+          <Slider
+            min={1}
+            max={12}
+            step={0.5}
+            value={waveLineWidth}
+            onChange={(v) => onPatch?.({ waveLineWidth: v })}
+          />
           <div style={{ color: "#9ca3af", fontSize: 12, marginTop: 4 }}>{waveLineWidth}px</div>
         </div>
       </div>
@@ -377,15 +393,27 @@ export default function IndicatorsToolbar({
 
               <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 6 }}>
                 <label>
-                  <input type="checkbox" checked={!!ema10} onChange={(e) => onChange?.({ ema10: e.target.checked })} />{" "}
+                  <input
+                    type="checkbox"
+                    checked={!!ema10}
+                    onChange={(e) => onChange?.({ ema10: e.target.checked })}
+                  />{" "}
                   EMA 10
                 </label>
                 <label>
-                  <input type="checkbox" checked={!!ema20} onChange={(e) => onChange?.({ ema20: e.target.checked })} />{" "}
+                  <input
+                    type="checkbox"
+                    checked={!!ema20}
+                    onChange={(e) => onChange?.({ ema20: e.target.checked })}
+                  />{" "}
                   EMA 20
                 </label>
                 <label>
-                  <input type="checkbox" checked={!!ema50} onChange={(e) => onChange?.({ ema50: e.target.checked })} />{" "}
+                  <input
+                    type="checkbox"
+                    checked={!!ema50}
+                    onChange={(e) => onChange?.({ ema50: e.target.checked })}
+                  />{" "}
                   EMA 50
                 </label>
               </div>
@@ -396,7 +424,11 @@ export default function IndicatorsToolbar({
               <div style={{ color: "#9ca3af", fontSize: 12, margin: "6px 0 4px" }}>Volume</div>
 
               <label>
-                <input type="checkbox" checked={!!volume} onChange={(e) => onChange?.({ volume: e.target.checked })} />{" "}
+                <input
+                  type="checkbox"
+                  checked={!!volume}
+                  onChange={(e) => onChange?.({ volume: e.target.checked })}
+                />{" "}
                 Show Volume Histogram
               </label>
 
@@ -410,7 +442,11 @@ export default function IndicatorsToolbar({
                   <input
                     type="checkbox"
                     checked={!!institutionalZonesAuto}
-                    onChange={(e) => onChange?.({ institutionalZonesAuto: e.target.checked })}
+                    onChange={(e) => {
+                      const v = e.target.checked;
+                      // ✅ Engine 1 master toggle: institutions + shelves together
+                      onChange?.({ institutionalZonesAuto: v, smzShelvesAuto: v });
+                    }}
                   />{" "}
                   Institutional Zones (auto)
                 </label>
