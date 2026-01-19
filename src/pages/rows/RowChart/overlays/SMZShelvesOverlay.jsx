@@ -31,7 +31,8 @@ export default function SMZShelvesOverlay({
       position: "absolute",
       inset: 0,
       pointerEvents: "none",
-      zIndex: 13,
+      // ✅ Shelves must be readable above institutional fills
+      zIndex: 14,
     });
 
     chartContainer.appendChild(cnv);
@@ -48,7 +49,6 @@ export default function SMZShelvesOverlay({
     const w = chartContainer.clientWidth || 1;
     const h = chartContainer.clientHeight || 1;
 
-    // Only resize if changed (helps performance)
     if (cnv.width !== w) cnv.width = w;
     if (cnv.height !== h) cnv.height = h;
 
@@ -59,32 +59,11 @@ export default function SMZShelvesOverlay({
     ctx.save();
     ctx.strokeStyle = stroke;
     ctx.lineWidth = 1;
-    ctx.setLineDash([6, 4]); // dashed
+    ctx.setLineDash([6, 4]);
     ctx.beginPath();
     ctx.moveTo(x0, y + 0.5);
     ctx.lineTo(x1, y + 0.5);
     ctx.stroke();
-    ctx.restore();
-  }
-
-  function drawLabel(ctx, x, y, text, stroke) {
-    ctx.save();
-    ctx.font = "12px system-ui, -apple-system, Segoe UI, Roboto, Arial";
-    ctx.textBaseline = "top";
-    ctx.fillStyle = stroke;
-
-    // simple dark backing for readability
-    const padX = 6;
-    const padY = 3;
-    const metrics = ctx.measureText(text);
-    const tw = Math.ceil(metrics.width);
-    const th = 14;
-
-    ctx.fillStyle = "rgba(0,0,0,0.40)";
-    ctx.fillRect(x, y, tw + padX * 2, th + padY * 2);
-
-    ctx.fillStyle = stroke;
-    ctx.fillText(text, x + padX, y + padY);
     ctx.restore();
   }
 
@@ -95,10 +74,46 @@ export default function SMZShelvesOverlay({
     return t.slice(0, max - 1) + "…";
   }
 
+  // Centered label with dark backing
+  function drawCenteredLabel(ctx, xMid, yMid, text, stroke, boundsW, boundsH) {
+    ctx.save();
+    ctx.font = "12px system-ui, -apple-system, Segoe UI, Roboto, Arial";
+    ctx.textBaseline = "middle";
+    ctx.textAlign = "center";
+
+    const padX = 8;
+    const padY = 5;
+    const metrics = ctx.measureText(text);
+    const tw = Math.ceil(metrics.width);
+    const th = 14;
+
+    let x = Math.round(xMid);
+    let y = Math.round(yMid);
+
+    // Backing box dims
+    const boxW = tw + padX * 2;
+    const boxH = th + padY * 2;
+
+    // Keep label inside canvas
+    const minX = Math.ceil(boxW / 2) + 2;
+    const maxX = boundsW - Math.ceil(boxW / 2) - 2;
+    const minY = Math.ceil(boxH / 2) + 2;
+    const maxY = boundsH - Math.ceil(boxH / 2) - 2;
+
+    x = Math.max(minX, Math.min(maxX, x));
+    y = Math.max(minY, Math.min(maxY, y));
+
+    ctx.fillStyle = "rgba(0,0,0,0.45)";
+    ctx.fillRect(x - boxW / 2, y - boxH / 2, boxW, boxH);
+
+    ctx.fillStyle = stroke;
+    ctx.fillText(text, x, y);
+    ctx.restore();
+  }
+
   function draw() {
     if (destroyed) return;
 
-    // Always ensure canvas exists once overlay is active
     const cnv = ensureCanvas();
     const { w, h } = resizeCanvas(cnv);
 
@@ -113,13 +128,11 @@ export default function SMZShelvesOverlay({
       const t = String(lvl.type || "").toLowerCase();
       const isAccum = t === "accumulation";
       const isDist = t === "distribution";
-
-      // Only draw these two types
       if (!isAccum && !isDist) continue;
 
       const fill = isAccum
-        ? "rgba(0, 128, 255, 0.30)"   // blue
-        : "rgba(255, 0, 0, 0.28)";    // red
+        ? "rgba(0, 128, 255, 0.30)"
+        : "rgba(255, 0, 0, 0.28)";
 
       const stroke = isAccum
         ? "rgba(0, 128, 255, 0.95)"
@@ -139,7 +152,7 @@ export default function SMZShelvesOverlay({
       const y = Math.min(yTop, yBot);
       const bandH = Math.max(2, Math.abs(yBot - yTop));
 
-      // --- band ---
+      // --- band fill + border ---
       ctx.fillStyle = fill;
       ctx.fillRect(0, y, w, bandH);
 
@@ -156,24 +169,24 @@ export default function SMZShelvesOverlay({
         drawMidline(ctx, 0, w, yMid, stroke);
       }
 
-      // --- label ---
+      // --- centered label ---
       const labelBase = isAccum ? "Accumulation" : "Distribution";
 
-      // show score if present
       const score = Number(lvl.scoreOverride ?? lvl.strength ?? NaN);
       const scoreText = Number.isFinite(score) ? ` ${Math.round(score)}` : "";
 
-      // optional short comment
       const comment = clipText(lvl.comment, 26);
       const commentText = comment ? ` — ${comment}` : "";
 
       const label = `${labelBase}${scoreText}${commentText}`;
 
-      // place label near top-left of band, with bounds guard
-      const labelX = 10;
-      const labelY = Math.max(6, Math.min(h - 26, y + 6));
+      // Center X = middle of chart
+      const xCenter = w / 2;
 
-      drawLabel(ctx, labelX, labelY, label, stroke);
+      // Center Y = middle of the shelf band (NOT top-left)
+      const yCenter = y + bandH / 2;
+
+      drawCenteredLabel(ctx, xCenter, yCenter, label, stroke, w, h);
     }
   }
 
@@ -183,27 +196,20 @@ export default function SMZShelvesOverlay({
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
       const json = await res.json();
-
-      // ✅ Correct field name is "levels"
-      const arr = Array.isArray(json.levels) ? json.levels : [];
-
-      levels = arr;
+      levels = Array.isArray(json.levels) ? json.levels : [];
       draw();
     } catch (e) {
       console.warn("[SMZShelvesOverlay] failed to load smz shelves:", e);
       levels = [];
-      draw(); // still creates canvas; just empty
+      draw();
     }
   }
 
-  // Load immediately
   loadShelves();
 
-  // Redraw hooks
   const unsubVisible =
     ts.subscribeVisibleLogicalRangeChange?.(() => draw()) || (() => {});
 
-  // Resize observer so shelves stay aligned
   const ro = new ResizeObserver(() => draw());
   try {
     ro.observe(chartContainer);
