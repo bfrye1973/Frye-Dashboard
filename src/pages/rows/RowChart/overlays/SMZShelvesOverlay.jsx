@@ -1,15 +1,73 @@
 // src/pages/rows/RowChart/overlays/SMZShelvesOverlay.jsx
 // Overlay for Accumulation / Distribution shelves (blue/red)
 // Reads /api/v1/smz-shelves -> { ok:true, meta:{...}, levels:[...] }
+//
+// ✅ NEW:
+// - Click detection: click a shelf band -> emits window event "smz:shelfSelected"
+// - Payload includes the shelf object + quick Q3/Q5 explanation
 
 const SMZ_SHELVES_URL =
   "https://frye-market-backend-1.onrender.com/api/v1/smz-shelves";
+
+function clipText(s, max = 28) {
+  const t = String(s || "").trim();
+  if (!t) return "";
+  if (t.length <= max) return t;
+  return t.slice(0, max - 1) + "…";
+}
+
+// Build a tiny “AI smart” explanation from diagnostic (deterministic, no API)
+function buildShelfExplain(lvl) {
+  const d = lvl?.diagnostic?.relevance;
+  const w3 = d?.window3d;
+  const w7 = d?.window7d;
+
+  if (!w3 || !w7) {
+    return {
+      headline: `${lvl?.type ?? "Shelf"}`,
+      why: ["No diagnostic data found."],
+      verdict: "",
+    };
+  }
+
+  // Q3 signals (wick frequency + failed pushes)
+  const wickLine3d = `Q3 (3d): upperTouches=${w3.upperWickTouches}, lowerTouches=${w3.lowerWickTouches}, wickBias=${w3.wickBias}`;
+  const wickLine7d = `Q3 (7d): upperTouches=${w7.upperWickTouches}, lowerTouches=${w7.lowerWickTouches}, wickBias=${w7.wickBias}`;
+
+  // Q5 signals (sustained closes + net progress)
+  const q5Line3d = `Q5 (3d): sustainedAbove=${w3.sustainedClosesAbove}, sustainedBelow=${w3.sustainedClosesBelow}, netProgress=${w3.netProgressSignedPts}`;
+  const q5Line7d = `Q5 (7d): sustainedAbove=${w7.sustainedClosesAbove}, sustainedBelow=${w7.sustainedClosesBelow}, netProgress=${w7.netProgressSignedPts}`;
+
+  const type = String(d.typeByRelevance || lvl.type || "").toUpperCase();
+  const why = [];
+
+  // Simple “human sentence” reasons
+  if (type === "DISTRIBUTION") {
+    if (w7.failedPushUp > 0) why.push(`Repeated failed pushes above zone (7d failedPushUp=${w7.failedPushUp}).`);
+    if (w3.sustainedClosesAbove === false) why.push("No sustained closes above zone in last 3 days.");
+    if ((w3.netProgressSignedPts ?? 0) < 0) why.push("Net progress negative over last 3 days.");
+  } else {
+    if (w7.failedPushDown > 0) why.push(`Repeated failed pushes below zone (7d failedPushDown=${w7.failedPushDown}).`);
+    if (w3.sustainedClosesBelow === false) why.push("No sustained closes below zone in last 3 days.");
+    if ((w3.netProgressSignedPts ?? 0) > 0) why.push("Net progress positive over last 3 days.");
+  }
+
+  if (!why.length) why.push("Behavior metrics are mixed; classification is lower confidence.");
+
+  return {
+    headline: `${type} shelf`,
+    why: [wickLine3d, wickLine7d, q5Line3d, q5Line7d, ...why],
+    verdict: `Type by relevance: ${d.typeByRelevance} (confidence ${d.confidence}, distWeighted ${d.distWeighted}, accWeighted ${d.accWeighted})`,
+  };
+}
 
 export default function SMZShelvesOverlay({
   chart,
   priceSeries,
   chartContainer,
   timeframe,
+  // Optional: parent can pass onSelect; if not, we dispatch a window event
+  onSelect,
 }) {
   if (!chart || !priceSeries || !chartContainer) {
     console.warn("[SMZShelvesOverlay] missing chart/priceSeries/chartContainer");
@@ -19,6 +77,9 @@ export default function SMZShelvesOverlay({
   let levels = [];
   let canvas = null;
   let destroyed = false;
+
+  // For click hit-testing
+  let hitBoxes = []; // { y0, y1, lvl }
 
   const ts = chart.timeScale();
 
@@ -31,7 +92,6 @@ export default function SMZShelvesOverlay({
       position: "absolute",
       inset: 0,
       pointerEvents: "none",
-      // ✅ Shelves must be readable above institutional fills
       zIndex: 14,
     });
 
@@ -48,10 +108,8 @@ export default function SMZShelvesOverlay({
   function resizeCanvas(cnv) {
     const w = chartContainer.clientWidth || 1;
     const h = chartContainer.clientHeight || 1;
-
     if (cnv.width !== w) cnv.width = w;
     if (cnv.height !== h) cnv.height = h;
-
     return { w, h };
   }
 
@@ -67,14 +125,6 @@ export default function SMZShelvesOverlay({
     ctx.restore();
   }
 
-  function clipText(s, max = 28) {
-    const t = String(s || "").trim();
-    if (!t) return "";
-    if (t.length <= max) return t;
-    return t.slice(0, max - 1) + "…";
-  }
-
-  // Centered label with dark backing
   function drawCenteredLabel(ctx, xMid, yMid, text, stroke, boundsW, boundsH) {
     ctx.save();
     ctx.font = "12px system-ui, -apple-system, Segoe UI, Roboto, Arial";
@@ -90,11 +140,9 @@ export default function SMZShelvesOverlay({
     let x = Math.round(xMid);
     let y = Math.round(yMid);
 
-    // Backing box dims
     const boxW = tw + padX * 2;
     const boxH = th + padY * 2;
 
-    // Keep label inside canvas
     const minX = Math.ceil(boxW / 2) + 2;
     const maxX = boundsW - Math.ceil(boxW / 2) - 2;
     const minY = Math.ceil(boxH / 2) + 2;
@@ -119,6 +167,8 @@ export default function SMZShelvesOverlay({
 
     const ctx = cnv.getContext("2d");
     ctx.clearRect(0, 0, w, h);
+
+    hitBoxes = [];
 
     if (!Array.isArray(levels) || levels.length === 0) return;
 
@@ -152,7 +202,9 @@ export default function SMZShelvesOverlay({
       const y = Math.min(yTop, yBot);
       const bandH = Math.max(2, Math.abs(yBot - yTop));
 
-      // --- band fill + border ---
+      // Save hitbox for click (y range)
+      hitBoxes.push({ y0: y, y1: y + bandH, lvl });
+
       ctx.fillStyle = fill;
       ctx.fillRect(0, y, w, bandH);
 
@@ -162,31 +214,50 @@ export default function SMZShelvesOverlay({
       ctx.rect(0.5, y + 0.5, w - 1, Math.max(1, bandH - 1));
       ctx.stroke();
 
-      // --- midline ---
       const mid = (hi + lo) / 2;
       const yMid = priceToY(mid);
       if (yMid != null && yMid >= 0 && yMid <= h) {
         drawMidline(ctx, 0, w, yMid, stroke);
       }
 
-      // --- centered label ---
       const labelBase = isAccum ? "Accumulation" : "Distribution";
-
       const score = Number(lvl.scoreOverride ?? lvl.strength ?? NaN);
       const scoreText = Number.isFinite(score) ? ` ${Math.round(score)}` : "";
-
       const comment = clipText(lvl.comment, 26);
       const commentText = comment ? ` — ${comment}` : "";
-
       const label = `${labelBase}${scoreText}${commentText}`;
 
-      // Center X = middle of chart
-      const xCenter = w / 2;
+      drawCenteredLabel(ctx, w / 2, y + bandH / 2, label, stroke, w, h);
+    }
+  }
 
-      // Center Y = middle of the shelf band (NOT top-left)
-      const yCenter = y + bandH / 2;
+  function handleClick(evt) {
+    if (destroyed) return;
+    if (!hitBoxes.length) return;
 
-      drawCenteredLabel(ctx, xCenter, yCenter, label, stroke, w, h);
+    const rect = chartContainer.getBoundingClientRect();
+    const y = evt.clientY - rect.top;
+
+    // Find all shelves whose y-range contains the click y
+    const hits = hitBoxes.filter((hb) => y >= hb.y0 && y <= hb.y1);
+    if (!hits.length) return;
+
+    // If multiple, choose the one with highest strength
+    hits.sort((a, b) => Number(b?.lvl?.strength ?? 0) - Number(a?.lvl?.strength ?? 0));
+    const selected = hits[0].lvl;
+
+    const explain = buildShelfExplain(selected);
+
+    const payload = {
+      kind: "shelf",
+      selected,
+      explain,
+    };
+
+    if (typeof onSelect === "function") {
+      onSelect(payload);
+    } else {
+      window.dispatchEvent(new CustomEvent("smz:shelfSelected", { detail: payload }));
     }
   }
 
@@ -194,7 +265,6 @@ export default function SMZShelvesOverlay({
     try {
       const res = await fetch(SMZ_SHELVES_URL, { cache: "no-store" });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-
       const json = await res.json();
       levels = Array.isArray(json.levels) ? json.levels : [];
       draw();
@@ -206,6 +276,9 @@ export default function SMZShelvesOverlay({
   }
 
   loadShelves();
+
+  // Click listener on the container (works even though canvas has pointerEvents:none)
+  chartContainer.addEventListener("click", handleClick);
 
   const unsubVisible =
     ts.subscribeVisibleLogicalRangeChange?.(() => draw()) || (() => {});
@@ -226,6 +299,9 @@ export default function SMZShelvesOverlay({
   function destroy() {
     destroyed = true;
     try {
+      chartContainer.removeEventListener("click", handleClick);
+    } catch {}
+    try {
       unsubVisible();
     } catch {}
     try {
@@ -238,6 +314,7 @@ export default function SMZShelvesOverlay({
     } catch {}
     canvas = null;
     levels = [];
+    hitBoxes = [];
   }
 
   return { seed, update, destroy };
