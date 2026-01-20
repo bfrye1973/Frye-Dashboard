@@ -278,7 +278,7 @@ export default function SMZShelvesOverlay({
   loadShelves();
 
   // Click listener on the container (works even though canvas has pointerEvents:none)
-  chartContainer.addEventListener("click", handleClick);
+  document.addEventListener("click", handleClick, true);
 
   const unsubVisible =
     ts.subscribeVisibleLogicalRangeChange?.(() => draw()) || (() => {});
@@ -299,7 +299,7 @@ export default function SMZShelvesOverlay({
   function destroy() {
     destroyed = true;
     try {
-      chartContainer.removeEventListener("click", handleClick);
+      document.removeEventListener("click", handleClick, true);
     } catch {}
     try {
       unsubVisible();
