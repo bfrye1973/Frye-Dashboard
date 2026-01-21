@@ -37,9 +37,9 @@ export default function SMZLevelsOverlay({
   // Goal: keep NEG (turquoise) as main layer, but restore subtle yellow presence for parent zones.
   const SHOW_PARENT_WASH = true;     // subtle yellow tint over entire parent band (even under NEG)
   const SHOW_PARENT_FRAME = true;    // subtle solid outline above NEG
-  const PARENT_WASH_FILL = "rgba(255,215,0,0.04)";   // 0.03–0.06 typical
-  const PARENT_FRAME_STROKE = "rgba(255,215,0,0.25)"; // subtle (not bright)
-  const PARENT_FRAME_WIDTH = 1.5;
+  const PARENT_WASH_FILL = "rgba(255,215,0,0.18)";   // 0.03–0.06 typical
+  const PARENT_FRAME_STROKE = "rgba(255,215,0,0.85)"; // subtle (not bright)
+  const PARENT_FRAME_WIDTH = 3;
 
   function ensureCanvas() {
     if (canvas) return canvas;
