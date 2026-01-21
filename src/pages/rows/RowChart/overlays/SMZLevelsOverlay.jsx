@@ -275,8 +275,8 @@ export default function SMZLevelsOverlay({
       // ✅ Color scheme:
       // Institutional = yellow
       // Negotiated/value = turquoise
-      const fill = isNEG ? "rgba(0, 220, 200, 0.14)" : "rgba(255,215,0,0.08)";
-      const stroke = isNEG ? "rgba(0, 220, 200, 0.75)" : "rgba(255,215,0,0.45)";
+      const fill = isNEG ? "rgba(0, 220, 200, 0.14)" : "rgba(255,215,0,0.14)";
+      const stroke = isNEG ? "rgba(0, 220, 200, 0.75)" : "rgba(255,215,0,0.9)";
 
       const { y, hBand } = drawBand(ctx, w, hi, lo, fill, stroke, 1);
       if (y == null || hBand == null) return;
