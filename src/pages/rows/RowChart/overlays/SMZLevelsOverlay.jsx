@@ -5,6 +5,12 @@
 // Contract:
 // - priceRange is [HIGH, LOW]
 // - sticky may include manualRange; if so, manualRange must be used for rendering.
+//
+// GOAL (Option A):
+// - Make INSTITUTIONAL (parent) clearly bright yellow
+// - Keep NEGOTIATED (turquoise) clearly bright, but with a more transparent fill
+//   so the yellow parent still shows through.
+// - Bright outlines for both.
 
 const SMZ_URL =
   "https://frye-market-backend-1.onrender.com/api/v1/smz-levels?symbol=SPY";
@@ -33,13 +39,23 @@ export default function SMZLevelsOverlay({
   // === STICKY DISPLAY SETTINGS ===
   const SHOW_STICKY = true;
 
-  // === INSTITUTIONAL PARENT VISIBILITY (NEW, SAFE) ===
-  // Goal: keep NEG (turquoise) as main layer, but restore subtle yellow presence for parent zones.
-  const SHOW_PARENT_WASH = true;     // subtle yellow tint over entire parent band (even under NEG)
-  const SHOW_PARENT_FRAME = true;    // subtle solid outline above NEG
-  const PARENT_WASH_FILL = "rgba(255,215,0,0.18)";   // 0.03–0.06 typical
-  const PARENT_FRAME_STROKE = "rgba(255,215,0,0.85)"; // subtle (not bright)
-  const PARENT_FRAME_WIDTH = 3;
+  // === STYLE (Option A) ===
+  // Parent (Institutional) = BRIGHTER yellow
+  const INST_FILL = "rgba(255,215,0,0.22)";     // brighter than before
+  const INST_STROKE = "rgba(255,215,0,0.95)";   // bright border
+  const INST_STROKE_W = 2;                      // thicker border
+  const INST_LABEL = "rgba(255,215,0,0.98)";
+
+  // Negotiated (Turquoise) = BRIGHT border/label, but MORE transparent fill
+  // so yellow parent remains visible underneath.
+  const NEG_FILL = "rgba(0,220,200,0.10)";      // reduced fill alpha
+  const NEG_STROKE = "rgba(0,220,200,0.95)";    // bright border
+  const NEG_STROKE_W = 2;                       // thicker border
+  const NEG_LABEL = "rgba(0,220,200,0.98)";
+
+  // Midlines (kept subtle)
+  const MID_INST = "rgba(255,215,0,0.35)";
+  const MID_NEG = "rgba(0,220,200,0.35)";
 
   function ensureCanvas() {
     if (canvas) return canvas;
@@ -128,25 +144,6 @@ export default function SMZLevelsOverlay({
     ctx.strokeStyle = stroke;
     ctx.lineWidth = strokeWidth;
     ctx.setLineDash([8, 7]);
-    ctx.beginPath();
-    ctx.rect(1, y + 1, w - 2, Math.max(1, hBand - 2));
-    ctx.stroke();
-    ctx.restore();
-  }
-
-  // NEW: solid (non-dashed) box for subtle parent frames above NEG
-  function drawSolidBox(ctx, w, hi, lo, stroke, strokeWidth = 1) {
-    const yTop = priceToY(hi);
-    const yBot = priceToY(lo);
-    if (yTop == null || yBot == null) return;
-
-    const y = Math.min(yTop, yBot);
-    const hBand = Math.max(2, Math.abs(yBot - yTop));
-
-    ctx.save();
-    ctx.strokeStyle = stroke;
-    ctx.lineWidth = strokeWidth;
-    ctx.setLineDash([]); // solid
     ctx.beginPath();
     ctx.rect(1, y + 1, w - 2, Math.max(1, hBand - 2));
     ctx.stroke();
@@ -280,12 +277,9 @@ export default function SMZLevelsOverlay({
           const r = getHiLo(effectiveRange(lvl));
           if (!r) return;
 
-          // negotiated zones get turquoise dashed outline
           const isNEG = isNegotiatedZone(lvl);
-          const stroke = isNEG
-            ? "rgba(0, 220, 200, 0.65)"
-            : "rgba(255,215,0,0.45)";
-          drawDashedBox(ctx, w, r.hi, r.lo, stroke, 1);
+          const stroke = isNEG ? "rgba(0, 220, 200, 0.75)" : "rgba(255,215,0,0.55)";
+          drawDashedBox(ctx, w, r.hi, r.lo, stroke, 1.5);
         });
     }
 
@@ -296,33 +290,27 @@ export default function SMZLevelsOverlay({
         .forEach((lvl) => {
           const r = getHiLo(effectiveRange(lvl));
           if (!r) return;
-          drawBand(ctx, w, r.hi, r.lo, "rgba(255,215,0,0.03)", "rgba(0,0,0,0)", 0);
-          drawDashedBox(ctx, w, r.hi, r.lo, "rgba(255,215,0,0.28)", 1);
+          drawBand(ctx, w, r.hi, r.lo, "rgba(255,215,0,0.05)", "rgba(0,0,0,0)", 0);
+          drawDashedBox(ctx, w, r.hi, r.lo, "rgba(255,215,0,0.35)", 1);
         });
     }
 
-    // 2) Structures (effective): draws BOTH parents (yellow) and negotiated (turquoise)
-    structuresEffective.forEach((lvl) => {
+    // 2) Structures (effective): parents first then negotiated LAST so turquoise stays on top
+    // We intentionally draw parents first, negotiated second.
+    const parents = structuresEffective.filter((z) => !isNegotiatedZone(z));
+    const negs = structuresEffective.filter((z) => isNegotiatedZone(z));
+
+    parents.forEach((lvl) => {
       const r = getHiLo(effectiveRange(lvl));
       if (!r) return;
 
-      const isNEG = isNegotiatedZone(lvl);
-
-      // Slight pad for aesthetics
       const pad = 0.12;
       const hi = r.hi + pad;
       const lo = r.lo - pad;
 
-      // ✅ Color scheme:
-      // Institutional parent = yellow (base)
-      // Negotiated/value = turquoise (primary)
-      const fill = isNEG ? "rgba(0, 220, 200, 0.14)" : "rgba(255,215,0,0.14)";
-      const stroke = isNEG ? "rgba(0, 220, 200, 0.75)" : "rgba(255,215,0,0.9)";
-
-      const { y, hBand } = drawBand(ctx, w, hi, lo, fill, stroke, 1);
+      const { y, hBand } = drawBand(ctx, w, hi, lo, INST_FILL, INST_STROKE, INST_STROKE_W);
       if (y == null || hBand == null) return;
 
-      // Centered label
       const strength = safeNum(lvl?.strength);
       const scoreText = strength != null ? ` ${Math.round(strength)}` : "";
 
@@ -332,69 +320,37 @@ export default function SMZLevelsOverlay({
       const note = clipText(sticky?.notes ?? lvl?.notes ?? "", 26);
       const noteText = note ? ` — ${note}` : "";
 
-      const label = isNEG
-        ? `Negotiated${scoreText}${noteText}`
-        : `Institutional${scoreText}${noteText}`;
+      const label = `Institutional${scoreText}${noteText}`;
 
-      const xCenter = w / 2;
-      const yCenter = y + hBand / 2;
-
-      drawCenteredLabel(
-        ctx,
-        xCenter,
-        yCenter,
-        label,
-        isNEG ? "rgba(0, 220, 200, 0.95)" : "rgba(255,215,0,0.95)",
-        w,
-        h
-      );
-
-      // dashed midline (helps visual)
-      drawDashedMid(
-        ctx,
-        w,
-        r.mid,
-        isNEG ? "rgba(0,220,200,0.35)" : "rgba(255,215,0,0.35)",
-        1
-      );
+      drawCenteredLabel(ctx, w / 2, y + hBand / 2, label, INST_LABEL, w, h);
+      drawDashedMid(ctx, w, r.mid, MID_INST, 1.5);
     });
 
-    // 3) Parent-only institutional wash pass (NEW, SAFE)
-    // Adds subtle yellow tint ABOVE negotiated so parent remains "yellow-present"
-    // while keeping turquoise dominant.
-    if (SHOW_PARENT_WASH) {
-      structuresEffective.forEach((lvl) => {
-        const r = getHiLo(effectiveRange(lvl));
-        if (!r) return;
+    negs.forEach((lvl) => {
+      const r = getHiLo(effectiveRange(lvl));
+      if (!r) return;
 
-        const isNEG = isNegotiatedZone(lvl);
-        if (isNEG) return; // parent-only
+      const pad = 0.12;
+      const hi = r.hi + pad;
+      const lo = r.lo - pad;
 
-        const pad = 0.12;
-        const hi = r.hi + pad;
-        const lo = r.lo - pad;
+      const { y, hBand } = drawBand(ctx, w, hi, lo, NEG_FILL, NEG_STROKE, NEG_STROKE_W);
+      if (y == null || hBand == null) return;
 
-        drawBand(ctx, w, hi, lo, PARENT_WASH_FILL, "rgba(0,0,0,0)", 0);
-      });
-    }
+      const strength = safeNum(lvl?.strength);
+      const scoreText = strength != null ? ` ${Math.round(strength)}` : "";
 
-    // 4) Parent-only institutional frame pass (NEW, SAFE)
-    // Subtle solid outline ABOVE negotiated; not bright; keeps NEG as main layer.
-    if (SHOW_PARENT_FRAME) {
-      structuresEffective.forEach((lvl) => {
-        const r = getHiLo(effectiveRange(lvl));
-        if (!r) return;
+      const facts = lvl?.details?.facts ?? {};
+      const sticky = facts?.sticky ?? null;
 
-        const isNEG = isNegotiatedZone(lvl);
-        if (isNEG) return; // parent-only
+      const note = clipText(sticky?.notes ?? lvl?.notes ?? "", 26);
+      const noteText = note ? ` — ${note}` : "";
 
-        const pad = 0.12;
-        const hi = r.hi + pad;
-        const lo = r.lo - pad;
+      const label = `Negotiated${scoreText}${noteText}`;
 
-        drawSolidBox(ctx, w, hi, lo, PARENT_FRAME_STROKE, PARENT_FRAME_WIDTH);
-      });
-    }
+      drawCenteredLabel(ctx, w / 2, y + hBand / 2, label, NEG_LABEL, w, h);
+      drawDashedMid(ctx, w, r.mid, MID_NEG, 1.5);
+    });
 
     // ✅ No pockets drawn (deprecated)
   }
