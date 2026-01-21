@@ -19,6 +19,8 @@ import SessionShadingOverlay from "../../../components/overlays/SessionShadingOv
 import createSwingLiquidityOverlay from "../../../components/overlays/SwingLiquidityOverlay";
 import createSMI1hOverlay from "../../../components/overlays/SMI1hOverlay";
 import createFourShelvesOverlay from "../../../components/overlays/FourShelvesOverlay";
+import SMZNegotiatedOverlay from "./overlays/SMZNegotiatedOverlay";
+
 
 import createSmartMoneyZonesOverlay from "../../../components/overlays/SmartMoneyZonesOverlay";
 import SmartMoneyZonesPanel from "../../../components/smz/SmartMoneyZonesPanel";
