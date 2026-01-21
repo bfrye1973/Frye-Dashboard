@@ -1,5 +1,10 @@
 // src/pages/rows/RowChart/overlays/SMZNegotiatedOverlay.jsx
-// Negotiated-only overlay (turquoise) drawn on a separate canvas ABOVE institutional.
+// Engine 1 — NEGOTIATED/VALUE zones ONLY (turquoise)
+// Reads from /api/v1/smz-levels?symbol=SPY
+// ✅ IMPORTANT: Uses structures_sticky as the primary source, because that contains manual parents + manual NEG.
+//
+// This overlay is a second canvas layer placed ABOVE institutional zones (zIndex 13).
+// It does NOT touch institutional rendering. It only draws negotiated zones.
 
 const SMZ_URL =
   "https://frye-market-backend-1.onrender.com/api/v1/smz-levels?symbol=SPY";
@@ -11,7 +16,7 @@ export default function SMZNegotiatedOverlay({
   timeframe,
 }) {
   if (!chart || !priceSeries || !chartContainer) {
-    console.warn("[SMZNegotiatedOverlay] missing deps");
+    console.warn("[SMZNegotiatedOverlay] missing chart/priceSeries/chartContainer");
     return { seed() {}, update() {}, destroy() {} };
   }
 
@@ -21,6 +26,15 @@ export default function SMZNegotiatedOverlay({
 
   const ts = chart.timeScale();
 
+  // --- Style (turquoise) ---
+  // Keep fill semi-transparent so yellow shows underneath
+  const NEG_FILL = "rgba(0, 220, 200, 0.12)";
+  const NEG_BORDER = "rgba(0, 220, 200, 0.85)";
+  const NEG_BORDER_W = 1;
+
+  const MID_COLOR = "rgba(0, 220, 200, 0.35)";
+  const MID_W = 1;
+
   function ensureCanvas() {
     if (canvas) return canvas;
     const cnv = document.createElement("canvas");
@@ -29,7 +43,7 @@ export default function SMZNegotiatedOverlay({
       position: "absolute",
       inset: 0,
       pointerEvents: "none",
-      // ABOVE institutional (12), BELOW shelves (14)
+      // Above institutional (12), below shelves (14)
       zIndex: 13,
     });
     chartContainer.appendChild(cnv);
@@ -47,35 +61,38 @@ export default function SMZNegotiatedOverlay({
     return Number.isFinite(y) ? y : null;
   }
 
+  // Prefer manualRange when present (sticky/manual zones)
   function effectiveRange(z) {
     const mr = z?.manualRange;
     if (Array.isArray(mr) && mr.length === 2) return mr;
+
     const pr = z?.priceRange;
     return Array.isArray(pr) && pr.length === 2 ? pr : null;
   }
 
   function getHiLo(range) {
     if (!Array.isArray(range) || range.length < 2) return null;
+
     let hi = safeNum(range[0]);
     let lo = safeNum(range[1]);
     if (hi == null || lo == null) return null;
+
     if (lo > hi) [hi, lo] = [lo, hi];
     if (!(hi > lo)) return null;
+
     return { hi, lo, mid: (hi + lo) / 2 };
   }
 
   function drawFill(ctx, w, hi, lo, fill) {
     const yTop = priceToY(hi);
     const yBot = priceToY(lo);
-    if (yTop == null || yBot == null) return { y: null, hBand: null };
+    if (yTop == null || yBot == null) return;
 
     const y = Math.min(yTop, yBot);
     const hBand = Math.max(2, Math.abs(yBot - yTop));
 
     ctx.fillStyle = fill;
     ctx.fillRect(0, y, w, hBand);
-
-    return { y, hBand };
   }
 
   function drawDashedBox(ctx, w, hi, lo, stroke, strokeWidth = 1) {
@@ -99,6 +116,7 @@ export default function SMZNegotiatedOverlay({
   function drawDashedMid(ctx, w, midPrice, color, lineWidth = 1) {
     const y = priceToY(midPrice);
     if (y == null) return;
+
     ctx.save();
     ctx.strokeStyle = color;
     ctx.lineWidth = lineWidth;
@@ -110,37 +128,12 @@ export default function SMZNegotiatedOverlay({
     ctx.restore();
   }
 
-  function isStickyZone(z) {
-    return (z?.tier ?? "") === "structure_sticky";
-  }
-
-  function isNegotiatedZone(lvl) {
-    const id = String(lvl?.details?.id ?? lvl?.structureKey ?? lvl?.id ?? "");
-    const sticky = lvl?.details?.facts?.sticky ?? {};
-    const note = String(sticky?.notes ?? lvl?.notes ?? "");
+  // Negotiated detection
+  function isNegotiatedZone(z) {
+    const id = String(z?.details?.id ?? z?.structureKey ?? z?.id ?? "");
+    const factsSticky = z?.details?.facts?.sticky ?? {};
+    const note = String(factsSticky?.notes ?? z?.notes ?? "");
     return id.includes("|NEG|") || note.toUpperCase().includes("NEGOTIATED");
-  }
-
-  function mergeStickyOverLive(structuresLive, structuresSticky) {
-    const out = (structuresLive || []).slice();
-
-    const sticky = (structuresSticky || [])
-      .filter(isStickyZone)
-      .map((z) => ({ ...z, tier: "structure" }));
-
-    sticky.forEach((sz) => {
-      const sr = getHiLo(effectiveRange(sz));
-      if (!sr) return;
-
-      for (let i = out.length - 1; i >= 0; i--) {
-        const lr = getHiLo(effectiveRange(out[i]));
-        if (!lr) continue;
-        if (lr.hi >= sr.lo && lr.lo <= sr.hi) out.splice(i, 1);
-      }
-      out.push(sz);
-    });
-
-    return out;
   }
 
   function draw() {
@@ -153,23 +146,27 @@ export default function SMZNegotiatedOverlay({
     const ctx = cnv.getContext("2d");
     ctx.clearRect(0, 0, w, h);
 
-    const structuresLive = (levels || []).filter((l) => (l?.tier ?? "") === "structure");
-    const structuresEffective = mergeStickyOverLive(structuresLive, stickyStructures);
+    // ✅ PRIMARY SOURCE: structures_sticky (contains manual parents + manual NEG)
+    // Fallback: levels (live)
+    const pool =
+      Array.isArray(stickyStructures) && stickyStructures.length
+        ? stickyStructures
+        : (levels || []);
 
-    const negs = structuresEffective.filter(isNegotiatedZone);
+    // Only negotiated
+    const negs = pool.filter(isNegotiatedZone);
 
-    negs.forEach((lvl) => {
-      const r = getHiLo(effectiveRange(lvl));
+    negs.forEach((z) => {
+      const r = getHiLo(effectiveRange(z));
       if (!r) return;
 
       const pad = 0.12;
       const hi = r.hi + pad;
       const lo = r.lo - pad;
 
-      // Semi-transparent so yellow shows underneath
-      drawFill(ctx, w, hi, lo, "rgba(0,220,200,0.12)");
-      drawDashedBox(ctx, w, hi, lo, "rgba(0,220,200,0.85)", 1);
-      drawDashedMid(ctx, w, r.mid, "rgba(0,220,200,0.35)", 1);
+      drawFill(ctx, w, hi, lo, NEG_FILL);
+      drawDashedBox(ctx, w, hi, lo, NEG_BORDER, NEG_BORDER_W);
+      drawDashedMid(ctx, w, r.mid, MID_COLOR, MID_W);
     });
   }
 
@@ -179,8 +176,11 @@ export default function SMZNegotiatedOverlay({
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json();
 
+      // Keep both for fallback; negotiated primarily uses structures_sticky
       levels = Array.isArray(json?.levels) ? json.levels : [];
-      stickyStructures = Array.isArray(json?.structures_sticky) ? json.structures_sticky : [];
+      stickyStructures = Array.isArray(json?.structures_sticky)
+        ? json.structures_sticky
+        : [];
 
       draw();
     } catch (e) {
@@ -193,8 +193,13 @@ export default function SMZNegotiatedOverlay({
 
   loadLevels();
 
-  function seed() { draw(); }
-  function update() { draw(); }
+  function seed() {
+    draw();
+  }
+
+  function update() {
+    draw();
+  }
 
   const unsubVisible =
     ts.subscribeVisibleLogicalRangeChange?.(() => draw()) || (() => {});
@@ -208,7 +213,9 @@ export default function SMZNegotiatedOverlay({
     canvas = null;
     levels = [];
     stickyStructures = [];
-    try { unsubVisible(); } catch {}
+    try {
+      unsubVisible();
+    } catch {}
   }
 
   return { seed, update, destroy };
