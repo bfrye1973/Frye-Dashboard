@@ -6,11 +6,10 @@
 // - priceRange is [HIGH, LOW]
 // - sticky may include manualRange; if so, manualRange must be used for rendering.
 //
-// GOAL (Option A):
-// - Make INSTITUTIONAL (parent) clearly bright yellow
-// - Keep NEGOTIATED (turquoise) clearly bright, but with a more transparent fill
-//   so the yellow parent still shows through.
-// - Bright outlines for both.
+// VISUAL GOAL (Option A + Solid Authority Lines):
+// - Institutional (parent) is BRIGHT yellow (fill + border)
+// - Negotiated (turquoise) is BRIGHT border/label, but MORE transparent fill so yellow shows through
+// - All previously dashed/dotted structure lines are now SOLID and ~3× thicker (authoritative)
 
 const SMZ_URL =
   "https://frye-market-backend-1.onrender.com/api/v1/smz-levels?symbol=SPY";
@@ -41,21 +40,24 @@ export default function SMZLevelsOverlay({
 
   // === STYLE (Option A) ===
   // Parent (Institutional) = BRIGHTER yellow
-  const INST_FILL = "rgba(255,215,0,0.22)";     // brighter than before
-  const INST_STROKE = "rgba(255,215,0,0.95)";   // bright border
-  const INST_STROKE_W = 2;                      // thicker border
+  const INST_FILL = "rgba(255,215,0,0.22)";
+  const INST_STROKE = "rgba(255,215,0,0.95)";
+  const INST_STROKE_W = 2;
   const INST_LABEL = "rgba(255,215,0,0.98)";
 
   // Negotiated (Turquoise) = BRIGHT border/label, but MORE transparent fill
-  // so yellow parent remains visible underneath.
-  const NEG_FILL = "rgba(0,220,200,0.10)";      // reduced fill alpha
-  const NEG_STROKE = "rgba(0,220,200,0.95)";    // bright border
-  const NEG_STROKE_W = 2;                       // thicker border
+  const NEG_FILL = "rgba(0,220,200,0.10)";
+  const NEG_STROKE = "rgba(0,220,200,0.95)";
+  const NEG_STROKE_W = 2;
   const NEG_LABEL = "rgba(0,220,200,0.98)";
 
-  // Midlines (kept subtle)
-  const MID_INST = "rgba(255,215,0,0.35)";
-  const MID_NEG = "rgba(0,220,200,0.35)";
+  // Midlines (now SOLID and thicker)
+  const MID_INST = "rgba(255,215,0,0.60)";
+  const MID_NEG = "rgba(0,220,200,0.60)";
+  const MID_W = 3;
+
+  // Authority line thickness (~3×)
+  const BOX_W = 3;
 
   function ensureCanvas() {
     if (canvas) return canvas;
@@ -65,7 +67,7 @@ export default function SMZLevelsOverlay({
       position: "absolute",
       inset: 0,
       pointerEvents: "none",
-      // Institutional fill below shelves (shelves zIndex = 14)
+      // Institutional overlay below shelves (shelves zIndex = 14)
       zIndex: 12,
     });
     chartContainer.appendChild(cnv);
@@ -121,9 +123,15 @@ export default function SMZLevelsOverlay({
       ctx.fillRect(0, y, w, hBand);
     }
 
-    if (stroke && stroke !== "rgba(0,0,0,0)" && stroke !== "transparent" && strokeWidth > 0) {
+    if (
+      stroke &&
+      stroke !== "rgba(0,0,0,0)" &&
+      stroke !== "transparent" &&
+      strokeWidth > 0
+    ) {
       ctx.strokeStyle = stroke;
       ctx.lineWidth = strokeWidth;
+      ctx.setLineDash([]); // solid
       ctx.beginPath();
       ctx.rect(0.5, y + 0.5, w - 1, Math.max(1, hBand - 1));
       ctx.stroke();
@@ -132,7 +140,8 @@ export default function SMZLevelsOverlay({
     return { y, hBand };
   }
 
-  function drawDashedBox(ctx, w, hi, lo, stroke, strokeWidth = 1) {
+  // SOLID, thick structure boundary (replaces dashed)
+  function drawSolidBox(ctx, w, hi, lo, stroke, strokeWidth = BOX_W) {
     const yTop = priceToY(hi);
     const yBot = priceToY(lo);
     if (yTop == null || yBot == null) return;
@@ -143,20 +152,22 @@ export default function SMZLevelsOverlay({
     ctx.save();
     ctx.strokeStyle = stroke;
     ctx.lineWidth = strokeWidth;
-    ctx.setLineDash([8, 7]);
+    ctx.setLineDash([]); // SOLID
     ctx.beginPath();
     ctx.rect(1, y + 1, w - 2, Math.max(1, hBand - 2));
     ctx.stroke();
     ctx.restore();
   }
 
-  function drawDashedMid(ctx, w, midPrice, color, lineWidth = 2) {
+  // SOLID, thick midline (replaces dashed)
+  function drawSolidMid(ctx, w, midPrice, color, lineWidth = MID_W) {
     const y = priceToY(midPrice);
     if (y == null) return;
+
     ctx.save();
     ctx.strokeStyle = color;
     ctx.lineWidth = lineWidth;
-    ctx.setLineDash([10, 8]);
+    ctx.setLineDash([]); // SOLID
     ctx.beginPath();
     ctx.moveTo(0, y);
     ctx.lineTo(w, y);
@@ -269,7 +280,7 @@ export default function SMZLevelsOverlay({
       stickyStructures
     );
 
-    // 0) Sticky outline (optional)
+    // 0) Sticky boundaries (SOLID + thick)
     if (SHOW_STICKY && Array.isArray(stickyStructures) && stickyStructures.length) {
       stickyStructures
         .filter(isStickyZone)
@@ -278,12 +289,12 @@ export default function SMZLevelsOverlay({
           if (!r) return;
 
           const isNEG = isNegotiatedZone(lvl);
-          const stroke = isNEG ? "rgba(0, 220, 200, 0.75)" : "rgba(255,215,0,0.55)";
-          drawDashedBox(ctx, w, r.hi, r.lo, stroke, 1.5);
+          const stroke = isNEG ? "rgba(0,220,200,0.90)" : "rgba(255,215,0,0.70)";
+          drawSolidBox(ctx, w, r.hi, r.lo, stroke, BOX_W);
         });
     }
 
-    // 1) Micro proto-structure dashed (optional)
+    // 1) Micro proto-structure (solid box + mild fill)
     if (SHOW_MICRO) {
       micros
         .filter((m) => (safeNum(m?.strength) ?? 0) >= MICRO_MIN_STRENGTH)
@@ -291,15 +302,15 @@ export default function SMZLevelsOverlay({
           const r = getHiLo(effectiveRange(lvl));
           if (!r) return;
           drawBand(ctx, w, r.hi, r.lo, "rgba(255,215,0,0.05)", "rgba(0,0,0,0)", 0);
-          drawDashedBox(ctx, w, r.hi, r.lo, "rgba(255,215,0,0.35)", 1);
+          drawSolidBox(ctx, w, r.hi, r.lo, "rgba(255,215,0,0.45)", BOX_W);
         });
     }
 
-    // 2) Structures (effective): parents first then negotiated LAST so turquoise stays on top
-    // We intentionally draw parents first, negotiated second.
+    // 2) Structures: parents first, negotiated second (neg stays on top)
     const parents = structuresEffective.filter((z) => !isNegotiatedZone(z));
     const negs = structuresEffective.filter((z) => isNegotiatedZone(z));
 
+    // Parents
     parents.forEach((lvl) => {
       const r = getHiLo(effectiveRange(lvl));
       if (!r) return;
@@ -308,7 +319,15 @@ export default function SMZLevelsOverlay({
       const hi = r.hi + pad;
       const lo = r.lo - pad;
 
-      const { y, hBand } = drawBand(ctx, w, hi, lo, INST_FILL, INST_STROKE, INST_STROKE_W);
+      const { y, hBand } = drawBand(
+        ctx,
+        w,
+        hi,
+        lo,
+        INST_FILL,
+        INST_STROKE,
+        INST_STROKE_W
+      );
       if (y == null || hBand == null) return;
 
       const strength = safeNum(lvl?.strength);
@@ -323,9 +342,12 @@ export default function SMZLevelsOverlay({
       const label = `Institutional${scoreText}${noteText}`;
 
       drawCenteredLabel(ctx, w / 2, y + hBand / 2, label, INST_LABEL, w, h);
-      drawDashedMid(ctx, w, r.mid, MID_INST, 1.5);
+
+      // Authoritative solid midline
+      drawSolidMid(ctx, w, r.mid, MID_INST, MID_W);
     });
 
+    // Negotiated
     negs.forEach((lvl) => {
       const r = getHiLo(effectiveRange(lvl));
       if (!r) return;
@@ -334,7 +356,15 @@ export default function SMZLevelsOverlay({
       const hi = r.hi + pad;
       const lo = r.lo - pad;
 
-      const { y, hBand } = drawBand(ctx, w, hi, lo, NEG_FILL, NEG_STROKE, NEG_STROKE_W);
+      const { y, hBand } = drawBand(
+        ctx,
+        w,
+        hi,
+        lo,
+        NEG_FILL,
+        NEG_STROKE,
+        NEG_STROKE_W
+      );
       if (y == null || hBand == null) return;
 
       const strength = safeNum(lvl?.strength);
@@ -349,7 +379,9 @@ export default function SMZLevelsOverlay({
       const label = `Negotiated${scoreText}${noteText}`;
 
       drawCenteredLabel(ctx, w / 2, y + hBand / 2, label, NEG_LABEL, w, h);
-      drawDashedMid(ctx, w, r.mid, MID_NEG, 1.5);
+
+      // Authoritative solid midline
+      drawSolidMid(ctx, w, r.mid, MID_NEG, MID_W);
     });
 
     // ✅ No pockets drawn (deprecated)
