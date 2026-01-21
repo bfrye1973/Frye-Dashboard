@@ -1,5 +1,5 @@
 // src/pages/rows/RowChart/overlays/SMZLevelsOverlay.jsx
-// Engine 1 Overlay — STRUCTURE (yellow)
+// Engine 1 Overlay — STRUCTURE (yellow) + NEGOTIATED/VALUE (turquoise)
 // Pockets are deprecated and replaced by Shelves.
 //
 // Contract:
@@ -140,6 +140,14 @@ export default function SMZLevelsOverlay({
     return (z?.tier ?? "") === "structure_sticky";
   }
 
+  // ✅ Detect negotiated/value zones (turquoise)
+  function isNegotiatedZone(lvl) {
+    const id = String(lvl?.details?.id ?? lvl?.structureKey ?? lvl?.id ?? "");
+    const sticky = lvl?.details?.facts?.sticky ?? {};
+    const note = String(sticky?.notes ?? lvl?.notes ?? "");
+    return id.includes("|NEG|") || note.toUpperCase().includes("NEGOTIATED");
+  }
+
   // Sticky overrides live structures if overlapping
   function mergeStickyOverLive(structuresLive, structuresSticky) {
     const out = (structuresLive || []).slice();
@@ -232,7 +240,11 @@ export default function SMZLevelsOverlay({
         .forEach((lvl) => {
           const r = getHiLo(effectiveRange(lvl));
           if (!r) return;
-          drawDashedBox(ctx, w, r.hi, r.lo, "rgba(255,215,0,0.45)", 1);
+
+          // negotiated zones get turquoise dashed outline
+          const isNEG = isNegotiatedZone(lvl);
+          const stroke = isNEG ? "rgba(0, 220, 200, 0.65)" : "rgba(255,215,0,0.45)";
+          drawDashedBox(ctx, w, r.hi, r.lo, stroke, 1);
         });
     }
 
@@ -253,38 +265,51 @@ export default function SMZLevelsOverlay({
       const r = getHiLo(effectiveRange(lvl));
       if (!r) return;
 
+      const isNEG = isNegotiatedZone(lvl);
+
       // Slight pad for aesthetics
       const pad = 0.12;
       const hi = r.hi + pad;
       const lo = r.lo - pad;
 
-      // ✅ slightly lower opacity to keep shelves readable
-      const fill = "rgba(255,215,0,0.08)";
-      const stroke = "rgba(255,215,0,0.45)";
+      // ✅ Color scheme:
+      // Institutional = yellow
+      // Negotiated/value = turquoise
+      const fill = isNEG ? "rgba(0, 220, 200, 0.14)" : "rgba(255,215,0,0.08)";
+      const stroke = isNEG ? "rgba(0, 220, 200, 0.75)" : "rgba(255,215,0,0.45)";
 
       const { y, hBand } = drawBand(ctx, w, hi, lo, fill, stroke, 1);
       if (y == null || hBand == null) return;
 
-      // Centered label: Institutional + score
+      // Centered label
       const strength = safeNum(lvl?.strength);
       const scoreText = strength != null ? ` ${Math.round(strength)}` : "";
 
       const facts = lvl?.details?.facts ?? {};
       const sticky = facts?.sticky ?? null;
 
-      // If manual sticky has notes, show short note
       const note = clipText(sticky?.notes ?? lvl?.notes ?? "", 26);
       const noteText = note ? ` — ${note}` : "";
 
-      const label = `Institutional${scoreText}${noteText}`;
+      const label = isNEG
+        ? `Negotiated${scoreText}${noteText}`
+        : `Institutional${scoreText}${noteText}`;
 
       const xCenter = w / 2;
       const yCenter = y + hBand / 2;
 
-      drawCenteredLabel(ctx, xCenter, yCenter, label, "rgba(255,215,0,0.95)", w, h);
+      drawCenteredLabel(
+        ctx,
+        xCenter,
+        yCenter,
+        label,
+        isNEG ? "rgba(0, 220, 200, 0.95)" : "rgba(255,215,0,0.95)",
+        w,
+        h
+      );
 
-      // Optional dashed midline for structure midpoint (helps visual match)
-      drawDashedMid(ctx, w, r.mid, "rgba(255,215,0,0.35)", 1);
+      // dashed midline (helps visual)
+      drawDashedMid(ctx, w, r.mid, isNEG ? "rgba(0,220,200,0.35)" : "rgba(255,215,0,0.35)", 1);
     });
 
     // ✅ No pockets drawn (deprecated)
