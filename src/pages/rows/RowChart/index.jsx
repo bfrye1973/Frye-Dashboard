@@ -464,30 +464,41 @@ export default function RowChart({
 
     const reg = (inst) => inst && overlayInstancesRef.current.push(inst);
 
-    // Engine 1
+  // Engine 1
     if (state.institutionalZonesAuto) {
       reg(
         attachOverlay(SMZLevelsOverlay, {
-          chart: chartRef.current,
-          priceSeries: seriesRef.current,
-          chartContainer: containerRef.current,
-          timeframe: state.timeframe,
-        })
-      );
-    }
-    const engine1On = state.institutionalZonesAuto; // master
-    const shelvesOn = state.smzShelvesAuto || engine1On;
-
-    if (shelvesOn) {
-      reg(
-        attachOverlay(SMZShelvesOverlay, {
         chart: chartRef.current,
         priceSeries: seriesRef.current,
         chartContainer: containerRef.current,
         timeframe: state.timeframe,
       })
     );
-  }
+
+  // 👇 THIS IS THE ONLY NEW THING
+  reg(
+    attachOverlay(SMZNegotiatedOverlay, {
+      chart: chartRef.current,
+      priceSeries: seriesRef.current,
+      chartContainer: containerRef.current,
+      timeframe: state.timeframe,
+    })
+  );
+}
+
+const engine1On = state.institutionalZonesAuto; // master
+const shelvesOn = state.smzShelvesAuto || engine1On;
+
+if (shelvesOn) {
+  reg(
+    attachOverlay(SMZShelvesOverlay, {
+      chart: chartRef.current,
+      priceSeries: seriesRef.current,
+      chartContainer: containerRef.current,
+      timeframe: state.timeframe,
+    })
+  );
+}
 
 
     // ✅ Engine 2 — Primary (1d)
