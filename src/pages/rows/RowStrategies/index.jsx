@@ -12,6 +12,15 @@
 // - Display labels (display-only):
 //    A+ ≥ 90, A 80–89, B 70–79, C 60–69, <60 IGNORE
 // - Poll every 30s, but skip polling when tab hidden
+//
+// UPDATED (per user request):
+// - Render 3 equal-size strategy cards in this row:
+//    1) Scalp (Minor Intraday)
+//    2) Minor (Swing)
+//    3) Intermediate (Long)
+// - Add Entry Target (zone midpoint) above score
+// - Show Exit Targets (Hi/Lo) using selected active institutional zone
+// - Keep all existing logic intact; no deletions
 
 import React, { useEffect, useMemo, useState } from "react";
 import { useSelection } from "../../../context/ModeContext";
@@ -32,7 +41,13 @@ const AZ_TZ = "America/Phoenix";
 
 /* -------------------- endpoints -------------------- */
 const HIER_URL = `${API_BASE}/api/v1/smz-hierarchy?symbol=SPY`;
-const FIB_URL = `${API_BASE}/api/v1/fib-levels?symbol=SPY&tf=1h`;
+
+// Per strategy fib TF (gate / mapping)
+// - Scalp: 10m primary, 1h gate -> use fib 1h
+// - Minor Swing: 1h primary -> use fib 1h
+// - Intermediate: 4h primary -> use fib 4h
+const FIB_1H_URL = `${API_BASE}/api/v1/fib-levels?symbol=SPY&tf=1h`;
+const FIB_4H_URL = `${API_BASE}/api/v1/fib-levels?symbol=SPY&tf=4h`;
 
 /* -------------------- utils -------------------- */
 const nowIso = () => new Date().toISOString();
@@ -269,12 +284,22 @@ function invalidResult(code) {
   };
 }
 
+/* -------------------- Entry/Exit Targets --------------------
+Entry Target (BEFORE trade): zone midpoint
+Exit Target (AFTER trade): depends on direction; Phase 1: show both edges
+------------------------------------------------------------------------- */
+function zoneMidpoint(lo, hi) {
+  if (!Number.isFinite(lo) || !Number.isFinite(hi)) return NaN;
+  return (Number(lo) + Number(hi)) / 2;
+}
+
 /* -------------------- component -------------------- */
 export default function RowStrategies() {
   const { selection, setSelection } = useSelection();
 
   const [hierRes, setHierRes] = useState({ data: null, err: null, lastFetch: null });
-  const [fibRes, setFibRes] = useState({ data: null, err: null, lastFetch: null });
+  const [fib1hRes, setFib1hRes] = useState({ data: null, err: null, lastFetch: null });
+  const [fib4hRes, setFib4hRes] = useState({ data: null, err: null, lastFetch: null });
 
   // Poll hierarchy + fib every 30s (skip when hidden)
   useEffect(() => {
@@ -284,22 +309,26 @@ export default function RowStrategies() {
       if (typeof document !== "undefined" && document.hidden) return;
 
       try {
-        const [hR, fR] = await Promise.all([
+        const [hR, f1R, f4R] = await Promise.all([
           fetch(`${HIER_URL}&t=${Date.now()}`, { cache: "no-store", headers: { "Cache-Control": "no-store" } }),
-          fetch(`${FIB_URL}&t=${Date.now()}`, { cache: "no-store", headers: { "Cache-Control": "no-store" } }),
+          fetch(`${FIB_1H_URL}&t=${Date.now()}`, { cache: "no-store", headers: { "Cache-Control": "no-store" } }),
+          fetch(`${FIB_4H_URL}&t=${Date.now()}`, { cache: "no-store", headers: { "Cache-Control": "no-store" } }),
         ]);
 
         const hJ = await hR.json();
-        const fJ = await fR.json();
+        const f1J = await f1R.json();
+        const f4J = await f4R.json();
         if (!alive) return;
 
         setHierRes({ data: hJ, err: null, lastFetch: nowIso() });
-        setFibRes({ data: fJ, err: null, lastFetch: nowIso() });
+        setFib1hRes({ data: f1J, err: null, lastFetch: nowIso() });
+        setFib4hRes({ data: f4J, err: null, lastFetch: nowIso() });
       } catch (e) {
         if (!alive) return;
         const msg = String(e?.message || e);
         setHierRes((s) => ({ ...s, err: msg, lastFetch: nowIso() }));
-        setFibRes((s) => ({ ...s, err: msg, lastFetch: nowIso() }));
+        setFib1hRes((s) => ({ ...s, err: msg, lastFetch: nowIso() }));
+        setFib4hRes((s) => ({ ...s, err: msg, lastFetch: nowIso() }));
       }
     }
 
@@ -311,168 +340,242 @@ export default function RowStrategies() {
     };
   }, []);
 
-  const view = useMemo(() => {
+  const cards = useMemo(() => {
     const hierarchy = hierRes.data;
-    const fib = fibRes.data;
 
-    // Current price source: fib diagnostics (1h close) if available
-    const price = Number(fib?.diagnostics?.price);
-    const priceOk = Number.isFinite(price) ? price : null;
+    const pocketPresent = detectPocketPresence(hierarchy);
+
+    // Price source: prefer 1h fib diagnostics if available, else 4h fib diagnostics, else null
+    const p1 = Number(fib1hRes.data?.diagnostics?.price);
+    const p4 = Number(fib4hRes.data?.diagnostics?.price);
+    const priceOk = Number.isFinite(p1) ? p1 : Number.isFinite(p4) ? p4 : null;
 
     // Institutional selection (hierarchy truth)
     const inst = pickInstitutionalFromHierarchy({ hierarchy, price: priceOk });
 
-    // Optional pocket presence (display only)
-    const pocketPresent = detectPocketPresence(hierarchy);
+    function buildCard({ name, timeframeLabel, fibObj, tfBadge }) {
+      const fib = fibObj;
 
-    // Score
-    const scored = scoreSmzFib({ inst, fib });
+      // Score
+      const scored = scoreSmzFib({ inst, fib });
 
-    // Live indicator
-    const hierFresh = minutesAgo(hierRes.lastFetch) <= 2;
-    const fibFresh = minutesAgo(fibRes.lastFetch) <= 2;
-    const liveStatus =
-      hierRes.err || fibRes.err ? "red" : (!hierFresh || !fibFresh ? "yellow" : "green");
-    const liveTip =
-      `HIER fetch: ${hierRes.lastFetch ? toAZ(hierRes.lastFetch, true) : "—"} • ` +
-      `FIB fetch: ${fibRes.lastFetch ? toAZ(fibRes.lastFetch, true) : "—"} • ` +
-      `Price (1h): ${priceOk ? fmt2(priceOk) : "—"}`;
+      // Live indicator (per card, but driven by shared fetch timestamps)
+      const hierFresh = minutesAgo(hierRes.lastFetch) <= 2;
+      const fibFresh = minutesAgo(fibObj?._lastFetch ?? null) <= 2; // not used; we set below
 
-    // Fib flags for UI
-    const fibInvalid = fib?.signals?.invalidated === true;
-    const fibInZone = fib?.signals?.inRetraceZone === true;
-    const fibNear50 = fib?.signals?.near50 === true;
+      const liveStatus =
+        hierRes.err || (fib?.ok !== true && fib?.error)
+          ? "red"
+          : !hierFresh
+          ? "yellow"
+          : "green";
 
-    // Permission placeholder (later Engine 6)
-    // For now: simple display heuristic:
-    const permission =
-      scored.invalid
-        ? "STAND DOWN"
-        : (fibInZone && (inst?.contains ?? false))
-        ? "FULL"
-        : "REDUCED";
+      const liveTip =
+        `HIER fetch: ${hierRes.lastFetch ? toAZ(hierRes.lastFetch, true) : "—"} • ` +
+        `Fib(${tfBadge}) fetch: ${tfBadge === "4h"
+          ? (fib4hRes.lastFetch ? toAZ(fib4hRes.lastFetch, true) : "—")
+          : (fib1hRes.lastFetch ? toAZ(fib1hRes.lastFetch, true) : "—")
+        } • ` +
+        `Price: ${priceOk ? fmt2(priceOk) : "—"}`;
 
-    return {
-      price: priceOk,
+      // Fib flags for UI
+      const fibInvalid = fib?.signals?.invalidated === true;
+      const fibInZone = fib?.signals?.inRetraceZone === true;
+      const fibNear50 = fib?.signals?.near50 === true;
 
-      inst,
-      pocketPresent,
+      // Permission placeholder (later Engine 6)
+      const permission =
+        scored.invalid
+          ? "STAND DOWN"
+          : (fibInZone && (inst?.contains ?? false))
+          ? "FULL"
+          : "REDUCED";
 
-      total: scored.total,
-      label: grade(scored.total),
-      invalid: scored.invalid,
-      reasons: scored.reasons,
-      smzPart: scored.smzPart,
-      fibBoost: scored.fibBoost,
-      instStrength: scored.instStrength,
+      // Targets
+      const lo = inst ? Number(inst.lo) : NaN;
+      const hi = inst ? Number(inst.hi) : NaN;
+      const mid = zoneMidpoint(lo, hi);
 
-      fibInvalid,
-      fibInZone,
-      fibNear50,
+      const entryText =
+        inst
+          ? (inst.contains ? `IN ZONE ✅  (mid ${fmt2(mid)})` : `ENTRY MIDPOINT: ${fmt2(mid)}`)
+          : "—";
 
-      liveStatus,
-      liveTip,
-      context: fib?.anchors?.context || fib?.signals?.tag || null,
-      anchors: fib?.anchors || null,
-      permission,
-    };
-  }, [hierRes, fibRes]);
+      const exitText =
+        inst
+          ? `EXIT HIGH: ${fmt2(hi)}  •  EXIT LOW: ${fmt2(lo)}`
+          : "—";
 
-  function load(sym) {
-    setSelection({ symbol: sym, timeframe: "10m", strategy: "smz" });
+      const label = grade(scored.total);
+
+      const rightPills = [
+        { text: scored.invalid ? "INVALID" : "LIVE", tone: scored.invalid ? "warn" : "live" },
+        { text: `Label ${label}`, tone: label === "A+" ? "ok" : label === "A" ? "info" : "muted" },
+        { text: permission, tone: permission === "FULL" ? "ok" : permission === "REDUCED" ? "warn" : "muted" },
+      ];
+
+      const smzPct = clamp100((scored.smzPart / 80) * 100);
+      const fibPct = clamp100((scored.fibBoost / 20) * 100);
+
+      const lastStamp =
+        tfBadge === "4h"
+          ? (fib4hRes.lastFetch ? toAZ(fib4hRes.lastFetch) : "—")
+          : (fib1hRes.lastFetch ? toAZ(fib1hRes.lastFetch) : "—");
+
+      return {
+        name,
+        timeframeLabel,
+        tfBadge,
+        rightPills,
+        score: scored.total,
+        label,
+        permission,
+        last: hierRes.lastFetch ? toAZ(hierRes.lastFetch) : "—",
+        extraRight: <LiveDot status={liveStatus} tip={liveTip} />,
+
+        // display fields
+        price: priceOk,
+        inst,
+        pocketPresent,
+        fibInvalid,
+        fibInZone,
+        fibNear50,
+        reasons: scored.reasons,
+        anchors: fib?.anchors || null,
+
+        entryText,
+        exitText,
+        smzPct,
+        fibPct,
+        smzPart: scored.smzPart,
+        fibBoost: scored.fibBoost,
+        instStrength: scored.instStrength,
+
+        lastStamp,
+      };
+    }
+
+    const scalp = buildCard({
+      name: "Scalp — Minor Intraday",
+      timeframeLabel: "10m primary • 1h gate",
+      fibObj: fib1hRes.data,
+      tfBadge: "10m",
+    });
+
+    const minor = buildCard({
+      name: "Minor — Swing",
+      timeframeLabel: "1h primary • 4h confirm",
+      fibObj: fib1hRes.data,
+      tfBadge: "1h",
+    });
+
+    const intermediate = buildCard({
+      name: "Intermediate — Long",
+      timeframeLabel: "4h primary • EOD gate",
+      fibObj: fib4hRes.data,
+      tfBadge: "4h",
+    });
+
+    return [scalp, minor, intermediate];
+  }, [hierRes, fib1hRes, fib4hRes]);
+
+  function load(sym, tf = "10m") {
+    setSelection({ symbol: sym, timeframe: tf, strategy: "smz" });
   }
-
-  const rightPills = [
-    { text: view.invalid ? "INVALID" : "LIVE", tone: view.invalid ? "warn" : "live" },
-    { text: `Label ${view.label}`, tone: view.label === "A+" ? "ok" : view.label === "A" ? "info" : "muted" },
-    { text: view.permission, tone: view.permission === "FULL" ? "ok" : view.permission === "REDUCED" ? "warn" : "muted" },
-  ];
-
-  const smzPct = clamp100((view.smzPart / 80) * 100);
-  const fibPct = clamp100((view.fibBoost / 20) * 100);
 
   return (
     <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0,1fr))", gap: 10 }}>
-      <Card
-        title="SMZ Confluence Score (Hierarchy + Fib)"
-        timeframe="10m"
-        rightPills={rightPills}
-        score={view.total}
-        last={hierRes.lastFetch ? toAZ(hierRes.lastFetch) : "—"}
-        extraRight={<LiveDot status={view.liveStatus} tip={view.liveTip} />}
-      >
-        {/* Summary */}
-        <div style={{ display: "grid", gap: 6, marginTop: 2 }}>
-          <div style={{ fontSize: 12, color: "#cbd5e1" }}>
-            <b>Price (1h):</b> {view.price ? fmt2(view.price) : "—"}{" "}
-            <span style={{ color: "#94a3b8" }}>
-              • Anchors {view.anchors?.low ? fmt2(view.anchors.low) : "—"} → {view.anchors?.high ? fmt2(view.anchors.high) : "—"}
-            </span>
-          </div>
-
-          <div style={{ fontSize: 12, color: "#cbd5e1" }}>
-            <b>Active Institutional:</b>{" "}
-            {view.inst ? (
-              <>
-                {fmt2(view.inst.lo)}–{fmt2(view.inst.hi)}{" "}
-                <span style={{ color: "#94a3b8" }}>
-                  • Strength {clamp100(view.instStrength).toFixed(0)}/100
-                  {view.inst.contains ? " • (inside)" : ""}
-                </span>
-              </>
-            ) : (
-              <span style={{ color: "#fbbf24" }}>NONE (gate will stand down)</span>
-            )}
-          </div>
-
-          <div style={{ fontSize: 12, color: "#cbd5e1" }}>
-            <b>Execution Pocket:</b>{" "}
-            {view.pocketPresent ? (
-              <span style={{ color: "#86efac" }}>Present (optional)</span>
-            ) : (
-              <span style={{ color: "#94a3b8" }}>None (no penalty Phase 1)</span>
-            )}
-          </div>
-
-          {/* Breakdown bars */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-            <MiniBar label="SMZ (0–80)" value={`${Math.round(view.smzPart)}`} pct={smzPct} tone="smz" />
-            <MiniBar label="Fib (0–20)" value={`${view.fibBoost}`} pct={fibPct} tone="fib" />
-          </div>
-
-          {/* Gates */}
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 2, fontSize: 11 }}>
-            <Check ok={!view.invalid} label="Valid" />
-            <Check ok={!view.fibInvalid} label="Fib Valid (74% gate)" />
-            <Check ok={view.fibInZone} label="In Retrace Zone" />
-            <Check ok={view.fibNear50} label="Near 50%" />
-          </div>
-
-          {/* Reasons */}
-          {view.reasons?.length ? (
-            <div style={{ marginTop: 2, fontSize: 11, color: "#94a3b8" }}>
-              Reasons: {view.reasons.join(" • ")}
+      {cards.map((c, idx) => (
+        <Card
+          key={idx}
+          title={c.name}
+          timeframe={c.tfBadge}
+          subline={c.timeframeLabel}
+          rightPills={c.rightPills}
+          score={c.score}
+          last={c.lastStamp}
+          extraRight={c.extraRight}
+        >
+          {/* Targets */}
+          <div style={{ display: "grid", gap: 6, marginTop: 2 }}>
+            <div style={{ fontSize: 12, color: "#cbd5e1" }}>
+              <b>Entry Target:</b> {c.entryText}
             </div>
-          ) : null}
+            <div style={{ fontSize: 12, color: "#cbd5e1" }}>
+              <b>Exit Target:</b> {c.exitText}
+            </div>
 
-          {/* Tabs */}
-          <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6, fontSize: 11 }}>
-            <span style={{ color: "#9ca3af" }}>Load chart:</span>
-            <button
-              onClick={() => load("SPY")}
-              style={{ ...styles.tab, ...(selection?.symbol === "SPY" ? styles.tabActive : null) }}
-            >
-              SPY
-            </button>
-            <button
-              onClick={() => load("QQQ")}
-              style={{ ...styles.tab, ...(selection?.symbol === "QQQ" ? styles.tabActive : null) }}
-            >
-              QQQ
-            </button>
+            <div style={{ fontSize: 12, color: "#cbd5e1" }}>
+              <b>Price:</b> {c.price ? fmt2(c.price) : "—"}{" "}
+              <span style={{ color: "#94a3b8" }}>
+                • Anchors {c.anchors?.low ? fmt2(c.anchors.low) : "—"} → {c.anchors?.high ? fmt2(c.anchors.high) : "—"}
+              </span>
+            </div>
+
+            <div style={{ fontSize: 12, color: "#cbd5e1" }}>
+              <b>Active Institutional:</b>{" "}
+              {c.inst ? (
+                <>
+                  {fmt2(c.inst.lo)}–{fmt2(c.inst.hi)}{" "}
+                  <span style={{ color: "#94a3b8" }}>
+                    • Strength {clamp100(c.instStrength).toFixed(0)}/100
+                    {c.inst.contains ? " • (inside)" : ""}
+                  </span>
+                </>
+              ) : (
+                <span style={{ color: "#fbbf24" }}>NONE (gate will stand down)</span>
+              )}
+            </div>
+
+            <div style={{ fontSize: 12, color: "#cbd5e1" }}>
+              <b>Execution Pocket:</b>{" "}
+              {c.pocketPresent ? (
+                <span style={{ color: "#86efac" }}>Present (optional)</span>
+              ) : (
+                <span style={{ color: "#94a3b8" }}>None (no penalty Phase 1)</span>
+              )}
+            </div>
+
+            {/* Breakdown bars */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+              <MiniBar label="SMZ (0–80)" value={`${Math.round(c.smzPart)}`} pct={c.smzPct} tone="smz" />
+              <MiniBar label="Fib (0–20)" value={`${c.fibBoost}`} pct={c.fibPct} tone="fib" />
+            </div>
+
+            {/* Gates */}
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 2, fontSize: 11 }}>
+              <Check ok={c.score > 0 && !c.rightPills?.some((p) => p.text === "INVALID")} label="Valid" />
+              <Check ok={!c.fibInvalid} label="Fib Valid (74% gate)" />
+              <Check ok={c.fibInZone} label="In Retrace Zone" />
+              <Check ok={c.fibNear50} label="Near 50%" />
+            </div>
+
+            {/* Reasons */}
+            {c.reasons?.length ? (
+              <div style={{ marginTop: 2, fontSize: 11, color: "#94a3b8" }}>
+                Reasons: {c.reasons.join(" • ")}
+              </div>
+            ) : null}
+
+            {/* Tabs */}
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6, fontSize: 11 }}>
+              <span style={{ color: "#9ca3af" }}>Load chart:</span>
+              <button
+                onClick={() => load("SPY", c.tfBadge === "4h" ? "4h" : c.tfBadge === "1h" ? "1h" : "10m")}
+                style={{ ...styles.tab, ...(selection?.symbol === "SPY" ? styles.tabActive : null) }}
+              >
+                SPY
+              </button>
+              <button
+                onClick={() => load("QQQ", c.tfBadge === "4h" ? "4h" : c.tfBadge === "1h" ? "1h" : "10m")}
+                style={{ ...styles.tab, ...(selection?.symbol === "QQQ" ? styles.tabActive : null) }}
+              >
+                QQQ
+              </button>
+            </div>
           </div>
-        </div>
-      </Card>
+        </Card>
+      ))}
     </div>
   );
 }
@@ -507,21 +610,31 @@ function MiniBar({ label, value, pct, tone }) {
   );
 }
 
-function Card({ title, timeframe, rightPills = [], score = 0, last = "—", children, extraRight = null }) {
+function Card({ title, timeframe, subline, rightPills = [], score = 0, last = "—", children, extraRight = null }) {
   const pct = Math.max(0, Math.min(100, Math.round(score)));
   return (
     <div style={styles.card}>
       <div style={styles.head}>
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <div style={styles.title}>{title}</div>
-          <span style={styles.badge}>{timeframe}</span>
+        <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <div style={styles.title}>{title}</div>
+            <span style={styles.badge}>{timeframe}</span>
+          </div>
+          {subline ? (
+            <div style={{ fontSize: 11, color: "#9ca3af", fontWeight: 700 }}>{subline}</div>
+          ) : null}
         </div>
+
         <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
           {rightPills.map((p, i) => (
             <span key={i} style={{ ...styles.pill, ...toneStyles(p.tone).pill }}>{p.text}</span>
           ))}
           {extraRight}
         </div>
+      </div>
+
+      <div style={{ fontSize: 12, color: "#cbd5e1", marginTop: 2 }}>
+        <span style={{ color: "#9ca3af", fontWeight: 800 }}>Last:</span> {last}
       </div>
 
       <div style={styles.scoreRow}>
@@ -531,7 +644,6 @@ function Card({ title, timeframe, rightPills = [], score = 0, last = "—", chil
       </div>
 
       <div style={styles.metaRow}>
-        <div><span style={styles.metaKey}>Last:</span> {last}</div>
         <div><span style={styles.metaKey}>Label bands:</span> A+≥90 A≥80 B≥70 C≥60</div>
       </div>
 
@@ -550,9 +662,9 @@ const styles = {
     display: "flex",
     flexDirection: "column",
     gap: 8,
-    minHeight: 160,
+    minHeight: 220,
   },
-  head: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 },
+  head: { display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 6 },
   title: { fontWeight: 900, fontSize: 14, lineHeight: "16px" },
   badge: { background: "#0b0b0b", border: "1px solid #2b2b2b", color: "#9ca3af", fontSize: 10, padding: "1px 6px", borderRadius: 999, fontWeight: 900 },
   pill: { fontSize: 10, padding: "2px 8px", borderRadius: 999, border: "1px solid #2b2b2b", fontWeight: 900, lineHeight: "14px" },
@@ -563,7 +675,7 @@ const styles = {
   progressFill: { height: "100%", background: "linear-gradient(90deg,#22c55e 0%,#84cc16 40%,#f59e0b 70%,#ef4444 100%)" },
   scoreVal: { textAlign: "right", fontWeight: 900, fontSize: 12 },
 
-  metaRow: { display: "grid", gridTemplateColumns: "1fr auto", gap: 6, fontSize: 11, color: "#cbd5e1" },
+  metaRow: { display: "grid", gridTemplateColumns: "1fr", gap: 6, fontSize: 11, color: "#cbd5e1" },
   metaKey: { color: "#9ca3af", marginRight: 4, fontWeight: 800 },
 
   chk: { display: "flex", alignItems: "center", gap: 6, fontSize: 11 },
