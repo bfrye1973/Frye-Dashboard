@@ -1,7 +1,6 @@
 // src/pages/rows/RowMarketOverview.jsx
 // Market Meter — 10m / 1h / 4h / EOD stoplights with Lux PSI (tightness) aligned + 5m Pulse
 // ✅ Adds MASTER Overall Score (1h+4h+EOD) to the RIGHT of EOD lights with a header.
-// ✅ Adds Engine 6 Trade Permission (ALLOW/REDUCE/STAND_DOWN) using Engine 5 + Market Meter (authoritative rules)
 
 import React from "react";
 import { useDashboardPoll } from "../../lib/dashboardApiSafe";
@@ -23,12 +22,6 @@ const SANDBOX_URL =
   process.env.REACT_APP_PILLS_URL ||
   process.env.REACT_APP_INTRADAY_SANDBOX_URL ||
   "";
-
-// ✅ Core API base for Engine 6 + Engine 5 confluence
-const CORE_API_BASE =
-  process.env.REACT_APP_CORE_API_BASE ||
-  process.env.REACT_APP_API_BASE ||
-  ""; // can be "" (same-origin) if proxied
 
 // ----------------- Utilities -----------------
 const num = (v) => {
@@ -100,15 +93,6 @@ const toneForOverallState = (state, score) => {
 // Red: <45 (Start looking for shorts)
 const toneForMaster = (v) =>
   !Number.isFinite(v) ? "info" : v >= 70 ? "OK" : v >= 45 ? "warn" : "danger";
-
-// ✅ Engine 6 tones
-const toneForEngine6 = (perm) => {
-  const p = String(perm || "").toUpperCase();
-  if (p === "ALLOW") return "OK";
-  if (p === "REDUCE") return "warn";
-  if (p === "STAND_DOWN") return "danger";
-  return "info";
-};
 
 // ----------------- Stoplight -----------------
 function Stoplight({
@@ -235,125 +219,6 @@ function useSandboxDeltas() {
       clearInterval(id);
     };
   }, []);
-
-  return state;
-}
-
-// ✅ Engine 6 fetch hook (uses Engine 5 confluence + your Market Meter values)
-function useEngine6Permission({ symbol = "SPY", tf = "1h", market } = {}) {
-  const [state, setState] = React.useState({
-    ok: false,
-    loading: true,
-    err: null,
-    data: null,
-    ts: null,
-  });
-
-  React.useEffect(() => {
-    let stop = false;
-
-    async function pull() {
-      try {
-        // 1) Pull Engine 5 confluence score (assumed route exists from backend: confluenceScoreRouter)
-        // If your confluence endpoint differs, we still won’t break the UI — we fail gracefully.
-        const confluenceUrl = `${CORE_API_BASE}/api/v1/confluence-score?symbol=${encodeURIComponent(
-          symbol
-        )}&tf=${encodeURIComponent(tf)}&t=${Date.now()}`;
-
-        let engine5 = { invalid: false, total: 0, reasonCodes: [] };
-        try {
-          const r1 = await fetch(confluenceUrl, { cache: "no-store" });
-          const j1 = await r1.json();
-          // accept multiple shapes
-          engine5 = {
-            invalid: !!(j1?.invalid ?? j1?.signals?.invalidated ?? j1?.engine5?.invalid),
-            total: Number(
-              j1?.total ??
-                j1?.scores?.total ??
-                j1?.engine5?.total ??
-                j1?.score ??
-                0
-            ),
-            reasonCodes: j1?.reasonCodes || j1?.reasons || [],
-          };
-        } catch {
-          // keep default engine5 if endpoint is not available yet
-        }
-
-        // 2) Build Market Meter state from your already computed values
-        // Contracting heuristic:
-        // - If squeeze psi >= 85 => contracting (coil)
-        // - else expanding/neutral
-        const mm = market || {};
-        const eodRisk = mm?.eodRisk ?? "MIXED";
-        const payload = {
-          symbol,
-          tf,
-          asOf: new Date().toISOString(),
-          engine5,
-          marketMeter: {
-            eod: {
-              risk: eodRisk,
-              psi: mm?.eodPsi,
-              state: mm?.eodState,
-              bias: mm?.eodBias,
-            },
-            h4: { state: mm?.h4State, bias: mm?.h4Bias },
-            h1: { state: mm?.h1State, bias: mm?.h1Bias },
-            m10: { state: mm?.m10State, bias: mm?.m10Bias },
-          },
-          // 3) Zone context:
-          // If upstream zone metadata exists in engine5 payload later, we’ll pass it in.
-          // For now, we keep it tradable-safe:
-          // - negotiated zones are primary execution zones
-          // - withinZone is treated as true ONLY for permission display (execution still must confirm)
-          zoneContext: {
-            zoneType: "NEGOTIATED",
-            zoneId: "",
-            withinZone: true,
-            flags: { degraded: false, liquidityFail: false, reactionFailed: false },
-            meta: {},
-          },
-          intent: { action: "NEW_ENTRY" },
-        };
-
-        // 4) Call Engine 6
-        const engine6Url = `${CORE_API_BASE}/api/v1/trade-permission?t=${Date.now()}`;
-        const r2 = await fetch(engine6Url, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        });
-        const j2 = await r2.json();
-
-        if (stop) return;
-
-        setState({
-          ok: !!j2?.ok,
-          loading: false,
-          err: j2?.ok ? null : j2?.error || "engine6_failed",
-          data: j2,
-          ts: new Date().toISOString(),
-        });
-      } catch (err) {
-        if (stop) return;
-        setState({
-          ok: false,
-          loading: false,
-          err: err?.message || "engine6_failed",
-          data: null,
-          ts: new Date().toISOString(),
-        });
-      }
-    }
-
-    pull();
-    const id = setInterval(pull, 15_000);
-    return () => {
-      stop = true;
-      clearInterval(id);
-    };
-  }, [symbol, tf, market?.eodPsi, market?.eodRisk, market?.eodState, market?.h1State, market?.h4State]);
 
   return state;
 }
@@ -506,7 +371,8 @@ export default function RowMarketOverview() {
   const eodRiskOn =
     num(dMetrics?.risk_on_daily_pct ?? daily?.riskOnPct ?? dd?.rotation?.riskOnPct) ||
     NaN;
-  const eodState = overallEOD?.state || dMetrics?.overall_eod_state || daily?.state || "neutral";
+  const eodState =
+    overallEOD?.state || dMetrics?.overall_eod_state || daily?.state || "neutral";
 
   // MASTER = 1h + 4h + EOD (10m excluded)
   const masterScore = weightedBlend([
@@ -514,41 +380,6 @@ export default function RowMarketOverview() {
     { v: overall4, w: 0.35 },
     { v: eodScore, w: 0.45 },
   ]);
-
-  // ✅ MarketMeter mapping into Engine 6 input (authoritative gating)
-  // Risk:
-  // - if EOD riskOn < 45 => RISK_OFF
-  // - else if 45..60 => MIXED
-  // - else => RISK_ON
-  const inferredEodRisk =
-    !Number.isFinite(eodRiskOn)
-      ? "MIXED"
-      : eodRiskOn < 45
-      ? "RISK_OFF"
-      : eodRiskOn < 60
-      ? "MIXED"
-      : "RISK_ON";
-
-  // Contracting state heuristic via PSI:
-  // - psi >= 85 => CONTRACTING (coil)
-  // - else => EXPANDING/NEUTRAL
-  const tfStateFromPsi = (psi) =>
-    Number.isFinite(psi) && psi >= 85 ? "CONTRACTING" : "EXPANDING";
-
-  const engine6Market = {
-    eodRisk: inferredEodRisk,
-    eodPsi: eodSqueezePsi,
-    eodState: tfStateFromPsi(eodSqueezePsi),
-    eodBias: String(eodState || "neutral").toUpperCase() === "BULL" ? "BULL" : String(eodState || "neutral").toUpperCase() === "BEAR" ? "BEAR" : "NEUTRAL",
-    h4State: tfStateFromPsi(psi4),
-    h4Bias: String(state4 || "neutral").toUpperCase() === "BULL" ? "BULL" : String(state4 || "neutral").toUpperCase() === "BEAR" ? "BEAR" : "NEUTRAL",
-    h1State: tfStateFromPsi(psi1),
-    h1Bias: String(state1 || "neutral").toUpperCase() === "BULL" ? "BULL" : String(state1 || "neutral").toUpperCase() === "BEAR" ? "BEAR" : "NEUTRAL",
-    m10State: tfStateFromPsi(psi10),
-    m10Bias: String(state10 || "neutral").toUpperCase() === "BULL" ? "BULL" : String(state10 || "neutral").toUpperCase() === "BEAR" ? "BEAR" : "NEUTRAL",
-  };
-
-  const engine6 = useEngine6Permission({ symbol: "SPY", tf: "1h", market: engine6Market });
 
   const stripBox = { display: "flex", flexDirection: "column", gap: 6, minWidth: 820 };
   const lineBox = {
@@ -559,22 +390,6 @@ export default function RowMarketOverview() {
     overflowX: "auto",
     paddingBottom: 2,
   };
-
-  // ✅ Engine 6 UI mini panel (simple, no new components)
-  const e6 = engine6?.data || null;
-  const e6Perm = e6?.permission || "—";
-  const e6Tone = toneForEngine6(e6Perm);
-  const e6Size = e6?.sizeMultiplier;
-  const e6Types = Array.isArray(e6?.allowedTradeTypes) ? e6.allowedTradeTypes.join(", ") : "";
-  const e6Reasons = Array.isArray(e6?.reasonCodes) ? e6.reasonCodes.join(" • ") : "";
-
-  const permColors =
-    {
-      OK: { bg: "#22c55e", glow: "rgba(34,197,94,.45)" },
-      warn: { bg: "#fbbf24", glow: "rgba(251,191,36,.45)" },
-      danger: { bg: "#ef4444", glow: "rgba(239,68,68,.45)" },
-      info: { bg: "#334155", glow: "rgba(51,65,85,.35)" },
-    }[e6Tone] || { bg: "#334155", glow: "rgba(51,65,85,.35)" };
 
   return (
     <section id="row-2" className="panel" style={{ padding: 10 }}>
@@ -621,4 +436,157 @@ export default function RowMarketOverview() {
             <Stoplight label="Breadth" value={breadth10} tone={toneForBreadth(breadth10)} />
             <Stoplight label="Momentum" value={mom10} tone={toneForMomentum(mom10)} />
             <Stoplight label="Squeeze" value={sq10} tone={toneForSqueezePsi(psi10)} />
-            <Stoplight label="Liquidity" value={liq10} unit
+            <Stoplight label="Liquidity" value={liq10} unit="%" tone={toneForLiquidity(liq10)} />
+            <Stoplight label="Volatility" value={vol10} tone={toneForVol(vol10)} />
+            <Stoplight label="Sector Dir" value={rising10} tone={toneForPct(rising10)} />
+            <Stoplight label="Risk-On" value={risk10} tone={toneForPct(risk10)} />
+          </div>
+
+          {/* ✅ Pulse restored */}
+          <div
+            style={{
+              color: "#9ca3af",
+              fontSize: 12,
+              marginTop: 4,
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              gap: 12,
+            }}
+          >
+            <div>
+              Last 10-min: <strong>{fmtIso(ts10)}</strong> &nbsp;|&nbsp; Δ5m updated:{" "}
+              <strong>{fmtIso(deltaTs)}</strong>
+              {Number.isFinite(deltaB) && Number.isFinite(deltaM) ? (
+                <>
+                  &nbsp;|&nbsp; avgΔ5m <strong>{deltaB.toFixed(2)}</strong> &nbsp; avgΔ10m{" "}
+                  <strong>{deltaM.toFixed(2)}</strong>
+                </>
+              ) : null}
+            </div>
+            <PulseIcon10m />
+          </div>
+        </div>
+
+        {/* 1h */}
+        <div style={stripBox}>
+          <div className="small" style={{ color: "#e5e7eb", fontWeight: 800 }}>
+            1h — Hourly Valuation
+          </div>
+
+          <div style={lineBox}>
+            <Stoplight label="Overall" value={overall1} tone={toneForOverallState(state1, overall1)} />
+            <Stoplight label="Breadth" value={breadth1} tone={toneForBreadth(breadth1)} />
+            <Stoplight label="Momentum" value={mom1} tone={toneForMomentum(mom1)} />
+            <Stoplight label="Squeeze" value={sq1} tone={toneForSqueezePsi(psi1)} />
+            <Stoplight label="Liquidity" value={liq1} unit="%" tone={toneForLiquidity(liq1)} />
+            <Stoplight label="Volatility" value={vol1} tone={toneForVol(vol1)} />
+            <Stoplight label="Sector Dir" value={rising1} tone={toneForPct(rising1)} />
+            <Stoplight label="Risk-On" value={risk1} tone={toneForPct(risk1)} />
+          </div>
+
+          <div style={{ color: "#9ca3af", fontSize: 12, marginTop: 4 }}>
+            Last 1-hour: <strong>{fmtIso(ts1h)}</strong>
+          </div>
+        </div>
+
+        {/* 4h */}
+        <div style={stripBox}>
+          <div className="small" style={{ color: "#e5e7eb", fontWeight: 800 }}>
+            4h — Bridge Valuation
+          </div>
+
+          <div style={lineBox}>
+            <Stoplight label="Overall" value={overall4} tone={toneForOverallState(state4, overall4)} />
+            <Stoplight label="Breadth" value={breadth4} tone={toneForBreadth(breadth4)} />
+            <Stoplight label="Momentum" value={mom4} tone={toneForMomentum(mom4)} />
+            <Stoplight label="Squeeze" value={sq4} tone={toneForSqueezePsi(psi4)} />
+            <Stoplight label="Liquidity" value={liq4} unit="%" tone={toneForLiquidity(liq4)} />
+            <Stoplight label="Volatility" value={vol4} tone={toneForVol(vol4)} />
+            <Stoplight label="Sector Dir" value={rising4} tone={toneForPct(rising4)} />
+            <Stoplight label="Risk-On" value={risk4} tone={toneForPct(risk4)} />
+          </div>
+
+          <div style={{ color: "#9ca3af", fontSize: 12, marginTop: 4 }}>
+            Last 4-hour: <strong>{fmtIso(ts4h)}</strong>
+          </div>
+        </div>
+
+        {/* EOD */}
+        <div style={stripBox}>
+          <div className="small" style={{ color: "#e5e7eb", fontWeight: 800 }}>
+            EOD — Daily Structure
+          </div>
+
+          <div style={lineBox}>
+            <Stoplight label="Overall" value={eodScore} tone={toneForOverallState(eodState, eodScore)} />
+            <Stoplight label="Participation" value={eodParticipation} tone={toneForPct(eodParticipation)} />
+            <Stoplight label="Daily Squeeze" value={eodSqueezePsi} tone={toneForSqueezePsi(eodSqueezePsi)} />
+            <Stoplight label="Vol Regime" value={eodVol} tone={toneForVol(eodVol)} />
+            <Stoplight label="Liq Regime" value={eodLiq} unit="%" tone={toneForLiquidity(eodLiq)} />
+            <Stoplight label="Risk-On" value={eodRiskOn} tone={toneForPct(eodRiskOn)} />
+
+            {/* MASTER (to the RIGHT of EOD lights) */}
+            <div style={{ textAlign: "center", minWidth: 120 }}>
+              <div style={{ fontSize: 12, fontWeight: 800, color: "#9ca3af", marginBottom: 6 }}>
+                Master Overall Score
+              </div>
+              <Stoplight label="MASTER" value={masterScore} tone={toneForMaster(masterScore)} minWidth={120} />
+            </div>
+          </div>
+
+          <div style={{ color: "#9ca3af", fontSize: 12, marginTop: 4 }}>
+            Daily updated: <strong>{fmtIso(tsEod)}</strong>
+          </div>
+        </div>
+      </div>
+
+      {legendOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setLegendOpen(null)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 60,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: "min(880px,92vw)",
+              background: "#0b0b0c",
+              border: "1px solid #2b2b2b",
+              borderRadius: 12,
+              padding: 16,
+            }}
+          >
+            {legendOpen === "intraday" ? <MarketMeterIntradayLegend /> : <MarketMeterDailyLegend />}
+
+            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}>
+              <button
+                onClick={() => setLegendOpen(null)}
+                style={{
+                  background: "#eab308",
+                  color: "#111827",
+                  border: "none",
+                  borderRadius: 8,
+                  padding: "8px 12px",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                }}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
