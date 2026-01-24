@@ -1,21 +1,23 @@
 // src/pages/rows/RowStrategies/index.jsx
-// Strategies — Engine 5 Confluence Cards (Phase 2)
-// ✅ Uses Engine 5 confluence-score as the single truth for:
-//   - score + label
-//   - active zone (negotiated/shelf/institutional by priority)
-//   - golden ignition flag
+// Strategies — Engine 5 Confluence Cards (Phase 2) + Engine 6 Permission (POST)
+//
+// ✅ Engine 5 provides:
+//   - scores.total + scores.label
+//   - context.activeZone (negotiated/shelf/institutional by priority)
+//   - flags.goldenIgnition
 //   - compression object
 //   - targets (entry midpoint + exit edges)
-//   - volume state + diagnostics
+//   - volumeState + volume diagnostics
 //
-// ✅ Adds 🔥 GOLDEN COIL badge on all three cards when:
+// ✅ Golden Coil badge (LOCKED):
+// show only when:
 //   confluence.invalid !== true
 //   confluence.flags.goldenIgnition === true
 //   confluence.compression.active === true
 //   confluence.compression.state === "COILING"
 //
-// ✅ Engine 6 is NOT wired yet (per user request):
-//   permission pill shows "ENGINE 6 PENDING"
+// ✅ Engine 6 wired (POST) so UI does NOT use giant querystrings.
+// Permission pill shows: ALLOW / REDUCE / STAND_DOWN
 //
 // Layout:
 // - 3 equal cards: Scalp / Minor / Intermediate
@@ -39,11 +41,13 @@ function env(name, fb = "") {
 const API_BASE = env("REACT_APP_API_BASE", "https://frye-market-backend-1.onrender.com");
 const AZ_TZ = "America/Phoenix";
 
-/* -------------------- Engine 5 endpoint -------------------- */
+/* -------------------- endpoints -------------------- */
 const E5_URL = ({ symbol = "SPY", tf, degree, wave = "W1" }) =>
   `${API_BASE}/api/v1/confluence-score?symbol=${encodeURIComponent(symbol)}&tf=${encodeURIComponent(
     tf
   )}&degree=${encodeURIComponent(degree)}&wave=${encodeURIComponent(wave)}`;
+
+const E6_URL = `${API_BASE}/api/v1/trade-permission`;
 
 /* -------------------- utils -------------------- */
 const nowIso = () => new Date().toISOString();
@@ -93,25 +97,6 @@ function grade(score) {
   return "IGNORE";
 }
 
-function pillTone(kind) {
-  // used for small status chips
-  switch (String(kind || "").toUpperCase()) {
-    case "OK":
-    case "ALLOW":
-    case "LIVE":
-      return { background: "#06220f", color: "#86efac", borderColor: "#166534" };
-    case "WARN":
-    case "REDUCE":
-      return { background: "#1b1409", color: "#fbbf24", borderColor: "#92400e" };
-    case "DANGER":
-    case "STAND_DOWN":
-    case "INVALID":
-      return { background: "#2b0b0b", color: "#fca5a5", borderColor: "#7f1d1d" };
-    default:
-      return { background: "#0b0b0b", color: "#94a3b8", borderColor: "#2b2b2b" };
-  }
-}
-
 /* -------------------- Golden Coil badge rule (LOCKED) -------------------- */
 function showGoldenCoil(confluence) {
   return (
@@ -125,9 +110,6 @@ function showGoldenCoil(confluence) {
 /* -------------------- Safe extraction from Engine 5 payload -------------------- */
 function extractActiveZone(confluence) {
   const z = confluence?.context?.activeZone || null;
-
-  // expected from your screenshot:
-  // activeZone: { zoneType, lo, hi, mid, institutionalContainer? ... }
   const lo = Number(z?.lo);
   const hi = Number(z?.hi);
   const mid = Number(z?.mid);
@@ -180,15 +162,12 @@ function extractVolume(confluence) {
     state,
     volumeScore: Number.isFinite(volScore) ? volScore : NaN,
     volumeConfirmed: confirmed,
-    divergence: v?.divergenceBars || null,
   };
 }
 
 function nextTriggerText(confluence) {
-  // simple human-readable “what are we waiting for?”
   const invalid = confluence?.invalid === true;
   const codes = Array.isArray(confluence?.reasonCodes) ? confluence.reasonCodes : [];
-
   const hasZone = !!confluence?.context?.activeZone;
   const comp = confluence?.compression;
   const volState = String(confluence?.volumeState || "");
@@ -209,11 +188,67 @@ function nextTriggerText(confluence) {
   return "Waiting: stronger confluence signals.";
 }
 
+/* -------------------- Engine 6 POST helper -------------------- */
+async function fetchEngine6({ symbol, tf, confluence }) {
+  // Engine 5 inputs
+  const engine5 = {
+    invalid: confluence?.invalid === true,
+    total: clamp100(confluence?.scores?.total ?? confluence?.total ?? 0),
+    reasonCodes: Array.isArray(confluence?.reasonCodes) ? confluence.reasonCodes : [],
+  };
+
+  // Zone context (do not guess; use Engine 5 zone selection + flags)
+  const z = confluence?.context?.activeZone || null;
+  const withinZone = confluence?.flags?.inZone === true;
+
+  const zoneContext = {
+    zoneType: z?.zoneType || "UNKNOWN",
+    zoneId: z?.id || null,
+    withinZone,
+    flags: {
+      degraded: false,
+      liquidityFail: confluence?.flags?.liquidityTrap === true,
+      reactionFailed: false,
+    },
+    meta: {},
+  };
+
+  const res = await fetch(E6_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      symbol,
+      tf,
+      engine5,
+      marketMeter: null, // safe now; wire later
+      zoneContext,
+      intent: { action: "NEW_ENTRY" },
+    }),
+  });
+
+  const json = await res.json();
+  if (!res.ok) throw new Error(json?.error || `Engine6 HTTP ${res.status}`);
+  return json;
+}
+
+/* -------------------- permission pill styling -------------------- */
+function permStyle(permission) {
+  if (permission === "ALLOW") {
+    return { background: "#22c55e", color: "#0b1220", border: "2px solid #0c1320" };
+  }
+  if (permission === "REDUCE") {
+    return { background: "#fbbf24", color: "#0b1220", border: "2px solid #0c1320" };
+  }
+  if (permission === "STAND_DOWN") {
+    return { background: "#ef4444", color: "#0b1220", border: "2px solid #0c1320" };
+  }
+  return { background: "#0b0b0b", color: "#93c5fd", border: "1px solid #2b2b2b" };
+}
+
 /* ===================== Main Component ===================== */
 export default function RowStrategies() {
   const { selection, setSelection } = useSelection();
 
-  // Strategy definitions (LOCKED mapping)
   const STRATS = useMemo(
     () => [
       {
@@ -247,12 +282,12 @@ export default function RowStrategies() {
   const [active, setActive] = useState("SCALP");
 
   const [state, setState] = useState({
-    SCALP: { data: null, err: null, lastFetch: null },
-    MINOR: { data: null, err: null, lastFetch: null },
-    INTERMEDIATE: { data: null, err: null, lastFetch: null },
+    SCALP: { data: null, e6: null, err: null, lastFetch: null },
+    MINOR: { data: null, e6: null, err: null, lastFetch: null },
+    INTERMEDIATE: { data: null, e6: null, err: null, lastFetch: null },
   });
 
-  // Poll Engine 5 confluence per strategy
+  // Poll Engine 5 + Engine 6 per strategy
   useEffect(() => {
     let alive = true;
 
@@ -265,16 +300,26 @@ export default function RowStrategies() {
         try {
           const url = `${E5_URL({ symbol: "SPY", tf: s.tf, degree: s.degree, wave: s.wave })}&t=${Date.now()}`;
           const r = await fetch(url, { cache: "no-store", headers: { "Cache-Control": "no-store" } });
-          const j = await r.json();
+          const confluence = await r.json();
+
+          // Engine 6 permission
+          let e6 = null;
+          try {
+            e6 = await fetchEngine6({ symbol: "SPY", tf: s.tf, confluence });
+          } catch (e) {
+            e6 = { permission: "—", reasonCodes: [`ENGINE6_FETCH_FAIL:${String(e?.message || e)}`] };
+          }
 
           updates[s.id] = {
-            data: j,
+            data: confluence,
+            e6,
             err: null,
             lastFetch: nowIso(),
           };
         } catch (e) {
           updates[s.id] = {
             data: null,
+            e6: null,
             err: String(e?.message || e),
             lastFetch: nowIso(),
           };
@@ -342,6 +387,7 @@ export default function RowStrategies() {
         {STRATS.map((s) => {
           const st = state[s.id] || {};
           const confluence = st.data || null;
+          const e6 = st.e6 || null;
 
           const activeGlow =
             active === s.id
@@ -356,9 +402,9 @@ export default function RowStrategies() {
 
           const score = clamp100(confluence?.scores?.total ?? confluence?.scores?.sum ?? confluence?.total ?? 0);
           const label = confluence?.scores?.label || grade(score);
-          const invalid = confluence?.invalid === true;
 
-          const reasons = top3(confluence?.reasonCodes || []);
+          const reasonsE5 = top3(confluence?.reasonCodes || []);
+          const reasonsE6 = top3(e6?.reasonCodes || []);
           const zone = extractActiveZone(confluence);
           const targets = extractTargets(confluence);
           const compression = extractCompression(confluence);
@@ -372,11 +418,12 @@ export default function RowStrategies() {
           if (Number.isFinite(targets.exitTarget)) {
             exitTxt = fmt2(targets.exitTarget);
           } else {
-            // show edges if directional target not present
             const hi = Number.isFinite(targets.exitTargetHi) ? `Hi ${fmt2(targets.exitTargetHi)}` : null;
             const lo = Number.isFinite(targets.exitTargetLo) ? `Lo ${fmt2(targets.exitTargetLo)}` : null;
             exitTxt = [hi, lo].filter(Boolean).join(" • ") || "—";
           }
+
+          const perm = e6?.permission || "—";
 
           return (
             <div
@@ -400,20 +447,9 @@ export default function RowStrategies() {
                   <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                     <div style={{ fontWeight: 900, fontSize: 14, lineHeight: "16px" }}>{s.name}</div>
 
-                    {/* Permission pill placeholder */}
-                    <span
-                      style={{
-                        fontSize: 11,
-                        fontWeight: 900,
-                        padding: "4px 10px",
-                        borderRadius: 999,
-                        border: "1px solid #2b2b2b",
-                        background: "#0b0b0b",
-                        color: "#93c5fd",
-                      }}
-                      title="Engine 6 not wired yet"
-                    >
-                      ENGINE 6 PENDING
+                    {/* Permission pill (Engine 6) */}
+                    <span style={{ fontSize: 11, fontWeight: 900, padding: "4px 10px", borderRadius: 999, ...permStyle(perm) }} title="Engine 6 trade permission">
+                      {perm}
                     </span>
 
                     {/* Golden Coil badge */}
@@ -519,13 +555,26 @@ export default function RowStrategies() {
 
               {/* Reasons + next trigger */}
               <div style={{ marginTop: 2 }}>
-                <div style={{ color: "#9ca3af", fontSize: 11, fontWeight: 900 }}>Reasons (top 3)</div>
-                <div style={{ color: "#e5e7eb", fontSize: 12, lineHeight: 1.35, minHeight: 40 }}>
+                <div style={{ color: "#9ca3af", fontSize: 11, fontWeight: 900 }}>Reasons (E5 top 3)</div>
+                <div style={{ color: "#e5e7eb", fontSize: 12, lineHeight: 1.35, minHeight: 32 }}>
                   {st.err ? (
                     <div style={{ color: "#fca5a5", fontWeight: 900 }}>{st.err}</div>
-                  ) : reasons.length ? (
+                  ) : reasonsE5.length ? (
                     <ul style={{ margin: 0, paddingLeft: 16 }}>
-                      {reasons.map((r, i) => (
+                      {reasonsE5.map((r, i) => (
+                        <li key={`${r}-${i}`}>{r}</li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <div style={{ color: "#94a3b8" }}>—</div>
+                  )}
+                </div>
+
+                <div style={{ color: "#9ca3af", fontSize: 11, fontWeight: 900, marginTop: 6 }}>Reasons (E6 top 3)</div>
+                <div style={{ color: "#e5e7eb", fontSize: 12, lineHeight: 1.35, minHeight: 32 }}>
+                  {reasonsE6.length ? (
+                    <ul style={{ margin: 0, paddingLeft: 16 }}>
+                      {reasonsE6.map((r, i) => (
                         <li key={`${r}-${i}`}>{r}</li>
                       ))}
                     </ul>
@@ -571,14 +620,36 @@ export default function RowStrategies() {
 
 /* -------------------- UI helpers -------------------- */
 function MiniRow({ label, left, right, tone = "muted" }) {
-  const t = pillTone(
-    tone === "ok" ? "OK" : tone === "warn" ? "WARN" : tone === "danger" ? "DANGER" : "MUTED"
-  );
+  const t = (kind) => {
+    switch (String(kind || "").toUpperCase()) {
+      case "OK":
+        return { background: "#06220f", color: "#86efac", borderColor: "#166534" };
+      case "WARN":
+        return { background: "#1b1409", color: "#fbbf24", borderColor: "#92400e" };
+      case "DANGER":
+        return { background: "#2b0b0b", color: "#fca5a5", borderColor: "#7f1d1d" };
+      default:
+        return { background: "#0b0b0b", color: "#94a3b8", borderColor: "#2b2b2b" };
+    }
+  };
+  const toneMap = tone === "ok" ? "OK" : tone === "warn" ? "WARN" : tone === "danger" ? "DANGER" : "MUTED";
+  const pill = t(toneMap);
+
   return (
     <div style={{ display: "grid", gridTemplateColumns: "92px 1fr auto", gap: 8, alignItems: "center" }}>
       <div style={{ color: "#9ca3af", fontSize: 11, fontWeight: 900 }}>{label}</div>
       <div style={{ color: "#cbd5e1", fontSize: 12, fontWeight: 800 }}>{left}</div>
-      <span style={{ fontSize: 10, fontWeight: 900, padding: "3px 8px", borderRadius: 999, border: `1px solid ${t.borderColor}`, background: t.background, color: t.color }}>
+      <span
+        style={{
+          fontSize: 10,
+          fontWeight: 900,
+          padding: "3px 8px",
+          borderRadius: 999,
+          border: `1px solid ${pill.borderColor}`,
+          background: pill.background,
+          color: pill.color,
+        }}
+      >
         {right}
       </span>
     </div>
