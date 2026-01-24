@@ -84,6 +84,15 @@ function top3(arr) {
   return a.slice(0, 3);
 }
 
+function grade(score) {
+  const s = clamp100(score);
+  if (s >= 90) return "A+";
+  if (s >= 80) return "A";
+  if (s >= 70) return "B";
+  if (s >= 60) return "C";
+  return "IGNORE";
+}
+
 function pillTone(kind) {
   // used for small status chips
   switch (String(kind || "").toUpperCase()) {
