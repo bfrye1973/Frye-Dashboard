@@ -1,14 +1,6 @@
 // src/pages/rows/RowStrategies/index.jsx
 // Strategies — Engine 5 Confluence Cards (Phase 2) + Engine 6 Permission (POST)
 //
-// ✅ Engine 5 provides:
-//   - scores.total + scores.label
-//   - context.activeZone (negotiated/shelf/institutional by priority)
-//   - flags.goldenIgnition
-//   - compression object
-//   - targets (entry midpoint + exit edges)
-//   - volumeState + volume diagnostics
-//
 // ✅ Golden Coil badge (LOCKED):
 // show only when:
 //   confluence.invalid !== true
@@ -23,6 +15,7 @@
 // - 3 equal cards: Scalp / Minor / Intermediate
 // Poll:
 // - every 15s (skip when tab hidden)
+// - serialized (NO overlap)
 
 import React, { useEffect, useMemo, useState } from "react";
 import { useSelection } from "../../../context/ModeContext";
@@ -38,7 +31,18 @@ function env(name, fb = "") {
   return fb;
 }
 
-const API_BASE = env("REACT_APP_API_BASE", "https://frye-market-backend-1.onrender.com");
+function normalizeApiBase(x) {
+  const raw = String(x || "").trim();
+  if (!raw) return "https://frye-market-backend-1.onrender.com";
+  // remove trailing slash
+  let out = raw.replace(/\/+$/, "");
+  // if someone accidentally set it to ".../api" or ".../api/v1", strip that
+  out = out.replace(/\/api\/v1$/i, "");
+  out = out.replace(/\/api$/i, "");
+  return out;
+}
+
+const API_BASE = normalizeApiBase(env("REACT_APP_API_BASE", "https://frye-market-backend-1.onrender.com"));
 const AZ_TZ = "America/Phoenix";
 
 /* -------------------- endpoints -------------------- */
@@ -105,6 +109,35 @@ function showGoldenCoil(confluence) {
     confluence?.compression?.active === true &&
     confluence?.compression?.state === "COILING"
   );
+}
+
+/* -------------------- robust fetch helpers -------------------- */
+async function safeFetchJson(url, opts = {}) {
+  const res = await fetch(url, {
+    cache: "no-store",
+    headers: { accept: "application/json", ...(opts.headers || {}) },
+    ...opts,
+  });
+
+  const text = await res.text().catch(() => "");
+  let json = null;
+  try {
+    json = text ? JSON.parse(text) : null;
+  } catch {
+    json = null;
+  }
+
+  if (!res.ok) {
+    const msg =
+      json?.error ||
+      json?.detail ||
+      (typeof json === "string" ? json : null) ||
+      text?.slice(0, 200) ||
+      `HTTP ${res.status}`;
+    throw new Error(msg);
+  }
+
+  return json;
 }
 
 /* -------------------- Safe extraction from Engine 5 payload -------------------- */
@@ -190,14 +223,12 @@ function nextTriggerText(confluence) {
 
 /* -------------------- Engine 6 POST helper -------------------- */
 async function fetchEngine6({ symbol, tf, confluence }) {
-  // Engine 5 inputs
   const engine5 = {
     invalid: confluence?.invalid === true,
     total: clamp100(confluence?.scores?.total ?? confluence?.total ?? 0),
     reasonCodes: Array.isArray(confluence?.reasonCodes) ? confluence.reasonCodes : [],
   };
 
-  // Zone context (do not guess; use Engine 5 zone selection + flags)
   const z = confluence?.context?.activeZone || null;
   const withinZone = confluence?.flags?.inZone === true;
 
@@ -213,22 +244,20 @@ async function fetchEngine6({ symbol, tf, confluence }) {
     meta: {},
   };
 
-  const res = await fetch(E6_URL, {
+  const payload = {
+    symbol,
+    tf,
+    engine5,
+    marketMeter: null,
+    zoneContext,
+    intent: { action: "NEW_ENTRY" },
+  };
+
+  return safeFetchJson(E6_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      symbol,
-      tf,
-      engine5,
-      marketMeter: null, // safe now; wire later
-      zoneContext,
-      intent: { action: "NEW_ENTRY" },
-    }),
+    body: JSON.stringify(payload),
   });
-
-  const json = await res.json();
-  if (!res.ok) throw new Error(json?.error || `Engine6 HTTP ${res.status}`);
-  return json;
 }
 
 /* -------------------- permission pill styling -------------------- */
@@ -247,34 +276,13 @@ function permStyle(permission) {
 
 /* ===================== Main Component ===================== */
 export default function RowStrategies() {
-  const { selection, setSelection } = useSelection();
+  const { setSelection } = useSelection();
 
   const STRATS = useMemo(
     () => [
-      {
-        id: "SCALP",
-        name: "Scalp — Minor Intraday",
-        tf: "10m",
-        degree: "minute",
-        wave: "W1",
-        sub: "10m primary • 1h gate",
-      },
-      {
-        id: "MINOR",
-        name: "Minor — Swing",
-        tf: "1h",
-        degree: "minor",
-        wave: "W1",
-        sub: "1h primary • 4h confirm",
-      },
-      {
-        id: "INTERMEDIATE",
-        name: "Intermediate — Long",
-        tf: "4h",
-        degree: "intermediate",
-        wave: "W1",
-        sub: "4h primary • EOD gate",
-      },
+      { id: "SCALP", name: "Scalp — Minor Intraday", tf: "10m", degree: "minute", wave: "W1", sub: "10m primary • 1h gate" },
+      { id: "MINOR", name: "Minor — Swing", tf: "1h", degree: "minor", wave: "W1", sub: "1h primary • 4h confirm" },
+      { id: "INTERMEDIATE", name: "Intermediate — Long", tf: "4h", degree: "intermediate", wave: "W1", sub: "4h primary • EOD gate" },
     ],
     []
   );
@@ -287,22 +295,24 @@ export default function RowStrategies() {
     INTERMEDIATE: { data: null, e6: null, err: null, lastFetch: null },
   });
 
-  // Poll Engine 5 + Engine 6 per strategy
+  // Poll Engine 5 + Engine 6 per strategy (serialized, no overlap)
   useEffect(() => {
     let alive = true;
+    let inFlight = false;
 
-    async function pull() {
+    async function pullOnce() {
+      if (!alive) return;
+      if (inFlight) return; // ✅ prevent overlap
       if (typeof document !== "undefined" && document.hidden) return;
 
+      inFlight = true;
       const updates = {};
 
       for (const s of STRATS) {
         try {
           const url = `${E5_URL({ symbol: "SPY", tf: s.tf, degree: s.degree, wave: s.wave })}&t=${Date.now()}`;
-          const r = await fetch(url, { cache: "no-store", headers: { "Cache-Control": "no-store" } });
-          const confluence = await r.json();
+          const confluence = await safeFetchJson(url, { headers: { "Cache-Control": "no-store" } });
 
-          // Engine 6 permission
           let e6 = null;
           try {
             e6 = await fetchEngine6({ symbol: "SPY", tf: s.tf, confluence });
@@ -310,28 +320,19 @@ export default function RowStrategies() {
             e6 = { permission: "—", reasonCodes: [`ENGINE6_FETCH_FAIL:${String(e?.message || e)}`] };
           }
 
-          updates[s.id] = {
-            data: confluence,
-            e6,
-            err: null,
-            lastFetch: nowIso(),
-          };
+          updates[s.id] = { data: confluence, e6, err: null, lastFetch: nowIso() };
         } catch (e) {
-          updates[s.id] = {
-            data: null,
-            e6: null,
-            err: String(e?.message || e),
-            lastFetch: nowIso(),
-          };
+          updates[s.id] = { data: null, e6: null, err: String(e?.message || e), lastFetch: nowIso() };
         }
       }
 
       if (!alive) return;
       setState((prev) => ({ ...prev, ...updates }));
+      inFlight = false;
     }
 
-    pull();
-    const id = setInterval(pull, 15_000);
+    pullOnce();
+    const id = setInterval(pullOnce, 15_000);
     return () => {
       alive = false;
       clearInterval(id);
@@ -412,7 +413,6 @@ export default function RowStrategies() {
 
           const golden = showGoldenCoil(confluence);
 
-          // Targets display
           const entryTxt = Number.isFinite(targets.entryTarget) ? fmt2(targets.entryTarget) : "—";
           let exitTxt = "—";
           if (Number.isFinite(targets.exitTarget)) {
@@ -448,7 +448,10 @@ export default function RowStrategies() {
                     <div style={{ fontWeight: 900, fontSize: 14, lineHeight: "16px" }}>{s.name}</div>
 
                     {/* Permission pill (Engine 6) */}
-                    <span style={{ fontSize: 11, fontWeight: 900, padding: "4px 10px", borderRadius: 999, ...permStyle(perm) }} title="Engine 6 trade permission">
+                    <span
+                      style={{ fontSize: 11, fontWeight: 900, padding: "4px 10px", borderRadius: 999, ...permStyle(perm) }}
+                      title="Engine 6 trade permission"
+                    >
                       {perm}
                     </span>
 
@@ -497,8 +500,7 @@ export default function RowStrategies() {
                     style={{
                       height: "100%",
                       width: `${Math.max(0, Math.min(100, Math.round(score)))}%`,
-                      background:
-                        "linear-gradient(90deg,#22c55e 0%,#84cc16 40%,#f59e0b 70%,#ef4444 100%)",
+                      background: "linear-gradient(90deg,#22c55e 0%,#84cc16 40%,#f59e0b 70%,#ef4444 100%)",
                     }}
                   />
                 </div>
