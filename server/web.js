@@ -13,23 +13,12 @@ const API_TARGET =
   (process.env.API_TARGET || "https://frye-market-backend-1.onrender.com").trim();
 
 /**
- * Debug route (safe): confirms what the web service is proxying to.
- * Visit: /__proxyinfo
- */
-app.get("/__proxyinfo", (_req, res) => {
-  res.json({
-    ok: true,
-    service: "frye-dashboard-web",
-    apiTarget: API_TARGET,
-    ts: new Date().toISOString(),
-  });
-});
-
-/**
- * ✅ Proxy /api/* -> API_TARGET/api/*
- * IMPORTANT:
- * - Because we mount at "/api", the incoming req url is already "/api/..."
- * - We do NOT rewrite the path. We forward it as-is.
+ * ✅ Proxy /api/* → backend /api/*
+ * Our backend expects /api/health and /api/v1/*,
+ * but the browser calls /api/health and /api/v1/* through this service.
+ *
+ * http-proxy-middleware removes the mount prefix (/api) by default.
+ * So we add it back with pathRewrite.
  */
 app.use(
   "/api",
@@ -38,7 +27,25 @@ app.use(
     changeOrigin: true,
     secure: true,
     ws: true,
-    logLevel: "info",
+    logLevel: "warn",
+    pathRewrite: (pathReq) => `/api${pathReq}`, // ✅ keep
+  })
+);
+
+/**
+ * ✅ Proxy /live/* → backend /live/*
+ * Backend mounts GitHub JSON proxies at /live.
+ * NO rewrite needed — we want /live/hourly to remain /live/hourly.
+ */
+app.use(
+  "/live",
+  createProxyMiddleware({
+    target: API_TARGET,
+    changeOrigin: true,
+    secure: true,
+    ws: true,
+    logLevel: "warn",
+    // no pathRewrite
   })
 );
 
@@ -46,7 +53,7 @@ app.use(
 const buildDir = path.resolve(__dirname, "../build");
 app.use(express.static(buildDir));
 
-// SPA fallback
+// SPA fallback (React Router)
 app.get("*", (_req, res) => {
   res.sendFile(path.join(buildDir, "index.html"));
 });
@@ -55,5 +62,6 @@ const PORT = Number(process.env.PORT) || 3000;
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`[OK] Frye Dashboard Web listening on :${PORT}`);
   console.log(`- buildDir: ${buildDir}`);
-  console.log(`- proxy /api -> ${API_TARGET}`);
+  console.log(`- proxy /api  -> ${API_TARGET} (rewritten to /api + path)`);
+  console.log(`- proxy /live -> ${API_TARGET} (no rewrite)`);
 });
