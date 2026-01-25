@@ -12,7 +12,25 @@ const app = express();
 const API_TARGET =
   (process.env.API_TARGET || "https://frye-market-backend-1.onrender.com").trim();
 
-// ✅ Proxy /api/* -> API_TARGET/api/*  (adds /api back)
+/**
+ * Debug route (safe): confirms what the web service is proxying to.
+ * Visit: /__proxyinfo
+ */
+app.get("/__proxyinfo", (_req, res) => {
+  res.json({
+    ok: true,
+    service: "frye-dashboard-web",
+    apiTarget: API_TARGET,
+    ts: new Date().toISOString(),
+  });
+});
+
+/**
+ * ✅ Proxy /api/* -> API_TARGET/api/*
+ * IMPORTANT:
+ * - Because we mount at "/api", the incoming req url is already "/api/..."
+ * - We do NOT rewrite the path. We forward it as-is.
+ */
 app.use(
   "/api",
   createProxyMiddleware({
@@ -20,8 +38,7 @@ app.use(
     changeOrigin: true,
     secure: true,
     ws: true,
-    logLevel: "debug",
-    pathRewrite: (pathReq) => `/api${pathReq}`, // <-- key fix
+    logLevel: "info",
   })
 );
 
@@ -38,5 +55,5 @@ const PORT = Number(process.env.PORT) || 3000;
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`[OK] Frye Dashboard Web listening on :${PORT}`);
   console.log(`- buildDir: ${buildDir}`);
-  console.log(`- proxy /api -> ${API_TARGET} (rewritten to /api/api/...)`);
+  console.log(`- proxy /api -> ${API_TARGET}`);
 });
