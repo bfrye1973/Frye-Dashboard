@@ -42,7 +42,7 @@ function normalizeApiBase(x) {
   return out;
 }
 
-const API_BASE = normalizeApiBase(env("REACT_APP_API_BASE", "https://frye-market-backend-1.onrender.com"));
+const API_BASE = env("REACT_APP_API_BASE", "");
 const AZ_TZ = "America/Phoenix";
 
 /* -------------------- endpoints -------------------- */
