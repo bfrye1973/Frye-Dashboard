@@ -12,7 +12,7 @@ const app = express();
 const API_TARGET =
   (process.env.API_TARGET || "https://frye-market-backend-1.onrender.com").trim();
 
-// ✅ Proxy MUST be registered BEFORE static + SPA fallback
+// ✅ Proxy /api/* -> API_TARGET/api/*  (adds /api back)
 app.use(
   "/api",
   createProxyMiddleware({
@@ -20,7 +20,8 @@ app.use(
     changeOrigin: true,
     secure: true,
     ws: true,
-    logLevel: "debug"
+    logLevel: "debug",
+    pathRewrite: (pathReq) => `/api${pathReq}`, // <-- key fix
   })
 );
 
@@ -37,5 +38,5 @@ const PORT = Number(process.env.PORT) || 3000;
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`[OK] Frye Dashboard Web listening on :${PORT}`);
   console.log(`- buildDir: ${buildDir}`);
-  console.log(`- proxy /api -> ${API_TARGET}`);
+  console.log(`- proxy /api -> ${API_TARGET} (rewritten to /api/api/...)`);
 });
