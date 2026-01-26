@@ -37,6 +37,7 @@ app.use(
  * Backend mounts GitHub JSON proxies at /live.
  * NO rewrite needed — we want /live/hourly to remain /live/hourly.
  */
+
 app.use(
   "/live",
   createProxyMiddleware({
@@ -44,11 +45,9 @@ app.use(
     changeOrigin: true,
     secure: true,
     ws: true,
-    logLevel: "warn",
-    // no pathRewrite
+    pathRewrite: (pathReq) => `/live${pathReq}`,
   })
 );
-
 // Serve CRA build
 const buildDir = path.resolve(__dirname, "../build");
 app.use(express.static(buildDir));
