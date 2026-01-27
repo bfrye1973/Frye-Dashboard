@@ -1,21 +1,23 @@
 // src/pages/rows/RowStrategies/index.jsx
-// Strategies — Engine 5 Confluence Cards (Phase 2) + Engine 6 Permission (POST)
+// Strategies — Engine 5 Score + Engine 6 Permission (SYNCED via dashboard-snapshot)
 //
-// ✅ CHANGESET (per your locked game plan):
-// 1) KEEP EVERYTHING on LEFT side exactly as-is
-// 2) ONLY move Score bar directly under STAND_DOWN pill
-// 3) Add a RIGHT COLUMN (fixed width) showing ENGINE STACK (E1–E6) always visible
-// 4) Add "Open Full Strategies" button (new tab) — same on all cards
+// ✅ FIXES:
+// - One poll endpoint (dashboard-snapshot) => all 3 cards stay synced
+// - No per-card fetch loops that can silently break
+// - Engine Stack (E1–E6) always visible in RIGHT column
+// - LEFT column keeps full readable info
+// - Buttons: Load SPY/QQQ, Open Full Chart (per TF), Open Full Strategies (new tab)
 //
-// 🔒 Layout safety:
-// - Card height does NOT increase
-// - Right column fixed width, compact text, no wrapping, no scrollbars
+// Poll:
+// - every 15s
+// - skip when tab hidden
+// - no overlap
 
 import React, { useEffect, useMemo, useState } from "react";
 import { useSelection } from "../../../context/ModeContext";
 import LiveDot from "../../../components/LiveDot";
 
-/* -------------------- env helpers (CRA-safe) -------------------- */
+/* -------------------- env helpers -------------------- */
 function env(name, fb = "") {
   try {
     if (typeof process !== "undefined" && process.env && name in process.env) {
@@ -38,12 +40,8 @@ const API_BASE = normalizeApiBase(env("REACT_APP_API_BASE", ""));
 const AZ_TZ = "America/Phoenix";
 
 /* -------------------- endpoints -------------------- */
-const E5_URL = ({ symbol = "SPY", tf, degree, wave = "W1" }) =>
-  `${API_BASE}/api/v1/confluence-score?symbol=${encodeURIComponent(symbol)}&tf=${encodeURIComponent(
-    tf
-  )}&degree=${encodeURIComponent(degree)}&wave=${encodeURIComponent(wave)}`;
-
-const E6_URL = `${API_BASE}/api/v1/trade-permission`;
+const SNAP_URL = (symbol = "SPY") =>
+  `${API_BASE}/api/v1/dashboard-snapshot?symbol=${encodeURIComponent(symbol)}&includeContext=1&t=${Date.now()}`;
 
 /* -------------------- utils -------------------- */
 const nowIso = () => new Date().toISOString();
@@ -103,7 +101,7 @@ function showGoldenCoil(confluence) {
   );
 }
 
-/* -------------------- robust fetch helpers -------------------- */
+/* -------------------- fetch helper -------------------- */
 async function safeFetchJson(url, opts = {}) {
   const res = await fetch(url, {
     cache: "no-store",
@@ -132,7 +130,7 @@ async function safeFetchJson(url, opts = {}) {
   return json;
 }
 
-/* -------------------- Safe extraction from Engine 5 payload -------------------- */
+/* -------------------- extraction helpers -------------------- */
 function extractActiveZone(confluence) {
   const z = confluence?.context?.activeZone || null;
   const lo = Number(z?.lo);
@@ -172,7 +170,6 @@ function extractCompression(confluence) {
     state: c?.state || "—",
     widthAtrRatio: Number.isFinite(Number(c?.widthAtrRatio)) ? Number(c?.widthAtrRatio) : NaN,
     quiet: c?.quiet === true,
-    reasons: Array.isArray(c?.reasons) ? c.reasons : [],
   };
 }
 
@@ -212,63 +209,15 @@ function nextTriggerText(confluence) {
   return "Waiting: stronger confluence signals.";
 }
 
-/* -------------------- Engine 6 POST helper -------------------- */
-async function fetchEngine6({ symbol, tf, confluence }) {
-  const engine5 = {
-    invalid: confluence?.invalid === true,
-    total: clamp100(confluence?.scores?.total ?? confluence?.total ?? 0),
-    reasonCodes: Array.isArray(confluence?.reasonCodes) ? confluence.reasonCodes : [],
-  };
-
-  const z = confluence?.context?.activeZone || null;
-
-  const payload = {
-    symbol,
-    tf,
-    engine5,
-    marketMeter: null,
-    zoneContext: {
-      zoneType: z?.zoneType || "UNKNOWN",
-      zoneId: z?.id || null,
-      withinZone: !!z,
-      flags: {
-        degraded: false,
-        liquidityFail: confluence?.flags?.liquidityTrap === true,
-        reactionFailed: false,
-      },
-      meta: {},
-    },
-    intent: { action: "NEW_ENTRY" },
-  };
-
-  return safeFetchJson(E6_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-}
-
 /* -------------------- permission pill styling -------------------- */
 function permStyle(permission) {
-  if (permission === "ALLOW") {
-    return { background: "#22c55e", color: "#0b1220", border: "2px solid #0c1320" };
-  }
-  if (permission === "REDUCE") {
-    return { background: "#fbbf24", color: "#0b1220", border: "2px solid #0c1320" };
-  }
-  if (permission === "STAND_DOWN") {
-    return { background: "#ef4444", color: "#0b1220", border: "2px solid #0c1320" };
-  }
+  if (permission === "ALLOW") return { background: "#22c55e", color: "#0b1220", border: "2px solid #0c1320" };
+  if (permission === "REDUCE") return { background: "#fbbf24", color: "#0b1220", border: "2px solid #0c1320" };
+  if (permission === "STAND_DOWN") return { background: "#ef4444", color: "#0b1220", border: "2px solid #0c1320" };
   return { background: "#0b0b0b", color: "#93c5fd", border: "1px solid #2b2b2b" };
 }
 
-/* -------------------- Open Full Strategies (new tab) -------------------- */
-function openFullStrategies(symbol = "SPY") {
-  const url = `/strategies/full?symbol=${encodeURIComponent(symbol)}`;
-  window.open(url, "_blank", "noopener,noreferrer");
-}
-
-/* -------------------- Small UI helpers -------------------- */
+/* -------------------- buttons -------------------- */
 function btn() {
   return {
     background: "#141414",
@@ -282,6 +231,20 @@ function btn() {
   };
 }
 
+/* -------------------- Open tabs -------------------- */
+function openFullStrategies(symbol = "SPY") {
+  // NOTE: This route must exist in your frontend router to show a true full page.
+  // If it doesn't exist yet, it will bounce back to /.
+  const url = `/strategies-full?symbol=${encodeURIComponent(symbol)}`;
+  window.open(url, "_blank", "noopener,noreferrer");
+}
+
+function openFullChart(symbol = "SPY", tf = "10m") {
+  const url = `/chart?symbol=${encodeURIComponent(symbol)}&tf=${encodeURIComponent(tf)}`;
+  window.open(url, "_blank", "noopener,noreferrer");
+}
+
+/* -------------------- MiniRow -------------------- */
 function MiniRow({ label, left, right, tone = "muted" }) {
   const t = (kind) => {
     switch (String(kind || "").toUpperCase()) {
@@ -322,9 +285,9 @@ function MiniRow({ label, left, right, tone = "muted" }) {
   );
 }
 
-/* -------------------- Engine Stack (RIGHT COLUMN) -------------------- */
-function EngineStack({ confluence, e6 }) {
-  const loc = confluence?.location || {};
+/* -------------------- Engine Stack (right column) -------------------- */
+function EngineStack({ confluence, permission }) {
+  const loc = confluence?.location?.state || "—";
   const fib = confluence?.context?.fib || {};
   const fs = fib?.signals || null;
   const reaction = confluence?.context?.reaction || {};
@@ -334,24 +297,19 @@ function EngineStack({ confluence, e6 }) {
   const score = clamp100(confluence?.scores?.total ?? 0);
   const label = confluence?.scores?.label || grade(score);
 
-  // E2 display
   let e2Text = "NO_ANCHORS";
   if (fib?.ok === false && String(fib?.reason || "") === "NO_ANCHORS") e2Text = "NO_ANCHORS";
   else if (fs) {
     if (fs.invalidated) e2Text = "INVALID ❌";
-    else if (fs.inRetraceZone || fs.near50) e2Text = `VALID ✅ ${fs.inRetraceZone ? "RETRACE" : ""}${fs.near50 ? " 50" : ""}`.trim();
+    else if (fs.inRetraceZone || fs.near50) e2Text = "VALID ✅";
     else e2Text = "VALID ✅";
   }
 
   const e3Text = `${Number(reaction?.reactionScore ?? 0).toFixed(1)} ${reaction?.structureState || "HOLD"}`;
   const e4State = confluence?.volumeState || "NO_SIGNAL";
   const e4Flags = `trap:${vFlags?.liquidityTrap ? "Y" : "N"} init:${vFlags?.initiativeMoveConfirmed ? "Y" : "N"}`;
-
-  const e5Text = `${Math.round(score)} (${label})`;
-  const e5Comp = `${comp?.state || "NONE"} ${Number.isFinite(Number(comp?.score)) ? Math.round(Number(comp?.score)) : 0}`;
-
-  const perm = e6?.permission || "—";
-  const size = Number.isFinite(Number(e6?.sizeMultiplier)) ? Number(e6.sizeMultiplier).toFixed(2) : "—";
+  const e5Text = `${Math.round(score)} (${label}) • ${comp?.state || "NONE"} ${Number.isFinite(Number(comp?.score)) ? Math.round(Number(comp?.score)) : 0}`;
+  const e6Text = `${permission?.permission || "—"} • ${Number.isFinite(Number(permission?.sizeMultiplier)) ? Number(permission.sizeMultiplier).toFixed(2) : "—"}x`;
 
   return (
     <div
@@ -360,70 +318,34 @@ function EngineStack({ confluence, e6 }) {
         borderRadius: 10,
         padding: 8,
         background: "#0b0b0b",
-        height: 168, // fixed to avoid height creep
+        height: 168,
         display: "grid",
         gridTemplateRows: "auto repeat(6, 1fr)",
         gap: 4,
         overflow: "hidden",
+        minWidth: 0,
       }}
     >
       <div style={{ fontSize: 11, fontWeight: 900, color: "#93c5fd" }}>ENGINE STACK</div>
-
-      <div style={stackRow()}>
-        <span style={stackK()}>E1</span>
-        <span style={stackV()} title={loc?.state || "—"}>{loc?.state || "—"}</span>
-      </div>
-
-      <div style={stackRow()}>
-        <span style={stackK()}>E2</span>
-        <span style={stackV()} title={e2Text}>{e2Text}</span>
-      </div>
-
-      <div style={stackRow()}>
-        <span style={stackK()}>E3</span>
-        <span style={stackV()} title={e3Text}>{e3Text}</span>
-      </div>
-
-      <div style={stackRow()}>
-        <span style={stackK()}>E4</span>
-        <span style={stackV()} title={`${e4State} ${e4Flags}`}>{e4State} • {e4Flags}</span>
-      </div>
-
-      <div style={stackRow()}>
-        <span style={stackK()}>E5</span>
-        <span style={stackV()} title={`${e5Text} • ${e5Comp}`}>{e5Text} • {e5Comp}</span>
-      </div>
-
-      <div style={stackRow()}>
-        <span style={stackK()}>E6</span>
-        <span style={stackV()} title={`${perm} • ${size}x`}>{perm} • {size}x</span>
-      </div>
+      <Row k="E1" v={loc} />
+      <Row k="E2" v={e2Text} />
+      <Row k="E3" v={e3Text} />
+      <Row k="E4" v={`${e4State} • ${e4Flags}`} />
+      <Row k="E5" v={e5Text} />
+      <Row k="E6" v={e6Text} />
     </div>
   );
 }
 
-function stackRow() {
-  return {
-    display: "grid",
-    gridTemplateColumns: "22px 1fr",
-    gap: 6,
-    alignItems: "center",
-    minWidth: 0,
-  };
-}
-function stackK() {
-  return { fontWeight: 900, fontSize: 11, color: "#9ca3af" };
-}
-function stackV() {
-  return {
-    fontWeight: 900,
-    fontSize: 11,
-    color: "#e5e7eb",
-    whiteSpace: "nowrap",
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-    minWidth: 0,
-  };
+function Row({ k, v }) {
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "22px 1fr", gap: 6, alignItems: "center", minWidth: 0 }}>
+      <span style={{ fontWeight: 900, fontSize: 11, color: "#9ca3af" }}>{k}</span>
+      <span style={{ fontWeight: 900, fontSize: 11, color: "#e5e7eb", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={v}>
+        {v}
+      </span>
+    </div>
+  );
 }
 
 /* ===================== Main Component ===================== */
@@ -441,66 +363,53 @@ export default function RowStrategies() {
 
   const [active, setActive] = useState("SCALP");
 
-  const [state, setState] = useState({
-    SCALP: { data: null, e6: null, err: null, lastFetch: null },
-    MINOR: { data: null, e6: null, err: null, lastFetch: null },
-    INTERMEDIATE: { data: null, e6: null, err: null, lastFetch: null },
-  });
+  const [snap, setSnap] = useState({ data: null, err: null, lastFetch: null });
 
-  // Poll Engine 5 + Engine 6 per strategy (serialized, no overlap)
   useEffect(() => {
     let alive = true;
     let inFlight = false;
 
-    async function pullOnce() {
-      if (!alive) return;
-      if (inFlight) return;
+    async function pull() {
+      if (!alive || inFlight) return;
       if (typeof document !== "undefined" && document.hidden) return;
 
       inFlight = true;
-      const updates = {};
-
-      for (const s of STRATS) {
-        try {
-          const url = `${E5_URL({ symbol: "SPY", tf: s.tf, degree: s.degree, wave: s.wave })}&t=${Date.now()}`;
-          const confluence = await safeFetchJson(url, { headers: { "Cache-Control": "no-store" } });
-
-          let e6 = null;
-          try {
-            e6 = await fetchEngine6({ symbol: "SPY", tf: s.tf, confluence });
-          } catch (e) {
-            e6 = { permission: "—", reasonCodes: [`ENGINE6_FETCH_FAIL:${String(e?.message || e)}`] };
-          }
-
-          updates[s.id] = { data: confluence, e6, err: null, lastFetch: nowIso() };
-        } catch (e) {
-          updates[s.id] = { data: null, e6: null, err: String(e?.message || e), lastFetch: nowIso() };
-        }
+      try {
+        const data = await safeFetchJson(SNAP_URL("SPY"));
+        if (alive) setSnap({ data, err: null, lastFetch: nowIso() });
+      } catch (e) {
+        if (alive) setSnap({ data: null, err: String(e?.message || e), lastFetch: nowIso() });
       }
-
-      if (!alive) return;
-      setState((prev) => ({ ...prev, ...updates }));
       inFlight = false;
     }
 
-    pullOnce();
-    const id = setInterval(pullOnce, 15_000);
+    pull();
+    const id = setInterval(pull, 15_000);
     return () => {
       alive = false;
       clearInterval(id);
     };
-  }, [STRATS]);
+  }, []);
 
   function load(sym, tf) {
     setSelection({ symbol: sym, timeframe: tf, strategy: "smz" });
   }
+
+  const snapshot = snap.data;
+  const last = snap.lastFetch;
+
+  // map strategyId -> card id
+  const STRATEGY_ID_MAP = {
+    SCALP: "intraday_scalp@10m",
+    MINOR: "minor_swing@1h",
+    INTERMEDIATE: "intermediate_long@4h",
+  };
 
   return (
     <section id="row-5" className="panel" style={{ padding: 10 }}>
       <div className="panel-head" style={{ alignItems: "center" }}>
         <div className="panel-title">Strategies — Engine 5 Score + Engine 6 Permission</div>
 
-        {/* Active selector */}
         <div style={{ marginLeft: 10, display: "flex", gap: 6, flexWrap: "wrap" }}>
           {STRATS.map((s) => (
             <button
@@ -524,37 +433,40 @@ export default function RowStrategies() {
         </div>
 
         <div className="spacer" />
+
         <div style={{ color: "#9ca3af", fontSize: 12 }}>
-          Poll: <b>15s</b>
+          Poll: <b>15s</b> • Snapshot: <b>{last ? toAZ(last, true) : "—"}</b>
         </div>
       </div>
 
+      {snap.err && (
+        <div style={{ marginTop: 8, color: "#fca5a5", fontWeight: 900 }}>
+          Strategy snapshot error: {snap.err}
+        </div>
+      )}
+
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0,1fr))", gap: 10, marginTop: 10 }}>
         {STRATS.map((s) => {
-          const st = state[s.id] || {};
-          const confluence = st.data || null;
-          const e6 = st.e6 || null;
+          const stratKey = STRATEGY_ID_MAP[s.id];
+          const node = snapshot?.strategies?.[stratKey] || null;
 
-          const activeGlow =
-            active === s.id
-              ? "0 0 0 2px rgba(59,130,246,.65) inset, 0 10px 30px rgba(0,0,0,.25)"
-              : "0 10px 30px rgba(0,0,0,.25)";
+          const confluence = node?.confluence || null;
+          const permission = node?.permission || null;
 
-          const fresh = minutesAgo(st.lastFetch) <= 1.5;
-          const liveStatus = st.err ? "red" : fresh ? "green" : "yellow";
-          const liveTip = st.err ? `Error: ${st.err}` : `Last fetch: ${st.lastFetch ? toAZ(st.lastFetch, true) : "—"}`;
+          const fresh = minutesAgo(snap.lastFetch) <= 1.5;
+          const liveStatus = snap.err ? "red" : fresh ? "green" : "yellow";
+          const liveTip = snap.err ? `Error: ${snap.err}` : `Last snapshot: ${snap.lastFetch ? toAZ(snap.lastFetch, true) : "—"}`;
 
-          const score = clamp100(confluence?.scores?.total ?? confluence?.scores?.sum ?? confluence?.total ?? 0);
+          const score = clamp100(confluence?.scores?.total ?? 0);
           const label = confluence?.scores?.label || grade(score);
+          const golden = showGoldenCoil(confluence);
 
           const reasonsE5 = top3(confluence?.reasonCodes || []);
-          const reasonsE6 = top3(e6?.reasonCodes || []);
+          const reasonsE6 = top3(permission?.reasonCodes || []);
           const zone = extractActiveZone(confluence);
           const targets = extractTargets(confluence);
           const compression = extractCompression(confluence);
           const volume = extractVolume(confluence);
-
-          const golden = showGoldenCoil(confluence);
 
           const entryTxt = Number.isFinite(targets.entryTarget) ? fmt2(targets.entryTarget) : "—";
           let exitTxt = "—";
@@ -566,7 +478,12 @@ export default function RowStrategies() {
             exitTxt = [hi, lo].filter(Boolean).join(" • ") || "—";
           }
 
-          const perm = e6?.permission || "—";
+          const perm = permission?.permission || "—";
+
+          const activeGlow =
+            active === s.id
+              ? "0 0 0 2px rgba(59,130,246,.65) inset, 0 10px 30px rgba(0,0,0,.25)"
+              : "0 10px 30px rgba(0,0,0,.25)";
 
           return (
             <div
@@ -586,23 +503,18 @@ export default function RowStrategies() {
             >
               {/* CARD BODY: 2 columns */}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 220px", gap: 10, alignItems: "start" }}>
-                {/* LEFT COLUMN: keep everything */}
+                {/* LEFT */}
                 <div style={{ minWidth: 0 }}>
-                  {/* Header row */}
+                  {/* Header */}
                   <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10 }}>
                     <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                         <div style={{ fontWeight: 900, fontSize: 14, lineHeight: "16px" }}>{s.name}</div>
 
-                        {/* Permission pill (Engine 6) */}
-                        <span
-                          style={{ fontSize: 11, fontWeight: 900, padding: "4px 10px", borderRadius: 999, ...permStyle(perm) }}
-                          title="Engine 6 trade permission"
-                        >
+                        <span style={{ fontSize: 11, fontWeight: 900, padding: "4px 10px", borderRadius: 999, ...permStyle(perm) }}>
                           {perm}
                         </span>
 
-                        {/* Golden Coil badge */}
                         {golden && (
                           <span
                             style={{
@@ -614,7 +526,6 @@ export default function RowStrategies() {
                               boxShadow: "0 0 10px rgba(255,183,3,.55)",
                               border: "1px solid rgba(255,255,255,.18)",
                             }}
-                            title="Golden Coil: golden ignition + coiling compression"
                           >
                             🔥 GOLDEN COIL
                           </span>
@@ -629,7 +540,7 @@ export default function RowStrategies() {
                     </div>
                   </div>
 
-                  {/* ✅ MOVED: Score bar directly under STAND_DOWN */}
+                  {/* Score (moved under permission) */}
                   <div style={{ display: "grid", gridTemplateColumns: "44px 1fr 40px", alignItems: "center", gap: 8, marginTop: 8 }}>
                     <div style={{ color: "#9ca3af", fontSize: 10, fontWeight: 900 }}>Score</div>
                     <div style={{ background: "#1f2937", borderRadius: 8, height: 8, overflow: "hidden", border: "1px solid #334155" }}>
@@ -655,7 +566,7 @@ export default function RowStrategies() {
                     </div>
                   </div>
 
-                  {/* Entry/Exit targets */}
+                  {/* Targets */}
                   <div style={{ display: "grid", gap: 4, marginTop: 6 }}>
                     <div style={{ fontSize: 12, color: "#cbd5e1" }}>
                       <b>Entry Target:</b> {entryTxt}
@@ -665,7 +576,7 @@ export default function RowStrategies() {
                     </div>
                   </div>
 
-                  {/* Zone + Compression + Volume (unchanged) */}
+                  {/* Active Zone + Compression + Volume */}
                   <div style={{ display: "grid", gap: 6, marginTop: 6 }}>
                     <div style={{ fontSize: 12, color: "#cbd5e1" }}>
                       <b>Active Zone:</b>{" "}
@@ -699,23 +610,19 @@ export default function RowStrategies() {
                   </div>
                 </div>
 
-                {/* RIGHT COLUMN: Engine Stack */}
+                {/* RIGHT */}
                 <div style={{ minWidth: 0 }}>
-                  <EngineStack confluence={confluence} e6={e6} />
+                  <EngineStack confluence={confluence} permission={permission} />
                 </div>
               </div>
 
-              {/* Reasons + Next trigger (unchanged) */}
+              {/* Reasons + Next trigger */}
               <div style={{ marginTop: 2 }}>
                 <div style={{ color: "#9ca3af", fontSize: 11, fontWeight: 900 }}>Reasons (E5 top 3)</div>
                 <div style={{ color: "#e5e7eb", fontSize: 12, lineHeight: 1.35, minHeight: 32 }}>
-                  {st.err ? (
-                    <div style={{ color: "#fca5a5", fontWeight: 900 }}>{st.err}</div>
-                  ) : reasonsE5.length ? (
+                  {reasonsE5.length ? (
                     <ul style={{ margin: 0, paddingLeft: 16 }}>
-                      {reasonsE5.map((r, i) => (
-                        <li key={`${r}-${i}`}>{r}</li>
-                      ))}
+                      {reasonsE5.map((r, i) => <li key={`${r}-${i}`}>{r}</li>)}
                     </ul>
                   ) : (
                     <div style={{ color: "#94a3b8" }}>—</div>
@@ -726,9 +633,7 @@ export default function RowStrategies() {
                 <div style={{ color: "#e5e7eb", fontSize: 12, lineHeight: 1.35, minHeight: 32 }}>
                   {reasonsE6.length ? (
                     <ul style={{ margin: 0, paddingLeft: 16 }}>
-                      {reasonsE6.map((r, i) => (
-                        <li key={`${r}-${i}`}>{r}</li>
-                      ))}
+                      {reasonsE6.map((r, i) => <li key={`${r}-${i}`}>{r}</li>)}
                     </ul>
                   ) : (
                     <div style={{ color: "#94a3b8" }}>—</div>
@@ -739,7 +644,7 @@ export default function RowStrategies() {
                 <div style={{ color: "#cbd5e1", fontSize: 12 }}>{nextTriggerText(confluence)}</div>
               </div>
 
-              {/* Actions (unchanged + Open Full Strategies) */}
+              {/* Actions */}
               <div style={{ marginTop: "auto", display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
                 <span
                   style={{
@@ -755,16 +660,11 @@ export default function RowStrategies() {
                   PAPER ONLY
                 </span>
 
-                <button onClick={() => load("SPY", s.tf)} style={btn()} title="Load SPY chart at this strategy TF">
-                  Load SPY
-                </button>
-                <button onClick={() => load("QQQ", s.tf)} style={btn()} title="Load QQQ chart at this strategy TF">
-                  Load QQQ
-                </button>
+                <button onClick={() => load("SPY", s.tf)} style={btn()} title="Load SPY chart at this strategy TF">Load SPY</button>
+                <button onClick={() => load("QQQ", s.tf)} style={btn()} title="Load QQQ chart at this strategy TF">Load QQQ</button>
 
-                <button onClick={() => openFullStrategies("SPY")} style={btn()} title="Open all strategies in a large readable view">
-                  Open Full Strategies
-                </button>
+                <button onClick={() => openFullChart("SPY", s.tf)} style={btn()} title="Open full chart in new tab">Open Full Chart</button>
+                <button onClick={() => openFullStrategies("SPY")} style={btn()} title="Open all strategies in a large readable view">Open Full Strategies</button>
               </div>
             </div>
           );
