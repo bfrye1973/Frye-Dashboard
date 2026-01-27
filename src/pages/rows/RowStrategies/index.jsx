@@ -762,6 +762,14 @@ export default function RowStrategies() {
                   Load QQQ
                 </button>
 
+                <button
+                  onClick={() => window.open(`/chart?symbol=SPY&tf=${encodeURIComponent(s.tf)}`, "_blank", "noopener,noreferrer")}
+                  style={btn()}
+                 title="Open full chart for this strategy timeframe"
+               >
+                 Open Full Chart
+               </button>
+
                 <button onClick={() => openFullStrategies("SPY")} style={btn()} title="Open all strategies in a large readable view">
                   Open Full Strategies
                 </button>
