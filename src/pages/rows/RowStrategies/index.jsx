@@ -1,17 +1,18 @@
 // src/pages/rows/RowStrategies/index.jsx
 // Strategies — Engine 5 Score + Engine 6 Permission (SYNCED via dashboard-snapshot)
 //
-// ✅ FIXES:
-// - One poll endpoint (dashboard-snapshot) => all 3 cards stay synced
-// - No per-card fetch loops that can silently break
-// - Engine Stack (E1–E6) always visible in RIGHT column
-// - LEFT column keeps full readable info
-// - Buttons: Load SPY/QQQ, Open Full Chart (per TF), Open Full Strategies (new tab)
+// ✅ One poll endpoint: /api/v1/dashboard-snapshot?symbol=SPY&includeContext=1
+// ✅ Engine Stack (E1–E6) always visible on RIGHT column
+// ✅ LEFT column keeps full readable info
+// ✅ Buttons: Load SPY/QQQ, Open Full Chart, Open Full Strategies
 //
-// Poll:
-// - every 15s
-// - skip when tab hidden
-// - no overlap
+// ✅ Stability fixes:
+// - NEVER fully stops polling (hidden => 60s, visible => 15s)
+// - hard timeout (20s) with AbortController
+// - inFlight always released in finally
+//
+// ✅ Observability:
+// - Shows Frontend fetch time + Backend snapshot time
 
 import React, { useEffect, useMemo, useState } from "react";
 import { useSelection } from "../../../context/ModeContext";
@@ -41,16 +42,12 @@ const AZ_TZ = "America/Phoenix";
 
 /* -------------------- endpoints -------------------- */
 const SNAP_URL = (symbol = "SPY") =>
-  `${API_BASE}/api/v1/dashboard-snapshot?symbol=${encodeURIComponent(symbol)}&includeContext=1&t=${Date.now()}`;
+  `${API_BASE}/api/v1/dashboard-snapshot?symbol=${encodeURIComponent(
+    symbol
+  )}&includeContext=1&t=${Date.now()}`;
 
 /* -------------------- utils -------------------- */
 const nowIso = () => new Date().toISOString();
-
-function snapshotTime(snapshot) {
-  const iso = snapshot?.now || snapshot?.ts || null;
-  if (!iso) return "—";
-  return toAZ(iso, true);
-}
 
 function toAZ(iso, withSeconds = false) {
   try {
@@ -65,6 +62,12 @@ function toAZ(iso, withSeconds = false) {
   } catch {
     return "—";
   }
+}
+
+function snapshotTime(snapshot) {
+  const iso = snapshot?.now || snapshot?.ts || null;
+  if (!iso) return "—";
+  return toAZ(iso, true);
 }
 
 function minutesAgo(iso) {
@@ -111,7 +114,11 @@ function showGoldenCoil(confluence) {
 async function safeFetchJson(url, opts = {}) {
   const res = await fetch(url, {
     cache: "no-store",
-    headers: { accept: "application/json", ...(opts.headers || {}) },
+    headers: {
+      accept: "application/json",
+      "Cache-Control": "no-store",
+      ...(opts.headers || {}),
+    },
     ...opts,
   });
 
@@ -174,7 +181,9 @@ function extractCompression(confluence) {
     tier: c?.tier || "—",
     score: Number.isFinite(Number(c?.score)) ? Number(c?.score) : NaN,
     state: c?.state || "—",
-    widthAtrRatio: Number.isFinite(Number(c?.widthAtrRatio)) ? Number(c?.widthAtrRatio) : NaN,
+    widthAtrRatio: Number.isFinite(Number(c?.widthAtrRatio))
+      ? Number(c?.widthAtrRatio)
+      : NaN,
     quiet: c?.quiet === true,
   };
 }
@@ -194,21 +203,27 @@ function extractVolume(confluence) {
 
 function nextTriggerText(confluence) {
   const invalid = confluence?.invalid === true;
-  const codes = Array.isArray(confluence?.reasonCodes) ? confluence.reasonCodes : [];
+  const codes = Array.isArray(confluence?.reasonCodes)
+    ? confluence.reasonCodes
+    : [];
   const hasZone = !!confluence?.context?.activeZone;
   const comp = confluence?.compression;
   const volState = String(confluence?.volumeState || "");
 
   if (invalid) {
-    if (codes.includes("NO_ZONE_NO_TRADE")) return "Waiting: zone context (no zone → no trade).";
-    if (codes.includes("FIB_INVALIDATION_74")) return "Waiting: fib invalidation cleared (74% rule).";
+    if (codes.includes("NO_ZONE_NO_TRADE"))
+      return "Waiting: zone context (no zone → no trade).";
+    if (codes.includes("FIB_INVALIDATION_74"))
+      return "Waiting: fib invalidation cleared (74% rule).";
     return "Waiting: invalid condition cleared.";
   }
 
-  if (!hasZone) return "Waiting: active zone selection (negotiated/shelf/institutional).";
+  if (!hasZone)
+    return "Waiting: active zone selection (negotiated/shelf/institutional).";
 
   if (comp?.active === true && comp?.state === "COILING") {
-    if (volState === "NO_SIGNAL") return "Waiting: initiative volume / confirmation.";
+    if (volState === "NO_SIGNAL")
+      return "Waiting: initiative volume / confirmation.";
     return "Waiting: breakout/launch confirmation.";
   }
 
@@ -217,9 +232,12 @@ function nextTriggerText(confluence) {
 
 /* -------------------- permission pill styling -------------------- */
 function permStyle(permission) {
-  if (permission === "ALLOW") return { background: "#22c55e", color: "#0b1220", border: "2px solid #0c1320" };
-  if (permission === "REDUCE") return { background: "#fbbf24", color: "#0b1220", border: "2px solid #0c1320" };
-  if (permission === "STAND_DOWN") return { background: "#ef4444", color: "#0b1220", border: "2px solid #0c1320" };
+  if (permission === "ALLOW")
+    return { background: "#22c55e", color: "#0b1220", border: "2px solid #0c1320" };
+  if (permission === "REDUCE")
+    return { background: "#fbbf24", color: "#0b1220", border: "2px solid #0c1320" };
+  if (permission === "STAND_DOWN")
+    return { background: "#ef4444", color: "#0b1220", border: "2px solid #0c1320" };
   return { background: "#0b0b0b", color: "#93c5fd", border: "1px solid #2b2b2b" };
 }
 
@@ -234,13 +252,12 @@ function btn() {
     fontSize: 12,
     fontWeight: 900,
     cursor: "pointer",
+    whiteSpace: "nowrap",
   };
 }
 
-/* -------------------- Open tabs -------------------- */
+/* -------------------- open tabs -------------------- */
 function openFullStrategies(symbol = "SPY") {
-  // NOTE: This route must exist in your frontend router to show a true full page.
-  // If it doesn't exist yet, it will bounce back to /.
   const url = `/strategies-full?symbol=${encodeURIComponent(symbol)}`;
   window.open(url, "_blank", "noopener,noreferrer");
 }
@@ -264,13 +281,24 @@ function MiniRow({ label, left, right, tone = "muted" }) {
         return { background: "#0b0b0b", color: "#94a3b8", borderColor: "#2b2b2b" };
     }
   };
-  const toneMap = tone === "ok" ? "OK" : tone === "warn" ? "WARN" : tone === "danger" ? "DANGER" : "MUTED";
+
+  const toneMap =
+    tone === "ok" ? "OK" : tone === "warn" ? "WARN" : tone === "danger" ? "DANGER" : "MUTED";
   const pill = t(toneMap);
 
   return (
     <div style={{ display: "grid", gridTemplateColumns: "92px 1fr auto", gap: 8, alignItems: "center" }}>
       <div style={{ color: "#9ca3af", fontSize: 11, fontWeight: 900 }}>{label}</div>
-      <div style={{ color: "#cbd5e1", fontSize: 12, fontWeight: 800, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+      <div
+        style={{
+          color: "#cbd5e1",
+          fontSize: 12,
+          fontWeight: 800,
+          whiteSpace: "nowrap",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+        }}
+      >
         {left}
       </div>
       <span
@@ -305,17 +333,17 @@ function EngineStack({ confluence, permission }) {
 
   let e2Text = "NO_ANCHORS";
   if (fib?.ok === false && String(fib?.reason || "") === "NO_ANCHORS") e2Text = "NO_ANCHORS";
-  else if (fs) {
-    if (fs.invalidated) e2Text = "INVALID ❌";
-    else if (fs.inRetraceZone || fs.near50) e2Text = "VALID ✅";
-    else e2Text = "VALID ✅";
-  }
+  else if (fs) e2Text = fs.invalidated ? "INVALID ❌" : "VALID ✅";
 
   const e3Text = `${Number(reaction?.reactionScore ?? 0).toFixed(1)} ${reaction?.structureState || "HOLD"}`;
   const e4State = confluence?.volumeState || "NO_SIGNAL";
   const e4Flags = `trap:${vFlags?.liquidityTrap ? "Y" : "N"} init:${vFlags?.initiativeMoveConfirmed ? "Y" : "N"}`;
-  const e5Text = `${Math.round(score)} (${label}) • ${comp?.state || "NONE"} ${Number.isFinite(Number(comp?.score)) ? Math.round(Number(comp?.score)) : 0}`;
-  const e6Text = `${permission?.permission || "—"} • ${Number.isFinite(Number(permission?.sizeMultiplier)) ? Number(permission.sizeMultiplier).toFixed(2) : "—"}x`;
+  const e5Text = `${Math.round(score)} (${label}) • ${comp?.state || "NONE"} ${
+    Number.isFinite(Number(comp?.score)) ? Math.round(Number(comp?.score)) : 0
+  }`;
+  const e6Text = `${permission?.permission || "—"} • ${
+    Number.isFinite(Number(permission?.sizeMultiplier)) ? Number(permission.sizeMultiplier).toFixed(2) : "—"
+  }x`;
 
   return (
     <div
@@ -333,21 +361,31 @@ function EngineStack({ confluence, permission }) {
       }}
     >
       <div style={{ fontSize: 11, fontWeight: 900, color: "#93c5fd" }}>ENGINE STACK</div>
-      <Row k="E1" v={loc} />
-      <Row k="E2" v={e2Text} />
-      <Row k="E3" v={e3Text} />
-      <Row k="E4" v={`${e4State} • ${e4Flags}`} />
-      <Row k="E5" v={e5Text} />
-      <Row k="E6" v={e6Text} />
+      <StackRow k="E1" v={loc} />
+      <StackRow k="E2" v={e2Text} />
+      <StackRow k="E3" v={e3Text} />
+      <StackRow k="E4" v={`${e4State} • ${e4Flags}`} />
+      <StackRow k="E5" v={e5Text} />
+      <StackRow k="E6" v={e6Text} />
     </div>
   );
 }
 
-function Row({ k, v }) {
+function StackRow({ k, v }) {
   return (
     <div style={{ display: "grid", gridTemplateColumns: "22px 1fr", gap: 6, alignItems: "center", minWidth: 0 }}>
       <span style={{ fontWeight: 900, fontSize: 11, color: "#9ca3af" }}>{k}</span>
-      <span style={{ fontWeight: 900, fontSize: 11, color: "#e5e7eb", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={v}>
+      <span
+        style={{
+          fontWeight: 900,
+          fontSize: 11,
+          color: "#e5e7eb",
+          whiteSpace: "nowrap",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+        }}
+        title={v}
+      >
         {v}
       </span>
     </div>
@@ -360,75 +398,76 @@ export default function RowStrategies() {
 
   const STRATS = useMemo(
     () => [
-      { id: "SCALP", name: "Scalp — Minor Intraday", tf: "10m", degree: "minute", wave: "W1", sub: "10m primary • 1h gate" },
-      { id: "MINOR", name: "Minor — Swing", tf: "1h", degree: "minor", wave: "W1", sub: "1h primary • 4h confirm" },
-      { id: "INTERMEDIATE", name: "Intermediate — Long", tf: "4h", degree: "intermediate", wave: "W1", sub: "4h primary • EOD gate" },
+      { id: "SCALP", name: "Scalp — Minor Intraday", tf: "10m", sub: "10m primary • 1h gate" },
+      { id: "MINOR", name: "Minor — Swing", tf: "1h", sub: "1h primary • 4h confirm" },
+      { id: "INTERMEDIATE", name: "Intermediate — Long", tf: "4h", sub: "4h primary • EOD gate" },
     ],
     []
   );
 
-  const [active, setActive] = useState("SCALP");
+  const STRATEGY_ID_MAP = {
+    SCALP: "intraday_scalp@10m",
+    MINOR: "minor_swing@1h",
+    INTERMEDIATE: "intermediate_long@4h",
+  };
 
+  const [active, setActive] = useState("SCALP");
   const [snap, setSnap] = useState({ data: null, err: null, lastFetch: null });
 
   useEffect(() => {
-  let alive = true;
-  let inFlight = false;
-  let timer = null;
+    let alive = true;
+    let inFlight = false;
+    let timer = null;
 
-  function isHidden() {
-    try {
-      return typeof document !== "undefined" && document.hidden;
-    } catch {
-      return false;
-    }
-  }
-
-  async function pull() {
-    if (!alive) return;
-    if (inFlight) return;
-
-    inFlight = true;
-
-    // hard timeout so Render stalls can't freeze you
-    const controller = new AbortController();
-    const timeoutMs = 20000; // 20s
-    const t = setTimeout(() => controller.abort(), timeoutMs);
-
-    try {
-      const url = SNAP_URL("SPY");
-      const data = await safeFetchJson(url, { signal: controller.signal });
-      if (alive) setSnap({ data, err: null, lastFetch: nowIso() });
-    } catch (e) {
-      const msg = String(e?.message || e);
-      if (alive) setSnap((prev) => ({ ...prev, err: msg, lastFetch: nowIso() }));
-    } finally {
-      clearTimeout(t);
-      inFlight = false;
-      // schedule next run based on tab visibility
-      if (alive) {
-        const nextMs = isHidden() ? 60000 : 15000; // hidden polls slower, never stops
-        timer = setTimeout(pull, nextMs);
+    function isHidden() {
+      try {
+        return typeof document !== "undefined" && document.hidden;
+      } catch {
+        return false;
       }
     }
-  }
 
-  pull();
+    async function pull() {
+      if (!alive) return;
+      if (inFlight) return;
 
-  // also refresh immediately when tab becomes visible again
-  function onVis() {
-    if (!alive) return;
-    if (!isHidden()) pull();
-  }
-  document.addEventListener("visibilitychange", onVis);
+      inFlight = true;
 
-  return () => {
-    alive = false;
-    if (timer) clearTimeout(timer);
-    document.removeEventListener("visibilitychange", onVis);
-  };
-}, []);
+      const controller = new AbortController();
+      const timeoutMs = 20000;
+      const t = setTimeout(() => controller.abort(), timeoutMs);
 
+      try {
+        const data = await safeFetchJson(SNAP_URL("SPY"), { signal: controller.signal });
+        if (alive) setSnap({ data, err: null, lastFetch: nowIso() });
+      } catch (e) {
+        const msg = String(e?.message || e);
+        if (alive) setSnap((prev) => ({ ...prev, err: msg, lastFetch: nowIso() }));
+      } finally {
+        clearTimeout(t);
+        inFlight = false;
+
+        if (alive) {
+          const nextMs = isHidden() ? 60000 : 15000;
+          timer = setTimeout(pull, nextMs);
+        }
+      }
+    }
+
+    function onVis() {
+      if (!alive) return;
+      if (!isHidden()) pull();
+    }
+
+    pull();
+    document.addEventListener("visibilitychange", onVis);
+
+    return () => {
+      alive = false;
+      if (timer) clearTimeout(timer);
+      document.removeEventListener("visibilitychange", onVis);
+    };
+  }, []);
 
   function load(sym, tf) {
     setSelection({ symbol: sym, timeframe: tf, strategy: "smz" });
@@ -437,15 +476,9 @@ export default function RowStrategies() {
   const snapshot = snap.data;
   const last = snap.lastFetch;
 
-  // map strategyId -> card id
-  const STRATEGY_ID_MAP = {
-    SCALP: "intraday_scalp@10m",
-    MINOR: "minor_swing@1h",
-    INTERMEDIATE: "intermediate_long@4h",
-  };
-
   return (
     <section id="row-5" className="panel" style={{ padding: 10 }}>
+      {/* Header */}
       <div className="panel-head" style={{ alignItems: "center" }}>
         <div className="panel-title">Strategies — Engine 5 Score + Engine 6 Permission</div>
 
@@ -474,36 +507,19 @@ export default function RowStrategies() {
         <div className="spacer" />
 
         <div style={{ color: "#9ca3af", fontSize: 12, display: "flex", gap: 12, flexWrap: "wrap" }}>
-         <span>
-           Poll: <b>15s</b>
-         </span>
-
-         <span>
-           Frontend fetch:
-           <b style={{ marginLeft: 4 }}>
-             {last ? toAZ(last, true) : "—"}
-           </b>
-         </span>
-
-         <span>
-           Backend snapshot:
-           <b style={{ marginLeft: 4 }}>
-             {snapshotTime(snapshot)}
-           </b>
-          </span>
+          <span>Poll: <b>15s</b></span>
+          <span>Frontend fetch: <b style={{ marginLeft: 4 }}>{last ? toAZ(last, true) : "—"}</b></span>
+          <span>Backend snapshot: <b style={{ marginLeft: 4 }}>{snapshotTime(snapshot)}</b></span>
         </div>
+      </div>
 
-        <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 6 }}>
-          Backend snapshot: <b>{snapshotTime(snapshot)}</b>
-        </div>
-
-        
       {snap.err && (
         <div style={{ marginTop: 8, color: "#fca5a5", fontWeight: 900 }}>
           Strategy snapshot error: {snap.err}
         </div>
       )}
 
+      {/* Cards */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0,1fr))", gap: 10, marginTop: 10 }}>
         {STRATS.map((s) => {
           const stratKey = STRATEGY_ID_MAP[s.id];
@@ -514,7 +530,9 @@ export default function RowStrategies() {
 
           const fresh = minutesAgo(snap.lastFetch) <= 1.5;
           const liveStatus = snap.err ? "red" : fresh ? "green" : "yellow";
-          const liveTip = snap.err ? `Error: ${snap.err}` : `Last snapshot: ${snap.lastFetch ? toAZ(snap.lastFetch, true) : "—"}`;
+          const liveTip = snap.err
+            ? `Error: ${snap.err}`
+            : `Last snapshot: ${snap.lastFetch ? toAZ(snap.lastFetch, true) : "—"}`;
 
           const score = clamp100(confluence?.scores?.total ?? 0);
           const label = confluence?.scores?.label || grade(score);
@@ -560,7 +578,7 @@ export default function RowStrategies() {
                 gap: 8,
               }}
             >
-              {/* CARD BODY: 2 columns */}
+              {/* Card body 2 columns */}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 220px", gap: 10, alignItems: "start" }}>
                 {/* LEFT */}
                 <div style={{ minWidth: 0 }}>
@@ -599,7 +617,7 @@ export default function RowStrategies() {
                     </div>
                   </div>
 
-                  {/* Score (moved under permission) */}
+                  {/* Score */}
                   <div style={{ display: "grid", gridTemplateColumns: "44px 1fr 40px", alignItems: "center", gap: 8, marginTop: 8 }}>
                     <div style={{ color: "#9ca3af", fontSize: 10, fontWeight: 900 }}>Score</div>
                     <div style={{ background: "#1f2937", borderRadius: 8, height: 8, overflow: "hidden", border: "1px solid #334155" }}>
