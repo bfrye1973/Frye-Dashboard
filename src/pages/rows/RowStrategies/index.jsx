@@ -451,7 +451,7 @@ export default function RowStrategies() {
 
       try {
         const data = await safeFetchJson(SNAP_URL("SPY"), { signal: controller.signal });
-        if (alive) setSnap({ data, err: null, lastFetch: nowIso() });
+        if (alive) setSnap(prev => ({ ...prev, data, err: null, lastFetch: nowIso() }));
       } catch (e) {
         const msg = `${String(e?.name || "Error")}: ${String(e?.message || e)}`;
         console.error("[RowStrategies] snapshot fetch failed:", e);
@@ -461,7 +461,7 @@ export default function RowStrategies() {
         inFlight = false;
 
         if (alive) {
-          const nextMs = isHidden() ? 60000 : 15000;
+          const nextMs = 20000; // always poll, browser-safe
           timer = setTimeout(pull, nextMs);
         }
       }
@@ -471,6 +471,7 @@ export default function RowStrategies() {
       if (!alive) return;
       if (!isHidden()) pull();
     }
+
 
     pull();
     document.addEventListener("visibilitychange", onVis);
