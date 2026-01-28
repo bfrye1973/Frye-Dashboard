@@ -46,6 +46,12 @@ const SNAP_URL = (symbol = "SPY") =>
 /* -------------------- utils -------------------- */
 const nowIso = () => new Date().toISOString();
 
+function snapshotTime(snapshot) {
+  const iso = snapshot?.now || snapshot?.ts || null;
+  if (!iso) return "—";
+  return toAZ(iso, true);
+}
+
 function toAZ(iso, withSeconds = false) {
   try {
     return (
@@ -467,11 +473,31 @@ export default function RowStrategies() {
 
         <div className="spacer" />
 
-        <div style={{ color: "#9ca3af", fontSize: 12 }}>
-          Poll: <b>15s</b> • Snapshot: <b>{last ? toAZ(last, true) : "—"}</b>
-        </div>
-      </div>
+        <div style={{ color: "#9ca3af", fontSize: 12, display: "flex", gap: 12, flexWrap: "wrap" }}>
+         <span>
+           Poll: <b>15s</b>
+         </span>
 
+         <span>
+           Frontend fetch:
+           <b style={{ marginLeft: 4 }}>
+             {last ? toAZ(last, true) : "—"}
+           </b>
+         </span>
+
+         <span>
+           Backend snapshot:
+           <b style={{ marginLeft: 4 }}>
+             {snapshotTime(snapshot)}
+           </b>
+          </span>
+        </div>
+
+        <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 6 }}>
+          Backend snapshot: <b>{snapshotTime(snapshot)}</b>
+        </div>
+
+        
       {snap.err && (
         <div style={{ marginTop: 8, color: "#fca5a5", fontWeight: 900 }}>
           Strategy snapshot error: {snap.err}
