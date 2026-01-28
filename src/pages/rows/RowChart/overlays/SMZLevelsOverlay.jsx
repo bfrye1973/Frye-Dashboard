@@ -1,6 +1,9 @@
 // src/pages/rows/RowChart/overlays/SMZLevelsOverlay.jsx
-// Engine 1 Overlay — STRUCTURE (yellow) + NEGOTIATED/VALUE (turquoise)
-// Pockets are deprecated and replaced by Shelves.
+// Engine 1 Overlay — INSTITUTIONAL STRUCTURES ONLY (yellow)
+//
+// ✅ CHANGE (LOCKED):
+// - Yellow FILL only if institutional strength >= 90
+// - Negotiated (|NEG|) is NOT drawn here at all (handled by SMZNegotiatedOverlay)
 //
 // Contract:
 // - priceRange is [HIGH, LOW]
@@ -9,12 +12,7 @@
 const SMZ_URL =
   "https://frye-market-backend-1.onrender.com/api/v1/smz-levels?symbol=SPY";
 
-export default function SMZLevelsOverlay({
-  chart,
-  priceSeries,
-  chartContainer,
-  timeframe,
-}) {
+export default function SMZLevelsOverlay({ chart, priceSeries, chartContainer, timeframe }) {
   if (!chart || !priceSeries || !chartContainer) {
     console.warn("[SMZLevelsOverlay] missing chart/priceSeries/chartContainer");
     return { seed() {}, update() {}, destroy() {} };
@@ -33,13 +31,16 @@ export default function SMZLevelsOverlay({
   // === STICKY DISPLAY SETTINGS ===
   const SHOW_STICKY = true;
 
-  // === INSTITUTIONAL PARENT VISIBILITY (NEW, SAFE) ===
-  // Goal: keep NEG (turquoise) as main layer, but restore subtle yellow presence for parent zones.
-  const SHOW_PARENT_WASH = true;     // subtle yellow tint over entire parent band (even under NEG)
-  const SHOW_PARENT_FRAME = true;    // subtle solid outline above NEG
-  const PARENT_WASH_FILL = "rgba(255,215,0,0.04)";   // 0.03–0.06 typical
-  const PARENT_FRAME_STROKE = "rgba(255,215,0,0.25)"; // subtle (not bright)
-  const PARENT_FRAME_WIDTH = 1.5;
+  // ✅ Institutional fill threshold
+  const INSTITUTIONAL_FILL_MIN = 90;
+
+  // Style
+  const FILL_STRONG = "rgba(255,215,0,0.14)";     // strong institutional fill
+  const STROKE_STRONG = "rgba(255,215,0,0.90)";   // strong institutional border
+
+  // Optional: show weak institutionals as outline only (no fill)
+  const SHOW_WEAK_OUTLINE = true;
+  const STROKE_WEAK = "rgba(255,215,0,0.28)";     // faint outline
 
   function ensureCanvas() {
     if (canvas) return canvas;
@@ -49,8 +50,7 @@ export default function SMZLevelsOverlay({
       position: "absolute",
       inset: 0,
       pointerEvents: "none",
-      // Institutional fill below shelves (shelves zIndex = 14)
-      zIndex: 12,
+      zIndex: 12, // below negotiated (13) and shelves (14)
     });
     chartContainer.appendChild(cnv);
     canvas = cnv;
@@ -82,11 +82,7 @@ export default function SMZLevelsOverlay({
     let lo = safeNum(range[1]);
     if (hi == null || lo == null) return null;
 
-    if (lo > hi) {
-      const t = hi;
-      hi = lo;
-      lo = t;
-    }
+    if (lo > hi) [hi, lo] = [lo, hi];
     if (!(hi > lo)) return null;
 
     return { hi, lo, mid: (hi + lo) / 2 };
@@ -100,12 +96,12 @@ export default function SMZLevelsOverlay({
     const y = Math.min(yTop, yBot);
     const hBand = Math.max(2, Math.abs(yBot - yTop));
 
-    if (fill && fill !== "rgba(0,0,0,0)" && fill !== "transparent") {
+    if (fill && fill !== "transparent") {
       ctx.fillStyle = fill;
       ctx.fillRect(0, y, w, hBand);
     }
 
-    if (stroke && stroke !== "rgba(0,0,0,0)" && stroke !== "transparent" && strokeWidth > 0) {
+    if (stroke && stroke !== "transparent" && strokeWidth > 0) {
       ctx.strokeStyle = stroke;
       ctx.lineWidth = strokeWidth;
       ctx.beginPath();
@@ -134,26 +130,7 @@ export default function SMZLevelsOverlay({
     ctx.restore();
   }
 
-  // NEW: solid (non-dashed) box for subtle parent frames above NEG
-  function drawSolidBox(ctx, w, hi, lo, stroke, strokeWidth = 1) {
-    const yTop = priceToY(hi);
-    const yBot = priceToY(lo);
-    if (yTop == null || yBot == null) return;
-
-    const y = Math.min(yTop, yBot);
-    const hBand = Math.max(2, Math.abs(yBot - yTop));
-
-    ctx.save();
-    ctx.strokeStyle = stroke;
-    ctx.lineWidth = strokeWidth;
-    ctx.setLineDash([]); // solid
-    ctx.beginPath();
-    ctx.rect(1, y + 1, w - 2, Math.max(1, hBand - 2));
-    ctx.stroke();
-    ctx.restore();
-  }
-
-  function drawDashedMid(ctx, w, midPrice, color, lineWidth = 2) {
+  function drawDashedMid(ctx, w, midPrice, color, lineWidth = 1) {
     const y = priceToY(midPrice);
     if (y == null) return;
     ctx.save();
@@ -165,43 +142,6 @@ export default function SMZLevelsOverlay({
     ctx.lineTo(w, y);
     ctx.stroke();
     ctx.restore();
-  }
-
-  function isStickyZone(z) {
-    return (z?.tier ?? "") === "structure_sticky";
-  }
-
-  // ✅ Detect negotiated/value zones (turquoise)
-  function isNegotiatedZone(lvl) {
-    const id = String(lvl?.details?.id ?? lvl?.structureKey ?? lvl?.id ?? "");
-    const sticky = lvl?.details?.facts?.sticky ?? {};
-    const note = String(sticky?.notes ?? lvl?.notes ?? "");
-    return id.includes("|NEG|") || note.toUpperCase().includes("NEGOTIATED");
-  }
-
-  // Sticky overrides live structures if overlapping
-  function mergeStickyOverLive(structuresLive, structuresSticky) {
-    const out = (structuresLive || []).slice();
-
-    const sticky = (structuresSticky || [])
-      .filter(isStickyZone)
-      .map((z) => ({ ...z, tier: "structure" })); // draw as structure
-
-    sticky.forEach((sz) => {
-      const sr = getHiLo(effectiveRange(sz));
-      if (!sr) return;
-
-      // Remove any live structure that overlaps sticky (sticky wins)
-      for (let i = out.length - 1; i >= 0; i--) {
-        const lr = getHiLo(effectiveRange(out[i]));
-        if (!lr) continue;
-        if (lr.hi >= sr.lo && lr.lo <= sr.hi) out.splice(i, 1);
-      }
-
-      out.push(sz);
-    });
-
-    return out;
   }
 
   function clipText(s, max = 30) {
@@ -245,6 +185,41 @@ export default function SMZLevelsOverlay({
     ctx.restore();
   }
 
+  function isStickyZone(z) {
+    return (z?.tier ?? "") === "structure_sticky";
+  }
+
+  // ✅ Negotiated detection — used ONLY to exclude from this overlay
+  function isNegotiatedZone(lvl) {
+    const id = String(lvl?.details?.id ?? lvl?.structureKey ?? lvl?.id ?? "");
+    const sticky = lvl?.details?.facts?.sticky ?? {};
+    const note = String(sticky?.notes ?? lvl?.notes ?? "");
+    return id.includes("|NEG|") || note.toUpperCase().includes("NEGOTIATED");
+  }
+
+  // Sticky overrides live structures if overlapping
+  function mergeStickyOverLive(structuresLive, structuresSticky) {
+    const out = (structuresLive || []).slice();
+
+    const sticky = (structuresSticky || [])
+      .filter(isStickyZone)
+      .map((z) => ({ ...z, tier: "structure" }));
+
+    sticky.forEach((sz) => {
+      const sr = getHiLo(effectiveRange(sz));
+      if (!sr) return;
+
+      for (let i = out.length - 1; i >= 0; i--) {
+        const lr = getHiLo(effectiveRange(out[i]));
+        if (!lr) continue;
+        if (lr.hi >= sr.lo && lr.lo <= sr.hi) out.splice(i, 1);
+      }
+      out.push(sz);
+    });
+
+    return out;
+  }
+
   function draw() {
     const cnv = ensureCanvas();
     const w = chartContainer.clientWidth || 1;
@@ -262,30 +237,24 @@ export default function SMZLevelsOverlay({
       return;
     }
 
-    const structuresLive = (levels || []).filter(
-      (l) => (l?.tier ?? "") === "structure"
-    );
+    const structuresLive = (levels || []).filter((l) => (l?.tier ?? "") === "structure");
     const micros = (levels || []).filter((l) => (l?.tier ?? "") === "micro");
 
-    const structuresEffective = mergeStickyOverLive(
-      structuresLive,
-      stickyStructures
-    );
+    // Merge sticky over live
+    let structuresEffective = mergeStickyOverLive(structuresLive, stickyStructures);
 
-    // 0) Sticky outline (optional)
+    // ✅ EXCLUDE negotiated zones from institutional overlay
+    structuresEffective = structuresEffective.filter((z) => !isNegotiatedZone(z));
+
+    // 0) Sticky outline (optional) — institutional only (neg excluded)
     if (SHOW_STICKY && Array.isArray(stickyStructures) && stickyStructures.length) {
       stickyStructures
         .filter(isStickyZone)
+        .filter((z) => !isNegotiatedZone(z))
         .forEach((lvl) => {
           const r = getHiLo(effectiveRange(lvl));
           if (!r) return;
-
-          // negotiated zones get turquoise dashed outline
-          const isNEG = isNegotiatedZone(lvl);
-          const stroke = isNEG
-            ? "rgba(0, 220, 200, 0.65)"
-            : "rgba(255,215,0,0.45)";
-          drawDashedBox(ctx, w, r.hi, r.lo, stroke, 1);
+          drawDashedBox(ctx, w, r.hi, r.lo, "rgba(255,215,0,0.45)", 1);
         });
     }
 
@@ -296,107 +265,50 @@ export default function SMZLevelsOverlay({
         .forEach((lvl) => {
           const r = getHiLo(effectiveRange(lvl));
           if (!r) return;
-          drawBand(ctx, w, r.hi, r.lo, "rgba(255,215,0,0.03)", "rgba(0,0,0,0)", 0);
+          drawBand(ctx, w, r.hi, r.lo, "rgba(255,215,0,0.03)", null, 0);
           drawDashedBox(ctx, w, r.hi, r.lo, "rgba(255,215,0,0.28)", 1);
         });
     }
 
-    // 2) Structures (effective): draws BOTH parents (yellow) and negotiated (turquoise)
+    // 2) Institutional structures — fill ONLY if strength >= 90
     structuresEffective.forEach((lvl) => {
       const r = getHiLo(effectiveRange(lvl));
       if (!r) return;
 
-      const isNEG = isNegotiatedZone(lvl);
+      const strength = safeNum(lvl?.strength) ?? 0;
+      const isStrong = strength >= INSTITUTIONAL_FILL_MIN;
 
-      // Slight pad for aesthetics
       const pad = 0.12;
       const hi = r.hi + pad;
       const lo = r.lo - pad;
 
-      // ✅ Color scheme:
-      // Institutional parent = yellow (base)
-      // Negotiated/value = turquoise (primary)
-      const fill = isNEG ? "rgba(0, 220, 200, 0.14)" : "rgba(255,215,0,0.14)";
-      const stroke = isNEG ? "rgba(0, 220, 200, 0.75)" : "rgba(255,215,0,0.9)";
+      const fill = isStrong ? FILL_STRONG : null;
+      const stroke = isStrong ? STROKE_STRONG : (SHOW_WEAK_OUTLINE ? STROKE_WEAK : null);
 
       const { y, hBand } = drawBand(ctx, w, hi, lo, fill, stroke, 1);
       if (y == null || hBand == null) return;
 
-      // Centered label
-      const strength = safeNum(lvl?.strength);
-      const scoreText = strength != null ? ` ${Math.round(strength)}` : "";
+      // Label only if strong (keeps chart cleaner)
+      if (isStrong) {
+        const facts = lvl?.details?.facts ?? {};
+        const sticky = facts?.sticky ?? null;
+        const note = clipText(sticky?.notes ?? lvl?.notes ?? "", 26);
+        const noteText = note ? ` — ${note}` : "";
+        const scoreText = strength ? ` ${Math.round(strength)}` : "";
 
-      const facts = lvl?.details?.facts ?? {};
-      const sticky = facts?.sticky ?? null;
+        drawCenteredLabel(
+          ctx,
+          w / 2,
+          y + hBand / 2,
+          `Institutional${scoreText}${noteText}`,
+          "rgba(255,215,0,0.95)",
+          w,
+          h
+        );
 
-      const note = clipText(sticky?.notes ?? lvl?.notes ?? "", 26);
-      const noteText = note ? ` — ${note}` : "";
-
-      const label = isNEG
-        ? `Negotiated${scoreText}${noteText}`
-        : `Institutional${scoreText}${noteText}`;
-
-      const xCenter = w / 2;
-      const yCenter = y + hBand / 2;
-
-      drawCenteredLabel(
-        ctx,
-        xCenter,
-        yCenter,
-        label,
-        isNEG ? "rgba(0, 220, 200, 0.95)" : "rgba(255,215,0,0.95)",
-        w,
-        h
-      );
-
-      // dashed midline (helps visual)
-      drawDashedMid(
-        ctx,
-        w,
-        r.mid,
-        isNEG ? "rgba(0,220,200,0.35)" : "rgba(255,215,0,0.35)",
-        1
-      );
+        drawDashedMid(ctx, w, r.mid, "rgba(255,215,0,0.35)", 1);
+      }
     });
-
-    // 3) Parent-only institutional wash pass (NEW, SAFE)
-    // Adds subtle yellow tint ABOVE negotiated so parent remains "yellow-present"
-    // while keeping turquoise dominant.
-    if (SHOW_PARENT_WASH) {
-      structuresEffective.forEach((lvl) => {
-        const r = getHiLo(effectiveRange(lvl));
-        if (!r) return;
-
-        const isNEG = isNegotiatedZone(lvl);
-        if (isNEG) return; // parent-only
-
-        const pad = 0.12;
-        const hi = r.hi + pad;
-        const lo = r.lo - pad;
-
-        drawBand(ctx, w, hi, lo, PARENT_WASH_FILL, "rgba(0,0,0,0)", 0);
-      });
-    }
-
-    // 4) Parent-only institutional frame pass (NEW, SAFE)
-    // Subtle solid outline ABOVE negotiated; not bright; keeps NEG as main layer.
-    if (SHOW_PARENT_FRAME) {
-      structuresEffective.forEach((lvl) => {
-        const r = getHiLo(effectiveRange(lvl));
-        if (!r) return;
-
-        const isNEG = isNegotiatedZone(lvl);
-        if (isNEG) return; // parent-only
-
-        const pad = 0.12;
-        const hi = r.hi + pad;
-        const lo = r.lo - pad;
-
-        drawSolidBox(ctx, w, hi, lo, PARENT_FRAME_STROKE, PARENT_FRAME_WIDTH);
-      });
-    }
-
-    // ✅ No pockets drawn (deprecated)
   }
 
   async function loadLevels() {
@@ -406,9 +318,7 @@ export default function SMZLevelsOverlay({
       const json = await res.json();
 
       levels = Array.isArray(json?.levels) ? json.levels : [];
-      stickyStructures = Array.isArray(json?.structures_sticky)
-        ? json.structures_sticky
-        : [];
+      stickyStructures = Array.isArray(json?.structures_sticky) ? json.structures_sticky : [];
 
       draw();
     } catch (e) {
@@ -421,16 +331,10 @@ export default function SMZLevelsOverlay({
 
   loadLevels();
 
-  function seed() {
-    draw();
-  }
+  function seed() { draw(); }
+  function update() { draw(); }
 
-  function update() {
-    draw();
-  }
-
-  const unsubVisible =
-    ts.subscribeVisibleLogicalRangeChange?.(() => draw()) || (() => {});
+  const unsubVisible = ts.subscribeVisibleLogicalRangeChange?.(() => draw()) || (() => {});
 
   function destroy() {
     try {
@@ -441,9 +345,7 @@ export default function SMZLevelsOverlay({
     canvas = null;
     levels = [];
     stickyStructures = [];
-    try {
-      unsubVisible();
-    } catch {}
+    try { unsubVisible(); } catch {}
   }
 
   return { seed, update, destroy };
