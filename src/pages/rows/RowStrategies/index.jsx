@@ -366,30 +366,63 @@ export default function RowStrategies() {
   const [snap, setSnap] = useState({ data: null, err: null, lastFetch: null });
 
   useEffect(() => {
-    let alive = true;
-    let inFlight = false;
+  let alive = true;
+  let inFlight = false;
+  let timer = null;
 
-    async function pull() {
-      if (!alive || inFlight) return;
-      if (typeof document !== "undefined" && document.hidden) return;
-
-      inFlight = true;
-      try {
-        const data = await safeFetchJson(SNAP_URL("SPY"));
-        if (alive) setSnap({ data, err: null, lastFetch: nowIso() });
-      } catch (e) {
-        if (alive) setSnap({ data: null, err: String(e?.message || e), lastFetch: nowIso() });
-      }
-      inFlight = false;
+  function isHidden() {
+    try {
+      return typeof document !== "undefined" && document.hidden;
+    } catch {
+      return false;
     }
+  }
 
-    pull();
-    const id = setInterval(pull, 15_000);
-    return () => {
-      alive = false;
-      clearInterval(id);
-    };
-  }, []);
+  async function pull() {
+    if (!alive) return;
+    if (inFlight) return;
+
+    inFlight = true;
+
+    // hard timeout so Render stalls can't freeze you
+    const controller = new AbortController();
+    const timeoutMs = 20000; // 20s
+    const t = setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+      const url = SNAP_URL("SPY");
+      const data = await safeFetchJson(url, { signal: controller.signal });
+      if (alive) setSnap({ data, err: null, lastFetch: nowIso() });
+    } catch (e) {
+      const msg = String(e?.message || e);
+      if (alive) setSnap((prev) => ({ ...prev, err: msg, lastFetch: nowIso() }));
+    } finally {
+      clearTimeout(t);
+      inFlight = false;
+      // schedule next run based on tab visibility
+      if (alive) {
+        const nextMs = isHidden() ? 60000 : 15000; // hidden polls slower, never stops
+        timer = setTimeout(pull, nextMs);
+      }
+    }
+  }
+
+  pull();
+
+  // also refresh immediately when tab becomes visible again
+  function onVis() {
+    if (!alive) return;
+    if (!isHidden()) pull();
+  }
+  document.addEventListener("visibilitychange", onVis);
+
+  return () => {
+    alive = false;
+    if (timer) clearTimeout(timer);
+    document.removeEventListener("visibilitychange", onVis);
+  };
+}, []);
+
 
   function load(sym, tf) {
     setSelection({ symbol: sym, timeframe: tf, strategy: "smz" });
