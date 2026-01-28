@@ -13,6 +13,7 @@ const SMZ_URL =
   "https://frye-market-backend-1.onrender.com/api/v1/smz-levels?symbol=SPY";
 
 export default function SMZLevelsOverlay({ chart, priceSeries, chartContainer, timeframe }) {
+  console.log("[SMZLevelsOverlay] LIVE MARKER 2026-01-24 A");
   if (!chart || !priceSeries || !chartContainer) {
     console.warn("[SMZLevelsOverlay] missing chart/priceSeries/chartContainer");
     return { seed() {}, update() {}, destroy() {} };
