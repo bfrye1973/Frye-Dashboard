@@ -112,36 +112,48 @@ function showGoldenCoil(confluence) {
 
 /* -------------------- fetch helper -------------------- */
 async function safeFetchJson(url, opts = {}) {
-  const res = await fetch(url, {
-    cache: "no-store",
-    headers: {
-      accept: "application/json",
-      "Cache-Control": "no-store",
-      ...(opts.headers || {}),
-    },
-    ...opts,
-  });
+  const attempt = async () => {
+    const res = await fetch(url, {
+      cache: "no-store",
+      headers: {
+        accept: "application/json",
+        "Cache-Control": "no-store",
+        ...(opts.headers || {}),
+      },
+      ...opts,
+    });
 
-  const text = await res.text().catch(() => "");
-  let json = null;
+    const text = await res.text().catch(() => "");
+    let json = null;
+    try {
+      json = text ? JSON.parse(text) : null;
+    } catch {
+      json = null;
+    }
+
+    if (!res.ok) {
+      const msg =
+        json?.error ||
+        json?.detail ||
+        (typeof json === "string" ? json : null) ||
+        text?.slice(0, 200) ||
+        `HTTP ${res.status}`;
+      throw new Error(msg);
+    }
+
+    return json;
+  };
+
   try {
-    json = text ? JSON.parse(text) : null;
-  } catch {
-    json = null;
+    return await attempt();
+  } catch (e1) {
+    // retry once for transient Render/CORS hiccups
+    await new Promise((r) => setTimeout(r, 800));
+    return await attempt();
   }
-
-  if (!res.ok) {
-    const msg =
-      json?.error ||
-      json?.detail ||
-      (typeof json === "string" ? json : null) ||
-      text?.slice(0, 200) ||
-      `HTTP ${res.status}`;
-    throw new Error(msg);
-  }
-
-  return json;
 }
+
+
 
 /* -------------------- extraction helpers -------------------- */
 function extractActiveZone(confluence) {
@@ -441,7 +453,8 @@ export default function RowStrategies() {
         const data = await safeFetchJson(SNAP_URL("SPY"), { signal: controller.signal });
         if (alive) setSnap({ data, err: null, lastFetch: nowIso() });
       } catch (e) {
-        const msg = String(e?.message || e);
+        const msg = `${String(e?.name || "Error")}: ${String(e?.message || e)}`;
+        console.error("[RowStrategies] snapshot fetch failed:", e);
         if (alive) setSnap((prev) => ({ ...prev, err: msg, lastFetch: nowIso() }));
       } finally {
         clearTimeout(t);
