@@ -1,47 +1,34 @@
 // src/pages/rows/RowChart/overlays/SMZLevelsOverlay.jsx
 // Engine 1 Overlay — INSTITUTIONAL STRUCTURES ONLY (yellow)
 //
-// ✅ CHANGE (LOCKED):
-// - Yellow FILL only if institutional strength >= 90
-// - Negotiated (|NEG|) is NOT drawn here at all (handled by SMZNegotiatedOverlay)
-//
-// Contract:
-// - priceRange is [HIGH, LOW]
-// - sticky may include manualRange; if so, manualRange must be used for rendering.
+// ✅ LOCKED (PER USER):
+// - Institutional zones come from smz-levels.json -> levels[] ONLY (live truth)
+// - Institutional threshold = 85–100
+// - NO dashed yellow lines at all (no sticky outlines, no midlines, no micro)
+// - Negotiated (|NEG|) is NOT drawn here (handled by SMZNegotiatedOverlay)
 
 const SMZ_URL =
   "https://frye-market-backend-1.onrender.com/api/v1/smz-levels?symbol=SPY";
 
 export default function SMZLevelsOverlay({ chart, priceSeries, chartContainer, timeframe }) {
-  console.log("[SMZLevelsOverlay] LIVE MARKER 2026-01-24 A");
+  console.log("[SMZLevelsOverlay] LIVE MARKER INSTITUTIONAL_LEVELS_ONLY");
   if (!chart || !priceSeries || !chartContainer) {
     console.warn("[SMZLevelsOverlay] missing chart/priceSeries/chartContainer");
     return { seed() {}, update() {}, destroy() {} };
   }
 
   let levels = [];
-  let stickyStructures = [];
   let canvas = null;
 
   const ts = chart.timeScale();
 
-  // === MICRO DISPLAY SETTINGS ===
-  const SHOW_MICRO = true;
-  const MICRO_MIN_STRENGTH = 85;
+  // ✅ Institutional = 85–100
+  const INSTITUTIONAL_MIN = 85;
 
-  // === STICKY DISPLAY SETTINGS ===
-  const SHOW_STICKY = true;
-
-  // ✅ Institutional fill threshold
-  const INSTITUTIONAL_FILL_MIN = 90;
-
-  // Style
-  const FILL_STRONG = "rgba(255,215,0,0.14)";     // strong institutional fill
-  const STROKE_STRONG = "rgba(255,215,0,0.90)";   // strong institutional border
-
-  // Optional: show weak institutionals as outline only (no fill)
-  const SHOW_WEAK_OUTLINE = true;
-  const STROKE_WEAK = "rgba(255,215,0,0.28)";     // faint outline
+  // Solid-only style (no dashed)
+  const FILL = "rgba(255,215,0,0.14)";
+  const STROKE = "rgba(255,215,0,0.90)";
+  const STROKE_W = 1;
 
   function ensureCanvas() {
     if (canvas) return canvas;
@@ -68,14 +55,6 @@ export default function SMZLevelsOverlay({ chart, priceSeries, chartContainer, t
     return Number.isFinite(y) ? y : null;
   }
 
-  // Prefer manualRange for sticky zones if present.
-  function effectiveRange(z) {
-    const mr = z?.manualRange;
-    if (Array.isArray(mr) && mr.length === 2) return mr;
-    const pr = z?.priceRange;
-    return Array.isArray(pr) && pr.length === 2 ? pr : null;
-  }
-
   function getHiLo(range) {
     if (!Array.isArray(range) || range.length < 2) return null;
 
@@ -86,34 +65,10 @@ export default function SMZLevelsOverlay({ chart, priceSeries, chartContainer, t
     if (lo > hi) [hi, lo] = [lo, hi];
     if (!(hi > lo)) return null;
 
-    return { hi, lo, mid: (hi + lo) / 2 };
+    return { hi, lo };
   }
 
-  function drawBand(ctx, w, hi, lo, fill, stroke, strokeWidth = 1) {
-    const yTop = priceToY(hi);
-    const yBot = priceToY(lo);
-    if (yTop == null || yBot == null) return { y: null, hBand: null };
-
-    const y = Math.min(yTop, yBot);
-    const hBand = Math.max(2, Math.abs(yBot - yTop));
-
-    if (fill && fill !== "transparent") {
-      ctx.fillStyle = fill;
-      ctx.fillRect(0, y, w, hBand);
-    }
-
-    if (stroke && stroke !== "transparent" && strokeWidth > 0) {
-      ctx.strokeStyle = stroke;
-      ctx.lineWidth = strokeWidth;
-      ctx.beginPath();
-      ctx.rect(0.5, y + 0.5, w - 1, Math.max(1, hBand - 1));
-      ctx.stroke();
-    }
-
-    return { y, hBand };
-  }
-
-  function drawDashedBox(ctx, w, hi, lo, stroke, strokeWidth = 1) {
+  function drawBand(ctx, w, hi, lo) {
     const yTop = priceToY(hi);
     const yBot = priceToY(lo);
     if (yTop == null || yBot == null) return;
@@ -121,104 +76,14 @@ export default function SMZLevelsOverlay({ chart, priceSeries, chartContainer, t
     const y = Math.min(yTop, yBot);
     const hBand = Math.max(2, Math.abs(yBot - yTop));
 
-    ctx.save();
-    ctx.strokeStyle = stroke;
-    ctx.lineWidth = strokeWidth;
-    ctx.setLineDash([8, 7]);
+    ctx.fillStyle = FILL;
+    ctx.fillRect(0, y, w, hBand);
+
+    ctx.strokeStyle = STROKE;
+    ctx.lineWidth = STROKE_W;
     ctx.beginPath();
-    ctx.rect(1, y + 1, w - 2, Math.max(1, hBand - 2));
+    ctx.rect(0.5, y + 0.5, w - 1, Math.max(1, hBand - 1));
     ctx.stroke();
-    ctx.restore();
-  }
-
-  function drawDashedMid(ctx, w, midPrice, color, lineWidth = 1) {
-    const y = priceToY(midPrice);
-    if (y == null) return;
-    ctx.save();
-    ctx.strokeStyle = color;
-    ctx.lineWidth = lineWidth;
-    ctx.setLineDash([10, 8]);
-    ctx.beginPath();
-    ctx.moveTo(0, y);
-    ctx.lineTo(w, y);
-    ctx.stroke();
-    ctx.restore();
-  }
-
-  function clipText(s, max = 30) {
-    const t = String(s || "").trim();
-    if (!t) return "";
-    if (t.length <= max) return t;
-    return t.slice(0, max - 1) + "…";
-  }
-
-  function drawCenteredLabel(ctx, xMid, yMid, text, color, boundsW, boundsH) {
-    ctx.save();
-    ctx.font = "12px system-ui, -apple-system, Segoe UI, Roboto, Arial";
-    ctx.textBaseline = "middle";
-    ctx.textAlign = "center";
-
-    const padX = 8;
-    const padY = 5;
-    const metrics = ctx.measureText(text);
-    const tw = Math.ceil(metrics.width);
-    const th = 14;
-
-    let x = Math.round(xMid);
-    let y = Math.round(yMid);
-
-    const boxW = tw + padX * 2;
-    const boxH = th + padY * 2;
-
-    const minX = Math.ceil(boxW / 2) + 2;
-    const maxX = boundsW - Math.ceil(boxW / 2) - 2;
-    const minY = Math.ceil(boxH / 2) + 2;
-    const maxY = boundsH - Math.ceil(boxH / 2) - 2;
-
-    x = Math.max(minX, Math.min(maxX, x));
-    y = Math.max(minY, Math.min(maxY, y));
-
-    ctx.fillStyle = "rgba(0,0,0,0.45)";
-    ctx.fillRect(x - boxW / 2, y - boxH / 2, boxW, boxH);
-
-    ctx.fillStyle = color;
-    ctx.fillText(text, x, y);
-    ctx.restore();
-  }
-
-  function isStickyZone(z) {
-    return (z?.tier ?? "") === "structure_sticky";
-  }
-
-  // ✅ Negotiated detection — used ONLY to exclude from this overlay
-  function isNegotiatedZone(lvl) {
-    const id = String(lvl?.details?.id ?? lvl?.structureKey ?? lvl?.id ?? "");
-    const sticky = lvl?.details?.facts?.sticky ?? {};
-    const note = String(sticky?.notes ?? lvl?.notes ?? "");
-    return id.includes("|NEG|") || note.toUpperCase().includes("NEGOTIATED");
-  }
-
-  // Sticky overrides live structures if overlapping
-  function mergeStickyOverLive(structuresLive, structuresSticky) {
-    const out = (structuresLive || []).slice();
-
-    const sticky = (structuresSticky || [])
-      .filter(isStickyZone)
-      .map((z) => ({ ...z, tier: "structure" }));
-
-    sticky.forEach((sz) => {
-      const sr = getHiLo(effectiveRange(sz));
-      if (!sr) return;
-
-      for (let i = out.length - 1; i >= 0; i--) {
-        const lr = getHiLo(effectiveRange(out[i]));
-        if (!lr) continue;
-        if (lr.hi >= sr.lo && lr.lo <= sr.hi) out.splice(i, 1);
-      }
-      out.push(sz);
-    });
-
-    return out;
   }
 
   function draw() {
@@ -231,85 +96,24 @@ export default function SMZLevelsOverlay({ chart, priceSeries, chartContainer, t
     const ctx = cnv.getContext("2d");
     ctx.clearRect(0, 0, w, h);
 
-    if (
-      (!levels || levels.length === 0) &&
-      (!stickyStructures || stickyStructures.length === 0)
-    ) {
-      return;
-    }
+    if (!Array.isArray(levels) || !levels.length) return;
 
-    const structuresLive = (levels || []).filter((l) => (l?.tier ?? "") === "structure");
-    const micros = (levels || []).filter((l) => (l?.tier ?? "") === "micro");
-
-    // Merge sticky over live
-    let structuresEffective = mergeStickyOverLive(structuresLive, stickyStructures);
-
-    // ✅ EXCLUDE negotiated zones from institutional overlay
-    structuresEffective = structuresEffective.filter((z) => !isNegotiatedZone(z));
-
-    // 0) Sticky outline (optional) — institutional only (neg excluded)
-    if (SHOW_STICKY && Array.isArray(stickyStructures) && stickyStructures.length) {
-      stickyStructures
-        .filter(isStickyZone)
-        .filter((z) => !isNegotiatedZone(z))
-        .forEach((lvl) => {
-          const r = getHiLo(effectiveRange(lvl));
-          if (!r) return;
-          drawDashedBox(ctx, w, r.hi, r.lo, "rgba(255,215,0,0.45)", 1);
-        });
-    }
-
-    // 1) Micro proto-structure dashed (optional)
-    if (SHOW_MICRO) {
-      micros
-        .filter((m) => (safeNum(m?.strength) ?? 0) >= MICRO_MIN_STRENGTH)
-        .forEach((lvl) => {
-          const r = getHiLo(effectiveRange(lvl));
-          if (!r) return;
-          drawBand(ctx, w, r.hi, r.lo, "rgba(255,215,0,0.03)", null, 0);
-          drawDashedBox(ctx, w, r.hi, r.lo, "rgba(255,215,0,0.28)", 1);
-        });
-    }
-
-    // 2) Institutional structures — fill ONLY if strength >= 90
-    structuresEffective.forEach((lvl) => {
-      const r = getHiLo(effectiveRange(lvl));
-      if (!r) return;
+    // ✅ LEVELS ONLY: tier=structure, type=institutional, strength>=85
+    for (const lvl of levels) {
+      if (!lvl) continue;
+      if (String(lvl?.tier ?? "") !== "structure") continue;
+      if (String(lvl?.type ?? "") !== "institutional") continue;
 
       const strength = safeNum(lvl?.strength) ?? 0;
-      const isStrong = strength >= INSTITUTIONAL_FILL_MIN;
+      if (strength < INSTITUTIONAL_MIN) continue;
+
+      const pr = lvl?.priceRange;
+      const r = getHiLo(pr);
+      if (!r) continue;
 
       const pad = 0.12;
-      const hi = r.hi + pad;
-      const lo = r.lo - pad;
-
-      const fill = isStrong ? FILL_STRONG : null;
-      const stroke = isStrong ? STROKE_STRONG : (SHOW_WEAK_OUTLINE ? STROKE_WEAK : null);
-
-      const { y, hBand } = drawBand(ctx, w, hi, lo, fill, stroke, 1);
-      if (y == null || hBand == null) return;
-
-      // Label only if strong (keeps chart cleaner)
-      if (isStrong) {
-        const facts = lvl?.details?.facts ?? {};
-        const sticky = facts?.sticky ?? null;
-        const note = clipText(sticky?.notes ?? lvl?.notes ?? "", 26);
-        const noteText = note ? ` — ${note}` : "";
-        const scoreText = strength ? ` ${Math.round(strength)}` : "";
-
-        drawCenteredLabel(
-          ctx,
-          w / 2,
-          y + hBand / 2,
-          `Institutional${scoreText}${noteText}`,
-          "rgba(255,215,0,0.95)",
-          w,
-          h
-        );
-
-        drawDashedMid(ctx, w, r.mid, "rgba(255,215,0,0.35)", 1);
-      }
-    });
+      drawBand(ctx, w, r.hi + pad, r.lo - pad);
+    }
   }
 
   async function loadLevels() {
@@ -318,14 +122,13 @@ export default function SMZLevelsOverlay({ chart, priceSeries, chartContainer, t
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json();
 
+      // ✅ Only use levels[] — ignore structures_sticky entirely
       levels = Array.isArray(json?.levels) ? json.levels : [];
-      stickyStructures = Array.isArray(json?.structures_sticky) ? json.structures_sticky : [];
 
       draw();
     } catch (e) {
       console.warn("[SMZLevelsOverlay] failed to load smz-levels:", e);
       levels = [];
-      stickyStructures = [];
       draw();
     }
   }
@@ -345,7 +148,6 @@ export default function SMZLevelsOverlay({ chart, priceSeries, chartContainer, t
     } catch {}
     canvas = null;
     levels = [];
-    stickyStructures = [];
     try { unsubVisible(); } catch {}
   }
 
