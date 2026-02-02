@@ -1,13 +1,20 @@
 // src/pages/rows/RowChart/overlays/SMZShelvesOverlay.jsx
 // Overlay for Accumulation / Distribution shelves (blue/red)
-// Reads /api/v1/smz-shelves -> { ok:true, meta:{...}, levels:[...] }
+// Reads /api/v1/smz-shelves?symbol=SPY -> { ok:true, meta:{...}, levels:[...] }
 //
-// ✅ NEW:
+// ✅ NEW (LOCKED FOR TESTING):
+// - If shelf strength >= 85, render as INSTITUTIONAL (yellow) instead of red/blue.
+// - This is a render-only rule (does not change shelf creation logic).
+//
+// ✅ Existing:
 // - Click detection: click a shelf band -> emits window event "smz:shelfSelected"
 // - Payload includes the shelf object + quick Q3/Q5 explanation
 
 const SMZ_SHELVES_URL =
-  "https://frye-market-backend-1.onrender.com/api/v1/smz-shelves";
+  "https://frye-market-backend-1.onrender.com/api/v1/smz-shelves?symbol=SPY";
+
+// ✅ Threshold: shelves at/above this render as institutional yellow
+const INSTITUTIONAL_SHELF_MIN = 85;
 
 function clipText(s, max = 28) {
   const t = String(s || "").trim();
@@ -43,13 +50,19 @@ function buildShelfExplain(lvl) {
 
   // Simple “human sentence” reasons
   if (type === "DISTRIBUTION") {
-    if (w7.failedPushUp > 0) why.push(`Repeated failed pushes above zone (7d failedPushUp=${w7.failedPushUp}).`);
-    if (w3.sustainedClosesAbove === false) why.push("No sustained closes above zone in last 3 days.");
-    if ((w3.netProgressSignedPts ?? 0) < 0) why.push("Net progress negative over last 3 days.");
+    if (w7.failedPushUp > 0)
+      why.push(`Repeated failed pushes above zone (7d failedPushUp=${w7.failedPushUp}).`);
+    if (w3.sustainedClosesAbove === false)
+      why.push("No sustained closes above zone in last 3 days.");
+    if ((w3.netProgressSignedPts ?? 0) < 0)
+      why.push("Net progress negative over last 3 days.");
   } else {
-    if (w7.failedPushDown > 0) why.push(`Repeated failed pushes below zone (7d failedPushDown=${w7.failedPushDown}).`);
-    if (w3.sustainedClosesBelow === false) why.push("No sustained closes below zone in last 3 days.");
-    if ((w3.netProgressSignedPts ?? 0) > 0) why.push("Net progress positive over last 3 days.");
+    if (w7.failedPushDown > 0)
+      why.push(`Repeated failed pushes below zone (7d failedPushDown=${w7.failedPushDown}).`);
+    if (w3.sustainedClosesBelow === false)
+      why.push("No sustained closes below zone in last 3 days.");
+    if ((w3.netProgressSignedPts ?? 0) > 0)
+      why.push("Net progress positive over last 3 days.");
   }
 
   if (!why.length) why.push("Behavior metrics are mixed; classification is lower confidence.");
@@ -69,6 +82,7 @@ export default function SMZShelvesOverlay({
   // Optional: parent can pass onSelect; if not, we dispatch a window event
   onSelect,
 }) {
+  console.log("[SMZShelvesOverlay] LIVE MARKER shelves overlay mounted");
   if (!chart || !priceSeries || !chartContainer) {
     console.warn("[SMZShelvesOverlay] missing chart/priceSeries/chartContainer");
     return { seed() {}, update() {}, destroy() {} };
@@ -169,7 +183,6 @@ export default function SMZShelvesOverlay({
     ctx.clearRect(0, 0, w, h);
 
     hitBoxes = [];
-
     if (!Array.isArray(levels) || levels.length === 0) return;
 
     for (const lvl of levels) {
@@ -179,14 +192,6 @@ export default function SMZShelvesOverlay({
       const isAccum = t === "accumulation";
       const isDist = t === "distribution";
       if (!isAccum && !isDist) continue;
-
-      const fill = isAccum
-        ? "rgba(0, 128, 255, 0.30)"
-        : "rgba(255, 0, 0, 0.28)";
-
-      const stroke = isAccum
-        ? "rgba(0, 128, 255, 0.95)"
-        : "rgba(255, 0, 0, 0.95)";
 
       const pr = lvl.priceRange;
       if (!Array.isArray(pr) || pr.length !== 2) continue;
@@ -205,6 +210,20 @@ export default function SMZShelvesOverlay({
       // Save hitbox for click (y range)
       hitBoxes.push({ y0: y, y1: y + bandH, lvl });
 
+      const strength = Number(lvl.scoreOverride ?? lvl.strength ?? NaN);
+      const isInstitutional = Number.isFinite(strength) && strength >= INSTITUTIONAL_SHELF_MIN;
+
+      // ✅ Render rule:
+      // - If strength >= 85 -> yellow institutional style
+      // - Else use blue/red shelf style
+      const fill = isInstitutional
+        ? "rgba(255,215,0,0.14)"
+        : (isAccum ? "rgba(0, 128, 255, 0.30)" : "rgba(255, 0, 0, 0.28)");
+
+      const stroke = isInstitutional
+        ? "rgba(255,215,0,0.90)"
+        : (isAccum ? "rgba(0, 128, 255, 0.95)" : "rgba(255, 0, 0, 0.95)");
+
       ctx.fillStyle = fill;
       ctx.fillRect(0, y, w, bandH);
 
@@ -220,9 +239,12 @@ export default function SMZShelvesOverlay({
         drawMidline(ctx, 0, w, yMid, stroke);
       }
 
-      const labelBase = isAccum ? "Accumulation" : "Distribution";
-      const score = Number(lvl.scoreOverride ?? lvl.strength ?? NaN);
-      const scoreText = Number.isFinite(score) ? ` ${Math.round(score)}` : "";
+      // Label
+      const labelBase = isInstitutional
+        ? "Institutional"
+        : (isAccum ? "Accumulation" : "Distribution");
+
+      const scoreText = Number.isFinite(strength) ? ` ${Math.round(strength)}` : "";
       const comment = clipText(lvl.comment, 26);
       const commentText = comment ? ` — ${comment}` : "";
       const label = `${labelBase}${scoreText}${commentText}`;
