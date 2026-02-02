@@ -1,31 +1,32 @@
 // src/pages/rows/RowChart/overlays/SMZLevelsOverlay.jsx
-// Engine 1 Overlay — INSTITUTIONAL STRUCTURES ONLY (yellow)
+// Engine 1 Overlay — INSTITUTIONAL PARENTS ONLY (yellow)
 //
-// ✅ LOCKED (PER USER):
-// - Institutional zones come from smz-levels.json -> levels[] ONLY (live truth)
-// - Institutional threshold = 85–100
-// - NO dashed yellow lines at all (no sticky outlines, no midlines, no micro)
+// ✅ LOCKED:
+// - Manual institutional parents ALWAYS show (from structures_sticky)
+// - Live institutional zones show ONLY if strength >= 85 (from levels[])
+// - NO dashed yellow lines, NO midlines, NO micro, NO sticky outlines
 // - Negotiated (|NEG|) is NOT drawn here (handled by SMZNegotiatedOverlay)
 
 const SMZ_URL =
   "https://frye-market-backend-1.onrender.com/api/v1/smz-levels?symbol=SPY";
 
 export default function SMZLevelsOverlay({ chart, priceSeries, chartContainer, timeframe }) {
-  console.log("[SMZLevelsOverlay] LIVE MARKER INSTITUTIONAL_LEVELS_ONLY");
+  console.log("[SMZLevelsOverlay] LIVE MARKER MANUAL+LIVE_INSTITUTIONAL");
   if (!chart || !priceSeries || !chartContainer) {
     console.warn("[SMZLevelsOverlay] missing chart/priceSeries/chartContainer");
     return { seed() {}, update() {}, destroy() {} };
   }
 
   let levels = [];
+  let sticky = [];
   let canvas = null;
 
   const ts = chart.timeScale();
 
-  // ✅ Institutional = 85–100
+  // Institutional threshold (live only)
   const INSTITUTIONAL_MIN = 85;
 
-  // Solid-only style (no dashed)
+  // Solid-only yellow style
   const FILL = "rgba(255,215,0,0.14)";
   const STROKE = "rgba(255,215,0,0.90)";
   const STROKE_W = 1;
@@ -38,7 +39,7 @@ export default function SMZLevelsOverlay({ chart, priceSeries, chartContainer, t
       position: "absolute",
       inset: 0,
       pointerEvents: "none",
-      zIndex: 12, // below negotiated (13) and shelves (14)
+      zIndex: 12,
     });
     chartContainer.appendChild(cnv);
     canvas = cnv;
@@ -56,16 +57,30 @@ export default function SMZLevelsOverlay({ chart, priceSeries, chartContainer, t
   }
 
   function getHiLo(range) {
-    if (!Array.isArray(range) || range.length < 2) return null;
-
-    let hi = safeNum(range[0]);
-    let lo = safeNum(range[1]);
-    if (hi == null || lo == null) return null;
-
-    if (lo > hi) [hi, lo] = [lo, hi];
+    if (!Array.isArray(range) || range.length !== 2) return null;
+    let a = safeNum(range[0]);
+    let b = safeNum(range[1]);
+    if (a == null || b == null) return null;
+    let hi = Math.max(a, b);
+    let lo = Math.min(a, b);
     if (!(hi > lo)) return null;
-
     return { hi, lo };
+  }
+
+  function zoneId(z) {
+    return String(z?.details?.id ?? z?.structureKey ?? z?.id ?? "");
+  }
+
+  function isNegotiated(z) {
+    const id = zoneId(z);
+    return id.includes("|NEG|");
+  }
+
+  function isManualInstitutionalParent(z) {
+    const id = zoneId(z);
+    if (!id.startsWith("MANUAL|")) return false;
+    if (id.includes("|NEG|")) return false;
+    return true;
   }
 
   function drawBand(ctx, w, hi, lo) {
@@ -96,23 +111,37 @@ export default function SMZLevelsOverlay({ chart, priceSeries, chartContainer, t
     const ctx = cnv.getContext("2d");
     ctx.clearRect(0, 0, w, h);
 
-    if (!Array.isArray(levels) || !levels.length) return;
+    // 1) Manual institutional parents ALWAYS (structures_sticky)
+    if (Array.isArray(sticky) && sticky.length) {
+      for (const z of sticky) {
+        if (!z) continue;
+        if (String(z?.tier ?? "") !== "structure_sticky") continue;
+        if (!isManualInstitutionalParent(z)) continue;
 
-    // ✅ LEVELS ONLY: tier=structure, type=institutional, strength>=85
-    for (const lvl of levels) {
-      if (!lvl) continue;
-      if (String(lvl?.tier ?? "") !== "structure") continue;
-      if (String(lvl?.type ?? "") !== "institutional") continue;
+        const r = getHiLo(z?.priceRange);
+        if (!r) continue;
 
-      const strength = safeNum(lvl?.strength) ?? 0;
-      if (strength < INSTITUTIONAL_MIN) continue;
+        const pad = 0.12;
+        drawBand(ctx, w, r.hi + pad, r.lo - pad);
+      }
+    }
 
-      const pr = lvl?.priceRange;
-      const r = getHiLo(pr);
-      if (!r) continue;
+    // 2) Live institutional zones from levels[] ONLY if strength >= 85
+    if (Array.isArray(levels) && levels.length) {
+      for (const lvl of levels) {
+        if (!lvl) continue;
+        if (String(lvl?.tier ?? "") !== "structure") continue;
+        if (String(lvl?.type ?? "") !== "institutional") continue;
 
-      const pad = 0.12;
-      drawBand(ctx, w, r.hi + pad, r.lo - pad);
+        const strength = safeNum(lvl?.strength) ?? 0;
+        if (strength < INSTITUTIONAL_MIN) continue;
+
+        const r = getHiLo(lvl?.priceRange);
+        if (!r) continue;
+
+        const pad = 0.12;
+        drawBand(ctx, w, r.hi + pad, r.lo - pad);
+      }
     }
   }
 
@@ -122,13 +151,14 @@ export default function SMZLevelsOverlay({ chart, priceSeries, chartContainer, t
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json();
 
-      // ✅ Only use levels[] — ignore structures_sticky entirely
       levels = Array.isArray(json?.levels) ? json.levels : [];
+      sticky = Array.isArray(json?.structures_sticky) ? json.structures_sticky : [];
 
       draw();
     } catch (e) {
       console.warn("[SMZLevelsOverlay] failed to load smz-levels:", e);
       levels = [];
+      sticky = [];
       draw();
     }
   }
@@ -148,6 +178,7 @@ export default function SMZLevelsOverlay({ chart, priceSeries, chartContainer, t
     } catch {}
     canvas = null;
     levels = [];
+    sticky = [];
     try { unsubVisible(); } catch {}
   }
 
