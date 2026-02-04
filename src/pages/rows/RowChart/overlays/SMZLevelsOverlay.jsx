@@ -1,15 +1,8 @@
 // src/pages/rows/RowChart/overlays/SMZLevelsOverlay.jsx
 // Engine 1 Overlay — INSTITUTIONAL PARENTS ONLY (yellow)
 //
-// ✅ LOCKED:
-// - Manual institutional parents ALWAYS show (from structures_sticky)
-// - Live institutional zones show ONLY if strength >= 85 (from levels[])
-// - NO dashed yellow lines, NO midlines, NO micro, NO sticky outlines
-// - Negotiated (|NEG|) is NOT drawn here (handled by SMZNegotiatedOverlay)
-//
-// ✅ FIX (this rewrite):
-// - Prevent "big yellow blob" by filling only a limited number of key bands.
-// - All other institutionals are outline-only (still visible, no carpet).
+// ✅ Uses displayPriceRange if provided by backend job.
+// ✅ Prevents wide “travel zones” from filling the chart.
 
 const SMZ_URL =
   "https://frye-market-backend-1.onrender.com/api/v1/smz-levels?symbol=SPY";
@@ -24,18 +17,14 @@ export default function SMZLevelsOverlay({ chart, priceSeries, chartContainer })
   let canvas = null;
 
   const ts = chart.timeScale();
-
-  // Institutional threshold (live only)
   const INSTITUTIONAL_MIN = 85;
 
-  // Visual tuning to avoid blob
-  const PAD = 0.06;                 // smaller padding than before
-  const MAX_FILLED_TOTAL = 3;       // total number of filled bands (manual+live)
-  const MAX_FILLED_MANUAL = 2;      // how many manual zones get filled
-  const MAX_FILLED_LIVE = 1;        // how many live >=85 zones get filled
+  const PAD = 0.06;
+  const MAX_FILLED_TOTAL = 3;
+  const MAX_FILLED_MANUAL = 2;
+  const MAX_FILLED_LIVE = 1;
 
-  // Styles
-  const FILL = "rgba(255,215,0,0.06)";       // much lighter fill
+  const FILL = "rgba(255,215,0,0.06)";
   const STROKE = "rgba(255,215,0,0.75)";
   const OUTLINE = "rgba(255,215,0,0.55)";
   const STROKE_W = 1;
@@ -52,7 +41,7 @@ export default function SMZLevelsOverlay({ chart, priceSeries, chartContainer })
     });
     chartContainer.appendChild(cnv);
     canvas = cnv;
-    return canvas;
+    return cnv;
   }
 
   function safeNum(v) {
@@ -65,13 +54,14 @@ export default function SMZLevelsOverlay({ chart, priceSeries, chartContainer })
     return Number.isFinite(y) ? y : null;
   }
 
-  function getHiLo(range) {
+  function getHiLoFromZone(z) {
+    const range = z?.displayPriceRange ?? z?.priceRange;
     if (!Array.isArray(range) || range.length !== 2) return null;
-    let a = safeNum(range[0]);
-    let b = safeNum(range[1]);
+    const a = safeNum(range[0]);
+    const b = safeNum(range[1]);
     if (a == null || b == null) return null;
-    let hi = Math.max(a, b);
-    let lo = Math.min(a, b);
+    const hi = Math.max(a, b);
+    const lo = Math.min(a, b);
     if (!(hi > lo)) return null;
     return { hi, lo, width: hi - lo, mid: (hi + lo) / 2 };
   }
@@ -81,7 +71,6 @@ export default function SMZLevelsOverlay({ chart, priceSeries, chartContainer })
   }
 
   function isNegotiated(z) {
-    // Prefer explicit flag if present; fallback to id
     if (z?.isNegotiated === true) return true;
     const id = zoneId(z);
     return id.includes("|NEG|");
@@ -90,8 +79,7 @@ export default function SMZLevelsOverlay({ chart, priceSeries, chartContainer })
   function isManualInstitutionalParent(z) {
     const id = zoneId(z);
     if (!id.startsWith("MANUAL|")) return false;
-    if (id.includes("|NEG|")) return false;
-    if (z?.isNegotiated === true) return false;
+    if (isNegotiated(z)) return false;
     return true;
   }
 
@@ -113,7 +101,6 @@ export default function SMZLevelsOverlay({ chart, priceSeries, chartContainer })
       ctx.rect(0.5, y + 0.5, w - 1, Math.max(1, hBand - 1));
       ctx.stroke();
     } else {
-      // Outline-only (no fill) to avoid blob
       ctx.strokeStyle = OUTLINE;
       ctx.lineWidth = 1;
       ctx.beginPath();
@@ -123,12 +110,14 @@ export default function SMZLevelsOverlay({ chart, priceSeries, chartContainer })
   }
 
   function getCurrentPrice() {
-    // Try to read last close from priceSeries (best effort)
     try {
-      const last = priceSeries?.dataByIndex?.(ts?.getVisibleLogicalRange?.()?.to ?? 0, -1);
-      const c = last?.value ?? last?.close ?? null;
-      const n = safeNum(c);
-      return n;
+      const vr = ts?.getVisibleLogicalRange?.();
+      const idx = vr?.to ?? null;
+      if (idx == null) return null;
+      const bar = priceSeries?.dataByIndex?.(idx, -1);
+      const c = bar?.value ?? bar?.close ?? null;
+      const n = Number(c);
+      return Number.isFinite(n) ? n : null;
     } catch {
       return null;
     }
@@ -146,63 +135,47 @@ export default function SMZLevelsOverlay({ chart, priceSeries, chartContainer })
 
     const currentPrice = getCurrentPrice();
 
-    // Collect manual institutional parents
     const manualZones = (Array.isArray(sticky) ? sticky : [])
       .filter((z) => z && String(z?.tier ?? "") === "structure_sticky")
       .filter((z) => isManualInstitutionalParent(z))
       .map((z) => {
-        const r = getHiLo(z?.priceRange);
+        const r = getHiLoFromZone(z);
         if (!r) return null;
-        // rank by closeness to current price if available, else by width (tighter first)
-        const dist = Number.isFinite(currentPrice)
-          ? Math.abs(r.mid - currentPrice)
-          : r.width;
+        const dist = Number.isFinite(currentPrice) ? Math.abs(r.mid - currentPrice) : r.width;
         return { z, r, dist };
       })
       .filter(Boolean)
       .sort((a, b) => a.dist - b.dist);
 
-    // Collect live institutional structures (>=85 only)
     const liveZones = (Array.isArray(levels) ? levels : [])
       .filter((lvl) => lvl && String(lvl?.tier ?? "") === "structure")
       .filter((lvl) => String(lvl?.type ?? "") === "institutional")
-      .filter((lvl) => {
-        if (isNegotiated(lvl)) return false;
-        const s = safeNum(lvl?.strength) ?? 0;
-        return s >= INSTITUTIONAL_MIN;
-      })
+      .filter((lvl) => !isNegotiated(lvl))
+      .filter((lvl) => (safeNum(lvl?.strength_raw ?? lvl?.strength) ?? 0) >= INSTITUTIONAL_MIN)
       .map((lvl) => {
-        const r = getHiLo(lvl?.priceRange);
+        const r = getHiLoFromZone(lvl);
         if (!r) return null;
-        const dist = Number.isFinite(currentPrice)
-          ? Math.abs(r.mid - currentPrice)
-          : r.width;
-        const strength = safeNum(lvl?.strength) ?? 0;
+        const dist = Number.isFinite(currentPrice) ? Math.abs(r.mid - currentPrice) : r.width;
+        const strength = safeNum(lvl?.strength_raw ?? lvl?.strength) ?? 0;
         return { lvl, r, dist, strength };
       })
       .filter(Boolean)
       .sort((a, b) => {
-        // closer first, then stronger, then tighter
         if (a.dist !== b.dist) return a.dist - b.dist;
         if (b.strength !== a.strength) return b.strength - a.strength;
         return a.r.width - b.r.width;
       });
 
-    // Decide which to FILL
     const fillManual = manualZones.slice(0, MAX_FILLED_MANUAL);
     const fillLive = liveZones.slice(0, MAX_FILLED_LIVE);
-
-    // Combined filled cap
     const filled = [...fillManual, ...fillLive].slice(0, MAX_FILLED_TOTAL);
 
-    // Draw manual first (so outlines don’t cover fills weirdly)
     for (const item of manualZones) {
       const { r } = item;
       const isFilled = filled.some((x) => x === item);
       drawBand(ctx, w, r.hi + PAD, r.lo - PAD, isFilled);
     }
 
-    // Draw live next
     for (const item of liveZones) {
       const { r } = item;
       const isFilled = filled.some((x) => x === item);
@@ -215,12 +188,10 @@ export default function SMZLevelsOverlay({ chart, priceSeries, chartContainer })
       const res = await fetch(`${SMZ_URL}&_=${Date.now()}`, { cache: "no-store" });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json();
-
       levels = Array.isArray(json?.levels) ? json.levels : [];
       sticky = Array.isArray(json?.structures_sticky) ? json.structures_sticky : [];
-
       draw();
-    } catch (e) {
+    } catch {
       levels = [];
       sticky = [];
       draw();
@@ -229,16 +200,14 @@ export default function SMZLevelsOverlay({ chart, priceSeries, chartContainer })
 
   loadLevels();
 
+  const unsubVisible = ts.subscribeVisibleLogicalRangeChange?.(() => draw()) || (() => {});
+
   function seed() { draw(); }
   function update() { draw(); }
 
-  const unsubVisible = ts.subscribeVisibleLogicalRangeChange?.(() => draw()) || (() => {});
-
   function destroy() {
     try {
-      if (canvas && canvas.parentNode === chartContainer) {
-        chartContainer.removeChild(canvas);
-      }
+      if (canvas && canvas.parentNode === chartContainer) chartContainer.removeChild(canvas);
     } catch {}
     canvas = null;
     levels = [];
