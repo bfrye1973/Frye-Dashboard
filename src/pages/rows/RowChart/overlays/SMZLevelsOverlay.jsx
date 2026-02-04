@@ -6,14 +6,16 @@
 // - Live institutional zones show ONLY if strength >= 85 (from levels[])
 // - NO dashed yellow lines, NO midlines, NO micro, NO sticky outlines
 // - Negotiated (|NEG|) is NOT drawn here (handled by SMZNegotiatedOverlay)
+//
+// ✅ FIX (this rewrite):
+// - Prevent "big yellow blob" by filling only a limited number of key bands.
+// - All other institutionals are outline-only (still visible, no carpet).
 
 const SMZ_URL =
   "https://frye-market-backend-1.onrender.com/api/v1/smz-levels?symbol=SPY";
 
-export default function SMZLevelsOverlay({ chart, priceSeries, chartContainer, timeframe }) {
-  console.log("[SMZLevelsOverlay] LIVE MARKER MANUAL+LIVE_INSTITUTIONAL");
+export default function SMZLevelsOverlay({ chart, priceSeries, chartContainer }) {
   if (!chart || !priceSeries || !chartContainer) {
-    console.warn("[SMZLevelsOverlay] missing chart/priceSeries/chartContainer");
     return { seed() {}, update() {}, destroy() {} };
   }
 
@@ -26,9 +28,16 @@ export default function SMZLevelsOverlay({ chart, priceSeries, chartContainer, t
   // Institutional threshold (live only)
   const INSTITUTIONAL_MIN = 85;
 
-  // Solid-only yellow style
-  const FILL = "rgba(255,215,0,0.14)";
-  const STROKE = "rgba(255,215,0,0.90)";
+  // Visual tuning to avoid blob
+  const PAD = 0.06;                 // smaller padding than before
+  const MAX_FILLED_TOTAL = 3;       // total number of filled bands (manual+live)
+  const MAX_FILLED_MANUAL = 2;      // how many manual zones get filled
+  const MAX_FILLED_LIVE = 1;        // how many live >=85 zones get filled
+
+  // Styles
+  const FILL = "rgba(255,215,0,0.06)";       // much lighter fill
+  const STROKE = "rgba(255,215,0,0.75)";
+  const OUTLINE = "rgba(255,215,0,0.55)";
   const STROKE_W = 1;
 
   function ensureCanvas() {
@@ -64,7 +73,7 @@ export default function SMZLevelsOverlay({ chart, priceSeries, chartContainer, t
     let hi = Math.max(a, b);
     let lo = Math.min(a, b);
     if (!(hi > lo)) return null;
-    return { hi, lo };
+    return { hi, lo, width: hi - lo, mid: (hi + lo) / 2 };
   }
 
   function zoneId(z) {
@@ -72,6 +81,8 @@ export default function SMZLevelsOverlay({ chart, priceSeries, chartContainer, t
   }
 
   function isNegotiated(z) {
+    // Prefer explicit flag if present; fallback to id
+    if (z?.isNegotiated === true) return true;
     const id = zoneId(z);
     return id.includes("|NEG|");
   }
@@ -80,10 +91,11 @@ export default function SMZLevelsOverlay({ chart, priceSeries, chartContainer, t
     const id = zoneId(z);
     if (!id.startsWith("MANUAL|")) return false;
     if (id.includes("|NEG|")) return false;
+    if (z?.isNegotiated === true) return false;
     return true;
   }
 
-  function drawBand(ctx, w, hi, lo) {
+  function drawBand(ctx, w, hi, lo, filled) {
     const yTop = priceToY(hi);
     const yBot = priceToY(lo);
     if (yTop == null || yBot == null) return;
@@ -91,14 +103,35 @@ export default function SMZLevelsOverlay({ chart, priceSeries, chartContainer, t
     const y = Math.min(yTop, yBot);
     const hBand = Math.max(2, Math.abs(yBot - yTop));
 
-    ctx.fillStyle = FILL;
-    ctx.fillRect(0, y, w, hBand);
+    if (filled) {
+      ctx.fillStyle = FILL;
+      ctx.fillRect(0, y, w, hBand);
 
-    ctx.strokeStyle = STROKE;
-    ctx.lineWidth = STROKE_W;
-    ctx.beginPath();
-    ctx.rect(0.5, y + 0.5, w - 1, Math.max(1, hBand - 1));
-    ctx.stroke();
+      ctx.strokeStyle = STROKE;
+      ctx.lineWidth = STROKE_W;
+      ctx.beginPath();
+      ctx.rect(0.5, y + 0.5, w - 1, Math.max(1, hBand - 1));
+      ctx.stroke();
+    } else {
+      // Outline-only (no fill) to avoid blob
+      ctx.strokeStyle = OUTLINE;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.rect(0.5, y + 0.5, w - 1, Math.max(1, hBand - 1));
+      ctx.stroke();
+    }
+  }
+
+  function getCurrentPrice() {
+    // Try to read last close from priceSeries (best effort)
+    try {
+      const last = priceSeries?.dataByIndex?.(ts?.getVisibleLogicalRange?.()?.to ?? 0, -1);
+      const c = last?.value ?? last?.close ?? null;
+      const n = safeNum(c);
+      return n;
+    } catch {
+      return null;
+    }
   }
 
   function draw() {
@@ -111,37 +144,69 @@ export default function SMZLevelsOverlay({ chart, priceSeries, chartContainer, t
     const ctx = cnv.getContext("2d");
     ctx.clearRect(0, 0, w, h);
 
-    // 1) Manual institutional parents ALWAYS (structures_sticky)
-    if (Array.isArray(sticky) && sticky.length) {
-      for (const z of sticky) {
-        if (!z) continue;
-        if (String(z?.tier ?? "") !== "structure_sticky") continue;
-        if (!isManualInstitutionalParent(z)) continue;
+    const currentPrice = getCurrentPrice();
 
+    // Collect manual institutional parents
+    const manualZones = (Array.isArray(sticky) ? sticky : [])
+      .filter((z) => z && String(z?.tier ?? "") === "structure_sticky")
+      .filter((z) => isManualInstitutionalParent(z))
+      .map((z) => {
         const r = getHiLo(z?.priceRange);
-        if (!r) continue;
+        if (!r) return null;
+        // rank by closeness to current price if available, else by width (tighter first)
+        const dist = Number.isFinite(currentPrice)
+          ? Math.abs(r.mid - currentPrice)
+          : r.width;
+        return { z, r, dist };
+      })
+      .filter(Boolean)
+      .sort((a, b) => a.dist - b.dist);
 
-        const pad = 0.12;
-        drawBand(ctx, w, r.hi + pad, r.lo - pad);
-      }
+    // Collect live institutional structures (>=85 only)
+    const liveZones = (Array.isArray(levels) ? levels : [])
+      .filter((lvl) => lvl && String(lvl?.tier ?? "") === "structure")
+      .filter((lvl) => String(lvl?.type ?? "") === "institutional")
+      .filter((lvl) => {
+        if (isNegotiated(lvl)) return false;
+        const s = safeNum(lvl?.strength) ?? 0;
+        return s >= INSTITUTIONAL_MIN;
+      })
+      .map((lvl) => {
+        const r = getHiLo(lvl?.priceRange);
+        if (!r) return null;
+        const dist = Number.isFinite(currentPrice)
+          ? Math.abs(r.mid - currentPrice)
+          : r.width;
+        const strength = safeNum(lvl?.strength) ?? 0;
+        return { lvl, r, dist, strength };
+      })
+      .filter(Boolean)
+      .sort((a, b) => {
+        // closer first, then stronger, then tighter
+        if (a.dist !== b.dist) return a.dist - b.dist;
+        if (b.strength !== a.strength) return b.strength - a.strength;
+        return a.r.width - b.r.width;
+      });
+
+    // Decide which to FILL
+    const fillManual = manualZones.slice(0, MAX_FILLED_MANUAL);
+    const fillLive = liveZones.slice(0, MAX_FILLED_LIVE);
+
+    // Combined filled cap
+    const filled = [...fillManual, ...fillLive].slice(0, MAX_FILLED_TOTAL);
+
+    // Draw manual first (so outlines don’t cover fills weirdly)
+    for (const item of manualZones) {
+      const { r } = item;
+      const isFilled = filled.some((x) => x === item);
+      drawBand(ctx, w, r.hi + PAD, r.lo - PAD, isFilled);
     }
 
-    // 2) Live institutional zones from levels[] ONLY if strength >= 85
-    if (Array.isArray(levels) && levels.length) {
-      for (const lvl of levels) {
-        if (!lvl) continue;
-        if (String(lvl?.tier ?? "") !== "structure") continue;
-        if (String(lvl?.type ?? "") !== "institutional") continue;
-
-        const strength = safeNum(lvl?.strength) ?? 0;
-        if (strength < INSTITUTIONAL_MIN) continue;
-
-        const r = getHiLo(lvl?.priceRange);
-        if (!r) continue;
-
-        const pad = 0.12;
-        drawBand(ctx, w, r.hi + pad, r.lo - pad);
-      }
+    // Draw live next
+    for (const item of liveZones) {
+      const { r } = item;
+      const isFilled = filled.some((x) => x === item);
+      drawBand(ctx, w, r.hi + PAD, r.lo - PAD, isFilled);
     }
   }
 
@@ -156,7 +221,6 @@ export default function SMZLevelsOverlay({ chart, priceSeries, chartContainer, t
 
       draw();
     } catch (e) {
-      console.warn("[SMZLevelsOverlay] failed to load smz-levels:", e);
       levels = [];
       sticky = [];
       draw();
