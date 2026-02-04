@@ -441,7 +441,11 @@ export default function RowStrategies() {
 
     async function pull() {
       if (!alive) return;
-      if (inFlight) return;
+      if (inFlight) {
+        // never stall polling
+        timer = setTimeout(pull, 20000);
+        return;
+      }
 
       inFlight = true;
 
