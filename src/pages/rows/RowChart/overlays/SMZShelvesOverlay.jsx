@@ -99,12 +99,12 @@ export default function SMZShelvesOverlay({
 
   function drawCenteredLabel(ctx, xMid, yMid, text, stroke, boundsW, boundsH) {
     ctx.save();
-    ctx.font = "18px system-ui, -apple-system, Segoe UI, Roboto, Arial";
+    ctx.font = "bold 20px system-ui, -apple-system, Segoe UI, Roboto, Arial";
     ctx.textBaseline = "middle";
     ctx.textAlign = "center";
 
-    const padX = 8;
-    const padY = 5;
+    const padX = 16;
+    const padY = 10;
     const metrics = ctx.measureText(text);
     const tw = Math.ceil(metrics.width);
     const th = 14;
@@ -244,6 +244,24 @@ export default function SMZShelvesOverlay({
 
     hits.sort((a, b) => Number(getStrengthRaw(b?.lvl) ?? 0) - Number(getStrengthRaw(a?.lvl) ?? 0));
     const selected = hits[0].lvl;
+  // Alt + Click → copy manual shelf line to clipboard
+  if (evt.altKey) {
+    const pr = selected?.priceRange;
+    if (Array.isArray(pr) && pr.length === 2) {
+      const hi = Math.max(pr[0], pr[1]).toFixed(2);
+      const lo = Math.min(pr[0], pr[1]).toFixed(2);
+
+      const type = (selected?.type || "").toUpperCase();
+      const line = `${lo}-${hi}  # ${type} shelf`;
+
+      try {
+        navigator.clipboard.writeText(line);
+        console.log("[SMZ] Copied shelf:", line);
+      } catch (e) {
+        console.warn("[SMZ] Clipboard failed:", line);
+      }
+    }
+  }
 
     const payload = { kind: "shelf", selected };
 
