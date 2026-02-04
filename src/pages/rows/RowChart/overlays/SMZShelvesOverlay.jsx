@@ -99,7 +99,7 @@ export default function SMZShelvesOverlay({
 
   function drawCenteredLabel(ctx, xMid, yMid, text, stroke, boundsW, boundsH) {
     ctx.save();
-    ctx.font = "12px system-ui, -apple-system, Segoe UI, Roboto, Arial";
+    ctx.font = "18px system-ui, -apple-system, Segoe UI, Roboto, Arial";
     ctx.textBaseline = "middle";
     ctx.textAlign = "center";
 
