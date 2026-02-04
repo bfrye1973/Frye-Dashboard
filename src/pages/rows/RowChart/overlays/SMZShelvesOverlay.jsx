@@ -2,22 +2,22 @@
 // Overlay for Accumulation / Distribution shelves (blue/red)
 // Reads /api/v1/smz-shelves?symbol=SPY -> { ok:true, meta:{...}, levels:[...] }
 //
-// ✅ TEST RULE (LOCKED FOR NOW):
-// - If shelf strength_raw (preferred) >= 85, render as INSTITUTIONAL (yellow) zone.
-// - Otherwise keep normal shelf colors:
-//   accumulation = blue, distribution = red
+// ✅ LOCKED NOW:
+// - Shelves are NEVER yellow. Ever.
+// - accumulation = blue
+// - distribution = red
 //
-// ✅ Existing:
-// - Click detection -> emits window event "smz:shelfSelected"
-// - Payload includes the shelf object + quick Q3/Q5 explanation
+// ✅ Beta:
+// - Prefer strength_raw + confidence if present
+// - Label shows: Type + strength + confidence
 //
-// ❌ IMPORTANT:
-// - No backend imports. Frontend only fetches API.
+// ✅ Fix:
+// - If backend type looks wrong, apply a trader-safe fallback:
+//   - Zone ABOVE current price => Distribution (red)
+//   - Zone BELOW current price => Accumulation (blue)
 
 const SMZ_SHELVES_URL =
   "https://frye-market-backend-1.onrender.com/api/v1/smz-shelves?symbol=SPY";
-
-const INSTITUTIONAL_SHELF_MIN = 85;
 
 function clipText(s, max = 28) {
   const t = String(s || "").trim();
@@ -26,49 +26,7 @@ function clipText(s, max = 28) {
   return t.slice(0, max - 1) + "…";
 }
 
-// Build a tiny “AI smart” explanation from diagnostic (deterministic, no API)
-function buildShelfExplain(lvl) {
-  const d = lvl?.diagnostic?.relevance;
-  const w3 = d?.window3d;
-  const w7 = d?.window7d;
-
-  if (!w3 || !w7) {
-    return {
-      headline: `${lvl?.type ?? "Shelf"}`,
-      why: ["No diagnostic data found."],
-      verdict: "",
-    };
-  }
-
-  const wickLine3d = `Q3 (3d): upperTouches=${w3.upperWickTouches}, lowerTouches=${w3.lowerWickTouches}, wickBias=${w3.wickBias}`;
-  const wickLine7d = `Q3 (7d): upperTouches=${w7.upperWickTouches}, lowerTouches=${w7.lowerWickTouches}, wickBias=${w7.wickBias}`;
-
-  const q5Line3d = `Q5 (3d): sustainedAbove=${w3.sustainedClosesAbove}, sustainedBelow=${w3.sustainedClosesBelow}, netProgress=${w3.netProgressSignedPts}`;
-  const q5Line7d = `Q5 (7d): sustainedAbove=${w7.sustainedClosesAbove}, sustainedBelow=${w7.sustainedClosesBelow}, netProgress=${w7.netProgressSignedPts}`;
-
-  const type = String(d.typeByRelevance || lvl.type || "").toUpperCase();
-  const why = [];
-
-  if (type === "DISTRIBUTION") {
-    if (w7.failedPushUp > 0) why.push(`Repeated failed pushes above zone (7d failedPushUp=${w7.failedPushUp}).`);
-    if (w3.sustainedClosesAbove === false) why.push("No sustained closes above zone in last 3 days.");
-    if ((w3.netProgressSignedPts ?? 0) < 0) why.push("Net progress negative over last 3 days.");
-  } else {
-    if (w7.failedPushDown > 0) why.push(`Repeated failed pushes below zone (7d failedPushDown=${w7.failedPushDown}).`);
-    if (w3.sustainedClosesBelow === false) why.push("No sustained closes below zone in last 3 days.");
-    if ((w3.netProgressSignedPts ?? 0) > 0) why.push("Net progress positive over last 3 days.");
-  }
-
-  if (!why.length) why.push("Behavior metrics are mixed; classification is lower confidence.");
-
-  return {
-    headline: `${type} shelf`,
-    why: [wickLine3d, wickLine7d, q5Line3d, q5Line7d, ...why],
-    verdict: `Type by relevance: ${d.typeByRelevance} (confidence ${d.confidence}, distWeighted ${d.distWeighted}, accWeighted ${d.accWeighted})`,
-  };
-}
-
-// ✅ Prefer strength_raw for truth; fallback to strength
+// Prefer strength_raw for truth; fallback to strength
 function getStrengthRaw(lvl) {
   const raw = Number(lvl?.strength_raw);
   if (Number.isFinite(raw)) return raw;
@@ -76,16 +34,18 @@ function getStrengthRaw(lvl) {
   return Number.isFinite(s) ? s : NaN;
 }
 
+function getConfidence(lvl) {
+  const c = Number(lvl?.confidence);
+  return Number.isFinite(c) ? c : null;
+}
+
 export default function SMZShelvesOverlay({
   chart,
   priceSeries,
   chartContainer,
-  timeframe,
   onSelect,
 }) {
-  console.log("[SMZShelvesOverlay] mounted");
   if (!chart || !priceSeries || !chartContainer) {
-    console.warn("[SMZShelvesOverlay] missing chart/priceSeries/chartContainer");
     return { seed() {}, update() {}, destroy() {} };
   }
 
@@ -96,6 +56,16 @@ export default function SMZShelvesOverlay({
   let hitBoxes = []; // { y0, y1, lvl }
 
   const ts = chart.timeScale();
+
+  // Colors (never yellow)
+  const ACC_FILL = "rgba(0, 128, 255, 0.22)";
+  const ACC_STROKE = "rgba(0, 128, 255, 0.95)";
+
+  const DIST_FILL = "rgba(255, 0, 0, 0.20)";
+  const DIST_STROKE = "rgba(255, 0, 0, 0.95)";
+
+  // Keep shelves visually secondary to SMZ
+  const STROKE_W = 2;
 
   function ensureCanvas() {
     if (canvas) return canvas;
@@ -125,18 +95,6 @@ export default function SMZShelvesOverlay({
     if (cnv.width !== w) cnv.width = w;
     if (cnv.height !== h) cnv.height = h;
     return { w, h };
-  }
-
-  function drawMidline(ctx, x0, x1, y, stroke) {
-    ctx.save();
-    ctx.strokeStyle = stroke;
-    ctx.lineWidth = 1;
-    ctx.setLineDash([6, 4]);
-    ctx.beginPath();
-    ctx.moveTo(x0, y + 0.5);
-    ctx.lineTo(x1, y + 0.5);
-    ctx.stroke();
-    ctx.restore();
   }
 
   function drawCenteredLabel(ctx, xMid, yMid, text, stroke, boundsW, boundsH) {
@@ -173,6 +131,45 @@ export default function SMZShelvesOverlay({
     ctx.restore();
   }
 
+  function getCurrentPrice() {
+    // Best-effort: use latest visible bar close if possible
+    try {
+      const vr = ts?.getVisibleLogicalRange?.();
+      const idx = vr?.to ?? null;
+      if (idx == null) return null;
+      const bar = priceSeries?.dataByIndex?.(idx, -1);
+      const c = bar?.value ?? bar?.close ?? null;
+      const n = Number(c);
+      return Number.isFinite(n) ? n : null;
+    } catch {
+      return null;
+    }
+  }
+
+  // Trader-safe type fallback:
+  // - If zone is above current price => distribution
+  // - If zone is below current price => accumulation
+  function resolveType(lvl, hi, lo, currentPrice) {
+    const t = String(lvl?.type || "").toLowerCase();
+    const isAccum = t === "accumulation";
+    const isDist = t === "distribution";
+
+    // If backend gives a clean type, we still allow fallback correction by position.
+    if (Number.isFinite(currentPrice)) {
+      if (lo > currentPrice) return "distribution"; // overhead supply
+      if (hi < currentPrice) return "accumulation"; // under support
+    }
+
+    if (isAccum) return "accumulation";
+    if (isDist) return "distribution";
+
+    // If unknown, default based on position if possible
+    if (Number.isFinite(currentPrice)) {
+      return lo > currentPrice ? "distribution" : "accumulation";
+    }
+    return "accumulation";
+  }
+
   function draw() {
     if (destroyed) return;
 
@@ -185,13 +182,10 @@ export default function SMZShelvesOverlay({
     hitBoxes = [];
     if (!Array.isArray(levels) || levels.length === 0) return;
 
+    const currentPrice = getCurrentPrice();
+
     for (const lvl of levels) {
       if (!lvl) continue;
-
-      const t = String(lvl.type || "").toLowerCase();
-      const isAccum = t === "accumulation";
-      const isDist = t === "distribution";
-      if (!isAccum && !isDist) continue;
 
       const pr = lvl.priceRange;
       if (!Array.isArray(pr) || pr.length !== 2) continue;
@@ -209,42 +203,31 @@ export default function SMZShelvesOverlay({
 
       hitBoxes.push({ y0: y, y1: y + bandH, lvl });
 
-      // ✅ Use strength_raw for promotion + labels
-      const strengthRaw = getStrengthRaw(lvl);
-      const isInstitutional = Number.isFinite(strengthRaw) && strengthRaw >= INSTITUTIONAL_SHELF_MIN;
-
-      const fill = isInstitutional
-        ? "rgba(255,215,0,0.14)"
-        : (isAccum ? "rgba(0, 128, 255, 0.30)" : "rgba(255, 0, 0, 0.28)");
-
-      const stroke = isInstitutional
-        ? "rgba(255,215,0,0.90)"
-        : (isAccum ? "rgba(0, 128, 255, 0.95)" : "rgba(255, 0, 0, 0.95)");
+      const type = resolveType(lvl, hi, lo, currentPrice);
+      const isAccum = type === "accumulation";
+      const fill = isAccum ? ACC_FILL : DIST_FILL;
+      const stroke = isAccum ? ACC_STROKE : DIST_STROKE;
 
       ctx.fillStyle = fill;
       ctx.fillRect(0, y, w, bandH);
 
       ctx.strokeStyle = stroke;
-      ctx.lineWidth = 2;
+      ctx.lineWidth = STROKE_W;
       ctx.beginPath();
       ctx.rect(0.5, y + 0.5, w - 1, Math.max(1, bandH - 1));
       ctx.stroke();
 
-      const mid = (hi + lo) / 2;
-      const yMid = priceToY(mid);
-      if (yMid != null && yMid >= 0 && yMid <= h) {
-        drawMidline(ctx, 0, w, yMid, stroke);
-      }
+      // Label (beta)
+      const strengthRaw = getStrengthRaw(lvl);
+      const conf = getConfidence(lvl);
 
-      const labelBase = isInstitutional
-        ? "Institutional"
-        : (isAccum ? "Accumulation" : "Distribution");
-
-      const scoreText = Number.isFinite(strengthRaw) ? ` ${Math.round(strengthRaw)}` : "";
+      const baseLabel = isAccum ? "Accumulation" : "Distribution";
+      const sTxt = Number.isFinite(strengthRaw) ? ` ${Math.round(strengthRaw)}` : "";
+      const cTxt = conf != null ? ` (${conf.toFixed(2)})` : "";
       const comment = clipText(lvl.comment, 26);
       const commentText = comment ? ` — ${comment}` : "";
-      const label = `${labelBase}${scoreText}${commentText}`;
 
+      const label = `${baseLabel}${sTxt}${cTxt}${commentText}`;
       drawCenteredLabel(ctx, w / 2, y + bandH / 2, label, stroke, w, h);
     }
   }
@@ -262,9 +245,7 @@ export default function SMZShelvesOverlay({
     hits.sort((a, b) => Number(getStrengthRaw(b?.lvl) ?? 0) - Number(getStrengthRaw(a?.lvl) ?? 0));
     const selected = hits[0].lvl;
 
-    const explain = buildShelfExplain(selected);
-
-    const payload = { kind: "shelf", selected, explain };
+    const payload = { kind: "shelf", selected };
 
     if (typeof onSelect === "function") {
       onSelect(payload);
@@ -275,13 +256,12 @@ export default function SMZShelvesOverlay({
 
   async function loadShelves() {
     try {
-      const res = await fetch(SMZ_SHELVES_URL, { cache: "no-store" });
+      const res = await fetch(`${SMZ_SHELVES_URL}&_=${Date.now()}`, { cache: "no-store" });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json();
       levels = Array.isArray(json.levels) ? json.levels : [];
       draw();
     } catch (e) {
-      console.warn("[SMZShelvesOverlay] failed to load smz shelves:", e);
       levels = [];
       draw();
     }
