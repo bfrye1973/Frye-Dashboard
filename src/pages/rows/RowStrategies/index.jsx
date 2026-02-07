@@ -338,60 +338,148 @@ function MiniRow({ label, left, right, tone = "muted" }) {
 /* -------------------- Engine Stack (right column) -------------------- */
 function EngineStack({ confluence, permission }) {
   const loc = confluence?.location?.state || "—";
+
+  // E2 (Fib)
   const fib = confluence?.context?.fib || {};
   const fs = fib?.signals || null;
-
-  const reaction = confluence?.context?.reaction || {};
-  const stage = String(reaction?.stage || "—").toUpperCase();
-  const rs = Number(reaction?.reactionScore ?? 0);
-  const ss = reaction?.structureState || "HOLD";
-
-  const volume = confluence?.context?.volume || {};
-  const vFlags = volume?.flags || {};
-  const comp = confluence?.compression || {};
-  const score = clamp100(confluence?.scores?.total ?? 0);
-  const label = confluence?.scores?.label || grade(score);
-
   let e2Text = "NO_ANCHORS";
   if (fib?.ok === false && String(fib?.reason || "") === "NO_ANCHORS") e2Text = "NO_ANCHORS";
   else if (fs) e2Text = fs.invalidated ? "INVALID ❌" : "VALID ✅";
 
-  // ✅ E3 line shows stage (timing) + score (quality) + structureState
-  const e3Text = `${stage} • ${Number.isFinite(rs) ? rs.toFixed(1) : "0.0"} ${ss}`;
+  // E3 (Reaction) — show STAGE + armed + score + structureState
+  const r = confluence?.context?.reaction || {};
+  const stage = String(r.stage || "—").toUpperCase();
+  const armed = r.armed === true;
+  const rs = Number(r.reactionScore ?? 0);
+  const ss = String(r.structureState || "HOLD").toUpperCase();
+  const stageIcon = stageToIcon(stage, ss, armed);
+  const stageColor = stageToColor(stage, ss);
 
+  const e3Text = `${stageIcon} ${stage}${armed && stage !== "FAILURE" ? " ⚡" : ""} • ${Number.isFinite(rs) ? rs.toFixed(1) : "0.0"} ${ss}`;
+
+  // E4 (Volume) — show state + phases
+  const v = confluence?.context?.volume || {};
+  const vf = v?.flags || {};
   const e4State = confluence?.volumeState || "NO_SIGNAL";
-  const e4Flags = `trap:${vFlags?.liquidityTrap ? "Y" : "N"} init:${vFlags?.initiativeMoveConfirmed ? "Y" : "N"}`;
 
-  const e5Text = `${Math.round(score)} (${label}) • ${comp?.state || "NONE"} ${
-    Number.isFinite(Number(comp?.score)) ? Math.round(Number(comp?.score)) : 0
-  }`;
+  const e4Phases =
+    `PB:${vf.pullbackContraction ? "✅" : "—"} ` +
+    `REV:${vf.reversalExpansion ? "✅" : "—"} ` +
+    `DIV:${vf.volumeDivergence ? "⚠️" : "—"} ` +
+    `ABS:${vf.absorptionDetected ? "⚠️" : "—"} ` +
+    `TRAP:${vf.liquidityTrap ? "❌" : "—"}`;
 
-  const e6Text = `${permission?.permission || "—"} • ${
-    Number.isFinite(Number(permission?.sizeMultiplier)) ? Number(permission.sizeMultiplier).toFixed(2) : "—"
-  }x`;
+  const e4Text = `${e4State} • ${e4Phases}`;
+
+  // E5 (Confluence)
+  const score = clamp100(confluence?.scores?.total ?? 0);
+  const label = confluence?.scores?.label || grade(score);
+  const comp = confluence?.compression || {};
+  const compState = String(comp?.state || "NONE").toUpperCase();
+  const compScore = Number.isFinite(Number(comp?.score)) ? Math.round(Number(comp?.score)) : 0;
+  const e5Text = `${Math.round(score)} (${label}) • ${compState} ${compScore}`;
+
+  // E6 (Permission)
+  const perm = permission?.permission || "—";
+  const mult = Number.isFinite(Number(permission?.sizeMultiplier))
+    ? Number(permission.sizeMultiplier).toFixed(2)
+    : "—";
+  const e6Text = `${perm} • ${mult}x`;
 
   return (
-    <div style={{ border: "1px solid #1f2937", borderRadius: 10, padding: 8, background: "#0b0b0b", height: 168, display: "grid", gridTemplateRows: "auto repeat(6, 1fr)", gap: 4, overflow: "hidden", minWidth: 0 }}>
+    <div
+      style={{
+        border: "1px solid #1f2937",
+        borderRadius: 10,
+        padding: 8,
+        background: "#0b0b0b",
+        height: 168,
+        display: "grid",
+        gridTemplateRows: "auto repeat(6, 1fr)",
+        gap: 4,
+        overflow: "hidden",
+        minWidth: 0,
+      }}
+    >
       <div style={{ fontSize: 11, fontWeight: 900, color: "#93c5fd" }}>ENGINE STACK</div>
+
       <StackRow k="E1" v={loc} />
       <StackRow k="E2" v={e2Text} />
-      <StackRow k="E3" v={e3Text} />
-      <StackRow k="E4" v={`${e4State} • ${e4Flags}`} />
-      <StackRow k="E5" v={e5Text} />
-      <StackRow k="E6" v={e6Text} />
+      <StackRow k="E3" v={e3Text} vStyle={{ color: stageColor }} />
+      <StackRow k="E4" v={e4Text} vStyle={{ color: volumeToColor(e4State, vf) }} />
+      <StackRow k="E5" v={e5Text} vStyle={{ color: confluenceToColor(score) }} />
+      <StackRow k="E6" v={e6Text} vStyle={{ color: permToColor(perm) }} />
     </div>
   );
 }
 
-function StackRow({ k, v }) {
+function StackRow({ k, v, vStyle = {} }) {
   return (
     <div style={{ display: "grid", gridTemplateColumns: "22px 1fr", gap: 6, alignItems: "center", minWidth: 0 }}>
       <span style={{ fontWeight: 900, fontSize: 11, color: "#9ca3af" }}>{k}</span>
-      <span style={{ fontWeight: 900, fontSize: 11, color: "#e5e7eb", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={v}>
+      <span
+        style={{
+          fontWeight: 900,
+          fontSize: 11,
+          whiteSpace: "nowrap",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          color: "#e5e7eb",
+          ...vStyle,
+        }}
+        title={v}
+      >
         {v}
       </span>
     </div>
   );
+}
+
+/* -------------------- UI color/icon helpers -------------------- */
+function stageToIcon(stage, structureState, armed) {
+  const ss = String(structureState || "").toUpperCase();
+  if (ss === "FAILURE" || stage === "FAILURE") return "✖";
+  if (stage === "CONFIRMED") return "🔥";
+  if (stage === "TRIGGERED") return "✅";
+  if (stage === "ARMED") return "⚡";
+  if (stage === "IDLE") return "●";
+  return armed ? "⚡" : "●";
+}
+
+function stageToColor(stage, structureState) {
+  const ss = String(structureState || "").toUpperCase();
+  if (ss === "FAILURE" || stage === "FAILURE") return "#fca5a5";   // red-ish
+  if (stage === "CONFIRMED") return "#86efac";                    // green
+  if (stage === "TRIGGERED") return "#bef264";                    // lime
+  if (stage === "ARMED") return "#fbbf24";                        // yellow
+  return "#94a3b8";                                               // gray
+}
+
+function volumeToColor(state, flags) {
+  const s = String(state || "").toUpperCase();
+  const f = flags || {};
+  if (f.liquidityTrap) return "#fca5a5";           // red
+  if (s === "INITIATIVE") return "#86efac";        // green
+  if (s === "DIVERGENCE") return "#fbbf24";        // yellow
+  if (s === "ABSORPTION") return "#93c5fd";        // blue
+  if (s === "NEGOTIATING") return "#94a3b8";       // gray
+  return "#94a3b8";
+}
+
+function confluenceToColor(total) {
+  const s = Number(total);
+  if (!Number.isFinite(s)) return "#94a3b8";
+  if (s >= 80) return "#86efac";
+  if (s >= 70) return "#bef264";
+  if (s >= 60) return "#fbbf24";
+  return "#94a3b8";
+}
+
+function permToColor(permission) {
+  if (permission === "ALLOW") return "#86efac";
+  if (permission === "REDUCE") return "#fbbf24";
+  if (permission === "STAND_DOWN") return "#fca5a5";
+  return "#94a3b8";
 }
 
 /* ===================== Main Component ===================== */
