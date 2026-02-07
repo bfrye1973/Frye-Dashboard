@@ -17,6 +17,11 @@
 // ✅ Observability:
 // - Shows Frontend fetch time + Backend snapshot time
 // - Shows Build stamp so you can confirm fresh bundle
+//
+// ✅ FIXES IN THIS VERSION:
+// - Golden Coil uses Engine5 truth: confluence.flags.goldenCoil
+// - Engine Stack E3 shows stage + score + structureState
+// - visibilitychange only triggers pull when tab becomes VISIBLE
 
 import React, { useEffect, useMemo, useState } from "react";
 import { useSelection } from "../../../context/ModeContext";
@@ -49,8 +54,11 @@ const POLL_MS = 20000;
 const TIMEOUT_MS = 20000;
 const RETRY_DELAY_MS = 800;
 
-// Build stamp so you can prove you’re on the latest bundle
-const BUILD_STAMP = new Date().toISOString();
+// Build stamp (prefer env if you have one, else runtime stamp)
+const BUILD_STAMP =
+  env("REACT_APP_BUILD_STAMP", "") ||
+  env("REACT_APP_COMMIT_SHA", "") ||
+  new Date().toISOString();
 
 /* -------------------- endpoints -------------------- */
 const SNAP_URL = (symbol = "SPY") =>
@@ -112,14 +120,10 @@ function grade(score) {
   return "IGNORE";
 }
 
-/* -------------------- Golden Coil badge rule (LOCKED) -------------------- */
+/* -------------------- Golden Coil badge rule (LOCKED to Engine5 truth) -------------------- */
 function showGoldenCoil(confluence) {
-  return (
-    confluence?.invalid !== true &&
-    confluence?.flags?.goldenIgnition === true &&
-    confluence?.compression?.active === true &&
-    confluence?.compression?.state === "COILING"
-  );
+  // ✅ Mode-aware truth is computed in Engine 5 now
+  return confluence?.invalid !== true && confluence?.flags?.goldenCoil === true;
 }
 
 /* -------------------- fetch helper (LOCKED retry + no-store) -------------------- */
@@ -159,7 +163,6 @@ async function safeFetchJson(url, opts = {}) {
   try {
     return await attempt();
   } catch (e1) {
-    // retry once for transient Render/network hiccups
     await new Promise((r) => setTimeout(r, RETRY_DELAY_MS));
     return await attempt();
   }
@@ -255,28 +258,12 @@ function nextTriggerText(confluence) {
 /* -------------------- permission pill styling -------------------- */
 function permStyle(permission) {
   if (permission === "ALLOW")
-    return {
-      background: "#22c55e",
-      color: "#0b1220",
-      border: "2px solid #0c1320",
-    };
+    return { background: "#22c55e", color: "#0b1220", border: "2px solid #0c1320" };
   if (permission === "REDUCE")
-    return {
-      background: "#fbbf24",
-      color: "#0b1220",
-      border: "2px solid #0c1320",
-    };
+    return { background: "#fbbf24", color: "#0b1220", border: "2px solid #0c1320" };
   if (permission === "STAND_DOWN")
-    return {
-      background: "#ef4444",
-      color: "#0b1220",
-      border: "2px solid #0c1320",
-    };
-  return {
-    background: "#0b0b0b",
-    color: "#93c5fd",
-    border: "1px solid #2b2b2b",
-  };
+    return { background: "#ef4444", color: "#0b1220", border: "2px solid #0c1320" };
+  return { background: "#0b0b0b", color: "#93c5fd", border: "1px solid #2b2b2b" };
 }
 
 /* -------------------- buttons -------------------- */
@@ -301,9 +288,7 @@ function openFullStrategies(symbol = "SPY") {
 }
 
 function openFullChart(symbol = "SPY", tf = "10m") {
-  const url = `/chart?symbol=${encodeURIComponent(
-    symbol
-  )}&tf=${encodeURIComponent(tf)}`;
+  const url = `/chart?symbol=${encodeURIComponent(symbol)}&tf=${encodeURIComponent(tf)}`;
   window.open(url, "_blank", "noopener,noreferrer");
 }
 
@@ -312,64 +297,24 @@ function MiniRow({ label, left, right, tone = "muted" }) {
   const t = (kind) => {
     switch (String(kind || "").toUpperCase()) {
       case "OK":
-        return {
-          background: "#06220f",
-          color: "#86efac",
-          borderColor: "#166534",
-        };
+        return { background: "#06220f", color: "#86efac", borderColor: "#166534" };
       case "WARN":
-        return {
-          background: "#1b1409",
-          color: "#fbbf24",
-          borderColor: "#92400e",
-        };
+        return { background: "#1b1409", color: "#fbbf24", borderColor: "#92400e" };
       case "DANGER":
-        return {
-          background: "#2b0b0b",
-          color: "#fca5a5",
-          borderColor: "#7f1d1d",
-        };
+        return { background: "#2b0b0b", color: "#fca5a5", borderColor: "#7f1d1d" };
       default:
-        return {
-          background: "#0b0b0b",
-          color: "#94a3b8",
-          borderColor: "#2b2b2b",
-        };
+        return { background: "#0b0b0b", color: "#94a3b8", borderColor: "#2b2b2b" };
     }
   };
 
   const toneMap =
-    tone === "ok"
-      ? "OK"
-      : tone === "warn"
-      ? "WARN"
-      : tone === "danger"
-      ? "DANGER"
-      : "MUTED";
+    tone === "ok" ? "OK" : tone === "warn" ? "WARN" : tone === "danger" ? "DANGER" : "MUTED";
   const pill = t(toneMap);
 
   return (
-    <div
-      style={{
-        display: "grid",
-        gridTemplateColumns: "92px 1fr auto",
-        gap: 8,
-        alignItems: "center",
-      }}
-    >
-      <div style={{ color: "#9ca3af", fontSize: 11, fontWeight: 900 }}>
-        {label}
-      </div>
-      <div
-        style={{
-          color: "#cbd5e1",
-          fontSize: 12,
-          fontWeight: 800,
-          whiteSpace: "nowrap",
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-        }}
-      >
+    <div style={{ display: "grid", gridTemplateColumns: "92px 1fr auto", gap: 8, alignItems: "center" }}>
+      <div style={{ color: "#9ca3af", fontSize: 11, fontWeight: 900 }}>{label}</div>
+      <div style={{ color: "#cbd5e1", fontSize: 12, fontWeight: 800, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
         {left}
       </div>
       <span
@@ -395,7 +340,12 @@ function EngineStack({ confluence, permission }) {
   const loc = confluence?.location?.state || "—";
   const fib = confluence?.context?.fib || {};
   const fs = fib?.signals || null;
+
   const reaction = confluence?.context?.reaction || {};
+  const stage = String(reaction?.stage || "—").toUpperCase();
+  const rs = Number(reaction?.reactionScore ?? 0);
+  const ss = reaction?.structureState || "HOLD";
+
   const volume = confluence?.context?.volume || {};
   const vFlags = volume?.flags || {};
   const comp = confluence?.compression || {};
@@ -403,44 +353,26 @@ function EngineStack({ confluence, permission }) {
   const label = confluence?.scores?.label || grade(score);
 
   let e2Text = "NO_ANCHORS";
-  if (fib?.ok === false && String(fib?.reason || "") === "NO_ANCHORS")
-    e2Text = "NO_ANCHORS";
+  if (fib?.ok === false && String(fib?.reason || "") === "NO_ANCHORS") e2Text = "NO_ANCHORS";
   else if (fs) e2Text = fs.invalidated ? "INVALID ❌" : "VALID ✅";
 
-  const e3Text = `${Number(reaction?.reactionScore ?? 0).toFixed(1)} ${
-    reaction?.structureState || "HOLD"
-  }`;
+  // ✅ E3 line shows stage (timing) + score (quality) + structureState
+  const e3Text = `${stage} • ${Number.isFinite(rs) ? rs.toFixed(1) : "0.0"} ${ss}`;
+
   const e4State = confluence?.volumeState || "NO_SIGNAL";
-  const e4Flags = `trap:${vFlags?.liquidityTrap ? "Y" : "N"} init:${
-    vFlags?.initiativeMoveConfirmed ? "Y" : "N"
-  }`;
+  const e4Flags = `trap:${vFlags?.liquidityTrap ? "Y" : "N"} init:${vFlags?.initiativeMoveConfirmed ? "Y" : "N"}`;
+
   const e5Text = `${Math.round(score)} (${label}) • ${comp?.state || "NONE"} ${
     Number.isFinite(Number(comp?.score)) ? Math.round(Number(comp?.score)) : 0
   }`;
+
   const e6Text = `${permission?.permission || "—"} • ${
-    Number.isFinite(Number(permission?.sizeMultiplier))
-      ? Number(permission.sizeMultiplier).toFixed(2)
-      : "—"
+    Number.isFinite(Number(permission?.sizeMultiplier)) ? Number(permission.sizeMultiplier).toFixed(2) : "—"
   }x`;
 
   return (
-    <div
-      style={{
-        border: "1px solid #1f2937",
-        borderRadius: 10,
-        padding: 8,
-        background: "#0b0b0b",
-        height: 168,
-        display: "grid",
-        gridTemplateRows: "auto repeat(6, 1fr)",
-        gap: 4,
-        overflow: "hidden",
-        minWidth: 0,
-      }}
-    >
-      <div style={{ fontSize: 11, fontWeight: 900, color: "#93c5fd" }}>
-        ENGINE STACK
-      </div>
+    <div style={{ border: "1px solid #1f2937", borderRadius: 10, padding: 8, background: "#0b0b0b", height: 168, display: "grid", gridTemplateRows: "auto repeat(6, 1fr)", gap: 4, overflow: "hidden", minWidth: 0 }}>
+      <div style={{ fontSize: 11, fontWeight: 900, color: "#93c5fd" }}>ENGINE STACK</div>
       <StackRow k="E1" v={loc} />
       <StackRow k="E2" v={e2Text} />
       <StackRow k="E3" v={e3Text} />
@@ -453,29 +385,9 @@ function EngineStack({ confluence, permission }) {
 
 function StackRow({ k, v }) {
   return (
-    <div
-      style={{
-        display: "grid",
-        gridTemplateColumns: "22px 1fr",
-        gap: 6,
-        alignItems: "center",
-        minWidth: 0,
-      }}
-    >
-      <span style={{ fontWeight: 900, fontSize: 11, color: "#9ca3af" }}>
-        {k}
-      </span>
-      <span
-        style={{
-          fontWeight: 900,
-          fontSize: 11,
-          color: "#e5e7eb",
-          whiteSpace: "nowrap",
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-        }}
-        title={v}
-      >
+    <div style={{ display: "grid", gridTemplateColumns: "22px 1fr", gap: 6, alignItems: "center", minWidth: 0 }}>
+      <span style={{ fontWeight: 900, fontSize: 11, color: "#9ca3af" }}>{k}</span>
+      <span style={{ fontWeight: 900, fontSize: 11, color: "#e5e7eb", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={v}>
         {v}
       </span>
     </div>
@@ -488,24 +400,9 @@ export default function RowStrategies() {
 
   const STRATS = useMemo(
     () => [
-      {
-        id: "SCALP",
-        name: "Scalp — Minor Intraday",
-        tf: "10m",
-        sub: "10m primary • 1h gate",
-      },
-      {
-        id: "MINOR",
-        name: "Minor — Swing",
-        tf: "1h",
-        sub: "1h primary • 4h confirm",
-      },
-      {
-        id: "INTERMEDIATE",
-        name: "Intermediate — Long",
-        tf: "4h",
-        sub: "4h primary • EOD gate",
-      },
+      { id: "SCALP", name: "Scalp — Minor Intraday", tf: "10m", sub: "10m primary • 1h gate" },
+      { id: "MINOR", name: "Minor — Swing", tf: "1h", sub: "1h primary • 4h confirm" },
+      { id: "INTERMEDIATE", name: "Intermediate — Long", tf: "4h", sub: "4h primary • EOD gate" },
     ],
     []
   );
@@ -518,12 +415,7 @@ export default function RowStrategies() {
 
   const [active, setActive] = useState("SCALP");
 
-  // 🔒 Keep last good data always; err only affects banner + LiveDot
-  const [snap, setSnap] = useState({
-    data: null,
-    err: null,
-    lastFetch: null,
-  });
+  const [snap, setSnap] = useState({ data: null, err: null, lastFetch: null });
 
   useEffect(() => {
     let alive = true;
@@ -539,8 +431,7 @@ export default function RowStrategies() {
     async function pull() {
       if (!alive) return;
 
-      // 🔒 Critical anti-stall: even if a fetch is already running,
-      // we still schedule the next poll so polling can never die.
+      // anti-stall: if already fetching, schedule next and return
       if (inFlight) {
         schedule(POLL_MS);
         return;
@@ -552,31 +443,18 @@ export default function RowStrategies() {
       const t = setTimeout(() => controller.abort(), TIMEOUT_MS);
 
       try {
-        const data = await safeFetchJson(SNAP_URL("SPY"), {
-          signal: controller.signal,
-        });
+        const data = await safeFetchJson(SNAP_URL("SPY"), { signal: controller.signal });
 
         if (alive) {
-          setSnap((prev) => ({
-            ...prev,
-            data,
-            err: null,
-            lastFetch: nowIso(),
-          }));
+          setSnap((prev) => ({ ...prev, data, err: null, lastFetch: nowIso() }));
         }
       } catch (e) {
-        const msg = `${String(e?.name || "Error")}: ${String(
-          e?.message || e
-        )}`;
+        const msg = `${String(e?.name || "Error")}: ${String(e?.message || e)}`;
         console.error("[RowStrategies] snapshot fetch failed:", e);
 
-        // 🔒 Keep last good data; only set err + lastFetch
+        // keep last good data
         if (alive) {
-          setSnap((prev) => ({
-            ...prev,
-            err: msg,
-            lastFetch: nowIso(),
-          }));
+          setSnap((prev) => ({ ...prev, err: msg, lastFetch: nowIso() }));
         }
       } finally {
         clearTimeout(t);
@@ -586,12 +464,15 @@ export default function RowStrategies() {
     }
 
     function onVis() {
-      // When tab becomes visible, kick an immediate pull (still safe).
+      // ✅ only pull when becoming visible
       if (!alive) return;
-      pull();
+      try {
+        if (!document.hidden) pull();
+      } catch {
+        pull();
+      }
     }
 
-    // Start immediately
     pull();
     document.addEventListener("visibilitychange", onVis);
 
@@ -611,11 +492,8 @@ export default function RowStrategies() {
 
   return (
     <section id="row-5" className="panel" style={{ padding: 10 }}>
-      {/* Header */}
       <div className="panel-head" style={{ alignItems: "center" }}>
-        <div className="panel-title">
-          Strategies — Engine 5 Score + Engine 6 Permission
-        </div>
+        <div className="panel-title">Strategies — Engine 5 Score + Engine 6 Permission</div>
 
         <div style={{ marginLeft: 10, display: "flex", gap: 6, flexWrap: "wrap" }}>
           {STRATS.map((s) => (
@@ -642,18 +520,10 @@ export default function RowStrategies() {
         <div className="spacer" />
 
         <div style={{ color: "#9ca3af", fontSize: 12, display: "flex", gap: 12, flexWrap: "wrap" }}>
-          <span>
-            Poll: <b>{Math.round(POLL_MS / 1000)}s</b>
-          </span>
-          <span>
-            Frontend fetch: <b style={{ marginLeft: 4 }}>{last ? toAZ(last, true) : "—"}</b>
-          </span>
-          <span>
-            Backend snapshot: <b style={{ marginLeft: 4 }}>{snapshotTime(snapshot)}</b>
-          </span>
-          <span>
-            Build: <b style={{ marginLeft: 4 }}>{toAZ(BUILD_STAMP, true)}</b>
-          </span>
+          <span>Poll: <b>{Math.round(POLL_MS / 1000)}s</b></span>
+          <span>Frontend fetch: <b style={{ marginLeft: 4 }}>{last ? toAZ(last, true) : "—"}</b></span>
+          <span>Backend snapshot: <b style={{ marginLeft: 4 }}>{snapshotTime(snapshot)}</b></span>
+          <span>Build: <b style={{ marginLeft: 4 }}>{toAZ(BUILD_STAMP, true)}</b></span>
         </div>
       </div>
 
@@ -663,7 +533,6 @@ export default function RowStrategies() {
         </div>
       )}
 
-      {/* Cards */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0,1fr))", gap: 10, marginTop: 10 }}>
         {STRATS.map((s) => {
           const stratKey = STRATEGY_ID_MAP[s.id];
@@ -674,9 +543,7 @@ export default function RowStrategies() {
 
           const fresh = minutesAgo(snap.lastFetch) <= 1.5;
           const liveStatus = snap.err ? "red" : fresh ? "green" : "yellow";
-          const liveTip = snap.err
-            ? `Error: ${snap.err}`
-            : `Last snapshot: ${snap.lastFetch ? toAZ(snap.lastFetch, true) : "—"}`;
+          const liveTip = snap.err ? `Error: ${snap.err}` : `Last snapshot: ${snap.lastFetch ? toAZ(snap.lastFetch, true) : "—"}`;
 
           const score = clamp100(confluence?.scores?.total ?? 0);
           const label = confluence?.scores?.label || grade(score);
@@ -722,11 +589,9 @@ export default function RowStrategies() {
                 gap: 8,
               }}
             >
-              {/* Card body 2 columns */}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 220px", gap: 10, alignItems: "start" }}>
                 {/* LEFT */}
                 <div style={{ minWidth: 0 }}>
-                  {/* Header */}
                   <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10 }}>
                     <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
@@ -789,12 +654,8 @@ export default function RowStrategies() {
 
                   {/* Targets */}
                   <div style={{ display: "grid", gap: 4, marginTop: 6 }}>
-                    <div style={{ fontSize: 12, color: "#cbd5e1" }}>
-                      <b>Entry Target:</b> {entryTxt}
-                    </div>
-                    <div style={{ fontSize: 12, color: "#cbd5e1" }}>
-                      <b>Exit Target:</b> {exitTxt}
-                    </div>
+                    <div style={{ fontSize: 12, color: "#cbd5e1" }}><b>Entry Target:</b> {entryTxt}</div>
+                    <div style={{ fontSize: 12, color: "#cbd5e1" }}><b>Exit Target:</b> {exitTxt}</div>
                   </div>
 
                   {/* Active Zone + Compression + Volume */}
@@ -843,9 +704,7 @@ export default function RowStrategies() {
                 <div style={{ color: "#e5e7eb", fontSize: 12, lineHeight: 1.35, minHeight: 32 }}>
                   {reasonsE5.length ? (
                     <ul style={{ margin: 0, paddingLeft: 16 }}>
-                      {reasonsE5.map((r, i) => (
-                        <li key={`${r}-${i}`}>{r}</li>
-                      ))}
+                      {reasonsE5.map((r, i) => <li key={`${r}-${i}`}>{r}</li>)}
                     </ul>
                   ) : (
                     <div style={{ color: "#94a3b8" }}>—</div>
@@ -856,9 +715,7 @@ export default function RowStrategies() {
                 <div style={{ color: "#e5e7eb", fontSize: 12, lineHeight: 1.35, minHeight: 32 }}>
                   {reasonsE6.length ? (
                     <ul style={{ margin: 0, paddingLeft: 16 }}>
-                      {reasonsE6.map((r, i) => (
-                        <li key={`${r}-${i}`}>{r}</li>
-                      ))}
+                      {reasonsE6.map((r, i) => <li key={`${r}-${i}`}>{r}</li>)}
                     </ul>
                   ) : (
                     <div style={{ color: "#94a3b8" }}>—</div>
@@ -871,33 +728,15 @@ export default function RowStrategies() {
 
               {/* Actions */}
               <div style={{ marginTop: "auto", display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-                <span
-                  style={{
-                    background: "#0b1220",
-                    border: "1px solid #1f2937",
-                    color: "#93c5fd",
-                    padding: "4px 8px",
-                    borderRadius: 999,
-                    fontSize: 11,
-                    fontWeight: 900,
-                  }}
-                >
+                <span style={{ background: "#0b1220", border: "1px solid #1f2937", color: "#93c5fd", padding: "4px 8px", borderRadius: 999, fontSize: 11, fontWeight: 900 }}>
                   PAPER ONLY
                 </span>
 
-                <button onClick={() => load("SPY", s.tf)} style={btn()} title="Load SPY chart at this strategy TF">
-                  Load SPY
-                </button>
-                <button onClick={() => load("QQQ", s.tf)} style={btn()} title="Load QQQ chart at this strategy TF">
-                  Load QQQ
-                </button>
+                <button onClick={() => load("SPY", s.tf)} style={btn()} title="Load SPY chart at this strategy TF">Load SPY</button>
+                <button onClick={() => load("QQQ", s.tf)} style={btn()} title="Load QQQ chart at this strategy TF">Load QQQ</button>
 
-                <button onClick={() => openFullChart("SPY", s.tf)} style={btn()} title="Open full chart in new tab">
-                  Open Full Chart
-                </button>
-                <button onClick={() => openFullStrategies("SPY")} style={btn()} title="Open all strategies in a large readable view">
-                  Open Full Strategies
-                </button>
+                <button onClick={() => openFullChart("SPY", s.tf)} style={btn()} title="Open full chart in new tab">Open Full Chart</button>
+                <button onClick={() => openFullStrategies("SPY")} style={btn()} title="Open all strategies in a large readable view">Open Full Strategies</button>
               </div>
             </div>
           );
