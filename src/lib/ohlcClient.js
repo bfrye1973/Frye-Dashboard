@@ -10,7 +10,7 @@ const BACKEND =
 const STREAM_BASE =
   (typeof window !== "undefined" && (window.__STREAM_BASE__ || "")) ||
   process.env.REACT_APP_STREAM_BASE ||
-  ""; // https://frye-market-backend-2.onrender.com
+  ""; // e.g. https://frye-market-backend-2.onrender.com
 
 const API = (BACKEND || "").replace(/\/+$/, "");
 
@@ -92,6 +92,8 @@ export async function fetchOHLCResilient({ symbol, timeframe, limit = 1500 }) {
 }
 
 // ---------------- Live SSE subscribe ----------------
+// FIX: Auto-heal if EventSource goes "stale" (Render/proxy stall) without requiring page refresh.
+// Backend sends diag every 5s and ping every 15s. If we receive nothing for 35s, rebuild connection.
 export function subscribeStream(symbol, timeframe, onBar) {
   if (!STREAM_BASE) {
     console.warn("[subscribeStream] STREAM_BASE missing");
@@ -107,38 +109,88 @@ export function subscribeStream(symbol, timeframe, onBar) {
     `&tf=${encodeURIComponent(tf)}` +
     `&mode=rth`;
 
-  const es = new EventSource(url);
+  let es = null;
+  let closed = false;
 
-  es.onmessage = (ev) => {
-    if (!ev?.data || ev.data.startsWith(":") || ev.data.trim() === "") return;
+  let lastMsgAt = Date.now();
+  let watchdog = null;
 
+  const cleanupES = () => {
     try {
-      const msg = JSON.parse(ev.data);
-
-      if (msg?.type === "bar" && msg.bar) {
-        const b = msg.bar;
-        const bar = {
-          time: toSec(b.time ?? b.t ?? b.ts ?? b.timestamp),
-          open: Number(b.open ?? b.o),
-          high: Number(b.high ?? b.h),
-          low: Number(b.low ?? b.l),
-          close: Number(b.close ?? b.c),
-          volume: Number(b.volume ?? b.v ?? 0),
-        };
-        if (Number.isFinite(bar.time) && Number.isFinite(bar.open)) onBar(bar);
-      }
+      es?.close();
     } catch {}
+    es = null;
   };
 
-  // IMPORTANT: do not close on error; allow native auto-reconnect
-  es.onerror = () => {
-    // intentionally empty
+  const start = () => {
+    cleanupES();
+    if (closed) return;
+
+    es = new EventSource(url);
+
+    es.onopen = () => {
+      lastMsgAt = Date.now();
+      // console.log("[subscribeStream] open", sym, tf);
+    };
+
+    es.onmessage = (ev) => {
+      if (!ev?.data || ev.data.trim() === "") return;
+
+      // Any message (snapshot/diag/bar) counts as alive
+      lastMsgAt = Date.now();
+
+      try {
+        const msg = JSON.parse(ev.data);
+
+        // Forward only bars to the chart
+        if (msg?.type === "bar" && msg.bar) {
+          const b = msg.bar;
+          const bar = {
+            time: toSec(b.time ?? b.t ?? b.ts ?? b.timestamp),
+            open: Number(b.open ?? b.o),
+            high: Number(b.high ?? b.h),
+            low: Number(b.low ?? b.l),
+            close: Number(b.close ?? b.c),
+            volume: Number(b.volume ?? b.v ?? 0),
+          };
+          if (Number.isFinite(bar.time) && Number.isFinite(bar.open)) {
+            onBar(bar);
+          }
+        }
+      } catch {
+        // do not kill stream on parse errors
+      }
+    };
+
+    // IMPORTANT: do not close on error; allow native auto-reconnect.
+    // But ALSO keep watchdog to force rebuild if the connection stalls silently.
+    es.onerror = () => {
+      // intentionally empty
+    };
+
+    if (!watchdog) {
+      watchdog = setInterval(() => {
+        if (closed) return;
+        const age = Date.now() - lastMsgAt;
+
+        // If no diag/snapshot/bar for too long, the stream is stale -> rebuild.
+        if (age > 35_000) {
+          // console.warn("[subscribeStream] stale -> reconnect", { sym, tf, age });
+          start();
+        }
+      }, 5_000);
+    }
   };
+
+  start();
 
   return () => {
+    closed = true;
     try {
-      es.close();
+      if (watchdog) clearInterval(watchdog);
     } catch {}
+    watchdog = null;
+    cleanupES();
   };
 }
 
