@@ -1,7 +1,7 @@
 // src/pages/rows/RowChart/index.jsx
 // ============================================================
 // RowChart — seed + live aggregation + indicators & overlays
-// FIX: ensure SSE subscription actually starts (chartReady state)
+// FIX: Stable SSE subscription (no resubscribe thrash)
 // ADD: Engine 2 Fib multi-degree toggles + styles wiring (Primary/Intermediate/Minor/Minute)
 // ADD: Elliott manual wave label/line style wiring
 // ============================================================
@@ -19,8 +19,8 @@ import SessionShadingOverlay from "../../../components/overlays/SessionShadingOv
 import createSwingLiquidityOverlay from "../../../components/overlays/SwingLiquidityOverlay";
 import createSMI1hOverlay from "../../../components/overlays/SMI1hOverlay";
 import createFourShelvesOverlay from "../../../components/overlays/FourShelvesOverlay";
-import SMZNegotiatedOverlay from "./overlays/SMZNegotiatedOverlay";
 
+import SMZNegotiatedOverlay from "./overlays/SMZNegotiatedOverlay";
 
 import createSmartMoneyZonesOverlay from "../../../components/overlays/SmartMoneyZonesOverlay";
 import SmartMoneyZonesPanel from "../../../components/smz/SmartMoneyZonesPanel";
@@ -131,8 +131,7 @@ function makeTickFormatter(tf) {
   });
 
   return (t) => {
-    const seconds =
-      typeof t === "number" ? t : (t?.timestamp ?? t?.time ?? 0);
+    const seconds = typeof t === "number" ? t : (t?.timestamp ?? t?.time ?? 0);
     const d = new Date(seconds * 1000);
     if (isDailyTF) return fmtDaily.format(d);
     const isMidnight = d.getHours() === 0 && d.getMinutes() === 0;
@@ -221,14 +220,13 @@ export default function RowChart({
   const [bars, setBars] = useState([]);
   const barsRef = useRef([]);
 
-  const bars10mRef = useRef([]);
-  const bars1hRef = useRef([]);
-  const bars4hRef = useRef([]);
-
   const didFitOnceRef = useRef(false);
   const userInteractedRef = useRef(false);
 
   const [chartReady, setChartReady] = useState(false);
+
+  // 🔒 stream unsubscribe stored here to prevent thrash
+  const streamUnsubRef = useRef(null);
 
   const [state, setState] = useState({
     symbol: defaultSymbol,
@@ -253,15 +251,16 @@ export default function RowChart({
     fibMinute: false,
 
     // ✅ per-degree styles (edited in toolbar ⚙)
-    fibPrimaryStyle: makeFibStyle("#ff5ad6", 18, 3.5, true),        // magenta-ish for Primary
-    fibIntermediateStyle: makeFibStyle("#ffd54a", 18, 3.5, true),   // gold
-    fibMinorStyle: makeFibStyle("#22c55e", 16, 3.0, true),          // green
-    fibMinuteStyle: makeFibStyle("#60a5fa", 14, 2.5, true),         // blue
+    fibPrimaryStyle: makeFibStyle("#ff5ad6", 18, 3.5, true),
+    fibIntermediateStyle: makeFibStyle("#ffd54a", 18, 3.5, true),
+    fibMinorStyle: makeFibStyle("#22c55e", 16, 3.0, true),
+    fibMinuteStyle: makeFibStyle("#60a5fa", 14, 2.5, true),
 
     accDistLevels: false,
     wickPaZones: false,
   });
 
+  // quick debug controls
   if (typeof window !== "undefined") {
     window.__indicators = {
       get: () => state,
@@ -347,21 +346,34 @@ export default function RowChart({
     return () => {
       setChartReady(false);
 
-      try { ro.disconnect(); } catch {}
+      // stop stream on unmount
+      try {
+        streamUnsubRef.current?.();
+      } catch {}
+      streamUnsubRef.current = null;
+
+      try {
+        ro.disconnect();
+      } catch {}
       try {
         el.removeEventListener("wheel", markInteract);
         el.removeEventListener("mousedown", markInteract);
       } catch {}
 
-      try { overlayInstancesRef.current.forEach((o) => o?.destroy?.()); } catch {}
+      try {
+        overlayInstancesRef.current.forEach((o) => o?.destroy?.());
+      } catch {}
       overlayInstancesRef.current = [];
 
-      try { chart.remove(); } catch {}
+      try {
+        chart.remove();
+      } catch {}
       chartRef.current = null;
       seriesRef.current = null;
       volSeriesRef.current = null;
       ema10Ref.current = ema20Ref.current = ema50Ref.current = null;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fullScreen, state.timeframe]);
 
   /* ---------------------- TF / AZ format updates --------------------- */
@@ -459,17 +471,23 @@ export default function RowChart({
   /* =================== Effect B: Attach/Seed Overlays =================== */
 
   useEffect(() => {
-    if (!chartRef.current || !seriesRef.current || barsRef.current.length === 0) return;
+    if (!chartRef.current || !seriesRef.current || barsRef.current.length === 0)
+      return;
 
-    try { overlayInstancesRef.current.forEach((o) => o?.destroy?.()); } catch {}
+    try {
+      overlayInstancesRef.current.forEach((o) => o?.destroy?.());
+    } catch {}
     overlayInstancesRef.current = [];
 
     const reg = (inst) => inst && overlayInstancesRef.current.push(inst);
 
-    // Engine 1
-      if (state.institutionalZonesAuto) {
-        reg(
-          attachOverlay(SMZLevelsOverlay, {
+    // --- Engine 1 overlays ---
+    const engine1On = !!state.institutionalZonesAuto;
+    const shelvesOn = !!state.smzShelvesAuto || engine1On;
+
+    if (engine1On) {
+      reg(
+        attachOverlay(SMZLevelsOverlay, {
           chart: chartRef.current,
           priceSeries: seriesRef.current,
           chartContainer: containerRef.current,
@@ -477,31 +495,27 @@ export default function RowChart({
         })
       );
 
-    // 👇 THIS IS THE ONLY NEW THING
-    reg(
-      attachOverlay(SMZNegotiatedOverlay, {
-        chart: chartRef.current,
-        priceSeries: seriesRef.current,
-        chartContainer: containerRef.current,
-        timeframe: state.timeframe,
-      })
-    );
-  }
+      // Negotiated overlay (always tied to Engine 1 toggle)
+      reg(
+        attachOverlay(SMZNegotiatedOverlay, {
+          chart: chartRef.current,
+          priceSeries: seriesRef.current,
+          chartContainer: containerRef.current,
+          timeframe: state.timeframe,
+        })
+      );
+    }
 
-  const engine1On = state.institutionalZonesAuto; // master
-  const shelvesOn = state.smzShelvesAuto || engine1On;
-
-  if (shelvesOn) {
-    reg(
-      attachOverlay(SMZShelvesOverlay, {
-      chart: chartRef.current,
-      priceSeries: seriesRef.current,
-      chartContainer: containerRef.current,
-      timeframe: state.timeframe,
-    })
-  );
-}
-
+    if (shelvesOn) {
+      reg(
+        attachOverlay(SMZShelvesOverlay, {
+          chart: chartRef.current,
+          priceSeries: seriesRef.current,
+          chartContainer: containerRef.current,
+          timeframe: state.timeframe,
+        })
+      );
+    }
 
     // ✅ Engine 2 — Primary (1d)
     if (state.fibPrimary) {
@@ -563,7 +577,9 @@ export default function RowChart({
       );
     }
 
-    try { overlayInstancesRef.current.forEach((o) => o?.seed?.(barsRef.current)); } catch {}
+    try {
+      overlayInstancesRef.current.forEach((o) => o?.seed?.(barsRef.current));
+    } catch {}
   }, [
     state.institutionalZonesAuto,
     state.smzShelvesAuto,
@@ -583,10 +599,18 @@ export default function RowChart({
     showDebug,
   ]);
 
-  /* --------------- Live 1m stream → selected TF aggregation ---------- */
+  /* =================== Effect C: LIVE STREAM (STABLE) =================== */
+  // 🔥 Root-cause fix: do NOT include volume/showDebug in deps (they caused resubscribe thrash).
+  // Stream restarts only when symbol/timeframe changes.
 
   useEffect(() => {
     if (!chartReady || !seriesRef.current) return;
+
+    // Close any previous stream
+    try {
+      streamUnsubRef.current?.();
+    } catch {}
+    streamUnsubRef.current = null;
 
     const tfSec = TF_SEC[state.timeframe] ?? TF_SEC["10m"];
     const floorToBucket = (tSec) => Math.floor(tSec / tfSec) * tfSec;
@@ -600,10 +624,13 @@ export default function RowChart({
       rolling = { ...lastSeed };
     }
 
-    const unsub = subscribeStream(state.symbol, LIVE_TF, (oneMin) => {
-      const tSec = Number(oneMin.time > 1e12 ? Math.floor(oneMin.time / 1000) : oneMin.time);
+    streamUnsubRef.current = subscribeStream(state.symbol, LIVE_TF, (oneMin) => {
+      const tSec = Number(
+        oneMin.time > 1e12 ? Math.floor(oneMin.time / 1000) : oneMin.time
+      );
       if (!Number.isFinite(tSec)) return;
 
+      // --- 1m chart direct update ---
       if (tfSec === TF_SEC["1m"]) {
         const bar = { ...oneMin, time: tSec };
         seriesRef.current?.update(bar);
@@ -628,13 +655,17 @@ export default function RowChart({
           setBars(next);
         }
 
-        try { overlayInstancesRef.current.forEach((o) => o?.update?.(bar)); } catch {}
+        try {
+          overlayInstancesRef.current.forEach((o) => o?.update?.(bar));
+        } catch {}
         return;
       }
 
+      // --- higher TF aggregation ---
       const start = floorToBucket(tSec);
 
       if (bucketStart === null || start > bucketStart) {
+        // finalize old rolling
         if (rolling) {
           seriesRef.current?.update(rolling);
 
@@ -654,7 +685,9 @@ export default function RowChart({
           barsRef.current = next;
           setBars(next);
 
-          try { overlayInstancesRef.current.forEach((o) => o?.update?.(rolling)); } catch {}
+          try {
+            overlayInstancesRef.current.forEach((o) => o?.update?.(rolling));
+          } catch {}
         }
 
         bucketStart = start;
@@ -667,13 +700,16 @@ export default function RowChart({
           volume: Number(oneMin.volume || 0),
         };
       } else {
+        // update rolling
         rolling.high = Math.max(rolling.high, oneMin.high);
         rolling.low = Math.min(rolling.low, oneMin.low);
         rolling.close = oneMin.close;
         rolling.volume = Number(rolling.volume || 0) + Number(oneMin.volume || 0);
       }
 
+      // paint rolling candle
       seriesRef.current?.update(rolling);
+
       if (state.volume && volSeriesRef.current) {
         volSeriesRef.current.update({
           time: rolling.time,
@@ -682,11 +718,18 @@ export default function RowChart({
         });
       }
 
-      try { overlayInstancesRef.current.forEach((o) => o?.update?.(rolling)); } catch {}
+      try {
+        overlayInstancesRef.current.forEach((o) => o?.update?.(rolling));
+      } catch {}
     });
 
-    return () => unsub?.();
-  }, [chartReady, state.symbol, state.timeframe, state.volume, showDebug]);
+    return () => {
+      try {
+        streamUnsubRef.current?.();
+      } catch {}
+      streamUnsubRef.current = null;
+    };
+  }, [chartReady, state.symbol, state.timeframe]);
 
   /* ---------------------------- EMA lines ----------------------------- */
 
