@@ -36,6 +36,10 @@ import FibLevelsOverlay from "./overlays/FibLevelsOverlay";
 /* ------------------------------ Config ------------------------------ */
 
 const HISTORY_MONTHS = 6;
+
+// ✅ Speed boost: limit very heavy intraday charts
+const FAST_MONTHS_INTRADAY = 2; // for 1m + 5m
+
 const TRADING_DAYS_PER_MONTH = 21;
 const AXIS_FONT_SIZE = 22;
 
@@ -88,10 +92,15 @@ function barsPerDay(tf) {
 }
 
 function seedLimitFor(tf, months = HISTORY_MONTHS) {
-  const days = months * TRADING_DAYS_PER_MONTH;
+  // ✅ Force 2 months for 1m and 5m (big performance win)
+  const effectiveMonths =
+    tf === "1m" || tf === "5m" ? FAST_MONTHS_INTRADAY : months;
+
+  const days = effectiveMonths * TRADING_DAYS_PER_MONTH;
   const estimate = days * barsPerDay(tf);
   return Math.ceil(estimate * 1.3);
 }
+
 
 /* --------------------------- AZ time utils --------------------------- */
 
