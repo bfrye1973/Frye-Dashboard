@@ -62,17 +62,16 @@ button{
    These MUST exist if you wrap App with LockedDashboardCanvas
 --------------------------- */
 .locked-viewport{
-  position: relative;
   width: 100vw;
   height: 100vh;
-  overflow: auto;            /* single scroll owner */
+  overflow: visible;  /* DO NOT steal scroll */
   background: var(--bg);
 }
 
 .locked-canvas{
   transform-origin: top left;
   will-change: transform;
-  margin: 0 auto;            /* center when scaled smaller */
+  margin: 0 auto;
 }
 
 /* --------------------------
