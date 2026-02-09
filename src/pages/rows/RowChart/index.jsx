@@ -1,9 +1,11 @@
 // src/pages/rows/RowChart/index.jsx
 // ============================================================
 // RowChart — seed + live aggregation + indicators & overlays
-// FIX: Stable SSE subscription (no resubscribe thrash)
-// ADD: Engine 2 Fib multi-degree toggles + styles wiring (Primary/Intermediate/Minor/Minute)
-// ADD: Elliott manual wave label/line style wiring
+// TURBO MODE:
+//  - 1m + 5m history capped to 2 months (faster zoom/pan)
+//  - React state updates throttled (no re-render spam)
+//  - Overlays attach/seed only after seeding (not on every live tick)
+//  - SSE subscription stable (no thrash)
 // ============================================================
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
@@ -25,23 +27,24 @@ import SMZNegotiatedOverlay from "./overlays/SMZNegotiatedOverlay";
 import createSmartMoneyZonesOverlay from "../../../components/overlays/SmartMoneyZonesOverlay";
 import SmartMoneyZonesPanel from "../../../components/smz/SmartMoneyZonesPanel";
 
-// Engine 1 overlays (backend)
 import SMZLevelsOverlay from "./overlays/SMZLevelsOverlay";
 import SMZShelvesOverlay from "./overlays/SMZShelvesOverlay";
 import AccDistZonesPanel from "../../../components/smz/AccDistZonesPanel";
 
-// ✅ Engine 2 overlay (multi-degree)
 import FibLevelsOverlay from "./overlays/FibLevelsOverlay";
 
 /* ------------------------------ Config ------------------------------ */
 
 const HISTORY_MONTHS = 6;
-
-// ✅ Speed boost: limit very heavy intraday charts
-const FAST_MONTHS_INTRADAY = 2; // for 1m + 5m
-
+const FAST_MONTHS_INTRADAY = 2; // ✅ Turbo: 1m + 5m only
 const TRADING_DAYS_PER_MONTH = 21;
 const AXIS_FONT_SIZE = 22;
+
+// ✅ Turbo UI sync: chart updates every tick; React updates only every 1s
+const UI_SYNC_MS = 1000;
+
+// ✅ Hard cap to prevent memory bloat on long sessions
+const MAX_KEEP_BARS = 25000;
 
 const DEFAULTS = {
   upColor: "#26a69a",
@@ -92,7 +95,7 @@ function barsPerDay(tf) {
 }
 
 function seedLimitFor(tf, months = HISTORY_MONTHS) {
-  // ✅ Force 2 months for 1m and 5m (big performance win)
+  // ✅ Turbo: cap 1m + 5m to 2 months
   const effectiveMonths =
     tf === "1m" || tf === "5m" ? FAST_MONTHS_INTRADAY : months;
 
@@ -100,7 +103,6 @@ function seedLimitFor(tf, months = HISTORY_MONTHS) {
   const estimate = days * barsPerDay(tf);
   return Math.ceil(estimate * 1.3);
 }
-
 
 /* --------------------------- AZ time utils --------------------------- */
 
@@ -140,7 +142,8 @@ function makeTickFormatter(tf) {
   });
 
   return (t) => {
-    const seconds = typeof t === "number" ? t : (t?.timestamp ?? t?.time ?? 0);
+    const seconds =
+      typeof t === "number" ? t : (t?.timestamp ?? t?.time ?? 0);
     const d = new Date(seconds * 1000);
     if (isDailyTF) return fmtDaily.format(d);
     const isMidnight = d.getHours() === 0 && d.getMinutes() === 0;
@@ -152,13 +155,7 @@ function makeTickFormatter(tf) {
 /* ------------------------------ Helpers ----------------------------- */
 
 function calcEMA(barsAsc, length) {
-  if (
-    !Array.isArray(barsAsc) ||
-    barsAsc.length === 0 ||
-    !Number.isFinite(length) ||
-    length <= 1
-  )
-    return [];
+  if (!Array.isArray(barsAsc) || barsAsc.length === 0 || length <= 1) return [];
   const k = 2 / (length + 1);
   const out = [];
   let ema;
@@ -187,7 +184,6 @@ function attachOverlay(Module, args) {
   return { attach() {}, seed() {}, update() {}, destroy() {} };
 }
 
-// Helper: build a consistent default fib style object including Elliott settings
 function makeFibStyle(color, fontPx, lineWidth, showExtensions = true) {
   return {
     color,
@@ -197,7 +193,6 @@ function makeFibStyle(color, fontPx, lineWidth, showExtensions = true) {
     showRetrace: true,
     showAnchors: true,
 
-    // Elliott manual overlays (labels + lines)
     showWaveLabels: false,
     showWaveLines: false,
     waveLabelColor: color,
@@ -226,6 +221,7 @@ export default function RowChart({
 
   const overlayInstancesRef = useRef([]);
 
+  // ✅ Bars live in ref (fast). React state updates are throttled.
   const [bars, setBars] = useState([]);
   const barsRef = useRef([]);
 
@@ -234,8 +230,15 @@ export default function RowChart({
 
   const [chartReady, setChartReady] = useState(false);
 
+  // ✅ Used to re-seed overlays only when we load history (not on every tick)
+  const [seedToken, setSeedToken] = useState(0);
+
   // 🔒 stream unsubscribe stored here to prevent thrash
   const streamUnsubRef = useRef(null);
+
+  // ✅ Turbo UI sync controller
+  const lastUiSyncRef = useRef(0);
+  const uiTimerRef = useRef(null);
 
   const [state, setState] = useState({
     symbol: defaultSymbol,
@@ -253,13 +256,11 @@ export default function RowChart({
     institutionalZonesAuto: false,
     smzShelvesAuto: false,
 
-    // ✅ Engine 2 Fib (multi-degree toggles)
     fibPrimary: false,
     fibIntermediate: false,
     fibMinor: false,
     fibMinute: false,
 
-    // ✅ per-degree styles (edited in toolbar ⚙)
     fibPrimaryStyle: makeFibStyle("#ff5ad6", 18, 3.5, true),
     fibIntermediateStyle: makeFibStyle("#ffd54a", 18, 3.5, true),
     fibMinorStyle: makeFibStyle("#22c55e", 16, 3.0, true),
@@ -275,8 +276,6 @@ export default function RowChart({
       get: () => state,
       set: (patch) => setState((s) => ({ ...s, ...patch })),
     };
-    window.__on = (k) => window.__indicators.set({ [k]: true });
-    window.__off = (k) => window.__indicators.set({ [k]: false });
   }
 
   const symbols = useMemo(() => SYMBOLS, []);
@@ -361,6 +360,12 @@ export default function RowChart({
       } catch {}
       streamUnsubRef.current = null;
 
+      // stop ui timer
+      try {
+        if (uiTimerRef.current) clearTimeout(uiTimerRef.current);
+      } catch {}
+      uiTimerRef.current = null;
+
       try {
         ro.disconnect();
       } catch {}
@@ -404,6 +409,44 @@ export default function RowChart({
     didFitOnceRef.current = false;
   }, [state.timeframe]);
 
+  /* ---------------------- TURBO: UI sync helper ---------------------- */
+
+  const forceUiSync = () => {
+    // Hard cap list size
+    if (barsRef.current.length > MAX_KEEP_BARS) {
+      barsRef.current = barsRef.current.slice(-MAX_KEEP_BARS);
+    }
+    setBars([...barsRef.current]);
+    lastUiSyncRef.current = Date.now();
+  };
+
+  const scheduleUiSync = (force = false) => {
+    if (force) {
+      try {
+        if (uiTimerRef.current) clearTimeout(uiTimerRef.current);
+      } catch {}
+      uiTimerRef.current = null;
+      forceUiSync();
+      return;
+    }
+
+    const now = Date.now();
+    const elapsed = now - (lastUiSyncRef.current || 0);
+
+    if (elapsed >= UI_SYNC_MS) {
+      forceUiSync();
+      return;
+    }
+
+    if (!uiTimerRef.current) {
+      const due = Math.max(50, UI_SYNC_MS - elapsed);
+      uiTimerRef.current = setTimeout(() => {
+        uiTimerRef.current = null;
+        forceUiSync();
+      }, due);
+    }
+  };
+
   /* ==================== Effect A: Fetch + Seed Series ==================== */
 
   useEffect(() => {
@@ -424,7 +467,6 @@ export default function RowChart({
           .sort((a, b) => a.time - b.time);
 
         barsRef.current = asc;
-        setBars(asc);
 
         seriesRef.current?.setData(
           asc.map((b) => ({
@@ -452,6 +494,13 @@ export default function RowChart({
           }
         }
 
+        // ✅ Turbo: single React set after seeding (not during live ticks)
+        setBars(asc);
+        lastUiSyncRef.current = Date.now();
+
+        // ✅ Trigger overlays to attach/seed (only on history seed)
+        setSeedToken((x) => x + 1);
+
         const chart = chartRef.current;
         if (
           chart &&
@@ -478,6 +527,7 @@ export default function RowChart({
   }, [state.symbol, state.timeframe, state.range, state.volume]);
 
   /* =================== Effect B: Attach/Seed Overlays =================== */
+  // ✅ Turbo: depends on seedToken (history seed), NOT bars changes from live ticks
 
   useEffect(() => {
     if (!chartRef.current || !seriesRef.current || barsRef.current.length === 0)
@@ -490,7 +540,6 @@ export default function RowChart({
 
     const reg = (inst) => inst && overlayInstancesRef.current.push(inst);
 
-    // --- Engine 1 overlays ---
     const engine1On = !!state.institutionalZonesAuto;
     const shelvesOn = !!state.smzShelvesAuto || engine1On;
 
@@ -504,7 +553,6 @@ export default function RowChart({
         })
       );
 
-      // Negotiated overlay (always tied to Engine 1 toggle)
       reg(
         attachOverlay(SMZNegotiatedOverlay, {
           chart: chartRef.current,
@@ -526,7 +574,6 @@ export default function RowChart({
       );
     }
 
-    // ✅ Engine 2 — Primary (1d)
     if (state.fibPrimary) {
       reg(
         attachOverlay(FibLevelsOverlay, {
@@ -541,7 +588,6 @@ export default function RowChart({
       );
     }
 
-    // ✅ Engine 2 — Intermediate (1h)
     if (state.fibIntermediate) {
       reg(
         attachOverlay(FibLevelsOverlay, {
@@ -556,7 +602,6 @@ export default function RowChart({
       );
     }
 
-    // ✅ Engine 2 — Minor (1h)
     if (state.fibMinor) {
       reg(
         attachOverlay(FibLevelsOverlay, {
@@ -571,7 +616,6 @@ export default function RowChart({
       );
     }
 
-    // ✅ Engine 2 — Minute (10m)
     if (state.fibMinute) {
       reg(
         attachOverlay(FibLevelsOverlay, {
@@ -590,6 +634,8 @@ export default function RowChart({
       overlayInstancesRef.current.forEach((o) => o?.seed?.(barsRef.current));
     } catch {}
   }, [
+    seedToken, // ✅ Turbo trigger
+
     state.institutionalZonesAuto,
     state.smzShelvesAuto,
 
@@ -604,13 +650,12 @@ export default function RowChart({
     state.fibMinuteStyle,
 
     state.timeframe,
-    bars,
     showDebug,
   ]);
 
-  /* =================== Effect C: LIVE STREAM (STABLE) =================== */
-  // 🔥 Root-cause fix: do NOT include volume/showDebug in deps (they caused resubscribe thrash).
-  // Stream restarts only when symbol/timeframe changes.
+  /* =================== Effect C: LIVE STREAM (STABLE + TURBO) =================== */
+  // ✅ Stream restarts only when symbol/timeframe changes
+  // ✅ React state updates throttled via scheduleUiSync()
 
   useEffect(() => {
     if (!chartReady || !seriesRef.current) return;
@@ -642,6 +687,8 @@ export default function RowChart({
       // --- 1m chart direct update ---
       if (tfSec === TF_SEC["1m"]) {
         const bar = { ...oneMin, time: tSec };
+
+        // chart paint (fast)
         seriesRef.current?.update(bar);
 
         if (state.volume && volSeriesRef.current) {
@@ -652,16 +699,18 @@ export default function RowChart({
           });
         }
 
+        // update data list (fast ref)
         const prev = barsRef.current[barsRef.current.length - 1];
         if (!prev || bar.time > prev.time) {
-          const next = [...barsRef.current, bar];
-          barsRef.current = next;
-          setBars(next);
+          barsRef.current = [...barsRef.current, bar];
+          // ✅ Force UI sync on new bar close
+          scheduleUiSync(true);
         } else if (bar.time === prev.time) {
           const next = [...barsRef.current];
           next[next.length - 1] = bar;
           barsRef.current = next;
-          setBars(next);
+          // ✅ Throttled sync on rolling updates
+          scheduleUiSync(false);
         }
 
         try {
@@ -674,7 +723,7 @@ export default function RowChart({
       const start = floorToBucket(tSec);
 
       if (bucketStart === null || start > bucketStart) {
-        // finalize old rolling
+        // finalize old rolling (bar close)
         if (rolling) {
           seriesRef.current?.update(rolling);
 
@@ -692,7 +741,9 @@ export default function RowChart({
           else next[next.length - 1] = rolling;
 
           barsRef.current = next;
-          setBars(next);
+
+          // ✅ Force UI sync at bar close
+          scheduleUiSync(true);
 
           try {
             overlayInstancesRef.current.forEach((o) => o?.update?.(rolling));
@@ -714,6 +765,9 @@ export default function RowChart({
         rolling.low = Math.min(rolling.low, oneMin.low);
         rolling.close = oneMin.close;
         rolling.volume = Number(rolling.volume || 0) + Number(oneMin.volume || 0);
+
+        // ✅ Throttled UI sync while candle forms
+        scheduleUiSync(false);
       }
 
       // paint rolling candle
@@ -741,6 +795,7 @@ export default function RowChart({
   }, [chartReady, state.symbol, state.timeframe]);
 
   /* ---------------------------- EMA lines ----------------------------- */
+  // ✅ Turbo benefit: EMA recalcs happen only when React bars updates (~1/sec), not every tick.
 
   useEffect(() => {
     const chart = chartRef.current;
@@ -845,7 +900,6 @@ export default function RowChart({
         volume: true,
         institutionalZonesAuto: false,
         smzShelvesAuto: false,
-
         fibPrimary: false,
         fibIntermediate: false,
         fibMinor: false,
