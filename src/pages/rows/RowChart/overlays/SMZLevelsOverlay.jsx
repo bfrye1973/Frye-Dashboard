@@ -1,16 +1,12 @@
 // src/pages/rows/RowChart/overlays/SMZLevelsOverlay.jsx
 // Engine 1 Overlay — INSTITUTIONAL PARENTS ONLY (yellow)
-//
-// ✅ LOCKED:
-// - Manual institutional parents ALWAYS show (from structures_sticky)
-// - Live institutional zones show (from levels[]), but are secondary to stickies
-// - Negotiated zones (|NEG| or isNegotiated true) are NOT drawn here
-// - No dashed lines, no midlines, no micro tier
-//
-// ✅ NEW:
-// - Big readable institutional labels with strength
-// - Uses displayPriceRange if present (tight acceptance core)
-// - Fill limited to avoid yellow blob; outlines for the rest
+// ✅ CLEAN MODE:
+// - Always show MANUAL institutionals
+// - Show AUTO institutionals only if they are "canonical":
+//    A) they own an auto negotiated zone (AUTO|...|PARENT=<id>)
+//    B) OR they are among top N strongest autos (small N)
+// - Never draw negotiated zones here
+// - Labels only for shown zones (prevents blob)
 
 const SMZ_URL =
   "https://frye-market-backend-1.onrender.com/api/v1/smz-levels?symbol=SPY";
@@ -20,28 +16,30 @@ export default function SMZLevelsOverlay({ chart, priceSeries, chartContainer })
     return { seed() {}, update() {}, destroy() {} };
   }
 
-  let levels = [];
   let sticky = [];
   let canvas = null;
 
   const ts = chart.timeScale();
 
-  // Institutional threshold for "strong" label emphasis (not required to draw)
-  const INSTITUTIONAL_MIN = 85;
-
-  // Visual tuning (no blob)
+  // --- tuning knobs ---
   const PAD = 0.06;
-  const MAX_FILLED_TOTAL = 3;   // total filled across manual+auto
+
+  // Fill limits (prevents blob)
   const MAX_FILLED_MANUAL = 2;
   const MAX_FILLED_AUTO = 1;
 
+  // Auto display limits (prevents clutter)
+  const MAX_AUTO_TOTAL = 2;     // only show up to 2 auto institutionals total
+  const MAX_AUTO_LABEL = 2;     // label up to 2 autos
+  const MIN_AUTO_STRENGTH = 85; // ignore weak autos unless they own a negotiated zone
+
   // Styles
-  const FILL = "rgba(255,215,0,0.06)";
+  const FILL = "rgba(255,215,0,0.05)";
   const STROKE = "rgba(255,215,0,0.80)";
   const OUTLINE = "rgba(255,215,0,0.55)";
   const STROKE_W = 1;
 
-  // Label styles (big + readable)
+  // Label style
   const LABEL_FONT = "bold 18px system-ui, -apple-system, Segoe UI, Roboto, Arial";
   const LABEL_BG = "rgba(0,0,0,0.55)";
   const LABEL_PAD_X = 14;
@@ -76,6 +74,13 @@ export default function SMZLevelsOverlay({ chart, priceSeries, chartContainer })
     return String(z?.details?.id ?? z?.structureKey ?? z?.id ?? "");
   }
 
+  function getStrength(z) {
+    const raw = safeNum(z?.strength_raw);
+    if (raw != null) return raw;
+    const s = safeNum(z?.strength);
+    return s != null ? s : 0;
+  }
+
   function isNegotiated(z) {
     if (z?.isNegotiated === true) return true;
     const id = zoneId(z);
@@ -87,13 +92,6 @@ export default function SMZLevelsOverlay({ chart, priceSeries, chartContainer })
     if (!id.startsWith("MANUAL|")) return false;
     if (isNegotiated(z)) return false;
     return true;
-  }
-
-  function getStrength(z) {
-    const raw = safeNum(z?.strength_raw);
-    if (raw != null) return raw;
-    const s = safeNum(z?.strength);
-    return s != null ? s : 0;
   }
 
   function getRange(z) {
@@ -161,7 +159,6 @@ export default function SMZLevelsOverlay({ chart, priceSeries, chartContainer })
     const boxW = tw + LABEL_PAD_X * 2;
     const boxH = th + LABEL_PAD_Y * 2;
 
-    // center in chart, clamp so it stays visible
     let x = Math.round(w / 2);
     let y = Math.round(yCenter);
 
@@ -181,6 +178,13 @@ export default function SMZLevelsOverlay({ chart, priceSeries, chartContainer })
     ctx.restore();
   }
 
+  function parseAutoNegParentId(id) {
+    // AUTO|SPY|NEG|690.00-691.00|PARENT=<parentId>
+    const s = String(id || "");
+    const m = s.match(/\|PARENT=(.+)$/);
+    return m ? m[1] : null;
+  }
+
   function draw() {
     const cnv = ensureCanvas();
     const w = chartContainer.clientWidth || 1;
@@ -193,8 +197,18 @@ export default function SMZLevelsOverlay({ chart, priceSeries, chartContainer })
 
     const currentPrice = getCurrentPrice();
 
-    // --- Build manual zones list (always show) ---
-    const manualZones = (Array.isArray(sticky) ? sticky : [])
+    const allSticky = Array.isArray(sticky) ? sticky : [];
+
+    // 1) Find AUTO negotiated zones and extract parent ids
+    const autoNegParents = new Set(
+      allSticky
+        .filter((z) => z && z?.isNegotiated === true)
+        .map((z) => parseAutoNegParentId(zoneId(z)))
+        .filter(Boolean)
+    );
+
+    // 2) Manual institutionals (always show)
+    const manualZones = allSticky
       .filter((z) => z && String(z?.tier ?? "") === "structure_sticky")
       .filter((z) => isManualInstitutionalParent(z))
       .map((z) => {
@@ -202,62 +216,92 @@ export default function SMZLevelsOverlay({ chart, priceSeries, chartContainer })
         if (!r) return null;
         const strength = getStrength(z);
         const dist = Number.isFinite(currentPrice) ? Math.abs(r.mid - currentPrice) : r.width;
-        return { z, r, strength, dist, isManual: true };
+        return { z, r, strength, dist, filled: false, label: true, kind: "manual" };
       })
       .filter(Boolean)
       .sort((a, b) => a.dist - b.dist);
 
-    // --- Build auto institutional list (from structures_sticky non-manual) ---
-    const autoZones = (Array.isArray(sticky) ? sticky : [])
+    // 3) Auto institutionals that own negotiated zones (canonical)
+    const autoOwned = allSticky
       .filter((z) => z && String(z?.tier ?? "") === "structure_sticky")
       .filter((z) => !isManualInstitutionalParent(z))
       .filter((z) => !isNegotiated(z))
       .map((z) => {
+        const id = zoneId(z);
         const r = getRange(z);
         if (!r) return null;
         const strength = getStrength(z);
         const dist = Number.isFinite(currentPrice) ? Math.abs(r.mid - currentPrice) : r.width;
-        return { z, r, strength, dist, isManual: false };
+        return { z, id, r, strength, dist };
       })
       .filter(Boolean)
+      .filter((x) => autoNegParents.has(x.id)) // only those owning a negotiated zone
+      .sort((a, b) => a.dist - b.dist);
+
+    // 4) Additional top autos (only if strong) — limited to MAX_AUTO_TOTAL
+    const autoCandidates = allSticky
+      .filter((z) => z && String(z?.tier ?? "") === "structure_sticky")
+      .filter((z) => !isManualInstitutionalParent(z))
+      .filter((z) => !isNegotiated(z))
+      .map((z) => {
+        const id = zoneId(z);
+        const r = getRange(z);
+        if (!r) return null;
+        const strength = getStrength(z);
+        const dist = Number.isFinite(currentPrice) ? Math.abs(r.mid - currentPrice) : r.width;
+        return { z, id, r, strength, dist };
+      })
+      .filter(Boolean)
+      .filter((x) => x.strength >= MIN_AUTO_STRENGTH) // strong only
       .sort((a, b) => {
-        // closer first, then stronger, then tighter
+        // prefer closer, then stronger, then tighter
         if (a.dist !== b.dist) return a.dist - b.dist;
         if (b.strength !== a.strength) return b.strength - a.strength;
         return a.r.width - b.r.width;
       });
 
-    // Decide which to fill (to avoid blob)
-    const fillManual = manualZones.slice(0, MAX_FILLED_MANUAL);
-    const fillAuto = autoZones.slice(0, MAX_FILLED_AUTO);
-    const filled = [...fillManual, ...fillAuto].slice(0, MAX_FILLED_TOTAL);
+    // Build final auto list: negotiated-owners first, then top candidates not already included
+    const chosenAuto = [];
+    const chosenIds = new Set();
 
-    // --- Draw manual bands + labels ---
-    for (const item of manualZones) {
-      const { r, strength } = item;
-      const isFilled = filled.includes(item);
-
-      drawBand(ctx, w, r.hi + PAD, r.lo - PAD, isFilled);
-
-      // label manual institutional always
-      const yMid = priceToY(r.mid);
-      if (yMid != null) {
-        drawLabel(ctx, w, h, yMid, `Institutional ${Math.round(strength)}`, STROKE);
-      }
+    for (const a of autoOwned) {
+      if (chosenAuto.length >= MAX_AUTO_TOTAL) break;
+      chosenAuto.push(a);
+      chosenIds.add(a.id);
     }
 
-    // --- Draw auto bands + labels (only if strong enough OR close to price) ---
-    for (const item of autoZones) {
-      const { r, strength } = item;
-      const isFilled = filled.includes(item);
+    for (const a of autoCandidates) {
+      if (chosenAuto.length >= MAX_AUTO_TOTAL) break;
+      if (chosenIds.has(a.id)) continue;
+      chosenAuto.push(a);
+      chosenIds.add(a.id);
+    }
 
-      drawBand(ctx, w, r.hi + PAD, r.lo - PAD, isFilled);
+    // Fill selections
+    const fillManual = manualZones.slice(0, MAX_FILLED_MANUAL);
+    const fillAuto = chosenAuto.slice(0, MAX_FILLED_AUTO);
 
-      // label only if strength >= 85 (keeps chart clean)
-      if (strength >= INSTITUTIONAL_MIN) {
-        const yMid = priceToY(r.mid);
+    // Draw manual zones
+    for (const item of manualZones) {
+      const filled = fillManual.includes(item);
+      drawBand(ctx, w, item.r.hi + PAD, item.r.lo - PAD, filled);
+
+      const yMid = priceToY(item.r.mid);
+      if (yMid != null) drawLabel(ctx, w, h, yMid, `Institutional ${Math.round(item.strength)}`, STROKE);
+    }
+
+    // Draw chosen autos only (no clutter)
+    let autoLabelsLeft = MAX_AUTO_LABEL;
+    for (const item of chosenAuto) {
+      const filled = fillAuto.includes(item);
+      drawBand(ctx, w, item.r.hi + PAD, item.r.lo - PAD, filled);
+
+      if (autoLabelsLeft > 0) {
+        const yMid = priceToY(item.r.mid);
         if (yMid != null) {
-          drawLabel(ctx, w, h, yMid, `Institutional ${Math.round(strength)}`, STROKE);
+          const tag = autoNegParents.has(item.id) ? "" : ""; // keep clean; you can add "(AUTO)" later if you want
+          drawLabel(ctx, w, h, yMid, `Institutional ${Math.round(item.strength)}${tag}`, STROKE);
+          autoLabelsLeft--;
         }
       }
     }
@@ -268,13 +312,9 @@ export default function SMZLevelsOverlay({ chart, priceSeries, chartContainer })
       const res = await fetch(`${SMZ_URL}&_=${Date.now()}`, { cache: "no-store" });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json();
-
-      levels = Array.isArray(json?.levels) ? json.levels : [];
       sticky = Array.isArray(json?.structures_sticky) ? json.structures_sticky : [];
-
       draw();
-    } catch (e) {
-      levels = [];
+    } catch {
       sticky = [];
       draw();
     }
@@ -289,12 +329,9 @@ export default function SMZLevelsOverlay({ chart, priceSeries, chartContainer })
 
   function destroy() {
     try {
-      if (canvas && canvas.parentNode === chartContainer) {
-        chartContainer.removeChild(canvas);
-      }
+      if (canvas && canvas.parentNode === chartContainer) chartContainer.removeChild(canvas);
     } catch {}
     canvas = null;
-    levels = [];
     sticky = [];
     try { unsubVisible(); } catch {}
   }
