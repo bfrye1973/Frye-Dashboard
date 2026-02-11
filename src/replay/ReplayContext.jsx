@@ -1,5 +1,12 @@
 // src/replay/ReplayContext.jsx
-import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { replayDates, replayTimes, replaySnapshot, replayEvents } from "./replayApi";
 
 const ReplayCtx = createContext(null);
@@ -19,57 +26,95 @@ export function ReplayProvider({ children }) {
   // Load available dates when replay enabled
   useEffect(() => {
     if (!enabled) return;
+
+    let cancelled = false;
+
     replayDates()
       .then((r) => {
-        const ds = r?.dates || [];
+        if (cancelled) return;
+        const ds = Array.isArray(r?.dates) ? r.dates : [];
         setDates(ds);
-        if (!date && ds.length) setDate(ds[ds.length - 1]);
+        // Default to most recent date ONLY if none selected yet
+        setDate((prev) => (prev ? prev : ds.length ? ds[ds.length - 1] : ""));
       })
-      .catch(() => setDates([]));
+      .catch(() => {
+        if (!cancelled) setDates([]);
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [enabled]);
 
   // Load times + events when date changes
   useEffect(() => {
     if (!enabled || !date) return;
+
+    let cancelled = false;
+
     replayTimes(date)
       .then((r) => {
-        const ts = r?.times || [];
+        if (cancelled) return;
+        const ts = Array.isArray(r?.times) ? r.times : [];
         setTimes(ts);
-        if (!time && ts.length) setTime(ts[0]);
+        // Default to most recent time ONLY if none selected yet
+        setTime((prev) => (prev ? prev : ts.length ? ts[ts.length - 1] : ""));
       })
-      .catch(() => setTimes([]));
+      .catch(() => {
+        if (!cancelled) setTimes([]);
+      });
 
     replayEvents(date)
       .then((r) => {
-        setEvents(r?.events || []);
-        setEventIdx((r?.events?.length ?? 0) ? 0 : -1);
+        if (cancelled) return;
+        const ev = Array.isArray(r?.events) ? r.events : [];
+        setEvents(ev);
+        setEventIdx(ev.length ? 0 : -1);
       })
       .catch(() => {
-        setEvents([]);
-        setEventIdx(-1);
+        if (!cancelled) {
+          setEvents([]);
+          setEventIdx(-1);
+        }
       });
+
+    return () => {
+      cancelled = true;
+    };
   }, [enabled, date]);
 
   // Load snapshot when time changes
   useEffect(() => {
     if (!enabled || !date || !time) return;
+
+    let cancelled = false;
+
     replaySnapshot(date, time)
-      .then((s) => setSnapshot(s))
-      .catch(() => setSnapshot(null));
+      .then((s) => {
+        if (!cancelled) setSnapshot(s);
+      })
+      .catch(() => {
+        if (!cancelled) setSnapshot(null);
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [enabled, date, time]);
 
-  function nextEvent() {
-    if (!events.length) return;
-    const idx = Math.min(events.length - 1, eventIdx + 1);
-    setEventIdx(idx);
-    // Optional: jump to nearest time bucket by parsing event.tsUtc (Phase 1 skip)
-  }
+  const nextEvent = useCallback(() => {
+    setEventIdx((prev) => {
+      if (!events.length) return prev;
+      return Math.min(events.length - 1, prev + 1);
+    });
+  }, [events.length]);
 
-  function prevEvent() {
-    if (!events.length) return;
-    const idx = Math.max(0, eventIdx - 1);
-    setEventIdx(idx);
-  }
+  const prevEvent = useCallback(() => {
+    setEventIdx((prev) => {
+      if (!events.length) return prev;
+      return Math.max(0, prev - 1);
+    });
+  }, [events.length]);
 
   const value = useMemo(
     () => ({
@@ -89,7 +134,7 @@ export function ReplayProvider({ children }) {
         prevEvent,
       },
     }),
-    [enabled, dates, date, times, time, snapshot, events, eventIdx]
+    [enabled, dates, date, times, time, snapshot, events, eventIdx, nextEvent, prevEvent]
   );
 
   return <ReplayCtx.Provider value={value}>{children}</ReplayCtx.Provider>;
