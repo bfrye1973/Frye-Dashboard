@@ -134,7 +134,18 @@ export function ReplayProvider({ children }) {
         prevEvent,
       },
     }),
-    [enabled, dates, date, times, time, snapshot, events, eventIdx, nextEvent, prevEvent]
+    [
+      enabled,
+      dates,
+      date,
+      times,
+      time,
+      snapshot,
+      events,
+      eventIdx,
+      nextEvent,
+      prevEvent,
+    ]
   );
 
   return <ReplayCtx.Provider value={value}>{children}</ReplayCtx.Provider>;
@@ -142,6 +153,26 @@ export function ReplayProvider({ children }) {
 
 export function useReplay() {
   const ctx = useContext(ReplayCtx);
-  if (!ctx) throw new Error("useReplay must be used inside ReplayProvider");
+
+  // ✅ SAFE FALLBACK:
+  // If ReplayProvider isn't mounted yet, treat Replay as OFF (prevents site crash)
+  if (!ctx) {
+    return {
+      enabled: false,
+      setEnabled: () => {},
+      dates: [],
+      date: "",
+      setDate: () => {},
+      times: [],
+      time: "",
+      setTime: () => {},
+      snapshot: null,
+      events: [],
+      eventIdx: -1,
+      nextEvent: () => {},
+      prevEvent: () => {},
+    };
+  }
+
   return ctx.replay;
 }
