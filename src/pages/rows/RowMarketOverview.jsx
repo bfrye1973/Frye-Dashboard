@@ -1,6 +1,8 @@
 // src/pages/rows/RowMarketOverview.jsx
 // Market Meter — 10m / 1h / 4h / EOD stoplights with Lux PSI (tightness) aligned + 5m Pulse
-// ✅ Adds MASTER Overall Score (1h+4h+EOD) to the RIGHT of EOD lights with a header.
+// ✅ Replay Mode support (MVP):
+//    - When replay.enabled: uses replay.snapshot.market.raw as 10m feed and STOPS live polling
+//    - 1h/4h/EOD show "—" until we store those in replay snapshots later
 
 import React from "react";
 import { useDashboardPoll } from "../../lib/dashboardApiSafe";
@@ -10,6 +12,7 @@ import {
   MarketMeterIntradayLegend,
   MarketMeterDailyLegend,
 } from "../../components/MarketMeterLegend";
+import { useReplay } from "../../replay/ReplayContext"; // ✅ REPLAY
 
 // ----------------- API endpoints -----------------
 const INTRADAY_URL = process.env.REACT_APP_INTRADAY_URL; // /live/intraday
@@ -225,16 +228,29 @@ function useSandboxDeltas() {
 
 /* ===================== Main Component ===================== */
 export default function RowMarketOverview() {
+  const replay = useReplay(); // ✅ replay.enabled, replay.snapshot
   const { data: polled } = useDashboardPoll("dynamic");
 
   const [legendOpen, setLegendOpen] = React.useState(null);
+
+  // These hold the live feeds when replay is OFF
   const [live10, setLive10] = React.useState(null);
   const [live1h, setLive1h] = React.useState(null);
   const [live4h, setLive4h] = React.useState(null);
   const [liveEOD, setLiveEOD] = React.useState(null);
 
-  // Pull direct /live feeds
+  // ✅ Replay injection: when replay is enabled and snapshot exists,
+  // force the 10m feed from replay snapshot.market.raw
   React.useEffect(() => {
+    if (replay?.enabled && replay?.snapshot?.market?.raw) {
+      setLive10(replay.snapshot.market.raw);
+    }
+  }, [replay?.enabled, replay?.snapshot]);
+
+  // Pull direct /live feeds (ONLY when replay is OFF)
+  React.useEffect(() => {
+    if (replay?.enabled) return; // ✅ stop live polling in replay
+
     let stop = false;
 
     async function pull() {
@@ -278,12 +294,13 @@ export default function RowMarketOverview() {
       stop = true;
       clearInterval(id);
     };
-  }, []);
+  }, [replay?.enabled]);
 
   const { dB: deltaB, dM: deltaM, ts: deltaTs } = useSandboxDeltas();
 
-  // 10m
-  const d10 = live10 || polled || {};
+  // ----------------- Data Selection -----------------
+  // 10m: in replay mode we want replay snapshot raw; otherwise live10; otherwise polled fallback.
+  const d10 = (replay?.enabled && replay?.snapshot?.market?.raw) ? replay.snapshot.market.raw : (live10 || polled || {});
   const m10 = d10.metrics || {};
   const i10 = d10.intraday || {};
   const eng10 = (d10.engineLights && d10.engineLights["10m"]) || {};
@@ -291,8 +308,15 @@ export default function RowMarketOverview() {
     (d10.meta && d10.meta.last_full_run_utc) ||
     d10.updated_at ||
     d10.updated_at_utc ||
+    replay?.snapshot?.tsUtc ||
     null;
 
+  // 1h/4h/EOD: in replay mode, we do NOT have these stored yet, so show empty objects.
+  const d1h = replay?.enabled ? {} : (live1h || {});
+  const d4h = replay?.enabled ? {} : (live4h || {});
+  const dd  = replay?.enabled ? {} : (liveEOD || {});
+
+  // ----------------- 10m extraction -----------------
   const breadth10 = num(m10.breadth_10m_pct ?? m10.breadth_pct);
   const mom10 =
     num(m10.momentum_10m_pct) ||
@@ -309,8 +333,7 @@ export default function RowMarketOverview() {
   if (!Number.isFinite(overall10)) overall10 = num(eng10.score);
   const state10 = i10?.overall10m?.state || eng10.state || "neutral";
 
-  // 1h
-  const d1h = live1h || {};
+  // ----------------- 1h extraction -----------------
   const m1h = d1h.metrics || {};
   const h1 = d1h.hourly || {};
   const ts1h = d1h.updated_at || d1h.updated_at_utc || null;
@@ -329,8 +352,7 @@ export default function RowMarketOverview() {
   const overall1 = num(h1?.overall1h?.score);
   const state1 = h1?.overall1h?.state || "neutral";
 
-  // 4h
-  const d4h = live4h || {};
+  // ----------------- 4h extraction -----------------
   const m4h = d4h.metrics || {};
   const h4 = d4h.fourHour || {};
   const ts4h = d4h.updated_at || d4h.updated_at_utc || null;
@@ -354,8 +376,7 @@ export default function RowMarketOverview() {
   const overall4 = num(h4?.overall4h?.score ?? m4h.trend_strength_4h_pct);
   const state4 = h4?.overall4h?.state || "neutral";
 
-  // EOD extraction
-  const dd = liveEOD || {};
+  // ----------------- EOD extraction -----------------
   const tsEod = dd.updated_at || dd.updated_at_utc || null;
   const dMetrics = dd.metrics || {};
   const daily = dd.daily || {};
@@ -413,7 +434,7 @@ export default function RowMarketOverview() {
         </div>
 
         <div className="spacer" />
-        <LastUpdated ts={tsOf(d10 || d1h || d4h || dd || polled)} />
+        <LastUpdated ts={replay?.enabled ? replay?.snapshot?.tsUtc : tsOf(d10 || d1h || d4h || dd || polled)} />
       </div>
 
       <div
@@ -428,7 +449,7 @@ export default function RowMarketOverview() {
         {/* 10m */}
         <div style={stripBox}>
           <div className="small" style={{ color: "#e5e7eb", fontWeight: 800 }}>
-            10m — Intraday Scalp
+            10m — Intraday Scalp {replay?.enabled ? "(REPLAY)" : ""}
           </div>
 
           <div style={lineBox}>
@@ -455,14 +476,20 @@ export default function RowMarketOverview() {
             }}
           >
             <div>
-              Last 10-min: <strong>{fmtIso(ts10)}</strong> &nbsp;|&nbsp; Δ5m updated:{" "}
-              <strong>{fmtIso(deltaTs)}</strong>
-              {Number.isFinite(deltaB) && Number.isFinite(deltaM) ? (
+              Last 10-min: <strong>{fmtIso(ts10)}</strong>
+              {replay?.enabled ? (
+                <> &nbsp;|&nbsp; Replay: <strong>{replay.date} {replay.time}</strong></>
+              ) : (
                 <>
-                  &nbsp;|&nbsp; avgΔ5m <strong>{deltaB.toFixed(2)}</strong> &nbsp; avgΔ10m{" "}
-                  <strong>{deltaM.toFixed(2)}</strong>
+                  &nbsp;|&nbsp; Δ5m updated: <strong>{fmtIso(deltaTs)}</strong>
+                  {Number.isFinite(deltaB) && Number.isFinite(deltaM) ? (
+                    <>
+                      &nbsp;|&nbsp; avgΔ5m <strong>{deltaB.toFixed(2)}</strong> &nbsp; avgΔ10m{" "}
+                      <strong>{deltaM.toFixed(2)}</strong>
+                    </>
+                  ) : null}
                 </>
-              ) : null}
+              )}
             </div>
             <PulseIcon10m />
           </div>
@@ -471,7 +498,7 @@ export default function RowMarketOverview() {
         {/* 1h */}
         <div style={stripBox}>
           <div className="small" style={{ color: "#e5e7eb", fontWeight: 800 }}>
-            1h — Hourly Valuation
+            1h — Hourly Valuation {replay?.enabled ? "(—)" : ""}
           </div>
 
           <div style={lineBox}>
@@ -493,7 +520,7 @@ export default function RowMarketOverview() {
         {/* 4h */}
         <div style={stripBox}>
           <div className="small" style={{ color: "#e5e7eb", fontWeight: 800 }}>
-            4h — Bridge Valuation
+            4h — Bridge Valuation {replay?.enabled ? "(—)" : ""}
           </div>
 
           <div style={lineBox}>
@@ -515,7 +542,7 @@ export default function RowMarketOverview() {
         {/* EOD */}
         <div style={stripBox}>
           <div className="small" style={{ color: "#e5e7eb", fontWeight: 800 }}>
-            EOD — Daily Structure
+            EOD — Daily Structure {replay?.enabled ? "(—)" : ""}
           </div>
 
           <div style={lineBox}>
@@ -526,7 +553,7 @@ export default function RowMarketOverview() {
             <Stoplight label="Liq Regime" value={eodLiq} unit="%" tone={toneForLiquidity(eodLiq)} />
             <Stoplight label="Risk-On" value={eodRiskOn} tone={toneForPct(eodRiskOn)} />
 
-            {/* MASTER (to the RIGHT of EOD lights) */}
+            {/* MASTER */}
             <div style={{ textAlign: "center", minWidth: 120 }}>
               <div style={{ fontSize: 12, fontWeight: 800, color: "#9ca3af", marginBottom: 6 }}>
                 Master Overall Score
