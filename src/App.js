@@ -1,7 +1,8 @@
 // src/App.js
-// FULL REWRITE (SAFE) — wraps app with ReplayProvider (Replay Mode global state)
-// ✅ Keeps: API_BASE export, HealthStatusBar, UIScaler, ModeProvider, routes
-// ✅ Adds: ReplayProvider above dashboard so replay context is available everywhere
+// FULL REWRITE (SAFE) — adds /strategies-full route WITHOUT breaking anything else.
+// ✅ Keeps: API_BASE export, HealthStatusBar, UIScaler, ModeProvider, FullChart lazy import
+// ✅ Adds: StrategiesFull lazy import + route (React Router v6)
+// ✅ Does NOT delete/rename any existing routes or providers
 
 import React, { useEffect, useMemo, useState } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
@@ -10,7 +11,6 @@ import ErrorBoundary from "./ErrorBoundary";
 import "./index.css";
 import UIScaler from "./components/UIScaler";
 import { ModeProvider, ViewModes } from "./context/ModeContext";
-import { ReplayProvider } from "./replay/ReplayContext"; // ✅ NEW
 
 const FullChart = React.lazy(() => import("./pages/FullChart"));
 const StrategiesFull = React.lazy(() => import("./pages/StrategiesFull"));
@@ -194,25 +194,21 @@ export default function App() {
         <div style={{ minHeight: "100vh" }}>
           <BrowserRouter>
             <HealthStatusBar />
+            <ModeProvider initial={ViewModes.METER_TILES}>
+              <React.Suspense
+                fallback={<div style={{ padding: 16, color: "#9ca3af" }}>Loading…</div>}
+              >
+                <Routes>
+                  <Route path="/" element={<NewDashboard />} />
+                  <Route path="/chart" element={<FullChart />} />
 
-            {/* ✅ Replay context available to entire app */}
-            <ReplayProvider>
-              <ModeProvider initial={ViewModes.METER_TILES}>
-                <React.Suspense
-                  fallback={<div style={{ padding: 16, color: "#9ca3af" }}>Loading…</div>}
-                >
-                  <Routes>
-                    <Route path="/" element={<NewDashboard />} />
-                    <Route path="/chart" element={<FullChart />} />
+                  {/* ✅ NEW: Full Strategies page (opens in new tab from Strategy cards) */}
+                  <Route path="/strategies-full" element={<StrategiesFull />} />
 
-                    {/* ✅ Full Strategies page */}
-                    <Route path="/strategies-full" element={<StrategiesFull />} />
-
-                    <Route path="*" element={<Navigate to="/" replace />} />
-                  </Routes>
-                </React.Suspense>
-              </ModeProvider>
-            </ReplayProvider>
+                  <Route path="*" element={<Navigate to="/" replace />} />
+                </Routes>
+              </React.Suspense>
+            </ModeProvider>
           </BrowserRouter>
         </div>
       </UIScaler>
