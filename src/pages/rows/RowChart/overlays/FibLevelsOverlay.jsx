@@ -1,5 +1,5 @@
 // src/pages/rows/RowChart/overlays/FibLevelsOverlay.jsx
-// Engine 2 Fib Overlay (Multi-degree) — Turbo-safe
+// Engine 2 Fib Overlay (Multi-degree) — Turbo-safe (SNAP FIX)
 // - Fetches /api/v1/fib-levels for W1 and W4 (if present)
 // - Draws fib levels per settings
 // - Draws MANUAL Elliott waveMarks (W1–W5) as labels locked to candles using tSec
@@ -7,22 +7,28 @@
 //
 // IMPORTANT:
 // - No auto Elliott counting.
-// - Labels/lines require waveMarks.*.tSec to lock to candle. Backend must provide tSec.
+// - Backend must provide anchors.waveMarks.*.tSec for candle locking.
 //
-// TURBO NOTES:
+// TURBO NOTES (LOCKED):
 // - Overlays attach after history seed.
 // - bars live in barsRef.current; do NOT rely on React bar state.
 // - Implement seed(barsAsc) and update(latestBar).
+//
+// FIX (THIS FILE):
+// - 10m/30m labels sometimes failed because timeScale.timeToCoordinate(tSec) returned null
+//   when tSec did not exactly match a bar time in the current series.
+// - We fix it by snapping tSec to the nearest loaded bar time (seeded bars).
 
-// Robust API base (Vite + CRA + fallback)
+/* ---------------------------
+   API Base (Vite + CRA + fallback)
+--------------------------- */
 const API_BASE =
   (typeof import.meta !== "undefined" && import.meta.env && import.meta.env.VITE_API_BASE) ||
   (typeof process !== "undefined" && process.env && process.env.REACT_APP_API_BASE) ||
   (typeof window !== "undefined" && window.__API_BASE__) ||
   "https://frye-market-backend-1.onrender.com";
 
-// If your toolbar sometimes fails to pass wave flags, this prevents “silent nothing”.
-// Set to false if you want strict “must be explicitly enabled” behavior.
+// If toolbar sometimes fails to pass wave flags, this prevents “silent nothing”.
 const DEFAULT_WAVES_ON_WHEN_MISSING = true;
 
 export default function FibLevelsOverlay({
@@ -41,7 +47,9 @@ export default function FibLevelsOverlay({
     return { seed() {}, update() {}, destroy() {} };
   }
 
-  // Style defaults
+  /* ---------------------------
+     Style defaults
+  --------------------------- */
   const s = {
     // fib visuals
     color: style.color || "#ffd54a",
@@ -52,8 +60,6 @@ export default function FibLevelsOverlay({
     showAnchors: style.showAnchors !== false,
 
     // elliott visuals
-    // NOTE: If keys are missing entirely, Turbo wiring issues can cause “nothing shows”.
-    // This default prevents silent failure.
     showWaveLabels:
       typeof style.showWaveLabels === "boolean"
         ? style.showWaveLabels
@@ -76,6 +82,9 @@ export default function FibLevelsOverlay({
     debug: style.debug === true,
   };
 
+  /* ---------------------------
+     Locals
+  --------------------------- */
   let canvas = null;
   let raf = null;
   let disposed = false;
@@ -87,19 +96,71 @@ export default function FibLevelsOverlay({
   let lastFetchMs = 0;
   let seeded = false;
 
+  // ✅ Bars from seed() (ascending by time). Used for snapping times.
+  let bars = [];
+  let barIntervalSec = 0;
+
   const ts = chart.timeScale();
 
+  /* ---------------------------
+     URL + Fetch
+  --------------------------- */
   function urlFor(wave) {
     const u = new URL(`${API_BASE}/api/v1/fib-levels`);
     u.searchParams.set("symbol", symbol);
     u.searchParams.set("tf", tf);
     u.searchParams.set("degree", degree);
     u.searchParams.set("wave", wave);
-    // bust caches in Render/proxies
-    u.searchParams.set("t", String(Date.now()));
+    u.searchParams.set("t", String(Date.now())); // bust caches
     return u.toString();
   }
 
+  async function fetchBoth() {
+    try {
+      const [r1, r4] = await Promise.all([
+        fetch(urlFor("W1"), { headers: { accept: "application/json" }, cache: "no-store" }),
+        fetch(urlFor("W4"), { headers: { accept: "application/json" }, cache: "no-store" }),
+      ]);
+
+      const j1 = await r1.json();
+      const j4 = await r4.json();
+
+      w1 = j1 && j1.ok === true ? j1 : null;
+      w4 = j4 && j4.ok === true ? j4 : null;
+
+      if (s.debug) {
+        const hasMarks = !!w1?.anchors?.waveMarks;
+        const exampleT = w1?.anchors?.waveMarks?.W1?.tSec;
+        // eslint-disable-next-line no-console
+        console.debug("[fibOverlay] fetched", {
+          symbol, tf, degree,
+          hasW1: !!w1, hasW4: !!w4,
+          hasMarks, exampleT,
+          bars: bars.length,
+          barIntervalSec,
+        });
+      }
+    } catch (e) {
+      if (s.debug) {
+        // eslint-disable-next-line no-console
+        console.debug("[fibOverlay] fetchBoth failed", e);
+      }
+      w1 = null;
+      w4 = null;
+    }
+  }
+
+  function maybeFetch(force = false) {
+    const now = Date.now();
+    const minGapMs = 1500;
+    if (!force && now - lastFetchMs < minGapMs) return Promise.resolve();
+    lastFetchMs = now;
+    return fetchBoth();
+  }
+
+  /* ---------------------------
+     Canvas management
+  --------------------------- */
   function ensureCanvas() {
     if (canvas) return canvas;
     canvas = document.createElement("canvas");
@@ -129,57 +190,69 @@ export default function FibLevelsOverlay({
     canvas.height = Math.max(1, Math.floor(rect.height * dpr));
   }
 
-  async function fetchBoth() {
-    try {
-      const [r1, r4] = await Promise.all([
-        fetch(urlFor("W1"), { headers: { accept: "application/json" }, cache: "no-store" }),
-        fetch(urlFor("W4"), { headers: { accept: "application/json" }, cache: "no-store" }),
-      ]);
-      const j1 = await r1.json();
-      const j4 = await r4.json();
-      w1 = j1 && j1.ok === true ? j1 : null;
-      w4 = j4 && j4.ok === true ? j4 : null;
-
-      if (s.debug) {
-        const hasMarks = !!w1?.anchors?.waveMarks;
-        const exampleT = w1?.anchors?.waveMarks?.W1?.tSec;
-        // eslint-disable-next-line no-console
-        console.debug("[fibOverlay] fetched", { symbol, tf, degree, hasW1: !!w1, hasW4: !!w4, hasMarks, exampleT });
-      }
-    } catch (e) {
-      if (s.debug) {
-        // eslint-disable-next-line no-console
-        console.debug("[fibOverlay] fetchBoth failed", e);
-      }
-      w1 = null;
-      w4 = null;
+  /* ---------------------------
+     Bars + time snapping
+  --------------------------- */
+  function setBars(barsAsc) {
+    bars = Array.isArray(barsAsc) ? barsAsc : [];
+    // Normalize bar time to number (epoch seconds)
+    // We don't mutate input objects; only read their time.
+    if (bars.length >= 2) {
+      const t0 = Number(bars[0]?.time);
+      const t1 = Number(bars[1]?.time);
+      const dt = Math.abs(t1 - t0);
+      barIntervalSec = Number.isFinite(dt) && dt > 0 ? dt : 0;
+    } else {
+      barIntervalSec = 0;
     }
   }
 
-  function maybeFetch(force = false) {
-    const now = Date.now();
-    // Throttle live fetches — Turbo update() may be frequent.
-    // You can tighten/loosen this. 1500ms is a good “live” compromise.
-    const minGapMs = 1500;
+  // Snap a tSec to the nearest loaded bar time.
+  // This fixes 10m/30m “no labels” when tSec isn’t an exact match in timeScale.
+  function snapToNearestBarTime(tSec) {
+    if (!Number.isFinite(tSec) || !bars.length) return tSec;
 
-    if (!force && now - lastFetchMs < minGapMs) {
-      return Promise.resolve();
+    // Binary search by time (bars are ascending)
+    let lo = 0, hi = bars.length - 1;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      const mt = Number(bars[mid]?.time);
+      if (mt < tSec) lo = mid + 1;
+      else hi = mid;
     }
-    lastFetchMs = now;
-    return fetchBoth();
+
+    const cands = [];
+    if (lo >= 0 && lo < bars.length) cands.push(Number(bars[lo]?.time));
+    if (lo - 1 >= 0) cands.push(Number(bars[lo - 1]?.time));
+
+    let best = tSec;
+    let bestD = Infinity;
+
+    for (const tt of cands) {
+      if (!Number.isFinite(tt)) continue;
+      const d = Math.abs(tt - tSec);
+      if (d < bestD) { bestD = d; best = tt; }
+    }
+
+    // Optional max-snap guard (avoid snapping hours away if user hasn’t loaded history)
+    const maxSnap = barIntervalSec ? barIntervalSec * 6 : 60 * 60; // 6 bars or 1h fallback
+    return bestD <= maxSnap ? best : tSec;
   }
 
   function timeToX(timeSec) {
     if (!Number.isFinite(timeSec)) return null;
     try {
-      const x = ts.timeToCoordinate(timeSec);
+      const snapped = snapToNearestBarTime(Number(timeSec));
+      const x = ts.timeToCoordinate(snapped);
       return Number.isFinite(x) ? x : null;
     } catch {
       return null;
     }
   }
 
-  // W4 projection uses W1 span and W4 low as base.
+  /* ---------------------------
+     W5 targets (W4 projection)
+  --------------------------- */
   function computeW5Targets(w1Anchors, w4Anchors) {
     const w1Low = Number(w1Anchors?.low);
     const w1High = Number(w1Anchors?.high);
@@ -196,11 +269,14 @@ export default function FibLevelsOverlay({
     };
   }
 
+  /* ---------------------------
+     Wave marks draw
+  --------------------------- */
   function drawWaveMarks(ctx, rect) {
     if (!s.showWaveLabels && !s.showWaveLines) return;
     if (!w1 || !w1.anchors) return;
 
-    // ✅ LOCKED PATH
+    // ✅ LOCKED PATH: anchors.waveMarks
     const observe = w1?.anchors?.waveMarks;
     if (!observe || typeof observe !== "object") return;
 
@@ -227,7 +303,7 @@ export default function FibLevelsOverlay({
 
     if (!pts.length) return;
 
-    // Connector lines (partial polyline, skipping missing)
+    // Connector lines (partial polyline)
     if (s.showWaveLines && pts.length >= 2) {
       ctx.save();
       ctx.strokeStyle = s.waveLineColor;
@@ -273,6 +349,9 @@ export default function FibLevelsOverlay({
     }
   }
 
+  /* ---------------------------
+     Main draw
+  --------------------------- */
   function draw() {
     if (disposed) return;
 
@@ -282,7 +361,6 @@ export default function FibLevelsOverlay({
     }
 
     if (!w1 && !w4) {
-      // If seed happened but fetch failed, we still keep canvas removed (your previous behavior)
       removeCanvas();
       return;
     }
@@ -322,7 +400,7 @@ export default function FibLevelsOverlay({
     if (mode === "W4") {
       if (s.showAnchors && w4?.anchors) {
         levels.push(
-          { kind: "anchor", price: Number(w4.anchors.low), label: `W4 LOW  ${fmt(w4.anchors.low)}`, color: cAnchor, dash: [10, 10] },
+          { kind: "anchor", price: Number(w4.anchors.low),  label: `W4 LOW  ${fmt(w4.anchors.low)}`,  color: cAnchor, dash: [10, 10] },
           { kind: "anchor", price: Number(w4.anchors.high), label: `W3 HIGH ${fmt(w4.anchors.high)}`, color: cAnchor, dash: [10, 10] }
         );
       }
@@ -341,12 +419,11 @@ export default function FibLevelsOverlay({
     } else {
       if (s.showAnchors && w1?.anchors) {
         levels.push(
-          { kind: "anchor", price: Number(w1.anchors.low), label: `W1 LOW  ${fmt(w1.anchors.low)}`, color: cAnchor, dash: [10, 10] },
+          { kind: "anchor", price: Number(w1.anchors.low),  label: `W1 LOW  ${fmt(w1.anchors.low)}`,  color: cAnchor, dash: [10, 10] },
           { kind: "anchor", price: Number(w1.anchors.high), label: `W1 HIGH ${fmt(w1.anchors.high)}`, color: cAnchor, dash: [10, 10] }
         );
       }
 
-      // ✅ No levels[] exists — use fib.* fields
       if (s.showRetrace && w1?.fib) {
         levels.push(
           { kind: "retrace", price: Number(w1.fib.r382), label: `0.382  ${fmt(w1.fib.r382)}`, color: cRetrace, dash: [] },
@@ -354,6 +431,7 @@ export default function FibLevelsOverlay({
           { kind: "retrace", price: Number(w1.fib.r618), label: `0.618  ${fmt(w1.fib.r618)}`, color: cRetrace, dash: [] }
         );
       }
+
       if (w1?.fib) {
         levels.push({
           kind: "gate",
@@ -383,7 +461,7 @@ export default function FibLevelsOverlay({
       }
     }
 
-    // Draw fib lines + centered labels
+    // Fib lines + centered labels
     for (const lv of levels) {
       if (!Number.isFinite(lv.price)) continue;
 
@@ -437,24 +515,42 @@ export default function FibLevelsOverlay({
     scheduleDraw();
   }
 
-  // Turbo lifecycle
-  function seed(/* barsAsc */) {
+  /* ---------------------------
+     Turbo lifecycle
+  --------------------------- */
+  function seed(barsAsc) {
     if (!enabled) return;
     seeded = true;
+    setBars(barsAsc);
     maybeFetch(true).then(scheduleDraw);
   }
 
-  function update(/* latestBar */) {
+  function update(latestBar) {
     if (!enabled) {
       removeCanvas();
       return;
     }
+
     if (!seeded) {
-      // If someone calls update before seed, recover safely.
       seeded = true;
       maybeFetch(true).then(scheduleDraw);
       return;
     }
+
+    // Keep bars list fresh for snapping (rolling tail)
+    if (latestBar && Number.isFinite(Number(latestBar.time))) {
+      const t = Number(latestBar.time);
+      if (!bars.length || t > Number(bars[bars.length - 1]?.time)) {
+        bars.push(latestBar);
+        if (bars.length > 8000) bars = bars.slice(-8000);
+        if (bars.length >= 2 && !barIntervalSec) {
+          const t0 = Number(bars[bars.length - 2]?.time);
+          const dt = Math.abs(t - t0);
+          if (Number.isFinite(dt) && dt > 0) barIntervalSec = dt;
+        }
+      }
+    }
+
     // live tick: throttle network; still redraw
     maybeFetch(false).then(scheduleDraw);
   }
@@ -469,7 +565,7 @@ export default function FibLevelsOverlay({
 
   window.addEventListener("resize", onResize);
 
-  // When user pans/zooms, re-draw against new time->x transform
+  // Re-draw on pan/zoom (time mapping changes)
   const cb = () => scheduleDraw();
   ts.subscribeVisibleTimeRangeChange(cb);
 
@@ -483,6 +579,9 @@ export default function FibLevelsOverlay({
   };
 }
 
+/* ---------------------------
+   Helpers
+--------------------------- */
 function fmt(x) {
   if (!Number.isFinite(Number(x))) return "—";
   return Number(x).toFixed(2);
