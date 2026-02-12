@@ -336,15 +336,22 @@ function MiniRow({ label, left, right, tone = "muted" }) {
 }
 
 /* -------------------- Engine Stack (right column) -------------------- */
-function EngineStack({ confluence, permission }) {
+function EngineStack({ confluence, permission, engine2Card }) {
+
   const loc = confluence?.location?.state || "—";
 
-  // E2 (Fib)
-  const fib = confluence?.context?.fib || {};
-  const fs = fib?.signals || null;
+  // ✅ NEW E2 (Engine 2 Wave Phase)
   let e2Text = "NO_ANCHORS";
-  if (fib?.ok === false && String(fib?.reason || "") === "NO_ANCHORS") e2Text = "NO_ANCHORS";
-  else if (fs) e2Text = fs.invalidated ? "INVALID ❌" : "VALID ✅";
+
+  if (engine2Card && engine2Card.ok === true) {
+    const degree = engine2Card.degree || "—";
+    const tf = engine2Card.tf || "—";
+    const phase = engine2Card.phase || "UNKNOWN";
+    const fibScore = Number(engine2Card.fibScore || 0);
+    const inv = engine2Card.invalidated === true ? "true" : "false";
+
+    e2Text = `${degree} ${tf} — ${phase} — Fib ${fibScore}/20 — inv:${inv}`;
+  }
 
   // E3 (Reaction) — show STAGE + armed + score + structureState
   const r = confluence?.context?.reaction || {};
@@ -782,9 +789,18 @@ export default function RowStrategies() {
 
                 {/* RIGHT */}
                 <div style={{ minWidth: 0 }}>
-                  <EngineStack confluence={confluence} permission={permission} />
+                  {(() => {
+                    const engine2Card = node?.engine2 || null;
+                    return (
+                      <EngineStack
+                        confluence={confluence}
+                        permission={permission}
+                        engine2Card={engine2Card}
+                      />
+                    );
+                  })()}
                 </div>
-              </div>
+
 
               {/* Reasons + Next trigger */}
               <div style={{ marginTop: 2 }}>
