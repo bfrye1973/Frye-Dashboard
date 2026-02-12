@@ -947,10 +947,20 @@ export default function RowStrategies() {
              </div>
            </div>
 
-  
-                  PAPER ONLY
-                </span>
-
+                <span
+                 style={{
+                   background: "#0b1220",
+                   border: "1px solid #1f2937",
+                   color: "#93c5fd",
+                   padding: "4px 8px",
+                   borderRadius: 999,
+                   fontSize: 11,
+                   fontWeight: 900,
+                 }}
+               >
+                 PAPER ONLY
+               </span>
+               
                 <button onClick={() => load("SPY", s.tf)} style={btn()} title="Load SPY chart at this strategy TF">
                   Load SPY
                 </button>
