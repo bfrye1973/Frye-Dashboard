@@ -25,10 +25,10 @@
 // - ✅ FIXED JSX structure (actions bar is inside card, minimal buttons)
 //
 // ✅ UPDATE (THIS PASS):
-// - Uses shared snapshot polling hook: useDashboardSnapshot (single truth across pages)
-// - Keeps legacy polling helpers in file (NOT executed) to avoid losing work / for debugging
+// - Uses shared snapshot polling hook: useDashboardSnapshot
+// - Adds SCALP GO badge (VERY BIG) next to GOLDEN COIL using backend-1 proxy: /api/v1/scalp-status
 
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useSelection } from "../../../context/ModeContext";
 import LiveDot from "../../../components/LiveDot";
 import { useDashboardSnapshot } from "../../../hooks/useDashboardSnapshot";
@@ -60,6 +60,10 @@ const POLL_MS = 20000;
 const TIMEOUT_MS = 20000;
 const RETRY_DELAY_MS = 800;
 
+// GO poll cadence (lightweight, scalp-only display)
+const GO_POLL_MS = 2000;
+const GO_TIMEOUT_MS = 6000;
+
 // Build stamp (prefer env if you have one, else runtime stamp)
 const BUILD_STAMP =
   env("REACT_APP_BUILD_STAMP", "") ||
@@ -71,6 +75,9 @@ const SNAP_URL = (symbol = "SPY") =>
   `${API_BASE}/api/v1/dashboard-snapshot?symbol=${encodeURIComponent(
     symbol
   )}&includeContext=1&t=${Date.now()}`;
+
+// ✅ GO endpoint (backend-1 proxy → backend-2)
+const SCALP_STATUS_URL = () => `${API_BASE}/api/v1/scalp-status?t=${Date.now()}`;
 
 /* -------------------- utils -------------------- */
 const nowIso = () => new Date().toISOString();
@@ -128,7 +135,6 @@ function grade(score) {
 
 /* -------------------- Golden Coil badge rule (LOCKED to Engine5 truth) -------------------- */
 function showGoldenCoil(confluence) {
-  // ✅ Mode-aware truth is computed in Engine 5 now
   return confluence?.invalid !== true && confluence?.flags?.goldenCoil === true;
 }
 
@@ -172,6 +178,103 @@ async function safeFetchJson(url, opts = {}) {
     await new Promise((r) => setTimeout(r, RETRY_DELAY_MS));
     return await attempt();
   }
+}
+
+/* -------------------- GO fetch (scalp-status) -------------------- */
+async function safeFetchGo(url, { signal } = {}) {
+  const res = await fetch(url, {
+    cache: "no-store",
+    headers: { accept: "application/json", "Cache-Control": "no-store" },
+    signal,
+  });
+  const text = await res.text().catch(() => "");
+  let json = null;
+  try {
+    json = text ? JSON.parse(text) : null;
+  } catch {
+    json = null;
+  }
+  if (!res.ok) {
+    const msg = json?.error || json?.detail || text?.slice(0, 200) || `HTTP ${res.status}`;
+    throw new Error(msg);
+  }
+  return json;
+}
+
+function fmtTriggerType(x) {
+  const s = String(x || "").trim().toUpperCase();
+  if (!s) return "—";
+  if (s === "PULLBACK_RECLAIM") return "PB RECLAIM";
+  if (s === "BREAKOUT") return "BREAKOUT";
+  if (s === "SWING_CLOSE_CONFIRM") return "SWING CLOSE";
+  if (s === "LONG_CLOSE_CONFIRM") return "LONG CLOSE";
+  return s;
+}
+
+function GoPillBig({ go }) {
+  const signal = go?.signal === true;
+  const dir = String(go?.direction || "").toUpperCase();
+  const trig = fmtTriggerType(go?.triggerType);
+  const line = Number(go?.triggerLine);
+  const atUtc = go?.atUtc || null;
+  const cooldownUntilMs = Number(go?.cooldownUntilMs || 0);
+  const nowMs = Date.now();
+  const inCooldown = cooldownUntilMs && nowMs < cooldownUntilMs;
+
+  // Visual rules:
+  // - Green when GO true
+  // - Yellow if cooldown but GO false (rare, but safe)
+  // - Gray otherwise
+  const bg = signal
+    ? "linear-gradient(135deg,#22c55e,#16a34a)"
+    : inCooldown
+    ? "linear-gradient(135deg,#fbbf24,#f59e0b)"
+    : "#111827";
+
+  const border = signal ? "1px solid rgba(255,255,255,.22)" : "1px solid #334155";
+  const color = signal ? "#07110a" : "#e5e7eb";
+
+  const mainText = signal ? `GO ${dir || ""}`.trim() : "GO: NO";
+  const sub =
+    signal
+      ? `${trig}${Number.isFinite(line) ? ` @ ${fmt2(line)}` : ""}`
+      : inCooldown
+      ? "COOLDOWN"
+      : "WAIT";
+
+  const tipParts = [];
+  tipParts.push(`signal=${String(signal)}`);
+  tipParts.push(`direction=${dir || "—"}`);
+  tipParts.push(`triggerType=${trig}`);
+  tipParts.push(`triggerLine=${Number.isFinite(line) ? fmt2(line) : "—"}`);
+  tipParts.push(`atUtc=${atUtc || "—"}`);
+  tipParts.push(`cooldownUntilMs=${cooldownUntilMs || "—"}`);
+  const title = tipParts.join(" | ");
+
+  return (
+    <span
+      title={title}
+      style={{
+        display: "inline-flex",
+        flexDirection: "column",
+        justifyContent: "center",
+        gap: 2,
+        padding: "8px 12px",
+        borderRadius: 10,
+        background: bg,
+        border,
+        boxShadow: signal ? "0 0 14px rgba(34,197,94,.35)" : "none",
+        minWidth: 140,
+      }}
+    >
+      <span style={{ fontWeight: 900, fontSize: 14, lineHeight: "14px", color }}>
+        {mainText}
+      </span>
+      <span style={{ fontWeight: 900, fontSize: 10, lineHeight: "10px", opacity: 0.95, color }}>
+        {sub}
+      </span>
+    </span>
+  );
 }
 
 /* -------------------- extraction helpers -------------------- */
@@ -425,7 +528,7 @@ function EngineStack({ confluence, permission, engine2Card }) {
     else e2Color = "#cbd5e1";
   }
 
-  // E3 (Reaction) — show STAGE + armed + score + structureState
+  // E3
   const r = confluence?.context?.reaction || {};
   const stage = String(r.stage || "—").toUpperCase();
   const armed = r.armed === true;
@@ -438,7 +541,7 @@ function EngineStack({ confluence, permission, engine2Card }) {
     armed && stage !== "FAILURE" ? " ⚡" : ""
   } • ${Number.isFinite(rs) ? rs.toFixed(1) : "0.0"} ${ss}`;
 
-  // E4 (Volume) — show state + phases
+  // E4
   const v = confluence?.context?.volume || {};
   const vf = v?.flags || {};
   const e4State = confluence?.volumeState || "NO_SIGNAL";
@@ -452,7 +555,7 @@ function EngineStack({ confluence, permission, engine2Card }) {
 
   const e4Text = `${e4State} • ${e4Phases}`;
 
-  // E5 (Confluence)
+  // E5
   const score = clamp100(confluence?.scores?.total ?? 0);
   const label = confluence?.scores?.label || grade(score);
   const comp = confluence?.compression || {};
@@ -462,7 +565,7 @@ function EngineStack({ confluence, permission, engine2Card }) {
     : 0;
   const e5Text = `${Math.round(score)} (${label}) • ${compState} ${compScore}`;
 
-  // E6 (Permission)
+  // E6
   const perm = permission?.permission || "—";
   const mult = Number.isFinite(Number(permission?.sizeMultiplier))
     ? Number(permission.sizeMultiplier).toFixed(2)
@@ -493,13 +596,9 @@ function EngineStack({ confluence, permission, engine2Card }) {
       <StackRow k="E1" v={loc} />
       <StackRow k="E2" v={e2Text} vStyle={{ color: e2Color }} />
       <StackRow k="E3" v={e3Text} vStyle={{ color: stageColor }} />
-      <StackRow
-        k="E4"
-        v={e4Text}
-        vStyle={{ color: volumeToColor(e4State, vf) }}
-      />
-      <StackRow k="E5" v={e5Text} vStyle={{ color: confluenceToColor(score) }} />
-      <StackRow k="E6" v={e6Text} vStyle={{ color: permToColor(perm) }} />
+      <StackRow k="E4" v={e4Text} />
+      <StackRow k="E5" v={e5Text} />
+      <StackRow k="E6" v={e6Text} />
     </div>
   );
 }
@@ -556,33 +655,6 @@ function stageToColor(stage, structureState) {
   return "#94a3b8";
 }
 
-function volumeToColor(state, flags) {
-  const s = String(state || "").toUpperCase();
-  const f = flags || {};
-  if (f.liquidityTrap) return "#fca5a5";
-  if (s === "INITIATIVE") return "#86efac";
-  if (s === "DIVERGENCE") return "#fbbf24";
-  if (s === "ABSORPTION") return "#93c5fd";
-  if (s === "NEGOTIATING") return "#94a3b8";
-  return "#94a3b8";
-}
-
-function confluenceToColor(total) {
-  const s = Number(total);
-  if (!Number.isFinite(s)) return "#94a3b8";
-  if (s >= 80) return "#86efac";
-  if (s >= 70) return "#bef264";
-  if (s >= 60) return "#fbbf24";
-  return "#94a3b8";
-}
-
-function permToColor(permission) {
-  if (permission === "ALLOW") return "#86efac";
-  if (permission === "REDUCE") return "#fbbf24";
-  if (permission === "STAND_DOWN") return "#fca5a5";
-  return "#94a3b8";
-}
-
 /* ===================== Main Component ===================== */
 export default function RowStrategies() {
   const { setSelection } = useSelection();
@@ -611,10 +683,56 @@ export default function RowStrategies() {
     includeContext: 1,
   });
 
+  // ✅ Scalp GO state (read-only)
+  const [scalpStatus, setScalpStatus] = useState({ data: null, err: null, last: null });
+
+  useEffect(() => {
+    let alive = true;
+    let timer = null;
+    let inFlight = false;
+
+    const schedule = (ms) => {
+      if (!alive) return;
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(pull, ms);
+    };
+
+    async function pull() {
+      if (!alive) return;
+      if (inFlight) {
+        schedule(GO_POLL_MS);
+        return;
+      }
+      inFlight = true;
+
+      const controller = new AbortController();
+      const t = setTimeout(() => controller.abort(), GO_TIMEOUT_MS);
+
+      try {
+        const j = await safeFetchGo(SCALP_STATUS_URL(), { signal: controller.signal });
+        if (alive) setScalpStatus({ data: j, err: null, last: nowIso() });
+      } catch (e) {
+        if (alive) setScalpStatus((prev) => ({ ...prev, err: String(e?.message || e), last: nowIso() }));
+      } finally {
+        clearTimeout(t);
+        inFlight = false;
+        schedule(GO_POLL_MS);
+      }
+    }
+
+    pull();
+    return () => {
+      alive = false;
+      if (timer) clearTimeout(timer);
+    };
+  }, []);
+
   // kept for compatibility (even if unused right now)
   function load(sym, tf) {
     setSelection({ symbol: sym, timeframe: tf, strategy: "smz" });
   }
+
+  const scalpGo = scalpStatus?.data?.go || null;
 
   return (
     <section id="row-5" className="panel" style={{ padding: 10 }}>
@@ -718,6 +836,9 @@ export default function RowStrategies() {
               ? "0 0 0 2px rgba(59,130,246,.65) inset, 0 10px 30px rgba(0,0,0,.25)"
               : "0 10px 30px rgba(0,0,0,.25)";
 
+          // ✅ Only SCALP shows intrabar GO right now
+          const showGoHere = s.id === "SCALP";
+
           return (
             <div
               key={s.id}
@@ -761,6 +882,9 @@ export default function RowStrategies() {
                             🔥 GOLDEN COIL
                           </span>
                         )}
+
+                        {/* ✅ BIG GO next to Golden Coil */}
+                        {showGoHere && <GoPillBig go={scalpGo} />}
                       </div>
 
                       <div style={{ fontSize: 13, color: "#9ca3af", fontWeight: 700 }}>{s.sub}</div>
