@@ -920,4 +920,16 @@ export default function RowStrategies() {
 
                 <button
                   onClick={() => openFullChart("SPY", s.tf)}
-                  style={btn
+                  style={btn()}
+                  title="Open full chart in new tab"
+                >
+                  Open Full Chart
+                </button>
+
+                <button
+                  onClick={() => openFullStrategies("SPY")}
+                  style={btn()}
+                  title="Open all strategies in a large readable view"
+                >
+                  Open Full Strategies
+                </button>
