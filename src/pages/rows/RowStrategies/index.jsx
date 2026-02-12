@@ -933,3 +933,13 @@ export default function RowStrategies() {
                 >
                   Open Full Strategies
                 </button>
+                </div> {/* Actions */}
+
+                </div>  {/* Card container */}
+                );
+                })}
+                </div>
+                </section>
+                );
+                }
+
