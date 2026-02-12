@@ -304,6 +304,7 @@ function openFullStrategies(symbol = "SPY") {
   window.open(url, "_blank", "noopener,noreferrer");
 }
 
+// kept for compatibility (even if unused right now)
 function openFullChart(symbol = "SPY", tf = "10m") {
   const url = `/chart?symbol=${encodeURIComponent(symbol)}&tf=${encodeURIComponent(
     tf
@@ -677,6 +678,7 @@ export default function RowStrategies() {
     };
   }, []);
 
+  // kept for compatibility (even if unused right now)
   function load(sym, tf) {
     setSelection({ symbol: sym, timeframe: tf, strategy: "smz" });
   }
