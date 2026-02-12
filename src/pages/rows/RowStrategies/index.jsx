@@ -457,13 +457,13 @@ function EngineStack({ confluence, permission, engine2Card }) {
     <div
       style={{
         border: "1px solid #1f2937",
-        borderRadius: 10,
-        padding: 8,
+        borderRadius: 12,
+        padding: 12,
         background: "#0b0b0b",
-        height: 168,
+        height: 220,
         display: "grid",
         gridTemplateRows: "auto repeat(6, 1fr)",
-        gap: 4,
+        gap: 8,
         overflow: "hidden",
         minWidth: 0,
       }}
@@ -473,7 +473,7 @@ function EngineStack({ confluence, permission, engine2Card }) {
       </div>
 
       <StackRow k="E1" v={loc} />
-      <StackRow k="E2" v={e2Text} />
+      <StackRow k="E2" v={e2Text} vStyle={{ color: e2Color }} />
       <StackRow k="E3" v={e3Text} vStyle={{ color: stageColor }} />
       <StackRow k="E4" v={e4Text} vStyle={{ color: volumeToColor(e4State, vf) }} />
       <StackRow k="E5" v={e5Text} vStyle={{ color: confluenceToColor(score) }} />
@@ -493,11 +493,11 @@ function StackRow({ k, v, vStyle = {} }) {
         minWidth: 0,
       }}
     >
-      <span style={{ fontWeight: 900, fontSize: 11, color: "#9ca3af" }}>{k}</span>
+      <span style={{ fontWeight: 900, fontSize: 13, color: "#9ca3af" }}>{k}</span>
       <span
         style={{
           fontWeight: 900,
-          fontSize: 11,
+          fontSize: 13,
           whiteSpace: "nowrap",
           overflow: "hidden",
           textOverflow: "ellipsis",
@@ -801,7 +801,7 @@ export default function RowStrategies() {
                         )}
                       </div>
 
-                      <div style={{ fontSize: 11, color: "#9ca3af", fontWeight: 700 }}>{s.sub}</div>
+                      <div style={{ fontSize: 13, color: "#9ca3af", fontWeight: 700 }}>{s.sub}</div>
                     </div>
 
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
