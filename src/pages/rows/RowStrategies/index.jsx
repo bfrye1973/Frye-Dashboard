@@ -890,68 +890,64 @@ export default function RowStrategies() {
                   </div>
                 </div>
 
-                {/* RIGHT (ONLY ONCE) */}
-                <div style={{ minWidth: 0 }}>
-                  <EngineStack confluence={confluence} permission={permission} engine2Card={node?.engine2 || null} />
-                </div>
-              </div>
-
-              {/* Reasons + Next trigger */}
-              <div style={{ marginTop: 2 }}>
-                <div style={{ color: "#9ca3af", fontSize: 11, fontWeight: 900 }}>
-                  Reasons (E5 top 3)
-                </div>
-
-                <div style={{ color: "#e5e7eb", fontSize: 12, lineHeight: 1.35, minHeight: 32 }}>
-                  {reasonsE5.length ? (
-                    <ul style={{ margin: 0, paddingLeft: 16 }}>
-                      {reasonsE5.map((r, i) => (
-                        <li key={`${r}-${i}`}>{r}</li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <div style={{ color: "#94a3b8" }}>—</div>
-                  )}
-                </div>
-
-                <div style={{ color: "#9ca3af", fontSize: 11, fontWeight: 900, marginTop: 6 }}>
-                  Reasons (E6 top 3)
-                </div>
-
-                <div style={{ color: "#e5e7eb", fontSize: 12, lineHeight: 1.35, minHeight: 32 }}>
-                  {reasonsE6.length ? (
-                    <ul style={{ margin: 0, paddingLeft: 16 }}>
-                      {reasonsE6.map((r, i) => (
-                        <li key={`${r}-${i}`}>{r}</li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <div style={{ color: "#94a3b8" }}>—</div>
-                  )}
-                </div>
-
-                <div style={{ color: "#9ca3af", fontSize: 11, fontWeight: 900, marginTop: 6 }}>
-                  Next trigger
-                </div>
-
-                <div style={{ color: "#cbd5e1", fontSize: 12 }}>
-                  {nextTriggerText(confluence)}
-                </div>
-              </div>
-
-              {/* Actions */}
-              <div style={{ marginTop: "auto", display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-                <span
+                {/* RIGHT (EngineStack + Strategy Summary) */}
+                <div
                   style={{
-                    background: "#0b1220",
-                    border: "1px solid #1f2937",
-                    color: "#93c5fd",
-                    padding: "4px 8px",
-                    borderRadius: 999,
-                    fontSize: 11,
-                    fontWeight: 900,
-                  }}
-                >
+                    minWidth: 0,
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 10,
+                 }}
+               >
+                 <EngineStack
+                  confluence={confluence}
+                  permission={permission}
+                  engine2Card={node?.engine2 || null}
+                />
+
+                {/* Strategy Snapshot Card */}
+                <div
+                  style={{
+                  border: "1px solid #1f2937",
+                  borderRadius: 12,
+                  padding: 12,
+                  background: "#0b0b0b",
+                  fontSize: 12,
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 6,
+                }}
+              >
+                <div style={{ fontWeight: 900, color: "#93c5fd", fontSize: 11 }}>
+                  STRATEGY SNAPSHOT
+                </div>
+
+                <div>
+                  <b>Wave Phase:</b>{" "}
+                  {node?.engine2?.phase || "—"}
+               </div>
+
+               <div>
+                 <b>Fib Score:</b>{" "}
+                 {Number.isFinite(node?.engine2?.fibScore)
+                   ? `${node.engine2.fibScore}/20`
+                   : "—"}
+               </div>
+
+               <div>
+                 <b>Invalidated:</b>{" "}
+                 {node?.engine2?.invalidated ? "YES ❌" : "NO"}
+               </div>
+
+               <div>
+                 <b>Degree:</b>{" "}
+                 {node?.engine2?.degree || "—"}{" "}
+                 {node?.engine2?.tf || ""}
+               </div>
+             </div>
+           </div>
+
+  
                   PAPER ONLY
                 </span>
 
