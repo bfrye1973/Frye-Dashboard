@@ -22,6 +22,7 @@
 // - Golden Coil uses Engine5 truth: confluence.flags.goldenCoil
 // - Engine Stack E3 shows stage + score + structureState
 // - visibilitychange only triggers pull when tab becomes VISIBLE
+// - ✅ FIXED JSX structure (duplicate RIGHT block removed + correct closures)
 
 import React, { useEffect, useMemo, useState } from "react";
 import { useSelection } from "../../../context/ModeContext";
@@ -258,12 +259,28 @@ function nextTriggerText(confluence) {
 /* -------------------- permission pill styling -------------------- */
 function permStyle(permission) {
   if (permission === "ALLOW")
-    return { background: "#22c55e", color: "#0b1220", border: "2px solid #0c1320" };
+    return {
+      background: "#22c55e",
+      color: "#0b1220",
+      border: "2px solid #0c1320",
+    };
   if (permission === "REDUCE")
-    return { background: "#fbbf24", color: "#0b1220", border: "2px solid #0c1320" };
+    return {
+      background: "#fbbf24",
+      color: "#0b1220",
+      border: "2px solid #0c1320",
+    };
   if (permission === "STAND_DOWN")
-    return { background: "#ef4444", color: "#0b1220", border: "2px solid #0c1320" };
-  return { background: "#0b0b0b", color: "#93c5fd", border: "1px solid #2b2b2b" };
+    return {
+      background: "#ef4444",
+      color: "#0b1220",
+      border: "2px solid #0c1320",
+    };
+  return {
+    background: "#0b0b0b",
+    color: "#93c5fd",
+    border: "1px solid #2b2b2b",
+  };
 }
 
 /* -------------------- buttons -------------------- */
@@ -288,7 +305,9 @@ function openFullStrategies(symbol = "SPY") {
 }
 
 function openFullChart(symbol = "SPY", tf = "10m") {
-  const url = `/chart?symbol=${encodeURIComponent(symbol)}&tf=${encodeURIComponent(tf)}`;
+  const url = `/chart?symbol=${encodeURIComponent(symbol)}&tf=${encodeURIComponent(
+    tf
+  )}`;
   window.open(url, "_blank", "noopener,noreferrer");
 }
 
@@ -297,24 +316,64 @@ function MiniRow({ label, left, right, tone = "muted" }) {
   const t = (kind) => {
     switch (String(kind || "").toUpperCase()) {
       case "OK":
-        return { background: "#06220f", color: "#86efac", borderColor: "#166534" };
+        return {
+          background: "#06220f",
+          color: "#86efac",
+          borderColor: "#166534",
+        };
       case "WARN":
-        return { background: "#1b1409", color: "#fbbf24", borderColor: "#92400e" };
+        return {
+          background: "#1b1409",
+          color: "#fbbf24",
+          borderColor: "#92400e",
+        };
       case "DANGER":
-        return { background: "#2b0b0b", color: "#fca5a5", borderColor: "#7f1d1d" };
+        return {
+          background: "#2b0b0b",
+          color: "#fca5a5",
+          borderColor: "#7f1d1d",
+        };
       default:
-        return { background: "#0b0b0b", color: "#94a3b8", borderColor: "#2b2b2b" };
+        return {
+          background: "#0b0b0b",
+          color: "#94a3b8",
+          borderColor: "#2b2b2b",
+        };
     }
   };
 
   const toneMap =
-    tone === "ok" ? "OK" : tone === "warn" ? "WARN" : tone === "danger" ? "DANGER" : "MUTED";
+    tone === "ok"
+      ? "OK"
+      : tone === "warn"
+      ? "WARN"
+      : tone === "danger"
+      ? "DANGER"
+      : "MUTED";
   const pill = t(toneMap);
 
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "92px 1fr auto", gap: 8, alignItems: "center" }}>
-      <div style={{ color: "#9ca3af", fontSize: 11, fontWeight: 900 }}>{label}</div>
-      <div style={{ color: "#cbd5e1", fontSize: 12, fontWeight: 800, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "92px 1fr auto",
+        gap: 8,
+        alignItems: "center",
+      }}
+    >
+      <div style={{ color: "#9ca3af", fontSize: 11, fontWeight: 900 }}>
+        {label}
+      </div>
+      <div
+        style={{
+          color: "#cbd5e1",
+          fontSize: 12,
+          fontWeight: 800,
+          whiteSpace: "nowrap",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+        }}
+      >
         {left}
       </div>
       <span
@@ -359,9 +418,9 @@ function EngineStack({ confluence, permission, engine2Card }) {
   const stageIcon = stageToIcon(stage, ss, armed);
   const stageColor = stageToColor(stage, ss);
 
-  const e3Text = `${stageIcon} ${stage}${armed && stage !== "FAILURE" ? " ⚡" : ""} • ${
-    Number.isFinite(rs) ? rs.toFixed(1) : "0.0"
-  } ${ss}`;
+  const e3Text = `${stageIcon} ${stage}${
+    armed && stage !== "FAILURE" ? " ⚡" : ""
+  } • ${Number.isFinite(rs) ? rs.toFixed(1) : "0.0"} ${ss}`;
 
   // E4 (Volume) — show state + phases
   const v = confluence?.context?.volume || {};
@@ -382,7 +441,9 @@ function EngineStack({ confluence, permission, engine2Card }) {
   const label = confluence?.scores?.label || grade(score);
   const comp = confluence?.compression || {};
   const compState = String(comp?.state || "NONE").toUpperCase();
-  const compScore = Number.isFinite(Number(comp?.score)) ? Math.round(Number(comp?.score)) : 0;
+  const compScore = Number.isFinite(Number(comp?.score))
+    ? Math.round(Number(comp?.score))
+    : 0;
   const e5Text = `${Math.round(score)} (${label}) • ${compState} ${compScore}`;
 
   // E6 (Permission)
@@ -407,7 +468,9 @@ function EngineStack({ confluence, permission, engine2Card }) {
         minWidth: 0,
       }}
     >
-      <div style={{ fontSize: 11, fontWeight: 900, color: "#93c5fd" }}>ENGINE STACK</div>
+      <div style={{ fontSize: 11, fontWeight: 900, color: "#93c5fd" }}>
+        ENGINE STACK
+      </div>
 
       <StackRow k="E1" v={loc} />
       <StackRow k="E2" v={e2Text} />
@@ -419,10 +482,17 @@ function EngineStack({ confluence, permission, engine2Card }) {
   );
 }
 
-
 function StackRow({ k, v, vStyle = {} }) {
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "22px 1fr", gap: 6, alignItems: "center", minWidth: 0 }}>
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "22px 1fr",
+        gap: 6,
+        alignItems: "center",
+        minWidth: 0,
+      }}
+    >
       <span style={{ fontWeight: 900, fontSize: 11, color: "#9ca3af" }}>{k}</span>
       <span
         style={{
@@ -455,21 +525,21 @@ function stageToIcon(stage, structureState, armed) {
 
 function stageToColor(stage, structureState) {
   const ss = String(structureState || "").toUpperCase();
-  if (ss === "FAILURE" || stage === "FAILURE") return "#fca5a5";   // red-ish
-  if (stage === "CONFIRMED") return "#86efac";                    // green
-  if (stage === "TRIGGERED") return "#bef264";                    // lime
-  if (stage === "ARMED") return "#fbbf24";                        // yellow
-  return "#94a3b8";                                               // gray
+  if (ss === "FAILURE" || stage === "FAILURE") return "#fca5a5";
+  if (stage === "CONFIRMED") return "#86efac";
+  if (stage === "TRIGGERED") return "#bef264";
+  if (stage === "ARMED") return "#fbbf24";
+  return "#94a3b8";
 }
 
 function volumeToColor(state, flags) {
   const s = String(state || "").toUpperCase();
   const f = flags || {};
-  if (f.liquidityTrap) return "#fca5a5";           // red
-  if (s === "INITIATIVE") return "#86efac";        // green
-  if (s === "DIVERGENCE") return "#fbbf24";        // yellow
-  if (s === "ABSORPTION") return "#93c5fd";        // blue
-  if (s === "NEGOTIATING") return "#94a3b8";       // gray
+  if (f.liquidityTrap) return "#fca5a5";
+  if (s === "INITIATIVE") return "#86efac";
+  if (s === "DIVERGENCE") return "#fbbf24";
+  if (s === "ABSORPTION") return "#93c5fd";
+  if (s === "NEGOTIATING") return "#94a3b8";
   return "#94a3b8";
 }
 
@@ -509,7 +579,6 @@ export default function RowStrategies() {
   };
 
   const [active, setActive] = useState("SCALP");
-
   const [snap, setSnap] = useState({ data: null, err: null, lastFetch: null });
 
   useEffect(() => {
@@ -538,7 +607,9 @@ export default function RowStrategies() {
       const t = setTimeout(() => controller.abort(), TIMEOUT_MS);
 
       try {
-        const data = await safeFetchJson(SNAP_URL("SPY"), { signal: controller.signal });
+        const data = await safeFetchJson(SNAP_URL("SPY"), {
+          signal: controller.signal,
+        });
 
         if (alive) {
           setSnap((prev) => ({ ...prev, data, err: null, lastFetch: nowIso() }));
@@ -615,10 +686,18 @@ export default function RowStrategies() {
         <div className="spacer" />
 
         <div style={{ color: "#9ca3af", fontSize: 12, display: "flex", gap: 12, flexWrap: "wrap" }}>
-          <span>Poll: <b>{Math.round(POLL_MS / 1000)}s</b></span>
-          <span>Frontend fetch: <b style={{ marginLeft: 4 }}>{last ? toAZ(last, true) : "—"}</b></span>
-          <span>Backend snapshot: <b style={{ marginLeft: 4 }}>{snapshotTime(snapshot)}</b></span>
-          <span>Build: <b style={{ marginLeft: 4 }}>{toAZ(BUILD_STAMP, true)}</b></span>
+          <span>
+            Poll: <b>{Math.round(POLL_MS / 1000)}s</b>
+          </span>
+          <span>
+            Frontend fetch: <b style={{ marginLeft: 4 }}>{last ? toAZ(last, true) : "—"}</b>
+          </span>
+          <span>
+            Backend snapshot: <b style={{ marginLeft: 4 }}>{snapshotTime(snapshot)}</b>
+          </span>
+          <span>
+            Build: <b style={{ marginLeft: 4 }}>{toAZ(BUILD_STAMP, true)}</b>
+          </span>
         </div>
       </div>
 
@@ -628,7 +707,14 @@ export default function RowStrategies() {
         </div>
       )}
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0,1fr))", gap: 10, marginTop: 10 }}>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(3, minmax(0,1fr))",
+          gap: 10,
+          marginTop: 10,
+        }}
+      >
         {STRATS.map((s) => {
           const stratKey = STRATEGY_ID_MAP[s.id];
           const node = snapshot?.strategies?.[stratKey] || null;
@@ -638,7 +724,9 @@ export default function RowStrategies() {
 
           const fresh = minutesAgo(snap.lastFetch) <= 1.5;
           const liveStatus = snap.err ? "red" : fresh ? "green" : "yellow";
-          const liveTip = snap.err ? `Error: ${snap.err}` : `Last snapshot: ${snap.lastFetch ? toAZ(snap.lastFetch, true) : "—"}`;
+          const liveTip = snap.err
+            ? `Error: ${snap.err}`
+            : `Last snapshot: ${snap.lastFetch ? toAZ(snap.lastFetch, true) : "—"}`;
 
           const score = clamp100(confluence?.scores?.total ?? 0);
           const label = confluence?.scores?.label || grade(score);
@@ -749,8 +837,12 @@ export default function RowStrategies() {
 
                   {/* Targets */}
                   <div style={{ display: "grid", gap: 4, marginTop: 6 }}>
-                    <div style={{ fontSize: 12, color: "#cbd5e1" }}><b>Entry Target:</b> {entryTxt}</div>
-                    <div style={{ fontSize: 12, color: "#cbd5e1" }}><b>Exit Target:</b> {exitTxt}</div>
+                    <div style={{ fontSize: 12, color: "#cbd5e1" }}>
+                      <b>Entry Target:</b> {entryTxt}
+                    </div>
+                    <div style={{ fontSize: 12, color: "#cbd5e1" }}>
+                      <b>Exit Target:</b> {exitTxt}
+                    </div>
                   </div>
 
                   {/* Active Zone + Compression + Volume */}
@@ -787,25 +879,11 @@ export default function RowStrategies() {
                   </div>
                 </div>
 
-               {/* RIGHT */}
-               <div style={{ minWidth: 0 }}>
-                 <EngineStack
-                   confluence={confluence}
-                   permission={permission}
-                   engine2Card={node?.engine2 || null}
-                 />
-              </div>
-
-
-                             {/* RIGHT */}
+                {/* RIGHT (ONLY ONCE) */}
                 <div style={{ minWidth: 0 }}>
-                  <EngineStack
-                    confluence={confluence}
-                    permission={permission}
-                    engine2Card={node?.engine2 || null}
-                  />
+                  <EngineStack confluence={confluence} permission={permission} engine2Card={node?.engine2 || null} />
                 </div>
-              </div> {/* ✅ CLOSES the LEFT/RIGHT grid container */}
+              </div>
 
               {/* Reasons + Next trigger */}
               <div style={{ marginTop: 2 }}>
@@ -813,14 +891,7 @@ export default function RowStrategies() {
                   Reasons (E5 top 3)
                 </div>
 
-                <div
-                  style={{
-                    color: "#e5e7eb",
-                    fontSize: 12,
-                    lineHeight: 1.35,
-                    minHeight: 32,
-                  }}
-                >
+                <div style={{ color: "#e5e7eb", fontSize: 12, lineHeight: 1.35, minHeight: 32 }}>
                   {reasonsE5.length ? (
                     <ul style={{ margin: 0, paddingLeft: 16 }}>
                       {reasonsE5.map((r, i) => (
@@ -832,25 +903,11 @@ export default function RowStrategies() {
                   )}
                 </div>
 
-                <div
-                  style={{
-                    color: "#9ca3af",
-                    fontSize: 11,
-                    fontWeight: 900,
-                    marginTop: 6,
-                  }}
-                >
+                <div style={{ color: "#9ca3af", fontSize: 11, fontWeight: 900, marginTop: 6 }}>
                   Reasons (E6 top 3)
                 </div>
 
-                <div
-                  style={{
-                    color: "#e5e7eb",
-                    fontSize: 12,
-                    lineHeight: 1.35,
-                    minHeight: 32,
-                  }}
-                >
+                <div style={{ color: "#e5e7eb", fontSize: 12, lineHeight: 1.35, minHeight: 32 }}>
                   {reasonsE6.length ? (
                     <ul style={{ margin: 0, paddingLeft: 16 }}>
                       {reasonsE6.map((r, i) => (
@@ -862,14 +919,7 @@ export default function RowStrategies() {
                   )}
                 </div>
 
-                <div
-                  style={{
-                    color: "#9ca3af",
-                    fontSize: 11,
-                    fontWeight: 900,
-                    marginTop: 6,
-                  }}
-                >
+                <div style={{ color: "#9ca3af", fontSize: 11, fontWeight: 900, marginTop: 6 }}>
                   Next trigger
                 </div>
 
@@ -879,15 +929,7 @@ export default function RowStrategies() {
               </div>
 
               {/* Actions */}
-              <div
-                style={{
-                  marginTop: "auto",
-                  display: "flex",
-                  gap: 8,
-                  flexWrap: "wrap",
-                  alignItems: "center",
-                }}
-              >
+              <div style={{ marginTop: "auto", display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
                 <span
                   style={{
                     background: "#0b1220",
@@ -902,44 +944,26 @@ export default function RowStrategies() {
                   PAPER ONLY
                 </span>
 
-                <button
-                  onClick={() => load("SPY", s.tf)}
-                  style={btn()}
-                  title="Load SPY chart at this strategy TF"
-                >
+                <button onClick={() => load("SPY", s.tf)} style={btn()} title="Load SPY chart at this strategy TF">
                   Load SPY
                 </button>
 
-                <button
-                  onClick={() => load("QQQ", s.tf)}
-                  style={btn()}
-                  title="Load QQQ chart at this strategy TF"
-                >
+                <button onClick={() => load("QQQ", s.tf)} style={btn()} title="Load QQQ chart at this strategy TF">
                   Load QQQ
                 </button>
 
-                <button
-                  onClick={() => openFullChart("SPY", s.tf)}
-                  style={btn()}
-                  title="Open full chart in new tab"
-                >
+                <button onClick={() => openFullChart("SPY", s.tf)} style={btn()} title="Open full chart in new tab">
                   Open Full Chart
                 </button>
 
-                <button
-                  onClick={() => openFullStrategies("SPY")}
-                  style={btn()}
-                  title="Open all strategies in a large readable view"
-                >
+                <button onClick={() => openFullStrategies("SPY")} style={btn()} title="Open all strategies in a large readable view">
                   Open Full Strategies
                 </button>
-                </div> {/* Actions */}
-
-                </div>  {/* Card container */}
-                );
-                })}
-                </div>
-                </section>
-                );
-                }
-
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
