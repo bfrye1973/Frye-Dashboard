@@ -7,12 +7,12 @@
 // ✅ Buttons: (PRODUCTION) Paper Only + Open Full Strategies
 //
 // ✅ Stability fixes (LOCKED):
-// - NEVER stops polling (even if tab hidden)
-// - hard timeout (20s) with AbortController
-// - 1 retry (800ms) for transient hiccups
-// - inFlight always released in finally
-// - if inFlight is true, we still schedule the next poll (prevents stall)
-// - never wipes last good snapshot on error (keeps UI populated)
+// - NEVER stops polling (even if tab hidden)  ✅ (now via shared hook)
+// - hard timeout (20s) with AbortController   ✅ (shared hook)
+// - 1 retry (800ms) for transient hiccups     ✅ (shared hook)
+// - inFlight always released in finally       ✅ (shared hook)
+// - if inFlight is true, we still schedule the next poll (prevents stall) ✅ (shared hook)
+// - never wipes last good snapshot on error (keeps UI populated) ✅ (shared hook)
 //
 // ✅ Observability:
 // - Shows Frontend fetch time + Backend snapshot time
@@ -23,10 +23,15 @@
 // - Engine Stack E3 shows stage + score + structureState
 // - visibilitychange only triggers pull when tab becomes VISIBLE
 // - ✅ FIXED JSX structure (actions bar is inside card, minimal buttons)
+//
+// ✅ UPDATE (THIS PASS):
+// - Uses shared snapshot polling hook: useDashboardSnapshot (single truth across pages)
+// - Keeps legacy polling helpers in file (NOT executed) to avoid losing work / for debugging
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import { useSelection } from "../../../context/ModeContext";
 import LiveDot from "../../../components/LiveDot";
+import { useDashboardSnapshot } from "../../../hooks/useDashboardSnapshot";
 
 /* -------------------- env helpers -------------------- */
 function env(name, fb = "") {
@@ -61,7 +66,7 @@ const BUILD_STAMP =
   env("REACT_APP_COMMIT_SHA", "") ||
   new Date().toISOString();
 
-/* -------------------- endpoints -------------------- */
+/* -------------------- endpoints (legacy, kept) -------------------- */
 const SNAP_URL = (symbol = "SPY") =>
   `${API_BASE}/api/v1/dashboard-snapshot?symbol=${encodeURIComponent(
     symbol
@@ -127,7 +132,7 @@ function showGoldenCoil(confluence) {
   return confluence?.invalid !== true && confluence?.flags?.goldenCoil === true;
 }
 
-/* -------------------- fetch helper (LOCKED retry + no-store) -------------------- */
+/* -------------------- fetch helper (legacy, kept) -------------------- */
 async function safeFetchJson(url, opts = {}) {
   const attempt = async () => {
     const res = await fetch(url, {
@@ -399,9 +404,9 @@ function MiniRow({ label, left, right, tone = "muted" }) {
 function EngineStack({ confluence, permission, engine2Card }) {
   const loc = confluence?.location?.state || "—";
 
-  // ✅ NEW E2 (Wave Phase from dashboard-snapshot)
+  // ✅ E2 (Wave Phase from dashboard-snapshot node.engine2)
   let e2Text = "NO_ANCHORS";
-  let e2Color = "#cbd5e1"; // default neutral
+  let e2Color = "#cbd5e1";
 
   if (engine2Card && engine2Card.ok === true) {
     const degree = engine2Card.degree || "—";
@@ -414,10 +419,10 @@ function EngineStack({ confluence, permission, engine2Card }) {
       invalidated ? "true" : "false"
     }`;
 
-    if (invalidated) e2Color = "#fca5a5"; // red
-    else if (fibScore >= 20) e2Color = "#86efac"; // green
-    else if (fibScore >= 10) e2Color = "#fbbf24"; // yellow
-    else e2Color = "#cbd5e1"; // neutral
+    if (invalidated) e2Color = "#fca5a5";
+    else if (fibScore >= 20) e2Color = "#86efac";
+    else if (fibScore >= 10) e2Color = "#fbbf24";
+    else e2Color = "#cbd5e1";
   }
 
   // E3 (Reaction) — show STAGE + armed + score + structureState
@@ -584,19 +589,9 @@ export default function RowStrategies() {
 
   const STRATS = useMemo(
     () => [
-      {
-        id: "SCALP",
-        name: "Scalp — Minor Intraday",
-        tf: "10m",
-        sub: "10m primary • 1h gate",
-      },
+      { id: "SCALP", name: "Scalp — Minor Intraday", tf: "10m", sub: "10m primary • 1h gate" },
       { id: "MINOR", name: "Minor — Swing", tf: "1h", sub: "1h primary • 4h confirm" },
-      {
-        id: "INTERMEDIATE",
-        name: "Intermediate — Long",
-        tf: "4h",
-        sub: "4h primary • EOD gate",
-      },
+      { id: "INTERMEDIATE", name: "Intermediate — Long", tf: "4h", sub: "4h primary • EOD gate" },
     ],
     []
   );
@@ -608,83 +603,18 @@ export default function RowStrategies() {
   };
 
   const [active, setActive] = useState("SCALP");
-  const [snap, setSnap] = useState({ data: null, err: null, lastFetch: null });
 
-  useEffect(() => {
-    let alive = true;
-    let inFlight = false;
-    let timer = null;
-
-    const schedule = (ms) => {
-      if (!alive) return;
-      if (timer) clearTimeout(timer);
-      timer = setTimeout(pull, ms);
-    };
-
-    async function pull() {
-      if (!alive) return;
-
-      // anti-stall: if already fetching, schedule next and return
-      if (inFlight) {
-        schedule(POLL_MS);
-        return;
-      }
-
-      inFlight = true;
-
-      const controller = new AbortController();
-      const t = setTimeout(() => controller.abort(), TIMEOUT_MS);
-
-      try {
-        const data = await safeFetchJson(SNAP_URL("SPY"), {
-          signal: controller.signal,
-        });
-
-        if (alive) {
-          setSnap((prev) => ({ ...prev, data, err: null, lastFetch: nowIso() }));
-        }
-      } catch (e) {
-        const msg = `${String(e?.name || "Error")}: ${String(e?.message || e)}`;
-        console.error("[RowStrategies] snapshot fetch failed:", e);
-
-        // keep last good data
-        if (alive) {
-          setSnap((prev) => ({ ...prev, err: msg, lastFetch: nowIso() }));
-        }
-      } finally {
-        clearTimeout(t);
-        inFlight = false;
-        schedule(POLL_MS);
-      }
-    }
-
-    function onVis() {
-      // ✅ only pull when becoming visible
-      if (!alive) return;
-      try {
-        if (!document.hidden) pull();
-      } catch {
-        pull();
-      }
-    }
-
-    pull();
-    document.addEventListener("visibilitychange", onVis);
-
-    return () => {
-      alive = false;
-      if (timer) clearTimeout(timer);
-      document.removeEventListener("visibilitychange", onVis);
-    };
-  }, []);
+  // ✅ Shared polling truth (single source across pages)
+  const { data: snapshot, err, lastFetch } = useDashboardSnapshot("SPY", {
+    pollMs: POLL_MS,
+    timeoutMs: TIMEOUT_MS,
+    includeContext: 1,
+  });
 
   // kept for compatibility (even if unused right now)
   function load(sym, tf) {
     setSelection({ symbol: sym, timeframe: tf, strategy: "smz" });
   }
-
-  const snapshot = snap.data;
-  const last = snap.lastFetch;
 
   return (
     <section id="row-5" className="panel" style={{ padding: 10 }}>
@@ -720,7 +650,7 @@ export default function RowStrategies() {
             Poll: <b>{Math.round(POLL_MS / 1000)}s</b>
           </span>
           <span>
-            Frontend fetch: <b style={{ marginLeft: 4 }}>{last ? toAZ(last, true) : "—"}</b>
+            Frontend fetch: <b style={{ marginLeft: 4 }}>{lastFetch ? toAZ(lastFetch, true) : "—"}</b>
           </span>
           <span>
             Backend snapshot: <b style={{ marginLeft: 4 }}>{snapshotTime(snapshot)}</b>
@@ -731,9 +661,9 @@ export default function RowStrategies() {
         </div>
       </div>
 
-      {snap.err && (
+      {err && (
         <div style={{ marginTop: 8, color: "#fca5a5", fontWeight: 900 }}>
-          Strategy snapshot error: {snap.err}
+          Strategy snapshot error: {err}
         </div>
       )}
 
@@ -752,11 +682,11 @@ export default function RowStrategies() {
           const confluence = node?.confluence || null;
           const permission = node?.permission || null;
 
-          const fresh = minutesAgo(snap.lastFetch) <= 1.5;
-          const liveStatus = snap.err ? "red" : fresh ? "green" : "yellow";
-          const liveTip = snap.err
-            ? `Error: ${snap.err}`
-            : `Last snapshot: ${snap.lastFetch ? toAZ(snap.lastFetch, true) : "—"}`;
+          const fresh = minutesAgo(lastFetch) <= 1.5;
+          const liveStatus = err ? "red" : fresh ? "green" : "yellow";
+          const liveTip = err
+            ? `Error: ${err}`
+            : `Last snapshot: ${lastFetch ? toAZ(lastFetch, true) : "—"}`;
 
           const score = clamp100(confluence?.scores?.total ?? 0);
           const label = confluence?.scores?.label || grade(score);
@@ -804,14 +734,7 @@ export default function RowStrategies() {
                 gap: 8,
               }}
             >
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "1fr 320px",
-                  gap: 10,
-                  alignItems: "start",
-                }}
-              >
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: 10, alignItems: "start" }}>
                 {/* LEFT */}
                 <div style={{ minWidth: 0 }}>
                   <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10 }}>
@@ -819,15 +742,7 @@ export default function RowStrategies() {
                       <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                         <div style={{ fontWeight: 900, fontSize: 14, lineHeight: "16px" }}>{s.name}</div>
 
-                        <span
-                          style={{
-                            fontSize: 11,
-                            fontWeight: 900,
-                            padding: "4px 10px",
-                            borderRadius: 999,
-                            ...permStyle(perm),
-                          }}
-                        >
+                        <span style={{ fontSize: 11, fontWeight: 900, padding: "4px 10px", borderRadius: 999, ...permStyle(perm) }}>
                           {perm}
                         </span>
 
@@ -857,31 +772,14 @@ export default function RowStrategies() {
                   </div>
 
                   {/* Score */}
-                  <div
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "44px 1fr 40px",
-                      alignItems: "center",
-                      gap: 8,
-                      marginTop: 8,
-                    }}
-                  >
+                  <div style={{ display: "grid", gridTemplateColumns: "44px 1fr 40px", alignItems: "center", gap: 8, marginTop: 8 }}>
                     <div style={{ color: "#9ca3af", fontSize: 10, fontWeight: 900 }}>Score</div>
-                    <div
-                      style={{
-                        background: "#1f2937",
-                        borderRadius: 8,
-                        height: 8,
-                        overflow: "hidden",
-                        border: "1px solid #334155",
-                      }}
-                    >
+                    <div style={{ background: "#1f2937", borderRadius: 8, height: 8, overflow: "hidden", border: "1px solid #334155" }}>
                       <div
                         style={{
                           height: "100%",
                           width: `${Math.max(0, Math.min(100, Math.round(score)))}%`,
-                          background:
-                            "linear-gradient(90deg,#22c55e 0%,#84cc16 40%,#f59e0b 70%,#ef4444 100%)",
+                          background: "linear-gradient(90deg,#22c55e 0%,#84cc16 40%,#f59e0b 70%,#ef4444 100%)",
                         }}
                       />
                     </div>
@@ -943,21 +841,13 @@ export default function RowStrategies() {
                     />
                   </div>
 
-                  {/* (Optional) next trigger text stays available without changing layout */}
                   <div style={{ marginTop: 6, fontSize: 12, color: "#94a3b8", fontWeight: 800 }}>
                     {nextTriggerText(confluence)}
                   </div>
                 </div>
 
-                {/* RIGHT (EngineStack + Strategy Snapshot) */}
-                <div
-                  style={{
-                    minWidth: 0,
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: 10,
-                  }}
-                >
+                {/* RIGHT */}
+                <div style={{ minWidth: 0, display: "flex", flexDirection: "column", gap: 10 }}>
                   <EngineStack confluence={confluence} permission={permission} engine2Card={node?.engine2 || null} />
 
                   {/* Strategy Snapshot Card */}
@@ -974,37 +864,16 @@ export default function RowStrategies() {
                     }}
                   >
                     <div style={{ fontWeight: 900, color: "#93c5fd", fontSize: 11 }}>STRATEGY SNAPSHOT</div>
-
-                    <div>
-                      <b>Wave Phase:</b> {node?.engine2?.phase || "—"}
-                    </div>
-
-                    <div>
-                      <b>Fib Score:</b>{" "}
-                      {Number.isFinite(node?.engine2?.fibScore) ? `${node.engine2.fibScore}/20` : "—"}
-                    </div>
-
-                    <div>
-                      <b>Invalidated:</b> {node?.engine2?.invalidated ? "YES ❌" : "NO"}
-                    </div>
-
-                    <div>
-                      <b>Degree:</b> {node?.engine2?.degree || "—"} {node?.engine2?.tf || ""}
-                    </div>
+                    <div><b>Wave Phase:</b> {node?.engine2?.phase || "—"}</div>
+                    <div><b>Fib Score:</b> {Number.isFinite(node?.engine2?.fibScore) ? `${node.engine2.fibScore}/20` : "—"}</div>
+                    <div><b>Invalidated:</b> {node?.engine2?.invalidated ? "YES ❌" : "NO"}</div>
+                    <div><b>Degree:</b> {node?.engine2?.degree || "—"} {node?.engine2?.tf || ""}</div>
                   </div>
                 </div>
               </div>
 
-              {/* ACTIONS — MINIMAL (fixes card height/wrap) */}
-              <div
-                style={{
-                  marginTop: "auto",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  gap: 8,
-                }}
-              >
+              {/* ACTIONS — MINIMAL */}
+              <div style={{ marginTop: "auto", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
                 <span
                   style={{
                     background: "#0b1220",
@@ -1019,11 +888,7 @@ export default function RowStrategies() {
                   PAPER ONLY
                 </span>
 
-                <button
-                  onClick={() => openFullStrategies("SPY")}
-                  style={btn()}
-                  title="Open all strategies in a large readable view"
-                >
+                <button onClick={() => openFullStrategies("SPY")} style={btn()} title="Open all strategies in a large readable view">
                   Open Full Strategies
                 </button>
               </div>
