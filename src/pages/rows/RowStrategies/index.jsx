@@ -797,50 +797,127 @@ export default function RowStrategies() {
               </div>
 
 
+                             {/* RIGHT */}
+                <div style={{ minWidth: 0 }}>
+                  <EngineStack
+                    confluence={confluence}
+                    permission={permission}
+                    engine2Card={node?.engine2 || null}
+                  />
+                </div>
+              </div> {/* ✅ CLOSES the LEFT/RIGHT grid container */}
+
               {/* Reasons + Next trigger */}
               <div style={{ marginTop: 2 }}>
-                <div style={{ color: "#9ca3af", fontSize: 11, fontWeight: 900 }}>Reasons (E5 top 3)</div>
-                <div style={{ color: "#e5e7eb", fontSize: 12, lineHeight: 1.35, minHeight: 32 }}>
+                <div style={{ color: "#9ca3af", fontSize: 11, fontWeight: 900 }}>
+                  Reasons (E5 top 3)
+                </div>
+
+                <div
+                  style={{
+                    color: "#e5e7eb",
+                    fontSize: 12,
+                    lineHeight: 1.35,
+                    minHeight: 32,
+                  }}
+                >
                   {reasonsE5.length ? (
                     <ul style={{ margin: 0, paddingLeft: 16 }}>
-                      {reasonsE5.map((r, i) => <li key={`${r}-${i}`}>{r}</li>)}
+                      {reasonsE5.map((r, i) => (
+                        <li key={`${r}-${i}`}>{r}</li>
+                      ))}
                     </ul>
                   ) : (
                     <div style={{ color: "#94a3b8" }}>—</div>
                   )}
                 </div>
 
-                <div style={{ color: "#9ca3af", fontSize: 11, fontWeight: 900, marginTop: 6 }}>Reasons (E6 top 3)</div>
-                <div style={{ color: "#e5e7eb", fontSize: 12, lineHeight: 1.35, minHeight: 32 }}>
+                <div
+                  style={{
+                    color: "#9ca3af",
+                    fontSize: 11,
+                    fontWeight: 900,
+                    marginTop: 6,
+                  }}
+                >
+                  Reasons (E6 top 3)
+                </div>
+
+                <div
+                  style={{
+                    color: "#e5e7eb",
+                    fontSize: 12,
+                    lineHeight: 1.35,
+                    minHeight: 32,
+                  }}
+                >
                   {reasonsE6.length ? (
                     <ul style={{ margin: 0, paddingLeft: 16 }}>
-                      {reasonsE6.map((r, i) => <li key={`${r}-${i}`}>{r}</li>)}
+                      {reasonsE6.map((r, i) => (
+                        <li key={`${r}-${i}`}>{r}</li>
+                      ))}
                     </ul>
                   ) : (
                     <div style={{ color: "#94a3b8" }}>—</div>
                   )}
                 </div>
 
-                <div style={{ color: "#9ca3af", fontSize: 11, fontWeight: 900, marginTop: 6 }}>Next trigger</div>
-                <div style={{ color: "#cbd5e1", fontSize: 12 }}>{nextTriggerText(confluence)}</div>
+                <div
+                  style={{
+                    color: "#9ca3af",
+                    fontSize: 11,
+                    fontWeight: 900,
+                    marginTop: 6,
+                  }}
+                >
+                  Next trigger
+                </div>
+
+                <div style={{ color: "#cbd5e1", fontSize: 12 }}>
+                  {nextTriggerText(confluence)}
+                </div>
               </div>
 
               {/* Actions */}
-              <div style={{ marginTop: "auto", display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-                <span style={{ background: "#0b1220", border: "1px solid #1f2937", color: "#93c5fd", padding: "4px 8px", borderRadius: 999, fontSize: 11, fontWeight: 900 }}>
+              <div
+                style={{
+                  marginTop: "auto",
+                  display: "flex",
+                  gap: 8,
+                  flexWrap: "wrap",
+                  alignItems: "center",
+                }}
+              >
+                <span
+                  style={{
+                    background: "#0b1220",
+                    border: "1px solid #1f2937",
+                    color: "#93c5fd",
+                    padding: "4px 8px",
+                    borderRadius: 999,
+                    fontSize: 11,
+                    fontWeight: 900,
+                  }}
+                >
                   PAPER ONLY
                 </span>
 
-                <button onClick={() => load("SPY", s.tf)} style={btn()} title="Load SPY chart at this strategy TF">Load SPY</button>
-                <button onClick={() => load("QQQ", s.tf)} style={btn()} title="Load QQQ chart at this strategy TF">Load QQQ</button>
+                <button
+                  onClick={() => load("SPY", s.tf)}
+                  style={btn()}
+                  title="Load SPY chart at this strategy TF"
+                >
+                  Load SPY
+                </button>
 
-                <button onClick={() => openFullChart("SPY", s.tf)} style={btn()} title="Open full chart in new tab">Open Full Chart</button>
-                <button onClick={() => openFullStrategies("SPY")} style={btn()} title="Open all strategies in a large readable view">Open Full Strategies</button>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </section>
-  );
-}
+                <button
+                  onClick={() => load("QQQ", s.tf)}
+                  style={btn()}
+                  title="Load QQQ chart at this strategy TF"
+                >
+                  Load QQQ
+                </button>
+
+                <button
+                  onClick={() => openFullChart("SPY", s.tf)}
+                  style={btn
