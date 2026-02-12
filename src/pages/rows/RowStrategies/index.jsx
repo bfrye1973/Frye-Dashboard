@@ -337,19 +337,16 @@ function MiniRow({ label, left, right, tone = "muted" }) {
 
 /* -------------------- Engine Stack (right column) -------------------- */
 function EngineStack({ confluence, permission, engine2Card }) {
-
   const loc = confluence?.location?.state || "—";
 
-  // ✅ NEW E2 (Engine 2 Wave Phase)
+  // ✅ NEW E2 (Wave Phase from dashboard-snapshot)
   let e2Text = "NO_ANCHORS";
-
   if (engine2Card && engine2Card.ok === true) {
     const degree = engine2Card.degree || "—";
     const tf = engine2Card.tf || "—";
     const phase = engine2Card.phase || "UNKNOWN";
     const fibScore = Number(engine2Card.fibScore || 0);
     const inv = engine2Card.invalidated === true ? "true" : "false";
-
     e2Text = `${degree} ${tf} — ${phase} — Fib ${fibScore}/20 — inv:${inv}`;
   }
 
@@ -362,7 +359,9 @@ function EngineStack({ confluence, permission, engine2Card }) {
   const stageIcon = stageToIcon(stage, ss, armed);
   const stageColor = stageToColor(stage, ss);
 
-  const e3Text = `${stageIcon} ${stage}${armed && stage !== "FAILURE" ? " ⚡" : ""} • ${Number.isFinite(rs) ? rs.toFixed(1) : "0.0"} ${ss}`;
+  const e3Text = `${stageIcon} ${stage}${armed && stage !== "FAILURE" ? " ⚡" : ""} • ${
+    Number.isFinite(rs) ? rs.toFixed(1) : "0.0"
+  } ${ss}`;
 
   // E4 (Volume) — show state + phases
   const v = confluence?.context?.volume || {};
@@ -419,6 +418,7 @@ function EngineStack({ confluence, permission, engine2Card }) {
     </div>
   );
 }
+
 
 function StackRow({ k, v, vStyle = {} }) {
   return (
@@ -787,19 +787,14 @@ export default function RowStrategies() {
                   </div>
                 </div>
 
-                {/* RIGHT */}
-                <div style={{ minWidth: 0 }}>
-                  {(() => {
-                    const engine2Card = node?.engine2 || null;
-                    return (
-                      <EngineStack
-                        confluence={confluence}
-                        permission={permission}
-                        engine2Card={engine2Card}
-                      />
-                    );
-                  })()}
-                </div>
+               {/* RIGHT */}
+               <div style={{ minWidth: 0 }}>
+                 <EngineStack
+                   confluence={confluence}
+                   permission={permission}
+                   engine2Card={node?.engine2 || null}
+                 />
+              </div>
 
 
               {/* Reasons + Next trigger */}
