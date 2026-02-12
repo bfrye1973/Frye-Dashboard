@@ -400,14 +400,23 @@ function EngineStack({ confluence, permission, engine2Card }) {
 
   // ✅ NEW E2 (Wave Phase from dashboard-snapshot)
   let e2Text = "NO_ANCHORS";
+  let e2Color = "#cbd5e1"; // default neutral
+
   if (engine2Card && engine2Card.ok === true) {
     const degree = engine2Card.degree || "—";
     const tf = engine2Card.tf || "—";
     const phase = engine2Card.phase || "UNKNOWN";
     const fibScore = Number(engine2Card.fibScore || 0);
-    const inv = engine2Card.invalidated === true ? "true" : "false";
-    e2Text = `${degree} ${tf} — ${phase} — Fib ${fibScore}/20 — inv:${inv}`;
+    const invalidated = engine2Card.invalidated === true;
+
+    e2Text = `${degree} ${tf} — ${phase} — Fib ${fibScore}/20 — inv:${invalidated ? "true" : "false"}`;
+
+    if (invalidated) e2Color = "#fca5a5";      // red
+    else if (fibScore >= 20) e2Color = "#86efac"; // green
+    else if (fibScore >= 10) e2Color = "#fbbf24"; // yellow
+    else e2Color = "#cbd5e1";                  // neutral
   }
+
 
   // E3 (Reaction) — show STAGE + armed + score + structureState
   const r = confluence?.context?.reaction || {};
