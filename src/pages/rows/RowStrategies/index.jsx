@@ -469,11 +469,12 @@ function EngineStack({ confluence, permission, engine2Card }) {
         borderRadius: 12,
         padding: 12,
         background: "#0b0b0b",
-        height: 220,
+        minHeight: 240,
+        height: "auto",
         display: "grid",
         gridTemplateRows: "auto repeat(6, 1fr)",
         gap: 8,
-        overflow: "hidden",
+        overflow: "visible",
         minWidth: 0,
       }}
     >
@@ -507,8 +508,8 @@ function StackRow({ k, v, vStyle = {} }) {
         style={{
           fontWeight: 900,
           fontSize: 13,
-          whiteSpace: "nowrap",
-          overflow: "hidden",
+          whiteSpace: "normal",
+          overflow: "visible",
           textOverflow: "ellipsis",
           color: "#e5e7eb",
           ...vStyle,
@@ -781,7 +782,7 @@ export default function RowStrategies() {
                 gap: 8,
               }}
             >
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 220px", gap: 10, alignItems: "start" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: 10, alignItems: "start" }}>
                 {/* LEFT */}
                 <div style={{ minWidth: 0 }}>
                   <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10 }}>
