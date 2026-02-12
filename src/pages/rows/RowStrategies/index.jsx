@@ -4,7 +4,7 @@
 // ✅ One poll endpoint: /api/v1/dashboard-snapshot?symbol=SPY&includeContext=1
 // ✅ Engine Stack (E1–E6) always visible on RIGHT column
 // ✅ LEFT column keeps full readable info
-// ✅ Buttons: Load SPY/QQQ, Open Full Chart, Open Full Strategies
+// ✅ Buttons: (PRODUCTION) Paper Only + Open Full Strategies
 //
 // ✅ Stability fixes (LOCKED):
 // - NEVER stops polling (even if tab hidden)
@@ -22,7 +22,7 @@
 // - Golden Coil uses Engine5 truth: confluence.flags.goldenCoil
 // - Engine Stack E3 shows stage + score + structureState
 // - visibilitychange only triggers pull when tab becomes VISIBLE
-// - ✅ FIXED JSX structure (duplicate RIGHT block removed + correct closures)
+// - ✅ FIXED JSX structure (actions bar is inside card, minimal buttons)
 
 import React, { useEffect, useMemo, useState } from "react";
 import { useSelection } from "../../../context/ModeContext";
@@ -409,14 +409,15 @@ function EngineStack({ confluence, permission, engine2Card }) {
     const fibScore = Number(engine2Card.fibScore || 0);
     const invalidated = engine2Card.invalidated === true;
 
-    e2Text = `${degree} ${tf} — ${phase} — Fib ${fibScore}/20 — inv:${invalidated ? "true" : "false"}`;
+    e2Text = `${degree} ${tf} — ${phase} — Fib ${fibScore}/20 — inv:${
+      invalidated ? "true" : "false"
+    }`;
 
-    if (invalidated) e2Color = "#fca5a5";      // red
+    if (invalidated) e2Color = "#fca5a5"; // red
     else if (fibScore >= 20) e2Color = "#86efac"; // green
     else if (fibScore >= 10) e2Color = "#fbbf24"; // yellow
-    else e2Color = "#cbd5e1";                  // neutral
+    else e2Color = "#cbd5e1"; // neutral
   }
-
 
   // E3 (Reaction) — show STAGE + armed + score + structureState
   const r = confluence?.context?.reaction || {};
@@ -486,7 +487,11 @@ function EngineStack({ confluence, permission, engine2Card }) {
       <StackRow k="E1" v={loc} />
       <StackRow k="E2" v={e2Text} vStyle={{ color: e2Color }} />
       <StackRow k="E3" v={e3Text} vStyle={{ color: stageColor }} />
-      <StackRow k="E4" v={e4Text} vStyle={{ color: volumeToColor(e4State, vf) }} />
+      <StackRow
+        k="E4"
+        v={e4Text}
+        vStyle={{ color: volumeToColor(e4State, vf) }}
+      />
       <StackRow k="E5" v={e5Text} vStyle={{ color: confluenceToColor(score) }} />
       <StackRow k="E6" v={e6Text} vStyle={{ color: permToColor(perm) }} />
     </div>
@@ -504,7 +509,9 @@ function StackRow({ k, v, vStyle = {} }) {
         minWidth: 0,
       }}
     >
-      <span style={{ fontWeight: 900, fontSize: 13, color: "#9ca3af" }}>{k}</span>
+      <span style={{ fontWeight: 900, fontSize: 13, color: "#9ca3af" }}>
+        {k}
+      </span>
       <span
         style={{
           fontWeight: 900,
@@ -576,9 +583,19 @@ export default function RowStrategies() {
 
   const STRATS = useMemo(
     () => [
-      { id: "SCALP", name: "Scalp — Minor Intraday", tf: "10m", sub: "10m primary • 1h gate" },
+      {
+        id: "SCALP",
+        name: "Scalp — Minor Intraday",
+        tf: "10m",
+        sub: "10m primary • 1h gate",
+      },
       { id: "MINOR", name: "Minor — Swing", tf: "1h", sub: "1h primary • 4h confirm" },
-      { id: "INTERMEDIATE", name: "Intermediate — Long", tf: "4h", sub: "4h primary • EOD gate" },
+      {
+        id: "INTERMEDIATE",
+        name: "Intermediate — Long",
+        tf: "4h",
+        sub: "4h primary • EOD gate",
+      },
     ],
     []
   );
@@ -743,8 +760,10 @@ export default function RowStrategies() {
           const label = confluence?.scores?.label || grade(score);
           const golden = showGoldenCoil(confluence);
 
-          const reasonsE5 = top3(confluence?.reasonCodes || []);
-          const reasonsE6 = top3(permission?.reasonCodes || []);
+          // keep these (not shown yet in UI) so other teammates don't break later
+          const _reasonsE5 = top3(confluence?.reasonCodes || []);
+          const _reasonsE6 = top3(permission?.reasonCodes || []);
+
           const zone = extractActiveZone(confluence);
           const targets = extractTargets(confluence);
           const compression = extractCompression(confluence);
@@ -783,7 +802,14 @@ export default function RowStrategies() {
                 gap: 8,
               }}
             >
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: 10, alignItems: "start" }}>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 320px",
+                  gap: 10,
+                  alignItems: "start",
+                }}
+              >
                 {/* LEFT */}
                 <div style={{ minWidth: 0 }}>
                   <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10 }}>
@@ -791,7 +817,15 @@ export default function RowStrategies() {
                       <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                         <div style={{ fontWeight: 900, fontSize: 14, lineHeight: "16px" }}>{s.name}</div>
 
-                        <span style={{ fontSize: 11, fontWeight: 900, padding: "4px 10px", borderRadius: 999, ...permStyle(perm) }}>
+                        <span
+                          style={{
+                            fontSize: 11,
+                            fontWeight: 900,
+                            padding: "4px 10px",
+                            borderRadius: 999,
+                            ...permStyle(perm),
+                          }}
+                        >
                           {perm}
                         </span>
 
@@ -821,14 +855,31 @@ export default function RowStrategies() {
                   </div>
 
                   {/* Score */}
-                  <div style={{ display: "grid", gridTemplateColumns: "44px 1fr 40px", alignItems: "center", gap: 8, marginTop: 8 }}>
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "44px 1fr 40px",
+                      alignItems: "center",
+                      gap: 8,
+                      marginTop: 8,
+                    }}
+                  >
                     <div style={{ color: "#9ca3af", fontSize: 10, fontWeight: 900 }}>Score</div>
-                    <div style={{ background: "#1f2937", borderRadius: 8, height: 8, overflow: "hidden", border: "1px solid #334155" }}>
+                    <div
+                      style={{
+                        background: "#1f2937",
+                        borderRadius: 8,
+                        height: 8,
+                        overflow: "hidden",
+                        border: "1px solid #334155",
+                      }}
+                    >
                       <div
                         style={{
                           height: "100%",
                           width: `${Math.max(0, Math.min(100, Math.round(score)))}%`,
-                          background: "linear-gradient(90deg,#22c55e 0%,#84cc16 40%,#f59e0b 70%,#ef4444 100%)",
+                          background:
+                            "linear-gradient(90deg,#22c55e 0%,#84cc16 40%,#f59e0b 70%,#ef4444 100%)",
                         }}
                       />
                     </div>
@@ -864,7 +915,8 @@ export default function RowStrategies() {
                         <>
                           <span style={{ color: "#fbbf24", fontWeight: 900 }}>{zone.zoneType}</span>{" "}
                           <span style={{ color: "#94a3b8" }}>
-                            {Number.isFinite(zone.lo) ? fmt2(zone.lo) : "—"}–{Number.isFinite(zone.hi) ? fmt2(zone.hi) : "—"}
+                            {Number.isFinite(zone.lo) ? fmt2(zone.lo) : "—"}–
+                            {Number.isFinite(zone.hi) ? fmt2(zone.hi) : "—"}
                           </span>
                         </>
                       ) : (
@@ -888,92 +940,88 @@ export default function RowStrategies() {
                       tone={volume.volumeConfirmed ? "ok" : "muted"}
                     />
                   </div>
+
+                  {/* (Optional) next trigger text stays available without changing layout */}
+                  <div style={{ marginTop: 6, fontSize: 12, color: "#94a3b8", fontWeight: 800 }}>
+                    {nextTriggerText(confluence)}
+                  </div>
                 </div>
 
-                {/* RIGHT (EngineStack + Strategy Summary) */}
+                {/* RIGHT (EngineStack + Strategy Snapshot) */}
                 <div
                   style={{
                     minWidth: 0,
                     display: "flex",
                     flexDirection: "column",
                     gap: 10,
-                 }}
-               >
-                 <EngineStack
-                  confluence={confluence}
-                  permission={permission}
-                  engine2Card={node?.engine2 || null}
-                />
+                  }}
+                >
+                  <EngineStack confluence={confluence} permission={permission} engine2Card={node?.engine2 || null} />
 
-                {/* Strategy Snapshot Card */}
-                <div
-                  style={{
-                  border: "1px solid #1f2937",
-                  borderRadius: 12,
-                  padding: 12,
-                  background: "#0b0b0b",
-                  fontSize: 12,
+                  {/* Strategy Snapshot Card */}
+                  <div
+                    style={{
+                      border: "1px solid #1f2937",
+                      borderRadius: 12,
+                      padding: 12,
+                      background: "#0b0b0b",
+                      fontSize: 12,
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 6,
+                    }}
+                  >
+                    <div style={{ fontWeight: 900, color: "#93c5fd", fontSize: 11 }}>STRATEGY SNAPSHOT</div>
+
+                    <div>
+                      <b>Wave Phase:</b> {node?.engine2?.phase || "—"}
+                    </div>
+
+                    <div>
+                      <b>Fib Score:</b>{" "}
+                      {Number.isFinite(node?.engine2?.fibScore) ? `${node.engine2.fibScore}/20` : "—"}
+                    </div>
+
+                    <div>
+                      <b>Invalidated:</b> {node?.engine2?.invalidated ? "YES ❌" : "NO"}
+                    </div>
+
+                    <div>
+                      <b>Degree:</b> {node?.engine2?.degree || "—"} {node?.engine2?.tf || ""}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* ACTIONS — MINIMAL (fixes card height/wrap) */}
+              <div
+                style={{
+                  marginTop: "auto",
                   display: "flex",
-                  flexDirection: "column",
-                  gap: 6,
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 8,
                 }}
               >
-                <div style={{ fontWeight: 900, color: "#93c5fd", fontSize: 11 }}>
-                  STRATEGY SNAPSHOT
-                </div>
-
-                <div>
-                  <b>Wave Phase:</b>{" "}
-                  {node?.engine2?.phase || "—"}
-               </div>
-
-               <div>
-                 <b>Fib Score:</b>{" "}
-                 {Number.isFinite(node?.engine2?.fibScore)
-                   ? `${node.engine2.fibScore}/20`
-                   : "—"}
-               </div>
-
-               <div>
-                 <b>Invalidated:</b>{" "}
-                 {node?.engine2?.invalidated ? "YES ❌" : "NO"}
-               </div>
-
-               <div>
-                 <b>Degree:</b>{" "}
-                 {node?.engine2?.degree || "—"}{" "}
-                 {node?.engine2?.tf || ""}
-               </div>
-             </div>
-           </div>
-
                 <span
-                 style={{
-                   background: "#0b1220",
-                   border: "1px solid #1f2937",
-                   color: "#93c5fd",
-                   padding: "4px 8px",
-                   borderRadius: 999,
-                   fontSize: 11,
-                   fontWeight: 900,
-                 }}
-               >
-                 PAPER ONLY
-               </span>
-               
-                <button onClick={() => load("SPY", s.tf)} style={btn()} title="Load SPY chart at this strategy TF">
-                  Load SPY
-                </button>
+                  style={{
+                    background: "#0b1220",
+                    border: "1px solid #1f2937",
+                    color: "#93c5fd",
+                    padding: "4px 8px",
+                    borderRadius: 999,
+                    fontSize: 11,
+                    fontWeight: 900,
+                  }}
+                >
+                  PAPER ONLY
+                </span>
 
-                <button onClick={() => load("QQQ", s.tf)} style={btn()} title="Load QQQ chart at this strategy TF">
-                  Load QQQ
-                </button>
-
-                <button onClick={() => openFullChart("SPY", s.tf)} style={btn()} title="Open full chart in new tab">
-                  Open Full Chart
-                </button>
-
-                <button onClick={() => openFullStrategies("SPY")} style={btn()} title="Open all strategies in a large readable view">
+                <button
+                  onClick={() => openFullStrategies("SPY")}
+                  style={btn()}
+                  title="Open all strategies in a large readable view"
+                >
                   Open Full Strategies
                 </button>
               </div>
