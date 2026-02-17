@@ -3,6 +3,9 @@
 // ✅ Replay Mode support (MVP):
 //    - When replay.enabled: uses replay.snapshot.market.raw as 10m feed and STOPS live polling
 //    - 1h/4h/EOD show "—" until we store those in replay snapshots later
+// ✅ Adds:
+//    - MASTER Overall Score (1h+4h+EOD) to the RIGHT of EOD lights with a header
+//    - 30m Overall (Option A): average of last 3 completed 10m Overall scores (entry smoothing)
 
 import React from "react";
 import { useDashboardPoll } from "../../lib/dashboardApiSafe";
@@ -54,6 +57,12 @@ const weightedBlend = (items) => {
   const wSum = valid.reduce((a, x) => a + x.w, 0);
   if (wSum <= 0) return NaN;
   return valid.reduce((a, x) => a + x.v * (x.w / wSum), 0);
+};
+
+const avg = (arr) => {
+  const xs = (arr || []).filter((x) => Number.isFinite(x));
+  if (!xs.length) return NaN;
+  return xs.reduce((a, b) => a + b, 0) / xs.length;
 };
 
 // ----------------- Tone helpers -----------------
@@ -239,6 +248,10 @@ export default function RowMarketOverview() {
   const [live4h, setLive4h] = React.useState(null);
   const [liveEOD, setLiveEOD] = React.useState(null);
 
+  // 30m Overall (Option A): rolling last 3 unique 10m Overall scores
+  const [last3TenMinScores, setLast3TenMinScores] = React.useState([]);
+  const lastSeenTs10Ref = React.useRef(null);
+
   // ✅ Replay injection: when replay is enabled and snapshot exists,
   // force the 10m feed from replay snapshot.market.raw
   React.useEffect(() => {
@@ -246,6 +259,12 @@ export default function RowMarketOverview() {
       setLive10(replay.snapshot.market.raw);
     }
   }, [replay?.enabled, replay?.snapshot]);
+
+  // Reset 30m buffer when replay toggles (prevents mixing live + replay)
+  React.useEffect(() => {
+    setLast3TenMinScores([]);
+    lastSeenTs10Ref.current = null;
+  }, [replay?.enabled]);
 
   // Pull direct /live feeds (ONLY when replay is OFF)
   React.useEffect(() => {
@@ -300,7 +319,10 @@ export default function RowMarketOverview() {
 
   // ----------------- Data Selection -----------------
   // 10m: in replay mode we want replay snapshot raw; otherwise live10; otherwise polled fallback.
-  const d10 = (replay?.enabled && replay?.snapshot?.market?.raw) ? replay.snapshot.market.raw : (live10 || polled || {});
+  const d10 =
+    replay?.enabled && replay?.snapshot?.market?.raw
+      ? replay.snapshot.market.raw
+      : live10 || polled || {};
   const m10 = d10.metrics || {};
   const i10 = d10.intraday || {};
   const eng10 = (d10.engineLights && d10.engineLights["10m"]) || {};
@@ -312,9 +334,9 @@ export default function RowMarketOverview() {
     null;
 
   // 1h/4h/EOD: in replay mode, we do NOT have these stored yet, so show empty objects.
-  const d1h = replay?.enabled ? {} : (live1h || {});
-  const d4h = replay?.enabled ? {} : (live4h || {});
-  const dd  = replay?.enabled ? {} : (liveEOD || {});
+  const d1h = replay?.enabled ? {} : live1h || {};
+  const d4h = replay?.enabled ? {} : live4h || {};
+  const dd = replay?.enabled ? {} : liveEOD || {};
 
   // ----------------- 10m extraction -----------------
   const breadth10 = num(m10.breadth_10m_pct ?? m10.breadth_pct);
@@ -332,6 +354,23 @@ export default function RowMarketOverview() {
   let overall10 = num(i10?.overall10m?.score);
   if (!Number.isFinite(overall10)) overall10 = num(eng10.score);
   const state10 = i10?.overall10m?.state || eng10.state || "neutral";
+
+  // Track last 3 UNIQUE 10m scores by timestamp (smooth 30m)
+  React.useEffect(() => {
+    if (!Number.isFinite(overall10)) return;
+    const stamp = ts10 || "";
+    if (!stamp) return;
+
+    if (lastSeenTs10Ref.current === stamp) return;
+    lastSeenTs10Ref.current = stamp;
+
+    setLast3TenMinScores((prev) => {
+      const next = [...prev, overall10].slice(-3);
+      return next;
+    });
+  }, [overall10, ts10]);
+
+  const overall30m = avg(last3TenMinScores);
 
   // ----------------- 1h extraction -----------------
   const m1h = d1h.metrics || {};
@@ -434,7 +473,9 @@ export default function RowMarketOverview() {
         </div>
 
         <div className="spacer" />
-        <LastUpdated ts={replay?.enabled ? replay?.snapshot?.tsUtc : tsOf(d10 || d1h || d4h || dd || polled)} />
+        <LastUpdated
+          ts={replay?.enabled ? replay?.snapshot?.tsUtc : tsOf(d10 || d1h || d4h || dd || polled)}
+        />
       </div>
 
       <div
@@ -453,7 +494,19 @@ export default function RowMarketOverview() {
           </div>
 
           <div style={lineBox}>
-            <Stoplight label="Overall" value={overall10} tone={toneForOverallState(state10, overall10)} />
+            <Stoplight
+              label="Overall"
+              value={overall10}
+              tone={toneForOverallState(state10, overall10)}
+            />
+
+            {/* ✅ 30m Overall (Option A): avg of last 3 ten-minute scores */}
+            <Stoplight
+              label="30m Overall"
+              value={overall30m}
+              tone={toneForPct(overall30m)}
+            />
+
             <Stoplight label="Breadth" value={breadth10} tone={toneForBreadth(breadth10)} />
             <Stoplight label="Momentum" value={mom10} tone={toneForMomentum(mom10)} />
             <Stoplight label="Squeeze" value={sq10} tone={toneForSqueezePsi(psi10)} />
@@ -478,12 +531,17 @@ export default function RowMarketOverview() {
             <div>
               Last 10-min: <strong>{fmtIso(ts10)}</strong>
               {replay?.enabled ? (
-                <> &nbsp;|&nbsp; Replay: <strong>{replay.date} {replay.time}</strong></>
+                <>
+                  {" "}
+                  &nbsp;|&nbsp; Replay: <strong>{replay.date} {replay.time}</strong>
+                </>
               ) : (
                 <>
+                  {" "}
                   &nbsp;|&nbsp; Δ5m updated: <strong>{fmtIso(deltaTs)}</strong>
                   {Number.isFinite(deltaB) && Number.isFinite(deltaM) ? (
                     <>
+                      {" "}
                       &nbsp;|&nbsp; avgΔ5m <strong>{deltaB.toFixed(2)}</strong> &nbsp; avgΔ10m{" "}
                       <strong>{deltaM.toFixed(2)}</strong>
                     </>
@@ -593,7 +651,11 @@ export default function RowMarketOverview() {
               padding: 16,
             }}
           >
-            {legendOpen === "intraday" ? <MarketMeterIntradayLegend /> : <MarketMeterDailyLegend />}
+            {legendOpen === "intraday" ? (
+              <MarketMeterIntradayLegend />
+            ) : (
+              <MarketMeterDailyLegend />
+            )}
 
             <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}>
               <button
