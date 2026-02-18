@@ -1,11 +1,10 @@
 // src/pages/rows/RowMarketOverview.jsx
-// Market Meter — 10m / 1h / 4h / EOD stoplights with Lux PSI (tightness) aligned + 5m Pulse
+// Market Meter — 10m / 30m / 1h / 4h / EOD stoplights + 5m Pulse
 // ✅ Replay Mode support (MVP):
 //    - When replay.enabled: uses replay.snapshot.market.raw as 10m feed and STOPS live polling
-//    - 1h/4h/EOD show "—" until we store those in replay snapshots later
-// ✅ Adds:
-//    - MASTER Overall Score (1h+4h+EOD) to the RIGHT of EOD lights with a header
-//    - 30m Overall (Option A): average of last 3 completed 10m Overall scores (entry smoothing)
+//    - 30m/1h/4h/EOD show "—" until we store those in replay snapshots later
+// ✅ Adds TRUE 30m Bridge light (from /live/30m) BETWEEN 10m and 1h
+// ✅ Keeps MASTER Overall Score (1h+4h+EOD) on the RIGHT of EOD lights
 
 import React from "react";
 import { useDashboardPoll } from "../../lib/dashboardApiSafe";
@@ -15,10 +14,11 @@ import {
   MarketMeterIntradayLegend,
   MarketMeterDailyLegend,
 } from "../../components/MarketMeterLegend";
-import { useReplay } from "../../replay/ReplayContext"; // ✅ REPLAY
+import { useReplay } from "../../replay/ReplayContext";
 
 // ----------------- API endpoints -----------------
 const INTRADAY_URL = process.env.REACT_APP_INTRADAY_URL; // /live/intraday
+const M30_URL = process.env.REACT_APP_30M_URL; // /live/30m ✅ NEW
 const HOURLY_URL = process.env.REACT_APP_HOURLY_URL; // /live/hourly
 const H4_URL = process.env.REACT_APP_4H_URL; // /live/4h
 const EOD_URL = process.env.REACT_APP_EOD_URL; // /live/eod
@@ -57,12 +57,6 @@ const weightedBlend = (items) => {
   const wSum = valid.reduce((a, x) => a + x.w, 0);
   if (wSum <= 0) return NaN;
   return valid.reduce((a, x) => a + x.v * (x.w / wSum), 0);
-};
-
-const avg = (arr) => {
-  const xs = (arr || []).filter((x) => Number.isFinite(x));
-  if (!xs.length) return NaN;
-  return xs.reduce((a, b) => a + b, 0) / xs.length;
 };
 
 // ----------------- Tone helpers -----------------
@@ -237,38 +231,28 @@ function useSandboxDeltas() {
 
 /* ===================== Main Component ===================== */
 export default function RowMarketOverview() {
-  const replay = useReplay(); // ✅ replay.enabled, replay.snapshot
+  const replay = useReplay(); // replay.enabled, replay.snapshot
   const { data: polled } = useDashboardPoll("dynamic");
 
   const [legendOpen, setLegendOpen] = React.useState(null);
 
-  // These hold the live feeds when replay is OFF
+  // Live feeds when replay is OFF
   const [live10, setLive10] = React.useState(null);
+  const [live30, setLive30] = React.useState(null); // ✅ NEW
   const [live1h, setLive1h] = React.useState(null);
   const [live4h, setLive4h] = React.useState(null);
   const [liveEOD, setLiveEOD] = React.useState(null);
 
-  // 30m Overall (Option A): rolling last 3 unique 10m Overall scores
-  const [last3TenMinScores, setLast3TenMinScores] = React.useState([]);
-  const lastSeenTs10Ref = React.useRef(null);
-
-  // ✅ Replay injection: when replay is enabled and snapshot exists,
-  // force the 10m feed from replay snapshot.market.raw
+  // Replay injection: when replay enabled and snapshot exists, force 10m feed from replay snapshot.market.raw
   React.useEffect(() => {
     if (replay?.enabled && replay?.snapshot?.market?.raw) {
       setLive10(replay.snapshot.market.raw);
     }
   }, [replay?.enabled, replay?.snapshot]);
 
-  // Reset 30m buffer when replay toggles (prevents mixing live + replay)
-  React.useEffect(() => {
-    setLast3TenMinScores([]);
-    lastSeenTs10Ref.current = null;
-  }, [replay?.enabled]);
-
   // Pull direct /live feeds (ONLY when replay is OFF)
   React.useEffect(() => {
-    if (replay?.enabled) return; // ✅ stop live polling in replay
+    if (replay?.enabled) return; // stop live polling in replay
 
     let stop = false;
 
@@ -281,6 +265,16 @@ export default function RowMarketOverview() {
           const j = await r.json();
           if (!stop) setLive10(j);
         }
+
+        // ✅ 30m Bridge feed
+        if (M30_URL) {
+          const r = await fetch(`${M30_URL}?t=${Date.now()}`, {
+            cache: "no-store",
+          });
+          const j = await r.json();
+          if (!stop) setLive30(j);
+        }
+
         if (HOURLY_URL) {
           const r = await fetch(`${HOURLY_URL}?t=${Date.now()}`, {
             cache: "no-store",
@@ -318,7 +312,7 @@ export default function RowMarketOverview() {
   const { dB: deltaB, dM: deltaM, ts: deltaTs } = useSandboxDeltas();
 
   // ----------------- Data Selection -----------------
-  // 10m: in replay mode we want replay snapshot raw; otherwise live10; otherwise polled fallback.
+  // 10m: in replay mode use snapshot raw; otherwise live10; otherwise polled fallback
   const d10 =
     replay?.enabled && replay?.snapshot?.market?.raw
       ? replay.snapshot.market.raw
@@ -333,7 +327,8 @@ export default function RowMarketOverview() {
     replay?.snapshot?.tsUtc ||
     null;
 
-  // 1h/4h/EOD: in replay mode, we do NOT have these stored yet, so show empty objects.
+  // 30m/1h/4h/EOD: in replay mode not stored yet → show empty objects
+  const d30 = replay?.enabled ? {} : live30 || {};
   const d1h = replay?.enabled ? {} : live1h || {};
   const d4h = replay?.enabled ? {} : live4h || {};
   const dd = replay?.enabled ? {} : liveEOD || {};
@@ -355,22 +350,12 @@ export default function RowMarketOverview() {
   if (!Number.isFinite(overall10)) overall10 = num(eng10.score);
   const state10 = i10?.overall10m?.state || eng10.state || "neutral";
 
-  // Track last 3 UNIQUE 10m scores by timestamp (smooth 30m)
-  React.useEffect(() => {
-    if (!Number.isFinite(overall10)) return;
-    const stamp = ts10 || "";
-    if (!stamp) return;
-
-    if (lastSeenTs10Ref.current === stamp) return;
-    lastSeenTs10Ref.current = stamp;
-
-    setLast3TenMinScores((prev) => {
-      const next = [...prev, overall10].slice(-3);
-      return next;
-    });
-  }, [overall10, ts10]);
-
-  const overall30m = avg(last3TenMinScores);
+  // ----------------- 30m extraction (TRUE bridge) -----------------
+  const ts30 = d30.updated_at || d30.updated_at_utc || null;
+  const m30 = d30.metrics || {};
+  const t30 = d30.thirtyMin || {};
+  const overall30 = num(t30?.overall30m?.score ?? m30?.overall_30m_score);
+  const state30 = t30?.overall30m?.state || m30?.overall_30m_state || "neutral";
 
   // ----------------- 1h extraction -----------------
   const m1h = d1h.metrics || {};
@@ -474,7 +459,7 @@ export default function RowMarketOverview() {
 
         <div className="spacer" />
         <LastUpdated
-          ts={replay?.enabled ? replay?.snapshot?.tsUtc : tsOf(d10 || d1h || d4h || dd || polled)}
+          ts={replay?.enabled ? replay?.snapshot?.tsUtc : tsOf(d10 || d30 || d1h || d4h || dd || polled)}
         />
       </div>
 
@@ -494,19 +479,7 @@ export default function RowMarketOverview() {
           </div>
 
           <div style={lineBox}>
-            <Stoplight
-              label="Overall"
-              value={overall10}
-              tone={toneForOverallState(state10, overall10)}
-            />
-
-            {/* ✅ 30m Overall (Option A): avg of last 3 ten-minute scores */}
-            <Stoplight
-              label="30m Overall"
-              value={overall30m}
-              tone={toneForPct(overall30m)}
-            />
-
+            <Stoplight label="Overall" value={overall10} tone={toneForOverallState(state10, overall10)} />
             <Stoplight label="Breadth" value={breadth10} tone={toneForBreadth(breadth10)} />
             <Stoplight label="Momentum" value={mom10} tone={toneForMomentum(mom10)} />
             <Stoplight label="Squeeze" value={sq10} tone={toneForSqueezePsi(psi10)} />
@@ -516,7 +489,7 @@ export default function RowMarketOverview() {
             <Stoplight label="Risk-On" value={risk10} tone={toneForPct(risk10)} />
           </div>
 
-          {/* ✅ Pulse restored */}
+          {/* Pulse */}
           <div
             style={{
               color: "#9ca3af",
@@ -550,6 +523,25 @@ export default function RowMarketOverview() {
               )}
             </div>
             <PulseIcon10m />
+          </div>
+        </div>
+
+        {/* ✅ 30m — Bridge (Overall only) BETWEEN 10m and 1h */}
+        <div style={stripBox}>
+          <div className="small" style={{ color: "#e5e7eb", fontWeight: 800 }}>
+            30m — Intraday Bridge {replay?.enabled ? "(—)" : ""}
+          </div>
+
+          <div style={lineBox}>
+            <Stoplight
+              label="Overall"
+              value={overall30}
+              tone={toneForOverallState(state30, overall30)}
+            />
+          </div>
+
+          <div style={{ color: "#9ca3af", fontSize: 12, marginTop: 4 }}>
+            Last 30-min: <strong>{fmtIso(ts30)}</strong>
           </div>
         </div>
 
@@ -651,11 +643,7 @@ export default function RowMarketOverview() {
               padding: 16,
             }}
           >
-            {legendOpen === "intraday" ? (
-              <MarketMeterIntradayLegend />
-            ) : (
-              <MarketMeterDailyLegend />
-            )}
+            {legendOpen === "intraday" ? <MarketMeterIntradayLegend /> : <MarketMeterDailyLegend />}
 
             <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}>
               <button
