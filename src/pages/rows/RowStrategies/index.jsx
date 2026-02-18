@@ -365,7 +365,8 @@ function nextTriggerText(confluence) {
 }
 
 /* -------------------- permission pill styling -------------------- */
-function permStyle(permission) {
+ function permStyle(permission) {
+  // Colors are about ENTRY STATUS, not engine status.
   if (permission === "ALLOW")
     return {
       background: "#22c55e",
@@ -390,6 +391,15 @@ function permStyle(permission) {
     border: "1px solid #2b2b2b",
   };
 }
+
+/* -------------------- permission pill text (ENGINE ALWAYS ON) -------------------- */
+function permLabel(permission) {
+  if (permission === "ALLOW") return "ENTRIES: ALLOWED";
+  if (permission === "REDUCE") return "ENTRIES: REDUCED";
+  if (permission === "STAND_DOWN") return "ENTRIES: BLOCKED";
+  return "ENTRIES: UNKNOWN";
+}
+
 
 /* -------------------- buttons -------------------- */
 function btn() {
@@ -863,9 +873,24 @@ export default function RowStrategies() {
                       <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                         <div style={{ fontWeight: 900, fontSize: 14, lineHeight: "16px" }}>{s.name}</div>
 
-                        <span style={{ fontSize: 11, fontWeight: 900, padding: "4px 10px", borderRadius: 999, ...permStyle(perm) }}>
-                          {perm}
-                        </span>
+                        <span
+                         style={{
+                           fontSize: 11,
+                           fontWeight: 900,
+                           padding: "4px 10px",
+                           borderRadius: 999,
+                           ...permStyle(perm),
+                         }}
+                       >
+                         {perm === "ALLOW"
+                           ? "ENTRIES: ALLOWED"
+                           : perm === "REDUCE"
+                           ? "ENTRIES: REDUCED"
+                           : perm === "STAND_DOWN"
+                           ? "ENTRIES: BLOCKED"
+                           : "ENTRIES: UNKNOWN"}
+                       </span>
+
 
                         {golden && (
                           <span
