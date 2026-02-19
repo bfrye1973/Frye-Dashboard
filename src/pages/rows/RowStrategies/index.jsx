@@ -27,6 +27,11 @@
 // ✅ UPDATE (THIS PASS):
 // - Uses shared snapshot polling hook: useDashboardSnapshot
 // - Adds SCALP GO badge (VERY BIG) next to GOLDEN COIL using backend-1 proxy: /api/v1/scalp-status
+//
+// ✅ UPDATE (C-LEVEL BREAKDOWN):
+// - Engine 3 and Engine 4 always show "where we stand" (not just HOLD / NO_SIGNAL)
+// - E3 shows: position + rejection yes/no + next confirm (uses diagnostics when present)
+// - E4 shows: regime + pressure + flow flags + score
 
 import React, { useEffect, useMemo, useState } from "react";
 import { useSelection } from "../../../context/ModeContext";
@@ -195,7 +200,8 @@ async function safeFetchGo(url, { signal } = {}) {
     json = null;
   }
   if (!res.ok) {
-    const msg = json?.error || json?.detail || text?.slice(0, 200) || `HTTP ${res.status}`;
+    const msg =
+      json?.error || json?.detail || text?.slice(0, 200) || `HTTP ${res.status}`;
     throw new Error(msg);
   }
   return json;
@@ -221,26 +227,23 @@ function GoPillBig({ go }) {
   const nowMs = Date.now();
   const inCooldown = cooldownUntilMs && nowMs < cooldownUntilMs;
 
-  // Visual rules:
-  // - Green when GO true
-  // - Yellow if cooldown but GO false (rare, but safe)
-  // - Gray otherwise
   const bg = signal
     ? "linear-gradient(135deg,#22c55e,#16a34a)"
     : inCooldown
     ? "linear-gradient(135deg,#fbbf24,#f59e0b)"
     : "#111827";
 
-  const border = signal ? "1px solid rgba(255,255,255,.22)" : "1px solid #334155";
+  const border = signal
+    ? "1px solid rgba(255,255,255,.22)"
+    : "1px solid #334155";
   const color = signal ? "#07110a" : "#e5e7eb";
 
   const mainText = signal ? `GO ${dir || ""}`.trim() : "GO: NO";
-  const sub =
-    signal
-      ? `${trig}${Number.isFinite(line) ? ` @ ${fmt2(line)}` : ""}`
-      : inCooldown
-      ? "COOLDOWN"
-      : "WAIT";
+  const sub = signal
+    ? `${trig}${Number.isFinite(line) ? ` @ ${fmt2(line)}` : ""}`
+    : inCooldown
+    ? "COOLDOWN"
+    : "WAIT";
 
   const tipParts = [];
   tipParts.push(`signal=${String(signal)}`);
@@ -270,7 +273,15 @@ function GoPillBig({ go }) {
       <span style={{ fontWeight: 900, fontSize: 14, lineHeight: "14px", color }}>
         {mainText}
       </span>
-      <span style={{ fontWeight: 900, fontSize: 10, lineHeight: "10px", opacity: 0.95, color }}>
+      <span
+        style={{
+          fontWeight: 900,
+          fontSize: 10,
+          lineHeight: "10px",
+          opacity: 0.95,
+          color,
+        }}
+      >
         {sub}
       </span>
     </span>
@@ -337,9 +348,7 @@ function extractVolume(confluence) {
 
 function nextTriggerText(confluence) {
   const invalid = confluence?.invalid === true;
-  const codes = Array.isArray(confluence?.reasonCodes)
-    ? confluence.reasonCodes
-    : [];
+  const codes = Array.isArray(confluence?.reasonCodes) ? confluence.reasonCodes : [];
   const hasZone = !!confluence?.context?.activeZone;
   const comp = confluence?.compression;
   const volState = String(confluence?.volumeState || "");
@@ -356,8 +365,7 @@ function nextTriggerText(confluence) {
     return "Waiting: active zone selection (negotiated/shelf/institutional).";
 
   if (comp?.active === true && comp?.state === "COILING") {
-    if (volState === "NO_SIGNAL")
-      return "Waiting: initiative volume / confirmation.";
+    if (volState === "NO_SIGNAL") return "Waiting: initiative volume / confirmation.";
     return "Waiting: breakout/launch confirmation.";
   }
 
@@ -365,31 +373,15 @@ function nextTriggerText(confluence) {
 }
 
 /* -------------------- permission pill styling -------------------- */
- function permStyle(permission) {
+function permStyle(permission) {
   // Colors are about ENTRY STATUS, not engine status.
   if (permission === "ALLOW")
-    return {
-      background: "#22c55e",
-      color: "#0b1220",
-      border: "2px solid #0c1320",
-    };
+    return { background: "#22c55e", color: "#0b1220", border: "2px solid #0c1320" };
   if (permission === "REDUCE")
-    return {
-      background: "#fbbf24",
-      color: "#0b1220",
-      border: "2px solid #0c1320",
-    };
+    return { background: "#fbbf24", color: "#0b1220", border: "2px solid #0c1320" };
   if (permission === "STAND_DOWN")
-    return {
-      background: "#ef4444",
-      color: "#0b1220",
-      border: "2px solid #0c1320",
-    };
-  return {
-    background: "#0b0b0b",
-    color: "#93c5fd",
-    border: "1px solid #2b2b2b",
-  };
+    return { background: "#ef4444", color: "#0b1220", border: "2px solid #0c1320" };
+  return { background: "#0b0b0b", color: "#93c5fd", border: "1px solid #2b2b2b" };
 }
 
 /* -------------------- permission pill text (ENGINE ALWAYS ON) -------------------- */
@@ -400,6 +392,41 @@ function permLabel(permission) {
   return "ENTRIES: UNKNOWN";
 }
 
+/* -------------------- Engine 3/4 C-level helpers -------------------- */
+function volRegimeFromScore(volumeScore, flags = {}) {
+  const vs = Number(volumeScore);
+  if (flags?.liquidityTrap) return "TRAP_RISK";
+  if (!Number.isFinite(vs)) return "UNKNOWN";
+  if (vs <= 3) return "QUIET";
+  if (vs <= 7) return "NORMAL";
+  return "EXPANDING";
+}
+
+function volPressureFromFlags(flags = {}) {
+  if (flags?.liquidityTrap) return "TRAP";
+  if (flags?.distributionDetected) return "BEARISH";
+  if (flags?.absorptionDetected) return "ABSORB";
+  if (flags?.initiativeMoveConfirmed) return "INITIATIVE";
+  return "NEUTRAL";
+}
+
+function shortNextText(s = "") {
+  if (!s) return "—";
+  return s.length > 54 ? s.slice(0, 51) + "…" : s;
+}
+
+function e3FallbackPosition(reasonCodes = []) {
+  if (Array.isArray(reasonCodes) && reasonCodes.includes("NOT_IN_ZONE")) return "OUTSIDE";
+  return "IN/NEAR";
+}
+
+function e3FallbackNext(stage) {
+  if (stage === "IDLE") return "Next: tighten → ARMED";
+  if (stage === "ARMED") return "Next: exit zone → TRIGGERED";
+  if (stage === "TRIGGERED") return "Next: score≥7 → CONFIRMED";
+  if (stage === "CONFIRMED") return "Next: monitor follow-through";
+  return "Next: monitor";
+}
 
 /* -------------------- buttons -------------------- */
 function btn() {
@@ -424,9 +451,7 @@ function openFullStrategies(symbol = "SPY") {
 
 // kept for compatibility (even if unused right now)
 function openFullChart(symbol = "SPY", tf = "10m") {
-  const url = `/chart?symbol=${encodeURIComponent(symbol)}&tf=${encodeURIComponent(
-    tf
-  )}`;
+  const url = `/chart?symbol=${encodeURIComponent(symbol)}&tf=${encodeURIComponent(tf)}`;
   window.open(url, "_blank", "noopener,noreferrer");
 }
 
@@ -435,54 +460,23 @@ function MiniRow({ label, left, right, tone = "muted" }) {
   const t = (kind) => {
     switch (String(kind || "").toUpperCase()) {
       case "OK":
-        return {
-          background: "#06220f",
-          color: "#86efac",
-          borderColor: "#166534",
-        };
+        return { background: "#06220f", color: "#86efac", borderColor: "#166534" };
       case "WARN":
-        return {
-          background: "#1b1409",
-          color: "#fbbf24",
-          borderColor: "#92400e",
-        };
+        return { background: "#1b1409", color: "#fbbf24", borderColor: "#92400e" };
       case "DANGER":
-        return {
-          background: "#2b0b0b",
-          color: "#fca5a5",
-          borderColor: "#7f1d1d",
-        };
+        return { background: "#2b0b0b", color: "#fca5a5", borderColor: "#7f1d1d" };
       default:
-        return {
-          background: "#0b0b0b",
-          color: "#94a3b8",
-          borderColor: "#2b2b2b",
-        };
+        return { background: "#0b0b0b", color: "#94a3b8", borderColor: "#2b2b2b" };
     }
   };
 
   const toneMap =
-    tone === "ok"
-      ? "OK"
-      : tone === "warn"
-      ? "WARN"
-      : tone === "danger"
-      ? "DANGER"
-      : "MUTED";
+    tone === "ok" ? "OK" : tone === "warn" ? "WARN" : tone === "danger" ? "DANGER" : "MUTED";
   const pill = t(toneMap);
 
   return (
-    <div
-      style={{
-        display: "grid",
-        gridTemplateColumns: "92px 1fr auto",
-        gap: 8,
-        alignItems: "center",
-      }}
-    >
-      <div style={{ color: "#9ca3af", fontSize: 11, fontWeight: 900 }}>
-        {label}
-      </div>
+    <div style={{ display: "grid", gridTemplateColumns: "92px 1fr auto", gap: 8, alignItems: "center" }}>
+      <div style={{ color: "#9ca3af", fontSize: 11, fontWeight: 900 }}>{label}</div>
       <div
         style={{
           color: "#cbd5e1",
@@ -528,9 +522,7 @@ function EngineStack({ confluence, permission, engine2Card }) {
     const fibScore = Number(engine2Card.fibScore || 0);
     const invalidated = engine2Card.invalidated === true;
 
-    e2Text = `${degree} ${tf} — ${phase} — Fib ${fibScore}/20 — inv:${
-      invalidated ? "true" : "false"
-    }`;
+    e2Text = `${degree} ${tf} — ${phase} — Fib ${fibScore}/20 — inv:${invalidated ? "true" : "false"}`;
 
     if (invalidated) e2Color = "#fca5a5";
     else if (fibScore >= 20) e2Color = "#86efac";
@@ -538,7 +530,7 @@ function EngineStack({ confluence, permission, engine2Card }) {
     else e2Color = "#cbd5e1";
   }
 
-  // E3
+  // ---------------- E3 (C-level breakdown) ----------------
   const r = confluence?.context?.reaction || {};
   const stage = String(r.stage || "—").toUpperCase();
   const armed = r.armed === true;
@@ -547,32 +539,55 @@ function EngineStack({ confluence, permission, engine2Card }) {
   const stageIcon = stageToIcon(stage, ss, armed);
   const stageColor = stageToColor(stage, ss);
 
-  const e3Text = `${stageIcon} ${stage}${
-    armed && stage !== "FAILURE" ? " ⚡" : ""
-  } • ${Number.isFinite(rs) ? rs.toFixed(1) : "0.0"} ${ss}`;
+  // prefer new diagnostics fields if present
+  const e3Pos = r.zonePosition ? String(r.zonePosition) : e3FallbackPosition(r.reasonCodes);
+  const rejYesNo =
+    r.rejectionCandidate === true ? "REJECTION: YES"
+    : r.rejectionCandidate === false ? "REJECTION: no"
+    : "REJECTION: —";
 
-  // E4
+  const nextDown = r.nextConfirmDown ? shortNextText(r.nextConfirmDown) : null;
+  const nextUp = r.nextConfirmUp ? shortNextText(r.nextConfirmUp) : null;
+  const nextTxt = (nextDown || nextUp) ? `Next: ${nextDown || nextUp}` : e3FallbackNext(stage);
+
+  const e3Text =
+    `${stageIcon} ${stage}${armed && stage !== "FAILURE" ? " ⚡" : ""}` +
+    ` • ${Number.isFinite(rs) ? rs.toFixed(1) : "0.0"} ${ss}` +
+    ` • POS:${e3Pos}` +
+    ` • ${rejYesNo}` +
+    ` • ${nextTxt}`;
+
+  // ---------------- E4 (C-level breakdown) ----------------
   const v = confluence?.context?.volume || {};
   const vf = v?.flags || {};
-  const e4State = confluence?.volumeState || "NO_SIGNAL";
+  const e4State = String(confluence?.volumeState || v?.state || "NO_SIGNAL").toUpperCase();
+  const vs = Number(v.volumeScore ?? 0);
 
-  const e4Phases =
+  const regime = volRegimeFromScore(vs, vf);
+  const pressure = volPressureFromFlags(vf);
+
+  const flow =
     `PB:${vf.pullbackContraction ? "✅" : "—"} ` +
     `REV:${vf.reversalExpansion ? "✅" : "—"} ` +
-    `DIV:${vf.volumeDivergence ? "⚠️" : "—"} ` +
+    `INIT:${vf.initiativeMoveConfirmed ? "✅" : "—"} ` +
+    `DIST:${vf.distributionDetected ? "⚠️" : "—"} ` +
     `ABS:${vf.absorptionDetected ? "⚠️" : "—"} ` +
-    `TRAP:${vf.liquidityTrap ? "❌" : "—"}`;
+    `TRAP:${vf.liquidityTrap ? "❌" : "—"} ` +
+    `DIV:${vf.volumeDivergence ? "⚠️" : "—"}`;
 
-  const e4Text = `${e4State} • ${e4Phases}`;
+  const e4Text =
+    `${e4State}` +
+    ` • VS:${Number.isFinite(vs) ? vs : "—"}/15` +
+    ` • REG:${regime}` +
+    ` • PRESS:${pressure}` +
+    ` • ${flow}`;
 
   // E5
   const score = clamp100(confluence?.scores?.total ?? 0);
   const label = confluence?.scores?.label || grade(score);
   const comp = confluence?.compression || {};
   const compState = String(comp?.state || "NONE").toUpperCase();
-  const compScore = Number.isFinite(Number(comp?.score))
-    ? Math.round(Number(comp?.score))
-    : 0;
+  const compScore = Number.isFinite(Number(comp?.score)) ? Math.round(Number(comp?.score)) : 0;
   const e5Text = `${Math.round(score)} (${label}) • ${compState} ${compScore}`;
 
   // E6
@@ -599,9 +614,7 @@ function EngineStack({ confluence, permission, engine2Card }) {
         minWidth: 0,
       }}
     >
-      <div style={{ fontSize: 11, fontWeight: 900, color: "#93c5fd" }}>
-        ENGINE STACK
-      </div>
+      <div style={{ fontSize: 11, fontWeight: 900, color: "#93c5fd" }}>ENGINE STACK</div>
 
       <StackRow k="E1" v={loc} />
       <StackRow k="E2" v={e2Text} vStyle={{ color: e2Color }} />
@@ -624,9 +637,7 @@ function StackRow({ k, v, vStyle = {} }) {
         minWidth: 0,
       }}
     >
-      <span style={{ fontWeight: 900, fontSize: 13, color: "#9ca3af" }}>
-        {k}
-      </span>
+      <span style={{ fontWeight: 900, fontSize: 13, color: "#9ca3af" }}>{k}</span>
       <span
         style={{
           fontWeight: 900,
@@ -722,7 +733,12 @@ export default function RowStrategies() {
         const j = await safeFetchGo(SCALP_STATUS_URL(), { signal: controller.signal });
         if (alive) setScalpStatus({ data: j, err: null, last: nowIso() });
       } catch (e) {
-        if (alive) setScalpStatus((prev) => ({ ...prev, err: String(e?.message || e), last: nowIso() }));
+        if (alive)
+          setScalpStatus((prev) => ({
+            ...prev,
+            err: String(e?.message || e),
+            last: nowIso(),
+          }));
       } finally {
         clearTimeout(t);
         inFlight = false;
@@ -812,9 +828,7 @@ export default function RowStrategies() {
 
           const fresh = minutesAgo(lastFetch) <= 1.5;
           const liveStatus = err ? "red" : fresh ? "green" : "yellow";
-          const liveTip = err
-            ? `Error: ${err}`
-            : `Last snapshot: ${lastFetch ? toAZ(lastFetch, true) : "—"}`;
+          const liveTip = err ? `Error: ${err}` : `Last snapshot: ${lastFetch ? toAZ(lastFetch, true) : "—"}`;
 
           const score = clamp100(confluence?.scores?.total ?? 0);
           const label = confluence?.scores?.label || grade(score);
@@ -874,23 +888,17 @@ export default function RowStrategies() {
                         <div style={{ fontWeight: 900, fontSize: 14, lineHeight: "16px" }}>{s.name}</div>
 
                         <span
-                         style={{
-                           fontSize: 11,
-                           fontWeight: 900,
-                           padding: "4px 10px",
-                           borderRadius: 999,
-                           ...permStyle(perm),
-                         }}
-                       >
-                         {perm === "ALLOW"
-                           ? "ENTRIES: ALLOWED"
-                           : perm === "REDUCE"
-                           ? "ENTRIES: REDUCED"
-                           : perm === "STAND_DOWN"
-                           ? "ENTRIES: BLOCKED"
-                           : "ENTRIES: UNKNOWN"}
-                       </span>
-
+                          style={{
+                            fontSize: 11,
+                            fontWeight: 900,
+                            padding: "4px 10px",
+                            borderRadius: 999,
+                            whiteSpace: "nowrap",
+                            ...permStyle(perm),
+                          }}
+                        >
+                          {permLabel(perm)}
+                        </span>
 
                         {golden && (
                           <span
@@ -921,14 +929,31 @@ export default function RowStrategies() {
                   </div>
 
                   {/* Score */}
-                  <div style={{ display: "grid", gridTemplateColumns: "44px 1fr 40px", alignItems: "center", gap: 8, marginTop: 8 }}>
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "44px 1fr 40px",
+                      alignItems: "center",
+                      gap: 8,
+                      marginTop: 8,
+                    }}
+                  >
                     <div style={{ color: "#9ca3af", fontSize: 10, fontWeight: 900 }}>Score</div>
-                    <div style={{ background: "#1f2937", borderRadius: 8, height: 8, overflow: "hidden", border: "1px solid #334155" }}>
+                    <div
+                      style={{
+                        background: "#1f2937",
+                        borderRadius: 8,
+                        height: 8,
+                        overflow: "hidden",
+                        border: "1px solid #334155",
+                      }}
+                    >
                       <div
                         style={{
                           height: "100%",
                           width: `${Math.max(0, Math.min(100, Math.round(score)))}%`,
-                          background: "linear-gradient(90deg,#22c55e 0%,#84cc16 40%,#f59e0b 70%,#ef4444 100%)",
+                          background:
+                            "linear-gradient(90deg,#22c55e 0%,#84cc16 40%,#f59e0b 70%,#ef4444 100%)",
                         }}
                       />
                     </div>
@@ -937,8 +962,7 @@ export default function RowStrategies() {
 
                   <div style={{ display: "flex", justifyContent: "space-between", gap: 10, fontSize: 11, color: "#cbd5e1" }}>
                     <div>
-                      <span style={{ color: "#9ca3af", fontWeight: 800 }}>Label:</span>{" "}
-                      {label || "—"}{" "}
+                      <span style={{ color: "#9ca3af", fontWeight: 800 }}>Label:</span> {label || "—"}{" "}
                       <span style={{ color: "#9ca3af" }}>(A+≥90 A≥80 B≥70 C≥60)</span>
                     </div>
                     <div>
@@ -964,8 +988,7 @@ export default function RowStrategies() {
                         <>
                           <span style={{ color: "#fbbf24", fontWeight: 900 }}>{zone.zoneType}</span>{" "}
                           <span style={{ color: "#94a3b8" }}>
-                            {Number.isFinite(zone.lo) ? fmt2(zone.lo) : "—"}–
-                            {Number.isFinite(zone.hi) ? fmt2(zone.hi) : "—"}
+                            {Number.isFinite(zone.lo) ? fmt2(zone.lo) : "—"}–{Number.isFinite(zone.hi) ? fmt2(zone.hi) : "—"}
                           </span>
                         </>
                       ) : (
@@ -1037,7 +1060,11 @@ export default function RowStrategies() {
                   PAPER ONLY
                 </span>
 
-                <button onClick={() => openFullStrategies("SPY")} style={btn()} title="Open all strategies in a large readable view">
+                <button
+                  onClick={() => openFullStrategies("SPY")}
+                  style={btn()}
+                  title="Open all strategies in a large readable view"
+                >
                   Open Full Strategies
                 </button>
               </div>
