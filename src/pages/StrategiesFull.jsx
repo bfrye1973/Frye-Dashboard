@@ -1,4 +1,16 @@
-import React, { useMemo, useState } from "react";
+// src/pages/StrategiesFull.jsx
+//
+// Full Strategies page (opened by RowStrategies -> Open Full Strategies)
+//
+// ✅ Uses same shared snapshot polling hook: useDashboardSnapshot
+// ✅ Big readable cards for all 3 strategies
+//
+// ✅ UPDATE (THIS PASS):
+// - Permission pill uses ENTRIES: ALLOWED/REDUCED/BLOCKED (engine always on)
+// - Engine Stack (E3/E4) shows C-level breakdown (position / rejection / next confirm; regime / pressure / flags)
+// - No engine logic changes, display-only
+
+import React, { useMemo } from "react";
 import { useDashboardSnapshot } from "../hooks/useDashboardSnapshot";
 
 /* -------------------- env/helpers -------------------- */
@@ -38,13 +50,63 @@ function grade(score) {
   return "IGNORE";
 }
 
+/* -------------------- permission pill styling -------------------- */
 function permStyle(permission) {
-  if (permission === "ALLOW") return { background: "#22c55e", color: "#0b1220", border: "2px solid #0c1320" };
-  if (permission === "REDUCE") return { background: "#fbbf24", color: "#0b1220", border: "2px solid #0c1320" };
-  if (permission === "STAND_DOWN") return { background: "#ef4444", color: "#0b1220", border: "2px solid #0c1320" };
+  // Colors are ENTRY STATUS, not "engine on/off"
+  if (permission === "ALLOW")
+    return { background: "#22c55e", color: "#0b1220", border: "2px solid #0c1320" };
+  if (permission === "REDUCE")
+    return { background: "#fbbf24", color: "#0b1220", border: "2px solid #0c1320" };
+  if (permission === "STAND_DOWN")
+    return { background: "#ef4444", color: "#0b1220", border: "2px solid #0c1320" };
   return { background: "#0b0b0b", color: "#93c5fd", border: "1px solid #2b2b2b" };
 }
 
+function permLabel(permission) {
+  if (permission === "ALLOW") return "ENTRIES: ALLOWED";
+  if (permission === "REDUCE") return "ENTRIES: REDUCED";
+  if (permission === "STAND_DOWN") return "ENTRIES: BLOCKED";
+  return "ENTRIES: UNKNOWN";
+}
+
+/* -------------------- C-level helpers (same idea as RowStrategies) -------------------- */
+function volRegimeFromScore(volumeScore, flags = {}) {
+  const vs = Number(volumeScore);
+  if (flags?.liquidityTrap) return "TRAP_RISK";
+  if (!Number.isFinite(vs)) return "UNKNOWN";
+  if (vs <= 3) return "QUIET";
+  if (vs <= 7) return "NORMAL";
+  return "EXPANDING";
+}
+
+function volPressureFromFlags(flags = {}) {
+  if (flags?.liquidityTrap) return "TRAP";
+  if (flags?.distributionDetected) return "BEARISH";
+  if (flags?.absorptionDetected) return "ABSORB";
+  if (flags?.initiativeMoveConfirmed) return "INITIATIVE";
+  return "NEUTRAL";
+}
+
+function shortNextText(s = "") {
+  if (!s) return "—";
+  return s.length > 54 ? s.slice(0, 51) + "…" : s;
+}
+
+function e3FallbackPosition(reasonCodes = []) {
+  if (Array.isArray(reasonCodes) && reasonCodes.includes("NOT_IN_ZONE")) return "OUTSIDE";
+  return "IN/NEAR";
+}
+
+function e3FallbackNext(stage) {
+  const st = String(stage || "IDLE").toUpperCase();
+  if (st === "IDLE") return "Next: tighten → ARMED";
+  if (st === "ARMED") return "Next: exit zone → TRIGGERED";
+  if (st === "TRIGGERED") return "Next: score≥7 → CONFIRMED";
+  if (st === "CONFIRMED") return "Next: monitor follow-through";
+  return "Next: monitor";
+}
+
+/* -------------------- buttons -------------------- */
 function btn() {
   return {
     background: "#141414",
@@ -64,7 +126,7 @@ function openFullChart(symbol = "SPY", tf = "10m") {
   window.open(url, "_blank", "noopener,noreferrer");
 }
 
-/* -------------------- Compact engine stack (bigger readable) -------------------- */
+/* -------------------- Engine Stack (bigger readable) -------------------- */
 /**
  * IMPORTANT:
  * E2 must use node.engine2 (dashboard truth), not confluence.context.fib
@@ -72,6 +134,7 @@ function openFullChart(symbol = "SPY", tf = "10m") {
 function EngineStackBig({ confluence, permission, engine2Card }) {
   const loc = confluence?.location?.state || "—";
 
+  // E2 (from node.engine2)
   let e2Text = "NO_ANCHORS";
   let e2Color = "#e5e7eb";
   if (engine2Card && engine2Card.ok === true) {
@@ -89,20 +152,68 @@ function EngineStackBig({ confluence, permission, engine2Card }) {
     else e2Color = "#cbd5e1";
   }
 
+  // E3 (C-level)
   const reaction = confluence?.context?.reaction || {};
-  const e3Text = `${Number(reaction?.reactionScore ?? 0).toFixed(1)} ${reaction?.structureState || "HOLD"}`;
+  const stage = String(reaction?.stage || "—").toUpperCase();
+  const armed = reaction?.armed === true;
+  const rs = Number(reaction?.reactionScore ?? 0);
+  const ss = String(reaction?.structureState || "HOLD").toUpperCase();
 
+  const e3Pos = reaction.zonePosition ? String(reaction.zonePosition) : e3FallbackPosition(reaction.reasonCodes);
+  const rejYesNo =
+    reaction.rejectionCandidate === true ? "REJECTION: YES"
+    : reaction.rejectionCandidate === false ? "REJECTION: no"
+    : "REJECTION: —";
+
+  const nextDown = reaction.nextConfirmDown ? shortNextText(reaction.nextConfirmDown) : null;
+  const nextUp = reaction.nextConfirmUp ? shortNextText(reaction.nextConfirmUp) : null;
+  const nextTxt = (nextDown || nextUp) ? `Next: ${nextDown || nextUp}` : e3FallbackNext(stage);
+
+  const e3Text =
+    `${stage}${armed && stage !== "FAILURE" ? " ⚡" : ""}` +
+    ` • ${Number.isFinite(rs) ? rs.toFixed(1) : "0.0"} ${ss}` +
+    ` • POS:${e3Pos}` +
+    ` • ${rejYesNo}` +
+    ` • ${nextTxt}`;
+
+  // E4 (C-level)
   const volume = confluence?.context?.volume || {};
   const vFlags = volume?.flags || {};
-  const e4State = confluence?.volumeState || "NO_SIGNAL";
-  const e4Flags = `trap:${vFlags?.liquidityTrap ? "Y" : "N"} init:${vFlags?.initiativeMoveConfirmed ? "Y" : "N"}`;
+  const e4State = String(confluence?.volumeState || volume?.state || "NO_SIGNAL").toUpperCase();
+  const vs = Number(volume?.volumeScore ?? 0);
 
+  const regime = volRegimeFromScore(vs, vFlags);
+  const pressure = volPressureFromFlags(vFlags);
+
+  const flow =
+    `PB:${vFlags.pullbackContraction ? "✅" : "—"} ` +
+    `REV:${vFlags.reversalExpansion ? "✅" : "—"} ` +
+    `INIT:${vFlags.initiativeMoveConfirmed ? "✅" : "—"} ` +
+    `DIST:${vFlags.distributionDetected ? "⚠️" : "—"} ` +
+    `ABS:${vFlags.absorptionDetected ? "⚠️" : "—"} ` +
+    `TRAP:${vFlags.liquidityTrap ? "❌" : "—"} ` +
+    `DIV:${vFlags.volumeDivergence ? "⚠️" : "—"}`;
+
+  const e4Text =
+    `${e4State}` +
+    ` • VS:${Number.isFinite(vs) ? vs : "—"}/15` +
+    ` • REG:${regime}` +
+    ` • PRESS:${pressure}` +
+    ` • ${flow}`;
+
+  // E5
   const score = clamp100(confluence?.scores?.total ?? 0);
   const label = confluence?.scores?.label || grade(score);
   const comp = confluence?.compression || {};
-  const e5Text = `${Math.round(score)} (${label}) • ${comp?.state || "NONE"} ${Number.isFinite(Number(comp?.score)) ? Math.round(Number(comp?.score)) : 0}`;
+  const e5Text = `${Math.round(score)} (${label}) • ${(comp?.state || "NONE").toString().toUpperCase()} ${
+    Number.isFinite(Number(comp?.score)) ? Math.round(Number(comp?.score)) : 0
+  }`;
 
-  const e6Text = `${permission?.permission || "—"} • ${Number.isFinite(Number(permission?.sizeMultiplier)) ? Number(permission.sizeMultiplier).toFixed(2) : "—"}x`;
+  // E6
+  const p = permission || {};
+  const e6Text = `${p?.permission || "—"} • ${
+    Number.isFinite(Number(p?.sizeMultiplier)) ? Number(p.sizeMultiplier).toFixed(2) : "—"
+  }x`;
 
   const row = (k, v, color = "#e5e7eb") => (
     <div style={{ display: "grid", gridTemplateColumns: "34px 1fr", gap: 10, alignItems: "center" }}>
@@ -120,7 +231,7 @@ function EngineStackBig({ confluence, permission, engine2Card }) {
         {row("E1", loc)}
         {row("E2", e2Text, e2Color)}
         {row("E3", e3Text)}
-        {row("E4", `${e4State} • ${e4Flags}`)}
+        {row("E4", e4Text)}
         {row("E5", e5Text)}
         {row("E6", e6Text)}
       </div>
@@ -225,8 +336,18 @@ export default function StrategiesFull() {
                 <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
                   <div style={{ fontWeight: 900, fontSize: 16 }}>{s.title}</div>
                   <span style={{ fontSize: 12, color: "#9ca3af", fontWeight: 900 }}>TF: {s.tf}</span>
-                  <span style={{ fontSize: 11, fontWeight: 900, padding: "4px 10px", borderRadius: 999, ...permStyle(perm) }}>
-                    {perm}
+
+                  <span
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 900,
+                      padding: "4px 10px",
+                      borderRadius: 999,
+                      whiteSpace: "nowrap",
+                      ...permStyle(perm),
+                    }}
+                  >
+                    {permLabel(perm)}
                   </span>
                 </div>
 
@@ -290,7 +411,12 @@ export default function StrategiesFull() {
                   </div>
 
                   <div style={{ marginTop: 6, fontSize: 13, color: "#cbd5e1" }}>
-                    <b>Next:</b> {confluence ? (confluence.invalid ? "Waiting: invalid cleared." : "Waiting: stronger confluence signals.") : "—"}
+                    <b>Next:</b>{" "}
+                    {confluence
+                      ? confluence.invalid
+                        ? "Waiting: invalid cleared."
+                        : "Waiting: stronger confluence signals."
+                      : "—"}
                   </div>
                 </div>
 
