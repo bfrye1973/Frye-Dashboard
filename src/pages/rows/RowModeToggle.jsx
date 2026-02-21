@@ -1,6 +1,5 @@
 // src/pages/rows/RowModeToggle.jsx
 import React, { useEffect, useMemo, useState } from "react";
-import MarketNarrator from "../../components/MarketNarrator";
 import { useViewMode, ViewModes } from "../../context/ModeContext";
 
 // IMPORTANT:
@@ -20,6 +19,11 @@ export default function RowModeToggle() {
   const [time, setTime] = useState("");
   const [events, setEvents] = useState([]);
   const [eventIdx, setEventIdx] = useState(-1);
+
+  // ✅ AI Listen (Market Interpreter)
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiText, setAiText] = useState("");
+  const [aiError, setAiError] = useState("");
 
   // Load dates when Replay ON
   useEffect(() => {
@@ -115,6 +119,55 @@ export default function RowModeToggle() {
       </button>
     );
   };
+
+  async function captureChartPng() {
+    // Uses the first canvas found (your console confirmed it exists)
+    const canvas = document.querySelector("canvas");
+    if (!canvas) throw new Error("Chart canvas not found.");
+    return canvas.toDataURL("image/png");
+  }
+
+  async function onListenAI() {
+    setAiBusy(true);
+    setAiError("");
+    setAiText("");
+
+    try {
+      // 1) Narrator facts (already 3 paragraphs)
+      const narrator = await fetch(
+        `${CORE_BASE}/api/v1/market-narrator?symbol=SPY&tf=1h&style=descriptive`,
+        { cache: "no-store" }
+      ).then((r) => r.json());
+
+      // 2) Screenshot chart
+      const chartImage = await captureChartPng();
+
+      // 3) AI interpreter (image + JSON) -> returns 3 paragraphs
+      const ai = await fetch(`${CORE_BASE}/api/v1/market-narrator-ai`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          narratorJson: narrator,
+          chartImage,
+        }),
+      }).then((r) => r.json());
+
+      if (!ai?.ok) {
+        throw new Error(ai?.error || "AI endpoint failed");
+      }
+
+      setAiText(ai?.narrativeText || "No narrative returned.");
+    } catch (e) {
+      setAiError(String(e?.message || e));
+    } finally {
+      setAiBusy(false);
+    }
+  }
+
+  function onClearAI() {
+    setAiText("");
+    setAiError("");
+  }
 
   return (
     <section id="view-modes" className="panel" style={{ padding: 8 }}>
@@ -273,8 +326,70 @@ export default function RowModeToggle() {
 
         <div className="spacer" />
 
-        <MarketNarrator />
+        {/* ✅ NEW: replaces old right-side controls with our AI Listen */}
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <button
+            type="button"
+            onClick={onListenAI}
+            disabled={aiBusy}
+            style={{
+              borderRadius: 10,
+              padding: "6px 12px",
+              border: `1px solid ${aiBusy ? "#334155" : "#475569"}`,
+              background: aiBusy ? "#111827" : "#0b0b0b",
+              color: "#e5e7eb",
+              fontWeight: 900,
+              cursor: aiBusy ? "not-allowed" : "pointer",
+            }}
+            title="Capture chart + run AI market interpretation"
+          >
+            {aiBusy ? "Listening…" : "🎧 Listen (AI)"}
+          </button>
+
+          <button
+            type="button"
+            onClick={onClearAI}
+            style={{
+              borderRadius: 10,
+              padding: "6px 10px",
+              border: "1px solid #2b2b2b",
+              background: "#0b0b0b",
+              color: "#9ca3af",
+              fontWeight: 800,
+              cursor: "pointer",
+            }}
+            title="Clear narrative"
+          >
+            Clear
+          </button>
+        </div>
       </div>
+
+      {/* ✅ AI Narrative Output */}
+      {(aiError || aiText) && (
+        <div
+          style={{
+            marginTop: 10,
+            border: "1px solid #1f2937",
+            borderRadius: 12,
+            padding: 12,
+            background: "#070a10",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+            <div style={{ color: "#e5e7eb", fontWeight: 900 }}>Market Read (AI)</div>
+            {aiBusy && <div style={{ color: "#fbbf24", fontWeight: 800 }}>Running…</div>}
+          </div>
+
+          {aiError ? (
+            <div style={{ color: "#fca5a5", fontWeight: 700 }}>{aiError}</div>
+          ) : (
+            <div style={{ color: "#cbd5e1", whiteSpace: "pre-wrap", lineHeight: 1.45 }}>
+              {aiText}
+            </div>
+          )}
+        </div>
+      )}
     </section>
   );
 }
