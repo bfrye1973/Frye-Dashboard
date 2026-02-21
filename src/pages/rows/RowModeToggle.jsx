@@ -153,9 +153,9 @@ export default function RowModeToggle() {
       }).then((r) => r.json());
 
       if (!ai?.ok) {
-        throw new Error(ai?.error || "AI endpoint failed");
+        const detail = ai?.detail ? JSON.stringify(ai.detail).slice(0, 500) : "";
+        throw new Error(`${ai?.error || "AI endpoint failed"} ${detail}`);
       }
-
       setAiText(ai?.narrativeText || "No narrative returned.");
     } catch (e) {
       setAiError(String(e?.message || e));
