@@ -156,13 +156,37 @@ export default function RowModeToggle() {
         const detail = ai?.detail ? JSON.stringify(ai.detail).slice(0, 500) : "";
         throw new Error(`${ai?.error || "AI endpoint failed"} ${detail}`);
       }
-      setAiText(ai?.narrativeText || "No narrative returned.");
+      const text = ai?.narrativeText || "No narrative returned.";
+
+      setAiText(text);
+
+      // 🔊 Speak the narrative (browser TTS)
+      try {
+        if (window.speechSynthesis) {
+          const utter = new SpeechSynthesisUtterance(text);
+
+          // Voice tuning
+          utter.rate = 1;        // speed (0.5–2)
+          utter.pitch = 1;       // tone
+          utter.volume = 1;      // volume (0–1)
+
+          // Stop any current speech first
+          window.speechSynthesis.cancel();
+
+          window.speechSynthesis.speak(utter);
+        }
+      } catch (speechErr) {
+        console.warn("Speech synthesis failed:", speechErr);
+      }
+
     } catch (e) {
-      setAiError(String(e?.message || e));
+      const message = String(e?.message || e);
+      console.error("AI Listen Error:", message);
+      setAiError(message);
+
     } finally {
       setAiBusy(false);
     }
-  }
 
   function onClearAI() {
     setAiText("");
