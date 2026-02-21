@@ -2,9 +2,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useViewMode, ViewModes } from "../../context/ModeContext";
 
-// IMPORTANT:
-// Set this to your backend-1 base.
-// If you already have an env var in the frontend for backend base, swap it here.
+// Backend base URL
 const CORE_BASE =
   import.meta?.env?.VITE_CORE_BASE_URL || "https://frye-market-backend-1.onrender.com";
 
@@ -20,7 +18,7 @@ export default function RowModeToggle() {
   const [events, setEvents] = useState([]);
   const [eventIdx, setEventIdx] = useState(-1);
 
-  // ✅ AI Listen (Market Interpreter)
+  // AI Listen state
   const [aiBusy, setAiBusy] = useState(false);
   const [aiText, setAiText] = useState("");
   const [aiError, setAiError] = useState("");
@@ -29,12 +27,11 @@ export default function RowModeToggle() {
   useEffect(() => {
     if (!replayOn) return;
 
-    fetch(`${CORE_BASE}/api/v1/replay/dates`)
+    fetch(`${CORE_BASE}/api/v1/replay/dates`, { cache: "no-store" })
       .then((r) => r.json())
       .then((j) => {
         const ds = Array.isArray(j?.dates) ? j.dates : [];
         setDates(ds);
-        // Default = most recent date
         if (!date && ds.length) setDate(ds[ds.length - 1]);
       })
       .catch(() => setDates([]));
@@ -45,17 +42,20 @@ export default function RowModeToggle() {
   useEffect(() => {
     if (!replayOn || !date) return;
 
-    fetch(`${CORE_BASE}/api/v1/replay/times?date=${encodeURIComponent(date)}`)
+    fetch(`${CORE_BASE}/api/v1/replay/times?date=${encodeURIComponent(date)}`, {
+      cache: "no-store",
+    })
       .then((r) => r.json())
       .then((j) => {
         const ts = Array.isArray(j?.times) ? j.times : [];
         setTimes(ts);
-        // Default = most recent time
         if (ts.length) setTime(ts[ts.length - 1]);
       })
       .catch(() => setTimes([]));
 
-    fetch(`${CORE_BASE}/api/v1/replay/events?date=${encodeURIComponent(date)}`)
+    fetch(`${CORE_BASE}/api/v1/replay/events?date=${encodeURIComponent(date)}`, {
+      cache: "no-store",
+    })
       .then((r) => r.json())
       .then((j) => {
         const ev = Array.isArray(j?.events) ? j.events : [];
@@ -84,6 +84,7 @@ export default function RowModeToggle() {
     const idx = times.indexOf(time);
     if (idx > 0) setTime(times[idx - 1]);
   }
+
   function nextTime() {
     const idx = times.indexOf(time);
     if (idx >= 0 && idx < times.length - 1) setTime(times[idx + 1]);
@@ -108,12 +109,12 @@ export default function RowModeToggle() {
           cursor: "pointer",
           transition: "background 0.2s, border 0.2s",
         }}
-        onMouseEnter={(e) =>
-          (e.currentTarget.style.background = active ? "#1e293b" : "#1a1a1a")
-        }
-        onMouseLeave={(e) =>
-          (e.currentTarget.style.background = active ? "#0f172a" : "#0b0b0b")
-        }
+        onMouseEnter={(e) => {
+          e.currentTarget.style.background = active ? "#1e293b" : "#1a1a1a";
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.background = active ? "#0f172a" : "#0b0b0b";
+        }}
       >
         {children}
       </button>
@@ -121,7 +122,6 @@ export default function RowModeToggle() {
   };
 
   async function captureChartPng() {
-    // Uses the first canvas found (your console confirmed it exists)
     const canvas = document.querySelector("canvas");
     if (!canvas) throw new Error("Chart canvas not found.");
     return canvas.toDataURL("image/png");
@@ -133,69 +133,62 @@ export default function RowModeToggle() {
     setAiText("");
 
     try {
-      // 1) Narrator facts (already 3 paragraphs)
+      // Facts (3 paragraphs already)
       const narrator = await fetch(
         `${CORE_BASE}/api/v1/market-narrator?symbol=SPY&tf=1h&style=descriptive`,
         { cache: "no-store" }
       ).then((r) => r.json());
 
-      // 2) Screenshot chart
+      // Screenshot
       const chartImage = await captureChartPng();
 
-      // 3) AI interpreter (image + JSON) -> returns 3 paragraphs
+      // AI interpreter
       const ai = await fetch(`${CORE_BASE}/api/v1/market-narrator-ai`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          narratorJson: narrator,
-          chartImage,
-        }),
+        body: JSON.stringify({ narratorJson: narrator, chartImage }),
       }).then((r) => r.json());
 
       if (!ai?.ok) {
         const detail = ai?.detail ? JSON.stringify(ai.detail).slice(0, 500) : "";
-        throw new Error(`${ai?.error || "AI endpoint failed"} ${detail}`);
+        throw new Error(`${ai?.error || "OPENAI_CALL_FAILED"} ${detail}`);
       }
-      const text = ai?.narrativeText || "No narrative returned.";
 
+      const text = ai?.narrativeText || "No narrative returned.";
       setAiText(text);
 
-      // 🔊 Speak the narrative (browser TTS)
+      // Speak aloud (browser TTS)
       try {
         if (window.speechSynthesis) {
           const utter = new SpeechSynthesisUtterance(text);
+          utter.rate = 1;
+          utter.pitch = 1;
+          utter.volume = 1;
 
-          // Voice tuning
-          utter.rate = 1;        // speed (0.5–2)
-          utter.pitch = 1;       // tone
-          utter.volume = 1;      // volume (0–1)
-
-          // Stop any current speech first
           window.speechSynthesis.cancel();
-
           window.speechSynthesis.speak(utter);
         }
       } catch (speechErr) {
+        // non-fatal
         console.warn("Speech synthesis failed:", speechErr);
       }
-
     } catch (e) {
-      const message = String(e?.message || e);
-      console.error("AI Listen Error:", message);
-      setAiError(message);
-
+      setAiError(String(e?.message || e));
     } finally {
       setAiBusy(false);
     }
+  }
 
   function onClearAI() {
     setAiText("");
     setAiError("");
+    try {
+      if (window.speechSynthesis) window.speechSynthesis.cancel();
+    } catch {}
   }
 
   return (
     <section id="view-modes" className="panel" style={{ padding: 8 }}>
-      {/* Banner when replay is ON */}
       {replayOn && (
         <div
           style={{
@@ -230,7 +223,7 @@ export default function RowModeToggle() {
           </Btn>
         </div>
 
-        {/* Replay Mode controls (right of View Modes) */}
+        {/* Replay Mode controls */}
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginLeft: 14 }}>
           <div
             style={{
@@ -350,7 +343,7 @@ export default function RowModeToggle() {
 
         <div className="spacer" />
 
-        {/* ✅ NEW: replaces old right-side controls with our AI Listen */}
+        {/* AI Listen controls */}
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <button
             type="button"
@@ -389,7 +382,7 @@ export default function RowModeToggle() {
         </div>
       </div>
 
-      {/* ✅ AI Narrative Output */}
+      {/* AI Narrative Output */}
       {(aiError || aiText) && (
         <div
           style={{
