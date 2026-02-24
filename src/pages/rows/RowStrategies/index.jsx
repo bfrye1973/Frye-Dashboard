@@ -28,10 +28,11 @@
 // - Uses shared snapshot polling hook: useDashboardSnapshot
 // - Adds SCALP GO badge (VERY BIG) next to GOLDEN COIL using backend-1 proxy: /api/v1/scalp-status
 //
-// ✅ UPDATE (C-LEVEL BREAKDOWN):
-// - Engine 3 and Engine 4 always show "where we stand" (not just HOLD / NO_SIGNAL)
-// - E3 shows: position + rejection yes/no + next confirm (uses diagnostics when present)
-// - E4 shows: regime + pressure + flow flags + score
+// ✅ UPDATE (ENGINE 15 READINESS):
+// - Shows a BIG "READINESS" bar: WAIT / NEAR / ARMING / READY / CONFIRMED
+// - Uses snapshot.engine15.byStrategy[strategyId] if present (Replay-safe)
+// - Otherwise computes a safe local readiness fallback from confluence (Live-safe)
+// - Shows permission overlay separately (STAND_DOWN is NO ENTRIES only)
 
 import React, { useEffect, useMemo, useState } from "react";
 import { useSelection } from "../../../context/ModeContext";
@@ -76,12 +77,6 @@ const BUILD_STAMP =
   new Date().toISOString();
 
 /* -------------------- endpoints (legacy, kept) -------------------- */
-const SNAP_URL = (symbol = "SPY") =>
-  `${API_BASE}/api/v1/dashboard-snapshot?symbol=${encodeURIComponent(
-    symbol
-  )}&includeContext=1&t=${Date.now()}`;
-
-// ✅ GO endpoint (backend-1 proxy → backend-2)
 const SCALP_STATUS_URL = () => `${API_BASE}/api/v1/scalp-status?t=${Date.now()}`;
 
 /* -------------------- utils -------------------- */
@@ -507,6 +502,195 @@ function MiniRow({ label, left, right, tone = "muted" }) {
   );
 }
 
+/* -------------------- UI color/icon helpers -------------------- */
+function stageToIcon(stage, structureState, armed) {
+  const ss = String(structureState || "").toUpperCase();
+  if (ss === "FAILURE" || stage === "FAILURE") return "✖";
+  if (stage === "CONFIRMED") return "🔥";
+  if (stage === "TRIGGERED") return "✅";
+  if (stage === "ARMED") return "⚡";
+  if (stage === "IDLE") return "●";
+  return armed ? "⚡" : "●";
+}
+
+function stageToColor(stage, structureState) {
+  const ss = String(structureState || "").toUpperCase();
+  if (ss === "FAILURE" || stage === "FAILURE") return "#fca5a5";
+  if (stage === "CONFIRMED") return "#86efac";
+  if (stage === "TRIGGERED") return "#bef264";
+  if (stage === "ARMED") return "#fbbf24";
+  return "#94a3b8";
+}
+
+/* -------------------- Engine 15 local fallback (SAFE) -------------------- */
+function computeReadinessFallback({ confluence, permissionObj }) {
+  // This is a SAFE fallback when snapshot.engine15 is not present.
+  // It DOES NOT change Engine 3/4 math. It only provides a UI state.
+
+  const allowed = ["NEGOTIATED", "INSTITUTIONAL"];
+  const nearThresholdPts = 1.5;
+
+  const price = typeof confluence?.price === "number" ? confluence.price : null;
+
+  const z = confluence?.context?.activeZone || null;
+  const zTypeRaw = String(z?.zoneType || z?.type || "NONE").toUpperCase();
+  const zoneType = zTypeRaw === "SHELF" ? "SHELF" : zTypeRaw; // keep explicit
+  const lo = Number(z?.lo);
+  const hi = Number(z?.hi);
+
+  const inRange = (p, a, b) => Number.isFinite(p) && Number.isFinite(a) && Number.isFinite(b) && p >= Math.min(a, b) && p <= Math.max(a, b);
+  const distPts = (p, a, b) => {
+    if (!Number.isFinite(p) || !Number.isFinite(a) || !Number.isFinite(b)) return null;
+    if (inRange(p, a, b)) return 0;
+    return Math.min(Math.abs(p - a), Math.abs(p - b));
+  };
+
+  const d = distPts(price, lo, hi);
+  const allowedType = allowed.includes(zoneType);
+
+  const inAllowedZone = Boolean(allowedType && d === 0);
+  const nearAllowedZone = Boolean(allowedType && d !== null && d <= nearThresholdPts);
+
+  const e3 = confluence?.context?.reaction || {};
+  const e4 = confluence?.context?.volume || {};
+  const e4Flags = e4?.flags || {};
+
+  const e3Stage = String(e3.stage || "—").toUpperCase();
+  const e3Arming = e3.armed === true || e3Stage === "ARMED" || e3Stage === "TRIGGERED";
+  const e3Confirmed = e3Stage === "CONFIRMED";
+
+  const volScore = Number(e4.volumeScore);
+  const volStrong = Number.isFinite(volScore) && volScore >= 7;
+
+  // Reason codes
+  const reasonCodes = [];
+  if (!Number.isFinite(lo) || !Number.isFinite(hi)) reasonCodes.push("NO_ZONE_CONTEXT");
+  else if (inAllowedZone) reasonCodes.push("IN_ALLOWED_ZONE");
+  else if (nearAllowedZone) reasonCodes.push("NEAR_ALLOWED_ZONE");
+  else reasonCodes.push("WAIT_NOT_NEAR_ALLOWED_ZONE");
+
+  if (e3Confirmed) reasonCodes.push("STRUCTURE_CONFIRMED");
+  else if (e3Arming) reasonCodes.push("ARMING_STRUCTURE");
+
+  if (volStrong) reasonCodes.push("VOLUME_STRONG");
+  if (e4Flags.reversalExpansion) reasonCodes.push("VOLUME_REVERSAL_EXPANSION");
+  if (e4Flags.pullbackContraction) reasonCodes.push("VOLUME_PULLBACK_CONTRACTION");
+
+  // State machine
+  let state = "WAIT";
+  const hasArming = e3Arming || volStrong;
+  if (!nearAllowedZone && !inAllowedZone) state = "WAIT";
+  else if (!inAllowedZone) state = hasArming ? "ARMING" : "NEAR";
+  else state = e3Confirmed ? "CONFIRMED" : hasArming ? "READY" : "NEAR";
+
+  const next = [];
+  if (Number.isFinite(lo) && Number.isFinite(hi)) {
+    next.push(`Zone: ${lo.toFixed(2)}–${hi.toFixed(2)} (${zoneType})`);
+    if (!inAllowedZone) next.push("Wait for re-entry into allowed zone");
+  }
+  if (!e3Confirmed) next.push("E3: wait for CONFIRMED or stronger reaction");
+  if (!volStrong) next.push("E4: wait for volumeScore ≥ 7 or regime shift");
+
+  return {
+    ok: true,
+    mode: null,
+    price,
+    zone: {
+      allowed,
+      selected: Number.isFinite(lo) && Number.isFinite(hi) ? { id: z?.id || null, type: zoneType, lo, hi, source: z?.source || "ACTIVE" } : null,
+      inAllowedZone,
+      nearAllowedZone,
+      distancePts: d,
+    },
+    engine3: e3 || null,
+    engine4: e4 || null,
+    permission: permissionObj || null,
+    readiness: { state, reasonCodes, next },
+  };
+}
+
+/* -------------------- BIG Readiness Bar (Engine 15) -------------------- */
+function readinessStyle(state) {
+  const s = String(state || "WAIT").toUpperCase();
+  if (s === "CONFIRMED") return { bg: "linear-gradient(135deg,#22c55e,#16a34a)", fg: "#06110a", border: "1px solid rgba(255,255,255,.22)" };
+  if (s === "READY") return { bg: "linear-gradient(135deg,#a3e635,#65a30d)", fg: "#0b1220", border: "1px solid rgba(255,255,255,.18)" };
+  if (s === "ARMING") return { bg: "linear-gradient(135deg,#fbbf24,#f59e0b)", fg: "#0b1220", border: "1px solid rgba(255,255,255,.18)" };
+  if (s === "NEAR") return { bg: "linear-gradient(135deg,#60a5fa,#3b82f6)", fg: "#071423", border: "1px solid rgba(255,255,255,.18)" };
+  return { bg: "#111827", fg: "#e5e7eb", border: "1px solid #334155" };
+}
+
+function ReadinessBar({ readinessPack }) {
+  const state = readinessPack?.readiness?.state || "WAIT";
+  const rc = Array.isArray(readinessPack?.readiness?.reasonCodes) ? readinessPack.readiness.reasonCodes : [];
+  const next = Array.isArray(readinessPack?.readiness?.next) ? readinessPack.readiness.next : [];
+
+  const zone = readinessPack?.zone || {};
+  const dist = zone?.distancePts;
+  const distTxt = Number.isFinite(dist) ? `${dist.toFixed(2)} pts` : "—";
+
+  const style = readinessStyle(state);
+
+  return (
+    <div
+      style={{
+        borderRadius: 12,
+        padding: 10,
+        background: style.bg,
+        border: style.border,
+        boxShadow: "0 0 18px rgba(0,0,0,.35)",
+        display: "grid",
+        gridTemplateColumns: "auto 1fr auto",
+        alignItems: "center",
+        gap: 10,
+      }}
+      title={[`state=${state}`, `dist=${distTxt}`, ...rc].join(" | ")}
+    >
+      <div style={{ fontWeight: 1000, fontSize: 12, letterSpacing: 0.6, color: style.fg }}>
+        READINESS
+      </div>
+
+      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+        <div style={{ fontWeight: 1000, fontSize: 18, lineHeight: "18px", color: style.fg }}>
+          {String(state).toUpperCase()}
+        </div>
+
+        <div style={{ fontWeight: 900, fontSize: 12, color: style.fg, opacity: 0.95 }}>
+          dist: {distTxt}
+        </div>
+
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+          {rc.slice(0, 4).map((c) => (
+            <span
+              key={c}
+              style={{
+                fontSize: 10,
+                fontWeight: 1000,
+                padding: "4px 8px",
+                borderRadius: 999,
+                background: "rgba(0,0,0,.25)",
+                border: "1px solid rgba(255,255,255,.18)",
+                color: style.fg,
+                whiteSpace: "nowrap",
+              }}
+            >
+              {c}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ textAlign: "right", minWidth: 160 }}>
+        <div style={{ fontSize: 10, fontWeight: 1000, color: style.fg, opacity: 0.9 }}>
+          NEXT
+        </div>
+        <div style={{ fontSize: 11, fontWeight: 900, color: style.fg, opacity: 0.95 }}>
+          {next[0] || "—"}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* -------------------- Engine Stack (right column) -------------------- */
 function EngineStack({ confluence, permission, engine2Card }) {
   const loc = confluence?.location?.state || "—";
@@ -604,12 +788,12 @@ function EngineStack({ confluence, permission, engine2Card }) {
         borderRadius: 12,
         padding: 12,
         background: "#0b0b0b",
-        minHeight: 220,
+        minHeight: 260,
         width: "100%",
         height: "auto",
         display: "grid",
         gridTemplateRows: "auto repeat(6, 1fr)",
-        gap: 8,
+        gap: 10,
         overflow: "visible",
         minWidth: 0,
       }}
@@ -637,10 +821,10 @@ function StackRow({ k, v, vStyle = {} }) {
         minWidth: 0,
       }}
     >
-      <span style={{ fontWeight: 900, fontSize: 13, color: "#9ca3af" }}>{k}</span>
+      <span style={{ fontWeight: 1000, fontSize: 13, color: "#9ca3af" }}>{k}</span>
       <span
         style={{
-          fontWeight: 900,
+          fontWeight: 1000,
           fontSize: 13,
           whiteSpace: "normal",
           overflow: "visible",
@@ -654,26 +838,6 @@ function StackRow({ k, v, vStyle = {} }) {
       </span>
     </div>
   );
-}
-
-/* -------------------- UI color/icon helpers -------------------- */
-function stageToIcon(stage, structureState, armed) {
-  const ss = String(structureState || "").toUpperCase();
-  if (ss === "FAILURE" || stage === "FAILURE") return "✖";
-  if (stage === "CONFIRMED") return "🔥";
-  if (stage === "TRIGGERED") return "✅";
-  if (stage === "ARMED") return "⚡";
-  if (stage === "IDLE") return "●";
-  return armed ? "⚡" : "●";
-}
-
-function stageToColor(stage, structureState) {
-  const ss = String(structureState || "").toUpperCase();
-  if (ss === "FAILURE" || stage === "FAILURE") return "#fca5a5";
-  if (stage === "CONFIRMED") return "#86efac";
-  if (stage === "TRIGGERED") return "#bef264";
-  if (stage === "ARMED") return "#fbbf24";
-  return "#94a3b8";
 }
 
 /* ===================== Main Component ===================== */
@@ -777,7 +941,7 @@ export default function RowStrategies() {
                 boxShadow: active === s.id ? "0 0 0 1px #3b82f6 inset" : "none",
                 borderRadius: 10,
                 padding: "6px 10px",
-                fontWeight: 900,
+                fontWeight: 1000,
                 fontSize: 12,
                 cursor: "pointer",
               }}
@@ -806,7 +970,7 @@ export default function RowStrategies() {
       </div>
 
       {err && (
-        <div style={{ marginTop: 8, color: "#fca5a5", fontWeight: 900 }}>
+        <div style={{ marginTop: 8, color: "#fca5a5", fontWeight: 1000 }}>
           Strategy snapshot error: {err}
         </div>
       )}
@@ -821,10 +985,22 @@ export default function RowStrategies() {
       >
         {STRATS.map((s) => {
           const stratKey = STRATEGY_ID_MAP[s.id];
-          const node = snapshot?.strategies?.[stratKey] || null;
 
+          // dashboard-snapshot shape (current)
+          const node = snapshot?.strategies?.[stratKey] || null;
           const confluence = node?.confluence || null;
           const permission = node?.permission || null;
+
+          // Engine 15 preferred source (Replay snapshots or future live snapshots)
+          const engine15Stored =
+            node?.engine15 ||
+            snapshot?.engine15?.byStrategy?.[stratKey] ||
+            null;
+
+          const readinessPack =
+            engine15Stored && engine15Stored.readiness
+              ? engine15Stored
+              : computeReadinessFallback({ confluence, permissionObj: permission || null });
 
           const fresh = minutesAgo(lastFetch) <= 1.5;
           const liveStatus = err ? "red" : fresh ? "green" : "yellow";
@@ -873,24 +1049,27 @@ export default function RowStrategies() {
                 padding: 10,
                 color: "#e5e7eb",
                 boxShadow: activeGlow,
-                minHeight: 320,
+                minHeight: 360,
                 display: "flex",
                 flexDirection: "column",
-                gap: 8,
+                gap: 10,
               }}
             >
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: 10, alignItems: "start" }}>
+              {/* ✅ BIG readiness bar at top of each card */}
+              <ReadinessBar readinessPack={readinessPack} />
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 10, alignItems: "start" }}>
                 {/* LEFT */}
                 <div style={{ minWidth: 0 }}>
                   <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10 }}>
                     <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                        <div style={{ fontWeight: 900, fontSize: 14, lineHeight: "16px" }}>{s.name}</div>
+                        <div style={{ fontWeight: 1000, fontSize: 14, lineHeight: "16px" }}>{s.name}</div>
 
                         <span
                           style={{
                             fontSize: 11,
-                            fontWeight: 900,
+                            fontWeight: 1000,
                             padding: "4px 10px",
                             borderRadius: 999,
                             whiteSpace: "nowrap",
@@ -905,7 +1084,7 @@ export default function RowStrategies() {
                             style={{
                               background: "linear-gradient(135deg,#ffb703,#ff8800)",
                               color: "#1a1a1a",
-                              fontWeight: 900,
+                              fontWeight: 1000,
                               padding: "4px 10px",
                               borderRadius: 8,
                               boxShadow: "0 0 10px rgba(255,183,3,.55)",
@@ -920,7 +1099,7 @@ export default function RowStrategies() {
                         {showGoHere && <GoPillBig go={scalpGo} />}
                       </div>
 
-                      <div style={{ fontSize: 13, color: "#9ca3af", fontWeight: 700 }}>{s.sub}</div>
+                      <div style={{ fontSize: 13, color: "#9ca3af", fontWeight: 800 }}>{s.sub}</div>
                     </div>
 
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -938,7 +1117,7 @@ export default function RowStrategies() {
                       marginTop: 8,
                     }}
                   >
-                    <div style={{ color: "#9ca3af", fontSize: 10, fontWeight: 900 }}>Score</div>
+                    <div style={{ color: "#9ca3af", fontSize: 10, fontWeight: 1000 }}>Score</div>
                     <div
                       style={{
                         background: "#1f2937",
@@ -957,16 +1136,16 @@ export default function RowStrategies() {
                         }}
                       />
                     </div>
-                    <div style={{ textAlign: "right", fontWeight: 900, fontSize: 12 }}>{Math.round(score)}</div>
+                    <div style={{ textAlign: "right", fontWeight: 1000, fontSize: 12 }}>{Math.round(score)}</div>
                   </div>
 
                   <div style={{ display: "flex", justifyContent: "space-between", gap: 10, fontSize: 11, color: "#cbd5e1" }}>
                     <div>
-                      <span style={{ color: "#9ca3af", fontWeight: 800 }}>Label:</span> {label || "—"}{" "}
+                      <span style={{ color: "#9ca3af", fontWeight: 900 }}>Label:</span> {label || "—"}{" "}
                       <span style={{ color: "#9ca3af" }}>(A+≥90 A≥80 B≥70 C≥60)</span>
                     </div>
                     <div>
-                      <span style={{ color: "#9ca3af", fontWeight: 800 }}>TF:</span> {s.tf}
+                      <span style={{ color: "#9ca3af", fontWeight: 900 }}>TF:</span> {s.tf}
                     </div>
                   </div>
 
@@ -986,7 +1165,7 @@ export default function RowStrategies() {
                       <b>Active Zone:</b>{" "}
                       {zone?.zoneType ? (
                         <>
-                          <span style={{ color: "#fbbf24", fontWeight: 900 }}>{zone.zoneType}</span>{" "}
+                          <span style={{ color: "#fbbf24", fontWeight: 1000 }}>{zone.zoneType}</span>{" "}
                           <span style={{ color: "#94a3b8" }}>
                             {Number.isFinite(zone.lo) ? fmt2(zone.lo) : "—"}–{Number.isFinite(zone.hi) ? fmt2(zone.hi) : "—"}
                           </span>
@@ -1013,7 +1192,7 @@ export default function RowStrategies() {
                     />
                   </div>
 
-                  <div style={{ marginTop: 6, fontSize: 12, color: "#94a3b8", fontWeight: 800 }}>
+                  <div style={{ marginTop: 6, fontSize: 12, color: "#94a3b8", fontWeight: 900 }}>
                     {nextTriggerText(confluence)}
                   </div>
                 </div>
@@ -1035,7 +1214,7 @@ export default function RowStrategies() {
                       gap: 6,
                     }}
                   >
-                    <div style={{ fontWeight: 900, color: "#93c5fd", fontSize: 11 }}>STRATEGY SNAPSHOT</div>
+                    <div style={{ fontWeight: 1000, color: "#93c5fd", fontSize: 11 }}>STRATEGY SNAPSHOT</div>
                     <div><b>Wave Phase:</b> {node?.engine2?.phase || "—"}</div>
                     <div><b>Fib Score:</b> {Number.isFinite(node?.engine2?.fibScore) ? `${node.engine2.fibScore}/20` : "—"}</div>
                     <div><b>Invalidated:</b> {node?.engine2?.invalidated ? "YES ❌" : "NO"}</div>
@@ -1054,7 +1233,7 @@ export default function RowStrategies() {
                     padding: "4px 8px",
                     borderRadius: 999,
                     fontSize: 11,
-                    fontWeight: 900,
+                    fontWeight: 1000,
                   }}
                 >
                   PAPER ONLY
