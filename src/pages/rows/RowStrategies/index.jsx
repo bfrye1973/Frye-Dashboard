@@ -369,7 +369,6 @@ function nextTriggerText(confluence) {
 
 /* -------------------- permission pill styling -------------------- */
 function permStyle(permission) {
-  // Colors are about ENTRY STATUS, not engine status.
   if (permission === "ALLOW")
     return { background: "#22c55e", color: "#0b1220", border: "2px solid #0c1320" };
   if (permission === "REDUCE")
@@ -379,7 +378,6 @@ function permStyle(permission) {
   return { background: "#0b0b0b", color: "#93c5fd", border: "1px solid #2b2b2b" };
 }
 
-/* -------------------- permission pill text (ENGINE ALWAYS ON) -------------------- */
 function permLabel(permission) {
   if (permission === "ALLOW") return "ENTRIES: ALLOWED";
   if (permission === "REDUCE") return "ENTRIES: REDUCED";
@@ -524,9 +522,6 @@ function stageToColor(stage, structureState) {
 
 /* -------------------- Engine 15 local fallback (SAFE) -------------------- */
 function computeReadinessFallback({ confluence, permissionObj }) {
-  // This is a SAFE fallback when snapshot.engine15 is not present.
-  // It DOES NOT change Engine 3/4 math. It only provides a UI state.
-
   const allowed = ["NEGOTIATED", "INSTITUTIONAL"];
   const nearThresholdPts = 1.5;
 
@@ -534,11 +529,12 @@ function computeReadinessFallback({ confluence, permissionObj }) {
 
   const z = confluence?.context?.activeZone || null;
   const zTypeRaw = String(z?.zoneType || z?.type || "NONE").toUpperCase();
-  const zoneType = zTypeRaw === "SHELF" ? "SHELF" : zTypeRaw; // keep explicit
+  const zoneType = zTypeRaw === "SHELF" ? "SHELF" : zTypeRaw;
   const lo = Number(z?.lo);
   const hi = Number(z?.hi);
 
-  const inRange = (p, a, b) => Number.isFinite(p) && Number.isFinite(a) && Number.isFinite(b) && p >= Math.min(a, b) && p <= Math.max(a, b);
+  const inRange = (p, a, b) =>
+    Number.isFinite(p) && Number.isFinite(a) && Number.isFinite(b) && p >= Math.min(a, b) && p <= Math.max(a, b);
   const distPts = (p, a, b) => {
     if (!Number.isFinite(p) || !Number.isFinite(a) || !Number.isFinite(b)) return null;
     if (inRange(p, a, b)) return 0;
@@ -562,7 +558,6 @@ function computeReadinessFallback({ confluence, permissionObj }) {
   const volScore = Number(e4.volumeScore);
   const volStrong = Number.isFinite(volScore) && volScore >= 7;
 
-  // Reason codes
   const reasonCodes = [];
   if (!Number.isFinite(lo) || !Number.isFinite(hi)) reasonCodes.push("NO_ZONE_CONTEXT");
   else if (inAllowedZone) reasonCodes.push("IN_ALLOWED_ZONE");
@@ -576,7 +571,6 @@ function computeReadinessFallback({ confluence, permissionObj }) {
   if (e4Flags.reversalExpansion) reasonCodes.push("VOLUME_REVERSAL_EXPANSION");
   if (e4Flags.pullbackContraction) reasonCodes.push("VOLUME_PULLBACK_CONTRACTION");
 
-  // State machine
   let state = "WAIT";
   const hasArming = e3Arming || volStrong;
   if (!nearAllowedZone && !inAllowedZone) state = "WAIT";
@@ -679,7 +673,8 @@ function ReadinessBar({ readinessPack }) {
         </div>
       </div>
 
-      <div style={{ textAlign: "right", minWidth: 160 }}>
+      {/* ✅ FIX #2: minWidth 160 -> 0 so this does not force width */}
+      <div style={{ textAlign: "right", minWidth: 0 }}>
         <div style={{ fontSize: 10, fontWeight: 1000, color: style.fg, opacity: 0.9 }}>
           NEXT
         </div>
@@ -695,7 +690,6 @@ function ReadinessBar({ readinessPack }) {
 function EngineStack({ confluence, permission, engine2Card }) {
   const loc = confluence?.location?.state || "—";
 
-  // ✅ E2 (Wave Phase from dashboard-snapshot node.engine2)
   let e2Text = "NO_ANCHORS";
   let e2Color = "#cbd5e1";
 
@@ -714,7 +708,6 @@ function EngineStack({ confluence, permission, engine2Card }) {
     else e2Color = "#cbd5e1";
   }
 
-  // ---------------- E3 (C-level breakdown) ----------------
   const r = confluence?.context?.reaction || {};
   const stage = String(r.stage || "—").toUpperCase();
   const armed = r.armed === true;
@@ -723,7 +716,6 @@ function EngineStack({ confluence, permission, engine2Card }) {
   const stageIcon = stageToIcon(stage, ss, armed);
   const stageColor = stageToColor(stage, ss);
 
-  // prefer new diagnostics fields if present
   const e3Pos = r.zonePosition ? String(r.zonePosition) : e3FallbackPosition(r.reasonCodes);
   const rejYesNo =
     r.rejectionCandidate === true ? "REJECTION: YES"
@@ -741,7 +733,6 @@ function EngineStack({ confluence, permission, engine2Card }) {
     ` • ${rejYesNo}` +
     ` • ${nextTxt}`;
 
-  // ---------------- E4 (C-level breakdown) ----------------
   const v = confluence?.context?.volume || {};
   const vf = v?.flags || {};
   const e4State = String(confluence?.volumeState || v?.state || "NO_SIGNAL").toUpperCase();
@@ -766,7 +757,6 @@ function EngineStack({ confluence, permission, engine2Card }) {
     ` • PRESS:${pressure}` +
     ` • ${flow}`;
 
-  // E5
   const score = clamp100(confluence?.scores?.total ?? 0);
   const label = confluence?.scores?.label || grade(score);
   const comp = confluence?.compression || {};
@@ -774,7 +764,6 @@ function EngineStack({ confluence, permission, engine2Card }) {
   const compScore = Number.isFinite(Number(comp?.score)) ? Math.round(Number(comp?.score)) : 0;
   const e5Text = `${Math.round(score)} (${label}) • ${compState} ${compScore}`;
 
-  // E6
   const perm = permission?.permission || "—";
   const mult = Number.isFinite(Number(permission?.sizeMultiplier))
     ? Number(permission.sizeMultiplier).toFixed(2)
@@ -861,14 +850,12 @@ export default function RowStrategies() {
 
   const [active, setActive] = useState("SCALP");
 
-  // ✅ Shared polling truth (single source across pages)
   const { data: snapshot, err, lastFetch } = useDashboardSnapshot("SPY", {
     pollMs: POLL_MS,
     timeoutMs: TIMEOUT_MS,
     includeContext: 1,
   });
 
-  // ✅ Scalp GO state (read-only)
   const [scalpStatus, setScalpStatus] = useState({ data: null, err: null, last: null });
 
   useEffect(() => {
@@ -917,7 +904,6 @@ export default function RowStrategies() {
     };
   }, []);
 
-  // kept for compatibility (even if unused right now)
   function load(sym, tf) {
     setSelection({ symbol: sym, timeframe: tf, strategy: "smz" });
   }
@@ -986,12 +972,10 @@ export default function RowStrategies() {
         {STRATS.map((s) => {
           const stratKey = STRATEGY_ID_MAP[s.id];
 
-          // dashboard-snapshot shape (current)
           const node = snapshot?.strategies?.[stratKey] || null;
           const confluence = node?.confluence || null;
           const permission = node?.permission || null;
 
-          // Engine 15 preferred source (Replay snapshots or future live snapshots)
           const engine15Stored =
             node?.engine15 ||
             snapshot?.engine15?.byStrategy?.[stratKey] ||
@@ -1010,7 +994,6 @@ export default function RowStrategies() {
           const label = confluence?.scores?.label || grade(score);
           const golden = showGoldenCoil(confluence);
 
-          // keep these (not shown yet in UI) so other teammates don't break later
           const _reasonsE5 = top3(confluence?.reasonCodes || []);
           const _reasonsE6 = top3(permission?.reasonCodes || []);
 
@@ -1036,7 +1019,6 @@ export default function RowStrategies() {
               ? "0 0 0 2px rgba(59,130,246,.65) inset, 0 10px 30px rgba(0,0,0,.25)"
               : "0 10px 30px rgba(0,0,0,.25)";
 
-          // ✅ Only SCALP shows intrabar GO right now
           const showGoHere = s.id === "SCALP";
 
           return (
@@ -1053,12 +1035,24 @@ export default function RowStrategies() {
                 display: "flex",
                 flexDirection: "column",
                 gap: 10,
+
+                // ✅ FIX #1: allow grid children to shrink without widening dashboard
+                minWidth: 0,
+                overflow: "hidden",
               }}
             >
-              {/* ✅ BIG readiness bar at top of each card */}
               <ReadinessBar readinessPack={readinessPack} />
 
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 10, alignItems: "start" }}>
+              {/* ✅ FIX #3: responsive right column (no forced 340px) */}
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "minmax(0,1fr) clamp(260px, 28vw, 320px)",
+                  gap: 10,
+                  alignItems: "start",
+                  minWidth: 0,
+                }}
+              >
                 {/* LEFT */}
                 <div style={{ minWidth: 0 }}>
                   <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10 }}>
@@ -1095,7 +1089,6 @@ export default function RowStrategies() {
                           </span>
                         )}
 
-                        {/* ✅ BIG GO next to Golden Coil */}
                         {showGoHere && <GoPillBig go={scalpGo} />}
                       </div>
 
@@ -1107,7 +1100,6 @@ export default function RowStrategies() {
                     </div>
                   </div>
 
-                  {/* Score */}
                   <div
                     style={{
                       display: "grid",
@@ -1149,7 +1141,6 @@ export default function RowStrategies() {
                     </div>
                   </div>
 
-                  {/* Targets */}
                   <div style={{ display: "grid", gap: 4, marginTop: 6 }}>
                     <div style={{ fontSize: 12, color: "#cbd5e1" }}>
                       <b>Entry Target:</b> {entryTxt}
@@ -1159,7 +1150,6 @@ export default function RowStrategies() {
                     </div>
                   </div>
 
-                  {/* Active Zone + Compression + Volume */}
                   <div style={{ display: "grid", gap: 6, marginTop: 6 }}>
                     <div style={{ fontSize: 12, color: "#cbd5e1" }}>
                       <b>Active Zone:</b>{" "}
@@ -1201,7 +1191,6 @@ export default function RowStrategies() {
                 <div style={{ minWidth: 0, display: "flex", flexDirection: "column", gap: 10 }}>
                   <EngineStack confluence={confluence} permission={permission} engine2Card={node?.engine2 || null} />
 
-                  {/* Strategy Snapshot Card */}
                   <div
                     style={{
                       border: "1px solid #1f2937",
@@ -1223,7 +1212,6 @@ export default function RowStrategies() {
                 </div>
               </div>
 
-              {/* ACTIONS — MINIMAL */}
               <div style={{ marginTop: "auto", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
                 <span
                   style={{
