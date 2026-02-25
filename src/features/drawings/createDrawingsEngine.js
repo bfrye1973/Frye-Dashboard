@@ -253,10 +253,12 @@ export function createDrawingsEngine({ chart, priceSeries, hostEl, symbol, tf, o
         style: { color: "#ffffff", width: 2, dash: "solid", extendLeft: false, extendRight: false },
         meta: { locked: false, label: "" },
       };
-      state.dragging = { kind: "create-trendline" };
-      draw();
-      return;
-    }
+      
+    state.dragging = { kind: "create-trendline" };
+    e.preventDefault();       // ✅ stop chart pan
+    e.stopPropagation();      // ✅ stop bubbling
+    draw();
+    return;
 
     // HLine tool: one click creates + select it (then user can drag)
     if (state.mode === "hline") {
@@ -304,8 +306,12 @@ export function createDrawingsEngine({ chart, priceSeries, hostEl, symbol, tf, o
   }
 
   async function onMouseUp(_e) {
+    e.preventDefault();
+    e.stopPropagation();
     // finalize trendline
     if (state.dragging?.kind === "create-trendline" && state.draft?.type === "trendline") {
+      e.preventDefault();
+      e.stopPropagation();
       const draft = state.draft;
       state.dragging = null;
       state.draft = null;
