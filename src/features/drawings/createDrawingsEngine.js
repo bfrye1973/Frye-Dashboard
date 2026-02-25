@@ -1,4 +1,4 @@
-import { createDrawing, updateDrawing, deleteDrawing, getDrawings } from "../../lib/drawingsClient.js";
+import { createDrawing, updateDrawing, deleteDrawing, getDrawings } from "./api";
 
 // v1 constants
 const HIT_PX = 8;
