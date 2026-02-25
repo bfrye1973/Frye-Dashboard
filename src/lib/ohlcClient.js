@@ -94,7 +94,12 @@ export async function fetchOHLCResilient({ symbol, timeframe, limit = 1500 }) {
 // ---------------- Live SSE subscribe ----------------
 // FIX: Auto-heal if EventSource goes "stale" (Render/proxy stall) without requiring page refresh.
 // Backend sends diag every 5s and ping every 15s. If we receive nothing for 35s, rebuild connection.
-export function subscribeStream(symbol, timeframe, onBar) {
+//
+// ✅ NEW (for LIVE indicator):
+// subscribeStream(symbol, timeframe, onBar, onAlive)
+// - onBar(bar): called only for type:"bar"
+// - onAlive(msg): optional, called for ANY parsed JSON message (snapshot/diag/bar)
+export function subscribeStream(symbol, timeframe, onBar, onAlive) {
   if (!STREAM_BASE) {
     console.warn("[subscribeStream] STREAM_BASE missing");
     return () => {};
@@ -141,6 +146,15 @@ export function subscribeStream(symbol, timeframe, onBar) {
 
       try {
         const msg = JSON.parse(ev.data);
+
+        // ✅ NEW: notify "alive" listener for LIVE indicator
+        if (typeof onAlive === "function") {
+          try {
+            onAlive(msg);
+          } catch {
+            // never let UI callback break stream
+          }
+        }
 
         // Forward only bars to the chart
         if (msg?.type === "bar" && msg.bar) {
