@@ -231,8 +231,7 @@ export default function RowChart({
 
   // ✅ NEW: drawings overlay + interaction focus ref
   const drawingsOverlayRef = useRef(null);
-  const interactionRef = useRef(null);
-
+  
   // ✅ Bars live in ref (fast). React state updates are throttled.
   const [bars, setBars] = useState([]);
   const barsRef = useRef([]);
@@ -733,6 +732,56 @@ export default function RowChart({
     state.symbol,
   ]);
 
+    /* =================== Effect B2: Drawings input wiring =================== */
+  // ✅ IMPORTANT: Do NOT use a full-screen interaction div (it blocks zoom/pan).
+  // We listen on the real chart container in CAPTURE phase so the chart still works.
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    const getMode = () => drawingsOverlayRef.current?.getMode?.() || "select";
+
+    const onMouseDown = (e) => {
+      const mode = getMode();
+
+      // Only start drawing interactions when:
+      // - user is in a drawing mode, OR
+      // - a drawing is already selected (so dragging endpoints works)
+      if (mode !== "select" || drawingsOverlayRef.current?.getSelected?.()) {
+        drawingsOverlayRef.current?.onPointerDown?.(e);
+      }
+      // IMPORTANT: do NOT preventDefault — let chart still handle drag/zoom.
+    };
+
+    const onMouseMove = (e) => {
+      const mode = getMode();
+      if (mode !== "select" || drawingsOverlayRef.current?.getSelected?.()) {
+        drawingsOverlayRef.current?.onPointerMove?.(e);
+      }
+    };
+
+    const onMouseUp = (e) => {
+      drawingsOverlayRef.current?.onPointerUp?.(e);
+    };
+
+    const onKeyDown = (e) => {
+      drawingsOverlayRef.current?.onKeyDown?.(e);
+    };
+
+    // Capture phase: we can observe without blocking chart interactions
+    el.addEventListener("mousedown", onMouseDown, true);
+    window.addEventListener("mousemove", onMouseMove, true);
+    window.addEventListener("mouseup", onMouseUp, true);
+    window.addEventListener("keydown", onKeyDown, true);
+
+    return () => {
+      el.removeEventListener("mousedown", onMouseDown, true);
+      window.removeEventListener("mousemove", onMouseMove, true);
+      window.removeEventListener("mouseup", onMouseUp, true);
+      window.removeEventListener("keydown", onKeyDown, true);
+    };
+  }, [chartReady]);
   /* =================== Effect C: LIVE STREAM (STABLE + TURBO) =================== */
   // ✅ Stream restarts only when symbol/timeframe changes
   // ✅ React state updates throttled via scheduleUiSync()
@@ -1143,36 +1192,7 @@ export default function RowChart({
           >
             {badge.text}
           </div>
-
-          {/* ✅ Interaction layer for drawings (mouse + keyboard) */}
-          <div
-            ref={interactionRef}
-            tabIndex={0}
-            style={{
-              position: "absolute",
-              inset: 0,
-              zIndex: 40,
-              pointerEvents: "auto",
-              outline: "none",
-            }}
-            onMouseDown={(e) => {
-              // keep focus so Delete/Esc works
-              try {
-                interactionRef.current?.focus?.();
-              } catch {}
-              drawingsOverlayRef.current?.onPointerDown?.(e);
-            }}
-            onMouseMove={(e) => {
-              drawingsOverlayRef.current?.onPointerMove?.(e);
-            }}
-            onMouseUp={(e) => {
-              drawingsOverlayRef.current?.onPointerUp?.(e);
-            }}
-            onKeyDown={(e) => {
-              drawingsOverlayRef.current?.onKeyDown?.(e);
-            }}
-          />
-
+           
           {/* Chart host element (unchanged chart logic) */}
           <div
             ref={containerRef}
