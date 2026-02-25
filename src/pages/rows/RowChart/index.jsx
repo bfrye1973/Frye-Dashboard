@@ -12,6 +12,8 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createChart } from "lightweight-charts";
 import Controls from "./Controls";
 import IndicatorsToolbar from "./IndicatorsToolbar";
+import DrawingToolbar from "./DrawingToolbar";
+
 import { getOHLC, subscribeStream } from "../../../lib/ohlcClient";
 import { SYMBOLS, TIMEFRAMES } from "./constants";
 
@@ -32,6 +34,9 @@ import SMZShelvesOverlay from "./overlays/SMZShelvesOverlay";
 import AccDistZonesPanel from "../../../components/smz/AccDistZonesPanel";
 
 import FibLevelsOverlay from "./overlays/FibLevelsOverlay";
+
+// ✅ NEW: Drawings overlay (trendline / ABCD / triangle)
+import DrawingsOverlay from "./overlays/DrawingsOverlay";
 
 /* ------------------------------ Config ------------------------------ */
 
@@ -224,6 +229,10 @@ export default function RowChart({
 
   const overlayInstancesRef = useRef([]);
 
+  // ✅ NEW: drawings overlay + interaction focus ref
+  const drawingsOverlayRef = useRef(null);
+  const interactionRef = useRef(null);
+
   // ✅ Bars live in ref (fast). React state updates are throttled.
   const [bars, setBars] = useState([]);
   const barsRef = useRef([]);
@@ -247,6 +256,13 @@ export default function RowChart({
   const [liveStatus, setLiveStatus] = useState("CONNECTING"); // CONNECTING | LIVE | STALE
   const lastAliveRef = useRef(0);
   const liveTimerRef = useRef(null);
+
+  // ✅ NEW: drawings UI state (mode/count/draft info)
+  const [drawingsUi, setDrawingsUi] = useState({
+    mode: "select",
+    count: 0,
+    draft: null,
+  });
 
   const [state, setState] = useState({
     symbol: defaultSymbol,
@@ -392,6 +408,8 @@ export default function RowChart({
         overlayInstancesRef.current.forEach((o) => o?.destroy?.());
       } catch {}
       overlayInstancesRef.current = [];
+
+      drawingsOverlayRef.current = null;
 
       try {
         chart.remove();
@@ -672,6 +690,25 @@ export default function RowChart({
       );
     }
 
+    // ✅ ALWAYS attach drawings overlay (lightweight)
+    const drawingsInst = attachOverlay(DrawingsOverlay, {
+      chart: chartRef.current,
+      priceSeries: seriesRef.current,
+      chartContainer: containerRef.current,
+      timeframe: state.timeframe,
+      symbol: state.symbol,
+      onStatus: (s) => {
+        setDrawingsUi({
+          mode: s?.mode || "select",
+          count: s?.count || 0,
+          draft: s?.draft || null,
+        });
+      },
+    });
+
+    drawingsOverlayRef.current = drawingsInst;
+    reg(drawingsInst);
+
     try {
       overlayInstancesRef.current.forEach((o) => o?.seed?.(barsRef.current));
     } catch {}
@@ -693,6 +730,7 @@ export default function RowChart({
 
     state.timeframe,
     showDebug,
+    state.symbol,
   ]);
 
   /* =================== Effect C: LIVE STREAM (STABLE + TURBO) =================== */
@@ -835,7 +873,10 @@ export default function RowChart({
           volSeriesRef.current.update({
             time: rolling.time,
             value: Number(rolling.volume || 0),
-            color: rolling.close >= rolling.open ? DEFAULTS.volUp : DEFAULTS.volDown,
+            color:
+              rolling.close >= rolling.open
+                ? DEFAULTS.volUp
+                : DEFAULTS.volDown,
           });
         }
 
@@ -1016,10 +1057,17 @@ export default function RowChart({
   );
 
   const badge = (() => {
-    if (liveStatus === "LIVE") return { text: "LIVE", bg: "rgba(16,185,129,0.92)" };
-    if (liveStatus === "STALE") return { text: "STALE", bg: "rgba(239,68,68,0.92)" };
+    if (liveStatus === "LIVE")
+      return { text: "LIVE", bg: "rgba(16,185,129,0.92)" };
+    if (liveStatus === "STALE")
+      return { text: "STALE", bg: "rgba(239,68,68,0.92)" };
     return { text: "CONNECTING", bg: "rgba(245,158,11,0.92)" };
   })();
+
+  const canSaveDraft =
+    drawingsUi.mode !== "select" &&
+    drawingsUi.draft?.type === "elliott_triangle" &&
+    (drawingsUi.draft?.pointsSet || 0) >= 3;
 
   return (
     <div style={wrapperStyle}>
@@ -1030,7 +1078,27 @@ export default function RowChart({
         onChange={handleControlsChange}
         onRange={applyRange}
       />
+
       <IndicatorsToolbar {...toolbarProps} />
+
+      {/* ✅ NEW: Drawing toolbar (v1) */}
+      <DrawingToolbar
+        mode={drawingsUi.mode}
+        count={drawingsUi.count}
+        draft={drawingsUi.draft}
+        canSaveDraft={canSaveDraft}
+        onMode={(m) => {
+          drawingsOverlayRef.current?.setMode?.(m);
+        }}
+        onCancel={() => {
+          drawingsOverlayRef.current?.cancelDraft?.();
+          drawingsOverlayRef.current?.setMode?.("select");
+        }}
+        onSaveDraft={() => {
+          drawingsOverlayRef.current?.saveDraft?.();
+          drawingsOverlayRef.current?.setMode?.("select");
+        }}
+      />
 
       <div
         style={{
@@ -1075,6 +1143,35 @@ export default function RowChart({
           >
             {badge.text}
           </div>
+
+          {/* ✅ Interaction layer for drawings (mouse + keyboard) */}
+          <div
+            ref={interactionRef}
+            tabIndex={0}
+            style={{
+              position: "absolute",
+              inset: 0,
+              zIndex: 40,
+              pointerEvents: "auto",
+              outline: "none",
+            }}
+            onMouseDown={(e) => {
+              // keep focus so Delete/Esc works
+              try {
+                interactionRef.current?.focus?.();
+              } catch {}
+              drawingsOverlayRef.current?.onPointerDown?.(e);
+            }}
+            onMouseMove={(e) => {
+              drawingsOverlayRef.current?.onPointerMove?.(e);
+            }}
+            onMouseUp={(e) => {
+              drawingsOverlayRef.current?.onPointerUp?.(e);
+            }}
+            onKeyDown={(e) => {
+              drawingsOverlayRef.current?.onKeyDown?.(e);
+            }}
+          />
 
           {/* Chart host element (unchanged chart logic) */}
           <div
