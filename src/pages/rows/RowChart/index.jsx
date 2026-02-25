@@ -12,7 +12,6 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createChart } from "lightweight-charts";
 import Controls from "./Controls";
 import IndicatorsToolbar from "./IndicatorsToolbar";
-import DrawingToolbar from "./DrawingToolbar";
 
 import { getOHLC, subscribeStream } from "../../../lib/ohlcClient";
 import { SYMBOLS, TIMEFRAMES } from "./constants";
@@ -35,8 +34,9 @@ import AccDistZonesPanel from "../../../components/smz/AccDistZonesPanel";
 
 import FibLevelsOverlay from "./overlays/FibLevelsOverlay";
 
-// ✅ NEW: Drawings overlay (trendline / ABCD / triangle)
-import DrawingsOverlay from "./overlays/DrawingsOverlay";
+// ✅ NEW: Professional TradingView-like drawings system (left toolbar + engine)
+import DrawingsToolbar from "../../../features/drawings/DrawingsToolbar";
+import { createDrawingsEngine } from "../../../features/drawings/createDrawingsEngine";
 
 /* ------------------------------ Config ------------------------------ */
 
@@ -218,7 +218,12 @@ export default function RowChart({
   showDebug = false,
   fullScreen = false,
 }) {
+  // Chart host element used by lightweight-charts
   const containerRef = useRef(null);
+
+  // Wrapper used to mount drawings canvas + toolbar (must be position:relative)
+  const chartWrapRef = useRef(null);
+
   const chartRef = useRef(null);
   const seriesRef = useRef(null);
   const volSeriesRef = useRef(null);
@@ -229,9 +234,6 @@ export default function RowChart({
 
   const overlayInstancesRef = useRef([]);
 
-  // ✅ NEW: drawings overlay + interaction focus ref
-  const drawingsOverlayRef = useRef(null);
-  
   // ✅ Bars live in ref (fast). React state updates are throttled.
   const [bars, setBars] = useState([]);
   const barsRef = useRef([]);
@@ -256,11 +258,12 @@ export default function RowChart({
   const lastAliveRef = useRef(0);
   const liveTimerRef = useRef(null);
 
-  // ✅ NEW: drawings UI state (mode/count/draft info)
+  // ✅ NEW: drawings engine + UI state
+  const drawingsEngineRef = useRef(null);
   const [drawingsUi, setDrawingsUi] = useState({
     mode: "select",
     count: 0,
-    draft: null,
+    selectedId: null,
   });
 
   const [state, setState] = useState({
@@ -377,19 +380,16 @@ export default function RowChart({
     return () => {
       setChartReady(false);
 
-      // stop stream on unmount
       try {
         streamUnsubRef.current?.();
       } catch {}
       streamUnsubRef.current = null;
 
-      // stop ui timer
       try {
         if (uiTimerRef.current) clearTimeout(uiTimerRef.current);
       } catch {}
       uiTimerRef.current = null;
 
-      // stop live timer
       try {
         if (liveTimerRef.current) clearInterval(liveTimerRef.current);
       } catch {}
@@ -408,7 +408,10 @@ export default function RowChart({
       } catch {}
       overlayInstancesRef.current = [];
 
-      drawingsOverlayRef.current = null;
+      try {
+        drawingsEngineRef.current?.destroy?.();
+      } catch {}
+      drawingsEngineRef.current = null;
 
       try {
         chart.remove();
@@ -471,7 +474,6 @@ export default function RowChart({
   /* ---------------------- TURBO: UI sync helper ---------------------- */
 
   const forceUiSync = () => {
-    // Hard cap list size
     if (barsRef.current.length > MAX_KEEP_BARS) {
       barsRef.current = barsRef.current.slice(-MAX_KEEP_BARS);
     }
@@ -553,11 +555,9 @@ export default function RowChart({
           }
         }
 
-        // ✅ Turbo: single React set after seeding (not during live ticks)
         setBars(asc);
         lastUiSyncRef.current = Date.now();
 
-        // ✅ Trigger overlays to attach/seed (only on history seed)
         setSeedToken((x) => x + 1);
 
         const chart = chartRef.current;
@@ -586,7 +586,6 @@ export default function RowChart({
   }, [state.symbol, state.timeframe, state.range, state.volume]);
 
   /* =================== Effect B: Attach/Seed Overlays =================== */
-  // ✅ Turbo: depends on seedToken (history seed), NOT bars changes from live ticks
 
   useEffect(() => {
     if (!chartRef.current || !seriesRef.current || barsRef.current.length === 0)
@@ -689,111 +688,74 @@ export default function RowChart({
       );
     }
 
-    // ✅ ALWAYS attach drawings overlay (lightweight)
-    const drawingsInst = attachOverlay(DrawingsOverlay, {
-      chart: chartRef.current,
-      priceSeries: seriesRef.current,
-      chartContainer: containerRef.current,
-      timeframe: state.timeframe,
-      symbol: state.symbol,
-      onStatus: (s) => {
-        setDrawingsUi({
-          mode: s?.mode || "select",
-          count: s?.count || 0,
-          draft: s?.draft || null,
-        });
-      },
-    });
-
-    drawingsOverlayRef.current = drawingsInst;
-    reg(drawingsInst);
-
     try {
       overlayInstancesRef.current.forEach((o) => o?.seed?.(barsRef.current));
     } catch {}
   }, [
-    seedToken, // ✅ Turbo trigger
-
+    seedToken,
     state.institutionalZonesAuto,
     state.smzShelvesAuto,
-
     state.fibPrimary,
     state.fibIntermediate,
     state.fibMinor,
     state.fibMinute,
-
     state.fibPrimaryStyle,
     state.fibIntermediateStyle,
     state.fibMinorStyle,
     state.fibMinuteStyle,
-
     state.timeframe,
-    showDebug,
     state.symbol,
+    showDebug,
   ]);
 
-    /* =================== Effect B2: Drawings input wiring =================== */
-  // ✅ IMPORTANT: Do NOT use a full-screen interaction div (it blocks zoom/pan).
-  // We listen on the real chart container in CAPTURE phase so the chart still works.
+  /* =================== Drawings Engine (ONE TIME) =================== */
 
   useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
+    if (!chartReady) return;
 
-    const getMode = () => drawingsOverlayRef.current?.getMode?.() || "select";
+    const chart = chartRef.current;
+    const priceSeries = seriesRef.current;
+    const hostEl = chartWrapRef.current; // relative wrapper for canvas
+    if (!chart || !priceSeries || !hostEl) return;
 
-    const onMouseDown = (e) => {
-      const mode = getMode();
+    try {
+      drawingsEngineRef.current?.destroy?.();
+    } catch {}
+    drawingsEngineRef.current = null;
 
-      // Only start drawing interactions when:
-      // - user is in a drawing mode, OR
-      // - a drawing is already selected (so dragging endpoints works)
-      if (mode !== "select" || drawingsOverlayRef.current?.getSelected?.()) {
-        drawingsOverlayRef.current?.onPointerDown?.(e);
-      }
-      // IMPORTANT: do NOT preventDefault — let chart still handle drag/zoom.
-    };
-
-    const onMouseMove = (e) => {
-      const mode = getMode();
-      if (mode !== "select" || drawingsOverlayRef.current?.getSelected?.()) {
-        drawingsOverlayRef.current?.onPointerMove?.(e);
-      }
-    };
-
-    const onMouseUp = (e) => {
-      drawingsOverlayRef.current?.onPointerUp?.(e);
-    };
-
-    const onKeyDown = (e) => {
-      drawingsOverlayRef.current?.onKeyDown?.(e);
-    };
-
-    // Capture phase: we can observe without blocking chart interactions
-    el.addEventListener("mousedown", onMouseDown, true);
-    window.addEventListener("mousemove", onMouseMove, true);
-    window.addEventListener("mouseup", onMouseUp, true);
-    window.addEventListener("keydown", onKeyDown, true);
+    drawingsEngineRef.current = createDrawingsEngine({
+      chart,
+      priceSeries,
+      hostEl,
+      symbol: state.symbol,
+      tf: state.timeframe,
+      onState: (s) => setDrawingsUi((prev) => ({ ...prev, ...s })),
+    });
 
     return () => {
-      el.removeEventListener("mousedown", onMouseDown, true);
-      window.removeEventListener("mousemove", onMouseMove, true);
-      window.removeEventListener("mouseup", onMouseUp, true);
-      window.removeEventListener("keydown", onKeyDown, true);
+      try {
+        drawingsEngineRef.current?.destroy?.();
+      } catch {}
+      drawingsEngineRef.current = null;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chartReady]);
+
+  useEffect(() => {
+    drawingsEngineRef.current?.setContext?.({
+      symbol: state.symbol,
+      tf: state.timeframe,
+    });
+  }, [state.symbol, state.timeframe]);
+
   /* =================== Effect C: LIVE STREAM (STABLE + TURBO) =================== */
-  // ✅ Stream restarts only when symbol/timeframe changes
-  // ✅ React state updates throttled via scheduleUiSync()
 
   useEffect(() => {
     if (!chartReady || !seriesRef.current) return;
 
-    // reset live status for new stream
     lastAliveRef.current = 0;
     setLiveStatus("CONNECTING");
 
-    // Close any previous stream
     try {
       streamUnsubRef.current?.();
     } catch {}
@@ -811,7 +773,6 @@ export default function RowChart({
       rolling = { ...lastSeed };
     }
 
-    // ✅ NEW: mark stream alive on ANY SSE json message (snapshot/diag/bar)
     const onAlive = () => {
       lastAliveRef.current = Date.now();
     };
@@ -825,11 +786,9 @@ export default function RowChart({
         );
         if (!Number.isFinite(tSec)) return;
 
-        // --- 1m chart direct update ---
         if (tfSec === TF_SEC["1m"]) {
           const bar = { ...oneMin, time: tSec };
 
-          // chart paint (fast)
           seriesRef.current?.update(bar);
 
           if (state.volume && volSeriesRef.current) {
@@ -840,17 +799,14 @@ export default function RowChart({
             });
           }
 
-          // update data list (fast ref)
           const prev = barsRef.current[barsRef.current.length - 1];
           if (!prev || bar.time > prev.time) {
             barsRef.current = [...barsRef.current, bar];
-            // ✅ Force UI sync on new bar close
             scheduleUiSync(true);
           } else if (bar.time === prev.time) {
             const next = [...barsRef.current];
             next[next.length - 1] = bar;
             barsRef.current = next;
-            // ✅ Throttled sync on rolling updates
             scheduleUiSync(false);
           }
 
@@ -860,11 +816,9 @@ export default function RowChart({
           return;
         }
 
-        // --- higher TF aggregation ---
         const start = floorToBucket(tSec);
 
         if (bucketStart === null || start > bucketStart) {
-          // finalize old rolling (bar close)
           if (rolling) {
             seriesRef.current?.update(rolling);
 
@@ -885,8 +839,6 @@ export default function RowChart({
             else next[next.length - 1] = rolling;
 
             barsRef.current = next;
-
-            // ✅ Force UI sync at bar close
             scheduleUiSync(true);
 
             try {
@@ -904,18 +856,14 @@ export default function RowChart({
             volume: Number(oneMin.volume || 0),
           };
         } else {
-          // update rolling
           rolling.high = Math.max(rolling.high, oneMin.high);
           rolling.low = Math.min(rolling.low, oneMin.low);
           rolling.close = oneMin.close;
           rolling.volume =
             Number(rolling.volume || 0) + Number(oneMin.volume || 0);
-
-          // ✅ Throttled UI sync while candle forms
           scheduleUiSync(false);
         }
 
-        // paint rolling candle
         seriesRef.current?.update(rolling);
 
         if (state.volume && volSeriesRef.current) {
@@ -945,7 +893,6 @@ export default function RowChart({
   }, [chartReady, state.symbol, state.timeframe]);
 
   /* ---------------------------- EMA lines ----------------------------- */
-  // ✅ Turbo benefit: EMA recalcs happen only when React bars updates (~1/sec), not every tick.
 
   useEffect(() => {
     const chart = chartRef.current;
@@ -1106,17 +1053,10 @@ export default function RowChart({
   );
 
   const badge = (() => {
-    if (liveStatus === "LIVE")
-      return { text: "LIVE", bg: "rgba(16,185,129,0.92)" };
-    if (liveStatus === "STALE")
-      return { text: "STALE", bg: "rgba(239,68,68,0.92)" };
+    if (liveStatus === "LIVE") return { text: "LIVE", bg: "rgba(16,185,129,0.92)" };
+    if (liveStatus === "STALE") return { text: "STALE", bg: "rgba(239,68,68,0.92)" };
     return { text: "CONNECTING", bg: "rgba(245,158,11,0.92)" };
   })();
-
-  const canSaveDraft =
-    drawingsUi.mode !== "select" &&
-    drawingsUi.draft?.type === "elliott_triangle" &&
-    (drawingsUi.draft?.pointsSet || 0) >= 3;
 
   return (
     <div style={wrapperStyle}>
@@ -1130,25 +1070,6 @@ export default function RowChart({
 
       <IndicatorsToolbar {...toolbarProps} />
 
-      {/* ✅ NEW: Drawing toolbar (v1) */}
-      <DrawingToolbar
-        mode={drawingsUi.mode}
-        count={drawingsUi.count}
-        draft={drawingsUi.draft}
-        canSaveDraft={canSaveDraft}
-        onMode={(m) => {
-          drawingsOverlayRef.current?.setMode?.(m);
-        }}
-        onCancel={() => {
-          drawingsOverlayRef.current?.cancelDraft?.();
-          drawingsOverlayRef.current?.setMode?.("select");
-        }}
-        onSaveDraft={() => {
-          drawingsOverlayRef.current?.saveDraft?.();
-          drawingsOverlayRef.current?.setMode?.("select");
-        }}
-      />
-
       <div
         style={{
           display: "flex",
@@ -1157,21 +1078,29 @@ export default function RowChart({
           height: fullScreen ? "100%" : undefined,
         }}
       >
-        {/* ✅ IMPORTANT CHANGE: wrapper div holds badge + chart container */}
+        {/* ✅ IMPORTANT: wrapper div holds drawings + badge + chart container */}
         <div
+          ref={chartWrapRef}
           style={{
             ...containerStyle,
             flex: 1,
             minWidth: 0,
           }}
         >
+          {/* ✅ LEFT Drawing toolbar (TradingView style) */}
+          <DrawingsToolbar
+            mode={drawingsUi.mode}
+            onMode={(m) => drawingsEngineRef.current?.setMode?.(m)}
+            onDelete={() => drawingsEngineRef.current?.deleteSelected?.()}
+          />
+
           {/* ✅ LIVE badge */}
           <div
             style={{
               position: "absolute",
               top: 10,
-              left: 10,
-              zIndex: 50,
+              left: 60, // leave space for left toolbar
+              zIndex: 90,
               padding: "6px 10px",
               borderRadius: 8,
               fontSize: 12,
@@ -1192,8 +1121,8 @@ export default function RowChart({
           >
             {badge.text}
           </div>
-           
-          {/* Chart host element (unchanged chart logic) */}
+
+          {/* Chart host element */}
           <div
             ref={containerRef}
             style={{
