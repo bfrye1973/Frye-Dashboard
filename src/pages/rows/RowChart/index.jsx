@@ -46,6 +46,9 @@ const UI_SYNC_MS = 1000;
 // ✅ Hard cap to prevent memory bloat on long sessions
 const MAX_KEEP_BARS = 25000;
 
+// ✅ LIVE indicator rules
+const LIVE_STALE_MS = 30_000; // red if we haven't received ANY SSE json msg (diag/snapshot/bar) in 30s
+
 const DEFAULTS = {
   upColor: "#26a69a",
   downColor: "#ef5350",
@@ -240,6 +243,11 @@ export default function RowChart({
   const lastUiSyncRef = useRef(0);
   const uiTimerRef = useRef(null);
 
+  // ✅ LIVE indicator state/refs
+  const [liveStatus, setLiveStatus] = useState("CONNECTING"); // CONNECTING | LIVE | STALE
+  const lastAliveRef = useRef(0);
+  const liveTimerRef = useRef(null);
+
   const [state, setState] = useState({
     symbol: defaultSymbol,
     timeframe: defaultTimeframe,
@@ -366,6 +374,12 @@ export default function RowChart({
       } catch {}
       uiTimerRef.current = null;
 
+      // stop live timer
+      try {
+        if (liveTimerRef.current) clearInterval(liveTimerRef.current);
+      } catch {}
+      liveTimerRef.current = null;
+
       try {
         ro.disconnect();
       } catch {}
@@ -408,6 +422,34 @@ export default function RowChart({
     });
     didFitOnceRef.current = false;
   }, [state.timeframe]);
+
+  /* ---------------------- LIVE: status timer ---------------------- */
+
+  useEffect(() => {
+    try {
+      if (liveTimerRef.current) clearInterval(liveTimerRef.current);
+    } catch {}
+    liveTimerRef.current = setInterval(() => {
+      const now = Date.now();
+      const last = lastAliveRef.current || 0;
+
+      if (!last) {
+        setLiveStatus("CONNECTING");
+        return;
+      }
+
+      const age = now - last;
+      if (age > LIVE_STALE_MS) setLiveStatus("STALE");
+      else setLiveStatus("LIVE");
+    }, 1000);
+
+    return () => {
+      try {
+        if (liveTimerRef.current) clearInterval(liveTimerRef.current);
+      } catch {}
+      liveTimerRef.current = null;
+    };
+  }, []);
 
   /* ---------------------- TURBO: UI sync helper ---------------------- */
 
@@ -660,6 +702,10 @@ export default function RowChart({
   useEffect(() => {
     if (!chartReady || !seriesRef.current) return;
 
+    // reset live status for new stream
+    lastAliveRef.current = 0;
+    setLiveStatus("CONNECTING");
+
     // Close any previous stream
     try {
       streamUnsubRef.current?.();
@@ -678,113 +724,127 @@ export default function RowChart({
       rolling = { ...lastSeed };
     }
 
-    streamUnsubRef.current = subscribeStream(state.symbol, LIVE_TF, (oneMin) => {
-      const tSec = Number(
-        oneMin.time > 1e12 ? Math.floor(oneMin.time / 1000) : oneMin.time
-      );
-      if (!Number.isFinite(tSec)) return;
+    // ✅ NEW: mark stream alive on ANY SSE json message (snapshot/diag/bar)
+    const onAlive = () => {
+      lastAliveRef.current = Date.now();
+    };
 
-      // --- 1m chart direct update ---
-      if (tfSec === TF_SEC["1m"]) {
-        const bar = { ...oneMin, time: tSec };
+    streamUnsubRef.current = subscribeStream(
+      state.symbol,
+      LIVE_TF,
+      (oneMin) => {
+        const tSec = Number(
+          oneMin.time > 1e12 ? Math.floor(oneMin.time / 1000) : oneMin.time
+        );
+        if (!Number.isFinite(tSec)) return;
 
-        // chart paint (fast)
-        seriesRef.current?.update(bar);
+        // --- 1m chart direct update ---
+        if (tfSec === TF_SEC["1m"]) {
+          const bar = { ...oneMin, time: tSec };
 
-        if (state.volume && volSeriesRef.current) {
-          volSeriesRef.current.update({
-            time: bar.time,
-            value: Number(bar.volume || 0),
-            color: bar.close >= bar.open ? DEFAULTS.volUp : DEFAULTS.volDown,
-          });
-        }
-
-        // update data list (fast ref)
-        const prev = barsRef.current[barsRef.current.length - 1];
-        if (!prev || bar.time > prev.time) {
-          barsRef.current = [...barsRef.current, bar];
-          // ✅ Force UI sync on new bar close
-          scheduleUiSync(true);
-        } else if (bar.time === prev.time) {
-          const next = [...barsRef.current];
-          next[next.length - 1] = bar;
-          barsRef.current = next;
-          // ✅ Throttled sync on rolling updates
-          scheduleUiSync(false);
-        }
-
-        try {
-          overlayInstancesRef.current.forEach((o) => o?.update?.(bar));
-        } catch {}
-        return;
-      }
-
-      // --- higher TF aggregation ---
-      const start = floorToBucket(tSec);
-
-      if (bucketStart === null || start > bucketStart) {
-        // finalize old rolling (bar close)
-        if (rolling) {
-          seriesRef.current?.update(rolling);
+          // chart paint (fast)
+          seriesRef.current?.update(bar);
 
           if (state.volume && volSeriesRef.current) {
             volSeriesRef.current.update({
-              time: rolling.time,
-              value: Number(rolling.volume || 0),
-              color: rolling.close >= rolling.open ? DEFAULTS.volUp : DEFAULTS.volDown,
+              time: bar.time,
+              value: Number(bar.volume || 0),
+              color: bar.close >= bar.open ? DEFAULTS.volUp : DEFAULTS.volDown,
             });
           }
 
-          const next = [...barsRef.current];
-          const last = next[next.length - 1];
-          if (!last || rolling.time > last.time) next.push(rolling);
-          else next[next.length - 1] = rolling;
-
-          barsRef.current = next;
-
-          // ✅ Force UI sync at bar close
-          scheduleUiSync(true);
+          // update data list (fast ref)
+          const prev = barsRef.current[barsRef.current.length - 1];
+          if (!prev || bar.time > prev.time) {
+            barsRef.current = [...barsRef.current, bar];
+            // ✅ Force UI sync on new bar close
+            scheduleUiSync(true);
+          } else if (bar.time === prev.time) {
+            const next = [...barsRef.current];
+            next[next.length - 1] = bar;
+            barsRef.current = next;
+            // ✅ Throttled sync on rolling updates
+            scheduleUiSync(false);
+          }
 
           try {
-            overlayInstancesRef.current.forEach((o) => o?.update?.(rolling));
+            overlayInstancesRef.current.forEach((o) => o?.update?.(bar));
           } catch {}
+          return;
         }
 
-        bucketStart = start;
-        rolling = {
-          time: start,
-          open: oneMin.open,
-          high: oneMin.high,
-          low: oneMin.low,
-          close: oneMin.close,
-          volume: Number(oneMin.volume || 0),
-        };
-      } else {
-        // update rolling
-        rolling.high = Math.max(rolling.high, oneMin.high);
-        rolling.low = Math.min(rolling.low, oneMin.low);
-        rolling.close = oneMin.close;
-        rolling.volume = Number(rolling.volume || 0) + Number(oneMin.volume || 0);
+        // --- higher TF aggregation ---
+        const start = floorToBucket(tSec);
 
-        // ✅ Throttled UI sync while candle forms
-        scheduleUiSync(false);
-      }
+        if (bucketStart === null || start > bucketStart) {
+          // finalize old rolling (bar close)
+          if (rolling) {
+            seriesRef.current?.update(rolling);
 
-      // paint rolling candle
-      seriesRef.current?.update(rolling);
+            if (state.volume && volSeriesRef.current) {
+              volSeriesRef.current.update({
+                time: rolling.time,
+                value: Number(rolling.volume || 0),
+                color:
+                  rolling.close >= rolling.open
+                    ? DEFAULTS.volUp
+                    : DEFAULTS.volDown,
+              });
+            }
 
-      if (state.volume && volSeriesRef.current) {
-        volSeriesRef.current.update({
-          time: rolling.time,
-          value: Number(rolling.volume || 0),
-          color: rolling.close >= rolling.open ? DEFAULTS.volUp : DEFAULTS.volDown,
-        });
-      }
+            const next = [...barsRef.current];
+            const last = next[next.length - 1];
+            if (!last || rolling.time > last.time) next.push(rolling);
+            else next[next.length - 1] = rolling;
 
-      try {
-        overlayInstancesRef.current.forEach((o) => o?.update?.(rolling));
-      } catch {}
-    });
+            barsRef.current = next;
+
+            // ✅ Force UI sync at bar close
+            scheduleUiSync(true);
+
+            try {
+              overlayInstancesRef.current.forEach((o) => o?.update?.(rolling));
+            } catch {}
+          }
+
+          bucketStart = start;
+          rolling = {
+            time: start,
+            open: oneMin.open,
+            high: oneMin.high,
+            low: oneMin.low,
+            close: oneMin.close,
+            volume: Number(oneMin.volume || 0),
+          };
+        } else {
+          // update rolling
+          rolling.high = Math.max(rolling.high, oneMin.high);
+          rolling.low = Math.min(rolling.low, oneMin.low);
+          rolling.close = oneMin.close;
+          rolling.volume =
+            Number(rolling.volume || 0) + Number(oneMin.volume || 0);
+
+          // ✅ Throttled UI sync while candle forms
+          scheduleUiSync(false);
+        }
+
+        // paint rolling candle
+        seriesRef.current?.update(rolling);
+
+        if (state.volume && volSeriesRef.current) {
+          volSeriesRef.current.update({
+            time: rolling.time,
+            value: Number(rolling.volume || 0),
+            color: rolling.close >= rolling.open ? DEFAULTS.volUp : DEFAULTS.volDown,
+          });
+        }
+
+        try {
+          overlayInstancesRef.current.forEach((o) => o?.update?.(rolling));
+        } catch {}
+      },
+      onAlive
+    );
 
     return () => {
       try {
@@ -955,6 +1015,12 @@ export default function RowChart({
     [fullScreen]
   );
 
+  const badge = (() => {
+    if (liveStatus === "LIVE") return { text: "LIVE", bg: "rgba(16,185,129,0.92)" };
+    if (liveStatus === "STALE") return { text: "STALE", bg: "rgba(239,68,68,0.92)" };
+    return { text: "CONNECTING", bg: "rgba(245,158,11,0.92)" };
+  })();
+
   return (
     <div style={wrapperStyle}>
       <Controls
@@ -974,14 +1040,51 @@ export default function RowChart({
           height: fullScreen ? "100%" : undefined,
         }}
       >
+        {/* ✅ IMPORTANT CHANGE: wrapper div holds badge + chart container */}
         <div
-          ref={containerRef}
           style={{
             ...containerStyle,
             flex: 1,
             minWidth: 0,
           }}
-        />
+        >
+          {/* ✅ LIVE badge */}
+          <div
+            style={{
+              position: "absolute",
+              top: 10,
+              left: 10,
+              zIndex: 50,
+              padding: "6px 10px",
+              borderRadius: 8,
+              fontSize: 12,
+              fontWeight: 900,
+              letterSpacing: 0.7,
+              color: "#0b0b14",
+              background: badge.bg,
+              boxShadow: "0 2px 10px rgba(0,0,0,0.35)",
+              userSelect: "none",
+            }}
+            title={
+              liveStatus === "LIVE"
+                ? "Stream healthy (receiving messages)"
+                : liveStatus === "STALE"
+                ? "No stream messages received in 30s"
+                : "Connecting to live stream…"
+            }
+          >
+            {badge.text}
+          </div>
+
+          {/* Chart host element (unchanged chart logic) */}
+          <div
+            ref={containerRef}
+            style={{
+              position: "absolute",
+              inset: 0,
+            }}
+          />
+        </div>
 
         <div
           style={{
