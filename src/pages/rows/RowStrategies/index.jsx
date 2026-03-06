@@ -33,6 +33,11 @@
 // - Uses snapshot.engine15.byStrategy[strategyId] if present (Replay-safe)
 // - Otherwise computes a safe local readiness fallback from confluence (Live-safe)
 // - Shows permission overlay separately (STAND_DOWN is NO ENTRIES only)
+//
+// ✅ UPDATE (ENGINE 5 VISIBILITY):
+// - Scalp card now shows current move classifier from live Engine 5B
+// - Displays: Move Type / Bias / Confidence / Waiting Because
+// - Engine Stack E5 row for Scalp also shows live classifier text
 
 import React, { useEffect, useMemo, useState } from "react";
 import { useSelection } from "../../../context/ModeContext";
@@ -131,6 +136,55 @@ function grade(score) {
   if (s >= 70) return "B";
   if (s >= 60) return "C";
   return "IGNORE";
+}
+
+function prettyMoveType(x) {
+  const s = String(x || "NONE").trim().toUpperCase();
+  if (!s || s === "NONE") return "NONE";
+  return s.replaceAll("_", " ");
+}
+
+function prettyBias(x) {
+  const s = String(x || "").trim().toUpperCase();
+  if (!s) return "—";
+  return s;
+}
+
+function prettyReason(x) {
+  const s = String(x || "").trim().toUpperCase();
+  if (!s) return "—";
+  return s.replaceAll("_", " ");
+}
+
+function getScalpClassifierView(scalpStatus) {
+  const sm = scalpStatus?.data?.sm || null;
+  if (!sm) {
+    return {
+      moveType: "—",
+      moveDirection: "—",
+      moveScore: "—",
+      waitingBecause: "—",
+    };
+  }
+
+  const moveType = prettyMoveType(sm.moveType);
+  const moveDirection = prettyBias(sm.moveDirection);
+  const moveScore = Number.isFinite(Number(sm.moveScore))
+    ? Math.round(Number(sm.moveScore))
+    : "—";
+
+  const waitingBecauseRaw =
+    sm.staleReason ||
+    sm.eligibilityReason ||
+    (sm.setupAlive === false ? "SETUP_NOT_ALIVE" : "") ||
+    "—";
+
+  return {
+    moveType,
+    moveDirection,
+    moveScore,
+    waitingBecause: prettyReason(waitingBecauseRaw),
+  };
 }
 
 /* -------------------- Golden Coil badge rule (LOCKED to Engine5 truth) -------------------- */
@@ -673,7 +727,6 @@ function ReadinessBar({ readinessPack }) {
         </div>
       </div>
 
-      {/* ✅ FIX #2: minWidth 160 -> 0 so this does not force width */}
       <div style={{ textAlign: "right", minWidth: 0 }}>
         <div style={{ fontSize: 10, fontWeight: 1000, color: style.fg, opacity: 0.9 }}>
           NEXT
@@ -687,7 +740,7 @@ function ReadinessBar({ readinessPack }) {
 }
 
 /* -------------------- Engine Stack (right column) -------------------- */
-function EngineStack({ confluence, permission, engine2Card }) {
+function EngineStack({ confluence, permission, engine2Card, scalpClassifier = null }) {
   const loc = confluence?.location?.state || "—";
 
   let e2Text = "NO_ANCHORS";
@@ -762,7 +815,10 @@ function EngineStack({ confluence, permission, engine2Card }) {
   const comp = confluence?.compression || {};
   const compState = String(comp?.state || "NONE").toUpperCase();
   const compScore = Number.isFinite(Number(comp?.score)) ? Math.round(Number(comp?.score)) : 0;
-  const e5Text = `${Math.round(score)} (${label}) • ${compState} ${compScore}`;
+
+  const e5Text = scalpClassifier
+    ? `${scalpClassifier.moveScore} • ${scalpClassifier.moveType} • ${scalpClassifier.moveDirection}`
+    : `${Math.round(score)} (${label}) • ${compState} ${compScore}`;
 
   const perm = permission?.permission || "—";
   const mult = Number.isFinite(Number(permission?.sizeMultiplier))
@@ -909,6 +965,7 @@ export default function RowStrategies() {
   }
 
   const scalpGo = scalpStatus?.data?.go || null;
+  const scalpClassifier = getScalpClassifierView(scalpStatus);
 
   return (
     <section id="row-5" className="panel" style={{ padding: 10 }}>
@@ -1020,6 +1077,7 @@ export default function RowStrategies() {
               : "0 10px 30px rgba(0,0,0,.25)";
 
           const showGoHere = s.id === "SCALP";
+          const showScalpClassifier = s.id === "SCALP";
 
           return (
             <div
@@ -1035,15 +1093,12 @@ export default function RowStrategies() {
                 display: "flex",
                 flexDirection: "column",
                 gap: 10,
-
-                // ✅ FIX #1: allow grid children to shrink without widening dashboard
                 minWidth: 0,
                 overflow: "hidden",
               }}
             >
               <ReadinessBar readinessPack={readinessPack} />
 
-              {/* ✅ FIX #3: responsive right column (no forced 340px) */}
               <div
                 style={{
                   display: "grid",
@@ -1180,16 +1235,62 @@ export default function RowStrategies() {
                       right={`${volume.volumeConfirmed ? "CONFIRMED" : "unconfirmed"}`}
                       tone={volume.volumeConfirmed ? "ok" : "muted"}
                     />
+
+                    {showScalpClassifier && (
+                      <>
+                        <MiniRow
+                          label="Move"
+                          left={`${scalpClassifier.moveType}`}
+                          right={`bias ${scalpClassifier.moveDirection}`}
+                          tone={
+                            scalpClassifier.moveDirection === "LONG"
+                              ? "ok"
+                              : scalpClassifier.moveDirection === "SHORT"
+                              ? "warn"
+                              : "muted"
+                          }
+                        />
+
+                        <MiniRow
+                          label="Confidence"
+                          left={`score ${scalpClassifier.moveScore}`}
+                          right={scalpClassifier.moveType === "NONE" ? "no classifier" : "live E5B"}
+                          tone={
+                            Number.isFinite(Number(scalpClassifier.moveScore)) &&
+                            Number(scalpClassifier.moveScore) >= 60
+                              ? "ok"
+                              : Number.isFinite(Number(scalpClassifier.moveScore)) &&
+                                Number(scalpClassifier.moveScore) >= 40
+                              ? "warn"
+                              : "muted"
+                          }
+                        />
+
+                        <MiniRow
+                          label="Waiting"
+                          left={scalpClassifier.waitingBecause}
+                          right={scalpClassifier.moveDirection === "—" ? "—" : `bias ${scalpClassifier.moveDirection}`}
+                          tone="muted"
+                        />
+                      </>
+                    )}
                   </div>
 
                   <div style={{ marginTop: 6, fontSize: 12, color: "#94a3b8", fontWeight: 900 }}>
-                    {nextTriggerText(confluence)}
+                    {showScalpClassifier && scalpClassifier.waitingBecause !== "—"
+                      ? `Waiting because: ${scalpClassifier.waitingBecause}.`
+                      : nextTriggerText(confluence)}
                   </div>
                 </div>
 
                 {/* RIGHT */}
                 <div style={{ minWidth: 0, display: "flex", flexDirection: "column", gap: 10 }}>
-                  <EngineStack confluence={confluence} permission={permission} engine2Card={node?.engine2 || null} />
+                  <EngineStack
+                    confluence={confluence}
+                    permission={permission}
+                    engine2Card={node?.engine2 || null}
+                    scalpClassifier={showScalpClassifier ? scalpClassifier : null}
+                  />
 
                   <div
                     style={{
