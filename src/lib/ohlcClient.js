@@ -95,7 +95,6 @@ export async function fetchOHLCResilient({ symbol, timeframe, limit = 1500 }) {
 // FIX: Auto-heal if EventSource goes "stale" (Render/proxy stall) without requiring page refresh.
 // Backend sends diag every 5s and ping every 15s. If we receive nothing for 35s, rebuild connection.
 //
-// ✅ NEW (for LIVE indicator):
 // subscribeStream(symbol, timeframe, onBar, onAlive)
 // - onBar(bar): called only for type:"bar"
 // - onAlive(msg): optional, called for ANY parsed JSON message (snapshot/diag/bar)
@@ -120,9 +119,16 @@ export function subscribeStream(symbol, timeframe, onBar, onAlive) {
   let lastMsgAt = Date.now();
   let watchdog = null;
 
+  // ✅ HARDENED: fully detach handlers before close so old EventSource
+  // instances don't linger and create duplicate live connections.
   const cleanupES = () => {
     try {
-      es?.close();
+      if (es) {
+        es.onopen = null;
+        es.onmessage = null;
+        es.onerror = null;
+        es.close();
+      }
     } catch {}
     es = null;
   };
@@ -147,7 +153,7 @@ export function subscribeStream(symbol, timeframe, onBar, onAlive) {
       try {
         const msg = JSON.parse(ev.data);
 
-        // ✅ NEW: notify "alive" listener for LIVE indicator
+        // notify "alive" listener for LIVE indicator
         if (typeof onAlive === "function") {
           try {
             onAlive(msg);
