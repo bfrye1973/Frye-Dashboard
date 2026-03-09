@@ -748,14 +748,18 @@ export default function RowChart({
     });
   }, [state.symbol, state.timeframe]);
 
-  /* =================== Effect C: LIVE STREAM (STABLE + TURBO) =================== */
+    /* =================== Effect C: LIVE STREAM (STABLE + TURBO) =================== */
 
   useEffect(() => {
     if (!chartReady || !seriesRef.current) return;
 
+    // unique session id so stale streams can't keep updating
+    const sessionId = Symbol("streamSession");
+
     lastAliveRef.current = 0;
     setLiveStatus("CONNECTING");
 
+    // close any previous stream first
     try {
       streamUnsubRef.current?.();
     } catch {}
@@ -766,6 +770,7 @@ export default function RowChart({
 
     let bucketStart = null;
     let rolling = null;
+    let isCurrent = true;
 
     const lastSeed = barsRef.current[barsRef.current.length - 1] || null;
     if (lastSeed) {
@@ -774,13 +779,16 @@ export default function RowChart({
     }
 
     const onAlive = () => {
+      if (!isCurrent) return;
       lastAliveRef.current = Date.now();
     };
 
-    streamUnsubRef.current = subscribeStream(
+    const unsub = subscribeStream(
       state.symbol,
       LIVE_TF,
       (oneMin) => {
+        if (!isCurrent) return;
+
         const tSec = Number(
           oneMin.time > 1e12 ? Math.floor(oneMin.time / 1000) : oneMin.time
         );
@@ -884,11 +892,23 @@ export default function RowChart({
       onAlive
     );
 
-    return () => {
+    // store only this stream
+    streamUnsubRef.current = () => {
+      if (!isCurrent) return;
+      isCurrent = false;
       try {
-        streamUnsubRef.current?.();
+        unsub?.();
       } catch {}
-      streamUnsubRef.current = null;
+    };
+
+    return () => {
+      isCurrent = false;
+      try {
+        unsub?.();
+      } catch {}
+      if (streamUnsubRef.current) {
+        streamUnsubRef.current = null;
+      }
     };
   }, [chartReady, state.symbol, state.timeframe]);
 
