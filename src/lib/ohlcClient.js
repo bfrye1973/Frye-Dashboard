@@ -108,6 +108,7 @@ function createSharedStream(url) {
     closed: false,
     reconnecting: false,
     lastMsgAt: Date.now(),
+    lastBarAt: Date.now(),
     watchdog: null,
     refCount: 0,
     barListeners: new Set(),
@@ -165,10 +166,12 @@ function createSharedStream(url) {
       try {
         const msg = JSON.parse(ev.data);
 
-        // any JSON message means stream is alive
+        // any JSON message means stream transport is alive
         fanoutAlive(msg);
 
         if (msg?.type === "bar" && msg.bar) {
+          entry.lastBarAt = Date.now();
+
           const b = msg.bar;
           const bar = {
             time: toSec(b.time ?? b.t ?? b.ts ?? b.timestamp),
@@ -195,10 +198,20 @@ function createSharedStream(url) {
     if (!entry.watchdog) {
       entry.watchdog = setInterval(() => {
         if (entry.closed) return;
-        const age = Date.now() - entry.lastMsgAt;
 
-        // backend sends diag every ~5s, so 15s is a safe stale threshold
-        if (age > 15_000) {
+        const now = Date.now();
+        const msgAge = now - entry.lastMsgAt;
+        const barAge = now - entry.lastBarAt;
+
+        // 1) Full transport stall: no JSON messages at all
+        if (msgAge > 15_000) {
+          start();
+          return;
+        }
+
+        // 2) Chart/data stall: transport alive but no new bars
+        // Only apply this to intraday live streams where bars should keep flowing.
+        if (barAge > 20_000) {
           start();
         }
       }, 5_000);
@@ -260,7 +273,6 @@ export function subscribeStream(symbol, timeframe, onBar, onAlive) {
     entry.aliveListeners.add(onAlive);
   }
 
-  // in case stream exists but stalled before this subscriber attached
   if (!entry.es && !entry.closed) {
     entry.start?.();
   }
@@ -277,7 +289,6 @@ export function subscribeStream(symbol, timeframe, onBar, onAlive) {
 
     entry.refCount = Math.max(0, entry.refCount - 1);
 
-    // only fully destroy when nobody is using this stream anymore
     if (entry.refCount === 0) {
       try {
         entry.destroy?.();
