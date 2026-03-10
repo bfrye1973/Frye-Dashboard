@@ -44,6 +44,11 @@
 // - Shows Momentum block on each card
 // - Displays: 10m SMI, 1h SMI, Alignment, Compression, Momentum State
 // - Display only — does NOT change Engine 5 / Engine 6 logic
+//
+// ✅ LAYOUT UPDATE:
+// - Strategy Snapshot and Momentum (E4.5) are on the LEFT side under Waiting
+// - RIGHT side contains Engine Stack only
+// - Preserves existing dashboard size as much as possible
 
 import React, { useEffect, useMemo, useState } from "react";
 import { useSelection } from "../../../context/ModeContext";
@@ -517,6 +522,26 @@ function e3FallbackNext(stage) {
   return "Next: monitor";
 }
 
+/* -------------------- stage helpers -------------------- */
+function stageToIcon(stage, structureState, armed) {
+  const ss = String(structureState || "").toUpperCase();
+  if (ss === "FAILURE" || stage === "FAILURE") return "✖";
+  if (stage === "CONFIRMED") return "🔥";
+  if (stage === "TRIGGERED") return "✅";
+  if (stage === "ARMED") return "⚡";
+  if (stage === "IDLE") return "●";
+  return armed ? "⚡" : "●";
+}
+
+function stageToColor(stage, structureState) {
+  const ss = String(structureState || "").toUpperCase();
+  if (ss === "FAILURE" || stage === "FAILURE") return "#fca5a5";
+  if (stage === "CONFIRMED") return "#86efac";
+  if (stage === "TRIGGERED") return "#bef264";
+  if (stage === "ARMED") return "#fbbf24";
+  return "#94a3b8";
+}
+
 /* -------------------- buttons -------------------- */
 function btn() {
   return {
@@ -690,23 +715,27 @@ function MomentumPanel({ momentum }) {
   );
 }
 
-function stageToIcon(stage, structureState, armed) {
-  const ss = String(structureState || "").toUpperCase();
-  if (ss === "FAILURE" || stage === "FAILURE") return "✖";
-  if (stage === "CONFIRMED") return "🔥";
-  if (stage === "TRIGGERED") return "✅";
-  if (stage === "ARMED") return "⚡";
-  if (stage === "IDLE") return "●";
-  return armed ? "⚡" : "●";
-}
-
-function stageToColor(stage, structureState) {
-  const ss = String(structureState || "").toUpperCase();
-  if (ss === "FAILURE" || stage === "FAILURE") return "#fca5a5";
-  if (stage === "CONFIRMED") return "#86efac";
-  if (stage === "TRIGGERED") return "#bef264";
-  if (stage === "ARMED") return "#fbbf24";
-  return "#94a3b8";
+function StrategySnapshotPanel({ engine2 }) {
+  return (
+    <div
+      style={{
+        border: "1px solid #1f2937",
+        borderRadius: 12,
+        padding: 12,
+        background: "#0b0b0b",
+        fontSize: 12,
+        display: "flex",
+        flexDirection: "column",
+        gap: 6,
+      }}
+    >
+      <div style={{ fontWeight: 1000, color: "#93c5fd", fontSize: 11 }}>STRATEGY SNAPSHOT</div>
+      <div><b>Wave Phase:</b> {engine2?.phase || "—"}</div>
+      <div><b>Fib Score:</b> {Number.isFinite(engine2?.fibScore) ? `${engine2.fibScore}/20` : "—"}</div>
+      <div><b>Invalidated:</b> {engine2?.invalidated ? "YES ❌" : "NO"}</div>
+      <div><b>Degree:</b> {engine2?.degree || "—"} {engine2?.tf || ""}</div>
+    </div>
+  );
 }
 
 /* -------------------- Engine Stack (right column) -------------------- */
@@ -1388,19 +1417,6 @@ export default function RowStrategies() {
                       tone={volume.volumeConfirmed ? "ok" : "muted"}
                     />
 
-                    <MiniRow
-                      label="Momentum"
-                      left={`10m ${momentum.smi10m.direction} • 1h ${momentum.smi1h.direction}`}
-                      right={`${momentum.alignment} • ${momentum.momentumState}`}
-                      tone={
-                        momentum.alignment === "BULLISH"
-                          ? "ok"
-                          : momentum.alignment === "BEARISH"
-                          ? "danger"
-                          : "warn"
-                      }
-                    />
-
                     {showScalpClassifier && (
                       <>
                         <MiniRow
@@ -1439,12 +1455,39 @@ export default function RowStrategies() {
                         />
                       </>
                     )}
+
+                    {!showScalpClassifier && (
+                      <MiniRow
+                        label="Momentum"
+                        left={`10m ${momentum.smi10m.direction} • 1h ${momentum.smi1h.direction}`}
+                        right={`${momentum.alignment} • ${momentum.momentumState}`}
+                        tone={
+                          momentum.alignment === "BULLISH"
+                            ? "ok"
+                            : momentum.alignment === "BEARISH"
+                            ? "danger"
+                            : "warn"
+                        }
+                      />
+                    )}
                   </div>
 
                   <div style={{ marginTop: 6, fontSize: 12, color: "#94a3b8", fontWeight: 900 }}>
                     {showScalpClassifier && scalpClassifier.waitingBecause !== "—"
                       ? `Waiting because: ${scalpClassifier.waitingBecause}.`
                       : nextTriggerText(confluence)}
+                  </div>
+
+                  <div
+                    style={{
+                      marginTop: 10,
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 10,
+                    }}
+                  >
+                    <StrategySnapshotPanel engine2={node?.engine2 || null} />
+                    <MomentumPanel momentum={momentum} />
                   </div>
                 </div>
 
@@ -1457,27 +1500,6 @@ export default function RowStrategies() {
                     scalpClassifier={showScalpClassifier ? scalpClassifier : null}
                     momentum={momentum}
                   />
-
-                  <div
-                    style={{
-                      border: "1px solid #1f2937",
-                      borderRadius: 12,
-                      padding: 12,
-                      background: "#0b0b0b",
-                      fontSize: 12,
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: 6,
-                    }}
-                  >
-                    <div style={{ fontWeight: 1000, color: "#93c5fd", fontSize: 11 }}>STRATEGY SNAPSHOT</div>
-                    <div><b>Wave Phase:</b> {node?.engine2?.phase || "—"}</div>
-                    <div><b>Fib Score:</b> {Number.isFinite(node?.engine2?.fibScore) ? `${node.engine2.fibScore}/20` : "—"}</div>
-                    <div><b>Invalidated:</b> {node?.engine2?.invalidated ? "YES ❌" : "NO"}</div>
-                    <div><b>Degree:</b> {node?.engine2?.degree || "—"} {node?.engine2?.tf || ""}</div>
-                  </div>
-
-                  <MomentumPanel momentum={momentum} />
                 </div>
               </div>
 
