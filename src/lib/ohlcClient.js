@@ -91,13 +91,143 @@ export async function fetchOHLCResilient({ symbol, timeframe, limit = 1500 }) {
   return { source: "api/v1/ohlc (direct tf)", bars };
 }
 
+// ---------------- Shared SSE registry ----------------
+// Goal: only ONE EventSource per URL inside this page/session.
+// Multiple callers can subscribe to the same URL and receive the same messages.
+
+const streamRegistry = new Map();
+
+function getStreamKey(url) {
+  return url;
+}
+
+function createSharedStream(url) {
+  const entry = {
+    url,
+    es: null,
+    closed: false,
+    reconnecting: false,
+    lastMsgAt: Date.now(),
+    watchdog: null,
+    refCount: 0,
+    barListeners: new Set(),
+    aliveListeners: new Set(),
+  };
+
+  const cleanupES = () => {
+    try {
+      if (entry.es) {
+        entry.es.onopen = null;
+        entry.es.onmessage = null;
+        entry.es.onerror = null;
+        entry.es.close();
+      }
+    } catch {}
+    entry.es = null;
+  };
+
+  const fanoutAlive = (msg) => {
+    entry.aliveListeners.forEach((fn) => {
+      try {
+        fn?.(msg);
+      } catch {}
+    });
+  };
+
+  const fanoutBar = (bar) => {
+    entry.barListeners.forEach((fn) => {
+      try {
+        fn?.(bar);
+      } catch {}
+    });
+  };
+
+  const start = () => {
+    if (entry.closed) return;
+    if (entry.reconnecting) return;
+    entry.reconnecting = true;
+
+    cleanupES();
+
+    const es = new EventSource(entry.url);
+    entry.es = es;
+
+    es.onopen = () => {
+      entry.lastMsgAt = Date.now();
+      entry.reconnecting = false;
+    };
+
+    es.onmessage = (ev) => {
+      if (!ev?.data || ev.data.trim() === "") return;
+
+      entry.lastMsgAt = Date.now();
+
+      try {
+        const msg = JSON.parse(ev.data);
+
+        // any JSON message means stream is alive
+        fanoutAlive(msg);
+
+        if (msg?.type === "bar" && msg.bar) {
+          const b = msg.bar;
+          const bar = {
+            time: toSec(b.time ?? b.t ?? b.ts ?? b.timestamp),
+            open: Number(b.open ?? b.o),
+            high: Number(b.high ?? b.h),
+            low: Number(b.low ?? b.l),
+            close: Number(b.close ?? b.c),
+            volume: Number(b.volume ?? b.v ?? 0),
+          };
+          if (Number.isFinite(bar.time) && Number.isFinite(bar.open)) {
+            fanoutBar(bar);
+          }
+        }
+      } catch {
+        // ignore parse issues, do not kill stream
+      }
+    };
+
+    es.onerror = () => {
+      // let watchdog decide whether to rebuild
+      entry.reconnecting = false;
+    };
+
+    if (!entry.watchdog) {
+      entry.watchdog = setInterval(() => {
+        if (entry.closed) return;
+        const age = Date.now() - entry.lastMsgAt;
+
+        // backend sends diag every ~5s, so 15s is a safe stale threshold
+        if (age > 15_000) {
+          start();
+        }
+      }, 5_000);
+    }
+  };
+
+  entry.start = start;
+  entry.destroy = () => {
+    entry.closed = true;
+    try {
+      if (entry.watchdog) clearInterval(entry.watchdog);
+    } catch {}
+    entry.watchdog = null;
+    cleanupES();
+  };
+
+  start();
+  return entry;
+}
+
 // ---------------- Live SSE subscribe ----------------
-// FIX: Auto-heal if EventSource goes "stale" (Render/proxy stall) without requiring page refresh.
-// Backend sends diag every 5s and ping every 15s. If we receive nothing for 35s, rebuild connection.
-//
 // subscribeStream(symbol, timeframe, onBar, onAlive)
 // - onBar(bar): called only for type:"bar"
 // - onAlive(msg): optional, called for ANY parsed JSON message (snapshot/diag/bar)
+//
+// IMPORTANT:
+// - only one EventSource per URL per page
+// - multiple callers share one stream
+// - reconnect is serialized
 export function subscribeStream(symbol, timeframe, onBar, onAlive) {
   if (!STREAM_BASE) {
     console.warn("[subscribeStream] STREAM_BASE missing");
@@ -113,104 +243,47 @@ export function subscribeStream(symbol, timeframe, onBar, onAlive) {
     `&tf=${encodeURIComponent(tf)}` +
     `&mode=rth`;
 
-  let es = null;
-  let closed = false;
+  const key = getStreamKey(url);
 
-  let lastMsgAt = Date.now();
-  let watchdog = null;
+  let entry = streamRegistry.get(key);
+  if (!entry) {
+    entry = createSharedStream(url);
+    streamRegistry.set(key, entry);
+  }
 
-  // ✅ HARDENED: fully detach handlers before close so old EventSource
-  // instances don't linger and create duplicate live connections.
-  const cleanupES = () => {
-    try {
-      if (es) {
-        es.onopen = null;
-        es.onmessage = null;
-        es.onerror = null;
-        es.close();
-      }
-    } catch {}
-    es = null;
-  };
+  entry.refCount += 1;
 
-  const start = () => {
-    cleanupES();
-    if (closed) return;
+  if (typeof onBar === "function") {
+    entry.barListeners.add(onBar);
+  }
+  if (typeof onAlive === "function") {
+    entry.aliveListeners.add(onAlive);
+  }
 
-    es = new EventSource(url);
-
-    es.onopen = () => {
-      lastMsgAt = Date.now();
-      // console.log("[subscribeStream] open", sym, tf);
-    };
-
-    es.onmessage = (ev) => {
-      if (!ev?.data || ev.data.trim() === "") return;
-
-      // Any message (snapshot/diag/bar) counts as alive
-      lastMsgAt = Date.now();
-
-      try {
-        const msg = JSON.parse(ev.data);
-
-        // notify "alive" listener for LIVE indicator
-        if (typeof onAlive === "function") {
-          try {
-            onAlive(msg);
-          } catch {
-            // never let UI callback break stream
-          }
-        }
-
-        // Forward only bars to the chart
-        if (msg?.type === "bar" && msg.bar) {
-          const b = msg.bar;
-          const bar = {
-            time: toSec(b.time ?? b.t ?? b.ts ?? b.timestamp),
-            open: Number(b.open ?? b.o),
-            high: Number(b.high ?? b.h),
-            low: Number(b.low ?? b.l),
-            close: Number(b.close ?? b.c),
-            volume: Number(b.volume ?? b.v ?? 0),
-          };
-          if (Number.isFinite(bar.time) && Number.isFinite(bar.open)) {
-            onBar(bar);
-          }
-        }
-      } catch {
-        // do not kill stream on parse errors
-      }
-    };
-
-    // IMPORTANT: do not close on error; allow native auto-reconnect.
-    // But ALSO keep watchdog to force rebuild if the connection stalls silently.
-    es.onerror = () => {
-      // intentionally empty
-    };
-
-    if (!watchdog) {
-      watchdog = setInterval(() => {
-        if (closed) return;
-        const age = Date.now() - lastMsgAt;
-
-        // If no diag/snapshot/bar for too long, the stream is stale -> rebuild.
-        if (age > 35_000) {
-          // console.warn("[subscribeStream] stale -> reconnect", { sym, tf, age });
-          start();
-        }
-      }, 5_000);
-    }
-  };
-
-  start();
+  // in case stream exists but stalled before this subscriber attached
+  if (!entry.es && !entry.closed) {
+    entry.start?.();
+  }
 
   return () => {
-    closed = true;
     try {
-      if (watchdog) clearInterval(watchdog);
+      if (typeof onBar === "function") {
+        entry.barListeners.delete(onBar);
+      }
+      if (typeof onAlive === "function") {
+        entry.aliveListeners.delete(onAlive);
+      }
     } catch {}
-    watchdog = null;
-    cleanupES();
+
+    entry.refCount = Math.max(0, entry.refCount - 1);
+
+    // only fully destroy when nobody is using this stream anymore
+    if (entry.refCount === 0) {
+      try {
+        entry.destroy?.();
+      } catch {}
+      streamRegistry.delete(key);
+    }
   };
 }
 
