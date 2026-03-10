@@ -22,7 +22,7 @@
 // - Golden Coil uses Engine5 truth: confluence.flags.goldenCoil
 // - Engine Stack E3 shows stage + score + structureState
 // - visibilitychange only triggers pull when tab becomes VISIBLE
-// - ✅ FIXED JSX structure (actions bar is inside card, minimal buttons)
+// - JSX structure locked / actions bar inside card
 //
 // ✅ UPDATE (THIS PASS):
 // - Uses shared snapshot polling hook: useDashboardSnapshot
@@ -38,6 +38,12 @@
 // - Scalp card now shows current move classifier from live Engine 5B
 // - Displays: Move Type / Bias / Confidence / Waiting Because
 // - Engine Stack E5 row for Scalp also shows live classifier text
+//
+// ✅ UPDATE (ENGINE 4.5 MOMENTUM):
+// - Reads momentum from dashboard-snapshot
+// - Shows Momentum block on each card
+// - Displays: 10m SMI, 1h SMI, Alignment, Compression, Momentum State
+// - Display only — does NOT change Engine 5 / Engine 6 logic
 
 import React, { useEffect, useMemo, useState } from "react";
 import { useSelection } from "../../../context/ModeContext";
@@ -395,6 +401,42 @@ function extractVolume(confluence) {
   };
 }
 
+function extractMomentum(node, snapshot) {
+  const m = node?.momentum || snapshot?.momentum || null;
+  if (!m || typeof m !== "object") {
+    return {
+      ok: false,
+      smi10m: { k: null, d: null, direction: "UNKNOWN", cross: "NONE" },
+      smi1h: { k: null, d: null, direction: "UNKNOWN", cross: "NONE" },
+      alignment: "MIXED",
+      compression: { active: false, bars: 0, width: 0 },
+      momentumState: "UNKNOWN",
+    };
+  }
+  return {
+    ok: m.ok === true,
+    smi10m: {
+      k: Number.isFinite(Number(m?.smi10m?.k)) ? Number(m.smi10m.k) : null,
+      d: Number.isFinite(Number(m?.smi10m?.d)) ? Number(m.smi10m.d) : null,
+      direction: String(m?.smi10m?.direction || "UNKNOWN").toUpperCase(),
+      cross: String(m?.smi10m?.cross || "NONE").toUpperCase(),
+    },
+    smi1h: {
+      k: Number.isFinite(Number(m?.smi1h?.k)) ? Number(m.smi1h.k) : null,
+      d: Number.isFinite(Number(m?.smi1h?.d)) ? Number(m.smi1h.d) : null,
+      direction: String(m?.smi1h?.direction || "UNKNOWN").toUpperCase(),
+      cross: String(m?.smi1h?.cross || "NONE").toUpperCase(),
+    },
+    alignment: String(m?.alignment || "MIXED").toUpperCase(),
+    compression: {
+      active: m?.compression?.active === true,
+      bars: Number.isFinite(Number(m?.compression?.bars)) ? Number(m.compression.bars) : 0,
+      width: Number.isFinite(Number(m?.compression?.width)) ? Number(m.compression.width) : 0,
+    },
+    momentumState: String(m?.momentumState || "UNKNOWN").toUpperCase(),
+  };
+}
+
 function nextTriggerText(confluence) {
   const invalid = confluence?.invalid === true;
   const codes = Array.isArray(confluence?.reasonCodes) ? confluence.reasonCodes : [];
@@ -554,24 +596,260 @@ function MiniRow({ label, left, right, tone = "muted" }) {
   );
 }
 
-/* -------------------- UI color/icon helpers -------------------- */
-function stageToIcon(stage, structureState, armed) {
-  const ss = String(structureState || "").toUpperCase();
-  if (ss === "FAILURE" || stage === "FAILURE") return "✖";
-  if (stage === "CONFIRMED") return "🔥";
-  if (stage === "TRIGGERED") return "✅";
-  if (stage === "ARMED") return "⚡";
-  if (stage === "IDLE") return "●";
-  return armed ? "⚡" : "●";
+/* -------------------- Momentum helpers / UI -------------------- */
+function dirTone(direction) {
+  const d = String(direction || "").toUpperCase();
+  if (d === "UP") return "ok";
+  if (d === "DOWN") return "danger";
+  return "muted";
 }
 
-function stageToColor(stage, structureState) {
-  const ss = String(structureState || "").toUpperCase();
-  if (ss === "FAILURE" || stage === "FAILURE") return "#fca5a5";
-  if (stage === "CONFIRMED") return "#86efac";
-  if (stage === "TRIGGERED") return "#bef264";
-  if (stage === "ARMED") return "#fbbf24";
-  return "#94a3b8";
+function alignTone(alignment) {
+  const a = String(alignment || "").toUpperCase();
+  if (a === "BULLISH") return "ok";
+  if (a === "BEARISH") return "danger";
+  return "warn";
+}
+
+function stateTone(state) {
+  const s = String(state || "").toUpperCase();
+  if (s === "EXPANDING") return "ok";
+  if (s === "COILING") return "warn";
+  if (s === "UNKNOWN") return "danger";
+  return "muted";
+}
+
+function crossText(cross) {
+  const c = String(cross || "NONE").toUpperCase();
+  if (c === "BULLISH") return "bull cross";
+  if (c === "BEARISH") return "bear cross";
+  return "no cross";
+}
+
+function compressText(comp) {
+  const active = comp?.active === true;
+  const bars = Number.isFinite(Number(comp?.bars)) ? Number(comp.bars) : 0;
+  const width = Number.isFinite(Number(comp?.width)) ? Number(comp.width) : 0;
+  if (!active) return `inactive • ${bars} bars • w ${fmt2(width)}`;
+  return `ACTIVE • ${bars} bars • w ${fmt2(width)}`;
+}
+
+function MomentumPanel({ momentum }) {
+  const m = momentum || {
+    ok: false,
+    smi10m: { k: null, d: null, direction: "UNKNOWN", cross: "NONE" },
+    smi1h: { k: null, d: null, direction: "UNKNOWN", cross: "NONE" },
+    alignment: "MIXED",
+    compression: { active: false, bars: 0, width: 0 },
+    momentumState: "UNKNOWN",
+  };
+
+  return (
+    <div
+      style={{
+        border: "1px solid #1f2937",
+        borderRadius: 12,
+        padding: 12,
+        background: "#0b0b0b",
+        fontSize: 12,
+        display: "flex",
+        flexDirection: "column",
+        gap: 8,
+      }}
+    >
+      <div style={{ fontWeight: 1000, color: "#93c5fd", fontSize: 11 }}>MOMENTUM (E4.5)</div>
+
+      <MiniRow
+        label="10m SMI"
+        left={`${m.smi10m.direction} • K ${fmt2(m.smi10m.k)} • D ${fmt2(m.smi10m.d)}`}
+        right={crossText(m.smi10m.cross)}
+        tone={dirTone(m.smi10m.direction)}
+      />
+
+      <MiniRow
+        label="1h SMI"
+        left={`${m.smi1h.direction} • K ${fmt2(m.smi1h.k)} • D ${fmt2(m.smi1h.d)}`}
+        right={crossText(m.smi1h.cross)}
+        tone={dirTone(m.smi1h.direction)}
+      />
+
+      <MiniRow
+        label="Alignment"
+        left={String(m.alignment || "MIXED").toUpperCase()}
+        right={String(m.momentumState || "UNKNOWN").toUpperCase()}
+        tone={alignTone(m.alignment)}
+      />
+
+      <MiniRow
+        label="Compression"
+        left={compressText(m.compression)}
+        right={m.compression?.active ? "coil detected" : "no coil"}
+        tone={m.compression?.active ? "warn" : stateTone(m.momentumState)}
+      />
+    </div>
+  );
+}
+
+/* -------------------- Engine Stack (right column) -------------------- */
+function EngineStack({ confluence, permission, engine2Card, scalpClassifier = null, momentum = null }) {
+  const loc = confluence?.location?.state || "—";
+
+  let e2Text = "NO_ANCHORS";
+  let e2Color = "#cbd5e1";
+
+  if (engine2Card && engine2Card.ok === true) {
+    const degree = engine2Card.degree || "—";
+    const tf = engine2Card.tf || "—";
+    const phase = engine2Card.phase || "UNKNOWN";
+    const fibScore = Number(engine2Card.fibScore || 0);
+    const invalidated = engine2Card.invalidated === true;
+
+    e2Text = `${degree} ${tf} — ${phase} — Fib ${fibScore}/20 — inv:${invalidated ? "true" : "false"}`;
+
+    if (invalidated) e2Color = "#fca5a5";
+    else if (fibScore >= 20) e2Color = "#86efac";
+    else if (fibScore >= 10) e2Color = "#fbbf24";
+    else e2Color = "#cbd5e1";
+  }
+
+  const r = confluence?.context?.reaction || {};
+  const stage = String(r.stage || "—").toUpperCase();
+  const armed = r.armed === true;
+  const rs = Number(r.reactionScore ?? 0);
+  const ss = String(r.structureState || "HOLD").toUpperCase();
+  const stageIcon = stageToIcon(stage, ss, armed);
+  const stageColor = stageToColor(stage, ss);
+
+  const e3Pos = r.zonePosition ? String(r.zonePosition) : e3FallbackPosition(r.reasonCodes);
+  const rejYesNo =
+    r.rejectionCandidate === true ? "REJECTION: YES"
+    : r.rejectionCandidate === false ? "REJECTION: no"
+    : "REJECTION: —";
+
+  const nextDown = r.nextConfirmDown ? shortNextText(r.nextConfirmDown) : null;
+  const nextUp = r.nextConfirmUp ? shortNextText(r.nextConfirmUp) : null;
+  const nextTxt = (nextDown || nextUp) ? `Next: ${nextDown || nextUp}` : e3FallbackNext(stage);
+
+  const e3Text =
+    `${stageIcon} ${stage}${armed && stage !== "FAILURE" ? " ⚡" : ""}` +
+    ` • ${Number.isFinite(rs) ? rs.toFixed(1) : "0.0"} ${ss}` +
+    ` • POS:${e3Pos}` +
+    ` • ${rejYesNo}` +
+    ` • ${nextTxt}`;
+
+  const v = confluence?.context?.volume || {};
+  const vf = v?.flags || {};
+  const e4State = String(confluence?.volumeState || v?.state || "NO_SIGNAL").toUpperCase();
+  const vs = Number(v.volumeScore ?? 0);
+
+  const regime = volRegimeFromScore(vs, vf);
+  const pressure = volPressureFromFlags(vf);
+
+  const flow =
+    `PB:${vf.pullbackContraction ? "✅" : "—"} ` +
+    `REV:${vf.reversalExpansion ? "✅" : "—"} ` +
+    `INIT:${vf.initiativeMoveConfirmed ? "✅" : "—"} ` +
+    `DIST:${vf.distributionDetected ? "⚠️" : "—"} ` +
+    `ABS:${vf.absorptionDetected ? "⚠️" : "—"} ` +
+    `TRAP:${vf.liquidityTrap ? "❌" : "—"} ` +
+    `DIV:${vf.volumeDivergence ? "⚠️" : "—"}`;
+
+  const e4Text =
+    `${e4State}` +
+    ` • VS:${Number.isFinite(vs) ? vs : "—"}/15` +
+    ` • REG:${regime}` +
+    ` • PRESS:${pressure}` +
+    ` • ${flow}`;
+
+  const m = momentum || {
+    alignment: "MIXED",
+    momentumState: "UNKNOWN",
+    smi10m: { direction: "UNKNOWN", cross: "NONE" },
+    smi1h: { direction: "UNKNOWN", cross: "NONE" },
+  };
+
+  const e45Text =
+    `${String(m.alignment || "MIXED").toUpperCase()}` +
+    ` • 10m:${String(m?.smi10m?.direction || "UNKNOWN").toUpperCase()}` +
+    `(${String(m?.smi10m?.cross || "NONE").toUpperCase()})` +
+    ` • 1h:${String(m?.smi1h?.direction || "UNKNOWN").toUpperCase()}` +
+    `(${String(m?.smi1h?.cross || "NONE").toUpperCase()})` +
+    ` • ${String(m.momentumState || "UNKNOWN").toUpperCase()}`;
+
+  const score = clamp100(confluence?.scores?.total ?? 0);
+  const label = confluence?.scores?.label || grade(score);
+  const comp = confluence?.compression || {};
+  const compState = String(comp?.state || "NONE").toUpperCase();
+  const compScore = Number.isFinite(Number(comp?.score)) ? Math.round(Number(comp?.score)) : 0;
+
+  const e5Text = scalpClassifier
+    ? `${scalpClassifier.moveScore} • ${scalpClassifier.moveType} • ${scalpClassifier.moveDirection}`
+    : `${Math.round(score)} (${label}) • ${compState} ${compScore}`;
+
+  const perm = permission?.permission || "—";
+  const mult = Number.isFinite(Number(permission?.sizeMultiplier))
+    ? Number(permission.sizeMultiplier).toFixed(2)
+    : "—";
+  const e6Text = `${perm} • ${mult}x`;
+
+  return (
+    <div
+      style={{
+        border: "1px solid #1f2937",
+        borderRadius: 12,
+        padding: 12,
+        background: "#0b0b0b",
+        minHeight: 260,
+        width: "100%",
+        height: "auto",
+        display: "grid",
+        gridTemplateRows: "auto repeat(7, 1fr)",
+        gap: 10,
+        overflow: "visible",
+        minWidth: 0,
+      }}
+    >
+      <div style={{ fontSize: 11, fontWeight: 900, color: "#93c5fd" }}>ENGINE STACK</div>
+
+      <StackRow k="E1" v={loc} />
+      <StackRow k="E2" v={e2Text} vStyle={{ color: e2Color }} />
+      <StackRow k="E3" v={e3Text} vStyle={{ color: stageColor }} />
+      <StackRow k="E4" v={e4Text} />
+      <StackRow k="E4.5" v={e45Text} />
+      <StackRow k="E5" v={e5Text} />
+      <StackRow k="E6" v={e6Text} />
+    </div>
+  );
+}
+
+function StackRow({ k, v, vStyle = {} }) {
+  return (
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "34px 1fr",
+        gap: 6,
+        alignItems: "center",
+        minWidth: 0,
+      }}
+    >
+      <span style={{ fontWeight: 1000, fontSize: 13, color: "#9ca3af" }}>{k}</span>
+      <span
+        style={{
+          fontWeight: 1000,
+          fontSize: 13,
+          whiteSpace: "normal",
+          overflow: "visible",
+          textOverflow: "ellipsis",
+          color: "#e5e7eb",
+          ...vStyle,
+        }}
+        title={v}
+      >
+        {v}
+      </span>
+    </div>
+  );
 }
 
 /* -------------------- Engine 15 local fallback (SAFE) -------------------- */
@@ -739,152 +1017,6 @@ function ReadinessBar({ readinessPack }) {
   );
 }
 
-/* -------------------- Engine Stack (right column) -------------------- */
-function EngineStack({ confluence, permission, engine2Card, scalpClassifier = null }) {
-  const loc = confluence?.location?.state || "—";
-
-  let e2Text = "NO_ANCHORS";
-  let e2Color = "#cbd5e1";
-
-  if (engine2Card && engine2Card.ok === true) {
-    const degree = engine2Card.degree || "—";
-    const tf = engine2Card.tf || "—";
-    const phase = engine2Card.phase || "UNKNOWN";
-    const fibScore = Number(engine2Card.fibScore || 0);
-    const invalidated = engine2Card.invalidated === true;
-
-    e2Text = `${degree} ${tf} — ${phase} — Fib ${fibScore}/20 — inv:${invalidated ? "true" : "false"}`;
-
-    if (invalidated) e2Color = "#fca5a5";
-    else if (fibScore >= 20) e2Color = "#86efac";
-    else if (fibScore >= 10) e2Color = "#fbbf24";
-    else e2Color = "#cbd5e1";
-  }
-
-  const r = confluence?.context?.reaction || {};
-  const stage = String(r.stage || "—").toUpperCase();
-  const armed = r.armed === true;
-  const rs = Number(r.reactionScore ?? 0);
-  const ss = String(r.structureState || "HOLD").toUpperCase();
-  const stageIcon = stageToIcon(stage, ss, armed);
-  const stageColor = stageToColor(stage, ss);
-
-  const e3Pos = r.zonePosition ? String(r.zonePosition) : e3FallbackPosition(r.reasonCodes);
-  const rejYesNo =
-    r.rejectionCandidate === true ? "REJECTION: YES"
-    : r.rejectionCandidate === false ? "REJECTION: no"
-    : "REJECTION: —";
-
-  const nextDown = r.nextConfirmDown ? shortNextText(r.nextConfirmDown) : null;
-  const nextUp = r.nextConfirmUp ? shortNextText(r.nextConfirmUp) : null;
-  const nextTxt = (nextDown || nextUp) ? `Next: ${nextDown || nextUp}` : e3FallbackNext(stage);
-
-  const e3Text =
-    `${stageIcon} ${stage}${armed && stage !== "FAILURE" ? " ⚡" : ""}` +
-    ` • ${Number.isFinite(rs) ? rs.toFixed(1) : "0.0"} ${ss}` +
-    ` • POS:${e3Pos}` +
-    ` • ${rejYesNo}` +
-    ` • ${nextTxt}`;
-
-  const v = confluence?.context?.volume || {};
-  const vf = v?.flags || {};
-  const e4State = String(confluence?.volumeState || v?.state || "NO_SIGNAL").toUpperCase();
-  const vs = Number(v.volumeScore ?? 0);
-
-  const regime = volRegimeFromScore(vs, vf);
-  const pressure = volPressureFromFlags(vf);
-
-  const flow =
-    `PB:${vf.pullbackContraction ? "✅" : "—"} ` +
-    `REV:${vf.reversalExpansion ? "✅" : "—"} ` +
-    `INIT:${vf.initiativeMoveConfirmed ? "✅" : "—"} ` +
-    `DIST:${vf.distributionDetected ? "⚠️" : "—"} ` +
-    `ABS:${vf.absorptionDetected ? "⚠️" : "—"} ` +
-    `TRAP:${vf.liquidityTrap ? "❌" : "—"} ` +
-    `DIV:${vf.volumeDivergence ? "⚠️" : "—"}`;
-
-  const e4Text =
-    `${e4State}` +
-    ` • VS:${Number.isFinite(vs) ? vs : "—"}/15` +
-    ` • REG:${regime}` +
-    ` • PRESS:${pressure}` +
-    ` • ${flow}`;
-
-  const score = clamp100(confluence?.scores?.total ?? 0);
-  const label = confluence?.scores?.label || grade(score);
-  const comp = confluence?.compression || {};
-  const compState = String(comp?.state || "NONE").toUpperCase();
-  const compScore = Number.isFinite(Number(comp?.score)) ? Math.round(Number(comp?.score)) : 0;
-
-  const e5Text = scalpClassifier
-    ? `${scalpClassifier.moveScore} • ${scalpClassifier.moveType} • ${scalpClassifier.moveDirection}`
-    : `${Math.round(score)} (${label}) • ${compState} ${compScore}`;
-
-  const perm = permission?.permission || "—";
-  const mult = Number.isFinite(Number(permission?.sizeMultiplier))
-    ? Number(permission.sizeMultiplier).toFixed(2)
-    : "—";
-  const e6Text = `${perm} • ${mult}x`;
-
-  return (
-    <div
-      style={{
-        border: "1px solid #1f2937",
-        borderRadius: 12,
-        padding: 12,
-        background: "#0b0b0b",
-        minHeight: 260,
-        width: "100%",
-        height: "auto",
-        display: "grid",
-        gridTemplateRows: "auto repeat(6, 1fr)",
-        gap: 10,
-        overflow: "visible",
-        minWidth: 0,
-      }}
-    >
-      <div style={{ fontSize: 11, fontWeight: 900, color: "#93c5fd" }}>ENGINE STACK</div>
-
-      <StackRow k="E1" v={loc} />
-      <StackRow k="E2" v={e2Text} vStyle={{ color: e2Color }} />
-      <StackRow k="E3" v={e3Text} vStyle={{ color: stageColor }} />
-      <StackRow k="E4" v={e4Text} />
-      <StackRow k="E5" v={e5Text} />
-      <StackRow k="E6" v={e6Text} />
-    </div>
-  );
-}
-
-function StackRow({ k, v, vStyle = {} }) {
-  return (
-    <div
-      style={{
-        display: "grid",
-        gridTemplateColumns: "22px 1fr",
-        gap: 6,
-        alignItems: "center",
-        minWidth: 0,
-      }}
-    >
-      <span style={{ fontWeight: 1000, fontSize: 13, color: "#9ca3af" }}>{k}</span>
-      <span
-        style={{
-          fontWeight: 1000,
-          fontSize: 13,
-          whiteSpace: "normal",
-          overflow: "visible",
-          textOverflow: "ellipsis",
-          color: "#e5e7eb",
-          ...vStyle,
-        }}
-        title={v}
-      >
-        {v}
-      </span>
-    </div>
-  );
-}
-
 /* ===================== Main Component ===================== */
 export default function RowStrategies() {
   const { setSelection } = useSelection();
@@ -1032,6 +1164,7 @@ export default function RowStrategies() {
           const node = snapshot?.strategies?.[stratKey] || null;
           const confluence = node?.confluence || null;
           const permission = node?.permission || null;
+          const momentum = extractMomentum(node, snapshot);
 
           const engine15Stored =
             node?.engine15 ||
@@ -1236,6 +1369,19 @@ export default function RowStrategies() {
                       tone={volume.volumeConfirmed ? "ok" : "muted"}
                     />
 
+                    <MiniRow
+                      label="Momentum"
+                      left={`10m ${momentum.smi10m.direction} • 1h ${momentum.smi1h.direction}`}
+                      right={`${momentum.alignment} • ${momentum.momentumState}`}
+                      tone={
+                        momentum.alignment === "BULLISH"
+                          ? "ok"
+                          : momentum.alignment === "BEARISH"
+                          ? "danger"
+                          : "warn"
+                      }
+                    />
+
                     {showScalpClassifier && (
                       <>
                         <MiniRow
@@ -1290,6 +1436,7 @@ export default function RowStrategies() {
                     permission={permission}
                     engine2Card={node?.engine2 || null}
                     scalpClassifier={showScalpClassifier ? scalpClassifier : null}
+                    momentum={momentum}
                   />
 
                   <div
@@ -1310,6 +1457,8 @@ export default function RowStrategies() {
                     <div><b>Invalidated:</b> {node?.engine2?.invalidated ? "YES ❌" : "NO"}</div>
                     <div><b>Degree:</b> {node?.engine2?.degree || "—"} {node?.engine2?.tf || ""}</div>
                   </div>
+
+                  <MomentumPanel momentum={momentum} />
                 </div>
               </div>
 
