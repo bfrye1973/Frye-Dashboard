@@ -690,6 +690,25 @@ function MomentumPanel({ momentum }) {
   );
 }
 
+function stageToIcon(stage, structureState, armed) {
+  const ss = String(structureState || "").toUpperCase();
+  if (ss === "FAILURE" || stage === "FAILURE") return "✖";
+  if (stage === "CONFIRMED") return "🔥";
+  if (stage === "TRIGGERED") return "✅";
+  if (stage === "ARMED") return "⚡";
+  if (stage === "IDLE") return "●";
+  return armed ? "⚡" : "●";
+}
+
+function stageToColor(stage, structureState) {
+  const ss = String(structureState || "").toUpperCase();
+  if (ss === "FAILURE" || stage === "FAILURE") return "#fca5a5";
+  if (stage === "CONFIRMED") return "#86efac";
+  if (stage === "TRIGGERED") return "#bef264";
+  if (stage === "ARMED") return "#fbbf24";
+  return "#94a3b8";
+}
+
 /* -------------------- Engine Stack (right column) -------------------- */
 function EngineStack({ confluence, permission, engine2Card, scalpClassifier = null, momentum = null }) {
   const loc = confluence?.location?.state || "—";
