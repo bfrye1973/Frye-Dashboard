@@ -39,10 +39,10 @@
 // - Displays: Move Type / Bias / Confidence / Waiting Because
 // - Engine Stack E5 row for Scalp also shows live classifier text
 //
-// ✅ UPDATE (ENGINE 4.5 MOMENTUM):
+// ✅ UPDATE (ENGINE 4.5 MOMENTUM PHASE 2):
 // - Reads momentum from dashboard-snapshot
 // - Shows Momentum block on each card
-// - Displays: 10m SMI, 1h SMI, Alignment, Compression, Momentum State
+// - Displays: 10m SMI, 1h SMI, Alignment, Compression, Release, Tightness
 // - Display only — does NOT change Engine 5 / Engine 6 logic
 //
 // ✅ LAYOUT UPDATE:
@@ -416,6 +416,20 @@ function extractMomentum(node, snapshot) {
       alignment: "MIXED",
       compression: { active: false, bars: 0, width: 0 },
       momentumState: "UNKNOWN",
+      compressionSignal: {
+        state: "NONE",
+        quality: "NONE",
+        tightness: 0,
+        releaseBarsAgo: null,
+        early: false,
+      },
+      slope: {
+        smi10m: 0,
+        signal10m: 0,
+        expanding: false,
+        widthNow: 0,
+        widthPrev: 0,
+      },
     };
   }
   return {
@@ -439,6 +453,25 @@ function extractMomentum(node, snapshot) {
       width: Number.isFinite(Number(m?.compression?.width)) ? Number(m.compression.width) : 0,
     },
     momentumState: String(m?.momentumState || "UNKNOWN").toUpperCase(),
+    compressionSignal: {
+      state: String(m?.compressionSignal?.state || "NONE").toUpperCase(),
+      quality: String(m?.compressionSignal?.quality || "NONE").toUpperCase(),
+      tightness: Number.isFinite(Number(m?.compressionSignal?.tightness))
+        ? Number(m.compressionSignal.tightness)
+        : 0,
+      releaseBarsAgo:
+        m?.compressionSignal?.releaseBarsAgo == null
+          ? null
+          : Number(m.compressionSignal.releaseBarsAgo),
+      early: m?.compressionSignal?.early === true,
+    },
+    slope: {
+      smi10m: Number.isFinite(Number(m?.slope?.smi10m)) ? Number(m.slope.smi10m) : 0,
+      signal10m: Number.isFinite(Number(m?.slope?.signal10m)) ? Number(m.slope.signal10m) : 0,
+      expanding: m?.slope?.expanding === true,
+      widthNow: Number.isFinite(Number(m?.slope?.widthNow)) ? Number(m.slope.widthNow) : 0,
+      widthPrev: Number.isFinite(Number(m?.slope?.widthPrev)) ? Number(m.slope.widthPrev) : 0,
+    },
   };
 }
 
@@ -659,6 +692,28 @@ function compressText(comp) {
   return `ACTIVE • ${bars} bars • w ${fmt2(width)}`;
 }
 
+function releaseTone(state) {
+  const s = String(state || "").toUpperCase();
+  if (s === "RELEASING_UP") return "ok";
+  if (s === "RELEASING_DOWN") return "danger";
+  if (s === "COILING") return "warn";
+  return "muted";
+}
+
+function releaseText(sig) {
+  const state = String(sig?.state || "NONE").toUpperCase();
+  const quality = String(sig?.quality || "NONE").toUpperCase();
+  return `${state} • ${quality}`;
+}
+
+function tightnessText(sig) {
+  const tightness = Number.isFinite(Number(sig?.tightness)) ? Number(sig.tightness) : 0;
+  const early = sig?.early === true ? "early" : "late";
+  const barsAgo =
+    sig?.releaseBarsAgo == null ? "bars —" : `bars ${Number(sig.releaseBarsAgo)}`;
+  return `${tightness} • ${early} • ${barsAgo}`;
+}
+
 function MomentumPanel({ momentum }) {
   const m = momentum || {
     ok: false,
@@ -667,6 +722,20 @@ function MomentumPanel({ momentum }) {
     alignment: "MIXED",
     compression: { active: false, bars: 0, width: 0 },
     momentumState: "UNKNOWN",
+    compressionSignal: {
+      state: "NONE",
+      quality: "NONE",
+      tightness: 0,
+      releaseBarsAgo: null,
+      early: false,
+    },
+    slope: {
+      smi10m: 0,
+      signal10m: 0,
+      expanding: false,
+      widthNow: 0,
+      widthPrev: 0,
+    },
   };
 
   return (
@@ -710,6 +779,28 @@ function MomentumPanel({ momentum }) {
         left={compressText(m.compression)}
         right={m.compression?.active ? "coil detected" : "no coil"}
         tone={m.compression?.active ? "warn" : stateTone(m.momentumState)}
+      />
+
+      <MiniRow
+        label="Release"
+        left={releaseText(m.compressionSignal)}
+        right={m.slope?.expanding ? "expanding" : "flat"}
+        tone={releaseTone(m.compressionSignal?.state)}
+      />
+
+      <MiniRow
+        label="Tightness"
+        left={tightnessText(m.compressionSignal)}
+        right={`Δ ${fmt2(m.slope?.smi10m)} / ${fmt2(m.slope?.signal10m)}`}
+        tone={
+          Number.isFinite(Number(m?.compressionSignal?.tightness)) &&
+          Number(m.compressionSignal.tightness) >= 70
+            ? "ok"
+            : Number.isFinite(Number(m?.compressionSignal?.tightness)) &&
+              Number(m.compressionSignal.tightness) >= 50
+            ? "warn"
+            : "muted"
+        }
       />
     </div>
   );
@@ -814,6 +905,7 @@ function EngineStack({ confluence, permission, engine2Card, scalpClassifier = nu
     momentumState: "UNKNOWN",
     smi10m: { direction: "UNKNOWN", cross: "NONE" },
     smi1h: { direction: "UNKNOWN", cross: "NONE" },
+    compressionSignal: { state: "NONE", quality: "NONE" },
   };
 
   const e45Text =
@@ -822,7 +914,8 @@ function EngineStack({ confluence, permission, engine2Card, scalpClassifier = nu
     `(${String(m?.smi10m?.cross || "NONE").toUpperCase()})` +
     ` • 1h:${String(m?.smi1h?.direction || "UNKNOWN").toUpperCase()}` +
     `(${String(m?.smi1h?.cross || "NONE").toUpperCase()})` +
-    ` • ${String(m.momentumState || "UNKNOWN").toUpperCase()}`;
+    ` • ${String(m?.compressionSignal?.state || "NONE").toUpperCase()}` +
+    ` ${String(m?.compressionSignal?.quality || "NONE").toUpperCase()}`;
 
   const score = clamp100(confluence?.scores?.total ?? 0);
   const label = confluence?.scores?.label || grade(score);
