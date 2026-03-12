@@ -1,60 +1,5 @@
 // src/pages/rows/RowStrategies/index.jsx
 // Strategies — Engine 5 Score + Engine 6 Permission (SYNCED via dashboard-snapshot)
-//
-// ✅ One poll endpoint: /api/v1/dashboard-snapshot?symbol=SPY&includeContext=1
-// ✅ Engine Stack (E1–E6) always visible on RIGHT column
-// ✅ LEFT column keeps full readable info
-// ✅ Buttons: (PRODUCTION) Paper Only + Open Full Strategies
-//
-// ✅ Stability fixes (LOCKED):
-// - NEVER stops polling (even if tab hidden)  ✅ (now via shared hook)
-// - hard timeout (20s) with AbortController   ✅ (shared hook)
-// - 1 retry (800ms) for transient hiccups     ✅ (shared hook)
-// - inFlight always released in finally       ✅ (shared hook)
-// - if inFlight is true, we still schedule the next poll (prevents stall) ✅ (shared hook)
-// - never wipes last good snapshot on error (keeps UI populated) ✅ (shared hook)
-//
-// ✅ Observability:
-// - Shows Frontend fetch time + Backend snapshot time
-// - Shows Build stamp so you can confirm fresh bundle
-//
-// ✅ FIXES IN THIS VERSION:
-// - Golden Coil uses Engine5 truth: confluence.flags.goldenCoil
-// - Engine Stack E3 shows stage + score + structureState
-// - visibilitychange only triggers pull when tab becomes VISIBLE
-// - JSX structure locked / actions bar inside card
-//
-// ✅ UPDATE (THIS PASS):
-// - Uses shared snapshot polling hook: useDashboardSnapshot
-// - Adds SCALP GO badge (VERY BIG) next to GOLDEN COIL using backend-1 proxy: /api/v1/scalp-status
-//
-// ✅ UPDATE (ENGINE 15 READINESS):
-// - Shows a BIG "READINESS" bar: WAIT / NEAR / ARMING / READY / CONFIRMED
-// - Uses snapshot.engine15.byStrategy[strategyId] if present (Replay-safe)
-// - Otherwise computes a safe local readiness fallback from confluence (Live-safe)
-// - Shows permission overlay separately (STAND_DOWN is NO ENTRIES only)
-//
-// ✅ UPDATE (ENGINE 5 VISIBILITY):
-// - Scalp card now shows current move classifier from live Engine 5B
-// - Displays: Move Type / Bias / Confidence / Waiting Because
-// - Engine Stack E5 row for Scalp also shows live classifier text
-//
-// ✅ UPDATE (ENGINE 4.5 MOMENTUM PHASE 2):
-// - Reads momentum from dashboard-snapshot
-// - Shows Momentum block on each card
-// - Displays: 10m SMI, 1h SMI, Alignment, Compression, Release, Tightness
-// - Display only — does NOT change Engine 5 / Engine 6 logic
-//
-// ✅ LAYOUT UPDATE:
-// - Strategy Snapshot and Momentum (E4.5) are on the LEFT side under Waiting
-// - RIGHT side contains Engine Stack only
-// - Preserves existing dashboard size as much as possible
-//
-// ✅ TYPOGRAPHY UPDATE (THIS PASS):
-// - Increases readability across strategy cards without changing data flow
-// - Enlarges body text, engine stack text, snapshot text, momentum text, waiting text
-// - Slightly enlarges titles, subtitles, readiness text, pills, and buttons
-// - Keeps layout/grid structure intact as much as possible
 
 import React, { useEffect, useMemo, useState } from "react";
 import { useSelection } from "../../../context/ModeContext";
@@ -91,35 +36,40 @@ const FS = {
   body: 14,
   bodyStrong: 15,
   section: 12,
-  subtitle: 14,
-  title: 17,
-  readinessLabel: 13,
-  readinessState: 20,
-  stackKey: 14,
-  stackValue: 14,
-  button: 13,
+  subtitle: 13,
+  title: 16,
+  readinessLabel: 12,
+  readinessState: 18,
+  stackKey: 13,
+  stackValue: 13,
+  pill: 12,
+  button: 12,
 };
 
-/* -------------------- spacing helpers -------------------- */
-const PILL_PAD = "5px 10px";
-const CARD_PAD = 12;
+const LH = {
+  compact: 1.2,
+  normal: 1.3,
+  roomy: 1.4,
+};
+
+const CARD_PAD = 10;
 
 // 🔒 Poll cadence (LOCKED)
 const POLL_MS = 20000;
 const TIMEOUT_MS = 20000;
 const RETRY_DELAY_MS = 800;
 
-// GO poll cadence (lightweight, scalp-only display)
+// GO poll cadence
 const GO_POLL_MS = 2000;
 const GO_TIMEOUT_MS = 6000;
 
-// Build stamp (prefer env if you have one, else runtime stamp)
+// Build stamp
 const BUILD_STAMP =
   env("REACT_APP_BUILD_STAMP", "") ||
   env("REACT_APP_COMMIT_SHA", "") ||
   new Date().toISOString();
 
-/* -------------------- endpoints (legacy, kept) -------------------- */
+/* -------------------- endpoints -------------------- */
 const SCALP_STATUS_URL = () => `${API_BASE}/api/v1/scalp-status?t=${Date.now()}`;
 
 /* -------------------- utils -------------------- */
@@ -225,12 +175,12 @@ function getScalpClassifierView(scalpStatus) {
   };
 }
 
-/* -------------------- Golden Coil badge rule (LOCKED to Engine5 truth) -------------------- */
+/* -------------------- Golden Coil badge -------------------- */
 function showGoldenCoil(confluence) {
   return confluence?.invalid !== true && confluence?.flags?.goldenCoil === true;
 }
 
-/* -------------------- fetch helper (legacy, kept) -------------------- */
+/* -------------------- fetch helper -------------------- */
 async function safeFetchJson(url, opts = {}) {
   const attempt = async () => {
     const res = await fetch(url, {
@@ -266,13 +216,13 @@ async function safeFetchJson(url, opts = {}) {
 
   try {
     return await attempt();
-  } catch (e1) {
+  } catch {
     await new Promise((r) => setTimeout(r, RETRY_DELAY_MS));
     return await attempt();
   }
 }
 
-/* -------------------- GO fetch (scalp-status) -------------------- */
+/* -------------------- GO fetch -------------------- */
 async function safeFetchGo(url, { signal } = {}) {
   const res = await fetch(url, {
     cache: "no-store",
@@ -332,14 +282,14 @@ function GoPillBig({ go }) {
     ? "COOLDOWN"
     : "WAIT";
 
-  const tipParts = [];
-  tipParts.push(`signal=${String(signal)}`);
-  tipParts.push(`direction=${dir || "—"}`);
-  tipParts.push(`triggerType=${trig}`);
-  tipParts.push(`triggerLine=${Number.isFinite(line) ? fmt2(line) : "—"}`);
-  tipParts.push(`atUtc=${atUtc || "—"}`);
-  tipParts.push(`cooldownUntilMs=${cooldownUntilMs || "—"}`);
-  const title = tipParts.join(" | ");
+  const title = [
+    `signal=${String(signal)}`,
+    `direction=${dir || "—"}`,
+    `triggerType=${trig}`,
+    `triggerLine=${Number.isFinite(line) ? fmt2(line) : "—"}`,
+    `atUtc=${atUtc || "—"}`,
+    `cooldownUntilMs=${cooldownUntilMs || "—"}`,
+  ].join(" | ");
 
   return (
     <span
@@ -349,15 +299,22 @@ function GoPillBig({ go }) {
         flexDirection: "column",
         justifyContent: "center",
         gap: 3,
-        padding: "9px 13px",
+        padding: "8px 12px",
         borderRadius: 10,
         background: bg,
         border,
         boxShadow: signal ? "0 0 14px rgba(34,197,94,.35)" : "none",
-        minWidth: 150,
+        minWidth: 122,
       }}
     >
-      <span style={{ fontWeight: 900, fontSize: FS.small, lineHeight: "14px", color }}>
+      <span
+        style={{
+          fontWeight: 900,
+          fontSize: FS.pill,
+          lineHeight: "12px",
+          color,
+        }}
+      >
         {mainText}
       </span>
       <span
@@ -476,12 +433,8 @@ function extractMomentum(node, snapshot) {
     alignment: String(m?.alignment || "MIXED").toUpperCase(),
     compression: {
       active: m?.compression?.active === true,
-      bars: Number.isFinite(Number(m?.compression?.bars))
-        ? Number(m.compression.bars)
-        : 0,
-      width: Number.isFinite(Number(m?.compression?.width))
-        ? Number(m.compression.width)
-        : 0,
+      bars: Number.isFinite(Number(m?.compression?.bars)) ? Number(m.compression.bars) : 0,
+      width: Number.isFinite(Number(m?.compression?.width)) ? Number(m.compression.width) : 0,
     },
     momentumState: String(m?.momentumState || "UNKNOWN").toUpperCase(),
     compressionSignal: {
@@ -497,19 +450,11 @@ function extractMomentum(node, snapshot) {
       early: m?.compressionSignal?.early === true,
     },
     slope: {
-      smi10m: Number.isFinite(Number(m?.slope?.smi10m))
-        ? Number(m.slope.smi10m)
-        : 0,
-      signal10m: Number.isFinite(Number(m?.slope?.signal10m))
-        ? Number(m.slope.signal10m)
-        : 0,
+      smi10m: Number.isFinite(Number(m?.slope?.smi10m)) ? Number(m.slope.smi10m) : 0,
+      signal10m: Number.isFinite(Number(m?.slope?.signal10m)) ? Number(m.slope.signal10m) : 0,
       expanding: m?.slope?.expanding === true,
-      widthNow: Number.isFinite(Number(m?.slope?.widthNow))
-        ? Number(m.slope.widthNow)
-        : 0,
-      widthPrev: Number.isFinite(Number(m?.slope?.widthPrev))
-        ? Number(m.slope.widthPrev)
-        : 0,
+      widthNow: Number.isFinite(Number(m?.slope?.widthNow)) ? Number(m.slope.widthNow) : 0,
+      widthPrev: Number.isFinite(Number(m?.slope?.widthPrev)) ? Number(m.slope.widthPrev) : 0,
     },
   };
 }
@@ -558,7 +503,7 @@ function permLabel(permission) {
   return "ENTRIES: UNKNOWN";
 }
 
-/* -------------------- Engine 3/4 C-level helpers -------------------- */
+/* -------------------- Engine 3/4 helpers -------------------- */
 function volRegimeFromScore(volumeScore, flags = {}) {
   const vs = Number(volumeScore);
   if (flags?.liquidityTrap) return "TRAP_RISK";
@@ -621,7 +566,7 @@ function btn() {
     color: "#e5e7eb",
     border: "1px solid #2a2a2a",
     borderRadius: 10,
-    padding: "7px 12px",
+    padding: "6px 11px",
     fontSize: FS.button,
     fontWeight: 900,
     cursor: "pointer",
@@ -632,12 +577,6 @@ function btn() {
 /* -------------------- open tabs -------------------- */
 function openFullStrategies(symbol = "SPY") {
   const url = `/strategies-full?symbol=${encodeURIComponent(symbol)}`;
-  window.open(url, "_blank", "noopener,noreferrer");
-}
-
-// kept for compatibility (even if unused right now)
-function openFullChart(symbol = "SPY", tf = "10m") {
-  const url = `/chart?symbol=${encodeURIComponent(symbol)}&tf=${encodeURIComponent(tf)}`;
   window.open(url, "_blank", "noopener,noreferrer");
 }
 
@@ -664,12 +603,22 @@ function MiniRow({ label, left, right, tone = "muted" }) {
     <div
       style={{
         display: "grid",
-        gridTemplateColumns: "104px 1fr auto",
+        gridTemplateColumns: "86px 1fr auto",
         gap: 8,
         alignItems: "center",
       }}
     >
-      <div style={{ color: "#9ca3af", fontSize: FS.tiny, fontWeight: 900 }}>{label}</div>
+      <div
+        style={{
+          color: "#9ca3af",
+          fontSize: FS.tiny,
+          fontWeight: 900,
+          lineHeight: LH.normal,
+        }}
+      >
+        {label}
+      </div>
+
       <div
         style={{
           color: "#cbd5e1",
@@ -678,20 +627,26 @@ function MiniRow({ label, left, right, tone = "muted" }) {
           whiteSpace: "nowrap",
           overflow: "hidden",
           textOverflow: "ellipsis",
+          lineHeight: LH.normal,
         }}
       >
         {left}
       </div>
+
       <span
         style={{
-          fontSize: FS.micro,
-          fontWeight: 900,
-          padding: "4px 8px",
+          fontSize: FS.pill,
+          fontWeight: 1000,
+          lineHeight: 1.1,
+          padding: "5px 10px",
           borderRadius: 999,
           border: `1px solid ${pill.borderColor}`,
           background: pill.background,
           color: pill.color,
           whiteSpace: "nowrap",
+          minWidth: 84,
+          textAlign: "center",
+          boxSizing: "border-box",
         }}
       >
         {right}
@@ -789,12 +744,12 @@ function MomentumPanel({ momentum }) {
       style={{
         border: "1px solid #1f2937",
         borderRadius: 12,
-        padding: 12,
+        padding: 10,
         background: "#0b0b0b",
         fontSize: FS.small,
         display: "flex",
         flexDirection: "column",
-        gap: 9,
+        gap: 8,
       }}
     >
       <div style={{ fontWeight: 1000, color: "#93c5fd", fontSize: FS.section }}>
@@ -860,42 +815,35 @@ function StrategySnapshotPanel({ engine2 }) {
       style={{
         border: "1px solid #1f2937",
         borderRadius: 12,
-        padding: 12,
+        padding: 10,
         background: "#0b0b0b",
         fontSize: FS.small,
         display: "flex",
         flexDirection: "column",
-        gap: 7,
+        gap: 6,
       }}
     >
       <div style={{ fontWeight: 1000, color: "#93c5fd", fontSize: FS.section }}>
         STRATEGY SNAPSHOT
       </div>
-      <div style={{ fontSize: FS.small }}>
+      <div style={{ fontSize: FS.small, lineHeight: LH.normal }}>
         <b>Wave Phase:</b> {engine2?.phase || "—"}
       </div>
-      <div style={{ fontSize: FS.small }}>
-        <b>Fib Score:</b>{" "}
-        {Number.isFinite(engine2?.fibScore) ? `${engine2.fibScore}/20` : "—"}
+      <div style={{ fontSize: FS.small, lineHeight: LH.normal }}>
+        <b>Fib Score:</b> {Number.isFinite(engine2?.fibScore) ? `${engine2.fibScore}/20` : "—"}
       </div>
-      <div style={{ fontSize: FS.small }}>
+      <div style={{ fontSize: FS.small, lineHeight: LH.normal }}>
         <b>Invalidated:</b> {engine2?.invalidated ? "YES ❌" : "NO"}
       </div>
-      <div style={{ fontSize: FS.small }}>
+      <div style={{ fontSize: FS.small, lineHeight: LH.normal }}>
         <b>Degree:</b> {engine2?.degree || "—"} {engine2?.tf || ""}
       </div>
     </div>
   );
 }
 
-/* -------------------- Engine Stack (right column) -------------------- */
-function EngineStack({
-  confluence,
-  permission,
-  engine2Card,
-  scalpClassifier = null,
-  momentum = null,
-}) {
+/* -------------------- Engine Stack -------------------- */
+function EngineStack({ confluence, permission, engine2Card, scalpClassifier = null, momentum = null }) {
   const loc = confluence?.location?.state || "—";
 
   let e2Text = "NO_ANCHORS";
@@ -908,9 +856,7 @@ function EngineStack({
     const fibScore = Number(engine2Card.fibScore || 0);
     const invalidated = engine2Card.invalidated === true;
 
-    e2Text = `${degree} ${tf} — ${phase} — Fib ${fibScore}/20 — inv:${
-      invalidated ? "true" : "false"
-    }`;
+    e2Text = `${degree} ${tf} — ${phase} — Fib ${fibScore}/20 — inv:${invalidated ? "true" : "false"}`;
 
     if (invalidated) e2Color = "#fca5a5";
     else if (fibScore >= 20) e2Color = "#86efac";
@@ -928,15 +874,13 @@ function EngineStack({
 
   const e3Pos = r.zonePosition ? String(r.zonePosition) : e3FallbackPosition(r.reasonCodes);
   const rejYesNo =
-    r.rejectionCandidate === true
-      ? "REJECTION: YES"
-      : r.rejectionCandidate === false
-      ? "REJECTION: no"
-      : "REJECTION: —";
+    r.rejectionCandidate === true ? "REJECTION: YES"
+    : r.rejectionCandidate === false ? "REJECTION: no"
+    : "REJECTION: —";
 
   const nextDown = r.nextConfirmDown ? shortNextText(r.nextConfirmDown) : null;
   const nextUp = r.nextConfirmUp ? shortNextText(r.nextConfirmUp) : null;
-  const nextTxt = nextDown || nextUp ? `Next: ${nextDown || nextUp}` : e3FallbackNext(stage);
+  const nextTxt = (nextDown || nextUp) ? `Next: ${nextDown || nextUp}` : e3FallbackNext(stage);
 
   const e3Text =
     `${stageIcon} ${stage}${armed && stage !== "FAILURE" ? " ⚡" : ""}` +
@@ -1007,21 +951,19 @@ function EngineStack({
       style={{
         border: "1px solid #1f2937",
         borderRadius: 12,
-        padding: 12,
+        padding: 10,
         background: "#0b0b0b",
         minHeight: 260,
         width: "100%",
         height: "auto",
         display: "grid",
         gridTemplateRows: "auto repeat(7, 1fr)",
-        gap: 10,
+        gap: 9,
         overflow: "visible",
         minWidth: 0,
       }}
     >
-      <div style={{ fontSize: FS.section, fontWeight: 900, color: "#93c5fd" }}>
-        ENGINE STACK
-      </div>
+      <div style={{ fontSize: FS.section, fontWeight: 900, color: "#93c5fd" }}>ENGINE STACK</div>
 
       <StackRow k="E1" v={loc} />
       <StackRow k="E2" v={e2Text} vStyle={{ color: e2Color }} />
@@ -1039,8 +981,8 @@ function StackRow({ k, v, vStyle = {} }) {
     <div
       style={{
         display: "grid",
-        gridTemplateColumns: "38px 1fr",
-        gap: 7,
+        gridTemplateColumns: "34px 1fr",
+        gap: 6,
         alignItems: "center",
         minWidth: 0,
       }}
@@ -1054,7 +996,7 @@ function StackRow({ k, v, vStyle = {} }) {
           overflow: "visible",
           textOverflow: "ellipsis",
           color: "#e5e7eb",
-          lineHeight: 1.25,
+          lineHeight: LH.normal,
           ...vStyle,
         }}
         title={v}
@@ -1065,7 +1007,7 @@ function StackRow({ k, v, vStyle = {} }) {
   );
 }
 
-/* -------------------- Engine 15 local fallback (SAFE) -------------------- */
+/* -------------------- Engine 15 local fallback -------------------- */
 function computeReadinessFallback({ confluence, permissionObj }) {
   const allowed = ["NEGOTIATED", "INSTITUTIONAL"];
   const nearThresholdPts = 1.5;
@@ -1079,11 +1021,7 @@ function computeReadinessFallback({ confluence, permissionObj }) {
   const hi = Number(z?.hi);
 
   const inRange = (p, a, b) =>
-    Number.isFinite(p) &&
-    Number.isFinite(a) &&
-    Number.isFinite(b) &&
-    p >= Math.min(a, b) &&
-    p <= Math.max(a, b);
+    Number.isFinite(p) && Number.isFinite(a) && Number.isFinite(b) && p >= Math.min(a, b) && p <= Math.max(a, b);
   const distPts = (p, a, b) => {
     if (!Number.isFinite(p) || !Number.isFinite(a) || !Number.isFinite(b)) return null;
     if (inRange(p, a, b)) return 0;
@@ -1140,10 +1078,7 @@ function computeReadinessFallback({ confluence, permissionObj }) {
     price,
     zone: {
       allowed,
-      selected:
-        Number.isFinite(lo) && Number.isFinite(hi)
-          ? { id: z?.id || null, type: zoneType, lo, hi, source: z?.source || "ACTIVE" }
-          : null,
+      selected: Number.isFinite(lo) && Number.isFinite(hi) ? { id: z?.id || null, type: zoneType, lo, hi, source: z?.source || "ACTIVE" } : null,
       inAllowedZone,
       nearAllowedZone,
       distancePts: d,
@@ -1155,44 +1090,20 @@ function computeReadinessFallback({ confluence, permissionObj }) {
   };
 }
 
-/* -------------------- BIG Readiness Bar (Engine 15) -------------------- */
+/* -------------------- Readiness Bar -------------------- */
 function readinessStyle(state) {
   const s = String(state || "WAIT").toUpperCase();
-  if (s === "CONFIRMED")
-    return {
-      bg: "linear-gradient(135deg,#22c55e,#16a34a)",
-      fg: "#06110a",
-      border: "1px solid rgba(255,255,255,.22)",
-    };
-  if (s === "READY")
-    return {
-      bg: "linear-gradient(135deg,#a3e635,#65a30d)",
-      fg: "#0b1220",
-      border: "1px solid rgba(255,255,255,.18)",
-    };
-  if (s === "ARMING")
-    return {
-      bg: "linear-gradient(135deg,#fbbf24,#f59e0b)",
-      fg: "#0b1220",
-      border: "1px solid rgba(255,255,255,.18)",
-    };
-  if (s === "NEAR")
-    return {
-      bg: "linear-gradient(135deg,#60a5fa,#3b82f6)",
-      fg: "#071423",
-      border: "1px solid rgba(255,255,255,.18)",
-    };
+  if (s === "CONFIRMED") return { bg: "linear-gradient(135deg,#22c55e,#16a34a)", fg: "#06110a", border: "1px solid rgba(255,255,255,.22)" };
+  if (s === "READY") return { bg: "linear-gradient(135deg,#a3e635,#65a30d)", fg: "#0b1220", border: "1px solid rgba(255,255,255,.18)" };
+  if (s === "ARMING") return { bg: "linear-gradient(135deg,#fbbf24,#f59e0b)", fg: "#0b1220", border: "1px solid rgba(255,255,255,.18)" };
+  if (s === "NEAR") return { bg: "linear-gradient(135deg,#60a5fa,#3b82f6)", fg: "#071423", border: "1px solid rgba(255,255,255,.18)" };
   return { bg: "#111827", fg: "#e5e7eb", border: "1px solid #334155" };
 }
 
 function ReadinessBar({ readinessPack }) {
   const state = readinessPack?.readiness?.state || "WAIT";
-  const rc = Array.isArray(readinessPack?.readiness?.reasonCodes)
-    ? readinessPack.readiness.reasonCodes
-    : [];
-  const next = Array.isArray(readinessPack?.readiness?.next)
-    ? readinessPack.readiness.next
-    : [];
+  const rc = Array.isArray(readinessPack?.readiness?.reasonCodes) ? readinessPack.readiness.reasonCodes : [];
+  const next = Array.isArray(readinessPack?.readiness?.next) ? readinessPack.readiness.next : [];
 
   const zone = readinessPack?.zone || {};
   const dist = zone?.distancePts;
@@ -1204,7 +1115,7 @@ function ReadinessBar({ readinessPack }) {
     <div
       style={{
         borderRadius: 12,
-        padding: 11,
+        padding: 10,
         background: style.bg,
         border: style.border,
         boxShadow: "0 0 18px rgba(0,0,0,.35)",
@@ -1227,14 +1138,7 @@ function ReadinessBar({ readinessPack }) {
       </div>
 
       <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-        <div
-          style={{
-            fontWeight: 1000,
-            fontSize: FS.readinessState,
-            lineHeight: "20px",
-            color: style.fg,
-          }}
-        >
+        <div style={{ fontWeight: 1000, fontSize: FS.readinessState, lineHeight: "18px", color: style.fg }}>
           {String(state).toUpperCase()}
         </div>
 
@@ -1267,7 +1171,7 @@ function ReadinessBar({ readinessPack }) {
         <div style={{ fontSize: FS.micro, fontWeight: 1000, color: style.fg, opacity: 0.9 }}>
           NEXT
         </div>
-        <div style={{ fontSize: FS.tiny, fontWeight: 900, color: style.fg, opacity: 0.95 }}>
+        <div style={{ fontSize: FS.micro, fontWeight: 900, color: style.fg, opacity: 0.95 }}>
           {next[0] || "—"}
         </div>
       </div>
@@ -1281,24 +1185,9 @@ export default function RowStrategies() {
 
   const STRATS = useMemo(
     () => [
-      {
-        id: "SCALP",
-        name: "Scalp — Minor Intraday",
-        tf: "10m",
-        sub: "10m primary • 1h gate",
-      },
-      {
-        id: "MINOR",
-        name: "Minor — Swing",
-        tf: "1h",
-        sub: "1h primary • 4h confirm",
-      },
-      {
-        id: "INTERMEDIATE",
-        name: "Intermediate — Long",
-        tf: "4h",
-        sub: "4h primary • EOD gate",
-      },
+      { id: "SCALP", name: "Scalp — Minor Intraday", tf: "10m", sub: "10m primary • 1h gate" },
+      { id: "MINOR", name: "Minor — Swing", tf: "1h", sub: "1h primary • 4h confirm" },
+      { id: "INTERMEDIATE", name: "Intermediate — Long", tf: "4h", sub: "4h primary • EOD gate" },
     ],
     []
   );
@@ -1388,7 +1277,7 @@ export default function RowStrategies() {
                 border: active === s.id ? "1px solid #3b82f6" : "1px solid #2b2b2b",
                 boxShadow: active === s.id ? "0 0 0 1px #3b82f6 inset" : "none",
                 borderRadius: 10,
-                padding: "7px 11px",
+                padding: "6px 10px",
                 fontWeight: 1000,
                 fontSize: FS.micro,
                 cursor: "pointer",
@@ -1401,25 +1290,15 @@ export default function RowStrategies() {
 
         <div className="spacer" />
 
-        <div
-          style={{
-            color: "#9ca3af",
-            fontSize: FS.tiny,
-            display: "flex",
-            gap: 12,
-            flexWrap: "wrap",
-          }}
-        >
+        <div style={{ color: "#9ca3af", fontSize: FS.tiny, display: "flex", gap: 12, flexWrap: "wrap" }}>
           <span>
             Poll: <b>{Math.round(POLL_MS / 1000)}s</b>
           </span>
           <span>
-            Frontend fetch:{" "}
-            <b style={{ marginLeft: 4 }}>{lastFetch ? toAZ(lastFetch, true) : "—"}</b>
+            Frontend fetch: <b style={{ marginLeft: 4 }}>{lastFetch ? toAZ(lastFetch, true) : "—"}</b>
           </span>
           <span>
-            Backend snapshot:{" "}
-            <b style={{ marginLeft: 4 }}>{snapshotTime(snapshot)}</b>
+            Backend snapshot: <b style={{ marginLeft: 4 }}>{snapshotTime(snapshot)}</b>
           </span>
           <span>
             Build: <b style={{ marginLeft: 4 }}>{toAZ(BUILD_STAMP, true)}</b>
@@ -1450,7 +1329,9 @@ export default function RowStrategies() {
           const momentum = extractMomentum(node, snapshot);
 
           const engine15Stored =
-            node?.engine15 || snapshot?.engine15?.byStrategy?.[stratKey] || null;
+            node?.engine15 ||
+            snapshot?.engine15?.byStrategy?.[stratKey] ||
+            null;
 
           const readinessPack =
             engine15Stored && engine15Stored.readiness
@@ -1459,9 +1340,7 @@ export default function RowStrategies() {
 
           const fresh = minutesAgo(lastFetch) <= 1.5;
           const liveStatus = err ? "red" : fresh ? "green" : "yellow";
-          const liveTip = err
-            ? `Error: ${err}`
-            : `Last snapshot: ${lastFetch ? toAZ(lastFetch, true) : "—"}`;
+          const liveTip = err ? `Error: ${err}` : `Last snapshot: ${lastFetch ? toAZ(lastFetch, true) : "—"}`;
 
           const score = clamp100(confluence?.scores?.total ?? 0);
           const label = confluence?.scores?.label || grade(score);
@@ -1480,12 +1359,8 @@ export default function RowStrategies() {
           if (Number.isFinite(targets.exitTarget)) {
             exitTxt = fmt2(targets.exitTarget);
           } else {
-            const hi = Number.isFinite(targets.exitTargetHi)
-              ? `Hi ${fmt2(targets.exitTargetHi)}`
-              : null;
-            const lo = Number.isFinite(targets.exitTargetLo)
-              ? `Lo ${fmt2(targets.exitTargetLo)}`
-              : null;
+            const hi = Number.isFinite(targets.exitTargetHi) ? `Hi ${fmt2(targets.exitTargetHi)}` : null;
+            const lo = Number.isFinite(targets.exitTargetLo) ? `Lo ${fmt2(targets.exitTargetLo)}` : null;
             exitTxt = [hi, lo].filter(Boolean).join(" • ") || "—";
           }
 
@@ -1509,10 +1384,10 @@ export default function RowStrategies() {
                 padding: CARD_PAD,
                 color: "#e5e7eb",
                 boxShadow: activeGlow,
-                minHeight: 390,
+                minHeight: 360,
                 display: "flex",
                 flexDirection: "column",
-                gap: 10,
+                gap: 9,
                 minWidth: 0,
                 overflow: "hidden",
               }}
@@ -1522,7 +1397,7 @@ export default function RowStrategies() {
               <div
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "minmax(0,1fr) clamp(270px, 29vw, 330px)",
+                  gridTemplateColumns: "minmax(0,1fr) clamp(250px, 27vw, 300px)",
                   gap: 10,
                   alignItems: "start",
                   minWidth: 0,
@@ -1530,38 +1405,16 @@ export default function RowStrategies() {
               >
                 {/* LEFT */}
                 <div style={{ minWidth: 0 }}>
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "flex-start",
-                      justifyContent: "space-between",
-                      gap: 10,
-                    }}
-                  >
-                    <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 8,
-                          flexWrap: "wrap",
-                        }}
-                      >
-                        <div
-                          style={{
-                            fontWeight: 1000,
-                            fontSize: FS.title,
-                            lineHeight: "19px",
-                          }}
-                        >
-                          {s.name}
-                        </div>
+                  <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10 }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                        <div style={{ fontWeight: 1000, fontSize: FS.title, lineHeight: "17px" }}>{s.name}</div>
 
                         <span
                           style={{
-                            fontSize: FS.micro,
+                            fontSize: FS.pill,
                             fontWeight: 1000,
-                            padding: PILL_PAD,
+                            padding: "5px 10px",
                             borderRadius: 999,
                             whiteSpace: "nowrap",
                             ...permStyle(perm),
@@ -1576,8 +1429,8 @@ export default function RowStrategies() {
                               background: "linear-gradient(135deg,#ffb703,#ff8800)",
                               color: "#1a1a1a",
                               fontWeight: 1000,
-                              fontSize: FS.micro,
-                              padding: PILL_PAD,
+                              fontSize: FS.pill,
+                              padding: "5px 10px",
                               borderRadius: 8,
                               boxShadow: "0 0 10px rgba(255,183,3,.55)",
                               border: "1px solid rgba(255,255,255,.18)",
@@ -1603,20 +1456,18 @@ export default function RowStrategies() {
                   <div
                     style={{
                       display: "grid",
-                      gridTemplateColumns: "52px 1fr 46px",
+                      gridTemplateColumns: "44px 1fr 40px",
                       alignItems: "center",
                       gap: 8,
-                      marginTop: 9,
+                      marginTop: 8,
                     }}
                   >
-                    <div style={{ color: "#9ca3af", fontSize: FS.micro, fontWeight: 1000 }}>
-                      Score
-                    </div>
+                    <div style={{ color: "#9ca3af", fontSize: FS.micro, fontWeight: 1000 }}>Score</div>
                     <div
                       style={{
                         background: "#1f2937",
                         borderRadius: 8,
-                        height: 9,
+                        height: 8,
                         overflow: "hidden",
                         border: "1px solid #334155",
                       }}
@@ -1630,20 +1481,10 @@ export default function RowStrategies() {
                         }}
                       />
                     </div>
-                    <div style={{ textAlign: "right", fontWeight: 1000, fontSize: FS.small }}>
-                      {Math.round(score)}
-                    </div>
+                    <div style={{ textAlign: "right", fontWeight: 1000, fontSize: FS.small }}>{Math.round(score)}</div>
                   </div>
 
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      gap: 10,
-                      fontSize: FS.tiny,
-                      color: "#cbd5e1",
-                    }}
-                  >
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: 10, fontSize: FS.tiny, color: "#cbd5e1" }}>
                     <div>
                       <span style={{ color: "#9ca3af", fontWeight: 900 }}>Label:</span> {label || "—"}{" "}
                       <span style={{ color: "#9ca3af" }}>(A+≥90 A≥80 B≥70 C≥60)</span>
@@ -1653,24 +1494,23 @@ export default function RowStrategies() {
                     </div>
                   </div>
 
-                  <div style={{ display: "grid", gap: 5, marginTop: 7 }}>
-                    <div style={{ fontSize: FS.body, color: "#cbd5e1" }}>
+                  <div style={{ display: "grid", gap: 4, marginTop: 6 }}>
+                    <div style={{ fontSize: FS.small, color: "#cbd5e1", lineHeight: LH.normal }}>
                       <b>Entry Target:</b> {entryTxt}
                     </div>
-                    <div style={{ fontSize: FS.body, color: "#cbd5e1" }}>
+                    <div style={{ fontSize: FS.small, color: "#cbd5e1", lineHeight: LH.normal }}>
                       <b>Exit Target:</b> {exitTxt}
                     </div>
                   </div>
 
-                  <div style={{ display: "grid", gap: 7, marginTop: 7 }}>
-                    <div style={{ fontSize: FS.body, color: "#cbd5e1", lineHeight: 1.3 }}>
+                  <div style={{ display: "grid", gap: 6, marginTop: 6 }}>
+                    <div style={{ fontSize: FS.small, color: "#cbd5e1", lineHeight: LH.normal }}>
                       <b>Active Zone:</b>{" "}
                       {zone?.zoneType ? (
                         <>
                           <span style={{ color: "#fbbf24", fontWeight: 1000 }}>{zone.zoneType}</span>{" "}
                           <span style={{ color: "#94a3b8" }}>
-                            {Number.isFinite(zone.lo) ? fmt2(zone.lo) : "—"}–
-                            {Number.isFinite(zone.hi) ? fmt2(zone.hi) : "—"}
+                            {Number.isFinite(zone.lo) ? fmt2(zone.lo) : "—"}–{Number.isFinite(zone.hi) ? fmt2(zone.hi) : "—"}
                           </span>
                         </>
                       ) : (
@@ -1681,21 +1521,13 @@ export default function RowStrategies() {
                     <MiniRow
                       label="Compression"
                       left={`${compression.active ? "ACTIVE" : "OFF"} • ${compression.tier} • ${compression.state}`}
-                      right={`score ${
-                        Number.isFinite(compression.score) ? Math.round(compression.score) : "—"
-                      } • ATR ratio ${
-                        Number.isFinite(compression.widthAtrRatio)
-                          ? compression.widthAtrRatio.toFixed(2)
-                          : "—"
-                      }`}
+                      right={`score ${Number.isFinite(compression.score) ? Math.round(compression.score) : "—"} • ATR`}
                       tone={compression.active ? "warn" : "muted"}
                     />
 
                     <MiniRow
                       label="Volume"
-                      left={`${volume.state || "—"} • score ${
-                        Number.isFinite(volume.volumeScore) ? Math.round(volume.volumeScore) : "—"
-                      }`}
+                      left={`${volume.state || "—"} • score ${Number.isFinite(volume.volumeScore) ? Math.round(volume.volumeScore) : "—"}`}
                       right={`${volume.volumeConfirmed ? "CONFIRMED" : "unconfirmed"}`}
                       tone={volume.volumeConfirmed ? "ok" : "muted"}
                     />
@@ -1718,9 +1550,7 @@ export default function RowStrategies() {
                         <MiniRow
                           label="Confidence"
                           left={`score ${scalpClassifier.moveScore}`}
-                          right={
-                            scalpClassifier.moveType === "NONE" ? "no classifier" : "live E5B"
-                          }
+                          right={scalpClassifier.moveType === "NONE" ? "no classifier" : "live E5B"}
                           tone={
                             Number.isFinite(Number(scalpClassifier.moveScore)) &&
                             Number(scalpClassifier.moveScore) >= 60
@@ -1735,11 +1565,7 @@ export default function RowStrategies() {
                         <MiniRow
                           label="Waiting"
                           left={scalpClassifier.waitingBecause}
-                          right={
-                            scalpClassifier.moveDirection === "—"
-                              ? "—"
-                              : `bias ${scalpClassifier.moveDirection}`
-                          }
+                          right={scalpClassifier.moveDirection === "—" ? "—" : `bias ${scalpClassifier.moveDirection}`}
                           tone="muted"
                         />
                       </>
@@ -1763,11 +1589,11 @@ export default function RowStrategies() {
 
                   <div
                     style={{
-                      marginTop: 7,
-                      fontSize: FS.body,
+                      marginTop: 6,
+                      fontSize: FS.small,
                       color: "#94a3b8",
                       fontWeight: 900,
-                      lineHeight: 1.35,
+                      lineHeight: LH.normal,
                     }}
                   >
                     {showScalpClassifier && scalpClassifier.waitingBecause !== "—"
@@ -1775,14 +1601,7 @@ export default function RowStrategies() {
                       : nextTriggerText(confluence)}
                   </div>
 
-                  <div
-                    style={{
-                      marginTop: 10,
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: 10,
-                    }}
-                  >
+                  <div style={{ marginTop: 9, display: "flex", flexDirection: "column", gap: 9 }}>
                     <StrategySnapshotPanel engine2={node?.engine2 || null} />
                     <MomentumPanel momentum={momentum} />
                   </div>
@@ -1800,15 +1619,7 @@ export default function RowStrategies() {
                 </div>
               </div>
 
-              <div
-                style={{
-                  marginTop: "auto",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  gap: 8,
-                }}
-              >
+              <div style={{ marginTop: "auto", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
                 <span
                   style={{
                     background: "#0b1220",
