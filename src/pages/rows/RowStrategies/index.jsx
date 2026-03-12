@@ -603,7 +603,7 @@ function MiniRow({ label, left, right, tone = "muted" }) {
     <div
       style={{
         display: "grid",
-        gridTemplateColumns: "86px 1fr auto",
+        gridTemplateColumns: "86px 1fr 120px",
         gap: 8,
         alignItems: "center",
       }}
@@ -635,25 +635,26 @@ function MiniRow({ label, left, right, tone = "muted" }) {
 
       <span
         style={{
-          fontSize: FS.pill,
-          fontWeight: 1000,
-          lineHeight: 1.1,
-          padding: "5px 10px",
-          borderRadius: 999,
-          border: `1px solid ${pill.borderColor}`,
-          background: pill.background,
-          color: pill.color,
-          whiteSpace: "nowrap",
-          minWidth: 84,
-          textAlign: "center",
-          boxSizing: "border-box",
-        }}
-      >
-        {right}
-      </span>
-    </div>
-  );
-}
+        fontSize: 12,
+        fontWeight: 1000,
+        lineHeight: 1.15,
+        padding: "6px 12px",
+        borderRadius: 999,
+        border: `1px solid ${pill.borderColor}`,
+        background: pill.background,
+        color: pill.color,
+        whiteSpace: "nowrap",
+        minWidth: 110,
+        minHeight: 28,
+        textAlign: "center",
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        boxSizing: "border-box",
+      }}
+    >
+      {right}
+    </span>
 
 /* -------------------- Momentum helpers / UI -------------------- */
 function dirTone(direction) {
