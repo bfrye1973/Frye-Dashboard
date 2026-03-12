@@ -34,21 +34,16 @@ export default function NewDashboard() {
 
       {/* Row 3 */}
       <section id="row-3" className="panel">
-        <RowEngineLights />
+        <RowIndexSectors />
       </section>
 
       {/* Row 4 */}
       <section id="row-4" className="panel">
-        <RowIndexSectors />
-      </section>
-
-      {/* Row 5 */}
-      <section id="row-5" className="panel">
         <RowStrategies />
       </section>
 
-      {/* Row 6 — embedded chart (remount on selection change) */}
-      <section id="row-6" className="panel row6-shell">
+      {/* Row 5 — embedded chart (remount on selection change) */}
+      <section id="row-5" className="panel row6-shell">
         <RowChart
           key={`${symbol}-${timeframe}`}
           apiBase={apiBase}
@@ -58,9 +53,14 @@ export default function NewDashboard() {
         />
       </section>
 
+      {/* Row 6 */}
+      <section id="row-6" className="panel">
+        <RowJournal />
+      </section>
+
       {/* Row 7 */}
       <section id="row-7" className="panel">
-        <RowJournal />
+        <RowEngineLights />
       </section>
     </div>
   );
