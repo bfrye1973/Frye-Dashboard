@@ -433,8 +433,12 @@ function extractMomentum(node, snapshot) {
     alignment: String(m?.alignment || "MIXED").toUpperCase(),
     compression: {
       active: m?.compression?.active === true,
-      bars: Number.isFinite(Number(m?.compression?.bars)) ? Number(m.compression.bars) : 0,
-      width: Number.isFinite(Number(m?.compression?.width)) ? Number(m.compression.width) : 0,
+      bars: Number.isFinite(Number(m?.compression?.bars))
+        ? Number(m.compression.bars)
+        : 0,
+      width: Number.isFinite(Number(m?.compression?.width))
+        ? Number(m.compression.width)
+        : 0,
     },
     momentumState: String(m?.momentumState || "UNKNOWN").toUpperCase(),
     compressionSignal: {
@@ -450,11 +454,19 @@ function extractMomentum(node, snapshot) {
       early: m?.compressionSignal?.early === true,
     },
     slope: {
-      smi10m: Number.isFinite(Number(m?.slope?.smi10m)) ? Number(m.slope.smi10m) : 0,
-      signal10m: Number.isFinite(Number(m?.slope?.signal10m)) ? Number(m.slope.signal10m) : 0,
+      smi10m: Number.isFinite(Number(m?.slope?.smi10m))
+        ? Number(m.slope.smi10m)
+        : 0,
+      signal10m: Number.isFinite(Number(m?.slope?.signal10m))
+        ? Number(m.slope.signal10m)
+        : 0,
       expanding: m?.slope?.expanding === true,
-      widthNow: Number.isFinite(Number(m?.slope?.widthNow)) ? Number(m.slope.widthNow) : 0,
-      widthPrev: Number.isFinite(Number(m?.slope?.widthPrev)) ? Number(m.slope.widthPrev) : 0,
+      widthNow: Number.isFinite(Number(m?.slope?.widthNow))
+        ? Number(m.slope.widthNow)
+        : 0,
+      widthPrev: Number.isFinite(Number(m?.slope?.widthPrev))
+        ? Number(m.slope.widthPrev)
+        : 0,
     },
   };
 }
@@ -487,13 +499,32 @@ function nextTriggerText(confluence) {
 
 /* -------------------- permission pill styling -------------------- */
 function permStyle(permission) {
-  if (permission === "ALLOW")
-    return { background: "#22c55e", color: "#0b1220", border: "2px solid #0c1320" };
-  if (permission === "REDUCE")
-    return { background: "#fbbf24", color: "#0b1220", border: "2px solid #0c1320" };
-  if (permission === "STAND_DOWN")
-    return { background: "#ef4444", color: "#0b1220", border: "2px solid #0c1320" };
-  return { background: "#0b0b0b", color: "#93c5fd", border: "1px solid #2b2b2b" };
+  if (permission === "ALLOW") {
+    return {
+      background: "#22c55e",
+      color: "#0b1220",
+      border: "2px solid #0c1320",
+    };
+  }
+  if (permission === "REDUCE") {
+    return {
+      background: "#fbbf24",
+      color: "#0b1220",
+      border: "2px solid #0c1320",
+    };
+  }
+  if (permission === "STAND_DOWN") {
+    return {
+      background: "#ef4444",
+      color: "#0b1220",
+      border: "2px solid #0c1320",
+    };
+  }
+  return {
+    background: "#0b0b0b",
+    color: "#93c5fd",
+    border: "1px solid #2b2b2b",
+  };
 }
 
 function permLabel(permission) {
@@ -523,7 +554,7 @@ function volPressureFromFlags(flags = {}) {
 
 function shortNextText(s = "") {
   if (!s) return "—";
-  return s.length > 54 ? s.slice(0, 51) + "…" : s;
+  return s.length > 54 ? `${s.slice(0, 51)}…` : s;
 }
 
 function e3FallbackPosition(reasonCodes = []) {
@@ -597,6 +628,7 @@ function MiniRow({ label, left, right, tone = "muted" }) {
 
   const toneMap =
     tone === "ok" ? "OK" : tone === "warn" ? "WARN" : tone === "danger" ? "DANGER" : "MUTED";
+
   const pill = t(toneMap);
 
   return (
@@ -635,26 +667,29 @@ function MiniRow({ label, left, right, tone = "muted" }) {
 
       <span
         style={{
-        fontSize: 12,
-        fontWeight: 1000,
-        lineHeight: 1.15,
-        padding: "6px 12px",
-        borderRadius: 999,
-        border: `1px solid ${pill.borderColor}`,
-        background: pill.background,
-        color: pill.color,
-        whiteSpace: "nowrap",
-        minWidth: 110,
-        minHeight: 28,
-        textAlign: "center",
-        display: "inline-flex",
-        alignItems: "center",
-        justifyContent: "center",
-        boxSizing: "border-box",
-      }}
-    >
-      {right}
-    </span>
+          fontSize: 12,
+          fontWeight: 1000,
+          lineHeight: 1.15,
+          padding: "6px 12px",
+          borderRadius: 999,
+          border: `1px solid ${pill.borderColor}`,
+          background: pill.background,
+          color: pill.color,
+          whiteSpace: "nowrap",
+          minWidth: 110,
+          minHeight: 28,
+          textAlign: "center",
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+          boxSizing: "border-box",
+        }}
+      >
+        {right}
+      </span>
+    </div>
+  );
+}
 
 /* -------------------- Momentum helpers / UI -------------------- */
 function dirTone(direction) {
@@ -844,7 +879,13 @@ function StrategySnapshotPanel({ engine2 }) {
 }
 
 /* -------------------- Engine Stack -------------------- */
-function EngineStack({ confluence, permission, engine2Card, scalpClassifier = null, momentum = null }) {
+function EngineStack({
+  confluence,
+  permission,
+  engine2Card,
+  scalpClassifier = null,
+  momentum = null,
+}) {
   const loc = confluence?.location?.state || "—";
 
   let e2Text = "NO_ANCHORS";
@@ -875,13 +916,15 @@ function EngineStack({ confluence, permission, engine2Card, scalpClassifier = nu
 
   const e3Pos = r.zonePosition ? String(r.zonePosition) : e3FallbackPosition(r.reasonCodes);
   const rejYesNo =
-    r.rejectionCandidate === true ? "REJECTION: YES"
-    : r.rejectionCandidate === false ? "REJECTION: no"
-    : "REJECTION: —";
+    r.rejectionCandidate === true
+      ? "REJECTION: YES"
+      : r.rejectionCandidate === false
+      ? "REJECTION: no"
+      : "REJECTION: —";
 
   const nextDown = r.nextConfirmDown ? shortNextText(r.nextConfirmDown) : null;
   const nextUp = r.nextConfirmUp ? shortNextText(r.nextConfirmUp) : null;
-  const nextTxt = (nextDown || nextUp) ? `Next: ${nextDown || nextUp}` : e3FallbackNext(stage);
+  const nextTxt = nextDown || nextUp ? `Next: ${nextDown || nextUp}` : e3FallbackNext(stage);
 
   const e3Text =
     `${stageIcon} ${stage}${armed && stage !== "FAILURE" ? " ⚡" : ""}` +
@@ -964,7 +1007,9 @@ function EngineStack({ confluence, permission, engine2Card, scalpClassifier = nu
         minWidth: 0,
       }}
     >
-      <div style={{ fontSize: FS.section, fontWeight: 900, color: "#93c5fd" }}>ENGINE STACK</div>
+      <div style={{ fontSize: FS.section, fontWeight: 900, color: "#93c5fd" }}>
+        ENGINE STACK
+      </div>
 
       <StackRow k="E1" v={loc} />
       <StackRow k="E2" v={e2Text} vStyle={{ color: e2Color }} />
@@ -1022,7 +1067,12 @@ function computeReadinessFallback({ confluence, permissionObj }) {
   const hi = Number(z?.hi);
 
   const inRange = (p, a, b) =>
-    Number.isFinite(p) && Number.isFinite(a) && Number.isFinite(b) && p >= Math.min(a, b) && p <= Math.max(a, b);
+    Number.isFinite(p) &&
+    Number.isFinite(a) &&
+    Number.isFinite(b) &&
+    p >= Math.min(a, b) &&
+    p <= Math.max(a, b);
+
   const distPts = (p, a, b) => {
     if (!Number.isFinite(p) || !Number.isFinite(a) || !Number.isFinite(b)) return null;
     if (inRange(p, a, b)) return 0;
@@ -1079,7 +1129,16 @@ function computeReadinessFallback({ confluence, permissionObj }) {
     price,
     zone: {
       allowed,
-      selected: Number.isFinite(lo) && Number.isFinite(hi) ? { id: z?.id || null, type: zoneType, lo, hi, source: z?.source || "ACTIVE" } : null,
+      selected:
+        Number.isFinite(lo) && Number.isFinite(hi)
+          ? {
+              id: z?.id || null,
+              type: zoneType,
+              lo,
+              hi,
+              source: z?.source || "ACTIVE",
+            }
+          : null,
       inAllowedZone,
       nearAllowedZone,
       distancePts: d,
@@ -1094,17 +1153,45 @@ function computeReadinessFallback({ confluence, permissionObj }) {
 /* -------------------- Readiness Bar -------------------- */
 function readinessStyle(state) {
   const s = String(state || "WAIT").toUpperCase();
-  if (s === "CONFIRMED") return { bg: "linear-gradient(135deg,#22c55e,#16a34a)", fg: "#06110a", border: "1px solid rgba(255,255,255,.22)" };
-  if (s === "READY") return { bg: "linear-gradient(135deg,#a3e635,#65a30d)", fg: "#0b1220", border: "1px solid rgba(255,255,255,.18)" };
-  if (s === "ARMING") return { bg: "linear-gradient(135deg,#fbbf24,#f59e0b)", fg: "#0b1220", border: "1px solid rgba(255,255,255,.18)" };
-  if (s === "NEAR") return { bg: "linear-gradient(135deg,#60a5fa,#3b82f6)", fg: "#071423", border: "1px solid rgba(255,255,255,.18)" };
+  if (s === "CONFIRMED") {
+    return {
+      bg: "linear-gradient(135deg,#22c55e,#16a34a)",
+      fg: "#06110a",
+      border: "1px solid rgba(255,255,255,.22)",
+    };
+  }
+  if (s === "READY") {
+    return {
+      bg: "linear-gradient(135deg,#a3e635,#65a30d)",
+      fg: "#0b1220",
+      border: "1px solid rgba(255,255,255,.18)",
+    };
+  }
+  if (s === "ARMING") {
+    return {
+      bg: "linear-gradient(135deg,#fbbf24,#f59e0b)",
+      fg: "#0b1220",
+      border: "1px solid rgba(255,255,255,.18)",
+    };
+  }
+  if (s === "NEAR") {
+    return {
+      bg: "linear-gradient(135deg,#60a5fa,#3b82f6)",
+      fg: "#071423",
+      border: "1px solid rgba(255,255,255,.18)",
+    };
+  }
   return { bg: "#111827", fg: "#e5e7eb", border: "1px solid #334155" };
 }
 
 function ReadinessBar({ readinessPack }) {
   const state = readinessPack?.readiness?.state || "WAIT";
-  const rc = Array.isArray(readinessPack?.readiness?.reasonCodes) ? readinessPack.readiness.reasonCodes : [];
-  const next = Array.isArray(readinessPack?.readiness?.next) ? readinessPack.readiness.next : [];
+  const rc = Array.isArray(readinessPack?.readiness?.reasonCodes)
+    ? readinessPack.readiness.reasonCodes
+    : [];
+  const next = Array.isArray(readinessPack?.readiness?.next)
+    ? readinessPack.readiness.next
+    : [];
 
   const zone = readinessPack?.zone || {};
   const dist = zone?.distancePts;
@@ -1139,7 +1226,14 @@ function ReadinessBar({ readinessPack }) {
       </div>
 
       <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-        <div style={{ fontWeight: 1000, fontSize: FS.readinessState, lineHeight: "18px", color: style.fg }}>
+        <div
+          style={{
+            fontWeight: 1000,
+            fontSize: FS.readinessState,
+            lineHeight: "18px",
+            color: style.fg,
+          }}
+        >
           {String(state).toUpperCase()}
         </div>
 
@@ -1235,12 +1329,13 @@ export default function RowStrategies() {
         const j = await safeFetchGo(SCALP_STATUS_URL(), { signal: controller.signal });
         if (alive) setScalpStatus({ data: j, err: null, last: nowIso() });
       } catch (e) {
-        if (alive)
+        if (alive) {
           setScalpStatus((prev) => ({
             ...prev,
             err: String(e?.message || e),
             last: nowIso(),
           }));
+        }
       } finally {
         clearTimeout(t);
         inFlight = false;
@@ -1291,7 +1386,15 @@ export default function RowStrategies() {
 
         <div className="spacer" />
 
-        <div style={{ color: "#9ca3af", fontSize: FS.tiny, display: "flex", gap: 12, flexWrap: "wrap" }}>
+        <div
+          style={{
+            color: "#9ca3af",
+            fontSize: FS.tiny,
+            display: "flex",
+            gap: 12,
+            flexWrap: "wrap",
+          }}
+        >
           <span>
             Poll: <b>{Math.round(POLL_MS / 1000)}s</b>
           </span>
@@ -1330,9 +1433,7 @@ export default function RowStrategies() {
           const momentum = extractMomentum(node, snapshot);
 
           const engine15Stored =
-            node?.engine15 ||
-            snapshot?.engine15?.byStrategy?.[stratKey] ||
-            null;
+            node?.engine15 || snapshot?.engine15?.byStrategy?.[stratKey] || null;
 
           const readinessPack =
             engine15Stored && engine15Stored.readiness
@@ -1341,7 +1442,9 @@ export default function RowStrategies() {
 
           const fresh = minutesAgo(lastFetch) <= 1.5;
           const liveStatus = err ? "red" : fresh ? "green" : "yellow";
-          const liveTip = err ? `Error: ${err}` : `Last snapshot: ${lastFetch ? toAZ(lastFetch, true) : "—"}`;
+          const liveTip = err
+            ? `Error: ${err}`
+            : `Last snapshot: ${lastFetch ? toAZ(lastFetch, true) : "—"}`;
 
           const score = clamp100(confluence?.scores?.total ?? 0);
           const label = confluence?.scores?.label || grade(score);
@@ -1406,10 +1509,26 @@ export default function RowStrategies() {
               >
                 {/* LEFT */}
                 <div style={{ minWidth: 0 }}>
-                  <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10 }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "flex-start",
+                      justifyContent: "space-between",
+                      gap: 10,
+                    }}
+                  >
                     <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                        <div style={{ fontWeight: 1000, fontSize: FS.title, lineHeight: "17px" }}>{s.name}</div>
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 8,
+                          flexWrap: "wrap",
+                        }}
+                      >
+                        <div style={{ fontWeight: 1000, fontSize: FS.title, lineHeight: "17px" }}>
+                          {s.name}
+                        </div>
 
                         <span
                           style={{
@@ -1463,7 +1582,9 @@ export default function RowStrategies() {
                       marginTop: 8,
                     }}
                   >
-                    <div style={{ color: "#9ca3af", fontSize: FS.micro, fontWeight: 1000 }}>Score</div>
+                    <div style={{ color: "#9ca3af", fontSize: FS.micro, fontWeight: 1000 }}>
+                      Score
+                    </div>
                     <div
                       style={{
                         background: "#1f2937",
@@ -1482,10 +1603,20 @@ export default function RowStrategies() {
                         }}
                       />
                     </div>
-                    <div style={{ textAlign: "right", fontWeight: 1000, fontSize: FS.small }}>{Math.round(score)}</div>
+                    <div style={{ textAlign: "right", fontWeight: 1000, fontSize: FS.small }}>
+                      {Math.round(score)}
+                    </div>
                   </div>
 
-                  <div style={{ display: "flex", justifyContent: "space-between", gap: 10, fontSize: FS.tiny, color: "#cbd5e1" }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      gap: 10,
+                      fontSize: FS.tiny,
+                      color: "#cbd5e1",
+                    }}
+                  >
                     <div>
                       <span style={{ color: "#9ca3af", fontWeight: 900 }}>Label:</span> {label || "—"}{" "}
                       <span style={{ color: "#9ca3af" }}>(A+≥90 A≥80 B≥70 C≥60)</span>
@@ -1511,7 +1642,8 @@ export default function RowStrategies() {
                         <>
                           <span style={{ color: "#fbbf24", fontWeight: 1000 }}>{zone.zoneType}</span>{" "}
                           <span style={{ color: "#94a3b8" }}>
-                            {Number.isFinite(zone.lo) ? fmt2(zone.lo) : "—"}–{Number.isFinite(zone.hi) ? fmt2(zone.hi) : "—"}
+                            {Number.isFinite(zone.lo) ? fmt2(zone.lo) : "—"}–
+                            {Number.isFinite(zone.hi) ? fmt2(zone.hi) : "—"}
                           </span>
                         </>
                       ) : (
@@ -1602,7 +1734,14 @@ export default function RowStrategies() {
                       : nextTriggerText(confluence)}
                   </div>
 
-                  <div style={{ marginTop: 9, display: "flex", flexDirection: "column", gap: 9 }}>
+                  <div
+                    style={{
+                      marginTop: 9,
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 9,
+                    }}
+                  >
                     <StrategySnapshotPanel engine2={node?.engine2 || null} />
                     <MomentumPanel momentum={momentum} />
                   </div>
@@ -1620,7 +1759,15 @@ export default function RowStrategies() {
                 </div>
               </div>
 
-              <div style={{ marginTop: "auto", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+              <div
+                style={{
+                  marginTop: "auto",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 8,
+                }}
+              >
                 <span
                   style={{
                     background: "#0b1220",
