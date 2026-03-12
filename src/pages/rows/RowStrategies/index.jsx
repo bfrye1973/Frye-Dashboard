@@ -49,6 +49,12 @@
 // - Strategy Snapshot and Momentum (E4.5) are on the LEFT side under Waiting
 // - RIGHT side contains Engine Stack only
 // - Preserves existing dashboard size as much as possible
+//
+// ✅ TYPOGRAPHY UPDATE (THIS PASS):
+// - Increases readability across strategy cards without changing data flow
+// - Enlarges body text, engine stack text, snapshot text, momentum text, waiting text
+// - Slightly enlarges titles, subtitles, readiness text, pills, and buttons
+// - Keeps layout/grid structure intact as much as possible
 
 import React, { useEffect, useMemo, useState } from "react";
 import { useSelection } from "../../../context/ModeContext";
@@ -76,6 +82,27 @@ function normalizeApiBase(x) {
 
 const API_BASE = normalizeApiBase(env("REACT_APP_API_BASE", ""));
 const AZ_TZ = "America/Phoenix";
+
+/* -------------------- typography scale -------------------- */
+const FS = {
+  micro: 11,
+  tiny: 12,
+  small: 13,
+  body: 14,
+  bodyStrong: 15,
+  section: 12,
+  subtitle: 14,
+  title: 17,
+  readinessLabel: 13,
+  readinessState: 20,
+  stackKey: 14,
+  stackValue: 14,
+  button: 13,
+};
+
+/* -------------------- spacing helpers -------------------- */
+const PILL_PAD = "5px 10px";
+const CARD_PAD = 12;
 
 // 🔒 Poll cadence (LOCKED)
 const POLL_MS = 20000;
@@ -321,23 +348,23 @@ function GoPillBig({ go }) {
         display: "inline-flex",
         flexDirection: "column",
         justifyContent: "center",
-        gap: 2,
-        padding: "8px 12px",
+        gap: 3,
+        padding: "9px 13px",
         borderRadius: 10,
         background: bg,
         border,
         boxShadow: signal ? "0 0 14px rgba(34,197,94,.35)" : "none",
-        minWidth: 140,
+        minWidth: 150,
       }}
     >
-      <span style={{ fontWeight: 900, fontSize: 14, lineHeight: "14px", color }}>
+      <span style={{ fontWeight: 900, fontSize: FS.small, lineHeight: "14px", color }}>
         {mainText}
       </span>
       <span
         style={{
           fontWeight: 900,
-          fontSize: 10,
-          lineHeight: "10px",
+          fontSize: FS.micro,
+          lineHeight: "11px",
           opacity: 0.95,
           color,
         }}
@@ -449,8 +476,12 @@ function extractMomentum(node, snapshot) {
     alignment: String(m?.alignment || "MIXED").toUpperCase(),
     compression: {
       active: m?.compression?.active === true,
-      bars: Number.isFinite(Number(m?.compression?.bars)) ? Number(m.compression.bars) : 0,
-      width: Number.isFinite(Number(m?.compression?.width)) ? Number(m.compression.width) : 0,
+      bars: Number.isFinite(Number(m?.compression?.bars))
+        ? Number(m.compression.bars)
+        : 0,
+      width: Number.isFinite(Number(m?.compression?.width))
+        ? Number(m.compression.width)
+        : 0,
     },
     momentumState: String(m?.momentumState || "UNKNOWN").toUpperCase(),
     compressionSignal: {
@@ -466,11 +497,19 @@ function extractMomentum(node, snapshot) {
       early: m?.compressionSignal?.early === true,
     },
     slope: {
-      smi10m: Number.isFinite(Number(m?.slope?.smi10m)) ? Number(m.slope.smi10m) : 0,
-      signal10m: Number.isFinite(Number(m?.slope?.signal10m)) ? Number(m.slope.signal10m) : 0,
+      smi10m: Number.isFinite(Number(m?.slope?.smi10m))
+        ? Number(m.slope.smi10m)
+        : 0,
+      signal10m: Number.isFinite(Number(m?.slope?.signal10m))
+        ? Number(m.slope.signal10m)
+        : 0,
       expanding: m?.slope?.expanding === true,
-      widthNow: Number.isFinite(Number(m?.slope?.widthNow)) ? Number(m.slope.widthNow) : 0,
-      widthPrev: Number.isFinite(Number(m?.slope?.widthPrev)) ? Number(m.slope.widthPrev) : 0,
+      widthNow: Number.isFinite(Number(m?.slope?.widthNow))
+        ? Number(m.slope.widthNow)
+        : 0,
+      widthPrev: Number.isFinite(Number(m?.slope?.widthPrev))
+        ? Number(m.slope.widthPrev)
+        : 0,
     },
   };
 }
@@ -582,8 +621,8 @@ function btn() {
     color: "#e5e7eb",
     border: "1px solid #2a2a2a",
     borderRadius: 10,
-    padding: "6px 10px",
-    fontSize: 12,
+    padding: "7px 12px",
+    fontSize: FS.button,
     fontWeight: 900,
     cursor: "pointer",
     whiteSpace: "nowrap",
@@ -622,12 +661,19 @@ function MiniRow({ label, left, right, tone = "muted" }) {
   const pill = t(toneMap);
 
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "92px 1fr auto", gap: 8, alignItems: "center" }}>
-      <div style={{ color: "#9ca3af", fontSize: 11, fontWeight: 900 }}>{label}</div>
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "104px 1fr auto",
+        gap: 8,
+        alignItems: "center",
+      }}
+    >
+      <div style={{ color: "#9ca3af", fontSize: FS.tiny, fontWeight: 900 }}>{label}</div>
       <div
         style={{
           color: "#cbd5e1",
-          fontSize: 12,
+          fontSize: FS.small,
           fontWeight: 800,
           whiteSpace: "nowrap",
           overflow: "hidden",
@@ -638,9 +684,9 @@ function MiniRow({ label, left, right, tone = "muted" }) {
       </div>
       <span
         style={{
-          fontSize: 10,
+          fontSize: FS.micro,
           fontWeight: 900,
-          padding: "3px 8px",
+          padding: "4px 8px",
           borderRadius: 999,
           border: `1px solid ${pill.borderColor}`,
           background: pill.background,
@@ -745,13 +791,15 @@ function MomentumPanel({ momentum }) {
         borderRadius: 12,
         padding: 12,
         background: "#0b0b0b",
-        fontSize: 12,
+        fontSize: FS.small,
         display: "flex",
         flexDirection: "column",
-        gap: 8,
+        gap: 9,
       }}
     >
-      <div style={{ fontWeight: 1000, color: "#93c5fd", fontSize: 11 }}>MOMENTUM (E4.5)</div>
+      <div style={{ fontWeight: 1000, color: "#93c5fd", fontSize: FS.section }}>
+        MOMENTUM (E4.5)
+      </div>
 
       <MiniRow
         label="10m SMI"
@@ -814,23 +862,40 @@ function StrategySnapshotPanel({ engine2 }) {
         borderRadius: 12,
         padding: 12,
         background: "#0b0b0b",
-        fontSize: 12,
+        fontSize: FS.small,
         display: "flex",
         flexDirection: "column",
-        gap: 6,
+        gap: 7,
       }}
     >
-      <div style={{ fontWeight: 1000, color: "#93c5fd", fontSize: 11 }}>STRATEGY SNAPSHOT</div>
-      <div><b>Wave Phase:</b> {engine2?.phase || "—"}</div>
-      <div><b>Fib Score:</b> {Number.isFinite(engine2?.fibScore) ? `${engine2.fibScore}/20` : "—"}</div>
-      <div><b>Invalidated:</b> {engine2?.invalidated ? "YES ❌" : "NO"}</div>
-      <div><b>Degree:</b> {engine2?.degree || "—"} {engine2?.tf || ""}</div>
+      <div style={{ fontWeight: 1000, color: "#93c5fd", fontSize: FS.section }}>
+        STRATEGY SNAPSHOT
+      </div>
+      <div style={{ fontSize: FS.small }}>
+        <b>Wave Phase:</b> {engine2?.phase || "—"}
+      </div>
+      <div style={{ fontSize: FS.small }}>
+        <b>Fib Score:</b>{" "}
+        {Number.isFinite(engine2?.fibScore) ? `${engine2.fibScore}/20` : "—"}
+      </div>
+      <div style={{ fontSize: FS.small }}>
+        <b>Invalidated:</b> {engine2?.invalidated ? "YES ❌" : "NO"}
+      </div>
+      <div style={{ fontSize: FS.small }}>
+        <b>Degree:</b> {engine2?.degree || "—"} {engine2?.tf || ""}
+      </div>
     </div>
   );
 }
 
 /* -------------------- Engine Stack (right column) -------------------- */
-function EngineStack({ confluence, permission, engine2Card, scalpClassifier = null, momentum = null }) {
+function EngineStack({
+  confluence,
+  permission,
+  engine2Card,
+  scalpClassifier = null,
+  momentum = null,
+}) {
   const loc = confluence?.location?.state || "—";
 
   let e2Text = "NO_ANCHORS";
@@ -843,7 +908,9 @@ function EngineStack({ confluence, permission, engine2Card, scalpClassifier = nu
     const fibScore = Number(engine2Card.fibScore || 0);
     const invalidated = engine2Card.invalidated === true;
 
-    e2Text = `${degree} ${tf} — ${phase} — Fib ${fibScore}/20 — inv:${invalidated ? "true" : "false"}`;
+    e2Text = `${degree} ${tf} — ${phase} — Fib ${fibScore}/20 — inv:${
+      invalidated ? "true" : "false"
+    }`;
 
     if (invalidated) e2Color = "#fca5a5";
     else if (fibScore >= 20) e2Color = "#86efac";
@@ -861,13 +928,15 @@ function EngineStack({ confluence, permission, engine2Card, scalpClassifier = nu
 
   const e3Pos = r.zonePosition ? String(r.zonePosition) : e3FallbackPosition(r.reasonCodes);
   const rejYesNo =
-    r.rejectionCandidate === true ? "REJECTION: YES"
-    : r.rejectionCandidate === false ? "REJECTION: no"
-    : "REJECTION: —";
+    r.rejectionCandidate === true
+      ? "REJECTION: YES"
+      : r.rejectionCandidate === false
+      ? "REJECTION: no"
+      : "REJECTION: —";
 
   const nextDown = r.nextConfirmDown ? shortNextText(r.nextConfirmDown) : null;
   const nextUp = r.nextConfirmUp ? shortNextText(r.nextConfirmUp) : null;
-  const nextTxt = (nextDown || nextUp) ? `Next: ${nextDown || nextUp}` : e3FallbackNext(stage);
+  const nextTxt = nextDown || nextUp ? `Next: ${nextDown || nextUp}` : e3FallbackNext(stage);
 
   const e3Text =
     `${stageIcon} ${stage}${armed && stage !== "FAILURE" ? " ⚡" : ""}` +
@@ -950,7 +1019,9 @@ function EngineStack({ confluence, permission, engine2Card, scalpClassifier = nu
         minWidth: 0,
       }}
     >
-      <div style={{ fontSize: 11, fontWeight: 900, color: "#93c5fd" }}>ENGINE STACK</div>
+      <div style={{ fontSize: FS.section, fontWeight: 900, color: "#93c5fd" }}>
+        ENGINE STACK
+      </div>
 
       <StackRow k="E1" v={loc} />
       <StackRow k="E2" v={e2Text} vStyle={{ color: e2Color }} />
@@ -968,21 +1039,22 @@ function StackRow({ k, v, vStyle = {} }) {
     <div
       style={{
         display: "grid",
-        gridTemplateColumns: "34px 1fr",
-        gap: 6,
+        gridTemplateColumns: "38px 1fr",
+        gap: 7,
         alignItems: "center",
         minWidth: 0,
       }}
     >
-      <span style={{ fontWeight: 1000, fontSize: 13, color: "#9ca3af" }}>{k}</span>
+      <span style={{ fontWeight: 1000, fontSize: FS.stackKey, color: "#9ca3af" }}>{k}</span>
       <span
         style={{
           fontWeight: 1000,
-          fontSize: 13,
+          fontSize: FS.stackValue,
           whiteSpace: "normal",
           overflow: "visible",
           textOverflow: "ellipsis",
           color: "#e5e7eb",
+          lineHeight: 1.25,
           ...vStyle,
         }}
         title={v}
@@ -1007,7 +1079,11 @@ function computeReadinessFallback({ confluence, permissionObj }) {
   const hi = Number(z?.hi);
 
   const inRange = (p, a, b) =>
-    Number.isFinite(p) && Number.isFinite(a) && Number.isFinite(b) && p >= Math.min(a, b) && p <= Math.max(a, b);
+    Number.isFinite(p) &&
+    Number.isFinite(a) &&
+    Number.isFinite(b) &&
+    p >= Math.min(a, b) &&
+    p <= Math.max(a, b);
   const distPts = (p, a, b) => {
     if (!Number.isFinite(p) || !Number.isFinite(a) || !Number.isFinite(b)) return null;
     if (inRange(p, a, b)) return 0;
@@ -1064,7 +1140,10 @@ function computeReadinessFallback({ confluence, permissionObj }) {
     price,
     zone: {
       allowed,
-      selected: Number.isFinite(lo) && Number.isFinite(hi) ? { id: z?.id || null, type: zoneType, lo, hi, source: z?.source || "ACTIVE" } : null,
+      selected:
+        Number.isFinite(lo) && Number.isFinite(hi)
+          ? { id: z?.id || null, type: zoneType, lo, hi, source: z?.source || "ACTIVE" }
+          : null,
       inAllowedZone,
       nearAllowedZone,
       distancePts: d,
@@ -1079,17 +1158,41 @@ function computeReadinessFallback({ confluence, permissionObj }) {
 /* -------------------- BIG Readiness Bar (Engine 15) -------------------- */
 function readinessStyle(state) {
   const s = String(state || "WAIT").toUpperCase();
-  if (s === "CONFIRMED") return { bg: "linear-gradient(135deg,#22c55e,#16a34a)", fg: "#06110a", border: "1px solid rgba(255,255,255,.22)" };
-  if (s === "READY") return { bg: "linear-gradient(135deg,#a3e635,#65a30d)", fg: "#0b1220", border: "1px solid rgba(255,255,255,.18)" };
-  if (s === "ARMING") return { bg: "linear-gradient(135deg,#fbbf24,#f59e0b)", fg: "#0b1220", border: "1px solid rgba(255,255,255,.18)" };
-  if (s === "NEAR") return { bg: "linear-gradient(135deg,#60a5fa,#3b82f6)", fg: "#071423", border: "1px solid rgba(255,255,255,.18)" };
+  if (s === "CONFIRMED")
+    return {
+      bg: "linear-gradient(135deg,#22c55e,#16a34a)",
+      fg: "#06110a",
+      border: "1px solid rgba(255,255,255,.22)",
+    };
+  if (s === "READY")
+    return {
+      bg: "linear-gradient(135deg,#a3e635,#65a30d)",
+      fg: "#0b1220",
+      border: "1px solid rgba(255,255,255,.18)",
+    };
+  if (s === "ARMING")
+    return {
+      bg: "linear-gradient(135deg,#fbbf24,#f59e0b)",
+      fg: "#0b1220",
+      border: "1px solid rgba(255,255,255,.18)",
+    };
+  if (s === "NEAR")
+    return {
+      bg: "linear-gradient(135deg,#60a5fa,#3b82f6)",
+      fg: "#071423",
+      border: "1px solid rgba(255,255,255,.18)",
+    };
   return { bg: "#111827", fg: "#e5e7eb", border: "1px solid #334155" };
 }
 
 function ReadinessBar({ readinessPack }) {
   const state = readinessPack?.readiness?.state || "WAIT";
-  const rc = Array.isArray(readinessPack?.readiness?.reasonCodes) ? readinessPack.readiness.reasonCodes : [];
-  const next = Array.isArray(readinessPack?.readiness?.next) ? readinessPack.readiness.next : [];
+  const rc = Array.isArray(readinessPack?.readiness?.reasonCodes)
+    ? readinessPack.readiness.reasonCodes
+    : [];
+  const next = Array.isArray(readinessPack?.readiness?.next)
+    ? readinessPack.readiness.next
+    : [];
 
   const zone = readinessPack?.zone || {};
   const dist = zone?.distancePts;
@@ -1101,7 +1204,7 @@ function ReadinessBar({ readinessPack }) {
     <div
       style={{
         borderRadius: 12,
-        padding: 10,
+        padding: 11,
         background: style.bg,
         border: style.border,
         boxShadow: "0 0 18px rgba(0,0,0,.35)",
@@ -1112,16 +1215,30 @@ function ReadinessBar({ readinessPack }) {
       }}
       title={[`state=${state}`, `dist=${distTxt}`, ...rc].join(" | ")}
     >
-      <div style={{ fontWeight: 1000, fontSize: 12, letterSpacing: 0.6, color: style.fg }}>
+      <div
+        style={{
+          fontWeight: 1000,
+          fontSize: FS.readinessLabel,
+          letterSpacing: 0.6,
+          color: style.fg,
+        }}
+      >
         READINESS
       </div>
 
       <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-        <div style={{ fontWeight: 1000, fontSize: 18, lineHeight: "18px", color: style.fg }}>
+        <div
+          style={{
+            fontWeight: 1000,
+            fontSize: FS.readinessState,
+            lineHeight: "20px",
+            color: style.fg,
+          }}
+        >
           {String(state).toUpperCase()}
         </div>
 
-        <div style={{ fontWeight: 900, fontSize: 12, color: style.fg, opacity: 0.95 }}>
+        <div style={{ fontWeight: 900, fontSize: FS.tiny, color: style.fg, opacity: 0.95 }}>
           dist: {distTxt}
         </div>
 
@@ -1130,7 +1247,7 @@ function ReadinessBar({ readinessPack }) {
             <span
               key={c}
               style={{
-                fontSize: 10,
+                fontSize: FS.micro,
                 fontWeight: 1000,
                 padding: "4px 8px",
                 borderRadius: 999,
@@ -1147,10 +1264,10 @@ function ReadinessBar({ readinessPack }) {
       </div>
 
       <div style={{ textAlign: "right", minWidth: 0 }}>
-        <div style={{ fontSize: 10, fontWeight: 1000, color: style.fg, opacity: 0.9 }}>
+        <div style={{ fontSize: FS.micro, fontWeight: 1000, color: style.fg, opacity: 0.9 }}>
           NEXT
         </div>
-        <div style={{ fontSize: 11, fontWeight: 900, color: style.fg, opacity: 0.95 }}>
+        <div style={{ fontSize: FS.tiny, fontWeight: 900, color: style.fg, opacity: 0.95 }}>
           {next[0] || "—"}
         </div>
       </div>
@@ -1164,9 +1281,24 @@ export default function RowStrategies() {
 
   const STRATS = useMemo(
     () => [
-      { id: "SCALP", name: "Scalp — Minor Intraday", tf: "10m", sub: "10m primary • 1h gate" },
-      { id: "MINOR", name: "Minor — Swing", tf: "1h", sub: "1h primary • 4h confirm" },
-      { id: "INTERMEDIATE", name: "Intermediate — Long", tf: "4h", sub: "4h primary • EOD gate" },
+      {
+        id: "SCALP",
+        name: "Scalp — Minor Intraday",
+        tf: "10m",
+        sub: "10m primary • 1h gate",
+      },
+      {
+        id: "MINOR",
+        name: "Minor — Swing",
+        tf: "1h",
+        sub: "1h primary • 4h confirm",
+      },
+      {
+        id: "INTERMEDIATE",
+        name: "Intermediate — Long",
+        tf: "4h",
+        sub: "4h primary • EOD gate",
+      },
     ],
     []
   );
@@ -1256,9 +1388,9 @@ export default function RowStrategies() {
                 border: active === s.id ? "1px solid #3b82f6" : "1px solid #2b2b2b",
                 boxShadow: active === s.id ? "0 0 0 1px #3b82f6 inset" : "none",
                 borderRadius: 10,
-                padding: "6px 10px",
+                padding: "7px 11px",
                 fontWeight: 1000,
-                fontSize: 12,
+                fontSize: FS.micro,
                 cursor: "pointer",
               }}
             >
@@ -1269,15 +1401,25 @@ export default function RowStrategies() {
 
         <div className="spacer" />
 
-        <div style={{ color: "#9ca3af", fontSize: 12, display: "flex", gap: 12, flexWrap: "wrap" }}>
+        <div
+          style={{
+            color: "#9ca3af",
+            fontSize: FS.tiny,
+            display: "flex",
+            gap: 12,
+            flexWrap: "wrap",
+          }}
+        >
           <span>
             Poll: <b>{Math.round(POLL_MS / 1000)}s</b>
           </span>
           <span>
-            Frontend fetch: <b style={{ marginLeft: 4 }}>{lastFetch ? toAZ(lastFetch, true) : "—"}</b>
+            Frontend fetch:{" "}
+            <b style={{ marginLeft: 4 }}>{lastFetch ? toAZ(lastFetch, true) : "—"}</b>
           </span>
           <span>
-            Backend snapshot: <b style={{ marginLeft: 4 }}>{snapshotTime(snapshot)}</b>
+            Backend snapshot:{" "}
+            <b style={{ marginLeft: 4 }}>{snapshotTime(snapshot)}</b>
           </span>
           <span>
             Build: <b style={{ marginLeft: 4 }}>{toAZ(BUILD_STAMP, true)}</b>
@@ -1286,7 +1428,7 @@ export default function RowStrategies() {
       </div>
 
       {err && (
-        <div style={{ marginTop: 8, color: "#fca5a5", fontWeight: 1000 }}>
+        <div style={{ marginTop: 8, color: "#fca5a5", fontWeight: 1000, fontSize: FS.small }}>
           Strategy snapshot error: {err}
         </div>
       )}
@@ -1308,9 +1450,7 @@ export default function RowStrategies() {
           const momentum = extractMomentum(node, snapshot);
 
           const engine15Stored =
-            node?.engine15 ||
-            snapshot?.engine15?.byStrategy?.[stratKey] ||
-            null;
+            node?.engine15 || snapshot?.engine15?.byStrategy?.[stratKey] || null;
 
           const readinessPack =
             engine15Stored && engine15Stored.readiness
@@ -1319,7 +1459,9 @@ export default function RowStrategies() {
 
           const fresh = minutesAgo(lastFetch) <= 1.5;
           const liveStatus = err ? "red" : fresh ? "green" : "yellow";
-          const liveTip = err ? `Error: ${err}` : `Last snapshot: ${lastFetch ? toAZ(lastFetch, true) : "—"}`;
+          const liveTip = err
+            ? `Error: ${err}`
+            : `Last snapshot: ${lastFetch ? toAZ(lastFetch, true) : "—"}`;
 
           const score = clamp100(confluence?.scores?.total ?? 0);
           const label = confluence?.scores?.label || grade(score);
@@ -1338,8 +1480,12 @@ export default function RowStrategies() {
           if (Number.isFinite(targets.exitTarget)) {
             exitTxt = fmt2(targets.exitTarget);
           } else {
-            const hi = Number.isFinite(targets.exitTargetHi) ? `Hi ${fmt2(targets.exitTargetHi)}` : null;
-            const lo = Number.isFinite(targets.exitTargetLo) ? `Lo ${fmt2(targets.exitTargetLo)}` : null;
+            const hi = Number.isFinite(targets.exitTargetHi)
+              ? `Hi ${fmt2(targets.exitTargetHi)}`
+              : null;
+            const lo = Number.isFinite(targets.exitTargetLo)
+              ? `Lo ${fmt2(targets.exitTargetLo)}`
+              : null;
             exitTxt = [hi, lo].filter(Boolean).join(" • ") || "—";
           }
 
@@ -1360,10 +1506,10 @@ export default function RowStrategies() {
                 background: "#101010",
                 border: "1px solid #262626",
                 borderRadius: 12,
-                padding: 10,
+                padding: CARD_PAD,
                 color: "#e5e7eb",
                 boxShadow: activeGlow,
-                minHeight: 360,
+                minHeight: 390,
                 display: "flex",
                 flexDirection: "column",
                 gap: 10,
@@ -1376,7 +1522,7 @@ export default function RowStrategies() {
               <div
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "minmax(0,1fr) clamp(260px, 28vw, 320px)",
+                  gridTemplateColumns: "minmax(0,1fr) clamp(270px, 29vw, 330px)",
                   gap: 10,
                   alignItems: "start",
                   minWidth: 0,
@@ -1384,16 +1530,38 @@ export default function RowStrategies() {
               >
                 {/* LEFT */}
                 <div style={{ minWidth: 0 }}>
-                  <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10 }}>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                        <div style={{ fontWeight: 1000, fontSize: 14, lineHeight: "16px" }}>{s.name}</div>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "flex-start",
+                      justifyContent: "space-between",
+                      gap: 10,
+                    }}
+                  >
+                    <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 8,
+                          flexWrap: "wrap",
+                        }}
+                      >
+                        <div
+                          style={{
+                            fontWeight: 1000,
+                            fontSize: FS.title,
+                            lineHeight: "19px",
+                          }}
+                        >
+                          {s.name}
+                        </div>
 
                         <span
                           style={{
-                            fontSize: 11,
+                            fontSize: FS.micro,
                             fontWeight: 1000,
-                            padding: "4px 10px",
+                            padding: PILL_PAD,
                             borderRadius: 999,
                             whiteSpace: "nowrap",
                             ...permStyle(perm),
@@ -1408,7 +1576,8 @@ export default function RowStrategies() {
                               background: "linear-gradient(135deg,#ffb703,#ff8800)",
                               color: "#1a1a1a",
                               fontWeight: 1000,
-                              padding: "4px 10px",
+                              fontSize: FS.micro,
+                              padding: PILL_PAD,
                               borderRadius: 8,
                               boxShadow: "0 0 10px rgba(255,183,3,.55)",
                               border: "1px solid rgba(255,255,255,.18)",
@@ -1421,7 +1590,9 @@ export default function RowStrategies() {
                         {showGoHere && <GoPillBig go={scalpGo} />}
                       </div>
 
-                      <div style={{ fontSize: 13, color: "#9ca3af", fontWeight: 800 }}>{s.sub}</div>
+                      <div style={{ fontSize: FS.subtitle, color: "#9ca3af", fontWeight: 800 }}>
+                        {s.sub}
+                      </div>
                     </div>
 
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -1432,18 +1603,20 @@ export default function RowStrategies() {
                   <div
                     style={{
                       display: "grid",
-                      gridTemplateColumns: "44px 1fr 40px",
+                      gridTemplateColumns: "52px 1fr 46px",
                       alignItems: "center",
                       gap: 8,
-                      marginTop: 8,
+                      marginTop: 9,
                     }}
                   >
-                    <div style={{ color: "#9ca3af", fontSize: 10, fontWeight: 1000 }}>Score</div>
+                    <div style={{ color: "#9ca3af", fontSize: FS.micro, fontWeight: 1000 }}>
+                      Score
+                    </div>
                     <div
                       style={{
                         background: "#1f2937",
                         borderRadius: 8,
-                        height: 8,
+                        height: 9,
                         overflow: "hidden",
                         border: "1px solid #334155",
                       }}
@@ -1457,10 +1630,20 @@ export default function RowStrategies() {
                         }}
                       />
                     </div>
-                    <div style={{ textAlign: "right", fontWeight: 1000, fontSize: 12 }}>{Math.round(score)}</div>
+                    <div style={{ textAlign: "right", fontWeight: 1000, fontSize: FS.small }}>
+                      {Math.round(score)}
+                    </div>
                   </div>
 
-                  <div style={{ display: "flex", justifyContent: "space-between", gap: 10, fontSize: 11, color: "#cbd5e1" }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      gap: 10,
+                      fontSize: FS.tiny,
+                      color: "#cbd5e1",
+                    }}
+                  >
                     <div>
                       <span style={{ color: "#9ca3af", fontWeight: 900 }}>Label:</span> {label || "—"}{" "}
                       <span style={{ color: "#9ca3af" }}>(A+≥90 A≥80 B≥70 C≥60)</span>
@@ -1470,23 +1653,24 @@ export default function RowStrategies() {
                     </div>
                   </div>
 
-                  <div style={{ display: "grid", gap: 4, marginTop: 6 }}>
-                    <div style={{ fontSize: 12, color: "#cbd5e1" }}>
+                  <div style={{ display: "grid", gap: 5, marginTop: 7 }}>
+                    <div style={{ fontSize: FS.body, color: "#cbd5e1" }}>
                       <b>Entry Target:</b> {entryTxt}
                     </div>
-                    <div style={{ fontSize: 12, color: "#cbd5e1" }}>
+                    <div style={{ fontSize: FS.body, color: "#cbd5e1" }}>
                       <b>Exit Target:</b> {exitTxt}
                     </div>
                   </div>
 
-                  <div style={{ display: "grid", gap: 6, marginTop: 6 }}>
-                    <div style={{ fontSize: 12, color: "#cbd5e1" }}>
+                  <div style={{ display: "grid", gap: 7, marginTop: 7 }}>
+                    <div style={{ fontSize: FS.body, color: "#cbd5e1", lineHeight: 1.3 }}>
                       <b>Active Zone:</b>{" "}
                       {zone?.zoneType ? (
                         <>
                           <span style={{ color: "#fbbf24", fontWeight: 1000 }}>{zone.zoneType}</span>{" "}
                           <span style={{ color: "#94a3b8" }}>
-                            {Number.isFinite(zone.lo) ? fmt2(zone.lo) : "—"}–{Number.isFinite(zone.hi) ? fmt2(zone.hi) : "—"}
+                            {Number.isFinite(zone.lo) ? fmt2(zone.lo) : "—"}–
+                            {Number.isFinite(zone.hi) ? fmt2(zone.hi) : "—"}
                           </span>
                         </>
                       ) : (
@@ -1497,15 +1681,21 @@ export default function RowStrategies() {
                     <MiniRow
                       label="Compression"
                       left={`${compression.active ? "ACTIVE" : "OFF"} • ${compression.tier} • ${compression.state}`}
-                      right={`score ${Number.isFinite(compression.score) ? Math.round(compression.score) : "—"} • ATR ratio ${
-                        Number.isFinite(compression.widthAtrRatio) ? compression.widthAtrRatio.toFixed(2) : "—"
+                      right={`score ${
+                        Number.isFinite(compression.score) ? Math.round(compression.score) : "—"
+                      } • ATR ratio ${
+                        Number.isFinite(compression.widthAtrRatio)
+                          ? compression.widthAtrRatio.toFixed(2)
+                          : "—"
                       }`}
                       tone={compression.active ? "warn" : "muted"}
                     />
 
                     <MiniRow
                       label="Volume"
-                      left={`${volume.state || "—"} • score ${Number.isFinite(volume.volumeScore) ? Math.round(volume.volumeScore) : "—"}`}
+                      left={`${volume.state || "—"} • score ${
+                        Number.isFinite(volume.volumeScore) ? Math.round(volume.volumeScore) : "—"
+                      }`}
                       right={`${volume.volumeConfirmed ? "CONFIRMED" : "unconfirmed"}`}
                       tone={volume.volumeConfirmed ? "ok" : "muted"}
                     />
@@ -1528,7 +1718,9 @@ export default function RowStrategies() {
                         <MiniRow
                           label="Confidence"
                           left={`score ${scalpClassifier.moveScore}`}
-                          right={scalpClassifier.moveType === "NONE" ? "no classifier" : "live E5B"}
+                          right={
+                            scalpClassifier.moveType === "NONE" ? "no classifier" : "live E5B"
+                          }
                           tone={
                             Number.isFinite(Number(scalpClassifier.moveScore)) &&
                             Number(scalpClassifier.moveScore) >= 60
@@ -1543,7 +1735,11 @@ export default function RowStrategies() {
                         <MiniRow
                           label="Waiting"
                           left={scalpClassifier.waitingBecause}
-                          right={scalpClassifier.moveDirection === "—" ? "—" : `bias ${scalpClassifier.moveDirection}`}
+                          right={
+                            scalpClassifier.moveDirection === "—"
+                              ? "—"
+                              : `bias ${scalpClassifier.moveDirection}`
+                          }
                           tone="muted"
                         />
                       </>
@@ -1565,7 +1761,15 @@ export default function RowStrategies() {
                     )}
                   </div>
 
-                  <div style={{ marginTop: 6, fontSize: 12, color: "#94a3b8", fontWeight: 900 }}>
+                  <div
+                    style={{
+                      marginTop: 7,
+                      fontSize: FS.body,
+                      color: "#94a3b8",
+                      fontWeight: 900,
+                      lineHeight: 1.35,
+                    }}
+                  >
                     {showScalpClassifier && scalpClassifier.waitingBecause !== "—"
                       ? `Waiting because: ${scalpClassifier.waitingBecause}.`
                       : nextTriggerText(confluence)}
@@ -1596,15 +1800,23 @@ export default function RowStrategies() {
                 </div>
               </div>
 
-              <div style={{ marginTop: "auto", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+              <div
+                style={{
+                  marginTop: "auto",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 8,
+                }}
+              >
                 <span
                   style={{
                     background: "#0b1220",
                     border: "1px solid #1f2937",
                     color: "#93c5fd",
-                    padding: "4px 8px",
+                    padding: "5px 9px",
                     borderRadius: 999,
-                    fontSize: 11,
+                    fontSize: FS.micro,
                     fontWeight: 1000,
                   }}
                 >
