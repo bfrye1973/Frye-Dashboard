@@ -1226,6 +1226,49 @@ function EngineStack({
     </div>
   );
 }
+
+function StackRow({ k, v, vStyle = {} }) {
+  return (
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "34px 1fr",
+        gap: 6,
+        alignItems: "start",
+        minWidth: 0,
+      }}
+    >
+      <span
+        style={{
+          fontWeight: 1000,
+          fontSize: FS.stackKey,
+          color: "#9ca3af",
+          lineHeight: LH.normal,
+          paddingTop: 1,
+        }}
+      >
+        {k}
+      </span>
+
+      <span
+        style={{
+          fontWeight: 1000,
+          fontSize: FS.stackValue,
+          whiteSpace: "normal",
+          overflowWrap: "anywhere",
+          wordBreak: "break-word",
+          color: "#e5e7eb",
+          lineHeight: LH.normal,
+          minWidth: 0,
+          ...vStyle,
+        }}
+        title={typeof v === "string" ? v : ""}
+      >
+        {v}
+      </span>
+    </div>
+  );
+}
 /* -------------------- Engine 15 local fallback -------------------- */
 function computeReadinessFallback({ confluence, permissionObj }) {
   const allowed = ["NEGOTIATED", "INSTITUTIONAL"];
