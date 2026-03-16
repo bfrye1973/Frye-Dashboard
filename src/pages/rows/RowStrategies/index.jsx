@@ -63,6 +63,10 @@ const RETRY_DELAY_MS = 800;
 const GO_POLL_MS = 2000;
 const GO_TIMEOUT_MS = 6000;
 
+// E14 poll cadence
+const E14_POLL_MS = 7000;
+const E14_TIMEOUT_MS = 5000;
+
 // Build stamp
 const BUILD_STAMP =
   env("REACT_APP_BUILD_STAMP", "") ||
@@ -71,6 +75,8 @@ const BUILD_STAMP =
 
 /* -------------------- endpoints -------------------- */
 const SCALP_STATUS_URL = () => `${API_BASE}/api/v1/scalp-status?t=${Date.now()}`;
+const SCALP_LAB_URL = (symbol = "SPY") =>
+  `${API_BASE}/api/v1/scalp-lab?symbol=${encodeURIComponent(symbol)}&t=${Date.now()}`;
 
 /* -------------------- utils -------------------- */
 const nowIso = () => new Date().toISOString();
@@ -172,6 +178,70 @@ function getScalpClassifierView(scalpStatus) {
     moveDirection,
     moveScore,
     waitingBecause: prettyReason(waitingBecauseRaw),
+  };
+}
+
+/* -------------------- Engine 14 helpers -------------------- */
+function e14LabelFromSetup(setup) {
+  if (!setup || setup.detected === false) return "IDLE";
+  if (setup.triggerNow === true) return "TRIGGER";
+  const stage = String(setup.stage || "NONE").toUpperCase();
+  if (stage === "EARLY") return "WATCH";
+  if (stage === "CONFIRMING") return "CONFIRM";
+  if (stage === "CONFIRMED") return "CONFIRM";
+  return "NONE";
+}
+
+function e14Tone(label, unavailable = false) {
+  if (unavailable) return "muted";
+  const s = String(label || "IDLE").toUpperCase();
+  if (s === "TRIGGER") return "ok";
+  if (s === "CONFIRM" || s === "WATCH") return "warn";
+  return "muted";
+}
+
+function e14Pretty(x) {
+  const s = String(x || "").trim().toUpperCase();
+  if (!s || s === "NONE") return "NONE";
+  return s.replaceAll("_", " ");
+}
+
+function mapE14Badge(e14) {
+  if (!e14 || e14.ok !== true || !e14.setup) {
+    return {
+      available: false,
+      title: "Engine 14",
+      label: "unavailable",
+      stage: "NONE",
+      direction: "NONE",
+      quality: "D",
+      trigger: "WAIT",
+      confidence: 0,
+      reasonLine: "advisory unavailable",
+    };
+  }
+
+  const setup = e14.setup || {};
+  const label = e14LabelFromSetup(setup);
+  const trigger = setup.triggerNow
+    ? "NOW"
+    : setup.needsConfirmation
+    ? "CONFIRM"
+    : "WAIT";
+
+  const reasons = Array.isArray(setup.reasonCodes) ? setup.reasonCodes.slice(0, 2) : [];
+  const reasonLine = reasons.length ? reasons.map(e14Pretty).join(" • ") : "no active advisory";
+
+  return {
+    available: true,
+    title: "Engine 14",
+    label,
+    stage: String(setup.stage || "NONE").toUpperCase(),
+    direction: String(setup.direction || "NONE").toUpperCase(),
+    quality: String(setup.quality || "D").toUpperCase(),
+    trigger,
+    confidence: Number.isFinite(Number(setup.confidence)) ? Number(setup.confidence) : 0,
+    reasonLine,
   };
 }
 
@@ -878,6 +948,113 @@ function StrategySnapshotPanel({ engine2 }) {
   );
 }
 
+/* -------------------- Engine 14 Badge -------------------- */
+function Engine14Badge({ e14 }) {
+  const badge = mapE14Badge(e14);
+  const tone = e14Tone(badge.label, !badge.available);
+
+  const colors =
+    tone === "ok"
+      ? { bg: "#06220f", fg: "#86efac", bd: "#166534" }
+      : tone === "warn"
+      ? { bg: "#1b1409", fg: "#fbbf24", bd: "#92400e" }
+      : { bg: "#0b0b0b", fg: "#94a3b8", bd: "#2b2b2b" };
+
+  const pillText = `E14: ${badge.label}`;
+  const metaText = `${badge.direction} • ${badge.quality} • ${Math.round(badge.confidence)}`;
+  const subText = badge.available
+    ? `${badge.trigger} • ${badge.reasonLine}`
+    : "soft fail • advisory unavailable";
+
+  return (
+    <div
+      title={[
+        `active=${String(badge.available)}`,
+        `stage=${badge.stage}`,
+        `direction=${badge.direction}`,
+        `quality=${badge.quality}`,
+        `trigger=${badge.trigger}`,
+        `confidence=${badge.confidence}`,
+        `reason=${badge.reasonLine}`,
+      ].join(" | ")}
+      style={{
+        marginTop: 8,
+        border: `1px solid ${colors.bd}`,
+        borderRadius: 10,
+        padding: "8px 9px",
+        background: colors.bg,
+        display: "flex",
+        flexDirection: "column",
+        gap: 5,
+        minWidth: 0,
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 8,
+          minWidth: 0,
+        }}
+      >
+        <span
+          style={{
+            fontSize: FS.section,
+            fontWeight: 1000,
+            color: "#93c5fd",
+          }}
+        >
+          Engine 14
+        </span>
+
+        <span
+          style={{
+            fontSize: FS.micro,
+            fontWeight: 1000,
+            padding: "4px 8px",
+            borderRadius: 999,
+            border: `1px solid ${colors.bd}`,
+            background: "rgba(0,0,0,.18)",
+            color: colors.fg,
+            whiteSpace: "nowrap",
+          }}
+        >
+          {pillText}
+        </span>
+      </div>
+
+      <div
+        style={{
+          fontSize: FS.small,
+          fontWeight: 900,
+          color: colors.fg,
+          lineHeight: LH.normal,
+          whiteSpace: "nowrap",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+        }}
+      >
+        {metaText}
+      </div>
+
+      <div
+        style={{
+          fontSize: FS.micro,
+          fontWeight: 900,
+          color: "#cbd5e1",
+          lineHeight: LH.normal,
+          whiteSpace: "nowrap",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+        }}
+      >
+        {subText}
+      </div>
+    </div>
+  );
+}
+
 /* -------------------- Engine Stack -------------------- */
 function EngineStack({
   confluence,
@@ -885,6 +1062,8 @@ function EngineStack({
   engine2Card,
   scalpClassifier = null,
   momentum = null,
+  e14 = null,
+  showE14 = false,
 }) {
   const loc = confluence?.location?.state || "—";
 
@@ -1001,7 +1180,7 @@ function EngineStack({
         width: "100%",
         height: "auto",
         display: "grid",
-        gridTemplateRows: "auto repeat(7, 1fr)",
+        gridTemplateRows: "auto repeat(7, 1fr) auto",
         gap: 9,
         overflow: "visible",
         minWidth: 0,
@@ -1018,6 +1197,10 @@ function EngineStack({
       <StackRow k="E4.5" v={e45Text} />
       <StackRow k="E5" v={e5Text} />
       <StackRow k="E6" v={e6Text} />
+
+      <div style={{ minWidth: 0 }}>
+        {showE14 ? <Engine14Badge e14={e14} /> : null}
+      </div>
     </div>
   );
 }
@@ -1302,6 +1485,7 @@ export default function RowStrategies() {
   });
 
   const [scalpStatus, setScalpStatus] = useState({ data: null, err: null, last: null });
+  const [e14Status, setE14Status] = useState({ data: null, err: null, last: null });
 
   useEffect(() => {
     let alive = true;
@@ -1340,6 +1524,78 @@ export default function RowStrategies() {
         clearTimeout(t);
         inFlight = false;
         schedule(GO_POLL_MS);
+      }
+    }
+
+    pull();
+    return () => {
+      alive = false;
+      if (timer) clearTimeout(timer);
+    };
+  }, []);
+
+  useEffect(() => {
+    let alive = true;
+    let timer = null;
+    let inFlight = false;
+
+    const schedule = (ms) => {
+      if (!alive) return;
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(pull, ms);
+    };
+
+    async function pull() {
+      if (!alive) return;
+      if (inFlight) {
+        schedule(E14_POLL_MS);
+        return;
+      }
+      inFlight = true;
+
+      const controller = new AbortController();
+      const t = setTimeout(() => controller.abort(), E14_TIMEOUT_MS);
+
+      try {
+        const res = await fetch(SCALP_LAB_URL("SPY"), {
+          cache: "no-store",
+          headers: { accept: "application/json", "Cache-Control": "no-store" },
+          signal: controller.signal,
+        });
+
+        const text = await res.text().catch(() => "");
+        let json = null;
+        try {
+          json = text ? JSON.parse(text) : null;
+        } catch {
+          json = null;
+        }
+
+        if (!res.ok) {
+          throw new Error(
+            json?.error || json?.detail || text?.slice(0, 200) || `HTTP ${res.status}`
+          );
+        }
+
+        if (alive) {
+          setE14Status({
+            data: json,
+            err: null,
+            last: nowIso(),
+          });
+        }
+      } catch (e) {
+        if (alive) {
+          setE14Status({
+            data: null,
+            err: String(e?.message || e),
+            last: nowIso(),
+          });
+        }
+      } finally {
+        clearTimeout(t);
+        inFlight = false;
+        schedule(E14_POLL_MS);
       }
     }
 
@@ -1450,9 +1706,6 @@ export default function RowStrategies() {
           const label = confluence?.scores?.label || grade(score);
           const golden = showGoldenCoil(confluence);
 
-          const _reasonsE5 = top3(confluence?.reasonCodes || []);
-          const _reasonsE6 = top3(permission?.reasonCodes || []);
-
           const zone = extractActiveZone(confluence);
           const targets = extractTargets(confluence);
           const compression = extractCompression(confluence);
@@ -1477,6 +1730,7 @@ export default function RowStrategies() {
 
           const showGoHere = s.id === "SCALP";
           const showScalpClassifier = s.id === "SCALP";
+          const showE14Here = s.id === "SCALP";
 
           return (
             <div
@@ -1755,6 +2009,8 @@ export default function RowStrategies() {
                     engine2Card={node?.engine2 || null}
                     scalpClassifier={showScalpClassifier ? scalpClassifier : null}
                     momentum={momentum}
+                    e14={showE14Here ? e14Status.data : null}
+                    showE14={showE14Here}
                   />
                 </div>
               </div>
