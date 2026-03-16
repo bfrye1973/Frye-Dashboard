@@ -5,7 +5,7 @@
 // - liquidity zones
 // - fib levels
 // - pullback zones
-// - anchors
+// - anchors with better naming hierarchy
 // - current day high / low with timestamps
 // - signal provenance markers
 // - soft debug forward risk map
@@ -36,13 +36,12 @@ export default function Engine17Overlay({
   const ts = chart.timeScale();
 
   // ---------------- visual tuning ----------------
-  // bigger, easier to read
   const BAND_LABEL_FONT = 22;
   const LINE_LABEL_FONT = 24;
   const MARKER_FONT = 24;
+  const BIG_MARKER_FONT = 28;
 
-  // move labels away from hard edges
-  const LEFT_LABEL_X_PCT = 0.22;
+  const LEFT_LABEL_X_PCT = 0.20;
   const MID_LABEL_X_PCT = 0.50;
 
   function ensureCanvas() {
@@ -115,6 +114,69 @@ export default function Engine17Overlay({
     }
   }
 
+  function getAnchorDisplay(a) {
+    const timeLabel = getAnchorTimeLabel(a.kind);
+    const base = a.label || a.kind;
+
+    // Better naming hierarchy so it is clear what matters most
+    switch (a.kind) {
+      case "FIB_ANCHOR_A":
+        return {
+          text: timeLabel
+            ? `Impulse Base (Fib A) ${Number(a.price).toFixed(2)} (${timeLabel})`
+            : `Impulse Base (Fib A) ${Number(a.price).toFixed(2)}`,
+          color: "#f8fafc",
+          big: true,
+        };
+      case "FIB_ANCHOR_B":
+        return {
+          text: timeLabel
+            ? `Impulse High (Fib B) ${Number(a.price).toFixed(2)} (${timeLabel})`
+            : `Impulse High (Fib B) ${Number(a.price).toFixed(2)}`,
+          color: "#f8fafc",
+          big: true,
+        };
+      case "SESSION_HIGH":
+        return {
+          text: timeLabel
+            ? `Session High ${Number(a.price).toFixed(2)} (${timeLabel})`
+            : `Session High ${Number(a.price).toFixed(2)}`,
+          color: "rgba(255,255,255,0.85)",
+          big: false,
+        };
+      case "SESSION_LOW":
+        return {
+          text: timeLabel
+            ? `Session Low ${Number(a.price).toFixed(2)} (${timeLabel})`
+            : `Session Low ${Number(a.price).toFixed(2)}`,
+          color: "rgba(255,255,255,0.78)",
+          big: false,
+        };
+      case "PREMARKET_HIGH":
+        return {
+          text: timeLabel
+            ? `Premarket High ${Number(a.price).toFixed(2)} (${timeLabel})`
+            : `Premarket High ${Number(a.price).toFixed(2)}`,
+          color: "rgba(203,213,225,0.72)",
+          big: false,
+        };
+      case "PREMARKET_LOW":
+        return {
+          text: timeLabel
+            ? `Premarket Low ${Number(a.price).toFixed(2)} (${timeLabel})`
+            : `Premarket Low ${Number(a.price).toFixed(2)}`,
+          color: "rgba(203,213,225,0.72)",
+          big: false,
+        };
+      default:
+        return {
+          text: timeLabel ? `${base} (${timeLabel})` : base,
+          color: "#e5e7eb",
+          big: false,
+        };
+    }
+  }
+
   function buildDayLevelLabels() {
     const a = overlayData?.fib?.anchors || {};
     const out = [];
@@ -171,20 +233,20 @@ export default function Engine17Overlay({
       ctx.save();
       ctx.font = `${BAND_LABEL_FONT}px system-ui, -apple-system, Segoe UI, Roboto, Arial`;
       const tw = ctx.measureText(label).width;
-      const bx = Math.max(20, Math.floor(w * 0.16));
-      const by = Math.max(14, top + 8);
-      const bw = tw + 28;
-      const bh = Math.max(30, Math.floor(BAND_LABEL_FONT * 1.45));
+      const bx = Math.max(24, Math.floor(w * 0.14));
+      const by = Math.max(16, top + 8);
+      const bw = tw + 30;
+      const bh = Math.max(32, Math.floor(BAND_LABEL_FONT * 1.45));
 
-      ctx.fillStyle = "rgba(0,0,0,0.76)";
-      ctx.strokeStyle = "rgba(255,255,255,0.18)";
+      ctx.fillStyle = "rgba(0,0,0,0.80)";
+      ctx.strokeStyle = "rgba(255,255,255,0.20)";
       ctx.lineWidth = 1.5;
       roundRect(ctx, bx, by, bw, bh, 10);
       ctx.fill();
       ctx.stroke();
 
       ctx.fillStyle = "#f3f4f6";
-      ctx.fillText(label, bx + 14, by + Math.floor(bh * 0.72));
+      ctx.fillText(label, bx + 15, by + Math.floor(bh * 0.72));
       ctx.restore();
     }
   }
@@ -217,17 +279,17 @@ export default function Engine17Overlay({
       ctx.font = `${LINE_LABEL_FONT}px system-ui, -apple-system, Segoe UI, Roboto, Arial`;
       const text = `${label}  ${Number(price).toFixed(2)}`;
       const tw = ctx.measureText(text).width;
-      const bw = tw + 28;
-      const bh = Math.max(34, Math.floor(LINE_LABEL_FONT * 1.45));
+      const bw = tw + 30;
+      const bh = Math.max(36, Math.floor(LINE_LABEL_FONT * 1.45));
 
       const bx =
         xLabel == null
-          ? Math.max(20, Math.floor(w * MID_LABEL_X_PCT))
+          ? Math.max(24, Math.floor(w * MID_LABEL_X_PCT))
           : xLabel;
 
       const by = y - bh / 2;
 
-      ctx.fillStyle = "rgba(0,0,0,0.80)";
+      ctx.fillStyle = "rgba(0,0,0,0.82)";
       ctx.strokeStyle = "rgba(255,255,255,0.18)";
       ctx.lineWidth = 1.5;
       roundRect(ctx, bx, by, bw, bh, 10);
@@ -235,7 +297,7 @@ export default function Engine17Overlay({
       ctx.stroke();
 
       ctx.fillStyle = color;
-      ctx.fillText(text, bx + 14, by + Math.floor(bh * 0.72));
+      ctx.fillText(text, bx + 15, by + Math.floor(bh * 0.72));
       ctx.restore();
     }
   }
@@ -244,24 +306,23 @@ export default function Engine17Overlay({
     const y = priceToY(price);
     if (y == null) return;
 
-    const fontPx = big ? MARKER_FONT + 2 : MARKER_FONT;
-    const padX = big ? 16 : 14;
-    const padY = big ? 12 : 10;
+    const fontPx = big ? BIG_MARKER_FONT : MARKER_FONT;
+    const padX = big ? 18 : 16;
 
     ctx.save();
     ctx.font = `${fontPx}px system-ui, -apple-system, Segoe UI, Roboto, Arial`;
     const tw = ctx.measureText(text).width;
     const bw = tw + padX * 2;
-    const bh = Math.max(36, Math.floor(fontPx * 1.45));
+    const bh = Math.max(big ? 42 : 38, Math.floor(fontPx * 1.45));
 
     const bx =
       align === "left"
-        ? Math.max(20, Math.floor(w * LEFT_LABEL_X_PCT))
-        : Math.max(20, w - bw - 16);
+        ? Math.max(24, Math.floor(w * LEFT_LABEL_X_PCT))
+        : Math.max(24, w - bw - 18);
 
     const by = y - bh / 2;
 
-    ctx.fillStyle = "rgba(0,0,0,0.82)";
+    ctx.fillStyle = "rgba(0,0,0,0.84)";
     ctx.strokeStyle = color;
     ctx.lineWidth = big ? 2 : 1.5;
     roundRect(ctx, bx, by, bw, bh, 12);
@@ -440,12 +501,8 @@ export default function Engine17Overlay({
       const anchors = Array.isArray(overlayData?.anchors) ? overlayData.anchors : [];
       anchors.forEach((a) => {
         if (!Number.isFinite(a?.price)) return;
-        const timeLabel = getAnchorTimeLabel(a.kind);
-        const text = timeLabel
-          ? `${a.label || a.kind} (${timeLabel})`
-          : (a.label || a.kind);
-
-        drawMarker(ctx, w, a.price, text, "#e5e7eb", "left");
+        const display = getAnchorDisplay(a);
+        drawMarker(ctx, w, a.price, display.text, display.color, "left", display.big);
       });
 
       // current day high / low near current candle (right side)
