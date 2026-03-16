@@ -14,6 +14,7 @@ import Controls from "./Controls";
 import IndicatorsToolbar from "./IndicatorsToolbar";
 
 import { getOHLC, subscribeStream } from "../../../lib/ohlcClient";
+import { getChartOverlay } from "../../../lib/chartOverlayClient";
 import { SYMBOLS, TIMEFRAMES } from "./constants";
 
 import MoneyFlowOverlay from "../../../components/overlays/MoneyFlowOverlay";
@@ -24,6 +25,9 @@ import createSMI1hOverlay from "../../../components/overlays/SMI1hOverlay";
 import createFourShelvesOverlay from "../../../components/overlays/FourShelvesOverlay";
 
 import SMZNegotiatedOverlay from "./overlays/SMZNegotiatedOverlay";
+import Engine17Overlay from "./overlays/Engine17Overlay";
+import Engine17Badges from "./overlays/Engine17Badges";
+import Engine17DecisionTimeline from "./overlays/Engine17DecisionTimeline";
 
 import createSmartMoneyZonesOverlay from "../../../components/overlays/SmartMoneyZonesOverlay";
 import SmartMoneyZonesPanel from "../../../components/smz/SmartMoneyZonesPanel";
@@ -210,6 +214,12 @@ function makeFibStyle(color, fontPx, lineWidth, showExtensions = true) {
   };
 }
 
+function engine17Timeframe(tf) {
+  const t = String(tf || "30m").toLowerCase();
+  if (t === "10m" || t === "30m") return t;
+  return "30m";
+}
+
 /* ------------------------------ Component --------------------------- */
 
 export default function RowChart({
@@ -233,6 +243,7 @@ export default function RowChart({
   const roRef = useRef(null);
 
   const overlayInstancesRef = useRef([]);
+  const overlayPollRef = useRef(null);
 
   // ✅ Bars live in ref (fast). React state updates are throttled.
   const [bars, setBars] = useState([]);
@@ -266,6 +277,11 @@ export default function RowChart({
     selectedId: null,
   });
 
+  // ✅ Engine 17 data state
+  const [engine17Data, setEngine17Data] = useState(null);
+  const [engine17Loading, setEngine17Loading] = useState(false);
+  const [engine17Error, setEngine17Error] = useState("");
+
   const [state, setState] = useState({
     symbol: defaultSymbol,
     timeframe: defaultTimeframe,
@@ -294,6 +310,21 @@ export default function RowChart({
 
     accDistLevels: false,
     wickPaZones: false,
+
+    // ✅ Professional overlay stack
+    engine17Overlay: false,
+
+    liquidityZones: true,
+    marketStructure: true,
+    strategyDiagnostics: false,
+    signals: true,
+    decisionTimeline: false,
+
+    regimeBackground: false,
+    confidenceStack: true,
+    signalProvenance: false,
+    forwardRiskMap: false,
+    replaySyncedState: false,
   });
 
   // quick debug controls
@@ -384,6 +415,11 @@ export default function RowChart({
         streamUnsubRef.current?.();
       } catch {}
       streamUnsubRef.current = null;
+
+      try {
+        if (overlayPollRef.current) clearInterval(overlayPollRef.current);
+      } catch {}
+      overlayPollRef.current = null;
 
       try {
         if (uiTimerRef.current) clearTimeout(uiTimerRef.current);
@@ -585,6 +621,61 @@ export default function RowChart({
     };
   }, [state.symbol, state.timeframe, state.range, state.volume]);
 
+  /* ================== Effect A.5: Engine 17 Overlay Fetch ================== */
+
+  useEffect(() => {
+    try {
+      if (overlayPollRef.current) clearInterval(overlayPollRef.current);
+    } catch {}
+    overlayPollRef.current = null;
+
+    if (!state.engine17Overlay) {
+      setEngine17Data(null);
+      setEngine17Loading(false);
+      setEngine17Error("");
+      return;
+    }
+
+    let cancelled = false;
+
+    const load = async () => {
+      try {
+        if (!cancelled) {
+          setEngine17Loading(true);
+          setEngine17Error("");
+        }
+
+        const data = await getChartOverlay(
+          state.symbol,
+          engine17Timeframe(state.timeframe)
+        );
+
+        if (!cancelled) {
+          setEngine17Data(data);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setEngine17Error(err?.message || String(err));
+        }
+      } finally {
+        if (!cancelled) {
+          setEngine17Loading(false);
+        }
+      }
+    };
+
+    load();
+    overlayPollRef.current = setInterval(load, 15000);
+
+    return () => {
+      cancelled = true;
+      try {
+        if (overlayPollRef.current) clearInterval(overlayPollRef.current);
+      } catch {}
+      overlayPollRef.current = null;
+    };
+  }, [state.engine17Overlay, state.symbol, state.timeframe]);
+
   /* =================== Effect B: Attach/Seed Overlays =================== */
 
   useEffect(() => {
@@ -628,6 +719,24 @@ export default function RowChart({
           priceSeries: seriesRef.current,
           chartContainer: containerRef.current,
           timeframe: state.timeframe,
+        })
+      );
+    }
+
+    if (state.engine17Overlay && engine17Data?.ok) {
+      reg(
+        attachOverlay(Engine17Overlay, {
+          chart: chartRef.current,
+          priceSeries: seriesRef.current,
+          chartContainer: containerRef.current,
+          overlayData: engine17Data,
+
+          showLiquidityZones: !!state.liquidityZones,
+          showMarketStructure: !!state.marketStructure,
+          showSignals: !!state.signals,
+          showSignalProvenance: !!state.signalProvenance,
+          showForwardRiskMap: !!state.forwardRiskMap,
+          showRegimeBackground: !!state.regimeBackground,
         })
       );
     }
@@ -695,6 +804,13 @@ export default function RowChart({
     seedToken,
     state.institutionalZonesAuto,
     state.smzShelvesAuto,
+    state.engine17Overlay,
+    state.liquidityZones,
+    state.marketStructure,
+    state.signals,
+    state.signalProvenance,
+    state.forwardRiskMap,
+    state.regimeBackground,
     state.fibPrimary,
     state.fibIntermediate,
     state.fibMinor,
@@ -705,6 +821,7 @@ export default function RowChart({
     state.fibMinuteStyle,
     state.timeframe,
     state.symbol,
+    engine17Data,
     showDebug,
   ]);
 
@@ -748,13 +865,10 @@ export default function RowChart({
     });
   }, [state.symbol, state.timeframe]);
 
-    /* =================== Effect C: LIVE STREAM (STABLE + TURBO) =================== */
+  /* =================== Effect C: LIVE STREAM (STABLE + TURBO) =================== */
 
   useEffect(() => {
     if (!chartReady || !seriesRef.current) return;
-
-    // unique session id so stale streams can't keep updating
-    const sessionId = Symbol("streamSession");
 
     lastAliveRef.current = 0;
     setLiveStatus("CONNECTING");
@@ -910,7 +1024,7 @@ export default function RowChart({
         streamUnsubRef.current = null;
       }
     };
-  }, [chartReady, state.symbol, state.timeframe]);
+  }, [chartReady, state.symbol, state.timeframe, state.volume]);
 
   /* ---------------------------- EMA lines ----------------------------- */
 
@@ -996,6 +1110,18 @@ export default function RowChart({
     institutionalZonesAuto: state.institutionalZonesAuto,
     smzShelvesAuto: state.smzShelvesAuto,
 
+    engine17Overlay: state.engine17Overlay,
+    liquidityZones: state.liquidityZones,
+    marketStructure: state.marketStructure,
+    strategyDiagnostics: state.strategyDiagnostics,
+    signals: state.signals,
+    decisionTimeline: state.decisionTimeline,
+    regimeBackground: state.regimeBackground,
+    confidenceStack: state.confidenceStack,
+    signalProvenance: state.signalProvenance,
+    forwardRiskMap: state.forwardRiskMap,
+    replaySyncedState: state.replaySyncedState,
+
     fibPrimary: state.fibPrimary,
     fibIntermediate: state.fibIntermediate,
     fibMinor: state.fibMinor,
@@ -1017,6 +1143,19 @@ export default function RowChart({
         volume: true,
         institutionalZonesAuto: false,
         smzShelvesAuto: false,
+
+        engine17Overlay: false,
+        liquidityZones: true,
+        marketStructure: true,
+        strategyDiagnostics: false,
+        signals: true,
+        decisionTimeline: false,
+        regimeBackground: false,
+        confidenceStack: true,
+        signalProvenance: false,
+        forwardRiskMap: false,
+        replaySyncedState: false,
+
         fibPrimary: false,
         fibIntermediate: false,
         fibMinor: false,
@@ -1073,8 +1212,10 @@ export default function RowChart({
   );
 
   const badge = (() => {
-    if (liveStatus === "LIVE") return { text: "LIVE", bg: "rgba(16,185,129,0.92)" };
-    if (liveStatus === "STALE") return { text: "STALE", bg: "rgba(239,68,68,0.92)" };
+    if (liveStatus === "LIVE")
+      return { text: "LIVE", bg: "rgba(16,185,129,0.92)" };
+    if (liveStatus === "STALE")
+      return { text: "STALE", bg: "rgba(239,68,68,0.92)" };
     return { text: "CONNECTING", bg: "rgba(245,158,11,0.92)" };
   })();
 
@@ -1141,6 +1282,51 @@ export default function RowChart({
           >
             {badge.text}
           </div>
+
+          {/* ✅ Engine 17 fetch status */}
+          {state.engine17Overlay && (
+            <div
+              style={{
+                position: "absolute",
+                top: 46,
+                left: 60,
+                zIndex: 90,
+                padding: "5px 9px",
+                borderRadius: 8,
+                fontSize: 11,
+                fontWeight: 800,
+                color: "#e5e7eb",
+                background: engine17Error
+                  ? "rgba(239,68,68,0.88)"
+                  : engine17Loading
+                  ? "rgba(245,158,11,0.88)"
+                  : "rgba(59,130,246,0.88)",
+                boxShadow: "0 2px 10px rgba(0,0,0,0.35)",
+                userSelect: "none",
+              }}
+              title={engine17Error || "Engine 17 overlay"}
+            >
+              {engine17Error
+                ? "E17 ERROR"
+                : engine17Loading
+                ? "E17 LOADING"
+                : "E17 READY"}
+            </div>
+          )}
+
+          {/* ✅ Engine 17 badges */}
+          <Engine17Badges
+            overlayData={engine17Data}
+            visible={state.engine17Overlay}
+            showConfidenceStack={state.confidenceStack}
+            showReplaySyncedState={state.replaySyncedState}
+          />
+
+          {/* ✅ Engine 17 decision timeline */}
+          <Engine17DecisionTimeline
+            overlayData={engine17Data}
+            visible={state.engine17Overlay && state.decisionTimeline}
+          />
 
           {/* Chart host element */}
           <div
