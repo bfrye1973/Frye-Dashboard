@@ -4,24 +4,52 @@ import React from "react";
 
 function toneFor(kind, value) {
   if (kind === "VOLUME" && value === "CONFIRMED") {
-    return { bg: "rgba(167,139,250,0.18)", border: "rgba(167,139,250,0.55)", color: "#ddd6fe" };
+    return {
+      bg: "rgba(167,139,250,0.18)",
+      border: "rgba(167,139,250,0.55)",
+      color: "#ddd6fe",
+    };
   }
   if (kind === "STATE" && value === "ABOVE_PULLBACK") {
-    return { bg: "rgba(34,197,94,0.16)", border: "rgba(34,197,94,0.50)", color: "#bbf7d0" };
+    return {
+      bg: "rgba(34,197,94,0.16)",
+      border: "rgba(34,197,94,0.50)",
+      color: "#bbf7d0",
+    };
   }
   if (kind === "STATE" && (value === "IN_PULLBACK" || value === "DEEP_PULLBACK")) {
-    return { bg: "rgba(245,158,11,0.16)", border: "rgba(245,158,11,0.50)", color: "#fde68a" };
+    return {
+      bg: "rgba(245,158,11,0.16)",
+      border: "rgba(245,158,11,0.50)",
+      color: "#fde68a",
+    };
   }
   if (kind === "STATE" && value === "BELOW_PULLBACK") {
-    return { bg: "rgba(239,68,68,0.16)", border: "rgba(239,68,68,0.50)", color: "#fecaca" };
+    return {
+      bg: "rgba(239,68,68,0.16)",
+      border: "rgba(239,68,68,0.50)",
+      color: "#fecaca",
+    };
   }
   if (kind === "CONTEXT" && value === "LONG_CONTEXT") {
-    return { bg: "rgba(16,185,129,0.16)", border: "rgba(16,185,129,0.50)", color: "#bbf7d0" };
+    return {
+      bg: "rgba(16,185,129,0.16)",
+      border: "rgba(16,185,129,0.50)",
+      color: "#bbf7d0",
+    };
   }
   if (kind === "CONTEXT" && value === "SHORT_CONTEXT") {
-    return { bg: "rgba(239,68,68,0.16)", border: "rgba(239,68,68,0.50)", color: "#fecaca" };
+    return {
+      bg: "rgba(239,68,68,0.16)",
+      border: "rgba(239,68,68,0.50)",
+      color: "#fecaca",
+    };
   }
-  return { bg: "rgba(255,255,255,0.08)", border: "rgba(255,255,255,0.18)", color: "#f3f4f6" };
+  return {
+    bg: "rgba(255,255,255,0.08)",
+    border: "rgba(255,255,255,0.18)",
+    color: "#f3f4f6",
+  };
 }
 
 export default function Engine17Badges({
@@ -38,12 +66,14 @@ export default function Engine17Badges({
 
   if (showConfidenceStack) {
     badges.forEach((b) => confidence.push({ kind: b.kind, value: b.value }));
+
     if (meta?.sourceEnginesUsed?.length) {
       confidence.push({
         kind: "ENGINES",
         value: meta.sourceEnginesUsed.join(", "),
       });
     }
+
     if (meta?.missingSections?.length) {
       confidence.push({
         kind: "MISSING",
@@ -67,12 +97,12 @@ export default function Engine17Badges({
         position: "absolute",
         top: 10,
         right: 12,
-        zIndex: 91,
+        zIndex: 96,
         display: "flex",
         flexWrap: "wrap",
-        gap: 8,
+        gap: 12,
         justifyContent: "flex-end",
-        maxWidth: "52%",
+        maxWidth: "74%",
         pointerEvents: "none",
       }}
     >
@@ -83,17 +113,18 @@ export default function Engine17Badges({
             key={`${b.kind}-${idx}`}
             title={b.kind}
             style={{
-              padding: "6px 10px",
-              borderRadius: 10,
-              border: `1px solid ${tone.border}`,
+              padding: "14px 22px",
+              borderRadius: 14,
+              border: `2px solid ${tone.border}`,
               background: tone.bg,
               color: tone.color,
-              fontSize: 12,
-              fontWeight: 800,
-              letterSpacing: 0.2,
-              boxShadow: "0 2px 10px rgba(0,0,0,0.22)",
+              fontSize: 26,
+              fontWeight: 900,
+              letterSpacing: 0.35,
+              boxShadow: "0 3px 12px rgba(0,0,0,0.24)",
               backdropFilter: "blur(3px)",
               whiteSpace: "nowrap",
+              lineHeight: 1.08,
             }}
           >
             {b.kind}: {String(b.value)}
