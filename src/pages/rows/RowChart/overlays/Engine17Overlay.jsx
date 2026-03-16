@@ -6,6 +6,7 @@
 // - fib levels
 // - pullback zones
 // - anchors
+// - current day high / low with timestamps
 // - signal provenance markers
 // - soft debug forward risk map
 // - regime background tint
@@ -33,6 +34,16 @@ export default function Engine17Overlay({
 
   let canvas = null;
   const ts = chart.timeScale();
+
+  // ---------------- visual tuning ----------------
+  // bigger, easier to read
+  const BAND_LABEL_FONT = 22;
+  const LINE_LABEL_FONT = 24;
+  const MARKER_FONT = 24;
+
+  // move labels away from hard edges
+  const LEFT_LABEL_X_PCT = 0.22;
+  const MID_LABEL_X_PCT = 0.50;
 
   function ensureCanvas() {
     if (canvas) return canvas;
@@ -75,7 +86,71 @@ export default function Engine17Overlay({
     ctx.closePath();
   }
 
-  function drawBand(ctx, w, lo, hi, fill, stroke, dash = [], strokeWidth = 1, label = "") {
+  function markerColorForSignal(kind) {
+    if (kind === "BREAKOUT_READY") return "#22c55e";
+    if (kind === "BREAKDOWN_READY") return "#ef4444";
+    if (kind === "IMPULSE_VOLUME_CONFIRMED") return "#a78bfa";
+    return "#f3f4f6";
+  }
+
+  function getAnchorTimeLabel(kind) {
+    const a = overlayData?.fib?.anchors || {};
+    if (!a) return null;
+
+    switch (kind) {
+      case "PREMARKET_LOW":
+        return a.premarketLowTime || null;
+      case "PREMARKET_HIGH":
+        return a.premarketHighTime || null;
+      case "SESSION_HIGH":
+        return a.sessionHighTime || null;
+      case "SESSION_LOW":
+        return a.sessionLowTime || null;
+      case "FIB_ANCHOR_A":
+        return a.anchorATime || null;
+      case "FIB_ANCHOR_B":
+        return a.anchorBTime || null;
+      default:
+        return null;
+    }
+  }
+
+  function buildDayLevelLabels() {
+    const a = overlayData?.fib?.anchors || {};
+    const out = [];
+
+    if (Number.isFinite(a?.sessionHigh)) {
+      const t = a.sessionHighTime ? ` (${a.sessionHighTime})` : "";
+      out.push({
+        price: a.sessionHigh,
+        text: `DAY HIGH ${Number(a.sessionHigh).toFixed(2)}${t}`,
+        color: "#22c55e",
+      });
+    }
+
+    if (Number.isFinite(a?.premarketLow)) {
+      const t = a.premarketLowTime ? ` (${a.premarketLowTime})` : "";
+      out.push({
+        price: a.premarketLow,
+        text: `DAY LOW ${Number(a.premarketLow).toFixed(2)}${t}`,
+        color: "#ef4444",
+      });
+    }
+
+    return out;
+  }
+
+  function drawBand(
+    ctx,
+    w,
+    lo,
+    hi,
+    fill,
+    stroke,
+    dash = [],
+    strokeWidth = 1,
+    label = ""
+  ) {
     const y1 = priceToY(lo);
     const y2 = priceToY(hi);
     if (y1 == null || y2 == null) return;
@@ -94,24 +169,36 @@ export default function Engine17Overlay({
 
     if (label) {
       ctx.save();
-      ctx.font = "12px system-ui, -apple-system, Segoe UI, Roboto, Arial";
+      ctx.font = `${BAND_LABEL_FONT}px system-ui, -apple-system, Segoe UI, Roboto, Arial`;
       const tw = ctx.measureText(label).width;
-      const bx = 10;
-      const by = Math.max(12, top + 4);
-      const bw = tw + 16;
-      const bh = 20;
-      ctx.fillStyle = "rgba(0,0,0,0.70)";
-      ctx.strokeStyle = "rgba(255,255,255,0.16)";
-      roundRect(ctx, bx, by, bw, bh, 8);
+      const bx = Math.max(20, Math.floor(w * 0.16));
+      const by = Math.max(14, top + 8);
+      const bw = tw + 28;
+      const bh = Math.max(30, Math.floor(BAND_LABEL_FONT * 1.45));
+
+      ctx.fillStyle = "rgba(0,0,0,0.76)";
+      ctx.strokeStyle = "rgba(255,255,255,0.18)";
+      ctx.lineWidth = 1.5;
+      roundRect(ctx, bx, by, bw, bh, 10);
       ctx.fill();
       ctx.stroke();
+
       ctx.fillStyle = "#f3f4f6";
-      ctx.fillText(label, bx + 8, by + 14);
+      ctx.fillText(label, bx + 14, by + Math.floor(bh * 0.72));
       ctx.restore();
     }
   }
 
-  function drawHLine(ctx, w, price, color, label, dash = [], lineWidth = 1.5, xLabel = null) {
+  function drawHLine(
+    ctx,
+    w,
+    price,
+    color,
+    label,
+    dash = [],
+    lineWidth = 1.5,
+    xLabel = null
+  ) {
     const y = priceToY(price);
     if (y == null) return;
 
@@ -127,45 +214,62 @@ export default function Engine17Overlay({
 
     if (label) {
       ctx.save();
-      ctx.font = "12px system-ui, -apple-system, Segoe UI, Roboto, Arial";
+      ctx.font = `${LINE_LABEL_FONT}px system-ui, -apple-system, Segoe UI, Roboto, Arial`;
       const text = `${label}  ${Number(price).toFixed(2)}`;
       const tw = ctx.measureText(text).width;
-      const bx = xLabel == null ? Math.max(12, Math.floor(w * 0.58)) : xLabel;
-      const by = y - 10;
-      const bw = tw + 16;
-      const bh = 20;
-      ctx.fillStyle = "rgba(0,0,0,0.74)";
-      ctx.strokeStyle = "rgba(255,255,255,0.16)";
-      roundRect(ctx, bx, by, bw, bh, 8);
+      const bw = tw + 28;
+      const bh = Math.max(34, Math.floor(LINE_LABEL_FONT * 1.45));
+
+      const bx =
+        xLabel == null
+          ? Math.max(20, Math.floor(w * MID_LABEL_X_PCT))
+          : xLabel;
+
+      const by = y - bh / 2;
+
+      ctx.fillStyle = "rgba(0,0,0,0.80)";
+      ctx.strokeStyle = "rgba(255,255,255,0.18)";
+      ctx.lineWidth = 1.5;
+      roundRect(ctx, bx, by, bw, bh, 10);
       ctx.fill();
       ctx.stroke();
+
       ctx.fillStyle = color;
-      ctx.fillText(text, bx + 8, by + 14);
+      ctx.fillText(text, bx + 14, by + Math.floor(bh * 0.72));
       ctx.restore();
     }
   }
 
-  function drawMarker(ctx, w, price, text, color, align = "right") {
+  function drawMarker(ctx, w, price, text, color, align = "right", big = false) {
     const y = priceToY(price);
     if (y == null) return;
 
+    const fontPx = big ? MARKER_FONT + 2 : MARKER_FONT;
+    const padX = big ? 16 : 14;
+    const padY = big ? 12 : 10;
+
     ctx.save();
-    ctx.font = "12px system-ui, -apple-system, Segoe UI, Roboto, Arial";
+    ctx.font = `${fontPx}px system-ui, -apple-system, Segoe UI, Roboto, Arial`;
     const tw = ctx.measureText(text).width;
-    const bw = tw + 18;
-    const bh = 22;
-    const bx = align === "left" ? 12 : Math.max(12, w - bw - 12);
+    const bw = tw + padX * 2;
+    const bh = Math.max(36, Math.floor(fontPx * 1.45));
+
+    const bx =
+      align === "left"
+        ? Math.max(20, Math.floor(w * LEFT_LABEL_X_PCT))
+        : Math.max(20, w - bw - 16);
+
     const by = y - bh / 2;
 
-    ctx.fillStyle = "rgba(0,0,0,0.78)";
+    ctx.fillStyle = "rgba(0,0,0,0.82)";
     ctx.strokeStyle = color;
-    ctx.lineWidth = 1.5;
-    roundRect(ctx, bx, by, bw, bh, 10);
+    ctx.lineWidth = big ? 2 : 1.5;
+    roundRect(ctx, bx, by, bw, bh, 12);
     ctx.fill();
     ctx.stroke();
 
     ctx.fillStyle = color;
-    ctx.fillText(text, bx + 9, by + 15);
+    ctx.fillText(text, bx + padX, by + Math.floor(bh * 0.72));
     ctx.restore();
   }
 
@@ -175,10 +279,18 @@ export default function Engine17Overlay({
     const state = badges.find((b) => b.kind === "STATE")?.value || "";
     const volume = badges.find((b) => b.kind === "VOLUME")?.value || "";
 
-    if (context === "LONG_CONTEXT" && state !== "BELOW_PULLBACK" && volume === "CONFIRMED") {
+    if (
+      context === "LONG_CONTEXT" &&
+      state !== "BELOW_PULLBACK" &&
+      volume === "CONFIRMED"
+    ) {
       return "rgba(16,185,129,0.06)";
     }
-    if (context === "SHORT_CONTEXT" && state !== "BELOW_PULLBACK" && volume === "CONFIRMED") {
+    if (
+      context === "SHORT_CONTEXT" &&
+      state !== "BELOW_PULLBACK" &&
+      volume === "CONFIRMED"
+    ) {
       return "rgba(239,68,68,0.06)";
     }
     if (state === "DEEP_PULLBACK" || state === "IN_PULLBACK") {
@@ -189,7 +301,11 @@ export default function Engine17Overlay({
 
   function buildSoftRiskMap() {
     const fib = overlayData?.fib;
-    if (!fib?.levels || !Number.isFinite(fib?.anchorA) || !Number.isFinite(fib?.anchorB)) {
+    if (
+      !fib?.levels ||
+      !Number.isFinite(fib?.anchorA) ||
+      !Number.isFinite(fib?.anchorB)
+    ) {
       return null;
     }
 
@@ -274,7 +390,10 @@ export default function Engine17Overlay({
       const fib = overlayData?.fib;
       const lv = fib?.levels || {};
 
-      if (Number.isFinite(fib?.primaryZone?.lo) && Number.isFinite(fib?.primaryZone?.hi)) {
+      if (
+        Number.isFinite(fib?.primaryZone?.lo) &&
+        Number.isFinite(fib?.primaryZone?.hi)
+      ) {
         drawBand(
           ctx,
           w,
@@ -288,7 +407,10 @@ export default function Engine17Overlay({
         );
       }
 
-      if (Number.isFinite(fib?.secondaryZone?.lo) && Number.isFinite(fib?.secondaryZone?.hi)) {
+      if (
+        Number.isFinite(fib?.secondaryZone?.lo) &&
+        Number.isFinite(fib?.secondaryZone?.hi)
+      ) {
         drawBand(
           ctx,
           w,
@@ -302,15 +424,34 @@ export default function Engine17Overlay({
         );
       }
 
-      if (Number.isFinite(lv?.r382)) drawHLine(ctx, w, lv.r382, "#7dd3fc", "Fib 38.2", [], 1.5);
-      if (Number.isFinite(lv?.r500)) drawHLine(ctx, w, lv.r500, "#93c5fd", "Fib 50.0", [], 1.5);
-      if (Number.isFinite(lv?.r618)) drawHLine(ctx, w, lv.r618, "#60a5fa", "Fib 61.8", [], 1.8);
-      if (Number.isFinite(lv?.r786)) drawHLine(ctx, w, lv.r786, "#ef4444", "Inv 78.6", [12, 8], 2);
+      if (Number.isFinite(lv?.r382)) {
+        drawHLine(ctx, w, lv.r382, "#7dd3fc", "Fib 38.2", [], 1.5);
+      }
+      if (Number.isFinite(lv?.r500)) {
+        drawHLine(ctx, w, lv.r500, "#93c5fd", "Fib 50.0", [], 1.5);
+      }
+      if (Number.isFinite(lv?.r618)) {
+        drawHLine(ctx, w, lv.r618, "#60a5fa", "Fib 61.8", [], 1.8);
+      }
+      if (Number.isFinite(lv?.r786)) {
+        drawHLine(ctx, w, lv.r786, "#ef4444", "Inv 78.6", [12, 8], 2);
+      }
 
       const anchors = Array.isArray(overlayData?.anchors) ? overlayData.anchors : [];
       anchors.forEach((a) => {
         if (!Number.isFinite(a?.price)) return;
-        drawMarker(ctx, w, a.price, a.label || a.kind, "#e5e7eb", "left");
+        const timeLabel = getAnchorTimeLabel(a.kind);
+        const text = timeLabel
+          ? `${a.label || a.kind} (${timeLabel})`
+          : (a.label || a.kind);
+
+        drawMarker(ctx, w, a.price, text, "#e5e7eb", "left");
+      });
+
+      // current day high / low near current candle (right side)
+      const dayLabels = buildDayLevelLabels();
+      dayLabels.forEach((d) => {
+        drawMarker(ctx, w, d.price, d.text, d.color, "right", true);
       });
     }
 
@@ -318,29 +459,34 @@ export default function Engine17Overlay({
       const signals = Array.isArray(overlayData?.signals) ? overlayData.signals : [];
       signals.forEach((s) => {
         if (!Number.isFinite(s?.price)) return;
+
         const label = showSignalProvenance
           ? `E16 • ${s.label || s.kind}`
           : (s.label || s.kind);
 
-        const color =
-          s.kind === "BREAKOUT_READY"
-            ? "#22c55e"
-            : s.kind === "BREAKDOWN_READY"
-            ? "#ef4444"
-            : s.kind === "IMPULSE_VOLUME_CONFIRMED"
-            ? "#a78bfa"
-            : "#f3f4f6";
-
-        drawMarker(ctx, w, s.price, label, color, "right");
+        drawMarker(
+          ctx,
+          w,
+          s.price,
+          label,
+          markerColorForSignal(s.kind),
+          "right"
+        );
       });
     }
 
     if (showForwardRiskMap) {
       const risk = buildSoftRiskMap();
       if (risk) {
-        if (Number.isFinite(risk.stop)) drawHLine(ctx, w, risk.stop, "#ef4444", "SOFT STOP", [12, 8], 2);
-        if (Number.isFinite(risk.t1)) drawHLine(ctx, w, risk.t1, "#22c55e", "SOFT T1", [16, 8], 1.8);
-        if (Number.isFinite(risk.t2)) drawHLine(ctx, w, risk.t2, "#10b981", "SOFT T2", [16, 8], 1.8);
+        if (Number.isFinite(risk.stop)) {
+          drawHLine(ctx, w, risk.stop, "#ef4444", "SOFT STOP", [12, 8], 2);
+        }
+        if (Number.isFinite(risk.t1)) {
+          drawHLine(ctx, w, risk.t1, "#22c55e", "SOFT T1", [16, 8], 1.8);
+        }
+        if (Number.isFinite(risk.t2)) {
+          drawHLine(ctx, w, risk.t2, "#10b981", "SOFT T2", [16, 8], 1.8);
+        }
       }
     }
   }
