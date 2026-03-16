@@ -961,9 +961,9 @@ function Engine14Badge({ e14 }) {
       : { bg: "#0b0b0b", fg: "#94a3b8", bd: "#2b2b2b" };
 
   const pillText = `E14: ${badge.label}`;
-  const detailLine = `${badge.direction} • ${Math.round(badge.confidence)} • ${badge.quality}`;
+  const metaText = `${badge.direction} • ${badge.quality} • ${Math.round(badge.confidence)}`;
   const subText = badge.available
-    ? badge.reasonLine
+    ? `${badge.trigger} • ${badge.reasonLine}`
     : "soft fail • advisory unavailable";
 
   return (
@@ -978,16 +978,15 @@ function Engine14Badge({ e14 }) {
         `reason=${badge.reasonLine}`,
       ].join(" | ")}
       style={{
-        marginTop: 6,
+        marginTop: 8,
         border: `1px solid ${colors.bd}`,
         borderRadius: 10,
-        padding: "7px 8px",
+        padding: "8px 9px",
         background: colors.bg,
         display: "flex",
         flexDirection: "column",
-        gap: 4,
+        gap: 5,
         minWidth: 0,
-        overflow: "hidden",
       }}
     >
       <div
@@ -1001,10 +1000,9 @@ function Engine14Badge({ e14 }) {
       >
         <span
           style={{
-            fontSize: FS.micro,
+            fontSize: FS.section,
             fontWeight: 1000,
             color: "#93c5fd",
-            whiteSpace: "nowrap",
           }}
         >
           Engine 14
@@ -1014,13 +1012,12 @@ function Engine14Badge({ e14 }) {
           style={{
             fontSize: FS.micro,
             fontWeight: 1000,
-            padding: "3px 7px",
+            padding: "4px 8px",
             borderRadius: 999,
             border: `1px solid ${colors.bd}`,
             background: "rgba(0,0,0,.18)",
             color: colors.fg,
             whiteSpace: "nowrap",
-            flexShrink: 0,
           }}
         >
           {pillText}
@@ -1029,8 +1026,8 @@ function Engine14Badge({ e14 }) {
 
       <div
         style={{
-          fontSize: FS.micro,
-          fontWeight: 1000,
+          fontSize: FS.small,
+          fontWeight: 900,
           color: colors.fg,
           lineHeight: LH.normal,
           whiteSpace: "nowrap",
@@ -1038,7 +1035,7 @@ function Engine14Badge({ e14 }) {
           textOverflow: "ellipsis",
         }}
       >
-        {detailLine}
+        {metaText}
       </div>
 
       <div
@@ -1177,15 +1174,15 @@ function EngineStack({
       style={{
         border: "1px solid #1f2937",
         borderRadius: 12,
-        padding: "8px 10px",
+        padding: 10,
         background: "#0b0b0b",
         minHeight: 260,
         width: "100%",
         height: "auto",
         display: "grid",
-        gridTemplateRows: "auto repeat(7, 22px) auto",
-        gap: 6,
-        overflow: "hidden",
+        gridTemplateRows: "auto repeat(7, 1fr) auto",
+        gap: 9,
+        overflow: "visible",
         minWidth: 0,
       }}
     >
@@ -1201,7 +1198,7 @@ function EngineStack({
       <StackRow k="E5" v={e5Text} />
       <StackRow k="E6" v={e6Text} />
 
-      <div style={{ minWidth: 0, overflow: "hidden" }}>
+      <div style={{ minWidth: 0 }}>
         {showE14 ? <Engine14Badge e14={e14} /> : null}
       </div>
     </div>
