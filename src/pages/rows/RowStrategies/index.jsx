@@ -961,10 +961,8 @@ function Engine14Badge({ e14 }) {
       : { bg: "#0b0b0b", fg: "#94a3b8", bd: "#2b2b2b" };
 
   const pillText = `E14: ${badge.label}`;
-  const metaText = `${badge.direction} • ${badge.quality} • ${Math.round(badge.confidence)}`;
-  const subText = badge.available
-    ? `${badge.trigger} • ${badge.reasonLine}`
-    : "soft fail • advisory unavailable";
+  const detailText = `${badge.direction} • ${Math.round(badge.confidence)} • ${badge.quality}`;
+  const reasonText = badge.available ? badge.reasonLine : "soft fail • advisory unavailable";
 
   return (
     <div
@@ -978,15 +976,16 @@ function Engine14Badge({ e14 }) {
         `reason=${badge.reasonLine}`,
       ].join(" | ")}
       style={{
-        marginTop: 8,
+        marginTop: 6,
         border: `1px solid ${colors.bd}`,
         borderRadius: 10,
-        padding: "8px 9px",
+        padding: "7px 8px",
         background: colors.bg,
         display: "flex",
         flexDirection: "column",
-        gap: 5,
+        gap: 4,
         minWidth: 0,
+        overflow: "hidden",
       }}
     >
       <div
@@ -1000,9 +999,12 @@ function Engine14Badge({ e14 }) {
       >
         <span
           style={{
-            fontSize: FS.section,
+            fontSize: FS.micro,
             fontWeight: 1000,
             color: "#93c5fd",
+            whiteSpace: "nowrap",
+            flexShrink: 1,
+            minWidth: 0,
           }}
         >
           Engine 14
@@ -1012,12 +1014,13 @@ function Engine14Badge({ e14 }) {
           style={{
             fontSize: FS.micro,
             fontWeight: 1000,
-            padding: "4px 8px",
+            padding: "3px 7px",
             borderRadius: 999,
             border: `1px solid ${colors.bd}`,
             background: "rgba(0,0,0,.18)",
             color: colors.fg,
             whiteSpace: "nowrap",
+            flexShrink: 0,
           }}
         >
           {pillText}
@@ -1026,16 +1029,16 @@ function Engine14Badge({ e14 }) {
 
       <div
         style={{
-          fontSize: FS.small,
-          fontWeight: 900,
+          fontSize: FS.micro,
+          fontWeight: 1000,
           color: colors.fg,
-          lineHeight: LH.normal,
+          lineHeight: 1.2,
           whiteSpace: "nowrap",
           overflow: "hidden",
           textOverflow: "ellipsis",
         }}
       >
-        {metaText}
+        {detailText}
       </div>
 
       <div
@@ -1043,13 +1046,13 @@ function Engine14Badge({ e14 }) {
           fontSize: FS.micro,
           fontWeight: 900,
           color: "#cbd5e1",
-          lineHeight: LH.normal,
+          lineHeight: 1.2,
           whiteSpace: "nowrap",
           overflow: "hidden",
           textOverflow: "ellipsis",
         }}
       >
-        {subText}
+        {reasonText}
       </div>
     </div>
   );
@@ -1179,10 +1182,10 @@ function EngineStack({
         minHeight: 260,
         width: "100%",
         height: "auto",
-        display: "grid",
-        gridTemplateRows: "auto repeat(7, 1fr) auto",
-        gap: 9,
-        overflow: "visible",
+        display: "flex",
+        flexDirection: "column",
+        gap: 8,
+        overflow: "hidden",
         minWidth: 0,
       }}
     >
@@ -1190,52 +1193,39 @@ function EngineStack({
         ENGINE STACK
       </div>
 
-      <StackRow k="E1" v={loc} />
-      <StackRow k="E2" v={e2Text} vStyle={{ color: e2Color }} />
-      <StackRow k="E3" v={e3Text} vStyle={{ color: stageColor }} />
-      <StackRow k="E4" v={e4Text} />
-      <StackRow k="E4.5" v={e45Text} />
-      <StackRow k="E5" v={e5Text} />
-      <StackRow k="E6" v={e6Text} />
-
-      <div style={{ minWidth: 0 }}>
-        {showE14 ? <Engine14Badge e14={e14} /> : null}
-      </div>
-    </div>
-  );
-}
-
-function StackRow({ k, v, vStyle = {} }) {
-  return (
-    <div
-      style={{
-        display: "grid",
-        gridTemplateColumns: "34px 1fr",
-        gap: 6,
-        alignItems: "center",
-        minWidth: 0,
-      }}
-    >
-      <span style={{ fontWeight: 1000, fontSize: FS.stackKey, color: "#9ca3af" }}>{k}</span>
-      <span
+      <div
         style={{
-          fontWeight: 1000,
-          fontSize: FS.stackValue,
-          whiteSpace: "normal",
-          overflow: "visible",
-          textOverflow: "ellipsis",
-          color: "#e5e7eb",
-          lineHeight: LH.normal,
-          ...vStyle,
+          display: "grid",
+          gridTemplateColumns: "1fr",
+          gap: 8,
+          minWidth: 0,
+          flex: "1 1 auto",
         }}
-        title={v}
       >
-        {v}
-      </span>
+        <StackRow k="E1" v={loc} />
+        <StackRow k="E2" v={e2Text} vStyle={{ color: e2Color }} />
+        <StackRow k="E3" v={e3Text} vStyle={{ color: stageColor }} />
+        <StackRow k="E4" v={e4Text} />
+        <StackRow k="E4.5" v={e45Text} />
+        <StackRow k="E5" v={e5Text} />
+        <StackRow k="E6" v={e6Text} />
+      </div>
+
+      {showE14 ? (
+        <div
+          style={{
+            marginTop: 2,
+            paddingTop: 2,
+            minWidth: 0,
+            flex: "0 0 auto",
+          }}
+        >
+          <Engine14Badge e14={e14} />
+        </div>
+      ) : null}
     </div>
   );
 }
-
 /* -------------------- Engine 15 local fallback -------------------- */
 function computeReadinessFallback({ confluence, permissionObj }) {
   const allowed = ["NEGOTIATED", "INSTITUTIONAL"];
