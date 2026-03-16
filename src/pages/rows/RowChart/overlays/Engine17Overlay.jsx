@@ -1,0 +1,372 @@
+// src/pages/rows/RowChart/overlays/Engine17Overlay.jsx
+// Engine 17 visual overlay layer for Lightweight Charts
+//
+// Draws:
+// - liquidity zones
+// - fib levels
+// - pullback zones
+// - anchors
+// - signal provenance markers
+// - soft debug forward risk map
+// - regime background tint
+//
+// Notes:
+// - Uses overlayData passed in from RowChart; no fetching here
+// - Follows existing overlay lifecycle: seed / update / destroy
+
+export default function Engine17Overlay({
+  chart,
+  priceSeries,
+  chartContainer,
+  overlayData,
+
+  showLiquidityZones = true,
+  showMarketStructure = true,
+  showSignals = true,
+  showSignalProvenance = false,
+  showForwardRiskMap = false,
+  showRegimeBackground = false,
+}) {
+  if (!chart || !priceSeries || !chartContainer) {
+    return { seed() {}, update() {}, destroy() {} };
+  }
+
+  let canvas = null;
+  const ts = chart.timeScale();
+
+  function ensureCanvas() {
+    if (canvas) return canvas;
+
+    const cnv = document.createElement("canvas");
+    cnv.className = "overlay-canvas engine17-overlay";
+    Object.assign(cnv.style, {
+      position: "absolute",
+      inset: 0,
+      pointerEvents: "none",
+      zIndex: 81,
+    });
+
+    chartContainer.appendChild(cnv);
+    canvas = cnv;
+    return canvas;
+  }
+
+  function resizeCanvas() {
+    if (!canvas) return;
+    const rect = chartContainer.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = Math.max(1, Math.floor(rect.width * dpr));
+    canvas.height = Math.max(1, Math.floor(rect.height * dpr));
+  }
+
+  function priceToY(price) {
+    const y = priceSeries.priceToCoordinate(Number(price));
+    return Number.isFinite(y) ? y : null;
+  }
+
+  function roundRect(ctx, x, y, w, h, r) {
+    const rr = Math.min(r, w / 2, h / 2);
+    ctx.beginPath();
+    ctx.moveTo(x + rr, y);
+    ctx.arcTo(x + w, y, x + w, y + h, rr);
+    ctx.arcTo(x + w, y + h, x, y + h, rr);
+    ctx.arcTo(x, y + h, x, y, rr);
+    ctx.arcTo(x, y, x + w, y, rr);
+    ctx.closePath();
+  }
+
+  function drawBand(ctx, w, lo, hi, fill, stroke, dash = [], strokeWidth = 1, label = "") {
+    const y1 = priceToY(lo);
+    const y2 = priceToY(hi);
+    if (y1 == null || y2 == null) return;
+
+    const top = Math.min(y1, y2);
+    const h = Math.max(2, Math.abs(y2 - y1));
+
+    ctx.save();
+    ctx.fillStyle = fill;
+    ctx.fillRect(0, top, w, h);
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = strokeWidth;
+    ctx.setLineDash(dash);
+    ctx.strokeRect(1, top + 1, Math.max(1, w - 2), Math.max(1, h - 2));
+    ctx.restore();
+
+    if (label) {
+      ctx.save();
+      ctx.font = "12px system-ui, -apple-system, Segoe UI, Roboto, Arial";
+      const tw = ctx.measureText(label).width;
+      const bx = 10;
+      const by = Math.max(12, top + 4);
+      const bw = tw + 16;
+      const bh = 20;
+      ctx.fillStyle = "rgba(0,0,0,0.70)";
+      ctx.strokeStyle = "rgba(255,255,255,0.16)";
+      roundRect(ctx, bx, by, bw, bh, 8);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = "#f3f4f6";
+      ctx.fillText(label, bx + 8, by + 14);
+      ctx.restore();
+    }
+  }
+
+  function drawHLine(ctx, w, price, color, label, dash = [], lineWidth = 1.5, xLabel = null) {
+    const y = priceToY(price);
+    if (y == null) return;
+
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = lineWidth;
+    ctx.setLineDash(dash);
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(w, y);
+    ctx.stroke();
+    ctx.restore();
+
+    if (label) {
+      ctx.save();
+      ctx.font = "12px system-ui, -apple-system, Segoe UI, Roboto, Arial";
+      const text = `${label}  ${Number(price).toFixed(2)}`;
+      const tw = ctx.measureText(text).width;
+      const bx = xLabel == null ? Math.max(12, Math.floor(w * 0.58)) : xLabel;
+      const by = y - 10;
+      const bw = tw + 16;
+      const bh = 20;
+      ctx.fillStyle = "rgba(0,0,0,0.74)";
+      ctx.strokeStyle = "rgba(255,255,255,0.16)";
+      roundRect(ctx, bx, by, bw, bh, 8);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = color;
+      ctx.fillText(text, bx + 8, by + 14);
+      ctx.restore();
+    }
+  }
+
+  function drawMarker(ctx, w, price, text, color, align = "right") {
+    const y = priceToY(price);
+    if (y == null) return;
+
+    ctx.save();
+    ctx.font = "12px system-ui, -apple-system, Segoe UI, Roboto, Arial";
+    const tw = ctx.measureText(text).width;
+    const bw = tw + 18;
+    const bh = 22;
+    const bx = align === "left" ? 12 : Math.max(12, w - bw - 12);
+    const by = y - bh / 2;
+
+    ctx.fillStyle = "rgba(0,0,0,0.78)";
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1.5;
+    roundRect(ctx, bx, by, bw, bh, 10);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = color;
+    ctx.fillText(text, bx + 9, by + 15);
+    ctx.restore();
+  }
+
+  function getRegimeTint() {
+    const context = overlayData?.fib?.context || "";
+    const badges = Array.isArray(overlayData?.badges) ? overlayData.badges : [];
+    const state = badges.find((b) => b.kind === "STATE")?.value || "";
+    const volume = badges.find((b) => b.kind === "VOLUME")?.value || "";
+
+    if (context === "LONG_CONTEXT" && state !== "BELOW_PULLBACK" && volume === "CONFIRMED") {
+      return "rgba(16,185,129,0.06)";
+    }
+    if (context === "SHORT_CONTEXT" && state !== "BELOW_PULLBACK" && volume === "CONFIRMED") {
+      return "rgba(239,68,68,0.06)";
+    }
+    if (state === "DEEP_PULLBACK" || state === "IN_PULLBACK") {
+      return "rgba(245,158,11,0.05)";
+    }
+    return null;
+  }
+
+  function buildSoftRiskMap() {
+    const fib = overlayData?.fib;
+    if (!fib?.levels || !Number.isFinite(fib?.anchorA) || !Number.isFinite(fib?.anchorB)) {
+      return null;
+    }
+
+    const context = fib.context;
+    const span = Math.abs(fib.anchorB - fib.anchorA);
+    if (!(span > 0)) return null;
+
+    if (context === "LONG_CONTEXT") {
+      return {
+        stop: fib.levels.r786,
+        t1: fib.anchorB + span * 0.382,
+        t2: fib.anchorB + span * 0.618,
+      };
+    }
+
+    if (context === "SHORT_CONTEXT") {
+      return {
+        stop: fib.levels.r786,
+        t1: fib.anchorB - span * 0.382,
+        t2: fib.anchorB - span * 0.618,
+      };
+    }
+
+    return null;
+  }
+
+  function draw() {
+    if (!overlayData?.ok) {
+      if (canvas) {
+        const ctx = canvas.getContext("2d");
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+      }
+      return;
+    }
+
+    const cnv = ensureCanvas();
+    resizeCanvas();
+
+    const rect = chartContainer.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+
+    const ctx = cnv.getContext("2d");
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, cnv.width, cnv.height);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    const w = rect.width;
+    const h = rect.height;
+
+    if (showRegimeBackground) {
+      const tint = getRegimeTint();
+      if (tint) {
+        ctx.save();
+        ctx.fillStyle = tint;
+        ctx.fillRect(0, 0, w, h);
+        ctx.restore();
+      }
+    }
+
+    if (showLiquidityZones) {
+      const zones = Array.isArray(overlayData?.zones) ? overlayData.zones : [];
+      zones.forEach((z) => {
+        if (!Number.isFinite(z?.lo) || !Number.isFinite(z?.hi)) return;
+        drawBand(
+          ctx,
+          w,
+          z.lo,
+          z.hi,
+          "rgba(0,220,200,0.10)",
+          "rgba(0,220,200,0.80)",
+          [8, 7],
+          1,
+          z.label || "Negotiated Zone"
+        );
+        if (Number.isFinite(z?.mid)) {
+          drawHLine(ctx, w, z.mid, "rgba(0,220,200,0.30)", "", [10, 8], 1);
+        }
+      });
+    }
+
+    if (showMarketStructure) {
+      const fib = overlayData?.fib;
+      const lv = fib?.levels || {};
+
+      if (Number.isFinite(fib?.primaryZone?.lo) && Number.isFinite(fib?.primaryZone?.hi)) {
+        drawBand(
+          ctx,
+          w,
+          fib.primaryZone.lo,
+          fib.primaryZone.hi,
+          "rgba(59,130,246,0.10)",
+          "rgba(59,130,246,0.75)",
+          [6, 5],
+          1,
+          "Primary Pullback"
+        );
+      }
+
+      if (Number.isFinite(fib?.secondaryZone?.lo) && Number.isFinite(fib?.secondaryZone?.hi)) {
+        drawBand(
+          ctx,
+          w,
+          fib.secondaryZone.lo,
+          fib.secondaryZone.hi,
+          "rgba(245,158,11,0.10)",
+          "rgba(245,158,11,0.80)",
+          [6, 5],
+          1,
+          "Secondary Pullback"
+        );
+      }
+
+      if (Number.isFinite(lv?.r382)) drawHLine(ctx, w, lv.r382, "#7dd3fc", "Fib 38.2", [], 1.5);
+      if (Number.isFinite(lv?.r500)) drawHLine(ctx, w, lv.r500, "#93c5fd", "Fib 50.0", [], 1.5);
+      if (Number.isFinite(lv?.r618)) drawHLine(ctx, w, lv.r618, "#60a5fa", "Fib 61.8", [], 1.8);
+      if (Number.isFinite(lv?.r786)) drawHLine(ctx, w, lv.r786, "#ef4444", "Inv 78.6", [12, 8], 2);
+
+      const anchors = Array.isArray(overlayData?.anchors) ? overlayData.anchors : [];
+      anchors.forEach((a) => {
+        if (!Number.isFinite(a?.price)) return;
+        drawMarker(ctx, w, a.price, a.label || a.kind, "#e5e7eb", "left");
+      });
+    }
+
+    if (showSignals) {
+      const signals = Array.isArray(overlayData?.signals) ? overlayData.signals : [];
+      signals.forEach((s) => {
+        if (!Number.isFinite(s?.price)) return;
+        const label = showSignalProvenance
+          ? `E16 • ${s.label || s.kind}`
+          : (s.label || s.kind);
+
+        const color =
+          s.kind === "BREAKOUT_READY"
+            ? "#22c55e"
+            : s.kind === "BREAKDOWN_READY"
+            ? "#ef4444"
+            : s.kind === "IMPULSE_VOLUME_CONFIRMED"
+            ? "#a78bfa"
+            : "#f3f4f6";
+
+        drawMarker(ctx, w, s.price, label, color, "right");
+      });
+    }
+
+    if (showForwardRiskMap) {
+      const risk = buildSoftRiskMap();
+      if (risk) {
+        if (Number.isFinite(risk.stop)) drawHLine(ctx, w, risk.stop, "#ef4444", "SOFT STOP", [12, 8], 2);
+        if (Number.isFinite(risk.t1)) drawHLine(ctx, w, risk.t1, "#22c55e", "SOFT T1", [16, 8], 1.8);
+        if (Number.isFinite(risk.t2)) drawHLine(ctx, w, risk.t2, "#10b981", "SOFT T2", [16, 8], 1.8);
+      }
+    }
+  }
+
+  const visibleCb = () => draw();
+  ts.subscribeVisibleTimeRangeChange?.(visibleCb);
+
+  function seed() {
+    draw();
+  }
+
+  function update() {
+    draw();
+  }
+
+  function destroy() {
+    try {
+      ts.unsubscribeVisibleTimeRangeChange?.(visibleCb);
+    } catch {}
+    try {
+      if (canvas && canvas.parentNode === chartContainer) {
+        chartContainer.removeChild(canvas);
+      }
+    } catch {}
+    canvas = null;
+  }
+
+  return { seed, update, destroy };
+}
