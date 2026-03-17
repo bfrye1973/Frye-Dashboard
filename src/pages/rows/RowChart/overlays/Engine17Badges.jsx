@@ -3,6 +3,34 @@
 import React from "react";
 
 function toneFor(kind, value) {
+  if (kind === "EXHAUSTION_READY_SHORT") {
+    return {
+      bg: "rgba(239,68,68,0.22)",
+      border: "rgba(239,68,68,0.65)",
+      color: "#fecaca",
+    };
+  }
+  if (kind === "EXHAUSTION_READY_LONG") {
+    return {
+      bg: "rgba(34,197,94,0.20)",
+      border: "rgba(34,197,94,0.62)",
+      color: "#bbf7d0",
+    };
+  }
+  if (kind === "READINESS") {
+    return {
+      bg: "rgba(248,250,252,0.12)",
+      border: "rgba(248,250,252,0.32)",
+      color: "#f8fafc",
+    };
+  }
+  if (kind === "STRATEGY") {
+    return {
+      bg: "rgba(192,132,252,0.18)",
+      border: "rgba(192,132,252,0.50)",
+      color: "#e9d5ff",
+    };
+  }
   if (kind === "VOLUME" && value === "CONFIRMED") {
     return {
       bg: "rgba(167,139,250,0.18)",
@@ -74,23 +102,43 @@ export default function Engine17Badges({
 
   const badges = Array.isArray(overlayData?.badges) ? overlayData.badges : [];
   const meta = overlayData?.meta || {};
+  const fib = overlayData?.fib || {};
 
   const contextValue =
-    badges.find((b) => b.kind === "CONTEXT")?.value || overlayData?.fib?.context || "NONE";
+    badges.find((b) => b.kind === "CONTEXT")?.value || fib?.context || "NONE";
 
   const stateValue =
-    badges.find((b) => b.kind === "STATE")?.value || overlayData?.state || "UNKNOWN";
+    badges.find((b) => b.kind === "STATE")?.value || fib?.state || "UNKNOWN";
 
   const volumeValue =
     badges.find((b) => b.kind === "VOLUME")?.value ||
-    (overlayData?.fib?.impulseVolumeConfirmed ? "CONFIRMED" : "NORMAL");
+    (fib?.impulseVolumeConfirmed ? "CONFIRMED" : "NORMAL");
 
-  // Always keep these 3 visible first
   const primary = [
     { kind: "CONTEXT", value: contextValue },
     { kind: "STATE", value: stateValue },
     { kind: "VOLUME", value: volumeValue },
   ];
+
+  // exhaustion priority pill
+  if (fib?.exhaustionDetected && fib?.exhaustionActive) {
+    primary.unshift({
+      kind: fib.exhaustionShort ? "EXHAUSTION_READY_SHORT" : "EXHAUSTION_READY_LONG",
+      value: "EXHAUSTION READY",
+    });
+  } else if (fib?.readinessLabel && fib.readinessLabel !== "NO_SETUP") {
+    primary.unshift({
+      kind: "READINESS",
+      value: fib.readinessLabel,
+    });
+  }
+
+  if (fib?.strategyType && fib.strategyType !== "NONE") {
+    primary.push({
+      kind: "STRATEGY",
+      value: fib.strategyType,
+    });
+  }
 
   const extras = [];
 
@@ -125,7 +173,7 @@ export default function Engine17Badges({
         position: "absolute",
         top: 12,
         right: 12,
-        zIndex: 110, // higher than timeline
+        zIndex: 110,
         display: "flex",
         flexWrap: "wrap",
         gap: 10,
