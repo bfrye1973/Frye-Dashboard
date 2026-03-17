@@ -120,10 +120,11 @@ export default function Engine17Badges({
     { kind: "VOLUME", value: volumeValue },
   ];
 
-  // exhaustion priority pill
   if (fib?.exhaustionDetected && fib?.exhaustionActive) {
     primary.unshift({
-      kind: fib.exhaustionShort ? "EXHAUSTION_READY_SHORT" : "EXHAUSTION_READY_LONG",
+      kind: fib.exhaustionShort
+        ? "EXHAUSTION_READY_SHORT"
+        : "EXHAUSTION_READY_LONG",
       value: "EXHAUSTION READY",
     });
   } else if (fib?.readinessLabel && fib.readinessLabel !== "NO_SETUP") {
