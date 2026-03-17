@@ -1,116 +1,162 @@
-// src/pages/rows/RowChart/overlays/Engine17DecisionTimeline.jsx
+// src/pages/rows/RowChart/overlays/Engine17Badges.jsx
 
 import React from "react";
 
-function buildTimelineItems(overlayData) {
+function toneFor(kind, value) {
+  if (kind === "VOLUME" && value === "CONFIRMED") {
+    return {
+      bg: "rgba(167,139,250,0.18)",
+      border: "rgba(167,139,250,0.55)",
+      color: "#ddd6fe",
+    };
+  }
+  if (kind === "STATE" && value === "ABOVE_PULLBACK") {
+    return {
+      bg: "rgba(34,197,94,0.16)",
+      border: "rgba(34,197,94,0.50)",
+      color: "#bbf7d0",
+    };
+  }
+  if (kind === "STATE" && (value === "IN_PULLBACK" || value === "DEEP_PULLBACK")) {
+    return {
+      bg: "rgba(245,158,11,0.16)",
+      border: "rgba(245,158,11,0.50)",
+      color: "#fde68a",
+    };
+  }
+  if (kind === "STATE" && value === "BELOW_PULLBACK") {
+    return {
+      bg: "rgba(239,68,68,0.16)",
+      border: "rgba(239,68,68,0.50)",
+      color: "#fecaca",
+    };
+  }
+  if (kind === "CONTEXT" && value === "LONG_CONTEXT") {
+    return {
+      bg: "rgba(16,185,129,0.16)",
+      border: "rgba(16,185,129,0.50)",
+      color: "#bbf7d0",
+    };
+  }
+  if (kind === "CONTEXT" && value === "SHORT_CONTEXT") {
+    return {
+      bg: "rgba(239,68,68,0.16)",
+      border: "rgba(239,68,68,0.50)",
+      color: "#fecaca",
+    };
+  }
+  return {
+    bg: "rgba(255,255,255,0.08)",
+    border: "rgba(255,255,255,0.18)",
+    color: "#f3f4f6",
+  };
+}
+
+function uniqueByKind(items) {
+  const seen = new Set();
   const out = [];
-  const context = overlayData?.fib?.context || "NONE";
-  const state =
-    (overlayData?.badges || []).find((b) => b.kind === "STATE")?.value ||
-    "UNKNOWN";
-  const volume =
-    (overlayData?.badges || []).find((b) => b.kind === "VOLUME")?.value ||
-    "NORMAL";
-  const signals = Array.isArray(overlayData?.signals) ? overlayData.signals : [];
-
-  out.push({ kind: "CONTEXT", text: `Context: ${context}` });
-  out.push({ kind: "STATE", text: `State: ${state}` });
-  out.push({ kind: "VOLUME", text: `Volume: ${volume}` });
-
-  signals.forEach((s) => {
-    out.push({
-      kind: s.kind,
-      text: `E16: ${s.label || s.kind}`,
-    });
-  });
-
+  for (const item of items) {
+    const key = `${item.kind}|${item.value}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(item);
+  }
   return out;
 }
 
-function dotColor(kind) {
-  if (kind === "BREAKOUT_READY") return "#22c55e";
-  if (kind === "BREAKDOWN_READY") return "#ef4444";
-  if (kind === "IMPULSE_VOLUME_CONFIRMED") return "#a78bfa";
-  if (kind === "STATE") return "#60a5fa";
-  if (kind === "CONTEXT") return "#34d399";
-  if (kind === "VOLUME") return "#f59e0b";
-  return "#94a3b8";
-}
-
-export default function Engine17DecisionTimeline({
+export default function Engine17Badges({
   overlayData,
-  visible = false,
+  visible = true,
+  showConfidenceStack = true,
+  showReplaySyncedState = false,
 }) {
   if (!visible || !overlayData?.ok) return null;
 
-  const items = buildTimelineItems(overlayData);
-  if (!items.length) return null;
+  const badges = Array.isArray(overlayData?.badges) ? overlayData.badges : [];
+  const meta = overlayData?.meta || {};
+
+  const contextValue =
+    badges.find((b) => b.kind === "CONTEXT")?.value || overlayData?.fib?.context || "NONE";
+
+  const stateValue =
+    badges.find((b) => b.kind === "STATE")?.value || overlayData?.state || "UNKNOWN";
+
+  const volumeValue =
+    badges.find((b) => b.kind === "VOLUME")?.value ||
+    (overlayData?.fib?.impulseVolumeConfirmed ? "CONFIRMED" : "NORMAL");
+
+  // Always keep these 3 visible first
+  const primary = [
+    { kind: "CONTEXT", value: contextValue },
+    { kind: "STATE", value: stateValue },
+    { kind: "VOLUME", value: volumeValue },
+  ];
+
+  const extras = [];
+
+  if (showConfidenceStack) {
+    if (meta?.sourceEnginesUsed?.length) {
+      extras.push({
+        kind: "ENGINES",
+        value: meta.sourceEnginesUsed.join(", "),
+      });
+    }
+
+    if (meta?.missingSections?.length) {
+      extras.push({
+        kind: "MISSING",
+        value: meta.missingSections.join(", "),
+      });
+    }
+  }
+
+  if (showReplaySyncedState) {
+    extras.push({
+      kind: "REPLAY_SYNC",
+      value: "PENDING",
+    });
+  }
+
+  const allBadges = uniqueByKind([...primary, ...extras]);
 
   return (
     <div
       style={{
         position: "absolute",
         top: 12,
-        left: "36%",                 // ✅ moved LEFT
-        transform: "translateX(-50%)",
-        zIndex: 95,
-        width: 720,                 // ✅ smaller box
-        maxWidth: "42%",
-        borderRadius: 14,
-        border: "1px solid rgba(255,255,255,0.16)",
-        background: "rgba(5,8,18,0.88)",
-        boxShadow: "0 10px 26px rgba(0,0,0,0.32)",
-        color: "#f3f4f6",
-        padding: "14px 18px",
-        backdropFilter: "blur(4px)",
+        right: 12,
+        zIndex: 110, // higher than timeline
+        display: "flex",
+        flexWrap: "wrap",
+        gap: 10,
+        justifyContent: "flex-end",
+        maxWidth: "48%",
         pointerEvents: "none",
       }}
     >
-      <div
-        style={{
-          fontSize: 22,
-          fontWeight: 900,
-          letterSpacing: 0.6,
-          marginBottom: 10,
-          color: "#cbd5e1",
-          textAlign: "center",
-        }}
-      >
-        DECISION TIMELINE
-      </div>
-
-      <div style={{ display: "grid", gap: 8 }}>
-        {items.map((item, idx) => (
+      {allBadges.map((b, idx) => {
+        const tone = toneFor(b.kind, b.value);
+        return (
           <div
-            key={`${item.kind}-${idx}`}
+            key={`${b.kind}-${idx}`}
             style={{
-              display: "grid",
-              gridTemplateColumns: "14px 1fr",
-              gap: 10,
-              alignItems: "start",
+              padding: "10px 16px",
+              borderRadius: 12,
+              border: `1.5px solid ${tone.border}`,
+              background: tone.bg,
+              color: tone.color,
+              fontSize: 20,
+              fontWeight: 900,
+              letterSpacing: 0.3,
+              boxShadow: "0 2px 10px rgba(0,0,0,0.22)",
+              backdropFilter: "blur(3px)",
+              whiteSpace: "nowrap",
             }}
           >
-            <div
-              style={{
-                width: 12,
-                height: 12,
-                borderRadius: 999,
-                background: dotColor(item.kind),
-                marginTop: 6,
-              }}
-            />
-            <div
-              style={{
-                fontSize: 18,
-                lineHeight: 1.3,
-                fontWeight: 700,
-              }}
-            >
-              {item.text}
-            </div>
+            {b.kind}: {String(b.value)}
           </div>
-        ))}
-      </div>
+        );
+      })}
     </div>
   );
 }
