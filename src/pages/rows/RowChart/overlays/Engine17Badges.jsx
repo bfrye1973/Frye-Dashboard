@@ -1,136 +1,116 @@
-// src/pages/rows/RowChart/overlays/Engine17Badges.jsx
+// src/pages/rows/RowChart/overlays/Engine17DecisionTimeline.jsx
 
 import React from "react";
 
-function toneFor(kind, value) {
-  if (kind === "VOLUME" && value === "CONFIRMED") {
-    return {
-      bg: "rgba(167,139,250,0.18)",
-      border: "rgba(167,139,250,0.55)",
-      color: "#ddd6fe",
-    };
-  }
-  if (kind === "STATE" && value === "ABOVE_PULLBACK") {
-    return {
-      bg: "rgba(34,197,94,0.16)",
-      border: "rgba(34,197,94,0.50)",
-      color: "#bbf7d0",
-    };
-  }
-  if (kind === "STATE" && (value === "IN_PULLBACK" || value === "DEEP_PULLBACK")) {
-    return {
-      bg: "rgba(245,158,11,0.16)",
-      border: "rgba(245,158,11,0.50)",
-      color: "#fde68a",
-    };
-  }
-  if (kind === "STATE" && value === "BELOW_PULLBACK") {
-    return {
-      bg: "rgba(239,68,68,0.16)",
-      border: "rgba(239,68,68,0.50)",
-      color: "#fecaca",
-    };
-  }
-  if (kind === "CONTEXT" && value === "LONG_CONTEXT") {
-    return {
-      bg: "rgba(16,185,129,0.16)",
-      border: "rgba(16,185,129,0.50)",
-      color: "#bbf7d0",
-    };
-  }
-  if (kind === "CONTEXT" && value === "SHORT_CONTEXT") {
-    return {
-      bg: "rgba(239,68,68,0.16)",
-      border: "rgba(239,68,68,0.50)",
-      color: "#fecaca",
-    };
-  }
-  return {
-    bg: "rgba(255,255,255,0.08)",
-    border: "rgba(255,255,255,0.18)",
-    color: "#f3f4f6",
-  };
+function buildTimelineItems(overlayData) {
+  const out = [];
+  const context = overlayData?.fib?.context || "NONE";
+  const state =
+    (overlayData?.badges || []).find((b) => b.kind === "STATE")?.value ||
+    "UNKNOWN";
+  const volume =
+    (overlayData?.badges || []).find((b) => b.kind === "VOLUME")?.value ||
+    "NORMAL";
+  const signals = Array.isArray(overlayData?.signals) ? overlayData.signals : [];
+
+  out.push({ kind: "CONTEXT", text: `Context: ${context}` });
+  out.push({ kind: "STATE", text: `State: ${state}` });
+  out.push({ kind: "VOLUME", text: `Volume: ${volume}` });
+
+  signals.forEach((s) => {
+    out.push({
+      kind: s.kind,
+      text: `E16: ${s.label || s.kind}`,
+    });
+  });
+
+  return out;
 }
 
-export default function Engine17Badges({
+function dotColor(kind) {
+  if (kind === "BREAKOUT_READY") return "#22c55e";
+  if (kind === "BREAKDOWN_READY") return "#ef4444";
+  if (kind === "IMPULSE_VOLUME_CONFIRMED") return "#a78bfa";
+  if (kind === "STATE") return "#60a5fa";
+  if (kind === "CONTEXT") return "#34d399";
+  if (kind === "VOLUME") return "#f59e0b";
+  return "#94a3b8";
+}
+
+export default function Engine17DecisionTimeline({
   overlayData,
-  visible = true,
-  showConfidenceStack = true,
-  showReplaySyncedState = false,
+  visible = false,
 }) {
   if (!visible || !overlayData?.ok) return null;
 
-  const badges = Array.isArray(overlayData?.badges) ? overlayData.badges : [];
-  const meta = overlayData?.meta || {};
-  const confidence = [];
-
-  if (showConfidenceStack) {
-    badges.forEach((b) => confidence.push({ kind: b.kind, value: b.value }));
-
-    if (meta?.sourceEnginesUsed?.length) {
-      confidence.push({
-        kind: "ENGINES",
-        value: meta.sourceEnginesUsed.join(", "),
-      });
-    }
-
-    if (meta?.missingSections?.length) {
-      confidence.push({
-        kind: "MISSING",
-        value: meta.missingSections.join(", "),
-      });
-    }
-  }
-
-  if (showReplaySyncedState) {
-    confidence.push({
-      kind: "REPLAY_SYNC",
-      value: "PENDING",
-    });
-  }
-
-  if (!confidence.length) return null;
+  const items = buildTimelineItems(overlayData);
+  if (!items.length) return null;
 
   return (
     <div
       style={{
         position: "absolute",
-        top: 10,
-        right: 12,
-        zIndex: 96,
-        display: "flex",
-        flexWrap: "wrap",
-        gap: 12,
-        justifyContent: "flex-end",
-        maxWidth: "74%",
+        top: 12,
+        left: "36%",                 // ✅ moved LEFT
+        transform: "translateX(-50%)",
+        zIndex: 95,
+        width: 720,                 // ✅ smaller box
+        maxWidth: "42%",
+        borderRadius: 14,
+        border: "1px solid rgba(255,255,255,0.16)",
+        background: "rgba(5,8,18,0.88)",
+        boxShadow: "0 10px 26px rgba(0,0,0,0.32)",
+        color: "#f3f4f6",
+        padding: "14px 18px",
+        backdropFilter: "blur(4px)",
         pointerEvents: "none",
       }}
     >
-      {confidence.map((b, idx) => {
-        const tone = toneFor(b.kind, b.value);
-        return (
+      <div
+        style={{
+          fontSize: 22,
+          fontWeight: 900,
+          letterSpacing: 0.6,
+          marginBottom: 10,
+          color: "#cbd5e1",
+          textAlign: "center",
+        }}
+      >
+        DECISION TIMELINE
+      </div>
+
+      <div style={{ display: "grid", gap: 8 }}>
+        {items.map((item, idx) => (
           <div
-            key={`${b.kind}-${idx}`}
-            title={b.kind}
+            key={`${item.kind}-${idx}`}
             style={{
-              padding: "14px 22px",
-              borderRadius: 14,
-              border: `2px solid ${tone.border}`,
-              background: tone.bg,
-              color: tone.color,
-              fontSize: 26,
-              fontWeight: 900,
-              letterSpacing: 0.35,
-              boxShadow: "0 3px 12px rgba(0,0,0,0.24)",
-              backdropFilter: "blur(3px)",
-              whiteSpace: "nowrap",
-              lineHeight: 1.08,
+              display: "grid",
+              gridTemplateColumns: "14px 1fr",
+              gap: 10,
+              alignItems: "start",
             }}
           >
-            {b.kind}: {String(b.value)}
+            <div
+              style={{
+                width: 12,
+                height: 12,
+                borderRadius: 999,
+                background: dotColor(item.kind),
+                marginTop: 6,
+              }}
+            />
+            <div
+              style={{
+                fontSize: 18,
+                lineHeight: 1.3,
+                fontWeight: 700,
+              }}
+            >
+              {item.text}
+            </div>
           </div>
-        );
-      })}
+        ))}
+      </div>
     </div>
   );
 }
