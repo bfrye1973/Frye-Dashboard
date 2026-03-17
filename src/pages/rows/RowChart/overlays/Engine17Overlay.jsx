@@ -7,6 +7,7 @@
 // - pullback zones
 // - anchors with better naming hierarchy
 // - current day high / low with timestamps
+// - exhaustion reversal marker (highest priority)
 // - signal provenance markers
 // - soft debug forward risk map
 // - regime background tint
@@ -35,14 +36,13 @@ export default function Engine17Overlay({
   let canvas = null;
   const ts = chart.timeScale();
 
-  // ---------------- visual tuning ----------------
   const BAND_LABEL_FONT = 22;
   const LINE_LABEL_FONT = 24;
   const MARKER_FONT = 24;
   const BIG_MARKER_FONT = 28;
 
-  const LEFT_LABEL_X_PCT = 0.20;
-  const MID_LABEL_X_PCT = 0.50;
+  const LEFT_LABEL_X_PCT = 0.2;
+  const MID_LABEL_X_PCT = 0.5;
 
   function ensureCanvas() {
     if (canvas) return canvas;
@@ -118,7 +118,6 @@ export default function Engine17Overlay({
     const timeLabel = getAnchorTimeLabel(a.kind);
     const base = a.label || a.kind;
 
-    // Better naming hierarchy so it is clear what matters most
     switch (a.kind) {
       case "FIB_ANCHOR_A":
         return {
@@ -335,10 +334,16 @@ export default function Engine17Overlay({
   }
 
   function getRegimeTint() {
+    const strategyType = overlayData?.fib?.strategyType || "";
     const context = overlayData?.fib?.context || "";
     const badges = Array.isArray(overlayData?.badges) ? overlayData.badges : [];
     const state = badges.find((b) => b.kind === "STATE")?.value || "";
     const volume = badges.find((b) => b.kind === "VOLUME")?.value || "";
+
+    if (strategyType === "EXHAUSTION") {
+      if (overlayData?.fib?.exhaustionShort) return "rgba(239,68,68,0.07)";
+      if (overlayData?.fib?.exhaustionLong) return "rgba(34,197,94,0.07)";
+    }
 
     if (
       context === "LONG_CONTEXT" &&
@@ -391,6 +396,62 @@ export default function Engine17Overlay({
     }
 
     return null;
+  }
+
+  function drawExhaustion(ctx, w) {
+    const fib = overlayData?.fib;
+    if (!fib?.exhaustionDetected || !fib?.exhaustionActive) return;
+
+    const price = Number(fib.exhaustionBarPrice);
+    if (!Number.isFinite(price)) return;
+
+    const y = priceToY(price);
+    if (y == null) return;
+
+    const isShort = fib.exhaustionShort === true;
+    const isLong = fib.exhaustionLong === true;
+    const color = isShort ? "#ef4444" : isLong ? "#22c55e" : "#f3f4f6";
+    const timeText = fib.exhaustionBarTime ? ` (${fib.exhaustionBarTime})` : "";
+    const text = isShort
+      ? `EXHAUSTION SHORT @ ${price.toFixed(2)}${timeText}`
+      : isLong
+      ? `EXHAUSTION LONG @ ${price.toFixed(2)}${timeText}`
+      : `EXHAUSTION @ ${price.toFixed(2)}${timeText}`;
+
+    const x = Math.floor(w * 0.74);
+
+    ctx.save();
+    ctx.fillStyle = color;
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2;
+
+    if (isShort) {
+      ctx.beginPath();
+      ctx.moveTo(x, y - 24);
+      ctx.lineTo(x - 13, y - 2);
+      ctx.lineTo(x - 5, y - 2);
+      ctx.lineTo(x - 5, y + 18);
+      ctx.lineTo(x + 5, y + 18);
+      ctx.lineTo(x + 5, y - 2);
+      ctx.lineTo(x + 13, y - 2);
+      ctx.closePath();
+      ctx.fill();
+    } else if (isLong) {
+      ctx.beginPath();
+      ctx.moveTo(x, y + 24);
+      ctx.lineTo(x - 13, y + 2);
+      ctx.lineTo(x - 5, y + 2);
+      ctx.lineTo(x - 5, y - 18);
+      ctx.lineTo(x + 5, y - 18);
+      ctx.lineTo(x + 5, y + 2);
+      ctx.lineTo(x + 13, y + 2);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    ctx.restore();
+
+    drawMarker(ctx, w, price, text, color, "right", true);
   }
 
   function draw() {
@@ -505,17 +566,26 @@ export default function Engine17Overlay({
         drawMarker(ctx, w, a.price, display.text, display.color, "left", display.big);
       });
 
-      // current day high / low near current candle (right side)
       const dayLabels = buildDayLevelLabels();
       dayLabels.forEach((d) => {
         drawMarker(ctx, w, d.price, d.text, d.color, "right", true);
       });
     }
 
+    // Highest priority visual
+    drawExhaustion(ctx, w);
+
     if (showSignals) {
+      const fib = overlayData?.fib;
       const signals = Array.isArray(overlayData?.signals) ? overlayData.signals : [];
+
       signals.forEach((s) => {
         if (!Number.isFinite(s?.price)) return;
+
+        // exhaustion overrides all other marker clutter
+        if (fib?.exhaustionDetected && fib?.exhaustionActive) {
+          return;
+        }
 
         const label = showSignalProvenance
           ? `E16 • ${s.label || s.kind}`
