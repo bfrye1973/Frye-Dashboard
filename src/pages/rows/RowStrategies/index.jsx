@@ -1369,6 +1369,55 @@ function computeReadinessFallback({ confluence, permissionObj }) {
 /* -------------------- Readiness Bar -------------------- */
 function readinessStyle(state) {
   const s = String(state || "WAIT").toUpperCase();
+
+  if (s === "EXHAUSTION_READY") {
+    return {
+      bg: "linear-gradient(135deg,#ef4444,#b91c1c)",
+      fg: "#fff7f7",
+      border: "1px solid rgba(255,255,255,.22)",
+    };
+  }
+
+  if (s === "REVERSAL_READY") {
+    return {
+      bg: "linear-gradient(135deg,#f97316,#ea580c)",
+      fg: "#fff7ed",
+      border: "1px solid rgba(255,255,255,.22)",
+    };
+  }
+
+  if (s === "BREAKDOWN_READY") {
+    return {
+      bg: "linear-gradient(135deg,#dc2626,#991b1b)",
+      fg: "#fff7f7",
+      border: "1px solid rgba(255,255,255,.22)",
+    };
+  }
+
+  if (s === "BREAKOUT_READY") {
+    return {
+      bg: "linear-gradient(135deg,#22c55e,#16a34a)",
+      fg: "#06110a",
+      border: "1px solid rgba(255,255,255,.22)",
+    };
+  }
+
+  if (s === "PULLBACK_READY") {
+    return {
+      bg: "linear-gradient(135deg,#84cc16,#65a30d)",
+      fg: "#0b1220",
+      border: "1px solid rgba(255,255,255,.18)",
+    };
+  }
+
+  if (s === "CONTINUATION_READY") {
+    return {
+      bg: "linear-gradient(135deg,#14b8a6,#0f766e)",
+      fg: "#ecfeff",
+      border: "1px solid rgba(255,255,255,.18)",
+    };
+  }
+
   if (s === "CONFIRMED") {
     return {
       bg: "linear-gradient(135deg,#22c55e,#16a34a)",
@@ -1376,6 +1425,7 @@ function readinessStyle(state) {
       border: "1px solid rgba(255,255,255,.22)",
     };
   }
+
   if (s === "READY") {
     return {
       bg: "linear-gradient(135deg,#a3e635,#65a30d)",
@@ -1383,6 +1433,7 @@ function readinessStyle(state) {
       border: "1px solid rgba(255,255,255,.18)",
     };
   }
+
   if (s === "ARMING") {
     return {
       bg: "linear-gradient(135deg,#fbbf24,#f59e0b)",
@@ -1390,6 +1441,7 @@ function readinessStyle(state) {
       border: "1px solid rgba(255,255,255,.18)",
     };
   }
+
   if (s === "NEAR") {
     return {
       bg: "linear-gradient(135deg,#60a5fa,#3b82f6)",
@@ -1397,23 +1449,63 @@ function readinessStyle(state) {
       border: "1px solid rgba(255,255,255,.18)",
     };
   }
-  return { bg: "#111827", fg: "#e5e7eb", border: "1px solid #334155" };
+
+  return {
+    bg: "#111827",
+    fg: "#e5e7eb",
+    border: "1px solid #334155",
+  };
 }
 
 function ReadinessBar({ readinessPack }) {
-  const state = readinessPack?.readiness?.state || "WAIT";
-  const rc = Array.isArray(readinessPack?.readiness?.reasonCodes)
-    ? readinessPack.readiness.reasonCodes
-    : [];
-  const next = Array.isArray(readinessPack?.readiness?.next)
-    ? readinessPack.readiness.next
-    : [];
+  const isNewEngine15 = typeof readinessPack?.readiness === "string";
+
+  const state = isNewEngine15
+    ? readinessPack.readiness
+    : readinessPack?.readiness?.state || "WAIT";
+
+  const direction = isNewEngine15
+    ? String(readinessPack?.direction || "NONE").toUpperCase()
+    : "NONE";
+
+  const strategyType = isNewEngine15
+    ? String(readinessPack?.strategyType || "NONE").toUpperCase()
+    : "NONE";
+
+  const active = isNewEngine15
+    ? readinessPack?.active === true
+    : false;
+
+  const rc = isNewEngine15
+    ? (Array.isArray(readinessPack?.reasonCodes) ? readinessPack.reasonCodes : [])
+    : (Array.isArray(readinessPack?.readiness?.reasonCodes)
+        ? readinessPack.readiness.reasonCodes
+        : []);
+
+  const next = isNewEngine15
+    ? []
+    : (Array.isArray(readinessPack?.readiness?.next)
+        ? readinessPack.readiness.next
+        : []);
 
   const zone = readinessPack?.zone || {};
   const dist = zone?.distancePts;
   const distTxt = Number.isFinite(dist) ? `${dist.toFixed(2)} pts` : "—";
 
   const style = readinessStyle(state);
+
+  const displayState =
+    direction && direction !== "NONE"
+      ? `${String(state).toUpperCase()} (${direction})`
+      : String(state).toUpperCase();
+
+  const nextText = isNewEngine15
+    ? strategyType !== "NONE"
+      ? `${strategyType}${active ? " • ACTIVE" : ""}`
+      : active
+      ? "ACTIVE"
+      : "—"
+    : next[0] || "—";
 
   return (
     <div
@@ -1428,7 +1520,14 @@ function ReadinessBar({ readinessPack }) {
         alignItems: "center",
         gap: 10,
       }}
-      title={[`state=${state}`, `dist=${distTxt}`, ...rc].join(" | ")}
+      title={[
+        `state=${state}`,
+        `direction=${direction}`,
+        `strategyType=${strategyType}`,
+        `active=${String(active)}`,
+        `dist=${distTxt}`,
+        ...rc,
+      ].join(" | ")}
     >
       <div
         style={{
@@ -1450,12 +1549,14 @@ function ReadinessBar({ readinessPack }) {
             color: style.fg,
           }}
         >
-          {String(state).toUpperCase()}
+          {displayState}
         </div>
 
-        <div style={{ fontWeight: 900, fontSize: FS.tiny, color: style.fg, opacity: 0.95 }}>
-          dist: {distTxt}
-        </div>
+        {!isNewEngine15 && (
+          <div style={{ fontWeight: 900, fontSize: FS.tiny, color: style.fg, opacity: 0.95 }}>
+            dist: {distTxt}
+          </div>
+        )}
 
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
           {rc.slice(0, 4).map((c) => (
@@ -1483,7 +1584,7 @@ function ReadinessBar({ readinessPack }) {
           NEXT
         </div>
         <div style={{ fontSize: FS.micro, fontWeight: 900, color: style.fg, opacity: 0.95 }}>
-          {next[0] || "—"}
+          {nextText}
         </div>
       </div>
     </div>
