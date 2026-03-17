@@ -4,7 +4,8 @@ import React from "react";
 
 function buildTimelineItems(overlayData) {
   const out = [];
-  const context = overlayData?.fib?.context || "NONE";
+  const fib = overlayData?.fib || {};
+  const context = fib?.context || "NONE";
   const state =
     (overlayData?.badges || []).find((b) => b.kind === "STATE")?.value ||
     "UNKNOWN";
@@ -17,12 +18,33 @@ function buildTimelineItems(overlayData) {
   out.push({ kind: "STATE", text: `State: ${state}` });
   out.push({ kind: "VOLUME", text: `Volume: ${volume}` });
 
-  signals.forEach((s) => {
+  if (fib?.strategyType && fib.strategyType !== "NONE") {
     out.push({
-      kind: s.kind,
-      text: `E16: ${s.label || s.kind}`,
+      kind: "STRATEGY",
+      text: `Strategy: ${fib.strategyType}`,
     });
-  });
+  }
+
+  if (fib?.readinessLabel && fib.readinessLabel !== "NO_SETUP") {
+    out.push({
+      kind: "READINESS",
+      text: `Readiness: ${fib.readinessLabel}`,
+    });
+  }
+
+  if (fib?.exhaustionDetected && fib?.exhaustionActive) {
+    out.push({
+      kind: fib.exhaustionShort ? "EXHAUSTION_SHORT" : "EXHAUSTION_LONG",
+      text: `EXHAUSTION DETECTED • ${fib.exhaustionShort ? "SHORT" : "LONG"} • Time: ${fib.exhaustionBarTime || "—"}`,
+    });
+  } else {
+    signals.forEach((s) => {
+      out.push({
+        kind: s.kind,
+        text: `E16: ${s.label || s.kind}`,
+      });
+    });
+  }
 
   return out;
 }
@@ -34,6 +56,10 @@ function dotColor(kind) {
   if (kind === "STATE") return "#60a5fa";
   if (kind === "CONTEXT") return "#34d399";
   if (kind === "VOLUME") return "#f59e0b";
+  if (kind === "STRATEGY") return "#c084fc";
+  if (kind === "READINESS") return "#f8fafc";
+  if (kind === "EXHAUSTION_SHORT") return "#ef4444";
+  if (kind === "EXHAUSTION_LONG") return "#22c55e";
   return "#94a3b8";
 }
 
@@ -51,10 +77,10 @@ export default function Engine17DecisionTimeline({
       style={{
         position: "absolute",
         top: 12,
-        left: "36%",                 // ✅ moved LEFT
+        left: "36%",
         transform: "translateX(-50%)",
         zIndex: 95,
-        width: 720,                 // ✅ smaller box
+        width: 720,
         maxWidth: "42%",
         borderRadius: 14,
         border: "1px solid rgba(255,255,255,0.16)",
