@@ -50,28 +50,28 @@ export default function Engine17DecisionTimeline({
     <div
       style={{
         position: "absolute",
-        top: 10,
-        left: "50%",
+        top: 12,
+        left: "36%",                 // ✅ moved LEFT
         transform: "translateX(-50%)",
         zIndex: 95,
-        width: 980,
-        maxWidth: "58%",
-        borderRadius: 16,
-        border: "1px solid rgba(255,255,255,0.18)",
+        width: 720,                 // ✅ smaller box
+        maxWidth: "42%",
+        borderRadius: 14,
+        border: "1px solid rgba(255,255,255,0.16)",
         background: "rgba(5,8,18,0.88)",
-        boxShadow: "0 12px 30px rgba(0,0,0,0.34)",
+        boxShadow: "0 10px 26px rgba(0,0,0,0.32)",
         color: "#f3f4f6",
-        padding: "18px 22px",
+        padding: "14px 18px",
         backdropFilter: "blur(4px)",
         pointerEvents: "none",
       }}
     >
       <div
         style={{
-          fontSize: 26,
+          fontSize: 22,
           fontWeight: 900,
-          letterSpacing: 0.8,
-          marginBottom: 14,
+          letterSpacing: 0.6,
+          marginBottom: 10,
           color: "#cbd5e1",
           textAlign: "center",
         }}
@@ -79,21 +79,21 @@ export default function Engine17DecisionTimeline({
         DECISION TIMELINE
       </div>
 
-      <div style={{ display: "grid", gap: 12 }}>
+      <div style={{ display: "grid", gap: 8 }}>
         {items.map((item, idx) => (
           <div
             key={`${item.kind}-${idx}`}
             style={{
               display: "grid",
-              gridTemplateColumns: "18px 1fr",
-              gap: 14,
+              gridTemplateColumns: "14px 1fr",
+              gap: 10,
               alignItems: "start",
             }}
           >
             <div
               style={{
-                width: 16,
-                height: 16,
+                width: 12,
+                height: 12,
                 borderRadius: 999,
                 background: dotColor(item.kind),
                 marginTop: 6,
@@ -101,7 +101,7 @@ export default function Engine17DecisionTimeline({
             />
             <div
               style={{
-                fontSize: 22,
+                fontSize: 18,
                 lineHeight: 1.3,
                 fontWeight: 700,
               }}
