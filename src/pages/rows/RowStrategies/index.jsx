@@ -1477,7 +1477,7 @@ function ReadinessBar({ readinessPack }) {
     : false;
 
   const rc = isNewEngine15
-    ? (Array.isArray(readinessPack?.reasonCodes) ? readinessPack.reasonCodes : [])
+    ? []
     : (Array.isArray(readinessPack?.readiness?.reasonCodes)
         ? readinessPack.readiness.reasonCodes
         : []);
@@ -1507,6 +1507,13 @@ function ReadinessBar({ readinessPack }) {
       : "—"
     : next[0] || "—";
 
+  const displayPills = isNewEngine15
+    ? [
+        active ? "ACTIVE" : null,
+        strategyType !== "NONE" ? `TYPE: ${strategyType}` : null,
+      ].filter(Boolean)
+    : rc.slice(0, 4);
+
   return (
     <div
       style={{
@@ -1526,7 +1533,6 @@ function ReadinessBar({ readinessPack }) {
         `strategyType=${strategyType}`,
         `active=${String(active)}`,
         `dist=${distTxt}`,
-        ...rc,
       ].join(" | ")}
     >
       <div
@@ -1559,7 +1565,7 @@ function ReadinessBar({ readinessPack }) {
         )}
 
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-          {rc.slice(0, 4).map((c) => (
+          {displayPills.map((c) => (
             <span
               key={c}
               style={{
