@@ -1,5 +1,6 @@
 // src/pages/rows/RowStrategies/index.jsx
 // Strategies — Engine 5 Score + Engine 6 Permission (SYNCED via dashboard-snapshot)
+// Engine 15B lifecycle surfaced in parallel with old Engine 15 readiness
 
 import React, { useEffect, useMemo, useState } from "react";
 import { useSelection } from "../../../context/ModeContext";
@@ -145,6 +146,18 @@ function prettyBias(x) {
 }
 
 function prettyReason(x) {
+  const s = String(x || "").trim().toUpperCase();
+  if (!s) return "—";
+  return s.replaceAll("_", " ");
+}
+
+function prettyLifecycle(x) {
+  const s = String(x || "").trim().toUpperCase();
+  if (!s) return "—";
+  return s.replaceAll("_", " ");
+}
+
+function prettyNextFocus(x) {
   const s = String(x || "").trim().toUpperCase();
   if (!s) return "—";
   return s.replaceAll("_", " ");
@@ -1269,6 +1282,7 @@ function StackRow({ k, v, vStyle = {} }) {
     </div>
   );
 }
+
 /* -------------------- Engine 15 local fallback -------------------- */
 function computeReadinessFallback({ confluence, permissionObj }) {
   const allowed = ["NEGOTIATED", "INSTITUTIONAL"];
@@ -1597,6 +1611,228 @@ function ReadinessBar({ readinessPack }) {
   );
 }
 
+/* -------------------- Engine 15B lifecycle helpers -------------------- */
+function extractEngine15Decision(node) {
+  return node?.engine15Decision || null;
+}
+
+function decisionToneByStage(stage) {
+  const s = String(stage || "").toUpperCase();
+  if (s === "COMPLETED") return "ok";
+  if (s === "MATURE") return "warn";
+  if (s === "PARTIALLY_COMPLETED") return "warn";
+  if (s === "LIVE") return "ok";
+  if (s === "INVALIDATED" || s === "EXPIRED" || s === "MISSED") return "danger";
+  return "muted";
+}
+
+function decisionToneByAction(action) {
+  const s = String(action || "").toUpperCase();
+  if (s === "ENTER_OK") return "ok";
+  if (s === "REDUCE_OK" || s === "WATCH" || s === "WAIT") return "warn";
+  if (s === "BLOCKED" || s === "NO_ACTION") return "danger";
+  return "muted";
+}
+
+function DecisionPill({ text, tone = "muted" }) {
+  const palette =
+    tone === "ok"
+      ? { bg: "#06220f", fg: "#86efac", bd: "#166534" }
+      : tone === "warn"
+      ? { bg: "#1b1409", fg: "#fbbf24", bd: "#92400e" }
+      : tone === "danger"
+      ? { bg: "#2b0b0b", fg: "#fca5a5", bd: "#7f1d1d" }
+      : { bg: "#0b0b0b", fg: "#94a3b8", bd: "#2b2b2b" };
+
+  return (
+    <span
+      style={{
+        fontSize: FS.micro,
+        fontWeight: 1000,
+        padding: "4px 8px",
+        borderRadius: 999,
+        border: `1px solid ${palette.bd}`,
+        background: palette.bg,
+        color: palette.fg,
+        whiteSpace: "nowrap",
+      }}
+    >
+      {text}
+    </span>
+  );
+}
+
+function Engine15DecisionBar({ decision }) {
+  if (!decision || typeof decision !== "object") return null;
+
+  const lifecycle = decision.lifecycle || {};
+  const stage = String(lifecycle.lifecycleStage || "BUILDING").toUpperCase();
+  const action = String(decision.action || "NO_ACTION").toUpperCase();
+  const bias = String(decision.executionBias || "NONE").toUpperCase();
+  const nextFocus = prettyNextFocus(lifecycle.nextFocus || "—");
+
+  const tp1 = lifecycle.firstTargetHit === true;
+  const tp2 = lifecycle.secondTargetHit === true;
+  const runner = lifecycle.runnerActive === true;
+  const complete = lifecycle.setupCompleted === true;
+  const block2Protected = lifecycle.block2Protected === true;
+  const targetProgress =
+    Number.isFinite(Number(lifecycle.targetProgress01))
+      ? Number(lifecycle.targetProgress01)
+      : null;
+
+  const currentPrice = Number(lifecycle.currentPrice);
+  const signalPrice = Number(lifecycle.signalPrice);
+  const movePts = Number(lifecycle.moveFromSignalPts);
+  const edgeRemaining = Number(lifecycle.edgeRemainingPct);
+
+  return (
+    <div
+      style={{
+        border: "1px solid #1f2937",
+        borderRadius: 12,
+        padding: 10,
+        background: "#0b0b0b",
+        display: "flex",
+        flexDirection: "column",
+        gap: 8,
+      }}
+      title={[
+        `stage=${stage}`,
+        `action=${action}`,
+        `bias=${bias}`,
+        `tp1=${String(tp1)}`,
+        `tp2=${String(tp2)}`,
+        `runner=${String(runner)}`,
+        `setupCompleted=${String(complete)}`,
+        `nextFocus=${nextFocus}`,
+      ].join(" | ")}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 10,
+          flexWrap: "wrap",
+        }}
+      >
+        <div style={{ fontWeight: 1000, color: "#93c5fd", fontSize: FS.section }}>
+          ENGINE 15B LIFECYCLE
+        </div>
+
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+          <DecisionPill text={`STAGE: ${prettyLifecycle(stage)}`} tone={decisionToneByStage(stage)} />
+          <DecisionPill text={`ACTION: ${prettyLifecycle(action)}`} tone={decisionToneByAction(action)} />
+          <DecisionPill text={bias !== "NONE" ? bias : "BIAS: NONE"} tone="muted" />
+        </div>
+      </div>
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(4, minmax(0,1fr))",
+          gap: 8,
+        }}
+      >
+        <div
+          style={{
+            border: "1px solid #1f2937",
+            borderRadius: 10,
+            padding: 8,
+            background: "#111827",
+          }}
+        >
+          <div style={{ fontSize: FS.micro, color: "#9ca3af", fontWeight: 1000 }}>TP STATUS</div>
+          <div style={{ marginTop: 4, display: "flex", gap: 6, flexWrap: "wrap" }}>
+            <DecisionPill text={`TP1 ${tp1 ? "HIT" : "OPEN"}`} tone={tp1 ? "ok" : "muted"} />
+            <DecisionPill text={`TP2 ${tp2 ? "HIT" : "OPEN"}`} tone={tp2 ? "ok" : "muted"} />
+          </div>
+        </div>
+
+        <div
+          style={{
+            border: "1px solid #1f2937",
+            borderRadius: 10,
+            padding: 8,
+            background: "#111827",
+          }}
+        >
+          <div style={{ fontSize: FS.micro, color: "#9ca3af", fontWeight: 1000 }}>RUNNER</div>
+          <div style={{ marginTop: 4, display: "flex", gap: 6, flexWrap: "wrap" }}>
+            <DecisionPill text={runner ? "RUNNER ACTIVE" : "RUNNER OFF"} tone={runner ? "warn" : "muted"} />
+            {block2Protected ? <DecisionPill text="BLOCK 2 PROTECTED" tone="warn" /> : null}
+            {complete ? <DecisionPill text="SETUP COMPLETE" tone="ok" /> : null}
+          </div>
+        </div>
+
+        <div
+          style={{
+            border: "1px solid #1f2937",
+            borderRadius: 10,
+            padding: 8,
+            background: "#111827",
+          }}
+        >
+          <div style={{ fontSize: FS.micro, color: "#9ca3af", fontWeight: 1000 }}>PRICE PATH</div>
+          <div style={{ marginTop: 4, fontSize: FS.small, color: "#e5e7eb", lineHeight: LH.normal }}>
+            <div><b>Signal:</b> {Number.isFinite(signalPrice) ? fmt2(signalPrice) : "—"}</div>
+            <div><b>Current:</b> {Number.isFinite(currentPrice) ? fmt2(currentPrice) : "—"}</div>
+            <div><b>Move:</b> {Number.isFinite(movePts) ? fmt2(movePts) : "—"} pts</div>
+          </div>
+        </div>
+
+        <div
+          style={{
+            border: "1px solid #1f2937",
+            borderRadius: 10,
+            padding: 8,
+            background: "#111827",
+          }}
+        >
+          <div style={{ fontSize: FS.micro, color: "#9ca3af", fontWeight: 1000 }}>EDGE</div>
+          <div style={{ marginTop: 4, fontSize: FS.small, color: "#e5e7eb", lineHeight: LH.normal }}>
+            <div>
+              <b>Progress:</b>{" "}
+              {targetProgress == null ? "—" : `${Math.round(targetProgress * 100)}%`}
+            </div>
+            <div>
+              <b>Remaining:</b>{" "}
+              {Number.isFinite(edgeRemaining) ? `${Math.round(edgeRemaining)}%` : "—"}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div
+        style={{
+          border: "1px solid #1f2937",
+          borderRadius: 10,
+          padding: 8,
+          background: "#111827",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          gap: 10,
+          flexWrap: "wrap",
+        }}
+      >
+        <div style={{ fontSize: FS.micro, color: "#9ca3af", fontWeight: 1000 }}>NEXT FOCUS</div>
+        <div
+          style={{
+            fontSize: FS.small,
+            color: "#e5e7eb",
+            fontWeight: 1000,
+            letterSpacing: 0.2,
+          }}
+        >
+          {nextFocus}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ===================== Main Component ===================== */
 export default function RowStrategies() {
   const { setSelection } = useSelection();
@@ -1827,6 +2063,7 @@ export default function RowStrategies() {
           const confluence = node?.confluence || null;
           const permission = node?.permission || null;
           const momentum = extractMomentum(node, snapshot);
+          const engine15Decision = extractEngine15Decision(node);
 
           const engine15Stored =
             node?.engine15 || snapshot?.engine15?.byStrategy?.[stratKey] || null;
@@ -1891,6 +2128,8 @@ export default function RowStrategies() {
               }}
             >
               <ReadinessBar readinessPack={readinessPack} />
+
+              <Engine15DecisionBar decision={engine15Decision} />
 
               <div
                 style={{
