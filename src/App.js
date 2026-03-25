@@ -14,6 +14,8 @@ import { ModeProvider, ViewModes } from "./context/ModeContext";
 
 const FullChart = React.lazy(() => import("./pages/FullChart"));
 const StrategiesFull = React.lazy(() => import("./pages/StrategiesFull"));
+const JournalFull = React.lazy(() => import("./pages/JournalFull"));
+
 
 /* ------------------------- API base resolution ------------------------- */
 const API_BASE =
@@ -204,6 +206,7 @@ export default function App() {
 
                   {/* ✅ NEW: Full Strategies page (opens in new tab from Strategy cards) */}
                   <Route path="/strategies-full" element={<StrategiesFull />} />
+                  <Route path="/journal-full" element={<JournalFull />} />
 
                   <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>
