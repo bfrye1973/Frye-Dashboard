@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { API_BASE } from "../../App";
+const API_BASE = "https://frye-market-backend-1.onrender.com";
 
 const AZ_TZ = "America/Phoenix";
 const POLL_MS = 15000;
