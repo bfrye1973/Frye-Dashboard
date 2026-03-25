@@ -1,4 +1,3 @@
-// src/pages/rows/RowModeToggle.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import { useViewMode, ViewModes } from "../../context/ModeContext";
 
@@ -90,6 +89,10 @@ export default function RowModeToggle() {
     if (idx >= 0 && idx < times.length - 1) setTime(times[idx + 1]);
   }
 
+  function openFullJournal() {
+    window.open("/journal-full", "_blank", "noopener,noreferrer");
+  }
+
   const Btn = ({ id, children, title }) => {
     const active = mode === id;
     return (
@@ -133,16 +136,13 @@ export default function RowModeToggle() {
     setAiText("");
 
     try {
-      // Facts (3 paragraphs already)
       const narrator = await fetch(
         `${CORE_BASE}/api/v1/market-narrator?symbol=SPY&tf=1h&style=descriptive`,
         { cache: "no-store" }
       ).then((r) => r.json());
 
-      // Screenshot
       const chartImage = await captureChartPng();
 
-      // AI interpreter
       const ai = await fetch(`${CORE_BASE}/api/v1/market-narrator-ai`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -157,7 +157,6 @@ export default function RowModeToggle() {
       const text = ai?.narrativeText || "No narrative returned.";
       setAiText(text);
 
-      // Speak aloud (browser TTS)
       try {
         if (window.speechSynthesis) {
           const utter = new SpeechSynthesisUtterance(text);
@@ -169,7 +168,6 @@ export default function RowModeToggle() {
           window.speechSynthesis.speak(utter);
         }
       } catch (speechErr) {
-        // non-fatal
         console.warn("Speech synthesis failed:", speechErr);
       }
     } catch (e) {
@@ -206,10 +204,10 @@ export default function RowModeToggle() {
         </div>
       )}
 
-      <div className="panel-head" style={{ alignItems: "center", gap: 10 }}>
+      <div className="panel-head" style={{ alignItems: "center", gap: 10, flexWrap: "wrap" }}>
         <div className="panel-title">View Modes</div>
 
-        <div className="small" style={{ display: "flex", gap: 8 }}>
+        <div className="small" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <Btn id={ViewModes.METER_TILES} title="Show Market Meter + tiles layout">
             Meter + Tiles
           </Btn>
@@ -224,7 +222,7 @@ export default function RowModeToggle() {
         </div>
 
         {/* Replay Mode controls */}
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginLeft: 14 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginLeft: 14, flexWrap: "wrap" }}>
           <div
             style={{
               color: "#e5e7eb",
@@ -341,6 +339,26 @@ export default function RowModeToggle() {
           )}
         </div>
 
+        {/* Open Full Journal */}
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginLeft: 8 }}>
+          <button
+            type="button"
+            onClick={openFullJournal}
+            style={{
+              borderRadius: 10,
+              padding: "6px 12px",
+              border: "1px solid #2b2b2b",
+              background: "#0b0b0b",
+              color: "#e5e7eb",
+              fontWeight: 900,
+              cursor: "pointer",
+            }}
+            title="Open the full Journal page in a new tab"
+          >
+            Open Full Journal
+          </button>
+        </div>
+
         <div className="spacer" />
 
         {/* AI Listen controls */}
@@ -382,7 +400,6 @@ export default function RowModeToggle() {
         </div>
       </div>
 
-      {/* AI Narrative Output */}
       {(aiError || aiText) && (
         <div
           style={{
