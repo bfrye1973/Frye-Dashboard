@@ -6,6 +6,7 @@
 // ✅ never wipes last-good data on error
 // ✅ anti-stall: schedules next poll even if inFlight
 // ✅ visibilitychange: triggers pull when tab becomes visible
+// ✅ NEW: exposes refreshing + hasData for stale-while-refresh UI
 
 import { useEffect, useMemo, useState } from "react";
 
@@ -101,6 +102,7 @@ export function useDashboardSnapshot(
     err: null,
     lastFetch: null,
     loading: true,
+    refreshing: false,
   });
 
   useEffect(() => {
@@ -117,7 +119,6 @@ export function useDashboardSnapshot(
     async function pull() {
       if (!alive) return;
 
-      // anti-stall: if already fetching, schedule next and return
       if (inFlight) {
         schedule(pollMs);
         return;
@@ -127,6 +128,16 @@ export function useDashboardSnapshot(
 
       const controller = new AbortController();
       const t = setTimeout(() => controller.abort(), timeoutMs);
+
+      const hadData = !!state.data;
+
+      if (alive) {
+        setState((prev) => ({
+          ...prev,
+          loading: prev.data == null,
+          refreshing: prev.data != null,
+        }));
+      }
 
       try {
         const url = `${baseUrl}${Date.now()}`;
@@ -139,17 +150,18 @@ export function useDashboardSnapshot(
             err: null,
             lastFetch: nowIso(),
             loading: false,
+            refreshing: false,
           }));
         }
       } catch (e) {
         const msg = `${String(e?.name || "Error")}: ${String(e?.message || e)}`;
-        // keep last good data (do NOT wipe)
         if (alive) {
           setState((prev) => ({
             ...prev,
             err: msg,
             lastFetch: nowIso(),
-            loading: false,
+            loading: prev.data == null ? false : prev.loading,
+            refreshing: false,
           }));
         }
       } finally {
@@ -179,6 +191,14 @@ export function useDashboardSnapshot(
   }, [baseUrl, pollMs, timeoutMs]);
 
   async function refreshNow() {
+    const hadData = !!state.data;
+
+    setState((prev) => ({
+      ...prev,
+      loading: prev.data == null,
+      refreshing: prev.data != null,
+    }));
+
     try {
       const url = `${baseUrl}${Date.now()}`;
       const data = await safeFetchJson(url);
@@ -188,6 +208,7 @@ export function useDashboardSnapshot(
         err: null,
         lastFetch: nowIso(),
         loading: false,
+        refreshing: false,
       }));
     } catch (e) {
       const msg = `${String(e?.name || "Error")}: ${String(e?.message || e)}`;
@@ -195,7 +216,8 @@ export function useDashboardSnapshot(
         ...prev,
         err: msg,
         lastFetch: nowIso(),
-        loading: false,
+        loading: prev.data == null ? false : prev.loading,
+        refreshing: false,
       }));
     }
   }
@@ -205,6 +227,8 @@ export function useDashboardSnapshot(
     err: state.err,
     lastFetch: state.lastFetch,
     loading: state.loading,
+    refreshing: state.refreshing,
+    hasData: !!state.data,
     refreshNow,
     apiBase: API_BASE,
     symbol: sym,
