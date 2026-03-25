@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { API_BASE } from "../App";
 
+const API_BASE = "https://frye-market-backend-1.onrender.com";
 const AZ_TZ = "America/Phoenix";
 const POLL_MS = 15000;
 
@@ -67,19 +67,20 @@ function eventTone(type) {
   return { bg: "#0b0b0b", fg: "#94a3b8", bd: "#2b2b2b" };
 }
 
-function Pill({ text, tone }) {
+function Pill({ text, tone, fontSize = 18 }) {
   const t = tone || { bg: "#0b0b0b", fg: "#94a3b8", bd: "#2b2b2b" };
   return (
     <span
       style={{
-        fontSize: 11,
+        fontSize,
         fontWeight: 1000,
-        padding: "4px 8px",
+        padding: "8px 14px",
         borderRadius: 999,
         border: `1px solid ${t.bd}`,
         background: t.bg,
         color: t.fg,
         whiteSpace: "nowrap",
+        lineHeight: 1.1,
       }}
     >
       {text}
@@ -92,16 +93,16 @@ function SectionCard({ title, children }) {
     <div
       style={{
         border: "1px solid #1f2937",
-        borderRadius: 12,
-        padding: 12,
+        borderRadius: 14,
+        padding: 18,
         background: "#0b0b0b",
         display: "flex",
         flexDirection: "column",
-        gap: 8,
+        gap: 12,
         minWidth: 0,
       }}
     >
-      <div style={{ fontWeight: 1000, color: "#93c5fd", fontSize: 12 }}>{title}</div>
+      <div style={{ fontWeight: 1000, color: "#93c5fd", fontSize: 18 }}>{title}</div>
       {children}
     </div>
   );
@@ -112,19 +113,20 @@ function KV({ k, v }) {
     <div
       style={{
         display: "grid",
-        gridTemplateColumns: "128px 1fr",
-        gap: 8,
+        gridTemplateColumns: "180px 1fr",
+        gap: 12,
         alignItems: "start",
         minWidth: 0,
       }}
     >
-      <div style={{ fontSize: 12, fontWeight: 1000, color: "#9ca3af" }}>{k}</div>
+      <div style={{ fontSize: 17, fontWeight: 1000, color: "#9ca3af" }}>{k}</div>
       <div
         style={{
-          fontSize: 13,
+          fontSize: 19,
           fontWeight: 900,
           color: "#e5e7eb",
           wordBreak: "break-word",
+          lineHeight: 1.25,
         }}
       >
         {v}
@@ -145,12 +147,12 @@ function TradeRow({ trade, selected, onClick }) {
         textAlign: "left",
         background: selected ? "#111827" : "#0b0b0b",
         border: selected ? "1px solid #3b82f6" : "1px solid #1f2937",
-        borderRadius: 12,
-        padding: 10,
+        borderRadius: 14,
+        padding: 16,
         cursor: "pointer",
         display: "flex",
         flexDirection: "column",
-        gap: 8,
+        gap: 12,
       }}
       title={trade?.tradeId}
     >
@@ -158,20 +160,20 @@ function TradeRow({ trade, selected, onClick }) {
         style={{
           display: "grid",
           gridTemplateColumns: "1.25fr 1.1fr .8fr .8fr",
-          gap: 8,
+          gap: 12,
           alignItems: "center",
         }}
       >
         <div style={{ minWidth: 0 }}>
-          <div style={{ fontSize: 14, fontWeight: 1000, color: "#e5e7eb" }}>
+          <div style={{ fontSize: 22, fontWeight: 1000, color: "#e5e7eb", lineHeight: 1.15 }}>
             {trade?.symbol || "—"} • {trade?.strategyId || "—"}
           </div>
-          <div style={{ fontSize: 12, color: "#9ca3af", fontWeight: 800 }}>
+          <div style={{ fontSize: 16, color: "#9ca3af", fontWeight: 800, marginTop: 4 }}>
             {toAz(trade?.createdAt, true)}
           </div>
         </div>
 
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <Pill text={trade?.direction || "—"} tone={{ bg: "#111827", fg: "#93c5fd", bd: "#334155" }} />
           <Pill text={trade?.accountMode || "—"} tone={{ bg: "#111827", fg: "#cbd5e1", bd: "#334155" }} />
           <Pill text={trade?.timeframe || "—"} tone={{ bg: "#111827", fg: "#cbd5e1", bd: "#334155" }} />
@@ -190,8 +192,8 @@ function TradeRow({ trade, selected, onClick }) {
         style={{
           display: "grid",
           gridTemplateColumns: "repeat(6, minmax(0,1fr))",
-          gap: 8,
-          fontSize: 12,
+          gap: 12,
+          fontSize: 17,
           color: "#cbd5e1",
         }}
       >
@@ -227,11 +229,11 @@ function TradeRow({ trade, selected, onClick }) {
 function EventList({ events }) {
   const rows = Array.isArray(events) ? events : [];
   if (!rows.length) {
-    return <div style={{ color: "#94a3b8", fontSize: 12 }}>No events.</div>;
+    return <div style={{ color: "#94a3b8", fontSize: 18 }}>No events.</div>;
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
       {rows.map((ev, i) => {
         const tone = eventTone(ev?.eventType);
         return (
@@ -239,33 +241,41 @@ function EventList({ events }) {
             key={`${ev?.ts || "na"}-${i}`}
             style={{
               border: "1px solid #1f2937",
-              borderRadius: 10,
-              padding: 8,
+              borderRadius: 12,
+              padding: 12,
               background: "#111827",
               display: "grid",
-              gridTemplateColumns: "180px 1fr 120px 120px 120px",
-              gap: 8,
+              gridTemplateColumns: "220px 1fr 160px 160px 160px 180px 180px",
+              gap: 10,
               alignItems: "center",
             }}
           >
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
-              <Pill text={ev?.eventType || "UNKNOWN"} tone={tone} />
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+              <Pill text={ev?.eventType || "UNKNOWN"} tone={tone} fontSize={16} />
             </div>
 
-            <div style={{ fontSize: 12, fontWeight: 900, color: "#cbd5e1" }}>
+            <div style={{ fontSize: 17, fontWeight: 900, color: "#cbd5e1" }}>
               {toAz(ev?.ts, true)}
             </div>
 
-            <div style={{ fontSize: 12, color: "#e5e7eb", fontWeight: 900 }}>
+            <div style={{ fontSize: 17, color: "#e5e7eb", fontWeight: 900 }}>
               price: {fmtNum(ev?.price)}
             </div>
 
-            <div style={{ fontSize: 12, color: "#e5e7eb", fontWeight: 900 }}>
+            <div style={{ fontSize: 17, color: "#e5e7eb", fontWeight: 900 }}>
               qtyClosed: {ev?.qtyClosed ?? "—"}
             </div>
 
-            <div style={{ fontSize: 12, color: "#e5e7eb", fontWeight: 900 }}>
+            <div style={{ fontSize: 17, color: "#e5e7eb", fontWeight: 900 }}>
               remain: {ev?.remainingQty ?? "—"}
+            </div>
+
+            <div style={{ fontSize: 17, color: "#86efac", fontWeight: 900 }}>
+              points: {fmtNum(ev?.eventRealizedPoints)}
+            </div>
+
+            <div style={{ fontSize: 17, color: "#86efac", fontWeight: 900 }}>
+              pnl: {fmtNum(ev?.eventRealizedPnL)}
             </div>
           </div>
         );
@@ -354,46 +364,46 @@ export default function JournalFull() {
         minHeight: "100vh",
         background: "#020817",
         color: "#e5e7eb",
-        padding: 12,
+        padding: 16,
       }}
     >
       <div
         style={{
           border: "1px solid #1f2937",
-          borderRadius: 14,
+          borderRadius: 16,
           background: "#050b16",
-          padding: 12,
+          padding: 16,
         }}
       >
         <div
           style={{
             display: "flex",
             alignItems: "center",
-            gap: 10,
+            gap: 12,
             flexWrap: "wrap",
             justifyContent: "space-between",
           }}
         >
           <div>
-            <div style={{ fontSize: 20, fontWeight: 1000, color: "#e5e7eb" }}>
+            <div style={{ fontSize: 30, fontWeight: 1000, color: "#e5e7eb" }}>
               Full Trade Journal
             </div>
-            <div style={{ fontSize: 12, color: "#9ca3af", fontWeight: 800, marginTop: 2 }}>
+            <div style={{ fontSize: 17, color: "#9ca3af", fontWeight: 800, marginTop: 4 }}>
               Permanent record of executed trades, execution events, and frozen setup context
             </div>
           </div>
 
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
             <button
               onClick={() => setFilter("ALL")}
               style={{
                 background: filter === "ALL" ? "#1f2937" : "#0b0b0b",
                 color: "#e5e7eb",
                 border: filter === "ALL" ? "1px solid #3b82f6" : "1px solid #2b2b2b",
-                borderRadius: 10,
-                padding: "6px 10px",
+                borderRadius: 12,
+                padding: "8px 14px",
                 fontWeight: 1000,
-                fontSize: 11,
+                fontSize: 16,
                 cursor: "pointer",
               }}
             >
@@ -406,10 +416,10 @@ export default function JournalFull() {
                 background: filter === "OPEN" ? "#1f2937" : "#0b0b0b",
                 color: "#e5e7eb",
                 border: filter === "OPEN" ? "1px solid #3b82f6" : "1px solid #2b2b2b",
-                borderRadius: 10,
-                padding: "6px 10px",
+                borderRadius: 12,
+                padding: "8px 14px",
                 fontWeight: 1000,
-                fontSize: 11,
+                fontSize: 16,
                 cursor: "pointer",
               }}
             >
@@ -422,10 +432,10 @@ export default function JournalFull() {
                 background: filter === "CLOSED" ? "#1f2937" : "#0b0b0b",
                 color: "#e5e7eb",
                 border: filter === "CLOSED" ? "1px solid #3b82f6" : "1px solid #2b2b2b",
-                borderRadius: 10,
-                padding: "6px 10px",
+                borderRadius: 12,
+                padding: "8px 14px",
                 fontWeight: 1000,
-                fontSize: 11,
+                fontSize: 16,
                 cursor: "pointer",
               }}
             >
@@ -438,10 +448,10 @@ export default function JournalFull() {
                 background: "#0b0b0b",
                 color: "#cbd5e1",
                 border: "1px solid #2b2b2b",
-                borderRadius: 10,
-                padding: "6px 10px",
+                borderRadius: 12,
+                padding: "8px 14px",
                 fontWeight: 1000,
-                fontSize: 11,
+                fontSize: 16,
                 cursor: "pointer",
               }}
             >
@@ -452,10 +462,10 @@ export default function JournalFull() {
 
         <div
           style={{
-            marginTop: 12,
+            marginTop: 16,
             display: "grid",
             gridTemplateColumns: "repeat(6, minmax(0,1fr))",
-            gap: 10,
+            gap: 12,
           }}
         >
           <SectionCard title="JOURNAL">
@@ -499,38 +509,38 @@ export default function JournalFull() {
         </div>
 
         {err ? (
-          <div style={{ marginTop: 12, color: "#fca5a5", fontWeight: 1000, fontSize: 13 }}>
+          <div style={{ marginTop: 16, color: "#fca5a5", fontWeight: 1000, fontSize: 18 }}>
             Journal error: {err}
           </div>
         ) : null}
 
         <div
           style={{
-            marginTop: 12,
+            marginTop: 16,
             display: "grid",
-            gridTemplateColumns: "minmax(380px, 0.9fr) minmax(0, 1.5fr)",
-            gap: 12,
+            gridTemplateColumns: "minmax(420px, 0.9fr) minmax(0, 1.55fr)",
+            gap: 16,
             alignItems: "start",
           }}
         >
           <div
             style={{
               border: "1px solid #262626",
-              borderRadius: 12,
-              padding: 12,
+              borderRadius: 14,
+              padding: 16,
               background: "#101010",
-              minHeight: 600,
+              minHeight: 700,
               display: "flex",
               flexDirection: "column",
-              gap: 8,
+              gap: 10,
             }}
           >
-            <div style={{ fontWeight: 1000, color: "#93c5fd", fontSize: 12 }}>TRADE HISTORY</div>
+            <div style={{ fontWeight: 1000, color: "#93c5fd", fontSize: 18 }}>TRADE HISTORY</div>
 
             {filteredTrades.length === 0 ? (
-              <div style={{ color: "#9ca3af", fontSize: 13 }}>No trades for this filter.</div>
+              <div style={{ color: "#9ca3af", fontSize: 18 }}>No trades for this filter.</div>
             ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: "72vh", overflowY: "auto" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10, maxHeight: "74vh", overflowY: "auto" }}>
                 {filteredTrades.map((trade) => (
                   <TradeRow
                     key={trade.tradeId}
@@ -546,28 +556,28 @@ export default function JournalFull() {
           <div
             style={{
               border: "1px solid #262626",
-              borderRadius: 12,
-              padding: 12,
+              borderRadius: 14,
+              padding: 16,
               background: "#101010",
-              minHeight: 600,
+              minHeight: 700,
               display: "flex",
               flexDirection: "column",
-              gap: 12,
+              gap: 16,
             }}
           >
-            <div style={{ fontWeight: 1000, color: "#93c5fd", fontSize: 12 }}>
+            <div style={{ fontWeight: 1000, color: "#93c5fd", fontSize: 18 }}>
               TRADE DETAILS
             </div>
 
             {!selectedTrade ? (
-              <div style={{ color: "#9ca3af", fontSize: 13 }}>Select a trade to view details.</div>
+              <div style={{ color: "#9ca3af", fontSize: 18 }}>Select a trade to view details.</div>
             ) : (
               <>
                 <div
                   style={{
                     display: "grid",
                     gridTemplateColumns: "repeat(2, minmax(0,1fr))",
-                    gap: 12,
+                    gap: 16,
                   }}
                 >
                   <SectionCard title="IDENTITY">
@@ -597,7 +607,7 @@ export default function JournalFull() {
                   style={{
                     display: "grid",
                     gridTemplateColumns: "repeat(2, minmax(0,1fr))",
-                    gap: 12,
+                    gap: 16,
                   }}
                 >
                   <SectionCard title="SUMMARY">
