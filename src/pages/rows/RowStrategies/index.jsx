@@ -1854,7 +1854,14 @@ export default function RowStrategies() {
 
   const [active, setActive] = useState("SCALP");
 
-  const { data: snapshot, err, lastFetch } = useDashboardSnapshot("SPY", {
+  const {
+  data: snapshot,
+  err,
+  lastFetch,
+  loading,
+  refreshing,
+  hasData,
+} = useDashboardSnapshot("SPY", {
     pollMs: POLL_MS,
     timeoutMs: TIMEOUT_MS,
     includeContext: 1,
@@ -1890,12 +1897,13 @@ export default function RowStrategies() {
         if (alive) setScalpStatus({ data: j, err: null, last: nowIso() });
       } catch (e) {
         if (alive) {
-          setScalpStatus((prev) => ({
-            ...prev,
-            err: String(e?.message || e),
-            last: nowIso(),
-          }));
-        }
+          setE14Status((prev) => ({
+           ...prev,
+           err: String(e?.message || e),
+           last: nowIso(),
+         }));
+       }
+     }
       } finally {
         clearTimeout(t);
         inFlight = false;
@@ -2032,6 +2040,11 @@ export default function RowStrategies() {
           </span>
           <span>
             Frontend fetch: <b style={{ marginLeft: 4 }}>{lastFetch ? toAZ(lastFetch, true) : "—"}</b>
+            {refreshing ? (
+              <span style={{ marginLeft: 6, color: "#fbbf24", fontWeight: 1000 }}>
+                refreshing…
+              </span>
+            ) : null}
           </span>
           <span>
             Backend snapshot: <b style={{ marginLeft: 4 }}>{snapshotTime(snapshot)}</b>
@@ -2042,7 +2055,7 @@ export default function RowStrategies() {
         </div>
       </div>
 
-      {err && (
+      {err && !hasData && (
         <div style={{ marginTop: 8, color: "#fca5a5", fontWeight: 1000, fontSize: FS.small }}>
           Strategy snapshot error: {err}
         </div>
