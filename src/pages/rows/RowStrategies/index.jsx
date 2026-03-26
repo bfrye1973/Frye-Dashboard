@@ -239,8 +239,8 @@ function mapE14Badge(e14) {
   const trigger = setup.triggerNow
     ? "NOW"
     : setup.needsConfirmation
-    ? "CONFIRM"
-    : "WAIT";
+      ? "CONFIRM"
+      : "WAIT";
 
   const reasons = Array.isArray(setup.reasonCodes) ? setup.reasonCodes.slice(0, 2) : [];
   const reasonLine = reasons.length ? reasons.map(e14Pretty).join(" • ") : "no active advisory";
@@ -350,8 +350,8 @@ function GoPillBig({ go }) {
   const bg = signal
     ? "linear-gradient(135deg,#22c55e,#16a34a)"
     : inCooldown
-    ? "linear-gradient(135deg,#fbbf24,#f59e0b)"
-    : "#111827";
+      ? "linear-gradient(135deg,#fbbf24,#f59e0b)"
+      : "#111827";
 
   const border = signal
     ? "1px solid rgba(255,255,255,.22)"
@@ -362,8 +362,8 @@ function GoPillBig({ go }) {
   const sub = signal
     ? `${trig}${Number.isFinite(line) ? ` @ ${fmt2(line)}` : ""}`
     : inCooldown
-    ? "COOLDOWN"
-    : "WAIT";
+      ? "COOLDOWN"
+      : "WAIT";
 
   const title = [
     `signal=${String(signal)}`,
@@ -919,9 +919,9 @@ function MomentumPanel({ momentum }) {
           Number(m.compressionSignal.tightness) >= 70
             ? "ok"
             : Number.isFinite(Number(m?.compressionSignal?.tightness)) &&
-              Number(m.compressionSignal.tightness) >= 50
-            ? "warn"
-            : "muted"
+                Number(m.compressionSignal.tightness) >= 50
+              ? "warn"
+              : "muted"
         }
       />
     </div>
@@ -970,8 +970,8 @@ function Engine14Badge({ e14 }) {
     tone === "ok"
       ? { bg: "#06220f", fg: "#86efac", bd: "#166534" }
       : tone === "warn"
-      ? { bg: "#1b1409", fg: "#fbbf24", bd: "#92400e" }
-      : { bg: "#0b0b0b", fg: "#94a3b8", bd: "#2b2b2b" };
+        ? { bg: "#1b1409", fg: "#fbbf24", bd: "#92400e" }
+        : { bg: "#0b0b0b", fg: "#94a3b8", bd: "#2b2b2b" };
 
   const pillText = `E14: ${badge.label}`;
   const detailText = `${badge.direction} • ${Math.round(badge.confidence)} • ${badge.quality}`;
@@ -1114,8 +1114,8 @@ function EngineStack({
     r.rejectionCandidate === true
       ? "REJECTION: YES"
       : r.rejectionCandidate === false
-      ? "REJECTION: no"
-      : "REJECTION: —";
+        ? "REJECTION: no"
+        : "REJECTION: —";
 
   const nextDown = r.nextConfirmDown ? shortNextText(r.nextConfirmDown) : null;
   const nextUp = r.nextConfirmUp ? shortNextText(r.nextConfirmUp) : null;
@@ -1517,8 +1517,8 @@ function ReadinessBar({ readinessPack }) {
     ? strategyType !== "NONE"
       ? `${strategyType}${active ? " • ACTIVE" : ""}`
       : active
-      ? "ACTIVE"
-      : "—"
+        ? "ACTIVE"
+        : "—"
     : next[0] || "—";
 
   const displayPills = isNewEngine15
@@ -1639,10 +1639,10 @@ function DecisionPill({ text, tone = "muted" }) {
     tone === "ok"
       ? { bg: "#06220f", fg: "#86efac", bd: "#166534" }
       : tone === "warn"
-      ? { bg: "#1b1409", fg: "#fbbf24", bd: "#92400e" }
-      : tone === "danger"
-      ? { bg: "#2b0b0b", fg: "#fca5a5", bd: "#7f1d1d" }
-      : { bg: "#0b0b0b", fg: "#94a3b8", bd: "#2b2b2b" };
+        ? { bg: "#1b1409", fg: "#fbbf24", bd: "#92400e" }
+        : tone === "danger"
+          ? { bg: "#2b0b0b", fg: "#fca5a5", bd: "#7f1d1d" }
+          : { bg: "#0b0b0b", fg: "#94a3b8", bd: "#2b2b2b" };
 
   return (
     <span
@@ -1855,13 +1855,13 @@ export default function RowStrategies() {
   const [active, setActive] = useState("SCALP");
 
   const {
-  data: snapshot,
-  err,
-  lastFetch,
-  loading,
-  refreshing,
-  hasData,
-} = useDashboardSnapshot("SPY", {
+    data: snapshot,
+    err,
+    lastFetch,
+    loading,
+    refreshing,
+    hasData,
+  } = useDashboardSnapshot("SPY", {
     pollMs: POLL_MS,
     timeoutMs: TIMEOUT_MS,
     includeContext: 1,
@@ -1887,23 +1887,24 @@ export default function RowStrategies() {
         schedule(GO_POLL_MS);
         return;
       }
-      inFlight = true;
 
+      inFlight = true;
       const controller = new AbortController();
       const t = setTimeout(() => controller.abort(), GO_TIMEOUT_MS);
 
       try {
         const j = await safeFetchGo(SCALP_STATUS_URL(), { signal: controller.signal });
-        if (alive) setScalpStatus({ data: j, err: null, last: nowIso() });
+        if (alive) {
+          setScalpStatus({ data: j, err: null, last: nowIso() });
+        }
       } catch (e) {
         if (alive) {
-          setE14Status((prev) => ({
-           ...prev,
-           err: String(e?.message || e),
-           last: nowIso(),
-         }));
-       }
-     }
+          setScalpStatus((prev) => ({
+            ...prev,
+            err: String(e?.message || e),
+            last: nowIso(),
+          }));
+        }
       } finally {
         clearTimeout(t);
         inFlight = false;
@@ -1935,8 +1936,8 @@ export default function RowStrategies() {
         schedule(E14_POLL_MS);
         return;
       }
-      inFlight = true;
 
+      inFlight = true;
       const controller = new AbortController();
       const t = setTimeout(() => controller.abort(), E14_TIMEOUT_MS);
 
@@ -1970,11 +1971,11 @@ export default function RowStrategies() {
         }
       } catch (e) {
         if (alive) {
-          setE14Status({
-            data: null,
+          setE14Status((prev) => ({
+            ...prev,
             err: String(e?.message || e),
             last: nowIso(),
-          });
+          }));
         }
       } finally {
         clearTimeout(t);
@@ -2321,8 +2322,8 @@ export default function RowStrategies() {
                             scalpClassifier.moveDirection === "LONG"
                               ? "ok"
                               : scalpClassifier.moveDirection === "SHORT"
-                              ? "warn"
-                              : "muted"
+                                ? "warn"
+                                : "muted"
                           }
                         />
 
@@ -2335,9 +2336,9 @@ export default function RowStrategies() {
                             Number(scalpClassifier.moveScore) >= 60
                               ? "ok"
                               : Number.isFinite(Number(scalpClassifier.moveScore)) &&
-                                Number(scalpClassifier.moveScore) >= 40
-                              ? "warn"
-                              : "muted"
+                                  Number(scalpClassifier.moveScore) >= 40
+                                ? "warn"
+                                : "muted"
                           }
                         />
 
@@ -2359,8 +2360,8 @@ export default function RowStrategies() {
                           momentum.alignment === "BULLISH"
                             ? "ok"
                             : momentum.alignment === "BEARISH"
-                            ? "danger"
-                            : "warn"
+                              ? "danger"
+                              : "warn"
                         }
                       />
                     )}
