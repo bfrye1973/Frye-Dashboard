@@ -32,10 +32,29 @@ function buildTimelineItems(overlayData) {
     });
   }
 
-  if (fib?.exhaustionDetected && fib?.exhaustionActive) {
+  if (fib?.exhaustionTrigger === true && fib?.exhaustionActive) {
     out.push({
-      kind: fib.exhaustionShort ? "EXHAUSTION_SHORT" : "EXHAUSTION_LONG",
-      text: `EXHAUSTION DETECTED • ${fib.exhaustionShort ? "SHORT" : "LONG"} • Time: ${fib.exhaustionBarTime || "—"}`,
+      kind: fib.exhaustionTriggerShort
+        ? "EXHAUSTION_TRIGGER_SHORT"
+        : fib.exhaustionTriggerLong
+        ? "EXHAUSTION_TRIGGER_LONG"
+        : "EXHAUSTION_TRIGGER",
+      text: `EXHAUSTION TRIGGER • ${
+        fib.exhaustionTriggerShort ? "SHORT" : fib.exhaustionTriggerLong ? "LONG" : "UNKNOWN"
+      } • Time: ${
+        fib?.signalTimes?.exhaustionTriggerTime || fib?.exhaustionBarTime || "—"
+      }`,
+    });
+  } else if (fib?.exhaustionEarly === true) {
+    out.push({
+      kind: fib.exhaustionEarlyShort
+        ? "EXHAUSTION_EARLY_SHORT"
+        : fib.exhaustionEarlyLong
+        ? "EXHAUSTION_EARLY_LONG"
+        : "EXHAUSTION_EARLY",
+      text: `EXHAUSTION WATCH • ${
+        fib.exhaustionEarlyShort ? "SHORT" : fib.exhaustionEarlyLong ? "LONG" : "UNKNOWN"
+      } • Time: ${fib?.signalTimes?.exhaustionEarlyTime || "—"}`,
     });
   } else {
     signals.forEach((s) => {
@@ -58,8 +77,15 @@ function dotColor(kind) {
   if (kind === "VOLUME") return "#f59e0b";
   if (kind === "STRATEGY") return "#c084fc";
   if (kind === "READINESS") return "#f8fafc";
-  if (kind === "EXHAUSTION_SHORT") return "#ef4444";
-  if (kind === "EXHAUSTION_LONG") return "#22c55e";
+
+  if (kind === "EXHAUSTION_TRIGGER_SHORT") return "#ef4444";
+  if (kind === "EXHAUSTION_TRIGGER_LONG") return "#22c55e";
+  if (kind === "EXHAUSTION_TRIGGER") return "#f8fafc";
+
+  if (kind === "EXHAUSTION_EARLY_SHORT") return "#f59e0b";
+  if (kind === "EXHAUSTION_EARLY_LONG") return "#facc15";
+  if (kind === "EXHAUSTION_EARLY") return "#fde68a";
+
   return "#94a3b8";
 }
 
