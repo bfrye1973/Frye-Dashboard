@@ -62,7 +62,7 @@ const TIMEOUT_MS = 20000;
 const RETRY_DELAY_MS = 800;
 
 // GO poll cadence
-const GO_POLL_MS = 2000;
+const GO_POLL_MS = 5000;
 const GO_TIMEOUT_MS = 6000;
 
 // Build stamp
