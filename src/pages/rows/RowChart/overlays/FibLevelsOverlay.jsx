@@ -280,7 +280,7 @@ export default function FibLevelsOverlay({
     const observe = w1?.anchors?.waveMarks;
     if (!observe || typeof observe !== "object") return;
 
-    const order = ["W1", "W2", "W3", "W4", "W5"];
+    const order = ["W1", "W2", "W3", "W4", "W5", "A", "B"];
     const pts = [];
 
     for (const k of order) {
@@ -432,6 +432,16 @@ export default function FibLevelsOverlay({
         );
       }
 
+       // --- PROJECTED C (50% retrace) ---
+      if (w1?.fib?.r500) {
+        levels.push({
+          kind: "projectedC",
+          price: Number(w1.fib.r500),
+          label: `C?  ${fmt(w1.fib.r500)}`,
+          color: "#ffcc00",
+          dash: [6, 6],
+        });
+      }
       if (w1?.fib) {
         levels.push({
           kind: "gate",
