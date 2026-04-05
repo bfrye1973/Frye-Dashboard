@@ -1,9 +1,33 @@
+// src/pages/StrategiesFull.jsx
+// Full strategies page
+// PART 1 OF 2
+
 import React, { useMemo, useState } from "react";
 import { useDashboardSnapshot } from "../hooks/useDashboardSnapshot";
 
-/* -------------------- env/helpers -------------------- */
+/* -------------------- constants -------------------- */
 const AZ_TZ = "America/Phoenix";
+const POLL_MS = 20000;
+const TIMEOUT_MS = 20000;
 
+const FS = {
+  micro: 13,
+  tiny: 14,
+  small: 15,
+  body: 16,
+  section: 13,
+  subtitle: 14,
+  title: 22,
+  button: 14,
+};
+
+const STRATEGY_ID_MAP = {
+  SCALP: "intraday_scalp@10m",
+  MINOR: "minor_swing@1h",
+  INTERMEDIATE: "intermediate_long@4h",
+};
+
+/* -------------------- helpers -------------------- */
 function toAZ(iso, withSeconds = false) {
   try {
     return (
@@ -19,30 +43,40 @@ function toAZ(iso, withSeconds = false) {
   }
 }
 
-function clamp100(x) {
-  const n = Number(x);
-  if (!Number.isFinite(n)) return 0;
-  return Math.max(0, Math.min(100, n));
+function snapshotTime(snapshot) {
+  const iso = snapshot?.now || snapshot?.ts || null;
+  if (!iso) return "—";
+  return toAZ(iso, true);
 }
 
 function fmt2(x) {
-  return Number.isFinite(x) ? Number(x).toFixed(2) : "—";
+  return Number.isFinite(Number(x)) ? Number(x).toFixed(2) : "—";
 }
 
-function grade(score) {
-  const s = clamp100(score);
-  if (s >= 90) return "A+";
-  if (s >= 80) return "A";
-  if (s >= 70) return "B";
-  if (s >= 60) return "C";
-  return "IGNORE";
+function pct(x) {
+  return Number.isFinite(Number(x)) ? `${Math.round(Number(x))}%` : "—";
 }
 
-function permStyle(permission) {
-  if (permission === "ALLOW") return { background: "#22c55e", color: "#0b1220", border: "2px solid #0c1320" };
-  if (permission === "REDUCE") return { background: "#fbbf24", color: "#0b1220", border: "2px solid #0c1320" };
-  if (permission === "STAND_DOWN") return { background: "#ef4444", color: "#0b1220", border: "2px solid #0c1320" };
-  return { background: "#0b0b0b", color: "#93c5fd", border: "1px solid #2b2b2b" };
+function upper(x, fb = "—") {
+  const s = String(x ?? "").trim();
+  return s ? s.toUpperCase() : fb;
+}
+
+function prettyEnum(x, fb = "—") {
+  const s = upper(x, "");
+  if (!s) return fb;
+  return s.replaceAll("_", " ");
+}
+
+function marketLine(snapshot) {
+  const regime = upper(snapshot?.marketRegime?.regime || "—");
+  const directionBias = upper(snapshot?.marketRegime?.directionBias || "—");
+  return `${regime} / ${directionBias}`;
+}
+
+function openFullChart(symbol = "SPY", tf = "10m") {
+  const url = `/chart?symbol=${encodeURIComponent(symbol)}&tf=${encodeURIComponent(tf)}`;
+  window.open(url, "_blank", "noopener,noreferrer");
 }
 
 function btn() {
@@ -52,116 +86,850 @@ function btn() {
     border: "1px solid #2a2a2a",
     borderRadius: 10,
     padding: "8px 12px",
-    fontSize: 13,
+    fontSize: FS.button,
     fontWeight: 900,
     cursor: "pointer",
     whiteSpace: "nowrap",
   };
 }
 
-function openFullChart(symbol = "SPY", tf = "10m") {
-  const url = `/chart?symbol=${encodeURIComponent(symbol)}&tf=${encodeURIComponent(tf)}`;
-  window.open(url, "_blank", "noopener,noreferrer");
+/* -------------------- field contracts -------------------- */
+function getReadiness(node) {
+  return (
+    node?.engine15?.readiness ||
+    node?.engine15Decision?.readinessLabel ||
+    node?.engine16?.readinessLabel ||
+    "WAIT"
+  );
 }
 
-/* -------------------- Compact engine stack (bigger readable) -------------------- */
-/**
- * IMPORTANT:
- * E2 must use node.engine2 (dashboard truth), not confluence.context.fib
- */
-function EngineStackBig({ confluence, permission, engine2Card }) {
-  const loc = confluence?.location?.state || "—";
+function getAction(node) {
+  return node?.engine15Decision?.action || "NO_ACTION";
+}
 
-  let e2Text = "NO_ANCHORS";
-  let e2Color = "#e5e7eb";
-  if (engine2Card && engine2Card.ok === true) {
-    const degree = engine2Card.degree || "—";
-    const tf = engine2Card.tf || "—";
-    const phase = engine2Card.phase || "UNKNOWN";
-    const fibScore = Number(engine2Card.fibScore || 0);
-    const invalidated = engine2Card.invalidated === true;
+function getBias(node) {
+  const direction = upper(node?.engine15Decision?.direction || "", "");
+  if (direction.includes("SHORT")) return "SHORT BIAS";
+  if (direction.includes("LONG")) return "LONG BIAS";
 
-    e2Text = `${degree} ${tf} — ${phase} — Fib ${fibScore}/20 — inv:${invalidated ? "true" : "false"}`;
+  const executionBias = upper(node?.engine15Decision?.executionBias || "", "");
+  if (executionBias.includes("SHORT")) return "SHORT BIAS";
+  if (executionBias.includes("LONG")) return "LONG BIAS";
 
-    if (invalidated) e2Color = "#fca5a5";
-    else if (fibScore >= 20) e2Color = "#86efac";
-    else if (fibScore >= 10) e2Color = "#fbbf24";
-    else e2Color = "#cbd5e1";
+  const macroBias = upper(node?.engine16?.macroBias || "", "");
+  if (macroBias.includes("SHORT")) return "SHORT BIAS";
+  if (macroBias.includes("LONG")) return "LONG BIAS";
+
+  if (node?.engine16?.waveShortPrep === true) return "SHORT BIAS";
+  if (node?.engine16?.waveLongPrep === true) return "LONG BIAS";
+
+  return "NEUTRAL";
+}
+
+function getExecutionBias(node) {
+  return (
+    node?.engine15Decision?.executionBias ||
+    node?.engine15Decision?.direction ||
+    node?.engine16?.macroBias ||
+    "NONE"
+  );
+}
+
+function getFreshEntry(node) {
+  return node?.engine15Decision?.freshEntryNow ?? false;
+}
+
+function getLifecycle(node) {
+  const lifecycle = node?.engine15Decision?.lifecycle || {};
+
+  return {
+    tp1Open: lifecycle?.tp1Open === true,
+    tp2Open: lifecycle?.tp2Open === true,
+    runnerOn: lifecycle?.runnerOn === true,
+    signalPrice: Number.isFinite(Number(lifecycle?.signalPrice))
+      ? Number(lifecycle.signalPrice)
+      : null,
+    currentPrice: Number.isFinite(Number(lifecycle?.currentPrice))
+      ? Number(lifecycle.currentPrice)
+      : null,
+    progressPct: Number.isFinite(Number(lifecycle?.progressPct))
+      ? Number(lifecycle.progressPct)
+      : null,
+    remainingPct: Number.isFinite(Number(lifecycle?.remainingPct))
+      ? Number(lifecycle.remainingPct)
+      : null,
+    movePts: Number.isFinite(Number(lifecycle?.movePts))
+      ? Number(lifecycle.movePts)
+      : null,
+    state:
+      lifecycle?.state ||
+      node?.engine15Decision?.lifecycleState ||
+      node?.engine15?.readiness ||
+      "WATCH",
+    nextFocus: lifecycle?.nextFocus || "WAIT_FOR_TRIGGER",
+  };
+}
+
+function getNotReadyReasons(node) {
+  const primary = Array.isArray(node?.engine15Decision?.reasonCodes)
+    ? node.engine15Decision.reasonCodes
+    : [];
+  const secondary = Array.isArray(node?.permission?.reasonCodes)
+    ? node.permission.reasonCodes
+    : [];
+
+  const out = [];
+  const seen = new Set();
+
+  [...primary, ...secondary].forEach((item) => {
+    const key = String(item || "").trim();
+    if (!key || seen.has(key)) return;
+    seen.add(key);
+    out.push(key);
+  });
+
+  return out.slice(0, 8);
+}
+
+/* -------------------- tones -------------------- */
+function readinessTone(readiness) {
+  const s = upper(readiness, "WAIT");
+  if (["CONFIRMED", "TRIGGERED", "READY"].includes(s)) return "ready";
+  if (["ARMING", "PREP"].includes(s)) return "arming";
+  if (["WATCH"].includes(s)) return "watch";
+  if (["STAND_DOWN", "BLOCKED"].includes(s)) return "blocked";
+  return "wait";
+}
+
+function actionTone(action) {
+  const s = upper(action, "NO_ACTION");
+  if (["GO", "ENTER_OK", "ACTIVE"].includes(s)) return "ready";
+  if (["REDUCE_OK", "MANAGE"].includes(s)) return "arming";
+  if (["WATCH"].includes(s)) return "watch";
+  if (["BLOCKED"].includes(s)) return "blocked";
+  return "wait";
+}
+
+function permissionTone(permission) {
+  const s = upper(permission, "UNKNOWN");
+  if (s === "ALLOW") return "ready";
+  if (s === "REDUCE") return "arming";
+  if (s === "STAND_DOWN") return "blocked";
+  return "wait";
+}
+
+function biasTone(text) {
+  const s = upper(text, "NEUTRAL");
+  if (s.includes("SHORT")) return "short";
+  if (s.includes("LONG")) return "long";
+  return "neutral";
+}
+
+function yesNoTone(v) {
+  return v ? "ready" : "wait";
+}
+
+function pillPalette(tone) {
+  if (tone === "ready") {
+    return {
+      bg: "linear-gradient(135deg,#22c55e,#16a34a)",
+      fg: "#07110a",
+      bd: "1px solid rgba(255,255,255,.18)",
+    };
   }
+  if (tone === "arming") {
+    return {
+      bg: "linear-gradient(135deg,#fbbf24,#f59e0b)",
+      fg: "#0b1220",
+      bd: "1px solid rgba(255,255,255,.18)",
+    };
+  }
+  if (tone === "watch") {
+    return {
+      bg: "linear-gradient(135deg,#60a5fa,#3b82f6)",
+      fg: "#071423",
+      bd: "1px solid rgba(255,255,255,.18)",
+    };
+  }
+  if (tone === "blocked") {
+    return {
+      bg: "linear-gradient(135deg,#ef4444,#b91c1c)",
+      fg: "#fff7f7",
+      bd: "1px solid rgba(255,255,255,.18)",
+    };
+  }
+  if (tone === "short") {
+    return {
+      bg: "#2b0b0b",
+      fg: "#fca5a5",
+      bd: "1px solid #7f1d1d",
+    };
+  }
+  if (tone === "long") {
+    return {
+      bg: "#06220f",
+      fg: "#86efac",
+      bd: "1px solid #166534",
+    };
+  }
+  return {
+    bg: "#111827",
+    fg: "#e5e7eb",
+    bd: "1px solid #334155",
+  };
+}
 
-  const reaction = confluence?.context?.reaction || {};
-  const e3Text = `${Number(reaction?.reactionScore ?? 0).toFixed(1)} ${reaction?.structureState || "HOLD"}`;
+function readinessBarColors(readiness, bias) {
+  const readinessMap = {
+    ready: "#22c55e",
+    arming: "#fbbf24",
+    watch: "#3b82f6",
+    blocked: "#ef4444",
+    wait: "#64748b",
+  };
 
-  const volume = confluence?.context?.volume || {};
-  const vFlags = volume?.flags || {};
-  const e4State = confluence?.volumeState || "NO_SIGNAL";
-  const e4Flags = `trap:${vFlags?.liquidityTrap ? "Y" : "N"} init:${vFlags?.initiativeMoveConfirmed ? "Y" : "N"}`;
+  const biasMap = {
+    short: "#ef4444",
+    long: "#22c55e",
+    neutral: "#64748b",
+  };
 
-  const score = clamp100(confluence?.scores?.total ?? 0);
-  const label = confluence?.scores?.label || grade(score);
-  const comp = confluence?.compression || {};
-  const e5Text = `${Math.round(score)} (${label}) • ${comp?.state || "NONE"} ${Number.isFinite(Number(comp?.score)) ? Math.round(Number(comp?.score)) : 0}`;
+  return {
+    base: readinessMap[readinessTone(readiness)] || "#64748b",
+    accent: biasMap[biasTone(bias)] || "#64748b",
+  };
+}
 
-  const e6Text = `${permission?.permission || "—"} • ${Number.isFinite(Number(permission?.sizeMultiplier)) ? Number(permission.sizeMultiplier).toFixed(2) : "—"}x`;
+/* -------------------- UI atoms -------------------- */
+function Badge({ text, tone = "wait", large = false, title = "" }) {
+  const p = pillPalette(tone);
+  return (
+    <span
+      title={title}
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        minHeight: large ? 30 : 24,
+        padding: large ? "6px 12px" : "4px 9px",
+        borderRadius: 999,
+        background: p.bg,
+        color: p.fg,
+        border: p.bd,
+        fontSize: large ? FS.tiny : FS.micro,
+        fontWeight: 1000,
+        lineHeight: 1.1,
+        whiteSpace: "nowrap",
+      }}
+    >
+      {text}
+    </span>
+  );
+}
 
-  const row = (k, v, color = "#e5e7eb") => (
-    <div style={{ display: "grid", gridTemplateColumns: "34px 1fr", gap: 10, alignItems: "center" }}>
-      <div style={{ color: "#9ca3af", fontWeight: 900 }}>{k}</div>
-      <div style={{ color, fontWeight: 900, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={v}>
-        {v}
+function TopReadinessBar({ readiness, bias }) {
+  const colors = readinessBarColors(readiness, bias);
+  return (
+    <div
+      style={{
+        height: 10,
+        borderRadius: 999,
+        background: colors.base,
+        position: "relative",
+        overflow: "hidden",
+        boxShadow: `0 0 12px ${colors.base}66`,
+      }}
+    >
+      <div
+        style={{
+          position: "absolute",
+          right: 0,
+          top: 0,
+          bottom: 0,
+          width: "28%",
+          background: colors.accent,
+          opacity: 0.75,
+        }}
+      />
+    </div>
+  );
+}
+
+function CardShell({ children, activeGlow, subtle = false }) {
+  return (
+    <div
+      style={{
+        background: subtle ? "#0f1117" : "#101010",
+        border: subtle ? "1px solid #1f2937" : "1px solid #262626",
+        borderRadius: 16,
+        padding: 10,
+        color: "#e5e7eb",
+        boxShadow: activeGlow,
+        minHeight: 0,
+        height: "100%",
+        display: "flex",
+        flexDirection: "column",
+        gap: 10,
+        minWidth: 0,
+        overflow: "hidden",
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+function CompactSection({ title, children, subtle = false }) {
+  return (
+    <div
+      style={{
+        border: subtle ? "1px solid #18212e" : "1px solid #1f2937",
+        borderRadius: 14,
+        padding: 10,
+        background: subtle ? "#0a0f18" : "#0b0b0b",
+        display: "flex",
+        flexDirection: "column",
+        gap: 8,
+      }}
+    >
+      <div style={{ fontWeight: 1000, color: "#93c5fd", fontSize: FS.section }}>
+        {title}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function KV({ label, value, compact = false }) {
+  return (
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: compact ? "100px 1fr" : "120px 1fr",
+        gap: 8,
+        alignItems: "start",
+      }}
+    >
+      <div style={{ color: "#9ca3af", fontSize: FS.micro, fontWeight: 900 }}>
+        {label}
+      </div>
+      <div
+        style={{
+          color: "#e5e7eb",
+          fontSize: FS.small,
+          fontWeight: 900,
+          lineHeight: 1.2,
+          wordBreak: "break-word",
+        }}
+      >
+        {value}
       </div>
     </div>
   );
+}
+
+function CompactBool({ label, value }) {
+  return (
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "1fr auto",
+        gap: 8,
+        alignItems: "center",
+      }}
+    >
+      <div style={{ color: "#cbd5e1", fontSize: FS.small, fontWeight: 800 }}>
+        {label}
+      </div>
+      <Badge text={value ? "YES" : "NO"} tone={yesNoTone(value)} />
+    </div>
+  );
+}
+
+function TwoCol({ left, right, ratio = "1.3fr 0.7fr" }) {
+  return (
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: ratio,
+        gap: 10,
+        alignItems: "start",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: 8,
+          borderRight: "1px solid #1f2937",
+          paddingRight: 10,
+        }}
+      >
+        {left}
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {right}
+      </div>
+    </div>
+  );
+}
+
+/* -------------------- shared logic blocks -------------------- */
+function scalpTriggerCondition(engine16) {
+  if (
+    engine16?.waveShortPrep === true &&
+    engine16?.continuationTriggerShort !== true &&
+    engine16?.exhaustionTriggerShort !== true
+  ) {
+    return "rejection + break";
+  }
+  if (
+    engine16?.waveLongPrep === true &&
+    engine16?.continuationTriggerLong !== true &&
+    engine16?.exhaustionTriggerLong !== true
+  ) {
+    return "support hold + break";
+  }
+  if (engine16?.exhaustionEarlyShort === true || engine16?.exhaustionEarlyLong === true) {
+    return "exhaustion confirm";
+  }
+  if (engine16?.continuationWatchShort === true || engine16?.continuationWatchLong === true) {
+    return "continuation trigger";
+  }
+  return "await trigger";
+}
+
+function intermediateTriggerCondition(engine16, readiness) {
+  if (engine16?.wavePrep === true && upper(engine16?.intermediatePhase, "") === "IN_C") {
+    return "C exhaustion + W3 trigger";
+  }
+  if (upper(readiness, "") === "WAIT") return "wait for structure";
+  return "await confirmation";
+}
+
+function scalpSummary(node) {
+  const readiness = getReadiness(node);
+  const bias = getBias(node);
+  const nextFocus = getLifecycle(node).nextFocus;
+  return `Scalp is ${prettyEnum(readiness).toLowerCase()} with ${bias.toLowerCase()}. Focus: ${prettyEnum(
+    nextFocus
+  ).toLowerCase()}.`;
+}
+
+function intermediateSummary(node) {
+  const readiness = getReadiness(node);
+  const nextFocus = getLifecycle(node).nextFocus;
+  return `Intermediate is ${prettyEnum(readiness).toLowerCase()}. Waiting for ${prettyEnum(
+    nextFocus
+  ).toLowerCase()}.`;
+}
+
+function longerTermSummary(node) {
+  const readiness = getReadiness(node);
+  const nextFocus = getLifecycle(node).nextFocus;
+  return `Longer-term is ${prettyEnum(readiness).toLowerCase()}. Waiting for ${prettyEnum(
+    nextFocus
+  ).toLowerCase()}.`;
+}
+
+function getWaveMode(engine16) {
+  const waveState = upper(engine16?.waveState || engine16?.waveContext?.waveState || "", "");
+  if (waveState.includes("CORRECTION") || waveState.includes("C")) return "CORRECTIVE";
+  if (waveState.includes("IMPULSE") || waveState.includes("W3")) return "IMPULSE";
+  return "STRUCTURE";
+}
+// PART 2 OF 2
+
+function LifecycleStrip({ node }) {
+  const lc = getLifecycle(node);
 
   return (
-    <div style={{ border: "1px solid #243244", borderRadius: 12, padding: 12, background: "#0b0f17" }}>
-      <div style={{ color: "#93c5fd", fontWeight: 900, marginBottom: 8 }}>ENGINE STACK</div>
-      <div style={{ display: "grid", gap: 6, fontSize: 13 }}>
-        {row("E1", loc)}
-        {row("E2", e2Text, e2Color)}
-        {row("E3", e3Text)}
-        {row("E4", `${e4State} • ${e4Flags}`)}
-        {row("E5", e5Text)}
-        {row("E6", e6Text)}
+    <CompactSection title="POSITION STATUS" subtle>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(4, minmax(0,1fr))",
+          gap: 8,
+        }}
+      >
+        <KV
+          label="TP1"
+          value={<Badge text={lc.tp1Open ? "OPEN" : "OFF"} tone={yesNoTone(lc.tp1Open)} />}
+          compact
+        />
+        <KV
+          label="TP2"
+          value={<Badge text={lc.tp2Open ? "OPEN" : "OFF"} tone={yesNoTone(lc.tp2Open)} />}
+          compact
+        />
+        <KV
+          label="Runner"
+          value={<Badge text={lc.runnerOn ? "ON" : "OFF"} tone={yesNoTone(lc.runnerOn)} />}
+          compact
+        />
+        <KV label="State" value={prettyEnum(lc.state)} compact />
+
+        <KV label="Signal" value={lc.signalPrice == null ? "0.00" : fmt2(lc.signalPrice)} compact />
+        <KV label="Current" value={lc.currentPrice == null ? "0.00" : fmt2(lc.currentPrice)} compact />
+        <KV label="Remain" value={pct(lc.remainingPct)} compact />
+        <KV label="Next" value={prettyEnum(lc.nextFocus)} compact />
+
+        <KV label="Progress" value={pct(lc.progressPct)} compact />
+        <KV label="Move" value={lc.movePts == null ? "—" : fmt2(lc.movePts)} compact />
+      </div>
+    </CompactSection>
+  );
+}
+
+function TriggerStateFull({ engine16 }) {
+  return (
+    <CompactSection title="TRIGGER STATE" subtle>
+      <div style={{ display: "grid", gap: 8 }}>
+        <div style={{ fontWeight: 900, color: "#fca5a5" }}>SHORT</div>
+        <CompactBool label="Watch Prep" value={engine16?.waveShortPrep === true} />
+        <CompactBool label="Continuation" value={engine16?.continuationTriggerShort === true} />
+        <CompactBool label="Exhaustion" value={engine16?.exhaustionTriggerShort === true} />
+
+        <div style={{ fontWeight: 900, color: "#86efac", marginTop: 6 }}>LONG</div>
+        <CompactBool label="Watch Prep" value={engine16?.waveLongPrep === true} />
+        <CompactBool label="Continuation" value={engine16?.continuationTriggerLong === true} />
+        <CompactBool label="Exhaustion" value={engine16?.exhaustionTriggerLong === true} />
+      </div>
+    </CompactSection>
+  );
+}
+
+function NotReadySummaryBlock({ node, snapshot, summary }) {
+  const reasons = getNotReadyReasons(node);
+
+  return (
+    <TwoCol
+      ratio="1.1fr 0.9fr"
+      left={
+        <CompactSection title="NOT READY BECAUSE" subtle>
+          {reasons.length ? (
+            reasons.map((r, i) => (
+              <div
+                key={`${r}-${i}`}
+                style={{
+                  fontWeight: 600,
+                  color: "#9ca3af",
+                  fontSize: FS.small,
+                  lineHeight: 1.25,
+                }}
+              >
+                • {prettyEnum(r)}
+              </div>
+            ))
+          ) : (
+            <div style={{ color: "#9ca3af" }}>—</div>
+          )}
+        </CompactSection>
+      }
+      right={
+        <CompactSection title="SUMMARY" subtle>
+          <KV label="Market" value={marketLine(snapshot)} compact />
+          <KV label="Summary" value={summary} compact />
+        </CompactSection>
+      }
+    />
+  );
+}
+
+function StructureCoreScalp({ engine16 }) {
+  const context = engine16?.context || "—";
+  const state = engine16?.state || "—";
+  const phase = engine16?.waveContext?.waveState || engine16?.waveState || "—";
+  const macroBias = engine16?.macroBias || "NONE";
+
+  return (
+    <CompactSection title="STRUCTURE CORE">
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(2, minmax(0,1fr))",
+          gap: 8,
+        }}
+      >
+        <KV label="Context" value={prettyEnum(context)} compact />
+        <KV label="State" value={prettyEnum(state)} compact />
+        <KV label="Phase" value={prettyEnum(phase)} compact />
+        <KV label="Macro Bias" value={prettyEnum(macroBias)} compact />
+      </div>
+    </CompactSection>
+  );
+}
+
+function StructureCoreIntermediate({ engine16 }) {
+  const primaryPhase = engine16?.primaryPhase || "—";
+  const intermediatePhase = engine16?.intermediatePhase || "—";
+  const phase = engine16?.waveState || "—";
+  const macroBias = engine16?.macroBias || "NONE";
+
+  return (
+    <CompactSection title="STRUCTURE CORE" subtle>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(2, minmax(0,1fr))",
+          gap: 8,
+        }}
+      >
+        <KV label="Primary" value={prettyEnum(primaryPhase)} compact />
+        <KV label="Intermed." value={prettyEnum(intermediatePhase)} compact />
+        <KV label="Phase" value={prettyEnum(phase)} compact />
+        <KV label="Macro Bias" value={prettyEnum(macroBias)} compact />
+      </div>
+    </CompactSection>
+  );
+}
+
+function StrategyHeader({ title, tf, readiness, action, bias, extraActions = null }) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "flex-start",
+        gap: 10,
+        flexWrap: "wrap",
+      }}
+    >
+      <div>
+        <div style={{ fontWeight: 1000, fontSize: FS.title }}>{title}</div>
+        <div style={{ color: "#9ca3af", fontSize: FS.subtitle, fontWeight: 800 }}>{tf}</div>
+      </div>
+
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+        <Badge text={upper(readiness)} tone={readinessTone(readiness)} large />
+        <Badge text={upper(action)} tone={actionTone(action)} />
+        <Badge text={bias} tone={biasTone(bias)} />
+        {extraActions}
       </div>
     </div>
   );
 }
 
-/* -------------------- Main Page -------------------- */
+function ScalpFullCard({ node, snapshot, activeGlow, symbol }) {
+  const engine16 = node?.engine16 || {};
+  const permission = node?.permission || {};
+
+  const readiness = getReadiness(node);
+  const action = getAction(node);
+  const bias = getBias(node);
+  const nextFocus = getLifecycle(node).nextFocus;
+  const executionBias = getExecutionBias(node);
+  const freshEntry = getFreshEntry(node);
+  const permissionText = upper(permission?.permission || "UNKNOWN");
+  const summary = scalpSummary(node);
+
+  return (
+    <CardShell activeGlow={activeGlow}>
+      <TopReadinessBar readiness={readiness} bias={bias} />
+
+      <StrategyHeader
+        title="Scalp"
+        tf="10m"
+        readiness={readiness}
+        action={action}
+        bias={bias}
+        extraActions={
+          <button onClick={() => openFullChart(symbol, "10m")} style={btn()}>
+            Open Chart
+          </button>
+        }
+      />
+
+      <LifecycleStrip node={node} />
+      <StructureCoreScalp engine16={engine16} />
+
+      <TwoCol
+        left={
+          <CompactSection title="DECISION" subtle>
+            <KV label="Next Focus" value={prettyEnum(nextFocus)} compact />
+            <KV label="Trigger" value={prettyEnum(scalpTriggerCondition(engine16))} compact />
+            <KV
+              label="Fresh Entry"
+              value={<Badge text={freshEntry ? "YES" : "NO"} tone={yesNoTone(freshEntry)} />}
+              compact
+            />
+            <KV label="Exec Bias" value={prettyEnum(executionBias)} compact />
+            <KV
+              label="Permission"
+              value={<Badge text={permissionText} tone={permissionTone(permissionText)} />}
+              compact
+            />
+          </CompactSection>
+        }
+        right={<TriggerStateFull engine16={engine16} />}
+      />
+
+      <NotReadySummaryBlock node={node} snapshot={snapshot} summary={summary} />
+    </CardShell>
+  );
+}
+
+function IntermediateFullCard({ node, snapshot, activeGlow, symbol }) {
+  const engine16 = node?.engine16 || {};
+  const permission = node?.permission || {};
+
+  const readiness = getReadiness(node);
+  const action = getAction(node);
+  const bias = getBias(node);
+  const nextFocus = getLifecycle(node).nextFocus;
+  const permissionText = upper(permission?.permission || "UNKNOWN");
+  const summary = intermediateSummary(node);
+  const executionEngine = engine16?.skipped === true ? "STRUCTURE MODE" : "ACTIVE";
+  const waveMode = getWaveMode(engine16);
+
+  return (
+    <CardShell activeGlow={activeGlow} subtle>
+      <TopReadinessBar readiness={readiness} bias={bias} />
+
+      <StrategyHeader
+        title="Intermediate Swing"
+        tf="1h"
+        readiness={readiness}
+        action={action}
+        bias={bias}
+        extraActions={
+          <button onClick={() => openFullChart(symbol, "1h")} style={btn()}>
+            Open Chart
+          </button>
+        }
+      />
+
+      <LifecycleStrip node={node} />
+      <StructureCoreIntermediate engine16={engine16} />
+
+      <CompactSection title="DECISION" subtle>
+        <KV label="Next Focus" value={prettyEnum(nextFocus)} compact />
+        <KV label="Trigger" value={prettyEnum(intermediateTriggerCondition(engine16, readiness))} compact />
+        <KV
+          label="Fresh Entry"
+          value={<Badge text={getFreshEntry(node) ? "YES" : "NO"} tone={yesNoTone(getFreshEntry(node))} />}
+          compact
+        />
+        <KV label="Exec Bias" value={prettyEnum(getExecutionBias(node))} compact />
+        <KV
+          label="Permission"
+          value={<Badge text={permissionText} tone={permissionTone(permissionText)} />}
+          compact
+        />
+      </CompactSection>
+
+      <CompactSection title="STRUCTURE STATUS" subtle>
+        <KV
+          label="Wave Prep"
+          value={<Badge text={engine16?.wavePrep === true ? "YES" : "NO"} tone={yesNoTone(engine16?.wavePrep === true)} />}
+          compact
+        />
+        <KV label="Correction Dir." value={prettyEnum(engine16?.correctionDirection || "—")} compact />
+        <KV label="Wave Mode" value={prettyEnum(waveMode)} compact />
+        <KV label="Execution Eng." value={prettyEnum(executionEngine)} compact />
+      </CompactSection>
+
+      <NotReadySummaryBlock node={node} snapshot={snapshot} summary={summary} />
+    </CardShell>
+  );
+}
+
+function PassiveMiniCard({ node, snapshot, activeGlow, symbol }) {
+  const readiness = getReadiness(node);
+  const action = getAction(node);
+  const bias = getBias(node);
+  const nextFocus = getLifecycle(node).nextFocus;
+  const summary = longerTermSummary(node);
+
+  return (
+    <CardShell activeGlow={activeGlow} subtle>
+      <TopReadinessBar readiness={readiness} bias={bias} />
+
+      <StrategyHeader
+        title="Longer-Term"
+        tf="4h"
+        readiness={readiness}
+        action={action}
+        bias={bias}
+        extraActions={
+          <button onClick={() => openFullChart(symbol, "4h")} style={btn()}>
+            Open Chart
+          </button>
+        }
+      />
+
+      <CompactSection title="PASSIVE" subtle>
+        <KV label="Next Focus" value={prettyEnum(nextFocus)} compact />
+        <KV label="Market" value={marketLine(snapshot)} compact />
+        <KV label="Summary" value={summary} compact />
+      </CompactSection>
+    </CardShell>
+  );
+}
+
+function DiagnosticsPanel({ snapshot }) {
+  return (
+    <CompactSection title="DIAGNOSTICS" subtle>
+      <div
+        style={{
+          background: "#07111e",
+          border: "1px solid #1f2937",
+          borderRadius: 12,
+          padding: 10,
+          overflow: "auto",
+          maxHeight: 380,
+        }}
+      >
+        <pre
+          style={{
+            margin: 0,
+            color: "#cbd5e1",
+            fontSize: 12,
+            lineHeight: 1.35,
+            whiteSpace: "pre-wrap",
+            wordBreak: "break-word",
+          }}
+        >
+          {JSON.stringify(snapshot, null, 2)}
+        </pre>
+      </div>
+    </CompactSection>
+  );
+}
+
 export default function StrategiesFull() {
   const qs = useMemo(() => new URLSearchParams(window.location.search), []);
   const symbol = (qs.get("symbol") || "SPY").toUpperCase();
 
-  const STRATS = useMemo(
-    () => [
-      { title: "Scalp — Minor Intraday", tf: "10m", strategyId: "intraday_scalp@10m" },
-      { title: "Minor — Swing", tf: "1h", strategyId: "minor_swing@1h" },
-      { title: "Intermediate — Long", tf: "4h", strategyId: "intermediate_long@4h" },
-    ],
-    []
-  );
+  const [showDiagnostics, setShowDiagnostics] = useState(false);
 
-  // ✅ Shared snapshot polling (single truth)
-  const { data, err, lastFetch, refreshNow } = useDashboardSnapshot(symbol, {
-    pollMs: 20000,
-    timeoutMs: 20000,
+  const {
+    data: snapshot,
+    err,
+    lastFetch,
+    refreshNow,
+    refreshing,
+    hasData,
+  } = useDashboardSnapshot(symbol, {
+    pollMs: POLL_MS,
+    timeoutMs: TIMEOUT_MS,
     includeContext: 1,
   });
 
-  const snapshotTs = lastFetch ? toAZ(lastFetch, true) : "—";
+  const scalpNode = snapshot?.strategies?.[STRATEGY_ID_MAP.SCALP] || null;
+  const minorNode = snapshot?.strategies?.[STRATEGY_ID_MAP.MINOR] || null;
+  const longerNode = snapshot?.strategies?.[STRATEGY_ID_MAP.INTERMEDIATE] || null;
 
   return (
     <div style={{ background: "#05070b", minHeight: "100vh", padding: 14, color: "#e5e7eb" }}>
-      {/* Top Bar */}
       <div
         style={{
           position: "sticky",
           top: 0,
           zIndex: 50,
           background: "#05070b",
-          paddingBottom: 10,
-          marginBottom: 10,
+          paddingBottom: 12,
+          marginBottom: 12,
           borderBottom: "1px solid #1f2937",
           display: "flex",
           justifyContent: "space-between",
@@ -170,161 +938,77 @@ export default function StrategiesFull() {
           flexWrap: "wrap",
         }}
       >
-        <div style={{ display: "grid", gap: 2 }}>
-          <div style={{ fontWeight: 900, fontSize: 18 }}>Full Strategies — {symbol}</div>
-          <div style={{ color: "#9ca3af", fontSize: 12 }}>
-            Snapshot: <b>{snapshotTs}</b> • Poll 20s
+        <div style={{ display: "grid", gap: 4 }}>
+          <div style={{ fontWeight: 1000, fontSize: 24 }}>
+            Full Strategies — {symbol}
+          </div>
+          <div style={{ color: "#9ca3af", fontSize: 13 }}>
+            Frontend fetch: <b>{lastFetch ? toAZ(lastFetch, true) : "—"}</b>
+            {refreshing ? (
+              <span style={{ marginLeft: 8, color: "#fbbf24", fontWeight: 1000 }}>
+                refreshing…
+              </span>
+            ) : null}
+            <span style={{ marginLeft: 12 }}>
+              Backend snapshot: <b>{snapshotTime(snapshot)}</b>
+            </span>
           </div>
         </div>
 
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <button onClick={refreshNow} style={btn()} title="Refresh now">Refresh</button>
-          <button onClick={() => window.close()} style={btn()} title="Close tab">Close Tab</button>
+          <button onClick={refreshNow} style={btn()}>
+            Refresh
+          </button>
+          <button onClick={() => setShowDiagnostics((v) => !v)} style={btn()}>
+            {showDiagnostics ? "Hide Diagnostics" : "Show Diagnostics"}
+          </button>
+          <button onClick={() => window.close()} style={btn()}>
+            Close Tab
+          </button>
         </div>
       </div>
 
-      {err && (
-        <div style={{ marginBottom: 10, color: "#fca5a5", fontWeight: 900 }}>
-          Error: {err}
+      {err && !hasData && (
+        <div style={{ marginBottom: 12, color: "#fca5a5", fontWeight: 1000 }}>
+          Strategy snapshot error: {err}
         </div>
       )}
 
-      {/* Big readable stacked cards */}
-      <div style={{ display: "grid", gap: 14 }}>
-        {STRATS.map((s) => {
-          const node = data?.strategies?.[s.strategyId] || {};
-          const confluence = node?.confluence || {};
-          const permission = node?.permission || {};
-          const engine2Card = node?.engine2 || null;
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1.1fr 1.1fr 0.7fr",
+          gap: 12,
+          alignItems: "stretch",
+        }}
+      >
+        <ScalpFullCard
+          node={scalpNode}
+          snapshot={snapshot}
+          activeGlow="0 8px 26px rgba(0,0,0,.22)"
+          symbol={symbol}
+        />
 
-          const score = clamp100(confluence?.scores?.total ?? 0);
-          const label = confluence?.scores?.label || grade(score);
+        <IntermediateFullCard
+          node={minorNode}
+          snapshot={snapshot}
+          activeGlow="0 8px 26px rgba(0,0,0,.22)"
+          symbol={symbol}
+        />
 
-          const z = confluence?.context?.activeZone || {};
-          const lo = Number(z?.lo);
-          const hi = Number(z?.hi);
-
-          const targets = confluence?.targets || {};
-          const entryTarget = Number(targets?.entryTarget);
-          const exitTarget = Number(targets?.exitTarget);
-
-          const perm = permission?.permission || "—";
-
-          return (
-            <div
-              key={s.strategyId}
-              style={{
-                border: "1px solid #243244",
-                borderRadius: 14,
-                background: "#0b0f17",
-                padding: 14,
-                boxShadow: "0 12px 30px rgba(0,0,0,.35)",
-              }}
-            >
-              <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-                <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-                  <div style={{ fontWeight: 900, fontSize: 16 }}>{s.title}</div>
-                  <span style={{ fontSize: 12, color: "#9ca3af", fontWeight: 900 }}>TF: {s.tf}</span>
-                  <span style={{ fontSize: 11, fontWeight: 900, padding: "4px 10px", borderRadius: 999, ...permStyle(perm) }}>
-                    {perm}
-                  </span>
-                </div>
-
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                  <button onClick={() => openFullChart(symbol, s.tf)} style={btn()} title="Open chart in new tab">
-                    Open Full Chart
-                  </button>
-                </div>
-              </div>
-
-              {/* score bar */}
-              <div style={{ marginTop: 10, display: "grid", gridTemplateColumns: "54px 1fr 70px", alignItems: "center", gap: 10 }}>
-                <div style={{ color: "#9ca3af", fontWeight: 900 }}>Score</div>
-                <div style={{ background: "#111827", border: "1px solid #243244", borderRadius: 999, height: 12, overflow: "hidden" }}>
-                  <div
-                    style={{
-                      height: "100%",
-                      width: `${Math.round(score)}%`,
-                      background: "linear-gradient(90deg,#22c55e 0%,#84cc16 40%,#f59e0b 70%,#ef4444 100%)",
-                    }}
-                  />
-                </div>
-                <div style={{ textAlign: "right", fontWeight: 900 }}>
-                  {Math.round(score)} ({label})
-                </div>
-              </div>
-
-              {/* two-column info */}
-              <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "1fr 420px", gap: 14, alignItems: "start" }}>
-                {/* left info */}
-                <div style={{ display: "grid", gap: 8 }}>
-                  <div style={{ fontSize: 13, color: "#cbd5e1" }}>
-                    <b>Active Zone:</b>{" "}
-                    <span style={{ color: "#fbbf24", fontWeight: 900 }}>
-                      {z?.zoneType || "—"}
-                    </span>{" "}
-                    <span style={{ color: "#94a3b8" }}>
-                      {Number.isFinite(lo) ? fmt2(lo) : "—"}–{Number.isFinite(hi) ? fmt2(hi) : "—"}
-                    </span>
-                  </div>
-
-                  <div style={{ display: "grid", gap: 4, fontSize: 13, color: "#cbd5e1" }}>
-                    <div><b>Entry:</b> {Number.isFinite(entryTarget) ? fmt2(entryTarget) : "—"}</div>
-                    <div><b>Exit:</b> {Number.isFinite(exitTarget) ? fmt2(exitTarget) : "—"}</div>
-                  </div>
-
-                  <div style={{ display: "grid", gap: 4, fontSize: 13 }}>
-                    <div style={{ color: "#9ca3af", fontWeight: 900 }}>Reasons (E5)</div>
-                    <div style={{ color: "#e5e7eb" }}>
-                      {Array.isArray(confluence?.reasonCodes) && confluence.reasonCodes.length
-                        ? confluence.reasonCodes.slice(0, 3).join(" • ")
-                        : "—"}
-                    </div>
-
-                    <div style={{ color: "#9ca3af", fontWeight: 900, marginTop: 6 }}>Reasons (E6)</div>
-                    <div style={{ color: "#e5e7eb" }}>
-                      {Array.isArray(permission?.reasonCodes) && permission.reasonCodes.length
-                        ? permission.reasonCodes.slice(0, 3).join(" • ")
-                        : "—"}
-                    </div>
-                  </div>
-
-                  <div style={{ marginTop: 6, fontSize: 13, color: "#cbd5e1" }}>
-                    <b>Next:</b> {confluence ? (confluence.invalid ? "Waiting: invalid cleared." : "Waiting: stronger confluence signals.") : "—"}
-                  </div>
-                </div>
-
-                {/* right engine stack + strategy snapshot */}
-                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                  <EngineStackBig confluence={confluence} permission={permission} engine2Card={engine2Card} />
-
-                  <div
-                    style={{
-                      border: "1px solid #243244",
-                      borderRadius: 12,
-                      padding: 12,
-                      background: "#0b0f17",
-                      fontSize: 12,
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: 6,
-                    }}
-                  >
-                    <div style={{ fontWeight: 900, color: "#93c5fd", fontSize: 11 }}>
-                      STRATEGY SNAPSHOT
-                    </div>
-
-                    <div><b>Wave Phase:</b> {engine2Card?.phase || "—"}</div>
-                    <div><b>Fib Score:</b> {Number.isFinite(engine2Card?.fibScore) ? `${engine2Card.fibScore}/20` : "—"}</div>
-                    <div><b>Invalidated:</b> {engine2Card?.invalidated ? "YES ❌" : "NO"}</div>
-                    <div><b>Degree:</b> {engine2Card?.degree || "—"} {engine2Card?.tf || ""}</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          );
-        })}
+        <PassiveMiniCard
+          node={longerNode}
+          snapshot={snapshot}
+          activeGlow="0 8px 26px rgba(0,0,0,.18)"
+          symbol={symbol}
+        />
       </div>
+
+      {showDiagnostics && (
+        <div style={{ marginTop: 14 }}>
+          <DiagnosticsPanel snapshot={snapshot} />
+        </div>
+      )}
     </div>
   );
 }
