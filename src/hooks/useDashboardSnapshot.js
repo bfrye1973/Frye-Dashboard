@@ -129,8 +129,6 @@ export function useDashboardSnapshot(
       const controller = new AbortController();
       const t = setTimeout(() => controller.abort(), timeoutMs);
 
-      const hadData = !!state.data;
-
       if (alive) {
         setState((prev) => ({
           ...prev,
@@ -191,8 +189,6 @@ export function useDashboardSnapshot(
   }, [baseUrl, pollMs, timeoutMs]);
 
   async function refreshNow() {
-    const hadData = !!state.data;
-
     setState((prev) => ({
       ...prev,
       loading: prev.data == null,
