@@ -1,9 +1,6 @@
 // src/pages/rows/RowStrategies/index.jsx
-// Row 5 — Strategies
-// Scalp card rebuilt to new backend architecture (v1)
-// Intermediate + Longer-Term kept passive/minimal for safety
-// Canonical source: /api/v1/dashboard-snapshot?symbol=SPY
-// IMPORTANT: main card truth comes from Engine15 / Engine15Decision / Engine16 normalized fields
+// Row 5 — Strategies (compact dashboard version)
+// Keep StrategiesFull.jsx separate and untouched for now.
 
 import React, { useMemo, useState } from "react";
 import LiveDot from "../../../components/LiveDot";
@@ -29,9 +26,9 @@ const FS = {
   tiny: 12,
   small: 13,
   body: 14,
-  section: 12,
-  subtitle: 13,
-  title: 16,
+  section: 11,
+  subtitle: 12,
+  title: 15,
   button: 12,
 };
 
@@ -74,16 +71,6 @@ function minutesAgo(iso) {
   return ms / 60000;
 }
 
-function clamp100(x) {
-  const n = Number(x);
-  if (!Number.isFinite(n)) return 0;
-  return Math.max(0, Math.min(100, n));
-}
-
-function fmt2(x) {
-  return Number.isFinite(Number(x)) ? Number(x).toFixed(2) : "—";
-}
-
 function upper(x, fb = "—") {
   const s = String(x ?? "").trim();
   return s ? s.toUpperCase() : fb;
@@ -93,22 +80,6 @@ function prettyEnum(x, fb = "—") {
   const s = upper(x, "");
   if (!s) return fb;
   return s.replaceAll("_", " ");
-}
-
-function boolTxt(x) {
-  return x === true ? "YES" : "NO";
-}
-
-function titleText(id) {
-  if (id === "SCALP") return "Scalp";
-  if (id === "MINOR") return "Intermediate Swing";
-  return "Longer-Term";
-}
-
-function tfText(id) {
-  if (id === "SCALP") return "10m";
-  if (id === "MINOR") return "1h";
-  return "4h";
 }
 
 function biasBadgeTextScalp(engine16) {
@@ -220,8 +191,8 @@ function Badge({ text, tone = "wait", large = false, title = "" }) {
         display: "inline-flex",
         alignItems: "center",
         justifyContent: "center",
-        minHeight: large ? 30 : 28,
-        padding: large ? "7px 12px" : "6px 10px",
+        minHeight: large ? 30 : 26,
+        padding: large ? "7px 12px" : "5px 9px",
         borderRadius: 999,
         background: p.bg,
         color: p.fg,
@@ -237,17 +208,17 @@ function Badge({ text, tone = "wait", large = false, title = "" }) {
   );
 }
 
-function Section({ title, children, subtle = false }) {
+function CompactSection({ title, children, subtle = false }) {
   return (
     <div
       style={{
         border: subtle ? "1px solid #18212e" : "1px solid #1f2937",
         borderRadius: 12,
-        padding: 10,
+        padding: 9,
         background: subtle ? "#0a0f18" : "#0b0b0b",
         display: "flex",
         flexDirection: "column",
-        gap: 8,
+        gap: 6,
       }}
     >
       <div style={{ fontWeight: 1000, color: "#93c5fd", fontSize: FS.section }}>
@@ -263,7 +234,7 @@ function KV({ label, value }) {
     <div
       style={{
         display: "grid",
-        gridTemplateColumns: "120px 1fr",
+        gridTemplateColumns: "108px 1fr",
         gap: 8,
         alignItems: "start",
       }}
@@ -276,7 +247,7 @@ function KV({ label, value }) {
           color: "#e5e7eb",
           fontSize: FS.small,
           fontWeight: 900,
-          lineHeight: 1.3,
+          lineHeight: 1.25,
           wordBreak: "break-word",
         }}
       >
@@ -286,7 +257,7 @@ function KV({ label, value }) {
   );
 }
 
-function MiniBoolRow({ label, value }) {
+function CompactBool({ label, value }) {
   return (
     <div
       style={{
@@ -299,31 +270,7 @@ function MiniBoolRow({ label, value }) {
       <div style={{ color: "#cbd5e1", fontSize: FS.small, fontWeight: 800 }}>
         {label}
       </div>
-      <Badge text={boolTxt(value)} tone={value ? "ready" : "wait"} />
-    </div>
-  );
-}
-
-function CompactList({ items = [], empty = "—" }) {
-  const arr = Array.isArray(items) ? items.filter(Boolean) : [];
-  if (!arr.length) {
-    return <div style={{ color: "#94a3b8", fontSize: FS.small }}>{empty}</div>;
-  }
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-      {arr.map((item, idx) => (
-        <div
-          key={`${item}-${idx}`}
-          style={{
-            color: "#e5e7eb",
-            fontSize: FS.small,
-            fontWeight: 800,
-            lineHeight: 1.3,
-          }}
-        >
-          • {prettyEnum(item)}
-        </div>
-      ))}
+      <Badge text={value ? "YES" : "NO"} tone={value ? "ready" : "wait"} />
     </div>
   );
 }
@@ -331,10 +278,10 @@ function CompactList({ items = [], empty = "—" }) {
 function marketLine(snapshot) {
   const regime = upper(snapshot?.marketRegime?.regime || "—");
   const directionBias = upper(snapshot?.marketRegime?.directionBias || "—");
-  return `Market: ${regime} / ${directionBias}`;
+  return `${regime} / ${directionBias}`;
 }
 
-function scalpTriggerCondition(engine16, decision) {
+function scalpTriggerCondition(engine16) {
   if (engine16?.waveShortPrep === true && engine16?.continuationTriggerShort !== true && engine16?.exhaustionTriggerShort !== true) {
     return "rejection + break";
   }
@@ -351,80 +298,40 @@ function intermediateTriggerCondition(engine16, readiness) {
   return "await confirmation";
 }
 
-function scalpSummary(node, snapshot) {
+function scalpSummary(node) {
   const e16 = node?.engine16 || {};
   const shortPrep = e16?.waveShortPrep === true;
   if (shortPrep) {
-    return "Scalp is watching the active C-leg for a possible short trigger, but no entry is valid yet.";
+    return "Watching active C-leg for a possible short trigger.";
   }
-  return "Scalp is monitoring intraday structure and waiting for a valid trigger sequence.";
+  return "Monitoring intraday structure for a valid trigger.";
 }
 
-function intermediateSummary(node, snapshot) {
-  return "Intermediate Swing is in prep mode, waiting for the W3 trigger after the C leg completes.";
+function intermediateSummary() {
+  return "Waiting for the W3 trigger after the C leg completes.";
 }
 
-function PassiveCard({ title, tf, node, snapshot }) {
-  const readiness =
-    node?.engine15?.readiness ||
-    node?.engine15Decision?.readinessLabel ||
-    node?.engine16?.readinessLabel ||
-    "NO_ACTION";
-
-  const action = node?.engine15Decision?.action || "NO_ACTION";
-  const bias = biasBadgeTextIntermediate(node?.engine16 || {});
-  const nextFocus = node?.engine15Decision?.lifecycle?.nextFocus || "WAIT";
-  const summary = "Longer-term structure card kept passive for now.";
-
-  return (
-    <div
-      style={{
-        background: "#0f1117",
-        border: "1px solid #1f2937",
-        borderRadius: 14,
-        padding: 12,
-        display: "flex",
-        flexDirection: "column",
-        gap: 10,
-        minWidth: 0,
-      }}
-    >
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          gap: 10,
-          alignItems: "flex-start",
-          flexWrap: "wrap",
-        }}
-      >
-        <div>
-          <div style={{ fontWeight: 1000, fontSize: FS.title, color: "#e5e7eb" }}>
-            {title}
-          </div>
-          <div style={{ color: "#9ca3af", fontSize: FS.subtitle, fontWeight: 800 }}>
-            {tf}
-          </div>
-        </div>
-
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-          <Badge text={upper(readiness)} tone={readinessTone(readiness)} />
-          <Badge text={upper(action)} tone={actionTone(action)} />
-          <Badge text={bias} tone={biasTone(bias)} />
-        </div>
-      </div>
-
-      <Section title="PASSIVE SUMMARY" subtle>
-        <KV label="Next Focus" value={prettyEnum(nextFocus)} />
-        <KV label="Summary" value={summary} />
-        <KV label="Market" value={marketLine(snapshot)} />
-      </Section>
-    </div>
-  );
+function openFullStrategies(symbol = "SPY") {
+  const url = `/strategies-full?symbol=${encodeURIComponent(symbol)}`;
+  window.open(url, "_blank", "noopener,noreferrer");
 }
 
-/* -------------------- Scalp v1 card -------------------- */
-function ScalpV1Card({ node, snapshot, liveStatus, liveTip, activeGlow }) {
+function btn() {
+  return {
+    background: "#141414",
+    color: "#e5e7eb",
+    border: "1px solid #2a2a2a",
+    borderRadius: 10,
+    padding: "6px 11px",
+    fontSize: FS.button,
+    fontWeight: 900,
+    cursor: "pointer",
+    whiteSpace: "nowrap",
+  };
+}
+
+/* -------------------- cards -------------------- */
+function ScalpCompactCard({ node, snapshot, liveStatus, liveTip, activeGlow }) {
   const engine15 = node?.engine15 || {};
   const decision = node?.engine15Decision || {};
   const engine16 = node?.engine16 || {};
@@ -440,33 +347,13 @@ function ScalpV1Card({ node, snapshot, liveStatus, liveTip, activeGlow }) {
   const bias = biasBadgeTextScalp(engine16);
 
   const nextFocus = decision?.lifecycle?.nextFocus || "WAIT_FOR_TRIGGER";
-  const freshEntryNow = decision?.freshEntryNow === true;
   const executionBias = decision?.executionBias || "NONE";
-
-  const qualityBand = decision?.qualityBand || "WATCH";
-  const qualityScore = Number.isFinite(Number(decision?.qualityScore))
-    ? Number(decision.qualityScore)
-    : null;
-  const qualityGrade = decision?.qualityGrade || "—";
-
-  const market = marketLine(snapshot);
-  const summary = scalpSummary(node, snapshot);
-
-  const reasonCodes = Array.isArray(engine16?.waveReasonCodes)
-    ? engine16.waveReasonCodes
-    : Array.isArray(decision?.reasonCodes)
-    ? decision.reasonCodes
-    : [];
-
-  const blockers = Array.isArray(decision?.blockers) ? decision.blockers : [];
-  const setupChain = Array.isArray(decision?.setupChain) ? decision.setupChain : [];
-
   const context = engine16?.context || "—";
   const state = engine16?.state || "—";
   const phase = engine16?.waveContext?.waveState || engine16?.waveState || "—";
   const macroBias = engine16?.waveContext?.macroBias || engine16?.macroBias || "NONE";
-
-  const triggerCondition = scalpTriggerCondition(engine16, decision);
+  const permissionText = upper(permission?.permission || "UNKNOWN");
+  const summary = scalpSummary(node);
 
   return (
     <div
@@ -474,131 +361,70 @@ function ScalpV1Card({ node, snapshot, liveStatus, liveTip, activeGlow }) {
         background: "#101010",
         border: "1px solid #262626",
         borderRadius: 14,
-        padding: 12,
+        padding: 11,
         color: "#e5e7eb",
         boxShadow: activeGlow,
-        minHeight: 360,
+        minHeight: 0,
         display: "flex",
         flexDirection: "column",
-        gap: 10,
+        gap: 8,
         minWidth: 0,
         overflow: "hidden",
       }}
     >
-      {/* Header */}
       <div
         style={{
           display: "flex",
           justifyContent: "space-between",
           alignItems: "flex-start",
-          gap: 10,
+          gap: 8,
           flexWrap: "wrap",
         }}
       >
         <div>
-          <div style={{ fontWeight: 1000, fontSize: FS.title, color: "#e5e7eb" }}>
-            Scalp
-          </div>
+          <div style={{ fontWeight: 1000, fontSize: FS.title }}>Scalp</div>
           <div style={{ color: "#9ca3af", fontSize: FS.subtitle, fontWeight: 800 }}>
             10m
           </div>
         </div>
 
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
-          <Badge text={upper(readiness)} tone={readinessTone(readiness)} large />
-          <Badge text={upper(action)} tone={actionTone(action)} large />
-          <Badge text={bias} tone={biasTone(bias)} large />
+          <Badge text={upper(readiness)} tone={readinessTone(readiness)} />
+          <Badge text={upper(action)} tone={actionTone(action)} />
+          <Badge text={bias} tone={biasTone(bias)} />
           <LiveDot status={liveStatus} tip={liveTip} />
         </div>
       </div>
 
-      {/* Structure core */}
-      <Section title="STRUCTURE CORE">
+      <CompactSection title="STRUCTURE CORE">
         <KV label="Context" value={prettyEnum(context)} />
         <KV label="State" value={prettyEnum(state)} />
         <KV label="Phase" value={prettyEnum(phase)} />
         <KV label="Macro Bias" value={prettyEnum(macroBias)} />
-      </Section>
+      </CompactSection>
 
-      {/* Decision */}
-      <Section title="DECISION">
+      <CompactSection title="DECISION" subtle>
         <KV label="Next Focus" value={prettyEnum(nextFocus)} />
-        <KV label="Trigger Condition" value={prettyEnum(triggerCondition)} />
-        <KV label="Fresh Entry Now" value={freshEntryNow ? "YES" : "NO"} />
-        <KV label="Permission" value={upper(permission?.permission || "UNKNOWN")} />
-        <KV label="Execution Bias" value={prettyEnum(executionBias)} />
-      </Section>
+        <KV label="Trigger" value={prettyEnum(scalpTriggerCondition(engine16))} />
+        <KV label="Permission" value={permissionText} />
+        <KV label="Exec Bias" value={prettyEnum(executionBias)} />
+      </CompactSection>
 
-      {/* Trigger path */}
-      <Section title="TRIGGER PATH" subtle>
-        <MiniBoolRow label="Watch Short Prep" value={engine16?.waveShortPrep === true} />
-        <MiniBoolRow
-          label="Watch Long Prep"
-          value={engine16?.waveLongPrep === true}
-        />
-        <MiniBoolRow
-          label="Continuation Watch Short"
-          value={engine16?.continuationWatchShort === true}
-        />
-        <MiniBoolRow
-          label="Continuation Trigger Short"
-          value={engine16?.continuationTriggerShort === true}
-        />
-        <MiniBoolRow
-          label="Exhaustion Early Short"
-          value={engine16?.exhaustionEarlyShort === true}
-        />
-        <MiniBoolRow
-          label="Exhaustion Trigger Short"
-          value={engine16?.exhaustionTriggerShort === true}
-        />
-      </Section>
+      <CompactSection title="TRIGGER PATH" subtle>
+        <CompactBool label="Watch Short Prep" value={engine16?.waveShortPrep === true} />
+        <CompactBool label="Cont. Trigger" value={engine16?.continuationTriggerShort === true} />
+        <CompactBool label="Exhaust. Trigger" value={engine16?.exhaustionTriggerShort === true} />
+      </CompactSection>
 
-      {/* Quality */}
-      <Section title="QUALITY" subtle>
-        <KV label="Band" value={upper(qualityBand)} />
-        <KV label="Score" value={qualityScore == null ? "—" : String(Math.round(qualityScore))} />
-        <KV label="Grade" value={upper(qualityGrade)} />
-      </Section>
-
-      {/* Why */}
-      <Section title="WHY THIS STATE">
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          <div>
-            <div style={{ color: "#9ca3af", fontSize: FS.tiny, fontWeight: 1000, marginBottom: 4 }}>
-              REASON CODES
-            </div>
-            <CompactList items={reasonCodes} />
-          </div>
-
-          <div>
-            <div style={{ color: "#9ca3af", fontSize: FS.tiny, fontWeight: 1000, marginBottom: 4 }}>
-              NOT READY BECAUSE
-            </div>
-            <CompactList items={blockers} empty="—" />
-          </div>
-
-          <div>
-            <div style={{ color: "#9ca3af", fontSize: FS.tiny, fontWeight: 1000, marginBottom: 4 }}>
-              SETUP CHAIN
-            </div>
-            <CompactList items={setupChain} empty="—" />
-          </div>
-        </div>
-      </Section>
-
-      {/* Footer */}
-      <Section title="SUMMARY" subtle>
-        <KV label="Market" value={market} />
+      <CompactSection title="SUMMARY" subtle>
+        <KV label="Market" value={marketLine(snapshot)} />
         <KV label="Summary" value={summary} />
-        <KV label="Horizon" value="intraday / execution" />
-      </Section>
+      </CompactSection>
     </div>
   );
 }
 
-/* -------------------- Intermediate passive v1 -------------------- */
-function IntermediateV1Card({ node, snapshot, activeGlow }) {
+function IntermediateCompactCard({ node, snapshot, activeGlow }) {
   const engine15 = node?.engine15 || {};
   const decision = node?.engine15Decision || {};
   const engine16 = node?.engine16 || {};
@@ -620,9 +446,8 @@ function IntermediateV1Card({ node, snapshot, activeGlow }) {
   const macroBias = engine16?.macroBias || engine16?.waveContext?.macroBias || "NONE";
 
   const nextFocus = decision?.lifecycle?.nextFocus || "WAIT";
-  const triggerCondition = intermediateTriggerCondition(engine16, readiness);
-  const summary = intermediateSummary(node, snapshot);
-  const market = marketLine(snapshot);
+  const permissionText = upper(permission?.permission || "UNKNOWN");
+  const summary = intermediateSummary();
 
   return (
     <div
@@ -630,13 +455,13 @@ function IntermediateV1Card({ node, snapshot, activeGlow }) {
         background: "#0f1117",
         border: "1px solid #1f2937",
         borderRadius: 14,
-        padding: 12,
+        padding: 11,
         color: "#e5e7eb",
         boxShadow: activeGlow,
-        minHeight: 360,
+        minHeight: 0,
         display: "flex",
         flexDirection: "column",
-        gap: 10,
+        gap: 8,
         minWidth: 0,
       }}
     >
@@ -644,7 +469,7 @@ function IntermediateV1Card({ node, snapshot, activeGlow }) {
         style={{
           display: "flex",
           justifyContent: "space-between",
-          gap: 10,
+          gap: 8,
           alignItems: "flex-start",
           flexWrap: "wrap",
         }}
@@ -663,36 +488,74 @@ function IntermediateV1Card({ node, snapshot, activeGlow }) {
         </div>
       </div>
 
-      <Section title="STRUCTURE CORE" subtle>
-        <KV label="Primary Phase" value={prettyEnum(primaryPhase)} />
-        <KV label="Intermediate Phase" value={prettyEnum(intermediatePhase)} />
+      <CompactSection title="STRUCTURE CORE" subtle>
+        <KV label="Primary" value={prettyEnum(primaryPhase)} />
+        <KV label="Intermed." value={prettyEnum(intermediatePhase)} />
         <KV label="Phase" value={prettyEnum(phase)} />
         <KV label="Macro Bias" value={prettyEnum(macroBias)} />
-      </Section>
+      </CompactSection>
 
-      <Section title="DECISION" subtle>
+      <CompactSection title="DECISION" subtle>
         <KV label="Next Focus" value={prettyEnum(nextFocus)} />
-        <KV label="Trigger Condition" value={prettyEnum(triggerCondition)} />
-        <KV label="Permission" value={upper(permission?.permission || "UNKNOWN")} />
-      </Section>
+        <KV label="Trigger" value={prettyEnum(intermediateTriggerCondition(engine16, readiness))} />
+        <KV label="Permission" value={permissionText} />
+      </CompactSection>
 
-      <Section title="SUMMARY" subtle>
-        <KV label="Market" value={market} />
+      <CompactSection title="SUMMARY" subtle>
+        <KV label="Market" value={marketLine(snapshot)} />
         <KV label="Summary" value={summary} />
-        <KV label="Horizon" value="multi-bar / swing" />
-      </Section>
+      </CompactSection>
     </div>
   );
 }
 
-/* ===================== Main Component ===================== */
+function PassiveMiniCard({ node, snapshot }) {
+  const readiness =
+    node?.engine15?.readiness ||
+    node?.engine15Decision?.readinessLabel ||
+    node?.engine16?.readinessLabel ||
+    "NO_ACTION";
+
+  const action = node?.engine15Decision?.action || "NO_ACTION";
+  const bias = biasBadgeTextIntermediate(node?.engine16 || {});
+  const nextFocus = node?.engine15Decision?.lifecycle?.nextFocus || "WAIT";
+
+  return (
+    <div
+      style={{
+        background: "#0d1016",
+        border: "1px solid #1c2533",
+        borderRadius: 14,
+        padding: 11,
+        color: "#e5e7eb",
+        minHeight: 0,
+        display: "flex",
+        flexDirection: "column",
+        gap: 8,
+        minWidth: 0,
+      }}
+    >
+      <div style={{ fontWeight: 1000, fontSize: FS.title }}>Longer-Term</div>
+      <div style={{ color: "#9ca3af", fontSize: FS.subtitle, fontWeight: 800 }}>4h</div>
+
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+        <Badge text={upper(readiness)} tone={readinessTone(readiness)} />
+        <Badge text={upper(action)} tone={actionTone(action)} />
+        <Badge text={bias} tone={biasTone(bias)} />
+      </div>
+
+      <CompactSection title="PASSIVE" subtle>
+        <KV label="Next Focus" value={prettyEnum(nextFocus)} />
+        <KV label="Market" value={marketLine(snapshot)} />
+      </CompactSection>
+    </div>
+  );
+}
+
+/* -------------------- main -------------------- */
 export default function RowStrategies() {
   const STRATS = useMemo(
-    () => [
-      { id: "SCALP" },
-      { id: "MINOR" },
-      { id: "INTERMEDIATE" },
-    ],
+    () => [{ id: "SCALP" }, { id: "MINOR" }, { id: "INTERMEDIATE" }],
     []
   );
 
@@ -752,6 +615,7 @@ export default function RowStrategies() {
             display: "flex",
             gap: 12,
             flexWrap: "wrap",
+            alignItems: "center",
           }}
         >
           <span>
@@ -771,6 +635,13 @@ export default function RowStrategies() {
           <span>
             Build: <b style={{ marginLeft: 4 }}>{toAZ(BUILD_STAMP, true)}</b>
           </span>
+          <button
+            onClick={() => openFullStrategies("SPY")}
+            style={btn()}
+            title="Open full strategies in a new window"
+          >
+            Open Full Strategies
+          </button>
         </div>
       </div>
 
@@ -786,6 +657,7 @@ export default function RowStrategies() {
           gridTemplateColumns: "repeat(3, minmax(0,1fr))",
           gap: 10,
           marginTop: 10,
+          alignItems: "start",
         }}
       >
         {STRATS.map((s) => {
@@ -794,12 +666,12 @@ export default function RowStrategies() {
 
           const activeGlow =
             active === s.id
-              ? "0 0 0 2px rgba(59,130,246,.65) inset, 0 10px 30px rgba(0,0,0,.25)"
-              : "0 10px 30px rgba(0,0,0,.25)";
+              ? "0 0 0 2px rgba(59,130,246,.45) inset, 0 8px 24px rgba(0,0,0,.22)"
+              : "0 8px 24px rgba(0,0,0,.18)";
 
           if (s.id === "SCALP") {
             return (
-              <ScalpV1Card
+              <ScalpCompactCard
                 key={s.id}
                 node={node}
                 snapshot={snapshot}
@@ -812,7 +684,7 @@ export default function RowStrategies() {
 
           if (s.id === "MINOR") {
             return (
-              <IntermediateV1Card
+              <IntermediateCompactCard
                 key={s.id}
                 node={node}
                 snapshot={snapshot}
@@ -821,15 +693,7 @@ export default function RowStrategies() {
             );
           }
 
-          return (
-            <PassiveCard
-              key={s.id}
-              title="Longer-Term"
-              tf="4h"
-              node={node}
-              snapshot={snapshot}
-            />
-          );
+          return <PassiveMiniCard key={s.id} node={node} snapshot={snapshot} />;
         })}
       </div>
     </section>
