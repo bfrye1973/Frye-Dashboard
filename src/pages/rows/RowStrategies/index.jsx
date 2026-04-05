@@ -13,7 +13,7 @@ function TwoCol({ left, right }) {
     <div
       style={{
         display: "grid",
-        gridTemplateColumns: "1fr 1fr",
+        gridTemplateColumns: "1.3fr 0.7fr",
         gap: 8,
         alignItems: "start",
       }}
@@ -597,8 +597,8 @@ function NotReadyBecause({ node }) {
             key={`${r}-${i}`}
             style={{
               fontSize: FS.small,
-              fontWeight: 800,
-              color: "#e5e7eb",
+              fontWeight: 600,
+              color: "#9ca3af", 
               lineHeight: 1.25,
             }}
           >
