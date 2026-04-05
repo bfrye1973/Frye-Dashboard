@@ -6,6 +6,76 @@
 import React, { useMemo, useState } from "react";
 import LiveDot from "../../../components/LiveDot";
 import { useDashboardSnapshot } from "../../../hooks/useDashboardSnapshot";
+/* -------------------- layout helpers -------------------- */
+
+function TwoCol({ left, right }) {
+  return (
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "1fr 1fr",
+        gap: 8,
+        alignItems: "start",
+      }}
+    >
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        {left}
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        {right}
+      </div>
+    </div>
+  );
+}
+
+function TriggerStateFull({ engine16 }) {
+  return (
+    <CompactSection title="TRIGGER STATE" subtle>
+      <div style={{ display: "grid", gap: 6 }}>
+        {/* SHORT SIDE */}
+        <div style={{ fontWeight: 900, color: "#fca5a5" }}>SHORT</div>
+        <CompactBool label="Watch Prep" value={engine16?.waveShortPrep === true} />
+        <CompactBool label="Continuation" value={engine16?.continuationTriggerShort === true} />
+        <CompactBool label="Exhaustion" value={engine16?.exhaustionTriggerShort === true} />
+
+        {/* LONG SIDE */}
+        <div style={{ fontWeight: 900, color: "#86efac", marginTop: 4 }}>LONG</div>
+        <CompactBool label="Watch Prep" value={engine16?.waveLongPrep === true} />
+        <CompactBool label="Continuation" value={engine16?.continuationTriggerLong === true} />
+        <CompactBool label="Exhaustion" value={engine16?.exhaustionTriggerLong === true} />
+      </div>
+    </CompactSection>
+  );
+}
+
+function NotReadySummaryBlock({ node, snapshot, summary }) {
+  const reasons = getNotReadyReasons(node);
+
+  return (
+    <TwoCol
+      left={
+        <CompactSection title="NOT READY BECAUSE" subtle>
+          {reasons.length ? (
+            reasons.map((r, i) => (
+              <div key={i} style={{ fontWeight: 800 }}>
+                • {prettyEnum(r)}
+              </div>
+            ))
+          ) : (
+            <div style={{ color: "#9ca3af" }}>—</div>
+          )}
+        </CompactSection>
+      }
+      right={
+        <CompactSection title="SUMMARY" subtle>
+          <KV label="Market" value={marketLine(snapshot)} />
+          <KV label="Summary" value={summary} />
+        </CompactSection>
+      }
+    />
+  );
+}
 
 /* -------------------- env helpers -------------------- */
 function env(name, fb = "") {
@@ -552,52 +622,30 @@ function ScalpCompactCard({ node, snapshot, liveStatus, liveTip, activeGlow }) {
   const executionBias = getExecutionBias(node);
   const freshEntry = getFreshEntry(node);
 
-  const context = engine16?.context || "—";
-  const state = engine16?.state || "—";
-  const phase = engine16?.waveContext?.waveState || engine16?.waveState || "—";
-  const macroBias = engine16?.macroBias || "NONE";
   const permissionText = upper(permission?.permission || "UNKNOWN");
   const summary = scalpSummary(node);
 
-  const showShort = bias.includes("SHORT") || engine16?.waveShortPrep === true;
-  const showLong = bias.includes("LONG") || engine16?.waveLongPrep === true;
-
   return (
-    <div
-      style={{
-        background: "#101010",
-        border: "1px solid #262626",
-        borderRadius: 14,
-        padding: 12,
-        color: "#e5e7eb",
-        boxShadow: activeGlow,
-        minHeight: 0,
-        display: "flex",
-        flexDirection: "column",
-        gap: 10,
-        minWidth: 0,
-        overflow: "hidden",
-      }}
-    >
+    <div style={{
+      background: "#101010",
+      border: "1px solid #262626",
+      borderRadius: 14,
+      padding: 12,
+      boxShadow: activeGlow,
+      display: "flex",
+      flexDirection: "column",
+      gap: 8
+    }}>
       <TopReadinessBar readiness={readiness} bias={bias} />
 
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "flex-start",
-          gap: 10,
-          flexWrap: "wrap",
-        }}
-      >
+      {/* HEADER */}
+      <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap" }}>
         <div>
           <div style={{ fontWeight: 1000, fontSize: FS.title }}>Scalp</div>
-          <div style={{ color: "#9ca3af", fontSize: FS.subtitle, fontWeight: 800 }}>
-            10m
-          </div>
+          <div style={{ color: "#9ca3af" }}>10m</div>
         </div>
 
-        <div style={{ display: "flex", gap: 7, flexWrap: "wrap", alignItems: "center" }}>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
           <Badge text={upper(readiness)} tone={readinessTone(readiness)} large />
           <Badge text={upper(action)} tone={actionTone(action)} />
           <Badge text={bias} tone={biasTone(bias)} />
@@ -607,71 +655,22 @@ function ScalpCompactCard({ node, snapshot, liveStatus, liveTip, activeGlow }) {
 
       <LifecycleStrip node={node} />
 
-      <CompactSection title="STRUCTURE CORE">
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(2, minmax(0,1fr))",
-            gap: 8,
-          }}
-        >
-          <KV label="Context" value={prettyEnum(context)} />
-          <KV label="State" value={prettyEnum(state)} />
-          <KV label="Phase" value={prettyEnum(phase)} />
-          <KV label="Macro Bias" value={prettyEnum(macroBias)} />
-        </div>
-      </CompactSection>
+      {/* DECISION + TRIGGER */}
+      <TwoCol
+        left={
+          <CompactSection title="DECISION" subtle>
+            <KV label="Next Focus" value={prettyEnum(nextFocus)} />
+            <KV label="Trigger" value={prettyEnum(scalpTriggerCondition(engine16))} />
+            <KV label="Fresh Entry" value={<Badge text={freshEntry ? "YES" : "NO"} tone={yesNoTone(freshEntry)} />} />
+            <KV label="Exec Bias" value={prettyEnum(executionBias)} />
+            <KV label="Permission" value={<Badge text={permissionText} tone={permissionTone(permissionText)} />} />
+          </CompactSection>
+        }
+        right={<TriggerStateFull engine16={engine16} />}
+      />
 
-      <CompactSection title="DECISION" subtle>
-        <KV label="Next Focus" value={prettyEnum(nextFocus)} />
-        <KV label="Trigger" value={prettyEnum(scalpTriggerCondition(engine16))} />
-        <KV
-          label="Fresh Entry"
-          value={<Badge text={freshEntry ? "YES" : "NO"} tone={yesNoTone(freshEntry)} />}
-        />
-        <KV label="Exec Bias" value={prettyEnum(executionBias)} />
-        <KV
-          label="Permission"
-          value={<Badge text={permissionText} tone={permissionTone(permissionText)} />}
-        />
-      </CompactSection>
-
-      <CompactSection title="TRIGGER PATH (SHORT / LONG)" subtle>
-        {(showShort || (!showShort && !showLong)) && (
-          <>
-            <CompactBool label="Watch Short Prep" value={engine16?.waveShortPrep === true} />
-            <CompactBool
-              label="Cont. Trigger Short"
-              value={engine16?.continuationTriggerShort === true}
-            />
-            <CompactBool
-              label="Exhaust. Trigger Short"
-              value={engine16?.exhaustionTriggerShort === true}
-            />
-          </>
-        )}
-
-        {showLong && (
-          <>
-            <CompactBool label="Watch Long Prep" value={engine16?.waveLongPrep === true} />
-            <CompactBool
-              label="Cont. Trigger Long"
-              value={engine16?.continuationTriggerLong === true}
-            />
-            <CompactBool
-              label="Exhaust. Trigger Long"
-              value={engine16?.exhaustionTriggerLong === true}
-            />
-          </>
-        )}
-      </CompactSection>
-
-      <NotReadyBecause node={node} />
-
-      <CompactSection title="SUMMARY" subtle>
-        <KV label="Market" value={marketLine(snapshot)} />
-        <KV label="Summary" value={summary} />
-      </CompactSection>
+      {/* NOT READY + SUMMARY */}
+      <NotReadySummaryBlock node={node} snapshot={snapshot} summary={summary} />
     </div>
   );
 }
