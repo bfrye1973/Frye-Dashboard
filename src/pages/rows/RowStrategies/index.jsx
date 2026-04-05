@@ -310,8 +310,8 @@ function Badge({ text, tone = "wait", large = false, title = "" }) {
         display: "inline-flex",
         alignItems: "center",
         justifyContent: "center",
-        minHeight: large ? 30 : 25,
-        padding: large ? "7px 12px" : "5px 10px",
+        minHeight: large ? 26 : 22,
+        padding: large ? "5px 10px" : "4px 8px",
         borderRadius: 999,
         background: p.bg,
         color: p.fg,
@@ -333,7 +333,7 @@ function TopReadinessBar({ readiness, bias }) {
   return (
     <div
       style={{
-        height: 10,
+        height: 8,
         borderRadius: 999,
         background: colors.base,
         position: "relative",
@@ -362,7 +362,7 @@ function CompactSection({ title, children, subtle = false }) {
       style={{
         border: subtle ? "1px solid #18212e" : "1px solid #1f2937",
         borderRadius: 12,
-        padding: 10,
+        padding: 7,
         background: subtle ? "#0a0f18" : "#0b0b0b",
         display: "flex",
         flexDirection: "column",
@@ -382,8 +382,8 @@ function KV({ label, value }) {
     <div
       style={{
         display: "grid",
-        gridTemplateColumns: "118px 1fr",
-        gap: 10,
+        gridTemplateColumns: "105px 1fr",
+        gap: 6,
         alignItems: "start",
       }}
     >
