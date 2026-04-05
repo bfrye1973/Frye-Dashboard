@@ -1,10 +1,11 @@
 // src/pages/rows/RowStrategies/index.jsx
-// Strategies — Engine 5 Score + Engine 6 Permission (SYNCED via dashboard-snapshot)
-// Engine 15B lifecycle surfaced in parallel with old Engine 15 readiness
-// STEP 1 PERF FREEZE: Engine 14 frontend polling + badge removed on purpose
+// Row 5 — Strategies
+// Scalp card rebuilt to new backend architecture (v1)
+// Intermediate + Longer-Term kept passive/minimal for safety
+// Canonical source: /api/v1/dashboard-snapshot?symbol=SPY
+// IMPORTANT: main card truth comes from Engine15 / Engine15Decision / Engine16 normalized fields
 
-import React, { useEffect, useMemo, useState } from "react";
-import { useSelection } from "../../../context/ModeContext";
+import React, { useMemo, useState } from "react";
 import LiveDot from "../../../components/LiveDot";
 import { useDashboardSnapshot } from "../../../hooks/useDashboardSnapshot";
 
@@ -18,65 +19,34 @@ function env(name, fb = "") {
   return fb;
 }
 
-function normalizeApiBase(x) {
-  const raw = String(x || "").trim();
-  if (!raw) return "https://frye-market-backend-1.onrender.com";
-  let out = raw.replace(/\/+$/, "");
-  out = out.replace(/\/api\/v1$/i, "");
-  out = out.replace(/\/api$/i, "");
-  return out;
-}
-
-const API_BASE = normalizeApiBase(env("REACT_APP_API_BASE", ""));
+/* -------------------- constants -------------------- */
 const AZ_TZ = "America/Phoenix";
+const POLL_MS = 20000;
+const TIMEOUT_MS = 20000;
 
-/* -------------------- typography scale -------------------- */
 const FS = {
   micro: 11,
   tiny: 12,
   small: 13,
   body: 14,
-  bodyStrong: 15,
   section: 12,
   subtitle: 13,
   title: 16,
-  readinessLabel: 12,
-  readinessState: 18,
-  stackKey: 13,
-  stackValue: 13,
-  pill: 12,
   button: 12,
 };
 
-const LH = {
-  compact: 1.2,
-  normal: 1.3,
-  roomy: 1.4,
+const STRATEGY_ID_MAP = {
+  SCALP: "intraday_scalp@10m",
+  MINOR: "minor_swing@1h",
+  INTERMEDIATE: "intermediate_long@4h",
 };
 
-const CARD_PAD = 10;
-
-// 🔒 Poll cadence (LOCKED)
-const POLL_MS = 20000;
-const TIMEOUT_MS = 20000;
-const RETRY_DELAY_MS = 800;
-
-// GO poll cadence
-const GO_POLL_MS = 10000;
-const GO_TIMEOUT_MS = 6000;
-
-// Build stamp
 const BUILD_STAMP =
   env("REACT_APP_BUILD_STAMP", "") ||
   env("REACT_APP_COMMIT_SHA", "") ||
   new Date().toISOString();
 
-/* -------------------- endpoints -------------------- */
-const SCALP_STATUS_URL = () => `${API_BASE}/api/v1/scalp-status?t=${Date.now()}`;
-
-/* -------------------- utils -------------------- */
-const nowIso = () => new Date().toISOString();
-
+/* -------------------- helpers -------------------- */
 function toAZ(iso, withSeconds = false) {
   try {
     return (
@@ -111,1350 +81,154 @@ function clamp100(x) {
 }
 
 function fmt2(x) {
-  return Number.isFinite(x) ? Number(x).toFixed(2) : "—";
+  return Number.isFinite(Number(x)) ? Number(x).toFixed(2) : "—";
 }
 
-function grade(score) {
-  const s = clamp100(score);
-  if (s >= 90) return "A+";
-  if (s >= 80) return "A";
-  if (s >= 70) return "B";
-  if (s >= 60) return "C";
-  return "IGNORE";
+function upper(x, fb = "—") {
+  const s = String(x ?? "").trim();
+  return s ? s.toUpperCase() : fb;
 }
 
-function prettyMoveType(x) {
-  const s = String(x || "NONE").trim().toUpperCase();
-  if (!s || s === "NONE") return "NONE";
+function prettyEnum(x, fb = "—") {
+  const s = upper(x, "");
+  if (!s) return fb;
   return s.replaceAll("_", " ");
 }
 
-function prettyBias(x) {
-  const s = String(x || "").trim().toUpperCase();
-  if (!s) return "—";
-  return s;
+function boolTxt(x) {
+  return x === true ? "YES" : "NO";
 }
 
-function prettyReason(x) {
-  const s = String(x || "").trim().toUpperCase();
-  if (!s) return "—";
-  return s.replaceAll("_", " ");
+function titleText(id) {
+  if (id === "SCALP") return "Scalp";
+  if (id === "MINOR") return "Intermediate Swing";
+  return "Longer-Term";
 }
 
-function prettyLifecycle(x) {
-  const s = String(x || "").trim().toUpperCase();
-  if (!s) return "—";
-  return s.replaceAll("_", " ");
+function tfText(id) {
+  if (id === "SCALP") return "10m";
+  if (id === "MINOR") return "1h";
+  return "4h";
 }
 
-function prettyNextFocus(x) {
-  const s = String(x || "").trim().toUpperCase();
-  if (!s) return "—";
-  return s.replaceAll("_", " ");
+function biasBadgeTextScalp(engine16) {
+  const shortPrep = engine16?.waveShortPrep === true;
+  const longPrep = engine16?.waveLongPrep === true;
+  const macroBias = upper(engine16?.waveContext?.macroBias || engine16?.macroBias || "NONE");
+
+  if (shortPrep || macroBias.includes("SHORT")) return "SHORT BIAS";
+  if (longPrep || macroBias.includes("LONG")) return "LONG BIAS";
+  return "NEUTRAL";
 }
 
-function getScalpClassifierView(scalpStatus) {
-  const sm = scalpStatus?.data?.sm || null;
-  if (!sm) {
+function biasBadgeTextIntermediate(engine16) {
+  const macroBias = upper(engine16?.macroBias || engine16?.waveContext?.macroBias || "NONE");
+  if (macroBias.includes("SHORT")) return "SHORT BIAS";
+  if (macroBias.includes("LONG")) return "LONG BIAS";
+  return "NEUTRAL";
+}
+
+function biasTone(text) {
+  const s = upper(text, "NEUTRAL");
+  if (s.includes("SHORT")) return "short";
+  if (s.includes("LONG")) return "long";
+  return "neutral";
+}
+
+function readinessTone(readiness) {
+  const s = upper(readiness, "WAIT");
+  if (["CONFIRMED", "TRIGGERED", "READY"].includes(s)) return "ready";
+  if (["ARMING"].includes(s)) return "arming";
+  if (["WATCH", "PREP"].includes(s)) return "watch";
+  if (["STAND_DOWN", "BLOCKED"].includes(s)) return "blocked";
+  return "wait";
+}
+
+function actionTone(action) {
+  const s = upper(action, "NO_ACTION");
+  if (s === "ENTER_OK") return "ready";
+  if (s === "REDUCE_OK") return "arming";
+  if (s === "WATCH") return "watch";
+  if (s === "BLOCKED") return "blocked";
+  return "wait";
+}
+
+function permissionTone(permission) {
+  const s = upper(permission, "UNKNOWN");
+  if (s === "ALLOW") return "ready";
+  if (s === "REDUCE") return "arming";
+  if (s === "STAND_DOWN") return "blocked";
+  return "wait";
+}
+
+function pillPalette(tone) {
+  if (tone === "ready") {
     return {
-      moveType: "—",
-      moveDirection: "—",
-      moveScore: "—",
-      waitingBecause: "—",
+      bg: "linear-gradient(135deg,#22c55e,#16a34a)",
+      fg: "#07110a",
+      bd: "1px solid rgba(255,255,255,.18)",
     };
   }
-
-  const moveType = prettyMoveType(sm.moveType);
-  const moveDirection = prettyBias(sm.moveDirection);
-  const moveScore = Number.isFinite(Number(sm.moveScore))
-    ? Math.round(Number(sm.moveScore))
-    : "—";
-
-  const waitingBecauseRaw =
-    sm.staleReason ||
-    sm.eligibilityReason ||
-    (sm.setupAlive === false ? "SETUP_NOT_ALIVE" : "") ||
-    "—";
-
+  if (tone === "arming") {
+    return {
+      bg: "linear-gradient(135deg,#fbbf24,#f59e0b)",
+      fg: "#0b1220",
+      bd: "1px solid rgba(255,255,255,.18)",
+    };
+  }
+  if (tone === "watch") {
+    return {
+      bg: "linear-gradient(135deg,#60a5fa,#3b82f6)",
+      fg: "#071423",
+      bd: "1px solid rgba(255,255,255,.18)",
+    };
+  }
+  if (tone === "blocked") {
+    return {
+      bg: "linear-gradient(135deg,#ef4444,#b91c1c)",
+      fg: "#fff7f7",
+      bd: "1px solid rgba(255,255,255,.18)",
+    };
+  }
+  if (tone === "short") {
+    return {
+      bg: "#2b0b0b",
+      fg: "#fca5a5",
+      bd: "1px solid #7f1d1d",
+    };
+  }
+  if (tone === "long") {
+    return {
+      bg: "#06220f",
+      fg: "#86efac",
+      bd: "1px solid #166534",
+    };
+  }
   return {
-    moveType,
-    moveDirection,
-    moveScore,
-    waitingBecause: prettyReason(waitingBecauseRaw),
+    bg: "#111827",
+    fg: "#e5e7eb",
+    bd: "1px solid #334155",
   };
 }
 
-/* -------------------- Golden Coil badge -------------------- */
-function showGoldenCoil(confluence) {
-  return confluence?.invalid !== true && confluence?.flags?.goldenCoil === true;
-}
-
-/* -------------------- fetch helper -------------------- */
-async function safeFetchJson(url, opts = {}) {
-  const attempt = async () => {
-    const res = await fetch(url, {
-      cache: "no-store",
-      headers: {
-        accept: "application/json",
-        "Cache-Control": "no-store",
-        ...(opts.headers || {}),
-      },
-      ...opts,
-    });
-
-    const text = await res.text().catch(() => "");
-    let json = null;
-    try {
-      json = text ? JSON.parse(text) : null;
-    } catch {
-      json = null;
-    }
-
-    if (!res.ok) {
-      const msg =
-        json?.error ||
-        json?.detail ||
-        (typeof json === "string" ? json : null) ||
-        text?.slice(0, 200) ||
-        `HTTP ${res.status}`;
-      throw new Error(msg);
-    }
-
-    return json;
-  };
-
-  try {
-    return await attempt();
-  } catch {
-    await new Promise((r) => setTimeout(r, RETRY_DELAY_MS));
-    return await attempt();
-  }
-}
-
-/* -------------------- GO fetch -------------------- */
-async function safeFetchGo(url, { signal } = {}) {
-  const res = await fetch(url, {
-    cache: "no-store",
-    headers: { accept: "application/json", "Cache-Control": "no-store" },
-    signal,
-  });
-  const text = await res.text().catch(() => "");
-  let json = null;
-  try {
-    json = text ? JSON.parse(text) : null;
-  } catch {
-    json = null;
-  }
-  if (!res.ok) {
-    const msg =
-      json?.error || json?.detail || text?.slice(0, 200) || `HTTP ${res.status}`;
-    throw new Error(msg);
-  }
-  return json;
-}
-
-function fmtTriggerType(x) {
-  const s = String(x || "").trim().toUpperCase();
-  if (!s) return "—";
-  if (s === "PULLBACK_RECLAIM") return "PB RECLAIM";
-  if (s === "BREAKOUT") return "BREAKOUT";
-  if (s === "SWING_CLOSE_CONFIRM") return "SWING CLOSE";
-  if (s === "LONG_CLOSE_CONFIRM") return "LONG CLOSE";
-  return s;
-}
-
-function GoPillBig({ go }) {
-  const signal = go?.signal === true;
-  const dir = String(go?.direction || "").toUpperCase();
-  const trig = fmtTriggerType(go?.triggerType);
-  const line = Number(go?.triggerLine);
-  const atUtc = go?.atUtc || null;
-  const cooldownUntilMs = Number(go?.cooldownUntilMs || 0);
-  const nowMs = Date.now();
-  const inCooldown = cooldownUntilMs && nowMs < cooldownUntilMs;
-
-  const bg = signal
-    ? "linear-gradient(135deg,#22c55e,#16a34a)"
-    : inCooldown
-      ? "linear-gradient(135deg,#fbbf24,#f59e0b)"
-      : "#111827";
-
-  const border = signal
-    ? "1px solid rgba(255,255,255,.22)"
-    : "1px solid #334155";
-  const color = signal ? "#07110a" : "#e5e7eb";
-
-  const mainText = signal ? `GO ${dir || ""}`.trim() : "GO: NO";
-  const sub = signal
-    ? `${trig}${Number.isFinite(line) ? ` @ ${fmt2(line)}` : ""}`
-    : inCooldown
-      ? "COOLDOWN"
-      : "WAIT";
-
-  const title = [
-    `signal=${String(signal)}`,
-    `direction=${dir || "—"}`,
-    `triggerType=${trig}`,
-    `triggerLine=${Number.isFinite(line) ? fmt2(line) : "—"}`,
-    `atUtc=${atUtc || "—"}`,
-    `cooldownUntilMs=${cooldownUntilMs || "—"}`,
-  ].join(" | ");
-
+function Badge({ text, tone = "wait", large = false, title = "" }) {
+  const p = pillPalette(tone);
   return (
     <span
       title={title}
       style={{
         display: "inline-flex",
-        flexDirection: "column",
+        alignItems: "center",
         justifyContent: "center",
-        gap: 3,
-        padding: "8px 12px",
-        borderRadius: 10,
-        background: bg,
-        border,
-        boxShadow: signal ? "0 0 14px rgba(34,197,94,.35)" : "none",
-        minWidth: 122,
-      }}
-    >
-      <span
-        style={{
-          fontWeight: 900,
-          fontSize: FS.pill,
-          lineHeight: "12px",
-          color,
-        }}
-      >
-        {mainText}
-      </span>
-      <span
-        style={{
-          fontWeight: 900,
-          fontSize: FS.micro,
-          lineHeight: "11px",
-          opacity: 0.95,
-          color,
-        }}
-      >
-        {sub}
-      </span>
-    </span>
-  );
-}
-
-/* -------------------- extraction helpers -------------------- */
-function extractActiveZone(confluence) {
-  const z = confluence?.context?.activeZone || null;
-  const lo = Number(z?.lo);
-  const hi = Number(z?.hi);
-  const mid = Number(z?.mid);
-
-  return {
-    zoneType: z?.zoneType || z?.type || "—",
-    id: z?.id || null,
-    lo: Number.isFinite(lo) ? lo : NaN,
-    hi: Number.isFinite(hi) ? hi : NaN,
-    mid: Number.isFinite(mid) ? mid : NaN,
-  };
-}
-
-function extractTargets(confluence) {
-  const t = confluence?.targets || {};
-  const entryTarget = Number(t?.entryTarget);
-  const exitTarget = Number(t?.exitTarget);
-  const exitTargetHi = Number(t?.exitTargetHi);
-  const exitTargetLo = Number(t?.exitTargetLo);
-
-  return {
-    entryTarget: Number.isFinite(entryTarget) ? entryTarget : NaN,
-    exitTarget: Number.isFinite(exitTarget) ? exitTarget : NaN,
-    exitTargetHi: Number.isFinite(exitTargetHi) ? exitTargetHi : NaN,
-    exitTargetLo: Number.isFinite(exitTargetLo) ? exitTargetLo : NaN,
-  };
-}
-
-function extractCompression(confluence) {
-  const c = confluence?.compression || {};
-  return {
-    active: c?.active === true,
-    tier: c?.tier || "—",
-    score: Number.isFinite(Number(c?.score)) ? Number(c?.score) : NaN,
-    state: c?.state || "—",
-    widthAtrRatio: Number.isFinite(Number(c?.widthAtrRatio))
-      ? Number(c?.widthAtrRatio)
-      : NaN,
-    quiet: c?.quiet === true,
-  };
-}
-
-function extractVolume(confluence) {
-  const v = confluence?.volume || {};
-  const volScore = Number(v?.volumeScore);
-  const confirmed = v?.volumeConfirmed === true;
-  const state = confluence?.volumeState || "—";
-
-  return {
-    state,
-    volumeScore: Number.isFinite(volScore) ? volScore : NaN,
-    volumeConfirmed: confirmed,
-  };
-}
-
-function extractMomentum(node, snapshot) {
-  const m = node?.momentum || snapshot?.momentum || null;
-  if (!m || typeof m !== "object") {
-    return {
-      ok: false,
-      smi10m: { k: null, d: null, direction: "UNKNOWN", cross: "NONE" },
-      smi1h: { k: null, d: null, direction: "UNKNOWN", cross: "NONE" },
-      alignment: "MIXED",
-      compression: { active: false, bars: 0, width: 0 },
-      momentumState: "UNKNOWN",
-      compressionSignal: {
-        state: "NONE",
-        quality: "NONE",
-        tightness: 0,
-        releaseBarsAgo: null,
-        early: false,
-      },
-      slope: {
-        smi10m: 0,
-        signal10m: 0,
-        expanding: false,
-        widthNow: 0,
-        widthPrev: 0,
-      },
-    };
-  }
-  return {
-    ok: m.ok === true,
-    smi10m: {
-      k: Number.isFinite(Number(m?.smi10m?.k)) ? Number(m.smi10m.k) : null,
-      d: Number.isFinite(Number(m?.smi10m?.d)) ? Number(m.smi10m.d) : null,
-      direction: String(m?.smi10m?.direction || "UNKNOWN").toUpperCase(),
-      cross: String(m?.smi10m?.cross || "NONE").toUpperCase(),
-    },
-    smi1h: {
-      k: Number.isFinite(Number(m?.smi1h?.k)) ? Number(m.smi1h.k) : null,
-      d: Number.isFinite(Number(m?.smi1h?.d)) ? Number(m.smi1h.d) : null,
-      direction: String(m?.smi1h?.direction || "UNKNOWN").toUpperCase(),
-      cross: String(m?.smi1h?.cross || "NONE").toUpperCase(),
-    },
-    alignment: String(m?.alignment || "MIXED").toUpperCase(),
-    compression: {
-      active: m?.compression?.active === true,
-      bars: Number.isFinite(Number(m?.compression?.bars))
-        ? Number(m.compression.bars)
-        : 0,
-      width: Number.isFinite(Number(m?.compression?.width))
-        ? Number(m.compression.width)
-        : 0,
-    },
-    momentumState: String(m?.momentumState || "UNKNOWN").toUpperCase(),
-    compressionSignal: {
-      state: String(m?.compressionSignal?.state || "NONE").toUpperCase(),
-      quality: String(m?.compressionSignal?.quality || "NONE").toUpperCase(),
-      tightness: Number.isFinite(Number(m?.compressionSignal?.tightness))
-        ? Number(m.compressionSignal.tightness)
-        : 0,
-      releaseBarsAgo:
-        m?.compressionSignal?.releaseBarsAgo == null
-          ? null
-          : Number(m.compressionSignal.releaseBarsAgo),
-      early: m?.compressionSignal?.early === true,
-    },
-    slope: {
-      smi10m: Number.isFinite(Number(m?.slope?.smi10m))
-        ? Number(m.slope.smi10m)
-        : 0,
-      signal10m: Number.isFinite(Number(m?.slope?.signal10m))
-        ? Number(m.slope.signal10m)
-        : 0,
-      expanding: m?.slope?.expanding === true,
-      widthNow: Number.isFinite(Number(m?.slope?.widthNow))
-        ? Number(m.slope.widthNow)
-        : 0,
-      widthPrev: Number.isFinite(Number(m?.slope?.widthPrev))
-        ? Number(m.slope.widthPrev)
-        : 0,
-    },
-  };
-}
-
-function nextTriggerText(confluence) {
-  const invalid = confluence?.invalid === true;
-  const codes = Array.isArray(confluence?.reasonCodes) ? confluence.reasonCodes : [];
-  const hasZone = !!confluence?.context?.activeZone;
-  const comp = confluence?.compression;
-  const volState = String(confluence?.volumeState || "");
-
-  if (invalid) {
-    if (codes.includes("NO_ZONE_NO_TRADE"))
-      return "Waiting: zone context (no zone → no trade).";
-    if (codes.includes("FIB_INVALIDATION_74"))
-      return "Waiting: fib invalidation cleared (74% rule).";
-    return "Waiting: invalid condition cleared.";
-  }
-
-  if (!hasZone)
-    return "Waiting: active zone selection (negotiated/shelf/institutional).";
-
-  if (comp?.active === true && comp?.state === "COILING") {
-    if (volState === "NO_SIGNAL") return "Waiting: initiative volume / confirmation.";
-    return "Waiting: breakout/launch confirmation.";
-  }
-
-  return "Waiting: stronger confluence signals.";
-}
-
-/* -------------------- permission pill styling -------------------- */
-function permStyle(permission) {
-  if (permission === "ALLOW") {
-    return {
-      background: "#22c55e",
-      color: "#0b1220",
-      border: "2px solid #0c1320",
-    };
-  }
-  if (permission === "REDUCE") {
-    return {
-      background: "#fbbf24",
-      color: "#0b1220",
-      border: "2px solid #0c1320",
-    };
-  }
-  if (permission === "STAND_DOWN") {
-    return {
-      background: "#ef4444",
-      color: "#0b1220",
-      border: "2px solid #0c1320",
-    };
-  }
-  return {
-    background: "#0b0b0b",
-    color: "#93c5fd",
-    border: "1px solid #2b2b2b",
-  };
-}
-
-function permLabel(permission) {
-  if (permission === "ALLOW") return "ENTRIES: ALLOWED";
-  if (permission === "REDUCE") return "ENTRIES: REDUCED";
-  if (permission === "STAND_DOWN") return "ENTRIES: BLOCKED";
-  return "ENTRIES: UNKNOWN";
-}
-
-/* -------------------- Engine 3/4 helpers -------------------- */
-function volRegimeFromScore(volumeScore, flags = {}) {
-  const vs = Number(volumeScore);
-  if (flags?.liquidityTrap) return "TRAP_RISK";
-  if (!Number.isFinite(vs)) return "UNKNOWN";
-  if (vs <= 3) return "QUIET";
-  if (vs <= 7) return "NORMAL";
-  return "EXPANDING";
-}
-
-function volPressureFromFlags(flags = {}) {
-  if (flags?.liquidityTrap) return "TRAP";
-  if (flags?.distributionDetected) return "BEARISH";
-  if (flags?.absorptionDetected) return "ABSORB";
-  if (flags?.initiativeMoveConfirmed) return "INITIATIVE";
-  return "NEUTRAL";
-}
-
-function shortNextText(s = "") {
-  if (!s) return "—";
-  return s.length > 54 ? `${s.slice(0, 51)}…` : s;
-}
-
-function e3FallbackPosition(reasonCodes = []) {
-  if (Array.isArray(reasonCodes) && reasonCodes.includes("NOT_IN_ZONE")) return "OUTSIDE";
-  return "IN/NEAR";
-}
-
-function e3FallbackNext(stage) {
-  if (stage === "IDLE") return "Next: tighten → ARMED";
-  if (stage === "ARMED") return "Next: exit zone → TRIGGERED";
-  if (stage === "TRIGGERED") return "Next: score≥7 → CONFIRMED";
-  if (stage === "CONFIRMED") return "Next: monitor follow-through";
-  return "Next: monitor";
-}
-
-/* -------------------- stage helpers -------------------- */
-function stageToIcon(stage, structureState, armed) {
-  const ss = String(structureState || "").toUpperCase();
-  if (ss === "FAILURE" || stage === "FAILURE") return "✖";
-  if (stage === "CONFIRMED") return "🔥";
-  if (stage === "TRIGGERED") return "✅";
-  if (stage === "ARMED") return "⚡";
-  if (stage === "IDLE") return "●";
-  return armed ? "⚡" : "●";
-}
-
-function stageToColor(stage, structureState) {
-  const ss = String(structureState || "").toUpperCase();
-  if (ss === "FAILURE" || stage === "FAILURE") return "#fca5a5";
-  if (stage === "CONFIRMED") return "#86efac";
-  if (stage === "TRIGGERED") return "#bef264";
-  if (stage === "ARMED") return "#fbbf24";
-  return "#94a3b8";
-}
-
-/* -------------------- buttons -------------------- */
-function btn() {
-  return {
-    background: "#141414",
-    color: "#e5e7eb",
-    border: "1px solid #2a2a2a",
-    borderRadius: 10,
-    padding: "6px 11px",
-    fontSize: FS.button,
-    fontWeight: 900,
-    cursor: "pointer",
-    whiteSpace: "nowrap",
-  };
-}
-
-/* -------------------- open tabs -------------------- */
-function openFullStrategies(symbol = "SPY") {
-  const url = `/strategies-full?symbol=${encodeURIComponent(symbol)}`;
-  window.open(url, "_blank", "noopener,noreferrer");
-}
-
-/* -------------------- MiniRow -------------------- */
-function MiniRow({ label, left, right, tone = "muted" }) {
-  const t = (kind) => {
-    switch (String(kind || "").toUpperCase()) {
-      case "OK":
-        return { background: "#06220f", color: "#86efac", borderColor: "#166534" };
-      case "WARN":
-        return { background: "#1b1409", color: "#fbbf24", borderColor: "#92400e" };
-      case "DANGER":
-        return { background: "#2b0b0b", color: "#fca5a5", borderColor: "#7f1d1d" };
-      default:
-        return { background: "#0b0b0b", color: "#94a3b8", borderColor: "#2b2b2b" };
-    }
-  };
-
-  const toneMap =
-    tone === "ok" ? "OK" : tone === "warn" ? "WARN" : tone === "danger" ? "DANGER" : "MUTED";
-
-  const pill = t(toneMap);
-
-  return (
-    <div
-      style={{
-        display: "grid",
-        gridTemplateColumns: "86px 1fr 120px",
-        gap: 8,
-        alignItems: "center",
-      }}
-    >
-      <div
-        style={{
-          color: "#9ca3af",
-          fontSize: FS.tiny,
-          fontWeight: 900,
-          lineHeight: LH.normal,
-        }}
-      >
-        {label}
-      </div>
-
-      <div
-        style={{
-          color: "#cbd5e1",
-          fontSize: FS.small,
-          fontWeight: 800,
-          whiteSpace: "nowrap",
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-          lineHeight: LH.normal,
-        }}
-      >
-        {left}
-      </div>
-
-      <span
-        style={{
-          fontSize: 12,
-          fontWeight: 1000,
-          lineHeight: 1.15,
-          padding: "6px 12px",
-          borderRadius: 999,
-          border: `1px solid ${pill.borderColor}`,
-          background: pill.background,
-          color: pill.color,
-          whiteSpace: "nowrap",
-          minWidth: 110,
-          minHeight: 28,
-          textAlign: "center",
-          display: "inline-flex",
-          alignItems: "center",
-          justifyContent: "center",
-          boxSizing: "border-box",
-        }}
-      >
-        {right}
-      </span>
-    </div>
-  );
-}
-
-/* -------------------- Momentum helpers / UI -------------------- */
-function dirTone(direction) {
-  const d = String(direction || "").toUpperCase();
-  if (d === "UP") return "ok";
-  if (d === "DOWN") return "danger";
-  return "muted";
-}
-
-function alignTone(alignment) {
-  const a = String(alignment || "").toUpperCase();
-  if (a === "BULLISH") return "ok";
-  if (a === "BEARISH") return "danger";
-  return "warn";
-}
-
-function stateTone(state) {
-  const s = String(state || "").toUpperCase();
-  if (s === "EXPANDING") return "ok";
-  if (s === "COILING") return "warn";
-  if (s === "UNKNOWN") return "danger";
-  return "muted";
-}
-
-function crossText(cross) {
-  const c = String(cross || "NONE").toUpperCase();
-  if (c === "BULLISH") return "bull cross";
-  if (c === "BEARISH") return "bear cross";
-  return "no cross";
-}
-
-function compressText(comp) {
-  const active = comp?.active === true;
-  const bars = Number.isFinite(Number(comp?.bars)) ? Number(comp.bars) : 0;
-  const width = Number.isFinite(Number(comp?.width)) ? Number(comp.width) : 0;
-  if (!active) return `inactive • ${bars} bars • w ${fmt2(width)}`;
-  return `ACTIVE • ${bars} bars • w ${fmt2(width)}`;
-}
-
-function releaseTone(state) {
-  const s = String(state || "").toUpperCase();
-  if (s === "RELEASING_UP") return "ok";
-  if (s === "RELEASING_DOWN") return "danger";
-  if (s === "COILING") return "warn";
-  return "muted";
-}
-
-function releaseText(sig) {
-  const state = String(sig?.state || "NONE").toUpperCase();
-  const quality = String(sig?.quality || "NONE").toUpperCase();
-  return `${state} • ${quality}`;
-}
-
-function tightnessText(sig) {
-  const tightness = Number.isFinite(Number(sig?.tightness)) ? Number(sig.tightness) : 0;
-  const early = sig?.early === true ? "early" : "late";
-  const barsAgo =
-    sig?.releaseBarsAgo == null ? "bars —" : `bars ${Number(sig.releaseBarsAgo)}`;
-  return `${tightness} • ${early} • ${barsAgo}`;
-}
-
-function MomentumPanel({ momentum }) {
-  const m = momentum || {
-    ok: false,
-    smi10m: { k: null, d: null, direction: "UNKNOWN", cross: "NONE" },
-    smi1h: { k: null, d: null, direction: "UNKNOWN", cross: "NONE" },
-    alignment: "MIXED",
-    compression: { active: false, bars: 0, width: 0 },
-    momentumState: "UNKNOWN",
-    compressionSignal: {
-      state: "NONE",
-      quality: "NONE",
-      tightness: 0,
-      releaseBarsAgo: null,
-      early: false,
-    },
-    slope: {
-      smi10m: 0,
-      signal10m: 0,
-      expanding: false,
-      widthNow: 0,
-      widthPrev: 0,
-    },
-  };
-
-  return (
-    <div
-      style={{
-        border: "1px solid #1f2937",
-        borderRadius: 12,
-        padding: 10,
-        background: "#0b0b0b",
-        fontSize: FS.small,
-        display: "flex",
-        flexDirection: "column",
-        gap: 8,
-      }}
-    >
-      <div style={{ fontWeight: 1000, color: "#93c5fd", fontSize: FS.section }}>
-        MOMENTUM (E4.5)
-      </div>
-
-      <MiniRow
-        label="10m SMI"
-        left={`${m.smi10m.direction} • K ${fmt2(m.smi10m.k)} • D ${fmt2(m.smi10m.d)}`}
-        right={crossText(m.smi10m.cross)}
-        tone={dirTone(m.smi10m.direction)}
-      />
-
-      <MiniRow
-        label="1h SMI"
-        left={`${m.smi1h.direction} • K ${fmt2(m.smi1h.k)} • D ${fmt2(m.smi1h.d)}`}
-        right={crossText(m.smi1h.cross)}
-        tone={dirTone(m.smi1h.direction)}
-      />
-
-      <MiniRow
-        label="Alignment"
-        left={String(m.alignment || "MIXED").toUpperCase()}
-        right={String(m.momentumState || "UNKNOWN").toUpperCase()}
-        tone={alignTone(m.alignment)}
-      />
-
-      <MiniRow
-        label="Compression"
-        left={compressText(m.compression)}
-        right={m.compression?.active ? "coil detected" : "no coil"}
-        tone={m.compression?.active ? "warn" : stateTone(m.momentumState)}
-      />
-
-      <MiniRow
-        label="Release"
-        left={releaseText(m.compressionSignal)}
-        right={m.slope?.expanding ? "expanding" : "flat"}
-        tone={releaseTone(m.compressionSignal?.state)}
-      />
-
-      <MiniRow
-        label="Tightness"
-        left={tightnessText(m.compressionSignal)}
-        right={`Δ ${fmt2(m.slope?.smi10m)} / ${fmt2(m.slope?.signal10m)}`}
-        tone={
-          Number.isFinite(Number(m?.compressionSignal?.tightness)) &&
-          Number(m.compressionSignal.tightness) >= 70
-            ? "ok"
-            : Number.isFinite(Number(m?.compressionSignal?.tightness)) &&
-                Number(m.compressionSignal.tightness) >= 50
-              ? "warn"
-              : "muted"
-        }
-      />
-    </div>
-  );
-}
-
-function StrategySnapshotPanel({ engine2 }) {
-  return (
-    <div
-      style={{
-        border: "1px solid #1f2937",
-        borderRadius: 12,
-        padding: 10,
-        background: "#0b0b0b",
-        fontSize: FS.small,
-        display: "flex",
-        flexDirection: "column",
-        gap: 6,
-      }}
-    >
-      <div style={{ fontWeight: 1000, color: "#93c5fd", fontSize: FS.section }}>
-        STRATEGY SNAPSHOT
-      </div>
-      <div style={{ fontSize: FS.small, lineHeight: LH.normal }}>
-        <b>Wave Phase:</b> {engine2?.phase || "—"}
-      </div>
-      <div style={{ fontSize: FS.small, lineHeight: LH.normal }}>
-        <b>Fib Score:</b> {Number.isFinite(engine2?.fibScore) ? `${engine2.fibScore}/20` : "—"}
-      </div>
-      <div style={{ fontSize: FS.small, lineHeight: LH.normal }}>
-        <b>Invalidated:</b> {engine2?.invalidated ? "YES ❌" : "NO"}
-      </div>
-      <div style={{ fontSize: FS.small, lineHeight: LH.normal }}>
-        <b>Degree:</b> {engine2?.degree || "—"} {engine2?.tf || ""}
-      </div>
-    </div>
-  );
-}
-
-/* -------------------- Engine Stack -------------------- */
-function EngineStack({
-  confluence,
-  permission,
-  engine2Card,
-  scalpClassifier = null,
-  momentum = null,
-}) {
-  const loc = confluence?.location?.state || "—";
-
-  let e2Text = "NO_ANCHORS";
-  let e2Color = "#cbd5e1";
-
-  if (engine2Card && engine2Card.ok === true) {
-    const degree = engine2Card.degree || "—";
-    const tf = engine2Card.tf || "—";
-    const phase = engine2Card.phase || "UNKNOWN";
-    const fibScore = Number(engine2Card.fibScore || 0);
-    const invalidated = engine2Card.invalidated === true;
-
-    e2Text = `${degree} ${tf} — ${phase} — Fib ${fibScore}/20 — inv:${invalidated ? "true" : "false"}`;
-
-    if (invalidated) e2Color = "#fca5a5";
-    else if (fibScore >= 20) e2Color = "#86efac";
-    else if (fibScore >= 10) e2Color = "#fbbf24";
-    else e2Color = "#cbd5e1";
-  }
-
-  const r = confluence?.context?.reaction || {};
-  const stage = String(r.stage || "—").toUpperCase();
-  const armed = r.armed === true;
-  const rs = Number(r.reactionScore ?? 0);
-  const ss = String(r.structureState || "HOLD").toUpperCase();
-  const stageIcon = stageToIcon(stage, ss, armed);
-  const stageColor = stageToColor(stage, ss);
-
-  const e3Pos = r.zonePosition ? String(r.zonePosition) : e3FallbackPosition(r.reasonCodes);
-  const rejYesNo =
-    r.rejectionCandidate === true
-      ? "REJECTION: YES"
-      : r.rejectionCandidate === false
-        ? "REJECTION: no"
-        : "REJECTION: —";
-
-  const nextDown = r.nextConfirmDown ? shortNextText(r.nextConfirmDown) : null;
-  const nextUp = r.nextConfirmUp ? shortNextText(r.nextConfirmUp) : null;
-  const nextTxt = nextDown || nextUp ? `Next: ${nextDown || nextUp}` : e3FallbackNext(stage);
-
-  const e3Text =
-    `${stageIcon} ${stage}${armed && stage !== "FAILURE" ? " ⚡" : ""}` +
-    ` • ${Number.isFinite(rs) ? rs.toFixed(1) : "0.0"} ${ss}` +
-    ` • POS:${e3Pos}` +
-    ` • ${rejYesNo}` +
-    ` • ${nextTxt}`;
-
-  const v = confluence?.context?.volume || {};
-  const vf = v?.flags || {};
-  const e4State = String(confluence?.volumeState || v?.state || "NO_SIGNAL").toUpperCase();
-  const vs = Number(v.volumeScore ?? 0);
-
-  const regime = volRegimeFromScore(vs, vf);
-  const pressure = volPressureFromFlags(vf);
-
-  const flow =
-    `PB:${vf.pullbackContraction ? "✅" : "—"} ` +
-    `REV:${vf.reversalExpansion ? "✅" : "—"} ` +
-    `INIT:${vf.initiativeMoveConfirmed ? "✅" : "—"} ` +
-    `DIST:${vf.distributionDetected ? "⚠️" : "—"} ` +
-    `ABS:${vf.absorptionDetected ? "⚠️" : "—"} ` +
-    `TRAP:${vf.liquidityTrap ? "❌" : "—"} ` +
-    `DIV:${vf.volumeDivergence ? "⚠️" : "—"}`;
-
-  const e4Text =
-    `${e4State}` +
-    ` • VS:${Number.isFinite(vs) ? vs : "—"}/15` +
-    ` • REG:${regime}` +
-    ` • PRESS:${pressure}` +
-    ` • ${flow}`;
-
-  const m = momentum || {
-    alignment: "MIXED",
-    momentumState: "UNKNOWN",
-    smi10m: { direction: "UNKNOWN", cross: "NONE" },
-    smi1h: { direction: "UNKNOWN", cross: "NONE" },
-    compressionSignal: { state: "NONE", quality: "NONE" },
-  };
-
-  const e45Text =
-    `${String(m.alignment || "MIXED").toUpperCase()}` +
-    ` • 10m:${String(m?.smi10m?.direction || "UNKNOWN").toUpperCase()}` +
-    `(${String(m?.smi10m?.cross || "NONE").toUpperCase()})` +
-    ` • 1h:${String(m?.smi1h?.direction || "UNKNOWN").toUpperCase()}` +
-    `(${String(m?.smi1h?.cross || "NONE").toUpperCase()})` +
-    ` • ${String(m?.compressionSignal?.state || "NONE").toUpperCase()}` +
-    ` ${String(m?.compressionSignal?.quality || "NONE").toUpperCase()}`;
-
-  const score = clamp100(confluence?.scores?.total ?? 0);
-  const label = confluence?.scores?.label || grade(score);
-  const comp = confluence?.compression || {};
-  const compState = String(comp?.state || "NONE").toUpperCase();
-  const compScore = Number.isFinite(Number(comp?.score)) ? Math.round(Number(comp?.score)) : 0;
-
-  const e5Text = scalpClassifier
-    ? `${scalpClassifier.moveScore} • ${scalpClassifier.moveType} • ${scalpClassifier.moveDirection}`
-    : `${Math.round(score)} (${label}) • ${compState} ${compScore}`;
-
-  const perm = permission?.permission || "—";
-  const mult = Number.isFinite(Number(permission?.sizeMultiplier))
-    ? Number(permission.sizeMultiplier).toFixed(2)
-    : "—";
-  const e6Text = `${perm} • ${mult}x`;
-
-  return (
-    <div
-      style={{
-        border: "1px solid #1f2937",
-        borderRadius: 12,
-        padding: 10,
-        background: "#0b0b0b",
-        minHeight: 260,
-        width: "100%",
-        height: "auto",
-        display: "flex",
-        flexDirection: "column",
-        gap: 8,
-        overflow: "hidden",
-        minWidth: 0,
-      }}
-    >
-      <div style={{ fontSize: FS.section, fontWeight: 900, color: "#93c5fd" }}>
-        ENGINE STACK
-      </div>
-
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1fr",
-          gap: 8,
-          minWidth: 0,
-          flex: "1 1 auto",
-        }}
-      >
-        <StackRow k="E1" v={loc} />
-        <StackRow k="E2" v={e2Text} vStyle={{ color: e2Color }} />
-        <StackRow k="E3" v={e3Text} vStyle={{ color: stageColor }} />
-        <StackRow k="E4" v={e4Text} />
-        <StackRow k="E4.5" v={e45Text} />
-        <StackRow k="E5" v={e5Text} />
-        <StackRow k="E6" v={e6Text} />
-      </div>
-    </div>
-  );
-}
-
-function StackRow({ k, v, vStyle = {} }) {
-  return (
-    <div
-      style={{
-        display: "grid",
-        gridTemplateColumns: "34px 1fr",
-        gap: 6,
-        alignItems: "start",
-        minWidth: 0,
-      }}
-    >
-      <span
-        style={{
-          fontWeight: 1000,
-          fontSize: FS.stackKey,
-          color: "#9ca3af",
-          lineHeight: LH.normal,
-          paddingTop: 1,
-        }}
-      >
-        {k}
-      </span>
-
-      <span
-        style={{
-          fontWeight: 1000,
-          fontSize: FS.stackValue,
-          whiteSpace: "normal",
-          overflowWrap: "anywhere",
-          wordBreak: "break-word",
-          color: "#e5e7eb",
-          lineHeight: LH.normal,
-          minWidth: 0,
-          ...vStyle,
-        }}
-        title={typeof v === "string" ? v : ""}
-      >
-        {v}
-      </span>
-    </div>
-  );
-}
-
-/* -------------------- Engine 15 local fallback -------------------- */
-function computeReadinessFallback({ confluence, permissionObj }) {
-  const allowed = ["NEGOTIATED", "INSTITUTIONAL"];
-  const nearThresholdPts = 1.5;
-
-  const price = typeof confluence?.price === "number" ? confluence.price : null;
-
-  const z = confluence?.context?.activeZone || null;
-  const zTypeRaw = String(z?.zoneType || z?.type || "NONE").toUpperCase();
-  const zoneType = zTypeRaw === "SHELF" ? "SHELF" : zTypeRaw;
-  const lo = Number(z?.lo);
-  const hi = Number(z?.hi);
-
-  const inRange = (p, a, b) =>
-    Number.isFinite(p) &&
-    Number.isFinite(a) &&
-    Number.isFinite(b) &&
-    p >= Math.min(a, b) &&
-    p <= Math.max(a, b);
-
-  const distPts = (p, a, b) => {
-    if (!Number.isFinite(p) || !Number.isFinite(a) || !Number.isFinite(b)) return null;
-    if (inRange(p, a, b)) return 0;
-    return Math.min(Math.abs(p - a), Math.abs(p - b));
-  };
-
-  const d = distPts(price, lo, hi);
-  const allowedType = allowed.includes(zoneType);
-
-  const inAllowedZone = Boolean(allowedType && d === 0);
-  const nearAllowedZone = Boolean(allowedType && d !== null && d <= nearThresholdPts);
-
-  const e3 = confluence?.context?.reaction || {};
-  const e4 = confluence?.context?.volume || {};
-  const e4Flags = e4?.flags || {};
-
-  const e3Stage = String(e3.stage || "—").toUpperCase();
-  const e3Arming = e3.armed === true || e3Stage === "ARMED" || e3Stage === "TRIGGERED";
-  const e3Confirmed = e3Stage === "CONFIRMED";
-
-  const volScore = Number(e4.volumeScore);
-  const volStrong = Number.isFinite(volScore) && volScore >= 7;
-
-  const reasonCodes = [];
-  if (!Number.isFinite(lo) || !Number.isFinite(hi)) reasonCodes.push("NO_ZONE_CONTEXT");
-  else if (inAllowedZone) reasonCodes.push("IN_ALLOWED_ZONE");
-  else if (nearAllowedZone) reasonCodes.push("NEAR_ALLOWED_ZONE");
-  else reasonCodes.push("WAIT_NOT_NEAR_ALLOWED_ZONE");
-
-  if (e3Confirmed) reasonCodes.push("STRUCTURE_CONFIRMED");
-  else if (e3Arming) reasonCodes.push("ARMING_STRUCTURE");
-
-  if (volStrong) reasonCodes.push("VOLUME_STRONG");
-  if (e4Flags.reversalExpansion) reasonCodes.push("VOLUME_REVERSAL_EXPANSION");
-  if (e4Flags.pullbackContraction) reasonCodes.push("VOLUME_PULLBACK_CONTRACTION");
-
-  let state = "WAIT";
-  const hasArming = e3Arming || volStrong;
-  if (!nearAllowedZone && !inAllowedZone) state = "WAIT";
-  else if (!inAllowedZone) state = hasArming ? "ARMING" : "NEAR";
-  else state = e3Confirmed ? "CONFIRMED" : hasArming ? "READY" : "NEAR";
-
-  const next = [];
-  if (Number.isFinite(lo) && Number.isFinite(hi)) {
-    next.push(`Zone: ${lo.toFixed(2)}–${hi.toFixed(2)} (${zoneType})`);
-    if (!inAllowedZone) next.push("Wait for re-entry into allowed zone");
-  }
-  if (!e3Confirmed) next.push("E3: wait for CONFIRMED or stronger reaction");
-  if (!volStrong) next.push("E4: wait for volumeScore ≥ 7 or regime shift");
-
-  return {
-    ok: true,
-    mode: null,
-    price,
-    zone: {
-      allowed,
-      selected:
-        Number.isFinite(lo) && Number.isFinite(hi)
-          ? {
-              id: z?.id || null,
-              type: zoneType,
-              lo,
-              hi,
-              source: z?.source || "ACTIVE",
-            }
-          : null,
-      inAllowedZone,
-      nearAllowedZone,
-      distancePts: d,
-    },
-    engine3: e3 || null,
-    engine4: e4 || null,
-    permission: permissionObj || null,
-    readiness: { state, reasonCodes, next },
-  };
-}
-
-/* -------------------- Readiness Bar -------------------- */
-function readinessStyle(state) {
-  const s = String(state || "WAIT").toUpperCase();
-
-  if (s === "EXHAUSTION_READY") {
-    return {
-      bg: "linear-gradient(135deg,#ef4444,#b91c1c)",
-      fg: "#fff7f7",
-      border: "1px solid rgba(255,255,255,.22)",
-    };
-  }
-
-  if (s === "REVERSAL_READY") {
-    return {
-      bg: "linear-gradient(135deg,#f97316,#ea580c)",
-      fg: "#fff7ed",
-      border: "1px solid rgba(255,255,255,.22)",
-    };
-  }
-
-  if (s === "BREAKDOWN_READY") {
-    return {
-      bg: "linear-gradient(135deg,#dc2626,#991b1b)",
-      fg: "#fff7f7",
-      border: "1px solid rgba(255,255,255,.22)",
-    };
-  }
-
-  if (s === "BREAKOUT_READY") {
-    return {
-      bg: "linear-gradient(135deg,#22c55e,#16a34a)",
-      fg: "#06110a",
-      border: "1px solid rgba(255,255,255,.22)",
-    };
-  }
-
-  if (s === "PULLBACK_READY") {
-    return {
-      bg: "linear-gradient(135deg,#84cc16,#65a30d)",
-      fg: "#0b1220",
-      border: "1px solid rgba(255,255,255,.18)",
-    };
-  }
-
-  if (s === "CONTINUATION_READY") {
-    return {
-      bg: "linear-gradient(135deg,#14b8a6,#0f766e)",
-      fg: "#ecfeff",
-      border: "1px solid rgba(255,255,255,.18)",
-    };
-  }
-
-  if (s === "CONFIRMED") {
-    return {
-      bg: "linear-gradient(135deg,#22c55e,#16a34a)",
-      fg: "#06110a",
-      border: "1px solid rgba(255,255,255,.22)",
-    };
-  }
-
-  if (s === "READY") {
-    return {
-      bg: "linear-gradient(135deg,#a3e635,#65a30d)",
-      fg: "#0b1220",
-      border: "1px solid rgba(255,255,255,.18)",
-    };
-  }
-
-  if (s === "ARMING") {
-    return {
-      bg: "linear-gradient(135deg,#fbbf24,#f59e0b)",
-      fg: "#0b1220",
-      border: "1px solid rgba(255,255,255,.18)",
-    };
-  }
-
-  if (s === "NEAR") {
-    return {
-      bg: "linear-gradient(135deg,#60a5fa,#3b82f6)",
-      fg: "#071423",
-      border: "1px solid rgba(255,255,255,.18)",
-    };
-  }
-
-  return {
-    bg: "#111827",
-    fg: "#e5e7eb",
-    border: "1px solid #334155",
-  };
-}
-
-function ReadinessBar({ readinessPack }) {
-  const isNewEngine15 = typeof readinessPack?.readiness === "string";
-
-  const state = isNewEngine15
-    ? readinessPack.readiness
-    : readinessPack?.readiness?.state || "WAIT";
-
-  const direction = isNewEngine15
-    ? String(readinessPack?.direction || "NONE").toUpperCase()
-    : "NONE";
-
-  const strategyType = isNewEngine15
-    ? String(readinessPack?.strategyType || "NONE").toUpperCase()
-    : "NONE";
-
-  const active = isNewEngine15
-    ? readinessPack?.active === true
-    : false;
-
-  const rc = isNewEngine15
-    ? []
-    : (Array.isArray(readinessPack?.readiness?.reasonCodes)
-        ? readinessPack.readiness.reasonCodes
-        : []);
-
-  const next = isNewEngine15
-    ? []
-    : (Array.isArray(readinessPack?.readiness?.next)
-        ? readinessPack.readiness.next
-        : []);
-
-  const zone = readinessPack?.zone || {};
-  const dist = zone?.distancePts;
-  const distTxt = Number.isFinite(dist) ? `${dist.toFixed(2)} pts` : "—";
-
-  const style = readinessStyle(state);
-
-  const displayState =
-    direction && direction !== "NONE"
-      ? `${String(state).toUpperCase()} (${direction})`
-      : String(state).toUpperCase();
-
-  const nextText = isNewEngine15
-    ? strategyType !== "NONE"
-      ? `${strategyType}${active ? " • ACTIVE" : ""}`
-      : active
-        ? "ACTIVE"
-        : "—"
-    : next[0] || "—";
-
-  const displayPills = isNewEngine15
-    ? [
-        active ? "ACTIVE" : null,
-        strategyType !== "NONE" ? `TYPE: ${strategyType}` : null,
-      ].filter(Boolean)
-    : rc.slice(0, 4);
-
-  return (
-    <div
-      style={{
-        borderRadius: 12,
-        padding: 10,
-        background: style.bg,
-        border: style.border,
-        boxShadow: "0 0 18px rgba(0,0,0,.35)",
-        display: "grid",
-        gridTemplateColumns: "auto 1fr auto",
-        alignItems: "center",
-        gap: 10,
-      }}
-      title={[
-        `state=${state}`,
-        `direction=${direction}`,
-        `strategyType=${strategyType}`,
-        `active=${String(active)}`,
-        `dist=${distTxt}`,
-      ].join(" | ")}
-    >
-      <div
-        style={{
-          fontWeight: 1000,
-          fontSize: FS.readinessLabel,
-          letterSpacing: 0.6,
-          color: style.fg,
-        }}
-      >
-        READINESS
-      </div>
-
-      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-        <div
-          style={{
-            fontWeight: 1000,
-            fontSize: FS.readinessState,
-            lineHeight: "18px",
-            color: style.fg,
-          }}
-        >
-          {displayState}
-        </div>
-
-        {!isNewEngine15 && (
-          <div style={{ fontWeight: 900, fontSize: FS.tiny, color: style.fg, opacity: 0.95 }}>
-            dist: {distTxt}
-          </div>
-        )}
-
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-          {displayPills.map((c) => (
-            <span
-              key={c}
-              style={{
-                fontSize: FS.micro,
-                fontWeight: 1000,
-                padding: "4px 8px",
-                borderRadius: 999,
-                background: "rgba(0,0,0,.25)",
-                border: "1px solid rgba(255,255,255,.18)",
-                color: style.fg,
-                whiteSpace: "nowrap",
-              }}
-            >
-              {c}
-            </span>
-          ))}
-        </div>
-      </div>
-
-      <div style={{ textAlign: "right", minWidth: 0 }}>
-        <div style={{ fontSize: FS.micro, fontWeight: 1000, color: style.fg, opacity: 0.9 }}>
-          NEXT
-        </div>
-        <div style={{ fontSize: FS.micro, fontWeight: 900, color: style.fg, opacity: 0.95 }}>
-          {nextText}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* -------------------- Engine 15B lifecycle helpers -------------------- */
-function extractEngine15Decision(node) {
-  return node?.engine15Decision || null;
-}
-
-function decisionToneByStage(stage) {
-  const s = String(stage || "").toUpperCase();
-  if (s === "COMPLETED") return "ok";
-  if (s === "MATURE") return "warn";
-  if (s === "PARTIALLY_COMPLETED") return "warn";
-  if (s === "LIVE") return "ok";
-  if (s === "INVALIDATED" || s === "EXPIRED" || s === "MISSED") return "danger";
-  return "muted";
-}
-
-function decisionToneByAction(action) {
-  const s = String(action || "").toUpperCase();
-  if (s === "ENTER_OK") return "ok";
-  if (s === "REDUCE_OK" || s === "WATCH" || s === "WAIT") return "warn";
-  if (s === "BLOCKED" || s === "NO_ACTION") return "danger";
-  return "muted";
-}
-
-function DecisionPill({ text, tone = "muted" }) {
-  const palette =
-    tone === "ok"
-      ? { bg: "#06220f", fg: "#86efac", bd: "#166534" }
-      : tone === "warn"
-        ? { bg: "#1b1409", fg: "#fbbf24", bd: "#92400e" }
-        : tone === "danger"
-          ? { bg: "#2b0b0b", fg: "#fca5a5", bd: "#7f1d1d" }
-          : { bg: "#0b0b0b", fg: "#94a3b8", bd: "#2b2b2b" };
-
-  return (
-    <span
-      style={{
-        fontSize: FS.micro,
-        fontWeight: 1000,
-        padding: "4px 8px",
+        minHeight: large ? 30 : 28,
+        padding: large ? "7px 12px" : "6px 10px",
         borderRadius: 999,
-        border: `1px solid ${palette.bd}`,
-        background: palette.bg,
-        color: palette.fg,
+        background: p.bg,
+        color: p.fg,
+        border: p.bd,
+        fontSize: large ? FS.small : FS.tiny,
+        fontWeight: 1000,
+        lineHeight: 1.1,
         whiteSpace: "nowrap",
       }}
     >
@@ -1463,195 +237,464 @@ function DecisionPill({ text, tone = "muted" }) {
   );
 }
 
-function Engine15DecisionBar({ decision }) {
-  if (!decision || typeof decision !== "object") return null;
-
-  const lifecycle = decision.lifecycle || {};
-  const stage = String(lifecycle.lifecycleStage || "BUILDING").toUpperCase();
-  const action = String(decision.action || "NO_ACTION").toUpperCase();
-  const bias = String(decision.executionBias || "NONE").toUpperCase();
-  const nextFocus = prettyNextFocus(lifecycle.nextFocus || "—");
-
-  const tp1 = lifecycle.firstTargetHit === true;
-  const tp2 = lifecycle.secondTargetHit === true;
-  const runner = lifecycle.runnerActive === true;
-  const complete = lifecycle.setupCompleted === true;
-  const block2Protected = lifecycle.block2Protected === true;
-  const targetProgress =
-    Number.isFinite(Number(lifecycle.targetProgress01))
-      ? Number(lifecycle.targetProgress01)
-      : null;
-
-  const currentPrice = Number(lifecycle.currentPrice);
-  const signalPrice = Number(lifecycle.signalPrice);
-  const movePts = Number(lifecycle.moveFromSignalPts);
-  const edgeRemaining = Number(lifecycle.edgeRemainingPct);
-
+function Section({ title, children, subtle = false }) {
   return (
     <div
       style={{
-        border: "1px solid #1f2937",
+        border: subtle ? "1px solid #18212e" : "1px solid #1f2937",
         borderRadius: 12,
         padding: 10,
-        background: "#0b0b0b",
+        background: subtle ? "#0a0f18" : "#0b0b0b",
         display: "flex",
         flexDirection: "column",
         gap: 8,
       }}
-      title={[
-        `stage=${stage}`,
-        `action=${action}`,
-        `bias=${bias}`,
-        `tp1=${String(tp1)}`,
-        `tp2=${String(tp2)}`,
-        `runner=${String(runner)}`,
-        `setupCompleted=${String(complete)}`,
-        `nextFocus=${nextFocus}`,
-      ].join(" | ")}
+    >
+      <div style={{ fontWeight: 1000, color: "#93c5fd", fontSize: FS.section }}>
+        {title}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function KV({ label, value }) {
+  return (
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "120px 1fr",
+        gap: 8,
+        alignItems: "start",
+      }}
+    >
+      <div style={{ color: "#9ca3af", fontSize: FS.tiny, fontWeight: 900 }}>
+        {label}
+      </div>
+      <div
+        style={{
+          color: "#e5e7eb",
+          fontSize: FS.small,
+          fontWeight: 900,
+          lineHeight: 1.3,
+          wordBreak: "break-word",
+        }}
+      >
+        {value}
+      </div>
+    </div>
+  );
+}
+
+function MiniBoolRow({ label, value }) {
+  return (
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "1fr auto",
+        gap: 8,
+        alignItems: "center",
+      }}
+    >
+      <div style={{ color: "#cbd5e1", fontSize: FS.small, fontWeight: 800 }}>
+        {label}
+      </div>
+      <Badge text={boolTxt(value)} tone={value ? "ready" : "wait"} />
+    </div>
+  );
+}
+
+function CompactList({ items = [], empty = "—" }) {
+  const arr = Array.isArray(items) ? items.filter(Boolean) : [];
+  if (!arr.length) {
+    return <div style={{ color: "#94a3b8", fontSize: FS.small }}>{empty}</div>;
+  }
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+      {arr.map((item, idx) => (
+        <div
+          key={`${item}-${idx}`}
+          style={{
+            color: "#e5e7eb",
+            fontSize: FS.small,
+            fontWeight: 800,
+            lineHeight: 1.3,
+          }}
+        >
+          • {prettyEnum(item)}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function marketLine(snapshot) {
+  const regime = upper(snapshot?.marketRegime?.regime || "—");
+  const directionBias = upper(snapshot?.marketRegime?.directionBias || "—");
+  return `Market: ${regime} / ${directionBias}`;
+}
+
+function scalpTriggerCondition(engine16, decision) {
+  if (engine16?.waveShortPrep === true && engine16?.continuationTriggerShort !== true && engine16?.exhaustionTriggerShort !== true) {
+    return "rejection + break";
+  }
+  if (engine16?.exhaustionEarlyShort === true) return "exhaustion confirm";
+  if (engine16?.continuationWatchShort === true) return "continuation breakdown";
+  return "await trigger";
+}
+
+function intermediateTriggerCondition(engine16, readiness) {
+  if (engine16?.wavePrep === true && upper(engine16?.intermediatePhase, "") === "IN_C") {
+    return "C exhaustion + W3 trigger";
+  }
+  if (upper(readiness, "") === "WAIT") return "wait for structure";
+  return "await confirmation";
+}
+
+function scalpSummary(node, snapshot) {
+  const e16 = node?.engine16 || {};
+  const shortPrep = e16?.waveShortPrep === true;
+  if (shortPrep) {
+    return "Scalp is watching the active C-leg for a possible short trigger, but no entry is valid yet.";
+  }
+  return "Scalp is monitoring intraday structure and waiting for a valid trigger sequence.";
+}
+
+function intermediateSummary(node, snapshot) {
+  return "Intermediate Swing is in prep mode, waiting for the W3 trigger after the C leg completes.";
+}
+
+function PassiveCard({ title, tf, node, snapshot }) {
+  const readiness =
+    node?.engine15?.readiness ||
+    node?.engine15Decision?.readinessLabel ||
+    node?.engine16?.readinessLabel ||
+    "NO_ACTION";
+
+  const action = node?.engine15Decision?.action || "NO_ACTION";
+  const bias = biasBadgeTextIntermediate(node?.engine16 || {});
+  const nextFocus = node?.engine15Decision?.lifecycle?.nextFocus || "WAIT";
+  const summary = "Longer-term structure card kept passive for now.";
+
+  return (
+    <div
+      style={{
+        background: "#0f1117",
+        border: "1px solid #1f2937",
+        borderRadius: 14,
+        padding: 12,
+        display: "flex",
+        flexDirection: "column",
+        gap: 10,
+        minWidth: 0,
+      }}
     >
       <div
         style={{
           display: "flex",
-          alignItems: "center",
           justifyContent: "space-between",
           gap: 10,
+          alignItems: "flex-start",
           flexWrap: "wrap",
         }}
       >
-        <div style={{ fontWeight: 1000, color: "#93c5fd", fontSize: FS.section }}>
-          ENGINE 15B LIFECYCLE
+        <div>
+          <div style={{ fontWeight: 1000, fontSize: FS.title, color: "#e5e7eb" }}>
+            {title}
+          </div>
+          <div style={{ color: "#9ca3af", fontSize: FS.subtitle, fontWeight: 800 }}>
+            {tf}
+          </div>
         </div>
 
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-          <DecisionPill text={`STAGE: ${prettyLifecycle(stage)}`} tone={decisionToneByStage(stage)} />
-          <DecisionPill text={`ACTION: ${prettyLifecycle(action)}`} tone={decisionToneByAction(action)} />
-          <DecisionPill text={bias !== "NONE" ? bias : "BIAS: NONE"} tone="muted" />
+          <Badge text={upper(readiness)} tone={readinessTone(readiness)} />
+          <Badge text={upper(action)} tone={actionTone(action)} />
+          <Badge text={bias} tone={biasTone(bias)} />
         </div>
       </div>
 
+      <Section title="PASSIVE SUMMARY" subtle>
+        <KV label="Next Focus" value={prettyEnum(nextFocus)} />
+        <KV label="Summary" value={summary} />
+        <KV label="Market" value={marketLine(snapshot)} />
+      </Section>
+    </div>
+  );
+}
+
+/* -------------------- Scalp v1 card -------------------- */
+function ScalpV1Card({ node, snapshot, liveStatus, liveTip, activeGlow }) {
+  const engine15 = node?.engine15 || {};
+  const decision = node?.engine15Decision || {};
+  const engine16 = node?.engine16 || {};
+  const permission = node?.permission || {};
+
+  const readiness =
+    engine15?.readiness ||
+    decision?.readinessLabel ||
+    engine16?.readinessLabel ||
+    "WAIT";
+
+  const action = decision?.action || "NO_ACTION";
+  const bias = biasBadgeTextScalp(engine16);
+
+  const nextFocus = decision?.lifecycle?.nextFocus || "WAIT_FOR_TRIGGER";
+  const freshEntryNow = decision?.freshEntryNow === true;
+  const executionBias = decision?.executionBias || "NONE";
+
+  const qualityBand = decision?.qualityBand || "WATCH";
+  const qualityScore = Number.isFinite(Number(decision?.qualityScore))
+    ? Number(decision.qualityScore)
+    : null;
+  const qualityGrade = decision?.qualityGrade || "—";
+
+  const market = marketLine(snapshot);
+  const summary = scalpSummary(node, snapshot);
+
+  const reasonCodes = Array.isArray(engine16?.waveReasonCodes)
+    ? engine16.waveReasonCodes
+    : Array.isArray(decision?.reasonCodes)
+    ? decision.reasonCodes
+    : [];
+
+  const blockers = Array.isArray(decision?.blockers) ? decision.blockers : [];
+  const setupChain = Array.isArray(decision?.setupChain) ? decision.setupChain : [];
+
+  const context = engine16?.context || "—";
+  const state = engine16?.state || "—";
+  const phase = engine16?.waveContext?.waveState || engine16?.waveState || "—";
+  const macroBias = engine16?.waveContext?.macroBias || engine16?.macroBias || "NONE";
+
+  const triggerCondition = scalpTriggerCondition(engine16, decision);
+
+  return (
+    <div
+      style={{
+        background: "#101010",
+        border: "1px solid #262626",
+        borderRadius: 14,
+        padding: 12,
+        color: "#e5e7eb",
+        boxShadow: activeGlow,
+        minHeight: 360,
+        display: "flex",
+        flexDirection: "column",
+        gap: 10,
+        minWidth: 0,
+        overflow: "hidden",
+      }}
+    >
+      {/* Header */}
       <div
         style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(4, minmax(0,1fr))",
-          gap: 8,
-        }}
-      >
-        <div
-          style={{
-            border: "1px solid #1f2937",
-            borderRadius: 10,
-            padding: 8,
-            background: "#111827",
-          }}
-        >
-          <div style={{ fontSize: FS.micro, color: "#9ca3af", fontWeight: 1000 }}>TP STATUS</div>
-          <div style={{ marginTop: 4, display: "flex", gap: 6, flexWrap: "wrap" }}>
-            <DecisionPill text={`TP1 ${tp1 ? "HIT" : "OPEN"}`} tone={tp1 ? "ok" : "muted"} />
-            <DecisionPill text={`TP2 ${tp2 ? "HIT" : "OPEN"}`} tone={tp2 ? "ok" : "muted"} />
-          </div>
-        </div>
-
-        <div
-          style={{
-            border: "1px solid #1f2937",
-            borderRadius: 10,
-            padding: 8,
-            background: "#111827",
-          }}
-        >
-          <div style={{ fontSize: FS.micro, color: "#9ca3af", fontWeight: 1000 }}>RUNNER</div>
-          <div style={{ marginTop: 4, display: "flex", gap: 6, flexWrap: "wrap" }}>
-            <DecisionPill text={runner ? "RUNNER ACTIVE" : "RUNNER OFF"} tone={runner ? "warn" : "muted"} />
-            {block2Protected ? <DecisionPill text="BLOCK 2 PROTECTED" tone="warn" /> : null}
-            {complete ? <DecisionPill text="SETUP COMPLETE" tone="ok" /> : null}
-          </div>
-        </div>
-
-        <div
-          style={{
-            border: "1px solid #1f2937",
-            borderRadius: 10,
-            padding: 8,
-            background: "#111827",
-          }}
-        >
-          <div style={{ fontSize: FS.micro, color: "#9ca3af", fontWeight: 1000 }}>PRICE PATH</div>
-          <div style={{ marginTop: 4, fontSize: FS.small, color: "#e5e7eb", lineHeight: LH.normal }}>
-            <div><b>Signal:</b> {Number.isFinite(signalPrice) ? fmt2(signalPrice) : "—"}</div>
-            <div><b>Current:</b> {Number.isFinite(currentPrice) ? fmt2(currentPrice) : "—"}</div>
-            <div><b>Move:</b> {Number.isFinite(movePts) ? fmt2(movePts) : "—"} pts</div>
-          </div>
-        </div>
-
-        <div
-          style={{
-            border: "1px solid #1f2937",
-            borderRadius: 10,
-            padding: 8,
-            background: "#111827",
-          }}
-        >
-          <div style={{ fontSize: FS.micro, color: "#9ca3af", fontWeight: 1000 }}>EDGE</div>
-          <div style={{ marginTop: 4, fontSize: FS.small, color: "#e5e7eb", lineHeight: LH.normal }}>
-            <div>
-              <b>Progress:</b>{" "}
-              {targetProgress == null ? "—" : `${Math.round(targetProgress * 100)}%`}
-            </div>
-            <div>
-              <b>Remaining:</b>{" "}
-              {Number.isFinite(edgeRemaining) ? `${Math.round(edgeRemaining)}%` : "—"}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div
-        style={{
-          border: "1px solid #1f2937",
-          borderRadius: 10,
-          padding: 8,
-          background: "#111827",
           display: "flex",
           justifyContent: "space-between",
-          alignItems: "center",
+          alignItems: "flex-start",
           gap: 10,
           flexWrap: "wrap",
         }}
       >
-        <div style={{ fontSize: FS.micro, color: "#9ca3af", fontWeight: 1000 }}>NEXT FOCUS</div>
-        <div
-          style={{
-            fontSize: FS.small,
-            color: "#e5e7eb",
-            fontWeight: 1000,
-            letterSpacing: 0.2,
-          }}
-        >
-          {nextFocus}
+        <div>
+          <div style={{ fontWeight: 1000, fontSize: FS.title, color: "#e5e7eb" }}>
+            Scalp
+          </div>
+          <div style={{ color: "#9ca3af", fontSize: FS.subtitle, fontWeight: 800 }}>
+            10m
+          </div>
+        </div>
+
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+          <Badge text={upper(readiness)} tone={readinessTone(readiness)} large />
+          <Badge text={upper(action)} tone={actionTone(action)} large />
+          <Badge text={bias} tone={biasTone(bias)} large />
+          <LiveDot status={liveStatus} tip={liveTip} />
         </div>
       </div>
+
+      {/* Structure core */}
+      <Section title="STRUCTURE CORE">
+        <KV label="Context" value={prettyEnum(context)} />
+        <KV label="State" value={prettyEnum(state)} />
+        <KV label="Phase" value={prettyEnum(phase)} />
+        <KV label="Macro Bias" value={prettyEnum(macroBias)} />
+      </Section>
+
+      {/* Decision */}
+      <Section title="DECISION">
+        <KV label="Next Focus" value={prettyEnum(nextFocus)} />
+        <KV label="Trigger Condition" value={prettyEnum(triggerCondition)} />
+        <KV label="Fresh Entry Now" value={freshEntryNow ? "YES" : "NO"} />
+        <KV label="Permission" value={upper(permission?.permission || "UNKNOWN")} />
+        <KV label="Execution Bias" value={prettyEnum(executionBias)} />
+      </Section>
+
+      {/* Trigger path */}
+      <Section title="TRIGGER PATH" subtle>
+        <MiniBoolRow label="Watch Short Prep" value={engine16?.waveShortPrep === true} />
+        <MiniBoolRow
+          label="Watch Long Prep"
+          value={engine16?.waveLongPrep === true}
+        />
+        <MiniBoolRow
+          label="Continuation Watch Short"
+          value={engine16?.continuationWatchShort === true}
+        />
+        <MiniBoolRow
+          label="Continuation Trigger Short"
+          value={engine16?.continuationTriggerShort === true}
+        />
+        <MiniBoolRow
+          label="Exhaustion Early Short"
+          value={engine16?.exhaustionEarlyShort === true}
+        />
+        <MiniBoolRow
+          label="Exhaustion Trigger Short"
+          value={engine16?.exhaustionTriggerShort === true}
+        />
+      </Section>
+
+      {/* Quality */}
+      <Section title="QUALITY" subtle>
+        <KV label="Band" value={upper(qualityBand)} />
+        <KV label="Score" value={qualityScore == null ? "—" : String(Math.round(qualityScore))} />
+        <KV label="Grade" value={upper(qualityGrade)} />
+      </Section>
+
+      {/* Why */}
+      <Section title="WHY THIS STATE">
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <div>
+            <div style={{ color: "#9ca3af", fontSize: FS.tiny, fontWeight: 1000, marginBottom: 4 }}>
+              REASON CODES
+            </div>
+            <CompactList items={reasonCodes} />
+          </div>
+
+          <div>
+            <div style={{ color: "#9ca3af", fontSize: FS.tiny, fontWeight: 1000, marginBottom: 4 }}>
+              NOT READY BECAUSE
+            </div>
+            <CompactList items={blockers} empty="—" />
+          </div>
+
+          <div>
+            <div style={{ color: "#9ca3af", fontSize: FS.tiny, fontWeight: 1000, marginBottom: 4 }}>
+              SETUP CHAIN
+            </div>
+            <CompactList items={setupChain} empty="—" />
+          </div>
+        </div>
+      </Section>
+
+      {/* Footer */}
+      <Section title="SUMMARY" subtle>
+        <KV label="Market" value={market} />
+        <KV label="Summary" value={summary} />
+        <KV label="Horizon" value="intraday / execution" />
+      </Section>
+    </div>
+  );
+}
+
+/* -------------------- Intermediate passive v1 -------------------- */
+function IntermediateV1Card({ node, snapshot, activeGlow }) {
+  const engine15 = node?.engine15 || {};
+  const decision = node?.engine15Decision || {};
+  const engine16 = node?.engine16 || {};
+  const permission = node?.permission || {};
+
+  const readiness =
+    engine15?.readiness ||
+    decision?.readinessLabel ||
+    engine16?.readinessLabel ||
+    "WAIT";
+
+  const action = decision?.action || "NO_ACTION";
+  const bias = biasBadgeTextIntermediate(engine16);
+
+  const primaryPhase = engine16?.primaryPhase || engine16?.waveContext?.primaryPhase || "—";
+  const intermediatePhase =
+    engine16?.intermediatePhase || engine16?.waveContext?.intermediatePhase || "—";
+  const phase = engine16?.waveState || engine16?.waveContext?.waveState || "—";
+  const macroBias = engine16?.macroBias || engine16?.waveContext?.macroBias || "NONE";
+
+  const nextFocus = decision?.lifecycle?.nextFocus || "WAIT";
+  const triggerCondition = intermediateTriggerCondition(engine16, readiness);
+  const summary = intermediateSummary(node, snapshot);
+  const market = marketLine(snapshot);
+
+  return (
+    <div
+      style={{
+        background: "#0f1117",
+        border: "1px solid #1f2937",
+        borderRadius: 14,
+        padding: 12,
+        color: "#e5e7eb",
+        boxShadow: activeGlow,
+        minHeight: 360,
+        display: "flex",
+        flexDirection: "column",
+        gap: 10,
+        minWidth: 0,
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          gap: 10,
+          alignItems: "flex-start",
+          flexWrap: "wrap",
+        }}
+      >
+        <div>
+          <div style={{ fontWeight: 1000, fontSize: FS.title }}>Intermediate Swing</div>
+          <div style={{ color: "#9ca3af", fontSize: FS.subtitle, fontWeight: 800 }}>
+            1h
+          </div>
+        </div>
+
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+          <Badge text={upper(readiness)} tone={readinessTone(readiness)} />
+          <Badge text={upper(action)} tone={actionTone(action)} />
+          <Badge text={bias} tone={biasTone(bias)} />
+        </div>
+      </div>
+
+      <Section title="STRUCTURE CORE" subtle>
+        <KV label="Primary Phase" value={prettyEnum(primaryPhase)} />
+        <KV label="Intermediate Phase" value={prettyEnum(intermediatePhase)} />
+        <KV label="Phase" value={prettyEnum(phase)} />
+        <KV label="Macro Bias" value={prettyEnum(macroBias)} />
+      </Section>
+
+      <Section title="DECISION" subtle>
+        <KV label="Next Focus" value={prettyEnum(nextFocus)} />
+        <KV label="Trigger Condition" value={prettyEnum(triggerCondition)} />
+        <KV label="Permission" value={upper(permission?.permission || "UNKNOWN")} />
+      </Section>
+
+      <Section title="SUMMARY" subtle>
+        <KV label="Market" value={market} />
+        <KV label="Summary" value={summary} />
+        <KV label="Horizon" value="multi-bar / swing" />
+      </Section>
     </div>
   );
 }
 
 /* ===================== Main Component ===================== */
 export default function RowStrategies() {
-  const { setSelection } = useSelection();
-
   const STRATS = useMemo(
     () => [
-      { id: "SCALP", name: "Scalp — Minor Intraday", tf: "10m", sub: "10m primary • 1h gate" },
-      { id: "MINOR", name: "Minor — Swing", tf: "1h", sub: "1h primary • 4h confirm" },
-      { id: "INTERMEDIATE", name: "Intermediate — Long", tf: "4h", sub: "4h primary • EOD gate" },
+      { id: "SCALP" },
+      { id: "MINOR" },
+      { id: "INTERMEDIATE" },
     ],
     []
   );
-
-  const STRATEGY_ID_MAP = {
-    SCALP: "intraday_scalp@10m",
-    MINOR: "minor_swing@1h",
-    INTERMEDIATE: "intermediate_long@4h",
-  };
 
   const [active, setActive] = useState("SCALP");
 
@@ -1667,68 +710,16 @@ export default function RowStrategies() {
     includeContext: 1,
   });
 
-  const [scalpStatus, setScalpStatus] = useState({ data: null, err: null, last: null });
-
-  useEffect(() => {
-    let alive = true;
-    let timer = null;
-    let inFlight = false;
-
-    const schedule = (ms) => {
-      if (!alive) return;
-      if (timer) clearTimeout(timer);
-      timer = setTimeout(pull, ms);
-    };
-
-    async function pull() {
-      if (!alive) return;
-      if (inFlight) {
-        schedule(GO_POLL_MS);
-        return;
-      }
-
-      inFlight = true;
-      const controller = new AbortController();
-      const t = setTimeout(() => controller.abort(), GO_TIMEOUT_MS);
-
-      try {
-        const j = await safeFetchGo(SCALP_STATUS_URL(), { signal: controller.signal });
-        if (alive) {
-          setScalpStatus({ data: j, err: null, last: nowIso() });
-        }
-      } catch (e) {
-        if (alive) {
-          setScalpStatus((prev) => ({
-            ...prev,
-            err: String(e?.message || e),
-            last: nowIso(),
-          }));
-        }
-      } finally {
-        clearTimeout(t);
-        inFlight = false;
-        schedule(GO_POLL_MS);
-      }
-    }
-
-    pull();
-    return () => {
-      alive = false;
-      if (timer) clearTimeout(timer);
-    };
-  }, []);
-
-  function load(sym, tf) {
-    setSelection({ symbol: sym, timeframe: tf, strategy: "smz" });
-  }
-
-  const scalpGo = scalpStatus?.data?.go || null;
-  const scalpClassifier = getScalpClassifierView(scalpStatus);
+  const fresh = minutesAgo(lastFetch) <= 1.5;
+  const liveStatus = err ? "red" : fresh ? "green" : "yellow";
+  const liveTip = err
+    ? `Error: ${err}`
+    : `Last snapshot: ${lastFetch ? toAZ(lastFetch, true) : "—"}`;
 
   return (
     <section id="row-5" className="panel" style={{ padding: 10 }}>
       <div className="panel-head" style={{ alignItems: "center" }}>
-        <div className="panel-title">Strategies — Engine 5 Score + Engine 6 Permission</div>
+        <div className="panel-title">Strategies — Decision Interface</div>
 
         <div style={{ marginLeft: 10, display: "flex", gap: 6, flexWrap: "wrap" }}>
           {STRATS.map((s) => (
@@ -1799,371 +790,45 @@ export default function RowStrategies() {
       >
         {STRATS.map((s) => {
           const stratKey = STRATEGY_ID_MAP[s.id];
-
           const node = snapshot?.strategies?.[stratKey] || null;
-          const confluence = node?.confluence || null;
-          const permission = node?.permission || null;
-          const momentum = extractMomentum(node, snapshot);
-          const engine15Decision = extractEngine15Decision(node);
-
-          const engine15Stored =
-            node?.engine15 || snapshot?.engine15?.byStrategy?.[stratKey] || null;
-
-          const readinessPack =
-            engine15Stored && engine15Stored.readiness
-              ? engine15Stored
-              : computeReadinessFallback({ confluence, permissionObj: permission || null });
-
-          const fresh = minutesAgo(lastFetch) <= 1.5;
-          const liveStatus = err ? "red" : fresh ? "green" : "yellow";
-          const liveTip = err
-            ? `Error: ${err}`
-            : `Last snapshot: ${lastFetch ? toAZ(lastFetch, true) : "—"}`;
-
-          const score = clamp100(confluence?.scores?.total ?? 0);
-          const label = confluence?.scores?.label || grade(score);
-          const golden = showGoldenCoil(confluence);
-
-          const zone = extractActiveZone(confluence);
-          const targets = extractTargets(confluence);
-          const compression = extractCompression(confluence);
-          const volume = extractVolume(confluence);
-
-          const entryTxt = Number.isFinite(targets.entryTarget) ? fmt2(targets.entryTarget) : "—";
-          let exitTxt = "—";
-          if (Number.isFinite(targets.exitTarget)) {
-            exitTxt = fmt2(targets.exitTarget);
-          } else {
-            const hi = Number.isFinite(targets.exitTargetHi) ? `Hi ${fmt2(targets.exitTargetHi)}` : null;
-            const lo = Number.isFinite(targets.exitTargetLo) ? `Lo ${fmt2(targets.exitTargetLo)}` : null;
-            exitTxt = [hi, lo].filter(Boolean).join(" • ") || "—";
-          }
-
-          const perm = permission?.permission || "—";
 
           const activeGlow =
             active === s.id
               ? "0 0 0 2px rgba(59,130,246,.65) inset, 0 10px 30px rgba(0,0,0,.25)"
               : "0 10px 30px rgba(0,0,0,.25)";
 
-          const showGoHere = s.id === "SCALP";
-          const showScalpClassifier = s.id === "SCALP";
+          if (s.id === "SCALP") {
+            return (
+              <ScalpV1Card
+                key={s.id}
+                node={node}
+                snapshot={snapshot}
+                liveStatus={liveStatus}
+                liveTip={liveTip}
+                activeGlow={activeGlow}
+              />
+            );
+          }
+
+          if (s.id === "MINOR") {
+            return (
+              <IntermediateV1Card
+                key={s.id}
+                node={node}
+                snapshot={snapshot}
+                activeGlow={activeGlow}
+              />
+            );
+          }
 
           return (
-            <div
+            <PassiveCard
               key={s.id}
-              style={{
-                background: "#101010",
-                border: "1px solid #262626",
-                borderRadius: 12,
-                padding: CARD_PAD,
-                color: "#e5e7eb",
-                boxShadow: activeGlow,
-                minHeight: 360,
-                display: "flex",
-                flexDirection: "column",
-                gap: 9,
-                minWidth: 0,
-                overflow: "hidden",
-              }}
-            >
-              <ReadinessBar readinessPack={readinessPack} />
-
-              <Engine15DecisionBar decision={engine15Decision} />
-
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "minmax(0,1fr) clamp(250px, 27vw, 300px)",
-                  gap: 10,
-                  alignItems: "start",
-                  minWidth: 0,
-                }}
-              >
-                {/* LEFT */}
-                <div style={{ minWidth: 0 }}>
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "flex-start",
-                      justifyContent: "space-between",
-                      gap: 10,
-                    }}
-                  >
-                    <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 8,
-                          flexWrap: "wrap",
-                        }}
-                      >
-                        <div style={{ fontWeight: 1000, fontSize: FS.title, lineHeight: "17px" }}>
-                          {s.name}
-                        </div>
-
-                        <span
-                          style={{
-                            fontSize: FS.pill,
-                            fontWeight: 1000,
-                            padding: "5px 10px",
-                            borderRadius: 999,
-                            whiteSpace: "nowrap",
-                            ...permStyle(perm),
-                          }}
-                        >
-                          {permLabel(perm)}
-                        </span>
-
-                        {golden && (
-                          <span
-                            style={{
-                              background: "linear-gradient(135deg,#ffb703,#ff8800)",
-                              color: "#1a1a1a",
-                              fontWeight: 1000,
-                              fontSize: FS.pill,
-                              padding: "5px 10px",
-                              borderRadius: 8,
-                              boxShadow: "0 0 10px rgba(255,183,3,.55)",
-                              border: "1px solid rgba(255,255,255,.18)",
-                            }}
-                          >
-                            🔥 GOLDEN COIL
-                          </span>
-                        )}
-
-                        {showGoHere && <GoPillBig go={scalpGo} />}
-                      </div>
-
-                      <div style={{ fontSize: FS.subtitle, color: "#9ca3af", fontWeight: 800 }}>
-                        {s.sub}
-                      </div>
-                    </div>
-
-                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <LiveDot status={liveStatus} tip={liveTip} />
-                    </div>
-                  </div>
-
-                  <div
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "44px 1fr 40px",
-                      alignItems: "center",
-                      gap: 8,
-                      marginTop: 8,
-                    }}
-                  >
-                    <div style={{ color: "#9ca3af", fontSize: FS.micro, fontWeight: 1000 }}>
-                      Score
-                    </div>
-                    <div
-                      style={{
-                        background: "#1f2937",
-                        borderRadius: 8,
-                        height: 8,
-                        overflow: "hidden",
-                        border: "1px solid #334155",
-                      }}
-                    >
-                      <div
-                        style={{
-                          height: "100%",
-                          width: `${Math.max(0, Math.min(100, Math.round(score)))}%`,
-                          background:
-                            "linear-gradient(90deg,#22c55e 0%,#84cc16 40%,#f59e0b 70%,#ef4444 100%)",
-                        }}
-                      />
-                    </div>
-                    <div style={{ textAlign: "right", fontWeight: 1000, fontSize: FS.small }}>
-                      {Math.round(score)}
-                    </div>
-                  </div>
-
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      gap: 10,
-                      fontSize: FS.tiny,
-                      color: "#cbd5e1",
-                    }}
-                  >
-                    <div>
-                      <span style={{ color: "#9ca3af", fontWeight: 900 }}>Label:</span> {label || "—"}{" "}
-                      <span style={{ color: "#9ca3af" }}>(A+≥90 A≥80 B≥70 C≥60)</span>
-                    </div>
-                    <div>
-                      <span style={{ color: "#9ca3af", fontWeight: 900 }}>TF:</span> {s.tf}
-                    </div>
-                  </div>
-
-                  <div style={{ display: "grid", gap: 4, marginTop: 6 }}>
-                    <div style={{ fontSize: FS.small, color: "#cbd5e1", lineHeight: LH.normal }}>
-                      <b>Entry Target:</b> {entryTxt}
-                    </div>
-                    <div style={{ fontSize: FS.small, color: "#cbd5e1", lineHeight: LH.normal }}>
-                      <b>Exit Target:</b> {exitTxt}
-                    </div>
-                  </div>
-
-                  <div style={{ display: "grid", gap: 6, marginTop: 6 }}>
-                    <div style={{ fontSize: FS.small, color: "#cbd5e1", lineHeight: LH.normal }}>
-                      <b>Active Zone:</b>{" "}
-                      {zone?.zoneType ? (
-                        <>
-                          <span style={{ color: "#fbbf24", fontWeight: 1000 }}>{zone.zoneType}</span>{" "}
-                          <span style={{ color: "#94a3b8" }}>
-                            {Number.isFinite(zone.lo) ? fmt2(zone.lo) : "—"}–
-                            {Number.isFinite(zone.hi) ? fmt2(zone.hi) : "—"}
-                          </span>
-                        </>
-                      ) : (
-                        "—"
-                      )}
-                    </div>
-
-                    <MiniRow
-                      label="Compression"
-                      left={`${compression.active ? "ACTIVE" : "OFF"} • ${compression.tier} • ${compression.state}`}
-                      right={`score ${Number.isFinite(compression.score) ? Math.round(compression.score) : "—"} • ATR`}
-                      tone={compression.active ? "warn" : "muted"}
-                    />
-
-                    <MiniRow
-                      label="Volume"
-                      left={`${volume.state || "—"} • score ${Number.isFinite(volume.volumeScore) ? Math.round(volume.volumeScore) : "—"}`}
-                      right={`${volume.volumeConfirmed ? "CONFIRMED" : "unconfirmed"}`}
-                      tone={volume.volumeConfirmed ? "ok" : "muted"}
-                    />
-
-                    {showScalpClassifier && (
-                      <>
-                        <MiniRow
-                          label="Move"
-                          left={`${scalpClassifier.moveType}`}
-                          right={`bias ${scalpClassifier.moveDirection}`}
-                          tone={
-                            scalpClassifier.moveDirection === "LONG"
-                              ? "ok"
-                              : scalpClassifier.moveDirection === "SHORT"
-                                ? "warn"
-                                : "muted"
-                          }
-                        />
-
-                        <MiniRow
-                          label="Confidence"
-                          left={`score ${scalpClassifier.moveScore}`}
-                          right={scalpClassifier.moveType === "NONE" ? "no classifier" : "live E5B"}
-                          tone={
-                            Number.isFinite(Number(scalpClassifier.moveScore)) &&
-                            Number(scalpClassifier.moveScore) >= 60
-                              ? "ok"
-                              : Number.isFinite(Number(scalpClassifier.moveScore)) &&
-                                  Number(scalpClassifier.moveScore) >= 40
-                                ? "warn"
-                                : "muted"
-                          }
-                        />
-
-                        <MiniRow
-                          label="Waiting"
-                          left={scalpClassifier.waitingBecause}
-                          right={scalpClassifier.moveDirection === "—" ? "—" : `bias ${scalpClassifier.moveDirection}`}
-                          tone="muted"
-                        />
-                      </>
-                    )}
-
-                    {!showScalpClassifier && (
-                      <MiniRow
-                        label="Momentum"
-                        left={`10m ${momentum.smi10m.direction} • 1h ${momentum.smi1h.direction}`}
-                        right={`${momentum.alignment} • ${momentum.momentumState}`}
-                        tone={
-                          momentum.alignment === "BULLISH"
-                            ? "ok"
-                            : momentum.alignment === "BEARISH"
-                              ? "danger"
-                              : "warn"
-                        }
-                      />
-                    )}
-                  </div>
-
-                  <div
-                    style={{
-                      marginTop: 6,
-                      fontSize: FS.small,
-                      color: "#94a3b8",
-                      fontWeight: 900,
-                      lineHeight: LH.normal,
-                    }}
-                  >
-                    {showScalpClassifier && scalpClassifier.waitingBecause !== "—"
-                      ? `Waiting because: ${scalpClassifier.waitingBecause}.`
-                      : nextTriggerText(confluence)}
-                  </div>
-
-                  <div
-                    style={{
-                      marginTop: 9,
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: 9,
-                    }}
-                  >
-                    <StrategySnapshotPanel engine2={node?.engine2 || null} />
-                    <MomentumPanel momentum={momentum} />
-                  </div>
-                </div>
-
-                {/* RIGHT */}
-                <div style={{ minWidth: 0, display: "flex", flexDirection: "column", gap: 10 }}>
-                  <EngineStack
-                    confluence={confluence}
-                    permission={permission}
-                    engine2Card={node?.engine2 || null}
-                    scalpClassifier={showScalpClassifier ? scalpClassifier : null}
-                    momentum={momentum}
-                  />
-                </div>
-              </div>
-
-              <div
-                style={{
-                  marginTop: "auto",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  gap: 8,
-                }}
-              >
-                <span
-                  style={{
-                    background: "#0b1220",
-                    border: "1px solid #1f2937",
-                    color: "#93c5fd",
-                    padding: "5px 9px",
-                    borderRadius: 999,
-                    fontSize: FS.micro,
-                    fontWeight: 1000,
-                  }}
-                >
-                  PAPER ONLY
-                </span>
-
-                <button
-                  onClick={() => openFullStrategies("SPY")}
-                  style={btn()}
-                  title="Open all strategies in a large readable view"
-                >
-                  Open Full Strategies
-                </button>
-              </div>
-            </div>
+              title="Longer-Term"
+              tf="4h"
+              node={node}
+              snapshot={snapshot}
+            />
           );
         })}
       </div>
