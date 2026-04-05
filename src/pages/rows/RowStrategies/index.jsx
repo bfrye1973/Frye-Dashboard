@@ -23,14 +23,14 @@ const POLL_MS = 20000;
 const TIMEOUT_MS = 20000;
 
 const FS = {
-  micro: 11,
-  tiny: 12,
-  small: 13,
-  body: 14,
-  section: 11,
-  subtitle: 12,
-  title: 15,
-  button: 12,
+  micro: 15,
+  tiny: 16,
+  small: 17,
+  body: 18,
+  section: 15,
+  subtitle: 16,
+  title: 20,
+  button: 16,
 };
 
 const STRATEGY_ID_MAP = {
@@ -98,7 +98,7 @@ function btn() {
     color: "#e5e7eb",
     border: "1px solid #2a2a2a",
     borderRadius: 10,
-    padding: "6px 11px",
+    padding: "7px 12px",
     fontSize: FS.button,
     fontWeight: 900,
     cursor: "pointer",
@@ -310,8 +310,8 @@ function Badge({ text, tone = "wait", large = false, title = "" }) {
         display: "inline-flex",
         alignItems: "center",
         justifyContent: "center",
-        minHeight: large ? 26 : 22,
-        padding: large ? "6px 10px" : "4px 8px",
+        minHeight: large ? 30 : 25,
+        padding: large ? "7px 12px" : "5px 10px",
         borderRadius: 999,
         background: p.bg,
         color: p.fg,
@@ -333,12 +333,12 @@ function TopReadinessBar({ readiness, bias }) {
   return (
     <div
       style={{
-        height: 6,
+        height: 10,
         borderRadius: 999,
         background: colors.base,
         position: "relative",
         overflow: "hidden",
-        boxShadow: `0 0 10px ${colors.base}55`,
+        boxShadow: `0 0 12px ${colors.base}66`,
       }}
     >
       <div
@@ -362,11 +362,11 @@ function CompactSection({ title, children, subtle = false }) {
       style={{
         border: subtle ? "1px solid #18212e" : "1px solid #1f2937",
         borderRadius: 12,
-        padding: 8,
+        padding: 10,
         background: subtle ? "#0a0f18" : "#0b0b0b",
         display: "flex",
         flexDirection: "column",
-        gap: 6,
+        gap: 8,
       }}
     >
       <div style={{ fontWeight: 1000, color: "#93c5fd", fontSize: FS.section }}>
@@ -382,8 +382,8 @@ function KV({ label, value }) {
     <div
       style={{
         display: "grid",
-        gridTemplateColumns: "96px 1fr",
-        gap: 8,
+        gridTemplateColumns: "118px 1fr",
+        gap: 10,
         alignItems: "start",
       }}
     >
@@ -395,7 +395,7 @@ function KV({ label, value }) {
           color: "#e5e7eb",
           fontSize: FS.small,
           fontWeight: 900,
-          lineHeight: 1.2,
+          lineHeight: 1.25,
           wordBreak: "break-word",
         }}
       >
@@ -411,7 +411,7 @@ function CompactBool({ label, value }) {
       style={{
         display: "grid",
         gridTemplateColumns: "1fr auto",
-        gap: 8,
+        gap: 10,
         alignItems: "center",
       }}
     >
@@ -468,24 +468,21 @@ function intermediateTriggerCondition(engine16, readiness) {
   return "await confirmation";
 }
 
-function scalpSummary(node, snapshot) {
+function scalpSummary(node) {
   const readiness = getReadiness(node);
   const bias = getBias(node);
   const nextFocus = getLifecycle(node).nextFocus;
-  const market = upper(snapshot?.marketRegime?.regime || "MIXED");
 
-  return `Scalp is in ${prettyEnum(readiness)} with ${bias.toLowerCase()}. Market is ${market.toLowerCase()}. Next focus is ${prettyEnum(
+  return `Scalp is ${prettyEnum(readiness).toLowerCase()} with ${bias.toLowerCase()}. Focus: ${prettyEnum(
     nextFocus
   ).toLowerCase()}.`;
 }
 
-function intermediateSummary(node, snapshot) {
+function intermediateSummary(node) {
   const readiness = getReadiness(node);
-  const bias = getBias(node);
   const nextFocus = getLifecycle(node).nextFocus;
-  const market = upper(snapshot?.marketRegime?.regime || "MIXED");
 
-  return `Intermediate is in ${prettyEnum(readiness)} with ${bias.toLowerCase()}. Market is ${market.toLowerCase()}. Next focus is ${prettyEnum(
+  return `Intermediate is ${prettyEnum(readiness).toLowerCase()}. Waiting for ${prettyEnum(
     nextFocus
   ).toLowerCase()}.`;
 }
@@ -506,7 +503,7 @@ function LifecycleStrip({ node }) {
         style={{
           display: "grid",
           gridTemplateColumns: "repeat(2, minmax(0,1fr))",
-          gap: 6,
+          gap: 8,
         }}
       >
         <KV label="State" value={prettyEnum(lc.state)} />
@@ -524,7 +521,7 @@ function NotReadyBecause({ node }) {
 
   return (
     <CompactSection title="NOT READY BECAUSE" subtle>
-      <div style={{ display: "grid", gap: 4 }}>
+      <div style={{ display: "grid", gap: 5 }}>
         {reasons.map((r, i) => (
           <div
             key={`${r}-${i}`}
@@ -532,7 +529,7 @@ function NotReadyBecause({ node }) {
               fontSize: FS.small,
               fontWeight: 800,
               color: "#e5e7eb",
-              lineHeight: 1.2,
+              lineHeight: 1.25,
             }}
           >
             • {prettyEnum(r)}
@@ -545,7 +542,6 @@ function NotReadyBecause({ node }) {
 
 /* -------------------- cards -------------------- */
 function ScalpCompactCard({ node, snapshot, liveStatus, liveTip, activeGlow }) {
-  const decision = node?.engine15Decision || {};
   const engine16 = node?.engine16 || {};
   const permission = node?.permission || {};
 
@@ -561,7 +557,7 @@ function ScalpCompactCard({ node, snapshot, liveStatus, liveTip, activeGlow }) {
   const phase = engine16?.waveContext?.waveState || engine16?.waveState || "—";
   const macroBias = engine16?.macroBias || "NONE";
   const permissionText = upper(permission?.permission || "UNKNOWN");
-  const summary = scalpSummary(node, snapshot);
+  const summary = scalpSummary(node);
 
   const showShort = bias.includes("SHORT") || engine16?.waveShortPrep === true;
   const showLong = bias.includes("LONG") || engine16?.waveLongPrep === true;
@@ -572,13 +568,13 @@ function ScalpCompactCard({ node, snapshot, liveStatus, liveTip, activeGlow }) {
         background: "#101010",
         border: "1px solid #262626",
         borderRadius: 14,
-        padding: 10,
+        padding: 12,
         color: "#e5e7eb",
         boxShadow: activeGlow,
         minHeight: 0,
         display: "flex",
         flexDirection: "column",
-        gap: 8,
+        gap: 10,
         minWidth: 0,
         overflow: "hidden",
       }}
@@ -590,7 +586,7 @@ function ScalpCompactCard({ node, snapshot, liveStatus, liveTip, activeGlow }) {
           display: "flex",
           justifyContent: "space-between",
           alignItems: "flex-start",
-          gap: 8,
+          gap: 10,
           flexWrap: "wrap",
         }}
       >
@@ -601,10 +597,10 @@ function ScalpCompactCard({ node, snapshot, liveStatus, liveTip, activeGlow }) {
           </div>
         </div>
 
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+        <div style={{ display: "flex", gap: 7, flexWrap: "wrap", alignItems: "center" }}>
           <Badge text={upper(readiness)} tone={readinessTone(readiness)} large />
-          <Badge text={upper(action)} tone={actionTone(action)} large />
-          <Badge text={bias} tone={biasTone(bias)} large />
+          <Badge text={upper(action)} tone={actionTone(action)} />
+          <Badge text={bias} tone={biasTone(bias)} />
           <LiveDot status={liveStatus} tip={liveTip} />
         </div>
       </div>
@@ -616,7 +612,7 @@ function ScalpCompactCard({ node, snapshot, liveStatus, liveTip, activeGlow }) {
           style={{
             display: "grid",
             gridTemplateColumns: "repeat(2, minmax(0,1fr))",
-            gap: 6,
+            gap: 8,
           }}
         >
           <KV label="Context" value={prettyEnum(context)} />
@@ -633,14 +629,14 @@ function ScalpCompactCard({ node, snapshot, liveStatus, liveTip, activeGlow }) {
           label="Fresh Entry"
           value={<Badge text={freshEntry ? "YES" : "NO"} tone={yesNoTone(freshEntry)} />}
         />
+        <KV label="Exec Bias" value={prettyEnum(executionBias)} />
         <KV
           label="Permission"
           value={<Badge text={permissionText} tone={permissionTone(permissionText)} />}
         />
-        <KV label="Exec Bias" value={prettyEnum(executionBias)} />
       </CompactSection>
 
-      <CompactSection title="TRIGGER PATH" subtle>
+      <CompactSection title="TRIGGER PATH (SHORT / LONG)" subtle>
         {(showShort || (!showShort && !showLong)) && (
           <>
             <CompactBool label="Watch Short Prep" value={engine16?.waveShortPrep === true} />
@@ -695,7 +691,7 @@ function IntermediateCompactCard({ node, snapshot, activeGlow }) {
 
   const nextFocus = getLifecycle(node).nextFocus;
   const permissionText = upper(permission?.permission || "UNKNOWN");
-  const summary = intermediateSummary(node, snapshot);
+  const summary = intermediateSummary(node);
   const executionEngine = engine16?.skipped === true ? "STRUCTURE MODE" : "ACTIVE";
   const waveMode = getWaveMode(engine16);
 
@@ -705,13 +701,13 @@ function IntermediateCompactCard({ node, snapshot, activeGlow }) {
         background: "#0f1117",
         border: "1px solid #1f2937",
         borderRadius: 14,
-        padding: 10,
+        padding: 12,
         color: "#e5e7eb",
         boxShadow: activeGlow,
         minHeight: 0,
         display: "flex",
         flexDirection: "column",
-        gap: 8,
+        gap: 10,
         minWidth: 0,
         overflow: "hidden",
       }}
@@ -722,7 +718,7 @@ function IntermediateCompactCard({ node, snapshot, activeGlow }) {
         style={{
           display: "flex",
           justifyContent: "space-between",
-          gap: 8,
+          gap: 10,
           alignItems: "flex-start",
           flexWrap: "wrap",
         }}
@@ -734,7 +730,7 @@ function IntermediateCompactCard({ node, snapshot, activeGlow }) {
           </div>
         </div>
 
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>
           <Badge text={upper(readiness)} tone={readinessTone(readiness)} />
           <Badge text={upper(action)} tone={actionTone(action)} />
           <Badge text={bias} tone={biasTone(bias)} />
@@ -748,7 +744,7 @@ function IntermediateCompactCard({ node, snapshot, activeGlow }) {
           style={{
             display: "grid",
             gridTemplateColumns: "repeat(2, minmax(0,1fr))",
-            gap: 6,
+            gap: 8,
           }}
         >
           <KV label="Primary Phase" value={prettyEnum(primaryPhase)} />
@@ -765,11 +761,11 @@ function IntermediateCompactCard({ node, snapshot, activeGlow }) {
           label="Fresh Entry"
           value={<Badge text={getFreshEntry(node) ? "YES" : "NO"} tone={yesNoTone(getFreshEntry(node))} />}
         />
+        <KV label="Exec Bias" value={prettyEnum(getExecutionBias(node))} />
         <KV
           label="Permission"
           value={<Badge text={permissionText} tone={permissionTone(permissionText)} />}
         />
-        <KV label="Exec Bias" value={prettyEnum(getExecutionBias(node))} />
       </CompactSection>
 
       <CompactSection title="STRUCTURE STATUS" subtle>
@@ -804,12 +800,12 @@ function PassiveMiniCard({ node, snapshot }) {
         background: "#0d1016",
         border: "1px solid #1c2533",
         borderRadius: 14,
-        padding: 10,
+        padding: 12,
         color: "#e5e7eb",
         minHeight: 0,
         display: "flex",
         flexDirection: "column",
-        gap: 8,
+        gap: 10,
         minWidth: 0,
         overflow: "hidden",
       }}
@@ -819,7 +815,7 @@ function PassiveMiniCard({ node, snapshot }) {
       <div style={{ fontWeight: 1000, fontSize: FS.title }}>Longer-Term</div>
       <div style={{ color: "#9ca3af", fontSize: FS.subtitle, fontWeight: 800 }}>4h</div>
 
-      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+      <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>
         <Badge text={upper(readiness)} tone={readinessTone(readiness)} />
         <Badge text={upper(action)} tone={actionTone(action)} />
         <Badge text={bias} tone={biasTone(bias)} />
@@ -863,7 +859,9 @@ export default function RowStrategies() {
   return (
     <section id="row-5" className="panel" style={{ padding: 10 }}>
       <div className="panel-head" style={{ alignItems: "center" }}>
-        <div className="panel-title">Strategies — Decision Interface</div>
+        <div className="panel-title" style={{ fontSize: 18, fontWeight: 1000 }}>
+          Strategies — Decision Interface
+        </div>
 
         <div style={{ marginLeft: 10, display: "flex", gap: 6, flexWrap: "wrap" }}>
           {STRATS.map((s) => (
@@ -876,7 +874,7 @@ export default function RowStrategies() {
                 border: active === s.id ? "1px solid #3b82f6" : "1px solid #2b2b2b",
                 boxShadow: active === s.id ? "0 0 0 1px #3b82f6 inset" : "none",
                 borderRadius: 10,
-                padding: "6px 10px",
+                padding: "7px 11px",
                 fontWeight: 1000,
                 fontSize: FS.micro,
                 cursor: "pointer",
