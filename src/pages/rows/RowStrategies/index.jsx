@@ -1,81 +1,10 @@
 // src/pages/rows/RowStrategies/index.jsx
 // Row 5 — Strategies (compact decision interface)
-// Backend is source of truth.
-// Full strategies page remains separate for now.
+// PART 1 OF 2
 
 import React, { useMemo, useState } from "react";
 import LiveDot from "../../../components/LiveDot";
 import { useDashboardSnapshot } from "../../../hooks/useDashboardSnapshot";
-/* -------------------- layout helpers -------------------- */
-
-function TwoCol({ left, right }) {
-  return (
-    <div
-      style={{
-        display: "grid",
-        gridTemplateColumns: "1.3fr 0.7fr",
-        gap: 8,
-        alignItems: "start",
-      }}
-    >
-      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        {left}
-      </div>
-
-      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        {right}
-      </div>
-    </div>
-  );
-}
-
-function TriggerStateFull({ engine16 }) {
-  return (
-    <CompactSection title="TRIGGER STATE" subtle>
-      <div style={{ display: "grid", gap: 6 }}>
-        {/* SHORT SIDE */}
-        <div style={{ fontWeight: 900, color: "#fca5a5" }}>SHORT</div>
-        <CompactBool label="Watch Prep" value={engine16?.waveShortPrep === true} />
-        <CompactBool label="Continuation" value={engine16?.continuationTriggerShort === true} />
-        <CompactBool label="Exhaustion" value={engine16?.exhaustionTriggerShort === true} />
-
-        {/* LONG SIDE */}
-        <div style={{ fontWeight: 900, color: "#86efac", marginTop: 4 }}>LONG</div>
-        <CompactBool label="Watch Prep" value={engine16?.waveLongPrep === true} />
-        <CompactBool label="Continuation" value={engine16?.continuationTriggerLong === true} />
-        <CompactBool label="Exhaustion" value={engine16?.exhaustionTriggerLong === true} />
-      </div>
-    </CompactSection>
-  );
-}
-
-function NotReadySummaryBlock({ node, snapshot, summary }) {
-  const reasons = getNotReadyReasons(node);
-
-  return (
-    <TwoCol
-      left={
-        <CompactSection title="NOT READY BECAUSE" subtle>
-          {reasons.length ? (
-            reasons.map((r, i) => (
-              <div key={i} style={{ fontWeight: 800 }}>
-                • {prettyEnum(r)}
-              </div>
-            ))
-          ) : (
-            <div style={{ color: "#9ca3af" }}>—</div>
-          )}
-        </CompactSection>
-      }
-      right={
-        <CompactSection title="SUMMARY" subtle>
-          <KV label="Market" value={marketLine(snapshot)} />
-          <KV label="Summary" value={summary} />
-        </CompactSection>
-      }
-    />
-  );
-}
 
 /* -------------------- env helpers -------------------- */
 function env(name, fb = "") {
@@ -93,14 +22,14 @@ const POLL_MS = 20000;
 const TIMEOUT_MS = 20000;
 
 const FS = {
-  micro: 15,
-  tiny: 16,
-  small: 17,
-  body: 18,
-  section: 15,
-  subtitle: 16,
-  title: 20,
-  button: 16,
+  micro: 13,
+  tiny: 14,
+  small: 15,
+  body: 16,
+  section: 13,
+  subtitle: 14,
+  title: 18,
+  button: 14,
 };
 
 const STRATEGY_ID_MAP = {
@@ -146,6 +75,10 @@ function fmt2(x) {
   return Number.isFinite(Number(x)) ? Number(x).toFixed(2) : "—";
 }
 
+function pct(x) {
+  return Number.isFinite(Number(x)) ? `${Math.round(Number(x))}%` : "—";
+}
+
 function upper(x, fb = "—") {
   const s = String(x ?? "").trim();
   return s ? s.toUpperCase() : fb;
@@ -168,7 +101,7 @@ function btn() {
     color: "#e5e7eb",
     border: "1px solid #2a2a2a",
     borderRadius: 10,
-    padding: "7px 12px",
+    padding: "7px 11px",
     fontSize: FS.button,
     fontWeight: 900,
     cursor: "pointer",
@@ -224,19 +157,32 @@ function getFreshEntry(node) {
 
 function getLifecycle(node) {
   const lifecycle = node?.engine15Decision?.lifecycle || {};
+
   return {
-    state:
-      lifecycle?.state ||
-      node?.engine15Decision?.lifecycleState ||
-      node?.engine15?.readiness ||
-      "WATCH",
-    nextFocus: lifecycle?.nextFocus || "WAIT",
+    tp1Open: lifecycle?.tp1Open === true,
+    tp2Open: lifecycle?.tp2Open === true,
+    runnerOn: lifecycle?.runnerOn === true,
     signalPrice: Number.isFinite(Number(lifecycle?.signalPrice))
       ? Number(lifecycle.signalPrice)
       : null,
     currentPrice: Number.isFinite(Number(lifecycle?.currentPrice))
       ? Number(lifecycle.currentPrice)
       : null,
+    progressPct: Number.isFinite(Number(lifecycle?.progressPct))
+      ? Number(lifecycle.progressPct)
+      : null,
+    remainingPct: Number.isFinite(Number(lifecycle?.remainingPct))
+      ? Number(lifecycle.remainingPct)
+      : null,
+    movePts: Number.isFinite(Number(lifecycle?.movePts))
+      ? Number(lifecycle.movePts)
+      : null,
+    state:
+      lifecycle?.state ||
+      node?.engine15Decision?.lifecycleState ||
+      node?.engine15?.readiness ||
+      "WATCH",
+    nextFocus: lifecycle?.nextFocus || "WAIT_FOR_TRIGGER",
   };
 }
 
@@ -399,7 +345,6 @@ function Badge({ text, tone = "wait", large = false, title = "" }) {
 
 function TopReadinessBar({ readiness, bias }) {
   const colors = readinessBarColors(readiness, bias);
-
   return (
     <div
       style={{
@@ -436,7 +381,7 @@ function CompactSection({ title, children, subtle = false }) {
         background: subtle ? "#0a0f18" : "#0b0b0b",
         display: "flex",
         flexDirection: "column",
-        gap: 8,
+        gap: 6,
       }}
     >
       <div style={{ fontWeight: 1000, color: "#93c5fd", fontSize: FS.section }}>
@@ -452,7 +397,7 @@ function KV({ label, value }) {
     <div
       style={{
         display: "grid",
-        gridTemplateColumns: "105px 1fr",
+        gridTemplateColumns: "102px 1fr",
         gap: 6,
         alignItems: "start",
       }}
@@ -465,7 +410,7 @@ function KV({ label, value }) {
           color: "#e5e7eb",
           fontSize: FS.small,
           fontWeight: 900,
-          lineHeight: 1.25,
+          lineHeight: 1.2,
           wordBreak: "break-word",
         }}
       >
@@ -481,7 +426,7 @@ function CompactBool({ label, value }) {
       style={{
         display: "grid",
         gridTemplateColumns: "1fr auto",
-        gap: 10,
+        gap: 6,
         alignItems: "center",
       }}
     >
@@ -489,6 +434,35 @@ function CompactBool({ label, value }) {
         {label}
       </div>
       <Badge text={value ? "YES" : "NO"} tone={yesNoTone(value)} />
+    </div>
+  );
+}
+// PART 2 OF 2
+
+function TwoCol({ left, right, wideLeft = true }) {
+  return (
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: wideLeft ? "1.3fr 0.7fr" : "1fr 1fr",
+        gap: 8,
+        alignItems: "start",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: 6,
+          borderRight: "1px solid #1f2937",
+          paddingRight: 8,
+        }}
+      >
+        {left}
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        {right}
+      </div>
     </div>
   );
 }
@@ -507,7 +481,6 @@ function scalpTriggerCondition(engine16) {
   ) {
     return "rejection + break";
   }
-
   if (
     engine16?.waveLongPrep === true &&
     engine16?.continuationTriggerLong !== true &&
@@ -515,18 +488,12 @@ function scalpTriggerCondition(engine16) {
   ) {
     return "support hold + break";
   }
-
   if (engine16?.exhaustionEarlyShort === true || engine16?.exhaustionEarlyLong === true) {
     return "exhaustion confirm";
   }
-
-  if (
-    engine16?.continuationWatchShort === true ||
-    engine16?.continuationWatchLong === true
-  ) {
+  if (engine16?.continuationWatchShort === true || engine16?.continuationWatchLong === true) {
     return "continuation trigger";
   }
-
   return "await trigger";
 }
 
@@ -542,7 +509,6 @@ function scalpSummary(node) {
   const readiness = getReadiness(node);
   const bias = getBias(node);
   const nextFocus = getLifecycle(node).nextFocus;
-
   return `Scalp is ${prettyEnum(readiness).toLowerCase()} with ${bias.toLowerCase()}. Focus: ${prettyEnum(
     nextFocus
   ).toLowerCase()}.`;
@@ -551,7 +517,6 @@ function scalpSummary(node) {
 function intermediateSummary(node) {
   const readiness = getReadiness(node);
   const nextFocus = getLifecycle(node).nextFocus;
-
   return `Intermediate is ${prettyEnum(readiness).toLowerCase()}. Waiting for ${prettyEnum(
     nextFocus
   ).toLowerCase()}.`;
@@ -572,45 +537,124 @@ function LifecycleStrip({ node }) {
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(2, minmax(0,1fr))",
-          gap: 8,
+          gridTemplateColumns: "repeat(4, minmax(0,1fr))",
+          gap: 6,
         }}
       >
+        <KV label="TP1" value={<Badge text={lc.tp1Open ? "OPEN" : "OFF"} tone={yesNoTone(lc.tp1Open)} />} />
+        <KV label="TP2" value={<Badge text={lc.tp2Open ? "OPEN" : "OFF"} tone={yesNoTone(lc.tp2Open)} />} />
+        <KV label="Runner" value={<Badge text={lc.runnerOn ? "ON" : "OFF"} tone={yesNoTone(lc.runnerOn)} />} />
         <KV label="State" value={prettyEnum(lc.state)} />
+
+        <KV label="Signal" value={lc.signalPrice == null ? "0.00" : fmt2(lc.signalPrice)} />
+        <KV label="Current" value={lc.currentPrice == null ? "0.00" : fmt2(lc.currentPrice)} />
+        <KV label="Remain" value={pct(lc.remainingPct)} />
         <KV label="Next" value={prettyEnum(lc.nextFocus)} />
-        <KV label="Signal" value={lc.signalPrice == null ? "—" : fmt2(lc.signalPrice)} />
-        <KV label="Current" value={lc.currentPrice == null ? "—" : fmt2(lc.currentPrice)} />
+
+        <KV label="Progress" value={pct(lc.progressPct)} />
+        <KV label="Move" value={lc.movePts == null ? "—" : fmt2(lc.movePts)} />
       </div>
     </CompactSection>
   );
 }
 
-function NotReadyBecause({ node }) {
+function TriggerStateFull({ engine16 }) {
+  return (
+    <CompactSection title="TRIGGER STATE" subtle>
+      <div style={{ display: "grid", gap: 6 }}>
+        <div style={{ fontWeight: 900, color: "#fca5a5" }}>SHORT</div>
+        <CompactBool label="Watch Prep" value={engine16?.waveShortPrep === true} />
+        <CompactBool label="Continuation" value={engine16?.continuationTriggerShort === true} />
+        <CompactBool label="Exhaustion" value={engine16?.exhaustionTriggerShort === true} />
+
+        <div style={{ fontWeight: 900, color: "#86efac", marginTop: 4 }}>LONG</div>
+        <CompactBool label="Watch Prep" value={engine16?.waveLongPrep === true} />
+        <CompactBool label="Continuation" value={engine16?.continuationTriggerLong === true} />
+        <CompactBool label="Exhaustion" value={engine16?.exhaustionTriggerLong === true} />
+      </div>
+    </CompactSection>
+  );
+}
+
+function NotReadySummaryBlock({ node, snapshot, summary }) {
   const reasons = getNotReadyReasons(node);
-  if (!reasons.length) return null;
 
   return (
-    <CompactSection title="NOT READY BECAUSE" subtle>
-      <div style={{ display: "grid", gap: 5 }}>
-        {reasons.map((r, i) => (
-          <div
-            key={`${r}-${i}`}
-            style={{
-              fontSize: FS.small,
-              fontWeight: 600,
-              color: "#9ca3af", 
-              lineHeight: 1.25,
-            }}
-          >
-            • {prettyEnum(r)}
-          </div>
-        ))}
+    <TwoCol
+      left={
+        <CompactSection title="NOT READY BECAUSE" subtle>
+          {reasons.length ? (
+            reasons.map((r, i) => (
+              <div
+                key={`${r}-${i}`}
+                style={{ fontWeight: 600, color: "#9ca3af", fontSize: FS.small, lineHeight: 1.2 }}
+              >
+                • {prettyEnum(r)}
+              </div>
+            ))
+          ) : (
+            <div style={{ color: "#9ca3af" }}>—</div>
+          )}
+        </CompactSection>
+      }
+      right={
+        <CompactSection title="SUMMARY" subtle>
+          <KV label="Market" value={marketLine(snapshot)} />
+          <KV label="Summary" value={summary} />
+        </CompactSection>
+      }
+    />
+  );
+}
+
+function StructureCoreScalp({ engine16 }) {
+  const context = engine16?.context || "—";
+  const state = engine16?.state || "—";
+  const phase = engine16?.waveContext?.waveState || engine16?.waveState || "—";
+  const macroBias = engine16?.macroBias || "NONE";
+
+  return (
+    <CompactSection title="STRUCTURE CORE">
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(2, minmax(0,1fr))",
+          gap: 6,
+        }}
+      >
+        <KV label="Context" value={prettyEnum(context)} />
+        <KV label="State" value={prettyEnum(state)} />
+        <KV label="Phase" value={prettyEnum(phase)} />
+        <KV label="Macro Bias" value={prettyEnum(macroBias)} />
       </div>
     </CompactSection>
   );
 }
 
-/* -------------------- cards -------------------- */
+function StructureCoreIntermediate({ engine16 }) {
+  const primaryPhase = engine16?.primaryPhase || "—";
+  const intermediatePhase = engine16?.intermediatePhase || "—";
+  const phase = engine16?.waveState || "—";
+  const macroBias = engine16?.macroBias || "NONE";
+
+  return (
+    <CompactSection title="STRUCTURE CORE" subtle>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(2, minmax(0,1fr))",
+          gap: 6,
+        }}
+      >
+        <KV label="Primary" value={prettyEnum(primaryPhase)} />
+        <KV label="Intermed." value={prettyEnum(intermediatePhase)} />
+        <KV label="Phase" value={prettyEnum(phase)} />
+        <KV label="Macro Bias" value={prettyEnum(macroBias)} />
+      </div>
+    </CompactSection>
+  );
+}
+
 function ScalpCompactCard({ node, snapshot, liveStatus, liveTip, activeGlow }) {
   const engine16 = node?.engine16 || {};
   const permission = node?.permission || {};
@@ -621,31 +665,44 @@ function ScalpCompactCard({ node, snapshot, liveStatus, liveTip, activeGlow }) {
   const nextFocus = getLifecycle(node).nextFocus;
   const executionBias = getExecutionBias(node);
   const freshEntry = getFreshEntry(node);
-
   const permissionText = upper(permission?.permission || "UNKNOWN");
   const summary = scalpSummary(node);
 
   return (
-    <div style={{
-      background: "#101010",
-      border: "1px solid #262626",
-      borderRadius: 14,
-      padding: 12,
-      boxShadow: activeGlow,
-      display: "flex",
-      flexDirection: "column",
-      gap: 8
-    }}>
+    <div
+      style={{
+        background: "#101010",
+        border: "1px solid #262626",
+        borderRadius: 14,
+        padding: 7,
+        color: "#e5e7eb",
+        boxShadow: activeGlow,
+        minHeight: 0,
+        height: "100%",
+        display: "flex",
+        flexDirection: "column",
+        gap: 6,
+        minWidth: 0,
+        overflow: "hidden",
+      }}
+    >
       <TopReadinessBar readiness={readiness} bias={bias} />
 
-      {/* HEADER */}
-      <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap" }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "flex-start",
+          gap: 8,
+          flexWrap: "wrap",
+        }}
+      >
         <div>
           <div style={{ fontWeight: 1000, fontSize: FS.title }}>Scalp</div>
-          <div style={{ color: "#9ca3af" }}>10m</div>
+          <div style={{ color: "#9ca3af", fontSize: FS.subtitle, fontWeight: 800 }}>10m</div>
         </div>
 
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
           <Badge text={upper(readiness)} tone={readinessTone(readiness)} large />
           <Badge text={upper(action)} tone={actionTone(action)} />
           <Badge text={bias} tone={biasTone(bias)} />
@@ -654,22 +711,27 @@ function ScalpCompactCard({ node, snapshot, liveStatus, liveTip, activeGlow }) {
       </div>
 
       <LifecycleStrip node={node} />
+      <StructureCoreScalp engine16={engine16} />
 
-      {/* DECISION + TRIGGER */}
       <TwoCol
         left={
           <CompactSection title="DECISION" subtle>
             <KV label="Next Focus" value={prettyEnum(nextFocus)} />
             <KV label="Trigger" value={prettyEnum(scalpTriggerCondition(engine16))} />
-            <KV label="Fresh Entry" value={<Badge text={freshEntry ? "YES" : "NO"} tone={yesNoTone(freshEntry)} />} />
+            <KV
+              label="Fresh Entry"
+              value={<Badge text={freshEntry ? "YES" : "NO"} tone={yesNoTone(freshEntry)} />}
+            />
             <KV label="Exec Bias" value={prettyEnum(executionBias)} />
-            <KV label="Permission" value={<Badge text={permissionText} tone={permissionTone(permissionText)} />} />
+            <KV
+              label="Permission"
+              value={<Badge text={permissionText} tone={permissionTone(permissionText)} />}
+            />
           </CompactSection>
         }
         right={<TriggerStateFull engine16={engine16} />}
       />
 
-      {/* NOT READY + SUMMARY */}
       <NotReadySummaryBlock node={node} snapshot={snapshot} summary={summary} />
     </div>
   );
@@ -682,12 +744,6 @@ function IntermediateCompactCard({ node, snapshot, activeGlow }) {
   const readiness = getReadiness(node);
   const action = getAction(node);
   const bias = getBias(node);
-
-  const primaryPhase = engine16?.primaryPhase || "—";
-  const intermediatePhase = engine16?.intermediatePhase || "—";
-  const phase = engine16?.waveState || "—";
-  const macroBias = engine16?.macroBias || "NONE";
-
   const nextFocus = getLifecycle(node).nextFocus;
   const permissionText = upper(permission?.permission || "UNKNOWN");
   const summary = intermediateSummary(node);
@@ -700,13 +756,14 @@ function IntermediateCompactCard({ node, snapshot, activeGlow }) {
         background: "#0f1117",
         border: "1px solid #1f2937",
         borderRadius: 14,
-        padding: 12,
+        padding: 7,
         color: "#e5e7eb",
         boxShadow: activeGlow,
         minHeight: 0,
+        height: "100%",
         display: "flex",
         flexDirection: "column",
-        gap: 10,
+        gap: 6,
         minWidth: 0,
         overflow: "hidden",
       }}
@@ -717,19 +774,17 @@ function IntermediateCompactCard({ node, snapshot, activeGlow }) {
         style={{
           display: "flex",
           justifyContent: "space-between",
-          gap: 10,
+          gap: 8,
           alignItems: "flex-start",
           flexWrap: "wrap",
         }}
       >
         <div>
           <div style={{ fontWeight: 1000, fontSize: FS.title }}>Intermediate Swing</div>
-          <div style={{ color: "#9ca3af", fontSize: FS.subtitle, fontWeight: 800 }}>
-            1h
-          </div>
+          <div style={{ color: "#9ca3af", fontSize: FS.subtitle, fontWeight: 800 }}>1h</div>
         </div>
 
-        <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
           <Badge text={upper(readiness)} tone={readinessTone(readiness)} />
           <Badge text={upper(action)} tone={actionTone(action)} />
           <Badge text={bias} tone={biasTone(bias)} />
@@ -737,21 +792,7 @@ function IntermediateCompactCard({ node, snapshot, activeGlow }) {
       </div>
 
       <LifecycleStrip node={node} />
-
-      <CompactSection title="STRUCTURE CORE" subtle>
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(2, minmax(0,1fr))",
-            gap: 8,
-          }}
-        >
-          <KV label="Primary Phase" value={prettyEnum(primaryPhase)} />
-          <KV label="Intermed. Phase" value={prettyEnum(intermediatePhase)} />
-          <KV label="Phase" value={prettyEnum(phase)} />
-          <KV label="Macro Bias" value={prettyEnum(macroBias)} />
-        </div>
-      </CompactSection>
+      <StructureCoreIntermediate engine16={engine16} />
 
       <CompactSection title="DECISION" subtle>
         <KV label="Next Focus" value={prettyEnum(nextFocus)} />
@@ -777,12 +818,7 @@ function IntermediateCompactCard({ node, snapshot, activeGlow }) {
         <KV label="Execution Eng." value={prettyEnum(executionEngine)} />
       </CompactSection>
 
-      <NotReadyBecause node={node} />
-
-      <CompactSection title="SUMMARY" subtle>
-        <KV label="Market" value={marketLine(snapshot)} />
-        <KV label="Summary" value={summary} />
-      </CompactSection>
+      <NotReadySummaryBlock node={node} snapshot={snapshot} summary={summary} />
     </div>
   );
 }
@@ -799,12 +835,13 @@ function PassiveMiniCard({ node, snapshot }) {
         background: "#0d1016",
         border: "1px solid #1c2533",
         borderRadius: 14,
-        padding: 12,
+        padding: 7,
         color: "#e5e7eb",
         minHeight: 0,
+        height: "100%",
         display: "flex",
         flexDirection: "column",
-        gap: 10,
+        gap: 6,
         minWidth: 0,
         overflow: "hidden",
       }}
@@ -814,7 +851,7 @@ function PassiveMiniCard({ node, snapshot }) {
       <div style={{ fontWeight: 1000, fontSize: FS.title }}>Longer-Term</div>
       <div style={{ color: "#9ca3af", fontSize: FS.subtitle, fontWeight: 800 }}>4h</div>
 
-      <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
         <Badge text={upper(readiness)} tone={readinessTone(readiness)} />
         <Badge text={upper(action)} tone={actionTone(action)} />
         <Badge text={bias} tone={biasTone(bias)} />
@@ -828,7 +865,6 @@ function PassiveMiniCard({ node, snapshot }) {
   );
 }
 
-/* -------------------- main -------------------- */
 export default function RowStrategies() {
   const STRATS = useMemo(
     () => [{ id: "SCALP" }, { id: "MINOR" }, { id: "INTERMEDIATE" }],
@@ -858,7 +894,7 @@ export default function RowStrategies() {
   return (
     <section id="row-5" className="panel" style={{ padding: 10 }}>
       <div className="panel-head" style={{ alignItems: "center" }}>
-        <div className="panel-title" style={{ fontSize: 18, fontWeight: 1000 }}>
+        <div className="panel-title" style={{ fontSize: 16, fontWeight: 1000 }}>
           Strategies — Decision Interface
         </div>
 
@@ -873,7 +909,7 @@ export default function RowStrategies() {
                 border: active === s.id ? "1px solid #3b82f6" : "1px solid #2b2b2b",
                 boxShadow: active === s.id ? "0 0 0 1px #3b82f6 inset" : "none",
                 borderRadius: 10,
-                padding: "7px 11px",
+                padding: "6px 10px",
                 fontWeight: 1000,
                 fontSize: FS.micro,
                 cursor: "pointer",
@@ -935,7 +971,7 @@ export default function RowStrategies() {
           gridTemplateColumns: "repeat(3, minmax(0,1fr))",
           gap: 8,
           marginTop: 10,
-          alignItems: "start",
+          alignItems: "stretch",
         }}
       >
         {STRATS.map((s) => {
