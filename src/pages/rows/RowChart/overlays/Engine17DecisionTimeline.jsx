@@ -5,86 +5,78 @@ import React from "react";
 function buildTimelineItems(overlayData) {
   const out = [];
   const fib = overlayData?.fib || {};
+
   const context = fib?.context || "NONE";
-  const state =
-    (overlayData?.badges || []).find((b) => b.kind === "STATE")?.value ||
-    "UNKNOWN";
-  const volume =
-    (overlayData?.badges || []).find((b) => b.kind === "VOLUME")?.value ||
-    "NORMAL";
-  const signals = Array.isArray(overlayData?.signals) ? overlayData.signals : [];
+  const state = fib?.state || "UNKNOWN";
+  const phase = fib?.waveContext?.waveState || fib?.waveState || "UNKNOWN";
+  const bias = fib?.waveContext?.macroBias || fib?.macroBias || "NONE";
+  const readiness = fib?.readinessLabel || "WAIT";
+  const nextFocus = fib?.nextFocus || null;
 
   out.push({ kind: "CONTEXT", text: `Context: ${context}` });
   out.push({ kind: "STATE", text: `State: ${state}` });
-  out.push({ kind: "VOLUME", text: `Volume: ${volume}` });
+  out.push({ kind: "PHASE", text: `Phase: ${phase}` });
+  out.push({ kind: "BIAS", text: `Bias: ${bias}` });
+  out.push({ kind: "READINESS", text: `Readiness: ${readiness}` });
 
-  if (fib?.strategyType && fib.strategyType !== "NONE") {
+  if (nextFocus) {
+    out.push({ kind: "NEXT_FOCUS", text: `Next Focus: ${nextFocus}` });
+  }
+
+  const reasonCodes = Array.isArray(fib?.waveReasonCodes) ? fib.waveReasonCodes : [];
+  reasonCodes.slice(0, 3).forEach((code) => {
     out.push({
-      kind: "STRATEGY",
-      text: `Strategy: ${fib.strategyType}`,
+      kind: "REASON",
+      text: `Reason: ${code}`,
+    });
+  });
+
+  if (fib?.waveShortPrep) {
+    out.push({
+      kind: "SHORT_PREP",
+      text: "Prep: SHORT SIDE ACTIVE",
     });
   }
 
-  if (fib?.readinessLabel && fib.readinessLabel !== "NO_SETUP") {
+  if (fib?.waveLongPrep) {
     out.push({
-      kind: "READINESS",
-      text: `Readiness: ${fib.readinessLabel}`,
+      kind: "LONG_PREP",
+      text: "Prep: LONG SIDE ACTIVE",
     });
   }
 
-  if (fib?.exhaustionTrigger === true && fib?.exhaustionActive) {
+  const signals = Array.isArray(overlayData?.signals) ? overlayData.signals : [];
+  signals.forEach((s) => {
+    const timeText = s?.time ? ` • Time: ${s.time}` : "";
     out.push({
-      kind: fib.exhaustionTriggerShort
-        ? "EXHAUSTION_TRIGGER_SHORT"
-        : fib.exhaustionTriggerLong
-        ? "EXHAUSTION_TRIGGER_LONG"
-        : "EXHAUSTION_TRIGGER",
-      text: `EXHAUSTION TRIGGER • ${
-        fib.exhaustionTriggerShort ? "SHORT" : fib.exhaustionTriggerLong ? "LONG" : "UNKNOWN"
-      } • Time: ${
-        fib?.signalTimes?.exhaustionTriggerTime || fib?.exhaustionBarTime || "—"
-      }`,
+      kind: s.kind,
+      text: `${s.label || s.kind}${timeText}`,
     });
-  } else if (fib?.exhaustionEarly === true) {
-    out.push({
-      kind: fib.exhaustionEarlyShort
-        ? "EXHAUSTION_EARLY_SHORT"
-        : fib.exhaustionEarlyLong
-        ? "EXHAUSTION_EARLY_LONG"
-        : "EXHAUSTION_EARLY",
-      text: `EXHAUSTION WATCH • ${
-        fib.exhaustionEarlyShort ? "SHORT" : fib.exhaustionEarlyLong ? "LONG" : "UNKNOWN"
-      } • Time: ${fib?.signalTimes?.exhaustionEarlyTime || "—"}`,
-    });
-  } else {
-    signals.forEach((s) => {
-      out.push({
-        kind: s.kind,
-        text: `E16: ${s.label || s.kind}`,
-      });
-    });
-  }
+  });
 
   return out;
 }
 
 function dotColor(kind) {
-  if (kind === "BREAKOUT_READY") return "#22c55e";
-  if (kind === "BREAKDOWN_READY") return "#ef4444";
-  if (kind === "IMPULSE_VOLUME_CONFIRMED") return "#a78bfa";
-  if (kind === "STATE") return "#60a5fa";
   if (kind === "CONTEXT") return "#34d399";
-  if (kind === "VOLUME") return "#f59e0b";
-  if (kind === "STRATEGY") return "#c084fc";
+  if (kind === "STATE") return "#60a5fa";
+  if (kind === "PHASE") return "#c084fc";
+  if (kind === "BIAS") return "#f87171";
   if (kind === "READINESS") return "#f8fafc";
+  if (kind === "NEXT_FOCUS") return "#a78bfa";
+  if (kind === "SHORT_PREP") return "#ef4444";
+  if (kind === "LONG_PREP") return "#22c55e";
+  if (kind === "REASON") return "#94a3b8";
 
-  if (kind === "EXHAUSTION_TRIGGER_SHORT") return "#ef4444";
-  if (kind === "EXHAUSTION_TRIGGER_LONG") return "#22c55e";
-  if (kind === "EXHAUSTION_TRIGGER") return "#f8fafc";
-
+  if (kind === "CONTINUATION_WATCH_SHORT") return "#60a5fa";
+  if (kind === "CONTINUATION_TRIGGER_SHORT") return "#22c55e";
   if (kind === "EXHAUSTION_EARLY_SHORT") return "#f59e0b";
+  if (kind === "EXHAUSTION_TRIGGER_SHORT") return "#ef4444";
+
+  if (kind === "CONTINUATION_WATCH_LONG") return "#60a5fa";
+  if (kind === "CONTINUATION_TRIGGER_LONG") return "#22c55e";
   if (kind === "EXHAUSTION_EARLY_LONG") return "#facc15";
-  if (kind === "EXHAUSTION_EARLY") return "#fde68a";
+  if (kind === "EXHAUSTION_TRIGGER_LONG") return "#22c55e";
 
   return "#94a3b8";
 }
@@ -106,8 +98,8 @@ export default function Engine17DecisionTimeline({
         left: "36%",
         transform: "translateX(-50%)",
         zIndex: 95,
-        width: 720,
-        maxWidth: "42%",
+        width: 760,
+        maxWidth: "44%",
         borderRadius: 14,
         border: "1px solid rgba(255,255,255,0.16)",
         background: "rgba(5,8,18,0.88)",
