@@ -1,35 +1,7 @@
 // src/pages/rows/RowChart/IndicatorsToolbar.jsx
-// v5.0 — Toolbar for:
-// - EMA
-// - Volume
-// - Engine 1 SMZ overlays
-// - Professional Overlay Stack (Engine 17)
-// - Engine 2 Fib (Primary/Intermediate/Minor/Minute)
-//
-// Includes full per-degree ⚙ settings:
-// - Fib visuals: color / font / thickness / show anchors/retrace/extensions
-// - Elliott (manual): show wave labels / show wave lines / label color+font / line color+width
-//
-// ✅ ENGINE 1 MASTER TOGGLE:
-// Institutional Zones (auto) also toggles Acc/Dist Shelves (auto)
-// so both Engine 1 overlays update together.
-//
-// ✅ ENGINE 17 / PROFESSIONAL OVERLAY STACK:
-// - Engine 17 Overlay
-// - Liquidity / Zones
-// - Market Structure
-// - Strategy Diagnostics
-// - Signals
-// - Decision Timeline
-// - Regime Background
-// - Confidence Stack
-// - Signal Provenance Markers
-// - Forward Risk Map (soft debug)
-// - Replay-Synced State
+// Engine 17 + Premarket Fib controls
 
 import React from "react";
-
-/* -------------------- small UI helpers -------------------- */
 
 function ColorInput({ value, onChange }) {
   return (
@@ -64,12 +36,9 @@ function Slider({ min, max, step, value, onChange }) {
   );
 }
 
-/* -------------------- settings block -------------------- */
-
 function SettingsBlock({ styleObj, onPatch }) {
   const s = styleObj || {};
 
-  // Fib styling
   const color = s.color || "#ffd54a";
   const fontPx = Number.isFinite(s.fontPx) ? s.fontPx : 18;
   const lineWidth = Number.isFinite(s.lineWidth) ? s.lineWidth : 3;
@@ -78,19 +47,14 @@ function SettingsBlock({ styleObj, onPatch }) {
   const showRetrace = s.showRetrace !== false;
   const showExtensions = s.showExtensions !== false;
 
-  // Elliott styling
   const showWaveLabels = s.showWaveLabels === true;
   const showWaveLines = s.showWaveLines === true;
 
   const waveLabelColor = s.waveLabelColor || color;
-  const waveLabelFontPx = Number.isFinite(s.waveLabelFontPx)
-    ? s.waveLabelFontPx
-    : fontPx;
+  const waveLabelFontPx = Number.isFinite(s.waveLabelFontPx) ? s.waveLabelFontPx : fontPx;
 
   const waveLineColor = s.waveLineColor || color;
-  const waveLineWidth = Number.isFinite(s.waveLineWidth)
-    ? s.waveLineWidth
-    : Math.max(2, lineWidth);
+  const waveLineWidth = Number.isFinite(s.waveLineWidth) ? s.waveLineWidth : Math.max(2, lineWidth);
 
   return (
     <div
@@ -103,19 +67,10 @@ function SettingsBlock({ styleObj, onPatch }) {
         padding: 10,
       }}
     >
-      {/* ---------- Fib visuals ---------- */}
-      <div
-        style={{
-          color: "#9ca3af",
-          fontSize: 12,
-          fontWeight: 800,
-          marginBottom: 8,
-        }}
-      >
+      <div style={{ color: "#9ca3af", fontSize: 12, fontWeight: 800, marginBottom: 8 }}>
         Fib Visuals
       </div>
 
-      {/* Color */}
       <div
         style={{
           display: "grid",
@@ -132,7 +87,6 @@ function SettingsBlock({ styleObj, onPatch }) {
         </div>
       </div>
 
-      {/* Font size */}
       <div
         style={{
           display: "grid",
@@ -143,20 +97,11 @@ function SettingsBlock({ styleObj, onPatch }) {
       >
         <div style={{ color: "#9ca3af", fontSize: 12 }}>Font</div>
         <div>
-          <Slider
-            min={10}
-            max={64}
-            step={1}
-            value={fontPx}
-            onChange={(v) => onPatch?.({ fontPx: v })}
-          />
-          <div style={{ color: "#9ca3af", fontSize: 12, marginTop: 4 }}>
-            {fontPx}px
-          </div>
+          <Slider min={10} max={64} step={1} value={fontPx} onChange={(v) => onPatch?.({ fontPx: v })} />
+          <div style={{ color: "#9ca3af", fontSize: 12, marginTop: 4 }}>{fontPx}px</div>
         </div>
       </div>
 
-      {/* Line thickness */}
       <div
         style={{
           display: "grid",
@@ -167,61 +112,23 @@ function SettingsBlock({ styleObj, onPatch }) {
       >
         <div style={{ color: "#9ca3af", fontSize: 12 }}>Line</div>
         <div>
-          <Slider
-            min={1}
-            max={12}
-            step={0.5}
-            value={lineWidth}
-            onChange={(v) => onPatch?.({ lineWidth: v })}
-          />
-          <div style={{ color: "#9ca3af", fontSize: 12, marginTop: 4 }}>
-            {lineWidth}px
-          </div>
+          <Slider min={1} max={12} step={0.5} value={lineWidth} onChange={(v) => onPatch?.({ lineWidth: v })} />
+          <div style={{ color: "#9ca3af", fontSize: 12, marginTop: 4 }}>{lineWidth}px</div>
         </div>
       </div>
 
-      {/* Fib toggles */}
       <div style={{ display: "grid", gap: 6, marginBottom: 12 }}>
-        <label
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            fontSize: 12,
-          }}
-        >
-          <input
-            type="checkbox"
-            checked={showAnchors}
-            onChange={(e) => onPatch?.({ showAnchors: e.target.checked })}
-          />
+        <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12 }}>
+          <input type="checkbox" checked={showAnchors} onChange={(e) => onPatch?.({ showAnchors: e.target.checked })} />
           Show Anchors
         </label>
 
-        <label
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            fontSize: 12,
-          }}
-        >
-          <input
-            type="checkbox"
-            checked={showRetrace}
-            onChange={(e) => onPatch?.({ showRetrace: e.target.checked })}
-          />
+        <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12 }}>
+          <input type="checkbox" checked={showRetrace} onChange={(e) => onPatch?.({ showRetrace: e.target.checked })} />
           Show Retrace
         </label>
 
-        <label
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            fontSize: 12,
-          }}
-        >
+        <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12 }}>
           <input
             type="checkbox"
             checked={showExtensions}
@@ -231,27 +138,12 @@ function SettingsBlock({ styleObj, onPatch }) {
         </label>
       </div>
 
-      {/* ---------- Elliott visuals ---------- */}
-      <div
-        style={{
-          color: "#9ca3af",
-          fontSize: 12,
-          fontWeight: 800,
-          marginBottom: 8,
-        }}
-      >
-        Elliott (Manual) Labels &amp; Lines
+      <div style={{ color: "#9ca3af", fontSize: 12, fontWeight: 800, marginBottom: 8 }}>
+        Elliott (Manual) Labels & Lines
       </div>
 
       <div style={{ display: "grid", gap: 6, marginBottom: 10 }}>
-        <label
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            fontSize: 12,
-          }}
-        >
+        <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12 }}>
           <input
             type="checkbox"
             checked={showWaveLabels}
@@ -260,24 +152,16 @@ function SettingsBlock({ styleObj, onPatch }) {
           Show Wave Labels
         </label>
 
-        <label
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            fontSize: 12,
-          }}
-        >
+        <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12 }}>
           <input
             type="checkbox"
             checked={showWaveLines}
             onChange={(e) => onPatch?.({ showWaveLines: e.target.checked })}
           />
-          Show Wave Lines (connect dots)
+          Show Wave Lines
         </label>
       </div>
 
-      {/* Wave label color + font */}
       <div
         style={{
           display: "grid",
@@ -289,13 +173,8 @@ function SettingsBlock({ styleObj, onPatch }) {
       >
         <div style={{ color: "#9ca3af", fontSize: 12 }}>Label Color</div>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <ColorInput
-            value={waveLabelColor}
-            onChange={(v) => onPatch?.({ waveLabelColor: v })}
-          />
-          <span style={{ color: "#9ca3af", fontSize: 12 }}>
-            {waveLabelColor}
-          </span>
+          <ColorInput value={waveLabelColor} onChange={(v) => onPatch?.({ waveLabelColor: v })} />
+          <span style={{ color: "#9ca3af", fontSize: 12 }}>{waveLabelColor}</span>
         </div>
       </div>
 
@@ -316,13 +195,10 @@ function SettingsBlock({ styleObj, onPatch }) {
             value={waveLabelFontPx}
             onChange={(v) => onPatch?.({ waveLabelFontPx: v })}
           />
-          <div style={{ color: "#9ca3af", fontSize: 12, marginTop: 4 }}>
-            {waveLabelFontPx}px
-          </div>
+          <div style={{ color: "#9ca3af", fontSize: 12, marginTop: 4 }}>{waveLabelFontPx}px</div>
         </div>
       </div>
 
-      {/* Wave line color + width */}
       <div
         style={{
           display: "grid",
@@ -334,13 +210,8 @@ function SettingsBlock({ styleObj, onPatch }) {
       >
         <div style={{ color: "#9ca3af", fontSize: 12 }}>Line Color</div>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <ColorInput
-            value={waveLineColor}
-            onChange={(v) => onPatch?.({ waveLineColor: v })}
-          />
-          <span style={{ color: "#9ca3af", fontSize: 12 }}>
-            {waveLineColor}
-          </span>
+          <ColorInput value={waveLineColor} onChange={(v) => onPatch?.({ waveLineColor: v })} />
+          <span style={{ color: "#9ca3af", fontSize: 12 }}>{waveLineColor}</span>
         </div>
       </div>
 
@@ -360,9 +231,7 @@ function SettingsBlock({ styleObj, onPatch }) {
             value={waveLineWidth}
             onChange={(v) => onPatch?.({ waveLineWidth: v })}
           />
-          <div style={{ color: "#9ca3af", fontSize: 12, marginTop: 4 }}>
-            {waveLineWidth}px
-          </div>
+          <div style={{ color: "#9ca3af", fontSize: 12, marginTop: 4 }}>{waveLineWidth}px</div>
         </div>
       </div>
     </div>
@@ -372,20 +241,9 @@ function SettingsBlock({ styleObj, onPatch }) {
 function FibRow({ label, enabled, styleObj, onToggle, onStylePatch }) {
   return (
     <div style={{ display: "grid", gap: 6 }}>
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: 10,
-        }}
-      >
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
         <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <input
-            type="checkbox"
-            checked={!!enabled}
-            onChange={(e) => onToggle?.(e.target.checked)}
-          />
+          <input type="checkbox" checked={!!enabled} onChange={(e) => onToggle?.(e.target.checked)} />
           <span style={{ fontWeight: 800 }}>{label}</span>
         </label>
 
@@ -408,74 +266,40 @@ function FibRow({ label, enabled, styleObj, onToggle, onStylePatch }) {
   );
 }
 
-/**
- * IndicatorsToolbar
- * Props:
- * - showEma, ema10, ema20, ema50
- * - volume
- * - institutionalZonesAuto
- * - smzShelvesAuto
- * - engine17Overlay
- * - liquidityZones
- * - marketStructure
- * - strategyDiagnostics
- * - signals
- * - decisionTimeline
- * - regimeBackground
- * - confidenceStack
- * - signalProvenance
- * - forwardRiskMap
- * - replaySyncedState
- * - fibPrimary, fibIntermediate, fibMinor, fibMinute
- * - fibPrimaryStyle, fibIntermediateStyle, fibMinorStyle, fibMinuteStyle
- * - onChange(patch), onReset()
- */
 export default function IndicatorsToolbar({
-  // EMA
   showEma = true,
   ema10 = true,
   ema20 = true,
   ema50 = true,
-
-  // Volume
   volume = true,
 
-  // SMZ
   institutionalZonesAuto = false,
   smzShelvesAuto = false,
 
-  // Engine 17 / professional overlays
-  engine17Overlay = false,
-  liquidityZones = true,
-  marketStructure = true,
-  strategyDiagnostics = false,
-  signals = true,
-  decisionTimeline = false,
-  regimeBackground = false,
-  confidenceStack = true,
-  signalProvenance = false,
-  forwardRiskMap = false,
-  replaySyncedState = false,
-
-  // Fib toggles
   fibPrimary = false,
   fibIntermediate = false,
   fibMinor = false,
   fibMinute = false,
 
-  // Fib styles
   fibPrimaryStyle,
   fibIntermediateStyle,
   fibMinorStyle,
   fibMinuteStyle,
 
-  // handlers
+  engine17Overlay = true,
+  engine17Timeline = true,
+  engine17Badges = true,
+  engine17StateOverlay = true,
+  engine17Signals = true,
+  engine17TriggerLine = true,
+  engine17DebugPanel = false,
+
+  showPremarketFibs = false,
+
   onChange,
   onReset,
 }) {
-  const divider = (
-    <div style={{ height: 1, background: "#2b2b2b", margin: "10px 0" }} />
-  );
+  const divider = <div style={{ height: 1, background: "#2b2b2b", margin: "10px 0" }} />;
 
   const wrap = (children) => (
     <div
@@ -487,7 +311,7 @@ export default function IndicatorsToolbar({
         border: "1px solid #2b2b2b",
         borderRadius: 8,
         padding: 10,
-        minWidth: 380,
+        minWidth: 420,
         color: "#e5e7eb",
         boxShadow: "0 6px 24px rgba(0,0,0,0.35)",
       }}
@@ -528,12 +352,7 @@ export default function IndicatorsToolbar({
 
           {wrap(
             <>
-              {/* EMA */}
-              <div
-                style={{ color: "#9ca3af", fontSize: 12, margin: "6px 0 4px" }}
-              >
-                EMA
-              </div>
+              <div style={{ color: "#9ca3af", fontSize: 12, margin: "6px 0 4px" }}>EMA</div>
 
               <label>
                 <input
@@ -544,14 +363,7 @@ export default function IndicatorsToolbar({
                 Enable EMA
               </label>
 
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 6,
-                  marginTop: 6,
-                }}
-              >
+              <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 6 }}>
                 <label>
                   <input
                     type="checkbox"
@@ -580,12 +392,7 @@ export default function IndicatorsToolbar({
 
               {divider}
 
-              {/* Volume */}
-              <div
-                style={{ color: "#9ca3af", fontSize: 12, margin: "6px 0 4px" }}
-              >
-                Volume
-              </div>
+              <div style={{ color: "#9ca3af", fontSize: 12, margin: "6px 0 4px" }}>Volume</div>
 
               <label>
                 <input
@@ -598,12 +405,7 @@ export default function IndicatorsToolbar({
 
               {divider}
 
-              {/* SMZ */}
-              <div
-                style={{ color: "#9ca3af", fontSize: 12, margin: "6px 0 4px" }}
-              >
-                SMZ Overlays
-              </div>
+              <div style={{ color: "#9ca3af", fontSize: 12, margin: "6px 0 4px" }}>SMZ Overlays</div>
 
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                 <label>
@@ -612,10 +414,7 @@ export default function IndicatorsToolbar({
                     checked={!!institutionalZonesAuto}
                     onChange={(e) => {
                       const v = e.target.checked;
-                      onChange?.({
-                        institutionalZonesAuto: v,
-                        smzShelvesAuto: v,
-                      });
+                      onChange?.({ institutionalZonesAuto: v, smzShelvesAuto: v });
                     }}
                   />{" "}
                   Institutional Zones (auto)
@@ -625,9 +424,7 @@ export default function IndicatorsToolbar({
                   <input
                     type="checkbox"
                     checked={!!smzShelvesAuto}
-                    onChange={(e) =>
-                      onChange?.({ smzShelvesAuto: e.target.checked })
-                    }
+                    onChange={(e) => onChange?.({ smzShelvesAuto: e.target.checked })}
                   />{" "}
                   Acc/Dist Shelves (auto)
                 </label>
@@ -635,74 +432,34 @@ export default function IndicatorsToolbar({
 
               {divider}
 
-              {/* Professional Overlay Stack */}
-              <div
-                style={{ color: "#9ca3af", fontSize: 12, margin: "6px 0 4px" }}
-              >
-                Professional Overlay Stack
+              <div style={{ color: "#9ca3af", fontSize: 12, margin: "6px 0 8px" }}>
+                Engine 17 — Snapshot Truth
               </div>
 
-              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <div style={{ display: "grid", gap: 6 }}>
                 <label>
                   <input
                     type="checkbox"
                     checked={!!engine17Overlay}
-                    onChange={(e) =>
-                      onChange?.({ engine17Overlay: e.target.checked })
-                    }
+                    onChange={(e) => onChange?.({ engine17Overlay: e.target.checked })}
                   />{" "}
-                  Engine 17 Overlay
+                  Enable Engine 17
                 </label>
 
                 <label>
                   <input
                     type="checkbox"
-                    checked={!!liquidityZones}
-                    onChange={(e) =>
-                      onChange?.({ liquidityZones: e.target.checked })
-                    }
+                    checked={!!engine17StateOverlay}
+                    onChange={(e) => onChange?.({ engine17StateOverlay: e.target.checked })}
                   />{" "}
-                  Liquidity / Zones
+                  State Overlay
                 </label>
 
                 <label>
                   <input
                     type="checkbox"
-                    checked={!!marketStructure}
-                    onChange={(e) =>
-                      onChange?.({ marketStructure: e.target.checked })
-                    }
-                  />{" "}
-                  Market Structure
-                </label>
-
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={!!strategyDiagnostics}
-                    onChange={(e) =>
-                      onChange?.({ strategyDiagnostics: e.target.checked })
-                    }
-                  />{" "}
-                  Strategy Diagnostics
-                </label>
-
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={!!signals}
-                    onChange={(e) => onChange?.({ signals: e.target.checked })}
-                  />{" "}
-                  Signals
-                </label>
-
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={!!decisionTimeline}
-                    onChange={(e) =>
-                      onChange?.({ decisionTimeline: e.target.checked })
-                    }
+                    checked={!!engine17Timeline}
+                    onChange={(e) => onChange?.({ engine17Timeline: e.target.checked })}
                   />{" "}
                   Decision Timeline
                 </label>
@@ -710,65 +467,60 @@ export default function IndicatorsToolbar({
                 <label>
                   <input
                     type="checkbox"
-                    checked={!!regimeBackground}
-                    onChange={(e) =>
-                      onChange?.({ regimeBackground: e.target.checked })
-                    }
+                    checked={!!engine17Badges}
+                    onChange={(e) => onChange?.({ engine17Badges: e.target.checked })}
                   />{" "}
-                  Regime Background
+                  Top-Right Pills
                 </label>
 
                 <label>
                   <input
                     type="checkbox"
-                    checked={!!confidenceStack}
-                    onChange={(e) =>
-                      onChange?.({ confidenceStack: e.target.checked })
-                    }
+                    checked={!!engine17Signals}
+                    onChange={(e) => onChange?.({ engine17Signals: e.target.checked })}
                   />{" "}
-                  Confidence Stack
+                  Signal Markers
                 </label>
 
                 <label>
                   <input
                     type="checkbox"
-                    checked={!!signalProvenance}
-                    onChange={(e) =>
-                      onChange?.({ signalProvenance: e.target.checked })
-                    }
+                    checked={!!engine17TriggerLine}
+                    onChange={(e) => onChange?.({ engine17TriggerLine: e.target.checked })}
                   />{" "}
-                  Signal Provenance Markers
+                  Trigger Line
                 </label>
 
                 <label>
                   <input
                     type="checkbox"
-                    checked={!!forwardRiskMap}
-                    onChange={(e) =>
-                      onChange?.({ forwardRiskMap: e.target.checked })
-                    }
+                    checked={!!engine17DebugPanel}
+                    onChange={(e) => onChange?.({ engine17DebugPanel: e.target.checked })}
                   />{" "}
-                  Forward Risk Map (soft debug)
-                </label>
-
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={!!replaySyncedState}
-                    onChange={(e) =>
-                      onChange?.({ replaySyncedState: e.target.checked })
-                    }
-                  />{" "}
-                  Replay-Synced State
+                  Debug Panel (Raw vs Composed)
                 </label>
               </div>
 
               {divider}
 
-              {/* Fib Multi-degree */}
-              <div
-                style={{ color: "#9ca3af", fontSize: 12, margin: "6px 0 8px" }}
-              >
+              <div style={{ color: "#9ca3af", fontSize: 12, margin: "6px 0 8px" }}>
+                Premarket Fibs
+              </div>
+
+              <div style={{ display: "grid", gap: 6 }}>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={!!showPremarketFibs}
+                    onChange={(e) => onChange?.({ showPremarketFibs: e.target.checked })}
+                  />{" "}
+                  Premarket Fibs (raw E16)
+                </label>
+              </div>
+
+              {divider}
+
+              <div style={{ color: "#9ca3af", fontSize: 12, margin: "6px 0 8px" }}>
                 Engine 2 (Fib) — Multi-Degree
               </div>
 
@@ -779,9 +531,7 @@ export default function IndicatorsToolbar({
                   styleObj={fibPrimaryStyle}
                   onToggle={(v) => onChange?.({ fibPrimary: v })}
                   onStylePatch={(patch) =>
-                    onChange?.({
-                      fibPrimaryStyle: { ...(fibPrimaryStyle || {}), ...patch },
-                    })
+                    onChange?.({ fibPrimaryStyle: { ...(fibPrimaryStyle || {}), ...patch } })
                   }
                 />
 
@@ -791,12 +541,7 @@ export default function IndicatorsToolbar({
                   styleObj={fibIntermediateStyle}
                   onToggle={(v) => onChange?.({ fibIntermediate: v })}
                   onStylePatch={(patch) =>
-                    onChange?.({
-                      fibIntermediateStyle: {
-                        ...(fibIntermediateStyle || {}),
-                        ...patch,
-                      },
-                    })
+                    onChange?.({ fibIntermediateStyle: { ...(fibIntermediateStyle || {}), ...patch } })
                   }
                 />
 
@@ -806,9 +551,7 @@ export default function IndicatorsToolbar({
                   styleObj={fibMinorStyle}
                   onToggle={(v) => onChange?.({ fibMinor: v })}
                   onStylePatch={(patch) =>
-                    onChange?.({
-                      fibMinorStyle: { ...(fibMinorStyle || {}), ...patch },
-                    })
+                    onChange?.({ fibMinorStyle: { ...(fibMinorStyle || {}), ...patch } })
                   }
                 />
 
@@ -818,9 +561,7 @@ export default function IndicatorsToolbar({
                   styleObj={fibMinuteStyle}
                   onToggle={(v) => onChange?.({ fibMinute: v })}
                   onStylePatch={(patch) =>
-                    onChange?.({
-                      fibMinuteStyle: { ...(fibMinuteStyle || {}), ...patch },
-                    })
+                    onChange?.({ fibMinuteStyle: { ...(fibMinuteStyle || {}), ...patch } })
                   }
                 />
               </div>
