@@ -5,6 +5,7 @@
 // - visible chart truth now comes from /api/v1/dashboard-snapshot
 // - raw /api/v1/morning-fib is diagnostics only
 // - chart/cards/strategies page now share the same language
+// - Premarket Fibs are separate optional indicator
 // ============================================================
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
@@ -31,6 +32,7 @@ import SMZShelvesOverlay from "./overlays/SMZShelvesOverlay";
 import AccDistZonesPanel from "../../../components/smz/AccDistZonesPanel";
 
 import FibLevelsOverlay from "./overlays/FibLevelsOverlay";
+import PremarketFibOverlay from "./overlays/PremarketFibOverlay";
 
 import DrawingsToolbar from "../../../features/drawings/DrawingsToolbar";
 import { createDrawingsEngine } from "../../../features/drawings/createDrawingsEngine";
@@ -731,6 +733,8 @@ export default function RowChart({
     engine17Signals: true,
     engine17TriggerLine: true,
     engine17DebugPanel: false,
+
+    showPremarketFibs: false,
   });
 
   if (typeof window !== "undefined") {
@@ -1041,7 +1045,7 @@ export default function RowChart({
         });
       }
 
-      if (showDebug || state.engine17DebugPanel) {
+      if (showDebug || state.engine17DebugPanel || state.showPremarketFibs) {
         try {
           const raw = await getMorningFibDebug(state.symbol, state.timeframe);
           if (!cancelled) setEngine17RawDebug(raw);
@@ -1065,7 +1069,13 @@ export default function RowChart({
       cancelled = true;
       if (timer) clearInterval(timer);
     };
-  }, [state.symbol, state.timeframe, state.engine17DebugPanel, showDebug]);
+  }, [
+    state.symbol,
+    state.timeframe,
+    state.engine17DebugPanel,
+    state.showPremarketFibs,
+    showDebug,
+  ]);
 
   /* =================== Effect C: Attach/Seed Overlays =================== */
 
@@ -1170,6 +1180,19 @@ export default function RowChart({
       );
     }
 
+    if (state.showPremarketFibs) {
+      reg(
+        attachOverlay(PremarketFibOverlay, {
+          chart: chartRef.current,
+          priceSeries: seriesRef.current,
+          chartContainer: containerRef.current,
+          enabled: true,
+          symbol: state.symbol,
+          tf: state.timeframe,
+        })
+      );
+    }
+
     if (state.engine17Overlay && engine17Data?.ok) {
       reg(
         attachOverlay(Engine17Overlay, {
@@ -1204,6 +1227,7 @@ export default function RowChart({
     state.fibIntermediateStyle,
     state.fibMinorStyle,
     state.fibMinuteStyle,
+    state.showPremarketFibs,
     state.engine17Overlay,
     state.engine17Signals,
     state.engine17TriggerLine,
@@ -1512,6 +1536,8 @@ export default function RowChart({
     engine17TriggerLine: state.engine17TriggerLine,
     engine17DebugPanel: state.engine17DebugPanel,
 
+    showPremarketFibs: state.showPremarketFibs,
+
     onChange: handleControlsChange,
     onReset: () =>
       setState((s) => ({
@@ -1534,6 +1560,7 @@ export default function RowChart({
         engine17Signals: true,
         engine17TriggerLine: true,
         engine17DebugPanel: false,
+        showPremarketFibs: false,
       })),
   };
 
