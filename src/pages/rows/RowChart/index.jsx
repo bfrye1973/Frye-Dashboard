@@ -1,11 +1,10 @@
 // src/pages/rows/RowChart/index.jsx
 // ============================================================
 // RowChart — seed + live aggregation + indicators & overlays
-// TURBO MODE:
-//  - 1m + 5m history capped to 2 months (faster zoom/pan)
-//  - React state updates throttled (no re-render spam)
-//  - Overlays attach/seed only after seeding (not on every live tick)
-//  - SSE subscription stable (no thrash)
+// ENGINE 17 UPDATE:
+// - visible chart truth now comes from /api/v1/dashboard-snapshot
+// - raw /api/v1/morning-fib is diagnostics only
+// - chart/cards/strategies page now share the same language
 // ============================================================
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
@@ -14,7 +13,6 @@ import Controls from "./Controls";
 import IndicatorsToolbar from "./IndicatorsToolbar";
 
 import { getOHLC, subscribeStream } from "../../../lib/ohlcClient";
-import { getChartOverlay } from "../../../lib/chartOverlayClient";
 import { SYMBOLS, TIMEFRAMES } from "./constants";
 
 import MoneyFlowOverlay from "../../../components/overlays/MoneyFlowOverlay";
@@ -25,10 +23,6 @@ import createSMI1hOverlay from "../../../components/overlays/SMI1hOverlay";
 import createFourShelvesOverlay from "../../../components/overlays/FourShelvesOverlay";
 
 import SMZNegotiatedOverlay from "./overlays/SMZNegotiatedOverlay";
-import Engine17Overlay from "./overlays/Engine17Overlay";
-import Engine17Badges from "./overlays/Engine17Badges";
-import Engine17DecisionTimeline from "./overlays/Engine17DecisionTimeline";
-
 import createSmartMoneyZonesOverlay from "../../../components/overlays/SmartMoneyZonesOverlay";
 import SmartMoneyZonesPanel from "../../../components/smz/SmartMoneyZonesPanel";
 
@@ -38,25 +32,32 @@ import AccDistZonesPanel from "../../../components/smz/AccDistZonesPanel";
 
 import FibLevelsOverlay from "./overlays/FibLevelsOverlay";
 
-// ✅ NEW: Professional TradingView-like drawings system (left toolbar + engine)
 import DrawingsToolbar from "../../../features/drawings/DrawingsToolbar";
 import { createDrawingsEngine } from "../../../features/drawings/createDrawingsEngine";
 
+import Engine17Overlay from "./overlays/Engine17Overlay";
+import Engine17DecisionTimeline from "./overlays/Engine17DecisionTimeline";
+import Engine17Badges from "./overlays/Engine17Badges";
+import Engine17StateOverlay from "./overlays/Engine17StateOverlay";
+
 /* ------------------------------ Config ------------------------------ */
 
+const API_BASE =
+  (typeof window !== "undefined" && (window.__API_BASE__ || "")) ||
+  process.env.REACT_APP_API_BASE ||
+  process.env.REACT_APP_API_URL ||
+  "https://frye-market-backend-1.onrender.com";
+
 const HISTORY_MONTHS = 6;
-const FAST_MONTHS_INTRADAY = 2; // ✅ Turbo: 1m + 5m only
+const FAST_MONTHS_INTRADAY = 2;
 const TRADING_DAYS_PER_MONTH = 21;
 const AXIS_FONT_SIZE = 22;
 
-// ✅ Turbo UI sync: chart updates every tick; React updates only every 1s
 const UI_SYNC_MS = 1000;
-
-// ✅ Hard cap to prevent memory bloat on long sessions
 const MAX_KEEP_BARS = 25000;
+const LIVE_STALE_MS = 30_000;
 
-// ✅ LIVE indicator rules
-const LIVE_STALE_MS = 30_000; // red if we haven't received ANY SSE json msg (diag/snapshot/bar) in 30s
+const SNAPSHOT_POLL_MS = 15000;
 
 const DEFAULTS = {
   upColor: "#26a69a",
@@ -107,7 +108,6 @@ function barsPerDay(tf) {
 }
 
 function seedLimitFor(tf, months = HISTORY_MONTHS) {
-  // ✅ Turbo: cap 1m + 5m to 2 months
   const effectiveMonths =
     tf === "1m" || tf === "5m" ? FAST_MONTHS_INTRADAY : months;
 
@@ -214,10 +214,436 @@ function makeFibStyle(color, fontPx, lineWidth, showExtensions = true) {
   };
 }
 
-function engine17Timeframe(tf) {
-  const t = String(tf || "30m").toLowerCase();
-  if (t === "10m" || t === "30m") return t;
-  return "30m";
+async function getDashboardSnapshot(symbol = "SPY") {
+  const url =
+    `${API_BASE.replace(/\/+$/, "")}/api/v1/dashboard-snapshot?symbol=` +
+    `${encodeURIComponent(symbol)}&includeContext=1`;
+
+  const r = await fetch(url, { cache: "no-store" });
+  if (!r.ok) throw new Error(`dashboard-snapshot ${r.status}`);
+  return r.json();
+}
+
+async function getMorningFibDebug(symbol = "SPY", tf = "10m") {
+  const url =
+    `${API_BASE.replace(/\/+$/, "")}/api/v1/morning-fib?symbol=` +
+    `${encodeURIComponent(symbol)}&tf=${encodeURIComponent(tf)}`;
+
+  const r = await fetch(url, { cache: "no-store" });
+  if (!r.ok) throw new Error(`morning-fib ${r.status}`);
+  return r.json();
+}
+
+function buildTriggerFromComposed(engine16) {
+  const waveShortPrep = !!engine16?.waveShortPrep;
+  const waveLongPrep = !!engine16?.waveLongPrep;
+
+  const sessionStructure = engine16?.sessionStructure || {};
+  const anchors = engine16?.anchors || {};
+  const dayRange = engine16?.dayRange || {};
+
+  if (waveShortPrep) {
+    const level =
+      sessionStructure?.regularSessionLow ??
+      anchors?.sessionLow ??
+      dayRange?.currentDayLow ??
+      null;
+
+    return Number.isFinite(level)
+      ? {
+          side: "SHORT",
+          level,
+          label: "BREAK BELOW = SHORT TRIGGER",
+          lineLabel: "SHORT TRIGGER BELOW",
+        }
+      : null;
+  }
+
+  if (waveLongPrep) {
+    const level =
+      sessionStructure?.regularSessionHigh ??
+      anchors?.sessionHigh ??
+      dayRange?.currentDayHigh ??
+      null;
+
+    return Number.isFinite(level)
+      ? {
+          side: "LONG",
+          level,
+          label: "BREAK ABOVE = LONG TRIGGER",
+          lineLabel: "LONG TRIGGER ABOVE",
+        }
+      : null;
+  }
+
+  return null;
+}
+
+function mapSnapshotToEngine17Overlay(snapshot) {
+  const scalp = snapshot?.strategies?.["intraday_scalp@10m"]?.engine16 || null;
+  const swing = snapshot?.strategies?.["minor_swing@1h"]?.engine16 || null;
+  const engine15Decision =
+    snapshot?.strategies?.["intraday_scalp@10m"]?.engine15Decision || null;
+
+  if (!scalp) {
+    return {
+      ok: false,
+      error: "SNAPSHOT_ENGINE16_MISSING",
+      fib: {},
+      anchors: [],
+      signals: [],
+      badges: [],
+      meta: {
+        source: "DASHBOARD_SNAPSHOT",
+        missingSections: ["snapshot_engine16"],
+        sourceEnginesUsed: ["SNAPSHOT_ENGINE16"],
+      },
+    };
+  }
+
+  const trigger = buildTriggerFromComposed(scalp);
+
+  const waveContext = scalp?.waveContext || {};
+  const waveState = waveContext?.waveState || scalp?.waveState || "UNKNOWN";
+  const macroBias = waveContext?.macroBias || scalp?.macroBias || "NONE";
+
+  const readiness = scalp?.readinessLabel || "WAIT";
+  const strategyType = scalp?.strategyType || "NONE";
+
+  const anchors = [
+    {
+      kind: "PREMARKET_LOW",
+      price: scalp?.anchors?.premarketLow,
+      label: "PM Low",
+    },
+    {
+      kind: "PREMARKET_HIGH",
+      price: scalp?.anchors?.premarketHigh,
+      label: "PM High",
+    },
+    {
+      kind: "SESSION_HIGH",
+      price: scalp?.anchors?.sessionHigh,
+      label: "Session High",
+    },
+    {
+      kind: "SESSION_LOW",
+      price: scalp?.anchors?.sessionLow,
+      label: "Session Low",
+    },
+    {
+      kind: "FIB_ANCHOR_A",
+      price: scalp?.anchors?.anchorA,
+      label: "Fib A",
+    },
+    {
+      kind: "FIB_ANCHOR_B",
+      price: scalp?.anchors?.anchorB,
+      label: "Fib B",
+    },
+  ].filter((a) => Number.isFinite(a?.price));
+
+  const signals = [];
+
+  if (scalp?.continuationWatchShort) {
+    signals.push({
+      kind: "CONTINUATION_WATCH_SHORT",
+      price:
+        trigger?.level ??
+        scalp?.anchors?.sessionLow ??
+        scalp?.anchors?.anchorB ??
+        null,
+      label: "Continuation Watch Short",
+      time:
+        scalp?.signalTimes?.continuationWatchTime ||
+        scalp?.signalTimes?.continuationTime ||
+        null,
+    });
+  }
+
+  if (scalp?.continuationTriggerShort) {
+    signals.push({
+      kind: "CONTINUATION_TRIGGER_SHORT",
+      price:
+        trigger?.level ??
+        scalp?.anchors?.sessionLow ??
+        scalp?.anchors?.anchorB ??
+        null,
+      label: "Continuation Trigger Short",
+      time:
+        scalp?.signalTimes?.continuationTriggerTime ||
+        scalp?.signalTimes?.continuationTime ||
+        null,
+    });
+  }
+
+  if (scalp?.exhaustionEarlyShort) {
+    signals.push({
+      kind: "EXHAUSTION_EARLY_SHORT",
+      price:
+        scalp?.exhaustionBarPrice ??
+        scalp?.anchors?.sessionHigh ??
+        scalp?.anchors?.anchorB ??
+        null,
+      label: "Exhaustion Early Short",
+      time: scalp?.signalTimes?.exhaustionEarlyTime || null,
+    });
+  }
+
+  if (scalp?.exhaustionTriggerShort) {
+    signals.push({
+      kind: "EXHAUSTION_TRIGGER_SHORT",
+      price:
+        scalp?.exhaustionBarPrice ??
+        scalp?.anchors?.sessionHigh ??
+        scalp?.anchors?.anchorB ??
+        null,
+      label: "Exhaustion Trigger Short",
+      time:
+        scalp?.signalTimes?.exhaustionTriggerTime ||
+        scalp?.signalTimes?.exhaustionTime ||
+        scalp?.exhaustionBarTime ||
+        null,
+    });
+  }
+
+  if (scalp?.continuationWatchLong) {
+    signals.push({
+      kind: "CONTINUATION_WATCH_LONG",
+      price:
+        trigger?.level ??
+        scalp?.anchors?.sessionHigh ??
+        scalp?.anchors?.anchorB ??
+        null,
+      label: "Continuation Watch Long",
+      time:
+        scalp?.signalTimes?.continuationWatchTime ||
+        scalp?.signalTimes?.continuationTime ||
+        null,
+    });
+  }
+
+  if (scalp?.continuationTriggerLong) {
+    signals.push({
+      kind: "CONTINUATION_TRIGGER_LONG",
+      price:
+        trigger?.level ??
+        scalp?.anchors?.sessionHigh ??
+        scalp?.anchors?.anchorB ??
+        null,
+      label: "Continuation Trigger Long",
+      time:
+        scalp?.signalTimes?.continuationTriggerTime ||
+        scalp?.signalTimes?.continuationTime ||
+        null,
+    });
+  }
+
+  if (scalp?.exhaustionEarlyLong) {
+    signals.push({
+      kind: "EXHAUSTION_EARLY_LONG",
+      price:
+        scalp?.exhaustionBarPrice ??
+        scalp?.anchors?.sessionLow ??
+        scalp?.anchors?.anchorA ??
+        null,
+      label: "Exhaustion Early Long",
+      time: scalp?.signalTimes?.exhaustionEarlyTime || null,
+    });
+  }
+
+  if (scalp?.exhaustionTriggerLong) {
+    signals.push({
+      kind: "EXHAUSTION_TRIGGER_LONG",
+      price:
+        scalp?.exhaustionBarPrice ??
+        scalp?.anchors?.sessionLow ??
+        scalp?.anchors?.anchorA ??
+        null,
+      label: "Exhaustion Trigger Long",
+      time:
+        scalp?.signalTimes?.exhaustionTriggerTime ||
+        scalp?.signalTimes?.exhaustionTime ||
+        scalp?.exhaustionBarTime ||
+        null,
+    });
+  }
+
+  const badges = [
+    { kind: "CONTEXT", value: scalp?.context || "NONE" },
+    { kind: "STATE", value: scalp?.state || "UNKNOWN" },
+    {
+      kind: "PHASE",
+      value: waveState,
+    },
+    {
+      kind: "BIAS",
+      value: macroBias,
+    },
+  ];
+
+  if (readiness && readiness !== "WAIT") {
+    badges.unshift({
+      kind: "READINESS",
+      value: readiness,
+    });
+  }
+
+  if (strategyType && strategyType !== "NONE") {
+    badges.unshift({
+      kind: "STRATEGY",
+      value: strategyType,
+    });
+  }
+
+  const nextFocus =
+    engine15Decision?.lifecycle?.nextFocus ||
+    engine15Decision?.nextFocus ||
+    null;
+
+  return {
+    ok: true,
+    source: "DASHBOARD_SNAPSHOT_COMPOSED_TRUTH",
+    zones: [],
+    anchors,
+    dayRange: scalp?.dayRange || null,
+    sessionStructure: scalp?.sessionStructure || null,
+    signals,
+    badges,
+    fib: {
+      context: scalp?.context || "NONE",
+      state: scalp?.state || "UNKNOWN",
+      waveContext,
+      waveState,
+      macroBias,
+
+      readinessLabel: readiness,
+      strategyType,
+
+      nextFocus,
+
+      waveShortPrep: !!scalp?.waveShortPrep,
+      waveLongPrep: !!scalp?.waveLongPrep,
+
+      continuationWatchShort: !!scalp?.continuationWatchShort,
+      continuationTriggerShort: !!scalp?.continuationTriggerShort,
+      exhaustionEarlyShort: !!scalp?.exhaustionEarlyShort,
+      exhaustionTriggerShort: !!scalp?.exhaustionTriggerShort,
+
+      continuationWatchLong: !!scalp?.continuationWatchLong,
+      continuationTriggerLong: !!scalp?.continuationTriggerLong,
+      exhaustionEarlyLong: !!scalp?.exhaustionEarlyLong,
+      exhaustionTriggerLong: !!scalp?.exhaustionTriggerLong,
+
+      waveReasonCodes: Array.isArray(scalp?.waveReasonCodes)
+        ? scalp.waveReasonCodes
+        : [],
+
+      trigger,
+      signalTimes: scalp?.signalTimes || {},
+
+      marketRegime: scalp?.marketRegime || null,
+      macroRoadblock: scalp?.macroRoadblock || null,
+
+      anchors: scalp?.anchors || {},
+      anchorLabels: scalp?.anchorLabels || {},
+      anchorDebug: scalp?.anchorDebug || {},
+
+      fib: scalp?.fib || {},
+      levels: scalp?.fib || {},
+      primaryZone: scalp?.pullbackZone || null,
+      secondaryZone: scalp?.secondaryZone || null,
+
+      impulseVolumeConfirmed: !!scalp?.impulseVolumeConfirmed,
+      volumeContext: scalp?.volumeContext || {},
+
+      rawComposedMinorSwing: swing || null,
+    },
+    meta: {
+      sourceEnginesUsed: ["SNAPSHOT_ENGINE16"],
+      missingSections: [],
+    },
+  };
+}
+
+function Engine17DebugPanel({
+  visible = false,
+  composedData,
+  rawData,
+}) {
+  if (!visible) return null;
+
+  return (
+    <div
+      style={{
+        position: "absolute",
+        left: 16,
+        bottom: 16,
+        zIndex: 120,
+        width: 520,
+        maxWidth: "42%",
+        display: "grid",
+        gap: 10,
+        pointerEvents: "none",
+      }}
+    >
+      <div
+        style={{
+          border: "1px solid rgba(255,255,255,0.14)",
+          borderRadius: 12,
+          background: "rgba(7,10,18,0.88)",
+          padding: 12,
+          color: "#e5e7eb",
+          backdropFilter: "blur(4px)",
+        }}
+      >
+        <div style={{ fontSize: 14, fontWeight: 900, marginBottom: 8 }}>
+          RAW ENGINE 16 — DEBUG ONLY
+        </div>
+        <pre
+          style={{
+            margin: 0,
+            whiteSpace: "pre-wrap",
+            fontSize: 11,
+            lineHeight: 1.35,
+            maxHeight: 180,
+            overflow: "hidden",
+            color: "#cbd5e1",
+          }}
+        >
+          {JSON.stringify(rawData || {}, null, 2)}
+        </pre>
+      </div>
+
+      <div
+        style={{
+          border: "1px solid rgba(255,255,255,0.14)",
+          borderRadius: 12,
+          background: "rgba(7,10,18,0.88)",
+          padding: 12,
+          color: "#e5e7eb",
+          backdropFilter: "blur(4px)",
+        }}
+      >
+        <div style={{ fontSize: 14, fontWeight: 900, marginBottom: 8 }}>
+          COMPOSED STRATEGY TRUTH
+        </div>
+        <pre
+          style={{
+            margin: 0,
+            whiteSpace: "pre-wrap",
+            fontSize: 11,
+            lineHeight: 1.35,
+            maxHeight: 180,
+            overflow: "hidden",
+            color: "#cbd5e1",
+          }}
+        >
+          {JSON.stringify(composedData || {}, null, 2)}
+        </pre>
+      </div>
+    </div>
+  );
 }
 
 /* ------------------------------ Component --------------------------- */
@@ -228,10 +654,7 @@ export default function RowChart({
   showDebug = false,
   fullScreen = false,
 }) {
-  // Chart host element used by lightweight-charts
   const containerRef = useRef(null);
-
-  // Wrapper used to mount drawings canvas + toolbar (must be position:relative)
   const chartWrapRef = useRef(null);
 
   const chartRef = useRef(null);
@@ -243,9 +666,7 @@ export default function RowChart({
   const roRef = useRef(null);
 
   const overlayInstancesRef = useRef([]);
-  const overlayPollRef = useRef(null);
 
-  // ✅ Bars live in ref (fast). React state updates are throttled.
   const [bars, setBars] = useState([]);
   const barsRef = useRef([]);
 
@@ -253,23 +674,17 @@ export default function RowChart({
   const userInteractedRef = useRef(false);
 
   const [chartReady, setChartReady] = useState(false);
-
-  // ✅ Used to re-seed overlays only when we load history (not on every tick)
   const [seedToken, setSeedToken] = useState(0);
 
-  // 🔒 stream unsubscribe stored here to prevent thrash
   const streamUnsubRef = useRef(null);
 
-  // ✅ Turbo UI sync controller
   const lastUiSyncRef = useRef(0);
   const uiTimerRef = useRef(null);
 
-  // ✅ LIVE indicator state/refs
-  const [liveStatus, setLiveStatus] = useState("CONNECTING"); // CONNECTING | LIVE | STALE
+  const [liveStatus, setLiveStatus] = useState("CONNECTING");
   const lastAliveRef = useRef(0);
   const liveTimerRef = useRef(null);
 
-  // ✅ NEW: drawings engine + UI state
   const drawingsEngineRef = useRef(null);
   const [drawingsUi, setDrawingsUi] = useState({
     mode: "select",
@@ -277,10 +692,8 @@ export default function RowChart({
     selectedId: null,
   });
 
-  // ✅ Engine 17 data state
   const [engine17Data, setEngine17Data] = useState(null);
-  const [engine17Loading, setEngine17Loading] = useState(false);
-  const [engine17Error, setEngine17Error] = useState("");
+  const [engine17RawDebug, setEngine17RawDebug] = useState(null);
 
   const [state, setState] = useState({
     symbol: defaultSymbol,
@@ -311,23 +724,15 @@ export default function RowChart({
     accDistLevels: false,
     wickPaZones: false,
 
-    // ✅ Professional overlay stack
-    engine17Overlay: false,
-
-    liquidityZones: true,
-    marketStructure: true,
-    strategyDiagnostics: false,
-    signals: true,
-    decisionTimeline: false,
-
-    regimeBackground: false,
-    confidenceStack: true,
-    signalProvenance: false,
-    forwardRiskMap: false,
-    replaySyncedState: false,
+    engine17Overlay: true,
+    engine17Timeline: true,
+    engine17Badges: true,
+    engine17StateOverlay: true,
+    engine17Signals: true,
+    engine17TriggerLine: true,
+    engine17DebugPanel: false,
   });
 
-  // quick debug controls
   if (typeof window !== "undefined") {
     window.__indicators = {
       get: () => state,
@@ -417,11 +822,6 @@ export default function RowChart({
       streamUnsubRef.current = null;
 
       try {
-        if (overlayPollRef.current) clearInterval(overlayPollRef.current);
-      } catch {}
-      overlayPollRef.current = null;
-
-      try {
         if (uiTimerRef.current) clearTimeout(uiTimerRef.current);
       } catch {}
       uiTimerRef.current = null;
@@ -457,7 +857,6 @@ export default function RowChart({
       volSeriesRef.current = null;
       ema10Ref.current = ema20Ref.current = ema50Ref.current = null;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fullScreen, state.timeframe]);
 
   /* ---------------------- TF / AZ format updates --------------------- */
@@ -621,62 +1020,54 @@ export default function RowChart({
     };
   }, [state.symbol, state.timeframe, state.range, state.volume]);
 
-  /* ================== Effect A.5: Engine 17 Overlay Fetch ================== */
+  /* ==================== Effect B: SNAPSHOT TRUTH FETCH ==================== */
 
   useEffect(() => {
-    try {
-      if (overlayPollRef.current) clearInterval(overlayPollRef.current);
-    } catch {}
-    overlayPollRef.current = null;
+    let cancelled = false;
+    let timer = null;
 
-    if (!state.engine17Overlay) {
-      setEngine17Data(null);
-      setEngine17Loading(false);
-      setEngine17Error("");
-      return;
+    async function load() {
+      try {
+        const snap = await getDashboardSnapshot(state.symbol);
+        if (cancelled) return;
+        setEngine17Data(mapSnapshotToEngine17Overlay(snap));
+      } catch (err) {
+        if (cancelled) return;
+        console.error("[RowChart] dashboard-snapshot error:", err);
+        setEngine17Data({
+          ok: false,
+          error: "SNAPSHOT_FETCH_FAILED",
+          detail: err?.message || String(err),
+        });
+      }
+
+      if (showDebug || state.engine17DebugPanel) {
+        try {
+          const raw = await getMorningFibDebug(state.symbol, state.timeframe);
+          if (!cancelled) setEngine17RawDebug(raw);
+        } catch (err) {
+          if (!cancelled) {
+            setEngine17RawDebug({
+              ok: false,
+              error: err?.message || String(err),
+            });
+          }
+        }
+      } else {
+        setEngine17RawDebug(null);
+      }
     }
 
-    let cancelled = false;
-
-    const load = async () => {
-      try {
-        if (!cancelled) {
-          setEngine17Loading(true);
-          setEngine17Error("");
-        }
-
-        const data = await getChartOverlay(
-          state.symbol,
-          engine17Timeframe(state.timeframe)
-        );
-
-        if (!cancelled) {
-          setEngine17Data(data);
-        }
-      } catch (err) {
-        if (!cancelled) {
-          setEngine17Error(err?.message || String(err));
-        }
-      } finally {
-        if (!cancelled) {
-          setEngine17Loading(false);
-        }
-      }
-    };
-
     load();
-    overlayPollRef.current = setInterval(load, 15000);
+    timer = setInterval(load, SNAPSHOT_POLL_MS);
 
     return () => {
       cancelled = true;
-      try {
-        if (overlayPollRef.current) clearInterval(overlayPollRef.current);
-      } catch {}
-      overlayPollRef.current = null;
+      if (timer) clearInterval(timer);
     };
-  }, [state.engine17Overlay, state.symbol, state.timeframe]);
+  }, [state.symbol, state.timeframe, state.engine17DebugPanel, showDebug]);
 
-  /* =================== Effect B: Attach/Seed Overlays =================== */
+  /* =================== Effect C: Attach/Seed Overlays =================== */
 
   useEffect(() => {
     if (!chartRef.current || !seriesRef.current || barsRef.current.length === 0)
@@ -719,24 +1110,6 @@ export default function RowChart({
           priceSeries: seriesRef.current,
           chartContainer: containerRef.current,
           timeframe: state.timeframe,
-        })
-      );
-    }
-
-    if (state.engine17Overlay && engine17Data?.ok) {
-      reg(
-        attachOverlay(Engine17Overlay, {
-          chart: chartRef.current,
-          priceSeries: seriesRef.current,
-          chartContainer: containerRef.current,
-          overlayData: engine17Data,
-
-          showLiquidityZones: !!state.liquidityZones,
-          showMarketStructure: !!state.marketStructure,
-          showSignals: !!state.signals,
-          showSignalProvenance: !!state.signalProvenance,
-          showForwardRiskMap: !!state.forwardRiskMap,
-          showRegimeBackground: !!state.regimeBackground,
         })
       );
     }
@@ -797,20 +1170,32 @@ export default function RowChart({
       );
     }
 
+    if (state.engine17Overlay && engine17Data?.ok) {
+      reg(
+        attachOverlay(Engine17Overlay, {
+          chart: chartRef.current,
+          priceSeries: seriesRef.current,
+          chartContainer: containerRef.current,
+          overlayData: engine17Data,
+          showLiquidityZones: false,
+          showMarketStructure: false,
+          showSignals: !!state.engine17Signals,
+          showSignalProvenance: false,
+          showForwardRiskMap: false,
+          showRegimeBackground: false,
+          showTriggerLine: !!state.engine17TriggerLine,
+        })
+      );
+    }
+
     try {
       overlayInstancesRef.current.forEach((o) => o?.seed?.(barsRef.current));
     } catch {}
   }, [
     seedToken,
+    engine17Data,
     state.institutionalZonesAuto,
     state.smzShelvesAuto,
-    state.engine17Overlay,
-    state.liquidityZones,
-    state.marketStructure,
-    state.signals,
-    state.signalProvenance,
-    state.forwardRiskMap,
-    state.regimeBackground,
     state.fibPrimary,
     state.fibIntermediate,
     state.fibMinor,
@@ -819,9 +1204,11 @@ export default function RowChart({
     state.fibIntermediateStyle,
     state.fibMinorStyle,
     state.fibMinuteStyle,
+    state.engine17Overlay,
+    state.engine17Signals,
+    state.engine17TriggerLine,
     state.timeframe,
     state.symbol,
-    engine17Data,
     showDebug,
   ]);
 
@@ -832,7 +1219,7 @@ export default function RowChart({
 
     const chart = chartRef.current;
     const priceSeries = seriesRef.current;
-    const hostEl = chartWrapRef.current; // relative wrapper for canvas
+    const hostEl = chartWrapRef.current;
     if (!chart || !priceSeries || !hostEl) return;
 
     try {
@@ -855,7 +1242,6 @@ export default function RowChart({
       } catch {}
       drawingsEngineRef.current = null;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chartReady]);
 
   useEffect(() => {
@@ -865,7 +1251,7 @@ export default function RowChart({
     });
   }, [state.symbol, state.timeframe]);
 
-  /* =================== Effect C: LIVE STREAM (STABLE + TURBO) =================== */
+  /* =================== Effect D: LIVE STREAM =================== */
 
   useEffect(() => {
     if (!chartReady || !seriesRef.current) return;
@@ -873,7 +1259,6 @@ export default function RowChart({
     lastAliveRef.current = 0;
     setLiveStatus("CONNECTING");
 
-    // close any previous stream first
     try {
       streamUnsubRef.current?.();
     } catch {}
@@ -1006,7 +1391,6 @@ export default function RowChart({
       onAlive
     );
 
-    // store only this stream
     streamUnsubRef.current = () => {
       if (!isCurrent) return;
       isCurrent = false;
@@ -1110,18 +1494,6 @@ export default function RowChart({
     institutionalZonesAuto: state.institutionalZonesAuto,
     smzShelvesAuto: state.smzShelvesAuto,
 
-    engine17Overlay: state.engine17Overlay,
-    liquidityZones: state.liquidityZones,
-    marketStructure: state.marketStructure,
-    strategyDiagnostics: state.strategyDiagnostics,
-    signals: state.signals,
-    decisionTimeline: state.decisionTimeline,
-    regimeBackground: state.regimeBackground,
-    confidenceStack: state.confidenceStack,
-    signalProvenance: state.signalProvenance,
-    forwardRiskMap: state.forwardRiskMap,
-    replaySyncedState: state.replaySyncedState,
-
     fibPrimary: state.fibPrimary,
     fibIntermediate: state.fibIntermediate,
     fibMinor: state.fibMinor,
@@ -1131,6 +1503,14 @@ export default function RowChart({
     fibIntermediateStyle: state.fibIntermediateStyle,
     fibMinorStyle: state.fibMinorStyle,
     fibMinuteStyle: state.fibMinuteStyle,
+
+    engine17Overlay: state.engine17Overlay,
+    engine17Timeline: state.engine17Timeline,
+    engine17Badges: state.engine17Badges,
+    engine17StateOverlay: state.engine17StateOverlay,
+    engine17Signals: state.engine17Signals,
+    engine17TriggerLine: state.engine17TriggerLine,
+    engine17DebugPanel: state.engine17DebugPanel,
 
     onChange: handleControlsChange,
     onReset: () =>
@@ -1143,23 +1523,17 @@ export default function RowChart({
         volume: true,
         institutionalZonesAuto: false,
         smzShelvesAuto: false,
-
-        engine17Overlay: false,
-        liquidityZones: true,
-        marketStructure: true,
-        strategyDiagnostics: false,
-        signals: true,
-        decisionTimeline: false,
-        regimeBackground: false,
-        confidenceStack: true,
-        signalProvenance: false,
-        forwardRiskMap: false,
-        replaySyncedState: false,
-
         fibPrimary: false,
         fibIntermediate: false,
         fibMinor: false,
         fibMinute: false,
+        engine17Overlay: true,
+        engine17Timeline: true,
+        engine17Badges: true,
+        engine17StateOverlay: true,
+        engine17Signals: true,
+        engine17TriggerLine: true,
+        engine17DebugPanel: false,
       })),
   };
 
@@ -1212,10 +1586,8 @@ export default function RowChart({
   );
 
   const badge = (() => {
-    if (liveStatus === "LIVE")
-      return { text: "LIVE", bg: "rgba(16,185,129,0.92)" };
-    if (liveStatus === "STALE")
-      return { text: "STALE", bg: "rgba(239,68,68,0.92)" };
+    if (liveStatus === "LIVE") return { text: "LIVE", bg: "rgba(16,185,129,0.92)" };
+    if (liveStatus === "STALE") return { text: "STALE", bg: "rgba(239,68,68,0.92)" };
     return { text: "CONNECTING", bg: "rgba(245,158,11,0.92)" };
   })();
 
@@ -1239,7 +1611,6 @@ export default function RowChart({
           height: fullScreen ? "100%" : undefined,
         }}
       >
-        {/* ✅ IMPORTANT: wrapper div holds drawings + badge + chart container */}
         <div
           ref={chartWrapRef}
           style={{
@@ -1248,19 +1619,17 @@ export default function RowChart({
             minWidth: 0,
           }}
         >
-          {/* ✅ LEFT Drawing toolbar (TradingView style) */}
           <DrawingsToolbar
             mode={drawingsUi.mode}
             onMode={(m) => drawingsEngineRef.current?.setMode?.(m)}
             onDelete={() => drawingsEngineRef.current?.deleteSelected?.()}
           />
 
-          {/* ✅ LIVE badge */}
           <div
             style={{
               position: "absolute",
               top: 10,
-              left: 60, // leave space for left toolbar
+              left: 60,
               zIndex: 90,
               padding: "6px 10px",
               borderRadius: 8,
@@ -1283,52 +1652,31 @@ export default function RowChart({
             {badge.text}
           </div>
 
-          {/* ✅ Engine 17 fetch status */}
-          {state.engine17Overlay && (
-            <div
-              style={{
-                position: "absolute",
-                top: 46,
-                left: 60,
-                zIndex: 90,
-                padding: "5px 9px",
-                borderRadius: 8,
-                fontSize: 11,
-                fontWeight: 800,
-                color: "#e5e7eb",
-                background: engine17Error
-                  ? "rgba(239,68,68,0.88)"
-                  : engine17Loading
-                  ? "rgba(245,158,11,0.88)"
-                  : "rgba(59,130,246,0.88)",
-                boxShadow: "0 2px 10px rgba(0,0,0,0.35)",
-                userSelect: "none",
-              }}
-              title={engine17Error || "Engine 17 overlay"}
-            >
-              {engine17Error
-                ? "E17 ERROR"
-                : engine17Loading
-                ? "E17 LOADING"
-                : "E17 READY"}
-            </div>
+          {state.engine17StateOverlay && (
+            <Engine17StateOverlay
+              overlayData={engine17Data}
+              visible={state.engine17Overlay}
+            />
           )}
 
-          {/* ✅ Engine 17 badges */}
-          <Engine17Badges
-            overlayData={engine17Data}
-            visible={state.engine17Overlay}
-            showConfidenceStack={state.confidenceStack}
-            showReplaySyncedState={state.replaySyncedState}
-          />
-
-          {/* ✅ Engine 17 decision timeline */}
           <Engine17DecisionTimeline
             overlayData={engine17Data}
-            visible={state.engine17Overlay && state.decisionTimeline}
+            visible={state.engine17Timeline && state.engine17Overlay}
           />
 
-          {/* Chart host element */}
+          <Engine17Badges
+            overlayData={engine17Data}
+            visible={state.engine17Badges && state.engine17Overlay}
+            showConfidenceStack={showDebug || state.engine17DebugPanel}
+            showReplaySyncedState={false}
+          />
+
+          <Engine17DebugPanel
+            visible={showDebug || state.engine17DebugPanel}
+            rawData={engine17RawDebug}
+            composedData={engine17Data}
+          />
+
           <div
             ref={containerRef}
             style={{
