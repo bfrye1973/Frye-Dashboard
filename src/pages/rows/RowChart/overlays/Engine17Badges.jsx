@@ -3,27 +3,22 @@
 import React from "react";
 
 function toneFor(kind, value) {
-  if (kind === "EXHAUSTION_READY_SHORT") {
+  if (kind === "READINESS" && value === "WATCH") {
     return {
-      bg: "rgba(239,68,68,0.22)",
-      border: "rgba(239,68,68,0.65)",
-      color: "#fecaca",
+      bg: "rgba(96,165,250,0.18)",
+      border: "rgba(96,165,250,0.55)",
+      color: "#bfdbfe",
     };
   }
-  if (kind === "EXHAUSTION_READY_LONG") {
+
+  if (kind === "READINESS" && value === "WAIT") {
     return {
-      bg: "rgba(34,197,94,0.20)",
-      border: "rgba(34,197,94,0.62)",
-      color: "#bbf7d0",
+      bg: "rgba(148,163,184,0.12)",
+      border: "rgba(148,163,184,0.35)",
+      color: "#cbd5e1",
     };
   }
-  if (kind === "READINESS") {
-    return {
-      bg: "rgba(248,250,252,0.12)",
-      border: "rgba(248,250,252,0.32)",
-      color: "#f8fafc",
-    };
-  }
+
   if (kind === "STRATEGY") {
     return {
       bg: "rgba(192,132,252,0.18)",
@@ -31,13 +26,31 @@ function toneFor(kind, value) {
       color: "#e9d5ff",
     };
   }
-  if (kind === "VOLUME" && value === "CONFIRMED") {
+
+  if (kind === "PHASE") {
     return {
-      bg: "rgba(167,139,250,0.18)",
-      border: "rgba(167,139,250,0.55)",
-      color: "#ddd6fe",
+      bg: "rgba(168,85,247,0.16)",
+      border: "rgba(168,85,247,0.50)",
+      color: "#e9d5ff",
     };
   }
+
+  if (kind === "BIAS" && value === "SHORT_PREFERENCE") {
+    return {
+      bg: "rgba(239,68,68,0.16)",
+      border: "rgba(239,68,68,0.50)",
+      color: "#fecaca",
+    };
+  }
+
+  if (kind === "BIAS" && value === "LONG_PREFERENCE") {
+    return {
+      bg: "rgba(34,197,94,0.16)",
+      border: "rgba(34,197,94,0.50)",
+      color: "#bbf7d0",
+    };
+  }
+
   if (kind === "STATE" && value === "ABOVE_PULLBACK") {
     return {
       bg: "rgba(34,197,94,0.16)",
@@ -45,6 +58,7 @@ function toneFor(kind, value) {
       color: "#bbf7d0",
     };
   }
+
   if (kind === "STATE" && (value === "IN_PULLBACK" || value === "DEEP_PULLBACK")) {
     return {
       bg: "rgba(245,158,11,0.16)",
@@ -52,6 +66,7 @@ function toneFor(kind, value) {
       color: "#fde68a",
     };
   }
+
   if (kind === "STATE" && value === "BELOW_PULLBACK") {
     return {
       bg: "rgba(239,68,68,0.16)",
@@ -59,6 +74,7 @@ function toneFor(kind, value) {
       color: "#fecaca",
     };
   }
+
   if (kind === "CONTEXT" && value === "LONG_CONTEXT") {
     return {
       bg: "rgba(16,185,129,0.16)",
@@ -66,6 +82,7 @@ function toneFor(kind, value) {
       color: "#bbf7d0",
     };
   }
+
   if (kind === "CONTEXT" && value === "SHORT_CONTEXT") {
     return {
       bg: "rgba(239,68,68,0.16)",
@@ -73,6 +90,7 @@ function toneFor(kind, value) {
       color: "#fecaca",
     };
   }
+
   return {
     bg: "rgba(255,255,255,0.08)",
     border: "rgba(255,255,255,0.18)",
@@ -100,44 +118,34 @@ export default function Engine17Badges({
 }) {
   if (!visible || !overlayData?.ok) return null;
 
-  const badges = Array.isArray(overlayData?.badges) ? overlayData.badges : [];
-  const meta = overlayData?.meta || {};
   const fib = overlayData?.fib || {};
+  const meta = overlayData?.meta || {};
 
-  const contextValue =
-    badges.find((b) => b.kind === "CONTEXT")?.value || fib?.context || "NONE";
-
-  const stateValue =
-    badges.find((b) => b.kind === "STATE")?.value || fib?.state || "UNKNOWN";
-
-  const volumeValue =
-    badges.find((b) => b.kind === "VOLUME")?.value ||
-    (fib?.impulseVolumeConfirmed ? "CONFIRMED" : "NORMAL");
+  const contextValue = fib?.context || "NONE";
+  const stateValue = fib?.state || "UNKNOWN";
+  const phaseValue = fib?.waveContext?.waveState || fib?.waveState || "UNKNOWN";
+  const biasValue = fib?.waveContext?.macroBias || fib?.macroBias || "NONE";
+  const readinessValue = fib?.readinessLabel || "WAIT";
+  const strategyValue = fib?.strategyType || "NONE";
 
   const primary = [
     { kind: "CONTEXT", value: contextValue },
     { kind: "STATE", value: stateValue },
-    { kind: "VOLUME", value: volumeValue },
+    { kind: "PHASE", value: phaseValue },
+    { kind: "BIAS", value: biasValue },
   ];
 
-  if (fib?.exhaustionDetected && fib?.exhaustionActive) {
-    primary.unshift({
-      kind: fib.exhaustionShort
-        ? "EXHAUSTION_READY_SHORT"
-        : "EXHAUSTION_READY_LONG",
-      value: "EXHAUSTION READY",
-    });
-  } else if (fib?.readinessLabel && fib.readinessLabel !== "NO_SETUP") {
+  if (readinessValue && readinessValue !== "WAIT") {
     primary.unshift({
       kind: "READINESS",
-      value: fib.readinessLabel,
+      value: readinessValue,
     });
   }
 
-  if (fib?.strategyType && fib.strategyType !== "NONE") {
-    primary.push({
+  if (strategyValue && strategyValue !== "NONE") {
+    primary.unshift({
       kind: "STRATEGY",
-      value: fib.strategyType,
+      value: strategyValue,
     });
   }
 
@@ -148,13 +156,6 @@ export default function Engine17Badges({
       extras.push({
         kind: "ENGINES",
         value: meta.sourceEnginesUsed.join(", "),
-      });
-    }
-
-    if (meta?.missingSections?.length) {
-      extras.push({
-        kind: "MISSING",
-        value: meta.missingSections.join(", "),
       });
     }
   }
@@ -189,12 +190,12 @@ export default function Engine17Badges({
           <div
             key={`${b.kind}-${idx}`}
             style={{
-              padding: "10px 16px",
+              padding: "8px 14px",
               borderRadius: 12,
               border: `1.5px solid ${tone.border}`,
               background: tone.bg,
               color: tone.color,
-              fontSize: 20,
+              fontSize: 18,
               fontWeight: 900,
               letterSpacing: 0.3,
               boxShadow: "0 2px 10px rgba(0,0,0,0.22)",
