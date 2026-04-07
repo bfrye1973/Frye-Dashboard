@@ -861,7 +861,7 @@ export default function RowChart({
       chartRef.current = null;
       seriesRef.current = null;
       volSeriesRef.current = null;
-      ema10Ref.current = ema20Ref.current = ema50Ref.current = null;
+      ema10Ref.current = ema20Ref.current = ema50Ref.current = ema200Ref.current = null;
     };
   }, [fullScreen, state.timeframe]);
 
@@ -1478,7 +1478,7 @@ export default function RowChart({
       l.applyOptions({ visible: true });
     }
     if (state.ema200) {
-      const l = ensureLine(ema200Ref, "#22c55e"); // pick a color you like
+      const l = ensureLine(ema200Ref, "#a855f7"); // pick a color you like
       l.setData(calcEMA(bars, 200));
       l.applyOptions({ visible: true });
     }
