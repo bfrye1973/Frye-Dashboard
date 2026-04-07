@@ -271,6 +271,7 @@ export default function IndicatorsToolbar({
   ema10 = true,
   ema20 = true,
   ema50 = true,
+  ema200 = true,
   volume = true,
 
   institutionalZonesAuto = false,
@@ -388,6 +389,14 @@ export default function IndicatorsToolbar({
                   />{" "}
                   EMA 50
                 </label>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={!!ema200}
+                    onChange={(e) => onChange?.({ ema200: e.target.checked })}
+                 />{" "}
+                 EMA 200
+               </label>
               </div>
 
               {divider}
