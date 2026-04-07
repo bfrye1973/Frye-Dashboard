@@ -665,6 +665,7 @@ export default function RowChart({
   const ema10Ref = useRef(null);
   const ema20Ref = useRef(null);
   const ema50Ref = useRef(null);
+  const ema200Ref = useRef(null);
   const roRef = useRef(null);
 
   const overlayInstancesRef = useRef([]);
@@ -707,6 +708,7 @@ export default function RowChart({
     ema10: true,
     ema20: true,
     ema50: true,
+    ema200: true,
 
     volume: true,
 
@@ -1456,6 +1458,7 @@ export default function RowChart({
     if (ema10Ref.current) ema10Ref.current.applyOptions({ visible: false });
     if (ema20Ref.current) ema20Ref.current.applyOptions({ visible: false });
     if (ema50Ref.current) ema50Ref.current.applyOptions({ visible: false });
+    if (ema200Ref.current) ema200Ref.current.applyOptions({ visible: false });
 
     if (!state.showEma || bars.length === 0) return;
 
@@ -1474,8 +1477,13 @@ export default function RowChart({
       l.setData(calcEMA(bars, 50));
       l.applyOptions({ visible: true });
     }
-  }, [bars, state.showEma, state.ema10, state.ema20, state.ema50]);
-
+    if (state.ema200) {
+      const l = ensureLine(ema200Ref, "#22c55e"); // pick a color you like
+      l.setData(calcEMA(bars, 200));
+      l.applyOptions({ visible: true });
+    }
+  }, [bars, state.showEma, state.ema10, state.ema20, state.ema50, state.ema200]);
+  
   const handleControlsChange = (patch) => setState((s) => ({ ...s, ...patch }));
 
   const applyRange = (nextRange) => {
@@ -1513,6 +1521,7 @@ export default function RowChart({
     ema10: state.ema10,
     ema20: state.ema20,
     ema50: state.ema50,
+    ema200: state.ema200,
     volume: state.volume,
 
     institutionalZonesAuto: state.institutionalZonesAuto,
@@ -1546,6 +1555,8 @@ export default function RowChart({
         ema10: true,
         ema20: true,
         ema50: true,
+        ema200: true,
+        
         volume: true,
         institutionalZonesAuto: false,
         smzShelvesAuto: false,
