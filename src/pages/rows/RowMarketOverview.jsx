@@ -5,6 +5,7 @@
 //    - 30m/1h/4h/EOD show "—" until we store those in replay snapshots later
 // ✅ Adds TRUE 30m Bridge light (from /live/30m) BETWEEN 10m and 1h
 // ✅ Keeps MASTER Overall Score (1h+4h+EOD) on the RIGHT of EOD lights
+// ✅ Adds Engine 21 Market Alignment (10m + 30m)
 
 import React from "react";
 import { useDashboardPoll } from "../../lib/dashboardApiSafe";
@@ -18,7 +19,7 @@ import { useReplay } from "../../replay/ReplayContext";
 
 // ----------------- API endpoints -----------------
 const INTRADAY_URL = process.env.REACT_APP_INTRADAY_URL; // /live/intraday
-const M30_URL = process.env.REACT_APP_30M_URL; // /live/30m ✅ NEW
+const M30_URL = process.env.REACT_APP_30M_URL; // /live/30m
 const HOURLY_URL = process.env.REACT_APP_HOURLY_URL; // /live/hourly
 const H4_URL = process.env.REACT_APP_4H_URL; // /live/4h
 const EOD_URL = process.env.REACT_APP_EOD_URL; // /live/eod
@@ -28,6 +29,10 @@ const SANDBOX_URL =
   process.env.REACT_APP_PILLS_URL ||
   process.env.REACT_APP_INTRADAY_SANDBOX_URL ||
   "";
+
+// Engine 21
+const ALIGN10_URL = "/api/v1/engine21-alignment?tf=10m";
+const ALIGN30_URL = "/api/v1/engine21-alignment?tf=30m";
 
 // ----------------- Utilities -----------------
 const num = (v) => {
@@ -49,7 +54,6 @@ const fmtIso = (ts) => {
 const tsOf = (x) => (x && (x.updated_at || x.updated_at_utc || x.ts)) || null;
 
 const weightedBlend = (items) => {
-  // items: [{ v: number, w: number }]
   const valid = items.filter(
     (x) => Number.isFinite(x?.v) && Number.isFinite(x?.w) && x.w > 0
   );
@@ -93,12 +97,17 @@ const toneForOverallState = (state, score) => {
   return toneForPct(score);
 };
 
-// MASTER color ranges (simple)
-// Green: 70–100 (Go long & stay long)
-// Yellow: 45–69 (Hold / manage / wait)
-// Red: <45 (Start looking for shorts)
+// MASTER color ranges
 const toneForMaster = (v) =>
   !Number.isFinite(v) ? "info" : v >= 70 ? "OK" : v >= 45 ? "warn" : "danger";
+
+// Engine 21 alignment tone
+const toneForAlignment = (score) => {
+  if (!Number.isFinite(score)) return "info";
+  if (score >= 75) return "OK";
+  if (score >= 50) return "warn";
+  return "danger";
+};
 
 // ----------------- Stoplight -----------------
 function Stoplight({
@@ -231,28 +240,34 @@ function useSandboxDeltas() {
 
 /* ===================== Main Component ===================== */
 export default function RowMarketOverview() {
-  const replay = useReplay(); // replay.enabled, replay.snapshot
+  const replay = useReplay();
   const { data: polled } = useDashboardPoll("dynamic");
 
   const [legendOpen, setLegendOpen] = React.useState(null);
 
   // Live feeds when replay is OFF
   const [live10, setLive10] = React.useState(null);
-  const [live30, setLive30] = React.useState(null); // ✅ NEW
+  const [live30, setLive30] = React.useState(null);
   const [live1h, setLive1h] = React.useState(null);
   const [live4h, setLive4h] = React.useState(null);
   const [liveEOD, setLiveEOD] = React.useState(null);
 
-  // Replay injection: when replay enabled and snapshot exists, force 10m feed from replay snapshot.market.raw
+  // Engine 21
+  const [align10, setAlign10] = React.useState(null);
+  const [align30, setAlign30] = React.useState(null);
+
+  // Replay injection
   React.useEffect(() => {
     if (replay?.enabled && replay?.snapshot?.market?.raw) {
       setLive10(replay.snapshot.market.raw);
+      setAlign10(null);
+      setAlign30(null);
     }
   }, [replay?.enabled, replay?.snapshot]);
 
   // Pull direct /live feeds (ONLY when replay is OFF)
   React.useEffect(() => {
-    if (replay?.enabled) return; // stop live polling in replay
+    if (replay?.enabled) return;
 
     let stop = false;
 
@@ -266,7 +281,6 @@ export default function RowMarketOverview() {
           if (!stop) setLive10(j);
         }
 
-        // ✅ 30m Bridge feed
         if (M30_URL) {
           const r = await fetch(`${M30_URL}?t=${Date.now()}`, {
             cache: "no-store",
@@ -282,6 +296,7 @@ export default function RowMarketOverview() {
           const j = await r.json();
           if (!stop) setLive1h(j);
         }
+
         if (H4_URL) {
           const r = await fetch(`${H4_URL}?t=${Date.now()}`, {
             cache: "no-store",
@@ -289,12 +304,30 @@ export default function RowMarketOverview() {
           const j = await r.json();
           if (!stop) setLive4h(j);
         }
+
         if (EOD_URL) {
           const r = await fetch(`${EOD_URL}?t=${Date.now()}`, {
             cache: "no-store",
           });
           const j = await r.json();
           if (!stop) setLiveEOD(j);
+        }
+
+        // Engine 21 alignment
+        {
+          const r10 = await fetch(`${ALIGN10_URL}&t=${Date.now()}`, {
+            cache: "no-store",
+          });
+          const j10 = await r10.json();
+          if (!stop) setAlign10(j10);
+        }
+
+        {
+          const r30 = await fetch(`${ALIGN30_URL}&t=${Date.now()}`, {
+            cache: "no-store",
+          });
+          const j30 = await r30.json();
+          if (!stop) setAlign30(j30);
         }
       } catch {
         // ignore
@@ -312,7 +345,6 @@ export default function RowMarketOverview() {
   const { dB: deltaB, dM: deltaM, ts: deltaTs } = useSandboxDeltas();
 
   // ----------------- Data Selection -----------------
-  // 10m: in replay mode use snapshot raw; otherwise live10; otherwise polled fallback
   const d10 =
     replay?.enabled && replay?.snapshot?.market?.raw
       ? replay.snapshot.market.raw
@@ -327,7 +359,6 @@ export default function RowMarketOverview() {
     replay?.snapshot?.tsUtc ||
     null;
 
-  // 30m/1h/4h/EOD: in replay mode not stored yet → show empty objects
   const d30 = replay?.enabled ? {} : live30 || {};
   const d1h = replay?.enabled ? {} : live1h || {};
   const d4h = replay?.enabled ? {} : live4h || {};
@@ -350,7 +381,7 @@ export default function RowMarketOverview() {
   if (!Number.isFinite(overall10)) overall10 = num(eng10.score);
   const state10 = i10?.overall10m?.state || eng10.state || "neutral";
 
-  // ----------------- 30m extraction (TRUE bridge) -----------------
+  // ----------------- 30m extraction -----------------
   const ts30 = d30.updated_at || d30.updated_at_utc || null;
   const m30 = d30.metrics || {};
   const t30 = d30.thirtyMin || {};
@@ -419,7 +450,17 @@ export default function RowMarketOverview() {
   const eodState =
     overallEOD?.state || dMetrics?.overall_eod_state || daily?.state || "neutral";
 
-  // MASTER = 1h + 4h + EOD (10m excluded)
+  // ----------------- Engine 21 extraction -----------------
+  const align10Score = num(align10?.alignmentScore);
+  const align30Score = num(align30?.alignmentScore);
+  const align10State = align10?.alignmentState || "—";
+  const align30State = align30?.alignmentState || "—";
+  const alignTs =
+    align30?.updatedAt ||
+    align10?.updatedAt ||
+    null;
+
+  // ----------------- MASTER -----------------
   const masterScore = weightedBlend([
     { v: overall1, w: 0.20 },
     { v: overall4, w: 0.35 },
@@ -489,7 +530,6 @@ export default function RowMarketOverview() {
             <Stoplight label="Risk-On" value={risk10} tone={toneForPct(risk10)} />
           </div>
 
-          {/* Pulse */}
           <div
             style={{
               color: "#9ca3af",
@@ -526,7 +566,7 @@ export default function RowMarketOverview() {
           </div>
         </div>
 
-        {/* ✅ 30m — Bridge (Overall only) BETWEEN 10m and 1h */}
+        {/* 30m */}
         <div style={stripBox}>
           <div className="small" style={{ color: "#e5e7eb", fontWeight: 800 }}>
             30m — Intraday Bridge {replay?.enabled ? "(—)" : ""}
@@ -603,7 +643,6 @@ export default function RowMarketOverview() {
             <Stoplight label="Liq Regime" value={eodLiq} unit="%" tone={toneForLiquidity(eodLiq)} />
             <Stoplight label="Risk-On" value={eodRiskOn} tone={toneForPct(eodRiskOn)} />
 
-            {/* MASTER */}
             <div style={{ textAlign: "center", minWidth: 120 }}>
               <div style={{ fontSize: 12, fontWeight: 800, color: "#9ca3af", marginBottom: 6 }}>
                 Master Overall Score
@@ -614,6 +653,39 @@ export default function RowMarketOverview() {
 
           <div style={{ color: "#9ca3af", fontSize: 12, marginTop: 4 }}>
             Daily updated: <strong>{fmtIso(tsEod)}</strong>
+          </div>
+        </div>
+
+        {/* Market Alignment */}
+        <div style={stripBox}>
+          <div className="small" style={{ color: "#e5e7eb", fontWeight: 800 }}>
+            Market Alignment {replay?.enabled ? "(—)" : ""}
+          </div>
+
+          <div style={lineBox}>
+            <Stoplight
+              label="10m Align"
+              value={align10Score}
+              unit=""
+              tone={toneForAlignment(align10Score)}
+            />
+            <Stoplight
+              label="30m Align"
+              value={align30Score}
+              unit=""
+              tone={toneForAlignment(align30Score)}
+            />
+          </div>
+
+          <div style={{ color: "#9ca3af", fontSize: 12, marginTop: 4 }}>
+            10m: <strong>{align10State}</strong> &nbsp; | &nbsp;
+            30m: <strong>{align30State}</strong>
+            {!replay?.enabled ? (
+              <>
+                {" "}
+                &nbsp;|&nbsp; Updated: <strong>{fmtIso(alignTs)}</strong>
+              </>
+            ) : null}
           </div>
         </div>
       </div>
