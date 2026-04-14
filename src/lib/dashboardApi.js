@@ -98,34 +98,35 @@ function transformToUi(raw) {
     : 0;
   const overall = (1 - Sdy) * base + Sdy * 50;
 
-  return {
-    gauges: {
-      rpm: pctTo1000(rpmPct),
-      speed: pctTo1000(spdPct),
-      fuelPct: compressionPct,
-      waterTemp: g.water?.degF ?? null,
-      oilPsi: g.oil?.psi ?? null,
-      volatilityPct: g.volatilityPct ?? g.water?.pct ?? null,
-      squeezeDaily: g.squeezeDaily ?? null,
-    },
-    odometers: {
-      breadthOdometer: Math.round(clamp(breadthIdx, 0, 100)),
-      momentumOdometer: Math.round(clamp(momentumIdx, 0, 100)),
-      squeezeCompressionPct: compressionPct,
-      expansionPotential:
-        expansionPotential == null ? null : Math.round(expansionPotential),
-      marketMeter: Math.round(clamp(overall, 0, 100)),
-      meterNote: null,
-    },
-    outlook: {
-      dailyOutlook: Math.round(clamp((breadthIdx + momentumIdx) / 2, 0, 100)),
-      sectorCards: raw?.sectorCards ?? raw?.outlook?.sectorCards ?? [],
-    },
-    signals: raw?.signals ?? {},
-    meta: { ts: raw?.ts ?? raw?.updated_at ?? new Date().toISOString() },
-  };
-}
+ return {
+  gauges: {
+    rpm: pctTo1000(rpmPct),
+    speed: pctTo1000(spdPct),
+    fuelPct: compressionPct,
+    waterTemp: g.water?.degF ?? null,
+    oilPsi: g.oil?.psi ?? null,
+    volatilityPct: g.volatilityPct ?? g.water?.pct ?? null,
+    squeezeDaily: g.squeezeDaily ?? null,
+  },
+  odometers: {
+    breadthOdometer: Math.round(clamp(breadthIdx, 0, 100)),
+    momentumOdometer: Math.round(clamp(momentumIdx, 0, 100)),
+    squeezeCompressionPct: compressionPct,
+    expansionPotential:
+      expansionPotential == null ? null : Math.round(expansionPotential),
+    marketMeter: Math.round(clamp(overall, 0, 100)),
+    meterNote: null,
+  },
+  outlook: {
+    dailyOutlook: Math.round(clamp((breadthIdx + momentumIdx) / 2, 0, 100)),
+    sectorCards: raw?.sectorCards ?? raw?.outlook?.sectorCards ?? [],
+  },
+  signals: raw?.signals ?? {},
+  meta: { ts: raw?.ts ?? raw?.updated_at ?? new Date().toISOString() },
 
+  // 🔥 ADD THIS LINE ONLY
+  raw: raw,
+};
 /* --------------- neutral fallback (no errors) -------- */
 const NEUTRAL = transformToUi({});
 
