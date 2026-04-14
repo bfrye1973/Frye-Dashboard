@@ -637,8 +637,7 @@ export default function RowMarketOverview() {
         </div>
 
         {/* Market Alignment */}
-               {/* Market Alignment */}
-        <div style={stripBox}>
+          <div style={stripBox}>
           <div className="small" style={{ color: "#e5e7eb", fontWeight: 800 }}>
             Market Alignment {replay?.enabled ? "(—)" : ""}
           </div>
@@ -697,8 +696,8 @@ export default function RowMarketOverview() {
             </div>
           </div>
         </div>
-
-      {legendOpen && (
+      </div>
+       {legendOpen && (
         <div
           role="dialog"
           aria-modal="true"
