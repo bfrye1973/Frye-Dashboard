@@ -338,7 +338,7 @@ export default function RowMarketOverview() {
   const dd = replay?.enabled ? {} : liveEOD || {};
 
   // Engine 21 comes from strategy snapshot now
-  const snapshot = replay?.enabled ? {} : (polled || {});
+  const snapshot = replay?.enabled ? {} : (polled?.raw || {});
   const engine21 = snapshot.engine21Alignment || {};
   const align10 = engine21.tenMin || null;
   const align30 = engine21.thirtyMin || null;
