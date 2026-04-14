@@ -336,12 +336,10 @@ export default function RowMarketOverview() {
   const d1h = replay?.enabled ? {} : live1h || {};
   const d4h = replay?.enabled ? {} : live4h || {};
   const dd = replay?.enabled ? {} : liveEOD || {};
-
-  // Engine 21 comes from strategy snapshot now
-  const snapshot = replay?.enabled ? {} : (polled?.raw || {});
-  const engine21 = snapshot.engine21Alignment || {};
-  const align10 = engine21.tenMin || null;
-  const align30 = engine21.thirtyMin || null;
+ 
+  // Engine 21 comes from the live 10m / 30m Market Meter payloads
+  const align10 = replay?.enabled ? null : (live10?.engine21Alignment || null);
+  const align30 = replay?.enabled ? null : (live30?.engine21Alignment || null);
 
   // ----------------- 10m extraction -----------------
   const breadth10 = num(m10.breadth_10m_pct ?? m10.breadth_pct);
