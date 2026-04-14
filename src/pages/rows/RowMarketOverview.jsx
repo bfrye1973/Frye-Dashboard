@@ -428,15 +428,18 @@ export default function RowMarketOverview() {
     overallEOD?.state || dMetrics?.overall_eod_state || daily?.state || "neutral";
 
   // ----------------- Engine 21 extraction -----------------
+  // ----------------- Engine 21 extraction -----------------
   const align10Score = num(align10?.alignmentScore);
   const align30Score = num(align30?.alignmentScore);
+
   const align10State = align10?.alignmentState || "—";
   const align30State = align30?.alignmentState || "—";
-  const alignTs =
-    align30?.updatedAt ||
-    align10?.updatedAt ||
-    null;
 
+  const align10Ts = align10?.updatedAt || null;
+  const align30Ts = align30?.updatedAt || null;
+
+  const align10Components = align10?.components || {};
+  const align30Components = align30?.components || {};
   // ----------------- MASTER -----------------
   const masterScore = weightedBlend([
     { v: overall1, w: 0.20 },
@@ -634,38 +637,66 @@ export default function RowMarketOverview() {
         </div>
 
         {/* Market Alignment */}
+               {/* Market Alignment */}
         <div style={stripBox}>
           <div className="small" style={{ color: "#e5e7eb", fontWeight: 800 }}>
             Market Alignment {replay?.enabled ? "(—)" : ""}
           </div>
 
-          <div style={lineBox}>
-            <Stoplight
-              label="10m Align"
-              value={align10Score}
-              unit=""
-              tone={toneForAlignment(align10Score)}
-            />
-            <Stoplight
-              label="30m Align"
-              value={align30Score}
-              unit=""
-              tone={toneForAlignment(align30Score)}
-            />
-          </div>
+          <div style={{ display: "flex", gap: 28, flexWrap: "wrap", alignItems: "flex-start" }}>
+            <div style={{ minWidth: 240 }}>
+              <div style={lineBox}>
+                <Stoplight
+                  label="10m Align"
+                  value={align10Score}
+                  unit=""
+                  tone={toneForAlignment(align10Score)}
+                />
+              </div>
 
-          <div style={{ color: "#9ca3af", fontSize: 12, marginTop: 4 }}>
-            10m: <strong>{align10State}</strong> &nbsp; | &nbsp;
-            30m: <strong>{align30State}</strong>
-            {!replay?.enabled ? (
-              <>
-                {" "}
-                &nbsp;|&nbsp; Updated: <strong>{fmtIso(alignTs)}</strong>
-              </>
-            ) : null}
+              <div style={{ color: "#9ca3af", fontSize: 12, marginTop: 4 }}>
+                <strong>State:</strong> {align10State}
+              </div>
+
+              <div style={{ color: "#9ca3af", fontSize: 12, marginTop: 2 }}>
+                <strong>Updated:</strong> {fmtIso(align10Ts)}
+              </div>
+
+              <div style={{ color: "#9ca3af", fontSize: 12, marginTop: 6, lineHeight: 1.6 }}>
+                <div><strong>SPY:</strong> {align10Components?.SPY?.direction || "—"}</div>
+                <div><strong>QQQ:</strong> {align10Components?.QQQ?.direction || "—"}</div>
+                <div><strong>DIA:</strong> {align10Components?.DIA?.direction || "—"}</div>
+                <div><strong>UVXY:</strong> {align10Components?.UVXY?.direction || "—"}</div>
+              </div>
+            </div>
+
+            <div style={{ minWidth: 240 }}>
+              <div style={lineBox}>
+                <Stoplight
+                  label="30m Align"
+                  value={align30Score}
+                  unit=""
+                  tone={toneForAlignment(align30Score)}
+                />
+              </div>
+
+              <div style={{ color: "#9ca3af", fontSize: 12, marginTop: 4 }}>
+                <strong>State:</strong> {align30State}
+              </div>
+
+              <div style={{ color: "#9ca3af", fontSize: 12, marginTop: 2 }}>
+                <strong>Updated:</strong> {fmtIso(align30Ts)}
+              </div>
+
+              <div style={{ color: "#9ca3af", fontSize: 12, marginTop: 6, lineHeight: 1.6 }}>
+                <div><strong>SPY:</strong> {align30Components?.SPY?.direction || "—"}</div>
+                <div><strong>QQQ:</strong> {align30Components?.QQQ?.direction || "—"}</div>
+                <div><strong>DIA:</strong> {align30Components?.DIA?.direction || "—"}</div>
+                <div><strong>UVXY:</strong> {align30Components?.UVXY?.direction || "—"}</div>
+              </div>
+            </div>
           </div>
         </div>
-      </div>
 
       {legendOpen && (
         <div
