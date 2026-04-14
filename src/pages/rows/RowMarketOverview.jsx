@@ -30,9 +30,6 @@ const SANDBOX_URL =
   process.env.REACT_APP_INTRADAY_SANDBOX_URL ||
   "";
 
-// Engine 21
-const ALIGN10_URL = "/api/v1/engine21-alignment?tf=10m";
-const ALIGN30_URL = "/api/v1/engine21-alignment?tf=30m";
 
 // ----------------- Utilities -----------------
 const num = (v) => {
@@ -252,18 +249,12 @@ export default function RowMarketOverview() {
   const [live4h, setLive4h] = React.useState(null);
   const [liveEOD, setLiveEOD] = React.useState(null);
 
-  // Engine 21
-  const [align10, setAlign10] = React.useState(null);
-  const [align30, setAlign30] = React.useState(null);
-
   // Replay injection
-  React.useEffect(() => {
-    if (replay?.enabled && replay?.snapshot?.market?.raw) {
-      setLive10(replay.snapshot.market.raw);
-      setAlign10(null);
-      setAlign30(null);
-    }
-  }, [replay?.enabled, replay?.snapshot]);
+ React.useEffect(() => {
+  if (replay?.enabled && replay?.snapshot?.market?.raw) {
+    setLive10(replay.snapshot.market.raw);
+  }
+}, [replay?.enabled, replay?.snapshot]);
 
   // Pull direct /live feeds (ONLY when replay is OFF)
   React.useEffect(() => {
@@ -314,25 +305,7 @@ export default function RowMarketOverview() {
         }
 
         // Engine 21 alignment
-        {
-          const r10 = await fetch(`${ALIGN10_URL}&t=${Date.now()}`, {
-            cache: "no-store",
-          });
-          const j10 = await r10.json();
-          if (!stop) setAlign10(j10);
-        }
-
-        {
-          const r30 = await fetch(`${ALIGN30_URL}&t=${Date.now()}`, {
-            cache: "no-store",
-          });
-          const j30 = await r30.json();
-          if (!stop) setAlign30(j30);
-        }
-      } catch {
-        // ignore
-      }
-    }
+        
 
     pull();
     const id = setInterval(pull, 15000);
@@ -363,6 +336,12 @@ export default function RowMarketOverview() {
   const d1h = replay?.enabled ? {} : live1h || {};
   const d4h = replay?.enabled ? {} : live4h || {};
   const dd = replay?.enabled ? {} : liveEOD || {};
+
+  // Engine 21 comes from strategy snapshot now
+  const snapshot = replay?.enabled ? {} : (polled || {});
+  const engine21 = snapshot.engine21Alignment || {};
+  const align10 = engine21.tenMin || null;
+  const align30 = engine21.thirtyMin || null;
 
   // ----------------- 10m extraction -----------------
   const breadth10 = num(m10.breadth_10m_pct ?? m10.breadth_pct);
