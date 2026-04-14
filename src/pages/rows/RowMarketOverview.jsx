@@ -256,7 +256,7 @@ export default function RowMarketOverview() {
   }
 }, [replay?.enabled, replay?.snapshot]);
 
-  // Pull direct /live feeds (ONLY when replay is OFF)
+   // Pull direct /live feeds (ONLY when replay is OFF)
   React.useEffect(() => {
     if (replay?.enabled) return;
 
@@ -303,9 +303,10 @@ export default function RowMarketOverview() {
           const j = await r.json();
           if (!stop) setLiveEOD(j);
         }
-
-        // Engine 21 alignment
-        
+      } catch {
+        // ignore
+      }
+    }
 
     pull();
     const id = setInterval(pull, 15000);
@@ -316,7 +317,6 @@ export default function RowMarketOverview() {
   }, [replay?.enabled]);
 
   const { dB: deltaB, dM: deltaM, ts: deltaTs } = useSandboxDeltas();
-
   // ----------------- Data Selection -----------------
   const d10 =
     replay?.enabled && replay?.snapshot?.market?.raw
