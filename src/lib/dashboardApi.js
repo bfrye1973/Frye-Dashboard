@@ -123,10 +123,9 @@ function transformToUi(raw) {
   },
   signals: raw?.signals ?? {},
   meta: { ts: raw?.ts ?? raw?.updated_at ?? new Date().toISOString() },
-
-  // 🔥 ADD THIS LINE ONLY
   raw: raw,
 };
+}
 /* --------------- neutral fallback (no errors) -------- */
 const NEUTRAL = transformToUi({});
 
