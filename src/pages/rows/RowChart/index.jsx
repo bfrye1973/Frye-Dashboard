@@ -320,15 +320,21 @@ function mapSnapshotToEngine17Overlay(snapshot) {
   const marketAlignment30State = alignment30?.alignmentState ?? null;
 
   const scalpOverall10 =
-    snapshot?.marketMeter?.tenMin?.overallScore ??
+    snapshot?.intraday?.overall10m?.score ??
+    snapshot?.market?.raw?.intraday?.overall10m?.score ??
+    snapshot?.engineLights?.["10m"]?.score ??
     snapshot?.marketMeter?.intraday?.overall10m?.score ??
+    snapshot?.marketMeter?.tenMin?.overallScore ??
     snapshot?.marketMeter?.intraday?.overallScore ??
     null;
 
   const scalpOverall30 =
-    snapshot?.marketMeter?.thirtyMin?.overallScore ??
+    snapshot?.thirtyMin?.overall30m?.score ??
+    snapshot?.market30?.thirtyMin?.overall30m?.score ??
+    snapshot?.metrics?.overall_30m_score ??
     snapshot?.marketMeter?.thirtyMin?.overall30m?.score ??
-    null;
+    snapshot?.marketMeter?.thirtyMin?.overallScore ??
+    null;  
 
   const anchors = [
     {
