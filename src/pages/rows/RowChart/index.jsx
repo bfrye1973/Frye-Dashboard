@@ -41,7 +41,6 @@ import Engine17Overlay from "./overlays/Engine17Overlay";
 import Engine17DecisionTimeline from "./overlays/Engine17DecisionTimeline";
 import Engine17Badges from "./overlays/Engine17Badges";
 
-
 /* ------------------------------ Config ------------------------------ */
 
 const API_BASE =
@@ -312,6 +311,25 @@ function mapSnapshotToEngine17Overlay(snapshot) {
   const readiness = scalp?.readinessLabel || "WAIT";
   const strategyType = scalp?.strategyType || "NONE";
 
+  const alignment10 = snapshot?.engine21Alignment?.tenMin || null;
+  const alignment30 = snapshot?.engine21Alignment?.thirtyMin || null;
+
+  const marketAlignment10Score = alignment10?.alignmentScore ?? null;
+  const marketAlignment30Score = alignment30?.alignmentScore ?? null;
+  const marketAlignment10State = alignment10?.alignmentState ?? null;
+  const marketAlignment30State = alignment30?.alignmentState ?? null;
+
+  const scalpOverall10 =
+    snapshot?.marketMeter?.tenMin?.overallScore ??
+    snapshot?.marketMeter?.intraday?.overall10m?.score ??
+    snapshot?.marketMeter?.intraday?.overallScore ??
+    null;
+
+  const scalpOverall30 =
+    snapshot?.marketMeter?.thirtyMin?.overallScore ??
+    snapshot?.marketMeter?.thirtyMin?.overall30m?.score ??
+    null;
+
   const anchors = [
     {
       kind: "PREMARKET_LOW",
@@ -524,6 +542,9 @@ function mapSnapshotToEngine17Overlay(snapshot) {
 
       nextFocus,
 
+      prepBias: scalp?.prepBias || "NONE",
+      executionBias: scalp?.executionBias || "NONE",
+
       waveShortPrep: !!scalp?.waveShortPrep,
       waveLongPrep: !!scalp?.waveLongPrep,
 
@@ -546,6 +567,13 @@ function mapSnapshotToEngine17Overlay(snapshot) {
 
       marketRegime: scalp?.marketRegime || null,
       macroRoadblock: scalp?.macroRoadblock || null,
+
+      marketAlignment10Score,
+      marketAlignment30Score,
+      marketAlignment10State,
+      marketAlignment30State,
+      scalpOverall10,
+      scalpOverall30,
 
       anchors: scalp?.anchors || {},
       anchorLabels: scalp?.anchorLabels || {},
@@ -731,7 +759,7 @@ export default function RowChart({
     engine17Overlay: true,
     engine17Timeline: true,
     engine17Badges: true,
-    engine17StateOverlay: true,
+    engine17StateOverlay: false,
     engine17Signals: true,
     engine17TriggerLine: true,
     engine17DebugPanel: false,
@@ -1478,12 +1506,12 @@ export default function RowChart({
       l.applyOptions({ visible: true });
     }
     if (state.ema200) {
-      const l = ensureLine(ema200Ref, "#a855f7"); // pick a color you like
+      const l = ensureLine(ema200Ref, "#a855f7");
       l.setData(calcEMA(bars, 200));
       l.applyOptions({ visible: true });
     }
   }, [bars, state.showEma, state.ema10, state.ema20, state.ema50, state.ema200]);
-  
+
   const handleControlsChange = (patch) => setState((s) => ({ ...s, ...patch }));
 
   const applyRange = (nextRange) => {
@@ -1556,7 +1584,7 @@ export default function RowChart({
         ema20: true,
         ema50: true,
         ema200: true,
-        
+
         volume: true,
         institutionalZonesAuto: false,
         smzShelvesAuto: false,
@@ -1567,7 +1595,7 @@ export default function RowChart({
         engine17Overlay: true,
         engine17Timeline: true,
         engine17Badges: true,
-        engine17StateOverlay: true,
+        engine17StateOverlay: false,
         engine17Signals: true,
         engine17TriggerLine: true,
         engine17DebugPanel: false,
@@ -1624,8 +1652,12 @@ export default function RowChart({
   );
 
   const badge = (() => {
-    if (liveStatus === "LIVE") return { text: "LIVE", bg: "rgba(16,185,129,0.92)" };
-    if (liveStatus === "STALE") return { text: "STALE", bg: "rgba(239,68,68,0.92)" };
+    if (liveStatus === "LIVE") {
+      return { text: "LIVE", bg: "rgba(16,185,129,0.92)" };
+    }
+    if (liveStatus === "STALE") {
+      return { text: "STALE", bg: "rgba(239,68,68,0.92)" };
+    }
     return { text: "CONNECTING", bg: "rgba(245,158,11,0.92)" };
   })();
 
@@ -1690,7 +1722,7 @@ export default function RowChart({
             {badge.text}
           </div>
 
-           <Engine17DecisionTimeline
+          <Engine17DecisionTimeline
             overlayData={engine17Data}
             visible={state.engine17Timeline && state.engine17Overlay}
           />
