@@ -1728,12 +1728,12 @@ export default function RowChart({
             visible={state.engine17Timeline && state.engine17Overlay}
           />
 
-          <Engine17Badges
-            overlayData={engine17Data}
-            visible={state.engine17Badges && state.engine17Overlay}
-            showConfidenceStack={showDebug || state.engine17DebugPanel}
-            showReplaySyncedState={false}
-          />
+         {/* <Engine17Badges
+           overlayData={engine17Data}
+           visible={state.engine17Badges && state.engine17Overlay}
+           showConfidenceStack={showDebug || state.engine17DebugPanel}
+           showReplaySyncedState={false}
+         /> */}
 
           <Engine17DebugPanel
             visible={showDebug || state.engine17DebugPanel}
