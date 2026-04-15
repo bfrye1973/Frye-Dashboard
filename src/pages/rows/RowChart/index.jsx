@@ -1232,6 +1232,7 @@ export default function RowChart({
           overlayData: engine17Data,
           showLiquidityZones: false,
           showMarketStructure: false,
+          showBadges: false, 
           showSignals: !!state.engine17Signals,
           showSignalProvenance: false,
           showForwardRiskMap: false,
