@@ -40,7 +40,7 @@ import { createDrawingsEngine } from "../../../features/drawings/createDrawingsE
 import Engine17Overlay from "./overlays/Engine17Overlay";
 import Engine17DecisionTimeline from "./overlays/Engine17DecisionTimeline";
 import Engine17Badges from "./overlays/Engine17Badges";
-import Engine17StateOverlay from "./overlays/Engine17StateOverlay";
+
 
 /* ------------------------------ Config ------------------------------ */
 
@@ -1690,14 +1690,7 @@ export default function RowChart({
             {badge.text}
           </div>
 
-          {state.engine17StateOverlay && (
-            <Engine17StateOverlay
-              overlayData={engine17Data}
-              visible={state.engine17Overlay}
-            />
-          )}
-
-          <Engine17DecisionTimeline
+           <Engine17DecisionTimeline
             overlayData={engine17Data}
             visible={state.engine17Timeline && state.engine17Overlay}
           />
