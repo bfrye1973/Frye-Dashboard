@@ -330,7 +330,7 @@ export default function Engine17Badges({ overlayData, visible = true }) {
         }}
       >
         <Badge
-          label="STATE"
+          label="TEST STATE"
           value={stateValue}
           tone={toneForState(stateValue)}
           large={true}
