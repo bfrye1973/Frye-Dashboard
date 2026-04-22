@@ -54,10 +54,10 @@ export default function Engine17DecisionTimeline({
   if (prepBias === "SHORT_PREP" && watchShort) {
     currentRead = "Short prep active — watching for breakdown";
     confirmation = breakdownRef
-      ? `Break below ${breakdownRef} confirms downside continuation`
+      ? `Break below ${breakdownRef} confirms structure breakdown`
       : lastHigherLow
       ? `Break below ${lastHigherLow} confirms downside continuation`
-      : "Break below structure confirms downside continuation";
+      : "Break below structure confirms breakdown";
   }
 
   if (prepBias === "LONG_PREP" && watchLong) {
@@ -125,7 +125,7 @@ export default function Engine17DecisionTimeline({
           fontWeight: 800,
         }}
       >
-        {`4H Trend: ${trend4h}`}
+        {`HTF Bias: ${trend4h}`}
       </div>
 
       <div
@@ -160,7 +160,7 @@ export default function Engine17DecisionTimeline({
           fontWeight: 700,
         }}
       >
-        {`Execution: ${executionBias} | Readiness: ${readiness}`}
+        {`Execution (LTF): ${executionBias} | Readiness: ${readiness}`}
       </div>
     </div>
   );
