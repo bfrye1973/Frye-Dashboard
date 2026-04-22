@@ -290,7 +290,7 @@ function mapSnapshotToEngine17Overlay(snapshot) {
     return {
       ok: false,
       error: "SNAPSHOT_ENGINE16_MISSING",
-      fib: {},
+      fib: {om },
       anchors: [],
       signals: [],
       badges: [],
@@ -550,7 +550,13 @@ function mapSnapshotToEngine17Overlay(snapshot) {
 
       prepBias: scalp?.prepBias || "NONE",
       executionBias: scalp?.executionBias || "NONE",
-
+      close4h: scalp?.close4h ?? null,
+      ema10_4h: scalp?.ema10_4h ?? null,
+      trendState_4h: scalp?.trendState_4h || null,
+      lastHigherLow: scalp?.lastHigherLow ?? null,
+      lastLowerHigh: scalp?.lastLowerHigh ?? null,
+      breakdownRef: scalp?.breakdownRef ?? null,   
+      
       waveShortPrep: !!scalp?.waveShortPrep,
       waveLongPrep: !!scalp?.waveLongPrep,
 
