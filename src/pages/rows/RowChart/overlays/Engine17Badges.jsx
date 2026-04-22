@@ -388,22 +388,25 @@ export default function Engine17Badges({ overlayData, visible = true }) {
       style={{
         position: "absolute",
         top: 12,
+        left: 12,
         right: 12,
         zIndex: 115,
         display: "flex",
         alignItems: "center",
-        justifyContent: "flex-end",
+        justifyContent: "space-between",
         gap: 12,
-        maxWidth: "82%",
+        width: "calc(100% - 24px)",
         pointerEvents: "none",
-      }}
-    >
+       }}
+     >
       <div
         style={{
           display: "flex",
           flexWrap: "wrap",
-          justifyContent: "flex-end",
+          justifyContent: "flex-start",
           gap: 8,
+          flex: "1 1 auto",
+          minWidth: 0,
         }}
       >
         <Badge
@@ -444,6 +447,8 @@ export default function Engine17Badges({ overlayData, visible = true }) {
           flexWrap: "wrap",
           justifyContent: "flex-end",
           gap: 8,
+          flex: "1 1 auto",
+          minWidth: 0,
         }}
       >
         <Badge
