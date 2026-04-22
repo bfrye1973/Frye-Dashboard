@@ -146,7 +146,50 @@ export default function Engine17Overlay({
     ctx.fillText(detailLabel, bx2 + 11, by2 + 20);
     ctx.restore();
   }
+  function drawStructureLine(ctx, w) {
+  const fib = overlayData?.fib || {};
 
+  const shortActive =
+    fib?.prepBias === "SHORT_PREP" || fib?.continuationTriggerShort;
+  const longActive =
+    fib?.prepBias === "LONG_PREP" || fib?.continuationTriggerLong;
+
+  let level = null;
+  let color = "#f3f4f6";
+
+  if (shortActive) {
+    level = fib?.breakdownRef ?? fib?.lastHigherLow ?? null;
+    color = "#ef4444";
+  } else if (longActive) {
+    level = fib?.lastLowerHigh ?? null;
+    color = "#22c55e";
+  }
+
+  if (!Number.isFinite(level)) return;
+
+  const y = priceToY(level);
+  if (y == null) return;
+
+  const confirmed =
+    fib?.continuationTriggerShort || fib?.continuationTriggerLong;
+
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = confirmed ? 2.5 : 1.75;
+  ctx.setLineDash(confirmed ? [] : [8, 8]);
+  ctx.beginPath();
+  ctx.moveTo(0, y);
+  ctx.lineTo(w, y);
+  ctx.stroke();
+  ctx.restore();
+
+  ctx.save();
+  ctx.font = "16px system-ui";
+  const text = `STRUCTURE ${Number(level).toFixed(2)}`;
+  ctx.fillStyle = color;
+  ctx.fillText(text, Math.floor(w * 0.6), y - 10);
+  ctx.restore();
+}
   function drawSignalMarker(ctx, w, price, kind, label) {
     const y = priceToY(price);
     if (y == null) return;
@@ -204,6 +247,7 @@ export default function Engine17Overlay({
     const w = rect.width;
 
     drawTriggerLine(ctx, w);
+    drawStructureLine(ctx, w);
 
     if (showSignals) {
       const signals = Array.isArray(overlayData?.signals) ? overlayData.signals : [];
