@@ -290,7 +290,7 @@ function mapSnapshotToEngine17Overlay(snapshot) {
     return {
       ok: false,
       error: "SNAPSHOT_ENGINE16_MISSING",
-      fib: {om },
+      fib: {},
       anchors: [],
       signals: [],
       badges: [],
