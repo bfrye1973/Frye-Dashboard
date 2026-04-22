@@ -24,7 +24,8 @@ function simplifyAlignmentState(value) {
   if (!v) return "—";
   if (v.includes("FULL")) return "FULL";
   if (v.includes("PARTIAL")) return "PARTIAL";
-  if (v.includes("NONE")) return "NONE";
+  if (v.includes("NO ALIGNMENT")) return "NO ALIGNMENT";
+  if (v.includes("NONE")) return "NO ALIGNMENT";
   if (v.includes("BULL")) return "BULL";
   if (v.includes("BEAR")) return "BEAR";
 
@@ -32,6 +33,17 @@ function simplifyAlignmentState(value) {
 }
 
 function formatState(fib) {
+  const prepBias = String(fib?.prepBias || "").toUpperCase();
+  const triggerShort = !!fib?.continuationTriggerShort;
+  const triggerLong = !!fib?.continuationTriggerLong;
+  const watchShort = !!fib?.continuationWatchShort;
+  const watchLong = !!fib?.continuationWatchLong;
+
+  if (triggerShort) return "CONFIRMED SHORT";
+  if (triggerLong) return "CONFIRMED LONG";
+  if (prepBias === "SHORT_PREP" && watchShort) return "BREAKDOWN WATCH";
+  if (prepBias === "LONG_PREP" && watchLong) return "BREAKOUT WATCH";
+
   const state = text(fib?.state, "Unknown");
   return humanize(state, "Unknown");
 }
@@ -39,61 +51,101 @@ function formatState(fib) {
 function formatStructure(fib) {
   const prepBias = String(fib?.prepBias || "").toUpperCase();
 
-  if (prepBias === "SHORT_PREP") return "Short Prep";
-  if (prepBias === "LONG_PREP") return "Long Prep";
-  if (prepBias === "SHORT_PREFERENCE") return "Short Preference";
-  if (prepBias === "LONG_PREFERENCE") return "Long Preference";
-  if (prepBias === "NONE" || !prepBias) return "None";
+  if (prepBias === "SHORT_PREP") return "SHORT PREP";
+  if (prepBias === "LONG_PREP") return "LONG PREP";
+  if (prepBias === "SHORT_PREFERENCE") return "SHORT PREFERENCE";
+  if (prepBias === "LONG_PREFERENCE") return "LONG PREFERENCE";
+  if (prepBias === "NONE" || !prepBias) return "NONE";
 
-  return humanize(prepBias, "None");
+  return humanize(prepBias, "NONE").toUpperCase();
 }
 
 function formatExecution(fib) {
   const executionBias = String(fib?.executionBias || "").toUpperCase();
 
-  if (executionBias === "LONG_ONLY") return "Long Only";
-  if (executionBias === "SHORT_ONLY") return "Short Only";
-  if (executionBias === "NONE" || !executionBias) return "None";
+  if (executionBias === "LONG_ONLY") return "LONG ONLY";
+  if (executionBias === "SHORT_ONLY") return "SHORT ONLY";
+  if (executionBias === "NONE" || !executionBias) return "NEUTRAL";
 
-  return humanize(executionBias, "None");
+  return humanize(executionBias, "NEUTRAL").toUpperCase();
 }
 
 function formatReadiness(fib) {
-  return humanize(fib?.readinessLabel, "WAIT");
+  const raw = String(fib?.readinessLabel || "").toUpperCase();
+
+  if (raw === "WAIT_FOR_MAGNET_RESOLUTION") return "WAIT FOR BREAK";
+  if (raw === "WATCH_FOR_BREAKDOWN") return "WAIT FOR BREAK";
+  if (raw === "WATCH_FOR_BREAKOUT") return "WAIT FOR BREAK";
+  if (raw === "WATCH") return "WATCH";
+  if (raw === "WAIT") return "NOT READY";
+  if (raw === "READY") return "READY";
+  if (raw === "ENTER") return "TRIGGERED";
+
+  return humanize(raw || "WAIT", "WAIT").toUpperCase();
 }
 
-function formatAlignment(fib) {
-  const s10 = simplifyAlignmentState(fib?.marketAlignment10State);
-  const s30 = simplifyAlignmentState(fib?.marketAlignment30State);
-  return `10M ${s10} / 30M ${s30}`;
+function formatBias(fib) {
+  const direction = String(fib?.decisionDirection || fib?.direction || "").toUpperCase();
+  const context = String(fib?.context || "").toUpperCase();
+
+  if (direction === "LONG") return "LONG";
+  if (direction === "SHORT") return "SHORT";
+  if (context.includes("LONG")) return "LONG";
+  if (context.includes("SHORT")) return "SHORT";
+
+  return "NEUTRAL";
 }
 
-function formatScalp(fib) {
-  const s10 = num(fib?.scalpOverall10);
-  const s30 = num(fib?.scalpOverall30);
+function shortWave(value) {
+  const raw = String(value || "").toUpperCase();
+  if (!raw) return "—";
+  if (raw.startsWith("IN_")) return raw.replace("IN_", "");
+  return raw.replaceAll("_", " ");
+}
 
-  const left = s10 == null ? "—" : String(Math.round(s10));
-  const right = s30 == null ? "—" : String(Math.round(s30));
+function formatWave(fib) {
+  const wave = fib?.waveContext || {};
+  const p = shortWave(wave?.primaryPhase);
+  const i = shortWave(wave?.intermediatePhase);
+  const m = shortWave(wave?.minorPhase);
 
-  return `10M ${left} • 30M ${right}`;
+  return `${p} / ${i} / ${m}`;
+}
+
+function formatQuality(fib) {
+  const score = num(fib?.qualityScore);
+  const grade = text(fib?.qualityGrade, "").toUpperCase();
+
+  const scoreText = score == null ? "—" : String(Math.round(score));
+
+  if (grade) return `${scoreText} (${grade})`;
+  return scoreText;
+}
+
+function formatAlignment10(fib) {
+  return simplifyAlignmentState(fib?.marketAlignment10State);
+}
+
+function formatAlignment30(fib) {
+  return simplifyAlignmentState(fib?.marketAlignment30State);
 }
 
 function toneForState(value) {
   const v = String(value || "").toLowerCase();
 
-  if (v.includes("long")) {
-    return {
-      bg: "rgba(34,197,94,0.14)",
-      border: "rgba(34,197,94,0.42)",
-      color: "#dcfce7",
-    };
-  }
-
-  if (v.includes("short")) {
+  if (v.includes("confirmed short") || v.includes("breakdown")) {
     return {
       bg: "rgba(239,68,68,0.14)",
       border: "rgba(239,68,68,0.42)",
       color: "#fee2e2",
+    };
+  }
+
+  if (v.includes("confirmed long") || v.includes("breakout")) {
+    return {
+      bg: "rgba(34,197,94,0.14)",
+      border: "rgba(34,197,94,0.42)",
+      color: "#dcfce7",
     };
   }
 
@@ -159,7 +211,15 @@ function toneForExecution(value) {
 function toneForReadiness(value) {
   const v = String(value || "").toUpperCase();
 
-  if (v === "WATCH") {
+  if (v.includes("TRIGGERED") || v.includes("READY")) {
+    return {
+      bg: "rgba(34,197,94,0.14)",
+      border: "rgba(34,197,94,0.42)",
+      color: "#dcfce7",
+    };
+  }
+
+  if (v.includes("WATCH")) {
     return {
       bg: "rgba(255,255,255,0.09)",
       border: "rgba(255,255,255,0.22)",
@@ -167,19 +227,11 @@ function toneForReadiness(value) {
     };
   }
 
-  if (v === "WAIT") {
+  if (v.includes("WAIT") || v.includes("NOT READY")) {
     return {
       bg: "rgba(148,163,184,0.10)",
       border: "rgba(148,163,184,0.26)",
       color: "#cbd5e1",
-    };
-  }
-
-  if (v === "GO" || v === "READY" || v === "ENTER") {
-    return {
-      bg: "rgba(34,197,94,0.14)",
-      border: "rgba(34,197,94,0.42)",
-      color: "#dcfce7",
     };
   }
 
@@ -190,16 +242,18 @@ function toneForReadiness(value) {
   };
 }
 
-function toneForAlignment(fib) {
-  const s10 = num(fib?.marketAlignment10Score);
-  const s30 = num(fib?.marketAlignment30Score);
+function toneForBias(value) {
+  const v = String(value || "").toUpperCase();
 
-  const best = Math.max(
-    Number.isFinite(s10) ? s10 : -Infinity,
-    Number.isFinite(s30) ? s30 : -Infinity
-  );
+  if (v === "SHORT") {
+    return {
+      bg: "rgba(239,68,68,0.14)",
+      border: "rgba(239,68,68,0.42)",
+      color: "#fee2e2",
+    };
+  }
 
-  if (best >= 75) {
+  if (v === "LONG") {
     return {
       bg: "rgba(34,197,94,0.14)",
       border: "rgba(34,197,94,0.42)",
@@ -207,7 +261,33 @@ function toneForAlignment(fib) {
     };
   }
 
-  if (best >= 50) {
+  return {
+    bg: "rgba(148,163,184,0.10)",
+    border: "rgba(148,163,184,0.26)",
+    color: "#cbd5e1",
+  };
+}
+
+function toneForWave() {
+  return {
+    bg: "rgba(255,255,255,0.07)",
+    border: "rgba(255,255,255,0.16)",
+    color: "#f8fafc",
+  };
+}
+
+function toneForQuality(fib) {
+  const score = num(fib?.qualityScore);
+
+  if (score != null && score >= 70) {
+    return {
+      bg: "rgba(34,197,94,0.14)",
+      border: "rgba(34,197,94,0.42)",
+      color: "#dcfce7",
+    };
+  }
+
+  if (score != null && score >= 40) {
     return {
       bg: "rgba(245,158,11,0.14)",
       border: "rgba(245,158,11,0.42)",
@@ -222,16 +302,10 @@ function toneForAlignment(fib) {
   };
 }
 
-function toneForScalp(fib) {
-  const s10 = num(fib?.scalpOverall10);
-  const s30 = num(fib?.scalpOverall30);
+function toneForAlignmentScore(score) {
+  const n = num(score);
 
-  const best = Math.max(
-    Number.isFinite(s10) ? s10 : -Infinity,
-    Number.isFinite(s30) ? s30 : -Infinity
-  );
-
-  if (best >= 70) {
+  if (n != null && n >= 75) {
     return {
       bg: "rgba(34,197,94,0.14)",
       border: "rgba(34,197,94,0.42)",
@@ -239,7 +313,7 @@ function toneForScalp(fib) {
     };
   }
 
-  if (best >= 40) {
+  if (n != null && n >= 50) {
     return {
       bg: "rgba(245,158,11,0.14)",
       border: "rgba(245,158,11,0.42)",
@@ -249,8 +323,8 @@ function toneForScalp(fib) {
 
   return {
     bg: "rgba(239,68,68,0.14)",
-      border: "rgba(239,68,68,0.42)",
-      color: "#fee2e2",
+    border: "rgba(239,68,68,0.42)",
+    color: "#fee2e2",
   };
 }
 
@@ -260,8 +334,8 @@ function Badge({ label, value, tone, large = false }) {
       style={{
         display: "flex",
         alignItems: "center",
-        gap: 8,
-        padding: large ? "9px 14px" : "8px 12px",
+        gap: 10,
+        padding: large ? "11px 16px" : "10px 14px",
         borderRadius: 11,
         border: `1px solid ${tone.border}`,
         background: tone.bg,
@@ -273,9 +347,9 @@ function Badge({ label, value, tone, large = false }) {
     >
       <span
         style={{
-          fontSize: large ? 10 : 9,
+          fontSize: large ? 11 : 10,
           fontWeight: 900,
-          letterSpacing: 0.8,
+          letterSpacing: 0.85,
           opacity: 0.78,
         }}
       >
@@ -283,7 +357,7 @@ function Badge({ label, value, tone, large = false }) {
       </span>
       <span
         style={{
-          fontSize: large ? 13 : 12,
+          fontSize: large ? 15 : 13,
           fontWeight: large ? 900 : 800,
           letterSpacing: 0.2,
         }}
@@ -303,8 +377,11 @@ export default function Engine17Badges({ overlayData, visible = true }) {
   const structureValue = formatStructure(fib);
   const executionValue = formatExecution(fib);
   const readinessValue = formatReadiness(fib);
-  const alignmentValue = formatAlignment(fib);
-  const scalpValue = formatScalp(fib);
+  const biasValue = formatBias(fib);
+  const waveValue = formatWave(fib);
+  const qualityValue = formatQuality(fib);
+  const alignment10Value = formatAlignment10(fib);
+  const alignment30Value = formatAlignment30(fib);
 
   return (
     <div
@@ -317,7 +394,7 @@ export default function Engine17Badges({ overlayData, visible = true }) {
         alignItems: "center",
         justifyContent: "flex-end",
         gap: 12,
-        maxWidth: "78%",
+        maxWidth: "82%",
         pointerEvents: "none",
       }}
     >
@@ -330,7 +407,7 @@ export default function Engine17Badges({ overlayData, visible = true }) {
         }}
       >
         <Badge
-          label="TEST STATE"
+          label="STATE"
           value={stateValue}
           tone={toneForState(stateValue)}
           large={true}
@@ -355,7 +432,7 @@ export default function Engine17Badges({ overlayData, visible = true }) {
       <div
         style={{
           width: 1,
-          height: 32,
+          height: 34,
           background: "rgba(255,255,255,0.14)",
           flex: "0 0 auto",
         }}
@@ -370,14 +447,29 @@ export default function Engine17Badges({ overlayData, visible = true }) {
         }}
       >
         <Badge
-          label="ALIGNMENT"
-          value={alignmentValue}
-          tone={toneForAlignment(fib)}
+          label="BIAS"
+          value={biasValue}
+          tone={toneForBias(biasValue)}
         />
         <Badge
-          label="SCALP"
-          value={scalpValue}
-          tone={toneForScalp(fib)}
+          label="WAVE"
+          value={waveValue}
+          tone={toneForWave()}
+        />
+        <Badge
+          label="QUALITY"
+          value={qualityValue}
+          tone={toneForQuality(fib)}
+        />
+        <Badge
+          label="ALIGNMENT 10"
+          value={alignment10Value}
+          tone={toneForAlignmentScore(fib?.marketAlignment10Score)}
+        />
+        <Badge
+          label="ALIGNMENT 30"
+          value={alignment30Value}
+          tone={toneForAlignmentScore(fib?.marketAlignment30Score)}
         />
       </div>
     </div>
