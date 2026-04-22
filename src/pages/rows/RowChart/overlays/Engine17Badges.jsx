@@ -393,7 +393,7 @@ export default function Engine17Badges({ overlayData, visible = true }) {
         zIndex: 115,
         display: "flex",
         alignItems: "center",
-        justifyContent: "space-between",
+        justifyContent: "center",
         gap: 12,
         width: "calc(100% - 24px)",
         pointerEvents: "none",
@@ -432,20 +432,12 @@ export default function Engine17Badges({ overlayData, visible = true }) {
         />
       </div>
 
-      <div
-        style={{
-          width: 1,
-          height: 34,
-          background: "rgba(255,255,255,0.14)",
-          flex: "0 0 auto",
-        }}
-      />
-
+      
       <div
         style={{
           display: "flex",
           flexWrap: "wrap",
-          justifyContent: "flex-end",
+          justifyContent: "center",
           gap: 8,
           flex: "1 1 auto",
           minWidth: 0,
