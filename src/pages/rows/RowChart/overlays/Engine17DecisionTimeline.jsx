@@ -4,7 +4,17 @@ import React from "react";
 
 function formatWave(w) {
   if (!w) return "—";
-  return w.replace("IN_", "").replaceAll("_", " ");
+  return String(w).replace("IN_", "").replaceAll("_", " ");
+}
+
+function formatBias(v, fallback = "—") {
+  if (!v) return fallback;
+  return String(v).replaceAll("_", " ");
+}
+
+function formatLevel(v) {
+  const n = Number(v);
+  return Number.isFinite(n) ? n.toFixed(2) : null;
 }
 
 export default function Engine17DecisionTimeline({
@@ -14,88 +24,131 @@ export default function Engine17DecisionTimeline({
   if (!visible || !overlayData?.ok) return null;
 
   const fib = overlayData?.fib || {};
-  const wave = fib.waveContext || {};
+  const wave = fib?.waveContext || {};
 
-  const primary = formatWave(wave.primaryPhase);
-  const intermediate = formatWave(wave.intermediatePhase);
-  const minor = formatWave(wave.minorPhase);
+  const primary = formatWave(wave?.primaryPhase);
+  const intermediate = formatWave(wave?.intermediatePhase);
+  const minor = formatWave(wave?.minorPhase);
 
-  const trend4h = fib.trendState_4h || "—";
+  const trend4h = formatBias(fib?.trendState_4h || fib?.executionBias, "—");
+  const prepBias = String(fib?.prepBias || "NONE").toUpperCase();
+  const readiness = formatBias(fib?.readinessLabel, "WAIT");
 
-  const prepBias = fib.prepBias || "NONE";
-  const executionBias = fib.executionBias || "NONE";
+  const watchShort = !!fib?.continuationWatchShort;
+  const watchLong = !!fib?.continuationWatchLong;
+  const triggerShort = !!fib?.continuationTriggerShort;
+  const triggerLong = !!fib?.continuationTriggerLong;
 
-  const watchShort = fib.continuationWatchShort;
-  const watchLong = fib.continuationWatchLong;
+  const breakdownRef = formatLevel(fib?.breakdownRef);
+  const lastLowerHigh = formatLevel(fib?.lastLowerHigh);
 
-  const triggerShort = fib.continuationTriggerShort;
-  const triggerLong = fib.continuationTriggerLong;
-
-  const breakdownRef = fib.breakdownRef;
-  const readiness = fib.readinessLabel || "WAIT";
-
-  let interpretation = "No active setup";
-  let confirmation = "No confirmation";
+  let currentRead = "No active setup";
+  let confirmation = "No confirmation condition";
 
   if (prepBias === "SHORT_PREP" && watchShort) {
-    interpretation = "Short prep active — watching for breakdown";
+    currentRead = "Short prep active — watching for breakdown";
     confirmation = breakdownRef
-      ? `Break below ${Number(breakdownRef).toFixed(2)} confirms downside continuation`
+      ? `Break below ${breakdownRef} confirms downside continuation`
       : "Break below structure confirms downside continuation";
   }
 
   if (prepBias === "LONG_PREP" && watchLong) {
-    interpretation = "Long prep active — watching for breakout";
-    confirmation = fib.lastLowerHigh
-      ? `Break above ${Number(fib.lastLowerHigh).toFixed(2)} confirms upside continuation`
+    currentRead = "Long prep active — watching for breakout";
+    confirmation = lastLowerHigh
+      ? `Break above ${lastLowerHigh} confirms upside continuation`
       : "Break above structure confirms upside continuation";
   }
 
   if (triggerShort) {
-    interpretation = "Downside continuation confirmed";
-    confirmation = "Wave 4 breakdown in progress";
+    currentRead = "Downside continuation confirmed";
+    confirmation = breakdownRef
+      ? `Break below ${breakdownRef} confirmed downside continuation`
+      : "Breakdown confirmed";
   }
 
   if (triggerLong) {
-    interpretation = "Upside continuation confirmed";
-    confirmation = "Bullish continuation in progress";
+    currentRead = "Upside continuation confirmed";
+    confirmation = lastLowerHigh
+      ? `Break above ${lastLowerHigh} confirmed upside continuation`
+      : "Breakout confirmed";
   }
 
   return (
     <div
       style={{
-        position: "fixed",          // 🔥 KEY FIX (not absolute)
-        top: 70,
+        position: "absolute",
+        top: 58,
         left: "50%",
         transform: "translateX(-50%)",
-        zIndex: 200,
-
-        width: 700,
-        maxWidth: "80%",
-
+        zIndex: 109,
+        width: 640,
+        maxWidth: "68%",
         borderRadius: 14,
-        border: "1px solid rgba(255,255,255,0.14)",
-        background: "rgba(6,10,20,0.95)",
-        padding: 18,
+        border: "1px solid rgba(255,255,255,0.12)",
+        background: "rgba(6,10,20,0.92)",
+        padding: "12px 16px",
         color: "#e5e7eb",
-        backdropFilter: "blur(6px)",
+        backdropFilter: "blur(4px)",
         pointerEvents: "none",
+        textAlign: "center",
+        boxShadow: "0 8px 24px rgba(0,0,0,0.28)",
       }}
     >
-      <div style={{ fontWeight: 900, fontSize: 20, marginBottom: 8 }}>
+      <div
+        style={{
+          fontWeight: 900,
+          fontSize: 18,
+          lineHeight: 1.35,
+          marginBottom: 6,
+          color: "#f8fafc",
+        }}
+      >
         {`Primary ${primary} | Intermediate ${intermediate} | Minor ${minor}`}
       </div>
 
-      <div style={{ fontSize: 18, marginBottom: 8 }}>
-        4H Trend: {executionBias.replaceAll("_", " ")}
+      <div
+        style={{
+          fontSize: 15,
+          lineHeight: 1.45,
+          marginBottom: 4,
+          color: "#cbd5e1",
+        }}
+      >
+        {`4H Trend: ${trend4h}`}
       </div>
 
-      <div style={{ fontSize: 18, marginBottom: 8 }}>
-        {interpretation}
+      <div
+        style={{
+          fontSize: 15,
+          lineHeight: 1.45,
+          marginBottom: 4,
+          color: "#e5e7eb",
+          fontWeight: 700,
+        }}
+      >
+        {currentRead}
       </div>
 
-      <div style={{ fontSize: 18, opacity: 0.9 }}>
+      <div
+        style={{
+          fontSize: 14,
+          lineHeight: 1.45,
+          marginBottom: 4,
+          color: "#cbd5e1",
+        }}
+      >
         {confirmation}
+      </div>
+
+      <div
+        style={{
+          fontSize: 13,
+          lineHeight: 1.4,
+          color: "#94a3b8",
+          fontWeight: 700,
+        }}
+      >
+        {`Readiness: ${readiness}`}
       </div>
     </div>
   );
