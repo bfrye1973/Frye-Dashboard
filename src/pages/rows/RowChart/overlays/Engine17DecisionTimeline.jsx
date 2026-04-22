@@ -2,18 +2,18 @@
 
 import React from "react";
 
-function formatWave(w) {
-  if (!w) return "—";
-  return String(w).replace("IN_", "").replaceAll("_", " ");
+function formatWave(value) {
+  if (!value) return "—";
+  return String(value).replace(/^IN_/, "").replaceAll("_", " ");
 }
 
-function formatBias(v, fallback = "—") {
-  if (!v) return fallback;
-  return String(v).replaceAll("_", " ");
+function formatText(value, fallback = "—") {
+  if (value == null || value === "") return fallback;
+  return String(value).replaceAll("_", " ");
 }
 
-function formatLevel(v) {
-  const n = Number(v);
+function formatLevel(value) {
+  const n = Number(value);
   return Number.isFinite(n) ? n.toFixed(2) : null;
 }
 
@@ -30,9 +30,14 @@ export default function Engine17DecisionTimeline({
   const intermediate = formatWave(wave?.intermediatePhase);
   const minor = formatWave(wave?.minorPhase);
 
-  const trend4h = formatBias(fib?.trendState_4h || fib?.executionBias, "—");
+  // IMPORTANT:
+  // 4H trend must come ONLY from backend 4H truth.
+  // Do NOT fall back to executionBias.
+  const trend4h = formatText(fib?.trendState_4h, "—");
+
   const prepBias = String(fib?.prepBias || "NONE").toUpperCase();
-  const readiness = formatBias(fib?.readinessLabel, "WAIT");
+  const readiness = formatText(fib?.readinessLabel, "WAIT");
+  const executionBias = formatText(fib?.executionBias, "—");
 
   const watchShort = !!fib?.continuationWatchShort;
   const watchLong = !!fib?.continuationWatchLong;
@@ -40,6 +45,7 @@ export default function Engine17DecisionTimeline({
   const triggerLong = !!fib?.continuationTriggerLong;
 
   const breakdownRef = formatLevel(fib?.breakdownRef);
+  const lastHigherLow = formatLevel(fib?.lastHigherLow);
   const lastLowerHigh = formatLevel(fib?.lastLowerHigh);
 
   let currentRead = "No active setup";
@@ -49,6 +55,8 @@ export default function Engine17DecisionTimeline({
     currentRead = "Short prep active — watching for breakdown";
     confirmation = breakdownRef
       ? `Break below ${breakdownRef} confirms downside continuation`
+      : lastHigherLow
+      ? `Break below ${lastHigherLow} confirms downside continuation`
       : "Break below structure confirms downside continuation";
   }
 
@@ -63,14 +71,16 @@ export default function Engine17DecisionTimeline({
     currentRead = "Downside continuation confirmed";
     confirmation = breakdownRef
       ? `Break below ${breakdownRef} confirmed downside continuation`
-      : "Breakdown confirmed";
+      : lastHigherLow
+      ? `Break below ${lastHigherLow} confirmed downside continuation`
+      : "Downside structure break confirmed";
   }
 
   if (triggerLong) {
     currentRead = "Upside continuation confirmed";
     confirmation = lastLowerHigh
       ? `Break above ${lastLowerHigh} confirmed upside continuation`
-      : "Breakout confirmed";
+      : "Upside structure break confirmed";
   }
 
   return (
@@ -81,12 +91,12 @@ export default function Engine17DecisionTimeline({
         left: "50%",
         transform: "translateX(-50%)",
         zIndex: 109,
-        width: 640,
-        maxWidth: "68%",
+        width: 760,
+        maxWidth: "72%",
         borderRadius: 14,
         border: "1px solid rgba(255,255,255,0.12)",
-        background: "rgba(6,10,20,0.92)",
-        padding: "12px 16px",
+        background: "rgba(6,10,20,0.94)",
+        padding: "16px 20px",
         color: "#e5e7eb",
         backdropFilter: "blur(4px)",
         pointerEvents: "none",
@@ -97,9 +107,9 @@ export default function Engine17DecisionTimeline({
       <div
         style={{
           fontWeight: 900,
-          fontSize: 18,
+          fontSize: 28,
           lineHeight: 1.35,
-          marginBottom: 6,
+          marginBottom: 10,
           color: "#f8fafc",
         }}
       >
@@ -108,10 +118,11 @@ export default function Engine17DecisionTimeline({
 
       <div
         style={{
-          fontSize: 15,
+          fontSize: 22,
           lineHeight: 1.45,
-          marginBottom: 4,
+          marginBottom: 8,
           color: "#cbd5e1",
+          fontWeight: 800,
         }}
       >
         {`4H Trend: ${trend4h}`}
@@ -119,11 +130,11 @@ export default function Engine17DecisionTimeline({
 
       <div
         style={{
-          fontSize: 15,
+          fontSize: 22,
           lineHeight: 1.45,
-          marginBottom: 4,
+          marginBottom: 8,
           color: "#e5e7eb",
-          fontWeight: 700,
+          fontWeight: 800,
         }}
       >
         {currentRead}
@@ -131,10 +142,11 @@ export default function Engine17DecisionTimeline({
 
       <div
         style={{
-          fontSize: 14,
+          fontSize: 20,
           lineHeight: 1.45,
-          marginBottom: 4,
+          marginBottom: 8,
           color: "#cbd5e1",
+          fontWeight: 700,
         }}
       >
         {confirmation}
@@ -142,13 +154,13 @@ export default function Engine17DecisionTimeline({
 
       <div
         style={{
-          fontSize: 13,
+          fontSize: 18,
           lineHeight: 1.4,
           color: "#94a3b8",
           fontWeight: 700,
         }}
       >
-        {`Readiness: ${readiness}`}
+        {`Execution: ${executionBias} | Readiness: ${readiness}`}
       </div>
     </div>
   );
