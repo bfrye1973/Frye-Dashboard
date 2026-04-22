@@ -64,35 +64,37 @@ export default function Engine17DecisionTimeline({
   return (
     <div
       style={{
-        position: "absolute",
-        top: 12,
+        position: "fixed",          // 🔥 KEY FIX (not absolute)
+        top: 70,
         left: "50%",
         transform: "translateX(-50%)",
-        zIndex: 120,
-        width: 520,
-        maxWidth: "60%",
+        zIndex: 200,
+
+        width: 700,
+        maxWidth: "80%",
+
         borderRadius: 14,
         border: "1px solid rgba(255,255,255,0.14)",
-        background: "rgba(6,10,20,0.92)",
-        padding: 14,
+        background: "rgba(6,10,20,0.95)",
+        padding: 18,
         color: "#e5e7eb",
-        backdropFilter: "blur(4px)",
+        backdropFilter: "blur(6px)",
         pointerEvents: "none",
       }}
     >
-      <div style={{ fontWeight: 900, fontSize: 15, marginBottom: 6 }}>
+      <div style={{ fontWeight: 900, fontSize: 20, marginBottom: 8 }}>
         {`Primary ${primary} | Intermediate ${intermediate} | Minor ${minor}`}
       </div>
 
-      <div style={{ fontSize: 13, marginBottom: 6 }}>
+      <div style={{ fontSize: 18, marginBottom: 8 }}>
         4H Trend: {executionBias.replaceAll("_", " ")}
       </div>
 
-      <div style={{ fontSize: 13, marginBottom: 6 }}>
+      <div style={{ fontSize: 18, marginBottom: 8 }}>
         {interpretation}
       </div>
 
-      <div style={{ fontSize: 13, opacity: 0.85 }}>
+      <div style={{ fontSize: 18, opacity: 0.9 }}>
         {confirmation}
       </div>
     </div>
