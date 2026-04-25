@@ -335,7 +335,7 @@ function Badge({ label, value, tone, large = false }) {
         display: "flex",
         alignItems: "center",
         gap: 10,
-        padding: large ? "11px 16px" : "10px 14px",
+        padding: large ? "15px 21px" : "13px 18px",
         borderRadius: 11,
         border: `1px solid ${tone.border}`,
         background: tone.bg,
@@ -347,7 +347,7 @@ function Badge({ label, value, tone, large = false }) {
     >
       <span
         style={{
-          fontSize: large ? 11 : 10,
+          fontSize: large ? 14 : 13,
           fontWeight: 900,
           letterSpacing: 0.85,
           opacity: 0.78,
@@ -357,7 +357,7 @@ function Badge({ label, value, tone, large = false }) {
       </span>
       <span
         style={{
-          fontSize: large ? 15 : 13,
+          fontSize: large ? 20 : 17, 
           fontWeight: large ? 900 : 800,
           letterSpacing: 0.2,
         }}
