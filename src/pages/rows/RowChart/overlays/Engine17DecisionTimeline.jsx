@@ -38,6 +38,7 @@ export default function Engine17DecisionTimeline({
   const prepBias = String(fib?.prepBias || "NONE").toUpperCase();
   const readiness = formatText(fib?.readinessLabel, "WAIT");
   const executionBias = formatText(fib?.executionBias, "—");
+  const strategyType = String(fib?.strategyType || "NONE").toUpperCase();
 
   const watchShort = !!fib?.continuationWatchShort;
   const watchLong = !!fib?.continuationWatchLong;
@@ -66,6 +67,18 @@ export default function Engine17DecisionTimeline({
       ? `Break above ${lastLowerHigh} confirms upside continuation`
       : "Break above structure confirms upside continuation";
   }
+
+  if (strategyType === "EXHAUSTION") {
+  currentRead = "Exhaustion setup active";
+
+  if (executionBias === "LONG ONLY" || executionBias === "LONG_ONLY") {
+    confirmation = "Watching for downside reversal";
+  } else if (executionBias === "SHORT ONLY" || executionBias === "SHORT_ONLY") {
+    confirmation = "Watching for upside reversal";
+  } else {
+    confirmation = "Watching for reversal confirmation";
+  }
+}
 
   if (triggerShort) {
     currentRead = "Downside continuation confirmed";
