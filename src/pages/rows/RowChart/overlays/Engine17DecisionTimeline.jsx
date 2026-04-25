@@ -48,9 +48,21 @@ export default function Engine17DecisionTimeline({
   const breakdownRef = formatLevel(fib?.breakdownRef);
   const lastHigherLow = formatLevel(fib?.lastHigherLow);
   const lastLowerHigh = formatLevel(fib?.lastLowerHigh);
+  const wave3Status = String(fib?.wave3Status || "").toUpperCase();
+  const nextStructure = String(fib?.nextExpectedStructure || "").toUpperCase();
 
   let currentRead = "No active setup";
   let confirmation = "No confirmation condition";
+  // --- WAVE 3 EXTENSION PRIORITY LOGIC (TOP PRIORITY) ---
+  if (wave3Status === "ACTIVE_EXTENSION") {
+    currentRead = "Wave 3 Active";
+    confirmation = "Watching for extension";
+  }
+
+  if (wave3Status === "FIRST_WARNING") {
+    currentRead = "Minor W3 Warning";
+    confirmation = "Possible W4 forming";
+  }
 
   if (prepBias === "SHORT_PREP" && watchShort) {
     currentRead = "Short prep active — watching for breakdown";
