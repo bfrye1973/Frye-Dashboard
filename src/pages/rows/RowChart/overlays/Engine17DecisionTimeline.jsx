@@ -80,7 +80,7 @@ export default function Engine17DecisionTimeline({
       : "Break above structure confirms upside continuation";
   }
 
-  if (strategyType === "EXHAUSTION") {
+  if (strategyType === "EXHAUSTION" && wave3Status !== "ACTIVE_EXTENSION") {
   currentRead = "Exhaustion setup active";
 
   if (executionBias === "LONG ONLY" || executionBias === "LONG_ONLY") {
