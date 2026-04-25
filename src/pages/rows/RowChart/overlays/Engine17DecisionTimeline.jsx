@@ -126,7 +126,7 @@ export default function Engine17DecisionTimeline({
     <div
       style={{
         position: "absolute",
-        top: 58,
+        top: 72,
         left: "50%",
         transform: "translateX(-50%)",
         zIndex: 109,
