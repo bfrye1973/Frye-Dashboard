@@ -363,7 +363,7 @@ function Badge({ label, value, tone, large = false }) {
       </span>
       <span
         style={{
-          fontSize: large ? 20 : 17, 
+          fontSize: large ? 22 : 17, 
           fontWeight: large ? 900 : 800,
           letterSpacing: 0.2,
         }}
