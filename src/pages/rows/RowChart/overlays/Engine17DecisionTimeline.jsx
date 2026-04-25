@@ -50,6 +50,10 @@ export default function Engine17DecisionTimeline({
   const readiness = formatText(fib?.readinessLabel, "WAIT");
   const executionBias = formatText(fib?.executionBias, "—");
   const strategyType = String(fib?.strategyType || "NONE").toUpperCase();
+  const trend1h = String(fib?.trendState_1h || "").toUpperCase();
+  const trend4hRaw = String(fib?.trendState_4h || "").toUpperCase();
+  const decisionAction = String(fib?.decisionAction || "").toUpperCase();
+  const invalidated = !!fib?.invalidated;
 
   const watchShort = !!fib?.continuationWatchShort;
   const watchLong = !!fib?.continuationWatchLong;
@@ -73,6 +77,15 @@ export default function Engine17DecisionTimeline({
     confirmation = "Watching for extension";
   }
 
+  if (
+    fib?.exhaustionTriggerShort &&
+    executionBias === "LONG ONLY" &&
+    trend4hRaw === "LONG_ONLY"
+  ) {
+    currentRead = "Trend remains long-only";
+    confirmation =
+      "Short exhaustion risk present • Short is countertrend and blocked • Wait for higher timeframe breakdown";
+  }
   if (wave3Status === "FIRST_WARNING") {
     currentRead = "Minor W3 Warning";
     confirmation = "Possible W4 forming";
