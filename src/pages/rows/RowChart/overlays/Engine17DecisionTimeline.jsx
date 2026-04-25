@@ -17,6 +17,17 @@ function formatLevel(value) {
   return Number.isFinite(n) ? n.toFixed(2) : null;
 }
 
+function conditionText(code) {
+  const c = String(code || "").toUpperCase();
+
+  if (c === "BULLISH_BUT_WEAKENING") return "Bullish trend is weakening";
+  if (c === "SHORT_RISK_RISING") return "Short risk is rising";
+  if (c === "BEARISH_BUT_WEAKENING") return "Bearish trend is weakening";
+  if (c === "LONG_RISK_RISING") return "Long risk is rising";
+
+  return null;
+}
+
 export default function Engine17DecisionTimeline({
   overlayData,
   visible = true,
@@ -50,6 +61,9 @@ export default function Engine17DecisionTimeline({
   const lastLowerHigh = formatLevel(fib?.lastLowerHigh);
   const wave3Status = String(fib?.wave3Status || "").toUpperCase();
   const nextStructure = String(fib?.nextExpectedStructure || "").toUpperCase();
+  const conditionLines = Array.isArray(fib?.waveReasonCodes)
+  ? fib.waveReasonCodes.map(conditionText).filter(Boolean).slice(0, 2)
+  : [];
 
   let currentRead = "No active setup";
   let confirmation = "No confirmation condition";
@@ -176,7 +190,22 @@ export default function Engine17DecisionTimeline({
       >
         {confirmation}
       </div>
-
+      
+      {conditionLines.length > 0 && (
+        <div
+          style={{
+            fontSize: 19,
+            lineHeight: 1.4,
+            marginBottom: 8,
+           color: "#fbbf24",
+           fontWeight: 700,
+         }}
+       >
+         {conditionLines.map((line, idx) => (
+           <div key={idx}>{line}</div>
+         ))}
+       </div>
+     )}
       <div
         style={{
           fontSize: 18,
