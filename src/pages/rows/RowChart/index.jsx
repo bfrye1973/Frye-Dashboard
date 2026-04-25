@@ -556,6 +556,8 @@ function mapSnapshotToEngine17Overlay(snapshot) {
       close4h: scalp?.close4h ?? null,
       ema10_4h: scalp?.ema10_4h ?? null,
       trendState_4h: scalp?.trendState_4h || null,
+      wave3Status: scalp?.wave3Status || null,
+      nextExpectedStructure: scalp?.nextExpectedStructure || null,
       lastHigherLow: scalp?.lastHigherLow ?? null,
       lastLowerHigh: scalp?.lastLowerHigh ?? null,
       breakdownRef: scalp?.breakdownRef ?? null,   
