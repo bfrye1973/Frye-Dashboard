@@ -84,7 +84,7 @@ export default function Engine17DecisionTimeline({
   ) {
     currentRead = "Trend remains long-only";
     confirmation =
-      "Short exhaustion risk present • Short is countertrend and blocked • Wait for higher timeframe breakdown";
+      "Short risk present\nCountertrend short blocked\nWait for HTF breakdown";
   }
   if (wave3Status === "FIRST_WARNING") {
     currentRead = "Minor W3 Warning";
