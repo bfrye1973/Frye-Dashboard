@@ -551,6 +551,9 @@ function mapSnapshotToEngine17Overlay(snapshot) {
       prepBias: scalp?.prepBias || "NONE",
       executionBias: scalp?.executionBias || "NONE",
 
+      qualityScore: engine15Decision?.qualityScore ?? null,
+      qualityGrade: engine15Decision?.qualityBand || engine15Decision?.qualityGrade || null,
+
       lockedSignal: snapshot?.strategies?.["intraday_scalp@10m"]?.lockedSignal || null,
       
       close4h: scalp?.close4h ?? null,
