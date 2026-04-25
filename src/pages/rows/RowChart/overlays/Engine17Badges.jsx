@@ -410,7 +410,7 @@ export default function Engine17Badges({ overlayData, visible = true }) {
           flexWrap: "wrap",
           justifyContent: "center",
           alignItems: "center",
-          gap: 8,
+          gap: 12,
           maxWidth: "92%",
         }}
       >
