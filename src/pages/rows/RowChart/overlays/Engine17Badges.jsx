@@ -457,3 +457,4 @@ export default function Engine17Badges({ overlayData, visible = true }) {
       </div>
     </div>
   );
+}
