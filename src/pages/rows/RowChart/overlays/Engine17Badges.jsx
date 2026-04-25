@@ -383,7 +383,7 @@ export default function Engine17Badges({ overlayData, visible = true }) {
   const alignment10Value = formatAlignment10(fib);
   const alignment30Value = formatAlignment30(fib);
 
-  return (
+    return (
     <div
       style={{
         position: "absolute",
@@ -394,19 +394,18 @@ export default function Engine17Badges({ overlayData, visible = true }) {
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        gap: 12,
         width: "calc(100% - 24px)",
         pointerEvents: "none",
-       }}
-     >
+      }}
+    >
       <div
         style={{
           display: "flex",
           flexWrap: "wrap",
-          justifyContent: "flex-start",
+          justifyContent: "center",
+          alignItems: "center",
           gap: 8,
-          flex: "1 1 auto",
-          minWidth: 0,
+          maxWidth: "92%",
         }}
       >
         <Badge
@@ -430,19 +429,6 @@ export default function Engine17Badges({ overlayData, visible = true }) {
           value={readinessValue}
           tone={toneForReadiness(readinessValue)}
         />
-      </div>
-
-      
-      <div
-        style={{
-          display: "flex",
-          flexWrap: "wrap",
-          justifyContent: "center",
-          gap: 8,
-          flex: "1 1 auto",
-          minWidth: 0,
-        }}
-      >
         <Badge
           label="BIAS"
           value={biasValue}
@@ -471,4 +457,3 @@ export default function Engine17Badges({ overlayData, visible = true }) {
       </div>
     </div>
   );
-}
