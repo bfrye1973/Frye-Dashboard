@@ -86,14 +86,27 @@ export default function Engine17Overlay({
   }
 
   function drawTriggerLine(ctx, w) {
-    const trigger = overlayData?.fib?.trigger;
-    if (!showTriggerLine || !trigger || !Number.isFinite(trigger?.level)) return;
+    const fib = overlayData?.fib || {};
+    const locked = fib?.lockedSignal || null;
+    const fallback = fib?.trigger || null;
 
-    const y = priceToY(trigger.level);
+    const signal = locked || fallback;
+
+    if (!showTriggerLine || !signal) return;
+
+    const price =
+      locked?.signalPrice ??
+      fallback?.level ??
+      null;
+
+if (!Number.isFinite(price)) return;
+
+    const y = priceToY(price);
     if (y == null) return;
 
-    const color = trigger.side === "SHORT" ? "#ef4444" : "#22c55e";
-
+    const direction = locked?.direction || fallback?.side;
+    const color = direction === "SHORT" ? "#ef4444" : "#22c55e";
+    
     ctx.save();
     ctx.strokeStyle = color;
     ctx.lineWidth = 2;
@@ -104,13 +117,18 @@ export default function Engine17Overlay({
     ctx.stroke();
     ctx.restore();
 
-    const lineLabel = trigger.lineLabel || `${trigger.side} TRIGGER`;
-    const detailLabel = trigger.label || lineLabel;
+    const lineLabel = locked
+      ? `${locked.signalType} ${locked.direction}`
+      : (fallback?.lineLabel || `${fallback?.side} TRIGGER`);
+
+    const detailLabel = locked
+      ? `${locked.signalSource || "LOCKED"}`
+      : (fallback?.label || lineLabel);
 
     ctx.save();
     ctx.font = "22px system-ui, -apple-system, Segoe UI, Roboto, Arial";
 
-    const text = `${lineLabel}  ${Number(trigger.level).toFixed(2)}`;
+    const text = `${lineLabel}  ${Number(price).toFixed(2)}`;
     const tw = ctx.measureText(text).width;
     const bw = tw + 24;
     const bh = 34;
