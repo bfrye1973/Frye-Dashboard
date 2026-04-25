@@ -137,24 +137,52 @@ function formatAlignment30(fib) {
 }
 
 function toneForState(value) {
-  const v = String(value || "").toLowerCase();
+  const v = String(value || "").toUpperCase();
 
-  if (v.includes("confirmed short") || v.includes("breakdown")) {
+  // --- WAVE 3 STATES (highest priority) ---
+  if (v.includes("W3 ACTIVE")) {
     return {
-      bg: "rgba(239,68,68,0.14)",
-      border: "rgba(239,68,68,0.42)",
-      color: "#fee2e2",
-    };
-  }
-
-  if (v.includes("confirmed long") || v.includes("breakout")) {
-    return {
-      bg: "rgba(34,197,94,0.14)",
-      border: "rgba(34,197,94,0.42)",
+      bg: "rgba(34,197,94,0.18)",
+      border: "rgba(34,197,94,0.55)",
       color: "#dcfce7",
     };
   }
 
+  if (v.includes("W3 WARNING")) {
+    return {
+      bg: "rgba(245,158,11,0.18)",
+      border: "rgba(245,158,11,0.55)",
+      color: "#fde68a",
+    };
+  }
+
+  // --- CONFIRMED SIGNALS ---
+  if (v.includes("CONFIRMED SHORT")) {
+    return {
+      bg: "rgba(239,68,68,0.18)",
+      border: "rgba(239,68,68,0.55)",
+      color: "#fee2e2",
+    };
+  }
+
+  if (v.includes("CONFIRMED LONG")) {
+    return {
+      bg: "rgba(34,197,94,0.18)",
+      border: "rgba(34,197,94,0.55)",
+      color: "#dcfce7",
+    };
+  }
+
+  // --- WATCH STATES ---
+  if (v.includes("BREAKDOWN") || v.includes("WATCH")) {
+    return {
+      bg: "rgba(245,158,11,0.14)",
+      border: "rgba(245,158,11,0.42)",
+      color: "#fde68a",
+    };
+  }
+
+  // --- DEFAULT ---
   return {
     bg: "rgba(255,255,255,0.07)",
     border: "rgba(255,255,255,0.16)",
