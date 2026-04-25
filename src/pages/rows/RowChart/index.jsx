@@ -550,6 +550,9 @@ function mapSnapshotToEngine17Overlay(snapshot) {
 
       prepBias: scalp?.prepBias || "NONE",
       executionBias: scalp?.executionBias || "NONE",
+
+      lockedSignal: snapshot?.strategies?.["intraday_scalp@10m"]?.lockedSignal || null,
+      
       close4h: scalp?.close4h ?? null,
       ema10_4h: scalp?.ema10_4h ?? null,
       trendState_4h: scalp?.trendState_4h || null,
