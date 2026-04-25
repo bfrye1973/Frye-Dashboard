@@ -553,6 +553,10 @@ function mapSnapshotToEngine17Overlay(snapshot) {
 
       qualityScore: engine15Decision?.qualityScore ?? null,
       qualityGrade: engine15Decision?.qualityBand || engine15Decision?.qualityGrade || null,
+      trendState_1h: scalp?.trendState_1h || null,
+      invalidated: !!scalp?.invalidated,
+      decisionAction: engine15Decision?.action || null,
+      decisionBlockers: engine15Decision?.blockers || [],
 
       lockedSignal: snapshot?.strategies?.["intraday_scalp@10m"]?.lockedSignal || null,
       
