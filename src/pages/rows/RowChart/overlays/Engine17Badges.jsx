@@ -34,6 +34,12 @@ function simplifyAlignmentState(value) {
 
 function formatState(fib) {
   const prepBias = String(fib?.prepBias || "").toUpperCase();
+
+  const wave3Status = String(fib?.wave3Status || "").toUpperCase();
+
+  if (wave3Status === "ACTIVE_EXTENSION") return "W3 ACTIVE";
+  if (wave3Status === "FIRST_WARNING") return "W3 WARNING";
+  
   const triggerShort = !!fib?.continuationTriggerShort;
   const triggerLong = !!fib?.continuationTriggerLong;
   const watchShort = !!fib?.continuationWatchShort;
