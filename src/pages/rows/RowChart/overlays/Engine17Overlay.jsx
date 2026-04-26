@@ -266,6 +266,47 @@ if (!Number.isFinite(price)) return;
 
     drawTriggerLine(ctx, w);
     drawStructureLine(ctx, w);
+    drawExecutionEntryLine(ctx, w);
+
+  function drawExecutionEntryLine(ctx, w) {
+    const exec = overlayData?.executionState;
+
+    if (!exec || exec.status !== "ENTERED") return;
+
+    const entryPrice = exec?.levels?.entry;
+
+    if (!Number.isFinite(entryPrice)) return;
+
+    const y = priceToY(entryPrice);
+    if (y == null) return;
+
+    ctx.save();
+    ctx.strokeStyle = "#22c55e"; // bright green
+    ctx.lineWidth = 3;
+    ctx.setLineDash([]); // solid line
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(w, y);
+    ctx.stroke();
+    ctx.restore();
+
+    // Label
+    ctx.save();
+    ctx.font = "20px system-ui";
+
+    const text = `ENTRY ${entryPrice.toFixed(2)}`;
+    const tw = ctx.measureText(text).width;
+    const bx = Math.floor(w * 0.55);
+    const by = y - 40;
+
+    ctx.fillStyle = "rgba(0,0,0,0.85)";
+    ctx.fillRect(bx, by, tw + 20, 32);
+
+    ctx.fillStyle = "#22c55e";
+    ctx.fillText(text, bx + 10, by + 22);
+
+    ctx.restore();
+  }
 
     if (showSignals) {
       const signals = Array.isArray(overlayData?.signals) ? overlayData.signals : [];
