@@ -662,7 +662,7 @@ function ScalpCompactCard({
   liveTip, 
   activeGlow,
   title = "Scalp",
-  timeframe = "10m"
+  timeframe = "10m",
   summaryOverride,
 }) {
   const engine16 = node?.engine16 || {};
