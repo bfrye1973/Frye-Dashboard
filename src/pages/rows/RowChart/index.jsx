@@ -1111,7 +1111,9 @@ export default function RowChart({
       try {
         const snap = await getDashboardSnapshot(state.symbol);
         if (cancelled) return;
-        setEngine17Data(mapSnapshotToEngine17Overlay(snap));
+        setEngine17Data(
+          mapSnapshotToEngine17Overlay(snap, selectedStrategyId)
+        );
       } catch (err) {
         if (cancelled) return;
         console.error("[RowChart] dashboard-snapshot error:", err);
@@ -1152,6 +1154,7 @@ export default function RowChart({
     state.engine17DebugPanel,
     state.showPremarketFibs,
     showDebug,
+    selectedStrategyId, 
   ]);
 
   /* =================== Effect C: Attach/Seed Overlays =================== */
