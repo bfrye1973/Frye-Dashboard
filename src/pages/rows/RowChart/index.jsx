@@ -551,6 +551,13 @@ function mapSnapshotToEngine17Overlay(snapshot) {
       prepBias: scalp?.prepBias || "NONE",
       executionBias: scalp?.executionBias || "NONE",
 
+      decisionAction: engine15Decision?.action || null,
+      decisionDirection: engine15Decision?.direction || null,
+      decisionReadinessLabel: engine15Decision?.readinessLabel || null,
+      decisionQualityBand: engine15Decision?.qualityBand || null,
+      decisionMomentumAlignment:
+        engine15Decision?.debug?.momentum?.alignment || null,
+
       qualityScore: engine15Decision?.qualityScore ?? null,
       qualityGrade: engine15Decision?.qualityBand || engine15Decision?.qualityGrade || null,
       trendState_1h: scalp?.trendState_1h || null,
