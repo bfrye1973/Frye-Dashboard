@@ -90,6 +90,84 @@ function formatReadiness(fib) {
   return humanize(raw || "WAIT", "WAIT").toUpperCase();
 }
 
+function formatStatus(fib) {
+  const action = String(fib?.decisionAction || "NO_ACTION").toUpperCase();
+
+  const direction =
+    fib?.decisionDirection && fib.decisionDirection !== "NONE"
+      ? String(fib.decisionDirection).toUpperCase()
+      : String(fib?.executionBias || "").toUpperCase().includes("SHORT")
+      ? "SHORT"
+      : String(fib?.executionBias || "").toUpperCase().includes("LONG")
+      ? "LONG"
+      : "NONE";
+
+  if (action === "BLOCKED") return "BLOCKED — NO TRADE";
+
+  if (action === "WATCH" || action === "NO_ACTION") {
+    if (direction === "SHORT") return "WATCH — CAUTION SHORT";
+    if (direction === "LONG") return "WATCH — CAUTION LONG";
+    return "WAIT";
+  }
+
+  if (action === "REDUCE_OK") {
+    if (direction === "SHORT") return "PROBE — SHORT";
+    if (direction === "LONG") return "PROBE — LONG";
+    return "PROBE";
+  }
+
+  if (action === "ENTER_OK") {
+    if (direction === "SHORT") return "ENTRY — SHORT GO";
+    if (direction === "LONG") return "ENTRY — LONG GO";
+    return "ENTRY GO";
+  }
+
+  return "WAIT";
+}
+
+function toneForStatus(value) {
+  const v = String(value || "").toUpperCase();
+
+  if (v.includes("BLOCKED")) {
+    return {
+      bg: "rgba(239,68,68,0.16)",
+      border: "rgba(239,68,68,0.48)",
+      color: "#fee2e2",
+    };
+  }
+
+  if (v.includes("ENTRY")) {
+    return {
+      bg: "rgba(34,197,94,0.16)",
+      border: "rgba(34,197,94,0.48)",
+      color: "#dcfce7",
+    };
+  }
+
+  if (v.includes("PROBE")) {
+    return {
+      bg: "rgba(249,115,22,0.16)",
+      border: "rgba(249,115,22,0.48)",
+      color: "#fed7aa",
+    };
+  }
+
+  if (v.includes("WATCH") || v.includes("CAUTION")) {
+    return {
+      bg: "rgba(245,158,11,0.16)",
+      border: "rgba(245,158,11,0.48)",
+      color: "#fde68a",
+    };
+  }
+
+  return {
+    bg: "rgba(148,163,184,0.10)",
+    border: "rgba(148,163,184,0.26)",
+    color: "#cbd5e1",
+  };
+}
+
+
 function formatBias(fib) {
   const direction = String(fib?.decisionDirection || fib?.direction || "").toUpperCase();
   const context = String(fib?.context || "").toUpperCase();
@@ -411,6 +489,7 @@ export default function Engine17Badges({ overlayData, visible = true }) {
   const structureValue = formatStructure(fib);
   const executionValue = formatExecution(fib);
   const readinessValue = formatReadiness(fib);
+  const statusValue = formatStatus(fib);
   const biasValue = formatBias(fib);
   const waveValue = formatWave(fib);
   const qualityValue = formatQuality(fib);
@@ -457,6 +536,12 @@ export default function Engine17Badges({ overlayData, visible = true }) {
           label="EXECUTION"
           value={executionValue}
           tone={toneForExecution(executionValue)}
+        />
+        <Badge
+          label="STATUS"
+          value={statusValue}
+          tone={toneForStatus(statusValue)}
+          large={true}   
         />
         <Badge
           label="READINESS"
