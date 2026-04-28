@@ -996,15 +996,17 @@ export default function RowStrategies() {
             );
           }
 
-          if (s.id === "MINOR") {
-            return (
-              <IntermediateCompactCard
-                key={s.id}
-                node={node}
-                snapshot={snapshot}
-                activeGlow={activeGlow}
-              />
-            );
+         if (s.id === "MINOR") {
+           return (
+             <ScalpCompactCard
+               key={s.id}
+               node={node}
+               snapshot={snapshot}
+               liveStatus={liveStatus}
+               liveTip={liveTip}
+               activeGlow={activeGlow}
+             />
+           );
           }
 
           return <PassiveMiniCard key={s.id} node={node} snapshot={snapshot} />;
