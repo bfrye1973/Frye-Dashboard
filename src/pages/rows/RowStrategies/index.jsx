@@ -655,7 +655,15 @@ function StructureCoreIntermediate({ engine16 }) {
   );
 }
 
-function ScalpCompactCard({ node, snapshot, liveStatus, liveTip, activeGlow }) {
+function ScalpCompactCard({ 
+  node, 
+  snapshot, 
+  liveStatus, 
+  liveTip, 
+  activeGlow,
+  title = "Scalp",
+  timeframe = "10m"
+})
   const engine16 = node?.engine16 || {};
   const permission = node?.permission || {};
 
@@ -698,8 +706,8 @@ function ScalpCompactCard({ node, snapshot, liveStatus, liveTip, activeGlow }) {
         }}
       >
         <div>
-          <div style={{ fontWeight: 1000, fontSize: FS.title }}>Scalp</div>
-          <div style={{ color: "#9ca3af", fontSize: FS.subtitle, fontWeight: 800 }}>10m</div>
+          <div style={{ fontWeight: 1000, fontSize: FS.title }}>{title}</div>
+          <div style={{ color: "#9ca3af", fontSize: FS.subtitle, fontWeight: 800 }}>{timeframe}</div>
         </div>
 
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
@@ -998,16 +1006,18 @@ export default function RowStrategies() {
 
          if (s.id === "MINOR") {
            return (
-             <ScalpCompactCard
-               key={s.id}
-               node={node}
-               snapshot={snapshot}
-               liveStatus={liveStatus}
-               liveTip={liveTip}
-               activeGlow={activeGlow}
-             />
-           );
-          }
+            <ScalpCompactCard
+              key={s.id}
+              node={node}
+              snapshot={snapshot}
+              liveStatus={liveStatus}
+              liveTip={liveTip}
+              activeGlow={activeGlow}
+              title="Intermediate Swing"
+              timeframe="1h"
+            />
+          );
+         }
 
           return <PassiveMiniCard key={s.id} node={node} snapshot={snapshot} />;
         })}
