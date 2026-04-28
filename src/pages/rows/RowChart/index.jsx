@@ -287,20 +287,21 @@ function mapSnapshotToEngine17Overlay(snapshot, strategyId) {
   const engine15Decision = node?.engine15Decision || null;
 
   if (!scalp) {
-    return {
-      ok: false,
-      error: "SNAPSHOT_ENGINE16_MISSING",
-      fib: {},
-      anchors: [],
-      signals: [],
-      badges: [],
-      meta: {
-        source: "DASHBOARD_SNAPSHOT",
-        missingSections: ["snapshot_engine16"],
-        sourceEnginesUsed: ["SNAPSHOT_ENGINE16"],
-      },
-    };
-  }
+  return {
+    ok: false,
+    fib: {
+      context: "NO DATA",
+      state: "NO DATA",
+      waveContext: {},
+      waveState: "UNKNOWN",
+      macroBias: "NONE",
+      readinessLabel: "WAIT",
+    },
+    anchors: [],
+    signals: [],
+    badges: [],
+  };
+}
 
   const trigger = buildTriggerFromComposed(scalp);
 
