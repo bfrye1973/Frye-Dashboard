@@ -280,11 +280,11 @@ function buildTriggerFromComposed(engine16) {
   return null;
 }
 
-function mapSnapshotToEngine17Overlay(snapshot) {
-  const scalp = snapshot?.strategies?.["intraday_scalp@10m"]?.engine16 || null;
+function mapSnapshotToEngine17Overlay(snapshot, strategyId) {
+  const node = snapshot?.strategies?.[strategyId] || null;
+  const scalp = node?.engine16 || null;
   const swing = snapshot?.strategies?.["minor_swing@1h"]?.engine16 || null;
-  const engine15Decision =
-    snapshot?.strategies?.["intraday_scalp@10m"]?.engine15Decision || null;
+  const engine15Decision = node?.engine15Decision || null;
 
   if (!scalp) {
     return {
@@ -565,7 +565,7 @@ function mapSnapshotToEngine17Overlay(snapshot) {
       decisionAction: engine15Decision?.action || null,
       decisionBlockers: engine15Decision?.blockers || [],
 
-      lockedSignal: snapshot?.strategies?.["intraday_scalp@10m"]?.lockedSignal || null,
+      lockedSignal: node?.lockedSignal || null,
       
       close4h: scalp?.close4h ?? null,
       ema10_4h: scalp?.ema10_4h ?? null,
@@ -755,11 +755,20 @@ export default function RowChart({
   });
 
   const [engine17Data, setEngine17Data] = useState(null);
+  const [chartMode, setChartMode] = useState("SCALP");
+
+  const selectedTimeframe =
+    chartMode === "SCALP" ? "10m" : "1h";
+
+  const selectedStrategyId =
+    chartMode === "SCALP"
+      ? "intraday_scalp@10m"
+      : "minor_swing@1h";
   const [engine17RawDebug, setEngine17RawDebug] = useState(null);
 
   const [state, setState] = useState({
     symbol: defaultSymbol,
-    timeframe: defaultTimeframe,
+    timeframe: selectedTimeframe,
     range: "ALL",
     disabled: false,
 
@@ -797,7 +806,13 @@ export default function RowChart({
 
     showPremarketFibs: false,
   });
-
+  useEffect(() => {
+  setState((s) => ({
+    ...s,
+    timeframe: selectedTimeframe,
+  }));
+}, [selectedTimeframe]);
+  
   if (typeof window !== "undefined") {
     window.__indicators = {
       get: () => state,
@@ -1683,116 +1698,150 @@ export default function RowChart({
     [fullScreen]
   );
 
-  const badge = (() => {
-    if (liveStatus === "LIVE") {
-      return { text: "LIVE", bg: "rgba(16,185,129,0.92)" };
-    }
-    if (liveStatus === "STALE") {
-      return { text: "STALE", bg: "rgba(239,68,68,0.92)" };
-    }
-    return { text: "CONNECTING", bg: "rgba(245,158,11,0.92)" };
-  })();
+ const badge = (() => {
+  if (liveStatus === "LIVE") {
+    return { text: "LIVE", bg: "rgba(16,185,129,0.92)" };
+  }
+  if (liveStatus === "STALE") {
+    return { text: "STALE", bg: "rgba(239,68,68,0.92)" };
+  }
+  return { text: "CONNECTING", bg: "rgba(245,158,11,0.92)" };
+})();
 
-  return (
-    <div style={wrapperStyle}>
-      <Controls
-        symbols={symbols}
-        timeframes={timeframes}
-        value={state}
-        onChange={handleControlsChange}
-        onRange={applyRange}
-      />
+return (
+  <div style={wrapperStyle}>
+    <Controls
+      symbols={symbols}
+      timeframes={timeframes}
+      value={state}
+      onChange={handleControlsChange}
+      onRange={applyRange}
+    />
 
-      <IndicatorsToolbar {...toolbarProps} />
+    <div style={{ padding: "6px 10px", display: "flex", gap: 8 }}>
+      <div style={{ fontWeight: 900 }}>Chart Mode:</div>
+
+      <button
+        onClick={() => setChartMode("SCALP")}
+        style={{
+          background: chartMode === "SCALP" ? "#1f2937" : "#0b0b0b",
+          color: "#fff",
+          border: "1px solid #3b82f6",
+          padding: "4px 10px",
+          borderRadius: 6,
+          cursor: "pointer",
+          fontWeight: 900,
+        }}
+      >
+        SCALP
+      </button>
+
+      <button
+        onClick={() => setChartMode("SWING")}
+        style={{
+          background: chartMode === "SWING" ? "#1f2937" : "#0b0b0b",
+          color: "#fff",
+          border: "1px solid #3b82f6",
+          padding: "4px 10px",
+          borderRadius: 6,
+          cursor: "pointer",
+          fontWeight: 900,
+        }}
+      >
+        SWING
+      </button>
+    </div>
+
+    <IndicatorsToolbar {...toolbarProps} />
+
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "row",
+        width: "100%",
+        height: fullScreen ? "100%" : undefined,
+      }}
+    >
+      <div
+        ref={chartWrapRef}
+        style={{
+          ...containerStyle,
+          flex: 1,
+          minWidth: 0,
+        }}
+      >
+        <DrawingsToolbar
+          mode={drawingsUi.mode}
+          onMode={(m) => drawingsEngineRef.current?.setMode?.(m)}
+          onDelete={() => drawingsEngineRef.current?.deleteSelected?.()}
+        />
+
+        <div
+          style={{
+            position: "absolute",
+            top: 10,
+            left: 60,
+            zIndex: 90,
+            padding: "6px 10px",
+            borderRadius: 8,
+            fontSize: 12,
+            fontWeight: 900,
+            letterSpacing: 0.7,
+            color: "#0b0b14",
+            background: badge.bg,
+            boxShadow: "0 2px 10px rgba(0,0,0,0.35)",
+            userSelect: "none",
+          }}
+          title={
+            liveStatus === "LIVE"
+              ? "Stream healthy (receiving messages)"
+              : liveStatus === "STALE"
+              ? "No stream messages received in 30s"
+              : "Connecting to live stream…"
+          }
+        >
+          {badge.text}
+        </div>
+
+        <Engine17DecisionTimeline
+          overlayData={engine17Data}
+          visible={state.engine17Timeline && state.engine17Overlay}
+        />
+
+        <Engine17Badges
+          overlayData={engine17Data}
+          visible={state.engine17Badges && state.engine17Overlay}
+          showConfidenceStack={showDebug || state.engine17DebugPanel}
+          showReplaySyncedState={false}
+        />
+
+        <Engine17DebugPanel
+          visible={showDebug || state.engine17DebugPanel}
+          rawData={engine17RawDebug}
+          composedData={engine17Data}
+        />
+
+        <div
+          ref={containerRef}
+          style={{
+            position: "absolute",
+            inset: 0,
+          }}
+        />
+      </div>
 
       <div
         style={{
           display: "flex",
-          flexDirection: "row",
-          width: "100%",
-          height: fullScreen ? "100%" : undefined,
+          flexDirection: "column",
+          minWidth: 230,
+          maxWidth: 260,
         }}
       >
-        <div
-          ref={chartWrapRef}
-          style={{
-            ...containerStyle,
-            flex: 1,
-            minWidth: 0,
-          }}
-        >
-          <DrawingsToolbar
-            mode={drawingsUi.mode}
-            onMode={(m) => drawingsEngineRef.current?.setMode?.(m)}
-            onDelete={() => drawingsEngineRef.current?.deleteSelected?.()}
-          />
-
-          <div
-            style={{
-              position: "absolute",
-              top: 10,
-              left: 60,
-              zIndex: 90,
-              padding: "6px 10px",
-              borderRadius: 8,
-              fontSize: 12,
-              fontWeight: 900,
-              letterSpacing: 0.7,
-              color: "#0b0b14",
-              background: badge.bg,
-              boxShadow: "0 2px 10px rgba(0,0,0,0.35)",
-              userSelect: "none",
-            }}
-            title={
-              liveStatus === "LIVE"
-                ? "Stream healthy (receiving messages)"
-                : liveStatus === "STALE"
-                ? "No stream messages received in 30s"
-                : "Connecting to live stream…"
-            }
-          >
-            {badge.text}
-          </div>
-
-          <Engine17DecisionTimeline
-            overlayData={engine17Data}
-            visible={state.engine17Timeline && state.engine17Overlay}
-          />
-
-         <Engine17Badges
-           overlayData={engine17Data}
-           visible={state.engine17Badges && state.engine17Overlay}
-           showConfidenceStack={showDebug || state.engine17DebugPanel}
-           showReplaySyncedState={false}
-        />
-
-          <Engine17DebugPanel
-            visible={showDebug || state.engine17DebugPanel}
-            rawData={engine17RawDebug}
-            composedData={engine17Data}
-          />
-
-          <div
-            ref={containerRef}
-            style={{
-              position: "absolute",
-              inset: 0,
-            }}
-          />
-        </div>
-
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            minWidth: 230,
-            maxWidth: 260,
-          }}
-        >
-          <SmartMoneyZonesPanel />
-          <AccDistZonesPanel />
-        </div>
+        <SmartMoneyZonesPanel />
+        <AccDistZonesPanel />
       </div>
     </div>
-  );
+  </div>
+);
 }
