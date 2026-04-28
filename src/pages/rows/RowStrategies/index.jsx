@@ -663,7 +663,7 @@ function ScalpCompactCard({
   activeGlow,
   title = "Scalp",
   timeframe = "10m"
-})
+}) {
   const engine16 = node?.engine16 || {};
   const permission = node?.permission || {};
 
