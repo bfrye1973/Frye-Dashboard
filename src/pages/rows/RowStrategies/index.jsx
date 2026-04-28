@@ -663,6 +663,7 @@ function ScalpCompactCard({
   activeGlow,
   title = "Scalp",
   timeframe = "10m"
+  summaryOverride,
 }) {
   const engine16 = node?.engine16 || {};
   const permission = node?.permission || {};
@@ -674,8 +675,8 @@ function ScalpCompactCard({
   const executionBias = getExecutionBias(node);
   const freshEntry = getFreshEntry(node);
   const permissionText = upper(permission?.permission || "UNKNOWN");
-  const summary = scalpSummary(node);
-
+  const summary = summaryOverride || scalpSummary(node);
+  
   return (
     <div
       style={{
@@ -1015,6 +1016,7 @@ export default function RowStrategies() {
               activeGlow={activeGlow}
               title="Intermediate Swing"
               timeframe="1h"
+              summaryOverride={intermediateSummary(node)}
             />
           );
          }
