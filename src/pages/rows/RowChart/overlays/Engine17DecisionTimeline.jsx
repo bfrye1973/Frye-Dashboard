@@ -210,7 +210,7 @@ export default function Engine17DecisionTimeline({
       >
         {currentRead}
       </div>
-      {isScalpMode && engine22?.active && (
+      isScalpMode && engine22 &&
         <div
           style={{
             fontSize: 20,
@@ -227,10 +227,11 @@ export default function Engine17DecisionTimeline({
          >
            {engine22.status === "ENTRY_LONG" && "🟢 SCALP ENTRY — EXHAUSTION BOUNCE"}
            {engine22.status === "PROBE_LONG" && "🔵 SCALP PROBE — FORMING"}
+           {engine22.status === "NO_SCALP" && "⚪ NO SCALP — STAND DOWN"}
          </div>
        )} 
 
-      {isScalpMode && engine22?.active && (
+      isScalpMode && engine22 &&
         <div
           style={{
             fontSize: 18,
