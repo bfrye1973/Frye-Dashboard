@@ -253,15 +253,38 @@ export default function Engine17DecisionTimeline({
             fontWeight: 700,
           }}
         >
-          {engine22.status === "NO_SCALP"
-            ? "Waiting for long or short exhaustion trigger"
-            : `${engine22.needs ? `Needs: ${formatText(engine22.needs)}` : ""}${
-                engine22.distanceToEntry != null
-                  ? ` | Distance: $${engine22.distanceToEntry}`
-                  : ""
-              }${engine22.targetMove != null ? ` | Target: $${engine22.targetMove}` : ""}`}
+          {engine22.status === "NO_SCALP" ? (
+            "Waiting for long or short exhaustion trigger"
+          ) : (
+            <>
+        <div>
+          {engine22.quality?.grade
+            ? `🟢 ${engine22.quality.grade} QUALITY`
+            : "⚪ QUALITY PENDING"}
+          {engine22.risk?.riskReward != null
+            ? ` | R:R ${engine22.risk.riskReward}`
+            : ""}
         </div>
-      )}
+
+        <div>
+          {engine22.needs ? `Needs: ${formatText(engine22.needs)}` : ""}
+          {engine22.risk?.target != null
+            ? ` | Target: $${engine22.risk.target}`
+            : ""}
+          {engine22.risk?.stop != null
+            ? ` | Stop: $${engine22.risk.stop}`
+            : ""}
+        </div>
+
+        <div>
+          {engine22.management?.exitRule
+            ? `Exit: ${formatText(engine22.management.exitRule)}`
+            : "Exit: EMA10 management"}
+        </div>
+      </>
+    )}
+  </div>
+)}
       <div
         style={{
           fontSize: 20,
