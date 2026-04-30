@@ -753,9 +753,9 @@ function ScalpCompactCard({
             marginBottom: 4,
           }}
         >
-          {engine22.status === "ENTRY_LONG" && "ENTRY LONG — EXHAUSTION BOUNCE"}
-          {engine22.status === "PROBE_LONG" && "PROBE LONG — FORMING"}
-          {engine22.status === "NO_SCALP" && "NO SCALP OPPORTUNITY"}
+          {engine22.status === "ENTRY_LONG" && "🟢 ENTRY LONG — EXHAUSTION BOUNCE"}
+          {engine22.status === "PROBE_LONG" && "🔵 PROBE LONG — FORMING"}
+          {engine22.status === "NO_SCALP" && "⚪ NO SCALP OPPORTUNITY"}
         </div>
 
         {/* 📊 SUPPORTING DATA */}
