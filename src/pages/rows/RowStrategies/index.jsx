@@ -721,26 +721,6 @@ function ScalpCompactCard({
       </div>
 
       <LifecycleStrip node={node} />
-      <StructureCoreScalp engine16={engine16} />
-
-      <TwoCol
-        left={
-          <CompactSection title="DECISION" subtle>
-            <KV label="Next Focus" value={prettyEnum(nextFocus)} />
-            <KV label="Trigger" value={prettyEnum(scalpTriggerCondition(engine16))} />
-            <KV
-              label="Fresh Entry"
-              value={<Badge text={freshEntry ? "YES" : "NO"} tone={yesNoTone(freshEntry)} />}
-            />
-            <KV label="Exec Bias" value={prettyEnum(executionBias)} />
-            <KV
-              label="Permission"
-              value={<Badge text={permissionText} tone={permissionTone(permissionText)} />}
-            />
-          </CompactSection>
-        }
-        right={<TriggerStateFull engine16={engine16} />}
-      />
       {engine22 && (
         <CompactSection title="FAST SCALP SIGNAL">
 
@@ -765,39 +745,60 @@ function ScalpCompactCard({
             engine22.confidence != null
               ? `${engine22.confidence}%`
               : "—"
-         }
-       />
+          }
+        />
 
-       <KV
-         label="Target"
-         value={
-           engine22.targetMove != null
-             ? `$${engine22.targetMove}`
-             : "—"
+        <KV
+          label="Target"
+          value={
+            engine22.targetMove != null
+              ? `$${engine22.targetMove}`
+              : "—"
+          }
+        />
+
+        <KV
+          label="Mode"
+          value={engine22.mode || "—"}
+        />
+
+        {/* ⚠️ CONTEXT WARNING */}
+        {engine22.reasonCodes?.includes("SCALP_ONLY_COUNTERTREND") && (
+          <div
+            style={{
+              marginTop: 6,
+              fontSize: 12,
+              fontWeight: 900,
+              color: "#f59e0b",
+            }}
+          >
+            ⚠️ COUNTERTREND SCALP
+          </div>
+        )}
+
+      </CompactSection>
+    )}
+      <StructureCoreScalp engine16={engine16} />
+
+      <TwoCol
+        left={
+          <CompactSection title="DECISION" subtle>
+            <KV label="Next Focus" value={prettyEnum(nextFocus)} />
+            <KV label="Trigger" value={prettyEnum(scalpTriggerCondition(engine16))} />
+            <KV
+              label="Fresh Entry"
+              value={<Badge text={freshEntry ? "YES" : "NO"} tone={yesNoTone(freshEntry)} />}
+            />
+            <KV label="Exec Bias" value={prettyEnum(executionBias)} />
+            <KV
+              label="Permission"
+              value={<Badge text={permissionText} tone={permissionTone(permissionText)} />}
+            />
+          </CompactSection>
         }
+        right={<TriggerStateFull engine16={engine16} />}
       />
-
-      <KV
-        label="Mode"
-        value={engine22.mode || "—"}
-     />
-
-     {/* ⚠️ CONTEXT WARNING */}
-     {engine22.reasonCodes?.includes("SCALP_ONLY_COUNTERTREND") && (
-       <div
-         style={{
-           marginTop: 6,
-           fontSize: 12,
-           fontWeight: 900,
-           color: "#f59e0b",
-         }}
-       >
-         ⚠️ COUNTERTREND SCALP
-       </div>
-     )}
-
-   </CompactSection>
- )}
+      
       <NotReadySummaryBlock node={node} snapshot={snapshot} summary={summary} />
     </div>
   );
