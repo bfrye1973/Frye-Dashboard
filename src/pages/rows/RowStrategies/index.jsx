@@ -666,6 +666,7 @@ function ScalpCompactCard({
   summaryOverride,
 }) {
   const engine16 = node?.engine16 || {};
+  const engine22 = node?.engine22Scalp || null;
   const permission = node?.permission || {};
 
   const readiness = getReadiness(node);
@@ -740,7 +741,30 @@ function ScalpCompactCard({
         }
         right={<TriggerStateFull engine16={engine16} />}
       />
+      {engine22 && (
+        <CompactSection title="FAST SCALP SIGNAL">
+          <KV label="Status" value={engine22.status || "—"} />
+          <KV label="Type" value={engine22.type || engine22.scalpType || "—"} />
+          <KV label="Direction" value={engine22.direction || "—"} />
+          <KV label="Confidence" value={engine22.confidence != null ? `${engine22.confidence}%` : "—"} />
+          <KV label="Target Move" value={engine22.targetMove != null ? `$${engine22.targetMove}` : "—"} />
+          <KV label="Stop" value={engine22.stopMove != null ? `$${engine22.stopMove}` : "—"} />
+          <KV label="Mode" value={engine22.mode || "—"} />
 
+          {Array.isArray(engine22.reasonCodes) && engine22.reasonCodes.length > 0 && (
+            <div style={{ marginTop: 6 }}>
+              <div style={{ fontWeight: 900, fontSize: 12, color: "#9ca3af" }}>
+                Reasons
+            </div>
+            {engine22.reasonCodes.map((r, i) => (
+              <div key={i} style={{ fontSize: 12, color: "#cbd5e1" }}>
+                • {r}
+              </div>
+            ))}
+          </div>
+        )}
+       </CompactSection>
+     )}
       <NotReadySummaryBlock node={node} snapshot={snapshot} summary={summary} />
     </div>
   );
