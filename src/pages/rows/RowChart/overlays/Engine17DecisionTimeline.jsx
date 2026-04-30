@@ -99,9 +99,11 @@ export default function Engine17DecisionTimeline({
     currentRead = "Minor W3 Warning";
     confirmation = "Possible W4 forming";
   }
-
   if (prepBias === "SHORT_PREP" && watchShort) {
-    currentRead = "Short prep active — watching for breakdown";
+    currentRead = isScalpMode
+      ? "WATCH — SHORT BREAKDOWN FORMING"
+      : "Short prep active — watching for breakdown";
+  
     confirmation = breakdownRef
       ? `Break below ${breakdownRef} confirms structure breakdown`
       : lastHigherLow
@@ -110,15 +112,18 @@ export default function Engine17DecisionTimeline({
   }
 
   if (prepBias === "LONG_PREP" && watchLong) {
-    currentRead = "Long prep active — watching for breakout";
+    currentRead = isScalpMode
+      ? "WATCH — LONG BREAKOUT FORMING"
+      : "Long prep active — watching for breakout";
     confirmation = lastLowerHigh
       ? `Break above ${lastLowerHigh} confirms upside continuation`
       : "Break above structure confirms upside continuation";
   }
 
   if (strategyType === "EXHAUSTION" && wave3Status !== "ACTIVE_EXTENSION") {
-  currentRead = "Exhaustion setup active";
-
+  currentRead = isScalpMode
+    ? "EXHAUSTION — REVERSAL ZONE"
+    : "Exhaustion setup active";
   if (executionBias === "LONG ONLY" || executionBias === "LONG_ONLY") {
     confirmation = "Watching for downside reversal";
   } else if (executionBias === "SHORT ONLY" || executionBias === "SHORT_ONLY") {
@@ -129,7 +134,9 @@ export default function Engine17DecisionTimeline({
 }
 
   if (triggerShort) {
-    currentRead = "Downside continuation confirmed";
+    currentRead = isScalpMode
+      ? "CONFIRMED SHORT — CONTINUATION"
+      : "Downside continuation confirmed";
     confirmation = breakdownRef
       ? `Break below ${breakdownRef} confirmed downside continuation`
       : lastHigherLow
@@ -138,7 +145,9 @@ export default function Engine17DecisionTimeline({
   }
 
   if (triggerLong) {
-    currentRead = "Upside continuation confirmed";
+    currentRead = isScalpMode
+      ? "CONFIRMED LONG — CONTINUATION"
+      : "Upside continuation confirmed";
     confirmation = lastLowerHigh
       ? `Break above ${lastLowerHigh} confirmed upside continuation`
       : "Upside structure break confirmed";
