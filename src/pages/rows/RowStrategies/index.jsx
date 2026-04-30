@@ -743,28 +743,61 @@ function ScalpCompactCard({
       />
       {engine22 && (
         <CompactSection title="FAST SCALP SIGNAL">
-          <KV label="Status" value={engine22.status || "—"} />
-          <KV label="Type" value={engine22.type || engine22.scalpType || "—"} />
-          <KV label="Direction" value={engine22.direction || "—"} />
-          <KV label="Confidence" value={engine22.confidence != null ? `${engine22.confidence}%` : "—"} />
-          <KV label="Target Move" value={engine22.targetMove != null ? `$${engine22.targetMove}` : "—"} />
-          <KV label="Stop" value={engine22.stopMove != null ? `$${engine22.stopMove}` : "—"} />
-          <KV label="Mode" value={engine22.mode || "—"} />
 
-          {Array.isArray(engine22.reasonCodes) && engine22.reasonCodes.length > 0 && (
-            <div style={{ marginTop: 6 }}>
-              <div style={{ fontWeight: 900, fontSize: 12, color: "#9ca3af" }}>
-                Reasons
-            </div>
-            {engine22.reasonCodes.map((r, i) => (
-              <div key={i} style={{ fontSize: 12, color: "#cbd5e1" }}>
-                • {r}
-              </div>
-            ))}
-          </div>
-        )}
-       </CompactSection>
+          {/* 🔥 MAIN SIGNAL LINE (BIG) */}
+          <div
+            style={{
+            fontWeight: 1000,
+            fontSize: 16,
+            color: "#60a5fa",
+            marginBottom: 4,
+          }}
+        >
+          {engine22.status === "ENTRY_LONG" && "ENTRY LONG — EXHAUSTION BOUNCE"}
+          {engine22.status === "PROBE_LONG" && "PROBE LONG — FORMING"}
+          {engine22.status === "NO_SCALP" && "NO SCALP OPPORTUNITY"}
+        </div>
+
+        {/* 📊 SUPPORTING DATA */}
+        <KV
+          label="Confidence"
+          value={
+            engine22.confidence != null
+              ? `${engine22.confidence}%`
+              : "—"
+         }
+       />
+
+       <KV
+         label="Target"
+         value={
+           engine22.targetMove != null
+             ? `$${engine22.targetMove}`
+             : "—"
+        }
+      />
+
+      <KV
+        label="Mode"
+        value={engine22.mode || "—"}
+     />
+
+     {/* ⚠️ CONTEXT WARNING */}
+     {engine22.reasonCodes?.includes("SCALP_ONLY_COUNTERTREND") && (
+       <div
+         style={{
+           marginTop: 6,
+           fontSize: 12,
+           fontWeight: 900,
+           color: "#f59e0b",
+         }}
+       >
+         ⚠️ COUNTERTREND SCALP
+       </div>
      )}
+
+   </CompactSection>
+ )}
       <NotReadySummaryBlock node={node} snapshot={snapshot} summary={summary} />
     </div>
   );
