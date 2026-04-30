@@ -36,6 +36,7 @@ export default function Engine17DecisionTimeline({
   if (!visible || !overlayData?.ok) return null;
 
   const fib = overlayData?.fib || {};
+  const engine22 = fib?.engine22Scalp || null;
   const isScalpMode = chartMode === "SCALP";
   const isSwingMode = chartMode === "SWING";
   const wave = fib?.waveContext || {};
@@ -209,7 +210,39 @@ export default function Engine17DecisionTimeline({
       >
         {currentRead}
       </div>
+      {isScalpMode && engine22?.active && (
+        <div
+          style={{
+            fontSize: 20,
+            lineHeight: 1.4,
+            marginBottom: 6,
+            fontWeight: 900,
+            color:
+              engine22.status === "ENTRY_LONG"
+                ? "#22c55e"
+                : engine22.status === "PROBE_LONG"
+                ? "#60a5fa"
+                : "#9ca3af",
+           }}
+         >
+           {engine22.status === "ENTRY_LONG" && "🟢 SCALP ENTRY — EXHAUSTION BOUNCE"}
+           {engine22.status === "PROBE_LONG" && "🔵 SCALP PROBE — FORMING"}
+         </div>
+       )} 
 
+      {isScalpMode && engine22?.active && (
+        <div
+          style={{
+            fontSize: 18,
+            lineHeight: 1.35,
+            marginBottom: 8,
+            color: "#cbd5e1",
+            fontWeight: 700,
+          }}
+        >
+          {engine22.targetMove != null ? `Target: $${engine22.targetMove}` : ""}
+        </div>
+      )}
       <div
         style={{
           fontSize: 20,
