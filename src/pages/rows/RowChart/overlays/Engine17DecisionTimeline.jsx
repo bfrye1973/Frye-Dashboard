@@ -210,7 +210,7 @@ export default function Engine17DecisionTimeline({
       >
         {currentRead}
       </div>
-      {isScalpMode && engine22 && (      
+      {isScalpMode && engine22 && (
         <div
           style={{
             fontSize: 20,
@@ -220,17 +220,25 @@ export default function Engine17DecisionTimeline({
             color:
               engine22.status === "ENTRY_LONG"
                 ? "#22c55e"
+                : engine22.status === "ENTRY_SHORT"
+                ? "#ef4444"
                 : engine22.status === "PROBE_LONG"
                 ? "#60a5fa"
+                : engine22.status === "PROBE_SHORT"
+                ? "#f97316"
                 : "#9ca3af",
             textShadow:
               engine22.status === "ENTRY_LONG"
                 ? "0 0 12px rgba(34,197,94,0.9), 0 0 20px rgba(34,197,94,0.6)"
+                : engine22.status === "ENTRY_SHORT"
+                ? "0 0 12px rgba(239,68,68,0.9), 0 0 20px rgba(239,68,68,0.6)"
                 : "none",
-         }}
+          }}
         >
-          {engine22.status === "ENTRY_LONG" && "🟢 SCALP ENTRY — EXHAUSTION BOUNCE"}
-          {engine22.status === "PROBE_LONG" && "🔵 SCALP PROBE — FORMING"}
+          {engine22.status === "ENTRY_LONG" && "🟢 SCALP ENTRY LONG — EXHAUSTION BOUNCE"}
+          {engine22.status === "PROBE_LONG" && "🔵 SCALP PROBE LONG — READY TO TRIGGER"}
+          {engine22.status === "ENTRY_SHORT" && "🔴 SCALP ENTRY SHORT — EXHAUSTION REJECTION"}
+          {engine22.status === "PROBE_SHORT" && "🟠 SCALP PROBE SHORT — READY TO TRIGGER"}
           {engine22.status === "NO_SCALP" && "⚪ NO SCALP — STAND DOWN"}
         </div>
       )}
@@ -245,7 +253,13 @@ export default function Engine17DecisionTimeline({
             fontWeight: 700,
           }}
         >
-          {engine22.targetMove != null ? `Target: $${engine22.targetMove}` : ""}
+          {engine22.status === "NO_SCALP"
+            ? "Waiting for long or short exhaustion trigger"
+            : `${engine22.needs ? `Needs: ${formatText(engine22.needs)}` : ""}${
+                engine22.distanceToEntry != null
+                  ? ` | Distance: $${engine22.distanceToEntry}`
+                  : ""
+              }${engine22.targetMove != null ? ` | Target: $${engine22.targetMove}` : ""}`}
         </div>
       )}
       <div
