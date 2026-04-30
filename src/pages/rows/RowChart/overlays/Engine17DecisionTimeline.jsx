@@ -72,8 +72,14 @@ export default function Engine17DecisionTimeline({
   ? fib.waveReasonCodes.map(conditionText).filter(Boolean).slice(0, 2)
   : [];
 
-  let currentRead = "No active setup";
-  let confirmation = "No confirmation condition";
+  let currentRead = isScalpMode
+    ? "WAIT — NO SCALP SETUP"
+    : "WAIT — NO SWING SETUP";
+
+  let confirmation = isScalpMode
+    ? "Waiting for fast scalp structure to form"
+    : "Waiting for swing structure to form";
+  
   // --- WAVE 3 EXTENSION PRIORITY LOGIC (TOP PRIORITY) ---
   if (wave3Status === "ACTIVE_EXTENSION") {
     currentRead = "Wave 3 Active";
