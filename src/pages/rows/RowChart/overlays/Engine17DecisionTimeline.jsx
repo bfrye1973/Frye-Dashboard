@@ -223,7 +223,11 @@ export default function Engine17DecisionTimeline({
                 : engine22.status === "PROBE_LONG"
                 ? "#60a5fa"
                 : "#9ca3af",
-          }}
+            textShadow:
+              engine22.status === "ENTRY_LONG"
+                ? "0 0 12px rgba(34,197,94,0.9), 0 0 20px rgba(34,197,94,0.6)"
+                : "none",
+         }}
         >
           {engine22.status === "ENTRY_LONG" && "🟢 SCALP ENTRY — EXHAUSTION BOUNCE"}
           {engine22.status === "PROBE_LONG" && "🔵 SCALP PROBE — FORMING"}
