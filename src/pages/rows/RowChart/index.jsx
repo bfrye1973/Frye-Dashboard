@@ -285,6 +285,7 @@ function mapSnapshotToEngine17Overlay(snapshot, strategyId) {
   const scalp = node?.engine16 || null;
   const swing = snapshot?.strategies?.["minor_swing@1h"]?.engine16 || null;
   const engine15Decision = node?.engine15Decision || null;
+  const engine22Scalp = node?.engine22Scalp || null;
 
   if (!scalp) {
   return {
@@ -546,6 +547,7 @@ function mapSnapshotToEngine17Overlay(snapshot, strategyId) {
 
       readinessLabel: readiness,
       strategyType,
+      engine22Scalp, 
 
       nextFocus,
 
