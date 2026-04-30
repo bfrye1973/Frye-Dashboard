@@ -31,10 +31,13 @@ function conditionText(code) {
 export default function Engine17DecisionTimeline({
   overlayData,
   visible = true,
+  chartMode = "SCALP",
 }) {
   if (!visible || !overlayData?.ok) return null;
 
   const fib = overlayData?.fib || {};
+  const isScalpMode = chartMode === "SCALP";
+  const isSwingMode = chartMode === "SWING";
   const wave = fib?.waveContext || {};
 
   const primary = formatWave(wave?.primaryPhase);
