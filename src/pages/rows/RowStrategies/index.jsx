@@ -727,11 +727,29 @@ function ScalpCompactCard({
           {/* 🔥 MAIN SIGNAL LINE (BIG) */}
           <div
             style={{
-            fontWeight: 1000,
-            fontSize: 16,
-            color: "#60a5fa",
-            marginBottom: 4,
-          }}
+              fontWeight: 1000,
+              fontSize: 20,
+              textAlign: "center",
+              padding: "10px 0",
+              borderRadius: 10,
+              background:
+                engine22.status === "ENTRY_LONG"
+                  ? "#052e16"
+                  : engine22.status === "PROBE_LONG"
+                  ? "#0b1a2a"
+                  : "#111827",
+              color:
+                engine22.status === "ENTRY_LONG"
+                  ? "#22c55e"
+                  : engine22.status === "PROBE_LONG"
+                  ? "#60a5fa"
+                      : "#9ca3af",
+              border:
+                engine22.status === "ENTRY_LONG"
+                  ? "1px solid #22c55e"
+                  : "1px solid #1f2937",
+              marginBottom: 8,
+            }}
         >
           {engine22.status === "ENTRY_LONG" && "🟢 ENTRY LONG — EXHAUSTION BOUNCE"}
           {engine22.status === "PROBE_LONG" && "🔵 PROBE LONG — FORMING"}
