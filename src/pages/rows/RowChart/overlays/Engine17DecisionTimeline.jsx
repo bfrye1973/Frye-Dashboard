@@ -267,7 +267,11 @@ export default function Engine17DecisionTimeline({
         </div>
 
         <div>
-          {engine22.needs ? `Needs: ${formatText(engine22.needs)}` : ""}
+          {engine22.status === "ENTRY_LONG" || engine22.status === "PROBE_LONG"
+            ? "Needs: Buyer absorption + hold support"
+            : engine22.status === "ENTRY_SHORT" || engine22.status === "PROBE_SHORT"
+            ? "Needs: Seller distribution + fail high"
+            : ""}
           {engine22.risk?.target != null
             ? ` | Target: $${engine22.risk.target}`
             : ""}
