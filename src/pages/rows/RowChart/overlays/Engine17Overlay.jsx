@@ -262,7 +262,7 @@ export default function Engine17Overlay({
     const items = [
       { key: "r382", label: `${prefix} 0.382`, price: levels.r382, color: "#fbbf24" },
       { key: "r500", label: `${prefix} 0.500`, price: levels.r500, color: "#f97316" },
-      { key: "r618", label: `${prefix} 0.618", price: levels.r618, color: "#22c55e" },
+      { key: "r618", label: `${prefix} 0.618`, price: levels.r618, color: "#22c55e" },
       { key: "r786", label: `${prefix} 0.786`, price: levels.r786, color: "#ef4444" },
     ];
 
