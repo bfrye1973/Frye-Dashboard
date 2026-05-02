@@ -280,7 +280,7 @@ function buildTriggerFromComposed(engine16) {
   return null;
 }
 
-function mapSnapshotToEngine17Overlay(snapshot, strategyId) {
+function mapSnapshotToEngine17Overlay(snapshot, strategyId, chartMode = "SCALP") {
   const node = snapshot?.strategies?.[strategyId] || null;
   const scalp = node?.engine16 || null;
   const swing = snapshot?.strategies?.["minor_swing@1h"]?.engine16 || null;
@@ -1118,7 +1118,7 @@ export default function RowChart({
         const snap = await getDashboardSnapshot(state.symbol);
         if (cancelled) return;
         setEngine17Data(
-          mapSnapshotToEngine17Overlay(snap, selectedStrategyId)
+         mapSnapshotToEngine17Overlay(snap, selectedStrategyId, chartMode) 
         );
       } catch (err) {
         if (cancelled) return;
