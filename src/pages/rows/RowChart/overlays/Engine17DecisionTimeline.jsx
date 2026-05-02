@@ -14,7 +14,7 @@ function formatText(value, fallback = "—") {
 
 function formatLevel(value) {
   const n = Number(value);
-  return Number.isFinite(n) ? n.toFixed(2) : null;
+  return Number.isFinite(n) ? n.toFixed(2) : "—";
 }
 
 function conditionText(code) {
@@ -26,6 +26,39 @@ function conditionText(code) {
   if (c === "LONG_RISK_RISING") return "Long risk is rising";
 
   return null;
+}
+
+function engine22StateLabel(engine22) {
+  const state = String(engine22?.state || "").toUpperCase();
+  const status = String(engine22?.status || "").toUpperCase();
+
+  if (state === "W2_ACTIVE_WAIT") return "🟡 W2 ACTIVE — WAIT FOR W3 TRIGGER";
+  if (state === "W4_ACTIVE_WAIT") return "🟡 W4 ACTIVE — WAIT FOR W5 TRIGGER";
+  if (state === "W3_READY") return "🟢 W3 SETUP READY — WAIT FOR BREAK";
+  if (state === "W5_READY") return "🟢 W5 SETUP READY — WAIT FOR BREAK";
+  if (state === "W3_TRIGGER_LONG") return "🟢 W3 LONG TRIGGER CONFIRMED";
+  if (state === "W5_TRIGGER_LONG") return "🟢 W5 LONG TRIGGER CONFIRMED";
+
+  if (status === "ENTRY_LONG") return "🟢 SCALP ENTRY LONG — EXHAUSTION / CONTINUATION";
+  if (status === "PROBE_LONG") return "🔵 SCALP PROBE LONG — READY TO TRIGGER";
+  if (status === "ENTRY_SHORT") return "🔴 SCALP ENTRY SHORT — EXHAUSTION REJECTION";
+  if (status === "PROBE_SHORT") return "🟠 SCALP PROBE SHORT — READY TO TRIGGER";
+  if (status === "NO_SHORT") return "⛔ SHORTS BLOCKED — FINAL IMPULSE";
+  if (status === "NO_SCALP") return "⚪ NO SCALP — STAND DOWN";
+
+  return null;
+}
+
+function engine22Color(engine22) {
+  const state = String(engine22?.state || "").toUpperCase();
+  const status = String(engine22?.status || "").toUpperCase();
+
+  if (state.includes("TRIGGER_LONG") || status === "ENTRY_LONG") return "#22c55e";
+  if (status === "ENTRY_SHORT") return "#ef4444";
+  if (status === "PROBE_LONG") return "#60a5fa";
+  if (status === "PROBE_SHORT") return "#f97316";
+  if (state.includes("ACTIVE_WAIT")) return "#fbbf24";
+  return "#9ca3af";
 }
 
 export default function Engine17DecisionTimeline({
@@ -50,26 +83,19 @@ export default function Engine17DecisionTimeline({
   const wave3RetraceLevels = wave3Retrace?.levels || null;
 
   const isScalpMode = chartMode === "SCALP";
-  const isSwingMode = chartMode === "SWING";
   const wave = fib?.waveContext || {};
 
   const primary = formatWave(wave?.primaryPhase);
   const intermediate = formatWave(wave?.intermediatePhase);
   const minor = formatWave(wave?.minorPhase);
 
-  // IMPORTANT:
-  // 4H trend must come ONLY from backend 4H truth.
-  // Do NOT fall back to executionBias.
   const trend4h = formatText(fib?.trendState_4h, "—");
+  const trend4hRaw = String(fib?.trendState_4h || "").toUpperCase();
 
   const prepBias = String(fib?.prepBias || "NONE").toUpperCase();
   const readiness = formatText(fib?.readinessLabel, "WAIT");
   const executionBias = formatText(fib?.executionBias, "—");
   const strategyType = String(fib?.strategyType || "NONE").toUpperCase();
-  const trend1h = String(fib?.trendState_1h || "").toUpperCase();
-  const trend4hRaw = String(fib?.trendState_4h || "").toUpperCase();
-  const decisionAction = String(fib?.decisionAction || "").toUpperCase();
-  const invalidated = !!fib?.invalidated;
 
   const watchShort = !!fib?.continuationWatchShort;
   const watchLong = !!fib?.continuationWatchLong;
@@ -80,10 +106,10 @@ export default function Engine17DecisionTimeline({
   const lastHigherLow = formatLevel(fib?.lastHigherLow);
   const lastLowerHigh = formatLevel(fib?.lastLowerHigh);
   const wave3Status = String(fib?.wave3Status || "").toUpperCase();
-  const nextStructure = String(fib?.nextExpectedStructure || "").toUpperCase();
+
   const conditionLines = Array.isArray(fib?.waveReasonCodes)
-  ? fib.waveReasonCodes.map(conditionText).filter(Boolean).slice(0, 2)
-  : [];
+    ? fib.waveReasonCodes.map(conditionText).filter(Boolean).slice(0, 2)
+    : [];
 
   let currentRead = isScalpMode
     ? "WAIT — NO SCALP SETUP"
@@ -92,8 +118,7 @@ export default function Engine17DecisionTimeline({
   let confirmation = isScalpMode
     ? "Waiting for fast scalp structure to form"
     : "Waiting for swing structure to form";
-  
-  // --- WAVE 3 EXTENSION PRIORITY LOGIC (TOP PRIORITY) ---
+
   if (wave3Status === "ACTIVE_EXTENSION") {
     currentRead = "Wave 3 Active";
     confirmation = "Watching for extension";
@@ -108,70 +133,79 @@ export default function Engine17DecisionTimeline({
     confirmation =
       "Short risk present\nCountertrend short blocked\nWait for HTF breakdown";
   }
+
   if (wave3Status === "FIRST_WARNING") {
     currentRead = "Minor W3 Warning";
     confirmation = "Possible W4 forming";
   }
+
   if (prepBias === "SHORT_PREP" && watchShort) {
     currentRead = isScalpMode
       ? "WATCH — SHORT BREAKDOWN FORMING"
       : "Short prep active — watching for breakdown";
-  
-    confirmation = breakdownRef
-      ? `Break below ${breakdownRef} confirms structure breakdown`
-      : lastHigherLow
-      ? `Break below ${lastHigherLow} confirms downside continuation`
-      : "Break below structure confirms breakdown";
+
+    confirmation =
+      breakdownRef !== "—"
+        ? `Break below ${breakdownRef} confirms structure breakdown`
+        : lastHigherLow !== "—"
+        ? `Break below ${lastHigherLow} confirms downside continuation`
+        : "Break below structure confirms breakdown";
   }
 
   if (prepBias === "LONG_PREP" && watchLong) {
     currentRead = isScalpMode
       ? "WATCH — LONG BREAKOUT FORMING"
       : "Long prep active — watching for breakout";
-    confirmation = lastLowerHigh
-      ? `Break above ${lastLowerHigh} confirms upside continuation`
-      : "Break above structure confirms upside continuation";
+
+    confirmation =
+      lastLowerHigh !== "—"
+        ? `Break above ${lastLowerHigh} confirms upside continuation`
+        : "Break above structure confirms upside continuation";
   }
 
   if (strategyType === "EXHAUSTION" && wave3Status !== "ACTIVE_EXTENSION") {
-  currentRead = isScalpMode
-    ? "EXHAUSTION — REVERSAL ZONE"
-    : "Exhaustion setup active";
-  if (executionBias === "LONG ONLY" || executionBias === "LONG_ONLY") {
-    confirmation = "Watching for downside reversal";
-  } else if (executionBias === "SHORT ONLY" || executionBias === "SHORT_ONLY") {
-    confirmation = "Watching for upside reversal";
-  } else {
-    confirmation = "Watching for reversal confirmation";
+    currentRead = isScalpMode
+      ? "EXHAUSTION — REVERSAL ZONE"
+      : "Exhaustion setup active";
+
+    if (executionBias === "LONG ONLY" || executionBias === "LONG_ONLY") {
+      confirmation = "Watching for downside reversal";
+    } else if (executionBias === "SHORT ONLY" || executionBias === "SHORT_ONLY") {
+      confirmation = "Watching for upside reversal";
+    } else {
+      confirmation = "Watching for reversal confirmation";
+    }
   }
-}
 
   if (triggerShort) {
     currentRead = isScalpMode
       ? "CONFIRMED SHORT — CONTINUATION"
       : "Downside continuation confirmed";
-    confirmation = breakdownRef
-      ? `Break below ${breakdownRef} confirmed downside continuation`
-      : lastHigherLow
-      ? `Break below ${lastHigherLow} confirmed downside continuation`
-      : "Downside structure break confirmed";
+
+    confirmation =
+      breakdownRef !== "—"
+        ? `Break below ${breakdownRef} confirmed downside continuation`
+        : lastHigherLow !== "—"
+        ? `Break below ${lastHigherLow} confirmed downside continuation`
+        : "Downside structure break confirmed";
   }
 
   if (triggerLong) {
     currentRead = isScalpMode
       ? "CONFIRMED LONG — CONTINUATION"
       : "Upside continuation confirmed";
-    confirmation = lastLowerHigh
-      ? `Break above ${lastLowerHigh} confirmed upside continuation`
-      : "Upside structure break confirmed";
+
+    confirmation =
+      lastLowerHigh !== "—"
+        ? `Break above ${lastLowerHigh} confirmed upside continuation`
+        : "Upside structure break confirmed";
   }
-   // --- ENGINE 22 SCALP CORRECTION PRIORITY ---
-  // This only affects SCALP mode. Swing timeline stays separate.
+
+  // Engine 22 correction priority — SCALP only.
   if (isScalpMode && engine22) {
     const e22Type = String(engine22.type || "").toUpperCase();
     const e22State = String(engine22.state || "").toUpperCase();
     const e22Status = String(engine22.status || "").toUpperCase();
-    const e22Needs = formatText(engine22.needs, "WAIT");
 
     if (e22State === "W2_ACTIVE_WAIT" || e22Type === "W2_ACTIVE_WAIT") {
       currentRead = "MINUTE W2 ACTIVE — NO BLIND DIP BUY";
@@ -220,6 +254,14 @@ export default function Engine17DecisionTimeline({
       confirmation = "Higher wave context remains bullish. No countertrend short.";
     }
   }
+
+  const e22Label = isScalpMode && engine22 ? engine22StateLabel(engine22) : null;
+  const e22State = String(engine22?.state || "").toUpperCase();
+  const showCorrectionDetails =
+    isScalpMode &&
+    engine22 &&
+    ["W2_ACTIVE_WAIT", "W4_ACTIVE_WAIT", "W3_READY", "W5_READY"].includes(e22State);
+
   return (
     <div
       style={{
@@ -276,51 +318,27 @@ export default function Engine17DecisionTimeline({
       >
         {currentRead}
       </div>
-      {isScalpMode && engine22 && (
+
+      {e22Label && (
         <div
           style={{
             fontSize: 20,
             lineHeight: 1.4,
             marginBottom: 6,
             fontWeight: 900,
-            color:
-              engine22.status === "ENTRY_LONG"
-                ? "#22c55e"
-                : engine22.status === "ENTRY_SHORT"
-                ? "#ef4444"
-                : engine22.status === "PROBE_LONG"
-                ? "#60a5fa"
-                : engine22.status === "PROBE_SHORT"
-                ? "#f97316"
-                : "#9ca3af",
+            color: engine22Color(engine22),
             textShadow:
-              engine22.status === "ENTRY_LONG"
-                ? "0 0 12px rgba(34,197,94,0.9), 0 0 20px rgba(34,197,94,0.6)"
-                : engine22.status === "ENTRY_SHORT"
-                ? "0 0 12px rgba(239,68,68,0.9), 0 0 20px rgba(239,68,68,0.6)"
+              String(engine22?.state || "").toUpperCase().includes("TRIGGER") ||
+              String(engine22?.status || "").toUpperCase().includes("ENTRY")
+                ? "0 0 12px rgba(34,197,94,0.65)"
                 : "none",
           }}
         >
-          {engine22.state === "W2_ACTIVE_WAIT" && "🟡 W2 ACTIVE — WAIT FOR W3 TRIGGER"}
-          {engine22.state === "W4_ACTIVE_WAIT" && "🟡 W4 ACTIVE — WAIT FOR W5 TRIGGER"}
-          {engine22.state === "W3_READY" && "🟢 W3 SETUP READY — WAIT FOR BREAK"}
-          {engine22.state === "W5_READY" && "🟢 W5 SETUP READY — WAIT FOR BREAK"}
-          {engine22.state === "W3_TRIGGER_LONG" && "🟢 W3 LONG TRIGGER CONFIRMED"}
-          {engine22.state === "W5_TRIGGER_LONG" && "🟢 W5 LONG TRIGGER CONFIRMED"}
-
-          {engine22.status === "ENTRY_LONG" &&
-            !["W3_TRIGGER_LONG", "W5_TRIGGER_LONG"].includes(engine22.state) &&
-            "🟢 SCALP ENTRY LONG — EXHAUSTION / CONTINUATION"}
-
-          {engine22.status === "PROBE_LONG" && "🔵 SCALP PROBE LONG — READY TO TRIGGER"}
-          {engine22.status === "ENTRY_SHORT" && "🔴 SCALP ENTRY SHORT — EXHAUSTION REJECTION"}
-          {engine22.status === "PROBE_SHORT" && "🟠 SCALP PROBE SHORT — READY TO TRIGGER"}
-          {engine22.status === "NO_SHORT" && "⛔ SHORTS BLOCKED — FINAL IMPULSE"}
-          {engine22.status === "NO_SCALP" && "⚪ NO SCALP — STAND DOWN"}
+          {e22Label}
         </div>
       )}
 
-      {isScalpMode && engine22 && (
+      {showCorrectionDetails && (
         <div
           style={{
             fontSize: 18,
@@ -330,61 +348,96 @@ export default function Engine17DecisionTimeline({
             fontWeight: 700,
           }}
         >
-          {["W2_ACTIVE_WAIT", "W4_ACTIVE_WAIT", "W3_READY", "W5_READY"].includes(engine22.state) ? (
+          <div>
+            {engine22?.needs
+              ? `Needs: ${formatText(engine22.needs)}`
+              : "Needs: Wait for correction trigger"}
+          </div>
+
+          {wave3RetraceTimeline?.label && (
+            <div>{wave3RetraceTimeline.label}</div>
+          )}
+
+          {wave3Retrace?.currentPrice != null && (
+            <div>{`Current Price: ${formatLevel(wave3Retrace.currentPrice)}`}</div>
+          )}
+
+          {wave3RetraceLevels && (
             <>
-              <div>
-                {engine22.needs ? `Needs: ${formatText(engine22.needs)}` : "Needs: Wait for correction trigger"}
-              </div>
-              {wave3RetraceTimeline?.label && (
-                <div>{wave3RetraceTimeline.label}</div>
-              )}
-              {wave3RetraceZone && (
-                <div>
-                  {`Wave 3 Fib: 0.5–0.618 zone ${
-                    formatLevel(wave3RetraceZone.lo)
-                  }–${formatLevel(wave3RetraceZone.hi)} | ${formatText(wave3RetraceZone.state)}`}
-                </div>
-              )}
-              {wave3RetraceTimeline?.nextFocus && (
-                <div>{wave3RetraceTimeline.nextFocus}</div>
-              )}
+              <div>Wave 3 Retrace Levels:</div>
+              <div>{`0.382 = ${formatLevel(wave3RetraceLevels.r382)}`}</div>
+              <div>{`0.500 = ${formatLevel(wave3RetraceLevels.r500)}`}</div>
+              <div>{`0.618 = ${formatLevel(wave3RetraceLevels.r618)}`}</div>
+              <div>{`0.786 = ${formatLevel(wave3RetraceLevels.r786)}`}</div>
             </>
-          ) : engine22.status === "NO_SCALP" ? (
+          )}
+
+          {wave3RetraceZone && (
+            <>
+              <div>{`Zone State: ${formatText(wave3RetraceZone.state)}`}</div>
+              <div>
+                {`Watch Zone: ${formatLevel(wave3RetraceZone.lo)}–${formatLevel(
+                  wave3RetraceZone.hi
+                )}`}
+              </div>
+            </>
+          )}
+
+          {wave3RetraceTimeline?.nextFocus && (
+            <div>{wave3RetraceTimeline.nextFocus}</div>
+          )}
+        </div>
+      )}
+
+      {isScalpMode && engine22 && !showCorrectionDetails && (
+        <div
+          style={{
+            fontSize: 18,
+            lineHeight: 1.35,
+            marginBottom: 8,
+            color: "#cbd5e1",
+            fontWeight: 700,
+          }}
+        >
+          {String(engine22.status || "").toUpperCase() === "NO_SCALP" ? (
             "Waiting for long or short scalp trigger"
           ) : (
             <>
-        <div>
-          {engine22.quality?.grade
-            ? `🟢 ${engine22.quality.grade} QUALITY`
-            : "⚪ QUALITY PENDING"}
-          {engine22.risk?.riskReward != null
-            ? ` | R:R ${engine22.risk.riskReward}`
-            : ""}
-        </div>
+              <div>
+                {engine22.quality?.grade
+                  ? `🟢 ${engine22.quality.grade} QUALITY`
+                  : "⚪ QUALITY PENDING"}
+                {engine22.risk?.riskReward != null
+                  ? ` | R:R ${engine22.risk.riskReward}`
+                  : ""}
+              </div>
 
-        <div>
-          {engine22.status === "ENTRY_LONG" || engine22.status === "PROBE_LONG"
-            ? "Needs: Buyer absorption + hold support"
-            : engine22.status === "ENTRY_SHORT" || engine22.status === "PROBE_SHORT"
-            ? "Needs: Seller distribution + fail high"
-            : ""}
-          {engine22.risk?.target != null
-            ? ` | Target: $${engine22.risk.target}`
-            : ""}
-          {engine22.risk?.stop != null
-            ? ` | Stop: $${engine22.risk.stop}`
-            : ""}
-        </div>
+              <div>
+                {String(engine22.status || "").toUpperCase() === "ENTRY_LONG" ||
+                String(engine22.status || "").toUpperCase() === "PROBE_LONG"
+                  ? "Needs: Buyer absorption + hold support"
+                  : String(engine22.status || "").toUpperCase() === "ENTRY_SHORT" ||
+                    String(engine22.status || "").toUpperCase() === "PROBE_SHORT"
+                  ? "Needs: Seller distribution + fail high"
+                  : ""}
+                {engine22.risk?.target != null
+                  ? ` | Target: $${engine22.risk.target}`
+                  : ""}
+                {engine22.risk?.stop != null
+                  ? ` | Stop: $${engine22.risk.stop}`
+                  : ""}
+              </div>
 
-        <div>
-          {engine22.management?.exitRule
-            ? `Exit: ${formatText(engine22.management.exitRule)}`
-            : "Exit: EMA10 management"}
+              <div>
+                {engine22.management?.exitRule
+                  ? `Exit: ${formatText(engine22.management.exitRule)}`
+                  : "Exit: EMA10 management"}
+              </div>
+            </>
+          )}
         </div>
-      </>
-    )}
-  </div>
-)}
+      )}
+
       <div
         style={{
           fontSize: 20,
@@ -392,26 +445,28 @@ export default function Engine17DecisionTimeline({
           marginBottom: 8,
           color: "#cbd5e1",
           fontWeight: 700,
+          whiteSpace: "pre-line",
         }}
       >
         {confirmation}
       </div>
-      
+
       {conditionLines.length > 0 && (
         <div
           style={{
             fontSize: 19,
             lineHeight: 1.4,
             marginBottom: 8,
-           color: "#fbbf24",
-           fontWeight: 700,
-         }}
-       >
-         {conditionLines.map((line, idx) => (
-           <div key={idx}>{line}</div>
-         ))}
-       </div>
-     )}
+            color: "#fbbf24",
+            fontWeight: 700,
+          }}
+        >
+          {conditionLines.map((line, idx) => (
+            <div key={idx}>{line}</div>
+          ))}
+        </div>
+      )}
+
       <div
         style={{
           fontSize: 18,
