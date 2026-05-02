@@ -88,6 +88,10 @@ export default function Engine17DecisionTimeline({
   const primary = formatWave(wave?.primaryPhase);
   const intermediate = formatWave(wave?.intermediatePhase);
   const minor = formatWave(wave?.minorPhase);
+  const minutePhase =
+    fib?.waveContext?.minutePhase ||
+    fib?.engine2State?.minute?.phase ||
+    "Minute —";
 
   const trend4h = formatText(fib?.trendState_4h, "—");
   const trend4hRaw = String(fib?.trendState_4h || "").toUpperCase();
