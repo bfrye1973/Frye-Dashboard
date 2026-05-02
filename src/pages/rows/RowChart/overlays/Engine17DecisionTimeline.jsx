@@ -32,8 +32,8 @@ function engine22StateLabel(engine22) {
   const state = String(engine22?.state || "").toUpperCase();
   const status = String(engine22?.status || "").toUpperCase();
 
-  if (state === "W2_ACTIVE_WAIT") return "🟡 W2 ACTIVE — WAIT FOR W3 TRIGGER";
-  if (state === "W4_ACTIVE_WAIT") return "🟡 W4 ACTIVE — WAIT FOR W5 TRIGGER";
+  if (state === "W2_ACTIVE_WAIT") return "🟡 W2 ACTIVE — WAIT FOR B BOUNCE";
+  if (state === "W4_ACTIVE_WAIT") return "🟡 W4 ACTIVE — WAIT FOR B BOUNCE";
   if (state === "W3_READY") return "🟢 W3 SETUP READY — WAIT FOR BREAK";
   if (state === "W5_READY") return "🟢 W5 SETUP READY — WAIT FOR BREAK";
   if (state === "W3_TRIGGER_LONG") return "🟢 W3 LONG TRIGGER CONFIRMED";
