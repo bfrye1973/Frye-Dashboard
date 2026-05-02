@@ -85,28 +85,42 @@ export default function Engine17Overlay({
     return String(kind || "").replaceAll("_", " ");
   }
 
+  function drawTextBox(ctx, text, x, y, color = "#f8fafc") {
+    ctx.save();
+    ctx.font = "17px system-ui, -apple-system, Segoe UI, Roboto, Arial";
+    const tw = ctx.measureText(text).width;
+    const bw = tw + 18;
+    const bh = 28;
+
+    ctx.fillStyle = "rgba(0,0,0,0.78)";
+    ctx.strokeStyle = "rgba(255,255,255,0.16)";
+    ctx.lineWidth = 1.25;
+    roundRect(ctx, x, y, bw, bh, 8);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = color;
+    ctx.fillText(text, x + 9, y + 19);
+    ctx.restore();
+  }
+
   function drawTriggerLine(ctx, w) {
     const fib = overlayData?.fib || {};
     const locked = fib?.lockedSignal || null;
     const fallback = fib?.trigger || null;
-
     const signal = locked || fallback;
 
     if (!showTriggerLine || !signal) return;
 
-    const price =
-      locked?.signalPrice ??
-      fallback?.level ??
-      null;
-
-if (!Number.isFinite(price)) return;
+    const price = locked?.signalPrice ?? fallback?.level ?? null;
+    if (!Number.isFinite(price)) return;
 
     const y = priceToY(price);
     if (y == null) return;
 
     const direction = locked?.direction || fallback?.side;
     const color = direction === "SHORT" ? "#ef4444" : "#22c55e";
-    
+
     ctx.save();
     ctx.strokeStyle = color;
     ctx.lineWidth = 2;
@@ -119,11 +133,11 @@ if (!Number.isFinite(price)) return;
 
     const lineLabel = locked
       ? `${locked.signalType} ${locked.direction}`
-      : (fallback?.lineLabel || `${fallback?.side} TRIGGER`);
+      : fallback?.lineLabel || `${fallback?.side} TRIGGER`;
 
     const detailLabel = locked
       ? `${locked.signalSource || "LOCKED"}`
-      : (fallback?.label || lineLabel);
+      : fallback?.label || lineLabel;
 
     ctx.save();
     ctx.font = "22px system-ui, -apple-system, Segoe UI, Roboto, Arial";
@@ -146,68 +160,154 @@ if (!Number.isFinite(price)) return;
     ctx.fillText(text, bx + 12, by + 23);
     ctx.restore();
 
+    drawTextBox(ctx, detailLabel, Math.max(24, Math.floor(w * 0.52) + 36), y + 10);
+  }
+
+  function drawStructureLine(ctx, w) {
+    const fib = overlayData?.fib || {};
+
+    const shortActive =
+      fib?.prepBias === "SHORT_PREP" || fib?.continuationTriggerShort;
+    const longActive =
+      fib?.prepBias === "LONG_PREP" || fib?.continuationTriggerLong;
+
+    let level = null;
+    let color = "#f3f4f6";
+
+    if (shortActive) {
+      level = fib?.breakdownRef ?? fib?.lastHigherLow ?? null;
+      color = "#ef4444";
+    } else if (longActive) {
+      level = fib?.lastLowerHigh ?? null;
+      color = "#22c55e";
+    }
+
+    if (!Number.isFinite(level)) return;
+
+    const y = priceToY(level);
+    if (y == null) return;
+
+    const confirmed =
+      fib?.continuationTriggerShort || fib?.continuationTriggerLong;
+
     ctx.save();
-    ctx.font = "18px system-ui, -apple-system, Segoe UI, Roboto, Arial";
-    const tw2 = ctx.measureText(detailLabel).width;
-    const bw2 = tw2 + 22;
-    const bh2 = 30;
-    const bx2 = Math.max(24, Math.floor(w * 0.52) + 36);
-    const by2 = y + 10;
-
-    ctx.fillStyle = "rgba(0,0,0,0.76)";
-    ctx.strokeStyle = "rgba(255,255,255,0.15)";
-    roundRect(ctx, bx2, by2, bw2, bh2, 10);
-    ctx.fill();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = confirmed ? 2.5 : 1.75;
+    ctx.setLineDash(confirmed ? [] : [8, 8]);
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(w, y);
     ctx.stroke();
+    ctx.restore();
 
-    ctx.fillStyle = "#f8fafc";
-    ctx.fillText(detailLabel, bx2 + 11, by2 + 20);
+    ctx.save();
+    ctx.font = "16px system-ui";
+    ctx.fillStyle = color;
+    ctx.fillText(`STRUCTURE ${Number(level).toFixed(2)}`, Math.floor(w * 0.6), y - 10);
     ctx.restore();
   }
-  function drawStructureLine(ctx, w) {
-  const fib = overlayData?.fib || {};
 
-  const shortActive =
-    fib?.prepBias === "SHORT_PREP" || fib?.continuationTriggerShort;
-  const longActive =
-    fib?.prepBias === "LONG_PREP" || fib?.continuationTriggerLong;
+  function drawExecutionEntryLine(ctx, w) {
+    const exec = overlayData?.executionState;
 
-  let level = null;
-  let color = "#f3f4f6";
+    if (!exec || exec.status !== "ENTERED") return;
 
-  if (shortActive) {
-    level = fib?.breakdownRef ?? fib?.lastHigherLow ?? null;
-    color = "#ef4444";
-  } else if (longActive) {
-    level = fib?.lastLowerHigh ?? null;
-    color = "#22c55e";
+    const entryPrice = exec?.levels?.entry;
+    if (!Number.isFinite(entryPrice)) return;
+
+    const y = priceToY(entryPrice);
+    if (y == null) return;
+
+    ctx.save();
+    ctx.strokeStyle = "#22c55e";
+    ctx.lineWidth = 3;
+    ctx.setLineDash([]);
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(w, y);
+    ctx.stroke();
+    ctx.restore();
+
+    drawTextBox(ctx, `ENTRY ${entryPrice.toFixed(2)}`, Math.floor(w * 0.55), y - 40, "#22c55e");
   }
 
-  if (!Number.isFinite(level)) return;
+  function drawWaveRetraceOverlay(ctx, w) {
+    const fib = overlayData?.fib || {};
+    const engine22 = fib?.engine22Scalp || null;
+    const e22State = String(engine22?.state || "").toUpperCase();
 
-  const y = priceToY(level);
-  if (y == null) return;
+    const shouldShow =
+      e22State === "W2_ACTIVE_WAIT" ||
+      e22State === "W4_ACTIVE_WAIT" ||
+      e22State === "W3_READY" ||
+      e22State === "W5_READY";
 
-  const confirmed =
-    fib?.continuationTriggerShort || fib?.continuationTriggerLong;
+    if (!shouldShow) return;
 
-  ctx.save();
-  ctx.strokeStyle = color;
-  ctx.lineWidth = confirmed ? 2.5 : 1.75;
-  ctx.setLineDash(confirmed ? [] : [8, 8]);
-  ctx.beginPath();
-  ctx.moveTo(0, y);
-  ctx.lineTo(w, y);
-  ctx.stroke();
-  ctx.restore();
+    const retrace =
+      fib?.wave3Retrace ||
+      fib?.waveContext?.wave3Retrace ||
+      fib?.engine2State?.minute?.wave3Retrace ||
+      overlayData?.engine2State?.minute?.wave3Retrace ||
+      null;
 
-  ctx.save();
-  ctx.font = "16px system-ui";
-  const text = `STRUCTURE ${Number(level).toFixed(2)}`;
-  ctx.fillStyle = color;
-  ctx.fillText(text, Math.floor(w * 0.6), y - 10);
-  ctx.restore();
-}
+    const levels = retrace?.levels || null;
+    if (!levels) return;
+
+    const prefix =
+      e22State === "W2_ACTIVE_WAIT" || e22State === "W3_READY"
+        ? "W2"
+        : "W4";
+
+    const items = [
+      { key: "r382", label: `${prefix} 0.382`, price: levels.r382, color: "#fbbf24" },
+      { key: "r500", label: `${prefix} 0.500`, price: levels.r500, color: "#f97316" },
+      { key: "r618", label: `${prefix} 0.618", price: levels.r618, color: "#22c55e" },
+      { key: "r786", label: `${prefix} 0.786`, price: levels.r786, color: "#ef4444" },
+    ];
+
+    const y382 = priceToY(levels.r382);
+    const y618 = priceToY(levels.r618);
+
+    if (y382 != null && y618 != null) {
+      const top = Math.min(y382, y618);
+      const height = Math.abs(y618 - y382);
+
+      ctx.save();
+      ctx.fillStyle = "rgba(251,191,36,0.10)";
+      ctx.fillRect(0, top, w, height);
+      ctx.restore();
+
+      drawTextBox(
+        ctx,
+        "Wave A Watch Zone",
+        Math.floor(w * 0.62),
+        top + Math.max(4, height / 2 - 14),
+        "#fbbf24"
+      );
+    }
+
+    items.forEach((item, index) => {
+      if (!Number.isFinite(item.price)) return;
+
+      const y = priceToY(item.price);
+      if (y == null) return;
+
+      ctx.save();
+      ctx.strokeStyle = item.color;
+      ctx.lineWidth = item.key === "r500" || item.key === "r618" ? 2 : 1.5;
+      ctx.setLineDash(item.key === "r786" ? [4, 8] : [10, 8]);
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(w, y);
+      ctx.stroke();
+      ctx.restore();
+
+      const text = `${item.label} ${Number(item.price).toFixed(2)}`;
+      drawTextBox(ctx, text, Math.floor(w * 0.72), y - 14 + index * 2, item.color);
+    });
+  }
+
   function drawSignalMarker(ctx, w, price, kind, label) {
     const y = priceToY(price);
     if (y == null) return;
@@ -264,49 +364,10 @@ if (!Number.isFinite(price)) return;
 
     const w = rect.width;
 
+    drawWaveRetraceOverlay(ctx, w);
     drawTriggerLine(ctx, w);
     drawStructureLine(ctx, w);
     drawExecutionEntryLine(ctx, w);
-
-  function drawExecutionEntryLine(ctx, w) {
-    const exec = overlayData?.executionState;
-
-    if (!exec || exec.status !== "ENTERED") return;
-
-    const entryPrice = exec?.levels?.entry;
-
-    if (!Number.isFinite(entryPrice)) return;
-
-    const y = priceToY(entryPrice);
-    if (y == null) return;
-
-    ctx.save();
-    ctx.strokeStyle = "#22c55e"; // bright green
-    ctx.lineWidth = 3;
-    ctx.setLineDash([]); // solid line
-    ctx.beginPath();
-    ctx.moveTo(0, y);
-    ctx.lineTo(w, y);
-    ctx.stroke();
-    ctx.restore();
-
-    // Label
-    ctx.save();
-    ctx.font = "20px system-ui";
-
-    const text = `ENTRY ${entryPrice.toFixed(2)}`;
-    const tw = ctx.measureText(text).width;
-    const bx = Math.floor(w * 0.55);
-    const by = y - 40;
-
-    ctx.fillStyle = "rgba(0,0,0,0.85)";
-    ctx.fillRect(bx, by, tw + 20, 32);
-
-    ctx.fillStyle = "#22c55e";
-    ctx.fillText(text, bx + 10, by + 22);
-
-    ctx.restore();
-  }
 
     if (showSignals) {
       const signals = Array.isArray(overlayData?.signals) ? overlayData.signals : [];
@@ -317,7 +378,7 @@ if (!Number.isFinite(price)) return;
           w,
           s.price,
           s.kind,
-          showSignalProvenance ? `E16 • ${s.label || s.kind}` : (s.label || s.kind)
+          showSignalProvenance ? `E16 • ${s.label || s.kind}` : s.label || s.kind
         );
       });
     }
@@ -338,11 +399,13 @@ if (!Number.isFinite(price)) return;
     try {
       ts.unsubscribeVisibleTimeRangeChange?.(visibleCb);
     } catch {}
+
     try {
       if (canvas && canvas.parentNode === chartContainer) {
         chartContainer.removeChild(canvas);
       }
     } catch {}
+
     canvas = null;
   }
 
