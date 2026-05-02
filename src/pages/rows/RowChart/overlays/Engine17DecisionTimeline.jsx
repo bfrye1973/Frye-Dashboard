@@ -352,12 +352,18 @@ export default function Engine17DecisionTimeline({
           }}
         >
         <div>
-          {e22State === "W2_ACTIVE_WAIT" || e22State === "W4_ACTIVE_WAIT"
-            ? Needs: A low → B bounce (lower high)
-            : engine22?.needs
-            ? `Needs: ${formatText(engine22.needs)}`
-            : "Needs: Wait for correction trigger"}
-        </div>
+          {(() => {
+            if (e22State === "W2_ACTIVE_WAIT" || e22State === "W4_ACTIVE_WAIT") {
+              return "Needs: A low → B bounce";
+            }
+
+            if (engine22?.needs) {
+              return `Needs: ${formatText(engine22.needs)}`;
+            }
+
+             return "Needs: Wait for correction trigger";
+           })()}
+         </div>
 
         {wave3RetraceTimeline?.label && (
          <div>{wave3RetraceTimeline.label}</div>
