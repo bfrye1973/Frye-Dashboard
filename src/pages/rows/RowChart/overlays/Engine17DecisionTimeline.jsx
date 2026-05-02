@@ -37,6 +37,18 @@ export default function Engine17DecisionTimeline({
 
   const fib = overlayData?.fib || {};
   const engine22 = fib?.engine22Scalp || null;
+
+  const wave3Retrace =
+    fib?.wave3Retrace ||
+    fib?.waveContext?.wave3Retrace ||
+    fib?.engine2State?.minute?.wave3Retrace ||
+    overlayData?.engine2State?.minute?.wave3Retrace ||
+    null;
+
+  const wave3RetraceTimeline = wave3Retrace?.timeline || null;
+  const wave3RetraceZone = wave3Retrace?.zone || null;
+  const wave3RetraceLevels = wave3Retrace?.levels || null;
+
   const isScalpMode = chartMode === "SCALP";
   const isSwingMode = chartMode === "SWING";
   const wave = fib?.waveContext || {};
@@ -153,7 +165,61 @@ export default function Engine17DecisionTimeline({
       ? `Break above ${lastLowerHigh} confirmed upside continuation`
       : "Upside structure break confirmed";
   }
+   // --- ENGINE 22 SCALP CORRECTION PRIORITY ---
+  // This only affects SCALP mode. Swing timeline stays separate.
+  if (isScalpMode && engine22) {
+    const e22Type = String(engine22.type || "").toUpperCase();
+    const e22State = String(engine22.state || "").toUpperCase();
+    const e22Status = String(engine22.status || "").toUpperCase();
+    const e22Needs = formatText(engine22.needs, "WAIT");
 
+    if (e22State === "W2_ACTIVE_WAIT" || e22Type === "W2_ACTIVE_WAIT") {
+      currentRead = "MINUTE W2 ACTIVE — NO BLIND DIP BUY";
+      confirmation =
+        wave3RetraceTimeline?.message ||
+        "Minute W2 is active. Wait for W3 trigger structure.";
+    }
+
+    if (e22State === "W4_ACTIVE_WAIT" || e22Type === "W4_ACTIVE_WAIT") {
+      currentRead = "MINUTE W4 ACTIVE — NO BLIND DIP BUY";
+      confirmation =
+        wave3RetraceTimeline?.message ||
+        "Minute W4 is active. Wait for A low, B bounce, then W5 trigger.";
+    }
+
+    if (e22State === "W3_READY" || e22Type === "W3_READY") {
+      currentRead = "W3 SETUP READY — WAIT FOR TRIGGER";
+      confirmation = engine22.triggerType
+        ? formatText(engine22.triggerType)
+        : "W2 held. Wait for break above B high.";
+    }
+
+    if (e22State === "W5_READY" || e22Type === "W5_READY") {
+      currentRead = "W5 SETUP READY — WAIT FOR TRIGGER";
+      confirmation = engine22.triggerType
+        ? formatText(engine22.triggerType)
+        : "W4 held. Wait for break above B high.";
+    }
+
+    if (e22State === "W3_TRIGGER_LONG" || e22Type === "W2_TO_W3_LONG") {
+      currentRead = "🟢 W3 LONG TRIGGER CONFIRMED";
+      confirmation = engine22.entryTriggerLevel
+        ? `Break above ${formatLevel(engine22.entryTriggerLevel)} confirmed W3 launch`
+        : "W2 to W3 long trigger confirmed.";
+    }
+
+    if (e22State === "W5_TRIGGER_LONG" || e22Type === "W4_TO_W5_LONG") {
+      currentRead = "🟢 W5 LONG TRIGGER CONFIRMED";
+      confirmation = engine22.entryTriggerLevel
+        ? `Break above ${formatLevel(engine22.entryTriggerLevel)} confirmed W5 launch`
+        : "W4 to W5 long trigger confirmed.";
+    }
+
+    if (e22Status === "NO_SHORT") {
+      currentRead = "FINAL IMPULSE — SHORTS BLOCKED";
+      confirmation = "Higher wave context remains bullish. No countertrend short.";
+    }
+  }
   return (
     <div
       style={{
@@ -235,10 +301,21 @@ export default function Engine17DecisionTimeline({
                 : "none",
           }}
         >
-          {engine22.status === "ENTRY_LONG" && "🟢 SCALP ENTRY LONG — EXHAUSTION BOUNCE"}
+          {engine22.state === "W2_ACTIVE_WAIT" && "🟡 W2 ACTIVE — WAIT FOR W3 TRIGGER"}
+          {engine22.state === "W4_ACTIVE_WAIT" && "🟡 W4 ACTIVE — WAIT FOR W5 TRIGGER"}
+          {engine22.state === "W3_READY" && "🟢 W3 SETUP READY — WAIT FOR BREAK"}
+          {engine22.state === "W5_READY" && "🟢 W5 SETUP READY — WAIT FOR BREAK"}
+          {engine22.state === "W3_TRIGGER_LONG" && "🟢 W3 LONG TRIGGER CONFIRMED"}
+          {engine22.state === "W5_TRIGGER_LONG" && "🟢 W5 LONG TRIGGER CONFIRMED"}
+
+          {engine22.status === "ENTRY_LONG" &&
+            !["W3_TRIGGER_LONG", "W5_TRIGGER_LONG"].includes(engine22.state) &&
+            "🟢 SCALP ENTRY LONG — EXHAUSTION / CONTINUATION"}
+
           {engine22.status === "PROBE_LONG" && "🔵 SCALP PROBE LONG — READY TO TRIGGER"}
           {engine22.status === "ENTRY_SHORT" && "🔴 SCALP ENTRY SHORT — EXHAUSTION REJECTION"}
           {engine22.status === "PROBE_SHORT" && "🟠 SCALP PROBE SHORT — READY TO TRIGGER"}
+          {engine22.status === "NO_SHORT" && "⛔ SHORTS BLOCKED — FINAL IMPULSE"}
           {engine22.status === "NO_SCALP" && "⚪ NO SCALP — STAND DOWN"}
         </div>
       )}
