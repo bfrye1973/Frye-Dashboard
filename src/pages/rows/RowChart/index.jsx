@@ -545,10 +545,14 @@ function mapSnapshotToEngine17Overlay(snapshot, strategyId) {
       waveState,
       macroBias,
 
+      engine22Scalp,
+      engine2State: snapshot?.engine2State || null,
+      wave3Retrace: snapshot?.engine2State?.minute?.wave3Retrace || null,
+      chartMode, 
+
       readinessLabel: readiness,
       strategyType,
-      engine22Scalp, 
-
+      
       nextFocus,
 
       prepBias: scalp?.prepBias || "NONE",
