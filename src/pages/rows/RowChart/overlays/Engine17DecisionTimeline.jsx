@@ -292,7 +292,7 @@ export default function Engine17DecisionTimeline({
           color: "#f8fafc",
         }}
       >
-        {`Primary ${primary} | Intermediate ${intermediate} | Minor ${minor}`}
+        {`Primary ${primary} | Intermediate ${intermediate} | Minor ${minor} | ${minutePhase}`}
       </div>
 
       <div
@@ -348,47 +348,38 @@ export default function Engine17DecisionTimeline({
             fontWeight: 700,
           }}
         >
-          <div>
-            {engine22?.needs
-              ? `Needs: ${formatText(engine22.needs)}`
-              : "Needs: Wait for correction trigger"}
-          </div>
-
-          {wave3RetraceTimeline?.label && (
-            <div>{wave3RetraceTimeline.label}</div>
-          )}
-
-          {wave3Retrace?.currentPrice != null && (
-            <div>{`Current Price: ${formatLevel(wave3Retrace.currentPrice)}`}</div>
-          )}
-
-          {wave3RetraceLevels && (
-            <>
-              <div>Wave 3 Retrace Levels:</div>
-              <div>{`0.382 = ${formatLevel(wave3RetraceLevels.r382)}`}</div>
-              <div>{`0.500 = ${formatLevel(wave3RetraceLevels.r500)}`}</div>
-              <div>{`0.618 = ${formatLevel(wave3RetraceLevels.r618)}`}</div>
-              <div>{`0.786 = ${formatLevel(wave3RetraceLevels.r786)}`}</div>
-            </>
-          )}
-
-          {wave3RetraceZone && (
-            <>
-              <div>{`Zone State: ${formatText(wave3RetraceZone.state)}`}</div>
-              <div>
-                {`Watch Zone: ${formatLevel(wave3RetraceZone.lo)}–${formatLevel(
-                  wave3RetraceZone.hi
-                )}`}
-              </div>
-            </>
-          )}
-
-          {wave3RetraceTimeline?.nextFocus && (
-            <div>{wave3RetraceTimeline.nextFocus}</div>
-          )}
+        <div>
+          {e22State === "W2_ACTIVE_WAIT"
+            ? "Needs: B bounce → break above B high → W3 trigger"
+            : e22State === "W4_ACTIVE_WAIT"
+            ? "Needs: B bounce → break above B high → W5 trigger"
+            : engine22?.needs
+            ? `Needs: ${formatText(engine22.needs)}`
+            : "Needs: Wait for correction trigger"}
         </div>
-      )}
 
+        {wave3RetraceTimeline?.label && (
+         <div>{wave3RetraceTimeline.label}</div>
+        )}
+
+        {wave3Retrace?.currentPrice != null && (
+          <div>{`Current Price: ${formatLevel(wave3Retrace.currentPrice)}`}</div>
+        )}
+
+        {wave3RetraceZone && (
+          <div>
+            {`Wave A Watch Zone: ${formatLevel(wave3RetraceZone.lo)} – ${formatLevel(
+              wave3RetraceZone.hi
+            )}`}
+          </div>
+        )}
+
+        {wave3RetraceTimeline?.nextFocus && (
+          <div>{wave3RetraceTimeline.nextFocus}</div>
+        )}
+        </div>
+      )} 
+         
       {isScalpMode && engine22 && !showCorrectionDetails && (
         <div
           style={{
