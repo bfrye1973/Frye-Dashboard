@@ -330,8 +330,27 @@ export default function Engine17DecisionTimeline({
             fontWeight: 700,
           }}
         >
-          {engine22.status === "NO_SCALP" ? (
-            "Waiting for long or short exhaustion trigger"
+          {["W2_ACTIVE_WAIT", "W4_ACTIVE_WAIT", "W3_READY", "W5_READY"].includes(engine22.state) ? (
+            <>
+              <div>
+                {engine22.needs ? `Needs: ${formatText(engine22.needs)}` : "Needs: Wait for correction trigger"}
+              </div>
+              {wave3RetraceTimeline?.label && (
+                <div>{wave3RetraceTimeline.label}</div>
+              )}
+              {wave3RetraceZone && (
+                <div>
+                  {`Wave 3 Fib: 0.5–0.618 zone ${
+                    formatLevel(wave3RetraceZone.lo)
+                  }–${formatLevel(wave3RetraceZone.hi)} | ${formatText(wave3RetraceZone.state)}`}
+                </div>
+              )}
+              {wave3RetraceTimeline?.nextFocus && (
+                <div>{wave3RetraceTimeline.nextFocus}</div>
+              )}
+            </>
+          ) : engine22.status === "NO_SCALP" ? (
+            "Waiting for long or short scalp trigger"
           ) : (
             <>
         <div>
