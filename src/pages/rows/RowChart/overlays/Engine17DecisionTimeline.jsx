@@ -218,11 +218,10 @@ export default function Engine17DecisionTimeline({
         "Minute W2 is active. Wait for W3 trigger structure.";
     }
 
-    if (e22State === "W4_ACTIVE_WAIT" || e22Type === "W4_ACTIVE_WAIT") {
-      currentRead = "MINUTE W4 ACTIVE — NO BLIND DIP BUY";
+    if (e22State === "W4_ACTIVE_WAIT") {
+      currentRead = "MINUTE W4 ACTIVE — WAIT FOR B BOUNCE";
       confirmation =
-        wave3RetraceTimeline?.message ||
-        "Minute W4 is active. Wait for A low, B bounce, then W5 trigger.";
+        "A low forming → waiting for B bounce (lower high).";
     }
 
     if (e22State === "W3_READY" || e22Type === "W3_READY") {
@@ -353,10 +352,8 @@ export default function Engine17DecisionTimeline({
           }}
         >
         <div>
-          {e22State === "W2_ACTIVE_WAIT"
-            ? "Needs: B bounce → break above B high → W3 trigger"
-            : e22State === "W4_ACTIVE_WAIT"
-            ? "Needs: B bounce → break above B high → W5 trigger"
+          {e22State === "W2_ACTIVE_WAIT" || e22State === "W4_ACTIVE_WAIT"
+            ? Needs: A low → B bounce (lower high)
             : engine22?.needs
             ? `Needs: ${formatText(engine22.needs)}`
             : "Needs: Wait for correction trigger"}
