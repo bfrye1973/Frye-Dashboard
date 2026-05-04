@@ -77,7 +77,11 @@ function engine22Color(engine22) {
   const abcState = String(engine22?.abcState || "").toUpperCase();
   const status = String(engine22?.status || "").toUpperCase();
 
-  if (state.includes("TRIGGER_LONG") || abcState === "A_TO_B_TRIGGER_LONG" || status === "ENTRY_LONG") {
+  if (
+    state.includes("TRIGGER_LONG") ||
+    abcState === "A_TO_B_TRIGGER_LONG" ||
+    status === "ENTRY_LONG"
+  ) {
     return "#22c55e";
   }
   if (status === "ENTRY_SHORT") return "#ef4444";
@@ -93,7 +97,11 @@ function getEngine22CurrentRead(engine22, wave3RetraceTimeline) {
   const type = String(engine22?.type || "").toUpperCase();
   const status = String(engine22?.status || "").toUpperCase();
 
-  if (state === "A_TO_B_TRIGGER_LONG" || abcState === "A_TO_B_TRIGGER_LONG" || type === "CORRECTION_A_TO_B_LONG") {
+  if (
+    state === "A_TO_B_TRIGGER_LONG" ||
+    abcState === "A_TO_B_TRIGGER_LONG" ||
+    type === "CORRECTION_A_TO_B_LONG"
+  ) {
     return {
       currentRead: "🟢 WAVE B LONG ACTIVE — REDUCED SIZE",
       confirmation:
@@ -177,6 +185,60 @@ function getEngine22CurrentRead(engine22, wave3RetraceTimeline) {
   }
 
   return null;
+}
+
+function newsRiskDisplay(newsRisk) {
+  if (!newsRisk) return null;
+
+  const ok = newsRisk?.ok === true;
+  const active = newsRisk?.active === true;
+  const stale = newsRisk?.stale === true;
+  const riskLevel = String(newsRisk?.riskLevel || "UNKNOWN").toUpperCase();
+  const category = String(newsRisk?.category || "UNKNOWN").toUpperCase();
+  const headline = newsRisk?.headline || null;
+  const source = newsRisk?.source || "News";
+  const ageMinutes = newsRisk?.ageMinutes ?? null;
+
+  const hardBlock =
+    ok &&
+    active &&
+    stale !== true &&
+    riskLevel === "HIGH";
+
+  const showCaution =
+    ok &&
+    headline &&
+    (riskLevel === "MEDIUM" || riskLevel === "HIGH" || stale === true);
+
+  if (!hardBlock && !showCaution) return null;
+
+  if (hardBlock) {
+    return {
+      title: `🚨 NEWS SHOCK ACTIVE — ${category}`,
+      message: headline,
+      detail:
+        ageMinutes != null
+          ? `${source} • ${ageMinutes} min old • HIGH risk`
+          : `${source} • HIGH risk`,
+      color: "#fecaca",
+      background: "rgba(127, 29, 29, 0.42)",
+      border: "1px solid rgba(239, 68, 68, 0.75)",
+    };
+  }
+
+  return {
+    title: stale
+      ? `⚠️ STALE NEWS CAUTION — ${category}`
+      : `⚠️ NEWS CAUTION — ${category}`,
+    message: headline,
+    detail:
+      ageMinutes != null
+        ? `${source} • ${ageMinutes} min old • no hard block`
+        : `${source} • no hard block`,
+    color: "#fde68a",
+    background: "rgba(120, 53, 15, 0.32)",
+    border: "1px solid rgba(251, 191, 36, 0.65)",
+  };
 }
 
 function CorrectionDetails({ engine22, wave3Retrace, wave3RetraceTimeline, wave3RetraceZone }) {
@@ -307,6 +369,13 @@ export default function Engine17DecisionTimeline({
 
   const fib = overlayData?.fib || {};
   const engine22 = fib?.engine22Scalp || null;
+
+  const newsRisk =
+    overlayData?.newsRisk ||
+    fib?.newsRisk ||
+    null;
+
+  const newsRiskCard = newsRiskDisplay(newsRisk);
 
   const wave3Retrace =
     fib?.wave3Retrace ||
@@ -628,6 +697,31 @@ export default function Engine17DecisionTimeline({
       >
         {confirmation}
       </div>
+
+      {newsRiskCard && (
+        <div
+          style={{
+            marginTop: 8,
+            marginBottom: 8,
+            padding: "8px 10px",
+            borderRadius: 10,
+            border: newsRiskCard.border,
+            background: newsRiskCard.background,
+            color: newsRiskCard.color,
+            fontSize: 17,
+            lineHeight: 1.35,
+            fontWeight: 800,
+          }}
+        >
+          <div>{newsRiskCard.title}</div>
+          <div style={{ color: "#e5e7eb", fontWeight: 700 }}>
+            {newsRiskCard.message}
+          </div>
+          <div style={{ color: "#cbd5e1", fontSize: 15, fontWeight: 700 }}>
+            {newsRiskCard.detail}
+          </div>
+        </div>
+      )}
 
       {conditionLines.length > 0 && (
         <div
