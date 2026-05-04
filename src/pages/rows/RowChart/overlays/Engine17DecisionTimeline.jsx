@@ -28,12 +28,35 @@ function conditionText(code) {
   return null;
 }
 
+function prettyMinute(value) {
+  const v = String(value || "").toUpperCase();
+  if (v === "IN_W1") return "Minute W1";
+  if (v === "IN_W2") return "Minute W2";
+  if (v === "IN_W3") return "Minute W3";
+  if (v === "IN_W4") return "Minute W4";
+  if (v === "IN_W5") return "Minute W5";
+  if (!v || v === "UNKNOWN") return "Minute —";
+  return formatText(v);
+}
+
 function engine22StateLabel(engine22) {
   const state = String(engine22?.state || "").toUpperCase();
+  const abcState = String(engine22?.abcState || "").toUpperCase();
   const status = String(engine22?.status || "").toUpperCase();
 
-  if (state === "W2_ACTIVE_WAIT") return "🟡 W2 ACTIVE — WAIT FOR B BOUNCE";
-  if (state === "W4_ACTIVE_WAIT") return "🟡 W4 ACTIVE — WAIT FOR B BOUNCE";
+  if (state === "A_TO_B_TRIGGER_LONG" || abcState === "A_TO_B_TRIGGER_LONG") {
+    return "🟢 WAVE B LONG ACTIVE — REDUCED SIZE";
+  }
+
+  if (state === "W2_ACTIVE_WAIT") return "🟡 W2 ACTIVE — WATCH CORRECTION";
+  if (state === "W4_ACTIVE_WAIT") {
+    if (abcState === "W4_A_FORMING") return "🟡 W4 ACTIVE — WATCHING FOR A LOW";
+    if (abcState === "W4_A_LOW_ACTIVE") return "🟡 A LOW MARKED — WATCH B BOUNCE";
+    if (abcState === "W4_C_LEG_STARTING") return "🟡 C LEG STARTING — WAIT FOR C LOW";
+    if (abcState === "W4_ABC_COMPLETE_WAIT_TRIGGER") return "🟡 ABC COMPLETE — WAIT FOR W5 TRIGGER";
+    return "🟡 W4 ACTIVE — WAIT FOR B BOUNCE";
+  }
+
   if (state === "W3_READY") return "🟢 W3 SETUP READY — WAIT FOR BREAK";
   if (state === "W5_READY") return "🟢 W5 SETUP READY — WAIT FOR BREAK";
   if (state === "W3_TRIGGER_LONG") return "🟢 W3 LONG TRIGGER CONFIRMED";
@@ -51,14 +74,228 @@ function engine22StateLabel(engine22) {
 
 function engine22Color(engine22) {
   const state = String(engine22?.state || "").toUpperCase();
+  const abcState = String(engine22?.abcState || "").toUpperCase();
   const status = String(engine22?.status || "").toUpperCase();
 
-  if (state.includes("TRIGGER_LONG") || status === "ENTRY_LONG") return "#22c55e";
+  if (state.includes("TRIGGER_LONG") || abcState === "A_TO_B_TRIGGER_LONG" || status === "ENTRY_LONG") {
+    return "#22c55e";
+  }
   if (status === "ENTRY_SHORT") return "#ef4444";
   if (status === "PROBE_LONG") return "#60a5fa";
   if (status === "PROBE_SHORT") return "#f97316";
-  if (state.includes("ACTIVE_WAIT")) return "#fbbf24";
+  if (state.includes("ACTIVE_WAIT") || abcState) return "#fbbf24";
   return "#9ca3af";
+}
+
+function getEngine22CurrentRead(engine22, wave3RetraceTimeline) {
+  const state = String(engine22?.state || "").toUpperCase();
+  const abcState = String(engine22?.abcState || "").toUpperCase();
+  const type = String(engine22?.type || "").toUpperCase();
+  const status = String(engine22?.status || "").toUpperCase();
+
+  if (state === "A_TO_B_TRIGGER_LONG" || abcState === "A_TO_B_TRIGGER_LONG" || type === "CORRECTION_A_TO_B_LONG") {
+    return {
+      currentRead: "🟢 WAVE B LONG ACTIVE — REDUCED SIZE",
+      confirmation:
+        "Wave A low held. Price reclaimed EMA10 and EMA20. Hold above the continuation level, then break recent B-bounce highs.",
+    };
+  }
+
+  if (state === "W4_ACTIVE_WAIT") {
+    if (abcState === "W4_A_FORMING") {
+      return {
+        currentRead: "MINUTE W4 ACTIVE — WATCHING FOR A LOW",
+        confirmation:
+          wave3RetraceTimeline?.message ||
+          "Minute W4 is active. Watch for Wave A low before looking for B bounce.",
+      };
+    }
+
+    if (abcState === "W4_A_LOW_ACTIVE") {
+      return {
+        currentRead: "WAVE A COMPLETE — WATCH B BOUNCE",
+        confirmation:
+          "A low is marked. Watch for EMA reclaim and B-bounce confirmation.",
+      };
+    }
+
+    if (abcState === "W4_C_LEG_STARTING") {
+      return {
+        currentRead: "WAVE C LEG STARTING — NO LONG",
+        confirmation:
+          "B high rejected. C leg is starting. Wait for C low before looking for W5.",
+      };
+    }
+
+    if (abcState === "W4_ABC_COMPLETE_WAIT_TRIGGER") {
+      return {
+        currentRead: "ABC COMPLETE — WAIT FOR W5 TRIGGER",
+        confirmation:
+          "ABC correction is marked. Wait for EMA reclaim and break above B high.",
+      };
+    }
+
+    return {
+      currentRead: "MINUTE W4 ACTIVE — PULLBACK PHASE",
+      confirmation:
+        "Wait for A low → B bounce → C low → W5 trigger.",
+    };
+  }
+
+  if (state === "W2_ACTIVE_WAIT") {
+    return {
+      currentRead: "MINUTE W2 ACTIVE — PULLBACK PHASE",
+      confirmation:
+        wave3RetraceTimeline?.message ||
+        "Wait for A low → B bounce → C low → W3 trigger.",
+    };
+  }
+
+  if (state === "W5_READY") {
+    return {
+      currentRead: "W5 SETUP READY — WAIT FOR TRIGGER",
+      confirmation: engine22?.triggerType
+        ? formatText(engine22.triggerType)
+        : "W4 held. Wait for break above B high.",
+    };
+  }
+
+  if (state === "W5_TRIGGER_LONG") {
+    return {
+      currentRead: "🟢 W5 LONG TRIGGER CONFIRMED",
+      confirmation: engine22?.entryTriggerLevel
+        ? `Break above ${formatLevel(engine22.entryTriggerLevel)} confirmed W5 launch`
+        : "W4 to W5 long trigger confirmed.",
+    };
+  }
+
+  if (status === "NO_SHORT") {
+    return {
+      currentRead: "FINAL IMPULSE — SHORTS BLOCKED",
+      confirmation: "Higher wave context remains bullish. No countertrend short.",
+    };
+  }
+
+  return null;
+}
+
+function CorrectionDetails({ engine22, wave3Retrace, wave3RetraceTimeline, wave3RetraceZone }) {
+  const state = String(engine22?.state || "").toUpperCase();
+  const abcState = String(engine22?.abcState || "").toUpperCase();
+
+  const abcLevels = engine22?.abcLevels || {};
+  const debug = engine22?.debug || {};
+
+  const aLow = abcLevels?.aLow ?? debug?.aLow ?? null;
+  const bHigh = abcLevels?.bHigh ?? debug?.bHigh ?? null;
+  const cLow = abcLevels?.cLow ?? debug?.cLow ?? null;
+
+  if (state === "A_TO_B_TRIGGER_LONG" || abcState === "A_TO_B_TRIGGER_LONG") {
+    return (
+      <>
+        <div>Wave A Complete — B Bounce Long Active</div>
+        <div>A low held. Price reclaimed EMA10 and EMA20.</div>
+        <div>EMA10 reclaimed above EMA20, strengthening the B-bounce signal.</div>
+        <div>Action: Reduced-size B-long scalp active.</div>
+        <div>Needs: hold above continuation level, then break recent B-bounce highs.</div>
+        <div>Next: Ride the B bounce. Mark B high when momentum stalls.</div>
+      </>
+    );
+  }
+
+  if (state === "W4_ACTIVE_WAIT") {
+    if (abcState === "W4_A_FORMING") {
+      return (
+        <>
+          <div>State: WAIT — no blind dip buys</div>
+          <div>Structure: A leg forming → waiting for A low</div>
+          {wave3RetraceZone && (
+            <div>
+              {`Wave A Watch Zone: ${formatLevel(wave3RetraceZone.lo)} – ${formatLevel(
+                wave3RetraceZone.hi
+              )}`}
+            </div>
+          )}
+          {wave3Retrace?.currentPrice != null && (
+            <div>{`Current Price: ${formatLevel(wave3Retrace.currentPrice)}`}</div>
+          )}
+          <div>Next: Mark A low only after price confirms support.</div>
+        </>
+      );
+    }
+
+    if (abcState === "W4_A_LOW_ACTIVE") {
+      return (
+        <>
+          <div>Wave A Complete — watching for B bounce</div>
+          <div>{`A Low: ${formatLevel(aLow)}`}</div>
+          <div>Needs: EMA10 reclaim + price above EMA20 for B-long scalp.</div>
+          <div>Next: If B bounce confirms, trade reduced size and later mark B high.</div>
+        </>
+      );
+    }
+
+    if (abcState === "W4_C_LEG_STARTING") {
+      return (
+        <>
+          <div>B high rejected — C leg starting</div>
+          <div>{`A Low: ${formatLevel(aLow)} | B High: ${formatLevel(bHigh)}`}</div>
+          <div>State: NO LONG during C leg.</div>
+          <div>Next: Wait for C low, then watch for W5 setup.</div>
+        </>
+      );
+    }
+
+    if (abcState === "W4_ABC_COMPLETE_WAIT_TRIGGER") {
+      return (
+        <>
+          <div>ABC correction complete — W5 setup building</div>
+          <div>{`A Low: ${formatLevel(aLow)} | B High: ${formatLevel(bHigh)} | C Low: ${formatLevel(cLow)}`}</div>
+          <div>Needs: EMA reclaim + break above B high.</div>
+          <div>Next: W5 trigger only after B high breaks.</div>
+        </>
+      );
+    }
+
+    return (
+      <>
+        <div>State: WAIT — no blind dip buys</div>
+        <div>Structure: A low → B bounce → C low → W5 trigger</div>
+        {wave3RetraceTimeline?.label && <div>{wave3RetraceTimeline.label}</div>}
+        {wave3RetraceZone && (
+          <div>
+            {`Wave A Watch Zone: ${formatLevel(wave3RetraceZone.lo)} – ${formatLevel(
+              wave3RetraceZone.hi
+            )}`}
+          </div>
+        )}
+      </>
+    );
+  }
+
+  if (["W2_ACTIVE_WAIT", "W3_READY", "W5_READY"].includes(state)) {
+    return (
+      <>
+        <div>
+          {engine22?.needs ? `Needs: ${formatText(engine22.needs)}` : "Needs: Wait for correction trigger"}
+        </div>
+        {wave3RetraceTimeline?.label && <div>{wave3RetraceTimeline.label}</div>}
+        {wave3Retrace?.currentPrice != null && (
+          <div>{`Current Price: ${formatLevel(wave3Retrace.currentPrice)}`}</div>
+        )}
+        {wave3RetraceZone && (
+          <div>
+            {`Wave A Watch Zone: ${formatLevel(wave3RetraceZone.lo)} – ${formatLevel(
+              wave3RetraceZone.hi
+            )}`}
+          </div>
+        )}
+        {wave3RetraceTimeline?.nextFocus && <div>{wave3RetraceTimeline.nextFocus}</div>}
+      </>
+    );
+  }
+
+  return null;
 }
 
 export default function Engine17DecisionTimeline({
@@ -80,7 +317,6 @@ export default function Engine17DecisionTimeline({
 
   const wave3RetraceTimeline = wave3Retrace?.timeline || null;
   const wave3RetraceZone = wave3Retrace?.zone || null;
-  const wave3RetraceLevels = wave3Retrace?.levels || null;
 
   const isScalpMode = chartMode === "SCALP";
   const wave = fib?.waveContext || {};
@@ -88,10 +324,14 @@ export default function Engine17DecisionTimeline({
   const primary = formatWave(wave?.primaryPhase);
   const intermediate = formatWave(wave?.intermediatePhase);
   const minor = formatWave(wave?.minorPhase);
-  const minutePhase =
+
+  const minutePhaseRaw =
     fib?.waveContext?.minutePhase ||
     fib?.engine2State?.minute?.phase ||
-    "Minute —";
+    overlayData?.engine2State?.minute?.phase ||
+    "UNKNOWN";
+
+  const minute = prettyMinute(minutePhaseRaw);
 
   const trend4h = formatText(fib?.trendState_4h, "—");
   const trend4hRaw = String(fib?.trendState_4h || "").toUpperCase();
@@ -205,65 +445,36 @@ export default function Engine17DecisionTimeline({
         : "Upside structure break confirmed";
   }
 
-  // Engine 22 correction priority — SCALP only.
   if (isScalpMode && engine22) {
-    const e22Type = String(engine22.type || "").toUpperCase();
-    const e22State = String(engine22.state || "").toUpperCase();
-    const e22Status = String(engine22.status || "").toUpperCase();
+    const e22Override = getEngine22CurrentRead(engine22, wave3RetraceTimeline);
 
-    if (e22State === "W2_ACTIVE_WAIT" || e22Type === "W2_ACTIVE_WAIT") {
-      currentRead = "MINUTE W2 ACTIVE — NO BLIND DIP BUY";
-      confirmation =
-        wave3RetraceTimeline?.message ||
-        "Minute W2 is active. Wait for W3 trigger structure.";
-    }
-
-    if (e22State === "W4_ACTIVE_WAIT") {
-      currentRead = "MINUTE W4 ACTIVE — WAIT FOR B BOUNCE";
-      confirmation =
-        "A low forming → waiting for B bounce (lower high).";
-    }
-
-    if (e22State === "W3_READY" || e22Type === "W3_READY") {
-      currentRead = "W3 SETUP READY — WAIT FOR TRIGGER";
-      confirmation = engine22.triggerType
-        ? formatText(engine22.triggerType)
-        : "W2 held. Wait for break above B high.";
-    }
-
-    if (e22State === "W5_READY" || e22Type === "W5_READY") {
-      currentRead = "W5 SETUP READY — WAIT FOR TRIGGER";
-      confirmation = engine22.triggerType
-        ? formatText(engine22.triggerType)
-        : "W4 held. Wait for break above B high.";
-    }
-
-    if (e22State === "W3_TRIGGER_LONG" || e22Type === "W2_TO_W3_LONG") {
-      currentRead = "🟢 W3 LONG TRIGGER CONFIRMED";
-      confirmation = engine22.entryTriggerLevel
-        ? `Break above ${formatLevel(engine22.entryTriggerLevel)} confirmed W3 launch`
-        : "W2 to W3 long trigger confirmed.";
-    }
-
-    if (e22State === "W5_TRIGGER_LONG" || e22Type === "W4_TO_W5_LONG") {
-      currentRead = "🟢 W5 LONG TRIGGER CONFIRMED";
-      confirmation = engine22.entryTriggerLevel
-        ? `Break above ${formatLevel(engine22.entryTriggerLevel)} confirmed W5 launch`
-        : "W4 to W5 long trigger confirmed.";
-    }
-
-    if (e22Status === "NO_SHORT") {
-      currentRead = "FINAL IMPULSE — SHORTS BLOCKED";
-      confirmation = "Higher wave context remains bullish. No countertrend short.";
+    if (e22Override) {
+      currentRead = e22Override.currentRead;
+      confirmation = e22Override.confirmation;
     }
   }
 
   const e22Label = isScalpMode && engine22 ? engine22StateLabel(engine22) : null;
   const e22State = String(engine22?.state || "").toUpperCase();
+  const e22AbcState = String(engine22?.abcState || "").toUpperCase();
+
   const showCorrectionDetails =
     isScalpMode &&
     engine22 &&
-    ["W2_ACTIVE_WAIT", "W4_ACTIVE_WAIT", "W3_READY", "W5_READY"].includes(e22State);
+    (
+      ["W2_ACTIVE_WAIT", "W4_ACTIVE_WAIT", "W3_READY", "W5_READY"].includes(e22State) ||
+      e22AbcState ||
+      e22State === "A_TO_B_TRIGGER_LONG"
+    );
+
+  const correctionDetails = showCorrectionDetails ? (
+    <CorrectionDetails
+      engine22={engine22}
+      wave3Retrace={wave3Retrace}
+      wave3RetraceTimeline={wave3RetraceTimeline}
+      wave3RetraceZone={wave3RetraceZone}
+    />
+  ) : null;
 
   return (
     <div
@@ -295,7 +506,7 @@ export default function Engine17DecisionTimeline({
           color: "#f8fafc",
         }}
       >
-        {`Primary ${primary} | Intermediate ${intermediate} | Minor ${minor} | ${minutePhase}`}
+        {`Primary ${primary} | Intermediate ${intermediate} | Minor ${minor} | ${minute}`}
       </div>
 
       <div
@@ -332,6 +543,7 @@ export default function Engine17DecisionTimeline({
             color: engine22Color(engine22),
             textShadow:
               String(engine22?.state || "").toUpperCase().includes("TRIGGER") ||
+              String(engine22?.abcState || "").toUpperCase().includes("TRIGGER") ||
               String(engine22?.status || "").toUpperCase().includes("ENTRY")
                 ? "0 0 12px rgba(34,197,94,0.65)"
                 : "none",
@@ -341,7 +553,7 @@ export default function Engine17DecisionTimeline({
         </div>
       )}
 
-      {showCorrectionDetails && (
+      {correctionDetails && (
         <div
           style={{
             fontSize: 18,
@@ -351,43 +563,11 @@ export default function Engine17DecisionTimeline({
             fontWeight: 700,
           }}
         >
-        <div>
-          {(() => {
-            if (e22State === "W2_ACTIVE_WAIT" || e22State === "W4_ACTIVE_WAIT") {
-              return "Needs: A low → B bounce";
-            }
-
-            if (engine22?.needs) {
-              return `Needs: ${formatText(engine22.needs)}`;
-            }
-
-             return "Needs: Wait for correction trigger";
-           })()}
-         </div>
-
-        {wave3RetraceTimeline?.label && (
-         <div>{wave3RetraceTimeline.label}</div>
-        )}
-
-        {wave3Retrace?.currentPrice != null && (
-          <div>{`Current Price: ${formatLevel(wave3Retrace.currentPrice)}`}</div>
-        )}
-
-        {wave3RetraceZone && (
-          <div>
-            {`Wave A Watch Zone: ${formatLevel(wave3RetraceZone.lo)} – ${formatLevel(
-              wave3RetraceZone.hi
-            )}`}
-          </div>
-        )}
-
-        {wave3RetraceTimeline?.nextFocus && (
-          <div>{wave3RetraceTimeline.nextFocus}</div>
-        )}
+          {correctionDetails}
         </div>
-      )} 
-         
-      {isScalpMode && engine22 && !showCorrectionDetails && (
+      )}
+
+      {isScalpMode && engine22 && !correctionDetails && (
         <div
           style={{
             fontSize: 18,
