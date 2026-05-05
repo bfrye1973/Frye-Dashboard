@@ -120,11 +120,41 @@ function engine22Color(engine22) {
 function getTrendVsWaveRead(engine22) {
   const trendVsWave = engine22?.trendVsWave || null;
   const state = String(trendVsWave?.state || "").toUpperCase();
+  const e22State = String(engine22?.state || "").toUpperCase();
+  const e22Status = String(engine22?.status || "").toUpperCase();
+  const e22Setup = String(engine22?.setupType || "").toUpperCase();
+  const e22Size = String(engine22?.sizeMode || "").toUpperCase();
 
   if (!trendVsWave || !state || state === "NO_TREND_WAVE_CONFLICT") {
     return null;
   }
 
+    if (
+    state === "W3_CONTINUATION_WATCH" &&
+    (
+      e22State === "DIP_BUY_CONTINUATION" ||
+      e22State === "W3_DIP_BUY_TRIGGER_LONG" ||
+      e22Setup === "DIP_BUY_CONTINUATION" ||
+      e22Setup === "W3_DIP_BUY_CONTINUATION"
+    ) &&
+    e22Status === "ENTRY_LONG"
+  ) {
+    return {
+      currentRead: "🟢 W3 DIP BUY CONTINUATION — LONG ACTIVE",
+      confirmation:
+        "Minor W3 is still active.\nMinute W5 is no longer heavy.\nPrice reclaimed EMA10/EMA20.\nHigher timeframe remains strong.\nW4 is not confirmed.\nDip-buy continuation is active.",
+      details: [
+        trendVsWave?.oneHourScore != null ? `1H Score: ${trendVsWave.oneHourScore}` : null,
+        trendVsWave?.fourHourScore != null ? `4H Score: ${trendVsWave.fourHourScore}` : null,
+        trendVsWave?.dailyScore != null ? `Daily Score: ${trendVsWave.dailyScore}` : null,
+        e22Size ? `Size: ${formatText(e22Size)}` : null,
+        trendVsWave?.priceAboveDailyEma10 === true ? "Daily 10 EMA holding" : null,
+      ].filter(Boolean),
+      action: "Action: Long continuation active — manage with EMA10.",
+      needs: "Risk: No blind shorts while higher timeframe remains supportive.",
+    };
+  }
+  
   if (state === "W3_CONTINUATION_WATCH") {
     return {
       currentRead: "🟡 MINOR W3 ACTIVE — MINUTE W5 HEAVY",
