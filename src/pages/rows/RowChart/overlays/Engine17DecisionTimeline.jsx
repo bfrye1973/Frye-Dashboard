@@ -43,12 +43,30 @@ function engine22StateLabel(engine22) {
   const state = String(engine22?.state || "").toUpperCase();
   const abcState = String(engine22?.abcState || "").toUpperCase();
   const status = String(engine22?.status || "").toUpperCase();
+  const trendState = String(engine22?.trendVsWave?.state || "").toUpperCase();
+
+  if (trendState === "W3_CONTINUATION_WATCH") {
+    return "🟡 W3 CONTINUATION WATCH — NO BLIND SHORTS";
+  }
+
+  if (trendState === "LATE_W3_CONSOLIDATION") {
+    return "🟡 POSSIBLE W4 — TREND STILL SUPPORTED";
+  }
+
+  if (trendState === "W4_TRANSITION_WARNING") {
+    return "🟠 W4 TRANSITION WARNING — NOT CONFIRMED";
+  }
+
+  if (trendState === "W4_CONFIRMED") {
+    return "🔵 W4 CONFIRMED — WAIT FOR W5 TRIGGER";
+  }
 
   if (state === "A_TO_B_TRIGGER_LONG" || abcState === "A_TO_B_TRIGGER_LONG") {
     return "🟢 WAVE B LONG ACTIVE — REDUCED SIZE";
   }
 
   if (state === "W2_ACTIVE_WAIT") return "🟡 W2 ACTIVE — WATCH CORRECTION";
+
   if (state === "W4_ACTIVE_WAIT") {
     if (abcState === "W4_A_FORMING") return "🟡 W4 ACTIVE — WATCHING FOR A LOW";
     if (abcState === "W4_A_LOW_ACTIVE") return "🟡 A LOW MARKED — WATCH B BOUNCE";
@@ -76,6 +94,12 @@ function engine22Color(engine22) {
   const state = String(engine22?.state || "").toUpperCase();
   const abcState = String(engine22?.abcState || "").toUpperCase();
   const status = String(engine22?.status || "").toUpperCase();
+  const trendState = String(engine22?.trendVsWave?.state || "").toUpperCase();
+
+  if (trendState === "W3_CONTINUATION_WATCH") return "#fbbf24";
+  if (trendState === "LATE_W3_CONSOLIDATION") return "#fbbf24";
+  if (trendState === "W4_TRANSITION_WARNING") return "#fb923c";
+  if (trendState === "W4_CONFIRMED") return "#60a5fa";
 
   if (
     state.includes("TRIGGER_LONG") ||
@@ -84,11 +108,90 @@ function engine22Color(engine22) {
   ) {
     return "#22c55e";
   }
+
   if (status === "ENTRY_SHORT") return "#ef4444";
   if (status === "PROBE_LONG") return "#60a5fa";
   if (status === "PROBE_SHORT") return "#f97316";
   if (state.includes("ACTIVE_WAIT") || abcState) return "#fbbf24";
+
   return "#9ca3af";
+}
+
+function getTrendVsWaveRead(engine22) {
+  const trendVsWave = engine22?.trendVsWave || null;
+  const state = String(trendVsWave?.state || "").toUpperCase();
+
+  if (!trendVsWave || !state || state === "NO_TREND_WAVE_CONFLICT") {
+    return null;
+  }
+
+  if (state === "W3_CONTINUATION_WATCH") {
+    return {
+      currentRead: "🟡 MINOR W3 ACTIVE — MINUTE W5 HEAVY",
+      confirmation:
+        "Minor W3 is still active.\nMinute W5 is heavy.\nHigher timeframe is still strong.\nShort-term is weak.\nW4 is not confirmed.\nNo blind shorts.",
+      details: [
+        trendVsWave?.oneHourScore != null ? `1H Score: ${trendVsWave.oneHourScore}` : null,
+        trendVsWave?.fourHourScore != null ? `4H Score: ${trendVsWave.fourHourScore}` : null,
+        trendVsWave?.dailyScore != null ? `Daily Score: ${trendVsWave.dailyScore}` : null,
+        trendVsWave?.priceAboveDailyEma10 === true ? "Daily 10 EMA holding" : null,
+        trendVsWave?.priceAbove1hEma10 === false ? "1H EMA10 lost / weak" : null,
+      ].filter(Boolean),
+      action: "Action: Stand down. Wait for reclaim or confirmed breakdown.",
+      needs:
+        engine22?.needs && engine22.needs !== "WAIT_FOR_SETUP"
+          ? `Needs: ${formatText(engine22.needs)}`
+          : "Needs: Better reaction quality or stronger continuation confirmation.",
+    };
+  }
+
+  if (state === "LATE_W3_CONSOLIDATION") {
+    return {
+      currentRead: "🟡 POSSIBLE W4 — TREND STILL SUPPORTED",
+      confirmation:
+        "Engine 2 suggests possible W4, but higher timeframe trend still supports W3.\nDo not confirm W4 yet.\nNo W4-specific entry until confirmation.",
+      details: [
+        trendVsWave?.fourHourScore != null ? `4H Score: ${trendVsWave.fourHourScore}` : null,
+        trendVsWave?.dailyScore != null ? `Daily Score: ${trendVsWave.dailyScore}` : null,
+        trendVsWave?.masterScore != null ? `Master Score: ${trendVsWave.masterScore}` : null,
+        trendVsWave?.priceAboveDailyEma10 === true ? "Daily 10 EMA holding" : null,
+      ].filter(Boolean),
+      action: "Action: Do not confirm W4 yet.",
+      needs: "Needs: True W4 confirmation or W3 continuation reclaim.",
+    };
+  }
+
+  if (state === "W4_TRANSITION_WARNING") {
+    return {
+      currentRead: "🟠 W4 TRANSITION WARNING — NOT CONFIRMED",
+      confirmation:
+        "Short-term weakness is increasing, but W4 is not confirmed yet.\nStand down until stronger confirmation appears.",
+      details: [
+        trendVsWave?.fourHourScore != null ? `4H Score: ${trendVsWave.fourHourScore}` : null,
+        trendVsWave?.dailyScore != null ? `Daily Score: ${trendVsWave.dailyScore}` : null,
+        trendVsWave?.priceAbove4hEma10 === false ? "4H EMA10 lost" : null,
+        trendVsWave?.priceAboveDailyEma10 === true ? "Daily 10 EMA still holding" : null,
+      ].filter(Boolean),
+      action: "Action: Watch only. Do not force W4 entry.",
+      needs: "Needs: Daily EMA10 loss, manual W4 confirmation, or failed reclaim.",
+    };
+  }
+
+  if (state === "W4_CONFIRMED") {
+    return {
+      currentRead: "🔵 W4 CONFIRMED — WAIT FOR W5 TRIGGER",
+      confirmation:
+        "W4 is confirmed.\nWait for W4 → W5 trigger structure.\nNo blind dip buy.",
+      details: [
+        trendVsWave?.priceAboveDailyEma10 === false ? "Daily 10 EMA lost" : null,
+        trendVsWave?.priceAbove4hEma10 === false ? "4H EMA10 lost" : null,
+      ].filter(Boolean),
+      action: "Action: Wait for clean W5 trigger.",
+      needs: "Needs: C low hold, EMA reclaim, and B high break.",
+    };
+  }
+
+  return null;
 }
 
 function getEngine22CurrentRead(engine22, wave3RetraceTimeline) {
@@ -360,6 +463,31 @@ function CorrectionDetails({ engine22, wave3Retrace, wave3RetraceTimeline, wave3
   return null;
 }
 
+function TrendVsWaveDetails({ trendRead }) {
+  if (!trendRead) return null;
+
+  return (
+    <div
+      style={{
+        fontSize: 18,
+        lineHeight: 1.4,
+        marginBottom: 8,
+        color: "#fde68a",
+        fontWeight: 800,
+        whiteSpace: "pre-line",
+      }}
+    >
+      {Array.isArray(trendRead.details) && trendRead.details.length > 0 && (
+        <div style={{ color: "#cbd5e1", marginBottom: 4 }}>
+          {trendRead.details.join(" • ")}
+        </div>
+      )}
+      {trendRead.action && <div>{trendRead.action}</div>}
+      {trendRead.needs && <div>{trendRead.needs}</div>}
+    </div>
+  );
+}
+
 export default function Engine17DecisionTimeline({
   overlayData,
   visible = true,
@@ -514,10 +642,16 @@ export default function Engine17DecisionTimeline({
         : "Upside structure break confirmed";
   }
 
+  const trendVsWaveRead =
+    isScalpMode && engine22 ? getTrendVsWaveRead(engine22) : null;
+
   if (isScalpMode && engine22) {
     const e22Override = getEngine22CurrentRead(engine22, wave3RetraceTimeline);
 
-    if (e22Override) {
+    if (trendVsWaveRead) {
+      currentRead = trendVsWaveRead.currentRead;
+      confirmation = trendVsWaveRead.confirmation;
+    } else if (e22Override) {
       currentRead = e22Override.currentRead;
       confirmation = e22Override.confirmation;
     }
@@ -530,6 +664,7 @@ export default function Engine17DecisionTimeline({
   const showCorrectionDetails =
     isScalpMode &&
     engine22 &&
+    !trendVsWaveRead &&
     (
       ["W2_ACTIVE_WAIT", "W4_ACTIVE_WAIT", "W3_READY", "W5_READY"].includes(e22State) ||
       e22AbcState ||
@@ -597,6 +732,7 @@ export default function Engine17DecisionTimeline({
           marginBottom: 8,
           color: "#e5e7eb",
           fontWeight: 800,
+          whiteSpace: "pre-line",
         }}
       >
         {currentRead}
@@ -622,6 +758,8 @@ export default function Engine17DecisionTimeline({
         </div>
       )}
 
+      {trendVsWaveRead && <TrendVsWaveDetails trendRead={trendVsWaveRead} />}
+
       {correctionDetails && (
         <div
           style={{
@@ -636,7 +774,7 @@ export default function Engine17DecisionTimeline({
         </div>
       )}
 
-      {isScalpMode && engine22 && !correctionDetails && (
+      {isScalpMode && engine22 && !correctionDetails && !trendVsWaveRead && (
         <div
           style={{
             fontSize: 18,
