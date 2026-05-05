@@ -223,7 +223,87 @@ function getTrendVsWaveRead(engine22) {
 
   return null;
 }
+function getZoneAbsorptionRead(engine22) {
+  const zone = engine22?.zoneAbsorption || null;
+  const state = String(zone?.state || "").toUpperCase();
 
+  if (!zone || !state || state === "NO_ACTIVE_NEGOTIATED_ZONE") {
+    return null;
+  }
+
+  if (state === "NEGOTIATED_ZONE_BUYING_ACTIVE") {
+    return {
+      label: "🟢 NEGOTIATED ZONE BUYING ACTIVE",
+      currentRead: "🟢 W3 DIP BUY + NEGOTIATED ZONE BUYING",
+      confirmation:
+        "Price is being bought inside the negotiated zone.\nMinor W3 remains active.\nHigher timeframe remains strong.\nDip-buy continuation remains valid.",
+      details: [
+        zone?.zoneLo != null && zone?.zoneHi != null
+          ? `Zone: ${formatLevel(zone.zoneLo)} – ${formatLevel(zone.zoneHi)}`
+          : null,
+        zone?.zoneMid != null ? `Mid: ${formatLevel(zone.zoneMid)}` : null,
+        zone?.priceInsideZone === true ? "Price inside negotiated zone" : null,
+        zone?.buyersAbsorbing === true ? "Buyers absorbing supply" : null,
+      ].filter(Boolean),
+      action: "Action: Hold long while EMA10 and negotiated zone support hold.",
+      needs:
+        zone?.zoneLo != null
+          ? `Risk: If price loses ${formatLevel(zone.zoneLo)}, watch for failed breakout pullback.`
+          : "Risk: If price loses the negotiated zone, watch for failed breakout pullback.",
+    };
+  }
+
+  if (state === "NEGOTIATED_ZONE_REJECTION_WARNING") {
+    return {
+      label: "🟠 NEGOTIATED ZONE REJECTION WARNING",
+      currentRead: "🟠 NEGOTIATED ZONE REJECTION WARNING",
+      confirmation:
+        "Price is inside the negotiated zone, but buyers are weakening.\nEMA10 is not holding and structure is failing.",
+      details: [
+        zone?.zoneLo != null && zone?.zoneHi != null
+          ? `Zone: ${formatLevel(zone.zoneLo)} – ${formatLevel(zone.zoneHi)}`
+          : null,
+        zone?.sellersRejecting === true ? "Sellers rejecting zone" : null,
+      ].filter(Boolean),
+      action: "Action: Do not chase long until reclaim.",
+      needs: "Needs: EMA10 reclaim or stronger buyer absorption.",
+    };
+  }
+
+  if (state === "NEGOTIATED_ZONE_LOST") {
+    return {
+      label: "🔴 NEGOTIATED ZONE LOST",
+      currentRead: "🔴 NEGOTIATED ZONE LOST — FAILED BREAKOUT RISK",
+      confirmation:
+        "Price lost the lower boundary of the negotiated zone.\nFailed breakout pullback risk is rising.",
+      details: [
+        zone?.zoneLo != null ? `Zone low lost: ${formatLevel(zone.zoneLo)}` : null,
+        zone?.zoneHi != null ? `Zone high: ${formatLevel(zone.zoneHi)}` : null,
+      ].filter(Boolean),
+      action: "Action: Stand down on longs.",
+      needs: "Needs: Reclaim the negotiated zone before long continuation is valid again.",
+    };
+  }
+
+  if (state === "NEGOTIATED_ZONE_DECISION_POINT") {
+    return {
+      label: "🟡 NEGOTIATED ZONE DECISION POINT",
+      currentRead: "🟡 NEGOTIATED ZONE DECISION POINT",
+      confirmation:
+        "Price is interacting with a negotiated zone.\nWait for absorption or rejection.",
+      details: [
+        zone?.zoneLo != null && zone?.zoneHi != null
+          ? `Zone: ${formatLevel(zone.zoneLo)} – ${formatLevel(zone.zoneHi)}`
+          : null,
+        zone?.priceInsideZone === true ? "Price inside zone" : null,
+      ].filter(Boolean),
+      action: "Action: Watch only until the zone resolves.",
+      needs: "Needs: Buyer absorption for continuation or zone loss for rejection.",
+    };
+  }
+
+  return null;
+}
 function getEngine22CurrentRead(engine22, wave3RetraceTimeline) {
   const state = String(engine22?.state || "").toUpperCase();
   const abcState = String(engine22?.abcState || "").toUpperCase();
