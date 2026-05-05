@@ -305,21 +305,24 @@ function getZoneAbsorptionRead(engine22) {
   }
 
   if (state === "NEGOTIATED_ZONE_DECISION_POINT") {
-    return {
-      label: "🟡 NEGOTIATED ZONE DECISION POINT",
-      currentRead: "🟡 NEGOTIATED ZONE DECISION POINT",
-      confirmation:
-        "Price is interacting with a negotiated zone.\nWait for absorption or rejection.",
-      details: [
-        zone?.zoneLo != null && zone?.zoneHi != null
-          ? `Zone: ${formatLevel(zone.zoneLo)} – ${formatLevel(zone.zoneHi)}`
-          : null,
-        zone?.priceInsideZone === true ? "Price inside zone" : null,
-      ].filter(Boolean),
-      action: "Action: Watch only until the zone resolves.",
-      needs: "Needs: Buyer absorption for continuation or zone loss for rejection.",
-    };
-  }
+  return {
+    label: "🟡 NEGOTIATED ZONE DECISION POINT",
+    currentRead: "🟡 W3 DIP BUY — NEGOTIATED ZONE DECISION POINT",
+    confirmation:
+      "Price is interacting with the negotiated zone.\nMinor W3 remains active.\nHigher timeframe remains supportive.\nWait for buyers to absorb the zone or sellers to reject it.",
+    details: [
+      zone?.zoneLo != null && zone?.zoneHi != null
+        ? `Zone: ${formatLevel(zone.zoneLo)} – ${formatLevel(zone.zoneHi)}`
+        : null,
+      zone?.zoneMid != null ? `Mid: ${formatLevel(zone.zoneMid)}` : null,
+      zone?.priceInsideZone === true ? "Price inside negotiated zone" : null,
+      "W4 not confirmed",
+      "No blind shorts",
+    ].filter(Boolean),
+    action: "Action: Watch only until the zone resolves.",
+    needs: "Needs: Buyer absorption for continuation or zone loss for rejection.",
+  };
+}
 
   return null;
 }
