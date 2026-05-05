@@ -44,6 +44,23 @@ function engine22StateLabel(engine22) {
   const abcState = String(engine22?.abcState || "").toUpperCase();
   const status = String(engine22?.status || "").toUpperCase();
   const trendState = String(engine22?.trendVsWave?.state || "").toUpperCase();
+  const zoneState = String(engine22?.zoneAbsorption?.state || "").toUpperCase();
+
+  if (zoneState === "NEGOTIATED_ZONE_BUYING_ACTIVE") {
+    return "🟢 NEGOTIATED ZONE BUYING ACTIVE";
+  }
+
+  if (zoneState === "NEGOTIATED_ZONE_REJECTION_WARNING") {
+    return "🟠 NEGOTIATED ZONE REJECTION WARNING";
+  }
+
+  if (zoneState === "NEGOTIATED_ZONE_LOST") {
+    return "🔴 NEGOTIATED ZONE LOST";
+  }
+
+  if (zoneState === "NEGOTIATED_ZONE_DECISION_POINT") {
+    return "🟡 NEGOTIATED ZONE DECISION POINT";
+  }
 
   if (trendState === "W3_CONTINUATION_WATCH") {
     return "🟡 W3 CONTINUATION WATCH — NO BLIND SHORTS";
@@ -60,6 +77,8 @@ function engine22StateLabel(engine22) {
   if (trendState === "W4_CONFIRMED") {
     return "🔵 W4 CONFIRMED — WAIT FOR W5 TRIGGER";
   }
+
+  // keep the rest of your function exactly the same below this
 
   if (state === "A_TO_B_TRIGGER_LONG" || abcState === "A_TO_B_TRIGGER_LONG") {
     return "🟢 WAVE B LONG ACTIVE — REDUCED SIZE";
@@ -752,20 +771,26 @@ export default function Engine17DecisionTimeline({
         : "Upside structure break confirmed";
   }
 
-  const trendVsWaveRead =
-    isScalpMode && engine22 ? getTrendVsWaveRead(engine22) : null;
+const zoneAbsorptionRead =
+  isScalpMode && engine22 ? getZoneAbsorptionRead(engine22) : null;
 
-  if (isScalpMode && engine22) {
-    const e22Override = getEngine22CurrentRead(engine22, wave3RetraceTimeline);
+const trendVsWaveRead =
+  isScalpMode && engine22 ? getTrendVsWaveRead(engine22) : null;
 
-    if (trendVsWaveRead) {
-      currentRead = trendVsWaveRead.currentRead;
-      confirmation = trendVsWaveRead.confirmation;
-    } else if (e22Override) {
-      currentRead = e22Override.currentRead;
-      confirmation = e22Override.confirmation;
-    }
+if (isScalpMode && engine22) {
+  const e22Override = getEngine22CurrentRead(engine22, wave3RetraceTimeline);
+
+  if (zoneAbsorptionRead) {
+    currentRead = zoneAbsorptionRead.currentRead;
+    confirmation = zoneAbsorptionRead.confirmation;
+  } else if (trendVsWaveRead) {
+    currentRead = trendVsWaveRead.currentRead;
+    confirmation = trendVsWaveRead.confirmation;
+  } else if (e22Override) {
+    currentRead = e22Override.currentRead;
+    confirmation = e22Override.confirmation;
   }
+}
 
   const e22Label = isScalpMode && engine22 ? engine22StateLabel(engine22) : null;
   const e22State = String(engine22?.state || "").toUpperCase();
@@ -868,7 +893,11 @@ export default function Engine17DecisionTimeline({
         </div>
       )}
 
-      {trendVsWaveRead && <TrendVsWaveDetails trendRead={trendVsWaveRead} />}
+{zoneAbsorptionRead ? (
+  <TrendVsWaveDetails trendRead={zoneAbsorptionRead} />
+) : (
+  trendVsWaveRead && <TrendVsWaveDetails trendRead={trendVsWaveRead} />
+)}
 
       {correctionDetails && (
         <div
@@ -971,7 +1000,7 @@ export default function Engine17DecisionTimeline({
         </div>
       )}
 
-      {conditionLines.length > 0 && (
+      {conditionLines.length > 0 && !zoneAbsorptionRead && !trendVsWaveRead && (
         <div
           style={{
             fontSize: 19,
