@@ -39,7 +39,90 @@ function prettyMinute(value) {
   return formatText(v);
 }
 
+function getRunnerModeRead(engine22) {
+  const runner = engine22?.runnerMode || null;
+  const runnerState = String(runner?.state || "").toUpperCase();
+
+  if (!runner || runner?.active !== true) return null;
+
+  if (runnerState === "W3_W5_RUNNER_ACTIVE") {
+    const profitPlan = runner?.profitPlan || {};
+    const stopPlan = runner?.stopPlan || {};
+
+    return {
+      label: "🟢 W3/W5 RUNNER ACTIVE",
+      currentRead: "🟢 RUNNER ACTIVE — W3/W5 CONTINUATION",
+      confirmation:
+        "Higher timeframe trend remains long-only.\nMinute W5 continuation is active.\nThis is a runner-management state, not a new blind chase.",
+      details: [
+        runner?.entryQuality ? `Entry Quality: ${runner.entryQuality}` : null,
+        runner?.recommendedContracts != null
+          ? `Recommended: ${runner.recommendedContracts} contracts`
+          : null,
+        runner?.expiration ? `Expiration: ${runner.expiration}` : null,
+        runner?.strikeStyle ? `Strike: ${runner.strikeStyle}` : null,
+        runner?.pullbackExpectation
+          ? `Pullback: ${formatText(runner.pullbackExpectation)}`
+          : null,
+      ].filter(Boolean),
+      action:
+        runner?.preferredEntry
+          ? `Preferred Entry: ${formatText(runner.preferredEntry)}`
+          : "Preferred Entry: EMA10 hold, micro-flag break, or continuation trigger.",
+      needs:
+        runner?.management
+          ? `Management: ${formatText(runner.management)}`
+          : "Management: Take partial profit, then trail the runner.",
+      extra: [
+        profitPlan?.profit1?.rule ? `TP1: ${profitPlan.profit1.rule}` : null,
+        profitPlan?.profit2?.rule ? `TP2: ${profitPlan.profit2.rule}` : null,
+        profitPlan?.profit3?.rule ? `Runner: ${profitPlan.profit3.rule}` : null,
+        stopPlan?.initialStopLevel != null
+          ? `Initial Stop: ${formatLevel(stopPlan.initialStopLevel)}`
+          : stopPlan?.initialStopRule
+          ? `Initial Stop: ${formatText(stopPlan.initialStopRule)}`
+          : null,
+      ].filter(Boolean),
+    };
+  }
+
+  return {
+    label: `🟢 ${formatText(runnerState || "RUNNER MODE ACTIVE")}`,
+    currentRead: `🟢 ${formatText(runnerState || "RUNNER MODE ACTIVE")}`,
+    confirmation:
+      "Runner mode is active.\nUse runner management rules until the trend or stop plan invalidates.",
+    details: [
+      runner?.entryQuality ? `Entry Quality: ${runner.entryQuality}` : null,
+      runner?.recommendedContracts != null
+        ? `Recommended: ${runner.recommendedContracts} contracts`
+        : null,
+      runner?.expiration ? `Expiration: ${runner.expiration}` : null,
+      runner?.strikeStyle ? `Strike: ${runner.strikeStyle}` : null,
+    ].filter(Boolean),
+    action:
+      runner?.preferredEntry
+        ? `Preferred Entry: ${formatText(runner.preferredEntry)}`
+        : "Preferred Entry: Follow active runner rules.",
+    needs:
+      runner?.management
+        ? `Management: ${formatText(runner.management)}`
+        : "Management: Trail according to runner plan.",
+    extra: [],
+  };
+}
+
 function engine22StateLabel(engine22) {
+  const runner = engine22?.runnerMode || null;
+  const runnerState = String(runner?.state || "").toUpperCase();
+
+  if (runner?.active === true && runnerState === "W3_W5_RUNNER_ACTIVE") {
+    return "🟢 W3/W5 RUNNER ACTIVE";
+  }
+
+  if (runner?.active === true) {
+    return `🟢 ${formatText(runnerState || "RUNNER MODE ACTIVE")}`;
+  }
+
   const state = String(engine22?.state || "").toUpperCase();
   const abcState = String(engine22?.abcState || "").toUpperCase();
   const status = String(engine22?.status || "").toUpperCase();
@@ -78,8 +161,6 @@ function engine22StateLabel(engine22) {
     return "🔵 W4 CONFIRMED — WAIT FOR W5 TRIGGER";
   }
 
-  // keep the rest of your function exactly the same below this
-
   if (state === "A_TO_B_TRIGGER_LONG" || abcState === "A_TO_B_TRIGGER_LONG") {
     return "🟢 WAVE B LONG ACTIVE — REDUCED SIZE";
   }
@@ -99,7 +180,13 @@ function engine22StateLabel(engine22) {
   if (state === "W3_TRIGGER_LONG") return "🟢 W3 LONG TRIGGER CONFIRMED";
   if (state === "W5_TRIGGER_LONG") return "🟢 W5 LONG TRIGGER CONFIRMED";
 
-  if (status === "ENTRY_LONG") return "🟢 SCALP ENTRY LONG — EXHAUSTION / CONTINUATION";
+  if (status === "ENTRY_LONG") {
+    if (state === "DIP_BUY_CONTINUATION") {
+      return "🟢 LONG CONTINUATION ENTRY ACTIVE";
+    }
+    return "🟢 SCALP ENTRY LONG";
+  }
+
   if (status === "PROBE_LONG") return "🔵 SCALP PROBE LONG — READY TO TRIGGER";
   if (status === "ENTRY_SHORT") return "🔴 SCALP ENTRY SHORT — EXHAUSTION REJECTION";
   if (status === "PROBE_SHORT") return "🟠 SCALP PROBE SHORT — READY TO TRIGGER";
@@ -110,6 +197,9 @@ function engine22StateLabel(engine22) {
 }
 
 function engine22Color(engine22) {
+  const runner = engine22?.runnerMode || null;
+  if (runner?.active === true) return "#22c55e";
+
   const state = String(engine22?.state || "").toUpperCase();
   const abcState = String(engine22?.abcState || "").toUpperCase();
   const status = String(engine22?.status || "").toUpperCase();
@@ -148,7 +238,7 @@ function getTrendVsWaveRead(engine22) {
     return null;
   }
 
-    if (
+  if (
     state === "W3_CONTINUATION_WATCH" &&
     (
       e22State === "DIP_BUY_CONTINUATION" ||
@@ -173,7 +263,7 @@ function getTrendVsWaveRead(engine22) {
       needs: "Risk: No blind shorts while higher timeframe remains supportive.",
     };
   }
-  
+
   if (state === "W3_CONTINUATION_WATCH") {
     return {
       currentRead: "🟡 MINOR W3 ACTIVE — MINUTE W5 HEAVY",
@@ -242,6 +332,7 @@ function getTrendVsWaveRead(engine22) {
 
   return null;
 }
+
 function getZoneAbsorptionRead(engine22) {
   const zone = engine22?.zoneAbsorption || null;
   const state = String(zone?.state || "").toUpperCase();
@@ -305,27 +396,28 @@ function getZoneAbsorptionRead(engine22) {
   }
 
   if (state === "NEGOTIATED_ZONE_DECISION_POINT") {
-  return {
-    label: "🟡 NEGOTIATED ZONE DECISION POINT",
-    currentRead: "🟡 W3 DIP BUY — NEGOTIATED ZONE DECISION POINT",
-    confirmation:
-      "Price is interacting with the negotiated zone.\nMinor W3 remains active.\nHigher timeframe remains supportive.\nWait for buyers to absorb the zone or sellers to reject it.",
-    details: [
-      zone?.zoneLo != null && zone?.zoneHi != null
-        ? `Zone: ${formatLevel(zone.zoneLo)} – ${formatLevel(zone.zoneHi)}`
-        : null,
-      zone?.zoneMid != null ? `Mid: ${formatLevel(zone.zoneMid)}` : null,
-      zone?.priceInsideZone === true ? "Price inside negotiated zone" : null,
-      "W4 not confirmed",
-      "No blind shorts",
-    ].filter(Boolean),
-    action: "Action: Watch only until the zone resolves.",
-    needs: "Needs: Buyer absorption for continuation or zone loss for rejection.",
-  };
-}
+    return {
+      label: "🟡 NEGOTIATED ZONE DECISION POINT",
+      currentRead: "🟡 W3 DIP BUY — NEGOTIATED ZONE DECISION POINT",
+      confirmation:
+        "Price is interacting with the negotiated zone.\nMinor W3 remains active.\nHigher timeframe remains supportive.\nWait for buyers to absorb the zone or sellers to reject it.",
+      details: [
+        zone?.zoneLo != null && zone?.zoneHi != null
+          ? `Zone: ${formatLevel(zone.zoneLo)} – ${formatLevel(zone.zoneHi)}`
+          : null,
+        zone?.zoneMid != null ? `Mid: ${formatLevel(zone.zoneMid)}` : null,
+        zone?.priceInsideZone === true ? "Price inside negotiated zone" : null,
+        "W4 not confirmed",
+        "No blind shorts",
+      ].filter(Boolean),
+      action: "Action: Watch only until the zone resolves.",
+      needs: "Needs: Buyer absorption for continuation or zone loss for rejection.",
+    };
+  }
 
   return null;
 }
+
 function getEngine22CurrentRead(engine22, wave3RetraceTimeline) {
   const state = String(engine22?.state || "").toUpperCase();
   const abcState = String(engine22?.abcState || "").toUpperCase();
@@ -341,6 +433,14 @@ function getEngine22CurrentRead(engine22, wave3RetraceTimeline) {
       currentRead: "🟢 WAVE B LONG ACTIVE — REDUCED SIZE",
       confirmation:
         "Wave A low held. Price reclaimed EMA10 and EMA20. Hold above the continuation level, then break recent B-bounce highs.",
+    };
+  }
+
+  if (state === "DIP_BUY_CONTINUATION" && status === "ENTRY_LONG") {
+    return {
+      currentRead: "🟢 CONFIRMED LONG — CONTINUATION",
+      confirmation:
+        "Continuation trigger is active.\nPrice reclaimed/held EMA10 and EMA20.\nManage the long using EMA10 and the active stop plan.",
     };
   }
 
@@ -616,6 +716,13 @@ function TrendVsWaveDetails({ trendRead }) {
       )}
       {trendRead.action && <div>{trendRead.action}</div>}
       {trendRead.needs && <div>{trendRead.needs}</div>}
+      {Array.isArray(trendRead.extra) &&
+        trendRead.extra.length > 0 &&
+        trendRead.extra.slice(0, 4).map((line, idx) => (
+          <div key={idx} style={{ color: "#94a3b8", fontSize: 16 }}>
+            {line}
+          </div>
+        ))}
     </div>
   );
 }
@@ -774,26 +881,32 @@ export default function Engine17DecisionTimeline({
         : "Upside structure break confirmed";
   }
 
-const zoneAbsorptionRead =
-  isScalpMode && engine22 ? getZoneAbsorptionRead(engine22) : null;
+  const runnerRead =
+    isScalpMode && engine22 ? getRunnerModeRead(engine22) : null;
 
-const trendVsWaveRead =
-  isScalpMode && engine22 ? getTrendVsWaveRead(engine22) : null;
+  const zoneAbsorptionRead =
+    isScalpMode && engine22 ? getZoneAbsorptionRead(engine22) : null;
 
-if (isScalpMode && engine22) {
-  const e22Override = getEngine22CurrentRead(engine22, wave3RetraceTimeline);
+  const trendVsWaveRead =
+    isScalpMode && engine22 ? getTrendVsWaveRead(engine22) : null;
 
-  if (zoneAbsorptionRead) {
-    currentRead = zoneAbsorptionRead.currentRead;
-    confirmation = zoneAbsorptionRead.confirmation;
-  } else if (trendVsWaveRead) {
-    currentRead = trendVsWaveRead.currentRead;
-    confirmation = trendVsWaveRead.confirmation;
-  } else if (e22Override) {
-    currentRead = e22Override.currentRead;
-    confirmation = e22Override.confirmation;
+  if (isScalpMode && engine22) {
+    const e22Override = getEngine22CurrentRead(engine22, wave3RetraceTimeline);
+
+    if (runnerRead) {
+      currentRead = runnerRead.currentRead;
+      confirmation = runnerRead.confirmation;
+    } else if (zoneAbsorptionRead) {
+      currentRead = zoneAbsorptionRead.currentRead;
+      confirmation = zoneAbsorptionRead.confirmation;
+    } else if (trendVsWaveRead) {
+      currentRead = trendVsWaveRead.currentRead;
+      confirmation = trendVsWaveRead.confirmation;
+    } else if (e22Override) {
+      currentRead = e22Override.currentRead;
+      confirmation = e22Override.confirmation;
+    }
   }
-}
 
   const e22Label = isScalpMode && engine22 ? engine22StateLabel(engine22) : null;
   const e22State = String(engine22?.state || "").toUpperCase();
@@ -802,6 +915,7 @@ if (isScalpMode && engine22) {
   const showCorrectionDetails =
     isScalpMode &&
     engine22 &&
+    !runnerRead &&
     !trendVsWaveRead &&
     (
       ["W2_ACTIVE_WAIT", "W4_ACTIVE_WAIT", "W3_READY", "W5_READY"].includes(e22State) ||
@@ -885,6 +999,7 @@ if (isScalpMode && engine22) {
             fontWeight: 900,
             color: engine22Color(engine22),
             textShadow:
+              String(engine22?.runnerMode?.active || "").toUpperCase() === "TRUE" ||
               String(engine22?.state || "").toUpperCase().includes("TRIGGER") ||
               String(engine22?.abcState || "").toUpperCase().includes("TRIGGER") ||
               String(engine22?.status || "").toUpperCase().includes("ENTRY")
@@ -896,11 +1011,13 @@ if (isScalpMode && engine22) {
         </div>
       )}
 
-{zoneAbsorptionRead ? (
-  <TrendVsWaveDetails trendRead={zoneAbsorptionRead} />
-) : (
-  trendVsWaveRead && <TrendVsWaveDetails trendRead={trendVsWaveRead} />
-)}
+      {runnerRead ? (
+        <TrendVsWaveDetails trendRead={runnerRead} />
+      ) : zoneAbsorptionRead ? (
+        <TrendVsWaveDetails trendRead={zoneAbsorptionRead} />
+      ) : (
+        trendVsWaveRead && <TrendVsWaveDetails trendRead={trendVsWaveRead} />
+      )}
 
       {correctionDetails && (
         <div
@@ -916,54 +1033,58 @@ if (isScalpMode && engine22) {
         </div>
       )}
 
-      {isScalpMode && engine22 && !correctionDetails && !trendVsWaveRead && (
-        <div
-          style={{
-            fontSize: 18,
-            lineHeight: 1.35,
-            marginBottom: 8,
-            color: "#cbd5e1",
-            fontWeight: 700,
-          }}
-        >
-          {String(engine22.status || "").toUpperCase() === "NO_SCALP" ? (
-            "Waiting for long or short scalp trigger"
-          ) : (
-            <>
-              <div>
-                {engine22.quality?.grade
-                  ? `🟢 ${engine22.quality.grade} QUALITY`
-                  : "⚪ QUALITY PENDING"}
-                {engine22.risk?.riskReward != null
-                  ? ` | R:R ${engine22.risk.riskReward}`
-                  : ""}
-              </div>
+      {isScalpMode &&
+        engine22 &&
+        !runnerRead &&
+        !correctionDetails &&
+        !trendVsWaveRead && (
+          <div
+            style={{
+              fontSize: 18,
+              lineHeight: 1.35,
+              marginBottom: 8,
+              color: "#cbd5e1",
+              fontWeight: 700,
+            }}
+          >
+            {String(engine22.status || "").toUpperCase() === "NO_SCALP" ? (
+              "Waiting for long or short scalp trigger"
+            ) : (
+              <>
+                <div>
+                  {engine22.quality?.grade
+                    ? `🟢 ${engine22.quality.grade} QUALITY`
+                    : "⚪ QUALITY PENDING"}
+                  {engine22.risk?.riskReward != null
+                    ? ` | R:R ${engine22.risk.riskReward}`
+                    : ""}
+                </div>
 
-              <div>
-                {String(engine22.status || "").toUpperCase() === "ENTRY_LONG" ||
-                String(engine22.status || "").toUpperCase() === "PROBE_LONG"
-                  ? "Needs: Buyer absorption + hold support"
-                  : String(engine22.status || "").toUpperCase() === "ENTRY_SHORT" ||
-                    String(engine22.status || "").toUpperCase() === "PROBE_SHORT"
-                  ? "Needs: Seller distribution + fail high"
-                  : ""}
-                {engine22.risk?.target != null
-                  ? ` | Target: $${engine22.risk.target}`
-                  : ""}
-                {engine22.risk?.stop != null
-                  ? ` | Stop: $${engine22.risk.stop}`
-                  : ""}
-              </div>
+                <div>
+                  {String(engine22.status || "").toUpperCase() === "ENTRY_LONG" ||
+                  String(engine22.status || "").toUpperCase() === "PROBE_LONG"
+                    ? "Needs: continuation hold + EMA10 management"
+                    : String(engine22.status || "").toUpperCase() === "ENTRY_SHORT" ||
+                      String(engine22.status || "").toUpperCase() === "PROBE_SHORT"
+                    ? "Needs: Seller distribution + fail high"
+                    : ""}
+                  {engine22.risk?.target != null
+                    ? ` | Target: $${engine22.risk.target}`
+                    : ""}
+                  {engine22.risk?.stop != null
+                    ? ` | Stop: $${engine22.risk.stop}`
+                    : ""}
+                </div>
 
-              <div>
-                {engine22.management?.exitRule
-                  ? `Exit: ${formatText(engine22.management.exitRule)}`
-                  : "Exit: EMA10 management"}
-              </div>
-            </>
-          )}
-        </div>
-      )}
+                <div>
+                  {engine22.management?.exitRule
+                    ? `Exit: ${formatText(engine22.management.exitRule)}`
+                    : "Exit: EMA10 management"}
+                </div>
+              </>
+            )}
+          </div>
+        )}
 
       <div
         style={{
@@ -1003,7 +1124,7 @@ if (isScalpMode && engine22) {
         </div>
       )}
 
-      {conditionLines.length > 0 && !zoneAbsorptionRead && !trendVsWaveRead && (
+      {conditionLines.length > 0 && !runnerRead && !zoneAbsorptionRead && !trendVsWaveRead && (
         <div
           style={{
             fontSize: 19,
