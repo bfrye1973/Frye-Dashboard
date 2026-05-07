@@ -129,7 +129,7 @@ function engine22StateLabel(engine22) {
   const trendState = String(engine22?.trendVsWave?.state || "").toUpperCase();
   const zoneState = String(engine22?.zoneAbsorption?.state || "").toUpperCase();
 
-   // Correction states must come BEFORE zone states.
+  // Correction states must come BEFORE zone states.
   // If Engine 22 is in Minute W4, the headline should explain the wave correction first.
   // Zone context can still display underneath as detail, but it should not override W4.
   if (state === "W4_ACTIVE_WAIT") {
@@ -197,7 +197,7 @@ function engine22StateLabel(engine22) {
   if (zoneState === "NEGOTIATED_ZONE_DECISION_POINT") {
     return "🟡 NEGOTIATED ZONE DECISION POINT";
   }
-  
+
   if (state === "W3_READY") return "🟢 W3 SETUP READY — WAIT FOR BREAK";
   if (state === "W5_READY") return "🟢 W5 SETUP READY — WAIT FOR BREAK";
   if (state === "W3_TRIGGER_LONG") return "🟢 W3 LONG TRIGGER CONFIRMED";
