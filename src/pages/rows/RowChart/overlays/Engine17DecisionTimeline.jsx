@@ -1033,7 +1033,7 @@ export default function Engine17DecisionTimeline({
         {currentRead}
       </div>
 
-      {e22Label && (
+      {e22Label && e22Label !== currentRead && (
         <div
           style={{
             fontSize: 20,
