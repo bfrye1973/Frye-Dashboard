@@ -477,13 +477,14 @@ function getEngine22CurrentRead(engine22, wave3RetraceTimeline) {
     };
   }
 
-  if (abcState === "W4_A_FORMING") {
-    return {
-      currentRead: "🟡 MINUTE W4 ACTIVE — WAIT FOR A LOW",
-      confirmation:
-        "Minor W5 remains active.\nMinute W4 pullback is forming.\nDo not buy yet.\nWait for A-low to confirm support.\nAfter A-low, watch B-bounce.\nAfter B-bounce, wait for C-low.\nOnly after C-low + reclaim / breakout confirmation does W5 trigger.",
-    };
-  }
+  if (state === "W4_ACTIVE_WAIT") {
+    if (abcState === "W4_A_FORMING") {
+      return {
+        currentRead: "🟡 MINUTE W4 ACTIVE — WAIT FOR A LOW",
+        confirmation:
+          "Minor W5 remains active.\nMinute W4 pullback is forming.\nDo not buy yet.\nWait for A-low to confirm support.\nAfter A-low, watch B-bounce.\nAfter B-bounce, wait for C-low.\nOnly after C-low + reclaim / breakout confirmation does W5 trigger.",
+      };
+    }
 
     if (abcState === "W4_A_LOW_ACTIVE") {
       return {
@@ -512,6 +513,7 @@ function getEngine22CurrentRead(engine22, wave3RetraceTimeline) {
     return {
       currentRead: "MINUTE W4 ACTIVE — PULLBACK PHASE",
       confirmation:
+        wave3RetraceTimeline?.message ||
         "Wait for A low → B bounce → C low → W5 trigger.",
     };
   }
