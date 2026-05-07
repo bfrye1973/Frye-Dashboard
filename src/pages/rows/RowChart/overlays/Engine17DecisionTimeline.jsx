@@ -129,6 +129,59 @@ function engine22StateLabel(engine22) {
   const trendState = String(engine22?.trendVsWave?.state || "").toUpperCase();
   const zoneState = String(engine22?.zoneAbsorption?.state || "").toUpperCase();
 
+   // Correction states must come BEFORE zone states.
+  // If Engine 22 is in Minute W4, the headline should explain the wave correction first.
+  // Zone context can still display underneath as detail, but it should not override W4.
+  if (state === "W4_ACTIVE_WAIT") {
+    if (abcState === "W4_A_FORMING") {
+      return "🟡 MINUTE W4 ACTIVE — WAIT FOR A LOW";
+    }
+
+    if (abcState === "W4_A_LOW_ACTIVE") {
+      return "🟡 A LOW MARKED — WATCH B BOUNCE";
+    }
+
+    if (abcState === "W4_C_LEG_STARTING") {
+      return "🟡 C LEG STARTING — WAIT FOR C LOW";
+    }
+
+    if (abcState === "W4_ABC_COMPLETE_WAIT_TRIGGER") {
+      return "🟡 ABC COMPLETE — WAIT FOR W5 TRIGGER";
+    }
+
+    return "🟡 MINUTE W4 ACTIVE — WAIT FOR ABC STRUCTURE";
+  }
+
+  if (state === "W2_ACTIVE_WAIT") {
+    return "🟡 MINUTE W2 ACTIVE — WATCH CORRECTION";
+  }
+
+  if (state === "A_TO_B_TRIGGER_LONG" || abcState === "A_TO_B_TRIGGER_LONG") {
+    return "🟢 WAVE B LONG ACTIVE — REDUCED SIZE";
+  }
+
+  // Trend-vs-wave states come after explicit W2/W4 correction states.
+  if (trendState === "HTF_STRONG_LTF_PULLBACK") {
+    return "🟡 HTF STRONG — LTF PULLBACK";
+  }
+
+  if (trendState === "W3_CONTINUATION_WATCH") {
+    return "🟡 CONTINUATION WATCH — NO BLIND SHORTS";
+  }
+
+  if (trendState === "LATE_W3_CONSOLIDATION") {
+    return "🟡 POSSIBLE W4 — TREND STILL SUPPORTED";
+  }
+
+  if (trendState === "W4_TRANSITION_WARNING") {
+    return "🟠 W4 TRANSITION WARNING — NOT CONFIRMED";
+  }
+
+  if (trendState === "W4_CONFIRMED") {
+    return "🔵 W4 CONFIRMED — WAIT FOR W5 TRIGGER";
+  }
+
+  // Zone states are important, but they should not override active W2/W4 correction wording.
   if (zoneState === "NEGOTIATED_ZONE_BUYING_ACTIVE") {
     return "🟢 NEGOTIATED ZONE BUYING ACTIVE";
   }
@@ -144,37 +197,7 @@ function engine22StateLabel(engine22) {
   if (zoneState === "NEGOTIATED_ZONE_DECISION_POINT") {
     return "🟡 NEGOTIATED ZONE DECISION POINT";
   }
-
-  if (trendState === "W3_CONTINUATION_WATCH") {
-    return "🟡 W3 CONTINUATION WATCH — NO BLIND SHORTS";
-  }
-
-  if (trendState === "LATE_W3_CONSOLIDATION") {
-    return "🟡 POSSIBLE W4 — TREND STILL SUPPORTED";
-  }
-
-  if (trendState === "W4_TRANSITION_WARNING") {
-    return "🟠 W4 TRANSITION WARNING — NOT CONFIRMED";
-  }
-
-  if (trendState === "W4_CONFIRMED") {
-    return "🔵 W4 CONFIRMED — WAIT FOR W5 TRIGGER";
-  }
-
-  if (state === "A_TO_B_TRIGGER_LONG" || abcState === "A_TO_B_TRIGGER_LONG") {
-    return "🟢 WAVE B LONG ACTIVE — REDUCED SIZE";
-  }
-
-  if (state === "W2_ACTIVE_WAIT") return "🟡 W2 ACTIVE — WATCH CORRECTION";
-
-  if (state === "W4_ACTIVE_WAIT") {
-    if (abcState === "W4_A_FORMING") return "🟡 W4 ACTIVE — WATCHING FOR A LOW";
-    if (abcState === "W4_A_LOW_ACTIVE") return "🟡 A LOW MARKED — WATCH B BOUNCE";
-    if (abcState === "W4_C_LEG_STARTING") return "🟡 C LEG STARTING — WAIT FOR C LOW";
-    if (abcState === "W4_ABC_COMPLETE_WAIT_TRIGGER") return "🟡 ABC COMPLETE — WAIT FOR W5 TRIGGER";
-    return "🟡 W4 ACTIVE — WAIT FOR B BOUNCE";
-  }
-
+  
   if (state === "W3_READY") return "🟢 W3 SETUP READY — WAIT FOR BREAK";
   if (state === "W5_READY") return "🟢 W5 SETUP READY — WAIT FOR BREAK";
   if (state === "W3_TRIGGER_LONG") return "🟢 W3 LONG TRIGGER CONFIRMED";
@@ -396,19 +419,29 @@ function getZoneAbsorptionRead(engine22) {
   }
 
   if (state === "NEGOTIATED_ZONE_DECISION_POINT") {
-    return {
-      label: "🟡 NEGOTIATED ZONE DECISION POINT",
-      currentRead: "🟡 W3 DIP BUY — NEGOTIATED ZONE DECISION POINT",
-      confirmation:
-        "Price is interacting with the negotiated zone.\nMinor W3 remains active.\nHigher timeframe remains supportive.\nWait for buyers to absorb the zone or sellers to reject it.",
+  const e22State = String(engine22?.state || "").toUpperCase();
+  const abcState = String(engine22?.abcState || "").toUpperCase();
+
+  const isW4Active =
+    e22State === "W4_ACTIVE_WAIT" ||
+    abcState.startsWith("W4_");
+
+  return {
+    label: "🟡 NEGOTIATED ZONE DECISION POINT",
+    currentRead: isW4Active
+      ? "🟡 MINUTE W4 — NEGOTIATED ZONE DECISION POINT"
+      : "🟡 NEGOTIATED ZONE DECISION POINT",
+    confirmation: isW4Active
+      ? "Price is interacting with the negotiated zone.\nMinor W5 remains active, but Minute W4 is pulling back.\nBuyers have not confirmed absorption yet.\nSellers have not confirmed rejection yet.\nWait for A-low / zone support confirmation."
+      : "Price is interacting with the negotiated zone.\nHigher timeframe remains supportive.\nWait for buyers to absorb the zone or sellers to reject it.",
       details: [
         zone?.zoneLo != null && zone?.zoneHi != null
           ? `Zone: ${formatLevel(zone.zoneLo)} – ${formatLevel(zone.zoneHi)}`
           : null,
         zone?.zoneMid != null ? `Mid: ${formatLevel(zone.zoneMid)}` : null,
         zone?.priceInsideZone === true ? "Price inside negotiated zone" : null,
-        "W4 not confirmed",
-        "No blind shorts",
+        isW4Active ? "Minute W4 pullback active" : "Higher timeframe supportive",
+        "Do not force entry until zone resolves",
       ].filter(Boolean),
       action: "Action: Watch only until the zone resolves.",
       needs: "Needs: Buyer absorption for continuation or zone loss for rejection.",
@@ -444,15 +477,13 @@ function getEngine22CurrentRead(engine22, wave3RetraceTimeline) {
     };
   }
 
-  if (state === "W4_ACTIVE_WAIT") {
-    if (abcState === "W4_A_FORMING") {
-      return {
-        currentRead: "MINUTE W4 ACTIVE — WATCHING FOR A LOW",
-        confirmation:
-          wave3RetraceTimeline?.message ||
-          "Minute W4 is active. Watch for Wave A low before looking for B bounce.",
-      };
-    }
+  if (abcState === "W4_A_FORMING") {
+    return {
+      currentRead: "🟡 MINUTE W4 ACTIVE — WAIT FOR A LOW",
+      confirmation:
+        "Minor W5 remains active.\nMinute W4 pullback is forming.\nDo not buy yet.\nWait for A-low to confirm support.\nAfter A-low, watch B-bounce.\nAfter B-bounce, wait for C-low.\nOnly after C-low + reclaim / breakout confirmation does W5 trigger.",
+    };
+  }
 
     if (abcState === "W4_A_LOW_ACTIVE") {
       return {
@@ -604,7 +635,7 @@ function CorrectionDetails({ engine22, wave3Retrace, wave3RetraceTimeline, wave3
     if (abcState === "W4_A_FORMING") {
       return (
         <>
-          <div>State: WAIT — no blind dip buys</div>
+          <div>State: WAIT — A low not confirmed yet</div>
           <div>Structure: A leg forming → waiting for A low</div>
           {wave3RetraceZone && (
             <div>
@@ -656,7 +687,7 @@ function CorrectionDetails({ engine22, wave3Retrace, wave3RetraceTimeline, wave3
 
     return (
       <>
-        <div>State: WAIT — no blind dip buys</div>
+        <div>State: WAIT — A low not confirmed yet</div>
         <div>Structure: A low → B bounce → C low → W5 trigger</div>
         {wave3RetraceTimeline?.label && <div>{wave3RetraceTimeline.label}</div>}
         {wave3RetraceZone && (
@@ -891,22 +922,32 @@ export default function Engine17DecisionTimeline({
     isScalpMode && engine22 ? getTrendVsWaveRead(engine22) : null;
 
   if (isScalpMode && engine22) {
-    const e22Override = getEngine22CurrentRead(engine22, wave3RetraceTimeline);
+  const e22Override = getEngine22CurrentRead(engine22, wave3RetraceTimeline);
 
-    if (runnerRead) {
-      currentRead = runnerRead.currentRead;
-      confirmation = runnerRead.confirmation;
-    } else if (zoneAbsorptionRead) {
-      currentRead = zoneAbsorptionRead.currentRead;
-      confirmation = zoneAbsorptionRead.confirmation;
-    } else if (trendVsWaveRead) {
-      currentRead = trendVsWaveRead.currentRead;
-      confirmation = trendVsWaveRead.confirmation;
-    } else if (e22Override) {
-      currentRead = e22Override.currentRead;
-      confirmation = e22Override.confirmation;
-    }
+  const e22State = String(engine22?.state || "").toUpperCase();
+  const e22AbcState = String(engine22?.abcState || "").toUpperCase();
+
+  const isW4CorrectionActive =
+    e22State === "W4_ACTIVE_WAIT" ||
+    e22AbcState.startsWith("W4_");
+
+  if (runnerRead) {
+    currentRead = runnerRead.currentRead;
+    confirmation = runnerRead.confirmation;
+  } else if (isW4CorrectionActive && e22Override) {
+    currentRead = e22Override.currentRead;
+    confirmation = e22Override.confirmation;
+  } else if (trendVsWaveRead) {
+    currentRead = trendVsWaveRead.currentRead;
+    confirmation = trendVsWaveRead.confirmation;
+  } else if (zoneAbsorptionRead) {
+    currentRead = zoneAbsorptionRead.currentRead;
+    confirmation = zoneAbsorptionRead.confirmation;
+  } else if (e22Override) {
+    currentRead = e22Override.currentRead;
+    confirmation = e22Override.confirmation;
   }
+}
 
   const e22Label = isScalpMode && engine22 ? engine22StateLabel(engine22) : null;
   const e22State = String(engine22?.state || "").toUpperCase();
