@@ -1056,7 +1056,7 @@ export default function Engine17DecisionTimeline({
 
       {runnerRead ? (
         <TrendVsWaveDetails trendRead={runnerRead} />
-      ) : zoneAbsorptionRead ? (
+      ) : correctionDetails ? null : zoneAbsorptionRead ? (
         <TrendVsWaveDetails trendRead={zoneAbsorptionRead} />
       ) : (
         trendVsWaveRead && <TrendVsWaveDetails trendRead={trendVsWaveRead} />
