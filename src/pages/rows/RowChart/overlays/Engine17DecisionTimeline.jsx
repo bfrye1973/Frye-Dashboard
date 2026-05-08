@@ -489,7 +489,7 @@ function getEngine22CurrentRead(engine22, wave3RetraceTimeline) {
     return {
       currentRead: "🟡 SHALLOW W4 CONTINUATION WATCH",
       confirmation:
-        "Wave A low held inside Minute W4.\nB-bounce is strong.\nPrice reclaimed EMA10 and EMA20.\nThe market front is strong enough that C-wave may fail shallow.\n\nThis is not official W4 completion yet.\nEngine 2 still says Minute W4.\n\nNeeds: Hold EMA10/EMA20 and break B-bounce high or continuation level.\nIf price rejects and loses EMA10/EMA20, resume waiting for C-low.",
+        "Wave A low held inside Minute W4.\nB-bounce is strong.\n10m reclaimed EMA10/EMA20, giving early trigger support.\n\nConfirmation stack:\n10m = early scalp timing.\n30m = strength confirmation.\n1H = decides whether C-wave is still likely.\n\nNeeds:\nHold 10m EMA10/20.\nBuild strength above 30m EMA10/20.\nHave 1H reclaim or hold EMA10 to reduce the odds of a full C-wave.\nBreak B-bounce high or continuation level for shallow W5 trigger.\n\nFailure:\nIf 10m loses EMA10/20, caution.\nIf 30m closes below EMA10/20, shallow continuation is weakening.\nIf 1H rejects below EMA10, resume waiting for C-low.",
     };
   }
 
@@ -500,7 +500,7 @@ function getEngine22CurrentRead(engine22, wave3RetraceTimeline) {
     return {
       currentRead: "🟢 W4 B-BOUNCE ACTIVE — REDUCED SIZE",
       confirmation:
-        "Wave A low held inside Minute W4.\nPrice reclaimed EMA10 and EMA20.\nThis is a reduced-size B-bounce scalp, not full W5 confirmation yet.\n\nNext: hold EMA10/EMA20 and watch for B-high breakout.\nIf B-bounce fails, resume waiting for C-low.",
+        "Wave A low held inside Minute W4.\n10m reclaimed EMA10/EMA20.\nThis is a reduced-size B-bounce scalp, not full W5 confirmation yet.\n\nNext:\nHold 10m EMA10/20.\nWatch for 30m EMA10/20 strength confirmation.\nWatch 1H EMA10 to decide if C-wave is still likely.\n\nIf B-bounce fails or 30m/1H reject, resume waiting for C-low.",
     };
   }
 
@@ -511,7 +511,7 @@ function getEngine22CurrentRead(engine22, wave3RetraceTimeline) {
     return {
       currentRead: "🟡 W5 CONTINUATION WATCH — WAIT FOR BREAK",
       confirmation:
-        "A-low held and B-bounce remains strong.\nC-low is not marked, but price is behaving like shallow W4 continuation.\n\nNeeds: break B-high / continuation level for W5 shallow trigger.\nNo full-size chase until trigger confirms.",
+        "A-low held and B-bounce remains strong.\nC-low is not marked, but price is behaving like shallow W4 continuation.\n\nConfirmation stack:\n10m is the fast trigger layer.\n30m should confirm strength above EMA10/20.\n1H should reclaim or hold EMA10 to lower the odds of a full C-wave.\n\nNeeds: break B-high / continuation level for W5 shallow trigger.\nNo full-size chase until trigger confirms.",
     };
   }
 
@@ -522,7 +522,7 @@ function getEngine22CurrentRead(engine22, wave3RetraceTimeline) {
     return {
       currentRead: "🟢 W5 SHALLOW TRIGGER LONG",
       confirmation:
-        "B-high / continuation level broke while EMA10 and EMA20 held.\nThis confirms the shallow W4 continuation trigger from Engine 22.\n\nImportant: Engine 2 still needs official MARK,W4 for official wave confirmation.\nManage as caution-size W5 continuation.",
+        "B-high / continuation level broke while 10m EMA10/20 held.\n30m strength confirmation should support the move.\n1H should reclaim or hold EMA10 to confirm C-wave is less likely.\n\nThis confirms the shallow W4 continuation trigger from Engine 22.\nImportant: Engine 2 still needs official MARK,W4 for official wave confirmation.\nManage as caution-size W5 continuation.",
     };
   }
 
