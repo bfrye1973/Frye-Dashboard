@@ -482,42 +482,61 @@ function getEngine22CurrentRead(engine22, wave3RetraceTimeline) {
   const type = String(engine22?.type || "").toUpperCase();
   const status = String(engine22?.status || "").toUpperCase();
 
+   if (
+    state === "W4_SHALLOW_CONTINUATION_WATCH" ||
+    abcState === "W4_SHALLOW_CONTINUATION_WATCH"
+  ) {
+    return {
+      currentRead: "🟡 SHALLOW W4 CONTINUATION WATCH",
+      confirmation:
+        "Wave A low held inside Minute W4.\nB-bounce is strong.\nPrice reclaimed EMA10 and EMA20.\nThe market front is strong enough that C-wave may fail shallow.\n\nThis is not official W4 completion yet.\nEngine 2 still says Minute W4.\n\nNeeds: Hold EMA10/EMA20 and break B-bounce high or continuation level.\nIf price rejects and loses EMA10/EMA20, resume waiting for C-low.",
+    };
+  }
+
+  if (
+    state === "W4_B_BOUNCE_ACTIVE" ||
+    abcState === "W4_B_BOUNCE_ACTIVE"
+  ) {
+    return {
+      currentRead: "🟢 W4 B-BOUNCE ACTIVE — REDUCED SIZE",
+      confirmation:
+        "Wave A low held inside Minute W4.\nPrice reclaimed EMA10 and EMA20.\nThis is a reduced-size B-bounce scalp, not full W5 confirmation yet.\n\nNext: hold EMA10/EMA20 and watch for B-high breakout.\nIf B-bounce fails, resume waiting for C-low.",
+    };
+  }
+
+  if (
+    state === "W5_CONTINUATION_WATCH" ||
+    abcState === "W5_CONTINUATION_WATCH"
+  ) {
+    return {
+      currentRead: "🟡 W5 CONTINUATION WATCH — WAIT FOR BREAK",
+      confirmation:
+        "A-low held and B-bounce remains strong.\nC-low is not marked, but price is behaving like shallow W4 continuation.\n\nNeeds: break B-high / continuation level for W5 shallow trigger.\nNo full-size chase until trigger confirms.",
+    };
+  }
+
+  if (
+    state === "W5_SHALLOW_TRIGGER_LONG" ||
+    abcState === "W5_SHALLOW_TRIGGER_LONG"
+  ) {
+    return {
+      currentRead: "🟢 W5 SHALLOW TRIGGER LONG",
+      confirmation:
+        "B-high / continuation level broke while EMA10 and EMA20 held.\nThis confirms the shallow W4 continuation trigger from Engine 22.\n\nImportant: Engine 2 still needs official MARK,W4 for official wave confirmation.\nManage as caution-size W5 continuation.",
+    };
+  }
+
   if (
     state === "A_TO_B_TRIGGER_LONG" ||
-
-   if (
-  state === "W4_SHALLOW_CONTINUATION_WATCH" ||
-  abcState === "W4_SHALLOW_CONTINUATION_WATCH"
-) {
-  return {
-    currentRead: "🟡 SHALLOW W4 CONTINUATION WATCH",
-    confirmation:
-      "Wave A low held inside Minute W4.\nB-bounce is strong.\nPrice reclaimed EMA10 and EMA20.\nThe market front is strong enough that C-wave may fail shallow.\n\nThis is not official W4 completion yet.\nEngine 2 still says Minute W4.\n\nNeeds: Hold EMA10/EMA20 and break B-bounce high or continuation level.\nIf price rejects and loses EMA10/EMA20, resume waiting for C-low.",
-  };
-}
-
-if (
-  state === "W4_B_BOUNCE_ACTIVE" ||
-  abcState === "W4_B_BOUNCE_ACTIVE"
-) {
-  return {
-    currentRead: "🟢 W4 B-BOUNCE ACTIVE — REDUCED SIZE",
-    confirmation:
-      "Wave A low held inside Minute W4.\nPrice reclaimed EMA10 and EMA20.\nThis is a reduced-size B-bounce scalp, not full W5 confirmation yet.\n\nNext: hold EMA10/EMA20 and watch for B-high breakout.\nIf B-bounce fails, resume waiting for C-low.",
-  };
-}
-
-if (
-  state === "W5_CONTINUATION_WATCH" ||
-  abcState === "W5_CONTINUATION_WATCH"
-) {
-  return {
-    currentRead: "🟡 W5 CONTINUATION WATCH — WAIT FOR BREAK",
-    confirmation:
-      "A-low held and B-bounce remains strong.\nC-low is not marked, but price is behaving like shallow W4 continuation.\n\nNeeds: break B-high / continuation level for W5 shallow trigger.\nNo full-size chase until trigger confirms.",
-  };
-}
-
+    abcState === "A_TO_B_TRIGGER_LONG" ||
+    type === "CORRECTION_A_TO_B_LONG"
+  ) {
+    return {
+      currentRead: "🟢 W4 B-BOUNCE LONG ACTIVE — REDUCED SIZE",
+      confirmation:
+        "Wave A low held inside Minute W4.\nPrice reclaimed EMA10 and EMA20.\nThis is a reduced-size B-bounce scalp, not full W5 continuation yet.\nHold above the continuation level, then break recent B-bounce highs.\nIf B-bounce fails, watch for C-leg down.",
+    };
+  } 
 if (
   state === "W5_SHALLOW_TRIGGER_LONG" ||
   abcState === "W5_SHALLOW_TRIGGER_LONG"
