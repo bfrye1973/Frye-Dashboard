@@ -9,6 +9,7 @@ export const SYMBOLS = [
   "DIA",  // ✅ using DIA instead of I:DJI
   "MDY",
   "VIX",
+  "ES1!"
 
   // Large cap techs
   "AAPL",
