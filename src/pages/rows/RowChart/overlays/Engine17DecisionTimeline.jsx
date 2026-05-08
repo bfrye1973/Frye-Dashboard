@@ -476,23 +476,107 @@ function getZoneAbsorptionRead(engine22) {
   return null;
 }
 
-function getEngine22CurrentRead(engine22, wave3RetraceTimeline) {
+function getEngine22CurrentRead(engine22, wave3RetraceTimeline, fib = {}) {
   const state = String(engine22?.state || "").toUpperCase();
   const abcState = String(engine22?.abcState || "").toUpperCase();
   const type = String(engine22?.type || "").toUpperCase();
   const status = String(engine22?.status || "").toUpperCase();
 
-  if (
-    state === "W4_SHALLOW_CONTINUATION_WATCH" ||
-    abcState === "W4_SHALLOW_CONTINUATION_WATCH"
-  ) {
-    return {
-      currentRead: "🟡 SHALLOW W4 CONTINUATION WATCH",
-      confirmation:
-        "Wave A low held inside Minute W4.\nB-bounce is strong.\n10m reclaimed EMA10/EMA20, giving early trigger support.\n\nConfirmation stack:\n10m = early scalp timing.\n30m = strength confirmation.\n1H = decides whether C-wave is still likely.\n\nNeeds:\nHold 10m EMA10/20.\nBuild strength above 30m EMA10/20.\nHave 1H reclaim or hold EMA10 to reduce the odds of a full C-wave.\nBreak B-bounce high or continuation level for shallow W5 trigger.\n\nFailure:\nIf 10m loses EMA10/20, caution.\nIf 30m closes below EMA10/20, shallow continuation is weakening.\nIf 1H rejects below EMA10, resume waiting for C-low.",
-    };
-  }
+  const debug = engine22?.debug || {};
 
+  const currentPrice = debug?.latestClose ?? fib?.latestClose ?? null;
+
+  const ema10_10m = debug?.ema10 ?? fib?.ema10 ?? null;
+  const ema20_10m = debug?.ema20 ?? fib?.ema20 ?? null;
+
+  const close30m =
+    debug?.close30m ??
+    fib?.close30m ??
+    fib?.thirtyMinClose ??
+    null;
+
+  const ema10_30m =
+    debug?.ema10_30m ??
+    fib?.ema10_30m ??
+    fib?.thirtyMinEma10 ??
+    null;
+
+  const ema20_30m =
+    debug?.ema20_30m ??
+    fib?.ema20_30m ??
+    fib?.thirtyMinEma20 ??
+    null;
+
+  const hourlyClose =
+    debug?.hourlyClose ??
+    fib?.hourlyClose ??
+    null;
+
+  const ema10_1h =
+    debug?.ema10_1h ??
+    fib?.ema10_1h ??
+    null;
+
+  const ema20_1h =
+    debug?.ema20_1h ??
+    fib?.ema20_1h ??
+    null;
+
+  const aLow = debug?.aLow ?? null;
+  const bHigh = debug?.bHigh ?? null;
+  const cLow = debug?.cLow ?? null;
+
+  const correctionLeg =
+    engine22?.correctionLeg ||
+    debug?.correctionLeg ||
+    null;
+
+  const nextFocus =
+    engine22?.nextFocus ||
+    debug?.nextFocus ||
+    null;
+
+  const tenMinStatus =
+    Number(currentPrice) > Number(ema10_10m) &&
+    Number(currentPrice) > Number(ema20_10m)
+      ? "holding above 10m EMA10/20"
+      : "watch 10m EMA support";
+
+  const thirtyMinStatus =
+    close30m != null && ema10_30m != null
+      ? Number(close30m) > Number(ema10_30m)
+        ? "30m confirming above EMA10"
+        : "30m not confirming yet"
+      : "30m EMA10/20 unavailable";
+
+  const oneHourStatus =
+    hourlyClose != null && ema10_1h != null
+      ? Number(hourlyClose) > Number(ema10_1h)
+        ? "1H holding above EMA10 — shallow continuation favored"
+        : "1H below EMA10 — C-wave risk still active"
+      : "1H EMA10 unavailable";
+
+  const currentStructureText =
+    `Current price structure:\n` +
+    `10m trigger layer: Price ${formatLevel(currentPrice)} | EMA10 ${formatLevel(ema10_10m)} | EMA20 ${formatLevel(ema20_10m)} → ${tenMinStatus}\n` +
+    `30m confirmation layer: Close ${formatLevel(close30m)} | EMA10 ${formatLevel(ema10_30m)} | EMA20 ${formatLevel(ema20_30m)} → ${thirtyMinStatus}\n` +
+    `1H C-wave decision layer: Close ${formatLevel(hourlyClose)} | EMA10 ${formatLevel(ema10_1h)} | EMA20 ${formatLevel(ema20_1h)} → ${oneHourStatus}\n` +
+    `Wave structure: A-low ${formatLevel(aLow)} | B-high ${formatLevel(bHigh)} | C-low ${formatLevel(cLow)}\n` +
+    `Leg: ${formatText(correctionLeg, "—")} | Next: ${formatText(nextFocus, "—")}`;
+
+    if (
+      state === "W4_SHALLOW_CONTINUATION_WATCH" ||
+      abcState === "W4_SHALLOW_CONTINUATION_WATCH"
+    ) {
+      return {
+        currentRead: "🟡 SHALLOW W4 CONTINUATION WATCH",
+        confirmation:
+          "Wave A low held inside Minute W4.\nB-bounce is strong.\n\n" +
+          currentStructureText +
+          "\n\nConfirmation stack:\n10m = early scalp timing.\n30m = strength confirmation.\n1H = decides whether C-wave is still likely.\n\nNeeds:\nHold 10m EMA10/20.\nBuild strength above 30m EMA10/20.\nHave 1H reclaim or hold EMA10 to reduce the odds of a full C-wave.\nBreak B-bounce high or continuation level for shallow W5 trigger.\n\nFailure:\nIf 10m loses EMA10/20, caution.\nIf 30m closes below EMA10/20, shallow continuation is weakening.\nIf 1H rejects below EMA10, resume waiting for C-low.",
+      };
+    }
+  
   if (
     state === "W4_B_BOUNCE_ACTIVE" ||
     abcState === "W4_B_BOUNCE_ACTIVE"
@@ -993,8 +1077,8 @@ export default function Engine17DecisionTimeline({
     isScalpMode && engine22 ? getTrendVsWaveRead(engine22) : null;
 
   if (isScalpMode && engine22) {
-  const e22Override = getEngine22CurrentRead(engine22, wave3RetraceTimeline);
-
+  const e22Override = getEngine22CurrentRead(engine22, wave3RetraceTimeline, fib);
+    
   const e22State = String(engine22?.state || "").toUpperCase();
   const e22AbcState = String(engine22?.abcState || "").toUpperCase();
 
