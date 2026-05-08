@@ -482,7 +482,7 @@ function getEngine22CurrentRead(engine22, wave3RetraceTimeline) {
   const type = String(engine22?.type || "").toUpperCase();
   const status = String(engine22?.status || "").toUpperCase();
 
-   if (
+  if (
     state === "W4_SHALLOW_CONTINUATION_WATCH" ||
     abcState === "W4_SHALLOW_CONTINUATION_WATCH"
   ) {
@@ -535,25 +535,6 @@ function getEngine22CurrentRead(engine22, wave3RetraceTimeline) {
       currentRead: "🟢 W4 B-BOUNCE LONG ACTIVE — REDUCED SIZE",
       confirmation:
         "Wave A low held inside Minute W4.\nPrice reclaimed EMA10 and EMA20.\nThis is a reduced-size B-bounce scalp, not full W5 continuation yet.\nHold above the continuation level, then break recent B-bounce highs.\nIf B-bounce fails, watch for C-leg down.",
-    };
-  } 
-if (
-  state === "W5_SHALLOW_TRIGGER_LONG" ||
-  abcState === "W5_SHALLOW_TRIGGER_LONG"
-) {
-  return {
-    currentRead: "🟢 W5 SHALLOW TRIGGER LONG",
-    confirmation:
-      "B-high / continuation level broke while EMA10 and EMA20 held.\nThis confirms the shallow W4 continuation trigger from Engine 22.\n\nImportant: Engine 2 still needs official MARK,W4 for official wave confirmation.\nManage as caution-size W5 continuation.",
-  };
-} 
-    abcState === "A_TO_B_TRIGGER_LONG" ||
-    type === "CORRECTION_A_TO_B_LONG"
-  ) {
-    return {
-      currentRead: "🟢 WAVE B LONG ACTIVE — REDUCED SIZE",
-      confirmation:
-        "Wave A low held. Price reclaimed EMA10 and EMA20. Hold above the continuation level, then break recent B-bounce highs.",
     };
   }
 
