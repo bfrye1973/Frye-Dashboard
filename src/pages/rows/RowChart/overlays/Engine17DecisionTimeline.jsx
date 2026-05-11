@@ -181,6 +181,13 @@ if (
   return "🟢 W5 SHALLOW TRIGGER LONG";
 }
 
+if (
+  state === "MINUTE_W5_ACTIVE_AFTER_SHALLOW_W4" ||
+  abcState === "MINUTE_W5_ACTIVE_AFTER_SHALLOW_W4"
+) {
+  return "🟢 MINUTE W5 ACTIVE — SHALLOW W4 COMPLETE";
+}
+
 if (state === "A_TO_B_TRIGGER_LONG" || abcState === "A_TO_B_TRIGGER_LONG") {
   return "🟢 W4 B-BOUNCE LONG ACTIVE — REDUCED SIZE";
 }
@@ -610,6 +617,19 @@ function getEngine22CurrentRead(engine22, wave3RetraceTimeline, fib = {}) {
     };
   }
 
+  if (
+   state === "MINUTE_W5_ACTIVE_AFTER_SHALLOW_W4" ||
+   abcState === "MINUTE_W5_ACTIVE_AFTER_SHALLOW_W4"
+ ) {
+   return {
+     currentRead: "🟢 MINUTE W5 ACTIVE — SHALLOW W4 COMPLETE",
+     confirmation:
+       "Price action says the C-wave likely failed to form.\nA-low held, 10m EMA10/20 reclaimed, 1H EMA10 is holding, and price pushed back above W3 high.\n\n" +
+       currentStructureText +
+       "\n\nMeaning:\nMinute W4 is still officially open until manually marked, but Engine 22 is treating Minute W5 as active after a shallow W4.\nDo not keep waiting blindly for C unless support fails.\n\nAction:\nDo not chase extension.\nLook for a controlled W5 dip-buy or clean continuation setup.\n\nFailure:\nIf 10m loses EMA10/20 and 1H rejects below EMA10, shallow W4 failed and C-wave risk returns.",
+   };
+ } 
+  
   if (
     state === "A_TO_B_TRIGGER_LONG" ||
     abcState === "A_TO_B_TRIGGER_LONG" ||
