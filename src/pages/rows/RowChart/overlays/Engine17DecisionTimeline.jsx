@@ -618,9 +618,11 @@ function getEngine22CurrentRead(engine22, wave3RetraceTimeline, fib = {}) {
     return {
       currentRead: "🟢 W4 B-BOUNCE LONG ACTIVE — REDUCED SIZE",
       confirmation:
-        "Wave A low held inside Minute W4.\nPrice reclaimed EMA10 and EMA20.\nThis is a reduced-size B-bounce scalp, not full W5 continuation yet.\nHold above the continuation level, then break recent B-bounce highs.\nIf B-bounce fails, watch for C-leg down.",
+        "Wave A low held inside Minute W4.\nB-bounce long is active, reduced size.\n\n" +
+        currentStructureText +
+        "\n\nMeaning:\n10m reclaimed EMA10/20 = B-bounce trigger is active.\n1H EMA10 holding = C-wave is not confirmed yet.\n\nNeeds:\nHold above 10m EMA10/20.\nMark B-high when momentum stalls.\nBreak B-high / continuation level for shallow W5 continuation.\n\nFailure:\nIf 10m loses EMA10/20, caution.\nIf 1H rejects below EMA10, resume waiting for C-low.",
     };
-  }
+  } 
 
   if (state === "DIP_BUY_CONTINUATION" && status === "ENTRY_LONG") {
     return {
@@ -777,11 +779,11 @@ function CorrectionDetails({ engine22, wave3Retrace, wave3RetraceTimeline, wave3
     return (
       <>
         <div>Wave A Complete — B Bounce Long Active</div>
-        <div>A low held. Price reclaimed EMA10 and EMA20.</div>
-        <div>EMA10 reclaimed above EMA20, strengthening the B-bounce signal.</div>
+        <div>A low held. 10m reclaimed EMA10/EMA20.</div>
+        <div>1H EMA10 is holding, so C-wave is not confirmed yet.</div>
         <div>Action: Reduced-size B-long scalp active.</div>
-        <div>Needs: hold above continuation level, then break recent B-bounce highs.</div>
-        <div>Next: Ride the B bounce. Mark B high when momentum stalls.</div>
+        <div>Needs: hold 10m EMA10/20, then mark B-high when momentum stalls.</div>
+        <div>If 1H rejects below EMA10, resume waiting for C-low.</div>
       </>
     );
   }
