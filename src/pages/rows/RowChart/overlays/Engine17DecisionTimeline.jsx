@@ -661,13 +661,15 @@ function getEngine22CurrentRead(engine22, wave3RetraceTimeline, fib = {}) {
       };
     }
 
-    if (abcState === "W4_A_LOW_ACTIVE") {
-      return {
-        currentRead: "WAVE A COMPLETE — WATCH B BOUNCE",
-        confirmation:
-          "A low is marked. Watch for EMA reclaim and B-bounce confirmation.",
-      };
-    }
+   if (abcState === "W4_A_LOW_ACTIVE") {
+    return {
+      currentRead: "🟡 WAVE A COMPLETE — WATCH B BOUNCE",
+      confirmation:
+        "A-low is marked, but B-bounce is not confirmed yet.\n\n" +
+        currentStructureText +
+        "\n\nMeaning:\nIf 10m reclaims EMA10/20 and 1H EMA10 holds, B-bounce can restart.\nIf 10m loses support and 1H rejects below EMA10, C-wave risk returns.\n\nNeeds:\n10m reclaim above EMA10/20.\n1H EMA10 holding.\nThen watch for B-bounce confirmation.",
+    };
+  } 
 
     if (abcState === "W4_C_LEG_STARTING") {
       return {
@@ -830,15 +832,16 @@ function CorrectionDetails({ engine22, wave3Retrace, wave3RetraceTimeline, wave3
     }
 
     if (abcState === "W4_A_LOW_ACTIVE") {
-      return (
-        <>
-          <div>Wave A Complete — watching for B bounce</div>
-          <div>{`A Low: ${formatLevel(aLow)}`}</div>
-          <div>Needs: EMA10 reclaim + price above EMA20 for B-long scalp.</div>
-          <div>Next: If B bounce confirms, trade reduced size and later mark B high.</div>
-        </>
-      );
-    }
+    return (
+      <>
+        <div>Wave A Complete — watching for B bounce</div>
+        <div>{`A Low: ${formatLevel(aLow)}`}</div>
+        <div>Needs: 10m reclaim EMA10/20 for B-bounce confirmation.</div>
+        <div>1H EMA10 decides whether C-wave risk is returning.</div>
+        <div>Next: If B bounce confirms, trade reduced size and later mark B high.</div>
+      </>
+    );
+  }
 
     if (abcState === "W4_C_LEG_STARTING") {
       return (
