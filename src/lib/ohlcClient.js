@@ -34,6 +34,11 @@ function normalizeTf(tf) {
   return TF_SEC[t] ? t : "10m";
 }
 
+function isFuturesSymbol(symbol) {
+  const s = String(symbol || "").toUpperCase().trim();
+  return ["ES", "NQ", "YM", "RTY"].includes(s);
+}
+
 function clampLimit(n, fallback = 1500) {
   const x = Number(n);
   if (!Number.isFinite(x) || x <= 0) return fallback;
@@ -70,6 +75,14 @@ export async function getOHLC(symbol = "SPY", timeframe = "10m", limit = 1500) {
   const tf = normalizeTf(timeframe);
   const safeLimit = clampLimit(limit, 1500);
 
+   // Phase 2 ES wiring:
+  // Backend-2 live futures stream is working.
+  // Backend-1 historical futures candles are not confirmed yet.
+  // Return empty history for ES so the chart can still load and then populate from live bars.
+  if (isFuturesSymbol(sym)) {
+    return [];
+  }
+
   const url =
     `${API}/api/v1/ohlc?symbol=${encodeURIComponent(sym)}` +
     `&timeframe=${encodeURIComponent(tf)}` +
@@ -87,8 +100,15 @@ export async function getOHLC(symbol = "SPY", timeframe = "10m", limit = 1500) {
 
 // ---------------- API: compat shim ----------------
 export async function fetchOHLCResilient({ symbol, timeframe, limit = 1500 }) {
-  const bars = await getOHLC(symbol, timeframe, limit);
-  return { source: "api/v1/ohlc (direct tf)", bars };
+  const sym = String(symbol || "SPY").toUpperCase();
+  const bars = await getOHLC(sym, timeframe, limit);
+
+  return {
+    source: isFuturesSymbol(sym)
+      ? "futures-live-only-no-history-yet"
+      : "api/v1/ohlc (direct tf)",
+    bars,
+  };
 }
 
 // ---------------- Shared SSE registry ----------------
@@ -250,11 +270,17 @@ export function subscribeStream(symbol, timeframe, onBar, onAlive) {
   const sym = String(symbol || "SPY").toUpperCase();
   const tf = normalizeTf(timeframe);
 
-  const url =
-    `${STREAM_BASE.replace(/\/+$/, "")}/stream/agg` +
-    `?symbol=${encodeURIComponent(sym)}` +
-    `&tf=${encodeURIComponent(tf)}` +
-    `&mode=rth`;
+  const streamBase = STREAM_BASE.replace(/\/+$/, "");
+
+  const url = isFuturesSymbol(sym)
+    ? `${streamBase}/stream/futures/agg` +
+      `?symbol=${encodeURIComponent(sym)}` +
+      `&tf=${encodeURIComponent(tf)}` +
+      `&mode=eth`
+    : `${streamBase}/stream/agg` +
+      `?symbol=${encodeURIComponent(sym)}` +
+      `&tf=${encodeURIComponent(tf)}` +
+      `&mode=rth`;
 
   const key = getStreamKey(url);
 
