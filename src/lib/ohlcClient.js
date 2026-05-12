@@ -1,5 +1,9 @@
 // src/lib/ohlcClient.js
-// Canonical OHLC client (direct TF fetch from backend-1 + SSE stream from backend-2)
+// Canonical OHLC client
+// - Stock history: Backend-1 /api/v1/ohlc
+// - Futures history: Backend-1 /api/v1/futures/ohlc
+// - Stock live stream: Backend-2 /stream/agg
+// - Futures live stream: Backend-2 /stream/futures/agg
 
 const BACKEND =
   (typeof window !== "undefined" && (window.__API_BASE__ || "")) ||
@@ -15,6 +19,7 @@ const STREAM_BASE =
 const API = (BACKEND || "").replace(/\/+$/, "");
 
 // ---------------- utils ----------------
+
 const TF_SEC = {
   "1m": 60,
   "5m": 300,
@@ -36,6 +41,9 @@ function normalizeTf(tf) {
 
 function isFuturesSymbol(symbol) {
   const s = String(symbol || "").toUpperCase().trim();
+
+  // User-facing futures product symbols.
+  // Backend resolves ES -> active contract like ESM6.
   return ["ES", "NQ", "YM", "RTY"].includes(s);
 }
 
@@ -47,6 +55,7 @@ function clampLimit(n, fallback = 1500) {
 
 function normalizeBars(arr) {
   if (!Array.isArray(arr)) return [];
+
   return arr
     .filter(Boolean)
     .map((b) => ({
@@ -69,27 +78,33 @@ function normalizeBars(arr) {
 }
 
 // ---------------- API: getOHLC ----------------
-// OPTION B: Fetch requested timeframe directly from backend-1.
+// Fetch requested timeframe directly from Backend-1.
+//
+// Stocks:
+//   /api/v1/ohlc?symbol=SPY&timeframe=1m&limit=1500
+//
+// Futures:
+//   /api/v1/futures/ohlc?symbol=ES&timeframe=1m&limit=1500
 export async function getOHLC(symbol = "SPY", timeframe = "10m", limit = 1500) {
   const sym = String(symbol || "SPY").toUpperCase();
   const tf = normalizeTf(timeframe);
   const safeLimit = clampLimit(limit, 1500);
 
-   // Phase 2 ES wiring:
-  // Backend-2 live futures stream is working.
-  // Backend-1 historical futures candles are not confirmed yet.
-  // Return empty history for ES so the chart can still load and then populate from live bars.
-  if (isFuturesSymbol(sym)) {
-    return [];
-  }
+  const isFutures = isFuturesSymbol(sym);
 
-  const url =
-    `${API}/api/v1/ohlc?symbol=${encodeURIComponent(sym)}` +
-    `&timeframe=${encodeURIComponent(tf)}` +
-    `&limit=${encodeURIComponent(safeLimit)}`;
+  const url = isFutures
+    ? `${API}/api/v1/futures/ohlc?symbol=${encodeURIComponent(sym)}` +
+      `&timeframe=${encodeURIComponent(tf)}` +
+      `&limit=${encodeURIComponent(safeLimit)}`
+    : `${API}/api/v1/ohlc?symbol=${encodeURIComponent(sym)}` +
+      `&timeframe=${encodeURIComponent(tf)}` +
+      `&limit=${encodeURIComponent(safeLimit)}`;
 
   const r = await fetch(url, { cache: "no-store" });
-  if (!r.ok) throw new Error(`OHLC ${r.status}`);
+
+  if (!r.ok) {
+    throw new Error(`${isFutures ? "Futures OHLC" : "OHLC"} ${r.status}`);
+  }
 
   const data = await r.json().catch(() => null);
   const raw = Array.isArray(data) ? data : Array.isArray(data?.bars) ? data.bars : [];
@@ -99,13 +114,14 @@ export async function getOHLC(symbol = "SPY", timeframe = "10m", limit = 1500) {
 }
 
 // ---------------- API: compat shim ----------------
+
 export async function fetchOHLCResilient({ symbol, timeframe, limit = 1500 }) {
   const sym = String(symbol || "SPY").toUpperCase();
   const bars = await getOHLC(sym, timeframe, limit);
 
   return {
     source: isFuturesSymbol(sym)
-      ? "futures-live-only-no-history-yet"
+      ? "api/v1/futures/ohlc"
       : "api/v1/ohlc (direct tf)",
     bars,
   };
@@ -144,6 +160,7 @@ function createSharedStream(url) {
         entry.es.close();
       }
     } catch {}
+
     entry.es = null;
   };
 
@@ -166,6 +183,7 @@ function createSharedStream(url) {
   const start = () => {
     if (entry.closed) return;
     if (entry.reconnecting) return;
+
     entry.reconnecting = true;
 
     cleanupES();
@@ -186,13 +204,14 @@ function createSharedStream(url) {
       try {
         const msg = JSON.parse(ev.data);
 
-        // any JSON message means stream transport is alive
+        // Any JSON message means stream transport is alive.
         fanoutAlive(msg);
 
         if (msg?.type === "bar" && msg.bar) {
           entry.lastBarAt = Date.now();
 
           const b = msg.bar;
+
           const bar = {
             time: toSec(b.time ?? b.t ?? b.ts ?? b.timestamp),
             open: Number(b.open ?? b.o),
@@ -201,17 +220,24 @@ function createSharedStream(url) {
             close: Number(b.close ?? b.c),
             volume: Number(b.volume ?? b.v ?? 0),
           };
-          if (Number.isFinite(bar.time) && Number.isFinite(bar.open)) {
+
+          if (
+            Number.isFinite(bar.time) &&
+            Number.isFinite(bar.open) &&
+            Number.isFinite(bar.high) &&
+            Number.isFinite(bar.low) &&
+            Number.isFinite(bar.close)
+          ) {
             fanoutBar(bar);
           }
         }
       } catch {
-        // ignore parse issues, do not kill stream
+        // Ignore parse issues. Do not kill stream.
       }
     };
 
     es.onerror = () => {
-      // let watchdog decide whether to rebuild
+      // Let watchdog decide whether to rebuild.
       entry.reconnecting = false;
     };
 
@@ -223,14 +249,17 @@ function createSharedStream(url) {
         const msgAge = now - entry.lastMsgAt;
         const barAge = now - entry.lastBarAt;
 
-        // 1) Full transport stall: no JSON messages at all
+        // 1) Full transport stall: no JSON messages at all.
         if (msgAge > 15_000) {
           start();
           return;
         }
 
-        // 2) Chart/data stall: transport alive but no new bars
-        // Only apply this to intraday live streams where bars should keep flowing.
+        // 2) Chart/data stall: transport alive but no new bars.
+        // NOTE:
+        // This can create repeated reconnects during slow periods.
+        // Leave it unchanged for now because SPY uses this existing behavior.
+        // We can safely clean this later after ES historical/live chart is stable.
         if (barAge > 20_000) {
           start();
         }
@@ -239,16 +268,20 @@ function createSharedStream(url) {
   };
 
   entry.start = start;
+
   entry.destroy = () => {
     entry.closed = true;
+
     try {
       if (entry.watchdog) clearInterval(entry.watchdog);
     } catch {}
+
     entry.watchdog = null;
     cleanupES();
   };
 
   start();
+
   return entry;
 }
 
@@ -269,10 +302,10 @@ export function subscribeStream(symbol, timeframe, onBar, onAlive) {
 
   const sym = String(symbol || "SPY").toUpperCase();
   const tf = normalizeTf(timeframe);
-
   const streamBase = STREAM_BASE.replace(/\/+$/, "");
+  const isFutures = isFuturesSymbol(sym);
 
-  const url = isFuturesSymbol(sym)
+  const url = isFutures
     ? `${streamBase}/stream/futures/agg` +
       `?symbol=${encodeURIComponent(sym)}` +
       `&tf=${encodeURIComponent(tf)}` +
@@ -285,6 +318,7 @@ export function subscribeStream(symbol, timeframe, onBar, onAlive) {
   const key = getStreamKey(url);
 
   let entry = streamRegistry.get(key);
+
   if (!entry) {
     entry = createSharedStream(url);
     streamRegistry.set(key, entry);
@@ -295,6 +329,7 @@ export function subscribeStream(symbol, timeframe, onBar, onAlive) {
   if (typeof onBar === "function") {
     entry.barListeners.add(onBar);
   }
+
   if (typeof onAlive === "function") {
     entry.aliveListeners.add(onAlive);
   }
@@ -308,6 +343,7 @@ export function subscribeStream(symbol, timeframe, onBar, onAlive) {
       if (typeof onBar === "function") {
         entry.barListeners.delete(onBar);
       }
+
       if (typeof onAlive === "function") {
         entry.aliveListeners.delete(onAlive);
       }
@@ -319,9 +355,14 @@ export function subscribeStream(symbol, timeframe, onBar, onAlive) {
       try {
         entry.destroy?.();
       } catch {}
+
       streamRegistry.delete(key);
     }
   };
 }
 
-export default { getOHLC, fetchOHLCResilient, subscribeStream };
+export default {
+  getOHLC,
+  fetchOHLCResilient,
+  subscribeStream,
+};
