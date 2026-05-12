@@ -30,6 +30,10 @@ const SANDBOX_URL =
   process.env.REACT_APP_INTRADAY_SANDBOX_URL ||
   "";
 
+const ES_FUTURES_URL =
+  process.env.REACT_APP_ES_FUTURES_METER_URL ||
+  "/api/v1/futures/market-meter?symbol=ES";
+
 
 // ----------------- Utilities -----------------
 const num = (v) => {
@@ -248,6 +252,7 @@ export default function RowMarketOverview() {
   const [live1h, setLive1h] = React.useState(null);
   const [live4h, setLive4h] = React.useState(null);
   const [liveEOD, setLiveEOD] = React.useState(null);
+  const [liveES, setLiveES] = React.useState(null);
 
   // Replay injection
  React.useEffect(() => {
@@ -303,6 +308,15 @@ export default function RowMarketOverview() {
           const j = await r.json();
           if (!stop) setLiveEOD(j);
         }
+
+        if (ES_FUTURES_URL) {
+          const sep = ES_FUTURES_URL.includes("?") ? "&" : "?";
+          const r = await fetch(`${ES_FUTURES_URL}${sep}t=${Date.now()}`, {
+            cache: "no-store",
+          });
+          const j = await r.json();
+          if (!stop) setLiveES(j);
+         }
       } catch {
         // ignore
       }
@@ -336,6 +350,15 @@ export default function RowMarketOverview() {
   const d1h = replay?.enabled ? {} : live1h || {};
   const d4h = replay?.enabled ? {} : live4h || {};
   const dd = replay?.enabled ? {} : liveEOD || {};
+  const es = replay?.enabled ? {} : liveES || {};
+  const esLights = es.lights || {};
+  const esMaster = es.master || {};
+
+  const es10 = esLights["10m"] || {};
+  const es30 = esLights["30m"] || {};
+  const es1h = esLights["1h"] || {};
+  const es4h = esLights["4h"] || {};
+  const esEod = esLights["1d"] || {};
  
   // Engine 21 comes from the live 10m / 30m Market Meter payloads
   const align10 = replay?.enabled ? null : (live10?.engine21Alignment || null);
@@ -697,6 +720,38 @@ export default function RowMarketOverview() {
           </div>
         </div>
       </div>
+      
+         {/* ES Futures Meter */}
+        <div style={stripBox}>
+          <div className="small" style={{ color: "#e5e7eb", fontWeight: 800 }}>
+            ES Futures Meter
+          </div>
+
+          <div style={lineBox}>
+            <Stoplight label="10m" value={num(es10.score)} tone={es10.tone || "info"} />
+            <Stoplight label="30m" value={num(es30.score)} tone={es30.tone || "info"} />
+            <Stoplight label="1h" value={num(es1h.score)} tone={es1h.tone || "info"} />
+            <Stoplight label="4h" value={num(es4h.score)} tone={es4h.tone || "info"} />
+            <Stoplight label="EOD" value={num(esEod.score)} tone={esEod.tone || "info"} />
+
+            <div style={{ textAlign: "center", minWidth: 120 }}>
+              <div style={{ fontSize: 12, fontWeight: 800, color: "#9ca3af", marginBottom: 6 }}>
+                ES Master
+              </div>
+              <Stoplight
+                label="MASTER"
+                value={num(esMaster.score)}
+                tone={esMaster.tone || "info"}
+                minWidth={120}
+              />
+            </div>
+          </div>
+
+          <div style={{ color: "#9ca3af", fontSize: 12, marginTop: 4 }}>
+            Futures updated: <strong>{fmtIso(es.updated_at_utc)}</strong>
+          </div>
+        </div>
+      
        {legendOpen && (
         <div
           role="dialog"
