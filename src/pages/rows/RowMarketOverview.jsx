@@ -351,6 +351,7 @@ export default function RowMarketOverview() {
   const d4h = replay?.enabled ? {} : live4h || {};
   const dd = replay?.enabled ? {} : liveEOD || {};
   const es = replay?.enabled ? {} : liveES || {};
+  console.log("ES FUTURES DATA", es);
   const esLights = es.lights || {};
   const esMaster = es.master || {};
 
