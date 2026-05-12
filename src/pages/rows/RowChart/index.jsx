@@ -1362,7 +1362,7 @@ export default function RowChart({
     });
   }, [state.symbol, state.timeframe]);
 
-  /* =================== Effect D: LIVE STREAM =================== */
+    /* =================== Effect D: LIVE STREAM =================== */
 
   useEffect(() => {
     if (!chartReady || !seriesRef.current) return;
@@ -1378,14 +1378,72 @@ export default function RowChart({
     const tfSec = TF_SEC[state.timeframe] ?? TF_SEC["10m"];
     const floorToBucket = (tSec) => Math.floor(tSec / tfSec) * tfSec;
 
-    let bucketStart = null;
-    let rolling = null;
     let isCurrent = true;
 
-    const lastSeed = barsRef.current[barsRef.current.length - 1] || null;
-    if (lastSeed) {
-      bucketStart = floorToBucket(lastSeed.time);
-      rolling = { ...lastSeed };
+    // For higher timeframes, rebuild the active bucket from unique 1m bars.
+    // This prevents double-counting volume when the same 1m candle updates
+    // many times from the live futures stream.
+    const liveOneMinByTime = new Map();
+
+    function upsertChartBar(bar, forceSync = false) {
+      const prev = barsRef.current[barsRef.current.length - 1];
+
+      if (!prev || bar.time > prev.time) {
+        barsRef.current = [...barsRef.current, bar];
+        scheduleUiSync(true);
+        return;
+      }
+
+      if (bar.time === prev.time) {
+        const next = [...barsRef.current];
+        next[next.length - 1] = bar;
+        barsRef.current = next;
+        scheduleUiSync(forceSync);
+      }
+    }
+
+    function updateVisibleBar(bar) {
+      seriesRef.current?.update({
+        time: bar.time,
+        open: bar.open,
+        high: bar.high,
+        low: bar.low,
+        close: bar.close,
+      });
+
+      if (state.volume && volSeriesRef.current) {
+        volSeriesRef.current.update({
+          time: bar.time,
+          value: Number(bar.volume || 0),
+          color: bar.close >= bar.open ? DEFAULTS.volUp : DEFAULTS.volDown,
+        });
+      }
+
+      try {
+        overlayInstancesRef.current.forEach((o) => o?.update?.(bar));
+      } catch {}
+    }
+
+    function buildBucketBar(bucketStart) {
+      const bucketEnd = bucketStart + tfSec;
+
+      const oneMins = Array.from(liveOneMinByTime.values())
+        .filter((b) => b.time >= bucketStart && b.time < bucketEnd)
+        .sort((a, b) => a.time - b.time);
+
+      if (!oneMins.length) return null;
+
+      const first = oneMins[0];
+      const last = oneMins[oneMins.length - 1];
+
+      return {
+        time: bucketStart,
+        open: first.open,
+        high: Math.max(...oneMins.map((b) => Number(b.high))),
+        low: Math.min(...oneMins.map((b) => Number(b.low))),
+        close: last.close,
+        volume: oneMins.reduce((sum, b) => sum + Number(b.volume || 0), 0),
+      };
     }
 
     const onAlive = () => {
@@ -1404,100 +1462,48 @@ export default function RowChart({
         );
         if (!Number.isFinite(tSec)) return;
 
-        if (tfSec === TF_SEC["1m"]) {
-          const bar = { ...oneMin, time: tSec };
+        const cleanOneMin = {
+          time: tSec,
+          open: Number(oneMin.open),
+          high: Number(oneMin.high),
+          low: Number(oneMin.low),
+          close: Number(oneMin.close),
+          volume: Number(oneMin.volume || 0),
+        };
 
-          seriesRef.current?.update(bar);
-
-          if (state.volume && volSeriesRef.current) {
-            volSeriesRef.current.update({
-              time: bar.time,
-              value: Number(bar.volume || 0),
-              color: bar.close >= bar.open ? DEFAULTS.volUp : DEFAULTS.volDown,
-            });
-          }
-
-          const prev = barsRef.current[barsRef.current.length - 1];
-          if (!prev || bar.time > prev.time) {
-            barsRef.current = [...barsRef.current, bar];
-            scheduleUiSync(true);
-          } else if (bar.time === prev.time) {
-            const next = [...barsRef.current];
-            next[next.length - 1] = bar;
-            barsRef.current = next;
-            scheduleUiSync(false);
-          }
-
-          try {
-            overlayInstancesRef.current.forEach((o) => o?.update?.(bar));
-          } catch {}
+        if (
+          !Number.isFinite(cleanOneMin.open) ||
+          !Number.isFinite(cleanOneMin.high) ||
+          !Number.isFinite(cleanOneMin.low) ||
+          !Number.isFinite(cleanOneMin.close)
+        ) {
           return;
         }
 
-        const start = floorToBucket(tSec);
-
-        if (bucketStart === null || start > bucketStart) {
-          if (rolling) {
-            seriesRef.current?.update(rolling);
-
-            if (state.volume && volSeriesRef.current) {
-              volSeriesRef.current.update({
-                time: rolling.time,
-                value: Number(rolling.volume || 0),
-                color:
-                  rolling.close >= rolling.open
-                    ? DEFAULTS.volUp
-                    : DEFAULTS.volDown,
-              });
-            }
-
-            const next = [...barsRef.current];
-            const last = next[next.length - 1];
-            if (!last || rolling.time > last.time) next.push(rolling);
-            else next[next.length - 1] = rolling;
-
-            barsRef.current = next;
-            scheduleUiSync(true);
-
-            try {
-              overlayInstancesRef.current.forEach((o) => o?.update?.(rolling));
-            } catch {}
-          }
-
-          bucketStart = start;
-          rolling = {
-            time: start,
-            open: oneMin.open,
-            high: oneMin.high,
-            low: oneMin.low,
-            close: oneMin.close,
-            volume: Number(oneMin.volume || 0),
-          };
-        } else {
-          rolling.high = Math.max(rolling.high, oneMin.high);
-          rolling.low = Math.min(rolling.low, oneMin.low);
-          rolling.close = oneMin.close;
-          rolling.volume =
-            Number(rolling.volume || 0) + Number(oneMin.volume || 0);
-          scheduleUiSync(false);
+        // 1m chart: update the current candle directly.
+        if (tfSec === TF_SEC["1m"]) {
+          updateVisibleBar(cleanOneMin);
+          upsertChartBar(cleanOneMin, false);
+          return;
         }
 
-        seriesRef.current?.update(rolling);
+        // Higher timeframe chart:
+        // Store each 1m candle by its own timestamp, replacing updates
+        // instead of adding repeated cumulative volume.
+        liveOneMinByTime.set(cleanOneMin.time, cleanOneMin);
 
-        if (state.volume && volSeriesRef.current) {
-          volSeriesRef.current.update({
-            time: rolling.time,
-            value: Number(rolling.volume || 0),
-            color:
-              rolling.close >= rolling.open
-                ? DEFAULTS.volUp
-                : DEFAULTS.volDown,
-          });
+        // Keep this map small.
+        const cutoff = cleanOneMin.time - tfSec * 3;
+        for (const key of liveOneMinByTime.keys()) {
+          if (key < cutoff) liveOneMinByTime.delete(key);
         }
 
-        try {
-          overlayInstancesRef.current.forEach((o) => o?.update?.(rolling));
-        } catch {}
+        const bucketStart = floorToBucket(cleanOneMin.time);
+        const bucketBar = buildBucketBar(bucketStart);
+        if (!bucketBar) return;
+
+        updateVisibleBar(bucketBar);
+        upsertChartBar(bucketBar, false);
       },
       onAlive
     );
