@@ -1526,6 +1526,7 @@ export default function RowChart({
       }
     };
   }, [chartReady, state.symbol, state.timeframe, state.volume]);
+  
 
   /* ---------------------------- EMA lines ----------------------------- */
 
