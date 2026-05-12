@@ -23,17 +23,15 @@ const M30_URL = process.env.REACT_APP_30M_URL; // /live/30m
 const HOURLY_URL = process.env.REACT_APP_HOURLY_URL; // /live/hourly
 const H4_URL = process.env.REACT_APP_4H_URL; // /live/4h
 const EOD_URL = process.env.REACT_APP_EOD_URL; // /live/eod
+const ES_FUTURES_URL =
+  process.env.REACT_APP_ES_FUTURES_METER_URL ||
+  "/api/v1/futures/market-meter?symbol=ES";
 
 const SANDBOX_URL =
   process.env.REACT_APP_PULSE_URL ||
   process.env.REACT_APP_PILLS_URL ||
   process.env.REACT_APP_INTRADAY_SANDBOX_URL ||
   "";
-
-const ES_FUTURES_URL =
-  process.env.REACT_APP_ES_FUTURES_METER_URL ||
-  "/api/v1/futures/market-meter?symbol=ES";
-
 
 // ----------------- Utilities -----------------
 const num = (v) => {
@@ -309,6 +307,13 @@ export default function RowMarketOverview() {
           if (!stop) setLiveEOD(j);
         }
 
+        const rES = await fetch(
+          `https://frye-market-backend-1.onrender.com/api/v1/futures/market-meter?symbol=ES&t=${Date.now()}`,
+          { cache: "no-store" }
+        );
+        const jES = await rES.json();
+        if (!stop) setLiveES(jES);
+        
         if (ES_FUTURES_URL) {
           const sep = ES_FUTURES_URL.includes("?") ? "&" : "?";
           const r = await fetch(`${ES_FUTURES_URL}${sep}t=${Date.now()}`, {
@@ -351,7 +356,6 @@ export default function RowMarketOverview() {
   const d4h = replay?.enabled ? {} : live4h || {};
   const dd = replay?.enabled ? {} : liveEOD || {};
   const es = replay?.enabled ? {} : liveES || {};
-  console.log("ES FUTURES DATA", es);
   const esLights = es.lights || {};
   const esMaster = es.master || {};
 
@@ -360,7 +364,7 @@ export default function RowMarketOverview() {
   const es1h = esLights["1h"] || {};
   const es4h = esLights["4h"] || {};
   const esEod = esLights["1d"] || {};
- 
+   
   // Engine 21 comes from the live 10m / 30m Market Meter payloads
   const align10 = replay?.enabled ? null : (live10?.engine21Alignment || null);
   const align30 = replay?.enabled ? null : (live30?.engine21Alignment || null);
