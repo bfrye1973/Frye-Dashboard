@@ -797,11 +797,13 @@ export default function RowChart({
     fibIntermediate: false,
     fibMinor: false,
     fibMinute: false,
+    fibMicro: false,
 
     fibPrimaryStyle: makeFibStyle("#ff5ad6", 18, 3.5, true),
     fibIntermediateStyle: makeFibStyle("#ffd54a", 18, 3.5, true),
     fibMinorStyle: makeFibStyle("#22c55e", 16, 3.0, true),
     fibMinuteStyle: makeFibStyle("#60a5fa", 14, 2.5, true),
+    fibMicroStyle: makeFibStyle("#f472b6", 12, 2.0, true),
 
     accDistLevels: false,
     wickPaZones: false,
@@ -1769,13 +1771,15 @@ export default function RowChart({
     
     fibPrimary: state.fibPrimary,
     fibIntermediate: state.fibIntermediate,
-    fibMinor: state.fibMinor,
-    fibMinute: state.fibMinute,
+    fibMinor: state.fibMinor,    
+    fibMinute: state.fibMinute,    
+    fibMicro: state.fibMicro,    
 
     fibPrimaryStyle: state.fibPrimaryStyle,
     fibIntermediateStyle: state.fibIntermediateStyle,
     fibMinorStyle: state.fibMinorStyle,
     fibMinuteStyle: state.fibMinuteStyle,
+    fibMicroStyle: state.fibMicroStyle,
 
     engine17Overlay: state.engine17Overlay,
     engine17Timeline: state.engine17Timeline,
