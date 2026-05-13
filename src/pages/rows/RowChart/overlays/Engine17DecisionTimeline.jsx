@@ -237,7 +237,7 @@ if (state === "A_TO_B_TRIGGER_LONG" || abcState === "A_TO_B_TRIGGER_LONG") {
 
   if (status === "ENTRY_LONG") {
     if (state === "DIP_BUY_CONTINUATION") {
-      return "🟢 LONG CONTINUATION ENTRY ACTIVE";
+      return "🟢 MINUTE W5 CONTINUATION — BUY CONTROLLED DIPS";
     }
     return "🟢 SCALP ENTRY LONG";
   }
@@ -645,12 +645,14 @@ function getEngine22CurrentRead(engine22, wave3RetraceTimeline, fib = {}) {
   } 
 
   if (state === "DIP_BUY_CONTINUATION" && status === "ENTRY_LONG") {
-    return {
-      currentRead: "🟢 CONFIRMED LONG — CONTINUATION",
-      confirmation:
-        "Continuation trigger is active.\nPrice reclaimed/held EMA10 and EMA20.\nManage the long using EMA10 and the active stop plan.",
-    };
-  }
+  return {
+    currentRead: "🟢 MINUTE W5 CONTINUATION — BUY CONTROLLED DIPS",
+    confirmation:
+      "Minute W5 continuation is active.\nThe preferred trade is controlled dip-buy only — do not chase vertical extension candles.\n\n" +
+      currentStructureText +
+      "\n\nMeaning:\n10m EMA10/20 = short-term dip-buy trigger layer.\n1H EMA10 = bigger continuation support / failure filter.\n\nAction:\nBuy controlled pullbacks that hold 10m EMA10/20 or reclaim them cleanly.\nAvoid chasing if price is extended away from the EMAs.\n\nFailure:\nIf 10m loses EMA10/20 and 1H rejects below EMA10, stand down and reassess.",
+  };
+}
 
   if (state === "W4_ACTIVE_WAIT") {
     if (abcState === "W4_A_FORMING") {
@@ -714,22 +716,16 @@ function getEngine22CurrentRead(engine22, wave3RetraceTimeline, fib = {}) {
   }
 
   if (state === "W5_TRIGGER_LONG") {
-    return {
-      currentRead: "🟢 W5 LONG TRIGGER CONFIRMED",
-      confirmation: engine22?.entryTriggerLevel
-        ? `Break above ${formatLevel(engine22.entryTriggerLevel)} confirmed W5 launch`
-        : "W4 to W5 long trigger confirmed.",
-    };
-  }
-
-  if (status === "NO_SHORT") {
-    return {
-      currentRead: "FINAL IMPULSE — SHORTS BLOCKED",
-      confirmation: "Higher wave context remains bullish. No countertrend short.",
-    };
-  }
-
-  return null;
+  return {
+    currentRead: "🟢 W5 LONG TRIGGER CONFIRMED — BUY CONTROLLED DIPS",
+    confirmation:
+      (engine22?.entryTriggerLevel
+        ? `Break above ${formatLevel(engine22.entryTriggerLevel)} confirmed W5 launch.\n`
+        : "W4 to W5 long trigger confirmed.\n") +
+      "\n" +
+      currentStructureText +
+      "\n\nAction:\nContinuation mode is active, but fresh entries should come from controlled pullbacks, not chasing extended candles.\n\nFailure:\nIf 10m and 1H support fail, stand down.",
+  };
 }
 
 function newsRiskDisplay(newsRisk) {
