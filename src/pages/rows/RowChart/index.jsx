@@ -2026,7 +2026,8 @@ return (
         <Engine17DecisionTimeline
           overlayData={engine17Data}
           visible={state.engine17Timeline && state.engine17Overlay}
-          chartMode={chartMode}
+          chartMode={selectedMode}
+          symbol={selectedSymbol}
         />
 
         <Engine17Badges
