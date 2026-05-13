@@ -815,6 +815,7 @@ export default function RowChart({
     engine17DebugPanel: false,
 
     showPremarketFibs: false,
+    esAutoShelves: true, 
   });
   useEffect(() => {
   setState((s) => ({
@@ -1181,7 +1182,10 @@ export default function RowChart({
     const reg = (inst) => inst && overlayInstancesRef.current.push(inst);
 
     const engine1On = !!state.institutionalZonesAuto;
-    const shelvesOn = !!state.smzShelvesAuto || engine1On;
+    const shelvesOn =
+      state.symbol === "ES"
+        ? !!state.esAutoShelves
+        : !!state.smzShelvesAuto || engine1On;
 
     if (engine1On) {
       reg(
@@ -1311,6 +1315,7 @@ export default function RowChart({
     engine17Data,
     state.institutionalZonesAuto,
     state.smzShelvesAuto,
+    state.esAutoShelves,
     state.fibPrimary,
     state.fibIntermediate,
     state.fibMinor,
@@ -1761,7 +1766,7 @@ export default function RowChart({
 
     institutionalZonesAuto: state.institutionalZonesAuto,
     smzShelvesAuto: state.smzShelvesAuto,
-
+    
     fibPrimary: state.fibPrimary,
     fibIntermediate: state.fibIntermediate,
     fibMinor: state.fibMinor,
@@ -1912,7 +1917,41 @@ return (
     </button>
   ))}
 </div>
+{state.symbol === "ES" && (
+  <div style={{ padding: "0 10px 6px 10px" }}>
+    <details
+      style={{
+        display: "inline-block",
+        border: "1px solid #334155",
+        borderRadius: 6,
+        padding: "4px 8px",
+        background: "#0b0b0b",
+        color: "#fff",
+        fontWeight: 800,
+      }}
+    >
+      <summary style={{ cursor: "pointer" }}>
+        ES Futures Indicators
+      </summary>
 
+      <div style={{ marginTop: 8, display: "grid", gap: 6 }}>
+        <label style={{ display: "flex", gap: 6, alignItems: "center" }}>
+          <input
+            type="checkbox"
+            checked={!!state.esAutoShelves}
+            onChange={(e) =>
+              setState((s) => ({
+                ...s,
+                esAutoShelves: e.target.checked,
+              }))
+            }
+          />
+          ES Auto Shelves
+        </label>
+      </div>
+    </details>
+  </div>
+)}
     <IndicatorsToolbar {...toolbarProps} />
 
     <div
