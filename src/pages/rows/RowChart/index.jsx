@@ -1664,46 +1664,7 @@ export default function RowChart({
         streamUnsubRef.current = null;
       }
     };
-  }, [chartReady, state.symbol, state.timeframe, state.volume]);
-        // Higher timeframe chart:
-        // Store each 1m candle by its own timestamp, replacing updates
-        // instead of adding repeated cumulative volume.
-        liveOneMinByTime.set(cleanOneMin.time, cleanOneMin);
-
-        // Keep this map small.
-        const cutoff = cleanOneMin.time - tfSec * 3;
-        for (const key of liveOneMinByTime.keys()) {
-          if (key < cutoff) liveOneMinByTime.delete(key);
-        }
-
-        const bucketStart = floorToBucket(cleanOneMin.time);
-        const bucketBar = buildBucketBar(bucketStart);
-        if (!bucketBar) return;
-
-        updateVisibleBar(bucketBar);
-        upsertChartBar(bucketBar, false);
-      },
-      onAlive
-    );
-
-    streamUnsubRef.current = () => {
-      if (!isCurrent) return;
-      isCurrent = false;
-      try {
-        unsub?.();
-      } catch {}
-    };
-
-    return () => {
-      isCurrent = false;
-      try {
-        unsub?.();
-      } catch {}
-      if (streamUnsubRef.current) {
-        streamUnsubRef.current = null;
-      }
-    };
-  }, [chartReady, state.symbol, state.timeframe, state.volume]);   
+  }, [chartReady, state.symbol, state.timeframe, state.volume]);       
  
   /* ---------------------------- EMA lines ----------------------------- */
 
