@@ -1,68 +1,62 @@
-// src/pages/rows/RowChart/overlays/SMZLevelsOverlay.jsx
-// Engine 1 Overlay — INSTITUTIONAL PARENTS ONLY (yellow)
-// ✅ CLEAN MODE:
-// - Always show MANUAL institutionals
-// - Show AUTO institutionals only if they are "canonical":
-//    A) they own an auto negotiated zone (AUTO|...|PARENT=<id>)
-//    B) OR they are among top N strongest autos (small N)
-// - Never draw negotiated zones here
-// - Labels only for shown zones (prevents blob)
+// src/pages/rows/RowChart/overlays/SMZShelvesOverlay.jsx
 
-const SMZ_URL =
-  "https://frye-market-backend-1.onrender.com/api/v1/smz-levels?symbol=SPY";
+const API_BASE =
+  (typeof window !== "undefined" && (window.__API_BASE__ || "")) ||
+  process.env.REACT_APP_API_BASE ||
+  process.env.REACT_APP_API_URL ||
+  "https://frye-market-backend-1.onrender.com";
 
-export default function SMZLevelsOverlay({ chart, priceSeries, chartContainer }) {
+function getShelvesUrl(symbol) {
+  const clean = String(symbol || "SPY").toUpperCase();
+
+  if (clean === "ES") {
+    return `${API_BASE.replace(/\/+$/, "")}/api/v1/es-smz-shelves?symbol=ES`;
+  }
+
+  return `${API_BASE.replace(/\/+$/, "")}/api/v1/smz-shelves?symbol=${encodeURIComponent(clean)}`;
+}
+
+export default function SMZShelvesOverlay({
+  chart,
+  priceSeries,
+  chartContainer,
+  symbol = "SPY",
+}) {
   if (!chart || !priceSeries || !chartContainer) {
     return { seed() {}, update() {}, destroy() {} };
   }
 
-  let sticky = [];
   let canvas = null;
+  let shelves = [];
+  let destroyed = false;
 
   const ts = chart.timeScale();
 
-  // --- tuning knobs ---
-  const PAD = 0.06;
-
-  // Fill limits (prevents blob)
-  const MAX_FILLED_MANUAL = 2;
-  const MAX_FILLED_AUTO = 1;
-
-  // Auto display limits (prevents clutter)
-  const MAX_AUTO_TOTAL = 2;     // only show up to 2 auto institutionals total
-  const MAX_AUTO_LABEL = 2;     // label up to 2 autos
-  const MIN_AUTO_STRENGTH = 85; // ignore weak autos unless they own a negotiated zone
-
-  // Styles
-  const FILL = "rgba(255,215,0,0.05)";
-  const STROKE = "rgba(255,215,0,0.80)";
-  const OUTLINE = "rgba(255,215,0,0.55)";
-  const STROKE_W = 1;
-
-  // Label style
-  const LABEL_FONT = "bold 18px system-ui, -apple-system, Segoe UI, Roboto, Arial";
-  const LABEL_BG = "rgba(0,0,0,0.55)";
-  const LABEL_PAD_X = 14;
-  const LABEL_PAD_Y = 10;
-
   function ensureCanvas() {
     if (canvas) return canvas;
+
     const cnv = document.createElement("canvas");
-    cnv.className = "overlay-canvas smz-institutional";
+    cnv.className = "overlay-canvas smz-shelves-overlay";
     Object.assign(cnv.style, {
       position: "absolute",
       inset: 0,
       pointerEvents: "none",
-      zIndex: 12,
+      zIndex: 14,
     });
+
     chartContainer.appendChild(cnv);
     canvas = cnv;
     return cnv;
   }
 
-  function safeNum(v) {
-    const n = Number(v);
-    return Number.isFinite(n) ? n : null;
+  function resizeCanvas() {
+    if (!canvas) return;
+
+    const rect = chartContainer.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+
+    canvas.width = Math.max(1, Math.floor(rect.width * dpr));
+    canvas.height = Math.max(1, Math.floor(rect.height * dpr));
   }
 
   function priceToY(price) {
@@ -70,270 +64,218 @@ export default function SMZLevelsOverlay({ chart, priceSeries, chartContainer })
     return Number.isFinite(y) ? y : null;
   }
 
-  function zoneId(z) {
-    return String(z?.details?.id ?? z?.structureKey ?? z?.id ?? "");
+  function safeNum(value) {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
   }
 
-  function getStrength(z) {
-    const raw = safeNum(z?.strength_raw);
-    if (raw != null) return raw;
-    const s = safeNum(z?.strength);
-    return s != null ? s : 0;
+  function roundRect(ctx, x, y, w, h, r) {
+    const rr = Math.min(r, w / 2, h / 2);
+    ctx.beginPath();
+    ctx.moveTo(x + rr, y);
+    ctx.arcTo(x + w, y, x + w, y + h, rr);
+    ctx.arcTo(x + w, y + h, x, y + h, rr);
+    ctx.arcTo(x, y + h, x, y, rr);
+    ctx.arcTo(x, y, x + w, y, rr);
+    ctx.closePath();
   }
 
-  function isNegotiated(z) {
-    if (z?.isNegotiated === true) return true;
-    const id = zoneId(z);
-    return id.includes("|NEG|");
-  }
+  function zoneStyle(type) {
+    const t = String(type || "").toLowerCase();
 
-  function isManualInstitutionalParent(z) {
-    const id = zoneId(z);
-    if (!id.startsWith("MANUAL|")) return false;
-    if (isNegotiated(z)) return false;
-    return true;
-  }
-
-  function getRange(z) {
-    const range = z?.displayPriceRange ?? z?.priceRange;
-    if (!Array.isArray(range) || range.length !== 2) return null;
-    const a = safeNum(range[0]);
-    const b = safeNum(range[1]);
-    if (a == null || b == null) return null;
-    const hi = Math.max(a, b);
-    const lo = Math.min(a, b);
-    if (!(hi > lo)) return null;
-    return { hi, lo, mid: (hi + lo) / 2, width: hi - lo };
-  }
-
-  function getCurrentPrice() {
-    try {
-      const vr = ts?.getVisibleLogicalRange?.();
-      const idx = vr?.to ?? null;
-      if (idx == null) return null;
-      const bar = priceSeries?.dataByIndex?.(idx, -1);
-      const c = bar?.value ?? bar?.close ?? null;
-      const n = Number(c);
-      return Number.isFinite(n) ? n : null;
-    } catch {
-      return null;
+    if (t.includes("distribution")) {
+      return {
+        fill: "rgba(239,68,68,0.13)",
+        stroke: "rgba(239,68,68,0.85)",
+        text: "#fecaca",
+        label: "DIST",
+      };
     }
-  }
 
-  function drawBand(ctx, w, hi, lo, filled) {
-    const yTop = priceToY(hi);
-    const yBot = priceToY(lo);
-    if (yTop == null || yBot == null) return;
-
-    const y = Math.min(yTop, yBot);
-    const hBand = Math.max(2, Math.abs(yBot - yTop));
-
-    if (filled) {
-      ctx.fillStyle = FILL;
-      ctx.fillRect(0, y, w, hBand);
-
-      ctx.strokeStyle = STROKE;
-      ctx.lineWidth = STROKE_W;
-      ctx.beginPath();
-      ctx.rect(0.5, y + 0.5, w - 1, Math.max(1, hBand - 1));
-      ctx.stroke();
-    } else {
-      ctx.strokeStyle = OUTLINE;
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.rect(0.5, y + 0.5, w - 1, Math.max(1, hBand - 1));
-      ctx.stroke();
+    if (t.includes("accumulation")) {
+      return {
+        fill: "rgba(34,197,94,0.12)",
+        stroke: "rgba(34,197,94,0.85)",
+        text: "#bbf7d0",
+        label: "ACC",
+      };
     }
+
+    return {
+      fill: "rgba(251,191,36,0.10)",
+      stroke: "rgba(251,191,36,0.85)",
+      text: "#fde68a",
+      label: "SHELF",
+    };
   }
 
-  function drawLabel(ctx, w, h, yCenter, text, color) {
+  function drawLabel(ctx, text, x, y, color) {
     ctx.save();
-    ctx.font = LABEL_FONT;
-    ctx.textBaseline = "middle";
-    ctx.textAlign = "center";
 
-    const metrics = ctx.measureText(text);
-    const tw = Math.ceil(metrics.width);
-    const th = 22;
+    ctx.font = "bold 16px system-ui, -apple-system, Segoe UI, Roboto, Arial";
+    const tw = ctx.measureText(text).width;
+    const bw = tw + 18;
+    const bh = 26;
 
-    const boxW = tw + LABEL_PAD_X * 2;
-    const boxH = th + LABEL_PAD_Y * 2;
+    ctx.fillStyle = "rgba(0,0,0,0.72)";
+    ctx.strokeStyle = "rgba(255,255,255,0.15)";
+    ctx.lineWidth = 1;
 
-    let x = Math.round(w / 2);
-    let y = Math.round(yCenter);
-
-    const minX = Math.ceil(boxW / 2) + 2;
-    const maxX = w - Math.ceil(boxW / 2) - 2;
-    const minY = Math.ceil(boxH / 2) + 2;
-    const maxY = h - Math.ceil(boxH / 2) - 2;
-
-    x = Math.max(minX, Math.min(maxX, x));
-    y = Math.max(minY, Math.min(maxY, y));
-
-    ctx.fillStyle = LABEL_BG;
-    ctx.fillRect(x - boxW / 2, y - boxH / 2, boxW, boxH);
+    roundRect(ctx, x, y, bw, bh, 8);
+    ctx.fill();
+    ctx.stroke();
 
     ctx.fillStyle = color;
-    ctx.fillText(text, x, y);
+    ctx.fillText(text, x + 9, y + 18);
+
     ctx.restore();
   }
 
-  function parseAutoNegParentId(id) {
-    // AUTO|SPY|NEG|690.00-691.00|PARENT=<parentId>
-    const s = String(id || "");
-    const m = s.match(/\|PARENT=(.+)$/);
-    return m ? m[1] : null;
+  function normalizeShelves(json) {
+    const raw = Array.isArray(json?.levels)
+      ? json.levels
+      : Array.isArray(json?.shelves)
+      ? json.shelves
+      : [];
+
+    return raw
+      .map((z) => {
+        const lo = safeNum(z?.lo ?? z?.low ?? z?.priceRange?.[1]);
+        const hi = safeNum(z?.hi ?? z?.high ?? z?.priceRange?.[0]);
+        if (lo == null || hi == null) return null;
+
+        const bottom = Math.min(lo, hi);
+        const top = Math.max(lo, hi);
+
+        return {
+          id: z?.id || `${z?.symbol || symbol}|${z?.type}|${bottom}|${top}`,
+          symbol: z?.symbol || symbol,
+          type: z?.type || "shelf",
+          lo: bottom,
+          hi: top,
+          mid: safeNum(z?.mid) ?? (bottom + top) / 2,
+          strength: safeNum(z?.strength),
+          confidence: safeNum(z?.confidence),
+          reason: z?.diagnostic?.reason || z?.reason || "",
+          active: z?.active !== false,
+        };
+      })
+      .filter(Boolean);
   }
 
   function draw() {
     const cnv = ensureCanvas();
-    const w = chartContainer.clientWidth || 1;
-    const h = chartContainer.clientHeight || 1;
-    cnv.width = w;
-    cnv.height = h;
+    resizeCanvas();
+
+    const rect = chartContainer.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
 
     const ctx = cnv.getContext("2d");
-    ctx.clearRect(0, 0, w, h);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, cnv.width, cnv.height);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-    const currentPrice = getCurrentPrice();
+    const w = rect.width;
 
-    const allSticky = Array.isArray(sticky) ? sticky : [];
+    shelves.forEach((z, idx) => {
+      if (!z?.active) return;
 
-    // 1) Find AUTO negotiated zones and extract parent ids
-    const autoNegParents = new Set(
-      allSticky
-        .filter((z) => z && z?.isNegotiated === true)
-        .map((z) => parseAutoNegParentId(zoneId(z)))
-        .filter(Boolean)
-    );
+      const yHi = priceToY(z.hi);
+      const yLo = priceToY(z.lo);
+      if (yHi == null || yLo == null) return;
 
-    // 2) Manual institutionals (always show)
-    const manualZones = allSticky
-      .filter((z) => z && String(z?.tier ?? "") === "structure_sticky")
-      .filter((z) => isManualInstitutionalParent(z))
-      .map((z) => {
-        const r = getRange(z);
-        if (!r) return null;
-        const strength = getStrength(z);
-        const dist = Number.isFinite(currentPrice) ? Math.abs(r.mid - currentPrice) : r.width;
-        return { z, r, strength, dist, filled: false, label: true, kind: "manual" };
-      })
-      .filter(Boolean)
-      .sort((a, b) => a.dist - b.dist);
+      const y = Math.min(yHi, yLo);
+      const h = Math.max(2, Math.abs(yLo - yHi));
+      const style = zoneStyle(z.type);
 
-    // 3) Auto institutionals that own negotiated zones (canonical)
-    const autoOwned = allSticky
-      .filter((z) => z && String(z?.tier ?? "") === "structure_sticky")
-      .filter((z) => !isManualInstitutionalParent(z))
-      .filter((z) => !isNegotiated(z))
-      .map((z) => {
-        const id = zoneId(z);
-        const r = getRange(z);
-        if (!r) return null;
-        const strength = getStrength(z);
-        const dist = Number.isFinite(currentPrice) ? Math.abs(r.mid - currentPrice) : r.width;
-        return { z, id, r, strength, dist };
-      })
-      .filter(Boolean)
-      .filter((x) => autoNegParents.has(x.id)) // only those owning a negotiated zone
-      .sort((a, b) => a.dist - b.dist);
+      ctx.save();
 
-    // 4) Additional top autos (only if strong) — limited to MAX_AUTO_TOTAL
-    const autoCandidates = allSticky
-      .filter((z) => z && String(z?.tier ?? "") === "structure_sticky")
-      .filter((z) => !isManualInstitutionalParent(z))
-      .filter((z) => !isNegotiated(z))
-      .map((z) => {
-        const id = zoneId(z);
-        const r = getRange(z);
-        if (!r) return null;
-        const strength = getStrength(z);
-        const dist = Number.isFinite(currentPrice) ? Math.abs(r.mid - currentPrice) : r.width;
-        return { z, id, r, strength, dist };
-      })
-      .filter(Boolean)
-      .filter((x) => x.strength >= MIN_AUTO_STRENGTH) // strong only
-      .sort((a, b) => {
-        // prefer closer, then stronger, then tighter
-        if (a.dist !== b.dist) return a.dist - b.dist;
-        if (b.strength !== a.strength) return b.strength - a.strength;
-        return a.r.width - b.r.width;
-      });
+      ctx.fillStyle = style.fill;
+      ctx.strokeStyle = style.stroke;
+      ctx.lineWidth = 1.5;
 
-    // Build final auto list: negotiated-owners first, then top candidates not already included
-    const chosenAuto = [];
-    const chosenIds = new Set();
+      ctx.fillRect(0, y, w, h);
+      ctx.beginPath();
+      ctx.rect(0.5, y + 0.5, w - 1, Math.max(1, h - 1));
+      ctx.stroke();
 
-    for (const a of autoOwned) {
-      if (chosenAuto.length >= MAX_AUTO_TOTAL) break;
-      chosenAuto.push(a);
-      chosenIds.add(a.id);
-    }
+      ctx.restore();
 
-    for (const a of autoCandidates) {
-      if (chosenAuto.length >= MAX_AUTO_TOTAL) break;
-      if (chosenIds.has(a.id)) continue;
-      chosenAuto.push(a);
-      chosenIds.add(a.id);
-    }
+      const labelPrice = z.mid ?? (z.hi + z.lo) / 2;
+      const yMid = priceToY(labelPrice);
+      if (yMid == null) return;
 
-    // Fill selections
-    const fillManual = manualZones.slice(0, MAX_FILLED_MANUAL);
-    const fillAuto = chosenAuto.slice(0, MAX_FILLED_AUTO);
+      const strengthText =
+        z.strength != null ? ` ${Math.round(z.strength)}` : "";
 
-    // Draw manual zones
-    for (const item of manualZones) {
-      const filled = fillManual.includes(item);
-      drawBand(ctx, w, item.r.hi + PAD, item.r.lo - PAD, filled);
+      const confidenceText =
+        z.confidence != null ? ` (${Number(z.confidence).toFixed(2)})` : "";
 
-      const yMid = priceToY(item.r.mid);
-      if (yMid != null) drawLabel(ctx, w, h, yMid, `Institutional ${Math.round(item.strength)}`, STROKE);
-    }
+      const rangeText = `${z.lo.toFixed(2)}–${z.hi.toFixed(2)}`;
 
-    // Draw chosen autos only (no clutter)
-    let autoLabelsLeft = MAX_AUTO_LABEL;
-    for (const item of chosenAuto) {
-      const filled = fillAuto.includes(item);
-      drawBand(ctx, w, item.r.hi + PAD, item.r.lo - PAD, filled);
+      const label = `${style.label}${strengthText}${confidenceText} ${rangeText}`;
 
-      if (autoLabelsLeft > 0) {
-        const yMid = priceToY(item.r.mid);
-        if (yMid != null) {
-          const tag = autoNegParents.has(item.id) ? "" : ""; // keep clean; you can add "(AUTO)" later if you want
-          drawLabel(ctx, w, h, yMid, `Institutional ${Math.round(item.strength)}${tag}`, STROKE);
-          autoLabelsLeft--;
-        }
+      const x = Math.max(12, Math.floor(w * 0.72));
+      const yLabel = Math.max(8, yMid - 13 + idx * 2);
+
+      drawLabel(ctx, label, x, yLabel, style.text);
+
+      if (String(symbol).toUpperCase() === "ES" && z.reason) {
+        drawLabel(
+          ctx,
+          z.reason,
+          x,
+          yLabel + 30,
+          "#cbd5e1"
+        );
       }
-    }
+    });
   }
 
-  async function loadLevels() {
+  async function loadShelves() {
     try {
-      const res = await fetch(`${SMZ_URL}&_=${Date.now()}`, { cache: "no-store" });
+      const url = `${getShelvesUrl(symbol)}&_=${Date.now()}`;
+      const res = await fetch(url, { cache: "no-store" });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
       const json = await res.json();
-      sticky = Array.isArray(json?.structures_sticky) ? json.structures_sticky : [];
+      shelves = normalizeShelves(json);
       draw();
-    } catch {
-      sticky = [];
+    } catch (err) {
+      console.error("[SMZShelvesOverlay] load failed:", err);
+      shelves = [];
       draw();
     }
   }
 
-  loadLevels();
+  loadShelves();
 
-  const unsubVisible = ts.subscribeVisibleLogicalRangeChange?.(() => draw()) || (() => {});
+  const visibleCb = () => draw();
+  ts.subscribeVisibleTimeRangeChange?.(visibleCb);
 
-  function seed() { draw(); }
-  function update() { draw(); }
+  function seed() {
+    draw();
+  }
+
+  function update() {
+    draw();
+  }
 
   function destroy() {
+    destroyed = true;
+
     try {
-      if (canvas && canvas.parentNode === chartContainer) chartContainer.removeChild(canvas);
+      ts.unsubscribeVisibleTimeRangeChange?.(visibleCb);
     } catch {}
+
+    try {
+      if (canvas && canvas.parentNode === chartContainer) {
+        chartContainer.removeChild(canvas);
+      }
+    } catch {}
+
     canvas = null;
-    sticky = [];
-    try { unsubVisible(); } catch {}
+    shelves = [];
   }
 
   return { seed, update, destroy };
