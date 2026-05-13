@@ -728,8 +728,17 @@ function getEngine22CurrentRead(engine22, wave3RetraceTimeline, fib = {}) {
   };
 }
 
+if (status === "NO_SHORT") {
+  return {
+    currentRead: "FINAL IMPULSE — SHORTS BLOCKED",
+    confirmation: "Higher wave context remains bullish. No countertrend short.",
+  };
+}
+
+return null;
+}
+
 function newsRiskDisplay(newsRisk) {
-  if (!newsRisk) return null;
 
   const ok = newsRisk?.ok === true;
   const active = newsRisk?.active === true;
