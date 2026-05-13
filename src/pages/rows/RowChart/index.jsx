@@ -1212,6 +1212,8 @@ export default function RowChart({
           timeframe: state.timeframe,
           symbol: state.symbol,
         })
+      );
+    }
 
     if (state.fibPrimary) {
       reg(
