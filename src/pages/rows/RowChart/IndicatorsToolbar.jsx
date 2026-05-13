@@ -281,11 +281,13 @@ export default function IndicatorsToolbar({
   fibIntermediate = false,
   fibMinor = false,
   fibMinute = false,
+  fibMicro = false,
 
   fibPrimaryStyle,
   fibIntermediateStyle,
   fibMinorStyle,
   fibMinuteStyle,
+  fibMicroStyle, 
 
   engine17Overlay = true,
   engine17Timeline = true,
@@ -573,6 +575,19 @@ export default function IndicatorsToolbar({
                     onChange?.({ fibMinuteStyle: { ...(fibMinuteStyle || {}), ...patch } })
                   }
                 />
+
+                <FibRow
+                  label="Fib (Micro)"
+                  enabled={fibMicro}
+                  styleObj={fibMicroStyle}
+                  onToggle={(v) => onChange?.({ fibMicro: v })}
+                  onStylePatch={(patch) =>
+                    onChange?.({
+                      fibMicroStyle: { ...(fibMicroStyle || {}), ...patch },
+                    })
+                  }
+                />
+                
               </div>
 
               {divider}
