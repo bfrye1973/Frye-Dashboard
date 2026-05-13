@@ -1277,6 +1277,20 @@ export default function RowChart({
       );
     }
 
+
+    if (state.fibMicro) {
+  reg(
+    attachOverlay(FibLevelsOverlay, {
+      chart: chartRef.current,
+      priceSeries: seriesRef.current,
+      chartContainer: containerRef.current,
+      enabled: true,
+      degree: "micro",
+      tf: "10m",
+      style: state.fibMicroStyle,
+    })
+  );
+}
     if (state.showPremarketFibs) {
       reg(
         attachOverlay(PremarketFibOverlay, {
@@ -1322,10 +1336,12 @@ export default function RowChart({
     state.fibIntermediate,
     state.fibMinor,
     state.fibMinute,
+    state.fibMicro,
     state.fibPrimaryStyle,
     state.fibIntermediateStyle,
     state.fibMinorStyle,
     state.fibMinuteStyle,
+    state.fibMicroStyle,
     state.showPremarketFibs,
     state.engine17Overlay,
     state.engine17Signals,
