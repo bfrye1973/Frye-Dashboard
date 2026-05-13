@@ -1210,9 +1210,8 @@ export default function RowChart({
           priceSeries: seriesRef.current,
           chartContainer: containerRef.current,
           timeframe: state.timeframe,
+          symbol: state.symbol,
         })
-      );
-    }
 
     if (state.fibPrimary) {
       reg(
