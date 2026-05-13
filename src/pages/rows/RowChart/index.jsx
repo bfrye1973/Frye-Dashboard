@@ -762,15 +762,18 @@ export default function RowChart({
   });
 
   const [engine17Data, setEngine17Data] = useState(null);
-  const [chartMode, setChartMode] = useState("SCALP");
+  const [chartMode, setChartMode] = useState("SPY_SCALP");
+
+  const selectedSymbol =
+    chartMode.includes("ES") ? "ES" : "SPY";
 
   const selectedTimeframe =
-    chartMode === "SCALP" ? "10m" : "1h";
+    chartMode.includes("SCALP") ? "10m" : "1h";
 
   const selectedStrategyId =
-    chartMode === "SCALP"
-      ? "intraday_scalp@10m"
-      : "minor_swing@1h";
+  chartMode.includes("SCALP")
+    ? "intraday_scalp@10m"
+    : "minor_swing@1h";
   const [engine17RawDebug, setEngine17RawDebug] = useState(null);
 
   const [state, setState] = useState({
@@ -816,9 +819,10 @@ export default function RowChart({
   useEffect(() => {
   setState((s) => ({
     ...s,
+    symbol: selectedSymbol,
     timeframe: selectedTimeframe,
   }));
-}, [selectedTimeframe]);
+}, [selectedSymbol, selectedTimeframe]);
   
   if (typeof window !== "undefined") {
     window.__indicators = {
@@ -1873,39 +1877,40 @@ return (
       onRange={applyRange}
     />
 
-    <div style={{ padding: "6px 10px", display: "flex", gap: 8 }}>
-      <div style={{ fontWeight: 900 }}>Chart Mode:</div>
+<div
+  style={{
+    padding: "6px 10px",
+    display: "flex",
+    gap: 8,
+    alignItems: "center",
+    flexWrap: "wrap",
+  }}
+>
+  <div style={{ fontWeight: 900 }}>Chart Mode:</div>
 
-      <button
-        onClick={() => setChartMode("SCALP")}
-        style={{
-          background: chartMode === "SCALP" ? "#1f2937" : "#0b0b0b",
-          color: "#fff",
-          border: "1px solid #3b82f6",
-          padding: "4px 10px",
-          borderRadius: 6,
-          cursor: "pointer",
-          fontWeight: 900,
-        }}
-      >
-        SCALP
-      </button>
-
-      <button
-        onClick={() => setChartMode("SWING")}
-        style={{
-          background: chartMode === "SWING" ? "#1f2937" : "#0b0b0b",
-          color: "#fff",
-          border: "1px solid #3b82f6",
-          padding: "4px 10px",
-          borderRadius: 6,
-          cursor: "pointer",
-          fontWeight: 900,
-        }}
-      >
-        SWING
-      </button>
-    </div>
+  {[
+    ["SPY_SCALP", "SPY SCALP"],
+    ["SPY_SWING", "SPY SWING"],
+    ["ES_SCALP", "ES SCALP"],
+    ["ES_SWING", "ES SWING"],
+  ].map(([value, label]) => (
+    <button
+      key={value}
+      onClick={() => setChartMode(value)}
+      style={{
+        background: chartMode === value ? "#1f2937" : "#0b0b0b",
+        color: "#fff",
+        border: "1px solid #3b82f6",
+        padding: "4px 10px",
+        borderRadius: 6,
+        cursor: "pointer",
+        fontWeight: 900,
+      }}
+    >
+      {label}
+    </button>
+  ))}
+</div>
 
     <IndicatorsToolbar {...toolbarProps} />
 
