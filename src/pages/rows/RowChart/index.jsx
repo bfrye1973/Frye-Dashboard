@@ -1362,7 +1362,7 @@ export default function RowChart({
     });
   }, [state.symbol, state.timeframe]);
 
-    /* =================== Effect D: LIVE STREAM =================== */
+     /* =================== Effect D: LIVE STREAM =================== */
 
   useEffect(() => {
     if (!chartReady || !seriesRef.current) return;
@@ -1379,17 +1379,154 @@ export default function RowChart({
     const floorToBucket = (tSec) => Math.floor(tSec / tfSec) * tfSec;
 
     let isCurrent = true;
+    let backfillRunning = false;
+    let lastBackfillAt = 0;
 
     // For higher timeframes, rebuild the active bucket from unique 1m bars.
-    // This prevents double-counting volume when the same 1m candle updates
-    // many times from the live futures stream.
+    // This prevents repeated live updates from double-counting volume.
     const liveOneMinByTime = new Map();
+
+    function isFuturesLikeSymbol(symbol) {
+      const s = String(symbol || "").toUpperCase().trim();
+      return ["ES", "NQ", "YM", "RTY"].includes(s);
+    }
+
+    function normalizeChartBars(input) {
+      return (Array.isArray(input) ? input : [])
+        .filter(Boolean)
+        .map((b) => ({
+          time: Number(b.time > 1e12 ? Math.floor(b.time / 1000) : b.time),
+          open: Number(b.open),
+          high: Number(b.high),
+          low: Number(b.low),
+          close: Number(b.close),
+          volume: Number(b.volume || 0),
+        }))
+        .filter(
+          (b) =>
+            Number.isFinite(b.time) &&
+            Number.isFinite(b.open) &&
+            Number.isFinite(b.high) &&
+            Number.isFinite(b.low) &&
+            Number.isFinite(b.close)
+        )
+        .sort((a, b) => a.time - b.time);
+    }
+
+    function mergeBars(existing, incoming) {
+      const map = new Map();
+
+      for (const b of normalizeChartBars(existing)) {
+        map.set(b.time, b);
+      }
+
+      for (const b of normalizeChartBars(incoming)) {
+        map.set(b.time, b);
+      }
+
+      return Array.from(map.values()).sort((a, b) => a.time - b.time);
+    }
+
+    function setFullSeries(nextBars) {
+      const clean = normalizeChartBars(nextBars).slice(-MAX_KEEP_BARS);
+
+      barsRef.current = clean;
+
+      seriesRef.current?.setData(
+        clean.map((b) => ({
+          time: b.time,
+          open: b.open,
+          high: b.high,
+          low: b.low,
+          close: b.close,
+        }))
+      );
+
+      if (volSeriesRef.current) {
+        if (state.volume) {
+          volSeriesRef.current.applyOptions({ visible: true });
+          volSeriesRef.current.setData(
+            clean.map((b) => ({
+              time: b.time,
+              value: Number(b.volume || 0),
+              color: b.close >= b.open ? DEFAULTS.volUp : DEFAULTS.volDown,
+            }))
+          );
+        } else {
+          volSeriesRef.current.applyOptions({ visible: false });
+          volSeriesRef.current.setData([]);
+        }
+      }
+
+      setBars(clean);
+      lastUiSyncRef.current = Date.now();
+      setSeedToken((x) => x + 1);
+    }
+
+    async function backfillMissingHistoryIfNeeded(liveTimeSec) {
+      if (!isCurrent) return;
+      if (!isFuturesLikeSymbol(state.symbol)) return;
+      if (backfillRunning) return;
+
+      const last = barsRef.current[barsRef.current.length - 1] || null;
+      if (!last?.time) return;
+
+      const liveBucket =
+        tfSec === TF_SEC["1m"] ? liveTimeSec : floorToBucket(liveTimeSec);
+
+      const gapSec = liveBucket - Number(last.time);
+
+      // Only backfill if the live candle jumps more than 2 chart candles
+      // beyond the last historical candle.
+      if (gapSec <= tfSec * 2) return;
+
+      // Avoid repeated backfill calls while the chart is catching up.
+      const now = Date.now();
+      if (now - lastBackfillAt < 15_000) return;
+
+      backfillRunning = true;
+      lastBackfillAt = now;
+
+      try {
+        const backfillLimit =
+          state.timeframe === "1m"
+            ? 500
+            : state.timeframe === "5m" || state.timeframe === "10m"
+              ? 300
+              : 200;
+
+        const latest = await getOHLC(
+          state.symbol,
+          state.timeframe,
+          backfillLimit
+        );
+
+        if (!isCurrent) return;
+
+        const merged = mergeBars(barsRef.current, latest);
+        setFullSeries(merged);
+
+        console.log("[RowChart] futures gap backfilled", {
+          symbol: state.symbol,
+          timeframe: state.timeframe,
+          lastHistoricalTime: last.time,
+          liveBucket,
+          gapSec,
+          fetched: Array.isArray(latest) ? latest.length : 0,
+          merged: merged.length,
+        });
+      } catch (err) {
+        console.error("[RowChart] futures gap backfill failed:", err);
+      } finally {
+        backfillRunning = false;
+      }
+    }
 
     function upsertChartBar(bar, forceSync = false) {
       const prev = barsRef.current[barsRef.current.length - 1];
 
       if (!prev || bar.time > prev.time) {
-        barsRef.current = [...barsRef.current, bar];
+        barsRef.current = [...barsRef.current, bar].slice(-MAX_KEEP_BARS);
         scheduleUiSync(true);
         return;
       }
@@ -1454,7 +1591,7 @@ export default function RowChart({
     const unsub = subscribeStream(
       state.symbol,
       LIVE_TF,
-      (oneMin) => {
+      async (oneMin) => {
         if (!isCurrent) return;
 
         const tSec = Number(
@@ -1480,6 +1617,8 @@ export default function RowChart({
           return;
         }
 
+        await backfillMissingHistoryIfNeeded(cleanOneMin.time);
+
         // 1m chart: update the current candle directly.
         if (tfSec === TF_SEC["1m"]) {
           updateVisibleBar(cleanOneMin);
@@ -1487,6 +1626,45 @@ export default function RowChart({
           return;
         }
 
+        // Higher timeframe chart:
+        // Store each 1m candle by its own timestamp, replacing updates
+        // instead of adding repeated cumulative volume.
+        liveOneMinByTime.set(cleanOneMin.time, cleanOneMin);
+
+        // Keep this map small.
+        const cutoff = cleanOneMin.time - tfSec * 3;
+        for (const key of liveOneMinByTime.keys()) {
+          if (key < cutoff) liveOneMinByTime.delete(key);
+        }
+
+        const bucketStart = floorToBucket(cleanOneMin.time);
+        const bucketBar = buildBucketBar(bucketStart);
+        if (!bucketBar) return;
+
+        updateVisibleBar(bucketBar);
+        upsertChartBar(bucketBar, false);
+      },
+      onAlive
+    );
+
+    streamUnsubRef.current = () => {
+      if (!isCurrent) return;
+      isCurrent = false;
+      try {
+        unsub?.();
+      } catch {}
+    };
+
+    return () => {
+      isCurrent = false;
+      try {
+        unsub?.();
+      } catch {}
+      if (streamUnsubRef.current) {
+        streamUnsubRef.current = null;
+      }
+    };
+  }, [chartReady, state.symbol, state.timeframe, state.volume]);
         // Higher timeframe chart:
         // Store each 1m candle by its own timestamp, replacing updates
         // instead of adding repeated cumulative volume.
