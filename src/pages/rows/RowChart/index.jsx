@@ -1703,9 +1703,8 @@ export default function RowChart({
         streamUnsubRef.current = null;
       }
     };
-  }, [chartReady, state.symbol, state.timeframe, state.volume]);
-  
-
+  }, [chartReady, state.symbol, state.timeframe, state.volume]);   
+ 
   /* ---------------------------- EMA lines ----------------------------- */
 
   useEffect(() => {
