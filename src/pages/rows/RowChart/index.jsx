@@ -767,13 +767,17 @@ export default function RowChart({
   const selectedSymbol =
     chartMode.includes("ES") ? "ES" : "SPY";
 
+  const selectedMode =
+    chartMode.includes("SCALP") ? "SCALP" : "SWING";
+
   const selectedTimeframe =
-    chartMode.includes("SCALP") ? "10m" : "1h";
+    selectedMode === "SCALP" ? "10m" : "1h";
 
   const selectedStrategyId =
-  chartMode.includes("SCALP")
-    ? "intraday_scalp@10m"
-    : "minor_swing@1h";
+    selectedMode === "SCALP"
+      ? "intraday_scalp@10m"
+      : "minor_swing@1h";
+  
   const [engine17RawDebug, setEngine17RawDebug] = useState(null);
 
   const [state, setState] = useState({
