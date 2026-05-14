@@ -110,6 +110,77 @@ function getRegimeStructureText(engine22) {
   );
 }
 
+function buildReactionVolumeContextText(engine22) {
+  const reaction = engine22?.reactionContext || null;
+  const volume = engine22?.volumeContext || null;
+  const breakout = engine22?.breakoutContext || null;
+
+  if (!reaction && !volume && !breakout) return null;
+
+  const reactionScore =
+    reaction?.score != null
+      ? `${reaction.score}/100`
+      : "—/100";
+
+  const volumeMax =
+    volume?.maxScore != null
+      ? volume.maxScore
+      : 15;
+
+  const volumeScore =
+    volume?.score != null
+      ? `${volume.score}/${volumeMax}`
+      : `—/${volumeMax}`;
+
+  const relVol =
+    volume?.relativeVolume != null
+      ? `${Number(volume.relativeVolume).toFixed(2)}x`
+      : "—";
+
+  const volumeConfirmed =
+    volume?.confirmed === true
+      ? "Confirmed"
+      : "Not confirmed";
+
+  const chaseText =
+    breakout?.chaseAllowed === true
+      ? "Yes"
+      : "No";
+
+  const lines = [];
+
+  if (reaction) {
+    lines.push(
+      "Engine 3 Reaction:",
+      `${formatText(reaction.state, "UNKNOWN")} — ${formatText(reaction.quality, "UNKNOWN")}`,
+      `Score ${reactionScore} | Direction ${formatText(reaction.direction, "NEUTRAL")}`,
+      reaction.message ? reaction.message : null
+    );
+  }
+
+  if (volume) {
+    lines.push(
+      "",
+      "Engine 4 Volume:",
+      `${formatText(volume.participationState || volume.state, "UNKNOWN")} — ${formatText(volume.quality || volume.participationQuality, "UNKNOWN")}`,
+      `Score ${volumeScore} | RelVol ${relVol} | ${volumeConfirmed}`,
+      volume.message ? volume.message : null
+    );
+  }
+
+  if (breakout) {
+    lines.push(
+      "",
+      "Breakout Context:",
+      `${breakout.label || formatText(breakout.state, "UNKNOWN")}`,
+      `Action: ${formatText(breakout.action, "WAIT")} | Chase: ${chaseText}`,
+      breakout.summary ? breakout.summary : null
+    );
+  }
+
+  return lines.filter(Boolean).join("\n");
+}
+
 function conditionText(code) {
   const c = String(code || "").toUpperCase();
 
@@ -1265,6 +1336,9 @@ export default function Engine17DecisionTimeline({
   const trendVsWaveRead =
     isScalpMode && engine22 ? getTrendVsWaveRead(engine22) : null;
 
+  const reactionVolumeContextText =
+    isScalpMode && engine22 ? buildReactionVolumeContextText(engine22) : null;
+
   if (isScalpMode && engine22) {
   const e22Override = getEngine22CurrentRead(engine22, wave3RetraceTimeline, fib);
     
@@ -1484,6 +1558,26 @@ export default function Engine17DecisionTimeline({
         {confirmation}
       </div>
 
+  {reactionVolumeContextText && (
+    <div
+     style={{
+       marginTop: 8,
+       marginBottom: 8,
+       padding: "8px 10px",
+       borderRadius: 10,
+       border: "1px solid rgba(148,163,184,0.35)",
+       background: "rgba(15,23,42,0.58)",
+       color: "#cbd5e1",
+       fontSize: 15,
+       lineHeight: 1.35,
+       fontWeight: 700,
+       textAlign: "left",
+       whiteSpace: "pre-line",
+     }}
+   >
+     {reactionVolumeContextText}
+   </div>
+ )}
       {newsRiskCard && (
         <div
           style={{
