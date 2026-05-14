@@ -1558,24 +1558,28 @@ export default function Engine17DecisionTimeline({
         {confirmation}
       </div>
 
-  {reactionVolumeContextText && (
-    <div
-     style={{
-       marginTop: 8,
-       marginBottom: 8,
-       padding: "8px 10px",
-       borderRadius: 10,
-       border: "1px solid rgba(148,163,184,0.35)",
-       background: "rgba(15,23,42,0.58)",
-       color: "#cbd5e1",
-       fontSize: 15,
-       lineHeight: 1.35,
-       fontWeight: 700,
-       textAlign: "left",
-       whiteSpace: "pre-line",
-     }}
-   >
-   {reactionVolumeContextText && (
+      {reactionVolumeContextText && (
+        <div
+          style={{
+            marginTop: 10,
+            marginBottom: 10,
+            padding: "12px 14px",
+            borderRadius: 12,
+            border: "1px solid rgba(148,163,184,0.45)",
+            background: "rgba(15,23,42,0.78)",
+            color: "#e5e7eb",
+            fontSize: 18,
+            lineHeight: 1.45,
+            fontWeight: 800,
+            textAlign: "left",
+            whiteSpace: "pre-line",
+            textShadow: "none",
+            letterSpacing: "0.01em",
+          }}
+        >
+          {reactionVolumeContextText}
+        </div>
+      )}
      <div
        style={{
          marginTop: 10,
