@@ -17,6 +17,99 @@ function formatLevel(value) {
   return Number.isFinite(n) ? n.toFixed(2) : "—";
 }
 
+function formatSignedLevel(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return "—";
+  const sign = n > 0 ? "+" : "";
+  return `${sign}${n.toFixed(2)}`;
+}
+
+function formatSignedPct(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return "—";
+  const sign = n > 0 ? "+" : "";
+  return `${sign}${n.toFixed(2)}%`;
+}
+
+function formatScore(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n.toFixed(1) : "—";
+}
+
+function formatLayerState(value) {
+  const v = String(value || "").toUpperCase();
+
+  if (v === "ABOVE_EMA10") return "above EMA10";
+  if (v === "AT_OR_BELOW_EMA10") return "testing / below EMA10";
+  if (v === "BELOW_EMA20") return "below EMA20";
+  if (v === "ABOVE_DAILY_EMA10") return "above Daily EMA10";
+  if (v === "BELOW_DAILY_EMA10") return "below Daily EMA10";
+
+  return formatText(v, "—").toLowerCase();
+}
+
+function buildRegimeLayerLine(layer, options = {}) {
+  const label = options.label || layer?.label || "Layer";
+  const emaLabel = options.emaLabel || "EMA10";
+
+  if (!layer) {
+    return `${label}: unavailable`;
+  }
+
+  const score =
+    layer?.score != null
+      ? ` | Score ${formatScore(layer.score)}`
+      : "";
+
+  const trend =
+    layer?.trendState
+      ? ` | ${formatText(layer.trendState).toLowerCase()}`
+      : "";
+
+  return (
+    `${label}: ` +
+    `Price ${formatLevel(layer.close)} | ${emaLabel} ${formatLevel(layer.ema10)} | ` +
+    `Dist ${formatSignedLevel(layer.distanceToEma10)} / ${formatSignedPct(layer.distanceToEma10Pct)}` +
+    `${score}${trend} → ${formatLayerState(layer.state)}`
+  );
+}
+
+function getRegimeStructureText(engine22) {
+  const layers = engine22?.regimeLayers || null;
+
+  if (!layers) {
+    return "Current price structure:\nRegime layers unavailable.";
+  }
+
+  const ten = layers.tenMinute || null;
+  const hour = layers.oneHour || null;
+  const eod = layers.eod || null;
+
+  const permission =
+    eod?.dipBuyPermission === true
+      ? "ON — EOD price is above Daily EMA10"
+      : eod?.dipBuyPermission === false
+      ? "OFF — EOD price is below Daily EMA10"
+      : "UNKNOWN — EOD permission unavailable";
+
+  return (
+    `Current price structure:\n` +
+    `${buildRegimeLayerLine(ten, {
+      label: "10m Trigger Layer",
+      emaLabel: "EMA10",
+    })}\n` +
+    `${buildRegimeLayerLine(hour, {
+      label: "1H Pullback Layer",
+      emaLabel: "EMA10",
+    })}\n` +
+    `${buildRegimeLayerLine(eod, {
+      label: "EOD Regime Layer",
+      emaLabel: "Daily EMA10",
+    })}\n` +
+    `EOD Permission: ${permission}`
+  );
+}
+
 function conditionText(code) {
   const c = String(code || "").toUpperCase();
 
@@ -237,8 +330,15 @@ if (state === "A_TO_B_TRIGGER_LONG" || abcState === "A_TO_B_TRIGGER_LONG") {
 
   if (status === "ENTRY_LONG") {
     if (state === "DIP_BUY_CONTINUATION") {
-      return "🟢 MINUTE W5 CONTINUATION — BUY CONTROLLED DIPS";
+      const microState = String(engine22?.microContinuation?.state || "").toUpperCase();
+
+      if (microState === "MICRO_W3_ACTIVE") {
+        return "🟢 MICRO W3 ACTIVE — DIP-BUY CONTINUATION";
+      }
+
+      return "🟢 DIP-BUY CONTINUATION — ENTRY LONG";
     }
+
     return "🟢 SCALP ENTRY LONG";
   }
 
@@ -563,14 +663,7 @@ function getEngine22CurrentRead(engine22, wave3RetraceTimeline, fib = {}) {
         : "1H below EMA10 — C-wave risk still active"
       : "1H EMA10 unavailable";
 
-  const currentStructureText =
-    `Current price structure:\n` +
-    `10m trigger layer: Price ${formatLevel(currentPrice)} | EMA10 ${formatLevel(ema10_10m)} | EMA20 ${formatLevel(ema20_10m)} → ${tenMinStatus}\n` +
-    `30m confirmation layer: Close ${formatLevel(close30m)} | EMA10 ${formatLevel(ema10_30m)} | EMA20 ${formatLevel(ema20_30m)} → ${thirtyMinStatus}\n` +
-    `1H C-wave decision layer: Close ${formatLevel(hourlyClose)} | EMA10 ${formatLevel(ema10_1h)} | EMA20 ${formatLevel(ema20_1h)} → ${oneHourStatus}\n` +
-    `Wave structure: A-low ${formatLevel(aLow)} | B-high ${formatLevel(bHigh)} | C-low ${formatLevel(cLow)}\n` +
-    `Leg: ${formatText(correctionLeg, "—")} | Next: ${formatText(nextFocus, "—")}`;
-
+  const currentStructureText = getRegimeStructureText(engine22);
     if (
       state === "W4_SHALLOW_CONTINUATION_WATCH" ||
       abcState === "W4_SHALLOW_CONTINUATION_WATCH"
@@ -645,15 +738,81 @@ function getEngine22CurrentRead(engine22, wave3RetraceTimeline, fib = {}) {
   } 
 
   if (state === "DIP_BUY_CONTINUATION" && status === "ENTRY_LONG") {
-  return {
-    currentRead: "🟢 MINUTE W5 CONTINUATION — BUY CONTROLLED DIPS",
-    confirmation:
-      "Minute W5 continuation is active.\nThe preferred trade is controlled dip-buy only — do not chase vertical extension candles.\n\n" +
-      currentStructureText +
-      "\n\nMeaning:\n10m EMA10/20 = short-term dip-buy trigger layer.\n1H EMA10 = bigger continuation support / failure filter.\n\nAction:\nBuy controlled pullbacks that hold 10m EMA10/20 or reclaim them cleanly.\nAvoid chasing if price is extended away from the EMAs.\n\nFailure:\nIf 10m loses EMA10/20 and 1H rejects below EMA10, stand down and reassess.",
-  };
-}
+    const microState = String(engine22?.microContinuation?.state || "").toUpperCase();
+    const microTarget =
+      engine22?.microContinuation?.debug?.scalpExtension?.targetZone ||
+      engine22?.microContinuation?.debug?.micro?.waveExtension?.targetZone ||
+      null;
 
+    const targetText =
+      microTarget?.lo != null && microTarget?.hi != null
+        ? `\nMicro target zone: ${formatLevel(microTarget.lo)} – ${formatLevel(microTarget.hi)}.`
+        : "";
+
+    return {
+      currentRead:
+        microState === "MICRO_W3_ACTIVE"
+          ? "🟢 MICRO W3 ACTIVE — DIP-BUY CONTINUATION"
+          : "🟢 DIP-BUY CONTINUATION — ENTRY LONG",
+      confirmation:
+        "Continuation mode is active.\n" +
+        "The preferred trade is controlled dip-buy only — do not chase vertical extension candles." +
+        targetText +
+        "\n\n" +
+        currentStructureText +
+        "\n\nMeaning:\n" +
+        "EOD = permission.\n" +
+        "1H = pullback health.\n" +
+        "10m = trigger timing.\n\n" +
+        "Action:\n" +
+        "Buy controlled pullbacks that hold 10m EMA10/20 or reclaim them cleanly.\n" +
+        "Avoid chasing if price is extended away from the EMAs.\n\n" +
+        "Failure:\n" +
+        "If 1H loses EMA10, stand down.\n" +
+        "If EOD loses Daily EMA10, continuation dip-buy permission turns off.",
+    };
+  }
+
+  if (
+    state === "MICRO_W3_ACTIVE" ||
+    state === "MICRO_W3_PULLBACK_TEST" ||
+    state === "MICRO_W3_WEAKENING" ||
+    state === "MICRO_W3_FAILED"
+  ) {
+    const stateTitle =
+      state === "MICRO_W3_ACTIVE"
+        ? "🟢 MICRO W3 ACTIVE — BUY CONTROLLED DIPS"
+        : state === "MICRO_W3_PULLBACK_TEST"
+        ? "🟡 MICRO W3 PULLBACK TEST — HOLD 10m EMA20"
+        : state === "MICRO_W3_WEAKENING"
+        ? "🟠 MICRO W3 WEAKENING — WAIT FOR RECLAIM"
+        : "🔴 MICRO W3 FAILED — STAND DOWN";
+
+    const actionText =
+      state === "MICRO_W3_ACTIVE"
+        ? "Action: Buy controlled dips only. Do not chase vertical candles."
+        : state === "MICRO_W3_PULLBACK_TEST"
+        ? "Action: Normal dip test. Hold 10m EMA20 or reclaim 10m EMA10."
+        : state === "MICRO_W3_WEAKENING"
+        ? "Action: Do not chase. Wait for 10m EMA10/20 reclaim."
+        : "Action: Stand down until structure resets.";
+
+    return {
+      currentRead: stateTitle,
+      confirmation:
+        "Minute W5 is active and Micro W3 is the execution leg.\n\n" +
+        currentStructureText +
+        "\n\nMeaning:\n" +
+        "EOD = permission.\n" +
+        "1H = pullback health.\n" +
+        "10m = trigger timing.\n\n" +
+        actionText +
+        "\n\nFailure:\n" +
+        "If 1H loses EMA10, Micro W3 continuation has failed.\n" +
+        "If EOD loses Daily EMA10, continuation dip-buy permission turns off.",
+    };
+  }
+  
   if (state === "W4_ACTIVE_WAIT") {
     if (abcState === "W4_A_FORMING") {
       return {
