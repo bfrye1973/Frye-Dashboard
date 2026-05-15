@@ -6,6 +6,14 @@
 // - raw /api/v1/morning-fib is diagnostics only
 // - chart/cards/strategies page now share the same language
 // - Premarket Fibs are separate optional indicator
+//
+// ES FUTURES UPDATE:
+// - ES candles come from /api/v1/futures/ohlc through ohlcClient.js
+// - ES live comes from /stream/futures/agg through ohlcClient.js
+// - ES shelves use SMZShelvesOverlay with symbol: state.symbol
+// - ES/SPY chart mode buttons update symbol + timeframe + URL
+// - Fib overlays receive symbol: state.symbol
+// - Fib Micro is wired
 // ============================================================
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
@@ -122,6 +130,7 @@ function seedLimitFor(tf, months = HISTORY_MONTHS) {
 function phoenixTime(ts, isDaily = false) {
   const seconds =
     typeof ts === "number" ? ts : (ts && (ts.timestamp ?? ts.time)) || 0;
+
   return new Intl.DateTimeFormat("en-US", {
     timeZone: "America/Phoenix",
     hour12: true,
@@ -141,6 +150,7 @@ function makeTickFormatter(tf) {
     minute: "2-digit",
     ...(showSeconds ? { second: "2-digit" } : {}),
   });
+
   const fmtBoundary = new Intl.DateTimeFormat("en-US", {
     timeZone: "America/Phoenix",
     month: "short",
@@ -148,6 +158,7 @@ function makeTickFormatter(tf) {
     hour: "numeric",
     ...(showSeconds ? { minute: "2-digit" } : {}),
   });
+
   const fmtDaily = new Intl.DateTimeFormat("en-US", {
     timeZone: "America/Phoenix",
     month: "short",
@@ -157,10 +168,14 @@ function makeTickFormatter(tf) {
   return (t) => {
     const seconds =
       typeof t === "number" ? t : (t?.timestamp ?? t?.time ?? 0);
+
     const d = new Date(seconds * 1000);
+
     if (isDailyTF) return fmtDaily.format(d);
+
     const isMidnight = d.getHours() === 0 && d.getMinutes() === 0;
     const onHour = d.getMinutes() === 0;
+
     return isMidnight || onHour ? fmtBoundary.format(d) : fmtTime.format(d);
   };
 }
@@ -168,32 +183,42 @@ function makeTickFormatter(tf) {
 /* ------------------------------ Helpers ----------------------------- */
 
 function calcEMA(barsAsc, length) {
-  if (!Array.isArray(barsAsc) || barsAsc.length === 0 || length <= 1) return [];
+  if (!Array.isArray(barsAsc) || barsAsc.length === 0 || length <= 1) {
+    return [];
+  }
+
   const k = 2 / (length + 1);
   const out = [];
   let ema;
+
   for (let i = 0; i < barsAsc.length; i++) {
     const c = Number(barsAsc[i].close);
     if (!Number.isFinite(c)) continue;
+
     ema = ema === undefined ? c : c * k + ema * (1 - k);
     out.push({ time: barsAsc[i].time, value: ema });
   }
+
   return out;
 }
 
 function attachOverlay(Module, args) {
   try {
     if (!Module) return null;
+
     try {
       const inst = new Module(args);
       if (inst && (inst.update || inst.destroy || inst.seed)) return inst;
     } catch {}
+
     try {
       const inst = Module(args);
       if (inst && (inst.update || inst.destroy || inst.seed)) return inst;
     } catch {}
+
     if (typeof Module.attach === "function") return Module.attach(args);
   } catch {}
+
   return { attach() {}, seed() {}, update() {}, destroy() {} };
 }
 
@@ -213,6 +238,62 @@ function makeFibStyle(color, fontPx, lineWidth, showExtensions = true) {
     waveLineColor: color,
     waveLineWidth: lineWidth,
   };
+}
+
+function normalizeSymbol(v) {
+  return String(v || "SPY").trim().toUpperCase() || "SPY";
+}
+
+function isFuturesLikeSymbol(symbol) {
+  const s = normalizeSymbol(symbol);
+  return ["ES", "NQ", "YM", "RTY"].includes(s);
+}
+
+function chartModeFromSymbolTimeframe(symbol, timeframe) {
+  const sym = normalizeSymbol(symbol);
+  const tf = String(timeframe || "10m").toLowerCase();
+
+  if (sym === "ES") {
+    return tf === "1h" ? "ES_SWING" : "ES_SCALP";
+  }
+
+  return tf === "1h" ? "SPY_SWING" : "SPY_SCALP";
+}
+
+function symbolFromChartMode(mode) {
+  return String(mode || "").includes("ES") ? "ES" : "SPY";
+}
+
+function timeframeFromChartMode(mode) {
+  return String(mode || "").includes("SWING") ? "1h" : "10m";
+}
+
+function modeNameFromChartMode(mode) {
+  return String(mode || "").includes("SWING") ? "SWING" : "SCALP";
+}
+
+function strategyIdFromChartMode(mode) {
+  return modeNameFromChartMode(mode) === "SCALP"
+    ? "intraday_scalp@10m"
+    : "minor_swing@1h";
+}
+
+function syncUrlParams({ symbol, timeframe }) {
+  try {
+    if (typeof window === "undefined") return;
+
+    const url = new URL(window.location.href);
+
+    if (symbol) {
+      url.searchParams.set("symbol", normalizeSymbol(symbol));
+    }
+
+    if (timeframe) {
+      url.searchParams.set("tf", String(timeframe || "10m"));
+    }
+
+    window.history.replaceState({}, "", url.toString());
+  } catch {}
 }
 
 async function getDashboardSnapshot(symbol = "SPY") {
@@ -280,7 +361,7 @@ function buildTriggerFromComposed(engine16) {
   return null;
 }
 
-function mapSnapshotToEngine17Overlay(snapshot, strategyId, chartMode = "SCALP") {
+function mapSnapshotToEngine17Overlay(snapshot, strategyId, chartMode = "SPY_SCALP") {
   const node = snapshot?.strategies?.[strategyId] || null;
   const scalp = node?.engine16 || null;
   const swing = snapshot?.strategies?.["minor_swing@1h"]?.engine16 || null;
@@ -288,21 +369,23 @@ function mapSnapshotToEngine17Overlay(snapshot, strategyId, chartMode = "SCALP")
   const engine22Scalp = node?.engine22Scalp || null;
 
   if (!scalp) {
-  return {
-    ok: false,
-    fib: {
-      context: "NO DATA",
-      state: "NO DATA",
-      waveContext: {},
-      waveState: "UNKNOWN",
-      macroBias: "NONE",
-      readinessLabel: "WAIT",
-    },
-    anchors: [],
-    signals: [],
-    badges: [],
-  };
-}
+    return {
+      ok: false,
+      fib: {
+        context: "NO DATA",
+        state: "NO DATA",
+        waveContext: {},
+        waveState: "UNKNOWN",
+        macroBias: "NONE",
+        readinessLabel: "WAIT",
+        engine2State: snapshot?.engine2State || null,
+        chartMode,
+      },
+      anchors: [],
+      signals: [],
+      badges: [],
+    };
+  }
 
   const trigger = buildTriggerFromComposed(scalp);
 
@@ -336,7 +419,7 @@ function mapSnapshotToEngine17Overlay(snapshot, strategyId, chartMode = "SCALP")
     snapshot?.metrics?.overall_30m_score ??
     snapshot?.marketMeter?.thirtyMin?.overall30m?.score ??
     snapshot?.marketMeter?.thirtyMin?.overallScore ??
-    null;  
+    null;
 
   const anchors = [
     {
@@ -500,14 +583,8 @@ function mapSnapshotToEngine17Overlay(snapshot, strategyId, chartMode = "SCALP")
   const badges = [
     { kind: "CONTEXT", value: scalp?.context || "NONE" },
     { kind: "STATE", value: scalp?.state || "UNKNOWN" },
-    {
-      kind: "PHASE",
-      value: waveState,
-    },
-    {
-      kind: "BIAS",
-      value: macroBias,
-    },
+    { kind: "PHASE", value: waveState },
+    { kind: "BIAS", value: macroBias },
   ];
 
   if (readiness && readiness !== "WAIT") {
@@ -547,12 +624,12 @@ function mapSnapshotToEngine17Overlay(snapshot, strategyId, chartMode = "SCALP")
 
       engine22Scalp,
       engine2State: snapshot?.engine2State || null,
+      activeExtensions: snapshot?.engine2State?.activeExtensions || null,
       wave3Retrace: snapshot?.engine2State?.minute?.wave3Retrace || null,
-      chartMode, 
+      chartMode,
 
       readinessLabel: readiness,
       strategyType,
-      
       nextFocus,
 
       prepBias: scalp?.prepBias || "NONE",
@@ -566,14 +643,14 @@ function mapSnapshotToEngine17Overlay(snapshot, strategyId, chartMode = "SCALP")
         engine15Decision?.debug?.momentum?.alignment || null,
 
       qualityScore: engine15Decision?.qualityScore ?? null,
-      qualityGrade: engine15Decision?.qualityBand || engine15Decision?.qualityGrade || null,
+      qualityGrade:
+        engine15Decision?.qualityBand || engine15Decision?.qualityGrade || null,
       trendState_1h: scalp?.trendState_1h || null,
       invalidated: !!scalp?.invalidated,
-      decisionAction: engine15Decision?.action || null,
       decisionBlockers: engine15Decision?.blockers || [],
 
       lockedSignal: node?.lockedSignal || null,
-      
+
       close4h: scalp?.close4h ?? null,
       ema10_4h: scalp?.ema10_4h ?? null,
       trendState_4h: scalp?.trendState_4h || null,
@@ -581,8 +658,8 @@ function mapSnapshotToEngine17Overlay(snapshot, strategyId, chartMode = "SCALP")
       nextExpectedStructure: scalp?.nextExpectedStructure || null,
       lastHigherLow: scalp?.lastHigherLow ?? null,
       lastLowerHigh: scalp?.lastLowerHigh ?? null,
-      breakdownRef: scalp?.breakdownRef ?? null,   
-      
+      breakdownRef: scalp?.breakdownRef ?? null,
+
       waveShortPrep: !!scalp?.waveShortPrep,
       waveLongPrep: !!scalp?.waveLongPrep,
 
@@ -634,11 +711,7 @@ function mapSnapshotToEngine17Overlay(snapshot, strategyId, chartMode = "SCALP")
   };
 }
 
-function Engine17DebugPanel({
-  visible = false,
-  composedData,
-  rawData,
-}) {
+function Engine17DebugPanel({ visible = false, composedData, rawData }) {
   if (!visible) return null;
 
   return (
@@ -722,6 +795,13 @@ export default function RowChart({
   showDebug = false,
   fullScreen = false,
 }) {
+  const normalizedDefaultSymbol = normalizeSymbol(defaultSymbol);
+  const normalizedDefaultTimeframe = String(defaultTimeframe || "10m").toLowerCase();
+  const initialChartMode = chartModeFromSymbolTimeframe(
+    normalizedDefaultSymbol,
+    normalizedDefaultTimeframe
+  );
+
   const containerRef = useRef(null);
   const chartWrapRef = useRef(null);
 
@@ -762,27 +842,15 @@ export default function RowChart({
   });
 
   const [engine17Data, setEngine17Data] = useState(null);
-  const [chartMode, setChartMode] = useState("SPY_SCALP");
-
-  const selectedSymbol =
-    chartMode.includes("ES") ? "ES" : "SPY";
-
-  const selectedMode =
-    chartMode.includes("SCALP") ? "SCALP" : "SWING";
-
-  const selectedTimeframe =
-    selectedMode === "SCALP" ? "10m" : "1h";
-
-  const selectedStrategyId =
-    selectedMode === "SCALP"
-      ? "intraday_scalp@10m"
-      : "minor_swing@1h";
-  
   const [engine17RawDebug, setEngine17RawDebug] = useState(null);
+  const [chartMode, setChartMode] = useState(initialChartMode);
+
+  const selectedMode = modeNameFromChartMode(chartMode);
+  const selectedStrategyId = strategyIdFromChartMode(chartMode);
 
   const [state, setState] = useState({
-    symbol: defaultSymbol,
-    timeframe: selectedTimeframe,
+    symbol: normalizedDefaultSymbol,
+    timeframe: normalizedDefaultTimeframe,
     range: "ALL",
     disabled: false,
 
@@ -821,16 +889,8 @@ export default function RowChart({
     engine17DebugPanel: false,
 
     showPremarketFibs: false,
-    esAutoShelves: true, 
   });
-  useEffect(() => {
-  setState((s) => ({
-    ...s,
-    symbol: selectedSymbol,
-    timeframe: selectedTimeframe,
-  }));
-}, [selectedSymbol, selectedTimeframe]);
-  
+
   if (typeof window !== "undefined") {
     window.__indicators = {
       get: () => state,
@@ -876,6 +936,7 @@ export default function RowChart({
       },
       crosshair: { mode: 0 },
     });
+
     chartRef.current = chart;
 
     const price = chart.addCandlestickSeries({
@@ -886,12 +947,14 @@ export default function RowChart({
       borderUpColor: DEFAULTS.upColor,
       borderDownColor: DEFAULTS.downColor,
     });
+
     seriesRef.current = price;
 
     const vol = chart.addHistogramSeries({
       priceScaleId: "",
       priceFormat: { type: "volume" },
     });
+
     vol.priceScale().applyOptions({ scaleMargins: { top: 0.8, bottom: 0 } });
     volSeriesRef.current = vol;
 
@@ -900,6 +963,7 @@ export default function RowChart({
     const markInteract = () => {
       userInteractedRef.current = true;
     };
+
     el.addEventListener("wheel", markInteract, { passive: true });
     el.addEventListener("mousedown", markInteract);
 
@@ -908,6 +972,7 @@ export default function RowChart({
         chart.resize(el.clientWidth, el.clientHeight);
       } catch {}
     });
+
     ro.observe(el);
     roRef.current = ro;
 
@@ -932,6 +997,7 @@ export default function RowChart({
       try {
         ro.disconnect();
       } catch {}
+
       try {
         el.removeEventListener("wheel", markInteract);
         el.removeEventListener("mousedown", markInteract);
@@ -950,10 +1016,14 @@ export default function RowChart({
       try {
         chart.remove();
       } catch {}
+
       chartRef.current = null;
       seriesRef.current = null;
       volSeriesRef.current = null;
-      ema10Ref.current = ema20Ref.current = ema50Ref.current = ema200Ref.current = null;
+      ema10Ref.current = null;
+      ema20Ref.current = null;
+      ema50Ref.current = null;
+      ema200Ref.current = null;
     };
   }, [fullScreen, state.timeframe]);
 
@@ -962,7 +1032,9 @@ export default function RowChart({
   useEffect(() => {
     const chart = chartRef.current;
     if (!chart) return;
+
     const tf = state.timeframe;
+
     chart.applyOptions({
       timeScale: {
         tickMarkFormatter: makeTickFormatter(tf),
@@ -973,6 +1045,7 @@ export default function RowChart({
       },
       layout: { fontSize: AXIS_FONT_SIZE },
     });
+
     didFitOnceRef.current = false;
   }, [state.timeframe]);
 
@@ -982,6 +1055,7 @@ export default function RowChart({
     try {
       if (liveTimerRef.current) clearInterval(liveTimerRef.current);
     } catch {}
+
     liveTimerRef.current = setInterval(() => {
       const now = Date.now();
       const last = lastAliveRef.current || 0;
@@ -1010,6 +1084,7 @@ export default function RowChart({
     if (barsRef.current.length > MAX_KEEP_BARS) {
       barsRef.current = barsRef.current.slice(-MAX_KEEP_BARS);
     }
+
     setBars([...barsRef.current]);
     lastUiSyncRef.current = Date.now();
   };
@@ -1019,6 +1094,7 @@ export default function RowChart({
       try {
         if (uiTimerRef.current) clearTimeout(uiTimerRef.current);
       } catch {}
+
       uiTimerRef.current = null;
       forceUiSync();
       return;
@@ -1034,6 +1110,7 @@ export default function RowChart({
 
     if (!uiTimerRef.current) {
       const due = Math.max(50, UI_SYNC_MS - elapsed);
+
       uiTimerRef.current = setTimeout(() => {
         uiTimerRef.current = null;
         forceUiSync();
@@ -1048,9 +1125,11 @@ export default function RowChart({
 
     async function seedSeries() {
       setState((s) => ({ ...s, disabled: true }));
+
       try {
         const limit = seedLimitFor(state.timeframe);
         const seed = await getOHLC(state.symbol, state.timeframe, limit);
+
         if (cancelled) return;
 
         const asc = (Array.isArray(seed) ? seed : [])
@@ -1090,10 +1169,10 @@ export default function RowChart({
 
         setBars(asc);
         lastUiSyncRef.current = Date.now();
-
         setSeedToken((x) => x + 1);
 
         const chart = chartRef.current;
+
         if (
           chart &&
           state.range === "ALL" &&
@@ -1108,11 +1187,14 @@ export default function RowChart({
         barsRef.current = [];
         setBars([]);
       } finally {
-        if (!cancelled) setState((s) => ({ ...s, disabled: false }));
+        if (!cancelled) {
+          setState((s) => ({ ...s, disabled: false }));
+        }
       }
     }
 
     seedSeries();
+
     return () => {
       cancelled = true;
     };
@@ -1128,11 +1210,13 @@ export default function RowChart({
       try {
         const snap = await getDashboardSnapshot(state.symbol);
         if (cancelled) return;
+
         setEngine17Data(
-         mapSnapshotToEngine17Overlay(snap, selectedStrategyId, chartMode) 
+          mapSnapshotToEngine17Overlay(snap, selectedStrategyId, chartMode)
         );
       } catch (err) {
         if (cancelled) return;
+
         console.error("[RowChart] dashboard-snapshot error:", err);
         setEngine17Data({
           ok: false,
@@ -1171,35 +1255,42 @@ export default function RowChart({
     state.engine17DebugPanel,
     state.showPremarketFibs,
     showDebug,
-    selectedStrategyId, 
+    selectedStrategyId,
+    chartMode,
   ]);
 
   /* =================== Effect C: Attach/Seed Overlays =================== */
 
   useEffect(() => {
-    if (!chartRef.current || !seriesRef.current || barsRef.current.length === 0)
+    if (!chartRef.current || !seriesRef.current || barsRef.current.length === 0) {
       return;
+    }
 
     try {
       overlayInstancesRef.current.forEach((o) => o?.destroy?.());
     } catch {}
+
     overlayInstancesRef.current = [];
 
     const reg = (inst) => inst && overlayInstancesRef.current.push(inst);
 
-    const engine1On = !!state.institutionalZonesAuto;
-    const shelvesOn =
-      state.symbol === "ES"
-        ? !!state.esAutoShelves
-        : !!state.smzShelvesAuto || engine1On;
+    const isES = normalizeSymbol(state.symbol) === "ES";
 
-    if (engine1On) {
+    const engine1On = !!state.institutionalZonesAuto;
+    const shelvesOn = !!state.smzShelvesAuto;
+
+    // ES manual institutional/negotiated zones route is pending.
+    // Avoid drawing SPY manual zones on ES.
+    const canDrawManualSmz = !isES;
+
+    if (engine1On && canDrawManualSmz) {
       reg(
         attachOverlay(SMZLevelsOverlay, {
           chart: chartRef.current,
           priceSeries: seriesRef.current,
           chartContainer: containerRef.current,
           timeframe: state.timeframe,
+          symbol: state.symbol,
         })
       );
 
@@ -1209,6 +1300,7 @@ export default function RowChart({
           priceSeries: seriesRef.current,
           chartContainer: containerRef.current,
           timeframe: state.timeframe,
+          symbol: state.symbol,
         })
       );
     }
@@ -1232,6 +1324,7 @@ export default function RowChart({
           priceSeries: seriesRef.current,
           chartContainer: containerRef.current,
           enabled: true,
+          symbol: state.symbol,
           degree: "primary",
           tf: "1d",
           style: state.fibPrimaryStyle,
@@ -1246,6 +1339,7 @@ export default function RowChart({
           priceSeries: seriesRef.current,
           chartContainer: containerRef.current,
           enabled: true,
+          symbol: state.symbol,
           degree: "intermediate",
           tf: "1h",
           style: state.fibIntermediateStyle,
@@ -1260,6 +1354,7 @@ export default function RowChart({
           priceSeries: seriesRef.current,
           chartContainer: containerRef.current,
           enabled: true,
+          symbol: state.symbol,
           degree: "minor",
           tf: "1h",
           style: state.fibMinorStyle,
@@ -1274,6 +1369,7 @@ export default function RowChart({
           priceSeries: seriesRef.current,
           chartContainer: containerRef.current,
           enabled: true,
+          symbol: state.symbol,
           degree: "minute",
           tf: "10m",
           style: state.fibMinuteStyle,
@@ -1281,20 +1377,21 @@ export default function RowChart({
       );
     }
 
-
     if (state.fibMicro) {
-  reg(
-    attachOverlay(FibLevelsOverlay, {
-      chart: chartRef.current,
-      priceSeries: seriesRef.current,
-      chartContainer: containerRef.current,
-      enabled: true,
-      degree: "micro",
-      tf: "10m",
-      style: state.fibMicroStyle,
-    })
-  );
-}
+      reg(
+        attachOverlay(FibLevelsOverlay, {
+          chart: chartRef.current,
+          priceSeries: seriesRef.current,
+          chartContainer: containerRef.current,
+          enabled: true,
+          symbol: state.symbol,
+          degree: "micro",
+          tf: "10m",
+          style: state.fibMicroStyle,
+        })
+      );
+    }
+
     if (state.showPremarketFibs) {
       reg(
         attachOverlay(PremarketFibOverlay, {
@@ -1317,7 +1414,7 @@ export default function RowChart({
           overlayData: engine17Data,
           showLiquidityZones: false,
           showMarketStructure: false,
-          showBadges: false, 
+          showBadges: false,
           showSignals: !!state.engine17Signals,
           showSignalProvenance: false,
           showForwardRiskMap: false,
@@ -1335,7 +1432,6 @@ export default function RowChart({
     engine17Data,
     state.institutionalZonesAuto,
     state.smzShelvesAuto,
-    state.esAutoShelves,
     state.fibPrimary,
     state.fibIntermediate,
     state.fibMinor,
@@ -1363,11 +1459,13 @@ export default function RowChart({
     const chart = chartRef.current;
     const priceSeries = seriesRef.current;
     const hostEl = chartWrapRef.current;
+
     if (!chart || !priceSeries || !hostEl) return;
 
     try {
       drawingsEngineRef.current?.destroy?.();
     } catch {}
+
     drawingsEngineRef.current = null;
 
     drawingsEngineRef.current = createDrawingsEngine({
@@ -1394,7 +1492,7 @@ export default function RowChart({
     });
   }, [state.symbol, state.timeframe]);
 
-     /* =================== Effect D: LIVE STREAM =================== */
+  /* =================== Effect D: LIVE STREAM =================== */
 
   useEffect(() => {
     if (!chartReady || !seriesRef.current) return;
@@ -1405,6 +1503,7 @@ export default function RowChart({
     try {
       streamUnsubRef.current?.();
     } catch {}
+
     streamUnsubRef.current = null;
 
     const tfSec = TF_SEC[state.timeframe] ?? TF_SEC["10m"];
@@ -1417,11 +1516,6 @@ export default function RowChart({
     // For higher timeframes, rebuild the active bucket from unique 1m bars.
     // This prevents repeated live updates from double-counting volume.
     const liveOneMinByTime = new Map();
-
-    function isFuturesLikeSymbol(symbol) {
-      const s = String(symbol || "").toUpperCase().trim();
-      return ["ES", "NQ", "YM", "RTY"].includes(s);
-    }
 
     function normalizeChartBars(input) {
       return (Array.isArray(input) ? input : [])
@@ -1512,7 +1606,6 @@ export default function RowChart({
       // beyond the last historical candle.
       if (gapSec <= tfSec * 2) return;
 
-      // Avoid repeated backfill calls while the chart is catching up.
       const now = Date.now();
       if (now - lastBackfillAt < 15_000) return;
 
@@ -1600,18 +1693,37 @@ export default function RowChart({
         .filter((b) => b.time >= bucketStart && b.time < bucketEnd)
         .sort((a, b) => a.time - b.time);
 
-      if (!oneMins.length) return null;
+      const existing = barsRef.current.find((b) => Number(b.time) === bucketStart);
 
-      const first = oneMins[0];
-      const last = oneMins[oneMins.length - 1];
+      if (!oneMins.length && !existing) return null;
+
+      if (!oneMins.length && existing) return existing;
+
+      const first = existing || oneMins[0];
+      const last = oneMins[oneMins.length - 1] || existing;
+
+      const highs = oneMins.map((b) => Number(b.high));
+      const lows = oneMins.map((b) => Number(b.low));
+
+      if (existing) {
+        highs.push(Number(existing.high));
+        lows.push(Number(existing.low));
+      }
+
+      const liveVolume = oneMins.reduce(
+        (sum, b) => sum + Number(b.volume || 0),
+        0
+      );
 
       return {
         time: bucketStart,
-        open: first.open,
-        high: Math.max(...oneMins.map((b) => Number(b.high))),
-        low: Math.min(...oneMins.map((b) => Number(b.low))),
-        close: last.close,
-        volume: oneMins.reduce((sum, b) => sum + Number(b.volume || 0), 0),
+        open: Number(first.open),
+        high: Math.max(...highs),
+        low: Math.min(...lows),
+        close: Number(last.close),
+        volume: existing
+          ? Math.max(Number(existing.volume || 0), liveVolume)
+          : liveVolume,
       };
     }
 
@@ -1629,6 +1741,7 @@ export default function RowChart({
         const tSec = Number(
           oneMin.time > 1e12 ? Math.floor(oneMin.time / 1000) : oneMin.time
         );
+
         if (!Number.isFinite(tSec)) return;
 
         const cleanOneMin = {
@@ -1663,7 +1776,6 @@ export default function RowChart({
         // instead of adding repeated cumulative volume.
         liveOneMinByTime.set(cleanOneMin.time, cleanOneMin);
 
-        // Keep this map small.
         const cutoff = cleanOneMin.time - tfSec * 3;
         for (const key of liveOneMinByTime.keys()) {
           if (key < cutoff) liveOneMinByTime.delete(key);
@@ -1682,6 +1794,7 @@ export default function RowChart({
     streamUnsubRef.current = () => {
       if (!isCurrent) return;
       isCurrent = false;
+
       try {
         unsub?.();
       } catch {}
@@ -1689,20 +1802,23 @@ export default function RowChart({
 
     return () => {
       isCurrent = false;
+
       try {
         unsub?.();
       } catch {}
+
       if (streamUnsubRef.current) {
         streamUnsubRef.current = null;
       }
     };
-  }, [chartReady, state.symbol, state.timeframe, state.volume]);       
- 
+  }, [chartReady, state.symbol, state.timeframe, state.volume]);
+
   /* ---------------------------- EMA lines ----------------------------- */
 
   useEffect(() => {
     const chart = chartRef.current;
     const price = seriesRef.current;
+
     if (!chart || !price) return;
 
     const ensureLine = (ref, color) => {
@@ -1714,6 +1830,7 @@ export default function RowChart({
           lastValueVisible: false,
         });
       }
+
       return ref.current;
     };
 
@@ -1729,16 +1846,19 @@ export default function RowChart({
       l.setData(calcEMA(bars, 10));
       l.applyOptions({ visible: true });
     }
+
     if (state.ema20) {
       const l = ensureLine(ema20Ref, "#3b82f6");
       l.setData(calcEMA(bars, 20));
       l.applyOptions({ visible: true });
     }
+
     if (state.ema50) {
       const l = ensureLine(ema50Ref, "#10b981");
       l.setData(calcEMA(bars, 50));
       l.applyOptions({ visible: true });
     }
+
     if (state.ema200) {
       const l = ensureLine(ema200Ref, "#a855f7");
       l.setData(calcEMA(bars, 200));
@@ -1746,44 +1866,61 @@ export default function RowChart({
     }
   }, [bars, state.showEma, state.ema10, state.ema20, state.ema50, state.ema200]);
 
+  /* ---------------------------- Controls ----------------------------- */
+
   const handleControlsChange = (patch) => {
-  setState((s) => {
-    const next = { ...s, ...patch };
+    setState((s) => {
+      const next = { ...s, ...patch };
 
-    try {
-      if (typeof window !== "undefined") {
-        const url = new URL(window.location.href);
+      const nextSymbol = normalizeSymbol(next.symbol || "SPY");
+      const nextTimeframe = String(next.timeframe || "10m").toLowerCase();
 
-        if (Object.prototype.hasOwnProperty.call(patch, "symbol")) {
-          url.searchParams.set(
-            "symbol",
-            String(next.symbol || "SPY").toUpperCase()
-          );
-        }
-
-        if (Object.prototype.hasOwnProperty.call(patch, "timeframe")) {
-          url.searchParams.set(
-            "tf",
-            String(next.timeframe || "10m")
-          );
-        }
-
-        window.history.replaceState({}, "", url.toString());
+      if (
+        Object.prototype.hasOwnProperty.call(patch, "symbol") ||
+        Object.prototype.hasOwnProperty.call(patch, "timeframe")
+      ) {
+        const nextMode = chartModeFromSymbolTimeframe(nextSymbol, nextTimeframe);
+        setChartMode(nextMode);
+        syncUrlParams({ symbol: nextSymbol, timeframe: nextTimeframe });
       }
-    } catch {}
 
-    return next;
-  });
-};
+      return {
+        ...next,
+        symbol: nextSymbol,
+        timeframe: nextTimeframe,
+      };
+    });
+  };
+
+  const handleChartModeClick = (nextMode) => {
+    const nextSymbol = symbolFromChartMode(nextMode);
+    const nextTimeframe = timeframeFromChartMode(nextMode);
+
+    setChartMode(nextMode);
+
+    setState((s) => ({
+      ...s,
+      symbol: nextSymbol,
+      timeframe: nextTimeframe,
+      range: "ALL",
+    }));
+
+    syncUrlParams({
+      symbol: nextSymbol,
+      timeframe: nextTimeframe,
+    });
+  };
 
   const applyRange = (nextRange) => {
     const chart = chartRef.current;
     if (!chart) return;
+
     setState((s) => ({ ...s, range: nextRange }));
 
     const tsLocal = chart.timeScale();
     const list = barsRef.current;
     const len = list.length;
+
     if (!len) return;
 
     if (nextRange === "ALL") {
@@ -1792,19 +1929,53 @@ export default function RowChart({
       userInteractedRef.current = true;
       return;
     }
+
     const r = Number(nextRange);
+
     if (!Number.isFinite(r) || r <= 0) {
       tsLocal.fitContent();
       didFitOnceRef.current = true;
       userInteractedRef.current = true;
       return;
     }
+
     const to = len - 1;
     const from = Math.max(0, to - (r - 1));
+
     tsLocal.setVisibleLogicalRange({ from, to });
     didFitOnceRef.current = true;
     userInteractedRef.current = true;
   };
+
+  const resetIndicators = () =>
+    setState((s) => ({
+      ...s,
+      showEma: true,
+      ema10: true,
+      ema20: true,
+      ema50: true,
+      ema200: true,
+
+      volume: true,
+      institutionalZonesAuto: false,
+      smzShelvesAuto: false,
+
+      fibPrimary: false,
+      fibIntermediate: false,
+      fibMinor: false,
+      fibMinute: false,
+      fibMicro: false,
+
+      engine17Overlay: true,
+      engine17Timeline: true,
+      engine17Badges: true,
+      engine17StateOverlay: false,
+      engine17Signals: true,
+      engine17TriggerLine: true,
+      engine17DebugPanel: false,
+
+      showPremarketFibs: false,
+    }));
 
   const toolbarProps = {
     showEma: state.showEma,
@@ -1816,12 +1987,12 @@ export default function RowChart({
 
     institutionalZonesAuto: state.institutionalZonesAuto,
     smzShelvesAuto: state.smzShelvesAuto,
-    
+
     fibPrimary: state.fibPrimary,
     fibIntermediate: state.fibIntermediate,
-    fibMinor: state.fibMinor,    
-    fibMinute: state.fibMinute,    
-    fibMicro: state.fibMicro,    
+    fibMinor: state.fibMinor,
+    fibMinute: state.fibMinute,
+    fibMicro: state.fibMicro,
 
     fibPrimaryStyle: state.fibPrimaryStyle,
     fibIntermediateStyle: state.fibIntermediateStyle,
@@ -1840,31 +2011,7 @@ export default function RowChart({
     showPremarketFibs: state.showPremarketFibs,
 
     onChange: handleControlsChange,
-    onReset: () =>
-      setState((s) => ({
-        ...s,
-        showEma: true,
-        ema10: true,
-        ema20: true,
-        ema50: true,
-        ema200: true,
-
-        volume: true,
-        institutionalZonesAuto: false,
-        smzShelvesAuto: false,
-        fibPrimary: false,
-        fibIntermediate: false,
-        fibMinor: false,
-        fibMinute: false,
-        engine17Overlay: true,
-        engine17Timeline: true,
-        engine17Badges: true,
-        engine17StateOverlay: false,
-        engine17Signals: true,
-        engine17TriggerLine: true,
-        engine17DebugPanel: false,
-        showPremarketFibs: false,
-      })),
+    onReset: resetIndicators,
   };
 
   const wrapperStyle = useMemo(
@@ -1915,187 +2062,155 @@ export default function RowChart({
     [fullScreen]
   );
 
- const badge = (() => {
-  if (liveStatus === "LIVE") {
-    return { text: "LIVE", bg: "rgba(16,185,129,0.92)" };
-  }
-  if (liveStatus === "STALE") {
-    return { text: "STALE", bg: "rgba(239,68,68,0.92)" };
-  }
-  return { text: "CONNECTING", bg: "rgba(245,158,11,0.92)" };
-})();
+  const badge = (() => {
+    if (liveStatus === "LIVE") {
+      return { text: "LIVE", bg: "rgba(16,185,129,0.92)" };
+    }
 
-return (
-  <div style={wrapperStyle}>
-    <Controls
-      symbols={symbols}
-      timeframes={timeframes}
-      value={state}
-      onChange={handleControlsChange}
-      onRange={applyRange}
-    />
+    if (liveStatus === "STALE") {
+      return { text: "STALE", bg: "rgba(239,68,68,0.92)" };
+    }
 
-<div
-  style={{
-    padding: "6px 10px",
-    display: "flex",
-    gap: 8,
-    alignItems: "center",
-    flexWrap: "wrap",
-  }}
->
-  <div style={{ fontWeight: 900 }}>Chart Mode:</div>
+    return { text: "CONNECTING", bg: "rgba(245,158,11,0.92)" };
+  })();
 
-  {[
-    ["SPY_SCALP", "SPY SCALP"],
-    ["SPY_SWING", "SPY SWING"],
-    ["ES_SCALP", "ES SCALP"],
-    ["ES_SWING", "ES SWING"],
-  ].map(([value, label]) => (
-    <button
-      key={value}
-      onClick={() => setChartMode(value)}
-      style={{
-        background: chartMode === value ? "#1f2937" : "#0b0b0b",
-        color: "#fff",
-        border: "1px solid #3b82f6",
-        padding: "4px 10px",
-        borderRadius: 6,
-        cursor: "pointer",
-        fontWeight: 900,
-      }}
-    >
-      {label}
-    </button>
-  ))}
-</div>
-{state.symbol === "ES" && (
-  <div style={{ padding: "0 10px 6px 10px" }}>
-    <details
-      style={{
-        display: "inline-block",
-        border: "1px solid #334155",
-        borderRadius: 6,
-        padding: "4px 8px",
-        background: "#0b0b0b",
-        color: "#fff",
-        fontWeight: 800,
-      }}
-    >
-      <summary style={{ cursor: "pointer" }}>
-        ES Futures Indicators
-      </summary>
+  return (
+    <div style={wrapperStyle}>
+      <Controls
+        symbols={symbols}
+        timeframes={timeframes}
+        value={state}
+        onChange={handleControlsChange}
+        onRange={applyRange}
+      />
 
-      <div style={{ marginTop: 8, display: "grid", gap: 6 }}>
-        <label style={{ display: "flex", gap: 6, alignItems: "center" }}>
-          <input
-            type="checkbox"
-            checked={!!state.esAutoShelves}
-            onChange={(e) =>
-              setState((s) => ({
-                ...s,
-                esAutoShelves: e.target.checked,
-              }))
-            }
-          />
-          ES Auto Shelves
-        </label>
-      </div>
-    </details>
-  </div>
-)}
-    <IndicatorsToolbar {...toolbarProps} />
-
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "row",
-        width: "100%",
-        height: fullScreen ? "100%" : undefined,
-      }}
-    >
       <div
-        ref={chartWrapRef}
         style={{
-          ...containerStyle,
-          flex: 1,
-          minWidth: 0,
+          padding: "6px 10px",
+          display: "flex",
+          gap: 8,
+          alignItems: "center",
+          flexWrap: "wrap",
         }}
       >
-        <DrawingsToolbar
-          mode={drawingsUi.mode}
-          onMode={(m) => drawingsEngineRef.current?.setMode?.(m)}
-          onDelete={() => drawingsEngineRef.current?.deleteSelected?.()}
-        />
+        <div style={{ fontWeight: 900 }}>Chart Mode:</div>
 
-        <div
-          style={{
-            position: "absolute",
-            top: 10,
-            left: 60,
-            zIndex: 90,
-            padding: "6px 10px",
-            borderRadius: 8,
-            fontSize: 12,
-            fontWeight: 900,
-            letterSpacing: 0.7,
-            color: "#0b0b14",
-            background: badge.bg,
-            boxShadow: "0 2px 10px rgba(0,0,0,0.35)",
-            userSelect: "none",
-          }}
-          title={
-            liveStatus === "LIVE"
-              ? "Stream healthy (receiving messages)"
-              : liveStatus === "STALE"
-              ? "No stream messages received in 30s"
-              : "Connecting to live stream…"
-          }
-        >
-          {badge.text}
-        </div>
-
-        <Engine17DecisionTimeline
-          overlayData={engine17Data}
-          visible={state.engine17Timeline && state.engine17Overlay}
-          chartMode={selectedMode}
-          symbol={selectedSymbol}
-        />
-
-        <Engine17Badges
-          overlayData={engine17Data}
-          visible={state.engine17Badges && state.engine17Overlay}
-          showConfidenceStack={showDebug || state.engine17DebugPanel}
-          showReplaySyncedState={false}
-        />
-
-        <Engine17DebugPanel
-          visible={showDebug || state.engine17DebugPanel}
-          rawData={engine17RawDebug}
-          composedData={engine17Data}
-        />
-
-        <div
-          ref={containerRef}
-          style={{
-            position: "absolute",
-            inset: 0,
-          }}
-        />
+        {[
+          ["SPY_SCALP", "SPY SCALP"],
+          ["SPY_SWING", "SPY SWING"],
+          ["ES_SCALP", "ES SCALP"],
+          ["ES_SWING", "ES SWING"],
+        ].map(([value, label]) => (
+          <button
+            key={value}
+            onClick={() => handleChartModeClick(value)}
+            style={{
+              background: chartMode === value ? "#1f2937" : "#0b0b0b",
+              color: "#fff",
+              border: "1px solid #3b82f6",
+              padding: "4px 10px",
+              borderRadius: 6,
+              cursor: "pointer",
+              fontWeight: 900,
+            }}
+          >
+            {label}
+          </button>
+        ))}
       </div>
+
+      <IndicatorsToolbar {...toolbarProps} />
 
       <div
         style={{
           display: "flex",
-          flexDirection: "column",
-          minWidth: 230,
-          maxWidth: 260,
+          flexDirection: "row",
+          width: "100%",
+          height: fullScreen ? "100%" : undefined,
         }}
       >
-        <SmartMoneyZonesPanel />
-        <AccDistZonesPanel />
+        <div
+          ref={chartWrapRef}
+          style={{
+            ...containerStyle,
+            flex: 1,
+            minWidth: 0,
+          }}
+        >
+          <DrawingsToolbar
+            mode={drawingsUi.mode}
+            onMode={(m) => drawingsEngineRef.current?.setMode?.(m)}
+            onDelete={() => drawingsEngineRef.current?.deleteSelected?.()}
+          />
+
+          <div
+            style={{
+              position: "absolute",
+              top: 10,
+              left: 60,
+              zIndex: 90,
+              padding: "6px 10px",
+              borderRadius: 8,
+              fontSize: 12,
+              fontWeight: 900,
+              letterSpacing: 0.7,
+              color: "#0b0b14",
+              background: badge.bg,
+              boxShadow: "0 2px 10px rgba(0,0,0,0.35)",
+              userSelect: "none",
+            }}
+            title={
+              liveStatus === "LIVE"
+                ? "Stream healthy (receiving messages)"
+                : liveStatus === "STALE"
+                  ? "No stream messages received in 30s"
+                  : "Connecting to live stream…"
+            }
+          >
+            {badge.text}
+          </div>
+
+          <Engine17DecisionTimeline
+            overlayData={engine17Data}
+            visible={state.engine17Timeline && state.engine17Overlay}
+            chartMode={selectedMode}
+            symbol={state.symbol}
+          />
+
+          <Engine17Badges
+            overlayData={engine17Data}
+            visible={state.engine17Badges && state.engine17Overlay}
+            showConfidenceStack={showDebug || state.engine17DebugPanel}
+            showReplaySyncedState={false}
+          />
+
+          <Engine17DebugPanel
+            visible={showDebug || state.engine17DebugPanel}
+            rawData={engine17RawDebug}
+            composedData={engine17Data}
+          />
+
+          <div
+            ref={containerRef}
+            style={{
+              position: "absolute",
+              inset: 0,
+            }}
+          />
+        </div>
+
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            minWidth: 230,
+            maxWidth: 260,
+          }}
+        >
+          <SmartMoneyZonesPanel />
+          <AccDistZonesPanel />
+        </div>
       </div>
     </div>
-  </div>
-);
+  );
 }
