@@ -1243,8 +1243,6 @@ export default function Engine17DecisionTimeline({
   const minute = prettyMinute(minutePhaseRaw);
   const micro = formatWave(microPhaseRaw);
 
-  const minute = prettyMinute(minutePhaseRaw);
-
   const trend4h = formatText(fib?.trendState_4h, "—");
   const trend4hRaw = String(fib?.trendState_4h || "").toUpperCase();
 
