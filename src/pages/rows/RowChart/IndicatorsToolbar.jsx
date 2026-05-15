@@ -423,14 +423,12 @@ export default function IndicatorsToolbar({
                   <input
                     type="checkbox"
                     checked={!!institutionalZonesAuto}
-                    onChange={(e) => {
-                      const v = e.target.checked;
-                      onChange?.({ institutionalZonesAuto: v, smzShelvesAuto: v });
-                    }}
+                    onChange={(e) =>
+                      onChange?.({ institutionalZonesAuto: e.target.checked })
+                    }
                   />{" "}
                   Institutional Zones (auto)
                 </label>
-
                 <label>
                   <input
                     type="checkbox"
