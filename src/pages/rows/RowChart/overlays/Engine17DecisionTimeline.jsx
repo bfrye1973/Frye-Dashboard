@@ -1616,5 +1616,6 @@ export default function Engine17DecisionTimeline({
         {`Execution (LTF): ${executionBias} | Readiness: ${readiness}`}
       </div>
     </div>
-  );
+  </>
+);
 }
