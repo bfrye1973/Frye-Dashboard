@@ -203,6 +203,17 @@ function prettyMinute(value) {
   return formatText(v);
 }
 
+ function getTimelineWaveSource({ engine22, fib, overlayData }) {
+  return (
+    engine22?.breakoutContext?.waveContext ||
+    engine22?.debug ||
+    overlayData?.engine2State ||
+    fib?.engine2State ||
+    fib?.waveContext ||
+    {}
+  );
+}
+
 function getRunnerModeRead(engine22) {
   const runner = engine22?.runnerMode || null;
   const runnerState = String(runner?.state || "").toUpperCase();
@@ -1201,17 +1212,36 @@ export default function Engine17DecisionTimeline({
   const wave3RetraceZone = wave3Retrace?.zone || null;
 
   const isScalpMode = chartMode === "SCALP";
-  const wave = fib?.waveContext || {};
 
-  const primary = formatWave(wave?.primaryPhase);
-  const intermediate = formatWave(wave?.intermediatePhase);
-  const minor = formatWave(wave?.minorPhase);
+  const waveSource = getTimelineWaveSource({ engine22, fib, overlayData });
+
+  const primary = formatWave(
+    waveSource?.primaryPhase ||
+    waveSource?.primary?.phase
+  );
+
+  const intermediate = formatWave(
+    waveSource?.intermediatePhase ||
+    waveSource?.intermediate?.phase
+  );
+
+  const minor = formatWave(
+    waveSource?.minorPhase ||
+    waveSource?.minor?.phase
+  );
 
   const minutePhaseRaw =
-    fib?.waveContext?.minutePhase ||
-    fib?.engine2State?.minute?.phase ||
-    overlayData?.engine2State?.minute?.phase ||
+    waveSource?.minutePhase ||
+    waveSource?.minute?.phase ||
     "UNKNOWN";
+
+  const microPhaseRaw =
+    waveSource?.microPhase ||
+    waveSource?.micro?.phase ||
+    "UNKNOWN";
+
+  const minute = prettyMinute(minutePhaseRaw);
+  const micro = formatWave(microPhaseRaw);
 
   const minute = prettyMinute(minutePhaseRaw);
 
@@ -1451,7 +1481,7 @@ export default function Engine17DecisionTimeline({
           color: "#f8fafc",
         }}
       >
-        {`Primary ${primary} | Intermediate ${intermediate} | Minor ${minor} | ${minute}`}
+        {`Primary ${primary} | Intermediate ${intermediate} | Minor ${minor} | ${minute} | Micro ${micro}`}
       </div>
 
       <div
