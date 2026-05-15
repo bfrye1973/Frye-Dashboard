@@ -297,12 +297,26 @@ function engine22StateLabel(engine22) {
   if (runner?.active === true) {
     return `🟢 ${formatText(runnerState || "RUNNER MODE ACTIVE")}`;
   }
-
-  const state = String(engine22?.state || "").toUpperCase();
-  const abcState = String(engine22?.abcState || "").toUpperCase();
+  
+const state = String(engine22?.state || "").toUpperCase();
+const microW4State = String(engine22?.microW4Pullback?.state || "").toUpperCase();
+const abcState = String(engine22?.abcState || "").toUpperCase();
   const status = String(engine22?.status || "").toUpperCase();
   const trendState = String(engine22?.trendVsWave?.state || "").toUpperCase();
   const zoneState = String(engine22?.zoneAbsorption?.state || "").toUpperCase();
+  const microW4State = String(engine22?.microW4Pullback?.state || "").toUpperCase();
+
+if (microW4State === "MICRO_W4_PULLBACK_ACTIVE") {
+  return "🟡 MICRO W4 PULLBACK ACTIVE — WAIT FOR MICRO W5 TRIGGER";
+}
+
+if (microW4State === "MICRO_W4_RECLAIM_WATCH") {
+  return "🟡 MICRO W4 RECLAIM WATCH — WAIT FOR CONFIRMATION";
+}
+
+if (microW4State === "MICRO_W5_TRIGGER_PENDING") {
+  return "🟢 MICRO W5 TRIGGER PENDING — WAIT FOR ENGINE 3/4";
+}
 
   // Correction states must come BEFORE zone states.
   // If Engine 22 is in Minute W4, the headline should explain the wave correction first.
@@ -759,24 +773,24 @@ function getEngine22CurrentRead(engine22, wave3RetraceTimeline, fib = {}) {
 
   const currentStructureText = getRegimeStructureText(engine22);
     if (
-      state === "MICRO_W4_PULLBACK_ACTIVE" ||
-      state === "MICRO_W4_RECLAIM_WATCH" ||
-      state === "MICRO_W5_TRIGGER_PENDING"
+      effectiveState === "MICRO_W4_PULLBACK_ACTIVE" ||
+      effectiveState === "MICRO_W4_RECLAIM_WATCH" ||
+      effectiveState === "MICRO_W5_TRIGGER_PENDING"
     ) {
-      const stateTitle =
-        state === "MICRO_W4_PULLBACK_ACTIVE"
-          ? "🟡 MICRO W4 PULLBACK ACTIVE — WAIT FOR MICRO W5 TRIGGER"
-          : state === "MICRO_W4_RECLAIM_WATCH"
-          ? "🟡 MICRO W4 RECLAIM WATCH — WAIT FOR CONFIRMATION"
-          : "🟢 MICRO W5 TRIGGER PENDING — WAIT FOR ENGINE 3/4";
 
-      const actionText =
-        state === "MICRO_W5_TRIGGER_PENDING"
-          ? "Action:\nMicro W4 appears to be resolving.\nWait for Engine 3 reaction confirmation and Engine 4 participation before entry.\nDo not treat this as an entry by itself."
-          : state === "MICRO_W4_RECLAIM_WATCH"
-          ? "Action:\nNo chase long.\nNo blind short.\nWait for 10m EMA20 reclaim, 1H support improvement, Engine 3 reaction, and Engine 4 participation."
-          : "Action:\nNo chase long.\nNo blind short.\nWait for Micro W4 support/reclaim, then watch for Micro W5 trigger.";
-
+     const stateTitle =
+       effectiveState === "MICRO_W4_PULLBACK_ACTIVE"
+         ? "🟡 MICRO W4 PULLBACK ACTIVE — WAIT FOR MICRO W5 TRIGGER"
+         : effectiveState === "MICRO_W4_RECLAIM_WATCH"
+         ? "🟡 MICRO W4 RECLAIM WATCH — WAIT FOR CONFIRMATION"
+         : "🟢 MICRO W5 TRIGGER PENDING — WAIT FOR ENGINE 3/4";
+  
+     const actionText =
+       effectiveState === "MICRO_W5_TRIGGER_PENDING"
+         ? "Action:\nMicro W4 appears to be resolving.\nWait for Engine 3 reaction confirmation and Engine 4 participation before entry.\nDo not treat this as an entry by itself."
+         : effectiveState === "MICRO_W4_RECLAIM_WATCH"
+         ? "Action:\nNo chase long.\nNo blind short.\nWait for 10m EMA20 reclaim, 1H support improvement, Engine 3 reaction, and Engine 4 participation."
+         : "Action:\nNo chase long.\nNo blind short.\nWait for Micro W4 support/reclaim, then watch for Micro W5 trigger.";
       return {
         currentRead: stateTitle,
         confirmation:
@@ -1425,10 +1439,15 @@ export default function Engine17DecisionTimeline({
     e22State === "W4_ACTIVE_WAIT" ||
     e22AbcState.startsWith("W4_");
 
-  const isMicroW4WorkflowActive =
-    e22State === "MICRO_W4_PULLBACK_ACTIVE" ||
-    e22State === "MICRO_W4_RECLAIM_WATCH" ||
-    e22State === "MICRO_W5_TRIGGER_PENDING";
+ const microW4State = String(engine22?.microW4Pullback?.state || "").toUpperCase();
+
+ const isMicroW4WorkflowActive =
+   e22State === "MICRO_W4_PULLBACK_ACTIVE" ||
+   e22State === "MICRO_W4_RECLAIM_WATCH" ||
+   e22State === "MICRO_W5_TRIGGER_PENDING" ||
+   microW4State === "MICRO_W4_PULLBACK_ACTIVE" ||
+   microW4State === "MICRO_W4_RECLAIM_WATCH" ||
+   microW4State === "MICRO_W5_TRIGGER_PENDING"; 
 
   if (runnerRead) {
     currentRead = runnerRead.currentRead;
