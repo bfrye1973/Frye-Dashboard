@@ -1746,7 +1746,35 @@ export default function RowChart({
     }
   }, [bars, state.showEma, state.ema10, state.ema20, state.ema50, state.ema200]);
 
-  const handleControlsChange = (patch) => setState((s) => ({ ...s, ...patch }));
+  const handleControlsChange = (patch) => {
+  setState((s) => {
+    const next = { ...s, ...patch };
+
+    try {
+      if (typeof window !== "undefined") {
+        const url = new URL(window.location.href);
+
+        if (Object.prototype.hasOwnProperty.call(patch, "symbol")) {
+          url.searchParams.set(
+            "symbol",
+            String(next.symbol || "SPY").toUpperCase()
+          );
+        }
+
+        if (Object.prototype.hasOwnProperty.call(patch, "timeframe")) {
+          url.searchParams.set(
+            "tf",
+            String(next.timeframe || "10m")
+          );
+        }
+
+        window.history.replaceState({}, "", url.toString());
+      }
+    } catch {}
+
+    return next;
+  });
+};
 
   const applyRange = (nextRange) => {
     const chart = chartRef.current;
