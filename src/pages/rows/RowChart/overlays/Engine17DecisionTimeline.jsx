@@ -1391,7 +1391,37 @@ export default function Engine17DecisionTimeline({
     />
   ) : null;
 
-  return (
+   return (
+  <>
+    {reactionVolumeContextText && (
+      <div
+        style={{
+          position: "absolute",
+          top: 132,
+          left: 18,
+          zIndex: 110,
+          width: 330,
+          maxWidth: "28%",
+          borderRadius: 14,
+          border: "1px solid rgba(148,163,184,0.42)",
+          background: "rgba(6,10,20,0.94)",
+          padding: "12px 14px",
+          color: "#e5e7eb",
+          backdropFilter: "blur(4px)",
+          pointerEvents: "none",
+          textAlign: "left",
+          boxShadow: "0 8px 24px rgba(0,0,0,0.28)",
+          fontSize: 16,
+          lineHeight: 1.42,
+          fontWeight: 800,
+          whiteSpace: "pre-line",
+          letterSpacing: "0.01em",
+        }}
+      >
+        {reactionVolumeContextText}
+      </div>
+    )}
+
     <div
       style={{
         position: "absolute",
@@ -1400,7 +1430,7 @@ export default function Engine17DecisionTimeline({
         transform: "translateX(-50%)",
         zIndex: 109,
         width: 760,
-        maxWidth: "72%",
+        maxWidth: "64%",
         borderRadius: 14,
         border: "1px solid rgba(255,255,255,0.12)",
         background: "rgba(6,10,20,0.94)",
@@ -1558,29 +1588,7 @@ export default function Engine17DecisionTimeline({
         {confirmation}
       </div>
 
-      {reactionVolumeContextText && (
-        <div
-          style={{
-            marginTop: 10,
-            marginBottom: 10,
-            padding: "12px 14px",
-            borderRadius: 12,
-            border: "1px solid rgba(148,163,184,0.45)",
-            background: "rgba(15,23,42,0.78)",
-            color: "#e5e7eb",
-            fontSize: 18,
-            lineHeight: 1.45,
-            fontWeight: 800,
-            textAlign: "left",
-            whiteSpace: "pre-line",
-            textShadow: "none",
-            letterSpacing: "0.01em",
-          }}
-        >
-          {reactionVolumeContextText}
-        </div>
-      )}
-     
+           
       {conditionLines.length > 0 && !runnerRead && !zoneAbsorptionRead && !trendVsWaveRead && (
         <div
           style={{
