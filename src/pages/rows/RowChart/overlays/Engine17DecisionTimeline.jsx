@@ -691,6 +691,15 @@ function getZoneAbsorptionRead(engine22) {
 
 function getEngine22CurrentRead(engine22, wave3RetraceTimeline, fib = {}) {
   const state = String(engine22?.state || "").toUpperCase();
+  const microW4State = String(engine22?.microW4Pullback?.state || "").toUpperCase();
+
+  const effectiveState =
+    microW4State === "MICRO_W4_PULLBACK_ACTIVE" ||
+    microW4State === "MICRO_W4_RECLAIM_WATCH" ||
+    microW4State === "MICRO_W5_TRIGGER_PENDING"
+      ? microW4State
+      : state;
+
   const abcState = String(engine22?.abcState || "").toUpperCase();
   const type = String(engine22?.type || "").toUpperCase();
   const status = String(engine22?.status || "").toUpperCase();
