@@ -327,8 +327,20 @@ function engine22StateLabel(engine22) {
     return "🟡 MINUTE W4 ACTIVE — WAIT FOR ABC STRUCTURE";
   }
 
+   if (state === "MICRO_W4_PULLBACK_ACTIVE") {
+    return "🟡 MICRO W4 PULLBACK ACTIVE — WAIT FOR MICRO W5 TRIGGER";
+  }
+
+  if (state === "MICRO_W4_RECLAIM_WATCH") {
+    return "🟡 MICRO W4 RECLAIM WATCH — WAIT FOR CONFIRMATION";
+  }
+
+  if (state === "MICRO_W5_TRIGGER_PENDING") {
+    return "🟢 MICRO W5 TRIGGER PENDING — WAIT FOR ENGINE 3/4";
+  }
+  
   if (state === "W2_ACTIVE_WAIT") {
-  return "🟡 MINUTE W2 ACTIVE — WATCH CORRECTION";
+    return "🟡 MINUTE W2 ACTIVE — WATCH CORRECTION";
 }
 
 if (state === "W4_B_BOUNCE_ACTIVE" || abcState === "W4_B_BOUNCE_ACTIVE") {
@@ -746,6 +758,42 @@ function getEngine22CurrentRead(engine22, wave3RetraceTimeline, fib = {}) {
       : "1H EMA10 unavailable";
 
   const currentStructureText = getRegimeStructureText(engine22);
+    if (
+      state === "MICRO_W4_PULLBACK_ACTIVE" ||
+      state === "MICRO_W4_RECLAIM_WATCH" ||
+      state === "MICRO_W5_TRIGGER_PENDING"
+    ) {
+      const stateTitle =
+        state === "MICRO_W4_PULLBACK_ACTIVE"
+          ? "🟡 MICRO W4 PULLBACK ACTIVE — WAIT FOR MICRO W5 TRIGGER"
+          : state === "MICRO_W4_RECLAIM_WATCH"
+          ? "🟡 MICRO W4 RECLAIM WATCH — WAIT FOR CONFIRMATION"
+          : "🟢 MICRO W5 TRIGGER PENDING — WAIT FOR ENGINE 3/4";
+
+      const actionText =
+        state === "MICRO_W5_TRIGGER_PENDING"
+          ? "Action:\nMicro W4 appears to be resolving.\nWait for Engine 3 reaction confirmation and Engine 4 participation before entry.\nDo not treat this as an entry by itself."
+          : state === "MICRO_W4_RECLAIM_WATCH"
+          ? "Action:\nNo chase long.\nNo blind short.\nWait for 10m EMA20 reclaim, 1H support improvement, Engine 3 reaction, and Engine 4 participation."
+          : "Action:\nNo chase long.\nNo blind short.\nWait for Micro W4 support/reclaim, then watch for Micro W5 trigger.";
+
+      return {
+        currentRead: stateTitle,
+        confirmation:
+          "Higher timeframe W5 is still active.\n" +
+          "Micro W3 completed.\n" +
+          "Micro W4 pullback is now active.\n\n" +
+          currentStructureText +
+          "\n\nMeaning:\n" +
+          "EOD = permission.\n" +
+          "1H = pullback health.\n" +
+          "10m = trigger timing.\n\n" +
+          actionText +
+          "\n\nFailure:\n" +
+          "If 1H remains below EMA10 and price loses deeper support, stand down.",
+      };
+    }
+  
     if (
       state === "W4_SHALLOW_CONTINUATION_WATCH" ||
       abcState === "W4_SHALLOW_CONTINUATION_WATCH"
@@ -1377,10 +1425,15 @@ export default function Engine17DecisionTimeline({
     e22State === "W4_ACTIVE_WAIT" ||
     e22AbcState.startsWith("W4_");
 
+  const isMicroW4WorkflowActive =
+    e22State === "MICRO_W4_PULLBACK_ACTIVE" ||
+    e22State === "MICRO_W4_RECLAIM_WATCH" ||
+    e22State === "MICRO_W5_TRIGGER_PENDING";
+
   if (runnerRead) {
     currentRead = runnerRead.currentRead;
     confirmation = runnerRead.confirmation;
-  } else if (isW4CorrectionActive && e22Override) {
+  } else if ((isW4CorrectionActive || isMicroW4WorkflowActive) && e22Override) {
     currentRead = e22Override.currentRead;
     confirmation = e22Override.confirmation;
   } else if (trendVsWaveRead) {
