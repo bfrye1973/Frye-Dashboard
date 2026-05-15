@@ -297,27 +297,25 @@ function engine22StateLabel(engine22) {
   if (runner?.active === true) {
     return `🟢 ${formatText(runnerState || "RUNNER MODE ACTIVE")}`;
   }
-  
-const state = String(engine22?.state || "").toUpperCase();
-const microW4State = String(engine22?.microW4Pullback?.state || "").toUpperCase();
-const abcState = String(engine22?.abcState || "").toUpperCase();
+
+  const state = String(engine22?.state || "").toUpperCase();
+  const abcState = String(engine22?.abcState || "").toUpperCase();
   const status = String(engine22?.status || "").toUpperCase();
   const trendState = String(engine22?.trendVsWave?.state || "").toUpperCase();
   const zoneState = String(engine22?.zoneAbsorption?.state || "").toUpperCase();
   const microW4State = String(engine22?.microW4Pullback?.state || "").toUpperCase();
 
-if (microW4State === "MICRO_W4_PULLBACK_ACTIVE") {
-  return "🟡 MICRO W4 PULLBACK ACTIVE — WAIT FOR MICRO W5 TRIGGER";
-}
+  if (microW4State === "MICRO_W4_PULLBACK_ACTIVE") {
+    return "🟡 MICRO W4 PULLBACK ACTIVE — WAIT FOR MICRO W5 TRIGGER";
+  }
 
-if (microW4State === "MICRO_W4_RECLAIM_WATCH") {
-  return "🟡 MICRO W4 RECLAIM WATCH — WAIT FOR CONFIRMATION";
-}
+  if (microW4State === "MICRO_W4_RECLAIM_WATCH") {
+    return "🟡 MICRO W4 RECLAIM WATCH — WAIT FOR CONFIRMATION";
+  }
 
-if (microW4State === "MICRO_W5_TRIGGER_PENDING") {
-  return "🟢 MICRO W5 TRIGGER PENDING — WAIT FOR ENGINE 3/4";
-}
-
+  if (microW4State === "MICRO_W5_TRIGGER_PENDING") {
+    return "🟢 MICRO W5 TRIGGER PENDING — WAIT FOR ENGINE 3/4";
+  }
   // Correction states must come BEFORE zone states.
   // If Engine 22 is in Minute W4, the headline should explain the wave correction first.
   // Zone context can still display underneath as detail, but it should not override W4.
