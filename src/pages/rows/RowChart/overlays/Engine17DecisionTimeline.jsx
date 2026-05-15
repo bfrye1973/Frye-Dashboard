@@ -1397,11 +1397,11 @@ export default function Engine17DecisionTimeline({
       <div
         style={{
           position: "absolute",
-          top: 132,
-          left: 18,
+          top: 160,
+          left: "calc(50% - 760px)",
           zIndex: 110,
-          width: 330,
-          maxWidth: "28%",
+          width: 350,
+          maxWidth: "30%",
           borderRadius: 14,
           border: "1px solid rgba(148,163,184,0.42)",
           background: "rgba(6,10,20,0.94)",
