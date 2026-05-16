@@ -892,7 +892,7 @@ function TimelineMainCard({ timeline }) {
         left: "50%",
         transform: "translateX(-50%)",
         zIndex: 109,
-        width: 760,
+        width: 920,
         maxWidth: "64%",
         borderRadius: 14,
         border: `1px solid ${severityBorder(timeline.severity)}`,
@@ -908,7 +908,7 @@ function TimelineMainCard({ timeline }) {
       <div
         style={{
           fontWeight: 950,
-          fontSize: 26,
+          fontSize: 32,
           lineHeight: 1.25,
           color: severityColor(timeline.severity),
           marginBottom: 8,
@@ -920,7 +920,7 @@ function TimelineMainCard({ timeline }) {
       <div
         style={{
           fontWeight: 900,
-          fontSize: 18,
+          fontSize: 24,
           lineHeight: 1.25,
           color: "#f8fafc",
           marginBottom: 8,
@@ -932,7 +932,7 @@ function TimelineMainCard({ timeline }) {
       {timeline.subheadline && (
         <div
           style={{
-            fontSize: 17,
+            fontSize: 23,
             lineHeight: 1.35,
             color: "#cbd5e1",
             fontWeight: 800,
@@ -962,7 +962,7 @@ function TimelineMainCard({ timeline }) {
             borderTop: "1px solid rgba(148,163,184,0.25)",
             color: "#94a3b8",
             fontWeight: 850,
-            fontSize: 15,
+            fontSize: 20,
           }}
         >
           {timeline.footer}
