@@ -892,7 +892,7 @@ function TimelineMainCard({ timeline }) {
         left: "50%",
         transform: "translateX(-50%)",
         zIndex: 109,
-        width: 920,
+        width: 760,
         maxWidth: "64%",
         borderRadius: 14,
         border: `1px solid ${severityBorder(timeline.severity)}`,
@@ -907,7 +907,7 @@ function TimelineMainCard({ timeline }) {
     >
       <div
         style={{
-          fontWeight: 950,
+          fontWeight: 800,
           fontSize: 32,
           lineHeight: 1.25,
           color: severityColor(timeline.severity),
@@ -919,7 +919,7 @@ function TimelineMainCard({ timeline }) {
 
       <div
         style={{
-          fontWeight: 900,
+          fontWeight: 750,
           fontSize: 24,
           lineHeight: 1.25,
           color: "#f8fafc",
@@ -961,7 +961,7 @@ function TimelineMainCard({ timeline }) {
             paddingTop: 8,
             borderTop: "1px solid rgba(148,163,184,0.25)",
             color: "#94a3b8",
-            fontWeight: 850,
+            fontWeight: 700,
             fontSize: 20,
           }}
         >
@@ -981,7 +981,7 @@ function TimelineContextPanel({ sections }) {
       style={{
         position: "absolute",
         top: 160,
-        left: "calc(50% - 760px)",
+        left: 16,
         zIndex: 110,
         width: 360,
         maxWidth: "30%",
