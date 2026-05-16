@@ -907,8 +907,8 @@ function TimelineMainCard({ timeline }) {
     >
       <div
         style={{
-          fontWeight: 800,
-          fontSize: 32,
+          fontWeight: 950,
+          fontSize: 26,
           lineHeight: 1.25,
           color: severityColor(timeline.severity),
           marginBottom: 8,
@@ -919,8 +919,8 @@ function TimelineMainCard({ timeline }) {
 
       <div
         style={{
-          fontWeight: 750,
-          fontSize: 24,
+          fontWeight: 900,
+          fontSize: 18,
           lineHeight: 1.25,
           color: "#f8fafc",
           marginBottom: 8,
@@ -932,7 +932,7 @@ function TimelineMainCard({ timeline }) {
       {timeline.subheadline && (
         <div
           style={{
-            fontSize: 23,
+            fontSize: 17,
             lineHeight: 1.35,
             color: "#cbd5e1",
             fontWeight: 800,
@@ -961,8 +961,8 @@ function TimelineMainCard({ timeline }) {
             paddingTop: 8,
             borderTop: "1px solid rgba(148,163,184,0.25)",
             color: "#94a3b8",
-            fontWeight: 700,
-            fontSize: 20,
+            fontWeight: 850,
+            fontSize: 15,
           }}
         >
           {timeline.footer}
@@ -981,7 +981,7 @@ function TimelineContextPanel({ sections }) {
       style={{
         position: "absolute",
         top: 160,
-        left: 16,
+        left: "calc(50% - 760px)",
         zIndex: 110,
         width: 360,
         maxWidth: "30%",
