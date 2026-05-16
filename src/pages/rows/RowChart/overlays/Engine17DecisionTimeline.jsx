@@ -1102,7 +1102,6 @@ function newsRiskDisplay(newsRisk) {
 }
 
 function CorrectionDetails({ engine22, wave3Retrace, wave3RetraceTimeline, wave3RetraceZone }) {
-  const debug = engine22?.debug || {};
   const waveFibState = engine22?.waveFibState || null;
   const abc = waveFibState?.abcCorrection || null;
   const risk = waveFibState?.microW4AbcRisk || null;
