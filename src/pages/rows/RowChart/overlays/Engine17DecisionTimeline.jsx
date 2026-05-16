@@ -1102,6 +1102,11 @@ function newsRiskDisplay(newsRisk) {
 }
 
 function CorrectionDetails({ engine22, wave3Retrace, wave3RetraceTimeline, wave3RetraceZone }) {
+  const debug = engine22?.debug || {};
+  const waveFibState = engine22?.waveFibState || null;
+  const abc = waveFibState?.abcCorrection || null;
+  const risk = waveFibState?.microW4AbcRisk || null;
+  const duration = waveFibState?.waveDuration || null;
   const state = String(engine22?.state || "").toUpperCase();
   const abcState = String(engine22?.abcState || "").toUpperCase();
 
@@ -1126,6 +1131,97 @@ function CorrectionDetails({ engine22, wave3Retrace, wave3RetraceTimeline, wave3
   }
 
   if (state === "W4_ACTIVE_WAIT") {
+
+ if (
+  abc?.active === true &&
+  abc?.state === "ABC_C_LEG_DEEP_DAMAGED"
+) {
+  return (
+    <>
+      <div>MICRO W4 ABC DAMAGED</div>
+
+      <div>
+        C leg is below 78.6% but above hard invalidation.
+      </div>
+
+      <div>
+        {`A: ${formatLevel(abc?.abc?.aLow)} | B: ${formatLevel(
+          abc?.abc?.bHigh
+        )} | C: ${formatLevel(abc?.abc?.cLow)}`}
+      </div>
+
+      <div>
+        {`Reclaim ladder: ${abc?.reclaimDisplay || "—"}`}
+      </div>
+
+      <div>
+        {`Hard invalidation: ${formatLevel(
+          abc?.hardInvalidation
+        )}`}
+      </div>
+
+      {abc?.cleanW5PathDamaged === true && (
+        <div>Clean Micro W5 path damaged</div>
+      )}
+
+      {abc?.topLikelyConfirmedForNow === true && (
+        <div>749.50–750 likely short-term top for now</div>
+      )}
+
+      {abc?.microW5NeedsReclaim === true && (
+        <div>Micro W5 needs reclaim confirmation</div>
+      )}
+
+      {risk?.active === true && (
+        <>
+          <div>
+            {`Top candidate: ${formatLevel(risk?.topCandidate)}`}
+          </div>
+
+          <div>
+            {`Max clean pullback: ${formatLevel(
+              risk?.maxCleanPullback
+            )}`}
+          </div>
+
+          <div>
+            {`Current zone: ${formatText(
+              risk?.currentZone
+            )}`}
+          </div>
+        </>
+      )}
+
+      {duration?.activeWave && (
+        <>
+          <div>
+            {`Duration: ${duration?.activeWave}`}
+          </div>
+
+          <div>
+            {`Clock state: ${formatText(
+              duration?.activeTimeRisk
+            )}`}
+          </div>
+
+          <div>
+            {duration?.degrees?.micro?.barDuration?.reason ===
+            "BARS_UNAVAILABLE"
+              ? "Bar duration: waiting for feed"
+              : `Bar duration: ${formatText(
+                  duration?.activeTimeRiskByBars
+                )}`}
+          </div>
+        </>
+      )}
+
+      <div>
+        No chase long. Wait for reclaim before Micro W5 trigger.
+      </div>
+    </>
+  );
+}      
+    
     if (abcState === "W4_A_FORMING") {
       return (
         <>
