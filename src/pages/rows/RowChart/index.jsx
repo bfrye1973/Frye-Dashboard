@@ -368,6 +368,11 @@ function mapSnapshotToEngine17Overlay(snapshot, strategyId, chartMode = "SPY_SCA
   const engine15Decision = node?.engine15Decision || null;
   const engine22Scalp = node?.engine22Scalp || null;
 
+  const engine22WaveStrategy =
+  node?.engine22WaveStrategy ||
+  snapshot?.strategies?.["intraday_scalp@10m"]?.engine22WaveStrategy ||
+  null;
+
   if (!scalp) {
     return {
       ok: false,
@@ -621,7 +626,8 @@ function mapSnapshotToEngine17Overlay(snapshot, strategyId, chartMode = "SPY_SCA
       waveContext,
       waveState,
       macroBias,
-
+      
+      engine22WaveStrategy,
       engine22Scalp,
       engine2State: snapshot?.engine2State || null,
       activeExtensions: snapshot?.engine2State?.activeExtensions || null,
