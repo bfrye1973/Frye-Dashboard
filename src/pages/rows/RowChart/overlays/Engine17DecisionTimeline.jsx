@@ -41,6 +41,11 @@ function formatWave(value) {
     .replaceAll("_", " ");
 }
 
+function formatMaybeLevel(value, fallback = "—") {
+  const n = Number(value);
+  return Number.isFinite(n) ? n.toFixed(2) : fallback;
+}
+
 function prettyZone(value) {
   const v = String(value || "").toUpperCase();
 
@@ -50,6 +55,10 @@ function prettyZone(value) {
 
   if (v === "BELOW_786_DEEP_DAMAGE_ZONE") {
     return "Below 78.6% deep damage zone";
+  }
+
+  if (v === "C_LOW_NOT_MARKED") {
+    return "C low not marked yet";
   }
 
   return formatText(value);
@@ -64,15 +73,27 @@ function severityColor(severity) {
 }
 
 function severityBorder(severity) {
-  if (severity === "danger") return "rgba(244,63,94,0.55)";
-  if (severity === "warning") return "rgba(251,191,36,0.50)";
+  if (severity === "danger") return "rgba(244,63,94,0.60)";
+  if (severity === "warning") return "rgba(251,191,36,0.52)";
   if (severity === "bullish") return "rgba(34,197,94,0.45)";
   if (severity === "info") return "rgba(96,165,250,0.45)";
   return "rgba(148,163,184,0.32)";
 }
 
+function severityBackground(severity) {
+  if (severity === "danger") return "rgba(127,29,29,0.16)";
+  if (severity === "warning") return "rgba(113,63,18,0.14)";
+  if (severity === "bullish") return "rgba(20,83,45,0.13)";
+  if (severity === "info") return "rgba(30,64,175,0.13)";
+  return "rgba(15,23,42,0.38)";
+}
+
 function asLines(lines) {
   return Array.isArray(lines) ? lines.filter(Boolean) : [];
+}
+
+function compactJoin(parts, sep = " | ") {
+  return parts.filter(Boolean).join(sep);
 }
 
 /* =========================
@@ -103,46 +124,24 @@ function getWaveSource({ overlayData, engine22, fib }) {
   );
 }
 
+function getDegreePhase(waveFibState, source, degree, fallback = "—") {
+  return (
+    waveFibState?.degrees?.[degree]?.phase ||
+    source?.[`${degree}Phase`] ||
+    source?.[degree]?.phase ||
+    fallback
+  );
+}
+
 function normalizeWaveStack({ overlayData, engine22, fib }) {
   const waveFibState = getWaveFibState(engine22);
   const source = getWaveSource({ overlayData, engine22, fib });
 
-  const fromWaveFib = waveFibState?.degrees || {};
-
-  const primary =
-    waveFibState?.stackBias?.primary ||
-    fromWaveFib?.primary?.phase ||
-    source?.primaryPhase ||
-    source?.primary?.phase ||
-    "W5";
-
-  const intermediate =
-    waveFibState?.stackBias?.intermediate ||
-    fromWaveFib?.intermediate?.phase ||
-    source?.intermediatePhase ||
-    source?.intermediate?.phase ||
-    "W5";
-
-  const minor =
-    waveFibState?.stackBias?.minor ||
-    fromWaveFib?.minor?.phase ||
-    source?.minorPhase ||
-    source?.minor?.phase ||
-    "W5";
-
-  const minute =
-    waveFibState?.stackBias?.minute ||
-    fromWaveFib?.minute?.phase ||
-    source?.minutePhase ||
-    source?.minute?.phase ||
-    "W5";
-
-  const micro =
-    waveFibState?.stackBias?.micro ||
-    fromWaveFib?.micro?.phase ||
-    source?.microPhase ||
-    source?.micro?.phase ||
-    "—";
+  const primary = getDegreePhase(waveFibState, source, "primary", "W5");
+  const intermediate = getDegreePhase(waveFibState, source, "intermediate", "W5");
+  const minor = getDegreePhase(waveFibState, source, "minor", "W5");
+  const minute = getDegreePhase(waveFibState, source, "minute", "W5");
+  const micro = getDegreePhase(waveFibState, source, "micro", "—");
 
   return {
     primary: formatWave(primary),
@@ -167,33 +166,11 @@ function normalizeLayer(layer, label, unavailableText) {
     };
   }
 
-  const close =
-    layer.close ??
-    layer.price ??
-    layer.last ??
-    layer.currentPrice ??
-    null;
-
-  const ema10 =
-    layer.ema10 ??
-    layer.ema10Value ??
-    layer.dailyEma10 ??
-    null;
-
-  const ema20 =
-    layer.ema20 ??
-    layer.ema20Value ??
-    null;
-
-  const dist =
-    layer.distanceToEma10 ??
-    layer.distance ??
-    null;
-
-  const distPct =
-    layer.distanceToEma10Pct ??
-    layer.distancePct ??
-    null;
+  const close = layer.close ?? layer.price ?? layer.last ?? layer.currentPrice ?? null;
+  const ema10 = layer.ema10 ?? layer.ema10Value ?? layer.dailyEma10 ?? null;
+  const ema20 = layer.ema20 ?? layer.ema20Value ?? null;
+  const dist = layer.distanceToEma10 ?? layer.distance ?? null;
+  const distPct = layer.distanceToEma10Pct ?? layer.distancePct ?? null;
 
   const state =
     layer.state ||
@@ -202,10 +179,7 @@ function normalizeLayer(layer, label, unavailableText) {
     layer.permissionState ||
     "UNKNOWN";
 
-  const score =
-    layer.score ??
-    layer.layerScore ??
-    null;
+  const score = layer.score ?? layer.layerScore ?? null;
 
   const lines = [];
 
@@ -218,9 +192,7 @@ function normalizeLayer(layer, label, unavailableText) {
   }
 
   if (dist != null || distPct != null) {
-    lines.push(
-      `Distance to EMA10: ${formatSignedLevel(dist)} / ${formatPct(distPct)}`
-    );
+    lines.push(`Distance to EMA10: ${formatSignedLevel(dist)} / ${formatPct(distPct)}`);
   }
 
   lines.push(`State: ${formatText(state)}`);
@@ -229,13 +201,8 @@ function normalizeLayer(layer, label, unavailableText) {
     lines.push(`Score: ${formatScore(score)}`);
   }
 
-  if (layer.dipBuyPermission === true) {
-    lines.push("Permission: ON");
-  }
-
-  if (layer.dipBuyPermission === false) {
-    lines.push("Permission: OFF");
-  }
+  if (layer.dipBuyPermission === true) lines.push("Permission: ON");
+  if (layer.dipBuyPermission === false) lines.push("Permission: OFF");
 
   return {
     title: label,
@@ -329,9 +296,7 @@ function normalizeVolume(engine22) {
 
   const maxScore = volume.maxScore ?? 15;
   const relVol =
-    volume.relativeVolume != null
-      ? `${Number(volume.relativeVolume).toFixed(2)}x`
-      : "—";
+    volume.relativeVolume != null ? `${Number(volume.relativeVolume).toFixed(2)}x` : "—";
 
   const lines = [
     `${formatText(
@@ -390,11 +355,16 @@ function normalizeDuration(waveFibState) {
     };
   }
 
-  const microBars = duration?.degrees?.micro?.barDuration || null;
+  const micro = duration?.degrees?.micro || null;
+  const microBars = micro?.barDuration || null;
+
   const barLine =
     microBars?.reason === "BARS_UNAVAILABLE"
-      ? "Bar duration: waiting for feed"
-      : `Bar duration: ${formatText(duration.activeTimeRiskByBars, "UNKNOWN")}`;
+      ? "Bar duration: waiting for bar feed"
+      : `Bar duration: ${formatText(duration.activeMaturityStateByBars, "UNKNOWN")} / ${formatText(
+          duration.activeTimeRiskByBars,
+          "UNKNOWN"
+        )}`;
 
   return {
     title: "Duration / Time Risk",
@@ -404,15 +374,132 @@ function normalizeDuration(waveFibState) {
         ? "warning"
         : "neutral",
     lines: asLines([
-      `Active duration: ${formatText(duration.activeDegree)} ${formatText(
-        duration.activeWave
-      )}`,
+      `Active duration: ${formatText(duration.activeDegree)} ${formatText(duration.activeWave)}`,
       `Clock state: ${formatText(duration.activeMaturityState)} / ${formatText(
         duration.activeTimeRisk
       )}`,
+      micro?.elapsedHours != null
+        ? `Micro W4 has been active for ${formatScore(micro.elapsedHours)} clock hours.`
+        : null,
       barLine,
-      duration.summary || null,
     ]),
+  };
+}
+
+/* =========================
+   Wave/Fib narrative helpers
+========================= */
+
+function getLevels(waveFibState, degree) {
+  return waveFibState?.degrees?.[degree]?.fibProjection?.levels || {};
+}
+
+function buildMajorClusterText(waveFibState) {
+  const primary = getLevels(waveFibState, "primary");
+  const intermediate = getLevels(waveFibState, "intermediate");
+  const minor = getLevels(waveFibState, "minor");
+
+  const primary1272 = primary?.e1272;
+  const intermediate1618 = intermediate?.e1618;
+  const microTop =
+    waveFibState?.microW4AbcRisk?.topCandidate ||
+    waveFibState?.abcCorrection?.priorImpulse?.end;
+
+  const primary1618 = primary?.e1618;
+  const minor1618 = minor?.e1618;
+  const intermediate2618 = intermediate?.e2618;
+
+  const firstClusterLine = `First major fib cluster hit near 745–750: Primary 1.272 near ${formatLevel(
+    primary1272
+  )}, Intermediate 1.618 near ${formatLevel(
+    intermediate1618
+  )}, Micro W3 top candidate near ${formatLevel(microTop)}.`;
+
+  const nextClusterLine = `Next major higher-degree cluster: ${formatLevel(
+    primary1618
+  )}–${formatLevel(intermediate2618)} area, with Primary 1.618 near ${formatLevel(
+    primary1618
+  )}, Minor 1.618 near ${formatLevel(minor1618)}, and Intermediate 2.618 near ${formatLevel(
+    intermediate2618
+  )}.`;
+
+  return {
+    firstClusterLine,
+    nextClusterLine,
+    primary1272,
+    intermediate1618,
+    microTop,
+    primary1618,
+    minor1618,
+    intermediate2618,
+  };
+}
+
+function buildTraderNarrative({ waveFibState, waveStack }) {
+  const abc = waveFibState?.abcCorrection || null;
+  const risk = waveFibState?.microW4AbcRisk || null;
+  const duration = waveFibState?.waveDuration || null;
+  const cluster = buildMajorClusterText(waveFibState);
+
+  const hardInvalidation = abc?.hardInvalidation ?? risk?.hardInvalidation;
+  const topCandidate = risk?.topCandidate ?? abc?.priorImpulse?.end;
+
+  const microDuration = duration?.degrees?.micro;
+  const durationLine =
+    microDuration?.elapsedHours != null
+      ? `Micro W4 has been active for ${formatScore(
+          microDuration.elapsedHours
+        )} clock hours, so this correction is overdue by clock time.`
+      : "Micro W4 duration is still waiting for time data.";
+
+  return {
+    headline: "MICRO W4 ABC DAMAGED — 749.50 WORKING TOP",
+    subheadline:
+      "No chase long. Micro W5 is not dead, but it is not valid yet. It needs reclaim first.",
+    longTermLines: [
+      `Long-term structure is still bullish because Primary / Intermediate / Minor / Minute are in W5.`,
+      `Current wave stack: ${waveStack.text}.`,
+      `But short-term Micro structure is damaged.`,
+    ],
+    clusterLines: [
+      cluster.firstClusterLine,
+      "That cluster caused the current reaction.",
+      cluster.nextClusterLine,
+    ],
+    abcLines: [
+      `Micro W4 formed an ABC correction: A = ${formatLevel(
+        abc?.abc?.aLow
+      )}, B = ${formatLevel(abc?.abc?.bHigh)}, C = ${formatLevel(abc?.abc?.cLow)}.`,
+      `C is below the 78.6% retrace but still above ${formatLevel(
+        hardInvalidation
+      )} hard invalidation.`,
+      `So ${formatLevel(topCandidate)}–750 is the working short-term top unless price reclaims.`,
+    ],
+    durationLines: [
+      durationLine,
+      microDuration?.barDuration?.reason === "BARS_UNAVAILABLE"
+        ? "Bar-based duration is waiting for the market-bar feed."
+        : `Bar state: ${formatText(microDuration?.maturityStateByBars)} / ${formatText(
+            microDuration?.timeRiskByBars
+          )}.`,
+    ],
+    reclaimLines: [
+      `Micro W5 is only valid after reclaim confirmation.`,
+      `Reclaim ladder: ${abc?.reclaimDisplay || "waiting for reclaim ladder"}.`,
+    ],
+    invalidationLines: [
+      `If ${formatLevel(
+        hardInvalidation
+      )} breaks, the Micro impulse is invalidated and the ${formatLevel(
+        topCandidate
+      )} high becomes much more important as a confirmed local top.`,
+      `If that happens, short continuation becomes the focus.`,
+    ],
+    actionLines: [
+      "No chase long.",
+      "Wait for reclaim before Micro W5 trigger.",
+      "Only after reclaim should Engine 22 / Engine 15 decide whether the setup is READY or GO.",
+    ],
   };
 }
 
@@ -423,14 +510,8 @@ function normalizeDuration(waveFibState) {
 function normalizeFromBackendTimelineRead(timelineRead) {
   if (!timelineRead) return null;
 
-  const mainSections = Array.isArray(timelineRead.sections)
-    ? timelineRead.sections
-    : [];
-
-  const sideSections = Array.isArray(timelineRead.sideSections)
-    ? timelineRead.sideSections
-    : [];
-
+  const mainSections = Array.isArray(timelineRead.sections) ? timelineRead.sections : [];
+  const sideSections = Array.isArray(timelineRead.sideSections) ? timelineRead.sideSections : [];
   const waveStack = timelineRead.waveStack || {};
 
   return {
@@ -447,10 +528,7 @@ function normalizeFromBackendTimelineRead(timelineRead) {
       } | Micro ${waveStack.micro || "—"}`,
     mainSections,
     sideSections,
-    footer:
-      timelineRead.action ||
-      timelineRead.needs ||
-      "Wait for Engine confirmation.",
+    footer: timelineRead.action || timelineRead.needs || "Wait for Engine confirmation.",
   };
 }
 
@@ -506,71 +584,65 @@ function normalizeTimelineData({ overlayData, chartMode }) {
   let footer = "No chase. Wait for Engine confirmation.";
 
   if (abc?.active === true && abc?.state === "ABC_C_LEG_DEEP_DAMAGED") {
-    headline = "MICRO W4 ABC DAMAGED — WAIT FOR RECLAIM";
-    subheadline =
-      "C leg is below 78.6% but above hard invalidation. Micro W5 requires reclaim.";
+    const narrative = buildTraderNarrative({ waveFibState, waveStack });
+
+    headline = narrative.headline;
+    subheadline = narrative.subheadline;
     severity = "danger";
     footer = "No chase long. Wait for reclaim before Micro W5 trigger.";
 
     mainSections.push({
-      title: "Wave/Fib State",
+      title: "Market Read",
       severity: "danger",
-      lines: asLines([
-        waveFibState?.summary ||
-          "Micro W4 is damaged below 78.6%. Clean Micro W5 path is damaged.",
-        "749.50–750 likely short-term top for now.",
-        "Micro W5 is only possible after reclaim confirmation.",
-      ]),
+      lines: [
+        "SPY hit the first major W5 fib cluster near 745–750, then reacted.",
+        "Micro W4 has now formed a deep ABC correction.",
+        "749.50–750 is the working short-term top unless price reclaims.",
+      ],
     });
 
-    mainSections.push(...regimeSections);
+    mainSections.push({
+      title: "Long-Term Structure",
+      severity: "info",
+      lines: narrative.longTermLines,
+    });
 
     mainSections.push({
-      title: "ABC Correction",
+      title: "Fib Cluster Map",
+      severity: "warning",
+      lines: narrative.clusterLines,
+    });
+
+    mainSections.push({
+      title: "Micro W4 ABC Correction",
       severity: "danger",
-      lines: asLines([
-        `A: ${formatLevel(abc?.abc?.aLow)} | B: ${formatLevel(
-          abc?.abc?.bHigh
-        )} | C: ${formatLevel(abc?.abc?.cLow)}`,
-        `Status: ${formatText(abc?.abcStatus)}`,
-        `C Zone: ${prettyZone(abc?.cZone)}`,
-        abc?.cleanW5PathDamaged === true ? "Clean Micro W5 path damaged" : null,
-        abc?.microW5NeedsReclaim === true ? "Micro W5 needs reclaim confirmation" : null,
-      ]),
+      lines: narrative.abcLines,
     });
 
     mainSections.push({
       title: "Reclaim Ladder",
       severity: "warning",
-      lines: [abc?.reclaimDisplay || "Reclaim ladder unavailable"],
+      lines: narrative.reclaimLines,
     });
 
     mainSections.push({
-      title: "Risk / Invalidation",
-      severity: "danger",
-      lines: asLines([
-        `Hard invalidation: ${formatLevel(abc?.hardInvalidation)}`,
-        risk?.topCandidate != null
-          ? `Top candidate: ${formatLevel(risk.topCandidate)}`
-          : "Top candidate: 749.50–750 likely short-term top for now",
-        risk?.maxCleanPullback != null
-          ? `Max clean pullback: ${formatLevel(risk.maxCleanPullback)}`
-          : null,
-        risk?.currentZone ? `Current zone: ${prettyZone(risk.currentZone)}` : null,
-        risk?.hardInvalidated === true
-          ? "Micro impulse invalidated"
-          : "Top likely confirmed for now, but not hard invalidated.",
-      ]),
+      title: "Duration / Timing",
+      severity: "warning",
+      lines: narrative.durationLines,
     });
+
+    mainSections.push({
+      title: "Invalidation / Short Context",
+      severity: "danger",
+      lines: narrative.invalidationLines,
+    });
+
+    mainSections.push(...regimeSections);
 
     mainSections.push({
       title: "Action / Needs",
       severity: "warning",
-      lines: [
-        "No chase long.",
-        "Wait for reclaim before Micro W5 trigger.",
-        "Only later should Engine 22 / Engine 15 decide whether reclaim is READY or GO.",
-      ],
+      lines: narrative.actionLines,
     });
 
     return {
@@ -645,8 +717,7 @@ function normalizeTimelineData({ overlayData, chartMode }) {
     state === "MICRO_W4_PULLBACK_ACTIVE"
   ) {
     headline = "MICRO W4 PULLBACK ACTIVE — WAIT";
-    subheadline =
-      "Higher timeframe W5 is active, but Micro W4 is pulling back.";
+    subheadline = "Higher timeframe W5 is active, but Micro W4 is pulling back.";
     severity = "warning";
     footer = "No chase long. Wait for Micro W4 support/reclaim.";
 
@@ -654,8 +725,7 @@ function normalizeTimelineData({ overlayData, chartMode }) {
       title: "Wave/Fib State",
       severity: "warning",
       lines: asLines([
-        waveFibState?.summary ||
-          "Micro W3 completed. Micro W4 pullback is active.",
+        waveFibState?.summary || "Micro W3 completed. Micro W4 pullback is active.",
       ]),
     });
 
@@ -746,7 +816,7 @@ function TimelineSection({ title, lines, severity = "neutral" }) {
         border: `1px solid ${severityBorder(severity)}`,
         borderRadius: 10,
         padding: "8px 10px",
-        background: "rgba(15,23,42,0.38)",
+        background: severityBackground(severity),
         textAlign: "left",
       }}
     >
@@ -755,7 +825,7 @@ function TimelineSection({ title, lines, severity = "neutral" }) {
           style={{
             fontFamily: "Arial, Helvetica, sans-serif",
             fontSize: 17,
-            fontWeight: 700,
+            fontWeight: 800,
             color: severityColor(severity),
             marginBottom: 5,
             letterSpacing: "0.02em",
@@ -796,8 +866,10 @@ function TimelineMainCard({ timeline }) {
         left: "50%",
         transform: "translateX(-50%)",
         zIndex: 109,
-        width: 760,
-        maxWidth: "64%",
+        width: 820,
+        maxWidth: "66%",
+        maxHeight: "calc(100vh - 130px)",
+        overflowY: "auto",
         borderRadius: 14,
         border: `1px solid ${severityBorder(timeline.severity)}`,
         background: "rgba(6,10,20,0.95)",
@@ -812,7 +884,7 @@ function TimelineMainCard({ timeline }) {
       <div
         style={{
           fontFamily: "Arial, Helvetica, sans-serif",
-          fontWeight: 700,
+          fontWeight: 800,
           fontSize: 29,
           lineHeight: 1.25,
           color: severityColor(timeline.severity),
@@ -825,8 +897,8 @@ function TimelineMainCard({ timeline }) {
       <div
         style={{
           fontFamily: "Arial, Helvetica, sans-serif",
-          fontWeight: 600,
-          fontSize: 21,
+          fontWeight: 650,
+          fontSize: 20,
           lineHeight: 1.3,
           color: "#f8fafc",
           marginBottom: 8,
@@ -869,7 +941,7 @@ function TimelineMainCard({ timeline }) {
             paddingTop: 8,
             borderTop: "1px solid rgba(148,163,184,0.25)",
             color: "#94a3b8",
-            fontWeight: 500,
+            fontWeight: 600,
             fontSize: 18,
           }}
         >
@@ -890,10 +962,12 @@ function TimelineContextPanel({ sections }) {
         fontFamily: "Arial, Helvetica, sans-serif",
         position: "absolute",
         top: 160,
-        left: "calc(50% - 760px)",
+        left: "calc(50% - 800px)",
         zIndex: 110,
         width: 360,
         maxWidth: "30%",
+        maxHeight: "calc(100vh - 210px)",
+        overflowY: "auto",
         borderRadius: 14,
         border: "1px solid rgba(148,163,184,0.42)",
         background: "rgba(6,10,20,0.94)",
