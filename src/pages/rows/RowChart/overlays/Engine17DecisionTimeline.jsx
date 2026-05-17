@@ -459,9 +459,7 @@ function normalizeTimelineData({ overlayData, chartMode }) {
   const engine22 = getEngine22(overlayData);
 
   if (!overlayData?.ok) {
-    return {
-      show: false,
-    };
+    return { show: false };
   }
 
   if (!engine22) {
@@ -507,7 +505,6 @@ function normalizeTimelineData({ overlayData, chartMode }) {
   let severity = "neutral";
   let footer = "No chase. Wait for Engine confirmation.";
 
-  /* Priority 1/2: ABC damaged overrides generic Micro W4 state */
   if (abc?.active === true && abc?.state === "ABC_C_LEG_DEEP_DAMAGED") {
     headline = "MICRO W4 ABC DAMAGED — WAIT FOR RECLAIM";
     subheadline =
@@ -537,22 +534,15 @@ function normalizeTimelineData({ overlayData, chartMode }) {
         )} | C: ${formatLevel(abc?.abc?.cLow)}`,
         `Status: ${formatText(abc?.abcStatus)}`,
         `C Zone: ${prettyZone(abc?.cZone)}`,
-        abc?.cleanW5PathDamaged === true
-          ? "Clean Micro W5 path damaged"
-          : null,
-        abc?.microW5NeedsReclaim === true
-          ? "Micro W5 needs reclaim confirmation"
-          : null,
+        abc?.cleanW5PathDamaged === true ? "Clean Micro W5 path damaged" : null,
+        abc?.microW5NeedsReclaim === true ? "Micro W5 needs reclaim confirmation" : null,
       ]),
     });
 
     mainSections.push({
       title: "Reclaim Ladder",
       severity: "warning",
-      lines: [
-        abc?.reclaimDisplay ||
-          "Reclaim ladder unavailable",
-      ],
+      lines: [abc?.reclaimDisplay || "Reclaim ladder unavailable"],
     });
 
     mainSections.push({
@@ -566,9 +556,7 @@ function normalizeTimelineData({ overlayData, chartMode }) {
         risk?.maxCleanPullback != null
           ? `Max clean pullback: ${formatLevel(risk.maxCleanPullback)}`
           : null,
-        risk?.currentZone
-          ? `Current zone: ${prettyZone(risk.currentZone)}`
-          : null,
+        risk?.currentZone ? `Current zone: ${prettyZone(risk.currentZone)}` : null,
         risk?.hardInvalidated === true
           ? "Micro impulse invalidated"
           : "Top likely confirmed for now, but not hard invalidated.",
@@ -597,14 +585,12 @@ function normalizeTimelineData({ overlayData, chartMode }) {
     };
   }
 
-  /* Priority 2: Micro W4 risk damage */
   if (
     risk?.active === true &&
     String(risk?.state || "").toUpperCase().includes("DAMAGED")
   ) {
     headline = "MICRO W4 DAMAGED — WAIT FOR RECLAIM";
-    subheadline =
-      "Clean Micro W5 path is damaged unless price reclaims.";
+    subheadline = "Clean Micro W5 path is damaged unless price reclaims.";
     severity = "danger";
     footer = "No chase long. Wait for reclaim confirmation.";
 
@@ -650,7 +636,6 @@ function normalizeTimelineData({ overlayData, chartMode }) {
     };
   }
 
-  /* Priority 3: active wave setup fallback */
   const microW4State = String(engine22?.microW4Pullback?.state || "").toUpperCase();
   const state = String(engine22?.state || "").toUpperCase();
   const status = String(engine22?.status || "").toUpperCase();
@@ -698,91 +683,6 @@ function normalizeTimelineData({ overlayData, chartMode }) {
     };
   }
 
-  if (
-    microW4State === "MICRO_W4_RECLAIM_WATCH" ||
-    state === "MICRO_W4_RECLAIM_WATCH"
-  ) {
-    headline = "MICRO W4 RECLAIM WATCH — WAIT FOR CONFIRMATION";
-    subheadline = "Reclaim is starting, but Engine 3/4 confirmation is still needed.";
-    severity = "warning";
-    footer = "Wait for reaction + volume confirmation.";
-
-    mainSections.push({
-      title: "Wave/Fib State",
-      severity: "warning",
-      lines: asLines([
-        waveFibState?.summary,
-        "Micro W4 reclaim watch is active.",
-      ]),
-    });
-
-    mainSections.push(...regimeSections);
-
-    mainSections.push({
-      title: "Action / Needs",
-      severity: "warning",
-      lines: [
-        "Wait for EMA reclaim.",
-        "Wait for Engine 3 reaction confirmation.",
-        "Wait for Engine 4 participation.",
-      ],
-    });
-
-    return {
-      show: true,
-      severity,
-      headline,
-      subheadline,
-      waveStackText: waveStack.text,
-      mainSections,
-      sideSections,
-      footer,
-    };
-  }
-
-  if (
-    microW4State === "MICRO_W5_TRIGGER_PENDING" ||
-    state === "MICRO_W5_TRIGGER_PENDING"
-  ) {
-    headline = "MICRO W5 TRIGGER PENDING — WAIT FOR ENGINE 3/4";
-    subheadline = "Micro W4 may be resolving, but confirmation is required.";
-    severity = "bullish";
-    footer = "Wait for Engine 3/4 before entry.";
-
-    mainSections.push({
-      title: "Wave/Fib State",
-      severity: "bullish",
-      lines: asLines([
-        waveFibState?.summary,
-        "Micro W5 trigger is pending.",
-      ]),
-    });
-
-    mainSections.push(...regimeSections);
-
-    mainSections.push({
-      title: "Action / Needs",
-      severity: "bullish",
-      lines: [
-        "Wait for Engine 3 reaction confirmation.",
-        "Wait for Engine 4 participation.",
-        "Do not treat this as entry by itself.",
-      ],
-    });
-
-    return {
-      show: true,
-      severity,
-      headline,
-      subheadline,
-      waveStackText: waveStack.text,
-      mainSections,
-      sideSections,
-      footer,
-    };
-  }
-
-  /* Generic fallback */
   const readableState = state || status || "WAIT";
 
   headline = formatText(readableState);
@@ -842,6 +742,7 @@ function TimelineSection({ title, lines, severity = "neutral" }) {
   return (
     <div
       style={{
+        fontFamily: "Arial, Helvetica, sans-serif",
         border: `1px solid ${severityBorder(severity)}`,
         borderRadius: 10,
         padding: "8px 10px",
@@ -852,11 +753,12 @@ function TimelineSection({ title, lines, severity = "neutral" }) {
       {title && (
         <div
           style={{
-            fontSize: 14,
-            fontWeight: 950,
+            fontFamily: "Arial, Helvetica, sans-serif",
+            fontSize: 17,
+            fontWeight: 700,
             color: severityColor(severity),
             marginBottom: 5,
-            letterSpacing: "0.03em",
+            letterSpacing: "0.02em",
             textTransform: "uppercase",
           }}
         >
@@ -866,12 +768,13 @@ function TimelineSection({ title, lines, severity = "neutral" }) {
 
       <div
         style={{
+          fontFamily: "Arial, Helvetica, sans-serif",
           display: "grid",
-          gap: 3,
-          fontSize: 14,
-          lineHeight: 1.35,
+          gap: 4,
+          fontSize: 17,
+          lineHeight: 1.42,
           color: "#dbeafe",
-          fontWeight: 750,
+          fontWeight: 500,
           whiteSpace: "pre-line",
         }}
       >
@@ -887,6 +790,7 @@ function TimelineMainCard({ timeline }) {
   return (
     <div
       style={{
+        fontFamily: "Arial, Helvetica, sans-serif",
         position: "absolute",
         top: 72,
         left: "50%",
@@ -907,8 +811,9 @@ function TimelineMainCard({ timeline }) {
     >
       <div
         style={{
-          fontWeight: 950,
-          fontSize: 26,
+          fontFamily: "Arial, Helvetica, sans-serif",
+          fontWeight: 700,
+          fontSize: 29,
           lineHeight: 1.25,
           color: severityColor(timeline.severity),
           marginBottom: 8,
@@ -919,9 +824,10 @@ function TimelineMainCard({ timeline }) {
 
       <div
         style={{
-          fontWeight: 900,
-          fontSize: 18,
-          lineHeight: 1.25,
+          fontFamily: "Arial, Helvetica, sans-serif",
+          fontWeight: 600,
+          fontSize: 21,
+          lineHeight: 1.3,
           color: "#f8fafc",
           marginBottom: 8,
         }}
@@ -932,10 +838,11 @@ function TimelineMainCard({ timeline }) {
       {timeline.subheadline && (
         <div
           style={{
-            fontSize: 17,
-            lineHeight: 1.35,
+            fontFamily: "Arial, Helvetica, sans-serif",
+            fontSize: 20,
+            lineHeight: 1.4,
             color: "#cbd5e1",
-            fontWeight: 800,
+            fontWeight: 500,
             marginBottom: 10,
           }}
         >
@@ -957,12 +864,13 @@ function TimelineMainCard({ timeline }) {
       {timeline.footer && (
         <div
           style={{
+            fontFamily: "Arial, Helvetica, sans-serif",
             marginTop: 10,
             paddingTop: 8,
             borderTop: "1px solid rgba(148,163,184,0.25)",
             color: "#94a3b8",
-            fontWeight: 850,
-            fontSize: 15,
+            fontWeight: 500,
+            fontSize: 18,
           }}
         >
           {timeline.footer}
@@ -979,6 +887,7 @@ function TimelineContextPanel({ sections }) {
   return (
     <div
       style={{
+        fontFamily: "Arial, Helvetica, sans-serif",
         position: "absolute",
         top: 160,
         left: "calc(50% - 760px)",
