@@ -100,6 +100,10 @@ function compactJoin(parts, sep = " | ") {
    Data helpers
 ========================= */
 
+function getEngine22WaveStrategy(overlayData) {
+  return overlayData?.fib?.engine22WaveStrategy || null;
+}
+
 function getEngine22(overlayData) {
   return overlayData?.fib?.engine22Scalp || null;
 }
@@ -510,7 +514,12 @@ function buildTraderNarrative({ waveFibState, waveStack }) {
 function normalizeFromBackendTimelineRead(timelineRead) {
   if (!timelineRead) return null;
 
-  const mainSections = Array.isArray(timelineRead.sections) ? timelineRead.sections : [];
+  const mainSections = Array.isArray(timelineRead.mainSections)
+  ? timelineRead.mainSections
+  : Array.isArray(timelineRead.sections)
+  ? timelineRead.sections
+  : [];
+   
   const sideSections = Array.isArray(timelineRead.sideSections) ? timelineRead.sideSections : [];
   const waveStack = timelineRead.waveStack || {};
 
@@ -534,8 +543,9 @@ function normalizeFromBackendTimelineRead(timelineRead) {
 
 function normalizeTimelineData({ overlayData, chartMode }) {
   const fib = getFib(overlayData);
+  const engine22WaveStrategy = getEngine22WaveStrategy(overlayData);
   const engine22 = getEngine22(overlayData);
-
+   
   if (!overlayData?.ok) {
     return { show: false };
   }
@@ -559,8 +569,17 @@ function normalizeTimelineData({ overlayData, chartMode }) {
     };
   }
 
-  const timelineRead = normalizeFromBackendTimelineRead(engine22?.timelineRead);
-  if (timelineRead) return timelineRead;
+   const waveStrategyTimelineRead = normalizeFromBackendTimelineRead(
+     engine22WaveStrategy?.timelineRead
+   );
+
+   if (waveStrategyTimelineRead) return waveStrategyTimelineRead;
+
+   const scalpTimelineRead = normalizeFromBackendTimelineRead(
+     engine22?.timelineRead
+   );
+
+   if (scalpTimelineRead) return scalpTimelineRead;
 
   const waveFibState = getWaveFibState(engine22);
   const abc = waveFibState?.abcCorrection || null;
