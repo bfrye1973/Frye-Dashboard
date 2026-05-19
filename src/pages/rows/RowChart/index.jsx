@@ -1285,11 +1285,9 @@ export default function RowChart({
     const engine1On = !!state.institutionalZonesAuto;
     const shelvesOn = !!state.smzShelvesAuto;
 
-    // ES manual institutional/negotiated zones route is pending.
-    // Avoid drawing SPY manual zones on ES.
-    const canDrawManualSmz = !isES;
-
-    if (engine1On && canDrawManualSmz) {
+    // ES manual institutional/negotiated zones are now supported.
+    // SMZ overlay components must choose the correct route by symbol.
+    if (engine1On) {
       reg(
         attachOverlay(SMZLevelsOverlay, {
           chart: chartRef.current,
