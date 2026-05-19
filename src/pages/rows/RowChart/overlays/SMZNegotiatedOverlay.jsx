@@ -6,14 +6,34 @@
 // This overlay is a second canvas layer placed ABOVE institutional zones (zIndex 13).
 // It does NOT touch institutional rendering. It only draws negotiated zones.
 
-const SMZ_URL =
-  "https://frye-market-backend-1.onrender.com/api/v1/smz-levels?symbol=SPY";
+const API_BASE =
+  (typeof window !== "undefined" && (window.__API_BASE__ || "")) ||
+  process.env.REACT_APP_API_BASE ||
+  process.env.REACT_APP_API_URL ||
+  "https://frye-market-backend-1.onrender.com";
+
+function normalizeSymbol(value) {
+  return String(value || "SPY").trim().toUpperCase();
+}
+
+function getSmzLevelsUrl(symbol) {
+  const clean = normalizeSymbol(symbol);
+
+  if (clean === "ES") {
+    return `${API_BASE.replace(/\/+$/, "")}/api/v1/es-smz-levels?symbol=ES`;
+  }
+
+  return `${API_BASE.replace(/\/+$/, "")}/api/v1/smz-levels?symbol=${encodeURIComponent(
+    clean
+  )}`;
+}
 
 export default function SMZNegotiatedOverlay({
   chart,
   priceSeries,
   chartContainer,
   timeframe,
+  symbol = "SPY",
 }) {
   if (!chart || !priceSeries || !chartContainer) {
     console.warn("[SMZNegotiatedOverlay] missing chart/priceSeries/chartContainer");
@@ -172,16 +192,27 @@ export default function SMZNegotiatedOverlay({
 
   async function loadLevels() {
     try {
-      const res = await fetch(`${SMZ_URL}&_=${Date.now()}`, { cache: "no-store" });
+      const url = `${getSmzLevelsUrl(symbol)}&_=${Date.now()}`;
+      const res = await fetch(url, { cache: "no-store" });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json();
 
       // Keep both for fallback; negotiated primarily uses structures_sticky
-      levels = Array.isArray(json?.levels) ? json.levels : [];
-      stickyStructures = Array.isArray(json?.structures_sticky)
+     const directNegotiated = Array.isArray(json?.negotiated)
+       ? json.negotiated
+       : Array.isArray(json?.levels?.negotiated)
+       ? json.levels.negotiated
+       : [];
+
+     const flatLevels = Array.isArray(json?.levels)
+       ? json.levels
+       : [];
+
+     levels = [...directNegotiated, ...flatLevels];
+
+     stickyStructures = Array.isArray(json?.structures_sticky)
         ? json.structures_sticky
         : [];
-
       draw();
     } catch (e) {
       console.warn("[SMZNegotiatedOverlay] failed to load smz-levels:", e);
