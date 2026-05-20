@@ -297,6 +297,8 @@ export default function IndicatorsToolbar({
   engine17TriggerLine = true,
   engine17DebugPanel = false,
 
+  engine25CompositeOverlay = true,
+
   showPremarketFibs = false,
 
   onChange,
@@ -508,13 +510,32 @@ export default function IndicatorsToolbar({
                   />{" "}
                   Debug Panel (Raw vs Composed)
                 </label>
-              </div>
+                </div>
 
-              {divider}
+                {divider}
 
-              <div style={{ color: "#9ca3af", fontSize: 12, margin: "6px 0 8px" }}>
-                Premarket Fibs
-              </div>
+                <div style={{ color: "#9ca3af", fontSize: 12, margin: "6px 0 8px" }}>
+                  Engine 25 — Market Health
+                </div>
+
+                <div style={{ display: "grid", gap: 6 }}>
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={!!engine25CompositeOverlay}
+                      onChange={(e) =>
+                        onChange?.({ engine25CompositeOverlay: e.target.checked })
+                      }
+                    />{" "}
+                    Composite Overlay
+                  </label>
+                </div>
+
+                {divider}
+
+                <div style={{ color: "#9ca3af", fontSize: 12, margin: "6px 0 8px" }}>
+                  Premarket Fibs
+                </div>
 
               <div style={{ display: "grid", gap: 6 }}>
                 <label>
