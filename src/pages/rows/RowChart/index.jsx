@@ -2188,11 +2188,10 @@ export default function RowChart({
           <Engine25MarketHealthTimeline
             visible={
               state.engine25Timeline &&
-              state.engine17Overlay &&
               normalizeSymbol(state.symbol) === "ES"
-           }
-           symbol={state.symbol}
-          />
+          }
+          symbol={state.symbol}
+         />
 
            <Engine17DecisionTimeline
              overlayData={engine17Data}
