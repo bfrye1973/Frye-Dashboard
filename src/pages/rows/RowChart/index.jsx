@@ -49,6 +49,7 @@ import Engine17Overlay from "./overlays/Engine17Overlay";
 import Engine17DecisionTimeline from "./overlays/Engine17DecisionTimeline";
 import Engine17Badges from "./overlays/Engine17Badges";
 import Engine25CompositeOverlay from "./overlays/Engine25CompositeOverlay";
+import Engine25MarketHealthTimeline from "./overlays/Engine25MarketHealthTimeline";
 
 /* ------------------------------ Config ------------------------------ */
 
@@ -896,6 +897,7 @@ export default function RowChart({
     engine17DebugPanel: false,
 
     engine25CompositeOverlay: false,
+    engine25Timeline: false,
 
     showPremarketFibs: false,
   });
@@ -1981,6 +1983,9 @@ export default function RowChart({
       engine17TriggerLine: true,
       engine17DebugPanel: false,
 
+      engine25CompositeOverlay: false,
+      engine25Timeline: false,      
+
       showPremarketFibs: false,
     }));
 
@@ -2015,7 +2020,8 @@ export default function RowChart({
     engine17TriggerLine: state.engine17TriggerLine,
     engine17DebugPanel: state.engine17DebugPanel,
 
-    engine25CompositeOverlay: state.engine25CompositeOverlay, 
+    engine25CompositeOverlay: state.engine25CompositeOverlay,
+    engine25Timeline: state.engine25Timeline,
 
     showPremarketFibs: state.showPremarketFibs,
 
@@ -2179,12 +2185,21 @@ export default function RowChart({
             {badge.text}
           </div>
 
-          <Engine17DecisionTimeline
-            overlayData={engine17Data}
-            visible={state.engine17Timeline && state.engine17Overlay}
-            chartMode={selectedMode}
-            symbol={state.symbol}
+          <Engine25MarketHealthTimeline
+            visible={
+              state.engine25Timeline &&
+              state.engine17Overlay &&
+              normalizeSymbol(state.symbol) === "ES"
+           }
+           symbol={state.symbol}
           />
+
+           <Engine17DecisionTimeline
+             overlayData={engine17Data}
+             visible={state.engine17Timeline && state.engine17Overlay}
+             chartMode={selectedMode}
+             symbol={state.symbol}
+           />
 
           <Engine17Badges
             overlayData={engine17Data}
