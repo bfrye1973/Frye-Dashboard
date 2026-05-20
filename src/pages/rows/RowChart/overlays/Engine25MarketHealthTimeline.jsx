@@ -1,30 +1,19 @@
-// src/pages/rows/RowChart/overlays/Engine25MarketHealthTimeline.jsx
+// src/pages/engine25/Engine25FullDashboard.jsx
 
 import React, { useEffect, useMemo, useState } from "react";
+import { API_BASE } from "../../App";
 
-const API_BASE =
-  (typeof window !== "undefined" && (window.__API_BASE__ || "")) ||
-  process.env.REACT_APP_API_BASE ||
-  process.env.REACT_APP_API_URL ||
-  "https://frye-market-backend-1.onrender.com";
+const ROUTE = `${API_BASE.replace(
+  /\/+$/,
+  ""
+)}/api/v1/engine25/full-dashboard`;
 
-const ROUTE = `${API_BASE.replace(/\/+$/, "")}/api/v1/engine25/full-dashboard`;
+const FONT = "Arial, Helvetica, sans-serif";
 
-/* =========================
-   Formatters
-========================= */
+function colorFor(value, inverse = false) {
+  const n = Number(value);
 
-function cleanLabel(value) {
-  return String(value || "—")
-    .replaceAll("_", " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function scoreColor(score, inverse = false) {
-  const n = Number(score);
-
-  if (!Number.isFinite(n)) return "#94a3b8";
+  if (!Number.isFinite(n)) return "#64748b";
 
   if (inverse) {
     if (n < 30) return "#22c55e";
@@ -39,10 +28,10 @@ function scoreColor(score, inverse = false) {
   return "#ef4444";
 }
 
-function fmtScore(value) {
+function fmt(value, decimals = 0) {
   const n = Number(value);
   if (!Number.isFinite(n)) return "—";
-  return Math.round(n);
+  return n.toFixed(decimals);
 }
 
 function fmtChange(value) {
@@ -52,85 +41,101 @@ function fmtChange(value) {
   return String(n);
 }
 
-function shortText(value, max = 280) {
-  const text = String(value || "").trim();
-  if (text.length <= max) return text;
-  return `${text.slice(0, max).trim()}…`;
+function cleanLabel(value) {
+  return String(value || "—")
+    .replaceAll("_", " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
-/* =========================
-   Shared Engine 17-style UI helpers
-========================= */
+function changeColor(value, inverse = false) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return "#cbd5e1";
 
-const PANEL_FONT = "Arial, Helvetica, sans-serif";
+  if (inverse) {
+    if (n > 0) return "#ef4444";
+    if (n < 0) return "#22c55e";
+    return "#cbd5e1";
+  }
 
-function engine25Border() {
-  return "rgba(96,165,250,0.45)";
+  if (n > 0) return "#22c55e";
+  if (n < 0) return "#ef4444";
+  return "#cbd5e1";
 }
 
-function engine25Background() {
-  return "rgba(15,23,42,0.38)";
+function pageCardStyle(extra = {}) {
+  return {
+    border: "1px solid rgba(148,163,184,0.24)",
+    borderRadius: 14,
+    background: "rgba(15,23,42,0.72)",
+    boxShadow: "0 8px 22px rgba(0,0,0,0.22)",
+    ...extra,
+  };
 }
 
-function SectionBox({ title, children, borderColor, titleColor }) {
+function SectionTitle({ children, color = "#93c5fd" }) {
   return (
     <div
       style={{
-        fontFamily: PANEL_FONT,
-        border: `1px solid ${borderColor || engine25Border()}`,
-        borderRadius: 10,
-        padding: "8px 10px",
-        background: engine25Background(),
-        textAlign: "left",
+        fontFamily: FONT,
+        fontSize: 17,
+        lineHeight: 1.3,
+        fontWeight: 800,
+        color,
+        letterSpacing: "0.02em",
+        textTransform: "uppercase",
+        marginBottom: 10,
       }}
     >
-      {title && (
-        <div
-          style={{
-            fontFamily: PANEL_FONT,
-            fontSize: 17,
-            fontWeight: 800,
-            color: titleColor || "#60a5fa",
-            marginBottom: 5,
-            letterSpacing: "0.02em",
-            textTransform: "uppercase",
-          }}
-        >
-          {title}
-        </div>
-      )}
-
       {children}
     </div>
   );
 }
 
-function SmallScoreRow({ label, score, inverse = false }) {
+function BodyText({ children, color = "#dbeafe", weight = 500 }) {
+  return (
+    <div
+      style={{
+        fontFamily: FONT,
+        fontSize: 17,
+        lineHeight: 1.45,
+        fontWeight: weight,
+        color,
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+function ScoreBar({ label, score, color, inverse = false }) {
   const n = Number(score);
   const width = Number.isFinite(n) ? Math.max(0, Math.min(100, n)) : 0;
-  const color = scoreColor(score, inverse);
+  const c = color || colorFor(score, inverse);
 
   return (
-    <div style={{ display: "grid", gap: 5 }}>
+    <div style={{ display: "grid", gap: 7 }}>
       <div
         style={{
-          fontFamily: PANEL_FONT,
+          fontFamily: FONT,
           display: "flex",
           justifyContent: "space-between",
-          gap: 8,
+          gap: 12,
           fontSize: 17,
-          lineHeight: 1.42,
+          lineHeight: 1.35,
           fontWeight: 500,
           color: "#dbeafe",
         }}
       >
         <span>{label}</span>
-        <span style={{ color, fontWeight: 800 }}>{fmtScore(score)}</span>
+        <span style={{ color: c, fontWeight: 800 }}>
+          {Number.isFinite(n) ? Math.round(n) : "—"}
+        </span>
       </div>
 
       <div
         style={{
-          height: 7,
+          height: 9,
           borderRadius: 999,
           background: "rgba(148,163,184,0.18)",
           overflow: "hidden",
@@ -138,9 +143,9 @@ function SmallScoreRow({ label, score, inverse = false }) {
       >
         <div
           style={{
-            width: `${width}%`,
             height: "100%",
-            background: color,
+            width: `${width}%`,
+            background: c,
             borderRadius: 999,
           }}
         />
@@ -149,54 +154,308 @@ function SmallScoreRow({ label, score, inverse = false }) {
   );
 }
 
-function ChangePill({ label, value, inverse = false }) {
-  const n = Number(value);
-  let color = "#cbd5e1";
+function MiniCompositeChart({ rows = [] }) {
+  const chart = useMemo(() => {
+    const clean = rows
+      .filter(
+        (row) =>
+          Number.isFinite(Number(row.time)) &&
+          Number.isFinite(Number(row.engine25CompositeScore))
+      )
+      .map((row) => ({
+        time: Number(row.time),
+        value: Number(row.engine25CompositeScore),
+      }));
 
-  if (Number.isFinite(n)) {
-    if (inverse) {
-      color = n > 0 ? "#ef4444" : n < 0 ? "#22c55e" : "#cbd5e1";
-    } else {
-      color = n > 0 ? "#22c55e" : n < 0 ? "#ef4444" : "#cbd5e1";
+    const width = 1200;
+    const height = 320;
+    const padX = 52;
+    const padY = 28;
+
+    if (clean.length < 2) {
+      return { width, height, path: "" };
     }
-  }
+
+    const usableW = width - padX * 2;
+    const usableH = height - padY * 2;
+
+    const path = clean
+      .map((point, index) => {
+        const x = padX + (index / (clean.length - 1)) * usableW;
+        const y = padY + (1 - point.value / 100) * usableH;
+        return `${index === 0 ? "M" : "L"} ${x.toFixed(2)} ${y.toFixed(2)}`;
+      })
+      .join(" ");
+
+    return { width, height, path };
+  }, [rows]);
 
   return (
-    <div
-      style={{
-        fontFamily: PANEL_FONT,
-        display: "flex",
-        justifyContent: "space-between",
-        gap: 8,
-        fontSize: 17,
-        lineHeight: 1.42,
-        color: "#dbeafe",
-        fontWeight: 500,
-      }}
-    >
-      <span>{label}</span>
-      <span style={{ color, fontWeight: 800 }}>{fmtChange(value)}</span>
+    <div style={pageCardStyle({ padding: 16 })}>
+      <SectionTitle>Engine 25 Composite Overlay — 6 Months</SectionTitle>
+
+      <svg
+        width="100%"
+        viewBox={`0 0 ${chart.width} ${chart.height}`}
+        style={{ display: "block", height: 320 }}
+      >
+        {[25, 50, 75].map((level) => {
+          const y = 28 + (1 - level / 100) * (chart.height - 56);
+          return (
+            <g key={level}>
+              <line
+                x1="52"
+                x2={chart.width - 52}
+                y1={y}
+                y2={y}
+                stroke="rgba(148,163,184,0.22)"
+                strokeWidth="1"
+              />
+              <text
+                x="14"
+                y={y + 5}
+                fill="#94a3b8"
+                fontSize="16"
+                fontFamily={FONT}
+                fontWeight="500"
+              >
+                {level}
+              </text>
+            </g>
+          );
+        })}
+
+        <line
+          x1="52"
+          x2={chart.width - 52}
+          y1={28 + (1 - 55 / 100) * (chart.height - 56)}
+          y2={28 + (1 - 55 / 100) * (chart.height - 56)}
+          stroke="rgba(245,158,11,0.55)"
+          strokeDasharray="7 7"
+        />
+
+        {chart.path && (
+          <path
+            d={chart.path}
+            fill="none"
+            stroke="#f97316"
+            strokeWidth="3"
+            strokeLinejoin="round"
+            strokeLinecap="round"
+          />
+        )}
+      </svg>
     </div>
   );
 }
 
-/* =========================
-   Main Export
-========================= */
+function UnderTheHoodTable({ rows = [], interpretation }) {
+  return (
+    <div style={pageCardStyle({ padding: 18, overflow: "hidden" })}>
+      <SectionTitle>Under The Hood Change</SectionTitle>
 
-export default function Engine25MarketHealthTimeline({
-  visible = true,
-  symbol = "ES",
-}) {
-  const [payload, setPayload] = useState(null);
+      <div style={{ overflowX: "auto" }}>
+        <table
+          style={{
+            width: "100%",
+            borderCollapse: "separate",
+            borderSpacing: 0,
+            fontFamily: FONT,
+            fontSize: 17,
+            lineHeight: 1.42,
+            color: "#dbeafe",
+          }}
+        >
+          <thead>
+            <tr
+              style={{
+                color: "#93c5fd",
+                textAlign: "right",
+                fontSize: 15,
+                textTransform: "uppercase",
+                letterSpacing: "0.02em",
+              }}
+            >
+              <th
+                style={{
+                  textAlign: "left",
+                  padding: "10px 12px",
+                  fontWeight: 800,
+                  borderBottom: "1px solid rgba(148,163,184,0.22)",
+                }}
+              >
+                Metric
+              </th>
+              <th
+                style={{
+                  padding: "10px 12px",
+                  fontWeight: 800,
+                  borderBottom: "1px solid rgba(148,163,184,0.22)",
+                }}
+              >
+                Current
+              </th>
+              <th
+                style={{
+                  padding: "10px 12px",
+                  fontWeight: 800,
+                  borderBottom: "1px solid rgba(148,163,184,0.22)",
+                }}
+              >
+                1D Ago
+              </th>
+              <th
+                style={{
+                  padding: "10px 12px",
+                  fontWeight: 800,
+                  borderBottom: "1px solid rgba(148,163,184,0.22)",
+                }}
+              >
+                1D Change
+              </th>
+              <th
+                style={{
+                  padding: "10px 12px",
+                  fontWeight: 800,
+                  borderBottom: "1px solid rgba(148,163,184,0.22)",
+                }}
+              >
+                3D Ago
+              </th>
+              <th
+                style={{
+                  padding: "10px 12px",
+                  fontWeight: 800,
+                  borderBottom: "1px solid rgba(148,163,184,0.22)",
+                }}
+              >
+                3D Change
+              </th>
+            </tr>
+          </thead>
+
+          <tbody>
+            {rows.map((row, index) => {
+              const one = Number(row.oneDayChange);
+              const three = Number(row.threeDayChange);
+              const isES = row.label === "ES Close";
+              const inverse =
+                row.label === "Distribution" ||
+                row.label === "Credit Fragility";
+
+              return (
+                <tr
+                  key={row.label}
+                  style={{
+                    background:
+                      index % 2 === 0
+                        ? "rgba(2,6,23,0.20)"
+                        : "rgba(15,23,42,0.20)",
+                  }}
+                >
+                  <td
+                    style={{
+                      textAlign: "left",
+                      padding: "11px 12px",
+                      fontWeight: 650,
+                      color: "#f8fafc",
+                      borderBottom: "1px solid rgba(148,163,184,0.12)",
+                    }}
+                  >
+                    {row.label}
+                  </td>
+
+                  <td
+                    style={{
+                      textAlign: "right",
+                      padding: "11px 12px",
+                      fontWeight: 500,
+                      borderBottom: "1px solid rgba(148,163,184,0.12)",
+                    }}
+                  >
+                    {fmt(row.current, isES ? 2 : 0)}
+                  </td>
+
+                  <td
+                    style={{
+                      textAlign: "right",
+                      padding: "11px 12px",
+                      fontWeight: 500,
+                      borderBottom: "1px solid rgba(148,163,184,0.12)",
+                    }}
+                  >
+                    {fmt(row.oneDayAgo, isES ? 2 : 0)}
+                  </td>
+
+                  <td
+                    style={{
+                      textAlign: "right",
+                      padding: "11px 12px",
+                      color: changeColor(one, inverse),
+                      fontWeight: 800,
+                      borderBottom: "1px solid rgba(148,163,184,0.12)",
+                    }}
+                  >
+                    {fmtChange(row.oneDayChange)}
+                  </td>
+
+                  <td
+                    style={{
+                      textAlign: "right",
+                      padding: "11px 12px",
+                      fontWeight: 500,
+                      borderBottom: "1px solid rgba(148,163,184,0.12)",
+                    }}
+                  >
+                    {fmt(row.threeDaysAgo, isES ? 2 : 0)}
+                  </td>
+
+                  <td
+                    style={{
+                      textAlign: "right",
+                      padding: "11px 12px",
+                      color: changeColor(three, inverse),
+                      fontWeight: 800,
+                      borderBottom: "1px solid rgba(148,163,184,0.12)",
+                    }}
+                  >
+                    {fmtChange(row.threeDayChange)}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {interpretation && (
+        <div
+          style={{
+            marginTop: 16,
+            border: "1px solid rgba(245,158,11,0.28)",
+            background: "rgba(120,53,15,0.18)",
+            color: "#fed7aa",
+            borderRadius: 12,
+            padding: 14,
+            fontFamily: FONT,
+            fontSize: 17,
+            lineHeight: 1.45,
+            fontWeight: 650,
+          }}
+        >
+          {interpretation}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function Engine25FullDashboard() {
+  const [data, setData] = useState(null);
   const [status, setStatus] = useState("LOADING");
   const [error, setError] = useState(null);
 
-  const isES = String(symbol || "").toUpperCase() === "ES";
-
   useEffect(() => {
-    if (!visible || !isES) return;
-
     let cancelled = false;
 
     async function load() {
@@ -209,12 +468,12 @@ export default function Engine25MarketHealthTimeline({
 
         if (!res.ok || json?.ok === false) {
           throw new Error(
-            json?.error || `Engine25 full dashboard HTTP ${res.status}`
+            json?.error || `Engine 25 full dashboard HTTP ${res.status}`
           );
         }
 
         if (!cancelled) {
-          setPayload(json);
+          setData(json);
           setStatus("READY");
         }
       } catch (err) {
@@ -233,337 +492,333 @@ export default function Engine25MarketHealthTimeline({
       cancelled = true;
       clearInterval(timer);
     };
-  }, [visible, isES]);
+  }, []);
 
-  const headline = payload?.headline || {};
-  const breakdown = Array.isArray(payload?.componentBreakdown)
-    ? payload.componentBreakdown
+  const headline = data?.headline || {};
+  const breakdown = Array.isArray(data?.componentBreakdown)
+    ? data.componentBreakdown
     : [];
-  const changes = Array.isArray(payload?.underTheHood?.rows)
-    ? payload.underTheHood.rows
+  const comparison = Array.isArray(data?.underTheHood?.rows)
+    ? data.underTheHood.rows
     : [];
-  const zoneRead = payload?.zoneRead || null;
-
-  const lookupChange = useMemo(() => {
-    const map = {};
-    for (const row of changes) {
-      map[row.label] = row;
-    }
-    return map;
-  }, [changes]);
-
-  if (!visible || !isES) return null;
-
-  const score = Number(headline.score);
-  const stateColor = scoreColor(score);
-  const permission = headline.permissionText || cleanLabel(headline.permission);
-  const size = headline.size ?? "—";
-
-  const breadth = breakdown.find((item) => item.key === "breadthParticipation");
-  const distribution = breakdown.find(
-    (item) => item.key === "distributionPressure"
-  );
-  const macro = breakdown.find((item) => item.key === "macroAwareScore");
-  const credit = breakdown.find((item) => item.key === "creditFragility");
-  const ai = breakdown.find((item) => item.key === "aiLeadership");
+  const overlayRows = Array.isArray(data?.overlay?.rows)
+    ? data.overlay.rows
+    : [];
+  const zoneRead = data?.zoneRead || null;
 
   return (
     <div
       style={{
-        fontFamily: PANEL_FONT,
-        position: "absolute",
-
-        /*
-          Moved far to the right.
-          Previous fixed values were too small because the dashboard UI scaler
-          makes visual movement look smaller than the raw CSS value.
-        */
-        top: 126,
-        left: 820,
-
-        zIndex: 118,
-        width: 560,
-        maxWidth: "560px",
-        maxHeight: "calc(100vh - 190px)",
-        overflowY: "auto",
-
-        borderRadius: 14,
-        border: `1px solid ${engine25Border()}`,
-        background: "rgba(6,10,20,0.95)",
-        padding: "12px 14px",
+        minHeight: "100vh",
+        background: "#020617",
         color: "#e5e7eb",
-        backdropFilter: "blur(4px)",
-        pointerEvents: "auto",
-        textAlign: "left",
-        boxShadow: "0 8px 24px rgba(0,0,0,0.28)",
-        display: "grid",
-        gap: 8,
+        padding: "22px 24px 38px",
+        fontFamily: FONT,
       }}
-      title="Engine 25 Market Health Timeline"
     >
       <div
         style={{
-          fontFamily: PANEL_FONT,
-          border: `1px solid ${engine25Border()}`,
-          borderRadius: 10,
-          padding: "8px 10px",
-          background: "rgba(30,64,175,0.13)",
+          maxWidth: 1680,
+          margin: "0 auto",
           display: "grid",
-          gap: 8,
+          gap: 18,
         }}
       >
         <div
           style={{
             display: "flex",
             justifyContent: "space-between",
-            gap: 10,
-            alignItems: "flex-start",
+            gap: 16,
+            alignItems: "center",
+            borderBottom: "1px solid rgba(148,163,184,0.24)",
+            paddingBottom: 14,
           }}
         >
           <div>
             <div
               style={{
-                fontFamily: PANEL_FONT,
-                fontSize: 17,
+                fontFamily: FONT,
+                fontSize: 29,
+                lineHeight: 1.25,
                 fontWeight: 800,
-                color: "#60a5fa",
-                letterSpacing: "0.02em",
-                textTransform: "uppercase",
+                color: "#f8fafc",
+                letterSpacing: "0.01em",
               }}
             >
-              Engine 25 Market Health
+              ENGINE 25 — U.S. MARKET HEALTH MODEL
             </div>
 
             <div
               style={{
-                fontFamily: PANEL_FONT,
+                fontFamily: FONT,
+                color: "#cbd5e1",
+                marginTop: 5,
                 fontSize: 17,
-                lineHeight: 1.42,
-                color: "#dbeafe",
+                lineHeight: 1.35,
                 fontWeight: 500,
-                marginTop: 3,
               }}
             >
-              Macro · Distribution · Breadth
+              Full dashboard · Composite overlay · Under-the-hood comparison
             </div>
           </div>
 
           <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              window.open("/engine25-full", "_blank");
-            }}
+            onClick={() => window.close()}
             style={{
-              fontFamily: PANEL_FONT,
-              background: "rgba(15,23,42,0.92)",
-              border: "1px solid rgba(125,211,252,0.35)",
-              color: "#bae6fd",
-              borderRadius: 8,
-              padding: "6px 9px",
+              fontFamily: FONT,
+              background: "#0f172a",
+              border: "1px solid rgba(148,163,184,0.35)",
+              color: "#e5e7eb",
+              borderRadius: 10,
+              padding: "9px 13px",
               fontSize: 15,
               fontWeight: 800,
               cursor: "pointer",
-              whiteSpace: "nowrap",
             }}
-            title="Open full Engine 25 dashboard"
           >
-            Open Full Chart
+            Close
           </button>
         </div>
 
-        {status === "ERROR" ? (
+        {status === "ERROR" && (
           <div
             style={{
-              fontFamily: PANEL_FONT,
+              border: "1px solid rgba(239,68,68,0.35)",
+              background: "rgba(127,29,29,0.35)",
+              borderRadius: 12,
+              padding: 16,
               color: "#fecaca",
               fontSize: 17,
-              lineHeight: 1.42,
+              lineHeight: 1.45,
               fontWeight: 500,
             }}
           >
-            Engine 25 error: {error}
-          </div>
-        ) : status === "LOADING" && !payload ? (
-          <div
-            style={{
-              fontFamily: PANEL_FONT,
-              color: "#cbd5e1",
-              fontSize: 17,
-              lineHeight: 1.42,
-              fontWeight: 500,
-            }}
-          >
-            Loading Engine 25…
-          </div>
-        ) : (
-          <div style={{ display: "grid", gap: 8 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-              <div
-                style={{
-                  fontFamily: PANEL_FONT,
-                  fontSize: 54,
-                  lineHeight: 1,
-                  fontWeight: 800,
-                  color: stateColor,
-                }}
-              >
-                {fmtScore(headline.score)}
-              </div>
-
-              <div style={{ minWidth: 0 }}>
-                <div
-                  style={{
-                    fontFamily: PANEL_FONT,
-                    fontSize: 20,
-                    lineHeight: 1.3,
-                    fontWeight: 650,
-                    color: "#f8fafc",
-                    whiteSpace: "nowrap",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                  }}
-                >
-                  {cleanLabel(headline.label || headline.state)}
-                </div>
-
-                <div
-                  style={{
-                    fontFamily: PANEL_FONT,
-                    fontSize: 17,
-                    lineHeight: 1.42,
-                    color: "#cbd5e1",
-                    fontWeight: 500,
-                    marginTop: 3,
-                  }}
-                >
-                  {headline.date || "—"} · ES {headline.esClose ?? "—"}
-                </div>
-              </div>
-            </div>
-
-            <div
-              style={{
-                fontFamily: PANEL_FONT,
-                border: "1px solid rgba(251,191,36,0.52)",
-                background: "rgba(113,63,18,0.14)",
-                borderRadius: 10,
-                padding: "8px 10px",
-                fontSize: 17,
-                lineHeight: 1.42,
-                color: "#fbbf24",
-                fontWeight: 800,
-                textTransform: "uppercase",
-              }}
-            >
-              {permission} · Size {size}
-            </div>
+            Engine 25 full dashboard error: {error}
           </div>
         )}
-      </div>
 
-      {payload && status !== "ERROR" && (
-        <>
-          <SectionBox title="Why?" titleColor="#60a5fa">
-            <div style={{ display: "grid", gap: 8 }}>
-              <SmallScoreRow
-                label="Macro"
-                score={macro?.score}
-                inverse={macro?.direction === "lower_is_better"}
-              />
-              <SmallScoreRow
-                label="Breadth"
-                score={breadth?.score}
-                inverse={breadth?.direction === "lower_is_better"}
-              />
-              <SmallScoreRow
-                label="Distribution"
-                score={distribution?.score}
-                inverse
-              />
-              <SmallScoreRow
-                label="Credit"
-                score={credit?.score}
-                inverse={credit?.direction === "lower_is_better"}
-              />
-              <SmallScoreRow
-                label="AI"
-                score={ai?.score}
-                inverse={ai?.direction === "lower_is_better"}
-              />
-            </div>
-          </SectionBox>
+        {status === "LOADING" && !data && (
+          <div
+            style={{
+              color: "#94a3b8",
+              fontSize: 17,
+              lineHeight: 1.45,
+              fontWeight: 500,
+            }}
+          >
+            Loading Engine 25 full dashboard…
+          </div>
+        )}
 
-          <SectionBox title="1D Change" titleColor="#60a5fa">
-            <div style={{ display: "grid", gap: 4 }}>
-              <ChangePill
-                label="ES"
-                value={lookupChange["ES Close"]?.oneDayChange}
-              />
-              <ChangePill
-                label="Composite"
-                value={lookupChange["Composite"]?.oneDayChange}
-              />
-              <ChangePill
-                label="Breadth"
-                value={lookupChange["Breadth"]?.oneDayChange}
-              />
-              <ChangePill
-                label="Distribution"
-                value={lookupChange["Distribution"]?.oneDayChange}
-                inverse
-              />
-              <ChangePill
-                label="AI"
-                value={lookupChange["AI Leadership"]?.oneDayChange}
-              />
-            </div>
-          </SectionBox>
-
-          <SectionBox title="Desk Note" titleColor="#60a5fa">
+        {data && (
+          <>
             <div
               style={{
-                fontFamily: PANEL_FONT,
                 display: "grid",
-                gap: 4,
-                fontSize: 17,
-                lineHeight: 1.42,
-                color: "#dbeafe",
-                fontWeight: 500,
-                whiteSpace: "pre-line",
+                gridTemplateColumns:
+                  "minmax(360px, 0.88fr) minmax(520px, 1.12fr)",
+                gap: 18,
               }}
             >
-              {shortText(payload?.deskNote, 320)}
-            </div>
-          </SectionBox>
-
-          {zoneRead?.zoneState && (
-            <SectionBox title="Zone Read" titleColor="#60a5fa">
               <div
-                style={{
-                  fontFamily: PANEL_FONT,
+                style={pageCardStyle({
+                  padding: 18,
                   display: "grid",
-                  gap: 4,
-                  fontSize: 17,
-                  lineHeight: 1.42,
-                  color: "#dbeafe",
-                  fontWeight: 500,
-                  whiteSpace: "pre-line",
-                }}
+                  gap: 14,
+                })}
               >
-                <div>
-                  <strong>Zone:</strong>{" "}
-                  {cleanLabel(zoneRead.zoneState.state)}
+                <SectionTitle>Headline</SectionTitle>
+
+                <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+                  <div
+                    style={{
+                      fontFamily: FONT,
+                      fontSize: 60,
+                      lineHeight: 1,
+                      fontWeight: 800,
+                      color: colorFor(headline.score),
+                    }}
+                  >
+                    {fmt(headline.score)}
+                  </div>
+
+                  <div>
+                    <div
+                      style={{
+                        fontFamily: FONT,
+                        fontSize: 21,
+                        lineHeight: 1.3,
+                        fontWeight: 650,
+                        color: "#f8fafc",
+                      }}
+                    >
+                      {cleanLabel(headline.label)}
+                    </div>
+
+                    <div
+                      style={{
+                        color: "#cbd5e1",
+                        marginTop: 5,
+                        fontSize: 17,
+                        lineHeight: 1.35,
+                        fontWeight: 500,
+                      }}
+                    >
+                      {headline.date} · ES {fmt(headline.esClose, 2)}
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <strong>Permission:</strong>{" "}
-                  {cleanLabel(zoneRead.zoneState.permission)}
+
+                <div
+                  style={{
+                    border: "1px solid rgba(245,158,11,0.32)",
+                    background: "rgba(120,53,15,0.25)",
+                    borderRadius: 12,
+                    padding: 13,
+                    fontSize: 17,
+                    lineHeight: 1.42,
+                    fontWeight: 800,
+                    color: "#fed7aa",
+                    textTransform: "uppercase",
+                  }}
+                >
+                  {headline.permissionText}
+                  {headline.size !== null && headline.size !== undefined
+                    ? ` · Size ${headline.size}`
+                    : ""}
+                </div>
+
+                <BodyText color="#dbeafe" weight={500}>
+                  {headline.interpretation}
+                </BodyText>
+              </div>
+
+              <div
+                style={pageCardStyle({
+                  padding: 18,
+                })}
+              >
+                <SectionTitle>Why Is Engine 25 Saying This?</SectionTitle>
+
+                <div style={{ display: "grid", gap: 13 }}>
+                  {breakdown.map((item) => (
+                    <ScoreBar
+                      key={item.key}
+                      label={item.label}
+                      score={item.score}
+                      color={item.color === "darkRed" ? "#7f1d1d" : undefined}
+                      inverse={item.direction === "lower_is_better"}
+                    />
+                  ))}
                 </div>
               </div>
-            </SectionBox>
-          )}
-        </>
-      )}
+            </div>
+
+            <MiniCompositeChart rows={overlayRows} />
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns:
+                  "minmax(760px, 1.35fr) minmax(440px, 0.65fr)",
+                gap: 18,
+              }}
+            >
+              <UnderTheHoodTable
+                rows={comparison}
+                interpretation={data?.underTheHood?.interpretation}
+              />
+
+              <div
+                style={pageCardStyle({
+                  padding: 18,
+                  display: "grid",
+                  gap: 14,
+                })}
+              >
+                <SectionTitle>Zone + Market Health Read</SectionTitle>
+
+                <BodyText color="#dbeafe" weight={500}>
+                  {zoneRead?.plainEnglish || "No zone-aware read available."}
+                </BodyText>
+
+                {zoneRead?.nearestZone && (
+                  <div
+                    style={{
+                      display: "grid",
+                      gap: 8,
+                      fontSize: 16,
+                      lineHeight: 1.4,
+                      borderTop: "1px solid rgba(148,163,184,0.16)",
+                      paddingTop: 12,
+                      color: "#dbeafe",
+                      fontWeight: 500,
+                    }}
+                  >
+                    <div>
+                      <strong style={{ color: "#f8fafc", fontWeight: 700 }}>
+                        Nearest Zone:
+                      </strong>{" "}
+                      {zoneRead.nearestZone.id}
+                    </div>
+
+                    <div>
+                      <strong style={{ color: "#f8fafc", fontWeight: 700 }}>
+                        Institutional:
+                      </strong>{" "}
+                      {zoneRead.nearestZone.institutional?.lo}–
+                      {zoneRead.nearestZone.institutional?.hi}
+                    </div>
+
+                    <div>
+                      <strong style={{ color: "#f8fafc", fontWeight: 700 }}>
+                        Negotiated:
+                      </strong>{" "}
+                      {zoneRead.nearestZone.negotiated?.lo}–
+                      {zoneRead.nearestZone.negotiated?.hi}
+                    </div>
+
+                    <div>
+                      <strong style={{ color: "#f8fafc", fontWeight: 700 }}>
+                        Zone State:
+                      </strong>{" "}
+                      {cleanLabel(zoneRead?.zoneState?.state)}
+                    </div>
+
+                    <div>
+                      <strong style={{ color: "#f8fafc", fontWeight: 700 }}>
+                        Permission:
+                      </strong>{" "}
+                      {cleanLabel(zoneRead?.zoneState?.permission)}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div
+              style={pageCardStyle({
+                padding: 18,
+                border: "1px solid rgba(59,130,246,0.28)",
+              })}
+            >
+              <SectionTitle color="#93c5fd">Desk Note</SectionTitle>
+
+              <div
+                style={{
+                  fontFamily: FONT,
+                  fontSize: 17,
+                  lineHeight: 1.48,
+                  color: "#dbeafe",
+                  fontWeight: 500,
+                }}
+              >
+                {data?.deskNote}
+              </div>
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 }
