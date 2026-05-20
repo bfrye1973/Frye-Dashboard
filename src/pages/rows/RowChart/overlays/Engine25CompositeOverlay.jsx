@@ -30,10 +30,10 @@ function formatPermission(value) {
     .trim();
 }
 
-function buildLineData(payload) {
+function buildLineData(payload, chartBars = []) {
   const rows = Array.isArray(payload?.rows) ? payload.rows : [];
 
-  return rows
+  const base = rows
     .filter(
       (row) =>
         Number.isFinite(Number(row.time)) &&
@@ -42,7 +42,28 @@ function buildLineData(payload) {
     .map((row) => ({
       time: Number(row.time),
       value: Number(row.engine25CompositeScore),
+    }))
+    .sort((a, b) => a.time - b.time);
+
+  if (!base.length) return base;
+
+  const lastPoint = base[base.length - 1];
+
+  const chartTimes = (Array.isArray(chartBars) ? chartBars : [])
+    .map((bar) =>
+      Number(bar.time > 1e12 ? Math.floor(bar.time / 1000) : bar.time)
+    )
+    .filter((time) => Number.isFinite(time))
+    .sort((a, b) => a - b);
+
+  const forwardFill = chartTimes
+    .filter((time) => time > lastPoint.time)
+    .map((time) => ({
+      time,
+      value: lastPoint.value,
     }));
+
+  return [...base, ...forwardFill];
 }
 
 export default function Engine25CompositeOverlay({
@@ -50,6 +71,7 @@ export default function Engine25CompositeOverlay({
   symbol = "ES",
   chart = null,
   chartReady = false,
+  bars = [],
 }) {
   const [payload, setPayload] = useState(null);
   const [status, setStatus] = useState("LOADING");
@@ -105,7 +127,7 @@ export default function Engine25CompositeOverlay({
   const latestPermission = latest?.permissions?.finalPermission || "—";
   const latestDate = latest?.date || "—";
 
-  const lineData = useMemo(() => buildLineData(payload), [payload]);
+  const lineData = useMemo(() => buildLineData(payload, bars), [payload, bars]);
 
   useEffect(() => {
     if (!visible || !isES || !chartReady || !chart || !lineData.length) {
