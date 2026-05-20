@@ -48,7 +48,7 @@ function fmtChange(value) {
   return String(n);
 }
 
-function shortText(value, max = 190) {
+function shortText(value, max = 230) {
   const text = String(value || "").trim();
   if (text.length <= max) return text;
   return `${text.slice(0, max).trim()}…`;
@@ -60,13 +60,13 @@ function SmallScoreRow({ label, score, inverse = false }) {
   const color = scoreColor(score, inverse);
 
   return (
-    <div style={{ display: "grid", gap: 4 }}>
+    <div style={{ display: "grid", gap: 5 }}>
       <div
         style={{
           display: "flex",
           justifyContent: "space-between",
           gap: 8,
-          fontSize: 10,
+          fontSize: 12,
           fontWeight: 850,
           color: "#dbeafe",
         }}
@@ -77,7 +77,7 @@ function SmallScoreRow({ label, score, inverse = false }) {
 
       <div
         style={{
-          height: 5,
+          height: 6,
           borderRadius: 999,
           background: "rgba(148,163,184,0.18)",
           overflow: "hidden",
@@ -114,7 +114,7 @@ function ChangePill({ label, value, inverse = false }) {
         display: "flex",
         justifyContent: "space-between",
         gap: 8,
-        fontSize: 10,
+        fontSize: 12,
         color: "#94a3b8",
       }}
     >
@@ -148,7 +148,9 @@ export default function Engine25MarketHealthTimeline({
         const json = await res.json();
 
         if (!res.ok || json?.ok === false) {
-          throw new Error(json?.error || `Engine25 full dashboard HTTP ${res.status}`);
+          throw new Error(
+            json?.error || `Engine25 full dashboard HTTP ${res.status}`
+          );
         }
 
         if (!cancelled) {
@@ -198,7 +200,9 @@ export default function Engine25MarketHealthTimeline({
   const size = headline.size ?? "—";
 
   const breadth = breakdown.find((item) => item.key === "breadthParticipation");
-  const distribution = breakdown.find((item) => item.key === "distributionPressure");
+  const distribution = breakdown.find(
+    (item) => item.key === "distributionPressure"
+  );
   const macro = breakdown.find((item) => item.key === "macroAwareScore");
   const credit = breakdown.find((item) => item.key === "creditFragility");
   const ai = breakdown.find((item) => item.key === "aiLeadership");
@@ -208,10 +212,10 @@ export default function Engine25MarketHealthTimeline({
       style={{
         position: "absolute",
         top: 88,
-        left: 330,
+        left: 470,
         zIndex: 118,
-        width: 330,
-        maxWidth: "calc(100vw - 700px)",
+        width: 410,
+        maxWidth: "410px",
         border: "1px solid rgba(59,130,246,0.28)",
         borderRadius: 14,
         background:
@@ -226,7 +230,7 @@ export default function Engine25MarketHealthTimeline({
     >
       <div
         style={{
-          padding: "9px 11px",
+          padding: "11px 13px",
           borderBottom: "1px solid rgba(148,163,184,0.16)",
           display: "flex",
           justifyContent: "space-between",
@@ -237,7 +241,7 @@ export default function Engine25MarketHealthTimeline({
         <div>
           <div
             style={{
-              fontSize: 11,
+              fontSize: 13,
               fontWeight: 950,
               color: "#7dd3fc",
               letterSpacing: 0.5,
@@ -245,7 +249,8 @@ export default function Engine25MarketHealthTimeline({
           >
             ENGINE 25 MARKET HEALTH
           </div>
-          <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 2 }}>
+
+          <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 3 }}>
             Macro · Distribution · Breadth
           </div>
         </div>
@@ -261,8 +266,8 @@ export default function Engine25MarketHealthTimeline({
             border: "1px solid rgba(125,211,252,0.35)",
             color: "#bae6fd",
             borderRadius: 8,
-            padding: "5px 7px",
-            fontSize: 10,
+            padding: "6px 8px",
+            fontSize: 12,
             fontWeight: 900,
             cursor: "pointer",
             whiteSpace: "nowrap",
@@ -274,29 +279,29 @@ export default function Engine25MarketHealthTimeline({
       </div>
 
       {status === "ERROR" ? (
-        <div style={{ padding: 12, color: "#fecaca", fontSize: 12 }}>
+        <div style={{ padding: 14, color: "#fecaca", fontSize: 13 }}>
           Engine 25 error: {error}
         </div>
       ) : status === "LOADING" && !payload ? (
-        <div style={{ padding: 12, color: "#cbd5e1", fontSize: 12 }}>
+        <div style={{ padding: 14, color: "#cbd5e1", fontSize: 13 }}>
           Loading Engine 25…
         </div>
       ) : (
-        <div style={{ padding: 11, display: "grid", gap: 10 }}>
+        <div style={{ padding: 13, display: "grid", gap: 11 }}>
           <div
             style={{
               border: `1px solid ${stateColor}55`,
               background: "rgba(15,23,42,0.58)",
               borderRadius: 12,
-              padding: 10,
+              padding: 11,
               display: "grid",
-              gap: 7,
+              gap: 8,
             }}
           >
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 11 }}>
               <div
                 style={{
-                  fontSize: 38,
+                  fontSize: 42,
                   lineHeight: 1,
                   fontWeight: 950,
                   color: stateColor,
@@ -308,7 +313,7 @@ export default function Engine25MarketHealthTimeline({
               <div style={{ minWidth: 0 }}>
                 <div
                   style={{
-                    fontSize: 14,
+                    fontSize: 15,
                     fontWeight: 950,
                     color: "#f8fafc",
                     whiteSpace: "nowrap",
@@ -318,7 +323,8 @@ export default function Engine25MarketHealthTimeline({
                 >
                   {cleanLabel(headline.label || headline.state)}
                 </div>
-                <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 2 }}>
+
+                <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 3 }}>
                   {headline.date || "—"} · ES {headline.esClose ?? "—"}
                 </div>
               </div>
@@ -329,8 +335,8 @@ export default function Engine25MarketHealthTimeline({
                 border: "1px solid rgba(245,158,11,0.28)",
                 background: "rgba(120,53,15,0.22)",
                 borderRadius: 9,
-                padding: "6px 8px",
-                fontSize: 11,
+                padding: "7px 9px",
+                fontSize: 13,
                 color: "#fed7aa",
                 fontWeight: 900,
               }}
@@ -343,13 +349,13 @@ export default function Engine25MarketHealthTimeline({
             style={{
               border: "1px solid rgba(148,163,184,0.16)",
               borderRadius: 12,
-              padding: 10,
+              padding: 11,
               background: "rgba(2,6,23,0.45)",
               display: "grid",
-              gap: 8,
+              gap: 9,
             }}
           >
-            <div style={{ fontSize: 10, color: "#94a3b8", fontWeight: 900 }}>
+            <div style={{ fontSize: 12, color: "#94a3b8", fontWeight: 900 }}>
               WHY?
             </div>
 
@@ -384,13 +390,13 @@ export default function Engine25MarketHealthTimeline({
             style={{
               border: "1px solid rgba(148,163,184,0.16)",
               borderRadius: 12,
-              padding: 10,
+              padding: 11,
               background: "rgba(2,6,23,0.45)",
               display: "grid",
-              gap: 5,
+              gap: 6,
             }}
           >
-            <div style={{ fontSize: 10, color: "#94a3b8", fontWeight: 900 }}>
+            <div style={{ fontSize: 12, color: "#94a3b8", fontWeight: 900 }}>
               1D CHANGE
             </div>
 
@@ -422,29 +428,29 @@ export default function Engine25MarketHealthTimeline({
               border: "1px solid rgba(59,130,246,0.18)",
               background: "rgba(30,58,138,0.14)",
               borderRadius: 12,
-              padding: 10,
+              padding: 11,
               display: "grid",
-              gap: 7,
+              gap: 8,
             }}
           >
-            <div style={{ fontSize: 10, color: "#93c5fd", fontWeight: 900 }}>
+            <div style={{ fontSize: 12, color: "#93c5fd", fontWeight: 900 }}>
               DESK NOTE
             </div>
 
-            <div style={{ fontSize: 11, lineHeight: 1.45, color: "#dbeafe" }}>
-              {shortText(payload?.deskNote, 230)}
+            <div style={{ fontSize: 13, lineHeight: 1.48, color: "#dbeafe" }}>
+              {shortText(payload?.deskNote, 260)}
             </div>
           </div>
 
           {zoneRead?.zoneState && (
             <div
               style={{
-                fontSize: 10,
+                fontSize: 12,
                 color: "#cbd5e1",
                 borderTop: "1px solid rgba(148,163,184,0.14)",
-                paddingTop: 7,
+                paddingTop: 8,
                 display: "grid",
-                gap: 3,
+                gap: 4,
               }}
             >
               <div>
