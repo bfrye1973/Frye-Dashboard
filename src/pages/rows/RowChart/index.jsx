@@ -895,7 +895,7 @@ export default function RowChart({
     engine17TriggerLine: true,
     engine17DebugPanel: false,
 
-    engine25CompositeOverlay: true,
+    engine25CompositeOverlay: false,
 
     showPremarketFibs: false,
   });
@@ -2014,6 +2014,8 @@ export default function RowChart({
     engine17Signals: state.engine17Signals,
     engine17TriggerLine: state.engine17TriggerLine,
     engine17DebugPanel: state.engine17DebugPanel,
+
+    engine25CompositeOverlay: state.engine25CompositeOverlay, 
 
     showPremarketFibs: state.showPremarketFibs,
 
