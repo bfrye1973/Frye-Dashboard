@@ -48,6 +48,7 @@ import { createDrawingsEngine } from "../../../features/drawings/createDrawingsE
 import Engine17Overlay from "./overlays/Engine17Overlay";
 import Engine17DecisionTimeline from "./overlays/Engine17DecisionTimeline";
 import Engine17Badges from "./overlays/Engine17Badges";
+import Engine25CompositeOverlay from "./overlays/Engine25CompositeOverlay";
 
 /* ------------------------------ Config ------------------------------ */
 
@@ -893,6 +894,8 @@ export default function RowChart({
     engine17Signals: true,
     engine17TriggerLine: true,
     engine17DebugPanel: false,
+
+    engine25CompositeOverlay: true,
 
     showPremarketFibs: false,
   });
@@ -2188,6 +2191,13 @@ export default function RowChart({
             showReplaySyncedState={false}
           />
 
+          <Engine25CompositeOverlay
+            visible={
+              state.engine25CompositeOverlay &&
+              normalizeSymbol(state.symbol) === "ES"
+            }
+            symbol={state.symbol}
+           />
           <Engine17DebugPanel
             visible={showDebug || state.engine17DebugPanel}
             rawData={engine17RawDebug}
