@@ -1,8 +1,8 @@
 // src/App.js
-// FULL REWRITE (SAFE) — adds /strategies-full route WITHOUT breaking anything else.
-// ✅ Keeps: API_BASE export, HealthStatusBar, UIScaler, ModeProvider, FullChart lazy import
-// ✅ Adds: StrategiesFull lazy import + route (React Router v6)
-// ✅ Does NOT delete/rename any existing routes or providers
+// Engine 25D update:
+// - Keeps normal dashboard pages inside UIScaler
+// - Moves /engine25-full OUTSIDE UIScaler so the full research page is not shrunk to 60%
+// - Keeps API_BASE export, HealthStatusBar, ModeProvider, and existing routes
 
 import React, { useEffect, useMemo, useState } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
@@ -18,7 +18,6 @@ const JournalFull = React.lazy(() => import("./pages/JournalFull"));
 const Engine25FullDashboard = React.lazy(() =>
   import("./pages/engine25/Engine25FullDashboard")
 );
-
 
 /* ------------------------- API base resolution ------------------------- */
 const API_BASE =
@@ -63,7 +62,9 @@ function HealthStatusBar() {
       try {
         const res = await fetch(url, { cache: "no-store" });
         const json = await res.json().catch(() => ({}));
+
         if (!alive) return;
+
         setState({
           ok: Boolean(json.ok),
           ts: json.ts || null,
@@ -73,6 +74,7 @@ function HealthStatusBar() {
         });
       } catch (e) {
         if (!alive) return;
+
         setState((s) => ({
           ...s,
           ok: false,
@@ -83,7 +85,9 @@ function HealthStatusBar() {
     };
 
     fetchHealth();
+
     const id = setInterval(fetchHealth, 10000);
+
     return () => {
       alive = false;
       clearInterval(id);
@@ -167,21 +171,41 @@ function HealthStatusBar() {
   );
 }
 
+/* ---------------------- Normal dashboard scaled shell ------------------- */
+function ScaledDashboardShell({ children }) {
+  return (
+    <UIScaler
+      minReadable={0.45}
+      defaultScale={0.60}
+      defaultMode="manual"
+      maxScale={1.6}
+    >
+      <ModeProvider initial={ViewModes.METER_TILES}>
+        {children}
+      </ModeProvider>
+    </UIScaler>
+  );
+}
+
 /* --------------------------------- App --------------------------------- */
 export default function App() {
   // FINAL clamp so zooming/resizes never re-widen the grid
   useEffect(() => {
     const fixWidth = () => {
       const grid = document.querySelector(".dashboard-grid");
+
       if (grid) {
         grid.style.width = "100%";
         grid.style.maxWidth = "100vw";
         grid.style.overflowX = "hidden";
       }
     };
+
     fixWidth();
+
     window.addEventListener("resize", fixWidth);
     window.addEventListener("orientationchange", fixWidth);
+
     return () => {
       window.removeEventListener("resize", fixWidth);
       window.removeEventListener("orientationchange", fixWidth);
@@ -190,35 +214,61 @@ export default function App() {
 
   return (
     <ErrorBoundary>
-      <UIScaler
-        minReadable={0.45}
-        defaultScale={0.60}
-        defaultMode="manual"
-        maxScale={1.6}
-      >
-        <div style={{ minHeight: "100vh" }}>
-          <BrowserRouter>
-            <HealthStatusBar />
-            <ModeProvider initial={ViewModes.METER_TILES}>
-              <React.Suspense
-                fallback={<div style={{ padding: 16, color: "#9ca3af" }}>Loading…</div>}
-              >
-                <Routes>
-                  <Route path="/" element={<NewDashboard />} />
-                  <Route path="/chart" element={<FullChart />} />
+      <BrowserRouter>
+        <HealthStatusBar />
 
-                  {/* ✅ NEW: Full Strategies page (opens in new tab from Strategy cards) */}
-                  <Route path="/strategies-full" element={<StrategiesFull />} />
-                  <Route path="/journal-full" element={<JournalFull />} />
-                  <Route path="/engine25-full" element={<Engine25FullDashboard />} /> 
+        <React.Suspense
+          fallback={
+            <div style={{ padding: 16, color: "#9ca3af" }}>
+              Loading…
+            </div>
+          }
+        >
+          <Routes>
+            {/* Engine 25 full page is intentionally OUTSIDE UIScaler */}
+            <Route path="/engine25-full" element={<Engine25FullDashboard />} />
 
-                  <Route path="*" element={<Navigate to="/" replace />} />
-                </Routes>
-              </React.Suspense>
-            </ModeProvider>
-          </BrowserRouter>
-        </div>
-      </UIScaler>
+            {/* Normal dashboard routes stay inside UIScaler */}
+            <Route
+              path="/"
+              element={
+                <ScaledDashboardShell>
+                  <NewDashboard />
+                </ScaledDashboardShell>
+              }
+            />
+
+            <Route
+              path="/chart"
+              element={
+                <ScaledDashboardShell>
+                  <FullChart />
+                </ScaledDashboardShell>
+              }
+            />
+
+            <Route
+              path="/strategies-full"
+              element={
+                <ScaledDashboardShell>
+                  <StrategiesFull />
+                </ScaledDashboardShell>
+              }
+            />
+
+            <Route
+              path="/journal-full"
+              element={
+                <ScaledDashboardShell>
+                  <JournalFull />
+                </ScaledDashboardShell>
+              }
+            />
+
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </React.Suspense>
+      </BrowserRouter>
     </ErrorBoundary>
   );
 }
