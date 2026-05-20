@@ -2197,11 +2197,13 @@ export default function RowChart({
             visible={
               state.engine25CompositeOverlay &&
               normalizeSymbol(state.symbol) === "ES"
-           }
-           symbol={state.symbol}
-           chart={chartRef.current}
-           chartReady={chartReady}
+            }
+            symbol={state.symbol}
+            chart={chartRef.current}
+            chartReady={chartReady}
+            bars={bars}
           />
+          
           <Engine17DebugPanel
             visible={showDebug || state.engine17DebugPanel}
             rawData={engine17RawDebug}
