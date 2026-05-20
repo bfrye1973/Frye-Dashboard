@@ -298,7 +298,8 @@ export default function IndicatorsToolbar({
   engine17DebugPanel = false,
 
   engine25CompositeOverlay = true,
-
+  engine25Timeline = false,
+  
   showPremarketFibs = false,
 
   onChange,
@@ -529,8 +530,18 @@ export default function IndicatorsToolbar({
                     />{" "}
                     Composite Overlay
                   </label>
-                </div>
 
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={!!engine25Timeline}
+                      onChange={(e) =>
+                        onChange?.({ engine25Timeline: e.target.checked })
+                      }
+                    />{" "}
+                    Market Health Timeline
+                  </label>
+                </div>
                 {divider}
 
                 <div style={{ color: "#9ca3af", fontSize: 12, margin: "6px 0 8px" }}>
