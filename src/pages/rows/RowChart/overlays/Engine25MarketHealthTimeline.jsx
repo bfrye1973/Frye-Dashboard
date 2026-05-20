@@ -10,6 +10,10 @@ const API_BASE =
 
 const ROUTE = `${API_BASE.replace(/\/+$/, "")}/api/v1/engine25/full-dashboard`;
 
+/* =========================
+   Formatters
+========================= */
+
 function cleanLabel(value) {
   return String(value || "—")
     .replaceAll("_", " ")
@@ -48,10 +52,57 @@ function fmtChange(value) {
   return String(n);
 }
 
-function shortText(value, max = 230) {
+function shortText(value, max = 280) {
   const text = String(value || "").trim();
   if (text.length <= max) return text;
   return `${text.slice(0, max).trim()}…`;
+}
+
+/* =========================
+   Shared Engine 17-style UI helpers
+========================= */
+
+const PANEL_FONT = "Arial, Helvetica, sans-serif";
+
+function engine25Border() {
+  return "rgba(96,165,250,0.45)";
+}
+
+function engine25Background() {
+  return "rgba(15,23,42,0.38)";
+}
+
+function SectionBox({ title, children, borderColor, titleColor }) {
+  return (
+    <div
+      style={{
+        fontFamily: PANEL_FONT,
+        border: `1px solid ${borderColor || engine25Border()}`,
+        borderRadius: 10,
+        padding: "8px 10px",
+        background: engine25Background(),
+        textAlign: "left",
+      }}
+    >
+      {title && (
+        <div
+          style={{
+            fontFamily: PANEL_FONT,
+            fontSize: 17,
+            fontWeight: 800,
+            color: titleColor || "#60a5fa",
+            marginBottom: 5,
+            letterSpacing: "0.02em",
+            textTransform: "uppercase",
+          }}
+        >
+          {title}
+        </div>
+      )}
+
+      {children}
+    </div>
+  );
 }
 
 function SmallScoreRow({ label, score, inverse = false }) {
@@ -63,21 +114,23 @@ function SmallScoreRow({ label, score, inverse = false }) {
     <div style={{ display: "grid", gap: 5 }}>
       <div
         style={{
+          fontFamily: PANEL_FONT,
           display: "flex",
           justifyContent: "space-between",
           gap: 8,
-          fontSize: 12,
-          fontWeight: 850,
+          fontSize: 17,
+          lineHeight: 1.42,
+          fontWeight: 500,
           color: "#dbeafe",
         }}
       >
         <span>{label}</span>
-        <span style={{ color }}>{fmtScore(score)}</span>
+        <span style={{ color, fontWeight: 800 }}>{fmtScore(score)}</span>
       </div>
 
       <div
         style={{
-          height: 6,
+          height: 7,
           borderRadius: 999,
           background: "rgba(148,163,184,0.18)",
           overflow: "hidden",
@@ -111,18 +164,25 @@ function ChangePill({ label, value, inverse = false }) {
   return (
     <div
       style={{
+        fontFamily: PANEL_FONT,
         display: "flex",
         justifyContent: "space-between",
         gap: 8,
-        fontSize: 12,
-        color: "#94a3b8",
+        fontSize: 17,
+        lineHeight: 1.42,
+        color: "#dbeafe",
+        fontWeight: 500,
       }}
     >
       <span>{label}</span>
-      <span style={{ color, fontWeight: 900 }}>{fmtChange(value)}</span>
+      <span style={{ color, fontWeight: 800 }}>{fmtChange(value)}</span>
     </div>
   );
 }
+
+/* =========================
+   Main Export
+========================= */
 
 export default function Engine25MarketHealthTimeline({
   visible = true,
@@ -210,100 +270,141 @@ export default function Engine25MarketHealthTimeline({
   return (
     <div
       style={{
+        fontFamily: PANEL_FONT,
         position: "absolute",
-        top: 88,
-        left: 470,
+
+        /*
+          Moved far to the right.
+          Previous fixed values were too small because the dashboard UI scaler
+          makes visual movement look smaller than the raw CSS value.
+        */
+        top: 126,
+        left: 820,
+
         zIndex: 118,
-        width: 410,
-        maxWidth: "410px",
-        border: "1px solid rgba(59,130,246,0.28)",
+        width: 560,
+        maxWidth: "560px",
+        maxHeight: "calc(100vh - 190px)",
+        overflowY: "auto",
+
         borderRadius: 14,
-        background:
-          "linear-gradient(180deg, rgba(15,23,42,0.94), rgba(2,6,23,0.90))",
+        border: `1px solid ${engine25Border()}`,
+        background: "rgba(6,10,20,0.95)",
+        padding: "12px 14px",
         color: "#e5e7eb",
-        boxShadow: "0 14px 32px rgba(0,0,0,0.42)",
-        backdropFilter: "blur(7px)",
-        overflow: "hidden",
+        backdropFilter: "blur(4px)",
         pointerEvents: "auto",
+        textAlign: "left",
+        boxShadow: "0 8px 24px rgba(0,0,0,0.28)",
+        display: "grid",
+        gap: 8,
       }}
       title="Engine 25 Market Health Timeline"
     >
       <div
         style={{
-          padding: "11px 13px",
-          borderBottom: "1px solid rgba(148,163,184,0.16)",
-          display: "flex",
-          justifyContent: "space-between",
-          gap: 10,
-          alignItems: "flex-start",
+          fontFamily: PANEL_FONT,
+          border: `1px solid ${engine25Border()}`,
+          borderRadius: 10,
+          padding: "8px 10px",
+          background: "rgba(30,64,175,0.13)",
+          display: "grid",
+          gap: 8,
         }}
       >
-        <div>
-          <div
-            style={{
-              fontSize: 13,
-              fontWeight: 950,
-              color: "#7dd3fc",
-              letterSpacing: 0.5,
-            }}
-          >
-            ENGINE 25 MARKET HEALTH
-          </div>
-
-          <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 3 }}>
-            Macro · Distribution · Breadth
-          </div>
-        </div>
-
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            window.open("/engine25-full", "_blank");
-          }}
+        <div
           style={{
-            background: "rgba(15,23,42,0.92)",
-            border: "1px solid rgba(125,211,252,0.35)",
-            color: "#bae6fd",
-            borderRadius: 8,
-            padding: "6px 8px",
-            fontSize: 12,
-            fontWeight: 900,
-            cursor: "pointer",
-            whiteSpace: "nowrap",
+            display: "flex",
+            justifyContent: "space-between",
+            gap: 10,
+            alignItems: "flex-start",
           }}
-          title="Open full Engine 25 dashboard"
         >
-          Open Full Chart
-        </button>
-      </div>
+          <div>
+            <div
+              style={{
+                fontFamily: PANEL_FONT,
+                fontSize: 17,
+                fontWeight: 800,
+                color: "#60a5fa",
+                letterSpacing: "0.02em",
+                textTransform: "uppercase",
+              }}
+            >
+              Engine 25 Market Health
+            </div>
 
-      {status === "ERROR" ? (
-        <div style={{ padding: 14, color: "#fecaca", fontSize: 13 }}>
-          Engine 25 error: {error}
+            <div
+              style={{
+                fontFamily: PANEL_FONT,
+                fontSize: 17,
+                lineHeight: 1.42,
+                color: "#dbeafe",
+                fontWeight: 500,
+                marginTop: 3,
+              }}
+            >
+              Macro · Distribution · Breadth
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              window.open("/engine25-full", "_blank");
+            }}
+            style={{
+              fontFamily: PANEL_FONT,
+              background: "rgba(15,23,42,0.92)",
+              border: "1px solid rgba(125,211,252,0.35)",
+              color: "#bae6fd",
+              borderRadius: 8,
+              padding: "6px 9px",
+              fontSize: 15,
+              fontWeight: 800,
+              cursor: "pointer",
+              whiteSpace: "nowrap",
+            }}
+            title="Open full Engine 25 dashboard"
+          >
+            Open Full Chart
+          </button>
         </div>
-      ) : status === "LOADING" && !payload ? (
-        <div style={{ padding: 14, color: "#cbd5e1", fontSize: 13 }}>
-          Loading Engine 25…
-        </div>
-      ) : (
-        <div style={{ padding: 13, display: "grid", gap: 11 }}>
+
+        {status === "ERROR" ? (
           <div
             style={{
-              border: `1px solid ${stateColor}55`,
-              background: "rgba(15,23,42,0.58)",
-              borderRadius: 12,
-              padding: 11,
-              display: "grid",
-              gap: 8,
+              fontFamily: PANEL_FONT,
+              color: "#fecaca",
+              fontSize: 17,
+              lineHeight: 1.42,
+              fontWeight: 500,
             }}
           >
-            <div style={{ display: "flex", alignItems: "center", gap: 11 }}>
+            Engine 25 error: {error}
+          </div>
+        ) : status === "LOADING" && !payload ? (
+          <div
+            style={{
+              fontFamily: PANEL_FONT,
+              color: "#cbd5e1",
+              fontSize: 17,
+              lineHeight: 1.42,
+              fontWeight: 500,
+            }}
+          >
+            Loading Engine 25…
+          </div>
+        ) : (
+          <div style={{ display: "grid", gap: 8 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
               <div
                 style={{
-                  fontSize: 42,
+                  fontFamily: PANEL_FONT,
+                  fontSize: 54,
                   lineHeight: 1,
-                  fontWeight: 950,
+                  fontWeight: 800,
                   color: stateColor,
                 }}
               >
@@ -313,8 +414,10 @@ export default function Engine25MarketHealthTimeline({
               <div style={{ minWidth: 0 }}>
                 <div
                   style={{
-                    fontSize: 15,
-                    fontWeight: 950,
+                    fontFamily: PANEL_FONT,
+                    fontSize: 20,
+                    lineHeight: 1.3,
+                    fontWeight: 650,
                     color: "#f8fafc",
                     whiteSpace: "nowrap",
                     overflow: "hidden",
@@ -324,7 +427,16 @@ export default function Engine25MarketHealthTimeline({
                   {cleanLabel(headline.label || headline.state)}
                 </div>
 
-                <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 3 }}>
+                <div
+                  style={{
+                    fontFamily: PANEL_FONT,
+                    fontSize: 17,
+                    lineHeight: 1.42,
+                    color: "#cbd5e1",
+                    fontWeight: 500,
+                    marginTop: 3,
+                  }}
+                >
                   {headline.date || "—"} · ES {headline.esClose ?? "—"}
                 </div>
               </div>
@@ -332,138 +444,125 @@ export default function Engine25MarketHealthTimeline({
 
             <div
               style={{
-                border: "1px solid rgba(245,158,11,0.28)",
-                background: "rgba(120,53,15,0.22)",
-                borderRadius: 9,
-                padding: "7px 9px",
-                fontSize: 13,
-                color: "#fed7aa",
-                fontWeight: 900,
+                fontFamily: PANEL_FONT,
+                border: "1px solid rgba(251,191,36,0.52)",
+                background: "rgba(113,63,18,0.14)",
+                borderRadius: 10,
+                padding: "8px 10px",
+                fontSize: 17,
+                lineHeight: 1.42,
+                color: "#fbbf24",
+                fontWeight: 800,
+                textTransform: "uppercase",
               }}
             >
               {permission} · Size {size}
             </div>
           </div>
+        )}
+      </div>
 
-          <div
-            style={{
-              border: "1px solid rgba(148,163,184,0.16)",
-              borderRadius: 12,
-              padding: 11,
-              background: "rgba(2,6,23,0.45)",
-              display: "grid",
-              gap: 9,
-            }}
-          >
-            <div style={{ fontSize: 12, color: "#94a3b8", fontWeight: 900 }}>
-              WHY?
+      {payload && status !== "ERROR" && (
+        <>
+          <SectionBox title="Why?" titleColor="#60a5fa">
+            <div style={{ display: "grid", gap: 8 }}>
+              <SmallScoreRow
+                label="Macro"
+                score={macro?.score}
+                inverse={macro?.direction === "lower_is_better"}
+              />
+              <SmallScoreRow
+                label="Breadth"
+                score={breadth?.score}
+                inverse={breadth?.direction === "lower_is_better"}
+              />
+              <SmallScoreRow
+                label="Distribution"
+                score={distribution?.score}
+                inverse
+              />
+              <SmallScoreRow
+                label="Credit"
+                score={credit?.score}
+                inverse={credit?.direction === "lower_is_better"}
+              />
+              <SmallScoreRow
+                label="AI"
+                score={ai?.score}
+                inverse={ai?.direction === "lower_is_better"}
+              />
             </div>
+          </SectionBox>
 
-            <SmallScoreRow
-              label="Macro"
-              score={macro?.score}
-              inverse={macro?.direction === "lower_is_better"}
-            />
-            <SmallScoreRow
-              label="Breadth"
-              score={breadth?.score}
-              inverse={breadth?.direction === "lower_is_better"}
-            />
-            <SmallScoreRow
-              label="Distribution"
-              score={distribution?.score}
-              inverse
-            />
-            <SmallScoreRow
-              label="Credit"
-              score={credit?.score}
-              inverse={credit?.direction === "lower_is_better"}
-            />
-            <SmallScoreRow
-              label="AI"
-              score={ai?.score}
-              inverse={ai?.direction === "lower_is_better"}
-            />
-          </div>
-
-          <div
-            style={{
-              border: "1px solid rgba(148,163,184,0.16)",
-              borderRadius: 12,
-              padding: 11,
-              background: "rgba(2,6,23,0.45)",
-              display: "grid",
-              gap: 6,
-            }}
-          >
-            <div style={{ fontSize: 12, color: "#94a3b8", fontWeight: 900 }}>
-              1D CHANGE
+          <SectionBox title="1D Change" titleColor="#60a5fa">
+            <div style={{ display: "grid", gap: 4 }}>
+              <ChangePill
+                label="ES"
+                value={lookupChange["ES Close"]?.oneDayChange}
+              />
+              <ChangePill
+                label="Composite"
+                value={lookupChange["Composite"]?.oneDayChange}
+              />
+              <ChangePill
+                label="Breadth"
+                value={lookupChange["Breadth"]?.oneDayChange}
+              />
+              <ChangePill
+                label="Distribution"
+                value={lookupChange["Distribution"]?.oneDayChange}
+                inverse
+              />
+              <ChangePill
+                label="AI"
+                value={lookupChange["AI Leadership"]?.oneDayChange}
+              />
             </div>
+          </SectionBox>
 
-            <ChangePill
-              label="ES"
-              value={lookupChange["ES Close"]?.oneDayChange}
-            />
-            <ChangePill
-              label="Composite"
-              value={lookupChange["Composite"]?.oneDayChange}
-            />
-            <ChangePill
-              label="Breadth"
-              value={lookupChange["Breadth"]?.oneDayChange}
-            />
-            <ChangePill
-              label="Distribution"
-              value={lookupChange["Distribution"]?.oneDayChange}
-              inverse
-            />
-            <ChangePill
-              label="AI"
-              value={lookupChange["AI Leadership"]?.oneDayChange}
-            />
-          </div>
-
-          <div
-            style={{
-              border: "1px solid rgba(59,130,246,0.18)",
-              background: "rgba(30,58,138,0.14)",
-              borderRadius: 12,
-              padding: 11,
-              display: "grid",
-              gap: 8,
-            }}
-          >
-            <div style={{ fontSize: 12, color: "#93c5fd", fontWeight: 900 }}>
-              DESK NOTE
-            </div>
-
-            <div style={{ fontSize: 13, lineHeight: 1.48, color: "#dbeafe" }}>
-              {shortText(payload?.deskNote, 260)}
-            </div>
-          </div>
-
-          {zoneRead?.zoneState && (
+          <SectionBox title="Desk Note" titleColor="#60a5fa">
             <div
               style={{
-                fontSize: 12,
-                color: "#cbd5e1",
-                borderTop: "1px solid rgba(148,163,184,0.14)",
-                paddingTop: 8,
+                fontFamily: PANEL_FONT,
                 display: "grid",
                 gap: 4,
+                fontSize: 17,
+                lineHeight: 1.42,
+                color: "#dbeafe",
+                fontWeight: 500,
+                whiteSpace: "pre-line",
               }}
             >
-              <div>
-                <strong>Zone:</strong>{" "}
-                {cleanLabel(zoneRead.zoneState.state)}
-              </div>
-              <div>
-                <strong>Permission:</strong>{" "}
-                {cleanLabel(zoneRead.zoneState.permission)}
-              </div>
+              {shortText(payload?.deskNote, 320)}
             </div>
+          </SectionBox>
+
+          {zoneRead?.zoneState && (
+            <SectionBox title="Zone Read" titleColor="#60a5fa">
+              <div
+                style={{
+                  fontFamily: PANEL_FONT,
+                  display: "grid",
+                  gap: 4,
+                  fontSize: 17,
+                  lineHeight: 1.42,
+                  color: "#dbeafe",
+                  fontWeight: 500,
+                  whiteSpace: "pre-line",
+                }}
+              >
+                <div>
+                  <strong>Zone:</strong>{" "}
+                  {cleanLabel(zoneRead.zoneState.state)}
+                </div>
+                <div>
+                  <strong>Permission:</strong>{" "}
+                  {cleanLabel(zoneRead.zoneState.permission)}
+                </div>
+              </div>
+            </SectionBox>
           )}
-        </div>
+        </>
       )}
     </div>
   );
