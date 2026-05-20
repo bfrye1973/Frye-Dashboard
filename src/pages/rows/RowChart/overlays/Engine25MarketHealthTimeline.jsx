@@ -1,7 +1,12 @@
 // src/pages/engine25/Engine25FullDashboard.jsx
 
 import React, { useEffect, useMemo, useState } from "react";
-import { API_BASE } from "../../App";
+
+const API_BASE =
+  (typeof window !== "undefined" && (window.__API_BASE__ || "")) ||
+  process.env.REACT_APP_API_BASE ||
+  process.env.REACT_APP_API_URL ||
+  "https://frye-market-backend-1.onrender.com";
 
 const ROUTE = `${API_BASE.replace(
   /\/+$/,
