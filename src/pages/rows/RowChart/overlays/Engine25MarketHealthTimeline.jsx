@@ -2,21 +2,17 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 
-const API_BASE =
+const RAW_API_BASE =
   (typeof window !== "undefined" && (window.__API_BASE__ || "")) ||
   process.env.REACT_APP_API_BASE ||
   process.env.REACT_APP_API_URL ||
   "https://frye-market-backend-1.onrender.com";
 
-const ENGINE25_ROUTE = `${API_BASE.replace(
-  /\/+$/,
-  ""
-)}/api/v1/engine25/full-dashboard`;
+const API_ROOT = RAW_API_BASE.replace(/\/+$/, "").replace(/\/api$/, "");
 
-const MASTER_ROUTE = `${API_BASE.replace(
-  /\/+$/,
-  ""
-)}/api/v1/futures/market-meter?symbol=ES`;
+const ENGINE25_ROUTE = `${API_ROOT}/api/v1/engine25/full-dashboard`;
+
+const MASTER_ROUTE = `${API_ROOT}/api/v1/futures/market-meter?symbol=ES`;
 
 /* =========================
    Formatters
