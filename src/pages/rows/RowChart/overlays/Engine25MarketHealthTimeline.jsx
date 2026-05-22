@@ -75,6 +75,19 @@ function shortText(value, max = 280) {
   return `${text.slice(0, max).trim()}…`;
 }
 
+function dateOnlyFromIso(value) {
+  if (!value) return null;
+
+  const text = String(value);
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text;
+
+  const d = new Date(text);
+  if (Number.isNaN(d.getTime())) return null;
+
+  return d.toISOString().slice(0, 10);
+}
+
 /* =========================
    Shared Engine 17-style UI helpers
 ========================= */
@@ -292,6 +305,168 @@ function buildMasterComparison(engine25Score, masterScore) {
 }
 
 /* =========================
+   Jump Alert Logic
+========================= */
+
+function rowByLabel(rows, label) {
+  return rows.find((row) => row?.label === label) || null;
+}
+
+function buildJumpAlert(rows) {
+  const comparisonRows = Array.isArray(rows) ? rows : [];
+
+  const composite = rowByLabel(comparisonRows, "Composite");
+  const composite1d = Number(composite?.oneDayChange);
+  const composite3d = Number(composite?.threeDayChange);
+
+  let status = "NO MAJOR JUMP";
+  let color = "#94a3b8";
+  let border = "rgba(148,163,184,0.38)";
+  let background = "rgba(15,23,42,0.38)";
+  let read =
+    "No major Engine 25 score jump is active. Continue watching for confirmation.";
+
+  if (Number.isFinite(composite1d) && composite1d >= 8) {
+    status = "FAST 1D UPGRADE";
+    color = "#22c55e";
+    border = "rgba(34,197,94,0.45)";
+    background = "rgba(20,83,45,0.13)";
+    read =
+      "Engine 25 made a fast one-day upgrade. Market health improved quickly.";
+  } else if (Number.isFinite(composite3d) && composite3d >= 10) {
+    status = "BULLISH MARKET HEALTH UPGRADE";
+    color = "#22c55e";
+    border = "rgba(34,197,94,0.45)";
+    background = "rgba(20,83,45,0.13)";
+    read =
+      "Engine 25 has a strong multi-day upgrade. Market health is improving under the surface.";
+  } else if (Number.isFinite(composite1d) && composite1d <= -8) {
+    status = "FAST 1D WARNING";
+    color = "#ef4444";
+    border = "rgba(244,63,94,0.60)";
+    background = "rgba(127,29,29,0.16)";
+    read =
+      "Engine 25 made a fast one-day downgrade. Risk conditions worsened quickly.";
+  } else if (Number.isFinite(composite3d) && composite3d <= -10) {
+    status = "MARKET HEALTH DOWNGRADE";
+    color = "#ef4444";
+    border = "rgba(244,63,94,0.60)";
+    background = "rgba(127,29,29,0.16)";
+    read =
+      "Engine 25 has a strong multi-day downgrade. Market health is weakening under the surface.";
+  } else if (
+    (Number.isFinite(composite1d) && Math.abs(composite1d) >= 5) ||
+    (Number.isFinite(composite3d) && Math.abs(composite3d) >= 7)
+  ) {
+    status = "WATCHING CHANGE";
+    color = "#fbbf24";
+    border = "rgba(251,191,36,0.52)";
+    background = "rgba(113,63,18,0.14)";
+    read =
+      "Engine 25 is moving, but not enough for a major jump alert yet.";
+  }
+
+  const driverLabels = [
+    "Macro Aware",
+    "Breadth",
+    "Distribution",
+    "Market Trend",
+    "Credit Fragility",
+    "AI Leadership",
+  ];
+
+  const drivers = driverLabels
+    .map((label) => {
+      const row = rowByLabel(comparisonRows, label);
+      const one = Number(row?.oneDayChange);
+      const three = Number(row?.threeDayChange);
+      const displayChange = Number.isFinite(three) ? three : one;
+
+      if (!row || !Number.isFinite(displayChange)) return null;
+
+      const isDistribution = label === "Distribution";
+      const improvement = isDistribution ? -displayChange : displayChange;
+
+      return {
+        label,
+        change: displayChange,
+        improvement,
+        abs: Math.abs(displayChange),
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => b.abs - a.abs)
+    .slice(0, 3);
+
+  return {
+    status,
+    color,
+    border,
+    background,
+    read,
+    composite1d,
+    composite3d,
+    drivers,
+  };
+}
+
+/* =========================
+   Freshness Logic
+========================= */
+
+function buildFreshness(modelDate, masterUpdatedAt) {
+  const model = dateOnlyFromIso(modelDate);
+  const master = dateOnlyFromIso(masterUpdatedAt);
+
+  if (!model || !master) {
+    return {
+      status: "FRESHNESS UNKNOWN",
+      color: "#94a3b8",
+      border: "rgba(148,163,184,0.38)",
+      background: "rgba(15,23,42,0.38)",
+      modelDate: model || "—",
+      masterDate: master || "—",
+      read: "Could not compare Engine 25 model date against Market Meter update date.",
+    };
+  }
+
+  if (model === master) {
+    return {
+      status: "FRESH",
+      color: "#22c55e",
+      border: "rgba(34,197,94,0.45)",
+      background: "rgba(20,83,45,0.13)",
+      modelDate: model,
+      masterDate: master,
+      read: "Engine 25 and Market Meter are on the same date.",
+    };
+  }
+
+  if (model < master) {
+    return {
+      status: "ENGINE 25 WAITING FOR LATEST EOD ROW",
+      color: "#fbbf24",
+      border: "rgba(251,191,36,0.52)",
+      background: "rgba(113,63,18,0.14)",
+      modelDate: model,
+      masterDate: master,
+      read:
+        "Market Meter has newer data than Engine 25. Treat Engine 25 as the latest completed model row until the replay file updates.",
+    };
+  }
+
+  return {
+    status: "ENGINE 25 AHEAD OF MASTER DATE",
+    color: "#60a5fa",
+    border: "rgba(96,165,250,0.50)",
+    background: "rgba(30,64,175,0.15)",
+    modelDate: model,
+    masterDate: master,
+    read: "Engine 25 model date is ahead of the Market Meter update date.",
+  };
+}
+
+/* =========================
    Main Export
 ========================= */
 
@@ -393,6 +568,8 @@ export default function Engine25MarketHealthTimeline({
   const masterState = masterPayload?.master?.state || "—";
   const masterTone = masterPayload?.master?.tone || "—";
   const comparison = buildMasterComparison(score, masterScore);
+  const jumpAlert = buildJumpAlert(changes);
+  const freshness = buildFreshness(headline.date, masterPayload?.updated_at_utc);
 
   const breadth = breakdown.find((item) => item.key === "breadthParticipation");
   const distribution = breakdown.find(
@@ -592,6 +769,117 @@ export default function Engine25MarketHealthTimeline({
 
       {payload && status !== "ERROR" && (
         <>
+          <SectionBox
+            title="Freshness"
+            titleColor={freshness.color}
+            borderColor={freshness.border}
+            background={freshness.background}
+          >
+            <div style={{ display: "grid", gap: 4 }}>
+              <CompareRow
+                label="Engine 25 Date"
+                value={freshness.modelDate}
+                color={freshness.color}
+              />
+              <CompareRow
+                label="Market Meter Date"
+                value={freshness.masterDate}
+                color={freshness.color}
+              />
+              <CompareRow
+                label="Status"
+                value={freshness.status}
+                color={freshness.color}
+              />
+
+              <div
+                style={{
+                  fontFamily: PANEL_FONT,
+                  marginTop: 5,
+                  fontSize: 17,
+                  lineHeight: 1.42,
+                  color: "#dbeafe",
+                  fontWeight: 500,
+                }}
+              >
+                {freshness.read}
+              </div>
+            </div>
+          </SectionBox>
+
+          <SectionBox
+            title="Engine 25 Jump Alert"
+            titleColor={jumpAlert.color}
+            borderColor={jumpAlert.border}
+            background={jumpAlert.background}
+          >
+            <div style={{ display: "grid", gap: 4 }}>
+              <CompareRow
+                label="Composite 1D"
+                value={fmtChange(jumpAlert.composite1d)}
+                color={jumpAlert.color}
+              />
+              <CompareRow
+                label="Composite 3D"
+                value={fmtChange(jumpAlert.composite3d)}
+                color={jumpAlert.color}
+              />
+              <CompareRow
+                label="Status"
+                value={jumpAlert.status}
+                color={jumpAlert.color}
+              />
+
+              {jumpAlert.drivers.length > 0 && (
+                <div
+                  style={{
+                    fontFamily: PANEL_FONT,
+                    marginTop: 5,
+                    display: "grid",
+                    gap: 3,
+                    fontSize: 16,
+                    lineHeight: 1.35,
+                    color: "#dbeafe",
+                    fontWeight: 500,
+                  }}
+                >
+                  <div style={{ color: "#94a3b8", fontWeight: 800 }}>
+                    Biggest Drivers
+                  </div>
+
+                  {jumpAlert.drivers.map((driver) => (
+                    <div key={driver.label}>
+                      {driver.label}:{" "}
+                      <span
+                        style={{
+                          color:
+                            driver.improvement >= 0 ? "#22c55e" : "#ef4444",
+                          fontWeight: 800,
+                        }}
+                      >
+                        {fmtChange(driver.change)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div
+                style={{
+                  fontFamily: PANEL_FONT,
+                  marginTop: 5,
+                  fontSize: 17,
+                  lineHeight: 1.42,
+                  color: "#dbeafe",
+                  fontWeight: 500,
+                  whiteSpace: "pre-line",
+                }}
+              >
+                {jumpAlert.read}
+              </div>
+            </div>
+          </SectionBox>
+
           <SectionBox
             title="Engine 25 vs Master"
             titleColor={comparison.color}
