@@ -2,16 +2,15 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 
-const API_BASE =
+const RAW_API_BASE =
   (typeof window !== "undefined" && (window.__API_BASE__ || "")) ||
   process.env.REACT_APP_API_BASE ||
   process.env.REACT_APP_API_URL ||
   "https://frye-market-backend-1.onrender.com";
 
-const ROUTE = `${API_BASE.replace(
-  /\/+$/,
-  ""
-)}/api/v1/engine25/composite-overlay-6mo`;
+const API_ROOT = RAW_API_BASE.replace(/\/+$/, "").replace(/\/api$/, "");
+
+const COMPOSITE_ROUTE = `${API_ROOT}/api/v1/engine25/composite-overlay-6mo`;
 
 const PRICE_SCALE_ID = "engine25-composite-score";
 
@@ -89,7 +88,7 @@ export default function Engine25CompositeOverlay({
         setStatus("LOADING");
         setError(null);
 
-        const res = await fetch(ROUTE, { cache: "no-store" });
+        const res = await fetch(COMPOSITE_ROUTE, { cache: "no-store" });
         const json = await res.json();
 
         if (!res.ok || json?.ok === false) {
