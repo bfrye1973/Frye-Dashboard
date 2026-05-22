@@ -408,12 +408,12 @@ function computeW5Targets(w4Anchors) {
         );
       }
       if (s.showExtensions && w1?.anchors && w4?.anchors) {
-        const t = computeW5Targets(w1.anchors, w4.anchors);
+        const t = computeW5Targets(w4.anchors);
         if (t) {
           levels.push(
             { kind: "ext", price: t.t1000, label: `W5 1.000  ${fmt(t.t1000)}`, color: cExt, dash: [22, 14] },
             { kind: "ext", price: t.t1168, label: `W5 1.168  ${fmt(t.t1168)}`, color: cExt, dash: [22, 14] },
-            { kind: "ext", price: t.t1618, label: `W5 1.618  ${fmt(t.t1618)}`, color: cExt, dash: [22, 14] },
+            { kind: "ext", price: t.t1272, label: `W5 1.272  ${fmt(t.t1272)}`, color: cExt, dash: [22, 14] },
             { kind: "ext", price: t.t2000, label: `W5 2.000  ${fmt(t.t2000)}`, color: cExt, dash: [22, 14] },
             { kind: "ext", price: t.t2618, label: `W5 2.618  ${fmt(t.t2618)}`, color: cExt, dash: [22, 14] }
           );
