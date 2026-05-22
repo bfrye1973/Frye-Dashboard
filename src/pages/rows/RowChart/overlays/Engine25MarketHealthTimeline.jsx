@@ -8,7 +8,15 @@ const API_BASE =
   process.env.REACT_APP_API_URL ||
   "https://frye-market-backend-1.onrender.com";
 
-const ROUTE = `${API_BASE.replace(/\/+$/, "")}/api/v1/engine25/full-dashboard`;
+const ENGINE25_ROUTE = `${API_BASE.replace(
+  /\/+$/,
+  ""
+)}/api/v1/engine25/full-dashboard`;
+
+const MASTER_ROUTE = `${API_BASE.replace(
+  /\/+$/,
+  ""
+)}/api/v1/futures/market-meter?symbol=ES`;
 
 /* =========================
    Formatters
@@ -45,11 +53,24 @@ function fmtScore(value) {
   return Math.round(n);
 }
 
+function fmtScoreDecimal(value, decimals = 2) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return "—";
+  return n.toFixed(decimals);
+}
+
 function fmtChange(value) {
   const n = Number(value);
   if (!Number.isFinite(n)) return "—";
   if (n > 0) return `+${n}`;
   return String(n);
+}
+
+function fmtSpread(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return "—";
+  const sign = n > 0 ? "+" : "";
+  return `${sign}${n.toFixed(2)}`;
 }
 
 function shortText(value, max = 280) {
@@ -72,7 +93,7 @@ function engine25Background() {
   return "rgba(15,23,42,0.38)";
 }
 
-function SectionBox({ title, children, borderColor, titleColor }) {
+function SectionBox({ title, children, borderColor, titleColor, background }) {
   return (
     <div
       style={{
@@ -80,7 +101,7 @@ function SectionBox({ title, children, borderColor, titleColor }) {
         border: `1px solid ${borderColor || engine25Border()}`,
         borderRadius: 10,
         padding: "8px 10px",
-        background: engine25Background(),
+        background: background || engine25Background(),
         textAlign: "left",
       }}
     >
@@ -180,6 +201,100 @@ function ChangePill({ label, value, inverse = false }) {
   );
 }
 
+function CompareRow({ label, value, color = "#dbeafe" }) {
+  return (
+    <div
+      style={{
+        fontFamily: PANEL_FONT,
+        display: "flex",
+        justifyContent: "space-between",
+        gap: 8,
+        fontSize: 17,
+        lineHeight: 1.42,
+        color: "#dbeafe",
+        fontWeight: 500,
+      }}
+    >
+      <span>{label}</span>
+      <span style={{ color, fontWeight: 800 }}>{value}</span>
+    </div>
+  );
+}
+
+/* =========================
+   Divergence Logic
+========================= */
+
+function buildMasterComparison(engine25Score, masterScore) {
+  const e25 = Number(engine25Score);
+  const master = Number(masterScore);
+
+  if (!Number.isFinite(e25) || !Number.isFinite(master)) {
+    return {
+      ok: false,
+      spread: null,
+      status: "WAITING FOR MASTER DATA",
+      color: "#94a3b8",
+      border: "rgba(148,163,184,0.38)",
+      background: "rgba(15,23,42,0.38)",
+      read: "Master Dashboard score is not available yet.",
+    };
+  }
+
+  const spread = e25 - master;
+  const abs = Math.abs(spread);
+
+  if (abs <= 7) {
+    return {
+      ok: true,
+      spread,
+      status: "ALIGNED",
+      color: "#22c55e",
+      border: "rgba(34,197,94,0.45)",
+      background: "rgba(20,83,45,0.13)",
+      read:
+        "Macro market health and tactical ES dashboard are confirming each other today.",
+    };
+  }
+
+  if (master - e25 >= 15) {
+    return {
+      ok: true,
+      spread,
+      status: "MACRO WARNING DIVERGENCE",
+      color: "#f97316",
+      border: "rgba(249,115,22,0.55)",
+      background: "rgba(124,45,18,0.16)",
+      read:
+        "Tactical ES dashboard is stronger than Engine 25. Price action may be running ahead of deeper market health.",
+    };
+  }
+
+  if (e25 - master >= 15) {
+    return {
+      ok: true,
+      spread,
+      status: "TACTICAL WEAKNESS / MACRO SUPPORTIVE",
+      color: "#60a5fa",
+      border: "rgba(96,165,250,0.50)",
+      background: "rgba(30,64,175,0.15)",
+      read:
+        "Engine 25 macro health is stronger than tactical ES conditions. Short-term weakness may be tactical, not structural.",
+    };
+  }
+
+  return {
+    ok: true,
+    spread,
+    status: "MILD DIVERGENCE",
+    color: "#fbbf24",
+    border: "rgba(251,191,36,0.52)",
+    background: "rgba(113,63,18,0.14)",
+    read:
+      "Engine 25 and ES Master are not fully aligned. Treat this as a mixed read and require confirmation.",
+  };
+}
+
 /* =========================
    Main Export
 ========================= */
@@ -189,8 +304,10 @@ export default function Engine25MarketHealthTimeline({
   symbol = "ES",
 }) {
   const [payload, setPayload] = useState(null);
+  const [masterPayload, setMasterPayload] = useState(null);
   const [status, setStatus] = useState("LOADING");
   const [error, setError] = useState(null);
+  const [masterError, setMasterError] = useState(null);
 
   const isES = String(symbol || "").toUpperCase() === "ES";
 
@@ -203,19 +320,36 @@ export default function Engine25MarketHealthTimeline({
       try {
         setStatus("LOADING");
         setError(null);
+        setMasterError(null);
 
-        const res = await fetch(ROUTE, { cache: "no-store" });
-        const json = await res.json();
+        const [engine25Res, masterRes] = await Promise.all([
+          fetch(ENGINE25_ROUTE, { cache: "no-store" }),
+          fetch(MASTER_ROUTE, { cache: "no-store" }),
+        ]);
 
-        if (!res.ok || json?.ok === false) {
+        const engine25Json = await engine25Res.json();
+        const masterJson = await masterRes.json();
+
+        if (!engine25Res.ok || engine25Json?.ok === false) {
           throw new Error(
-            json?.error || `Engine25 full dashboard HTTP ${res.status}`
+            engine25Json?.error ||
+              `Engine25 full dashboard HTTP ${engine25Res.status}`
           );
         }
 
         if (!cancelled) {
-          setPayload(json);
+          setPayload(engine25Json);
           setStatus("READY");
+
+          if (!masterRes.ok || masterJson?.ok === false) {
+            setMasterPayload(null);
+            setMasterError(
+              masterJson?.error || `Master meter HTTP ${masterRes.status}`
+            );
+          } else {
+            setMasterPayload(masterJson);
+            setMasterError(null);
+          }
         }
       } catch (err) {
         if (!cancelled) {
@@ -259,6 +393,11 @@ export default function Engine25MarketHealthTimeline({
   const permission = headline.permissionText || cleanLabel(headline.permission);
   const size = headline.size ?? "—";
 
+  const masterScore = masterPayload?.master?.score;
+  const masterState = masterPayload?.master?.state || "—";
+  const masterTone = masterPayload?.master?.tone || "—";
+  const comparison = buildMasterComparison(score, masterScore);
+
   const breadth = breakdown.find((item) => item.key === "breadthParticipation");
   const distribution = breakdown.find(
     (item) => item.key === "distributionPressure"
@@ -272,21 +411,13 @@ export default function Engine25MarketHealthTimeline({
       style={{
         fontFamily: PANEL_FONT,
         position: "absolute",
-
-        /*
-          Moved far to the right.
-          Previous fixed values were too small because the dashboard UI scaler
-          makes visual movement look smaller than the raw CSS value.
-        */
         top: 126,
         left: 820,
-
         zIndex: 118,
         width: 560,
         maxWidth: "560px",
         maxHeight: "calc(100vh - 190px)",
         overflowY: "auto",
-
         borderRadius: 14,
         border: `1px solid ${engine25Border()}`,
         background: "rgba(6,10,20,0.95)",
@@ -437,7 +568,8 @@ export default function Engine25MarketHealthTimeline({
                     marginTop: 3,
                   }}
                 >
-                  {headline.date || "—"} · ES {headline.esClose ?? "—"}
+                  Latest EOD: {headline.date || "—"} · ES{" "}
+                  {headline.esClose ?? "—"}
                 </div>
               </div>
             </div>
@@ -464,6 +596,79 @@ export default function Engine25MarketHealthTimeline({
 
       {payload && status !== "ERROR" && (
         <>
+          <SectionBox
+            title="Engine 25 vs Master"
+            titleColor={comparison.color}
+            borderColor={comparison.border}
+            background={comparison.background}
+          >
+            <div style={{ display: "grid", gap: 4 }}>
+              <CompareRow
+                label="Engine 25"
+                value={fmtScore(headline.score)}
+                color={scoreColor(headline.score)}
+              />
+              <CompareRow
+                label="ES Master"
+                value={fmtScoreDecimal(masterScore, 2)}
+                color={scoreColor(masterScore)}
+              />
+              <CompareRow
+                label="Spread"
+                value={fmtSpread(comparison.spread)}
+                color={comparison.color}
+              />
+              <CompareRow
+                label="Status"
+                value={comparison.status}
+                color={comparison.color}
+              />
+
+              <div
+                style={{
+                  fontFamily: PANEL_FONT,
+                  marginTop: 5,
+                  fontSize: 17,
+                  lineHeight: 1.42,
+                  color: "#dbeafe",
+                  fontWeight: 500,
+                  whiteSpace: "pre-line",
+                }}
+              >
+                {comparison.read}
+              </div>
+
+              {masterError && (
+                <div
+                  style={{
+                    fontFamily: PANEL_FONT,
+                    marginTop: 5,
+                    fontSize: 15,
+                    lineHeight: 1.35,
+                    color: "#fecaca",
+                    fontWeight: 500,
+                  }}
+                >
+                  Master error: {masterError}
+                </div>
+              )}
+
+              <div
+                style={{
+                  fontFamily: PANEL_FONT,
+                  marginTop: 4,
+                  fontSize: 15,
+                  lineHeight: 1.35,
+                  color: "#94a3b8",
+                  fontWeight: 500,
+                }}
+              >
+                Master state: {cleanLabel(masterState)} · Tone:{" "}
+                {cleanLabel(masterTone)}
+              </div>
+            </div>
+          </SectionBox>
+
           <SectionBox title="Why?" titleColor="#60a5fa">
             <div style={{ display: "grid", gap: 8 }}>
               <SmallScoreRow
