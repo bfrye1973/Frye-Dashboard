@@ -252,22 +252,25 @@ export default function FibLevelsOverlay({
 
   /* ---------------------------
      W5 targets (W4 projection)
-  --------------------------- */
-  function computeW5Targets(w1Anchors, w4Anchors) {
-    const w1Low = Number(w1Anchors?.low);
-    const w1High = Number(w1Anchors?.high);
-    const w4Low = Number(w4Anchors?.low);
-    if (!Number.isFinite(w1Low) || !Number.isFinite(w1High) || !Number.isFinite(w4Low)) return null;
-    const span = w1High - w1Low;
-    if (!(span > 0)) return null;
-    return {
-      t1000: w4Low + 1.0 * span,
-      t1168: w4Low + 1.168 * span,
-      t1618: w4Low + 1.618 * span,
-      t2000: w4Low + 2.0 * span,
-      t2618: w4Low + 2.618 * span,
-    };
-  }
+    --------------------------- */
+function computeW5Targets(w4Anchors) {
+  const w4Low = Number(w4Anchors?.low);
+  const w3High = Number(w4Anchors?.high);
+
+  if (!Number.isFinite(w4Low) || !Number.isFinite(w3High)) return null;
+
+  const span = w3High - w4Low;
+  if (!(span > 0)) return null;
+
+  return {
+    t1000: w4Low + 1.0 * span,
+    t1168: w4Low + 1.168 * span,
+    t1272: w4Low + 1.272 * span,
+    t1618: w4Low + 1.618 * span,
+    t2000: w4Low + 2.0 * span,
+    t2618: w4Low + 2.618 * span,
+  };
+}
 
   /* ---------------------------
      Wave marks draw
