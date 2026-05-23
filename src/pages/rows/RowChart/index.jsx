@@ -48,6 +48,7 @@ import { createDrawingsEngine } from "../../../features/drawings/createDrawingsE
 import Engine17Overlay from "./overlays/Engine17Overlay";
 import Engine17DecisionTimeline from "./overlays/Engine17DecisionTimeline";
 import Engine17Badges from "./overlays/Engine17Badges";
+import Engine23BehaviorCard from "./overlays/Engine23BehaviorCard";
 import Engine25CompositeOverlay from "./overlays/Engine25CompositeOverlay";
 import Engine25MarketHealthTimeline from "./overlays/Engine25MarketHealthTimeline";
 
@@ -369,6 +370,7 @@ function mapSnapshotToEngine17Overlay(snapshot, strategyId, chartMode = "SPY_SCA
   const swing = snapshot?.strategies?.["minor_swing@1h"]?.engine16 || null;
   const engine15Decision = node?.engine15Decision || null;
   const engine22Scalp = node?.engine22Scalp || null;
+  const engine23Interpretation = node?.engine23Interpretation || null;
 
   const engine22WaveStrategy =
   node?.engine22WaveStrategy ||
@@ -631,6 +633,7 @@ function mapSnapshotToEngine17Overlay(snapshot, strategyId, chartMode = "SPY_SCA
       
       engine22WaveStrategy,
       engine22Scalp,
+      engine23Interpretation,
       engine2State: snapshot?.engine2State || null,
       activeExtensions: snapshot?.engine2State?.activeExtensions || null,
       wave3Retrace: snapshot?.engine2State?.minute?.wave3Retrace || null,
@@ -895,6 +898,8 @@ export default function RowChart({
     engine17Signals: true,
     engine17TriggerLine: true,
     engine17DebugPanel: false,
+
+    engine23BehaviorCard: true,
 
     engine25CompositeOverlay: false,
     engine25Timeline: false,
@@ -2020,6 +2025,8 @@ export default function RowChart({
     engine17TriggerLine: state.engine17TriggerLine,
     engine17DebugPanel: state.engine17DebugPanel,
 
+    engine23BehaviorCard: state.engine23BehaviorCard,
+
     engine25CompositeOverlay: state.engine25CompositeOverlay,
     engine25Timeline: state.engine25Timeline,
 
@@ -2199,6 +2206,17 @@ export default function RowChart({
              chartMode={selectedMode}
              symbol={state.symbol}
            />
+
+          <Engine23BehaviorCard
+            visible={
+              state.engine23BehaviorCard &&
+              state.engine17Timeline &&
+              state.engine17Overlay &&
+              normalizeSymbol(state.symbol) === "ES"
+           }
+           interpretation={engine17Data?.fib?.engine23Interpretation}
+           symbol={state.symbol}
+         />
 
           <Engine17Badges
             overlayData={engine17Data}
