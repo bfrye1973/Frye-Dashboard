@@ -297,6 +297,8 @@ export default function IndicatorsToolbar({
   engine17TriggerLine = true,
   engine17DebugPanel = false,
 
+  engine23BehaviorCard = true,
+
   engine25CompositeOverlay = true,
   engine25Timeline = false,
   
@@ -474,6 +476,15 @@ export default function IndicatorsToolbar({
                     onChange={(e) => onChange?.({ engine17Timeline: e.target.checked })}
                   />{" "}
                   Decision Timeline
+                </label>
+
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={!!engine23BehaviorCard}
+                    onChange={(e) => onChange?.({ engine23BehaviorCard: e.target.checked })}
+                  />{" "}
+                  Engine 23 — Wave Behavior Read
                 </label>
 
                 <label>
