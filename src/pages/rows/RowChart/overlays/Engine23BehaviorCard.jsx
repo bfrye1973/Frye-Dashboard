@@ -2,8 +2,12 @@
 
 import React from "react";
 
+const CARD_FONT =
+  "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+
 function formatText(value, fallback = "—") {
   if (value == null || value === "") return fallback;
+
   return String(value)
     .replaceAll("_", " ")
     .toLowerCase()
@@ -40,8 +44,8 @@ function SmallLine({ label, value }) {
 
   return (
     <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
-      <span style={{ color: "#94a3b8", fontWeight: 800 }}>{label}</span>
-      <span style={{ color: "#e5e7eb", fontWeight: 800, textAlign: "right" }}>
+      <span style={{ color: "#94a3b8", fontWeight: 500 }}>{label}</span>
+      <span style={{ color: "#e5e7eb", fontWeight: 500, textAlign: "right" }}>
         {value}
       </span>
     </div>
@@ -74,7 +78,7 @@ function LevelsBlock({ targets }) {
         style={{
           color: "#60a5fa",
           fontSize: 13,
-          fontWeight: 900,
+          fontWeight: 600,
           textTransform: "uppercase",
           letterSpacing: "0.04em",
           marginBottom: 2,
@@ -97,19 +101,19 @@ function WeaknessBlock({ zones }) {
   return (
     <div
       style={{
-        border: "1px solid rgba(251,191,36,0.28)",
+        border: "1px solid rgba(251,191,36,0.35)",
         borderRadius: 10,
-        padding: "8px 10px",
-        background: "rgba(113,63,18,0.12)",
+        padding: "10px 12px",
+        background: "rgba(113,63,18,0.14)",
         display: "grid",
-        gap: 5,
+        gap: 8,
       }}
     >
       <div
         style={{
           color: "#fbbf24",
-          fontSize: 13,
-          fontWeight: 900,
+          fontSize: 16,
+          fontWeight: 600,
           textTransform: "uppercase",
           letterSpacing: "0.04em",
           marginBottom: 2,
@@ -119,12 +123,24 @@ function WeaknessBlock({ zones }) {
       </div>
 
       {safe.slice(0, 4).map((z, idx) => (
-        <div key={`${z.label || "zone"}-${idx}`} style={{ display: "grid", gap: 2 }}>
-          <div style={{ color: "#f8fafc", fontWeight: 850, fontSize: 14 }}>
+        <div
+          key={`${z.label || "zone"}-${idx}`}
+          style={{
+            display: "grid",
+            gap: 3,
+            paddingBottom: idx < safe.slice(0, 4).length - 1 ? 5 : 0,
+            borderBottom:
+              idx < safe.slice(0, 4).length - 1
+                ? "1px solid rgba(251,191,36,0.10)"
+                : "none",
+          }}
+        >
+          <div style={{ color: "#f8fafc", fontWeight: 600, fontSize: 17 }}>
             {z.label || "Zone"}: {z.level ?? "—"}
           </div>
+
           {z.meaning && (
-            <div style={{ color: "#cbd5e1", fontSize: 13, lineHeight: 1.35 }}>
+            <div style={{ color: "#dbeafe", fontSize: 15, lineHeight: 1.42 }}>
               {z.meaning}
             </div>
           )}
@@ -151,7 +167,7 @@ export default function Engine23BehaviorCard({
   return (
     <div
       style={{
-        fontFamily: "Arial, Helvetica, sans-serif",
+        fontFamily: CARD_FONT,
         position: "absolute",
         top: 166,
         left: "50%",
@@ -172,12 +188,19 @@ export default function Engine23BehaviorCard({
         gap: 10,
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 12,
+        }}
+      >
         <div>
           <div
             style={{
               fontSize: 14,
-              fontWeight: 950,
+              fontWeight: 600,
               color,
               textTransform: "uppercase",
               letterSpacing: "0.06em",
@@ -186,8 +209,16 @@ export default function Engine23BehaviorCard({
             Engine 23 — Wave Behavior Read
           </div>
 
-          <div style={{ fontSize: 18, fontWeight: 900, color: "#f8fafc", marginTop: 3 }}>
-            {symbol} • {formatText(interpretation.environment)} • {formatText(interpretation.state)}
+          <div
+            style={{
+              fontSize: 18,
+              fontWeight: 500,
+              color: "#f8fafc",
+              marginTop: 3,
+            }}
+          >
+            {symbol} • {formatText(interpretation.environment)} •{" "}
+            {formatText(interpretation.state)}
           </div>
         </div>
 
@@ -197,7 +228,7 @@ export default function Engine23BehaviorCard({
             borderRadius: 999,
             padding: "5px 10px",
             color,
-            fontWeight: 950,
+            fontWeight: 600,
             fontSize: 13,
             background: "rgba(15,23,42,0.55)",
             whiteSpace: "nowrap",
@@ -215,15 +246,31 @@ export default function Engine23BehaviorCard({
           fontSize: 14,
         }}
       >
-        <SmallLine label="Preferred" value={formatText(interpretation.preferredEntry)} />
-        <SmallLine label="Active Degree" value={formatText(interpretation.activeDegree)} />
-        <SmallLine label="Recent" value={recent ? `${formatText(recent.degree)} ${recent.wave}` : "—"} />
+        <SmallLine
+          label="Preferred"
+          value={formatText(interpretation.preferredEntry)}
+        />
+        <SmallLine
+          label="Active Degree"
+          value={formatText(interpretation.activeDegree)}
+        />
+        <SmallLine
+          label="Recent"
+          value={recent ? `${formatText(recent.degree)} ${recent.wave}` : "—"}
+        />
         <SmallLine label="Active Setup" value={active?.setup || "—"} />
-        <SmallLine label="Higher Context" value={higher?.label || interpretation.higherDegreeContext || "—"} />
-        <SmallLine label="Direction" value={formatText(interpretation.directionBias)} />
+        <SmallLine
+          label="Higher Context"
+          value={higher?.label || interpretation.higherDegreeContext || "—"}
+        />
+        <SmallLine
+          label="Direction"
+          value={formatText(interpretation.directionBias)}
+        />
       </div>
 
       <LevelsBlock targets={interpretation.activeTargets} />
+
       <WeaknessBlock zones={interpretation.weaknessZones} />
 
       {interpretation.summary && (
@@ -233,8 +280,8 @@ export default function Engine23BehaviorCard({
             paddingTop: 8,
             color: "#dbeafe",
             fontSize: 16,
-            lineHeight: 1.4,
-            fontWeight: 650,
+            lineHeight: 1.45,
+            fontWeight: 400,
           }}
         >
           {interpretation.summary}
