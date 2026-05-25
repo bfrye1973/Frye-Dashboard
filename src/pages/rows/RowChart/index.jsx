@@ -371,6 +371,7 @@ function mapSnapshotToEngine17Overlay(snapshot, strategyId, chartMode = "SPY_SCA
   const engine15Decision = node?.engine15Decision || null;
   const engine22Scalp = node?.engine22Scalp || null;
   const engine23Interpretation = node?.engine23Interpretation || null;
+  const aiTradeCopilot = node?.aiTradeCopilot || null;
 
   const engine22WaveStrategy =
   node?.engine22WaveStrategy ||
@@ -634,6 +635,7 @@ function mapSnapshotToEngine17Overlay(snapshot, strategyId, chartMode = "SPY_SCA
       engine22WaveStrategy,
       engine22Scalp,
       engine23Interpretation,
+      aiTradeCopilot,
       engine2State: snapshot?.engine2State || null,
       activeExtensions: snapshot?.engine2State?.activeExtensions || null,
       wave3Retrace: snapshot?.engine2State?.minute?.wave3Retrace || null,
