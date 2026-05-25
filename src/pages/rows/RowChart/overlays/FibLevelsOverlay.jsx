@@ -133,10 +133,17 @@ export default function FibLevelsOverlay({
         const exampleT = w1?.anchors?.waveMarks?.W1?.tSec;
         // eslint-disable-next-line no-console
         console.debug("[fibOverlay] fetched", {
-          symbol, tf, degree,
-          hasW1: !!w1, hasW4: !!w4,
-          hasMarks, exampleT,
+          symbol,
+          tf,
+          degree,
+          hasW1: !!w1,
+          hasW4: !!w4,
+          hasMarks,
+          exampleT,
+          w1Marks: w1?.anchors?.waveMarks,
           bars: bars.length,
+          firstBarTime: bars?.[0]?.time,
+          lastBarTime: bars?.[bars.length - 1]?.time,
           barIntervalSec,
         });
       }
