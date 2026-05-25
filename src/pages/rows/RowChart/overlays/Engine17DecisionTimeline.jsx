@@ -649,6 +649,433 @@ function injectAiAndTargetsIntoTimeline({ timeline, overlayData }) {
   };
 }
 
+function buildCleanWaveStackText({ waveFibState, engine23 }) {
+  const stack = engine23?.waveStack || {};
+
+  const phaseFor = (degree, fallback = "—") =>
+    stack?.[degree]?.phase ||
+    waveFibState?.degrees?.[degree]?.phase ||
+    fallback;
+
+  return `Primary ${formatWave(phaseFor("primary", "W5"))} | Intermediate ${formatWave(
+    phaseFor("intermediate", "W5")
+  )} | Minor ${formatWave(phaseFor("minor", "W5"))} | Minute ${formatWave(
+    phaseFor("minute", "—")
+  )} | Micro ${formatWave(phaseFor("micro", "—"))}`;
+}
+
+function buildCleanAiSection(ai) {
+  if (!ai?.ok) return null;
+
+  const reasoning = ai.aiReasoning || {};
+
+  return {
+    title: "AI Trade Copilot Read",
+    severity: ai.shouldChase ? "warning" : "info",
+    lines: asLines([
+      compactJoin([
+        ai.bias ? `Bias: ${formatText(ai.bias)}` : null,
+        ai.action ? `Action: ${formatText(ai.action)}` : null,
+        ai.confidence ? `Confidence: ${formatText(ai.confidence)}` : null,
+      ]),
+      `Should chase: ${ai.shouldChase ? "YES" : "NO"}`,
+      reasoning.read ? `Read: ${formatText(reasoning.read)}` : null,
+      ai.setupRead || engine23SafeSummary(ai),
+    ]),
+  };
+}
+
+function engine23SafeSummary(ai) {
+  const summary = ai?.summary || "";
+  if (!summary) return null;
+
+  const firstSentence = String(summary).split(". ").slice(0, 2).join(". ");
+  return firstSentence ? `${firstSentence}.` : null;
+}
+
+function buildCleanWeaknessSection({ engine23, degreeMap }) {
+  const zones = Array.isArray(engine23?.weaknessZones)
+    ? engine23.weaknessZones
+    : [];
+
+  if (zones.length) {
+    return {
+      title: "Weakness / Chase-Risk Zones",
+      severity: "warning",
+      lines: zones.slice(0, 4).map((zone) =>
+        compactJoin([
+          zone?.label ? `${zone.label}: ${zone.level}` : null,
+          zone?.meaning || null,
+        ], " — ")
+      ),
+    };
+  }
+
+  const minorLevels = degreeMap?.minor?.fibProjection?.levels || null;
+
+  if (!minorLevels) return null;
+
+  return {
+    title: "Weakness / Chase-Risk Zones",
+    severity: "warning",
+    lines: asLines([
+      minorLevels.e100 != null ? `First test: ${formatLevel(minorLevels.e100)}` : null,
+      minorLevels.e1168 != null && minorLevels.e1272 != null
+        ? `Early extension zone: ${formatLevel(minorLevels.e1168)}–${formatLevel(
+            minorLevels.e1272
+          )}`
+        : null,
+      minorLevels.e1618 != null ? `Major exhaustion zone: ${formatLevel(minorLevels.e1618)}` : null,
+      minorLevels.e200 != null ? `Very stretched extension: ${formatLevel(minorLevels.e200)}` : null,
+    ]),
+  };
+}
+
+function buildTradePermissionSection({ fib, engine22WaveStrategy, engine22, engine23 }) {
+  const tradeDecision =
+    engine22WaveStrategy?.tradeDecision ||
+    engine22?.tradeDecision ||
+    null;
+
+  const engine15 = fib?.engine15Decision || {};
+  const decision = tradeDecision?.decision || fib?.decisionAction || engine15?.action || "WAIT";
+  const readiness =
+    fib?.decisionReadinessLabel ||
+    fib?.readinessLabel ||
+    engine15?.readinessLabel ||
+    tradeDecision?.context?.engine15Readiness ||
+    "WATCH";
+
+  const direction =
+    fib?.decisionDirection ||
+    engine15?.direction ||
+    tradeDecision?.direction ||
+    engine23?.directionBias ||
+    "—";
+
+  const action =
+    engine23?.preferredEntry ||
+    tradeDecision?.reason ||
+    tradeDecision?.entryPlan?.notes ||
+    fib?.nextFocus ||
+    "Wait for confirmation.";
+
+  const needs = Array.isArray(tradeDecision?.needs)
+    ? tradeDecision.needs
+    : Array.isArray(engine23?.needs)
+    ? engine23.needs
+    : [];
+
+  return {
+    title: "Trade Permission",
+    severity:
+      String(decision).toUpperCase().includes("WAIT") ||
+      String(readiness).toUpperCase().includes("WATCH")
+        ? "warning"
+        : "neutral",
+    lines: asLines([
+      `Status: ${formatText(decision)} — ${formatText(readiness)}`,
+      `Bias: ${formatText(direction)}`,
+      `Action: ${formatText(action)}`,
+      needs.length ? `Needs: ${needs.map((n) => formatText(n)).join(", ")}` : null,
+    ]),
+  };
+}
+
+function compactLayerLine(layer, label, fallbackText) {
+  if (!layer) return `${label}: ${fallbackText}`;
+
+  const state =
+    layer.state ||
+    layer.trendState ||
+    layer.structureState ||
+    layer.permissionState ||
+    layer.label ||
+    layer.read ||
+    "UNKNOWN";
+
+  const permission =
+    layer.permission ||
+    layer.permissionState ||
+    layer.action ||
+    null;
+
+  return compactJoin([
+    `${label}: ${formatText(state)}`,
+    permission ? `Permission: ${formatText(permission)}` : null,
+  ]);
+}
+
+function buildCompactTimeframeLayers({ engine22WaveStrategy, engine22, fib, ai }) {
+  const layers =
+    engine22WaveStrategy?.regimeContext ||
+    engine22WaveStrategy?.regimeLayers ||
+    engine22?.regimeLayers ||
+    fib?.regimeLayers ||
+    null;
+
+  const ema = ai?.emaPosture || null;
+
+  if (!layers && !ema) {
+    return {
+      title: "Key Timeframe Layers",
+      severity: "neutral",
+      lines: [
+        "10m: Unavailable",
+        "1H: Unavailable",
+        "4H: Unavailable",
+        "EOD: Unavailable",
+      ],
+    };
+  }
+
+  if (ema) {
+    return {
+      title: "Key Timeframe Layers",
+      severity: "neutral",
+      lines: asLines([
+        ema.tenMinute ? `10m: ${formatText(ema.tenMinute)}` : "10m: Unavailable",
+        ema.oneHour ? `1H: ${formatText(ema.oneHour)}` : "1H: Unavailable",
+        ema.fourHour ? `4H: ${formatText(ema.fourHour)}` : "4H: Unavailable",
+        ema.daily ? `EOD: ${formatText(ema.daily)}` : "EOD: Unavailable",
+      ]),
+    };
+  }
+
+  return {
+    title: "Key Timeframe Layers",
+    severity: "neutral",
+    lines: [
+      compactLayerLine(layers.tenMinute || layers.trigger10m, "10m", "Unavailable"),
+      compactLayerLine(layers.oneHour || layers.pullback1h, "1H", "Unavailable"),
+      compactLayerLine(layers.fourHour || layers.trend4h, "4H", "Unavailable"),
+      compactLayerLine(layers.eod || layers.regimeEod, "EOD", "Unavailable"),
+    ],
+  };
+}
+
+function buildCleanCurrentTradeWaveSection({ activeDegree, degreeState }) {
+  const phase = String(degreeState?.phase || "").toUpperCase();
+  const state = String(degreeState?.state || "").toUpperCase();
+  const pressure = degreeState?.fibPressure || {};
+  const levels = degreeState?.fibProjection?.levels || {};
+  const degreeLabel = formatText(activeDegree).toUpperCase();
+
+  const chaseRisk = String(pressure?.chaseRisk || "").toUpperCase();
+  const highRisk =
+    chaseRisk.includes("HIGH") ||
+    chaseRisk.includes("EXTREME") ||
+    chaseRisk.includes("VERY");
+
+  if (phase === "IN_W3" || state.includes("IMPULSE_EXPANSION")) {
+    return {
+      title: `Current Trade Wave — ${degreeLabel} W3`,
+      severity: highRisk ? "warning" : "bullish",
+      lines: asLines([
+        `${formatText(activeDegree)} W3 is active.`,
+        pressure?.nearestFib
+          ? `Price is near ${pressure.nearestFib} at ${formatLevel(
+              pressure.nearestFibPrice
+            )}.`
+          : null,
+        pressure?.expectedBehavior
+          ? `Expected: ${formatText(pressure.expectedBehavior)}.`
+          : null,
+        pressure?.chaseRisk ? `Chase risk: ${formatText(pressure.chaseRisk)}.` : null,
+        levels.e200 != null || levels.e2618 != null
+          ? `Next targets: ${formatLevel(levels.e200)} / ${formatLevel(levels.e2618)}.`
+          : null,
+        degreeState?.action ? `Action: ${formatText(degreeState.action)}.` : null,
+      ]),
+    };
+  }
+
+  if (phase === "IN_W2" || phase === "IN_W4" || state.includes("PULLBACK")) {
+    const retrace = degreeState?.retracement?.levels || degreeState?.fibRetracement?.levels || {};
+    const invalidation =
+      degreeState?.invalidation ||
+      degreeState?.hardInvalidation ||
+      degreeState?.retracement?.invalidation ||
+      null;
+
+    const lines = asLines([
+      `${formatText(activeDegree)} ${formatWave(phase)} pullback/reclaim scenario is active.`,
+      retrace.r382 != null || retrace.r500 != null || retrace.r618 != null
+        ? `Retrace zone: ${formatLevel(retrace.r382)} / ${formatLevel(
+            retrace.r500
+          )} / ${formatLevel(retrace.r618)}.`
+        : null,
+      invalidation != null ? `Invalidation: ${formatLevel(invalidation)}.` : null,
+      degreeState?.action ? `Action: ${formatText(degreeState.action)}.` : null,
+    ]);
+
+    if (!lines.length) return null;
+
+    return {
+      title: `Pullback / Reclaim Zone — ${degreeLabel} ${formatWave(phase)}`,
+      severity: "warning",
+      lines,
+    };
+  }
+
+  if (phase === "IN_W5" || state.includes("FINAL_IMPULSE")) {
+    return {
+      title: `Extension / Exhaustion Targets — ${degreeLabel} W5`,
+      severity: highRisk ? "warning" : "bullish",
+      lines: asLines([
+        `${formatText(activeDegree)} W5 is active.`,
+        pressure?.nearestFib
+          ? `Price is near ${pressure.nearestFib} at ${formatLevel(
+              pressure.nearestFibPrice
+            )}.`
+          : null,
+        pressure?.chaseRisk ? `Chase risk: ${formatText(pressure.chaseRisk)}.` : null,
+        levels.e100 != null || levels.e1618 != null || levels.e200 != null
+          ? `Targets: ${formatLevel(levels.e100)} / ${formatLevel(
+              levels.e1618
+            )} / ${formatLevel(levels.e200)}.`
+          : null,
+      ]),
+    };
+  }
+
+  if (phase === "COMPLETE_W5" || state.includes("IMPULSE_COMPLETE")) {
+    return {
+      title: `Impulse Complete — ${degreeLabel} W5`,
+      severity: "warning",
+      lines: asLines([
+        `${formatText(activeDegree)} W5 is complete.`,
+        "Wait for new structure before forcing another entry.",
+        degreeState?.nextExpectedWave
+          ? `Next expected wave: ${formatText(degreeState.nextExpectedWave)}.`
+          : null,
+      ]),
+    };
+  }
+
+  return null;
+}
+
+function buildCleanWaveTimeline({ overlayData, chartMode }) {
+  const fib = getFib(overlayData);
+  const engine22WaveStrategy = getEngine22WaveStrategy(overlayData);
+  const engine22 = getEngine22(overlayData);
+  const ai = fib?.aiTradeCopilot || null;
+  const engine23 = fib?.engine23Interpretation || ai?.engine23 || null;
+
+  const waveFibState =
+    engine22WaveStrategy?.waveFibState ||
+    engine22?.waveFibState ||
+    null;
+
+  const degreeMap = waveFibState?.degrees || {};
+
+  if (!waveFibState || !degreeMap) return null;
+
+  const activeDegree =
+    waveFibState?.activeTradingDegree ||
+    engine22WaveStrategy?.activeTradingDegree ||
+    engine23?.activeDegree ||
+    fib?.activeDegree ||
+    "minute";
+
+  const degreeState =
+    degreeMap?.[activeDegree] ||
+    degreeMap?.minute ||
+    null;
+
+  if (!degreeState) return null;
+
+  const phase = String(degreeState?.phase || "").toUpperCase();
+  const state = String(degreeState?.state || "").toUpperCase();
+
+  const isKnownScenario =
+    phase === "IN_W3" ||
+    phase === "IN_W2" ||
+    phase === "IN_W4" ||
+    phase === "IN_W5" ||
+    phase === "COMPLETE_W5" ||
+    state.includes("IMPULSE_EXPANSION") ||
+    state.includes("PULLBACK") ||
+    state.includes("FINAL_IMPULSE") ||
+    state.includes("IMPULSE_COMPLETE");
+
+  if (!isKnownScenario) return null;
+
+  const currentTradeWaveSection = buildCleanCurrentTradeWaveSection({
+    activeDegree,
+    degreeState,
+  });
+
+  if (!currentTradeWaveSection) return null;
+
+  const waveStackText = buildCleanWaveStackText({ waveFibState, engine23 });
+
+  const sideWaveFibState = engine22?.waveFibState || waveFibState;
+
+  const sideSections = [
+    normalizeReaction(engine22),
+    normalizeVolume(engine22),
+    normalizeBreakout(engine22),
+    normalizeDuration(sideWaveFibState),
+  ];
+
+  const aiSection = buildCleanAiSection(ai);
+  const weaknessSection = buildCleanWeaknessSection({ engine23, degreeMap });
+  const tradePermissionSection = buildTradePermissionSection({
+    fib,
+    engine22WaveStrategy,
+    engine22,
+    engine23,
+  });
+  const timeframeSection = buildCompactTimeframeLayers({
+    engine22WaveStrategy,
+    engine22,
+    fib,
+    ai,
+  });
+
+  const mainSections = [
+    currentTradeWaveSection,
+    aiSection,
+    weaknessSection,
+    tradePermissionSection,
+    timeframeSection,
+  ].filter(Boolean);
+
+  const tradeDecision = engine22WaveStrategy?.tradeDecision || engine22?.tradeDecision || {};
+  const footer =
+    tradeDecision?.decision ||
+    fib?.decisionAction ||
+    engine23?.preferredEntry ||
+    "WAIT";
+
+  const headline = "WAVE/FIB STATE";
+
+  const subheadline =
+    engine23?.priceLocation?.priceLocationLabel ||
+    engine23?.summary ||
+    ai?.setupRead ||
+    "Clean wave timeline is reading the active wave scenario.";
+
+  const severity =
+    String(degreeState?.fibPressure?.chaseRisk || "").toUpperCase().includes("HIGH") ||
+    engine23?.chaseAllowed === false
+      ? "warning"
+      : "neutral";
+
+  return {
+    show: true,
+    severity,
+    headline,
+    subheadline,
+    waveStackText,
+    mainSections,
+    sideSections,
+    footer: formatText(footer),
+  };
+}
+
 function normalizeFromBackendTimelineRead(timelineRead) {
   if (!timelineRead) return null;
 
@@ -687,6 +1114,13 @@ function normalizeTimelineData({ overlayData, chartMode }) {
   if (!overlayData?.ok) {
     return { show: false };
   }
+
+  const cleanWaveTimeline = buildCleanWaveTimeline({
+    overlayData,
+    chartMode,
+  });
+
+  if (cleanWaveTimeline) return cleanWaveTimeline;
 
   if (!engine22) {
     return {
