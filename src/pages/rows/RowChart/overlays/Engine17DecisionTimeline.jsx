@@ -545,40 +545,43 @@ function buildMinuteW3TargetsSection(waveFibState) {
 
   if (!levels) {
     return {
-      title: "Minute W3 Extension Targets",
+      title: "Current Trade Wave — Minute W3",
       severity: "warning",
       lines: [
-        "Minute W3 is active, but Minute W3 projection levels are missing.",
-        "Backend should provide waveFibState.degrees.minute.fibProjection.levels.",
+        "Minute W3 is active, but Minute W3 target levels are missing.",
+        "Wait for backend projection levels before using fib targets.",
       ],
     };
   }
 
+  const chaseRisk = String(pressure?.chaseRisk || "").toUpperCase();
+  const isHighRisk =
+    chaseRisk === "HIGH" ||
+    chaseRisk === "VERY_HIGH" ||
+    chaseRisk === "EXTREME";
+
   return {
-    title: "Minute W3 Extension Targets",
-    severity: "bullish",
+    title: "Current Trade Wave — Minute W3",
+    severity: isHighRisk ? "warning" : "bullish",
     lines: asLines([
-      `1.000: ${formatLevel(levels.e100)}`,
-      `1.272: ${formatLevel(levels.e1272)}`,
-      `1.618: ${formatLevel(levels.e1618)}`,
-      `2.000: ${formatLevel(levels.e200)}`,
-      `2.618: ${formatLevel(levels.e2618)}`,
+      "Minute W3 is active.",
       pressure?.nearestFib
-        ? `Nearest: ${pressure.nearestFib} at ${formatLevel(pressure.nearestFibPrice)}`
-        : null,
-      pressure?.extensionState
-        ? `Extension state: ${formatText(pressure.extensionState)}`
-        : null,
-      pressure?.chaseRisk
-        ? `Chase risk: ${formatText(pressure.chaseRisk)}`
+        ? `Price is near ${pressure.nearestFib} at ${formatLevel(
+            pressure.nearestFibPrice
+          )}.`
         : null,
       pressure?.expectedBehavior
-        ? `Expected behavior: ${formatText(pressure.expectedBehavior)}`
+        ? `Expected: ${formatText(pressure.expectedBehavior)}.`
         : null,
+      pressure?.chaseRisk
+        ? `Chase risk: ${formatText(pressure.chaseRisk)}.`
+        : null,
+      `Next targets: 2.000 at ${formatLevel(levels.e200)} / 2.618 at ${formatLevel(
+        levels.e2618
+      )}.`,
     ]),
   };
 }
-
 function injectAiAndTargetsIntoTimeline({ timeline, overlayData }) {
   if (!timeline?.show) return timeline;
 
@@ -603,15 +606,22 @@ function injectAiAndTargetsIntoTimeline({ timeline, overlayData }) {
     String(s?.title || "").toUpperCase().includes("AI TRADE COPILOT")
   );
 
-  const alreadyHasMinuteTargets = mainSections.some((s) =>
-    String(s?.title || "").toUpperCase().includes("MINUTE W3 EXTENSION")
-  );
+  const alreadyHasMinuteTargets = mainSections.some((s) => {
+    const title = String(s?.title || "").toUpperCase();
+    return title.includes("MINUTE W3 EXTENSION") || title.includes("CURRENT TRADE WAVE");
+  });
 
   const finalInserts = inserts.filter((section) => {
     const title = String(section?.title || "").toUpperCase();
 
     if (title.includes("AI TRADE COPILOT") && alreadyHasAi) return false;
-    if (title.includes("MINUTE W3 EXTENSION") && alreadyHasMinuteTargets) return false;
+
+    if (
+      (title.includes("MINUTE W3 EXTENSION") || title.includes("CURRENT TRADE WAVE")) &&
+      alreadyHasMinuteTargets
+    ) {
+      return false;
+    }
 
     return true;
   });
