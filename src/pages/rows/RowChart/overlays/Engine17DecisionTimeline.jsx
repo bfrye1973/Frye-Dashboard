@@ -511,6 +511,134 @@ function buildTraderNarrative({ waveFibState, waveStack }) {
    Timeline normalizer
 ========================= */
 
+function buildAiTradeCopilotSection(ai) {
+  if (!ai?.ok) return null;
+
+  const reasoning = ai.aiReasoning || {};
+
+  return {
+    title: "AI Trade Copilot Read",
+    severity: ai.shouldChase ? "warning" : "info",
+    lines: asLines([
+      ai.headline || null,
+      compactJoin([
+        ai.bias ? `Bias: ${formatText(ai.bias)}` : null,
+        ai.action ? `Action: ${formatText(ai.action)}` : null,
+        ai.confidence ? `Confidence: ${formatText(ai.confidence)}` : null,
+        `Should chase: ${ai.shouldChase ? "YES" : "NO"}`,
+      ]),
+      reasoning.read ? `Read: ${formatText(reasoning.read)}` : null,
+      reasoning.bestScenario ? `Best: ${reasoning.bestScenario}` : null,
+      reasoning.dangerScenario ? `Danger: ${reasoning.dangerScenario}` : null,
+      ai.summary || null,
+    ]),
+  };
+}
+
+function buildMinuteW3TargetsSection(waveFibState) {
+  const minute = waveFibState?.degrees?.minute || null;
+  const phase = String(minute?.phase || "").toUpperCase();
+  const levels = minute?.fibProjection?.levels || null;
+  const pressure = minute?.fibPressure || null;
+
+  if (phase !== "IN_W3") return null;
+
+  if (!levels) {
+    return {
+      title: "Minute W3 Extension Targets",
+      severity: "warning",
+      lines: [
+        "Minute W3 is active, but Minute W3 projection levels are missing.",
+        "Backend should provide waveFibState.degrees.minute.fibProjection.levels.",
+      ],
+    };
+  }
+
+  return {
+    title: "Minute W3 Extension Targets",
+    severity: "bullish",
+    lines: asLines([
+      `1.000: ${formatLevel(levels.e100)}`,
+      `1.272: ${formatLevel(levels.e1272)}`,
+      `1.618: ${formatLevel(levels.e1618)}`,
+      `2.000: ${formatLevel(levels.e200)}`,
+      `2.618: ${formatLevel(levels.e2618)}`,
+      pressure?.nearestFib
+        ? `Nearest: ${pressure.nearestFib} at ${formatLevel(pressure.nearestFibPrice)}`
+        : null,
+      pressure?.extensionState
+        ? `Extension state: ${formatText(pressure.extensionState)}`
+        : null,
+      pressure?.chaseRisk
+        ? `Chase risk: ${formatText(pressure.chaseRisk)}`
+        : null,
+      pressure?.expectedBehavior
+        ? `Expected behavior: ${formatText(pressure.expectedBehavior)}`
+        : null,
+    ]),
+  };
+}
+
+function injectAiAndTargetsIntoTimeline({ timeline, overlayData }) {
+  if (!timeline?.show) return timeline;
+
+  const ai = overlayData?.fib?.aiTradeCopilot || null;
+
+  const waveFibState =
+    overlayData?.fib?.engine22WaveStrategy?.waveFibState ||
+    overlayData?.fib?.engine22Scalp?.waveFibState ||
+    null;
+
+  const aiSection = buildAiTradeCopilotSection(ai);
+  const minuteTargetsSection = buildMinuteW3TargetsSection(waveFibState);
+
+  const inserts = [aiSection, minuteTargetsSection].filter(Boolean);
+  if (!inserts.length) return timeline;
+
+  const mainSections = Array.isArray(timeline.mainSections)
+    ? [...timeline.mainSections]
+    : [];
+
+  const alreadyHasAi = mainSections.some((s) =>
+    String(s?.title || "").toUpperCase().includes("AI TRADE COPILOT")
+  );
+
+  const alreadyHasMinuteTargets = mainSections.some((s) =>
+    String(s?.title || "").toUpperCase().includes("MINUTE W3 EXTENSION")
+  );
+
+  const finalInserts = inserts.filter((section) => {
+    const title = String(section?.title || "").toUpperCase();
+
+    if (title.includes("AI TRADE COPILOT") && alreadyHasAi) return false;
+    if (title.includes("MINUTE W3 EXTENSION") && alreadyHasMinuteTargets) return false;
+
+    return true;
+  });
+
+  if (!finalInserts.length) {
+    return {
+      ...timeline,
+      mainSections,
+    };
+  }
+
+  const weaknessIdx = mainSections.findIndex((section) =>
+    String(section?.title || "").toUpperCase().includes("WEAKNESS")
+  );
+
+  if (weaknessIdx >= 0) {
+    mainSections.splice(weaknessIdx, 0, ...finalInserts);
+  } else {
+    mainSections.unshift(...finalInserts);
+  }
+
+  return {
+    ...timeline,
+    mainSections,
+  };
+}
+
 function normalizeFromBackendTimelineRead(timelineRead) {
   if (!timelineRead) return null;
 
@@ -573,14 +701,23 @@ function normalizeTimelineData({ overlayData, chartMode }) {
      engine22WaveStrategy?.timelineRead
    );
 
-   if (waveStrategyTimelineRead) return waveStrategyTimelineRead;
+   if (waveStrategyTimelineRead) {
+     return injectAiAndTargetsIntoTimeline({
+       timeline: waveStrategyTimelineRead,
+       overlayData,
+     });
+   }
 
    const scalpTimelineRead = normalizeFromBackendTimelineRead(
      engine22?.timelineRead
    );
 
-   if (scalpTimelineRead) return scalpTimelineRead;
-
+   if (scalpTimelineRead) {
+     return injectAiAndTargetsIntoTimeline({
+       timeline: scalpTimelineRead,
+       overlayData,
+     });
+   }
   const waveFibState = getWaveFibState(engine22);
   const abc = waveFibState?.abcCorrection || null;
   const risk = waveFibState?.microW4AbcRisk || null;
