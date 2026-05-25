@@ -1073,10 +1073,9 @@ function buildCleanWaveTimeline({ overlayData, chartMode }) {
   const mainSections = [
     currentTradeWaveSection,
     aiSection,
-    weaknessSection,
     tradePermissionSection,
     timeframeSection,
-  ].filter(Boolean);
+  ].filter(Boolean); 
 
   const tradeDecision = engine22WaveStrategy?.tradeDecision || engine22?.tradeDecision || {};
   const footer =
