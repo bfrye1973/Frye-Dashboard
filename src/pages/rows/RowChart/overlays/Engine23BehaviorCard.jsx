@@ -2,8 +2,30 @@
 
 import React from "react";
 
-const CARD_FONT =
-  "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+const CARD_FONT = "Arial, Helvetica, sans-serif";
+
+const TEXT_STYLE = {
+  fontFamily: CARD_FONT,
+  fontSize: 17,
+  lineHeight: 1.42,
+  fontWeight: 500,
+  color: "#dbeafe",
+};
+
+const TITLE_STYLE = {
+  fontFamily: CARD_FONT,
+  fontSize: 17,
+  fontWeight: 800,
+  textTransform: "uppercase",
+  letterSpacing: "0.02em",
+};
+
+const BOX_STYLE = {
+  borderRadius: 10,
+  padding: "8px 10px",
+  display: "grid",
+  gap: 6,
+};
 
 function formatText(value, fallback = "—") {
   if (value == null || value === "") return fallback;
@@ -43,9 +65,19 @@ function SmallLine({ label, value }) {
   if (value == null || value === "") return null;
 
   return (
-    <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
-      <span style={{ color: "#94a3b8", fontWeight: 500 }}>{label}</span>
-      <span style={{ color: "#e5e7eb", fontWeight: 500, textAlign: "right" }}>
+    <div
+      style={{
+        fontFamily: CARD_FONT,
+        display: "flex",
+        justifyContent: "space-between",
+        gap: 12,
+        fontSize: 17,
+        lineHeight: 1.42,
+        fontWeight: 500,
+      }}
+    >
+      <span style={{ color: "#94a3b8", fontWeight: 600 }}>{label}</span>
+      <span style={{ color: "#dbeafe", fontWeight: 500, textAlign: "right" }}>
         {value}
       </span>
     </div>
@@ -92,16 +124,37 @@ function getLevelBlockConfig({ interpretation, targets }) {
       ? interpretation.higherTargets
       : {};
 
+  const pullbackLabels = [
+    "23.6%",
+    "38.2%",
+    "50.0%",
+    "61.8%",
+    "78.6%",
+    "78.6 Ref",
+    "Invalidation",
+  ];
+
+  const extensionLabels = [
+    "1.000",
+    "1.168",
+    "1.272",
+    "1.618",
+    "2.000",
+    "2.618",
+    "3.000",
+    "4.236",
+  ];
+
   const activePullbackRows = getLevelRowsFromObject(activeTargets).filter(([label]) =>
-    ["23.6%", "38.2%", "50.0%", "61.8%", "78.6%", "78.6 Ref", "Invalidation"].includes(label)
+    pullbackLabels.includes(label)
   );
 
   const activeExtensionRows = getLevelRowsFromObject(activeTargets).filter(([label]) =>
-    ["1.000", "1.168", "1.272", "1.618", "2.000", "2.618", "3.000", "4.236"].includes(label)
+    extensionLabels.includes(label)
   );
 
   const higherExtensionRows = getLevelRowsFromObject(higherTargets).filter(([label]) =>
-    ["1.000", "1.168", "1.272", "1.618", "2.000", "2.618", "3.000", "4.236"].includes(label)
+    extensionLabels.includes(label)
   );
 
   if (activePullbackRows.length) {
@@ -109,6 +162,8 @@ function getLevelBlockConfig({ interpretation, targets }) {
       title: "Key Pullback / Reclaim Levels",
       rows: activePullbackRows,
       color: "#60a5fa",
+      border: "rgba(96,165,250,0.35)",
+      background: "rgba(30,64,175,0.13)",
     };
   }
 
@@ -117,6 +172,8 @@ function getLevelBlockConfig({ interpretation, targets }) {
       title: "Active Extension Targets",
       rows: activeExtensionRows,
       color: "#22c55e",
+      border: "rgba(34,197,94,0.35)",
+      background: "rgba(20,83,45,0.13)",
     };
   }
 
@@ -125,6 +182,8 @@ function getLevelBlockConfig({ interpretation, targets }) {
       title: "Higher-Degree Extension / Reaction Levels",
       rows: higherExtensionRows,
       color: "#fbbf24",
+      border: "rgba(251,191,36,0.35)",
+      background: "rgba(113,63,18,0.14)",
     };
   }
 
@@ -139,33 +198,30 @@ function LevelsBlock({ interpretation, targets }) {
   return (
     <div
       style={{
-        border: "1px solid rgba(148,163,184,0.25)",
-        borderRadius: 10,
-        padding: "8px 10px",
-        background: "rgba(15,23,42,0.35)",
-        display: "grid",
-        gap: 4,
+        ...BOX_STYLE,
+        border: `1px solid ${config.border}`,
+        background: config.background,
       }}
     >
       <div
         style={{
+          ...TITLE_STYLE,
           color: config.color,
-          fontSize: 13,
-          fontWeight: 600,
-          textTransform: "uppercase",
-          letterSpacing: "0.04em",
           marginBottom: 2,
         }}
       >
         {config.title}
       </div>
 
-      {config.rows.map(([label, value]) => (
-        <SmallLine key={label} label={label} value={formatLevel(value)} />
-      ))}
+      <div style={{ display: "grid", gap: 4 }}>
+        {config.rows.map(([label, value]) => (
+          <SmallLine key={label} label={label} value={formatLevel(value)} />
+        ))}
+      </div>
     </div>
   );
 }
+
 function WeaknessBlock({ zones }) {
   const safe = Array.isArray(zones) ? zones.filter(Boolean) : [];
   if (!safe.length) return null;
@@ -173,21 +229,15 @@ function WeaknessBlock({ zones }) {
   return (
     <div
       style={{
+        ...BOX_STYLE,
         border: "1px solid rgba(251,191,36,0.35)",
-        borderRadius: 10,
-        padding: "10px 12px",
         background: "rgba(113,63,18,0.14)",
-        display: "grid",
-        gap: 8,
       }}
     >
       <div
         style={{
+          ...TITLE_STYLE,
           color: "#fbbf24",
-          fontSize: 16,
-          fontWeight: 600,
-          textTransform: "uppercase",
-          letterSpacing: "0.04em",
           marginBottom: 2,
         }}
       >
@@ -199,20 +249,32 @@ function WeaknessBlock({ zones }) {
           key={`${z.label || "zone"}-${idx}`}
           style={{
             display: "grid",
-            gap: 3,
-            paddingBottom: idx < safe.slice(0, 4).length - 1 ? 5 : 0,
+            gap: 4,
+            paddingBottom: idx < safe.slice(0, 4).length - 1 ? 6 : 0,
             borderBottom:
               idx < safe.slice(0, 4).length - 1
                 ? "1px solid rgba(251,191,36,0.10)"
                 : "none",
           }}
         >
-          <div style={{ color: "#f8fafc", fontWeight: 600, fontSize: 17 }}>
+          <div
+            style={{
+              ...TEXT_STYLE,
+              color: "#f8fafc",
+              fontWeight: 700,
+            }}
+          >
             {z.label || "Zone"}: {z.level ?? "—"}
           </div>
 
           {z.meaning && (
-            <div style={{ color: "#dbeafe", fontSize: 15, lineHeight: 1.42 }}>
+            <div
+              style={{
+                ...TEXT_STYLE,
+                color: "#dbeafe",
+                fontWeight: 500,
+              }}
+            >
               {z.meaning}
             </div>
           )}
@@ -257,7 +319,7 @@ export default function Engine23BehaviorCard({
         textAlign: "left",
         boxShadow: "0 8px 24px rgba(0,0,0,0.28)",
         display: "grid",
-        gap: 10,
+        gap: 8,
       }}
     >
       <div
@@ -271,11 +333,9 @@ export default function Engine23BehaviorCard({
         <div>
           <div
             style={{
-              fontSize: 14,
-              fontWeight: 600,
+              ...TITLE_STYLE,
               color,
-              textTransform: "uppercase",
-              letterSpacing: "0.06em",
+              fontSize: 17,
             }}
           >
             Engine 23 — Wave Behavior Read
@@ -283,9 +343,9 @@ export default function Engine23BehaviorCard({
 
           <div
             style={{
-              fontSize: 18,
-              fontWeight: 500,
+              ...TEXT_STYLE,
               color: "#f8fafc",
+              fontWeight: 600,
               marginTop: 3,
             }}
           >
@@ -300,8 +360,9 @@ export default function Engine23BehaviorCard({
             borderRadius: 999,
             padding: "5px 10px",
             color,
-            fontWeight: 600,
-            fontSize: 13,
+            fontFamily: CARD_FONT,
+            fontWeight: 700,
+            fontSize: 17,
             background: "rgba(15,23,42,0.55)",
             whiteSpace: "nowrap",
           }}
@@ -314,8 +375,7 @@ export default function Engine23BehaviorCard({
         style={{
           display: "grid",
           gridTemplateColumns: "1fr 1fr",
-          gap: 8,
-          fontSize: 14,
+          gap: 6,
         }}
       >
         <SmallLine
@@ -344,7 +404,8 @@ export default function Engine23BehaviorCard({
       <LevelsBlock
         interpretation={interpretation}
         targets={interpretation.activeTargets}
-     />
+      />
+
       <WeaknessBlock zones={interpretation.weaknessZones} />
 
       {interpretation.summary && (
@@ -352,10 +413,9 @@ export default function Engine23BehaviorCard({
           style={{
             borderTop: "1px solid rgba(148,163,184,0.25)",
             paddingTop: 8,
+            ...TEXT_STYLE,
             color: "#dbeafe",
-            fontSize: 16,
-            lineHeight: 1.45,
-            fontWeight: 400,
+            fontWeight: 500,
           }}
         >
           {interpretation.summary}
