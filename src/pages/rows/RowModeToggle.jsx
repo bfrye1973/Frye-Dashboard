@@ -4,40 +4,64 @@ async function onListenAI() {
   setAiText("");
 
   try {
-    const snap = await fetch(
+    const response = await fetch(
       `${CORE_BASE}/api/v1/dashboard-snapshot?symbol=ES&includeContext=1&t=${Date.now()}`,
       { cache: "no-store" }
-    ).then((r) => r.json());
+    );
+
+    if (!response.ok) {
+      throw new Error(`Dashboard snapshot failed: ${response.status}`);
+    }
+
+    const snap = await response.json();
 
     const ai =
       snap?.strategies?.["intraday_scalp@10m"]?.aiTradeCopilot || null;
 
-    if (!ai?.ok) {
+    if (!ai || ai.ok !== true) {
       throw new Error("AI Trade Copilot not available in ES snapshot.");
     }
 
     const reasoning = ai.aiReasoning || {};
+    const confirmationNeeded = Array.isArray(reasoning.confirmationNeeded)
+      ? reasoning.confirmationNeeded
+      : [];
+    const avoid = Array.isArray(reasoning.avoid) ? reasoning.avoid : [];
+    const warnings = Array.isArray(ai.warnings) ? ai.warnings : [];
 
     const text = [
-      `AI Trade Copilot: ${ai.headline || "No headline."}`,
+      `AI Trade Copilot: ${ai.headline || "No headline available."}`,
+      `Price: ${Number.isFinite(Number(ai.price)) ? ai.price : "Unknown"}.`,
       `Bias: ${ai.bias || "Unknown"}.`,
       `Action: ${ai.action || "Unknown"}.`,
       `Confidence: ${ai.confidence || "Unknown"}.`,
       `Should chase: ${ai.shouldChase ? "YES" : "NO"}.`,
+
       reasoning.read ? `Read: ${reasoning.read}.` : "",
-      reasoning.bestScenario ? `Best scenario: ${reasoning.bestScenario}.` : "",
-      reasoning.dangerScenario ? `Danger scenario: ${reasoning.dangerScenario}.` : "",
-      Array.isArray(reasoning.confirmationNeeded) && reasoning.confirmationNeeded.length
-        ? `Confirmation needed: ${reasoning.confirmationNeeded.join(", ")}.`
+      reasoning.bestScenario
+        ? `Best scenario: ${reasoning.bestScenario}.`
         : "",
-      Array.isArray(reasoning.avoid) && reasoning.avoid.length
-        ? `Avoid: ${reasoning.avoid.join(". ")}.`
+      reasoning.dangerScenario
+        ? `Danger scenario: ${reasoning.dangerScenario}.`
         : "",
-      reasoning.invalidationRead ? `Invalidation: ${reasoning.invalidationRead}.` : "",
-      Array.isArray(ai.warnings) && ai.warnings.length
-        ? `Warnings: ${ai.warnings.join(". ")}.`
+
+      confirmationNeeded.length
+        ? `Confirmation needed: ${confirmationNeeded.join(", ")}.`
         : "",
-      ai.summary || "",
+
+      avoid.length ? `Avoid: ${avoid.join(". ")}.` : "",
+
+      reasoning.invalidationRead
+        ? `Invalidation: ${reasoning.invalidationRead}.`
+        : "",
+
+      reasoning.confidenceNote
+        ? `Confidence note: ${reasoning.confidenceNote}.`
+        : "",
+
+      warnings.length ? `Warnings: ${warnings.join(". ")}.` : "",
+
+      ai.summary ? `Summary: ${ai.summary}` : "",
     ]
       .filter(Boolean)
       .join("\n\n");
@@ -45,7 +69,7 @@ async function onListenAI() {
     setAiText(text);
 
     try {
-      if (window.speechSynthesis) {
+      if (typeof window !== "undefined" && window.speechSynthesis) {
         const utter = new SpeechSynthesisUtterance(text);
         utter.rate = 1;
         utter.pitch = 1;
