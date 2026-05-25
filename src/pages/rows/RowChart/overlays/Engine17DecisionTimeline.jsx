@@ -1011,14 +1011,29 @@ function buildCleanWaveTimeline({ overlayData, chartMode }) {
 
   const waveStackText = buildCleanWaveStackText({ waveFibState, engine23 });
 
-  const sideWaveFibState = engine22?.waveFibState || waveFibState;
+  const backendWaveTimeline = normalizeFromBackendTimelineRead(
+   engine22WaveStrategy?.timelineRead
+ );
 
-  const sideSections = [
-    normalizeReaction(engine22),
-    normalizeVolume(engine22),
-    normalizeBreakout(engine22),
-    normalizeDuration(sideWaveFibState),
-  ];
+ const backendScalpTimeline = normalizeFromBackendTimelineRead(
+   engine22?.timelineRead
+ );
+
+ const sideWaveFibState = engine22?.waveFibState || waveFibState;
+
+ const fallbackSideSections = [
+   normalizeReaction(engine22),
+   normalizeVolume(engine22),
+   normalizeBreakout(engine22),
+   normalizeDuration(sideWaveFibState),
+ ];
+
+ const sideSections =
+   backendWaveTimeline?.sideSections?.length
+     ? backendWaveTimeline.sideSections
+     : backendScalpTimeline?.sideSections?.length
+     ? backendScalpTimeline.sideSections
+     : fallbackSideSections;
 
   const aiSection = buildCleanAiSection(ai);
   const weaknessSection = buildCleanWeaknessSection({ engine23, degreeMap });
