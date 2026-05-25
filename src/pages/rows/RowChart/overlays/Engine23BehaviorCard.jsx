@@ -52,16 +52,89 @@ function SmallLine({ label, value }) {
   );
 }
 
-function LevelsBlock({ targets }) {
-  if (!targets || typeof targets !== "object") return null;
+function getLevelRowsFromObject(obj) {
+  if (!obj || typeof obj !== "object") return [];
 
-  const rows = [
-    ["r382", targets.r382],
-    ["r500", targets.r500],
-    ["r618", targets.r618],
-    ["Invalidation", targets.invalidation],
-    ["78.6 Ref", targets.reference786],
+  const rows = [];
+
+  const orderedKeys = [
+    ["r236", "23.6%"],
+    ["r382", "38.2%"],
+    ["r500", "50.0%"],
+    ["r618", "61.8%"],
+    ["r786", "78.6%"],
+    ["reference786", "78.6 Ref"],
+    ["invalidation", "Invalidation"],
+
+    ["e100", "1.000"],
+    ["e1168", "1.168"],
+    ["e1272", "1.272"],
+    ["e1618", "1.618"],
+    ["e200", "2.000"],
+    ["e2618", "2.618"],
+    ["e300", "3.000"],
+    ["e4236", "4.236"],
   ];
+
+  orderedKeys.forEach(([key, label]) => {
+    if (obj[key] != null) {
+      rows.push([label, obj[key]]);
+    }
+  });
+
+  return rows;
+}
+
+function getLevelBlockConfig({ interpretation, targets }) {
+  const activeTargets = targets && typeof targets === "object" ? targets : {};
+  const higherTargets =
+    interpretation?.higherTargets && typeof interpretation.higherTargets === "object"
+      ? interpretation.higherTargets
+      : {};
+
+  const activePullbackRows = getLevelRowsFromObject(activeTargets).filter(([label]) =>
+    ["23.6%", "38.2%", "50.0%", "61.8%", "78.6%", "78.6 Ref", "Invalidation"].includes(label)
+  );
+
+  const activeExtensionRows = getLevelRowsFromObject(activeTargets).filter(([label]) =>
+    ["1.000", "1.168", "1.272", "1.618", "2.000", "2.618", "3.000", "4.236"].includes(label)
+  );
+
+  const higherExtensionRows = getLevelRowsFromObject(higherTargets).filter(([label]) =>
+    ["1.000", "1.168", "1.272", "1.618", "2.000", "2.618", "3.000", "4.236"].includes(label)
+  );
+
+  if (activePullbackRows.length) {
+    return {
+      title: "Key Pullback / Reclaim Levels",
+      rows: activePullbackRows,
+      color: "#60a5fa",
+    };
+  }
+
+  if (activeExtensionRows.length) {
+    return {
+      title: "Active Extension Targets",
+      rows: activeExtensionRows,
+      color: "#22c55e",
+    };
+  }
+
+  if (higherExtensionRows.length) {
+    return {
+      title: "Higher-Degree Extension / Reaction Levels",
+      rows: higherExtensionRows,
+      color: "#fbbf24",
+    };
+  }
+
+  return null;
+}
+
+function LevelsBlock({ interpretation, targets }) {
+  const config = getLevelBlockConfig({ interpretation, targets });
+
+  if (!config || !config.rows.length) return null;
 
   return (
     <div
@@ -76,7 +149,7 @@ function LevelsBlock({ targets }) {
     >
       <div
         style={{
-          color: "#60a5fa",
+          color: config.color,
           fontSize: 13,
           fontWeight: 600,
           textTransform: "uppercase",
@@ -84,16 +157,15 @@ function LevelsBlock({ targets }) {
           marginBottom: 2,
         }}
       >
-        Key Pullback Levels
+        {config.title}
       </div>
 
-      {rows.map(([label, value]) => (
+      {config.rows.map(([label, value]) => (
         <SmallLine key={label} label={label} value={formatLevel(value)} />
       ))}
     </div>
   );
 }
-
 function WeaknessBlock({ zones }) {
   const safe = Array.isArray(zones) ? zones.filter(Boolean) : [];
   if (!safe.length) return null;
@@ -269,8 +341,10 @@ export default function Engine23BehaviorCard({
         />
       </div>
 
-      <LevelsBlock targets={interpretation.activeTargets} />
-
+      <LevelsBlock
+        interpretation={interpretation}
+        targets={interpretation.activeTargets}
+     />
       <WeaknessBlock zones={interpretation.weaknessZones} />
 
       {interpretation.summary && (
