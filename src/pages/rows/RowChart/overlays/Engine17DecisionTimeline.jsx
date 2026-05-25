@@ -867,24 +867,43 @@ function buildCleanCurrentTradeWaveSection({ activeDegree, degreeState }) {
     chaseRisk.includes("EXTREME") ||
     chaseRisk.includes("VERY");
 
-  if (phase === "IN_W3" || state.includes("IMPULSE_EXPANSION")) {
+  const isW3 =
+    phase === "IN_W3" ||
+    state.includes("IMPULSE_EXPANSION");
+
+  if (isW3) {
     return {
       title: `Current Trade Wave — ${degreeLabel} W3`,
       severity: highRisk ? "warning" : "bullish",
       lines: asLines([
         `${formatText(activeDegree)} W3 is active.`,
+        `Current price: ${formatLevel(pressure?.currentPrice ?? degreeState?.currentPrice)}.`,
         pressure?.nearestFib
-          ? `Price is near ${pressure.nearestFib} at ${formatLevel(
+          ? `Nearest fib: ${pressure.nearestFib} at ${formatLevel(
               pressure.nearestFibPrice
             )}.`
+          : null,
+        pressure?.distancePts != null
+          ? `Distance to nearest fib: ${formatSignedLevel(pressure.distancePts)} pts / ${formatPct(
+              pressure.distancePct
+            )}.`
+          : null,
+        pressure?.extensionState
+          ? `Extension state: ${formatText(pressure.extensionState)}.`
+          : null,
+        pressure?.chaseRisk
+          ? `Chase risk: ${formatText(pressure.chaseRisk)}.`
           : null,
         pressure?.expectedBehavior
           ? `Expected: ${formatText(pressure.expectedBehavior)}.`
           : null,
-        pressure?.chaseRisk ? `Chase risk: ${formatText(pressure.chaseRisk)}.` : null,
-        levels.e200 != null || levels.e2618 != null
-          ? `Next targets: ${formatLevel(levels.e200)} / ${formatLevel(levels.e2618)}.`
-          : null,
+        "",
+        "W3 EXTENSION TARGETS",
+        levels.e100 != null ? `1.000: ${formatLevel(levels.e100)}` : null,
+        levels.e1272 != null ? `1.272: ${formatLevel(levels.e1272)}` : null,
+        levels.e1618 != null ? `1.618: ${formatLevel(levels.e1618)}` : null,
+        levels.e200 != null ? `2.000: ${formatLevel(levels.e200)}` : null,
+        levels.e2618 != null ? `2.618: ${formatLevel(levels.e2618)}` : null,
         degreeState?.action ? `Action: ${formatText(degreeState.action)}.` : null,
       ]),
     };
@@ -900,11 +919,10 @@ function buildCleanCurrentTradeWaveSection({ activeDegree, degreeState }) {
 
     const lines = asLines([
       `${formatText(activeDegree)} ${formatWave(phase)} pullback/reclaim scenario is active.`,
-      retrace.r382 != null || retrace.r500 != null || retrace.r618 != null
-        ? `Retrace zone: ${formatLevel(retrace.r382)} / ${formatLevel(
-            retrace.r500
-          )} / ${formatLevel(retrace.r618)}.`
-        : null,
+      "KEY PULLBACK LEVELS",
+      retrace.r382 != null ? `r382: ${formatLevel(retrace.r382)}` : null,
+      retrace.r500 != null ? `r500: ${formatLevel(retrace.r500)}` : null,
+      retrace.r618 != null ? `r618: ${formatLevel(retrace.r618)}` : null,
       invalidation != null ? `Invalidation: ${formatLevel(invalidation)}.` : null,
       degreeState?.action ? `Action: ${formatText(degreeState.action)}.` : null,
     ]);
@@ -925,16 +943,18 @@ function buildCleanCurrentTradeWaveSection({ activeDegree, degreeState }) {
       lines: asLines([
         `${formatText(activeDegree)} W5 is active.`,
         pressure?.nearestFib
-          ? `Price is near ${pressure.nearestFib} at ${formatLevel(
+          ? `Nearest fib: ${pressure.nearestFib} at ${formatLevel(
               pressure.nearestFibPrice
             )}.`
           : null,
         pressure?.chaseRisk ? `Chase risk: ${formatText(pressure.chaseRisk)}.` : null,
-        levels.e100 != null || levels.e1618 != null || levels.e200 != null
-          ? `Targets: ${formatLevel(levels.e100)} / ${formatLevel(
-              levels.e1618
-            )} / ${formatLevel(levels.e200)}.`
-          : null,
+        "W5 EXTENSION TARGETS",
+        levels.e100 != null ? `1.000: ${formatLevel(levels.e100)}` : null,
+        levels.e1168 != null ? `1.168: ${formatLevel(levels.e1168)}` : null,
+        levels.e1272 != null ? `1.272: ${formatLevel(levels.e1272)}` : null,
+        levels.e1618 != null ? `1.618: ${formatLevel(levels.e1618)}` : null,
+        levels.e200 != null ? `2.000: ${formatLevel(levels.e200)}` : null,
+        levels.e2618 != null ? `2.618: ${formatLevel(levels.e2618)}` : null,
       ]),
     };
   }
