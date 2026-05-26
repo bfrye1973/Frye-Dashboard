@@ -858,7 +858,10 @@ function buildCleanCurrentTradeWaveSection({ activeDegree, degreeState }) {
   const phase = String(degreeState?.phase || "").toUpperCase();
   const state = String(degreeState?.state || "").toUpperCase();
   const pressure = degreeState?.fibPressure || {};
+  const progress = degreeState?.extensionProgress || null;
   const levels = degreeState?.fibProjection?.levels || {};
+  const retraceLevels = progress?.retraceLevels?.levels || {};
+  const retraceZone = progress?.currentRetraceZone || null;
   const degreeLabel = formatText(activeDegree).toUpperCase();
 
   const chaseRisk = String(pressure?.chaseRisk || "").toUpperCase();
@@ -872,31 +875,53 @@ function buildCleanCurrentTradeWaveSection({ activeDegree, degreeState }) {
     state.includes("IMPULSE_EXPANSION");
 
   if (isW3) {
+    const isPostExtensionPullback =
+      progress?.state === "POST_EXTENSION_PULLBACK";
+
     return {
       title: `Current Trade Wave — ${degreeLabel} W3`,
-      severity: highRisk ? "warning" : "bullish",
+      severity: isPostExtensionPullback || highRisk ? "warning" : "bullish",
       lines: asLines([
-        `${formatText(activeDegree)} W3 is active.`,
-        `Current price: ${formatLevel(pressure?.currentPrice ?? degreeState?.currentPrice)}.`,
-        pressure?.nearestFib
-          ? `Nearest fib: ${pressure.nearestFib} at ${formatLevel(
-              pressure.nearestFibPrice
+        isPostExtensionPullback
+          ? `${formatText(activeDegree)} W3 already tagged the ${
+              progress?.highestExtensionHit || "extension"
+            } extension near ${formatLevel(progress?.highestExtensionPrice)}.`
+          : `${formatText(activeDegree)} W3 is active.`,
+
+        progress?.highestExtremePrice != null
+          ? `Highest high since ${progress?.anchorWave || "anchor"}: ${formatLevel(
+              progress.highestExtremePrice
             )}.`
           : null,
-        pressure?.distancePts != null
-          ? `Distance to nearest fib: ${formatSignedLevel(pressure.distancePts)} pts / ${formatPct(
-              pressure.distancePct
+
+        pressure?.currentPrice != null || degreeState?.currentPrice != null
+          ? `Current price: ${formatLevel(
+              pressure?.currentPrice ?? degreeState?.currentPrice
             )}.`
           : null,
-        pressure?.extensionState
-          ? `Extension state: ${formatText(pressure.extensionState)}.`
+
+        progress?.pullbackFromExtremePts != null
+          ? `Pullback from extension high: ${formatSignedLevel(
+              progress.pullbackFromExtremePts
+            )} pts.`
           : null,
+
+        retraceZone?.label
+          ? `Current likely W4 retrace zone: ${retraceZone.label} near ${formatLevel(
+              retraceZone.price
+            )}.`
+          : null,
+
+        progress?.read ? `Read: ${progress.read}` : null,
+
         pressure?.chaseRisk
           ? `Chase risk: ${formatText(pressure.chaseRisk)}.`
           : null,
+
         pressure?.expectedBehavior
           ? `Expected: ${formatText(pressure.expectedBehavior)}.`
           : null,
+
         "",
         "W3 EXTENSION TARGETS",
         levels.e100 != null ? `1.000: ${formatLevel(levels.e100)}` : null,
@@ -904,6 +929,25 @@ function buildCleanCurrentTradeWaveSection({ activeDegree, degreeState }) {
         levels.e1618 != null ? `1.618: ${formatLevel(levels.e1618)}` : null,
         levels.e200 != null ? `2.000: ${formatLevel(levels.e200)}` : null,
         levels.e2618 != null ? `2.618: ${formatLevel(levels.e2618)}` : null,
+
+        isPostExtensionPullback ? "" : null,
+        isPostExtensionPullback ? "LIKELY W4 RETRACE LEVELS" : null,
+        isPostExtensionPullback && retraceLevels.r236 != null
+          ? `23.6%: ${formatLevel(retraceLevels.r236)}`
+          : null,
+        isPostExtensionPullback && retraceLevels.r382 != null
+          ? `38.2%: ${formatLevel(retraceLevels.r382)}`
+          : null,
+        isPostExtensionPullback && retraceLevels.r500 != null
+          ? `50.0%: ${formatLevel(retraceLevels.r500)}`
+          : null,
+        isPostExtensionPullback && retraceLevels.r618 != null
+          ? `61.8%: ${formatLevel(retraceLevels.r618)}`
+          : null,
+        isPostExtensionPullback && retraceLevels.r786 != null
+          ? `78.6%: ${formatLevel(retraceLevels.r786)}`
+          : null,
+
         degreeState?.action ? `Action: ${formatText(degreeState.action)}.` : null,
       ]),
     };
