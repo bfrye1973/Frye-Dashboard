@@ -854,7 +854,7 @@ function buildCompactTimeframeLayers({ engine22WaveStrategy, engine22, fib, ai }
   };
 }
 
-function buildCleanCurrentTradeWaveSection({ activeDegree, degreeState }) {
+function buildCleanCurrentTradeWaveSection({ activeDegree, degreeState, abcCorrection }) {
   const phase = String(degreeState?.phase || "").toUpperCase();
   const state = String(degreeState?.state || "").toUpperCase();
 
@@ -1003,6 +1003,33 @@ function buildCleanCurrentTradeWaveSection({ activeDegree, degreeState }) {
             : null,
 
           "Still waiting for W4 support/reclaim confirmation.",
+
+          abcCorrection?.active === true ? "" : null,
+          abcCorrection?.active === true ? "MINUTE W4 ABC READ" : null,
+          abcCorrection?.active === true
+            ? `ABC source: ${formatText(abcCorrection.abcSource)}`
+            : null,
+          abcCorrection?.active === true
+            ? `ABC status: ${formatText(abcCorrection.abcStatus)}`
+            : null,
+          abcCorrection?.abc?.aLow != null
+            ? `A low: ${formatLevel(abcCorrection.abc.aLow)}`
+            : null,
+          abcCorrection?.abc?.bHigh != null
+            ? `B high: ${formatLevel(abcCorrection.abc.bHigh)}`
+            : null,
+          abcCorrection?.abc?.cLow != null
+            ? `C low: ${formatLevel(abcCorrection.abc.cLow)}`
+            : null,
+          abcCorrection?.state
+            ? `ABC state: ${formatText(abcCorrection.state)}`
+            : null,
+          abcCorrection?.cZone
+            ? `C zone: ${formatText(abcCorrection.cZone)}`
+            : null,
+          abcCorrection?.correctionCompleteLikely === true
+            ? "C-leg may be complete or near complete, but reclaim is still required."
+            : null,
 
           "",
           "KEY W4 PULLBACK LEVELS",
@@ -1154,6 +1181,7 @@ function buildCleanWaveTimeline({ overlayData, chartMode }) {
   const currentTradeWaveSection = buildCleanCurrentTradeWaveSection({
     activeDegree,
     degreeState,
+    abcCorrection: waveFibState?.abcCorrection || null,
   });
 
   if (!currentTradeWaveSection) return null;
