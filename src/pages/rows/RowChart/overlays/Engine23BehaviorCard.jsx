@@ -304,10 +304,10 @@ export default function Engine23BehaviorCard({
         fontFamily: CARD_FONT,
         position: "absolute",
         top: 150,
-        right: 24,
+        left: "calc(50% + 430px)",
         zIndex: 108,
-        width: 520,
-        maxWidth: "32%",
+        width: 430,
+        maxWidth: "28%",
         maxHeight: "calc(100vh - 210px)",
         overflowY: "auto",
         borderRadius: 14,
@@ -408,20 +408,7 @@ export default function Engine23BehaviorCard({
       />
 
       <WeaknessBlock zones={interpretation.weaknessZones} />
-
-      {interpretation.summary && (
-        <div
-          style={{
-            borderTop: "1px solid rgba(148,163,184,0.25)",
-            paddingTop: 8,
-            ...TEXT_STYLE,
-            color: "#dbeafe",
-            fontWeight: 500,
-          }}
-        >
-          {interpretation.summary}
-        </div>
-      )}
+     
     </div>
   );
 }
