@@ -954,19 +954,70 @@ function buildCleanCurrentTradeWaveSection({ activeDegree, degreeState }) {
   }
 
   if (phase === "IN_W2" || phase === "IN_W4" || state.includes("PULLBACK")) {
-    const retrace = degreeState?.retracement?.levels || degreeState?.fibRetracement?.levels || {};
+    const hasProgressRetraces =
+      progress?.retraceLevels?.levels &&
+      Object.keys(progress.retraceLevels.levels).length > 0;
+
+    const retrace = hasProgressRetraces
+      ? progress.retraceLevels.levels
+      : degreeState?.retracement?.levels || degreeState?.fibRetracement?.levels || {};
+
     const invalidation =
       degreeState?.invalidation ||
       degreeState?.hardInvalidation ||
       degreeState?.retracement?.invalidation ||
       null;
 
+    const isW4 =
+      phase === "IN_W4" ||
+      String(degreeState?.nextExpectedWave || "").toUpperCase() === "W5";
+
+    const testedLine =
+      isW4 && retraceZone?.label && retraceZone?.price != null
+        ? `W4 has already tested the ${retraceZone.label} retrace area near ${formatLevel(
+            retraceZone.price
+          )}.`
+        : null;
+
+    const priorExtensionLine =
+      isW4 && progress?.highestExtensionHit
+        ? `Prior W3 tagged ${progress.highestExtensionHit} near ${formatLevel(
+            progress.highestExtensionPrice
+          )} before this pullback.`
+        : null;
+
+    const pullbackLine =
+      progress?.pullbackFromExtremePts != null
+        ? `Pullback from W3 high: ${formatSignedLevel(
+            progress.pullbackFromExtremePts
+          )} pts.`
+        : null;
+
     const lines = asLines([
-      `${formatText(activeDegree)} ${formatWave(phase)} pullback/reclaim scenario is active.`,
-      "KEY PULLBACK LEVELS",
+      isW4
+        ? `${formatText(activeDegree)} W4 pullback/reclaim scenario is active.`
+        : `${formatText(activeDegree)} ${formatWave(phase)} pullback/reclaim scenario is active.`,
+
+      priorExtensionLine,
+      testedLine,
+      pullbackLine,
+
+      isW4
+        ? "Still waiting for W4 support/reclaim confirmation."
+        : "Still waiting for support/reclaim confirmation.",
+
+      hasProgressRetraces ? "LIKELY W4 RETRACE LEVELS" : "KEY PULLBACK LEVELS",
+
+      retrace.r236 != null ? `23.6%: ${formatLevel(retrace.r236)}` : null,
+      retrace.r382 != null ? `38.2%: ${formatLevel(retrace.r382)}` : null,
+      retrace.r500 != null ? `50.0%: ${formatLevel(retrace.r500)}` : null,
+      retrace.r618 != null ? `61.8%: ${formatLevel(retrace.r618)}` : null,
+      retrace.r786 != null ? `78.6%: ${formatLevel(retrace.r786)}` : null,
+
       retrace.r382 != null ? `r382: ${formatLevel(retrace.r382)}` : null,
       retrace.r500 != null ? `r500: ${formatLevel(retrace.r500)}` : null,
       retrace.r618 != null ? `r618: ${formatLevel(retrace.r618)}` : null,
+
       invalidation != null ? `Invalidation: ${formatLevel(invalidation)}.` : null,
       degreeState?.action ? `Action: ${formatText(degreeState.action)}.` : null,
     ]);
@@ -974,7 +1025,9 @@ function buildCleanCurrentTradeWaveSection({ activeDegree, degreeState }) {
     if (!lines.length) return null;
 
     return {
-      title: `Pullback / Reclaim Zone — ${degreeLabel} ${formatWave(phase)}`,
+      title: isW4
+        ? `Current Trade Wave — ${degreeLabel} W4`
+        : `Pullback / Reclaim Zone — ${degreeLabel} ${formatWave(phase)}`,
       severity: "warning",
       lines,
     };
