@@ -1,5 +1,3 @@
-
-
 // src/pages/rows/RowChart/overlays/Engine17DecisionTimeline.jsx
 
 import React from "react";
@@ -549,6 +547,41 @@ function buildNextStepsSection({ waveOpportunity, engine15, permission, fib }) {
   const currentPrice = waveOpportunity?.currentPrice || trigger10m?.close || null;
   const targets = waveOpportunity?.targets || {};
 
+  const actionLevels = [];
+
+  if (currentPrice != null) {
+    actionLevels.push(`Current price: ${formatNumber(currentPrice)}`);
+  }
+
+  if (trigger10m?.ema10 != null || trigger10m?.ema20 != null) {
+    actionLevels.push(
+      `10m reclaim zone: ${formatNumber(trigger10m.ema10)} → ${formatNumber(
+        trigger10m.ema20
+      )}`
+    );
+  }
+
+  if (pullback1h?.ema10 != null) {
+    actionLevels.push(`First pullback support: ${formatNumber(pullback1h.ema10)}`);
+  }
+
+  if (trend4h?.ema10 != null) {
+    actionLevels.push(`Deeper 4H support: ${formatNumber(trend4h.ema10)}`);
+  }
+
+  const upsideTargets = [
+    targets?.e1272,
+    targets?.e1618,
+    targets?.e200,
+    targets?.e2618,
+  ]
+    .filter((v) => v != null)
+    .map((v) => formatNumber(v));
+
+  if (upsideTargets.length) {
+    actionLevels.push(`Upside targets: ${upsideTargets.join(" → ")}`);
+  }
+
   if (
     waveNeeds.some((need) => String(need).toUpperCase().includes("NO_CHASE")) ||
     isDangerChase(waveOpportunity?.chaseRisk)
@@ -589,16 +622,16 @@ function buildNextStepsSection({ waveOpportunity, engine15, permission, fib }) {
     steps.push("Engine 15ES must upgrade from WATCH to READY");
   }
 
-  if (!steps.length) {
+  if (!actionLevels.length && !steps.length) {
     steps.push("Wait for the next valid Wave 3 or Wave 5 opportunity");
   }
 
   return {
     number: 5,
     icon: "✓",
-    title: "What Needs to Happen Next",
+    title: "Next Action Levels",
     severity: "teal",
-    checklist: steps.slice(0, 8),
+    checklist: [...actionLevels, ...steps].slice(0, 9),
   };
 }
 
