@@ -2,29 +2,37 @@
 
 import React from "react";
 
-const CARD_FONT = "Arial, Helvetica, sans-serif";
+const CARD_FONT = '"Trebuchet MS", "Lucida Grande", "Segoe UI", Arial, sans-serif';
 
 const TEXT_STYLE = {
   fontFamily: CARD_FONT,
-  fontSize: 17,
-  lineHeight: 1.42,
-  fontWeight: 500,
+  fontSize: 16,
+  lineHeight: 1.45,
+  fontWeight: 400,
   color: "#dbeafe",
 };
 
 const TITLE_STYLE = {
   fontFamily: CARD_FONT,
   fontSize: 17,
-  fontWeight: 800,
-  textTransform: "uppercase",
-  letterSpacing: "0.02em",
+  fontWeight: 500,
+  textTransform: "none",
+  letterSpacing: "0.01em",
+};
+
+const LABEL_STYLE = {
+  fontFamily: CARD_FONT,
+  fontSize: 13,
+  lineHeight: 1.35,
+  fontWeight: 400,
+  color: "#94a3b8",
 };
 
 const BOX_STYLE = {
   borderRadius: 10,
-  padding: "8px 10px",
+  padding: "9px 11px",
   display: "grid",
-  gap: 6,
+  gap: 7,
 };
 
 function formatText(value, fallback = "—") {
@@ -39,6 +47,11 @@ function formatText(value, fallback = "—") {
 function formatLevel(value) {
   const n = Number(value);
   return Number.isFinite(n) ? n.toFixed(2) : "—";
+}
+
+function toNumber(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
 }
 
 function healthColor(health) {
@@ -61,7 +74,7 @@ function healthBorder(health) {
   return "rgba(148,163,184,0.35)";
 }
 
-function SmallLine({ label, value }) {
+function SmallLine({ label, value, valueColor = "#dbeafe", badge = null }) {
   if (value == null || value === "") return null;
 
   return (
@@ -70,17 +83,50 @@ function SmallLine({ label, value }) {
         fontFamily: CARD_FONT,
         display: "flex",
         justifyContent: "space-between",
+        alignItems: "center",
         gap: 12,
-        fontSize: 17,
-        lineHeight: 1.42,
-        fontWeight: 500,
+        fontSize: 15,
+        lineHeight: 1.4,
+        fontWeight: 400,
       }}
     >
-      <span style={{ color: "#94a3b8", fontWeight: 600 }}>{label}</span>
-      <span style={{ color: "#dbeafe", fontWeight: 500, textAlign: "right" }}>
+      <span style={LABEL_STYLE}>{label}</span>
+      <span
+        style={{
+          color: valueColor,
+          fontWeight: 400,
+          textAlign: "right",
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 7,
+        }}
+      >
         {value}
+        {badge}
       </span>
     </div>
+  );
+}
+
+function StatusBadge({ label, color = "#fbbf24" }) {
+  if (!label) return null;
+
+  return (
+    <span
+      style={{
+        fontFamily: CARD_FONT,
+        border: `1px solid ${color}`,
+        color,
+        background: "rgba(15,23,42,0.62)",
+        borderRadius: 999,
+        padding: "2px 7px",
+        fontSize: 11,
+        fontWeight: 500,
+        whiteSpace: "nowrap",
+      }}
+    >
+      {label}
+    </span>
   );
 }
 
@@ -115,6 +161,20 @@ function getLevelRowsFromObject(obj) {
   });
 
   return rows;
+}
+
+function getTargetStatus({ value, currentPrice, direction }) {
+  const target = toNumber(value);
+  const price = toNumber(currentPrice);
+  const dir = String(direction || "LONG").toUpperCase();
+
+  if (target == null || price == null) return null;
+
+  if (dir === "SHORT") {
+    return price <= target ? "HIT" : null;
+  }
+
+  return price >= target ? "HIT" : null;
 }
 
 function getLevelBlockConfig({ interpretation, targets }) {
@@ -159,38 +219,117 @@ function getLevelBlockConfig({ interpretation, targets }) {
 
   if (activePullbackRows.length) {
     return {
-      title: "Key Pullback / Reclaim Levels",
+      title: "Key pullback / reclaim levels",
       rows: activePullbackRows,
       color: "#60a5fa",
       border: "rgba(96,165,250,0.35)",
       background: "rgba(30,64,175,0.13)",
+      type: "pullback",
     };
   }
 
   if (activeExtensionRows.length) {
     return {
-      title: "Active Extension Targets",
+      title: "Active extension targets",
       rows: activeExtensionRows,
       color: "#22c55e",
       border: "rgba(34,197,94,0.35)",
       background: "rgba(20,83,45,0.13)",
+      type: "targets",
     };
   }
 
   if (higherExtensionRows.length) {
     return {
-      title: "Higher-Degree Extension / Reaction Levels",
+      title: "Higher-degree extension / reaction levels",
       rows: higherExtensionRows,
       color: "#fbbf24",
       border: "rgba(251,191,36,0.35)",
       background: "rgba(113,63,18,0.14)",
+      type: "targets",
     };
   }
 
   return null;
 }
 
-function LevelsBlock({ interpretation, targets }) {
+function ReclaimActionBlock({ engine16, waveOpportunity }) {
+  const trigger10m = engine16?.regimeLayers?.trigger10m || {};
+  const pullback1h = engine16?.regimeLayers?.pullback1h || {};
+  const trend4h = engine16?.regimeLayers?.trend4h || {};
+
+  const currentPrice =
+    toNumber(waveOpportunity?.currentPrice) ?? toNumber(trigger10m?.close);
+
+  const ema10 = toNumber(trigger10m?.ema10);
+  const ema20 = toNumber(trigger10m?.ema20);
+  const support1h = toNumber(pullback1h?.ema10);
+  const support4h = toNumber(trend4h?.ema10);
+
+  const hasLevels =
+    currentPrice != null ||
+    ema10 != null ||
+    ema20 != null ||
+    support1h != null ||
+    support4h != null;
+
+  if (!hasLevels) return null;
+
+  return (
+    <div
+      style={{
+        ...BOX_STYLE,
+        border: "1px solid rgba(56,189,248,0.38)",
+        background: "rgba(12,74,110,0.14)",
+      }}
+    >
+      <div
+        style={{
+          ...TITLE_STYLE,
+          color: "#38bdf8",
+          marginBottom: 1,
+        }}
+      >
+        Reclaim / pullback levels
+      </div>
+
+      <SmallLine
+        label="Current price"
+        value={formatLevel(currentPrice)}
+        valueColor="#f8fafc"
+      />
+
+      {(ema10 != null || ema20 != null) && (
+        <SmallLine
+          label="10m reclaim"
+          value={`${formatLevel(ema10)} → ${formatLevel(ema20)}`}
+          valueColor="#fbbf24"
+          badge={<StatusBadge label={trigger10m?.state || "Watch"} color="#fbbf24" />}
+        />
+      )}
+
+      {support1h != null && (
+        <SmallLine
+          label="First support"
+          value={formatLevel(support1h)}
+          valueColor="#93c5fd"
+          badge={<StatusBadge label="1H EMA10" color="#60a5fa" />}
+        />
+      )}
+
+      {support4h != null && (
+        <SmallLine
+          label="Deeper support"
+          value={formatLevel(support4h)}
+          valueColor="#93c5fd"
+          badge={<StatusBadge label="4H EMA10" color="#60a5fa" />}
+        />
+      )}
+    </div>
+  );
+}
+
+function LevelsBlock({ interpretation, targets, currentPrice, direction }) {
   const config = getLevelBlockConfig({ interpretation, targets });
 
   if (!config || !config.rows.length) return null;
@@ -213,10 +352,22 @@ function LevelsBlock({ interpretation, targets }) {
         {config.title}
       </div>
 
-      <div style={{ display: "grid", gap: 4 }}>
-        {config.rows.map(([label, value]) => (
-          <SmallLine key={label} label={label} value={formatLevel(value)} />
-        ))}
+      <div style={{ display: "grid", gap: 5 }}>
+        {config.rows.map(([label, value]) => {
+          const hit = config.type === "targets"
+            ? getTargetStatus({ value, currentPrice, direction })
+            : null;
+
+          return (
+            <SmallLine
+              key={label}
+              label={label}
+              value={formatLevel(value)}
+              valueColor={hit ? "#86efac" : "#dbeafe"}
+              badge={hit ? <StatusBadge label="Hit" color="#22c55e" /> : null}
+            />
+          );
+        })}
       </div>
     </div>
   );
@@ -241,7 +392,7 @@ function WeaknessBlock({ zones }) {
           marginBottom: 2,
         }}
       >
-        Weakness / Chase-Risk Zones
+        Weakness / chase-risk zones
       </div>
 
       {safe.slice(0, 4).map((z, idx) => (
@@ -261,7 +412,7 @@ function WeaknessBlock({ zones }) {
             style={{
               ...TEXT_STYLE,
               color: "#f8fafc",
-              fontWeight: 700,
+              fontWeight: 500,
             }}
           >
             {z.label || "Zone"}: {z.level ?? "—"}
@@ -272,7 +423,7 @@ function WeaknessBlock({ zones }) {
               style={{
                 ...TEXT_STYLE,
                 color: "#dbeafe",
-                fontWeight: 500,
+                fontWeight: 400,
               }}
             >
               {z.meaning}
@@ -288,6 +439,8 @@ export default function Engine23BehaviorCard({
   visible = true,
   interpretation = null,
   symbol = "ES",
+  waveOpportunity = null,
+  engine16 = null,
 }) {
   if (!visible || !interpretation) return null;
 
@@ -297,6 +450,11 @@ export default function Engine23BehaviorCard({
   const recent = interpretation.recentCompletion;
   const active = interpretation.activeStructure;
   const higher = interpretation.higherContext;
+  const currentPrice =
+    toNumber(waveOpportunity?.currentPrice) ??
+    toNumber(engine16?.regimeLayers?.trigger10m?.close);
+  const direction =
+    waveOpportunity?.direction || interpretation.directionBias || "LONG";
 
   return (
     <div
@@ -313,14 +471,14 @@ export default function Engine23BehaviorCard({
         borderRadius: 14,
         border: `1px solid ${healthBorder(health)}`,
         background: "rgba(6,10,20,0.96)",
-        padding: "12px 16px",
+        padding: "13px 16px",
         color: "#e5e7eb",
         backdropFilter: "blur(4px)",
         pointerEvents: "none",
         textAlign: "left",
         boxShadow: "0 8px 24px rgba(0,0,0,0.28)",
         display: "grid",
-        gap: 8,
+        gap: 9,
       }}
     >
       <div
@@ -336,17 +494,17 @@ export default function Engine23BehaviorCard({
             style={{
               ...TITLE_STYLE,
               color,
-              fontSize: 17,
+              fontSize: 18,
             }}
           >
-            Engine 23 — Wave Behavior Read
+            Engine 23 — Wave behavior read
           </div>
 
           <div
             style={{
               ...TEXT_STYLE,
               color: "#f8fafc",
-              fontWeight: 600,
+              fontWeight: 400,
               marginTop: 3,
             }}
           >
@@ -362,8 +520,8 @@ export default function Engine23BehaviorCard({
             padding: "5px 10px",
             color,
             fontFamily: CARD_FONT,
-            fontWeight: 700,
-            fontSize: 17,
+            fontWeight: 500,
+            fontSize: 15,
             background: "rgba(15,23,42,0.55)",
             whiteSpace: "nowrap",
           }}
@@ -376,7 +534,7 @@ export default function Engine23BehaviorCard({
         style={{
           display: "grid",
           gridTemplateColumns: "1fr 1fr",
-          gap: 6,
+          gap: 7,
         }}
       >
         <SmallLine
@@ -384,16 +542,16 @@ export default function Engine23BehaviorCard({
           value={formatText(interpretation.preferredEntry)}
         />
         <SmallLine
-          label="Active Degree"
+          label="Active degree"
           value={formatText(interpretation.activeDegree)}
         />
         <SmallLine
           label="Recent"
           value={recent ? `${formatText(recent.degree)} ${recent.wave}` : "—"}
         />
-        <SmallLine label="Active Setup" value={active?.setup || "—"} />
+        <SmallLine label="Active setup" value={active?.setup || "—"} />
         <SmallLine
-          label="Higher Context"
+          label="Higher context"
           value={higher?.label || interpretation.higherDegreeContext || "—"}
         />
         <SmallLine
@@ -402,13 +560,19 @@ export default function Engine23BehaviorCard({
         />
       </div>
 
+      <ReclaimActionBlock
+        engine16={engine16}
+        waveOpportunity={waveOpportunity}
+      />
+
       <LevelsBlock
         interpretation={interpretation}
         targets={interpretation.activeTargets}
+        currentPrice={currentPrice}
+        direction={direction}
       />
 
       <WeaknessBlock zones={interpretation.weaknessZones} />
-     
     </div>
   );
 }
