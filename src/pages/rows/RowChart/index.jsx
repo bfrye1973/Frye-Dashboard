@@ -632,11 +632,22 @@ function mapSnapshotToEngine17Overlay(snapshot, strategyId, chartMode = "SPY_SCA
       waveState,
       macroBias,
       
-      engine22WaveStrategy,
-      engine22Scalp,
-      engine23Interpretation,
-      aiTradeCopilot,
-      engine2State: snapshot?.engine2State || null,
+     engine22WaveStrategy,
+     engine22Scalp,
+     engine23Interpretation,
+     aiTradeCopilot,
+
+     // Engine 17 timeline hierarchy data
+     engine15Decision: node?.engine15Decision || null,
+     engine15: node?.engine15 || null,
+     confluence: node?.confluence || null,
+     permission: node?.permission || null,
+     engine16: node?.engine16 || null,
+     engine25Context: node?.engine25Context || null,
+     analytics: node?.analytics || null,
+     permissionPreliminary: node?.permissionPreliminary || null,
+
+     engine2State: snapshot?.engine2State || null,
       activeExtensions: snapshot?.engine2State?.activeExtensions || null,
       wave3Retrace: snapshot?.engine2State?.minute?.wave3Retrace || null,
       chartMode,
