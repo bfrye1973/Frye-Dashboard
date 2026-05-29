@@ -688,7 +688,7 @@ function Badge({ label, severity = "neutral" }) {
         borderRadius: 8,
         padding: "5px 10px",
         fontSize: 13,
-        fontWeight: 900,
+        fontWeight: 650,
         textTransform: "uppercase",
         letterSpacing: "0.03em",
         whiteSpace: "nowrap",
@@ -729,8 +729,8 @@ function FieldGrid({ fields }) {
           <div
             style={{
               color: "#f8fafc",
-              fontSize: 14,
-              fontWeight: 850,
+              fontSize: 15,
+              fontWeight: 600,
               lineHeight: 1.25,
               whiteSpace: "pre-line",
             }}
@@ -906,8 +906,8 @@ function TimelineSection({ section }) {
             <div
               style={{
                 color: severityColor(section.severity),
-                fontSize: 17,
-                fontWeight: 900,
+                fontSize: 18,
+                fontWeight: 750,
                 letterSpacing: "0.01em",
               }}
             >
@@ -926,9 +926,9 @@ function TimelineSection({ section }) {
                 gap: 4,
                 marginTop: 7,
                 color: "#dbeafe",
-                fontSize: 14,
-                lineHeight: 1.35,
-                fontWeight: 650,
+                fontSize: 15,
+                lineHeight: 1.45,
+                fontWeight: 500,
               }}
             >
               {asArray(section.lines).map((line, idx) => (
@@ -1007,7 +1007,7 @@ function EngineSummaryPanel({ items }) {
       style={{
         position: "absolute",
         top: 145,
-        left: 110,
+        left: "clamp(24px, calc(50% - 820px), 260px)",
         width: 355,
         zIndex: 110,
         border: "1px solid rgba(148,163,184,0.35)",
@@ -1220,8 +1220,8 @@ const stripCellStyle = {
 
 const stripLabelStyle = {
   color: "#94a3b8",
-  fontSize: 12,
-  fontWeight: 800,
+  fontSize: 13,
+  fontWeight: 600,
   textTransform: "uppercase",
 };
 
@@ -1257,8 +1257,8 @@ function TimelineMainCard({ timeline }) {
     >
       <div
         style={{
-          fontSize: 27,
-          fontWeight: 950,
+          fontSize: 29,
+          fontWeight: 800,
           color: "#fbbf24",
           letterSpacing: "0.01em",
           marginBottom: 6,
@@ -1273,9 +1273,9 @@ function TimelineMainCard({ timeline }) {
         <div
           style={{
             color: "#e2e8f0",
-            fontSize: 15,
-            lineHeight: 1.35,
-            fontWeight: 650,
+            fontSize: 16,
+            lineHeight: 1.45,
+            fontWeight: 500,
             maxWidth: 720,
             margin: "0 auto 10px",
           }}
