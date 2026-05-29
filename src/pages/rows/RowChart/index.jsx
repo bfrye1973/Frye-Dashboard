@@ -2226,10 +2226,12 @@ export default function RowChart({
               state.engine17Timeline &&
               state.engine17Overlay &&
               normalizeSymbol(state.symbol) === "ES"
-           }
-           interpretation={engine17Data?.fib?.engine23Interpretation}
-           symbol={state.symbol}
-         />
+         }
+         interpretation={engine17Data?.fib?.engine23Interpretation}
+         waveOpportunity={engine17Data?.fib?.engine22WaveStrategy?.waveOpportunity}
+         engine16={engine17Data?.fib?.engine16}
+         symbol={state.symbol}
+        />
 
           <Engine17Badges
             overlayData={engine17Data}
