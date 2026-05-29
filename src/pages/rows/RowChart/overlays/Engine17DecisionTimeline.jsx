@@ -1437,8 +1437,7 @@ export default function Engine17DecisionTimeline({
   return (
     <>
       <MinimalStatusStrip timeline={timeline} />      
-      <TimelineMainCard timeline={timeline} />
-      <QuickTargetsPanel quickTargets={timeline.quickTargets} />
+      <TimelineMainCard timeline={timeline} />      
     </>
   );
 }
