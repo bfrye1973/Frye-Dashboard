@@ -1,6 +1,24 @@
-// src/pages/rows/RowChart/overlays/Engine17DecisionTimeline.jsx
+
+
+src/pages/rows/RowChart/overlays/Engine17DecisionTimeline.jsx
 
 import React from "react";
+
+/* =========================
+   Visual System
+========================= */
+
+const TIMELINE_FONT =
+  '"IBM Plex Sans", "Aptos", "Segoe UI", "Roboto", "Helvetica Neue", Arial, sans-serif';
+
+const FONT_REGULAR = 400;
+const FONT_MEDIUM = 500;
+
+const CARD_BG = "rgba(6,10,20,0.94)";
+const CARD_BG_STRONG = "rgba(6,10,20,0.96)";
+const SOFT_TEXT = "#dbeafe";
+const MAIN_TEXT = "#f8fafc";
+const MUTED_TEXT = "#94a3b8";
 
 /* =========================
    Formatters
@@ -127,12 +145,7 @@ function getEngine15Decision(fib) {
 function getFinalPermission(fib) {
   const root = getStrategyRoot(fib);
 
-  return (
-    root?.permission ||
-    fib?.permission ||
-    root?.finalPermission ||
-    null
-  );
+  return root?.permission || fib?.permission || root?.finalPermission || null;
 }
 
 function getConfluence(fib) {
@@ -164,11 +177,6 @@ function getEngine5Timing(fib) {
     fib?.timingContext ||
     null
   );
-}
-
-function getEngine16(fib) {
-  const root = getStrategyRoot(fib);
-  return root?.engine16 || fib?.engine16 || null;
 }
 
 function getTargets(waveOpportunity) {
@@ -205,13 +213,18 @@ function buildHeadline({ waveOpportunity, engine15 }) {
   const degree = titleCase(waveOpportunity?.degree, "Wave");
   const setup = formatUpper(waveOpportunity?.setupType, "W3/W5");
   const readiness = formatUpper(
-    waveOpportunity?.readiness || engine15?.readinessLabel,
+    engine15?.readinessLabel || waveOpportunity?.readiness,
     "WATCH"
   );
   const chaseRisk = formatUpper(waveOpportunity?.chaseRisk, "");
+  const timing = formatUpper(waveOpportunity?.timing, "");
 
   if (isDangerChase(chaseRisk)) {
     return `${degree} ${setup} ${readiness} — NO CHASE`;
+  }
+
+  if (timing.includes("POST")) {
+    return `${degree} ${setup} ${readiness} — POST EXTENSION`;
   }
 
   return `${degree} ${setup} ${readiness}`;
@@ -245,21 +258,18 @@ function buildBadges({ waveOpportunity, engine15, permission }) {
   }
 
   if (waveOpportunity?.direction || engine15?.direction) {
+    const direction = waveOpportunity?.direction || engine15?.direction;
     badges.push({
-      label: formatUpper(waveOpportunity?.direction || engine15?.direction),
-      severity:
-        String(waveOpportunity?.direction || engine15?.direction).toUpperCase() === "LONG"
-          ? "bullish"
-          : "danger",
+      label: formatUpper(direction),
+      severity: String(direction).toUpperCase() === "LONG" ? "bullish" : "danger",
     });
   }
 
-  if (waveOpportunity?.readiness || engine15?.readinessLabel) {
+  if (engine15?.readinessLabel || waveOpportunity?.readiness) {
+    const readiness = engine15?.readinessLabel || waveOpportunity?.readiness;
     badges.push({
-      label: formatUpper(waveOpportunity?.readiness || engine15?.readinessLabel),
-      severity: isReadyState(waveOpportunity?.readiness || engine15?.readinessLabel)
-        ? "bullish"
-        : "warning",
+      label: formatUpper(readiness),
+      severity: isReadyState(readiness) ? "bullish" : "warning",
     });
   }
 
@@ -392,26 +402,39 @@ function buildEngine5Section(fib) {
   const timing = getEngine5Timing(fib);
 
   const reactionText = reaction
-    ? compactJoin([
-        formatText(reaction.quality, "UNKNOWN"),
-        formatText(reaction.direction, ""),
-        reaction.confirmed || reaction.cleanReaction ? "confirmed" : "not confirmed",
-      ], " / ")
+    ? compactJoin(
+        [
+          formatText(reaction.quality, "UNKNOWN"),
+          formatText(reaction.direction, ""),
+          reaction.confirmed || reaction.cleanReaction
+            ? "confirmed"
+            : "not confirmed",
+        ],
+        " / "
+      )
     : "Unavailable";
 
   const volumeText = volume
-    ? compactJoin([
-        formatText(volume.quality || volume.participationQuality, "UNKNOWN"),
-        volume.cleanParticipation ? "clean participation" : "clean participation not confirmed",
-      ], " / ")
+    ? compactJoin(
+        [
+          formatText(volume.quality || volume.participationQuality, "UNKNOWN"),
+          volume.cleanParticipation
+            ? "clean participation"
+            : "clean participation not confirmed",
+        ],
+        " / "
+      )
     : "Unavailable";
 
   const timingText = timing
-    ? compactJoin([
-        formatText(timing.entryTiming, "UNKNOWN"),
-        timing.chaseRisk ? `chase risk ${formatText(timing.chaseRisk)}` : null,
-        timing.suggestedAction ? formatText(timing.suggestedAction) : null,
-      ], " / ")
+    ? compactJoin(
+        [
+          formatText(timing.entryTiming, "UNKNOWN"),
+          timing.chaseRisk ? `chase risk ${formatText(timing.chaseRisk)}` : null,
+          timing.suggestedAction ? formatText(timing.suggestedAction) : null,
+        ],
+        " / "
+      )
     : "Unavailable";
 
   const hasWarning =
@@ -464,6 +487,20 @@ function buildPermissionSection(permission, engine15) {
   const executable = permission.executable === true;
   const watchOnly = permission.watchOnly === true;
 
+  let permissionLine = "Engine 6 does not allow execution yet.";
+  if (executable) {
+    permissionLine = "Engine 6 allows execution because setup and permission gates passed.";
+  } else if (
+    String(permission.permission || "").toUpperCase() === "REDUCE" &&
+    watchOnly
+  ) {
+    permissionLine =
+      "REDUCE — watch only, no execution. Engine 15ES is WATCH, not READY.";
+  } else if (watchOnly) {
+    permissionLine =
+      "Engine 6 will not allow execution because this is watch only.";
+  }
+
   return {
     number: 4,
     icon: "⬟",
@@ -473,7 +510,10 @@ function buildPermissionSection(permission, engine15) {
       ["Permission", formatUpper(permission.permission, "UNKNOWN")],
       ["Executable", formatBool(permission.executable)],
       ["Watch Only", formatBool(permission.watchOnly)],
-      ["Strategy Type", formatUpper(permission.strategyType || engine15?.strategyType, "NONE")],
+      [
+        "Strategy Type",
+        formatUpper(permission.strategyType || engine15?.strategyType, "NONE"),
+      ],
       ["Direction", formatUpper(permission.direction || engine15?.direction, "NONE")],
       [
         "Authority",
@@ -485,11 +525,7 @@ function buildPermissionSection(permission, engine15) {
       ],
     ],
     lines: [
-      executable
-        ? "Engine 6 allows execution because setup and permission gates passed."
-        : watchOnly
-        ? "Engine 6 will not allow execution because Engine 15ES is WATCH, not READY."
-        : "Engine 6 does not allow execution yet.",
+      permissionLine,
       asArray(permission.reasonCodes).length
         ? `Reasons: ${asArray(permission.reasonCodes).map(formatText).join(", ")}`
         : null,
@@ -566,11 +602,14 @@ function buildSideSummary({ waveOpportunity, engine15, permission }) {
       severity: "warning",
       lines: [
         formatUpper(waveOpportunity?.setupType, "NO SETUP"),
-        compactJoin([
-          titleCase(waveOpportunity?.degree, "—"),
-          formatText(waveOpportunity?.direction, "—"),
-          formatText(waveOpportunity?.timing, "—"),
-        ], " • "),
+        compactJoin(
+          [
+            titleCase(waveOpportunity?.degree, "—"),
+            formatText(waveOpportunity?.direction, "—"),
+            formatText(waveOpportunity?.timing, "—"),
+          ],
+          " • "
+        ),
         getTargets(waveOpportunity)
           .map(([, price]) => formatNumber(price))
           .join(" / "),
@@ -582,15 +621,18 @@ function buildSideSummary({ waveOpportunity, engine15, permission }) {
       title: "Engine 15ES — Readiness",
       severity: "blue",
       lines: [
-        compactJoin([
-          formatText(engine15?.strategyType, "—"),
-          formatText(engine15?.direction, "—"),
-        ], " • "),
+        compactJoin(
+          [formatText(engine15?.strategyType, "—"), formatText(engine15?.direction, "—")],
+          " • "
+        ),
         `Quality: ${formatScore(engine15?.qualityScore)} (${formatText(
           engine15?.qualityBand || engine15?.qualityGrade,
           "—"
         )})`,
-        `Next: ${formatText(engine15?.nextSetupType || engine15?.lifecycle?.nextFocus, "—")}`,
+        `Next: ${formatText(
+          engine15?.nextSetupType || engine15?.lifecycle?.nextFocus,
+          "—"
+        )}`,
       ],
       badge: formatUpper(engine15?.readinessLabel, "WATCH"),
       icon: "▣",
@@ -616,9 +658,7 @@ function buildQuickTargets(waveOpportunity) {
     subtitle: `${titleCase(waveOpportunity?.degree, "Wave")} W5 Extension Targets`,
     targets,
     taggedLabel:
-      waveOpportunity?.targets?.e1272 != null
-        ? "1.272 already tagged"
-        : null,
+      waveOpportunity?.targets?.e1272 != null ? "1.272 already tagged" : null,
   };
 }
 
@@ -670,6 +710,22 @@ function normalizeTimelineData({ overlayData }) {
 }
 
 /* =========================
+   Shared styles
+========================= */
+
+const shellTextStyle = {
+  fontFamily: TIMELINE_FONT,
+  WebkitFontSmoothing: "antialiased",
+  MozOsxFontSmoothing: "grayscale",
+  textRendering: "geometricPrecision",
+};
+
+const smallCapsStyle = {
+  textTransform: "uppercase",
+  letterSpacing: "0.045em",
+};
+
+/* =========================
    UI Components
 ========================= */
 
@@ -679,6 +735,8 @@ function Badge({ label, severity = "neutral" }) {
   return (
     <span
       style={{
+        ...shellTextStyle,
+        ...smallCapsStyle,
         display: "inline-flex",
         alignItems: "center",
         justifyContent: "center",
@@ -688,9 +746,7 @@ function Badge({ label, severity = "neutral" }) {
         borderRadius: 8,
         padding: "5px 10px",
         fontSize: 13,
-        fontWeight: 650,
-        textTransform: "uppercase",
-        letterSpacing: "0.03em",
+        fontWeight: FONT_MEDIUM,
         whiteSpace: "nowrap",
       }}
     >
@@ -709,29 +765,31 @@ function FieldGrid({ fields }) {
       style={{
         display: "grid",
         gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
-        gap: "8px 14px",
-        marginTop: 5,
+        gap: "9px 15px",
+        marginTop: 7,
       }}
     >
       {safeFields.map(([label, value], idx) => (
         <div key={`${label}-${idx}`}>
           <div
             style={{
-              color: "#94a3b8",
-              fontSize: 12,
-              fontWeight: 800,
-              textTransform: "uppercase",
-              marginBottom: 2,
+              ...shellTextStyle,
+              ...smallCapsStyle,
+              color: MUTED_TEXT,
+              fontSize: 13,
+              fontWeight: FONT_REGULAR,
+              marginBottom: 3,
             }}
           >
             {label}
           </div>
           <div
             style={{
-              color: "#f8fafc",
-              fontSize: 15,
-              fontWeight: 600,
-              lineHeight: 1.25,
+              ...shellTextStyle,
+              color: MAIN_TEXT,
+              fontSize: 16,
+              fontWeight: FONT_REGULAR,
+              lineHeight: 1.35,
               whiteSpace: "pre-line",
             }}
           >
@@ -754,7 +812,7 @@ function IngredientCards({ cards }) {
         display: "grid",
         gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
         gap: 10,
-        marginTop: 5,
+        marginTop: 7,
       }}
     >
       {safeCards.map((card, idx) => (
@@ -762,28 +820,30 @@ function IngredientCards({ cards }) {
           key={`${card.label}-${idx}`}
           style={{
             borderLeft: `3px solid ${card.good ? "#22c55e" : "#f59e0b"}`,
-            background: "rgba(15,23,42,0.46)",
+            background: "rgba(15,23,42,0.48)",
             borderRadius: 8,
-            padding: "7px 9px",
+            padding: "9px 10px",
           }}
         >
           <div
             style={{
+              ...shellTextStyle,
+              ...smallCapsStyle,
               color: "#cbd5e1",
-              fontSize: 12,
-              fontWeight: 800,
-              textTransform: "uppercase",
-              marginBottom: 2,
+              fontSize: 13,
+              fontWeight: FONT_REGULAR,
+              marginBottom: 3,
             }}
           >
             {card.label}
           </div>
           <div
             style={{
+              ...shellTextStyle,
               color: card.good ? "#86efac" : "#fed7aa",
-              fontSize: 14,
-              fontWeight: 800,
-              lineHeight: 1.25,
+              fontSize: 15,
+              fontWeight: FONT_REGULAR,
+              lineHeight: 1.35,
             }}
           >
             {card.value}
@@ -804,21 +864,23 @@ function Checklist({ items }) {
       style={{
         display: "grid",
         gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-        gap: "8px 20px",
-        marginTop: 5,
+        gap: "9px 20px",
+        marginTop: 7,
       }}
     >
       {safeItems.map((item, idx) => (
         <div
           key={`${item}-${idx}`}
           style={{
+            ...shellTextStyle,
             display: "grid",
             gridTemplateColumns: "22px 1fr",
             alignItems: "center",
             gap: 8,
-            color: "#dbeafe",
-            fontSize: 14,
-            fontWeight: 700,
+            color: SOFT_TEXT,
+            fontSize: 15,
+            fontWeight: FONT_REGULAR,
+            lineHeight: 1.35,
           }}
         >
           <div
@@ -832,7 +894,7 @@ function Checklist({ items }) {
               alignItems: "center",
               justifyContent: "center",
               fontSize: 12,
-              fontWeight: 900,
+              fontWeight: FONT_MEDIUM,
             }}
           >
             {idx + 1}
@@ -853,7 +915,7 @@ function TimelineSection({ section }) {
         border: `1px solid ${severityBorder(section.severity)}`,
         background: severityBackground(section.severity),
         borderRadius: 12,
-        padding: "10px 12px",
+        padding: "12px 13px",
         textAlign: "left",
         position: "relative",
       }}
@@ -868,6 +930,7 @@ function TimelineSection({ section }) {
       >
         <div
           style={{
+            ...shellTextStyle,
             width: 30,
             height: 30,
             borderRadius: "50%",
@@ -877,7 +940,7 @@ function TimelineSection({ section }) {
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            fontWeight: 900,
+            fontWeight: FONT_MEDIUM,
             fontSize: 15,
             boxShadow: `0 0 16px ${severityBorder(section.severity)}`,
           }}
@@ -891,23 +954,25 @@ function TimelineSection({ section }) {
               display: "flex",
               alignItems: "center",
               gap: 8,
-              marginBottom: 5,
+              marginBottom: 6,
             }}
           >
             <span
               style={{
+                ...shellTextStyle,
                 color: severityColor(section.severity),
-                fontSize: 18,
-                fontWeight: 900,
+                fontSize: 19,
+                fontWeight: FONT_MEDIUM,
               }}
             >
               {section.icon}
             </span>
             <div
               style={{
+                ...shellTextStyle,
                 color: severityColor(section.severity),
-                fontSize: 18,
-                fontWeight: 750,
+                fontSize: 19,
+                fontWeight: FONT_MEDIUM,
                 letterSpacing: "0.01em",
               }}
             >
@@ -922,13 +987,14 @@ function TimelineSection({ section }) {
           {asArray(section.lines).length > 0 && (
             <div
               style={{
+                ...shellTextStyle,
                 display: "grid",
-                gap: 4,
-                marginTop: 7,
-                color: "#dbeafe",
+                gap: 5,
+                marginTop: 8,
+                color: SOFT_TEXT,
                 fontSize: 15,
-                lineHeight: 1.45,
-                fontWeight: 500,
+                lineHeight: 1.5,
+                fontWeight: FONT_REGULAR,
               }}
             >
               {asArray(section.lines).map((line, idx) => (
@@ -951,7 +1017,7 @@ function EngineSummaryCard({ item }) {
         border: `1px solid ${severityBorder(item.severity)}`,
         background: severityBackground(item.severity),
         borderRadius: 12,
-        padding: "12px 13px",
+        padding: "13px 14px",
       }}
     >
       <div
@@ -965,16 +1031,17 @@ function EngineSummaryCard({ item }) {
       >
         <div
           style={{
+            ...shellTextStyle,
+            ...smallCapsStyle,
             display: "flex",
             alignItems: "center",
             gap: 8,
             color: severityColor(item.severity),
-            fontWeight: 900,
+            fontWeight: FONT_MEDIUM,
             fontSize: 15,
-            textTransform: "uppercase",
           }}
         >
-          <span style={{ fontSize: 22 }}>{item.icon}</span>
+          <span style={{ fontSize: 21 }}>{item.icon}</span>
           {item.title}
         </div>
         <Badge label={item.badge} severity={item.severity} />
@@ -982,12 +1049,13 @@ function EngineSummaryCard({ item }) {
 
       <div
         style={{
+          ...shellTextStyle,
           display: "grid",
-          gap: 5,
+          gap: 6,
           color: "#e5e7eb",
-          fontSize: 14,
-          fontWeight: 650,
-          lineHeight: 1.35,
+          fontSize: 15,
+          fontWeight: FONT_REGULAR,
+          lineHeight: 1.45,
         }}
       >
         {asArray(item.lines).map((line, idx) => (
@@ -1005,14 +1073,15 @@ function EngineSummaryPanel({ items }) {
   return (
     <div
       style={{
+        ...shellTextStyle,
         position: "absolute",
         top: 145,
-        left: "clamp(24px, calc(50% - 820px), 260px)",
-        width: 355,
+        left: "max(18px, calc(50% - 735px))",
+        width: 330,
         zIndex: 110,
         border: "1px solid rgba(148,163,184,0.35)",
         borderRadius: 14,
-        background: "rgba(6,10,20,0.94)",
+        background: CARD_BG,
         padding: "14px 14px",
         color: "#e5e7eb",
         pointerEvents: "none",
@@ -1022,12 +1091,12 @@ function EngineSummaryPanel({ items }) {
     >
       <div
         style={{
-          color: "#f8fafc",
-          fontWeight: 900,
-          fontSize: 17,
-          textTransform: "uppercase",
+          ...shellTextStyle,
+          ...smallCapsStyle,
+          color: MAIN_TEXT,
+          fontWeight: FONT_MEDIUM,
+          fontSize: 18,
           marginBottom: 12,
-          letterSpacing: "0.02em",
         }}
       >
         Engine Summary
@@ -1040,15 +1109,16 @@ function EngineSummaryPanel({ items }) {
 
         <div
           style={{
+            ...shellTextStyle,
             border: "1px solid rgba(148,163,184,0.35)",
             borderRadius: 10,
             padding: "10px 12px",
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
-            color: "#f8fafc",
-            fontWeight: 800,
-            fontSize: 14,
+            color: MAIN_TEXT,
+            fontWeight: FONT_REGULAR,
+            fontSize: 15,
           }}
         >
           <span>View Full Engine Details</span>
@@ -1065,14 +1135,15 @@ function QuickTargetsPanel({ quickTargets }) {
   return (
     <div
       style={{
+        ...shellTextStyle,
         position: "absolute",
         top: 145,
-        right: 130,
-        width: 270,
+        right: "max(18px, calc(50% - 680px))",
+        width: 275,
         zIndex: 110,
         border: "1px solid rgba(148,163,184,0.35)",
         borderRadius: 14,
-        background: "rgba(6,10,20,0.94)",
+        background: CARD_BG,
         padding: "14px 14px",
         color: "#e5e7eb",
         pointerEvents: "none",
@@ -1082,10 +1153,11 @@ function QuickTargetsPanel({ quickTargets }) {
     >
       <div
         style={{
-          color: "#f8fafc",
-          fontWeight: 900,
-          fontSize: 17,
-          textTransform: "uppercase",
+          ...shellTextStyle,
+          ...smallCapsStyle,
+          color: MAIN_TEXT,
+          fontWeight: FONT_MEDIUM,
+          fontSize: 18,
           marginBottom: 14,
         }}
       >
@@ -1094,9 +1166,10 @@ function QuickTargetsPanel({ quickTargets }) {
 
       <div
         style={{
+          ...shellTextStyle,
           color: "#fbbf24",
-          fontWeight: 900,
-          fontSize: 14,
+          fontWeight: FONT_MEDIUM,
+          fontSize: 15,
           marginBottom: 8,
         }}
       >
@@ -1111,29 +1184,31 @@ function QuickTargetsPanel({ quickTargets }) {
             <div
               key={level}
               style={{
+                ...shellTextStyle,
                 border: "1px solid rgba(148,163,184,0.22)",
                 borderRadius: 8,
                 background: "rgba(15,23,42,0.58)",
-                padding: "9px 10px",
+                padding: "10px 10px",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "space-between",
                 gap: 10,
-                fontSize: 14,
-                fontWeight: 750,
+                fontSize: 15,
+                fontWeight: FONT_REGULAR,
               }}
             >
               <span>{level}</span>
-              <span style={{ color: "#f8fafc" }}>{formatNumber(price)}</span>
+              <span style={{ color: MAIN_TEXT }}>{formatNumber(price)}</span>
               {tagged && (
                 <span
                   style={{
+                    ...shellTextStyle,
                     color: "#fbbf24",
                     border: "1px solid rgba(251,191,36,0.48)",
                     borderRadius: 6,
                     padding: "2px 5px",
                     fontSize: 10,
-                    fontWeight: 900,
+                    fontWeight: FONT_MEDIUM,
                   }}
                 >
                   TAGGED
@@ -1147,14 +1222,15 @@ function QuickTargetsPanel({ quickTargets }) {
       {quickTargets.taggedLabel && (
         <div
           style={{
+            ...shellTextStyle,
             marginTop: 12,
             border: "1px solid rgba(251,191,36,0.55)",
             background: "rgba(113,63,18,0.14)",
             borderRadius: 10,
             padding: "10px 11px",
             color: "#fbbf24",
-            fontWeight: 900,
-            fontSize: 14,
+            fontWeight: FONT_MEDIUM,
+            fontSize: 15,
             display: "flex",
             alignItems: "center",
             gap: 8,
@@ -1169,19 +1245,17 @@ function QuickTargetsPanel({ quickTargets }) {
 }
 
 function MinimalStatusStrip({ timeline }) {
-  const engine15 = timeline?.sections?.[1] || null;
-  const permissionSection = timeline?.sections?.[3] || null;
-
   return (
     <div
       style={{
+        ...shellTextStyle,
         position: "absolute",
         top: 88,
         left: "50%",
         transform: "translateX(-50%)",
         zIndex: 108,
-        width: 900,
-        maxWidth: "58%",
+        width: 760,
+        maxWidth: "44%",
         border: "1px solid rgba(148,163,184,0.20)",
         borderRadius: 10,
         background: "rgba(6,10,20,0.70)",
@@ -1219,35 +1293,38 @@ const stripCellStyle = {
 };
 
 const stripLabelStyle = {
-  color: "#94a3b8",
+  ...shellTextStyle,
+  ...smallCapsStyle,
+  color: MUTED_TEXT,
   fontSize: 13,
-  fontWeight: 600,
-  textTransform: "uppercase",
+  fontWeight: FONT_REGULAR,
 };
 
 const stripValueStyle = {
+  ...shellTextStyle,
+  ...smallCapsStyle,
   fontSize: 14,
-  fontWeight: 900,
-  textTransform: "uppercase",
+  fontWeight: FONT_MEDIUM,
 };
 
 function TimelineMainCard({ timeline }) {
   return (
     <div
       style={{
+        ...shellTextStyle,
         position: "absolute",
         top: 138,
         left: "50%",
         transform: "translateX(-50%)",
         zIndex: 109,
-        width: 820,
-        maxWidth: "52%",
+        width: 760,
+        maxWidth: "44%",
         maxHeight: "calc(100vh - 165px)",
         overflowY: "auto",
         borderRadius: 15,
         border: `1px solid ${severityBorder(timeline.severity)}`,
-        background: "rgba(6,10,20,0.95)",
-        padding: "16px 18px",
+        background: CARD_BG_STRONG,
+        padding: "18px 19px",
         color: "#e5e7eb",
         pointerEvents: "none",
         backdropFilter: "blur(5px)",
@@ -1257,12 +1334,13 @@ function TimelineMainCard({ timeline }) {
     >
       <div
         style={{
-          fontSize: 29,
-          fontWeight: 800,
+          ...shellTextStyle,
+          fontSize: 30,
+          fontWeight: FONT_MEDIUM,
           color: "#fbbf24",
           letterSpacing: "0.01em",
-          marginBottom: 6,
-          lineHeight: 1.18,
+          marginBottom: 7,
+          lineHeight: 1.2,
           textTransform: "uppercase",
         }}
       >
@@ -1272,12 +1350,13 @@ function TimelineMainCard({ timeline }) {
       {timeline.subheadline && (
         <div
           style={{
+            ...shellTextStyle,
             color: "#e2e8f0",
             fontSize: 16,
-            lineHeight: 1.45,
-            fontWeight: 500,
-            maxWidth: 720,
-            margin: "0 auto 10px",
+            lineHeight: 1.5,
+            fontWeight: FONT_REGULAR,
+            maxWidth: 710,
+            margin: "0 auto 11px",
           }}
         >
           {timeline.subheadline}
@@ -1304,7 +1383,7 @@ function TimelineMainCard({ timeline }) {
         </div>
       )}
 
-      <div style={{ display: "grid", gap: 8 }}>
+      <div style={{ display: "grid", gap: 9 }}>
         {asArray(timeline.sections).map((section, idx) => (
           <TimelineSection
             key={`${section.title || "section"}-${idx}`}
@@ -1316,13 +1395,14 @@ function TimelineMainCard({ timeline }) {
       {timeline.footer && (
         <div
           style={{
+            ...shellTextStyle,
+            ...smallCapsStyle,
             marginTop: 10,
             paddingTop: 8,
             borderTop: "1px solid rgba(148,163,184,0.25)",
-            color: "#94a3b8",
-            fontWeight: 900,
+            color: MUTED_TEXT,
+            fontWeight: FONT_MEDIUM,
             fontSize: 13,
-            textTransform: "uppercase",
             letterSpacing: "0.08em",
           }}
         >
@@ -1355,3 +1435,8 @@ export default function Engine17DecisionTimeline({
     </>
   );
 }
+'''
+
+out_path = Path("/mnt/data/Engine17DecisionTimeline.jsx")
+out_path.write_text(code)
+print(f"Created {out_path} ({out_path.stat().st_size} bytes)")
