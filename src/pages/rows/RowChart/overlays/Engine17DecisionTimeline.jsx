@@ -1137,7 +1137,7 @@ function QuickTargetsPanel({ quickTargets }) {
       style={{
         ...shellTextStyle,
         position: "absolute",
-        top: 145,
+        top: 360,
         right: "max(18px, calc(50% - 680px))",
         width: 275,
         zIndex: 110,
@@ -1428,8 +1428,7 @@ export default function Engine17DecisionTimeline({
 
   return (
     <>
-      <MinimalStatusStrip timeline={timeline} />
-      <EngineSummaryPanel items={timeline.sideSummary} />
+      <MinimalStatusStrip timeline={timeline} />      
       <TimelineMainCard timeline={timeline} />
       <QuickTargetsPanel quickTargets={timeline.quickTargets} />
     </>
