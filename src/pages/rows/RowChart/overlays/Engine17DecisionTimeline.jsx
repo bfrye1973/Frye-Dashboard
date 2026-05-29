@@ -542,6 +542,13 @@ function buildNextStepsSection({ waveOpportunity, engine15, permission, fib }) {
   const volume = getEngine5Volume(fib);
   const timing = getEngine5Timing(fib);
 
+  const engine16 = fib?.engine16 || {};
+  const trigger10m = engine16?.regimeLayers?.trigger10m || {};
+  const pullback1h = engine16?.regimeLayers?.pullback1h || {};
+  const trend4h = engine16?.regimeLayers?.trend4h || {};
+  const currentPrice = waveOpportunity?.currentPrice || trigger10m?.close || null;
+  const targets = waveOpportunity?.targets || {};
+
   if (
     waveNeeds.some((need) => String(need).toUpperCase().includes("NO_CHASE")) ||
     isDangerChase(waveOpportunity?.chaseRisk)
