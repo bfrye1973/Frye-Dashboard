@@ -6,1252 +6,653 @@ import React from "react";
    Formatters
 ========================= */
 
+function asArray(value) {
+  return Array.isArray(value) ? value.filter(Boolean) : [];
+}
+
 function formatText(value, fallback = "—") {
   if (value == null || value === "") return fallback;
   return String(value).replaceAll("_", " ");
 }
 
-function formatLevel(value) {
-  const n = Number(value);
-  return Number.isFinite(n) ? n.toFixed(2) : "—";
+function formatUpper(value, fallback = "—") {
+  if (value == null || value === "") return fallback;
+  return String(value).toUpperCase().replaceAll("_", " ");
 }
 
-function formatScore(value) {
+function formatNumber(value, digits = 2, fallback = "—") {
   const n = Number(value);
-  return Number.isFinite(n) ? n.toFixed(1) : "—";
+  return Number.isFinite(n) ? n.toFixed(digits) : fallback;
 }
 
-function formatPct(value) {
+function formatScore(value, fallback = "—") {
   const n = Number(value);
-  return Number.isFinite(n) ? `${n.toFixed(2)}%` : "—";
+  return Number.isFinite(n) ? Math.round(n).toString() : fallback;
 }
 
-function formatSignedLevel(value) {
-  const n = Number(value);
-  if (!Number.isFinite(n)) return "—";
-  const sign = n > 0 ? "+" : "";
-  return `${sign}${n.toFixed(2)}`;
+function formatBool(value, fallback = "—") {
+  if (value === true) return "YES";
+  if (value === false) return "NO";
+  return fallback;
 }
 
-function formatWave(value) {
-  if (!value) return "—";
+function titleCase(value, fallback = "—") {
+  if (value == null || value === "") return fallback;
+
   return String(value)
-    .replace(/^IN_/, "")
-    .replace(/^WAVE_/, "")
-    .replaceAll("_", " ");
+    .replaceAll("_", " ")
+    .toLowerCase()
+    .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
-function formatMaybeLevel(value, fallback = "—") {
-  const n = Number(value);
-  return Number.isFinite(n) ? n.toFixed(2) : fallback;
-}
-
-function prettyZone(value) {
-  const v = String(value || "").toUpperCase();
-
-  if (v === "BELOW_786_ABOVE_INVALIDATION") {
-    return "Below 78.6% but above hard invalidation";
-  }
-
-  if (v === "BELOW_786_DEEP_DAMAGE_ZONE") {
-    return "Below 78.6% deep damage zone";
-  }
-
-  if (v === "C_LOW_NOT_MARKED") {
-    return "C low not marked yet";
-  }
-
-  return formatText(value);
+function compactJoin(parts, separator = " | ") {
+  return parts.filter(Boolean).join(separator);
 }
 
 function severityColor(severity) {
   if (severity === "danger") return "#fb7185";
   if (severity === "warning") return "#fbbf24";
   if (severity === "bullish") return "#22c55e";
-  if (severity === "info") return "#60a5fa";
+  if (severity === "purple") return "#c084fc";
+  if (severity === "blue") return "#38bdf8";
+  if (severity === "teal") return "#2dd4bf";
   return "#cbd5e1";
 }
 
 function severityBorder(severity) {
-  if (severity === "danger") return "rgba(244,63,94,0.60)";
-  if (severity === "warning") return "rgba(251,191,36,0.52)";
-  if (severity === "bullish") return "rgba(34,197,94,0.45)";
-  if (severity === "info") return "rgba(96,165,250,0.45)";
-  return "rgba(148,163,184,0.32)";
+  if (severity === "danger") return "rgba(244,63,94,0.62)";
+  if (severity === "warning") return "rgba(251,191,36,0.58)";
+  if (severity === "bullish") return "rgba(34,197,94,0.46)";
+  if (severity === "purple") return "rgba(192,132,252,0.48)";
+  if (severity === "blue") return "rgba(56,189,248,0.48)";
+  if (severity === "teal") return "rgba(45,212,191,0.48)";
+  return "rgba(148,163,184,0.34)";
 }
 
 function severityBackground(severity) {
-  if (severity === "danger") return "rgba(127,29,29,0.16)";
+  if (severity === "danger") return "rgba(127,29,29,0.15)";
   if (severity === "warning") return "rgba(113,63,18,0.14)";
   if (severity === "bullish") return "rgba(20,83,45,0.13)";
-  if (severity === "info") return "rgba(30,64,175,0.13)";
-  return "rgba(15,23,42,0.38)";
-}
-
-function asLines(lines) {
-  return Array.isArray(lines) ? lines.filter(Boolean) : [];
-}
-
-function compactJoin(parts, sep = " | ") {
-  return parts.filter(Boolean).join(sep);
+  if (severity === "purple") return "rgba(88,28,135,0.13)";
+  if (severity === "blue") return "rgba(12,74,110,0.13)";
+  if (severity === "teal") return "rgba(19,78,74,0.13)";
+  return "rgba(15,23,42,0.42)";
 }
 
 /* =========================
-   Data helpers
+   Data selectors
 ========================= */
-
-function getEngine22WaveStrategy(overlayData) {
-  return overlayData?.fib?.engine22WaveStrategy || null;
-}
-
-function getEngine22(overlayData) {
-  return overlayData?.fib?.engine22Scalp || null;
-}
 
 function getFib(overlayData) {
-  return overlayData?.fib || {};
+  return overlayData?.fib || overlayData || {};
 }
 
-function getWaveFibState(engine22) {
-  return engine22?.waveFibState || null;
+function getStrategyRoot(fib) {
+  return fib?.strategy || fib || {};
 }
 
-function getWaveSource({ overlayData, engine22, fib }) {
+function getEngine22WaveStrategy(fib) {
+  const root = getStrategyRoot(fib);
+
   return (
-    engine22?.waveFibState?.degrees ||
-    engine22?.breakoutContext?.waveContext ||
-    engine22?.debug ||
-    overlayData?.engine2State ||
-    fib?.engine2State ||
-    fib?.waveContext ||
-    {}
+    root?.engine22WaveStrategy ||
+    fib?.engine22WaveStrategy ||
+    root?.engine22 ||
+    null
   );
 }
 
-function getDegreePhase(waveFibState, source, degree, fallback = "—") {
+function getWaveOpportunity(fib) {
+  const waveStrategy = getEngine22WaveStrategy(fib);
+
   return (
-    waveFibState?.degrees?.[degree]?.phase ||
-    source?.[`${degree}Phase`] ||
-    source?.[degree]?.phase ||
-    fallback
+    waveStrategy?.waveOpportunity ||
+    fib?.waveOpportunity ||
+    getStrategyRoot(fib)?.waveOpportunity ||
+    null
   );
 }
 
-function normalizeWaveStack({ overlayData, engine22, fib }) {
-  const waveFibState = getWaveFibState(engine22);
-  const source = getWaveSource({ overlayData, engine22, fib });
+function getEngine15Decision(fib) {
+  const root = getStrategyRoot(fib);
 
-  const primary = getDegreePhase(waveFibState, source, "primary", "W5");
-  const intermediate = getDegreePhase(waveFibState, source, "intermediate", "W5");
-  const minor = getDegreePhase(waveFibState, source, "minor", "W5");
-  const minute = getDegreePhase(waveFibState, source, "minute", "W5");
-  const micro = getDegreePhase(waveFibState, source, "micro", "—");
-
-  return {
-    primary: formatWave(primary),
-    intermediate: formatWave(intermediate),
-    minor: formatWave(minor),
-    minute: formatWave(minute),
-    micro: formatWave(micro),
-    text: `Primary ${formatWave(primary)} | Intermediate ${formatWave(
-      intermediate
-    )} | Minor ${formatWave(minor)} | Minute ${formatWave(
-      minute
-    )} | Micro ${formatWave(micro)}`,
-  };
+  return (
+    root?.engine15Decision ||
+    fib?.engine15Decision ||
+    root?.engine15ES ||
+    null
+  );
 }
 
-function normalizeLayer(layer, label, unavailableText) {
-  if (!layer) {
-    return {
-      title: label,
-      lines: [unavailableText || `${label}: unavailable`],
-      severity: "neutral",
-    };
-  }
+function getFinalPermission(fib) {
+  const root = getStrategyRoot(fib);
 
-  const close = layer.close ?? layer.price ?? layer.last ?? layer.currentPrice ?? null;
-  const ema10 = layer.ema10 ?? layer.ema10Value ?? layer.dailyEma10 ?? null;
-  const ema20 = layer.ema20 ?? layer.ema20Value ?? null;
-  const dist = layer.distanceToEma10 ?? layer.distance ?? null;
-  const distPct = layer.distanceToEma10Pct ?? layer.distancePct ?? null;
-
-  const state =
-    layer.state ||
-    layer.trendState ||
-    layer.structureState ||
-    layer.permissionState ||
-    "UNKNOWN";
-
-  const score = layer.score ?? layer.layerScore ?? null;
-
-  const lines = [];
-
-  if (close != null || ema10 != null || ema20 != null) {
-    lines.push(
-      `Price ${formatLevel(close)} | EMA10 ${formatLevel(ema10)}${
-        ema20 != null ? ` | EMA20 ${formatLevel(ema20)}` : ""
-      }`
-    );
-  }
-
-  if (dist != null || distPct != null) {
-    lines.push(`Distance to EMA10: ${formatSignedLevel(dist)} / ${formatPct(distPct)}`);
-  }
-
-  lines.push(`State: ${formatText(state)}`);
-
-  if (score != null) {
-    lines.push(`Score: ${formatScore(score)}`);
-  }
-
-  if (layer.dipBuyPermission === true) lines.push("Permission: ON");
-  if (layer.dipBuyPermission === false) lines.push("Permission: OFF");
-
-  return {
-    title: label,
-    lines,
-    severity:
-      String(state).toUpperCase().includes("BELOW") ||
-      String(state).toUpperCase().includes("LOST")
-        ? "warning"
-        : "neutral",
-  };
+  return (
+    root?.permission ||
+    fib?.permission ||
+    root?.finalPermission ||
+    null
+  );
 }
 
-function normalizeRegimeLayers({ engine22, fib }) {
-  const layers = engine22?.regimeLayers || {};
-  const engine16Layers = fib?.regimeLayers || {};
+function getConfluence(fib) {
+  const root = getStrategyRoot(fib);
 
-  const tenMinute =
-    layers.tenMinute ||
-    layers.trigger10m ||
-    engine16Layers.trigger10m ||
-    null;
+  return (
+    root?.confluence ||
+    fib?.confluence ||
+    root?.engine5 ||
+    fib?.engine5 ||
+    null
+  );
+}
 
-  const oneHour =
-    layers.oneHour ||
-    layers.pullback1h ||
-    engine16Layers.pullback1h ||
-    null;
+function getEngine5Reaction(fib) {
+  return getConfluence(fib)?.components?.engine3Reaction || null;
+}
 
-  const fourHour =
-    layers.fourHour ||
-    layers.trend4h ||
-    engine16Layers.trend4h ||
-    null;
+function getEngine5Volume(fib) {
+  return getConfluence(fib)?.components?.engine4Volume || null;
+}
 
-  const eod =
-    layers.eod ||
-    layers.regimeEod ||
-    engine16Layers.regimeEod ||
-    null;
+function getEngine5Timing(fib) {
+  const confluence = getConfluence(fib);
 
+  return (
+    confluence?.timingContext ||
+    confluence?.analytics?.engine5?.timingContext ||
+    fib?.timingContext ||
+    null
+  );
+}
+
+function getEngine16(fib) {
+  const root = getStrategyRoot(fib);
+  return root?.engine16 || fib?.engine16 || null;
+}
+
+function getTargets(waveOpportunity) {
+  const targets = waveOpportunity?.targets || {};
   return [
-    normalizeLayer(tenMinute, "10m Trigger Layer", "10m Trigger Layer: unavailable"),
-    normalizeLayer(oneHour, "1H Pullback Layer", "1H Pullback Layer: unavailable"),
-    normalizeLayer(fourHour, "4H Trend Layer", "4H Trend Layer: unavailable"),
-    normalizeLayer(eod, "EOD Regime Layer", "EOD Regime Layer: unavailable"),
-  ];
+    ["1.000", targets.e100],
+    ["1.272", targets.e1272],
+    ["1.618", targets.e1618],
+    ["2.000", targets.e200],
+    ["2.618", targets.e2618],
+  ].filter(([, price]) => price != null);
 }
 
-function normalizeReaction(engine22) {
-  const reaction = engine22?.reactionContext || null;
-
-  if (!reaction) {
-    return {
-      title: "Engine 3 Reaction",
-      severity: "neutral",
-      lines: ["Reaction context unavailable"],
-    };
-  }
-
-  const lines = [
-    `${formatText(reaction.state, "UNKNOWN")} — ${formatText(
-      reaction.quality,
-      "UNKNOWN"
-    )}`,
-    `Score ${reaction.score != null ? reaction.score : "—"}/100`,
-    `Direction: ${formatText(reaction.direction, "NEUTRAL")}`,
-    reaction.message || null,
-  ];
-
-  return {
-    title: "Engine 3 Reaction",
-    severity:
-      String(reaction.quality || "").toUpperCase().includes("WEAK") ||
-      String(reaction.state || "").toUpperCase().includes("FAILED")
-        ? "warning"
-        : "neutral",
-    lines: asLines(lines),
-  };
+function isWatchState(value) {
+  const v = String(value || "").toUpperCase();
+  return ["WATCH", "NEAR", "PREP", "ARMING", "POST_EXTENSION"].includes(v);
 }
 
-function normalizeVolume(engine22) {
-  const volume = engine22?.volumeContext || null;
+function isReadyState(value) {
+  const v = String(value || "").toUpperCase();
+  return ["READY", "CONFIRMED", "TRIGGERED"].includes(v);
+}
 
-  if (!volume) {
-    return {
-      title: "Engine 4 Volume",
-      severity: "neutral",
-      lines: ["Volume context unavailable"],
-    };
+function isDangerChase(value) {
+  const v = String(value || "").toUpperCase();
+  return v === "HIGH" || v === "EXTREME";
+}
+
+/* =========================
+   Timeline builders
+========================= */
+
+function buildHeadline({ waveOpportunity, engine15 }) {
+  const degree = titleCase(waveOpportunity?.degree, "Wave");
+  const setup = formatUpper(waveOpportunity?.setupType, "W3/W5");
+  const readiness = formatUpper(
+    waveOpportunity?.readiness || engine15?.readinessLabel,
+    "WATCH"
+  );
+  const chaseRisk = formatUpper(waveOpportunity?.chaseRisk, "");
+
+  if (isDangerChase(chaseRisk)) {
+    return `${degree} ${setup} ${readiness} — NO CHASE`;
   }
 
-  const maxScore = volume.maxScore ?? 15;
-  const relVol =
-    volume.relativeVolume != null ? `${Number(volume.relativeVolume).toFixed(2)}x` : "—";
+  return `${degree} ${setup} ${readiness}`;
+}
 
-  const lines = [
-    `${formatText(
-      volume.participationState || volume.state,
-      "UNKNOWN"
-    )} — ${formatText(volume.quality || volume.participationQuality, "UNKNOWN")}`,
-    `Score ${volume.score != null ? volume.score : "—"}/${maxScore}`,
-    `Relative Volume: ${relVol}`,
-    volume.confirmed === true ? "Participation confirmed" : "Participation not confirmed",
-    volume.message || null,
-  ];
+function buildSubheadline({ waveOpportunity, engine15 }) {
+  if (waveOpportunity?.summary) {
+    return waveOpportunity.summary;
+  }
 
-  return {
-    title: "Engine 4 Volume",
-    severity:
-      volume.confirmed === true
+  if (engine15?.summary) {
+    return engine15.summary;
+  }
+
+  return "Waiting for a valid Wave 3 / Wave 5 opportunity and final confirmation.";
+}
+
+function buildBadges({ waveOpportunity, engine15, permission }) {
+  const badges = [];
+
+  badges.push({
+    label: waveOpportunity?.symbol || engine15?.symbol || "ES",
+    severity: "blue",
+  });
+
+  if (waveOpportunity?.degree) {
+    badges.push({
+      label: `${titleCase(waveOpportunity.degree)} Degree`,
+      severity: "neutral",
+    });
+  }
+
+  if (waveOpportunity?.direction || engine15?.direction) {
+    badges.push({
+      label: formatUpper(waveOpportunity?.direction || engine15?.direction),
+      severity:
+        String(waveOpportunity?.direction || engine15?.direction).toUpperCase() === "LONG"
+          ? "bullish"
+          : "danger",
+    });
+  }
+
+  if (waveOpportunity?.readiness || engine15?.readinessLabel) {
+    badges.push({
+      label: formatUpper(waveOpportunity?.readiness || engine15?.readinessLabel),
+      severity: isReadyState(waveOpportunity?.readiness || engine15?.readinessLabel)
         ? "bullish"
-        : String(volume.quality || "").toUpperCase().includes("WEAK")
-        ? "warning"
-        : "neutral",
-    lines: asLines(lines),
-  };
-}
-
-function normalizeBreakout(engine22) {
-  const breakout = engine22?.breakoutContext || null;
-
-  if (!breakout) {
-    return {
-      title: "Breakout Context",
-      severity: "neutral",
-      lines: ["Breakout context unavailable"],
-    };
+        : "warning",
+    });
   }
 
-  return {
-    title: "Breakout Context",
-    severity: breakout.chaseAllowed === true ? "bullish" : "warning",
-    lines: asLines([
-      breakout.label || formatText(breakout.state, "UNKNOWN"),
-      `Action: ${formatText(breakout.action, "WAIT")}`,
-      `Chase allowed: ${breakout.chaseAllowed === true ? "YES" : "NO"}`,
-      breakout.summary || null,
-    ]),
-  };
-}
-
-function normalizeDuration(waveFibState) {
-  const duration = waveFibState?.waveDuration || null;
-
-  if (!duration || duration.ok === false) {
-    return {
-      title: "Duration / Time Risk",
-      severity: "neutral",
-      lines: ["Duration unavailable"],
-    };
+  if (waveOpportunity?.timing) {
+    badges.push({
+      label: formatUpper(waveOpportunity.timing),
+      severity:
+        String(waveOpportunity.timing).toUpperCase().includes("POST") ||
+        String(waveOpportunity.timing).toUpperCase().includes("LATE")
+          ? "warning"
+          : "neutral",
+    });
   }
 
-  const micro = duration?.degrees?.micro || null;
-  const microBars = micro?.barDuration || null;
+  if (waveOpportunity?.chaseRisk) {
+    badges.push({
+      label: `${formatUpper(waveOpportunity.chaseRisk)} CHASE RISK`,
+      severity: isDangerChase(waveOpportunity.chaseRisk) ? "danger" : "warning",
+    });
+  }
 
-  const barLine =
-    microBars?.reason === "BARS_UNAVAILABLE"
-      ? "Bar duration: waiting for bar feed"
-      : `Bar duration: ${formatText(duration.activeMaturityStateByBars, "UNKNOWN")} / ${formatText(
-          duration.activeTimeRiskByBars,
-          "UNKNOWN"
-        )}`;
+  if (permission?.permission) {
+    badges.push({
+      label: `PERMISSION ${formatUpper(permission.permission)}`,
+      severity:
+        String(permission.permission).toUpperCase() === "ALLOW"
+          ? "bullish"
+          : String(permission.permission).toUpperCase() === "REDUCE"
+          ? "purple"
+          : "danger",
+    });
+  }
 
-  return {
-    title: "Duration / Time Risk",
-    severity:
-      String(duration.activeTimeRisk || "").toUpperCase().includes("HIGH") ||
-      String(duration.activeMaturityState || "").toUpperCase().includes("OVERDUE")
-        ? "warning"
-        : "neutral",
-    lines: asLines([
-      `Active duration: ${formatText(duration.activeDegree)} ${formatText(duration.activeWave)}`,
-      `Clock state: ${formatText(duration.activeMaturityState)} / ${formatText(
-        duration.activeTimeRisk
-      )}`,
-      micro?.elapsedHours != null
-        ? `Micro W4 has been active for ${formatScore(micro.elapsedHours)} clock hours.`
-        : null,
-      barLine,
-    ]),
-  };
+  return badges;
 }
 
-/* =========================
-   Wave/Fib narrative helpers
-========================= */
-
-function getLevels(waveFibState, degree) {
-  return waveFibState?.degrees?.[degree]?.fibProjection?.levels || {};
-}
-
-function buildMajorClusterText(waveFibState) {
-  const primary = getLevels(waveFibState, "primary");
-  const intermediate = getLevels(waveFibState, "intermediate");
-  const minor = getLevels(waveFibState, "minor");
-
-  const primary1272 = primary?.e1272;
-  const intermediate1618 = intermediate?.e1618;
-  const microTop =
-    waveFibState?.microW4AbcRisk?.topCandidate ||
-    waveFibState?.abcCorrection?.priorImpulse?.end;
-
-  const primary1618 = primary?.e1618;
-  const minor1618 = minor?.e1618;
-  const intermediate2618 = intermediate?.e2618;
-
-  const firstClusterLine = `First major fib cluster hit near 745–750: Primary 1.272 near ${formatLevel(
-    primary1272
-  )}, Intermediate 1.618 near ${formatLevel(
-    intermediate1618
-  )}, Micro W3 top candidate near ${formatLevel(microTop)}.`;
-
-  const nextClusterLine = `Next major higher-degree cluster: ${formatLevel(
-    primary1618
-  )}–${formatLevel(intermediate2618)} area, with Primary 1.618 near ${formatLevel(
-    primary1618
-  )}, Minor 1.618 near ${formatLevel(minor1618)}, and Intermediate 2.618 near ${formatLevel(
-    intermediate2618
-  )}.`;
-
-  return {
-    firstClusterLine,
-    nextClusterLine,
-    primary1272,
-    intermediate1618,
-    microTop,
-    primary1618,
-    minor1618,
-    intermediate2618,
-  };
-}
-
-function buildTraderNarrative({ waveFibState, waveStack }) {
-  const abc = waveFibState?.abcCorrection || null;
-  const risk = waveFibState?.microW4AbcRisk || null;
-  const duration = waveFibState?.waveDuration || null;
-  const cluster = buildMajorClusterText(waveFibState);
-
-  const hardInvalidation = abc?.hardInvalidation ?? risk?.hardInvalidation;
-  const topCandidate = risk?.topCandidate ?? abc?.priorImpulse?.end;
-
-  const microDuration = duration?.degrees?.micro;
-  const durationLine =
-    microDuration?.elapsedHours != null
-      ? `Micro W4 has been active for ${formatScore(
-          microDuration.elapsedHours
-        )} clock hours, so this correction is overdue by clock time.`
-      : "Micro W4 duration is still waiting for time data.";
-
-  return {
-    headline: "MICRO W4 ABC DAMAGED — 749.50 WORKING TOP",
-    subheadline:
-      "No chase long. Micro W5 is not dead, but it is not valid yet. It needs reclaim first.",
-    longTermLines: [
-      `Long-term structure is still bullish because Primary / Intermediate / Minor / Minute are in W5.`,
-      `Current wave stack: ${waveStack.text}.`,
-      `But short-term Micro structure is damaged.`,
-    ],
-    clusterLines: [
-      cluster.firstClusterLine,
-      "That cluster caused the current reaction.",
-      cluster.nextClusterLine,
-    ],
-    abcLines: [
-      `Micro W4 formed an ABC correction: A = ${formatLevel(
-        abc?.abc?.aLow
-      )}, B = ${formatLevel(abc?.abc?.bHigh)}, C = ${formatLevel(abc?.abc?.cLow)}.`,
-      `C is below the 78.6% retrace but still above ${formatLevel(
-        hardInvalidation
-      )} hard invalidation.`,
-      `So ${formatLevel(topCandidate)}–750 is the working short-term top unless price reclaims.`,
-    ],
-    durationLines: [
-      durationLine,
-      microDuration?.barDuration?.reason === "BARS_UNAVAILABLE"
-        ? "Bar-based duration is waiting for the market-bar feed."
-        : `Bar state: ${formatText(microDuration?.maturityStateByBars)} / ${formatText(
-            microDuration?.timeRiskByBars
-          )}.`,
-    ],
-    reclaimLines: [
-      `Micro W5 is only valid after reclaim confirmation.`,
-      `Reclaim ladder: ${abc?.reclaimDisplay || "waiting for reclaim ladder"}.`,
-    ],
-    invalidationLines: [
-      `If ${formatLevel(
-        hardInvalidation
-      )} breaks, the Micro impulse is invalidated and the ${formatLevel(
-        topCandidate
-      )} high becomes much more important as a confirmed local top.`,
-      `If that happens, short continuation becomes the focus.`,
-    ],
-    actionLines: [
-      "No chase long.",
-      "Wait for reclaim before Micro W5 trigger.",
-      "Only after reclaim should Engine 22 / Engine 15 decide whether the setup is READY or GO.",
-    ],
-  };
-}
-
-/* =========================
-   Timeline normalizer
-========================= */
-
-function buildAiTradeCopilotSection(ai) {
-  if (!ai?.ok) return null;
-
-  const reasoning = ai.aiReasoning || {};
-
-  return {
-    title: "AI Trade Copilot Read",
-    severity: ai.shouldChase ? "warning" : "info",
-    lines: asLines([
-      ai.headline || null,
-      compactJoin([
-        ai.bias ? `Bias: ${formatText(ai.bias)}` : null,
-        ai.action ? `Action: ${formatText(ai.action)}` : null,
-        ai.confidence ? `Confidence: ${formatText(ai.confidence)}` : null,
-        `Should chase: ${ai.shouldChase ? "YES" : "NO"}`,
-      ]),
-      reasoning.read ? `Read: ${formatText(reasoning.read)}` : null,
-      reasoning.bestScenario ? `Best: ${reasoning.bestScenario}` : null,
-      reasoning.dangerScenario ? `Danger: ${reasoning.dangerScenario}` : null,
-      ai.summary || null,
-    ]),
-  };
-}
-
-function buildMinuteW3TargetsSection(waveFibState) {
-  const minute = waveFibState?.degrees?.minute || null;
-  const phase = String(minute?.phase || "").toUpperCase();
-  const levels = minute?.fibProjection?.levels || null;
-  const pressure = minute?.fibPressure || null;
-
-  if (phase !== "IN_W3") return null;
-
-  if (!levels) {
+function buildWaveOpportunitySection(waveOpportunity) {
+  if (!waveOpportunity) {
     return {
-      title: "Current Trade Wave — Minute W3",
+      number: 1,
+      icon: "〽",
+      title: "Wave Opportunity — Engine 22",
       severity: "warning",
+      fields: [],
       lines: [
-        "Minute W3 is active, but Minute W3 target levels are missing.",
-        "Wait for backend projection levels before using fib targets.",
+        "Engine 22 waveOpportunity is unavailable.",
+        "Waiting for a valid Wave 3 / Wave 5 setup.",
       ],
     };
   }
 
-  const chaseRisk = String(pressure?.chaseRisk || "").toUpperCase();
-  const isHighRisk =
-    chaseRisk === "HIGH" ||
-    chaseRisk === "VERY_HIGH" ||
-    chaseRisk === "EXTREME";
+  const targetsText = getTargets(waveOpportunity)
+    .map(([level, price]) => `${level}: ${formatNumber(price)}`)
+    .join("  |  ");
 
   return {
-    title: "Current Trade Wave — Minute W3",
-    severity: isHighRisk ? "warning" : "bullish",
-    lines: asLines([
-      "Minute W3 is active.",
-      pressure?.nearestFib
-        ? `Price is near ${pressure.nearestFib} at ${formatLevel(
-            pressure.nearestFibPrice
-          )}.`
-        : null,
-      pressure?.expectedBehavior
-        ? `Expected: ${formatText(pressure.expectedBehavior)}.`
-        : null,
-      pressure?.chaseRisk
-        ? `Chase risk: ${formatText(pressure.chaseRisk)}.`
-        : null,
-      `Next targets: 2.000 at ${formatLevel(levels.e200)} / 2.618 at ${formatLevel(
-        levels.e2618
-      )}.`,
-    ]),
-  };
-}
-function injectAiAndTargetsIntoTimeline({ timeline, overlayData }) {
-  if (!timeline?.show) return timeline;
-
-  const ai = overlayData?.fib?.aiTradeCopilot || null;
-
-  const waveFibState =
-    overlayData?.fib?.engine22WaveStrategy?.waveFibState ||
-    overlayData?.fib?.engine22Scalp?.waveFibState ||
-    null;
-
-  const aiSection = buildAiTradeCopilotSection(ai);
-  const minuteTargetsSection = buildMinuteW3TargetsSection(waveFibState);
-
-  const inserts = [aiSection, minuteTargetsSection].filter(Boolean);
-  if (!inserts.length) return timeline;
-
-  const mainSections = Array.isArray(timeline.mainSections)
-    ? [...timeline.mainSections]
-    : [];
-
-  const alreadyHasAi = mainSections.some((s) =>
-    String(s?.title || "").toUpperCase().includes("AI TRADE COPILOT")
-  );
-
-  const alreadyHasMinuteTargets = mainSections.some((s) => {
-    const title = String(s?.title || "").toUpperCase();
-    return title.includes("MINUTE W3 EXTENSION") || title.includes("CURRENT TRADE WAVE");
-  });
-
-  const finalInserts = inserts.filter((section) => {
-    const title = String(section?.title || "").toUpperCase();
-
-    if (title.includes("AI TRADE COPILOT") && alreadyHasAi) return false;
-
-    if (
-      (title.includes("MINUTE W3 EXTENSION") || title.includes("CURRENT TRADE WAVE")) &&
-      alreadyHasMinuteTargets
-    ) {
-      return false;
-    }
-
-    return true;
-  });
-
-  if (!finalInserts.length) {
-    return {
-      ...timeline,
-      mainSections,
-    };
-  }
-
-  const weaknessIdx = mainSections.findIndex((section) =>
-    String(section?.title || "").toUpperCase().includes("WEAKNESS")
-  );
-
-  if (weaknessIdx >= 0) {
-    mainSections.splice(weaknessIdx, 0, ...finalInserts);
-  } else {
-    mainSections.unshift(...finalInserts);
-  }
-
-  return {
-    ...timeline,
-    mainSections,
-  };
-}
-
-function buildCleanWaveStackText({ waveFibState, engine23 }) {
-  const stack = engine23?.waveStack || {};
-
-  const phaseFor = (degree, fallback = "—") =>
-    stack?.[degree]?.phase ||
-    waveFibState?.degrees?.[degree]?.phase ||
-    fallback;
-
-  return `Primary ${formatWave(phaseFor("primary", "W5"))} | Intermediate ${formatWave(
-    phaseFor("intermediate", "W5")
-  )} | Minor ${formatWave(phaseFor("minor", "W5"))} | Minute ${formatWave(
-    phaseFor("minute", "—")
-  )} | Micro ${formatWave(phaseFor("micro", "—"))}`;
-}
-
-function buildCleanAiSection(ai) {
-  if (!ai?.ok) return null;
-
-  const reasoning = ai.aiReasoning || {};
-
-  return {
-    title: "AI Trade Copilot Read",
-    severity: ai.shouldChase ? "warning" : "info",
-    lines: asLines([
-      compactJoin([
-        ai.bias ? `Bias: ${formatText(ai.bias)}` : null,
-        ai.action ? `Action: ${formatText(ai.action)}` : null,
-        ai.confidence ? `Confidence: ${formatText(ai.confidence)}` : null,
-      ]),
-      `Should chase: ${ai.shouldChase ? "YES" : "NO"}`,
-      reasoning.read ? `Read: ${formatText(reasoning.read)}` : null,
-      ai.setupRead || engine23SafeSummary(ai),
-    ]),
-  };
-}
-
-function engine23SafeSummary(ai) {
-  const summary = ai?.summary || "";
-  if (!summary) return null;
-
-  const firstSentence = String(summary).split(". ").slice(0, 2).join(". ");
-  return firstSentence ? `${firstSentence}.` : null;
-}
-
-function buildCleanWeaknessSection({ engine23, degreeMap }) {
-  const zones = Array.isArray(engine23?.weaknessZones)
-    ? engine23.weaknessZones
-    : [];
-
-  if (zones.length) {
-    return {
-      title: "Weakness / Chase-Risk Zones",
-      severity: "warning",
-      lines: zones.slice(0, 4).map((zone) =>
-        compactJoin([
-          zone?.label ? `${zone.label}: ${zone.level}` : null,
-          zone?.meaning || null,
-        ], " — ")
-      ),
-    };
-  }
-
-  const minorLevels = degreeMap?.minor?.fibProjection?.levels || null;
-
-  if (!minorLevels) return null;
-
-  return {
-    title: "Weakness / Chase-Risk Zones",
-    severity: "warning",
-    lines: asLines([
-      minorLevels.e100 != null ? `First test: ${formatLevel(minorLevels.e100)}` : null,
-      minorLevels.e1168 != null && minorLevels.e1272 != null
-        ? `Early extension zone: ${formatLevel(minorLevels.e1168)}–${formatLevel(
-            minorLevels.e1272
-          )}`
-        : null,
-      minorLevels.e1618 != null ? `Major exhaustion zone: ${formatLevel(minorLevels.e1618)}` : null,
-      minorLevels.e200 != null ? `Very stretched extension: ${formatLevel(minorLevels.e200)}` : null,
-    ]),
-  };
-}
-
-function buildTradePermissionSection({ fib, engine22WaveStrategy, engine22, engine23 }) {
-  const tradeDecision =
-    engine22WaveStrategy?.tradeDecision ||
-    engine22?.tradeDecision ||
-    null;
-
-  const engine15 = fib?.engine15Decision || {};
-  const decision = tradeDecision?.decision || fib?.decisionAction || engine15?.action || "WAIT";
-  const readiness =
-    fib?.decisionReadinessLabel ||
-    fib?.readinessLabel ||
-    engine15?.readinessLabel ||
-    tradeDecision?.context?.engine15Readiness ||
-    "WATCH";
-
-  const direction =
-    fib?.decisionDirection ||
-    engine15?.direction ||
-    tradeDecision?.direction ||
-    engine23?.directionBias ||
-    "—";
-
-  const action =
-    engine23?.preferredEntry ||
-    tradeDecision?.reason ||
-    tradeDecision?.entryPlan?.notes ||
-    fib?.nextFocus ||
-    "Wait for confirmation.";
-
-  const needs = Array.isArray(tradeDecision?.needs)
-    ? tradeDecision.needs
-    : Array.isArray(engine23?.needs)
-    ? engine23.needs
-    : [];
-
-  return {
-    title: "Trade Permission",
-    severity:
-      String(decision).toUpperCase().includes("WAIT") ||
-      String(readiness).toUpperCase().includes("WATCH")
-        ? "warning"
-        : "neutral",
-    lines: asLines([
-      `Status: ${formatText(decision)} — ${formatText(readiness)}`,
-      `Bias: ${formatText(direction)}`,
-      `Action: ${formatText(action)}`,
-      needs.length ? `Needs: ${needs.map((n) => formatText(n)).join(", ")}` : null,
-    ]),
-  };
-}
-
-function compactLayerLine(layer, label, fallbackText) {
-  if (!layer) return `${label}: ${fallbackText}`;
-
-  const state =
-    layer.state ||
-    layer.trendState ||
-    layer.structureState ||
-    layer.permissionState ||
-    layer.label ||
-    layer.read ||
-    "UNKNOWN";
-
-  const permission =
-    layer.permission ||
-    layer.permissionState ||
-    layer.action ||
-    null;
-
-  return compactJoin([
-    `${label}: ${formatText(state)}`,
-    permission ? `Permission: ${formatText(permission)}` : null,
-  ]);
-}
-
-function buildCompactTimeframeLayers({ engine22WaveStrategy, engine22, fib, ai }) {
-  const layers =
-    engine22WaveStrategy?.regimeContext ||
-    engine22WaveStrategy?.regimeLayers ||
-    engine22?.regimeLayers ||
-    fib?.regimeLayers ||
-    null;
-
-  const ema = ai?.emaPosture || null;
-
-  if (!layers && !ema) {
-    return {
-      title: "Key Timeframe Layers",
-      severity: "neutral",
-      lines: [
-        "10m: Unavailable",
-        "1H: Unavailable",
-        "4H: Unavailable",
-        "EOD: Unavailable",
-      ],
-    };
-  }
-
-  if (ema) {
-    return {
-      title: "Key Timeframe Layers",
-      severity: "neutral",
-      lines: asLines([
-        ema.tenMinute ? `10m: ${formatText(ema.tenMinute)}` : "10m: Unavailable",
-        ema.oneHour ? `1H: ${formatText(ema.oneHour)}` : "1H: Unavailable",
-        ema.fourHour ? `4H: ${formatText(ema.fourHour)}` : "4H: Unavailable",
-        ema.daily ? `EOD: ${formatText(ema.daily)}` : "EOD: Unavailable",
-      ]),
-    };
-  }
-
-  return {
-    title: "Key Timeframe Layers",
-    severity: "neutral",
+    number: 1,
+    icon: "〽",
+    title: "Wave Opportunity — Engine 22",
+    severity: isDangerChase(waveOpportunity.chaseRisk) ? "warning" : "bullish",
+    fields: [
+      ["Setup", formatUpper(waveOpportunity.setupType, "NONE")],
+      ["Raw Setup", formatUpper(waveOpportunity.rawSetup, "—")],
+      ["Degree", titleCase(waveOpportunity.degree, "—")],
+      ["Direction", formatUpper(waveOpportunity.direction, "NONE")],
+      ["Readiness", formatUpper(waveOpportunity.readiness, "UNKNOWN")],
+      ["Timing", formatUpper(waveOpportunity.timing, "UNKNOWN")],
+      ["Chase Risk", formatUpper(waveOpportunity.chaseRisk, "UNKNOWN")],
+      ["Targets", targetsText || "—"],
+    ],
     lines: [
-      compactLayerLine(layers.tenMinute || layers.trigger10m, "10m", "Unavailable"),
-      compactLayerLine(layers.oneHour || layers.pullback1h, "1H", "Unavailable"),
-      compactLayerLine(layers.fourHour || layers.trend4h, "4H", "Unavailable"),
-      compactLayerLine(layers.eod || layers.regimeEod, "EOD", "Unavailable"),
+      waveOpportunity.summary
+        ? `Summary: ${waveOpportunity.summary}`
+        : "Summary: Waiting for Engine 22 wave opportunity summary.",
     ],
   };
 }
 
-function buildCleanCurrentTradeWaveSection({ activeDegree, degreeState, abcCorrection }) {
-  const phase = String(degreeState?.phase || "").toUpperCase();
-  const state = String(degreeState?.state || "").toUpperCase();
-
-  const pressure = degreeState?.fibPressure || {};
-  const progress = degreeState?.extensionProgress || null;
-  const levels = degreeState?.fibProjection?.levels || {};
-  const w4Levels = degreeState?.w4Levels || null;
-
-  const retraceLevels =
-    w4Levels?.ok === true
-      ? {
-          r382: w4Levels?.supportZone?.hi,
-          r500: w4Levels?.support,
-          r618: w4Levels?.deepSupport,
-          r786: w4Levels?.dangerLine,
-        }
-      : progress?.retraceLevels?.levels || {};
-
-  const retraceZone = progress?.currentRetraceZone || null;
-  const degreeLabel = formatText(activeDegree).toUpperCase();
-
-  const chaseRisk = String(pressure?.chaseRisk || "").toUpperCase();
-  const highRisk =
-    chaseRisk.includes("HIGH") ||
-    chaseRisk.includes("EXTREME") ||
-    chaseRisk.includes("VERY");
-
-  const isW3 =
-    phase === "IN_W3" ||
-    state.includes("IMPULSE_EXPANSION");
-
-  if (isW3) {
-    const isPostExtensionPullback =
-      progress?.state === "POST_EXTENSION_PULLBACK";
-
+function buildEngine15Section(engine15) {
+  if (!engine15) {
     return {
-      title: `Current Trade Wave — ${degreeLabel} W3`,
-      severity: isPostExtensionPullback || highRisk ? "warning" : "bullish",
-      lines: asLines([
-        isPostExtensionPullback
-          ? `${formatText(activeDegree)} W3 already tagged the ${
-              progress?.highestExtensionHit || "extension"
-            } extension near ${formatLevel(progress?.highestExtensionPrice)}.`
-          : `${formatText(activeDegree)} W3 is active.`,
-
-        progress?.highestExtremePrice != null
-          ? `Highest high since ${progress?.anchorWave || "anchor"}: ${formatLevel(
-              progress.highestExtremePrice
-            )}.`
-          : null,
-
-        pressure?.currentPrice != null || degreeState?.currentPrice != null
-          ? `Current price: ${formatLevel(
-              pressure?.currentPrice ?? degreeState?.currentPrice
-            )}.`
-          : null,
-
-        progress?.pullbackFromExtremePts != null
-          ? `Pullback from extension high: ${formatSignedLevel(
-              progress.pullbackFromExtremePts
-            )} pts.`
-          : null,
-
-        retraceZone?.label
-          ? `Current likely W4 retrace zone: ${retraceZone.label} near ${formatLevel(
-              retraceZone.price
-            )}.`
-          : null,
-
-        progress?.read ? `Read: ${progress.read}` : null,
-
-        pressure?.chaseRisk
-          ? `Chase risk: ${formatText(pressure.chaseRisk)}.`
-          : null,
-
-        pressure?.expectedBehavior
-          ? `Expected: ${formatText(pressure.expectedBehavior)}.`
-          : null,
-
-        "",
-        "W3 EXTENSION TARGETS",
-        levels.e100 != null ? `1.000: ${formatLevel(levels.e100)}` : null,
-        levels.e1272 != null ? `1.272: ${formatLevel(levels.e1272)}` : null,
-        levels.e1618 != null ? `1.618: ${formatLevel(levels.e1618)}` : null,
-        levels.e200 != null ? `2.000: ${formatLevel(levels.e200)}` : null,
-        levels.e2618 != null ? `2.618: ${formatLevel(levels.e2618)}` : null,
-
-        isPostExtensionPullback ? "" : null,
-        isPostExtensionPullback ? "LIKELY W4 RETRACE LEVELS" : null,
-        isPostExtensionPullback && retraceLevels.r382 != null
-          ? `38.2%: ${formatLevel(retraceLevels.r382)}`
-          : null,
-        isPostExtensionPullback && retraceLevels.r500 != null
-          ? `50.0%: ${formatLevel(retraceLevels.r500)}`
-          : null,
-        isPostExtensionPullback && retraceLevels.r618 != null
-          ? `61.8%: ${formatLevel(retraceLevels.r618)}`
-          : null,
-        isPostExtensionPullback && retraceLevels.r786 != null
-          ? `78.6%: ${formatLevel(retraceLevels.r786)}`
-          : null,
-
-        degreeState?.action ? `Action: ${formatText(degreeState.action)}.` : null,
-      ]),
-    };
-  }
-
-  if (phase === "IN_W2" || phase === "IN_W4" || state.includes("PULLBACK")) {
-    const isW4 =
-      phase === "IN_W4" ||
-      String(degreeState?.nextExpectedWave || "").toUpperCase() === "W5";
-
-    if (isW4 && w4Levels?.ok === true) {
-      const currentPrice =
-        w4Levels?.currentPrice ??
-        pressure?.currentPrice ??
-        degreeState?.currentPrice ??
-        null;
-
-      const support = w4Levels?.support;
-      const testedSupport =
-        currentPrice != null &&
-        support != null &&
-        Math.abs(Number(currentPrice) - Number(support)) <= 3.0;
-
-      return {
-        title: `Current Trade Wave — ${degreeLabel} W4`,
-        severity: "warning",
-        lines: asLines([
-          `${formatText(activeDegree)} W4 pullback/reclaim scenario is active.`,
-
-          w4Levels?.anchors?.w3 != null
-            ? `Prior W3 high: ${formatLevel(w4Levels.anchors.w3)}.`
-            : null,
-
-          currentPrice != null
-            ? `Current price: ${formatLevel(currentPrice)}.`
-            : null,
-
-          testedSupport
-            ? `W4 already tested the 50.0% support area near ${formatLevel(
-                support
-              )}.`
-            : support != null
-            ? `Default W4 support / 50.0%: ${formatLevel(support)}.`
-            : null,
-
-          "Still waiting for W4 support/reclaim confirmation.",
-
-          abcCorrection?.active === true ? "" : null,
-          abcCorrection?.active === true ? "MINUTE W4 ABC READ" : null,
-          abcCorrection?.active === true
-            ? `ABC source: ${formatText(abcCorrection.abcSource)}`
-            : null,
-          abcCorrection?.active === true
-            ? `ABC status: ${formatText(abcCorrection.abcStatus)}`
-            : null,
-          abcCorrection?.abc?.aLow != null
-            ? `A low: ${formatLevel(abcCorrection.abc.aLow)}`
-            : null,
-          abcCorrection?.abc?.bHigh != null
-            ? `B high: ${formatLevel(abcCorrection.abc.bHigh)}`
-            : null,
-          abcCorrection?.abc?.cLow != null
-            ? `C low: ${formatLevel(abcCorrection.abc.cLow)}`
-            : null,
-          abcCorrection?.state
-            ? `ABC state: ${formatText(abcCorrection.state)}`
-            : null,
-          abcCorrection?.cZone
-            ? `C zone: ${formatText(abcCorrection.cZone)}`
-            : null,
-          abcCorrection?.correctionCompleteLikely === true
-            ? "C-leg may be complete or near complete, but reclaim is still required."
-            : null,
-
-          "",
-          "KEY W4 PULLBACK LEVELS",
-          w4Levels?.supportZone?.hi != null
-            ? `38.2% / Reclaim area: ${formatLevel(w4Levels.supportZone.hi)}`
-            : null,
-          w4Levels?.support != null
-            ? `50.0% / Default support: ${formatLevel(w4Levels.support)}`
-            : null,
-          w4Levels?.deepSupport != null
-            ? `61.8% / Deep support: ${formatLevel(w4Levels.deepSupport)}`
-            : null,
-          w4Levels?.dangerLine != null
-            ? `78.6% / Danger line: ${formatLevel(w4Levels.dangerLine)}`
-            : null,
-
-          "",
-          "W4 CONFIRMATION LEVELS",
-          w4Levels?.reclaim != null
-            ? `Reclaim: ${formatLevel(w4Levels.reclaim)}`
-            : null,
-          w4Levels?.fullTrigger != null
-            ? `Full trigger / prior W3 high: ${formatLevel(w4Levels.fullTrigger)}`
-            : null,
-          w4Levels?.invalidation != null
-            ? `Hard invalidation: ${formatLevel(w4Levels.invalidation)}`
-            : null,
-
-          degreeState?.action ? `Action: ${formatText(degreeState.action)}.` : null,
-        ]),
-      };
-    }
-
-    const retrace =
-      degreeState?.retracement?.levels ||
-      degreeState?.fibRetracement?.levels ||
-      {};
-
-    const invalidation =
-      degreeState?.invalidation ||
-      degreeState?.hardInvalidation ||
-      degreeState?.retracement?.invalidation ||
-      null;
-
-    const lines = asLines([
-      `${formatText(activeDegree)} ${formatWave(phase)} pullback/reclaim scenario is active.`,
-      "KEY PULLBACK LEVELS",
-      retrace.r382 != null ? `r382: ${formatLevel(retrace.r382)}` : null,
-      retrace.r500 != null ? `r500: ${formatLevel(retrace.r500)}` : null,
-      retrace.r618 != null ? `r618: ${formatLevel(retrace.r618)}` : null,
-      invalidation != null ? `Invalidation: ${formatLevel(invalidation)}.` : null,
-      degreeState?.action ? `Action: ${formatText(degreeState.action)}.` : null,
-    ]);
-
-    if (!lines.length) return null;
-
-    return {
-      title: `Pullback / Reclaim Zone — ${degreeLabel} ${formatWave(phase)}`,
+      number: 2,
+      icon: "▣",
+      title: "Setup Readiness — Engine 15ES",
       severity: "warning",
-      lines,
+      fields: [],
+      lines: ["Engine 15ES decision unavailable."],
     };
   }
 
-  if (phase === "IN_W5" || state.includes("FINAL_IMPULSE")) {
-    return {
-      title: `Extension / Exhaustion Targets — ${degreeLabel} W5`,
-      severity: highRisk ? "warning" : "bullish",
-      lines: asLines([
-        `${formatText(activeDegree)} W5 is active.`,
-        pressure?.nearestFib
-          ? `Nearest fib: ${pressure.nearestFib} at ${formatLevel(
-              pressure.nearestFibPrice
-            )}.`
-          : null,
-        pressure?.chaseRisk ? `Chase risk: ${formatText(pressure.chaseRisk)}.` : null,
-        "W5 EXTENSION TARGETS",
-        levels.e100 != null ? `1.000: ${formatLevel(levels.e100)}` : null,
-        levels.e1168 != null ? `1.168: ${formatLevel(levels.e1168)}` : null,
-        levels.e1272 != null ? `1.272: ${formatLevel(levels.e1272)}` : null,
-        levels.e1618 != null ? `1.618: ${formatLevel(levels.e1618)}` : null,
-        levels.e200 != null ? `2.000: ${formatLevel(levels.e200)}` : null,
-        levels.e2618 != null ? `2.618: ${formatLevel(levels.e2618)}` : null,
-      ]),
-    };
-  }
+  const next =
+    engine15.nextSetupType ||
+    engine15.lifecycle?.nextFocus ||
+    "WAIT_FOR_CONFIRMATION";
 
-  if (phase === "COMPLETE_W5" || state.includes("IMPULSE_COMPLETE")) {
-    return {
-      title: `Impulse Complete — ${degreeLabel} W5`,
-      severity: "warning",
-      lines: asLines([
-        `${formatText(activeDegree)} W5 is complete.`,
-        "Wait for new structure before forcing another entry.",
-        degreeState?.nextExpectedWave
-          ? `Next expected wave: ${formatText(degreeState.nextExpectedWave)}.`
-          : null,
-      ]),
-    };
-  }
+  const needs = asArray(engine15.needs)
+    .map((need) => formatText(need))
+    .join(", ");
 
-  return null;
+  return {
+    number: 2,
+    icon: "▣",
+    title: "Setup Readiness — Engine 15ES",
+    severity: isReadyState(engine15.readinessLabel)
+      ? "bullish"
+      : isWatchState(engine15.readinessLabel)
+      ? "blue"
+      : "warning",
+    fields: [
+      ["Readiness", formatUpper(engine15.readinessLabel, "UNKNOWN")],
+      ["Strategy", formatUpper(engine15.strategyType, "NONE")],
+      ["Direction", formatUpper(engine15.direction, "NONE")],
+      ["Action", formatUpper(engine15.action, "WATCH")],
+      [
+        "Quality",
+        `${formatScore(engine15.qualityScore)} / ${formatUpper(
+          engine15.qualityGrade || engine15.qualityBand,
+          "—"
+        )}`,
+      ],
+      ["Next", formatUpper(next)],
+    ],
+    lines: needs ? [`Needs: ${needs}`] : ["Needs: waiting for confirmation."],
+  };
 }
-function buildCleanWaveTimeline({ overlayData, chartMode }) {
+
+function buildEngine5Section(fib) {
+  const reaction = getEngine5Reaction(fib);
+  const volume = getEngine5Volume(fib);
+  const timing = getEngine5Timing(fib);
+
+  const reactionText = reaction
+    ? compactJoin([
+        formatText(reaction.quality, "UNKNOWN"),
+        formatText(reaction.direction, ""),
+        reaction.confirmed || reaction.cleanReaction ? "confirmed" : "not confirmed",
+      ], " / ")
+    : "Unavailable";
+
+  const volumeText = volume
+    ? compactJoin([
+        formatText(volume.quality || volume.participationQuality, "UNKNOWN"),
+        volume.cleanParticipation ? "clean participation" : "clean participation not confirmed",
+      ], " / ")
+    : "Unavailable";
+
+  const timingText = timing
+    ? compactJoin([
+        formatText(timing.entryTiming, "UNKNOWN"),
+        timing.chaseRisk ? `chase risk ${formatText(timing.chaseRisk)}` : null,
+        timing.suggestedAction ? formatText(timing.suggestedAction) : null,
+      ], " / ")
+    : "Unavailable";
+
+  const hasWarning =
+    volume?.cleanParticipation === false ||
+    timing?.moveAlreadyHappened === true ||
+    timing?.noChaseContext === true ||
+    isDangerChase(timing?.chaseRisk);
+
+  return {
+    number: 3,
+    icon: "⚗",
+    title: "Ingredients — Engine 5",
+    severity: hasWarning ? "purple" : "neutral",
+    ingredientCards: [
+      {
+        label: "Reaction",
+        value: reactionText,
+        good: reaction?.confirmed === true || reaction?.cleanReaction === true,
+      },
+      {
+        label: "Volume",
+        value: volumeText,
+        good: volume?.cleanParticipation === true,
+      },
+      {
+        label: "Timing",
+        value: timingText,
+        good:
+          timing &&
+          timing.moveAlreadyHappened !== true &&
+          timing.noChaseContext !== true &&
+          !isDangerChase(timing.chaseRisk),
+      },
+    ],
+  };
+}
+
+function buildPermissionSection(permission, engine15) {
+  if (!permission) {
+    return {
+      number: 4,
+      icon: "⬟",
+      title: "Final Permission — Engine 6",
+      severity: "warning",
+      fields: [],
+      lines: ["Engine 6 final permission unavailable."],
+    };
+  }
+
+  const executable = permission.executable === true;
+  const watchOnly = permission.watchOnly === true;
+
+  return {
+    number: 4,
+    icon: "⬟",
+    title: "Final Permission — Engine 6",
+    severity: executable ? "bullish" : "purple",
+    fields: [
+      ["Permission", formatUpper(permission.permission, "UNKNOWN")],
+      ["Executable", formatBool(permission.executable)],
+      ["Watch Only", formatBool(permission.watchOnly)],
+      ["Strategy Type", formatUpper(permission.strategyType || engine15?.strategyType, "NONE")],
+      ["Direction", formatUpper(permission.direction || engine15?.direction, "NONE")],
+      [
+        "Authority",
+        permission.engine15Authority === true
+          ? "Engine 15"
+          : permission.engine5Authority === true
+          ? "Engine 5"
+          : "—",
+      ],
+    ],
+    lines: [
+      executable
+        ? "Engine 6 allows execution because setup and permission gates passed."
+        : watchOnly
+        ? "Engine 6 will not allow execution because Engine 15ES is WATCH, not READY."
+        : "Engine 6 does not allow execution yet.",
+      asArray(permission.reasonCodes).length
+        ? `Reasons: ${asArray(permission.reasonCodes).map(formatText).join(", ")}`
+        : null,
+    ].filter(Boolean),
+  };
+}
+
+function buildNextStepsSection({ waveOpportunity, engine15, permission, fib }) {
+  const steps = [];
+
+  const waveNeeds = asArray(waveOpportunity?.needs);
+  const engine15Needs = asArray(engine15?.needs);
+  const permissionReasons = asArray(permission?.reasonCodes);
+  const volume = getEngine5Volume(fib);
+  const timing = getEngine5Timing(fib);
+
+  if (
+    waveNeeds.some((need) => String(need).toUpperCase().includes("NO_CHASE")) ||
+    isDangerChase(waveOpportunity?.chaseRisk)
+  ) {
+    steps.push("Do not chase the current W5 extension");
+  }
+
+  if (
+    waveNeeds.some((need) => String(need).toUpperCase().includes("PULLBACK")) ||
+    engine15Needs.some((need) => String(need).toUpperCase().includes("PULLBACK")) ||
+    timing?.suggestedAction
+  ) {
+    steps.push("Wait for controlled pullback or reclaim");
+  }
+
+  if (
+    engine15Needs.some((need) => String(need).toUpperCase().includes("10M")) ||
+    permissionReasons.some((reason) => String(reason).toUpperCase().includes("RECLAIM"))
+  ) {
+    steps.push("Need 10m EMA10/EMA20 reclaim");
+  }
+
+  if (
+    engine15Needs.some((need) => String(need).toUpperCase().includes("ENGINE3")) ||
+    engine15?.qualityBreakdown?.reactionConfirmed === false
+  ) {
+    steps.push("Need Engine 3 reaction confirmation");
+  }
+
+  if (
+    engine15Needs.some((need) => String(need).toUpperCase().includes("ENGINE4")) ||
+    volume?.cleanParticipation === false
+  ) {
+    steps.push("Need Engine 4 clean participation");
+  }
+
+  if (!isReadyState(engine15?.readinessLabel)) {
+    steps.push("Engine 15ES must upgrade from WATCH to READY");
+  }
+
+  if (!steps.length) {
+    steps.push("Wait for the next valid Wave 3 or Wave 5 opportunity");
+  }
+
+  return {
+    number: 5,
+    icon: "✓",
+    title: "What Needs to Happen Next",
+    severity: "teal",
+    checklist: steps.slice(0, 8),
+  };
+}
+
+function buildSideSummary({ waveOpportunity, engine15, permission }) {
+  return [
+    {
+      title: "Engine 22 — Wave",
+      severity: "warning",
+      lines: [
+        formatUpper(waveOpportunity?.setupType, "NO SETUP"),
+        compactJoin([
+          titleCase(waveOpportunity?.degree, "—"),
+          formatText(waveOpportunity?.direction, "—"),
+          formatText(waveOpportunity?.timing, "—"),
+        ], " • "),
+        getTargets(waveOpportunity)
+          .map(([, price]) => formatNumber(price))
+          .join(" / "),
+      ],
+      badge: formatUpper(waveOpportunity?.readiness, "WATCH"),
+      icon: "〽",
+    },
+    {
+      title: "Engine 15ES — Readiness",
+      severity: "blue",
+      lines: [
+        compactJoin([
+          formatText(engine15?.strategyType, "—"),
+          formatText(engine15?.direction, "—"),
+        ], " • "),
+        `Quality: ${formatScore(engine15?.qualityScore)} (${formatText(
+          engine15?.qualityBand || engine15?.qualityGrade,
+          "—"
+        )})`,
+        `Next: ${formatText(engine15?.nextSetupType || engine15?.lifecycle?.nextFocus, "—")}`,
+      ],
+      badge: formatUpper(engine15?.readinessLabel, "WATCH"),
+      icon: "▣",
+    },
+    {
+      title: "Engine 6 — Permission",
+      severity: "purple",
+      lines: [
+        `Executable: ${formatBool(permission?.executable)}`,
+        `Watch Only: ${formatBool(permission?.watchOnly)}`,
+      ],
+      badge: formatUpper(permission?.permission, "—"),
+      icon: "⬟",
+    },
+  ];
+}
+
+function buildQuickTargets(waveOpportunity) {
+  const targets = getTargets(waveOpportunity);
+
+  return {
+    title: "Quick Targets",
+    subtitle: `${titleCase(waveOpportunity?.degree, "Wave")} W5 Extension Targets`,
+    targets,
+    taggedLabel:
+      waveOpportunity?.targets?.e1272 != null
+        ? "1.272 already tagged"
+        : null,
+  };
+}
+
+function normalizeTimelineData({ overlayData }) {
+  if (!overlayData?.ok) {
+    return {
+      show: false,
+    };
+  }
+
   const fib = getFib(overlayData);
-  const engine22WaveStrategy = getEngine22WaveStrategy(overlayData);
-  const engine22 = getEngine22(overlayData);
-  const ai = fib?.aiTradeCopilot || null;
-  const engine23 = fib?.engine23Interpretation || ai?.engine23 || null;
+  const waveOpportunity = getWaveOpportunity(fib);
+  const engine15 = getEngine15Decision(fib);
+  const permission = getFinalPermission(fib);
 
-  const waveFibState =
-    engine22WaveStrategy?.waveFibState ||
-    engine22?.waveFibState ||
-    null;
+  const headline = buildHeadline({ waveOpportunity, engine15 });
+  const subheadline = buildSubheadline({ waveOpportunity, engine15 });
+  const badges = buildBadges({ waveOpportunity, engine15, permission });
 
-  const degreeMap = waveFibState?.degrees || {};
-
-  if (!waveFibState || !degreeMap) return null;
-
-  const activeDegree =
-    waveFibState?.activeTradingDegree ||
-    engine22WaveStrategy?.activeTradingDegree ||
-    engine23?.activeDegree ||
-    fib?.activeDegree ||
-    "minute";
-
-  const degreeState =
-    degreeMap?.[activeDegree] ||
-    degreeMap?.minute ||
-    null;
-
-  if (!degreeState) return null;
-
-  const phase = String(degreeState?.phase || "").toUpperCase();
-  const state = String(degreeState?.state || "").toUpperCase();
-
-  const isKnownScenario =
-    phase === "IN_W3" ||
-    phase === "IN_W2" ||
-    phase === "IN_W4" ||
-    phase === "IN_W5" ||
-    phase === "COMPLETE_W5" ||
-    state.includes("IMPULSE_EXPANSION") ||
-    state.includes("PULLBACK") ||
-    state.includes("FINAL_IMPULSE") ||
-    state.includes("IMPULSE_COMPLETE");
-
-  if (!isKnownScenario) return null;
-
-  const currentTradeWaveSection = buildCleanCurrentTradeWaveSection({
-    activeDegree,
-    degreeState,
-    abcCorrection: waveFibState?.abcCorrection || null,
-  });
-
-  if (!currentTradeWaveSection) return null;
-
-  const waveStackText = buildCleanWaveStackText({ waveFibState, engine23 });
-
-  const backendWaveTimeline = normalizeFromBackendTimelineRead(
-   engine22WaveStrategy?.timelineRead
- );
-
- const backendScalpTimeline = normalizeFromBackendTimelineRead(
-   engine22?.timelineRead
- );
-
- const sideWaveFibState = engine22?.waveFibState || waveFibState;
-
- const fallbackSideSections = [
-   normalizeReaction(engine22),
-   normalizeVolume(engine22),
-   normalizeBreakout(engine22),
-   normalizeDuration(sideWaveFibState),
- ];
-
- const sideSections =
-   backendWaveTimeline?.sideSections?.length
-     ? backendWaveTimeline.sideSections
-     : backendScalpTimeline?.sideSections?.length
-     ? backendScalpTimeline.sideSections
-     : fallbackSideSections;
-
-  const aiSection = buildCleanAiSection(ai);
-  const weaknessSection = buildCleanWeaknessSection({ engine23, degreeMap });
-  const tradePermissionSection = buildTradePermissionSection({
-    fib,
-    engine22WaveStrategy,
-    engine22,
-    engine23,
-  });
-  const timeframeSection = buildCompactTimeframeLayers({
-    engine22WaveStrategy,
-    engine22,
-    fib,
-    ai,
-  });
-
-  const mainSections = [
-    currentTradeWaveSection,
-    aiSection,
-    tradePermissionSection,
-    timeframeSection,
-  ].filter(Boolean); 
-
-  const tradeDecision = engine22WaveStrategy?.tradeDecision || engine22?.tradeDecision || {};
-  const footer =
-    tradeDecision?.decision ||
-    fib?.decisionAction ||
-    engine23?.preferredEntry ||
-    "WAIT";
-
-  const headline = "WAVE/FIB STATE";
-
-  const subheadline =
-    engine23?.priceLocation?.priceLocationLabel ||
-    engine23?.summary ||
-    ai?.setupRead ||
-    "Clean wave timeline is reading the active wave scenario.";
+  const sections = [
+    buildWaveOpportunitySection(waveOpportunity),
+    buildEngine15Section(engine15),
+    buildEngine5Section(fib),
+    buildPermissionSection(permission, engine15),
+    buildNextStepsSection({ waveOpportunity, engine15, permission, fib }),
+  ];
 
   const severity =
-    String(degreeState?.fibPressure?.chaseRisk || "").toUpperCase().includes("HIGH") ||
-    engine23?.chaseAllowed === false
+    permission?.executable === true
+      ? "bullish"
+      : waveOpportunity?.chaseRisk === "EXTREME" ||
+        waveOpportunity?.timing === "POST_EXTENSION"
+      ? "warning"
+      : isWatchState(engine15?.readinessLabel)
       ? "warning"
       : "neutral";
 
@@ -1260,334 +661,11 @@ function buildCleanWaveTimeline({ overlayData, chartMode }) {
     severity,
     headline,
     subheadline,
-    waveStackText,
-    mainSections,
-    sideSections,
-    footer: formatText(footer),
-  };
-}
-
-function normalizeFromBackendTimelineRead(timelineRead) {
-  if (!timelineRead) return null;
-
-  const mainSections = Array.isArray(timelineRead.mainSections)
-  ? timelineRead.mainSections
-  : Array.isArray(timelineRead.sections)
-  ? timelineRead.sections
-  : [];
-   
-  const sideSections = Array.isArray(timelineRead.sideSections) ? timelineRead.sideSections : [];
-  const waveStack = timelineRead.waveStack || {};
-
-  return {
-    show: true,
-    severity: timelineRead.severity || "neutral",
-    headline: timelineRead.headline || "WAIT",
-    subheadline: timelineRead.subheadline || "",
-    waveStackText:
-      timelineRead.waveStackText ||
-      `Primary ${waveStack.primary || "—"} | Intermediate ${
-        waveStack.intermediate || "—"
-      } | Minor ${waveStack.minor || "—"} | Minute ${
-        waveStack.minute || "—"
-      } | Micro ${waveStack.micro || "—"}`,
-    mainSections,
-    sideSections,
-    footer: timelineRead.action || timelineRead.needs || "Wait for Engine confirmation.",
-  };
-}
-
-function normalizeTimelineData({ overlayData, chartMode }) {
-  const fib = getFib(overlayData);
-  const engine22WaveStrategy = getEngine22WaveStrategy(overlayData);
-  const engine22 = getEngine22(overlayData);
-   
-  if (!overlayData?.ok) {
-    return { show: false };
-  }
-
-  const cleanWaveTimeline = buildCleanWaveTimeline({
-    overlayData,
-    chartMode,
-  });
-
-  if (cleanWaveTimeline) return cleanWaveTimeline;
-
-  if (!engine22) {
-    return {
-      show: true,
-      severity: "neutral",
-      headline: "Wave/Fib State unavailable",
-      subheadline: "Engine 22 scalp object missing.",
-      waveStackText: "Primary — | Intermediate — | Minor — | Minute — | Micro —",
-      mainSections: [
-        {
-          title: "Action",
-          severity: "neutral",
-          lines: ["Wait for dashboard snapshot to populate."],
-        },
-      ],
-      sideSections: [],
-      footer: "No trade decision from frontend.",
-    };
-  }
-
-   const waveStrategyTimelineRead = normalizeFromBackendTimelineRead(
-     engine22WaveStrategy?.timelineRead
-   );
-
-   if (waveStrategyTimelineRead) {
-     return injectAiAndTargetsIntoTimeline({
-       timeline: waveStrategyTimelineRead,
-       overlayData,
-     });
-   }
-
-   const scalpTimelineRead = normalizeFromBackendTimelineRead(
-     engine22?.timelineRead
-   );
-
-   if (scalpTimelineRead) {
-     return injectAiAndTargetsIntoTimeline({
-       timeline: scalpTimelineRead,
-       overlayData,
-     });
-   }
-  const waveFibState = getWaveFibState(engine22);
-  const abc = waveFibState?.abcCorrection || null;
-  const risk = waveFibState?.microW4AbcRisk || null;
-
-  const waveStack = normalizeWaveStack({ overlayData, engine22, fib });
-  const regimeSections = normalizeRegimeLayers({ engine22, fib });
-
-  const sideSections = [
-    normalizeReaction(engine22),
-    normalizeVolume(engine22),
-    normalizeBreakout(engine22),
-    normalizeDuration(waveFibState),
-  ];
-
-  const mainSections = [];
-
-  let headline = "WAIT — NO CLEAN SETUP";
-  let subheadline = "Waiting for a clean reclaim, trigger, or invalidation.";
-  let severity = "neutral";
-  let footer = "No chase. Wait for Engine confirmation.";
-
-  if (abc?.active === true && abc?.state === "ABC_C_LEG_DEEP_DAMAGED") {
-    const narrative = buildTraderNarrative({ waveFibState, waveStack });
-
-    headline = narrative.headline;
-    subheadline = narrative.subheadline;
-    severity = "danger";
-    footer = "No chase long. Wait for reclaim before Micro W5 trigger.";
-
-    mainSections.push({
-      title: "Market Read",
-      severity: "danger",
-      lines: [
-        "SPY hit the first major W5 fib cluster near 745–750, then reacted.",
-        "Micro W4 has now formed a deep ABC correction.",
-        "749.50–750 is the working short-term top unless price reclaims.",
-      ],
-    });
-
-    mainSections.push({
-      title: "Long-Term Structure",
-      severity: "info",
-      lines: narrative.longTermLines,
-    });
-
-    mainSections.push({
-      title: "Fib Cluster Map",
-      severity: "warning",
-      lines: narrative.clusterLines,
-    });
-
-    mainSections.push({
-      title: "Micro W4 ABC Correction",
-      severity: "danger",
-      lines: narrative.abcLines,
-    });
-
-    mainSections.push({
-      title: "Reclaim Ladder",
-      severity: "warning",
-      lines: narrative.reclaimLines,
-    });
-
-    mainSections.push({
-      title: "Duration / Timing",
-      severity: "warning",
-      lines: narrative.durationLines,
-    });
-
-    mainSections.push({
-      title: "Invalidation / Short Context",
-      severity: "danger",
-      lines: narrative.invalidationLines,
-    });
-
-    mainSections.push(...regimeSections);
-
-    mainSections.push({
-      title: "Action / Needs",
-      severity: "warning",
-      lines: narrative.actionLines,
-    });
-
-    return {
-      show: true,
-      severity,
-      headline,
-      subheadline,
-      waveStackText: waveStack.text,
-      mainSections,
-      sideSections,
-      footer,
-    };
-  }
-
-  if (
-    risk?.active === true &&
-    String(risk?.state || "").toUpperCase().includes("DAMAGED")
-  ) {
-    headline = "MICRO W4 DAMAGED — WAIT FOR RECLAIM";
-    subheadline = "Clean Micro W5 path is damaged unless price reclaims.";
-    severity = "danger";
-    footer = "No chase long. Wait for reclaim confirmation.";
-
-    mainSections.push({
-      title: "Wave/Fib State",
-      severity: "danger",
-      lines: asLines([
-        waveFibState?.summary,
-        "Micro W4 is below the 78.6% retrace.",
-        "Clean Micro W5 path is damaged unless price reclaims.",
-      ]),
-    });
-
-    mainSections.push(...regimeSections);
-
-    mainSections.push({
-      title: "Micro W4 Risk",
-      severity: "danger",
-      lines: asLines([
-        `State: ${formatText(risk?.state)}`,
-        `Top candidate: ${formatLevel(risk?.topCandidate)}`,
-        `Max clean pullback: ${formatLevel(risk?.maxCleanPullback)}`,
-        `Hard invalidation: ${formatLevel(risk?.hardInvalidation)}`,
-        `Current zone: ${prettyZone(risk?.currentZone)}`,
-      ]),
-    });
-
-    mainSections.push({
-      title: "Action / Needs",
-      severity: "warning",
-      lines: ["No chase long.", "Wait for reclaim before Micro W5 trigger."],
-    });
-
-    return {
-      show: true,
-      severity,
-      headline,
-      subheadline,
-      waveStackText: waveStack.text,
-      mainSections,
-      sideSections,
-      footer,
-    };
-  }
-
-  const microW4State = String(engine22?.microW4Pullback?.state || "").toUpperCase();
-  const state = String(engine22?.state || "").toUpperCase();
-  const status = String(engine22?.status || "").toUpperCase();
-
-  if (
-    microW4State === "MICRO_W4_PULLBACK_ACTIVE" ||
-    state === "MICRO_W4_PULLBACK_ACTIVE"
-  ) {
-    headline = "MICRO W4 PULLBACK ACTIVE — WAIT";
-    subheadline = "Higher timeframe W5 is active, but Micro W4 is pulling back.";
-    severity = "warning";
-    footer = "No chase long. Wait for Micro W4 support/reclaim.";
-
-    mainSections.push({
-      title: "Wave/Fib State",
-      severity: "warning",
-      lines: asLines([
-        waveFibState?.summary || "Micro W3 completed. Micro W4 pullback is active.",
-      ]),
-    });
-
-    mainSections.push(...regimeSections);
-
-    mainSections.push({
-      title: "Action / Needs",
-      severity: "warning",
-      lines: [
-        "No chase long.",
-        "No blind short.",
-        "Wait for Micro W4 support/reclaim, then watch for Micro W5 trigger.",
-      ],
-    });
-
-    return {
-      show: true,
-      severity,
-      headline,
-      subheadline,
-      waveStackText: waveStack.text,
-      mainSections,
-      sideSections,
-      footer,
-    };
-  }
-
-  const readableState = state || status || "WAIT";
-
-  headline = formatText(readableState);
-  subheadline =
-    waveFibState?.summary ||
-    "Timeline normalizer is waiting for a higher-priority Engine 22 state.";
-  severity =
-    status.includes("ENTRY") || state.includes("TRIGGER")
-      ? "bullish"
-      : state.includes("BLOCK") || state.includes("INVALID")
-      ? "danger"
-      : "neutral";
-
-  mainSections.push({
-    title: "Wave/Fib State",
-    severity,
-    lines: asLines([
-      waveFibState?.summary,
-      `Active setup: ${formatText(waveFibState?.activeSetup, "—")}`,
-      `Active degree: ${formatText(waveFibState?.activeTradingDegree, "—")}`,
-      `Chase risk: ${formatText(waveFibState?.chaseRisk, "—")}`,
-    ]),
-  });
-
-  mainSections.push(...regimeSections);
-
-  mainSections.push({
-    title: "Action / Needs",
-    severity: "neutral",
-    lines: asLines([
-      engine22?.needs ? `Needs: ${formatText(engine22.needs)}` : "Wait for setup.",
-      engine22?.status ? `Status: ${formatText(engine22.status)}` : null,
-    ]),
-  });
-
-  return {
-    show: true,
-    severity,
-    headline,
-    subheadline,
-    waveStackText: waveStack.text,
-    mainSections,
-    sideSections,
-    footer,
+    badges,
+    sections,
+    sideSummary: buildSideSummary({ waveOpportunity, engine15, permission }),
+    quickTargets: buildQuickTargets(waveOpportunity),
+    footer: permission?.executable === true ? "EXECUTION ELIGIBLE" : "WATCH",
   };
 }
 
@@ -1595,51 +673,324 @@ function normalizeTimelineData({ overlayData, chartMode }) {
    UI Components
 ========================= */
 
-function TimelineSection({ title, lines, severity = "neutral" }) {
-  const safeLines = asLines(lines);
+function Badge({ label, severity = "neutral" }) {
+  if (!label) return null;
 
-  if (!title && safeLines.length === 0) return null;
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        border: `1px solid ${severityBorder(severity)}`,
+        background: severityBackground(severity),
+        color: severityColor(severity),
+        borderRadius: 8,
+        padding: "5px 10px",
+        fontSize: 13,
+        fontWeight: 900,
+        textTransform: "uppercase",
+        letterSpacing: "0.03em",
+        whiteSpace: "nowrap",
+      }}
+    >
+      {label}
+    </span>
+  );
+}
+
+function FieldGrid({ fields }) {
+  const safeFields = asArray(fields);
+
+  if (!safeFields.length) return null;
 
   return (
     <div
       style={{
-        fontFamily: "Arial, Helvetica, sans-serif",
-        border: `1px solid ${severityBorder(severity)}`,
-        borderRadius: 10,
-        padding: "8px 10px",
-        background: severityBackground(severity),
-        textAlign: "left",
+        display: "grid",
+        gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+        gap: "8px 14px",
+        marginTop: 5,
       }}
     >
-      {title && (
+      {safeFields.map(([label, value], idx) => (
+        <div key={`${label}-${idx}`}>
+          <div
+            style={{
+              color: "#94a3b8",
+              fontSize: 12,
+              fontWeight: 800,
+              textTransform: "uppercase",
+              marginBottom: 2,
+            }}
+          >
+            {label}
+          </div>
+          <div
+            style={{
+              color: "#f8fafc",
+              fontSize: 14,
+              fontWeight: 850,
+              lineHeight: 1.25,
+              whiteSpace: "pre-line",
+            }}
+          >
+            {value}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function IngredientCards({ cards }) {
+  const safeCards = asArray(cards);
+
+  if (!safeCards.length) return null;
+
+  return (
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+        gap: 10,
+        marginTop: 5,
+      }}
+    >
+      {safeCards.map((card, idx) => (
+        <div
+          key={`${card.label}-${idx}`}
+          style={{
+            borderLeft: `3px solid ${card.good ? "#22c55e" : "#f59e0b"}`,
+            background: "rgba(15,23,42,0.46)",
+            borderRadius: 8,
+            padding: "7px 9px",
+          }}
+        >
+          <div
+            style={{
+              color: "#cbd5e1",
+              fontSize: 12,
+              fontWeight: 800,
+              textTransform: "uppercase",
+              marginBottom: 2,
+            }}
+          >
+            {card.label}
+          </div>
+          <div
+            style={{
+              color: card.good ? "#86efac" : "#fed7aa",
+              fontSize: 14,
+              fontWeight: 800,
+              lineHeight: 1.25,
+            }}
+          >
+            {card.value}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function Checklist({ items }) {
+  const safeItems = asArray(items);
+
+  if (!safeItems.length) return null;
+
+  return (
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+        gap: "8px 20px",
+        marginTop: 5,
+      }}
+    >
+      {safeItems.map((item, idx) => (
+        <div
+          key={`${item}-${idx}`}
+          style={{
+            display: "grid",
+            gridTemplateColumns: "22px 1fr",
+            alignItems: "center",
+            gap: 8,
+            color: "#dbeafe",
+            fontSize: 14,
+            fontWeight: 700,
+          }}
+        >
+          <div
+            style={{
+              width: 18,
+              height: 18,
+              borderRadius: 6,
+              border: "1px solid rgba(45,212,191,0.85)",
+              color: "#2dd4bf",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: 12,
+              fontWeight: 900,
+            }}
+          >
+            {idx + 1}
+          </div>
+          <div>{item}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function TimelineSection({ section }) {
+  if (!section) return null;
+
+  return (
+    <div
+      style={{
+        border: `1px solid ${severityBorder(section.severity)}`,
+        background: severityBackground(section.severity),
+        borderRadius: 12,
+        padding: "10px 12px",
+        textAlign: "left",
+        position: "relative",
+      }}
+    >
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "38px 1fr",
+          gap: 10,
+          alignItems: "start",
+        }}
+      >
         <div
           style={{
-            fontFamily: "Arial, Helvetica, sans-serif",
-            fontSize: 17,
-            fontWeight: 800,
-            color: severityColor(severity),
-            marginBottom: 5,
-            letterSpacing: "0.02em",
+            width: 30,
+            height: 30,
+            borderRadius: "50%",
+            border: `1px solid ${severityBorder(section.severity)}`,
+            color: severityColor(section.severity),
+            background: "rgba(2,6,23,0.72)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontWeight: 900,
+            fontSize: 15,
+            boxShadow: `0 0 16px ${severityBorder(section.severity)}`,
+          }}
+        >
+          {section.number}
+        </div>
+
+        <div>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              marginBottom: 5,
+            }}
+          >
+            <span
+              style={{
+                color: severityColor(section.severity),
+                fontSize: 18,
+                fontWeight: 900,
+              }}
+            >
+              {section.icon}
+            </span>
+            <div
+              style={{
+                color: severityColor(section.severity),
+                fontSize: 17,
+                fontWeight: 900,
+                letterSpacing: "0.01em",
+              }}
+            >
+              {section.title}
+            </div>
+          </div>
+
+          <FieldGrid fields={section.fields} />
+          <IngredientCards cards={section.ingredientCards} />
+          <Checklist items={section.checklist} />
+
+          {asArray(section.lines).length > 0 && (
+            <div
+              style={{
+                display: "grid",
+                gap: 4,
+                marginTop: 7,
+                color: "#dbeafe",
+                fontSize: 14,
+                lineHeight: 1.35,
+                fontWeight: 650,
+              }}
+            >
+              {asArray(section.lines).map((line, idx) => (
+                <div key={idx}>{line}</div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function EngineSummaryCard({ item }) {
+  if (!item) return null;
+
+  return (
+    <div
+      style={{
+        border: `1px solid ${severityBorder(item.severity)}`,
+        background: severityBackground(item.severity),
+        borderRadius: 12,
+        padding: "12px 13px",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 10,
+          marginBottom: 8,
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            color: severityColor(item.severity),
+            fontWeight: 900,
+            fontSize: 15,
             textTransform: "uppercase",
           }}
         >
-          {title}
+          <span style={{ fontSize: 22 }}>{item.icon}</span>
+          {item.title}
         </div>
-      )}
+        <Badge label={item.badge} severity={item.severity} />
+      </div>
 
       <div
         style={{
-          fontFamily: "Arial, Helvetica, sans-serif",
           display: "grid",
-          gap: 4,
-          fontSize: 17,
-          lineHeight: 1.42,
-          color: "#dbeafe",
-          fontWeight: 500,
-          whiteSpace: "pre-line",
+          gap: 5,
+          color: "#e5e7eb",
+          fontSize: 14,
+          fontWeight: 650,
+          lineHeight: 1.35,
         }}
       >
-        {safeLines.map((line, idx) => (
+        {asArray(item.lines).map((line, idx) => (
           <div key={idx}>{line}</div>
         ))}
       </div>
@@ -1647,79 +998,317 @@ function TimelineSection({ title, lines, severity = "neutral" }) {
   );
 }
 
-function TimelineMainCard({ timeline }) {
+function EngineSummaryPanel({ items }) {
+  const safeItems = asArray(items);
+  if (!safeItems.length) return null;
+
   return (
     <div
       style={{
-        fontFamily: "Arial, Helvetica, sans-serif",
         position: "absolute",
-        top: 72,
-        left: "50%",
-        transform: "translateX(-50%)",
-        zIndex: 109,
-        width: 820,
-        maxWidth: "66%",
-        maxHeight: "calc(100vh - 130px)",
-        overflowY: "auto",
+        top: 145,
+        left: 110,
+        width: 355,
+        zIndex: 110,
+        border: "1px solid rgba(148,163,184,0.35)",
         borderRadius: 14,
-        border: `1px solid ${severityBorder(timeline.severity)}`,
-        background: "rgba(6,10,20,0.95)",
-        padding: "14px 18px",
+        background: "rgba(6,10,20,0.94)",
+        padding: "14px 14px",
         color: "#e5e7eb",
-        backdropFilter: "blur(4px)",
         pointerEvents: "none",
-        textAlign: "center",
-        boxShadow: "0 8px 24px rgba(0,0,0,0.28)",
+        boxShadow: "0 10px 28px rgba(0,0,0,0.32)",
+        backdropFilter: "blur(5px)",
       }}
     >
       <div
         style={{
-          fontFamily: "Arial, Helvetica, sans-serif",
-          fontWeight: 800,
-          fontSize: 29,
-          lineHeight: 1.25,
-          color: severityColor(timeline.severity),
+          color: "#f8fafc",
+          fontWeight: 900,
+          fontSize: 17,
+          textTransform: "uppercase",
+          marginBottom: 12,
+          letterSpacing: "0.02em",
+        }}
+      >
+        Engine Summary
+      </div>
+
+      <div style={{ display: "grid", gap: 10 }}>
+        {safeItems.map((item, idx) => (
+          <EngineSummaryCard key={`${item.title}-${idx}`} item={item} />
+        ))}
+
+        <div
+          style={{
+            border: "1px solid rgba(148,163,184,0.35)",
+            borderRadius: 10,
+            padding: "10px 12px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            color: "#f8fafc",
+            fontWeight: 800,
+            fontSize: 14,
+          }}
+        >
+          <span>View Full Engine Details</span>
+          <span style={{ fontSize: 20 }}>›</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function QuickTargetsPanel({ quickTargets }) {
+  if (!quickTargets || !asArray(quickTargets.targets).length) return null;
+
+  return (
+    <div
+      style={{
+        position: "absolute",
+        top: 145,
+        right: 130,
+        width: 270,
+        zIndex: 110,
+        border: "1px solid rgba(148,163,184,0.35)",
+        borderRadius: 14,
+        background: "rgba(6,10,20,0.94)",
+        padding: "14px 14px",
+        color: "#e5e7eb",
+        pointerEvents: "none",
+        boxShadow: "0 10px 28px rgba(0,0,0,0.32)",
+        backdropFilter: "blur(5px)",
+      }}
+    >
+      <div
+        style={{
+          color: "#f8fafc",
+          fontWeight: 900,
+          fontSize: 17,
+          textTransform: "uppercase",
+          marginBottom: 14,
+        }}
+      >
+        {quickTargets.title}
+      </div>
+
+      <div
+        style={{
+          color: "#fbbf24",
+          fontWeight: 900,
+          fontSize: 14,
           marginBottom: 8,
+        }}
+      >
+        {quickTargets.subtitle}
+      </div>
+
+      <div style={{ display: "grid", gap: 7 }}>
+        {quickTargets.targets.map(([level, price]) => {
+          const tagged = level === "1.272";
+
+          return (
+            <div
+              key={level}
+              style={{
+                border: "1px solid rgba(148,163,184,0.22)",
+                borderRadius: 8,
+                background: "rgba(15,23,42,0.58)",
+                padding: "9px 10px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 10,
+                fontSize: 14,
+                fontWeight: 750,
+              }}
+            >
+              <span>{level}</span>
+              <span style={{ color: "#f8fafc" }}>{formatNumber(price)}</span>
+              {tagged && (
+                <span
+                  style={{
+                    color: "#fbbf24",
+                    border: "1px solid rgba(251,191,36,0.48)",
+                    borderRadius: 6,
+                    padding: "2px 5px",
+                    fontSize: 10,
+                    fontWeight: 900,
+                  }}
+                >
+                  TAGGED
+                </span>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {quickTargets.taggedLabel && (
+        <div
+          style={{
+            marginTop: 12,
+            border: "1px solid rgba(251,191,36,0.55)",
+            background: "rgba(113,63,18,0.14)",
+            borderRadius: 10,
+            padding: "10px 11px",
+            color: "#fbbf24",
+            fontWeight: 900,
+            fontSize: 14,
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+          }}
+        >
+          <span>⚠</span>
+          <span>{quickTargets.taggedLabel}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MinimalStatusStrip({ timeline }) {
+  const engine15 = timeline?.sections?.[1] || null;
+  const permissionSection = timeline?.sections?.[3] || null;
+
+  return (
+    <div
+      style={{
+        position: "absolute",
+        top: 88,
+        left: "50%",
+        transform: "translateX(-50%)",
+        zIndex: 108,
+        width: 900,
+        maxWidth: "58%",
+        border: "1px solid rgba(148,163,184,0.20)",
+        borderRadius: 10,
+        background: "rgba(6,10,20,0.70)",
+        display: "grid",
+        gridTemplateColumns: "1fr 1fr 1fr",
+        gap: 0,
+        color: "#cbd5e1",
+        pointerEvents: "none",
+        backdropFilter: "blur(4px)",
+      }}
+    >
+      <div style={stripCellStyle}>
+        <span style={stripLabelStyle}>Market Bias</span>
+        <span style={{ ...stripValueStyle, color: "#22c55e" }}>↗ LONG</span>
+      </div>
+      <div style={stripCellStyle}>
+        <span style={stripLabelStyle}>Setup</span>
+        <span style={{ ...stripValueStyle, color: "#fbbf24" }}>◉ WATCH</span>
+      </div>
+      <div style={stripCellStyle}>
+        <span style={stripLabelStyle}>Permission</span>
+        <span style={{ ...stripValueStyle, color: "#c084fc" }}>⬟ REDUCE</span>
+      </div>
+    </div>
+  );
+}
+
+const stripCellStyle = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: 10,
+  padding: "10px 12px",
+  borderRight: "1px solid rgba(148,163,184,0.14)",
+};
+
+const stripLabelStyle = {
+  color: "#94a3b8",
+  fontSize: 12,
+  fontWeight: 800,
+  textTransform: "uppercase",
+};
+
+const stripValueStyle = {
+  fontSize: 14,
+  fontWeight: 900,
+  textTransform: "uppercase",
+};
+
+function TimelineMainCard({ timeline }) {
+  return (
+    <div
+      style={{
+        position: "absolute",
+        top: 138,
+        left: "50%",
+        transform: "translateX(-50%)",
+        zIndex: 109,
+        width: 820,
+        maxWidth: "52%",
+        maxHeight: "calc(100vh - 165px)",
+        overflowY: "auto",
+        borderRadius: 15,
+        border: `1px solid ${severityBorder(timeline.severity)}`,
+        background: "rgba(6,10,20,0.95)",
+        padding: "16px 18px",
+        color: "#e5e7eb",
+        pointerEvents: "none",
+        backdropFilter: "blur(5px)",
+        boxShadow: "0 12px 34px rgba(0,0,0,0.34)",
+        textAlign: "center",
+      }}
+    >
+      <div
+        style={{
+          fontSize: 27,
+          fontWeight: 950,
+          color: "#fbbf24",
+          letterSpacing: "0.01em",
+          marginBottom: 6,
+          lineHeight: 1.18,
+          textTransform: "uppercase",
         }}
       >
         {timeline.headline}
       </div>
 
-      <div
-        style={{
-          fontFamily: "Arial, Helvetica, sans-serif",
-          fontWeight: 650,
-          fontSize: 20,
-          lineHeight: 1.3,
-          color: "#f8fafc",
-          marginBottom: 8,
-        }}
-      >
-        {timeline.waveStackText}
-      </div>
-
       {timeline.subheadline && (
         <div
           style={{
-            fontFamily: "Arial, Helvetica, sans-serif",
-            fontSize: 20,
-            lineHeight: 1.4,
-            color: "#cbd5e1",
-            fontWeight: 500,
-            marginBottom: 10,
+            color: "#e2e8f0",
+            fontSize: 15,
+            lineHeight: 1.35,
+            fontWeight: 650,
+            maxWidth: 720,
+            margin: "0 auto 10px",
           }}
         >
           {timeline.subheadline}
         </div>
       )}
 
+      {asArray(timeline.badges).length > 0 && (
+        <div
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            gap: 8,
+            justifyContent: "center",
+            marginBottom: 13,
+          }}
+        >
+          {timeline.badges.map((badge, idx) => (
+            <Badge
+              key={`${badge.label}-${idx}`}
+              label={badge.label}
+              severity={badge.severity}
+            />
+          ))}
+        </div>
+      )}
+
       <div style={{ display: "grid", gap: 8 }}>
-        {(timeline.mainSections || []).map((section, idx) => (
+        {asArray(timeline.sections).map((section, idx) => (
           <TimelineSection
             key={`${section.title || "section"}-${idx}`}
-            title={section.title}
-            lines={section.lines}
-            severity={section.severity}
+            section={section}
           />
         ))}
       </div>
@@ -1727,13 +1316,14 @@ function TimelineMainCard({ timeline }) {
       {timeline.footer && (
         <div
           style={{
-            fontFamily: "Arial, Helvetica, sans-serif",
             marginTop: 10,
             paddingTop: 8,
             borderTop: "1px solid rgba(148,163,184,0.25)",
             color: "#94a3b8",
-            fontWeight: 600,
-            fontSize: 18,
+            fontWeight: 900,
+            fontSize: 13,
+            textTransform: "uppercase",
+            letterSpacing: "0.08em",
           }}
         >
           {timeline.footer}
@@ -1743,49 +1333,8 @@ function TimelineMainCard({ timeline }) {
   );
 }
 
-function TimelineContextPanel({ sections }) {
-  const safeSections = Array.isArray(sections) ? sections : [];
-  if (safeSections.length === 0) return null;
-
-  return (
-    <div
-      style={{
-        fontFamily: "Arial, Helvetica, sans-serif",
-        position: "absolute",
-        top: 160,
-        left: "calc(50% - 800px)",
-        zIndex: 110,
-        width: 360,
-        maxWidth: "30%",
-        maxHeight: "calc(100vh - 210px)",
-        overflowY: "auto",
-        borderRadius: 14,
-        border: "1px solid rgba(148,163,184,0.42)",
-        background: "rgba(6,10,20,0.94)",
-        padding: "12px 14px",
-        color: "#e5e7eb",
-        backdropFilter: "blur(4px)",
-        pointerEvents: "none",
-        textAlign: "left",
-        boxShadow: "0 8px 24px rgba(0,0,0,0.28)",
-        display: "grid",
-        gap: 8,
-      }}
-    >
-      {safeSections.map((section, idx) => (
-        <TimelineSection
-          key={`${section.title || "side"}-${idx}`}
-          title={section.title}
-          lines={section.lines}
-          severity={section.severity}
-        />
-      ))}
-    </div>
-  );
-}
-
 /* =========================
-   Main Export
+   Main export
 ========================= */
 
 export default function Engine17DecisionTimeline({
@@ -1799,8 +1348,10 @@ export default function Engine17DecisionTimeline({
 
   return (
     <>
-      <TimelineContextPanel sections={timeline.sideSections} />
+      <MinimalStatusStrip timeline={timeline} />
+      <EngineSummaryPanel items={timeline.sideSummary} />
       <TimelineMainCard timeline={timeline} />
+      <QuickTargetsPanel quickTargets={timeline.quickTargets} />
     </>
   );
 }
