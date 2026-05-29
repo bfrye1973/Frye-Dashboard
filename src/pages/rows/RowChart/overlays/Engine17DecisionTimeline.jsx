@@ -1435,8 +1435,4 @@ export default function Engine17DecisionTimeline({
     </>
   );
 }
-'''
 
-out_path = Path("/mnt/data/Engine17DecisionTimeline.jsx")
-out_path.write_text(code)
-print(f"Created {out_path} ({out_path.stat().st_size} bytes)")
