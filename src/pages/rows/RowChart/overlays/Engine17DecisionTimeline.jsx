@@ -9,10 +9,10 @@ import React from "react";
 ========================= */
 
 const TIMELINE_FONT =
-  '"IBM Plex Sans", "Aptos", "Segoe UI", "Roboto", "Helvetica Neue", Arial, sans-serif';
+  '"Trebuchet MS", "Lucida Grande", "Segoe UI", Arial, sans-serif';
 
 const FONT_REGULAR = 400;
-const FONT_MEDIUM = 500;
+const FONT_MEDIUM = 400;
 
 const CARD_BG = "rgba(6,10,20,0.94)";
 const CARD_BG_STRONG = "rgba(6,10,20,0.96)";
@@ -746,7 +746,7 @@ function Badge({ label, severity = "neutral" }) {
         borderRadius: 8,
         padding: "5px 10px",
         fontSize: 13,
-        fontWeight: FONT_MEDIUM,
+        fontWeight: FONT_REGULAR,
         whiteSpace: "nowrap",
       }}
     >
@@ -1341,7 +1341,7 @@ function TimelineMainCard({ timeline }) {
           letterSpacing: "0.01em",
           marginBottom: 7,
           lineHeight: 1.2,
-          textTransform: "uppercase",
+          textTransform: "none",
         }}
       >
         {timeline.headline}
