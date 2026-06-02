@@ -129,6 +129,19 @@ function getWaveOpportunity(fib) {
   );
 }
 
+function getBackendTimelineSection(fib, title) {
+  const waveStrategy = getEngine22WaveStrategy(fib);
+  const sections = waveStrategy?.timelineRead?.mainSections;
+
+  if (!Array.isArray(sections)) return null;
+
+  return (
+    sections.find(
+      (section) => String(section?.title || "").trim() === title
+    ) || null
+  );
+}
+
 function getEngine15Decision(fib) {
   const root = getStrategyRoot(fib);
 
@@ -343,6 +356,25 @@ function buildWaveOpportunitySection(waveOpportunity) {
         ? `Summary: ${waveOpportunity.summary}`
         : "Summary: Waiting for Engine 22 wave opportunity summary.",
     ],
+  };
+}
+
+function buildBackendTimelineSection(section) {
+  if (!section) return null;
+
+  const lines = Array.isArray(section.lines)
+    ? section.lines.filter(Boolean)
+    : [];
+
+  if (!lines.length) return null;
+
+  return {
+    number: 0,
+    icon: "◷",
+    title: section.title || "Backend Timeline Context",
+    severity: section.severity || "blue",
+    fields: [],
+    lines,
   };
 }
 
@@ -714,17 +746,28 @@ function normalizeTimelineData({ overlayData }) {
   const engine15 = getEngine15Decision(fib);
   const permission = getFinalPermission(fib);
 
+  const marketMeterSection = getBackendTimelineSection(
+    fib,
+    "Market Meter / Tactical Context"
+  );
+
   const headline = buildHeadline({ waveOpportunity, engine15 });
   const subheadline = buildSubheadline({ waveOpportunity, engine15 });
   const badges = buildBadges({ waveOpportunity, engine15, permission });
-
+ 
   const sections = [
     buildWaveOpportunitySection(waveOpportunity),
+    buildBackendTimelineSection(marketMeterSection),
     buildEngine15Section(engine15),
     buildEngine5Section(fib),
     buildPermissionSection(permission, engine15),
     buildNextStepsSection({ waveOpportunity, engine15, permission, fib }),
-  ];
+  ]
+    .filter(Boolean)
+    .map((section, idx) => ({
+      ...section,
+      number: idx + 1,
+    })); 
 
   const severity =
     permission?.executable === true
