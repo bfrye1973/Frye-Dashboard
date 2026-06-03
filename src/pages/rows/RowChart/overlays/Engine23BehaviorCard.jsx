@@ -330,7 +330,6 @@ function ReclaimActionBlock({ engine16, waveOpportunity }) {
 }
 
 function LevelsBlock({ interpretation, targets, currentPrice, direction }) {
-  const extensionTouchContext = interpretation?.extensionTouchContext || null;
   const config = getLevelBlockConfig({ interpretation, targets });
 
   if (!config || !config.rows.length) return null;
@@ -355,15 +354,8 @@ function LevelsBlock({ interpretation, targets, currentPrice, direction }) {
 
       <div style={{ display: "grid", gap: 5 }}>
         {config.rows.map(([label, value]) => {
-          const extensionTouched =
-            config.type === "targets" &&
-            extensionTouchContext?.active === true &&
-            String(extensionTouchContext?.levelLabel || "") === String(label);
-
           const hit = config.type === "targets"
-            ? extensionTouched
-              ? "TOUCHED_REJECTED"
-              : getTargetStatus({ value, currentPrice, direction })
+            ? getTargetStatus({ value, currentPrice, direction })
             : null;
 
           return (
@@ -372,16 +364,7 @@ function LevelsBlock({ interpretation, targets, currentPrice, direction }) {
               label={label}
               value={formatLevel(value)}
               valueColor={hit ? "#86efac" : "#dbeafe"}
-              badge={
-                extensionTouched ? (
-                  <StatusBadge
-                    label={`Hit x${extensionTouchContext.touchCount} / Rejected`}
-                    color="#fb7185"
-                  />
-                ) : hit ? (
-                  <StatusBadge label="Hit" color="#22c55e" />
-                ) : null
-              }
+              badge={hit ? <StatusBadge label="Hit" color="#22c55e" /> : null}
             />
           );
         })}
