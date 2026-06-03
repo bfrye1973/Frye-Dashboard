@@ -41,9 +41,7 @@ function formatText(value, fallback = "—") {
   return String(value)
     .replaceAll("_", " ")
     .toLowerCase()
-    .replace(/\b\w/g, function (m) {
-      return m.toUpperCase();
-    });
+    .replace(/\b\w/g, (m) => m.toUpperCase());
 }
 
 function formatLevel(value) {
@@ -117,8 +115,8 @@ function StatusBadge({ label, color = "#fbbf24" }) {
     <span
       style={{
         fontFamily: CARD_FONT,
-        border: "1px solid " + color,
-        color: color,
+        border: `1px solid ${color}`,
+        color,
         background: "rgba(15,23,42,0.62)",
         borderRadius: 999,
         padding: "2px 7px",
@@ -145,6 +143,7 @@ function getLevelRowsFromObject(obj) {
     ["r786", "78.6%"],
     ["reference786", "78.6 Ref"],
     ["invalidation", "Invalidation"],
+
     ["e100", "1.000"],
     ["e1168", "1.168"],
     ["e1272", "1.272"],
@@ -155,10 +154,7 @@ function getLevelRowsFromObject(obj) {
     ["e4236", "4.236"],
   ];
 
-  orderedKeys.forEach(function (item) {
-    const key = item[0];
-    const label = item[1];
-
+  orderedKeys.forEach(([key, label]) => {
     if (obj[key] != null) {
       rows.push([label, obj[key]]);
     }
@@ -184,9 +180,7 @@ function getTargetStatus({ value, currentPrice, direction }) {
 function getLevelBlockConfig({ interpretation, targets }) {
   const activeTargets = targets && typeof targets === "object" ? targets : {};
   const higherTargets =
-    interpretation &&
-    interpretation.higherTargets &&
-    typeof interpretation.higherTargets === "object"
+    interpretation?.higherTargets && typeof interpretation.higherTargets === "object"
       ? interpretation.higherTargets
       : {};
 
@@ -211,17 +205,17 @@ function getLevelBlockConfig({ interpretation, targets }) {
     "4.236",
   ];
 
-  const activePullbackRows = getLevelRowsFromObject(activeTargets).filter(function (row) {
-    return pullbackLabels.includes(row[0]);
-  });
+  const activePullbackRows = getLevelRowsFromObject(activeTargets).filter(([label]) =>
+    pullbackLabels.includes(label)
+  );
 
-  const activeExtensionRows = getLevelRowsFromObject(activeTargets).filter(function (row) {
-    return extensionLabels.includes(row[0]);
-  });
+  const activeExtensionRows = getLevelRowsFromObject(activeTargets).filter(([label]) =>
+    extensionLabels.includes(label)
+  );
 
-  const higherExtensionRows = getLevelRowsFromObject(higherTargets).filter(function (row) {
-    return extensionLabels.includes(row[0]);
-  });
+  const higherExtensionRows = getLevelRowsFromObject(higherTargets).filter(([label]) =>
+    extensionLabels.includes(label)
+  );
 
   if (activePullbackRows.length) {
     return {
@@ -260,29 +254,17 @@ function getLevelBlockConfig({ interpretation, targets }) {
 }
 
 function ReclaimActionBlock({ engine16, waveOpportunity }) {
-  const trigger10m =
-    engine16 && engine16.regimeLayers && engine16.regimeLayers.trigger10m
-      ? engine16.regimeLayers.trigger10m
-      : {};
-
-  const pullback1h =
-    engine16 && engine16.regimeLayers && engine16.regimeLayers.pullback1h
-      ? engine16.regimeLayers.pullback1h
-      : {};
-
-  const trend4h =
-    engine16 && engine16.regimeLayers && engine16.regimeLayers.trend4h
-      ? engine16.regimeLayers.trend4h
-      : {};
+  const trigger10m = engine16?.regimeLayers?.trigger10m || {};
+  const pullback1h = engine16?.regimeLayers?.pullback1h || {};
+  const trend4h = engine16?.regimeLayers?.trend4h || {};
 
   const currentPrice =
-    toNumber(waveOpportunity && waveOpportunity.currentPrice) ??
-    toNumber(trigger10m.close);
+    toNumber(waveOpportunity?.currentPrice) ?? toNumber(trigger10m?.close);
 
-  const ema10 = toNumber(trigger10m.ema10);
-  const ema20 = toNumber(trigger10m.ema20);
-  const support1h = toNumber(pullback1h.ema10);
-  const support4h = toNumber(trend4h.ema10);
+  const ema10 = toNumber(trigger10m?.ema10);
+  const ema20 = toNumber(trigger10m?.ema20);
+  const support1h = toNumber(pullback1h?.ema10);
+  const support4h = toNumber(trend4h?.ema10);
 
   const hasLevels =
     currentPrice != null ||
@@ -320,9 +302,9 @@ function ReclaimActionBlock({ engine16, waveOpportunity }) {
       {(ema10 != null || ema20 != null) && (
         <SmallLine
           label="10m reclaim"
-          value={formatLevel(ema10) + " → " + formatLevel(ema20)}
+          value={`${formatLevel(ema10)} → ${formatLevel(ema20)}`}
           valueColor="#fbbf24"
-          badge={<StatusBadge label={trigger10m.state || "Watch"} color="#fbbf24" />}
+          badge={<StatusBadge label={trigger10m?.state || "Watch"} color="#fbbf24" />}
         />
       )}
 
@@ -348,12 +330,8 @@ function ReclaimActionBlock({ engine16, waveOpportunity }) {
 }
 
 function LevelsBlock({ interpretation, targets, currentPrice, direction }) {
-  const extensionTouchContext =
-    interpretation && interpretation.extensionTouchContext
-      ? interpretation.extensionTouchContext
-      : null;
-
-  const config = getLevelBlockConfig({ interpretation: interpretation, targets: targets });
+  const extensionTouchContext = interpretation?.extensionTouchContext || null;
+  const config = getLevelBlockConfig({ interpretation, targets });
 
   if (!config || !config.rows.length) return null;
 
@@ -361,7 +339,7 @@ function LevelsBlock({ interpretation, targets, currentPrice, direction }) {
     <div
       style={{
         ...BOX_STYLE,
-        border: "1px solid " + config.border,
+        border: `1px solid ${config.border}`,
         background: config.background,
       }}
     >
@@ -376,26 +354,17 @@ function LevelsBlock({ interpretation, targets, currentPrice, direction }) {
       </div>
 
       <div style={{ display: "grid", gap: 5 }}>
-        {config.rows.map(function (row) {
-          const label = row[0];
-          const value = row[1];
-
+        {config.rows.map(([label, value]) => {
           const extensionTouched =
             config.type === "targets" &&
-            extensionTouchContext &&
-            extensionTouchContext.active === true &&
-            String(extensionTouchContext.levelLabel || "") === String(label);
+            extensionTouchContext?.active === true &&
+            String(extensionTouchContext?.levelLabel || "") === String(label);
 
-          const hit =
-            config.type === "targets"
-              ? extensionTouched
-                ? "TOUCHED_REJECTED"
-                : getTargetStatus({
-                    value: value,
-                    currentPrice: currentPrice,
-                    direction: direction,
-                  })
-              : null;
+          const hit = config.type === "targets"
+            ? extensionTouched
+              ? "TOUCHED_REJECTED"
+              : getTargetStatus({ value, currentPrice, direction })
+            : null;
 
           return (
             <SmallLine
@@ -406,7 +375,7 @@ function LevelsBlock({ interpretation, targets, currentPrice, direction }) {
               badge={
                 extensionTouched ? (
                   <StatusBadge
-                    label={"Hit x" + extensionTouchContext.touchCount + " / Rejected"}
+                    label={`Hit x${extensionTouchContext.touchCount} / Rejected`}
                     color="#fb7185"
                   />
                 ) : hit ? (
@@ -443,44 +412,42 @@ function WeaknessBlock({ zones }) {
         Weakness / chase-risk zones
       </div>
 
-      {safe.slice(0, 4).map(function (z, idx) {
-        return (
+      {safe.slice(0, 4).map((z, idx) => (
+        <div
+          key={`${z.label || "zone"}-${idx}`}
+          style={{
+            display: "grid",
+            gap: 4,
+            paddingBottom: idx < safe.slice(0, 4).length - 1 ? 6 : 0,
+            borderBottom:
+              idx < safe.slice(0, 4).length - 1
+                ? "1px solid rgba(251,191,36,0.10)"
+                : "none",
+          }}
+        >
           <div
-            key={(z.label || "zone") + "-" + idx}
             style={{
-              display: "grid",
-              gap: 4,
-              paddingBottom: idx < safe.slice(0, 4).length - 1 ? 6 : 0,
-              borderBottom:
-                idx < safe.slice(0, 4).length - 1
-                  ? "1px solid rgba(251,191,36,0.10)"
-                  : "none",
+              ...TEXT_STYLE,
+              color: "#f8fafc",
+              fontWeight: 500,
             }}
           >
+            {z.label || "Zone"}: {z.level ?? "—"}
+          </div>
+
+          {z.meaning && (
             <div
               style={{
                 ...TEXT_STYLE,
-                color: "#f8fafc",
-                fontWeight: 500,
+                color: "#dbeafe",
+                fontWeight: 400,
               }}
             >
-              {(z.label || "Zone") + ": " + (z.level ?? "—")}
+              {z.meaning}
             </div>
-
-            {z.meaning && (
-              <div
-                style={{
-                  ...TEXT_STYLE,
-                  color: "#dbeafe",
-                  fontWeight: 400,
-                }}
-              >
-                {z.meaning}
-              </div>
-            )}
-          </div>
-        );
-      })}
+          )}
+        </div>
+      ))}
     </div>
   );
 }
@@ -488,27 +455,14 @@ function WeaknessBlock({ zones }) {
 function ExtensionTouchBlock({ context }) {
   if (!context || context.active !== true) return null;
 
-  const latestTiming = String(
-    context.latestSignalTiming || context.timing || ""
-  ).toUpperCase();
-
-  const firstTiming = String(context.firstSignalTiming || "").toUpperCase();
+  const timing = String(context.timing || "").toUpperCase();
 
   const timingColor =
-    latestTiming === "FRESH"
+    timing === "FRESH"
       ? "#22c55e"
-      : latestTiming === "DEVELOPING"
+      : timing === "DEVELOPING"
       ? "#fbbf24"
-      : latestTiming === "LATE"
-      ? "#fb7185"
-      : "#94a3b8";
-
-  const firstTimingColor =
-    firstTiming === "FRESH"
-      ? "#22c55e"
-      : firstTiming === "DEVELOPING"
-      ? "#fbbf24"
-      : firstTiming === "LATE"
+      : timing === "LATE"
       ? "#fb7185"
       : "#94a3b8";
 
@@ -516,9 +470,6 @@ function ExtensionTouchBlock({ context }) {
     context.pattern === "DOUBLE_TOP_EXTENSION_REJECTION"
       ? "Double-top extension rejection"
       : formatText(context.pattern || "Extension rejection");
-
-  const latestMove = toNumber(context.moveSinceLatestSignalPts);
-  const firstMove = toNumber(context.moveSinceFirstSignalPts);
 
   return (
     <div
@@ -542,24 +493,20 @@ function ExtensionTouchBlock({ context }) {
         label="Pattern"
         value={patternLabel}
         valueColor="#fecaca"
-        badge={<StatusBadge label={formatText(latestTiming)} color={timingColor} />}
+        badge={<StatusBadge label={formatText(timing)} color={timingColor} />}
       />
 
       <SmallLine
-        label={(context.levelLabel || "Extension") + " level"}
+        label={`${context.levelLabel || "Extension"} level`}
         value={formatLevel(context.level)}
         valueColor="#f8fafc"
       />
 
-      <SmallLine label="Touches" value={context.touchCount} valueColor="#fecaca" />
-
-      {context.rejectionSignalCount != null && (
-        <SmallLine
-          label="Rejection signals"
-          value={context.rejectionSignalCount}
-          valueColor="#fecaca"
-        />
-      )}
+      <SmallLine
+        label="Touches"
+        value={context.touchCount}
+        valueColor="#fecaca"
+      />
 
       <SmallLine
         label="Last close"
@@ -568,52 +515,24 @@ function ExtensionTouchBlock({ context }) {
       />
 
       <SmallLine
-        label="Latest signal"
-        value={formatLevel(context.latestSignalPrice ?? context.signalPrice)}
+        label="First signal"
+        value={formatLevel(context.firstSignalPrice)}
         valueColor="#fbbf24"
-        badge={
-          latestTiming ? (
-            <StatusBadge label={formatText(latestTiming)} color={timingColor} />
-          ) : null
-        }
       />
 
       <SmallLine
-        label="Bars since latest"
-        value={context.barsSinceLatestSignal ?? context.barsSinceSignal}
+        label="Bars since signal"
+        value={context.barsSinceFirstSignal}
         valueColor={timingColor}
       />
 
-      {latestMove != null && (
+      {context.moveSinceFirstSignalPts != null && (
         <SmallLine
-          label="Move since latest"
-          value={latestMove.toFixed(2) + " pts"}
-          valueColor={latestMove < 0 ? "#fb7185" : "#22c55e"}
-        />
-      )}
-
-      <SmallLine
-        label="First rejection"
-        value={formatLevel(context.firstSignalPrice)}
-        valueColor="#fbbf24"
-        badge={
-          firstTiming ? (
-            <StatusBadge label={formatText(firstTiming)} color={firstTimingColor} />
-          ) : null
-        }
-      />
-
-      <SmallLine
-        label="Bars since first"
-        value={context.barsSinceFirstSignal}
-        valueColor={firstTimingColor}
-      />
-
-      {firstMove != null && (
-        <SmallLine
-          label="Move since first"
-          value={firstMove.toFixed(2) + " pts"}
-          valueColor={firstMove < 0 ? "#fb7185" : "#22c55e"}
+          label="Move since signal"
+          value={`${Number(context.moveSinceFirstSignalPts).toFixed(2)} pts`}
+          valueColor={
+            Number(context.moveSinceFirstSignalPts) < 0 ? "#fb7185" : "#22c55e"
+          }
         />
       )}
 
@@ -649,20 +568,11 @@ export default function Engine23BehaviorCard({
   const recent = interpretation.recentCompletion;
   const active = interpretation.activeStructure;
   const higher = interpretation.higherContext;
-
   const currentPrice =
-    toNumber(waveOpportunity && waveOpportunity.currentPrice) ??
-    toNumber(
-      engine16 &&
-        engine16.regimeLayers &&
-        engine16.regimeLayers.trigger10m &&
-        engine16.regimeLayers.trigger10m.close
-    );
-
+    toNumber(waveOpportunity?.currentPrice) ??
+    toNumber(engine16?.regimeLayers?.trigger10m?.close);
   const direction =
-    (waveOpportunity && waveOpportunity.direction) ||
-    interpretation.directionBias ||
-    "LONG";
+    waveOpportunity?.direction || interpretation.directionBias || "LONG";
 
   return (
     <div
@@ -677,7 +587,7 @@ export default function Engine23BehaviorCard({
         maxHeight: "calc(100vh - 210px)",
         overflowY: "auto",
         borderRadius: 14,
-        border: "1px solid " + healthBorder(health),
+        border: `1px solid ${healthBorder(health)}`,
         background: "rgba(6,10,20,0.96)",
         padding: "13px 16px",
         color: "#e5e7eb",
@@ -701,7 +611,7 @@ export default function Engine23BehaviorCard({
           <div
             style={{
               ...TITLE_STYLE,
-              color: color,
+              color,
               fontSize: 18,
             }}
           >
@@ -723,10 +633,10 @@ export default function Engine23BehaviorCard({
 
         <div
           style={{
-            border: "1px solid " + healthBorder(health),
+            border: `1px solid ${healthBorder(health)}`,
             borderRadius: 999,
             padding: "5px 10px",
-            color: color,
+            color,
             fontFamily: CARD_FONT,
             fontWeight: 500,
             fontSize: 15,
@@ -745,39 +655,42 @@ export default function Engine23BehaviorCard({
           gap: 7,
         }}
       >
-        <SmallLine label="Preferred" value={formatText(interpretation.preferredEntry)} />
-
-        <SmallLine label="Active degree" value={formatText(interpretation.activeDegree)} />
-
+        <SmallLine
+          label="Preferred"
+          value={formatText(interpretation.preferredEntry)}
+        />
+        <SmallLine
+          label="Active degree"
+          value={formatText(interpretation.activeDegree)}
+        />
         <SmallLine
           label="Recent"
-          value={recent ? formatText(recent.degree) + " " + recent.wave : "—"}
+          value={recent ? `${formatText(recent.degree)} ${recent.wave}` : "—"}
         />
-
-        <SmallLine label="Active setup" value={active && active.setup ? active.setup : "—"} />
-
+        <SmallLine label="Active setup" value={active?.setup || "—"} />
         <SmallLine
           label="Higher context"
-          value={
-            higher && higher.label
-              ? higher.label
-              : interpretation.higherDegreeContext || "—"
-          }
+          value={higher?.label || interpretation.higherDegreeContext || "—"}
         />
-
-        <SmallLine label="Direction" value={formatText(interpretation.directionBias)} />
+        <SmallLine
+          label="Direction"
+          value={formatText(interpretation.directionBias)}
+        />
       </div>
 
       <ExtensionTouchBlock context={interpretation.extensionTouchContext} />
 
-      <ReclaimActionBlock engine16={engine16} waveOpportunity={waveOpportunity} />
+      <ReclaimActionBlock
+      engine16={engine16}
+      waveOpportunity={waveOpportunity}
+    />
 
-      <LevelsBlock
-        interpretation={interpretation}
-        targets={interpretation.activeTargets}
-        currentPrice={currentPrice}
-        direction={direction}
-      />
+     <LevelsBlock
+       interpretation={interpretation}
+       targets={interpretation.activeTargets}
+       currentPrice={currentPrice}
+       direction={direction}
+     />
 
       <WeaknessBlock zones={interpretation.weaknessZones} />
     </div>
