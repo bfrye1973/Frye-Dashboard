@@ -435,6 +435,107 @@ function WeaknessBlock({ zones }) {
   );
 }
 
+function ExtensionTouchBlock({ context }) {
+  if (!context || context.active !== true) return null;
+
+  const timing = String(context.timing || "").toUpperCase();
+
+  const timingColor =
+    timing === "FRESH"
+      ? "#22c55e"
+      : timing === "DEVELOPING"
+      ? "#fbbf24"
+      : timing === "LATE"
+      ? "#fb7185"
+      : "#94a3b8";
+
+  const patternLabel =
+    context.pattern === "DOUBLE_TOP_EXTENSION_REJECTION"
+      ? "Double-top extension rejection"
+      : formatText(context.pattern || "Extension rejection");
+
+  return (
+    <div
+      style={{
+        ...BOX_STYLE,
+        border: "1px solid rgba(251,113,133,0.58)",
+        background: "rgba(127,29,29,0.20)",
+      }}
+    >
+      <div
+        style={{
+          ...TITLE_STYLE,
+          color: "#fb7185",
+          marginBottom: 2,
+        }}
+      >
+        Extension Rejection Read
+      </div>
+
+      <SmallLine
+        label="Pattern"
+        value={patternLabel}
+        valueColor="#fecaca"
+        badge={<StatusBadge label={formatText(timing)} color={timingColor} />}
+      />
+
+      <SmallLine
+        label={`${context.levelLabel || "Extension"} level`}
+        value={formatLevel(context.level)}
+        valueColor="#f8fafc"
+      />
+
+      <SmallLine
+        label="Touches"
+        value={context.touchCount}
+        valueColor="#fecaca"
+      />
+
+      <SmallLine
+        label="Last close"
+        value={formatLevel(context.lastClose)}
+        valueColor="#f8fafc"
+      />
+
+      <SmallLine
+        label="First signal"
+        value={formatLevel(context.firstSignalPrice)}
+        valueColor="#fbbf24"
+      />
+
+      <SmallLine
+        label="Bars since signal"
+        value={context.barsSinceFirstSignal}
+        valueColor={timingColor}
+      />
+
+      {context.moveSinceFirstSignalPts != null && (
+        <SmallLine
+          label="Move since signal"
+          value={`${Number(context.moveSinceFirstSignalPts).toFixed(2)} pts`}
+          valueColor={
+            Number(context.moveSinceFirstSignalPts) < 0 ? "#fb7185" : "#22c55e"
+          }
+        />
+      )}
+
+      {context.read && (
+        <div
+          style={{
+            ...TEXT_STYLE,
+            color: "#fecaca",
+            fontSize: 14,
+            lineHeight: 1.35,
+            marginTop: 2,
+          }}
+        >
+          {context.read}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function Engine23BehaviorCard({
   visible = true,
   interpretation = null,
@@ -560,17 +661,19 @@ export default function Engine23BehaviorCard({
         />
       </div>
 
-      <ReclaimActionBlock
-        engine16={engine16}
-        waveOpportunity={waveOpportunity}
-      />
+      <ExtensionTouchBlock context={interpretation.extensionTouchContext} />
 
-      <LevelsBlock
-        interpretation={interpretation}
-        targets={interpretation.activeTargets}
-        currentPrice={currentPrice}
-        direction={direction}
-      />
+      <ReclaimActionBlock
+      engine16={engine16}
+      waveOpportunity={waveOpportunity}
+    />
+
+     <LevelsBlock
+       interpretation={interpretation}
+       targets={interpretation.activeTargets}
+       currentPrice={currentPrice}
+       direction={direction}
+     />
 
       <WeaknessBlock zones={interpretation.weaknessZones} />
     </div>
