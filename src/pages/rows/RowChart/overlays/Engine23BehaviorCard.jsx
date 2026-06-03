@@ -263,15 +263,15 @@ function ReclaimActionBlock({ engine16, waveOpportunity }) {
 
   const ema10 = toNumber(trigger10m?.ema10);
   const ema20 = toNumber(trigger10m?.ema20);
-  const support1h = toNumber(pullback1h?.ema10);
-  const support4h = toNumber(trend4h?.ema10);
+  const reclaim1h = toNumber(pullback1h?.ema10);
+  const reclaim4h = toNumber(trend4h?.ema10);
 
   const hasLevels =
     currentPrice != null ||
     ema10 != null ||
     ema20 != null ||
-    support1h != null ||
-    support4h != null;
+    reclaim1h != null ||
+    reclaim4h != null;
 
   if (!hasLevels) return null;
 
@@ -308,31 +308,40 @@ function ReclaimActionBlock({ engine16, waveOpportunity }) {
         />
       )}
 
-      {support1h != null && (
+      {reclaim1h != null && (
         <SmallLine
-          label="First support"
-          value={formatLevel(support1h)}
+          label="1H reclaim"
+          value={formatLevel(reclaim1h)}
           valueColor="#93c5fd"
-          badge={<StatusBadge label="1H EMA10" color="#60a5fa" />}
+          badge={<StatusBadge label={pullback1h?.state || "1H EMA10"} color="#60a5fa" />}
         />
       )}
 
-      {support4h != null && (
+      {reclaim4h != null && (
         <SmallLine
-          label="Deeper support"
-          value={formatLevel(support4h)}
+          label="4H reclaim"
+          value={formatLevel(reclaim4h)}
           valueColor="#93c5fd"
-          badge={<StatusBadge label="4H EMA10" color="#60a5fa" />}
+          badge={<StatusBadge label={trend4h?.state || "4H EMA10"} color="#60a5fa" />}
         />
       )}
     </div>
   );
 }
-
 function LevelsBlock({ interpretation, targets, currentPrice, direction }) {
+  const extensionTouchContext = interpretation?.extensionTouchContext || null;
   const config = getLevelBlockConfig({ interpretation, targets });
 
   if (!config || !config.rows.length) return null;
+
+  function extensionNumberFromLabel(label) {
+    const n = Number(String(label || "").replace(/[^\d.]/g, ""));
+    return Number.isFinite(n) ? n : null;
+  }
+
+  function activeRejectedExtensionNumber() {
+    return extensionNumberFromLabel(extensionTouchContext?.levelLabel);
+  }
 
   return (
     <div
@@ -354,9 +363,31 @@ function LevelsBlock({ interpretation, targets, currentPrice, direction }) {
 
       <div style={{ display: "grid", gap: 5 }}>
         {config.rows.map(([label, value]) => {
-          const hit = config.type === "targets"
-            ? getTargetStatus({ value, currentPrice, direction })
-            : null;
+          const rowExtensionNumber = extensionNumberFromLabel(label);
+          const rejectedExtensionNumber = activeRejectedExtensionNumber();
+
+          const extensionRejected =
+            config.type === "targets" &&
+            extensionTouchContext?.active === true &&
+            String(extensionTouchContext?.levelLabel || "") === String(label);
+
+          const historicallyHitByRejectedHigherLevel =
+            config.type === "targets" &&
+            extensionTouchContext?.active === true &&
+            rowExtensionNumber != null &&
+            rejectedExtensionNumber != null &&
+            rowExtensionNumber < rejectedExtensionNumber;
+
+          const currentHit =
+            config.type === "targets"
+              ? getTargetStatus({ value, currentPrice, direction })
+              : null;
+
+          const hit = extensionRejected
+            ? "TOUCHED_REJECTED"
+            : historicallyHitByRejectedHigherLevel
+            ? "HIT_HISTORICAL"
+            : currentHit;
 
           return (
             <SmallLine
@@ -364,7 +395,16 @@ function LevelsBlock({ interpretation, targets, currentPrice, direction }) {
               label={label}
               value={formatLevel(value)}
               valueColor={hit ? "#86efac" : "#dbeafe"}
-              badge={hit ? <StatusBadge label="Hit" color="#22c55e" /> : null}
+              badge={
+                extensionRejected ? (
+                  <StatusBadge
+                    label={`Hit x${extensionTouchContext.touchCount} / Rejected`}
+                    color="#fb7185"
+                  />
+                ) : hit ? (
+                  <StatusBadge label="Hit" color="#22c55e" />
+                ) : null
+              }
             />
           );
         })}
@@ -372,7 +412,6 @@ function LevelsBlock({ interpretation, targets, currentPrice, direction }) {
     </div>
   );
 }
-
 function WeaknessBlock({ zones }) {
   const safe = Array.isArray(zones) ? zones.filter(Boolean) : [];
   if (!safe.length) return null;
