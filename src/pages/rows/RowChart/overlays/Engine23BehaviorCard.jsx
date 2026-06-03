@@ -1,3 +1,4 @@
+```jsx
 // src/pages/rows/RowChart/overlays/Engine23BehaviorCard.jsx
 
 import React from "react";
@@ -360,11 +361,12 @@ function LevelsBlock({ interpretation, targets, currentPrice, direction }) {
             extensionTouchContext?.active === true &&
             String(extensionTouchContext?.levelLabel || "") === String(label);
 
-          const hit = config.type === "targets"
-            ? extensionTouched
-              ? "TOUCHED_REJECTED"
-              : getTargetStatus({ value, currentPrice, direction })
-            : null;
+          const hit =
+            config.type === "targets"
+              ? extensionTouched
+                ? "TOUCHED_REJECTED"
+                : getTargetStatus({ value, currentPrice, direction })
+              : null;
 
           return (
             <SmallLine
@@ -459,9 +461,7 @@ function ExtensionTouchBlock({ context }) {
     context.latestSignalTiming || context.timing || ""
   ).toUpperCase();
 
-  const firstTiming = String(
-    context.firstSignalTiming || ""
-  ).toUpperCase();
+  const firstTiming = String(context.firstSignalTiming || "").toUpperCase();
 
   const timingColor =
     latestTiming === "FRESH"
@@ -606,3 +606,148 @@ function ExtensionTouchBlock({ context }) {
     </div>
   );
 }
+
+export default function Engine23BehaviorCard({
+  visible = true,
+  interpretation = null,
+  symbol = "ES",
+  waveOpportunity = null,
+  engine16 = null,
+}) {
+  if (!visible || !interpretation) return null;
+
+  const health = interpretation.health || "UNKNOWN";
+  const color = healthColor(health);
+
+  const recent = interpretation.recentCompletion;
+  const active = interpretation.activeStructure;
+  const higher = interpretation.higherContext;
+  const currentPrice =
+    toNumber(waveOpportunity?.currentPrice) ??
+    toNumber(engine16?.regimeLayers?.trigger10m?.close);
+  const direction =
+    waveOpportunity?.direction || interpretation.directionBias || "LONG";
+
+  return (
+    <div
+      style={{
+        fontFamily: CARD_FONT,
+        position: "absolute",
+        top: 150,
+        left: "calc(50% + 430px)",
+        zIndex: 108,
+        width: 430,
+        maxWidth: "28%",
+        maxHeight: "calc(100vh - 210px)",
+        overflowY: "auto",
+        borderRadius: 14,
+        border: `1px solid ${healthBorder(health)}`,
+        background: "rgba(6,10,20,0.96)",
+        padding: "13px 16px",
+        color: "#e5e7eb",
+        backdropFilter: "blur(4px)",
+        pointerEvents: "none",
+        textAlign: "left",
+        boxShadow: "0 8px 24px rgba(0,0,0,0.28)",
+        display: "grid",
+        gap: 9,
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 12,
+        }}
+      >
+        <div>
+          <div
+            style={{
+              ...TITLE_STYLE,
+              color,
+              fontSize: 18,
+            }}
+          >
+            Engine 23 — Wave behavior read
+          </div>
+
+          <div
+            style={{
+              ...TEXT_STYLE,
+              color: "#f8fafc",
+              fontWeight: 400,
+              marginTop: 3,
+            }}
+          >
+            {symbol} • {formatText(interpretation.environment)} •{" "}
+            {formatText(interpretation.state)}
+          </div>
+        </div>
+
+        <div
+          style={{
+            border: `1px solid ${healthBorder(health)}`,
+            borderRadius: 999,
+            padding: "5px 10px",
+            color,
+            fontFamily: CARD_FONT,
+            fontWeight: 500,
+            fontSize: 15,
+            background: "rgba(15,23,42,0.55)",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {formatText(health)}
+        </div>
+      </div>
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr",
+          gap: 7,
+        }}
+      >
+        <SmallLine
+          label="Preferred"
+          value={formatText(interpretation.preferredEntry)}
+        />
+        <SmallLine
+          label="Active degree"
+          value={formatText(interpretation.activeDegree)}
+        />
+        <SmallLine
+          label="Recent"
+          value={recent ? `${formatText(recent.degree)} ${recent.wave}` : "—"}
+        />
+        <SmallLine label="Active setup" value={active?.setup || "—"} />
+        <SmallLine
+          label="Higher context"
+          value={higher?.label || interpretation.higherDegreeContext || "—"}
+        />
+        <SmallLine
+          label="Direction"
+          value={formatText(interpretation.directionBias)}
+        />
+      </div>
+
+      <ExtensionTouchBlock context={interpretation.extensionTouchContext} />
+
+      <ReclaimActionBlock
+        engine16={engine16}
+        waveOpportunity={waveOpportunity}
+      />
+
+      <LevelsBlock
+        interpretation={interpretation}
+        targets={interpretation.activeTargets}
+        currentPrice={currentPrice}
+        direction={direction}
+      />
+
+      <WeaknessBlock zones={interpretation.weaknessZones} />
+    </div>
+  );
+}
+```
