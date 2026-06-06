@@ -11,8 +11,9 @@ const RAW_API_BASE =
 const API_ROOT = RAW_API_BASE.replace(/\/+$/, "").replace(/\/api$/, "");
 
 const ENGINE25_ROUTE = `${API_ROOT}/api/v1/engine25/full-dashboard`;
-
 const MASTER_ROUTE = `${API_ROOT}/api/v1/futures/market-meter?symbol=ES`;
+
+const PANEL_FONT = "Arial, Helvetica, sans-serif";
 
 /* =========================
    Formatters
@@ -41,6 +42,17 @@ function scoreColor(score, inverse = false) {
   if (n >= 50) return "#eab308";
   if (n >= 35) return "#f97316";
   return "#ef4444";
+}
+
+function intradayColor(label, score) {
+  const text = String(label || "").toUpperCase();
+  const n = Number(score);
+
+  if (text.includes("DISTRIBUTION_ACTIVE")) return "#ef4444";
+  if (text.includes("DAMAGE_ELEVATED")) return "#f97316";
+  if (text.includes("DAMAGE_WATCH")) return "#fbbf24";
+  if (Number.isFinite(n)) return scoreColor(n);
+  return "#94a3b8";
 }
 
 function fmtScore(value) {
@@ -89,10 +101,8 @@ function dateOnlyFromIso(value) {
 }
 
 /* =========================
-   Shared Engine 17-style UI helpers
+   Shared UI helpers
 ========================= */
-
-const PANEL_FONT = "Arial, Helvetica, sans-serif";
 
 function engine25Border() {
   return "rgba(96,165,250,0.45)";
@@ -415,16 +425,12 @@ function buildJumpAlert(rows) {
 ========================= */
 
 function buildFreshness(headline, masterUpdatedAt) {
-  const model =
-    dateOnlyFromIso(
-      headline?.latestEodDate ||
-        headline?.cashProxyDate ||
-        headline?.date
-    );
+  const model = dateOnlyFromIso(
+    headline?.latestEodDate || headline?.cashProxyDate || headline?.date
+  );
 
   const esSessionDate = dateOnlyFromIso(headline?.esSessionDate);
   const requiredEodDate = dateOnlyFromIso(headline?.requiredEodDate);
-
   const master = dateOnlyFromIso(masterUpdatedAt);
 
   const required = requiredEodDate || model || master;
@@ -473,6 +479,7 @@ function buildFreshness(headline, masterUpdatedAt) {
       "Engine 25 is behind the required latest EOD row. Treat it as stale until the replay file updates.",
   };
 }
+
 /* =========================
    Main Export
 ========================= */
@@ -548,12 +555,25 @@ export default function Engine25MarketHealthTimeline({
   }, [visible, isES]);
 
   const headline = payload?.headline || {};
+  const intraday = payload?.intradayProxyDamage || null;
+  const liveEsPermission = payload?.liveEsPermission || null;
+
+  const intradayScore = Number(intraday?.score);
+  const intradayLabel = intraday?.label || null;
+  const intradayPermission =
+    liveEsPermission?.mode || headline?.livePermission || null;
+  const intradaySize =
+    liveEsPermission?.sizeMultiplier ?? headline?.liveSize ?? null;
+  const hasIntradayRead = Boolean(intraday && intradayLabel);
+
   const breakdown = Array.isArray(payload?.componentBreakdown)
     ? payload.componentBreakdown
     : [];
+
   const changes = Array.isArray(payload?.underTheHood?.rows)
     ? payload.underTheHood.rows
     : [];
+
   const zoneRead = payload?.zoneRead || null;
 
   const lookupChange = useMemo(() => {
@@ -577,7 +597,7 @@ export default function Engine25MarketHealthTimeline({
   const comparison = buildMasterComparison(score, masterScore);
   const jumpAlert = buildJumpAlert(changes);
   const freshness = buildFreshness(headline, masterPayload?.updated_at_utc);
-  
+
   const breadth = breakdown.find((item) => item.key === "breadthParticipation");
   const distribution = breakdown.find(
     (item) => item.key === "distributionPressure"
@@ -749,8 +769,11 @@ export default function Engine25MarketHealthTimeline({
                   }}
                 >
                   Latest EOD:{" "}
-                  {headline.latestEodDate || headline.cashProxyDate || headline.date || "—"} · ES{" "}
-                  {headline.esClose ?? "—"}
+                  {headline.latestEodDate ||
+                    headline.cashProxyDate ||
+                    headline.date ||
+                    "—"}{" "}
+                  · ES {headline.esClose ?? "—"}
                 </div>
               </div>
             </div>
@@ -771,6 +794,84 @@ export default function Engine25MarketHealthTimeline({
             >
               {permission} · Size {size}
             </div>
+
+            {hasIntradayRead && (
+              <div
+                style={{
+                  fontFamily: PANEL_FONT,
+                  border: `1px solid ${intradayColor(
+                    intradayLabel,
+                    intradayScore
+                  )}`,
+                  background: "rgba(127,29,29,0.18)",
+                  borderRadius: 10,
+                  padding: "8px 10px",
+                  display: "grid",
+                  gap: 4,
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: 10,
+                    alignItems: "center",
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: 15,
+                      fontWeight: 900,
+                      color: "#fecaca",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.02em",
+                    }}
+                  >
+                    Intraday Live Read
+                  </div>
+
+                  <div
+                    style={{
+                      fontSize: 20,
+                      lineHeight: 1,
+                      fontWeight: 950,
+                      color: intradayColor(intradayLabel, intradayScore),
+                    }}
+                  >
+                    {Number.isFinite(intradayScore)
+                      ? Math.round(intradayScore)
+                      : "—"}
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    fontSize: 16,
+                    lineHeight: 1.35,
+                    color: intradayColor(intradayLabel, intradayScore),
+                    fontWeight: 900,
+                    textTransform: "uppercase",
+                  }}
+                >
+                  {cleanLabel(intradayLabel)}
+                </div>
+
+                <div
+                  style={{
+                    fontSize: 15,
+                    lineHeight: 1.35,
+                    color: "#fecaca",
+                    fontWeight: 700,
+                    textTransform: "uppercase",
+                  }}
+                >
+                  {cleanLabel(intradayPermission)}{" "}
+                  {intradaySize !== null && intradaySize !== undefined
+                    ? `· Size ${intradaySize}`
+                    : ""}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -801,12 +902,12 @@ export default function Engine25MarketHealthTimeline({
                     value={freshness.esSessionDate}
                     color={freshness.color}
                   />
-               )}
-             <CompareRow
-               label="Status"
-               value={freshness.status}
-               color={freshness.color}
-             />
+                )}
+              <CompareRow
+                label="Status"
+                value={freshness.status}
+                color={freshness.color}
+              />
 
               <div
                 style={{
