@@ -414,58 +414,65 @@ function buildJumpAlert(rows) {
    Freshness Logic
 ========================= */
 
-function buildFreshness(modelDate, masterUpdatedAt) {
-  const model = dateOnlyFromIso(modelDate);
+function buildFreshness(headline, masterUpdatedAt) {
+  const model =
+    dateOnlyFromIso(
+      headline?.latestEodDate ||
+        headline?.cashProxyDate ||
+        headline?.date
+    );
+
+  const esSessionDate = dateOnlyFromIso(headline?.esSessionDate);
+  const requiredEodDate = dateOnlyFromIso(headline?.requiredEodDate);
+
   const master = dateOnlyFromIso(masterUpdatedAt);
 
-  if (!model || !master) {
+  const required = requiredEodDate || model || master;
+
+  if (!model) {
     return {
       status: "FRESHNESS UNKNOWN",
       color: "#94a3b8",
       border: "rgba(148,163,184,0.38)",
       background: "rgba(15,23,42,0.38)",
-      modelDate: model || "—",
+      modelDate: "—",
       masterDate: master || "—",
-      read: "Could not compare Engine 25 model date against Market Meter update date.",
+      esSessionDate: esSessionDate || "—",
+      requiredEodDate: required || "—",
+      read: "Could not find Engine 25 latest EOD date.",
     };
   }
 
-  if (model === master) {
+  if (!required || model >= required) {
     return {
-      status: "FRESH",
+      status: "ENGINE 25 CURRENT",
       color: "#22c55e",
       border: "rgba(34,197,94,0.45)",
       background: "rgba(20,83,45,0.13)",
       modelDate: model,
-      masterDate: master,
-      read: "Engine 25 and Market Meter are on the same date.",
-    };
-  }
-
-  if (model < master) {
-    return {
-      status: "ENGINE 25 WAITING FOR LATEST EOD ROW",
-      color: "#fbbf24",
-      border: "rgba(251,191,36,0.52)",
-      background: "rgba(113,63,18,0.14)",
-      modelDate: model,
-      masterDate: master,
+      masterDate: master || "—",
+      esSessionDate: esSessionDate || "—",
+      requiredEodDate: required || model,
       read:
-        "Market Meter has newer data than Engine 25. Treat Engine 25 as the latest completed model row until the replay file updates.",
+        esSessionDate && esSessionDate !== model
+          ? "Engine 25 is current. ES futures session date differs from cash-market EOD date, but the latest cash proxy row is included."
+          : "Engine 25 is current with the latest completed EOD row.",
     };
   }
 
   return {
-    status: "ENGINE 25 AHEAD OF MASTER DATE",
-    color: "#60a5fa",
-    border: "rgba(96,165,250,0.50)",
-    background: "rgba(30,64,175,0.15)",
+    status: "ENGINE 25 WAITING FOR LATEST EOD ROW",
+    color: "#fbbf24",
+    border: "rgba(251,191,36,0.52)",
+    background: "rgba(113,63,18,0.14)",
     modelDate: model,
-    masterDate: master,
-    read: "Engine 25 model date is ahead of the Market Meter update date.",
+    masterDate: master || "—",
+    esSessionDate: esSessionDate || "—",
+    requiredEodDate: required,
+    read:
+      "Engine 25 is behind the required latest EOD row. Treat it as stale until the replay file updates.",
   };
 }
-
 /* =========================
    Main Export
 ========================= */
@@ -569,8 +576,8 @@ export default function Engine25MarketHealthTimeline({
   const masterTone = masterPayload?.master?.tone || "—";
   const comparison = buildMasterComparison(score, masterScore);
   const jumpAlert = buildJumpAlert(changes);
-  const freshness = buildFreshness(headline.date, masterPayload?.updated_at_utc);
-
+  const freshness = buildFreshness(headline, masterPayload?.updated_at_utc);
+  
   const breadth = breakdown.find((item) => item.key === "breadthParticipation");
   const distribution = breakdown.find(
     (item) => item.key === "distributionPressure"
@@ -741,7 +748,8 @@ export default function Engine25MarketHealthTimeline({
                     marginTop: 3,
                   }}
                 >
-                  Latest EOD: {headline.date || "—"} · ES{" "}
+                  Latest EOD:{" "}
+                  {headline.latestEodDate || headline.cashProxyDate || headline.date || "—"} · ES{" "}
                   {headline.esClose ?? "—"}
                 </div>
               </div>
@@ -777,20 +785,28 @@ export default function Engine25MarketHealthTimeline({
           >
             <div style={{ display: "grid", gap: 4 }}>
               <CompareRow
-                label="Engine 25 Date"
+                label="Engine 25 EOD"
                 value={freshness.modelDate}
                 color={freshness.color}
               />
               <CompareRow
-                label="Market Meter Date"
-                value={freshness.masterDate}
+                label="Required EOD"
+                value={freshness.requiredEodDate}
                 color={freshness.color}
               />
-              <CompareRow
-                label="Status"
-                value={freshness.status}
-                color={freshness.color}
-              />
+              {freshness.esSessionDate !== "—" &&
+                freshness.esSessionDate !== freshness.modelDate && (
+                  <CompareRow
+                    label="ES Session"
+                    value={freshness.esSessionDate}
+                    color={freshness.color}
+                  />
+               )}
+             <CompareRow
+               label="Status"
+               value={freshness.status}
+               color={freshness.color}
+             />
 
               <div
                 style={{
