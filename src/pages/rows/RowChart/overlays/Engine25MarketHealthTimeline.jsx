@@ -13,6 +13,25 @@ const ENGINE25_ROUTE = `${API_ROOT}/api/v1/engine25/full-dashboard`;
 
 const PANEL_FONT = "Arial, Helvetica, sans-serif";
 
+/*
+  Font policy:
+  The old readable card used 17px for most rows/body text.
+  Keep the small chart readable; do not shrink the main read below 17px.
+*/
+const FS = {
+  headerTitle: 17,
+  headerMeta: 17,
+  score: 54,
+  permission: 17,
+  sectionTitle: 17,
+  row: 17,
+  miniLabel: 14,
+  miniValue: 17,
+  note: 16,
+  button: 15,
+  loading: 17,
+};
+
 /* =========================
    Formatters
 ========================= */
@@ -55,7 +74,8 @@ function labelColor(label, score) {
     text.includes("NO_BLIND") ||
     text.includes("DISTRIBUTION_ACTIVE") ||
     text.includes("AT_RISK") ||
-    text.includes("BLOCKED")
+    text.includes("BLOCKED") ||
+    text.includes("LOST")
   ) {
     return "#ef4444";
   }
@@ -64,7 +84,8 @@ function labelColor(label, score) {
     text.includes("WATCH") ||
     text.includes("MIXED") ||
     text.includes("A_PLUS") ||
-    text.includes("SECONDARY")
+    text.includes("SECONDARY") ||
+    text.includes("RECLAIM")
   ) {
     return "#fbbf24";
   }
@@ -123,7 +144,7 @@ function rowByLabel(rows, label) {
 }
 
 /* =========================
-   Shared UI
+   UI helpers
 ========================= */
 
 function engine25Border() {
@@ -172,7 +193,7 @@ function SectionBox({ title, children, borderColor, titleColor, background }) {
         <div
           style={{
             fontFamily: PANEL_FONT,
-            fontSize: 15,
+            fontSize: FS.sectionTitle,
             fontWeight: 900,
             color: titleColor || "#60a5fa",
             marginBottom: 5,
@@ -196,9 +217,9 @@ function CompareRow({ label, value, color = "#dbeafe" }) {
         fontFamily: PANEL_FONT,
         display: "flex",
         justifyContent: "space-between",
-        gap: 8,
-        fontSize: 14,
-        lineHeight: 1.28,
+        gap: 9,
+        fontSize: FS.row,
+        lineHeight: 1.42,
         color: "#dbeafe",
         fontWeight: 650,
       }}
@@ -214,7 +235,7 @@ function MiniRead({ label, value, color = "#dbeafe" }) {
     <div style={{ display: "grid", gap: 1, minWidth: 0 }}>
       <div
         style={{
-          fontSize: 11,
+          fontSize: FS.miniLabel,
           color: "#94a3b8",
           fontWeight: 900,
           textTransform: "uppercase",
@@ -226,8 +247,8 @@ function MiniRead({ label, value, color = "#dbeafe" }) {
 
       <div
         style={{
-          fontSize: 13,
-          lineHeight: 1.18,
+          fontSize: FS.miniValue,
+          lineHeight: 1.25,
           color,
           fontWeight: 950,
           textTransform: "uppercase",
@@ -237,6 +258,23 @@ function MiniRead({ label, value, color = "#dbeafe" }) {
       >
         {value}
       </div>
+    </div>
+  );
+}
+
+function NoteText({ children, color = "#dbeafe" }) {
+  return (
+    <div
+      style={{
+        marginTop: 4,
+        color,
+        fontWeight: 650,
+        fontSize: FS.note,
+        lineHeight: 1.38,
+        whiteSpace: "pre-line",
+      }}
+    >
+      {children}
     </div>
   );
 }
@@ -331,6 +369,60 @@ function buildJumpAlert(rows) {
 }
 
 /* =========================
+   Zone detail helpers
+========================= */
+
+function buildZoneDetailRead({
+  zoneDecisionRead,
+  zoneClassification,
+  accumulation,
+  distribution,
+}) {
+  const label = String(zoneDecisionRead?.label || "").toUpperCase();
+  const accumulationState = String(accumulation?.state || "").toUpperCase();
+  const distributionState = String(distribution?.state || "").toUpperCase();
+
+  const institutionalValue = label.includes("INSTITUTIONAL_SUPPORT_AT_RISK")
+    ? "PRIMARY SUPPORT AT RISK"
+    : "PRIMARY ZONE CONTROLS";
+
+  const negotiatedValue = label.includes("AT_RISK")
+    ? "RECLAIM NEEDED"
+    : "WATCH VALUE ACCEPTANCE";
+
+  const shelfValue =
+    zoneDecisionRead?.secondaryShelfDefense?.value === true ||
+    accumulationState.includes("SECONDARY_SHELF")
+      ? "BLUE SHELF DEFENSE — SECONDARY ONLY"
+      : "NOT CONFIRMED";
+
+  const accumulationValue =
+    accumulationState.includes("NO_CONFIRMED") || !accumulationState
+      ? "NOT CONFIRMED UNTIL RECLAIM"
+      : compactLabel(accumulation?.state);
+
+  const distributionValue = distributionState.includes("DISTRIBUTION_ACTIVE")
+    ? "ACTIVE AT ZONE"
+    : compactLabel(distribution?.state || "UNKNOWN");
+
+  let plain =
+    "Yellow institutional zone controls the primary read. Blue accumulation shelf can defend, but it does not confirm accumulation until negotiated value / institutional value is reclaimed.";
+
+  if (zoneClassification?.plainEnglish) {
+    plain = String(zoneClassification.plainEnglish);
+  }
+
+  return {
+    institutionalValue,
+    negotiatedValue,
+    shelfValue,
+    accumulationValue,
+    distributionValue,
+    plain,
+  };
+}
+
+/* =========================
    Main Export
 ========================= */
 
@@ -390,18 +482,21 @@ export default function Engine25MarketHealthTimeline({
   const headline = payload?.headline || {};
   const intraday = payload?.intradayProxyDamage || null;
   const liveEsPermission = payload?.liveEsPermission || null;
-  const sectorBreadth = payload?.sectorBreadth || null;
-  const zoneDecisionRead = payload?.zoneDecisionRead || null;
-  const zoneClassification = payload?.zoneClassification || null;
 
+  const sectorBreadth = payload?.sectorBreadth || null;
   const tactical1h = sectorBreadth?.tactical1h || null;
   const regime4h = sectorBreadth?.regime4h || null;
   const combinedSector = sectorBreadth?.combinedRead || null;
 
+  const zoneDecisionRead = payload?.zoneDecisionRead || null;
+  const zoneClassification = payload?.zoneClassification || null;
+  const finalClass = zoneClassification?.finalZoneClassification || null;
+  const accumulation = zoneClassification?.accumulationRead || null;
+  const distribution = zoneClassification?.distributionRead || null;
+
   const changes = Array.isArray(payload?.underTheHood?.rows)
     ? payload.underTheHood.rows
     : [];
-
   const jumpAlert = buildJumpAlert(changes);
 
   const score = Number(headline.score);
@@ -419,13 +514,16 @@ export default function Engine25MarketHealthTimeline({
 
   const sectorColor = labelColor(combinedSector?.label, combinedSector?.score);
 
-  const finalClass = zoneClassification?.finalZoneClassification || null;
-  const accumulation = zoneClassification?.accumulationRead || null;
-  const distribution = zoneClassification?.distributionRead || null;
-
   const confirmationItems = Array.isArray(zoneDecisionRead?.nextConfirmation)
     ? zoneDecisionRead.nextConfirmation
     : [];
+
+  const zoneDetail = buildZoneDetailRead({
+    zoneDecisionRead,
+    zoneClassification,
+    accumulation,
+    distribution,
+  });
 
   return (
     <div
@@ -435,21 +533,21 @@ export default function Engine25MarketHealthTimeline({
         top: 126,
         left: 820,
         zIndex: 118,
-        width: 520,
-        maxWidth: "520px",
+        width: 590,
+        maxWidth: "590px",
         maxHeight: "calc(100vh - 150px)",
         overflowY: "auto",
         borderRadius: 14,
         border: `1px solid ${engine25Border()}`,
         background: "rgba(6,10,20,0.95)",
-        padding: "10px 12px",
+        padding: "12px 14px",
         color: "#e5e7eb",
         backdropFilter: "blur(4px)",
         pointerEvents: "auto",
         textAlign: "left",
         boxShadow: "0 8px 24px rgba(0,0,0,0.28)",
         display: "grid",
-        gap: 7,
+        gap: 8,
       }}
       title="Engine 25 Market Health Timeline"
     >
@@ -460,7 +558,7 @@ export default function Engine25MarketHealthTimeline({
           padding: "8px 10px",
           background: "rgba(30,64,175,0.13)",
           display: "grid",
-          gap: 7,
+          gap: 8,
         }}
       >
         <div
@@ -474,7 +572,7 @@ export default function Engine25MarketHealthTimeline({
           <div>
             <div
               style={{
-                fontSize: 15,
+                fontSize: FS.headerTitle,
                 fontWeight: 900,
                 color: "#60a5fa",
                 letterSpacing: "0.02em",
@@ -486,11 +584,11 @@ export default function Engine25MarketHealthTimeline({
 
             <div
               style={{
-                fontSize: 13,
-                lineHeight: 1.25,
+                fontSize: FS.headerMeta,
+                lineHeight: 1.42,
                 color: "#dbeafe",
                 fontWeight: 650,
-                marginTop: 2,
+                marginTop: 3,
               }}
             >
               Macro · Distribution · Breadth · Zones
@@ -509,8 +607,8 @@ export default function Engine25MarketHealthTimeline({
               border: "1px solid rgba(125,211,252,0.35)",
               color: "#bae6fd",
               borderRadius: 8,
-              padding: "5px 8px",
-              fontSize: 12,
+              padding: "6px 9px",
+              fontSize: FS.button,
               fontWeight: 900,
               cursor: "pointer",
               whiteSpace: "nowrap",
@@ -525,8 +623,8 @@ export default function Engine25MarketHealthTimeline({
           <div
             style={{
               color: "#fecaca",
-              fontSize: 14,
-              lineHeight: 1.35,
+              fontSize: FS.loading,
+              lineHeight: 1.42,
               fontWeight: 700,
             }}
           >
@@ -536,8 +634,8 @@ export default function Engine25MarketHealthTimeline({
           <div
             style={{
               color: "#cbd5e1",
-              fontSize: 14,
-              lineHeight: 1.35,
+              fontSize: FS.loading,
+              lineHeight: 1.42,
               fontWeight: 700,
             }}
           >
@@ -545,10 +643,10 @@ export default function Engine25MarketHealthTimeline({
           </div>
         ) : (
           <>
-            <div style={{ display: "flex", alignItems: "center", gap: 11 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
               <div
                 style={{
-                  fontSize: 46,
+                  fontSize: FS.score,
                   lineHeight: 1,
                   fontWeight: 900,
                   color: stateColor,
@@ -560,8 +658,8 @@ export default function Engine25MarketHealthTimeline({
               <div style={{ minWidth: 0 }}>
                 <div
                   style={{
-                    fontSize: 18,
-                    lineHeight: 1.2,
+                    fontSize: 20,
+                    lineHeight: 1.3,
                     fontWeight: 850,
                     color: "#f8fafc",
                     whiteSpace: "nowrap",
@@ -574,11 +672,11 @@ export default function Engine25MarketHealthTimeline({
 
                 <div
                   style={{
-                    fontSize: 12,
-                    lineHeight: 1.28,
+                    fontSize: FS.headerMeta,
+                    lineHeight: 1.42,
                     color: "#cbd5e1",
                     fontWeight: 650,
-                    marginTop: 2,
+                    marginTop: 3,
                   }}
                 >
                   EOD{" "}
@@ -595,10 +693,10 @@ export default function Engine25MarketHealthTimeline({
               style={{
                 border: "1px solid rgba(251,191,36,0.52)",
                 background: "rgba(113,63,18,0.14)",
-                borderRadius: 9,
-                padding: "6px 8px",
-                fontSize: 13,
-                lineHeight: 1.25,
+                borderRadius: 10,
+                padding: "8px 10px",
+                fontSize: FS.permission,
+                lineHeight: 1.42,
                 color: "#fbbf24",
                 fontWeight: 950,
                 textTransform: "uppercase",
@@ -645,10 +743,16 @@ export default function Engine25MarketHealthTimeline({
             <SectionBox
               title="Sector Breadth"
               titleColor={sectorColor}
-              borderColor={sectionBorder(combinedSector?.label, combinedSector?.score)}
-              background={sectionBackground(combinedSector?.label, combinedSector?.score)}
+              borderColor={sectionBorder(
+                combinedSector?.label,
+                combinedSector?.score
+              )}
+              background={sectionBackground(
+                combinedSector?.label,
+                combinedSector?.score
+              )}
             >
-              <div style={{ display: "grid", gap: 7 }}>
+              <div style={{ display: "grid", gap: 8 }}>
                 <div
                   style={{
                     display: "grid",
@@ -706,32 +810,48 @@ export default function Engine25MarketHealthTimeline({
             <SectionBox
               title="Zone / Classification"
               titleColor={labelColor(finalClass?.state || zoneDecisionRead.label)}
-              borderColor={sectionBorder(finalClass?.state || zoneDecisionRead.label)}
-              background={sectionBackground(finalClass?.state || zoneDecisionRead.label)}
+              borderColor={sectionBorder(
+                finalClass?.state || zoneDecisionRead.label
+              )}
+              background={sectionBackground(
+                finalClass?.state || zoneDecisionRead.label
+              )}
             >
-              <div style={{ display: "grid", gap: 5 }}>
+              <div style={{ display: "grid", gap: 6 }}>
                 <CompareRow
-                  label="Zone"
+                  label="Priority"
                   value={compactLabel(zoneDecisionRead.label)}
                   color={labelColor(zoneDecisionRead.label)}
                 />
 
                 <CompareRow
-                  label="Class"
-                  value={compactLabel(finalClass?.state || "UNKNOWN")}
-                  color={labelColor(finalClass?.state)}
+                  label="Institutional"
+                  value={zoneDetail.institutionalValue}
+                  color={labelColor(zoneDetail.institutionalValue)}
+                />
+
+                <CompareRow
+                  label="Negotiated"
+                  value={zoneDetail.negotiatedValue}
+                  color={labelColor(zoneDetail.negotiatedValue)}
+                />
+
+                <CompareRow
+                  label="Accumulation Shelf"
+                  value={zoneDetail.shelfValue}
+                  color={labelColor(zoneDetail.shelfValue)}
                 />
 
                 <CompareRow
                   label="Accumulation"
-                  value={compactLabel(accumulation?.state || "UNKNOWN")}
-                  color={labelColor(accumulation?.state)}
+                  value={zoneDetail.accumulationValue}
+                  color={labelColor(zoneDetail.accumulationValue)}
                 />
 
                 <CompareRow
                   label="Distribution"
-                  value={compactLabel(distribution?.state || "UNKNOWN")}
-                  color={labelColor(distribution?.state)}
+                  value={zoneDetail.distributionValue}
+                  color={labelColor(zoneDetail.distributionValue)}
                 />
 
                 <CompareRow
@@ -740,19 +860,19 @@ export default function Engine25MarketHealthTimeline({
                   color={labelColor(zoneDecisionRead.permission)}
                 />
 
-                <div
-                  style={{
-                    marginTop: 2,
-                    color: "#dbeafe",
-                    fontWeight: 650,
-                    fontSize: 13,
-                    lineHeight: 1.3,
-                  }}
-                >
-                  {zoneDecisionRead.priorityRead ||
-                    zoneClassification?.plainEnglish ||
-                    "Zone read is available."}
-                </div>
+                {zoneDecisionRead.zoneAwareVolumeAvailable === false && (
+                  <CompareRow
+                    label="Zone Volume"
+                    value="NOT AVAILABLE YET"
+                    color="#94a3b8"
+                  />
+                )}
+
+                <NoteText>
+                  Yellow institutional zone controls the primary read. Green
+                  negotiated value must be reclaimed. Blue accumulation shelf can
+                  defend, but accumulation is not confirmed until reclaim.
+                </NoteText>
               </div>
             </SectionBox>
           )}
@@ -783,8 +903,8 @@ export default function Engine25MarketHealthTimeline({
 
                     <div
                       style={{
-                        fontSize: 12,
-                        lineHeight: 1.25,
+                        fontSize: 15,
+                        lineHeight: 1.35,
                         color: "#94a3b8",
                         fontWeight: 650,
                       }}
@@ -823,8 +943,8 @@ export default function Engine25MarketHealthTimeline({
                   style={{
                     display: "grid",
                     gap: 3,
-                    fontSize: 12,
-                    lineHeight: 1.3,
+                    fontSize: FS.note,
+                    lineHeight: 1.35,
                     color: "#dbeafe",
                     fontWeight: 650,
                   }}
