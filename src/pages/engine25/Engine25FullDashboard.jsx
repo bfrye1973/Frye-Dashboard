@@ -1,7 +1,8 @@
 // src/pages/engine25/Engine25FullDashboard.jsx
-// Engine 25H Full Dashboard Layout v3
-// Full explanation dashboard for Engine 25 market health, sector breadth,
-// zone classification, data freshness, jump alerts, and master comparison.
+// Engine 25H Full Dashboard Layout v4
+// Wider control-room layout.
+// Adds: sector breadth detail, zone classification detail, data freshness,
+// jump alert, Engine 25 vs Master, and keeps Desk Note full width.
 
 import React, { useEffect, useMemo, useState } from "react";
 
@@ -139,6 +140,7 @@ function Card({ children, style = {} }) {
         background: "rgba(15,23,42,0.76)",
         boxShadow: "0 10px 28px rgba(0,0,0,0.28)",
         padding: 22,
+        minWidth: 0,
         ...style,
       }}
     >
@@ -263,7 +265,7 @@ function MiniCompositeChart({ rows = [], available = true }) {
       }));
 
     const width = 1500;
-    const height = 420;
+    const height = 340;
     const padX = 70;
     const padY = 44;
 
@@ -292,14 +294,14 @@ function MiniCompositeChart({ rows = [], available = true }) {
       {!available || !chart.path ? (
         <BodyText color="#fbbf24">
           Daily composite overlay is unavailable on this instance. Live Engine 25
-          fallback is active, so the dashboard can still show live market
-          health, sector breadth, zone classification, and zone-aware context.
+          fallback is active, so the dashboard can still show live market health,
+          sector breadth, zone classification, and zone-aware context.
         </BodyText>
       ) : (
         <svg
           width="100%"
           viewBox={`0 0 ${chart.width} ${chart.height}`}
-          style={{ display: "block", height: 420 }}
+          style={{ display: "block", height: 340 }}
         >
           {[25, 50, 75].map((level) => {
             const y = 44 + (1 - level / 100) * (chart.height - 88);
@@ -538,7 +540,7 @@ function SectorBreadthDetail({ sectorBreadth }) {
           style={{
             display: "grid",
             gridTemplateColumns: "1fr 1fr 1fr",
-            gap: 16,
+            gap: 18,
           }}
         >
           <div style={{ display: "grid", gap: 9 }}>
@@ -638,74 +640,63 @@ function ZoneClassificationDetail({ zoneClassification, zoneDecisionRead }) {
         Zone Classification Detail
       </SectionTitle>
 
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 1fr",
-          gap: 22,
-        }}
-      >
-        <div style={{ display: "grid", gap: 10 }}>
-          <KV
-            label="Final classification"
-            value={compactLabel(finalClass?.state)}
-            color={labelColor(finalClass?.state)}
-          />
-          <KV
-            label="Permission impact"
-            value={compactLabel(finalClass?.permissionImpact)}
-            color={labelColor(finalClass?.permissionImpact)}
-          />
-          <KV
-            label="Confidence"
-            value={compactLabel(finalClass?.confidence || zoneClassification?.confidence)}
-            color={labelColor(finalClass?.confidence || zoneClassification?.confidence)}
-          />
-          <KV
-            label="Zone priority"
-            value={compactLabel(zoneDecisionRead?.label)}
-            color={labelColor(zoneDecisionRead?.label)}
-          />
-          <KV
-            label="Zone permission"
-            value={compactLabel(zoneDecisionRead?.permission)}
-            color={labelColor(zoneDecisionRead?.permission)}
-          />
-        </div>
-
-        <div style={{ display: "grid", gap: 10 }}>
-          <KV
-            label="Accumulation"
-            value={compactLabel(accumulation?.state)}
-            color={labelColor(accumulation?.state)}
-          />
-          <KV
-            label="Accumulation score"
-            value={fmtMaybe(accumulation?.score, 0)}
-            color={labelColor(accumulation?.state)}
-          />
-          <KV
-            label="Distribution"
-            value={compactLabel(distribution?.state)}
-            color={labelColor(distribution?.state)}
-          />
-          <KV
-            label="Distribution score"
-            value={fmtMaybe(distribution?.score, 0)}
-            color={labelColor(distribution?.state)}
-          />
-          <KV
-            label="Zone volume"
-            value={
-              zoneDecisionRead?.zoneAwareVolumeAvailable
-                ? "AVAILABLE"
-                : "NOT AVAILABLE YET"
-            }
-            color={
-              zoneDecisionRead?.zoneAwareVolumeAvailable ? "#22c55e" : "#94a3b8"
-            }
-          />
-        </div>
+      <div style={{ display: "grid", gap: 10 }}>
+        <KV
+          label="Final classification"
+          value={compactLabel(finalClass?.state)}
+          color={labelColor(finalClass?.state)}
+        />
+        <KV
+          label="Permission impact"
+          value={compactLabel(finalClass?.permissionImpact)}
+          color={labelColor(finalClass?.permissionImpact)}
+        />
+        <KV
+          label="Confidence"
+          value={compactLabel(finalClass?.confidence || zoneClassification?.confidence)}
+          color={labelColor(finalClass?.confidence || zoneClassification?.confidence)}
+        />
+        <KV
+          label="Zone priority"
+          value={compactLabel(zoneDecisionRead?.label)}
+          color={labelColor(zoneDecisionRead?.label)}
+        />
+        <KV
+          label="Zone permission"
+          value={compactLabel(zoneDecisionRead?.permission)}
+          color={labelColor(zoneDecisionRead?.permission)}
+        />
+        <KV
+          label="Accumulation"
+          value={compactLabel(accumulation?.state)}
+          color={labelColor(accumulation?.state)}
+        />
+        <KV
+          label="Accumulation score"
+          value={fmtMaybe(accumulation?.score, 0)}
+          color={labelColor(accumulation?.state)}
+        />
+        <KV
+          label="Distribution"
+          value={compactLabel(distribution?.state)}
+          color={labelColor(distribution?.state)}
+        />
+        <KV
+          label="Distribution score"
+          value={fmtMaybe(distribution?.score, 0)}
+          color={labelColor(distribution?.state)}
+        />
+        <KV
+          label="Zone volume"
+          value={
+            zoneDecisionRead?.zoneAwareVolumeAvailable
+              ? "AVAILABLE"
+              : "NOT AVAILABLE YET"
+          }
+          color={
+            zoneDecisionRead?.zoneAwareVolumeAvailable ? "#22c55e" : "#94a3b8"
+          }
+        />
       </div>
 
       <div
@@ -774,17 +765,13 @@ function DataFreshnessDetail({ data }) {
           value={compactLabel(zoneRead?.context?.contextSource)}
           color={labelColor(zoneRead?.context?.contextSource)}
         />
-        <KV
-          label="Route engine"
-          value={data?.engine || "—"}
-          color="#93c5fd"
-        />
+        <KV label="Route engine" value={data?.engine || "—"} color="#93c5fd" />
       </div>
 
       <div style={{ marginTop: 18 }}>
         <BodyText color="#cbd5e1">
-          Daily cron should build the heavy 6-month replay and composite overlay.
-          Hourly cron should refresh live market health, ES zone-aware read,
+          Daily cron builds the heavy 6-month replay and composite overlay.
+          Hourly cron refreshes live market health, ES zone-aware read,
           sector-card proxy breadth, zone classification, and ES overlay.
         </BodyText>
       </div>
@@ -1002,7 +989,11 @@ function MasterComparisonDetail({ headline, masterPayload, masterError }) {
         />
         <KV
           label="Spread"
-          value={Number.isFinite(Number(comparison.spread)) ? fmtChange(comparison.spread) : "—"}
+          value={
+            Number.isFinite(Number(comparison.spread))
+              ? fmtChange(comparison.spread)
+              : "—"
+          }
           color={comparison.color}
         />
         <KV label="Status" value={comparison.status} color={comparison.color} />
@@ -1143,7 +1134,8 @@ export default function Engine25FullDashboard() {
     ? data.overlay.rows
     : [];
 
-  const overlayAvailable = data?.overlay?.available !== false && overlayRows.length > 0;
+  const overlayAvailable =
+    data?.overlay?.available !== false && overlayRows.length > 0;
 
   const zoneRead = data?.zoneRead || null;
   const zoneDecisionRead = data?.zoneDecisionRead || null;
@@ -1158,11 +1150,13 @@ export default function Engine25FullDashboard() {
         color: "#e5e7eb",
         padding: "28px 34px 46px",
         fontFamily: FONT,
+        overflowX: "auto",
       }}
     >
       <div
         style={{
-          maxWidth: 1900,
+          maxWidth: 2350,
+          width: "96vw",
           margin: "0 auto",
           display: "grid",
           gap: 22,
@@ -1201,7 +1195,7 @@ export default function Engine25FullDashboard() {
               }}
             >
               Full dashboard · Composite overlay · Sector breadth · Zone
-              classification · Data freshness · Full Layout v3
+              classification · Data freshness · Full Layout v4
             </div>
           </div>
 
@@ -1258,7 +1252,7 @@ export default function Engine25FullDashboard() {
               style={{
                 display: "grid",
                 gridTemplateColumns:
-                  "minmax(480px, 0.92fr) minmax(680px, 1.08fr)",
+                  "minmax(520px, 0.85fr) minmax(900px, 1.15fr)",
                 gap: 22,
               }}
             >
@@ -1348,7 +1342,7 @@ export default function Engine25FullDashboard() {
               style={{
                 display: "grid",
                 gridTemplateColumns:
-                  "minmax(980px, 1.45fr) minmax(520px, 0.55fr)",
+                  "minmax(1200px, 1.55fr) minmax(650px, 0.45fr)",
                 gap: 22,
               }}
             >
@@ -1363,34 +1357,42 @@ export default function Engine25FullDashboard() {
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: "1fr",
                 gap: 22,
               }}
             >
-              <SectorBreadthDetail sectorBreadth={sectorBreadth} />
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "minmax(0, 1.15fr) minmax(0, 0.85fr)",
+                  gap: 22,
+                }}
+              >
+                <SectorBreadthDetail sectorBreadth={sectorBreadth} />
 
-              <ZoneClassificationDetail
-                zoneClassification={zoneClassification}
-                zoneDecisionRead={zoneDecisionRead}
-              />
+                <ZoneClassificationDetail
+                  zoneClassification={zoneClassification}
+                  zoneDecisionRead={zoneDecisionRead}
+                />
+              </div>
 
               <div
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "1fr 1fr",
+                  gridTemplateColumns:
+                    "minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr)",
                   gap: 22,
                 }}
               >
                 <DataFreshnessDetail data={data} />
 
                 <JumpAlertDetail rows={comparison} />
-              </div>
 
-              <MasterComparisonDetail
-                headline={headline}
-                masterPayload={masterPayload}
-                masterError={masterError}
-              />
+                <MasterComparisonDetail
+                  headline={headline}
+                  masterPayload={masterPayload}
+                  masterError={masterError}
+                />
+              </div>
             </div>
 
             <Card
