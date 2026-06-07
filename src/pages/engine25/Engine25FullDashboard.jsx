@@ -1,8 +1,8 @@
 // src/pages/engine25/Engine25FullDashboard.jsx
-// Engine 25H Full Dashboard Layout v4
-// Wider control-room layout.
-// Adds: sector breadth detail, zone classification detail, data freshness,
-// jump alert, Engine 25 vs Master, and keeps Desk Note full width.
+// Engine 25H Full Dashboard Layout v5
+// Wider + tighter control-room layout.
+// Keeps all detail panels but compresses headline, why bars, composite chart,
+// under-the-hood table, and lower panels so the page is not cut off.
 
 import React, { useEffect, useMemo, useState } from "react";
 
@@ -18,6 +18,17 @@ const ROUTE = `${API_ROOT}/api/v1/engine25/full-dashboard`;
 const MASTER_ROUTE = `${API_ROOT}/api/v1/futures/market-meter?symbol=ES`;
 
 const FONT = "Arial, Helvetica, sans-serif";
+
+const FULL = {
+  cardPadding: 14,
+  sectionTitle: 16,
+  body: 16,
+  table: 15,
+  tableHeader: 14,
+  kv: 15,
+  chartHeight: 230,
+  headlineScore: 56,
+};
 
 function colorFor(value, inverse = false) {
   const n = Number(value);
@@ -136,10 +147,10 @@ function Card({ children, style = {} }) {
     <div
       style={{
         border: "1px solid rgba(148,163,184,0.28)",
-        borderRadius: 16,
+        borderRadius: 14,
         background: "rgba(15,23,42,0.76)",
-        boxShadow: "0 10px 28px rgba(0,0,0,0.28)",
-        padding: 22,
+        boxShadow: "0 8px 22px rgba(0,0,0,0.24)",
+        padding: FULL.cardPadding,
         minWidth: 0,
         ...style,
       }}
@@ -154,13 +165,13 @@ function SectionTitle({ children, color = "#93c5fd" }) {
     <div
       style={{
         fontFamily: FONT,
-        fontSize: 18,
-        lineHeight: 1.3,
+        fontSize: FULL.sectionTitle,
+        lineHeight: 1.25,
         fontWeight: 900,
         color,
         letterSpacing: "0.02em",
         textTransform: "uppercase",
-        marginBottom: 14,
+        marginBottom: 8,
       }}
     >
       {children}
@@ -173,8 +184,8 @@ function BodyText({ children, color = "#dbeafe" }) {
     <div
       style={{
         fontFamily: FONT,
-        fontSize: 18,
-        lineHeight: 1.5,
+        fontSize: FULL.body,
+        lineHeight: 1.38,
         fontWeight: 500,
         color,
         whiteSpace: "pre-line",
@@ -191,10 +202,10 @@ function KV({ label, value, color = "#dbeafe" }) {
       style={{
         display: "flex",
         justifyContent: "space-between",
-        gap: 16,
+        gap: 12,
         fontFamily: FONT,
-        fontSize: 18,
-        lineHeight: 1.42,
+        fontSize: FULL.kv,
+        lineHeight: 1.32,
         fontWeight: 500,
         color: "#dbeafe",
       }}
@@ -211,15 +222,15 @@ function ScoreBar({ label, score, color, inverse = false }) {
   const c = color || colorFor(score, inverse);
 
   return (
-    <div style={{ display: "grid", gap: 8 }}>
+    <div style={{ display: "grid", gap: 5 }}>
       <div
         style={{
           display: "flex",
           justifyContent: "space-between",
-          gap: 14,
+          gap: 12,
           fontFamily: FONT,
-          fontSize: 18,
-          lineHeight: 1.35,
+          fontSize: 15,
+          lineHeight: 1.25,
           fontWeight: 500,
           color: "#dbeafe",
         }}
@@ -232,7 +243,7 @@ function ScoreBar({ label, score, color, inverse = false }) {
 
       <div
         style={{
-          height: 10,
+          height: 7,
           borderRadius: 999,
           background: "rgba(148,163,184,0.18)",
           overflow: "hidden",
@@ -265,9 +276,9 @@ function MiniCompositeChart({ rows = [], available = true }) {
       }));
 
     const width = 1500;
-    const height = 340;
+    const height = FULL.chartHeight;
     const padX = 70;
-    const padY = 44;
+    const padY = 36;
 
     if (clean.length < 2) {
       return { width, height, path: "" };
@@ -288,7 +299,7 @@ function MiniCompositeChart({ rows = [], available = true }) {
   }, [rows]);
 
   return (
-    <Card style={{ padding: 22 }}>
+    <Card>
       <SectionTitle>Engine 25 Composite Overlay — 6 Months</SectionTitle>
 
       {!available || !chart.path ? (
@@ -301,10 +312,10 @@ function MiniCompositeChart({ rows = [], available = true }) {
         <svg
           width="100%"
           viewBox={`0 0 ${chart.width} ${chart.height}`}
-          style={{ display: "block", height: 340 }}
+          style={{ display: "block", height: FULL.chartHeight }}
         >
           {[25, 50, 75].map((level) => {
-            const y = 44 + (1 - level / 100) * (chart.height - 88);
+            const y = 36 + (1 - level / 100) * (chart.height - 72);
             return (
               <g key={level}>
                 <line
@@ -317,9 +328,9 @@ function MiniCompositeChart({ rows = [], available = true }) {
                 />
                 <text
                   x="20"
-                  y={y + 6}
+                  y={y + 5}
                   fill="#94a3b8"
-                  fontSize="18"
+                  fontSize="16"
                   fontFamily={FONT}
                   fontWeight="500"
                 >
@@ -332,8 +343,8 @@ function MiniCompositeChart({ rows = [], available = true }) {
           <line
             x1="70"
             x2={chart.width - 70}
-            y1={44 + (1 - 55 / 100) * (chart.height - 88)}
-            y2={44 + (1 - 55 / 100) * (chart.height - 88)}
+            y1={36 + (1 - 55 / 100) * (chart.height - 72)}
+            y2={36 + (1 - 55 / 100) * (chart.height - 72)}
             stroke="rgba(245,158,11,0.6)"
             strokeDasharray="8 8"
           />
@@ -354,7 +365,7 @@ function MiniCompositeChart({ rows = [], available = true }) {
 
 function UnderTheHoodTable({ rows = [], interpretation }) {
   return (
-    <Card style={{ padding: 22, overflow: "hidden" }}>
+    <Card style={{ overflow: "hidden" }}>
       <SectionTitle>Under The Hood Change</SectionTitle>
 
       {!rows.length ? (
@@ -370,8 +381,8 @@ function UnderTheHoodTable({ rows = [], interpretation }) {
               borderCollapse: "separate",
               borderSpacing: 0,
               fontFamily: FONT,
-              fontSize: 18,
-              lineHeight: 1.45,
+              fontSize: FULL.table,
+              lineHeight: 1.25,
               color: "#dbeafe",
             }}
           >
@@ -380,7 +391,7 @@ function UnderTheHoodTable({ rows = [], interpretation }) {
                 style={{
                   color: "#93c5fd",
                   textAlign: "right",
-                  fontSize: 16,
+                  fontSize: FULL.tableHeader,
                   textTransform: "uppercase",
                   letterSpacing: "0.02em",
                 }}
@@ -397,7 +408,7 @@ function UnderTheHoodTable({ rows = [], interpretation }) {
                     key={label}
                     style={{
                       textAlign: align,
-                      padding: "13px 14px",
+                      padding: "8px 10px",
                       fontWeight: 850,
                       borderBottom: "1px solid rgba(148,163,184,0.26)",
                     }}
@@ -428,7 +439,7 @@ function UnderTheHoodTable({ rows = [], interpretation }) {
                     <td
                       style={{
                         textAlign: "left",
-                        padding: "14px 14px",
+                        padding: "8px 10px",
                         fontWeight: 700,
                         color: "#f8fafc",
                         borderBottom: "1px solid rgba(148,163,184,0.13)",
@@ -441,7 +452,7 @@ function UnderTheHoodTable({ rows = [], interpretation }) {
                     <td
                       style={{
                         textAlign: "right",
-                        padding: "14px 14px",
+                        padding: "8px 10px",
                         fontWeight: 500,
                         borderBottom: "1px solid rgba(148,163,184,0.13)",
                       }}
@@ -452,7 +463,7 @@ function UnderTheHoodTable({ rows = [], interpretation }) {
                     <td
                       style={{
                         textAlign: "right",
-                        padding: "14px 14px",
+                        padding: "8px 10px",
                         fontWeight: 500,
                         borderBottom: "1px solid rgba(148,163,184,0.13)",
                       }}
@@ -463,7 +474,7 @@ function UnderTheHoodTable({ rows = [], interpretation }) {
                     <td
                       style={{
                         textAlign: "right",
-                        padding: "14px 14px",
+                        padding: "8px 10px",
                         color: changeColor(row.oneDayChange, inverse),
                         fontWeight: 850,
                         borderBottom: "1px solid rgba(148,163,184,0.13)",
@@ -475,7 +486,7 @@ function UnderTheHoodTable({ rows = [], interpretation }) {
                     <td
                       style={{
                         textAlign: "right",
-                        padding: "14px 14px",
+                        padding: "8px 10px",
                         fontWeight: 500,
                         borderBottom: "1px solid rgba(148,163,184,0.13)",
                       }}
@@ -486,7 +497,7 @@ function UnderTheHoodTable({ rows = [], interpretation }) {
                     <td
                       style={{
                         textAlign: "right",
-                        padding: "14px 14px",
+                        padding: "8px 10px",
                         color: changeColor(row.threeDayChange, inverse),
                         fontWeight: 850,
                         borderBottom: "1px solid rgba(148,163,184,0.13)",
@@ -505,15 +516,15 @@ function UnderTheHoodTable({ rows = [], interpretation }) {
       {interpretation && (
         <div
           style={{
-            marginTop: 18,
+            marginTop: 10,
             border: "1px solid rgba(245,158,11,0.3)",
             background: "rgba(120,53,15,0.2)",
             color: "#fed7aa",
-            borderRadius: 12,
-            padding: 16,
+            borderRadius: 10,
+            padding: 10,
             fontFamily: FONT,
-            fontSize: 18,
-            lineHeight: 1.48,
+            fontSize: 15,
+            lineHeight: 1.35,
             fontWeight: 650,
           }}
         >
@@ -535,15 +546,15 @@ function SectorBreadthDetail({ sectorBreadth }) {
         Sector Breadth Detail
       </SectionTitle>
 
-      <div style={{ display: "grid", gap: 18 }}>
+      <div style={{ display: "grid", gap: 10 }}>
         <div
           style={{
             display: "grid",
             gridTemplateColumns: "1fr 1fr 1fr",
-            gap: 18,
+            gap: 14,
           }}
         >
-          <div style={{ display: "grid", gap: 9 }}>
+          <div style={{ display: "grid", gap: 6 }}>
             <SectionTitle color="#93c5fd">1H Tactical</SectionTitle>
             <KV
               label="Label"
@@ -570,7 +581,7 @@ function SectorBreadthDetail({ sectorBreadth }) {
             />
           </div>
 
-          <div style={{ display: "grid", gap: 9 }}>
+          <div style={{ display: "grid", gap: 6 }}>
             <SectionTitle color="#93c5fd">4H Regime</SectionTitle>
             <KV
               label="Label"
@@ -594,7 +605,7 @@ function SectorBreadthDetail({ sectorBreadth }) {
             />
           </div>
 
-          <div style={{ display: "grid", gap: 9 }}>
+          <div style={{ display: "grid", gap: 6 }}>
             <SectionTitle color="#93c5fd">Combined Read</SectionTitle>
             <KV
               label="Available"
@@ -640,7 +651,7 @@ function ZoneClassificationDetail({ zoneClassification, zoneDecisionRead }) {
         Zone Classification Detail
       </SectionTitle>
 
-      <div style={{ display: "grid", gap: 10 }}>
+      <div style={{ display: "grid", gap: 6 }}>
         <KV
           label="Final classification"
           value={compactLabel(finalClass?.state)}
@@ -701,9 +712,9 @@ function ZoneClassificationDetail({ zoneClassification, zoneDecisionRead }) {
 
       <div
         style={{
-          marginTop: 18,
+          marginTop: 10,
           borderTop: "1px solid rgba(148,163,184,0.18)",
-          paddingTop: 16,
+          paddingTop: 10,
         }}
       >
         <BodyText>
@@ -727,7 +738,7 @@ function DataFreshnessDetail({ data }) {
         Cron / Data Freshness Detail
       </SectionTitle>
 
-      <div style={{ display: "grid", gap: 10 }}>
+      <div style={{ display: "grid", gap: 6 }}>
         <KV
           label="Daily composite available"
           value={data?.dailyCompositeAvailable ? "YES" : "NO"}
@@ -752,7 +763,7 @@ function DataFreshnessDetail({ data }) {
           }
         />
         <KV
-          label="Zone classification time"
+          label="Zone class time"
           value={
             zoneClassification?.generatedAtUtc ||
             zoneClassification?.generatedAt ||
@@ -768,7 +779,7 @@ function DataFreshnessDetail({ data }) {
         <KV label="Route engine" value={data?.engine || "—"} color="#93c5fd" />
       </div>
 
-      <div style={{ marginTop: 18 }}>
+      <div style={{ marginTop: 10 }}>
         <BodyText color="#cbd5e1">
           Daily cron builds the heavy 6-month replay and composite overlay.
           Hourly cron refreshes live market health, ES zone-aware read,
@@ -870,7 +881,7 @@ function JumpAlertDetail({ rows }) {
     <Card>
       <SectionTitle color={jump.color}>Engine 25 Jump Alert</SectionTitle>
 
-      <div style={{ display: "grid", gap: 10 }}>
+      <div style={{ display: "grid", gap: 6 }}>
         <KV label="Status" value={jump.status} color={jump.color} />
         <KV
           label="Composite"
@@ -884,9 +895,9 @@ function JumpAlertDetail({ rows }) {
           <div
             style={{
               borderTop: "1px solid rgba(148,163,184,0.18)",
-              paddingTop: 12,
+              paddingTop: 8,
               display: "grid",
-              gap: 8,
+              gap: 6,
             }}
           >
             {jump.drivers.map((driver) => (
@@ -976,7 +987,7 @@ function MasterComparisonDetail({ headline, masterPayload, masterError }) {
     <Card>
       <SectionTitle color={comparison.color}>Engine 25 vs Master</SectionTitle>
 
-      <div style={{ display: "grid", gap: 10 }}>
+      <div style={{ display: "grid", gap: 6 }}>
         <KV
           label="Engine 25"
           value={fmt(headline?.score)}
@@ -1012,7 +1023,7 @@ function MasterComparisonDetail({ headline, masterPayload, masterError }) {
 
 function ZoneMarketHealthRead({ zoneRead }) {
   return (
-    <Card style={{ display: "grid", gap: 16 }}>
+    <Card style={{ display: "grid", gap: 10 }}>
       <SectionTitle>Zone + Market Health Read</SectionTitle>
 
       <BodyText>
@@ -1023,13 +1034,9 @@ function ZoneMarketHealthRead({ zoneRead }) {
         <div
           style={{
             display: "grid",
-            gap: 10,
-            fontSize: 18,
-            lineHeight: 1.45,
+            gap: 6,
             borderTop: "1px solid rgba(148,163,184,0.18)",
-            paddingTop: 14,
-            color: "#dbeafe",
-            fontWeight: 500,
+            paddingTop: 10,
           }}
         >
           <KV label="Nearest Zone" value={zoneRead.nearestZone.id} />
@@ -1148,7 +1155,7 @@ export default function Engine25FullDashboard() {
         minHeight: "100vh",
         background: "#020617",
         color: "#e5e7eb",
-        padding: "28px 34px 46px",
+        padding: "20px 28px 34px",
         fontFamily: FONT,
         overflowX: "auto",
       }}
@@ -1159,7 +1166,7 @@ export default function Engine25FullDashboard() {
           width: "96vw",
           margin: "0 auto",
           display: "grid",
-          gap: 22,
+          gap: 14,
         }}
       >
         <div
@@ -1169,15 +1176,15 @@ export default function Engine25FullDashboard() {
             gap: 18,
             alignItems: "center",
             borderBottom: "1px solid rgba(148,163,184,0.26)",
-            paddingBottom: 16,
+            paddingBottom: 10,
           }}
         >
           <div>
             <div
               style={{
                 fontFamily: FONT,
-                fontSize: 32,
-                lineHeight: 1.2,
+                fontSize: 28,
+                lineHeight: 1.15,
                 fontWeight: 900,
                 color: "#f8fafc",
               }}
@@ -1188,14 +1195,14 @@ export default function Engine25FullDashboard() {
             <div
               style={{
                 color: "#cbd5e1",
-                marginTop: 7,
-                fontSize: 18,
-                lineHeight: 1.35,
+                marginTop: 4,
+                fontSize: 15,
+                lineHeight: 1.25,
                 fontWeight: 500,
               }}
             >
               Full dashboard · Composite overlay · Sector breadth · Zone
-              classification · Data freshness · Full Layout v4
+              classification · Data freshness · Full Layout v5
             </div>
           </div>
 
@@ -1205,9 +1212,9 @@ export default function Engine25FullDashboard() {
               background: "#0f172a",
               border: "1px solid rgba(148,163,184,0.38)",
               color: "#e5e7eb",
-              borderRadius: 10,
-              padding: "10px 16px",
-              fontSize: 16,
+              borderRadius: 9,
+              padding: "8px 13px",
+              fontSize: 14,
               fontWeight: 850,
               cursor: "pointer",
             }}
@@ -1222,10 +1229,10 @@ export default function Engine25FullDashboard() {
               border: "1px solid rgba(239,68,68,0.35)",
               background: "rgba(127,29,29,0.35)",
               borderRadius: 12,
-              padding: 18,
+              padding: 14,
               color: "#fecaca",
-              fontSize: 18,
-              lineHeight: 1.45,
+              fontSize: 16,
+              lineHeight: 1.35,
               fontWeight: 500,
             }}
           >
@@ -1237,8 +1244,8 @@ export default function Engine25FullDashboard() {
           <div
             style={{
               color: "#94a3b8",
-              fontSize: 18,
-              lineHeight: 1.45,
+              fontSize: 16,
+              lineHeight: 1.35,
               fontWeight: 500,
             }}
           >
@@ -1253,16 +1260,16 @@ export default function Engine25FullDashboard() {
                 display: "grid",
                 gridTemplateColumns:
                   "minmax(520px, 0.85fr) minmax(900px, 1.15fr)",
-                gap: 22,
+                gap: 14,
               }}
             >
-              <Card style={{ display: "grid", gap: 16 }}>
+              <Card style={{ display: "grid", gap: 10 }}>
                 <SectionTitle>Headline</SectionTitle>
 
-                <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
                   <div
                     style={{
-                      fontSize: 72,
+                      fontSize: FULL.headlineScore,
                       lineHeight: 1,
                       fontWeight: 900,
                       color: colorFor(headline.score),
@@ -1274,8 +1281,8 @@ export default function Engine25FullDashboard() {
                   <div>
                     <div
                       style={{
-                        fontSize: 24,
-                        lineHeight: 1.3,
+                        fontSize: 20,
+                        lineHeight: 1.25,
                         fontWeight: 750,
                         color: "#f8fafc",
                       }}
@@ -1286,9 +1293,9 @@ export default function Engine25FullDashboard() {
                     <div
                       style={{
                         color: "#cbd5e1",
-                        marginTop: 6,
-                        fontSize: 18,
-                        lineHeight: 1.35,
+                        marginTop: 3,
+                        fontSize: 15,
+                        lineHeight: 1.25,
                         fontWeight: 500,
                       }}
                     >
@@ -1301,10 +1308,10 @@ export default function Engine25FullDashboard() {
                   style={{
                     border: "1px solid rgba(245,158,11,0.35)",
                     background: "rgba(120,53,15,0.25)",
-                    borderRadius: 12,
-                    padding: 16,
-                    fontSize: 18,
-                    lineHeight: 1.42,
+                    borderRadius: 10,
+                    padding: 10,
+                    fontSize: 15,
+                    lineHeight: 1.3,
                     fontWeight: 850,
                     color: "#fed7aa",
                     textTransform: "uppercase",
@@ -1322,7 +1329,7 @@ export default function Engine25FullDashboard() {
               <Card>
                 <SectionTitle>Why Is Engine 25 Saying This?</SectionTitle>
 
-                <div style={{ display: "grid", gap: 16 }}>
+                <div style={{ display: "grid", gap: 9 }}>
                   {breakdown.map((item) => (
                     <ScoreBar
                       key={item.key}
@@ -1343,7 +1350,7 @@ export default function Engine25FullDashboard() {
                 display: "grid",
                 gridTemplateColumns:
                   "minmax(1200px, 1.55fr) minmax(650px, 0.45fr)",
-                gap: 22,
+                gap: 14,
               }}
             >
               <UnderTheHoodTable
@@ -1357,14 +1364,14 @@ export default function Engine25FullDashboard() {
             <div
               style={{
                 display: "grid",
-                gap: 22,
+                gap: 14,
               }}
             >
               <div
                 style={{
                   display: "grid",
                   gridTemplateColumns: "minmax(0, 1.15fr) minmax(0, 0.85fr)",
-                  gap: 22,
+                  gap: 14,
                 }}
               >
                 <SectorBreadthDetail sectorBreadth={sectorBreadth} />
@@ -1380,7 +1387,7 @@ export default function Engine25FullDashboard() {
                   display: "grid",
                   gridTemplateColumns:
                     "minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr)",
-                  gap: 22,
+                  gap: 14,
                 }}
               >
                 <DataFreshnessDetail data={data} />
@@ -1404,8 +1411,8 @@ export default function Engine25FullDashboard() {
 
               <div
                 style={{
-                  fontSize: 18,
-                  lineHeight: 1.5,
+                  fontSize: FULL.body,
+                  lineHeight: 1.38,
                   color: "#dbeafe",
                   fontWeight: 500,
                 }}
