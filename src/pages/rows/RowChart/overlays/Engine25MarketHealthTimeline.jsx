@@ -26,6 +26,10 @@ function cleanLabel(value) {
     .trim();
 }
 
+function compactLabel(value) {
+  return cleanLabel(value).toUpperCase();
+}
+
 function scoreColor(score, inverse = false) {
   const n = Number(score);
 
@@ -42,6 +46,28 @@ function scoreColor(score, inverse = false) {
   if (n >= 50) return "#eab308";
   if (n >= 35) return "#f97316";
   return "#ef4444";
+}
+
+function labelColor(label, score) {
+  const text = String(label || "").toUpperCase();
+
+  if (text.includes("WEAK") || text.includes("RISK_OFF") || text.includes("NO_BLIND")) {
+    return "#ef4444";
+  }
+
+  if (text.includes("DISTRIBUTION_ACTIVE") || text.includes("AT_RISK")) {
+    return "#ef4444";
+  }
+
+  if (text.includes("WATCH") || text.includes("MIXED") || text.includes("A_PLUS")) {
+    return "#fbbf24";
+  }
+
+  if (text.includes("EXPANDING") || text.includes("SUPPORTIVE") || text.includes("CONFIRMED")) {
+    return "#22c55e";
+  }
+
+  return scoreColor(score);
 }
 
 function intradayColor(label, score) {
@@ -65,6 +91,12 @@ function fmtScoreDecimal(value, decimals = 2) {
   const n = Number(value);
   if (!Number.isFinite(n)) return "—";
   return n.toFixed(decimals);
+}
+
+function fmtPct(value, decimals = 0) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return "—";
+  return `${n.toFixed(decimals)}%`;
 }
 
 function fmtChange(value) {
@@ -235,7 +267,43 @@ function CompareRow({ label, value, color = "#dbeafe" }) {
       }}
     >
       <span>{label}</span>
-      <span style={{ color, fontWeight: 800 }}>{value}</span>
+      <span style={{ color, fontWeight: 800, textAlign: "right" }}>{value}</span>
+    </div>
+  );
+}
+
+function MiniRead({ label, value, color = "#dbeafe" }) {
+  return (
+    <div
+      style={{
+        display: "grid",
+        gap: 1,
+        minWidth: 0,
+      }}
+    >
+      <div
+        style={{
+          fontSize: 14,
+          color: "#94a3b8",
+          fontWeight: 800,
+          textTransform: "uppercase",
+        }}
+      >
+        {label}
+      </div>
+      <div
+        style={{
+          fontSize: 17,
+          lineHeight: 1.25,
+          color,
+          fontWeight: 900,
+          textTransform: "uppercase",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+        }}
+      >
+        {value}
+      </div>
     </div>
   );
 }
@@ -480,6 +548,28 @@ function buildFreshness(headline, masterUpdatedAt) {
   };
 }
 
+function sectorBorder(label, score) {
+  const color = labelColor(label, score);
+
+  if (color === "#22c55e") return "rgba(34,197,94,0.50)";
+  if (color === "#fbbf24") return "rgba(251,191,36,0.55)";
+  if (color === "#f97316") return "rgba(249,115,22,0.55)";
+  if (color === "#ef4444") return "rgba(244,63,94,0.62)";
+
+  return engine25Border();
+}
+
+function sectorBackground(label, score) {
+  const color = labelColor(label, score);
+
+  if (color === "#22c55e") return "rgba(20,83,45,0.13)";
+  if (color === "#fbbf24") return "rgba(113,63,18,0.14)";
+  if (color === "#f97316") return "rgba(124,45,18,0.16)";
+  if (color === "#ef4444") return "rgba(127,29,29,0.16)";
+
+  return engine25Background();
+}
+
 /* =========================
    Main Export
 ========================= */
@@ -575,6 +665,11 @@ export default function Engine25MarketHealthTimeline({
     : [];
 
   const zoneRead = payload?.zoneRead || null;
+  const zoneDecisionRead = payload?.zoneDecisionRead || null;
+  const sectorBreadth = payload?.sectorBreadth || null;
+  const tactical1h = sectorBreadth?.tactical1h || null;
+  const regime4h = sectorBreadth?.regime4h || null;
+  const combinedSector = sectorBreadth?.combinedRead || null;
 
   const lookupChange = useMemo(() => {
     const map = {};
@@ -606,6 +701,13 @@ export default function Engine25MarketHealthTimeline({
   const credit = breakdown.find((item) => item.key === "creditFragility");
   const ai = breakdown.find((item) => item.key === "aiLeadership");
 
+  const sectorColor = labelColor(combinedSector?.label, combinedSector?.score);
+  const sectorBoxBorder = sectorBorder(combinedSector?.label, combinedSector?.score);
+  const sectorBoxBackground = sectorBackground(
+    combinedSector?.label,
+    combinedSector?.score
+  );
+
   return (
     <div
       style={{
@@ -614,8 +716,8 @@ export default function Engine25MarketHealthTimeline({
         top: 126,
         left: 820,
         zIndex: 118,
-        width: 560,
-        maxWidth: "560px",
+        width: 590,
+        maxWidth: "590px",
         maxHeight: "calc(100vh - 190px)",
         overflowY: "auto",
         borderRadius: 14,
@@ -675,7 +777,7 @@ export default function Engine25MarketHealthTimeline({
                 marginTop: 3,
               }}
             >
-              Macro · Distribution · Breadth
+              Macro · Distribution · Breadth · Zones
             </div>
           </div>
 
@@ -878,6 +980,205 @@ export default function Engine25MarketHealthTimeline({
 
       {payload && status !== "ERROR" && (
         <>
+          {combinedSector?.available && (
+            <SectionBox
+              title="Sector Breadth"
+              titleColor={sectorColor}
+              borderColor={sectorBoxBorder}
+              background={sectorBoxBackground}
+            >
+              <div style={{ display: "grid", gap: 8 }}>
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr 1fr",
+                    gap: 8,
+                  }}
+                >
+                  <MiniRead
+                    label="1H Tactical"
+                    value={`${cleanLabel(tactical1h?.classification?.label)} · ${fmtScoreDecimal(
+                      tactical1h?.classification?.score,
+                      2
+                    )}`}
+                    color={labelColor(
+                      tactical1h?.classification?.label,
+                      tactical1h?.classification?.score
+                    )}
+                  />
+                  <MiniRead
+                    label="4H Regime"
+                    value={`${cleanLabel(regime4h?.classification?.label)} · ${fmtScoreDecimal(
+                      regime4h?.classification?.score,
+                      2
+                    )}`}
+                    color={labelColor(
+                      regime4h?.classification?.label,
+                      regime4h?.classification?.score
+                    )}
+                  />
+                </div>
+
+                <CompareRow
+                  label="Combined"
+                  value={`${cleanLabel(combinedSector.label)} · ${fmtScoreDecimal(
+                    combinedSector.score,
+                    2
+                  )}`}
+                  color={sectorColor}
+                />
+                <CompareRow
+                  label="Impact"
+                  value={compactLabel(combinedSector.permissionImpact)}
+                  color={sectorColor}
+                />
+
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr 1fr",
+                    gap: 8,
+                    marginTop: 2,
+                  }}
+                >
+                  <MiniRead
+                    label="1H NH / NL"
+                    value={`${tactical1h?.summary?.totalNh ?? "—"} / ${
+                      tactical1h?.summary?.totalNl ?? "—"
+                    }`}
+                    color="#dbeafe"
+                  />
+                  <MiniRead
+                    label="1H Weak Sectors"
+                    value={`${tactical1h?.summary?.sectorsWeak ?? "—"} of ${
+                      tactical1h?.summary?.sectorCount ?? "—"
+                    }`}
+                    color="#fecaca"
+                  />
+                  <MiniRead
+                    label="4H Risk-On"
+                    value={fmtPct(regime4h?.summary?.riskOnBreadthPct, 0)}
+                    color={labelColor(regime4h?.summary?.riskOnState)}
+                  />
+                  <MiniRead
+                    label="4H State"
+                    value={cleanLabel(regime4h?.summary?.riskOnState)}
+                    color={labelColor(regime4h?.summary?.riskOnState)}
+                  />
+                </div>
+
+                <div
+                  style={{
+                    fontSize: 16,
+                    lineHeight: 1.38,
+                    color: "#dbeafe",
+                    fontWeight: 600,
+                  }}
+                >
+                  1H is the tactical participation feed. 4H is the confirmation
+                  layer. Historical sector-card replay is disabled until real
+                  snapshots exist.
+                </div>
+              </div>
+            </SectionBox>
+          )}
+
+          {zoneDecisionRead?.available && (
+            <SectionBox
+              title="Zone Priority"
+              titleColor={labelColor(zoneDecisionRead.label)}
+              borderColor={sectorBorder(zoneDecisionRead.label)}
+              background={sectorBackground(zoneDecisionRead.label)}
+            >
+              <div
+                style={{
+                  fontFamily: PANEL_FONT,
+                  display: "grid",
+                  gap: 6,
+                  fontSize: 17,
+                  lineHeight: 1.42,
+                  color: "#dbeafe",
+                  fontWeight: 500,
+                }}
+              >
+                <CompareRow
+                  label="Zone"
+                  value={compactLabel(zoneDecisionRead.label)}
+                  color={labelColor(zoneDecisionRead.label)}
+                />
+                <CompareRow
+                  label="Permission"
+                  value={compactLabel(zoneDecisionRead.permission)}
+                  color={labelColor(zoneDecisionRead.permission)}
+                />
+
+                {zoneDecisionRead.secondaryShelfDefense?.value === true && (
+                  <CompareRow
+                    label="Shelf Defense"
+                    value="SECONDARY ONLY"
+                    color="#fbbf24"
+                  />
+                )}
+
+                {zoneDecisionRead.zoneAwareVolumeAvailable === false && (
+                  <CompareRow
+                    label="Zone Volume"
+                    value="NOT AVAILABLE YET"
+                    color="#94a3b8"
+                  />
+                )}
+
+                <div
+                  style={{
+                    marginTop: 4,
+                    color: "#dbeafe",
+                    fontWeight: 600,
+                    whiteSpace: "pre-line",
+                  }}
+                >
+                  {zoneDecisionRead.priorityRead ||
+                    zoneRead?.plainEnglish ||
+                    "Zone read is available."}
+                </div>
+              </div>
+            </SectionBox>
+          )}
+
+          {zoneDecisionRead?.nextConfirmation?.length > 0 && (
+            <SectionBox title="Next Confirmation" titleColor="#2dd4bf">
+              <div style={{ display: "grid", gap: 5 }}>
+                {zoneDecisionRead.nextConfirmation.map((item, idx) => (
+                  <div
+                    key={`${item.label}-${idx}`}
+                    style={{
+                      display: "grid",
+                      gap: 1,
+                      borderTop:
+                        idx === 0 ? "none" : "1px solid rgba(148,163,184,0.16)",
+                      paddingTop: idx === 0 ? 0 : 5,
+                    }}
+                  >
+                    <CompareRow
+                      label={item.label}
+                      value={item.level !== null && item.level !== undefined ? item.level : "required"}
+                      color="#2dd4bf"
+                    />
+                    <div
+                      style={{
+                        fontSize: 15,
+                        lineHeight: 1.35,
+                        color: "#94a3b8",
+                        fontWeight: 600,
+                      }}
+                    >
+                      {item.note}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </SectionBox>
+          )}
+
           <SectionBox
             title="Freshness"
             titleColor={freshness.color}
@@ -1139,35 +1440,9 @@ export default function Engine25MarketHealthTimeline({
                 whiteSpace: "pre-line",
               }}
             >
-              {shortText(payload?.deskNote, 320)}
+              {shortText(payload?.deskNote, 380)}
             </div>
           </SectionBox>
-
-          {zoneRead?.zoneState && (
-            <SectionBox title="Zone Read" titleColor="#60a5fa">
-              <div
-                style={{
-                  fontFamily: PANEL_FONT,
-                  display: "grid",
-                  gap: 4,
-                  fontSize: 17,
-                  lineHeight: 1.42,
-                  color: "#dbeafe",
-                  fontWeight: 500,
-                  whiteSpace: "pre-line",
-                }}
-              >
-                <div>
-                  <strong>Zone:</strong>{" "}
-                  {cleanLabel(zoneRead.zoneState.state)}
-                </div>
-                <div>
-                  <strong>Permission:</strong>{" "}
-                  {cleanLabel(zoneRead.zoneState.permission)}
-                </div>
-              </div>
-            </SectionBox>
-          )}
         </>
       )}
     </div>
