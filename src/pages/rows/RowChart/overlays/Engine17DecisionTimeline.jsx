@@ -887,11 +887,6 @@ function normalizeTimelineData({ overlayData }) {
       : isWatchState(engine15?.readinessLabel)
       ? "warning"
       : "neutral");
-        waveOpportunity?.timing === "POST_EXTENSION"
-      ? "warning"
-      : isWatchState(engine15?.readinessLabel)
-      ? "warning"
-      : "neutral";
 
   return {
     show: true,
