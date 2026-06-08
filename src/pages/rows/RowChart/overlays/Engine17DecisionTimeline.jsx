@@ -142,6 +142,16 @@ function getBackendTimelineSection(fib, title) {
   );
 }
 
+function getBackendTimelineRead(fib) {
+  const waveStrategy = getEngine22WaveStrategy(fib);
+  return waveStrategy?.timelineRead || null;
+}
+
+function getBackendTradeContextSummary(fib) {
+  const waveStrategy = getEngine22WaveStrategy(fib);
+  return waveStrategy?.tradeContextSummary || null;
+}
+
 function getEngine15Decision(fib) {
   const root = getStrategyRoot(fib);
 
@@ -378,6 +388,53 @@ function buildBackendTimelineSection(section) {
   };
 }
 
+function buildBackendTimelineSections(timelineRead) {
+  const sections = Array.isArray(timelineRead?.mainSections)
+    ? timelineRead.mainSections
+    : [];
+
+  return sections
+    .map((section) => buildBackendTimelineSection(section))
+    .filter(Boolean);
+}
+
+function buildPostAbcBounceSection(tradeContextSummary) {
+  const abcUp = tradeContextSummary?.abcUp || null;
+  const reads = tradeContextSummary?.reads || {};
+
+  if (
+    String(abcUp?.state || "").toUpperCase() !==
+    "A_UP_MARKED_WAITING_FOR_B_PULLBACK"
+  ) {
+    return null;
+  }
+
+  const preferredBZone = abcUp?.preferredBZone || null;
+  const preferredBZoneText =
+    preferredBZone?.lo != null && preferredBZone?.hi != null
+      ? `${formatNumber(preferredBZone.lo)}–${formatNumber(preferredBZone.hi)}`
+      : "—";
+
+  return {
+    number: 0,
+    icon: "〽",
+    title: "Post-ABC Bounce Map — Engine 22",
+    severity: "warning",
+    fields: [
+      ["State", formatUpper(abcUp.state)],
+      ["A Up", `${formatNumber(abcUp.originLow)} → ${formatNumber(abcUp.waveAHigh)}`],
+      ["Preferred B Zone", preferredBZoneText],
+      ["Deep B Support", formatNumber(abcUp.deepBSupport)],
+    ],
+    lines: [
+      reads.abcUpRead || null,
+      reads.bPullbackRead || null,
+      reads.actionRead ||
+        "No chase. No execution. Wait for B pullback hold and reclaim confirmation.",
+    ].filter(Boolean),
+  };
+}
+
 function buildEngine15Section(engine15) {
   if (!engine15) {
     return {
@@ -563,7 +620,13 @@ function buildPermissionSection(permission, engine15) {
   };
 }
 
-function buildNextStepsSection({ waveOpportunity, engine15, permission, fib }) {
+function buildNextStepsSection({
+  waveOpportunity,
+  engine15,
+  permission,
+  fib,
+  tradeContextSummary = null,
+}) {
   const steps = [];
 
   const waveNeeds = asArray(waveOpportunity?.needs);
@@ -571,6 +634,7 @@ function buildNextStepsSection({ waveOpportunity, engine15, permission, fib }) {
   const permissionReasons = asArray(permission?.reasonCodes);
   const volume = getEngine5Volume(fib);
   const timing = getEngine5Timing(fib);
+  const abcUp = tradeContextSummary?.abcUp || null;
 
   const engine16 = fib?.engine16 || {};
   const trigger10m = engine16?.regimeLayers?.trigger10m || {};
@@ -583,6 +647,30 @@ function buildNextStepsSection({ waveOpportunity, engine15, permission, fib }) {
 
   if (currentPrice != null) {
     actionLevels.push(`Current price: ${formatNumber(currentPrice)}`);
+  }
+
+  if (
+    String(abcUp?.state || "").toUpperCase() ===
+    "A_UP_MARKED_WAITING_FOR_B_PULLBACK"
+  ) {
+    if (abcUp?.waveAHigh != null) {
+      actionLevels.push(`A high: ${formatNumber(abcUp.waveAHigh)}`);
+    }
+
+    if (abcUp?.preferredBZone?.lo != null && abcUp?.preferredBZone?.hi != null) {
+      actionLevels.push(
+        `Preferred B zone: ${formatNumber(
+          abcUp.preferredBZone.lo
+        )}–${formatNumber(abcUp.preferredBZone.hi)}`
+      );
+    }
+
+    if (abcUp?.deepBSupport != null) {
+      actionLevels.push(`Deep B support: ${formatNumber(abcUp.deepBSupport)}`);
+    }
+
+    steps.push("Wait for B pullback hold and reclaim");
+    steps.push("No chase and no execution");
   }
 
   if (trigger10m?.ema10 != null || trigger10m?.ema20 != null) {
@@ -745,23 +833,42 @@ function normalizeTimelineData({ overlayData }) {
   const waveOpportunity = getWaveOpportunity(fib);
   const engine15 = getEngine15Decision(fib);
   const permission = getFinalPermission(fib);
+  const backendTimelineRead = getBackendTimelineRead(fib);
+  const tradeContextSummary = getBackendTradeContextSummary(fib);
 
-  const marketMeterSection = getBackendTimelineSection(
-    fib,
-    "Market Meter / Tactical Context"
+  const backendTimelineSections = buildBackendTimelineSections(
+    backendTimelineRead
   );
 
-  const headline = buildHeadline({ waveOpportunity, engine15 });
-  const subheadline = buildSubheadline({ waveOpportunity, engine15 });
+  const postAbcBounceSection =
+    buildPostAbcBounceSection(tradeContextSummary);
+
+  const headline =
+    backendTimelineRead?.headline ||
+    tradeContextSummary?.headline ||
+    buildHeadline({ waveOpportunity, engine15 });
+
+  const subheadline =
+    backendTimelineRead?.subheadline ||
+    tradeContextSummary?.subheadline ||
+    buildSubheadline({ waveOpportunity, engine15 });
+
   const badges = buildBadges({ waveOpportunity, engine15, permission });
  
   const sections = [
     buildWaveOpportunitySection(waveOpportunity),
-    buildBackendTimelineSection(marketMeterSection),
+    postAbcBounceSection,
+    ...backendTimelineSections,
     buildEngine15Section(engine15),
     buildEngine5Section(fib),
     buildPermissionSection(permission, engine15),
-    buildNextStepsSection({ waveOpportunity, engine15, permission, fib }),
+    buildNextStepsSection({
+      waveOpportunity,
+      engine15,
+      permission,
+      fib,
+      tradeContextSummary,
+    }),
   ]
     .filter(Boolean)
     .map((section, idx) => ({
@@ -770,9 +877,16 @@ function normalizeTimelineData({ overlayData }) {
     })); 
 
   const severity =
-    permission?.executable === true
+    backendTimelineRead?.severity ||
+    tradeContextSummary?.severity ||
+    (permission?.executable === true
       ? "bullish"
       : waveOpportunity?.chaseRisk === "EXTREME" ||
+        waveOpportunity?.timing === "POST_EXTENSION"
+      ? "warning"
+      : isWatchState(engine15?.readinessLabel)
+      ? "warning"
+      : "neutral");
         waveOpportunity?.timing === "POST_EXTENSION"
       ? "warning"
       : isWatchState(engine15?.readinessLabel)
