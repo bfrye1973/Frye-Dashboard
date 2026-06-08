@@ -129,9 +129,16 @@ function getWaveOpportunity(fib) {
   );
 }
 
+function getBackendTimelineRead(fib) {
+  return getEngine22WaveStrategy(fib)?.timelineRead || null;
+}
+
+function getBackendTradeContextSummary(fib) {
+  return getEngine22WaveStrategy(fib)?.tradeContextSummary || null;
+}
+
 function getBackendTimelineSection(fib, title) {
-  const waveStrategy = getEngine22WaveStrategy(fib);
-  const sections = waveStrategy?.timelineRead?.mainSections;
+  const sections = getBackendTimelineRead(fib)?.mainSections;
 
   if (!Array.isArray(sections)) return null;
 
@@ -140,16 +147,6 @@ function getBackendTimelineSection(fib, title) {
       (section) => String(section?.title || "").trim() === title
     ) || null
   );
-}
-
-function getBackendTimelineRead(fib) {
-  const waveStrategy = getEngine22WaveStrategy(fib);
-  return waveStrategy?.timelineRead || null;
-}
-
-function getBackendTradeContextSummary(fib) {
-  const waveStrategy = getEngine22WaveStrategy(fib);
-  return waveStrategy?.tradeContextSummary || null;
 }
 
 function getEngine15Decision(fib) {
@@ -202,6 +199,7 @@ function getEngine5Timing(fib) {
 
 function getTargets(waveOpportunity) {
   const targets = waveOpportunity?.targets || {};
+
   return [
     ["1.000", targets.e100],
     ["1.272", targets.e1272],
@@ -230,7 +228,7 @@ function isDangerChase(value) {
    Timeline builders
 ========================= */
 
-function buildHeadline({ waveOpportunity, engine15 }) {
+function buildFallbackHeadline({ waveOpportunity, engine15 }) {
   const degree = titleCase(waveOpportunity?.degree, "Wave");
   const setup = formatUpper(waveOpportunity?.setupType, "W3/W5");
   const readiness = formatUpper(
@@ -251,14 +249,9 @@ function buildHeadline({ waveOpportunity, engine15 }) {
   return `${degree} ${setup} ${readiness}`;
 }
 
-function buildSubheadline({ waveOpportunity, engine15 }) {
-  if (waveOpportunity?.summary) {
-    return waveOpportunity.summary;
-  }
-
-  if (engine15?.summary) {
-    return engine15.summary;
-  }
+function buildFallbackSubheadline({ waveOpportunity, engine15 }) {
+  if (waveOpportunity?.summary) return waveOpportunity.summary;
+  if (engine15?.summary) return engine15.summary;
 
   return "Waiting for a valid Wave 3 / Wave 5 opportunity and final confirmation.";
 }
@@ -280,14 +273,17 @@ function buildBadges({ waveOpportunity, engine15, permission }) {
 
   if (waveOpportunity?.direction || engine15?.direction) {
     const direction = waveOpportunity?.direction || engine15?.direction;
+
     badges.push({
       label: formatUpper(direction),
-      severity: String(direction).toUpperCase() === "LONG" ? "bullish" : "danger",
+      severity:
+        String(direction).toUpperCase() === "LONG" ? "bullish" : "danger",
     });
   }
 
   if (engine15?.readinessLabel || waveOpportunity?.readiness) {
     const readiness = engine15?.readinessLabel || waveOpportunity?.readiness;
+
     badges.push({
       label: formatUpper(readiness),
       severity: isReadyState(readiness) ? "bullish" : "warning",
@@ -308,7 +304,9 @@ function buildBadges({ waveOpportunity, engine15, permission }) {
   if (waveOpportunity?.chaseRisk) {
     badges.push({
       label: `${formatUpper(waveOpportunity.chaseRisk)} CHASE RISK`,
-      severity: isDangerChase(waveOpportunity.chaseRisk) ? "danger" : "warning",
+      severity: isDangerChase(waveOpportunity.chaseRisk)
+        ? "danger"
+        : "warning",
     });
   }
 
@@ -325,6 +323,25 @@ function buildBadges({ waveOpportunity, engine15, permission }) {
   }
 
   return badges;
+}
+
+function buildBackendTimelineSection(section) {
+  if (!section) return null;
+
+  const lines = Array.isArray(section.lines)
+    ? section.lines.filter(Boolean)
+    : [];
+
+  if (!lines.length) return null;
+
+  return {
+    number: 0,
+    icon: "◷",
+    title: section.title || "Context",
+    severity: section.severity || "blue",
+    fields: [],
+    lines,
+  };
 }
 
 function buildWaveOpportunitySection(waveOpportunity) {
@@ -350,7 +367,9 @@ function buildWaveOpportunitySection(waveOpportunity) {
     number: 1,
     icon: "〽",
     title: "Wave Opportunity — Engine 22",
-    severity: isDangerChase(waveOpportunity.chaseRisk) ? "warning" : "bullish",
+    severity: isDangerChase(waveOpportunity.chaseRisk)
+      ? "warning"
+      : "bullish",
     fields: [
       ["Setup", formatUpper(waveOpportunity.setupType, "NONE")],
       ["Raw Setup", formatUpper(waveOpportunity.rawSetup, "—")],
@@ -367,35 +386,6 @@ function buildWaveOpportunitySection(waveOpportunity) {
         : "Summary: Waiting for Engine 22 wave opportunity summary.",
     ],
   };
-}
-
-function buildBackendTimelineSection(section) {
-  if (!section) return null;
-
-  const lines = Array.isArray(section.lines)
-    ? section.lines.filter(Boolean)
-    : [];
-
-  if (!lines.length) return null;
-
-  return {
-    number: 0,
-    icon: "◷",
-    title: section.title || "Backend Timeline Context",
-    severity: section.severity || "blue",
-    fields: [],
-    lines,
-  };
-}
-
-function buildBackendTimelineSections(timelineRead) {
-  const sections = Array.isArray(timelineRead?.mainSections)
-    ? timelineRead.mainSections
-    : [];
-
-  return sections
-    .map((section) => buildBackendTimelineSection(section))
-    .filter(Boolean);
 }
 
 function buildPostAbcBounceSection(tradeContextSummary) {
@@ -416,13 +406,16 @@ function buildPostAbcBounceSection(tradeContextSummary) {
       : "—";
 
   return {
-    number: 0,
+    number: 2,
     icon: "〽",
     title: "Post-ABC Bounce Map — Engine 22",
     severity: "warning",
     fields: [
       ["State", formatUpper(abcUp.state)],
-      ["A Up", `${formatNumber(abcUp.originLow)} → ${formatNumber(abcUp.waveAHigh)}`],
+      [
+        "A Up",
+        `${formatNumber(abcUp.originLow)} → ${formatNumber(abcUp.waveAHigh)}`,
+      ],
       ["Preferred B Zone", preferredBZoneText],
       ["Deep B Support", formatNumber(abcUp.deepBSupport)],
     ],
@@ -438,7 +431,7 @@ function buildPostAbcBounceSection(tradeContextSummary) {
 function buildEngine15Section(engine15) {
   if (!engine15) {
     return {
-      number: 2,
+      number: 3,
       icon: "▣",
       title: "Setup Readiness — Engine 15ES",
       severity: "warning",
@@ -457,7 +450,7 @@ function buildEngine15Section(engine15) {
     .join(", ");
 
   return {
-    number: 2,
+    number: 3,
     icon: "▣",
     title: "Setup Readiness — Engine 15ES",
     severity: isReadyState(engine15.readinessLabel)
@@ -531,7 +524,7 @@ function buildEngine5Section(fib) {
     isDangerChase(timing?.chaseRisk);
 
   return {
-    number: 3,
+    number: 4,
     icon: "⚗",
     title: "Ingredients — Engine 5",
     severity: hasWarning ? "purple" : "neutral",
@@ -562,7 +555,7 @@ function buildEngine5Section(fib) {
 function buildPermissionSection(permission, engine15) {
   if (!permission) {
     return {
-      number: 4,
+      number: 5,
       icon: "⬟",
       title: "Final Permission — Engine 6",
       severity: "warning",
@@ -575,8 +568,10 @@ function buildPermissionSection(permission, engine15) {
   const watchOnly = permission.watchOnly === true;
 
   let permissionLine = "Engine 6 does not allow execution yet.";
+
   if (executable) {
-    permissionLine = "Engine 6 allows execution because setup and permission gates passed.";
+    permissionLine =
+      "Engine 6 allows execution because setup and permission gates passed.";
   } else if (
     String(permission.permission || "").toUpperCase() === "REDUCE" &&
     watchOnly
@@ -589,7 +584,7 @@ function buildPermissionSection(permission, engine15) {
   }
 
   return {
-    number: 4,
+    number: 5,
     icon: "⬟",
     title: "Final Permission — Engine 6",
     severity: executable ? "bullish" : "purple",
@@ -601,7 +596,10 @@ function buildPermissionSection(permission, engine15) {
         "Strategy Type",
         formatUpper(permission.strategyType || engine15?.strategyType, "NONE"),
       ],
-      ["Direction", formatUpper(permission.direction || engine15?.direction, "NONE")],
+      [
+        "Direction",
+        formatUpper(permission.direction || engine15?.direction, "NONE"),
+      ],
       [
         "Authority",
         permission.engine15Authority === true
@@ -627,6 +625,7 @@ function buildNextStepsSection({
   fib,
   tradeContextSummary = null,
 }) {
+  const actionLevels = [];
   const steps = [];
 
   const waveNeeds = asArray(waveOpportunity?.needs);
@@ -638,12 +637,7 @@ function buildNextStepsSection({
 
   const engine16 = fib?.engine16 || {};
   const trigger10m = engine16?.regimeLayers?.trigger10m || {};
-  const pullback1h = engine16?.regimeLayers?.pullback1h || {};
-  const trend4h = engine16?.regimeLayers?.trend4h || {};
   const currentPrice = waveOpportunity?.currentPrice || trigger10m?.close || null;
-  const targets = waveOpportunity?.targets || {};
-
-  const actionLevels = [];
 
   if (currentPrice != null) {
     actionLevels.push(`Current price: ${formatNumber(currentPrice)}`);
@@ -673,33 +667,17 @@ function buildNextStepsSection({
     steps.push("No chase and no execution");
   }
 
-  if (trigger10m?.ema10 != null || trigger10m?.ema20 != null) {
+  if (
+    trigger10m?.ema10 != null &&
+    trigger10m?.ema20 != null &&
+    String(abcUp?.state || "").toUpperCase() !==
+      "A_UP_MARKED_WAITING_FOR_B_PULLBACK"
+  ) {
     actionLevels.push(
       `10m reclaim zone: ${formatNumber(trigger10m.ema10)} → ${formatNumber(
         trigger10m.ema20
       )}`
     );
-  }
-
-  if (pullback1h?.ema10 != null) {
-    actionLevels.push(`First pullback support: ${formatNumber(pullback1h.ema10)}`);
-  }
-
-  if (trend4h?.ema10 != null) {
-    actionLevels.push(`Deeper 4H support: ${formatNumber(trend4h.ema10)}`);
-  }
-
-  const upsideTargets = [
-    targets?.e1272,
-    targets?.e1618,
-    targets?.e200,
-    targets?.e2618,
-  ]
-    .filter((v) => v != null)
-    .map((v) => formatNumber(v));
-
-  if (upsideTargets.length) {
-    actionLevels.push(`Upside targets: ${upsideTargets.join(" → ")}`);
   }
 
   if (
@@ -719,7 +697,9 @@ function buildNextStepsSection({
 
   if (
     engine15Needs.some((need) => String(need).toUpperCase().includes("10M")) ||
-    permissionReasons.some((reason) => String(reason).toUpperCase().includes("RECLAIM"))
+    permissionReasons.some((reason) =>
+      String(reason).toUpperCase().includes("RECLAIM")
+    )
   ) {
     steps.push("Need 10m EMA10/EMA20 reclaim");
   }
@@ -747,78 +727,11 @@ function buildNextStepsSection({
   }
 
   return {
-    number: 5,
+    number: 6,
     icon: "✓",
     title: "Next Action Levels",
     severity: "teal",
-    checklist: [...actionLevels, ...steps].slice(0, 9),
-  };
-}
-
-function buildSideSummary({ waveOpportunity, engine15, permission }) {
-  return [
-    {
-      title: "Engine 22 — Wave",
-      severity: "warning",
-      lines: [
-        formatUpper(waveOpportunity?.setupType, "NO SETUP"),
-        compactJoin(
-          [
-            titleCase(waveOpportunity?.degree, "—"),
-            formatText(waveOpportunity?.direction, "—"),
-            formatText(waveOpportunity?.timing, "—"),
-          ],
-          " • "
-        ),
-        getTargets(waveOpportunity)
-          .map(([, price]) => formatNumber(price))
-          .join(" / "),
-      ],
-      badge: formatUpper(waveOpportunity?.readiness, "WATCH"),
-      icon: "〽",
-    },
-    {
-      title: "Engine 15ES — Readiness",
-      severity: "blue",
-      lines: [
-        compactJoin(
-          [formatText(engine15?.strategyType, "—"), formatText(engine15?.direction, "—")],
-          " • "
-        ),
-        `Quality: ${formatScore(engine15?.qualityScore)} (${formatText(
-          engine15?.qualityBand || engine15?.qualityGrade,
-          "—"
-        )})`,
-        `Next: ${formatText(
-          engine15?.nextSetupType || engine15?.lifecycle?.nextFocus,
-          "—"
-        )}`,
-      ],
-      badge: formatUpper(engine15?.readinessLabel, "WATCH"),
-      icon: "▣",
-    },
-    {
-      title: "Engine 6 — Permission",
-      severity: "purple",
-      lines: [
-        `Executable: ${formatBool(permission?.executable)}`,
-        `Watch Only: ${formatBool(permission?.watchOnly)}`,
-      ],
-      badge: formatUpper(permission?.permission, "—"),
-      icon: "⬟",
-    },
-  ];
-}
-
-function buildQuickTargets(waveOpportunity) {
-  const targets = getTargets(waveOpportunity);
-
-  return {
-    title: "Quick Targets",
-    subtitle: `${titleCase(waveOpportunity?.degree, "Wave")} W5 Extension Targets`,
-    targets,
-    taggedLabel:
-      waveOpportunity?.targets?.e1272 != null ? "1.272 already tagged" : null,
+    checklist: [...actionLevels, ...steps].slice(0, 8),
   };
 }
 
@@ -836,29 +749,33 @@ function normalizeTimelineData({ overlayData }) {
   const backendTimelineRead = getBackendTimelineRead(fib);
   const tradeContextSummary = getBackendTradeContextSummary(fib);
 
-  const backendTimelineSections = buildBackendTimelineSections(
-    backendTimelineRead
+  const postAbcBounceSection = buildPostAbcBounceSection(tradeContextSummary);
+
+  const targetClusterSection = getBackendTimelineSection(
+    fib,
+    "Target Cluster Confidence"
   );
 
-  const postAbcBounceSection =
-    buildPostAbcBounceSection(tradeContextSummary);
+  const marketMeterSection = getBackendTimelineSection(
+    fib,
+    "Market Meter / Tactical Context"
+  );
 
   const headline =
     backendTimelineRead?.headline ||
     tradeContextSummary?.headline ||
-    buildHeadline({ waveOpportunity, engine15 });
+    buildFallbackHeadline({ waveOpportunity, engine15 });
 
   const subheadline =
     backendTimelineRead?.subheadline ||
     tradeContextSummary?.subheadline ||
-    buildSubheadline({ waveOpportunity, engine15 });
+    buildFallbackSubheadline({ waveOpportunity, engine15 });
 
   const badges = buildBadges({ waveOpportunity, engine15, permission });
- 
+
   const sections = [
     buildWaveOpportunitySection(waveOpportunity),
     postAbcBounceSection,
-    ...backendTimelineSections,
     buildEngine15Section(engine15),
     buildEngine5Section(fib),
     buildPermissionSection(permission, engine15),
@@ -874,7 +791,17 @@ function normalizeTimelineData({ overlayData }) {
     .map((section, idx) => ({
       ...section,
       number: idx + 1,
-    })); 
+    }));
+
+  const contextSections = [
+    buildBackendTimelineSection(targetClusterSection),
+    buildBackendTimelineSection(marketMeterSection),
+  ]
+    .filter(Boolean)
+    .map((section, idx) => ({
+      ...section,
+      number: idx + 1,
+    }));
 
   const severity =
     backendTimelineRead?.severity ||
@@ -895,8 +822,7 @@ function normalizeTimelineData({ overlayData }) {
     subheadline,
     badges,
     sections,
-    sideSummary: buildSideSummary({ waveOpportunity, engine15, permission }),
-    quickTargets: buildQuickTargets(waveOpportunity),
+    contextSections,
     footer: permission?.executable === true ? "EXECUTION ELIGIBLE" : "WATCH",
   };
 }
@@ -1190,249 +1116,12 @@ function TimelineSection({ section }) {
               }}
             >
               {asArray(section.lines).map((line, idx) => (
-                <div key={idx}>{line}</div>
+                <div key={`${line}-${idx}`}>{line}</div>
               ))}
             </div>
           )}
         </div>
       </div>
-    </div>
-  );
-}
-
-function EngineSummaryCard({ item }) {
-  if (!item) return null;
-
-  return (
-    <div
-      style={{
-        border: `1px solid ${severityBorder(item.severity)}`,
-        background: severityBackground(item.severity),
-        borderRadius: 12,
-        padding: "13px 14px",
-      }}
-    >
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: 10,
-          marginBottom: 8,
-        }}
-      >
-        <div
-          style={{
-            ...shellTextStyle,
-            ...smallCapsStyle,
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            color: severityColor(item.severity),
-            fontWeight: FONT_MEDIUM,
-            fontSize: 15,
-          }}
-        >
-          <span style={{ fontSize: 21 }}>{item.icon}</span>
-          {item.title}
-        </div>
-        <Badge label={item.badge} severity={item.severity} />
-      </div>
-
-      <div
-        style={{
-          ...shellTextStyle,
-          display: "grid",
-          gap: 6,
-          color: "#e5e7eb",
-          fontSize: 15,
-          fontWeight: FONT_REGULAR,
-          lineHeight: 1.45,
-        }}
-      >
-        {asArray(item.lines).map((line, idx) => (
-          <div key={idx}>{line}</div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function EngineSummaryPanel({ items }) {
-  const safeItems = asArray(items);
-  if (!safeItems.length) return null;
-
-  return (
-    <div
-      style={{
-        ...shellTextStyle,
-        position: "absolute",
-        top: 145,
-        left: "max(18px, calc(50% - 735px))",
-        width: 330,
-        zIndex: 110,
-        border: "1px solid rgba(148,163,184,0.35)",
-        borderRadius: 14,
-        background: CARD_BG,
-        padding: "14px 14px",
-        color: "#e5e7eb",
-        pointerEvents: "none",
-        boxShadow: "0 10px 28px rgba(0,0,0,0.32)",
-        backdropFilter: "blur(5px)",
-      }}
-    >
-      <div
-        style={{
-          ...shellTextStyle,
-          ...smallCapsStyle,
-          color: MAIN_TEXT,
-          fontWeight: FONT_MEDIUM,
-          fontSize: 18,
-          marginBottom: 12,
-        }}
-      >
-        Engine Summary
-      </div>
-
-      <div style={{ display: "grid", gap: 10 }}>
-        {safeItems.map((item, idx) => (
-          <EngineSummaryCard key={`${item.title}-${idx}`} item={item} />
-        ))}
-
-        <div
-          style={{
-            ...shellTextStyle,
-            border: "1px solid rgba(148,163,184,0.35)",
-            borderRadius: 10,
-            padding: "10px 12px",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            color: MAIN_TEXT,
-            fontWeight: FONT_REGULAR,
-            fontSize: 15,
-          }}
-        >
-          <span>View Full Engine Details</span>
-          <span style={{ fontSize: 20 }}>›</span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function QuickTargetsPanel({ quickTargets }) {
-  if (!quickTargets || !asArray(quickTargets.targets).length) return null;
-
-  return (
-    <div
-      style={{
-        ...shellTextStyle,
-        position: "absolute",
-        top: 430,
-        left: "calc(50% + 430px)",
-        width: 430,
-        maxWidth: "28%",
-        zIndex: 107,
-        border: "1px solid rgba(148,163,184,0.35)",
-        borderRadius: 14,
-        background: CARD_BG,
-        padding: "14px 14px",
-        color: "#e5e7eb",
-        pointerEvents: "none",
-        boxShadow: "0 10px 28px rgba(0,0,0,0.32)",
-        backdropFilter: "blur(5px)",
-      }}
-    >
-      <div
-        style={{
-          ...shellTextStyle,
-          ...smallCapsStyle,
-          color: MAIN_TEXT,
-          fontWeight: FONT_MEDIUM,
-          fontSize: 18,
-          marginBottom: 14,
-        }}
-      >
-        {quickTargets.title}
-      </div>
-
-      <div
-        style={{
-          ...shellTextStyle,
-          color: "#fbbf24",
-          fontWeight: FONT_MEDIUM,
-          fontSize: 15,
-          marginBottom: 8,
-        }}
-      >
-        {quickTargets.subtitle}
-      </div>
-
-      <div style={{ display: "grid", gap: 7 }}>
-        {quickTargets.targets.map(([level, price]) => {
-          const tagged = level === "1.272";
-
-          return (
-            <div
-              key={level}
-              style={{
-                ...shellTextStyle,
-                border: "1px solid rgba(148,163,184,0.22)",
-                borderRadius: 8,
-                background: "rgba(15,23,42,0.58)",
-                padding: "10px 10px",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                gap: 10,
-                fontSize: 15,
-                fontWeight: FONT_REGULAR,
-              }}
-            >
-              <span>{level}</span>
-              <span style={{ color: MAIN_TEXT }}>{formatNumber(price)}</span>
-              {tagged && (
-                <span
-                  style={{
-                    ...shellTextStyle,
-                    color: "#fbbf24",
-                    border: "1px solid rgba(251,191,36,0.48)",
-                    borderRadius: 6,
-                    padding: "2px 5px",
-                    fontSize: 10,
-                    fontWeight: FONT_MEDIUM,
-                  }}
-                >
-                  TAGGED
-                </span>
-              )}
-            </div>
-          );
-        })}
-      </div>
-
-      {quickTargets.taggedLabel && (
-        <div
-          style={{
-            ...shellTextStyle,
-            marginTop: 12,
-            border: "1px solid rgba(251,191,36,0.55)",
-            background: "rgba(113,63,18,0.14)",
-            borderRadius: 10,
-            padding: "10px 11px",
-            color: "#fbbf24",
-            fontWeight: FONT_MEDIUM,
-            fontSize: 15,
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-          }}
-        >
-          <span>⚠</span>
-          <span>{quickTargets.taggedLabel}</span>
-        </div>
-      )}
     </div>
   );
 }
@@ -1606,6 +1295,58 @@ function TimelineMainCard({ timeline }) {
   );
 }
 
+function ContextTimelinePanel({ sections }) {
+  const safeSections = asArray(sections);
+
+  if (!safeSections.length) return null;
+
+  return (
+    <div
+      style={{
+        ...shellTextStyle,
+        position: "absolute",
+        top: 138,
+        left: "calc(50% + 430px)",
+        width: 430,
+        maxWidth: "28%",
+        maxHeight: "calc(100vh - 165px)",
+        overflowY: "auto",
+        zIndex: 108,
+        border: "1px solid rgba(148,163,184,0.35)",
+        borderRadius: 15,
+        background: CARD_BG,
+        padding: "14px 14px",
+        color: "#e5e7eb",
+        pointerEvents: "none",
+        boxShadow: "0 10px 28px rgba(0,0,0,0.32)",
+        backdropFilter: "blur(5px)",
+      }}
+    >
+      <div
+        style={{
+          ...shellTextStyle,
+          ...smallCapsStyle,
+          color: MAIN_TEXT,
+          fontWeight: FONT_MEDIUM,
+          fontSize: 18,
+          marginBottom: 12,
+        }}
+      >
+        Context Timeline
+      </div>
+
+      <div style={{ display: "grid", gap: 9 }}>
+        {safeSections.map((section, idx) => (
+          <TimelineSection
+            key={`${section.title || "context"}-${idx}`}
+            section={section}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 /* =========================
    Main export
 ========================= */
@@ -1621,9 +1362,9 @@ export default function Engine17DecisionTimeline({
 
   return (
     <>
-      <MinimalStatusStrip timeline={timeline} />      
-      <TimelineMainCard timeline={timeline} />      
+      <MinimalStatusStrip timeline={timeline} />
+      <TimelineMainCard timeline={timeline} />
+      <ContextTimelinePanel sections={timeline.contextSections} />
     </>
   );
 }
-
