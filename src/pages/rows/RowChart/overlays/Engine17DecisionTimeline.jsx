@@ -392,7 +392,7 @@ function buildWaveOpportunitySection(waveOpportunity) {
   };
 }
 
-function buildPostAbcBounceSection(tradeContextSummary) {
+function buildPostAbcBounceSection(tradeContextSummary, waveOpportunity) {
   const abcUp = tradeContextSummary?.abcUp || null;
   const reads = tradeContextSummary?.reads || {};
 
@@ -415,6 +415,10 @@ function buildPostAbcBounceSection(tradeContextSummary) {
     abcUp.waveBLow ??
     null;
 
+  const extensionTargets = getTargets(waveOpportunity)
+    .map(([level, price]) => `${level}: ${formatNumber(price)}`)
+    .join("  |  ");   
+
   return {
     number: 2,
     icon: "〽",
@@ -428,6 +432,7 @@ function buildPostAbcBounceSection(tradeContextSummary) {
       ],
       ["B Low", formatNumber(bLow)],
       ["Preferred B Zone", preferredBZoneText],
+      ["Extension Targets", extensionTargets || "—"],
       ["Deep B Support", formatNumber(abcUp.deepBSupport)],
       ["B Status", formatUpper(abcUp.bPullbackStatus, "WAITING")],
     ],
@@ -909,7 +914,10 @@ function normalizeTimelineData({ overlayData }) {
   const backendTimelineRead = getBackendTimelineRead(fib);
   const tradeContextSummary = getBackendTradeContextSummary(fib);
 
-  const postAbcBounceSection = buildPostAbcBounceSection(tradeContextSummary);
+  const postAbcBounceSection = buildPostAbcBounceSection(
+    tradeContextSummary,
+    waveOpportunity
+  );
 
   const targetClusterSection = getBackendTimelineSection(
     fib,
