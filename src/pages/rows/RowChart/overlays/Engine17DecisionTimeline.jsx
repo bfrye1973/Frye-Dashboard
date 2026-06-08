@@ -225,7 +225,7 @@ function isDangerChase(value) {
 }
 
 /* =========================
-   Timeline builders
+   Fallback headline builders
 ========================= */
 
 function buildFallbackHeadline({ waveOpportunity, engine15 }) {
@@ -325,6 +325,10 @@ function buildBadges({ waveOpportunity, engine15, permission }) {
   return badges;
 }
 
+/* =========================
+   Shared section builders
+========================= */
+
 function buildBackendTimelineSection(section) {
   if (!section) return null;
 
@@ -405,6 +409,12 @@ function buildPostAbcBounceSection(tradeContextSummary) {
       ? `${formatNumber(preferredBZone.lo)}–${formatNumber(preferredBZone.hi)}`
       : "—";
 
+  const bLow =
+    abcUp.effectiveWaveBLow ??
+    abcUp.autoWaveBLow ??
+    abcUp.waveBLow ??
+    null;
+
   return {
     number: 2,
     icon: "〽",
@@ -416,12 +426,15 @@ function buildPostAbcBounceSection(tradeContextSummary) {
         "A Up",
         `${formatNumber(abcUp.originLow)} → ${formatNumber(abcUp.waveAHigh)}`,
       ],
+      ["B Low", formatNumber(bLow)],
       ["Preferred B Zone", preferredBZoneText],
       ["Deep B Support", formatNumber(abcUp.deepBSupport)],
+      ["B Status", formatUpper(abcUp.bPullbackStatus, "WAITING")],
     ],
     lines: [
       reads.abcUpRead || null,
       reads.bPullbackRead || null,
+      abcUp.read || null,
       reads.actionRead ||
         "No chase. No execution. Wait for B pullback hold and reclaim confirmation.",
     ].filter(Boolean),
@@ -647,8 +660,18 @@ function buildNextStepsSection({
     String(abcUp?.state || "").toUpperCase() ===
     "A_UP_MARKED_WAITING_FOR_B_PULLBACK"
   ) {
+    const bLow =
+      abcUp.effectiveWaveBLow ??
+      abcUp.autoWaveBLow ??
+      abcUp.waveBLow ??
+      null;
+
     if (abcUp?.waveAHigh != null) {
       actionLevels.push(`A high: ${formatNumber(abcUp.waveAHigh)}`);
+    }
+
+    if (bLow != null) {
+      actionLevels.push(`B low: ${formatNumber(bLow)}`);
     }
 
     if (abcUp?.preferredBZone?.lo != null && abcUp?.preferredBZone?.hi != null) {
@@ -735,6 +758,143 @@ function buildNextStepsSection({
   };
 }
 
+/* =========================
+   Market Context builders
+========================= */
+
+function buildEngine3ContextSection(fib) {
+  const reaction = getEngine5Reaction(fib);
+
+  if (!reaction) {
+    return {
+      number: 0,
+      icon: "③",
+      title: "Engine 3 Current State",
+      severity: "neutral",
+      fields: [],
+      lines: ["Engine 3 reaction context unavailable."],
+    };
+  }
+
+  const quality =
+    reaction.quality ||
+    reaction.reactionQuality ||
+    reaction.state ||
+    "UNKNOWN";
+
+  const direction =
+    reaction.direction ||
+    reaction.executionBias ||
+    reaction.bias ||
+    "NEUTRAL";
+
+  const confirmed =
+    reaction.confirmed === true ||
+    reaction.cleanReaction === true ||
+    reaction.reactionConfirmed === true;
+
+  return {
+    number: 0,
+    icon: "③",
+    title: "Engine 3 Current State",
+    severity: confirmed ? "bullish" : "warning",
+    fields: [
+      ["Reaction", formatUpper(quality, "UNKNOWN")],
+      ["Direction", formatUpper(direction, "NEUTRAL")],
+      ["Confirmed", formatBool(confirmed)],
+      ["Score", formatScore(reaction.score || reaction.reactionScore)],
+    ],
+    lines: [
+      reaction.message ||
+        reaction.traderMessage ||
+        (confirmed
+          ? "Engine 3 reaction is confirmed."
+          : "Engine 3 reaction is not confirmed yet."),
+    ].filter(Boolean),
+  };
+}
+
+function buildEngine4ContextSection(fib) {
+  const volume = getEngine5Volume(fib);
+
+  if (!volume) {
+    return {
+      number: 0,
+      icon: "④",
+      title: "Engine 4 Current State",
+      severity: "neutral",
+      fields: [],
+      lines: ["Engine 4 volume / participation context unavailable."],
+    };
+  }
+
+  const quality =
+    volume.quality ||
+    volume.participationQuality ||
+    volume.state ||
+    "UNKNOWN";
+
+  const direction =
+    volume.direction ||
+    volume.participationDirection ||
+    "NEUTRAL";
+
+  const confirmed =
+    volume.confirmed === true ||
+    volume.volumeConfirmed === true ||
+    volume.cleanParticipation === true;
+
+  return {
+    number: 0,
+    icon: "④",
+    title: "Engine 4 Current State",
+    severity: confirmed ? "bullish" : "warning",
+    fields: [
+      ["Volume", formatUpper(quality, "UNKNOWN")],
+      ["Direction", formatUpper(direction, "NEUTRAL")],
+      ["Confirmed", formatBool(confirmed)],
+      ["Score", formatScore(volume.score || volume.volumeScore)],
+    ],
+    lines: [
+      volume.message ||
+        volume.traderMessage ||
+        (confirmed
+          ? "Engine 4 participation is confirmed."
+          : "Engine 4 participation is not confirmed yet."),
+    ].filter(Boolean),
+  };
+}
+
+function buildCurrentFibExtensionsSection(waveOpportunity) {
+  const targets = getTargets(waveOpportunity);
+
+  if (!targets.length) {
+    return {
+      number: 0,
+      icon: "⑸",
+      title: "Current Fib Extensions To Watch",
+      severity: "neutral",
+      fields: [],
+      lines: ["No active fib extension targets are available."],
+    };
+  }
+
+  return {
+    number: 0,
+    icon: "⑸",
+    title: "Current Fib Extensions To Watch",
+    severity: "blue",
+    fields: targets.map(([level, price]) => [level, formatNumber(price)]),
+    lines: [
+      "Use these only as target / reaction zones. They are not entry signals by themselves.",
+    ],
+  };
+}
+
+/* =========================
+   Normalize timeline data
+========================= */
+
 function normalizeTimelineData({ overlayData }) {
   if (!overlayData?.ok) {
     return {
@@ -796,6 +956,9 @@ function normalizeTimelineData({ overlayData }) {
   const contextSections = [
     buildBackendTimelineSection(targetClusterSection),
     buildBackendTimelineSection(marketMeterSection),
+    buildEngine3ContextSection(fib),
+    buildEngine4ContextSection(fib),
+    buildCurrentFibExtensionsSection(waveOpportunity),
   ]
     .filter(Boolean)
     .map((section, idx) => ({
@@ -882,7 +1045,7 @@ function FieldGrid({ fields }) {
     <div
       style={{
         display: "grid",
-        gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+        gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))",
         gap: "9px 15px",
         marginTop: 7,
       }}
@@ -1306,7 +1469,7 @@ function ContextTimelinePanel({ sections }) {
         ...shellTextStyle,
         position: "absolute",
         top: 138,
-        left: "calc(50% + 430px)",
+        right: "calc(50% + 430px)",
         width: 430,
         maxWidth: "28%",
         maxHeight: "calc(100vh - 165px)",
@@ -1332,7 +1495,7 @@ function ContextTimelinePanel({ sections }) {
           marginBottom: 12,
         }}
       >
-        Context Timeline
+        Market Context
       </div>
 
       <div style={{ display: "grid", gap: 9 }}>
@@ -1363,8 +1526,8 @@ export default function Engine17DecisionTimeline({
   return (
     <>
       <MinimalStatusStrip timeline={timeline} />
-      <TimelineMainCard timeline={timeline} />
       <ContextTimelinePanel sections={timeline.contextSections} />
+      <TimelineMainCard timeline={timeline} />
     </>
   );
 }
