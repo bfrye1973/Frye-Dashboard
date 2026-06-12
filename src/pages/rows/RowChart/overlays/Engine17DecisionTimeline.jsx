@@ -18,6 +18,14 @@ const SOFT_TEXT = "#dbeafe";
 const MAIN_TEXT = "#f8fafc";
 const MUTED_TEXT = "#94a3b8";
 
+const C_TARGET_HIT_LABELS = {
+  c100: "C 1.000 hit",
+  c1272: "C 1.272 hit",
+  c1618: "C 1.618 hit",
+  c200: "C 2.000 hit",
+  c2618: "C 2.618 hit",
+};
+
 /* =========================
    Formatters
 ========================= */
@@ -118,6 +126,13 @@ function getEngine22WaveStrategy(fib) {
   );
 }
 
+function getPostDownImpulseBounce(fib) {
+  return (
+    getEngine22WaveStrategy(fib)?.waveFibState?.lifecycle?.postAbcReset
+      ?.postDownImpulseBounce || null
+  );
+}
+
 function getWaveOpportunity(fib) {
   const waveStrategy = getEngine22WaveStrategy(fib);
 
@@ -207,6 +222,33 @@ function getTargets(waveOpportunity) {
     ["2.000", targets.e200],
     ["2.618", targets.e2618],
   ].filter(([, price]) => price != null);
+}
+
+function getPostDownImpulseBounceTargets(postBounce) {
+  const targets = postBounce?.cUpTargets || {};
+
+  return [
+    ["C 1.000", targets.c100],
+    ["C 1.272", targets.c1272],
+    ["C 1.618", targets.c1618],
+    ["C 2.000", targets.c200],
+    ["C 2.618", targets.c2618],
+  ].filter(([, price]) => price != null);
+}
+
+function formatPostBounceTargetHit(postBounce) {
+  const hit = String(
+    postBounce?.cProgress?.highestTargetHit || ""
+  ).toLowerCase();
+
+  return C_TARGET_HIT_LABELS[hit] || "No C-up target hit yet";
+}
+
+function isPostMinor5BounceCLegActive(postBounce) {
+  return (
+    String(postBounce?.state || "").toUpperCase() ===
+    "POST_MINOR_5_BOUNCE_C_LEG_ACTIVE"
+  );
 }
 
 function isWatchState(value) {
@@ -443,6 +485,52 @@ function buildPostAbcBounceSection(tradeContextSummary, waveOpportunity) {
       reads.actionRead ||
         "No chase. No execution. Wait for B pullback hold and reclaim confirmation.",
     ].filter(Boolean),
+  };
+}
+
+function buildPostMinor5CorrectiveBounceSection(fib) {
+  const postBounce = getPostDownImpulseBounce(fib);
+
+  if (!isPostMinor5BounceCLegActive(postBounce)) return null;
+
+  const cHigh =
+    Number(postBounce?.waveCHigh) > 0
+      ? formatNumber(postBounce.waveCHigh)
+      : "not marked yet";
+
+  return {
+    number: 0,
+    icon: "〽",
+    title: "Post-Minor-5 Corrective Bounce — Engine 22",
+    severity: "warning",
+    fields: [
+      ["Origin", formatNumber(postBounce.originLow)],
+      ["A High", formatNumber(postBounce.waveAHigh)],
+      ["B Low", formatNumber(postBounce.waveBLow)],
+      ["C High", cHigh],
+      [
+        "Correction Type",
+        compactJoin(
+          [
+            formatUpper(postBounce.correctionFamily, "—"),
+            formatUpper(postBounce.correctionType, "—"),
+          ],
+          " / "
+        ),
+      ],
+      [
+        "B Retrace",
+        postBounce.bRetracePct != null
+          ? `${formatNumber(postBounce.bRetracePct, 0)}%`
+          : "—",
+      ],
+    ],
+    lines: [
+      postBounce.read ||
+        "Post-Minor-5 corrective bounce is active. Read-only watch.",
+      "Watch C-up maturity / HTF decision. Do not chase.",
+      "No automatic long. No automatic short. No execution.",
+    ],
   };
 }
 
@@ -870,7 +958,28 @@ function buildEngine4ContextSection(fib) {
   };
 }
 
-function buildCurrentFibExtensionsSection(waveOpportunity) {
+function buildCurrentFibExtensionsSection(waveOpportunity, fib) {
+  const postBounce = getPostDownImpulseBounce(fib);
+  const postBounceTargets = getPostDownImpulseBounceTargets(postBounce);
+
+  if (isPostMinor5BounceCLegActive(postBounce) && postBounceTargets.length) {
+    return {
+      number: 0,
+      icon: "⑸",
+      title: "Post-Minor-5 Corrective Bounce C-Up Targets",
+      severity: "blue",
+      fields: postBounceTargets.map(([level, price]) => [
+        level,
+        formatNumber(price),
+      ]),
+      lines: [
+        `Current target hit: ${formatPostBounceTargetHit(postBounce)}`,
+        "These are corrective bounce reaction zones, not fresh long targets or execution signals.",
+        "No automatic long. No automatic short. No execution.",
+      ],
+    };
+  }
+
   const targets = getTargets(waveOpportunity);
 
   if (!targets.length) {
@@ -943,6 +1052,7 @@ function normalizeTimelineData({ overlayData }) {
 
   const sections = [
     buildWaveOpportunitySection(waveOpportunity),
+    buildPostMinor5CorrectiveBounceSection(fib),
     postAbcBounceSection,
     buildEngine15Section(engine15),
     buildEngine5Section(fib),
@@ -966,7 +1076,7 @@ function normalizeTimelineData({ overlayData }) {
     buildBackendTimelineSection(marketMeterSection),
     buildEngine3ContextSection(fib),
     buildEngine4ContextSection(fib),
-    buildCurrentFibExtensionsSection(waveOpportunity),
+    buildCurrentFibExtensionsSection(waveOpportunity, fib),
   ]
     .filter(Boolean)
     .map((section, idx) => ({
