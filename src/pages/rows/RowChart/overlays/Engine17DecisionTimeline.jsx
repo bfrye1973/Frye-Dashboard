@@ -245,10 +245,98 @@ function formatPostBounceTargetHit(postBounce) {
 }
 
 function isPostMinor5BounceCLegActive(postBounce) {
-  return (
-    String(postBounce?.state || "").toUpperCase() ===
-    "POST_MINOR_5_BOUNCE_C_LEG_ACTIVE"
+  const state = String(postBounce?.state || "").toUpperCase();
+
+  return [
+    "POST_MINOR_5_BOUNCE_C_LEG_ACTIVE",
+    "POST_MINOR_5_BOUNCE_B_MARKED_C_UP_WATCH",
+    "POST_MINOR_5_BOUNCE_C_COMPLETE_HTF_DECISION_WATCH",
+  ].includes(state);
+}
+
+function getPostBounceTargetMeta() {
+  return [
+    { key: "c100", label: "C 1.000" },
+    { key: "c1272", label: "C 1.272" },
+    { key: "c1618", label: "C 1.618" },
+    { key: "c200", label: "C 2.000" },
+    { key: "c2618", label: "C 2.618" },
+  ];
+}
+
+function getPostBounceTargetSummary(postBounce) {
+  const targets = postBounce?.cUpTargets || {};
+  const meta = getPostBounceTargetMeta()
+    .map((target) => ({
+      ...target,
+      price: Number(targets[target.key]),
+    }))
+    .filter((target) => Number.isFinite(target.price));
+
+  if (!meta.length) {
+    return {
+      hitKey: null,
+      hitLabel: null,
+      hitPrice: null,
+      nextKey: null,
+      nextLabel: null,
+      nextPrice: null,
+      targetsText: "Corrective C-up targets unavailable",
+      currentHigh: null,
+    };
+  }
+
+  const rawHit = String(
+    postBounce?.cProgress?.highestTargetHit || ""
+  ).toLowerCase();
+
+  const currentHigh = Number(
+    postBounce?.cProgress?.activeHigh ??
+      postBounce?.cProgress?.price ??
+      postBounce?.currentPrice
   );
+
+  let hitIndex = meta.findIndex((target) => target.key === rawHit);
+
+  if (hitIndex < 0 && Number.isFinite(currentHigh)) {
+    for (let idx = 0; idx < meta.length; idx += 1) {
+      if (currentHigh >= meta[idx].price) hitIndex = idx;
+    }
+  }
+
+  const hit = hitIndex >= 0 ? meta[hitIndex] : null;
+  const next = meta.find((target, idx) => {
+    if (hitIndex >= 0) return idx > hitIndex;
+    if (Number.isFinite(currentHigh)) return target.price > currentHigh;
+    return idx === 0;
+  });
+
+  let targetsText;
+
+  if (hit && next) {
+    targetsText = `Hit ${hit.label} @ ${formatNumber(
+      hit.price
+    )} → Next ${next.label} @ ${formatNumber(next.price)}`;
+  } else if (hit && !next) {
+    targetsText = `Hit ${hit.label} @ ${formatNumber(
+      hit.price
+    )} → No higher C-up target`;
+  } else if (next) {
+    targetsText = `Watching ${next.label} @ ${formatNumber(next.price)}`;
+  } else {
+    targetsText = "Corrective C-up targets unavailable";
+  }
+
+  return {
+    hitKey: hit?.key || null,
+    hitLabel: hit?.label || null,
+    hitPrice: hit?.price ?? null,
+    nextKey: next?.key || null,
+    nextLabel: next?.label || null,
+    nextPrice: next?.price ?? null,
+    targetsText,
+    currentHigh: Number.isFinite(currentHigh) ? currentHigh : null,
+  };
 }
 
 function isWatchState(value) {
@@ -390,7 +478,7 @@ function buildBackendTimelineSection(section) {
   };
 }
 
-function buildWaveOpportunitySection(waveOpportunity) {
+function buildWaveOpportunitySection(waveOpportunity, fib) {
   if (!waveOpportunity) {
     return {
       number: 1,
@@ -405,26 +493,40 @@ function buildWaveOpportunitySection(waveOpportunity) {
     };
   }
 
-  const targetsText = getTargets(waveOpportunity)
+  const postBounce = getPostDownImpulseBounce(fib);
+  const postBounceActive = isPostMinor5BounceCLegActive(postBounce);
+  const postBounceTargetSummary = getPostBounceTargetSummary(postBounce);
+
+  const normalTargetsText = getTargets(waveOpportunity)
     .map(([level, price]) => `${level}: ${formatNumber(price)}`)
     .join("  |  ");
+
+  const directionText = postBounceActive
+    ? "NONE — WATCH C-UP / HTF DECISION"
+    : formatUpper(waveOpportunity.direction, "NONE");
+
+  const targetsText = postBounceActive
+    ? postBounceTargetSummary.targetsText
+    : normalTargetsText || "—";
 
   return {
     number: 1,
     icon: "〽",
     title: "Wave Opportunity — Engine 22",
-    severity: isDangerChase(waveOpportunity.chaseRisk)
+    severity: postBounceActive
+      ? "warning"
+      : isDangerChase(waveOpportunity.chaseRisk)
       ? "warning"
       : "bullish",
     fields: [
       ["Setup", formatUpper(waveOpportunity.setupType, "NONE")],
       ["Raw Setup", formatUpper(waveOpportunity.rawSetup, "—")],
       ["Degree", titleCase(waveOpportunity.degree, "—")],
-      ["Direction", formatUpper(waveOpportunity.direction, "NONE")],
+      ["Direction", directionText],
       ["Readiness", formatUpper(waveOpportunity.readiness, "UNKNOWN")],
       ["Timing", formatUpper(waveOpportunity.timing, "UNKNOWN")],
       ["Chase Risk", formatUpper(waveOpportunity.chaseRisk, "UNKNOWN")],
-      ["Targets", targetsText || "—"],
+      ["Targets", targetsText],
     ],
     lines: [
       waveOpportunity.summary
@@ -498,6 +600,8 @@ function buildPostMinor5CorrectiveBounceSection(fib) {
       ? formatNumber(postBounce.waveCHigh)
       : "not marked yet";
 
+  const targetSummary = getPostBounceTargetSummary(postBounce);
+
   return {
     number: 0,
     icon: "〽",
@@ -523,6 +627,24 @@ function buildPostMinor5CorrectiveBounceSection(fib) {
         postBounce.bRetracePct != null
           ? `${formatNumber(postBounce.bRetracePct, 0)}%`
           : "—",
+      ],
+      [
+        "Current C-Up High",
+        targetSummary.currentHigh != null
+          ? formatNumber(targetSummary.currentHigh)
+          : "—",
+      ],
+      [
+        "Highest Target Hit",
+        targetSummary.hitLabel
+          ? `${targetSummary.hitLabel} @ ${formatNumber(targetSummary.hitPrice)}`
+          : "None yet",
+      ],
+      [
+        "Next C-Up Target",
+        targetSummary.nextLabel
+          ? `${targetSummary.nextLabel} @ ${formatNumber(targetSummary.nextPrice)}`
+          : "No higher C-up target",
       ],
     ],
     lines: [
@@ -740,6 +862,9 @@ function buildNextStepsSection({
   const volume = getEngine5Volume(fib);
   const timing = getEngine5Timing(fib);
   const abcUp = tradeContextSummary?.abcUp || null;
+  const postBounce = getPostDownImpulseBounce(fib);
+  const postBounceActive = isPostMinor5BounceCLegActive(postBounce);
+  const postBounceTargetSummary = getPostBounceTargetSummary(postBounce);
 
   const engine16 = fib?.engine16 || {};
   const trigger10m = engine16?.regimeLayers?.trigger10m || {};
@@ -747,6 +872,31 @@ function buildNextStepsSection({
 
   if (currentPrice != null) {
     actionLevels.push(`Current price: ${formatNumber(currentPrice)}`);
+  }
+
+  if (postBounceActive) {
+    if (postBounceTargetSummary.currentHigh != null) {
+      actionLevels.push(
+        `Current C-up high: ${formatNumber(postBounceTargetSummary.currentHigh)}`
+      );
+    }
+
+    if (postBounceTargetSummary.hitLabel) {
+      actionLevels.push(
+        `Highest target hit: ${postBounceTargetSummary.hitLabel}`
+      );
+    }
+
+    if (postBounceTargetSummary.nextLabel) {
+      actionLevels.push(
+        `Next C-up target: ${postBounceTargetSummary.nextLabel} @ ${formatNumber(
+          postBounceTargetSummary.nextPrice
+        )}`
+      );
+    }
+
+    steps.push("Watch C-up maturity / HTF decision");
+    steps.push("Do not chase the corrective C-up bounce");
   }
 
   if (
@@ -787,7 +937,8 @@ function buildNextStepsSection({
     trigger10m?.ema10 != null &&
     trigger10m?.ema20 != null &&
     String(abcUp?.state || "").toUpperCase() !==
-      "A_UP_MARKED_WAITING_FOR_B_PULLBACK"
+      "A_UP_MARKED_WAITING_FOR_B_PULLBACK" &&
+    !postBounceActive
   ) {
     actionLevels.push(
       `10m reclaim zone: ${formatNumber(trigger10m.ema10)} → ${formatNumber(
@@ -797,8 +948,9 @@ function buildNextStepsSection({
   }
 
   if (
-    waveNeeds.some((need) => String(need).toUpperCase().includes("NO_CHASE")) ||
-    isDangerChase(waveOpportunity?.chaseRisk)
+    !postBounceActive &&
+    (waveNeeds.some((need) => String(need).toUpperCase().includes("NO_CHASE")) ||
+      isDangerChase(waveOpportunity?.chaseRisk))
   ) {
     steps.push("Do not chase the current W5 extension");
   }
@@ -1051,7 +1203,7 @@ function normalizeTimelineData({ overlayData }) {
   const badges = buildBadges({ waveOpportunity, engine15, permission });
 
   const sections = [
-    buildWaveOpportunitySection(waveOpportunity),
+    buildWaveOpportunitySection(waveOpportunity, fib),
     buildPostMinor5CorrectiveBounceSection(fib),
     postAbcBounceSection,
     buildEngine15Section(engine15),
