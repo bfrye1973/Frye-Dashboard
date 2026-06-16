@@ -1213,8 +1213,63 @@ function buildNextStepsSection({
    Market Context builders
 ========================= */
 
+function getEngine22PullbackReaction(fib) {
+  const confluence = getConfluence(fib);
+
+  return (
+    confluence?.context?.reaction?.engine22PullbackReaction ||
+    fib?.confluence?.context?.reaction?.engine22PullbackReaction ||
+    getStrategyRoot(fib)?.confluence?.context?.reaction?.engine22PullbackReaction ||
+    null
+  );
+}
+
 function buildEngine3ContextSection(fib) {
+  const pullbackReaction = getEngine22PullbackReaction(fib);
   const reaction = getEngine5Reaction(fib);
+
+  if (pullbackReaction?.active === true) {
+    const confirmed = pullbackReaction.confirmed === true;
+
+    return {
+      number: 0,
+      icon: "③",
+      title: "Engine 3 Current State",
+      severity: confirmed
+        ? "bullish"
+        : String(pullbackReaction.reactionState || "").includes("FAILED") ||
+          String(pullbackReaction.reactionState || "").includes("CLOSE_BELOW")
+        ? "warning"
+        : "blue",
+      fields: [
+        ["Reaction", formatUpper(pullbackReaction.reactionState, "PENDING")],
+        ["Direction", formatUpper(pullbackReaction.direction, "NEUTRAL")],
+        ["Confirmed", formatBool(confirmed)],
+        ["Score", "—"],
+        [
+          "Zone",
+          pullbackReaction.touchedZone?.name
+            ? titleCase(pullbackReaction.touchedZone.name)
+            : "—",
+        ],
+      ],
+      lines: [
+        pullbackReaction.touchedZone
+          ? `Touched ${titleCase(
+              pullbackReaction.touchedZone.name
+            )}: ${formatNumber(pullbackReaction.touchedZone.lo)}–${formatNumber(
+              pullbackReaction.touchedZone.hi
+            )}`
+          : "Waiting for Engine 22 pullback zone reaction.",
+        pullbackReaction.reactionState === "FAILED_RECLAIM"
+          ? "Price touched the pullback zone but failed to reclaim the prior candle high."
+          : pullbackReaction.confirmed
+          ? "Engine 3 pullback reaction is confirmed."
+          : "Engine 3 pullback reaction is not confirmed yet.",
+        "Engine 3 is reading Engine 22 pullback reaction context. No permission or execution created.",
+      ].filter(Boolean),
+    };
+  }
 
   if (!reaction) {
     return {
@@ -1264,7 +1319,6 @@ function buildEngine3ContextSection(fib) {
     ].filter(Boolean),
   };
 }
-
 function buildEngine4ContextSection(fib) {
   const volume = getEngine5Volume(fib);
 
