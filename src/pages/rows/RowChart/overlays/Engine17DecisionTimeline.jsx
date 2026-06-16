@@ -133,6 +133,21 @@ function getPostDownImpulseBounce(fib) {
   );
 }
 
+function getPossibleW5Up(fib) {
+  return (
+    getEngine22WaveStrategy(fib)?.waveFibState?.lifecycle?.postAbcReset
+      ?.possibleW5Up || null
+  );
+}
+
+function isPossibleW5UpComplete(possibleW5Up) {
+  return (
+    possibleW5Up?.w5Complete === true ||
+    String(possibleW5Up?.state || "").toUpperCase() ===
+      "POSSIBLE_MINOR_W5_UP_COMPLETE_POST_W5_PULLBACK_WATCH"
+  );
+}
+
 function getWaveOpportunity(fib) {
   const waveStrategy = getEngine22WaveStrategy(fib);
 
@@ -339,6 +354,99 @@ function getPostBounceTargetSummary(postBounce) {
   };
 }
 
+
+function getPossibleW5PullbackMeta() {
+  return [
+    { key: "r236", label: "23.6%" },
+    { key: "r382", label: "38.2%" },
+    { key: "r500", label: "50.0%" },
+    { key: "r618", label: "61.8%" },
+    { key: "r786", label: "78.6%" },
+  ];
+}
+
+function getPossibleW5PullbackLevels(possibleW5Up) {
+  const levels = possibleW5Up?.pullbackLevelsFromW5 || {};
+
+  return getPossibleW5PullbackMeta()
+    .map((level) => ({
+      ...level,
+      price: Number(levels[level.key]),
+    }))
+    .filter((level) => Number.isFinite(level.price));
+}
+
+function getPossibleW5PullbackSummary(possibleW5Up) {
+  const levels = getPossibleW5PullbackLevels(possibleW5Up);
+  const currentPrice = Number(
+    possibleW5Up?.priceProgress?.currentPrice ?? possibleW5Up?.currentPrice
+  );
+  const pointsOffHigh = Number(possibleW5Up?.priceProgress?.pointsOffHigh);
+
+  if (!levels.length) {
+    return {
+      hitKey: null,
+      hitLabel: null,
+      hitPrice: null,
+      nextKey: null,
+      nextLabel: null,
+      nextPrice: null,
+      targetsText: "Post-W5 pullback levels unavailable",
+      currentPrice: Number.isFinite(currentPrice) ? currentPrice : null,
+      pointsOffHigh: Number.isFinite(pointsOffHigh) ? pointsOffHigh : null,
+    };
+  }
+
+  let hitIndex = -1;
+
+  if (Number.isFinite(currentPrice)) {
+    for (let idx = 0; idx < levels.length; idx += 1) {
+      // Pullback levels from a W5 high are hit as price moves DOWN through them.
+      if (currentPrice <= levels[idx].price) hitIndex = idx;
+    }
+  }
+
+  const hit = hitIndex >= 0 ? levels[hitIndex] : null;
+  const next = hitIndex >= 0 ? levels[hitIndex + 1] || null : levels[0] || null;
+
+  let targetsText;
+
+  if (hit && next) {
+    targetsText = `Hit ${hit.label} @ ${formatNumber(
+      hit.price
+    )} → Next ${next.label} @ ${formatNumber(next.price)}`;
+  } else if (hit && !next) {
+    targetsText = `Hit ${hit.label} @ ${formatNumber(
+      hit.price
+    )} → Failure warning below ${formatNumber(hit.price)}`;
+  } else if (next) {
+    targetsText = `Watching ${next.label} @ ${formatNumber(next.price)}`;
+  } else {
+    targetsText = "Post-W5 pullback levels unavailable";
+  }
+
+  return {
+    hitKey: hit?.key || null,
+    hitLabel: hit?.label || null,
+    hitPrice: hit?.price ?? null,
+    nextKey: next?.key || null,
+    nextLabel: next?.label || null,
+    nextPrice: next?.price ?? null,
+    targetsText,
+    currentPrice: Number.isFinite(currentPrice) ? currentPrice : null,
+    pointsOffHigh: Number.isFinite(pointsOffHigh) ? pointsOffHigh : null,
+  };
+}
+
+function formatZone(zone) {
+  if (!zone || typeof zone !== "object") return "—";
+  if (zone.lo != null && zone.hi != null) {
+    return `${formatNumber(zone.lo)}–${formatNumber(zone.hi)}`;
+  }
+  if (zone.level != null) return formatNumber(zone.level);
+  return "—";
+}
+
 function isWatchState(value) {
   const v = String(value || "").toUpperCase();
   return ["WATCH", "NEAR", "PREP", "ARMING", "POST_EXTENSION"].includes(v);
@@ -493,6 +601,10 @@ function buildWaveOpportunitySection(waveOpportunity, fib) {
     };
   }
 
+  const possibleW5Up = getPossibleW5Up(fib);
+  const possibleW5UpComplete = isPossibleW5UpComplete(possibleW5Up);
+  const possibleW5Summary = getPossibleW5PullbackSummary(possibleW5Up);
+
   const postBounce = getPostDownImpulseBounce(fib);
   const postBounceActive = isPostMinor5BounceCLegActive(postBounce);
   const postBounceTargetSummary = getPostBounceTargetSummary(postBounce);
@@ -501,11 +613,15 @@ function buildWaveOpportunitySection(waveOpportunity, fib) {
     .map(([level, price]) => `${level}: ${formatNumber(price)}`)
     .join("  |  ");
 
-  const directionText = postBounceActive
+  const directionText = possibleW5UpComplete
+    ? "NONE — WATCH PULLBACK / RECLAIM"
+    : postBounceActive
     ? "NONE — WATCH C-UP / HTF DECISION"
     : formatUpper(waveOpportunity.direction, "NONE");
 
-  const targetsText = postBounceActive
+  const targetsText = possibleW5UpComplete
+    ? possibleW5Summary.targetsText
+    : postBounceActive
     ? postBounceTargetSummary.targetsText
     : normalTargetsText || "—";
 
@@ -513,7 +629,7 @@ function buildWaveOpportunitySection(waveOpportunity, fib) {
     number: 1,
     icon: "〽",
     title: "Wave Opportunity — Engine 22",
-    severity: postBounceActive
+    severity: possibleW5UpComplete || postBounceActive
       ? "warning"
       : isDangerChase(waveOpportunity.chaseRisk)
       ? "warning"
@@ -529,7 +645,9 @@ function buildWaveOpportunitySection(waveOpportunity, fib) {
       ["Targets", targetsText],
     ],
     lines: [
-      waveOpportunity.summary
+      possibleW5UpComplete
+        ? "Summary: Possible Minor W5 up is marked complete. Watch post-W5 pullback reaction / reclaim zones."
+        : waveOpportunity.summary
         ? `Summary: ${waveOpportunity.summary}`
         : "Summary: Waiting for Engine 22 wave opportunity summary.",
     ],
@@ -587,6 +705,57 @@ function buildPostAbcBounceSection(tradeContextSummary, waveOpportunity) {
       reads.actionRead ||
         "No chase. No execution. Wait for B pullback hold and reclaim confirmation.",
     ].filter(Boolean),
+  };
+}
+
+function buildPossibleW5UpCompleteSection(fib) {
+  const possibleW5Up = getPossibleW5Up(fib);
+
+  if (!isPossibleW5UpComplete(possibleW5Up)) return null;
+
+  const summary = getPossibleW5PullbackSummary(possibleW5Up);
+
+  return {
+    number: 0,
+    icon: "〽",
+    title: "Possible Minor W5 Up Complete — Engine 22",
+    severity: "warning",
+    fields: [
+      ["Wave Origin", formatNumber(possibleW5Up.originLow)],
+      ["W1 High", formatNumber(possibleW5Up.w1High)],
+      ["W2 Low", formatNumber(possibleW5Up.w2Low)],
+      ["W3 High", formatNumber(possibleW5Up.w3High)],
+      ["W4 Low", formatNumber(possibleW5Up.w4Low)],
+      ["W5 High", formatNumber(possibleW5Up.w5High)],
+      [
+        "Current Price",
+        summary.currentPrice != null ? formatNumber(summary.currentPrice) : "—",
+      ],
+      [
+        "Off W5 High",
+        summary.pointsOffHigh != null
+          ? `${formatNumber(summary.pointsOffHigh)} pts`
+          : "—",
+      ],
+      [
+        "Current Pullback Fib",
+        summary.hitLabel
+          ? `${summary.hitLabel} @ ${formatNumber(summary.hitPrice)}`
+          : "None hit yet",
+      ],
+      [
+        "Next Pullback Watch",
+        summary.nextLabel
+          ? `${summary.nextLabel} @ ${formatNumber(summary.nextPrice)}`
+          : "No deeper pullback level",
+      ],
+    ],
+    lines: [
+      possibleW5Up.read ||
+        "Possible Minor W5 up is marked complete. Watch pullback fib levels off the W5 high for reaction / entry zones.",
+      "These are pullback reaction / entry planning zones, not automatic entry signals.",
+      "Watch pullback reaction / reclaim. No chase. No automatic long. No automatic short. No execution.",
+    ],
   };
 }
 
@@ -862,6 +1031,9 @@ function buildNextStepsSection({
   const volume = getEngine5Volume(fib);
   const timing = getEngine5Timing(fib);
   const abcUp = tradeContextSummary?.abcUp || null;
+  const possibleW5Up = getPossibleW5Up(fib);
+  const possibleW5UpComplete = isPossibleW5UpComplete(possibleW5Up);
+  const possibleW5Summary = getPossibleW5PullbackSummary(possibleW5Up);
   const postBounce = getPostDownImpulseBounce(fib);
   const postBounceActive = isPostMinor5BounceCLegActive(postBounce);
   const postBounceTargetSummary = getPostBounceTargetSummary(postBounce);
@@ -874,7 +1046,37 @@ function buildNextStepsSection({
     actionLevels.push(`Current price: ${formatNumber(currentPrice)}`);
   }
 
-  if (postBounceActive) {
+  if (possibleW5UpComplete) {
+    if (possibleW5Up?.w5High != null) {
+      actionLevels.push(`W5 high: ${formatNumber(possibleW5Up.w5High)}`);
+    }
+
+    if (possibleW5Summary.pointsOffHigh != null) {
+      actionLevels.push(
+        `Off W5 high: ${formatNumber(possibleW5Summary.pointsOffHigh)} pts`
+      );
+    }
+
+    if (possibleW5Summary.hitLabel) {
+      actionLevels.push(
+        `Current pullback fib hit: ${possibleW5Summary.hitLabel}`
+      );
+    }
+
+    if (possibleW5Summary.nextLabel) {
+      actionLevels.push(
+        `Next pullback watch: ${possibleW5Summary.nextLabel} @ ${formatNumber(
+          possibleW5Summary.nextPrice
+        )}`
+      );
+    }
+
+    steps.push("Watch pullback reaction / reclaim");
+    steps.push("Do not chase the completed W5 up move");
+    steps.push("No automatic long. No execution");
+  }
+
+  if (postBounceActive && !possibleW5UpComplete) {
     if (postBounceTargetSummary.currentHigh != null) {
       actionLevels.push(
         `Current C-up high: ${formatNumber(postBounceTargetSummary.currentHigh)}`
@@ -938,7 +1140,8 @@ function buildNextStepsSection({
     trigger10m?.ema20 != null &&
     String(abcUp?.state || "").toUpperCase() !==
       "A_UP_MARKED_WAITING_FOR_B_PULLBACK" &&
-    !postBounceActive
+    !postBounceActive &&
+    !possibleW5UpComplete
   ) {
     actionLevels.push(
       `10m reclaim zone: ${formatNumber(trigger10m.ema10)} → ${formatNumber(
@@ -949,6 +1152,7 @@ function buildNextStepsSection({
 
   if (
     !postBounceActive &&
+    !possibleW5UpComplete &&
     (waveNeeds.some((need) => String(need).toUpperCase().includes("NO_CHASE")) ||
       isDangerChase(waveOpportunity?.chaseRisk))
   ) {
@@ -1111,6 +1315,42 @@ function buildEngine4ContextSection(fib) {
 }
 
 function buildCurrentFibExtensionsSection(waveOpportunity, fib) {
+  const possibleW5Up = getPossibleW5Up(fib);
+
+  if (isPossibleW5UpComplete(possibleW5Up)) {
+    const levels = getPossibleW5PullbackLevels(possibleW5Up);
+    const zones = possibleW5Up?.entryZones || {};
+    const summary = getPossibleW5PullbackSummary(possibleW5Up);
+
+    return {
+      number: 0,
+      icon: "⑸",
+      title: "Post-W5 Pullback Entry Zones",
+      severity: "blue",
+      fields: [
+        ...levels.map((level) => [level.label, formatNumber(level.price)]),
+        ["Shallow Trend Pullback", formatZone(zones.shallowTrendPullback)],
+        ["Standard Pullback Entry Zone", formatZone(zones.standardPullback)],
+        ["Deeper Support Entry Zone", formatZone(zones.deeperSupport)],
+        ["Failure Warning Below", formatZone(zones.failureWarning)],
+      ],
+      lines: [
+        summary.hitLabel
+          ? `Current pullback fib hit: ${summary.hitLabel} @ ${formatNumber(
+              summary.hitPrice
+            )}`
+          : "Current pullback fib hit: none yet",
+        summary.nextLabel
+          ? `Next pullback watch: ${summary.nextLabel} @ ${formatNumber(
+              summary.nextPrice
+            )}`
+          : "Next pullback watch: no deeper pullback level",
+        "These are pullback reaction / entry planning zones, not automatic entry signals.",
+        "Watch pullback reaction / reclaim. No chase. No automatic long. No execution.",
+      ],
+    };
+  }
+
   const postBounce = getPostDownImpulseBounce(fib);
   const postBounceTargets = getPostDownImpulseBounceTargets(postBounce);
 
@@ -1204,6 +1444,7 @@ function normalizeTimelineData({ overlayData }) {
 
   const sections = [
     buildWaveOpportunitySection(waveOpportunity, fib),
+    buildPossibleW5UpCompleteSection(fib),
     buildPostMinor5CorrectiveBounceSection(fib),
     postAbcBounceSection,
     buildEngine15Section(engine15),
