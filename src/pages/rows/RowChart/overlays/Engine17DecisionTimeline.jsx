@@ -331,7 +331,7 @@ function getPostBounceTargetSummary(postBounce) {
   if (hit && next) {
     targetsText = `Hit ${hit.label} @ ${formatNumber(
       hit.price
-    )} → Next ${next.label} @ ${formatNumber(next.price)}`;
+    )} → Next pullback: ${next.label} @ ${formatNumber(next.price)}`;
   } else if (hit && !next) {
     targetsText = `Hit ${hit.label} @ ${formatNumber(
       hit.price
@@ -414,13 +414,13 @@ function getPossibleW5PullbackSummary(possibleW5Up) {
   if (hit && next) {
     targetsText = `Hit ${hit.label} @ ${formatNumber(
       hit.price
-    )} → Next ${next.label} @ ${formatNumber(next.price)}`;
+    )} → Next pullback: ${next.label} @ ${formatNumber(next.price)}`;
   } else if (hit && !next) {
     targetsText = `Hit ${hit.label} @ ${formatNumber(
       hit.price
     )} → Failure warning below ${formatNumber(hit.price)}`;
   } else if (next) {
-    targetsText = `Watching ${next.label} @ ${formatNumber(next.price)}`;
+    targetsText = `Next pullback: ${next.label} @ ${formatNumber(next.price)}`;
   } else {
     targetsText = "Post-W5 pullback levels unavailable";
   }
@@ -619,6 +619,8 @@ function buildWaveOpportunitySection(waveOpportunity, fib) {
     ? "NONE — WATCH C-UP / HTF DECISION"
     : formatUpper(waveOpportunity.direction, "NONE");
 
+  const targetsLabel = possibleW5UpComplete ? "Targets / Pullback" : "Targets";
+
   const targetsText = possibleW5UpComplete
     ? possibleW5Summary.targetsText
     : postBounceActive
@@ -642,7 +644,7 @@ function buildWaveOpportunitySection(waveOpportunity, fib) {
       ["Readiness", formatUpper(waveOpportunity.readiness, "UNKNOWN")],
       ["Timing", formatUpper(waveOpportunity.timing, "UNKNOWN")],
       ["Chase Risk", formatUpper(waveOpportunity.chaseRisk, "UNKNOWN")],
-      ["Targets", targetsText],
+      [targetsLabel, targetsText],
     ],
     lines: [
       possibleW5UpComplete
