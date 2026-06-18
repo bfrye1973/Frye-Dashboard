@@ -1431,50 +1431,6 @@ function buildEngine4ContextSection(fib) {
   const quality =
     volume.quality ||
     volume.participationQuality ||
-    volume.flags?.participationQuality ||
-    volume.state ||
-    "UNKNOWN";
-
-  const direction =
-    volume.direction ||
-    volume.participationDirection ||
-    "NEUTRAL";
-
-  const confirmed =
-    volume.confirmed === true ||
-    volume.volumeConfirmed === true ||
-    volume.cleanParticipation === true;
-
-  const relVol = Number(volume.flags?.relativeVolume);
-
-  return {
-    number: 0,
-    icon: "④",
-    title: "Engine 4 Current State",
-    severity: confirmed ? "bullish" : "warning",
-    fields: [
-      ["Volume", formatUpper(quality, "UNKNOWN")],
-      ["Direction", formatUpper(direction, "NEUTRAL")],
-      ["Confirmed", formatBool(confirmed)],
-      ["Score", formatScore(volume.score || volume.volumeScore)],
-      [
-        "RelVol",
-        Number.isFinite(relVol) ? `${formatNumber(relVol, 2)}x` : "—",
-      ],
-    ],
-    lines: [
-      volume.message ||
-        volume.traderMessage ||
-        (confirmed
-          ? "Engine 4 participation is confirmed."
-          : "Engine 4 participation is not confirmed yet."),
-    ].filter(Boolean),
-  };
-}
-
-  const quality =
-    volume.quality ||
-    volume.participationQuality ||
     volume.state ||
     "UNKNOWN";
 
