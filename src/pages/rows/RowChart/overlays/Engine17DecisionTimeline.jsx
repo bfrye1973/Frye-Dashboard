@@ -213,7 +213,26 @@ function getEngine5Reaction(fib) {
 }
 
 function getEngine5Volume(fib) {
-  return getConfluence(fib)?.components?.engine4Volume || null;
+  const confluence = getConfluence(fib);
+
+  return (
+    confluence?.context?.volume ||
+    confluence?.components?.engine4Volume ||
+    fib?.confluence?.context?.volume ||
+    getStrategyRoot(fib)?.confluence?.context?.volume ||
+    null
+  );
+}
+
+function getEngine22PullbackParticipation(fib) {
+  const confluence = getConfluence(fib);
+
+  return (
+    confluence?.context?.volume?.engine22PullbackParticipation ||
+    fib?.confluence?.context?.volume?.engine22PullbackParticipation ||
+    getStrategyRoot(fib)?.confluence?.context?.volume?.engine22PullbackParticipation ||
+    null
+  );
 }
 
 function getEngine5Timing(fib) {
@@ -1320,7 +1339,83 @@ function buildEngine3ContextSection(fib) {
   };
 }
 function buildEngine4ContextSection(fib) {
+  const pullbackParticipation = getEngine22PullbackParticipation(fib);
   const volume = getEngine5Volume(fib);
+
+  if (pullbackParticipation?.active === true) {
+    const confirmed = pullbackParticipation.confirmed === true;
+
+    const state = pullbackParticipation.participationState || "NO_SIGNAL";
+    const volumeState = pullbackParticipation.volumeState || state;
+
+    const touchedZone = pullbackParticipation.touchedZone;
+    const relativeVolume = Number(pullbackParticipation.relativeVolume);
+    const volumeScore = Number(pullbackParticipation.volumeScore);
+
+    const touchedZoneText = touchedZone
+      ? `${titleCase(touchedZone.name)}: ${formatNumber(touchedZone.lo)}–${formatNumber(touchedZone.hi)}`
+      : "Waiting for pullback zone touch";
+
+    let participationLine = "Engine 4 participation is not confirmed yet.";
+
+    if (state === "WEAK_PARTICIPATION") {
+      participationLine = "Weak participation. Pullback zone touched, but volume did not confirm defense.";
+    } else if (state === "NO_SIGNAL") {
+      participationLine = "No Engine 4 participation signal yet. Waiting for pullback-zone volume.";
+    } else if (state === "HIGH_VOLUME_DEFENSE") {
+      participationLine = "High-volume defense detected inside the Engine 22 pullback zone.";
+    } else if (state === "LOW_VOLUME_BOUNCE") {
+      participationLine = "Low-volume bounce detected. Reaction exists, but participation is not strong.";
+    } else if (state === "HIGH_VOLUME_REJECTION") {
+      participationLine = "High-volume rejection detected at the pullback zone.";
+    } else if (state === "PARTICIPATION_CONFIRMED") {
+      participationLine = "Participation confirmed inside the Engine 22 pullback zone.";
+    } else if (state === "PARTICIPATION_NOT_CONFIRMED") {
+      participationLine = "Pullback zone touched, but participation is not confirmed.";
+    }
+
+    return {
+      number: 0,
+      icon: "④",
+      title: "Engine 4 Current State",
+      severity: confirmed
+        ? "bullish"
+        : state === "HIGH_VOLUME_REJECTION"
+        ? "danger"
+        : state === "WEAK_PARTICIPATION" ||
+          state === "LOW_VOLUME_BOUNCE" ||
+          state === "PARTICIPATION_NOT_CONFIRMED"
+        ? "warning"
+        : "neutral",
+      fields: [
+        ["Volume", formatUpper(volumeState, "NO SIGNAL")],
+        ["Direction", formatUpper(pullbackParticipation.direction, "NEUTRAL")],
+        ["Confirmed", formatBool(confirmed)],
+        ["Score", formatScore(volumeScore)],
+        [
+          "RelVol",
+          Number.isFinite(relativeVolume)
+            ? `${formatNumber(relativeVolume, 2)}x`
+            : "—",
+        ],
+        ["Zone", touchedZone ? titleCase(touchedZone.name) : "—"],
+      ],
+      lines: [
+        touchedZoneText,
+        participationLine,
+        pullbackParticipation.highVolumeDefense
+          ? "High-volume defense: YES"
+          : null,
+        pullbackParticipation.lowVolumeBounce
+          ? "Low-volume bounce: YES"
+          : null,
+        pullbackParticipation.highVolumeRejection
+          ? "High-volume rejection: YES"
+          : null,
+        "Engine 4 is reading Engine 22 pullback participation context. No permission or execution created.",
+      ].filter(Boolean),
+    };
+  }
 
   if (!volume) {
     return {
@@ -1332,6 +1427,50 @@ function buildEngine4ContextSection(fib) {
       lines: ["Engine 4 volume / participation context unavailable."],
     };
   }
+
+  const quality =
+    volume.quality ||
+    volume.participationQuality ||
+    volume.flags?.participationQuality ||
+    volume.state ||
+    "UNKNOWN";
+
+  const direction =
+    volume.direction ||
+    volume.participationDirection ||
+    "NEUTRAL";
+
+  const confirmed =
+    volume.confirmed === true ||
+    volume.volumeConfirmed === true ||
+    volume.cleanParticipation === true;
+
+  const relVol = Number(volume.flags?.relativeVolume);
+
+  return {
+    number: 0,
+    icon: "④",
+    title: "Engine 4 Current State",
+    severity: confirmed ? "bullish" : "warning",
+    fields: [
+      ["Volume", formatUpper(quality, "UNKNOWN")],
+      ["Direction", formatUpper(direction, "NEUTRAL")],
+      ["Confirmed", formatBool(confirmed)],
+      ["Score", formatScore(volume.score || volume.volumeScore)],
+      [
+        "RelVol",
+        Number.isFinite(relVol) ? `${formatNumber(relVol, 2)}x` : "—",
+      ],
+    ],
+    lines: [
+      volume.message ||
+        volume.traderMessage ||
+        (confirmed
+          ? "Engine 4 participation is confirmed."
+          : "Engine 4 participation is not confirmed yet."),
+    ].filter(Boolean),
+  };
+}
 
   const quality =
     volume.quality ||
@@ -1476,11 +1615,6 @@ function normalizeTimelineData({ overlayData }) {
     waveOpportunity
   );
 
-  const targetClusterSection = getBackendTimelineSection(
-    fib,
-    "Target Cluster Confidence"
-  );
-
   const marketMeterSection = getBackendTimelineSection(
     fib,
     "Market Meter / Tactical Context"
@@ -1521,7 +1655,6 @@ function normalizeTimelineData({ overlayData }) {
     }));
 
   const contextSections = [
-    buildBackendTimelineSection(targetClusterSection),
     buildBackendTimelineSection(marketMeterSection),
     buildEngine3ContextSection(fib),
     buildEngine4ContextSection(fib),
