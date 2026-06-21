@@ -224,13 +224,13 @@ function getEngine5Volume(fib) {
   );
 }
 
-function getEngine22PullbackParticipation(fib) {
+function getEngine22LifecycleParticipation(fib) {
   const confluence = getConfluence(fib);
 
   return (
-    confluence?.context?.volume?.engine22PullbackParticipation ||
-    fib?.confluence?.context?.volume?.engine22PullbackParticipation ||
-    getStrategyRoot(fib)?.confluence?.context?.volume?.engine22PullbackParticipation ||
+    confluence?.context?.volume?.engine22LifecycleParticipation ||
+    fib?.confluence?.context?.volume?.engine22LifecycleParticipation ||
+    getStrategyRoot(fib)?.confluence?.context?.volume?.engine22LifecycleParticipation ||
     null
   );
 }
@@ -1339,39 +1339,36 @@ function buildEngine3ContextSection(fib) {
   };
 }
 function buildEngine4ContextSection(fib) {
-  const pullbackParticipation = getEngine22PullbackParticipation(fib);
+  const lifecycleParticipation = getEngine22LifecycleParticipation(fib);
   const volume = getEngine5Volume(fib);
 
-  if (pullbackParticipation?.active === true) {
-    const confirmed = pullbackParticipation.confirmed === true;
+  if (lifecycleParticipation?.active === true) {
+    const confirmed = lifecycleParticipation.confirmed === true;
 
-    const state = pullbackParticipation.participationState || "NO_SIGNAL";
-    const volumeState = pullbackParticipation.volumeState || state;
+    const state = lifecycleParticipation.participationState || "NO_SIGNAL";
+    const volumeState = lifecycleParticipation.volumeState || state;
 
-    const touchedZone = pullbackParticipation.touchedZone;
-    const relativeVolume = Number(pullbackParticipation.relativeVolume);
-    const volumeScore = Number(pullbackParticipation.volumeScore);
+    const relativeVolume = Number(lifecycleParticipation.relativeVolume);
+    const volumeScore = Number(lifecycleParticipation.volumeScore);
 
-    const touchedZoneText = touchedZone
-      ? `${titleCase(touchedZone.name)}: ${formatNumber(touchedZone.lo)}–${formatNumber(touchedZone.hi)}`
-      : "Waiting for pullback zone touch";
+    const lifecycleKey = lifecycleParticipation.lifecycleKey || "—";
+    const mode = lifecycleParticipation.mode || "—";
+    const participationFocus = lifecycleParticipation.participationFocus || "—";
 
     let participationLine = "Engine 4 participation is not confirmed yet.";
 
-    if (state === "WEAK_PARTICIPATION") {
-      participationLine = "Weak participation. Pullback zone touched, but volume did not confirm defense.";
+    if (state === "WEAK") {
+      participationLine = "Weak participation. Engine 22 needs volume on reclaim, but volume has not confirmed yet.";
+    } else if (state === "MIXED") {
+      participationLine = "Mixed participation. Some response exists, but Engine 4 has not confirmed clean volume.";
+    } else if (state === "EXPANDING") {
+      participationLine = "Participation is expanding in the direction Engine 22 requested.";
+    } else if (state === "CONFIRMED") {
+      participationLine = "Engine 4 participation is confirmed for the current Engine 22 confirmation context.";
+    } else if (state === "RISK") {
+      participationLine = "Volume risk detected. Participation is not safe to confirm.";
     } else if (state === "NO_SIGNAL") {
-      participationLine = "No Engine 4 participation signal yet. Waiting for pullback-zone volume.";
-    } else if (state === "HIGH_VOLUME_DEFENSE") {
-      participationLine = "High-volume defense detected inside the Engine 22 pullback zone.";
-    } else if (state === "LOW_VOLUME_BOUNCE") {
-      participationLine = "Low-volume bounce detected. Reaction exists, but participation is not strong.";
-    } else if (state === "HIGH_VOLUME_REJECTION") {
-      participationLine = "High-volume rejection detected at the pullback zone.";
-    } else if (state === "PARTICIPATION_CONFIRMED") {
-      participationLine = "Participation confirmed inside the Engine 22 pullback zone.";
-    } else if (state === "PARTICIPATION_NOT_CONFIRMED") {
-      participationLine = "Pullback zone touched, but participation is not confirmed.";
+      participationLine = "No Engine 4 participation signal yet.";
     }
 
     return {
@@ -1380,16 +1377,17 @@ function buildEngine4ContextSection(fib) {
       title: "Engine 4 Current State",
       severity: confirmed
         ? "bullish"
-        : state === "HIGH_VOLUME_REJECTION"
+        : state === "RISK"
         ? "danger"
-        : state === "WEAK_PARTICIPATION" ||
-          state === "LOW_VOLUME_BOUNCE" ||
-          state === "PARTICIPATION_NOT_CONFIRMED"
+        : state === "WEAK" || state === "MIXED" || state === "NO_SIGNAL"
         ? "warning"
-        : "neutral",
+        : "blue",
       fields: [
+        ["Lifecycle", formatUpper(lifecycleKey, "—")],
+        ["Mode", formatUpper(mode, "—")],
+        ["Focus", formatUpper(participationFocus, "—")],
         ["Volume", formatUpper(volumeState, "NO SIGNAL")],
-        ["Direction", formatUpper(pullbackParticipation.direction, "NEUTRAL")],
+        ["Direction", formatUpper(lifecycleParticipation.direction, "NEUTRAL")],
         ["Confirmed", formatBool(confirmed)],
         ["Score", formatScore(volumeScore)],
         [
@@ -1398,21 +1396,23 @@ function buildEngine4ContextSection(fib) {
             ? `${formatNumber(relativeVolume, 2)}x`
             : "—",
         ],
-        ["Zone", touchedZone ? titleCase(touchedZone.name) : "—"],
       ],
       lines: [
-        touchedZoneText,
         participationLine,
-        pullbackParticipation.highVolumeDefense
-          ? "High-volume defense: YES"
+        lifecycleParticipation.volumeTrend
+          ? `Volume trend: ${formatUpper(lifecycleParticipation.volumeTrend)}`
           : null,
-        pullbackParticipation.lowVolumeBounce
-          ? "Low-volume bounce: YES"
+        lifecycleParticipation.reclaimLike === false
+          ? "Reclaim-like price action is not confirmed."
+          : lifecycleParticipation.reclaimLike === true
+          ? "Reclaim-like price action detected."
           : null,
-        pullbackParticipation.highVolumeRejection
-          ? "High-volume rejection: YES"
+        lifecycleParticipation.focusSatisfied === false
+          ? "Participation focus is not satisfied yet."
+          : lifecycleParticipation.focusSatisfied === true
+          ? "Participation focus is satisfied."
           : null,
-        "Engine 4 is reading Engine 22 pullback participation context. No permission or execution created.",
+        "Engine 4 is reading Engine 22 confirmationContext. No permission or execution created.",
       ].filter(Boolean),
     };
   }
