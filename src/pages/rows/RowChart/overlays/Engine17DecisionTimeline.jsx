@@ -1231,7 +1231,16 @@ function buildNextStepsSection({
 /* =========================
    Market Context builders
 ========================= */
+function getEngine22LifecycleReaction(fib) {
+  const confluence = getConfluence(fib);
 
+  return (
+    confluence?.context?.reaction?.engine22LifecycleReaction ||
+    fib?.confluence?.context?.reaction?.engine22LifecycleReaction ||
+    getStrategyRoot(fib)?.confluence?.context?.reaction?.engine22LifecycleReaction ||
+    null
+  );
+}
 function getEngine22PullbackReaction(fib) {
   const confluence = getConfluence(fib);
 
@@ -1244,8 +1253,101 @@ function getEngine22PullbackReaction(fib) {
 }
 
 function buildEngine3ContextSection(fib) {
+  const lifecycleReaction = getEngine22LifecycleReaction(fib);
   const pullbackReaction = getEngine22PullbackReaction(fib);
   const reaction = getEngine5Reaction(fib);
+
+  if (lifecycleReaction?.source === "engine22WaveStrategy.currentLifecycleState.confirmationContext") {
+    const confirmed = lifecycleReaction.confirmed === true;
+
+    const reactionState = lifecycleReaction.reactionState || "NO_SIGNAL";
+    const reactionQuality = lifecycleReaction.reactionQuality || "WEAK";
+    const direction = lifecycleReaction.direction || "NEUTRAL";
+    const lifecycleKey = lifecycleReaction.lifecycleKey || "—";
+    const mode = lifecycleReaction.mode || "—";
+    const reactionFocus = lifecycleReaction.reactionFocus || "—";
+
+    const currentPrice = Number(lifecycleReaction.currentPrice);
+    const referenceLevel = Number(lifecycleReaction.debug?.referenceLevel);
+    const distanceToReference =
+      Number.isFinite(currentPrice) && Number.isFinite(referenceLevel)
+        ? currentPrice - referenceLevel
+        : null;
+
+    const attemptedReferenceReaction =
+      lifecycleReaction.debug?.attemptedReferenceReaction === true;
+
+    const failedReclaim =
+      lifecycleReaction.debug?.failedReclaim === true ||
+      String(reactionState).toUpperCase().includes("FAILED");
+
+    let reactionLine = "Engine 3 is waiting for the current Engine 22 reaction request.";
+
+    if (confirmed) {
+      reactionLine = "Engine 3 lifecycle reaction is confirmed for the current Engine 22 confirmation context.";
+    } else if (reactionState === "NO_SIGNAL") {
+      reactionLine = "No lifecycle reaction yet. Price has not confirmed the Engine 22 requested pullback / reclaim.";
+    } else if (reactionState === "WEAK") {
+      reactionLine = "Weak lifecycle reaction. Engine 3 does not have enough confirmation yet.";
+    } else if (reactionState === "MIXED") {
+      reactionLine = "Mixed lifecycle reaction. Some response exists, but confirmation is not clean yet.";
+    } else if (reactionState === "GOOD") {
+      reactionLine = "Good lifecycle reaction forming, but Engine 3 has not fully confirmed yet.";
+    } else if (reactionState === "CONFIRMED") {
+      reactionLine = "Engine 3 lifecycle reaction is confirmed.";
+    } else if (reactionState === "FAILED") {
+      reactionLine = "Engine 3 lifecycle reaction failed or reclaim was rejected.";
+    }
+
+    return {
+      number: 0,
+      icon: "③",
+      title: "Engine 3 Current State",
+      severity: confirmed
+        ? "bullish"
+        : failedReclaim
+        ? "warning"
+        : reactionState === "GOOD" || reactionState === "MIXED"
+        ? "blue"
+        : "teal",
+      fields: [
+        ["Lifecycle", formatUpper(lifecycleKey, "—")],
+        ["Mode", formatUpper(mode, "—")],
+        ["Focus", formatUpper(reactionFocus, "—")],
+        ["Reaction", formatUpper(reactionState, "NO SIGNAL")],
+        ["Quality", formatUpper(reactionQuality, "WEAK")],
+        ["Direction", formatUpper(direction, "NEUTRAL")],
+        ["Confirmed", formatBool(confirmed)],
+        [
+          "Current",
+          Number.isFinite(currentPrice) ? formatNumber(currentPrice) : "—",
+        ],
+        [
+          "Reference",
+          Number.isFinite(referenceLevel) ? formatNumber(referenceLevel) : "—",
+        ],
+        [
+          "Distance",
+          Number.isFinite(distanceToReference)
+            ? `${formatNumber(distanceToReference)} pts`
+            : "—",
+        ],
+      ],
+      lines: [
+        reactionLine,
+        attemptedReferenceReaction
+          ? "Price has attempted the Engine 22 reference / reclaim area."
+          : "Price has not attempted the Engine 22 reference / reclaim area yet.",
+        failedReclaim
+          ? "Failed reclaim is active."
+          : "No failed reclaim is active.",
+        asArray(lifecycleReaction.reasonCodes).length
+          ? `Reasons: ${asArray(lifecycleReaction.reasonCodes).map(formatText).join(", ")}`
+          : null,
+        "Engine 3 is reading Engine 22 confirmationContext. No permission or execution created.",
+      ].filter(Boolean),
+    };
+  }
 
   if (pullbackReaction?.active === true) {
     const confirmed = pullbackReaction.confirmed === true;
@@ -1330,11 +1432,12 @@ function buildEngine3ContextSection(fib) {
       ["Score", formatScore(reaction.score || reaction.reactionScore)],
     ],
     lines: [
+      "Fallback generic Engine 3 reaction read. Engine 22 lifecycle reaction was unavailable.",
       reaction.message ||
         reaction.traderMessage ||
         (confirmed
-          ? "Engine 3 reaction is confirmed."
-          : "Engine 3 reaction is not confirmed yet."),
+          ? "Generic Engine 3 reaction is confirmed."
+          : "Generic Engine 3 reaction is not confirmed yet."),
     ].filter(Boolean),
   };
 }
