@@ -1313,7 +1313,6 @@ function buildEngine3ContextSection(fib) {
       fields: [
         ["Lifecycle", formatUpper(lifecycleKey, "—")],
         ["Mode", formatUpper(mode, "—")],
-        ["Focus", formatUpper(reactionFocus, "—")],
         ["Reaction", formatUpper(reactionState, "NO SIGNAL")],
         ["Quality", formatUpper(reactionQuality, "WEAK")],
         ["Direction", formatUpper(direction, "NEUTRAL")],
@@ -1334,17 +1333,21 @@ function buildEngine3ContextSection(fib) {
         ],
       ],
       lines: [
-        reactionLine,
+        confirmed
+          ? "Lifecycle reaction confirmed."
+          : reactionState === "NO_SIGNAL"
+          ? "Waiting for controlled pullback or reclaim."
+          : reactionLine,
+
         attemptedReferenceReaction
-          ? "Price has attempted the Engine 22 reference / reclaim area."
-          : "Price has not attempted the Engine 22 reference / reclaim area yet.",
+          ? "Price is testing the reference / reclaim area."
+          : "Price has not reached the reference / reclaim area yet.",
+
         failedReclaim
-          ? "Failed reclaim is active."
-          : "No failed reclaim is active.",
-        asArray(lifecycleReaction.reasonCodes).length
-          ? `Reasons: ${asArray(lifecycleReaction.reasonCodes).map(formatText).join(", ")}`
+          ? "Reclaim attempt failed."
           : null,
-        "Engine 3 is reading Engine 22 confirmationContext. No permission or execution created.",
+
+        "No permission or execution created.",
       ].filter(Boolean),
     };
   }
