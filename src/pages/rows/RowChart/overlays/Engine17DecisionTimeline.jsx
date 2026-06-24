@@ -167,6 +167,16 @@ function getBackendTradeContextSummary(fib) {
   return getEngine22WaveStrategy(fib)?.tradeContextSummary || null;
 }
 
+function getCurrentLifecycleState(fib) {
+  const waveStrategy = getEngine22WaveStrategy(fib);
+
+  return (
+    waveStrategy?.currentLifecycleState ||
+    waveStrategy?.waveFibState?.currentLifecycleState ||
+    null
+  );
+}
+
 function getBackendTimelineSection(fib, title) {
   const sections = getBackendTimelineRead(fib)?.mainSections;
 
@@ -580,6 +590,118 @@ function buildBadges({ waveOpportunity, engine15, permission }) {
   }
 
   return badges;
+}
+
+function buildCurrentLifecycleBadges(currentLifecycleState) {
+  if (!currentLifecycleState) return [];
+
+  const markMaturity = currentLifecycleState.markMaturity || null;
+
+  return [
+    currentLifecycleState.key
+      ? {
+          label: formatUpper(currentLifecycleState.key),
+          severity: "blue",
+        }
+      : null,
+    currentLifecycleState.direction
+      ? {
+          label: formatUpper(currentLifecycleState.direction),
+          severity:
+            String(currentLifecycleState.direction).toUpperCase() === "LONG"
+              ? "bullish"
+              : "neutral",
+        }
+      : null,
+    currentLifecycleState.readiness
+      ? {
+          label: formatUpper(currentLifecycleState.readiness),
+          severity: isReadyState(currentLifecycleState.readiness)
+            ? "bullish"
+            : "warning",
+        }
+      : null,
+    markMaturity?.status
+      ? {
+          label: `W2 ${formatUpper(markMaturity.status)}`,
+          severity:
+            String(markMaturity.status).toUpperCase() === "CONFIRMED"
+              ? "bullish"
+              : "warning",
+        }
+      : null,
+    markMaturity?.confidence
+      ? {
+          label: `${formatUpper(markMaturity.confidence)} CONFIDENCE`,
+          severity:
+            String(markMaturity.confidence).toUpperCase() === "HIGH"
+              ? "bullish"
+              : "warning",
+        }
+      : null,
+    currentLifecycleState.noExecution === true
+      ? {
+          label: "NO EXECUTION",
+          severity: "purple",
+        }
+      : null,
+  ].filter(Boolean);
+}
+
+function buildCurrentLifecycleStateSection(currentLifecycleState) {
+  if (!currentLifecycleState) return null;
+
+  const markMaturity = currentLifecycleState.markMaturity || {};
+  const basis = asArray(markMaturity.basis);
+  const needs = asArray(currentLifecycleState.needs);
+
+  const key = String(currentLifecycleState.key || "").toUpperCase();
+
+  const isCLowReaction = key.includes("C_LOW_REACTION");
+  const isW2Candidate =
+    String(markMaturity.status || "").toUpperCase() === "CANDIDATE";
+
+  return {
+    number: 1,
+    icon: "〽",
+    title: "Current Lifecycle — Engine 22",
+    severity: isCLowReaction ? "teal" : isW2Candidate ? "warning" : "bullish",
+    fields: [
+      ["State", formatUpper(currentLifecycleState.key, "UNKNOWN")],
+      ["Action", formatUpper(currentLifecycleState.action, "WAIT")],
+      ["Direction", formatUpper(currentLifecycleState.direction, "NONE")],
+      ["Readiness", formatUpper(currentLifecycleState.readiness, "WATCH")],
+      ["W2 Status", formatUpper(markMaturity.status, "—")],
+      ["Confidence", formatUpper(markMaturity.confidence, "—")],
+      ["Score", formatScore(markMaturity.score)],
+      [
+        "Prior Mark",
+        markMaturity.previousMark?.price != null
+          ? `${formatNumber(markMaturity.previousMark.price)} superseded`
+          : "—",
+      ],
+    ],
+    lines: [
+      currentLifecycleState.headline || null,
+      isCLowReaction
+        ? "C-down liquidity sweep / reclaim reaction detected. Do not chase the vertical reclaim."
+        : null,
+      isW2Candidate
+        ? "W2 is still a candidate. Engine 22 is not promoting this to W3 launch yet."
+        : null,
+      basis.includes("B_WAVE_SIDEWAYS_CONSOLIDATION")
+        ? "B-wave sideways consolidation detected — this is not clean W3 behavior."
+        : null,
+      basis.includes("B_WAVE_QUICK_POP_LIQUIDITY_TRAP")
+        ? "Quick pop after consolidation can be a B-wave liquidity trap."
+        : null,
+      basis.includes("WAIT_FOR_RECLAIM_HOLD_OR_CONTROLLED_PULLBACK")
+        ? "Wait for reclaim hold or controlled pullback confirmation."
+        : null,
+      needs.length ? `Needs: ${needs.map(formatText).join(", ")}` : null,
+      "No chase. No automatic long. No execution.",
+    ].filter(Boolean),
+  };
 }
 
 /* =========================
@@ -1671,6 +1793,7 @@ function normalizeTimelineData({ overlayData }) {
   const permission = getFinalPermission(fib);
   const backendTimelineRead = getBackendTimelineRead(fib);
   const tradeContextSummary = getBackendTradeContextSummary(fib);
+  const currentLifecycleState = getCurrentLifecycleState(fib);
 
   const postAbcBounceSection = buildPostAbcBounceSection(
     tradeContextSummary,
@@ -1683,18 +1806,25 @@ function normalizeTimelineData({ overlayData }) {
   );
 
   const headline =
+    currentLifecycleState?.headline ||
     backendTimelineRead?.headline ||
     tradeContextSummary?.headline ||
     buildFallbackHeadline({ waveOpportunity, engine15 });
 
   const subheadline =
-    backendTimelineRead?.subheadline ||
-    tradeContextSummary?.subheadline ||
-    buildFallbackSubheadline({ waveOpportunity, engine15 });
+    currentLifecycleState?.action
+      ? formatText(currentLifecycleState.action)
+      : backendTimelineRead?.subheadline ||
+        tradeContextSummary?.subheadline ||
+        buildFallbackSubheadline({ waveOpportunity, engine15 });
 
-  const badges = buildBadges({ waveOpportunity, engine15, permission });
+  const badges = [
+    ...buildCurrentLifecycleBadges(currentLifecycleState),
+    ...buildBadges({ waveOpportunity, engine15, permission }),
+  ];
 
   const sections = [
+    buildCurrentLifecycleStateSection(currentLifecycleState),
     buildWaveOpportunitySection(waveOpportunity, fib),
     buildPossibleW5UpCompleteSection(fib),
     buildPostMinor5CorrectiveBounceSection(fib),
