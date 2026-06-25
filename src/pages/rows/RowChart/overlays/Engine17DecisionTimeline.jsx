@@ -1088,8 +1088,16 @@ function buildPostMinor5CorrectiveBounceSection(fib) {
   };
 }
 
-function buildEngine15Section(engine15) {
-  if (!engine15) {
+function buildEngine15Section(engine15, currentLifecycleState = null) {
+  const lifecycleOwnsDisplay =
+    isCurrentLifecycleDisplayOverride(currentLifecycleState);
+
+  const lifecycleKey = currentLifecycleState?.key || null;
+  const lifecycleAction = currentLifecycleState?.action || null;
+  const lifecycleDirection = currentLifecycleState?.direction || null;
+  const lifecycleNeeds = asArray(currentLifecycleState?.needs);
+
+  if (!engine15 && !currentLifecycleState) {
     return {
       number: 3,
       icon: "▣",
@@ -1100,39 +1108,95 @@ function buildEngine15Section(engine15) {
     };
   }
 
-  const next =
-    engine15.nextSetupType ||
-    engine15.lifecycle?.nextFocus ||
-    "WAIT_FOR_CONFIRMATION";
+  const rawStrategy = engine15?.strategyType || "NONE";
+  const rawDirection = engine15?.direction || "NONE";
+  const rawAction = engine15?.action || "NO_ACTION";
+  const rawReadiness = engine15?.readinessLabel || "WAIT";
 
-  const needs = asArray(engine15.needs)
-    .map((need) => formatText(need))
-    .join(", ");
+  const engine15LooksEmpty =
+    String(rawStrategy || "").toUpperCase() === "NONE" ||
+    String(rawAction || "").toUpperCase() === "NO_ACTION" ||
+    String(rawDirection || "").toUpperCase() === "NONE";
+
+  const displayStrategy =
+    lifecycleOwnsDisplay && engine15LooksEmpty
+      ? lifecycleKey
+      : rawStrategy;
+
+  const displayDirection =
+    lifecycleOwnsDisplay && engine15LooksEmpty
+      ? "LONG_AFTER_CONFIRMATION"
+      : rawDirection;
+
+  const displayAction =
+    lifecycleOwnsDisplay && engine15LooksEmpty
+      ? lifecycleAction
+      : rawAction;
+
+  const displayReadiness =
+    engine15?.readinessLabel ||
+    currentLifecycleState?.readiness ||
+    rawReadiness;
+
+  const displayNext =
+    lifecycleOwnsDisplay
+      ? "WAIT_FOR_ENGINE3_ENGINE4_CONFIRMATION"
+      : engine15?.nextSetupType ||
+        engine15?.lifecycle?.nextFocus ||
+        "WAIT_FOR_CONFIRMATION";
+
+  const displayNeeds =
+    asArray(engine15?.needs).length > 0
+      ? asArray(engine15.needs)
+      : lifecycleNeeds;
+
+  const needsText = displayNeeds.map((need) => formatText(need)).join(", ");
+
+  const qualityText =
+    engine15?.qualityScore != null ||
+    engine15?.qualityGrade ||
+    engine15?.qualityBand
+      ? `${formatScore(engine15?.qualityScore)} / ${formatUpper(
+          engine15?.qualityGrade || engine15?.qualityBand,
+          "—"
+        )}`
+      : lifecycleOwnsDisplay
+      ? "0 / WATCH"
+      : "0 / IGNORE";
 
   return {
     number: 3,
     icon: "▣",
     title: "Setup Readiness — Engine 15ES",
-    severity: isReadyState(engine15.readinessLabel)
+    severity: isReadyState(displayReadiness)
       ? "bullish"
-      : isWatchState(engine15.readinessLabel)
+      : isWatchState(displayReadiness)
       ? "blue"
       : "warning",
     fields: [
-      ["Readiness", formatUpper(engine15.readinessLabel, "UNKNOWN")],
-      ["Strategy", formatUpper(engine15.strategyType, "NONE")],
-      ["Direction", formatUpper(engine15.direction, "NONE")],
-      ["Action", formatUpper(engine15.action, "WATCH")],
+      ["Readiness", formatUpper(displayReadiness, "UNKNOWN")],
       [
-        "Quality",
-        `${formatScore(engine15.qualityScore)} / ${formatUpper(
-          engine15.qualityGrade || engine15.qualityBand,
-          "—"
-        )}`,
+        "Strategy",
+        lifecycleOwnsDisplay
+          ? "W2 C-LOW REACTION WATCH"
+          : formatUpper(displayStrategy, "NONE"),
       ],
-      ["Next", formatUpper(next)],
+      [
+        "Direction",
+        lifecycleOwnsDisplay
+          ? "LONG AFTER CONFIRMATION"
+          : formatUpper(displayDirection, "NONE"),
+      ],
+      ["Action", formatUpper(displayAction, "WATCH")],
+      ["Quality", qualityText],
+      ["Next", formatUpper(displayNext)],
     ],
-    lines: needs ? [`Needs: ${needs}`] : ["Needs: waiting for confirmation."],
+    lines: [
+      lifecycleOwnsDisplay
+        ? "Engine 15ES is watching the Engine 22 W2 C-low reaction state. This is watch-only and not executable."
+        : null,
+      needsText ? `Needs: ${needsText}` : "Needs: waiting for confirmation.",
+    ].filter(Boolean),
   };
 }
 
@@ -1963,7 +2027,7 @@ function normalizeTimelineData({ overlayData }) {
     buildPossibleW5UpCompleteSection(fib),
     buildPostMinor5CorrectiveBounceSection(fib),
     postAbcBounceSection,
-    buildEngine15Section(engine15),
+    buildEngine15Section(engine15, currentLifecycleState),
     buildEngine5Section(fib),
     buildPermissionSection(permission, engine15),
 
