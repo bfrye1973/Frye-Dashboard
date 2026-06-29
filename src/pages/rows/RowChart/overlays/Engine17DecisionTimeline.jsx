@@ -1537,33 +1537,280 @@ function buildNextStepsSection({
 /* =========================
    Market Context builders
 ========================= */
-function getEngine22LifecycleReaction(fib) {
+function getReactionContext(fib) {
   const confluence = getConfluence(fib);
 
   return (
-    confluence?.context?.reaction?.engine22LifecycleReaction ||
-    fib?.confluence?.context?.reaction?.engine22LifecycleReaction ||
-    getStrategyRoot(fib)?.confluence?.context?.reaction?.engine22LifecycleReaction ||
+    confluence?.context?.reaction ||
+    fib?.confluence?.context?.reaction ||
+    getStrategyRoot(fib)?.confluence?.context?.reaction ||
     null
   );
 }
-function getEngine22PullbackReaction(fib) {
-  const confluence = getConfluence(fib);
 
-  return (
-    confluence?.context?.reaction?.engine22PullbackReaction ||
-    fib?.confluence?.context?.reaction?.engine22PullbackReaction ||
-    getStrategyRoot(fib)?.confluence?.context?.reaction?.engine22PullbackReaction ||
-    null
-  );
+function getEngine3FastImbalanceReaction(fib) {
+  const reactionContext = getReactionContext(fib);
+
+  return reactionContext?.engine3FastImbalanceReaction || null;
+}
+
+function getCurrentLevelActionReaction(fib) {
+  const reactionContext = getReactionContext(fib);
+
+  return reactionContext?.currentLevelAction || null;
+}
+
+function getPaperScalpReaction(fib) {
+  const reactionContext = getReactionContext(fib);
+
+  return reactionContext?.paperScalpReaction || null;
+}
+
+function getEngine22LifecycleReaction(fib) {
+  const reactionContext = getReactionContext(fib);
+
+  return reactionContext?.engine22LifecycleReaction || null;
+}
+
+function getEngine22PullbackReaction(fib) {
+  const reactionContext = getReactionContext(fib);
+
+  return reactionContext?.engine22PullbackReaction || null;
+}
+
+function getDirectionConflict(primaryDirection, secondaryDirection) {
+  const a = String(primaryDirection || "").toUpperCase();
+  const b = String(secondaryDirection || "").toUpperCase();
+
+  if (!a || !b) return false;
+  if (a === "NEUTRAL" || b === "NEUTRAL") return false;
+
+  return a !== b;
+}
+
+function getFastReactionSeverity({ fastReaction, currentLevelAction, paperScalp }) {
+  const fastDirection = String(fastReaction?.direction || "").toUpperCase();
+  const currentDirection = String(currentLevelAction?.direction || "").toUpperCase();
+  const fastQuality = String(fastReaction?.quality || "").toUpperCase();
+  const state = String(fastReaction?.state || "").toUpperCase();
+
+  const conflict = getDirectionConflict(fastDirection, currentDirection);
+
+  if (conflict) return "warning";
+  if (paperScalp?.allowed === true) return "bullish";
+  if (["FAILED_RECLAIM", "REJECTING_VALUE", "BREAKOUT_FAILING", "LOST_LEVEL"].includes(state)) {
+    return "danger";
+  }
+  if (fastQuality === "STRONG" || fastQuality === "GOOD") return "bullish";
+  if (fastQuality === "MIXED") return "warning";
+
+  return "blue";
 }
 
 function buildEngine3ContextSection(fib) {
+  const fastReaction = getEngine3FastImbalanceReaction(fib);
+  const currentLevelAction = getCurrentLevelActionReaction(fib);
+  const paperScalp = getPaperScalpReaction(fib);
   const lifecycleReaction = getEngine22LifecycleReaction(fib);
   const pullbackReaction = getEngine22PullbackReaction(fib);
   const reaction = getEngine5Reaction(fib);
 
-  if (lifecycleReaction?.source === "engine22WaveStrategy.currentLifecycleState.confirmationContext") {
+  /*
+   * Priority:
+   * 1. Fast imbalance scalp read
+   * 2. Paper scalp advisory
+   * 3. Current level action
+   * 4. Engine 22 lifecycle reaction
+   * 5. Old pullback / generic fallback
+   */
+
+  if (fastReaction?.active === true) {
+    const imbalance = fastReaction.imbalance || {};
+    const currentPrice = Number(fastReaction.currentPrice);
+    const distancePts = Number(imbalance.distancePts);
+
+    const fastDirection = fastReaction.direction || "NEUTRAL";
+    const currentDirection = currentLevelAction?.direction || "NEUTRAL";
+
+    const conflict = getDirectionConflict(fastDirection, currentDirection);
+
+    const scalpResult =
+      conflict
+        ? "CONFLICT / WAIT"
+        : paperScalp?.allowed === true
+        ? "PAPER WATCH ALLOWED"
+        : "WAIT FOR ENGINE 6";
+
+    return {
+      number: 0,
+      icon: "③",
+      title: "Engine 3 Fast Scalp Read",
+      severity: getFastReactionSeverity({
+        fastReaction,
+        currentLevelAction,
+        paperScalp,
+      }),
+      fields: [
+        ["Mode", "FAST IMBALANCE"],
+        ["State", formatUpper(fastReaction.state, "NO SIGNAL")],
+        ["Direction", formatUpper(fastDirection, "NEUTRAL")],
+        ["Quality", formatUpper(fastReaction.quality, "WEAK")],
+        ["Early", formatBool(fastReaction.earlySignal)],
+        [
+          "Zone",
+          imbalance.lo != null && imbalance.hi != null
+            ? `${formatNumber(imbalance.lo)}–${formatNumber(imbalance.hi)}`
+            : "—",
+        ],
+        [
+          "Current",
+          Number.isFinite(currentPrice) ? formatNumber(currentPrice) : "—",
+        ],
+        [
+          "Distance",
+          Number.isFinite(distancePts) ? `${formatNumber(distancePts)} pts` : "—",
+        ],
+        [
+          "Current Level",
+          currentLevelAction?.state
+            ? `${formatUpper(currentLevelAction.state)} / ${formatUpper(
+                currentLevelAction.direction,
+                "NEUTRAL"
+              )}`
+            : "—",
+        ],
+        ["Scalp Result", scalpResult],
+      ],
+      lines: [
+        "Short-term scalp read is primary right now.",
+        imbalance.raw
+          ? `Active manual imbalance: ${imbalance.raw}`
+          : "Active manual imbalance detected.",
+        conflict
+          ? `Conflict: fast imbalance says ${formatUpper(
+              fastDirection
+            )}, current level action says ${formatUpper(currentDirection)}. Wait for one side to win.`
+          : null,
+        fastReaction.state === "BREAKOUT_FAILING"
+          ? "Upper imbalance breakout is failing / rejecting. Watch for imbalance-to-imbalance rotation."
+          : null,
+        fastReaction.state === "REJECTING_VALUE"
+          ? "Price is rejecting imbalance value. Watch for continuation away from the zone."
+          : null,
+        fastReaction.state === "WICK_BELOW_AND_RECLAIM"
+          ? "Price wicked through and reclaimed the imbalance. Watch for fast long continuation only after Engine 6 approval."
+          : null,
+        paperScalp?.allowed === false && asArray(paperScalp.blockers).length
+          ? `Paper blockers: ${asArray(paperScalp.blockers)
+              .map(formatText)
+              .join(", ")}`
+          : null,
+        "Paper-only research read. Engine 6 remains final. No permission or execution created.",
+      ].filter(Boolean),
+    };
+  }
+
+  if (paperScalp?.active === true) {
+    const allowed = paperScalp.allowed === true;
+
+    return {
+      number: 0,
+      icon: "③",
+      title: "Engine 3 Paper Scalp Read",
+      severity: allowed
+        ? "bullish"
+        : String(paperScalp.direction || "").toUpperCase() === "SHORT"
+        ? "warning"
+        : "blue",
+      fields: [
+        ["Mode", "PAPER SCALP"],
+        ["Allowed", formatBool(allowed)],
+        ["State", formatUpper(paperScalp.state, "NO SIGNAL")],
+        ["Direction", formatUpper(paperScalp.direction, "NEUTRAL")],
+        ["Quality", formatUpper(paperScalp.quality, "WEAK")],
+        ["Setup", formatUpper(paperScalp.setupType, "—")],
+        [
+          "Current",
+          paperScalp.currentPrice != null
+            ? formatNumber(paperScalp.currentPrice)
+            : "—",
+        ],
+        [
+          "Reference",
+          paperScalp.referenceLevel != null
+            ? formatNumber(paperScalp.referenceLevel)
+            : "—",
+        ],
+      ],
+      lines: [
+        allowed
+          ? "Paper scalp reaction is allowed by Engine 3, pending Engine 4 and Engine 6."
+          : "Paper scalp reaction is not allowed yet.",
+        asArray(paperScalp.blockers).length
+          ? `Blockers: ${asArray(paperScalp.blockers)
+              .map(formatText)
+              .join(", ")}`
+          : null,
+        "This is paper-only. No real permission or execution created.",
+      ].filter(Boolean),
+    };
+  }
+
+  if (currentLevelAction?.active === true) {
+    const currentPrice = Number(currentLevelAction.currentPrice);
+    const referenceLevel = Number(currentLevelAction.referenceLevel);
+    const distancePts = Number(currentLevelAction.distancePts);
+
+    return {
+      number: 0,
+      icon: "③",
+      title: "Engine 3 Current Level Action",
+      severity:
+        currentLevelAction.quality === "STRONG" ||
+        currentLevelAction.quality === "GOOD"
+          ? "bullish"
+          : currentLevelAction.direction === "SHORT"
+          ? "warning"
+          : "blue",
+      fields: [
+        ["State", formatUpper(currentLevelAction.state, "NO SIGNAL")],
+        ["Quality", formatUpper(currentLevelAction.quality, "WEAK")],
+        ["Direction", formatUpper(currentLevelAction.direction, "NEUTRAL")],
+        ["Confirmed", formatBool(currentLevelAction.confirmed)],
+        ["Reference", formatUpper(currentLevelAction.referenceType, "—")],
+        [
+          "Current",
+          Number.isFinite(currentPrice) ? formatNumber(currentPrice) : "—",
+        ],
+        [
+          "Level",
+          Number.isFinite(referenceLevel) ? formatNumber(referenceLevel) : "—",
+        ],
+        [
+          "Distance",
+          Number.isFinite(distancePts) ? `${formatNumber(distancePts)} pts` : "—",
+        ],
+      ],
+      lines: [
+        "Fast imbalance watch is not active. Showing short-term current level action.",
+        currentLevelAction.state === "WICK_BELOW_AND_RECLAIM"
+          ? "Wick below and reclaim detected. This is a fast tactical reaction, not automatic permission."
+          : null,
+        currentLevelAction.state === "LOST_LEVEL"
+          ? "Level lost. Watch for failed reclaim or continuation."
+          : null,
+        currentLevelAction.state === "REJECTING_VALUE"
+          ? "Rejecting value. Watch for imbalance-to-imbalance rotation."
+          : null,
+        "No permission or execution created.",
+      ].filter(Boolean),
+    };
+  }
+
+  if (
+    lifecycleReaction?.source ===
+    "engine22WaveStrategy.currentLifecycleState.confirmationContext"
+  ) {
     const confirmed = lifecycleReaction.confirmed === true;
 
     const reactionState = lifecycleReaction.reactionState || "NO_SIGNAL";
@@ -1571,7 +1818,6 @@ function buildEngine3ContextSection(fib) {
     const direction = lifecycleReaction.direction || "NEUTRAL";
     const lifecycleKey = lifecycleReaction.lifecycleKey || "—";
     const mode = lifecycleReaction.mode || "—";
-    const reactionFocus = lifecycleReaction.reactionFocus || "—";
 
     const currentPrice = Number(lifecycleReaction.currentPrice);
     const referenceLevel = Number(lifecycleReaction.debug?.referenceLevel);
@@ -1587,18 +1833,24 @@ function buildEngine3ContextSection(fib) {
       lifecycleReaction.debug?.failedReclaim === true ||
       String(reactionState).toUpperCase().includes("FAILED");
 
-    let reactionLine = "Engine 3 is waiting for the current Engine 22 reaction request.";
+    let reactionLine =
+      "Engine 3 is waiting for the current Engine 22 reaction request.";
 
     if (confirmed) {
-      reactionLine = "Engine 3 lifecycle reaction is confirmed for the current Engine 22 confirmation context.";
+      reactionLine =
+        "Engine 3 lifecycle reaction is confirmed for the current Engine 22 confirmation context.";
     } else if (reactionState === "NO_SIGNAL") {
-      reactionLine = "No lifecycle reaction yet. Price has not confirmed the Engine 22 requested pullback / reclaim.";
+      reactionLine =
+        "No lifecycle reaction yet. Price has not confirmed the Engine 22 requested pullback / reclaim.";
     } else if (reactionState === "WEAK") {
-      reactionLine = "Weak lifecycle reaction. Engine 3 does not have enough confirmation yet.";
+      reactionLine =
+        "Weak lifecycle reaction. Engine 3 does not have enough confirmation yet.";
     } else if (reactionState === "MIXED") {
-      reactionLine = "Mixed lifecycle reaction. Some response exists, but confirmation is not clean yet.";
+      reactionLine =
+        "Mixed lifecycle reaction. Some response exists, but confirmation is not clean yet.";
     } else if (reactionState === "GOOD") {
-      reactionLine = "Good lifecycle reaction forming, but Engine 3 has not fully confirmed yet.";
+      reactionLine =
+        "Good lifecycle reaction forming, but Engine 3 has not fully confirmed yet.";
     } else if (reactionState === "CONFIRMED") {
       reactionLine = "Engine 3 lifecycle reaction is confirmed.";
     } else if (reactionState === "FAILED") {
@@ -1608,7 +1860,7 @@ function buildEngine3ContextSection(fib) {
     return {
       number: 0,
       icon: "③",
-      title: "Engine 3 Current State",
+      title: "Engine 3 Longer-Term Lifecycle Read",
       severity: confirmed
         ? "bullish"
         : failedReclaim
@@ -1639,20 +1891,16 @@ function buildEngine3ContextSection(fib) {
         ],
       ],
       lines: [
+        "No fast imbalance or paper scalp read is active. Showing Engine 22 lifecycle reaction context.",
         confirmed
           ? "Lifecycle reaction confirmed."
           : reactionState === "NO_SIGNAL"
           ? "Waiting for controlled pullback or reclaim."
           : reactionLine,
-
         attemptedReferenceReaction
           ? "Price is testing the reference / reclaim area."
           : "Price has not reached the reference / reclaim area yet.",
-
-        failedReclaim
-          ? "Reclaim attempt failed."
-          : null,
-
+        failedReclaim ? "Reclaim attempt failed." : null,
         "No permission or execution created.",
       ].filter(Boolean),
     };
@@ -1664,7 +1912,7 @@ function buildEngine3ContextSection(fib) {
     return {
       number: 0,
       icon: "③",
-      title: "Engine 3 Current State",
+      title: "Engine 3 Pullback Reaction",
       severity: confirmed
         ? "bullish"
         : String(pullbackReaction.reactionState || "").includes("FAILED") ||
