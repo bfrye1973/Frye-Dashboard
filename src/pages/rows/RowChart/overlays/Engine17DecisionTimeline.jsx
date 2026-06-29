@@ -245,6 +245,17 @@ function getEngine22LifecycleParticipation(fib) {
   );
 }
 
+function getEngine4FastImbalanceParticipation(fib) {
+  const confluence = getConfluence(fib);
+
+  return (
+    confluence?.context?.volume?.engine4FastImbalanceParticipation ||
+    fib?.confluence?.context?.volume?.engine4FastImbalanceParticipation ||
+    getStrategyRoot(fib)?.confluence?.context?.volume?.engine4FastImbalanceParticipation ||
+    null
+  );
+}
+
 function getEngine5Timing(fib) {
   const confluence = getConfluence(fib);
 
@@ -1999,8 +2010,75 @@ function buildEngine3ContextSection(fib) {
   };
 }
 function buildEngine4ContextSection(fib) {
+  const fastParticipation = getEngine4FastImbalanceParticipation(fib);
   const lifecycleParticipation = getEngine22LifecycleParticipation(fib);
   const volume = getEngine5Volume(fib);
+
+  if (fastParticipation?.active === true) {
+    const allowed = fastParticipation.allowed === true;
+    const hardBlocked = fastParticipation.hardBlocked === true;
+
+    const currentBarVolume = Number(fastParticipation.currentBarVolume);
+    const priorBarVolume = Number(fastParticipation.priorBarVolume);
+    const volumeRatio = Number(fastParticipation.currentVsPriorVolumeRatio);
+
+    return {
+      number: 0,
+      icon: "④",
+      title: "Engine 4 Fast Scalp Volume",
+      severity: hardBlocked
+        ? "danger"
+        : allowed
+        ? "bullish"
+        : fastParticipation.participationQuality === "MIXED"
+        ? "warning"
+        : "warning",
+      fields: [
+        ["Mode", "FAST IMBALANCE"],
+        ["State", formatUpper(fastParticipation.participationState, "NO SIGNAL")],
+        ["Quality", formatUpper(fastParticipation.participationQuality, "WEAK")],
+        ["Allowed", formatBool(allowed)],
+        ["Grade", formatUpper(fastParticipation.grade, "D")],
+        ["Risk", formatUpper(fastParticipation.risk, "WAIT")],
+        ["Direction", formatUpper(fastParticipation.intendedDirection, "NEUTRAL")],
+        [
+          "Fast Vol",
+          Number.isFinite(currentBarVolume)
+            ? `${formatScore(currentBarVolume)} now`
+            : "—",
+        ],
+        [
+          "Prior Vol",
+          Number.isFinite(priorBarVolume)
+            ? formatScore(priorBarVolume)
+            : "—",
+        ],
+        [
+          "Vol Ratio",
+          Number.isFinite(volumeRatio) ? `${formatNumber(volumeRatio, 2)}x` : "—",
+        ],
+      ],
+      lines: [
+        "Short-term fast imbalance volume is primary right now.",
+        fastParticipation.usedFastReactionCandles === true
+          ? "Using Engine 3 fast candles, not slow 10m fallback."
+          : "Using fallback volume context.",
+        fastParticipation.volumeIncreasing === true
+          ? "Fast volume is increasing versus prior candle."
+          : "Fast volume is not increasing versus prior candle.",
+        fastParticipation.supportsFastReactionDirection === true
+          ? "Fast price action supports Engine 3 direction."
+          : "Fast price action does not fully support Engine 3 direction.",
+        fastParticipation.participationImproving === true
+          ? "Participation is improving."
+          : "Participation is not improving yet.",
+        allowed
+          ? "Engine 4 fast participation is acceptable for paper review. Engine 6 still decides."
+          : "Engine 4 fast participation is not ready for paper allow yet.",
+        "Paper-only research read. No permission or execution created.",
+      ].filter(Boolean),
+    };
+  } 
 
   if (lifecycleParticipation?.active === true) {
     const confirmed = lifecycleParticipation.confirmed === true;
