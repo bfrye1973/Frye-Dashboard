@@ -264,6 +264,17 @@ function getEngine4FastImbalanceParticipation(fib) {
   );
 }
 
+function getEngine4CurrentScalpParticipation(fib) {
+  const confluence = getConfluence(fib);
+
+  return (
+    confluence?.context?.volume?.engine4CurrentScalpParticipation ||
+    fib?.confluence?.context?.volume?.engine4CurrentScalpParticipation ||
+    getStrategyRoot(fib)?.confluence?.context?.volume?.engine4CurrentScalpParticipation ||
+    null
+  );
+}
+
 function getEngine5Timing(fib) {
   const confluence = getConfluence(fib);
 
@@ -2143,6 +2154,7 @@ function buildEngine3ContextSection(fib) {
 }
 function buildEngine4ContextSection(fib) {
   const fastParticipation = getEngine4FastImbalanceParticipation(fib);
+  const currentScalpParticipation = getEngine4CurrentScalpParticipation(fib);
   const lifecycleParticipation = getEngine22LifecycleParticipation(fib);
   const volume = getEngine5Volume(fib);
 
@@ -2211,6 +2223,83 @@ function buildEngine4ContextSection(fib) {
       ].filter(Boolean),
     };
   } 
+
+  if (currentScalpParticipation?.active === true) {
+    const allowed = currentScalpParticipation.allowed === true;
+    const hardBlocked = currentScalpParticipation.hardBlocked === true;
+
+    const currentBarVolume = Number(currentScalpParticipation.currentBarVolume);
+    const priorBarVolume = Number(currentScalpParticipation.priorBarVolume);
+    const volumeRatio = Number(currentScalpParticipation.currentVsPriorVolumeRatio);
+
+    return {
+      number: 0,
+      icon: "④",
+      title: "Engine 4 Current Scalp Volume",
+      severity: hardBlocked
+        ? "danger"
+        : allowed
+        ? "bullish"
+        : currentScalpParticipation.participationQuality === "RISK"
+        ? "danger"
+        : "warning",
+      fields: [
+        ["Mode", "CURRENT SCALP"],
+        ["Source", formatUpper(currentScalpParticipation.source, "—")],
+        ["State", formatUpper(currentScalpParticipation.participationState, "NO SIGNAL")],
+        ["Quality", formatUpper(currentScalpParticipation.participationQuality, "WEAK")],
+        ["Allowed", formatBool(allowed)],
+        ["Hard Block", formatBool(hardBlocked)],
+        ["Grade", formatUpper(currentScalpParticipation.grade, "D")],
+        ["Risk", formatUpper(currentScalpParticipation.risk, "WAIT")],
+        ["Direction", formatUpper(currentScalpParticipation.intendedDirection, "NEUTRAL")],
+        [
+          "Fast Vol",
+          Number.isFinite(currentBarVolume)
+            ? `${formatScore(currentBarVolume)} now`
+            : "—",
+        ],
+        [
+          "Prior Vol",
+          Number.isFinite(priorBarVolume)
+            ? formatScore(priorBarVolume)
+            : "—",
+        ],
+        [
+          "Vol Ratio",
+          Number.isFinite(volumeRatio) ? `${formatNumber(volumeRatio, 2)}x` : "—",
+        ],
+      ],
+      lines: [
+        "Current Engine 4 scalp volume read is active.",
+        currentScalpParticipation.fastImbalanceActive === true
+          ? "Fast imbalance volume is active."
+          : "Fast imbalance is inactive; using current paper scalp / level-action volume.",
+        currentScalpParticipation.paperScalpActive === true
+          ? "Paper scalp reaction is active."
+          : null,
+        currentScalpParticipation.currentLevelActionActive === true
+          ? "Current level action is active."
+          : null,
+        currentScalpParticipation.volumeIncreasing === true
+          ? "Current volume is increasing versus prior candle."
+          : "Current volume is not increasing versus prior candle.",
+        currentScalpParticipation.supportsDirection === true
+          ? "Volume / price action supports the scalp direction."
+          : null,
+        currentScalpParticipation.againstDirection === true
+          ? "Volume / price action is against the scalp direction."
+          : null,
+        currentScalpParticipation.highVolumeNoProgress === true
+          ? "High-volume no-progress risk detected."
+          : null,
+        allowed
+          ? "Engine 4 current scalp participation is acceptable for paper review. Engine 6 still decides."
+          : "Engine 4 current scalp participation is not ready for paper allow yet.",
+        "Paper-only research read. No permission or execution created.",
+      ].filter(Boolean),
+    };
+  }
 
   if (lifecycleParticipation?.active === true) {
     const confirmed = lifecycleParticipation.confirmed === true;
