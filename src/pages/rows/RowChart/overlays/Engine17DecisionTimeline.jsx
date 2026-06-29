@@ -176,7 +176,15 @@ function getCurrentLifecycleState(fib) {
     null
   );
 }
+function getLifecycleViews(fib) {
+  const waveStrategy = getEngine22WaveStrategy(fib);
 
+  return (
+    waveStrategy?.lifecycleViews ||
+    waveStrategy?.timelineRead?.lifecycleViews ||
+    null
+  );
+}
 function getBackendTimelineSection(fib, title) {
   const sections = getBackendTimelineRead(fib)?.mainSections;
 
@@ -763,6 +771,130 @@ function buildLifecycleNextStepsSection(currentLifecycleState, fib) {
     severity: "teal",
     checklist,
   };
+}
+
+function formatFibLevels(levels = {}, labels = {}) {
+  if (!levels || typeof levels !== "object") return "—";
+
+  const entries = Object.entries(levels)
+    .filter(([, value]) => Number.isFinite(Number(value)))
+    .map(([key, value]) => {
+      const label = labels[key] || key.toUpperCase();
+      return `${label}: ${formatNumber(value)}`;
+    });
+
+  return entries.length ? entries.join("  |  ") : "—";
+}
+
+function formatFibTargetsList(values = []) {
+  const nums = Array.isArray(values)
+    ? values.filter((value) => Number.isFinite(Number(value)))
+    : [];
+
+  return nums.length ? nums.map((value) => formatNumber(value)).join(" → ") : "—";
+}
+
+function formatZoneRange(zone) {
+  if (!zone || typeof zone !== "object") return "—";
+
+  if (zone.lo != null && zone.hi != null) {
+    return `${formatNumber(zone.lo)}–${formatNumber(zone.hi)}`;
+  }
+
+  return "—";
+}
+
+function buildLongTermLifecycleViewSection(lifecycleViews) {
+  const longTerm = lifecycleViews?.longTerm || null;
+
+  if (!longTerm) return null;
+
+  const fibMap = longTerm.fibMap || {};
+  const anchors = longTerm.anchors || {};
+  const levels = fibMap.levels || {};
+
+  return {
+    number: 1,
+    icon: "↗",
+    title: "Long-Term Lifecycle — Engine 22",
+    severity: "bullish",
+    fields: [
+      ["Lifecycle", formatText(longTerm.label, "Intermediate W3 active")],
+      ["Active Wave", `${formatUpper(longTerm.activeDegree)} ${formatUpper(longTerm.activeWave)}`],
+      ["Direction", formatUpper(longTerm.direction, "LONG")],
+      ["Current", formatNumber(anchors.currentPrice)],
+      ["W1 High", formatNumber(anchors.w1High)],
+      ["W2 Low", formatNumber(anchors.w2Low)],
+      ["Next Target", formatNumber(fibMap.nextTarget)],
+      ["Target Path", formatFibTargetsList(fibMap.higherTargets)],
+    ],
+    lines: [
+      longTerm.summary ||
+        "Intermediate W3 is active. This is higher-timeframe context, not a scalp trigger.",
+      `Intermediate W3 extension map: ${formatFibLevels(levels, {
+        e100: "1.000",
+        e1272: "1.272",
+        e1618: "1.618",
+        e200: "2.000",
+        e2618: "2.618",
+      })}`,
+      "Use this section for bigger destination targets only. No execution from this alone.",
+    ],
+  };
+}
+
+function buildIntradayScalpLifecycleViewSection(lifecycleViews) {
+  const intraday = lifecycleViews?.intradayScalp || null;
+
+  if (!intraday) return null;
+
+  const fibMap = intraday.fibMap || {};
+  const anchors = intraday.anchors || {};
+  const pullbackLevels = fibMap.pullbackLevels || {};
+  const holdTargets = fibMap.ifW4HoldsNextTargets || {};
+
+  return {
+    number: 2,
+    icon: "〽",
+    title: "Intraday Scalp Lifecycle — Engine 22",
+    severity: "teal",
+    fields: [
+      ["Lifecycle", formatText(intraday.label, "Minute W4 pullback watch")],
+      ["Active Wave", `${formatUpper(intraday.activeDegree)} ${formatUpper(intraday.activeWave)}`],
+      ["Parent", `${formatUpper(intraday.parentDegree)} ${formatUpper(intraday.parentWave)}`],
+      ["Direction", formatUpper(intraday.direction, "LONG AFTER CONFIRMATION")],
+      ["Current", formatNumber(anchors.currentPrice)],
+      ["W3 High", formatNumber(anchors.w3High)],
+      ["Preferred W4 Zone", formatZoneRange(fibMap.preferredW4Zone)],
+      ["Invalidation", formatNumber(fibMap.invalidationLevel)],
+    ],
+    lines: [
+      intraday.summary ||
+        "Minute W4 pullback is being watched. No chase. No execution.",
+      `Minute W4 pullback levels: ${formatFibLevels(pullbackLevels, {
+        r236: "23.6%",
+        r382: "38.2%",
+        r500: "50.0%",
+        r618: "61.8%",
+        r786: "78.6%",
+      })}`,
+      `If W4 holds, next targets: ${formatFibLevels(holdTargets, {
+        e100: "1.000",
+        e1272: "1.272",
+        e1618: "1.618",
+        e200: "2.000",
+        e2618: "2.618",
+      })}`,
+      "Engine 26 may use this as scalp context only. Engine 15 / Engine 6 still control permission.",
+    ],
+  };
+}
+
+function buildLifecycleViewSections(lifecycleViews) {
+  return [
+    buildLongTermLifecycleViewSection(lifecycleViews),
+    buildIntradayScalpLifecycleViewSection(lifecycleViews),
+  ].filter(Boolean);
 }
 
 function buildCurrentLifecycleStateSection(currentLifecycleState, fib = null) {
@@ -2303,7 +2435,12 @@ function normalizeTimelineData({ overlayData }) {
   const permission = getFinalPermission(fib);
   const backendTimelineRead = getBackendTimelineRead(fib);
   const tradeContextSummary = getBackendTradeContextSummary(fib);
-  const currentLifecycleState = getCurrentLifecycleState(fib);
+  const currentLifecycleState = getCurrentLifecycleState(fib); 
+   
+  const lifecycleViews = getLifecycleViews(fib);
+  const lifecycleViewSections = buildLifecycleViewSections(lifecycleViews);
+  const hasLifecycleViews = lifecycleViewSections.length > 0;
+   
 
   const postAbcBounceSection = buildPostAbcBounceSection(
     tradeContextSummary,
@@ -2315,19 +2452,26 @@ function normalizeTimelineData({ overlayData }) {
     "Market Meter / Tactical Context"
   );
 
-  const headline =
-    currentLifecycleState?.headline ||
+const headline = hasLifecycleViews
+  ? `${formatText(
+      lifecycleViews?.longTerm?.label,
+      "Intermediate W3 active"
+    )} / ${formatText(
+      lifecycleViews?.intradayScalp?.label,
+      "Minute W4 pullback watch"
+    )}`
+  : currentLifecycleState?.headline ||
     backendTimelineRead?.headline ||
     tradeContextSummary?.headline ||
     buildFallbackHeadline({ waveOpportunity, engine15 });
 
-  const subheadline =
-    currentLifecycleState?.action
-      ? formatText(currentLifecycleState.action)
-      : backendTimelineRead?.subheadline ||
-        tradeContextSummary?.subheadline ||
-        buildFallbackSubheadline({ waveOpportunity, engine15 });
-
+const subheadline = hasLifecycleViews
+  ? "Long-term target map plus intraday scalp pullback map. Context only — Engine 15 and Engine 6 still control permission."
+  : currentLifecycleState?.action
+  ? formatText(currentLifecycleState.action)
+  : backendTimelineRead?.subheadline ||
+    tradeContextSummary?.subheadline ||
+    buildFallbackSubheadline({ waveOpportunity, engine15 });
   const lifecycleOwnsDisplay =
     isCurrentLifecycleDisplayOverride(currentLifecycleState);
 
@@ -2344,9 +2488,13 @@ function normalizeTimelineData({ overlayData }) {
       ].filter(Boolean);
 
   const sections = [
-    buildCurrentLifecycleStateSection(currentLifecycleState, fib),
+    ...lifecycleViewSections,
 
-    lifecycleOwnsDisplay
+    hasLifecycleViews
+      ? null
+      : buildCurrentLifecycleStateSection(currentLifecycleState, fib),
+
+    hasLifecycleViews || lifecycleOwnsDisplay
       ? null
       : buildWaveOpportunitySection(waveOpportunity, fib),
 
@@ -2357,7 +2505,7 @@ function normalizeTimelineData({ overlayData }) {
     buildEngine5Section(fib),
     buildPermissionSection(permission, engine15),
 
-    lifecycleOwnsDisplay
+   lifecycleOwnsDisplay && !hasLifecycleViews
       ? buildLifecycleNextStepsSection(currentLifecycleState, fib)
       : buildNextStepsSection({
           waveOpportunity,
