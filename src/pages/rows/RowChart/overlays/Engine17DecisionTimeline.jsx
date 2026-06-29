@@ -2273,30 +2273,25 @@ function buildEngine4ContextSection(fib) {
       lines: [
         "Current Engine 4 scalp volume read is active.",
         currentScalpParticipation.fastImbalanceActive === true
-          ? "Fast imbalance volume is active."
-          : "Fast imbalance is inactive; using current paper scalp / level-action volume.",
-        currentScalpParticipation.paperScalpActive === true
-          ? "Paper scalp reaction is active."
-          : null,
-        currentScalpParticipation.currentLevelActionActive === true
-          ? "Current level action is active."
-          : null,
+          ? "Reading fast imbalance volume."
+          : "Reading current paper scalp / level-action volume.",
         currentScalpParticipation.volumeIncreasing === true
-          ? "Current volume is increasing versus prior candle."
-          : "Current volume is not increasing versus prior candle.",
+          ? "Volume is increasing versus the prior candle."
+          : "Volume is not increasing versus the prior candle.",
         currentScalpParticipation.supportsDirection === true
-          ? "Volume / price action supports the scalp direction."
-          : null,
-        currentScalpParticipation.againstDirection === true
-          ? "Volume / price action is against the scalp direction."
-          : null,
+          ? "Price action supports the scalp direction."
+          : currentScalpParticipation.againstDirection === true
+          ? "Price action is fighting the scalp direction."
+          : "Price action is not cleanly aligned yet.",
         currentScalpParticipation.highVolumeNoProgress === true
-          ? "High-volume no-progress risk detected."
+          ? "Volume is active, but price progress is not clean yet."
           : null,
         allowed
-          ? "Engine 4 current scalp participation is acceptable for paper review. Engine 6 still decides."
-          : "Engine 4 current scalp participation is not ready for paper allow yet.",
-        "Paper-only research read. No permission or execution created.",
+          ? "Paper review is acceptable; Engine 6 still decides."
+          : hardBlocked
+          ? "Blocked for paper until price/volume alignment improves."
+          : "Waiting for cleaner participation before paper allow.",
+        "No real permission or execution created.",
       ].filter(Boolean),
     };
   }
