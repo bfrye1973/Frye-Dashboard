@@ -601,7 +601,7 @@ export default function Engine23BehaviorCard({
       style={{
         fontFamily: CARD_FONT,
         position: "absolute",
-        top: 150,
+        top: 355,
         left: "calc(50% + 430px)",
         zIndex: 108,
         width: 430,
