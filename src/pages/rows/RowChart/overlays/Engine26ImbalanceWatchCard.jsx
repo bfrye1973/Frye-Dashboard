@@ -4,28 +4,28 @@ import React from "react";
 
 const CARD_FONT = '"Trebuchet MS", "Lucida Grande", "Segoe UI", Arial, sans-serif';
 
-const CARD_WIDTH = 520;
+const CARD_WIDTH = 470;
 const CARD_LEFT = "calc(50% + 430px)";
 
 const TEXT_STYLE = {
   fontFamily: CARD_FONT,
-  fontSize: 24,
-  lineHeight: 1.35,
+  fontSize: 17,
+  lineHeight: 1.38,
   fontWeight: 400,
   color: "#dbeafe",
 };
 
 const TITLE_STYLE = {
   fontFamily: CARD_FONT,
-  fontSize: 28,
+  fontSize: 21,
+  lineHeight: 1.18,
   fontWeight: 600,
-  textTransform: "none",
-  letterSpacing: "0.01em",
+  color: "#38bdf8",
 };
 
 const LABEL_STYLE = {
   fontFamily: CARD_FONT,
-  fontSize: 20,
+  fontSize: 13,
   lineHeight: 1.25,
   fontWeight: 400,
   color: "#94a3b8",
@@ -57,32 +57,50 @@ function formatBool(value) {
 }
 
 function labelsContain(labels, text) {
-  const needle = String(text || "").toUpperCase();
   const safeLabels = Array.isArray(labels) ? labels : [];
+  const needle = String(text || "").toUpperCase();
 
   return safeLabels.some((label) =>
     String(label || "").toUpperCase().includes(needle)
   );
 }
 
-function statusColor(status) {
+function statusColor(status, labels) {
   const s = String(status || "").toUpperCase();
 
-  if (s.includes("TOP_IMBALANCE")) return "#fbbf24";
-  if (s.includes("LOWER_IMBALANCE")) return "#38bdf8";
+  if (s.includes("TOP_IMBALANCE") || labelsContain(labels, "TOP_IMBALANCE")) {
+    return "#fbbf24";
+  }
+
+  if (
+    s.includes("LOWER_IMBALANCE") ||
+    labelsContain(labels, "BOTTOM_IMBALANCE")
+  ) {
+    return "#38bdf8";
+  }
+
   if (s.includes("PAPER_ALLOW")) return "#22c55e";
 
-  return "#fbbf24";
+  return "#38bdf8";
 }
 
-function statusBorder(status) {
+function statusBorder(status, labels) {
   const s = String(status || "").toUpperCase();
 
-  if (s.includes("TOP_IMBALANCE")) return "rgba(251,191,36,0.68)";
-  if (s.includes("LOWER_IMBALANCE")) return "rgba(56,189,248,0.65)";
-  if (s.includes("PAPER_ALLOW")) return "rgba(34,197,94,0.65)";
+  if (s.includes("TOP_IMBALANCE") || labelsContain(labels, "TOP_IMBALANCE")) {
+    return "rgba(251,191,36,0.62)";
+  }
 
-  return "rgba(251,191,36,0.62)";
+  if (
+    s.includes("LOWER_IMBALANCE") ||
+    labelsContain(labels, "BOTTOM_IMBALANCE")
+  ) {
+    return "rgba(56,189,248,0.58)";
+  }
+
+  if (s.includes("PAPER_ALLOW")) return "rgba(34,197,94,0.58)";
+
+  return "rgba(56,189,248,0.52)";
 }
 
 function SmallLine({ label, value, valueColor = "#dbeafe" }) {
@@ -91,14 +109,13 @@ function SmallLine({ label, value, valueColor = "#dbeafe" }) {
   return (
     <div
       style={{
-        fontFamily: CARD_FONT,
         display: "grid",
-        gridTemplateColumns: "190px 1fr",
+        gridTemplateColumns: "125px 1fr",
         alignItems: "center",
-        gap: 14,
-        fontSize: 22,
-        lineHeight: 1.25,
-        fontWeight: 400,
+        gap: 10,
+        fontFamily: CARD_FONT,
+        fontSize: 15,
+        lineHeight: 1.3,
       }}
     >
       <span style={LABEL_STYLE}>{label}</span>
@@ -115,7 +132,7 @@ function SmallLine({ label, value, valueColor = "#dbeafe" }) {
   );
 }
 
-function StatusBadge({ label, color = "#fbbf24" }) {
+function StatusBadge({ label, color }) {
   if (!label) return null;
 
   return (
@@ -126,14 +143,31 @@ function StatusBadge({ label, color = "#fbbf24" }) {
         color,
         background: "rgba(15,23,42,0.72)",
         borderRadius: 999,
-        padding: "6px 11px",
-        fontSize: 17,
+        padding: "3px 8px",
+        fontSize: 12,
         fontWeight: 600,
         whiteSpace: "nowrap",
       }}
     >
       {label}
     </span>
+  );
+}
+
+function SectionBox({ border, background, children }) {
+  return (
+    <div
+      style={{
+        border: `1px solid ${border}`,
+        background,
+        borderRadius: 11,
+        padding: "10px 11px",
+        display: "grid",
+        gap: 6,
+      }}
+    >
+      {children}
+    </div>
   );
 }
 
@@ -154,7 +188,8 @@ export default function Engine26ImbalanceWatchCard({
   const permission = watch.permission || {};
 
   const status = String(watch.status || "").toUpperCase();
-  const color = statusColor(status);
+  const color = statusColor(status, watch.labels);
+  const border = statusBorder(status, watch.labels);
 
   const isTop =
     status.includes("TOP_IMBALANCE") ||
@@ -207,18 +242,18 @@ export default function Engine26ImbalanceWatchCard({
         left: CARD_LEFT,
         zIndex: 109,
         width: CARD_WIDTH,
-        maxWidth: "34%",
-        borderRadius: 16,
-        border: `1px solid ${statusBorder(status)}`,
+        maxWidth: "32%",
+        borderRadius: 15,
+        border: `1px solid ${border}`,
         background: "rgba(6,10,20,0.97)",
-        padding: "18px 20px",
+        padding: "14px 15px",
         color: "#e5e7eb",
         backdropFilter: "blur(4px)",
         pointerEvents: "none",
         textAlign: "left",
-        boxShadow: "0 10px 30px rgba(0,0,0,0.34)",
+        boxShadow: "0 10px 28px rgba(0,0,0,0.34)",
         display: "grid",
-        gap: 14,
+        gap: 10,
       }}
     >
       <div
@@ -226,7 +261,7 @@ export default function Engine26ImbalanceWatchCard({
           display: "grid",
           gridTemplateColumns: "1fr auto",
           alignItems: "start",
-          gap: 14,
+          gap: 10,
         }}
       >
         <div>
@@ -243,8 +278,8 @@ export default function Engine26ImbalanceWatchCard({
             style={{
               ...TEXT_STYLE,
               color: "#f8fafc",
-              fontSize: 22,
-              marginTop: 5,
+              fontSize: 15,
+              marginTop: 4,
             }}
           >
             {symbol} • {formatText(watch.mode)} • Watch Only
@@ -254,17 +289,9 @@ export default function Engine26ImbalanceWatchCard({
         <StatusBadge label={statusLabel} color={color} />
       </div>
 
-      <div
-        style={{
-          border: `1px solid ${statusBorder(status)}`,
-          background: isTop
-            ? "rgba(113,63,18,0.16)"
-            : "rgba(12,74,110,0.16)",
-          borderRadius: 12,
-          padding: "13px 14px",
-          display: "grid",
-          gap: 8,
-        }}
+      <SectionBox
+        border={border}
+        background={isTop ? "rgba(113,63,18,0.16)" : "rgba(12,74,110,0.16)"}
       >
         <SmallLine label="Zone" value={zoneText} valueColor="#f8fafc" />
         <SmallLine label="Current" value={formatLevel(watch.currentPrice)} />
@@ -277,24 +304,24 @@ export default function Engine26ImbalanceWatchCard({
         <SmallLine label="Near" value={formatBool(zone.near)} />
         <SmallLine label="Inside" value={formatBool(zone.inside)} />
         <SmallLine label="Alarm" value={formatBool(watch.alarmAllEngines)} />
-      </div>
+      </SectionBox>
 
-      <div style={{ ...TEXT_STYLE }}>
-        <span style={{ color: "#94a3b8" }}>Wave context: </span>
+      <div style={TEXT_STYLE}>
+        <span style={{ color: "#94a3b8" }}>Wave: </span>
         <span style={{ color: "#f8fafc" }}>{waveText}</span>
       </div>
 
-      <div style={{ ...TEXT_STYLE }}>
+      <div style={TEXT_STYLE}>
         <span style={{ color: "#94a3b8" }}>Engine 3: </span>
         <span style={{ color: "#f8fafc" }}>{engine3Text}</span>
       </div>
 
-      <div style={{ ...TEXT_STYLE }}>
+      <div style={TEXT_STYLE}>
         <span style={{ color: "#94a3b8" }}>Engine 4: </span>
         <span style={{ color: "#f8fafc" }}>{engine4Text}</span>
       </div>
 
-      <div style={{ ...TEXT_STYLE }}>
+      <div style={TEXT_STYLE}>
         <span style={{ color: "#94a3b8" }}>Engine 6: </span>
         <span style={{ color: "#f8fafc" }}>{engine6Text}</span>
         <span style={{ color: "#94a3b8" }}> • Ticket </span>
@@ -308,7 +335,7 @@ export default function Engine26ImbalanceWatchCard({
           ...TEXT_STYLE,
           color: "#fbbf24",
           borderTop: "1px solid rgba(148,163,184,0.22)",
-          paddingTop: 11,
+          paddingTop: 8,
         }}
       >
         {action} Direction is not assumed. No paper trade until Engine 6
@@ -320,7 +347,7 @@ export default function Engine26ImbalanceWatchCard({
           style={{
             ...TEXT_STYLE,
             color: "#94a3b8",
-            fontSize: 20,
+            fontSize: 13,
           }}
         >
           Plan: {formatUpper(plan.status)}
