@@ -2,7 +2,7 @@
 
 import React from "react";
 
-const CARD_FONT = '"Trebuchet MS", "Lucida Grande", "Segoe UI", Arial, sans-serif";
+const CARD_FONT = '"Trebuchet MS", "Lucida Grande", "Segoe UI", Arial, sans-serif';
 
 const CARD_WIDTH = 520;
 const CARD_LEFT = "calc(50% + 430px)";
