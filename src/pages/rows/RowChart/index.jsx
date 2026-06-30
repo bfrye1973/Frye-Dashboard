@@ -49,6 +49,7 @@ import Engine17Overlay from "./overlays/Engine17Overlay";
 import Engine17DecisionTimeline from "./overlays/Engine17DecisionTimeline";
 import Engine17Badges from "./overlays/Engine17Badges";
 import Engine23BehaviorCard from "./overlays/Engine23BehaviorCard";
+import Engine26ImbalanceWatchCard from "./overlays/Engine26ImbalanceWatchCard";
 import Engine25CompositeOverlay from "./overlays/Engine25CompositeOverlay";
 import Engine25MarketHealthTimeline from "./overlays/Engine25MarketHealthTimeline";
 
@@ -644,6 +645,9 @@ function mapSnapshotToEngine17Overlay(snapshot, strategyId, chartMode = "SPY_SCA
      permission: node?.permission || null,
      engine16: node?.engine16 || null,
      engine25Context: node?.engine25Context || null,
+     engine26ImbalanceWatch: node?.engine26ImbalanceWatch || null,
+     engine26PaperTradePlan: node?.engine26PaperTradePlan || null,
+     engine26PaperTradeTicket: node?.engine26PaperTradeTicket || null,
      analytics: node?.analytics || null,
      permissionPreliminary: node?.permissionPreliminary || null,
 
@@ -2220,18 +2224,31 @@ export default function RowChart({
              symbol={state.symbol}
            />
 
+          <Engine26ImbalanceWatchCard
+            visible={
+              state.engine23BehaviorCard &&
+              state.engine17Timeline &&
+              state.engine17Overlay &&
+              normalizeSymbol(state.symbol) === "ES"
+            }
+            watch={engine17Data?.fib?.engine26ImbalanceWatch}
+            plan={engine17Data?.fib?.engine26PaperTradePlan}
+            ticket={engine17Data?.fib?.engine26PaperTradeTicket}
+            symbol={state.symbol}
+          />
+
           <Engine23BehaviorCard
             visible={
               state.engine23BehaviorCard &&
               state.engine17Timeline &&
               state.engine17Overlay &&
               normalizeSymbol(state.symbol) === "ES"
-         }
-         interpretation={engine17Data?.fib?.engine23Interpretation}
-         waveOpportunity={engine17Data?.fib?.engine22WaveStrategy?.waveOpportunity}
-         engine16={engine17Data?.fib?.engine16}
-         symbol={state.symbol}
-        />
+            }
+            interpretation={engine17Data?.fib?.engine23Interpretation}
+            waveOpportunity={engine17Data?.fib?.engine22WaveStrategy?.waveOpportunity}
+            engine16={engine17Data?.fib?.engine16}
+            symbol={state.symbol}
+          />
 
           <Engine17Badges
             overlayData={engine17Data}
