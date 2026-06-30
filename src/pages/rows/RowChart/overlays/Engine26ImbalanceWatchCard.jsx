@@ -2,28 +2,31 @@
 
 import React from "react";
 
-const CARD_FONT = '"Trebuchet MS", "Lucida Grande", "Segoe UI", Arial, sans-serif';
+const CARD_FONT = '"Trebuchet MS", "Lucida Grande", "Segoe UI", Arial, sans-serif";
+
+const CARD_WIDTH = 520;
+const CARD_LEFT = "calc(50% + 430px)";
 
 const TEXT_STYLE = {
   fontFamily: CARD_FONT,
-  fontSize: 14,
-  lineHeight: 1.4,
+  fontSize: 24,
+  lineHeight: 1.35,
   fontWeight: 400,
   color: "#dbeafe",
 };
 
 const TITLE_STYLE = {
   fontFamily: CARD_FONT,
-  fontSize: 17,
-  fontWeight: 500,
+  fontSize: 28,
+  fontWeight: 600,
   textTransform: "none",
   letterSpacing: "0.01em",
 };
 
 const LABEL_STYLE = {
   fontFamily: CARD_FONT,
-  fontSize: 12,
-  lineHeight: 1.3,
+  fontSize: 20,
+  lineHeight: 1.25,
   fontWeight: 400,
   color: "#94a3b8",
 };
@@ -53,6 +56,15 @@ function formatBool(value) {
   return "—";
 }
 
+function labelsContain(labels, text) {
+  const needle = String(text || "").toUpperCase();
+  const safeLabels = Array.isArray(labels) ? labels : [];
+
+  return safeLabels.some((label) =>
+    String(label || "").toUpperCase().includes(needle)
+  );
+}
+
 function statusColor(status) {
   const s = String(status || "").toUpperCase();
 
@@ -66,11 +78,11 @@ function statusColor(status) {
 function statusBorder(status) {
   const s = String(status || "").toUpperCase();
 
-  if (s.includes("TOP_IMBALANCE")) return "rgba(251,191,36,0.60)";
-  if (s.includes("LOWER_IMBALANCE")) return "rgba(56,189,248,0.55)";
-  if (s.includes("PAPER_ALLOW")) return "rgba(34,197,94,0.55)";
+  if (s.includes("TOP_IMBALANCE")) return "rgba(251,191,36,0.68)";
+  if (s.includes("LOWER_IMBALANCE")) return "rgba(56,189,248,0.65)";
+  if (s.includes("PAPER_ALLOW")) return "rgba(34,197,94,0.65)";
 
-  return "rgba(251,191,36,0.55)";
+  return "rgba(251,191,36,0.62)";
 }
 
 function SmallLine({ label, value, valueColor = "#dbeafe" }) {
@@ -80,12 +92,12 @@ function SmallLine({ label, value, valueColor = "#dbeafe" }) {
     <div
       style={{
         fontFamily: CARD_FONT,
-        display: "flex",
-        justifyContent: "space-between",
+        display: "grid",
+        gridTemplateColumns: "190px 1fr",
         alignItems: "center",
-        gap: 10,
-        fontSize: 13,
-        lineHeight: 1.35,
+        gap: 14,
+        fontSize: 22,
+        lineHeight: 1.25,
         fontWeight: 400,
       }}
     >
@@ -93,7 +105,7 @@ function SmallLine({ label, value, valueColor = "#dbeafe" }) {
       <span
         style={{
           color: valueColor,
-          fontWeight: 400,
+          fontWeight: 500,
           textAlign: "right",
         }}
       >
@@ -112,11 +124,11 @@ function StatusBadge({ label, color = "#fbbf24" }) {
         fontFamily: CARD_FONT,
         border: `1px solid ${color}`,
         color,
-        background: "rgba(15,23,42,0.62)",
+        background: "rgba(15,23,42,0.72)",
         borderRadius: 999,
-        padding: "3px 8px",
-        fontSize: 11,
-        fontWeight: 500,
+        padding: "6px 11px",
+        fontSize: 17,
+        fontWeight: 600,
         whiteSpace: "nowrap",
       }}
     >
@@ -144,10 +156,13 @@ export default function Engine26ImbalanceWatchCard({
   const status = String(watch.status || "").toUpperCase();
   const color = statusColor(status);
 
-  const isTop = status.includes("TOP_IMBALANCE");
+  const isTop =
+    status.includes("TOP_IMBALANCE") ||
+    labelsContain(watch.labels, "TOP_IMBALANCE");
+
   const isLower =
     status.includes("LOWER_IMBALANCE") ||
-    String(watch.labels || "").toUpperCase().includes("BOTTOM_IMBALANCE");
+    labelsContain(watch.labels, "BOTTOM_IMBALANCE");
 
   const statusLabel = isTop
     ? "Top Imbalance Active"
@@ -188,30 +203,30 @@ export default function Engine26ImbalanceWatchCard({
       style={{
         fontFamily: CARD_FONT,
         position: "absolute",
-        top: 105,
-        left: "calc(50% + 430px)",
+        top: 95,
+        left: CARD_LEFT,
         zIndex: 109,
-        width: 430,
-        maxWidth: "28%",
-        borderRadius: 14,
+        width: CARD_WIDTH,
+        maxWidth: "34%",
+        borderRadius: 16,
         border: `1px solid ${statusBorder(status)}`,
-        background: "rgba(6,10,20,0.96)",
-        padding: "12px 15px",
+        background: "rgba(6,10,20,0.97)",
+        padding: "18px 20px",
         color: "#e5e7eb",
         backdropFilter: "blur(4px)",
         pointerEvents: "none",
         textAlign: "left",
-        boxShadow: "0 8px 24px rgba(0,0,0,0.30)",
+        boxShadow: "0 10px 30px rgba(0,0,0,0.34)",
         display: "grid",
-        gap: 8,
+        gap: 14,
       }}
     >
       <div
         style={{
-          display: "flex",
+          display: "grid",
+          gridTemplateColumns: "1fr auto",
           alignItems: "start",
-          justifyContent: "space-between",
-          gap: 12,
+          gap: 14,
         }}
       >
         <div>
@@ -219,17 +234,17 @@ export default function Engine26ImbalanceWatchCard({
             style={{
               ...TITLE_STYLE,
               color,
-              fontSize: 18,
             }}
           >
-            Engine 26 — Manual imbalance watch
+            Engine 26 — Manual Imbalance Watch
           </div>
 
           <div
             style={{
               ...TEXT_STYLE,
               color: "#f8fafc",
-              marginTop: 3,
+              fontSize: 22,
+              marginTop: 5,
             }}
           >
             {symbol} • {formatText(watch.mode)} • Watch Only
@@ -243,12 +258,12 @@ export default function Engine26ImbalanceWatchCard({
         style={{
           border: `1px solid ${statusBorder(status)}`,
           background: isTop
-            ? "rgba(113,63,18,0.14)"
-            : "rgba(12,74,110,0.14)",
-          borderRadius: 10,
-          padding: "8px 10px",
+            ? "rgba(113,63,18,0.16)"
+            : "rgba(12,74,110,0.16)",
+          borderRadius: 12,
+          padding: "13px 14px",
           display: "grid",
-          gap: 5,
+          gap: 8,
         }}
       >
         <SmallLine label="Zone" value={zoneText} valueColor="#f8fafc" />
@@ -264,27 +279,36 @@ export default function Engine26ImbalanceWatchCard({
         <SmallLine label="Alarm" value={formatBool(watch.alarmAllEngines)} />
       </div>
 
-      <div style={{ ...TEXT_STYLE, color: "#dbeafe" }}>
+      <div style={{ ...TEXT_STYLE }}>
         <span style={{ color: "#94a3b8" }}>Wave context: </span>
-        {waveText}
+        <span style={{ color: "#f8fafc" }}>{waveText}</span>
       </div>
 
       <div style={{ ...TEXT_STYLE }}>
-        <span style={{ color: "#94a3b8" }}>Fast reads: </span>
-        Engine 3 {engine3Text} • Engine 4 {engine4Text}
+        <span style={{ color: "#94a3b8" }}>Engine 3: </span>
+        <span style={{ color: "#f8fafc" }}>{engine3Text}</span>
       </div>
 
       <div style={{ ...TEXT_STYLE }}>
-        <span style={{ color: "#94a3b8" }}>Permission: </span>
-        Engine 6 {engine6Text} • Ticket {ticket ? "Yes" : "No"}
+        <span style={{ color: "#94a3b8" }}>Engine 4: </span>
+        <span style={{ color: "#f8fafc" }}>{engine4Text}</span>
+      </div>
+
+      <div style={{ ...TEXT_STYLE }}>
+        <span style={{ color: "#94a3b8" }}>Engine 6: </span>
+        <span style={{ color: "#f8fafc" }}>{engine6Text}</span>
+        <span style={{ color: "#94a3b8" }}> • Ticket </span>
+        <span style={{ color: ticket ? "#22c55e" : "#fb7185" }}>
+          {ticket ? "Yes" : "No"}
+        </span>
       </div>
 
       <div
         style={{
           ...TEXT_STYLE,
           color: "#fbbf24",
-          borderTop: "1px solid rgba(148,163,184,0.18)",
-          paddingTop: 7,
+          borderTop: "1px solid rgba(148,163,184,0.22)",
+          paddingTop: 11,
         }}
       >
         {action} Direction is not assumed. No paper trade until Engine 6
@@ -296,7 +320,7 @@ export default function Engine26ImbalanceWatchCard({
           style={{
             ...TEXT_STYLE,
             color: "#94a3b8",
-            fontSize: 12,
+            fontSize: 20,
           }}
         >
           Plan: {formatUpper(plan.status)}
