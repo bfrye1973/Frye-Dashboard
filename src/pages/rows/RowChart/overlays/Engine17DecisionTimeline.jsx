@@ -214,36 +214,6 @@ function getFinalPermission(fib) {
   return root?.permission || fib?.permission || root?.finalPermission || null;
 }
 
-function getEngine26ImbalanceWatch(fib) {
-  const root = getStrategyRoot(fib);
-
-  return (
-    root?.engine26ImbalanceWatch ||
-    fib?.engine26ImbalanceWatch ||
-    null
-  );
-}
-
-function getEngine26PaperTradePlan(fib) {
-  const root = getStrategyRoot(fib);
-
-  return (
-    root?.engine26PaperTradePlan ||
-    fib?.engine26PaperTradePlan ||
-    null
-  );
-}
-
-function getEngine26PaperTradeTicket(fib) {
-  const root = getStrategyRoot(fib);
-
-  return (
-    root?.engine26PaperTradeTicket ||
-    fib?.engine26PaperTradeTicket ||
-    null
-  );
-}
-
 function getConfluence(fib) {
   const root = getStrategyRoot(fib);
 
@@ -1791,128 +1761,6 @@ function getFastReactionSeverity({ fastReaction, currentLevelAction, paperScalp 
   return "blue";
 }
 
-function buildEngine26ContextSection(fib) {
-  const watch = getEngine26ImbalanceWatch(fib);
-  const plan = getEngine26PaperTradePlan(fib);
-  const ticket = getEngine26PaperTradeTicket(fib);
-
-  if (!watch?.active) return null;
-
-  const zone = watch.activeImbalance || {};
-  const longTerm = watch.waveContext?.longTermLifecycle || {};
-  const intraday = watch.waveContext?.intradayScalpLifecycle || {};
-  const engine3 = watch.fastReads?.engine3 || {};
-  const engine4 = watch.fastReads?.engine4 || {};
-  const permission = watch.permission || {};
-
-  const statusText = String(watch.status || "").toUpperCase();
-  const labels = asArray(watch.labels);
-
-  const isTop =
-    statusText.includes("TOP_IMBALANCE") ||
-    labels.some((label) =>
-      String(label || "").toUpperCase().includes("TOP_IMBALANCE")
-    );
-
-  const isLower =
-    statusText.includes("LOWER_IMBALANCE") ||
-    labels.some((label) =>
-      String(label || "").toUpperCase().includes("BOTTOM_IMBALANCE")
-    );
-
-  const statusLabel = isTop
-    ? "TOP IMBALANCE ACTIVE — WATCH ACCEPTANCE OR REJECTION"
-    : isLower
-    ? "LOWER IMBALANCE ACTIVE — WATCH SWEEP RECLAIM OR SUPPORT FAILURE"
-    : formatUpper(watch.status, "MANUAL IMBALANCE WATCH");
-
-  const action = isTop
-    ? "Watch acceptance or rejection at the upper imbalance."
-    : isLower
-    ? "Watch for sweep reclaim, support hold, or support failure."
-    : "Watch manual imbalance reaction. Direction is not assumed.";
-
-  const zoneText =
-    zone.lo != null && zone.hi != null
-      ? `${formatNumber(zone.lo)}–${formatNumber(zone.hi)}`
-      : "—";
-
-  const distanceText =
-    zone.distancePts != null ? `${formatNumber(zone.distancePts)} pts` : "—";
-
-  const waveText = compactJoin(
-    [
-      formatText(longTerm.key, "Intermediate context unavailable"),
-      formatText(intraday.key, "Intraday scalp context unavailable"),
-    ],
-    " / "
-  );
-
-  const engine3Text = compactJoin(
-    [
-      formatUpper(engine3.state, "NO SIGNAL"),
-      formatUpper(engine3.quality, "—"),
-      formatUpper(engine3.direction, "NEUTRAL"),
-    ],
-    " / "
-  );
-
-  const engine4Text = compactJoin(
-    [
-      formatUpper(engine4.state, "NO SIGNAL"),
-      formatUpper(engine4.quality, "—"),
-      engine4.volumeRatio != null
-        ? `VOL ${formatNumber(engine4.volumeRatio, 2)}x`
-        : null,
-    ],
-    " / "
-  );
-
-  const engine6Text = compactJoin(
-    [
-      formatUpper(permission.engine6Decision, "PAPER STAND DOWN"),
-      permission.engine6Allowed === true ? "ALLOWED" : "NO PAPER PERMISSION",
-    ],
-    " / "
-  );
-
-  const ticketReady = permission.ticketReady === true;
-  const ticketExists = ticket != null;
-
-  return {
-    number: 0,
-    icon: "⑥",
-    title: "Engine 26 Manual Imbalance Watch",
-    severity: ticketReady ? "bullish" : watch.alarmAllEngines ? "warning" : "blue",
-    fields: [
-      ["Status", statusLabel],
-      ["Mode", formatUpper(watch.mode, "FAST IMBALANCE WATCH")],
-      ["Zone", zoneText],
-      ["Current", formatNumber(watch.currentPrice)],
-      ["Distance", distanceText],
-      ["Inside Zone", formatBool(zone.inside)],
-      ["Near Zone", formatBool(zone.near)],
-      ["Alarm", formatBool(watch.alarmAllEngines)],
-      ["Ticket", ticketExists ? "YES" : "NO"],
-    ],
-    lines: [
-      "Price is near the manually entered green imbalance zone. Engine 26 has activated FAST_IMBALANCE_WATCH and alerted the engine stack.",
-      "Direction is not assumed.",
-      `Wave context: ${waveText}.`,
-      `Action: ${action}`,
-      `Engine 3: ${engine3Text} — paper reaction ${
-        engine3.paperAllowed === true ? "allowed" : "not allowed"
-      }.`,
-      `Engine 4: ${engine4Text} — volume ${
-        engine4.allowed === true ? "confirms paper review" : "does not confirm a paper scalp"
-      }.`,
-      `Engine 6: ${engine6Text}.`,
-      `Plan: ${formatUpper(plan?.status, "NO PAPER TRADE")}.`,
-      "Result: WATCH ONLY / NO PAPER TRADE. Engine 26 creates no ticket until Engine 6 returns PAPER_ALLOW.",
-    ],
-  };
-}
-
 function buildEngine3ContextSection(fib) {
   const fastReaction = getEngine3FastImbalanceReaction(fib);
   const currentLevelAction = getCurrentLevelActionReaction(fib);
@@ -2759,7 +2607,6 @@ const subheadline = hasLifecycleViews
 
   const contextSections = [
     buildBackendTimelineSection(marketMeterSection),
-    buildEngine26ContextSection(fib),
     buildEngine3ContextSection(fib),
     buildEngine4ContextSection(fib),
     buildCurrentFibExtensionsSection(waveOpportunity, fib),
