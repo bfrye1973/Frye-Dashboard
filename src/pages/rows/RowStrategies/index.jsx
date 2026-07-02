@@ -601,11 +601,12 @@ function WaveDegreeMiniCard({ state }) {
             : "—"
         }
       />
+
+       <CorrectionModelMiniBlock model={correctionModel} />
     </div>
   );
 }
 
-<CorrectionModelMiniBlock model={correctionModel} />
 
 function WaveDegreeRow({ snapshot }) {
   const degreeStates = getDegreeStates(snapshot);
