@@ -43,6 +43,8 @@ const BUILD_STAMP =
   env("REACT_APP_COMMIT_SHA", "") ||
   new Date().toISOString();
 
+const DASHBOARD_SYMBOL = "ES";
+
 /* -------------------- helpers -------------------- */
 function toAZ(iso, withSeconds = false) {
   try {
@@ -1122,7 +1124,7 @@ export default function RowStrategies() {
     lastFetch,
     refreshing,
     hasData,
-  } = useDashboardSnapshot("SPY", {
+  } = useDashboardSnapshot(DASHBOARD_SYMBOL, { 
     pollMs: POLL_MS,
     timeoutMs: TIMEOUT_MS,
     includeContext: 1,
@@ -1193,7 +1195,7 @@ export default function RowStrategies() {
             Build: <b style={{ marginLeft: 4 }}>{toAZ(BUILD_STAMP, true)}</b>
           </span>
           <button
-            onClick={() => openFullStrategies("SPY")}
+            onClick={() => openFullStrategies(DASHBOARD_SYMBOL)}
             style={btn()}
             title="Open full strategies in a new window"
           >
