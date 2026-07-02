@@ -449,7 +449,7 @@ function getDegreeStates(snapshot) {
 }
 
 function latestCompletedMark(marks = {}) {
-  const waves = ["W5", "W4", "W3", "W2", "W1"];
+  const waves = ["C", "B", "A", "W5", "W4", "W3", "W2", "W1"];
 
   for (const wave of waves) {
     const mark = marks?.[wave];
@@ -461,6 +461,82 @@ function latestCompletedMark(marks = {}) {
   return null;
 }
 
+function CorrectionModelMiniBlock({ model }) {
+  if (!model?.active) return null;
+
+  const bZone = model?.bBounceZone || {};
+  const bBand = bZone?.fibBand || {};
+  const preferred = bZone?.preferredBand || {};
+  const cProjection = model?.cProjectionZone?.projectionFromB || {};
+  const parentFib = model?.parentImpulseFib || {};
+  const internalFib = model?.abcInternalFib || {};
+
+  const bBandText =
+    preferred?.low != null && preferred?.high != null
+      ? `${fmt2(preferred.low)}–${fmt2(preferred.high)}`
+      : bBand?.r382 != null && bBand?.r618 != null
+      ? `${fmt2(bBand.r382)}–${fmt2(bBand.r618)}`
+      : "—";
+
+  const bMidText = bBand?.r500 != null ? fmt2(bBand.r500) : "—";
+
+  const cText =
+    cProjection?.c100 != null
+      ? `C100 ${fmt2(cProjection.c100)}`
+      : cProjection?.reason
+      ? prettyEnum(cProjection.reason)
+      : "Waiting for B mark";
+
+  return (
+    <div
+      style={{
+        border: "1px solid #1e3a5f",
+        borderRadius: 10,
+        padding: 7,
+        background: "#07111f",
+        display: "flex",
+        flexDirection: "column",
+        gap: 5,
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          gap: 6,
+          alignItems: "center",
+        }}
+      >
+        <div style={{ fontWeight: 1000, fontSize: FS.micro, color: "#93c5fd" }}>
+          ABC DOWN MODEL
+        </div>
+        <Badge text={prettyEnum(model.stage || "WATCH")} tone="watch" />
+      </div>
+
+      <KV label="B Zone" value={bBandText} />
+      <KV label="B Mid" value={bMidText} />
+      <KV label="C Watch" value={cText} />
+
+      <KV
+        label="A Map"
+        value={
+          internalFib?.anchorHigh != null && internalFib?.anchorLow != null
+            ? `${fmt2(internalFib.anchorHigh)} → ${fmt2(internalFib.anchorLow)}`
+            : "—"
+        }
+      />
+
+      <KV
+        label="Parent"
+        value={
+          parentFib?.r382 != null || parentFib?.r500 != null || parentFib?.r618 != null
+            ? `382 ${fmt2(parentFib.r382)} / 500 ${fmt2(parentFib.r500)} / 618 ${fmt2(parentFib.r618)}`
+            : "—"
+        }
+      />
+    </div>
+  );
+}
 function WaveDegreeMiniCard({ state }) {
   const active = state?.active === true;
   const headline = state?.headline || `${prettyEnum(state?.degree)} unavailable`;
@@ -470,6 +546,7 @@ function WaveDegreeMiniCard({ state }) {
       ? `${prettyEnum(state.parentDegree)} ${state.parentWave}`
       : "—";
   const last = latestCompletedMark(state?.marks || {});
+  const correctionModel = state?.correctionModel || null;
 
   return (
     <div
@@ -527,6 +604,8 @@ function WaveDegreeMiniCard({ state }) {
     </div>
   );
 }
+
+<CorrectionModelMiniBlock model={correctionModel} />
 
 function WaveDegreeRow({ snapshot }) {
   const degreeStates = getDegreeStates(snapshot);
