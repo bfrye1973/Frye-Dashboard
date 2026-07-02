@@ -439,6 +439,164 @@ function CompactBool({ label, value }) {
 }
 // PART 2 OF 2
 
+function getDegreeStates(snapshot) {
+  return (
+    snapshot?.strategies?.[STRATEGY_ID_MAP.SCALP]?.engine22WaveStrategy
+      ?.degreeStates || null
+  );
+}
+
+function latestCompletedMark(marks = {}) {
+  const waves = ["W5", "W4", "W3", "W2", "W1"];
+
+  for (const wave of waves) {
+    const mark = marks?.[wave];
+    if (mark?.price != null) {
+      return { wave, mark };
+    }
+  }
+
+  return null;
+}
+
+function WaveDegreeMiniCard({ state }) {
+  const active = state?.active === true;
+  const headline = state?.headline || `${prettyEnum(state?.degree)} unavailable`;
+  const action = state?.action || "NO_ACTION";
+  const parent =
+    state?.parentDegree && state?.parentWave
+      ? `${prettyEnum(state.parentDegree)} ${state.parentWave}`
+      : "—";
+  const last = latestCompletedMark(state?.marks || {});
+
+  return (
+    <div
+      style={{
+        background: active ? "#101720" : "#0b0f16",
+        border: active ? "1px solid #2563eb" : "1px solid #1f2937",
+        borderRadius: 12,
+        padding: 8,
+        minWidth: 0,
+        display: "flex",
+        flexDirection: "column",
+        gap: 6,
+        boxShadow: active ? "0 0 14px rgba(37,99,235,.22)" : "none",
+      }}
+    >
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 6 }}>
+        <div>
+          <div style={{ fontWeight: 1000, fontSize: FS.small, color: "#e5e7eb" }}>
+            {prettyEnum(state?.degree)}
+          </div>
+          <div style={{ fontWeight: 900, fontSize: FS.micro, color: "#9ca3af" }}>
+            {state?.tf || "—"}
+          </div>
+        </div>
+
+        <Badge
+          text={state?.activeWave || "—"}
+          tone={active ? "watch" : "wait"}
+        />
+      </div>
+
+      <div
+        style={{
+          fontWeight: 1000,
+          fontSize: FS.small,
+          color: active ? "#bfdbfe" : "#9ca3af",
+          lineHeight: 1.15,
+        }}
+      >
+        {headline}
+      </div>
+
+      <KV label="Stage" value={prettyEnum(state?.stage)} />
+      <KV label="Parent" value={parent} />
+      <KV label="Action" value={prettyEnum(action)} />
+
+      <KV
+        label="Last Mark"
+        value={
+          last
+            ? `${last.wave} ${fmt2(last.mark.price)}`
+            : "—"
+        }
+      />
+    </div>
+  );
+}
+
+function WaveDegreeRow({ snapshot }) {
+  const degreeStates = getDegreeStates(snapshot);
+
+  const degrees = ["subminute", "minute", "minor", "intermediate", "primary"];
+
+  if (!degreeStates) {
+    return (
+      <div
+        style={{
+          marginTop: 10,
+          border: "1px solid #1f2937",
+          borderRadius: 14,
+          padding: 10,
+          background: "#0b0f16",
+          color: "#9ca3af",
+          fontWeight: 900,
+        }}
+      >
+        Engine 22 Wave Degrees unavailable
+      </div>
+    );
+  }
+
+  return (
+    <div
+      style={{
+        marginTop: 10,
+        border: "1px solid #1f2937",
+        borderRadius: 14,
+        padding: 10,
+        background: "#080d14",
+        display: "flex",
+        flexDirection: "column",
+        gap: 8,
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          gap: 8,
+          alignItems: "center",
+          flexWrap: "wrap",
+        }}
+      >
+        <div style={{ fontWeight: 1000, fontSize: FS.title, color: "#e5e7eb" }}>
+          Engine 22 Wave Degrees
+        </div>
+        <div style={{ color: "#9ca3af", fontSize: FS.tiny, fontWeight: 900 }}>
+          Structural display only — no execution permission
+        </div>
+      </div>
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(5, minmax(0,1fr))",
+          gap: 8,
+        }}
+      >
+        {degrees.map((degree) => (
+          <WaveDegreeMiniCard
+            key={degree}
+            state={degreeStates?.[degree] || { degree, active: false }}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function TwoCol({ left, right, wideLeft = true }) {
   return (
     <div
@@ -1049,6 +1207,8 @@ export default function RowStrategies() {
           Strategy snapshot error: {err}
         </div>
       )}
+
+      <WaveDegreeRow snapshot={snapshot} />
 
       <div
         style={{
