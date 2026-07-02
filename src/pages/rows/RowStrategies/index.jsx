@@ -1178,6 +1178,10 @@ export default function RowStrategies() {
           }}
         >
           <span>
+            Symbol: <b style={{ marginLeft: 4 }}>{snapshot?.symbol || "—"}</b>
+          </span>
+          
+          <span>
             Poll: <b>{Math.round(POLL_MS / 1000)}s</b>
           </span>
           <span>
