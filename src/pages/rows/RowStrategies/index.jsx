@@ -537,6 +537,76 @@ function CorrectionModelMiniBlock({ model }) {
     </div>
   );
 }
+
+function targetModelTitle(state) {
+  const degree = String(state?.degree || "").toLowerCase();
+  const activeWave = String(state?.activeWave || "").toUpperCase();
+
+  if (degree === "primary") return `${activeWave || "W5"} Extension Ladder`;
+  if (degree === "intermediate") return `${activeWave || "W3"} Extension Ladder`;
+  if (degree === "minor") return `${activeWave || "W2"} Retracement Ladder`;
+
+  return "Target Ladder";
+}
+
+function TargetModelMiniBlock({ state }) {
+  const targetModel = state?.targetModel || null;
+  const displayLevels = Array.isArray(targetModel?.displayLevels)
+    ? targetModel.displayLevels
+    : [];
+
+  if (!targetModel || !displayLevels.length) return null;
+
+  const localSupport = targetModel?.localSupportWatch || null;
+
+  return (
+    <div
+      style={{
+        border: "1px solid #31512c",
+        borderRadius: 10,
+        padding: 7,
+        background: "#081509",
+        display: "flex",
+        flexDirection: "column",
+        gap: 5,
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          gap: 6,
+          alignItems: "center",
+        }}
+      >
+        <div style={{ fontWeight: 1000, fontSize: FS.micro, color: "#86efac" }}>
+          {targetModelTitle(state)}
+        </div>
+        <Badge text="FIBS" tone="long" />
+      </div>
+
+      {displayLevels.map((level, idx) => (
+        <KV
+          key={`${level?.label || "fib"}-${idx}`}
+          label={level?.label || "—"}
+          value={fmt2(level?.price)}
+        />
+      ))}
+
+      {localSupport?.lo != null && localSupport?.hi != null ? (
+        <KV
+          label="Local Watch"
+          value={`${fmt2(localSupport.lo)}–${fmt2(localSupport.hi)}`}
+        />
+      ) : null}
+
+      {targetModel?.nextTarget != null ? (
+        <KV label="Next" value={fmt2(targetModel.nextTarget)} />
+      ) : null}
+    </div>
+  );
+}
+
 function WaveDegreeMiniCard({ state }) {
   const active = state?.active === true;
   const headline = state?.headline || `${prettyEnum(state?.degree)} unavailable`;
@@ -602,7 +672,9 @@ function WaveDegreeMiniCard({ state }) {
         }
       />
 
-       <CorrectionModelMiniBlock model={correctionModel} />
+       <TargetModelMiniBlock state={state} />
+       <CorrectionModelMiniBlock model={correctionModel} />      
+         
     </div>
   );
 }
