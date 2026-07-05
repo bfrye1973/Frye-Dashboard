@@ -13,9 +13,7 @@ const TEXT_STYLE = {
   lineHeight: 1.38,
   fontWeight: 400,
   color: "#dbeafe",
-};
-
-const TITLE_STYLE = {
+};const TITLE_STYLE = {
   fontFamily: CARD_FONT,
   fontSize: 21,
   lineHeight: 1.18,
