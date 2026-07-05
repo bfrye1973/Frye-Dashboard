@@ -733,6 +733,67 @@ function TargetModelMiniBlock({ state }) {
   );
 }
 
+function NestedCorrectionMiniBlock({ context }) {
+  if (!context?.active) return null;
+
+  return (
+    <div
+      style={{
+        border: "1px solid #4c1d95",
+        borderRadius: 10,
+        padding: 7,
+        background: "#120a22",
+        display: "flex",
+        flexDirection: "column",
+        gap: 5,
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          gap: 6,
+          alignItems: "center",
+        }}
+      >
+        <div style={{ fontWeight: 1000, fontSize: FS.micro, color: "#c4b5fd" }}>
+          NESTED CORRECTION CONTEXT
+        </div>
+        <Badge text="STRUCTURE" tone="watch" />
+      </div>
+
+      <KV
+        label="Parent"
+        value={
+          context.parentDegree && context.parentActiveLeg
+            ? `${prettyEnum(context.parentDegree)} ${context.parentActiveLeg}`
+            : prettyEnum(context.parentRole || "—")
+        }
+      />
+
+      <KV
+        label="Role"
+        value={prettyEnum(context.childPurpose || context.tacticalFocus || "—")}
+      />
+
+      <KV
+        label="Path"
+        value={prettyEnum(context.expectedPath || "—")}
+      />
+
+      <KV
+        label="Current"
+        value={prettyEnum(context.currentChildLeg || context.tacticalFocus || "—")}
+      />
+
+      <KV
+        label="Next"
+        value={prettyEnum(context.nextExpected || context.tacticalFocus || "—")}
+      />
+    </div>
+  );
+}
+
 function WaveDegreeMiniCard({ state }) {
   const active = state?.active === true;
   const headline = state?.headline || `${prettyEnum(state?.degree)} unavailable`;
@@ -806,7 +867,8 @@ function WaveDegreeMiniCard({ state }) {
       />
 
        <TargetModelMiniBlock state={state} />
-       <CorrectionModelMiniBlock model={correctionModel} />      
+       <NestedCorrectionMiniBlock context={state?.nestedCorrectionContext} />
+       <CorrectionModelMiniBlock model={correctionModel} />
          
     </div>
   );
