@@ -464,6 +464,98 @@ function latestCompletedMark(marks = {}) {
 function CorrectionModelMiniBlock({ model }) {
   if (!model?.active) return null;
 
+  const modelType = upper(model?.type || model?.preferredType || "", "");
+  const isTriangle =
+    modelType.includes("TRIANGLE") ||
+    model?.upperTrendline ||
+    model?.lowerTrendline ||
+    model?.breakoutRules;
+
+  if (isTriangle) {
+    const marks = model?.marks || model?.manualMarks || {};
+    const upperLine = model?.upperTrendline || {};
+    const lowerLine = model?.lowerTrendline || {};
+    const breakout = model?.breakoutRules || {};
+
+    const markText = (key) =>
+      marks?.[key]?.price != null ? fmt2(marks[key].price) : "—";
+
+    return (
+      <div
+        style={{
+          border: "1px solid #5b3a10",
+          borderRadius: 10,
+          padding: 7,
+          background: "#171005",
+          display: "flex",
+          flexDirection: "column",
+          gap: 5,
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            gap: 6,
+            alignItems: "center",
+          }}
+        >
+          <div style={{ fontWeight: 1000, fontSize: FS.micro, color: "#fbbf24" }}>
+            ABCDE TRIANGLE — D COMPLETE / E WATCH
+          </div>
+          <Badge text={prettyEnum(model.stage || "E_WATCH")} tone="arming" />
+        </div>
+
+        <KV
+          label="A/B/C"
+          value={`A ${markText("A")} / B ${markText("B")} / C ${markText("C")}`}
+        />
+
+        <KV
+          label="D/E"
+          value={`D ${markText("D")} / E ${markText("E")}`}
+        />
+
+        <KV
+          label="B-D Resist"
+          value={
+            upperLine?.latestResistance != null
+              ? fmt2(upperLine.latestResistance)
+              : upperLine?.resistanceZone?.lo != null &&
+                upperLine?.resistanceZone?.hi != null
+              ? `${fmt2(upperLine.resistanceZone.lo)}–${fmt2(
+                  upperLine.resistanceZone.hi
+                )}`
+              : "—"
+          }
+        />
+
+        <KV
+          label="A-C Support"
+          value={
+            lowerLine?.latestSupport != null
+              ? fmt2(lowerLine.latestSupport)
+              : lowerLine?.supportZone?.lo != null &&
+                lowerLine?.supportZone?.hi != null
+              ? `${fmt2(lowerLine.supportZone.lo)}–${fmt2(
+                  lowerLine.supportZone.hi
+                )}`
+              : "—"
+          }
+        />
+
+        <KV
+          label="Breakout"
+          value={
+            breakout?.bullishReference != null
+              ? `Above ${fmt2(breakout.bullishReference)}`
+              : prettyEnum(breakout?.bullish || "BREAK_ABOVE_B_D_RESISTANCE")
+          }
+        />
+      </div>
+    );
+  }
+
   const bZone = model?.bBounceZone || {};
   const bBand = bZone?.fibBand || {};
   const preferred = bZone?.preferredBand || {};
@@ -585,13 +677,47 @@ function TargetModelMiniBlock({ state }) {
         <Badge text="FIBS" tone="long" />
       </div>
 
-      {displayLevels.map((level, idx) => (
-        <KV
-          key={`${level?.label || "fib"}-${idx}`}
-          label={level?.label || "—"}
-          value={fmt2(level?.price)}
-        />
-      ))}
+<div
+  style={{
+    display: "grid",
+    gridTemplateColumns: "repeat(3, minmax(0,1fr))",
+    gap: 5,
+  }}
+>
+  {displayLevels.map((level, idx) => (
+    <div
+      key={`${level?.label || "fib"}-${idx}`}
+      style={{
+        border: "1px solid #1f3d20",
+        borderRadius: 8,
+        padding: "5px 6px",
+        background: "#061108",
+        minWidth: 0,
+      }}
+    >
+      <div
+        style={{
+          color: "#86efac",
+          fontSize: FS.micro,
+          fontWeight: 1000,
+          lineHeight: 1,
+        }}
+      >
+        {level?.label || "—"}
+      </div>
+      <div
+        style={{
+          color: "#e5e7eb",
+          fontSize: FS.small,
+          fontWeight: 1000,
+          lineHeight: 1.1,
+        }}
+      >
+        {fmt2(level?.price)}
+      </div>
+    </div>
+  ))}
+</div>
 
       {localSupport?.lo != null && localSupport?.hi != null ? (
         <KV
@@ -616,8 +742,15 @@ function WaveDegreeMiniCard({ state }) {
       ? `${prettyEnum(state.parentDegree)} ${state.parentWave}`
       : "—";
   const last = latestCompletedMark(state?.marks || {});
-  const correctionModel = state?.correctionModel || null;
+  const preferredTriangle =
+    state?.correctionModels?.models?.abcdeTriangle?.active === true
+      ? state.correctionModels.models.abcdeTriangle
+      : null;
 
+  const correctionModel =
+    String(state?.degree || "").toLowerCase() === "minor" && preferredTriangle
+      ? preferredTriangle
+      : state?.correctionModel || null;
   return (
     <div
       style={{
