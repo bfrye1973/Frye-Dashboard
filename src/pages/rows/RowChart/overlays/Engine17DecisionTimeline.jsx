@@ -1243,6 +1243,50 @@ function buildPostMinor5CorrectiveBounceSection(fib) {
 }
 
 function buildEngine15Section(engine15, currentLifecycleState = null) {
+  const paper = engine15?.paperScalpReadiness || null;
+
+  const isShortStructuralWatch =
+    paper?.readiness === "SHORT_STRUCTURAL_WATCH" &&
+    paper?.source === "engine26StructuralContext";
+
+  if (isShortStructuralWatch) {
+    const targetPath = Array.isArray(paper?.targetModel?.targetPathPreview)
+      ? paper.targetModel.targetPathPreview
+      : [];
+
+    const targetPathText = targetPath.length
+      ? targetPath.map((level) => formatNumber(level)).join(" → ")
+      : "—";
+
+    const bHigh = paper?.riskModel?.bHigh;
+
+    const blockersText = asArray(paper?.blockers)
+      .map(formatText)
+      .join(", ");
+
+    return {
+      number: 3,
+      icon: "▣",
+      title: "Setup Readiness — Engine 15ES",
+      severity: "danger",
+      fields: [
+        ["Readiness", "SHORT STRUCTURAL WATCH"],
+        ["Strategy", formatUpper(paper.setupType, "ABC DOWN B BOUNCE C DOWN WATCH")],
+        ["Direction", "SHORT"],
+        ["Role", formatUpper(paper.setupRole, "B BOUNCE FINAL FILL ZONE")],
+        ["Bias", formatUpper(paper.structuralBias, "C DOWN WATCH")],
+        ["Action", "WATCH FAILED ACCEPTANCE / LEVEL LOSS"],
+        ["Quality", "WATCH ONLY / RESEARCH"],
+        ["B High / Stop Preview", bHigh != null ? formatNumber(bHigh) : "—"],
+      ],
+      lines: [
+        "Engine 15ES is reading Engine 26 structural context. This is a short structural watch, not a failed long setup.",
+        "Short research only. No paper allow. No execution. No ticket.",
+        `Target path preview: ${targetPathText}`,
+        blockersText ? `Needs: ${blockersText}` : null,
+      ].filter(Boolean),
+    };
+  } 
   const lifecycleOwnsDisplay =
     isCurrentLifecycleDisplayOverride(currentLifecycleState);
 
