@@ -2455,23 +2455,23 @@ function buildEngine4ContextSection(fib) {
         ],
       ],
       lines: [
-        "Short-term fast imbalance volume is primary right now.",
+        "Fast imbalance volume read.",
         fastParticipation.usedFastReactionCandles === true
-          ? "Using Engine 3 fast candles, not slow 10m fallback."
+          ? "Using Engine 3 fast candles."
           : "Using fallback volume context.",
         fastParticipation.volumeIncreasing === true
           ? "Fast volume is increasing versus prior candle."
-          : "Fast volume is not increasing versus prior candle.",
+          : "Fast volume is below prior candle.",
         fastParticipation.supportsFastReactionDirection === true
-          ? "Fast price action supports Engine 3 direction."
-          : "Fast price action does not fully support Engine 3 direction.",
+          ? "Price and volume support Engine 3 direction."
+          : "Price and volume do not fully support Engine 3 direction yet.",
         fastParticipation.participationImproving === true
           ? "Participation is improving."
           : "Participation is not improving yet.",
         allowed
-          ? "Engine 4 fast participation is acceptable for paper review. Engine 6 still decides."
-          : "Engine 4 fast participation is not ready for paper allow yet.",
-        "Paper-only research read. No permission or execution created.",
+          ? "OK for paper review. Engine 6 still decides."
+          : "Waiting for better participation before paper allow.",
+        "No real permission or execution.",
       ].filter(Boolean),
     };
   } 
