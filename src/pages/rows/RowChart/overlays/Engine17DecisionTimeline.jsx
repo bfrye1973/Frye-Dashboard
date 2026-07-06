@@ -1880,6 +1880,108 @@ function formatScalpStructureLine(waveContext) {
   return [minor, minute, subminute].filter(Boolean).join(" → ");
 }
 
+function directionFromDegreeDirection(value) {
+  const v = String(value || "").toUpperCase();
+
+  if (v === "DOWN" || v === "SHORT" || v.includes("C_DOWN")) return "SHORT";
+  if (v === "UP" || v === "LONG" || v.includes("BOUNCE")) return "LONG";
+
+  return "NEUTRAL";
+}
+
+function getEngine4StructureDirection(waveContext) {
+  return directionFromDegreeDirection(
+    waveContext?.subminute?.direction ||
+      waveContext?.minute?.direction ||
+      waveContext?.minor?.direction ||
+      null
+  );
+}
+
+function formatEngine4WavePath(waveContext) {
+  if (!waveContext?.available) return "—";
+
+  const minor = waveContext?.minor
+    ? `Minor ${formatUpper(waveContext.minor.activeWave, "—")} / ${formatUpper(
+        waveContext.minor.correctionType ||
+          waveContext.minor.preferredType ||
+          "—"
+      )}`
+    : null;
+
+  const minute = waveContext?.minute
+    ? `Minute ${formatUpper(
+        waveContext.minute.correctionType || waveContext.minute.activeWave || "—"
+      )}`
+    : null;
+
+  const subminute = waveContext?.subminute
+    ? `Subminute ${formatUpper(
+        waveContext.subminute.activeWave || waveContext.subminute.direction || "—"
+      )}`
+    : null;
+
+  return [minor, minute, subminute].filter(Boolean).join(" → ") || "—";
+}
+
+function getEngine4StructureAlignment(participation) {
+  const intendedDirection = String(
+    participation?.intendedDirection || participation?.direction || ""
+  ).toUpperCase();
+
+  const structureDirection = getEngine4StructureDirection(
+    participation?.waveContext
+  );
+
+  if (!intendedDirection || intendedDirection === "NEUTRAL") {
+    return "NO_TRADE_DIRECTION";
+  }
+
+  if (!structureDirection || structureDirection === "NEUTRAL") {
+    return "STRUCTURE_DIRECTION_UNKNOWN";
+  }
+
+  if (intendedDirection === structureDirection) {
+    return structureDirection === "SHORT"
+      ? "SUPPORTS_TACTICAL_C_DOWN"
+      : "SUPPORTS_SUPPORT_DEFENSE";
+  }
+
+  return structureDirection === "SHORT"
+    ? "COUNTER_TO_TACTICAL_C_DOWN"
+    : "COUNTER_TO_SUPPORT_DEFENSE";
+}
+
+function buildEngine4StructureLines(participation) {
+  const waveContext = participation?.waveContext || null;
+
+  if (!waveContext?.available) {
+    return [
+      "Engine 4 structure context is using fallback lifecycle data.",
+    ];
+  }
+
+  const wavePath = formatEngine4WavePath(waveContext);
+  const alignment = getEngine4StructureAlignment(participation);
+
+  return [
+    "Engine 4 is reading volume against Engine 22 degreeStates.",
+    wavePath !== "—" ? `Wave path: ${wavePath}.` : null,
+    alignment === "SUPPORTS_TACTICAL_C_DOWN"
+      ? "Participation is aligned with the tactical C-down path."
+      : null,
+    alignment === "COUNTER_TO_TACTICAL_C_DOWN"
+      ? "Participation is counter to the tactical C-down path; treat this as support defense / bounce risk."
+      : null,
+    alignment === "SUPPORTS_SUPPORT_DEFENSE"
+      ? "Participation supports support defense / bounce behavior."
+      : null,
+    alignment === "COUNTER_TO_SUPPORT_DEFENSE"
+      ? "Participation is pushing against support defense."
+      : null,
+  ].filter(Boolean);
+}
+
 function buildEngine3ContextSection(fib) {
   const fastReaction = getEngine3FastImbalanceReaction(fib);
   const currentLevelAction = getCurrentLevelActionReaction(fib);
@@ -2311,6 +2413,8 @@ function buildEngine4ContextSection(fib) {
     const currentBarVolume = Number(fastParticipation.currentBarVolume);
     const priorBarVolume = Number(fastParticipation.priorBarVolume);
     const volumeRatio = Number(fastParticipation.currentVsPriorVolumeRatio);
+    const structuralAlignment = getEngine4StructureAlignment(fastParticipation);
+    const wavePath = formatEngine4WavePath(fastParticipation.waveContext);
 
     return {
       number: 0,
@@ -2331,6 +2435,8 @@ function buildEngine4ContextSection(fib) {
         ["Grade", formatUpper(fastParticipation.grade, "D")],
         ["Risk", formatUpper(fastParticipation.risk, "WAIT")],
         ["Direction", formatUpper(fastParticipation.intendedDirection, "NEUTRAL")],
+        ["Wave Path", wavePath],
+        ["Structure Align", formatUpper(structuralAlignment, "—")],
         [
           "Fast Vol",
           Number.isFinite(currentBarVolume)
@@ -2377,6 +2483,8 @@ function buildEngine4ContextSection(fib) {
     const currentBarVolume = Number(currentScalpParticipation.currentBarVolume);
     const priorBarVolume = Number(currentScalpParticipation.priorBarVolume);
     const volumeRatio = Number(currentScalpParticipation.currentVsPriorVolumeRatio);
+    const structuralAlignment = getEngine4StructureAlignment(currentScalpParticipation);
+    const wavePath = formatEngine4WavePath(currentScalpParticipation.waveContext);
 
     return {
       number: 0,
@@ -2399,6 +2507,8 @@ function buildEngine4ContextSection(fib) {
         ["Grade", formatUpper(currentScalpParticipation.grade, "D")],
         ["Risk", formatUpper(currentScalpParticipation.risk, "WAIT")],
         ["Direction", formatUpper(currentScalpParticipation.intendedDirection, "NEUTRAL")],
+        ["Wave Path", wavePath],
+        ["Structure Align", formatUpper(structuralAlignment, "—")],
         [
           "Fast Vol",
           Number.isFinite(currentBarVolume)
@@ -2417,28 +2527,28 @@ function buildEngine4ContextSection(fib) {
         ],
       ],
       lines: [
-        "Current Engine 4 scalp volume read is active.",
+        "Current Engine 4 scalp volume read.",
         currentScalpParticipation.fastImbalanceActive === true
-          ? "Reading fast imbalance volume."
-          : "Reading current paper scalp / level-action volume.",
+          ? "Using fast imbalance volume."
+          : "Using paper scalp / level-action volume.",
         currentScalpParticipation.volumeIncreasing === true
-          ? "Volume is increasing versus the prior candle."
-          : "Volume is not increasing versus the prior candle.",
+          ? "Volume is increasing versus prior candle."
+          : "Volume is below prior candle.",
         currentScalpParticipation.supportsDirection === true
-          ? "Price action supports the scalp direction."
+          ? "Price and volume support the scalp direction."
           : currentScalpParticipation.againstDirection === true
-          ? "Price action is fighting the scalp direction."
-          : "Price action is not cleanly aligned yet.",
+          ? "Price and volume are fighting the scalp direction."
+          : "Price and volume are not aligned yet.",
         currentScalpParticipation.highVolumeNoProgress === true
-          ? "Volume is active, but price progress is not clean yet."
+          ? "Volume is active, but price is not making clean progress."
           : null,
         allowed
-          ? "Paper review is acceptable; Engine 6 still decides."
+          ? "OK for paper review. Engine 6 still decides."
           : hardBlocked
-          ? "Blocked for paper until price/volume alignment improves."
-          : "Waiting for cleaner participation before paper allow.",
-        "No real permission or execution created.",
-      ].filter(Boolean),
+          ? "Blocked until price and volume improve."
+         : "Waiting for better participation.",
+       "No real permission or execution.",
+     ].filter(Boolean),
     };
   }
 
