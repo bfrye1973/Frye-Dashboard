@@ -50,6 +50,11 @@ function formatLevel(value) {
   return Number.isFinite(n) ? n.toFixed(2) : "—";
 }
 
+function formatPoints(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? `${n.toFixed(2)} pts` : "—";
+}
+
 function formatBool(value) {
   if (value === true) return "YES";
   if (value === false) return "NO";
@@ -237,7 +242,7 @@ function LevelPill({ label, value, color = "#f8fafc" }) {
 }
 
 function ConfirmationList({ items }) {
-  const list = Array.isArray(items) ? items.slice(0, 4) : [];
+  const list = Array.isArray(items) ? items.slice(0, 5) : [];
   if (!list.length) return null;
 
   return (
@@ -261,10 +266,18 @@ function ConfirmationList({ items }) {
   );
 }
 
+function getDirectionColor(direction) {
+  const d = String(direction || "").toUpperCase();
+  if (d.includes("SHORT")) return "#fbbf24";
+  if (d.includes("LONG")) return "#22c55e";
+  return "#38bdf8";
+}
+
 export default function Engine26ImbalanceWatchCard({
   visible = true,
   watch = null,
   plan = null,
+  tradePlanPreview = null,
   ticket = null,
   symbol = "ES",
 }) {
@@ -277,6 +290,19 @@ export default function Engine26ImbalanceWatchCard({
   const engine3 = watch.fastReads?.engine3 || {};
   const engine4 = watch.fastReads?.engine4 || {};
   const permission = watch.permission || {};
+
+  const preview = tradePlanPreview || watch.tradePlanPreview || null;
+
+  const alarm = preview?.alarm || null;
+  const structure = preview?.structure || null;
+  const entryIdea = preview?.entryIdea || null;
+  const stopIdea = preview?.stopIdea || null;
+  const confirmationGate = preview?.confirmationGate || null;
+  const scalpGoal = preview?.scalpGoal || null;
+  const targetMap = preview?.targetMap || null;
+  const geometryPreview = preview?.geometryPreview || null;
+  const engine7Sizing = preview?.engine7Sizing || null;
+  const permissionState = preview?.permissionState || null;
 
   const status = String(watch.status || structuralPlaybook.status || "").toUpperCase();
   const structuralBias =
@@ -305,8 +331,6 @@ export default function Engine26ImbalanceWatchCard({
     "—"
   )}`;
 
-  const engine6Text = formatUpper(permission.engine6Decision, "PAPER STAND DOWN");
-
   const template =
     watch.structuralTemplate ||
     structuralPlaybook.template ||
@@ -333,26 +357,23 @@ export default function Engine26ImbalanceWatchCard({
     [];
 
   const bHigh =
+    structure?.activeB?.price ??
     watchLevels?.manualB?.price ??
     watchLevels?.bLeg?.price ??
     watchLevels?.cProjection?.bHigh ??
     null;
 
-  const bBandLo = watchLevels?.bBounceBand?.lo ?? null;
-  const bBandHi = watchLevels?.bBounceBand?.hi ?? null;
+  const c100 =
+    targetMap?.firstReaction ??
+    triggerMap?.c100 ??
+    watchLevels?.cProjection?.c100 ??
+    null;
 
-  const c100 = triggerMap?.c100 ?? watchLevels?.cProjection?.c100 ?? null;
-  const parentR618 =
-    triggerMap?.parentR618 ?? watchLevels?.parentFibConfluence?.r618 ?? null;
-
-  const confluenceText =
-    c100 != null && parentR618 != null
-      ? `${formatLevel(c100)} / ${formatLevel(parentR618)}`
-      : c100 != null
-      ? formatLevel(c100)
-      : parentR618 != null
-      ? formatLevel(parentR618)
-      : null;
+  const cardDirection = structure?.direction || preferredDirection;
+  const paperAllowed =
+    permissionState?.paperAllowed === true ||
+    permission.engine6Allowed === true ||
+    false;
 
   return (
     <div
@@ -392,7 +413,7 @@ export default function Engine26ImbalanceWatchCard({
               color,
             }}
           >
-            Engine 26 — Structural Imbalance Watch
+            Engine 26 — Trade Plan Preview
           </div>
 
           <div
@@ -440,29 +461,145 @@ export default function Engine26ImbalanceWatchCard({
       </SectionBox>
 
       <SectionBox border="rgba(148,163,184,0.28)" background="rgba(15,23,42,0.36)">
-        <SmallLine label="Zone" value={zoneText} />
-        <SmallLine label="Current" value={formatLevel(watch.currentPrice)} />
+        <SectionTitle>Alarm Zone</SectionTitle>
+
+        <SmallLine
+          label="Alarm"
+          value={alarm?.label || (watch.alarmAllEngines ? "ALARM_ZONE_ACTIVE" : "—")}
+          valueColor={alarm?.active || watch.alarmAllEngines ? "#22c55e" : "#94a3b8"}
+        />
+
+        <SmallLine
+          label="Zone"
+          value={
+            alarm?.zoneLo != null && alarm?.zoneHi != null
+              ? `${formatLevel(alarm.zoneLo)}–${formatLevel(alarm.zoneHi)}`
+              : zoneText
+          }
+        />
+
+        <SmallLine
+          label="Current"
+          value={formatLevel(alarm?.currentPrice ?? watch.currentPrice)}
+        />
+
         <SmallLine
           label="Inside / Near"
-          value={`${formatBool(zone.inside)} / ${formatBool(zone.near)}`}
+          value={`${formatBool(alarm?.inside ?? zone.inside)} / ${formatBool(
+            alarm?.near ?? zone.near
+          )}`}
         />
-        <SmallLine label="Preferred Dir" value={formatUpper(preferredDirection)} />
-        <SmallLine label="No Long Chase" value={formatBool(watch.doNotChaseLong)} />
-        <SmallLine label="Short Research" value={formatBool(watch.shortResearchOnly)} />
+
+        <SmallLine
+          label="Preferred Dir"
+          value={formatUpper(cardDirection)}
+          valueColor={getDirectionColor(cardDirection)}
+        />
+
+        <SmallLine
+          label="No Long Chase"
+          value={formatBool(structure?.doNotChaseLong ?? watch.doNotChaseLong)}
+        />
+
+        <SmallLine
+          label="Short Research"
+          value={formatBool(structure?.shortResearchOnly ?? watch.shortResearchOnly)}
+        />
       </SectionBox>
 
-      {primaryScenario && (
-        <SectionBox border="rgba(251,191,36,0.32)" background="rgba(113,63,18,0.12)">
-          <SmallLine
-            label="Scenario"
-            value={formatUpper(primaryScenario)}
-            valueColor="#fbbf24"
-          />
-        </SectionBox>
-      )}
-
       <SectionBox border="rgba(56,189,248,0.32)" background="rgba(12,74,110,0.14)">
-        <SectionTitle>Engine 22 Levels</SectionTitle>
+        <SectionTitle>Trade Plan Preview</SectionTitle>
+
+        <SmallLine
+          label="Entry idea"
+          value={entryIdea?.preferredArea || "—"}
+          valueColor="#f8fafc"
+        />
+
+        <SmallLine
+          label="Stop idea"
+          value={stopIdea?.price != null ? formatLevel(stopIdea.price) : "—"}
+          valueColor="#fb7185"
+        />
+
+        <SmallLine
+          label="Confirm gate"
+          value={
+            confirmationGate?.level != null
+              ? `${formatLevel(confirmationGate.level)} / failed reclaim`
+              : confirmationGate?.rule || "—"
+          }
+          valueColor="#fbbf24"
+        />
+
+        <SmallLine
+          label="Risk preview"
+          value={formatPoints(geometryPreview?.riskPoints)}
+          valueColor="#fb7185"
+        />
+
+        <SmallLine
+          label="Reward preview"
+          value={formatPoints(geometryPreview?.rewardPoints)}
+          valueColor="#22c55e"
+        />
+
+        <SmallLine
+          label="Preview R/R"
+          value={
+            geometryPreview?.riskReward != null
+              ? `${geometryPreview.riskReward} R`
+              : "—"
+          }
+          valueColor="#22c55e"
+        />
+      </SectionBox>
+
+      <SectionBox border="rgba(251,191,36,0.32)" background="rgba(113,63,18,0.12)">
+        <SectionTitle color="#fbbf24">Structure</SectionTitle>
+
+        <SmallLine
+          label="Scenario"
+          value={formatUpper(structure?.scenario || primaryScenario || template)}
+          valueColor="#fbbf24"
+        />
+
+        <SmallLine
+          label="Old B"
+          value={
+            structure?.oldB?.price != null
+              ? `${formatLevel(structure.oldB.price)} / ${formatUpper(
+                  structure.oldB.status
+                )}`
+              : "—"
+          }
+        />
+
+        <SmallLine
+          label="Active B"
+          value={
+            structure?.activeB?.price != null
+              ? `${formatLevel(structure.activeB.price)} / ${formatUpper(
+                  structure.activeB.status
+                )}`
+              : formatLevel(bHigh)
+          }
+          valueColor="#fbbf24"
+        />
+      </SectionBox>
+
+      <SectionBox border="rgba(34,197,94,0.32)" background="rgba(20,83,45,0.12)">
+        <SectionTitle color="#22c55e">Target Map</SectionTitle>
+
+        <SmallLine
+          label="Scalp goal"
+          value={
+            scalpGoal?.minPoints != null && scalpGoal?.maxPoints != null
+              ? `${scalpGoal.minPoints}–${scalpGoal.maxPoints} pts`
+              : "15–30 pts"
+          }
+          valueColor="#22c55e"
+        />
 
         <div
           style={{
@@ -471,47 +608,30 @@ export default function Engine26ImbalanceWatchCard({
             gap: 7,
           }}
         >
-          <LevelPill label="B High" value={bHigh} color="#fbbf24" />
-          <LevelPill label="Warn" value={triggerMap.firstWarning} color="#fbbf24" />
-          <LevelPill label="B Mid" value={triggerMap.bBounceMid} />
-          <LevelPill label="B Low" value={triggerMap.bBounceLower} />
-          <LevelPill label="r382" value={triggerMap.parentR382} />
-          <LevelPill label="r500" value={triggerMap.parentR500} />
-          <LevelPill label="r618" value={triggerMap.parentR618} />
-          <LevelPill label="C100" value={triggerMap.c100} color="#fbbf24" />
+          <LevelPill
+            label="C100 / first reaction"
+            value={targetMap?.firstReaction ?? c100}
+            color="#fbbf24"
+          />
+
+          <LevelPill
+            label="A-low break"
+            value={targetMap?.aLowBreak}
+            color="#f8fafc"
+          />
+
+          <LevelPill
+            label="C1272 / pressure"
+            value={targetMap?.preferredCPressure}
+            color="#22c55e"
+          />
+
+          <LevelPill
+            label="C1618 / stretch"
+            value={targetMap?.stretchC}
+            color="#38bdf8"
+          />
         </div>
-
-        {bBandLo != null && bBandHi != null && (
-          <div
-            style={{
-              fontFamily: CARD_FONT,
-              fontSize: 14,
-              lineHeight: 1.3,
-              color: "#cbd5e1",
-              fontWeight: 700,
-            }}
-          >
-            B-bounce band:{" "}
-            <span style={{ color: "#f8fafc" }}>
-              {formatLevel(bBandLo)}–{formatLevel(bBandHi)}
-            </span>
-          </div>
-        )}
-
-        {confluenceText && (
-          <div
-            style={{
-              fontFamily: CARD_FONT,
-              fontSize: 14,
-              lineHeight: 1.3,
-              color: "#cbd5e1",
-              fontWeight: 700,
-            }}
-          >
-            C100 / parent r618 confluence:{" "}
-            <span style={{ color: "#fbbf24" }}>{confluenceText}</span>
-          </div>
-        )}
       </SectionBox>
 
       <SectionBox border="rgba(168,85,247,0.35)" background="rgba(59,7,100,0.16)">
@@ -520,10 +640,78 @@ export default function Engine26ImbalanceWatchCard({
       </SectionBox>
 
       <SectionBox border="rgba(148,163,184,0.24)" background="rgba(15,23,42,0.32)">
+        <SectionTitle>Activation Check</SectionTitle>
+
+        <SmallLine
+          label="Engine 15"
+          value={`${formatUpper(
+            permissionState?.engine15Readiness || "WATCH"
+          )} / ${formatUpper(permissionState?.engine15Action || "WAIT")}`}
+          valueColor="#fbbf24"
+        />
+
         <SmallLine label="Engine 3" value={engine3Text} />
+
         <SmallLine label="Engine 4" value={engine4Text} />
-        <SmallLine label="Engine 6" value={engine6Text} />
-        <SmallLine label="Ticket" value={ticket ? "YES" : "NO"} valueColor={ticket ? "#22c55e" : "#fb7185"} />
+
+        <SmallLine
+          label="Engine 6"
+          value={formatUpper(
+            permissionState?.engine6Decision ||
+              permission.engine6Decision ||
+              "PAPER STAND DOWN"
+          )}
+          valueColor={permissionState?.engine6Allowed ? "#22c55e" : "#fbbf24"}
+        />
+
+        <SmallLine
+          label="Paper allowed"
+          value={formatBool(paperAllowed)}
+          valueColor={paperAllowed ? "#22c55e" : "#fb7185"}
+        />
+
+        <SmallLine
+          label="Ticket"
+          value={ticket || permissionState?.ticketAllowed ? "YES" : "NO"}
+          valueColor={ticket || permissionState?.ticketAllowed ? "#22c55e" : "#fb7185"}
+        />
+      </SectionBox>
+
+      <SectionBox border="rgba(168,85,247,0.35)" background="rgba(59,7,100,0.16)">
+        <SectionTitle color="#c084fc">Engine 7 Size Preview</SectionTitle>
+
+        <SmallLine
+          label="Mode"
+          value={formatUpper(engine7Sizing?.mode || "R_ONLY_PREVIEW")}
+        />
+
+        <SmallLine
+          label="Allowed"
+          value={formatBool(engine7Sizing?.allowed)}
+          valueColor={engine7Sizing?.allowed ? "#22c55e" : "#fb7185"}
+        />
+
+        <SmallLine
+          label="Engine 6"
+          value={formatUpper(engine7Sizing?.engine6Permission || permissionState?.engine6Decision)}
+        />
+
+        <SmallLine
+          label="Score"
+          value={engine7Sizing?.totalScore != null ? String(engine7Sizing.totalScore) : "—"}
+        />
+
+        <div
+          style={{
+            ...TEXT_STYLE,
+            fontSize: 13,
+            fontWeight: 700,
+            color: "#cbd5e1",
+          }}
+        >
+          {engine7Sizing?.note ||
+            "Engine 7 v1 is R-only preview. Contract sizing comes later in Engine 7 v2."}
+        </div>
       </SectionBox>
 
       <div
@@ -536,8 +724,9 @@ export default function Engine26ImbalanceWatchCard({
           fontWeight: 700,
         }}
       >
-        Engine 26 does not create permission. Engine 3/4 confirm. Engine 15
-        checks risk/path. Engine 6 must approve PAPER_ALLOW.
+        Engine 26 maps the trade. Engine 7 previews size only. Engine 3/4 confirm.
+        Engine 15 checks readiness. Engine 6 must approve PAPER_ALLOW. No ticket or
+        execution without permission.
       </div>
 
       {plan?.status && (
