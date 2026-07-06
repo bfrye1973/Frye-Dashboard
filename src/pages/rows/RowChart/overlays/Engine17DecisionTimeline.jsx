@@ -1444,10 +1444,28 @@ function buildPermissionSection(permission, engine15) {
 
   const executable = permission.executable === true;
   const watchOnly = permission.watchOnly === true;
+  const paper = permission.paper || null;
+
+  const paperDecision = String(paper?.decision || "").toUpperCase();
+  const paperDirection = String(paper?.direction || "").toUpperCase();
+
+  const isStructuralFastWatch =
+    paperDecision === "STRUCTURAL_FAST_WATCH" ||
+    paper?.structuralWatchOnly === true;
+
+  const isShortResearchWatch =
+    paperDecision === "PAPER_SHORT_RESEARCH_WATCH" ||
+    paper?.shortResearchWatch === true;
 
   let permissionLine = "Engine 6 does not allow execution yet.";
 
-  if (executable) {
+  if (isShortResearchWatch) {
+    permissionLine =
+      "PAPER SHORT RESEARCH WATCH — short rejection / failed-acceptance research is active. No ticket. No execution.";
+  } else if (isStructuralFastWatch) {
+    permissionLine =
+      "STRUCTURAL FAST WATCH — Engine 26 C-down danger zone is active. Watch only. No ticket. No execution.";
+  } else if (executable) {
     permissionLine =
       "Engine 6 allows execution because setup and permission gates passed.";
   } else if (
@@ -1461,22 +1479,38 @@ function buildPermissionSection(permission, engine15) {
       "Engine 6 will not allow execution because this is watch only.";
   }
 
+  const severity =
+    isShortResearchWatch || isStructuralFastWatch
+      ? "danger"
+      : executable
+      ? "bullish"
+      : "purple";
+
   return {
     number: 5,
     icon: "⬟",
     title: "Final Permission — Engine 6",
-    severity: executable ? "bullish" : "purple",
+    severity,
     fields: [
-      ["Permission", formatUpper(permission.permission, "UNKNOWN")],
+      ["Real Permission", formatUpper(permission.permission, "UNKNOWN")],
       ["Executable", formatBool(permission.executable)],
       ["Watch Only", formatBool(permission.watchOnly)],
+
+      [
+        "Paper State",
+        paperDecision ? formatUpper(paperDecision) : "—",
+      ],
+      [
+        "Paper Direction",
+        paperDirection ? formatUpper(paperDirection) : "—",
+      ],
+      ["Paper Allowed", formatBool(paper?.allowed)],
+      ["Short Research", formatBool(paper?.shortResearchOnly)],
+      ["Ticket Allowed", formatBool(paper?.paperShortAllowed)],
+
       [
         "Strategy Type",
         formatUpper(permission.strategyType || engine15?.strategyType, "NONE"),
-      ],
-      [
-        "Direction",
-        formatUpper(permission.direction || engine15?.direction, "NONE"),
       ],
       [
         "Authority",
@@ -1489,13 +1523,27 @@ function buildPermissionSection(permission, engine15) {
     ],
     lines: [
       permissionLine,
+      isStructuralFastWatch
+        ? "Engine 6 is no longer treating this as plain stand-down. This is an active structural warning from Engine 26."
+        : null,
+      isShortResearchWatch
+        ? "Short PAPER_ALLOW remains disabled until Engine 15 short readiness, stop, and target path support exist."
+        : null,
+      asArray(paper?.reasonCodes).length
+        ? `Paper reasons: ${asArray(paper.reasonCodes)
+            .slice(0, 10)
+            .map(formatText)
+            .join(", ")}`
+        : null,
       asArray(permission.reasonCodes).length
-        ? `Reasons: ${asArray(permission.reasonCodes).map(formatText).join(", ")}`
+        ? `Real reasons: ${asArray(permission.reasonCodes)
+            .slice(0, 8)
+            .map(formatText)
+            .join(", ")}`
         : null,
     ].filter(Boolean),
   };
 }
-
 function buildNextStepsSection({
   waveOpportunity,
   engine15,
@@ -2637,6 +2685,7 @@ const subheadline = hasLifecycleViews
     badges,
     sections,
     contextSections,
+    permission,
     footer: permission?.executable === true ? "EXECUTION ELIGIBLE" : "WATCH",
   };
 }
@@ -2941,6 +2990,57 @@ function TimelineSection({ section }) {
 }
 
 function MinimalStatusStrip({ timeline }) {
+  const permission = timeline?.permission || null;
+  const paper = permission?.paper || null;
+
+  const paperDecision = String(paper?.decision || "").toUpperCase();
+  const paperDirection = String(paper?.direction || "").toUpperCase();
+
+  const isStructuralFastWatch =
+    paperDecision === "STRUCTURAL_FAST_WATCH" ||
+    paper?.structuralWatchOnly === true;
+
+  const isShortResearchWatch =
+    paperDecision === "PAPER_SHORT_RESEARCH_WATCH" ||
+    paper?.shortResearchWatch === true;
+
+  const marketBiasLabel =
+    isStructuralFastWatch || isShortResearchWatch
+      ? "↘ SHORT WATCH"
+      : paperDirection === "SHORT"
+      ? "↘ SHORT"
+      : paperDirection === "LONG"
+      ? "↗ LONG"
+      : "— NEUTRAL";
+
+  const marketBiasColor =
+    isStructuralFastWatch || isShortResearchWatch || paperDirection === "SHORT"
+      ? "#fb7185"
+      : paperDirection === "LONG"
+      ? "#22c55e"
+      : "#cbd5e1";
+
+  const setupLabel =
+    isShortResearchWatch
+      ? "◉ SHORT RESEARCH"
+      : isStructuralFastWatch
+      ? "⚠ STRUCTURAL WATCH"
+      : paperDecision
+      ? `◉ ${formatUpper(paperDecision)}`
+      : "◉ WATCH";
+
+  const setupColor =
+    isShortResearchWatch || isStructuralFastWatch
+      ? "#fb7185"
+      : "#fbbf24";
+
+  const permissionLabel =
+    paper?.allowed === true
+      ? "⬟ PAPER ALLOW"
+      : formatUpper(permission?.permission, "REDUCE") === "REDUCE"
+      ? "⬟ REDUCE"
+      : `⬟ ${formatUpper(permission?.permission, "WAIT")}`;
+
   return (
     <div
       style={{
@@ -2965,44 +3065,25 @@ function MinimalStatusStrip({ timeline }) {
     >
       <div style={stripCellStyle}>
         <span style={stripLabelStyle}>Market Bias</span>
-        <span style={{ ...stripValueStyle, color: "#22c55e" }}>↗ LONG</span>
+        <span style={{ ...stripValueStyle, color: marketBiasColor }}>
+          {marketBiasLabel}
+        </span>
       </div>
       <div style={stripCellStyle}>
         <span style={stripLabelStyle}>Setup</span>
-        <span style={{ ...stripValueStyle, color: "#fbbf24" }}>◉ WATCH</span>
+        <span style={{ ...stripValueStyle, color: setupColor }}>
+          {setupLabel}
+        </span>
       </div>
       <div style={stripCellStyle}>
         <span style={stripLabelStyle}>Permission</span>
-        <span style={{ ...stripValueStyle, color: "#c084fc" }}>⬟ REDUCE</span>
+        <span style={{ ...stripValueStyle, color: "#c084fc" }}>
+          {permissionLabel}
+        </span>
       </div>
     </div>
   );
 }
-
-const stripCellStyle = {
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  gap: 10,
-  padding: "10px 12px",
-  borderRight: "1px solid rgba(148,163,184,0.14)",
-};
-
-const stripLabelStyle = {
-  ...shellTextStyle,
-  ...smallCapsStyle,
-  color: MUTED_TEXT,
-  fontSize: 13,
-  fontWeight: FONT_REGULAR,
-};
-
-const stripValueStyle = {
-  ...shellTextStyle,
-  ...smallCapsStyle,
-  fontSize: 14,
-  fontWeight: FONT_MEDIUM,
-};
-
 function TimelineMainCard({ timeline }) {
   return (
     <div
