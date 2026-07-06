@@ -1850,6 +1850,36 @@ function getFastReactionSeverity({ fastReaction, currentLevelAction, paperScalp 
   return "blue";
 }
 
+function getWaveContextForScalp({ fastReaction, paperScalp, currentLevelAction }) {
+  return (
+    fastReaction?.waveContext ||
+    paperScalp?.waveContext ||
+    currentLevelAction?.waveContext ||
+    null
+  );
+}
+
+function formatScalpStructureLine(waveContext) {
+  if (!waveContext?.active) return null;
+
+  const minor = waveContext?.minor?.correctionType
+    ? `Minor ${formatUpper(waveContext.minor.activeWave, "—")} / ${formatUpper(
+        waveContext.minor.correctionType,
+        "—"
+      )}`
+    : null;
+
+  const minute = waveContext?.minute?.correctionType
+    ? `Minute ${formatUpper(waveContext.minute.correctionType, "—")}`
+    : null;
+
+  const subminute = waveContext?.subminute?.currentRead
+    ? "Subminute C-down watch"
+    : null;
+
+  return [minor, minute, subminute].filter(Boolean).join(" → ");
+}
+
 function buildEngine3ContextSection(fib) {
   const fastReaction = getEngine3FastImbalanceReaction(fib);
   const currentLevelAction = getCurrentLevelActionReaction(fib);
@@ -1876,6 +1906,14 @@ function buildEngine3ContextSection(fib) {
     const currentDirection = currentLevelAction?.direction || "NEUTRAL";
 
     const conflict = getDirectionConflict(fastDirection, currentDirection);
+
+    const waveContext = getWaveContextForScalp({
+      fastReaction,
+      paperScalp,
+      currentLevelAction,
+    });
+
+    const structureLine = formatScalpStructureLine(waveContext);
 
     const scalpResult =
       conflict
@@ -1923,9 +1961,17 @@ function buildEngine3ContextSection(fib) {
             : "—",
         ],
         ["Scalp Result", scalpResult],
+        [
+         "Structure",
+         waveContext?.reactionVsStructure
+           ? formatUpper(waveContext.reactionVsStructure)
+           : "—",
+       ],
       ],
       lines: [
         "Short-term scalp read is primary right now.",
+         structureLine ? `Wave context: ${structureLine}.` : null,
+         waveContext?.interpretation || null,
         imbalance.raw
           ? `Active manual imbalance: ${imbalance.raw}`
           : "Active manual imbalance detected.",
@@ -1955,6 +2001,13 @@ function buildEngine3ContextSection(fib) {
 
   if (paperScalp?.active === true) {
     const allowed = paperScalp.allowed === true;
+    const waveContext = getWaveContextForScalp({
+      fastReaction,
+      paperScalp,
+      currentLevelAction,
+    });
+
+    const structureLine = formatScalpStructureLine(waveContext); 
 
     return {
       number: 0,
@@ -1972,6 +2025,12 @@ function buildEngine3ContextSection(fib) {
         ["Direction", formatUpper(paperScalp.direction, "NEUTRAL")],
         ["Quality", formatUpper(paperScalp.quality, "WEAK")],
         ["Setup", formatUpper(paperScalp.setupType, "—")],
+        [
+         "Structure",
+         waveContext?.reactionVsStructure
+           ? formatUpper(waveContext.reactionVsStructure)
+           : "—",
+       ],
         [
           "Current",
           paperScalp.currentPrice != null
@@ -1994,6 +2053,8 @@ function buildEngine3ContextSection(fib) {
               .map(formatText)
               .join(", ")}`
           : null,
+         structureLine ? `Wave context: ${structureLine}.` : null,
+         waveContext?.interpretation || null,
         "This is paper-only. No real permission or execution created.",
       ].filter(Boolean),
     };
