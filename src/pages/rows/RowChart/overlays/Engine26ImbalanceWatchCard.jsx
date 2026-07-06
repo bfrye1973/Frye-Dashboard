@@ -4,30 +4,30 @@ import React from "react";
 
 const CARD_FONT = '"Trebuchet MS", "Lucida Grande", "Segoe UI", Arial, sans-serif';
 
-const CARD_WIDTH = 500;
+const CARD_WIDTH = 560;
 const CARD_LEFT = "calc(50% + 430px)";
 
 const TEXT_STYLE = {
   fontFamily: CARD_FONT,
-  fontSize: 14,
-  lineHeight: 1.32,
-  fontWeight: 400,
+  fontSize: 15,
+  lineHeight: 1.35,
+  fontWeight: 500,
   color: "#dbeafe",
 };
 
 const TITLE_STYLE = {
   fontFamily: CARD_FONT,
-  fontSize: 19,
-  lineHeight: 1.16,
-  fontWeight: 700,
+  fontSize: 22,
+  lineHeight: 1.18,
+  fontWeight: 800,
   color: "#38bdf8",
 };
 
 const LABEL_STYLE = {
   fontFamily: CARD_FONT,
-  fontSize: 12,
-  lineHeight: 1.22,
-  fontWeight: 500,
+  fontSize: 13,
+  lineHeight: 1.2,
+  fontWeight: 600,
   color: "#94a3b8",
 };
 
@@ -80,8 +80,8 @@ function statusColor(status, labels, structuralBias) {
   if (
     s.includes("C_UP") ||
     b.includes("C_UP") ||
-    s.includes("W3_IGNITION") ||
-    s.includes("RECLAIM")
+    s.includes("RECLAIM") ||
+    s.includes("W3")
   ) {
     return "#22c55e";
   }
@@ -107,35 +107,34 @@ function statusBorder(status, labels, structuralBias) {
 
   if (color === "#fbbf24") return "rgba(251,191,36,0.68)";
   if (color === "#22c55e") return "rgba(34,197,94,0.62)";
-
   return "rgba(56,189,248,0.58)";
 }
 
-function SmallLine({ label, value, valueColor = "#dbeafe" }) {
+function SmallLine({ label, value, valueColor = "#f8fafc" }) {
   if (value == null || value === "") return null;
 
   return (
     <div
       style={{
         display: "grid",
-        gridTemplateColumns: "135px 1fr",
+        gridTemplateColumns: "160px 1fr",
         alignItems: "center",
-        gap: 8,
-        fontFamily: CARD_FONT,
-        fontSize: 13,
-        lineHeight: 1.25,
+        gap: 10,
       }}
     >
-      <span style={LABEL_STYLE}>{label}</span>
-      <span
+      <div style={LABEL_STYLE}>{label}</div>
+      <div
         style={{
+          fontFamily: CARD_FONT,
+          fontSize: 15,
+          lineHeight: 1.3,
+          fontWeight: 800,
           color: valueColor,
-          fontWeight: 700,
           textAlign: "right",
         }}
       >
         {value}
-      </span>
+      </div>
     </div>
   );
 }
@@ -151,9 +150,9 @@ function StatusBadge({ label, color }) {
         color,
         background: "rgba(15,23,42,0.72)",
         borderRadius: 999,
-        padding: "3px 8px",
-        fontSize: 11,
-        fontWeight: 700,
+        padding: "4px 10px",
+        fontSize: 12,
+        fontWeight: 800,
         whiteSpace: "nowrap",
       }}
     >
@@ -168,10 +167,10 @@ function SectionBox({ border, background, children }) {
       style={{
         border: `1px solid ${border}`,
         background,
-        borderRadius: 11,
-        padding: "9px 10px",
+        borderRadius: 12,
+        padding: "11px 12px",
         display: "grid",
-        gap: 5,
+        gap: 7,
       }}
     >
       {children}
@@ -179,7 +178,24 @@ function SectionBox({ border, background, children }) {
   );
 }
 
-function LevelPill({ label, value, color = "#dbeafe" }) {
+function SectionTitle({ children, color = "#38bdf8" }) {
+  return (
+    <div
+      style={{
+        fontFamily: CARD_FONT,
+        fontSize: 13,
+        fontWeight: 800,
+        letterSpacing: 0.3,
+        textTransform: "uppercase",
+        color,
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+function LevelPill({ label, value, color = "#f8fafc" }) {
   if (value == null || value === "") return null;
 
   return (
@@ -187,18 +203,35 @@ function LevelPill({ label, value, color = "#dbeafe" }) {
       style={{
         display: "grid",
         gridTemplateColumns: "1fr auto",
-        gap: 7,
         alignItems: "center",
-        padding: "4px 7px",
-        borderRadius: 8,
-        border: "1px solid rgba(148,163,184,0.20)",
+        gap: 8,
+        padding: "7px 9px",
+        borderRadius: 10,
+        border: "1px solid rgba(148,163,184,0.22)",
         background: "rgba(15,23,42,0.42)",
-        fontFamily: CARD_FONT,
-        fontSize: 12,
       }}
     >
-      <span style={{ color: "#94a3b8", fontWeight: 700 }}>{label}</span>
-      <span style={{ color, fontWeight: 800 }}>{formatLevel(value)}</span>
+      <div
+        style={{
+          fontFamily: CARD_FONT,
+          fontSize: 12,
+          fontWeight: 700,
+          color: "#94a3b8",
+        }}
+      >
+        {label}
+      </div>
+      <div
+        style={{
+          fontFamily: CARD_FONT,
+          fontSize: 17,
+          fontWeight: 900,
+          color,
+          lineHeight: 1.1,
+        }}
+      >
+        {formatLevel(value)}
+      </div>
     </div>
   );
 }
@@ -208,15 +241,16 @@ function ConfirmationList({ items }) {
   if (!list.length) return null;
 
   return (
-    <div style={{ display: "grid", gap: 3 }}>
+    <div style={{ display: "grid", gap: 5 }}>
       {list.map((item) => (
         <div
           key={item}
           style={{
             fontFamily: CARD_FONT,
-            fontSize: 12,
-            lineHeight: 1.22,
-            color: "#cbd5e1",
+            fontSize: 13,
+            lineHeight: 1.28,
+            fontWeight: 600,
+            color: "#e2e8f0",
           }}
         >
           <span style={{ color: "#fbbf24" }}>• </span>
@@ -329,18 +363,18 @@ export default function Engine26ImbalanceWatchCard({
         left: CARD_LEFT,
         zIndex: 109,
         width: CARD_WIDTH,
-        maxWidth: "34%",
-        borderRadius: 15,
+        maxWidth: "37%",
+        borderRadius: 16,
         border: `1px solid ${border}`,
-        background: "rgba(6,10,20,0.97)",
-        padding: "13px 14px",
+        background: "rgba(6,10,20,0.98)",
+        padding: "15px 16px",
         color: "#e5e7eb",
         backdropFilter: "blur(4px)",
         pointerEvents: "none",
         textAlign: "left",
         boxShadow: "0 10px 28px rgba(0,0,0,0.34)",
         display: "grid",
-        gap: 9,
+        gap: 10,
       }}
     >
       <div
@@ -365,8 +399,9 @@ export default function Engine26ImbalanceWatchCard({
             style={{
               ...TEXT_STYLE,
               color: "#f8fafc",
-              fontSize: 13,
+              fontSize: 14,
               marginTop: 4,
+              fontWeight: 700,
             }}
           >
             {symbol} • Engine 22 read first • Paper only
@@ -382,7 +417,11 @@ export default function Engine26ImbalanceWatchCard({
           value={formatUpper(watch.status || structuralPlaybook.status)}
           valueColor={color}
         />
-        <SmallLine label="Template" value={formatUpper(template)} valueColor="#f8fafc" />
+        <SmallLine
+          label="Template"
+          value={formatUpper(template)}
+          valueColor="#f8fafc"
+        />
         <SmallLine
           label="Role"
           value={formatUpper(watch.activeImbalanceRole || structuralPlaybook.activeImbalanceRole)}
@@ -401,7 +440,7 @@ export default function Engine26ImbalanceWatchCard({
       </SectionBox>
 
       <SectionBox border="rgba(148,163,184,0.28)" background="rgba(15,23,42,0.36)">
-        <SmallLine label="Zone" value={zoneText} valueColor="#f8fafc" />
+        <SmallLine label="Zone" value={zoneText} />
         <SmallLine label="Current" value={formatLevel(watch.currentPrice)} />
         <SmallLine
           label="Inside / Near"
@@ -413,40 +452,23 @@ export default function Engine26ImbalanceWatchCard({
       </SectionBox>
 
       {primaryScenario && (
-        <div
-          style={{
-            ...TEXT_STYLE,
-            color: "#f8fafc",
-            border: "1px solid rgba(251,191,36,0.32)",
-            background: "rgba(113,63,18,0.12)",
-            borderRadius: 10,
-            padding: "8px 9px",
-            fontSize: 13,
-          }}
-        >
-          <span style={{ color: "#fbbf24", fontWeight: 800 }}>Scenario: </span>
-          {formatUpper(primaryScenario)}
-        </div>
+        <SectionBox border="rgba(251,191,36,0.32)" background="rgba(113,63,18,0.12)">
+          <SmallLine
+            label="Scenario"
+            value={formatUpper(primaryScenario)}
+            valueColor="#fbbf24"
+          />
+        </SectionBox>
       )}
 
       <SectionBox border="rgba(56,189,248,0.32)" background="rgba(12,74,110,0.14)">
-        <div
-          style={{
-            ...LABEL_STYLE,
-            color: "#38bdf8",
-            fontWeight: 800,
-            fontSize: 12,
-            textTransform: "uppercase",
-          }}
-        >
-          Engine 22 Levels
-        </div>
+        <SectionTitle>Engine 22 Levels</SectionTitle>
 
         <div
           style={{
             display: "grid",
             gridTemplateColumns: "1fr 1fr",
-            gap: 5,
+            gap: 7,
           }}
         >
           <LevelPill label="B High" value={bHigh} color="#fbbf24" />
@@ -462,13 +484,15 @@ export default function Engine26ImbalanceWatchCard({
         {bBandLo != null && bBandHi != null && (
           <div
             style={{
-              ...TEXT_STYLE,
-              fontSize: 12,
-              color: "#94a3b8",
+              fontFamily: CARD_FONT,
+              fontSize: 14,
+              lineHeight: 1.3,
+              color: "#cbd5e1",
+              fontWeight: 700,
             }}
           >
             B-bounce band:{" "}
-            <span style={{ color: "#f8fafc", fontWeight: 800 }}>
+            <span style={{ color: "#f8fafc" }}>
               {formatLevel(bBandLo)}–{formatLevel(bBandHi)}
             </span>
           </div>
@@ -477,61 +501,39 @@ export default function Engine26ImbalanceWatchCard({
         {confluenceText && (
           <div
             style={{
-              ...TEXT_STYLE,
-              fontSize: 12,
-              color: "#94a3b8",
+              fontFamily: CARD_FONT,
+              fontSize: 14,
+              lineHeight: 1.3,
+              color: "#cbd5e1",
+              fontWeight: 700,
             }}
           >
             C100 / parent r618 confluence:{" "}
-            <span style={{ color: "#fbbf24", fontWeight: 800 }}>
-              {confluenceText}
-            </span>
+            <span style={{ color: "#fbbf24" }}>{confluenceText}</span>
           </div>
         )}
       </SectionBox>
 
       <SectionBox border="rgba(168,85,247,0.35)" background="rgba(59,7,100,0.16)">
-        <div
-          style={{
-            ...LABEL_STYLE,
-            color: "#c084fc",
-            fontWeight: 800,
-            fontSize: 12,
-            textTransform: "uppercase",
-          }}
-        >
-          Confirmation Needed
-        </div>
-
+        <SectionTitle color="#c084fc">Confirmation Needed</SectionTitle>
         <ConfirmationList items={confirmationNeeds} />
       </SectionBox>
 
-      <div style={TEXT_STYLE}>
-        <span style={{ color: "#94a3b8" }}>Engine 3: </span>
-        <span style={{ color: "#f8fafc" }}>{engine3Text}</span>
-      </div>
-
-      <div style={TEXT_STYLE}>
-        <span style={{ color: "#94a3b8" }}>Engine 4: </span>
-        <span style={{ color: "#f8fafc" }}>{engine4Text}</span>
-      </div>
-
-      <div style={TEXT_STYLE}>
-        <span style={{ color: "#94a3b8" }}>Engine 6: </span>
-        <span style={{ color: "#f8fafc" }}>{engine6Text}</span>
-        <span style={{ color: "#94a3b8" }}> • Ticket </span>
-        <span style={{ color: ticket ? "#22c55e" : "#fb7185" }}>
-          {ticket ? "Yes" : "No"}
-        </span>
-      </div>
+      <SectionBox border="rgba(148,163,184,0.24)" background="rgba(15,23,42,0.32)">
+        <SmallLine label="Engine 3" value={engine3Text} />
+        <SmallLine label="Engine 4" value={engine4Text} />
+        <SmallLine label="Engine 6" value={engine6Text} />
+        <SmallLine label="Ticket" value={ticket ? "YES" : "NO"} valueColor={ticket ? "#22c55e" : "#fb7185"} />
+      </SectionBox>
 
       <div
         style={{
           ...TEXT_STYLE,
           color: "#fbbf24",
           borderTop: "1px solid rgba(148,163,184,0.22)",
-          paddingTop: 8,
-          fontSize: 13,
+          paddingTop: 9,
+          fontSize: 14,
+          fontWeight: 700,
         }}
       >
         Engine 26 does not create permission. Engine 3/4 confirm. Engine 15
@@ -543,7 +545,8 @@ export default function Engine26ImbalanceWatchCard({
           style={{
             ...TEXT_STYLE,
             color: "#94a3b8",
-            fontSize: 12,
+            fontSize: 13,
+            fontWeight: 700,
           }}
         >
           Plan: {formatUpper(plan.status)}
