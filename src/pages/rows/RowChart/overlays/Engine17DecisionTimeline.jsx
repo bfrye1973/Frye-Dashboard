@@ -1969,9 +1969,7 @@ function buildEngine3ContextSection(fib) {
        ],
       ],
       lines: [
-        "Short-term scalp read is primary right now.",
-         structureLine ? `Wave context: ${structureLine}.` : null,
-         waveContext?.interpretation || null,
+        "Short-term scalp read is primary right now.", 
         imbalance.raw
           ? `Active manual imbalance: ${imbalance.raw}`
           : "Active manual imbalance detected.",
@@ -1981,20 +1979,20 @@ function buildEngine3ContextSection(fib) {
             )}, current level action says ${formatUpper(currentDirection)}. Wait for one side to win.`
           : null,
         fastReaction.state === "BREAKOUT_FAILING"
-          ? "Upper imbalance breakout is failing / rejecting. Watch for imbalance-to-imbalance rotation."
+          ? "Upper imbalance breakout is failing."
           : null,
         fastReaction.state === "REJECTING_VALUE"
-          ? "Price is rejecting imbalance value. Watch for continuation away from the zone."
+          ? "Price is rejecting imbalance value."
           : null,
         fastReaction.state === "WICK_BELOW_AND_RECLAIM"
-          ? "Price wicked through and reclaimed the imbalance. Watch for fast long continuation only after Engine 6 approval."
+          ? "Wick/reclaim detected. Engine 6 still decides."
           : null,
         paperScalp?.allowed === false && asArray(paperScalp.blockers).length
           ? `Paper blockers: ${asArray(paperScalp.blockers)
               .map(formatText)
               .join(", ")}`
           : null,
-        "Paper-only research read. Engine 6 remains final. No permission or execution created.",
+        "No permission or execution created.",
       ].filter(Boolean),
     };
   }
@@ -2053,8 +2051,6 @@ function buildEngine3ContextSection(fib) {
               .map(formatText)
               .join(", ")}`
           : null,
-         structureLine ? `Wave context: ${structureLine}.` : null,
-         waveContext?.interpretation || null,
         "This is paper-only. No real permission or execution created.",
       ].filter(Boolean),
     };
