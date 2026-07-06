@@ -2592,6 +2592,394 @@ function buildCurrentFibExtensionsSection(waveOpportunity, fib) {
 }
 
 /* =========================
+   Engine 22 Degree Stack timeline builders
+========================= */
+
+function getEngine22DegreeStates(fib) {
+  const waveStrategy = getEngine22WaveStrategy(fib);
+  const degreeStates = waveStrategy?.degreeStates || null;
+
+  if (!degreeStates || typeof degreeStates !== "object") return null;
+
+  const hasAnyDegree = ["primary", "intermediate", "minor", "minute", "subminute"].some(
+    (degree) => degreeStates?.[degree] && typeof degreeStates[degree] === "object"
+  );
+
+  return hasAnyDegree ? degreeStates : null;
+}
+
+function formatDisplayLevel(level) {
+  if (level == null) return null;
+
+  if (typeof level === "number" || typeof level === "string") {
+    const n = Number(level);
+    return Number.isFinite(n) ? formatNumber(n) : formatText(level, null);
+  }
+
+  if (typeof level !== "object") return null;
+
+  const label =
+    level.label ||
+    level.name ||
+    level.key ||
+    level.levelKey ||
+    level.ratio ||
+    level.fib ||
+    null;
+
+  const value =
+    level.price ??
+    level.value ??
+    level.level ??
+    level.target ??
+    level.hi ??
+    level.lo ??
+    null;
+
+  if (value == null) return label ? formatText(label) : null;
+
+  const valueText = Number.isFinite(Number(value))
+    ? formatNumber(value)
+    : formatText(value, null);
+
+  return label ? `${formatText(label)}: ${valueText}` : valueText;
+}
+
+function formatDisplayLevels(displayLevels, fallback = "—") {
+  if (!displayLevels) return fallback;
+
+  if (Array.isArray(displayLevels)) {
+    const items = displayLevels.map(formatDisplayLevel).filter(Boolean);
+    return items.length ? items.slice(0, 6).join("  |  ") : fallback;
+  }
+
+  if (typeof displayLevels === "object") {
+    const items = Object.entries(displayLevels)
+      .map(([key, value]) => {
+        if (value && typeof value === "object" && !Array.isArray(value)) {
+          return formatDisplayLevel({ key, ...value });
+        }
+
+        const valueText = formatDisplayLevel(value);
+        return valueText ? `${formatText(key)}: ${valueText}` : null;
+      })
+      .filter(Boolean);
+
+    return items.length ? items.slice(0, 6).join("  |  ") : fallback;
+  }
+
+  return formatDisplayLevel(displayLevels) || fallback;
+}
+
+function formatSupportWatch(localSupportWatch) {
+  if (!localSupportWatch) return "—";
+
+  if (typeof localSupportWatch === "string") return formatText(localSupportWatch);
+
+  if (Array.isArray(localSupportWatch)) {
+    const values = localSupportWatch.map(formatDisplayLevel).filter(Boolean);
+    return values.length ? values.join(" → ") : "—";
+  }
+
+  if (typeof localSupportWatch === "object") {
+    if (localSupportWatch.lo != null && localSupportWatch.hi != null) {
+      return `${formatNumber(localSupportWatch.lo)}–${formatNumber(localSupportWatch.hi)}`;
+    }
+
+    if (localSupportWatch.low != null && localSupportWatch.high != null) {
+      return `${formatNumber(localSupportWatch.low)}–${formatNumber(localSupportWatch.high)}`;
+    }
+
+    if (localSupportWatch.from != null && localSupportWatch.to != null) {
+      return `${formatNumber(localSupportWatch.from)}–${formatNumber(localSupportWatch.to)}`;
+    }
+
+    if (localSupportWatch.level != null) return formatNumber(localSupportWatch.level);
+
+    const values = Object.entries(localSupportWatch)
+      .map(([key, value]) => {
+        const valueText = formatDisplayLevel(value);
+        return valueText ? `${formatText(key)}: ${valueText}` : null;
+      })
+      .filter(Boolean);
+
+    return values.length ? values.slice(0, 4).join("  |  ") : "—";
+  }
+
+  return "—";
+}
+
+function formatContextObject(value, fallback = "—") {
+  if (!value) return fallback;
+  if (typeof value === "string") return formatText(value);
+  if (Array.isArray(value)) {
+    const items = value.map((item) => formatContextObject(item, null)).filter(Boolean);
+    return items.length ? items.join("; ") : fallback;
+  }
+
+  if (typeof value === "object") {
+    const preferredKeys = [
+      "summary",
+      "read",
+      "headline",
+      "action",
+      "relationship",
+      "purpose",
+      "role",
+      "stage",
+      "type",
+      "state",
+      "currentRead",
+    ];
+
+    const preferred = preferredKeys
+      .map((key) => value?.[key])
+      .filter((item) => item != null && item !== "")
+      .map((item) => formatText(item))
+      .filter(Boolean);
+
+    if (preferred.length) return preferred.join("; ");
+
+    const entries = Object.entries(value)
+      .filter(([, item]) => item != null && item !== "")
+      .slice(0, 5)
+      .map(([key, item]) => `${formatText(key)}: ${formatContextObject(item, "—")}`);
+
+    return entries.length ? entries.join("; ") : fallback;
+  }
+
+  return formatText(value, fallback);
+}
+
+function getAlternateCorrectionText(correctionModels) {
+  const alternate =
+    correctionModels?.models?.abcDown ||
+    correctionModels?.alternateModels ||
+    correctionModels?.alternateType ||
+    correctionModels?.alternate ||
+    null;
+
+  if (!alternate) return "—";
+
+  if (Array.isArray(alternate)) {
+    const items = alternate.map((item) => formatContextObject(item, null)).filter(Boolean);
+    return items.length ? items.join("; ") : "—";
+  }
+
+  return formatContextObject(alternate);
+}
+
+function buildDegreeSummaryLine(label, state) {
+  if (!state) return null;
+
+  const headline = state.headline ? `${label}: ${formatText(state.headline)}` : null;
+  const read = state.currentRead ? `${label} read: ${formatText(state.currentRead)}` : null;
+  const action = state.action ? `${label} action: ${formatText(state.action)}` : null;
+
+  return [headline, read, action].filter(Boolean).join(" ");
+}
+
+function buildEngine22DegreeBadges(degreeStates, permission) {
+  const safetyFlags = [
+    degreeStates?.primary,
+    degreeStates?.intermediate,
+    degreeStates?.minor,
+    degreeStates?.minute,
+    degreeStates?.subminute,
+  ].filter(Boolean);
+
+  const noExecution = safetyFlags.some((degree) => degree?.noExecution === true);
+  const watchOnly = safetyFlags.some((degree) => degree?.watchOnly === true);
+  const noPermissionCreated = safetyFlags.some(
+    (degree) => degree?.noPermissionCreated === true
+  );
+
+  return [
+    { label: "ES", severity: "blue" },
+    { label: "ENGINE 22 DEGREE STACK", severity: "teal" },
+    noExecution ? { label: "NO EXECUTION", severity: "purple" } : null,
+    noPermissionCreated
+      ? { label: "NO PERMISSION CREATED", severity: "purple" }
+      : null,
+    watchOnly ? { label: "WATCH ONLY", severity: "warning" } : null,
+    buildPermissionBadge(permission),
+  ].filter(Boolean);
+}
+
+function buildHigherTimeframeTrendSection(degreeStates) {
+  const primary = degreeStates?.primary || null;
+  const intermediate = degreeStates?.intermediate || null;
+
+  return {
+    number: 1,
+    icon: "↗",
+    title: "Higher-Timeframe Trend",
+    severity: "bullish",
+    fields: [
+      ["Primary", formatUpper(primary?.activeWave || primary?.stage, "—")],
+      ["Primary Targets", formatDisplayLevels(primary?.targetModel?.displayLevels)],
+      ["Intermediate", formatUpper(intermediate?.activeWave || intermediate?.stage, "—")],
+      [
+        "Intermediate Targets",
+        formatDisplayLevels(intermediate?.targetModel?.displayLevels),
+      ],
+    ],
+    lines: [
+      buildDegreeSummaryLine("Primary", primary),
+      buildDegreeSummaryLine("Intermediate", intermediate),
+      "Higher-timeframe degrees are context and target maps only. No execution comes from this section.",
+    ].filter(Boolean),
+  };
+}
+
+function buildActiveCorrectionSection(degreeStates) {
+  const minor = degreeStates?.minor || null;
+  const correctionModel = minor?.correctionModel || null;
+  const correctionModels = minor?.correctionModels || null;
+
+  const preferredType =
+    correctionModels?.preferredType ||
+    correctionModel?.type ||
+    correctionModel?.correctionType ||
+    "—";
+
+  const stage = correctionModel?.stage || minor?.stage || "—";
+  const alternateText = getAlternateCorrectionText(correctionModels);
+  const localSupport = formatSupportWatch(minor?.targetModel?.localSupportWatch);
+
+  return {
+    number: 2,
+    icon: "〽",
+    title: "Active Correction",
+    severity: "warning",
+    fields: [
+      ["Minor", formatUpper(minor?.activeWave || minor?.stage, "—")],
+      ["Preferred Model", formatUpper(preferredType, "—")],
+      ["Stage", formatUpper(stage, "—")],
+      ["Alternate Path", alternateText],
+      ["Local Support Watch", localSupport],
+      ["Minor Targets", formatDisplayLevels(minor?.targetModel?.displayLevels)],
+    ],
+    lines: [
+      buildDegreeSummaryLine("Minor", minor),
+      correctionModel ? `Preferred correction: ${formatContextObject(correctionModel)}.` : null,
+      alternateText !== "—" ? `Alternate correction path: ${alternateText}.` : null,
+      localSupport !== "—" ? `Local support / bounce watch: ${localSupport}.` : null,
+    ].filter(Boolean),
+  };
+}
+
+function buildNestedCorrectionSection(degreeStates) {
+  const minute = degreeStates?.minute || null;
+  const subminute = degreeStates?.subminute || null;
+
+  const minuteNested = formatContextObject(minute?.nestedCorrectionContext);
+  const subminuteNested = formatContextObject(subminute?.nestedCorrectionContext);
+
+  return {
+    number: 3,
+    icon: "⇣",
+    title: "Nested Correction / Tactical Path",
+    severity: "teal",
+    fields: [
+      ["Minute", formatUpper(minute?.activeWave || minute?.stage, "—")],
+      ["Minute Nested Context", minuteNested],
+      ["Subminute", formatUpper(subminute?.activeWave || subminute?.stage, "—")],
+      ["Subminute Nested Context", subminuteNested],
+    ],
+    lines: [
+      "Nested relationship: Minor E leg → Minute internal ABC down → Subminute tactical timing.",
+      buildDegreeSummaryLine("Minute", minute),
+      minuteNested !== "—" ? `Minute nested context: ${minuteNested}.` : null,
+      buildDegreeSummaryLine("Subminute", subminute),
+      subminuteNested !== "—" ? `Subminute nested context: ${subminuteNested}.` : null,
+      "Minute and Subminute are nested correction context, not independent stale W5 layouts.",
+    ].filter(Boolean),
+  };
+}
+
+function buildTargetLevelMapSection(degreeStates) {
+  const primary = degreeStates?.primary || null;
+  const intermediate = degreeStates?.intermediate || null;
+  const minor = degreeStates?.minor || null;
+
+  const localSupport = formatSupportWatch(minor?.targetModel?.localSupportWatch);
+
+  return {
+    number: 4,
+    icon: "⑸",
+    title: "Target & Level Map",
+    severity: "blue",
+    fields: [
+      ["Primary Target Map", formatDisplayLevels(primary?.targetModel?.displayLevels)],
+      [
+        "Intermediate Target Map",
+        formatDisplayLevels(intermediate?.targetModel?.displayLevels),
+      ],
+      ["Minor Target Map", formatDisplayLevels(minor?.targetModel?.displayLevels)],
+      ["Local Support Watch", localSupport],
+    ],
+    lines: [
+      "Target map is displayed from Engine 22 generated targetModel.displayLevels only.",
+      "React is not calculating fibs or inferring wave state.",
+      localSupport !== "—" ? `Minor local support / bounce watch: ${localSupport}.` : null,
+    ].filter(Boolean),
+  };
+}
+
+function buildEngine22SafetySection(degreeStates) {
+  const degrees = [
+    degreeStates?.primary,
+    degreeStates?.intermediate,
+    degreeStates?.minor,
+    degreeStates?.minute,
+    degreeStates?.subminute,
+  ].filter(Boolean);
+
+  const noExecution = degrees.some((degree) => degree?.noExecution === true);
+  const noPermissionCreated = degrees.some(
+    (degree) => degree?.noPermissionCreated === true
+  );
+  const watchOnly = degrees.some((degree) => degree?.watchOnly === true);
+
+  const reasonCodes = degrees.flatMap((degree) => asArray(degree?.reasonCodes));
+
+  return {
+    number: 5,
+    icon: "⬟",
+    title: "Safety / Permission",
+    severity: "purple",
+    fields: [
+      ["Engine 22 Role", "STRUCTURAL ONLY"],
+      ["No Execution", formatBool(noExecution, "YES")],
+      ["No Permission Created", formatBool(noPermissionCreated, "YES")],
+      ["Watch Only", formatBool(watchOnly, "YES")],
+    ],
+    lines: [
+      "Engine 22 is structural only.",
+      "No execution permission is created.",
+      "Engine 15 controls readiness.",
+      "Engine 6 controls final permission.",
+      reasonCodes.length
+        ? `Engine 22 reasons: ${reasonCodes.slice(0, 8).map(formatText).join(", ")}`
+        : null,
+    ].filter(Boolean),
+  };
+}
+
+function buildEngine22DegreeTimelineSections(degreeStates) {
+  if (!degreeStates) return [];
+
+  return [
+    buildHigherTimeframeTrendSection(degreeStates),
+    buildActiveCorrectionSection(degreeStates),
+    buildNestedCorrectionSection(degreeStates),
+    buildTargetLevelMapSection(degreeStates),
+    buildEngine22SafetySection(degreeStates),
+  ].filter(Boolean);
+}
+
+/* =========================
    Normalize timeline data
 ========================= */
 
@@ -2608,49 +2996,58 @@ function normalizeTimelineData({ overlayData }) {
   const permission = getFinalPermission(fib);
   const backendTimelineRead = getBackendTimelineRead(fib);
   const tradeContextSummary = getBackendTradeContextSummary(fib);
-  const currentLifecycleState = getCurrentLifecycleState(fib); 
-   
-  const lifecycleViews = getLifecycleViews(fib);
-  const lifecycleViewSections = buildLifecycleViewSections(lifecycleViews);
-  const hasLifecycleViews = lifecycleViewSections.length > 0;
-   
+  const currentLifecycleState = getCurrentLifecycleState(fib);
+  const degreeStates = getEngine22DegreeStates(fib);
+  const hasDegreeStates = degreeStates != null;
 
-  const postAbcBounceSection = buildPostAbcBounceSection(
-    tradeContextSummary,
-    waveOpportunity
-  );
+  const lifecycleViews = getLifecycleViews(fib);
+  const lifecycleViewSections = hasDegreeStates
+    ? []
+    : buildLifecycleViewSections(lifecycleViews);
+  const hasLifecycleViews = lifecycleViewSections.length > 0;
+
+  const postAbcBounceSection = hasDegreeStates
+    ? null
+    : buildPostAbcBounceSection(tradeContextSummary, waveOpportunity);
 
   const marketMeterSection = getBackendTimelineSection(
     fib,
     "Market Meter / Tactical Context"
   );
 
-const headline = hasLifecycleViews
-  ? `${formatText(
-      lifecycleViews?.longTerm?.label,
-      "Intermediate W3 active"
-    )} / ${formatText(
-      lifecycleViews?.intradayScalp?.label,
-      "Minute W4 pullback watch"
-    )}`
-  : currentLifecycleState?.headline ||
-    backendTimelineRead?.headline ||
-    tradeContextSummary?.headline ||
-    buildFallbackHeadline({ waveOpportunity, engine15 });
+  const headline = hasDegreeStates
+    ? "Engine 22 Wave Stack — Current Structure"
+    : hasLifecycleViews
+    ? `${formatText(
+        lifecycleViews?.longTerm?.label,
+        "Intermediate W3 active"
+      )} / ${formatText(
+        lifecycleViews?.intradayScalp?.label,
+        "Minute W4 pullback watch"
+      )}`
+    : currentLifecycleState?.headline ||
+      backendTimelineRead?.headline ||
+      tradeContextSummary?.headline ||
+      buildFallbackHeadline({ waveOpportunity, engine15 });
 
-const subheadline = hasLifecycleViews
-  ? "Long-term target map plus intraday scalp pullback map. Context only — Engine 15 and Engine 6 still control permission."
-  : currentLifecycleState?.action
-  ? formatText(currentLifecycleState.action)
-  : backendTimelineRead?.subheadline ||
-    tradeContextSummary?.subheadline ||
-    buildFallbackSubheadline({ waveOpportunity, engine15 });
+  const subheadline = hasDegreeStates
+    ? "Primary and Intermediate remain higher-timeframe continuation context; Minor / Minute / Subminute define the active correction and tactical path. Structural only — no execution permission."
+    : hasLifecycleViews
+    ? "Long-term target map plus intraday scalp pullback map. Context only — Engine 15 and Engine 6 still control permission."
+    : currentLifecycleState?.action
+    ? formatText(currentLifecycleState.action)
+    : backendTimelineRead?.subheadline ||
+      tradeContextSummary?.subheadline ||
+      buildFallbackSubheadline({ waveOpportunity, engine15 });
+
   const lifecycleOwnsDisplay =
-    isCurrentLifecycleDisplayOverride(currentLifecycleState);
+    !hasDegreeStates && isCurrentLifecycleDisplayOverride(currentLifecycleState);
 
   const permissionBadge = buildPermissionBadge(permission);
 
-  const badges = lifecycleOwnsDisplay
+  const badges = hasDegreeStates
+    ? buildEngine22DegreeBadges(degreeStates, permission)
+    : lifecycleOwnsDisplay
     ? [
         ...buildCurrentLifecycleBadges(currentLifecycleState),
         permissionBadge,
@@ -2660,25 +3057,29 @@ const subheadline = hasLifecycleViews
         ...buildBadges({ waveOpportunity, engine15, permission }),
       ].filter(Boolean);
 
-  const sections = [
-    ...lifecycleViewSections,
+  const degreeTimelineSections = buildEngine22DegreeTimelineSections(degreeStates);
 
-    hasLifecycleViews
+  const sections = [
+    ...(hasDegreeStates ? degreeTimelineSections : lifecycleViewSections),
+
+    hasDegreeStates || hasLifecycleViews
       ? null
       : buildCurrentLifecycleStateSection(currentLifecycleState, fib),
 
-    hasLifecycleViews || lifecycleOwnsDisplay
+    hasDegreeStates || hasLifecycleViews || lifecycleOwnsDisplay
       ? null
       : buildWaveOpportunitySection(waveOpportunity, fib),
 
-    buildPossibleW5UpCompleteSection(fib),
-    buildPostMinor5CorrectiveBounceSection(fib),
+    hasDegreeStates ? null : buildPossibleW5UpCompleteSection(fib),
+    hasDegreeStates ? null : buildPostMinor5CorrectiveBounceSection(fib),
     postAbcBounceSection,
     buildEngine15Section(engine15, currentLifecycleState),
     buildEngine5Section(fib),
     buildPermissionSection(permission, engine15),
 
-   lifecycleOwnsDisplay && !hasLifecycleViews
+    hasDegreeStates
+      ? null
+      : lifecycleOwnsDisplay && !hasLifecycleViews
       ? buildLifecycleNextStepsSection(currentLifecycleState, fib)
       : buildNextStepsSection({
           waveOpportunity,
@@ -2698,7 +3099,7 @@ const subheadline = hasLifecycleViews
     buildBackendTimelineSection(marketMeterSection),
     buildEngine3ContextSection(fib),
     buildEngine4ContextSection(fib),
-    buildCurrentFibExtensionsSection(waveOpportunity, fib),
+    hasDegreeStates ? null : buildCurrentFibExtensionsSection(waveOpportunity, fib),
   ]
     .filter(Boolean)
     .map((section, idx) => ({
@@ -2706,17 +3107,18 @@ const subheadline = hasLifecycleViews
       number: idx + 1,
     }));
 
-  const severity =
-    backendTimelineRead?.severity ||
-    tradeContextSummary?.severity ||
-    (permission?.executable === true
-      ? "bullish"
-      : waveOpportunity?.chaseRisk === "EXTREME" ||
-        waveOpportunity?.timing === "POST_EXTENSION"
-      ? "warning"
-      : isWatchState(engine15?.readinessLabel)
-      ? "warning"
-      : "neutral");
+  const severity = hasDegreeStates
+    ? "teal"
+    : backendTimelineRead?.severity ||
+      tradeContextSummary?.severity ||
+      (permission?.executable === true
+        ? "bullish"
+        : waveOpportunity?.chaseRisk === "EXTREME" ||
+          waveOpportunity?.timing === "POST_EXTENSION"
+        ? "warning"
+        : isWatchState(engine15?.readinessLabel)
+        ? "warning"
+        : "neutral");
 
   return {
     show: true,
