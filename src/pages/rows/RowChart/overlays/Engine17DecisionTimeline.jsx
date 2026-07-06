@@ -2989,6 +2989,30 @@ function TimelineSection({ section }) {
   );
 }
 
+const stripCellStyle = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: 10,
+  padding: "10px 12px",
+  borderRight: "1px solid rgba(148,163,184,0.14)",
+};
+
+const stripLabelStyle = {
+  ...shellTextStyle,
+  ...smallCapsStyle,
+  color: MUTED_TEXT,
+  fontSize: 13,
+  fontWeight: FONT_REGULAR,
+};
+
+const stripValueStyle = {
+  ...shellTextStyle,
+  ...smallCapsStyle,
+  fontSize: 14,
+  fontWeight: FONT_MEDIUM,
+};
+
 function MinimalStatusStrip({ timeline }) {
   const permission = timeline?.permission || null;
   const paper = permission?.paper || null;
