@@ -1280,10 +1280,7 @@ function buildEngine15Section(engine15, currentLifecycleState = null) {
         ["B High / Stop Preview", bHigh != null ? formatNumber(bHigh) : "—"],
       ],
       lines: [
-        "Engine 15ES is reading Engine 26 structural context. This is a short structural watch, not a failed long setup.",
-        "Short research only. No paper allow. No execution. No ticket.",
-        `Target path preview: ${targetPathText}`,
-        blockersText ? `Needs: ${blockersText}` : null,
+        "Watch only. No paper allow. No ticket.",
       ].filter(Boolean),
     };
   } 
