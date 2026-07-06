@@ -3134,16 +3134,83 @@ function buildEngine22SafetySection(degreeStates) {
   };
 }
 
+function getCompactCorrectionLabel(minor) {
+  const correctionModel = minor?.correctionModel || null;
+  const correctionModels = minor?.correctionModels || null;
+
+  return formatUpper(
+    correctionModels?.preferredType ||
+      correctionModel?.type ||
+      correctionModel?.correctionType ||
+      "—"
+  );
+}
+
+function getCompactCorrectionStage(minor) {
+  return formatUpper(
+    minor?.correctionModel?.stage || minor?.stage || minor?.currentRead || "—"
+  );
+}
+
+function buildEngine22CompactStructureSection(degreeStates) {
+  if (!degreeStates) return null;
+
+  const primary = degreeStates?.primary || null;
+  const intermediate = degreeStates?.intermediate || null;
+  const minor = degreeStates?.minor || null;
+  const minute = degreeStates?.minute || null;
+  const subminute = degreeStates?.subminute || null;
+
+  const primaryWave = formatUpper(primary?.activeWave || primary?.stage, "—");
+  const intermediateWave = formatUpper(
+    intermediate?.activeWave || intermediate?.stage,
+    "—"
+  );
+  const minorWave = formatUpper(minor?.activeWave || minor?.stage, "—");
+  const minuteWave = formatUpper(minute?.activeWave || minute?.stage, "—");
+  const subminuteWave = formatUpper(
+    subminute?.activeWave || subminute?.stage,
+    "—"
+  );
+
+  const correctionLabel = getCompactCorrectionLabel(minor);
+  const correctionStage = getCompactCorrectionStage(minor);
+  const localSupport = formatSupportWatch(minor?.targetModel?.localSupportWatch);
+
+  const minuteRead = minute?.currentRead || minute?.headline || minute?.action || null;
+  const subminuteRead =
+    subminute?.currentRead || subminute?.headline || subminute?.action || null;
+
+  return {
+    number: 1,
+    icon: "〽",
+    title: "Engine 22 Compact Structure",
+    severity: "teal",
+    fields: [
+      ["Structure", `Primary ${primaryWave} | Intermediate ${intermediateWave}`],
+      ["Correction", `Minor ${minorWave} | ${correctionLabel} | ${correctionStage}`],
+      ["Tactical Path", `Minute ${minuteWave} → Subminute ${subminuteWave}`],
+      ["Key Level", localSupport !== "—" ? `Support ${localSupport}` : "—"],
+      ["Role", "STRUCTURAL ONLY / NO PERMISSION"],
+    ],
+    lines: [
+      minor?.headline || minor?.currentRead
+        ? `Minor: ${formatText(minor.headline || minor.currentRead)}.`
+        : null,
+      minuteRead || subminuteRead
+        ? `Nested: ${minuteRead ? formatText(minuteRead) : "Minute watch"} → ${
+            subminuteRead ? formatText(subminuteRead) : "Subminute tactical watch"
+          }.`
+        : "Nested: Minor E leg → Minute internal ABC down → Subminute tactical timing.",
+      "No execution permission is created. Engine 15 controls readiness. Engine 6 controls final permission.",
+    ].filter(Boolean),
+  };
+}
+
 function buildEngine22DegreeTimelineSections(degreeStates) {
   if (!degreeStates) return [];
 
-  return [
-    buildHigherTimeframeTrendSection(degreeStates),
-    buildActiveCorrectionSection(degreeStates),
-    buildNestedCorrectionSection(degreeStates),
-    buildTargetLevelMapSection(degreeStates),
-    buildEngine22SafetySection(degreeStates),
-  ].filter(Boolean);
+  return [buildEngine22CompactStructureSection(degreeStates)].filter(Boolean);
 }
 
 /* =========================
@@ -3244,9 +3311,7 @@ function normalizeTimelineData({ overlayData }) {
     buildEngine5Section(fib),
     buildPermissionSection(permission, engine15),
 
-    hasDegreeStates
-      ? null
-      : lifecycleOwnsDisplay && !hasLifecycleViews
+    lifecycleOwnsDisplay && !hasLifecycleViews
       ? buildLifecycleNextStepsSection(currentLifecycleState, fib)
       : buildNextStepsSection({
           waveOpportunity,
