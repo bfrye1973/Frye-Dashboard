@@ -1498,6 +1498,19 @@ function buildPermissionSection(permission, engine15) {
     paperDecision === "PAPER_SHORT_RESEARCH_WATCH" ||
     paper?.shortResearchWatch === true;
 
+  const isPaperResearchLane = isStructuralFastWatch || isShortResearchWatch;
+
+  const paperStrategy =
+    paper?.setupType ||
+    engine15?.paperScalpReadiness?.setupType ||
+    engine15?.strategyType ||
+    "NONE";
+
+  const realStrategy =
+    permission.strategyType ||
+    engine15?.strategyType ||
+    "NONE";
+
   let permissionLine = "Engine 6 does not allow execution yet.";
 
   if (isShortResearchWatch) {
@@ -1533,26 +1546,21 @@ function buildPermissionSection(permission, engine15) {
     title: "Final Permission — Engine 6",
     severity,
     fields: [
+      ["Paper State", paperDecision ? formatUpper(paperDecision) : "—"],
+      ["Paper Direction", paperDirection ? formatUpper(paperDirection) : "—"],
+      [
+        "Paper Strategy",
+        isPaperResearchLane ? formatUpper(paperStrategy, "NONE") : "—",
+      ],
+      ["Paper Allowed", formatBool(paper?.allowed)],
+      ["Ticket Allowed", formatBool(paper?.paperShortAllowed)],
+      ["Short Research", formatBool(paper?.shortResearchOnly)],
+
       ["Real Permission", formatUpper(permission.permission, "UNKNOWN")],
+      ["Real Strategy", formatUpper(realStrategy, "NONE")],
       ["Executable", formatBool(permission.executable)],
       ["Watch Only", formatBool(permission.watchOnly)],
 
-      [
-        "Paper State",
-        paperDecision ? formatUpper(paperDecision) : "—",
-      ],
-      [
-        "Paper Direction",
-        paperDirection ? formatUpper(paperDirection) : "—",
-      ],
-      ["Paper Allowed", formatBool(paper?.allowed)],
-      ["Short Research", formatBool(paper?.shortResearchOnly)],
-      ["Ticket Allowed", formatBool(paper?.paperShortAllowed)],
-
-      [
-        "Strategy Type",
-        formatUpper(permission.strategyType || engine15?.strategyType, "NONE"),
-      ],
       [
         "Authority",
         permission.engine15Authority === true
@@ -1585,7 +1593,6 @@ function buildPermissionSection(permission, engine15) {
     ].filter(Boolean),
   };
 }
-function buildNextStepsSection({
   waveOpportunity,
   engine15,
   permission,
