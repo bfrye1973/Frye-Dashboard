@@ -1593,6 +1593,7 @@ function buildPermissionSection(permission, engine15) {
     ].filter(Boolean),
   };
 }
+function buildNextStepsSection({
   waveOpportunity,
   engine15,
   permission,
