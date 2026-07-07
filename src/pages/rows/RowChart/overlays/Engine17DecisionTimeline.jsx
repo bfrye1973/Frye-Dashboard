@@ -1570,27 +1570,7 @@ function buildPermissionSection(permission, engine15) {
           : "—",
       ],
     ],
-    lines: [
-      permissionLine,
-      isStructuralFastWatch
-        ? "Engine 6 is no longer treating this as plain stand-down. This is an active structural warning from Engine 26."
-        : null,
-      isShortResearchWatch
-        ? "Short PAPER_ALLOW remains disabled until Engine 15 short readiness, stop, and target path support exist."
-        : null,
-      asArray(paper?.reasonCodes).length
-        ? `Paper reasons: ${asArray(paper.reasonCodes)
-            .slice(0, 10)
-            .map(formatText)
-            .join(", ")}`
-        : null,
-      asArray(permission.reasonCodes).length
-        ? `Real reasons: ${asArray(permission.reasonCodes)
-            .slice(0, 8)
-            .map(formatText)
-            .join(", ")}`
-        : null,
-    ].filter(Boolean),
+    lines: []  
   };
 }
 function buildNextStepsSection({
