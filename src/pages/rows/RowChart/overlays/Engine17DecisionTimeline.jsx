@@ -108,43 +108,11 @@ function severityBackground(severity) {
 ========================= */
 
 function getFib(overlayData) {
-  const fib = overlayData?.fib || overlayData || {};
-
-  if (!overlayData?.fib) return fib;
-
-  return {
-    ...fib,
-
-    // Preserve strategy objects that may live beside overlayData.fib.
-    strategies: fib?.strategies || overlayData?.strategies,
-    strategy: fib?.strategy || overlayData?.strategy,
-    activeStrategy: fib?.activeStrategy || overlayData?.activeStrategy,
-    strategyRoot: fib?.strategyRoot || overlayData?.strategyRoot,
-
-    // Preserve direct Engine 26 fallbacks if the route publishes them beside fib.
-    engine26StructuralContext:
-      fib?.engine26StructuralContext || overlayData?.engine26StructuralContext,
-    engine26TradePlanPreview:
-      fib?.engine26TradePlanPreview || overlayData?.engine26TradePlanPreview,
-    engine26PaperTradePlan:
-      fib?.engine26PaperTradePlan || overlayData?.engine26PaperTradePlan,
-    engine26PaperTradeTicket:
-      fib?.engine26PaperTradeTicket || overlayData?.engine26PaperTradeTicket,
-  };
+  return overlayData?.fib || overlayData || {};
 }
 
 function getStrategyRoot(fib) {
   return fib?.strategy || fib || {};
-}
-
-function getIntradayScalpStrategy(fib) {
-  return (
-    fib?.strategies?.["intraday_scalp@10m"] ||
-    fib?.strategy?.strategies?.["intraday_scalp@10m"] ||
-    fib?.activeStrategy ||
-    fib?.strategyRoot ||
-    null
-  );
 }
 
 function getEngine22WaveStrategy(fib) {
@@ -248,10 +216,8 @@ function getFinalPermission(fib) {
 
 function getEngine26StructuralContext(fib) {
   const root = getStrategyRoot(fib);
-  const intradayScalp = getIntradayScalpStrategy(fib);
 
   return (
-    intradayScalp?.engine26StructuralContext ||
     root?.engine26StructuralContext ||
     fib?.engine26StructuralContext ||
     root?.engine26?.structuralContext ||
@@ -261,12 +227,10 @@ function getEngine26StructuralContext(fib) {
 
 function getEngine26LocationContext(fib) {
   const root = getStrategyRoot(fib);
-  const intradayScalp = getIntradayScalpStrategy(fib);
   const structural = getEngine26StructuralContext(fib);
 
   return (
     structural?.locationContext ||
-    intradayScalp?.engine26TradePlanPreview?.locationContext ||
     root?.engine26TradePlanPreview?.locationContext ||
     fib?.engine26TradePlanPreview?.locationContext ||
     null
@@ -275,17 +239,16 @@ function getEngine26LocationContext(fib) {
 
 function getEngine26ControlLevelContext(fib) {
   const root = getStrategyRoot(fib);
-  const intradayScalp = getIntradayScalpStrategy(fib);
   const structural = getEngine26StructuralContext(fib);
 
   return (
     structural?.controlLevelContext ||
-    intradayScalp?.engine26TradePlanPreview?.controlLevelContext ||
     root?.engine26TradePlanPreview?.controlLevelContext ||
     fib?.engine26TradePlanPreview?.controlLevelContext ||
     null
   );
 }
+
 function getConfluence(fib) {
   const root = getStrategyRoot(fib);
 
@@ -3436,20 +3399,13 @@ function normalizeTimelineData({ overlayData }) {
       : null; 
 
   const subheadline = hasDegreeStates
-    ? [
-        "Primary and Intermediate remain higher-timeframe continuation context; Minor / Minute / Subminute define the active correction and tactical path. Structural only — no execution permission.",
-        controlSubheadline,
-        locationSubheadline,
-      ]
-        .filter(Boolean)
-        .join(" ")
-    : hasLifecycleViews
-    ? "Higher-timeframe lifecycle and intraday scalp lifecycle are shown separately. Structural only — no execution permission."
-    : currentLifecycleState?.summary ||
-      backendTimelineRead?.subheadline ||
-      tradeContextSummary?.summary ||
-      buildFallbackSubheadline({ waveOpportunity, engine15 });
-
+  ? [
+      "Primary and Intermediate remain higher-timeframe continuation context; Minor / Minute / Subminute define the active correction and tactical path. Structural only — no execution permission.",
+      controlSubheadline,
+      locationSubheadline,
+    ]
+      .filter(Boolean)
+      .join(" ")
   const lifecycleOwnsDisplay =
     !hasDegreeStates && isCurrentLifecycleDisplayOverride(currentLifecycleState);
 
