@@ -108,7 +108,29 @@ function severityBackground(severity) {
 ========================= */
 
 function getFib(overlayData) {
-  return overlayData?.fib || overlayData || {};
+  const fib = overlayData?.fib || overlayData || {};
+
+  if (!overlayData?.fib) return fib;
+
+  return {
+    ...fib,
+
+    // Preserve strategy objects that may live beside overlayData.fib.
+    strategies: fib?.strategies || overlayData?.strategies,
+    strategy: fib?.strategy || overlayData?.strategy,
+    activeStrategy: fib?.activeStrategy || overlayData?.activeStrategy,
+    strategyRoot: fib?.strategyRoot || overlayData?.strategyRoot,
+
+    // Preserve direct Engine 26 fallbacks if the route publishes them beside fib.
+    engine26StructuralContext:
+      fib?.engine26StructuralContext || overlayData?.engine26StructuralContext,
+    engine26TradePlanPreview:
+      fib?.engine26TradePlanPreview || overlayData?.engine26TradePlanPreview,
+    engine26PaperTradePlan:
+      fib?.engine26PaperTradePlan || overlayData?.engine26PaperTradePlan,
+    engine26PaperTradeTicket:
+      fib?.engine26PaperTradeTicket || overlayData?.engine26PaperTradeTicket,
+  };
 }
 
 function getStrategyRoot(fib) {
