@@ -3406,8 +3406,15 @@ function normalizeTimelineData({ overlayData }) {
     ]
       .filter(Boolean)
       .join(" ")
-  const lifecycleOwnsDisplay =
-    !hasDegreeStates && isCurrentLifecycleDisplayOverride(currentLifecycleState);
+  : hasLifecycleViews
+  ? "Higher-timeframe lifecycle and intraday scalp lifecycle are shown separately. Structural only — no execution permission."
+  : currentLifecycleState?.summary ||
+    backendTimelineRead?.subheadline ||
+    tradeContextSummary?.summary ||
+    buildFallbackSubheadline({ waveOpportunity, engine15 });
+
+const lifecycleOwnsDisplay =
+  !hasDegreeStates && isCurrentLifecycleDisplayOverride(currentLifecycleState);
 
   const permissionBadge = buildPermissionBadge(permission);
 
