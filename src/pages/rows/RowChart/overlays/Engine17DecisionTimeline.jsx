@@ -112,7 +112,14 @@ function getFib(overlayData) {
 }
 
 function getStrategyRoot(fib) {
-  return fib?.strategy || fib || {};
+  return (
+    fib?.strategies?.["intraday_scalp@10m"] ||
+    fib?.strategy ||
+    fib?.activeStrategy ||
+    fib?.strategyRoot ||
+    fib ||
+    {}
+  );
 }
 
 function getEngine22WaveStrategy(fib) {
@@ -3399,13 +3406,20 @@ function normalizeTimelineData({ overlayData }) {
       : null; 
 
   const subheadline = hasDegreeStates
-  ? [
-      "Primary and Intermediate remain higher-timeframe continuation context; Minor / Minute / Subminute define the active correction and tactical path. Structural only — no execution permission.",
-      controlSubheadline,
-      locationSubheadline,
-    ]
-      .filter(Boolean)
-      .join(" ")
+    ? [
+        "Primary and Intermediate remain higher-timeframe continuation context; Minor / Minute / Subminute define the active correction and tactical path. Structural only — no execution permission.",
+        controlSubheadline,
+        locationSubheadline,
+      ]
+        .filter(Boolean)
+        .join(" ")
+    : hasLifecycleViews
+    ? "Higher-timeframe lifecycle and intraday scalp lifecycle are shown separately. Structural only — no execution permission."
+    : currentLifecycleState?.summary ||
+      backendTimelineRead?.subheadline ||
+      tradeContextSummary?.summary ||
+      buildFallbackSubheadline({ waveOpportunity, engine15 });
+
   const lifecycleOwnsDisplay =
     !hasDegreeStates && isCurrentLifecycleDisplayOverride(currentLifecycleState);
 
