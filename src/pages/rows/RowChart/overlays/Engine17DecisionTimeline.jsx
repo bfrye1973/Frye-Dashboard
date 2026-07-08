@@ -3385,16 +3385,27 @@ function normalizeTimelineData({ overlayData }) {
       tradeContextSummary?.headline ||
       buildFallbackHeadline({ waveOpportunity, engine15 });
 
-  const subheadline = hasDegreeStates
-    ? "Primary and Intermediate remain higher-timeframe continuation context; Minor / Minute / Subminute define the active correction and tactical path. Structural only — no execution permission."
-    : hasLifecycleViews
-    ? "Long-term target map plus intraday scalp pullback map. Context only — Engine 15 and Engine 6 still control permission."
-    : currentLifecycleState?.action
-    ? formatText(currentLifecycleState.action)
-    : backendTimelineRead?.subheadline ||
-      tradeContextSummary?.subheadline ||
-      buildFallbackSubheadline({ waveOpportunity, engine15 });
+  const engine26Control = getEngine26ControlLevelContext(fib);
+  const engine26Location = getEngine26LocationContext(fib);
 
+  const controlSubheadline =
+    engine26Control?.currentInstruction
+      ? `Control Map: ${formatText(engine26Control.currentInstruction)}. 7500 = bear control / 7560 = bull recovery.`
+      : null;
+
+  const locationSubheadline =
+    engine26Location?.locationRead
+      ? `Location: ${formatText(engine26Location.locationRead)}.`
+      : null; 
+
+  const subheadline = hasDegreeStates
+  ? [
+      "Primary and Intermediate remain higher-timeframe continuation context; Minor / Minute / Subminute define the active correction and tactical path. Structural only — no execution permission.",
+      controlSubheadline,
+      locationSubheadline,
+    ]
+      .filter(Boolean)
+      .join(" ")
   const lifecycleOwnsDisplay =
     !hasDegreeStates && isCurrentLifecycleDisplayOverride(currentLifecycleState);
 
