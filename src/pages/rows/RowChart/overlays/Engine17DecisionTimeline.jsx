@@ -112,13 +112,16 @@ function getFib(overlayData) {
 }
 
 function getStrategyRoot(fib) {
+  return fib?.strategy || fib || {};
+}
+
+function getIntradayScalpStrategy(fib) {
   return (
     fib?.strategies?.["intraday_scalp@10m"] ||
-    fib?.strategy ||
+    fib?.strategy?.strategies?.["intraday_scalp@10m"] ||
     fib?.activeStrategy ||
     fib?.strategyRoot ||
-    fib ||
-    {}
+    null
   );
 }
 
@@ -223,8 +226,10 @@ function getFinalPermission(fib) {
 
 function getEngine26StructuralContext(fib) {
   const root = getStrategyRoot(fib);
+  const intradayScalp = getIntradayScalpStrategy(fib);
 
   return (
+    intradayScalp?.engine26StructuralContext ||
     root?.engine26StructuralContext ||
     fib?.engine26StructuralContext ||
     root?.engine26?.structuralContext ||
@@ -234,10 +239,12 @@ function getEngine26StructuralContext(fib) {
 
 function getEngine26LocationContext(fib) {
   const root = getStrategyRoot(fib);
+  const intradayScalp = getIntradayScalpStrategy(fib);
   const structural = getEngine26StructuralContext(fib);
 
   return (
     structural?.locationContext ||
+    intradayScalp?.engine26TradePlanPreview?.locationContext ||
     root?.engine26TradePlanPreview?.locationContext ||
     fib?.engine26TradePlanPreview?.locationContext ||
     null
@@ -246,16 +253,17 @@ function getEngine26LocationContext(fib) {
 
 function getEngine26ControlLevelContext(fib) {
   const root = getStrategyRoot(fib);
+  const intradayScalp = getIntradayScalpStrategy(fib);
   const structural = getEngine26StructuralContext(fib);
 
   return (
     structural?.controlLevelContext ||
+    intradayScalp?.engine26TradePlanPreview?.controlLevelContext ||
     root?.engine26TradePlanPreview?.controlLevelContext ||
     fib?.engine26TradePlanPreview?.controlLevelContext ||
     null
   );
 }
-
 function getConfluence(fib) {
   const root = getStrategyRoot(fib);
 
