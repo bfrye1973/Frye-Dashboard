@@ -214,6 +214,41 @@ function getFinalPermission(fib) {
   return root?.permission || fib?.permission || root?.finalPermission || null;
 }
 
+function getEngine26StructuralContext(fib) {
+  const root = getStrategyRoot(fib);
+
+  return (
+    root?.engine26StructuralContext ||
+    fib?.engine26StructuralContext ||
+    root?.engine26?.structuralContext ||
+    null
+  );
+}
+
+function getEngine26LocationContext(fib) {
+  const root = getStrategyRoot(fib);
+  const structural = getEngine26StructuralContext(fib);
+
+  return (
+    structural?.locationContext ||
+    root?.engine26TradePlanPreview?.locationContext ||
+    fib?.engine26TradePlanPreview?.locationContext ||
+    null
+  );
+}
+
+function getEngine26ControlLevelContext(fib) {
+  const root = getStrategyRoot(fib);
+  const structural = getEngine26StructuralContext(fib);
+
+  return (
+    structural?.controlLevelContext ||
+    root?.engine26TradePlanPreview?.controlLevelContext ||
+    fib?.engine26TradePlanPreview?.controlLevelContext ||
+    null
+  );
+}
+
 function getConfluence(fib) {
   const root = getStrategyRoot(fib);
 
@@ -805,6 +840,15 @@ function formatFibTargetsList(values = []) {
   return nums.length ? nums.map((value) => formatNumber(value)).join(" → ") : "—";
 }
 
+function formatTargetPath(values = [], fallback = "—") {
+  const nums = Array.isArray(values)
+    ? values.filter((value) => Number.isFinite(Number(value)))
+    : [];
+
+  return nums.length
+    ? nums.map((value) => formatNumber(value)).join(" → ")
+    : fallback;
+}
 function formatZoneRange(zone) {
   if (!zone || typeof zone !== "object") return "—";
 
@@ -1977,6 +2021,8 @@ function buildEngine3ContextSection(fib) {
   const lifecycleReaction = getEngine22LifecycleReaction(fib);
   const pullbackReaction = getEngine22PullbackReaction(fib);
   const reaction = getEngine5Reaction(fib);
+  const control = getEngine26ControlLevelContext(fib);
+  const location = getEngine26LocationContext(fib);
 
   /*
    * Priority:
@@ -2060,9 +2106,15 @@ function buildEngine3ContextSection(fib) {
       ],
       lines: [
         "Short-term scalp read is primary right now.", 
+        control?.currentInstruction
+          ? `Control map: ${formatText(control.currentInstruction)}.`
+          : null,
+        location?.locationRead
+          ? `Location: ${formatText(location.locationRead)}.`
+          : null,
         imbalance.raw
           ? `Active manual imbalance: ${imbalance.raw}`
-          : "Active manual imbalance detected.",
+          : "Active manual imbalance detected.",        
         conflict
           ? `Conflict: fast imbalance says ${formatUpper(
               fastDirection
@@ -2393,6 +2445,8 @@ function buildEngine4ContextSection(fib) {
   const currentScalpParticipation = getEngine4CurrentScalpParticipation(fib);
   const lifecycleParticipation = getEngine22LifecycleParticipation(fib);
   const volume = getEngine5Volume(fib);
+  const control = getEngine26ControlLevelContext(fib);
+  const location = getEngine26LocationContext(fib);
 
   if (fastParticipation?.active === true) {
     const allowed = fastParticipation.allowed === true;
@@ -2444,6 +2498,14 @@ function buildEngine4ContextSection(fib) {
       ],
       lines: [
         "Fast imbalance volume read.",
+        control?.currentInstruction
+          ? `Control map: ${formatText(control.currentInstruction)}.`
+          : null,
+        location?.handoff?.engine4ShouldTreatInsideShortZoneAs
+          ? `Engine 26 handoff: ${formatText(
+              location.handoff.engine4ShouldTreatInsideShortZoneAs
+            )}.`
+          : null,
         fastParticipation.usedFastReactionCandles === true
           ? "Using Engine 3 fast candles."
           : "Using fallback volume context.",
@@ -2516,6 +2578,14 @@ function buildEngine4ContextSection(fib) {
       ],
       lines: [
         "Current Engine 4 scalp volume read.",
+        control?.currentInstruction
+          ? `Control map: ${formatText(control.currentInstruction)}.`
+          : null,
+        location?.handoff?.engine4ShouldTreatInsideShortZoneAs
+          ? `Engine 26 handoff: ${formatText(
+              location.handoff.engine4ShouldTreatInsideShortZoneAs
+            )}.`
+          : null,
         currentScalpParticipation.fastImbalanceActive === true
           ? "Using fast imbalance volume."
           : "Using paper scalp / level-action volume.",
@@ -3140,6 +3210,69 @@ function getCompactCorrectionStage(minor) {
   );
 }
 
+function buildEngine26ControlMapSection(fib) {
+  const control = getEngine26ControlLevelContext(fib);
+  const location = getEngine26LocationContext(fib);
+
+  if (!control && !location) return null;
+
+  const bearTargets = control?.bearishPath?.nextTargets || [];
+  const bullTargets = control?.bullishPath?.nextTargets || [];
+
+  const currentControlState = control?.currentControlState || null;
+  const currentInstruction = control?.currentInstruction || null;
+
+  const severity =
+    control?.bearControlRejecting === true
+      ? "danger"
+      : control?.bullRecoveryHolding === true
+      ? "bullish"
+      : control?.betweenLevels === true
+      ? "warning"
+      : "teal";
+
+  return {
+    number: 2,
+    icon: "⑳",
+    title: "Control Map — Engine 26",
+    severity,
+    fields: [
+      ["Current", formatNumber(control?.currentPrice ?? location?.currentPrice)],
+      ["Control State", formatUpper(currentControlState, "—")],
+      ["Instruction", formatUpper(currentInstruction, "—")],
+      ["Bear Level", formatNumber(control?.bearControlLevel)],
+      ["Bull Level", formatNumber(control?.bullRecoveryLevel)],
+      ["Location", formatUpper(location?.locationRead, "—")],
+      ["Short Trigger", formatNumber(location?.shortTriggerLevel)],
+      ["Invalidation", formatNumber(location?.invalidationLevel)],
+      ["Bear Targets", formatTargetPath(bearTargets)],
+      ["Bull Targets", formatTargetPath(bullTargets)],
+    ],
+    lines: [
+      location?.tacticalMeaning || null,
+      control?.betweenLevels === true
+        ? "Between 7500 and 7560 is the decision zone. No clean permission here."
+        : null,
+      control?.bearControlRejecting === true
+        ? "7500 is rejecting — bear control is active. Watch lower targets."
+        : null,
+      control?.bullRecoveryHolding === true
+        ? "7560 is holding — short watch is weakening and recovery path is active."
+        : null,
+      `Bear path: ${formatText(
+        control?.bearishPath?.trigger,
+        "Failed reclaim / lost 7500"
+      )}. Targets: ${formatTargetPath(bearTargets)}.`,
+      `Bull path: ${formatText(
+        control?.bullishPath?.trigger,
+        "Reclaim and hold 7560"
+      )}. Targets: ${formatTargetPath(bullTargets)}.`,
+      "Engine 3 must confirm level reaction. Engine 4 must confirm participation. Engine 6 remains final.",
+      "No permission. No ticket. No execution.",
+    ].filter(Boolean),
+  };
+}
+
 function buildEngine22CompactStructureSection(degreeStates) {
   if (!degreeStates) return null;
 
@@ -3280,9 +3413,12 @@ function normalizeTimelineData({ overlayData }) {
       ].filter(Boolean);
 
   const degreeTimelineSections = buildEngine22DegreeTimelineSections(degreeStates);
+  const engine26ControlMapSection = buildEngine26ControlMapSection(fib);
 
   const sections = [
     ...(hasDegreeStates ? degreeTimelineSections : lifecycleViewSections),
+
+    engine26ControlMapSection,
 
     hasDegreeStates || hasLifecycleViews
       ? null
