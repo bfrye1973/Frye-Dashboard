@@ -646,6 +646,14 @@ function mapSnapshotToEngine17Overlay(snapshot, strategyId, chartMode = "SPY_SCA
      engine16: node?.engine16 || null,
      engine25Context: node?.engine25Context || null,
      engine26ImbalanceWatch: node?.engine26ImbalanceWatch || null,
+     engine26StructuralContext:
+       node?.engine26StructuralContext ||
+       node?.engine26ImbalanceWatch?.structuralPlaybook ||
+       null,
+     engine26TradePlanPreview:
+       node?.engine26TradePlanPreview ||
+       node?.engine26ImbalanceWatch?.tradePlanPreview ||
+       null,
      engine26PaperTradePlan: node?.engine26PaperTradePlan || null,
      engine26PaperTradeTicket: node?.engine26PaperTradeTicket || null,
      analytics: node?.analytics || null,
