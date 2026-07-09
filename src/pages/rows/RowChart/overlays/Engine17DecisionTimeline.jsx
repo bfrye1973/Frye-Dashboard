@@ -3211,16 +3211,79 @@ function getCompactCorrectionStage(minor) {
 }
 
 function buildEngine26ControlMapSection(fib) {
+  const structural = getEngine26StructuralContext(fib);
   const control = getEngine26ControlLevelContext(fib);
   const location = getEngine26LocationContext(fib);
 
-  if (!control && !location) return null;
+  if (!structural && !control && !location) return null;
 
-  const bearTargets = control?.bearishPath?.nextTargets || [];
-  const bullTargets = control?.bullishPath?.nextTargets || [];
+  const hasFullControlMap = !!control || !!location;
 
-  const currentControlState = control?.currentControlState || null;
-  const currentInstruction = control?.currentInstruction || null;
+  const bearTargets =
+    control?.bearishPath?.nextTargets ||
+    structural?.targetPathPreview ||
+    structural?.levels?.bearTargets ||
+    [];
+
+  const bullTargets =
+    control?.bullishPath?.nextTargets ||
+    structural?.levels?.bullTargets ||
+    [];
+
+  const currentControlState =
+    control?.currentControlState ||
+    structural?.controlState ||
+    structural?.status ||
+    null;
+
+  const currentInstruction =
+    control?.currentInstruction ||
+    structural?.preferredAction ||
+    structural?.action ||
+    null;
+
+  const currentPrice =
+    control?.currentPrice ??
+    location?.currentPrice ??
+    structural?.currentPrice ??
+    null;
+
+  const bearLevel =
+    control?.bearControlLevel ??
+    structural?.levels?.bearControlLevel ??
+    structural?.levels?.bearControl ??
+    structural?.levels?.shortTriggerLevel ??
+    null;
+
+  const bullLevel =
+    control?.bullRecoveryLevel ??
+    structural?.levels?.bullRecoveryLevel ??
+    structural?.levels?.bullRecovery ??
+    structural?.levels?.invalidationLevel ??
+    null;
+
+  const shortTrigger =
+    location?.shortTriggerLevel ??
+    structural?.levels?.shortTriggerLevel ??
+    structural?.shortTriggerLevel ??
+    null;
+
+  const invalidation =
+    location?.invalidationLevel ??
+    structural?.invalidation?.level ??
+    structural?.invalidationLevel ??
+    structural?.levels?.invalidationLevel ??
+    null;
+
+  const locationRead =
+    location?.locationRead ||
+    structural?.locationRead ||
+    structural?.activeImbalanceRole ||
+    null;
+
+  const title = hasFullControlMap
+    ? "Control Map — Engine 26"
+    : "Structural Map — Engine 26";
 
   const severity =
     control?.bearControlRejecting === true
@@ -3229,50 +3292,75 @@ function buildEngine26ControlMapSection(fib) {
       ? "bullish"
       : control?.betweenLevels === true
       ? "warning"
+      : String(structural?.preferredDirection || "").toUpperCase().includes("SHORT")
+      ? "danger"
       : "teal";
 
   return {
     number: 2,
     icon: "⑳",
-    title: "Control Map — Engine 26",
+    title,
     severity,
-    fields: [
-      ["Current", formatNumber(control?.currentPrice ?? location?.currentPrice)],
-      ["Control State", formatUpper(currentControlState, "—")],
-      ["Instruction", formatUpper(currentInstruction, "—")],
-      ["Bear Level", formatNumber(control?.bearControlLevel)],
-      ["Bull Level", formatNumber(control?.bullRecoveryLevel)],
-      ["Location", formatUpper(location?.locationRead, "—")],
-      ["Short Trigger", formatNumber(location?.shortTriggerLevel)],
-      ["Invalidation", formatNumber(location?.invalidationLevel)],
-      ["Bear Targets", formatTargetPath(bearTargets)],
-      ["Bull Targets", formatTargetPath(bullTargets)],
-    ],
-    lines: [
-      location?.tacticalMeaning || null,
-      control?.betweenLevels === true
-        ? "Between 7500 and 7560 is the decision zone. No clean permission here."
-        : null,
-      control?.bearControlRejecting === true
-        ? "7500 is rejecting — bear control is active. Watch lower targets."
-        : null,
-      control?.bullRecoveryHolding === true
-        ? "7560 is holding — short watch is weakening and recovery path is active."
-        : null,
-      `Bear path: ${formatText(
-        control?.bearishPath?.trigger,
-        "Failed reclaim / lost 7500"
-      )}. Targets: ${formatTargetPath(bearTargets)}.`,
-      `Bull path: ${formatText(
-        control?.bullishPath?.trigger,
-        "Reclaim and hold 7560"
-      )}. Targets: ${formatTargetPath(bullTargets)}.`,
-      "Engine 3 must confirm level reaction. Engine 4 must confirm participation. Engine 6 remains final.",
-      "No permission. No ticket. No execution.",
-    ].filter(Boolean),
+    fields: hasFullControlMap
+      ? [
+          ["Current", formatNumber(currentPrice)],
+          ["Control State", formatUpper(currentControlState, "—")],
+          ["Instruction", formatUpper(currentInstruction, "—")],
+          ["Bear Level", formatNumber(bearLevel)],
+          ["Bull Level", formatNumber(bullLevel)],
+          ["Location", formatUpper(locationRead, "—")],
+          ["Short Trigger", formatNumber(shortTrigger)],
+          ["Invalidation", formatNumber(invalidation)],
+          ["Bear Targets", formatTargetPath(bearTargets)],
+          ["Bull Targets", formatTargetPath(bullTargets)],
+        ]
+      : [
+          ["Status", formatUpper(structural?.status, "—")],
+          ["Template", formatUpper(structural?.template, "—")],
+          ["Role", formatUpper(structural?.activeImbalanceRole, "—")],
+          ["Bias", formatUpper(structural?.structuralBias, "—")],
+          ["Direction", formatUpper(structural?.preferredDirection, "—")],
+          ["Action", formatUpper(structural?.preferredAction, "—")],
+          ["Short Research", formatBool(structural?.shortResearchOnly)],
+          ["Do Not Chase Long", formatBool(structural?.doNotChaseLong)],
+          ["Target Path", formatTargetPath(structural?.targetPathPreview)],
+          ["Invalidation", formatNumber(invalidation)],
+        ],
+    lines: hasFullControlMap
+      ? [
+          location?.tacticalMeaning || null,
+          control?.betweenLevels === true
+            ? "Between 7500 and 7560 is the decision zone. No clean permission here."
+            : null,
+          control?.bearControlRejecting === true
+            ? "7500 is rejecting — bear control is active. Watch lower targets."
+            : null,
+          control?.bullRecoveryHolding === true
+            ? "7560 is holding — short watch is weakening and recovery path is active."
+            : null,
+          `Bear path: ${formatText(
+            control?.bearishPath?.trigger,
+            "Failed reclaim / lost bear control"
+          )}. Targets: ${formatTargetPath(bearTargets)}.`,
+          `Bull path: ${formatText(
+            control?.bullishPath?.trigger,
+            "Reclaim and hold bull recovery"
+          )}. Targets: ${formatTargetPath(bullTargets)}.`,
+          "Engine 3 must confirm level reaction. Engine 4 must confirm participation. Engine 6 remains final.",
+          "No permission. No ticket. No execution.",
+        ].filter(Boolean)
+      : [
+          "Full location/control map fields are not present yet, so this card is showing the canonical Engine 26 structural map.",
+          structural?.confirmationNeeds
+            ? `Confirmation needs: ${asArray(structural.confirmationNeeds)
+                .map(formatText)
+                .join(", ")}`
+            : null,
+          "Engine 26 gives the map only. Engine 15 checks readiness. Engine 6 remains final.",
+          "No permission. No ticket. No execution.",
+        ].filter(Boolean),
   };
 }
-
 function buildEngine22CompactStructureSection(degreeStates) {
   if (!degreeStates) return null;
 
