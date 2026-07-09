@@ -52,6 +52,7 @@ import Engine23BehaviorCard from "./overlays/Engine23BehaviorCard";
 import Engine26ImbalanceWatchCard from "./overlays/Engine26ImbalanceWatchCard";
 import Engine25CompositeOverlay from "./overlays/Engine25CompositeOverlay";
 import Engine25MarketHealthTimeline from "./overlays/Engine25MarketHealthTimeline";
+import Engine26TradeGeometryTool from "./panels/Engine26TradeGeometryTool";
 
 /* ------------------------------ Config ------------------------------ */
 
@@ -883,6 +884,7 @@ export default function RowChart({
 
   const selectedMode = modeNameFromChartMode(chartMode);
   const selectedStrategyId = strategyIdFromChartMode(chartMode);
+  const latestPrice = bars?.length ? bars[bars.length - 1]?.close : null;
 
   const [state, setState] = useState({
     symbol: normalizedDefaultSymbol,
@@ -2224,6 +2226,13 @@ export default function RowChart({
           }
           symbol={state.symbol}
          />
+
+          <Engine26TradeGeometryTool
+            visible={normalizeSymbol(state.symbol) === "ES"}
+            symbol={state.symbol}
+            strategyId={selectedStrategyId}
+            latestPrice={latestPrice}
+          />
 
            <Engine17DecisionTimeline
              overlayData={engine17Data}
