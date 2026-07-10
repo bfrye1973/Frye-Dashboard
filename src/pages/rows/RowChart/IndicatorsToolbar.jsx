@@ -299,6 +299,8 @@ export default function IndicatorsToolbar({
 
   engine23BehaviorCard = true,
 
+  engine26TradeGeometryTool = false,
+
   engine25CompositeOverlay = true,
   engine25Timeline = false,
   
@@ -522,13 +524,32 @@ export default function IndicatorsToolbar({
                   />{" "}
                   Debug Panel (Raw vs Composed)
                 </label>
-                </div>
+              </div>
 
-                {divider}
+              {divider}
 
-                <div style={{ color: "#9ca3af", fontSize: 12, margin: "6px 0 8px" }}>
-                  Engine 25 — Market Health
-                </div>
+              <div style={{ color: "#9ca3af", fontSize: 12, margin: "6px 0 8px" }}>
+                Engine 26 — Trade Geometry
+              </div>
+
+              <div style={{ display: "grid", gap: 6 }}>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={!!engine26TradeGeometryTool}
+                    onChange={(e) =>
+                      onChange?.({ engine26TradeGeometryTool: e.target.checked })
+                    }
+                  />{" "}
+                  Trade Geometry Tool
+                </label>
+              </div>
+
+              {divider}
+
+              <div style={{ color: "#9ca3af", fontSize: 12, margin: "6px 0 8px" }}>
+                Engine 25 — Market Health
+              </div>
 
                 <div style={{ display: "grid", gap: 6 }}>
                   <label>
