@@ -2232,8 +2232,9 @@ export default function RowChart({
             symbol={state.symbol}
             strategyId={selectedStrategyId}
             latestPrice={latestPrice}
+            chart={chartRef.current}
+            priceSeries={seriesRef.current}
           />
-
            <Engine17DecisionTimeline
              overlayData={engine17Data}
              visible={state.engine17Timeline && state.engine17Overlay}
