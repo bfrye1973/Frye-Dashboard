@@ -477,7 +477,7 @@ export default function Engine26TradeGeometryTool({
         style={{
           position: "absolute",
           top: 56,
-          right: 12,
+          right: 210,
           zIndex: 160,
           width: open ? 270 : 170,
           pointerEvents: "auto",
