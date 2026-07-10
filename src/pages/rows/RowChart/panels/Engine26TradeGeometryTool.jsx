@@ -6,6 +6,10 @@ const API_BASE =
   process.env.REACT_APP_API_URL ||
   "https://frye-market-backend-1.onrender.com";
 
+const PANEL_RIGHT_OFFSET = 300;
+const PANEL_TOP_OFFSET = 56;
+const ES_SAFE_MIN_PRICE = 1000;
+
 function toNumber(value) {
   const n = Number(value);
   return Number.isFinite(n) ? n : null;
@@ -41,7 +45,8 @@ function calcPreview({ direction, entryPrice, stopPrice, p1, p2, runner }) {
 
   if (entry === null) return { valid: false, reason: "Entry required" };
   if (stop === null) return { valid: false, reason: "Stop required" };
-  if (targets.some((x) => x === null)) {
+
+  if (targets.some((target) => target === null)) {
     return { valid: false, reason: "P1, P2, and Runner required" };
   }
 
@@ -127,7 +132,7 @@ function PriceInput({ label, value, onChange }) {
       <span style={labelStyle}>{label}</span>
       <input
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={(event) => onChange(event.target.value)}
         inputMode="decimal"
         style={fieldStyle}
       />
@@ -261,11 +266,45 @@ function GeometryChartPreview({
         }}
       />
 
-      <div style={{ ...lineStyle, top: coords.entryY, borderTopStyle: "solid" }} />
-      <div style={{ ...lineStyle, top: coords.stopY, borderTopColor: "#ef4444" }} />
-      <div style={{ ...lineStyle, top: coords.p1Y, borderTopColor: "#22c55e" }} />
-      <div style={{ ...lineStyle, top: coords.p2Y, borderTopColor: "#22c55e" }} />
-      <div style={{ ...lineStyle, top: coords.runnerY, borderTopColor: "#16a34a" }} />
+      <div
+        style={{
+          ...lineStyle,
+          top: coords.entryY,
+          borderTopStyle: "solid",
+        }}
+      />
+
+      <div
+        style={{
+          ...lineStyle,
+          top: coords.stopY,
+          borderTopColor: "#ef4444",
+        }}
+      />
+
+      <div
+        style={{
+          ...lineStyle,
+          top: coords.p1Y,
+          borderTopColor: "#22c55e",
+        }}
+      />
+
+      <div
+        style={{
+          ...lineStyle,
+          top: coords.p2Y,
+          borderTopColor: "#22c55e",
+        }}
+      />
+
+      <div
+        style={{
+          ...lineStyle,
+          top: coords.runnerY,
+          borderTopColor: "#16a34a",
+        }}
+      />
 
       <div
         style={{
@@ -334,7 +373,8 @@ function GeometryChartPreview({
           pointerEvents: "none",
         }}
       >
-        P2 R/R {formatNumber(preview.p2Rr)} · Best {formatNumber(preview.bestRr)}
+        P2 R/R {formatNumber(preview.p2Rr)} · Best{" "}
+        {formatNumber(preview.bestRr)}
       </div>
     </div>
   );
@@ -362,7 +402,7 @@ export default function Engine26TradeGeometryTool({
   useEffect(() => {
     const lp = toNumber(latestPrice);
 
-    if (!Number.isFinite(lp) || lp < 1000) return;
+    if (!Number.isFinite(lp) || lp < ES_SAFE_MIN_PRICE) return;
     if (entryPrice !== "") return;
 
     const entry = roundToTick(lp);
@@ -459,9 +499,9 @@ export default function Engine26TradeGeometryTool({
   }
 
   const hasUnsafePrice =
-    toNumber(entryPrice) < 1000 ||
-    toNumber(stopPrice) < 1000 ||
-    [p1, p2, runner].some((x) => toNumber(x) < 1000);
+    toNumber(entryPrice) < ES_SAFE_MIN_PRICE ||
+    toNumber(stopPrice) < ES_SAFE_MIN_PRICE ||
+    [p1, p2, runner].some((price) => toNumber(price) < ES_SAFE_MIN_PRICE);
 
   return (
     <>
@@ -476,8 +516,8 @@ export default function Engine26TradeGeometryTool({
       <div
         style={{
           position: "absolute",
-          top: 56,
-          right: 300,
+          top: PANEL_TOP_OFFSET,
+          right: PANEL_RIGHT_OFFSET,
           zIndex: 160,
           width: open ? 270 : 170,
           pointerEvents: "auto",
@@ -496,7 +536,7 @@ export default function Engine26TradeGeometryTool({
           }}
         >
           <button
-            onClick={() => setOpen((x) => !x)}
+            onClick={() => setOpen((value) => !value)}
             style={{
               width: "100%",
               border: 0,
@@ -564,11 +604,23 @@ export default function Engine26TradeGeometryTool({
                   gap: 7,
                 }}
               >
-                <PriceInput label="Entry" value={entryPrice} onChange={setEntryPrice} />
-                <PriceInput label="Stop" value={stopPrice} onChange={setStopPrice} />
+                <PriceInput
+                  label="Entry"
+                  value={entryPrice}
+                  onChange={setEntryPrice}
+                />
+                <PriceInput
+                  label="Stop"
+                  value={stopPrice}
+                  onChange={setStopPrice}
+                />
                 <PriceInput label="P1" value={p1} onChange={setP1} />
                 <PriceInput label="P2" value={p2} onChange={setP2} />
-                <PriceInput label="Runner" value={runner} onChange={setRunner} />
+                <PriceInput
+                  label="Runner"
+                  value={runner}
+                  onChange={setRunner}
+                />
                 <PriceInput
                   label="Contracts"
                   value={contracts}
@@ -621,7 +673,8 @@ export default function Engine26TradeGeometryTool({
                           {row.label} {formatNumber(row.target)}
                         </span>
                         <span>
-                          +{formatNumber(row.reward)} pts / {formatNumber(row.rr)}R
+                          +{formatNumber(row.reward)} pts /{" "}
+                          {formatNumber(row.rr)}R
                         </span>
                       </div>
                     ))}
@@ -638,7 +691,13 @@ export default function Engine26TradeGeometryTool({
                     </div>
                   </>
                 ) : (
-                  <div style={{ color: "#fecaca", fontSize: 12, fontWeight: 900 }}>
+                  <div
+                    style={{
+                      color: "#fecaca",
+                      fontSize: 12,
+                      fontWeight: 900,
+                    }}
+                  >
                     {preview.reason}
                   </div>
                 )}
