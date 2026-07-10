@@ -928,6 +928,8 @@ export default function RowChart({
 
     engine23BehaviorCard: true,
 
+    engine26TradeGeometryTool: false,
+
     engine25CompositeOverlay: false,
     engine25Timeline: false,
 
@@ -2054,6 +2056,8 @@ export default function RowChart({
 
     engine23BehaviorCard: state.engine23BehaviorCard,
 
+    engine26TradeGeometryTool: state.engine26TradeGeometryTool,
+
     engine25CompositeOverlay: state.engine25CompositeOverlay,
     engine25Timeline: state.engine25Timeline,
 
@@ -2228,13 +2232,16 @@ export default function RowChart({
          />
 
           <Engine26TradeGeometryTool
-            visible={normalizeSymbol(state.symbol) === "ES"}
+            visible={
+              state.engine26TradeGeometryTool &&
+              normalizeSymbol(state.symbol) === "ES"
+            }
             symbol={state.symbol}
             strategyId={selectedStrategyId}
             latestPrice={latestPrice}
             chart={chartRef.current}
             priceSeries={seriesRef.current}
-          />
+           />
            <Engine17DecisionTimeline
              overlayData={engine17Data}
              visible={state.engine17Timeline && state.engine17Overlay}
