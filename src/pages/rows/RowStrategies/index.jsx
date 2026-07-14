@@ -1191,113 +1191,6 @@ function Engine27WideRow({ label, children, tone = "default" }) {
   );
 }
 
-function Engine27PairCell({ label, children, tone = "default" }) {
-  const color =
-    tone === "warning"
-      ? "#fbbf24"
-      : tone === "danger"
-      ? "#f87171"
-      : tone === "long"
-      ? "#86efac"
-      : tone === "short"
-      ? "#fca5a5"
-      : "#f8fafc";
-
-  return (
-    <div
-      style={{
-        minWidth: 0,
-        padding: "6px 8px",
-        borderRight: "1px solid rgba(51,65,85,.45)",
-      }}
-    >
-      <div
-        style={{
-          color: "#94a3b8",
-          fontSize: 11,
-          fontWeight: 1000,
-          lineHeight: 1.05,
-          textTransform: "uppercase",
-          letterSpacing: ".03em",
-          marginBottom: 3,
-        }}
-      >
-        {label}
-      </div>
-      <div
-        style={{
-          color,
-          fontSize: 14,
-          fontWeight: 1000,
-          lineHeight: 1.18,
-          wordBreak: "break-word",
-        }}
-      >
-        {children}
-      </div>
-    </div>
-  );
-}
-
-function Engine27PairRow({ children }) {
-  return (
-    <div
-      style={{
-        display: "grid",
-        gridTemplateColumns: "repeat(2, minmax(0,1fr))",
-        borderTop: "1px solid rgba(51,65,85,.45)",
-      }}
-    >
-      {children}
-    </div>
-  );
-}
-
-function Engine27FullRow({ label, children, tone = "default" }) {
-  const color =
-    tone === "warning"
-      ? "#fbbf24"
-      : tone === "danger"
-      ? "#f87171"
-      : "#f8fafc";
-
-  return (
-    <div
-      style={{
-        display: "grid",
-        gridTemplateColumns: "78px minmax(0,1fr)",
-        gap: 8,
-        alignItems: "start",
-        padding: "6px 8px",
-        borderTop: "1px solid rgba(51,65,85,.45)",
-      }}
-    >
-      <div
-        style={{
-          color: "#94a3b8",
-          fontSize: 11,
-          fontWeight: 1000,
-          textTransform: "uppercase",
-          letterSpacing: ".03em",
-        }}
-      >
-        {label}
-      </div>
-      <div
-        style={{
-          color,
-          fontSize: 13,
-          fontWeight: 1000,
-          lineHeight: 1.25,
-          wordBreak: "break-word",
-        }}
-      >
-        {children}
-      </div>
-    </div>
-  );
-}
-
 function Engine27DegreeCard({
   degree,
   wave,
@@ -1308,23 +1201,19 @@ function Engine27DegreeCard({
 }) {
   const decisionState = decision?.decisionState || "IDLE";
   const direction =
-    decision?.direction || wave?.preferredTradeDirection || "NEUTRAL";
+    decision?.direction ||
+    wave?.preferredTradeDirection ||
+    "NEUTRAL";
 
-  const currentWave = engine27Value(wave?.currentWave);
+  const currentWave = wave?.currentWave;
   const internalWave = engine27OptionalWave(wave?.internalWave);
-  const nextWave = engine27Value(wave?.nextExpectedWave);
   const nextInternalWave = engine27OptionalWave(
     wave?.nextExpectedInternalWave
   );
-  const currentLeg = engine27Value(wave?.currentLegDirection);
-  const pullback = engine27Value(wave?.pullbackClassification);
-  const compatibility = engine27Compatibility(alignment, degree);
 
+  const compatibility = engine27Compatibility(alignment, degree);
   const warnings = Array.isArray(decision?.warnings)
     ? decision.warnings.filter(Boolean)
-    : [];
-  const waitingFor = Array.isArray(decision?.waitingFor)
-    ? decision.waitingFor.filter(Boolean)
     : [];
 
   const invalidationBreached =
@@ -1335,19 +1224,8 @@ function Engine27DegreeCard({
   const topAccent = invalidationBreached
     ? "#ef4444"
     : engine27Accent(decisionState);
+
   const isHighestPriority = highestPriorityDegree === degree;
-
-  const currentWaveText = internalWave
-    ? `${currentWave} / ${engine27RawValue(internalWave)}`
-    : currentWave;
-
-  const nextWaveText = nextInternalWave
-    ? `${nextWave} / ${engine27RawValue(nextInternalWave)}`
-    : nextWave;
-
-  const fibText = `${engine27Value(
-    fib?.currentFib?.lastCompleted
-  )} → ${engine27Value(fib?.nextFib)} @ ${engine27Number(fib?.nextPrice)}`;
 
   return (
     <div
@@ -1379,7 +1257,7 @@ function Engine27DegreeCard({
           <div
             style={{
               color: "#f8fafc",
-              fontSize: 15,
+              fontSize: FS.small,
               fontWeight: 1000,
               letterSpacing: ".025em",
             }}
@@ -1390,7 +1268,7 @@ function Engine27DegreeCard({
             <div
               style={{
                 color: "#fbbf24",
-                fontSize: 11,
+                fontSize: 10,
                 fontWeight: 1000,
                 marginTop: 1,
               }}
@@ -1414,74 +1292,117 @@ function Engine27DegreeCard({
 
       <div
         style={{
-          border: "1px solid rgba(51,65,85,.48)",
+          display: "grid",
+          gridTemplateColumns: "repeat(4, minmax(0,1fr))",
+          border: "1px solid rgba(51,65,85,.42)",
           borderRadius: 8,
           overflow: "hidden",
         }}
       >
-        <Engine27PairRow>
-          <Engine27PairCell label="Wave / Leg">
-            {currentWaveText} · {currentLeg}
-          </Engine27PairCell>
-          <Engine27PairCell
-            label="Next / Pullback"
-            tone={
-              upper(wave?.pullbackClassification, "") === "INTERNAL_PULLBACK"
-                ? "warning"
-                : "default"
-            }
-          >
-            {nextWaveText} · {prettyEnum(pullback)}
-          </Engine27PairCell>
-        </Engine27PairRow>
+        <Engine27Metric label="Decision" value={prettyEnum(decisionState)} />
+        <Engine27Metric
+          label="Direction"
+          value={prettyEnum(direction)}
+          tone={
+            upper(direction) === "LONG"
+              ? "long"
+              : upper(direction) === "SHORT"
+              ? "short"
+              : "default"
+          }
+        />
+        <Engine27Metric label="Current" value={engine27Value(currentWave)} />
+        <Engine27Metric
+          label="Current Leg"
+          value={engine27Value(wave?.currentLegDirection)}
+        />
 
-        <Engine27PairRow>
-          <Engine27PairCell label="Fib Objective">
-            {fibText}
-          </Engine27PairCell>
-          <Engine27PairCell label="Distance">
-            {engine27Distance(fib?.distance)}
-          </Engine27PairCell>
-        </Engine27PairRow>
+        <Engine27Metric
+          label="Internal"
+          value={internalWave ? engine27RawValue(internalWave) : "—"}
+        />
+        <Engine27Metric
+          label="Next Wave"
+          value={engine27Value(wave?.nextExpectedWave)}
+        />
+        <Engine27Metric
+          label="Next Internal"
+          value={nextInternalWave ? engine27RawValue(nextInternalWave) : "—"}
+        />
+        <Engine27Metric
+          label="Pullback"
+          value={engine27Value(wave?.pullbackClassification)}
+          tone={
+            upper(wave?.pullbackClassification, "") === "INTERNAL_PULLBACK"
+              ? "warning"
+              : "default"
+          }
+        />
 
-        <Engine27PairRow>
-          <Engine27PairCell label="Support / Invalidation" tone={invalidationBreached ? "danger" : "default"}>
-            {engine27Number(wave?.supportLevel)} / {engine27Number(wave?.invalidationLevel)}
-          </Engine27PairCell>
-          <Engine27PairCell
-            label="Alignment"
-            tone={
-              upper(compatibility, "") === "PULLS_BACK_INSIDE_PARENT"
-                ? "warning"
-                : "default"
-            }
-          >
-            {degree === "primary" ? "TOP DEGREE" : prettyEnum(compatibility)}
-          </Engine27PairCell>
-        </Engine27PairRow>
+        <Engine27Metric
+          label="Last Fib"
+          value={engine27Value(fib?.currentFib?.lastCompleted)}
+        />
+        <Engine27Metric label="Next Fib" value={engine27Value(fib?.nextFib)} />
+        <Engine27Metric
+          label="Objective"
+          value={engine27Number(fib?.nextPrice)}
+        />
+        <Engine27Metric
+          label="Distance"
+          value={engine27Distance(fib?.distance)}
+        />
 
-        <Engine27FullRow label="Waiting For">
-          {waitingFor.length ? waitingFor.map(prettyEnum).join(" • ") : "None"}
-        </Engine27FullRow>
+        <Engine27Metric
+          label="Support"
+          value={engine27Number(wave?.supportLevel)}
+        />
+        <Engine27Metric
+          label="Invalidation"
+          value={engine27Number(wave?.invalidationLevel)}
+          tone={invalidationBreached ? "danger" : "default"}
+        />
+        <Engine27Metric
+          label="Alignment"
+          value={
+            degree === "primary"
+              ? "TOP DEGREE"
+              : engine27Value(compatibility)
+          }
+          tone={
+            upper(compatibility, "") === "PULLS_BACK_INSIDE_PARENT"
+              ? "warning"
+              : "default"
+          }
+        />
+        <Engine27Metric
+          label="Action"
+          value={engine27Value(decision?.recommendedAction)}
+        />
+      </div>
 
-        <Engine27FullRow label="Action">
-          {prettyEnum(decision?.recommendedAction)}
-        </Engine27FullRow>
+      <Engine27WideRow label="Waiting For">
+        <Engine27InlineList values={decision?.waitingFor} emptyLabel="None" />
+      </Engine27WideRow>
 
-        <Engine27PairRow>
-          <Engine27PairCell label="Engine 6">
-            {engine27Engine6Label(pipeline)}
-          </Engine27PairCell>
-          <Engine27PairCell label="Engine 26">
-            {engine27PlannerLabel(pipeline)}
-          </Engine27PairCell>
-        </Engine27PairRow>
+      <Engine27WideRow label="Warnings" tone={warnings.length ? "warning" : "default"}>
+        <Engine27InlineList
+          values={warnings}
+          emptyLabel="None"
+          tone={warnings.length ? "warning" : "default"}
+        />
+      </Engine27WideRow>
 
-        {warnings.length ? (
-          <Engine27FullRow label="Warnings" tone="warning">
-            {warnings.map(prettyEnum).join(" • ")}
-          </Engine27FullRow>
-        ) : null}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(2, minmax(0,1fr))",
+          borderTop: "1px solid rgba(51,65,85,.42)",
+          marginTop: 1,
+        }}
+      >
+        <Engine27Metric label="Engine 6" value={engine27Engine6Label(pipeline)} />
+        <Engine27Metric label="Engine 26" value={engine27PlannerLabel(pipeline)} />
       </div>
     </div>
   );
