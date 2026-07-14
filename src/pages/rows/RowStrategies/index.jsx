@@ -2,8 +2,7 @@
 // Row 5 — Strategies (compact decision interface)
 // PART 1 OF 2
 
-import React, { useMemo, useState } from "react";
-import LiveDot from "../../../components/LiveDot";
+import React from "react";
 import { useDashboardSnapshot } from "../../../hooks/useDashboardSnapshot";
 
 /* -------------------- env helpers -------------------- */
@@ -946,570 +945,654 @@ function WaveDegreeRow({ snapshot }) {
   );
 }
 
-function TwoCol({ left, right, wideLeft = true }) {
+
+/* -------------------- Engine 27F presentation -------------------- */
+
+const ENGINE27_DEGREES = [
+  "subminute",
+  "minute",
+  "minor",
+  "intermediate",
+  "primary",
+];
+
+const ENGINE27_COMPATIBILITY_PATHS = {
+  subminute: "minuteToSubminute",
+  minute: "minorToMinute",
+  minor: "intermediateToMinor",
+  intermediate: "primaryToIntermediate",
+};
+
+function engine27Value(value, fallback = "—") {
+  if (value == null || value === "") return fallback;
+
+  const normalized = String(value).trim().toUpperCase();
+  if (!normalized || normalized === "UNKNOWN" || normalized === "NONE") {
+    return fallback;
+  }
+
+  return prettyEnum(value, fallback);
+}
+
+function engine27RawValue(value, fallback = "—") {
+  return value == null || value === "" ? fallback : String(value);
+}
+
+function engine27Number(value, fallback = "—") {
+  return Number.isFinite(Number(value)) ? String(value) : fallback;
+}
+
+function engine27Distance(value) {
+  return Number.isFinite(Number(value)) ? `${value} pts` : "—";
+}
+
+function engine27DecisionTone(value) {
+  const state = upper(value, "IDLE");
+
+  if (["READY", "TRIGGERED", "ACTIVE"].includes(state)) return "ready";
+  if (state === "ALMOST_READY") return "arming";
+  if (state === "APPROACHING") return "watch";
+  if (state === "INVALIDATED") return "blocked";
+
+  return "wait";
+}
+
+function engine27DirectionTone(value) {
+  const direction = upper(value, "NEUTRAL");
+  if (direction === "LONG") return "long";
+  if (direction === "SHORT") return "short";
+  return "neutral";
+}
+
+function engine27Accent(value) {
+  const state = upper(value, "IDLE");
+
+  if (["READY", "TRIGGERED", "ACTIVE"].includes(state)) return "#22c55e";
+  if (state === "ALMOST_READY") return "#fbbf24";
+  if (state === "APPROACHING") return "#3b82f6";
+  if (state === "INVALIDATED") return "#ef4444";
+
+  return "#64748b";
+}
+
+function engine27Engine6Label(pipeline) {
+  if (pipeline?.engine6Allowed !== true) return "NONE";
+
+  const decision = upper(pipeline?.engine6Decision, "");
+
+  if (decision === "FAST_INTRADAY_PAPER_ALLOW") return "FAST PAPER";
+  if (decision === "PAPER_ALLOW") return "PAPER";
+
+  return "NONE";
+}
+
+function engine27PlannerLabel(pipeline) {
+  if (pipeline?.plannerReady === true) return "Planner Ready";
+  if (pipeline?.available === true) return "Planner Waiting";
+  return "Unavailable";
+}
+
+function engine27Compatibility(alignment, degree) {
+  if (degree === "primary") return "TOP DEGREE";
+
+  const relationshipKey = ENGINE27_COMPATIBILITY_PATHS[degree];
+  return (
+    alignment?.waveStageCompatibility?.[relationshipKey]?.status ||
+    "UNKNOWN"
+  );
+}
+
+function engine27OptionalWave(value) {
+  const normalized = upper(value, "");
+  return normalized && normalized !== "UNKNOWN" ? value : null;
+}
+
+function Engine27SummaryCell({ label, children, wide = false }) {
+  return (
+    <div
+      style={{
+        border: "1px solid #1f2937",
+        borderRadius: 12,
+        background: "#0a0f18",
+        padding: "10px 12px",
+        minWidth: 0,
+        gridColumn: wide ? "span 2" : "auto",
+      }}
+    >
+      <div
+        style={{
+          color: "#94a3b8",
+          fontSize: FS.micro,
+          fontWeight: 1000,
+          letterSpacing: ".05em",
+          textTransform: "uppercase",
+          marginBottom: 5,
+        }}
+      >
+        {label}
+      </div>
+      <div
+        style={{
+          color: "#f8fafc",
+          fontSize: FS.body,
+          fontWeight: 1000,
+          lineHeight: 1.25,
+          wordBreak: "break-word",
+        }}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function Engine27Row({
+  label,
+  value,
+  tone = "default",
+  multiline = false,
+}) {
+  const color =
+    tone === "warning"
+      ? "#fbbf24"
+      : tone === "danger"
+      ? "#f87171"
+      : tone === "long"
+      ? "#86efac"
+      : tone === "short"
+      ? "#fca5a5"
+      : "#e5e7eb";
+
   return (
     <div
       style={{
         display: "grid",
-        gridTemplateColumns: wideLeft ? "1.3fr 0.7fr" : "1fr 1fr",
+        gridTemplateColumns: "104px minmax(0,1fr)",
         gap: 8,
         alignItems: "start",
+        padding: "5px 0",
+        borderBottom: "1px solid rgba(51,65,85,.42)",
       }}
     >
       <div
         style={{
-          display: "flex",
-          flexDirection: "column",
-          gap: 6,
-          borderRight: "1px solid #1f2937",
-          paddingRight: 8,
+          color: "#94a3b8",
+          fontSize: FS.micro,
+          fontWeight: 900,
+          lineHeight: 1.2,
         }}
       >
-        {left}
+        {label}
       </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        {right}
+      <div
+        style={{
+          color,
+          fontSize: FS.small,
+          fontWeight: 1000,
+          lineHeight: 1.25,
+          whiteSpace: multiline ? "pre-line" : "normal",
+          wordBreak: "break-word",
+        }}
+      >
+        {value}
       </div>
     </div>
   );
 }
 
-function marketLine(snapshot) {
-  const regime = upper(snapshot?.marketRegime?.regime || "—");
-  const directionBias = upper(snapshot?.marketRegime?.directionBias || "—");
-  return `${regime} / ${directionBias}`;
-}
+function Engine27List({ values, emptyLabel = "None", tone = "default" }) {
+  const items = Array.isArray(values) ? values.filter(Boolean) : [];
 
-function scalpTriggerCondition(engine16) {
-  if (
-    engine16?.waveShortPrep === true &&
-    engine16?.continuationTriggerShort !== true &&
-    engine16?.exhaustionTriggerShort !== true
-  ) {
-    return "rejection + break";
+  if (!items.length) {
+    return <span style={{ color: "#94a3b8" }}>{emptyLabel}</span>;
   }
-  if (
-    engine16?.waveLongPrep === true &&
-    engine16?.continuationTriggerLong !== true &&
-    engine16?.exhaustionTriggerLong !== true
-  ) {
-    return "support hold + break";
-  }
-  if (engine16?.exhaustionEarlyShort === true || engine16?.exhaustionEarlyLong === true) {
-    return "exhaustion confirm";
-  }
-  if (engine16?.continuationWatchShort === true || engine16?.continuationWatchLong === true) {
-    return "continuation trigger";
-  }
-  return "await trigger";
-}
 
-function intermediateTriggerCondition(engine16, readiness) {
-  if (engine16?.wavePrep === true && upper(engine16?.intermediatePhase, "") === "IN_C") {
-    return "C exhaustion + W3 trigger";
-  }
-  if (upper(readiness, "") === "WAIT") return "wait for structure";
-  return "await confirmation";
-}
-
-function scalpSummary(node) {
-  const readiness = getReadiness(node);
-  const bias = getBias(node);
-  const nextFocus = getLifecycle(node).nextFocus;
-  return `Scalp is ${prettyEnum(readiness).toLowerCase()} with ${bias.toLowerCase()}. Focus: ${prettyEnum(
-    nextFocus
-  ).toLowerCase()}.`;
-}
-
-function intermediateSummary(node) {
-  const readiness = getReadiness(node);
-  const nextFocus = getLifecycle(node).nextFocus;
-  return `Intermediate is ${prettyEnum(readiness).toLowerCase()}. Waiting for ${prettyEnum(
-    nextFocus
-  ).toLowerCase()}.`;
-}
-
-function getWaveMode(engine16) {
-  const waveState = upper(engine16?.waveState || engine16?.waveContext?.waveState || "", "");
-  if (waveState.includes("CORRECTION") || waveState.includes("C")) return "CORRECTIVE";
-  if (waveState.includes("IMPULSE") || waveState.includes("W3")) return "IMPULSE";
-  return "STRUCTURE";
-}
-
-function LifecycleStrip({ node }) {
-  const lc = getLifecycle(node);
+  const color = tone === "warning" ? "#fbbf24" : "#e5e7eb";
 
   return (
-    <CompactSection title="POSITION STATUS" subtle>
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(4, minmax(0,1fr))",
-          gap: 6,
-        }}
-      >
-        <KV label="TP1" value={<Badge text={lc.tp1Open ? "OPEN" : "OFF"} tone={yesNoTone(lc.tp1Open)} />} />
-        <KV label="TP2" value={<Badge text={lc.tp2Open ? "OPEN" : "OFF"} tone={yesNoTone(lc.tp2Open)} />} />
-        <KV label="Runner" value={<Badge text={lc.runnerOn ? "ON" : "OFF"} tone={yesNoTone(lc.runnerOn)} />} />
-        <KV label="State" value={prettyEnum(lc.state)} />
-
-        <KV label="Signal" value={lc.signalPrice == null ? "0.00" : fmt2(lc.signalPrice)} />
-        <KV label="Current" value={lc.currentPrice == null ? "0.00" : fmt2(lc.currentPrice)} />
-        <KV label="Remain" value={pct(lc.remainingPct)} />
-        <KV label="Next" value={prettyEnum(lc.nextFocus)} />
-
-        <KV label="Progress" value={pct(lc.progressPct)} />
-        <KV label="Move" value={lc.movePts == null ? "—" : fmt2(lc.movePts)} />
-      </div>
-    </CompactSection>
+    <div style={{ display: "grid", gap: 3 }}>
+      {items.map((item, idx) => (
+        <div
+          key={`${item}-${idx}`}
+          style={{
+            color,
+            fontSize: FS.small,
+            fontWeight: 900,
+            lineHeight: 1.2,
+          }}
+        >
+          • {prettyEnum(item)}
+        </div>
+      ))}
+    </div>
   );
 }
 
-function TriggerStateFull({ engine16 }) {
-  return (
-    <CompactSection title="TRIGGER STATE" subtle>
-      <div style={{ display: "grid", gap: 6 }}>
-        <div style={{ fontWeight: 900, color: "#fca5a5" }}>SHORT</div>
-        <CompactBool label="Watch Prep" value={engine16?.waveShortPrep === true} />
-        <CompactBool label="Continuation" value={engine16?.continuationTriggerShort === true} />
-        <CompactBool label="Exhaustion" value={engine16?.exhaustionTriggerShort === true} />
-
-        <div style={{ fontWeight: 900, color: "#86efac", marginTop: 4 }}>LONG</div>
-        <CompactBool label="Watch Prep" value={engine16?.waveLongPrep === true} />
-        <CompactBool label="Continuation" value={engine16?.continuationTriggerLong === true} />
-        <CompactBool label="Exhaustion" value={engine16?.exhaustionTriggerLong === true} />
-      </div>
-    </CompactSection>
-  );
-}
-
-function NotReadySummaryBlock({ node, snapshot, summary }) {
-  const reasons = getNotReadyReasons(node);
-
-  return (
-    <TwoCol
-      left={
-        <CompactSection title="NOT READY BECAUSE" subtle>
-          {reasons.length ? (
-            reasons.map((r, i) => (
-              <div
-                key={`${r}-${i}`}
-                style={{ fontWeight: 600, color: "#9ca3af", fontSize: FS.small, lineHeight: 1.2 }}
-              >
-                • {prettyEnum(r)}
-              </div>
-            ))
-          ) : (
-            <div style={{ color: "#9ca3af" }}>—</div>
-          )}
-        </CompactSection>
-      }
-      right={
-        <CompactSection title="SUMMARY" subtle>
-          <KV label="Market" value={marketLine(snapshot)} />
-          <KV label="Summary" value={summary} />
-        </CompactSection>
-      }
-    />
-  );
-}
-
-function StructureCoreScalp({ engine16 }) {
-  const context = engine16?.context || "—";
-  const state = engine16?.state || "—";
-  const phase = engine16?.waveContext?.waveState || engine16?.waveState || "—";
-  const macroBias = engine16?.macroBias || "NONE";
-
-  return (
-    <CompactSection title="STRUCTURE CORE">
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(2, minmax(0,1fr))",
-          gap: 6,
-        }}
-      >
-        <KV label="Context" value={prettyEnum(context)} />
-        <KV label="State" value={prettyEnum(state)} />
-        <KV label="Phase" value={prettyEnum(phase)} />
-        <KV label="Macro Bias" value={prettyEnum(macroBias)} />
-      </div>
-    </CompactSection>
-  );
-}
-
-function StructureCoreIntermediate({ engine16 }) {
-  const primaryPhase = engine16?.primaryPhase || "—";
-  const intermediatePhase = engine16?.intermediatePhase || "—";
-  const phase = engine16?.waveState || "—";
-  const macroBias = engine16?.macroBias || "NONE";
-
-  return (
-    <CompactSection title="STRUCTURE CORE" subtle>
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(2, minmax(0,1fr))",
-          gap: 6,
-        }}
-      >
-        <KV label="Primary" value={prettyEnum(primaryPhase)} />
-        <KV label="Intermed." value={prettyEnum(intermediatePhase)} />
-        <KV label="Phase" value={prettyEnum(phase)} />
-        <KV label="Macro Bias" value={prettyEnum(macroBias)} />
-      </div>
-    </CompactSection>
-  );
-}
-
-function ScalpCompactCard({ 
-  node, 
-  snapshot, 
-  liveStatus, 
-  liveTip, 
-  activeGlow,
-  title = "Scalp",
-  timeframe = "10m",
-  summaryOverride,
+function Engine27DegreeCard({
+  degree,
+  wave,
+  fib,
+  decision,
+  alignment,
+  highestPriorityDegree,
 }) {
-  const engine16 = node?.engine16 || {};
-  const engine22 = node?.engine22Scalp || null;
-  const permission = node?.permission || {};
+  const decisionState = decision?.decisionState || "IDLE";
+  const direction =
+    decision?.direction ||
+    wave?.preferredTradeDirection ||
+    "NEUTRAL";
 
-  const readiness = getReadiness(node);
-  const action = getAction(node);
-  const bias = getBias(node);
-  const nextFocus = getLifecycle(node).nextFocus;
-  const executionBias = getExecutionBias(node);
-  const freshEntry = getFreshEntry(node);
-  const permissionText = upper(permission?.permission || "UNKNOWN");
-  const summary = summaryOverride || scalpSummary(node);
-  
+  const currentWave = wave?.currentWave;
+  const internalWave = engine27OptionalWave(wave?.internalWave);
+  const nextInternalWave = engine27OptionalWave(
+    wave?.nextExpectedInternalWave
+  );
+
+  const compatibility = engine27Compatibility(alignment, degree);
+  const warnings = Array.isArray(decision?.warnings)
+    ? decision.warnings.filter(Boolean)
+    : [];
+
+  const invalidationBreached =
+    wave?.invalidationBreached === true ||
+    decision?.invalidationBreached === true;
+
+  const pipeline = decision?.paperPipeline || {};
+  const topAccent = invalidationBreached
+    ? "#ef4444"
+    : engine27Accent(decisionState);
+
+  const isHighestPriority = highestPriorityDegree === degree;
+
   return (
     <div
+      className="engine27-degree-card"
       style={{
-        background: "#101010",
-        border: "1px solid #262626",
+        background: "#0b1018",
+        border: invalidationBreached
+          ? "1px solid #7f1d1d"
+          : "1px solid #263244",
+        borderTop: `5px solid ${topAccent}`,
         borderRadius: 14,
-        padding: 7,
-        color: "#e5e7eb",
-        boxShadow: activeGlow,
-        minHeight: 0,
-        height: "100%",
+        padding: 10,
+        minWidth: 0,
         display: "flex",
         flexDirection: "column",
-        gap: 6,
-        minWidth: 0,
-        overflow: "hidden",
+        gap: 8,
+        boxShadow: isHighestPriority
+          ? `0 0 0 1px ${topAccent} inset, 0 0 20px ${topAccent}33`
+          : "0 8px 22px rgba(0,0,0,.2)",
       }}
     >
-      <TopReadinessBar readiness={readiness} bias={bias} />
-
       <div
         style={{
           display: "flex",
           justifyContent: "space-between",
+          gap: 7,
           alignItems: "flex-start",
-          gap: 8,
           flexWrap: "wrap",
         }}
       >
         <div>
-          <div style={{ fontWeight: 1000, fontSize: FS.title }}>{title}</div>
-          <div style={{ color: "#9ca3af", fontSize: FS.subtitle, fontWeight: 800 }}>{timeframe}</div>
-        </div>
-
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
-          <Badge text={upper(readiness)} tone={readinessTone(readiness)} large />
-          <Badge text={upper(action)} tone={actionTone(action)} />
-          <Badge text={bias} tone={biasTone(bias)} />
-          <LiveDot status={liveStatus} tip={liveTip} />
-        </div>
-      </div>
-
-      <LifecycleStrip node={node} />
-      {engine22 && (
-        <CompactSection title="FAST SCALP SIGNAL">
-
-          {/* 🔥 MAIN SIGNAL LINE (BIG) */}
           <div
             style={{
+              color: "#f8fafc",
+              fontSize: FS.title,
               fontWeight: 1000,
-              fontSize: 20,
-              textAlign: "center",
-              padding: "10px 0",
-              borderRadius: 10,
-              background:
-                engine22.status === "ENTRY_LONG"
-                  ? "#052e16"
-                  : engine22.status === "PROBE_LONG"
-                  ? "#0b1a2a"
-                  : "#111827",
-              color:
-                engine22.status === "ENTRY_LONG"
-                  ? "#22c55e"
-                  : engine22.status === "PROBE_LONG"
-                  ? "#60a5fa"
-                      : "#9ca3af",
-              border:
-                engine22.status === "ENTRY_LONG"
-                  ? "1px solid #22c55e"
-                  : "1px solid #1f2937",
-              marginBottom: 8,
-            }}
-        >
-          {engine22.status === "ENTRY_LONG" && "🟢 ENTRY LONG — EXHAUSTION BOUNCE"}
-          {engine22.status === "PROBE_LONG" && "🔵 PROBE LONG — FORMING"}
-          {engine22.status === "NO_SCALP" && "⚪ NO SCALP OPPORTUNITY"}
-        </div>
-
-        {/* 📊 SUPPORTING DATA */}
-        <KV
-          label="Confidence"
-          value={
-            engine22.confidence != null
-              ? `${engine22.confidence}%`
-              : "—"
-          }
-        />
-
-        <KV
-          label="Target"
-          value={
-            engine22.targetMove != null
-              ? `$${engine22.targetMove}`
-              : "—"
-          }
-        />
-
-        <KV
-          label="Mode"
-          value={engine22.mode || "—"}
-        />
-
-        {/* ⚠️ CONTEXT WARNING */}
-        {engine22.reasonCodes?.includes("SCALP_ONLY_COUNTERTREND") && (
-          <div
-            style={{
-              marginTop: 6,
-              fontSize: 12,
-              fontWeight: 900,
-              color: "#f59e0b",
+              letterSpacing: ".025em",
             }}
           >
-            ⚠️ COUNTERTREND SCALP
+            {degree.toUpperCase()}
           </div>
-        )}
+          {isHighestPriority ? (
+            <div
+              style={{
+                color: "#fbbf24",
+                fontSize: FS.micro,
+                fontWeight: 1000,
+                marginTop: 2,
+              }}
+            >
+              HIGHEST PRIORITY
+            </div>
+          ) : null}
+        </div>
 
-      </CompactSection>
-    )}
-      <StructureCoreScalp engine16={engine16} />
+        <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
+          <Badge
+            text={prettyEnum(decisionState)}
+            tone={engine27DecisionTone(decisionState)}
+          />
+          <Badge
+            text={prettyEnum(direction)}
+            tone={engine27DirectionTone(direction)}
+          />
+        </div>
+      </div>
 
-      <TwoCol
-        left={
-          <CompactSection title="DECISION" subtle>
-            <KV label="Next Focus" value={prettyEnum(nextFocus)} />
-            <KV label="Trigger" value={prettyEnum(scalpTriggerCondition(engine16))} />
-            <KV
-              label="Fresh Entry"
-              value={<Badge text={freshEntry ? "YES" : "NO"} tone={yesNoTone(freshEntry)} />}
+      <div style={{ display: "grid" }}>
+        <Engine27Row label="Decision" value={prettyEnum(decisionState)} />
+        <Engine27Row
+          label="Direction"
+          value={prettyEnum(direction)}
+          tone={
+            upper(direction) === "LONG"
+              ? "long"
+              : upper(direction) === "SHORT"
+              ? "short"
+              : "default"
+          }
+        />
+        <Engine27Row
+          label="Current Wave"
+          value={engine27Value(currentWave)}
+        />
+
+        {internalWave ? (
+          <Engine27Row
+            label="Internal Wave"
+            value={engine27RawValue(internalWave)}
+          />
+        ) : null}
+
+        <Engine27Row
+          label="Current Leg"
+          value={engine27Value(wave?.currentLegDirection)}
+        />
+        <Engine27Row
+          label="Next Wave"
+          value={engine27Value(wave?.nextExpectedWave)}
+        />
+
+        {nextInternalWave ? (
+          <Engine27Row
+            label="Next Internal"
+            value={engine27RawValue(nextInternalWave)}
+          />
+        ) : null}
+
+        <Engine27Row
+          label="Pullback"
+          value={engine27Value(wave?.pullbackClassification)}
+          tone={
+            upper(wave?.pullbackClassification, "") === "INTERNAL_PULLBACK"
+              ? "warning"
+              : "default"
+          }
+        />
+        <Engine27Row
+          label="Last Fib"
+          value={engine27Value(fib?.currentFib?.lastCompleted)}
+        />
+        <Engine27Row
+          label="Next Fib"
+          value={engine27Value(fib?.nextFib)}
+        />
+        <Engine27Row
+          label="Next Objective"
+          value={engine27Number(fib?.nextPrice)}
+        />
+        <Engine27Row
+          label="Distance"
+          value={engine27Distance(fib?.distance)}
+        />
+        <Engine27Row
+          label="Support"
+          value={engine27Number(wave?.supportLevel)}
+        />
+        <Engine27Row
+          label="Invalidation"
+          value={engine27Number(wave?.invalidationLevel)}
+          tone={invalidationBreached ? "danger" : "default"}
+        />
+        <Engine27Row
+          label="Waiting For"
+          value={
+            <Engine27List
+              values={decision?.waitingFor}
+              emptyLabel="None"
             />
-            <KV label="Exec Bias" value={prettyEnum(executionBias)} />
-            <KV
-              label="Permission"
-              value={<Badge text={permissionText} tone={permissionTone(permissionText)} />}
+          }
+        />
+        <Engine27Row
+          label="Action"
+          value={engine27Value(decision?.recommendedAction)}
+        />
+        <Engine27Row
+          label="Alignment"
+          value={
+            degree === "primary"
+              ? "TOP DEGREE"
+              : engine27Value(compatibility)
+          }
+          tone={
+            upper(compatibility, "") === "PULLS_BACK_INSIDE_PARENT"
+              ? "warning"
+              : "default"
+          }
+        />
+        <Engine27Row
+          label="Warnings"
+          value={
+            <Engine27List
+              values={warnings}
+              emptyLabel="None"
+              tone="warning"
             />
-          </CompactSection>
-        }
-        right={<TriggerStateFull engine16={engine16} />}
-      />
-      
-      <NotReadySummaryBlock node={node} snapshot={snapshot} summary={summary} />
+          }
+        />
+        <Engine27Row
+          label="Engine 6"
+          value={engine27Engine6Label(pipeline)}
+        />
+        <Engine27Row
+          label="Engine 26"
+          value={engine27PlannerLabel(pipeline)}
+        />
+      </div>
     </div>
   );
 }
 
-function IntermediateCompactCard({ node, snapshot, activeGlow }) {
-  const engine16 = node?.engine16 || {};
-  const permission = node?.permission || {};
+function Engine27TraderIntelligence({ snapshot }) {
+  const engine27 = snapshot?.engine27Strategies || null;
 
-  const readiness = getReadiness(node);
-  const action = getAction(node);
-  const bias = getBias(node);
-  const nextFocus = getLifecycle(node).nextFocus;
-  const permissionText = upper(permission?.permission || "UNKNOWN");
-  const summary = intermediateSummary(node);
-  const executionEngine = engine16?.skipped === true ? "STRUCTURE MODE" : "ACTIVE";
-  const waveMode = getWaveMode(engine16);
+  if (!engine27) {
+    return (
+      <div
+        style={{
+          marginTop: 10,
+          border: "1px solid #1f2937",
+          borderRadius: 14,
+          padding: 12,
+          background: "#0b0f16",
+          color: "#9ca3af",
+          fontWeight: 900,
+        }}
+      >
+        Engine 27 Trader Intelligence unavailable
+      </div>
+    );
+  }
+
+  const waveIntelligence = engine27?.engine27WaveIntelligence || {};
+  const fibIntelligence = engine27?.engine27FibIntelligence || {};
+  const alignment = engine27?.engine27Alignment || {};
+  const marketStory = engine27?.engine27MarketStory || {};
+  const traderDecision = engine27?.engine27TraderDecision || {};
+  const decisions = traderDecision?.decisions || {};
+  const highestPriorityDegree =
+    traderDecision?.highestPriorityDecision?.degree || null;
+
+  const structuralWarnings = Array.isArray(alignment?.lowerDegreeWarnings)
+    ? [...new Set(alignment.lowerDegreeWarnings.filter(Boolean))]
+    : [];
 
   return (
     <div
       style={{
-        background: "#0f1117",
+        marginTop: 10,
         border: "1px solid #1f2937",
         borderRadius: 14,
-        padding: 7,
-        color: "#e5e7eb",
-        boxShadow: activeGlow,
-        minHeight: 0,
-        height: "100%",
+        padding: 10,
+        background: "#070c13",
         display: "flex",
         flexDirection: "column",
-        gap: 6,
-        minWidth: 0,
-        overflow: "hidden",
+        gap: 10,
       }}
     >
-      <TopReadinessBar readiness={readiness} bias={bias} />
+      <style>{`
+        .engine27-summary-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr 2fr 2fr;
+          gap: 8px;
+        }
+
+        .engine27-degree-grid {
+          display: grid;
+          grid-template-columns: repeat(5, minmax(0, 1fr));
+          gap: 8px;
+          align-items: stretch;
+        }
+
+        @media (max-width: 1750px) {
+          .engine27-degree-grid {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+          }
+        }
+
+        @media (max-width: 1180px) {
+          .engine27-summary-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+          }
+
+          .engine27-degree-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+          }
+        }
+
+        @media (max-width: 760px) {
+          .engine27-summary-grid,
+          .engine27-degree-grid {
+            grid-template-columns: minmax(0, 1fr);
+          }
+        }
+      `}</style>
 
       <div
         style={{
           display: "flex",
           justifyContent: "space-between",
           gap: 8,
-          alignItems: "flex-start",
+          alignItems: "center",
           flexWrap: "wrap",
         }}
       >
         <div>
-          <div style={{ fontWeight: 1000, fontSize: FS.title }}>Intermediate Swing</div>
-          <div style={{ color: "#9ca3af", fontSize: FS.subtitle, fontWeight: 800 }}>1h</div>
+          <div
+            style={{
+              color: "#f8fafc",
+              fontSize: 20,
+              fontWeight: 1000,
+              letterSpacing: ".025em",
+            }}
+          >
+            ENGINE 27 — TRADER INTELLIGENCE
+          </div>
+          <div
+            style={{
+              color: "#94a3b8",
+              fontSize: FS.tiny,
+              fontWeight: 900,
+              marginTop: 2,
+            }}
+          >
+            Presentation only — all intelligence is owned by Engines 27A–27E
+          </div>
         </div>
 
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-          <Badge text={upper(readiness)} tone={readinessTone(readiness)} />
-          <Badge text={upper(action)} tone={actionTone(action)} />
-          <Badge text={bias} tone={biasTone(bias)} />
-        </div>
+        <Badge
+          text={prettyEnum(alignment?.direction || "NEUTRAL")}
+          tone={engine27DirectionTone(alignment?.direction)}
+          large
+        />
       </div>
 
-      <LifecycleStrip node={node} />
-      <StructureCoreIntermediate engine16={engine16} />
+      <div className="engine27-summary-grid">
+        <Engine27SummaryCell label="Alignment">
+          {engine27Value(alignment?.alignmentState)}
+        </Engine27SummaryCell>
 
-      <CompactSection title="DECISION" subtle>
-        <KV label="Next Focus" value={prettyEnum(nextFocus)} />
-        <KV label="Trigger" value={prettyEnum(intermediateTriggerCondition(engine16, readiness))} />
-        <KV
-          label="Fresh Entry"
-          value={<Badge text={getFreshEntry(node) ? "YES" : "NO"} tone={yesNoTone(getFreshEntry(node))} />}
-        />
-        <KV label="Exec Bias" value={prettyEnum(getExecutionBias(node))} />
-        <KV
-          label="Permission"
-          value={<Badge text={permissionText} tone={permissionTone(permissionText)} />}
-        />
-      </CompactSection>
+        <Engine27SummaryCell label="Confidence">
+          {engine27Value(alignment?.confidence)}
+        </Engine27SummaryCell>
 
-      <CompactSection title="STRUCTURE STATUS" subtle>
-        <KV
-          label="Wave Prep"
-          value={<Badge text={engine16?.wavePrep === true ? "YES" : "NO"} tone={yesNoTone(engine16?.wavePrep === true)} />}
-        />
-        <KV label="Correction Dir." value={prettyEnum(engine16?.correctionDirection || "—")} />
-        <KV label="Wave Mode" value={prettyEnum(waveMode)} />
-        <KV label="Execution Eng." value={prettyEnum(executionEngine)} />
-      </CompactSection>
+        <Engine27SummaryCell label="Market Story">
+          {engine27RawValue(marketStory?.headline)}
+        </Engine27SummaryCell>
 
-      <NotReadySummaryBlock node={node} snapshot={snapshot} summary={summary} />
+        <Engine27SummaryCell label="Warnings">
+          <div style={{ display: "grid", gap: 5 }}>
+            <div
+              style={{
+                color: marketStory?.warningSummary ? "#fbbf24" : "#94a3b8",
+              }}
+            >
+              {marketStory?.warningSummary || "None"}
+            </div>
+
+            {structuralWarnings.length ? (
+              <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
+                {structuralWarnings.map((warning) => (
+                  <Badge
+                    key={warning}
+                    text={prettyEnum(warning)}
+                    tone="arming"
+                  />
+                ))}
+              </div>
+            ) : null}
+          </div>
+        </Engine27SummaryCell>
+      </div>
+
+      <div className="engine27-degree-grid">
+        {ENGINE27_DEGREES.map((degree) => (
+          <Engine27DegreeCard
+            key={degree}
+            degree={degree}
+            wave={waveIntelligence?.[degree] || null}
+            fib={fibIntelligence?.[degree] || null}
+            decision={decisions?.[degree] || null}
+            alignment={alignment}
+            highestPriorityDegree={highestPriorityDegree}
+          />
+        ))}
+      </div>
     </div>
   );
 }
 
-function PassiveMiniCard({ node, snapshot }) {
-  const readiness = getReadiness(node);
-  const action = getAction(node);
-  const bias = getBias(node);
-  const nextFocus = getLifecycle(node).nextFocus;
-
-  return (
-    <div
-      style={{
-        background: "#0d1016",
-        border: "1px solid #1c2533",
-        borderRadius: 14,
-        padding: 7,
-        color: "#e5e7eb",
-        minHeight: 0,
-        height: "100%",
-        display: "flex",
-        flexDirection: "column",
-        gap: 6,
-        minWidth: 0,
-        overflow: "hidden",
-      }}
-    >
-      <TopReadinessBar readiness={readiness} bias={bias} />
-
-      <div style={{ fontWeight: 1000, fontSize: FS.title }}>Longer-Term</div>
-      <div style={{ color: "#9ca3af", fontSize: FS.subtitle, fontWeight: 800 }}>4h</div>
-
-      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-        <Badge text={upper(readiness)} tone={readinessTone(readiness)} />
-        <Badge text={upper(action)} tone={actionTone(action)} />
-        <Badge text={bias} tone={biasTone(bias)} />
-      </div>
-
-      <CompactSection title="PASSIVE" subtle>
-        <KV label="Next Focus" value={prettyEnum(nextFocus)} />
-        <KV label="Market" value={marketLine(snapshot)} />
-      </CompactSection>
-    </div>
-  );
-}
+/* -------------------- main row -------------------- */
 
 export default function RowStrategies() {
-  const STRATS = useMemo(
-    () => [{ id: "SCALP" }, { id: "MINOR" }, { id: "INTERMEDIATE" }],
-    []
-  );
-
-  const [active, setActive] = useState("SCALP");
-
   const {
     data: snapshot,
     err,
     lastFetch,
     refreshing,
     hasData,
-  } = useDashboardSnapshot(DASHBOARD_SYMBOL, { 
+  } = useDashboardSnapshot(DASHBOARD_SYMBOL, {
     pollMs: POLL_MS,
     timeoutMs: TIMEOUT_MS,
     includeContext: 1,
   });
-
-  const fresh = minutesAgo(lastFetch) <= 1.5;
-  const liveStatus = err ? "red" : fresh ? "green" : "yellow";
-  const liveTip = err
-    ? `Error: ${err}`
-    : `Last snapshot: ${lastFetch ? toAZ(lastFetch, true) : "—"}`;
 
   return (
     <section id="row-5" className="panel" style={{ padding: 10 }}>
       <div className="panel-head" style={{ alignItems: "center" }}>
         <div className="panel-title" style={{ fontSize: 16, fontWeight: 1000 }}>
           Strategies — Decision Interface
-        </div>
-
-        <div style={{ marginLeft: 10, display: "flex", gap: 6, flexWrap: "wrap" }}>
-          {STRATS.map((s) => (
-            <button
-              key={s.id}
-              onClick={() => setActive(s.id)}
-              style={{
-                background: active === s.id ? "#1f2937" : "#0b0b0b",
-                color: "#e5e7eb",
-                border: active === s.id ? "1px solid #3b82f6" : "1px solid #2b2b2b",
-                boxShadow: active === s.id ? "0 0 0 1px #3b82f6 inset" : "none",
-                borderRadius: 10,
-                padding: "6px 10px",
-                fontWeight: 1000,
-                fontSize: FS.micro,
-                cursor: "pointer",
-              }}
-            >
-              {s.id}
-            </button>
-          ))}
         </div>
 
         <div className="spacer" />
@@ -1527,24 +1610,38 @@ export default function RowStrategies() {
           <span>
             Symbol: <b style={{ marginLeft: 4 }}>{snapshot?.symbol || "—"}</b>
           </span>
-          
+
           <span>
             Poll: <b>{Math.round(POLL_MS / 1000)}s</b>
           </span>
+
           <span>
-            Frontend fetch: <b style={{ marginLeft: 4 }}>{lastFetch ? toAZ(lastFetch, true) : "—"}</b>
+            Frontend fetch:{" "}
+            <b style={{ marginLeft: 4 }}>
+              {lastFetch ? toAZ(lastFetch, true) : "—"}
+            </b>
             {refreshing ? (
-              <span style={{ marginLeft: 6, color: "#fbbf24", fontWeight: 1000 }}>
+              <span
+                style={{
+                  marginLeft: 6,
+                  color: "#fbbf24",
+                  fontWeight: 1000,
+                }}
+              >
                 refreshing…
               </span>
             ) : null}
           </span>
+
           <span>
-            Backend snapshot: <b style={{ marginLeft: 4 }}>{snapshotTime(snapshot)}</b>
+            Backend snapshot:{" "}
+            <b style={{ marginLeft: 4 }}>{snapshotTime(snapshot)}</b>
           </span>
+
           <span>
             Build: <b style={{ marginLeft: 4 }}>{toAZ(BUILD_STAMP, true)}</b>
           </span>
+
           <button
             onClick={() => openFullStrategies(DASHBOARD_SYMBOL)}
             style={btn()}
@@ -1555,64 +1652,21 @@ export default function RowStrategies() {
         </div>
       </div>
 
-      {err && !hasData && (
-        <div style={{ marginTop: 8, color: "#fca5a5", fontWeight: 1000, fontSize: FS.small }}>
+      {err && !hasData ? (
+        <div
+          style={{
+            marginTop: 8,
+            color: "#fca5a5",
+            fontWeight: 1000,
+            fontSize: FS.small,
+          }}
+        >
           Strategy snapshot error: {err}
         </div>
-      )}
+      ) : null}
 
       <WaveDegreeRow snapshot={snapshot} />
-
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(3, minmax(0,1fr))",
-          gap: 8,
-          marginTop: 10,
-          alignItems: "stretch",
-        }}
-      >
-        {STRATS.map((s) => {
-          const stratKey = STRATEGY_ID_MAP[s.id];
-          const node = snapshot?.strategies?.[stratKey] || null;
-
-          const activeGlow =
-            active === s.id
-              ? "0 0 0 2px rgba(59,130,246,.45) inset, 0 8px 24px rgba(0,0,0,.22)"
-              : "0 8px 24px rgba(0,0,0,.18)";
-
-          if (s.id === "SCALP") {
-            return (
-              <ScalpCompactCard
-                key={s.id}
-                node={node}
-                snapshot={snapshot}
-                liveStatus={liveStatus}
-                liveTip={liveTip}
-                activeGlow={activeGlow}
-              />
-            );
-          }
-
-         if (s.id === "MINOR") {
-           return (
-            <ScalpCompactCard
-              key={s.id}
-              node={node}
-              snapshot={snapshot}
-              liveStatus={liveStatus}
-              liveTip={liveTip}
-              activeGlow={activeGlow}
-              title="Intermediate Swing"
-              timeframe="1h"
-              summaryOverride={intermediateSummary(node)}
-            />
-          );
-         }
-
-          return <PassiveMiniCard key={s.id} node={node} snapshot={snapshot} />;
-        })}
-      </div>
+      <Engine27TraderIntelligence snapshot={snapshot} />
     </section>
   );
 }
