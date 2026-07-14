@@ -1666,7 +1666,4 @@ export default function RowStrategies() {
       ) : null}
 
       <WaveDegreeRow snapshot={snapshot} />
-      <Engine27TraderIntelligence snapshot={snapshot} />
-    </section>
-  );
-}
+      <Engine27TraderIntelligence snapshot={snapshot} /
