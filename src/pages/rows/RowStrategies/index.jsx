@@ -1086,12 +1086,7 @@ function Engine27SummaryCell({ label, children, wide = false }) {
   );
 }
 
-function Engine27Row({
-  label,
-  value,
-  tone = "default",
-  multiline = false,
-}) {
+function Engine27Metric({ label, value, tone = "default" }) {
   const color =
     tone === "warning"
       ? "#fbbf24"
@@ -1106,20 +1101,21 @@ function Engine27Row({
   return (
     <div
       style={{
-        display: "grid",
-        gridTemplateColumns: "104px minmax(0,1fr)",
-        gap: 8,
-        alignItems: "start",
-        padding: "5px 0",
-        borderBottom: "1px solid rgba(51,65,85,.42)",
+        minWidth: 0,
+        borderRight: "1px solid rgba(51,65,85,.42)",
+        padding: "3px 7px",
       }}
     >
       <div
         style={{
           color: "#94a3b8",
-          fontSize: FS.micro,
+          fontSize: 11,
           fontWeight: 900,
-          lineHeight: 1.2,
+          lineHeight: 1.05,
+          textTransform: "uppercase",
+          letterSpacing: ".025em",
+          marginBottom: 2,
+          whiteSpace: "nowrap",
         }}
       >
         {label}
@@ -1129,8 +1125,7 @@ function Engine27Row({
           color,
           fontSize: FS.small,
           fontWeight: 1000,
-          lineHeight: 1.25,
-          whiteSpace: multiline ? "pre-line" : "normal",
+          lineHeight: 1.12,
           wordBreak: "break-word",
         }}
       >
@@ -1140,30 +1135,58 @@ function Engine27Row({
   );
 }
 
-function Engine27List({ values, emptyLabel = "None", tone = "default" }) {
+function Engine27InlineList({ values, emptyLabel = "None", tone = "default" }) {
   const items = Array.isArray(values) ? values.filter(Boolean) : [];
-
-  if (!items.length) {
-    return <span style={{ color: "#94a3b8" }}>{emptyLabel}</span>;
-  }
-
   const color = tone === "warning" ? "#fbbf24" : "#e5e7eb";
 
   return (
-    <div style={{ display: "grid", gap: 3 }}>
-      {items.map((item, idx) => (
-        <div
-          key={`${item}-${idx}`}
-          style={{
-            color,
-            fontSize: FS.small,
-            fontWeight: 900,
-            lineHeight: 1.2,
-          }}
-        >
-          • {prettyEnum(item)}
-        </div>
-      ))}
+    <span style={{ color, fontWeight: 900 }}>
+      {items.length ? items.map(prettyEnum).join(" • ") : emptyLabel}
+    </span>
+  );
+}
+
+function Engine27WideRow({ label, children, tone = "default" }) {
+  const color =
+    tone === "warning"
+      ? "#fbbf24"
+      : tone === "danger"
+      ? "#f87171"
+      : "#e5e7eb";
+
+  return (
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "82px minmax(0,1fr)",
+        gap: 7,
+        alignItems: "start",
+        padding: "4px 7px",
+        borderTop: "1px solid rgba(51,65,85,.42)",
+      }}
+    >
+      <div
+        style={{
+          color: "#94a3b8",
+          fontSize: 11,
+          fontWeight: 900,
+          textTransform: "uppercase",
+          letterSpacing: ".025em",
+        }}
+      >
+        {label}
+      </div>
+      <div
+        style={{
+          color,
+          fontSize: FS.small,
+          fontWeight: 1000,
+          lineHeight: 1.18,
+          wordBreak: "break-word",
+        }}
+      >
+        {children}
+      </div>
     </div>
   );
 }
@@ -1212,32 +1235,29 @@ function Engine27DegreeCard({
         border: invalidationBreached
           ? "1px solid #7f1d1d"
           : "1px solid #263244",
-        borderTop: `5px solid ${topAccent}`,
-        borderRadius: 14,
-        padding: 10,
+        borderTop: `4px solid ${topAccent}`,
+        borderRadius: 12,
+        padding: 7,
         minWidth: 0,
-        display: "flex",
-        flexDirection: "column",
-        gap: 8,
         boxShadow: isHighestPriority
-          ? `0 0 0 1px ${topAccent} inset, 0 0 20px ${topAccent}33`
-          : "0 8px 22px rgba(0,0,0,.2)",
+          ? `0 0 0 1px ${topAccent} inset, 0 0 18px ${topAccent}33`
+          : "0 6px 18px rgba(0,0,0,.18)",
       }}
     >
       <div
         style={{
           display: "flex",
           justifyContent: "space-between",
-          gap: 7,
-          alignItems: "flex-start",
-          flexWrap: "wrap",
+          gap: 6,
+          alignItems: "center",
+          marginBottom: 5,
         }}
       >
-        <div>
+        <div style={{ minWidth: 0 }}>
           <div
             style={{
               color: "#f8fafc",
-              fontSize: FS.title,
+              fontSize: FS.small,
               fontWeight: 1000,
               letterSpacing: ".025em",
             }}
@@ -1248,9 +1268,9 @@ function Engine27DegreeCard({
             <div
               style={{
                 color: "#fbbf24",
-                fontSize: FS.micro,
+                fontSize: 10,
                 fontWeight: 1000,
-                marginTop: 2,
+                marginTop: 1,
               }}
             >
               HIGHEST PRIORITY
@@ -1258,7 +1278,7 @@ function Engine27DegreeCard({
           ) : null}
         </div>
 
-        <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
           <Badge
             text={prettyEnum(decisionState)}
             tone={engine27DecisionTone(decisionState)}
@@ -1270,9 +1290,17 @@ function Engine27DegreeCard({
         </div>
       </div>
 
-      <div style={{ display: "grid" }}>
-        <Engine27Row label="Decision" value={prettyEnum(decisionState)} />
-        <Engine27Row
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(4, minmax(0,1fr))",
+          border: "1px solid rgba(51,65,85,.42)",
+          borderRadius: 8,
+          overflow: "hidden",
+        }}
+      >
+        <Engine27Metric label="Decision" value={prettyEnum(decisionState)} />
+        <Engine27Metric
           label="Direction"
           value={prettyEnum(direction)}
           tone={
@@ -1283,35 +1311,25 @@ function Engine27DegreeCard({
               : "default"
           }
         />
-        <Engine27Row
-          label="Current Wave"
-          value={engine27Value(currentWave)}
-        />
-
-        {internalWave ? (
-          <Engine27Row
-            label="Internal Wave"
-            value={engine27RawValue(internalWave)}
-          />
-        ) : null}
-
-        <Engine27Row
+        <Engine27Metric label="Current" value={engine27Value(currentWave)} />
+        <Engine27Metric
           label="Current Leg"
           value={engine27Value(wave?.currentLegDirection)}
         />
-        <Engine27Row
+
+        <Engine27Metric
+          label="Internal"
+          value={internalWave ? engine27RawValue(internalWave) : "—"}
+        />
+        <Engine27Metric
           label="Next Wave"
           value={engine27Value(wave?.nextExpectedWave)}
         />
-
-        {nextInternalWave ? (
-          <Engine27Row
-            label="Next Internal"
-            value={engine27RawValue(nextInternalWave)}
-          />
-        ) : null}
-
-        <Engine27Row
+        <Engine27Metric
+          label="Next Internal"
+          value={nextInternalWave ? engine27RawValue(nextInternalWave) : "—"}
+        />
+        <Engine27Metric
           label="Pullback"
           value={engine27Value(wave?.pullbackClassification)}
           tone={
@@ -1320,45 +1338,31 @@ function Engine27DegreeCard({
               : "default"
           }
         />
-        <Engine27Row
+
+        <Engine27Metric
           label="Last Fib"
           value={engine27Value(fib?.currentFib?.lastCompleted)}
         />
-        <Engine27Row
-          label="Next Fib"
-          value={engine27Value(fib?.nextFib)}
-        />
-        <Engine27Row
-          label="Next Objective"
+        <Engine27Metric label="Next Fib" value={engine27Value(fib?.nextFib)} />
+        <Engine27Metric
+          label="Objective"
           value={engine27Number(fib?.nextPrice)}
         />
-        <Engine27Row
+        <Engine27Metric
           label="Distance"
           value={engine27Distance(fib?.distance)}
         />
-        <Engine27Row
+
+        <Engine27Metric
           label="Support"
           value={engine27Number(wave?.supportLevel)}
         />
-        <Engine27Row
+        <Engine27Metric
           label="Invalidation"
           value={engine27Number(wave?.invalidationLevel)}
           tone={invalidationBreached ? "danger" : "default"}
         />
-        <Engine27Row
-          label="Waiting For"
-          value={
-            <Engine27List
-              values={decision?.waitingFor}
-              emptyLabel="None"
-            />
-          }
-        />
-        <Engine27Row
-          label="Action"
-          value={engine27Value(decision?.recommendedAction)}
-        />
-        <Engine27Row
+        <Engine27Metric
           label="Alignment"
           value={
             degree === "primary"
@@ -1371,24 +1375,34 @@ function Engine27DegreeCard({
               : "default"
           }
         />
-        <Engine27Row
-          label="Warnings"
-          value={
-            <Engine27List
-              values={warnings}
-              emptyLabel="None"
-              tone="warning"
-            />
-          }
+        <Engine27Metric
+          label="Action"
+          value={engine27Value(decision?.recommendedAction)}
         />
-        <Engine27Row
-          label="Engine 6"
-          value={engine27Engine6Label(pipeline)}
+      </div>
+
+      <Engine27WideRow label="Waiting For">
+        <Engine27InlineList values={decision?.waitingFor} emptyLabel="None" />
+      </Engine27WideRow>
+
+      <Engine27WideRow label="Warnings" tone={warnings.length ? "warning" : "default"}>
+        <Engine27InlineList
+          values={warnings}
+          emptyLabel="None"
+          tone={warnings.length ? "warning" : "default"}
         />
-        <Engine27Row
-          label="Engine 26"
-          value={engine27PlannerLabel(pipeline)}
-        />
+      </Engine27WideRow>
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(2, minmax(0,1fr))",
+          borderTop: "1px solid rgba(51,65,85,.42)",
+          marginTop: 1,
+        }}
+      >
+        <Engine27Metric label="Engine 6" value={engine27Engine6Label(pipeline)} />
+        <Engine27Metric label="Engine 26" value={engine27PlannerLabel(pipeline)} />
       </div>
     </div>
   );
