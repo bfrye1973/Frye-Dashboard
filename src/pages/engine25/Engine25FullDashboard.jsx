@@ -262,6 +262,150 @@ function ScoreBar({ label, score, color, inverse = false }) {
   );
 }
 
+
+function CompactCreditStressSummary({ detail }) {
+  if (!detail) return null;
+
+  const scores = detail?.scores || {};
+  const displayLabel =
+    detail?.displayLabel || "CREDIT_RATES_LIQUIDITY_UNAVAILABLE";
+
+  const openFullDetail = () => {
+    window.open(
+      "/engine25-credit-stress",
+      "_blank",
+      "noopener,noreferrer"
+    );
+  };
+
+  return (
+    <Card
+      style={{
+        border: "1px solid rgba(249,115,22,0.38)",
+        background: "rgba(67,32,12,0.22)",
+        padding: 12,
+      }}
+    >
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns:
+            "minmax(360px, 1.25fr) repeat(4, minmax(135px, 0.55fr)) minmax(180px, 0.65fr)",
+          gap: 12,
+          alignItems: "center",
+        }}
+      >
+        <div style={{ minWidth: 0 }}>
+          <div
+            style={{
+              fontFamily: FONT,
+              fontSize: 14,
+              lineHeight: 1.2,
+              fontWeight: 900,
+              color: "#fb923c",
+              textTransform: "uppercase",
+              letterSpacing: "0.02em",
+            }}
+          >
+            Credit / Rates / Liquidity Stress Detail
+          </div>
+
+          <div
+            style={{
+              marginTop: 4,
+              fontFamily: FONT,
+              fontSize: 17,
+              lineHeight: 1.2,
+              fontWeight: 900,
+              color: labelColor(displayLabel),
+              textTransform: "uppercase",
+            }}
+          >
+            {cleanLabel(displayLabel)}
+          </div>
+
+          <div
+            style={{
+              marginTop: 4,
+              fontFamily: FONT,
+              fontSize: 13,
+              lineHeight: 1.3,
+              color: "#fed7aa",
+            }}
+          >
+            Credit ETFs weak · Banks strong · Macro stress calm · Rates
+            pressured · Liquidity mixed
+          </div>
+        </div>
+
+        {[
+          ["Credit Fragility", scores.creditFragility],
+          ["Macro Stress", scores.creditStress],
+          ["Bond Market", scores.bondMarket],
+          ["Liquidity", scores.liquidity],
+        ].map(([label, score]) => (
+          <div
+            key={label}
+            style={{
+              border: "1px solid rgba(148,163,184,0.18)",
+              borderRadius: 9,
+              background: "rgba(2,6,23,0.34)",
+              padding: "9px 8px",
+              textAlign: "center",
+            }}
+          >
+            <div
+              style={{
+                fontFamily: FONT,
+                fontSize: 11,
+                lineHeight: 1.2,
+                fontWeight: 850,
+                color: "#94a3b8",
+                textTransform: "uppercase",
+              }}
+            >
+              {label}
+            </div>
+
+            <div
+              style={{
+                marginTop: 4,
+                fontFamily: FONT,
+                fontSize: 24,
+                lineHeight: 1,
+                fontWeight: 900,
+                color: colorFor(score),
+              }}
+            >
+              {fmt(score)}
+            </div>
+          </div>
+        ))}
+
+        <button
+          type="button"
+          onClick={openFullDetail}
+          style={{
+            border: "1px solid rgba(249,115,22,0.55)",
+            borderRadius: 9,
+            background: "rgba(124,45,18,0.42)",
+            color: "#fed7aa",
+            padding: "11px 12px",
+            fontFamily: FONT,
+            fontSize: 13,
+            lineHeight: 1.2,
+            fontWeight: 900,
+            textTransform: "uppercase",
+            cursor: "pointer",
+          }}
+        >
+          Open Full Credit Detail
+        </button>
+      </div>
+    </Card>
+  );
+}
+
 function MiniCompositeChart({ rows = [], available = true }) {
   const chart = useMemo(() => {
     const clean = rows
@@ -533,461 +677,6 @@ function UnderTheHoodTable({ rows = [], interpretation }) {
       )}
     </Card>
   );
-}
-
-
-function metricStateColor(state, score = null) {
-  const text = String(state || "").toUpperCase();
-
-  if (
-    text.includes("STRONG") ||
-    text.includes("SUPPORTIVE") ||
-    text.includes("CALM") ||
-    text.includes("LOW_STRESS") ||
-    text.includes("NORMAL") ||
-    text.includes("HOLDING")
-  ) {
-    return "#22c55e";
-  }
-
-  if (
-    text.includes("WATCH") ||
-    text.includes("MIXED") ||
-    text.includes("MANAGEABLE") ||
-    text.includes("CONTEXT")
-  ) {
-    return "#fbbf24";
-  }
-
-  if (
-    text.includes("WEAK") ||
-    text.includes("PRESSURE") ||
-    text.includes("ELEVATED") ||
-    text.includes("BREAKING") ||
-    text.includes("TIGHT")
-  ) {
-    return "#f97316";
-  }
-
-  if (
-    text.includes("STRESS") ||
-    text.includes("RISK_OFF") ||
-    text.includes("DETERIORATING")
-  ) {
-    return "#ef4444";
-  }
-
-  return colorFor(score);
-}
-
-function DetailedMetricRow({ item, showEma = false, showMomentum = false }) {
-  const stateColor = metricStateColor(item?.state);
-
-  return (
-    <div
-      style={{
-        border: "1px solid rgba(148,163,184,0.16)",
-        borderRadius: 10,
-        background: "rgba(2,6,23,0.28)",
-        padding: 10,
-        display: "grid",
-        gap: 6,
-      }}
-    >
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "flex-start",
-          gap: 12,
-        }}
-      >
-        <div>
-          <div
-            style={{
-              fontFamily: FONT,
-              fontSize: 16,
-              lineHeight: 1.2,
-              fontWeight: 900,
-              color: "#f8fafc",
-            }}
-          >
-            {item?.key || "—"}
-          </div>
-          <div
-            style={{
-              fontFamily: FONT,
-              fontSize: 13,
-              lineHeight: 1.3,
-              color: "#94a3b8",
-              marginTop: 2,
-            }}
-          >
-            {item?.label || "—"}
-          </div>
-        </div>
-
-        <div
-          style={{
-            color: stateColor,
-            fontFamily: FONT,
-            fontSize: 13,
-            lineHeight: 1.2,
-            fontWeight: 900,
-            textAlign: "right",
-            textTransform: "uppercase",
-          }}
-        >
-          {cleanLabel(item?.state)}
-        </div>
-      </div>
-
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-          gap: "4px 10px",
-        }}
-      >
-        <KV
-          label="Value"
-          value={fmtMaybe(item?.close ?? item?.value, 3)}
-          color="#f8fafc"
-        />
-
-        {item?.observationDate && (
-          <KV label="Date" value={item.observationDate} color="#cbd5e1" />
-        )}
-
-        {showEma && (
-          <>
-            <KV label="EMA10" value={fmtMaybe(item?.ema10, 3)} />
-            <KV label="EMA20" value={fmtMaybe(item?.ema20, 3)} />
-            <KV label="EMA50" value={fmtMaybe(item?.ema50, 3)} />
-            <KV label="EMA200" value={fmtMaybe(item?.ema200, 3)} />
-            <KV
-              label="Above EMA20"
-              value={
-                item?.aboveEma20 === true
-                  ? "YES"
-                  : item?.aboveEma20 === false
-                    ? "NO"
-                    : "—"
-              }
-              color={
-                item?.aboveEma20 === true
-                  ? "#22c55e"
-                  : item?.aboveEma20 === false
-                    ? "#ef4444"
-                    : "#94a3b8"
-              }
-            />
-            <KV
-              label="Above EMA50"
-              value={
-                item?.aboveEma50 === true
-                  ? "YES"
-                  : item?.aboveEma50 === false
-                    ? "NO"
-                    : "—"
-              }
-              color={
-                item?.aboveEma50 === true
-                  ? "#22c55e"
-                  : item?.aboveEma50 === false
-                    ? "#ef4444"
-                    : "#94a3b8"
-              }
-            />
-          </>
-        )}
-
-        {showMomentum && (
-          <>
-            <KV
-              label="5D"
-              value={fmtPct(item?.pctChange5d, 2)}
-              color={changeColor(item?.pctChange5d)}
-            />
-            <KV
-              label="20D"
-              value={fmtPct(item?.pctChange20d, 2)}
-              color={changeColor(item?.pctChange20d)}
-            />
-            <KV
-              label="50D"
-              value={fmtPct(item?.pctChange50d, 2)}
-              color={changeColor(item?.pctChange50d)}
-            />
-          </>
-        )}
-      </div>
-
-      <div
-        style={{
-          borderTop: "1px solid rgba(148,163,184,0.14)",
-          paddingTop: 6,
-          fontFamily: FONT,
-          fontSize: 13,
-          lineHeight: 1.35,
-          color: "#cbd5e1",
-        }}
-      >
-        {item?.read || "Latest interpretation unavailable."}
-      </div>
-    </div>
-  );
-}
-
-function CreditStressDetail({ detail }) {
-  if (!detail) return null;
-
-  const credit = detail?.groups?.creditEtfFragility || {};
-  const macro = detail?.groups?.macroCreditStress || {};
-  const rates = detail?.groups?.ratesCurvePressure || {};
-  const liquidity = detail?.groups?.liquidityBackdrop || {};
-  const scores = detail?.scores || {};
-
-  const activeWarnings = Object.entries(detail?.warningFlags || {}).filter(
-    ([, value]) => value === true || value?.active === true
-  );
-
-  return (
-    <Card
-      style={{
-        border: "1px solid rgba(249,115,22,0.38)",
-        background:
-          "linear-gradient(180deg, rgba(30,20,10,0.92), rgba(15,23,42,0.82))",
-      }}
-    >
-      <SectionTitle color="#fb923c">
-        Credit / Rates / Liquidity Stress Detail
-      </SectionTitle>
-
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "minmax(360px, 0.9fr) minmax(0, 2.1fr)",
-          gap: 14,
-          alignItems: "stretch",
-          marginBottom: 14,
-        }}
-      >
-        <div
-          style={{
-            border: "1px solid rgba(249,115,22,0.28)",
-            borderRadius: 12,
-            background: "rgba(124,45,18,0.16)",
-            padding: 12,
-            display: "grid",
-            gap: 8,
-          }}
-        >
-          <div
-            style={{
-              fontSize: 20,
-              lineHeight: 1.22,
-              fontWeight: 900,
-              color: labelColor(detail?.displayLabel),
-              textTransform: "uppercase",
-            }}
-          >
-            {cleanLabel(detail?.displayLabel)}
-          </div>
-
-          <BodyText color="#fed7aa">{detail?.interpretation}</BodyText>
-        </div>
-
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
-            gap: 10,
-          }}
-        >
-          {[
-            ["Credit Fragility", scores.creditFragility],
-            ["Macro Credit Stress", scores.creditStress],
-            ["Bond Market", scores.bondMarket],
-            ["Liquidity", scores.liquidity],
-          ].map(([label, score]) => (
-            <div
-              key={label}
-              style={{
-                border: "1px solid rgba(148,163,184,0.18)",
-                borderRadius: 10,
-                background: "rgba(2,6,23,0.28)",
-                padding: 10,
-                textAlign: "center",
-              }}
-            >
-              <div
-                style={{
-                  fontSize: 13,
-                  lineHeight: 1.2,
-                  color: "#94a3b8",
-                  fontWeight: 800,
-                  textTransform: "uppercase",
-                }}
-              >
-                {label}
-              </div>
-              <div
-                style={{
-                  marginTop: 5,
-                  fontSize: 28,
-                  lineHeight: 1,
-                  fontWeight: 900,
-                  color: colorFor(score),
-                }}
-              >
-                {fmt(score)}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
-          gap: 12,
-          alignItems: "start",
-        }}
-      >
-        <div style={{ display: "grid", gap: 8 }}>
-          <SectionTitle color={colorFor(credit?.score)}>
-            Credit ETF Fragility
-          </SectionTitle>
-          {(credit?.items || []).map((item) => (
-            <DetailedMetricRow
-              key={item.key}
-              item={item}
-              showEma
-              showMomentum
-            />
-          ))}
-        </div>
-
-        <div style={{ display: "grid", gap: 8 }}>
-          <SectionTitle color={colorFor(macro?.score)}>
-            Macro Credit Stress
-          </SectionTitle>
-          {(macro?.items || []).map((item) => (
-            <DetailedMetricRow key={item.key} item={item} />
-          ))}
-        </div>
-
-        <div style={{ display: "grid", gap: 8 }}>
-          <SectionTitle color={colorFor(rates?.score)}>
-            Rates / Bonds
-          </SectionTitle>
-          {(rates?.items || []).map((item) => (
-            <DetailedMetricRow
-              key={item.key}
-              item={item}
-              showEma={item.key === "TLT"}
-              showMomentum={item.key === "TLT"}
-            />
-          ))}
-        </div>
-
-        <div style={{ display: "grid", gap: 8 }}>
-          <SectionTitle color={colorFor(liquidity?.score)}>
-            Liquidity
-          </SectionTitle>
-          {(liquidity?.items || []).map((item) => (
-            <DetailedMetricRow key={item.key} item={item} />
-          ))}
-        </div>
-      </div>
-
-      <div
-        style={{
-          marginTop: 14,
-          borderTop: "1px solid rgba(148,163,184,0.18)",
-          paddingTop: 10,
-          display: "grid",
-          gap: 6,
-        }}
-      >
-        <div
-          style={{
-            color: "#93c5fd",
-            fontSize: 14,
-            lineHeight: 1.2,
-            fontWeight: 900,
-            textTransform: "uppercase",
-          }}
-        >
-          Bottom Line
-        </div>
-
-        <BodyText color="#e2e8f0">
-          Credit ETFs are weak, regional banks remain strong, macro credit stress
-          is calm, Treasury bonds are under pressure, the yield curve is not
-          inverted, liquidity is mixed, and systemic stress is not confirmed.
-        </BodyText>
-
-        {activeWarnings.length > 0 && (
-          <div
-            style={{
-              display: "flex",
-              flexWrap: "wrap",
-              gap: 8,
-              marginTop: 4,
-            }}
-          >
-            {activeWarnings.map(([key, value]) => (
-              <span
-                key={key}
-                style={{
-                  border: "1px solid rgba(249,115,22,0.34)",
-                  borderRadius: 999,
-                  padding: "5px 9px",
-                  color: "#fdba74",
-                  background: "rgba(124,45,18,0.2)",
-                  fontSize: 12,
-                  fontWeight: 850,
-                  textTransform: "uppercase",
-                }}
-              >
-                {cleanLabel(key)}
-                {value?.severity ? ` · ${cleanLabel(value.severity)}` : ""}
-              </span>
-            ))}
-          </div>
-        )}
-      </div>
-    </Card>
-  );
-}
-
-function buildCurrentDailyRows(componentBreakdown = [], headline = {}) {
-  const liveRows = [
-    {
-      label: "Daily Composite",
-      current: headline?.score ?? null,
-      oneDayAgo: null,
-      oneDayChange: null,
-      threeDaysAgo: null,
-      threeDayChange: null,
-    },
-  ];
-
-  for (const item of componentBreakdown) {
-    liveRows.push({
-      label: item?.label || item?.key || "Component",
-      current: item?.score ?? null,
-      oneDayAgo: null,
-      oneDayChange: null,
-      threeDaysAgo: null,
-      threeDayChange: null,
-    });
-  }
-
-  return liveRows;
 }
 
 function SectorBreadthDetail({ sectorBreadth }) {
@@ -1588,16 +1277,9 @@ export default function Engine25FullDashboard() {
     ? data.componentBreakdown
     : [];
 
-  const historicalComparison = Array.isArray(data?.underTheHood?.rows)
+  const comparison = Array.isArray(data?.underTheHood?.rows)
     ? data.underTheHood.rows
     : [];
-
-  const currentDailyRows = buildCurrentDailyRows(breakdown, headline);
-
-  const comparison =
-    data?.dailyCompositeAvailable && historicalComparison.length
-      ? historicalComparison
-      : currentDailyRows;
 
   const overlayRows = Array.isArray(data?.overlay?.rows)
     ? data.overlay.rows
@@ -1806,7 +1488,7 @@ export default function Engine25FullDashboard() {
               </Card>
             </div>
 
-            <CreditStressDetail detail={creditStressDetail} />
+            <CompactCreditStressSummary detail={creditStressDetail} />
 
             <MiniCompositeChart rows={overlayRows} available={overlayAvailable} />
 
