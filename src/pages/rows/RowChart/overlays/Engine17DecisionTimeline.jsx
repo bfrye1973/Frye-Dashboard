@@ -10,7 +10,7 @@ const TIMELINE_FONT =
   '"Trebuchet MS", "Lucida Grande", "Segoe UI", Arial, sans-serif';
 
 const FONT_REGULAR = 400;
-const FONT_MEDIUM = 500;
+const FONT_MEDIUM = 400;
 
 const CARD_BG = "rgba(6,10,20,0.94)";
 const CARD_BG_STRONG = "rgba(6,10,20,0.96)";
@@ -3607,8 +3607,8 @@ const shellTextStyle = {
 };
 
 const smallCapsStyle = {
-  textTransform: "none",
-  letterSpacing: "0.015em",
+  textTransform: "uppercase",
+  letterSpacing: "0.045em",
 };
 
 /* =========================
@@ -3918,7 +3918,6 @@ const stripValueStyle = {
   fontWeight: FONT_MEDIUM,
 };
 
-
 function MinimalStatusStrip({ timeline }) {
   const permission = timeline?.permission || null;
   const paper = permission?.paper || null;
@@ -3936,12 +3935,12 @@ function MinimalStatusStrip({ timeline }) {
 
   const marketBiasLabel =
     isStructuralFastWatch || isShortResearchWatch
-      ? "Short watch"
+      ? "↘ SHORT WATCH"
       : paperDirection === "SHORT"
-      ? "Short"
+      ? "↘ SHORT"
       : paperDirection === "LONG"
-      ? "Long"
-      : "Neutral";
+      ? "↗ LONG"
+      : "— NEUTRAL";
 
   const marketBiasColor =
     isStructuralFastWatch || isShortResearchWatch || paperDirection === "SHORT"
@@ -3952,12 +3951,12 @@ function MinimalStatusStrip({ timeline }) {
 
   const setupLabel =
     isShortResearchWatch
-      ? "Short research"
+      ? "◉ SHORT RESEARCH"
       : isStructuralFastWatch
-      ? "Structural watch"
+      ? "⚠ STRUCTURAL WATCH"
       : paperDecision
-      ? formatText(paperDecision)
-      : "Watch";
+      ? `◉ ${formatUpper(paperDecision)}`
+      : "◉ WATCH";
 
   const setupColor =
     isShortResearchWatch || isStructuralFastWatch
@@ -3966,29 +3965,35 @@ function MinimalStatusStrip({ timeline }) {
 
   const permissionLabel =
     paper?.allowed === true
-      ? "Paper allow"
+      ? "⬟ PAPER ALLOW"
       : formatUpper(permission?.permission, "REDUCE") === "REDUCE"
-      ? "Reduce"
-      : formatText(permission?.permission, "Wait");
+      ? "⬟ REDUCE"
+      : `⬟ ${formatUpper(permission?.permission, "WAIT")}`;
 
   return (
     <div
       style={{
         ...shellTextStyle,
-        width: "100%",
+        position: "absolute",
+        top: 88,
+        left: "50%",
+        transform: "translateX(-50%)",
+        zIndex: 108,
+        width: 760,
+        maxWidth: "44%",
         border: "1px solid rgba(148,163,184,0.20)",
-        borderRadius: 12,
-        background: "rgba(6,10,20,0.86)",
+        borderRadius: 10,
+        background: "rgba(6,10,20,0.70)",
         display: "grid",
-        gridTemplateColumns: "repeat(3, minmax(0,1fr))",
+        gridTemplateColumns: "1fr 1fr 1fr",
+        gap: 0,
         color: "#cbd5e1",
         pointerEvents: "none",
         backdropFilter: "blur(4px)",
-        overflow: "hidden",
       }}
     >
       <div style={stripCellStyle}>
-        <span style={stripLabelStyle}>Market bias</span>
+        <span style={stripLabelStyle}>Market Bias</span>
         <span style={{ ...stripValueStyle, color: marketBiasColor }}>
           {marketBiasLabel}
         </span>
@@ -3999,22 +4004,28 @@ function MinimalStatusStrip({ timeline }) {
           {setupLabel}
         </span>
       </div>
-      <div style={{ ...stripCellStyle, borderRight: "none" }}>
-        <span style={stripLabelStyle}>Trade permission</span>
+      <div style={stripCellStyle}>
+        <span style={stripLabelStyle}>Permission</span>
         <span style={{ ...stripValueStyle, color: "#c084fc" }}>
           {permissionLabel}
         </span>
       </div>
     </div>
   );
- } 
- function TimelineMainCard({ timeline }) {
+}
+function TimelineMainCard({ timeline }) {
   return (
     <div
       style={{
         ...shellTextStyle,
-        width: "100%",
-        maxHeight: "calc(100vh - 185px)",
+        position: "absolute",
+        top: 138,
+        left: "50%",
+        transform: "translateX(-50%)",
+        zIndex: 109,
+        width: 760,
+        maxWidth: "44%",
+        maxHeight: "calc(100vh - 165px)",
         overflowY: "auto",
         borderRadius: 15,
         border: `1px solid ${severityBorder(timeline.severity)}`,
@@ -4024,17 +4035,16 @@ function MinimalStatusStrip({ timeline }) {
         pointerEvents: "none",
         backdropFilter: "blur(5px)",
         boxShadow: "0 12px 34px rgba(0,0,0,0.34)",
-        textAlign: "left",
-        boxSizing: "border-box",
+        textAlign: "center",
       }}
     >
       <div
         style={{
           ...shellTextStyle,
-          fontSize: 27,
-          fontWeight: 600,
+          fontSize: 30,
+          fontWeight: FONT_MEDIUM,
           color: "#fbbf24",
-          letterSpacing: "0.005em",
+          letterSpacing: "0.01em",
           marginBottom: 7,
           lineHeight: 1.2,
           textTransform: "none",
@@ -4048,10 +4058,11 @@ function MinimalStatusStrip({ timeline }) {
           style={{
             ...shellTextStyle,
             color: "#e2e8f0",
-            fontSize: 15,
+            fontSize: 16,
             lineHeight: 1.5,
-            fontWeight: 400,
-            margin: "0 0 11px",
+            fontWeight: FONT_REGULAR,
+            maxWidth: 710,
+            margin: "0 auto 11px",
           }}
         >
           {timeline.subheadline}
@@ -4064,7 +4075,7 @@ function MinimalStatusStrip({ timeline }) {
             display: "flex",
             flexWrap: "wrap",
             gap: 8,
-            justifyContent: "flex-start",
+            justifyContent: "center",
             marginBottom: 13,
           }}
         >
@@ -4078,12 +4089,7 @@ function MinimalStatusStrip({ timeline }) {
         </div>
       )}
 
-      <div
-        style={{
-          display: "grid",
-          gap: 10,
-        }}
-      >
+      <div style={{ display: "grid", gap: 9 }}>
         {asArray(timeline.sections).map((section, idx) => (
           <TimelineSection
             key={`${section.title || "section"}-${idx}`}
@@ -4096,15 +4102,17 @@ function MinimalStatusStrip({ timeline }) {
         <div
           style={{
             ...shellTextStyle,
+            ...smallCapsStyle,
             marginTop: 10,
             paddingTop: 8,
             borderTop: "1px solid rgba(148,163,184,0.25)",
             color: MUTED_TEXT,
-            fontWeight: 500,
+            fontWeight: FONT_MEDIUM,
             fontSize: 13,
+            letterSpacing: "0.08em",
           }}
         >
-          {formatText(timeline.footer)}
+          {timeline.footer}
         </div>
       )}
     </div>
@@ -4120,38 +4128,38 @@ function ContextTimelinePanel({ sections }) {
     <div
       style={{
         ...shellTextStyle,
-        width: "100%",
-        maxHeight: "calc(100vh - 100px)",
+        position: "absolute",
+        top: 138,
+        right: "calc(50% + 430px)",
+        width: 430,
+        maxWidth: "28%",
+        maxHeight: "calc(100vh - 165px)",
         overflowY: "auto",
+        zIndex: 108,
         border: "1px solid rgba(148,163,184,0.35)",
         borderRadius: 15,
         background: CARD_BG,
-        padding: "14px",
+        padding: "14px 14px",
         color: "#e5e7eb",
         pointerEvents: "none",
         boxShadow: "0 10px 28px rgba(0,0,0,0.32)",
         backdropFilter: "blur(5px)",
-        boxSizing: "border-box",
       }}
     >
       <div
         style={{
           ...shellTextStyle,
+          ...smallCapsStyle,
           color: MAIN_TEXT,
-          fontWeight: 600,
-          fontSize: 19,
+          fontWeight: FONT_MEDIUM,
+          fontSize: 18,
           marginBottom: 12,
         }}
       >
         Market Context
       </div>
 
-      <div
-        style={{
-          display: "grid",
-          gap: 10,
-        }}
-      >
+      <div style={{ display: "grid", gap: 9 }}>
         {safeSections.map((section, idx) => (
           <TimelineSection
             key={`${section.title || "context"}-${idx}`}
@@ -4172,42 +4180,15 @@ export default function Engine17DecisionTimeline({
   visible = true,
   chartMode = "SCALP",
 }) {
-  const timeline = normalizeTimelineData({
-    overlayData,
-    chartMode,
-  });
+  const timeline = normalizeTimelineData({ overlayData, chartMode });
 
   if (!visible || !timeline?.show) return null;
 
   return (
-    <div
-      style={{
-        ...shellTextStyle,
-        position: "absolute",
-        top: 88,
-        left: 18,
-        right: 470,
-        zIndex: 108,
-        display: "grid",
-        gridTemplateColumns: "minmax(330px, 430px) minmax(560px, 760px)",
-        justifyContent: "center",
-        alignItems: "start",
-        gap: 14,
-        pointerEvents: "none",
-      }}
-    >
+    <>
+      <MinimalStatusStrip timeline={timeline} />
       <ContextTimelinePanel sections={timeline.contextSections} />
-
-      <div
-        style={{
-          display: "grid",
-          gap: 12,
-          minWidth: 0,
-        }}
-      >
-        <MinimalStatusStrip timeline={timeline} />
-        <TimelineMainCard timeline={timeline} />
-      </div>
-    </div>
+      <TimelineMainCard timeline={timeline} />
+    </>
   );
 }
