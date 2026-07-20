@@ -10,7 +10,7 @@ const TIMELINE_FONT =
   '"Trebuchet MS", "Lucida Grande", "Segoe UI", Arial, sans-serif';
 
 const FONT_REGULAR = 400;
-const FONT_MEDIUM = 400;
+const FONT_MEDIUM = 500;
 
 const CARD_BG = "rgba(6,10,20,0.94)";
 const CARD_BG_STRONG = "rgba(6,10,20,0.96)";
@@ -212,6 +212,18 @@ function getFinalPermission(fib) {
   const root = getStrategyRoot(fib);
 
   return root?.permission || fib?.permission || root?.finalPermission || null;
+}
+
+function getEngine27TraderDecision(fib) {
+  const root = getStrategyRoot(fib);
+
+  return (
+    root?.engine27TraderDecision ||
+    fib?.engine27TraderDecision ||
+    root?.engine27Strategies?.engine27TraderDecision ||
+    fib?.engine27Strategies?.engine27TraderDecision ||
+    null
+  );
 }
 
 function getEngine26StructuralContext(fib) {
@@ -1512,6 +1524,104 @@ function buildEngine5Section(fib) {
           !isDangerChase(timing.chaseRisk),
       },
     ],
+  };
+}
+
+function buildEngine27TraderIntelligenceSection(fib) {
+  const decision = getEngine27TraderDecision(fib);
+
+  if (!decision) {
+    return {
+      number: 0,
+      icon: "㉗",
+      title: "Trader Intelligence — Engine 27",
+      severity: "warning",
+      fields: [
+        ["State", "WAITING FOR ENGINE 27 DATA"],
+        ["Direction", "—"],
+        ["Current Wave", "—"],
+        ["Internal Wave", "—"],
+        ["Next Action", "MONITOR"],
+      ],
+      lines: [
+        "Engine 27 Trader Intelligence is not present in the current RowChart overlay payload.",
+        "This card is ready for the canonical engine27TraderDecision object once RowChart passes it through.",
+      ],
+    };
+  }
+
+  const readiness = decision?.readiness || {};
+  const blockers = asArray(
+    decision?.blockers ||
+      decision?.blockingReasons ||
+      readiness?.blockers
+  );
+
+  const waitingFor = asArray(
+    decision?.waitingFor ||
+      decision?.needs ||
+      readiness?.waitingFor
+  );
+
+  const currentWave =
+    decision?.currentWave ||
+    decision?.wave?.currentWave ||
+    decision?.waveState?.currentWave ||
+    "—";
+
+  const internalWave =
+    decision?.internalWave ||
+    decision?.wave?.internalWave ||
+    decision?.waveState?.internalWave ||
+    "—";
+
+  const state =
+    decision?.state ||
+    decision?.decisionState ||
+    decision?.readinessState ||
+    "UNKNOWN";
+
+  const direction =
+    decision?.direction ||
+    decision?.bias ||
+    decision?.tradeDirection ||
+    "NEUTRAL";
+
+  const nextAction =
+    decision?.nextAction ||
+    decision?.action ||
+    decision?.recommendedAction ||
+    "MONITOR";
+
+  const severity =
+    decision?.executable === true
+      ? "bullish"
+      : blockers.length
+      ? "warning"
+      : "teal";
+
+  return {
+    number: 0,
+    icon: "㉗",
+    title: "Trader Intelligence — Engine 27",
+    severity,
+    fields: [
+      ["State", formatUpper(state)],
+      ["Direction", formatUpper(direction)],
+      ["Current Wave", formatUpper(currentWave)],
+      ["Internal Wave", formatUpper(internalWave)],
+      ["Next Action", formatUpper(nextAction)],
+      ["Executable", formatBool(decision?.executable, "NO")],
+    ],
+    lines: [
+      waitingFor.length
+        ? `Waiting for: ${waitingFor.map(formatText).join(", ")}`
+        : null,
+      blockers.length
+        ? `Blockers: ${blockers.map(formatText).join(", ")}`
+        : "No active Engine 27 blockers reported.",
+      decision?.summary || decision?.traderMessage || null,
+    ].filter(Boolean),
   };
 }
 
@@ -3537,8 +3647,7 @@ const lifecycleOwnsDisplay =
     hasDegreeStates ? null : buildPossibleW5UpCompleteSection(fib),
     hasDegreeStates ? null : buildPostMinor5CorrectiveBounceSection(fib),
     postAbcBounceSection,
-    buildEngine15Section(engine15, currentLifecycleState),
-    buildEngine5Section(fib),
+    buildEngine27TraderIntelligenceSection(fib),
     buildPermissionSection(permission, engine15),
 
     lifecycleOwnsDisplay && !hasLifecycleViews
@@ -3561,7 +3670,6 @@ const lifecycleOwnsDisplay =
     buildBackendTimelineSection(marketMeterSection),
     buildEngine3ContextSection(fib),
     buildEngine4ContextSection(fib),
-    hasDegreeStates ? null : buildCurrentFibExtensionsSection(waveOpportunity, fib),
   ]
     .filter(Boolean)
     .map((section, idx) => ({
@@ -3607,8 +3715,8 @@ const shellTextStyle = {
 };
 
 const smallCapsStyle = {
-  textTransform: "uppercase",
-  letterSpacing: "0.045em",
+  textTransform: "none",
+  letterSpacing: "0.015em",
 };
 
 /* =========================
@@ -3935,12 +4043,12 @@ function MinimalStatusStrip({ timeline }) {
 
   const marketBiasLabel =
     isStructuralFastWatch || isShortResearchWatch
-      ? "↘ SHORT WATCH"
+      ? "Short watch"
       : paperDirection === "SHORT"
-      ? "↘ SHORT"
+      ? "Short"
       : paperDirection === "LONG"
-      ? "↗ LONG"
-      : "— NEUTRAL";
+      ? "Long"
+      : "Neutral";
 
   const marketBiasColor =
     isStructuralFastWatch || isShortResearchWatch || paperDirection === "SHORT"
@@ -3951,12 +4059,12 @@ function MinimalStatusStrip({ timeline }) {
 
   const setupLabel =
     isShortResearchWatch
-      ? "◉ SHORT RESEARCH"
+      ? "Short research"
       : isStructuralFastWatch
-      ? "⚠ STRUCTURAL WATCH"
+      ? "Structural watch"
       : paperDecision
-      ? `◉ ${formatUpper(paperDecision)}`
-      : "◉ WATCH";
+      ? formatText(paperDecision)
+      : "Watch";
 
   const setupColor =
     isShortResearchWatch || isStructuralFastWatch
@@ -3965,35 +4073,29 @@ function MinimalStatusStrip({ timeline }) {
 
   const permissionLabel =
     paper?.allowed === true
-      ? "⬟ PAPER ALLOW"
+      ? "Paper allow"
       : formatUpper(permission?.permission, "REDUCE") === "REDUCE"
-      ? "⬟ REDUCE"
-      : `⬟ ${formatUpper(permission?.permission, "WAIT")}`;
+      ? "Reduce"
+      : formatText(permission?.permission, "Wait");
 
   return (
     <div
       style={{
         ...shellTextStyle,
-        position: "absolute",
-        top: 88,
-        left: "50%",
-        transform: "translateX(-50%)",
-        zIndex: 108,
-        width: 760,
-        maxWidth: "44%",
+        width: "100%",
         border: "1px solid rgba(148,163,184,0.20)",
-        borderRadius: 10,
-        background: "rgba(6,10,20,0.70)",
+        borderRadius: 12,
+        background: "rgba(6,10,20,0.86)",
         display: "grid",
-        gridTemplateColumns: "1fr 1fr 1fr",
-        gap: 0,
+        gridTemplateColumns: "repeat(3, minmax(0,1fr))",
         color: "#cbd5e1",
         pointerEvents: "none",
         backdropFilter: "blur(4px)",
+        overflow: "hidden",
       }}
     >
       <div style={stripCellStyle}>
-        <span style={stripLabelStyle}>Market Bias</span>
+        <span style={stripLabelStyle}>Market bias</span>
         <span style={{ ...stripValueStyle, color: marketBiasColor }}>
           {marketBiasLabel}
         </span>
@@ -4004,8 +4106,8 @@ function MinimalStatusStrip({ timeline }) {
           {setupLabel}
         </span>
       </div>
-      <div style={stripCellStyle}>
-        <span style={stripLabelStyle}>Permission</span>
+      <div style={{ ...stripCellStyle, borderRight: "none" }}>
+        <span style={stripLabelStyle}>Trade permission</span>
         <span style={{ ...stripValueStyle, color: "#c084fc" }}>
           {permissionLabel}
         </span>
@@ -4013,19 +4115,14 @@ function MinimalStatusStrip({ timeline }) {
     </div>
   );
 }
+
 function TimelineMainCard({ timeline }) {
   return (
     <div
       style={{
         ...shellTextStyle,
-        position: "absolute",
-        top: 138,
-        left: "50%",
-        transform: "translateX(-50%)",
-        zIndex: 109,
-        width: 760,
-        maxWidth: "44%",
-        maxHeight: "calc(100vh - 165px)",
+        width: "100%",
+        maxHeight: "calc(100vh - 185px)",
         overflowY: "auto",
         borderRadius: 15,
         border: `1px solid ${severityBorder(timeline.severity)}`,
@@ -4035,16 +4132,17 @@ function TimelineMainCard({ timeline }) {
         pointerEvents: "none",
         backdropFilter: "blur(5px)",
         boxShadow: "0 12px 34px rgba(0,0,0,0.34)",
-        textAlign: "center",
+        textAlign: "left",
+        boxSizing: "border-box",
       }}
     >
       <div
         style={{
           ...shellTextStyle,
-          fontSize: 30,
-          fontWeight: FONT_MEDIUM,
+          fontSize: 27,
+          fontWeight: 600,
           color: "#fbbf24",
-          letterSpacing: "0.01em",
+          letterSpacing: "0.005em",
           marginBottom: 7,
           lineHeight: 1.2,
           textTransform: "none",
@@ -4058,11 +4156,10 @@ function TimelineMainCard({ timeline }) {
           style={{
             ...shellTextStyle,
             color: "#e2e8f0",
-            fontSize: 16,
+            fontSize: 15,
             lineHeight: 1.5,
-            fontWeight: FONT_REGULAR,
-            maxWidth: 710,
-            margin: "0 auto 11px",
+            fontWeight: 400,
+            margin: "0 0 11px",
           }}
         >
           {timeline.subheadline}
@@ -4075,7 +4172,7 @@ function TimelineMainCard({ timeline }) {
             display: "flex",
             flexWrap: "wrap",
             gap: 8,
-            justifyContent: "center",
+            justifyContent: "flex-start",
             marginBottom: 13,
           }}
         >
@@ -4089,7 +4186,7 @@ function TimelineMainCard({ timeline }) {
         </div>
       )}
 
-      <div style={{ display: "grid", gap: 9 }}>
+      <div style={{ display: "grid", gap: 10 }}>
         {asArray(timeline.sections).map((section, idx) => (
           <TimelineSection
             key={`${section.title || "section"}-${idx}`}
@@ -4102,17 +4199,15 @@ function TimelineMainCard({ timeline }) {
         <div
           style={{
             ...shellTextStyle,
-            ...smallCapsStyle,
             marginTop: 10,
             paddingTop: 8,
             borderTop: "1px solid rgba(148,163,184,0.25)",
             color: MUTED_TEXT,
-            fontWeight: FONT_MEDIUM,
+            fontWeight: 500,
             fontSize: 13,
-            letterSpacing: "0.08em",
           }}
         >
-          {timeline.footer}
+          {formatText(timeline.footer)}
         </div>
       )}
     </div>
@@ -4128,38 +4223,33 @@ function ContextTimelinePanel({ sections }) {
     <div
       style={{
         ...shellTextStyle,
-        position: "absolute",
-        top: 138,
-        right: "calc(50% + 430px)",
-        width: 430,
-        maxWidth: "28%",
-        maxHeight: "calc(100vh - 165px)",
+        width: "100%",
+        maxHeight: "calc(100vh - 100px)",
         overflowY: "auto",
-        zIndex: 108,
         border: "1px solid rgba(148,163,184,0.35)",
         borderRadius: 15,
         background: CARD_BG,
-        padding: "14px 14px",
+        padding: "14px",
         color: "#e5e7eb",
         pointerEvents: "none",
         boxShadow: "0 10px 28px rgba(0,0,0,0.32)",
         backdropFilter: "blur(5px)",
+        boxSizing: "border-box",
       }}
     >
       <div
         style={{
           ...shellTextStyle,
-          ...smallCapsStyle,
           color: MAIN_TEXT,
-          fontWeight: FONT_MEDIUM,
-          fontSize: 18,
+          fontWeight: 600,
+          fontSize: 19,
           marginBottom: 12,
         }}
       >
         Market Context
       </div>
 
-      <div style={{ display: "grid", gap: 9 }}>
+      <div style={{ display: "grid", gap: 10 }}>
         {safeSections.map((section, idx) => (
           <TimelineSection
             key={`${section.title || "context"}-${idx}`}
@@ -4185,10 +4275,34 @@ export default function Engine17DecisionTimeline({
   if (!visible || !timeline?.show) return null;
 
   return (
-    <>
-      <MinimalStatusStrip timeline={timeline} />
+    <div
+      style={{
+        ...shellTextStyle,
+        position: "absolute",
+        top: 88,
+        left: 18,
+        right: 470,
+        zIndex: 108,
+        display: "grid",
+        gridTemplateColumns: "minmax(330px, 430px) minmax(560px, 760px)",
+        justifyContent: "center",
+        alignItems: "start",
+        gap: 14,
+        pointerEvents: "none",
+      }}
+    >
       <ContextTimelinePanel sections={timeline.contextSections} />
-      <TimelineMainCard timeline={timeline} />
-    </>
+
+      <div
+        style={{
+          display: "grid",
+          gap: 12,
+          minWidth: 0,
+        }}
+      >
+        <MinimalStatusStrip timeline={timeline} />
+        <TimelineMainCard timeline={timeline} />
+      </div>
+    </div>
   );
 }
