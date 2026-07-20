@@ -10,7 +10,7 @@ const TIMELINE_FONT =
   '"Trebuchet MS", "Lucida Grande", "Segoe UI", Arial, sans-serif';
 
 const FONT_REGULAR = 400;
-const FONT_MEDIUM = 400;
+const FONT_MEDIUM = 500;
 
 const CARD_BG = "rgba(6,10,20,0.94)";
 const CARD_BG_STRONG = "rgba(6,10,20,0.96)";
@@ -3607,8 +3607,8 @@ const shellTextStyle = {
 };
 
 const smallCapsStyle = {
-  textTransform: "uppercase",
-  letterSpacing: "0.045em",
+  textTransform: "none",
+  letterSpacing: "0.015em",
 };
 
 /* =========================
@@ -3918,7 +3918,96 @@ const stripValueStyle = {
   fontWeight: FONT_MEDIUM,
 };
 
+
 function MinimalStatusStrip({ timeline }) {
+  const permission = timeline?.permission || null;
+  const paper = permission?.paper || null;
+
+  const paperDecision = String(paper?.decision || "").toUpperCase();
+  const paperDirection = String(paper?.direction || "").toUpperCase();
+
+  const isStructuralFastWatch =
+    paperDecision === "STRUCTURAL_FAST_WATCH" ||
+    paper?.structuralWatchOnly === true;
+
+  const isShortResearchWatch =
+    paperDecision === "PAPER_SHORT_RESEARCH_WATCH" ||
+    paper?.shortResearchWatch === true;
+
+  const marketBiasLabel =
+    isStructuralFastWatch || isShortResearchWatch
+      ? "Short watch"
+      : paperDirection === "SHORT"
+      ? "Short"
+      : paperDirection === "LONG"
+      ? "Long"
+      : "Neutral";
+
+  const marketBiasColor =
+    isStructuralFastWatch || isShortResearchWatch || paperDirection === "SHORT"
+      ? "#fb7185"
+      : paperDirection === "LONG"
+      ? "#22c55e"
+      : "#cbd5e1";
+
+  const setupLabel =
+    isShortResearchWatch
+      ? "Short research"
+      : isStructuralFastWatch
+      ? "Structural watch"
+      : paperDecision
+      ? formatText(paperDecision)
+      : "Watch";
+
+  const setupColor =
+    isShortResearchWatch || isStructuralFastWatch
+      ? "#fb7185"
+      : "#fbbf24";
+
+  const permissionLabel =
+    paper?.allowed === true
+      ? "Paper allow"
+      : formatUpper(permission?.permission, "REDUCE") === "REDUCE"
+      ? "Reduce"
+      : formatText(permission?.permission, "Wait");
+
+  return (
+    <div
+      style={{
+        ...shellTextStyle,
+        width: "100%",
+        border: "1px solid rgba(148,163,184,0.20)",
+        borderRadius: 12,
+        background: "rgba(6,10,20,0.86)",
+        display: "grid",
+        gridTemplateColumns: "repeat(3, minmax(0,1fr))",
+        color: "#cbd5e1",
+        pointerEvents: "none",
+        backdropFilter: "blur(4px)",
+        overflow: "hidden",
+      }}
+    >
+      <div style={stripCellStyle}>
+        <span style={stripLabelStyle}>Market bias</span>
+        <span style={{ ...stripValueStyle, color: marketBiasColor }}>
+          {marketBiasLabel}
+        </span>
+      </div>
+      <div style={stripCellStyle}>
+        <span style={stripLabelStyle}>Setup</span>
+        <span style={{ ...stripValueStyle, color: setupColor }}>
+          {setupLabel}
+        </span>
+      </div>
+      <div style={{ ...stripCellStyle, borderRight: "none" }}>
+        <span style={stripLabelStyle}>Trade permission</span>
+        <span style={{ ...stripValueStyle, color: "#c084fc" }}>
+          {permissionLabel}
+        </span>
+      </div>
+    </div>
+  );
+}) {
   const permission = timeline?.permission || null;
   const paper = permission?.paper || null;
 
@@ -4013,7 +4102,104 @@ function MinimalStatusStrip({ timeline }) {
     </div>
   );
 }
+
 function TimelineMainCard({ timeline }) {
+  return (
+    <div
+      style={{
+        ...shellTextStyle,
+        width: "100%",
+        maxHeight: "calc(100vh - 185px)",
+        overflowY: "auto",
+        borderRadius: 15,
+        border: `1px solid ${severityBorder(timeline.severity)}`,
+        background: CARD_BG_STRONG,
+        padding: "18px 19px",
+        color: "#e5e7eb",
+        pointerEvents: "none",
+        backdropFilter: "blur(5px)",
+        boxShadow: "0 12px 34px rgba(0,0,0,0.34)",
+        textAlign: "left",
+        boxSizing: "border-box",
+      }}
+    >
+      <div
+        style={{
+          ...shellTextStyle,
+          fontSize: 27,
+          fontWeight: 600,
+          color: "#fbbf24",
+          letterSpacing: "0.005em",
+          marginBottom: 7,
+          lineHeight: 1.2,
+          textTransform: "none",
+        }}
+      >
+        {timeline.headline}
+      </div>
+
+      {timeline.subheadline && (
+        <div
+          style={{
+            ...shellTextStyle,
+            color: "#e2e8f0",
+            fontSize: 15,
+            lineHeight: 1.5,
+            fontWeight: 400,
+            margin: "0 0 11px",
+          }}
+        >
+          {timeline.subheadline}
+        </div>
+      )}
+
+      {asArray(timeline.badges).length > 0 && (
+        <div
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            gap: 8,
+            justifyContent: "flex-start",
+            marginBottom: 13,
+          }}
+        >
+          {timeline.badges.map((badge, idx) => (
+            <Badge
+              key={`${badge.label}-${idx}`}
+              label={badge.label}
+              severity={badge.severity}
+            />
+          ))}
+        </div>
+      )}
+
+      <div style={{ display: "grid", gap: 10 }}>
+        {asArray(timeline.sections).map((section, idx) => (
+          <TimelineSection
+            key={`${section.title || "section"}-${idx}`}
+            section={section}
+          />
+        ))}
+      </div>
+
+      {timeline.footer && (
+        <div
+          style={{
+            ...shellTextStyle,
+            marginTop: 10,
+            paddingTop: 8,
+            borderTop: "1px solid rgba(148,163,184,0.25)",
+            color: MUTED_TEXT,
+            fontWeight: 500,
+            fontSize: 13,
+          }}
+        >
+          {formatText(timeline.footer)}
+        </div>
+      )}
+    </div>
+  );
+}) {
   return (
     <div
       style={{
@@ -4119,7 +4305,53 @@ function TimelineMainCard({ timeline }) {
   );
 }
 
+
 function ContextTimelinePanel({ sections }) {
+  const safeSections = asArray(sections);
+
+  if (!safeSections.length) return null;
+
+  return (
+    <div
+      style={{
+        ...shellTextStyle,
+        width: "100%",
+        maxHeight: "calc(100vh - 100px)",
+        overflowY: "auto",
+        border: "1px solid rgba(148,163,184,0.35)",
+        borderRadius: 15,
+        background: CARD_BG,
+        padding: "14px",
+        color: "#e5e7eb",
+        pointerEvents: "none",
+        boxShadow: "0 10px 28px rgba(0,0,0,0.32)",
+        backdropFilter: "blur(5px)",
+        boxSizing: "border-box",
+      }}
+    >
+      <div
+        style={{
+          ...shellTextStyle,
+          color: MAIN_TEXT,
+          fontWeight: 600,
+          fontSize: 19,
+          marginBottom: 12,
+        }}
+      >
+        Market Context
+      </div>
+
+      <div style={{ display: "grid", gap: 10 }}>
+        {safeSections.map((section, idx) => (
+          <TimelineSection
+            key={`${section.title || "context"}-${idx}`}
+            section={section}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}) {
   const safeSections = asArray(sections);
 
   if (!safeSections.length) return null;
@@ -4175,10 +4407,46 @@ function ContextTimelinePanel({ sections }) {
    Main export
 ========================= */
 
-export default function Engine17DecisionTimeline({
+export default export default function Engine17DecisionTimeline({
   overlayData,
   visible = true,
   chartMode = "SCALP",
+}) {
+  const timeline = normalizeTimelineData({ overlayData, chartMode });
+
+  if (!visible || !timeline?.show) return null;
+
+  return (
+    <div
+      style={{
+        ...shellTextStyle,
+        position: "absolute",
+        top: 88,
+        left: 18,
+        right: 470,
+        zIndex: 108,
+        display: "grid",
+        gridTemplateColumns: "minmax(330px, 430px) minmax(560px, 760px)",
+        justifyContent: "center",
+        alignItems: "start",
+        gap: 14,
+        pointerEvents: "none",
+      }}
+    >
+      <ContextTimelinePanel sections={timeline.contextSections} />
+
+      <div
+        style={{
+          display: "grid",
+          gap: 12,
+          minWidth: 0,
+        }}
+      >
+        <MinimalStatusStrip timeline={timeline} />
+        <TimelineMainCard timeline={timeline} />
+      </div>
+    </div>
+  );
 }) {
   const timeline = normalizeTimelineData({ overlayData, chartMode });
 
