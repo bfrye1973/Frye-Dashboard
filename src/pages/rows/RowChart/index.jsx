@@ -375,11 +375,37 @@ function mapSnapshotToEngine17Overlay(snapshot, strategyId, chartMode = "SPY_SCA
   const engine23Interpretation = node?.engine23Interpretation || null;
   const aiTradeCopilot = node?.aiTradeCopilot || null;
 
-  const engine22WaveStrategy =
-  node?.engine22WaveStrategy ||
-  snapshot?.strategies?.["intraday_scalp@10m"]?.engine22WaveStrategy ||
-  null;
+  /*
+   * Engine 27 Phase 1:
+   * Attach the already-completed canonical Minute timeline and
+   * Minute Trader Decision to the chart overlay payload.
+   *
+   * No backend calculations are performed here.
+   */
+  const minuteStrategy =
+    snapshot?.strategies?.["intraday_scalp@10m"] || null;
 
+  const strategyTimeline =
+    minuteStrategy?.strategyTimeline ||
+    node?.strategyTimeline ||
+    null;
+
+  const engine27TraderDecisionRoot =
+    snapshot?.engine27Strategies?.engine27TraderDecision ||
+    minuteStrategy?.engine27TraderDecision ||
+    node?.engine27TraderDecision ||
+    null;
+
+  const engine27TraderDecision =
+    engine27TraderDecisionRoot?.minute ||
+    engine27TraderDecisionRoot?.Minute ||
+    engine27TraderDecisionRoot ||
+    null;
+
+const engine22WaveStrategy =
+  node?.engine22WaveStrategy ||
+  minuteStrategy?.engine22WaveStrategy ||
+  null;
   if (!scalp) {
     return {
       ok: false,
@@ -638,6 +664,10 @@ function mapSnapshotToEngine17Overlay(snapshot, strategyId, chartMode = "SPY_SCA
      engine22Scalp,
      engine23Interpretation,
      aiTradeCopilot,
+
+     // Canonical Engine 27 Minute lane
+     strategyTimeline,
+     engine27TraderDecision,
 
      // Engine 17 timeline hierarchy data
      engine15Decision: node?.engine15Decision || null,
