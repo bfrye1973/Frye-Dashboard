@@ -4008,7 +4008,7 @@ function MinimalStatusStrip({ timeline }) {
     </div>
   );
  } 
-function TimelineMainCard({ timeline }) {
+ function TimelineMainCard({ timeline }) {
   return (
     <div
       style={{
@@ -4078,7 +4078,12 @@ function TimelineMainCard({ timeline }) {
         </div>
       )}
 
-      <div style={{ display: "grid", gap: 10 }}>
+      <div
+        style={{
+          display: "grid",
+          gap: 10,
+        }}
+      >
         {asArray(timeline.sections).map((section, idx) => (
           <TimelineSection
             key={`${section.title || "section"}-${idx}`}
@@ -4104,112 +4109,7 @@ function TimelineMainCard({ timeline }) {
       )}
     </div>
   );
-}) {
-  return (
-    <div
-      style={{
-        ...shellTextStyle,
-        position: "absolute",
-        top: 138,
-        left: "50%",
-        transform: "translateX(-50%)",
-        zIndex: 109,
-        width: 760,
-        maxWidth: "44%",
-        maxHeight: "calc(100vh - 165px)",
-        overflowY: "auto",
-        borderRadius: 15,
-        border: `1px solid ${severityBorder(timeline.severity)}`,
-        background: CARD_BG_STRONG,
-        padding: "18px 19px",
-        color: "#e5e7eb",
-        pointerEvents: "none",
-        backdropFilter: "blur(5px)",
-        boxShadow: "0 12px 34px rgba(0,0,0,0.34)",
-        textAlign: "center",
-      }}
-    >
-      <div
-        style={{
-          ...shellTextStyle,
-          fontSize: 30,
-          fontWeight: FONT_MEDIUM,
-          color: "#fbbf24",
-          letterSpacing: "0.01em",
-          marginBottom: 7,
-          lineHeight: 1.2,
-          textTransform: "none",
-        }}
-      >
-        {timeline.headline}
-      </div>
-
-      {timeline.subheadline && (
-        <div
-          style={{
-            ...shellTextStyle,
-            color: "#e2e8f0",
-            fontSize: 16,
-            lineHeight: 1.5,
-            fontWeight: FONT_REGULAR,
-            maxWidth: 710,
-            margin: "0 auto 11px",
-          }}
-        >
-          {timeline.subheadline}
-        </div>
-      )}
-
-      {asArray(timeline.badges).length > 0 && (
-        <div
-          style={{
-            display: "flex",
-            flexWrap: "wrap",
-            gap: 8,
-            justifyContent: "center",
-            marginBottom: 13,
-          }}
-        >
-          {timeline.badges.map((badge, idx) => (
-            <Badge
-              key={`${badge.label}-${idx}`}
-              label={badge.label}
-              severity={badge.severity}
-            />
-          ))}
-        </div>
-      )}
-
-      <div style={{ display: "grid", gap: 9 }}>
-        {asArray(timeline.sections).map((section, idx) => (
-          <TimelineSection
-            key={`${section.title || "section"}-${idx}`}
-            section={section}
-          />
-        ))}
-      </div>
-
-      {timeline.footer && (
-        <div
-          style={{
-            ...shellTextStyle,
-            ...smallCapsStyle,
-            marginTop: 10,
-            paddingTop: 8,
-            borderTop: "1px solid rgba(148,163,184,0.25)",
-            color: MUTED_TEXT,
-            fontWeight: FONT_MEDIUM,
-            fontSize: 13,
-            letterSpacing: "0.08em",
-          }}
-        >
-          {timeline.footer}
-        </div>
-      )}
-    </div>
-  );
 }
-
 
 function ContextTimelinePanel({ sections }) {
   const safeSections = asArray(sections);
@@ -4246,57 +4146,12 @@ function ContextTimelinePanel({ sections }) {
         Market Context
       </div>
 
-      <div style={{ display: "grid", gap: 10 }}>
-        {safeSections.map((section, idx) => (
-          <TimelineSection
-            key={`${section.title || "context"}-${idx}`}
-            section={section}
-          />
-        ))}
-      </div>
-    </div>
-  );
-}) {
-  const safeSections = asArray(sections);
-
-  if (!safeSections.length) return null;
-
-  return (
-    <div
-      style={{
-        ...shellTextStyle,
-        position: "absolute",
-        top: 138,
-        right: "calc(50% + 430px)",
-        width: 430,
-        maxWidth: "28%",
-        maxHeight: "calc(100vh - 165px)",
-        overflowY: "auto",
-        zIndex: 108,
-        border: "1px solid rgba(148,163,184,0.35)",
-        borderRadius: 15,
-        background: CARD_BG,
-        padding: "14px 14px",
-        color: "#e5e7eb",
-        pointerEvents: "none",
-        boxShadow: "0 10px 28px rgba(0,0,0,0.32)",
-        backdropFilter: "blur(5px)",
-      }}
-    >
       <div
         style={{
-          ...shellTextStyle,
-          ...smallCapsStyle,
-          color: MAIN_TEXT,
-          fontWeight: FONT_MEDIUM,
-          fontSize: 18,
-          marginBottom: 12,
+          display: "grid",
+          gap: 10,
         }}
       >
-        Market Context
-      </div>
-
-      <div style={{ display: "grid", gap: 9 }}>
         {safeSections.map((section, idx) => (
           <TimelineSection
             key={`${section.title || "context"}-${idx}`}
@@ -4312,12 +4167,15 @@ function ContextTimelinePanel({ sections }) {
    Main export
 ========================= */
 
-export default export default function Engine17DecisionTimeline({
+export default function Engine17DecisionTimeline({
   overlayData,
   visible = true,
   chartMode = "SCALP",
 }) {
-  const timeline = normalizeTimelineData({ overlayData, chartMode });
+  const timeline = normalizeTimelineData({
+    overlayData,
+    chartMode,
+  });
 
   if (!visible || !timeline?.show) return null;
 
@@ -4351,17 +4209,5 @@ export default export default function Engine17DecisionTimeline({
         <TimelineMainCard timeline={timeline} />
       </div>
     </div>
-  );
-}) {
-  const timeline = normalizeTimelineData({ overlayData, chartMode });
-
-  if (!visible || !timeline?.show) return null;
-
-  return (
-    <>
-      <MinimalStatusStrip timeline={timeline} />
-      <ContextTimelinePanel sections={timeline.contextSections} />
-      <TimelineMainCard timeline={timeline} />
-    </>
   );
 }
