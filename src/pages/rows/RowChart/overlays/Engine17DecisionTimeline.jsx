@@ -1,6 +1,6 @@
-// src/pages/rows/RowChart/overlays/Engine17DecisionTimeline.jsx
+/ src/pages/rows/RowChart/overlays/Engine17DecisionTimeline.jsx
 
-import React from "react";
+import React, { useState } from "react";
 
 /* =========================
    Visual System
@@ -25,6 +25,14 @@ const C_TARGET_HIT_LABELS = {
   c200: "C 2.000 hit",
   c2618: "C 2.618 hit",
 };
+
+const WAVELENGTH_TABS = [
+  { key: "subminute", label: "Subminute" },
+  { key: "minute", label: "Minute" },
+  { key: "minor", label: "Minor" },
+  { key: "intermediate", label: "Intermediate" },
+  { key: "primary", label: "Primary" },
+];
 
 /* =========================
    Formatters
@@ -4261,6 +4269,115 @@ function ContextTimelinePanel({ sections }) {
   );
 }
 
+
+function WavelengthTabs({ selectedDegree, onSelect }) {
+  return (
+    <div
+      style={{
+        ...shellTextStyle,
+        gridColumn: "1 / -1",
+        display: "grid",
+        gridTemplateColumns: "repeat(5, minmax(0, 1fr))",
+        gap: 8,
+        padding: 8,
+        border: "1px solid rgba(148,163,184,0.25)",
+        borderRadius: 12,
+        background: "rgba(6,10,20,0.92)",
+        boxShadow: "0 8px 24px rgba(0,0,0,0.28)",
+        pointerEvents: "auto",
+      }}
+    >
+      {WAVELENGTH_TABS.map((tab) => {
+        const active = selectedDegree === tab.key;
+
+        return (
+          <button
+            key={tab.key}
+            type="button"
+            onClick={() => onSelect(tab.key)}
+            style={{
+              ...shellTextStyle,
+              border: active
+                ? "1px solid rgba(56,189,248,0.85)"
+                : "1px solid rgba(148,163,184,0.24)",
+              borderRadius: 9,
+              background: active
+                ? "rgba(12,74,110,0.42)"
+                : "rgba(15,23,42,0.52)",
+              color: active ? "#7dd3fc" : "#cbd5e1",
+              padding: "9px 10px",
+              fontSize: 14,
+              fontWeight: active ? 600 : 500,
+              cursor: "pointer",
+              boxShadow: active
+                ? "0 0 18px rgba(56,189,248,0.18)"
+                : "none",
+            }}
+          >
+            {tab.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function UnattachedLaneCard({ selectedDegree }) {
+  const lane =
+    WAVELENGTH_TABS.find((tab) => tab.key === selectedDegree)?.label ||
+    "Selected";
+
+  return (
+    <div
+      style={{
+        ...shellTextStyle,
+        width: "100%",
+        borderRadius: 15,
+        border: "1px solid rgba(251,191,36,0.48)",
+        background: CARD_BG_STRONG,
+        padding: "22px 20px",
+        color: "#e5e7eb",
+        boxShadow: "0 12px 34px rgba(0,0,0,0.34)",
+        boxSizing: "border-box",
+        textAlign: "left",
+      }}
+    >
+      <div
+        style={{
+          color: "#fbbf24",
+          fontSize: 25,
+          fontWeight: 600,
+          marginBottom: 8,
+        }}
+      >
+        {lane} Timeline
+      </div>
+
+      <div
+        style={{
+          color: SOFT_TEXT,
+          fontSize: 16,
+          lineHeight: 1.5,
+        }}
+      >
+        Timeline not attached yet.
+      </div>
+
+      <div
+        style={{
+          color: MUTED_TEXT,
+          fontSize: 14,
+          lineHeight: 1.45,
+          marginTop: 8,
+        }}
+      >
+        Minute remains the only canonical lane wired in this phase. No Minute
+        data is being reused for this tab.
+      </div>
+    </div>
+  );
+}
+
 /* =========================
    Main export
 ========================= */
@@ -4270,9 +4387,12 @@ export default function Engine17DecisionTimeline({
   visible = true,
   chartMode = "SCALP",
 }) {
+  const [selectedDegree, setSelectedDegree] = useState("minute");
   const timeline = normalizeTimelineData({ overlayData, chartMode });
 
   if (!visible || !timeline?.show) return null;
+
+  const minuteSelected = selectedDegree === "minute";
 
   return (
     <div
@@ -4291,6 +4411,11 @@ export default function Engine17DecisionTimeline({
         pointerEvents: "none",
       }}
     >
+      <WavelengthTabs
+        selectedDegree={selectedDegree}
+        onSelect={setSelectedDegree}
+      />
+
       <ContextTimelinePanel sections={timeline.contextSections} />
 
       <div
@@ -4300,8 +4425,14 @@ export default function Engine17DecisionTimeline({
           minWidth: 0,
         }}
       >
-        <MinimalStatusStrip timeline={timeline} />
-        <TimelineMainCard timeline={timeline} />
+        {minuteSelected ? (
+          <>
+            <MinimalStatusStrip timeline={timeline} />
+            <TimelineMainCard timeline={timeline} />
+          </>
+        ) : (
+          <UnattachedLaneCard selectedDegree={selectedDegree} />
+        )}
       </div>
     </div>
   );
