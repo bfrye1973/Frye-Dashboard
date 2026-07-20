@@ -2,6 +2,7 @@
 // Engine 25D update:
 // - Keeps normal dashboard pages inside UIScaler
 // - Moves /engine25-full OUTSIDE UIScaler so the full research page is not shrunk to 60%
+// - Adds /engine25-credit-stress OUTSIDE UIScaler
 // - Keeps API_BASE export, HealthStatusBar, ModeProvider, and existing routes
 
 import React, { useEffect, useMemo, useState } from "react";
@@ -15,11 +16,17 @@ import { ModeProvider, ViewModes } from "./context/ModeContext";
 const FullChart = React.lazy(() => import("./pages/FullChart"));
 const StrategiesFull = React.lazy(() => import("./pages/StrategiesFull"));
 const JournalFull = React.lazy(() => import("./pages/JournalFull"));
+
 const Engine25FullDashboard = React.lazy(() =>
   import("./pages/engine25/Engine25FullDashboard")
 );
 
+const Engine25CreditStressDetail = React.lazy(() =>
+  import("./pages/engine25/Engine25CreditStressDetail")
+);
+
 /* ------------------------- API base resolution ------------------------- */
+
 const API_BASE =
   (typeof window !== "undefined" && (window.__API_BASE__ || "")) ||
   process.env.REACT_APP_API_BASE ||
@@ -27,6 +34,7 @@ const API_BASE =
   "https://frye-market-backend-1.onrender.com/api";
 
 /* --------------------------- date helper (AZ) --------------------------- */
+
 const fmtAz = (iso) => {
   try {
     return new Intl.DateTimeFormat("en-US", {
@@ -44,6 +52,7 @@ const fmtAz = (iso) => {
 };
 
 /* --------------------------- Health Status Bar -------------------------- */
+
 function HealthStatusBar() {
   const [state, setState] = useState({
     ok: null,
@@ -53,7 +62,10 @@ function HealthStatusBar() {
     lastChecked: null,
   });
 
-  const url = useMemo(() => `${API_BASE.replace(/\/+$/, "")}/api/health`, []);
+  const url = useMemo(
+    () => `${API_BASE.replace(/\/+$/, "")}/api/health`,
+    []
+  );
 
   useEffect(() => {
     let alive = true;
@@ -75,8 +87,8 @@ function HealthStatusBar() {
       } catch (e) {
         if (!alive) return;
 
-        setState((s) => ({
-          ...s,
+        setState((current) => ({
+          ...current,
           ok: false,
           error: e?.message || "Network error",
           lastChecked: new Date().toISOString(),
@@ -128,6 +140,7 @@ function HealthStatusBar() {
         <span style={{ opacity: 0.5 }}>|</span>
 
         <strong style={{ color: "#93c5fd" }}>Connected:</strong>
+
         <span
           style={{
             display: "inline-flex",
@@ -146,17 +159,24 @@ function HealthStatusBar() {
               display: "inline-block",
             }}
           />
+
           {connected ? "✓" : "✗"}
         </span>
 
         <span style={{ opacity: 0.5 }}>|</span>
 
-        <strong style={{ color: "#93c5fd" }}>Last heartbeat (AZ):</strong>
+        <strong style={{ color: "#93c5fd" }}>
+          Last heartbeat (AZ):
+        </strong>
+
         <span>{heartbeat}</span>
 
         <span style={{ opacity: 0.5 }}>|</span>
 
-        <strong style={{ color: "#93c5fd" }}>Checked at (AZ):</strong>
+        <strong style={{ color: "#93c5fd" }}>
+          Checked at (AZ):
+        </strong>
+
         <span>{checked}</span>
 
         {state.error && (
@@ -172,11 +192,12 @@ function HealthStatusBar() {
 }
 
 /* ---------------------- Normal dashboard scaled shell ------------------- */
+
 function ScaledDashboardShell({ children }) {
   return (
     <UIScaler
       minReadable={0.45}
-      defaultScale={0.60}
+      defaultScale={0.6}
       defaultMode="manual"
       maxScale={1.6}
     >
@@ -188,8 +209,8 @@ function ScaledDashboardShell({ children }) {
 }
 
 /* --------------------------------- App --------------------------------- */
+
 export default function App() {
-  // FINAL clamp so zooming/resizes never re-widen the grid
   useEffect(() => {
     const fixWidth = () => {
       const grid = document.querySelector(".dashboard-grid");
@@ -225,10 +246,20 @@ export default function App() {
           }
         >
           <Routes>
-            {/* Engine 25 full page is intentionally OUTSIDE UIScaler */}
-            <Route path="/engine25-full" element={<Engine25FullDashboard />} />
+            {/* Engine 25 research pages are outside UIScaler */}
+
+            <Route
+              path="/engine25-full"
+              element={<Engine25FullDashboard />}
+            />
+
+            <Route
+              path="/engine25-credit-stress"
+              element={<Engine25CreditStressDetail />}
+            />
 
             {/* Normal dashboard routes stay inside UIScaler */}
+
             <Route
               path="/"
               element={
@@ -274,4 +305,5 @@ export default function App() {
 }
 
 /* ----------------------------- named export ----------------------------- */
+
 export { API_BASE };
