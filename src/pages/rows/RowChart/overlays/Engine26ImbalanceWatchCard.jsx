@@ -273,6 +273,39 @@ function getDirectionColor(direction) {
   return "#38bdf8";
 }
 
+
+const SUBMINUTE_EXPECTED_IDENTITY = {
+  laneId: "subminute",
+  strategyId: "subminute_scalp@10m",
+  candidateId: "E26C-SUBMINUTE-87288e1db54cb920bfd4",
+  zoneId: "E26Z-SUBMINUTE-d15bf89c7c189d747288",
+};
+
+function validateSubminuteEngine26Contract(contract) {
+  const objects = [
+    contract?.locationCandidate,
+    contract?.pipelineIdentity,
+    contract?.locationContext,
+    contract?.controlMap,
+    contract?.proposedGeometry,
+  ];
+
+  if (objects.some((item) => !item || typeof item !== "object")) {
+    return { attached: false, valid: false };
+  }
+
+  return {
+    attached: true,
+    valid: objects.every(
+      (item) =>
+        item.candidateId === SUBMINUTE_EXPECTED_IDENTITY.candidateId &&
+        item.zoneId === SUBMINUTE_EXPECTED_IDENTITY.zoneId &&
+        item.strategyId === SUBMINUTE_EXPECTED_IDENTITY.strategyId &&
+        item.laneId === SUBMINUTE_EXPECTED_IDENTITY.laneId
+    ),
+  };
+}
+
 export default function Engine26ImbalanceWatchCard({
   visible = true,
   watch = null,
@@ -281,12 +314,244 @@ export default function Engine26ImbalanceWatchCard({
   ticket = null,
   symbol = "ES",
   selectedWaveDegree = "minute",
+  subminuteEngine26 = null,
 }) {
   if (!visible) return null;
 
   const normalizedWaveDegree = String(
     selectedWaveDegree || "minute"
   ).toLowerCase();
+
+
+  if (normalizedWaveDegree === "subminute") {
+    const validation = validateSubminuteEngine26Contract(subminuteEngine26);
+
+    if (validation.attached && !validation.valid) {
+      return (
+        <div
+          style={{
+            fontFamily: CARD_FONT,
+            position: "absolute",
+            top: 95,
+            left: CARD_LEFT,
+            zIndex: 109,
+            width: CARD_WIDTH,
+            maxWidth: "37%",
+            borderRadius: 16,
+            border: "1px solid rgba(244,63,94,0.62)",
+            background: "rgba(6,10,20,0.98)",
+            padding: "15px 16px",
+            color: "#e5e7eb",
+            backdropFilter: "blur(4px)",
+            pointerEvents: "none",
+            textAlign: "left",
+            boxShadow: "0 10px 28px rgba(0,0,0,0.34)",
+            display: "grid",
+            gap: 10,
+          }}
+        >
+          <div style={{ ...TITLE_STYLE, color: "#fb7185" }}>
+            Engine 26 — Trade Plan Preview
+          </div>
+          <SectionBox
+            border="rgba(244,63,94,0.62)"
+            background="rgba(127,29,29,0.15)"
+          >
+            <SectionTitle color="#fb7185">
+              SUBMINUTE ENGINE 26 IDENTITY MISMATCH
+            </SectionTitle>
+            <div style={TEXT_STYLE}>
+              The Subminute Engine 26 objects do not preserve the same
+              candidate, zone, strategy, and lane identity.
+            </div>
+          </SectionBox>
+        </div>
+      );
+    }
+
+    if (validation.attached && validation.valid) {
+      const locationCandidate = subminuteEngine26.locationCandidate;
+      const pipelineIdentity = subminuteEngine26.pipelineIdentity;
+      const locationContext = subminuteEngine26.locationContext;
+      const controlMap = subminuteEngine26.controlMap;
+      const proposedGeometry = subminuteEngine26.proposedGeometry;
+      const zone = locationContext?.zone || locationCandidate?.location || {};
+      const proposedTargets = Array.isArray(proposedGeometry?.proposedTargets)
+        ? proposedGeometry.proposedTargets
+        : [];
+      const plannerStatus =
+        proposedGeometry?.lifecycleStatus || "NOT ATTACHED";
+      const plannerReady =
+        proposedGeometry?.active === true &&
+        String(proposedGeometry?.lifecycleStatus || "").toUpperCase() ===
+          "PROPOSED_GEOMETRY_AVAILABLE";
+      const direction =
+        locationCandidate?.direction ||
+        pipelineIdentity?.direction ||
+        controlMap?.direction ||
+        proposedGeometry?.direction ||
+        "LONG";
+      const noExecution =
+        proposedGeometry?.noExecution === true ||
+        locationCandidate?.noExecution === true ||
+        locationContext?.noExecution === true ||
+        controlMap?.noExecution === true;
+
+      return (
+        <div
+          style={{
+            fontFamily: CARD_FONT,
+            position: "absolute",
+            top: 95,
+            left: CARD_LEFT,
+            zIndex: 109,
+            width: CARD_WIDTH,
+            maxWidth: "37%",
+            borderRadius: 16,
+            border: "1px solid rgba(34,197,94,0.62)",
+            background: "rgba(6,10,20,0.98)",
+            padding: "15px 16px",
+            color: "#e5e7eb",
+            backdropFilter: "blur(4px)",
+            pointerEvents: "none",
+            textAlign: "left",
+            boxShadow: "0 10px 28px rgba(0,0,0,0.34)",
+            display: "grid",
+            gap: 10,
+          }}
+        >
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr auto",
+              alignItems: "start",
+              gap: 10,
+            }}
+          >
+            <div>
+              <div style={{ ...TITLE_STYLE, color: "#22c55e" }}>
+                Engine 26 — Trade Plan Preview
+              </div>
+              <div
+                style={{
+                  ...TEXT_STYLE,
+                  color: "#f8fafc",
+                  fontSize: 14,
+                  marginTop: 4,
+                  fontWeight: 700,
+                }}
+              >
+                {symbol} • Subminute lane • Proposal only
+              </div>
+            </div>
+            <StatusBadge
+              label={formatUpper(locationCandidate?.status, "ACTIVE")}
+              color="#22c55e"
+            />
+          </div>
+
+          <SectionBox border="rgba(34,197,94,0.46)" background="rgba(20,83,45,0.13)">
+            <SmallLine label="Lane" value="SUBMINUTE" valueColor="#22c55e" />
+            <SmallLine label="Strategy" value="SUBMINUTE SCALP @ 10M" />
+            <SmallLine label="Direction" value={formatUpper(direction)} valueColor={getDirectionColor(direction)} />
+            <SmallLine label="Candidate ID" value={locationCandidate?.candidateId} />
+            <SmallLine label="Zone ID" value={locationCandidate?.zoneId} />
+            <SmallLine label="Pipeline Complete" value={formatBool(pipelineIdentity?.complete)} valueColor="#22c55e" />
+          </SectionBox>
+
+          <SectionBox border="rgba(148,163,184,0.28)" background="rgba(15,23,42,0.36)">
+            <SectionTitle>Alarm Zone</SectionTitle>
+            <SmallLine label="Status" value={formatUpper(locationCandidate?.status)} valueColor="#22c55e" />
+            <SmallLine label="Zone" value={zone?.lo != null && zone?.hi != null ? `${formatLevel(zone.lo)}–${formatLevel(zone.hi)}` : "—"} />
+            <SmallLine label="Current" value={formatLevel(locationContext?.currentPrice)} />
+            <SmallLine label="Relation" value={formatUpper(locationContext?.relation)} />
+            <SmallLine label="Distance" value={formatPoints(locationContext?.distancePoints)} />
+            <SmallLine label="Trigger TF" value={formatUpper(locationContext?.triggerTimeframe)} />
+            <SmallLine label="Context TF" value={formatUpper(locationContext?.contextTimeframe)} />
+          </SectionBox>
+
+          <SectionBox border="rgba(56,189,248,0.32)" background="rgba(12,74,110,0.14)">
+            <SectionTitle>Trade Plan Preview</SectionTitle>
+            <SmallLine label="Planner Status" value={formatUpper(plannerStatus)} valueColor="#22c55e" />
+            <SmallLine label="Planner Ready" value={formatBool(plannerReady)} valueColor="#22c55e" />
+            <SmallLine label="Entry idea" value={formatLevel(proposedGeometry?.proposedEntryPrice)} />
+            <SmallLine label="Stop idea" value={formatLevel(proposedGeometry?.proposedStopPrice)} valueColor="#fb7185" />
+            <SmallLine label="Risk preview" value={formatPoints(proposedGeometry?.proposedStopDistancePoints)} valueColor="#fb7185" />
+            <SmallLine label="Reward preview" value="—" valueColor="#22c55e" />
+            <SmallLine label="Preview R/R" value="—" valueColor="#22c55e" />
+          </SectionBox>
+
+          <SectionBox border="rgba(251,191,36,0.32)" background="rgba(113,63,18,0.12)">
+            <SectionTitle color="#fbbf24">Structure</SectionTitle>
+            <SmallLine label="Control State" value={formatUpper(controlMap?.currentControlState)} valueColor="#fbbf24" />
+            <SmallLine label="Required Reaction" value={formatUpper(controlMap?.requiredReaction)} />
+            <SmallLine label="Trigger Level" value={formatLevel(controlMap?.triggerLevel)} />
+            <SmallLine label="Acceptance" value={formatLevel(controlMap?.acceptanceBoundary)} />
+            <SmallLine label="Reclaim" value={formatLevel(controlMap?.reclaimBoundary)} />
+            <SmallLine label="Invalidation" value={formatLevel(controlMap?.invalidationBoundary)} valueColor="#fb7185" />
+          </SectionBox>
+
+          <SectionBox border="rgba(34,197,94,0.32)" background="rgba(20,83,45,0.12)">
+            <SectionTitle color="#22c55e">Target Map</SectionTitle>
+            <SmallLine label="Targets attached" value={proposedTargets.length ? "YES" : "NO"} valueColor={proposedTargets.length ? "#22c55e" : "#fbbf24"} />
+            <SmallLine label="Target count" value={String(proposedTargets.length)} />
+            <SmallLine label="First target" value={proposedTargets[0]?.price != null ? formatLevel(proposedTargets[0].price) : "—"} />
+            <SmallLine label="Target source zones" value={Array.isArray(controlMap?.targetSourceZones) ? String(controlMap.targetSourceZones.length) : "0"} />
+          </SectionBox>
+
+          <SectionBox border="rgba(168,85,247,0.35)" background="rgba(59,7,100,0.16)">
+            <SectionTitle color="#c084fc">Confirmation Needed</SectionTitle>
+            <ConfirmationList
+              items={[
+                controlMap?.requiredReaction,
+                controlMap?.invalidationCondition,
+                "ENGINE6_PERMISSION_NOT_ATTACHED",
+              ].filter(Boolean)}
+            />
+          </SectionBox>
+
+          <SectionBox border="rgba(148,163,184,0.24)" background="rgba(15,23,42,0.32)">
+            <SectionTitle>Activation Check</SectionTitle>
+            <SmallLine label="Proposal Only" value={formatBool(proposedGeometry?.proposalOnly)} />
+            <SmallLine label="Official" value={formatBool(proposedGeometry?.official)} />
+            <SmallLine label="Executable" value={formatBool(!proposedGeometry?.nonExecutable)} valueColor="#fb7185" />
+            <SmallLine label="No Execution" value={formatBool(noExecution)} valueColor="#fb7185" />
+            <SmallLine label="Engine 6" value="NOT ATTACHED" valueColor="#fbbf24" />
+            <SmallLine label="Ticket" value="NO" valueColor="#fb7185" />
+          </SectionBox>
+
+          <SectionBox border="rgba(168,85,247,0.35)" background="rgba(59,7,100,0.16)">
+            <SectionTitle color="#c084fc">Engine 7 Size Preview</SectionTitle>
+            <SmallLine label="Mode" value="NOT ATTACHED" />
+            <SmallLine label="Allowed" value="NO" valueColor="#fb7185" />
+            <SmallLine label="Engine 6" value="NOT ATTACHED" />
+            <SmallLine label="Score" value="—" />
+            <div style={{ ...TEXT_STYLE, fontSize: 13, fontWeight: 700, color: "#cbd5e1" }}>
+              Engine 7 sizing is not attached for the Subminute lane.
+            </div>
+          </SectionBox>
+
+          <div
+            style={{
+              ...TEXT_STYLE,
+              color: "#fbbf24",
+              borderTop: "1px solid rgba(148,163,184,0.22)",
+              paddingTop: 9,
+              fontSize: 14,
+              fontWeight: 700,
+            }}
+          >
+            Subminute Engine 26 candidate, zone, location, control map, and proposal geometry are attached.
+            Engine 6, Engine 7, Engine 9, Engine 8, and Engine 10 remain unattached and non-executable.
+          </div>
+
+          <div style={{ ...TEXT_STYLE, color: "#94a3b8", fontSize: 13, fontWeight: 700 }}>
+            Plan: {formatUpper(plannerStatus)}
+          </div>
+        </div>
+      );
+    }
+  }
 
   if (normalizedWaveDegree !== "minute") {
     const laneLabel =
