@@ -912,6 +912,7 @@ export default function RowChart({
   const [engine17Data, setEngine17Data] = useState(null);
   const [engine17RawDebug, setEngine17RawDebug] = useState(null);
   const [chartMode, setChartMode] = useState(initialChartMode);
+  const [selectedWaveDegree, setSelectedWaveDegree] = useState("minute");
 
   const selectedMode = modeNameFromChartMode(chartMode);
   const selectedStrategyId = strategyIdFromChartMode(chartMode);
@@ -2278,6 +2279,8 @@ export default function RowChart({
              visible={state.engine17Timeline && state.engine17Overlay}
              chartMode={selectedMode}
              symbol={state.symbol}
+             selectedWaveDegree={selectedWaveDegree}
+             onSelectedWaveDegreeChange={setSelectedWaveDegree}
            />
 
           <Engine26ImbalanceWatchCard
@@ -2292,6 +2295,7 @@ export default function RowChart({
             tradePlanPreview={engine17Data?.fib?.engine26TradePlanPreview}
             ticket={engine17Data?.fib?.engine26PaperTradeTicket}
             symbol={state.symbol}
+            selectedWaveDegree={selectedWaveDegree}
           />
 
           <Engine23BehaviorCard
