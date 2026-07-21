@@ -385,6 +385,17 @@ function mapSnapshotToEngine17Overlay(snapshot, strategyId, chartMode = "SPY_SCA
   const minuteStrategy =
     snapshot?.strategies?.["intraday_scalp@10m"] || null;
 
+  const subminuteStrategy =
+    snapshot?.strategies?.["subminute_scalp@10m"] || null;
+
+  const subminuteEngine26 = {
+    locationCandidate: subminuteStrategy?.engine26LocationCandidate || null,
+    pipelineIdentity: subminuteStrategy?.engine26PipelineIdentity || null,
+    locationContext: subminuteStrategy?.engine26LocationContext || null,
+    controlMap: subminuteStrategy?.engine26ControlMap || null,
+    proposedGeometry: subminuteStrategy?.engine26ProposedGeometry || null,
+  };
+
   const strategyTimeline =
     minuteStrategy?.strategyTimeline ||
     null;
@@ -669,6 +680,7 @@ const engine22WaveStrategy =
      engine27TraderDecision,
      engine27SubminuteTraderDecision,
      engine22SubminuteStructure,
+     subminuteEngine26,
 
      // Engine 17 timeline hierarchy data
      engine15Decision: node?.engine15Decision || null,
@@ -2296,6 +2308,7 @@ export default function RowChart({
             ticket={engine17Data?.fib?.engine26PaperTradeTicket}
             symbol={state.symbol}
             selectedWaveDegree={selectedWaveDegree}
+            subminuteEngine26={engine17Data?.fib?.subminuteEngine26}
           />
 
           <Engine23BehaviorCard
