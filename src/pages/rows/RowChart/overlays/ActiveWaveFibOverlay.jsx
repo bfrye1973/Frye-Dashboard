@@ -1,30 +1,22 @@
 // src/pages/rows/RowChart/overlays/ActiveWaveFibOverlay.jsx
-// Engine 2B — ES Active Wave Fib Overlay
+// Engine 2B — ES Active Wave Fib Overlay, Phase 2
 //
-// Proven architecture copied from the working legacy FibLevelsOverlay.jsx:
-// - canvas overlay appended to chartContainer
-// - seed(barsAsc)
-// - update(latestBar)
-// - destroy()
-// - requestAnimationFrame redraw
-// - window resize handling
-// - visible-range redraw
-// - priceSeries.priceToCoordinate(price)
+// Proven canvas lifecycle copied from the working legacy FibLevelsOverlay.jsx.
 //
-// ES source of truth:
+// Backend source:
 //   GET /api/v1/waves/active?symbol=ES
 //
-// Draw contract:
-//   activeStructures[degree].targetModel.displayLevels
-//
-// Fallback:
-//   activeStructures[degree].targetModel.levels
+// Draws, for the selected degree only:
+// 1. targetModel.displayLevels
+// 2. confirmed wave marks from activeStructures[degree].marks
+// 3. decisionWatch support/warning/reclaim/confirmation/invalidation levels
+// 4. targetModel.projectionBase
 //
 // Important:
-// - This file does not calculate Elliott waves or fib targets.
+// - No Elliott calculations are performed in the frontend.
 // - Micro maps internally to subminute.
-// - Visible labels remain MICRO.
-// - SPY continues using the legacy FibLevelsOverlay.jsx.
+// - SPY continues using FibLevelsOverlay.jsx.
+// - Backend timestamps are parsed and then snapped to the nearest loaded bar.
 
 const API_BASE =
   (typeof import.meta !== "undefined" &&
@@ -63,7 +55,7 @@ function finiteNumber(value) {
   return Number.isFinite(number) ? number : null;
 }
 
-function normalizeLevels(targetModel) {
+function normalizeExtensionLevels(targetModel) {
   const displayLevels = Array.isArray(targetModel?.displayLevels)
     ? targetModel.displayLevels
         .map((level) => ({
@@ -73,20 +65,219 @@ function normalizeLevels(targetModel) {
         .filter((level) => level.label && level.price !== null)
     : [];
 
-  if (displayLevels.length > 0) {
-    return displayLevels;
-  }
+  if (displayLevels.length > 0) return displayLevels;
 
   const levels = targetModel?.levels;
-
-  if (!levels || typeof levels !== "object") {
-    return [];
-  }
+  if (!levels || typeof levels !== "object") return [];
 
   return LEVEL_ORDER.map(([label, key]) => ({
     label,
     price: finiteNumber(levels[key]),
   })).filter((level) => level.price !== null);
+}
+
+function parseBackendTime(value) {
+  if (value == null || value === "") return null;
+
+  if (typeof value === "number") {
+    return value > 1e12 ? Math.floor(value / 1000) : Math.floor(value);
+  }
+
+  const raw = String(value).trim();
+  if (!raw) return null;
+
+  if (/^\d{10,13}$/.test(raw)) {
+    const number = Number(raw);
+    return number > 1e12 ? Math.floor(number / 1000) : Math.floor(number);
+  }
+
+  // Active-wave-state currently uses "YYYY-MM-DD HH:mm".
+  // Interpret it as UTC chart time, then snap to the nearest loaded candle.
+  const normalized = raw.includes("T")
+    ? raw
+    : raw.replace(" ", "T");
+
+  const withZone = /(?:Z|[+-]\d{2}:\d{2})$/.test(normalized)
+    ? normalized
+    : `${normalized}Z`;
+
+  const ms = Date.parse(withZone);
+  return Number.isFinite(ms) ? Math.floor(ms / 1000) : null;
+}
+
+function normalizeMarks(marks) {
+  if (!marks || typeof marks !== "object") return [];
+
+  const output = [];
+
+  for (const label of ["W1", "W2", "W3", "W4", "W5"]) {
+    const mark = marks[label];
+    if (!mark || typeof mark !== "object") continue;
+
+    const status = String(mark.status || "").toUpperCase();
+    const confirmed = status === "CONFIRMED";
+
+    if (label === "W1") {
+      const lowPrice = finiteNumber(mark?.low?.price);
+      const lowTime = parseBackendTime(mark?.low?.time);
+      const highPrice = finiteNumber(mark?.high?.price);
+      const highTime = parseBackendTime(mark?.high?.time);
+
+      if (lowPrice !== null && lowTime !== null) {
+        output.push({
+          label: "W1 LOW",
+          shortLabel: "1L",
+          price: lowPrice,
+          timeSec: lowTime,
+          confirmed,
+          status,
+        });
+      }
+
+      if (highPrice !== null && highTime !== null) {
+        output.push({
+          label: "W1 HIGH",
+          shortLabel: "1",
+          price: highPrice,
+          timeSec: highTime,
+          confirmed,
+          status,
+        });
+      }
+
+      continue;
+    }
+
+    const price = finiteNumber(mark.price);
+    const timeSec = parseBackendTime(mark.time);
+
+    if (price === null || timeSec === null) continue;
+
+    output.push({
+      label,
+      shortLabel: label.replace("W", ""),
+      price,
+      timeSec,
+      confirmed,
+      status,
+    });
+  }
+
+  return output;
+}
+
+function buildDecisionLines(structure, visibleDegree) {
+  const watch = structure?.decisionWatch || {};
+  const targetModel = structure?.targetModel || {};
+  const lines = [];
+
+  const add = (price, label, kind, color, dash = []) => {
+    const value = finiteNumber(price);
+    if (value === null) return;
+
+    lines.push({
+      price: value,
+      label,
+      kind,
+      color,
+      dash,
+    });
+  };
+
+  add(
+    watch.supportHoldLevel,
+    `${visibleDegree} SUPPORT`,
+    "support",
+    "#22c55e",
+    []
+  );
+
+  add(
+    watch.warningLevel,
+    `${visibleDegree} WARNING`,
+    "warning",
+    "#f59e0b",
+    [10, 8]
+  );
+
+  add(
+    watch.reclaimLevel,
+    `${visibleDegree} RECLAIM`,
+    "reclaim",
+    "#22d3ee",
+    [12, 8]
+  );
+
+  if (Array.isArray(watch.confirmationLevels)) {
+    watch.confirmationLevels.forEach((price, index) => {
+      add(
+        price,
+        `${visibleDegree} CONFIRM ${index + 1}`,
+        "confirmation",
+        "#38bdf8",
+        [12, 8]
+      );
+    });
+  }
+
+  add(
+    watch.subminuteInvalidation,
+    `${visibleDegree} SUBMIN INV`,
+    "invalidation",
+    "#ef4444",
+    [14, 10]
+  );
+
+  add(
+    watch.minuteInvalidation,
+    `${visibleDegree} MINUTE INV`,
+    "invalidation",
+    "#ef4444",
+    [14, 10]
+  );
+
+  add(
+    watch.minorInvalidation,
+    `${visibleDegree} MINOR INV`,
+    "invalidation",
+    "#dc2626",
+    [16, 10]
+  );
+
+  add(
+    targetModel.projectionBase,
+    `${visibleDegree} BASE`,
+    "base",
+    "#a78bfa",
+    [8, 8]
+  );
+
+  // Consolidate labels that share the exact same price.
+  const byPrice = new Map();
+
+  for (const line of lines) {
+    const key = line.price.toFixed(4);
+
+    if (!byPrice.has(key)) {
+      byPrice.set(key, { ...line, labels: [line.label] });
+      continue;
+    }
+
+    const existing = byPrice.get(key);
+    existing.labels.push(line.label);
+
+    // Prefer invalidation styling at overlapping prices.
+    if (line.kind === "invalidation") {
+      existing.kind = line.kind;
+      existing.color = line.color;
+      existing.dash = line.dash;
+    }
+  }
+
+  return Array.from(byPrice.values()).map((line) => ({
+    ...line,
+    label: line.labels.join(" • "),
+  }));
 }
 
 export default function ActiveWaveFibOverlay({
@@ -111,6 +302,11 @@ export default function ActiveWaveFibOverlay({
     color: style.color || "#ffd54a",
     fontPx: Number.isFinite(style.fontPx) ? style.fontPx : 18,
     lineWidth: Number.isFinite(style.lineWidth) ? style.lineWidth : 3,
+    waveLabelColor: style.waveLabelColor || style.color || "#ffd54a",
+    waveLineColor: style.waveLineColor || style.color || "#ffd54a",
+    waveLineWidth: Number.isFinite(style.waveLineWidth)
+      ? style.waveLineWidth
+      : Math.max(2, Number.isFinite(style.lineWidth) ? style.lineWidth : 3),
     debug: style.debug === true,
   };
 
@@ -119,34 +315,29 @@ export default function ActiveWaveFibOverlay({
   let disposed = false;
 
   let activeWaveState = null;
-  let levels = [];
+  let extensionLevels = [];
+  let waveMarks = [];
+  let decisionLines = [];
 
   let lastFetchMs = 0;
   let fetchInFlight = false;
   let seeded = false;
   let pollTimer = null;
 
+  let bars = [];
+  let barIntervalSec = 0;
+
   const ts = chart.timeScale();
 
-  console.debug("[ActiveWaveFibOverlay] init", {
-    enabled,
-    requestedSymbol,
-    fetchSymbol: "ES",
-    degree,
-    mappedDegree,
-    tf,
-  });
-
   function buildUrl() {
-    const u = new URL(
+    const url = new URL(
       `${String(API_BASE).replace(/\/+$/, "")}/api/v1/waves/active`
     );
 
-    // Engine 2B Phase 1 is ES-only.
-    u.searchParams.set("symbol", "ES");
-    u.searchParams.set("t", String(Date.now()));
+    url.searchParams.set("symbol", "ES");
+    url.searchParams.set("t", String(Date.now()));
 
-    return u.toString();
+    return url.toString();
   }
 
   async function fetchActiveWaveState() {
@@ -173,27 +364,32 @@ export default function ActiveWaveFibOverlay({
       const structure =
         activeWaveState?.activeStructures?.[mappedDegree] || null;
 
-      levels = normalizeLevels(structure?.targetModel);
+      extensionLevels = normalizeExtensionLevels(structure?.targetModel);
+      waveMarks = normalizeMarks(structure?.marks);
+      decisionLines = buildDecisionLines(structure, visibleDegree);
 
-      console.debug("[ActiveWaveFibOverlay] fetched", {
-        ok: response.ok,
-        requestedSymbol,
-        returnedSymbol: data?.symbol,
-        schema: data?.schema,
-        degree,
-        mappedDegree,
-        hasStructures: !!data?.activeStructures,
-        hasTargetModel: !!structure?.targetModel,
-        levelCount: levels.length,
-        levels,
-      });
+      if (s.debug) {
+        console.debug("[ActiveWaveFibOverlay] fetched", {
+          requestedSymbol,
+          returnedSymbol: data?.symbol,
+          schema: data?.schema,
+          degree,
+          mappedDegree,
+          extensionCount: extensionLevels.length,
+          markCount: waveMarks.length,
+          decisionLineCount: decisionLines.length,
+          waveMarks,
+          decisionLines,
+        });
+      }
     } catch (error) {
       activeWaveState = null;
-      levels = [];
+      extensionLevels = [];
+      waveMarks = [];
+      decisionLines = [];
 
       console.debug("[ActiveWaveFibOverlay] fetch failed", {
         requestedSymbol,
-        fetchSymbol: "ES",
         degree,
         mappedDegree,
         error,
@@ -254,6 +450,291 @@ export default function ActiveWaveFibOverlay({
     canvas.height = Math.max(1, Math.floor(rect.height * dpr));
   }
 
+  function setBars(barsAsc) {
+    bars = Array.isArray(barsAsc) ? barsAsc : [];
+
+    if (bars.length >= 2) {
+      const first = Number(bars[0]?.time);
+      const second = Number(bars[1]?.time);
+      const difference = Math.abs(second - first);
+
+      barIntervalSec =
+        Number.isFinite(difference) && difference > 0
+          ? difference
+          : 0;
+    } else {
+      barIntervalSec = 0;
+    }
+  }
+
+  function snapToNearestBarTime(timeSec) {
+    if (!Number.isFinite(timeSec) || !bars.length) return timeSec;
+
+    let low = 0;
+    let high = bars.length - 1;
+
+    while (low < high) {
+      const middle = (low + high) >> 1;
+      const middleTime = Number(bars[middle]?.time);
+
+      if (middleTime < timeSec) low = middle + 1;
+      else high = middle;
+    }
+
+    const candidates = [];
+
+    if (low >= 0 && low < bars.length) {
+      candidates.push(Number(bars[low]?.time));
+    }
+
+    if (low - 1 >= 0) {
+      candidates.push(Number(bars[low - 1]?.time));
+    }
+
+    let best = timeSec;
+    let bestDistance = Infinity;
+
+    for (const candidate of candidates) {
+      if (!Number.isFinite(candidate)) continue;
+
+      const distance = Math.abs(candidate - timeSec);
+
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        best = candidate;
+      }
+    }
+
+    // Backend timestamps may be hourly while the chart uses 10m bars.
+    // Allow a broad but bounded snap window.
+    const maxSnap = barIntervalSec
+      ? Math.max(barIntervalSec * 12, 6 * 60 * 60)
+      : 12 * 60 * 60;
+
+    return bestDistance <= maxSnap ? best : timeSec;
+  }
+
+  function timeToX(timeSec) {
+    if (!Number.isFinite(timeSec)) return null;
+
+    try {
+      const snapped = snapToNearestBarTime(timeSec);
+      const x = ts.timeToCoordinate(snapped);
+      return Number.isFinite(x) ? x : null;
+    } catch {
+      return null;
+    }
+  }
+
+  function drawHorizontalLevel(ctx, rect, line) {
+    const y = priceSeries.priceToCoordinate(line.price);
+
+    if (y == null || !Number.isFinite(y)) return false;
+
+    ctx.save();
+    ctx.strokeStyle = line.color;
+    ctx.lineWidth = Math.max(
+      1,
+      s.lineWidth * (line.kind === "invalidation" ? 1.35 : 1)
+    );
+    ctx.setLineDash(line.dash || []);
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(rect.width, y);
+    ctx.stroke();
+    ctx.restore();
+
+    const fontPx = Math.max(10, Math.min(58, s.fontPx - 1));
+    const font =
+      `${fontPx}px system-ui, -apple-system, Segoe UI, Roboto, Arial`;
+
+    const text = `${line.label}  ${formatPrice(line.price)}`;
+
+    ctx.save();
+    ctx.font = font;
+
+    const textWidth = ctx.measureText(text).width;
+    const boxWidth = Math.max(185, textWidth + 22);
+    const boxHeight = Math.max(22, Math.floor(fontPx * 1.35));
+    const boxX = Math.min(
+      Math.max(12, Math.round(rect.width * 0.16)),
+      rect.width - boxWidth - 12
+    );
+    const boxY = y - boxHeight / 2;
+
+    ctx.fillStyle = "rgba(0,0,0,0.74)";
+    ctx.strokeStyle = "rgba(255,255,255,0.20)";
+    ctx.lineWidth = 2;
+
+    roundRect(ctx, boxX, boxY, boxWidth, boxHeight, 9);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = line.color;
+    ctx.fillText(
+      text,
+      boxX + 11,
+      boxY + Math.floor(boxHeight * 0.72)
+    );
+
+    ctx.restore();
+    return true;
+  }
+
+  function drawExtensionLevel(ctx, rect, level) {
+    const y = priceSeries.priceToCoordinate(level.price);
+
+    if (y == null || !Number.isFinite(y)) return false;
+
+    ctx.save();
+    ctx.strokeStyle = s.color;
+    ctx.lineWidth = Math.max(1, s.lineWidth) * 1.2;
+    ctx.setLineDash([22, 14]);
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(rect.width, y);
+    ctx.stroke();
+    ctx.restore();
+
+    const fontPx = Math.max(10, Math.min(64, s.fontPx));
+    const font =
+      `${fontPx}px system-ui, -apple-system, Segoe UI, Roboto, Arial`;
+
+    const text =
+      `${visibleDegree} ${level.label}  ${formatPrice(level.price)}`;
+
+    ctx.save();
+    ctx.font = font;
+
+    const textWidth = ctx.measureText(text).width;
+    const boxWidth = Math.max(190, textWidth + 24);
+    const boxHeight = Math.max(22, Math.floor(fontPx * 1.35));
+    const boxX = Math.min(
+      Math.max(12, Math.round(rect.width * 0.52) - boxWidth / 2),
+      rect.width - boxWidth - 12
+    );
+    const boxY = y - boxHeight / 2;
+
+    ctx.fillStyle = "rgba(0,0,0,0.72)";
+    ctx.strokeStyle = "rgba(255,255,255,0.22)";
+    ctx.lineWidth = 2;
+
+    roundRect(ctx, boxX, boxY, boxWidth, boxHeight, 10);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = s.color;
+    ctx.fillText(
+      text,
+      boxX + 12,
+      boxY + Math.floor(boxHeight * 0.72)
+    );
+
+    ctx.restore();
+    return true;
+  }
+
+  function drawWaveMarks(ctx, rect) {
+    const points = [];
+
+    for (const mark of waveMarks) {
+      const x = timeToX(mark.timeSec);
+      const y = priceSeries.priceToCoordinate(mark.price);
+
+      if (
+        x == null ||
+        y == null ||
+        !Number.isFinite(x) ||
+        !Number.isFinite(y)
+      ) {
+        continue;
+      }
+
+      points.push({ ...mark, x, y });
+    }
+
+    if (!points.length) return 0;
+
+    // Connect confirmed points in chronological order.
+    const sorted = [...points].sort((a, b) => a.timeSec - b.timeSec);
+
+    if (sorted.length >= 2) {
+      ctx.save();
+      ctx.strokeStyle = s.waveLineColor;
+      ctx.lineWidth = Math.max(1, s.waveLineWidth);
+      ctx.setLineDash([]);
+      ctx.beginPath();
+      ctx.moveTo(sorted[0].x, sorted[0].y);
+
+      for (let index = 1; index < sorted.length; index += 1) {
+        ctx.lineTo(sorted[index].x, sorted[index].y);
+      }
+
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    const fontPx = Math.max(11, Math.min(72, s.fontPx + 1));
+    const font =
+      `700 ${fontPx}px system-ui, -apple-system, Segoe UI, Roboto, Arial`;
+
+    for (const point of points) {
+      const text = point.shortLabel;
+      const radius = Math.max(13, Math.floor(fontPx * 0.72));
+
+      ctx.save();
+
+      ctx.beginPath();
+      ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
+      ctx.fillStyle = point.confirmed
+        ? "rgba(0,0,0,0.82)"
+        : "rgba(0,0,0,0.55)";
+      ctx.fill();
+
+      ctx.strokeStyle = s.waveLabelColor;
+      ctx.lineWidth = point.confirmed ? 3 : 2;
+      ctx.setLineDash(point.confirmed ? [] : [5, 4]);
+      ctx.stroke();
+
+      ctx.font = font;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillStyle = s.waveLabelColor;
+      ctx.fillText(text, point.x, point.y + 1);
+
+      ctx.restore();
+
+      const caption =
+        `${visibleDegree} ${point.label} ${formatPrice(point.price)}`;
+
+      ctx.save();
+      ctx.font =
+        `12px system-ui, -apple-system, Segoe UI, Roboto, Arial`;
+
+      const captionWidth = ctx.measureText(caption).width;
+      const boxWidth = captionWidth + 14;
+      const boxHeight = 20;
+      const boxX = Math.min(
+        Math.max(6, point.x - boxWidth / 2),
+        rect.width - boxWidth - 6
+      );
+      const boxY = Math.max(6, point.y - radius - boxHeight - 5);
+
+      ctx.fillStyle = "rgba(0,0,0,0.76)";
+      roundRect(ctx, boxX, boxY, boxWidth, boxHeight, 7);
+      ctx.fill();
+
+      ctx.fillStyle = s.waveLabelColor;
+      ctx.textAlign = "left";
+      ctx.textBaseline = "alphabetic";
+      ctx.fillText(caption, boxX + 7, boxY + 14);
+
+      ctx.restore();
+    }
+
+    return points.length;
+  }
+
   function draw() {
     if (disposed) return;
 
@@ -262,161 +743,72 @@ export default function ActiveWaveFibOverlay({
       return;
     }
 
-    if (!activeWaveState || levels.length === 0) {
+    if (
+      !activeWaveState ||
+      (
+        extensionLevels.length === 0 &&
+        waveMarks.length === 0 &&
+        decisionLines.length === 0
+      )
+    ) {
       removeCanvas();
-
-      console.debug("[ActiveWaveFibOverlay] draw skipped", {
-        enabled,
-        requestedSymbol,
-        degree,
-        mappedDegree,
-        hasState: !!activeWaveState,
-        levelCount: levels.length,
-      });
-
       return;
     }
 
-    const c = ensureCanvas();
-    const ctx = c.getContext("2d");
+    const currentCanvas = ensureCanvas();
+    const context = currentCanvas.getContext("2d");
 
-    if (!ctx) return;
+    if (!context) return;
+
+    resizeCanvas();
 
     const rect = chartContainer.getBoundingClientRect();
     const dpr = window.devicePixelRatio || 1;
 
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.clearRect(0, 0, c.width, c.height);
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-
-    const fontPx = Math.max(10, Math.min(64, s.fontPx));
-    const headerPx = Math.max(10, Math.min(72, s.fontPx + 2));
-
-    const FONT =
-      `${fontPx}px system-ui, -apple-system, Segoe UI, Roboto, Arial`;
-
-    const HEADER =
-      `${headerPx}px system-ui, -apple-system, Segoe UI, Roboto, Arial`;
-
-    const labelX = Math.round(rect.width * 0.52);
-
-    ctx.font = HEADER;
-    ctx.fillStyle = "rgba(255,255,255,0.90)";
-
-    const title = `ACTIVE FIB ${visibleDegree} • ES • ${tf}`;
-    const titleWidth = ctx.measureText(title).width;
-
-    ctx.fillText(
-      title,
-      Math.max(12, (rect.width - titleWidth) / 2),
-      Math.max(26, s.fontPx + 10)
+    context.setTransform(1, 0, 0, 1, 0, 0);
+    context.clearRect(
+      0,
+      0,
+      currentCanvas.width,
+      currentCanvas.height
     );
+    context.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-    let drawnCount = 0;
-    const skipped = [];
+    let extensionDrawn = 0;
+    let decisionDrawn = 0;
 
-    for (const level of levels) {
-      const price = finiteNumber(level.price);
-
-      if (price === null) {
-        skipped.push({
-          label: level?.label,
-          price: level?.price,
-          reason: "INVALID_PRICE",
-        });
-        continue;
+    for (const line of decisionLines) {
+      if (drawHorizontalLevel(context, rect, line)) {
+        decisionDrawn += 1;
       }
-
-      const y = priceSeries.priceToCoordinate(price);
-
-      if (y == null || !Number.isFinite(y)) {
-        skipped.push({
-          label: level.label,
-          price,
-          reason: "NO_PRICE_COORDINATE",
-        });
-        continue;
-      }
-
-      ctx.save();
-      ctx.strokeStyle = s.color;
-      ctx.lineWidth = Math.max(1, s.lineWidth) * 1.2;
-      ctx.setLineDash([22, 14]);
-      ctx.beginPath();
-      ctx.moveTo(0, y);
-      ctx.lineTo(rect.width, y);
-      ctx.stroke();
-      ctx.restore();
-
-      ctx.save();
-      ctx.font = FONT;
-
-      const text =
-        `${visibleDegree} ${level.label}  ${formatPrice(price)}`;
-
-      const textWidth = ctx.measureText(text).width;
-      const boxWidth = Math.max(190, textWidth + 24);
-      const boxHeight = Math.max(22, Math.floor(fontPx * 1.35));
-
-      const boxX = Math.min(
-        Math.max(12, labelX - boxWidth / 2),
-        rect.width - boxWidth - 12
-      );
-
-      const boxY = y - boxHeight / 2;
-
-      ctx.fillStyle = "rgba(0,0,0,0.72)";
-      ctx.strokeStyle = "rgba(255,255,255,0.22)";
-      ctx.lineWidth = 2;
-
-      roundRect(
-        ctx,
-        boxX,
-        boxY,
-        boxWidth,
-        boxHeight,
-        10
-      );
-
-      ctx.fill();
-      ctx.stroke();
-
-      ctx.fillStyle = s.color;
-      ctx.fillText(
-        text,
-        boxX + 12,
-        boxY + Math.floor(boxHeight * 0.72)
-      );
-
-      ctx.restore();
-      drawnCount += 1;
     }
 
-    console.debug("[ActiveWaveFibOverlay] draw", {
-      enabled,
-      requestedSymbol,
-      fetchSymbol: "ES",
-      degree,
-      mappedDegree,
-      levelCount: levels.length,
-      drawnCount,
-      skipped,
-      canvasAttached: !!canvas,
-      cssWidth: rect.width,
-      cssHeight: rect.height,
-      pixelWidth: canvas?.width,
-      pixelHeight: canvas?.height,
-      hostPosition: window.getComputedStyle(chartContainer).position,
-    });
+    for (const level of extensionLevels) {
+      if (drawExtensionLevel(context, rect, level)) {
+        extensionDrawn += 1;
+      }
+    }
+
+    const marksDrawn = drawWaveMarks(context, rect);
+
+    if (s.debug) {
+      console.debug("[ActiveWaveFibOverlay] draw", {
+        requestedSymbol,
+        degree,
+        mappedDegree,
+        extensionDrawn,
+        decisionDrawn,
+        marksDrawn,
+        canvasWidth: currentCanvas.width,
+        canvasHeight: currentCanvas.height,
+      });
+    }
   }
 
   function scheduleDraw() {
     if (disposed) return;
 
-    if (raf) {
-      cancelAnimationFrame(raf);
-    }
-
+    if (raf) cancelAnimationFrame(raf);
     raf = requestAnimationFrame(draw);
   }
 
@@ -440,10 +832,11 @@ export default function ActiveWaveFibOverlay({
     pollTimer = null;
   }
 
-  function seed(_barsAsc) {
+  function seed(barsAsc) {
     if (!enabled) return;
 
     seeded = true;
+    setBars(barsAsc);
 
     maybeFetch(true).then(() => {
       scheduleDraw();
@@ -451,7 +844,7 @@ export default function ActiveWaveFibOverlay({
     });
   }
 
-  function update(_latestBar) {
+  function update(latestBar) {
     if (!enabled) {
       removeCanvas();
       return;
@@ -468,6 +861,18 @@ export default function ActiveWaveFibOverlay({
       return;
     }
 
+    if (latestBar && Number.isFinite(Number(latestBar.time))) {
+      const time = Number(latestBar.time);
+
+      if (!bars.length || time > Number(bars[bars.length - 1]?.time)) {
+        bars.push(latestBar);
+
+        if (bars.length > 8000) {
+          bars = bars.slice(-8000);
+        }
+      }
+    }
+
     scheduleDraw();
   }
 
@@ -475,17 +880,16 @@ export default function ActiveWaveFibOverlay({
     disposed = true;
     stopPolling();
 
-    if (raf) {
-      cancelAnimationFrame(raf);
-    }
-
+    if (raf) cancelAnimationFrame(raf);
     raf = null;
 
     window.removeEventListener("resize", onResize);
     removeCanvas();
 
     activeWaveState = null;
-    levels = [];
+    extensionLevels = [];
+    waveMarks = [];
+    decisionLines = [];
   }
 
   window.addEventListener("resize", onResize);
