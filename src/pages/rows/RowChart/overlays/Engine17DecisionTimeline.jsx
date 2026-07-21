@@ -3819,10 +3819,25 @@ function buildSubminuteEngine26UnavailableSection() {
   return {
     number: 2,
     icon: "⑳",
-    title: "Engine 26 Control Map",
-    severity: "warning",
-    fields: [],
-    lines: ["Subminute Engine 26 Control Map not attached"],
+    title: "Control Map — Engine 26",
+    severity: "teal",
+    fields: [
+      ["Current", "—"],
+      ["Control State", "NOT ATTACHED"],
+      ["Instruction", "—"],
+      ["Bear Level", "—"],
+      ["Bull Level", "—"],
+      ["Location", "—"],
+      ["Short Trigger", "—"],
+      ["Invalidation", "—"],
+      ["Bear Targets", "—"],
+      ["Bull Targets", "—"],
+    ],
+    lines: [
+      "Subminute Engine 26 Control Map not attached",
+      "No Minute Engine 26 data is reused.",
+      "No permission. No ticket. No execution.",
+    ],
   };
 }
 
@@ -3830,10 +3845,25 @@ function buildSubminuteEngine6UnavailableSection() {
   return {
     number: 4,
     icon: "⬟",
-    title: "Engine 6 Permission",
-    severity: "warning",
-    fields: [],
-    lines: ["Subminute Engine 6 Permission not attached"],
+    title: "Final Permission — Engine 6",
+    severity: "purple",
+    fields: [
+      ["Paper State", "NOT ATTACHED"],
+      ["Paper Direction", "—"],
+      ["Paper Strategy", "—"],
+      ["Paper Allowed", "—"],
+      ["Ticket Allowed", "—"],
+      ["Short Research", "—"],
+      ["Real Permission", "NOT ATTACHED"],
+      ["Real Strategy", "—"],
+      ["Executable", "NO"],
+      ["Watch Only", "YES"],
+      ["Authority", "—"],
+    ],
+    lines: [
+      "Subminute Engine 6 Permission not attached",
+      "No Minute or shared Engine 6 permission is reused.",
+    ],
   };
 }
 
@@ -3843,15 +3873,21 @@ function buildSubminuteNextActionSection(decision) {
     decision?.recommendedAction ||
     null;
 
+  const waitingFor = asArray(decision?.waitingFor)
+    .map((item) => formatText(item))
+    .slice(0, 6);
+
+  const checklist = [
+    action ? formatUpper(action) : "Subminute Next Action not attached",
+    ...waitingFor,
+  ];
+
   return {
     number: 5,
     icon: "✓",
-    title: "Next Action",
+    title: "Next Action Levels",
     severity: "teal",
-    fields: [
-      ["Action", formatUpper(action, "—")],
-    ],
-    lines: action ? [] : ["Subminute Next Action not attached"],
+    checklist,
   };
 }
 
@@ -3868,9 +3904,9 @@ function normalizeSubminuteTimelineData({ overlayData }) {
   return {
     show: true,
     severity: subminuteDecision?.noExecution === false ? "bullish" : "teal",
-    headline: "Subminute Trader Intelligence",
+    headline: "Engine 22 Wave Stack — Subminute Structure",
     subheadline:
-      "Read-only Subminute lane. No Minute decision, Minute control map, Minute permission, or Minute timeline data is reused.",
+      "Subminute lane using only Subminute-owned structure and Engine 27 decision data. Missing Engine 26, Engine 6, and timeline contracts remain visible in their full card shells.",
     badges: [
       { label: "ES", severity: "blue" },
       { label: "SUBMINUTE", severity: "teal" },
@@ -4387,6 +4423,60 @@ function MinimalStatusStrip({ timeline }) {
   );
 }
 
+function SubminuteStatusStrip({ decision }) {
+  const direction = formatUpper(decision?.direction, "NEUTRAL");
+  const state = formatUpper(
+    decision?.decisionState || decision?.state,
+    "WAIT"
+  );
+
+  const directionColor =
+    direction === "LONG"
+      ? "#22c55e"
+      : direction === "SHORT"
+      ? "#fb7185"
+      : "#cbd5e1";
+
+  return (
+    <div
+      style={{
+        ...shellTextStyle,
+        width: "100%",
+        border: "1px solid rgba(148,163,184,0.20)",
+        borderRadius: 12,
+        background: "rgba(6,10,20,0.86)",
+        display: "grid",
+        gridTemplateColumns: "repeat(3, minmax(0,1fr))",
+        color: "#cbd5e1",
+        pointerEvents: "none",
+        backdropFilter: "blur(4px)",
+        overflow: "hidden",
+      }}
+    >
+      <div style={stripCellStyle}>
+        <span style={stripLabelStyle}>Market bias</span>
+        <span style={{ ...stripValueStyle, color: directionColor }}>
+          {formatText(direction)}
+        </span>
+      </div>
+
+      <div style={stripCellStyle}>
+        <span style={stripLabelStyle}>Setup</span>
+        <span style={{ ...stripValueStyle, color: "#fbbf24" }}>
+          {formatText(state)}
+        </span>
+      </div>
+
+      <div style={{ ...stripCellStyle, borderRight: "none" }}>
+        <span style={stripLabelStyle}>Trade permission</span>
+        <span style={{ ...stripValueStyle, color: "#c084fc" }}>
+          Not attached
+        </span>
+      </div>
+    </div>
+  );
+}
+
 function TimelineMainCard({ timeline }) {
   return (
     <div
@@ -4699,7 +4789,12 @@ export default function Engine17DecisionTimeline({
             <TimelineMainCard timeline={timeline} />
           </>
         ) : subminuteSelected ? (
-          <TimelineMainCard timeline={subminuteTimeline} />
+          <>
+            <SubminuteStatusStrip
+              decision={getEngine27SubminuteTraderDecision(getFib(overlayData))}
+            />
+            <TimelineMainCard timeline={subminuteTimeline} />
+          </>
         ) : (
           <UnattachedLaneCard selectedDegree={selectedDegree} />
         )}
