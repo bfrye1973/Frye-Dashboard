@@ -40,6 +40,7 @@ import SMZShelvesOverlay from "./overlays/SMZShelvesOverlay";
 import AccDistZonesPanel from "../../../components/smz/AccDistZonesPanel";
 
 import FibLevelsOverlay from "./overlays/FibLevelsOverlay";
+import ActiveWaveFibOverlay from "./overlays/ActiveWaveFibOverlay";
 import PremarketFibOverlay from "./overlays/PremarketFibOverlay";
 
 import DrawingsToolbar from "../../../features/drawings/DrawingsToolbar";
@@ -1410,7 +1411,7 @@ export default function RowChart({
 
     if (state.fibPrimary) {
       reg(
-        attachOverlay(FibLevelsOverlay, {
+        attachOverlay(isES ? ActiveWaveFibOverlay : FibLevelsOverlay, {
           chart: chartRef.current,
           priceSeries: seriesRef.current,
           chartContainer: containerRef.current,
@@ -1425,7 +1426,7 @@ export default function RowChart({
 
     if (state.fibIntermediate) {
       reg(
-        attachOverlay(FibLevelsOverlay, {
+        attachOverlay(isES ? ActiveWaveFibOverlay : FibLevelsOverlay, {
           chart: chartRef.current,
           priceSeries: seriesRef.current,
           chartContainer: containerRef.current,
@@ -1440,7 +1441,7 @@ export default function RowChart({
 
     if (state.fibMinor) {
       reg(
-        attachOverlay(FibLevelsOverlay, {
+        attachOverlay(isES ? ActiveWaveFibOverlay : FibLevelsOverlay, {
           chart: chartRef.current,
           priceSeries: seriesRef.current,
           chartContainer: containerRef.current,
@@ -1455,7 +1456,7 @@ export default function RowChart({
 
     if (state.fibMinute) {
       reg(
-        attachOverlay(FibLevelsOverlay, {
+        attachOverlay(isES ? ActiveWaveFibOverlay : FibLevelsOverlay, {
           chart: chartRef.current,
           priceSeries: seriesRef.current,
           chartContainer: containerRef.current,
@@ -1470,7 +1471,7 @@ export default function RowChart({
 
     if (state.fibMicro) {
       reg(
-        attachOverlay(FibLevelsOverlay, {
+        attachOverlay(isES ? ActiveWaveFibOverlay : FibLevelsOverlay, {
           chart: chartRef.current,
           priceSeries: seriesRef.current,
           chartContainer: containerRef.current,
