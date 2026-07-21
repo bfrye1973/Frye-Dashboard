@@ -234,6 +234,10 @@ function getEngine22SubminuteStructure(fib) {
   return fib?.engine22SubminuteStructure || null;
 }
 
+function getSubminuteEngine6Permission(fib) {
+  return fib?.subminuteEngine6Permission || null;
+}
+
 function getSubminuteEngine26(fib) {
   return fib?.subminuteEngine26 || null;
 }
@@ -3966,32 +3970,133 @@ function buildSubminuteEngine26Section(fib) {
   };
 }
 
-function buildSubminuteEngine6UnavailableSection() {
+function buildSubminuteEngine6Section(fib) {
+  const permission = getSubminuteEngine6Permission(fib);
+
+  const expectedIdentity = {
+    laneId: "subminute",
+    strategyId: "subminute_scalp@10m",
+    candidateId: "E26C-SUBMINUTE-87288e1db54cb920bfd4",
+    zoneId: "E26Z-SUBMINUTE-d15bf89c7c189d747288",
+  };
+
+  if (!permission) {
+    return {
+      number: 4,
+      icon: "⬟",
+      title: "Final Permission — Engine 6",
+      severity: "purple",
+      fields: [
+        ["Decision", "NOT ATTACHED"],
+        ["Permission State", "NOT ATTACHED"],
+        ["Paper Allowed", "—"],
+        ["Ticket Allowed", "—"],
+        ["Watch Only", "YES"],
+        ["Executable", "NO"],
+        ["No Execution", "YES"],
+      ],
+      lines: [
+        "Subminute Engine 6 Permission not attached",
+        "No Minute or shared Engine 6 permission is reused.",
+      ],
+    };
+  }
+
+  const identityMatches =
+    permission.laneId === expectedIdentity.laneId &&
+    permission.strategyId === expectedIdentity.strategyId &&
+    permission.candidateId === expectedIdentity.candidateId &&
+    permission.zoneId === expectedIdentity.zoneId;
+
+  if (!identityMatches) {
+    return {
+      number: 4,
+      icon: "⬟",
+      title: "Final Permission — Engine 6",
+      severity: "danger",
+      fields: [
+        ["Status", "SUBMINUTE ENGINE 6 IDENTITY MISMATCH"],
+        ["Lane", permission?.laneId || "—"],
+        ["Strategy", permission?.strategyId || "—"],
+        ["Candidate ID", permission?.candidateId || "—"],
+        ["Zone ID", permission?.zoneId || "—"],
+        ["Executable", "NO"],
+      ],
+      lines: [
+        "The Subminute Engine 6 permission does not match the authorized Subminute candidate identity.",
+        "No Minute permission was used.",
+      ],
+    };
+  }
+
+  const decision =
+    permission?.decision ||
+    permission?.paper?.decision ||
+    "PAPER_STAND_DOWN";
+
+  const permissionState =
+    permission?.permissionState ||
+    permission?.state ||
+    "WATCH_ONLY_CONFIRMATION_REQUIRED";
+
+  const paperAllowed =
+    permission?.paperAllowed ??
+    permission?.allowed ??
+    permission?.paper?.allowed;
+
+  const ticketAllowed =
+    permission?.ticketAllowed ??
+    permission?.paperShortAllowed ??
+    permission?.paper?.ticketAllowed;
+
+  const executable =
+    permission?.executable === true;
+
+  const noExecution =
+    permission?.noExecution !== false;
+
   return {
     number: 4,
     icon: "⬟",
     title: "Final Permission — Engine 6",
-    severity: "purple",
+    severity: executable ? "bullish" : "purple",
     fields: [
-      ["Paper State", "NOT ATTACHED"],
-      ["Paper Direction", "—"],
-      ["Paper Strategy", "—"],
-      ["Paper Allowed", "—"],
-      ["Ticket Allowed", "—"],
-      ["Short Research", "—"],
-      ["Real Permission", "NOT ATTACHED"],
-      ["Real Strategy", "—"],
-      ["Executable", "NO"],
-      ["Watch Only", "YES"],
-      ["Authority", "—"],
+      ["Lane", formatUpper(permission?.laneId)],
+      ["Strategy", formatUpper(permission?.strategyId)],
+      ["Decision", formatUpper(decision)],
+      ["Permission State", formatUpper(permissionState)],
+      ["Paper Allowed", formatBool(paperAllowed)],
+      ["Ticket Allowed", formatBool(ticketAllowed)],
+      ["Watch Only", formatBool(permission?.watchOnly)],
+      ["Executable", formatBool(executable)],
+      ["No Execution", formatBool(noExecution)],
+      [
+        "Real Execution",
+        formatBool(permission?.realExecutionAllowed),
+      ],
+      [
+        "Broker Execution",
+        formatBool(permission?.brokerExecutionAllowed),
+      ],
+      [
+        "Schwab Execution",
+        formatBool(permission?.schwabExecutionAllowed),
+      ],
+      ["Candidate ID", permission?.candidateId || "—"],
+      ["Zone ID", permission?.zoneId || "—"],
     ],
     lines: [
-      "Subminute Engine 6 Permission not attached",
-      "No Minute or shared Engine 6 permission is reused.",
-    ],
+      "Subminute Engine 6 permission is attached and identity-confirmed.",
+      "Watch only. Paper execution is not allowed.",
+      "No ticket. No broker execution. No Schwab execution.",
+      asArray(permission?.reasonCodes).length
+        ? `Reasons: ${asArray(permission.reasonCodes)
+            .map(formatText)
+            .join(", ")}`
+        : null,
+    ].filter(Boolean),
   };
 }
-
 function buildSubminuteNextActionSection(decision) {
   const action =
     decision?.nextAction ||
@@ -4046,7 +4151,7 @@ function normalizeSubminuteTimelineData({ overlayData }) {
         ...buildEngine27TraderIntelligenceSection(fib, subminuteDecision),
         number: 3,
       },
-      buildSubminuteEngine6UnavailableSection(),
+      buildSubminuteEngine6Section(fib),
       buildSubminuteNextActionSection(subminuteDecision),
       {
         number: 6,
