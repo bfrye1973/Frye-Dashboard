@@ -300,6 +300,8 @@ export default function Engine26ImbalanceWatchCard({
         ? "Primary"
         : formatText(normalizedWaveDegree, "Selected");
 
+    const unavailableTitle = `${laneLabel} Engine 26 Trade Plan not attached`;
+
     return (
       <div
         style={{
@@ -357,37 +359,127 @@ export default function Engine26ImbalanceWatchCard({
           <StatusBadge label="NOT ATTACHED" color="#38bdf8" />
         </div>
 
-        <SectionBox
-          border="rgba(56,189,248,0.32)"
-          background="rgba(12,74,110,0.14)"
-        >
-          <SectionTitle>{laneLabel} Wavelength</SectionTitle>
+        <SectionBox border="rgba(56,189,248,0.32)" background="rgba(12,74,110,0.14)">
+          <SmallLine label="Status" value="NOT ATTACHED" valueColor="#38bdf8" />
+          <SmallLine label="Template" value="—" />
+          <SmallLine label="Role" value="—" />
+          <SmallLine label="Bias" value="—" />
+          <SmallLine label="Action" value="—" />
+        </SectionBox>
+
+        <SectionBox border="rgba(148,163,184,0.28)" background="rgba(15,23,42,0.36)">
+          <SectionTitle>Alarm Zone</SectionTitle>
+          <SmallLine label="Alarm" value="NOT ATTACHED" valueColor="#38bdf8" />
+          <SmallLine label="Zone" value="—" />
+          <SmallLine label="Current" value="—" />
+          <SmallLine label="Inside / Near" value="— / —" />
+          <SmallLine label="Preferred Dir" value="—" />
+          <SmallLine label="No Long Chase" value="—" />
+          <SmallLine label="Short Research" value="—" />
+        </SectionBox>
+
+        <SectionBox border="rgba(56,189,248,0.32)" background="rgba(12,74,110,0.14)">
+          <SectionTitle>Trade Plan Preview</SectionTitle>
+          <SmallLine label="Entry idea" value="—" />
+          <SmallLine label="Stop idea" value="—" />
+          <SmallLine label="Confirm gate" value="—" />
+          <SmallLine label="Risk preview" value="—" />
+          <SmallLine label="Reward preview" value="—" />
+          <SmallLine label="Preview R/R" value="—" />
+        </SectionBox>
+
+        <SectionBox border="rgba(251,191,36,0.32)" background="rgba(113,63,18,0.12)">
+          <SectionTitle color="#fbbf24">Structure</SectionTitle>
+          <SmallLine label="Scenario" value="NOT ATTACHED" valueColor="#fbbf24" />
+          <SmallLine label="Old B" value="—" />
+          <SmallLine label="Active B" value="—" />
+        </SectionBox>
+
+        <SectionBox border="rgba(34,197,94,0.32)" background="rgba(20,83,45,0.12)">
+          <SectionTitle color="#22c55e">Target Map</SectionTitle>
+          <SmallLine label="Scalp goal" value="—" valueColor="#22c55e" />
 
           <div
             style={{
-              ...TEXT_STYLE,
-              color: "#f8fafc",
-              fontSize: 16,
-              fontWeight: 800,
-              lineHeight: 1.4,
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: 7,
             }}
           >
-            {laneLabel} Engine 26 Trade Plan not attached
+            <LevelPill label="C100 / first reaction" value="—" color="#fbbf24" />
+            <LevelPill label="A-low break" value="—" color="#f8fafc" />
+            <LevelPill label="C1272 / pressure" value="—" color="#22c55e" />
+            <LevelPill label="C1618 / stretch" value="—" color="#38bdf8" />
           </div>
+        </SectionBox>
+
+        <SectionBox border="rgba(168,85,247,0.35)" background="rgba(59,7,100,0.16)">
+          <SectionTitle color="#c084fc">Confirmation Needed</SectionTitle>
+          <div
+            style={{
+              ...TEXT_STYLE,
+              fontSize: 13,
+              color: "#cbd5e1",
+              fontWeight: 700,
+            }}
+          >
+            {unavailableTitle}
+          </div>
+        </SectionBox>
+
+        <SectionBox border="rgba(148,163,184,0.24)" background="rgba(15,23,42,0.32)">
+          <SectionTitle>Activation Check</SectionTitle>
+          <SmallLine label="Engine 15" value="—" />
+          <SmallLine label="Engine 3" value="—" />
+          <SmallLine label="Engine 4" value="—" />
+          <SmallLine label="Engine 6" value="NOT ATTACHED" valueColor="#fbbf24" />
+          <SmallLine label="Paper allowed" value="NO" valueColor="#fb7185" />
+          <SmallLine label="Ticket" value="NO" valueColor="#fb7185" />
+        </SectionBox>
+
+        <SectionBox border="rgba(168,85,247,0.35)" background="rgba(59,7,100,0.16)">
+          <SectionTitle color="#c084fc">Engine 7 Size Preview</SectionTitle>
+          <SmallLine label="Mode" value="R ONLY PREVIEW" />
+          <SmallLine label="Allowed" value="NO" valueColor="#fb7185" />
+          <SmallLine label="Engine 6" value="NOT ATTACHED" />
+          <SmallLine label="Score" value="—" />
 
           <div
             style={{
               ...TEXT_STYLE,
+              fontSize: 13,
+              fontWeight: 700,
               color: "#cbd5e1",
-              fontSize: 14,
-              fontWeight: 600,
-              lineHeight: 1.45,
             }}
           >
             No lane-owned Engine 26 candidate, zone, control map, or trade plan
             is attached for this wavelength.
           </div>
         </SectionBox>
+
+        <div
+          style={{
+            ...TEXT_STYLE,
+            color: "#fbbf24",
+            borderTop: "1px solid rgba(148,163,184,0.22)",
+            paddingTop: 9,
+            fontSize: 14,
+            fontWeight: 700,
+          }}
+        >
+          {unavailableTitle}. No Minute Engine 26 data is reused.
+        </div>
+
+        <div
+          style={{
+            ...TEXT_STYLE,
+            color: "#94a3b8",
+            fontSize: 13,
+            fontWeight: 700,
+          }}
+        >
+          Plan: NOT ATTACHED
+        </div>
       </div>
     );
   }
