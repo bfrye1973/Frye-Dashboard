@@ -230,6 +230,10 @@ function getEngine27SubminuteTraderDecision(fib) {
   return fib?.engine27SubminuteTraderDecision || null;
 }
 
+function getEngine22SubminuteStructure(fib) {
+  return fib?.engine22SubminuteStructure || null;
+}
+
 function getCanonicalStrategyTimeline(fib) {
   return fib?.strategyTimeline || null;
 }
@@ -3757,6 +3761,100 @@ const lifecycleOwnsDisplay =
   };
 }
 
+function buildSubminuteEngine22StructureSection(fib) {
+  const structure = getEngine22SubminuteStructure(fib);
+
+  if (
+    !structure ||
+    String(structure?.degree || "").toLowerCase() !== "subminute"
+  ) {
+    return {
+      number: 1,
+      icon: "〽",
+      title: "Engine 22 Structure",
+      severity: "warning",
+      fields: [],
+      lines: ["Subminute Engine 22 Structure not attached"],
+    };
+  }
+
+  const internal = structure?.internalStructure || {};
+  const targetModel = structure?.targetModel || {};
+
+  return {
+    number: 1,
+    icon: "〽",
+    title: "Engine 22 Structure",
+    severity: "teal",
+    fields: [
+      ["Degree", formatUpper(structure?.degree, "SUBMINUTE")],
+      ["Direction", formatUpper(structure?.direction, "—")],
+      ["Active Wave", formatUpper(structure?.activeWave, "—")],
+      ["Stage", formatUpper(structure?.stage, "—")],
+      ["Internal Wave", formatText(internal?.currentInternalWave, "—")],
+      ["Next Internal Wave", formatText(internal?.nextExpectedInternalWave, "—")],
+      ["Parent Wave", formatUpper(structure?.parentWave, "—")],
+      ["Current Price", formatNumber(structure?.currentPrice)],
+      ["Invalidation", formatNumber(internal?.invalidationLevel)],
+      ["Support", formatNumber(internal?.supportLevel)],
+      ["Next Target", formatNumber(targetModel?.nextTarget)],
+    ],
+    lines: [
+      structure?.headline || null,
+      structure?.currentRead
+        ? `Current read: ${formatText(structure.currentRead)}`
+        : null,
+      structure?.action
+        ? `Action: ${formatText(structure.action)}`
+        : null,
+      internal?.classification
+        ? `Classification: ${formatText(internal.classification)}`
+        : null,
+      structure?.noExecution === true ? "No execution." : null,
+    ].filter(Boolean),
+  };
+}
+
+function buildSubminuteEngine26UnavailableSection() {
+  return {
+    number: 2,
+    icon: "⑳",
+    title: "Engine 26 Control Map",
+    severity: "warning",
+    fields: [],
+    lines: ["Subminute Engine 26 Control Map not attached"],
+  };
+}
+
+function buildSubminuteEngine6UnavailableSection() {
+  return {
+    number: 4,
+    icon: "⬟",
+    title: "Engine 6 Permission",
+    severity: "warning",
+    fields: [],
+    lines: ["Subminute Engine 6 Permission not attached"],
+  };
+}
+
+function buildSubminuteNextActionSection(decision) {
+  const action =
+    decision?.nextAction ||
+    decision?.recommendedAction ||
+    null;
+
+  return {
+    number: 5,
+    icon: "✓",
+    title: "Next Action",
+    severity: "teal",
+    fields: [
+      ["Action", formatUpper(action, "—")],
+    ],
+    lines: action ? [] : ["Subminute Next Action not attached"],
+  };
+}
+
 function normalizeSubminuteTimelineData({ overlayData }) {
   if (!overlayData?.ok) {
     return {
@@ -3772,7 +3870,7 @@ function normalizeSubminuteTimelineData({ overlayData }) {
     severity: subminuteDecision?.noExecution === false ? "bullish" : "teal",
     headline: "Subminute Trader Intelligence",
     subheadline:
-      "Read-only Subminute lane. No Minute decision or Minute timeline data is reused.",
+      "Read-only Subminute lane. No Minute decision, Minute control map, Minute permission, or Minute timeline data is reused.",
     badges: [
       { label: "ES", severity: "blue" },
       { label: "SUBMINUTE", severity: "teal" },
@@ -3781,9 +3879,16 @@ function normalizeSubminuteTimelineData({ overlayData }) {
         : null,
     ].filter(Boolean),
     sections: [
-      buildEngine27TraderIntelligenceSection(fib, subminuteDecision),
+      buildSubminuteEngine22StructureSection(fib),
+      buildSubminuteEngine26UnavailableSection(),
       {
-        number: 2,
+        ...buildEngine27TraderIntelligenceSection(fib, subminuteDecision),
+        number: 3,
+      },
+      buildSubminuteEngine6UnavailableSection(),
+      buildSubminuteNextActionSection(subminuteDecision),
+      {
+        number: 6,
         icon: "⑩",
         title: "Canonical Subminute Stage Timeline",
         severity: "warning",
