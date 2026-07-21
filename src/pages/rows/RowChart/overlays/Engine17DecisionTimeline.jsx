@@ -226,6 +226,10 @@ function getEngine27TraderDecision(fib) {
   return fib?.engine27TraderDecision || null;
 }
 
+function getEngine27SubminuteTraderDecision(fib) {
+  return fib?.engine27SubminuteTraderDecision || null;
+}
+
 function getCanonicalStrategyTimeline(fib) {
   return fib?.strategyTimeline || null;
 }
@@ -1531,8 +1535,8 @@ function buildEngine5Section(fib) {
   };
 }
 
-function buildEngine27TraderIntelligenceSection(fib) {
-  const decision = getEngine27TraderDecision(fib);
+function buildEngine27TraderIntelligenceSection(fib, decisionOverride = null) {
+  const decision = decisionOverride || getEngine27TraderDecision(fib);
 
   if (!decision) {
     return {
@@ -3753,6 +3757,46 @@ const lifecycleOwnsDisplay =
   };
 }
 
+function normalizeSubminuteTimelineData({ overlayData }) {
+  if (!overlayData?.ok) {
+    return {
+      show: false,
+    };
+  }
+
+  const fib = getFib(overlayData);
+  const subminuteDecision = getEngine27SubminuteTraderDecision(fib);
+
+  return {
+    show: true,
+    severity: subminuteDecision?.noExecution === false ? "bullish" : "teal",
+    headline: "Subminute Trader Intelligence",
+    subheadline:
+      "Read-only Subminute lane. No Minute decision or Minute timeline data is reused.",
+    badges: [
+      { label: "ES", severity: "blue" },
+      { label: "SUBMINUTE", severity: "teal" },
+      subminuteDecision?.noExecution === true
+        ? { label: "NO EXECUTION", severity: "purple" }
+        : null,
+    ].filter(Boolean),
+    sections: [
+      buildEngine27TraderIntelligenceSection(fib, subminuteDecision),
+      {
+        number: 2,
+        icon: "⑩",
+        title: "Canonical Subminute Stage Timeline",
+        severity: "warning",
+        fields: [],
+        lines: ["Timeline not attached yet."],
+      },
+    ],
+    contextSections: [],
+    permission: null,
+    footer: subminuteDecision?.noExecution === true ? "WATCH" : null,
+  };
+}
+
 /* =========================
    Shared styles
 ========================= */
@@ -4503,10 +4547,15 @@ export default function Engine17DecisionTimeline({
 }) {
   const [selectedDegree, setSelectedDegree] = useState("minute");
   const timeline = normalizeTimelineData({ overlayData, chartMode });
+  const subminuteTimeline = normalizeSubminuteTimelineData({
+    overlayData,
+    chartMode,
+  });
 
   if (!visible || !timeline?.show) return null;
 
   const minuteSelected = selectedDegree === "minute";
+  const subminuteSelected = selectedDegree === "subminute";
 
   return (
     <div
@@ -4544,6 +4593,8 @@ export default function Engine17DecisionTimeline({
             <MinimalStatusStrip timeline={timeline} />
             <TimelineMainCard timeline={timeline} />
           </>
+        ) : subminuteSelected ? (
+          <TimelineMainCard timeline={subminuteTimeline} />
         ) : (
           <UnattachedLaneCard selectedDegree={selectedDegree} />
         )}
