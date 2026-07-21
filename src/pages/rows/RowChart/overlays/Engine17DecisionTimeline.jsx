@@ -1,6 +1,6 @@
 // src/pages/rows/RowChart/overlays/Engine17DecisionTimeline.jsx
 
-import React, { useState } from "react";
+import React from "react";
 
 /* =========================
    Visual System
@@ -4739,8 +4739,10 @@ export default function Engine17DecisionTimeline({
   overlayData,
   visible = true,
   chartMode = "SCALP",
+  selectedWaveDegree = "minute",
+  onSelectedWaveDegreeChange = () => {},
 }) {
-  const [selectedDegree, setSelectedDegree] = useState("minute");
+  const selectedDegree = selectedWaveDegree;
   const timeline = normalizeTimelineData({ overlayData, chartMode });
   const subminuteTimeline = normalizeSubminuteTimelineData({
     overlayData,
@@ -4771,7 +4773,7 @@ export default function Engine17DecisionTimeline({
     >
       <WavelengthTabs
         selectedDegree={selectedDegree}
-        onSelect={setSelectedDegree}
+        onSelect={onSelectedWaveDegreeChange}
       />
 
       <ContextTimelinePanel sections={timeline.contextSections} />
