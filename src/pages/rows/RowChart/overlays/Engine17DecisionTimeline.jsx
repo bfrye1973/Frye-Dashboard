@@ -234,6 +234,10 @@ function getEngine22SubminuteStructure(fib) {
   return fib?.engine22SubminuteStructure || null;
 }
 
+function getSubminuteEngine26(fib) {
+  return fib?.subminuteEngine26 || null;
+}
+
 function getCanonicalStrategyTimeline(fib) {
   return fib?.strategyTimeline || null;
 }
@@ -3815,27 +3819,148 @@ function buildSubminuteEngine22StructureSection(fib) {
   };
 }
 
-function buildSubminuteEngine26UnavailableSection() {
+function buildSubminuteEngine26Section(fib) {
+  const contract = getSubminuteEngine26(fib);
+
+  const locationCandidate = contract?.locationCandidate || null;
+  const pipelineIdentity = contract?.pipelineIdentity || null;
+  const locationContext = contract?.locationContext || null;
+  const controlMap = contract?.controlMap || null;
+  const proposedGeometry = contract?.proposedGeometry || null;
+
+  const expectedCandidateId =
+    "E26C-SUBMINUTE-87288e1db54cb920bfd4";
+
+  const expectedZoneId =
+    "E26Z-SUBMINUTE-d15bf89c7c189d747288";
+
+  const expectedStrategyId = "subminute_scalp@10m";
+  const expectedLaneId = "subminute";
+
+  const identityObjects = [
+    locationCandidate,
+    pipelineIdentity,
+    locationContext,
+    controlMap,
+    proposedGeometry,
+  ];
+
+  const contractAttached = identityObjects.every(
+    (item) => item && typeof item === "object"
+  );
+
+  const identityMatches =
+    contractAttached &&
+    identityObjects.every(
+      (item) =>
+        item.candidateId === expectedCandidateId &&
+        item.zoneId === expectedZoneId &&
+        item.strategyId === expectedStrategyId &&
+        item.laneId === expectedLaneId
+    );
+
+  if (contractAttached && !identityMatches) {
+    return {
+      number: 2,
+      icon: "⑳",
+      title: "Control Map — Engine 26",
+      severity: "danger",
+      fields: [
+        ["Status", "SUBMINUTE ENGINE 26 IDENTITY MISMATCH"],
+        ["Candidate ID", locationCandidate?.candidateId || "—"],
+        ["Zone ID", locationCandidate?.zoneId || "—"],
+        ["Strategy", locationCandidate?.strategyId || "—"],
+        ["Lane", locationCandidate?.laneId || "—"],
+      ],
+      lines: [
+        "The Subminute Engine 26 objects do not preserve the same candidate, zone, strategy, and lane identity.",
+        "No fields were mixed and no Minute fallback was used.",
+      ],
+    };
+  }
+
+  if (!contractAttached) {
+    return {
+      number: 2,
+      icon: "⑳",
+      title: "Control Map — Engine 26",
+      severity: "teal",
+      fields: [
+        ["Current", "—"],
+        ["Control State", "NOT ATTACHED"],
+        ["Instruction", "—"],
+        ["Trigger Level", "—"],
+        ["Acceptance", "—"],
+        ["Reclaim", "—"],
+        ["Invalidation", "—"],
+        ["Candidate ID", "—"],
+        ["Zone ID", "—"],
+        ["Planner Status", "NOT ATTACHED"],
+      ],
+      lines: [
+        "Subminute Engine 26 Control Map not attached",
+        "No Minute Engine 26 data is reused.",
+        "No permission. No ticket. No execution.",
+      ],
+    };
+  }
+
+  const zone =
+    locationContext?.zone ||
+    locationCandidate?.location ||
+    null;
+
+  const plannerReady =
+    proposedGeometry?.active === true &&
+    String(proposedGeometry?.lifecycleStatus || "").toUpperCase() ===
+      "PROPOSED_GEOMETRY_AVAILABLE";
+
   return {
     number: 2,
     icon: "⑳",
     title: "Control Map — Engine 26",
     severity: "teal",
     fields: [
-      ["Current", "—"],
-      ["Control State", "NOT ATTACHED"],
-      ["Instruction", "—"],
-      ["Bear Level", "—"],
-      ["Bull Level", "—"],
-      ["Location", "—"],
-      ["Short Trigger", "—"],
-      ["Invalidation", "—"],
-      ["Bear Targets", "—"],
-      ["Bull Targets", "—"],
+      ["Lane", formatUpper(locationCandidate?.laneId)],
+      ["Strategy", formatUpper(locationCandidate?.strategyId)],
+      ["Direction", formatUpper(locationCandidate?.direction)],
+      ["Current", formatNumber(locationContext?.currentPrice)],
+      ["Control State", formatUpper(controlMap?.currentControlState)],
+      ["Required Reaction", formatUpper(controlMap?.requiredReaction)],
+      ["Trigger Level", formatNumber(controlMap?.triggerLevel)],
+      ["Acceptance", formatNumber(controlMap?.acceptanceBoundary)],
+      ["Reclaim", formatNumber(controlMap?.reclaimBoundary)],
+      ["Invalidation", formatNumber(controlMap?.invalidationBoundary)],
+      [
+        "Location",
+        zone?.lo != null && zone?.hi != null
+          ? `${formatNumber(zone.lo)}–${formatNumber(zone.hi)}`
+          : "—",
+      ],
+      ["Relation", formatUpper(locationContext?.relation)],
+      ["Candidate ID", locationCandidate?.candidateId || "—"],
+      ["Zone ID", locationCandidate?.zoneId || "—"],
+      ["Pipeline Complete", formatBool(pipelineIdentity?.complete)],
+      ["Planner Status", formatUpper(proposedGeometry?.lifecycleStatus)],
+      ["Planner Ready", formatBool(plannerReady)],
+      ["Proposed Entry", formatNumber(proposedGeometry?.proposedEntryPrice)],
+      ["Proposed Stop", formatNumber(proposedGeometry?.proposedStopPrice)],
+      [
+        "Risk",
+        proposedGeometry?.proposedStopDistancePoints != null
+          ? `${formatNumber(
+              proposedGeometry.proposedStopDistancePoints
+            )} pts`
+          : "—",
+      ],
+      ["Proposal Only", formatBool(proposedGeometry?.proposalOnly)],
+      ["Official", formatBool(proposedGeometry?.official)],
+      ["Executable", formatBool(!proposedGeometry?.nonExecutable)],
+      ["No Execution", formatBool(proposedGeometry?.noExecution)],
     ],
     lines: [
-      "Subminute Engine 26 Control Map not attached",
-      "No Minute Engine 26 data is reused.",
+      "Subminute Engine 26 candidate, zone, location, control map, and proposed geometry are attached.",
+      "Proposal only. Engine 6 permission, Engine 7 sizing, Engine 9 management, Engine 8 execution, and Engine 10 journal remain separate authorities.",
       "No permission. No ticket. No execution.",
     ],
   };
@@ -3916,7 +4041,7 @@ function normalizeSubminuteTimelineData({ overlayData }) {
     ].filter(Boolean),
     sections: [
       buildSubminuteEngine22StructureSection(fib),
-      buildSubminuteEngine26UnavailableSection(),
+      buildSubminuteEngine26Section(fib),
       {
         ...buildEngine27TraderIntelligenceSection(fib, subminuteDecision),
         number: 3,
