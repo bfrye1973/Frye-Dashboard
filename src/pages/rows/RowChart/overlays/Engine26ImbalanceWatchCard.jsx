@@ -280,8 +280,119 @@ export default function Engine26ImbalanceWatchCard({
   tradePlanPreview = null,
   ticket = null,
   symbol = "ES",
+  selectedWaveDegree = "minute",
 }) {
-  if (!visible || !watch?.active) return null;
+  if (!visible) return null;
+
+  const normalizedWaveDegree = String(
+    selectedWaveDegree || "minute"
+  ).toLowerCase();
+
+  if (normalizedWaveDegree !== "minute") {
+    const laneLabel =
+      normalizedWaveDegree === "subminute"
+        ? "Subminute"
+        : normalizedWaveDegree === "minor"
+        ? "Minor"
+        : normalizedWaveDegree === "intermediate"
+        ? "Intermediate"
+        : normalizedWaveDegree === "primary"
+        ? "Primary"
+        : formatText(normalizedWaveDegree, "Selected");
+
+    return (
+      <div
+        style={{
+          fontFamily: CARD_FONT,
+          position: "absolute",
+          top: 95,
+          left: CARD_LEFT,
+          zIndex: 109,
+          width: CARD_WIDTH,
+          maxWidth: "37%",
+          borderRadius: 16,
+          border: "1px solid rgba(56,189,248,0.58)",
+          background: "rgba(6,10,20,0.98)",
+          padding: "15px 16px",
+          color: "#e5e7eb",
+          backdropFilter: "blur(4px)",
+          pointerEvents: "none",
+          textAlign: "left",
+          boxShadow: "0 10px 28px rgba(0,0,0,0.34)",
+          display: "grid",
+          gap: 10,
+        }}
+      >
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr auto",
+            alignItems: "start",
+            gap: 10,
+          }}
+        >
+          <div>
+            <div
+              style={{
+                ...TITLE_STYLE,
+                color: "#38bdf8",
+              }}
+            >
+              Engine 26 — Trade Plan Preview
+            </div>
+
+            <div
+              style={{
+                ...TEXT_STYLE,
+                color: "#f8fafc",
+                fontSize: 14,
+                marginTop: 4,
+                fontWeight: 700,
+              }}
+            >
+              {symbol} • {laneLabel} lane • Read only
+            </div>
+          </div>
+
+          <StatusBadge label="NOT ATTACHED" color="#38bdf8" />
+        </div>
+
+        <SectionBox
+          border="rgba(56,189,248,0.32)"
+          background="rgba(12,74,110,0.14)"
+        >
+          <SectionTitle>{laneLabel} Wavelength</SectionTitle>
+
+          <div
+            style={{
+              ...TEXT_STYLE,
+              color: "#f8fafc",
+              fontSize: 16,
+              fontWeight: 800,
+              lineHeight: 1.4,
+            }}
+          >
+            {laneLabel} Engine 26 Trade Plan not attached
+          </div>
+
+          <div
+            style={{
+              ...TEXT_STYLE,
+              color: "#cbd5e1",
+              fontSize: 14,
+              fontWeight: 600,
+              lineHeight: 1.45,
+            }}
+          >
+            No lane-owned Engine 26 candidate, zone, control map, or trade plan
+            is attached for this wavelength.
+          </div>
+        </SectionBox>
+      </div>
+    );
+  }
+
+  if (!watch?.active) return null;
 
   const zone = watch.activeImbalance || {};
   const structuralPlaybook = watch.structuralPlaybook || {};
