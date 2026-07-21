@@ -397,6 +397,10 @@ function mapSnapshotToEngine17Overlay(snapshot, strategyId, chartMode = "SPY_SCA
     snapshot?.engine27Strategies?.engine27TraderDecision?.decisions?.subminute ||
     null;
 
+  const engine22SubminuteStructure =
+    minuteStrategy?.engine22WaveStrategy?.degreeStates?.subminute ||
+    null;
+
 const engine22WaveStrategy =
   node?.engine22WaveStrategy ||
   minuteStrategy?.engine22WaveStrategy ||
@@ -664,6 +668,7 @@ const engine22WaveStrategy =
      strategyTimeline,
      engine27TraderDecision,
      engine27SubminuteTraderDecision,
+     engine22SubminuteStructure,
 
      // Engine 17 timeline hierarchy data
      engine15Decision: node?.engine15Decision || null,
