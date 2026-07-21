@@ -387,19 +387,10 @@ function mapSnapshotToEngine17Overlay(snapshot, strategyId, chartMode = "SPY_SCA
 
   const strategyTimeline =
     minuteStrategy?.strategyTimeline ||
-    node?.strategyTimeline ||
-    null;
-
-  const engine27TraderDecisionRoot =
-    snapshot?.engine27Strategies?.engine27TraderDecision ||
-    minuteStrategy?.engine27TraderDecision ||
-    node?.engine27TraderDecision ||
     null;
 
   const engine27TraderDecision =
-    engine27TraderDecisionRoot?.minute ||
-    engine27TraderDecisionRoot?.Minute ||
-    engine27TraderDecisionRoot ||
+    snapshot?.engine27Strategies?.engine27TraderDecision?.decisions?.minute ||
     null;
 
 const engine22WaveStrategy =
