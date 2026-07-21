@@ -223,15 +223,11 @@ function getFinalPermission(fib) {
 }
 
 function getEngine27TraderDecision(fib) {
-  const root = getStrategyRoot(fib);
+  return fib?.engine27TraderDecision || null;
+}
 
-  return (
-    root?.engine27TraderDecision ||
-    fib?.engine27TraderDecision ||
-    root?.engine27Strategies?.engine27TraderDecision ||
-    fib?.engine27Strategies?.engine27TraderDecision ||
-    null
-  );
+function getCanonicalStrategyTimeline(fib) {
+  return fib?.strategyTimeline || null;
 }
 
 function getEngine26StructuralContext(fib) {
@@ -1630,6 +1626,50 @@ function buildEngine27TraderIntelligenceSection(fib) {
         : "No active Engine 27 blockers reported.",
       decision?.summary || decision?.traderMessage || null,
     ].filter(Boolean),
+  };
+}
+
+function getCanonicalStageSeverity(status) {
+  const normalized = String(status || "").toUpperCase();
+
+  if (normalized === "ACTIVE") return "bullish";
+  if (normalized === "WATCHING") return "warning";
+  if (normalized === "WAITING") return "purple";
+
+  return "neutral";
+}
+
+function buildCanonicalMinuteStageTimelineSection(fib) {
+  const strategyTimeline = getCanonicalStrategyTimeline(fib);
+  const stages = Array.isArray(strategyTimeline?.stages)
+    ? strategyTimeline.stages.filter(Boolean)
+    : [];
+
+  if (!stages.length) {
+    return {
+      number: 0,
+      icon: "⑩",
+      title: "Canonical Minute Stage Timeline",
+      severity: "warning",
+      fields: [],
+      lines: ["Timeline not attached yet."],
+    };
+  }
+
+  return {
+    number: 0,
+    icon: "⑩",
+    title: "Canonical Minute Stage Timeline",
+    severity: "blue",
+    canonicalStages: stages.map((stage) => ({
+      id: stage?.id || null,
+      label: stage?.label || stage?.id || "—",
+      status: stage?.status || "—",
+      sourceEngine: stage?.sourceEngine || null,
+      severity: getCanonicalStageSeverity(stage?.status),
+    })),
+    fields: [],
+    lines: [],
   };
 }
 
@@ -3667,6 +3707,8 @@ const lifecycleOwnsDisplay =
           fib,
           tradeContextSummary,
         }),
+
+    buildCanonicalMinuteStageTimelineSection(fib),
   ]
     .filter(Boolean)
     .map((section, idx) => ({
@@ -3908,6 +3950,77 @@ function Checklist({ items }) {
   );
 }
 
+function CanonicalStageGrid({ stages }) {
+  const safeStages = asArray(stages);
+
+  if (!safeStages.length) return null;
+
+  return (
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+        gap: 9,
+        marginTop: 8,
+      }}
+    >
+      {safeStages.map((stage, idx) => (
+        <div
+          key={`${stage.id || stage.label || "stage"}-${idx}`}
+          style={{
+            border: `1px solid ${severityBorder(stage.severity)}`,
+            background: severityBackground(stage.severity),
+            borderRadius: 9,
+            padding: "9px 10px",
+            minWidth: 0,
+          }}
+        >
+          <div
+            style={{
+              ...shellTextStyle,
+              color: MAIN_TEXT,
+              fontSize: 15,
+              fontWeight: FONT_MEDIUM,
+              lineHeight: 1.3,
+              marginBottom: 4,
+            }}
+          >
+            {stage.label}
+          </div>
+
+          <div
+            style={{
+              ...shellTextStyle,
+              color: severityColor(stage.severity),
+              fontSize: 14,
+              fontWeight: FONT_MEDIUM,
+              letterSpacing: "0.02em",
+              lineHeight: 1.3,
+            }}
+          >
+            {stage.status}
+          </div>
+
+          {stage.sourceEngine && (
+            <div
+              style={{
+                ...shellTextStyle,
+                color: MUTED_TEXT,
+                fontSize: 12,
+                fontWeight: FONT_REGULAR,
+                lineHeight: 1.3,
+                marginTop: 4,
+              }}
+            >
+              Source Engine: {stage.sourceEngine}
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function TimelineSection({ section }) {
   if (!section) return null;
 
@@ -3985,6 +4098,7 @@ function TimelineSection({ section }) {
           <FieldGrid fields={section.fields} />
           <IngredientCards cards={section.ingredientCards} />
           <Checklist items={section.checklist} />
+          <CanonicalStageGrid stages={section.canonicalStages} />
 
           {asArray(section.lines).length > 0 && (
             <div
