@@ -74,15 +74,16 @@ function parseBackendTime(value) {
     return number > 1e12 ? Math.floor(number / 1000) : Math.floor(number);
   }
 
-  // Active-wave-state currently uses "YYYY-MM-DD HH:mm".
-  // Interpret it as UTC chart time, then snap to the nearest loaded candle.
+  // Active-wave-state timestamps are stored in Arizona local time.
+  // Arizona remains on UTC-07:00 year-round, so preserve that clock time
+  // before snapping the point to the nearest loaded chart candle.
   const normalized = raw.includes("T")
     ? raw
     : raw.replace(" ", "T");
 
   const withZone = /(?:Z|[+-]\d{2}:\d{2})$/.test(normalized)
     ? normalized
-    : `${normalized}Z`;
+    : `${normalized}-07:00`;
 
   const ms = Date.parse(withZone);
   return Number.isFinite(ms) ? Math.floor(ms / 1000) : null;
@@ -491,7 +492,7 @@ export default function ActiveWaveFibOverlay({
     // Backend timestamps may be hourly while the chart uses 10m bars.
     // Allow a broad but bounded snap window.
     const maxSnap = barIntervalSec
-      ? Math.max(barIntervalSec * 12, 6 * 60 * 60)
+      ? Math.max(barIntervalSec * 18, 8 * 60 * 60)
       : 12 * 60 * 60;
 
     return bestDistance <= maxSnap ? best : timeSec;
