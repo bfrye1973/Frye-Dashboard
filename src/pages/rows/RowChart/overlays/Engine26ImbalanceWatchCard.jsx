@@ -108,7 +108,7 @@ function statusColor(status, labels, structuralBias) {
 }
 
 function statusBorder(status, labels, structuralBias) {
-  const color = statusColor(status, labels, structuralBias);
+const color = statusColor(status, labels, structuralBias);
 
   if (color === "#fbbf24") return "rgba(251,191,36,0.68)";
   if (color === "#22c55e") return "rgba(34,197,94,0.62)";
@@ -753,54 +753,61 @@ const minuteWatchAttached =
   watch &&
   typeof watch === "object";
 
-const minuteWatchActive =
-  watch?.active === true;
+const minuteWatch = minuteWatchAttached
+  ? watch
+  : {};
 
-const zone = watch?.activeImbalance || {};
+const minuteWatchActive =
+  minuteWatch?.active === true;
+
+const zone = minuteWatch.activeImbalance || {};
 const structuralPlaybook =
-  watch?.structuralPlaybook || {};
-  const watchLevels = structuralPlaybook.watchLevels || {};
-  const triggerMap = structuralPlaybook.triggerMap || {};
+  minuteWatch.structuralPlaybook || {};
+const watchLevels = structuralPlaybook.watchLevels || {};
+const triggerMap = structuralPlaybook.triggerMap || {};
 const engine3 =
-  watch?.fastReads?.engine3 || {};
+  minuteWatch?.fastReads?.engine3 || {};
 
 const engine4 =
-  watch?.fastReads?.engine4 || {};
+  minuteWatch?.fastReads?.engine4 || {};
 
 const permission =
-  watch?.permission || {};
+  minuteWatch.permission || {};
 
-  const preview = tradePlanPreview || watch.tradePlanPreview || null;
+const preview =
+  tradePlanPreview ||
+  minuteWatch.tradePlanPreview ||
+  null;
 
-  const alarm = preview?.alarm || null;
-  const structure = preview?.structure || null;
-  const entryIdea = preview?.entryIdea || null;
-  const stopIdea = preview?.stopIdea || null;
-  const confirmationGate = preview?.confirmationGate || null;
-  const scalpGoal = preview?.scalpGoal || null;
-  const targetMap = preview?.targetMap || null;
-  const geometryPreview = preview?.geometryPreview || null;
-  const engine7Sizing = preview?.engine7Sizing || null;
-  const permissionState = preview?.permissionState || null;
+const alarm = preview?.alarm || null;
+const structure = preview?.structure || null;
+const entryIdea = preview?.entryIdea || null;
+const stopIdea = preview?.stopIdea || null;
+const confirmationGate = preview?.confirmationGate || null;
+const scalpGoal = preview?.scalpGoal || null;
+const targetMap = preview?.targetMap || null;
+const geometryPreview = preview?.geometryPreview || null;
+const engine7Sizing = preview?.engine7Sizing || null;
+const permissionState = preview?.permissionState || null;
 
-  const status = String(watch.status || structuralPlaybook.status || "").toUpperCase();
-  const structuralBias =
-    watch.structuralBias || structuralPlaybook.structuralBias || "NEUTRAL";
+const status = String(minuteWatch.status || structuralPlaybook.status || "").toUpperCase();
+const structuralBias =
+    minuteWatch.structuralBias || structuralPlaybook.structuralBias || "NEUTRAL";
 
-  const color = statusColor(status, watch.labels, structuralBias);
-  const border = statusBorder(status, watch.labels, structuralBias);
+const color = statusColor(status, minuteWatch.labels, structuralBias);
+const border = statusBorder(status, minuteWatch.labels, structuralBias);
 
-  const statusLabel =
+const statusLabel =
     minuteWatchActive
       ? (
-          watch?.activeImbalanceRole ||
+          minuteWatch?.activeImbalanceRole ||
           structuralPlaybook?.activeImbalanceRole
             ? formatUpper(
-                watch?.activeImbalanceRole ||
+                minuteWatch?.activeImbalanceRole ||
                 structuralPlaybook?.activeImbalanceRole
               )
             : formatText(
-                watch?.status,
+                minuteWatch?.status,
                 "Structural Imbalance Watch"
               )
         )
@@ -808,61 +815,61 @@ const permission =
       ? "WAITING FOR ACTIVE ENGINE 26 ZONE"
       : "ENGINE 26 NOT ATTACHED";     
 
-  const zoneText =
+const zoneText =
     zone.lo != null && zone.hi != null
       ? `${formatLevel(zone.lo)}–${formatLevel(zone.hi)}`
       : "—";
 
-  const engine3Text = `${formatUpper(engine3.state, "NO SIGNAL")} / ${formatUpper(
+const engine3Text = `${formatUpper(engine3.state, "NO SIGNAL")} / ${formatUpper(
     engine3.quality,
     "—"
   )} / ${formatUpper(engine3.direction, "NEUTRAL")}`;
 
-  const engine4Text = `${formatUpper(engine4.state, "NO SIGNAL")} / ${formatUpper(
+const engine4Text = `${formatUpper(engine4.state, "NO SIGNAL")} / ${formatUpper(
     engine4.quality,
     "—"
   )}`;
 
-  const template =
-    watch.structuralTemplate ||
+const template =
+    minuteWatch.structuralTemplate ||
     structuralPlaybook.template ||
     "NEUTRAL_MANUAL_IMBALANCE_WATCH";
 
-  const preferredAction =
-    watch.preferredAction ||
+const preferredAction =
+    minuteWatch.preferredAction ||
     structuralPlaybook.preferredAction ||
     "WAIT_FOR_CONFIRMATION";
 
-  const preferredDirection =
-    watch.preferredDirection ||
+const preferredDirection =
+    minuteWatch.preferredDirection ||
     structuralPlaybook.preferredDirection ||
     "NONE";
 
-  const primaryScenario =
+const primaryScenario =
     structuralPlaybook.primaryScenario ||
-    watch.playbookWatch?.primaryScenario ||
+    minuteWatch.playbookWatch?.primaryScenario ||
     null;
 
-  const confirmationNeeds =
+const confirmationNeeds =
     structuralPlaybook.confirmationNeeds ||
-    watch.playbookWatch?.confirmationNeeds ||
+    minuteWatch.playbookWatch?.confirmationNeeds ||
     [];
 
-  const bHigh =
+const bHigh =
     structure?.activeB?.price ??
     watchLevels?.manualB?.price ??
     watchLevels?.bLeg?.price ??
     watchLevels?.cProjection?.bHigh ??
     null;
 
-  const c100 =
+const c100 =
     targetMap?.firstReaction ??
     triggerMap?.c100 ??
     watchLevels?.cProjection?.c100 ??
     null;
 
-  const cardDirection = structure?.direction || preferredDirection;
-  const paperAllowed =
+const cardDirection = structure?.direction || preferredDirection;
+const paperAllowed =
     permissionState?.paperAllowed === true ||
     permission.engine6Allowed === true ||
     false;
@@ -927,7 +934,7 @@ const permission =
       <SectionBox border={border} background="rgba(113,63,18,0.16)">
         <SmallLine
           label="Status"
-          value={formatUpper(watch.status || structuralPlaybook.status)}
+          value={formatUpper(minuteWatch.status || structuralPlaybook.status)}
           valueColor={color}
         />
         <SmallLine
@@ -937,7 +944,7 @@ const permission =
         />
         <SmallLine
           label="Role"
-          value={formatUpper(watch.activeImbalanceRole || structuralPlaybook.activeImbalanceRole)}
+          value={formatUpper(minuteWatch.activeImbalanceRole || structuralPlaybook.activeImbalanceRole)}
           valueColor="#fbbf24"
         />
         <SmallLine
@@ -957,8 +964,8 @@ const permission =
 
         <SmallLine
           label="Alarm"
-          value={alarm?.label || (watch.alarmAllEngines ? "ALARM_ZONE_ACTIVE" : "—")}
-          valueColor={alarm?.active || watch.alarmAllEngines ? "#22c55e" : "#94a3b8"}
+          value={alarm?.label || (minuteWatch.alarmAllEngines ? "ALARM_ZONE_ACTIVE" : "—")}
+          valueColor={alarm?.active || minuteWatch.alarmAllEngines ? "#22c55e" : "#94a3b8"}
         />
 
         <SmallLine
@@ -972,7 +979,7 @@ const permission =
 
         <SmallLine
           label="Current"
-          value={formatLevel(alarm?.currentPrice ?? watch.currentPrice)}
+          value={formatLevel(alarm?.currentPrice ?? minuteWatch.currentPrice)}
         />
 
         <SmallLine
@@ -990,12 +997,12 @@ const permission =
 
         <SmallLine
           label="No Long Chase"
-          value={formatBool(structure?.doNotChaseLong ?? watch.doNotChaseLong)}
+          value={formatBool(structure?.doNotChaseLong ?? minuteWatch.doNotChaseLong)}
         />
 
         <SmallLine
           label="Short Research"
-          value={formatBool(structure?.shortResearchOnly ?? watch.shortResearchOnly)}
+          value={formatBool(structure?.shortResearchOnly ?? minuteWatch.shortResearchOnly)}
         />
       </SectionBox>
 
