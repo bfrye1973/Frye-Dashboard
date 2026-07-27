@@ -749,15 +749,26 @@ export default function Engine26ImbalanceWatchCard({
     );
   }
 
-  if (!watch?.active) return null;
+const minuteWatchAttached =
+  watch &&
+  typeof watch === "object";
 
-  const zone = watch.activeImbalance || {};
-  const structuralPlaybook = watch.structuralPlaybook || {};
+const minuteWatchActive =
+  watch?.active === true;
+
+const zone = watch?.activeImbalance || {};
+const structuralPlaybook =
+  watch?.structuralPlaybook || {};
   const watchLevels = structuralPlaybook.watchLevels || {};
   const triggerMap = structuralPlaybook.triggerMap || {};
-  const engine3 = watch.fastReads?.engine3 || {};
-  const engine4 = watch.fastReads?.engine4 || {};
-  const permission = watch.permission || {};
+const engine3 =
+  watch?.fastReads?.engine3 || {};
+
+const engine4 =
+  watch?.fastReads?.engine4 || {};
+
+const permission =
+  watch?.permission || {};
 
   const preview = tradePlanPreview || watch.tradePlanPreview || null;
 
@@ -780,7 +791,22 @@ export default function Engine26ImbalanceWatchCard({
   const border = statusBorder(status, watch.labels, structuralBias);
 
   const statusLabel =
-    watch.activeImbalanceRole || structuralPlaybook.activeImbalanceRole
+    minuteWatchActive
+      ? (
+          watch?.activeImbalanceRole ||
+          structuralPlaybook?.activeImbalanceRole
+            ? formatUpper(
+                watch?.activeImbalanceRole ||
+                structuralPlaybook?.activeImbalanceRole
+              )
+            : formatText(
+                watch?.status,
+                "Structural Imbalance Watch"
+              )
+        )
+      : minuteWatchAttached
+      ? "WAITING FOR ACTIVE ENGINE 26 ZONE"
+      : "ENGINE 26 NOT ATTACHED";
       ? formatUpper(watch.activeImbalanceRole || structuralPlaybook.activeImbalanceRole)
       : formatText(watch.status, "Structural Imbalance Watch");
 
