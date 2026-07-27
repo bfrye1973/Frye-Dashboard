@@ -806,9 +806,7 @@ const permission =
         )
       : minuteWatchAttached
       ? "WAITING FOR ACTIVE ENGINE 26 ZONE"
-      : "ENGINE 26 NOT ATTACHED";
-      ? formatUpper(watch.activeImbalanceRole || structuralPlaybook.activeImbalanceRole)
-      : formatText(watch.status, "Structural Imbalance Watch");
+      : "ENGINE 26 NOT ATTACHED";     
 
   const zoneText =
     zone.lo != null && zone.hi != null
