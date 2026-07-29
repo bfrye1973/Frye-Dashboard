@@ -1123,7 +1123,10 @@ const c100 =
     watchLevels?.cProjection?.c100 ??
     null;
 
-const cardDirection = structure?.direction || preferredDirection;
+const cardDirection =
+  strategy1Attached
+    ? strategy1Setup.direction || "LONG"
+    : structure?.direction || preferredDirection;
 const paperAllowed =
     permissionState?.paperAllowed === true ||
     permission.engine6Allowed === true ||
@@ -1187,79 +1190,183 @@ const paperAllowed =
       </div>
 
       <SectionBox border={border} background="rgba(113,63,18,0.16)">
-        <SmallLine
-          label="Status"
-          value={formatUpper(minuteWatch.status || structuralPlaybook.status)}
-          valueColor={color}
-        />
-        <SmallLine
-          label="Template"
-          value={formatUpper(template)}
-          valueColor="#f8fafc"
-        />
-        <SmallLine
-          label="Role"
-          value={formatUpper(minuteWatch.activeImbalanceRole || structuralPlaybook.activeImbalanceRole)}
-          valueColor="#fbbf24"
-        />
-        <SmallLine
-          label="Bias"
-          value={formatUpper(structuralBias)}
-          valueColor="#fbbf24"
-        />
-        <SmallLine
-          label="Action"
-          value={formatUpper(preferredAction)}
-          valueColor="#f8fafc"
-        />
+<SectionBox
+  border={border}
+  background={
+    strategy1Attached
+      ? strategy1State.background
+      : "rgba(113,63,18,0.16)"
+  }
+>
+  <SmallLine
+    label="Status"
+    value={
+      strategy1Attached
+        ? strategy1State.label
+        : formatUpper(
+            minuteWatch.status ||
+            structuralPlaybook.status
+          )
+    }
+    valueColor={color}
+  />
+
+  <SmallLine
+    label="Lane"
+    value={
+      strategy1Attached
+        ? formatUpper(
+            strategy1Setup.laneId,
+            "MINUTE"
+          )
+        : "MINUTE"
+    }
+    valueColor="#38bdf8"
+  />
+
+  <SmallLine
+    label="Strategy"
+    value={
+      strategy1Attached
+        ? formatUpper(
+            strategy1Setup.strategyId
+          )
+        : "INTRADAY SCALP @ 10M"
+    }
+  />
+
+  <SmallLine
+    label="Template"
+    value={formatUpper(template)}
+    valueColor="#f8fafc"
+  />
+
+  <SmallLine
+    label="Grade"
+    value={
+      strategy1Attached
+        ? formatUpper(
+            strategy1Setup.setupGrade,
+            "A+++"
+          )
+        : "—"
+    }
+    valueColor="#fbbf24"
+  />
+
+  <SmallLine
+    label="Direction"
+    value={formatUpper(cardDirection)}
+    valueColor={getDirectionColor(cardDirection)}
+  />
+
+  <SmallLine
+    label="Action"
+    value={formatUpper(preferredAction)}
+    valueColor="#f8fafc"
+  />
+</SectionBox>
       </SectionBox>
 
-      <SectionBox border="rgba(148,163,184,0.28)" background="rgba(15,23,42,0.36)">
-        <SectionTitle>Alarm Zone</SectionTitle>
+<SectionBox
+  border="rgba(148,163,184,0.28)"
+  background="rgba(15,23,42,0.36)"
+>
+  <SectionTitle>
+    Strategy 1 Location
+  </SectionTitle>
 
-        <SmallLine
-          label="Alarm"
-          value={alarm?.label || (minuteWatch.alarmAllEngines ? "ALARM_ZONE_ACTIVE" : "—")}
-          valueColor={alarm?.active || minuteWatch.alarmAllEngines ? "#22c55e" : "#94a3b8"}
-        />
+  <SmallLine
+    label="Setup Active"
+    value={formatBool(strategy1Setup?.active)}
+    valueColor={
+      strategy1Setup?.active
+        ? "#22c55e"
+        : "#fbbf24"
+    }
+  />
 
-        <SmallLine
-          label="Zone"
-          value={
-            alarm?.zoneLo != null && alarm?.zoneHi != null
-              ? `${formatLevel(alarm.zoneLo)}–${formatLevel(alarm.zoneHi)}`
-              : zoneText
-          }
-        />
+  <SmallLine
+    label="Zone"
+    value={
+      strategy1Attached
+        ? strategy1ZoneText
+        : legacyZoneText
+    }
+  />
 
-        <SmallLine
-          label="Current"
-          value={formatLevel(alarm?.currentPrice ?? minuteWatch.currentPrice)}
-        />
+  <SmallLine
+    label="Current"
+    value={formatLevel(
+      strategy1Attached
+        ? strategy1Setup?.currentPrice
+        : minuteWatch.currentPrice
+    )}
+  />
 
-        <SmallLine
-          label="Inside / Near"
-          value={`${formatBool(alarm?.inside ?? zone.inside)} / ${formatBool(
-            alarm?.near ?? zone.near
-          )}`}
-        />
+  <SmallLine
+    label="Relation"
+    value={
+      strategy1Attached
+        ? formatUpper(
+            strategy1Setup?.location?.relation
+          )
+        : "—"
+    }
+  />
 
-        <SmallLine
-          label="Preferred Dir"
-          value={formatUpper(cardDirection)}
-          valueColor={getDirectionColor(cardDirection)}
-        />
+  <SmallLine
+    label="Direction"
+    value={formatUpper(cardDirection)}
+    valueColor={getDirectionColor(cardDirection)}
+  />
 
-        <SmallLine
-          label="No Long Chase"
-          value={formatBool(structure?.doNotChaseLong ?? minuteWatch.doNotChaseLong)}
-        />
+  <SmallLine
+    label="Entry Midline"
+    value={formatLevel(
+      strategy1EntryZone?.midline
+    )}
+  />
 
-        <SmallLine
-          label="Short Research"
-          value={formatBool(structure?.shortResearchOnly ?? minuteWatch.shortResearchOnly)}
-        />
-      </SectionBox>
+  <SmallLine
+    label="Trigger"
+    value={formatLevel(
+      strategy1Setup?.triggerLevel
+    )}
+    valueColor="#22c55e"
+  />
+
+  <SmallLine
+    label="Reclaim"
+    value={formatLevel(
+      strategy1Setup?.reclaimBoundary
+    )}
+    valueColor="#2dd4bf"
+  />
+
+  <SmallLine
+    label="Invalidation"
+    value={formatLevel(
+      strategy1Setup
+        ?.locationInvalidationBoundary
+    )}
+    valueColor="#fb7185"
+  />
+
+  <SmallLine
+    label="Completed-Close Invalid"
+    value={formatBool(
+      strategy1Setup
+        ?.completedCloseInvalidationConfirmed
+    )}
+    valueColor={
+      strategy1Setup
+        ?.completedCloseInvalidationConfirmed
+        ? "#fb7185"
+        : "#22c55e"
+    }
+  />
+</SectionBox>
 
       <SectionBox border="rgba(56,189,248,0.32)" background="rgba(12,74,110,0.14)">
         <SectionTitle>Trade Plan Preview</SectionTitle>
