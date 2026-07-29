@@ -312,17 +312,11 @@ function getStrategy1DisplayState(strategy1Setup) {
     );
 
   const identityMismatch =
-    reactionIdentityMismatch ||
-    participationIdentityMismatch;
+    reactionIdentityMismatch || participationIdentityMismatch;
 
-  const hardBlocked =
-    participation?.hardBlocked === true;
-
-  const reactionConfirmed =
-    reaction?.confirmed === true;
-
-  const participationConfirmed =
-    participation?.confirmed === true;
+  const hardBlocked = participation?.hardBlocked === true;
+  const reactionConfirmed = reaction?.confirmed === true;
+  const participationConfirmed = participation?.confirmed === true;
 
   if (invalidated) {
     return {
@@ -967,13 +961,10 @@ const strategy1Participation =
 const legacyZone =
   minuteWatch.activeImbalance || {};
 
-const alarm = preview?.alarm || null;
 const structure = preview?.structure || null;
 const entryIdea = preview?.entryIdea || null;
 const stopIdea = preview?.stopIdea || null;
 const confirmationGate = preview?.confirmationGate || null;
-const scalpGoal = preview?.scalpGoal || null;
-const targetMap = preview?.targetMap || null;
 const geometryPreview = preview?.geometryPreview || null;
 const engine7Sizing = preview?.engine7Sizing || null;
 const permissionState = preview?.permissionState || null;
@@ -1031,16 +1022,12 @@ const statusLabel =
 const strategy1ZoneText =
   strategy1EntryZone?.low != null &&
   strategy1EntryZone?.high != null
-    ? `${formatLevel(
-        strategy1EntryZone.low
-      )}–${formatLevel(
+    ? `${formatLevel(strategy1EntryZone.low)}–${formatLevel(
         strategy1EntryZone.high
       )}`
     : strategy1Setup?.location?.lo != null &&
       strategy1Setup?.location?.hi != null
-    ? `${formatLevel(
-        strategy1Setup.location.lo
-      )}–${formatLevel(
+    ? `${formatLevel(strategy1Setup.location.lo)}–${formatLevel(
         strategy1Setup.location.hi
       )}`
     : "—";
@@ -1048,9 +1035,7 @@ const strategy1ZoneText =
 const generalContextZoneText =
   generalContext?.zone?.lo != null &&
   generalContext?.zone?.hi != null
-    ? `${formatLevel(
-        generalContext.zone.lo
-      )}–${formatLevel(
+    ? `${formatLevel(generalContext.zone.lo)}–${formatLevel(
         generalContext.zone.hi
       )}`
     : "—";
@@ -1058,9 +1043,7 @@ const generalContextZoneText =
 const targetZoneText =
   strategy1TargetZone?.low != null &&
   strategy1TargetZone?.high != null
-    ? `${formatLevel(
-        strategy1TargetZone.low
-      )}–${formatLevel(
+    ? `${formatLevel(strategy1TargetZone.low)}–${formatLevel(
         strategy1TargetZone.high
       )}`
     : "—";
@@ -1068,11 +1051,7 @@ const targetZoneText =
 const legacyZoneText =
   legacyZone.lo != null &&
   legacyZone.hi != null
-    ? `${formatLevel(
-        legacyZone.lo
-      )}–${formatLevel(
-        legacyZone.hi
-      )}`
+    ? `${formatLevel(legacyZone.lo)}–${formatLevel(legacyZone.hi)}`
     : "—";
 
 const engine3Text = `${formatUpper(engine3.state, "NO SIGNAL")} / ${formatUpper(
@@ -1086,42 +1065,35 @@ const engine4Text = `${formatUpper(engine4.state, "NO SIGNAL")} / ${formatUpper(
   )}`;
 
 const template =
-    minuteWatch.structuralTemplate ||
-    structuralPlaybook.template ||
-    "NEUTRAL_MANUAL_IMBALANCE_WATCH";
+  strategy1Attached
+    ? strategy1Setup.setupClass ||
+      strategy1Setup.setupType ||
+      "NEGOTIATED_ZONE_SWEEP_RECLAIM_ROTATION"
+    : minuteWatch.structuralTemplate ||
+      structuralPlaybook.template ||
+      "NEUTRAL_MANUAL_IMBALANCE_WATCH";
 
 const preferredAction =
-    minuteWatch.preferredAction ||
-    structuralPlaybook.preferredAction ||
-    "WAIT_FOR_CONFIRMATION";
+  strategy1Attached
+    ? strategy1State.label
+    : minuteWatch.preferredAction ||
+      structuralPlaybook.preferredAction ||
+      "WAIT_FOR_CONFIRMATION";
 
 const preferredDirection =
-    minuteWatch.preferredDirection ||
-    structuralPlaybook.preferredDirection ||
-    "NONE";
+  strategy1Attached
+    ? strategy1Setup.direction || "LONG"
+    : minuteWatch.preferredDirection ||
+      structuralPlaybook.preferredDirection ||
+      "NONE";
 
 const primaryScenario =
-    structuralPlaybook.primaryScenario ||
-    minuteWatch.playbookWatch?.primaryScenario ||
-    null;
-
-const confirmationNeeds =
-    structuralPlaybook.confirmationNeeds ||
-    minuteWatch.playbookWatch?.confirmationNeeds ||
-    [];
-
-const bHigh =
-    structure?.activeB?.price ??
-    watchLevels?.manualB?.price ??
-    watchLevels?.bLeg?.price ??
-    watchLevels?.cProjection?.bHigh ??
-    null;
-
-const c100 =
-    targetMap?.firstReaction ??
-    triggerMap?.c100 ??
-    watchLevels?.cProjection?.c100 ??
-    null;
+  strategy1Attached
+    ? strategy1Setup.setupClass ||
+      strategy1Setup.setupType
+    : structuralPlaybook.primaryScenario ||
+      minuteWatch.playbookWatch?.primaryScenario ||
+      null;
 
 const cardDirection =
   strategy1Attached
@@ -1182,322 +1154,154 @@ const paperAllowed =
               fontWeight: 700,
             }}
           >
-            {symbol} • Engine 22 read first • Paper only
+            {symbol} • Minute Strategy 1 • Paper only
           </div>
         </div>
 
         <StatusBadge label={statusLabel} color={color} />
       </div>
 
-      <SectionBox border={border} background="rgba(113,63,18,0.16)">
-<SectionBox
-  border={border}
-  background={
-    strategy1Attached
-      ? strategy1State.background
-      : "rgba(113,63,18,0.16)"
-  }
->
-  <SmallLine
-    label="Status"
-    value={
-      strategy1Attached
-        ? strategy1State.label
-        : formatUpper(
-            minuteWatch.status ||
-            structuralPlaybook.status
-          )
-    }
-    valueColor={color}
-  />
-
-  <SmallLine
-    label="Lane"
-    value={
-      strategy1Attached
-        ? formatUpper(
-            strategy1Setup.laneId,
-            "MINUTE"
-          )
-        : "MINUTE"
-    }
-    valueColor="#38bdf8"
-  />
-
-  <SmallLine
-    label="Strategy"
-    value={
-      strategy1Attached
-        ? formatUpper(
-            strategy1Setup.strategyId
-          )
-        : "INTRADAY SCALP @ 10M"
-    }
-  />
-
-  <SmallLine
-    label="Template"
-    value={formatUpper(template)}
-    valueColor="#f8fafc"
-  />
-
-  <SmallLine
-    label="Grade"
-    value={
-      strategy1Attached
-        ? formatUpper(
-            strategy1Setup.setupGrade,
-            "A+++"
-          )
-        : "—"
-    }
-    valueColor="#fbbf24"
-  />
-
-  <SmallLine
-    label="Direction"
-    value={formatUpper(cardDirection)}
-    valueColor={getDirectionColor(cardDirection)}
-  />
-
-  <SmallLine
-    label="Action"
-    value={formatUpper(preferredAction)}
-    valueColor="#f8fafc"
-  />
-</SectionBox>
-      </SectionBox>
-
-<SectionBox
-  border="rgba(148,163,184,0.28)"
-  background="rgba(15,23,42,0.36)"
->
-  <SectionTitle>
-    Strategy 1 Location
-  </SectionTitle>
-
-  <SmallLine
-    label="Setup Active"
-    value={formatBool(strategy1Setup?.active)}
-    valueColor={
-      strategy1Setup?.active
-        ? "#22c55e"
-        : "#fbbf24"
-    }
-  />
-
-  <SmallLine
-    label="Zone"
-    value={
-      strategy1Attached
-        ? strategy1ZoneText
-        : legacyZoneText
-    }
-  />
-
-  <SmallLine
-    label="Current"
-    value={formatLevel(
-      strategy1Attached
-        ? strategy1Setup?.currentPrice
-        : minuteWatch.currentPrice
-    )}
-  />
-
-  <SmallLine
-    label="Relation"
-    value={
-      strategy1Attached
-        ? formatUpper(
-            strategy1Setup?.location?.relation
-          )
-        : "—"
-    }
-  />
-
-  <SmallLine
-    label="Direction"
-    value={formatUpper(cardDirection)}
-    valueColor={getDirectionColor(cardDirection)}
-  />
-
-  <SmallLine
-    label="Entry Midline"
-    value={formatLevel(
-      strategy1EntryZone?.midline
-    )}
-  />
-
-  <SmallLine
-    label="Trigger"
-    value={formatLevel(
-      strategy1Setup?.triggerLevel
-    )}
-    valueColor="#22c55e"
-  />
-
-  <SmallLine
-    label="Reclaim"
-    value={formatLevel(
-      strategy1Setup?.reclaimBoundary
-    )}
-    valueColor="#2dd4bf"
-  />
-
-  <SmallLine
-    label="Invalidation"
-    value={formatLevel(
-      strategy1Setup
-        ?.locationInvalidationBoundary
-    )}
-    valueColor="#fb7185"
-  />
-
-  <SmallLine
-    label="Completed-Close Invalid"
-    value={formatBool(
-      strategy1Setup
-        ?.completedCloseInvalidationConfirmed
-    )}
-    valueColor={
-      strategy1Setup
-        ?.completedCloseInvalidationConfirmed
-        ? "#fb7185"
-        : "#22c55e"
-    }
-  />
-</SectionBox>
-
-      <SectionBox border="rgba(56,189,248,0.32)" background="rgba(12,74,110,0.14)">
-        <SectionTitle>Trade Plan Preview</SectionTitle>
+      <SectionBox
+        border={border}
+        background={
+          strategy1Attached
+            ? strategy1State.background
+            : "rgba(113,63,18,0.16)"
+        }
+      >
+        <SmallLine
+          label="Status"
+          value={
+            strategy1Attached
+              ? strategy1State.label
+              : formatUpper(
+                  minuteWatch.status ||
+                  structuralPlaybook.status
+                )
+          }
+          valueColor={color}
+        />
 
         <SmallLine
-          label="Entry idea"
-          value={entryIdea?.preferredArea || "—"}
+          label="Lane"
+          value={
+            strategy1Attached
+              ? formatUpper(strategy1Setup.laneId, "MINUTE")
+              : "MINUTE"
+          }
+          valueColor="#38bdf8"
+        />
+
+        <SmallLine
+          label="Strategy"
+          value={
+            strategy1Attached
+              ? formatUpper(strategy1Setup.strategyId)
+              : "INTRADAY SCALP @ 10M"
+          }
+        />
+
+        <SmallLine
+          label="Template"
+          value={formatUpper(template)}
           valueColor="#f8fafc"
         />
 
         <SmallLine
-          label="Stop idea"
-          value={stopIdea?.price != null ? formatLevel(stopIdea.price) : "—"}
-          valueColor="#fb7185"
-        />
-
-        <SmallLine
-          label="Confirm gate"
+          label="Grade"
           value={
-            confirmationGate?.level != null
-              ? `${formatLevel(confirmationGate.level)} / failed reclaim`
-              : confirmationGate?.rule || "—"
+            strategy1Attached
+              ? formatUpper(strategy1Setup.setupGrade, "A+++")
+              : "—"
           }
           valueColor="#fbbf24"
         />
 
         <SmallLine
-          label="Risk preview"
-          value={formatPoints(geometryPreview?.riskPoints)}
-          valueColor="#fb7185"
+          label="Direction"
+          value={formatUpper(cardDirection)}
+          valueColor={getDirectionColor(cardDirection)}
         />
 
         <SmallLine
-          label="Reward preview"
-          value={formatPoints(geometryPreview?.rewardPoints)}
-          valueColor="#22c55e"
+          label="Action"
+          value={formatUpper(preferredAction)}
+          valueColor="#f8fafc"
         />
+      </SectionBox>
 
-        <SmallLine
-          label="Preview R/R"
-          value={
-            geometryPreview?.riskReward != null
-              ? `${geometryPreview.riskReward} R`
-              : "—"
-          }
-          valueColor="#22c55e"
-        />
+      <SectionBox
+        border="rgba(148,163,184,0.28)"
+        background="rgba(15,23,42,0.36)"
+      >
+        <SectionTitle>Strategy 1 Location</SectionTitle>
+        <SmallLine label="Setup Active" value={formatBool(strategy1Setup?.active)} valueColor={strategy1Setup?.active ? "#22c55e" : "#fbbf24"} />
+        <SmallLine label="Zone" value={strategy1Attached ? strategy1ZoneText : legacyZoneText} />
+        <SmallLine label="Current" value={formatLevel(strategy1Attached ? strategy1Setup?.currentPrice : minuteWatch.currentPrice)} />
+        <SmallLine label="Relation" value={strategy1Attached ? formatUpper(strategy1Setup?.location?.relation) : "—"} />
+        <SmallLine label="Direction" value={formatUpper(cardDirection)} valueColor={getDirectionColor(cardDirection)} />
+        <SmallLine label="Entry Midline" value={formatLevel(strategy1EntryZone?.midline)} />
+        <SmallLine label="Trigger" value={formatLevel(strategy1Setup?.triggerLevel)} valueColor="#22c55e" />
+        <SmallLine label="Reclaim" value={formatLevel(strategy1Setup?.reclaimBoundary)} valueColor="#2dd4bf" />
+        <SmallLine label="Invalidation" value={formatLevel(strategy1Setup?.locationInvalidationBoundary)} valueColor="#fb7185" />
+        <SmallLine label="Completed-Close Invalid" value={formatBool(strategy1Setup?.completedCloseInvalidationConfirmed)} valueColor={strategy1Setup?.completedCloseInvalidationConfirmed ? "#fb7185" : "#22c55e"} />
+      </SectionBox>
+
+      <SectionBox border="rgba(56,189,248,0.32)" background="rgba(12,74,110,0.14)">
+        <SectionTitle>Strategy 1 Trade Plan</SectionTitle>
+        <SmallLine label="Candidate ID" value={strategy1Setup?.candidateId} />
+        <SmallLine label="Zone ID" value={strategy1Setup?.zoneId} />
+        <SmallLine label="Entry Zone" value={strategy1ZoneText} />
+        <SmallLine label="Entry idea" value={entryIdea?.preferredArea || (strategy1EntryZone?.midline != null ? formatLevel(strategy1EntryZone.midline) : "—")} valueColor="#f8fafc" />
+        <SmallLine label="Stop idea" value={formatLevel(strategy1Setup?.locationInvalidationBoundary ?? stopIdea?.price)} valueColor="#fb7185" />
+        <SmallLine label="Confirm gate" value={strategy1Setup?.triggerLevel != null ? `${formatLevel(strategy1Setup.triggerLevel)} / reclaim and hold` : confirmationGate?.rule || "—"} valueColor="#fbbf24" />
+        <SmallLine label="Reaction" value={formatUpper(strategy1Reaction?.status, "WAITING")} valueColor={strategy1Reaction?.confirmed ? "#22c55e" : "#38bdf8"} />
+        <SmallLine label="Participation" value={formatUpper(strategy1Participation?.status, "WAITING")} valueColor={strategy1Participation?.confirmed ? "#22c55e" : "#38bdf8"} />
+        <SmallLine label="Risk preview" value={formatPoints(geometryPreview?.riskPoints)} valueColor="#fb7185" />
+        <SmallLine label="Reward preview" value={formatPoints(geometryPreview?.rewardPoints)} valueColor="#22c55e" />
+        <SmallLine label="Preview R/R" value={geometryPreview?.riskReward != null ? `${geometryPreview.riskReward} R` : "—"} valueColor="#22c55e" />
       </SectionBox>
 
       <SectionBox border="rgba(251,191,36,0.32)" background="rgba(113,63,18,0.12)">
-        <SectionTitle color="#fbbf24">Structure</SectionTitle>
-
-        <SmallLine
-          label="Scenario"
-          value={formatUpper(structure?.scenario || primaryScenario || template)}
-          valueColor="#fbbf24"
-        />
-
-        <SmallLine
-          label="Old B"
-          value={
-            structure?.oldB?.price != null
-              ? `${formatLevel(structure.oldB.price)} / ${formatUpper(
-                  structure.oldB.status
-                )}`
-              : "—"
-          }
-        />
-
-        <SmallLine
-          label="Active B"
-          value={
-            structure?.activeB?.price != null
-              ? `${formatLevel(structure.activeB.price)} / ${formatUpper(
-                  structure.activeB.status
-                )}`
-              : formatLevel(bHigh)
-          }
-          valueColor="#fbbf24"
-        />
+        <SectionTitle color="#fbbf24">General Context — Parent Only</SectionTitle>
+        <SmallLine label="Context Only" value={formatBool(generalContext?.contextOnly)} valueColor="#fbbf24" />
+        <SmallLine label="Source" value={formatUpper(generalContext?.source)} />
+        <SmallLine label="Status" value={formatUpper(generalContext?.status)} />
+        <SmallLine label="Parent Zone" value={generalContextZoneText} />
+        <SmallLine label="Parent Direction" value={`${formatUpper(generalContext?.direction, "—")} — CONTEXT ONLY`} valueColor="#fbbf24" />
+        <SmallLine label="Relation" value={formatUpper(generalContext?.zone?.relation)} />
+        <SmallLine label="Distance" value={formatPoints(generalContext?.zone?.distancePoints)} />
+        <div style={{ ...TEXT_STYLE, color: "#cbd5e1", fontSize: 13, fontWeight: 700 }}>
+          The general parent may be SHORT while Strategy 1 remains LONG. Parent direction does not control the Strategy 1 header, zone, trigger, reclaim, invalidation, or target.
+        </div>
       </SectionBox>
 
       <SectionBox border="rgba(34,197,94,0.32)" background="rgba(20,83,45,0.12)">
-        <SectionTitle color="#22c55e">Target Map</SectionTitle>
-
-        <SmallLine
-          label="Scalp goal"
-          value={
-            scalpGoal?.minPoints != null && scalpGoal?.maxPoints != null
-              ? `${scalpGoal.minPoints}–${scalpGoal.maxPoints} pts`
-              : "15–30 pts"
-          }
-          valueColor="#22c55e"
-        />
-
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1fr 1fr",
-            gap: 7,
-          }}
-        >
-          <LevelPill
-            label="C100 / first reaction"
-            value={targetMap?.firstReaction ?? c100}
-            color="#fbbf24"
-          />
-
-          <LevelPill
-            label="A-low break"
-            value={targetMap?.aLowBreak}
-            color="#f8fafc"
-          />
-
-          <LevelPill
-            label="C1272 / pressure"
-            value={targetMap?.preferredCPressure}
-            color="#22c55e"
-          />
-
-          <LevelPill
-            label="C1618 / stretch"
-            value={targetMap?.stretchC}
-            color="#38bdf8"
-          />
-        </div>
+        <SectionTitle color="#22c55e">Strategy 1 Target Zone</SectionTitle>
+        <SmallLine label="Target Zone" value={targetZoneText} valueColor="#22c55e" />
+        <SmallLine label="Target Low" value={formatLevel(strategy1TargetZone?.low)} valueColor="#22c55e" />
+        <SmallLine label="Target Midline" value={formatLevel(strategy1TargetZone?.midline)} valueColor="#22c55e" />
+        <SmallLine label="Target High" value={formatLevel(strategy1TargetZone?.high)} valueColor="#22c55e" />
+        <SmallLine label="Target Source" value={formatUpper(strategy1TargetZone?.source)} />
+        <SmallLine label="Runner" value="ENGINE 9 HANDOFF REQUIRED" valueColor="#38bdf8" />
       </SectionBox>
 
       <SectionBox border="rgba(168,85,247,0.35)" background="rgba(59,7,100,0.16)">
         <SectionTitle color="#c084fc">Confirmation Needed</SectionTitle>
-        <ConfirmationList items={confirmationNeeds} />
+        <ConfirmationList
+          items={[
+            strategy1Reaction?.confirmed
+              ? "ENGINE3_REACTION_CONFIRMED"
+              : strategy1Reaction?.status || "ENGINE3_REACTION_WAITING",
+            strategy1Participation?.confirmed
+              ? "ENGINE4_PARTICIPATION_CONFIRMED"
+              : strategy1Participation?.status || "ENGINE4_PARTICIPATION_WAITING",
+            strategy1Setup?.completedCloseInvalidationConfirmed
+              ? "STRATEGY1_COMPLETED_CLOSE_INVALIDATED"
+              : "COMPLETED_CLOSE_INVALIDATION_NOT_CONFIRMED",
+            "ENGINE6_FINAL_PERMISSION_REQUIRED",
+          ]}
+        />
       </SectionBox>
 
       <SectionBox border="rgba(148,163,184,0.24)" background="rgba(15,23,42,0.32)">
@@ -1585,9 +1389,10 @@ const paperAllowed =
           fontWeight: 700,
         }}
       >
-        Engine 26 maps the trade. Engine 7 previews size only. Engine 3/4 confirm.
-        Engine 15 checks readiness. Engine 6 must approve PAPER_ALLOW. No ticket or
-        execution without permission.
+        Strategy 1 is owned by the Minute child candidate. The broad parent remains
+        context only. Engine 3 confirms reaction, Engine 4 confirms participation,
+        and Engine 6 remains final permission authority. No ticket or execution is
+        created here.
       </div>
 
       {plan?.status && (
