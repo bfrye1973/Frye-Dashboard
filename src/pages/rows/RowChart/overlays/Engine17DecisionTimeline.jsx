@@ -246,6 +246,24 @@ function getCanonicalStrategyTimeline(fib) {
   return fib?.strategyTimeline || null;
 }
 
+function getEngine26TradePlanPreview(fib) {
+  const root = getStrategyRoot(fib);
+
+  return (
+    root?.engine26TradePlanPreview ||
+    fib?.engine26TradePlanPreview ||
+    null
+  );
+}
+
+function getEngine26GeneralContext(fib) {
+  return getEngine26TradePlanPreview(fib)?.generalContext || null;
+}
+
+function getEngine26Strategy1Setup(fib) {
+  return getEngine26TradePlanPreview(fib)?.strategy1Setup || null;
+}
+
 function getEngine26StructuralContext(fib) {
   const root = getStrategyRoot(fib);
 
@@ -3385,154 +3403,228 @@ function getCompactCorrectionStage(minor) {
 }
 
 function buildEngine26ControlMapSection(fib) {
+  const generalContext = getEngine26GeneralContext(fib);
+  const strategy1Setup = getEngine26Strategy1Setup(fib);
+
+  /*
+   * Legacy Engine 26 objects remain compatibility-only fallbacks.
+   * They must not control the Minute Strategy 1 map when the child exists.
+   */
   const structural = getEngine26StructuralContext(fib);
-  const control = getEngine26ControlLevelContext(fib);
-  const location = getEngine26LocationContext(fib);
+  const legacyControl = getEngine26ControlLevelContext(fib);
+  const legacyLocation = getEngine26LocationContext(fib);
 
-  if (!structural && !control && !location) return null;
+  const strategy1Attached =
+    strategy1Setup &&
+    typeof strategy1Setup === "object" &&
+    strategy1Setup.candidateId &&
+    strategy1Setup.zoneId &&
+    strategy1Setup.laneId === "minute" &&
+    strategy1Setup.strategyId === "intraday_scalp@10m";
 
-  const hasFullControlMap = !!control || !!location;
+  if (!strategy1Attached) {
+    if (!structural && !legacyControl && !legacyLocation && !generalContext) {
+      return null;
+    }
 
-  const bearTargets =
-    control?.bearishPath?.nextTargets ||
-    structural?.targetPathPreview ||
-    structural?.levels?.bearTargets ||
-    [];
+    return {
+      number: 2,
+      icon: "⑳",
+      title: "Control Map — Engine 26",
+      severity: "warning",
+      fields: [
+        ["Strategy 1", "WAITING FOR CHILD PREVIEW"],
+        [
+          "General Context",
+          generalContext?.zone?.lo != null &&
+          generalContext?.zone?.hi != null
+            ? `${formatNumber(generalContext.zone.lo)}–${formatNumber(
+                generalContext.zone.hi
+              )}`
+            : "—",
+        ],
+        [
+          "Context Direction",
+          formatUpper(generalContext?.direction, "—"),
+        ],
+        [
+          "Legacy Status",
+          formatUpper(
+            structural?.status ||
+              legacyControl?.currentControlState ||
+              legacyLocation?.locationRead,
+            "—"
+          ),
+        ],
+      ],
+      lines: [
+        "The general Engine 26 parent remains context only.",
+        "The Minute Strategy 1 child preview is not attached, so legacy fields are not promoted into Strategy 1.",
+        "No permission. No ticket. No execution.",
+      ],
+    };
+  }
 
-  const bullTargets =
-    control?.bullishPath?.nextTargets ||
-    structural?.levels?.bullTargets ||
-    [];
+  const entryZone = strategy1Setup?.entryZone || null;
+  const targetZone = strategy1Setup?.targetZone || null;
+  const reaction = strategy1Setup?.reaction || null;
+  const participation = strategy1Setup?.participation || null;
 
-  const currentControlState =
-    control?.currentControlState ||
-    structural?.controlState ||
-    structural?.status ||
-    null;
+  const childInvalidated =
+    strategy1Setup?.completedCloseInvalidationConfirmed === true ||
+    String(strategy1Setup?.status || "").toUpperCase() === "INVALIDATED";
 
-  const currentInstruction =
-    control?.currentInstruction ||
-    structural?.preferredAction ||
-    structural?.action ||
-    null;
+  const identityMismatch =
+    reaction?.candidateId != null &&
+    participation?.candidateId != null &&
+    (
+      reaction.candidateId !== strategy1Setup.candidateId ||
+      participation.candidateId !== strategy1Setup.candidateId ||
+      reaction.zoneId !== strategy1Setup.zoneId ||
+      participation.zoneId !== strategy1Setup.zoneId
+    );
 
-  const currentPrice =
-    control?.currentPrice ??
-    location?.currentPrice ??
-    structural?.currentPrice ??
-    null;
+  const hardBlocked =
+    participation?.hardBlocked === true;
 
-  const bearLevel =
-    control?.bearControlLevel ??
-    structural?.levels?.bearControlLevel ??
-    structural?.levels?.bearControl ??
-    structural?.levels?.shortTriggerLevel ??
-    null;
+  const reactionConfirmed =
+    reaction?.confirmed === true;
 
-  const bullLevel =
-    control?.bullRecoveryLevel ??
-    structural?.levels?.bullRecoveryLevel ??
-    structural?.levels?.bullRecovery ??
-    structural?.levels?.invalidationLevel ??
-    null;
+  const participationConfirmed =
+    participation?.confirmed === true;
 
-  const shortTrigger =
-    location?.shortTriggerLevel ??
-    structural?.levels?.shortTriggerLevel ??
-    structural?.shortTriggerLevel ??
-    null;
-
-  const invalidation =
-    location?.invalidationLevel ??
-    structural?.invalidation?.level ??
-    structural?.invalidationLevel ??
-    structural?.levels?.invalidationLevel ??
-    null;
-
-  const locationRead =
-    location?.locationRead ||
-    structural?.locationRead ||
-    structural?.activeImbalanceRole ||
-    null;
-
-  const title = hasFullControlMap
-    ? "Control Map — Engine 26"
-    : "Structural Map — Engine 26";
+  const fullyConfirmed =
+    reactionConfirmed &&
+    participationConfirmed;
 
   const severity =
-    control?.bearControlRejecting === true
+    childInvalidated || identityMismatch || hardBlocked
       ? "danger"
-      : control?.bullRecoveryHolding === true
+      : fullyConfirmed
       ? "bullish"
-      : control?.betweenLevels === true
-      ? "warning"
-      : String(structural?.preferredDirection || "").toUpperCase().includes("SHORT")
-      ? "danger"
       : "teal";
+
+  const childZoneText =
+    entryZone?.low != null && entryZone?.high != null
+      ? `${formatNumber(entryZone.low)}–${formatNumber(entryZone.high)}`
+      : strategy1Setup?.location?.lo != null &&
+        strategy1Setup?.location?.hi != null
+      ? `${formatNumber(strategy1Setup.location.lo)}–${formatNumber(
+          strategy1Setup.location.hi
+        )}`
+      : "—";
+
+  const targetZoneText =
+    targetZone?.low != null && targetZone?.high != null
+      ? `${formatNumber(targetZone.low)}–${formatNumber(targetZone.high)}`
+      : "—";
+
+  const parentZoneText =
+    generalContext?.zone?.lo != null &&
+    generalContext?.zone?.hi != null
+      ? `${formatNumber(generalContext.zone.lo)}–${formatNumber(
+          generalContext.zone.hi
+        )}`
+      : "—";
+
+  const strategyState =
+    childInvalidated
+      ? "INVALIDATED BY COMPLETED CLOSE"
+      : identityMismatch
+      ? "IDENTITY MISMATCH"
+      : hardBlocked
+      ? "HARD BLOCKED"
+      : fullyConfirmed
+      ? "REACTION AND PARTICIPATION CONFIRMED"
+      : reactionConfirmed
+      ? "REACTION CONFIRMED — PARTICIPATION WAITING"
+      : participationConfirmed
+      ? "PARTICIPATION CONFIRMED — REACTION WAITING"
+      : "WAITING FOR REACTION AND PARTICIPATION";
 
   return {
     number: 2,
     icon: "⑳",
-    title,
+    title: "Strategy 1 Control Map — Engine 26",
     severity,
-    fields: hasFullControlMap
-      ? [
-          ["Current", formatNumber(currentPrice)],
-          ["Control State", formatUpper(currentControlState, "—")],
-          ["Instruction", formatUpper(currentInstruction, "—")],
-          ["Bear Level", formatNumber(bearLevel)],
-          ["Bull Level", formatNumber(bullLevel)],
-          ["Location", formatUpper(locationRead, "—")],
-          ["Short Trigger", formatNumber(shortTrigger)],
-          ["Invalidation", formatNumber(invalidation)],
-          ["Bear Targets", formatTargetPath(bearTargets)],
-          ["Bull Targets", formatTargetPath(bullTargets)],
-        ]
-      : [
-          ["Status", formatUpper(structural?.status, "—")],
-          ["Template", formatUpper(structural?.template, "—")],
-          ["Role", formatUpper(structural?.activeImbalanceRole, "—")],
-          ["Bias", formatUpper(structural?.structuralBias, "—")],
-          ["Direction", formatUpper(structural?.preferredDirection, "—")],
-          ["Action", formatUpper(structural?.preferredAction, "—")],
-          ["Short Research", formatBool(structural?.shortResearchOnly)],
-          ["Do Not Chase Long", formatBool(structural?.doNotChaseLong)],
-          ["Target Path", formatTargetPath(structural?.targetPathPreview)],
-          ["Invalidation", formatNumber(invalidation)],
-        ],
-    lines: hasFullControlMap
-      ? [
-          location?.tacticalMeaning || null,
-          control?.betweenLevels === true
-            ? "Between 7500 and 7560 is the decision zone. No clean permission here."
-            : null,
-          control?.bearControlRejecting === true
-            ? "7500 is rejecting — bear control is active. Watch lower targets."
-            : null,
-          control?.bullRecoveryHolding === true
-            ? "7560 is holding — short watch is weakening and recovery path is active."
-            : null,
-          `Bear path: ${formatText(
-            control?.bearishPath?.trigger,
-            "Failed reclaim / lost bear control"
-          )}. Targets: ${formatTargetPath(bearTargets)}.`,
-          `Bull path: ${formatText(
-            control?.bullishPath?.trigger,
-            "Reclaim and hold bull recovery"
-          )}. Targets: ${formatTargetPath(bullTargets)}.`,
-          "Engine 3 must confirm level reaction. Engine 4 must confirm participation. Engine 6 remains final.",
-          "No permission. No ticket. No execution.",
-        ].filter(Boolean)
-      : [
-          "Full location/control map fields are not present yet, so this card is showing the canonical Engine 26 structural map.",
-          structural?.confirmationNeeds
-            ? `Confirmation needs: ${asArray(structural.confirmationNeeds)
-                .map(formatText)
-                .join(", ")}`
-            : null,
-          "Engine 26 gives the map only. Engine 15 checks readiness. Engine 6 remains final.",
-          "No permission. No ticket. No execution.",
-        ].filter(Boolean),
+    fields: [
+      ["Lane", formatUpper(strategy1Setup.laneId, "MINUTE")],
+      ["Strategy", formatUpper(strategy1Setup.strategyId)],
+      ["Setup", formatUpper(strategy1Setup.setupClass)],
+      ["Grade", formatUpper(strategy1Setup.setupGrade)],
+      ["Direction", formatUpper(strategy1Setup.direction, "LONG")],
+      ["State", strategyState],
+      ["Current", formatNumber(strategy1Setup.currentPrice)],
+      ["Entry Zone", childZoneText],
+      ["Entry Midline", formatNumber(entryZone?.midline)],
+      ["Trigger", formatNumber(strategy1Setup.triggerLevel)],
+      ["Reclaim", formatNumber(strategy1Setup.reclaimBoundary)],
+      [
+        "Invalidation",
+        formatNumber(strategy1Setup.locationInvalidationBoundary),
+      ],
+      [
+        "Completed-Close Invalidated",
+        formatBool(
+          strategy1Setup.completedCloseInvalidationConfirmed,
+          "NO"
+        ),
+      ],
+      ["Target Zone", targetZoneText],
+      ["Target Midline", formatNumber(targetZone?.midline)],
+      ["Reaction", formatUpper(reaction?.status, "WAITING")],
+      [
+        "Reaction Confirmed",
+        formatBool(reaction?.confirmed, "NO"),
+      ],
+      [
+        "Participation",
+        formatUpper(participation?.status, "WAITING"),
+      ],
+      [
+        "Participation Confirmed",
+        formatBool(participation?.confirmed, "NO"),
+      ],
+      ["Parent Zone", parentZoneText],
+      [
+        "Parent Direction",
+        `${formatUpper(generalContext?.direction, "—")} — CONTEXT ONLY`,
+      ],
+    ],
+    lines: [
+      `Strategy 1 is a ${formatUpper(
+        strategy1Setup.direction,
+        "LONG"
+      )} tactical setup owned by the Minute lane.`,
+      generalContext
+        ? `General parent context remains ${formatUpper(
+            generalContext.direction,
+            "—"
+          )} at ${parentZoneText}. It does not control Strategy 1 direction.`
+        : null,
+      "An intrabar breach alone does not invalidate Strategy 1.",
+      "Invalidation requires completedCloseInvalidationConfirmed === true.",
+      reactionConfirmed
+        ? "Engine 3 authorized reaction is confirmed."
+        : `Engine 3 reaction is waiting: ${formatText(
+            reaction?.status,
+            "WAITING"
+          )}.`,
+      participationConfirmed
+        ? "Engine 4 authorized participation is confirmed."
+        : `Engine 4 participation is waiting: ${formatText(
+            participation?.status,
+            "PARTICIPATION WAITING"
+          )}.`,
+      targetZone
+        ? `Strategy 1 target zone: ${targetZoneText}.`
+        : "Strategy 1 target zone is not attached.",
+      identityMismatch
+        ? "Strategy 1 identity mismatch detected. The map is blocked."
+        : null,
+      "Engine 26 supplies the map only. Engine 6 remains final permission authority.",
+      "No permission. No ticket. No execution.",
+    ].filter(Boolean),
   };
 }
 function buildEngine22CompactStructureSection(degreeStates) {
@@ -3647,24 +3739,50 @@ function normalizeTimelineData({ overlayData }) {
       tradeContextSummary?.headline ||
       buildFallbackHeadline({ waveOpportunity, engine15 });
 
-  const engine26Control = getEngine26ControlLevelContext(fib);
-  const engine26Location = getEngine26LocationContext(fib);
+const engine26GeneralContext = getEngine26GeneralContext(fib);
+const engine26Strategy1Setup = getEngine26Strategy1Setup(fib);
 
-  const controlSubheadline =
-    engine26Control?.currentInstruction
-      ? `Control Map: ${formatText(engine26Control.currentInstruction)}. 7500 = bear control / 7560 = bull recovery.`
-      : null;
+const strategy1EntryZone =
+  engine26Strategy1Setup?.entryZone || null;
 
-  const locationSubheadline =
-    engine26Location?.locationRead
-      ? `Location: ${formatText(engine26Location.locationRead)}.`
-      : null; 
+const strategy1Subheadline =
+  engine26Strategy1Setup
+    ? `Strategy 1: ${formatUpper(
+        engine26Strategy1Setup.direction,
+        "LONG"
+      )} ${formatUpper(
+        engine26Strategy1Setup.setupClass,
+        "NEGOTIATED ZONE SWEEP RECLAIM ROTATION"
+      )} at ${
+        strategy1EntryZone?.low != null &&
+        strategy1EntryZone?.high != null
+          ? `${formatNumber(strategy1EntryZone.low)}–${formatNumber(
+              strategy1EntryZone.high
+            )}`
+          : "zone unavailable"
+      }.`
+    : null;
+
+const generalContextSubheadline =
+  engine26GeneralContext
+    ? `General context: ${formatUpper(
+        engine26GeneralContext.direction,
+        "—"
+      )} at ${
+        engine26GeneralContext?.zone?.lo != null &&
+        engine26GeneralContext?.zone?.hi != null
+          ? `${formatNumber(
+              engine26GeneralContext.zone.lo
+            )}–${formatNumber(engine26GeneralContext.zone.hi)}`
+          : "zone unavailable"
+      } — context only.`
+    : null;
 
   const subheadline = hasDegreeStates
   ? [
       "Primary and Intermediate remain higher-timeframe continuation context; Minor / Minute / Subminute define the active correction and tactical path. Structural only — no execution permission.",
-      controlSubheadline,
-      locationSubheadline,
+      strategy1Subheadline,
+      generalContextSubheadline,
     ]
       .filter(Boolean)
       .join(" ")
