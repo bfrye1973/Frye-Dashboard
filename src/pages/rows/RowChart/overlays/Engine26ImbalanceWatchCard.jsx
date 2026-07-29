@@ -273,6 +273,154 @@ function getDirectionColor(direction) {
   return "#38bdf8";
 }
 
+function getStrategy1DisplayState(strategy1Setup) {
+  if (!strategy1Setup || typeof strategy1Setup !== "object") {
+    return {
+      label: "STRATEGY 1 NOT ATTACHED",
+      color: "#38bdf8",
+      border: "rgba(56,189,248,0.58)",
+      background: "rgba(12,74,110,0.14)",
+      invalidated: false,
+      identityMismatch: false,
+      hardBlocked: false,
+      reactionConfirmed: false,
+      participationConfirmed: false,
+    };
+  }
+
+  const reaction = strategy1Setup?.reaction || {};
+  const participation = strategy1Setup?.participation || {};
+
+  const invalidated =
+    strategy1Setup?.completedCloseInvalidationConfirmed === true ||
+    String(strategy1Setup?.status || "").toUpperCase() === "INVALIDATED";
+
+  const reactionIdentityMismatch =
+    reaction?.candidateId != null &&
+    reaction?.zoneId != null &&
+    (
+      reaction.candidateId !== strategy1Setup.candidateId ||
+      reaction.zoneId !== strategy1Setup.zoneId
+    );
+
+  const participationIdentityMismatch =
+    participation?.candidateId != null &&
+    participation?.zoneId != null &&
+    (
+      participation.candidateId !== strategy1Setup.candidateId ||
+      participation.zoneId !== strategy1Setup.zoneId
+    );
+
+  const identityMismatch =
+    reactionIdentityMismatch ||
+    participationIdentityMismatch;
+
+  const hardBlocked =
+    participation?.hardBlocked === true;
+
+  const reactionConfirmed =
+    reaction?.confirmed === true;
+
+  const participationConfirmed =
+    participation?.confirmed === true;
+
+  if (invalidated) {
+    return {
+      label: "INVALIDATED BY COMPLETED CLOSE",
+      color: "#fb7185",
+      border: "rgba(244,63,94,0.62)",
+      background: "rgba(127,29,29,0.15)",
+      invalidated,
+      identityMismatch,
+      hardBlocked,
+      reactionConfirmed,
+      participationConfirmed,
+    };
+  }
+
+  if (identityMismatch) {
+    return {
+      label: "STRATEGY 1 IDENTITY MISMATCH",
+      color: "#fb7185",
+      border: "rgba(244,63,94,0.62)",
+      background: "rgba(127,29,29,0.15)",
+      invalidated,
+      identityMismatch,
+      hardBlocked,
+      reactionConfirmed,
+      participationConfirmed,
+    };
+  }
+
+  if (hardBlocked) {
+    return {
+      label: "STRATEGY 1 HARD BLOCKED",
+      color: "#fb7185",
+      border: "rgba(244,63,94,0.62)",
+      background: "rgba(127,29,29,0.15)",
+      invalidated,
+      identityMismatch,
+      hardBlocked,
+      reactionConfirmed,
+      participationConfirmed,
+    };
+  }
+
+  if (reactionConfirmed && participationConfirmed) {
+    return {
+      label: "REACTION + PARTICIPATION CONFIRMED",
+      color: "#22c55e",
+      border: "rgba(34,197,94,0.62)",
+      background: "rgba(20,83,45,0.13)",
+      invalidated,
+      identityMismatch,
+      hardBlocked,
+      reactionConfirmed,
+      participationConfirmed,
+    };
+  }
+
+  if (reactionConfirmed) {
+    return {
+      label: "REACTION CONFIRMED — PARTICIPATION WAITING",
+      color: "#2dd4bf",
+      border: "rgba(45,212,191,0.58)",
+      background: "rgba(19,78,74,0.13)",
+      invalidated,
+      identityMismatch,
+      hardBlocked,
+      reactionConfirmed,
+      participationConfirmed,
+    };
+  }
+
+  if (participationConfirmed) {
+    return {
+      label: "PARTICIPATION CONFIRMED — REACTION WAITING",
+      color: "#2dd4bf",
+      border: "rgba(45,212,191,0.58)",
+      background: "rgba(19,78,74,0.13)",
+      invalidated,
+      identityMismatch,
+      hardBlocked,
+      reactionConfirmed,
+      participationConfirmed,
+    };
+  }
+
+  return {
+    label: "WAITING FOR REACTION + PARTICIPATION",
+    color: "#38bdf8",
+    border: "rgba(56,189,248,0.58)",
+    background: "rgba(12,74,110,0.14)",
+    invalidated,
+    identityMismatch,
+    hardBlocked,
+    reactionConfirmed,
+    participationConfirmed,
+  };
+}
+
 
 const SUBMINUTE_EXPECTED_IDENTITY = {
   laneId: "subminute",
@@ -760,11 +908,15 @@ const minuteWatch = minuteWatchAttached
 const minuteWatchActive =
   minuteWatch?.active === true;
 
-const zone = minuteWatch.activeImbalance || {};
 const structuralPlaybook =
   minuteWatch.structuralPlaybook || {};
-const watchLevels = structuralPlaybook.watchLevels || {};
-const triggerMap = structuralPlaybook.triggerMap || {};
+
+const watchLevels =
+  structuralPlaybook.watchLevels || {};
+
+const triggerMap =
+  structuralPlaybook.triggerMap || {};
+
 const engine3 =
   minuteWatch?.fastReads?.engine3 || {};
 
@@ -779,6 +931,42 @@ const preview =
   minuteWatch.tradePlanPreview ||
   null;
 
+const generalContext =
+  preview?.generalContext || null;
+
+const strategy1Setup =
+  preview?.strategy1Setup || null;
+
+const strategy1Attached =
+  strategy1Setup &&
+  typeof strategy1Setup === "object" &&
+  strategy1Setup.candidateId &&
+  strategy1Setup.zoneId &&
+  strategy1Setup.laneId === "minute" &&
+  strategy1Setup.strategyId === "intraday_scalp@10m";
+
+const strategy1State =
+  getStrategy1DisplayState(strategy1Setup);
+
+const strategy1EntryZone =
+  strategy1Setup?.entryZone || null;
+
+const strategy1TargetZone =
+  strategy1Setup?.targetZone || null;
+
+const strategy1Reaction =
+  strategy1Setup?.reaction || {};
+
+const strategy1Participation =
+  strategy1Setup?.participation || {};
+
+/*
+ * Legacy watch-zone data remains compatibility context only.
+ * It must not control the Strategy 1 header when the child is attached.
+ */
+const legacyZone =
+  minuteWatch.activeImbalance || {};
+
 const alarm = preview?.alarm || null;
 const structure = preview?.structure || null;
 const entryIdea = preview?.entryIdea || null;
@@ -790,35 +978,102 @@ const geometryPreview = preview?.geometryPreview || null;
 const engine7Sizing = preview?.engine7Sizing || null;
 const permissionState = preview?.permissionState || null;
 
-const status = String(minuteWatch.status || structuralPlaybook.status || "").toUpperCase();
-const structuralBias =
-    minuteWatch.structuralBias || structuralPlaybook.structuralBias || "NEUTRAL";
+const legacyStatus =
+  String(
+    minuteWatch.status ||
+    structuralPlaybook.status ||
+    ""
+  ).toUpperCase();
 
-const color = statusColor(status, minuteWatch.labels, structuralBias);
-const border = statusBorder(status, minuteWatch.labels, structuralBias);
+const legacyStructuralBias =
+  minuteWatch.structuralBias ||
+  structuralPlaybook.structuralBias ||
+  "NEUTRAL";
+
+const color =
+  strategy1Attached
+    ? strategy1State.color
+    : statusColor(
+        legacyStatus,
+        minuteWatch.labels,
+        legacyStructuralBias
+      );
+
+const border =
+  strategy1Attached
+    ? strategy1State.border
+    : statusBorder(
+        legacyStatus,
+        minuteWatch.labels,
+        legacyStructuralBias
+      );
 
 const statusLabel =
-    minuteWatchActive
-      ? (
-          minuteWatch?.activeImbalanceRole ||
-          structuralPlaybook?.activeImbalanceRole
-            ? formatUpper(
-                minuteWatch?.activeImbalanceRole ||
-                structuralPlaybook?.activeImbalanceRole
-              )
-            : formatText(
-                minuteWatch?.status,
-                "Structural Imbalance Watch"
-              )
-        )
-      : minuteWatchAttached
-      ? "WAITING FOR ACTIVE ENGINE 26 ZONE"
-      : "ENGINE 26 NOT ATTACHED";     
+  strategy1Attached
+    ? strategy1State.label
+    : minuteWatchActive
+    ? (
+        minuteWatch?.activeImbalanceRole ||
+        structuralPlaybook?.activeImbalanceRole
+          ? formatUpper(
+              minuteWatch?.activeImbalanceRole ||
+              structuralPlaybook?.activeImbalanceRole
+            )
+          : formatText(
+              minuteWatch?.status,
+              "Structural Imbalance Watch"
+            )
+      )
+    : minuteWatchAttached
+    ? "WAITING FOR STRATEGY 1 PREVIEW"
+    : "ENGINE 26 NOT ATTACHED";
 
-const zoneText =
-    zone.lo != null && zone.hi != null
-      ? `${formatLevel(zone.lo)}–${formatLevel(zone.hi)}`
-      : "—";
+const strategy1ZoneText =
+  strategy1EntryZone?.low != null &&
+  strategy1EntryZone?.high != null
+    ? `${formatLevel(
+        strategy1EntryZone.low
+      )}–${formatLevel(
+        strategy1EntryZone.high
+      )}`
+    : strategy1Setup?.location?.lo != null &&
+      strategy1Setup?.location?.hi != null
+    ? `${formatLevel(
+        strategy1Setup.location.lo
+      )}–${formatLevel(
+        strategy1Setup.location.hi
+      )}`
+    : "—";
+
+const generalContextZoneText =
+  generalContext?.zone?.lo != null &&
+  generalContext?.zone?.hi != null
+    ? `${formatLevel(
+        generalContext.zone.lo
+      )}–${formatLevel(
+        generalContext.zone.hi
+      )}`
+    : "—";
+
+const targetZoneText =
+  strategy1TargetZone?.low != null &&
+  strategy1TargetZone?.high != null
+    ? `${formatLevel(
+        strategy1TargetZone.low
+      )}–${formatLevel(
+        strategy1TargetZone.high
+      )}`
+    : "—";
+
+const legacyZoneText =
+  legacyZone.lo != null &&
+  legacyZone.hi != null
+    ? `${formatLevel(
+        legacyZone.lo
+      )}–${formatLevel(
+        legacyZone.hi
+      )}`
+    : "—";
 
 const engine3Text = `${formatUpper(engine3.state, "NO SIGNAL")} / ${formatUpper(
     engine3.quality,
