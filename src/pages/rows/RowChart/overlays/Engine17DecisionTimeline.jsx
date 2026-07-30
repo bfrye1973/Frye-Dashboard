@@ -2074,6 +2074,145 @@ function getFastReactionSeverity({ fastReaction, currentLevelAction, paperScalp 
   return "blue";
 }
 
+function getEngine3ActualRead(fastReaction, currentLevelAction) {
+  const fastState =
+    fastReaction?.rawState ||
+    fastReaction?.fastReactionState ||
+    fastReaction?.state ||
+    "NO_SIGNAL";
+
+  const fastDirection =
+    fastReaction?.rawDirection ||
+    fastReaction?.fastReactionDirection ||
+    fastReaction?.direction ||
+    "NEUTRAL";
+
+  const fastQuality =
+    fastReaction?.rawQuality ||
+    fastReaction?.fastReactionQuality ||
+    fastReaction?.quality ||
+    "WEAK";
+
+  const currentState =
+    currentLevelAction?.state ||
+    "NO_SIGNAL";
+
+  const currentDirection =
+    currentLevelAction?.direction ||
+    "NEUTRAL";
+
+  const currentQuality =
+    currentLevelAction?.quality ||
+    "WEAK";
+
+  return {
+    fastState,
+    fastDirection,
+    fastQuality,
+    currentState,
+    currentDirection,
+    currentQuality,
+  };
+}
+
+function getEngine3MeaningForState(state) {
+  const normalized = String(state || "").toUpperCase();
+
+  if (normalized === "HELD_LEVEL") {
+    return "Price is holding the zone. Buyers are defending.";
+  }
+
+  if (normalized === "RECLAIMED_LEVEL") {
+    return "Price reclaimed the level. Buyers recovered the zone.";
+  }
+
+  if (normalized === "WICK_BELOW_AND_RECLAIM") {
+    return "Price wicked below and reclaimed. Sellers were trapped.";
+  }
+
+  if (normalized === "DIP_BOUGHT_FAST") {
+    return "The dip was bought quickly. Buyers are still active.";
+  }
+
+  if (normalized === "SELLERS_TRAPPED") {
+    return "Sellers were trapped below the level and buyers reclaimed.";
+  }
+
+  if (normalized === "FAILED_RECLAIM") {
+    return "Price tried to reclaim but failed. Rejection risk is building.";
+  }
+
+  if (normalized === "REJECTING_VALUE") {
+    return "Price is rejecting value. Bearish reaction is possible, but quality matters.";
+  }
+
+  if (normalized === "LOST_LEVEL") {
+    return "Price lost the level. Support failed.";
+  }
+
+  if (normalized === "BREAKOUT_FAILING") {
+    return "Price tried to break higher but fell back into the zone.";
+  }
+
+  if (normalized === "BREAKOUT_HOLDING") {
+    return "Price broke above and is holding. Buyers are accepting higher price.";
+  }
+
+  return "No clear Engine 3 price reaction yet.";
+}
+
+function getEngine3BooleanReads({ fastReaction, currentLevelAction }) {
+  const levelAction = fastReaction?.levelAction || {};
+
+  const fastState = String(
+    fastReaction?.rawState ||
+      fastReaction?.state ||
+      ""
+  ).toUpperCase();
+
+  const currentState = String(
+    currentLevelAction?.state ||
+      ""
+  ).toUpperCase();
+
+  const rejected =
+    levelAction.rejectingValue === true ||
+    currentState === "REJECTING_VALUE" ||
+    fastState === "REJECTING_VALUE";
+
+  const lostZone =
+    levelAction.lostLevel === true ||
+    currentState === "LOST_LEVEL" ||
+    fastState === "LOST_LEVEL";
+
+  const failedReclaim =
+    levelAction.failedReclaim === true ||
+    currentState === "FAILED_RECLAIM" ||
+    fastState === "FAILED_RECLAIM";
+
+  const breakdown =
+    lostZone ||
+    fastState === "BREAKOUT_FAILING" ||
+    currentState === "BREAKOUT_FAILING";
+
+  return {
+    rejected,
+    lostZone,
+    failedReclaim,
+    breakdown,
+  };
+}
+
+function formatNegZone(imbalance) {
+  const neg = imbalance?.negZone || null;
+
+  if (!neg || neg.lo == null || neg.hi == null) {
+    return "—";
+  }
+
+  return `${formatNumber(neg.lo)}–${formatNumber(neg.hi)}`;
+}
+
 function getWaveContextForScalp({ fastReaction, paperScalp, currentLevelAction }) {
   return (
     fastReaction?.waveContext ||
@@ -2225,111 +2364,131 @@ function buildEngine3ContextSection(fib) {
    * 5. Old pullback / generic fallback
    */
 
-  if (fastReaction?.active === true) {
-    const imbalance = fastReaction.imbalance || {};
-    const currentPrice = Number(fastReaction.currentPrice);
-    const distancePts = Number(imbalance.distancePts);
+if (fastReaction?.active === true) {
+  const imbalance = fastReaction.imbalance || {};
+  const currentPrice = Number(fastReaction.currentPrice);
+  const distancePts = Number(imbalance.distancePts);
 
-    const fastDirection = fastReaction.direction || "NEUTRAL";
-    const currentDirection = currentLevelAction?.direction || "NEUTRAL";
+  const actualRead = getEngine3ActualRead(
+    fastReaction,
+    currentLevelAction
+  );
 
-    const conflict = getDirectionConflict(fastDirection, currentDirection);
+  const booleanReads = getEngine3BooleanReads({
+    fastReaction,
+    currentLevelAction,
+  });
 
-    const waveContext = getWaveContextForScalp({
-      fastReaction,
-      paperScalp,
-      currentLevelAction,
-    });
+  const zoneText =
+    imbalance.lo != null && imbalance.hi != null
+      ? `${formatNumber(imbalance.lo)}–${formatNumber(imbalance.hi)}`
+      : "—";
 
-    const structureLine = formatScalpStructureLine(waveContext);
+  const negZoneText = formatNegZone(imbalance);
 
-    const scalpResult =
-      conflict
-        ? "CONFLICT / WAIT"
-        : paperScalp?.allowed === true
-        ? "PAPER WATCH ALLOWED"
-        : "WAIT FOR ENGINE 6";
+  const locationText =
+    imbalance.inside === true
+      ? "INSIDE ZONE"
+      : imbalance.near === true
+      ? "NEAR ZONE"
+      : Number.isFinite(distancePts)
+      ? `${formatNumber(distancePts)} pts from zone`
+      : "—";
 
-    return {
-      number: 0,
-      icon: "③",
-      title: "Engine 3 Fast Scalp Read",
-      severity: getFastReactionSeverity({
-        fastReaction,
-        currentLevelAction,
-        paperScalp,
-      }),
-      fields: [
-        ["Mode", "FAST IMBALANCE"],
-        ["State", formatUpper(fastReaction.state, "NO SIGNAL")],
-        ["Direction", formatUpper(fastDirection, "NEUTRAL")],
-        ["Quality", formatUpper(fastReaction.quality, "WEAK")],
-        ["Early", formatBool(fastReaction.earlySignal)],
-        [
-          "Zone",
-          imbalance.lo != null && imbalance.hi != null
-            ? `${formatNumber(imbalance.lo)}–${formatNumber(imbalance.hi)}`
-            : "—",
-        ],
-        [
-          "Current",
-          Number.isFinite(currentPrice) ? formatNumber(currentPrice) : "—",
-        ],
-        [
-          "Distance",
-          Number.isFinite(distancePts) ? `${formatNumber(distancePts)} pts` : "—",
-        ],
-        [
-          "Current Level",
-          currentLevelAction?.state
-            ? `${formatUpper(currentLevelAction.state)} / ${formatUpper(
-                currentLevelAction.direction,
-                "NEUTRAL"
-              )}`
-            : "—",
-        ],
-        ["Scalp Result", scalpResult],
-        [
-         "Structure",
-         waveContext?.reactionVsStructure
-           ? formatUpper(waveContext.reactionVsStructure)
-           : "—",
-       ],
+  const strategyState =
+    paperScalp?.reactionState ||
+    paperScalp?.state ||
+    "WAITING";
+
+  const strategyDirection =
+    paperScalp?.direction ||
+    "NEUTRAL";
+
+  const strategyAllowed =
+    paperScalp?.allowed === true;
+
+  const reactionConfirmed =
+    paperScalp?.reactionConfirmed === true ||
+    paperScalp?.confirmed === true;
+
+  const canonicalIdentity =
+    paperScalp?.candidateId && paperScalp?.zoneId
+      ? `${paperScalp.candidateId} / ${paperScalp.zoneId}`
+      : "—";
+
+  return {
+    number: 0,
+    icon: "③",
+    title: "Engine 3 — Price Reaction",
+    severity:
+      strategyAllowed === true
+        ? "bullish"
+        : actualRead.fastDirection === "LONG" &&
+          ["GOOD", "STRONG"].includes(
+            String(actualRead.fastQuality || "").toUpperCase()
+          )
+        ? "bullish"
+        : actualRead.fastDirection === "SHORT"
+        ? "warning"
+        : "blue",
+
+    fields: [
+      ["Price", Number.isFinite(currentPrice) ? formatNumber(currentPrice) : "—"],
+      ["Zone", zoneText],
+      ["Neg Zone", negZoneText],
+      ["Location", locationText],
+
+      [
+        "Main Read",
+        `${formatUpper(actualRead.fastState)} / ${formatUpper(
+          actualRead.fastDirection
+        )} / ${formatUpper(actualRead.fastQuality)}`,
       ],
-      lines: [
-        "Short-term scalp read is primary right now.", 
-        control?.currentInstruction
-          ? `Control map: ${formatText(control.currentInstruction)}.`
-          : null,
-        location?.locationRead
-          ? `Location: ${formatText(location.locationRead)}.`
-          : null,
-        imbalance.raw
-          ? `Active manual imbalance: ${imbalance.raw}`
-          : "Active manual imbalance detected.",        
-        conflict
-          ? `Conflict: fast imbalance says ${formatUpper(
-              fastDirection
-            )}, current level action says ${formatUpper(currentDirection)}. Wait for one side to win.`
-          : null,
-        fastReaction.state === "BREAKOUT_FAILING"
-          ? "Upper imbalance breakout is failing."
-          : null,
-        fastReaction.state === "REJECTING_VALUE"
-          ? "Price is rejecting imbalance value."
-          : null,
-        fastReaction.state === "WICK_BELOW_AND_RECLAIM"
-          ? "Wick/reclaim detected. Engine 6 still decides."
-          : null,
-        paperScalp?.allowed === false && asArray(paperScalp.blockers).length
-          ? `Paper blockers: ${asArray(paperScalp.blockers)
-              .map(formatText)
-              .join(", ")}`
-          : null,
-        "No permission or execution created.",
-      ].filter(Boolean),
-    };
-  }
+
+      [
+        "Current Level",
+        `${formatUpper(actualRead.currentState)} / ${formatUpper(
+          actualRead.currentDirection
+        )} / ${formatUpper(actualRead.currentQuality)}`,
+      ],
+
+      ["Rejected?", formatBool(booleanReads.rejected)],
+      ["Lost Zone?", formatBool(booleanReads.lostZone)],
+      ["Failed Reclaim?", formatBool(booleanReads.failedReclaim)],
+      ["Breakdown?", formatBool(booleanReads.breakdown)],
+
+      [
+        "Strategy",
+        `${formatUpper(strategyDirection)} / ${formatUpper(strategyState)}`,
+      ],
+
+      ["Reaction Confirmed", formatBool(reactionConfirmed)],
+      ["Paper Allowed", formatBool(strategyAllowed)],
+      ["Identity", canonicalIdentity],
+    ],
+
+    lines: [
+      "Question: What is price doing at the Engine 26 zone?",
+      `Main read: ${formatUpper(actualRead.fastState)} / ${formatUpper(
+        actualRead.fastDirection
+      )} / ${formatUpper(actualRead.fastQuality)}.`,
+      getEngine3MeaningForState(actualRead.fastState),
+      currentLevelAction?.state
+        ? `Current level: ${formatUpper(
+            actualRead.currentState
+          )} / ${formatUpper(actualRead.currentDirection)} / ${formatUpper(
+            actualRead.currentQuality
+          )}. ${getEngine3MeaningForState(actualRead.currentState)}`
+        : null,
+      "Strategy 1 rule: target-zone contact alone does not confirm SHORT.",
+      "Engine 3 must see real bearish rejection evidence: failed acceptance, close back below boundary, failed reclaim, bearish displacement, and rejection quality.",
+      reactionConfirmed
+        ? "Engine 3 reaction is confirmed."
+        : "Engine 3 reaction is not confirmed yet.",
+      "No automatic short. No permission. No execution.",
+    ].filter(Boolean),
+  };
+}
 
   if (paperScalp?.active === true) {
     const allowed = paperScalp.allowed === true;
