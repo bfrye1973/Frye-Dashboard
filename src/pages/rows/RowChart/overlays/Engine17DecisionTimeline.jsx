@@ -2639,9 +2639,23 @@ function buildEngine3ContextSection(fib) {
    * 5. Old pullback / generic fallback
    */
 
-  if (fastReaction?.active === true) {
-    const imbalance = fastReaction.imbalance || {};
-    const currentPrice = Number(fastReaction.currentPrice);
+  const canonicalMinutePaperScalpActive =
+    paperScalp?.active === true &&
+    paperScalp?.laneId === "minute" &&
+    paperScalp?.strategyId === "intraday_scalp@10m";
+
+  if (
+    fastReaction?.active === true ||
+    canonicalMinutePaperScalpActive
+  ) {
+    const imbalance = fastReaction?.imbalance || {};
+
+    const currentPrice = Number(
+      fastReaction?.currentPrice ??
+        paperScalp?.currentPrice ??
+        currentLevelAction?.currentPrice
+    );
+
     const distancePts = Number(imbalance.distancePts);
     const strategy1Setup = getEngine26Strategy1Setup(fib);
 
@@ -2650,6 +2664,35 @@ function buildEngine3ContextSection(fib) {
       currentLevelAction
     );
 
+    const hasFastDiagnosticRead =
+      fastReaction != null &&
+      [
+        fastReaction?.rawState,
+        fastReaction?.fastReactionState,
+        fastReaction?.state,
+        fastReaction?.rawDirection,
+        fastReaction?.fastReactionDirection,
+        fastReaction?.direction,
+        fastReaction?.rawQuality,
+        fastReaction?.fastReactionQuality,
+        fastReaction?.quality,
+      ].some(
+        (value) =>
+          value != null &&
+          value !== ""
+      );
+
+    const hasCurrentLevelDiagnosticRead =
+      currentLevelAction != null &&
+      [
+        currentLevelAction?.state,
+        currentLevelAction?.direction,
+        currentLevelAction?.quality,
+      ].some(
+        (value) =>
+          value != null &&
+          value !== ""
+      );
     const identityRead = getEngine3IdentityMismatch({
       strategy1Setup,
       paperScalp,
@@ -2696,15 +2739,17 @@ function buildEngine3ContextSection(fib) {
         ? `${formatNumber(distancePts)} pts from zone`
         : "—";
 
-    const mainReadText =
-      `${formatUpper(actualRead.fastState)} / ` +
-      `${formatUpper(actualRead.fastDirection)} / ` +
-      `${formatUpper(actualRead.fastQuality)}`;
+    const mainReadText = hasFastDiagnosticRead
+      ? `${formatUpper(actualRead.fastState)} / ` +
+        `${formatUpper(actualRead.fastDirection)} / ` +
+        `${formatUpper(actualRead.fastQuality)}`
+      : "—";
 
-    const currentLevelText =
-      `${formatUpper(actualRead.currentState)} / ` +
-      `${formatUpper(actualRead.currentDirection)} / ` +
-      `${formatUpper(actualRead.currentQuality)}`;
+    const currentLevelText = hasCurrentLevelDiagnosticRead
+      ? `${formatUpper(actualRead.currentState)} / ` +
+        `${formatUpper(actualRead.currentDirection)} / ` +
+        `${formatUpper(actualRead.currentQuality)}`
+      : "—";
 
     const reactionConfirmed =
       paperScalp?.reactionConfirmed === true ||
@@ -2773,9 +2818,15 @@ function buildEngine3ContextSection(fib) {
 
         meaning: diagnosticReadHidden
           ? "Diagnostic reaction data was not promoted into Minute Strategy 1."
-          : getEngine3MeaningForState(
+          : hasFastDiagnosticRead
+          ? getEngine3MeaningForState(
               actualRead.fastState
-            ),
+            )
+          : hasCurrentLevelDiagnosticRead
+          ? getEngine3MeaningForState(
+              actualRead.currentState
+            )
+          : "Canonical Minute Strategy 1 reaction is active; diagnostic price-action read is unavailable.",
 
         strategyStatus:
           getEngine3StrategyStatus(paperScalp),
