@@ -2296,6 +2296,168 @@ function getEngine3IdentityMismatch({
   paperScalp,
   fastReaction,
 }) {
+  const mismatches = [];
+
+  const compareWhenBothPresent = (
+    label,
+    canonicalValue,
+    comparedValue
+  ) => {
+    if (
+      canonicalValue != null &&
+      canonicalValue !== "" &&
+      comparedValue != null &&
+      comparedValue !== "" &&
+      String(canonicalValue) !== String(comparedValue)
+    ) {
+      mismatches.push(label);
+    }
+  };
+
+  /*
+   * Minute Strategy 1 must remain isolated.
+   *
+   * Only flag these as mismatches when the object actually publishes
+   * the field and the published value is wrong.
+   *
+   * A missing optional field is not automatically an identity mismatch.
+   */
+  const validateMinuteScope = (label, source) => {
+    if (!source || typeof source !== "object") return;
+
+    if (
+      source.laneId != null &&
+      String(source.laneId).toLowerCase() !== "minute"
+    ) {
+      mismatches.push(`${label}.laneId`);
+    }
+
+    if (
+      source.strategyId != null &&
+      String(source.strategyId) !== "intraday_scalp@10m"
+    ) {
+      mismatches.push(`${label}.strategyId`);
+    }
+  };
+
+  validateMinuteScope("strategy1Setup", strategy1Setup);
+  validateMinuteScope("paperScalp", paperScalp);
+  validateMinuteScope("fastReaction", fastReaction);
+
+  /*
+   * Engine 26 Strategy 1 setup and canonical paperScalpReaction
+   * must preserve the same promoted candidate and zone.
+   */
+  compareWhenBothPresent(
+    "candidateId",
+    strategy1Setup?.candidateId,
+    paperScalp?.candidateId
+  );
+
+  compareWhenBothPresent(
+    "zoneId",
+    strategy1Setup?.zoneId,
+    paperScalp?.zoneId
+  );
+
+  compareWhenBothPresent(
+    "laneId",
+    strategy1Setup?.laneId,
+    paperScalp?.laneId
+  );
+
+  compareWhenBothPresent(
+    "strategyId",
+    strategy1Setup?.strategyId,
+    paperScalp?.strategyId
+  );
+
+  compareWhenBothPresent(
+    "symbol",
+    strategy1Setup?.symbol,
+    paperScalp?.symbol
+  );
+
+  compareWhenBothPresent(
+    "setupClass",
+    strategy1Setup?.setupClass,
+    paperScalp?.setupClass
+  );
+
+  compareWhenBothPresent(
+    "setupGrade",
+    strategy1Setup?.setupGrade,
+    paperScalp?.setupGrade
+  );
+
+  compareWhenBothPresent(
+    "identitySetupKey",
+    strategy1Setup?.identitySetupKey,
+    paperScalp?.identitySetupKey
+  );
+
+  compareWhenBothPresent(
+    "candidateIdentityVersion",
+    strategy1Setup?.candidateIdentityVersion,
+    paperScalp?.candidateIdentityVersion
+  );
+
+  /*
+   * Diagnostic Engine 3 identity is checked only when it publishes
+   * an actual identity field.
+   *
+   * The diagnostic object is allowed to omit identity metadata.
+   * Missing diagnostic identity must not hide a valid canonical read.
+   */
+  const canonicalCandidateId =
+    paperScalp?.candidateId ??
+    strategy1Setup?.candidateId ??
+    null;
+
+  const canonicalZoneId =
+    paperScalp?.zoneId ??
+    strategy1Setup?.zoneId ??
+    null;
+
+  const canonicalLaneId =
+    paperScalp?.laneId ??
+    strategy1Setup?.laneId ??
+    null;
+
+  const canonicalStrategyId =
+    paperScalp?.strategyId ??
+    strategy1Setup?.strategyId ??
+    null;
+
+  compareWhenBothPresent(
+    "diagnostic.candidateId",
+    canonicalCandidateId,
+    fastReaction?.candidateId
+  );
+
+  compareWhenBothPresent(
+    "diagnostic.zoneId",
+    canonicalZoneId,
+    fastReaction?.zoneId
+  );
+
+  compareWhenBothPresent(
+    "diagnostic.laneId",
+    canonicalLaneId,
+    fastReaction?.laneId
+  );
+
+  compareWhenBothPresent(
+    "diagnostic.strategyId",
+    canonicalStrategyId,
+    fastReaction?.strategyId
+  );
+
+  return {
+    mismatch: mismatches.length > 0,
+    fields: [...new Set(mismatches)],
+  };
+}
   const expectedLaneId = "minute";
   const expectedStrategyId = "intraday_scalp@10m";
   const expectedSetupClass =
