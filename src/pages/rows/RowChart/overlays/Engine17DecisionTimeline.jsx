@@ -2033,6 +2033,158 @@ function getPaperScalpReaction(fib) {
   return reactionContext?.paperScalpReaction || null;
 }
 
+function getMinuteEngine26ReactionHandoff(fib) {
+  const root = getStrategyRoot(fib);
+  const minuteStrategyId = "intraday_scalp@10m";
+
+  return (
+    root?.strategies?.[minuteStrategyId]?.engine26ReactionHandoff ||
+    fib?.strategies?.[minuteStrategyId]?.engine26ReactionHandoff ||
+    root?.engine26ReactionHandoff ||
+    fib?.engine26ReactionHandoff ||
+    getEngine26Strategy1Setup(fib)?.engine26ReactionHandoff ||
+    null
+  );
+}
+
+function selectActiveEngine3Diagnostic(fastReaction, currentLevelAction) {
+  if (
+    fastReaction?.active === true &&
+    fastReaction?.fastMode === true
+  ) {
+    return {
+      source: "engine3FastImbalanceReaction",
+      diagnostic: fastReaction,
+    };
+  }
+
+  if (currentLevelAction?.active === true) {
+    return {
+      source: "currentLevelAction",
+      diagnostic: currentLevelAction,
+    };
+  }
+
+  return {
+    source: null,
+    diagnostic: null,
+  };
+}
+
+function getPublishedDiagnosticBoolean(diagnostic, key) {
+  const levelActionValue = diagnostic?.levelAction?.[key];
+
+  if (typeof levelActionValue === "boolean") {
+    return levelActionValue;
+  }
+
+  const directValue = diagnostic?.[key];
+
+  if (typeof directValue === "boolean") {
+    return directValue;
+  }
+
+  return null;
+}
+
+function getSelectedDiagnosticState(diagnostic) {
+  return (
+    diagnostic?.rawState ||
+    diagnostic?.fastReactionState ||
+    diagnostic?.state ||
+    null
+  );
+}
+
+function getSelectedDiagnosticDirection(diagnostic) {
+  return (
+    diagnostic?.rawDirection ||
+    diagnostic?.fastReactionDirection ||
+    diagnostic?.direction ||
+    null
+  );
+}
+
+function getSelectedDiagnosticQuality(diagnostic) {
+  return (
+    diagnostic?.rawQuality ||
+    diagnostic?.fastReactionQuality ||
+    diagnostic?.quality ||
+    null
+  );
+}
+
+function getSelectedDiagnosticSeverity({ diagnostic, paperScalp }) {
+  const canonicalState = String(
+    paperScalp?.reactionState || paperScalp?.state || ""
+  ).toUpperCase();
+
+  const canonicalDirection = String(
+    paperScalp?.direction || ""
+  ).toUpperCase();
+
+  const reactionConfirmed =
+    paperScalp?.reactionConfirmed === true ||
+    paperScalp?.confirmed === true;
+
+  if (canonicalState.includes("INVALID")) {
+    return "danger";
+  }
+
+  if (reactionConfirmed) {
+    if (canonicalDirection === "SHORT") return "danger";
+    if (canonicalDirection === "LONG") return "bullish";
+
+    return "teal";
+  }
+
+  if (!diagnostic) {
+    return "blue";
+  }
+
+  const state = String(
+    getSelectedDiagnosticState(diagnostic) || ""
+  ).toUpperCase();
+
+  const direction = String(
+    getSelectedDiagnosticDirection(diagnostic) || ""
+  ).toUpperCase();
+
+  const bearishStates = [
+    "BREAKOUT_FAILING",
+    "LOST_LEVEL",
+    "FAILED_RECLAIM",
+    "REJECTING_VALUE",
+    "FAILED_ACCEPTANCE_SHORT",
+    "LOST_SHORT_TRIGGER_LEVEL",
+  ];
+
+  const bullishStates = [
+    "HELD_LEVEL",
+    "RECLAIMED_LEVEL",
+    "WICK_BELOW_AND_RECLAIM",
+    "DIP_BOUGHT_FAST",
+    "SELLERS_TRAPPED",
+    "BREAKOUT_HOLDING",
+  ];
+
+  if (
+    bearishStates.includes(state) ||
+    direction === "SHORT"
+  ) {
+    return "danger";
+  }
+
+  if (
+    bullishStates.includes(state) &&
+    direction === "LONG"
+  ) {
+    return "bullish";
+  }
+
+  return "blue";
+}
+
 function getEngine22LifecycleReaction(fib) {
   const reactionContext = getReactionContext(fib);
 
@@ -2354,6 +2506,306 @@ function buildEngine3ContextSection(fib) {
   const reaction = getEngine5Reaction(fib);
   const control = getEngine26ControlLevelContext(fib);
   const location = getEngine26LocationContext(fib);
+  const strategy1Setup = getEngine26Strategy1Setup(fib);
+  const engine26Handoff = getMinuteEngine26ReactionHandoff(fib);
+
+  const canonicalMinuteStrategy =
+    paperScalp?.active === true &&
+    paperScalp?.laneId === "minute" &&
+    paperScalp?.strategyId === "intraday_scalp@10m";
+
+  if (canonicalMinuteStrategy) {
+    const selected = selectActiveEngine3Diagnostic(
+      fastReaction,
+      currentLevelAction
+    );
+
+    const diagnostic = selected.diagnostic;
+
+    const diagnosticState =
+      getSelectedDiagnosticState(diagnostic);
+
+    const diagnosticDirection =
+      getSelectedDiagnosticDirection(diagnostic);
+
+    const diagnosticQuality =
+      getSelectedDiagnosticQuality(diagnostic);
+
+    const reactionConfirmed =
+      paperScalp?.reactionConfirmed === true ||
+      paperScalp?.confirmed === true;
+
+    const allowed =
+      paperScalp?.allowed === true;
+
+    const canonicalDirection = String(
+      paperScalp?.direction || "NEUTRAL"
+    ).toUpperCase();
+
+    const canonicalState = String(
+      paperScalp?.reactionState ||
+        paperScalp?.state ||
+        "WAITING"
+    ).toUpperCase();
+
+    const canonicalExpectedDirection = String(
+      paperScalp?.expectedReactionDirection || "NEUTRAL"
+    ).toUpperCase();
+
+    const contactState =
+      engine26Handoff?.contactState || null;
+
+    const chainArmed =
+      engine26Handoff?.chainArmed === true;
+
+    const handoffDirectionState =
+      engine26Handoff?.directionState || null;
+
+    const handoffExpectedDirection = String(
+      engine26Handoff?.expectedReactionDirection || ""
+    ).toUpperCase();
+
+    const promotedShortWatch =
+      contactState === "NEGOTIATED_LINE_CONTACT" &&
+      chainArmed &&
+      (
+        handoffDirectionState === "SHORT_REVERSAL_WATCH" ||
+        handoffExpectedDirection === "SHORT" ||
+        canonicalExpectedDirection === "SHORT"
+      );
+
+    const invalidated =
+      canonicalState.includes("INVALID");
+
+    let strategyStatus =
+      "NEUTRAL — waiting for authorized reaction.";
+
+    if (invalidated) {
+      strategyStatus =
+        "NEUTRAL — reaction invalidated.";
+    } else if (reactionConfirmed) {
+      strategyStatus = `${
+        canonicalDirection === "SHORT"
+          ? "SHORT"
+          : canonicalDirection === "LONG"
+          ? "LONG"
+          : "NEUTRAL"
+      } — reaction confirmed.`;
+    } else if (promotedShortWatch) {
+      strategyStatus =
+        "NEUTRAL — watching for SHORT rejection.";
+    }
+
+    let resultText =
+      "Reaction not confirmed. No permission. No execution.";
+
+    if (
+      reactionConfirmed &&
+      allowed === false
+    ) {
+      resultText =
+        "Reaction confirmed. Waiting for Engine 4 / Engine 6.";
+    } else if (
+      reactionConfirmed &&
+      allowed === true
+    ) {
+      resultText =
+        "Reaction confirmed. Engine 3 allowed. Waiting for Engine 4 / Engine 6.";
+    }
+
+    const imbalance =
+      diagnostic?.imbalance || null;
+
+    const zone =
+      imbalance ||
+      engine26Handoff?.zone ||
+      engine26Handoff?.entryZone ||
+      strategy1Setup?.entryZone ||
+      strategy1Setup?.location ||
+      null;
+
+    const zoneLow =
+      zone?.lo ?? zone?.low ?? null;
+
+    const zoneHigh =
+      zone?.hi ?? zone?.high ?? null;
+
+    const zoneText =
+      zoneLow != null && zoneHigh != null
+        ? `${formatNumber(zoneLow)}–${formatNumber(zoneHigh)}`
+        : "—";
+
+    const negZone =
+      imbalance?.negZone ||
+      engine26Handoff?.negZone ||
+      null;
+
+    const negZoneLow =
+      negZone?.lo ?? negZone?.low ?? null;
+
+    const negZoneHigh =
+      negZone?.hi ?? negZone?.high ?? null;
+
+    const negZoneText =
+      negZoneLow != null && negZoneHigh != null
+        ? `${formatNumber(negZoneLow)}–${formatNumber(negZoneHigh)}`
+        : "—";
+
+    const currentPrice = Number(
+      diagnostic?.currentPrice ??
+        paperScalp?.currentPrice ??
+        engine26Handoff?.currentPrice ??
+        strategy1Setup?.currentPrice
+    );
+
+    const distancePts = Number(
+      imbalance?.distancePts ??
+        diagnostic?.distancePts
+    );
+
+    const locationText =
+      contactState ||
+      engine26Handoff?.status ||
+      diagnostic?.location ||
+      diagnostic?.relation ||
+      (
+        imbalance?.inside === true
+          ? "INSIDE ZONE"
+          : imbalance?.near === true
+          ? "NEAR ZONE"
+          : Number.isFinite(distancePts)
+          ? `${formatNumber(distancePts)} pts from zone`
+          : strategy1Setup?.location?.relation || "—"
+      );
+
+    const diagnosticRead = diagnostic
+      ? `${formatUpper(
+          diagnosticState,
+          "NO SIGNAL"
+        )} / ${formatUpper(
+          diagnosticDirection,
+          "NEUTRAL"
+        )} / ${formatUpper(
+          diagnosticQuality,
+          "WEAK"
+        )}`
+      : "—";
+
+    const currentLevelRead =
+      selected.source === "currentLevelAction"
+        ? diagnosticRead
+        : "—";
+
+    const meaning =
+      diagnostic?.meaning ||
+      diagnostic?.message ||
+      diagnostic?.traderMessage ||
+      diagnostic?.read ||
+      diagnostic?.summary ||
+      "Backend meaning unavailable.";
+
+    return {
+      number: 0,
+      icon: "③",
+      title: "Engine 3 — Price Reaction",
+
+      severity: getSelectedDiagnosticSeverity({
+        diagnostic,
+        paperScalp,
+      }),
+
+      engine3PriceReactionCard: true,
+
+      engine3Card: {
+        price: Number.isFinite(currentPrice)
+          ? formatNumber(currentPrice)
+          : "—",
+
+        zone: zoneText,
+        negZone: negZoneText,
+        location: formatUpper(locationText, "—"),
+
+        mainRead: diagnosticRead,
+        currentLevel: currentLevelRead,
+
+        diagnosticSource: selected.source,
+
+        facts: [
+          [
+            "Rejecting value",
+            formatBool(
+              getPublishedDiagnosticBoolean(
+                diagnostic,
+                "rejectingValue"
+              )
+            ),
+          ],
+          [
+            "Lost level",
+            formatBool(
+              getPublishedDiagnosticBoolean(
+                diagnostic,
+                "lostLevel"
+              )
+            ),
+          ],
+          [
+            "Failed reclaim",
+            formatBool(
+              getPublishedDiagnosticBoolean(
+                diagnostic,
+                "failedReclaim"
+              )
+            ),
+          ],
+          [
+            "Breakout failing",
+            formatBool(
+              getPublishedDiagnosticBoolean(
+                diagnostic,
+                "breakoutFailing"
+              )
+            ),
+          ],
+        ],
+
+        meaning,
+        strategyStatus,
+        result: resultText,
+
+        reactionConfirmed,
+        allowed,
+
+        canonicalState:
+          formatUpper(canonicalState),
+
+        canonicalDirection:
+          formatUpper(canonicalDirection),
+
+        contactState: contactState
+          ? formatUpper(contactState)
+          : null,
+
+        chainArmed: engine26Handoff
+          ? formatBool(chainArmed)
+          : null,
+
+        directionState: handoffDirectionState
+          ? formatUpper(handoffDirectionState)
+          : null,
+
+        expectedReactionDirection:
+          canonicalExpectedDirection !== "NEUTRAL"
+            ? formatUpper(canonicalExpectedDirection)
+            : handoffExpectedDirection
+            ? formatUpper(handoffExpectedDirection)
+            : null,
+      },
+
+      fields: [],
+      lines: [],
+    };
+  }
 
   /*
    * Priority:
@@ -4713,8 +5165,288 @@ function CanonicalStageGrid({ stages }) {
   );
 }
 
+function Engine3PriceReactionCard({ section }) {
+  const card = section?.engine3Card || {};
+
+  const topRows = [
+    ["Price", card.price],
+    ["Zone", card.zone],
+    ["Neg Zone", card.negZone],
+    ["Location", card.location],
+    ["Main Read", card.mainRead],
+    ["Current Level", card.currentLevel],
+  ];
+
+  const contactRows = [
+    card.contactState
+      ? ["Contact State", card.contactState]
+      : null,
+
+    card.chainArmed != null
+      ? ["Chain Armed", card.chainArmed]
+      : null,
+
+    card.directionState
+      ? ["Direction State", card.directionState]
+      : null,
+
+    card.expectedReactionDirection
+      ? [
+          "Expected Reaction",
+          card.expectedReactionDirection,
+        ]
+      : null,
+  ].filter(Boolean);
+
+  const headingStyle = {
+    ...shellTextStyle,
+    color: severityColor(section.severity),
+    fontSize: 17,
+    fontWeight: 600,
+    lineHeight: 1.35,
+    marginBottom: 7,
+  };
+
+  const bodyStyle = {
+    ...shellTextStyle,
+    color: MAIN_TEXT,
+    fontSize: 17,
+    fontWeight: FONT_REGULAR,
+    lineHeight: 1.45,
+  };
+
+  return (
+    <div
+      style={{
+        border: `1px solid ${severityBorder(
+          section.severity
+        )}`,
+        background: severityBackground(
+          section.severity
+        ),
+        borderRadius: 12,
+        padding: "14px 15px",
+        textAlign: "left",
+        position: "relative",
+      }}
+    >
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns:
+            "40px minmax(0, 1fr)",
+          gap: 11,
+          alignItems: "start",
+        }}
+      >
+        <div
+          style={{
+            ...shellTextStyle,
+            width: 32,
+            height: 32,
+            borderRadius: "50%",
+            border: `1px solid ${severityBorder(
+              section.severity
+            )}`,
+            color: severityColor(
+              section.severity
+            ),
+            background: "rgba(2,6,23,0.72)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontWeight: 600,
+            fontSize: 17,
+            boxShadow: `0 0 16px ${severityBorder(
+              section.severity
+            )}`,
+          }}
+        >
+          {section.number}
+        </div>
+
+        <div style={{ minWidth: 0 }}>
+          <div
+            style={{
+              ...shellTextStyle,
+              display: "flex",
+              alignItems: "center",
+              gap: 9,
+              color: severityColor(
+                section.severity
+              ),
+              fontSize: 22,
+              fontWeight: 600,
+              lineHeight: 1.25,
+              marginBottom: 11,
+            }}
+          >
+            <span>{section.icon}</span>
+            <span>{section.title}</span>
+          </div>
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns:
+                "130px minmax(0, 1fr)",
+              gap: "7px 13px",
+              alignItems: "start",
+            }}
+          >
+            {topRows.map(([label, value]) => (
+              <React.Fragment key={label}>
+                <div
+                  style={{
+                    ...shellTextStyle,
+                    color: MUTED_TEXT,
+                    fontSize: 15,
+                    fontWeight: FONT_MEDIUM,
+                    lineHeight: 1.35,
+                  }}
+                >
+                  {label}
+                </div>
+
+                <div
+                  style={{
+                    ...shellTextStyle,
+                    color: MAIN_TEXT,
+                    fontSize: 18,
+                    fontWeight: FONT_MEDIUM,
+                    lineHeight: 1.35,
+                    overflowWrap: "anywhere",
+                  }}
+                >
+                  {value || "—"}
+                </div>
+              </React.Fragment>
+            ))}
+          </div>
+
+          <div style={{ marginTop: 13 }}>
+            <div style={headingStyle}>
+              Price Action Facts
+            </div>
+
+            <div
+              style={{
+                display: "grid",
+                gap: 5,
+              }}
+            >
+              {asArray(card.facts).map(
+                ([label, value]) => (
+                  <div
+                    key={label}
+                    style={{
+                      ...bodyStyle,
+                      display: "grid",
+                      gridTemplateColumns:
+                        "minmax(0, 1fr) auto",
+                      gap: 12,
+                    }}
+                  >
+                    <span>{label}</span>
+                    <span>{value}</span>
+                  </div>
+                )
+              )}
+            </div>
+          </div>
+
+          <div style={{ marginTop: 13 }}>
+            <div style={headingStyle}>
+              Meaning
+            </div>
+
+            <div style={bodyStyle}>
+              {card.meaning || "—"}
+            </div>
+          </div>
+
+          {contactRows.length > 0 && (
+            <div
+              style={{
+                marginTop: 13,
+                padding: "9px 10px",
+                border:
+                  "1px solid rgba(148,163,184,0.24)",
+                borderRadius: 9,
+                background:
+                  "rgba(15,23,42,0.34)",
+                display: "grid",
+                gridTemplateColumns:
+                  "130px minmax(0, 1fr)",
+                gap: "5px 12px",
+              }}
+            >
+              {contactRows.map(
+                ([label, value]) => (
+                  <React.Fragment key={label}>
+                    <div
+                      style={{
+                        ...shellTextStyle,
+                        color: MUTED_TEXT,
+                        fontSize: 15,
+                        lineHeight: 1.4,
+                      }}
+                    >
+                      {label}
+                    </div>
+
+                    <div
+                      style={{
+                        ...shellTextStyle,
+                        color: SOFT_TEXT,
+                        fontSize: 16,
+                        lineHeight: 1.4,
+                        overflowWrap: "anywhere",
+                      }}
+                    >
+                      {value}
+                    </div>
+                  </React.Fragment>
+                )
+              )}
+            </div>
+          )}
+
+          <div style={{ marginTop: 13 }}>
+            <div style={headingStyle}>
+              Strategy Status
+            </div>
+
+            <div style={bodyStyle}>
+              {card.strategyStatus}
+            </div>
+          </div>
+
+          <div style={{ marginTop: 13 }}>
+            <div style={headingStyle}>
+              Result
+            </div>
+
+            <div style={bodyStyle}>
+              {card.result}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function TimelineSection({ section }) {
   if (!section) return null;
+
+  if (section.engine3PriceReactionCard === true) {
+    return (
+      <Engine3PriceReactionCard
+        section={section}
+      />
+    );
+  }
 
   return (
     <div
