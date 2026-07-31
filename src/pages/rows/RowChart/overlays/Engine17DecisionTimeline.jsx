@@ -2203,7 +2203,8 @@ function getEngine3BooleanReads({
   const lostZone =
     levelAction.lostLevel === true ||
     currentState === "LOST_LEVEL" ||
-    fastState === "LOST_LEVEL";
+    fastState === "LOST_LEVEL" ||
+    canonicalStates.includes("LOST_LEVEL");
 
   const failedReclaim =
     levelAction.failedReclaim === true ||
@@ -2665,7 +2666,7 @@ function buildEngine3ContextSection(fib) {
     );
 
     const hasFastDiagnosticRead =
-      fastReaction != null &&
+      fastReaction?.active === true &&
       [
         fastReaction?.rawState,
         fastReaction?.fastReactionState,
