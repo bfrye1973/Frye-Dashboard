@@ -2298,30 +2298,18 @@ function getEngine3IdentityMismatch({
 }) {
   const mismatches = [];
 
-  const compareWhenBothPresent = (
-    label,
-    canonicalValue,
-    comparedValue
-  ) => {
+  const compareWhenPresent = (label, left, right) => {
     if (
-      canonicalValue != null &&
-      canonicalValue !== "" &&
-      comparedValue != null &&
-      comparedValue !== "" &&
-      String(canonicalValue) !== String(comparedValue)
+      left != null &&
+      left !== "" &&
+      right != null &&
+      right !== "" &&
+      String(left) !== String(right)
     ) {
       mismatches.push(label);
     }
   };
 
-  /*
-   * Minute Strategy 1 must remain isolated.
-   *
-   * Only flag these as mismatches when the object actually publishes
-   * the field and the published value is wrong.
-   *
-   * A missing optional field is not automatically an identity mismatch.
-   */
   const validateMinuteScope = (label, source) => {
     if (!source || typeof source !== "object") return;
 
@@ -2344,71 +2332,60 @@ function getEngine3IdentityMismatch({
   validateMinuteScope("paperScalp", paperScalp);
   validateMinuteScope("fastReaction", fastReaction);
 
-  /*
-   * Engine 26 Strategy 1 setup and canonical paperScalpReaction
-   * must preserve the same promoted candidate and zone.
-   */
-  compareWhenBothPresent(
+  compareWhenPresent(
     "candidateId",
     strategy1Setup?.candidateId,
     paperScalp?.candidateId
   );
 
-  compareWhenBothPresent(
+  compareWhenPresent(
     "zoneId",
     strategy1Setup?.zoneId,
     paperScalp?.zoneId
   );
 
-  compareWhenBothPresent(
+  compareWhenPresent(
     "laneId",
     strategy1Setup?.laneId,
     paperScalp?.laneId
   );
 
-  compareWhenBothPresent(
+  compareWhenPresent(
     "strategyId",
     strategy1Setup?.strategyId,
     paperScalp?.strategyId
   );
 
-  compareWhenBothPresent(
+  compareWhenPresent(
     "symbol",
     strategy1Setup?.symbol,
     paperScalp?.symbol
   );
 
-  compareWhenBothPresent(
+  compareWhenPresent(
     "setupClass",
     strategy1Setup?.setupClass,
     paperScalp?.setupClass
   );
 
-  compareWhenBothPresent(
+  compareWhenPresent(
     "setupGrade",
     strategy1Setup?.setupGrade,
     paperScalp?.setupGrade
   );
 
-  compareWhenBothPresent(
+  compareWhenPresent(
     "identitySetupKey",
     strategy1Setup?.identitySetupKey,
     paperScalp?.identitySetupKey
   );
 
-  compareWhenBothPresent(
+  compareWhenPresent(
     "candidateIdentityVersion",
     strategy1Setup?.candidateIdentityVersion,
     paperScalp?.candidateIdentityVersion
   );
 
-  /*
-   * Diagnostic Engine 3 identity is checked only when it publishes
-   * an actual identity field.
-   *
-   * The diagnostic object is allowed to omit identity metadata.
-   * Missing diagnostic identity must not hide a valid canonical read.
-   */
   const canonicalCandidateId =
     paperScalp?.candidateId ??
     strategy1Setup?.candidateId ??
@@ -2429,25 +2406,25 @@ function getEngine3IdentityMismatch({
     strategy1Setup?.strategyId ??
     null;
 
-  compareWhenBothPresent(
+  compareWhenPresent(
     "diagnostic.candidateId",
     canonicalCandidateId,
     fastReaction?.candidateId
   );
 
-  compareWhenBothPresent(
+  compareWhenPresent(
     "diagnostic.zoneId",
     canonicalZoneId,
     fastReaction?.zoneId
   );
 
-  compareWhenBothPresent(
+  compareWhenPresent(
     "diagnostic.laneId",
     canonicalLaneId,
     fastReaction?.laneId
   );
 
-  compareWhenBothPresent(
+  compareWhenPresent(
     "diagnostic.strategyId",
     canonicalStrategyId,
     fastReaction?.strategyId
@@ -2458,126 +2435,6 @@ function getEngine3IdentityMismatch({
     fields: [...new Set(mismatches)],
   };
 }
-  const expectedLaneId = "minute";
-  const expectedStrategyId = "intraday_scalp@10m";
-  const expectedSetupClass =
-    "NEGOTIATED_ZONE_SWEEP_RECLAIM_ROTATION";
-  const expectedSetupGrade = "A+++";
-  const expectedIdentityVersion = "engine26.strategy1.v1";
-
-  const mismatches = [];
-
-  const compareWhenPresent = (label, left, right) => {
-    if (
-      left != null &&
-      right != null &&
-      String(left) !== String(right)
-    ) {
-      mismatches.push(label);
-    }
-  };
-
-  [strategy1Setup, paperScalp].filter(Boolean).forEach((source) => {
-    if (
-      source.laneId != null &&
-      source.laneId !== expectedLaneId
-    ) {
-      mismatches.push("laneId");
-    }
-
-    if (
-      source.strategyId != null &&
-      source.strategyId !== expectedStrategyId
-    ) {
-      mismatches.push("strategyId");
-    }
-
-    if (
-      source.setupClass != null &&
-      source.setupClass !== expectedSetupClass
-    ) {
-      mismatches.push("setupClass");
-    }
-
-    if (
-      source.setupGrade != null &&
-      source.setupGrade !== expectedSetupGrade
-    ) {
-      mismatches.push("setupGrade");
-    }
-
-    if (
-      source.candidateIdentityVersion != null &&
-      source.candidateIdentityVersion !== expectedIdentityVersion
-    ) {
-      mismatches.push("candidateIdentityVersion");
-    }
-  });
-
-  compareWhenPresent(
-    "candidateId",
-    strategy1Setup?.candidateId,
-    paperScalp?.candidateId
-  );
-
-  compareWhenPresent(
-    "zoneId",
-    strategy1Setup?.zoneId,
-    paperScalp?.zoneId
-  );
-
-  compareWhenPresent(
-    "laneId",
-    strategy1Setup?.laneId,
-    paperScalp?.laneId
-  );
-
-  compareWhenPresent(
-    "strategyId",
-    strategy1Setup?.strategyId,
-    paperScalp?.strategyId
-  );
-
-  compareWhenPresent(
-    "setupClass",
-    strategy1Setup?.setupClass,
-    paperScalp?.setupClass
-  );
-
-  compareWhenPresent(
-    "setupGrade",
-    strategy1Setup?.setupGrade,
-    paperScalp?.setupGrade
-  );
-
-  compareWhenPresent(
-    "identitySetupKey",
-    strategy1Setup?.identitySetupKey,
-    paperScalp?.identitySetupKey
-  );
-
-  compareWhenPresent(
-    "candidateIdentityVersion",
-    strategy1Setup?.candidateIdentityVersion,
-    paperScalp?.candidateIdentityVersion
-  );
-
-  ["candidateId", "zoneId", "laneId", "strategyId"].forEach(
-    (key) => {
-      compareWhenPresent(
-        `diagnostic.${key}`,
-        paperScalp?.[key] ?? strategy1Setup?.[key],
-        fastReaction?.[key]
-      );
-    }
-  );
-
-  return {
-    mismatch: mismatches.length > 0,
-    fields: [...new Set(mismatches)],
-  };
-}
-
 function getEngine3StrategyStatus(paperScalp) {
   const direction = String(
     paperScalp?.direction || "NEUTRAL"
