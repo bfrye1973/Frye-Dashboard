@@ -2663,20 +2663,16 @@ function buildEngine3ContextSection(fib) {
         diagnostic?.distancePts
     );
 
+    const canonicalLocationRelation =
+      strategy1Setup?.location?.relation ||
+      engine26Handoff?.relation ||
+      engine26Handoff?.location?.relation ||
+      null;
+
     const locationText =
       contactState ||
-      engine26Handoff?.status ||
-      diagnostic?.location ||
-      diagnostic?.relation ||
-      (
-        imbalance?.inside === true
-          ? "INSIDE ZONE"
-          : imbalance?.near === true
-          ? "NEAR ZONE"
-          : Number.isFinite(distancePts)
-          ? `${formatNumber(distancePts)} pts from zone`
-          : strategy1Setup?.location?.relation || "—"
-      );
+      canonicalLocationRelation ||
+      "—";
 
     const diagnosticRead = diagnostic
       ? `${formatUpper(
