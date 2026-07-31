@@ -2161,24 +2161,44 @@ function getEngine3MeaningForState(state) {
   return "No clear Engine 3 price reaction yet.";
 }
 
-function getEngine3BooleanReads({ fastReaction, currentLevelAction }) {
+function getEngine3BooleanReads({
+  fastReaction,
+  currentLevelAction,
+  paperScalp,
+  strategy1Setup,
+}) {
   const levelAction = fastReaction?.levelAction || {};
 
   const fastState = String(
-    fastReaction?.rawState ||
-      fastReaction?.state ||
-      ""
+    fastReaction?.rawState || fastReaction?.state || ""
   ).toUpperCase();
 
   const currentState = String(
-    currentLevelAction?.state ||
-      ""
+    currentLevelAction?.state || ""
   ).toUpperCase();
+
+  const canonicalStates = [
+    paperScalp?.reactionState,
+    paperScalp?.authorizedReactionState,
+    paperScalp?.state,
+    strategy1Setup?.reaction?.status,
+    strategy1Setup?.reaction?.state,
+  ]
+    .filter(Boolean)
+    .map((value) => String(value).toUpperCase());
+
+  const rejectedStates = [
+    "REJECTING_VALUE",
+    "FAILED_RECLAIM",
+    "BREAKOUT_FAILING",
+    "REACTION_FAILED",
+  ];
 
   const rejected =
     levelAction.rejectingValue === true ||
-    currentState === "REJECTING_VALUE" ||
-    fastState === "REJECTING_VALUE";
+    rejectedStates.includes(currentState) ||
+    rejectedStates.includes(fastState) ||
+    canonicalStates.some((state) => rejectedStates.includes(state));
 
   const lostZone =
     levelAction.lostLevel === true ||
@@ -2188,12 +2208,26 @@ function getEngine3BooleanReads({ fastReaction, currentLevelAction }) {
   const failedReclaim =
     levelAction.failedReclaim === true ||
     currentState === "FAILED_RECLAIM" ||
-    fastState === "FAILED_RECLAIM";
+    fastState === "FAILED_RECLAIM" ||
+    canonicalStates.includes("FAILED_RECLAIM");
+
+  const completedCloseInvalidationConfirmed =
+    strategy1Setup?.completedCloseInvalidationConfirmed === true ||
+    paperScalp?.completedCloseInvalidationConfirmed === true;
+
+  const bearishDisplacement =
+    fastReaction?.bearishDisplacement === true ||
+    fastReaction?.levelAction?.bearishDisplacement === true ||
+    currentLevelAction?.bearishDisplacement === true ||
+    paperScalp?.bearishDisplacement === true ||
+    strategy1Setup?.reaction?.bearishDisplacement === true;
 
   const breakdown =
     lostZone ||
     fastState === "BREAKOUT_FAILING" ||
-    currentState === "BREAKOUT_FAILING";
+    currentState === "BREAKOUT_FAILING" ||
+    completedCloseInvalidationConfirmed ||
+    bearishDisplacement;
 
   return {
     rejected,
@@ -2211,6 +2245,228 @@ function formatNegZone(imbalance) {
   }
 
   return `${formatNumber(neg.lo)}–${formatNumber(neg.hi)}`;
+}
+
+function getEngine3ZoneBounds(zone) {
+  if (!zone || typeof zone !== "object") return null;
+
+  const lo = zone.lo ?? zone.low ?? zone.from ?? null;
+  const hi = zone.hi ?? zone.high ?? zone.to ?? null;
+
+  if (lo == null || hi == null) return null;
+
+  return { lo, hi };
+}
+
+function getEngine3PromotedZone(strategy1Setup) {
+  if (!strategy1Setup || typeof strategy1Setup !== "object") return null;
+
+  return (
+    getEngine3ZoneBounds(strategy1Setup.promotedZone) ||
+    getEngine3ZoneBounds(strategy1Setup.activeObservationZone) ||
+    getEngine3ZoneBounds(strategy1Setup.observationZone) ||
+    getEngine3ZoneBounds(strategy1Setup.contactedZone) ||
+    getEngine3ZoneBounds(strategy1Setup.entryZone) ||
+    getEngine3ZoneBounds(strategy1Setup.location) ||
+    null
+  );
+}
+
+function getEngine3PromotedNegZone(strategy1Setup) {
+  if (!strategy1Setup || typeof strategy1Setup !== "object") return null;
+
+  return (
+    getEngine3ZoneBounds(strategy1Setup.promotedZone?.negZone) ||
+    getEngine3ZoneBounds(strategy1Setup.activeObservationZone?.negZone) ||
+    getEngine3ZoneBounds(strategy1Setup.observationZone?.negZone) ||
+    getEngine3ZoneBounds(strategy1Setup.entryZone?.negZone) ||
+    getEngine3ZoneBounds(strategy1Setup.negZone) ||
+    null
+  );
+}
+
+function formatEngine3ZoneBounds(zone) {
+  return zone
+    ? `${formatNumber(zone.lo)}–${formatNumber(zone.hi)}`
+    : "—";
+}
+
+function getEngine3IdentityMismatch({
+  strategy1Setup,
+  paperScalp,
+  fastReaction,
+}) {
+  const expectedLaneId = "minute";
+  const expectedStrategyId = "intraday_scalp@10m";
+  const expectedSetupClass =
+    "NEGOTIATED_ZONE_SWEEP_RECLAIM_ROTATION";
+  const expectedSetupGrade = "A+++";
+  const expectedIdentityVersion = "engine26.strategy1.v1";
+
+  const mismatches = [];
+
+  const compareWhenPresent = (label, left, right) => {
+    if (
+      left != null &&
+      right != null &&
+      String(left) !== String(right)
+    ) {
+      mismatches.push(label);
+    }
+  };
+
+  [strategy1Setup, paperScalp].filter(Boolean).forEach((source) => {
+    if (
+      source.laneId != null &&
+      source.laneId !== expectedLaneId
+    ) {
+      mismatches.push("laneId");
+    }
+
+    if (
+      source.strategyId != null &&
+      source.strategyId !== expectedStrategyId
+    ) {
+      mismatches.push("strategyId");
+    }
+
+    if (
+      source.setupClass != null &&
+      source.setupClass !== expectedSetupClass
+    ) {
+      mismatches.push("setupClass");
+    }
+
+    if (
+      source.setupGrade != null &&
+      source.setupGrade !== expectedSetupGrade
+    ) {
+      mismatches.push("setupGrade");
+    }
+
+    if (
+      source.candidateIdentityVersion != null &&
+      source.candidateIdentityVersion !== expectedIdentityVersion
+    ) {
+      mismatches.push("candidateIdentityVersion");
+    }
+  });
+
+  compareWhenPresent(
+    "candidateId",
+    strategy1Setup?.candidateId,
+    paperScalp?.candidateId
+  );
+
+  compareWhenPresent(
+    "zoneId",
+    strategy1Setup?.zoneId,
+    paperScalp?.zoneId
+  );
+
+  compareWhenPresent(
+    "laneId",
+    strategy1Setup?.laneId,
+    paperScalp?.laneId
+  );
+
+  compareWhenPresent(
+    "strategyId",
+    strategy1Setup?.strategyId,
+    paperScalp?.strategyId
+  );
+
+  compareWhenPresent(
+    "setupClass",
+    strategy1Setup?.setupClass,
+    paperScalp?.setupClass
+  );
+
+  compareWhenPresent(
+    "setupGrade",
+    strategy1Setup?.setupGrade,
+    paperScalp?.setupGrade
+  );
+
+  compareWhenPresent(
+    "identitySetupKey",
+    strategy1Setup?.identitySetupKey,
+    paperScalp?.identitySetupKey
+  );
+
+  compareWhenPresent(
+    "candidateIdentityVersion",
+    strategy1Setup?.candidateIdentityVersion,
+    paperScalp?.candidateIdentityVersion
+  );
+
+  ["candidateId", "zoneId", "laneId", "strategyId"].forEach(
+    (key) => {
+      compareWhenPresent(
+        `diagnostic.${key}`,
+        paperScalp?.[key] ?? strategy1Setup?.[key],
+        fastReaction?.[key]
+      );
+    }
+  );
+
+  return {
+    mismatch: mismatches.length > 0,
+    fields: [...new Set(mismatches)],
+  };
+}
+
+function getEngine3StrategyStatus(paperScalp) {
+  const direction = String(
+    paperScalp?.direction || "NEUTRAL"
+  ).toUpperCase();
+
+  const states = [
+    paperScalp?.directionState,
+    paperScalp?.authorizedReactionState,
+    paperScalp?.reactionState,
+    paperScalp?.state,
+  ]
+    .filter(Boolean)
+    .map((value) => String(value).toUpperCase());
+
+  const invalidated = states.some(
+    (state) =>
+      state === "REACTION_INVALIDATED" ||
+      state.includes("INVALIDATED")
+  );
+
+  if (invalidated) {
+    return "NEUTRAL — reaction invalidated.";
+  }
+
+  const reactionConfirmed =
+    paperScalp?.reactionConfirmed === true ||
+    paperScalp?.confirmed === true;
+
+  if (reactionConfirmed) {
+    return `${
+      direction === "LONG" ? "LONG" : "SHORT"
+    } — reaction confirmed.`;
+  }
+
+  if (states.includes("SHORT_REVERSAL_WATCH")) {
+    return "NEUTRAL — SHORT_REVERSAL_WATCH armed.";
+  }
+
+  return "NEUTRAL — Engine 26 authorization wait.";
+}
+
+function getEngine3Result(paperScalp) {
+  const reactionConfirmed =
+    paperScalp?.reactionConfirmed === true ||
+    paperScalp?.confirmed === true;
+
+  if (reactionConfirmed) {
+    return "Reaction confirmed. Waiting for Engine 4 / Engine 6.";
+  }
+
+  return "No short. No permission. No execution.";
 }
 
 function getWaveContextForScalp({ fastReaction, paperScalp, currentLevelAction }) {
@@ -2364,132 +2620,195 @@ function buildEngine3ContextSection(fib) {
    * 5. Old pullback / generic fallback
    */
 
-if (fastReaction?.active === true) {
-  const imbalance = fastReaction.imbalance || {};
-  const currentPrice = Number(fastReaction.currentPrice);
-  const distancePts = Number(imbalance.distancePts);
+  if (fastReaction?.active === true) {
+    const imbalance = fastReaction.imbalance || {};
+    const currentPrice = Number(fastReaction.currentPrice);
+    const distancePts = Number(imbalance.distancePts);
+    const strategy1Setup = getEngine26Strategy1Setup(fib);
 
-  const actualRead = getEngine3ActualRead(
-    fastReaction,
-    currentLevelAction
-  );
+    const actualRead = getEngine3ActualRead(
+      fastReaction,
+      currentLevelAction
+    );
 
-  const booleanReads = getEngine3BooleanReads({
-    fastReaction,
-    currentLevelAction,
-  });
+    const identityRead = getEngine3IdentityMismatch({
+      strategy1Setup,
+      paperScalp,
+      fastReaction,
+    });
 
-  const zoneText =
-    imbalance.lo != null && imbalance.hi != null
-      ? `${formatNumber(imbalance.lo)}–${formatNumber(imbalance.hi)}`
-      : "—";
+    const booleanReads = getEngine3BooleanReads({
+      fastReaction,
+      currentLevelAction,
+      paperScalp,
+      strategy1Setup,
+    });
 
-  const negZoneText = formatNegZone(imbalance);
+    const promotedZone =
+      getEngine3PromotedZone(strategy1Setup);
 
-  const locationText =
-    imbalance.inside === true
-      ? "INSIDE ZONE"
-      : imbalance.near === true
-      ? "NEAR ZONE"
-      : Number.isFinite(distancePts)
-      ? `${formatNumber(distancePts)} pts from zone`
-      : "—";
+    const promotedNegZone =
+      getEngine3PromotedNegZone(strategy1Setup);
 
-  const strategyState =
-    paperScalp?.reactionState ||
-    paperScalp?.state ||
-    "WAITING";
+    const diagnosticZone =
+      getEngine3ZoneBounds(imbalance);
 
-  const strategyDirection =
-    paperScalp?.direction ||
-    "NEUTRAL";
+    const diagnosticNegZone =
+      getEngine3ZoneBounds(imbalance.negZone);
 
-  const strategyAllowed =
-    paperScalp?.allowed === true;
+    const zoneText = formatEngine3ZoneBounds(
+      promotedZone || diagnosticZone
+    );
 
-  const reactionConfirmed =
-    paperScalp?.reactionConfirmed === true ||
-    paperScalp?.confirmed === true;
+    const negZoneText = formatEngine3ZoneBounds(
+      promotedNegZone || diagnosticNegZone
+    );
 
-  const canonicalIdentity =
-    paperScalp?.candidateId && paperScalp?.zoneId
-      ? `${paperScalp.candidateId} / ${paperScalp.zoneId}`
-      : "—";
+    const locationText =
+      strategy1Setup?.location?.relation != null
+        ? formatUpper(strategy1Setup.location.relation)
+        : strategy1Setup?.locationRead != null
+        ? formatUpper(strategy1Setup.locationRead)
+        : imbalance.inside === true
+        ? "INSIDE ZONE"
+        : imbalance.near === true
+        ? "NEAR ZONE"
+        : Number.isFinite(distancePts)
+        ? `${formatNumber(distancePts)} pts from zone`
+        : "—";
 
-  return {
-    number: 0,
-    icon: "③",
-    title: "Engine 3 — Price Reaction",
-    severity:
-      strategyAllowed === true
+    const mainReadText =
+      `${formatUpper(actualRead.fastState)} / ` +
+      `${formatUpper(actualRead.fastDirection)} / ` +
+      `${formatUpper(actualRead.fastQuality)}`;
+
+    const currentLevelText =
+      `${formatUpper(actualRead.currentState)} / ` +
+      `${formatUpper(actualRead.currentDirection)} / ` +
+      `${formatUpper(actualRead.currentQuality)}`;
+
+    const reactionConfirmed =
+      paperScalp?.reactionConfirmed === true ||
+      paperScalp?.confirmed === true;
+
+    const strategyAllowed =
+      paperScalp?.allowed === true;
+
+    const diagnosticReadHidden =
+      identityRead.mismatch === true;
+
+    return {
+      number: 0,
+      icon: "③",
+      title: "Engine 3 — Price Reaction",
+
+      severity: diagnosticReadHidden
+        ? "danger"
+        : strategyAllowed
         ? "bullish"
         : actualRead.fastDirection === "LONG" &&
           ["GOOD", "STRONG"].includes(
-            String(actualRead.fastQuality || "").toUpperCase()
+            String(
+              actualRead.fastQuality || ""
+            ).toUpperCase()
           )
         ? "bullish"
         : actualRead.fastDirection === "SHORT"
         ? "warning"
         : "blue",
 
-    fields: [
-      ["Price", Number.isFinite(currentPrice) ? formatNumber(currentPrice) : "—"],
-      ["Zone", zoneText],
-      ["Neg Zone", negZoneText],
-      ["Location", locationText],
+      engine3PriceReactionCard: true,
 
-      [
-        "Main Read",
-        `${formatUpper(actualRead.fastState)} / ${formatUpper(
-          actualRead.fastDirection
-        )} / ${formatUpper(actualRead.fastQuality)}`,
-      ],
+      engine3Read: {
+        price: Number.isFinite(currentPrice)
+          ? formatNumber(currentPrice)
+          : "—",
 
-      [
-        "Current Level",
-        `${formatUpper(actualRead.currentState)} / ${formatUpper(
-          actualRead.currentDirection
-        )} / ${formatUpper(actualRead.currentQuality)}`,
-      ],
+        zone: zoneText,
+        negZone: negZoneText,
+        location: locationText,
 
-      ["Rejected?", formatBool(booleanReads.rejected)],
-      ["Lost Zone?", formatBool(booleanReads.lostZone)],
-      ["Failed Reclaim?", formatBool(booleanReads.failedReclaim)],
-      ["Breakdown?", formatBool(booleanReads.breakdown)],
+        mainRead: diagnosticReadHidden
+          ? "HIDDEN — IDENTITY MISMATCH"
+          : mainReadText,
 
-      [
-        "Strategy",
-        `${formatUpper(strategyDirection)} / ${formatUpper(strategyState)}`,
-      ],
+        currentLevel: diagnosticReadHidden
+          ? "HIDDEN — IDENTITY MISMATCH"
+          : currentLevelText,
 
-      ["Reaction Confirmed", formatBool(reactionConfirmed)],
-      ["Paper Allowed", formatBool(strategyAllowed)],
-      ["Identity", canonicalIdentity],
-    ],
+        rejected: diagnosticReadHidden
+          ? null
+          : booleanReads.rejected,
 
-    lines: [
-      "Question: What is price doing at the Engine 26 zone?",
-      `Main read: ${formatUpper(actualRead.fastState)} / ${formatUpper(
-        actualRead.fastDirection
-      )} / ${formatUpper(actualRead.fastQuality)}.`,
-      getEngine3MeaningForState(actualRead.fastState),
-      currentLevelAction?.state
-        ? `Current level: ${formatUpper(
-            actualRead.currentState
-          )} / ${formatUpper(actualRead.currentDirection)} / ${formatUpper(
-            actualRead.currentQuality
-          )}. ${getEngine3MeaningForState(actualRead.currentState)}`
-        : null,
-      "Strategy 1 rule: target-zone contact alone does not confirm SHORT.",
-      "Engine 3 must see real bearish rejection evidence: failed acceptance, close back below boundary, failed reclaim, bearish displacement, and rejection quality.",
-      reactionConfirmed
-        ? "Engine 3 reaction is confirmed."
-        : "Engine 3 reaction is not confirmed yet.",
-      "No automatic short. No permission. No execution.",
-    ].filter(Boolean),
-  };
-}
+        lostZone: diagnosticReadHidden
+          ? null
+          : booleanReads.lostZone,
 
+        failedReclaim: diagnosticReadHidden
+          ? null
+          : booleanReads.failedReclaim,
+
+        breakdown: diagnosticReadHidden
+          ? null
+          : booleanReads.breakdown,
+
+        meaning: diagnosticReadHidden
+          ? "Diagnostic reaction data was not promoted into Minute Strategy 1."
+          : getEngine3MeaningForState(
+              actualRead.fastState
+            ),
+
+        strategyStatus:
+          getEngine3StrategyStatus(paperScalp),
+
+        result:
+          getEngine3Result(paperScalp),
+
+        identityMismatch:
+          diagnosticReadHidden,
+
+        identityWarning: diagnosticReadHidden
+          ? "IDENTITY MISMATCH — diagnostic read hidden"
+          : null,
+      },
+
+      engine3Debug: {
+        laneId:
+          paperScalp?.laneId ||
+          strategy1Setup?.laneId ||
+          null,
+
+        strategyId:
+          paperScalp?.strategyId ||
+          strategy1Setup?.strategyId ||
+          null,
+
+        candidateId:
+          paperScalp?.candidateId ||
+          strategy1Setup?.candidateId ||
+          null,
+
+        zoneId:
+          paperScalp?.zoneId ||
+          strategy1Setup?.zoneId ||
+          null,
+
+        reactionConfirmed,
+        allowed: strategyAllowed,
+
+        identityMismatchFields:
+          identityRead.fields,
+
+        zoneSource: promotedZone
+          ? "ENGINE26_STRATEGY1_PROMOTED_ZONE"
+          : "ENGINE3_DIAGNOSTIC_FALLBACK",
+
+        negZoneSource: promotedNegZone
+          ? "ENGINE26_STRATEGY1_PROMOTED_NEG_ZONE"
+          : "ENGINE3_DIAGNOSTIC_FALLBACK",
+      },
+    };
+  }
   if (paperScalp?.active === true) {
     const allowed = paperScalp.allowed === true;
     const waveContext = getWaveContextForScalp({
@@ -4713,8 +5032,284 @@ function CanonicalStageGrid({ stages }) {
   );
 }
 
+function Engine3PriceReactionCard({ section }) {
+  const read = section?.engine3Read || {};
+
+  const factLine = (label, value) => {
+    if (value == null) {
+      return `Price action ${label} hidden.`;
+    }
+
+    return value === true
+      ? `Price HAS ${label}.`
+      : `Price has NOT ${label}.`;
+  };
+
+  const topRows = [
+    ["PRICE", read.price],
+    ["ZONE", read.zone],
+    ["NEG ZONE", read.negZone],
+    ["LOCATION", read.location],
+    ["MAIN READ", read.mainRead],
+    ["CURRENT LEVEL", read.currentLevel],
+  ];
+
+  const sectionLabelStyle = {
+    ...shellTextStyle,
+    color: "#22c55e",
+    fontSize: 15,
+    fontWeight: FONT_MEDIUM,
+    lineHeight: 1.3,
+  };
+
+  return (
+    <div
+      style={{
+        border: `1px solid ${severityBorder(
+          section.severity
+        )}`,
+        background: severityBackground(
+          section.severity
+        ),
+        borderRadius: 12,
+        padding: "12px 13px",
+        textAlign: "left",
+        position: "relative",
+      }}
+    >
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "38px 1fr",
+          gap: 10,
+          alignItems: "start",
+        }}
+      >
+        <div
+          style={{
+            ...shellTextStyle,
+            width: 30,
+            height: 30,
+            borderRadius: "50%",
+            border: `1px solid ${severityBorder(
+              section.severity
+            )}`,
+            color: severityColor(section.severity),
+            background: "rgba(2,6,23,0.72)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontWeight: FONT_MEDIUM,
+            fontSize: 15,
+            boxShadow: `0 0 16px ${severityBorder(
+              section.severity
+            )}`,
+          }}
+        >
+          {section.number}
+        </div>
+
+        <div style={{ minWidth: 0 }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              marginBottom: 8,
+            }}
+          >
+            <span
+              style={{
+                ...shellTextStyle,
+                color: severityColor(
+                  section.severity
+                ),
+                fontSize: 19,
+                fontWeight: FONT_MEDIUM,
+              }}
+            >
+              {section.icon}
+            </span>
+
+            <div
+              style={{
+                ...shellTextStyle,
+                color: severityColor(
+                  section.severity
+                ),
+                fontSize: 19,
+                fontWeight: FONT_MEDIUM,
+                letterSpacing: "0.01em",
+              }}
+            >
+              {section.title}
+            </div>
+          </div>
+
+          {read.identityMismatch === true && (
+            <div
+              style={{
+                ...shellTextStyle,
+                color: "#fecdd3",
+                background:
+                  "rgba(127,29,29,0.28)",
+                border:
+                  "1px solid rgba(244,63,94,0.52)",
+                borderRadius: 8,
+                padding: "7px 9px",
+                marginBottom: 8,
+                fontSize: 13,
+                fontWeight: FONT_MEDIUM,
+              }}
+            >
+              {read.identityWarning}
+            </div>
+          )}
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns:
+                "115px minmax(0, 1fr)",
+              gap: "6px 12px",
+              paddingBottom: 9,
+              borderBottom:
+                "1px solid rgba(45,212,191,0.25)",
+            }}
+          >
+            {topRows.map(([label, value]) => (
+              <React.Fragment key={label}>
+                <div
+                  style={{
+                    ...shellTextStyle,
+                    color: MUTED_TEXT,
+                    fontSize: 13,
+                    fontWeight: FONT_REGULAR,
+                  }}
+                >
+                  {label}
+                </div>
+
+                <div
+                  style={{
+                    ...shellTextStyle,
+                    color: MAIN_TEXT,
+                    fontSize: 15,
+                    fontWeight: FONT_MEDIUM,
+                    lineHeight: 1.28,
+                    overflowWrap: "anywhere",
+                  }}
+                >
+                  {value || "—"}
+                </div>
+              </React.Fragment>
+            ))}
+          </div>
+
+          <div
+            style={{
+              ...shellTextStyle,
+              display: "grid",
+              gap: 5,
+              color: SOFT_TEXT,
+              fontSize: 14,
+              lineHeight: 1.35,
+            }}
+          >
+            <div
+              style={{
+                marginTop: 9,
+                ...sectionLabelStyle,
+              }}
+            >
+              Price Action Facts:
+            </div>
+
+            <div>
+              • {factLine("rejected", read.rejected)}
+            </div>
+
+            <div>
+              • {factLine(
+                "lost the zone",
+                read.lostZone
+              )}
+            </div>
+
+            <div>
+              • {factLine(
+                "failed reclaim",
+                read.failedReclaim
+              )}
+            </div>
+
+            <div>
+              • {factLine(
+                "broken down",
+                read.breakdown
+              )}
+            </div>
+
+            <div
+              style={{
+                marginTop: 6,
+                paddingTop: 8,
+                borderTop:
+                  "1px solid rgba(45,212,191,0.20)",
+                ...sectionLabelStyle,
+              }}
+            >
+              Meaning:
+            </div>
+
+            <div>
+              • {read.meaning || "—"}
+            </div>
+
+            <div
+              style={{
+                marginTop: 6,
+                paddingTop: 8,
+                borderTop:
+                  "1px solid rgba(45,212,191,0.20)",
+                ...sectionLabelStyle,
+              }}
+            >
+              Strategy Status:
+            </div>
+
+            <div>
+              • {read.strategyStatus || "—"}
+            </div>
+
+            <div
+              style={{
+                marginTop: 6,
+                paddingTop: 8,
+                borderTop:
+                  "1px solid rgba(45,212,191,0.20)",
+                ...sectionLabelStyle,
+              }}
+            >
+              Result:
+            </div>
+
+            <div>
+              • {read.result || "—"}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function TimelineSection({ section }) {
   if (!section) return null;
+
+  if (section?.engine3PriceReactionCard === true) {
+    return <Engine3PriceReactionCard section={section} />;
+  }
 
   return (
     <div
