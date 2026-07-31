@@ -2800,21 +2800,33 @@ function buildEngine3ContextSection(fib) {
           ? "HIDDEN — IDENTITY MISMATCH"
           : currentLevelText,
 
-        rejected: diagnosticReadHidden
-          ? null
-          : booleanReads.rejected,
+        rejected:
+          diagnosticReadHidden ||
+          (!hasFastDiagnosticRead &&
+            !hasCurrentLevelDiagnosticRead)
+            ? null
+            : booleanReads.rejected,
 
-        lostZone: diagnosticReadHidden
-          ? null
-          : booleanReads.lostZone,
+        lostZone:
+          diagnosticReadHidden ||
+          (!hasFastDiagnosticRead &&
+            !hasCurrentLevelDiagnosticRead)
+            ? null
+            : booleanReads.lostZone,
 
-        failedReclaim: diagnosticReadHidden
-          ? null
-          : booleanReads.failedReclaim,
+        failedReclaim:
+          diagnosticReadHidden ||
+          (!hasFastDiagnosticRead &&
+            !hasCurrentLevelDiagnosticRead)
+            ? null
+            : booleanReads.failedReclaim,
 
-        breakdown: diagnosticReadHidden
-          ? null
-          : booleanReads.breakdown,
+        breakdown:
+          diagnosticReadHidden ||
+          (!hasFastDiagnosticRead &&
+            !hasCurrentLevelDiagnosticRead)
+            ? null
+            : booleanReads.breakdown,
 
         meaning: diagnosticReadHidden
           ? "Diagnostic reaction data was not promoted into Minute Strategy 1."
@@ -5107,7 +5119,7 @@ function Engine3PriceReactionCard({ section }) {
 
   const factLine = (label, value) => {
     if (value == null) {
-      return `Price action ${label} hidden.`;
+      return `${label}: —`;
     }
 
     return value === true
