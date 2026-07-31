@@ -338,6 +338,17 @@ function getEngine22LifecycleParticipation(fib) {
   );
 }
 
+function getEngine4AuthorizedReactionParticipation(fib) {
+  const confluence = getConfluence(fib);
+
+  return (
+    confluence?.context?.volume?.engine4AuthorizedReactionParticipation ||
+    fib?.confluence?.context?.volume?.engine4AuthorizedReactionParticipation ||
+    getStrategyRoot(fib)?.confluence?.context?.volume?.engine4AuthorizedReactionParticipation ||
+    null
+  );
+}
+
 function getEngine4FastImbalanceParticipation(fib) {
   const confluence = getConfluence(fib);
 
@@ -3240,12 +3251,119 @@ if (fastReaction?.active === true) {
   };
 }
 function buildEngine4ContextSection(fib) {
+  const authorizedParticipation =
+    getEngine4AuthorizedReactionParticipation(fib);
+
   const fastParticipation = getEngine4FastImbalanceParticipation(fib);
   const currentScalpParticipation = getEngine4CurrentScalpParticipation(fib);
   const lifecycleParticipation = getEngine22LifecycleParticipation(fib);
   const volume = getEngine5Volume(fib);
   const control = getEngine26ControlLevelContext(fib);
   const location = getEngine26LocationContext(fib);
+
+  if (authorizedParticipation?.active === true) {
+    const allowed = authorizedParticipation.allowed === true;
+    const hardBlocked = authorizedParticipation.hardBlocked === true;
+    const confirmed =
+      authorizedParticipation.participationConfirmed === true ||
+      authorizedParticipation.confirmed === true;
+
+    const currentBarVolume = Number(authorizedParticipation.currentBarVolume);
+    const priorBarVolume = Number(authorizedParticipation.priorBarVolume);
+    const volumeRatio = Number(
+      authorizedParticipation.rawCurrentVsPriorVolumeRatio ??
+        authorizedParticipation.currentVsPriorVolumeRatio
+    );
+
+    const expectedParticipationDirection =
+      authorizedParticipation.expectedParticipationDirection ||
+      authorizedParticipation.participationEvaluationDirection ||
+      "—";
+
+    const plainLines =
+      Array.isArray(authorizedParticipation.plainEnglishLines) &&
+      authorizedParticipation.plainEnglishLines.length > 0
+        ? authorizedParticipation.plainEnglishLines
+        : [
+            "Engine 4 is watching volume.",
+            "Volume is weak right now.",
+            "Engine 4 is not killing the setup.",
+            "Engine 4 is waiting because Engine 3 reaction is not confirmed.",
+            "No permission. No execution.",
+          ];
+
+    return {
+      number: 0,
+      icon: "④",
+      title: "Engine 4 — Strategy 1 Participation",
+      severity: hardBlocked
+        ? "danger"
+        : confirmed
+        ? "bullish"
+        : authorizedParticipation.participationDeveloping === true
+        ? "blue"
+        : "warning",
+
+      fields: [
+        ["Mode", "AUTHORIZED STRATEGY 1"],
+        [
+          "State",
+          formatUpper(
+            authorizedParticipation.participationState,
+            "PARTICIPATION WAITING"
+          ),
+        ],
+        [
+          "Quality",
+          formatUpper(
+            authorizedParticipation.participationQuality,
+            "WEAK"
+          ),
+        ],
+        ["Allowed", formatBool(allowed)],
+        ["Hard Block", formatBool(hardBlocked)],
+        ["Confirmed", formatBool(confirmed)],
+
+        [
+          "Direction",
+          formatUpper(authorizedParticipation.direction, "NEUTRAL"),
+        ],
+        [
+          "Expected",
+          formatUpper(expectedParticipationDirection, "—"),
+        ],
+        [
+          "Contact",
+          formatUpper(authorizedParticipation.contactState, "—"),
+        ],
+        [
+          "Chain Armed",
+          formatBool(authorizedParticipation.chainArmed, "—"),
+        ],
+
+        [
+          "Current Vol",
+          Number.isFinite(currentBarVolume)
+            ? `${formatScore(currentBarVolume)} now`
+            : "—",
+        ],
+        [
+          "Prior Vol",
+          Number.isFinite(priorBarVolume)
+            ? formatScore(priorBarVolume)
+            : "—",
+        ],
+        [
+          "Vol Ratio",
+          Number.isFinite(volumeRatio)
+            ? `${formatNumber(volumeRatio, 2)}x`
+            : "—",
+        ],
+      ],
+
+      lines: plainLines,
+    };
+  }
 
   if (fastParticipation?.active === true) {
     const allowed = fastParticipation.allowed === true;
