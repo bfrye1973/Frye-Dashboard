@@ -14,12 +14,16 @@ const ROUTE = `${API_ROOT}/api/v1/engine25/full-dashboard`;
 const FONT = "Arial, Helvetica, sans-serif";
 
 function fmt(value, decimals = 2) {
+  if (value === null || value === undefined || value === "") return "—";
+
   const n = Number(value);
   if (!Number.isFinite(n)) return "—";
   return n.toFixed(decimals);
 }
 
 function fmtPct(value, decimals = 2) {
+  if (value === null || value === undefined || value === "") return "—";
+
   const n = Number(value);
   if (!Number.isFinite(n)) return "—";
   return `${n >= 0 ? "+" : ""}${n.toFixed(decimals)}%`;
@@ -85,6 +89,71 @@ function colorForState(state) {
   return "#94a3b8";
 }
 
+
+function macroCreditHealthState(score) {
+  const n = Number(score);
+
+  if (!Number.isFinite(n)) {
+    return {
+      label: "UNAVAILABLE",
+      color: "#64748b",
+      read: "Macro credit-health score is unavailable.",
+    };
+  }
+
+  if (n >= 75) {
+    return {
+      label: "LOW STRESS / HEALTHY",
+      color: "#22c55e",
+      read:
+        "Macro credit stress is low. Credit conditions are calm and supportive.",
+    };
+  }
+
+  if (n >= 50) {
+    return {
+      label: "NORMAL / WATCH",
+      color: "#fbbf24",
+      read:
+        "Macro credit conditions are normal but should be watched for deterioration.",
+    };
+  }
+
+  return {
+    label: "HIGH STRESS",
+    color: "#ef4444",
+    read:
+      "Macro credit conditions are stressed and require defensive attention.",
+  };
+}
+
+function macroInputDisplayState(item) {
+  const key = String(item?.key || "").toUpperCase();
+  const value = Number(item?.value ?? item?.close);
+
+  if (!Number.isFinite(value)) return "UNAVAILABLE";
+
+  if (key === "BAMLH0A0HYM2") {
+    if (value <= 3) return "CALM";
+    if (value < 4.5) return "NORMAL / WATCH";
+    return "ELEVATED STRESS";
+  }
+
+  if (key === "NFCI") {
+    if (value <= 0) return "SUPPORTIVE";
+    if (value <= 0.5) return "TIGHTENING WATCH";
+    return "TIGHT";
+  }
+
+  if (key === "STLFSI4") {
+    if (value <= 0.5) return "LOW STRESS";
+    if (value < 1) return "STRESS WATCH";
+    return "HIGH STRESS";
+  }
+
+  return cleanLabel(item?.state);
+}
+
 function Card({ children, style = {} }) {
   return (
     <div
@@ -121,9 +190,10 @@ function KV({ label, value, color = "#e2e8f0" }) {
   );
 }
 
-function MetricCard({ item, marketProxy = false }) {
+function MetricCard({ item, marketProxy = false, displayState = null }) {
   const value = item?.close ?? item?.value;
-  const stateColor = colorForState(item?.state);
+  const shownState = displayState || cleanLabel(item?.state);
+  const stateColor = colorForState(shownState);
 
   return (
     <Card style={{ padding: 12, display: "grid", gap: 8 }}>
@@ -168,7 +238,7 @@ function MetricCard({ item, marketProxy = false }) {
             textAlign: "right",
           }}
         >
-          {cleanLabel(item?.state)}
+          {shownState}
         </div>
       </div>
 
@@ -298,7 +368,14 @@ function MetricCard({ item, marketProxy = false }) {
   );
 }
 
-function GroupColumn({ title, score, items, marketProxyKeys = [] }) {
+function GroupColumn({
+  title,
+  score,
+  items,
+  marketProxyKeys = [],
+  macroHealth = false,
+}) {
+  const macroState = macroHealth ? macroCreditHealthState(score) : null;
   return (
     <div style={{ display: "grid", gap: 10, alignContent: "start" }}>
       <div
@@ -334,11 +411,56 @@ function GroupColumn({ title, score, items, marketProxyKeys = [] }) {
         </div>
       </div>
 
+      {macroState && (
+        <div
+          style={{
+            border: "1px solid rgba(34,197,94,0.28)",
+            borderRadius: 10,
+            background: "rgba(20,83,45,0.18)",
+            padding: 10,
+            display: "grid",
+            gap: 5,
+          }}
+        >
+          <div
+            style={{
+              color: macroState.color,
+              fontSize: 13,
+              fontWeight: 900,
+              textTransform: "uppercase",
+            }}
+          >
+            State: {macroState.label}
+          </div>
+
+          <div
+            style={{
+              color: "#bbf7d0",
+              fontSize: 13,
+              lineHeight: 1.35,
+            }}
+          >
+            {macroState.read}
+          </div>
+
+          <div
+            style={{
+              color: "#94a3b8",
+              fontSize: 12,
+              lineHeight: 1.3,
+            }}
+          >
+            Score direction: 100 = lowest stress / healthiest · 0 = highest stress
+          </div>
+        </div>
+      )}
+
       {(items || []).map((item) => (
         <MetricCard
           key={item.key}
           item={item}
           marketProxy={marketProxyKeys.includes(item.key)}
+          displayState={macroHealth ? macroInputDisplayState(item) : null}
         />
       ))}
     </div>
@@ -439,7 +561,7 @@ export default function Engine25CreditStressDetail() {
                 fontSize: 14,
               }}
             >
-              Full learning view · Refreshes every 60 seconds
+              Full learning view · Credit Stress is inverse-scored · Refreshes every 60 seconds
             </div>
           </div>
 
@@ -522,7 +644,7 @@ export default function Engine25CreditStressDetail() {
 
                 {[
                   ["Credit Fragility", scores.creditFragility],
-                  ["Macro Credit Stress", scores.creditStress],
+                  ["Macro Credit Health", scores.creditStress],
                   ["Bond Market", scores.bondMarket],
                   ["Liquidity", scores.liquidity],
                 ].map(([label, score]) => (
@@ -578,9 +700,10 @@ export default function Engine25CreditStressDetail() {
               />
 
               <GroupColumn
-                title="Macro Credit Stress"
+                title="Macro Credit Health"
                 score={groups?.macroCreditStress?.score}
                 items={groups?.macroCreditStress?.items}
+                macroHealth
               />
 
               <GroupColumn
@@ -618,7 +741,7 @@ export default function Engine25CreditStressDetail() {
                 }}
               >
                 Credit ETFs are weak, regional banks remain strong, macro credit
-                stress is calm, Treasury bonds are under pressure, the yield curve
+                health is strong with low stress, Treasury bonds are under pressure, the yield curve
                 is not inverted, liquidity is mixed, and systemic stress is not
                 confirmed.
               </div>
