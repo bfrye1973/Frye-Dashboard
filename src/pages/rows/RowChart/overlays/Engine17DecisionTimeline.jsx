@@ -867,7 +867,7 @@ function buildLifecycleNextStepsSection(currentLifecycleState, fib) {
     `Must hold sweep zone: ${levels.mustHold}`,
     "Need Engine 3 reaction confirmation",
     "Need Engine 4 clean participation",
-    "Engine 15ES must upgrade from WATCH to READY",
+    "Engine 6 remains final paper permission authority.",
     "No chase after vertical reclaim. No execution.",
   ].filter(Boolean);
 
@@ -1736,6 +1736,26 @@ function buildPermissionSection(permission, engine15) {
 
   const paperDecision = String(paper?.decision || "").toUpperCase();
   const paperDirection = String(paper?.direction || "").toUpperCase();
+  const permissionAuthority =
+    permission?.authority ||
+    paper?.authority ||
+    (
+      permission?.engine6Authority === true ||
+      paper?.engine6Authority === true ||
+      paper?.engine15Bypassed === true ||
+      paper?.engine15FastLaneExcluded === true
+        ? "Engine 6 Fast Lane"
+        : permission?.engine15Authority === true
+        ? "Engine 15"
+        : permission?.engine5Authority === true
+        ? "Engine 5"
+        : "—"
+    );
+
+  const permissionAuthoritySource =
+    permission?.authoritySource ||
+    paper?.authoritySource ||
+    null;
 
   const isStructuralFastWatch =
     paperDecision === "STRUCTURAL_FAST_WATCH" ||
@@ -4100,8 +4120,10 @@ function buildEngine22SafetySection(degreeStates) {
     lines: [
       "Engine 22 is structural only.",
       "No execution permission is created.",
-      "Engine 15 controls readiness.",
-      "Engine 6 controls final permission.",
+      "Engine 3 controls reaction confirmation.",
+      "Engine 4 controls participation confirmation.",
+      "Engine 6 controls final paper permission.",
+      "Engine 15 is bypassed for Strategy 1 / Subminute / Minute / Minor lanes.",
       reasonCodes.length
         ? `Engine 22 reasons: ${reasonCodes.slice(0, 8).map(formatText).join(", ")}`
         : null,
@@ -4402,7 +4424,7 @@ function buildEngine22CompactStructureSection(degreeStates) {
             subminuteRead ? formatText(subminuteRead) : "Subminute tactical watch"
           }.`
         : "Nested: Minor E leg → Minute internal ABC down → Subminute tactical timing.",
-      "No execution permission is created. Engine 15 controls readiness. Engine 6 controls final permission.",
+      "No execution permission is created. Engine 3 confirms reaction, Engine 4 confirms participation, and Engine 6 controls final paper permission. Engine 15 is bypassed for Strategy 1 / Subminute / Minute / Minor lanes.",
     ].filter(Boolean),
   };
 }
