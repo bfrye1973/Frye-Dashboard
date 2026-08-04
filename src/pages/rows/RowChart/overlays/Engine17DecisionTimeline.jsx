@@ -1794,7 +1794,7 @@ function buildPermissionSection(permission, engine15) {
     watchOnly
   ) {
     permissionLine =
-      "REDUCE — watch only, no execution. Engine 15ES is WATCH, not READY.";
+      "REDUCE — watch only, no execution. Waiting for Engine 3 reaction, Engine 4 participation, and Engine 6 final paper permission.";
   } else if (watchOnly) {
     permissionLine =
       "Engine 6 will not allow execution because this is watch only.";
@@ -1827,19 +1827,17 @@ function buildPermissionSection(permission, engine15) {
       ["Real Strategy", formatUpper(realStrategy, "NONE")],
       ["Executable", formatBool(permission.executable)],
       ["Watch Only", formatBool(permission.watchOnly)],
-
+     
+      ["Authority", permissionAuthority],
       [
-        "Authority",
-        permission.engine15Authority === true
-          ? "Engine 15"
-          : permission.engine5Authority === true
-          ? "Engine 5"
-          : "—",
-      ],
-    ],
-    lines: []  
-  };
-}
+       "Authority Source",
+       permissionAuthoritySource
+         ? formatUpper(permissionAuthoritySource)
+         : "—",
+      ],         
+      lines: []  
+    };
+   }
 function buildNextStepsSection({
   waveOpportunity,
   engine15,
@@ -2016,7 +2014,7 @@ function buildNextStepsSection({
   }
 
   if (!isReadyState(engine15?.readinessLabel)) {
-    steps.push("Engine 15ES must upgrade from WATCH to READY");
+    steps.push("Engine 6 remains final paper permission authority");
   }
 
   if (!actionLevels.length && !steps.length) {
