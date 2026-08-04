@@ -1827,17 +1827,18 @@ function buildPermissionSection(permission, engine15) {
       ["Real Strategy", formatUpper(realStrategy, "NONE")],
       ["Executable", formatBool(permission.executable)],
       ["Watch Only", formatBool(permission.watchOnly)],
-     
+
       ["Authority", permissionAuthority],
       [
-       "Authority Source",
-       permissionAuthoritySource
-         ? formatUpper(permissionAuthoritySource)
-         : "—",
-      ],         
-      lines: []  
-    };
-   }
+        "Authority Source",
+        permissionAuthoritySource
+          ? formatUpper(permissionAuthoritySource)
+          : "—",
+      ],
+    ],
+    lines: [],
+  };
+}
 function buildNextStepsSection({
   waveOpportunity,
   engine15,
