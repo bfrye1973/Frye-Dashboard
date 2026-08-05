@@ -694,11 +694,28 @@ const engine22WaveStrategy =
      permission: node?.permission || null,
      engine16: node?.engine16 || null,
      engine25Context: node?.engine25Context || null,
-     engine26ImbalanceWatch: node?.engine26ImbalanceWatch || null,
+
+     // Canonical Engine 26A Strategy 1 location.
+     engine26LocationCandidate:
+       minuteStrategy?.engine26LocationCandidate ||
+       node?.engine26LocationCandidate ||
+       null,
+
+     // Canonical Engine 26A handoff to Engine 3.
+     engine26ReactionHandoff:
+       minuteStrategy?.engine26ReactionHandoff ||
+       node?.engine26ReactionHandoff ||
+       null,
+
+     // Compatibility and diagnostic Engine 26 objects.
+     engine26ImbalanceWatch:
+       node?.engine26ImbalanceWatch || null,
+
      engine26StructuralContext:
        node?.engine26StructuralContext ||
        node?.engine26ImbalanceWatch?.structuralPlaybook ||
        null,
+
      engine26TradePlanPreview:
        node?.engine26TradePlanPreview ||
        node?.engine26ImbalanceWatch?.tradePlanPreview ||
