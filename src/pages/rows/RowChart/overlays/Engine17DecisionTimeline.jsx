@@ -57,6 +57,15 @@ function formatNumber(value, digits = 2, fallback = "—") {
   return Number.isFinite(n) ? n.toFixed(digits) : fallback;
 }
 
+function formatOptionalNumber(value, digits = 2, fallback = "—") {
+  if (value === null || value === undefined || value === "") {
+    return fallback;
+  }
+
+  const n = Number(value);
+  return Number.isFinite(n) ? n.toFixed(digits) : fallback;
+}
+
 function formatScore(value, fallback = "—") {
   const n = Number(value);
   return Number.isFinite(n) ? Math.round(n).toString() : fallback;
@@ -257,36 +266,15 @@ function getEngine26Strategy1Setup(fib) {
   return getEngine26TradePlanPreview(fib)?.strategy1Setup || null;
 }
 
-function getEngine26Strategy1Setup(fib) {
-  return getEngine26TradePlanPreview(fib)?.strategy1Setup || null;
-}
-
 function getMinuteEngine26LocationCandidate(fib) {
   const root = getStrategyRoot(fib);
   const strategyId = "intraday_scalp@10m";
 
   return (
-    root?.strategies?.[strategyId]
-      ?.engine26LocationCandidate ||
-
-    fib?.strategies?.[strategyId]
-      ?.engine26LocationCandidate ||
-
+    root?.strategies?.[strategyId]?.engine26LocationCandidate ||
+    fib?.strategies?.[strategyId]?.engine26LocationCandidate ||
     root?.engine26LocationCandidate ||
-
     fib?.engine26LocationCandidate ||
-
-    null
-  );
-}
-
-function getEngine26StructuralContext(fib) {
-  const root = getStrategyRoot(fib);
-
-  return (
-    root?.engine26StructuralContext ||
-    fib?.engine26StructuralContext ||
-    root?.engine26?.structuralContext ||
     null
   );
 }
@@ -4185,14 +4173,6 @@ function buildEngine26ControlMapSection(fib) {
   const legacyStrategy1Setup =
     getEngine26Strategy1Setup(fib);
 
-  /*
-   * Legacy Engine 26 objects remain compatibility-only fallbacks.
-   * They must not control the Minute Strategy 1 map when the child exists.
-   */
-  const structural = getEngine26StructuralContext(fib);
-  const legacyControl = getEngine26ControlLevelContext(fib);
-  const legacyLocation = getEngine26LocationContext(fib);
-
   const canonicalCandidateAttached =
     locationCandidate &&
     typeof locationCandidate === "object" &&
@@ -4202,211 +4182,371 @@ function buildEngine26ControlMapSection(fib) {
     locationCandidate.strategyId ===
       "intraday_scalp@10m";
 
-  if (!strategy1Attached) {
-    if (!structural && !legacyControl && !legacyLocation && !generalContext) {
-      return null;
-    }
+  /*
+   * Compatibility fallback:
+   * Use the legacy Strategy 1 preview only when the canonical
+   * Engine 26A location candidate is completely unavailable.
+   */
+  const fallbackCandidateAttached =
+    !canonicalCandidateAttached &&
+    legacyStrategy1Setup &&
+    typeof legacyStrategy1Setup === "object" &&
+    Boolean(legacyStrategy1Setup.candidateId) &&
+    Boolean(legacyStrategy1Setup.zoneId) &&
+    legacyStrategy1Setup.laneId === "minute" &&
+    legacyStrategy1Setup.strategyId ===
+      "intraday_scalp@10m";
 
+  if (
+    !canonicalCandidateAttached &&
+    !fallbackCandidateAttached
+  ) {
     return {
       number: 2,
       icon: "⑳",
-      title: "Control Map — Engine 26",
+      title: "Engine 26A — Meaningful Trade Location",
       severity: "warning",
       fields: [
-        ["Strategy 1", "WAITING FOR CHILD PREVIEW"],
         [
-          "General Context",
-          generalContext?.zone?.lo != null &&
-          generalContext?.zone?.hi != null
-            ? `${formatNumber(generalContext.zone.lo)}–${formatNumber(
-                generalContext.zone.hi
-              )}`
-            : "—",
+          "Question",
+          "Where is the meaningful trade location?",
         ],
-        [
-          "Context Direction",
-          formatUpper(generalContext?.direction, "—"),
-        ],
-        [
-          "Legacy Status",
-          formatUpper(
-            structural?.status ||
-              legacyControl?.currentControlState ||
-              legacyLocation?.locationRead,
-            "—"
-          ),
-        ],
+        ["Location Source", "NOT ATTACHED"],
+        ["Location Status", "WAITING FOR LOCATION"],
       ],
       lines: [
-        "The general Engine 26 parent remains context only.",
-        "The Minute Strategy 1 child preview is not attached, so legacy fields are not promoted into Strategy 1.",
-        "No permission. No ticket. No execution.",
+        "Canonical Engine 26A Strategy 1 location is not attached.",
+        "No legacy or parent context is being promoted into the active Strategy 1 location.",
+        "Location only — no permission or execution.",
       ],
     };
   }
 
-  const entryZone = strategy1Setup?.entryZone || null;
-  const targetZone = strategy1Setup?.targetZone || null;
-  const reaction = strategy1Setup?.reaction || null;
-  const participation = strategy1Setup?.participation || null;
+  const candidate =
+    canonicalCandidateAttached
+      ? locationCandidate
+      : legacyStrategy1Setup;
 
-  const childInvalidated =
-    strategy1Setup?.completedCloseInvalidationConfirmed === true ||
-    String(strategy1Setup?.status || "").toUpperCase() === "INVALIDATED";
+  const sourceLabel =
+    canonicalCandidateAttached
+      ? "CANONICAL ENGINE26 LOCATION CANDIDATE"
+      : "LEGACY STRATEGY 1 PREVIEW";
 
-  const identityMismatch =
-    reaction?.candidateId != null &&
-    participation?.candidateId != null &&
+  const entryZone =
+    candidate?.entryZone || null;
+
+  const zoneLow =
+    entryZone?.low ??
+    candidate?.location?.lo ??
+    null;
+
+  const zoneHigh =
+    entryZone?.high ??
+    candidate?.location?.hi ??
+    null;
+
+  const zoneMidline =
+    entryZone?.midline ??
+    candidate?.location?.mid ??
+    null;
+
+  const negotiatedZoneText =
+    zoneLow != null &&
+    zoneHigh != null &&
+    Number.isFinite(Number(zoneLow)) &&
+    Number.isFinite(Number(zoneHigh))
+      ? `${formatOptionalNumber(zoneLow)}–${formatOptionalNumber(
+          zoneHigh
+        )}`
+      : "—";
+
+  const relation =
+    candidate?.location?.relation ||
+    candidate?.relation ||
+    "UNKNOWN";
+
+  const distancePoints =
+    candidate?.location?.distancePoints ??
+    candidate?.distancePoints ??
+    null;
+
+  const completedCloseInvalidated =
+    canonicalCandidateAttached
+      ? candidate?.invalidationFacts
+          ?.completedCloseInvalidationConfirmed === true
+      : candidate?.completedCloseInvalidationConfirmed === true;
+
+  const locationStatus =
+    completedCloseInvalidated
+      ? "INVALIDATED BY COMPLETED CLOSE"
+      : formatUpper(
+          candidate?.status,
+          "UNKNOWN"
+        );
+
+  const reactionIdentityMatches =
+    !reactionHandoff ||
     (
-      reaction.candidateId !== strategy1Setup.candidateId ||
-      participation.candidateId !== strategy1Setup.candidateId ||
-      reaction.zoneId !== strategy1Setup.zoneId ||
-      participation.zoneId !== strategy1Setup.zoneId
+      reactionHandoff.candidateId ===
+        candidate.candidateId &&
+      reactionHandoff.zoneId ===
+        candidate.zoneId &&
+      reactionHandoff.laneId ===
+        candidate.laneId &&
+      reactionHandoff.strategyId ===
+        candidate.strategyId
     );
 
-  const hardBlocked =
-    participation?.hardBlocked === true;
+  const expectedReactions =
+    reactionIdentityMatches
+      ? asArray(
+          reactionHandoff?.expectedReactions
+        )
+      : [];
 
-  const reactionConfirmed =
-    reaction?.confirmed === true;
+  const engine3AuthorizationText =
+    !reactionIdentityMatches
+      ? "IDENTITY MISMATCH — HANDOFF HIDDEN"
+      : reactionHandoff
+          ?.authorizeEngine3Evaluation === true
+      ? "AUTHORIZED — WAITING FOR ENGINE 3 REACTION"
+      : canonicalCandidateAttached
+      ? "LOCATION IDENTIFIED — EVALUATION NOT YET AUTHORIZED"
+      : "COMPATIBILITY LOCATION — AUTHORIZATION UNAVAILABLE";
 
-  const participationConfirmed =
-    participation?.confirmed === true;
+  const identityText =
+    canonicalCandidateAttached
+      ? reactionIdentityMatches
+        ? "COMPLETE AND CONSISTENT"
+        : "CANDIDATE COMPLETE — HANDOFF MISMATCH"
+      : "COMPATIBILITY FALLBACK";
 
-  const fullyConfirmed =
-    reactionConfirmed &&
-    participationConfirmed;
+  const directionBias =
+    candidate?.directionBias ??
+    candidate?.direction ??
+    "NEUTRAL";
+
+  const directionState =
+    candidate?.directionState ??
+    "OBSERVING_ZONE_REACTION";
+
+  const directionalResolved =
+    candidate?.directionalResolved === true;
 
   const severity =
-    childInvalidated || identityMismatch || hardBlocked
+    completedCloseInvalidated ||
+    !reactionIdentityMatches
       ? "danger"
-      : fullyConfirmed
-      ? "bullish"
-      : "teal";
-
-  const childZoneText =
-    entryZone?.low != null && entryZone?.high != null
-      ? `${formatNumber(entryZone.low)}–${formatNumber(entryZone.high)}`
-      : strategy1Setup?.location?.lo != null &&
-        strategy1Setup?.location?.hi != null
-      ? `${formatNumber(strategy1Setup.location.lo)}–${formatNumber(
-          strategy1Setup.location.hi
-        )}`
-      : "—";
-
-  const targetZoneText =
-    targetZone?.low != null && targetZone?.high != null
-      ? `${formatNumber(targetZone.low)}–${formatNumber(targetZone.high)}`
-      : "—";
-
-  const parentZoneText =
-    generalContext?.zone?.lo != null &&
-    generalContext?.zone?.hi != null
-      ? `${formatNumber(generalContext.zone.lo)}–${formatNumber(
-          generalContext.zone.hi
-        )}`
-      : "—";
-
-  const strategyState =
-    childInvalidated
-      ? "INVALIDATED BY COMPLETED CLOSE"
-      : identityMismatch
-      ? "IDENTITY MISMATCH"
-      : hardBlocked
-      ? "HARD BLOCKED"
-      : fullyConfirmed
-      ? "REACTION AND PARTICIPATION CONFIRMED"
-      : reactionConfirmed
-      ? "REACTION CONFIRMED — PARTICIPATION WAITING"
-      : participationConfirmed
-      ? "PARTICIPATION CONFIRMED — REACTION WAITING"
-      : "WAITING FOR REACTION AND PARTICIPATION";
+      : reactionHandoff
+          ?.authorizeEngine3Evaluation === true
+      ? "teal"
+      : "warning";
 
   return {
     number: 2,
     icon: "⑳",
     title: "Engine 26A — Meaningful Trade Location",
     severity,
+
     fields: [
-      ["Lane", formatUpper(strategy1Setup.laneId, "MINUTE")],
-      ["Strategy", formatUpper(strategy1Setup.strategyId)],
-      ["Setup", formatUpper(strategy1Setup.setupClass)],
-      ["Grade", formatUpper(strategy1Setup.setupGrade)],
-      ["Direction", formatUpper(strategy1Setup.direction, "LONG")],
-      ["State", strategyState],
-      ["Current", formatNumber(strategy1Setup.currentPrice)],
-      ["Entry Zone", childZoneText],
-      ["Entry Midline", formatNumber(entryZone?.midline)],
-      ["Trigger", formatNumber(strategy1Setup.triggerLevel)],
-      ["Reclaim", formatNumber(strategy1Setup.reclaimBoundary)],
+      [
+        "Question",
+        "Where is the meaningful trade location?",
+      ],
+
+      ["Lane", formatUpper(candidate?.laneId, "MINUTE")],
+      ["Strategy", formatUpper(candidate?.strategyId)],
+      ["Symbol", formatUpper(candidate?.symbol, "ES")],
+      ["Setup", formatUpper(candidate?.setupClass)],
+      ["Grade", formatUpper(candidate?.setupGrade)],
+
+      ["Identity", identityText],
+      ["Candidate ID", candidate?.candidateId || "—"],
+      ["Zone ID", candidate?.zoneId || "—"],
+
+      [
+        "Location Source",
+        canonicalCandidateAttached
+          ? formatUpper(
+              candidate?.location?.source,
+              sourceLabel
+            )
+          : sourceLabel,
+      ],
+      [
+        "Location Type",
+        formatUpper(
+          candidate?.location?.type,
+          "NEGOTIATED"
+        ),
+      ],
+      [
+        "Location Active",
+        formatBool(candidate?.active, "NO"),
+      ],
+      ["Location Status", locationStatus],
+
+      [
+        "Current Price",
+        formatOptionalNumber(
+          candidate?.currentPrice
+        ),
+      ],
+      ["Negotiated Zone", negotiatedZoneText],
+      [
+        "Zone Midline",
+        formatOptionalNumber(zoneMidline),
+      ],
+      ["Relation", formatUpper(relation)],
+      [
+        "Distance",
+        distancePoints != null &&
+        Number.isFinite(Number(distancePoints))
+          ? `${formatOptionalNumber(
+              distancePoints
+            )} pts`
+          : "—",
+      ],
+
+      [
+        "Tactical Direction",
+        formatUpper(directionBias, "NEUTRAL"),
+      ],
+      [
+        "Direction State",
+        formatUpper(
+          directionState,
+          "OBSERVING ZONE REACTION"
+        ),
+      ],
+      [
+        "Direction Resolved",
+        formatBool(
+          directionalResolved,
+          "NO"
+        ),
+      ],
+
+      [
+        "Trigger",
+        formatOptionalNumber(
+          candidate?.triggerLevel
+        ),
+      ],
+      [
+        "Acceptance",
+        formatOptionalNumber(
+          candidate?.acceptanceBoundary
+        ),
+      ],
+      [
+        "Reclaim",
+        formatOptionalNumber(
+          candidate?.reclaimBoundary
+        ),
+      ],
       [
         "Invalidation",
-        formatNumber(strategy1Setup.locationInvalidationBoundary),
+        formatOptionalNumber(
+          candidate
+            ?.locationInvalidationBoundary
+        ),
       ],
       [
         "Completed-Close Invalidated",
         formatBool(
-          strategy1Setup.completedCloseInvalidationConfirmed,
+          completedCloseInvalidated,
           "NO"
         ),
       ],
-      ["Target Zone", targetZoneText],
-      ["Target Midline", formatNumber(targetZone?.midline)],
-      ["Reaction", formatUpper(reaction?.status, "WAITING")],
+
       [
-        "Reaction Confirmed",
-        formatBool(reaction?.confirmed, "NO"),
+        "Expected Reaction",
+        reactionIdentityMatches
+          ? formatUpper(
+              reactionHandoff
+                ?.expectedReactionDirection,
+              "NEUTRAL"
+            )
+          : "HANDOFF IDENTITY MISMATCH",
       ],
       [
-        "Participation",
-        formatUpper(participation?.status, "WAITING"),
+        "Engine 3 Handoff",
+        engine3AuthorizationText,
       ],
       [
-        "Participation Confirmed",
-        formatBool(participation?.confirmed, "NO"),
+        "Handoff Status",
+        reactionIdentityMatches
+          ? formatUpper(
+              reactionHandoff?.status,
+              "—"
+            )
+          : "—",
       ],
-      ["Parent Zone", parentZoneText],
       [
-        "Parent Direction",
-        `${formatUpper(generalContext?.direction, "—")} — CONTEXT ONLY`,
+        "Chain Armed",
+        reactionIdentityMatches
+          ? formatBool(
+              reactionHandoff?.chainArmed,
+              "NO"
+            )
+          : "—",
+      ],
+      [
+        "Contact State",
+        reactionIdentityMatches
+          ? formatUpper(
+              reactionHandoff?.contactState,
+              "—"
+            )
+          : "—",
       ],
     ],
+
     lines: [
-      `Strategy 1 is a ${formatUpper(
-        strategy1Setup.direction,
-        "LONG"
-      )} tactical setup owned by the Minute lane.`,
-      generalContext
-        ? `General parent context remains ${formatUpper(
-            generalContext.direction,
-            "—"
-          )} at ${parentZoneText}. It does not control Strategy 1 direction.`
+      `Current negotiated location: ${negotiatedZoneText}.`,
+
+      `Price relation: ${formatText(
+        relation,
+        "UNKNOWN"
+      )}${
+        distancePoints != null &&
+        Number.isFinite(Number(distancePoints))
+          ? ` at ${formatOptionalNumber(
+              distancePoints
+            )} points from the zone`
+          : ""
+      }.`,
+
+      expectedReactions.length
+        ? `Expected reaction states: ${expectedReactions
+            .map((value) => formatText(value))
+            .join(", ")}.`
         : null,
-      "An intrabar breach alone does not invalidate Strategy 1.",
-      "Invalidation requires completedCloseInvalidationConfirmed === true.",
-      reactionConfirmed
-        ? "Engine 3 authorized reaction is confirmed."
-        : `Engine 3 reaction is waiting: ${formatText(
-            reaction?.status,
-            "WAITING"
-          )}.`,
-      participationConfirmed
-        ? "Engine 4 authorized participation is confirmed."
-        : `Engine 4 participation is waiting: ${formatText(
-            participation?.status,
-            "PARTICIPATION WAITING"
-          )}.`,
-      targetZone
-        ? `Strategy 1 target zone: ${targetZoneText}.`
-        : "Strategy 1 target zone is not attached.",
-      identityMismatch
-        ? "Strategy 1 identity mismatch detected. The map is blocked."
-        : null,
-      "Engine 26 supplies the map only. Engine 6 remains final permission authority.",
-      "No permission. No ticket. No execution.",
+
+      completedCloseInvalidated
+        ? "Location invalidated by completed close."
+        : "Location remains valid under the completed-close rule.",
+
+      reactionIdentityMatches &&
+      reactionHandoff
+        ?.authorizeEngine3Evaluation === true
+        ? "Engine 3 evaluation is authorized. Reaction is not confirmed by Engine 26A."
+        : !reactionIdentityMatches
+        ? "Reaction handoff identity does not match the canonical location."
+        : "Engine 3 evaluation is not yet authorized.",
+
+      canonicalCandidateAttached
+        ? "Canonical Engine 26A Strategy 1 location is in control."
+        : "Canonical location is unavailable; the card is visibly using the legacy Strategy 1 preview fallback.",
+
+      "Engine 26A owns location and reaction-handoff authorization only.",
+
+      "No reaction confirmation, participation confirmation, permission, sizing, official plan, ticket, order, fill, or execution is created.",
     ].filter(Boolean),
   };
 }
+
 function buildEngine22CompactStructureSection(degreeStates) {
   const minute = degreeStates?.minute || null;
 
