@@ -707,15 +707,12 @@ const engine22WaveStrategy =
        node?.engine26ReactionHandoff ||
        null,
 
-     // Compatibility and diagnostic Engine 26 objects.
-     engine26ImbalanceWatch:
-       node?.engine26ImbalanceWatch || null,
-
+     // Compatibility / diagnostic Engine 26 objects.
+     engine26ImbalanceWatch: node?.engine26ImbalanceWatch || null,
      engine26StructuralContext:
        node?.engine26StructuralContext ||
        node?.engine26ImbalanceWatch?.structuralPlaybook ||
        null,
-
      engine26TradePlanPreview:
        node?.engine26TradePlanPreview ||
        node?.engine26ImbalanceWatch?.tradePlanPreview ||
