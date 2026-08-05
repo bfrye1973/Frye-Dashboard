@@ -892,7 +892,7 @@ function WaveDegreeRow({ snapshot }) {
           fontWeight: 900,
         }}
       >
-        Engine 22 Wave Degrees unavailable
+        Minute structure unavailable — waiting for canonical Engine 22 degree state
       </div>
     );
   }
