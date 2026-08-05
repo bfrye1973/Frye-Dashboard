@@ -126,64 +126,12 @@ function getStrategyRoot(fib) {
 function getEngine22WaveStrategy(fib) {
   const root = getStrategyRoot(fib);
 
-  // RowChart attaches the canonical Strategy 1 object here. Compatibility
-  // aliases are diagnostic-only and never outrank this object.
-  return root?.engine22WaveStrategy || fib?.engine22WaveStrategy || null;
-}
-
-function getCanonicalMinuteStructure(fib) {
-  return getEngine22WaveStrategy(fib)?.degreeStates?.minute || null;
-}
-
-function readableEnum(value, fallback = "Unavailable") {
-  if (value == null || value === "") return fallback;
-  return String(value)
-    .toLowerCase()
-    .split("_")
-    .filter(Boolean)
-    .map((part, index) =>
-      index === 0 ? part.charAt(0).toUpperCase() + part.slice(1) : part
-    )
-    .join(" ");
-}
-
-function minuteInternal(minute, key) {
-  return minute?.internalStructure?.[key] ?? minute?.[key] ?? null;
-}
-
-function normalizeMinuteStructure(minute) {
-  if (!minute) return null;
-  const activeWave = minute?.activeWave ?? null;
-  const currentInternalWave = minuteInternal(minute, "currentInternalWave");
-  const nextExpectedInternalWave = minuteInternal(
-    minute,
-    "nextExpectedInternalWave"
+  return (
+    root?.engine22WaveStrategy ||
+    fib?.engine22WaveStrategy ||
+    root?.engine22 ||
+    null
   );
-  const classification = minuteInternal(minute, "classification");
-  return {
-    activeWave,
-    stateLabel: activeWave ? `${activeWave} active` : "Unknown",
-    structureLabel: readableEnum(classification, "Unknown"),
-    waveLabel: activeWave
-      ? `${activeWave} / ${currentInternalWave || "Unknown"} / ${
-          nextExpectedInternalWave || "Unknown"
-        } next`
-      : "Unknown",
-    statusLabel: readableEnum(minute?.stage, "Unknown"),
-    parentDegree: minuteInternal(minute, "parentDegree") || "Minute",
-    parentWave: minuteInternal(minute, "parentWave") || activeWave,
-    currentInternalWave,
-    nextExpectedInternalWave,
-    classification,
-    parentWaveComplete: minuteInternal(minute, "parentWaveComplete"),
-    parentTransitionPossible: minuteInternal(minute, "parentTransitionPossible"),
-    parentWaveStillValid: minuteInternal(minute, "parentWaveStillValid"),
-    transitionRisk: minuteInternal(minute, "transitionRisk"),
-    supportLevel: minuteInternal(minute, "supportLevel"),
-    invalidationLevel: minuteInternal(minute, "invalidationLevel"),
-    nextTarget: minute?.targetModel?.nextTarget ?? minute?.nextTarget ?? null,
-    targetModel: minute?.targetModel || null,
-  };
 }
 
 function getPostDownImpulseBounce(fib) {
@@ -1027,7 +975,7 @@ function buildIntradayScalpLifecycleViewSection(lifecycleViews) {
     title: "Intraday Scalp Lifecycle — Engine 22",
     severity: "teal",
     fields: [
-      ["Lifecycle", formatText(intraday.label, "Minute canonical transition watch")],
+      ["Lifecycle", formatText(intraday.label, "Minute W4 pullback watch")],
       ["Active Wave", `${formatUpper(intraday.activeDegree)} ${formatUpper(intraday.activeWave)}`],
       ["Parent", `${formatUpper(intraday.parentDegree)} ${formatUpper(intraday.parentWave)}`],
       ["Direction", formatUpper(intraday.direction, "LONG AFTER CONFIRMATION")],
@@ -1038,8 +986,8 @@ function buildIntradayScalpLifecycleViewSection(lifecycleViews) {
     ],
     lines: [
       intraday.summary ||
-        "Minute canonical transition is not active. No chase. No execution.",
-      `Minute canonical transition levels: ${formatFibLevels(pullbackLevels, {
+        "Minute W4 pullback is being watched. No chase. No execution.",
+      `Minute W4 pullback levels: ${formatFibLevels(pullbackLevels, {
         r236: "23.6%",
         r382: "38.2%",
         r500: "50.0%",
@@ -1112,7 +1060,7 @@ function buildCurrentLifecycleStateSection(currentLifecycleState, fib = null) {
     lines: [
       currentLifecycleState.headline || null,
       isCLowReaction
-        ? "Downside liquidity sweep / reclaim reaction detected. Do not chase the vertical reclaim."
+        ? "C-down liquidity sweep / reclaim reaction detected. Do not chase the vertical reclaim."
         : null,
       isW2Candidate
         ? "W2 is still a candidate. Engine 22 is not promoting this to W3 launch yet."
@@ -1628,62 +1576,101 @@ function buildEngine5Section(fib) {
   };
 }
 
-function buildEngine27TraderIntelligenceSection(fib) {
-  const wave = fib?.engine27WaveIntelligence || null;
-  const fibIntel = fib?.engine27FibIntelligence || null;
-  const minute = normalizeMinuteStructure(getCanonicalMinuteStructure(fib));
+function buildEngine27TraderIntelligenceSection(fib, decisionOverride = null) {
+  const decision = decisionOverride || getEngine27TraderDecision(fib);
 
-  if (!wave && !fibIntel && !minute) {
+  if (!decision) {
     return {
-      number: 0, icon: "㉗", title: "Engine 27A–D — Intelligence",
-      severity: "warning", fields: [],
-      lines: ["Waiting for canonical Engine 27 intelligence."],
+      number: 0,
+      icon: "㉗",
+      title: "Trader Intelligence — Engine 27",
+      severity: "warning",
+      fields: [
+        ["State", "WAITING FOR ENGINE 27 DATA"],
+        ["Direction", "—"],
+        ["Current Wave", "—"],
+        ["Internal Wave", "—"],
+        ["Next Action", "MONITOR"],
+      ],
+      lines: [
+        "Engine 27 Trader Intelligence is not present in the current RowChart overlay payload.",
+        "This card is ready for the canonical engine27TraderDecision object once RowChart passes it through.",
+      ],
     };
   }
 
+  const readiness = decision?.readiness || {};
+  const blockers = asArray(
+    decision?.blockers ||
+      decision?.blockingReasons ||
+      readiness?.blockers
+  );
+
+  const waitingFor = asArray(
+    decision?.waitingFor ||
+      decision?.needs ||
+      readiness?.waitingFor
+  );
+
+  const currentWave =
+    decision?.currentWave ||
+    decision?.wave?.currentWave ||
+    decision?.waveState?.currentWave ||
+    "—";
+
+  const internalWave =
+    decision?.internalWave ||
+    decision?.wave?.internalWave ||
+    decision?.waveState?.internalWave ||
+    "—";
+
+  const state =
+    decision?.state ||
+    decision?.decisionState ||
+    decision?.readinessState ||
+    "UNKNOWN";
+
+  const direction =
+    decision?.direction ||
+    decision?.bias ||
+    decision?.tradeDirection ||
+    "NEUTRAL";
+
+  const nextAction =
+    decision?.nextAction ||
+    decision?.action ||
+    decision?.recommendedAction ||
+    "MONITOR";
+
+  const severity =
+    decision?.executable === true
+      ? "bullish"
+      : blockers.length
+      ? "warning"
+      : "teal";
+
   return {
-    number: 0, icon: "㉗", title: "Engine 27A–D — Intelligence", severity: "teal",
+    number: 0,
+    icon: "㉗",
+    title: "Trader Intelligence — Engine 27",
+    severity,
     fields: [
-      ["Current parent wave", minute?.parentWave || wave?.currentParentWave || "Unknown"],
-      ["Current internal wave", minute?.currentInternalWave || wave?.currentInternalWave || "Unknown"],
-      ["Next internal event", minute?.nextExpectedInternalWave || wave?.nextExpectedInternalWave || "Unknown"],
-      ["Parent complete", formatBool(minute?.parentWaveComplete, "Unknown")],
-      ["Parent transition possible", formatBool(minute?.parentTransitionPossible, "Unknown")],
-      ["Classification", minute?.structureLabel || readableEnum(wave?.classification, "Unknown")],
-      ["Expected reaction", formatText(wave?.expectedReaction || fibIntel?.expectedReaction, "Not published")],
+      ["State", formatUpper(state)],
+      ["Direction", formatUpper(direction)],
+      ["Current Wave", formatUpper(currentWave)],
+      ["Internal Wave", formatUpper(internalWave)],
+      ["Next Action", formatUpper(nextAction)],
+      ["Executable", formatBool(decision?.executable, "NO")],
     ],
     lines: [
-      `Immediate event: internal ${minute?.currentInternalWave || "Unknown"} → ${minute?.nextExpectedInternalWave || "Unknown"}.`,
-      minute?.parentWaveComplete === true || minute?.parentTransitionPossible === true
-        ? "Parent transition: canonical condition active."
-        : "Parent transition: not active.",
-      wave?.marketStory || fibIntel?.marketStory || null,
+      waitingFor.length
+        ? `Waiting for: ${waitingFor.map(formatText).join(", ")}`
+        : null,
+      blockers.length
+        ? `Blockers: ${blockers.map(formatText).join(", ")}`
+        : "No active Engine 27 blockers reported.",
+      decision?.summary || decision?.traderMessage || null,
     ].filter(Boolean),
-  };
-}
-
-function buildEngine27ReadinessSection(fib) {
-  const decision = getEngine27TraderDecision(fib);
-  if (!decision) return {
-    number: 0, icon: "⚑", title: "Engine 27E — Final Readiness",
-    severity: "warning", fields: [], lines: ["Final readiness unavailable."],
-  };
-  const readiness = decision?.readiness || {};
-  const blockers = asArray(decision?.blockers || readiness?.blockers || decision?.reasonCodes);
-  return {
-    number: 0, icon: "⚑", title: "Engine 27E — Final Readiness",
-    severity: readiness?.invalidated === true ? "danger" : decision?.decisionState === "READY" ? "bullish" : "warning",
-    fields: [
-      ["Readiness", formatUpper(decision?.decisionState || decision?.state || "IDLE")],
-      ["Reaction ready", formatBool(readiness?.reactionReady, "NO")],
-      ["Participation ready", formatBool(readiness?.participationReady, "NO")],
-      ["Permission ready", formatBool(readiness?.permissionReady, "NO")],
-      ["Planner ready", formatBool(readiness?.plannerReady, "NO")],
-      ["Identity complete", formatBool(decision?.pipelineIdentity?.complete, "NO")],
-      ["Identity consistent", formatBool(decision?.pipelineIdentity?.consistent, "NO")],
-      ["Invalidated", formatBool(readiness?.invalidated ?? decision?.invalidated, "NO")],
-    ],
-    lines: blockers.length ? [`Blockers: ${blockers.map(formatText).join(", ")}`] : ["No final-readiness blockers published."],
   };
 }
 
@@ -1798,7 +1785,7 @@ function buildPermissionSection(permission, engine15) {
       "PAPER SHORT RESEARCH WATCH — short rejection / failed-acceptance research is active. No ticket. No execution.";
   } else if (isStructuralFastWatch) {
     permissionLine =
-      "STRUCTURAL FAST WATCH — Engine 26 downside-risk zone is active. Watch only. No ticket. No execution.";
+      "STRUCTURAL FAST WATCH — Engine 26 C-down danger zone is active. Watch only. No ticket. No execution.";
   } else if (executable) {
     permissionLine =
       "Engine 6 allows execution because setup and permission gates passed.";
@@ -1823,33 +1810,33 @@ function buildPermissionSection(permission, engine15) {
   return {
     number: 5,
     icon: "⬟",
-    title: "Engine 6 — Permission",
+    title: "Final Permission — Engine 6",
     severity,
     fields: [
-      ["Top-level permission", formatUpper(permission?.permission, "UNKNOWN")],
-      ["Paper decision", paperDecision || "Unavailable"],
-      ["Paper allowed", formatBool(paper?.allowed ?? paper?.paperAllowed, "NO")],
-      ["Planning allowed", formatBool(paper?.planningAllowed, "NO")],
-      ["Ticket allowed", formatBool(paper?.ticketAllowed, "NO")],
-      ["Executable", formatBool(permission?.executable ?? paper?.executable, "NO")],
-      ["Broker execution allowed", formatBool(permission?.brokerExecutionAllowed ?? paper?.brokerExecutionAllowed, "NO")],
+      ["Paper State", paperDecision ? formatUpper(paperDecision) : "—"],
+      ["Paper Direction", paperDirection ? formatUpper(paperDirection) : "—"],
+      [
+        "Paper Strategy",
+        isPaperResearchLane ? formatUpper(paperStrategy, "NONE") : "—",
+      ],
+      ["Paper Allowed", formatBool(paper?.allowed)],
+      ["Ticket Allowed", formatBool(paper?.paperShortAllowed)],
+      ["Short Research", formatBool(paper?.shortResearchOnly)],
+
+      ["Real Permission", formatUpper(permission.permission, "UNKNOWN")],
+      ["Real Strategy", formatUpper(realStrategy, "NONE")],
+      ["Executable", formatBool(permission.executable)],
+      ["Watch Only", formatBool(permission.watchOnly)],
+
       ["Authority", permissionAuthority],
-      ["Authority source", permissionAuthoritySource ? formatUpper(permissionAuthoritySource) : "Not published"],
-      ["Engine 15 authority", formatBool(permission?.engine15Authority, "NO")],
-      ["Engine 6 authority", formatBool(permission?.engine6Authority, "NO")],
-      ["Engine 22 direction diagnostic only", formatBool(paper?.directionDiagnostics?.engine22DirectionDiagnosticOnly, "NO")],
-      ["Engine 22 direction used for permission", formatBool(paper?.directionDiagnostics?.engine22DirectionUsedForPermission, "NO")],
+      [
+        "Authority Source",
+        permissionAuthoritySource
+          ? formatUpper(permissionAuthoritySource)
+          : "—",
+      ],
     ],
-    lines: [
-      paper?.allowed === true || paper?.paperAllowed === true
-        ? "Paper permission: allowed."
-        : "Paper permission: not allowed.",
-      permission?.executable === true
-        ? "Live execution: eligible subject to Engine 8."
-        : "Live execution: disabled.",
-      "Order authority: Engine 8 required.",
-      permissionLine,
-    ],
+    lines: [],
   };
 }
 function buildNextStepsSection({
@@ -2432,7 +2419,7 @@ function formatScalpStructureLine(waveContext) {
     : null;
 
   const subminute = waveContext?.subminute?.currentRead
-    ? "Subminute downside reaction watch"
+    ? "Subminute C-down watch"
     : null;
 
   return [minor, minute, subminute].filter(Boolean).join(" → ");
@@ -2526,10 +2513,10 @@ function buildEngine4StructureLines(participation) {
     "Engine 4 is reading volume against Engine 22 degreeStates.",
     wavePath !== "—" ? `Wave path: ${wavePath}.` : null,
     alignment === "SUPPORTS_TACTICAL_C_DOWN"
-      ? "Participation is aligned with the observed downside reaction."
+      ? "Participation is aligned with the tactical C-down path."
       : null,
     alignment === "COUNTER_TO_TACTICAL_C_DOWN"
-      ? "Participation is counter to the observed downside reaction; treat this as support defense / bounce risk."
+      ? "Participation is counter to the tactical C-down path; treat this as support defense / bounce risk."
       : null,
     alignment === "SUPPORTS_SUPPORT_DEFENSE"
       ? "Participation supports support defense / bounce behavior."
@@ -4062,7 +4049,7 @@ function buildNestedCorrectionSection(degreeStates) {
       ["Subminute Nested Context", subminuteNested],
     ],
     lines: [
-      "Nested compatibility relationship is diagnostic only; canonical Minute degree state is displayed above.",
+      "Nested relationship: Minor E leg → Minute internal ABC down → Subminute tactical timing.",
       buildDegreeSummaryLine("Minute", minute),
       minuteNested !== "—" ? `Minute nested context: ${minuteNested}.` : null,
       buildDegreeSummaryLine("Subminute", subminute),
@@ -4387,61 +4374,57 @@ function buildEngine26ControlMapSection(fib) {
   };
 }
 function buildEngine22CompactStructureSection(degreeStates) {
-  if (!degreeStates || !degreeStates.minute) {
-    return {
-      number: 1,
-      icon: "〽",
-      title: "Engine 22 — Canonical Minute Structure",
-      severity: "warning",
-      fields: [],
-      lines: [
-        "Minute structure unavailable.",
-        "Waiting for canonical Engine 22 degree state.",
-      ],
-    };
-  }
+  if (!degreeStates) return null;
 
-  const minute = normalizeMinuteStructure(degreeStates.minute);
-  const optional = (value, fallback = "Not published") =>
-    value == null || value === "" ? fallback : value;
+  const primary = degreeStates?.primary || null;
+  const intermediate = degreeStates?.intermediate || null;
+  const minor = degreeStates?.minor || null;
+  const minute = degreeStates?.minute || null;
+  const subminute = degreeStates?.subminute || null;
+
+  const primaryWave = formatUpper(primary?.activeWave || primary?.stage, "—");
+  const intermediateWave = formatUpper(
+    intermediate?.activeWave || intermediate?.stage,
+    "—"
+  );
+  const minorWave = formatUpper(minor?.activeWave || minor?.stage, "—");
+  const minuteWave = formatUpper(minute?.activeWave || minute?.stage, "—");
+  const subminuteWave = formatUpper(
+    subminute?.activeWave || subminute?.stage,
+    "—"
+  );
+
+  const correctionLabel = getCompactCorrectionLabel(minor);
+  const correctionStage = getCompactCorrectionStage(minor);
+  const localSupport = formatSupportWatch(minor?.targetModel?.localSupportWatch);
+
+  const minuteRead = minute?.currentRead || minute?.headline || minute?.action || null;
+  const subminuteRead =
+    subminute?.currentRead || subminute?.headline || subminute?.action || null;
 
   return {
     number: 1,
     icon: "〽",
-    title: "Engine 22 — Canonical Minute Structure",
+    title: "Engine 22 Compact Structure",
     severity: "teal",
     fields: [
-      ["Parent degree", optional(minute.parentDegree, "Minute")],
-      ["Parent wave", minute.parentWave ? `${minute.parentWave} active` : "Unknown"],
-      ["Internal wave", optional(minute.currentInternalWave, "Unknown")],
-      ["Next internal wave", optional(minute.nextExpectedInternalWave, "Unknown")],
-      ["Parent complete", formatBool(minute.parentWaveComplete, "Unknown")],
-      [
-        "Parent transition possible",
-        formatBool(minute.parentTransitionPossible, "Unknown"),
-      ],
-      ["Structure", minute.structureLabel],
-      ["Support", minute.supportLevel == null ? "Not published" : formatNumber(minute.supportLevel)],
-      [
-        "Invalidation",
-        minute.invalidationLevel == null
-          ? "Not published"
-          : formatNumber(minute.invalidationLevel),
-      ],
-      ["Next target", minute.nextTarget == null ? "Not published" : formatNumber(minute.nextTarget)],
-      ["Role", "STRUCTURE ONLY / NO PERMISSION"],
+      ["Structure", `Primary ${primaryWave} | Intermediate ${intermediateWave}`],
+      ["Correction", `Minor ${minorWave} | ${correctionLabel} | ${correctionStage}`],
+      ["Tactical Path", `Minute ${minuteWave} → Subminute ${subminuteWave}`],
+      ["Key Level", localSupport !== "—" ? `Support ${localSupport}` : "—"],
+      ["Role", "STRUCTURAL ONLY / NO PERMISSION"],
     ],
     lines: [
-      `Immediate event: internal ${minute.currentInternalWave || "Unknown"} → ${
-        minute.nextExpectedInternalWave || "Unknown"
-      }.`,
-      minute.parentWaveComplete === true ||
-      minute.parentTransitionPossible === true
-        ? "Parent transition: canonical completion/transition condition published."
-        : "Parent transition: not active.",
-      "Internal iv is not parent Minute W4 unless canonical completion or transition flags permit it.",
-      "No permission. No sizing. No ticket. No execution. No journal.",
-    ],
+      minor?.headline || minor?.currentRead
+        ? `Minor: ${formatText(minor.headline || minor.currentRead)}.`
+        : null,
+      minuteRead || subminuteRead
+        ? `Nested: ${minuteRead ? formatText(minuteRead) : "Minute watch"} → ${
+            subminuteRead ? formatText(subminuteRead) : "Subminute tactical watch"
+          }.`
+        : "Nested: Minor E leg → Minute internal ABC down → Subminute tactical timing.",
+      "No execution permission is created. Engine 3 confirms reaction, Engine 4 confirms participation, and Engine 6 controls final paper permission. Engine 15 is bypassed for Strategy 1 / Subminute / Minute / Minor lanes.",
+    ].filter(Boolean),
   };
 }
 
@@ -4449,60 +4432,6 @@ function buildEngine22DegreeTimelineSections(degreeStates) {
   if (!degreeStates) return [];
 
   return [buildEngine22CompactStructureSection(degreeStates)].filter(Boolean);
-}
-
-function buildDownstreamSection(title, icon, object, fields) {
-  if (!object) return {
-    number: 0, icon, title, severity: "neutral", fields: [],
-    lines: [`${title} unavailable. No downstream result has been invented.`],
-  };
-  const blockers = asArray(object?.blockers || object?.reasonCodes);
-  return {
-    number: 0, icon, title, severity: object?.allowed === true || object?.status === "READY" ? "bullish" : "neutral",
-    fields: fields.map(([label, keys, formatter = formatText]) => {
-      const keyList = Array.isArray(keys) ? keys : [keys];
-      const value = keyList.map((key) => object?.[key]).find((v) => v != null);
-      return [label, value == null ? "Not published" : formatter(value)];
-    }),
-    lines: blockers.length ? [`Blockers: ${blockers.map(formatText).join(", ")}`] : [],
-  };
-}
-
-function buildEngine7Section(fib) {
-  const sizing = fib?.engine7PositionSizing || fib?.engine7SizingPreview || null;
-  return buildDownstreamSection("Engine 7 — Position Size", "⑦", sizing, [
-    ["Status", ["status", "finalSizingMode"]],
-    ["Sizing ready", ["finalSizingReady", "paperOrderSizingReady"], (v) => formatBool(v, "NO")],
-    ["Stop distance", ["stopDistance", "stopDistancePoints"], formatNumber],
-    ["Production contracts", ["finalProductionContracts", "productionRiskSupportedContracts"], formatText],
-    ["Paper contracts", ["finalPaperTestingContracts"], formatText],
-    ["Final contracts", ["finalContracts"], formatText],
-  ]);
-}
-function buildEngine9Section(fib) {
-  return buildDownstreamSection("Engine 9 — Official Management Plan", "⑨", fib?.engine9OfficialManagementPlan, [
-    ["Plan ID", "planId"], ["Plan status", ["planStatus", "status"]],
-    ["Official entry", ["officialEntry", "entry"], formatNumber],
-    ["Official stop", ["officialStop", "stop"], formatNumber],
-    ["Plan ready", ["managementReady", "ready"], (v) => formatBool(v, "NO")],
-  ]);
-}
-function buildEngine8Section(fib) {
-  return buildDownstreamSection("Engine 8 — Execution", "⑧", fib?.engine8PaperOrder, [
-    ["Order state", ["orderState", "status"]], ["Executable", "executable", (v) => formatBool(v, "NO")],
-    ["Duplicate blocked", "duplicateBlocked", (v) => formatBool(v, "NO")],
-    ["Order created", "orderCreated", (v) => formatBool(v, "NO")],
-    ["Broker call", "brokerCall", (v) => formatBool(v, "NO")],
-    ["Fill created", "fillCreated", (v) => formatBool(v, "NO")],
-  ]);
-}
-function buildEngine10Section(fib) {
-  const journal = fib?.engine10Journal || null;
-  return buildDownstreamSection("Engine 10 — Journal", "⑩", journal, [
-    ["Journal ID", ["journalId", "id"]], ["Trade ID", "tradeId"],
-    ["Status", "status"], ["Entry", "entry", formatNumber], ["Exit", "exit", formatNumber],
-    ["Result", "result"], ["Realized R", ["realizedR", "realizedRiskMultiple"], formatText],
-  ]);
 }
 
 /* =========================
@@ -4524,7 +4453,6 @@ function normalizeTimelineData({ overlayData }) {
   const tradeContextSummary = getBackendTradeContextSummary(fib);
   const currentLifecycleState = getCurrentLifecycleState(fib);
   const degreeStates = getEngine22DegreeStates(fib);
-  const minuteStructure = normalizeMinuteStructure(degreeStates?.minute || null);
   const hasDegreeStates = degreeStates != null;
 
   const lifecycleViews = getLifecycleViews(fib);
@@ -4550,7 +4478,7 @@ function normalizeTimelineData({ overlayData }) {
         "Intermediate W3 active"
       )} / ${formatText(
         lifecycleViews?.intradayScalp?.label,
-        "Minute canonical transition watch"
+        "Minute W4 pullback watch"
       )}`
     : currentLifecycleState?.headline ||
       backendTimelineRead?.headline ||
@@ -4648,14 +4576,7 @@ const lifecycleOwnsDisplay =
     hasDegreeStates ? null : buildPostMinor5CorrectiveBounceSection(fib),
     postAbcBounceSection,
     buildEngine27TraderIntelligenceSection(fib),
-    buildEngine3ContextSection(fib),
-    buildEngine4ContextSection(fib),
     buildPermissionSection(permission, engine15),
-    buildEngine27ReadinessSection(fib),
-    buildEngine7Section(fib),
-    buildEngine9Section(fib),
-    buildEngine8Section(fib),
-    buildEngine10Section(fib),
 
     lifecycleOwnsDisplay && !hasLifecycleViews
       ? buildLifecycleNextStepsSection(currentLifecycleState, fib)
@@ -4677,6 +4598,8 @@ const lifecycleOwnsDisplay =
 
   const contextSections = [
     buildBackendTimelineSection(marketMeterSection),
+    buildEngine3ContextSection(fib),
+    buildEngine4ContextSection(fib),
   ]
     .filter(Boolean)
     .map((section, idx) => ({
@@ -4706,7 +4629,6 @@ const lifecycleOwnsDisplay =
     sections,
     contextSections,
     permission,
-    structure: minuteStructure,
     footer: permission?.executable === true ? "EXECUTION ELIGIBLE" : "WATCH",
   };
 }
@@ -5786,34 +5708,91 @@ const stripValueStyle = {
 };
 
 function MinimalStatusStrip({ timeline }) {
-  const structure = timeline?.structure || null;
-  const cells = structure
-    ? [
-        ["State", structure.stateLabel],
-        ["Structure", structure.structureLabel],
-        ["Wave", structure.waveLabel],
-        ["Status", structure.statusLabel],
-      ]
-    : [
-        ["State", "Minute structure unavailable"],
-        ["Structure", "Waiting for canonical Engine 22 degree state"],
-        ["Wave", "Unavailable"],
-        ["Status", "Unavailable"],
-      ];
+  const permission = timeline?.permission || null;
+  const paper = permission?.paper || null;
+
+  const paperDecision = String(paper?.decision || "").toUpperCase();
+  const paperDirection = String(paper?.direction || "").toUpperCase();
+
+  const isStructuralFastWatch =
+    paperDecision === "STRUCTURAL_FAST_WATCH" ||
+    paper?.structuralWatchOnly === true;
+
+  const isShortResearchWatch =
+    paperDecision === "PAPER_SHORT_RESEARCH_WATCH" ||
+    paper?.shortResearchWatch === true;
+
+  const marketBiasLabel =
+    isStructuralFastWatch || isShortResearchWatch
+      ? "Short watch"
+      : paperDirection === "SHORT"
+      ? "Short"
+      : paperDirection === "LONG"
+      ? "Long"
+      : "Neutral";
+
+  const marketBiasColor =
+    isStructuralFastWatch || isShortResearchWatch || paperDirection === "SHORT"
+      ? "#fb7185"
+      : paperDirection === "LONG"
+      ? "#22c55e"
+      : "#cbd5e1";
+
+  const setupLabel =
+    isShortResearchWatch
+      ? "Short research"
+      : isStructuralFastWatch
+      ? "Structural watch"
+      : paperDecision
+      ? formatText(paperDecision)
+      : "Watch";
+
+  const setupColor =
+    isShortResearchWatch || isStructuralFastWatch
+      ? "#fb7185"
+      : "#fbbf24";
+
+  const permissionLabel =
+    paper?.allowed === true
+      ? "Paper allow"
+      : formatUpper(permission?.permission, "REDUCE") === "REDUCE"
+      ? "Reduce"
+      : formatText(permission?.permission, "Wait");
 
   return (
-    <div style={{
-      ...shellTextStyle, width: "100%", border: "1px solid rgba(148,163,184,0.20)",
-      borderRadius: 12, background: "rgba(6,10,20,0.86)", display: "grid",
-      gridTemplateColumns: "repeat(4, minmax(0,1fr))", color: "#cbd5e1",
-      pointerEvents: "none", backdropFilter: "blur(4px)", overflow: "hidden",
-    }}>
-      {cells.map(([label, value], index) => (
-        <div key={label} style={{ ...stripCellStyle, borderRight: index === cells.length - 1 ? "none" : stripCellStyle.borderRight }}>
-          <span style={stripLabelStyle}>{label}</span>
-          <span style={{ ...stripValueStyle, color: "#2dd4bf" }}>{value}</span>
-        </div>
-      ))}
+    <div
+      style={{
+        ...shellTextStyle,
+        width: "100%",
+        border: "1px solid rgba(148,163,184,0.20)",
+        borderRadius: 12,
+        background: "rgba(6,10,20,0.86)",
+        display: "grid",
+        gridTemplateColumns: "repeat(3, minmax(0,1fr))",
+        color: "#cbd5e1",
+        pointerEvents: "none",
+        backdropFilter: "blur(4px)",
+        overflow: "hidden",
+      }}
+    >
+      <div style={stripCellStyle}>
+        <span style={stripLabelStyle}>Market bias</span>
+        <span style={{ ...stripValueStyle, color: marketBiasColor }}>
+          {marketBiasLabel}
+        </span>
+      </div>
+      <div style={stripCellStyle}>
+        <span style={stripLabelStyle}>Setup</span>
+        <span style={{ ...stripValueStyle, color: setupColor }}>
+          {setupLabel}
+        </span>
+      </div>
+      <div style={{ ...stripCellStyle, borderRight: "none" }}>
+        <span style={stripLabelStyle}>Trade permission</span>
+        <span style={{ ...stripValueStyle, color: "#c084fc" }}>
+          {permissionLabel}
+        </span>
+      </div>
     </div>
   );
 }
@@ -6129,13 +6108,6 @@ function UnattachedLaneCard({ selectedDegree }) {
 /* =========================
    Main export
 ========================= */
-
-export const __engine22cTestUtils = {
-  normalizeMinuteStructure,
-  buildEngine22CompactStructureSection,
-  getEngine22DegreeStates,
-  normalizeTimelineData,
-};
 
 export default function Engine17DecisionTimeline({
   overlayData,
