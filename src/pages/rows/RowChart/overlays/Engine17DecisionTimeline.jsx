@@ -124,14 +124,7 @@ function getStrategyRoot(fib) {
 }
 
 function getEngine22WaveStrategy(fib) {
-  const root = getStrategyRoot(fib);
-
-  return (
-    root?.engine22WaveStrategy ||
-    fib?.engine22WaveStrategy ||
-    root?.engine22 ||
-    null
-  );
+  return fib?.engine22WaveStrategy || null;
 }
 
 function getPostDownImpulseBounce(fib) {
@@ -4374,57 +4367,195 @@ function buildEngine26ControlMapSection(fib) {
   };
 }
 function buildEngine22CompactStructureSection(degreeStates) {
-  if (!degreeStates) return null;
-
-  const primary = degreeStates?.primary || null;
-  const intermediate = degreeStates?.intermediate || null;
-  const minor = degreeStates?.minor || null;
   const minute = degreeStates?.minute || null;
-  const subminute = degreeStates?.subminute || null;
 
-  const primaryWave = formatUpper(primary?.activeWave || primary?.stage, "—");
-  const intermediateWave = formatUpper(
-    intermediate?.activeWave || intermediate?.stage,
-    "—"
-  );
-  const minorWave = formatUpper(minor?.activeWave || minor?.stage, "—");
-  const minuteWave = formatUpper(minute?.activeWave || minute?.stage, "—");
-  const subminuteWave = formatUpper(
-    subminute?.activeWave || subminute?.stage,
-    "—"
-  );
+  if (!minute) {
+    return {
+      number: 1,
+      icon: "〽",
+      title: "Engine 22 — Minute Market Structure",
+      severity: "warning",
+      fields: [
+        ["Question", "What is the canonical Minute market structure?"],
+        ["Status", "Minute structure unavailable"],
+      ],
+      lines: [
+        "Waiting for canonical Engine 22 Minute degree state.",
+        "No compatibility or historical wave fallback is being used.",
+      ],
+    };
+  }
 
-  const correctionLabel = getCompactCorrectionLabel(minor);
-  const correctionStage = getCompactCorrectionStage(minor);
-  const localSupport = formatSupportWatch(minor?.targetModel?.localSupportWatch);
+  const internal = minute?.internalStructure || {};
+  const targetModel = minute?.targetModel || {};
+  const levels = targetModel?.levels || {};
 
-  const minuteRead = minute?.currentRead || minute?.headline || minute?.action || null;
-  const subminuteRead =
-    subminute?.currentRead || subminute?.headline || subminute?.action || null;
+  const publishedText = (value, formatter = formatText) =>
+    value == null || value === ""
+      ? "Not published"
+      : formatter(value, "Not published");
+
+  const publishedNumber = (value) =>
+    Number.isFinite(Number(value))
+      ? formatNumber(value)
+      : "Not published";
+
+  const publishedBool = (value) => {
+    if (value === true) return "Yes";
+    if (value === false) return "No";
+    return "Not published";
+  };
+
+  const parentWave =
+    internal?.parentWave ||
+    minute?.activeWave ||
+    null;
+
+  const currentInternalWave =
+    internal?.currentInternalWave ||
+    null;
+
+  const nextInternalWave =
+    internal?.nextExpectedInternalWave ||
+    null;
+
+  const modelType =
+    targetModel?.modelType === "EXTENSION_LADDER"
+      ? "Extension ladder"
+      : publishedText(targetModel?.modelType, titleCase);
+
+  const projectionMethod =
+    targetModel?.projectionMethod === "W1_RANGE_PROJECTED_FROM_W2"
+      ? "W1 range projected from W2"
+      : publishedText(targetModel?.projectionMethod, titleCase);
+
+  const noPermissionCreated =
+    minute?.noPermissionCreated === true ||
+    targetModel?.noPermissionCreated === true ||
+    internal?.noPermissionCreated === true;
+
+  const noExecution =
+    minute?.noExecution === true ||
+    targetModel?.noExecution === true ||
+    internal?.noExecution === true;
 
   return {
     number: 1,
     icon: "〽",
-    title: "Engine 22 Compact Structure",
+    title: "Engine 22 — Minute Market Structure",
     severity: "teal",
+
     fields: [
-      ["Structure", `Primary ${primaryWave} | Intermediate ${intermediateWave}`],
-      ["Correction", `Minor ${minorWave} | ${correctionLabel} | ${correctionStage}`],
-      ["Tactical Path", `Minute ${minuteWave} → Subminute ${subminuteWave}`],
-      ["Key Level", localSupport !== "—" ? `Support ${localSupport}` : "—"],
-      ["Role", "STRUCTURAL ONLY / NO PERMISSION"],
+      ["Question", "What is the canonical Minute market structure?"],
+
+      [
+        "Parent Degree",
+        internal?.parentDegree
+          ? titleCase(internal.parentDegree)
+          : "Minute",
+      ],
+
+      [
+        "Parent Wave",
+        parentWave
+          ? `${formatUpper(parentWave)} active`
+          : "Not published",
+      ],
+
+      [
+        "Stage",
+        publishedText(minute?.stage, titleCase),
+      ],
+
+      [
+        "Internal Wave",
+        publishedText(currentInternalWave),
+      ],
+
+      [
+        "Next Internal Event",
+        currentInternalWave && nextInternalWave
+          ? `Internal ${currentInternalWave} → ${nextInternalWave}`
+          : "Not published",
+      ],
+
+      [
+        "Structure",
+        publishedText(internal?.classification, titleCase),
+      ],
+
+      [
+        "Parent Still Valid",
+        publishedBool(internal?.parentWaveStillValid),
+      ],
+
+      [
+        "Parent Complete",
+        publishedBool(internal?.parentWaveComplete),
+      ],
+
+      [
+        "Parent Transition Possible",
+        publishedBool(internal?.parentTransitionPossible),
+      ],
+
+      [
+        "Transition Risk",
+        publishedText(internal?.transitionRisk, titleCase),
+      ],
+
+      [
+        "Support",
+        publishedNumber(internal?.supportLevel),
+      ],
+
+      [
+        "Invalidation",
+        publishedNumber(internal?.invalidationLevel),
+      ],
+
+      [
+        "Next Target",
+        publishedNumber(targetModel?.nextTarget),
+      ],
+
+      ["Fib Model", modelType],
+      ["Projection", projectionMethod],
+      ["1.618", publishedNumber(levels?.e1618)],
+      ["2.000", publishedNumber(levels?.e200)],
+      ["2.618", publishedNumber(levels?.e2618)],
+      ["Fib Next Target", publishedNumber(targetModel?.nextTarget)],
+
+      ["Engine 22 Role", "Structural only"],
+      [
+        "Permission Created",
+        noPermissionCreated ? "No" : "Not published",
+      ],
+      [
+        "Execution Created",
+        noExecution ? "No" : "Not published",
+      ],
+      ["Sizing Created", "No"],
+      ["Ticket Created", "No"],
+      ["Journal Created", "No"],
+      ["Final Paper Permission Authority", "Engine 6"],
     ],
+
     lines: [
-      minor?.headline || minor?.currentRead
-        ? `Minor: ${formatText(minor.headline || minor.currentRead)}.`
-        : null,
-      minuteRead || subminuteRead
-        ? `Nested: ${minuteRead ? formatText(minuteRead) : "Minute watch"} → ${
-            subminuteRead ? formatText(subminuteRead) : "Subminute tactical watch"
-          }.`
-        : "Nested: Minor E leg → Minute internal ABC down → Subminute tactical timing.",
-      "No execution permission is created. Engine 3 confirms reaction, Engine 4 confirms participation, and Engine 6 controls final paper permission. Engine 15 is bypassed for Strategy 1 / Subminute / Minute / Minor lanes.",
-    ].filter(Boolean),
+      currentInternalWave && nextInternalWave
+        ? `Immediate event: internal ${currentInternalWave} → ${nextInternalWave}.`
+        : "Immediate event: Not published.",
+
+      internal?.parentTransitionPossible === false
+        ? "Parent transition: not active."
+        : internal?.parentTransitionPossible === true
+        ? "Parent transition: possible."
+        : "Parent transition: Not published.",
+
+      "Higher-timeframe context is available in the Primary, Intermediate, and Minor tabs.",
+
+      "Engine 22 owns structure and Fibonacci context only. It does not create reaction confirmation, permission, sizing, tickets, execution, or journal records.",
+    ],
   };
 }
 
