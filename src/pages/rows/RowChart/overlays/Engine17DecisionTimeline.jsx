@@ -4583,8 +4583,14 @@ function normalizeTimelineData({ overlayData }) {
   const backendTimelineRead = getBackendTimelineRead(fib);
   const tradeContextSummary = getBackendTradeContextSummary(fib);
   const currentLifecycleState = getCurrentLifecycleState(fib);
+  const engine22WaveStrategy = getEngine22WaveStrategy(fib);
   const degreeStates = getEngine22DegreeStates(fib);
-  const hasDegreeStates = degreeStates != null;
+
+  const hasCanonicalEngine22 =
+    engine22WaveStrategy != null;
+
+  const hasDegreeStates =
+    degreeStates != null;
 
   const lifecycleViews = getLifecycleViews(fib);
   const lifecycleViewSections = hasDegreeStates
@@ -4601,20 +4607,20 @@ function normalizeTimelineData({ overlayData }) {
     "Market Meter / Tactical Context"
   );
 
-  const headline = hasDegreeStates
-    ? "Engine 22 Wave Stack — Current Structure"
-    : hasLifecycleViews
-    ? `${formatText(
-        lifecycleViews?.longTerm?.label,
-        "Intermediate W3 active"
-      )} / ${formatText(
-        lifecycleViews?.intradayScalp?.label,
-        "Minute W4 pullback watch"
-      )}`
-    : currentLifecycleState?.headline ||
-      backendTimelineRead?.headline ||
-      tradeContextSummary?.headline ||
-      buildFallbackHeadline({ waveOpportunity, engine15 });
+const headline = hasCanonicalEngine22
+  ? "Engine 22 — Minute Market Structure"
+  : hasLifecycleViews
+  ? `${formatText(
+      lifecycleViews?.longTerm?.label,
+      "Intermediate W3 active"
+    )} / ${formatText(
+      lifecycleViews?.intradayScalp?.label,
+      "Minute structure unavailable"
+    )}`
+  : currentLifecycleState?.headline ||
+    backendTimelineRead?.headline ||
+    tradeContextSummary?.headline ||
+    buildFallbackHeadline({ waveOpportunity, engine15 });
 
 const engine26GeneralContext = getEngine26GeneralContext(fib);
 const engine26Strategy1Setup = getEngine26Strategy1Setup(fib);
@@ -4655,7 +4661,9 @@ const generalContextSubheadline =
       } — context only.`
     : null;
 
-  const subheadline = hasDegreeStates
+  const subheadline = hasCanonicalEngine22
+    ? "Canonical Strategy 1 Minute structure from Engine 22 degreeStates.minute."
+    : hasLifecycleViews
   ? [
       "Primary and Intermediate remain higher-timeframe continuation context; Minor / Minute / Subminute define the active correction and tactical path. Structural only — no execution permission.",
       strategy1Subheadline,
@@ -4691,20 +4699,22 @@ const lifecycleOwnsDisplay =
   const engine26ControlMapSection = buildEngine26ControlMapSection(fib);
 
   const sections = [
-    ...(hasDegreeStates ? degreeTimelineSections : lifecycleViewSections),
+    ...(hasCanonicalEngine22
+      ? buildEngine22DegreeTimelineSections(degreeStates)
+      : lifecycleViewSections),
 
     engine26ControlMapSection,
 
-    hasDegreeStates || hasLifecycleViews
+    hasCanonicalEngine22 || hasLifecycleViews
       ? null
       : buildCurrentLifecycleStateSection(currentLifecycleState, fib),
 
-    hasDegreeStates || hasLifecycleViews || lifecycleOwnsDisplay
+    hasCanonicalEngine22 || hasLifecycleViews || lifecycleOwnsDisplay
       ? null
       : buildWaveOpportunitySection(waveOpportunity, fib),
 
-    hasDegreeStates ? null : buildPossibleW5UpCompleteSection(fib),
-    hasDegreeStates ? null : buildPostMinor5CorrectiveBounceSection(fib),
+    hasCanonicalEngine22 ? null : buildPossibleW5UpCompleteSection(fib),
+    hasCanonicalEngine22 ? null : buildPostMinor5CorrectiveBounceSection(fib),
     postAbcBounceSection,
     buildEngine27TraderIntelligenceSection(fib),
     buildPermissionSection(permission, engine15),
