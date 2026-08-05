@@ -257,6 +257,40 @@ function getEngine26Strategy1Setup(fib) {
   return getEngine26TradePlanPreview(fib)?.strategy1Setup || null;
 }
 
+function getEngine26Strategy1Setup(fib) {
+  return getEngine26TradePlanPreview(fib)?.strategy1Setup || null;
+}
+
+function getMinuteEngine26LocationCandidate(fib) {
+  const root = getStrategyRoot(fib);
+  const strategyId = "intraday_scalp@10m";
+
+  return (
+    root?.strategies?.[strategyId]
+      ?.engine26LocationCandidate ||
+
+    fib?.strategies?.[strategyId]
+      ?.engine26LocationCandidate ||
+
+    root?.engine26LocationCandidate ||
+
+    fib?.engine26LocationCandidate ||
+
+    null
+  );
+}
+
+function getEngine26StructuralContext(fib) {
+  const root = getStrategyRoot(fib);
+
+  return (
+    root?.engine26StructuralContext ||
+    fib?.engine26StructuralContext ||
+    root?.engine26?.structuralContext ||
+    null
+  );
+}
+
 function getEngine26StructuralContext(fib) {
   const root = getStrategyRoot(fib);
 
@@ -4142,8 +4176,14 @@ function getCompactCorrectionStage(minor) {
 }
 
 function buildEngine26ControlMapSection(fib) {
-  const generalContext = getEngine26GeneralContext(fib);
-  const strategy1Setup = getEngine26Strategy1Setup(fib);
+  const locationCandidate =
+    getMinuteEngine26LocationCandidate(fib);
+
+  const reactionHandoff =
+    getMinuteEngine26ReactionHandoff(fib);
+
+  const legacyStrategy1Setup =
+    getEngine26Strategy1Setup(fib);
 
   /*
    * Legacy Engine 26 objects remain compatibility-only fallbacks.
@@ -4153,13 +4193,14 @@ function buildEngine26ControlMapSection(fib) {
   const legacyControl = getEngine26ControlLevelContext(fib);
   const legacyLocation = getEngine26LocationContext(fib);
 
-  const strategy1Attached =
-    strategy1Setup &&
-    typeof strategy1Setup === "object" &&
-    strategy1Setup.candidateId &&
-    strategy1Setup.zoneId &&
-    strategy1Setup.laneId === "minute" &&
-    strategy1Setup.strategyId === "intraday_scalp@10m";
+  const canonicalCandidateAttached =
+    locationCandidate &&
+    typeof locationCandidate === "object" &&
+    Boolean(locationCandidate.candidateId) &&
+    Boolean(locationCandidate.zoneId) &&
+    locationCandidate.laneId === "minute" &&
+    locationCandidate.strategyId ===
+      "intraday_scalp@10m";
 
   if (!strategy1Attached) {
     if (!structural && !legacyControl && !legacyLocation && !generalContext) {
@@ -4284,7 +4325,7 @@ function buildEngine26ControlMapSection(fib) {
   return {
     number: 2,
     icon: "⑳",
-    title: "Strategy 1 Control Map — Engine 26",
+    title: "Engine 26A — Meaningful Trade Location",
     severity,
     fields: [
       ["Lane", formatUpper(strategy1Setup.laneId, "MINUTE")],
