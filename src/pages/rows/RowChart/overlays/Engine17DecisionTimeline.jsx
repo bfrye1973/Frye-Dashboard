@@ -2593,6 +2593,16 @@ function buildEngine3ContextSection(fib) {
         "WAITING"
     ).toUpperCase();
 
+    const canonicalQuality = String(
+      paperScalp?.quality || "UNAVAILABLE"
+    ).toUpperCase();
+
+    const qualifiedForEngine6 =
+      paperScalp?.engine3Strategy1QualifiedForEngine6 === true;
+
+    const authorized =
+      paperScalp?.authorized === true;
+
     const canonicalExpectedDirection = String(
       paperScalp?.expectedReactionDirection || "NEUTRAL"
     ).toUpperCase();
@@ -2610,24 +2620,16 @@ function buildEngine3ContextSection(fib) {
       engine26Handoff?.expectedReactionDirection || ""
     ).toUpperCase();
 
-    const promotedShortWatch =
-      contactState === "NEGOTIATED_LINE_CONTACT" &&
-      chainArmed &&
-      (
-        handoffDirectionState === "SHORT_REVERSAL_WATCH" ||
-        handoffExpectedDirection === "SHORT" ||
-        canonicalExpectedDirection === "SHORT"
-      );
-
     const invalidated =
       canonicalState.includes("INVALID");
 
-    let strategyStatus =
-      "NEUTRAL — waiting for authorized reaction.";
+    let strategyStatus = `${canonicalDirection} reaction developing — ${canonicalQuality.toLowerCase()} quality, not confirmed, ${
+      qualifiedForEngine6 ? "qualified" : "not yet qualified"
+    } for Engine 6.`;
 
     if (invalidated) {
       strategyStatus =
-        "NEUTRAL — reaction invalidated.";
+        `${canonicalDirection} reaction invalidated.`;
     } else if (reactionConfirmed) {
       strategyStatus = `${
         canonicalDirection === "SHORT"
@@ -2636,9 +2638,6 @@ function buildEngine3ContextSection(fib) {
           ? "LONG"
           : "NEUTRAL"
       } — reaction confirmed.`;
-    } else if (promotedShortWatch) {
-      strategyStatus =
-        "NEUTRAL — watching for SHORT rejection.";
     }
 
     let resultText =
@@ -2719,6 +2718,17 @@ function buildEngine3ContextSection(fib) {
       canonicalLocationRelation ||
       "—";
 
+    const canonicalRead = `${formatUpper(
+      canonicalState,
+      "WAITING"
+    )} / ${formatUpper(
+      canonicalDirection,
+      "NEUTRAL"
+    )} / ${formatUpper(
+      canonicalQuality,
+      "UNAVAILABLE"
+    )}`;
+
     const diagnosticRead = diagnostic
       ? `${formatUpper(
           diagnosticState,
@@ -2766,48 +2776,30 @@ function buildEngine3ContextSection(fib) {
         negZone: negZoneText,
         location: formatUpper(locationText, "—"),
 
-        mainRead: diagnosticRead,
+        mainRead: canonicalRead,
         currentLevel: currentLevelRead,
 
         diagnosticSource: selected.source,
 
         facts: [
+          ["Direction", formatUpper(canonicalDirection, "NEUTRAL")],
+          ["Quality", formatUpper(canonicalQuality, "UNAVAILABLE")],
+          ["Reaction state", formatUpper(canonicalState, "WAITING")],
           [
-            "Rejecting value",
-            formatBool(
-              getPublishedDiagnosticBoolean(
-                diagnostic,
-                "rejectingValue"
-              )
-            ),
+            "Current price action",
+            diagnostic
+              ? formatUpper(diagnosticState, "NO SIGNAL")
+              : "BACKEND READ UNAVAILABLE",
           ],
           [
-            "Lost level",
-            formatBool(
-              getPublishedDiagnosticBoolean(
-                diagnostic,
-                "lostLevel"
-              )
-            ),
+            "Reaction confirmation",
+            reactionConfirmed ? "CONFIRMED" : "NOT CONFIRMED",
           ],
           [
-            "Failed reclaim",
-            formatBool(
-              getPublishedDiagnosticBoolean(
-                diagnostic,
-                "failedReclaim"
-              )
-            ),
+            "Engine 6 qualification",
+            qualifiedForEngine6 ? "QUALIFIED" : "NOT QUALIFIED",
           ],
-          [
-            "Breakout failing",
-            formatBool(
-              getPublishedDiagnosticBoolean(
-                diagnostic,
-                "breakoutFailing"
-              )
-            ),
-          ],
+          ["Authorization", authorized ? "AUTHORIZED" : "NOT AUTHORIZED"],
         ],
 
         meaning,
