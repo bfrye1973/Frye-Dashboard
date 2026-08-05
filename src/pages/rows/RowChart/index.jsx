@@ -417,8 +417,8 @@ function mapSnapshotToEngine17Overlay(snapshot, strategyId, chartMode = "SPY_SCA
     null;
 
 const engine22WaveStrategy =
-  node?.engine22WaveStrategy ||
   minuteStrategy?.engine22WaveStrategy ||
+  node?.engine22WaveStrategy ||
   null;
   if (!scalp) {
     return {
