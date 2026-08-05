@@ -408,6 +408,12 @@ function mapSnapshotToEngine17Overlay(snapshot, strategyId, chartMode = "SPY_SCA
     snapshot?.engine27Strategies?.engine27TraderDecision?.decisions?.minute ||
     null;
 
+  const engine27WaveIntelligence =
+    snapshot?.engine27Strategies?.engine27WaveIntelligence?.minute || null;
+
+  const engine27FibIntelligence =
+    snapshot?.engine27Strategies?.engine27FibIntelligence?.minute || null;
+
   const engine27SubminuteTraderDecision =
     snapshot?.engine27Strategies?.engine27TraderDecision?.decisions?.subminute ||
     null;
@@ -416,10 +422,13 @@ function mapSnapshotToEngine17Overlay(snapshot, strategyId, chartMode = "SPY_SCA
     minuteStrategy?.engine22WaveStrategy?.degreeStates?.subminute ||
     null;
 
-const engine22WaveStrategy =
-  node?.engine22WaveStrategy ||
-  minuteStrategy?.engine22WaveStrategy ||
-  null;
+  // Engine 22C: Strategy 1 Minute degreeStates is the sole live wave authority.
+  // A node-local object is compatibility-only and may not override it.
+  const canonicalMinuteEngine22 = minuteStrategy?.engine22WaveStrategy || null;
+  const engine22WaveStrategy =
+    canonicalMinuteEngine22 ||
+    (strategyId !== "intraday_scalp@10m" ? node?.engine22WaveStrategy : null) ||
+    null;
   if (!scalp) {
     return {
       ok: false,
@@ -682,6 +691,8 @@ const engine22WaveStrategy =
      // Canonical Engine 27 Minute lane
      strategyTimeline,
      engine27TraderDecision,
+     engine27WaveIntelligence,
+     engine27FibIntelligence,
      engine27SubminuteTraderDecision,
      engine22SubminuteStructure,
      subminuteEngine26,
@@ -705,6 +716,17 @@ const engine22WaveStrategy =
        null,
      engine26PaperTradePlan: node?.engine26PaperTradePlan || null,
      engine26PaperTradeTicket: node?.engine26PaperTradeTicket || null,
+
+     // Verified Strategy 1 downstream outputs. Display only; never infer existence.
+     engine7SizingPreview: minuteStrategy?.engine7SizingPreview || null,
+     engine7PositionSizing: minuteStrategy?.engine7PositionSizing || null,
+     engine9OfficialManagementPlan:
+       minuteStrategy?.engine9OfficialManagementPlan || null,
+     engine8PaperOrder: minuteStrategy?.engine8PaperOrder || null,
+     engine10Journal: minuteStrategy?.engine10Journal || null,
+     engine10Lifecycle: minuteStrategy?.engine10Lifecycle || null,
+     engine10JournalAttachment:
+       minuteStrategy?.engine10JournalAttachment || null,
      analytics: node?.analytics || null,
      permissionPreliminary: node?.permissionPreliminary || null,
 
