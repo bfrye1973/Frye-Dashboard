@@ -4549,19 +4549,25 @@ function buildEngine22CompactStructureSection(degreeStates) {
       title: "Engine 22 — Minute Market Structure",
       severity: "warning",
       fields: [
-        ["Question", "What is the canonical Minute market structure?"],
+        {
+          label: "Question",
+          value: "What is the canonical Minute market structure?",
+          fullWidth: true,
+        },
+        {
+          type: "sectionHeader",
+          label: "Structure Summary",
+        },
         ["Status", "Minute structure unavailable"],
       ],
-      lines: [
-        "Waiting for canonical Engine 22 Minute degree state.",
-        "No compatibility or historical wave fallback is being used.",
-      ],
+      lines: [],
     };
   }
 
   const internal = minute?.internalStructure || {};
   const targetModel = minute?.targetModel || {};
-  const levels = targetModel?.levels || {};
+  const activeFibModel = minute?.activeFibModel || {};
+  const w4RetracementMap = minute?.w4RetracementMap || {};
 
   const publishedText = (value, formatter = formatText) =>
     value == null || value === ""
@@ -4579,156 +4585,257 @@ function buildEngine22CompactStructureSection(degreeStates) {
     return "Not published";
   };
 
-  const parentWave =
-    internal?.parentWave ||
-    minute?.activeWave ||
+  const parentWave = internal?.parentWave || minute?.activeWave || null;
+  const currentInternalWave = internal?.currentInternalWave || null;
+  const nextInternalWave = internal?.nextExpectedInternalWave || null;
+  const directionValue =
+    internal?.parentWaveDirection ||
+    activeFibModel?.direction ||
+    internal?.internalLegDirection ||
     null;
 
-  const currentInternalWave =
-    internal?.currentInternalWave ||
+  const hasActiveFibModel =
+    activeFibModel && Object.keys(activeFibModel).length > 0;
+  const isRetracementModel =
+    activeFibModel?.modelType === "RETRACEMENT_MAP" ||
+    activeFibModel?.modelKey === "W4_RETRACEMENT_MAP" ||
+    (minute?.activeWave === "W4" &&
+      Object.keys(w4RetracementMap).length > 0);
+  const isExtensionModel =
+    activeFibModel?.modelType === "EXTENSION_LADDER" ||
+    targetModel?.modelType === "EXTENSION_LADDER";
+
+  const currentFibModel = hasActiveFibModel
+    ? activeFibModel
+    : isRetracementModel
+    ? w4RetracementMap
+    : targetModel;
+
+  const fibModelLabel = isRetracementModel
+    ? "W4 Retracement Map"
+    : currentFibModel?.modelType === "EXTENSION_LADDER"
+    ? "W3 Extension Ladder"
+    : publishedText(currentFibModel?.modelType, titleCase);
+
+  const retracementLevels = {
+    r236:
+      currentFibModel?.levels?.r236 ??
+      w4RetracementMap?.r236 ??
+      null,
+    r382:
+      currentFibModel?.levels?.r382 ??
+      w4RetracementMap?.r382 ??
+      null,
+    r500:
+      currentFibModel?.levels?.r500 ??
+      w4RetracementMap?.r500 ??
+      null,
+    r618:
+      currentFibModel?.levels?.r618 ??
+      w4RetracementMap?.r618 ??
+      null,
+    r786:
+      currentFibModel?.levels?.r786 ??
+      w4RetracementMap?.r786 ??
+      null,
+  };
+
+  const extensionLevels = {
+    e100:
+      currentFibModel?.levels?.e100 ??
+      targetModel?.levels?.e100 ??
+      null,
+    e1272:
+      currentFibModel?.levels?.e1272 ??
+      targetModel?.levels?.e1272 ??
+      null,
+    e1618:
+      currentFibModel?.levels?.e1618 ??
+      targetModel?.levels?.e1618 ??
+      null,
+    e200:
+      currentFibModel?.levels?.e200 ??
+      targetModel?.levels?.e200 ??
+      null,
+    e2618:
+      currentFibModel?.levels?.e2618 ??
+      targetModel?.levels?.e2618 ??
+      null,
+  };
+
+  const nextTargetValue = isRetracementModel
+    ? currentFibModel?.nextLevelBelow?.price ??
+      w4RetracementMap?.nextRetracementBelow?.price ??
+      internal?.supportLevel ??
+      null
+    : currentFibModel?.nextTarget ??
+      targetModel?.nextTarget ??
+      null;
+
+  const currentPriceValue =
+    currentFibModel?.currentPrice ??
+    w4RetracementMap?.currentPrice ??
+    minute?.currentPrice ??
     null;
 
-  const nextInternalWave =
-    internal?.nextExpectedInternalWave ||
-    null;
+  const currentRetracementDisplay =
+    currentFibModel?.currentRetracementDisplay ??
+    (Number.isFinite(Number(currentFibModel?.currentRetracementPercent))
+      ? `${formatNumber(currentFibModel.currentRetracementPercent)}%`
+      : Number.isFinite(Number(w4RetracementMap?.currentRetracementPercent))
+      ? `${formatNumber(w4RetracementMap.currentRetracementPercent)}%`
+      : "Not published");
 
-  const modelType =
-    targetModel?.modelType === "EXTENSION_LADDER"
-      ? "Extension ladder"
-      : publishedText(targetModel?.modelType, titleCase);
+  const formatLevelRef = (entry) => {
+    if (!entry) return "Not published";
+    const key = entry?.key ? String(entry.key) : null;
+    const price = Number(entry?.price);
 
-  const projectionMethod =
-    targetModel?.projectionMethod === "W1_RANGE_PROJECTED_FROM_W2"
-      ? "W1 range projected from W2"
-      : publishedText(targetModel?.projectionMethod, titleCase);
+    if (key && Number.isFinite(price)) {
+      return `${key} / ${formatNumber(price)}`;
+    }
 
-  const noPermissionCreated =
-    minute?.noPermissionCreated === true ||
-    targetModel?.noPermissionCreated === true ||
-    internal?.noPermissionCreated === true;
+    if (key) return key;
+    if (Number.isFinite(price)) return formatNumber(price);
+    return "Not published";
+  };
 
-  const noExecution =
-    minute?.noExecution === true ||
-    targetModel?.noExecution === true ||
-    internal?.noExecution === true;
+  const ticketCreated =
+    minute?.ticketCreated === true ||
+    minute?.engine26PaperTradeTicket != null;
+  const journalCreated =
+    minute?.journalCreated === true ||
+    minute?.engine10JournalCreated === true;
+
+  const topFields = [
+    {
+      label: "Question",
+      value: "What is the canonical Minute market structure?",
+      fullWidth: true,
+    },
+    {
+      type: "sectionHeader",
+      label: "Structure Summary",
+    },
+    [
+      "Parent Degree",
+      internal?.parentDegree
+        ? titleCase(internal.parentDegree)
+        : "Minute",
+    ],
+    [
+      "Parent Wave",
+      parentWave
+        ? `${formatUpper(parentWave)} active`
+        : "Not published",
+    ],
+    ["Stage", publishedText(minute?.stage, titleCase)],
+    ["Internal Wave", publishedText(currentInternalWave)],
+    [
+      "Next Internal Event",
+      currentInternalWave && nextInternalWave
+        ? `Internal ${currentInternalWave} → ${nextInternalWave}`
+        : "Not published",
+    ],
+    ["Structure", publishedText(internal?.classification, titleCase)],
+    [
+      "Parent Still Valid",
+      publishedBool(internal?.parentWaveStillValid),
+    ],
+    ["Parent Complete", publishedBool(internal?.parentWaveComplete)],
+    [
+      "Parent Transition Possible",
+      publishedBool(internal?.parentTransitionPossible),
+    ],
+    ["Transition Risk", publishedText(internal?.transitionRisk, titleCase)],
+    ["Invalidation Level", publishedNumber(internal?.invalidationLevel)],
+    ["Next Target", publishedNumber(nextTargetValue)],
+    ["Support", publishedNumber(internal?.supportLevel)],
+  ];
+
+  const fibSectionHeader = {
+    type: "sectionHeader",
+    label: fibModelLabel,
+  };
+
+  const fibFields = isRetracementModel
+    ? [
+        [
+          "W3 High",
+          publishedNumber(
+            currentFibModel?.anchorModel?.anchorHigh ??
+              w4RetracementMap?.w3HighCandidate
+          ),
+        ],
+        [
+          "W2 Low",
+          publishedNumber(
+            currentFibModel?.anchorModel?.anchorLow ??
+              w4RetracementMap?.w2Low
+          ),
+        ],
+        ["Current Price", publishedNumber(currentPriceValue)],
+        ["Current Retracement", currentRetracementDisplay],
+        ["r236", publishedNumber(retracementLevels.r236)],
+        ["r382", publishedNumber(retracementLevels.r382)],
+        ["r500", publishedNumber(retracementLevels.r500)],
+        ["r618", publishedNumber(retracementLevels.r618)],
+        ["r786", publishedNumber(retracementLevels.r786)],
+        [
+          "Nearest Level",
+          formatLevelRef(
+            currentFibModel?.nearestLevel ??
+              w4RetracementMap?.nearestRetracement
+          ),
+        ],
+        [
+          "Next Level Below",
+          formatLevelRef(
+            currentFibModel?.nextLevelBelow ??
+              w4RetracementMap?.nextRetracementBelow
+          ),
+        ],
+        [
+          "Zone State",
+          publishedText(
+            currentFibModel?.zoneState ?? w4RetracementMap?.zoneState,
+            formatUpper
+          ),
+        ],
+      ]
+    : [
+        ["1.000", publishedNumber(extensionLevels.e100)],
+        ["1.272", publishedNumber(extensionLevels.e1272)],
+        ["1.618", publishedNumber(extensionLevels.e1618)],
+        ["2.000", publishedNumber(extensionLevels.e200)],
+        ["2.618", publishedNumber(extensionLevels.e2618)],
+        [
+          "Fib Next Target",
+          publishedNumber(currentFibModel?.nextTarget ?? targetModel?.nextTarget),
+        ],
+      ];
+
+  const footerFields = [
+    {
+      type: "sectionHeader",
+      label: "Status",
+    },
+    [
+      "Direction",
+      directionValue ? formatUpper(directionValue) : "Not published",
+    ],
+    ["Active Fib Model", fibModelLabel],
+    ["Ticket Created", ticketCreated ? "Yes" : "No"],
+    ["Journal Created", journalCreated ? "Yes" : "No"],
+  ];
 
   return {
     number: 1,
     icon: "〽",
     title: "Engine 22 — Minute Market Structure",
     severity: "teal",
-
-    fields: [
-      ["Question", "What is the canonical Minute market structure?"],
-
-      [
-        "Parent Degree",
-        internal?.parentDegree
-          ? titleCase(internal.parentDegree)
-          : "Minute",
-      ],
-
-      [
-        "Parent Wave",
-        parentWave
-          ? `${formatUpper(parentWave)} active`
-          : "Not published",
-      ],
-
-      [
-        "Stage",
-        publishedText(minute?.stage, titleCase),
-      ],
-
-      [
-        "Internal Wave",
-        publishedText(currentInternalWave),
-      ],
-
-      [
-        "Next Internal Event",
-        currentInternalWave && nextInternalWave
-          ? `Internal ${currentInternalWave} → ${nextInternalWave}`
-          : "Not published",
-      ],
-
-      [
-        "Structure",
-        publishedText(internal?.classification, titleCase),
-      ],
-
-      [
-        "Parent Still Valid",
-        publishedBool(internal?.parentWaveStillValid),
-      ],
-
-      [
-        "Parent Complete",
-        publishedBool(internal?.parentWaveComplete),
-      ],
-
-      [
-        "Parent Transition Possible",
-        publishedBool(internal?.parentTransitionPossible),
-      ],
-
-      [
-        "Transition Risk",
-        publishedText(internal?.transitionRisk, titleCase),
-      ],
-
-      [
-        "Support",
-        publishedNumber(internal?.supportLevel),
-      ],
-
-      [
-        "Invalidation",
-        publishedNumber(internal?.invalidationLevel),
-      ],
-
-      [
-        "Next Target",
-        publishedNumber(targetModel?.nextTarget),
-      ],
-
-      ["Fib Model", modelType],
-      ["Projection", projectionMethod],
-      ["1.618", publishedNumber(levels?.e1618)],
-      ["2.000", publishedNumber(levels?.e200)],
-      ["2.618", publishedNumber(levels?.e2618)],
-      ["Fib Next Target", publishedNumber(targetModel?.nextTarget)],
-
-      ["Engine 22 Role", "Structural only"],
-      [
-        "Permission Created",
-        noPermissionCreated ? "No" : "Not published",
-      ],
-      [
-        "Execution Created",
-        noExecution ? "No" : "Not published",
-      ],
-      ["Sizing Created", "No"],
-      ["Ticket Created", "No"],
-      ["Journal Created", "No"],
-      ["Final Paper Permission Authority", "Engine 6"],
-    ],
-
-    lines: [
-      currentInternalWave && nextInternalWave
-        ? `Immediate event: internal ${currentInternalWave} → ${nextInternalWave}.`
-        : "Immediate event: Not published.",
-
-      internal?.parentTransitionPossible === false
-        ? "Parent transition: not active."
-        : internal?.parentTransitionPossible === true
-        ? "Parent transition: possible."
-        : "Parent transition: Not published.",
-
-      "Higher-timeframe context is available in the Primary, Intermediate, and Minor tabs.",
-
-      "Engine 22 owns structure and Fibonacci context only. It does not create reaction confirmation, permission, sizing, tickets, execution, or journal records.",
-    ],
+    fields: [...topFields, fibSectionHeader, ...fibFields, ...footerFields],
+    lines: [],
   };
 }
 
@@ -5401,39 +5508,92 @@ function FieldGrid({ fields }) {
     <div
       style={{
         display: "grid",
-        gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))",
+        gridTemplateColumns: "repeat(auto-fit, minmax(145px, 1fr))",
         gap: "9px 15px",
         marginTop: 7,
       }}
     >
-      {safeFields.map(([label, value], idx) => (
-        <div key={`${label}-${idx}`}>
+      {safeFields.map((entry, idx) => {
+        if (
+          entry &&
+          !Array.isArray(entry) &&
+          entry.type === "sectionHeader"
+        ) {
+          return (
+            <div
+              key={`${entry.label}-${idx}`}
+              style={{
+                gridColumn: "1 / -1",
+                paddingTop: idx === 0 ? 0 : 8,
+                marginTop: idx === 0 ? 0 : 2,
+                borderTop:
+                  idx === 0
+                    ? "none"
+                    : "1px solid rgba(34,211,238,0.18)",
+              }}
+            >
+              <div
+                style={{
+                  ...shellTextStyle,
+                  ...smallCapsStyle,
+                  color: "#22d3ee",
+                  fontSize: 13,
+                  fontWeight: FONT_MEDIUM,
+                  letterSpacing: "0.08em",
+                }}
+              >
+                {entry.label}
+              </div>
+            </div>
+          );
+        }
+
+        const label = Array.isArray(entry)
+          ? entry[0]
+          : entry?.label;
+        const value = Array.isArray(entry)
+          ? entry[1]
+          : entry?.value;
+        const fullWidth =
+          Array.isArray(entry) === false &&
+          entry?.fullWidth === true;
+        const valueColor =
+          Array.isArray(entry) === false && entry?.valueColor
+            ? entry.valueColor
+            : MAIN_TEXT;
+
+        return (
           <div
-            style={{
-              ...shellTextStyle,
-              ...smallCapsStyle,
-              color: MUTED_TEXT,
-              fontSize: 13,
-              fontWeight: FONT_REGULAR,
-              marginBottom: 3,
-            }}
+            key={`${label}-${idx}`}
+            style={fullWidth ? { gridColumn: "1 / -1" } : undefined}
           >
-            {label}
+            <div
+              style={{
+                ...shellTextStyle,
+                ...smallCapsStyle,
+                color: MUTED_TEXT,
+                fontSize: 13,
+                fontWeight: FONT_REGULAR,
+                marginBottom: 3,
+              }}
+            >
+              {label}
+            </div>
+            <div
+              style={{
+                ...shellTextStyle,
+                color: valueColor,
+                fontSize: 16,
+                fontWeight: FONT_REGULAR,
+                lineHeight: 1.35,
+                whiteSpace: "pre-line",
+              }}
+            >
+              {value}
+            </div>
           </div>
-          <div
-            style={{
-              ...shellTextStyle,
-              color: MAIN_TEXT,
-              fontSize: 16,
-              fontWeight: FONT_REGULAR,
-              lineHeight: 1.35,
-              whiteSpace: "pre-line",
-            }}
-          >
-            {value}
-          </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
