@@ -6556,8 +6556,11 @@ function TimelineMainCard({ timeline }) {
       style={{
         ...shellTextStyle,
         width: "100%",
-        maxHeight: "calc(100vh - 185px)",
-        overflowY: "auto",
+        height: "100%",
+        minHeight: 0,
+        maxHeight: "none",
+        overflowY: "scroll",
+        overflowX: "hidden",
         overscrollBehavior: "contain",
         scrollbarGutter: "stable",
         borderRadius: 15,
@@ -6663,7 +6666,7 @@ function ContextTimelinePanel({ sections }) {
         height: "100%",
         maxHeight: "100%",
         minHeight: 0,
-        overflowY: "auto",
+        overflowY: "scroll",
         overflowX: "hidden",
         overscrollBehavior: "contain",
         scrollbarGutter: "stable",
@@ -6865,8 +6868,12 @@ export default function Engine17DecisionTimeline({
       <div
         style={{
           display: "grid",
+          gridTemplateRows: "auto minmax(0, 1fr)",
           gap: 12,
           minWidth: 0,
+          minHeight: 0,
+          height: "100%",
+          overflow: "hidden",
         }}
       >
         {minuteSelected ? (
