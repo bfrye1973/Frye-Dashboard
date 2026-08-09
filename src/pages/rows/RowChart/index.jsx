@@ -2324,6 +2324,7 @@ export default function RowChart({
             watch={engine17Data?.fib?.engine26ImbalanceWatch}
             plan={engine17Data?.fib?.engine26PaperTradePlan}
             tradePlanPreview={engine17Data?.fib?.engine26TradePlanPreview}
+            geometryPreviews={engine17Data?.fib?.engine26GeometryPreviews}
             ticket={engine17Data?.fib?.engine26PaperTradeTicket}
             symbol={state.symbol}
             selectedWaveDegree={selectedWaveDegree}
