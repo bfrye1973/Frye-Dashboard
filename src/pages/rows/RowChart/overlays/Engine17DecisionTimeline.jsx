@@ -3377,6 +3377,7 @@ function buildEngine4ContextSection(fib) {
       number: 0,
       icon: "④",
       title: "Engine 4 — Volume Participation",
+      fieldGridColumns: 3,
       severity: hardBlocked
         ? "danger"
         : confirmed
@@ -5717,7 +5718,7 @@ function Badge({ label, severity = "neutral" }) {
   );
 }
 
-function FieldGrid({ fields }) {
+function FieldGrid({ fields, columns = null }) {
   const safeFields = asArray(fields);
 
   if (!safeFields.length) return null;
@@ -5726,7 +5727,10 @@ function FieldGrid({ fields }) {
     <div
       style={{
         display: "grid",
-        gridTemplateColumns: "repeat(auto-fit, minmax(145px, 1fr))",
+        gridTemplateColumns:
+          Number.isInteger(columns) && columns > 0
+            ? `repeat(${columns}, minmax(0, 1fr))`
+            : "repeat(auto-fit, minmax(145px, 1fr))",
         gap: "9px 15px",
         marginTop: 7,
       }}
@@ -6346,7 +6350,10 @@ function TimelineSection({ section }) {
             </div>
           </div>
 
-          <FieldGrid fields={section.fields} />
+          <FieldGrid
+            fields={section.fields}
+            columns={section.fieldGridColumns}
+          />
           <IngredientCards cards={section.ingredientCards} />
           <Checklist items={section.checklist} />
           <CanonicalStageGrid stages={section.canonicalStages} />
@@ -6834,7 +6841,7 @@ export default function Engine17DecisionTimeline({
         right: 470,
         zIndex: 108,
         display: "grid",
-        gridTemplateColumns: "minmax(330px, 430px) minmax(560px, 760px)",
+        gridTemplateColumns: "repeat(2, minmax(430px, 560px))",
         justifyContent: "center",
         alignItems: "start",
         gap: 14,
