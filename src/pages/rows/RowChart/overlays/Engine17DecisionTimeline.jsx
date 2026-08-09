@@ -3294,11 +3294,46 @@ function buildEngine4ContextSection(fib) {
       authorizedParticipation.participationConfirmed === true ||
       authorizedParticipation.confirmed === true;
 
-    const currentBarVolume = Number(authorizedParticipation.currentBarVolume);
-    const priorBarVolume = Number(authorizedParticipation.priorBarVolume);
-    const volumeRatio = Number(
-      authorizedParticipation.rawCurrentVsPriorVolumeRatio ??
-        authorizedParticipation.currentVsPriorVolumeRatio
+    const observerActive =
+      authorizedParticipation.observerActive === true;
+
+    const observationStatus = formatUpper(
+      authorizedParticipation.observationStatus,
+      observerActive ? "ACTIVE" : "UNAVAILABLE"
+    );
+
+    const observation1mCurrentVolume = Number(
+      authorizedParticipation.observation1mCurrentVolume
+    );
+
+    const observation1mPriorVolume = Number(
+      authorizedParticipation.observation1mPriorVolume
+    );
+
+    const observation1mVolumeRatio = Number(
+      authorizedParticipation.observation1mVolumeRatio
+    );
+
+    const validation5mStale =
+      authorizedParticipation.validation5mStale === true;
+
+    const validation5mActive =
+      authorizedParticipation.validation5mActive === true;
+
+    const validation5mCurrentVolume = Number(
+      authorizedParticipation.validation5mCurrentVolume
+    );
+
+    const validation5mPriorVolume = Number(
+      authorizedParticipation.validation5mPriorVolume
+    );
+
+    const broader10mRelativeVolume = Number(
+      authorizedParticipation.broader10mRelativeVolume
+    );
+
+    const broader10mHighVolumeCandles = Number(
+      authorizedParticipation.broader10mHighVolumeCandles
     );
 
     const expectedParticipationDirection =
@@ -3311,17 +3346,37 @@ function buildEngine4ContextSection(fib) {
       authorizedParticipation.plainEnglishLines.length > 0
         ? authorizedParticipation.plainEnglishLines
         : [
-            "Engine 4 is watching volume.",
-            "Volume is weak right now.",
-            "Engine 4 is not killing the setup.",
-            "Engine 4 is waiting because Engine 3 reaction is not confirmed.",
+            "1m: live volume observation is unavailable.",
+            "5m: validation is unavailable.",
+            "10m: broader participation context is unavailable.",
+            "Engine 4 confirmation is waiting for Engine 3 qualification.",
             "No permission. No execution.",
           ];
+
+    const observation1mVolumesAreLive =
+      observerActive === true &&
+      observationStatus === "ACTIVE";
+
+    const validation5mVolumesAreLive =
+      validation5mActive === true &&
+      validation5mStale !== true;
+
+    const validation5mStatus =
+      validation5mStale
+        ? "STALE"
+        : validation5mActive
+        ? "ACTIVE"
+        : "UNAVAILABLE";
+
+    const broader10mStatus =
+      authorizedParticipation.broader10mActive === true
+        ? "ACTIVE"
+        : "UNAVAILABLE";
 
     return {
       number: 0,
       icon: "④",
-      title: "Engine 4 — Strategy 1 Participation",
+      title: "Engine 4 — Volume Participation",
       severity: hardBlocked
         ? "danger"
         : confirmed
@@ -3331,59 +3386,222 @@ function buildEngine4ContextSection(fib) {
         : "warning",
 
       fields: [
-        ["Mode", "AUTHORIZED STRATEGY 1"],
+        {
+          type: "sectionHeader",
+          label: "Observation / Confirmation",
+        },
         [
-          "State",
+          "Observer",
+          observerActive
+            ? "ACTIVE"
+            : observationStatus,
+        ],
+        [
+          "Confirmation State",
           formatUpper(
             authorizedParticipation.participationState,
             "PARTICIPATION WAITING"
           ),
         ],
         [
-          "Quality",
+          "Confirmation Quality",
           formatUpper(
             authorizedParticipation.participationQuality,
             "WEAK"
           ),
         ],
-        ["Allowed", formatBool(allowed)],
         ["Hard Block", formatBool(hardBlocked)],
-        ["Confirmed", formatBool(confirmed)],
 
+        {
+          type: "sectionHeader",
+          label: "1m — Immediate Participation",
+        },
+        ["Status", observationStatus],
+        [
+          "Read",
+          formatUpper(
+            authorizedParticipation.currentVolumeReaction,
+            "VOLUME DATA UNAVAILABLE"
+          ),
+        ],
+        [
+          "Current Volume",
+          observation1mVolumesAreLive &&
+          Number.isFinite(observation1mCurrentVolume)
+            ? formatScore(observation1mCurrentVolume)
+            : "—",
+        ],
+        [
+          "Prior Volume",
+          observation1mVolumesAreLive &&
+          Number.isFinite(observation1mPriorVolume)
+            ? formatScore(observation1mPriorVolume)
+            : "—",
+        ],
+        [
+          "Ratio",
+          observation1mVolumesAreLive &&
+          Number.isFinite(observation1mVolumeRatio)
+            ? `${formatNumber(observation1mVolumeRatio, 2)}x`
+            : "—",
+        ],
+        [
+          "State",
+          formatUpper(
+            authorizedParticipation.observation1mState,
+            "—"
+          ),
+        ],
         [
           "Direction",
-          formatUpper(authorizedParticipation.direction, "NEUTRAL"),
+          formatUpper(
+            authorizedParticipation.observation1mDirection,
+            "NEUTRAL"
+          ),
+        ],
+        [
+          "Quality",
+          formatUpper(
+            authorizedParticipation.observation1mQuality,
+            "—"
+          ),
+        ],
+        [
+          "Candle",
+          formatUpper(
+            authorizedParticipation.observation1mCurrentCandleStatus,
+            "—"
+          ),
+        ],
+
+        {
+          type: "sectionHeader",
+          label: "5m — Validation",
+        },
+        ["Status", validation5mStatus],
+        [
+          "Validation",
+          formatUpper(
+            authorizedParticipation.validation5mState,
+            "—"
+          ),
+        ],
+        [
+          "Direction",
+          formatUpper(
+            authorizedParticipation.validation5mDirection,
+            "NEUTRAL"
+          ),
+        ],
+        [
+          "Quality",
+          formatUpper(
+            authorizedParticipation.validation5mQuality,
+            "—"
+          ),
+        ],
+        [
+          "Current Volume",
+          validation5mVolumesAreLive &&
+          Number.isFinite(validation5mCurrentVolume)
+            ? formatScore(validation5mCurrentVolume)
+            : "—",
+        ],
+        [
+          "Prior Volume",
+          validation5mVolumesAreLive &&
+          Number.isFinite(validation5mPriorVolume)
+            ? formatScore(validation5mPriorVolume)
+            : "—",
+        ],
+        [
+          "Candle",
+          formatUpper(
+            authorizedParticipation.validation5mCurrentCandleStatus,
+            "—"
+          ),
+        ],
+
+        {
+          type: "sectionHeader",
+          label: "10m — Broader Context",
+        },
+        ["Status", broader10mStatus],
+        [
+          "Relative Volume",
+          Number.isFinite(broader10mRelativeVolume)
+            ? `${formatNumber(broader10mRelativeVolume, 2)}x`
+            : "—",
+        ],
+        [
+          "Trend",
+          formatUpper(
+            authorizedParticipation.broader10mVolumeTrend,
+            "—"
+          ),
+        ],
+        [
+          "Expansion",
+          formatBool(
+            authorizedParticipation.broader10mVolumeExpansion,
+            "—"
+          ),
+        ],
+        [
+          "Volume Confirmed",
+          formatBool(
+            authorizedParticipation.broader10mVolumeConfirmed,
+            "—"
+          ),
+        ],
+        [
+          "High-Volume Candles",
+          Number.isFinite(broader10mHighVolumeCandles)
+            ? formatScore(broader10mHighVolumeCandles)
+            : "—",
+        ],
+        [
+          "State",
+          formatUpper(
+            authorizedParticipation.broader10mParticipationState,
+            "—"
+          ),
+        ],
+        [
+          "Quality",
+          formatUpper(
+            authorizedParticipation.broader10mParticipationQuality,
+            "—"
+          ),
+        ],
+
+        {
+          type: "sectionHeader",
+          label: "Confirmation",
+        },
+        [
+          "Engine 3 Qualified",
+          formatBool(
+            authorizedParticipation.participationEvaluationEligible,
+            "NO"
+          ),
+        ],
+        ["Participation Confirmed", formatBool(confirmed)],
+        ["Allowed", formatBool(allowed)],
+        ["Hard Block", formatBool(hardBlocked)],
+        [
+          "Direction",
+          formatUpper(
+            authorizedParticipation.direction,
+            "NEUTRAL"
+          ),
         ],
         [
           "Expected",
-          formatUpper(expectedParticipationDirection, "—"),
-        ],
-        [
-          "Contact",
-          formatUpper(authorizedParticipation.contactState, "—"),
-        ],
-        [
-          "Chain Armed",
-          formatBool(authorizedParticipation.chainArmed, "—"),
-        ],
-
-        [
-          "Current Vol",
-          Number.isFinite(currentBarVolume)
-            ? `${formatScore(currentBarVolume)} now`
-            : "—",
-        ],
-        [
-          "Prior Vol",
-          Number.isFinite(priorBarVolume)
-            ? formatScore(priorBarVolume)
-            : "—",
-        ],
-        [
-          "Vol Ratio",
-          Number.isFinite(volumeRatio)
-            ? `${formatNumber(volumeRatio, 2)}x`
-            : "—",
+          formatUpper(
+            expectedParticipationDirection,
+            "—"
+          ),
         ],
       ],
 
@@ -6333,12 +6551,14 @@ function TimelineMainCard({ timeline }) {
         width: "100%",
         maxHeight: "calc(100vh - 185px)",
         overflowY: "auto",
+        overscrollBehavior: "contain",
+        scrollbarGutter: "stable",
         borderRadius: 15,
         border: `1px solid ${severityBorder(timeline.severity)}`,
         background: CARD_BG_STRONG,
         padding: "18px 19px",
         color: "#e5e7eb",
-        pointerEvents: "none",
+        pointerEvents: "auto",
         backdropFilter: "blur(5px)",
         boxShadow: "0 12px 34px rgba(0,0,0,0.34)",
         textAlign: "left",
@@ -6435,12 +6655,14 @@ function ContextTimelinePanel({ sections }) {
         width: "100%",
         maxHeight: "calc(100vh - 100px)",
         overflowY: "auto",
+        overscrollBehavior: "contain",
+        scrollbarGutter: "stable",
         border: "1px solid rgba(148,163,184,0.35)",
         borderRadius: 15,
         background: CARD_BG,
         padding: "14px",
         color: "#e5e7eb",
-        pointerEvents: "none",
+        pointerEvents: "auto",
         boxShadow: "0 10px 28px rgba(0,0,0,0.32)",
         backdropFilter: "blur(5px)",
         boxSizing: "border-box",
