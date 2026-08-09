@@ -903,6 +903,23 @@ const minuteWatch = minuteWatchAttached
 const minuteWatchActive =
   minuteWatch?.active === true;
 
+const dualPreview =
+  geometryPreviews?.active === true
+    ? geometryPreviews
+    : null;
+
+const shortPreview =
+  dualPreview?.optionA || null;
+
+const longPreview =
+  dualPreview?.optionB || null;
+
+const previewLocation =
+  dualPreview?.location || null;
+
+const decisionSummary =
+  dualPreview?.decisionSummary || null;
+
 const structuralPlaybook =
   minuteWatch.structuralPlaybook || {};
 
@@ -1105,309 +1122,350 @@ const paperAllowed =
     permission.engine6Allowed === true ||
     false;
 
-  return (
-    <div
-      style={{
-        fontFamily: CARD_FONT,
-        position: "absolute",
-        top: 95,
-        left: CARD_LEFT,
-        zIndex: 109,
-        width: CARD_WIDTH,
-        maxWidth: "37%",
-        borderRadius: 16,
-        border: `1px solid ${border}`,
-        background: "rgba(6,10,20,0.98)",
-        padding: "15px 16px",
-        color: "#e5e7eb",
-        backdropFilter: "blur(4px)",
-        pointerEvents: "none",
-        textAlign: "left",
-        boxShadow: "0 10px 28px rgba(0,0,0,0.34)",
-        display: "grid",
-        gap: 10,
-      }}
-    >
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1fr auto",
-          alignItems: "start",
-          gap: 10,
-        }}
-      >
-        <div>
-          <div
-            style={{
-              ...TITLE_STYLE,
-              color,
-            }}
-          >
-            Engine 26 — Trade Plan Preview
-          </div>
-
-          <div
-            style={{
-              ...TEXT_STYLE,
-              color: "#f8fafc",
-              fontSize: 14,
-              marginTop: 4,
-              fontWeight: 700,
-            }}
-          >
-            {symbol} • Minute Strategy 1 • Paper only
-          </div>
-        </div>
-
-        <StatusBadge label={statusLabel} color={color} />
+return (
+  <div
+    style={{
+      fontFamily: CARD_FONT,
+      position: "absolute",
+      top: 95,
+      left: CARD_LEFT,
+      zIndex: 109,
+      width: CARD_WIDTH,
+      maxWidth: "37%",
+      borderRadius: 16,
+      border: "1px solid rgba(56,189,248,0.58)",
+      background: "rgba(6,10,20,0.98)",
+      padding: "15px 16px",
+      color: "#e5e7eb",
+      backdropFilter: "blur(4px)",
+      pointerEvents: "none",
+      textAlign: "left",
+      boxShadow: "0 10px 28px rgba(0,0,0,0.34)",
+      display: "grid",
+      gap: 10,
+    }}
+  >
+    <div>
+      <div style={TITLE_STYLE}>
+        Engine 26B — Geometry Preview
       </div>
-
-      <SectionBox
-        border={border}
-        background={
-          strategy1Attached
-            ? strategy1State.background
-            : "rgba(113,63,18,0.16)"
-        }
-      >
-        <SmallLine
-          label="Status"
-          value={
-            strategy1Attached
-              ? strategy1State.label
-              : formatUpper(
-                  minuteWatch.status ||
-                  structuralPlaybook.status
-                )
-          }
-          valueColor={color}
-        />
-
-        <SmallLine
-          label="Lane"
-          value={
-            strategy1Attached
-              ? formatUpper(strategy1Setup.laneId, "MINUTE")
-              : "MINUTE"
-          }
-          valueColor="#38bdf8"
-        />
-
-        <SmallLine
-          label="Strategy"
-          value={
-            strategy1Attached
-              ? formatUpper(strategy1Setup.strategyId)
-              : "INTRADAY SCALP @ 10M"
-          }
-        />
-
-        <SmallLine
-          label="Template"
-          value={formatUpper(template)}
-          valueColor="#f8fafc"
-        />
-
-        <SmallLine
-          label="Grade"
-          value={
-            strategy1Attached
-              ? formatUpper(strategy1Setup.setupGrade, "A+++")
-              : "—"
-          }
-          valueColor="#fbbf24"
-        />
-
-        <SmallLine
-          label="Direction"
-          value={formatUpper(cardDirection)}
-          valueColor={getDirectionColor(cardDirection)}
-        />
-
-        <SmallLine
-          label="Action"
-          value={formatUpper(preferredAction)}
-          valueColor="#f8fafc"
-        />
-      </SectionBox>
-
-      <SectionBox
-        border="rgba(148,163,184,0.28)"
-        background="rgba(15,23,42,0.36)"
-      >
-        <SectionTitle>Strategy 1 Location</SectionTitle>
-        <SmallLine label="Setup Active" value={formatBool(strategy1Setup?.active)} valueColor={strategy1Setup?.active ? "#22c55e" : "#fbbf24"} />
-        <SmallLine label="Zone" value={strategy1Attached ? strategy1ZoneText : legacyZoneText} />
-        <SmallLine label="Current" value={formatLevel(strategy1Attached ? strategy1Setup?.currentPrice : minuteWatch.currentPrice)} />
-        <SmallLine label="Relation" value={strategy1Attached ? formatUpper(strategy1Setup?.location?.relation) : "—"} />
-        <SmallLine label="Direction" value={formatUpper(cardDirection)} valueColor={getDirectionColor(cardDirection)} />
-        <SmallLine label="Entry Midline" value={formatLevel(strategy1EntryZone?.midline)} />
-        <SmallLine label="Trigger" value={formatLevel(strategy1Setup?.triggerLevel)} valueColor="#22c55e" />
-        <SmallLine label="Reclaim" value={formatLevel(strategy1Setup?.reclaimBoundary)} valueColor="#2dd4bf" />
-        <SmallLine label="Invalidation" value={formatLevel(strategy1Setup?.locationInvalidationBoundary)} valueColor="#fb7185" />
-        <SmallLine label="Completed-Close Invalid" value={formatBool(strategy1Setup?.completedCloseInvalidationConfirmed)} valueColor={strategy1Setup?.completedCloseInvalidationConfirmed ? "#fb7185" : "#22c55e"} />
-      </SectionBox>
-
-      <SectionBox border="rgba(56,189,248,0.32)" background="rgba(12,74,110,0.14)">
-        <SectionTitle>Strategy 1 Trade Plan</SectionTitle>
-        <SmallLine label="Candidate ID" value={strategy1Setup?.candidateId} />
-        <SmallLine label="Zone ID" value={strategy1Setup?.zoneId} />
-        <SmallLine label="Entry Zone" value={strategy1ZoneText} />
-        <SmallLine label="Entry idea" value={entryIdea?.preferredArea || (strategy1EntryZone?.midline != null ? formatLevel(strategy1EntryZone.midline) : "—")} valueColor="#f8fafc" />
-        <SmallLine label="Stop idea" value={formatLevel(strategy1Setup?.locationInvalidationBoundary ?? stopIdea?.price)} valueColor="#fb7185" />
-        <SmallLine label="Confirm gate" value={strategy1Setup?.triggerLevel != null ? `${formatLevel(strategy1Setup.triggerLevel)} / reclaim and hold` : confirmationGate?.rule || "—"} valueColor="#fbbf24" />
-        <SmallLine label="Reaction" value={formatUpper(strategy1Reaction?.status, "WAITING")} valueColor={strategy1Reaction?.confirmed ? "#22c55e" : "#38bdf8"} />
-        <SmallLine label="Participation" value={formatUpper(strategy1Participation?.status, "WAITING")} valueColor={strategy1Participation?.confirmed ? "#22c55e" : "#38bdf8"} />
-        <SmallLine label="Risk preview" value={formatPoints(geometryPreview?.riskPoints)} valueColor="#fb7185" />
-        <SmallLine label="Reward preview" value={formatPoints(geometryPreview?.rewardPoints)} valueColor="#22c55e" />
-        <SmallLine label="Preview R/R" value={geometryPreview?.riskReward != null ? `${geometryPreview.riskReward} R` : "—"} valueColor="#22c55e" />
-      </SectionBox>
-
-      <SectionBox border="rgba(251,191,36,0.32)" background="rgba(113,63,18,0.12)">
-        <SectionTitle color="#fbbf24">General Context — Parent Only</SectionTitle>
-        <SmallLine label="Context Only" value={formatBool(generalContext?.contextOnly)} valueColor="#fbbf24" />
-        <SmallLine label="Source" value={formatUpper(generalContext?.source)} />
-        <SmallLine label="Status" value={formatUpper(generalContext?.status)} />
-        <SmallLine label="Parent Zone" value={generalContextZoneText} />
-        <SmallLine label="Parent Direction" value={`${formatUpper(generalContext?.direction, "—")} — CONTEXT ONLY`} valueColor="#fbbf24" />
-        <SmallLine label="Relation" value={formatUpper(generalContext?.zone?.relation)} />
-        <SmallLine label="Distance" value={formatPoints(generalContext?.zone?.distancePoints)} />
-        <div style={{ ...TEXT_STYLE, color: "#cbd5e1", fontSize: 13, fontWeight: 700 }}>
-          The general parent may be SHORT while Strategy 1 remains LONG. Parent direction does not control the Strategy 1 header, zone, trigger, reclaim, invalidation, or target.
-        </div>
-      </SectionBox>
-
-      <SectionBox border="rgba(34,197,94,0.32)" background="rgba(20,83,45,0.12)">
-        <SectionTitle color="#22c55e">Strategy 1 Target Zone</SectionTitle>
-        <SmallLine label="Target Zone" value={targetZoneText} valueColor="#22c55e" />
-        <SmallLine label="Target Low" value={formatLevel(strategy1TargetZone?.low)} valueColor="#22c55e" />
-        <SmallLine label="Target Midline" value={formatLevel(strategy1TargetZone?.midline)} valueColor="#22c55e" />
-        <SmallLine label="Target High" value={formatLevel(strategy1TargetZone?.high)} valueColor="#22c55e" />
-        <SmallLine label="Target Source" value={formatUpper(strategy1TargetZone?.source)} />
-        <SmallLine label="Runner" value="ENGINE 9 HANDOFF REQUIRED" valueColor="#38bdf8" />
-      </SectionBox>
-
-      <SectionBox border="rgba(168,85,247,0.35)" background="rgba(59,7,100,0.16)">
-        <SectionTitle color="#c084fc">Confirmation Needed</SectionTitle>
-        <ConfirmationList
-          items={[
-            strategy1Reaction?.confirmed
-              ? "ENGINE3_REACTION_CONFIRMED"
-              : strategy1Reaction?.status || "ENGINE3_REACTION_WAITING",
-            strategy1Participation?.confirmed
-              ? "ENGINE4_PARTICIPATION_CONFIRMED"
-              : strategy1Participation?.status || "ENGINE4_PARTICIPATION_WAITING",
-            strategy1Setup?.completedCloseInvalidationConfirmed
-              ? "STRATEGY1_COMPLETED_CLOSE_INVALIDATED"
-              : "COMPLETED_CLOSE_INVALIDATION_NOT_CONFIRMED",
-            "ENGINE6_FINAL_PERMISSION_REQUIRED",
-          ]}
-        />
-      </SectionBox>
-
-      <SectionBox border="rgba(148,163,184,0.24)" background="rgba(15,23,42,0.32)">
-        <SectionTitle>Activation Check</SectionTitle>
-
-        <SmallLine
-          label="Engine 15"
-          value={`${formatUpper(
-            permissionState?.engine15Readiness || "WATCH"
-          )} / ${formatUpper(permissionState?.engine15Action || "WAIT")}`}
-          valueColor="#fbbf24"
-        />
-
-        <SmallLine label="Engine 3" value={engine3Text} />
-
-        <SmallLine label="Engine 4" value={engine4Text} />
-
-        <SmallLine
-          label="Engine 6"
-          value={formatUpper(
-            permissionState?.engine6Decision ||
-              permission.engine6Decision ||
-              "PAPER STAND DOWN"
-          )}
-          valueColor={permissionState?.engine6Allowed ? "#22c55e" : "#fbbf24"}
-        />
-
-        <SmallLine
-          label="Paper allowed"
-          value={formatBool(paperAllowed)}
-          valueColor={paperAllowed ? "#22c55e" : "#fb7185"}
-        />
-
-        <SmallLine
-          label="Ticket"
-          value={ticket || permissionState?.ticketAllowed ? "YES" : "NO"}
-          valueColor={ticket || permissionState?.ticketAllowed ? "#22c55e" : "#fb7185"}
-        />
-      </SectionBox>
-
-      <SectionBox border="rgba(168,85,247,0.35)" background="rgba(59,7,100,0.16)">
-        <SectionTitle color="#c084fc">Engine 7 Size Preview</SectionTitle>
-
-        <SmallLine
-          label="Mode"
-          value={formatUpper(engine7Sizing?.mode || "R_ONLY_PREVIEW")}
-        />
-
-        <SmallLine
-          label="Allowed"
-          value={formatBool(engine7Sizing?.allowed)}
-          valueColor={engine7Sizing?.allowed ? "#22c55e" : "#fb7185"}
-        />
-
-        <SmallLine
-          label="Engine 6"
-          value={formatUpper(engine7Sizing?.engine6Permission || permissionState?.engine6Decision)}
-        />
-
-        <SmallLine
-          label="Score"
-          value={engine7Sizing?.totalScore != null ? String(engine7Sizing.totalScore) : "—"}
-        />
-
-        <div
-          style={{
-            ...TEXT_STYLE,
-            fontSize: 13,
-            fontWeight: 700,
-            color: "#cbd5e1",
-          }}
-        >
-          {engine7Sizing?.note ||
-            "Engine 7 v1 is R-only preview. Contract sizing comes later in Engine 7 v2."}
-        </div>
-      </SectionBox>
 
       <div
         style={{
           ...TEXT_STYLE,
-          color: "#fbbf24",
-          borderTop: "1px solid rgba(148,163,184,0.22)",
-          paddingTop: 9,
+          color: "#f8fafc",
           fontSize: 14,
+          marginTop: 4,
           fontWeight: 700,
         }}
       >
-        Strategy 1 is owned by the Minute child candidate. The broad parent remains
-        context only. Engine 3 confirms reaction, Engine 4 confirms participation,
-        and Engine 6 remains final permission authority. No ticket or execution is
-        created here.
+        {symbol} • Minute Strategy 1 • Preview only
+      </div>
+    </div>
+
+    <SectionBox
+      border="rgba(56,189,248,0.42)"
+      background="rgba(12,74,110,0.14)"
+    >
+      <SectionTitle>Current Location</SectionTitle>
+
+      <SmallLine
+        label="Zone"
+        value={
+          previewLocation?.zoneLow != null &&
+          previewLocation?.zoneHigh != null
+            ? `${formatLevel(previewLocation.zoneLow)}–${formatLevel(
+                previewLocation.zoneHigh
+              )}`
+            : "—"
+        }
+      />
+
+      <SmallLine
+        label="Current"
+        value={formatLevel(previewLocation?.currentPrice)}
+      />
+
+      <SmallLine
+        label="Midline"
+        value={formatLevel(previewLocation?.zoneMidline)}
+      />
+
+      <SmallLine
+        label="State"
+        value="NEW SETUP WATCH"
+        valueColor="#38bdf8"
+      />
+
+      <SmallLine
+        label="Direction"
+        value={formatUpper(dualPreview?.lifecycle?.direction, "NEUTRAL")}
+        valueColor="#38bdf8"
+      />
+    </SectionBox>
+
+    <SectionBox
+      border="rgba(251,191,36,0.5)"
+      background="rgba(113,63,18,0.12)"
+    >
+      <SectionTitle color="#fbbf24">
+        Option A — Short
+      </SectionTitle>
+
+      <SmallLine
+        label="Status"
+        value="PREVIEW ONLY"
+        valueColor="#fbbf24"
+      />
+
+      <SmallLine
+        label="Trigger"
+        value={formatLevel(shortPreview?.triggerLevel)}
+      />
+
+      <SmallLine
+        label="Acceptance"
+        value={formatLevel(shortPreview?.acceptanceBoundary)}
+      />
+
+      <SmallLine
+        label="Reclaim"
+        value={formatLevel(shortPreview?.reclaimBoundary)}
+      />
+
+      <SmallLine
+        label="Invalidation"
+        value={formatLevel(shortPreview?.invalidationLevel)}
+        valueColor="#fb7185"
+      />
+
+      <div
+        style={{
+          ...TEXT_STYLE,
+          fontSize: 13,
+          fontWeight: 700,
+          color: "#fbbf24",
+        }}
+      >
+        {shortPreview?.triggerInstruction || "—"}
       </div>
 
-      {plan?.status && (
-        <div
-          style={{
-            ...TEXT_STYLE,
-            color: "#94a3b8",
-            fontSize: 13,
-            fontWeight: 700,
-          }}
-        >
-          Plan: {formatUpper(plan.status)}
-        </div>
-      )}
+      <SectionTitle color="#fbbf24">
+        Levels Watched
+      </SectionTitle>
+
+      {(Array.isArray(shortPreview?.levelsWatched)
+        ? shortPreview.levelsWatched
+        : []
+      ).map((level) => (
+        <LevelPill
+          key={`${level.role}-${level.price}`}
+          label={level.label}
+          value={level.price}
+          color={
+            level.role === "FIRST_STRUCTURAL_DESTINATION"
+              ? "#22c55e"
+              : "#f8fafc"
+          }
+        />
+      ))}
+
+      <SectionTitle color="#fbbf24">
+        What Makes Option A Real?
+      </SectionTitle>
+
+      <ConfirmationList
+        items={shortPreview?.engine3RequiredStates || []}
+      />
+
+      <SmallLine
+        label="Engine 4"
+        value={formatUpper(shortPreview?.engine4Requirement)}
+      />
+
+      <SmallLine
+        label="First destination"
+        value={
+          shortPreview?.firstStructuralDestination?.price != null
+            ? `${formatLevel(
+                shortPreview.firstStructuralDestination.price
+              )} / ${shortPreview.firstStructuralDestination.label}`
+            : "NOT AVAILABLE YET"
+        }
+        valueColor="#22c55e"
+      />
+
+      <SmallLine
+        label="Engine 6"
+        value="FINAL PERMISSION REQUIRED"
+        valueColor="#fbbf24"
+      />
+    </SectionBox>
+
+    <SectionBox
+      border="rgba(34,197,94,0.5)"
+      background="rgba(20,83,45,0.12)"
+    >
+      <SectionTitle color="#22c55e">
+        Option B — Long
+      </SectionTitle>
+
+      <SmallLine
+        label="Status"
+        value="PREVIEW ONLY"
+        valueColor="#22c55e"
+      />
+
+      <SmallLine
+        label="Trigger"
+        value={formatLevel(longPreview?.triggerLevel)}
+      />
+
+      <SmallLine
+        label="Acceptance"
+        value={formatLevel(longPreview?.acceptanceBoundary)}
+      />
+
+      <SmallLine
+        label="Reclaim"
+        value={formatLevel(longPreview?.reclaimBoundary)}
+      />
+
+      <SmallLine
+        label="Invalidation"
+        value={formatLevel(longPreview?.invalidationLevel)}
+        valueColor="#fb7185"
+      />
+
+      <div
+        style={{
+          ...TEXT_STYLE,
+          fontSize: 13,
+          fontWeight: 700,
+          color: "#22c55e",
+        }}
+      >
+        {longPreview?.triggerInstruction || "—"}
+      </div>
+
+      <SectionTitle color="#22c55e">
+        Levels Watched
+      </SectionTitle>
+
+      {(Array.isArray(longPreview?.levelsWatched)
+        ? longPreview.levelsWatched
+        : []
+      ).map((level) => (
+        <LevelPill
+          key={`${level.role}-${level.price}`}
+          label={level.label}
+          value={level.price}
+          color={
+            level.role === "STRUCTURAL_REFERENCE"
+              ? "#38bdf8"
+              : "#f8fafc"
+          }
+        />
+      ))}
+
+      <SectionTitle color="#22c55e">
+        What Makes Option B Real?
+      </SectionTitle>
+
+      <ConfirmationList
+        items={longPreview?.engine3RequiredStates || []}
+      />
+
+      <SmallLine
+        label="Engine 4"
+        value={formatUpper(longPreview?.engine4Requirement)}
+      />
+
+      <SmallLine
+        label="Structural reference"
+        value={
+          longPreview?.firstStructuralDestination?.price != null
+            ? `${formatLevel(
+                longPreview.firstStructuralDestination.price
+              )} / ${longPreview.firstStructuralDestination.label}`
+            : "NOT AVAILABLE YET"
+        }
+        valueColor="#38bdf8"
+      />
+
+      <SmallLine
+        label="Next negotiated zone"
+        value={
+          longPreview?.nextNegotiatedDestination?.available === true
+            ? formatLevel(
+                longPreview.nextNegotiatedDestination.price
+              )
+            : "NOT AVAILABLE YET"
+        }
+        valueColor="#fbbf24"
+      />
+
+      <SmallLine
+        label="Engine 6"
+        value="FINAL PERMISSION REQUIRED"
+        valueColor="#fbbf24"
+      />
+    </SectionBox>
+
+    <SectionBox
+      border="rgba(56,189,248,0.32)"
+      background="rgba(12,74,110,0.14)"
+    >
+      <SectionTitle>Current Decision</SectionTitle>
+
+      <SmallLine
+        label="SHORT"
+        value={
+          decisionSummary?.short ||
+          shortPreview?.currentDecision ||
+          "WAITING"
+        }
+        valueColor="#fbbf24"
+      />
+
+      <SmallLine
+        label="LONG"
+        value={
+          decisionSummary?.long ||
+          longPreview?.currentDecision ||
+          "WAITING"
+        }
+        valueColor="#22c55e"
+      />
+
+      <SmallLine
+        label="Engine 3"
+        value="SELECTS THE REACTION"
+      />
+
+      <SmallLine
+        label="Engine 4"
+        value="CONFIRMS PARTICIPATION"
+      />
+
+      <SmallLine
+        label="Engine 6"
+        value="FINAL PERMISSION"
+        valueColor="#fbbf24"
+      />
+    </SectionBox>
+
+    <div
+      style={{
+        ...TEXT_STYLE,
+        color: "#94a3b8",
+        borderTop: "1px solid rgba(148,163,184,0.22)",
+        paddingTop: 9,
+        fontSize: 13,
+        fontWeight: 700,
+      }}
+    >
+      Preview only. No permission created. No execution.
     </div>
-  );
-}
+  </div>
+);
