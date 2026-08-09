@@ -453,6 +453,7 @@ export default function Engine26ImbalanceWatchCard({
   watch = null,
   plan = null,
   tradePlanPreview = null,
+  geometryPreviews = null,
   ticket = null,
   symbol = "ES",
   selectedWaveDegree = "minute",
