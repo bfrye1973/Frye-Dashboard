@@ -6660,7 +6660,7 @@ function ContextTimelinePanel({ sections }) {
       style={{
         ...shellTextStyle,
         width: "100%",
-        maxHeight: "calc(100vh - 100px)",
+        maxHeight: "calc(100vh - 185px)",
         overflowY: "auto",
         overscrollBehavior: "contain",
         scrollbarGutter: "stable",
