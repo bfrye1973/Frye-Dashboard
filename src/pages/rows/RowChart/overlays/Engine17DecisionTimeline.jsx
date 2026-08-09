@@ -6667,7 +6667,7 @@ function ContextTimelinePanel({ sections }) {
         overflowX: "hidden",
         overscrollBehavior: "contain",
         scrollbarGutter: "stable",
-        scrollPaddingBottom: 24
+        scrollPaddingBottom: 24,
         border: "1px solid rgba(148,163,184,0.35)",
         borderRadius: 15,
         background: CARD_BG,
