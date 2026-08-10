@@ -708,19 +708,43 @@ const engine22WaveStrategy =
        null,
 
      // Compatibility / diagnostic Engine 26 objects.
-     engine26ImbalanceWatch: node?.engine26ImbalanceWatch || null,
+     engine26ImbalanceWatch:
+       node?.engine26ImbalanceWatch ||
+       null,
+
      engine26StructuralContext:
        node?.engine26StructuralContext ||
        node?.engine26ImbalanceWatch?.structuralPlaybook ||
        null,
+
      engine26TradePlanPreview:
        node?.engine26TradePlanPreview ||
        node?.engine26ImbalanceWatch?.tradePlanPreview ||
        null,
-     engine26PaperTradePlan: node?.engine26PaperTradePlan || null,
-     engine26PaperTradeTicket: node?.engine26PaperTradeTicket || null,
-     analytics: node?.analytics || null,
-     permissionPreliminary: node?.permissionPreliminary || null,
+
+     // Canonical Engine 26B dual-direction geometry preview.
+     // Used by the right-side Engine 26B Geometry Preview card.
+     // Preview only — creates no permission or execution.
+     engine26GeometryPreviews:
+       minuteStrategy?.engine26GeometryPreviews ||
+       node?.engine26GeometryPreviews ||
+       null,
+
+     engine26PaperTradePlan:
+       node?.engine26PaperTradePlan ||
+       null,
+
+     engine26PaperTradeTicket:
+       node?.engine26PaperTradeTicket ||
+       null,
+
+     analytics:
+       node?.analytics ||
+       null,
+
+     permissionPreliminary:
+       node?.permissionPreliminary ||
+       null,
 
      engine2State: snapshot?.engine2State || null,
       activeExtensions: snapshot?.engine2State?.activeExtensions || null,
