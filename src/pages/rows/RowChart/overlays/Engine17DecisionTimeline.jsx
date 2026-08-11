@@ -2165,66 +2165,20 @@ function getSelectedDiagnosticSeverity({ diagnostic, paperScalp }) {
   ).toUpperCase();
 
   const canonicalDirection = String(
-    paperScalp?.direction || ""
+    paperScalp?.direction || "NEUTRAL"
   ).toUpperCase();
 
-  const reactionConfirmed =
-    paperScalp?.reactionConfirmed === true ||
-    paperScalp?.confirmed === true;
-
-  if (canonicalState.includes("INVALID")) {
-    return "danger";
-  }
-
-  if (reactionConfirmed) {
-    if (canonicalDirection === "SHORT") return "danger";
-    if (canonicalDirection === "LONG") return "bullish";
-
-    return "teal";
-  }
-
-  if (!diagnostic) {
-    return "blue";
-  }
-
-  const state = String(
-    getSelectedDiagnosticState(diagnostic) || ""
-  ).toUpperCase();
-
-  const direction = String(
-    getSelectedDiagnosticDirection(diagnostic) || ""
-  ).toUpperCase();
-
-  const bearishStates = [
-    "BREAKOUT_FAILING",
-    "LOST_LEVEL",
-    "FAILED_RECLAIM",
-    "REJECTING_VALUE",
-    "FAILED_ACCEPTANCE_SHORT",
-    "LOST_SHORT_TRIGGER_LEVEL",
-  ];
-
-  const bullishStates = [
-    "HELD_LEVEL",
-    "RECLAIMED_LEVEL",
-    "WICK_BELOW_AND_RECLAIM",
-    "DIP_BOUGHT_FAST",
-    "SELLERS_TRAPPED",
-    "BREAKOUT_HOLDING",
-  ];
+  // Strategy 1 timeline color is owned by canonical Engine 3 only.
+  // Fast 10m/current-level diagnostics remain visible as evidence,
+  // but they can no longer independently turn the card green or red.
+  if (canonicalDirection === "SHORT") return "danger";
+  if (canonicalDirection === "LONG") return "bullish";
 
   if (
-    bearishStates.includes(state) ||
-    direction === "SHORT"
+    canonicalState.includes("INVALID") ||
+    canonicalState.includes("FAILED")
   ) {
-    return "danger";
-  }
-
-  if (
-    bullishStates.includes(state) &&
-    direction === "LONG"
-  ) {
-    return "bullish";
+    return "warning";
   }
 
   return "blue";
@@ -2742,18 +2696,66 @@ function buildEngine3ContextSection(fib) {
         )}`
       : "—";
 
-    const currentLevelRead =
-      selected.source === "currentLevelAction"
-        ? diagnosticRead
-        : "—";
+    const observation1m =
+      paperScalp?.reactionObservation1m || null;
+
+    const validation5m =
+      paperScalp?.reactionValidation5m || null;
+
+    const broader10m =
+      paperScalp?.broaderReaction10m ||
+      fastReaction ||
+      currentLevelAction ||
+      null;
+
+    const oneMinuteRead = observation1m
+      ? `${formatUpper(
+          observation1m?.state,
+          "NO SIGNAL"
+        )} / ${formatUpper(
+          observation1m?.direction,
+          "NEUTRAL"
+        )} / ${formatUpper(
+          observation1m?.quality,
+          "WEAK"
+        )}`
+      : "—";
+
+    const fiveMinuteRead = validation5m
+      ? `${formatUpper(
+          validation5m?.validationState,
+          "UNRESOLVED"
+        )} / ${formatUpper(
+          validation5m?.direction,
+          "NEUTRAL"
+        )} / ${formatUpper(
+          validation5m?.quality,
+          "WEAK"
+        )}`
+      : "—";
+
+    const tenMinuteRead = broader10m
+      ? `${formatUpper(
+          broader10m?.state,
+          "NO SIGNAL"
+        )} / ${formatUpper(
+          broader10m?.direction,
+          "NEUTRAL"
+        )} / ${formatUpper(
+          broader10m?.quality,
+          "WEAK"
+        )}`
+      : diagnosticRead;
+
+    const currentLevelRead = oneMinuteRead;
 
     const meaning =
-      diagnostic?.meaning ||
-      diagnostic?.message ||
-      diagnostic?.traderMessage ||
-      diagnostic?.read ||
-      diagnostic?.summary ||
-      "Backend meaning unavailable.";
+      paperScalp?.meaning ||
+      paperScalp?.message ||
+      paperScalp?.traderMessage ||
+      paperScalp?.read ||
+      paperScalp?.summary ||
+      "Canonical Engine 3 reaction shown above. 1m, 5m, and 10m evidence remain visible separately.";
 
     return {
       number: 0,
@@ -2785,12 +2787,9 @@ function buildEngine3ContextSection(fib) {
           ["Direction", formatUpper(canonicalDirection, "NEUTRAL")],
           ["Quality", formatUpper(canonicalQuality, "UNAVAILABLE")],
           ["Reaction state", formatUpper(canonicalState, "WAITING")],
-          [
-            "Current price action",
-            diagnostic
-              ? formatUpper(diagnosticState, "NO SIGNAL")
-              : "BACKEND READ UNAVAILABLE",
-          ],
+          ["1m immediate", oneMinuteRead],
+          ["5m validation", fiveMinuteRead],
+          ["10m broader action", tenMinuteRead],
           [
             "Reaction confirmation",
             reactionConfirmed ? "CONFIRMED" : "NOT CONFIRMED",
@@ -6005,7 +6004,7 @@ function Engine3PriceReactionCard({ section }) {
     ["Neg Zone", card.negZone],
     ["Location", card.location],
     ["Main Read", card.mainRead],
-    ["Current Level", card.currentLevel],
+    ["1m Immediate", card.currentLevel],
   ];
 
   const contactRows = [
