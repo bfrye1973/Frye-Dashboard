@@ -6661,7 +6661,9 @@ function ContextTimelinePanel({ sections }) {
     <div
       style={{
         ...shellTextStyle,
-        width: "100%",      
+        width: "100%",
+        height: "100%",
+        maxHeight: "100%",
         minHeight: 0,
         overflowY: "scroll",
         overflowX: "hidden",
@@ -6852,7 +6854,7 @@ export default function Engine17DecisionTimeline({
         height: "calc(100vh - 100px)",
         minHeight: 0,
         gap: 14,
-        pointerEvents: "auto",
+        pointerEvents: "none",
       }}
     >
       <WavelengthTabs
