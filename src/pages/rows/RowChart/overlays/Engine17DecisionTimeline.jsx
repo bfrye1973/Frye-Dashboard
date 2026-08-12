@@ -6854,7 +6854,7 @@ export default function Engine17DecisionTimeline({
         height: "calc(100vh - 100px)",
         minHeight: 0,
         gap: 14,
-        pointerEvents: "none",
+        pointerEvents: "auto",
       }}
     >
       <WavelengthTabs
