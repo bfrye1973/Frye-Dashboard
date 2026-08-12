@@ -6661,9 +6661,7 @@ function ContextTimelinePanel({ sections }) {
     <div
       style={{
         ...shellTextStyle,
-        width: "100%",
-        height: "100%",
-        maxHeight: "none",
+        width: "100%",      
         minHeight: 0,
         overflowY: "scroll",
         overflowX: "hidden",
