@@ -412,6 +412,18 @@ function mapSnapshotToEngine17Overlay(snapshot, strategyId, chartMode = "SPY_SCA
     snapshot?.engine27Strategies?.engine27TraderDecision?.decisions?.subminute ||
     null;
 
+  const engine27Strategies =
+    snapshot?.engine27Strategies ||
+    null;
+
+  const engine27FibIntelligence =
+    snapshot?.engine27Strategies?.engine27FibIntelligence ||
+    null;
+
+  const engine27MarketStory =
+    snapshot?.engine27Strategies?.engine27MarketStory ||
+    null;
+
   const engine22SubminuteStructure =
     minuteStrategy?.engine22WaveStrategy?.degreeStates?.subminute ||
     null;
@@ -683,6 +695,9 @@ const engine22WaveStrategy =
      strategyTimeline,
      engine27TraderDecision,
      engine27SubminuteTraderDecision,
+     engine27Strategies,
+     engine27FibIntelligence,
+     engine27MarketStory,
      engine22SubminuteStructure,
      subminuteEngine26,
      subminuteEngine6Permission,
@@ -709,15 +724,20 @@ const engine22WaveStrategy =
 
      // Compatibility / diagnostic Engine 26 objects.
      engine26ImbalanceWatch:
+       minuteStrategy?.engine26ImbalanceWatch ||
        node?.engine26ImbalanceWatch ||
        null,
 
      engine26StructuralContext:
+       minuteStrategy?.engine26StructuralContext ||
+       minuteStrategy?.engine26ImbalanceWatch?.structuralPlaybook ||
        node?.engine26StructuralContext ||
        node?.engine26ImbalanceWatch?.structuralPlaybook ||
        null,
 
      engine26TradePlanPreview:
+       minuteStrategy?.engine26TradePlanPreview ||
+       minuteStrategy?.engine26ImbalanceWatch?.tradePlanPreview ||
        node?.engine26TradePlanPreview ||
        node?.engine26ImbalanceWatch?.tradePlanPreview ||
        null,
@@ -731,10 +751,12 @@ const engine22WaveStrategy =
        null,
 
      engine26PaperTradePlan:
+       minuteStrategy?.engine26PaperTradePlan ||
        node?.engine26PaperTradePlan ||
        null,
 
      engine26PaperTradeTicket:
+       minuteStrategy?.engine26PaperTradeTicket ||
        node?.engine26PaperTradeTicket ||
        null,
 
@@ -2350,6 +2372,11 @@ export default function RowChart({
             tradePlanPreview={engine17Data?.fib?.engine26TradePlanPreview}
             geometryPreviews={engine17Data?.fib?.engine26GeometryPreviews}
             ticket={engine17Data?.fib?.engine26PaperTradeTicket}
+            locationCandidate={engine17Data?.fib?.engine26LocationCandidate}
+            reactionHandoff={engine17Data?.fib?.engine26ReactionHandoff}
+            structuralContext={engine17Data?.fib?.engine26StructuralContext}
+            engine27FibIntelligence={engine17Data?.fib?.engine27FibIntelligence}
+            engine27MarketStory={engine17Data?.fib?.engine27MarketStory}
             symbol={state.symbol}
             selectedWaveDegree={selectedWaveDegree}
             subminuteEngine26={engine17Data?.fib?.subminuteEngine26}
