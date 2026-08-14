@@ -928,6 +928,14 @@ const structuralOnlyPreview =
 const structuralShortActive =
   structuralOnlyPreview?.direction === "SHORT";
 
+const negotiatedLocationActive =
+  previewLocation?.zoneLow != null &&
+  previewLocation?.zoneHigh != null;
+
+const structuralShortWaitingForLocation =
+  structuralShortActive &&
+  !negotiatedLocationActive;
+
 const structuralPlaybook =
   minuteWatch.structuralPlaybook || {};
 
@@ -1202,12 +1210,12 @@ return (
       <SmallLine
         label="State"
         value={
-          structuralShortActive
+          structuralShortWaitingForLocation
             ? "WAITING FOR NEGOTIATED LOCATION"
             : "NEW SETUP WATCH"
         }
         valueColor={
-          structuralShortActive
+          structuralShortWaitingForLocation
             ? "#fbbf24"
             : "#38bdf8"
         }
@@ -1215,19 +1223,11 @@ return (
 
       <SmallLine
         label="Direction"
-        value={
-          structuralShortActive
-            ? "STRUCTURAL SHORT WATCH"
-            : formatUpper(
-                dualPreview?.lifecycle?.direction,
-                "NEUTRAL"
-              )
-        }
-        valueColor={
-          structuralShortActive
-            ? "#fbbf24"
-            : "#38bdf8"
-        }
+        value={formatUpper(
+          dualPreview?.lifecycle?.direction,
+          "NEUTRAL"
+        )}
+        valueColor="#38bdf8"
       />
     </SectionBox>
 
@@ -1248,8 +1248,16 @@ return (
 
         <SmallLine
           label="Strategy 1 Location"
-          value="WAITING FOR NEGOTIATED LOCATION"
-          valueColor="#fbbf24"
+          value={
+            negotiatedLocationActive
+              ? "ACTIVE NEGOTIATED LOCATION"
+              : "WAITING FOR NEGOTIATED LOCATION"
+          }
+          valueColor={
+            negotiatedLocationActive
+              ? "#22c55e"
+              : "#fbbf24"
+          }
         />
 
         <SmallLine
@@ -1357,8 +1365,16 @@ return (
 
         <SmallLine
           label="Engine 26A"
-          value="NEGOTIATED LOCATION STILL REQUIRED"
-          valueColor="#fbbf24"
+          value={
+            negotiatedLocationActive
+              ? "NEGOTIATED LOCATION ACTIVE"
+              : "NEGOTIATED LOCATION STILL REQUIRED"
+          }
+          valueColor={
+            negotiatedLocationActive
+              ? "#22c55e"
+              : "#fbbf24"
+          }
         />
 
         <SmallLine
