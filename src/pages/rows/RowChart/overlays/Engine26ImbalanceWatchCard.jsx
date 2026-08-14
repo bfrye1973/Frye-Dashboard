@@ -920,6 +920,14 @@ const previewLocation =
 const decisionSummary =
   dualPreview?.decisionSummary || null;
 
+const structuralOnlyPreview =
+  dualPreview?.structuralOnlyPreview?.active === true
+    ? dualPreview.structuralOnlyPreview
+    : null;
+
+const structuralShortActive =
+  structuralOnlyPreview?.direction === "SHORT";
+
 const structuralPlaybook =
   minuteWatch.structuralPlaybook || {};
 
@@ -1193,16 +1201,179 @@ return (
 
       <SmallLine
         label="State"
-        value="NEW SETUP WATCH"
-        valueColor="#38bdf8"
+        value={
+          structuralShortActive
+            ? "WAITING FOR NEGOTIATED LOCATION"
+            : "NEW SETUP WATCH"
+        }
+        valueColor={
+          structuralShortActive
+            ? "#fbbf24"
+            : "#38bdf8"
+        }
       />
 
       <SmallLine
         label="Direction"
-        value={formatUpper(dualPreview?.lifecycle?.direction, "NEUTRAL")}
-        valueColor="#38bdf8"
+        value={
+          structuralShortActive
+            ? "STRUCTURAL SHORT WATCH"
+            : formatUpper(
+                dualPreview?.lifecycle?.direction,
+                "NEUTRAL"
+              )
+        }
+        valueColor={
+          structuralShortActive
+            ? "#fbbf24"
+            : "#38bdf8"
+        }
       />
     </SectionBox>
+
+    {structuralShortActive && (
+      <SectionBox
+        border="rgba(251,191,36,0.62)"
+        background="rgba(113,63,18,0.18)"
+      >
+        <SectionTitle color="#fbbf24">
+          Structural Short Watch
+        </SectionTitle>
+
+        <SmallLine
+          label="Status"
+          value="PREVIEW AVAILABLE"
+          valueColor="#fbbf24"
+        />
+
+        <SmallLine
+          label="Strategy 1 Location"
+          value="WAITING FOR NEGOTIATED LOCATION"
+          valueColor="#fbbf24"
+        />
+
+        <SmallLine
+          label="Direction"
+          value="SHORT"
+          valueColor="#fbbf24"
+        />
+
+        <SmallLine
+          label="B High / Reclaim"
+          value={formatLevel(
+            structuralOnlyPreview?.controlLevel
+          )}
+          valueColor="#fb7185"
+        />
+
+        <SmallLine
+          label="Structural Invalidation"
+          value={formatLevel(
+            structuralOnlyPreview?.invalidationLevel
+          )}
+          valueColor="#fb7185"
+        />
+
+        <div
+          style={{
+            ...TEXT_STYLE,
+            fontSize: 13,
+            fontWeight: 700,
+            color: "#fbbf24",
+          }}
+        >
+          {structuralOnlyPreview?.triggerInstruction ||
+            "Failed reclaim / hold below Engine 22 B high"}
+        </div>
+
+        <SectionTitle color="#fbbf24">
+          C-Down Structural Destinations
+        </SectionTitle>
+
+        {(Array.isArray(
+          structuralOnlyPreview?.levelsWatched
+        )
+          ? structuralOnlyPreview.levelsWatched
+          : []
+        ).map((level) => (
+          <LevelPill
+            key={`${level.role}-${level.price}`}
+            label={level.label}
+            value={level.price}
+            color={
+              level.role ===
+              "FIRST_STRUCTURAL_DESTINATION"
+                ? "#22c55e"
+                : level.role ===
+                  "PRIMARY_STRUCTURAL_DESTINATION"
+                ? "#38bdf8"
+                : level.role ===
+                  "C_DOWN_RECLAIM_INVALIDATION"
+                ? "#fb7185"
+                : "#f8fafc"
+            }
+          />
+        ))}
+
+        <SmallLine
+          label="First Destination"
+          value={
+            structuralOnlyPreview
+              ?.firstStructuralDestination
+              ?.price != null
+              ? `${formatLevel(
+                  structuralOnlyPreview
+                    .firstStructuralDestination
+                    .price
+                )} / ${
+                  structuralOnlyPreview
+                    .firstStructuralDestination
+                    .label
+                }`
+              : "NOT AVAILABLE YET"
+          }
+          valueColor="#22c55e"
+        />
+
+        <SmallLine
+          label="Primary Destination"
+          value={
+            structuralOnlyPreview
+              ?.primaryStructuralDestination
+              ?.price != null
+              ? `${formatLevel(
+                  structuralOnlyPreview
+                    .primaryStructuralDestination
+                    .price
+                )} / ${
+                  structuralOnlyPreview
+                    .primaryStructuralDestination
+                    .label
+                }`
+              : "NOT AVAILABLE YET"
+          }
+          valueColor="#38bdf8"
+        />
+
+        <SmallLine
+          label="Engine 26A"
+          value="NEGOTIATED LOCATION STILL REQUIRED"
+          valueColor="#fbbf24"
+        />
+
+        <SmallLine
+          label="Permission"
+          value="NONE CREATED"
+          valueColor="#fb7185"
+        />
+
+        <SmallLine
+          label="Execution"
+          value="NONE"
+          valueColor="#fb7185"
+        />
+      </SectionBox>
+    )}
 
     <SectionBox
       border="rgba(251,191,36,0.5)"
