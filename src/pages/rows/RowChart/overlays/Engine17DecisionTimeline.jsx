@@ -225,7 +225,41 @@ function getFinalPermission(fib) {
 }
 
 function getEngine27TraderDecision(fib) {
-  return fib?.engine27TraderDecision || null;
+  const decision = fib?.engine27TraderDecision || null;
+  const minuteFib = fib?.engine27FibIntelligence?.minute || null;
+  const story = fib?.engine27MarketStory || null;
+
+  if (
+    decision &&
+    minuteFib?.modelType === "C_DOWN_EXTENSION_LADDER"
+  ) {
+    const bHighText = formatNumber(minuteFib.invalidationLevel);
+    const nextTargetText = formatNumber(minuteFib.nextPrice);
+    const primaryTargetText = formatNumber(minuteFib.primaryTarget);
+
+    return {
+      ...decision,
+      direction: "SHORT",
+      currentWave: "W4",
+      internalWave: "C",
+      nextAction: "WATCH_C_DOWN_BELOW_7840",
+      summary:
+        story?.fibSummary ||
+        minuteFib?.targetModel?.summary ||
+        `Minute W4 expanded-flat C-down is active. B high ${bHighText}. Watch C targets ${nextTargetText} / ${primaryTargetText}.`,
+      waitingFor: [
+        "Price stays below / cannot hold 7840",
+        "Engine 3 bearish reaction",
+        "Engine 4 bearish participation",
+        "Engine 6 final paper permission",
+      ],
+      blockers: decision?.blockers || [
+        "Engine 3 / Engine 4 confirmation required",
+      ],
+    };
+  }
+
+  return decision;
 }
 
 function getEngine27SubminuteTraderDecision(fib) {
@@ -4812,24 +4846,42 @@ function buildEngine22CompactStructureSection(degreeStates) {
     internal?.internalLegDirection ||
     null;
 
+  const hasCDownTargetModel =
+    String(targetModel?.modelType || "").toUpperCase() ===
+    "C_DOWN_EXTENSION_LADDER";
+
   const hasActiveFibModel =
     activeFibModel && Object.keys(activeFibModel).length > 0;
-  const isRetracementModel =
-    activeFibModel?.modelType === "RETRACEMENT_MAP" ||
-    activeFibModel?.modelKey === "W4_RETRACEMENT_MAP" ||
-    (minute?.activeWave === "W4" &&
-      Object.keys(w4RetracementMap).length > 0);
-  const isExtensionModel =
-    activeFibModel?.modelType === "EXTENSION_LADDER" ||
-    targetModel?.modelType === "EXTENSION_LADDER";
 
-  const currentFibModel = hasActiveFibModel
+  const isRetracementModel =
+    !hasCDownTargetModel &&
+    (
+      activeFibModel?.modelType === "RETRACEMENT_MAP" ||
+      activeFibModel?.modelKey === "W4_RETRACEMENT_MAP" ||
+      (
+        minute?.activeWave === "W4" &&
+        Object.keys(w4RetracementMap).length > 0
+      )
+    );
+
+  const isExtensionModel =
+    !hasCDownTargetModel &&
+    (
+      activeFibModel?.modelType === "EXTENSION_LADDER" ||
+      targetModel?.modelType === "EXTENSION_LADDER"
+    );
+
+  const currentFibModel = hasCDownTargetModel
+    ? targetModel
+    : hasActiveFibModel
     ? activeFibModel
     : isRetracementModel
     ? w4RetracementMap
     : targetModel;
 
-  const fibModelLabel = isRetracementModel
+  const fibModelLabel = hasCDownTargetModel
+    ? "W4 Expanded Flat — C Down Ladder"
+    : isRetracementModel
     ? "W4 Retracement Map"
     : currentFibModel?.modelType === "EXTENSION_LADDER"
     ? "W3 Extension Ladder"
@@ -4881,7 +4933,53 @@ function buildEngine22CompactStructureSection(degreeStates) {
       null,
   };
 
-  const nextTargetValue = isRetracementModel
+  const cDownLevels = {
+    c100:
+      currentFibModel?.levels?.c100 ??
+      targetModel?.levels?.c100 ??
+      null,
+    c1272:
+      currentFibModel?.levels?.c1272 ??
+      targetModel?.levels?.c1272 ??
+      null,
+    c1618:
+      currentFibModel?.levels?.c1618 ??
+      targetModel?.levels?.c1618 ??
+      null,
+    c200:
+      currentFibModel?.levels?.c200 ??
+      targetModel?.levels?.c200 ??
+      null,
+    c2618:
+      currentFibModel?.levels?.c2618 ??
+      targetModel?.levels?.c2618 ??
+      null,
+  };
+
+  const cDownAnchor =
+    currentFibModel?.anchorModel ||
+    targetModel?.anchorModel ||
+    {};
+
+  const cDownInvalidationLevel =
+    currentFibModel?.invalidationLevel ??
+    targetModel?.invalidationLevel ??
+    cDownAnchor?.waveBHigh ??
+    internal?.invalidationLevel ??
+    null;
+
+  const cDownPrimaryTarget =
+    currentFibModel?.primaryTarget ??
+    targetModel?.primaryTarget ??
+    cDownLevels.c1618 ??
+    null;
+
+  const nextTargetValue = hasCDownTargetModel
+    ? currentFibModel?.nextTarget ??
+      targetModel?.nextTarget ??
+      cDownLevels.c100 ??
+      null
+    : isRetracementModel
     ? currentFibModel?.nextLevelBelow?.price ??
       w4RetracementMap?.nextRetracementBelow?.price ??
       internal?.supportLevel ??
@@ -4976,7 +5074,29 @@ function buildEngine22CompactStructureSection(degreeStates) {
     label: fibModelLabel,
   };
 
-  const fibFields = isRetracementModel
+  const fibFields = hasCDownTargetModel
+    ? [
+        ["A Low", publishedNumber(cDownAnchor?.waveALow)],
+        ["A Time", publishedText(cDownAnchor?.waveATime)],
+        ["B High", publishedNumber(cDownAnchor?.waveBHigh)],
+        ["B Time", publishedText(cDownAnchor?.waveBTime)],
+        ["Current Leg", publishedText(currentFibModel?.currentLeg, formatUpper)],
+        ["Next C Target", publishedNumber(currentFibModel?.nextTarget)],
+        ["C 1.000", publishedNumber(cDownLevels.c100)],
+        ["C 1.272", publishedNumber(cDownLevels.c1272)],
+        ["Primary C Target", publishedNumber(cDownPrimaryTarget)],
+        ["C 1.618", publishedNumber(cDownLevels.c1618)],
+        ["C 2.000", publishedNumber(cDownLevels.c200)],
+        ["C 2.618", publishedNumber(cDownLevels.c2618)],
+        ["Reclaim / Invalidation", publishedNumber(cDownInvalidationLevel)],
+        [
+          "Rule",
+          `C down active while price cannot hold above ${publishedNumber(
+            cDownInvalidationLevel
+          )}`,
+        ],
+      ]
+    : isRetracementModel
     ? [
         [
           "W3 High",
