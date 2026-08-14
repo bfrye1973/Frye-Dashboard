@@ -2684,10 +2684,10 @@ function buildEngine3ContextSection(fib) {
         : "—";
 
     const currentPrice = Number(
-      diagnostic?.currentPrice ??
-        paperScalp?.currentPrice ??
+      paperScalp?.currentPrice ??
         engine26Handoff?.currentPrice ??
-        strategy1Setup?.currentPrice
+        strategy1Setup?.currentPrice ??
+        diagnostic?.currentPrice
     );
 
     const distancePts = Number(
