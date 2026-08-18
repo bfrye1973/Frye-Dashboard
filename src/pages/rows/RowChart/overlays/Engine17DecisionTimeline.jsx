@@ -4850,10 +4850,6 @@ function buildEngine22CompactStructureSection(degreeStates) {
     String(targetModel?.modelType || "").toUpperCase() ===
     "C_DOWN_EXTENSION_LADDER";
 
-  const hasCDownTargetModel =
-    String(targetModel?.modelType || "").toUpperCase() ===
-    "C_DOWN_EXTENSION_LADDER";
-
   const hasActiveFibModel =
     activeFibModel && Object.keys(activeFibModel).length > 0;
 
