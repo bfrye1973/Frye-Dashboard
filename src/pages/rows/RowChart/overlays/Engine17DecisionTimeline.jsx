@@ -5087,6 +5087,49 @@ function buildEngine22CompactStructureSection(degreeStates) {
             cDownInvalidationLevel
           )}`,
         ],
+
+        {
+          type: "sectionHeader",
+          label: "Internal C-a Down Extensions",
+        },
+        ["C-a State", publishedText(internalC?.cWaveState, formatUpper)],
+        ["C-a Start", publishedNumber(internalC?.cA?.start)],
+        ["C-a Current", publishedNumber(internalC?.cA?.currentPrice)],
+        [
+          "C-a Progress",
+          Number.isFinite(Number(internalC?.cA?.progressPercent))
+            ? `${formatNumber(internalC.cA.progressPercent, 0)}%`
+            : "Not published",
+        ],
+        ["C-a 0.786", publishedNumber(cAExtensionLevels.ca786)],
+        ["C-a 0.886", publishedNumber(cAExtensionLevels.ca886)],
+        ["C-a 1.000", publishedNumber(cAExtensionLevels.ca100)],
+        ["C-a 1.130", publishedNumber(cAExtensionLevels.ca1130)],
+        ["C-a 1.168", publishedNumber(cAExtensionLevels.ca1168)],
+        ["C-a 1.200", publishedNumber(cAExtensionLevels.ca1200)],
+        ["C-a 1.236", publishedNumber(cAExtensionLevels.ca1236)],
+        ["C-a 1.272", publishedNumber(cAExtensionLevels.ca1272)],
+        ["C-a 1.618", publishedNumber(cAExtensionLevels.ca1618)],
+        [
+          "C-a Zone",
+          internalC?.cA?.completionZone?.hi != null &&
+          internalC?.cA?.completionZone?.lo != null
+            ? `${formatNumber(internalC.cA.completionZone.hi)} → ${formatNumber(
+                internalC.cA.completionZone.lo
+              )}`
+            : "Not published",
+        ],
+
+        {
+          type: "sectionHeader",
+          label: "Next Internal C-b Bounce Watch",
+        },
+        ["Next Internal", publishedText(internalC?.nextExpectedInternalWave)],
+        ["C-b 0.236", publishedNumber(cBLevels.cb236)],
+        ["C-b 0.382", publishedNumber(cBLevels.cb382)],
+        ["C-b 0.500", publishedNumber(cBLevels.cb500)],
+        ["C-b 0.618", publishedNumber(cBLevels.cb618)],
+        ["C-b 0.786", publishedNumber(cBLevels.cb786)],
       ]
     : isRetracementModel
     ? [
@@ -5144,7 +5187,6 @@ function buildEngine22CompactStructureSection(degreeStates) {
           publishedNumber(currentFibModel?.nextTarget ?? targetModel?.nextTarget),
         ],
       ];
-
   const footerFields = [
     {
       type: "sectionHeader",
