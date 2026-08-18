@@ -4850,6 +4850,10 @@ function buildEngine22CompactStructureSection(degreeStates) {
     String(targetModel?.modelType || "").toUpperCase() ===
     "C_DOWN_EXTENSION_LADDER";
 
+  const hasCDownTargetModel =
+    String(targetModel?.modelType || "").toUpperCase() ===
+    "C_DOWN_EXTENSION_LADDER";
+
   const hasActiveFibModel =
     activeFibModel && Object.keys(activeFibModel).length > 0;
 
@@ -4886,7 +4890,6 @@ function buildEngine22CompactStructureSection(degreeStates) {
     : currentFibModel?.modelType === "EXTENSION_LADDER"
     ? "W3 Extension Ladder"
     : publishedText(currentFibModel?.modelType, titleCase);
-
   const retracementLevels = {
     r236:
       currentFibModel?.levels?.r236 ??
@@ -4910,30 +4913,7 @@ function buildEngine22CompactStructureSection(degreeStates) {
       null,
   };
 
-  const extensionLevels = {
-    e100:
-      currentFibModel?.levels?.e100 ??
-      targetModel?.levels?.e100 ??
-      null,
-    e1272:
-      currentFibModel?.levels?.e1272 ??
-      targetModel?.levels?.e1272 ??
-      null,
-    e1618:
-      currentFibModel?.levels?.e1618 ??
-      targetModel?.levels?.e1618 ??
-      null,
-    e200:
-      currentFibModel?.levels?.e200 ??
-      targetModel?.levels?.e200 ??
-      null,
-    e2618:
-      currentFibModel?.levels?.e2618 ??
-      targetModel?.levels?.e2618 ??
-      null,
-  };
-
-  const cDownLevels = {
+    const cDownLevels = {
     c100:
       currentFibModel?.levels?.c100 ??
       targetModel?.levels?.c100 ??
@@ -4956,6 +4936,18 @@ function buildEngine22CompactStructureSection(degreeStates) {
       null,
   };
 
+  const internalC =
+    currentFibModel?.internalCStructure ||
+    targetModel?.internalCStructure ||
+    minute?.cWaveInternalStructure ||
+    null;
+
+  const cAExtensionLevels =
+    internalC?.cA?.extensionLevels || {};
+
+  const cBLevels =
+    internalC?.cB?.retraceOfCADown?.levels || {};
+
   const cDownAnchor =
     currentFibModel?.anchorModel ||
     targetModel?.anchorModel ||
@@ -4973,7 +4965,7 @@ function buildEngine22CompactStructureSection(degreeStates) {
     targetModel?.primaryTarget ??
     cDownLevels.c1618 ??
     null;
-
+  
   const nextTargetValue = hasCDownTargetModel
     ? currentFibModel?.nextTarget ??
       targetModel?.nextTarget ??
