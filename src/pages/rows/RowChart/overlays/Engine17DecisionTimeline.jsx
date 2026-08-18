@@ -4909,6 +4909,29 @@ function buildEngine22CompactStructureSection(degreeStates) {
       null,
   };
 
+  const extensionLevels = {
+    e100:
+      currentFibModel?.levels?.e100 ??
+      targetModel?.levels?.e100 ??
+      null,
+    e1272:
+      currentFibModel?.levels?.e1272 ??
+      targetModel?.levels?.e1272 ??
+      null,
+    e1618:
+      currentFibModel?.levels?.e1618 ??
+      targetModel?.levels?.e1618 ??
+      null,
+    e200:
+      currentFibModel?.levels?.e200 ??
+      targetModel?.levels?.e200 ??
+      null,
+    e2618:
+      currentFibModel?.levels?.e2618 ??
+      targetModel?.levels?.e2618 ??
+      null,
+  };
+
     const cDownLevels = {
     c100:
       currentFibModel?.levels?.c100 ??
