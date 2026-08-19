@@ -5128,9 +5128,12 @@ const directionDisplay =
 
         {
           type: "sectionHeader",
-          label: "Next Internal C-b Bounce Watch",
+          label: isCBUpActive
+            ? "Current Internal C-b Bounce Active"
+            : "Next Internal C-b Bounce Watch",
         },
-        ["Next Internal", publishedText(internalC?.nextExpectedInternalWave)],
+        ["C-b State", publishedText(internalC?.cB?.state || internalC?.cWaveState, formatUpper)],
+        ["Next Internal", publishedText(nextInternalDisplay)],
         ["C-b 0.236", publishedNumber(cBLevels.cb236)],
         ["C-b 0.382", publishedNumber(cBLevels.cb382)],
         ["C-b 0.500", publishedNumber(cBLevels.cb500)],
@@ -5200,7 +5203,7 @@ const directionDisplay =
     },
     [
       "Direction",
-      directionValue ? formatUpper(directionValue) : "Not published",
+       directionDisplay ? formatUpper(directionDisplay) : "Not published",
     ],
     ["Active Fib Model", fibModelLabel],
     ["Ticket Created", ticketCreated ? "Yes" : "No"],
