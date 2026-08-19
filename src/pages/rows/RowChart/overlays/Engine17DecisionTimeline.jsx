@@ -4793,14 +4793,35 @@ function buildEngine22CompactStructureSection(degreeStates) {
     return "Not published";
   };
 
-  const parentWave = internal?.parentWave || minute?.activeWave || null;
-  const currentInternalWave = internal?.currentInternalWave || null;
-  const nextInternalWave = internal?.nextExpectedInternalWave || null;
-  const directionValue =
-    internal?.parentWaveDirection ||
-    activeFibModel?.direction ||
-    internal?.internalLegDirection ||
-    null;
+const parentWave = internal?.parentWave || minute?.activeWave || null;
+
+/*
+ * Prefer the canonical published internal-C contract.
+ * This allows the card to show C-a complete / C-b active instead of
+ * staying visually stuck on the old C-a down-extension section.
+ */
+const canonicalInternalC =
+  minute?.cWaveInternalStructure ||
+  minute?.targetModel?.internalCStructure ||
+  minute?.activeFibModel?.internalCStructure ||
+  null;
+
+const currentInternalWave =
+  canonicalInternalC?.currentInternalWave ||
+  internal?.currentInternalWave ||
+  null;
+
+const nextInternalWave =
+  canonicalInternalC?.nextExpectedInternalWave ||
+  internal?.nextExpectedInternalWave ||
+  null;
+
+const directionValue =
+  canonicalInternalC?.direction ||
+  internal?.parentWaveDirection ||
+  activeFibModel?.direction ||
+  internal?.internalLegDirection ||
+  null;
 
   const hasCDownTargetModel =
     String(targetModel?.modelType || "").toUpperCase() ===
