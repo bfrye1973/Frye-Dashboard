@@ -4458,11 +4458,7 @@ function buildEngine26ControlMapSection(fib) {
         ["Location Source", "NOT ATTACHED"],
         ["Location Status", "WAITING FOR LOCATION"],
       ],
-      lines: [
-        "Canonical Engine 26A Strategy 1 location is not attached.",
-        "No legacy or parent context is being promoted into the active Strategy 1 location.",
-        "Location only — no permission or execution.",
-      ],
+      lines: [],
     };
   }
 
@@ -4747,47 +4743,7 @@ function buildEngine26ControlMapSection(fib) {
       ],
     ],
 
-    lines: [
-      `Current negotiated location: ${negotiatedZoneText}.`,
-
-      `Price relation: ${formatText(
-        relation,
-        "UNKNOWN"
-      )}${
-        distancePoints != null &&
-        Number.isFinite(Number(distancePoints))
-          ? ` at ${formatOptionalNumber(
-              distancePoints
-            )} points from the zone`
-          : ""
-      }.`,
-
-      expectedReactions.length
-        ? `Expected reaction states: ${expectedReactions
-            .map((value) => formatText(value))
-            .join(", ")}.`
-        : null,
-
-      completedCloseInvalidated
-        ? "Location invalidated by completed close."
-        : "Location remains valid under the completed-close rule.",
-
-      reactionIdentityMatches &&
-      reactionHandoff
-        ?.authorizeEngine3Evaluation === true
-        ? "Engine 3 evaluation is authorized. Reaction is not confirmed by Engine 26A."
-        : !reactionIdentityMatches
-        ? "Reaction handoff identity does not match the canonical location."
-        : "Engine 3 evaluation is not yet authorized.",
-
-      canonicalCandidateAttached
-        ? "Canonical Engine 26A Strategy 1 location is in control."
-        : "Canonical location is unavailable; the card is visibly using the legacy Strategy 1 preview fallback.",
-
-      "Engine 26A owns location and reaction-handoff authorization only.",
-
-      "No reaction confirmation, participation confirmation, permission, sizing, official plan, ticket, order, fill, or execution is created.",
-    ].filter(Boolean),
+    lines: [],
   };
 }
 
