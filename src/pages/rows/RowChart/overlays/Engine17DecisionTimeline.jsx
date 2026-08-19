@@ -225,43 +225,12 @@ function getFinalPermission(fib) {
 }
 
 function getEngine27TraderDecision(fib) {
-  const decision = fib?.engine27TraderDecision || null;
-  const minuteFib = fib?.engine27FibIntelligence?.minute || null;
-  const story = fib?.engine27MarketStory || null;
-
-  if (
-    decision &&
-    minuteFib?.modelType === "C_DOWN_EXTENSION_LADDER"
-  ) {
-    const bHighText = formatNumber(minuteFib.invalidationLevel);
-    const nextTargetText = formatNumber(minuteFib.nextPrice);
-    const primaryTargetText = formatNumber(minuteFib.primaryTarget);
-
-    return {
-      ...decision,
-      direction: "SHORT",
-      currentWave: "W4",
-      internalWave: "C",
-      nextAction: "WATCH_C_DOWN_BELOW_7840",
-      summary:
-        story?.fibSummary ||
-        minuteFib?.targetModel?.summary ||
-        `Minute W4 expanded-flat C-down is active. B high ${bHighText}. Watch C targets ${nextTargetText} / ${primaryTargetText}.`,
-      waitingFor: [
-        "Price stays below / cannot hold 7840",
-        "Engine 3 bearish reaction",
-        "Engine 4 bearish participation",
-        "Engine 6 final paper permission",
-      ],
-      blockers: decision?.blockers || [
-        "Engine 3 / Engine 4 confirmation required",
-      ],
-    };
-  }
-
-  return decision;
+  return fib?.engine27TraderDecision || null;
 }
 
+function getEngine27MinuteWaveIntelligence(fib) {
+  return fib?.engine27WaveIntelligence?.minute || null;
+}
 function getEngine27SubminuteTraderDecision(fib) {
   return fib?.engine27SubminuteTraderDecision || null;
 }
@@ -1627,6 +1596,7 @@ function buildEngine5Section(fib) {
 
 function buildEngine27TraderIntelligenceSection(fib, decisionOverride = null) {
   const decision = decisionOverride || getEngine27TraderDecision(fib);
+  const wave = getEngine27MinuteWaveIntelligence(fib);
 
   if (!decision) {
     return {
@@ -1661,17 +1631,28 @@ function buildEngine27TraderIntelligenceSection(fib, decisionOverride = null) {
       readiness?.waitingFor
   );
 
-  const currentWave =
-    decision?.currentWave ||
-    decision?.wave?.currentWave ||
-    decision?.waveState?.currentWave ||
-    "—";
+const currentWave =
+  wave?.currentWave ||
+  decision?.currentWave ||
+  "—";
 
-  const internalWave =
-    decision?.internalWave ||
-    decision?.wave?.internalWave ||
-    decision?.waveState?.internalWave ||
-    "—";
+const internalWave =
+  wave?.internalWave ||
+  decision?.internalWave ||
+  "—";
+
+const nextInternalWave =
+  wave?.nextExpectedInternalWave ||
+  decision?.nextExpectedInternalWave ||
+  "—";
+
+const currentLegDirection =
+  wave?.currentLegDirection ||
+  "—";
+
+const cWaveState =
+  wave?.cWaveState ||
+  "—";
 
   const state =
     decision?.state ||
@@ -1707,7 +1688,10 @@ function buildEngine27TraderIntelligenceSection(fib, decisionOverride = null) {
       ["State", formatUpper(state)],
       ["Direction", formatUpper(direction)],
       ["Current Wave", formatUpper(currentWave)],
-      ["Internal Wave", formatUpper(internalWave)],
+      ["Internal Wave", formatText(internalWave)],
+      ["Next Internal", formatText(nextInternalWave)],
+      ["Current Leg", formatUpper(currentLegDirection)],
+      ["C-Wave State", formatUpper(cWaveState)],
       ["Next Action", formatUpper(nextAction)],
       ["Executable", formatBool(decision?.executable, "NO")],
     ],
