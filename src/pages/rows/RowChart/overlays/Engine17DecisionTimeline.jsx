@@ -4911,11 +4911,36 @@ function buildEngine22CompactStructureSection(degreeStates) {
       null,
   };
 
-  const internalC =
-    currentFibModel?.internalCStructure ||
-    targetModel?.internalCStructure ||
-    minute?.cWaveInternalStructure ||
-    null;
+const internalC =
+  minute?.cWaveInternalStructure ||
+  targetModel?.internalCStructure ||
+  activeFibModel?.internalCStructure ||
+  currentFibModel?.internalCStructure ||
+  null;
+
+const isCBUpActive =
+  internalC?.currentInternalWave === "C-b" ||
+  String(internalC?.cWaveState || "").toUpperCase().startsWith("C_B_UP_ACTIVE");
+
+const internalCSectionLabel = isCBUpActive
+  ? "Internal C Structure — C-a Complete / C-b Up Active"
+  : "Internal C-a Down Extensions";
+
+const cAStateLabel = isCBUpActive ? "C-a Status" : "C-a State";
+const cAStateValue = isCBUpActive
+  ? "COMPLETED CANDIDATE"
+  : publishedText(internalC?.cWaveState, formatUpper);
+
+const currentInternalDisplay =
+  internalC?.currentInternalWave || currentInternalWave;
+
+const nextInternalDisplay =
+  internalC?.nextExpectedInternalWave || nextInternalWave;
+
+const directionDisplay =
+  internalC?.direction ||
+  directionValue ||
+  null;
 
   const cAExtensionLevels =
     internalC?.cA?.extensionLevels || {};
@@ -5013,11 +5038,11 @@ function buildEngine22CompactStructureSection(degreeStates) {
         : "Not published",
     ],
     ["Stage", publishedText(minute?.stage, titleCase)],
-    ["Internal Wave", publishedText(currentInternalWave)],
+    ["Internal Wave", publishedText(currentInternalDisplay)],
     [
       "Next Internal Event",
-      currentInternalWave && nextInternalWave
-        ? `Internal ${currentInternalWave} → ${nextInternalWave}`
+      currentInternalDisplay && nextInternalDisplay
+        ? `Internal ${currentInternalDisplay} → ${nextInternalDisplay}`
         : "Not published",
     ],
     ["Structure", publishedText(internal?.classification, titleCase)],
@@ -5065,9 +5090,15 @@ function buildEngine22CompactStructureSection(degreeStates) {
 
         {
           type: "sectionHeader",
-          label: "Internal C-a Down Extensions",
+          label: internalCSectionLabel,
         },
-        ["C-a State", publishedText(internalC?.cWaveState, formatUpper)],
+        ["C-a Complete", internalC?.cA?.completedCandidate === true ? "YES" : "NO"],
+        ["C-a Status", cAStateValue],
+        ["Current Internal", publishedText(currentInternalDisplay)],
+        ["Next Internal", publishedText(nextInternalDisplay)],
+        ["Direction", directionDisplay ? formatUpper(directionDisplay) : "Not published"],
+        ["Completion Touch", publishedNumber(internalC?.cA?.completionTouchPrice)],
+        ["Completed By", publishedText(internalC?.cA?.completedBy, formatUpper)],
         ["C-a Start", publishedNumber(internalC?.cA?.start)],
         ["C-a Current", publishedNumber(internalC?.cA?.currentPrice)],
         [
