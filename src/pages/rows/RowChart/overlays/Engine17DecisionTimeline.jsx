@@ -4795,15 +4795,39 @@ function buildEngine22CompactStructureSection(degreeStates) {
 
   const minuteCCLevels =
     cCModel?.levels && typeof cCModel.levels === "object"
-      ? cCModel.levels
-      : {};
+      ? {
+          ...manualMinuteCCFallbackLevels,
+          ...cCModel.levels,
+        }
+      : manualMinuteCCFallbackLevels;
 
-  const parentCLevels = {
-    c100:
-      targetModel?.levels?.c100 ??
-      targetModel?.cDownTargets?.c100 ??
-      internalC?.cC?.largerCTargets?.c100 ??
-      null,
+const parentCLevels = {
+  c100:
+    targetModel?.levels?.c100 ??
+    targetModel?.cDownTargets?.c100 ??
+    internalC?.cC?.largerCTargets?.c100 ??
+    manualParentCDownFallbackLevels.c100,
+  c1272:
+    targetModel?.levels?.c1272 ??
+    targetModel?.cDownTargets?.c1272 ??
+    internalC?.cC?.largerCTargets?.c1272 ??
+    manualParentCDownFallbackLevels.c1272,
+  c1618:
+    targetModel?.levels?.c1618 ??
+    targetModel?.cDownTargets?.c1618 ??
+    internalC?.cC?.largerCTargets?.c1618 ??
+    manualParentCDownFallbackLevels.c1618,
+  c200:
+    targetModel?.levels?.c200 ??
+    targetModel?.cDownTargets?.c200 ??
+    internalC?.cC?.largerCTargets?.c200 ??
+    manualParentCDownFallbackLevels.c200,
+  c2618:
+    targetModel?.levels?.c2618 ??
+    targetModel?.cDownTargets?.c2618 ??
+    internalC?.cC?.largerCTargets?.c2618 ??
+    manualParentCDownFallbackLevels.c2618,
+};
     c1272:
       targetModel?.levels?.c1272 ??
       targetModel?.cDownTargets?.c1272 ??
