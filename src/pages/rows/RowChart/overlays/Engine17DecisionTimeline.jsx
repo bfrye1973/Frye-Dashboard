@@ -6480,10 +6480,276 @@ function CanonicalStageGrid({ stages }) {
   );
 }
 function Engine3PriceReactionCard({ section }) {
-  ...full function...
-}
+  const card = section?.engine3Card || {};
 
-function Engine4DecisionCard({ section }) {
+  const topRows = [
+    ["Price", card.price],
+    ["Zone", card.zone],
+    ["Neg Zone", card.negZone],
+    ["Location", card.location],
+    ["Main Read", card.mainRead],
+    ["1m Immediate", card.currentLevel],
+  ];
+
+  const contactRows = [
+    card.contactState
+      ? ["Contact State", card.contactState]
+      : null,
+
+    card.chainArmed != null
+      ? ["Chain Armed", card.chainArmed]
+      : null,
+
+    card.directionState
+      ? ["Direction State", card.directionState]
+      : null,
+
+    card.expectedReactionDirection
+      ? [
+          "Expected Reaction",
+          card.expectedReactionDirection,
+        ]
+      : null,
+  ].filter(Boolean);
+
+  const headingStyle = {
+    ...shellTextStyle,
+    color: severityColor(section.severity),
+    fontSize: 17,
+    fontWeight: 600,
+    lineHeight: 1.35,
+    marginBottom: 7,
+  };
+
+  const bodyStyle = {
+    ...shellTextStyle,
+    color: MAIN_TEXT,
+    fontSize: 17,
+    fontWeight: FONT_REGULAR,
+    lineHeight: 1.45,
+  };
+
+  return (
+    <div
+      style={{
+        border: `1px solid ${severityBorder(
+          section.severity
+        )}`,
+        background: severityBackground(
+          section.severity
+        ),
+        borderRadius: 12,
+        padding: "14px 15px",
+        textAlign: "left",
+        position: "relative",
+      }}
+    >
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns:
+            "40px minmax(0, 1fr)",
+          gap: 11,
+          alignItems: "start",
+        }}
+      >
+        <div
+          style={{
+            ...shellTextStyle,
+            width: 32,
+            height: 32,
+            borderRadius: "50%",
+            border: `1px solid ${severityBorder(
+              section.severity
+            )}`,
+            color: severityColor(
+              section.severity
+            ),
+            background: "rgba(2,6,23,0.72)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontWeight: 600,
+            fontSize: 17,
+            boxShadow: `0 0 16px ${severityBorder(
+              section.severity
+            )}`,
+          }}
+        >
+          {section.number}
+        </div>
+
+        <div style={{ minWidth: 0 }}>
+          <div
+            style={{
+              ...shellTextStyle,
+              display: "flex",
+              alignItems: "center",
+              gap: 9,
+              color: severityColor(
+                section.severity
+              ),
+              fontSize: 22,
+              fontWeight: 600,
+              lineHeight: 1.25,
+              marginBottom: 11,
+            }}
+          >
+            <span>{section.icon}</span>
+            <span>{section.title}</span>
+          </div>
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns:
+                "130px minmax(0, 1fr)",
+              gap: "7px 13px",
+              alignItems: "start",
+            }}
+          >
+            {topRows.map(([label, value]) => (
+              <React.Fragment key={label}>
+                <div
+                  style={{
+                    ...shellTextStyle,
+                    color: MUTED_TEXT,
+                    fontSize: 15,
+                    fontWeight: FONT_MEDIUM,
+                    lineHeight: 1.35,
+                  }}
+                >
+                  {label}
+                </div>
+
+                <div
+                  style={{
+                    ...shellTextStyle,
+                    color: MAIN_TEXT,
+                    fontSize: 18,
+                    fontWeight: FONT_MEDIUM,
+                    lineHeight: 1.35,
+                    overflowWrap: "anywhere",
+                  }}
+                >
+                  {value || "—"}
+                </div>
+              </React.Fragment>
+            ))}
+          </div>
+
+          <div style={{ marginTop: 13 }}>
+            <div style={headingStyle}>
+              Price Action Facts
+            </div>
+
+            <div
+              style={{
+                display: "grid",
+                gap: 5,
+              }}
+            >
+              {asArray(card.facts).map(
+                ([label, value]) => (
+                  <div
+                    key={label}
+                    style={{
+                      ...bodyStyle,
+                      display: "grid",
+                      gridTemplateColumns:
+                        "minmax(0, 1fr) auto",
+                      gap: 12,
+                    }}
+                  >
+                    <span>{label}</span>
+                    <span>{value}</span>
+                  </div>
+                )
+              )}
+            </div>
+          </div>
+
+          <div style={{ marginTop: 13 }}>
+            <div style={headingStyle}>
+              Meaning
+            </div>
+
+            <div style={bodyStyle}>
+              {card.meaning || "—"}
+            </div>
+          </div>
+
+          {contactRows.length > 0 && (
+            <div
+              style={{
+                marginTop: 13,
+                padding: "9px 10px",
+                border:
+                  "1px solid rgba(148,163,184,0.24)",
+                borderRadius: 9,
+                background:
+                  "rgba(15,23,42,0.34)",
+                display: "grid",
+                gridTemplateColumns:
+                  "130px minmax(0, 1fr)",
+                gap: "5px 12px",
+              }}
+            >
+              {contactRows.map(
+                ([label, value]) => (
+                  <React.Fragment key={label}>
+                    <div
+                      style={{
+                        ...shellTextStyle,
+                        color: MUTED_TEXT,
+                        fontSize: 15,
+                        lineHeight: 1.4,
+                      }}
+                    >
+                      {label}
+                    </div>
+
+                    <div
+                      style={{
+                        ...shellTextStyle,
+                        color: SOFT_TEXT,
+                        fontSize: 16,
+                        lineHeight: 1.4,
+                        overflowWrap: "anywhere",
+                      }}
+                    >
+                      {value}
+                    </div>
+                  </React.Fragment>
+                )
+              )}
+            </div>
+          )}
+
+          <div style={{ marginTop: 13 }}>
+            <div style={headingStyle}>
+              Strategy Status
+            </div>
+
+            <div style={bodyStyle}>
+              {card.strategyStatus}
+            </div>
+          </div>
+
+          <div style={{ marginTop: 13 }}>
+            <div style={headingStyle}>
+              Result
+            </div>
+
+            <div style={bodyStyle}>
+              {card.result}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function Engine4DecisionCard({ section }) {
   const card =
