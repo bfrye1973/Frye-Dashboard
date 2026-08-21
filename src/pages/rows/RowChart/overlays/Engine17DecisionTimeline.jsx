@@ -3293,237 +3293,6 @@ if (fastReaction?.active === true) {
     ].filter(Boolean),
   };
 }
-
-function getEngine4DecisionPresentation(participation) {
-  const direction = String(
-    participation?.direction ||
-      participation?.participationEvaluationDirection ||
-      participation?.intendedDirection ||
-      "NEUTRAL"
-  ).toUpperCase();
-
-  const intendedDirection = String(
-    participation?.participationEvaluationDirection ||
-      participation?.intendedDirection ||
-      direction ||
-      "NEUTRAL"
-  ).toUpperCase();
-
-  const hardBlocked =
-    participation?.hardBlocked === true;
-
-  const confirmed =
-    participation?.participationConfirmed === true ||
-    participation?.confirmed === true;
-
-  const allowed =
-    participation?.allowed === true;
-
-  const state = String(
-    participation?.participationState ||
-      participation?.status ||
-      ""
-  ).toUpperCase();
-
-  const blockers = asArray(
-    participation?.blockers
-  );
-
-  const reasonCodes = asArray(
-    participation?.reasonCodes
-  );
-
-  let decision = "WAITING FOR PARTICIPATION";
-  let severity = "warning";
-  let why = "Participation is not confirmed yet.";
-
-  if (hardBlocked) {
-    severity = "danger";
-
-    if (
-      blockers.includes(
-        "VALID_COMPLETED_ADVERSE_PARTICIPATION"
-      )
-    ) {
-      decision =
-        intendedDirection === "SHORT"
-          ? "SHORT BLOCKED"
-          : intendedDirection === "LONG"
-          ? "LONG BLOCKED"
-          : "PARTICIPATION BLOCKED";
-
-      why =
-        "Completed adverse participation is fighting the intended trade.";
-    } else {
-      decision = "HARD BLOCK";
-      why =
-        blockers.length > 0
-          ? blockers.map(formatText).join(", ")
-          : "Engine 4 detected adverse participation.";
-    }
-  } else if (confirmed && allowed) {
-    decision =
-      direction === "SHORT"
-        ? "SHORT CONFIRMED"
-        : direction === "LONG"
-        ? "LONG CONFIRMED"
-        : "PARTICIPATION CONFIRMED";
-
-    severity =
-      direction === "SHORT"
-        ? "danger"
-        : direction === "LONG"
-        ? "bullish"
-        : "teal";
-
-    why =
-      direction === "SHORT"
-        ? "Volume participation supports the SHORT. Ready for Engine 6 review."
-        : direction === "LONG"
-        ? "Volume participation supports the LONG. Ready for Engine 6 review."
-        : "Participation is confirmed for Engine 6 review.";
-  } else if (
-    state.includes("DEVELOPING")
-  ) {
-    decision = "PARTICIPATION DEVELOPING";
-    severity = "blue";
-    why =
-      "Participation is developing but is not confirmed yet.";
-  } else if (
-    state.includes("WAIT")
-  ) {
-    decision = "WAITING FOR PARTICIPATION";
-    severity = "warning";
-    why =
-      "Engine 4 is waiting for cleaner participation.";
-  }
-
-  return {
-    direction,
-    intendedDirection,
-    decision,
-    severity,
-    why,
-    confirmed,
-    allowed,
-    hardBlocked,
-    blockers,
-    reasonCodes,
-  };
-}
-
-function buildEngine4WhyLines({
-  participation,
-  decision,
-}) {
-  const lines = [];
-
-  const evaluationDirection = String(
-    participation?.participationEvaluationDirection ||
-      participation?.intendedDirection ||
-      "NEUTRAL"
-  ).toUpperCase();
-
-  const oneMinuteDirection = String(
-    participation?.observation1mDirection ||
-      "NEUTRAL"
-  ).toUpperCase();
-
-  const fiveMinuteDirection = String(
-    participation?.validation5mDirection ||
-      "NEUTRAL"
-  ).toUpperCase();
-
-  const fiveMinuteState = String(
-    participation?.validation5mState ||
-      ""
-  ).toUpperCase();
-
-  const tenMinuteTrend = String(
-    participation?.broader10mVolumeTrend ||
-      ""
-  ).toUpperCase();
-
-  if (decision.hardBlocked) {
-    if (
-      decision.blockers.includes(
-        "VALID_COMPLETED_ADVERSE_PARTICIPATION"
-      )
-    ) {
-      lines.push(
-        `Adverse participation is fighting the ${evaluationDirection}.`
-      );
-    } else {
-      lines.push(
-        "Engine 4 has an active hard block."
-      );
-    }
-  }
-
-  if (
-    oneMinuteDirection !== "NEUTRAL" &&
-    evaluationDirection !== "NEUTRAL"
-  ) {
-    if (
-      oneMinuteDirection ===
-      evaluationDirection
-    ) {
-      lines.push(
-        `1m supports ${evaluationDirection}.`
-      );
-    } else {
-      lines.push(
-        `1m ${oneMinuteDirection} is fighting ${evaluationDirection}.`
-      );
-    }
-  }
-
-  if (fiveMinuteState === "CONFLICT") {
-    lines.push(
-      `5m conflict: ${fiveMinuteDirection} is fighting ${evaluationDirection}.`
-    );
-  } else if (
-    fiveMinuteState === "SUPPORT"
-  ) {
-    lines.push(
-      `5m supports ${evaluationDirection}.`
-    );
-  } else if (
-    fiveMinuteState === "UNRESOLVED"
-  ) {
-    lines.push(
-      "5m validation is unresolved."
-    );
-  }
-
-  if (tenMinuteTrend === "FADING") {
-    lines.push(
-      "10m broader volume is fading."
-    );
-  } else if (
-    tenMinuteTrend === "EXPANDING"
-  ) {
-    lines.push(
-      "10m broader volume is expanding."
-    );
-  }
-
-  if (
-    decision.confirmed &&
-    decision.allowed &&
-    !decision.hardBlocked
-  ) {
-    lines.push(
-      "Engine 4 is ready for Engine 6 review."
-    );
-  }
-
-  if (!lines.length) {
-    lines.push(decision.why);
-  }
-
-  return lines.slice(0, 4);
-}
 function buildEngine4ContextSection(fib) {
   const authorizedParticipation =
     getEngine4AuthorizedReactionParticipation(fib);
@@ -3621,326 +3390,240 @@ function buildEngine4ContextSection(fib) {
         ? "ACTIVE"
         : "UNAVAILABLE";
 
-        const decision =
-      getEngine4DecisionPresentation(
-        authorizedParticipation
-      );
-
-    const whyLines =
-      buildEngine4WhyLines({
-        participation:
-          authorizedParticipation,
-        decision,
-      });
-
-    const oneMinuteDirection =
-      formatUpper(
-        authorizedParticipation
-          .observation1mDirection,
-        "NEUTRAL"
-      );
-
-    const oneMinuteRead =
-      formatUpper(
-        authorizedParticipation
-          .currentVolumeReaction,
-        "VOLUME DATA UNAVAILABLE"
-      );
-
-    const fiveMinuteDirection =
-      formatUpper(
-        authorizedParticipation
-          .validation5mDirection,
-        "NEUTRAL"
-      );
-
-    const fiveMinuteState =
-      formatUpper(
-        authorizedParticipation
-          .validation5mState,
-        "UNRESOLVED"
-      );
-
-    const tenMinuteTrend =
-      formatUpper(
-        authorizedParticipation
-          .broader10mVolumeTrend,
-        "—"
-      );
-
-    const oneMinuteSupport =
-      String(
-        authorizedParticipation
-          .observation1mDirection || ""
-      ).toUpperCase() ===
-      String(
-        authorizedParticipation
-          .participationEvaluationDirection ||
-        ""
-      ).toUpperCase();
-
-    const fiveMinuteSupport =
-      String(
-        authorizedParticipation
-          .validation5mState || ""
-      ).toUpperCase() === "SUPPORT";
-
-    const fiveMinuteConflict =
-      String(
-        authorizedParticipation
-          .validation5mState || ""
-      ).toUpperCase() === "CONFLICT";
-
     return {
       number: 0,
       icon: "④",
       title: "Engine 4 — Volume Participation",
+      fieldGridColumns: 3,
+      severity: hardBlocked
+        ? "danger"
+        : confirmed
+        ? "bullish"
+        : authorizedParticipation.participationDeveloping === true
+        ? "blue"
+        : "warning",
 
-      severity: decision.severity,
-
-      engine4DecisionCard: true,
-
-      engine4Card: {
-        decision:
-          decision.decision,
-
-        direction:
-          decision.intendedDirection,
-
-        confirmed:
-          decision.confirmed,
-
-        allowed:
-          decision.allowed,
-
-        hardBlocked:
-          decision.hardBlocked,
-
-        quality:
+      fields: [
+        {
+          type: "sectionHeader",
+          label: "Observation / Confirmation",
+        },
+        [
+          "Observer",
+          observerActive
+            ? "ACTIVE"
+            : observationStatus,
+        ],
+        [
+          "Confirmation State",
           formatUpper(
-            authorizedParticipation
-              .participationQuality,
-            "WEAK"
-          ),
-
-        state:
-          formatUpper(
-            authorizedParticipation
-              .participationState,
+            authorizedParticipation.participationState,
             "PARTICIPATION WAITING"
           ),
+        ],
+        [
+          "Confirmation Quality",
+          formatUpper(
+            authorizedParticipation.participationQuality,
+            "WEAK"
+          ),
+        ],
+        ["Hard Block", formatBool(hardBlocked)],
 
-        engine3Qualified:
-          authorizedParticipation
-            .participationEvaluationEligible ===
-          true,
-
-        why:
-          whyLines,
-
-        timeframes: [
-          {
-            timeframe: "1m",
-            direction:
-              oneMinuteDirection,
-            status:
-              observationStatus,
-            read:
-              oneMinuteRead,
-            quality:
-              formatUpper(
-                authorizedParticipation
-                  .observation1mQuality,
-                "—"
-              ),
-            supportState:
-              oneMinuteSupport
-                ? "SUPPORT"
-                : "CONFLICT",
-          },
-
-          {
-            timeframe: "5m",
-            direction:
-              fiveMinuteDirection,
-            status:
-              validation5mStatus,
-            read:
-              fiveMinuteState,
-            quality:
-              formatUpper(
-                authorizedParticipation
-                  .validation5mQuality,
-                "—"
-              ),
-            supportState:
-              fiveMinuteConflict
-                ? "CONFLICT"
-                : fiveMinuteSupport
-                ? "SUPPORT"
-                : "UNRESOLVED",
-          },
-
-          {
-            timeframe: "10m",
-            direction: "—",
-            status:
-              broader10mStatus,
-            read:
-              tenMinuteTrend,
-            quality:
-              formatUpper(
-                authorizedParticipation
-                  .broader10mParticipationQuality,
-                "—"
-              ),
-            supportState:
-              tenMinuteTrend ===
-              "EXPANDING"
-                ? "EXPANDING"
-                : tenMinuteTrend ===
-                  "FADING"
-                ? "FADING"
-                : "NEUTRAL",
-          },
+        {
+          type: "sectionHeader",
+          label: "1m — Immediate Participation",
+        },
+        ["Status", observationStatus],
+        [
+          "Read",
+          formatUpper(
+            authorizedParticipation.currentVolumeReaction,
+            "VOLUME DATA UNAVAILABLE"
+          ),
+        ],
+        [
+          "Current Volume",
+          observation1mVolumesAreLive &&
+          Number.isFinite(observation1mCurrentVolume)
+            ? formatScore(observation1mCurrentVolume)
+            : "—",
+        ],
+        [
+          "Prior Volume",
+          observation1mVolumesAreLive &&
+          Number.isFinite(observation1mPriorVolume)
+            ? formatScore(observation1mPriorVolume)
+            : "—",
+        ],
+        [
+          "Ratio",
+          observation1mVolumesAreLive &&
+          Number.isFinite(observation1mVolumeRatio)
+            ? `${formatNumber(observation1mVolumeRatio, 2)}x`
+            : "—",
+        ],
+        [
+          "State",
+          formatUpper(
+            authorizedParticipation.observation1mState,
+            "—"
+          ),
+        ],
+        [
+          "Direction",
+          formatUpper(
+            authorizedParticipation.observation1mDirection,
+            "NEUTRAL"
+          ),
+        ],
+        [
+          "Quality",
+          formatUpper(
+            authorizedParticipation.observation1mQuality,
+            "—"
+          ),
+        ],
+        [
+          "Candle",
+          formatUpper(
+            authorizedParticipation.observation1mCurrentCandleStatus,
+            "—"
+          ),
         ],
 
-        needs: [
-          {
-            label:
-              "Engine 3 qualified",
-            passed:
-              authorizedParticipation
-                .participationEvaluationEligible ===
-              true,
-          },
-
-          {
-            label:
-              `1m supports ${decision.intendedDirection}`,
-            passed:
-              oneMinuteSupport,
-          },
-
-          {
-            label:
-              "5m conflict cleared",
-            passed:
-              !fiveMinuteConflict,
-          },
-
-          {
-            label:
-              "No hard block",
-            passed:
-              !decision.hardBlocked,
-          },
-
-          {
-            label:
-              "Participation confirmed",
-            passed:
-              decision.confirmed,
-          },
+        {
+          type: "sectionHeader",
+          label: "5m — Validation",
+        },
+        ["Status", validation5mStatus],
+        [
+          "Validation",
+          formatUpper(
+            authorizedParticipation.validation5mState,
+            "—"
+          ),
+        ],
+        [
+          "Direction",
+          formatUpper(
+            authorizedParticipation.validation5mDirection,
+            "NEUTRAL"
+          ),
+        ],
+        [
+          "Quality",
+          formatUpper(
+            authorizedParticipation.validation5mQuality,
+            "—"
+          ),
+        ],
+        [
+          "Current Volume",
+          validation5mVolumesAreLive &&
+          Number.isFinite(validation5mCurrentVolume)
+            ? formatScore(validation5mCurrentVolume)
+            : "—",
+        ],
+        [
+          "Prior Volume",
+          validation5mVolumesAreLive &&
+          Number.isFinite(validation5mPriorVolume)
+            ? formatScore(validation5mPriorVolume)
+            : "—",
+        ],
+        [
+          "Candle",
+          formatUpper(
+            authorizedParticipation.validation5mCurrentCandleStatus,
+            "—"
+          ),
         ],
 
-        details: [
-          [
-            "1m Current Volume",
-            observation1mVolumesAreLive &&
-            Number.isFinite(
-              observation1mCurrentVolume
-            )
-              ? formatScore(
-                  observation1mCurrentVolume
-                )
-              : "—",
-          ],
-
-          [
-            "1m Prior Volume",
-            observation1mVolumesAreLive &&
-            Number.isFinite(
-              observation1mPriorVolume
-            )
-              ? formatScore(
-                  observation1mPriorVolume
-                )
-              : "—",
-          ],
-
-          [
-            "1m Ratio",
-            observation1mVolumesAreLive &&
-            Number.isFinite(
-              observation1mVolumeRatio
-            )
-              ? `${formatNumber(
-                  observation1mVolumeRatio,
-                  2
-                )}x`
-              : "—",
-          ],
-
-          [
-            "5m Current Volume",
-            validation5mVolumesAreLive &&
-            Number.isFinite(
-              validation5mCurrentVolume
-            )
-              ? formatScore(
-                  validation5mCurrentVolume
-                )
-              : "—",
-          ],
-
-          [
-            "5m Prior Volume",
-            validation5mVolumesAreLive &&
-            Number.isFinite(
-              validation5mPriorVolume
-            )
-              ? formatScore(
-                  validation5mPriorVolume
-                )
-              : "—",
-          ],
-
-          [
-            "10m Relative Volume",
-            Number.isFinite(
-              broader10mRelativeVolume
-            )
-              ? `${formatNumber(
-                  broader10mRelativeVolume,
-                  2
-                )}x`
-              : "—",
-          ],
-
-          [
-            "10m High-Volume Candles",
-            Number.isFinite(
-              broader10mHighVolumeCandles
-            )
-              ? formatScore(
-                  broader10mHighVolumeCandles
-                )
-              : "—",
-          ],
-
-          [
-            "Expected Direction",
-            formatUpper(
-              expectedParticipationDirection,
-              "—"
-            ),
-          ],
+        {
+          type: "sectionHeader",
+          label: "10m — Broader Context",
+        },
+        ["Status", broader10mStatus],
+        [
+          "Relative Volume",
+          Number.isFinite(broader10mRelativeVolume)
+            ? `${formatNumber(broader10mRelativeVolume, 2)}x`
+            : "—",
         ],
-      },
+        [
+          "Trend",
+          formatUpper(
+            authorizedParticipation.broader10mVolumeTrend,
+            "—"
+          ),
+        ],
+        [
+          "Expansion",
+          formatBool(
+            authorizedParticipation.broader10mVolumeExpansion,
+            "—"
+          ),
+        ],
+        [
+          "Volume Confirmed",
+          formatBool(
+            authorizedParticipation.broader10mVolumeConfirmed,
+            "—"
+          ),
+        ],
+        [
+          "High-Volume Candles",
+          Number.isFinite(broader10mHighVolumeCandles)
+            ? formatScore(broader10mHighVolumeCandles)
+            : "—",
+        ],
+        [
+          "State",
+          formatUpper(
+            authorizedParticipation.broader10mParticipationState,
+            "—"
+          ),
+        ],
+        [
+          "Quality",
+          formatUpper(
+            authorizedParticipation.broader10mParticipationQuality,
+            "—"
+          ),
+        ],
 
-      fields: [],
-      lines: [],
+        {
+          type: "sectionHeader",
+          label: "Confirmation",
+        },
+        [
+          "Engine 3 Qualified",
+          formatBool(
+            authorizedParticipation.participationEvaluationEligible,
+            "NO"
+          ),
+        ],
+        ["Participation Confirmed", formatBool(confirmed)],
+        ["Allowed", formatBool(allowed)],
+        ["Hard Block", formatBool(hardBlocked)],
+        [
+          "Direction",
+          formatUpper(
+            authorizedParticipation.direction,
+            "NEUTRAL"
+          ),
+        ],
+        [
+          "Expected",
+          formatUpper(
+            expectedParticipationDirection,
+            "—"
+          ),
+        ],
+      ],
+
+      lines: plainLines,
     };
   }
 
@@ -6479,6 +6162,7 @@ function CanonicalStageGrid({ stages }) {
     </div>
   );
 }
+
 function Engine3PriceReactionCard({ section }) {
   const card = section?.engine3Card || {};
 
@@ -6751,493 +6435,6 @@ function Engine3PriceReactionCard({ section }) {
   );
 }
 
-function Engine4DecisionCard({ section }) {
-  const card =
-    section?.engine4Card || {};
-
-  const direction = String(
-    card.direction || "NEUTRAL"
-  ).toUpperCase();
-
-  const decision = String(
-    card.decision ||
-      "WAITING FOR PARTICIPATION"
-  ).toUpperCase();
-
-  const directionColor =
-    direction === "SHORT"
-      ? "#fb7185"
-      : direction === "LONG"
-      ? "#22c55e"
-      : "#cbd5e1";
-
-  const decisionColor =
-    card.hardBlocked
-      ? "#fb7185"
-      : card.confirmed &&
-        card.allowed
-      ? directionColor
-      : "#fbbf24";
-
-  return (
-    <div
-      style={{
-        border: `1px solid ${severityBorder(
-          section.severity
-        )}`,
-        background:
-          severityBackground(
-            section.severity
-          ),
-        borderRadius: 12,
-        padding: "13px 14px",
-        textAlign: "left",
-        position: "relative",
-      }}
-    >
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns:
-            "38px minmax(0,1fr)",
-          gap: 10,
-          alignItems: "start",
-        }}
-      >
-        <div
-          style={{
-            ...shellTextStyle,
-            width: 30,
-            height: 30,
-            borderRadius: "50%",
-            border: `1px solid ${severityBorder(
-              section.severity
-            )}`,
-            color: severityColor(
-              section.severity
-            ),
-            background:
-              "rgba(2,6,23,0.72)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontWeight: 600,
-            fontSize: 15,
-          }}
-        >
-          {section.number}
-        </div>
-
-        <div style={{ minWidth: 0 }}>
-          <div
-            style={{
-              ...shellTextStyle,
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              color: severityColor(
-                section.severity
-              ),
-              fontSize: 19,
-              fontWeight: 600,
-              marginBottom: 9,
-            }}
-          >
-            <span>{section.icon}</span>
-            <span>{section.title}</span>
-          </div>
-
-          {/* CURRENT DECISION */}
-          <div
-            style={{
-              border:
-                "1px solid rgba(148,163,184,0.24)",
-              borderRadius: 10,
-              padding: "10px 11px",
-              background:
-                "rgba(2,6,23,0.62)",
-              marginBottom: 10,
-            }}
-          >
-            <div
-              style={{
-                ...shellTextStyle,
-                color: MUTED_TEXT,
-                fontSize: 12,
-                letterSpacing: "0.08em",
-                marginBottom: 5,
-              }}
-            >
-              CURRENT DECISION
-            </div>
-
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns:
-                  "minmax(0,1fr) minmax(0,1.5fr)",
-                gap: 10,
-                alignItems: "end",
-              }}
-            >
-              <div>
-                <div
-                  style={{
-                    ...shellTextStyle,
-                    color: MUTED_TEXT,
-                    fontSize: 12,
-                    marginBottom: 2,
-                  }}
-                >
-                  Direction
-                </div>
-
-                <div
-                  style={{
-                    ...shellTextStyle,
-                    color: directionColor,
-                    fontSize: 24,
-                    fontWeight: 700,
-                  }}
-                >
-                  {direction}
-                </div>
-              </div>
-
-              <div>
-                <div
-                  style={{
-                    ...shellTextStyle,
-                    color: MUTED_TEXT,
-                    fontSize: 12,
-                    marginBottom: 2,
-                  }}
-                >
-                  Engine 4 Decision
-                </div>
-
-                <div
-                  style={{
-                    ...shellTextStyle,
-                    color: decisionColor,
-                    fontSize: 21,
-                    fontWeight: 700,
-                    lineHeight: 1.2,
-                  }}
-                >
-                  {decision}
-                </div>
-              </div>
-            </div>
-
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns:
-                  "repeat(4, minmax(0,1fr))",
-                gap: 8,
-                marginTop: 10,
-              }}
-            >
-              {[
-                [
-                  "Confirmed",
-                  formatBool(
-                    card.confirmed
-                  ),
-                ],
-                [
-                  "Allowed",
-                  formatBool(
-                    card.allowed
-                  ),
-                ],
-                [
-                  "Hard Block",
-                  formatBool(
-                    card.hardBlocked
-                  ),
-                ],
-                [
-                  "E3 Qualified",
-                  formatBool(
-                    card.engine3Qualified
-                  ),
-                ],
-              ].map(
-                ([label, value]) => (
-                  <div key={label}>
-                    <div
-                      style={{
-                        ...shellTextStyle,
-                        color:
-                          MUTED_TEXT,
-                        fontSize: 11,
-                        marginBottom: 2,
-                      }}
-                    >
-                      {label}
-                    </div>
-
-                    <div
-                      style={{
-                        ...shellTextStyle,
-                        color:
-                          MAIN_TEXT,
-                        fontSize: 15,
-                        fontWeight: 600,
-                      }}
-                    >
-                      {value}
-                    </div>
-                  </div>
-                )
-              )}
-            </div>
-          </div>
-
-          {/* WHY */}
-          <div
-            style={{
-              marginBottom: 10,
-            }}
-          >
-            <div
-              style={{
-                ...shellTextStyle,
-                color: "#22d3ee",
-                fontSize: 13,
-                fontWeight: 600,
-                letterSpacing: "0.06em",
-                marginBottom: 5,
-              }}
-            >
-              WHY
-            </div>
-
-            <div
-              style={{
-                display: "grid",
-                gap: 4,
-              }}
-            >
-              {asArray(card.why).map(
-                (line, idx) => (
-                  <div
-                    key={`${line}-${idx}`}
-                    style={{
-                      ...shellTextStyle,
-                      color: SOFT_TEXT,
-                      fontSize: 14,
-                      lineHeight: 1.35,
-                    }}
-                  >
-                    {line}
-                  </div>
-                )
-              )}
-            </div>
-          </div>
-
-          {/* 1m / 5m / 10m */}
-          <div
-            style={{
-              display: "grid",
-              gap: 6,
-              marginBottom: 10,
-            }}
-          >
-            {asArray(
-              card.timeframes
-            ).map((row) => {
-              const support =
-                String(
-                  row.supportState ||
-                    ""
-                ).toUpperCase();
-
-              const rowColor =
-                support ===
-                  "CONFLICT"
-                  ? "#fb7185"
-                  : support ===
-                      "SUPPORT" ||
-                    support ===
-                      "EXPANDING"
-                  ? "#22c55e"
-                  : support ===
-                    "FADING"
-                  ? "#fbbf24"
-                  : "#cbd5e1";
-
-              return (
-                <div
-                  key={row.timeframe}
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns:
-                      "42px 70px 90px minmax(0,1fr)",
-                    gap: 8,
-                    alignItems: "center",
-                    padding: "7px 8px",
-                    border:
-                      "1px solid rgba(148,163,184,0.18)",
-                    borderRadius: 8,
-                    background:
-                      "rgba(15,23,42,0.34)",
-                  }}
-                >
-                  <div
-                    style={{
-                      ...shellTextStyle,
-                      color: "#22d3ee",
-                      fontSize: 14,
-                      fontWeight: 700,
-                    }}
-                  >
-                    {row.timeframe}
-                  </div>
-
-                  <div
-                    style={{
-                      ...shellTextStyle,
-                      color:
-                        row.direction ===
-                        "SHORT"
-                          ? "#fb7185"
-                          : row.direction ===
-                            "LONG"
-                          ? "#22c55e"
-                          : MAIN_TEXT,
-                      fontSize: 14,
-                      fontWeight: 600,
-                    }}
-                  >
-                    {row.direction}
-                  </div>
-
-                  <div
-                    style={{
-                      ...shellTextStyle,
-                      color: rowColor,
-                      fontSize: 13,
-                      fontWeight: 600,
-                    }}
-                  >
-                    {row.supportState}
-                  </div>
-
-                  <div
-                    style={{
-                      ...shellTextStyle,
-                      color: SOFT_TEXT,
-                      fontSize: 13,
-                      lineHeight: 1.3,
-                    }}
-                  >
-                    {row.read}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* WHAT ENGINE 4 NEEDS */}
-          <div>
-            <div
-              style={{
-                ...shellTextStyle,
-                color: "#22d3ee",
-                fontSize: 13,
-                fontWeight: 600,
-                letterSpacing: "0.06em",
-                marginBottom: 5,
-              }}
-            >
-              WHAT ENGINE 4 NEEDS
-            </div>
-
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns:
-                  "repeat(2, minmax(0,1fr))",
-                gap: "5px 10px",
-              }}
-            >
-              {asArray(card.needs).map(
-                (need) => (
-                  <div
-                    key={need.label}
-                    style={{
-                      ...shellTextStyle,
-                      display: "flex",
-                      gap: 6,
-                      alignItems:
-                        "center",
-                      color:
-                        need.passed
-                          ? "#86efac"
-                          : "#fbbf24",
-                      fontSize: 13,
-                      lineHeight: 1.3,
-                    }}
-                  >
-                    <span>
-                      {need.passed
-                        ? "✓"
-                        : "⚠"}
-                    </span>
-                    <span>
-                      {need.label}
-                    </span>
-                  </div>
-                )
-              )}
-            </div>
-          </div>
-
-          {/* COMPACT DETAILS */}
-          <details
-            style={{
-              marginTop: 10,
-              borderTop:
-                "1px solid rgba(148,163,184,0.18)",
-              paddingTop: 8,
-            }}
-          >
-            <summary
-              style={{
-                ...shellTextStyle,
-                color: MUTED_TEXT,
-                fontSize: 13,
-                cursor: "pointer",
-                userSelect: "none",
-              }}
-            >
-              Details
-            </summary>
-
-            <div
-              style={{
-                marginTop: 8,
-              }}
-            >
-              <FieldGrid
-                fields={
-                  card.details
-                }
-                columns={2}
-              />
-            </div>
-          </details>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-
 function TimelineSection({ section }) {
   if (!section) return null;
 
@@ -7248,13 +6445,7 @@ function TimelineSection({ section }) {
       />
     );
   }
-  if (section.engine4DecisionCard === true) {
-    return (
-      <Engine4DecisionCard
-        section={section}
-      />
-    );
-  }
+
   return (
     <div
       style={{
