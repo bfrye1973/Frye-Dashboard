@@ -6479,6 +6479,11 @@ function CanonicalStageGrid({ stages }) {
     </div>
   );
 }
+function Engine3PriceReactionCard({ section }) {
+  ...full function...
+}
+
+function Engine4DecisionCard({ section }) {
 
 function Engine4DecisionCard({ section }) {
   const card =
