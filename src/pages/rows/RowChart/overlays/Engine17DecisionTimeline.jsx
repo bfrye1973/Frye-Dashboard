@@ -6480,55 +6480,33 @@ function CanonicalStageGrid({ stages }) {
   );
 }
 
-function Engine3PriceReactionCard({ section }) {
-  const card = section?.engine3Card || {};
+function Engine4DecisionCard({ section }) {
+  const card =
+    section?.engine4Card || {};
 
-  const topRows = [
-    ["Price", card.price],
-    ["Zone", card.zone],
-    ["Neg Zone", card.negZone],
-    ["Location", card.location],
-    ["Main Read", card.mainRead],
-    ["1m Immediate", card.currentLevel],
-  ];
+  const direction = String(
+    card.direction || "NEUTRAL"
+  ).toUpperCase();
 
-  const contactRows = [
-    card.contactState
-      ? ["Contact State", card.contactState]
-      : null,
+  const decision = String(
+    card.decision ||
+      "WAITING FOR PARTICIPATION"
+  ).toUpperCase();
 
-    card.chainArmed != null
-      ? ["Chain Armed", card.chainArmed]
-      : null,
+  const directionColor =
+    direction === "SHORT"
+      ? "#fb7185"
+      : direction === "LONG"
+      ? "#22c55e"
+      : "#cbd5e1";
 
-    card.directionState
-      ? ["Direction State", card.directionState]
-      : null,
-
-    card.expectedReactionDirection
-      ? [
-          "Expected Reaction",
-          card.expectedReactionDirection,
-        ]
-      : null,
-  ].filter(Boolean);
-
-  const headingStyle = {
-    ...shellTextStyle,
-    color: severityColor(section.severity),
-    fontSize: 17,
-    fontWeight: 600,
-    lineHeight: 1.35,
-    marginBottom: 7,
-  };
-
-  const bodyStyle = {
-    ...shellTextStyle,
-    color: MAIN_TEXT,
-    fontSize: 17,
-    fontWeight: FONT_REGULAR,
-    lineHeight: 1.45,
-  };
+  const decisionColor =
+    card.hardBlocked
+      ? "#fb7185"
+      : card.confirmed &&
+        card.allowed
+      ? directionColor
+      : "#fbbf24";
 
   return (
     <div
@@ -6536,11 +6514,12 @@ function Engine3PriceReactionCard({ section }) {
         border: `1px solid ${severityBorder(
           section.severity
         )}`,
-        background: severityBackground(
-          section.severity
-        ),
+        background:
+          severityBackground(
+            section.severity
+          ),
         borderRadius: 12,
-        padding: "14px 15px",
+        padding: "13px 14px",
         textAlign: "left",
         position: "relative",
       }}
@@ -6549,16 +6528,16 @@ function Engine3PriceReactionCard({ section }) {
         style={{
           display: "grid",
           gridTemplateColumns:
-            "40px minmax(0, 1fr)",
-          gap: 11,
+            "38px minmax(0,1fr)",
+          gap: 10,
           alignItems: "start",
         }}
       >
         <div
           style={{
             ...shellTextStyle,
-            width: 32,
-            height: 32,
+            width: 30,
+            height: 30,
             borderRadius: "50%",
             border: `1px solid ${severityBorder(
               section.severity
@@ -6566,15 +6545,13 @@ function Engine3PriceReactionCard({ section }) {
             color: severityColor(
               section.severity
             ),
-            background: "rgba(2,6,23,0.72)",
+            background:
+              "rgba(2,6,23,0.72)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
             fontWeight: 600,
-            fontSize: 17,
-            boxShadow: `0 0 16px ${severityBorder(
-              section.severity
-            )}`,
+            fontSize: 15,
           }}
         >
           {section.number}
@@ -6586,125 +6563,146 @@ function Engine3PriceReactionCard({ section }) {
               ...shellTextStyle,
               display: "flex",
               alignItems: "center",
-              gap: 9,
+              gap: 8,
               color: severityColor(
                 section.severity
               ),
-              fontSize: 22,
+              fontSize: 19,
               fontWeight: 600,
-              lineHeight: 1.25,
-              marginBottom: 11,
+              marginBottom: 9,
             }}
           >
             <span>{section.icon}</span>
             <span>{section.title}</span>
           </div>
 
+          {/* CURRENT DECISION */}
           <div
             style={{
-              display: "grid",
-              gridTemplateColumns:
-                "130px minmax(0, 1fr)",
-              gap: "7px 13px",
-              alignItems: "start",
+              border:
+                "1px solid rgba(148,163,184,0.24)",
+              borderRadius: 10,
+              padding: "10px 11px",
+              background:
+                "rgba(2,6,23,0.62)",
+              marginBottom: 10,
             }}
           >
-            {topRows.map(([label, value]) => (
-              <React.Fragment key={label}>
+            <div
+              style={{
+                ...shellTextStyle,
+                color: MUTED_TEXT,
+                fontSize: 12,
+                letterSpacing: "0.08em",
+                marginBottom: 5,
+              }}
+            >
+              CURRENT DECISION
+            </div>
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns:
+                  "minmax(0,1fr) minmax(0,1.5fr)",
+                gap: 10,
+                alignItems: "end",
+              }}
+            >
+              <div>
                 <div
                   style={{
                     ...shellTextStyle,
                     color: MUTED_TEXT,
-                    fontSize: 15,
-                    fontWeight: FONT_MEDIUM,
-                    lineHeight: 1.35,
+                    fontSize: 12,
+                    marginBottom: 2,
                   }}
                 >
-                  {label}
+                  Direction
                 </div>
 
                 <div
                   style={{
                     ...shellTextStyle,
-                    color: MAIN_TEXT,
-                    fontSize: 18,
-                    fontWeight: FONT_MEDIUM,
-                    lineHeight: 1.35,
-                    overflowWrap: "anywhere",
+                    color: directionColor,
+                    fontSize: 24,
+                    fontWeight: 700,
                   }}
                 >
-                  {value || "—"}
+                  {direction}
                 </div>
-              </React.Fragment>
-            ))}
-          </div>
+              </div>
 
-          <div style={{ marginTop: 13 }}>
-            <div style={headingStyle}>
-              Price Action Facts
+              <div>
+                <div
+                  style={{
+                    ...shellTextStyle,
+                    color: MUTED_TEXT,
+                    fontSize: 12,
+                    marginBottom: 2,
+                  }}
+                >
+                  Engine 4 Decision
+                </div>
+
+                <div
+                  style={{
+                    ...shellTextStyle,
+                    color: decisionColor,
+                    fontSize: 21,
+                    fontWeight: 700,
+                    lineHeight: 1.2,
+                  }}
+                >
+                  {decision}
+                </div>
+              </div>
             </div>
 
             <div
               style={{
-                display: "grid",
-                gap: 5,
-              }}
-            >
-              {asArray(card.facts).map(
-                ([label, value]) => (
-                  <div
-                    key={label}
-                    style={{
-                      ...bodyStyle,
-                      display: "grid",
-                      gridTemplateColumns:
-                        "minmax(0, 1fr) auto",
-                      gap: 12,
-                    }}
-                  >
-                    <span>{label}</span>
-                    <span>{value}</span>
-                  </div>
-                )
-              )}
-            </div>
-          </div>
-
-          <div style={{ marginTop: 13 }}>
-            <div style={headingStyle}>
-              Meaning
-            </div>
-
-            <div style={bodyStyle}>
-              {card.meaning || "—"}
-            </div>
-          </div>
-
-          {contactRows.length > 0 && (
-            <div
-              style={{
-                marginTop: 13,
-                padding: "9px 10px",
-                border:
-                  "1px solid rgba(148,163,184,0.24)",
-                borderRadius: 9,
-                background:
-                  "rgba(15,23,42,0.34)",
                 display: "grid",
                 gridTemplateColumns:
-                  "130px minmax(0, 1fr)",
-                gap: "5px 12px",
+                  "repeat(4, minmax(0,1fr))",
+                gap: 8,
+                marginTop: 10,
               }}
             >
-              {contactRows.map(
+              {[
+                [
+                  "Confirmed",
+                  formatBool(
+                    card.confirmed
+                  ),
+                ],
+                [
+                  "Allowed",
+                  formatBool(
+                    card.allowed
+                  ),
+                ],
+                [
+                  "Hard Block",
+                  formatBool(
+                    card.hardBlocked
+                  ),
+                ],
+                [
+                  "E3 Qualified",
+                  formatBool(
+                    card.engine3Qualified
+                  ),
+                ],
+              ].map(
                 ([label, value]) => (
-                  <React.Fragment key={label}>
+                  <div key={label}>
                     <div
                       style={{
                         ...shellTextStyle,
-                        color: MUTED_TEXT,
-                        fontSize: 15,
-                        lineHeight: 1.4,
+                        color:
+                          MUTED_TEXT,
+                        fontSize: 11,
+                        marginBottom: 2,
                       }}
                     >
                       {label}
@@ -6713,44 +6711,261 @@ function Engine3PriceReactionCard({ section }) {
                     <div
                       style={{
                         ...shellTextStyle,
-                        color: SOFT_TEXT,
-                        fontSize: 16,
-                        lineHeight: 1.4,
-                        overflowWrap: "anywhere",
+                        color:
+                          MAIN_TEXT,
+                        fontSize: 15,
+                        fontWeight: 600,
                       }}
                     >
                       {value}
                     </div>
-                  </React.Fragment>
+                  </div>
                 )
               )}
             </div>
-          )}
+          </div>
 
-          <div style={{ marginTop: 13 }}>
-            <div style={headingStyle}>
-              Strategy Status
+          {/* WHY */}
+          <div
+            style={{
+              marginBottom: 10,
+            }}
+          >
+            <div
+              style={{
+                ...shellTextStyle,
+                color: "#22d3ee",
+                fontSize: 13,
+                fontWeight: 600,
+                letterSpacing: "0.06em",
+                marginBottom: 5,
+              }}
+            >
+              WHY
             </div>
 
-            <div style={bodyStyle}>
-              {card.strategyStatus}
+            <div
+              style={{
+                display: "grid",
+                gap: 4,
+              }}
+            >
+              {asArray(card.why).map(
+                (line, idx) => (
+                  <div
+                    key={`${line}-${idx}`}
+                    style={{
+                      ...shellTextStyle,
+                      color: SOFT_TEXT,
+                      fontSize: 14,
+                      lineHeight: 1.35,
+                    }}
+                  >
+                    {line}
+                  </div>
+                )
+              )}
             </div>
           </div>
 
-          <div style={{ marginTop: 13 }}>
-            <div style={headingStyle}>
-              Result
+          {/* 1m / 5m / 10m */}
+          <div
+            style={{
+              display: "grid",
+              gap: 6,
+              marginBottom: 10,
+            }}
+          >
+            {asArray(
+              card.timeframes
+            ).map((row) => {
+              const support =
+                String(
+                  row.supportState ||
+                    ""
+                ).toUpperCase();
+
+              const rowColor =
+                support ===
+                  "CONFLICT"
+                  ? "#fb7185"
+                  : support ===
+                      "SUPPORT" ||
+                    support ===
+                      "EXPANDING"
+                  ? "#22c55e"
+                  : support ===
+                    "FADING"
+                  ? "#fbbf24"
+                  : "#cbd5e1";
+
+              return (
+                <div
+                  key={row.timeframe}
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns:
+                      "42px 70px 90px minmax(0,1fr)",
+                    gap: 8,
+                    alignItems: "center",
+                    padding: "7px 8px",
+                    border:
+                      "1px solid rgba(148,163,184,0.18)",
+                    borderRadius: 8,
+                    background:
+                      "rgba(15,23,42,0.34)",
+                  }}
+                >
+                  <div
+                    style={{
+                      ...shellTextStyle,
+                      color: "#22d3ee",
+                      fontSize: 14,
+                      fontWeight: 700,
+                    }}
+                  >
+                    {row.timeframe}
+                  </div>
+
+                  <div
+                    style={{
+                      ...shellTextStyle,
+                      color:
+                        row.direction ===
+                        "SHORT"
+                          ? "#fb7185"
+                          : row.direction ===
+                            "LONG"
+                          ? "#22c55e"
+                          : MAIN_TEXT,
+                      fontSize: 14,
+                      fontWeight: 600,
+                    }}
+                  >
+                    {row.direction}
+                  </div>
+
+                  <div
+                    style={{
+                      ...shellTextStyle,
+                      color: rowColor,
+                      fontSize: 13,
+                      fontWeight: 600,
+                    }}
+                  >
+                    {row.supportState}
+                  </div>
+
+                  <div
+                    style={{
+                      ...shellTextStyle,
+                      color: SOFT_TEXT,
+                      fontSize: 13,
+                      lineHeight: 1.3,
+                    }}
+                  >
+                    {row.read}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* WHAT ENGINE 4 NEEDS */}
+          <div>
+            <div
+              style={{
+                ...shellTextStyle,
+                color: "#22d3ee",
+                fontSize: 13,
+                fontWeight: 600,
+                letterSpacing: "0.06em",
+                marginBottom: 5,
+              }}
+            >
+              WHAT ENGINE 4 NEEDS
             </div>
 
-            <div style={bodyStyle}>
-              {card.result}
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns:
+                  "repeat(2, minmax(0,1fr))",
+                gap: "5px 10px",
+              }}
+            >
+              {asArray(card.needs).map(
+                (need) => (
+                  <div
+                    key={need.label}
+                    style={{
+                      ...shellTextStyle,
+                      display: "flex",
+                      gap: 6,
+                      alignItems:
+                        "center",
+                      color:
+                        need.passed
+                          ? "#86efac"
+                          : "#fbbf24",
+                      fontSize: 13,
+                      lineHeight: 1.3,
+                    }}
+                  >
+                    <span>
+                      {need.passed
+                        ? "✓"
+                        : "⚠"}
+                    </span>
+                    <span>
+                      {need.label}
+                    </span>
+                  </div>
+                )
+              )}
             </div>
           </div>
+
+          {/* COMPACT DETAILS */}
+          <details
+            style={{
+              marginTop: 10,
+              borderTop:
+                "1px solid rgba(148,163,184,0.18)",
+              paddingTop: 8,
+            }}
+          >
+            <summary
+              style={{
+                ...shellTextStyle,
+                color: MUTED_TEXT,
+                fontSize: 13,
+                cursor: "pointer",
+                userSelect: "none",
+              }}
+            >
+              Details
+            </summary>
+
+            <div
+              style={{
+                marginTop: 8,
+              }}
+            >
+              <FieldGrid
+                fields={
+                  card.details
+                }
+                columns={2}
+              />
+            </div>
+          </details>
         </div>
       </div>
     </div>
   );
 }
+
 
 function TimelineSection({ section }) {
   if (!section) return null;
@@ -6762,7 +6977,13 @@ function TimelineSection({ section }) {
       />
     );
   }
-
+  if (section.engine4DecisionCard === true) {
+    return (
+      <Engine4DecisionCard
+        section={section}
+      />
+    );
+  }
   return (
     <div
       style={{
