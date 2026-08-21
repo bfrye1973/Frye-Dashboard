@@ -4857,23 +4857,55 @@ function buildEngine22CompactStructureSection(degreeStates) {
     internalC?.waveB?.time ??
     null;
 
-  const minuteCALow =
-    internalC?.cA?.low ??
-    internalC?.finalMinuteABC?.waveA?.price ??
-    internalC?.cA?.completionTouchPrice ??
-    null;
+const manualMinuteCCFallbackLevels = {
+  cc100: 7658.25,
+  cc1272: 7643.25,
+  cc1618: 7624.5,
+  cc200: 7603.5,
+  cc2618: 7569.75,
+};
 
-  const minuteCALowTime =
-    internalC?.cA?.time ??
-    internalC?.finalMinuteABC?.waveA?.time ??
-    internalC?.cA?.completionTouchTime ??
-    null;
+const manualParentCDownFallbackLevels = {
+  c100: 7722.75,
+  c1272: 7690.75,
+  c1618: 7650.25,
+  c200: 7605.5,
+  c2618: 7533.0,
+};
 
-  const minuteCBHigh =
-    internalC?.cB?.high ??
-    internalC?.finalMinuteABC?.waveB?.price ??
-    null;
+const minuteCALow =
+  internalC?.cA?.low ??
+  internalC?.finalMinuteABC?.waveA?.price ??
+  internalC?.cA?.completionTouchPrice ??
+  7658.25;
 
+const minuteCALowTime =
+  internalC?.cA?.time ??
+  internalC?.finalMinuteABC?.waveA?.time ??
+  internalC?.cA?.completionTouchTime ??
+  "2026-08-20 13:30";
+
+const minuteCBHigh =
+  internalC?.cB?.high ??
+  internalC?.finalMinuteABC?.waveB?.price ??
+  7713.0;
+
+const minuteCBHighTime =
+  internalC?.cB?.time ??
+  internalC?.finalMinuteABC?.waveB?.time ??
+  "2026-08-21 09:00";
+
+const minuteCCStart =
+  internalC?.cC?.start ??
+  internalC?.finalMinuteABC?.waveC?.start ??
+  minuteCBHigh ??
+  7713.0;
+
+const minuteCCStartTime =
+  internalC?.cC?.startTime ??
+  internalC?.finalMinuteABC?.waveC?.startTime ??
+  minuteCBHighTime ??
+  "2026-08-21 09:00";
   const minuteCBHighTime =
     internalC?.cB?.time ??
     internalC?.finalMinuteABC?.waveB?.time ??
