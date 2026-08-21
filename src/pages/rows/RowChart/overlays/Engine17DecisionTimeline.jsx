@@ -5014,7 +5014,7 @@ const minuteCCStartTime =
     },
     ["Parent Structure", "Minor W4 expanded flat"],
     ["Active Parent Leg", "Minor C-down"],
-    ["Current Tactical Wave", "Minute C-down"],
+    ["Current Tactical Wave", "Minute C-down / final C-c active"],
     ["Current Internal", publishedText(currentInternalWave)],
     ["Tactical Direction", formatUpper(tacticalDirection, "DOWN")],
     ["Status", publishedText(currentWaveState, formatUpper)],
@@ -5025,15 +5025,19 @@ const minuteCCStartTime =
       label: "Invalidation / Control",
     },
     [
-      "Minute C invalidation",
-      minuteCCInvalidation !== null
-        ? `Above ${publishedNumber(minuteCCInvalidation)} reclaim / hold`
-        : "Above internal B high reclaim / hold",
+      "Minute C-c invalidation",
+       minuteCCInvalidation !== null
+         ? `Above internal B high ${publishedNumber(minuteCCInvalidation)} reclaim / hold`
+         : "Above internal B high reclaim / hold",
     ],
-    [
-      "Larger C-down invalidation",
+     [
+       "Large C-down invalidation",
+       largerCInvalidation !== null
+         ? `Above expanded-flat B high ${publishedNumber(largerCInvalidation)} reclaim / hold`
+         : "Above expanded-flat B high 7840.00 reclaim / hold",
+     ],
       largerCInvalidation !== null
-        ? `Above ${publishedNumber(largerCInvalidation)} reclaim / hold`
+        ? `Above expanded-flat B high ${publishedNumber(largerCInvalidation)} reclaim / hold`
         : "Above expanded-flat B high reclaim / hold",
     ],
     ["Next Minute Target", publishedNumber(nextMinuteTarget)],
