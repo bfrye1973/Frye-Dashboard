@@ -4738,19 +4738,19 @@ function buildEngine22CompactStructureSection(degreeStates) {
     return {
       number: 1,
       icon: "〽",
-      title: "Engine 22 — Minute Market Structure",
+      title: "Engine 22 — Current Wave Read",
       severity: "warning",
       fields: [
         {
           label: "Question",
-          value: "What is the canonical Minute market structure?",
+          value: "What wave are we in right now?",
           fullWidth: true,
         },
         {
           type: "sectionHeader",
-          label: "Structure Summary",
+          label: "Current Wave Read",
         },
-        ["Status", "Minute structure unavailable"],
+        ["Status", "Minute / Minor structure unavailable"],
       ],
       lines: [],
     };
@@ -4777,440 +4777,248 @@ function buildEngine22CompactStructureSection(degreeStates) {
     return "Not published";
   };
 
-const parentWave = internal?.parentWave || minute?.activeWave || null;
+  const internalC =
+    minute?.cWaveInternalStructure ||
+    targetModel?.internalCStructure ||
+    activeFibModel?.internalCStructure ||
+    internal?.internalCStructure ||
+    null;
 
-/*
- * Prefer the canonical published internal-C contract.
- * This allows the card to show C-a complete / C-b active instead of
- * staying visually stuck on the old C-a down-extension section.
- */
-const canonicalInternalC =
-  minute?.cWaveInternalStructure ||
-  minute?.targetModel?.internalCStructure ||
-  minute?.activeFibModel?.internalCStructure ||
-  null;
+  const cCModel =
+    internalC?.cC?.targetModel && typeof internalC.cC.targetModel === "object"
+      ? internalC.cC.targetModel
+      : null;
 
-const currentInternalWave =
-  canonicalInternalC?.currentInternalWave ||
-  internal?.currentInternalWave ||
-  null;
+  const minuteCCLevels =
+    cCModel?.levels && typeof cCModel.levels === "object"
+      ? cCModel.levels
+      : {};
 
-const nextInternalWave =
-  canonicalInternalC?.nextExpectedInternalWave ||
-  internal?.nextExpectedInternalWave ||
-  null;
-
-const directionValue =
-  canonicalInternalC?.direction ||
-  internal?.parentWaveDirection ||
-  activeFibModel?.direction ||
-  internal?.internalLegDirection ||
-  null;
-
-  const hasCDownTargetModel =
-    String(targetModel?.modelType || "").toUpperCase() ===
-    "C_DOWN_EXTENSION_LADDER";
-
-  const hasActiveFibModel =
-    activeFibModel && Object.keys(activeFibModel).length > 0;
-
-  const isRetracementModel =
-    !hasCDownTargetModel &&
-    (
-      activeFibModel?.modelType === "RETRACEMENT_MAP" ||
-      activeFibModel?.modelKey === "W4_RETRACEMENT_MAP" ||
-      (
-        minute?.activeWave === "W4" &&
-        Object.keys(w4RetracementMap).length > 0
-      )
-    );
-
-  const isExtensionModel =
-    !hasCDownTargetModel &&
-    (
-      activeFibModel?.modelType === "EXTENSION_LADDER" ||
-      targetModel?.modelType === "EXTENSION_LADDER"
-    );
-
-  const currentFibModel = hasCDownTargetModel
-    ? targetModel
-    : hasActiveFibModel
-    ? activeFibModel
-    : isRetracementModel
-    ? w4RetracementMap
-    : targetModel;
-
-  const fibModelLabel = hasCDownTargetModel
-    ? "W4 Expanded Flat — C Down Ladder"
-    : isRetracementModel
-    ? "W4 Retracement Map"
-    : currentFibModel?.modelType === "EXTENSION_LADDER"
-    ? "W3 Extension Ladder"
-    : publishedText(currentFibModel?.modelType, titleCase);
-  const retracementLevels = {
-    r236:
-      currentFibModel?.levels?.r236 ??
-      w4RetracementMap?.r236 ??
-      null,
-    r382:
-      currentFibModel?.levels?.r382 ??
-      w4RetracementMap?.r382 ??
-      null,
-    r500:
-      currentFibModel?.levels?.r500 ??
-      w4RetracementMap?.r500 ??
-      null,
-    r618:
-      currentFibModel?.levels?.r618 ??
-      w4RetracementMap?.r618 ??
-      null,
-    r786:
-      currentFibModel?.levels?.r786 ??
-      w4RetracementMap?.r786 ??
-      null,
-  };
-
-  const extensionLevels = {
-    e100:
-      currentFibModel?.levels?.e100 ??
-      targetModel?.levels?.e100 ??
-      null,
-    e1272:
-      currentFibModel?.levels?.e1272 ??
-      targetModel?.levels?.e1272 ??
-      null,
-    e1618:
-      currentFibModel?.levels?.e1618 ??
-      targetModel?.levels?.e1618 ??
-      null,
-    e200:
-      currentFibModel?.levels?.e200 ??
-      targetModel?.levels?.e200 ??
-      null,
-    e2618:
-      currentFibModel?.levels?.e2618 ??
-      targetModel?.levels?.e2618 ??
-      null,
-  };
-
-    const cDownLevels = {
+  const parentCLevels = {
     c100:
-      currentFibModel?.levels?.c100 ??
       targetModel?.levels?.c100 ??
+      targetModel?.cDownTargets?.c100 ??
+      internalC?.cC?.largerCTargets?.c100 ??
       null,
     c1272:
-      currentFibModel?.levels?.c1272 ??
       targetModel?.levels?.c1272 ??
+      targetModel?.cDownTargets?.c1272 ??
+      internalC?.cC?.largerCTargets?.c1272 ??
       null,
     c1618:
-      currentFibModel?.levels?.c1618 ??
       targetModel?.levels?.c1618 ??
+      targetModel?.cDownTargets?.c1618 ??
+      internalC?.cC?.largerCTargets?.c1618 ??
       null,
     c200:
-      currentFibModel?.levels?.c200 ??
       targetModel?.levels?.c200 ??
+      targetModel?.cDownTargets?.c200 ??
+      internalC?.cC?.largerCTargets?.c200 ??
       null,
     c2618:
-      currentFibModel?.levels?.c2618 ??
       targetModel?.levels?.c2618 ??
+      targetModel?.cDownTargets?.c2618 ??
+      internalC?.cC?.largerCTargets?.c2618 ??
       null,
   };
 
-const internalC =
-  minute?.cWaveInternalStructure ||
-  targetModel?.internalCStructure ||
-  activeFibModel?.internalCStructure ||
-  currentFibModel?.internalCStructure ||
-  null;
-
-const isCBUpActive =
-  internalC?.currentInternalWave === "C-b" ||
-  String(internalC?.cWaveState || "").toUpperCase().startsWith("C_B_UP_ACTIVE");
-
-const internalCSectionLabel = isCBUpActive
-  ? "Internal C Structure — C-a Complete / C-b Up Active"
-  : "Internal C-a Down Extensions";
-
-const cAStateLabel = isCBUpActive ? "C-a Status" : "C-a State";
-const cAStateValue = isCBUpActive
-  ? "COMPLETED CANDIDATE"
-  : publishedText(internalC?.cWaveState, formatUpper);
-
-const currentInternalDisplay =
-  internalC?.currentInternalWave || currentInternalWave;
-
-const nextInternalDisplay =
-  internalC?.nextExpectedInternalWave || nextInternalWave;
-
-const directionDisplay =
-  internalC?.direction ||
-  directionValue ||
-  null;
-
-  const cAExtensionLevels =
-    internalC?.cA?.extensionLevels || {};
-
-  const cBLevels =
-    internalC?.cB?.retraceOfCADown?.levels || {};
-
   const cDownAnchor =
-    currentFibModel?.anchorModel ||
     targetModel?.anchorModel ||
+    activeFibModel?.anchorModel ||
     {};
 
-  const cDownInvalidationLevel =
-    currentFibModel?.invalidationLevel ??
-    targetModel?.invalidationLevel ??
-    cDownAnchor?.waveBHigh ??
-    internal?.invalidationLevel ??
+  const parentALow =
+    targetModel?.aLow ??
+    cDownAnchor?.waveALow ??
+    internal?.aLow ??
+    internalC?.waveA?.price ??
     null;
 
-  const cDownPrimaryTarget =
-    currentFibModel?.primaryTarget ??
-    targetModel?.primaryTarget ??
-    cDownLevels.c1618 ??
+  const parentATime =
+    targetModel?.aTime ??
+    cDownAnchor?.waveATime ??
+    internalC?.waveA?.time ??
     null;
-  
-  const nextTargetValue = hasCDownTargetModel
-    ? currentFibModel?.nextTarget ??
-      targetModel?.nextTarget ??
-      cDownLevels.c100 ??
-      null
-    : isRetracementModel
-    ? currentFibModel?.nextLevelBelow?.price ??
-      w4RetracementMap?.nextRetracementBelow?.price ??
-      internal?.supportLevel ??
-      null
-    : currentFibModel?.nextTarget ??
-      targetModel?.nextTarget ??
-      null;
+
+  const parentBHigh =
+    targetModel?.bHigh ??
+    cDownAnchor?.waveBHigh ??
+    internal?.bHigh ??
+    internalC?.waveB?.price ??
+    null;
+
+  const parentBTime =
+    targetModel?.bTime ??
+    cDownAnchor?.waveBTime ??
+    internalC?.waveB?.time ??
+    null;
+
+  const minuteCALow =
+    internalC?.cA?.low ??
+    internalC?.finalMinuteABC?.waveA?.price ??
+    internalC?.cA?.completionTouchPrice ??
+    null;
+
+  const minuteCALowTime =
+    internalC?.cA?.time ??
+    internalC?.finalMinuteABC?.waveA?.time ??
+    internalC?.cA?.completionTouchTime ??
+    null;
+
+  const minuteCBHigh =
+    internalC?.cB?.high ??
+    internalC?.finalMinuteABC?.waveB?.price ??
+    null;
+
+  const minuteCBHighTime =
+    internalC?.cB?.time ??
+    internalC?.finalMinuteABC?.waveB?.time ??
+    null;
+
+  const minuteCCStart =
+    internalC?.cC?.start ??
+    internalC?.finalMinuteABC?.waveC?.start ??
+    minuteCBHigh ??
+    null;
+
+  const minuteCCStartTime =
+    internalC?.cC?.startTime ??
+    internalC?.finalMinuteABC?.waveC?.startTime ??
+    minuteCBHighTime ??
+    null;
 
   const currentPriceValue =
-    currentFibModel?.currentPrice ??
+    targetModel?.currentPrice ??
+    activeFibModel?.currentPrice ??
     w4RetracementMap?.currentPrice ??
     minute?.currentPrice ??
     null;
 
-  const currentRetracementDisplay =
-    currentFibModel?.currentRetracementDisplay ??
-    (Number.isFinite(Number(currentFibModel?.currentRetracementPercent))
-      ? `${formatNumber(currentFibModel.currentRetracementPercent)}%`
-      : Number.isFinite(Number(w4RetracementMap?.currentRetracementPercent))
-      ? `${formatNumber(w4RetracementMap.currentRetracementPercent)}%`
-      : "Not published");
+  const currentInternalWave =
+    internalC?.currentInternalWave ||
+    internal?.currentInternalWave ||
+    "Minute C-down";
 
-  const formatLevelRef = (entry) => {
-    if (!entry) return "Not published";
-    const key = entry?.key ? String(entry.key) : null;
-    const price = Number(entry?.price);
+  const tacticalDirection =
+    internalC?.direction ||
+    internal?.internalLegDirection ||
+    minute?.direction ||
+    "DOWN";
 
-    if (key && Number.isFinite(price)) {
-      return `${key} / ${formatNumber(price)}`;
-    }
+  const currentWaveState =
+    internalC?.cWaveState ||
+    minute?.stage ||
+    internal?.classification ||
+    "C_DOWN_ACTIVE";
 
-    if (key) return key;
-    if (Number.isFinite(price)) return formatNumber(price);
-    return "Not published";
-  };
+  const minuteCCInvalidation =
+    minuteCBHigh ?? null;
+
+  const largerCInvalidation =
+    targetModel?.invalidationLevel ??
+    targetModel?.reclaimInvalidationLevel ??
+    cDownAnchor?.waveBHigh ??
+    internal?.invalidationLevel ??
+    internalC?.invalidationLevel ??
+    null;
+
+  const nextParentTarget =
+    parentCLevels.c1272 ??
+    parentCLevels.c100 ??
+    targetModel?.nextTarget ??
+    null;
+
+  const nextMinuteTarget =
+    minuteCCLevels.cc100 ??
+    cCModel?.primaryTarget ??
+    null;
 
   const ticketCreated =
     minute?.ticketCreated === true ||
     minute?.engine26PaperTradeTicket != null;
+
   const journalCreated =
     minute?.journalCreated === true ||
     minute?.engine10JournalCreated === true;
 
-  const topFields = [
+  const fields = [
     {
       label: "Question",
-      value: "What is the canonical Minute market structure?",
+      value: "What wave are we in right now?",
       fullWidth: true,
     },
+
     {
       type: "sectionHeader",
-      label: "Structure Summary",
+      label: "Current Wave Read",
     },
-    [
-      "Parent Degree",
-      internal?.parentDegree
-        ? titleCase(internal.parentDegree)
-        : "Minute",
-    ],
-    [
-      "Parent Wave",
-      parentWave
-        ? `${formatUpper(parentWave)} active`
-        : "Not published",
-    ],
-    ["Stage", publishedText(minute?.stage, titleCase)],
-    ["Internal Wave", publishedText(currentInternalDisplay)],
-    [
-      "Next Internal Event",
-      currentInternalDisplay && nextInternalDisplay
-        ? `Internal ${currentInternalDisplay} → ${nextInternalDisplay}`
-        : "Not published",
-    ],
-    ["Structure", publishedText(internal?.classification, titleCase)],
-    [
-      "Parent Still Valid",
-      publishedBool(internal?.parentWaveStillValid),
-    ],
-    ["Parent Complete", publishedBool(internal?.parentWaveComplete)],
-    [
-      "Parent Transition Possible",
-      publishedBool(internal?.parentTransitionPossible),
-    ],
-    ["Transition Risk", publishedText(internal?.transitionRisk, titleCase)],
-    ["Invalidation Level", publishedNumber(internal?.invalidationLevel)],
-    ["Next Target", publishedNumber(nextTargetValue)],
-    ["Support", publishedNumber(internal?.supportLevel)],
-  ];
+    ["Parent Structure", "Minor W4 expanded flat"],
+    ["Active Parent Leg", "Minor C-down"],
+    ["Current Tactical Wave", "Minute C-down"],
+    ["Current Internal", publishedText(currentInternalWave)],
+    ["Tactical Direction", formatUpper(tacticalDirection, "DOWN")],
+    ["Status", publishedText(currentWaveState, formatUpper)],
+    ["Current Price", publishedNumber(currentPriceValue)],
 
-  const fibSectionHeader = {
-    type: "sectionHeader",
-    label: fibModelLabel,
-  };
-
-  const fibFields = hasCDownTargetModel
-    ? [
-        ["A Low", publishedNumber(cDownAnchor?.waveALow)],
-        ["A Time", publishedText(cDownAnchor?.waveATime)],
-        ["B High", publishedNumber(cDownAnchor?.waveBHigh)],
-        ["B Time", publishedText(cDownAnchor?.waveBTime)],
-        ["Current Leg", publishedText(currentFibModel?.currentLeg, formatUpper)],
-        ["Next C Target", publishedNumber(currentFibModel?.nextTarget)],
-        ["C 1.000", publishedNumber(cDownLevels.c100)],
-        ["C 1.272", publishedNumber(cDownLevels.c1272)],
-        ["Primary C Target", publishedNumber(cDownPrimaryTarget)],
-        ["C 1.618", publishedNumber(cDownLevels.c1618)],
-        ["C 2.000", publishedNumber(cDownLevels.c200)],
-        ["C 2.618", publishedNumber(cDownLevels.c2618)],
-        ["Reclaim / Invalidation", publishedNumber(cDownInvalidationLevel)],
-        [
-          "Rule",
-          `C down active while price cannot hold above ${publishedNumber(
-            cDownInvalidationLevel
-          )}`,
-        ],
-
-        {
-          type: "sectionHeader",
-          label: internalCSectionLabel,
-        },
-        ["C-a Complete", internalC?.cA?.completedCandidate === true ? "YES" : "NO"],
-        ["C-a Status", cAStateValue],
-        ["Current Internal", publishedText(currentInternalDisplay)],
-        ["Next Internal", publishedText(nextInternalDisplay)],
-        ["Direction", directionDisplay ? formatUpper(directionDisplay) : "Not published"],
-        ["Completion Touch", publishedNumber(internalC?.cA?.completionTouchPrice)],
-        ["Completed By", publishedText(internalC?.cA?.completedBy, formatUpper)],
-        ["C-a Start", publishedNumber(internalC?.cA?.start)],
-        ["C-a Current", publishedNumber(internalC?.cA?.currentPrice)],
-        [
-          "C-a Progress",
-          Number.isFinite(Number(internalC?.cA?.progressPercent))
-            ? `${formatNumber(internalC.cA.progressPercent, 0)}%`
-            : "Not published",
-        ],
-        ["C-a 0.786", publishedNumber(cAExtensionLevels.ca786)],
-        ["C-a 0.886", publishedNumber(cAExtensionLevels.ca886)],
-        ["C-a 1.000", publishedNumber(cAExtensionLevels.ca100)],
-        ["C-a 1.130", publishedNumber(cAExtensionLevels.ca1130)],
-        ["C-a 1.168", publishedNumber(cAExtensionLevels.ca1168)],
-        ["C-a 1.200", publishedNumber(cAExtensionLevels.ca1200)],
-        ["C-a 1.236", publishedNumber(cAExtensionLevels.ca1236)],
-        ["C-a 1.272", publishedNumber(cAExtensionLevels.ca1272)],
-        ["C-a 1.618", publishedNumber(cAExtensionLevels.ca1618)],
-        [
-          "C-a Zone",
-          internalC?.cA?.completionZone?.hi != null &&
-          internalC?.cA?.completionZone?.lo != null
-            ? `${formatNumber(internalC.cA.completionZone.hi)} → ${formatNumber(
-                internalC.cA.completionZone.lo
-              )}`
-            : "Not published",
-        ],
-
-        {
-          type: "sectionHeader",
-          label: isCBUpActive
-            ? "Current Internal C-b Bounce Active"
-            : "Next Internal C-b Bounce Watch",
-        },
-        ["C-b State", publishedText(internalC?.cB?.state || internalC?.cWaveState, formatUpper)],
-        ["Next Internal", publishedText(nextInternalDisplay)],
-        ["C-b 0.236", publishedNumber(cBLevels.cb236)],
-        ["C-b 0.382", publishedNumber(cBLevels.cb382)],
-        ["C-b 0.500", publishedNumber(cBLevels.cb500)],
-        ["C-b 0.618", publishedNumber(cBLevels.cb618)],
-        ["C-b 0.786", publishedNumber(cBLevels.cb786)],
-      ]
-    : isRetracementModel
-    ? [
-        [
-          "W3 High",
-          publishedNumber(
-            currentFibModel?.anchorModel?.anchorHigh ??
-              w4RetracementMap?.w3HighCandidate
-          ),
-        ],
-        [
-          "W2 Low",
-          publishedNumber(
-            currentFibModel?.anchorModel?.anchorLow ??
-              w4RetracementMap?.w2Low
-          ),
-        ],
-        ["Current Price", publishedNumber(currentPriceValue)],
-        ["Current Retracement", currentRetracementDisplay],
-        ["r236", publishedNumber(retracementLevels.r236)],
-        ["r382", publishedNumber(retracementLevels.r382)],
-        ["r500", publishedNumber(retracementLevels.r500)],
-        ["r618", publishedNumber(retracementLevels.r618)],
-        ["r786", publishedNumber(retracementLevels.r786)],
-        [
-          "Nearest Level",
-          formatLevelRef(
-            currentFibModel?.nearestLevel ??
-              w4RetracementMap?.nearestRetracement
-          ),
-        ],
-        [
-          "Next Level Below",
-          formatLevelRef(
-            currentFibModel?.nextLevelBelow ??
-              w4RetracementMap?.nextRetracementBelow
-          ),
-        ],
-        [
-          "Zone State",
-          publishedText(
-            currentFibModel?.zoneState ?? w4RetracementMap?.zoneState,
-            formatUpper
-          ),
-        ],
-      ]
-    : [
-        ["1.000", publishedNumber(extensionLevels.e100)],
-        ["1.272", publishedNumber(extensionLevels.e1272)],
-        ["1.618", publishedNumber(extensionLevels.e1618)],
-        ["2.000", publishedNumber(extensionLevels.e200)],
-        ["2.618", publishedNumber(extensionLevels.e2618)],
-        [
-          "Fib Next Target",
-          publishedNumber(currentFibModel?.nextTarget ?? targetModel?.nextTarget),
-        ],
-      ];
-  const footerFields = [
     {
       type: "sectionHeader",
-      label: "Status",
+      label: "Invalidation / Control",
     },
     [
-      "Direction",
-       directionDisplay ? formatUpper(directionDisplay) : "Not published",
+      "Minute C invalidation",
+      minuteCCInvalidation !== null
+        ? `Above ${publishedNumber(minuteCCInvalidation)} reclaim / hold`
+        : "Above internal B high reclaim / hold",
     ],
-    ["Active Fib Model", fibModelLabel],
+    [
+      "Larger C-down invalidation",
+      largerCInvalidation !== null
+        ? `Above ${publishedNumber(largerCInvalidation)} reclaim / hold`
+        : "Above expanded-flat B high reclaim / hold",
+    ],
+    ["Next Minute Target", publishedNumber(nextMinuteTarget)],
+    ["Next Parent Target", publishedNumber(nextParentTarget)],
+
+    {
+      type: "sectionHeader",
+      label: "Current Minute C-down Extensions",
+    },
+    ["Minute C-a Low", publishedNumber(minuteCALow)],
+    ["Minute C-a Time", publishedText(minuteCALowTime)],
+    ["Minute C-b High", publishedNumber(minuteCBHigh)],
+    ["Minute C-b Time", publishedText(minuteCBHighTime)],
+    ["Minute C-c Start", publishedNumber(minuteCCStart)],
+    ["Minute C-c Start Time", publishedText(minuteCCStartTime)],
+    ["C-c 1.000", publishedNumber(minuteCCLevels.cc100)],
+    ["C-c 1.272", publishedNumber(minuteCCLevels.cc1272)],
+    ["C-c 1.618", publishedNumber(minuteCCLevels.cc1618)],
+    ["C-c 2.000", publishedNumber(minuteCCLevels.cc200)],
+    ["C-c 2.618", publishedNumber(minuteCCLevels.cc2618)],
+    ["Minute C-c Primary", publishedNumber(cCModel?.primaryTarget)],
+    ["Minute C-c Deep", publishedNumber(cCModel?.deepTarget)],
+
+    {
+      type: "sectionHeader",
+      label: "Larger Minor C-down Extensions",
+    },
+    ["Expanded-flat A Low", publishedNumber(parentALow)],
+    ["A Time", publishedText(parentATime)],
+    ["Expanded-flat B High", publishedNumber(parentBHigh)],
+    ["B Time", publishedText(parentBTime)],
+    ["C 1.000", publishedNumber(parentCLevels.c100)],
+    ["C 1.272", publishedNumber(parentCLevels.c1272)],
+    ["C 1.618", publishedNumber(parentCLevels.c1618)],
+    ["C 2.000", publishedNumber(parentCLevels.c200)],
+    ["C 2.618", publishedNumber(parentCLevels.c2618)],
+
+    {
+      type: "sectionHeader",
+      label: "Engine 22 Status",
+    },
+    ["Engine 22 Role", "STRUCTURAL ONLY"],
+    ["No Execution", publishedBool(minute?.noExecution !== false)],
+    ["No Permission Created", publishedBool(minute?.noPermissionCreated !== false)],
+    ["Watch Only", publishedBool(minute?.watchOnly !== false)],
     ["Ticket Created", ticketCreated ? "Yes" : "No"],
     ["Journal Created", journalCreated ? "Yes" : "No"],
   ];
@@ -5218,13 +5026,15 @@ const directionDisplay =
   return {
     number: 1,
     icon: "〽",
-    title: "Engine 22 — Minute Market Structure",
+    title: "Engine 22 — Current Wave Read",
     severity: "teal",
-    fields: [...topFields, fibSectionHeader, ...fibFields, ...footerFields],
-    lines: [],
+    fields,
+    lines: [
+      "Minor W4 expanded flat → Minor C-down active → Minute C-down active.",
+      "Engine 22 is structural only. Engine 3, Engine 4, and Engine 6 still control reaction, participation, and permission.",
+    ],
   };
 }
-
 function buildEngine22DegreeTimelineSections(degreeStates) {
   if (!degreeStates) return [];
 
