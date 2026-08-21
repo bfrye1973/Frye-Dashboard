@@ -3293,6 +3293,237 @@ if (fastReaction?.active === true) {
     ].filter(Boolean),
   };
 }
+
+function getEngine4DecisionPresentation(participation) {
+  const direction = String(
+    participation?.direction ||
+      participation?.participationEvaluationDirection ||
+      participation?.intendedDirection ||
+      "NEUTRAL"
+  ).toUpperCase();
+
+  const intendedDirection = String(
+    participation?.participationEvaluationDirection ||
+      participation?.intendedDirection ||
+      direction ||
+      "NEUTRAL"
+  ).toUpperCase();
+
+  const hardBlocked =
+    participation?.hardBlocked === true;
+
+  const confirmed =
+    participation?.participationConfirmed === true ||
+    participation?.confirmed === true;
+
+  const allowed =
+    participation?.allowed === true;
+
+  const state = String(
+    participation?.participationState ||
+      participation?.status ||
+      ""
+  ).toUpperCase();
+
+  const blockers = asArray(
+    participation?.blockers
+  );
+
+  const reasonCodes = asArray(
+    participation?.reasonCodes
+  );
+
+  let decision = "WAITING FOR PARTICIPATION";
+  let severity = "warning";
+  let why = "Participation is not confirmed yet.";
+
+  if (hardBlocked) {
+    severity = "danger";
+
+    if (
+      blockers.includes(
+        "VALID_COMPLETED_ADVERSE_PARTICIPATION"
+      )
+    ) {
+      decision =
+        intendedDirection === "SHORT"
+          ? "SHORT BLOCKED"
+          : intendedDirection === "LONG"
+          ? "LONG BLOCKED"
+          : "PARTICIPATION BLOCKED";
+
+      why =
+        "Completed adverse participation is fighting the intended trade.";
+    } else {
+      decision = "HARD BLOCK";
+      why =
+        blockers.length > 0
+          ? blockers.map(formatText).join(", ")
+          : "Engine 4 detected adverse participation.";
+    }
+  } else if (confirmed && allowed) {
+    decision =
+      direction === "SHORT"
+        ? "SHORT CONFIRMED"
+        : direction === "LONG"
+        ? "LONG CONFIRMED"
+        : "PARTICIPATION CONFIRMED";
+
+    severity =
+      direction === "SHORT"
+        ? "danger"
+        : direction === "LONG"
+        ? "bullish"
+        : "teal";
+
+    why =
+      direction === "SHORT"
+        ? "Volume participation supports the SHORT. Ready for Engine 6 review."
+        : direction === "LONG"
+        ? "Volume participation supports the LONG. Ready for Engine 6 review."
+        : "Participation is confirmed for Engine 6 review.";
+  } else if (
+    state.includes("DEVELOPING")
+  ) {
+    decision = "PARTICIPATION DEVELOPING";
+    severity = "blue";
+    why =
+      "Participation is developing but is not confirmed yet.";
+  } else if (
+    state.includes("WAIT")
+  ) {
+    decision = "WAITING FOR PARTICIPATION";
+    severity = "warning";
+    why =
+      "Engine 4 is waiting for cleaner participation.";
+  }
+
+  return {
+    direction,
+    intendedDirection,
+    decision,
+    severity,
+    why,
+    confirmed,
+    allowed,
+    hardBlocked,
+    blockers,
+    reasonCodes,
+  };
+}
+
+function buildEngine4WhyLines({
+  participation,
+  decision,
+}) {
+  const lines = [];
+
+  const evaluationDirection = String(
+    participation?.participationEvaluationDirection ||
+      participation?.intendedDirection ||
+      "NEUTRAL"
+  ).toUpperCase();
+
+  const oneMinuteDirection = String(
+    participation?.observation1mDirection ||
+      "NEUTRAL"
+  ).toUpperCase();
+
+  const fiveMinuteDirection = String(
+    participation?.validation5mDirection ||
+      "NEUTRAL"
+  ).toUpperCase();
+
+  const fiveMinuteState = String(
+    participation?.validation5mState ||
+      ""
+  ).toUpperCase();
+
+  const tenMinuteTrend = String(
+    participation?.broader10mVolumeTrend ||
+      ""
+  ).toUpperCase();
+
+  if (decision.hardBlocked) {
+    if (
+      decision.blockers.includes(
+        "VALID_COMPLETED_ADVERSE_PARTICIPATION"
+      )
+    ) {
+      lines.push(
+        `Adverse participation is fighting the ${evaluationDirection}.`
+      );
+    } else {
+      lines.push(
+        "Engine 4 has an active hard block."
+      );
+    }
+  }
+
+  if (
+    oneMinuteDirection !== "NEUTRAL" &&
+    evaluationDirection !== "NEUTRAL"
+  ) {
+    if (
+      oneMinuteDirection ===
+      evaluationDirection
+    ) {
+      lines.push(
+        `1m supports ${evaluationDirection}.`
+      );
+    } else {
+      lines.push(
+        `1m ${oneMinuteDirection} is fighting ${evaluationDirection}.`
+      );
+    }
+  }
+
+  if (fiveMinuteState === "CONFLICT") {
+    lines.push(
+      `5m conflict: ${fiveMinuteDirection} is fighting ${evaluationDirection}.`
+    );
+  } else if (
+    fiveMinuteState === "SUPPORT"
+  ) {
+    lines.push(
+      `5m supports ${evaluationDirection}.`
+    );
+  } else if (
+    fiveMinuteState === "UNRESOLVED"
+  ) {
+    lines.push(
+      "5m validation is unresolved."
+    );
+  }
+
+  if (tenMinuteTrend === "FADING") {
+    lines.push(
+      "10m broader volume is fading."
+    );
+  } else if (
+    tenMinuteTrend === "EXPANDING"
+  ) {
+    lines.push(
+      "10m broader volume is expanding."
+    );
+  }
+
+  if (
+    decision.confirmed &&
+    decision.allowed &&
+    !decision.hardBlocked
+  ) {
+    lines.push(
+      "Engine 4 is ready for Engine 6 review."
+    );
+  }
+
+  if (!lines.length) {
+    lines.push(decision.why);
+  }
+
+  return lines.slice(0, 4);
+}
 function buildEngine4ContextSection(fib) {
   const authorizedParticipation =
     getEngine4AuthorizedReactionParticipation(fib);
@@ -3390,240 +3621,326 @@ function buildEngine4ContextSection(fib) {
         ? "ACTIVE"
         : "UNAVAILABLE";
 
+        const decision =
+      getEngine4DecisionPresentation(
+        authorizedParticipation
+      );
+
+    const whyLines =
+      buildEngine4WhyLines({
+        participation:
+          authorizedParticipation,
+        decision,
+      });
+
+    const oneMinuteDirection =
+      formatUpper(
+        authorizedParticipation
+          .observation1mDirection,
+        "NEUTRAL"
+      );
+
+    const oneMinuteRead =
+      formatUpper(
+        authorizedParticipation
+          .currentVolumeReaction,
+        "VOLUME DATA UNAVAILABLE"
+      );
+
+    const fiveMinuteDirection =
+      formatUpper(
+        authorizedParticipation
+          .validation5mDirection,
+        "NEUTRAL"
+      );
+
+    const fiveMinuteState =
+      formatUpper(
+        authorizedParticipation
+          .validation5mState,
+        "UNRESOLVED"
+      );
+
+    const tenMinuteTrend =
+      formatUpper(
+        authorizedParticipation
+          .broader10mVolumeTrend,
+        "—"
+      );
+
+    const oneMinuteSupport =
+      String(
+        authorizedParticipation
+          .observation1mDirection || ""
+      ).toUpperCase() ===
+      String(
+        authorizedParticipation
+          .participationEvaluationDirection ||
+        ""
+      ).toUpperCase();
+
+    const fiveMinuteSupport =
+      String(
+        authorizedParticipation
+          .validation5mState || ""
+      ).toUpperCase() === "SUPPORT";
+
+    const fiveMinuteConflict =
+      String(
+        authorizedParticipation
+          .validation5mState || ""
+      ).toUpperCase() === "CONFLICT";
+
     return {
       number: 0,
       icon: "④",
       title: "Engine 4 — Volume Participation",
-      fieldGridColumns: 3,
-      severity: hardBlocked
-        ? "danger"
-        : confirmed
-        ? "bullish"
-        : authorizedParticipation.participationDeveloping === true
-        ? "blue"
-        : "warning",
 
-      fields: [
-        {
-          type: "sectionHeader",
-          label: "Observation / Confirmation",
-        },
-        [
-          "Observer",
-          observerActive
-            ? "ACTIVE"
-            : observationStatus,
-        ],
-        [
-          "Confirmation State",
+      severity: decision.severity,
+
+      engine4DecisionCard: true,
+
+      engine4Card: {
+        decision:
+          decision.decision,
+
+        direction:
+          decision.intendedDirection,
+
+        confirmed:
+          decision.confirmed,
+
+        allowed:
+          decision.allowed,
+
+        hardBlocked:
+          decision.hardBlocked,
+
+        quality:
           formatUpper(
-            authorizedParticipation.participationState,
-            "PARTICIPATION WAITING"
-          ),
-        ],
-        [
-          "Confirmation Quality",
-          formatUpper(
-            authorizedParticipation.participationQuality,
+            authorizedParticipation
+              .participationQuality,
             "WEAK"
           ),
-        ],
-        ["Hard Block", formatBool(hardBlocked)],
 
-        {
-          type: "sectionHeader",
-          label: "1m — Immediate Participation",
-        },
-        ["Status", observationStatus],
-        [
-          "Read",
+        state:
           formatUpper(
-            authorizedParticipation.currentVolumeReaction,
-            "VOLUME DATA UNAVAILABLE"
+            authorizedParticipation
+              .participationState,
+            "PARTICIPATION WAITING"
           ),
-        ],
-        [
-          "Current Volume",
-          observation1mVolumesAreLive &&
-          Number.isFinite(observation1mCurrentVolume)
-            ? formatScore(observation1mCurrentVolume)
-            : "—",
-        ],
-        [
-          "Prior Volume",
-          observation1mVolumesAreLive &&
-          Number.isFinite(observation1mPriorVolume)
-            ? formatScore(observation1mPriorVolume)
-            : "—",
-        ],
-        [
-          "Ratio",
-          observation1mVolumesAreLive &&
-          Number.isFinite(observation1mVolumeRatio)
-            ? `${formatNumber(observation1mVolumeRatio, 2)}x`
-            : "—",
-        ],
-        [
-          "State",
-          formatUpper(
-            authorizedParticipation.observation1mState,
-            "—"
-          ),
-        ],
-        [
-          "Direction",
-          formatUpper(
-            authorizedParticipation.observation1mDirection,
-            "NEUTRAL"
-          ),
-        ],
-        [
-          "Quality",
-          formatUpper(
-            authorizedParticipation.observation1mQuality,
-            "—"
-          ),
-        ],
-        [
-          "Candle",
-          formatUpper(
-            authorizedParticipation.observation1mCurrentCandleStatus,
-            "—"
-          ),
-        ],
 
-        {
-          type: "sectionHeader",
-          label: "5m — Validation",
-        },
-        ["Status", validation5mStatus],
-        [
-          "Validation",
-          formatUpper(
-            authorizedParticipation.validation5mState,
-            "—"
-          ),
-        ],
-        [
-          "Direction",
-          formatUpper(
-            authorizedParticipation.validation5mDirection,
-            "NEUTRAL"
-          ),
-        ],
-        [
-          "Quality",
-          formatUpper(
-            authorizedParticipation.validation5mQuality,
-            "—"
-          ),
-        ],
-        [
-          "Current Volume",
-          validation5mVolumesAreLive &&
-          Number.isFinite(validation5mCurrentVolume)
-            ? formatScore(validation5mCurrentVolume)
-            : "—",
-        ],
-        [
-          "Prior Volume",
-          validation5mVolumesAreLive &&
-          Number.isFinite(validation5mPriorVolume)
-            ? formatScore(validation5mPriorVolume)
-            : "—",
-        ],
-        [
-          "Candle",
-          formatUpper(
-            authorizedParticipation.validation5mCurrentCandleStatus,
-            "—"
-          ),
+        engine3Qualified:
+          authorizedParticipation
+            .participationEvaluationEligible ===
+          true,
+
+        why:
+          whyLines,
+
+        timeframes: [
+          {
+            timeframe: "1m",
+            direction:
+              oneMinuteDirection,
+            status:
+              observationStatus,
+            read:
+              oneMinuteRead,
+            quality:
+              formatUpper(
+                authorizedParticipation
+                  .observation1mQuality,
+                "—"
+              ),
+            supportState:
+              oneMinuteSupport
+                ? "SUPPORT"
+                : "CONFLICT",
+          },
+
+          {
+            timeframe: "5m",
+            direction:
+              fiveMinuteDirection,
+            status:
+              validation5mStatus,
+            read:
+              fiveMinuteState,
+            quality:
+              formatUpper(
+                authorizedParticipation
+                  .validation5mQuality,
+                "—"
+              ),
+            supportState:
+              fiveMinuteConflict
+                ? "CONFLICT"
+                : fiveMinuteSupport
+                ? "SUPPORT"
+                : "UNRESOLVED",
+          },
+
+          {
+            timeframe: "10m",
+            direction: "—",
+            status:
+              broader10mStatus,
+            read:
+              tenMinuteTrend,
+            quality:
+              formatUpper(
+                authorizedParticipation
+                  .broader10mParticipationQuality,
+                "—"
+              ),
+            supportState:
+              tenMinuteTrend ===
+              "EXPANDING"
+                ? "EXPANDING"
+                : tenMinuteTrend ===
+                  "FADING"
+                ? "FADING"
+                : "NEUTRAL",
+          },
         ],
 
-        {
-          type: "sectionHeader",
-          label: "10m — Broader Context",
-        },
-        ["Status", broader10mStatus],
-        [
-          "Relative Volume",
-          Number.isFinite(broader10mRelativeVolume)
-            ? `${formatNumber(broader10mRelativeVolume, 2)}x`
-            : "—",
-        ],
-        [
-          "Trend",
-          formatUpper(
-            authorizedParticipation.broader10mVolumeTrend,
-            "—"
-          ),
-        ],
-        [
-          "Expansion",
-          formatBool(
-            authorizedParticipation.broader10mVolumeExpansion,
-            "—"
-          ),
-        ],
-        [
-          "Volume Confirmed",
-          formatBool(
-            authorizedParticipation.broader10mVolumeConfirmed,
-            "—"
-          ),
-        ],
-        [
-          "High-Volume Candles",
-          Number.isFinite(broader10mHighVolumeCandles)
-            ? formatScore(broader10mHighVolumeCandles)
-            : "—",
-        ],
-        [
-          "State",
-          formatUpper(
-            authorizedParticipation.broader10mParticipationState,
-            "—"
-          ),
-        ],
-        [
-          "Quality",
-          formatUpper(
-            authorizedParticipation.broader10mParticipationQuality,
-            "—"
-          ),
+        needs: [
+          {
+            label:
+              "Engine 3 qualified",
+            passed:
+              authorizedParticipation
+                .participationEvaluationEligible ===
+              true,
+          },
+
+          {
+            label:
+              `1m supports ${decision.intendedDirection}`,
+            passed:
+              oneMinuteSupport,
+          },
+
+          {
+            label:
+              "5m conflict cleared",
+            passed:
+              !fiveMinuteConflict,
+          },
+
+          {
+            label:
+              "No hard block",
+            passed:
+              !decision.hardBlocked,
+          },
+
+          {
+            label:
+              "Participation confirmed",
+            passed:
+              decision.confirmed,
+          },
         ],
 
-        {
-          type: "sectionHeader",
-          label: "Confirmation",
-        },
-        [
-          "Engine 3 Qualified",
-          formatBool(
-            authorizedParticipation.participationEvaluationEligible,
-            "NO"
-          ),
-        ],
-        ["Participation Confirmed", formatBool(confirmed)],
-        ["Allowed", formatBool(allowed)],
-        ["Hard Block", formatBool(hardBlocked)],
-        [
-          "Direction",
-          formatUpper(
-            authorizedParticipation.direction,
-            "NEUTRAL"
-          ),
-        ],
-        [
-          "Expected",
-          formatUpper(
-            expectedParticipationDirection,
-            "—"
-          ),
-        ],
-      ],
+        details: [
+          [
+            "1m Current Volume",
+            observation1mVolumesAreLive &&
+            Number.isFinite(
+              observation1mCurrentVolume
+            )
+              ? formatScore(
+                  observation1mCurrentVolume
+                )
+              : "—",
+          ],
 
-      lines: plainLines,
+          [
+            "1m Prior Volume",
+            observation1mVolumesAreLive &&
+            Number.isFinite(
+              observation1mPriorVolume
+            )
+              ? formatScore(
+                  observation1mPriorVolume
+                )
+              : "—",
+          ],
+
+          [
+            "1m Ratio",
+            observation1mVolumesAreLive &&
+            Number.isFinite(
+              observation1mVolumeRatio
+            )
+              ? `${formatNumber(
+                  observation1mVolumeRatio,
+                  2
+                )}x`
+              : "—",
+          ],
+
+          [
+            "5m Current Volume",
+            validation5mVolumesAreLive &&
+            Number.isFinite(
+              validation5mCurrentVolume
+            )
+              ? formatScore(
+                  validation5mCurrentVolume
+                )
+              : "—",
+          ],
+
+          [
+            "5m Prior Volume",
+            validation5mVolumesAreLive &&
+            Number.isFinite(
+              validation5mPriorVolume
+            )
+              ? formatScore(
+                  validation5mPriorVolume
+                )
+              : "—",
+          ],
+
+          [
+            "10m Relative Volume",
+            Number.isFinite(
+              broader10mRelativeVolume
+            )
+              ? `${formatNumber(
+                  broader10mRelativeVolume,
+                  2
+                )}x`
+              : "—",
+          ],
+
+          [
+            "10m High-Volume Candles",
+            Number.isFinite(
+              broader10mHighVolumeCandles
+            )
+              ? formatScore(
+                  broader10mHighVolumeCandles
+                )
+              : "—",
+          ],
+
+          [
+            "Expected Direction",
+            formatUpper(
+              expectedParticipationDirection,
+              "—"
+            ),
+          ],
+        ],
+      },
+
+      fields: [],
+      lines: [],
     };
   }
 
