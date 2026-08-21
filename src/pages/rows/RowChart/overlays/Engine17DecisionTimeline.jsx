@@ -4766,10 +4766,14 @@ function buildEngine22CompactStructureSection(degreeStates) {
       ? "Not published"
       : formatter(value, "Not published");
 
-  const publishedNumber = (value) =>
-    Number.isFinite(Number(value))
-      ? formatNumber(value)
-      : "Not published";
+  const publishedNumber = (value) => {
+    const n = Number(value);
+
+    if (!Number.isFinite(n)) return "Not published";
+    if (n === 0) return "Not published";
+
+    return formatNumber(n);
+  };
 
   const publishedBool = (value) => {
     if (value === true) return "Yes";
