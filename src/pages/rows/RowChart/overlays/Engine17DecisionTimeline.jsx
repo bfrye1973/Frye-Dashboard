@@ -5003,7 +5003,7 @@ const minuteCCStartTime =
         ? `Above expanded-flat B high ${publishedNumber(largerCInvalidation)} reclaim / hold`
         : "Above expanded-flat B high reclaim / hold",
     ],
-    ["Next Minute Target", publishedNumber(nextMinuteTarget)],
+  
     ["Next Parent Target", publishedNumber(nextParentTarget)],
 
     {
