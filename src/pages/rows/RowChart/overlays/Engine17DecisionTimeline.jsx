@@ -4909,23 +4909,7 @@ const minuteCCStartTime =
   internalC?.finalMinuteABC?.waveC?.startTime ??
   minuteCBHighTime ??
   "2026-08-21 09:00";
-  const minuteCBHighTime =
-    internalC?.cB?.time ??
-    internalC?.finalMinuteABC?.waveB?.time ??
-    null;
-
-  const minuteCCStart =
-    internalC?.cC?.start ??
-    internalC?.finalMinuteABC?.waveC?.start ??
-    minuteCBHigh ??
-    null;
-
-  const minuteCCStartTime =
-    internalC?.cC?.startTime ??
-    internalC?.finalMinuteABC?.waveC?.startTime ??
-    minuteCBHighTime ??
-    null;
-
+ 
   const currentPriceValue =
     targetModel?.currentPrice ??
     activeFibModel?.currentPrice ??
