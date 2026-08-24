@@ -4792,6 +4792,21 @@ function buildEngine22CompactStructureSection(degreeStates) {
     internalC?.cC?.targetModel && typeof internalC.cC.targetModel === "object"
       ? internalC.cC.targetModel
       : null;
+  const manualMinuteCCFallbackLevels = {
+    cc100: 7658.25,
+    cc1272: 7643.25,
+    cc1618: 7624.5,
+    cc200: 7603.5,
+    cc2618: 7569.75,
+  };
+
+  const manualParentCDownFallbackLevels = {
+    c100: 7722.75,
+    c1272: 7690.75,
+    c1618: 7650.25,
+    c200: 7605.5,
+    c2618: 7533.0,
+  };
 
   const minuteCCLevels =
     cCModel?.levels && typeof cCModel.levels === "object"
@@ -4860,21 +4875,6 @@ const parentCLevels = {
     internalC?.waveB?.time ??
     null;
 
-const manualMinuteCCFallbackLevels = {
-  cc100: 7658.25,
-  cc1272: 7643.25,
-  cc1618: 7624.5,
-  cc200: 7603.5,
-  cc2618: 7569.75,
-};
-
-const manualParentCDownFallbackLevels = {
-  c100: 7722.75,
-  c1272: 7690.75,
-  c1618: 7650.25,
-  c200: 7605.5,
-  c2618: 7533.0,
-};
 
 const minuteCALow =
   internalC?.cA?.low ??
