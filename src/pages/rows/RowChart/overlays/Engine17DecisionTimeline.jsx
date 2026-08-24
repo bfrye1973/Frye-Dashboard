@@ -4828,28 +4828,7 @@ const parentCLevels = {
     internalC?.cC?.largerCTargets?.c2618 ??
     manualParentCDownFallbackLevels.c2618,
 };
-    c1272:
-      targetModel?.levels?.c1272 ??
-      targetModel?.cDownTargets?.c1272 ??
-      internalC?.cC?.largerCTargets?.c1272 ??
-      null,
-    c1618:
-      targetModel?.levels?.c1618 ??
-      targetModel?.cDownTargets?.c1618 ??
-      internalC?.cC?.largerCTargets?.c1618 ??
-      null,
-    c200:
-      targetModel?.levels?.c200 ??
-      targetModel?.cDownTargets?.c200 ??
-      internalC?.cC?.largerCTargets?.c200 ??
-      null,
-    c2618:
-      targetModel?.levels?.c2618 ??
-      targetModel?.cDownTargets?.c2618 ??
-      internalC?.cC?.largerCTargets?.c2618 ??
-      null,
-  };
-
+    
   const cDownAnchor =
     targetModel?.anchorModel ||
     activeFibModel?.anchorModel ||
