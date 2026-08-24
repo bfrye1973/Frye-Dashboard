@@ -4999,11 +4999,7 @@ const minuteCCStartTime =
          ? `Above expanded-flat B high ${publishedNumber(largerCInvalidation)} reclaim / hold`
          : "Above expanded-flat B high 7840.00 reclaim / hold",
      ],
-      largerCInvalidation !== null
-        ? `Above expanded-flat B high ${publishedNumber(largerCInvalidation)} reclaim / hold`
-        : "Above expanded-flat B high reclaim / hold",
-    ],
-  
+       
     ["Next Parent Target", publishedNumber(nextParentTarget)],
 
     {
