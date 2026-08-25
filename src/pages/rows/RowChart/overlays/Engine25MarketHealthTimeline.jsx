@@ -114,6 +114,35 @@ function intradayColor(label, score) {
   return "#94a3b8";
 }
 
+function macroStateColor(value) {
+  const text = String(value || "").toUpperCase();
+
+  if (
+    text.includes("MACRO_SHOCK") ||
+    text.includes("NEGATIVE") ||
+    text.includes("SHOCK") ||
+    text.includes("HIGH") ||
+    text.includes("EXTREME")
+  ) {
+    return "#ef4444";
+  }
+
+  if (
+    text.includes("HEADWIND") ||
+    text.includes("WARNING") ||
+    text.includes("ELEVATED") ||
+    text.includes("MODERATE")
+  ) {
+    return "#fbbf24";
+  }
+
+  if (text.includes("SUPPORTIVE")) {
+    return "#22c55e";
+  }
+
+  return "#94a3b8";
+}
+
 function fmtScore(value) {
   const n = Number(value);
   if (!Number.isFinite(n)) return "—";
@@ -483,6 +512,37 @@ export default function Engine25MarketHealthTimeline({
   const intraday = payload?.intradayProxyDamage || null;
   const liveEsPermission = payload?.liveEsPermission || null;
 
+  const intradayMacro = payload?.intradayMacro || null;
+  const hasIntradayMacro = Boolean(
+    intradayMacro?.ok === true && intradayMacro?.state
+  );
+
+  const macroRates = intradayMacro?.components?.rates || null;
+  const macroTlt = intradayMacro?.components?.tlt || null;
+  const macroOil = intradayMacro?.components?.oil || null;
+  const macroGeopolitics = intradayMacro?.components?.geopolitics || null;
+
+  const creditStressDetail = payload?.creditStressDetail || null;
+  const macroCreditHealth =
+    creditStressDetail?.groups?.macroCreditStress || null;
+  const macroCreditItems = Array.isArray(macroCreditHealth?.items)
+    ? macroCreditHealth.items
+    : [];
+  const macroCreditByKey = Object.fromEntries(
+    macroCreditItems.map((item) => [item?.key, item])
+  );
+  const macroCreditScore = Number(macroCreditHealth?.score);
+  const macroCreditHealthLabel = Number.isFinite(macroCreditScore)
+    ? macroCreditScore >= 75
+      ? "LOW STRESS / HEALTHY"
+      : macroCreditScore >= 50
+        ? "NORMAL / WATCH"
+        : "HIGH STRESS"
+    : "UNAVAILABLE";
+  const macroCreditColor = scoreColor(macroCreditScore);
+  const macroCreditSaturated =
+    Number.isFinite(macroCreditScore) && macroCreditScore >= 100;
+
   const sectorBreadth = payload?.sectorBreadth || null;
   const tactical1h = sectorBreadth?.tactical1h || null;
   const regime4h = sectorBreadth?.regime4h || null;
@@ -513,10 +573,6 @@ export default function Engine25MarketHealthTimeline({
   const hasIntradayRead = Boolean(intraday && intradayLabel);
 
   const sectorColor = labelColor(combinedSector?.label, combinedSector?.score);
-
-  const confirmationItems = Array.isArray(zoneDecisionRead?.nextConfirmation)
-    ? zoneDecisionRead.nextConfirmation
-    : [];
 
   const zoneDetail = buildZoneDetailRead({
     zoneDecisionRead,
@@ -739,6 +795,122 @@ export default function Engine25MarketHealthTimeline({
             </SectionBox>
           )}
 
+          <SectionBox
+            title="Intraday Macro"
+            titleColor={macroStateColor(intradayMacro?.state)}
+            borderColor={macroStateColor(intradayMacro?.state)}
+            background={sectionBackground(
+              intradayMacro?.state,
+              intradayMacro?.severity
+            )}
+          >
+            {hasIntradayMacro ? (
+              <div style={{ display: "grid", gap: 5 }}>
+                <CompareRow
+                  label="Overall"
+                  value={`${compactLabel(intradayMacro.state)} · ${compactLabel(
+                    intradayMacro.severity
+                  )}`}
+                  color={macroStateColor(
+                    `${intradayMacro.state} ${intradayMacro.severity}`
+                  )}
+                />
+
+                <CompareRow
+                  label="Rates"
+                  value={compactLabel(macroRates?.state)}
+                  color={macroStateColor(macroRates?.state)}
+                />
+
+                <CompareRow
+                  label="TLT"
+                  value={compactLabel(macroTlt?.state)}
+                  color={macroStateColor(macroTlt?.state)}
+                />
+
+                <CompareRow
+                  label="Oil"
+                  value={compactLabel(macroOil?.state)}
+                  color={macroStateColor(macroOil?.state)}
+                />
+
+                <CompareRow
+                  label="Geopolitics"
+                  value={compactLabel(macroGeopolitics?.state)}
+                  color={macroStateColor(macroGeopolitics?.state)}
+                />
+
+                <CompareRow
+                  label="Macro Shock"
+                  value={intradayMacro?.macroShock === true ? "YES" : "NO"}
+                  color={intradayMacro?.macroShock === true ? "#ef4444" : "#94a3b8"}
+                />
+              </div>
+            ) : (
+              <CompareRow
+                label="Status"
+                value="UNAVAILABLE"
+                color="#94a3b8"
+              />
+            )}
+          </SectionBox>
+
+          <SectionBox
+            title="Macro Credit Health"
+            titleColor={macroCreditColor}
+            borderColor={sectionBorder(macroCreditHealthLabel, macroCreditScore)}
+            background={sectionBackground(
+              macroCreditHealthLabel,
+              macroCreditScore
+            )}
+          >
+            <div style={{ display: "grid", gap: 5 }}>
+              <CompareRow
+                label="Health"
+                value={`${fmtScore(macroCreditHealth?.score)} · ${macroCreditHealthLabel}`}
+                color={macroCreditColor}
+              />
+
+              <CompareRow
+                label="High-Yield Spread"
+                value={
+                  Number.isFinite(Number(macroCreditByKey.BAMLH0A0HYM2?.value))
+                    ? String(macroCreditByKey.BAMLH0A0HYM2.value)
+                    : "—"
+                }
+                color="#dbeafe"
+              />
+
+              <CompareRow
+                label="NFCI"
+                value={
+                  Number.isFinite(Number(macroCreditByKey.NFCI?.value))
+                    ? String(macroCreditByKey.NFCI.value)
+                    : "—"
+                }
+                color="#dbeafe"
+              />
+
+              <CompareRow
+                label="STLFSI4"
+                value={
+                  Number.isFinite(Number(macroCreditByKey.STLFSI4?.value))
+                    ? String(macroCreditByKey.STLFSI4.value)
+                    : "—"
+                }
+                color="#dbeafe"
+              />
+
+              {macroCreditSaturated && (
+                <NoteText color="#fbbf24">
+                  Score is capped because all macro credit-stress inputs are
+                  inside favorable thresholds. Watch raw values for early
+                  movement before the score changes.
+                </NoteText>
+              )}
+            </div>
+          </SectionBox>
+
           {combinedSector && (
             <SectionBox
               title="Sector Breadth"
@@ -808,7 +980,7 @@ export default function Engine25MarketHealthTimeline({
 
           {zoneDecisionRead?.available && (
             <SectionBox
-              title="Zone / Classification"
+              title="Zone Context"
               titleColor={labelColor(finalClass?.state || zoneDecisionRead.label)}
               borderColor={sectionBorder(
                 finalClass?.state || zoneDecisionRead.label
@@ -819,27 +991,9 @@ export default function Engine25MarketHealthTimeline({
             >
               <div style={{ display: "grid", gap: 6 }}>
                 <CompareRow
-                  label="Priority"
+                  label="State"
                   value={compactLabel(zoneDecisionRead.label)}
                   color={labelColor(zoneDecisionRead.label)}
-                />
-
-                <CompareRow
-                  label="Institutional"
-                  value={zoneDetail.institutionalValue}
-                  color={labelColor(zoneDetail.institutionalValue)}
-                />
-
-                <CompareRow
-                  label="Negotiated"
-                  value={zoneDetail.negotiatedValue}
-                  color={labelColor(zoneDetail.negotiatedValue)}
-                />
-
-                <CompareRow
-                  label="Accumulation Shelf"
-                  value={zoneDetail.shelfValue}
-                  color={labelColor(zoneDetail.shelfValue)}
                 />
 
                 <CompareRow
@@ -853,66 +1007,6 @@ export default function Engine25MarketHealthTimeline({
                   value={zoneDetail.distributionValue}
                   color={labelColor(zoneDetail.distributionValue)}
                 />
-
-                <CompareRow
-                  label="Permission"
-                  value={compactLabel(zoneDecisionRead.permission)}
-                  color={labelColor(zoneDecisionRead.permission)}
-                />
-
-                {zoneDecisionRead.zoneAwareVolumeAvailable === false && (
-                  <CompareRow
-                    label="Zone Volume"
-                    value="NOT AVAILABLE YET"
-                    color="#94a3b8"
-                  />
-                )}
-
-                <NoteText>
-                  Yellow institutional zone controls the primary read. Green
-                  negotiated value must be reclaimed. Blue accumulation shelf can
-                  defend, but accumulation is not confirmed until reclaim.
-                </NoteText>
-              </div>
-            </SectionBox>
-          )}
-
-          {confirmationItems.length > 0 && (
-            <SectionBox title="Next Confirmation" titleColor="#2dd4bf">
-              <div style={{ display: "grid", gap: 5 }}>
-                {confirmationItems.map((item, idx) => (
-                  <div
-                    key={`${item.label}-${idx}`}
-                    style={{
-                      display: "grid",
-                      gap: 1,
-                      borderTop:
-                        idx === 0 ? "none" : "1px solid rgba(148,163,184,0.16)",
-                      paddingTop: idx === 0 ? 0 : 5,
-                    }}
-                  >
-                    <CompareRow
-                      label={item.label}
-                      value={
-                        item.level !== null && item.level !== undefined
-                          ? shortLevel(item.level)
-                          : "required"
-                      }
-                      color="#2dd4bf"
-                    />
-
-                    <div
-                      style={{
-                        fontSize: 15,
-                        lineHeight: 1.35,
-                        color: "#94a3b8",
-                        fontWeight: 650,
-                      }}
-                    >
-                      {item.note}
-                    </div>
-                  </div>
-                ))}
               </div>
             </SectionBox>
           )}
