@@ -172,6 +172,100 @@ function rowByLabel(rows, label) {
   return rows.find((row) => row?.label === label) || null;
 }
 
+function fmtEventTimeArizona(value) {
+  const ms = Date.parse(value || "");
+  if (!Number.isFinite(ms)) return "TIME UNKNOWN";
+
+  try {
+    return `${new Intl.DateTimeFormat("en-US", {
+      timeZone: "America/Phoenix",
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    }).format(new Date(ms))} AZ`;
+  } catch {
+    return "TIME UNKNOWN";
+  }
+}
+
+function isActiveMaterialNewsEvent(event, nowMs = Date.now()) {
+  if (!event || event.material !== true) return false;
+
+  const expiresMs = Date.parse(event?.expiresAt || "");
+  if (!Number.isFinite(expiresMs) || nowMs >= expiresMs) return false;
+
+  const status = String(event?.status || "").toUpperCase();
+  if (status === "EVENT_EXPIRED") return false;
+
+  return true;
+}
+
+function newsEventColor(event) {
+  const severity = String(event?.severity || "").toUpperCase();
+
+  if (severity === "HIGH" || severity === "EXTREME") return "#ef4444";
+  if (severity === "MODERATE") return "#fbbf24";
+  return "#94a3b8";
+}
+
+function confirmationSummaryForEvent(event, intradayMacro) {
+  const eventType = String(event?.eventType || "").toUpperCase();
+  const confirmation = intradayMacro?.marketConfirmation || {};
+  const geopolitics = intradayMacro?.components?.geopolitics || null;
+  const treasuryLiquidity =
+    intradayMacro?.components?.treasuryLiquidity || null;
+
+  if (
+    eventType === "GEOPOLITICAL_OIL_SUPPLY_RISK" ||
+    eventType === "ENERGY_SUPPLY_EVENT" ||
+    (eventType === "GEOPOLITICAL_ESCALATION" && event?.oilSupplyRisk === true)
+  ) {
+    const confirmed =
+      geopolitics?.marketConfirmed === true ||
+      confirmation?.oilConfirmed === true;
+
+    return {
+      label: "CL / BZ",
+      value: confirmed ? "CONFIRMED" : "NOT CONFIRMED",
+      confirmed,
+      note:
+        geopolitics?.reasonCodes?.[0] ||
+        (confirmed
+          ? "Oil market confirmation active."
+          : "Awaiting CL / BZ confirmation."),
+    };
+  }
+
+  if (
+    eventType === "TREASURY_RATES_RISK" ||
+    (eventType === "FINANCIAL_STRESS_EVENT" &&
+      event?.treasuryLiquidityRisk === true)
+  ) {
+    const confirmed =
+      confirmation?.ratesConfirmed === true ||
+      confirmation?.tltConfirmed === true;
+
+    return {
+      label: "ZN / ZB / TLT",
+      value: confirmed ? "CONFIRMED" : "NOT CONFIRMED",
+      confirmed,
+      note:
+        treasuryLiquidity?.reasonCodes?.[0] ||
+        (confirmed
+          ? "Rates / TLT confirmation active."
+          : "Awaiting ZN / ZB / TLT confirmation."),
+    };
+  }
+
+  return {
+    label: "V0.1",
+    value: "NO DEDICATED CONFIRMATION FAMILY",
+    confirmed: false,
+    note:
+      "Context only in v0.1. No dedicated market-confirmation family is assigned.",
+  };
+}
+
 /* =========================
    UI helpers
 ========================= */
@@ -536,6 +630,22 @@ export default function Engine25MarketHealthTimeline({
   const macroOil = intradayMacro?.components?.oil || null;
   const macroGeopolitics = intradayMacro?.components?.geopolitics || null;
 
+  const newsEvents = payload?.newsEvents || null;
+  const newsEventRows = Array.isArray(newsEvents?.events)
+    ? newsEvents.events
+        .filter((event) => isActiveMaterialNewsEvent(event))
+        .sort(
+          (a, b) =>
+            Date.parse(b?.observedAt || "") - Date.parse(a?.observedAt || "")
+        )
+    : [];
+
+  const hasNewsEvents = newsEventRows.length > 0;
+  const newsFeedUnavailable =
+    newsEvents?.ok === false ||
+    (Array.isArray(newsEvents?.warnings) &&
+      newsEvents.warnings.includes("MASSIVE_BENZINGA_NEWS_UNAVAILABLE"));
+
   const creditStressDetail = payload?.creditStressDetail || null;
   const macroCreditHealth =
     creditStressDetail?.groups?.macroCreditStress || null;
@@ -802,6 +912,215 @@ export default function Engine25MarketHealthTimeline({
               </div>
             </SectionBox>
           )}
+
+          <SectionBox
+            title="News / Macro Diagnostic"
+            titleColor={
+              hasNewsEvents
+                ? newsEventColor(newsEventRows[0])
+                : newsFeedUnavailable
+                  ? "#ef4444"
+                  : "#94a3b8"
+            }
+            borderColor={
+              hasNewsEvents
+                ? newsEventColor(newsEventRows[0])
+                : newsFeedUnavailable
+                  ? "rgba(244,63,94,0.62)"
+                  : "rgba(148,163,184,0.38)"
+            }
+            background={engine25Background()}
+          >
+            <div style={{ display: "grid", gap: 8 }}>
+              <div style={{ display: "grid", gap: 5 }}>
+                <div
+                  style={{
+                    fontSize: FS.miniLabel,
+                    color: "#94a3b8",
+                    fontWeight: 950,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.03em",
+                  }}
+                >
+                  News Event
+                </div>
+
+                {newsFeedUnavailable ? (
+                  <>
+                    <CompareRow
+                      label="Status"
+                      value="NEWS FEED UNAVAILABLE"
+                      color="#ef4444"
+                    />
+                    <NoteText color="#cbd5e1">
+                      Existing Engine 25 market context remains active.
+                    </NoteText>
+                  </>
+                ) : hasNewsEvents ? (
+                  newsEventRows.map((event) => {
+                    const confirmation = confirmationSummaryForEvent(
+                      event,
+                      intradayMacro
+                    );
+
+                    return (
+                      <div
+                        key={event.eventId || event.benzingaId}
+                        style={{
+                          borderTop: "1px solid rgba(148,163,184,0.20)",
+                          paddingTop: 6,
+                          display: "grid",
+                          gap: 4,
+                        }}
+                      >
+                        <CompareRow
+                          label={`News · ${fmtEventTimeArizona(event.observedAt)}`}
+                          value={`${compactLabel(
+                            event.eventType
+                          )} · ${compactLabel(event.severity)}`}
+                          color={newsEventColor(event)}
+                        />
+
+                        <NoteText color="#dbeafe">
+                          {event.headlineSummary || "No headline summary"}
+                        </NoteText>
+
+                        <CompareRow
+                          label="Material"
+                          value={event.material === true ? "YES" : "NO"}
+                          color={event.material === true ? "#fbbf24" : "#94a3b8"}
+                        />
+
+                        {event.primaryEntity && (
+                          <CompareRow
+                            label="Entity"
+                            value={event.primaryEntity}
+                            color="#cbd5e1"
+                          />
+                        )}
+
+                        <div
+                          style={{
+                            marginTop: 3,
+                            fontSize: FS.miniLabel,
+                            color: "#94a3b8",
+                            fontWeight: 950,
+                            textTransform: "uppercase",
+                            letterSpacing: "0.03em",
+                          }}
+                        >
+                          Market Confirmation
+                        </div>
+
+                        <CompareRow
+                          label={confirmation.label}
+                          value={confirmation.value}
+                          color={
+                            confirmation.confirmed ? "#22c55e" : "#94a3b8"
+                          }
+                        />
+
+                        <NoteText color="#94a3b8">
+                          {cleanLabel(confirmation.note)}
+                        </NoteText>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <CompareRow
+                    label="Status"
+                    value="NO ACTIVE MATERIAL NEWS EVENT"
+                    color="#94a3b8"
+                  />
+                )}
+              </div>
+
+              <div
+                style={{
+                  borderTop: "1px solid rgba(148,163,184,0.26)",
+                  paddingTop: 7,
+                  display: "grid",
+                  gap: 5,
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: FS.miniLabel,
+                    color: "#94a3b8",
+                    fontWeight: 950,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.03em",
+                  }}
+                >
+                  Engine 25 Interpretation
+                </div>
+
+                {hasIntradayMacro ? (
+                  <>
+                    <CompareRow
+                      label="Overall"
+                      value={`${compactLabel(
+                        intradayMacro.state
+                      )} · ${compactLabel(intradayMacro.severity)}`}
+                      color={macroStateColor(
+                        `${intradayMacro.state} ${intradayMacro.severity}`
+                      )}
+                    />
+
+                    <CompareRow
+                      label="Equity Impact"
+                      value={compactLabel(intradayMacro.equityImpact)}
+                      color={macroStateColor(intradayMacro.equityImpact)}
+                    />
+
+                    <CompareRow
+                      label="Macro Shock"
+                      value={intradayMacro.macroShock === true ? "YES" : "NO"}
+                      color={
+                        intradayMacro.macroShock === true
+                          ? "#ef4444"
+                          : "#94a3b8"
+                      }
+                    />
+
+                    <CompareRow
+                      label="Data Status"
+                      value={compactLabel(
+                        intradayMacro?.freshness?.status || "UNKNOWN"
+                      )}
+                      color={
+                        String(
+                          intradayMacro?.freshness?.status || ""
+                        ).toUpperCase() === "FRESH"
+                          ? "#22c55e"
+                          : "#fbbf24"
+                      }
+                    />
+
+                    {Array.isArray(intradayMacro.reasonCodes) &&
+                      intradayMacro.reasonCodes.length > 0 && (
+                        <NoteText color="#94a3b8">
+                          {intradayMacro.reasonCodes
+                            .map((code) => cleanLabel(code))
+                            .join(" · ")}
+                        </NoteText>
+                      )}
+                  </>
+                ) : (
+                  <>
+                    <CompareRow
+                      label="Status"
+                      value="INTRADAY MACRO UNAVAILABLE"
+                      color="#94a3b8"
+                    />
+                    <NoteText color="#94a3b8">
+                      No current Engine 25 macro confirmation data.
+                    </NoteText>
+                  </>
+                )}
+              </div>
+            </div>
+          </SectionBox>
 
           <SectionBox
             title="Market Internals"
