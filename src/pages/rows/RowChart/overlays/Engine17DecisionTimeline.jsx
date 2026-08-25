@@ -1,6897 +1,1580 @@
-// src/pages/rows/RowChart/overlays/Engine17DecisionTimeline.jsx
+// src/pages/rows/RowChart/overlays/Engine25MarketHealthTimeline.jsx
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 
-/* =========================
-   Visual System
-========================= */
+const RAW_API_BASE =
+  (typeof window !== "undefined" && (window.__API_BASE__ || "")) ||
+  process.env.REACT_APP_API_BASE ||
+  process.env.REACT_APP_API_URL ||
+  "https://frye-market-backend-1.onrender.com";
 
-const TIMELINE_FONT =
-  '"Trebuchet MS", "Lucida Grande", "Segoe UI", Arial, sans-serif';
+const API_ROOT = RAW_API_BASE.replace(/\/+$/, "").replace(/\/api$/, "");
+const ENGINE25_ROUTE = `${API_ROOT}/api/v1/engine25/full-dashboard`;
 
-const FONT_REGULAR = 400;
-const FONT_MEDIUM = 500;
+const PANEL_FONT = "Arial, Helvetica, sans-serif";
 
-const CARD_BG = "rgba(6,10,20,0.94)";
-const CARD_BG_STRONG = "rgba(6,10,20,0.96)";
-const SOFT_TEXT = "#dbeafe";
-const MAIN_TEXT = "#f8fafc";
-const MUTED_TEXT = "#94a3b8";
-
-const C_TARGET_HIT_LABELS = {
-  c100: "C 1.000 hit",
-  c1272: "C 1.272 hit",
-  c1618: "C 1.618 hit",
-  c200: "C 2.000 hit",
-  c2618: "C 2.618 hit",
+/*
+  Font policy:
+  The old readable card used 17px for most rows/body text.
+  Keep the small chart readable; do not shrink the main read below 17px.
+*/
+const FS = {
+  headerTitle: 17,
+  headerMeta: 17,
+  score: 54,
+  permission: 17,
+  sectionTitle: 17,
+  row: 17,
+  miniLabel: 14,
+  miniValue: 17,
+  note: 16,
+  button: 15,
+  loading: 17,
 };
-
-const WAVELENGTH_TABS = [
-  { key: "subminute", label: "Subminute" },
-  { key: "minute", label: "Minute" },
-  { key: "minor", label: "Minor" },
-  { key: "intermediate", label: "Intermediate" },
-  { key: "primary", label: "Primary" },
-];
 
 /* =========================
    Formatters
 ========================= */
 
-function asArray(value) {
-  return Array.isArray(value) ? value.filter(Boolean) : [];
-}
-
-function formatText(value, fallback = "—") {
-  if (value == null || value === "") return fallback;
-  return String(value).replaceAll("_", " ");
-}
-
-function formatUpper(value, fallback = "—") {
-  if (value == null || value === "") return fallback;
-  return String(value).toUpperCase().replaceAll("_", " ");
-}
-
-function formatNumber(value, digits = 2, fallback = "—") {
-  const n = Number(value);
-  return Number.isFinite(n) ? n.toFixed(digits) : fallback;
-}
-
-function formatOptionalNumber(value, digits = 2, fallback = "—") {
-  if (value === null || value === undefined || value === "") {
-    return fallback;
-  }
-
-  const n = Number(value);
-  return Number.isFinite(n) ? n.toFixed(digits) : fallback;
-}
-
-function formatScore(value, fallback = "—") {
-  const n = Number(value);
-  return Number.isFinite(n) ? Math.round(n).toString() : fallback;
-}
-
-function formatBool(value, fallback = "—") {
-  if (value === true) return "YES";
-  if (value === false) return "NO";
-  return fallback;
-}
-
-function titleCase(value, fallback = "—") {
-  if (value == null || value === "") return fallback;
-
-  return String(value)
+function cleanLabel(value) {
+  return String(value || "—")
     .replaceAll("_", " ")
-    .toLowerCase()
-    .replace(/\b\w/g, (char) => char.toUpperCase());
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
-function compactJoin(parts, separator = " | ") {
-  return parts.filter(Boolean).join(separator);
+function compactLabel(value) {
+  return cleanLabel(value).toUpperCase();
 }
 
-function severityColor(severity) {
-  if (severity === "danger") return "#fb7185";
-  if (severity === "warning") return "#fbbf24";
-  if (severity === "bullish") return "#22c55e";
-  if (severity === "purple") return "#c084fc";
-  if (severity === "blue") return "#38bdf8";
-  if (severity === "teal") return "#2dd4bf";
-  return "#cbd5e1";
-}
-
-function severityBorder(severity) {
-  if (severity === "danger") return "rgba(244,63,94,0.62)";
-  if (severity === "warning") return "rgba(251,191,36,0.58)";
-  if (severity === "bullish") return "rgba(34,197,94,0.46)";
-  if (severity === "purple") return "rgba(192,132,252,0.48)";
-  if (severity === "blue") return "rgba(56,189,248,0.48)";
-  if (severity === "teal") return "rgba(45,212,191,0.48)";
-  return "rgba(148,163,184,0.34)";
-}
-
-function severityBackground(severity) {
-  if (severity === "danger") return "rgba(127,29,29,0.15)";
-  if (severity === "warning") return "rgba(113,63,18,0.14)";
-  if (severity === "bullish") return "rgba(20,83,45,0.13)";
-  if (severity === "purple") return "rgba(88,28,135,0.13)";
-  if (severity === "blue") return "rgba(12,74,110,0.13)";
-  if (severity === "teal") return "rgba(19,78,74,0.13)";
-  return "rgba(15,23,42,0.42)";
-}
-
-/* =========================
-   Data selectors
-========================= */
-
-function getFib(overlayData) {
-  return overlayData?.fib || overlayData || {};
-}
-
-function getStrategyRoot(fib) {
-  return fib?.strategy || fib || {};
-}
-
-function getEngine22WaveStrategy(fib) {
-  return fib?.engine22WaveStrategy || null;
-}
-
-function getPostDownImpulseBounce(fib) {
-  return (
-    getEngine22WaveStrategy(fib)?.waveFibState?.lifecycle?.postAbcReset
-      ?.postDownImpulseBounce || null
-  );
-}
-
-function getPossibleW5Up(fib) {
-  return (
-    getEngine22WaveStrategy(fib)?.waveFibState?.lifecycle?.postAbcReset
-      ?.possibleW5Up || null
-  );
-}
-
-function isPossibleW5UpComplete(possibleW5Up) {
-  return (
-    possibleW5Up?.w5Complete === true ||
-    String(possibleW5Up?.state || "").toUpperCase() ===
-      "POSSIBLE_MINOR_W5_UP_COMPLETE_POST_W5_PULLBACK_WATCH"
-  );
-}
-
-function getWaveOpportunity(fib) {
-  const waveStrategy = getEngine22WaveStrategy(fib);
-
-  return (
-    waveStrategy?.waveOpportunity ||
-    fib?.waveOpportunity ||
-    getStrategyRoot(fib)?.waveOpportunity ||
-    null
-  );
-}
-
-function getBackendTimelineRead(fib) {
-  return getEngine22WaveStrategy(fib)?.timelineRead || null;
-}
-
-function getBackendTradeContextSummary(fib) {
-  return getEngine22WaveStrategy(fib)?.tradeContextSummary || null;
-}
-
-function getCurrentLifecycleState(fib) {
-  const waveStrategy = getEngine22WaveStrategy(fib);
-
-  return (
-    waveStrategy?.currentLifecycleState ||
-    waveStrategy?.waveFibState?.currentLifecycleState ||
-    null
-  );
-}
-function getLifecycleViews(fib) {
-  const waveStrategy = getEngine22WaveStrategy(fib);
-
-  return (
-    waveStrategy?.lifecycleViews ||
-    waveStrategy?.timelineRead?.lifecycleViews ||
-    null
-  );
-}
-function getBackendTimelineSection(fib, title) {
-  const sections = getBackendTimelineRead(fib)?.mainSections;
-
-  if (!Array.isArray(sections)) return null;
-
-  return (
-    sections.find(
-      (section) => String(section?.title || "").trim() === title
-    ) || null
-  );
-}
-
-function getEngine15Decision(fib) {
-  const root = getStrategyRoot(fib);
-
-  return (
-    root?.engine15Decision ||
-    fib?.engine15Decision ||
-    root?.engine15ES ||
-    null
-  );
-}
-
-function getFinalPermission(fib) {
-  const root = getStrategyRoot(fib);
-
-  return root?.permission || fib?.permission || root?.finalPermission || null;
-}
-
-function getEngine27TraderDecision(fib) {
-  return fib?.engine27TraderDecision || null;
-}
-
-function getEngine27MinuteWaveIntelligence(fib) {
-  return fib?.engine27WaveIntelligence?.minute || null;
-}
-function getEngine27SubminuteTraderDecision(fib) {
-  return fib?.engine27SubminuteTraderDecision || null;
-}
-
-function getEngine22SubminuteStructure(fib) {
-  return fib?.engine22SubminuteStructure || null;
-}
-
-function getSubminuteEngine6Permission(fib) {
-  return fib?.subminuteEngine6Permission || null;
-}
-
-function getSubminuteEngine26(fib) {
-  return fib?.subminuteEngine26 || null;
-}
-
-function getCanonicalStrategyTimeline(fib) {
-  return fib?.strategyTimeline || null;
-}
-
-function getEngine26TradePlanPreview(fib) {
-  const root = getStrategyRoot(fib);
-
-  return (
-    root?.engine26TradePlanPreview ||
-    fib?.engine26TradePlanPreview ||
-    null
-  );
-}
-
-function getEngine26GeneralContext(fib) {
-  return getEngine26TradePlanPreview(fib)?.generalContext || null;
-}
-
-function getEngine26Strategy1Setup(fib) {
-  return getEngine26TradePlanPreview(fib)?.strategy1Setup || null;
-}
-
-function getMinuteEngine26LocationCandidate(fib) {
-  const root = getStrategyRoot(fib);
-  const strategyId = "intraday_scalp@10m";
-
-  return (
-    root?.strategies?.[strategyId]?.engine26LocationCandidate ||
-    fib?.strategies?.[strategyId]?.engine26LocationCandidate ||
-    root?.engine26LocationCandidate ||
-    fib?.engine26LocationCandidate ||
-    null
-  );
-}
-
-function getEngine26StructuralContext(fib) {
-  const root = getStrategyRoot(fib);
-
-  return (
-    root?.engine26StructuralContext ||
-    fib?.engine26StructuralContext ||
-    root?.engine26?.structuralContext ||
-    null
-  );
-}
-
-function getEngine26LocationContext(fib) {
-  const root = getStrategyRoot(fib);
-  const structural = getEngine26StructuralContext(fib);
-
-  return (
-    structural?.locationContext ||
-    root?.engine26TradePlanPreview?.locationContext ||
-    fib?.engine26TradePlanPreview?.locationContext ||
-    null
-  );
-}
-
-function getEngine26ControlLevelContext(fib) {
-  const root = getStrategyRoot(fib);
-  const structural = getEngine26StructuralContext(fib);
-
-  return (
-    structural?.controlLevelContext ||
-    root?.engine26TradePlanPreview?.controlLevelContext ||
-    fib?.engine26TradePlanPreview?.controlLevelContext ||
-    null
-  );
-}
-
-function getConfluence(fib) {
-  const root = getStrategyRoot(fib);
-
-  return (
-    root?.confluence ||
-    fib?.confluence ||
-    root?.engine5 ||
-    fib?.engine5 ||
-    null
-  );
-}
-
-function getEngine5Reaction(fib) {
-  return getConfluence(fib)?.components?.engine3Reaction || null;
-}
-
-function getEngine5Volume(fib) {
-  const confluence = getConfluence(fib);
-
-  return (
-    confluence?.context?.volume ||
-    confluence?.components?.engine4Volume ||
-    fib?.confluence?.context?.volume ||
-    getStrategyRoot(fib)?.confluence?.context?.volume ||
-    null
-  );
-}
-
-function getEngine22LifecycleParticipation(fib) {
-  const confluence = getConfluence(fib);
-
-  return (
-    confluence?.context?.volume?.engine22LifecycleParticipation ||
-    fib?.confluence?.context?.volume?.engine22LifecycleParticipation ||
-    getStrategyRoot(fib)?.confluence?.context?.volume?.engine22LifecycleParticipation ||
-    null
-  );
-}
-
-function getEngine4AuthorizedReactionParticipation(fib) {
-  const confluence = getConfluence(fib);
-
-  return (
-    confluence?.context?.volume?.engine4AuthorizedReactionParticipation ||
-    fib?.confluence?.context?.volume?.engine4AuthorizedReactionParticipation ||
-    getStrategyRoot(fib)?.confluence?.context?.volume?.engine4AuthorizedReactionParticipation ||
-    null
-  );
-}
-
-function getEngine4FastImbalanceParticipation(fib) {
-  const confluence = getConfluence(fib);
-
-  return (
-    confluence?.context?.volume?.engine4FastImbalanceParticipation ||
-    fib?.confluence?.context?.volume?.engine4FastImbalanceParticipation ||
-    getStrategyRoot(fib)?.confluence?.context?.volume?.engine4FastImbalanceParticipation ||
-    null
-  );
-}
-
-function getEngine4CurrentScalpParticipation(fib) {
-  const confluence = getConfluence(fib);
-
-  return (
-    confluence?.context?.volume?.engine4CurrentScalpParticipation ||
-    fib?.confluence?.context?.volume?.engine4CurrentScalpParticipation ||
-    getStrategyRoot(fib)?.confluence?.context?.volume?.engine4CurrentScalpParticipation ||
-    null
-  );
-}
-
-function getEngine5Timing(fib) {
-  const confluence = getConfluence(fib);
-
-  return (
-    confluence?.timingContext ||
-    confluence?.analytics?.engine5?.timingContext ||
-    fib?.timingContext ||
-    null
-  );
-}
-
-function getTargets(waveOpportunity) {
-  const targets = waveOpportunity?.targets || {};
-
-  return [
-    ["1.000", targets.e100],
-    ["1.272", targets.e1272],
-    ["1.618", targets.e1618],
-    ["2.000", targets.e200],
-    ["2.618", targets.e2618],
-  ].filter(([, price]) => price != null);
-}
-
-function getPostDownImpulseBounceTargets(postBounce) {
-  const targets = postBounce?.cUpTargets || {};
-
-  return [
-    ["C 1.000", targets.c100],
-    ["C 1.272", targets.c1272],
-    ["C 1.618", targets.c1618],
-    ["C 2.000", targets.c200],
-    ["C 2.618", targets.c2618],
-  ].filter(([, price]) => price != null);
-}
-
-function formatPostBounceTargetHit(postBounce) {
-  const hit = String(
-    postBounce?.cProgress?.highestTargetHit || ""
-  ).toLowerCase();
-
-  return C_TARGET_HIT_LABELS[hit] || "No C-up target hit yet";
-}
-
-function isPostMinor5BounceCLegActive(postBounce) {
-  const state = String(postBounce?.state || "").toUpperCase();
-
-  return [
-    "POST_MINOR_5_BOUNCE_C_LEG_ACTIVE",
-    "POST_MINOR_5_BOUNCE_B_MARKED_C_UP_WATCH",
-    "POST_MINOR_5_BOUNCE_C_COMPLETE_HTF_DECISION_WATCH",
-  ].includes(state);
-}
-
-function getPostBounceTargetMeta() {
-  return [
-    { key: "c100", label: "C 1.000" },
-    { key: "c1272", label: "C 1.272" },
-    { key: "c1618", label: "C 1.618" },
-    { key: "c200", label: "C 2.000" },
-    { key: "c2618", label: "C 2.618" },
-  ];
-}
-
-function getPostBounceTargetSummary(postBounce) {
-  const targets = postBounce?.cUpTargets || {};
-  const meta = getPostBounceTargetMeta()
-    .map((target) => ({
-      ...target,
-      price: Number(targets[target.key]),
-    }))
-    .filter((target) => Number.isFinite(target.price));
-
-  if (!meta.length) {
-    return {
-      hitKey: null,
-      hitLabel: null,
-      hitPrice: null,
-      nextKey: null,
-      nextLabel: null,
-      nextPrice: null,
-      targetsText: "Corrective C-up targets unavailable",
-      currentHigh: null,
-    };
+function scoreColor(score, inverse = false) {
+  const n = Number(score);
+
+  if (!Number.isFinite(n)) return "#94a3b8";
+
+  if (inverse) {
+    if (n < 30) return "#22c55e";
+    if (n < 50) return "#f59e0b";
+    if (n < 70) return "#ef4444";
+    return "#7f1d1d";
   }
 
-  const rawHit = String(
-    postBounce?.cProgress?.highestTargetHit || ""
-  ).toLowerCase();
-
-  const currentHigh = Number(
-    postBounce?.cProgress?.activeHigh ??
-      postBounce?.cProgress?.price ??
-      postBounce?.currentPrice
-  );
-
-  let hitIndex = meta.findIndex((target) => target.key === rawHit);
-
-  if (hitIndex < 0 && Number.isFinite(currentHigh)) {
-    for (let idx = 0; idx < meta.length; idx += 1) {
-      if (currentHigh >= meta[idx].price) hitIndex = idx;
-    }
-  }
-
-  const hit = hitIndex >= 0 ? meta[hitIndex] : null;
-  const next = meta.find((target, idx) => {
-    if (hitIndex >= 0) return idx > hitIndex;
-    if (Number.isFinite(currentHigh)) return target.price > currentHigh;
-    return idx === 0;
-  });
-
-  let targetsText;
-
-  if (hit && next) {
-    targetsText = `Hit ${hit.label} @ ${formatNumber(
-      hit.price
-    )} → Next pullback: ${next.label} @ ${formatNumber(next.price)}`;
-  } else if (hit && !next) {
-    targetsText = `Hit ${hit.label} @ ${formatNumber(
-      hit.price
-    )} → No higher C-up target`;
-  } else if (next) {
-    targetsText = `Watching ${next.label} @ ${formatNumber(next.price)}`;
-  } else {
-    targetsText = "Corrective C-up targets unavailable";
-  }
-
-  return {
-    hitKey: hit?.key || null,
-    hitLabel: hit?.label || null,
-    hitPrice: hit?.price ?? null,
-    nextKey: next?.key || null,
-    nextLabel: next?.label || null,
-    nextPrice: next?.price ?? null,
-    targetsText,
-    currentHigh: Number.isFinite(currentHigh) ? currentHigh : null,
-  };
+  if (n >= 70) return "#22c55e";
+  if (n >= 50) return "#eab308";
+  if (n >= 35) return "#f97316";
+  return "#ef4444";
 }
 
-
-function getPossibleW5PullbackMeta() {
-  return [
-    { key: "r236", label: "23.6%" },
-    { key: "r382", label: "38.2%" },
-    { key: "r500", label: "50.0%" },
-    { key: "r618", label: "61.8%" },
-    { key: "r786", label: "78.6%" },
-  ];
-}
-
-function getPossibleW5PullbackLevels(possibleW5Up) {
-  const levels = possibleW5Up?.pullbackLevelsFromW5 || {};
-
-  return getPossibleW5PullbackMeta()
-    .map((level) => ({
-      ...level,
-      price: Number(levels[level.key]),
-    }))
-    .filter((level) => Number.isFinite(level.price));
-}
-
-function getPossibleW5PullbackSummary(possibleW5Up) {
-  const levels = getPossibleW5PullbackLevels(possibleW5Up);
-  const currentPrice = Number(
-    possibleW5Up?.priceProgress?.currentPrice ?? possibleW5Up?.currentPrice
-  );
-  const pointsOffHigh = Number(possibleW5Up?.priceProgress?.pointsOffHigh);
-
-  if (!levels.length) {
-    return {
-      hitKey: null,
-      hitLabel: null,
-      hitPrice: null,
-      nextKey: null,
-      nextLabel: null,
-      nextPrice: null,
-      targetsText: "Post-W5 pullback levels unavailable",
-      currentPrice: Number.isFinite(currentPrice) ? currentPrice : null,
-      pointsOffHigh: Number.isFinite(pointsOffHigh) ? pointsOffHigh : null,
-    };
-  }
-
-  let hitIndex = -1;
-
-  if (Number.isFinite(currentPrice)) {
-    for (let idx = 0; idx < levels.length; idx += 1) {
-      // Pullback levels from a W5 high are hit as price moves DOWN through them.
-      if (currentPrice <= levels[idx].price) hitIndex = idx;
-    }
-  }
-
-  const hit = hitIndex >= 0 ? levels[hitIndex] : null;
-  const next = hitIndex >= 0 ? levels[hitIndex + 1] || null : levels[0] || null;
-
-  let targetsText;
-
-  if (hit && next) {
-    targetsText = `Hit ${hit.label} @ ${formatNumber(
-      hit.price
-    )} → Next pullback: ${next.label} @ ${formatNumber(next.price)}`;
-  } else if (hit && !next) {
-    targetsText = `Hit ${hit.label} @ ${formatNumber(
-      hit.price
-    )} → Failure warning below ${formatNumber(hit.price)}`;
-  } else if (next) {
-    targetsText = `Next pullback: ${next.label} @ ${formatNumber(next.price)}`;
-  } else {
-    targetsText = "Post-W5 pullback levels unavailable";
-  }
-
-  return {
-    hitKey: hit?.key || null,
-    hitLabel: hit?.label || null,
-    hitPrice: hit?.price ?? null,
-    nextKey: next?.key || null,
-    nextLabel: next?.label || null,
-    nextPrice: next?.price ?? null,
-    targetsText,
-    currentPrice: Number.isFinite(currentPrice) ? currentPrice : null,
-    pointsOffHigh: Number.isFinite(pointsOffHigh) ? pointsOffHigh : null,
-  };
-}
-
-function formatZone(zone) {
-  if (!zone || typeof zone !== "object") return "—";
-  if (zone.lo != null && zone.hi != null) {
-    return `${formatNumber(zone.lo)}–${formatNumber(zone.hi)}`;
-  }
-  if (zone.level != null) return formatNumber(zone.level);
-  return "—";
-}
-
-function isWatchState(value) {
-  const v = String(value || "").toUpperCase();
-  return ["WATCH", "NEAR", "PREP", "ARMING", "POST_EXTENSION"].includes(v);
-}
-
-function isReadyState(value) {
-  const v = String(value || "").toUpperCase();
-  return ["READY", "CONFIRMED", "TRIGGERED"].includes(v);
-}
-
-function isDangerChase(value) {
-  const v = String(value || "").toUpperCase();
-  return v === "HIGH" || v === "EXTREME";
-}
-
-/* =========================
-   Fallback headline builders
-========================= */
-
-function buildFallbackHeadline({ waveOpportunity, engine15 }) {
-  const degree = titleCase(waveOpportunity?.degree, "Wave");
-  const setup = formatUpper(waveOpportunity?.setupType, "W3/W5");
-  const readiness = formatUpper(
-    engine15?.readinessLabel || waveOpportunity?.readiness,
-    "WATCH"
-  );
-  const chaseRisk = formatUpper(waveOpportunity?.chaseRisk, "");
-  const timing = formatUpper(waveOpportunity?.timing, "");
-
-  if (isDangerChase(chaseRisk)) {
-    return `${degree} ${setup} ${readiness} — NO CHASE`;
-  }
-
-  if (timing.includes("POST")) {
-    return `${degree} ${setup} ${readiness} — POST EXTENSION`;
-  }
-
-  return `${degree} ${setup} ${readiness}`;
-}
-
-function buildFallbackSubheadline({ waveOpportunity, engine15 }) {
-  if (waveOpportunity?.summary) return waveOpportunity.summary;
-  if (engine15?.summary) return engine15.summary;
-
-  return "Waiting for a valid Wave 3 / Wave 5 opportunity and final confirmation.";
-}
-
-function buildBadges({ waveOpportunity, engine15, permission }) {
-  const badges = [];
-
-  badges.push({
-    label: waveOpportunity?.symbol || engine15?.symbol || "ES",
-    severity: "blue",
-  });
-
-  if (waveOpportunity?.degree) {
-    badges.push({
-      label: `${titleCase(waveOpportunity.degree)} Degree`,
-      severity: "neutral",
-    });
-  }
-
-  if (waveOpportunity?.direction || engine15?.direction) {
-    const direction = waveOpportunity?.direction || engine15?.direction;
-
-    badges.push({
-      label: formatUpper(direction),
-      severity:
-        String(direction).toUpperCase() === "LONG" ? "bullish" : "danger",
-    });
-  }
-
-  if (engine15?.readinessLabel || waveOpportunity?.readiness) {
-    const readiness = engine15?.readinessLabel || waveOpportunity?.readiness;
-
-    badges.push({
-      label: formatUpper(readiness),
-      severity: isReadyState(readiness) ? "bullish" : "warning",
-    });
-  }
-
-  if (waveOpportunity?.timing) {
-    badges.push({
-      label: formatUpper(waveOpportunity.timing),
-      severity:
-        String(waveOpportunity.timing).toUpperCase().includes("POST") ||
-        String(waveOpportunity.timing).toUpperCase().includes("LATE")
-          ? "warning"
-          : "neutral",
-    });
-  }
-
-  if (waveOpportunity?.chaseRisk) {
-    badges.push({
-      label: `${formatUpper(waveOpportunity.chaseRisk)} CHASE RISK`,
-      severity: isDangerChase(waveOpportunity.chaseRisk)
-        ? "danger"
-        : "warning",
-    });
-  }
-
-  if (permission?.permission) {
-    badges.push({
-      label: `PERMISSION ${formatUpper(permission.permission)}`,
-      severity:
-        String(permission.permission).toUpperCase() === "ALLOW"
-          ? "bullish"
-          : String(permission.permission).toUpperCase() === "REDUCE"
-          ? "purple"
-          : "danger",
-    });
-  }
-
-  return badges;
-}
-
-function buildCurrentLifecycleBadges(currentLifecycleState) {
-  if (!currentLifecycleState) return [];
-
-  const markMaturity = currentLifecycleState.markMaturity || null;
-  const lifecycleOverride = isCurrentLifecycleDisplayOverride(
-    currentLifecycleState
-  );
-
-  return [
-    markMaturity?.symbol
-      ? {
-          label: markMaturity.symbol,
-          severity: "blue",
-        }
-      : null,
-    currentLifecycleState.degree
-      ? {
-          label: `${titleCase(currentLifecycleState.degree)} Degree`,
-          severity: "neutral",
-        }
-      : null,
-    lifecycleOverride
-      ? {
-          label: "BIAS LONG AFTER CONFIRMATION",
-          severity: "bullish",
-        }
-      : currentLifecycleState.direction
-      ? {
-          label: formatUpper(currentLifecycleState.direction),
-          severity:
-            String(currentLifecycleState.direction).toUpperCase() === "LONG"
-              ? "bullish"
-              : "neutral",
-        }
-      : null,
-    currentLifecycleState.readiness
-      ? {
-          label: formatUpper(currentLifecycleState.readiness),
-          severity: isReadyState(currentLifecycleState.readiness)
-            ? "bullish"
-            : "warning",
-        }
-      : null,
-    markMaturity?.status
-      ? {
-          label: `W2 ${formatUpper(markMaturity.status)}`,
-          severity:
-            String(markMaturity.status).toUpperCase() === "CONFIRMED"
-              ? "bullish"
-              : "warning",
-        }
-      : null,
-    lifecycleOverride
-      ? {
-          label: "NO CHASE",
-          severity: "warning",
-        }
-      : null,
-    currentLifecycleState.noExecution === true
-      ? {
-          label: "NO EXECUTION",
-          severity: "purple",
-        }
-      : null,
-  ].filter(Boolean);
-}
-function isCurrentLifecycleDisplayOverride(currentLifecycleState) {
-  const key = String(currentLifecycleState?.key || "").toUpperCase();
-  const markStatus = String(
-    currentLifecycleState?.markMaturity?.status || ""
-  ).toUpperCase();
-
-  return (
-    key.includes("INTERMEDIATE_W2_C_LOW_REACTION") ||
-    key.includes("INTERMEDIATE_W1_COMPLETE_W2_STILL_FORMING") ||
-    markStatus === "CANDIDATE"
-  );
-}
-
-function buildPermissionBadge(permission) {
-  if (!permission?.permission) return null;
-
-  return {
-    label: `PERMISSION ${formatUpper(permission.permission)}`,
-    severity:
-      String(permission.permission).toUpperCase() === "ALLOW"
-        ? "bullish"
-        : String(permission.permission).toUpperCase() === "REDUCE"
-        ? "purple"
-        : "danger",
-  };
-}
-
-function getLifecycleWatchLevels(currentLifecycleState, fib) {
-  const markMaturity = currentLifecycleState?.markMaturity || {};
-  const reference = currentLifecycleState?.confirmationContext?.reference || {};
-  const progress = reference?.priceProgress?.intermediate || {};
-  const retraceLevels = progress?.retraceLevels?.levels || {};
-
-  const trigger10m = fib?.engine16?.regimeLayers?.trigger10m || {};
-
-  const ema10 = Number(trigger10m?.ema10);
-  const ema20 = Number(trigger10m?.ema20);
-
-  const r618 = Number(retraceLevels?.r618);
-  const r786 = Number(retraceLevels?.r786);
-
-  const currentPrice = Number(reference?.currentPrice);
-  const w2Candidate = Number(markMaturity?.price);
-
-  const reclaimZone =
-    Number.isFinite(ema10) && Number.isFinite(ema20)
-      ? `${formatNumber(Math.max(ema10, ema20))} → ${formatNumber(
-          Math.min(ema10, ema20)
-        )}`
-      : "—";
-
-  const controlledPullback =
-    Number.isFinite(r618) && Number.isFinite(r786)
-      ? `${formatNumber(r618)} → ${formatNumber(r786)}`
-      : "—";
-
-  const mustHold =
-    Number.isFinite(w2Candidate)
-      ? `7400.00 → ${formatNumber(w2Candidate)}`
-      : "7400.00 → 7415.25";
-
-  return {
-    currentPrice: Number.isFinite(currentPrice) ? currentPrice : null,
-    reclaimZone,
-    controlledPullback,
-    mustHold,
-  };
-}
-
-function buildLifecycleNextStepsSection(currentLifecycleState, fib) {
-  if (!isCurrentLifecycleDisplayOverride(currentLifecycleState)) return null;
-
-  const levels = getLifecycleWatchLevels(currentLifecycleState, fib);
-
-  const checklist = [
-    levels.currentPrice != null
-      ? `Current price: ${formatNumber(levels.currentPrice)}`
-      : null,
-    `Watch 10m reclaim hold: ${levels.reclaimZone}`,
-    `Controlled pullback watch: ${levels.controlledPullback}`,
-    `Must hold sweep zone: ${levels.mustHold}`,
-    "Need Engine 3 reaction confirmation",
-    "Need Engine 4 clean participation",
-    "Engine 6 remains final paper permission authority.",
-    "No chase after vertical reclaim. No execution.",
-  ].filter(Boolean);
-
-  return {
-    number: 6,
-    icon: "✓",
-    title: "Next Action Levels",
-    severity: "teal",
-    checklist,
-  };
-}
-
-function formatFibLevels(levels = {}, labels = {}) {
-  if (!levels || typeof levels !== "object") return "—";
-
-  const entries = Object.entries(levels)
-    .filter(([, value]) => Number.isFinite(Number(value)))
-    .map(([key, value]) => {
-      const label = labels[key] || key.toUpperCase();
-      return `${label}: ${formatNumber(value)}`;
-    });
-
-  return entries.length ? entries.join("  |  ") : "—";
-}
-
-function formatFibTargetsList(values = []) {
-  const nums = Array.isArray(values)
-    ? values.filter((value) => Number.isFinite(Number(value)))
-    : [];
-
-  return nums.length ? nums.map((value) => formatNumber(value)).join(" → ") : "—";
-}
-
-function formatTargetPath(values = [], fallback = "—") {
-  const nums = Array.isArray(values)
-    ? values.filter((value) => Number.isFinite(Number(value)))
-    : [];
-
-  return nums.length
-    ? nums.map((value) => formatNumber(value)).join(" → ")
-    : fallback;
-}
-function formatZoneRange(zone) {
-  if (!zone || typeof zone !== "object") return "—";
-
-  if (zone.lo != null && zone.hi != null) {
-    return `${formatNumber(zone.lo)}–${formatNumber(zone.hi)}`;
-  }
-
-  return "—";
-}
-
-function buildLongTermLifecycleViewSection(lifecycleViews) {
-  const longTerm = lifecycleViews?.longTerm || null;
-
-  if (!longTerm) return null;
-
-  const fibMap = longTerm.fibMap || {};
-  const anchors = longTerm.anchors || {};
-  const levels = fibMap.levels || {};
-
-  return {
-    number: 1,
-    icon: "↗",
-    title: "Long-Term Lifecycle — Engine 22",
-    severity: "bullish",
-    fields: [
-      ["Lifecycle", formatText(longTerm.label, "Intermediate W3 active")],
-      ["Active Wave", `${formatUpper(longTerm.activeDegree)} ${formatUpper(longTerm.activeWave)}`],
-      ["Direction", formatUpper(longTerm.direction, "LONG")],
-      ["Current", formatNumber(anchors.currentPrice)],
-      ["W1 High", formatNumber(anchors.w1High)],
-      ["W2 Low", formatNumber(anchors.w2Low)],
-      ["Next Target", formatNumber(fibMap.nextTarget)],
-      ["Target Path", formatFibTargetsList(fibMap.higherTargets)],
-    ],
-    lines: [
-      longTerm.summary ||
-        "Intermediate W3 is active. This is higher-timeframe context, not a scalp trigger.",
-      `Intermediate W3 extension map: ${formatFibLevels(levels, {
-        e100: "1.000",
-        e1272: "1.272",
-        e1618: "1.618",
-        e200: "2.000",
-        e2618: "2.618",
-      })}`,
-      "Use this section for bigger destination targets only. No execution from this alone.",
-    ],
-  };
-}
-
-function buildIntradayScalpLifecycleViewSection(lifecycleViews) {
-  const intraday = lifecycleViews?.intradayScalp || null;
-
-  if (!intraday) return null;
-
-  const fibMap = intraday.fibMap || {};
-  const anchors = intraday.anchors || {};
-  const pullbackLevels = fibMap.pullbackLevels || {};
-  const holdTargets = fibMap.ifW4HoldsNextTargets || {};
-
-  return {
-    number: 2,
-    icon: "〽",
-    title: "Intraday Scalp Lifecycle — Engine 22",
-    severity: "teal",
-    fields: [
-      ["Lifecycle", formatText(intraday.label, "Minute W4 pullback watch")],
-      ["Active Wave", `${formatUpper(intraday.activeDegree)} ${formatUpper(intraday.activeWave)}`],
-      ["Parent", `${formatUpper(intraday.parentDegree)} ${formatUpper(intraday.parentWave)}`],
-      ["Direction", formatUpper(intraday.direction, "LONG AFTER CONFIRMATION")],
-      ["Current", formatNumber(anchors.currentPrice)],
-      ["W3 High", formatNumber(anchors.w3High)],
-      ["Preferred W4 Zone", formatZoneRange(fibMap.preferredW4Zone)],
-      ["Invalidation", formatNumber(fibMap.invalidationLevel)],
-    ],
-    lines: [
-      intraday.summary ||
-        "Minute W4 pullback is being watched. No chase. No execution.",
-      `Minute W4 pullback levels: ${formatFibLevels(pullbackLevels, {
-        r236: "23.6%",
-        r382: "38.2%",
-        r500: "50.0%",
-        r618: "61.8%",
-        r786: "78.6%",
-      })}`,
-      `If W4 holds, next targets: ${formatFibLevels(holdTargets, {
-        e100: "1.000",
-        e1272: "1.272",
-        e1618: "1.618",
-        e200: "2.000",
-        e2618: "2.618",
-      })}`,
-      "Engine 26 may use this as scalp context only. Engine 15 / Engine 6 still control permission.",
-    ],
-  };
-}
-
-function buildLifecycleViewSections(lifecycleViews) {
-  return [
-    buildLongTermLifecycleViewSection(lifecycleViews),
-    buildIntradayScalpLifecycleViewSection(lifecycleViews),
-  ].filter(Boolean);
-}
-
-function buildCurrentLifecycleStateSection(currentLifecycleState, fib = null) {
-  if (!currentLifecycleState) return null;
-
-  const markMaturity = currentLifecycleState.markMaturity || {};
-  const basis = asArray(markMaturity.basis);
-  const needs = asArray(currentLifecycleState.needs);
-  const levels = getLifecycleWatchLevels(currentLifecycleState, fib);
-
-  const key = String(currentLifecycleState.key || "").toUpperCase();
-
-  const isCLowReaction = key.includes("C_LOW_REACTION");
-  const isW2Candidate =
-    String(markMaturity.status || "").toUpperCase() === "CANDIDATE";
-
-  const currentTask = isCLowReaction
-    ? "Wait for reclaim hold / controlled pullback"
-    : "Wait for C-low reaction / reclaim";
-
-  return {
-    number: 1,
-    icon: "〽",
-    title: "Current Lifecycle — Engine 22",
-    severity: isCLowReaction ? "teal" : isW2Candidate ? "warning" : "bullish",
-    fields: [
-      [
-        "Lifecycle",
-        isCLowReaction
-          ? "W2 C-low reaction"
-          : formatText(currentLifecycleState.key, "UNKNOWN"),
-      ],
-      ["W2 Status", formatUpper(markMaturity.status, "—")],
-      ["Bias", "Long after confirmation"],
-      ["Readiness", formatUpper(currentLifecycleState.readiness, "WATCH")],
-      ["Current Task", currentTask],
-      ["10m Reclaim", levels.reclaimZone],
-      ["Controlled Pullback", levels.controlledPullback],
-      ["Must Hold", levels.mustHold],
-      [
-        "Prior Mark",
-        markMaturity.previousMark?.price != null
-          ? `${formatNumber(markMaturity.previousMark.price)} superseded`
-          : "—",
-      ],
-    ],
-    lines: [
-      currentLifecycleState.headline || null,
-      isCLowReaction
-        ? "C-down liquidity sweep / reclaim reaction detected. Do not chase the vertical reclaim."
-        : null,
-      isW2Candidate
-        ? "W2 is still a candidate. Engine 22 is not promoting this to W3 launch yet."
-        : null,
-      basis.includes("B_WAVE_SIDEWAYS_CONSOLIDATION")
-        ? "B-wave sideways consolidation detected — this is not clean W3 behavior."
-        : null,
-      basis.includes("B_WAVE_QUICK_POP_LIQUIDITY_TRAP")
-        ? "Quick pop after consolidation can be a B-wave liquidity trap."
-        : null,
-      levels.reclaimZone !== "—"
-        ? `First watch: reclaim hold near ${levels.reclaimZone}.`
-        : null,
-      levels.controlledPullback !== "—"
-        ? `Controlled pullback watch: ${levels.controlledPullback}.`
-        : null,
-      `Must hold the sweep zone: ${levels.mustHold}.`,
-      needs.length ? `Needs: ${needs.map(formatText).join(", ")}` : null,
-      "No chase. No automatic long. No execution.",
-    ].filter(Boolean),
-  };
-}
-/* =========================
-   Shared section builders
-========================= */
-
-function buildBackendTimelineSection(section) {
-  if (!section) return null;
-
-  const lines = Array.isArray(section.lines)
-    ? section.lines.filter(Boolean)
-    : [];
-
-  if (!lines.length) return null;
-
-  return {
-    number: 0,
-    icon: "◷",
-    title: section.title || "Context",
-    severity: section.severity || "blue",
-    fields: [],
-    lines,
-  };
-}
-
-function buildWaveOpportunitySection(waveOpportunity, fib) {
-  if (!waveOpportunity) {
-    return {
-      number: 1,
-      icon: "〽",
-      title: "Wave Opportunity — Engine 22",
-      severity: "warning",
-      fields: [],
-      lines: [
-        "Engine 22 waveOpportunity is unavailable.",
-        "Waiting for a valid Wave 3 / Wave 5 setup.",
-      ],
-    };
-  }
-
-  const possibleW5Up = getPossibleW5Up(fib);
-  const possibleW5UpComplete = isPossibleW5UpComplete(possibleW5Up);
-  const possibleW5Summary = getPossibleW5PullbackSummary(possibleW5Up);
-
-  const postBounce = getPostDownImpulseBounce(fib);
-  const postBounceActive = isPostMinor5BounceCLegActive(postBounce);
-  const postBounceTargetSummary = getPostBounceTargetSummary(postBounce);
-
-  const normalTargetsText = getTargets(waveOpportunity)
-    .map(([level, price]) => `${level}: ${formatNumber(price)}`)
-    .join("  |  ");
-
-  const directionText = possibleW5UpComplete
-    ? "NONE — WATCH PULLBACK / RECLAIM"
-    : postBounceActive
-    ? "NONE — WATCH C-UP / HTF DECISION"
-    : formatUpper(waveOpportunity.direction, "NONE");
-
-  const targetsLabel = possibleW5UpComplete ? "Targets / Pullback" : "Targets";
-
-  const targetsText = possibleW5UpComplete
-    ? possibleW5Summary.targetsText
-    : postBounceActive
-    ? postBounceTargetSummary.targetsText
-    : normalTargetsText || "—";
-
-  return {
-    number: 1,
-    icon: "〽",
-    title: "Wave Opportunity — Engine 22",
-    severity: possibleW5UpComplete || postBounceActive
-      ? "warning"
-      : isDangerChase(waveOpportunity.chaseRisk)
-      ? "warning"
-      : "bullish",
-    fields: [
-      ["Setup", formatUpper(waveOpportunity.setupType, "NONE")],
-      ["Raw Setup", formatUpper(waveOpportunity.rawSetup, "—")],
-      ["Degree", titleCase(waveOpportunity.degree, "—")],
-      ["Direction", directionText],
-      ["Readiness", formatUpper(waveOpportunity.readiness, "UNKNOWN")],
-      ["Timing", formatUpper(waveOpportunity.timing, "UNKNOWN")],
-      ["Chase Risk", formatUpper(waveOpportunity.chaseRisk, "UNKNOWN")],
-      [targetsLabel, targetsText],
-    ],
-    lines: [
-      possibleW5UpComplete
-        ? "Summary: Possible Minor W5 up is marked complete. Watch post-W5 pullback reaction / reclaim zones."
-        : waveOpportunity.summary
-        ? `Summary: ${waveOpportunity.summary}`
-        : "Summary: Waiting for Engine 22 wave opportunity summary.",
-    ],
-  };
-}
-
-function buildPostAbcBounceSection(tradeContextSummary, waveOpportunity) {
-  const abcUp = tradeContextSummary?.abcUp || null;
-  const reads = tradeContextSummary?.reads || {};
+function labelColor(label, score) {
+  const text = String(label || "").toUpperCase();
 
   if (
-    String(abcUp?.state || "").toUpperCase() !==
-    "A_UP_MARKED_WAITING_FOR_B_PULLBACK"
+    text.includes("WEAK") ||
+    text.includes("RISK_OFF") ||
+    text.includes("NO_BLIND") ||
+    text.includes("DISTRIBUTION_ACTIVE") ||
+    text.includes("AT_RISK") ||
+    text.includes("BLOCKED") ||
+    text.includes("LOST")
   ) {
-    return null;
-  }
-
-  const preferredBZone = abcUp?.preferredBZone || null;
-  const preferredBZoneText =
-    preferredBZone?.lo != null && preferredBZone?.hi != null
-      ? `${formatNumber(preferredBZone.lo)}–${formatNumber(preferredBZone.hi)}`
-      : "—";
-
-  const bLow =
-    abcUp.effectiveWaveBLow ??
-    abcUp.autoWaveBLow ??
-    abcUp.waveBLow ??
-    null;
-
-  const extensionTargets = getTargets(waveOpportunity)
-    .map(([level, price]) => `${level}: ${formatNumber(price)}`)
-    .join("  |  ");   
-
-  return {
-    number: 2,
-    icon: "〽",
-    title: "Post-ABC Bounce Map — Engine 22",
-    severity: "warning",
-    fields: [
-      ["State", formatUpper(abcUp.state)],
-      [
-        "A Up",
-        `${formatNumber(abcUp.originLow)} → ${formatNumber(abcUp.waveAHigh)}`,
-      ],
-      ["B Low", formatNumber(bLow)],
-      ["Preferred B Zone", preferredBZoneText],
-      ["Extension Targets", extensionTargets || "—"],
-      ["Deep B Support", formatNumber(abcUp.deepBSupport)],
-      ["B Status", formatUpper(abcUp.bPullbackStatus, "WAITING")],
-    ],
-    lines: [
-      reads.abcUpRead || null,
-      reads.bPullbackRead || null,
-      abcUp.read || null,
-      reads.actionRead ||
-        "No chase. No execution. Wait for B pullback hold and reclaim confirmation.",
-    ].filter(Boolean),
-  };
-}
-
-function buildPossibleW5UpCompleteSection(fib) {
-  const possibleW5Up = getPossibleW5Up(fib);
-
-  if (!isPossibleW5UpComplete(possibleW5Up)) return null;
-
-  const summary = getPossibleW5PullbackSummary(possibleW5Up);
-
-  return {
-    number: 0,
-    icon: "〽",
-    title: "Possible Minor W5 Up Complete — Engine 22",
-    severity: "warning",
-    fields: [
-      ["Wave Origin", formatNumber(possibleW5Up.originLow)],
-      ["W1 High", formatNumber(possibleW5Up.w1High)],
-      ["W2 Low", formatNumber(possibleW5Up.w2Low)],
-      ["W3 High", formatNumber(possibleW5Up.w3High)],
-      ["W4 Low", formatNumber(possibleW5Up.w4Low)],
-      ["W5 High", formatNumber(possibleW5Up.w5High)],
-      [
-        "Current Price",
-        summary.currentPrice != null ? formatNumber(summary.currentPrice) : "—",
-      ],
-      [
-        "Off W5 High",
-        summary.pointsOffHigh != null
-          ? `${formatNumber(summary.pointsOffHigh)} pts`
-          : "—",
-      ],
-      [
-        "Current Pullback Fib",
-        summary.hitLabel
-          ? `${summary.hitLabel} @ ${formatNumber(summary.hitPrice)}`
-          : "None hit yet",
-      ],
-      [
-        "Next Pullback Watch",
-        summary.nextLabel
-          ? `${summary.nextLabel} @ ${formatNumber(summary.nextPrice)}`
-          : "No deeper pullback level",
-      ],
-    ],
-    lines: [
-      possibleW5Up.read ||
-        "Possible Minor W5 up is marked complete. Watch pullback fib levels off the W5 high for reaction / entry zones.",
-      "These are pullback reaction / entry planning zones, not automatic entry signals.",
-      "Watch pullback reaction / reclaim. No chase. No automatic long. No automatic short. No execution.",
-    ],
-  };
-}
-
-function buildPostMinor5CorrectiveBounceSection(fib) {
-  const postBounce = getPostDownImpulseBounce(fib);
-
-  if (!isPostMinor5BounceCLegActive(postBounce)) return null;
-
-  const cHigh =
-    Number(postBounce?.waveCHigh) > 0
-      ? formatNumber(postBounce.waveCHigh)
-      : "not marked yet";
-
-  const targetSummary = getPostBounceTargetSummary(postBounce);
-
-  return {
-    number: 0,
-    icon: "〽",
-    title: "Post-Minor-5 Corrective Bounce — Engine 22",
-    severity: "warning",
-    fields: [
-      ["Origin", formatNumber(postBounce.originLow)],
-      ["A High", formatNumber(postBounce.waveAHigh)],
-      ["B Low", formatNumber(postBounce.waveBLow)],
-      ["C High", cHigh],
-      [
-        "Correction Type",
-        compactJoin(
-          [
-            formatUpper(postBounce.correctionFamily, "—"),
-            formatUpper(postBounce.correctionType, "—"),
-          ],
-          " / "
-        ),
-      ],
-      [
-        "B Retrace",
-        postBounce.bRetracePct != null
-          ? `${formatNumber(postBounce.bRetracePct, 0)}%`
-          : "—",
-      ],
-      [
-        "Current C-Up High",
-        targetSummary.currentHigh != null
-          ? formatNumber(targetSummary.currentHigh)
-          : "—",
-      ],
-      [
-        "Highest Target Hit",
-        targetSummary.hitLabel
-          ? `${targetSummary.hitLabel} @ ${formatNumber(targetSummary.hitPrice)}`
-          : "None yet",
-      ],
-      [
-        "Next C-Up Target",
-        targetSummary.nextLabel
-          ? `${targetSummary.nextLabel} @ ${formatNumber(targetSummary.nextPrice)}`
-          : "No higher C-up target",
-      ],
-    ],
-    lines: [
-      postBounce.read ||
-        "Post-Minor-5 corrective bounce is active. Read-only watch.",
-      "Watch C-up maturity / HTF decision. Do not chase.",
-      "No automatic long. No automatic short. No execution.",
-    ],
-  };
-}
-
-function buildEngine15Section(engine15, currentLifecycleState = null) {
-  const paper = engine15?.paperScalpReadiness || null;
-
-  const isShortStructuralWatch =
-    paper?.readiness === "SHORT_STRUCTURAL_WATCH" &&
-    paper?.source === "engine26StructuralContext";
-
-  if (isShortStructuralWatch) {
-    const targetPath = Array.isArray(paper?.targetModel?.targetPathPreview)
-      ? paper.targetModel.targetPathPreview
-      : [];
-
-    const targetPathText = targetPath.length
-      ? targetPath.map((level) => formatNumber(level)).join(" → ")
-      : "—";
-
-    const bHigh = paper?.riskModel?.bHigh;
-
-    const blockersText = asArray(paper?.blockers)
-      .map(formatText)
-      .join(", ");
-
-    return {
-      number: 3,
-      icon: "▣",
-      title: "Setup Readiness — Engine 15ES",
-      severity: "danger",
-      fields: [
-        ["Readiness", "SHORT STRUCTURAL WATCH"],
-        ["Strategy", formatUpper(paper.setupType, "ABC DOWN B BOUNCE C DOWN WATCH")],
-        ["Direction", "SHORT"],
-        ["Role", formatUpper(paper.setupRole, "B BOUNCE FINAL FILL ZONE")],
-        ["Bias", formatUpper(paper.structuralBias, "C DOWN WATCH")],
-        ["Action", "WATCH FAILED ACCEPTANCE / LEVEL LOSS"],
-        ["Quality", "WATCH ONLY / RESEARCH"],
-        ["B High / Stop Preview", bHigh != null ? formatNumber(bHigh) : "—"],
-      ],
-      lines: [
-        "Watch only. No paper allow. No ticket.",
-      ].filter(Boolean),
-    };
-  } 
-  const lifecycleOwnsDisplay =
-    isCurrentLifecycleDisplayOverride(currentLifecycleState);
-
-  const lifecycleKey = currentLifecycleState?.key || null;
-  const lifecycleAction = currentLifecycleState?.action || null;
-  const lifecycleDirection = currentLifecycleState?.direction || null;
-  const lifecycleNeeds = asArray(currentLifecycleState?.needs);
-
-  if (!engine15 && !currentLifecycleState) {
-    return {
-      number: 3,
-      icon: "▣",
-      title: "Setup Readiness — Engine 15ES",
-      severity: "warning",
-      fields: [],
-      lines: ["Engine 15ES decision unavailable."],
-    };
-  }
-
-  const rawStrategy = engine15?.strategyType || "NONE";
-  const rawDirection = engine15?.direction || "NONE";
-  const rawAction = engine15?.action || "NO_ACTION";
-  const rawReadiness = engine15?.readinessLabel || "WAIT";
-
-  const engine15LooksEmpty =
-    String(rawStrategy || "").toUpperCase() === "NONE" ||
-    String(rawAction || "").toUpperCase() === "NO_ACTION" ||
-    String(rawDirection || "").toUpperCase() === "NONE";
-
-  const displayStrategy =
-    lifecycleOwnsDisplay && engine15LooksEmpty
-      ? lifecycleKey
-      : rawStrategy;
-
-  const displayDirection =
-    lifecycleOwnsDisplay && engine15LooksEmpty
-      ? "LONG_AFTER_CONFIRMATION"
-      : rawDirection;
-
-  const displayAction =
-    lifecycleOwnsDisplay && engine15LooksEmpty
-      ? lifecycleAction
-      : rawAction;
-
-  const displayReadiness =
-    engine15?.readinessLabel ||
-    currentLifecycleState?.readiness ||
-    rawReadiness;
-
-  const displayNext =
-    lifecycleOwnsDisplay
-      ? "WAIT_FOR_ENGINE3_ENGINE4_CONFIRMATION"
-      : engine15?.nextSetupType ||
-        engine15?.lifecycle?.nextFocus ||
-        "WAIT_FOR_CONFIRMATION";
-
-  const displayNeeds =
-    asArray(engine15?.needs).length > 0
-      ? asArray(engine15.needs)
-      : lifecycleNeeds;
-
-  const needsText = displayNeeds.map((need) => formatText(need)).join(", ");
-
-  const qualityText =
-    engine15?.qualityScore != null ||
-    engine15?.qualityGrade ||
-    engine15?.qualityBand
-      ? `${formatScore(engine15?.qualityScore)} / ${formatUpper(
-          engine15?.qualityGrade || engine15?.qualityBand,
-          "—"
-        )}`
-      : lifecycleOwnsDisplay
-      ? "0 / WATCH"
-      : "0 / IGNORE";
-
-  return {
-    number: 3,
-    icon: "▣",
-    title: "Setup Readiness — Engine 15ES",
-    severity: isReadyState(displayReadiness)
-      ? "bullish"
-      : isWatchState(displayReadiness)
-      ? "blue"
-      : "warning",
-    fields: [
-      ["Readiness", formatUpper(displayReadiness, "UNKNOWN")],
-      [
-        "Strategy",
-        lifecycleOwnsDisplay
-          ? "W2 C-LOW REACTION WATCH"
-          : formatUpper(displayStrategy, "NONE"),
-      ],
-      [
-        "Direction",
-        lifecycleOwnsDisplay
-          ? "LONG AFTER CONFIRMATION"
-          : formatUpper(displayDirection, "NONE"),
-      ],
-      ["Action", formatUpper(displayAction, "WATCH")],
-      ["Quality", qualityText],
-      ["Next", formatUpper(displayNext)],
-    ],
-    lines: [
-      lifecycleOwnsDisplay
-        ? "Engine 15ES is watching the Engine 22 W2 C-low reaction state. This is watch-only and not executable."
-        : null,
-      needsText ? `Needs: ${needsText}` : "Needs: waiting for confirmation.",
-    ].filter(Boolean),
-  };
-}
-
-function buildEngine5Section(fib) {
-  const reaction = getEngine5Reaction(fib);
-  const volume = getEngine5Volume(fib);
-  const timing = getEngine5Timing(fib);
-
-  const reactionText = reaction
-    ? compactJoin(
-        [
-          formatText(reaction.quality, "UNKNOWN"),
-          formatText(reaction.direction, ""),
-          reaction.confirmed || reaction.cleanReaction
-            ? "confirmed"
-            : "not confirmed",
-        ],
-        " / "
-      )
-    : "Unavailable";
-
-  const volumeText = volume
-    ? compactJoin(
-        [
-          formatText(volume.quality || volume.participationQuality, "UNKNOWN"),
-          volume.cleanParticipation
-            ? "clean participation"
-            : "clean participation not confirmed",
-        ],
-        " / "
-      )
-    : "Unavailable";
-
-  const timingText = timing
-    ? compactJoin(
-        [
-          formatText(timing.entryTiming, "UNKNOWN"),
-          timing.chaseRisk ? `chase risk ${formatText(timing.chaseRisk)}` : null,
-          timing.suggestedAction ? formatText(timing.suggestedAction) : null,
-        ],
-        " / "
-      )
-    : "Unavailable";
-
-  const hasWarning =
-    volume?.cleanParticipation === false ||
-    timing?.moveAlreadyHappened === true ||
-    timing?.noChaseContext === true ||
-    isDangerChase(timing?.chaseRisk);
-
-  return {
-    number: 4,
-    icon: "⚗",
-    title: "Ingredients — Engine 5",
-    severity: hasWarning ? "purple" : "neutral",
-    ingredientCards: [
-      {
-        label: "Reaction",
-        value: reactionText,
-        good: reaction?.confirmed === true || reaction?.cleanReaction === true,
-      },
-      {
-        label: "Volume",
-        value: volumeText,
-        good: volume?.cleanParticipation === true,
-      },
-      {
-        label: "Timing",
-        value: timingText,
-        good:
-          timing &&
-          timing.moveAlreadyHappened !== true &&
-          timing.noChaseContext !== true &&
-          !isDangerChase(timing.chaseRisk),
-      },
-    ],
-  };
-}
-
-function buildEngine27TraderIntelligenceSection(fib, decisionOverride = null) {
-  const decision = decisionOverride || getEngine27TraderDecision(fib);
-  const wave = getEngine27MinuteWaveIntelligence(fib);
-
-  if (!decision) {
-    return {
-      number: 0,
-      icon: "㉗",
-      title: "Trader Intelligence — Engine 27",
-      severity: "warning",
-      fields: [
-        ["State", "WAITING FOR ENGINE 27 DATA"],
-        ["Direction", "—"],
-        ["Current Wave", "—"],
-        ["Internal Wave", "—"],
-        ["Next Action", "MONITOR"],
-      ],
-      lines: [
-        "Engine 27 Trader Intelligence is not present in the current RowChart overlay payload.",
-        "This card is ready for the canonical engine27TraderDecision object once RowChart passes it through.",
-      ],
-    };
-  }
-
-  const readiness = decision?.readiness || {};
-  const blockers = asArray(
-    decision?.blockers ||
-      decision?.blockingReasons ||
-      readiness?.blockers
-  );
-
-  const waitingFor = asArray(
-    decision?.waitingFor ||
-      decision?.needs ||
-      readiness?.waitingFor
-  );
-
-const currentWave =
-  wave?.currentWave ||
-  decision?.currentWave ||
-  "—";
-
-const internalWave =
-  wave?.internalWave ||
-  decision?.internalWave ||
-  "—";
-
-const nextInternalWave =
-  wave?.nextExpectedInternalWave ||
-  decision?.nextExpectedInternalWave ||
-  "—";
-
-const currentLegDirection =
-  wave?.currentLegDirection ||
-  "—";
-
-const cWaveState =
-  wave?.cWaveState ||
-  "—";
-
-  const state =
-    decision?.state ||
-    decision?.decisionState ||
-    decision?.readinessState ||
-    "UNKNOWN";
-
-  const direction =
-    decision?.direction ||
-    decision?.bias ||
-    decision?.tradeDirection ||
-    "NEUTRAL";
-
-  const nextAction =
-    decision?.nextAction ||
-    decision?.action ||
-    decision?.recommendedAction ||
-    "MONITOR";
-
-  const severity =
-    decision?.executable === true
-      ? "bullish"
-      : blockers.length
-      ? "warning"
-      : "teal";
-
-  return {
-    number: 0,
-    icon: "㉗",
-    title: "Trader Intelligence — Engine 27",
-    severity,
-    fields: [
-      ["State", formatUpper(state)],
-      ["Direction", formatUpper(direction)],
-      ["Current Wave", formatUpper(currentWave)],
-      ["Internal Wave", formatText(internalWave)],
-      ["Next Internal", formatText(nextInternalWave)],
-      ["Current Leg", formatUpper(currentLegDirection)],
-      ["C-Wave State", formatUpper(cWaveState)],
-      ["Next Action", formatUpper(nextAction)],
-      ["Executable", formatBool(decision?.executable, "NO")],
-    ],
-    lines: [
-      waitingFor.length
-        ? `Waiting for: ${waitingFor.map(formatText).join(", ")}`
-        : null,
-      blockers.length
-        ? `Blockers: ${blockers.map(formatText).join(", ")}`
-        : "No active Engine 27 blockers reported.",
-      decision?.summary || decision?.traderMessage || null,
-    ].filter(Boolean),
-  };
-}
-
-function getCanonicalStageSeverity(status) {
-  const normalized = String(status || "").toUpperCase();
-
-  if (normalized === "ACTIVE") return "bullish";
-  if (normalized === "WATCHING") return "warning";
-  if (normalized === "WAITING") return "purple";
-
-  return "neutral";
-}
-
-function buildCanonicalMinuteStageTimelineSection(fib) {
-  const strategyTimeline = getCanonicalStrategyTimeline(fib);
-  const stages = Array.isArray(strategyTimeline?.stages)
-    ? strategyTimeline.stages.filter(Boolean)
-    : [];
-
-  if (!stages.length) {
-    return {
-      number: 0,
-      icon: "⑩",
-      title: "Canonical Minute Stage Timeline",
-      severity: "warning",
-      fields: [],
-      lines: ["Timeline not attached yet."],
-    };
-  }
-
-  return {
-    number: 0,
-    icon: "⑩",
-    title: "Canonical Minute Stage Timeline",
-    severity: "blue",
-    canonicalStages: stages.map((stage) => ({
-      id: stage?.id || null,
-      label: stage?.label || stage?.id || "—",
-      status: stage?.status || "—",
-      sourceEngine: stage?.sourceEngine || null,
-      severity: getCanonicalStageSeverity(stage?.status),
-    })),
-    fields: [],
-    lines: [],
-  };
-}
-
-function buildPermissionSection(permission, engine15) {
-  if (!permission) {
-    return {
-      number: 5,
-      icon: "⬟",
-      title: "Final Permission — Engine 6",
-      severity: "warning",
-      fields: [],
-      lines: ["Engine 6 final permission unavailable."],
-    };
-  }
-
-  const executable = permission.executable === true;
-  const watchOnly = permission.watchOnly === true;
-  const paper = permission.paper || null;
-
-  const paperDecision = String(paper?.decision || "").toUpperCase();
-  const paperDirection = String(paper?.direction || "").toUpperCase();
-  const permissionAuthority =
-    permission?.authority ||
-    paper?.authority ||
-    (
-      permission?.engine6Authority === true ||
-      paper?.engine6Authority === true ||
-      paper?.engine15Bypassed === true ||
-      paper?.engine15FastLaneExcluded === true
-        ? "Engine 6 Fast Lane"
-        : permission?.engine15Authority === true
-        ? "Engine 15"
-        : permission?.engine5Authority === true
-        ? "Engine 5"
-        : "—"
-    );
-
-  const permissionAuthoritySource =
-    permission?.authoritySource ||
-    paper?.authoritySource ||
-    null;
-
-  const isStructuralFastWatch =
-    paperDecision === "STRUCTURAL_FAST_WATCH" ||
-    paper?.structuralWatchOnly === true;
-
-  const isShortResearchWatch =
-    paperDecision === "PAPER_SHORT_RESEARCH_WATCH" ||
-    paper?.shortResearchWatch === true;
-
-  const isPaperResearchLane = isStructuralFastWatch || isShortResearchWatch;
-
-  const paperStrategy =
-    paper?.setupType ||
-    engine15?.paperScalpReadiness?.setupType ||
-    engine15?.strategyType ||
-    "NONE";
-
-  const realStrategy =
-    permission.strategyType ||
-    engine15?.strategyType ||
-    "NONE";
-
-  let permissionLine = "Engine 6 does not allow execution yet.";
-
-  if (isShortResearchWatch) {
-    permissionLine =
-      "PAPER SHORT RESEARCH WATCH — short rejection / failed-acceptance research is active. No ticket. No execution.";
-  } else if (isStructuralFastWatch) {
-    permissionLine =
-      "STRUCTURAL FAST WATCH — Engine 26 C-down danger zone is active. Watch only. No ticket. No execution.";
-  } else if (executable) {
-    permissionLine =
-      "Engine 6 allows execution because setup and permission gates passed.";
-  } else if (
-    String(permission.permission || "").toUpperCase() === "REDUCE" &&
-    watchOnly
-  ) {
-    permissionLine =
-      "REDUCE — watch only, no execution. Waiting for Engine 3 reaction, Engine 4 participation, and Engine 6 final paper permission.";
-  } else if (watchOnly) {
-    permissionLine =
-      "Engine 6 will not allow execution because this is watch only.";
-  }
-
-  const severity =
-    isShortResearchWatch || isStructuralFastWatch
-      ? "danger"
-      : executable
-      ? "bullish"
-      : "purple";
-
-  return {
-    number: 5,
-    icon: "⬟",
-    title: "Final Permission — Engine 6",
-    severity,
-    fields: [
-      ["Paper State", paperDecision ? formatUpper(paperDecision) : "—"],
-      ["Paper Direction", paperDirection ? formatUpper(paperDirection) : "—"],
-      [
-        "Paper Strategy",
-        isPaperResearchLane ? formatUpper(paperStrategy, "NONE") : "—",
-      ],
-      ["Paper Allowed", formatBool(paper?.allowed)],
-      ["Ticket Allowed", formatBool(paper?.paperShortAllowed)],
-      ["Short Research", formatBool(paper?.shortResearchOnly)],
-
-      ["Real Permission", formatUpper(permission.permission, "UNKNOWN")],
-      ["Real Strategy", formatUpper(realStrategy, "NONE")],
-      ["Executable", formatBool(permission.executable)],
-      ["Watch Only", formatBool(permission.watchOnly)],
-
-      ["Authority", permissionAuthority],
-      [
-        "Authority Source",
-        permissionAuthoritySource
-          ? formatUpper(permissionAuthoritySource)
-          : "—",
-      ],
-    ],
-    lines: [],
-  };
-}
-function buildNextStepsSection({
-  waveOpportunity,
-  engine15,
-  permission,
-  fib,
-  tradeContextSummary = null,
-}) {
-  const actionLevels = [];
-  const steps = [];
-
-  const waveNeeds = asArray(waveOpportunity?.needs);
-  const engine15Needs = asArray(engine15?.needs);
-  const permissionReasons = asArray(permission?.reasonCodes);
-  const volume = getEngine5Volume(fib);
-  const timing = getEngine5Timing(fib);
-  const abcUp = tradeContextSummary?.abcUp || null;
-  const possibleW5Up = getPossibleW5Up(fib);
-  const possibleW5UpComplete = isPossibleW5UpComplete(possibleW5Up);
-  const possibleW5Summary = getPossibleW5PullbackSummary(possibleW5Up);
-  const postBounce = getPostDownImpulseBounce(fib);
-  const postBounceActive = isPostMinor5BounceCLegActive(postBounce);
-  const postBounceTargetSummary = getPostBounceTargetSummary(postBounce);
-
-  const engine16 = fib?.engine16 || {};
-  const trigger10m = engine16?.regimeLayers?.trigger10m || {};
-  const currentPrice = waveOpportunity?.currentPrice || trigger10m?.close || null;
-
-  if (currentPrice != null) {
-    actionLevels.push(`Current price: ${formatNumber(currentPrice)}`);
-  }
-
-  if (possibleW5UpComplete) {
-    if (possibleW5Up?.w5High != null) {
-      actionLevels.push(`W5 high: ${formatNumber(possibleW5Up.w5High)}`);
-    }
-
-    if (possibleW5Summary.pointsOffHigh != null) {
-      actionLevels.push(
-        `Off W5 high: ${formatNumber(possibleW5Summary.pointsOffHigh)} pts`
-      );
-    }
-
-    if (possibleW5Summary.hitLabel) {
-      actionLevels.push(
-        `Current pullback fib hit: ${possibleW5Summary.hitLabel}`
-      );
-    }
-
-    if (possibleW5Summary.nextLabel) {
-      actionLevels.push(
-        `Next pullback watch: ${possibleW5Summary.nextLabel} @ ${formatNumber(
-          possibleW5Summary.nextPrice
-        )}`
-      );
-    }
-
-    steps.push("Watch pullback reaction / reclaim");
-    steps.push("Do not chase the completed W5 up move");
-    steps.push("No automatic long. No execution");
-  }
-
-  if (postBounceActive && !possibleW5UpComplete) {
-    if (postBounceTargetSummary.currentHigh != null) {
-      actionLevels.push(
-        `Current C-up high: ${formatNumber(postBounceTargetSummary.currentHigh)}`
-      );
-    }
-
-    if (postBounceTargetSummary.hitLabel) {
-      actionLevels.push(
-        `Highest target hit: ${postBounceTargetSummary.hitLabel}`
-      );
-    }
-
-    if (postBounceTargetSummary.nextLabel) {
-      actionLevels.push(
-        `Next C-up target: ${postBounceTargetSummary.nextLabel} @ ${formatNumber(
-          postBounceTargetSummary.nextPrice
-        )}`
-      );
-    }
-
-    steps.push("Watch C-up maturity / HTF decision");
-    steps.push("Do not chase the corrective C-up bounce");
+    return "#ef4444";
   }
 
   if (
-    String(abcUp?.state || "").toUpperCase() ===
-    "A_UP_MARKED_WAITING_FOR_B_PULLBACK"
+    text.includes("WATCH") ||
+    text.includes("MIXED") ||
+    text.includes("A_PLUS") ||
+    text.includes("SECONDARY") ||
+    text.includes("RECLAIM")
   ) {
-    const bLow =
-      abcUp.effectiveWaveBLow ??
-      abcUp.autoWaveBLow ??
-      abcUp.waveBLow ??
-      null;
-
-    if (abcUp?.waveAHigh != null) {
-      actionLevels.push(`A high: ${formatNumber(abcUp.waveAHigh)}`);
-    }
-
-    if (bLow != null) {
-      actionLevels.push(`B low: ${formatNumber(bLow)}`);
-    }
-
-    if (abcUp?.preferredBZone?.lo != null && abcUp?.preferredBZone?.hi != null) {
-      actionLevels.push(
-        `Preferred B zone: ${formatNumber(
-          abcUp.preferredBZone.lo
-        )}–${formatNumber(abcUp.preferredBZone.hi)}`
-      );
-    }
-
-    if (abcUp?.deepBSupport != null) {
-      actionLevels.push(`Deep B support: ${formatNumber(abcUp.deepBSupport)}`);
-    }
-
-    steps.push("Wait for B pullback hold and reclaim");
-    steps.push("No chase and no execution");
+    return "#fbbf24";
   }
 
   if (
-    trigger10m?.ema10 != null &&
-    trigger10m?.ema20 != null &&
-    String(abcUp?.state || "").toUpperCase() !==
-      "A_UP_MARKED_WAITING_FOR_B_PULLBACK" &&
-    !postBounceActive &&
-    !possibleW5UpComplete
+    text.includes("EXPANDING") ||
+    text.includes("SUPPORTIVE") ||
+    text.includes("CONFIRMED") ||
+    text.includes("ACCUMULATION")
   ) {
-    actionLevels.push(
-      `10m reclaim zone: ${formatNumber(trigger10m.ema10)} → ${formatNumber(
-        trigger10m.ema20
-      )}`
-    );
+    return "#22c55e";
+  }
+
+  return scoreColor(score);
+}
+
+function intradayColor(label, score) {
+  const text = String(label || "").toUpperCase();
+  const n = Number(score);
+
+  if (text.includes("DISTRIBUTION_ACTIVE")) return "#ef4444";
+  if (text.includes("DAMAGE_ELEVATED")) return "#f97316";
+  if (text.includes("DAMAGE_WATCH")) return "#fbbf24";
+  if (Number.isFinite(n)) return scoreColor(n);
+
+  return "#94a3b8";
+}
+
+function macroStateColor(value) {
+  const text = String(value || "").toUpperCase();
+
+  if (
+    text.includes("MACRO_SHOCK") ||
+    text.includes("NEGATIVE") ||
+    text.includes("SHOCK") ||
+    text.includes("HIGH") ||
+    text.includes("EXTREME")
+  ) {
+    return "#ef4444";
   }
 
   if (
-    !postBounceActive &&
-    !possibleW5UpComplete &&
-    (waveNeeds.some((need) => String(need).toUpperCase().includes("NO_CHASE")) ||
-      isDangerChase(waveOpportunity?.chaseRisk))
+    text.includes("HEADWIND") ||
+    text.includes("WARNING") ||
+    text.includes("ELEVATED") ||
+    text.includes("MODERATE")
   ) {
-    steps.push("Do not chase the current W5 extension");
+    return "#fbbf24";
   }
+
+  if (text.includes("SUPPORTIVE")) {
+    return "#22c55e";
+  }
+
+  return "#94a3b8";
+}
+
+function fmtScore(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return "—";
+  return Math.round(n);
+}
+
+function fmtScoreDecimal(value, decimals = 2) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return "—";
+  return n.toFixed(decimals);
+}
+
+function fmtChange(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return "—";
+  if (n > 0) return `+${n}`;
+  return String(n);
+}
+
+function shortLevel(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return value ?? "required";
+  return n % 1 === 0 ? String(n) : n.toFixed(1);
+}
+
+function rowByLabel(rows, label) {
+  return rows.find((row) => row?.label === label) || null;
+}
+
+function fmtEventTimeArizona(value) {
+  const ms = Date.parse(value || "");
+  if (!Number.isFinite(ms)) return "TIME UNKNOWN";
+
+  try {
+    return `${new Intl.DateTimeFormat("en-US", {
+      timeZone: "America/Phoenix",
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    }).format(new Date(ms))} AZ`;
+  } catch {
+    return "TIME UNKNOWN";
+  }
+}
+
+function isActiveMaterialNewsEvent(event, nowMs = Date.now()) {
+  if (!event || event.material !== true) return false;
+
+  const expiresMs = Date.parse(event?.expiresAt || "");
+  if (!Number.isFinite(expiresMs) || nowMs >= expiresMs) return false;
+
+  const status = String(event?.status || "").toUpperCase();
+  if (status === "EVENT_EXPIRED") return false;
+
+  return true;
+}
+
+function newsEventColor(event) {
+  const severity = String(event?.severity || "").toUpperCase();
+
+  if (severity === "HIGH" || severity === "EXTREME") return "#ef4444";
+  if (severity === "MODERATE") return "#fbbf24";
+  return "#94a3b8";
+}
+
+function confirmationSummaryForEvent(event, intradayMacro) {
+  const eventType = String(event?.eventType || "").toUpperCase();
+  const confirmation = intradayMacro?.marketConfirmation || {};
+  const geopolitics = intradayMacro?.components?.geopolitics || null;
+  const treasuryLiquidity =
+    intradayMacro?.components?.treasuryLiquidity || null;
 
   if (
-    waveNeeds.some((need) => String(need).toUpperCase().includes("PULLBACK")) ||
-    engine15Needs.some((need) => String(need).toUpperCase().includes("PULLBACK")) ||
-    timing?.suggestedAction
+    eventType === "GEOPOLITICAL_OIL_SUPPLY_RISK" ||
+    eventType === "ENERGY_SUPPLY_EVENT" ||
+    (eventType === "GEOPOLITICAL_ESCALATION" && event?.oilSupplyRisk === true)
   ) {
-    steps.push("Wait for controlled pullback or reclaim");
-  }
-
-  if (
-    engine15Needs.some((need) => String(need).toUpperCase().includes("10M")) ||
-    permissionReasons.some((reason) =>
-      String(reason).toUpperCase().includes("RECLAIM")
-    )
-  ) {
-    steps.push("Need 10m EMA10/EMA20 reclaim");
-  }
-
-  if (
-    engine15Needs.some((need) => String(need).toUpperCase().includes("ENGINE3")) ||
-    engine15?.qualityBreakdown?.reactionConfirmed === false
-  ) {
-    steps.push("Need Engine 3 reaction confirmation");
-  }
-
-  if (
-    engine15Needs.some((need) => String(need).toUpperCase().includes("ENGINE4")) ||
-    volume?.cleanParticipation === false
-  ) {
-    steps.push("Need Engine 4 clean participation");
-  }
-
-  if (!isReadyState(engine15?.readinessLabel)) {
-    steps.push("Engine 6 remains final paper permission authority");
-  }
-
-  if (!actionLevels.length && !steps.length) {
-    steps.push("Wait for the next valid Wave 3 or Wave 5 opportunity");
-  }
-
-  return {
-    number: 6,
-    icon: "✓",
-    title: "Next Action Levels",
-    severity: "teal",
-    checklist: [...actionLevels, ...steps].slice(0, 8),
-  };
-}
-
-/* =========================
-   Market Context builders
-========================= */
-function getReactionContext(fib) {
-  const confluence = getConfluence(fib);
-
-  return (
-    confluence?.context?.reaction ||
-    fib?.confluence?.context?.reaction ||
-    getStrategyRoot(fib)?.confluence?.context?.reaction ||
-    null
-  );
-}
-
-function getEngine3FastImbalanceReaction(fib) {
-  const reactionContext = getReactionContext(fib);
-
-  return reactionContext?.engine3FastImbalanceReaction || null;
-}
-
-function getCurrentLevelActionReaction(fib) {
-  const reactionContext = getReactionContext(fib);
-
-  return reactionContext?.currentLevelAction || null;
-}
-
-function getPaperScalpReaction(fib) {
-  const reactionContext = getReactionContext(fib);
-
-  return reactionContext?.paperScalpReaction || null;
-}
-
-function getMinuteEngine26ReactionHandoff(fib) {
-  const root = getStrategyRoot(fib);
-  const minuteStrategyId = "intraday_scalp@10m";
-
-  return (
-    root?.strategies?.[minuteStrategyId]?.engine26ReactionHandoff ||
-    fib?.strategies?.[minuteStrategyId]?.engine26ReactionHandoff ||
-    root?.engine26ReactionHandoff ||
-    fib?.engine26ReactionHandoff ||
-    getEngine26Strategy1Setup(fib)?.engine26ReactionHandoff ||
-    null
-  );
-}
-
-function selectActiveEngine3Diagnostic(fastReaction, currentLevelAction) {
-  if (
-    fastReaction?.active === true &&
-    fastReaction?.fastMode === true
-  ) {
-    return {
-      source: "engine3FastImbalanceReaction",
-      diagnostic: fastReaction,
-    };
-  }
-
-  if (currentLevelAction?.active === true) {
-    return {
-      source: "currentLevelAction",
-      diagnostic: currentLevelAction,
-    };
-  }
-
-  return {
-    source: null,
-    diagnostic: null,
-  };
-}
-
-function getPublishedDiagnosticBoolean(diagnostic, key) {
-  const levelActionValue = diagnostic?.levelAction?.[key];
-
-  if (typeof levelActionValue === "boolean") {
-    return levelActionValue;
-  }
-
-  const directValue = diagnostic?.[key];
-
-  if (typeof directValue === "boolean") {
-    return directValue;
-  }
-
-  return null;
-}
-
-function getSelectedDiagnosticState(diagnostic) {
-  return (
-    diagnostic?.rawState ||
-    diagnostic?.fastReactionState ||
-    diagnostic?.state ||
-    null
-  );
-}
-
-function getSelectedDiagnosticDirection(diagnostic) {
-  return (
-    diagnostic?.rawDirection ||
-    diagnostic?.fastReactionDirection ||
-    diagnostic?.direction ||
-    null
-  );
-}
-
-function getSelectedDiagnosticQuality(diagnostic) {
-  return (
-    diagnostic?.rawQuality ||
-    diagnostic?.fastReactionQuality ||
-    diagnostic?.quality ||
-    null
-  );
-}
-
-function getSelectedDiagnosticSeverity({ diagnostic, paperScalp }) {
-  const canonicalState = String(
-    paperScalp?.reactionState || paperScalp?.state || ""
-  ).toUpperCase();
-
-  const canonicalDirection = String(
-    paperScalp?.direction || "NEUTRAL"
-  ).toUpperCase();
-
-  // Strategy 1 timeline color is owned by canonical Engine 3 only.
-  // Fast 10m/current-level diagnostics remain visible as evidence,
-  // but they can no longer independently turn the card green or red.
-  if (canonicalDirection === "SHORT") return "danger";
-  if (canonicalDirection === "LONG") return "bullish";
-
-  if (
-    canonicalState.includes("INVALID") ||
-    canonicalState.includes("FAILED")
-  ) {
-    return "warning";
-  }
-
-  return "blue";
-}
-
-function getEngine22LifecycleReaction(fib) {
-  const reactionContext = getReactionContext(fib);
-
-  return reactionContext?.engine22LifecycleReaction || null;
-}
-
-function getEngine22PullbackReaction(fib) {
-  const reactionContext = getReactionContext(fib);
-
-  return reactionContext?.engine22PullbackReaction || null;
-}
-
-function getDirectionConflict(primaryDirection, secondaryDirection) {
-  const a = String(primaryDirection || "").toUpperCase();
-  const b = String(secondaryDirection || "").toUpperCase();
-
-  if (!a || !b) return false;
-  if (a === "NEUTRAL" || b === "NEUTRAL") return false;
-
-  return a !== b;
-}
-
-function getFastReactionSeverity({ fastReaction, currentLevelAction, paperScalp }) {
-  const fastDirection = String(fastReaction?.direction || "").toUpperCase();
-  const currentDirection = String(currentLevelAction?.direction || "").toUpperCase();
-  const fastQuality = String(fastReaction?.quality || "").toUpperCase();
-  const state = String(fastReaction?.state || "").toUpperCase();
-
-  const conflict = getDirectionConflict(fastDirection, currentDirection);
-
-  if (conflict) return "warning";
-  if (paperScalp?.allowed === true) return "bullish";
-  if (["FAILED_RECLAIM", "REJECTING_VALUE", "BREAKOUT_FAILING", "LOST_LEVEL"].includes(state)) {
-    return "danger";
-  }
-  if (fastQuality === "STRONG" || fastQuality === "GOOD") return "bullish";
-  if (fastQuality === "MIXED") return "warning";
-
-  return "blue";
-}
-
-function getEngine3ActualRead(fastReaction, currentLevelAction) {
-  const fastState =
-    fastReaction?.rawState ||
-    fastReaction?.fastReactionState ||
-    fastReaction?.state ||
-    "NO_SIGNAL";
-
-  const fastDirection =
-    fastReaction?.rawDirection ||
-    fastReaction?.fastReactionDirection ||
-    fastReaction?.direction ||
-    "NEUTRAL";
-
-  const fastQuality =
-    fastReaction?.rawQuality ||
-    fastReaction?.fastReactionQuality ||
-    fastReaction?.quality ||
-    "WEAK";
-
-  const currentState =
-    currentLevelAction?.state ||
-    "NO_SIGNAL";
-
-  const currentDirection =
-    currentLevelAction?.direction ||
-    "NEUTRAL";
-
-  const currentQuality =
-    currentLevelAction?.quality ||
-    "WEAK";
-
-  return {
-    fastState,
-    fastDirection,
-    fastQuality,
-    currentState,
-    currentDirection,
-    currentQuality,
-  };
-}
-
-function getEngine3MeaningForState(state) {
-  const normalized = String(state || "").toUpperCase();
-
-  if (normalized === "HELD_LEVEL") {
-    return "Price is holding the zone. Buyers are defending.";
-  }
-
-  if (normalized === "RECLAIMED_LEVEL") {
-    return "Price reclaimed the level. Buyers recovered the zone.";
-  }
-
-  if (normalized === "WICK_BELOW_AND_RECLAIM") {
-    return "Price wicked below and reclaimed. Sellers were trapped.";
-  }
-
-  if (normalized === "DIP_BOUGHT_FAST") {
-    return "The dip was bought quickly. Buyers are still active.";
-  }
-
-  if (normalized === "SELLERS_TRAPPED") {
-    return "Sellers were trapped below the level and buyers reclaimed.";
-  }
-
-  if (normalized === "FAILED_RECLAIM") {
-    return "Price tried to reclaim but failed. Rejection risk is building.";
-  }
-
-  if (normalized === "REJECTING_VALUE") {
-    return "Price is rejecting value. Bearish reaction is possible, but quality matters.";
-  }
-
-  if (normalized === "LOST_LEVEL") {
-    return "Price lost the level. Support failed.";
-  }
-
-  if (normalized === "BREAKOUT_FAILING") {
-    return "Price tried to break higher but fell back into the zone.";
-  }
-
-  if (normalized === "BREAKOUT_HOLDING") {
-    return "Price broke above and is holding. Buyers are accepting higher price.";
-  }
-
-  return "No clear Engine 3 price reaction yet.";
-}
-
-function getEngine3BooleanReads({ fastReaction, currentLevelAction }) {
-  const levelAction = fastReaction?.levelAction || {};
-
-  const fastState = String(
-    fastReaction?.rawState ||
-      fastReaction?.state ||
-      ""
-  ).toUpperCase();
-
-  const currentState = String(
-    currentLevelAction?.state ||
-      ""
-  ).toUpperCase();
-
-  const rejected =
-    levelAction.rejectingValue === true ||
-    currentState === "REJECTING_VALUE" ||
-    fastState === "REJECTING_VALUE";
-
-  const lostZone =
-    levelAction.lostLevel === true ||
-    currentState === "LOST_LEVEL" ||
-    fastState === "LOST_LEVEL";
-
-  const failedReclaim =
-    levelAction.failedReclaim === true ||
-    currentState === "FAILED_RECLAIM" ||
-    fastState === "FAILED_RECLAIM";
-
-  const breakdown =
-    lostZone ||
-    fastState === "BREAKOUT_FAILING" ||
-    currentState === "BREAKOUT_FAILING";
-
-  return {
-    rejected,
-    lostZone,
-    failedReclaim,
-    breakdown,
-  };
-}
-
-function formatNegZone(imbalance) {
-  const neg = imbalance?.negZone || null;
-
-  if (!neg || neg.lo == null || neg.hi == null) {
-    return "—";
-  }
-
-  return `${formatNumber(neg.lo)}–${formatNumber(neg.hi)}`;
-}
-
-function getWaveContextForScalp({ fastReaction, paperScalp, currentLevelAction }) {
-  return (
-    fastReaction?.waveContext ||
-    paperScalp?.waveContext ||
-    currentLevelAction?.waveContext ||
-    null
-  );
-}
-
-function formatScalpStructureLine(waveContext) {
-  if (!waveContext?.active) return null;
-
-  const minor = waveContext?.minor?.correctionType
-    ? `Minor ${formatUpper(waveContext.minor.activeWave, "—")} / ${formatUpper(
-        waveContext.minor.correctionType,
-        "—"
-      )}`
-    : null;
-
-  const minute = waveContext?.minute?.correctionType
-    ? `Minute ${formatUpper(waveContext.minute.correctionType, "—")}`
-    : null;
-
-  const subminute = waveContext?.subminute?.currentRead
-    ? "Subminute C-down watch"
-    : null;
-
-  return [minor, minute, subminute].filter(Boolean).join(" → ");
-}
-
-function directionFromDegreeDirection(value) {
-  const v = String(value || "").toUpperCase();
-
-  if (v === "DOWN" || v === "SHORT" || v.includes("C_DOWN")) return "SHORT";
-  if (v === "UP" || v === "LONG" || v.includes("BOUNCE")) return "LONG";
-
-  return "NEUTRAL";
-}
-
-function getEngine4StructureDirection(waveContext) {
-  return directionFromDegreeDirection(
-    waveContext?.subminute?.direction ||
-      waveContext?.minute?.direction ||
-      waveContext?.minor?.direction ||
-      null
-  );
-}
-
-function formatEngine4WavePath(waveContext) {
-  if (!waveContext?.available) return "—";
-
-  const minor = waveContext?.minor
-    ? `Minor ${formatUpper(waveContext.minor.activeWave, "—")} / ${formatUpper(
-        waveContext.minor.correctionType ||
-          waveContext.minor.preferredType ||
-          "—"
-      )}`
-    : null;
-
-  const minute = waveContext?.minute
-    ? `Minute ${formatUpper(
-        waveContext.minute.correctionType || waveContext.minute.activeWave || "—"
-      )}`
-    : null;
-
-  const subminute = waveContext?.subminute
-    ? `Subminute ${formatUpper(
-        waveContext.subminute.activeWave || waveContext.subminute.direction || "—"
-      )}`
-    : null;
-
-  return [minor, minute, subminute].filter(Boolean).join(" → ") || "—";
-}
-
-function getEngine4StructureAlignment(participation) {
-  const intendedDirection = String(
-    participation?.intendedDirection || participation?.direction || ""
-  ).toUpperCase();
-
-  const structureDirection = getEngine4StructureDirection(
-    participation?.waveContext
-  );
-
-  if (!intendedDirection || intendedDirection === "NEUTRAL") {
-    return "NO_TRADE_DIRECTION";
-  }
-
-  if (!structureDirection || structureDirection === "NEUTRAL") {
-    return "STRUCTURE_DIRECTION_UNKNOWN";
-  }
-
-  if (intendedDirection === structureDirection) {
-    return structureDirection === "SHORT"
-      ? "SUPPORTS_TACTICAL_C_DOWN"
-      : "SUPPORTS_SUPPORT_DEFENSE";
-  }
-
-  return structureDirection === "SHORT"
-    ? "COUNTER_TO_TACTICAL_C_DOWN"
-    : "COUNTER_TO_SUPPORT_DEFENSE";
-}
-
-function buildEngine4StructureLines(participation) {
-  const waveContext = participation?.waveContext || null;
-
-  if (!waveContext?.available) {
-    return [
-      "Engine 4 structure context is using fallback lifecycle data.",
-    ];
-  }
-
-  const wavePath = formatEngine4WavePath(waveContext);
-  const alignment = getEngine4StructureAlignment(participation);
-
-  return [
-    "Engine 4 is reading volume against Engine 22 degreeStates.",
-    wavePath !== "—" ? `Wave path: ${wavePath}.` : null,
-    alignment === "SUPPORTS_TACTICAL_C_DOWN"
-      ? "Participation is aligned with the tactical C-down path."
-      : null,
-    alignment === "COUNTER_TO_TACTICAL_C_DOWN"
-      ? "Participation is counter to the tactical C-down path; treat this as support defense / bounce risk."
-      : null,
-    alignment === "SUPPORTS_SUPPORT_DEFENSE"
-      ? "Participation supports support defense / bounce behavior."
-      : null,
-    alignment === "COUNTER_TO_SUPPORT_DEFENSE"
-      ? "Participation is pushing against support defense."
-      : null,
-  ].filter(Boolean);
-}
-
-function buildEngine3ContextSection(fib) {
-  const fastReaction = getEngine3FastImbalanceReaction(fib);
-  const currentLevelAction = getCurrentLevelActionReaction(fib);
-  const paperScalp = getPaperScalpReaction(fib);
-  const lifecycleReaction = getEngine22LifecycleReaction(fib);
-  const pullbackReaction = getEngine22PullbackReaction(fib);
-  const reaction = getEngine5Reaction(fib);
-  const control = getEngine26ControlLevelContext(fib);
-  const location = getEngine26LocationContext(fib);
-  const strategy1Setup = getEngine26Strategy1Setup(fib);
-  const engine26Handoff = getMinuteEngine26ReactionHandoff(fib);
-
-  const canonicalMinuteStrategy =
-    paperScalp?.active === true &&
-    paperScalp?.laneId === "minute" &&
-    paperScalp?.strategyId === "intraday_scalp@10m";
-
-  if (canonicalMinuteStrategy) {
-    const selected = selectActiveEngine3Diagnostic(
-      fastReaction,
-      currentLevelAction
-    );
-
-    const diagnostic = selected.diagnostic;
-
-    const diagnosticState =
-      getSelectedDiagnosticState(diagnostic);
-
-    const diagnosticDirection =
-      getSelectedDiagnosticDirection(diagnostic);
-
-    const diagnosticQuality =
-      getSelectedDiagnosticQuality(diagnostic);
-
-    const reactionConfirmed =
-      paperScalp?.reactionConfirmed === true ||
-      paperScalp?.confirmed === true;
-
-    const allowed =
-      paperScalp?.allowed === true;
-
-    const canonicalDirection = String(
-      paperScalp?.direction || "NEUTRAL"
-    ).toUpperCase();
-
-    const canonicalState = String(
-      paperScalp?.reactionState ||
-        paperScalp?.state ||
-        "WAITING"
-    ).toUpperCase();
-
-    const canonicalQuality = String(
-      paperScalp?.quality || "UNAVAILABLE"
-    ).toUpperCase();
-
-    const qualifiedForEngine6 =
-      paperScalp?.engine3Strategy1QualifiedForEngine6 === true;
-
-    const authorized =
-      paperScalp?.authorized === true;
-
-    const canonicalExpectedDirection = String(
-      paperScalp?.expectedReactionDirection || "NEUTRAL"
-    ).toUpperCase();
-
-    const contactState =
-      engine26Handoff?.contactState || null;
-
-    const chainArmed =
-      engine26Handoff?.chainArmed === true;
-
-    const handoffDirectionState =
-      engine26Handoff?.directionState || null;
-
-    const handoffExpectedDirection = String(
-      engine26Handoff?.expectedReactionDirection || ""
-    ).toUpperCase();
-
-    const invalidated =
-      canonicalState.includes("INVALID");
-
-    let strategyStatus = `${canonicalDirection} reaction developing — ${canonicalQuality.toLowerCase()} quality, not confirmed, ${
-      qualifiedForEngine6 ? "qualified" : "not yet qualified"
-    } for Engine 6.`;
-
-    if (invalidated) {
-      strategyStatus =
-        `${canonicalDirection} reaction invalidated.`;
-    } else if (reactionConfirmed) {
-      strategyStatus = `${
-        canonicalDirection === "SHORT"
-          ? "SHORT"
-          : canonicalDirection === "LONG"
-          ? "LONG"
-          : "NEUTRAL"
-      } — reaction confirmed.`;
-    }
-
-    let resultText =
-      "Reaction not confirmed. No permission. No execution.";
-
-    if (
-      reactionConfirmed &&
-      allowed === false
-    ) {
-      resultText =
-        "Reaction confirmed. Waiting for Engine 4 / Engine 6.";
-    } else if (
-      reactionConfirmed &&
-      allowed === true
-    ) {
-      resultText =
-        "Reaction confirmed. Engine 3 allowed. Waiting for Engine 4 / Engine 6.";
-    }
-
-    const imbalance =
-      diagnostic?.imbalance || null;
-
-    const zone =
-      imbalance ||
-      engine26Handoff?.zone ||
-      engine26Handoff?.entryZone ||
-      strategy1Setup?.entryZone ||
-      strategy1Setup?.location ||
-      null;
-
-    const zoneLow =
-      zone?.lo ?? zone?.low ?? null;
-
-    const zoneHigh =
-      zone?.hi ?? zone?.high ?? null;
-
-    const zoneText =
-      zoneLow != null && zoneHigh != null
-        ? `${formatNumber(zoneLow)}–${formatNumber(zoneHigh)}`
-        : "—";
-
-    const negZone =
-      imbalance?.negZone ||
-      engine26Handoff?.negZone ||
-      null;
-
-    const negZoneLow =
-      negZone?.lo ?? negZone?.low ?? null;
-
-    const negZoneHigh =
-      negZone?.hi ?? negZone?.high ?? null;
-
-    const negZoneText =
-      negZoneLow != null && negZoneHigh != null
-        ? `${formatNumber(negZoneLow)}–${formatNumber(negZoneHigh)}`
-        : "—";
-
-    const currentPrice = Number(
-      paperScalp?.currentPrice ??
-        engine26Handoff?.currentPrice ??
-        strategy1Setup?.currentPrice ??
-        diagnostic?.currentPrice
-    );
-
-    const distancePts = Number(
-      imbalance?.distancePts ??
-        diagnostic?.distancePts
-    );
-
-    const canonicalLocationRelation =
-      strategy1Setup?.location?.relation ||
-      engine26Handoff?.relation ||
-      engine26Handoff?.location?.relation ||
-      null;
-
-    const locationText =
-      contactState ||
-      canonicalLocationRelation ||
-      "—";
-
-    const canonicalRead = `${formatUpper(
-      canonicalState,
-      "WAITING"
-    )} / ${formatUpper(
-      canonicalDirection,
-      "NEUTRAL"
-    )} / ${formatUpper(
-      canonicalQuality,
-      "UNAVAILABLE"
-    )}`;
-
-    const diagnosticRead = diagnostic
-      ? `${formatUpper(
-          diagnosticState,
-          "NO SIGNAL"
-        )} / ${formatUpper(
-          diagnosticDirection,
-          "NEUTRAL"
-        )} / ${formatUpper(
-          diagnosticQuality,
-          "WEAK"
-        )}`
-      : "—";
-
-    const observation1m =
-      paperScalp?.reactionObservation1m || null;
-
-    const validation5m =
-      paperScalp?.reactionValidation5m || null;
-
-    const broader10m =
-      paperScalp?.broaderReaction10m ||
-      fastReaction ||
-      currentLevelAction ||
-      null;
-
-    const oneMinuteRead = observation1m
-      ? `${formatUpper(
-          observation1m?.state,
-          "NO SIGNAL"
-        )} / ${formatUpper(
-          observation1m?.direction,
-          "NEUTRAL"
-        )} / ${formatUpper(
-          observation1m?.quality,
-          "WEAK"
-        )}`
-      : "—";
-
-    const fiveMinuteRead = validation5m
-      ? `${formatUpper(
-          validation5m?.validationState,
-          "UNRESOLVED"
-        )} / ${formatUpper(
-          validation5m?.direction,
-          "NEUTRAL"
-        )} / ${formatUpper(
-          validation5m?.quality,
-          "WEAK"
-        )}`
-      : "—";
-
-    const tenMinuteRead = broader10m
-      ? `${formatUpper(
-          broader10m?.state,
-          "NO SIGNAL"
-        )} / ${formatUpper(
-          broader10m?.direction,
-          "NEUTRAL"
-        )} / ${formatUpper(
-          broader10m?.quality,
-          "WEAK"
-        )}`
-      : diagnosticRead;
-
-    const currentLevelRead = oneMinuteRead;
-
-    const meaning =
-      paperScalp?.meaning ||
-      paperScalp?.message ||
-      paperScalp?.traderMessage ||
-      paperScalp?.read ||
-      paperScalp?.summary ||
-      "Canonical Engine 3 reaction shown above. 1m, 5m, and 10m evidence remain visible separately.";
-
-    return {
-      number: 0,
-      icon: "③",
-      title: "Engine 3 — Price Reaction",
-
-      severity: getSelectedDiagnosticSeverity({
-        diagnostic,
-        paperScalp,
-      }),
-
-      engine3PriceReactionCard: true,
-
-      engine3Card: {
-        price: Number.isFinite(currentPrice)
-          ? formatNumber(currentPrice)
-          : "—",
-
-        zone: zoneText,
-        negZone: negZoneText,
-        location: formatUpper(locationText, "—"),
-
-        mainRead: canonicalRead,
-        currentLevel: currentLevelRead,
-
-        diagnosticSource: selected.source,
-
-        facts: [
-          ["Direction", formatUpper(canonicalDirection, "NEUTRAL")],
-          ["Quality", formatUpper(canonicalQuality, "UNAVAILABLE")],
-          ["Reaction state", formatUpper(canonicalState, "WAITING")],
-          ["1m immediate", oneMinuteRead],
-          ["5m validation", fiveMinuteRead],
-          ["10m broader action", tenMinuteRead],
-          [
-            "Reaction confirmation",
-            reactionConfirmed ? "CONFIRMED" : "NOT CONFIRMED",
-          ],
-          [
-            "Engine 6 qualification",
-            qualifiedForEngine6 ? "QUALIFIED" : "NOT QUALIFIED",
-          ],
-          ["Authorization", authorized ? "AUTHORIZED" : "NOT AUTHORIZED"],
-        ],
-
-        meaning,
-        strategyStatus,
-        result: resultText,
-
-        reactionConfirmed,
-        allowed,
-
-        canonicalState:
-          formatUpper(canonicalState),
-
-        canonicalDirection:
-          formatUpper(canonicalDirection),
-
-        contactState: contactState
-          ? formatUpper(contactState)
-          : null,
-
-        chainArmed: engine26Handoff
-          ? formatBool(chainArmed)
-          : null,
-
-        directionState: handoffDirectionState
-          ? formatUpper(handoffDirectionState)
-          : null,
-
-        expectedReactionDirection:
-          canonicalExpectedDirection !== "NEUTRAL"
-            ? formatUpper(canonicalExpectedDirection)
-            : handoffExpectedDirection
-            ? formatUpper(handoffExpectedDirection)
-            : null,
-      },
-
-      fields: [],
-      lines: [],
-    };
-  }
-
-  /*
-   * Priority:
-   * 1. Fast imbalance scalp read
-   * 2. Paper scalp advisory
-   * 3. Current level action
-   * 4. Engine 22 lifecycle reaction
-   * 5. Old pullback / generic fallback
-   */
-
-if (fastReaction?.active === true) {
-  const imbalance = fastReaction.imbalance || {};
-  const currentPrice = Number(fastReaction.currentPrice);
-  const distancePts = Number(imbalance.distancePts);
-
-  const actualRead = getEngine3ActualRead(
-    fastReaction,
-    currentLevelAction
-  );
-
-  const booleanReads = getEngine3BooleanReads({
-    fastReaction,
-    currentLevelAction,
-  });
-
-  const zoneText =
-    imbalance.lo != null && imbalance.hi != null
-      ? `${formatNumber(imbalance.lo)}–${formatNumber(imbalance.hi)}`
-      : "—";
-
-  const negZoneText = formatNegZone(imbalance);
-
-  const locationText =
-    imbalance.inside === true
-      ? "INSIDE ZONE"
-      : imbalance.near === true
-      ? "NEAR ZONE"
-      : Number.isFinite(distancePts)
-      ? `${formatNumber(distancePts)} pts from zone`
-      : "—";
-
-  const strategyState =
-    paperScalp?.reactionState ||
-    paperScalp?.state ||
-    "WAITING";
-
-  const strategyDirection =
-    paperScalp?.direction ||
-    "NEUTRAL";
-
-  const strategyAllowed =
-    paperScalp?.allowed === true;
-
-  const reactionConfirmed =
-    paperScalp?.reactionConfirmed === true ||
-    paperScalp?.confirmed === true;
-
-  const canonicalIdentity =
-    paperScalp?.candidateId && paperScalp?.zoneId
-      ? `${paperScalp.candidateId} / ${paperScalp.zoneId}`
-      : "—";
-
-  return {
-    number: 0,
-    icon: "③",
-    title: "Engine 3 — Price Reaction",
-    severity:
-      strategyAllowed === true
-        ? "bullish"
-        : actualRead.fastDirection === "LONG" &&
-          ["GOOD", "STRONG"].includes(
-            String(actualRead.fastQuality || "").toUpperCase()
-          )
-        ? "bullish"
-        : actualRead.fastDirection === "SHORT"
-        ? "warning"
-        : "blue",
-
-    fields: [
-      ["Price", Number.isFinite(currentPrice) ? formatNumber(currentPrice) : "—"],
-      ["Zone", zoneText],
-      ["Neg Zone", negZoneText],
-      ["Location", locationText],
-
-      [
-        "Main Read",
-        `${formatUpper(actualRead.fastState)} / ${formatUpper(
-          actualRead.fastDirection
-        )} / ${formatUpper(actualRead.fastQuality)}`,
-      ],
-
-      [
-        "Current Level",
-        `${formatUpper(actualRead.currentState)} / ${formatUpper(
-          actualRead.currentDirection
-        )} / ${formatUpper(actualRead.currentQuality)}`,
-      ],
-
-      ["Rejected?", formatBool(booleanReads.rejected)],
-      ["Lost Zone?", formatBool(booleanReads.lostZone)],
-      ["Failed Reclaim?", formatBool(booleanReads.failedReclaim)],
-      ["Breakdown?", formatBool(booleanReads.breakdown)],
-
-      [
-        "Strategy",
-        `${formatUpper(strategyDirection)} / ${formatUpper(strategyState)}`,
-      ],
-
-      ["Reaction Confirmed", formatBool(reactionConfirmed)],
-      ["Paper Allowed", formatBool(strategyAllowed)],
-      ["Identity", canonicalIdentity],
-    ],
-
-    lines: [
-      "Question: What is price doing at the Engine 26 zone?",
-      `Main read: ${formatUpper(actualRead.fastState)} / ${formatUpper(
-        actualRead.fastDirection
-      )} / ${formatUpper(actualRead.fastQuality)}.`,
-      getEngine3MeaningForState(actualRead.fastState),
-      currentLevelAction?.state
-        ? `Current level: ${formatUpper(
-            actualRead.currentState
-          )} / ${formatUpper(actualRead.currentDirection)} / ${formatUpper(
-            actualRead.currentQuality
-          )}. ${getEngine3MeaningForState(actualRead.currentState)}`
-        : null,
-      "Strategy 1 rule: target-zone contact alone does not confirm SHORT.",
-      "Engine 3 must see real bearish rejection evidence: failed acceptance, close back below boundary, failed reclaim, bearish displacement, and rejection quality.",
-      reactionConfirmed
-        ? "Engine 3 reaction is confirmed."
-        : "Engine 3 reaction is not confirmed yet.",
-      "No automatic short. No permission. No execution.",
-    ].filter(Boolean),
-  };
-}
-
-  if (paperScalp?.active === true) {
-    const allowed = paperScalp.allowed === true;
-    const waveContext = getWaveContextForScalp({
-      fastReaction,
-      paperScalp,
-      currentLevelAction,
-    });
-
-    const structureLine = formatScalpStructureLine(waveContext); 
-
-    return {
-      number: 0,
-      icon: "③",
-      title: "Engine 3 Paper Scalp Read",
-      severity: allowed
-        ? "bullish"
-        : String(paperScalp.direction || "").toUpperCase() === "SHORT"
-        ? "warning"
-        : "blue",
-      fields: [
-        ["Mode", "PAPER SCALP"],
-        ["Allowed", formatBool(allowed)],
-        ["State", formatUpper(paperScalp.state, "NO SIGNAL")],
-        ["Direction", formatUpper(paperScalp.direction, "NEUTRAL")],
-        ["Quality", formatUpper(paperScalp.quality, "WEAK")],
-        ["Setup", formatUpper(paperScalp.setupType, "—")],
-        [
-         "Structure",
-         waveContext?.reactionVsStructure
-           ? formatUpper(waveContext.reactionVsStructure)
-           : "—",
-       ],
-        [
-          "Current",
-          paperScalp.currentPrice != null
-            ? formatNumber(paperScalp.currentPrice)
-            : "—",
-        ],
-        [
-          "Reference",
-          paperScalp.referenceLevel != null
-            ? formatNumber(paperScalp.referenceLevel)
-            : "—",
-        ],
-      ],
-      lines: [
-        allowed
-          ? "Paper scalp reaction is allowed by Engine 3, pending Engine 4 and Engine 6."
-          : "Paper scalp reaction is not allowed yet.",
-        asArray(paperScalp.blockers).length
-          ? `Blockers: ${asArray(paperScalp.blockers)
-              .map(formatText)
-              .join(", ")}`
-          : null,
-        "This is paper-only. No real permission or execution created.",
-      ].filter(Boolean),
-    };
-  }
-
-  if (currentLevelAction?.active === true) {
-    const currentPrice = Number(currentLevelAction.currentPrice);
-    const referenceLevel = Number(currentLevelAction.referenceLevel);
-    const distancePts = Number(currentLevelAction.distancePts);
-
-    return {
-      number: 0,
-      icon: "③",
-      title: "Engine 3 Current Level Action",
-      severity:
-        currentLevelAction.quality === "STRONG" ||
-        currentLevelAction.quality === "GOOD"
-          ? "bullish"
-          : currentLevelAction.direction === "SHORT"
-          ? "warning"
-          : "blue",
-      fields: [
-        ["State", formatUpper(currentLevelAction.state, "NO SIGNAL")],
-        ["Quality", formatUpper(currentLevelAction.quality, "WEAK")],
-        ["Direction", formatUpper(currentLevelAction.direction, "NEUTRAL")],
-        ["Confirmed", formatBool(currentLevelAction.confirmed)],
-        ["Reference", formatUpper(currentLevelAction.referenceType, "—")],
-        [
-          "Current",
-          Number.isFinite(currentPrice) ? formatNumber(currentPrice) : "—",
-        ],
-        [
-          "Level",
-          Number.isFinite(referenceLevel) ? formatNumber(referenceLevel) : "—",
-        ],
-        [
-          "Distance",
-          Number.isFinite(distancePts) ? `${formatNumber(distancePts)} pts` : "—",
-        ],
-      ],
-      lines: [
-        "Fast imbalance watch is not active. Showing short-term current level action.",
-        currentLevelAction.state === "WICK_BELOW_AND_RECLAIM"
-          ? "Wick below and reclaim detected. This is a fast tactical reaction, not automatic permission."
-          : null,
-        currentLevelAction.state === "LOST_LEVEL"
-          ? "Level lost. Watch for failed reclaim or continuation."
-          : null,
-        currentLevelAction.state === "REJECTING_VALUE"
-          ? "Rejecting value. Watch for imbalance-to-imbalance rotation."
-          : null,
-        "No permission or execution created.",
-      ].filter(Boolean),
-    };
-  }
-
-  if (
-    lifecycleReaction?.source ===
-    "engine22WaveStrategy.currentLifecycleState.confirmationContext"
-  ) {
-    const confirmed = lifecycleReaction.confirmed === true;
-
-    const reactionState = lifecycleReaction.reactionState || "NO_SIGNAL";
-    const reactionQuality = lifecycleReaction.reactionQuality || "WEAK";
-    const direction = lifecycleReaction.direction || "NEUTRAL";
-    const lifecycleKey = lifecycleReaction.lifecycleKey || "—";
-    const mode = lifecycleReaction.mode || "—";
-
-    const currentPrice = Number(lifecycleReaction.currentPrice);
-    const referenceLevel = Number(lifecycleReaction.debug?.referenceLevel);
-    const distanceToReference =
-      Number.isFinite(currentPrice) && Number.isFinite(referenceLevel)
-        ? currentPrice - referenceLevel
-        : null;
-
-    const attemptedReferenceReaction =
-      lifecycleReaction.debug?.attemptedReferenceReaction === true;
-
-    const failedReclaim =
-      lifecycleReaction.debug?.failedReclaim === true ||
-      String(reactionState).toUpperCase().includes("FAILED");
-
-    let reactionLine =
-      "Engine 3 is waiting for the current Engine 22 reaction request.";
-
-    if (confirmed) {
-      reactionLine =
-        "Engine 3 lifecycle reaction is confirmed for the current Engine 22 confirmation context.";
-    } else if (reactionState === "NO_SIGNAL") {
-      reactionLine =
-        "No lifecycle reaction yet. Price has not confirmed the Engine 22 requested pullback / reclaim.";
-    } else if (reactionState === "WEAK") {
-      reactionLine =
-        "Weak lifecycle reaction. Engine 3 does not have enough confirmation yet.";
-    } else if (reactionState === "MIXED") {
-      reactionLine =
-        "Mixed lifecycle reaction. Some response exists, but confirmation is not clean yet.";
-    } else if (reactionState === "GOOD") {
-      reactionLine =
-        "Good lifecycle reaction forming, but Engine 3 has not fully confirmed yet.";
-    } else if (reactionState === "CONFIRMED") {
-      reactionLine = "Engine 3 lifecycle reaction is confirmed.";
-    } else if (reactionState === "FAILED") {
-      reactionLine = "Engine 3 lifecycle reaction failed or reclaim was rejected.";
-    }
-
-    return {
-      number: 0,
-      icon: "③",
-      title: "Engine 3 Longer-Term Lifecycle Read",
-      severity: confirmed
-        ? "bullish"
-        : failedReclaim
-        ? "warning"
-        : reactionState === "GOOD" || reactionState === "MIXED"
-        ? "blue"
-        : "teal",
-      fields: [
-        ["Lifecycle", formatUpper(lifecycleKey, "—")],
-        ["Mode", formatUpper(mode, "—")],
-        ["Reaction", formatUpper(reactionState, "NO SIGNAL")],
-        ["Quality", formatUpper(reactionQuality, "WEAK")],
-        ["Direction", formatUpper(direction, "NEUTRAL")],
-        ["Confirmed", formatBool(confirmed)],
-        [
-          "Current",
-          Number.isFinite(currentPrice) ? formatNumber(currentPrice) : "—",
-        ],
-        [
-          "Reference",
-          Number.isFinite(referenceLevel) ? formatNumber(referenceLevel) : "—",
-        ],
-        [
-          "Distance",
-          Number.isFinite(distanceToReference)
-            ? `${formatNumber(distanceToReference)} pts`
-            : "—",
-        ],
-      ],
-      lines: [
-        "No fast imbalance or paper scalp read is active. Showing Engine 22 lifecycle reaction context.",
-        confirmed
-          ? "Lifecycle reaction confirmed."
-          : reactionState === "NO_SIGNAL"
-          ? "Waiting for controlled pullback or reclaim."
-          : reactionLine,
-        attemptedReferenceReaction
-          ? "Price is testing the reference / reclaim area."
-          : "Price has not reached the reference / reclaim area yet.",
-        failedReclaim ? "Reclaim attempt failed." : null,
-        "No permission or execution created.",
-      ].filter(Boolean),
-    };
-  }
-
-  if (pullbackReaction?.active === true) {
-    const confirmed = pullbackReaction.confirmed === true;
-
-    return {
-      number: 0,
-      icon: "③",
-      title: "Engine 3 Pullback Reaction",
-      severity: confirmed
-        ? "bullish"
-        : String(pullbackReaction.reactionState || "").includes("FAILED") ||
-          String(pullbackReaction.reactionState || "").includes("CLOSE_BELOW")
-        ? "warning"
-        : "blue",
-      fields: [
-        ["Reaction", formatUpper(pullbackReaction.reactionState, "PENDING")],
-        ["Direction", formatUpper(pullbackReaction.direction, "NEUTRAL")],
-        ["Confirmed", formatBool(confirmed)],
-        ["Score", "—"],
-        [
-          "Zone",
-          pullbackReaction.touchedZone?.name
-            ? titleCase(pullbackReaction.touchedZone.name)
-            : "—",
-        ],
-      ],
-      lines: [
-        pullbackReaction.touchedZone
-          ? `Touched ${titleCase(
-              pullbackReaction.touchedZone.name
-            )}: ${formatNumber(pullbackReaction.touchedZone.lo)}–${formatNumber(
-              pullbackReaction.touchedZone.hi
-            )}`
-          : "Waiting for Engine 22 pullback zone reaction.",
-        pullbackReaction.reactionState === "FAILED_RECLAIM"
-          ? "Price touched the pullback zone but failed to reclaim the prior candle high."
-          : pullbackReaction.confirmed
-          ? "Engine 3 pullback reaction is confirmed."
-          : "Engine 3 pullback reaction is not confirmed yet.",
-        "Engine 3 is reading Engine 22 pullback reaction context. No permission or execution created.",
-      ].filter(Boolean),
-    };
-  }
-
-  if (!reaction) {
-    return {
-      number: 0,
-      icon: "③",
-      title: "Engine 3 Current State",
-      severity: "neutral",
-      fields: [],
-      lines: ["Engine 3 reaction context unavailable."],
-    };
-  }
-
-  const quality =
-    reaction.quality ||
-    reaction.reactionQuality ||
-    reaction.state ||
-    "UNKNOWN";
-
-  const direction =
-    reaction.direction ||
-    reaction.executionBias ||
-    reaction.bias ||
-    "NEUTRAL";
-
-  const confirmed =
-    reaction.confirmed === true ||
-    reaction.cleanReaction === true ||
-    reaction.reactionConfirmed === true;
-
-  return {
-    number: 0,
-    icon: "③",
-    title: "Engine 3 Current State",
-    severity: confirmed ? "bullish" : "warning",
-    fields: [
-      ["Reaction", formatUpper(quality, "UNKNOWN")],
-      ["Direction", formatUpper(direction, "NEUTRAL")],
-      ["Confirmed", formatBool(confirmed)],
-      ["Score", formatScore(reaction.score || reaction.reactionScore)],
-    ],
-    lines: [
-      "Fallback generic Engine 3 reaction read. Engine 22 lifecycle reaction was unavailable.",
-      reaction.message ||
-        reaction.traderMessage ||
-        (confirmed
-          ? "Generic Engine 3 reaction is confirmed."
-          : "Generic Engine 3 reaction is not confirmed yet."),
-    ].filter(Boolean),
-  };
-}
-function buildEngine4ContextSection(fib) {
-  const authorizedParticipation =
-    getEngine4AuthorizedReactionParticipation(fib);
-
-  const fastParticipation = getEngine4FastImbalanceParticipation(fib);
-  const currentScalpParticipation = getEngine4CurrentScalpParticipation(fib);
-  const lifecycleParticipation = getEngine22LifecycleParticipation(fib);
-  const volume = getEngine5Volume(fib);
-  const control = getEngine26ControlLevelContext(fib);
-  const location = getEngine26LocationContext(fib);
-
-  if (authorizedParticipation?.active === true) {
-    const allowed = authorizedParticipation.allowed === true;
-    const hardBlocked = authorizedParticipation.hardBlocked === true;
     const confirmed =
-      authorizedParticipation.participationConfirmed === true ||
-      authorizedParticipation.confirmed === true;
-
-    const observerActive =
-      authorizedParticipation.observerActive === true;
-
-    const observationStatus = formatUpper(
-      authorizedParticipation.observationStatus,
-      observerActive ? "ACTIVE" : "UNAVAILABLE"
-    );
-
-    const observation1mCurrentVolume = Number(
-      authorizedParticipation.observation1mCurrentVolume
-    );
-
-    const observation1mPriorVolume = Number(
-      authorizedParticipation.observation1mPriorVolume
-    );
-
-    const observation1mVolumeRatio = Number(
-      authorizedParticipation.observation1mVolumeRatio
-    );
-
-    const validation5mStale =
-      authorizedParticipation.validation5mStale === true;
-
-    const validation5mActive =
-      authorizedParticipation.validation5mActive === true;
-
-    const validation5mCurrentVolume = Number(
-      authorizedParticipation.validation5mCurrentVolume
-    );
-
-    const validation5mPriorVolume = Number(
-      authorizedParticipation.validation5mPriorVolume
-    );
-
-    const broader10mRelativeVolume = Number(
-      authorizedParticipation.broader10mRelativeVolume
-    );
-
-    const broader10mHighVolumeCandles = Number(
-      authorizedParticipation.broader10mHighVolumeCandles
-    );
-
-    const expectedParticipationDirection =
-      authorizedParticipation.expectedParticipationDirection ||
-      authorizedParticipation.participationEvaluationDirection ||
-      "—";
-
-    const plainLines =
-      Array.isArray(authorizedParticipation.plainEnglishLines) &&
-      authorizedParticipation.plainEnglishLines.length > 0
-        ? authorizedParticipation.plainEnglishLines
-        : [
-            "1m: live volume observation is unavailable.",
-            "5m: validation is unavailable.",
-            "10m: broader participation context is unavailable.",
-            "Engine 4 confirmation is waiting for Engine 3 qualification.",
-            "No permission. No execution.",
-          ];
-
-    const observation1mVolumesAreLive =
-      observerActive === true &&
-      observationStatus === "ACTIVE";
-
-    const validation5mVolumesAreLive =
-      validation5mActive === true &&
-      validation5mStale !== true;
-
-    const validation5mStatus =
-      validation5mStale
-        ? "STALE"
-        : validation5mActive
-        ? "ACTIVE"
-        : "UNAVAILABLE";
-
-    const broader10mStatus =
-      authorizedParticipation.broader10mActive === true
-        ? "ACTIVE"
-        : "UNAVAILABLE";
+      geopolitics?.marketConfirmed === true ||
+      confirmation?.oilConfirmed === true;
 
     return {
-      number: 0,
-      icon: "④",
-      title: "Engine 4 — Volume Participation",
-      fieldGridColumns: 3,
-      severity: hardBlocked
-        ? "danger"
-        : confirmed
-        ? "bullish"
-        : authorizedParticipation.participationDeveloping === true
-        ? "blue"
-        : "warning",
-
-      fields: [
-        {
-          type: "sectionHeader",
-          label: "Observation / Confirmation",
-        },
-        [
-          "Observer",
-          observerActive
-            ? "ACTIVE"
-            : observationStatus,
-        ],
-        [
-          "Confirmation State",
-          formatUpper(
-            authorizedParticipation.participationState,
-            "PARTICIPATION WAITING"
-          ),
-        ],
-        [
-          "Confirmation Quality",
-          formatUpper(
-            authorizedParticipation.participationQuality,
-            "WEAK"
-          ),
-        ],
-        ["Hard Block", formatBool(hardBlocked)],
-
-        {
-          type: "sectionHeader",
-          label: "1m — Immediate Participation",
-        },
-        ["Status", observationStatus],
-        [
-          "Read",
-          formatUpper(
-            authorizedParticipation.currentVolumeReaction,
-            "VOLUME DATA UNAVAILABLE"
-          ),
-        ],
-        [
-          "Current Volume",
-          observation1mVolumesAreLive &&
-          Number.isFinite(observation1mCurrentVolume)
-            ? formatScore(observation1mCurrentVolume)
-            : "—",
-        ],
-        [
-          "Prior Volume",
-          observation1mVolumesAreLive &&
-          Number.isFinite(observation1mPriorVolume)
-            ? formatScore(observation1mPriorVolume)
-            : "—",
-        ],
-        [
-          "Ratio",
-          observation1mVolumesAreLive &&
-          Number.isFinite(observation1mVolumeRatio)
-            ? `${formatNumber(observation1mVolumeRatio, 2)}x`
-            : "—",
-        ],
-        [
-          "State",
-          formatUpper(
-            authorizedParticipation.observation1mState,
-            "—"
-          ),
-        ],
-        [
-          "Direction",
-          formatUpper(
-            authorizedParticipation.observation1mDirection,
-            "NEUTRAL"
-          ),
-        ],
-        [
-          "Quality",
-          formatUpper(
-            authorizedParticipation.observation1mQuality,
-            "—"
-          ),
-        ],
-        [
-          "Candle",
-          formatUpper(
-            authorizedParticipation.observation1mCurrentCandleStatus,
-            "—"
-          ),
-        ],
-
-        {
-          type: "sectionHeader",
-          label: "5m — Validation",
-        },
-        ["Status", validation5mStatus],
-        [
-          "Validation",
-          formatUpper(
-            authorizedParticipation.validation5mState,
-            "—"
-          ),
-        ],
-        [
-          "Direction",
-          formatUpper(
-            authorizedParticipation.validation5mDirection,
-            "NEUTRAL"
-          ),
-        ],
-        [
-          "Quality",
-          formatUpper(
-            authorizedParticipation.validation5mQuality,
-            "—"
-          ),
-        ],
-        [
-          "Current Volume",
-          validation5mVolumesAreLive &&
-          Number.isFinite(validation5mCurrentVolume)
-            ? formatScore(validation5mCurrentVolume)
-            : "—",
-        ],
-        [
-          "Prior Volume",
-          validation5mVolumesAreLive &&
-          Number.isFinite(validation5mPriorVolume)
-            ? formatScore(validation5mPriorVolume)
-            : "—",
-        ],
-        [
-          "Candle",
-          formatUpper(
-            authorizedParticipation.validation5mCurrentCandleStatus,
-            "—"
-          ),
-        ],
-
-        {
-          type: "sectionHeader",
-          label: "10m — Broader Context",
-        },
-        ["Status", broader10mStatus],
-        [
-          "Relative Volume",
-          Number.isFinite(broader10mRelativeVolume)
-            ? `${formatNumber(broader10mRelativeVolume, 2)}x`
-            : "—",
-        ],
-        [
-          "Trend",
-          formatUpper(
-            authorizedParticipation.broader10mVolumeTrend,
-            "—"
-          ),
-        ],
-        [
-          "Expansion",
-          formatBool(
-            authorizedParticipation.broader10mVolumeExpansion,
-            "—"
-          ),
-        ],
-        [
-          "Volume Confirmed",
-          formatBool(
-            authorizedParticipation.broader10mVolumeConfirmed,
-            "—"
-          ),
-        ],
-        [
-          "High-Volume Candles",
-          Number.isFinite(broader10mHighVolumeCandles)
-            ? formatScore(broader10mHighVolumeCandles)
-            : "—",
-        ],
-        [
-          "State",
-          formatUpper(
-            authorizedParticipation.broader10mParticipationState,
-            "—"
-          ),
-        ],
-        [
-          "Quality",
-          formatUpper(
-            authorizedParticipation.broader10mParticipationQuality,
-            "—"
-          ),
-        ],
-
-        {
-          type: "sectionHeader",
-          label: "Confirmation",
-        },
-        [
-          "Engine 3 Qualified",
-          formatBool(
-            authorizedParticipation.participationEvaluationEligible,
-            "NO"
-          ),
-        ],
-        ["Participation Confirmed", formatBool(confirmed)],
-        ["Allowed", formatBool(allowed)],
-        ["Hard Block", formatBool(hardBlocked)],
-        [
-          "Direction",
-          formatUpper(
-            authorizedParticipation.direction,
-            "NEUTRAL"
-          ),
-        ],
-        [
-          "Expected",
-          formatUpper(
-            expectedParticipationDirection,
-            "—"
-          ),
-        ],
-      ],
-
-      lines: plainLines,
-    };
-  }
-
-  if (fastParticipation?.active === true) {
-    const allowed = fastParticipation.allowed === true;
-    const hardBlocked = fastParticipation.hardBlocked === true;
-
-    const currentBarVolume = Number(fastParticipation.currentBarVolume);
-    const priorBarVolume = Number(fastParticipation.priorBarVolume);
-    const volumeRatio = Number(fastParticipation.currentVsPriorVolumeRatio);
-    const structuralAlignment = getEngine4StructureAlignment(fastParticipation);
-    const wavePath = formatEngine4WavePath(fastParticipation.waveContext);
-
-    return {
-      number: 0,
-      icon: "④",
-      title: "Engine 4 Fast Scalp Volume",
-      severity: hardBlocked
-        ? "danger"
-        : allowed
-        ? "bullish"
-        : fastParticipation.participationQuality === "MIXED"
-        ? "warning"
-        : "warning",
-      fields: [
-        ["Mode", "FAST IMBALANCE"],
-        ["State", formatUpper(fastParticipation.participationState, "NO SIGNAL")],
-        ["Quality", formatUpper(fastParticipation.participationQuality, "WEAK")],
-        ["Allowed", formatBool(allowed)],
-        ["Grade", formatUpper(fastParticipation.grade, "D")],
-        ["Risk", formatUpper(fastParticipation.risk, "WAIT")],
-        ["Direction", formatUpper(fastParticipation.intendedDirection, "NEUTRAL")],
-        ["Wave Path", wavePath],
-        ["Structure Align", formatUpper(structuralAlignment, "—")],
-        [
-          "Fast Vol",
-          Number.isFinite(currentBarVolume)
-            ? `${formatScore(currentBarVolume)} now`
-            : "—",
-        ],
-        [
-          "Prior Vol",
-          Number.isFinite(priorBarVolume)
-            ? formatScore(priorBarVolume)
-            : "—",
-        ],
-        [
-          "Vol Ratio",
-          Number.isFinite(volumeRatio) ? `${formatNumber(volumeRatio, 2)}x` : "—",
-        ],
-      ],
-      lines: [
-        "Fast imbalance volume read.",
-        control?.currentInstruction
-          ? `Control map: ${formatText(control.currentInstruction)}.`
-          : null,
-        location?.handoff?.engine4ShouldTreatInsideShortZoneAs
-          ? `Engine 26 handoff: ${formatText(
-              location.handoff.engine4ShouldTreatInsideShortZoneAs
-            )}.`
-          : null,
-        fastParticipation.usedFastReactionCandles === true
-          ? "Using Engine 3 fast candles."
-          : "Using fallback volume context.",
-        fastParticipation.volumeIncreasing === true
-          ? "Fast volume is increasing versus prior candle."
-          : "Fast volume is below prior candle.",
-        fastParticipation.supportsFastReactionDirection === true
-          ? "Price and volume support Engine 3 direction."
-          : "Price and volume do not fully support Engine 3 direction yet.",
-        fastParticipation.participationImproving === true
-          ? "Participation is improving."
-          : "Participation is not improving yet.",
-        allowed
-          ? "OK for paper review. Engine 6 still decides."
-          : "Waiting for better participation before paper allow.",
-        "No real permission or execution.",
-      ].filter(Boolean),
-    };
-  } 
-
-  if (currentScalpParticipation?.active === true) {
-    const allowed = currentScalpParticipation.allowed === true;
-    const hardBlocked = currentScalpParticipation.hardBlocked === true;
-
-    const currentBarVolume = Number(currentScalpParticipation.currentBarVolume);
-    const priorBarVolume = Number(currentScalpParticipation.priorBarVolume);
-    const volumeRatio = Number(currentScalpParticipation.currentVsPriorVolumeRatio);
-    const structuralAlignment = getEngine4StructureAlignment(currentScalpParticipation);
-    const wavePath = formatEngine4WavePath(currentScalpParticipation.waveContext);
-
-    return {
-      number: 0,
-      icon: "④",
-      title: "Engine 4 Current Scalp Volume",
-      severity: hardBlocked
-        ? "danger"
-        : allowed
-        ? "bullish"
-        : currentScalpParticipation.participationQuality === "RISK"
-        ? "danger"
-        : "warning",
-      fields: [
-        ["Mode", "CURRENT SCALP"],
-        ["Source", formatUpper(currentScalpParticipation.source, "—")],
-        ["State", formatUpper(currentScalpParticipation.participationState, "NO SIGNAL")],
-        ["Quality", formatUpper(currentScalpParticipation.participationQuality, "WEAK")],
-        ["Allowed", formatBool(allowed)],
-        ["Hard Block", formatBool(hardBlocked)],
-        ["Grade", formatUpper(currentScalpParticipation.grade, "D")],
-        ["Risk", formatUpper(currentScalpParticipation.risk, "WAIT")],
-        ["Direction", formatUpper(currentScalpParticipation.intendedDirection, "NEUTRAL")],
-        ["Wave Path", wavePath],
-        ["Structure Align", formatUpper(structuralAlignment, "—")],
-        [
-          "Fast Vol",
-          Number.isFinite(currentBarVolume)
-            ? `${formatScore(currentBarVolume)} now`
-            : "—",
-        ],
-        [
-          "Prior Vol",
-          Number.isFinite(priorBarVolume)
-            ? formatScore(priorBarVolume)
-            : "—",
-        ],
-        [
-          "Vol Ratio",
-          Number.isFinite(volumeRatio) ? `${formatNumber(volumeRatio, 2)}x` : "—",
-        ],
-      ],
-      lines: [
-        "Current Engine 4 scalp volume read.",
-        control?.currentInstruction
-          ? `Control map: ${formatText(control.currentInstruction)}.`
-          : null,
-        location?.handoff?.engine4ShouldTreatInsideShortZoneAs
-          ? `Engine 26 handoff: ${formatText(
-              location.handoff.engine4ShouldTreatInsideShortZoneAs
-            )}.`
-          : null,
-        currentScalpParticipation.fastImbalanceActive === true
-          ? "Using fast imbalance volume."
-          : "Using paper scalp / level-action volume.",
-        currentScalpParticipation.volumeIncreasing === true
-          ? "Volume is increasing versus prior candle."
-          : "Volume is below prior candle.",
-        currentScalpParticipation.supportsDirection === true
-          ? "Price and volume support the scalp direction."
-          : currentScalpParticipation.againstDirection === true
-          ? "Price and volume are fighting the scalp direction."
-          : "Price and volume are not aligned yet.",
-        currentScalpParticipation.highVolumeNoProgress === true
-          ? "Volume is active, but price is not making clean progress."
-          : null,
-        allowed
-          ? "OK for paper review. Engine 6 still decides."
-          : hardBlocked
-          ? "Blocked until price and volume improve."
-         : "Waiting for better participation.",
-       "No real permission or execution.",
-     ].filter(Boolean),
-    };
-  }
-
-  if (lifecycleParticipation?.active === true) {
-    const confirmed = lifecycleParticipation.confirmed === true;
-
-    const state = lifecycleParticipation.participationState || "NO_SIGNAL";
-    const volumeState = lifecycleParticipation.volumeState || state;
-
-    const relativeVolume = Number(lifecycleParticipation.relativeVolume);
-    const volumeScore = Number(lifecycleParticipation.volumeScore);
-
-    const lifecycleKey = lifecycleParticipation.lifecycleKey || "—";
-    const mode = lifecycleParticipation.mode || "—";
-    const participationFocus = lifecycleParticipation.participationFocus || "—";
-
-    let participationLine = "Engine 4 participation is not confirmed yet.";
-
-    if (state === "WEAK") {
-      participationLine = "Weak participation. Engine 22 needs volume on reclaim, but volume has not confirmed yet.";
-    } else if (state === "MIXED") {
-      participationLine = "Mixed participation. Some response exists, but Engine 4 has not confirmed clean volume.";
-    } else if (state === "EXPANDING") {
-      participationLine = "Participation is expanding in the direction Engine 22 requested.";
-    } else if (state === "CONFIRMED") {
-      participationLine = "Engine 4 participation is confirmed for the current Engine 22 confirmation context.";
-    } else if (state === "RISK") {
-      participationLine = "Volume risk detected. Participation is not safe to confirm.";
-    } else if (state === "NO_SIGNAL") {
-      participationLine = "No Engine 4 participation signal yet.";
-    }
-
-    return {
-      number: 0,
-      icon: "④",
-      title: "Engine 4 Current State",
-      severity: confirmed
-        ? "bullish"
-        : state === "RISK"
-        ? "danger"
-        : state === "WEAK" || state === "MIXED" || state === "NO_SIGNAL"
-        ? "warning"
-        : "blue",
-      fields: [
-        ["Lifecycle", formatUpper(lifecycleKey, "—")],
-        ["Mode", formatUpper(mode, "—")],
-        ["Focus", formatUpper(participationFocus, "—")],
-        ["Volume", formatUpper(volumeState, "NO SIGNAL")],
-        ["Direction", formatUpper(lifecycleParticipation.direction, "NEUTRAL")],
-        ["Confirmed", formatBool(confirmed)],
-        ["Score", formatScore(volumeScore)],
-        [
-          "RelVol",
-          Number.isFinite(relativeVolume)
-            ? `${formatNumber(relativeVolume, 2)}x`
-            : "—",
-        ],
-      ],
-      lines: [
-        participationLine,
-        lifecycleParticipation.volumeTrend
-          ? `Volume trend: ${formatUpper(lifecycleParticipation.volumeTrend)}`
-          : null,
-        lifecycleParticipation.reclaimLike === false
-          ? "Reclaim-like price action is not confirmed."
-          : lifecycleParticipation.reclaimLike === true
-          ? "Reclaim-like price action detected."
-          : null,
-        lifecycleParticipation.focusSatisfied === false
-          ? "Participation focus is not satisfied yet."
-          : lifecycleParticipation.focusSatisfied === true
-          ? "Participation focus is satisfied."
-          : null,
-        "Engine 4 is reading Engine 22 confirmationContext. No permission or execution created.",
-      ].filter(Boolean),
-    };
-  }
-
-  if (!volume) {
-    return {
-      number: 0,
-      icon: "④",
-      title: "Engine 4 Current State",
-      severity: "neutral",
-      fields: [],
-      lines: ["Engine 4 volume / participation context unavailable."],
-    };
-  }
-
-  const quality =
-    volume.quality ||
-    volume.participationQuality ||
-    volume.state ||
-    "UNKNOWN";
-
-  const direction =
-    volume.direction ||
-    volume.participationDirection ||
-    "NEUTRAL";
-
-  const confirmed =
-    volume.confirmed === true ||
-    volume.volumeConfirmed === true ||
-    volume.cleanParticipation === true;
-
-  return {
-    number: 0,
-    icon: "④",
-    title: "Engine 4 Current State",
-    severity: confirmed ? "bullish" : "warning",
-    fields: [
-      ["Volume", formatUpper(quality, "UNKNOWN")],
-      ["Direction", formatUpper(direction, "NEUTRAL")],
-      ["Confirmed", formatBool(confirmed)],
-      ["Score", formatScore(volume.score || volume.volumeScore)],
-    ],
-    lines: [
-      volume.message ||
-        volume.traderMessage ||
+      label: "CL / BZ",
+      value: confirmed ? "CONFIRMED" : "NOT CONFIRMED",
+      confirmed,
+      note:
+        geopolitics?.reasonCodes?.[0] ||
         (confirmed
-          ? "Engine 4 participation is confirmed."
-          : "Engine 4 participation is not confirmed yet."),
-    ].filter(Boolean),
-  };
-}
-
-function buildCurrentFibExtensionsSection(waveOpportunity, fib) {
-  const possibleW5Up = getPossibleW5Up(fib);
-
-  if (isPossibleW5UpComplete(possibleW5Up)) {
-    const levels = getPossibleW5PullbackLevels(possibleW5Up);
-    const zones = possibleW5Up?.entryZones || {};
-    const summary = getPossibleW5PullbackSummary(possibleW5Up);
-
-    return {
-      number: 0,
-      icon: "⑸",
-      title: "Post-W5 Pullback Entry Zones",
-      severity: "blue",
-      fields: [
-        ...levels.map((level) => [level.label, formatNumber(level.price)]),
-        ["Shallow Trend Pullback", formatZone(zones.shallowTrendPullback)],
-        ["Standard Pullback Entry Zone", formatZone(zones.standardPullback)],
-        ["Deeper Support Entry Zone", formatZone(zones.deeperSupport)],
-        ["Failure Warning Below", formatZone(zones.failureWarning)],
-      ],
-      lines: [
-        summary.hitLabel
-          ? `Current pullback fib hit: ${summary.hitLabel} @ ${formatNumber(
-              summary.hitPrice
-            )}`
-          : "Current pullback fib hit: none yet",
-        summary.nextLabel
-          ? `Next pullback watch: ${summary.nextLabel} @ ${formatNumber(
-              summary.nextPrice
-            )}`
-          : "Next pullback watch: no deeper pullback level",
-        "These are pullback reaction / entry planning zones, not automatic entry signals.",
-        "Watch pullback reaction / reclaim. No chase. No automatic long. No execution.",
-      ],
+          ? "Oil market confirmation active."
+          : "Awaiting CL / BZ confirmation."),
     };
   }
-
-  const postBounce = getPostDownImpulseBounce(fib);
-  const postBounceTargets = getPostDownImpulseBounceTargets(postBounce);
-
-  if (isPostMinor5BounceCLegActive(postBounce) && postBounceTargets.length) {
-    return {
-      number: 0,
-      icon: "⑸",
-      title: "Post-Minor-5 Corrective Bounce C-Up Targets",
-      severity: "blue",
-      fields: postBounceTargets.map(([level, price]) => [
-        level,
-        formatNumber(price),
-      ]),
-      lines: [
-        `Current target hit: ${formatPostBounceTargetHit(postBounce)}`,
-        "These are corrective bounce reaction zones, not fresh long targets or execution signals.",
-        "No automatic long. No automatic short. No execution.",
-      ],
-    };
-  }
-
-  const targets = getTargets(waveOpportunity);
-
-  if (!targets.length) {
-    return {
-      number: 0,
-      icon: "⑸",
-      title: "Current Fib Extensions To Watch",
-      severity: "neutral",
-      fields: [],
-      lines: ["No active fib extension targets are available."],
-    };
-  }
-
-  return {
-    number: 0,
-    icon: "⑸",
-    title: "Current Fib Extensions To Watch",
-    severity: "blue",
-    fields: targets.map(([level, price]) => [level, formatNumber(price)]),
-    lines: [
-      "Use these only as target / reaction zones. They are not entry signals by themselves.",
-    ],
-  };
-}
-
-/* =========================
-   Engine 22 Degree Stack timeline builders
-========================= */
-
-function getEngine22DegreeStates(fib) {
-  const waveStrategy = getEngine22WaveStrategy(fib);
-  const degreeStates = waveStrategy?.degreeStates || null;
-
-  if (!degreeStates || typeof degreeStates !== "object") return null;
-
-  const hasAnyDegree = ["primary", "intermediate", "minor", "minute", "subminute"].some(
-    (degree) => degreeStates?.[degree] && typeof degreeStates[degree] === "object"
-  );
-
-  return hasAnyDegree ? degreeStates : null;
-}
-
-function formatDisplayLevel(level) {
-  if (level == null) return null;
-
-  if (typeof level === "number" || typeof level === "string") {
-    const n = Number(level);
-    return Number.isFinite(n) ? formatNumber(n) : formatText(level, null);
-  }
-
-  if (typeof level !== "object") return null;
-
-  const label =
-    level.label ||
-    level.name ||
-    level.key ||
-    level.levelKey ||
-    level.ratio ||
-    level.fib ||
-    null;
-
-  const value =
-    level.price ??
-    level.value ??
-    level.level ??
-    level.target ??
-    level.hi ??
-    level.lo ??
-    null;
-
-  if (value == null) return label ? formatText(label) : null;
-
-  const valueText = Number.isFinite(Number(value))
-    ? formatNumber(value)
-    : formatText(value, null);
-
-  return label ? `${formatText(label)}: ${valueText}` : valueText;
-}
-
-function formatDisplayLevels(displayLevels, fallback = "—") {
-  if (!displayLevels) return fallback;
-
-  if (Array.isArray(displayLevels)) {
-    const items = displayLevels.map(formatDisplayLevel).filter(Boolean);
-    return items.length ? items.slice(0, 6).join("  |  ") : fallback;
-  }
-
-  if (typeof displayLevels === "object") {
-    const items = Object.entries(displayLevels)
-      .map(([key, value]) => {
-        if (value && typeof value === "object" && !Array.isArray(value)) {
-          return formatDisplayLevel({ key, ...value });
-        }
-
-        const valueText = formatDisplayLevel(value);
-        return valueText ? `${formatText(key)}: ${valueText}` : null;
-      })
-      .filter(Boolean);
-
-    return items.length ? items.slice(0, 6).join("  |  ") : fallback;
-  }
-
-  return formatDisplayLevel(displayLevels) || fallback;
-}
-
-function formatSupportWatch(localSupportWatch) {
-  if (!localSupportWatch) return "—";
-
-  if (typeof localSupportWatch === "string") return formatText(localSupportWatch);
-
-  if (Array.isArray(localSupportWatch)) {
-    const values = localSupportWatch.map(formatDisplayLevel).filter(Boolean);
-    return values.length ? values.join(" → ") : "—";
-  }
-
-  if (typeof localSupportWatch === "object") {
-    if (localSupportWatch.lo != null && localSupportWatch.hi != null) {
-      return `${formatNumber(localSupportWatch.lo)}–${formatNumber(localSupportWatch.hi)}`;
-    }
-
-    if (localSupportWatch.low != null && localSupportWatch.high != null) {
-      return `${formatNumber(localSupportWatch.low)}–${formatNumber(localSupportWatch.high)}`;
-    }
-
-    if (localSupportWatch.from != null && localSupportWatch.to != null) {
-      return `${formatNumber(localSupportWatch.from)}–${formatNumber(localSupportWatch.to)}`;
-    }
-
-    if (localSupportWatch.level != null) return formatNumber(localSupportWatch.level);
-
-    const values = Object.entries(localSupportWatch)
-      .map(([key, value]) => {
-        const valueText = formatDisplayLevel(value);
-        return valueText ? `${formatText(key)}: ${valueText}` : null;
-      })
-      .filter(Boolean);
-
-    return values.length ? values.slice(0, 4).join("  |  ") : "—";
-  }
-
-  return "—";
-}
-
-function formatContextObject(value, fallback = "—") {
-  if (!value) return fallback;
-  if (typeof value === "string") return formatText(value);
-  if (Array.isArray(value)) {
-    const items = value.map((item) => formatContextObject(item, null)).filter(Boolean);
-    return items.length ? items.join("; ") : fallback;
-  }
-
-  if (typeof value === "object") {
-    const preferredKeys = [
-      "summary",
-      "read",
-      "headline",
-      "action",
-      "relationship",
-      "purpose",
-      "role",
-      "stage",
-      "type",
-      "state",
-      "currentRead",
-    ];
-
-    const preferred = preferredKeys
-      .map((key) => value?.[key])
-      .filter((item) => item != null && item !== "")
-      .map((item) => formatText(item))
-      .filter(Boolean);
-
-    if (preferred.length) return preferred.join("; ");
-
-    const entries = Object.entries(value)
-      .filter(([, item]) => item != null && item !== "")
-      .slice(0, 5)
-      .map(([key, item]) => `${formatText(key)}: ${formatContextObject(item, "—")}`);
-
-    return entries.length ? entries.join("; ") : fallback;
-  }
-
-  return formatText(value, fallback);
-}
-
-function getAlternateCorrectionText(correctionModels) {
-  const alternate =
-    correctionModels?.models?.abcDown ||
-    correctionModels?.alternateModels ||
-    correctionModels?.alternateType ||
-    correctionModels?.alternate ||
-    null;
-
-  if (!alternate) return "—";
-
-  if (Array.isArray(alternate)) {
-    const items = alternate.map((item) => formatContextObject(item, null)).filter(Boolean);
-    return items.length ? items.join("; ") : "—";
-  }
-
-  return formatContextObject(alternate);
-}
-
-function buildDegreeSummaryLine(label, state) {
-  if (!state) return null;
-
-  const headline = state.headline ? `${label}: ${formatText(state.headline)}` : null;
-  const read = state.currentRead ? `${label} read: ${formatText(state.currentRead)}` : null;
-  const action = state.action ? `${label} action: ${formatText(state.action)}` : null;
-
-  return [headline, read, action].filter(Boolean).join(" ");
-}
-
-function buildEngine22DegreeBadges(degreeStates, permission) {
-  const safetyFlags = [
-    degreeStates?.primary,
-    degreeStates?.intermediate,
-    degreeStates?.minor,
-    degreeStates?.minute,
-    degreeStates?.subminute,
-  ].filter(Boolean);
-
-  const noExecution = safetyFlags.some((degree) => degree?.noExecution === true);
-  const watchOnly = safetyFlags.some((degree) => degree?.watchOnly === true);
-  const noPermissionCreated = safetyFlags.some(
-    (degree) => degree?.noPermissionCreated === true
-  );
-
-  return [
-    { label: "ES", severity: "blue" },
-    { label: "ENGINE 22 DEGREE STACK", severity: "teal" },
-    noExecution ? { label: "NO EXECUTION", severity: "purple" } : null,
-    noPermissionCreated
-      ? { label: "NO PERMISSION CREATED", severity: "purple" }
-      : null,
-    watchOnly ? { label: "WATCH ONLY", severity: "warning" } : null,
-    buildPermissionBadge(permission),
-  ].filter(Boolean);
-}
-
-function buildHigherTimeframeTrendSection(degreeStates) {
-  const primary = degreeStates?.primary || null;
-  const intermediate = degreeStates?.intermediate || null;
-
-  return {
-    number: 1,
-    icon: "↗",
-    title: "Higher-Timeframe Trend",
-    severity: "bullish",
-    fields: [
-      ["Primary", formatUpper(primary?.activeWave || primary?.stage, "—")],
-      ["Primary Targets", formatDisplayLevels(primary?.targetModel?.displayLevels)],
-      ["Intermediate", formatUpper(intermediate?.activeWave || intermediate?.stage, "—")],
-      [
-        "Intermediate Targets",
-        formatDisplayLevels(intermediate?.targetModel?.displayLevels),
-      ],
-    ],
-    lines: [
-      buildDegreeSummaryLine("Primary", primary),
-      buildDegreeSummaryLine("Intermediate", intermediate),
-      "Higher-timeframe degrees are context and target maps only. No execution comes from this section.",
-    ].filter(Boolean),
-  };
-}
-
-function buildActiveCorrectionSection(degreeStates) {
-  const minor = degreeStates?.minor || null;
-  const correctionModel = minor?.correctionModel || null;
-  const correctionModels = minor?.correctionModels || null;
-
-  const preferredType =
-    correctionModels?.preferredType ||
-    correctionModel?.type ||
-    correctionModel?.correctionType ||
-    "—";
-
-  const stage = correctionModel?.stage || minor?.stage || "—";
-  const alternateText = getAlternateCorrectionText(correctionModels);
-  const localSupport = formatSupportWatch(minor?.targetModel?.localSupportWatch);
-
-  return {
-    number: 2,
-    icon: "〽",
-    title: "Active Correction",
-    severity: "warning",
-    fields: [
-      ["Minor", formatUpper(minor?.activeWave || minor?.stage, "—")],
-      ["Preferred Model", formatUpper(preferredType, "—")],
-      ["Stage", formatUpper(stage, "—")],
-      ["Alternate Path", alternateText],
-      ["Local Support Watch", localSupport],
-      ["Minor Targets", formatDisplayLevels(minor?.targetModel?.displayLevels)],
-    ],
-    lines: [
-      buildDegreeSummaryLine("Minor", minor),
-      correctionModel ? `Preferred correction: ${formatContextObject(correctionModel)}.` : null,
-      alternateText !== "—" ? `Alternate correction path: ${alternateText}.` : null,
-      localSupport !== "—" ? `Local support / bounce watch: ${localSupport}.` : null,
-    ].filter(Boolean),
-  };
-}
-
-function buildNestedCorrectionSection(degreeStates) {
-  const minute = degreeStates?.minute || null;
-  const subminute = degreeStates?.subminute || null;
-
-  const minuteNested = formatContextObject(minute?.nestedCorrectionContext);
-  const subminuteNested = formatContextObject(subminute?.nestedCorrectionContext);
-
-  return {
-    number: 3,
-    icon: "⇣",
-    title: "Nested Correction / Tactical Path",
-    severity: "teal",
-    fields: [
-      ["Minute", formatUpper(minute?.activeWave || minute?.stage, "—")],
-      ["Minute Nested Context", minuteNested],
-      ["Subminute", formatUpper(subminute?.activeWave || subminute?.stage, "—")],
-      ["Subminute Nested Context", subminuteNested],
-    ],
-    lines: [
-      "Nested relationship: Minor E leg → Minute internal ABC down → Subminute tactical timing.",
-      buildDegreeSummaryLine("Minute", minute),
-      minuteNested !== "—" ? `Minute nested context: ${minuteNested}.` : null,
-      buildDegreeSummaryLine("Subminute", subminute),
-      subminuteNested !== "—" ? `Subminute nested context: ${subminuteNested}.` : null,
-      "Minute and Subminute are nested correction context, not independent stale W5 layouts.",
-    ].filter(Boolean),
-  };
-}
-
-function buildTargetLevelMapSection(degreeStates) {
-  const primary = degreeStates?.primary || null;
-  const intermediate = degreeStates?.intermediate || null;
-  const minor = degreeStates?.minor || null;
-
-  const localSupport = formatSupportWatch(minor?.targetModel?.localSupportWatch);
-
-  return {
-    number: 4,
-    icon: "⑸",
-    title: "Target & Level Map",
-    severity: "blue",
-    fields: [
-      ["Primary Target Map", formatDisplayLevels(primary?.targetModel?.displayLevels)],
-      [
-        "Intermediate Target Map",
-        formatDisplayLevels(intermediate?.targetModel?.displayLevels),
-      ],
-      ["Minor Target Map", formatDisplayLevels(minor?.targetModel?.displayLevels)],
-      ["Local Support Watch", localSupport],
-    ],
-    lines: [
-      "Target map is displayed from Engine 22 generated targetModel.displayLevels only.",
-      "React is not calculating fibs or inferring wave state.",
-      localSupport !== "—" ? `Minor local support / bounce watch: ${localSupport}.` : null,
-    ].filter(Boolean),
-  };
-}
-
-function buildEngine22SafetySection(degreeStates) {
-  const degrees = [
-    degreeStates?.primary,
-    degreeStates?.intermediate,
-    degreeStates?.minor,
-    degreeStates?.minute,
-    degreeStates?.subminute,
-  ].filter(Boolean);
-
-  const noExecution = degrees.some((degree) => degree?.noExecution === true);
-  const noPermissionCreated = degrees.some(
-    (degree) => degree?.noPermissionCreated === true
-  );
-  const watchOnly = degrees.some((degree) => degree?.watchOnly === true);
-
-  const reasonCodes = degrees.flatMap((degree) => asArray(degree?.reasonCodes));
-
-  return {
-    number: 5,
-    icon: "⬟",
-    title: "Safety / Permission",
-    severity: "purple",
-    fields: [
-      ["Engine 22 Role", "STRUCTURAL ONLY"],
-      ["No Execution", formatBool(noExecution, "YES")],
-      ["No Permission Created", formatBool(noPermissionCreated, "YES")],
-      ["Watch Only", formatBool(watchOnly, "YES")],
-    ],
-    lines: [
-      "Engine 22 is structural only.",
-      "No execution permission is created.",
-      "Engine 3 controls reaction confirmation.",
-      "Engine 4 controls participation confirmation.",
-      "Engine 6 controls final paper permission.",
-      "Engine 15 is bypassed for Strategy 1 / Subminute / Minute / Minor lanes.",
-      reasonCodes.length
-        ? `Engine 22 reasons: ${reasonCodes.slice(0, 8).map(formatText).join(", ")}`
-        : null,
-    ].filter(Boolean),
-  };
-}
-
-function getCompactCorrectionLabel(minor) {
-  const correctionModel = minor?.correctionModel || null;
-  const correctionModels = minor?.correctionModels || null;
-
-  return formatUpper(
-    correctionModels?.preferredType ||
-      correctionModel?.type ||
-      correctionModel?.correctionType ||
-      "—"
-  );
-}
-
-function getCompactCorrectionStage(minor) {
-  return formatUpper(
-    minor?.correctionModel?.stage || minor?.stage || minor?.currentRead || "—"
-  );
-}
-
-function buildEngine26ControlMapSection(fib) {
-  const locationCandidate =
-    getMinuteEngine26LocationCandidate(fib);
-
-  const reactionHandoff =
-    getMinuteEngine26ReactionHandoff(fib);
-
-  const legacyStrategy1Setup =
-    getEngine26Strategy1Setup(fib);
-
-  const canonicalCandidateAttached =
-    locationCandidate &&
-    typeof locationCandidate === "object" &&
-    Boolean(locationCandidate.candidateId) &&
-    Boolean(locationCandidate.zoneId) &&
-    locationCandidate.laneId === "minute" &&
-    locationCandidate.strategyId ===
-      "intraday_scalp@10m";
-
-  /*
-   * Compatibility fallback:
-   * Use the legacy Strategy 1 preview only when the canonical
-   * Engine 26A location candidate is completely unavailable.
-   */
-  const fallbackCandidateAttached =
-    !canonicalCandidateAttached &&
-    legacyStrategy1Setup &&
-    typeof legacyStrategy1Setup === "object" &&
-    Boolean(legacyStrategy1Setup.candidateId) &&
-    Boolean(legacyStrategy1Setup.zoneId) &&
-    legacyStrategy1Setup.laneId === "minute" &&
-    legacyStrategy1Setup.strategyId ===
-      "intraday_scalp@10m";
 
   if (
-    !canonicalCandidateAttached &&
-    !fallbackCandidateAttached
+    eventType === "TREASURY_RATES_RISK" ||
+    (eventType === "FINANCIAL_STRESS_EVENT" &&
+      event?.treasuryLiquidityRisk === true)
   ) {
+    const confirmed =
+      confirmation?.ratesConfirmed === true ||
+      confirmation?.tltConfirmed === true;
+
     return {
-      number: 2,
-      icon: "⑳",
-      title: "Engine 26A — Meaningful Trade Location",
-      severity: "warning",
-      fields: [
-        [
-          "Question",
-          "Where is the meaningful trade location?",
-        ],
-        ["Location Source", "NOT ATTACHED"],
-        ["Location Status", "WAITING FOR LOCATION"],
-      ],
-      lines: [],
+      label: "ZN / ZB / TLT",
+      value: confirmed ? "CONFIRMED" : "NOT CONFIRMED",
+      confirmed,
+      note:
+        treasuryLiquidity?.reasonCodes?.[0] ||
+        (confirmed
+          ? "Rates / TLT confirmation active."
+          : "Awaiting ZN / ZB / TLT confirmation."),
     };
   }
-
-  const candidate =
-    canonicalCandidateAttached
-      ? locationCandidate
-      : legacyStrategy1Setup;
-
-  const sourceLabel =
-    canonicalCandidateAttached
-      ? "CANONICAL ENGINE26 LOCATION CANDIDATE"
-      : "LEGACY STRATEGY 1 PREVIEW";
-
-  const entryZone =
-    candidate?.entryZone || null;
-
-  const zoneLow =
-    entryZone?.low ??
-    candidate?.location?.lo ??
-    null;
-
-  const zoneHigh =
-    entryZone?.high ??
-    candidate?.location?.hi ??
-    null;
-
-  const zoneMidline =
-    entryZone?.midline ??
-    candidate?.location?.mid ??
-    null;
-
-  const negotiatedZoneText =
-    zoneLow != null &&
-    zoneHigh != null &&
-    Number.isFinite(Number(zoneLow)) &&
-    Number.isFinite(Number(zoneHigh))
-      ? `${formatOptionalNumber(zoneLow)}–${formatOptionalNumber(
-          zoneHigh
-        )}`
-      : "—";
-
-  const relation =
-    candidate?.location?.relation ||
-    candidate?.relation ||
-    "UNKNOWN";
-
-  const distancePoints =
-    candidate?.location?.distancePoints ??
-    candidate?.distancePoints ??
-    null;
-
-  const completedCloseInvalidated =
-    canonicalCandidateAttached
-      ? candidate?.invalidationFacts
-          ?.completedCloseInvalidationConfirmed === true
-      : candidate?.completedCloseInvalidationConfirmed === true;
-
-  const locationStatus =
-    completedCloseInvalidated
-      ? "INVALIDATED BY COMPLETED CLOSE"
-      : formatUpper(
-          candidate?.status,
-          "UNKNOWN"
-        );
-
-  const reactionIdentityMatches =
-    !reactionHandoff ||
-    (
-      reactionHandoff.candidateId ===
-        candidate.candidateId &&
-      reactionHandoff.zoneId ===
-        candidate.zoneId &&
-      reactionHandoff.laneId ===
-        candidate.laneId &&
-      reactionHandoff.strategyId ===
-        candidate.strategyId
-    );
-
-  const expectedReactions =
-    reactionIdentityMatches
-      ? asArray(
-          reactionHandoff?.expectedReactions
-        )
-      : [];
-
-  const engine3AuthorizationText =
-    !reactionIdentityMatches
-      ? "IDENTITY MISMATCH — HANDOFF HIDDEN"
-      : reactionHandoff
-          ?.authorizeEngine3Evaluation === true
-      ? "AUTHORIZED — WAITING FOR ENGINE 3 REACTION"
-      : canonicalCandidateAttached
-      ? "LOCATION IDENTIFIED — EVALUATION NOT YET AUTHORIZED"
-      : "COMPATIBILITY LOCATION — AUTHORIZATION UNAVAILABLE";
-
-  const identityText =
-    canonicalCandidateAttached
-      ? reactionIdentityMatches
-        ? "COMPLETE AND CONSISTENT"
-        : "CANDIDATE COMPLETE — HANDOFF MISMATCH"
-      : "COMPATIBILITY FALLBACK";
-
-  const directionBias =
-    candidate?.directionBias ??
-    candidate?.direction ??
-    "NEUTRAL";
-
-  const directionState =
-    candidate?.directionState ??
-    "OBSERVING_ZONE_REACTION";
-
-  const directionalResolved =
-    candidate?.directionalResolved === true;
-
-  const severity =
-    completedCloseInvalidated ||
-    !reactionIdentityMatches
-      ? "danger"
-      : reactionHandoff
-          ?.authorizeEngine3Evaluation === true
-      ? "teal"
-      : "warning";
 
   return {
-    number: 2,
-    icon: "⑳",
-    title: "Engine 26A — Meaningful Trade Location",
-    severity,
-
-    fields: [
-      [
-        "Question",
-        "Where is the meaningful trade location?",
-      ],
-
-      ["Lane", formatUpper(candidate?.laneId, "MINUTE")],
-      ["Strategy", formatUpper(candidate?.strategyId)],
-      ["Symbol", formatUpper(candidate?.symbol, "ES")],
-      ["Setup", formatUpper(candidate?.setupClass)],
-      ["Grade", formatUpper(candidate?.setupGrade)],
-
-      ["Identity", identityText],
-      ["Candidate ID", candidate?.candidateId || "—"],
-      ["Zone ID", candidate?.zoneId || "—"],
-
-      [
-        "Location Source",
-        canonicalCandidateAttached
-          ? formatUpper(
-              candidate?.location?.source,
-              sourceLabel
-            )
-          : sourceLabel,
-      ],
-      [
-        "Location Type",
-        formatUpper(
-          candidate?.location?.type,
-          "NEGOTIATED"
-        ),
-      ],
-      [
-        "Location Active",
-        formatBool(candidate?.active, "NO"),
-      ],
-      ["Location Status", locationStatus],
-
-      [
-        "Current Price",
-        formatOptionalNumber(
-          candidate?.currentPrice
-        ),
-      ],
-      ["Negotiated Zone", negotiatedZoneText],
-      [
-        "Zone Midline",
-        formatOptionalNumber(zoneMidline),
-      ],
-      ["Relation", formatUpper(relation)],
-      [
-        "Distance",
-        distancePoints != null &&
-        Number.isFinite(Number(distancePoints))
-          ? `${formatOptionalNumber(
-              distancePoints
-            )} pts`
-          : "—",
-      ],
-
-      [
-        "Tactical Direction",
-        formatUpper(directionBias, "NEUTRAL"),
-      ],
-      [
-        "Direction State",
-        formatUpper(
-          directionState,
-          "OBSERVING ZONE REACTION"
-        ),
-      ],
-      [
-        "Direction Resolved",
-        formatBool(
-          directionalResolved,
-          "NO"
-        ),
-      ],
-
-      [
-        "Trigger",
-        formatOptionalNumber(
-          candidate?.triggerLevel
-        ),
-      ],
-      [
-        "Acceptance",
-        formatOptionalNumber(
-          candidate?.acceptanceBoundary
-        ),
-      ],
-      [
-        "Reclaim",
-        formatOptionalNumber(
-          candidate?.reclaimBoundary
-        ),
-      ],
-      [
-        "Invalidation",
-        formatOptionalNumber(
-          candidate
-            ?.locationInvalidationBoundary
-        ),
-      ],
-      [
-        "Completed-Close Invalidated",
-        formatBool(
-          completedCloseInvalidated,
-          "NO"
-        ),
-      ],
-
-      [
-        "Expected Reaction",
-        reactionIdentityMatches
-          ? formatUpper(
-              reactionHandoff
-                ?.expectedReactionDirection,
-              "NEUTRAL"
-            )
-          : "HANDOFF IDENTITY MISMATCH",
-      ],
-      [
-        "Engine 3 Handoff",
-        engine3AuthorizationText,
-      ],
-      [
-        "Handoff Status",
-        reactionIdentityMatches
-          ? formatUpper(
-              reactionHandoff?.status,
-              "—"
-            )
-          : "—",
-      ],
-      [
-        "Chain Armed",
-        reactionIdentityMatches
-          ? formatBool(
-              reactionHandoff?.chainArmed,
-              "NO"
-            )
-          : "—",
-      ],
-      [
-        "Contact State",
-        reactionIdentityMatches
-          ? formatUpper(
-              reactionHandoff?.contactState,
-              "—"
-            )
-          : "—",
-      ],
-    ],
-
-    lines: [],
-  };
-}
-
-function buildEngine22CompactStructureSection(degreeStates) {
-  const minute = degreeStates?.minute || null;
-
-  if (!minute) {
-    return {
-      number: 1,
-      icon: "〽",
-      title: "Engine 22 — Current Wave Read",
-      severity: "warning",
-      fields: [
-        {
-          label: "Question",
-          value: "What wave are we in right now?",
-          fullWidth: true,
-        },
-        {
-          type: "sectionHeader",
-          label: "Current Wave Read",
-        },
-        ["Status", "Minute / Minor structure unavailable"],
-      ],
-      lines: [],
-    };
-  }
-
-  const internal = minute?.internalStructure || {};
-  const targetModel = minute?.targetModel || {};
-  const activeFibModel = minute?.activeFibModel || {};
-  const w4RetracementMap = minute?.w4RetracementMap || {};
-
-  const publishedText = (value, formatter = formatText) =>
-    value == null || value === ""
-      ? "Not published"
-      : formatter(value, "Not published");
-
-  const publishedNumber = (value) => {
-    const n = Number(value);
-
-    if (!Number.isFinite(n)) return "Not published";
-    if (n === 0) return "Not published";
-
-    return formatNumber(n);
-  };
-
-  const publishedBool = (value) => {
-    if (value === true) return "Yes";
-    if (value === false) return "No";
-    return "Not published";
-  };
-
-  const internalC =
-    minute?.cWaveInternalStructure ||
-    targetModel?.internalCStructure ||
-    activeFibModel?.internalCStructure ||
-    internal?.internalCStructure ||
-    null;
-
-  const cCModel =
-    internalC?.cC?.targetModel && typeof internalC.cC.targetModel === "object"
-      ? internalC.cC.targetModel
-      : null;
-  const manualMinuteCCFallbackLevels = {
-    cc100: 7658.25,
-    cc1272: 7643.25,
-    cc1618: 7624.5,
-    cc200: 7603.5,
-    cc2618: 7569.75,
-  };
-
-  const manualParentCDownFallbackLevels = {
-    c100: 7722.75,
-    c1272: 7690.75,
-    c1618: 7650.25,
-    c200: 7605.5,
-    c2618: 7533.0,
-  };
-
-  const minuteCCLevels =
-    cCModel?.levels && typeof cCModel.levels === "object"
-      ? {
-          ...manualMinuteCCFallbackLevels,
-          ...cCModel.levels,
-        }
-      : manualMinuteCCFallbackLevels;
-
-const parentCLevels = {
-  c100:
-    targetModel?.levels?.c100 ??
-    targetModel?.cDownTargets?.c100 ??
-    internalC?.cC?.largerCTargets?.c100 ??
-    manualParentCDownFallbackLevels.c100,
-  c1272:
-    targetModel?.levels?.c1272 ??
-    targetModel?.cDownTargets?.c1272 ??
-    internalC?.cC?.largerCTargets?.c1272 ??
-    manualParentCDownFallbackLevels.c1272,
-  c1618:
-    targetModel?.levels?.c1618 ??
-    targetModel?.cDownTargets?.c1618 ??
-    internalC?.cC?.largerCTargets?.c1618 ??
-    manualParentCDownFallbackLevels.c1618,
-  c200:
-    targetModel?.levels?.c200 ??
-    targetModel?.cDownTargets?.c200 ??
-    internalC?.cC?.largerCTargets?.c200 ??
-    manualParentCDownFallbackLevels.c200,
-  c2618:
-    targetModel?.levels?.c2618 ??
-    targetModel?.cDownTargets?.c2618 ??
-    internalC?.cC?.largerCTargets?.c2618 ??
-    manualParentCDownFallbackLevels.c2618,
-};
-    
-  const cDownAnchor =
-    targetModel?.anchorModel ||
-    activeFibModel?.anchorModel ||
-    {};
-
-  const parentALow =
-    targetModel?.aLow ??
-    cDownAnchor?.waveALow ??
-    internal?.aLow ??
-    internalC?.waveA?.price ??
-    null;
-
-  const parentATime =
-    targetModel?.aTime ??
-    cDownAnchor?.waveATime ??
-    internalC?.waveA?.time ??
-    null;
-
-  const parentBHigh =
-    targetModel?.bHigh ??
-    cDownAnchor?.waveBHigh ??
-    internal?.bHigh ??
-    internalC?.waveB?.price ??
-    null;
-
-  const parentBTime =
-    targetModel?.bTime ??
-    cDownAnchor?.waveBTime ??
-    internalC?.waveB?.time ??
-    null;
-
-
-const minuteCALow =
-  internalC?.cA?.low ??
-  internalC?.finalMinuteABC?.waveA?.price ??
-  internalC?.cA?.completionTouchPrice ??
-  7658.25;
-
-const minuteCALowTime =
-  internalC?.cA?.time ??
-  internalC?.finalMinuteABC?.waveA?.time ??
-  internalC?.cA?.completionTouchTime ??
-  "2026-08-20 13:30";
-
-const minuteCBHigh =
-  internalC?.cB?.high ??
-  internalC?.finalMinuteABC?.waveB?.price ??
-  7713.0;
-
-const minuteCBHighTime =
-  internalC?.cB?.time ??
-  internalC?.finalMinuteABC?.waveB?.time ??
-  "2026-08-21 09:00";
-
-const minuteCCStart =
-  internalC?.cC?.start ??
-  internalC?.finalMinuteABC?.waveC?.start ??
-  minuteCBHigh ??
-  7713.0;
-
-const minuteCCStartTime =
-  internalC?.cC?.startTime ??
-  internalC?.finalMinuteABC?.waveC?.startTime ??
-  minuteCBHighTime ??
-  "2026-08-21 09:00";
- 
-  const currentPriceValue =
-    targetModel?.currentPrice ??
-    activeFibModel?.currentPrice ??
-    w4RetracementMap?.currentPrice ??
-    minute?.currentPrice ??
-    null;
-
-  const currentInternalWave =
-    internalC?.currentInternalWave ||
-    internal?.currentInternalWave ||
-    "Minute C-down";
-
-  const tacticalDirection =
-    internalC?.direction ||
-    internal?.internalLegDirection ||
-    minute?.direction ||
-    "DOWN";
-
-  const currentWaveState =
-    internalC?.cWaveState ||
-    minute?.stage ||
-    internal?.classification ||
-    "C_DOWN_ACTIVE";
-
-  const minuteCCInvalidation =
-    minuteCBHigh ?? null;
-
-  const largerCInvalidation =
-    targetModel?.invalidationLevel ??
-    targetModel?.reclaimInvalidationLevel ??
-    cDownAnchor?.waveBHigh ??
-    internal?.invalidationLevel ??
-    internalC?.invalidationLevel ??
-    null;
-
-  const nextParentTarget =
-    parentCLevels.c1272 ??
-    parentCLevels.c100 ??
-    targetModel?.nextTarget ??
-    null;
-
-  const nextMinuteTarget =
-    minuteCCLevels.cc100 ??
-    cCModel?.primaryTarget ??
-    null;
-
-  const ticketCreated =
-    minute?.ticketCreated === true ||
-    minute?.engine26PaperTradeTicket != null;
-
-  const journalCreated =
-    minute?.journalCreated === true ||
-    minute?.engine10JournalCreated === true;
-
-  const fields = [
-    {
-      label: "Question",
-      value: "What wave are we in right now?",
-      fullWidth: true,
-    },
-
-    {
-      type: "sectionHeader",
-      label: "Current Wave Read",
-    },
-    ["Parent Structure", "Minor W4 expanded flat"],
-    ["Active Parent Leg", "Minor C-down"],
-    ["Current Tactical Wave", "Minute C-down / final C-c active"],
-    ["Current Internal", publishedText(currentInternalWave)],
-    ["Tactical Direction", formatUpper(tacticalDirection, "DOWN")],
-    ["Status", publishedText(currentWaveState, formatUpper)],
-    ["Current Price", publishedNumber(currentPriceValue)],
-
-    {
-      type: "sectionHeader",
-      label: "Invalidation / Control",
-    },
-    [
-      "Minute C-c invalidation",
-       minuteCCInvalidation !== null
-         ? `Above internal B high ${publishedNumber(minuteCCInvalidation)} reclaim / hold`
-         : "Above internal B high reclaim / hold",
-    ],
-     [
-       "Large C-down invalidation",
-       largerCInvalidation !== null
-         ? `Above expanded-flat B high ${publishedNumber(largerCInvalidation)} reclaim / hold`
-         : "Above expanded-flat B high 7840.00 reclaim / hold",
-     ],
-       
-    ["Next Parent Target", publishedNumber(nextParentTarget)],
-
-    {
-      type: "sectionHeader",
-      label: "Current Minute C-down Extensions",
-    },
-    ["Minute C-a Low", publishedNumber(minuteCALow)],
-    ["Minute C-a Time", publishedText(minuteCALowTime)],
-    ["Minute C-b High", publishedNumber(minuteCBHigh)],
-    ["Minute C-b Time", publishedText(minuteCBHighTime)],
-    ["Minute C-c Start", publishedNumber(minuteCCStart)],
-    ["Minute C-c Start Time", publishedText(minuteCCStartTime)],
-    ["C-c 1.000", publishedNumber(minuteCCLevels.cc100)],
-    ["C-c 1.272", publishedNumber(minuteCCLevels.cc1272)],
-    ["C-c 1.618", publishedNumber(minuteCCLevels.cc1618)],
-    ["C-c 2.000", publishedNumber(minuteCCLevels.cc200)],
-    ["C-c 2.618", publishedNumber(minuteCCLevels.cc2618)],
-    ["Minute C-c Primary", publishedNumber(cCModel?.primaryTarget)],
-    ["Minute C-c Deep", publishedNumber(cCModel?.deepTarget)],
-
-    {
-      type: "sectionHeader",
-      label: "Larger Minor C-down Extensions",
-    },
-    ["Expanded-flat A Low", publishedNumber(parentALow)],
-    ["A Time", publishedText(parentATime)],
-    ["Expanded-flat B High", publishedNumber(parentBHigh)],
-    ["B Time", publishedText(parentBTime)],
-    ["C 1.000", publishedNumber(parentCLevels.c100)],
-    ["C 1.272", publishedNumber(parentCLevels.c1272)],
-    ["C 1.618", publishedNumber(parentCLevels.c1618)],
-    ["C 2.000", publishedNumber(parentCLevels.c200)],
-    ["C 2.618", publishedNumber(parentCLevels.c2618)],
-
-    {
-      type: "sectionHeader",
-      label: "Engine 22 Status",
-    },
-    ["Engine 22 Role", "STRUCTURAL ONLY"],
-    ["No Execution", publishedBool(minute?.noExecution !== false)],
-    ["No Permission Created", publishedBool(minute?.noPermissionCreated !== false)],
-    ["Watch Only", publishedBool(minute?.watchOnly !== false)],
-    ["Ticket Created", ticketCreated ? "Yes" : "No"],
-    ["Journal Created", journalCreated ? "Yes" : "No"],
-  ];
-
-  return {
-    number: 1,
-    icon: "〽",
-    title: "Engine 22 — Current Wave Read",
-    severity: "teal",
-    fields,
-    lines: [
-      "Minor W4 expanded flat → Minor C-down active → Minute C-down active.",
-      "Engine 22 is structural only. Engine 3, Engine 4, and Engine 6 still control reaction, participation, and permission.",
-    ],
-  };
-}
-function buildEngine22DegreeTimelineSections(degreeStates) {
-  if (!degreeStates) return [];
-
-  return [buildEngine22CompactStructureSection(degreeStates)].filter(Boolean);
-}
-
-/* =========================
-   Normalize timeline data
-========================= */
-
-function normalizeTimelineData({ overlayData }) {
-  if (!overlayData?.ok) {
-    return {
-      show: false,
-    };
-  }
-
-  const fib = getFib(overlayData);
-  const waveOpportunity = getWaveOpportunity(fib);
-  const engine15 = getEngine15Decision(fib);
-  const permission = getFinalPermission(fib);
-  const backendTimelineRead = getBackendTimelineRead(fib);
-  const tradeContextSummary = getBackendTradeContextSummary(fib);
-  const currentLifecycleState = getCurrentLifecycleState(fib);
-  const engine22WaveStrategy = getEngine22WaveStrategy(fib);
-  const degreeStates = getEngine22DegreeStates(fib);
-
-  const hasCanonicalEngine22 =
-    engine22WaveStrategy != null;
-
-  const hasDegreeStates =
-    degreeStates != null;
-
-  const lifecycleViews = getLifecycleViews(fib);
-  const lifecycleViewSections = hasDegreeStates
-    ? []
-    : buildLifecycleViewSections(lifecycleViews);
-  const hasLifecycleViews = lifecycleViewSections.length > 0;
-
-  const postAbcBounceSection = hasDegreeStates
-    ? null
-    : buildPostAbcBounceSection(tradeContextSummary, waveOpportunity);
-
-  const marketMeterSection = getBackendTimelineSection(
-    fib,
-    "Market Meter / Tactical Context"
-  );
-
-const headline = hasCanonicalEngine22
-  ? "Engine 22 — Minute Market Structure"
-  : hasLifecycleViews
-  ? `${formatText(
-      lifecycleViews?.longTerm?.label,
-      "Intermediate W3 active"
-    )} / ${formatText(
-      lifecycleViews?.intradayScalp?.label,
-      "Minute structure unavailable"
-    )}`
-  : currentLifecycleState?.headline ||
-    backendTimelineRead?.headline ||
-    tradeContextSummary?.headline ||
-    buildFallbackHeadline({ waveOpportunity, engine15 });
-
-const engine26GeneralContext = getEngine26GeneralContext(fib);
-const engine26Strategy1Setup = getEngine26Strategy1Setup(fib);
-
-const strategy1EntryZone =
-  engine26Strategy1Setup?.entryZone || null;
-
-const strategy1Subheadline =
-  engine26Strategy1Setup
-    ? `Strategy 1: ${formatUpper(
-        engine26Strategy1Setup.direction,
-        "LONG"
-      )} ${formatUpper(
-        engine26Strategy1Setup.setupClass,
-        "NEGOTIATED ZONE SWEEP RECLAIM ROTATION"
-      )} at ${
-        strategy1EntryZone?.low != null &&
-        strategy1EntryZone?.high != null
-          ? `${formatNumber(strategy1EntryZone.low)}–${formatNumber(
-              strategy1EntryZone.high
-            )}`
-          : "zone unavailable"
-      }.`
-    : null;
-
-const generalContextSubheadline =
-  engine26GeneralContext
-    ? `General context: ${formatUpper(
-        engine26GeneralContext.direction,
-        "—"
-      )} at ${
-        engine26GeneralContext?.zone?.lo != null &&
-        engine26GeneralContext?.zone?.hi != null
-          ? `${formatNumber(
-              engine26GeneralContext.zone.lo
-            )}–${formatNumber(engine26GeneralContext.zone.hi)}`
-          : "zone unavailable"
-      } — context only.`
-    : null;
-
-  const subheadline = hasCanonicalEngine22
-    ? "Canonical Strategy 1 Minute structure from Engine 22 degreeStates.minute."
-    : hasLifecycleViews
-  ? [
-      "Primary and Intermediate remain higher-timeframe continuation context; Minor / Minute / Subminute define the active correction and tactical path. Structural only — no execution permission.",
-      strategy1Subheadline,
-      generalContextSubheadline,
-    ]
-      .filter(Boolean)
-      .join(" ")
-  : hasLifecycleViews
-  ? "Higher-timeframe lifecycle and intraday scalp lifecycle are shown separately. Structural only — no execution permission."
-  : currentLifecycleState?.summary ||
-    backendTimelineRead?.subheadline ||
-    tradeContextSummary?.summary ||
-    buildFallbackSubheadline({ waveOpportunity, engine15 });
-
-const lifecycleOwnsDisplay =
-  !hasDegreeStates && isCurrentLifecycleDisplayOverride(currentLifecycleState);
-
-  const permissionBadge = buildPermissionBadge(permission);
-
-  const badges = hasDegreeStates
-    ? buildEngine22DegreeBadges(degreeStates, permission)
-    : lifecycleOwnsDisplay
-    ? [
-        ...buildCurrentLifecycleBadges(currentLifecycleState),
-        permissionBadge,
-      ].filter(Boolean)
-    : [
-        ...buildCurrentLifecycleBadges(currentLifecycleState),
-        ...buildBadges({ waveOpportunity, engine15, permission }),
-      ].filter(Boolean);
-
-  const degreeTimelineSections = buildEngine22DegreeTimelineSections(degreeStates);
-  const engine26ControlMapSection = buildEngine26ControlMapSection(fib);
-
-  const sections = [
-    ...(hasCanonicalEngine22
-      ? buildEngine22DegreeTimelineSections(degreeStates)
-      : lifecycleViewSections),
-
-    engine26ControlMapSection,
-
-    hasCanonicalEngine22 || hasLifecycleViews
-      ? null
-      : buildCurrentLifecycleStateSection(currentLifecycleState, fib),
-
-    hasCanonicalEngine22 || hasLifecycleViews || lifecycleOwnsDisplay
-      ? null
-      : buildWaveOpportunitySection(waveOpportunity, fib),
-
-    hasCanonicalEngine22 ? null : buildPossibleW5UpCompleteSection(fib),
-    hasCanonicalEngine22 ? null : buildPostMinor5CorrectiveBounceSection(fib),
-    postAbcBounceSection,
-    buildEngine27TraderIntelligenceSection(fib),
-    buildPermissionSection(permission, engine15),
-
-    lifecycleOwnsDisplay && !hasLifecycleViews
-      ? buildLifecycleNextStepsSection(currentLifecycleState, fib)
-      : buildNextStepsSection({
-          waveOpportunity,
-          engine15,
-          permission,
-          fib,
-          tradeContextSummary,
-        }),
-
-    buildCanonicalMinuteStageTimelineSection(fib),
-  ]
-    .filter(Boolean)
-    .map((section, idx) => ({
-      ...section,
-      number: idx + 1,
-    }));
-
-  const contextSections = [
-    buildBackendTimelineSection(marketMeterSection),
-    buildEngine3ContextSection(fib),
-    buildEngine4ContextSection(fib),
-  ]
-    .filter(Boolean)
-    .map((section, idx) => ({
-      ...section,
-      number: idx + 1,
-    }));
-
-  const severity = hasDegreeStates
-    ? "teal"
-    : backendTimelineRead?.severity ||
-      tradeContextSummary?.severity ||
-      (permission?.executable === true
-        ? "bullish"
-        : waveOpportunity?.chaseRisk === "EXTREME" ||
-          waveOpportunity?.timing === "POST_EXTENSION"
-        ? "warning"
-        : isWatchState(engine15?.readinessLabel)
-        ? "warning"
-        : "neutral");
-
-  return {
-    show: true,
-    severity,
-    headline,
-    subheadline,
-    badges,
-    sections,
-    contextSections,
-    permission,
-    footer: permission?.executable === true ? "EXECUTION ELIGIBLE" : "WATCH",
-  };
-}
-
-function buildSubminuteEngine22StructureSection(fib) {
-  const structure = getEngine22SubminuteStructure(fib);
-
-  if (
-    !structure ||
-    String(structure?.degree || "").toLowerCase() !== "subminute"
-  ) {
-    return {
-      number: 1,
-      icon: "〽",
-      title: "Engine 22 Structure",
-      severity: "warning",
-      fields: [],
-      lines: ["Subminute Engine 22 Structure not attached"],
-    };
-  }
-
-  const internal = structure?.internalStructure || {};
-  const targetModel = structure?.targetModel || {};
-
-  return {
-    number: 1,
-    icon: "〽",
-    title: "Engine 22 Structure",
-    severity: "teal",
-    fields: [
-      ["Degree", formatUpper(structure?.degree, "SUBMINUTE")],
-      ["Direction", formatUpper(structure?.direction, "—")],
-      ["Active Wave", formatUpper(structure?.activeWave, "—")],
-      ["Stage", formatUpper(structure?.stage, "—")],
-      ["Internal Wave", formatText(internal?.currentInternalWave, "—")],
-      ["Next Internal Wave", formatText(internal?.nextExpectedInternalWave, "—")],
-      ["Parent Wave", formatUpper(structure?.parentWave, "—")],
-      ["Current Price", formatNumber(structure?.currentPrice)],
-      ["Invalidation", formatNumber(internal?.invalidationLevel)],
-      ["Support", formatNumber(internal?.supportLevel)],
-      ["Next Target", formatNumber(targetModel?.nextTarget)],
-    ],
-    lines: [
-      structure?.headline || null,
-      structure?.currentRead
-        ? `Current read: ${formatText(structure.currentRead)}`
-        : null,
-      structure?.action
-        ? `Action: ${formatText(structure.action)}`
-        : null,
-      internal?.classification
-        ? `Classification: ${formatText(internal.classification)}`
-        : null,
-      structure?.noExecution === true ? "No execution." : null,
-    ].filter(Boolean),
-  };
-}
-
-function buildSubminuteEngine26Section(fib) {
-  const contract = getSubminuteEngine26(fib);
-
-  const locationCandidate = contract?.locationCandidate || null;
-  const pipelineIdentity = contract?.pipelineIdentity || null;
-  const locationContext = contract?.locationContext || null;
-  const controlMap = contract?.controlMap || null;
-  const proposedGeometry = contract?.proposedGeometry || null;
-
-  const expectedCandidateId =
-    "E26C-SUBMINUTE-87288e1db54cb920bfd4";
-
-  const expectedZoneId =
-    "E26Z-SUBMINUTE-d15bf89c7c189d747288";
-
-  const expectedStrategyId = "subminute_scalp@10m";
-  const expectedLaneId = "subminute";
-
-  const identityObjects = [
-    locationCandidate,
-    pipelineIdentity,
-    locationContext,
-    controlMap,
-    proposedGeometry,
-  ];
-
-  const contractAttached = identityObjects.every(
-    (item) => item && typeof item === "object"
-  );
-
-  const identityMatches =
-    contractAttached &&
-    identityObjects.every(
-      (item) =>
-        item.candidateId === expectedCandidateId &&
-        item.zoneId === expectedZoneId &&
-        item.strategyId === expectedStrategyId &&
-        item.laneId === expectedLaneId
-    );
-
-  if (contractAttached && !identityMatches) {
-    return {
-      number: 2,
-      icon: "⑳",
-      title: "Control Map — Engine 26",
-      severity: "danger",
-      fields: [
-        ["Status", "SUBMINUTE ENGINE 26 IDENTITY MISMATCH"],
-        ["Candidate ID", locationCandidate?.candidateId || "—"],
-        ["Zone ID", locationCandidate?.zoneId || "—"],
-        ["Strategy", locationCandidate?.strategyId || "—"],
-        ["Lane", locationCandidate?.laneId || "—"],
-      ],
-      lines: [
-        "The Subminute Engine 26 objects do not preserve the same candidate, zone, strategy, and lane identity.",
-        "No fields were mixed and no Minute fallback was used.",
-      ],
-    };
-  }
-
-  if (!contractAttached) {
-    return {
-      number: 2,
-      icon: "⑳",
-      title: "Control Map — Engine 26",
-      severity: "teal",
-      fields: [
-        ["Current", "—"],
-        ["Control State", "NOT ATTACHED"],
-        ["Instruction", "—"],
-        ["Trigger Level", "—"],
-        ["Acceptance", "—"],
-        ["Reclaim", "—"],
-        ["Invalidation", "—"],
-        ["Candidate ID", "—"],
-        ["Zone ID", "—"],
-        ["Planner Status", "NOT ATTACHED"],
-      ],
-      lines: [
-        "Subminute Engine 26 Control Map not attached",
-        "No Minute Engine 26 data is reused.",
-        "No permission. No ticket. No execution.",
-      ],
-    };
-  }
-
-  const zone =
-    locationContext?.zone ||
-    locationCandidate?.location ||
-    null;
-
-  const plannerReady =
-    proposedGeometry?.active === true &&
-    String(proposedGeometry?.lifecycleStatus || "").toUpperCase() ===
-      "PROPOSED_GEOMETRY_AVAILABLE";
-
-  return {
-    number: 2,
-    icon: "⑳",
-    title: "Control Map — Engine 26",
-    severity: "teal",
-    fields: [
-      ["Lane", formatUpper(locationCandidate?.laneId)],
-      ["Strategy", formatUpper(locationCandidate?.strategyId)],
-      ["Direction", formatUpper(locationCandidate?.direction)],
-      ["Current", formatNumber(locationContext?.currentPrice)],
-      ["Control State", formatUpper(controlMap?.currentControlState)],
-      ["Required Reaction", formatUpper(controlMap?.requiredReaction)],
-      ["Trigger Level", formatNumber(controlMap?.triggerLevel)],
-      ["Acceptance", formatNumber(controlMap?.acceptanceBoundary)],
-      ["Reclaim", formatNumber(controlMap?.reclaimBoundary)],
-      ["Invalidation", formatNumber(controlMap?.invalidationBoundary)],
-      [
-        "Location",
-        zone?.lo != null && zone?.hi != null
-          ? `${formatNumber(zone.lo)}–${formatNumber(zone.hi)}`
-          : "—",
-      ],
-      ["Relation", formatUpper(locationContext?.relation)],
-      ["Candidate ID", locationCandidate?.candidateId || "—"],
-      ["Zone ID", locationCandidate?.zoneId || "—"],
-      ["Pipeline Complete", formatBool(pipelineIdentity?.complete)],
-      ["Planner Status", formatUpper(proposedGeometry?.lifecycleStatus)],
-      ["Planner Ready", formatBool(plannerReady)],
-      ["Proposed Entry", formatNumber(proposedGeometry?.proposedEntryPrice)],
-      ["Proposed Stop", formatNumber(proposedGeometry?.proposedStopPrice)],
-      [
-        "Risk",
-        proposedGeometry?.proposedStopDistancePoints != null
-          ? `${formatNumber(
-              proposedGeometry.proposedStopDistancePoints
-            )} pts`
-          : "—",
-      ],
-      ["Proposal Only", formatBool(proposedGeometry?.proposalOnly)],
-      ["Official", formatBool(proposedGeometry?.official)],
-      ["Executable", formatBool(!proposedGeometry?.nonExecutable)],
-      ["No Execution", formatBool(proposedGeometry?.noExecution)],
-    ],
-    lines: [
-      "Subminute Engine 26 candidate, zone, location, control map, and proposed geometry are attached.",
-      "Proposal only. Engine 6 permission, Engine 7 sizing, Engine 9 management, Engine 8 execution, and Engine 10 journal remain separate authorities.",
-      "No permission. No ticket. No execution.",
-    ],
-  };
-}
-
-function buildSubminuteEngine6Section(fib) {
-  const permission = getSubminuteEngine6Permission(fib);
-
-  const expectedIdentity = {
-    laneId: "subminute",
-    strategyId: "subminute_scalp@10m",
-    candidateId: "E26C-SUBMINUTE-87288e1db54cb920bfd4",
-    zoneId: "E26Z-SUBMINUTE-d15bf89c7c189d747288",
-  };
-
-  if (!permission) {
-    return {
-      number: 4,
-      icon: "⬟",
-      title: "Final Permission — Engine 6",
-      severity: "purple",
-      fields: [
-        ["Decision", "NOT ATTACHED"],
-        ["Permission State", "NOT ATTACHED"],
-        ["Paper Allowed", "—"],
-        ["Ticket Allowed", "—"],
-        ["Watch Only", "YES"],
-        ["Executable", "NO"],
-        ["No Execution", "YES"],
-      ],
-      lines: [
-        "Subminute Engine 6 Permission not attached",
-        "No Minute or shared Engine 6 permission is reused.",
-      ],
-    };
-  }
-
-  const identityMatches =
-    permission.laneId === expectedIdentity.laneId &&
-    permission.strategyId === expectedIdentity.strategyId &&
-    permission.candidateId === expectedIdentity.candidateId &&
-    permission.zoneId === expectedIdentity.zoneId;
-
-  if (!identityMatches) {
-    return {
-      number: 4,
-      icon: "⬟",
-      title: "Final Permission — Engine 6",
-      severity: "danger",
-      fields: [
-        ["Status", "SUBMINUTE ENGINE 6 IDENTITY MISMATCH"],
-        ["Lane", permission?.laneId || "—"],
-        ["Strategy", permission?.strategyId || "—"],
-        ["Candidate ID", permission?.candidateId || "—"],
-        ["Zone ID", permission?.zoneId || "—"],
-        ["Executable", "NO"],
-      ],
-      lines: [
-        "The Subminute Engine 6 permission does not match the authorized Subminute candidate identity.",
-        "No Minute permission was used.",
-      ],
-    };
-  }
-
-  const decision =
-    permission?.decision ||
-    permission?.paper?.decision ||
-    "PAPER_STAND_DOWN";
-
-  const permissionState =
-    permission?.permissionState ||
-    permission?.state ||
-    "WATCH_ONLY_CONFIRMATION_REQUIRED";
-
-  const paperAllowed =
-    permission?.paperAllowed ??
-    permission?.allowed ??
-    permission?.paper?.allowed;
-
-  const ticketAllowed =
-    permission?.ticketAllowed ??
-    permission?.paperShortAllowed ??
-    permission?.paper?.ticketAllowed;
-
-  const executable =
-    permission?.executable === true;
-
-  const noExecution =
-    permission?.noExecution !== false;
-
-  return {
-    number: 4,
-    icon: "⬟",
-    title: "Final Permission — Engine 6",
-    severity: executable ? "bullish" : "purple",
-    fields: [
-      ["Lane", formatUpper(permission?.laneId)],
-      ["Strategy", formatUpper(permission?.strategyId)],
-      ["Decision", formatUpper(decision)],
-      ["Permission State", formatUpper(permissionState)],
-      ["Paper Allowed", formatBool(paperAllowed)],
-      ["Ticket Allowed", formatBool(ticketAllowed)],
-      ["Watch Only", formatBool(permission?.watchOnly)],
-      ["Executable", formatBool(executable)],
-      ["No Execution", formatBool(noExecution)],
-      [
-        "Real Execution",
-        formatBool(permission?.realExecutionAllowed),
-      ],
-      [
-        "Broker Execution",
-        formatBool(permission?.brokerExecutionAllowed),
-      ],
-      [
-        "Schwab Execution",
-        formatBool(permission?.schwabExecutionAllowed),
-      ],
-      ["Candidate ID", permission?.candidateId || "—"],
-      ["Zone ID", permission?.zoneId || "—"],
-    ],
-    lines: [
-      "Subminute Engine 6 permission is attached and identity-confirmed.",
-      "Watch only. Paper execution is not allowed.",
-      "No ticket. No broker execution. No Schwab execution.",
-      asArray(permission?.reasonCodes).length
-        ? `Reasons: ${asArray(permission.reasonCodes)
-            .map(formatText)
-            .join(", ")}`
-        : null,
-    ].filter(Boolean),
-  };
-}
-function buildSubminuteNextActionSection(decision) {
-  const action =
-    decision?.nextAction ||
-    decision?.recommendedAction ||
-    null;
-
-  const waitingFor = asArray(decision?.waitingFor)
-    .map((item) => formatText(item))
-    .slice(0, 6);
-
-  const checklist = [
-    action ? formatUpper(action) : "Subminute Next Action not attached",
-    ...waitingFor,
-  ];
-
-  return {
-    number: 5,
-    icon: "✓",
-    title: "Next Action Levels",
-    severity: "teal",
-    checklist,
-  };
-}
-
-function normalizeSubminuteTimelineData({ overlayData }) {
-  if (!overlayData?.ok) {
-    return {
-      show: false,
-    };
-  }
-
-  const fib = getFib(overlayData);
-  const subminuteDecision = getEngine27SubminuteTraderDecision(fib);
-
-  return {
-    show: true,
-    severity: subminuteDecision?.noExecution === false ? "bullish" : "teal",
-    headline: "Engine 22 Wave Stack — Subminute Structure",
-    subheadline:
-      "Subminute lane using only Subminute-owned structure and Engine 27 decision data. Missing Engine 26, Engine 6, and timeline contracts remain visible in their full card shells.",
-    badges: [
-      { label: "ES", severity: "blue" },
-      { label: "SUBMINUTE", severity: "teal" },
-      subminuteDecision?.noExecution === true
-        ? { label: "NO EXECUTION", severity: "purple" }
-        : null,
-    ].filter(Boolean),
-    sections: [
-      buildSubminuteEngine22StructureSection(fib),
-      buildSubminuteEngine26Section(fib),
-      {
-        ...buildEngine27TraderIntelligenceSection(fib, subminuteDecision),
-        number: 3,
-      },
-      buildSubminuteEngine6Section(fib),
-      buildSubminuteNextActionSection(subminuteDecision),
-      {
-        number: 6,
-        icon: "⑩",
-        title: "Canonical Subminute Stage Timeline",
-        severity: "warning",
-        fields: [],
-        lines: ["Timeline not attached yet."],
-      },
-    ],
-    contextSections: [],
-    permission: null,
-    footer: subminuteDecision?.noExecution === true ? "WATCH" : null,
+    label: "V0.1",
+    value: "NO DEDICATED CONFIRMATION FAMILY",
+    confirmed: false,
+    note:
+      "Context only in v0.1. No dedicated market-confirmation family is assigned.",
   };
 }
 
 /* =========================
-   Shared styles
+   UI helpers
 ========================= */
 
-const shellTextStyle = {
-  fontFamily: TIMELINE_FONT,
-  WebkitFontSmoothing: "antialiased",
-  MozOsxFontSmoothing: "grayscale",
-  textRendering: "geometricPrecision",
-};
-
-const smallCapsStyle = {
-  textTransform: "none",
-  letterSpacing: "0.015em",
-};
-
-/* =========================
-   UI Components
-========================= */
-
-function Badge({ label, severity = "neutral" }) {
-  if (!label) return null;
-
-  return (
-    <span
-      style={{
-        ...shellTextStyle,
-        ...smallCapsStyle,
-        display: "inline-flex",
-        alignItems: "center",
-        justifyContent: "center",
-        border: `1px solid ${severityBorder(severity)}`,
-        background: severityBackground(severity),
-        color: severityColor(severity),
-        borderRadius: 8,
-        padding: "5px 10px",
-        fontSize: 13,
-        fontWeight: FONT_REGULAR,
-        whiteSpace: "nowrap",
-      }}
-    >
-      {label}
-    </span>
-  );
+function engine25Border() {
+  return "rgba(96,165,250,0.45)";
 }
 
-function FieldGrid({ fields, columns = null }) {
-  const safeFields = asArray(fields);
+function engine25Background() {
+  return "rgba(15,23,42,0.38)";
+}
 
-  if (!safeFields.length) return null;
+function sectionBorder(label, score) {
+  const color = labelColor(label, score);
 
+  if (color === "#22c55e") return "rgba(34,197,94,0.50)";
+  if (color === "#fbbf24") return "rgba(251,191,36,0.55)";
+  if (color === "#f97316") return "rgba(249,115,22,0.55)";
+  if (color === "#ef4444") return "rgba(244,63,94,0.62)";
+
+  return engine25Border();
+}
+
+function sectionBackground(label, score) {
+  const color = labelColor(label, score);
+
+  if (color === "#22c55e") return "rgba(20,83,45,0.13)";
+  if (color === "#fbbf24") return "rgba(113,63,18,0.14)";
+  if (color === "#f97316") return "rgba(124,45,18,0.16)";
+  if (color === "#ef4444") return "rgba(127,29,29,0.16)";
+
+  return engine25Background();
+}
+
+function SectionBox({ title, children, borderColor, titleColor, background }) {
   return (
     <div
       style={{
-        display: "grid",
-        gridTemplateColumns:
-          Number.isInteger(columns) && columns > 0
-            ? `repeat(${columns}, minmax(0, 1fr))`
-            : "repeat(auto-fit, minmax(145px, 1fr))",
-        gap: "9px 15px",
-        marginTop: 7,
+        fontFamily: PANEL_FONT,
+        border: `1px solid ${borderColor || engine25Border()}`,
+        borderRadius: 10,
+        padding: "8px 10px",
+        background: background || engine25Background(),
+        textAlign: "left",
       }}
     >
-      {safeFields.map((entry, idx) => {
-        if (
-          entry &&
-          !Array.isArray(entry) &&
-          entry.type === "sectionHeader"
-        ) {
-          return (
-            <div
-              key={`${entry.label}-${idx}`}
-              style={{
-                gridColumn: "1 / -1",
-                paddingTop: idx === 0 ? 0 : 8,
-                marginTop: idx === 0 ? 0 : 2,
-                borderTop:
-                  idx === 0
-                    ? "none"
-                    : "1px solid rgba(34,211,238,0.18)",
-              }}
-            >
-              <div
-                style={{
-                  ...shellTextStyle,
-                  ...smallCapsStyle,
-                  color: "#22d3ee",
-                  fontSize: 13,
-                  fontWeight: FONT_MEDIUM,
-                  letterSpacing: "0.08em",
-                }}
-              >
-                {entry.label}
-              </div>
-            </div>
+      {title && (
+        <div
+          style={{
+            fontFamily: PANEL_FONT,
+            fontSize: FS.sectionTitle,
+            fontWeight: 900,
+            color: titleColor || "#60a5fa",
+            marginBottom: 5,
+            letterSpacing: "0.02em",
+            textTransform: "uppercase",
+          }}
+        >
+          {title}
+        </div>
+      )}
+
+      {children}
+    </div>
+  );
+}
+
+function CompareRow({ label, value, color = "#dbeafe" }) {
+  return (
+    <div
+      style={{
+        fontFamily: PANEL_FONT,
+        display: "flex",
+        justifyContent: "space-between",
+        gap: 9,
+        fontSize: FS.row,
+        lineHeight: 1.42,
+        color: "#dbeafe",
+        fontWeight: 650,
+      }}
+    >
+      <span>{label}</span>
+      <span style={{ color, fontWeight: 900, textAlign: "right" }}>{value}</span>
+    </div>
+  );
+}
+
+function MiniRead({ label, value, color = "#dbeafe" }) {
+  return (
+    <div style={{ display: "grid", gap: 1, minWidth: 0 }}>
+      <div
+        style={{
+          fontSize: FS.miniLabel,
+          color: "#94a3b8",
+          fontWeight: 900,
+          textTransform: "uppercase",
+          letterSpacing: "0.02em",
+        }}
+      >
+        {label}
+      </div>
+
+      <div
+        style={{
+          fontSize: FS.miniValue,
+          lineHeight: 1.25,
+          color,
+          fontWeight: 950,
+          textTransform: "uppercase",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+        }}
+      >
+        {value}
+      </div>
+    </div>
+  );
+}
+
+function NoteText({ children, color = "#dbeafe" }) {
+  return (
+    <div
+      style={{
+        marginTop: 4,
+        color,
+        fontWeight: 650,
+        fontSize: FS.note,
+        lineHeight: 1.38,
+        whiteSpace: "pre-line",
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+/* =========================
+   Jump Alert Logic
+========================= */
+
+function buildJumpAlert(rows) {
+  const comparisonRows = Array.isArray(rows) ? rows : [];
+
+  const composite = rowByLabel(comparisonRows, "Composite");
+  const composite1d = Number(composite?.oneDayChange);
+  const composite3d = Number(composite?.threeDayChange);
+
+  let status = "NO MAJOR JUMP";
+  let color = "#94a3b8";
+  let border = "rgba(148,163,184,0.38)";
+  let background = "rgba(15,23,42,0.38)";
+
+  if (Number.isFinite(composite1d) && composite1d >= 8) {
+    status = "FAST 1D UPGRADE";
+    color = "#22c55e";
+    border = "rgba(34,197,94,0.45)";
+    background = "rgba(20,83,45,0.13)";
+  } else if (Number.isFinite(composite3d) && composite3d >= 10) {
+    status = "BULLISH MARKET HEALTH UPGRADE";
+    color = "#22c55e";
+    border = "rgba(34,197,94,0.45)";
+    background = "rgba(20,83,45,0.13)";
+  } else if (Number.isFinite(composite1d) && composite1d <= -8) {
+    status = "FAST 1D WARNING";
+    color = "#ef4444";
+    border = "rgba(244,63,94,0.60)";
+    background = "rgba(127,29,29,0.16)";
+  } else if (Number.isFinite(composite3d) && composite3d <= -10) {
+    status = "MARKET HEALTH DOWNGRADE";
+    color = "#ef4444";
+    border = "rgba(244,63,94,0.60)";
+    background = "rgba(127,29,29,0.16)";
+  } else if (
+    (Number.isFinite(composite1d) && Math.abs(composite1d) >= 5) ||
+    (Number.isFinite(composite3d) && Math.abs(composite3d) >= 7)
+  ) {
+    status = "WATCHING CHANGE";
+    color = "#fbbf24";
+    border = "rgba(251,191,36,0.52)";
+    background = "rgba(113,63,18,0.14)";
+  }
+
+  const driverLabels = [
+    "Macro Aware",
+    "Breadth",
+    "Distribution",
+    "Market Trend",
+    "Credit Fragility",
+    "AI Leadership",
+  ];
+
+  const drivers = driverLabels
+    .map((label) => {
+      const row = rowByLabel(comparisonRows, label);
+      const one = Number(row?.oneDayChange);
+      const three = Number(row?.threeDayChange);
+      const displayChange = Number.isFinite(three) ? three : one;
+
+      if (!row || !Number.isFinite(displayChange)) return null;
+
+      const isDistribution = label === "Distribution";
+      const improvement = isDistribution ? -displayChange : displayChange;
+
+      return {
+        label,
+        change: displayChange,
+        improvement,
+        abs: Math.abs(displayChange),
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => b.abs - a.abs)
+    .slice(0, 3);
+
+  return {
+    status,
+    color,
+    border,
+    background,
+    composite1d,
+    composite3d,
+    drivers,
+  };
+}
+
+/* =========================
+   Zone detail helpers
+========================= */
+
+function buildZoneDetailRead({
+  zoneDecisionRead,
+  zoneClassification,
+  accumulation,
+  distribution,
+}) {
+  const label = String(zoneDecisionRead?.label || "").toUpperCase();
+  const accumulationState = String(accumulation?.state || "").toUpperCase();
+  const distributionState = String(distribution?.state || "").toUpperCase();
+
+  const institutionalValue = label.includes("INSTITUTIONAL_SUPPORT_AT_RISK")
+    ? "PRIMARY SUPPORT AT RISK"
+    : "PRIMARY ZONE CONTROLS";
+
+  const negotiatedValue = label.includes("AT_RISK")
+    ? "RECLAIM NEEDED"
+    : "WATCH VALUE ACCEPTANCE";
+
+  const shelfValue =
+    zoneDecisionRead?.secondaryShelfDefense?.value === true ||
+    accumulationState.includes("SECONDARY_SHELF")
+      ? "BLUE SHELF DEFENSE — SECONDARY ONLY"
+      : "NOT CONFIRMED";
+
+  const accumulationValue =
+    accumulationState.includes("NO_CONFIRMED") || !accumulationState
+      ? "NOT CONFIRMED UNTIL RECLAIM"
+      : compactLabel(accumulation?.state);
+
+  const distributionValue = distributionState.includes("DISTRIBUTION_ACTIVE")
+    ? "ACTIVE AT ZONE"
+    : compactLabel(distribution?.state || "UNKNOWN");
+
+  let plain =
+    "Yellow institutional zone controls the primary read. Blue accumulation shelf can defend, but it does not confirm accumulation until negotiated value / institutional value is reclaimed.";
+
+  if (zoneClassification?.plainEnglish) {
+    plain = String(zoneClassification.plainEnglish);
+  }
+
+  return {
+    institutionalValue,
+    negotiatedValue,
+    shelfValue,
+    accumulationValue,
+    distributionValue,
+    plain,
+  };
+}
+
+/* =========================
+   Main Export
+========================= */
+
+export default function Engine25MarketHealthTimeline({
+  visible = true,
+  symbol = "ES",
+}) {
+  const [payload, setPayload] = useState(null);
+  const [status, setStatus] = useState("LOADING");
+  const [error, setError] = useState(null);
+
+  const isES = String(symbol || "").toUpperCase() === "ES";
+
+  useEffect(() => {
+    if (!visible || !isES) return;
+
+    let cancelled = false;
+
+    async function load() {
+      try {
+        setStatus("LOADING");
+        setError(null);
+
+        const res = await fetch(ENGINE25_ROUTE, { cache: "no-store" });
+        const json = await res.json();
+
+        if (!res.ok || json?.ok === false) {
+          throw new Error(
+            json?.error || `Engine25 full dashboard HTTP ${res.status}`
           );
         }
 
-        const label = Array.isArray(entry)
-          ? entry[0]
-          : entry?.label;
-        const value = Array.isArray(entry)
-          ? entry[1]
-          : entry?.value;
-        const fullWidth =
-          Array.isArray(entry) === false &&
-          entry?.fullWidth === true;
-        const valueColor =
-          Array.isArray(entry) === false && entry?.valueColor
-            ? entry.valueColor
-            : MAIN_TEXT;
+        if (!cancelled) {
+          setPayload(json);
+          setStatus("READY");
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(err?.message || String(err));
+          setStatus("ERROR");
+        }
+      }
+    }
 
-        return (
-          <div
-            key={`${label}-${idx}`}
-            style={fullWidth ? { gridColumn: "1 / -1" } : undefined}
-          >
-            <div
-              style={{
-                ...shellTextStyle,
-                ...smallCapsStyle,
-                color: MUTED_TEXT,
-                fontSize: 13,
-                fontWeight: FONT_REGULAR,
-                marginBottom: 3,
-              }}
-            >
-              {label}
-            </div>
-            <div
-              style={{
-                ...shellTextStyle,
-                color: valueColor,
-                fontSize: 16,
-                fontWeight: FONT_REGULAR,
-                lineHeight: 1.35,
-                whiteSpace: "pre-line",
-              }}
-            >
-              {value}
-            </div>
-          </div>
-        );
-      })}
-    </div>
+    load();
+
+    const timer = setInterval(load, 60_000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [visible, isES]);
+
+  if (!visible || !isES) return null;
+
+  const headline = payload?.headline || {};
+  const intraday = payload?.intradayProxyDamage || null;
+  const liveEsPermission = payload?.liveEsPermission || null;
+
+  const marketInternals = payload?.marketInternals || null;
+  const hasMarketInternals = Boolean(
+    marketInternals?.symbol === "ES" &&
+      Number.isFinite(Number(marketInternals?.esMarketMeter?.masterScore))
   );
-}
 
-function IngredientCards({ cards }) {
-  const safeCards = asArray(cards);
-
-  if (!safeCards.length) return null;
-
-  return (
-    <div
-      style={{
-        display: "grid",
-        gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-        gap: 10,
-        marginTop: 7,
-      }}
-    >
-      {safeCards.map((card, idx) => (
-        <div
-          key={`${card.label}-${idx}`}
-          style={{
-            borderLeft: `3px solid ${card.good ? "#22c55e" : "#f59e0b"}`,
-            background: "rgba(15,23,42,0.48)",
-            borderRadius: 8,
-            padding: "9px 10px",
-          }}
-        >
-          <div
-            style={{
-              ...shellTextStyle,
-              ...smallCapsStyle,
-              color: "#cbd5e1",
-              fontSize: 13,
-              fontWeight: FONT_REGULAR,
-              marginBottom: 3,
-            }}
-          >
-            {card.label}
-          </div>
-          <div
-            style={{
-              ...shellTextStyle,
-              color: card.good ? "#86efac" : "#fed7aa",
-              fontSize: 15,
-              fontWeight: FONT_REGULAR,
-              lineHeight: 1.35,
-            }}
-          >
-            {card.value}
-          </div>
-        </div>
-      ))}
-    </div>
+  const marketInternalsMasterScore = Number(
+    marketInternals?.esMarketMeter?.masterScore
   );
-}
+  const marketInternalsMasterState =
+    marketInternals?.esMarketMeter?.masterState || null;
 
-function Checklist({ items }) {
-  const safeItems = asArray(items);
+  const marketInternalsAlignment = marketInternals?.alignment || null;
 
-  if (!safeItems.length) return null;
-
-  return (
-    <div
-      style={{
-        display: "grid",
-        gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-        gap: "9px 20px",
-        marginTop: 7,
-      }}
-    >
-      {safeItems.map((item, idx) => (
-        <div
-          key={`${item}-${idx}`}
-          style={{
-            ...shellTextStyle,
-            display: "grid",
-            gridTemplateColumns: "22px 1fr",
-            alignItems: "center",
-            gap: 8,
-            color: SOFT_TEXT,
-            fontSize: 15,
-            fontWeight: FONT_REGULAR,
-            lineHeight: 1.35,
-          }}
-        >
-          <div
-            style={{
-              width: 18,
-              height: 18,
-              borderRadius: 6,
-              border: "1px solid rgba(45,212,191,0.85)",
-              color: "#2dd4bf",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: 12,
-              fontWeight: FONT_MEDIUM,
-            }}
-          >
-            {idx + 1}
-          </div>
-          <div>{item}</div>
-        </div>
-      ))}
-    </div>
+  const intradayMacro = payload?.intradayMacro || null;
+  const hasIntradayMacro = Boolean(
+    intradayMacro?.ok === true && intradayMacro?.state
   );
-}
 
-function CanonicalStageGrid({ stages }) {
-  const safeStages = asArray(stages);
+  const macroRates = intradayMacro?.components?.rates || null;
+  const macroTlt = intradayMacro?.components?.tlt || null;
+  const macroOil = intradayMacro?.components?.oil || null;
+  const macroGeopolitics = intradayMacro?.components?.geopolitics || null;
 
-  if (!safeStages.length) return null;
+  const newsEvents = payload?.newsEvents || null;
+  const newsEventRows = Array.isArray(newsEvents?.events)
+    ? newsEvents.events
+        .filter((event) => isActiveMaterialNewsEvent(event))
+        .sort(
+          (a, b) =>
+            Date.parse(b?.observedAt || "") - Date.parse(a?.observedAt || "")
+        )
+    : [];
 
-  return (
-    <div
-      style={{
-        display: "grid",
-        gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-        gap: 9,
-        marginTop: 8,
-      }}
-    >
-      {safeStages.map((stage, idx) => (
-        <div
-          key={`${stage.id || stage.label || "stage"}-${idx}`}
-          style={{
-            border: `1px solid ${severityBorder(stage.severity)}`,
-            background: severityBackground(stage.severity),
-            borderRadius: 9,
-            padding: "9px 10px",
-            minWidth: 0,
-          }}
-        >
-          <div
-            style={{
-              ...shellTextStyle,
-              color: MAIN_TEXT,
-              fontSize: 15,
-              fontWeight: FONT_MEDIUM,
-              lineHeight: 1.3,
-              marginBottom: 4,
-            }}
-          >
-            {stage.label}
-          </div>
+  const hasNewsEvents = newsEventRows.length > 0;
+  const newsFeedUnavailable =
+    newsEvents?.ok === false ||
+    (Array.isArray(newsEvents?.warnings) &&
+      newsEvents.warnings.includes("MASSIVE_BENZINGA_NEWS_UNAVAILABLE"));
 
-          <div
-            style={{
-              ...shellTextStyle,
-              color: severityColor(stage.severity),
-              fontSize: 14,
-              fontWeight: FONT_MEDIUM,
-              letterSpacing: "0.02em",
-              lineHeight: 1.3,
-            }}
-          >
-            {stage.status}
-          </div>
+  const creditStressDetail = payload?.creditStressDetail || null;
+  const macroCreditHealth =
+    creditStressDetail?.groups?.macroCreditStress || null;
+  const macroCreditScore = Number(macroCreditHealth?.score);
+  const macroCreditHealthLabel = Number.isFinite(macroCreditScore)
+    ? macroCreditScore >= 75
+      ? "LOW STRESS / HEALTHY"
+      : macroCreditScore >= 50
+        ? "NORMAL / WATCH"
+        : "HIGH STRESS"
+    : "UNAVAILABLE";
+  const macroCreditColor = scoreColor(macroCreditScore);
+  const macroCreditSaturated =
+    Number.isFinite(macroCreditScore) && macroCreditScore >= 100;
 
-          {stage.sourceEngine && (
-            <div
-              style={{
-                ...shellTextStyle,
-                color: MUTED_TEXT,
-                fontSize: 12,
-                fontWeight: FONT_REGULAR,
-                lineHeight: 1.3,
-                marginTop: 4,
-              }}
-            >
-              Source Engine: {stage.sourceEngine}
-            </div>
-          )}
-        </div>
-      ))}
-    </div>
-  );
-}
+  const creditFinancialScores = [
+    Number(payload?.creditStressDetail?.scores?.creditStress),
+    Number(payload?.creditStressDetail?.scores?.creditFragility),
+    Number(payload?.creditStressDetail?.scores?.bondMarket),
+    Number(payload?.creditStressDetail?.scores?.liquidity),
+  ].filter(Number.isFinite);
 
-function Engine3PriceReactionCard({ section }) {
-  const card = section?.engine3Card || {};
+  const creditFinancialOverallScore = creditFinancialScores.length
+    ? creditFinancialScores.reduce((sum, value) => sum + value, 0) /
+      creditFinancialScores.length
+    : null;
 
-  const topRows = [
-    ["Price", card.price],
-    ["Zone", card.zone],
-    ["Neg Zone", card.negZone],
-    ["Location", card.location],
-    ["Main Read", card.mainRead],
-    ["1m Immediate", card.currentLevel],
-  ];
+  const creditFinancialOverallLabel = Number.isFinite(
+    creditFinancialOverallScore
+  )
+    ? creditFinancialOverallScore >= 75
+      ? "HEALTHY"
+      : creditFinancialOverallScore >= 55
+        ? "MIXED / WATCH"
+        : "STRESSED"
+    : "UNAVAILABLE";
 
-  const contactRows = [
-    card.contactState
-      ? ["Contact State", card.contactState]
-      : null,
-
-    card.chainArmed != null
-      ? ["Chain Armed", card.chainArmed]
-      : null,
-
-    card.directionState
-      ? ["Direction State", card.directionState]
-      : null,
-
-    card.expectedReactionDirection
-      ? [
-          "Expected Reaction",
-          card.expectedReactionDirection,
-        ]
-      : null,
-  ].filter(Boolean);
-
-  const headingStyle = {
-    ...shellTextStyle,
-    color: severityColor(section.severity),
-    fontSize: 17,
-    fontWeight: 600,
-    lineHeight: 1.35,
-    marginBottom: 7,
-  };
-
-  const bodyStyle = {
-    ...shellTextStyle,
-    color: MAIN_TEXT,
-    fontSize: 17,
-    fontWeight: FONT_REGULAR,
-    lineHeight: 1.45,
-  };
-
-  return (
-    <div
-      style={{
-        border: `1px solid ${severityBorder(
-          section.severity
-        )}`,
-        background: severityBackground(
-          section.severity
-        ),
-        borderRadius: 12,
-        padding: "14px 15px",
-        textAlign: "left",
-        position: "relative",
-      }}
-    >
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns:
-            "40px minmax(0, 1fr)",
-          gap: 11,
-          alignItems: "start",
-        }}
-      >
-        <div
-          style={{
-            ...shellTextStyle,
-            width: 32,
-            height: 32,
-            borderRadius: "50%",
-            border: `1px solid ${severityBorder(
-              section.severity
-            )}`,
-            color: severityColor(
-              section.severity
-            ),
-            background: "rgba(2,6,23,0.72)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontWeight: 600,
-            fontSize: 17,
-            boxShadow: `0 0 16px ${severityBorder(
-              section.severity
-            )}`,
-          }}
-        >
-          {section.number}
-        </div>
-
-        <div style={{ minWidth: 0 }}>
-          <div
-            style={{
-              ...shellTextStyle,
-              display: "flex",
-              alignItems: "center",
-              gap: 9,
-              color: severityColor(
-                section.severity
-              ),
-              fontSize: 22,
-              fontWeight: 600,
-              lineHeight: 1.25,
-              marginBottom: 11,
-            }}
-          >
-            <span>{section.icon}</span>
-            <span>{section.title}</span>
-          </div>
-
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns:
-                "130px minmax(0, 1fr)",
-              gap: "7px 13px",
-              alignItems: "start",
-            }}
-          >
-            {topRows.map(([label, value]) => (
-              <React.Fragment key={label}>
-                <div
-                  style={{
-                    ...shellTextStyle,
-                    color: MUTED_TEXT,
-                    fontSize: 15,
-                    fontWeight: FONT_MEDIUM,
-                    lineHeight: 1.35,
-                  }}
-                >
-                  {label}
-                </div>
-
-                <div
-                  style={{
-                    ...shellTextStyle,
-                    color: MAIN_TEXT,
-                    fontSize: 18,
-                    fontWeight: FONT_MEDIUM,
-                    lineHeight: 1.35,
-                    overflowWrap: "anywhere",
-                  }}
-                >
-                  {value || "—"}
-                </div>
-              </React.Fragment>
-            ))}
-          </div>
-
-          <div style={{ marginTop: 13 }}>
-            <div style={headingStyle}>
-              Price Action Facts
-            </div>
-
-            <div
-              style={{
-                display: "grid",
-                gap: 5,
-              }}
-            >
-              {asArray(card.facts).map(
-                ([label, value]) => (
-                  <div
-                    key={label}
-                    style={{
-                      ...bodyStyle,
-                      display: "grid",
-                      gridTemplateColumns:
-                        "minmax(0, 1fr) auto",
-                      gap: 12,
-                    }}
-                  >
-                    <span>{label}</span>
-                    <span>{value}</span>
-                  </div>
-                )
-              )}
-            </div>
-          </div>
-
-          <div style={{ marginTop: 13 }}>
-            <div style={headingStyle}>
-              Meaning
-            </div>
-
-            <div style={bodyStyle}>
-              {card.meaning || "—"}
-            </div>
-          </div>
-
-          {contactRows.length > 0 && (
-            <div
-              style={{
-                marginTop: 13,
-                padding: "9px 10px",
-                border:
-                  "1px solid rgba(148,163,184,0.24)",
-                borderRadius: 9,
-                background:
-                  "rgba(15,23,42,0.34)",
-                display: "grid",
-                gridTemplateColumns:
-                  "130px minmax(0, 1fr)",
-                gap: "5px 12px",
-              }}
-            >
-              {contactRows.map(
-                ([label, value]) => (
-                  <React.Fragment key={label}>
-                    <div
-                      style={{
-                        ...shellTextStyle,
-                        color: MUTED_TEXT,
-                        fontSize: 15,
-                        lineHeight: 1.4,
-                      }}
-                    >
-                      {label}
-                    </div>
-
-                    <div
-                      style={{
-                        ...shellTextStyle,
-                        color: SOFT_TEXT,
-                        fontSize: 16,
-                        lineHeight: 1.4,
-                        overflowWrap: "anywhere",
-                      }}
-                    >
-                      {value}
-                    </div>
-                  </React.Fragment>
-                )
-              )}
-            </div>
-          )}
-
-          <div style={{ marginTop: 13 }}>
-            <div style={headingStyle}>
-              Strategy Status
-            </div>
-
-            <div style={bodyStyle}>
-              {card.strategyStatus}
-            </div>
-          </div>
-
-          <div style={{ marginTop: 13 }}>
-            <div style={headingStyle}>
-              Result
-            </div>
-
-            <div style={bodyStyle}>
-              {card.result}
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function TimelineSection({ section }) {
-  if (!section) return null;
-
-  if (section.engine3PriceReactionCard === true) {
-    return (
-      <Engine3PriceReactionCard
-        section={section}
-      />
-    );
-  }
-
-  return (
-    <div
-      style={{
-        border: `1px solid ${severityBorder(section.severity)}`,
-        background: severityBackground(section.severity),
-        borderRadius: 12,
-        padding: "12px 13px",
-        textAlign: "left",
-        position: "relative",
-      }}
-    >
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "38px 1fr",
-          gap: 10,
-          alignItems: "start",
-        }}
-      >
-        <div
-          style={{
-            ...shellTextStyle,
-            width: 30,
-            height: 30,
-            borderRadius: "50%",
-            border: `1px solid ${severityBorder(section.severity)}`,
-            color: severityColor(section.severity),
-            background: "rgba(2,6,23,0.72)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontWeight: FONT_MEDIUM,
-            fontSize: 15,
-            boxShadow: `0 0 16px ${severityBorder(section.severity)}`,
-          }}
-        >
-          {section.number}
-        </div>
-
-        <div>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              marginBottom: 6,
-            }}
-          >
-            <span
-              style={{
-                ...shellTextStyle,
-                color: severityColor(section.severity),
-                fontSize: 19,
-                fontWeight: FONT_MEDIUM,
-              }}
-            >
-              {section.icon}
-            </span>
-            <div
-              style={{
-                ...shellTextStyle,
-                color: severityColor(section.severity),
-                fontSize: 19,
-                fontWeight: FONT_MEDIUM,
-                letterSpacing: "0.01em",
-              }}
-            >
-              {section.title}
-            </div>
-          </div>
-
-          <FieldGrid
-            fields={section.fields}
-            columns={section.fieldGridColumns}
-          />
-          <IngredientCards cards={section.ingredientCards} />
-          <Checklist items={section.checklist} />
-          <CanonicalStageGrid stages={section.canonicalStages} />
-
-          {asArray(section.lines).length > 0 && (
-            <div
-              style={{
-                ...shellTextStyle,
-                display: "grid",
-                gap: 5,
-                marginTop: 8,
-                color: SOFT_TEXT,
-                fontSize: 15,
-                lineHeight: 1.5,
-                fontWeight: FONT_REGULAR,
-              }}
-            >
-              {asArray(section.lines).map((line, idx) => (
-                <div key={`${line}-${idx}`}>{line}</div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-const stripCellStyle = {
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  gap: 10,
-  padding: "10px 12px",
-  borderRight: "1px solid rgba(148,163,184,0.14)",
-};
-
-const stripLabelStyle = {
-  ...shellTextStyle,
-  ...smallCapsStyle,
-  color: MUTED_TEXT,
-  fontSize: 13,
-  fontWeight: FONT_REGULAR,
-};
-
-const stripValueStyle = {
-  ...shellTextStyle,
-  ...smallCapsStyle,
-  fontSize: 14,
-  fontWeight: FONT_MEDIUM,
-};
-
-function MinimalStatusStrip({ timeline }) {
-  const permission = timeline?.permission || null;
-  const paper = permission?.paper || null;
-
-  const paperDecision = String(paper?.decision || "").toUpperCase();
-  const paperDirection = String(paper?.direction || "").toUpperCase();
-
-  const isStructuralFastWatch =
-    paperDecision === "STRUCTURAL_FAST_WATCH" ||
-    paper?.structuralWatchOnly === true;
-
-  const isShortResearchWatch =
-    paperDecision === "PAPER_SHORT_RESEARCH_WATCH" ||
-    paper?.shortResearchWatch === true;
-
-  const marketBiasLabel =
-    isStructuralFastWatch || isShortResearchWatch
-      ? "Short watch"
-      : paperDirection === "SHORT"
-      ? "Short"
-      : paperDirection === "LONG"
-      ? "Long"
-      : "Neutral";
-
-  const marketBiasColor =
-    isStructuralFastWatch || isShortResearchWatch || paperDirection === "SHORT"
-      ? "#fb7185"
-      : paperDirection === "LONG"
+  const creditFinancialOverallColor = Number.isFinite(
+    creditFinancialOverallScore
+  )
+    ? creditFinancialOverallScore >= 75
       ? "#22c55e"
-      : "#cbd5e1";
+      : creditFinancialOverallScore >= 55
+        ? "#fbbf24"
+        : "#ef4444"
+    : "#94a3b8";
 
-  const setupLabel =
-    isShortResearchWatch
-      ? "Short research"
-      : isStructuralFastWatch
-      ? "Structural watch"
-      : paperDecision
-      ? formatText(paperDecision)
-      : "Watch";
+  const sectorBreadth = payload?.sectorBreadth || null;
+  const tactical1h = sectorBreadth?.tactical1h || null;
+  const regime4h = sectorBreadth?.regime4h || null;
+  const combinedSector = sectorBreadth?.combinedRead || null;
 
-  const setupColor =
-    isShortResearchWatch || isStructuralFastWatch
-      ? "#fb7185"
-      : "#fbbf24";
+  const zoneDecisionRead = payload?.zoneDecisionRead || null;
+  const zoneClassification = payload?.zoneClassification || null;
+  const finalClass = zoneClassification?.finalZoneClassification || null;
+  const accumulation = zoneClassification?.accumulationRead || null;
+  const distribution = zoneClassification?.distributionRead || null;
 
-  const permissionLabel =
-    paper?.allowed === true
-      ? "Paper allow"
-      : formatUpper(permission?.permission, "REDUCE") === "REDUCE"
-      ? "Reduce"
-      : formatText(permission?.permission, "Wait");
+  const changes = Array.isArray(payload?.underTheHood?.rows)
+    ? payload.underTheHood.rows
+    : [];
+  const jumpAlert = buildJumpAlert(changes);
 
-  return (
-    <div
-      style={{
-        ...shellTextStyle,
-        width: "100%",
-        border: "1px solid rgba(148,163,184,0.20)",
-        borderRadius: 12,
-        background: "rgba(6,10,20,0.86)",
-        display: "grid",
-        gridTemplateColumns: "repeat(3, minmax(0,1fr))",
-        color: "#cbd5e1",
-        pointerEvents: "none",
-        backdropFilter: "blur(4px)",
-        overflow: "hidden",
-      }}
-    >
-      <div style={stripCellStyle}>
-        <span style={stripLabelStyle}>Market bias</span>
-        <span style={{ ...stripValueStyle, color: marketBiasColor }}>
-          {marketBiasLabel}
-        </span>
-      </div>
-      <div style={stripCellStyle}>
-        <span style={stripLabelStyle}>Setup</span>
-        <span style={{ ...stripValueStyle, color: setupColor }}>
-          {setupLabel}
-        </span>
-      </div>
-      <div style={{ ...stripCellStyle, borderRight: "none" }}>
-        <span style={stripLabelStyle}>Trade permission</span>
-        <span style={{ ...stripValueStyle, color: "#c084fc" }}>
-          {permissionLabel}
-        </span>
-      </div>
-    </div>
-  );
-}
+  const score = Number(headline.score);
+  const stateColor = scoreColor(score);
+  const permission = headline.permissionText || cleanLabel(headline.permission);
+  const size = headline.size ?? headline.liveSize ?? "—";
 
-function SubminuteStatusStrip({ decision }) {
-  const direction = formatUpper(decision?.direction, "NEUTRAL");
-  const state = formatUpper(
-    decision?.decisionState || decision?.state,
-    "WAIT"
-  );
+  const intradayScore = Number(intraday?.score);
+  const intradayLabel = intraday?.label || null;
+  const intradayPermission =
+    liveEsPermission?.mode || headline?.livePermission || null;
+  const intradaySize =
+    liveEsPermission?.sizeMultiplier ?? headline?.liveSize ?? null;
+  const hasIntradayRead = Boolean(intraday && intradayLabel);
 
-  const directionColor =
-    direction === "LONG"
-      ? "#22c55e"
-      : direction === "SHORT"
-      ? "#fb7185"
-      : "#cbd5e1";
+  const sectorColor = labelColor(combinedSector?.label, combinedSector?.score);
 
-  return (
-    <div
-      style={{
-        ...shellTextStyle,
-        width: "100%",
-        border: "1px solid rgba(148,163,184,0.20)",
-        borderRadius: 12,
-        background: "rgba(6,10,20,0.86)",
-        display: "grid",
-        gridTemplateColumns: "repeat(3, minmax(0,1fr))",
-        color: "#cbd5e1",
-        pointerEvents: "none",
-        backdropFilter: "blur(4px)",
-        overflow: "hidden",
-      }}
-    >
-      <div style={stripCellStyle}>
-        <span style={stripLabelStyle}>Market bias</span>
-        <span style={{ ...stripValueStyle, color: directionColor }}>
-          {formatText(direction)}
-        </span>
-      </div>
-
-      <div style={stripCellStyle}>
-        <span style={stripLabelStyle}>Setup</span>
-        <span style={{ ...stripValueStyle, color: "#fbbf24" }}>
-          {formatText(state)}
-        </span>
-      </div>
-
-      <div style={{ ...stripCellStyle, borderRight: "none" }}>
-        <span style={stripLabelStyle}>Trade permission</span>
-        <span style={{ ...stripValueStyle, color: "#c084fc" }}>
-          Not attached
-        </span>
-      </div>
-    </div>
-  );
-}
-
-function TimelineMainCard({ timeline }) {
-  return (
-    <div
-      style={{
-        ...shellTextStyle,
-        width: "100%",
-        height: "100%",
-        minHeight: 0,
-        maxHeight: "none",
-        overflowY: "scroll",
-        overflowX: "hidden",
-        overscrollBehavior: "contain",
-        scrollbarGutter: "stable",
-        borderRadius: 15,
-        border: `1px solid ${severityBorder(timeline.severity)}`,
-        background: CARD_BG_STRONG,
-        padding: "18px 19px",
-        color: "#e5e7eb",
-        pointerEvents: "auto",
-        backdropFilter: "blur(5px)",
-        boxShadow: "0 12px 34px rgba(0,0,0,0.34)",
-        textAlign: "left",
-        boxSizing: "border-box",
-      }}
-    >
-      <div
-        style={{
-          ...shellTextStyle,
-          fontSize: 27,
-          fontWeight: 600,
-          color: "#fbbf24",
-          letterSpacing: "0.005em",
-          marginBottom: 7,
-          lineHeight: 1.2,
-          textTransform: "none",
-        }}
-      >
-        {timeline.headline}
-      </div>
-
-      {timeline.subheadline && (
-        <div
-          style={{
-            ...shellTextStyle,
-            color: "#e2e8f0",
-            fontSize: 15,
-            lineHeight: 1.5,
-            fontWeight: 400,
-            margin: "0 0 11px",
-          }}
-        >
-          {timeline.subheadline}
-        </div>
-      )}
-
-      {asArray(timeline.badges).length > 0 && (
-        <div
-          style={{
-            display: "flex",
-            flexWrap: "wrap",
-            gap: 8,
-            justifyContent: "flex-start",
-            marginBottom: 13,
-          }}
-        >
-          {timeline.badges.map((badge, idx) => (
-            <Badge
-              key={`${badge.label}-${idx}`}
-              label={badge.label}
-              severity={badge.severity}
-            />
-          ))}
-        </div>
-      )}
-
-      <div style={{ display: "grid", gap: 10 }}>
-        {asArray(timeline.sections).map((section, idx) => (
-          <TimelineSection
-            key={`${section.title || "section"}-${idx}`}
-            section={section}
-          />
-        ))}
-      </div>
-
-      {timeline.footer && (
-        <div
-          style={{
-            ...shellTextStyle,
-            marginTop: 10,
-            paddingTop: 8,
-            borderTop: "1px solid rgba(148,163,184,0.25)",
-            color: MUTED_TEXT,
-            fontWeight: 500,
-            fontSize: 13,
-          }}
-        >
-          {formatText(timeline.footer)}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function ContextTimelinePanel({ sections }) {
-  const safeSections = asArray(sections);
-
-  if (!safeSections.length) return null;
-
-  return (
-    <div
-      style={{
-        ...shellTextStyle,
-        width: "100%",
-        height: "100%",
-        maxHeight: "100%",
-        minHeight: 0,
-        overflowY: "scroll",
-        overflowX: "hidden",
-        overscrollBehavior: "contain",
-        scrollbarGutter: "stable",
-        scrollPaddingBottom: 24,
-        border: "1px solid rgba(148,163,184,0.35)",
-        borderRadius: 15,
-        background: CARD_BG,
-        padding: "14px",
-        color: "#e5e7eb",
-        pointerEvents: "auto",
-        boxShadow: "0 10px 28px rgba(0,0,0,0.32)",
-        backdropFilter: "blur(5px)",
-        boxSizing: "border-box",
-      }}
-    >
-      <div
-        style={{
-          ...shellTextStyle,
-          color: MAIN_TEXT,
-          fontWeight: 600,
-          fontSize: 19,
-          marginBottom: 12,
-        }}
-      >
-        Market Context
-      </div>
-
-      <div style={{ display: "grid", gap: 10 }}>
-        {safeSections.map((section, idx) => (
-          <TimelineSection
-            key={`${section.title || "context"}-${idx}`}
-            section={section}
-          />
-        ))}
-      </div>
-    </div>
-  );
-}
-
-
-function WavelengthTabs({ selectedDegree, onSelect }) {
-  return (
-    <div
-      style={{
-        ...shellTextStyle,
-        gridColumn: "1 / -1",
-        display: "grid",
-        gridTemplateColumns: "repeat(5, minmax(0, 1fr))",
-        gap: 8,
-        padding: 8,
-        border: "1px solid rgba(148,163,184,0.25)",
-        borderRadius: 12,
-        background: "rgba(6,10,20,0.92)",
-        boxShadow: "0 8px 24px rgba(0,0,0,0.28)",
-        pointerEvents: "auto",
-      }}
-    >
-      {WAVELENGTH_TABS.map((tab) => {
-        const active = selectedDegree === tab.key;
-
-        return (
-          <button
-            key={tab.key}
-            type="button"
-            onClick={() => onSelect(tab.key)}
-            style={{
-              ...shellTextStyle,
-              border: active
-                ? "1px solid rgba(56,189,248,0.85)"
-                : "1px solid rgba(148,163,184,0.24)",
-              borderRadius: 9,
-              background: active
-                ? "rgba(12,74,110,0.42)"
-                : "rgba(15,23,42,0.52)",
-              color: active ? "#7dd3fc" : "#cbd5e1",
-              padding: "9px 10px",
-              fontSize: 14,
-              fontWeight: active ? 600 : 500,
-              cursor: "pointer",
-              boxShadow: active
-                ? "0 0 18px rgba(56,189,248,0.18)"
-                : "none",
-            }}
-          >
-            {tab.label}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
-function UnattachedLaneCard({ selectedDegree }) {
-  const lane =
-    WAVELENGTH_TABS.find((tab) => tab.key === selectedDegree)?.label ||
-    "Selected";
-
-  return (
-    <div
-      style={{
-        ...shellTextStyle,
-        width: "100%",
-        borderRadius: 15,
-        border: "1px solid rgba(251,191,36,0.48)",
-        background: CARD_BG_STRONG,
-        padding: "22px 20px",
-        color: "#e5e7eb",
-        boxShadow: "0 12px 34px rgba(0,0,0,0.34)",
-        boxSizing: "border-box",
-        textAlign: "left",
-      }}
-    >
-      <div
-        style={{
-          color: "#fbbf24",
-          fontSize: 25,
-          fontWeight: 600,
-          marginBottom: 8,
-        }}
-      >
-        {lane} Timeline
-      </div>
-
-      <div
-        style={{
-          color: SOFT_TEXT,
-          fontSize: 16,
-          lineHeight: 1.5,
-        }}
-      >
-        Timeline not attached yet.
-      </div>
-
-      <div
-        style={{
-          color: MUTED_TEXT,
-          fontSize: 14,
-          lineHeight: 1.45,
-          marginTop: 8,
-        }}
-      >
-        Minute remains the only canonical lane wired in this phase. No Minute
-        data is being reused for this tab.
-      </div>
-    </div>
-  );
-}
-
-/* =========================
-   Main export
-========================= */
-
-export default function Engine17DecisionTimeline({
-  overlayData,
-  visible = true,
-  chartMode = "SCALP",
-  selectedWaveDegree = "minute",
-  onSelectedWaveDegreeChange = () => {},
-}) {
-  const selectedDegree = selectedWaveDegree;
-  const timeline = normalizeTimelineData({ overlayData, chartMode });
-  const subminuteTimeline = normalizeSubminuteTimelineData({
-    overlayData,
-    chartMode,
+  const zoneDetail = buildZoneDetailRead({
+    zoneDecisionRead,
+    zoneClassification,
+    accumulation,
+    distribution,
   });
 
-  if (!visible || !timeline?.show) return null;
-
-  const minuteSelected = selectedDegree === "minute";
-  const subminuteSelected = selectedDegree === "subminute";
-
   return (
     <div
       style={{
-        ...shellTextStyle,
+        fontFamily: PANEL_FONT,
         position: "absolute",
-        top: 88,
-        left: 18,
-        right: 470,
-        zIndex: 108,
+        top: 126,
+        left: 820,
+        zIndex: 118,
+        width: 760,
+        maxWidth: "760px",
+        maxHeight: "calc(100vh - 150px)",
+        overflowY: "auto",
+        borderRadius: 14,
+        border: `1px solid ${engine25Border()}`,
+        background: "rgba(6,10,20,0.95)",
+        padding: "12px 14px",
+        color: "#e5e7eb",
+        backdropFilter: "blur(4px)",
+        pointerEvents: "auto",
+        textAlign: "left",
+        boxShadow: "0 8px 24px rgba(0,0,0,0.28)",
         display: "grid",
-        gridTemplateColumns: "repeat(2, minmax(560px, 760px))",
-        justifyContent: "center",
-        alignItems: "stretch",
-        gridTemplateRows: "auto minmax(0, 1fr)",
-        height: "calc(100vh - 100px)",
-        minHeight: 0,
-        gap: 14,
-        pointerEvents: "none",
+        gap: 8,
       }}
+      title="Engine 25 Market Health Timeline"
     >
-      <WavelengthTabs
-        selectedDegree={selectedDegree}
-        onSelect={onSelectedWaveDegreeChange}
-      />
-
-      <ContextTimelinePanel sections={timeline.contextSections} />
-
       <div
         style={{
+          border: `1px solid ${engine25Border()}`,
+          borderRadius: 10,
+          padding: "8px 10px",
+          background: "rgba(30,64,175,0.13)",
           display: "grid",
-          gridTemplateRows: "auto minmax(0, 1fr)",
-          gap: 12,
-          minWidth: 0,
-          minHeight: 0,
-          height: "100%",
-          overflow: "hidden",
+          gap: 8,
         }}
       >
-        {minuteSelected ? (
-          <>
-            <MinimalStatusStrip timeline={timeline} />
-            <TimelineMainCard timeline={timeline} />
-          </>
-        ) : subminuteSelected ? (
-          <>
-            <SubminuteStatusStrip
-              decision={getEngine27SubminuteTraderDecision(getFib(overlayData))}
-            />
-            <TimelineMainCard timeline={subminuteTimeline} />
-          </>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            gap: 10,
+            alignItems: "flex-start",
+          }}
+        >
+          <div>
+            <div
+              style={{
+                fontSize: FS.headerTitle,
+                fontWeight: 900,
+                color: "#60a5fa",
+                letterSpacing: "0.02em",
+                textTransform: "uppercase",
+              }}
+            >
+              Engine 25 Market Health
+            </div>
+
+            <div
+              style={{
+                fontSize: FS.headerMeta,
+                lineHeight: 1.42,
+                color: "#dbeafe",
+                fontWeight: 650,
+                marginTop: 3,
+              }}
+            >
+              Macro · Distribution · Breadth · Zones
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              window.open("/engine25-full", "_blank");
+            }}
+            style={{
+              fontFamily: PANEL_FONT,
+              background: "rgba(15,23,42,0.92)",
+              border: "1px solid rgba(125,211,252,0.35)",
+              color: "#bae6fd",
+              borderRadius: 8,
+              padding: "6px 9px",
+              fontSize: FS.button,
+              fontWeight: 900,
+              cursor: "pointer",
+              whiteSpace: "nowrap",
+            }}
+            title="Open full Engine 25 dashboard"
+          >
+            Open Full Chart
+          </button>
+        </div>
+
+        {status === "ERROR" ? (
+          <div
+            style={{
+              color: "#fecaca",
+              fontSize: FS.loading,
+              lineHeight: 1.42,
+              fontWeight: 700,
+            }}
+          >
+            Engine 25 error: {error}
+          </div>
+        ) : status === "LOADING" && !payload ? (
+          <div
+            style={{
+              color: "#cbd5e1",
+              fontSize: FS.loading,
+              lineHeight: 1.42,
+              fontWeight: 700,
+            }}
+          >
+            Loading Engine 25…
+          </div>
         ) : (
-          <UnattachedLaneCard selectedDegree={selectedDegree} />
+          <>
+            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+              <div
+                style={{
+                  fontSize: FS.score,
+                  lineHeight: 1,
+                  fontWeight: 900,
+                  color: stateColor,
+                }}
+              >
+                {fmtScore(headline.score)}
+              </div>
+
+              <div style={{ minWidth: 0 }}>
+                <div
+                  style={{
+                    fontSize: 20,
+                    lineHeight: 1.3,
+                    fontWeight: 850,
+                    color: "#f8fafc",
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                  }}
+                >
+                  {cleanLabel(headline.label || headline.state)}
+                </div>
+
+                <div
+                  style={{
+                    fontSize: FS.headerMeta,
+                    lineHeight: 1.42,
+                    color: "#cbd5e1",
+                    fontWeight: 650,
+                    marginTop: 3,
+                  }}
+                >
+                  EOD{" "}
+                  {headline.latestEodDate ||
+                    headline.cashProxyDate ||
+                    headline.date ||
+                    "—"}{" "}
+                  · ES {headline.esClose ?? "—"}
+                </div>
+              </div>
+            </div>
+
+            <div
+              style={{
+                border: "1px solid rgba(251,191,36,0.52)",
+                background: "rgba(113,63,18,0.14)",
+                borderRadius: 10,
+                padding: "8px 10px",
+                fontSize: FS.permission,
+                lineHeight: 1.42,
+                color: "#fbbf24",
+                fontWeight: 950,
+                textTransform: "uppercase",
+              }}
+            >
+              {permission} · Size {size}
+            </div>
+          </>
         )}
       </div>
+
+      {payload && status !== "ERROR" && (
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "minmax(250px, 0.92fr) minmax(0, 1.28fr)",
+            gap: 10,
+            alignItems: "start",
+          }}
+        >
+          <div style={{ display: "grid", gap: 8 }}>
+            <SectionBox
+              title="News / Macro Diagnostic"
+              titleColor={
+                hasNewsEvents
+                  ? newsEventColor(newsEventRows[0])
+                  : newsFeedUnavailable
+                    ? "#ef4444"
+                    : "#94a3b8"
+              }
+              borderColor={
+                hasNewsEvents
+                  ? newsEventColor(newsEventRows[0])
+                  : newsFeedUnavailable
+                    ? "rgba(244,63,94,0.62)"
+                    : "rgba(148,163,184,0.38)"
+              }
+              background={engine25Background()}
+            >
+              <div style={{ display: "grid", gap: 8 }}>
+                <div style={{ display: "grid", gap: 5 }}>
+                  <div
+                    style={{
+                      fontSize: FS.miniLabel,
+                      color: "#94a3b8",
+                      fontWeight: 950,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.03em",
+                    }}
+                  >
+                    News Event
+                  </div>
+
+                  {newsFeedUnavailable ? (
+                    <>
+                      <CompareRow
+                        label="Status"
+                        value="NEWS FEED UNAVAILABLE"
+                        color="#ef4444"
+                      />
+                      <NoteText color="#cbd5e1">
+                        Existing Engine 25 market context remains active.
+                      </NoteText>
+                    </>
+                  ) : hasNewsEvents ? (
+                    newsEventRows.map((event) => {
+                      const confirmation = confirmationSummaryForEvent(
+                        event,
+                        intradayMacro
+                      );
+
+                      return (
+                        <div
+                          key={event.eventId || event.benzingaId}
+                          style={{
+                            borderTop: "1px solid rgba(148,163,184,0.20)",
+                            paddingTop: 6,
+                            display: "grid",
+                            gap: 4,
+                          }}
+                        >
+                          <CompareRow
+                            label={`News · ${fmtEventTimeArizona(event.observedAt)}`}
+                            value={`${compactLabel(
+                              event.eventType
+                            )} · ${compactLabel(event.severity)}`}
+                            color={newsEventColor(event)}
+                          />
+
+                          <NoteText color="#dbeafe">
+                            {event.headlineSummary || "No headline summary"}
+                          </NoteText>
+
+                          <CompareRow
+                            label="Material"
+                            value={event.material === true ? "YES" : "NO"}
+                            color={event.material === true ? "#fbbf24" : "#94a3b8"}
+                          />
+
+                          {event.primaryEntity && (
+                            <CompareRow
+                              label="Entity"
+                              value={event.primaryEntity}
+                              color="#cbd5e1"
+                            />
+                          )}
+
+                          <div
+                            style={{
+                              marginTop: 3,
+                              fontSize: FS.miniLabel,
+                              color: "#94a3b8",
+                              fontWeight: 950,
+                              textTransform: "uppercase",
+                              letterSpacing: "0.03em",
+                            }}
+                          >
+                            Market Confirmation
+                          </div>
+
+                          <CompareRow
+                            label={confirmation.label}
+                            value={confirmation.value}
+                            color={
+                              confirmation.confirmed ? "#22c55e" : "#94a3b8"
+                            }
+                          />
+
+                          <NoteText color="#94a3b8">
+                            {cleanLabel(confirmation.note)}
+                          </NoteText>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <CompareRow
+                      label="Status"
+                      value="NO ACTIVE MATERIAL NEWS EVENT"
+                      color="#94a3b8"
+                    />
+                  )}
+                </div>
+              </div>
+            </SectionBox>
+          </div>
+
+          <div style={{ display: "grid", gap: 8 }}>
+            {hasIntradayRead && (
+              <SectionBox
+                title="Live Read"
+                titleColor={intradayColor(intradayLabel, intradayScore)}
+                borderColor={intradayColor(intradayLabel, intradayScore)}
+                background="rgba(127,29,29,0.18)"
+              >
+                <div style={{ display: "grid", gap: 4 }}>
+                  <CompareRow
+                    label="Intraday"
+                    value={`${compactLabel(intradayLabel)} · ${fmtScore(
+                      intradayScore
+                    )}`}
+                    color={intradayColor(intradayLabel, intradayScore)}
+                  />
+
+                  <CompareRow
+                    label="Permission"
+                    value={`${compactLabel(intradayPermission)}${
+                      intradaySize !== null && intradaySize !== undefined
+                        ? ` · Size ${intradaySize}`
+                        : ""
+                    }`}
+                    color={intradayColor(intradayLabel, intradayScore)}
+                  />
+                </div>
+              </SectionBox>
+            )}
+
+            <SectionBox
+              title="Engine 25 Interpretation"
+              titleColor={macroStateColor(intradayMacro?.state)}
+              borderColor={macroStateColor(intradayMacro?.state)}
+              background={engine25Background()}
+            >
+              {hasIntradayMacro ? (
+                <div style={{ display: "grid", gap: 5 }}>
+                  <CompareRow
+                    label="Overall"
+                    value={`${compactLabel(
+                      intradayMacro.state
+                    )} · ${compactLabel(intradayMacro.severity)}`}
+                    color={macroStateColor(
+                      `${intradayMacro.state} ${intradayMacro.severity}`
+                    )}
+                  />
+
+                  <CompareRow
+                    label="Equity Impact"
+                    value={compactLabel(intradayMacro.equityImpact)}
+                    color={macroStateColor(intradayMacro.equityImpact)}
+                  />
+
+                  <CompareRow
+                    label="Macro Shock"
+                    value={intradayMacro.macroShock === true ? "YES" : "NO"}
+                    color={
+                      intradayMacro.macroShock === true ? "#ef4444" : "#94a3b8"
+                    }
+                  />
+
+                  <CompareRow
+                    label="Data Status"
+                    value={compactLabel(
+                      intradayMacro?.freshness?.status || "UNKNOWN"
+                    )}
+                    color={
+                      String(
+                        intradayMacro?.freshness?.status || ""
+                      ).toUpperCase() === "FRESH"
+                        ? "#22c55e"
+                        : "#fbbf24"
+                    }
+                  />
+
+                  {Array.isArray(intradayMacro.reasonCodes) &&
+                    intradayMacro.reasonCodes.length > 0 && (
+                      <NoteText color="#94a3b8">
+                        {intradayMacro.reasonCodes
+                          .map((code) => cleanLabel(code))
+                          .join(" · ")}
+                      </NoteText>
+                    )}
+                </div>
+              ) : (
+                <>
+                  <CompareRow
+                    label="Status"
+                    value="INTRADAY MACRO UNAVAILABLE"
+                    color="#94a3b8"
+                  />
+                  <NoteText color="#94a3b8">
+                    No current Engine 25 macro confirmation data.
+                  </NoteText>
+                </>
+              )}
+            </SectionBox>
+
+            <SectionBox
+              title="Market Internals"
+              titleColor={
+                hasMarketInternals
+                  ? labelColor(marketInternalsAlignment?.overall)
+                  : "#94a3b8"
+              }
+              borderColor={
+                hasMarketInternals
+                  ? sectionBorder(marketInternalsAlignment?.overall)
+                  : "rgba(148,163,184,0.38)"
+              }
+              background={
+                hasMarketInternals
+                  ? sectionBackground(marketInternalsAlignment?.overall)
+                  : engine25Background()
+              }
+            >
+              {hasMarketInternals ? (
+                <div style={{ display: "grid", gap: 5 }}>
+                  <CompareRow
+                    label="Master ES"
+                    value={`${fmtScoreDecimal(
+                      marketInternalsMasterScore,
+                      1
+                    )} · ${compactLabel(marketInternalsMasterState)}`}
+                    color={labelColor(marketInternalsMasterState)}
+                  />
+
+                  <CompareRow
+                    label="1H ES / Sectors"
+                    value={compactLabel(marketInternalsAlignment?.oneHour)}
+                    color={
+                      ["DATA_STALE", "DATA_UNAVAILABLE"].includes(
+                        String(marketInternalsAlignment?.oneHour || "").toUpperCase()
+                      )
+                        ? "#94a3b8"
+                        : labelColor(marketInternalsAlignment?.oneHour)
+                    }
+                  />
+
+                  <CompareRow
+                    label="4H ES / Sectors"
+                    value={compactLabel(marketInternalsAlignment?.fourHour)}
+                    color={
+                      ["DATA_STALE", "DATA_UNAVAILABLE"].includes(
+                        String(marketInternalsAlignment?.fourHour || "").toUpperCase()
+                      )
+                        ? "#94a3b8"
+                        : labelColor(marketInternalsAlignment?.fourHour)
+                    }
+                  />
+
+                  <CompareRow
+                    label="EOD ES / Sectors"
+                    value={compactLabel(marketInternalsAlignment?.eod)}
+                    color={
+                      ["DATA_STALE", "DATA_UNAVAILABLE"].includes(
+                        String(marketInternalsAlignment?.eod || "").toUpperCase()
+                      )
+                        ? "#94a3b8"
+                        : labelColor(marketInternalsAlignment?.eod)
+                    }
+                  />
+
+                  <CompareRow
+                    label="Overall"
+                    value={compactLabel(marketInternalsAlignment?.overall)}
+                    color={
+                      ["DATA_STALE", "DATA_UNAVAILABLE"].includes(
+                        String(marketInternalsAlignment?.overall || "").toUpperCase()
+                      )
+                        ? "#94a3b8"
+                        : labelColor(marketInternalsAlignment?.overall)
+                    }
+                  />
+                </div>
+              ) : (
+                <CompareRow
+                  label="Status"
+                  value="UNAVAILABLE"
+                  color="#94a3b8"
+                />
+              )}
+            </SectionBox>
+
+            <SectionBox
+              title="Intraday Macro"
+              titleColor={macroStateColor(intradayMacro?.state)}
+              borderColor={macroStateColor(intradayMacro?.state)}
+              background={sectionBackground(
+                intradayMacro?.state,
+                intradayMacro?.severity
+              )}
+            >
+              {hasIntradayMacro ? (
+                <div style={{ display: "grid", gap: 5 }}>
+                  <CompareRow
+                    label="Overall"
+                    value={`${compactLabel(intradayMacro.state)} · ${compactLabel(
+                      intradayMacro.severity
+                    )}`}
+                    color={macroStateColor(
+                      `${intradayMacro.state} ${intradayMacro.severity}`
+                    )}
+                  />
+
+                  <CompareRow
+                    label="Rates"
+                    value={compactLabel(macroRates?.state)}
+                    color={macroStateColor(macroRates?.state)}
+                  />
+
+                  <CompareRow
+                    label="TLT"
+                    value={compactLabel(macroTlt?.state)}
+                    color={macroStateColor(macroTlt?.state)}
+                  />
+
+                  <CompareRow
+                    label="Oil"
+                    value={compactLabel(macroOil?.state)}
+                    color={macroStateColor(macroOil?.state)}
+                  />
+
+                  <CompareRow
+                    label="Geopolitics"
+                    value={compactLabel(macroGeopolitics?.state)}
+                    color={macroStateColor(macroGeopolitics?.state)}
+                  />
+
+                  <CompareRow
+                    label="Macro Shock"
+                    value={intradayMacro?.macroShock === true ? "YES" : "NO"}
+                    color={
+                      intradayMacro?.macroShock === true ? "#ef4444" : "#94a3b8"
+                    }
+                  />
+                </div>
+              ) : (
+                <CompareRow
+                  label="Status"
+                  value="UNAVAILABLE"
+                  color="#94a3b8"
+                />
+              )}
+            </SectionBox>
+
+            <SectionBox
+              title="Credit / Financial Health"
+              titleColor={creditFinancialOverallColor}
+              borderColor={
+                creditFinancialOverallColor === "#22c55e"
+                  ? "rgba(34,197,94,0.50)"
+                  : creditFinancialOverallColor === "#fbbf24"
+                    ? "rgba(251,191,36,0.55)"
+                    : creditFinancialOverallColor === "#ef4444"
+                      ? "rgba(244,63,94,0.62)"
+                      : "rgba(148,163,184,0.38)"
+              }
+              background={
+                creditFinancialOverallColor === "#22c55e"
+                  ? "rgba(20,83,45,0.13)"
+                  : creditFinancialOverallColor === "#fbbf24"
+                    ? "rgba(113,63,18,0.14)"
+                    : creditFinancialOverallColor === "#ef4444"
+                      ? "rgba(127,29,29,0.16)"
+                      : engine25Background()
+              }
+            >
+              <div style={{ display: "grid", gap: 5 }}>
+                <CompareRow
+                  label="Overall Credit / Financial"
+                  value={`${fmtScore(
+                    creditFinancialOverallScore
+                  )} · ${creditFinancialOverallLabel}`}
+                  color={creditFinancialOverallColor}
+                />
+
+                <CompareRow
+                  label="System Credit Health"
+                  value={`${fmtScore(macroCreditHealth?.score)} · ${
+                    Number.isFinite(macroCreditScore) && macroCreditScore >= 75
+                      ? "HEALTHY"
+                      : Number.isFinite(macroCreditScore) && macroCreditScore >= 50
+                        ? "WATCH"
+                        : Number.isFinite(macroCreditScore)
+                          ? "STRESSED"
+                          : "UNAVAILABLE"
+                  }`}
+                  color={macroCreditColor}
+                />
+
+                <CompareRow
+                  label="Credit Fragility"
+                  value={`${fmtScore(
+                    payload?.creditStressDetail?.scores?.creditFragility
+                  )} · ${
+                    Number(payload?.creditStressDetail?.scores?.creditFragility) >= 70
+                      ? "HEALTHY"
+                      : Number(payload?.creditStressDetail?.scores?.creditFragility) >= 50
+                        ? "WATCH"
+                        : Number.isFinite(
+                            Number(payload?.creditStressDetail?.scores?.creditFragility)
+                          )
+                          ? "FRAGILE"
+                          : "UNAVAILABLE"
+                  }`}
+                  color={scoreColor(
+                    payload?.creditStressDetail?.scores?.creditFragility
+                  )}
+                />
+
+                <CompareRow
+                  label="Bond Market"
+                  value={`${fmtScore(
+                    payload?.creditStressDetail?.scores?.bondMarket
+                  )} · ${
+                    Number(payload?.creditStressDetail?.scores?.bondMarket) >= 70
+                      ? "HEALTHY"
+                      : Number(payload?.creditStressDetail?.scores?.bondMarket) >= 50
+                        ? "MIXED"
+                        : Number.isFinite(
+                            Number(payload?.creditStressDetail?.scores?.bondMarket)
+                          )
+                          ? "STRESSED"
+                          : "UNAVAILABLE"
+                  }`}
+                  color={scoreColor(
+                    payload?.creditStressDetail?.scores?.bondMarket
+                  )}
+                />
+
+                <CompareRow
+                  label="Liquidity"
+                  value={`${fmtScore(
+                    payload?.creditStressDetail?.scores?.liquidity
+                  )} · ${
+                    Number(payload?.creditStressDetail?.scores?.liquidity) >= 70
+                      ? "HEALTHY"
+                      : Number(payload?.creditStressDetail?.scores?.liquidity) >= 50
+                        ? "MIXED"
+                        : Number.isFinite(
+                            Number(payload?.creditStressDetail?.scores?.liquidity)
+                          )
+                          ? "TIGHT"
+                          : "UNAVAILABLE"
+                  }`}
+                  color={scoreColor(
+                    payload?.creditStressDetail?.scores?.liquidity
+                  )}
+                />
+
+                {macroCreditSaturated && (
+                  <NoteText color="#fbbf24">
+                    HEALTH SCORE CAPPED AT 100 — RAW CREDIT DATA STILL MONITORED
+                  </NoteText>
+                )}
+              </div>
+            </SectionBox>
+
+            {combinedSector && (
+              <SectionBox
+                title="Sector Breadth"
+                titleColor={sectorColor}
+                borderColor={sectionBorder(
+                  combinedSector?.label,
+                  combinedSector?.score
+                )}
+                background={sectionBackground(
+                  combinedSector?.label,
+                  combinedSector?.score
+                )}
+              >
+                <div style={{ display: "grid", gap: 8 }}>
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "1fr 1fr",
+                      gap: 8,
+                    }}
+                  >
+                    <MiniRead
+                      label="1H Tactical"
+                      value={`${cleanLabel(
+                        tactical1h?.classification?.label
+                      )} · ${fmtScoreDecimal(
+                        tactical1h?.classification?.score,
+                        2
+                      )}`}
+                      color={labelColor(
+                        tactical1h?.classification?.label,
+                        tactical1h?.classification?.score
+                      )}
+                    />
+
+                    <MiniRead
+                      label="4H Regime"
+                      value={`${cleanLabel(
+                        regime4h?.classification?.label
+                      )} · ${fmtScoreDecimal(
+                        regime4h?.classification?.score,
+                        2
+                      )}`}
+                      color={labelColor(
+                        regime4h?.classification?.label,
+                        regime4h?.classification?.score
+                      )}
+                    />
+                  </div>
+
+                  <CompareRow
+                    label="Combined"
+                    value={`${compactLabel(
+                      combinedSector.label
+                    )} · ${fmtScoreDecimal(combinedSector.score, 2)}`}
+                    color={sectorColor}
+                  />
+
+                  <CompareRow
+                    label="Impact"
+                    value={compactLabel(combinedSector.permissionImpact)}
+                    color={sectorColor}
+                  />
+                </div>
+              </SectionBox>
+            )}
+
+            {zoneDecisionRead?.available && (
+              <SectionBox
+                title="Zone Context"
+                titleColor={labelColor(finalClass?.state || zoneDecisionRead.label)}
+                borderColor={sectionBorder(
+                  finalClass?.state || zoneDecisionRead.label
+                )}
+                background={sectionBackground(
+                  finalClass?.state || zoneDecisionRead.label
+                )}
+              >
+                <div style={{ display: "grid", gap: 6 }}>
+                  <CompareRow
+                    label="State"
+                    value={compactLabel(zoneDecisionRead.label)}
+                    color={labelColor(zoneDecisionRead.label)}
+                  />
+
+                  <CompareRow
+                    label="Accumulation"
+                    value={zoneDetail.accumulationValue}
+                    color={labelColor(zoneDetail.accumulationValue)}
+                  />
+
+                  <CompareRow
+                    label="Distribution"
+                    value={zoneDetail.distributionValue}
+                    color={labelColor(zoneDetail.distributionValue)}
+                  />
+                </div>
+              </SectionBox>
+            )}
+
+            <SectionBox
+              title="Engine 25 Jump Alert"
+              titleColor={jumpAlert.color}
+              borderColor={jumpAlert.border}
+              background={jumpAlert.background}
+            >
+              <div style={{ display: "grid", gap: 5 }}>
+                <CompareRow
+                  label="Status"
+                  value={jumpAlert.status}
+                  color={jumpAlert.color}
+                />
+
+                <CompareRow
+                  label="Composite"
+                  value={`1D ${fmtChange(jumpAlert.composite1d)} · 3D ${fmtChange(
+                    jumpAlert.composite3d
+                  )}`}
+                  color={jumpAlert.color}
+                />
+
+                {jumpAlert.drivers.length > 0 && (
+                  <div
+                    style={{
+                      display: "grid",
+                      gap: 3,
+                      fontSize: FS.note,
+                      lineHeight: 1.35,
+                      color: "#dbeafe",
+                      fontWeight: 650,
+                    }}
+                  >
+                    <div style={{ color: "#94a3b8", fontWeight: 900 }}>
+                      Biggest Drivers
+                    </div>
+
+                    <div
+                      style={{
+                        display: "flex",
+                        flexWrap: "wrap",
+                        columnGap: 10,
+                        rowGap: 3,
+                      }}
+                    >
+                      {jumpAlert.drivers.map((driver) => (
+                        <span key={driver.label}>
+                          {driver.label}:{" "}
+                          <span
+                            style={{
+                              color:
+                                driver.improvement >= 0 ? "#22c55e" : "#ef4444",
+                              fontWeight: 900,
+                            }}
+                          >
+                            {fmtChange(driver.change)}
+                          </span>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </SectionBox>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
