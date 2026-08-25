@@ -1118,43 +1118,88 @@ export default function Engine25MarketHealthTimeline({
 
             <SectionBox
               title="Market Internals"
-              titleColor={marketInternalsColor}
-              borderColor={sectionBorder(headline.sectorBreadthLabel)}
-              background={sectionBackground(headline.sectorBreadthLabel)}
+              titleColor={
+                hasMarketInternals
+                  ? labelColor(marketInternalsAlignment?.overall)
+                  : "#94a3b8"
+              }
+              borderColor={
+                hasMarketInternals
+                  ? sectionBorder(marketInternalsAlignment?.overall)
+                  : "rgba(148,163,184,0.38)"
+              }
+              background={
+                hasMarketInternals
+                  ? sectionBackground(marketInternalsAlignment?.overall)
+                  : engine25Background()
+              }
             >
-              <div style={{ display: "grid", gap: 5 }}>
-                <CompareRow
-                  label="Master ES"
-                  value={`${fmtScoreDecimal(marketInternals.masterScore, 1)} · ${compactLabel(
-                    marketInternals.masterLabel
-                  )}`}
-                  color={marketInternalsColor}
-                />
+              {hasMarketInternals ? (
+                <div style={{ display: "grid", gap: 5 }}>
+                  <CompareRow
+                    label="Master ES"
+                    value={`${fmtScoreDecimal(
+                      marketInternalsMasterScore,
+                      1
+                    )} · ${compactLabel(marketInternalsMasterState)}`}
+                    color={labelColor(marketInternalsMasterState)}
+                  />
 
-                <CompareRow
-                  label="1H ES / Sectors"
-                  value={compactLabel(marketInternals.oneHourLabel)}
-                  color={labelColor(marketInternals.oneHourLabel)}
-                />
+                  <CompareRow
+                    label="1H ES / Sectors"
+                    value={compactLabel(marketInternalsAlignment?.oneHour)}
+                    color={
+                      ["DATA_STALE", "DATA_UNAVAILABLE"].includes(
+                        String(marketInternalsAlignment?.oneHour || "").toUpperCase()
+                      )
+                        ? "#94a3b8"
+                        : labelColor(marketInternalsAlignment?.oneHour)
+                    }
+                  />
 
-                <CompareRow
-                  label="4H ES / Sectors"
-                  value={compactLabel(marketInternals.fourHourLabel)}
-                  color={labelColor(marketInternals.fourHourLabel)}
-                />
+                  <CompareRow
+                    label="4H ES / Sectors"
+                    value={compactLabel(marketInternalsAlignment?.fourHour)}
+                    color={
+                      ["DATA_STALE", "DATA_UNAVAILABLE"].includes(
+                        String(marketInternalsAlignment?.fourHour || "").toUpperCase()
+                      )
+                        ? "#94a3b8"
+                        : labelColor(marketInternalsAlignment?.fourHour)
+                    }
+                  />
 
-                <CompareRow
-                  label="EOD ES / Sectors"
-                  value={compactLabel(marketInternals.eodLabel)}
-                  color={labelColor(marketInternals.eodLabel)}
-                />
+                  <CompareRow
+                    label="EOD ES / Sectors"
+                    value={compactLabel(marketInternalsAlignment?.eod)}
+                    color={
+                      ["DATA_STALE", "DATA_UNAVAILABLE"].includes(
+                        String(marketInternalsAlignment?.eod || "").toUpperCase()
+                      )
+                        ? "#94a3b8"
+                        : labelColor(marketInternalsAlignment?.eod)
+                    }
+                  />
 
+                  <CompareRow
+                    label="Overall"
+                    value={compactLabel(marketInternalsAlignment?.overall)}
+                    color={
+                      ["DATA_STALE", "DATA_UNAVAILABLE"].includes(
+                        String(marketInternalsAlignment?.overall || "").toUpperCase()
+                      )
+                        ? "#94a3b8"
+                        : labelColor(marketInternalsAlignment?.overall)
+                    }
+                  />
+                </div>
+              ) : (
                 <CompareRow
-                  label="Overall"
-                  value={compactLabel(marketInternals.overallLabel)}
-                  color={labelColor(marketInternals.overallLabel)}
+                  label="Status"
+                  value="UNAVAILABLE"
+                  color="#94a3b8"
                 />
-              </div>
+              )}
             </SectionBox>
 
             <SectionBox
@@ -1245,41 +1290,68 @@ export default function Engine25MarketHealthTimeline({
 
                 <CompareRow
                   label="Credit Fragility"
-                  value={`${fmtScore(macroCreditFragility?.score)} · ${
-                    Number.isFinite(macroCreditFragility?.score) &&
-                    macroCreditFragility.score >= 75
+                  value={`${fmtScore(
+                    payload?.creditStressDetail?.scores?.creditFragility
+                  )} · ${
+                    Number(payload?.creditStressDetail?.scores?.creditFragility) >= 70
                       ? "HEALTHY"
-                      : Number.isFinite(macroCreditFragility?.score) &&
-                          macroCreditFragility.score >= 50
+                      : Number(payload?.creditStressDetail?.scores?.creditFragility) >= 50
                         ? "WATCH"
-                        : Number.isFinite(macroCreditFragility?.score)
+                        : Number.isFinite(
+                            Number(payload?.creditStressDetail?.scores?.creditFragility)
+                          )
                           ? "FRAGILE"
                           : "UNAVAILABLE"
                   }`}
-                  color={sectionBorder(
-                    macroCreditFragility?.score,
-                    macroCreditFragility?.score
+                  color={scoreColor(
+                    payload?.creditStressDetail?.scores?.creditFragility
                   )}
                 />
 
                 <CompareRow
                   label="Bond Market"
-                  value={`${fmtScore(macroBondMarket?.score)} · ${compactLabel(
-                    macroBondMarketLabel
-                  )}`}
-                  color={sectionBorder(macroBondMarketLabel, macroBondMarket?.score)}
+                  value={`${fmtScore(
+                    payload?.creditStressDetail?.scores?.bondMarket
+                  )} · ${
+                    Number(payload?.creditStressDetail?.scores?.bondMarket) >= 70
+                      ? "HEALTHY"
+                      : Number(payload?.creditStressDetail?.scores?.bondMarket) >= 50
+                        ? "MIXED"
+                        : Number.isFinite(
+                            Number(payload?.creditStressDetail?.scores?.bondMarket)
+                          )
+                          ? "STRESSED"
+                          : "UNAVAILABLE"
+                  }`}
+                  color={scoreColor(
+                    payload?.creditStressDetail?.scores?.bondMarket
+                  )}
                 />
 
                 <CompareRow
                   label="Liquidity"
-                  value={`${fmtScore(macroLiquidity?.score)} · ${compactLabel(
-                    macroLiquidityLabel
-                  )}`}
-                  color={sectionBorder(macroLiquidityLabel, macroLiquidity?.score)}
+                  value={`${fmtScore(
+                    payload?.creditStressDetail?.scores?.liquidity
+                  )} · ${
+                    Number(payload?.creditStressDetail?.scores?.liquidity) >= 70
+                      ? "HEALTHY"
+                      : Number(payload?.creditStressDetail?.scores?.liquidity) >= 50
+                        ? "MIXED"
+                        : Number.isFinite(
+                            Number(payload?.creditStressDetail?.scores?.liquidity)
+                          )
+                          ? "TIGHT"
+                          : "UNAVAILABLE"
+                  }`}
+                  color={scoreColor(
+                    payload?.creditStressDetail?.scores?.liquidity
+                  )}
                 />
 
-                {macroCreditHealth?.read && (
-                  <NoteText color="#facc15">{macroCreditHealth.read}</NoteText>
+                {macroCreditSaturated && (
+                  <NoteText color="#fbbf24">
+                    HEALTH SCORE CAPPED AT 100 — RAW CREDIT DATA STILL MONITORED
+                  </NoteText>
                 )}
               </div>
             </SectionBox>
@@ -1288,13 +1360,16 @@ export default function Engine25MarketHealthTimeline({
               <SectionBox
                 title="Sector Breadth"
                 titleColor={sectorColor}
-                borderColor={sectorColor}
+                borderColor={sectionBorder(
+                  combinedSector?.label,
+                  combinedSector?.score
+                )}
                 background={sectionBackground(
-                  combinedSector.label,
-                  combinedSector.score
+                  combinedSector?.label,
+                  combinedSector?.score
                 )}
               >
-                <div style={{ display: "grid", gap: 5 }}>
+                <div style={{ display: "grid", gap: 8 }}>
                   <div
                     style={{
                       display: "grid",
@@ -1302,39 +1377,33 @@ export default function Engine25MarketHealthTimeline({
                       gap: 8,
                     }}
                   >
-                    <div style={{ display: "grid", gap: 5 }}>
-                      <CompareRow
-                        label="1H Tactical"
-                        value={`${compactLabel(oneHourSector.label)} · ${fmtScoreDecimal(
-                          oneHourSector.score,
-                          2
-                        )}`}
-                        color={labelColor(oneHourSector.label)}
-                      />
+                    <MiniRead
+                      label="1H Tactical"
+                      value={`${cleanLabel(
+                        tactical1h?.classification?.label
+                      )} · ${fmtScoreDecimal(
+                        tactical1h?.classification?.score,
+                        2
+                      )}`}
+                      color={labelColor(
+                        tactical1h?.classification?.label,
+                        tactical1h?.classification?.score
+                      )}
+                    />
 
-                      <CompareRow
-                        label="Participation"
-                        value={fmtScoreDecimal(oneHourSector.participation, 2)}
-                        color={labelColor(oneHourSector.label)}
-                      />
-                    </div>
-
-                    <div style={{ display: "grid", gap: 5 }}>
-                      <CompareRow
-                        label="4H Regime"
-                        value={`${compactLabel(fourHourSector.label)} · ${fmtScoreDecimal(
-                          fourHourSector.score,
-                          2
-                        )}`}
-                        color={labelColor(fourHourSector.label)}
-                      />
-
-                      <CompareRow
-                        label="Participation"
-                        value={fmtScoreDecimal(fourHourSector.participation, 2)}
-                        color={labelColor(fourHourSector.label)}
-                      />
-                    </div>
+                    <MiniRead
+                      label="4H Regime"
+                      value={`${cleanLabel(
+                        regime4h?.classification?.label
+                      )} · ${fmtScoreDecimal(
+                        regime4h?.classification?.score,
+                        2
+                      )}`}
+                      color={labelColor(
+                        regime4h?.classification?.label,
+                        regime4h?.classification?.score
+                      )}
+                    />
                   </div>
 
                   <CompareRow
