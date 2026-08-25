@@ -525,12 +525,6 @@ export default function Engine25MarketHealthTimeline({
   const creditStressDetail = payload?.creditStressDetail || null;
   const macroCreditHealth =
     creditStressDetail?.groups?.macroCreditStress || null;
-  const macroCreditItems = Array.isArray(macroCreditHealth?.items)
-    ? macroCreditHealth.items
-    : [];
-  const macroCreditByKey = Object.fromEntries(
-    macroCreditItems.map((item) => [item?.key, item])
-  );
   const macroCreditScore = Number(macroCreditHealth?.score);
   const macroCreditHealthLabel = Number.isFinite(macroCreditScore)
     ? macroCreditScore >= 75
@@ -856,7 +850,7 @@ export default function Engine25MarketHealthTimeline({
           </SectionBox>
 
           <SectionBox
-            title="Macro Credit Health"
+            title="Credit / Financial Health"
             titleColor={macroCreditColor}
             borderColor={sectionBorder(macroCreditHealthLabel, macroCreditScore)}
             background={sectionBackground(
@@ -866,46 +860,82 @@ export default function Engine25MarketHealthTimeline({
           >
             <div style={{ display: "grid", gap: 5 }}>
               <CompareRow
-                label="Health"
-                value={`${fmtScore(macroCreditHealth?.score)} · ${macroCreditHealthLabel}`}
+                label="System Credit Health"
+                value={`${fmtScore(macroCreditHealth?.score)} · ${
+                  Number.isFinite(macroCreditScore) && macroCreditScore >= 75
+                    ? "HEALTHY"
+                    : Number.isFinite(macroCreditScore) && macroCreditScore >= 50
+                      ? "WATCH"
+                      : Number.isFinite(macroCreditScore)
+                        ? "STRESSED"
+                        : "UNAVAILABLE"
+                }`}
                 color={macroCreditColor}
               />
 
               <CompareRow
-                label="High-Yield Spread"
-                value={
-                  Number.isFinite(Number(macroCreditByKey.BAMLH0A0HYM2?.value))
-                    ? String(macroCreditByKey.BAMLH0A0HYM2.value)
-                    : "—"
-                }
-                color="#dbeafe"
+                label="Credit Fragility"
+                value={`${fmtScore(
+                  payload?.creditStressDetail?.scores?.creditFragility
+                )} · ${
+                  Number(payload?.creditStressDetail?.scores?.creditFragility) >= 70
+                    ? "HEALTHY"
+                    : Number(payload?.creditStressDetail?.scores?.creditFragility) >= 50
+                      ? "WATCH"
+                      : Number.isFinite(
+                          Number(payload?.creditStressDetail?.scores?.creditFragility)
+                        )
+                        ? "FRAGILE"
+                        : "UNAVAILABLE"
+                }`}
+                color={scoreColor(
+                  payload?.creditStressDetail?.scores?.creditFragility
+                )}
               />
 
               <CompareRow
-                label="NFCI"
-                value={
-                  Number.isFinite(Number(macroCreditByKey.NFCI?.value))
-                    ? String(macroCreditByKey.NFCI.value)
-                    : "—"
-                }
-                color="#dbeafe"
+                label="Bond Market"
+                value={`${fmtScore(
+                  payload?.creditStressDetail?.scores?.bondMarket
+                )} · ${
+                  Number(payload?.creditStressDetail?.scores?.bondMarket) >= 70
+                    ? "HEALTHY"
+                    : Number(payload?.creditStressDetail?.scores?.bondMarket) >= 50
+                      ? "MIXED"
+                      : Number.isFinite(
+                          Number(payload?.creditStressDetail?.scores?.bondMarket)
+                        )
+                        ? "STRESSED"
+                        : "UNAVAILABLE"
+                }`}
+                color={scoreColor(
+                  payload?.creditStressDetail?.scores?.bondMarket
+                )}
               />
 
               <CompareRow
-                label="STLFSI4"
-                value={
-                  Number.isFinite(Number(macroCreditByKey.STLFSI4?.value))
-                    ? String(macroCreditByKey.STLFSI4.value)
-                    : "—"
-                }
-                color="#dbeafe"
+                label="Liquidity"
+                value={`${fmtScore(
+                  payload?.creditStressDetail?.scores?.liquidity
+                )} · ${
+                  Number(payload?.creditStressDetail?.scores?.liquidity) >= 70
+                    ? "HEALTHY"
+                    : Number(payload?.creditStressDetail?.scores?.liquidity) >= 50
+                      ? "MIXED"
+                      : Number.isFinite(
+                          Number(payload?.creditStressDetail?.scores?.liquidity)
+                        )
+                        ? "TIGHT"
+                        : "UNAVAILABLE"
+                }`}
+                color={scoreColor(
+                  payload?.creditStressDetail?.scores?.liquidity
+                )}
               />
 
               {macroCreditSaturated && (
                 <NoteText color="#fbbf24">
-                  Score is capped because all macro credit-stress inputs are
-                  inside favorable thresholds. Watch raw values for early
-                  movement before the score changes.
+                  HEALTH SCORE CAPPED AT 100 — RAW CREDIT DATA STILL MONITORED
                 </NoteText>
               )}
             </div>
