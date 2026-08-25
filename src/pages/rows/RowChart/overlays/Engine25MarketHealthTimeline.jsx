@@ -707,8 +707,8 @@ export default function Engine25MarketHealthTimeline({
         top: 126,
         left: 820,
         zIndex: 118,
-        width: 590,
-        maxWidth: "590px",
+        width: 760,
+        maxWidth: "760px",
         maxHeight: "calc(100vh - 150px)",
         overflowY: "auto",
         borderRadius: 14,
@@ -883,647 +883,575 @@ export default function Engine25MarketHealthTimeline({
       </div>
 
       {payload && status !== "ERROR" && (
-        <>
-          {hasIntradayRead && (
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "minmax(250px, 0.92fr) minmax(0, 1.28fr)",
+            gap: 10,
+            alignItems: "start",
+          }}
+        >
+          <div style={{ display: "grid", gap: 8 }}>
             <SectionBox
-              title="Live Read"
-              titleColor={intradayColor(intradayLabel, intradayScore)}
-              borderColor={intradayColor(intradayLabel, intradayScore)}
-              background="rgba(127,29,29,0.18)"
+              title="News / Macro Diagnostic"
+              titleColor={
+                hasNewsEvents
+                  ? newsEventColor(newsEventRows[0])
+                  : newsFeedUnavailable
+                    ? "#ef4444"
+                    : "#94a3b8"
+              }
+              borderColor={
+                hasNewsEvents
+                  ? newsEventColor(newsEventRows[0])
+                  : newsFeedUnavailable
+                    ? "rgba(244,63,94,0.62)"
+                    : "rgba(148,163,184,0.38)"
+              }
+              background={engine25Background()}
             >
-              <div style={{ display: "grid", gap: 4 }}>
-                <CompareRow
-                  label="Intraday"
-                  value={`${compactLabel(intradayLabel)} · ${fmtScore(
-                    intradayScore
-                  )}`}
-                  color={intradayColor(intradayLabel, intradayScore)}
-                />
+              <div style={{ display: "grid", gap: 8 }}>
+                <div style={{ display: "grid", gap: 5 }}>
+                  <div
+                    style={{
+                      fontSize: FS.miniLabel,
+                      color: "#94a3b8",
+                      fontWeight: 950,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.03em",
+                    }}
+                  >
+                    News Event
+                  </div>
 
-                <CompareRow
-                  label="Permission"
-                  value={`${compactLabel(intradayPermission)}${
-                    intradaySize !== null && intradaySize !== undefined
-                      ? ` · Size ${intradaySize}`
-                      : ""
-                  }`}
-                  color={intradayColor(intradayLabel, intradayScore)}
-                />
-              </div>
-            </SectionBox>
-          )}
+                  {newsFeedUnavailable ? (
+                    <>
+                      <CompareRow
+                        label="Status"
+                        value="NEWS FEED UNAVAILABLE"
+                        color="#ef4444"
+                      />
+                      <NoteText color="#cbd5e1">
+                        Existing Engine 25 market context remains active.
+                      </NoteText>
+                    </>
+                  ) : hasNewsEvents ? (
+                    newsEventRows.map((event) => {
+                      const confirmation = confirmationSummaryForEvent(
+                        event,
+                        intradayMacro
+                      );
 
-          <SectionBox
-            title="News / Macro Diagnostic"
-            titleColor={
-              hasNewsEvents
-                ? newsEventColor(newsEventRows[0])
-                : newsFeedUnavailable
-                  ? "#ef4444"
-                  : "#94a3b8"
-            }
-            borderColor={
-              hasNewsEvents
-                ? newsEventColor(newsEventRows[0])
-                : newsFeedUnavailable
-                  ? "rgba(244,63,94,0.62)"
-                  : "rgba(148,163,184,0.38)"
-            }
-            background={engine25Background()}
-          >
-            <div style={{ display: "grid", gap: 8 }}>
-              <div style={{ display: "grid", gap: 5 }}>
-                <div
-                  style={{
-                    fontSize: FS.miniLabel,
-                    color: "#94a3b8",
-                    fontWeight: 950,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.03em",
-                  }}
-                >
-                  News Event
-                </div>
-
-                {newsFeedUnavailable ? (
-                  <>
-                    <CompareRow
-                      label="Status"
-                      value="NEWS FEED UNAVAILABLE"
-                      color="#ef4444"
-                    />
-                    <NoteText color="#cbd5e1">
-                      Existing Engine 25 market context remains active.
-                    </NoteText>
-                  </>
-                ) : hasNewsEvents ? (
-                  newsEventRows.map((event) => {
-                    const confirmation = confirmationSummaryForEvent(
-                      event,
-                      intradayMacro
-                    );
-
-                    return (
-                      <div
-                        key={event.eventId || event.benzingaId}
-                        style={{
-                          borderTop: "1px solid rgba(148,163,184,0.20)",
-                          paddingTop: 6,
-                          display: "grid",
-                          gap: 4,
-                        }}
-                      >
-                        <CompareRow
-                          label={`News · ${fmtEventTimeArizona(event.observedAt)}`}
-                          value={`${compactLabel(
-                            event.eventType
-                          )} · ${compactLabel(event.severity)}`}
-                          color={newsEventColor(event)}
-                        />
-
-                        <NoteText color="#dbeafe">
-                          {event.headlineSummary || "No headline summary"}
-                        </NoteText>
-
-                        <CompareRow
-                          label="Material"
-                          value={event.material === true ? "YES" : "NO"}
-                          color={event.material === true ? "#fbbf24" : "#94a3b8"}
-                        />
-
-                        {event.primaryEntity && (
-                          <CompareRow
-                            label="Entity"
-                            value={event.primaryEntity}
-                            color="#cbd5e1"
-                          />
-                        )}
-
+                      return (
                         <div
+                          key={event.eventId || event.benzingaId}
                           style={{
-                            marginTop: 3,
-                            fontSize: FS.miniLabel,
-                            color: "#94a3b8",
-                            fontWeight: 950,
-                            textTransform: "uppercase",
-                            letterSpacing: "0.03em",
+                            borderTop: "1px solid rgba(148,163,184,0.20)",
+                            paddingTop: 6,
+                            display: "grid",
+                            gap: 4,
                           }}
                         >
-                          Market Confirmation
+                          <CompareRow
+                            label={`News · ${fmtEventTimeArizona(event.observedAt)}`}
+                            value={`${compactLabel(
+                              event.eventType
+                            )} · ${compactLabel(event.severity)}`}
+                            color={newsEventColor(event)}
+                          />
+
+                          <NoteText color="#dbeafe">
+                            {event.headlineSummary || "No headline summary"}
+                          </NoteText>
+
+                          <CompareRow
+                            label="Material"
+                            value={event.material === true ? "YES" : "NO"}
+                            color={event.material === true ? "#fbbf24" : "#94a3b8"}
+                          />
+
+                          {event.primaryEntity && (
+                            <CompareRow
+                              label="Entity"
+                              value={event.primaryEntity}
+                              color="#cbd5e1"
+                            />
+                          )}
+
+                          <div
+                            style={{
+                              marginTop: 3,
+                              fontSize: FS.miniLabel,
+                              color: "#94a3b8",
+                              fontWeight: 950,
+                              textTransform: "uppercase",
+                              letterSpacing: "0.03em",
+                            }}
+                          >
+                            Market Confirmation
+                          </div>
+
+                          <CompareRow
+                            label={confirmation.label}
+                            value={confirmation.value}
+                            color={
+                              confirmation.confirmed ? "#22c55e" : "#94a3b8"
+                            }
+                          />
+
+                          <NoteText color="#94a3b8">
+                            {cleanLabel(confirmation.note)}
+                          </NoteText>
                         </div>
-
-                        <CompareRow
-                          label={confirmation.label}
-                          value={confirmation.value}
-                          color={
-                            confirmation.confirmed ? "#22c55e" : "#94a3b8"
-                          }
-                        />
-
-                        <NoteText color="#94a3b8">
-                          {cleanLabel(confirmation.note)}
-                        </NoteText>
-                      </div>
-                    );
-                  })
-                ) : (
-                  <CompareRow
-                    label="Status"
-                    value="NO ACTIVE MATERIAL NEWS EVENT"
-                    color="#94a3b8"
-                  />
-                )}
-              </div>
-
-              <div
-                style={{
-                  borderTop: "1px solid rgba(148,163,184,0.26)",
-                  paddingTop: 7,
-                  display: "grid",
-                  gap: 5,
-                }}
-              >
-                <div
-                  style={{
-                    fontSize: FS.miniLabel,
-                    color: "#94a3b8",
-                    fontWeight: 950,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.03em",
-                  }}
-                >
-                  Engine 25 Interpretation
-                </div>
-
-                {hasIntradayMacro ? (
-                  <>
-                    <CompareRow
-                      label="Overall"
-                      value={`${compactLabel(
-                        intradayMacro.state
-                      )} · ${compactLabel(intradayMacro.severity)}`}
-                      color={macroStateColor(
-                        `${intradayMacro.state} ${intradayMacro.severity}`
-                      )}
-                    />
-
-                    <CompareRow
-                      label="Equity Impact"
-                      value={compactLabel(intradayMacro.equityImpact)}
-                      color={macroStateColor(intradayMacro.equityImpact)}
-                    />
-
-                    <CompareRow
-                      label="Macro Shock"
-                      value={intradayMacro.macroShock === true ? "YES" : "NO"}
-                      color={
-                        intradayMacro.macroShock === true
-                          ? "#ef4444"
-                          : "#94a3b8"
-                      }
-                    />
-
-                    <CompareRow
-                      label="Data Status"
-                      value={compactLabel(
-                        intradayMacro?.freshness?.status || "UNKNOWN"
-                      )}
-                      color={
-                        String(
-                          intradayMacro?.freshness?.status || ""
-                        ).toUpperCase() === "FRESH"
-                          ? "#22c55e"
-                          : "#fbbf24"
-                      }
-                    />
-
-                    {Array.isArray(intradayMacro.reasonCodes) &&
-                      intradayMacro.reasonCodes.length > 0 && (
-                        <NoteText color="#94a3b8">
-                          {intradayMacro.reasonCodes
-                            .map((code) => cleanLabel(code))
-                            .join(" · ")}
-                        </NoteText>
-                      )}
-                  </>
-                ) : (
-                  <>
+                      );
+                    })
+                  ) : (
                     <CompareRow
                       label="Status"
-                      value="INTRADAY MACRO UNAVAILABLE"
+                      value="NO ACTIVE MATERIAL NEWS EVENT"
                       color="#94a3b8"
                     />
-                    <NoteText color="#94a3b8">
-                      No current Engine 25 macro confirmation data.
-                    </NoteText>
-                  </>
-                )}
+                  )}
+                </div>
               </div>
-            </div>
-          </SectionBox>
+            </SectionBox>
+          </div>
 
-          <SectionBox
-            title="Market Internals"
-            titleColor={
-              hasMarketInternals
-                ? labelColor(marketInternalsAlignment?.overall)
-                : "#94a3b8"
-            }
-            borderColor={
-              hasMarketInternals
-                ? sectionBorder(marketInternalsAlignment?.overall)
-                : "rgba(148,163,184,0.38)"
-            }
-            background={
-              hasMarketInternals
-                ? sectionBackground(marketInternalsAlignment?.overall)
-                : engine25Background()
-            }
-          >
-            {hasMarketInternals ? (
+          <div style={{ display: "grid", gap: 8 }}>
+            {hasIntradayRead && (
+              <SectionBox
+                title="Live Read"
+                titleColor={intradayColor(intradayLabel, intradayScore)}
+                borderColor={intradayColor(intradayLabel, intradayScore)}
+                background="rgba(127,29,29,0.18)"
+              >
+                <div style={{ display: "grid", gap: 4 }}>
+                  <CompareRow
+                    label="Intraday"
+                    value={`${compactLabel(intradayLabel)} · ${fmtScore(
+                      intradayScore
+                    )}`}
+                    color={intradayColor(intradayLabel, intradayScore)}
+                  />
+
+                  <CompareRow
+                    label="Permission"
+                    value={`${compactLabel(intradayPermission)}${
+                      intradaySize !== null && intradaySize !== undefined
+                        ? ` · Size ${intradaySize}`
+                        : ""
+                    }`}
+                    color={intradayColor(intradayLabel, intradayScore)}
+                  />
+                </div>
+              </SectionBox>
+            )}
+
+            <SectionBox
+              title="Engine 25 Interpretation"
+              titleColor={macroStateColor(intradayMacro?.state)}
+              borderColor={macroStateColor(intradayMacro?.state)}
+              background={engine25Background()}
+            >
+              {hasIntradayMacro ? (
+                <div style={{ display: "grid", gap: 5 }}>
+                  <CompareRow
+                    label="Overall"
+                    value={`${compactLabel(
+                      intradayMacro.state
+                    )} · ${compactLabel(intradayMacro.severity)}`}
+                    color={macroStateColor(
+                      `${intradayMacro.state} ${intradayMacro.severity}`
+                    )}
+                  />
+
+                  <CompareRow
+                    label="Equity Impact"
+                    value={compactLabel(intradayMacro.equityImpact)}
+                    color={macroStateColor(intradayMacro.equityImpact)}
+                  />
+
+                  <CompareRow
+                    label="Macro Shock"
+                    value={intradayMacro.macroShock === true ? "YES" : "NO"}
+                    color={
+                      intradayMacro.macroShock === true ? "#ef4444" : "#94a3b8"
+                    }
+                  />
+
+                  <CompareRow
+                    label="Data Status"
+                    value={compactLabel(
+                      intradayMacro?.freshness?.status || "UNKNOWN"
+                    )}
+                    color={
+                      String(
+                        intradayMacro?.freshness?.status || ""
+                      ).toUpperCase() === "FRESH"
+                        ? "#22c55e"
+                        : "#fbbf24"
+                    }
+                  />
+
+                  {Array.isArray(intradayMacro.reasonCodes) &&
+                    intradayMacro.reasonCodes.length > 0 && (
+                      <NoteText color="#94a3b8">
+                        {intradayMacro.reasonCodes
+                          .map((code) => cleanLabel(code))
+                          .join(" · ")}
+                      </NoteText>
+                    )}
+                </div>
+              ) : (
+                <>
+                  <CompareRow
+                    label="Status"
+                    value="INTRADAY MACRO UNAVAILABLE"
+                    color="#94a3b8"
+                  />
+                  <NoteText color="#94a3b8">
+                    No current Engine 25 macro confirmation data.
+                  </NoteText>
+                </>
+              )}
+            </SectionBox>
+
+            <SectionBox
+              title="Market Internals"
+              titleColor={marketInternalsColor}
+              borderColor={sectionBorder(headline.sectorBreadthLabel)}
+              background={sectionBackground(headline.sectorBreadthLabel)}
+            >
               <div style={{ display: "grid", gap: 5 }}>
                 <CompareRow
                   label="Master ES"
-                  value={`${fmtScoreDecimal(
-                    marketInternalsMasterScore,
-                    1
-                  )} · ${compactLabel(marketInternalsMasterState)}`}
-                  color={labelColor(marketInternalsMasterState)}
+                  value={`${fmtScoreDecimal(marketInternals.masterScore, 1)} · ${compactLabel(
+                    marketInternals.masterLabel
+                  )}`}
+                  color={marketInternalsColor}
                 />
 
                 <CompareRow
                   label="1H ES / Sectors"
-                  value={compactLabel(marketInternalsAlignment?.oneHour)}
-                  color={
-                    ["DATA_STALE", "DATA_UNAVAILABLE"].includes(
-                      String(marketInternalsAlignment?.oneHour || "").toUpperCase()
-                    )
-                      ? "#94a3b8"
-                      : labelColor(marketInternalsAlignment?.oneHour)
-                  }
+                  value={compactLabel(marketInternals.oneHourLabel)}
+                  color={labelColor(marketInternals.oneHourLabel)}
                 />
 
                 <CompareRow
                   label="4H ES / Sectors"
-                  value={compactLabel(marketInternalsAlignment?.fourHour)}
-                  color={
-                    ["DATA_STALE", "DATA_UNAVAILABLE"].includes(
-                      String(marketInternalsAlignment?.fourHour || "").toUpperCase()
-                    )
-                      ? "#94a3b8"
-                      : labelColor(marketInternalsAlignment?.fourHour)
-                  }
+                  value={compactLabel(marketInternals.fourHourLabel)}
+                  color={labelColor(marketInternals.fourHourLabel)}
                 />
 
                 <CompareRow
                   label="EOD ES / Sectors"
-                  value={compactLabel(marketInternalsAlignment?.eod)}
-                  color={
-                    ["DATA_STALE", "DATA_UNAVAILABLE"].includes(
-                      String(marketInternalsAlignment?.eod || "").toUpperCase()
-                    )
-                      ? "#94a3b8"
-                      : labelColor(marketInternalsAlignment?.eod)
-                  }
+                  value={compactLabel(marketInternals.eodLabel)}
+                  color={labelColor(marketInternals.eodLabel)}
                 />
 
                 <CompareRow
                   label="Overall"
-                  value={compactLabel(marketInternalsAlignment?.overall)}
-                  color={
-                    ["DATA_STALE", "DATA_UNAVAILABLE"].includes(
-                      String(marketInternalsAlignment?.overall || "").toUpperCase()
-                    )
-                      ? "#94a3b8"
-                      : labelColor(marketInternalsAlignment?.overall)
-                  }
+                  value={compactLabel(marketInternals.overallLabel)}
+                  color={labelColor(marketInternals.overallLabel)}
                 />
               </div>
-            ) : (
-              <CompareRow
-                label="Status"
-                value="UNAVAILABLE"
-                color="#94a3b8"
-              />
-            )}
-          </SectionBox>
+            </SectionBox>
 
-          <SectionBox
-            title="Intraday Macro"
-            titleColor={macroStateColor(intradayMacro?.state)}
-            borderColor={macroStateColor(intradayMacro?.state)}
-            background={sectionBackground(
-              intradayMacro?.state,
-              intradayMacro?.severity
-            )}
-          >
-            {hasIntradayMacro ? (
+            <SectionBox
+              title="Intraday Macro"
+              titleColor={macroStateColor(intradayMacro?.state)}
+              borderColor={macroStateColor(intradayMacro?.state)}
+              background={sectionBackground(
+                intradayMacro?.state,
+                intradayMacro?.severity
+              )}
+            >
+              {hasIntradayMacro ? (
+                <div style={{ display: "grid", gap: 5 }}>
+                  <CompareRow
+                    label="Overall"
+                    value={`${compactLabel(intradayMacro.state)} · ${compactLabel(
+                      intradayMacro.severity
+                    )}`}
+                    color={macroStateColor(
+                      `${intradayMacro.state} ${intradayMacro.severity}`
+                    )}
+                  />
+
+                  <CompareRow
+                    label="Rates"
+                    value={compactLabel(macroRates?.state)}
+                    color={macroStateColor(macroRates?.state)}
+                  />
+
+                  <CompareRow
+                    label="TLT"
+                    value={compactLabel(macroTlt?.state)}
+                    color={macroStateColor(macroTlt?.state)}
+                  />
+
+                  <CompareRow
+                    label="Oil"
+                    value={compactLabel(macroOil?.state)}
+                    color={macroStateColor(macroOil?.state)}
+                  />
+
+                  <CompareRow
+                    label="Geopolitics"
+                    value={compactLabel(macroGeopolitics?.state)}
+                    color={macroStateColor(macroGeopolitics?.state)}
+                  />
+
+                  <CompareRow
+                    label="Macro Shock"
+                    value={intradayMacro?.macroShock === true ? "YES" : "NO"}
+                    color={
+                      intradayMacro?.macroShock === true ? "#ef4444" : "#94a3b8"
+                    }
+                  />
+                </div>
+              ) : (
+                <CompareRow
+                  label="Status"
+                  value="UNAVAILABLE"
+                  color="#94a3b8"
+                />
+              )}
+            </SectionBox>
+
+            <SectionBox
+              title="Credit / Financial Health"
+              titleColor={macroCreditColor}
+              borderColor={sectionBorder(macroCreditHealthLabel, macroCreditScore)}
+              background={sectionBackground(
+                macroCreditHealthLabel,
+                macroCreditScore
+              )}
+            >
               <div style={{ display: "grid", gap: 5 }}>
                 <CompareRow
-                  label="Overall"
-                  value={`${compactLabel(intradayMacro.state)} · ${compactLabel(
-                    intradayMacro.severity
-                  )}`}
-                  color={macroStateColor(
-                    `${intradayMacro.state} ${intradayMacro.severity}`
+                  label="System Credit Health"
+                  value={`${fmtScore(macroCreditHealth?.score)} · ${
+                    Number.isFinite(macroCreditScore) && macroCreditScore >= 75
+                      ? "HEALTHY"
+                      : Number.isFinite(macroCreditScore) && macroCreditScore >= 50
+                        ? "WATCH"
+                        : Number.isFinite(macroCreditScore)
+                          ? "STRESSED"
+                          : "UNAVAILABLE"
+                  }`}
+                  color={macroCreditColor}
+                />
+
+                <CompareRow
+                  label="Credit Fragility"
+                  value={`${fmtScore(macroCreditFragility?.score)} · ${
+                    Number.isFinite(macroCreditFragility?.score) &&
+                    macroCreditFragility.score >= 75
+                      ? "HEALTHY"
+                      : Number.isFinite(macroCreditFragility?.score) &&
+                          macroCreditFragility.score >= 50
+                        ? "WATCH"
+                        : Number.isFinite(macroCreditFragility?.score)
+                          ? "FRAGILE"
+                          : "UNAVAILABLE"
+                  }`}
+                  color={sectionBorder(
+                    macroCreditFragility?.score,
+                    macroCreditFragility?.score
                   )}
                 />
 
                 <CompareRow
-                  label="Rates"
-                  value={compactLabel(macroRates?.state)}
-                  color={macroStateColor(macroRates?.state)}
+                  label="Bond Market"
+                  value={`${fmtScore(macroBondMarket?.score)} · ${compactLabel(
+                    macroBondMarketLabel
+                  )}`}
+                  color={sectionBorder(macroBondMarketLabel, macroBondMarket?.score)}
                 />
 
                 <CompareRow
-                  label="TLT"
-                  value={compactLabel(macroTlt?.state)}
-                  color={macroStateColor(macroTlt?.state)}
+                  label="Liquidity"
+                  value={`${fmtScore(macroLiquidity?.score)} · ${compactLabel(
+                    macroLiquidityLabel
+                  )}`}
+                  color={sectionBorder(macroLiquidityLabel, macroLiquidity?.score)}
                 />
 
-                <CompareRow
-                  label="Oil"
-                  value={compactLabel(macroOil?.state)}
-                  color={macroStateColor(macroOil?.state)}
-                />
-
-                <CompareRow
-                  label="Geopolitics"
-                  value={compactLabel(macroGeopolitics?.state)}
-                  color={macroStateColor(macroGeopolitics?.state)}
-                />
-
-                <CompareRow
-                  label="Macro Shock"
-                  value={intradayMacro?.macroShock === true ? "YES" : "NO"}
-                  color={intradayMacro?.macroShock === true ? "#ef4444" : "#94a3b8"}
-                />
-              </div>
-            ) : (
-              <CompareRow
-                label="Status"
-                value="UNAVAILABLE"
-                color="#94a3b8"
-              />
-            )}
-          </SectionBox>
-
-          <SectionBox
-            title="Credit / Financial Health"
-            titleColor={macroCreditColor}
-            borderColor={sectionBorder(macroCreditHealthLabel, macroCreditScore)}
-            background={sectionBackground(
-              macroCreditHealthLabel,
-              macroCreditScore
-            )}
-          >
-            <div style={{ display: "grid", gap: 5 }}>
-              <CompareRow
-                label="System Credit Health"
-                value={`${fmtScore(macroCreditHealth?.score)} · ${
-                  Number.isFinite(macroCreditScore) && macroCreditScore >= 75
-                    ? "HEALTHY"
-                    : Number.isFinite(macroCreditScore) && macroCreditScore >= 50
-                      ? "WATCH"
-                      : Number.isFinite(macroCreditScore)
-                        ? "STRESSED"
-                        : "UNAVAILABLE"
-                }`}
-                color={macroCreditColor}
-              />
-
-              <CompareRow
-                label="Credit Fragility"
-                value={`${fmtScore(
-                  payload?.creditStressDetail?.scores?.creditFragility
-                )} · ${
-                  Number(payload?.creditStressDetail?.scores?.creditFragility) >= 70
-                    ? "HEALTHY"
-                    : Number(payload?.creditStressDetail?.scores?.creditFragility) >= 50
-                      ? "WATCH"
-                      : Number.isFinite(
-                          Number(payload?.creditStressDetail?.scores?.creditFragility)
-                        )
-                        ? "FRAGILE"
-                        : "UNAVAILABLE"
-                }`}
-                color={scoreColor(
-                  payload?.creditStressDetail?.scores?.creditFragility
+                {macroCreditHealth?.read && (
+                  <NoteText color="#facc15">{macroCreditHealth.read}</NoteText>
                 )}
-              />
-
-              <CompareRow
-                label="Bond Market"
-                value={`${fmtScore(
-                  payload?.creditStressDetail?.scores?.bondMarket
-                )} · ${
-                  Number(payload?.creditStressDetail?.scores?.bondMarket) >= 70
-                    ? "HEALTHY"
-                    : Number(payload?.creditStressDetail?.scores?.bondMarket) >= 50
-                      ? "MIXED"
-                      : Number.isFinite(
-                          Number(payload?.creditStressDetail?.scores?.bondMarket)
-                        )
-                        ? "STRESSED"
-                        : "UNAVAILABLE"
-                }`}
-                color={scoreColor(
-                  payload?.creditStressDetail?.scores?.bondMarket
-                )}
-              />
-
-              <CompareRow
-                label="Liquidity"
-                value={`${fmtScore(
-                  payload?.creditStressDetail?.scores?.liquidity
-                )} · ${
-                  Number(payload?.creditStressDetail?.scores?.liquidity) >= 70
-                    ? "HEALTHY"
-                    : Number(payload?.creditStressDetail?.scores?.liquidity) >= 50
-                      ? "MIXED"
-                      : Number.isFinite(
-                          Number(payload?.creditStressDetail?.scores?.liquidity)
-                        )
-                        ? "TIGHT"
-                        : "UNAVAILABLE"
-                }`}
-                color={scoreColor(
-                  payload?.creditStressDetail?.scores?.liquidity
-                )}
-              />
-
-              {macroCreditSaturated && (
-                <NoteText color="#fbbf24">
-                  HEALTH SCORE CAPPED AT 100 — RAW CREDIT DATA STILL MONITORED
-                </NoteText>
-              )}
-            </div>
-          </SectionBox>
-
-          {combinedSector && (
-            <SectionBox
-              title="Sector Breadth"
-              titleColor={sectorColor}
-              borderColor={sectionBorder(
-                combinedSector?.label,
-                combinedSector?.score
-              )}
-              background={sectionBackground(
-                combinedSector?.label,
-                combinedSector?.score
-              )}
-            >
-              <div style={{ display: "grid", gap: 8 }}>
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "1fr 1fr",
-                    gap: 8,
-                  }}
-                >
-                  <MiniRead
-                    label="1H Tactical"
-                    value={`${cleanLabel(
-                      tactical1h?.classification?.label
-                    )} · ${fmtScoreDecimal(
-                      tactical1h?.classification?.score,
-                      2
-                    )}`}
-                    color={labelColor(
-                      tactical1h?.classification?.label,
-                      tactical1h?.classification?.score
-                    )}
-                  />
-
-                  <MiniRead
-                    label="4H Regime"
-                    value={`${cleanLabel(
-                      regime4h?.classification?.label
-                    )} · ${fmtScoreDecimal(
-                      regime4h?.classification?.score,
-                      2
-                    )}`}
-                    color={labelColor(
-                      regime4h?.classification?.label,
-                      regime4h?.classification?.score
-                    )}
-                  />
-                </div>
-
-                <CompareRow
-                  label="Combined"
-                  value={`${compactLabel(
-                    combinedSector.label
-                  )} · ${fmtScoreDecimal(combinedSector.score, 2)}`}
-                  color={sectorColor}
-                />
-
-                <CompareRow
-                  label="Impact"
-                  value={compactLabel(combinedSector.permissionImpact)}
-                  color={sectorColor}
-                />
               </div>
             </SectionBox>
-          )}
 
-          {zoneDecisionRead?.available && (
-            <SectionBox
-              title="Zone Context"
-              titleColor={labelColor(finalClass?.state || zoneDecisionRead.label)}
-              borderColor={sectionBorder(
-                finalClass?.state || zoneDecisionRead.label
-              )}
-              background={sectionBackground(
-                finalClass?.state || zoneDecisionRead.label
-              )}
-            >
-              <div style={{ display: "grid", gap: 6 }}>
-                <CompareRow
-                  label="State"
-                  value={compactLabel(zoneDecisionRead.label)}
-                  color={labelColor(zoneDecisionRead.label)}
-                />
-
-                <CompareRow
-                  label="Accumulation"
-                  value={zoneDetail.accumulationValue}
-                  color={labelColor(zoneDetail.accumulationValue)}
-                />
-
-                <CompareRow
-                  label="Distribution"
-                  value={zoneDetail.distributionValue}
-                  color={labelColor(zoneDetail.distributionValue)}
-                />
-              </div>
-            </SectionBox>
-          )}
-
-          <SectionBox
-            title="Engine 25 Jump Alert"
-            titleColor={jumpAlert.color}
-            borderColor={jumpAlert.border}
-            background={jumpAlert.background}
-          >
-            <div style={{ display: "grid", gap: 5 }}>
-              <CompareRow
-                label="Status"
-                value={jumpAlert.status}
-                color={jumpAlert.color}
-              />
-
-              <CompareRow
-                label="Composite"
-                value={`1D ${fmtChange(jumpAlert.composite1d)} · 3D ${fmtChange(
-                  jumpAlert.composite3d
-                )}`}
-                color={jumpAlert.color}
-              />
-
-              {jumpAlert.drivers.length > 0 && (
-                <div
-                  style={{
-                    display: "grid",
-                    gap: 3,
-                    fontSize: FS.note,
-                    lineHeight: 1.35,
-                    color: "#dbeafe",
-                    fontWeight: 650,
-                  }}
-                >
-                  <div style={{ color: "#94a3b8", fontWeight: 900 }}>
-                    Biggest Drivers
-                  </div>
-
+            {combinedSector && (
+              <SectionBox
+                title="Sector Breadth"
+                titleColor={sectorColor}
+                borderColor={sectorColor}
+                background={sectionBackground(
+                  combinedSector.label,
+                  combinedSector.score
+                )}
+              >
+                <div style={{ display: "grid", gap: 5 }}>
                   <div
                     style={{
-                      display: "flex",
-                      flexWrap: "wrap",
-                      columnGap: 10,
-                      rowGap: 3,
+                      display: "grid",
+                      gridTemplateColumns: "1fr 1fr",
+                      gap: 8,
                     }}
                   >
-                    {jumpAlert.drivers.map((driver) => (
-                      <span key={driver.label}>
-                        {driver.label}:{" "}
-                        <span
-                          style={{
-                            color:
-                              driver.improvement >= 0 ? "#22c55e" : "#ef4444",
-                            fontWeight: 900,
-                          }}
-                        >
-                          {fmtChange(driver.change)}
-                        </span>
-                      </span>
-                    ))}
+                    <div style={{ display: "grid", gap: 5 }}>
+                      <CompareRow
+                        label="1H Tactical"
+                        value={`${compactLabel(oneHourSector.label)} · ${fmtScoreDecimal(
+                          oneHourSector.score,
+                          2
+                        )}`}
+                        color={labelColor(oneHourSector.label)}
+                      />
+
+                      <CompareRow
+                        label="Participation"
+                        value={fmtScoreDecimal(oneHourSector.participation, 2)}
+                        color={labelColor(oneHourSector.label)}
+                      />
+                    </div>
+
+                    <div style={{ display: "grid", gap: 5 }}>
+                      <CompareRow
+                        label="4H Regime"
+                        value={`${compactLabel(fourHourSector.label)} · ${fmtScoreDecimal(
+                          fourHourSector.score,
+                          2
+                        )}`}
+                        color={labelColor(fourHourSector.label)}
+                      />
+
+                      <CompareRow
+                        label="Participation"
+                        value={fmtScoreDecimal(fourHourSector.participation, 2)}
+                        color={labelColor(fourHourSector.label)}
+                      />
+                    </div>
                   </div>
+
+                  <CompareRow
+                    label="Combined"
+                    value={`${compactLabel(
+                      combinedSector.label
+                    )} · ${fmtScoreDecimal(combinedSector.score, 2)}`}
+                    color={sectorColor}
+                  />
+
+                  <CompareRow
+                    label="Impact"
+                    value={compactLabel(combinedSector.permissionImpact)}
+                    color={sectorColor}
+                  />
                 </div>
-              )}
-            </div>
-          </SectionBox>
-        </>
+              </SectionBox>
+            )}
+
+            {zoneDecisionRead?.available && (
+              <SectionBox
+                title="Zone Context"
+                titleColor={labelColor(finalClass?.state || zoneDecisionRead.label)}
+                borderColor={sectionBorder(
+                  finalClass?.state || zoneDecisionRead.label
+                )}
+                background={sectionBackground(
+                  finalClass?.state || zoneDecisionRead.label
+                )}
+              >
+                <div style={{ display: "grid", gap: 6 }}>
+                  <CompareRow
+                    label="State"
+                    value={compactLabel(zoneDecisionRead.label)}
+                    color={labelColor(zoneDecisionRead.label)}
+                  />
+
+                  <CompareRow
+                    label="Accumulation"
+                    value={zoneDetail.accumulationValue}
+                    color={labelColor(zoneDetail.accumulationValue)}
+                  />
+
+                  <CompareRow
+                    label="Distribution"
+                    value={zoneDetail.distributionValue}
+                    color={labelColor(zoneDetail.distributionValue)}
+                  />
+                </div>
+              </SectionBox>
+            )}
+
+            <SectionBox
+              title="Engine 25 Jump Alert"
+              titleColor={jumpAlert.color}
+              borderColor={jumpAlert.border}
+              background={jumpAlert.background}
+            >
+              <div style={{ display: "grid", gap: 5 }}>
+                <CompareRow
+                  label="Status"
+                  value={jumpAlert.status}
+                  color={jumpAlert.color}
+                />
+
+                <CompareRow
+                  label="Composite"
+                  value={`1D ${fmtChange(jumpAlert.composite1d)} · 3D ${fmtChange(
+                    jumpAlert.composite3d
+                  )}`}
+                  color={jumpAlert.color}
+                />
+
+                {jumpAlert.drivers.length > 0 && (
+                  <div
+                    style={{
+                      display: "grid",
+                      gap: 3,
+                      fontSize: FS.note,
+                      lineHeight: 1.35,
+                      color: "#dbeafe",
+                      fontWeight: 650,
+                    }}
+                  >
+                    <div style={{ color: "#94a3b8", fontWeight: 900 }}>
+                      Biggest Drivers
+                    </div>
+
+                    <div
+                      style={{
+                        display: "flex",
+                        flexWrap: "wrap",
+                        columnGap: 10,
+                        rowGap: 3,
+                      }}
+                    >
+                      {jumpAlert.drivers.map((driver) => (
+                        <span key={driver.label}>
+                          {driver.label}:{" "}
+                          <span
+                            style={{
+                              color:
+                                driver.improvement >= 0 ? "#22c55e" : "#ef4444",
+                              fontWeight: 900,
+                            }}
+                          >
+                            {fmtChange(driver.change)}
+                          </span>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </SectionBox>
+          </div>
+        </div>
       )}
     </div>
   );
