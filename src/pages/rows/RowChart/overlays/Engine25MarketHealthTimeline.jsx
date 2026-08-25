@@ -512,6 +512,20 @@ export default function Engine25MarketHealthTimeline({
   const intraday = payload?.intradayProxyDamage || null;
   const liveEsPermission = payload?.liveEsPermission || null;
 
+  const marketInternals = payload?.marketInternals || null;
+  const hasMarketInternals = Boolean(
+    marketInternals?.symbol === "ES" &&
+      Number.isFinite(Number(marketInternals?.esMarketMeter?.masterScore))
+  );
+
+  const marketInternalsMasterScore = Number(
+    marketInternals?.esMarketMeter?.masterScore
+  );
+  const marketInternalsMasterState =
+    marketInternals?.esMarketMeter?.masterState || null;
+
+  const marketInternalsAlignment = marketInternals?.alignment || null;
+
   const intradayMacro = payload?.intradayMacro || null;
   const hasIntradayMacro = Boolean(
     intradayMacro?.ok === true && intradayMacro?.state
@@ -788,6 +802,92 @@ export default function Engine25MarketHealthTimeline({
               </div>
             </SectionBox>
           )}
+
+          <SectionBox
+            title="Market Internals"
+            titleColor={
+              hasMarketInternals
+                ? labelColor(marketInternalsAlignment?.overall)
+                : "#94a3b8"
+            }
+            borderColor={
+              hasMarketInternals
+                ? sectionBorder(marketInternalsAlignment?.overall)
+                : "rgba(148,163,184,0.38)"
+            }
+            background={
+              hasMarketInternals
+                ? sectionBackground(marketInternalsAlignment?.overall)
+                : engine25Background()
+            }
+          >
+            {hasMarketInternals ? (
+              <div style={{ display: "grid", gap: 5 }}>
+                <CompareRow
+                  label="Master ES"
+                  value={`${fmtScoreDecimal(
+                    marketInternalsMasterScore,
+                    1
+                  )} · ${compactLabel(marketInternalsMasterState)}`}
+                  color={labelColor(marketInternalsMasterState)}
+                />
+
+                <CompareRow
+                  label="1H ES / Sectors"
+                  value={compactLabel(marketInternalsAlignment?.oneHour)}
+                  color={
+                    ["DATA_STALE", "DATA_UNAVAILABLE"].includes(
+                      String(marketInternalsAlignment?.oneHour || "").toUpperCase()
+                    )
+                      ? "#94a3b8"
+                      : labelColor(marketInternalsAlignment?.oneHour)
+                  }
+                />
+
+                <CompareRow
+                  label="4H ES / Sectors"
+                  value={compactLabel(marketInternalsAlignment?.fourHour)}
+                  color={
+                    ["DATA_STALE", "DATA_UNAVAILABLE"].includes(
+                      String(marketInternalsAlignment?.fourHour || "").toUpperCase()
+                    )
+                      ? "#94a3b8"
+                      : labelColor(marketInternalsAlignment?.fourHour)
+                  }
+                />
+
+                <CompareRow
+                  label="EOD ES / Sectors"
+                  value={compactLabel(marketInternalsAlignment?.eod)}
+                  color={
+                    ["DATA_STALE", "DATA_UNAVAILABLE"].includes(
+                      String(marketInternalsAlignment?.eod || "").toUpperCase()
+                    )
+                      ? "#94a3b8"
+                      : labelColor(marketInternalsAlignment?.eod)
+                  }
+                />
+
+                <CompareRow
+                  label="Overall"
+                  value={compactLabel(marketInternalsAlignment?.overall)}
+                  color={
+                    ["DATA_STALE", "DATA_UNAVAILABLE"].includes(
+                      String(marketInternalsAlignment?.overall || "").toUpperCase()
+                    )
+                      ? "#94a3b8"
+                      : labelColor(marketInternalsAlignment?.overall)
+                  }
+                />
+              </div>
+            ) : (
+              <CompareRow
+                label="Status"
+                value="UNAVAILABLE"
+                color="#94a3b8"
+              />
+            )}
+          </SectionBox>
 
           <SectionBox
             title="Intraday Macro"
