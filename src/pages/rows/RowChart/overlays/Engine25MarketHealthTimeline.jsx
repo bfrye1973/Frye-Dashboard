@@ -661,6 +661,38 @@ export default function Engine25MarketHealthTimeline({
   const macroCreditSaturated =
     Number.isFinite(macroCreditScore) && macroCreditScore >= 100;
 
+  const creditFinancialScores = [
+    Number(payload?.creditStressDetail?.scores?.creditStress),
+    Number(payload?.creditStressDetail?.scores?.creditFragility),
+    Number(payload?.creditStressDetail?.scores?.bondMarket),
+    Number(payload?.creditStressDetail?.scores?.liquidity),
+  ].filter(Number.isFinite);
+
+  const creditFinancialOverallScore = creditFinancialScores.length
+    ? creditFinancialScores.reduce((sum, value) => sum + value, 0) /
+      creditFinancialScores.length
+    : null;
+
+  const creditFinancialOverallLabel = Number.isFinite(
+    creditFinancialOverallScore
+  )
+    ? creditFinancialOverallScore >= 75
+      ? "HEALTHY"
+      : creditFinancialOverallScore >= 55
+        ? "MIXED / WATCH"
+        : "STRESSED"
+    : "UNAVAILABLE";
+
+  const creditFinancialOverallColor = Number.isFinite(
+    creditFinancialOverallScore
+  )
+    ? creditFinancialOverallScore >= 75
+      ? "#22c55e"
+      : creditFinancialOverallScore >= 55
+        ? "#fbbf24"
+        : "#ef4444"
+    : "#94a3b8";
+
   const sectorBreadth = payload?.sectorBreadth || null;
   const tactical1h = sectorBreadth?.tactical1h || null;
   const regime4h = sectorBreadth?.regime4h || null;
@@ -1266,14 +1298,35 @@ export default function Engine25MarketHealthTimeline({
 
             <SectionBox
               title="Credit / Financial Health"
-              titleColor={macroCreditColor}
-              borderColor={sectionBorder(macroCreditHealthLabel, macroCreditScore)}
-              background={sectionBackground(
-                macroCreditHealthLabel,
-                macroCreditScore
-              )}
+              titleColor={creditFinancialOverallColor}
+              borderColor={
+                creditFinancialOverallColor === "#22c55e"
+                  ? "rgba(34,197,94,0.50)"
+                  : creditFinancialOverallColor === "#fbbf24"
+                    ? "rgba(251,191,36,0.55)"
+                    : creditFinancialOverallColor === "#ef4444"
+                      ? "rgba(244,63,94,0.62)"
+                      : "rgba(148,163,184,0.38)"
+              }
+              background={
+                creditFinancialOverallColor === "#22c55e"
+                  ? "rgba(20,83,45,0.13)"
+                  : creditFinancialOverallColor === "#fbbf24"
+                    ? "rgba(113,63,18,0.14)"
+                    : creditFinancialOverallColor === "#ef4444"
+                      ? "rgba(127,29,29,0.16)"
+                      : engine25Background()
+              }
             >
               <div style={{ display: "grid", gap: 5 }}>
+                <CompareRow
+                  label="Overall Credit / Financial"
+                  value={`${fmtScore(
+                    creditFinancialOverallScore
+                  )} · ${creditFinancialOverallLabel}`}
+                  color={creditFinancialOverallColor}
+                />
+
                 <CompareRow
                   label="System Credit Health"
                   value={`${fmtScore(macroCreditHealth?.score)} · ${
