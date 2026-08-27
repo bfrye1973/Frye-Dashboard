@@ -115,7 +115,41 @@ function intradayColor(label, score) {
 }
 
 function macroStateColor(value) {
-  const text = String(value || "").toUpperCase();
+  const text = String(value || "").toUpperCase().trim();
+
+  /*
+    ENGINE 25 MACRO COLOR POLICY
+
+    GRAY:
+    Data problem only.
+    Missing, stale, unavailable, unknown, or not currently receiving data.
+
+    GREEN:
+    Supportive / easing / positive macro condition.
+
+    YELLOW:
+    Valid current neutral / normal / low condition.
+
+    ORANGE:
+    Elevated caution / headwind / warning.
+
+    RED:
+    Negative / high / extreme / shock condition.
+  */
+
+  if (
+    !text ||
+    text === "—" ||
+    text.includes("UNKNOWN") ||
+    text.includes("UNAVAILABLE") ||
+    text.includes("STALE") ||
+    text.includes("MISSING") ||
+    text.includes("NO_DATA") ||
+    text.includes("DATA_UNAVAILABLE") ||
+    text.includes("DATA_STALE")
+  ) {
+    return "#94a3b8";
+  }
 
   if (
     text.includes("MACRO_SHOCK") ||
@@ -133,14 +167,34 @@ function macroStateColor(value) {
     text.includes("ELEVATED") ||
     text.includes("MODERATE")
   ) {
-    return "#fbbf24";
+    return "#f97316";
   }
 
-  if (text.includes("SUPPORTIVE")) {
+  if (
+    text.includes("SUPPORTIVE") ||
+    text.includes("POSITIVE") ||
+    text.includes("EASING") ||
+    text.includes("TAILWIND")
+  ) {
     return "#22c55e";
   }
 
-  return "#94a3b8";
+  if (
+    text.includes("NEUTRAL") ||
+    text.includes("NORMAL") ||
+    text.includes("LOW") ||
+    text === "NO"
+  ) {
+    return "#fbbf24";
+  }
+
+  /*
+    If Engine 25 supplied a valid state we simply do not recognize yet,
+    show yellow instead of gray.
+
+    Gray must remain diagnostic for unavailable/stale/missing data only.
+  */
+  return "#fbbf24";
 }
 
 function fmtScore(value) {
@@ -1107,9 +1161,9 @@ export default function Engine25MarketHealthTimeline({
                     label="Macro Shock"
                     value={intradayMacro.macroShock === true ? "YES" : "NO"}
                     color={
-                      intradayMacro.macroShock === true ? "#ef4444" : "#94a3b8"
+                      intradayMacro.macroShock === true ? "#ef4444" : "#fbbf24"
                     }
-                  />
+                 />
 
                   <CompareRow
                     label="Data Status"
@@ -1283,9 +1337,9 @@ export default function Engine25MarketHealthTimeline({
                     label="Macro Shock"
                     value={intradayMacro?.macroShock === true ? "YES" : "NO"}
                     color={
-                      intradayMacro?.macroShock === true ? "#ef4444" : "#94a3b8"
+                      intradayMacro?.macroShock === true ? "#ef4444" : "#fbbf24"
                     }
-                  />
+                 />
                 </div>
               ) : (
                 <CompareRow
