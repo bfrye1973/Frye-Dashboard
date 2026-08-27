@@ -2728,9 +2728,7 @@ function buildEngine3ContextSection(fib) {
       paperScalp?.reactionValidation5m || null;
 
     const broader10m =
-      paperScalp?.broaderReaction10m ||
-      fastReaction ||
-      currentLevelAction ||
+      confirmation10m ||
       null;
 
     const oneMinuteRead = observation1m
@@ -2761,16 +2759,16 @@ function buildEngine3ContextSection(fib) {
 
     const tenMinuteRead = broader10m
       ? `${formatUpper(
-          broader10m?.state,
+          broader10m?.completedZoneReactionState,
           "NO SIGNAL"
         )} / ${formatUpper(
-          broader10m?.direction,
+          broader10m?.completedZoneReactionDirection,
           "NEUTRAL"
         )} / ${formatUpper(
-          broader10m?.quality,
+          broader10m?.completedZoneReactionQuality,
           "WEAK"
         )}`
-      : diagnosticRead;
+      : "—";
 
     const currentLevelRead = oneMinuteRead;
 
