@@ -216,6 +216,13 @@ function fmtChange(value) {
   return String(n);
 }
 
+function fmtPct(value, decimals = 2) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return "—";
+  const fixed = n.toFixed(decimals);
+  return `${n > 0 ? "+" : ""}${fixed}%`;
+}
+
 function shortLevel(value) {
   const n = Number(value);
   if (!Number.isFinite(n)) return value ?? "required";
@@ -683,6 +690,21 @@ export default function Engine25MarketHealthTimeline({
   const macroTlt = intradayMacro?.components?.tlt || null;
   const macroOil = intradayMacro?.components?.oil || null;
   const macroGeopolitics = intradayMacro?.components?.geopolitics || null;
+
+  const macroZn30m = macroRates?.tenYearProxy?.changesPct?.["30m"];
+  const macroZb30m = macroRates?.thirtyYearProxy?.changesPct?.["30m"];
+
+  const macroTlt30m = macroTlt?.changesPct?.["30m"];
+  const macroTlt60m = macroTlt?.changesPct?.["60m"];
+  const macroTltSession = macroTlt?.changesPct?.cashSession;
+
+  const macroWti30m = macroOil?.wti?.changesPct?.["30m"];
+  const macroWti60m = macroOil?.wti?.changesPct?.["60m"];
+  const macroWtiSession = macroOil?.wti?.changesPct?.session;
+
+  const macroBrent30m = macroOil?.brent?.changesPct?.["30m"];
+  const macroBrent60m = macroOil?.brent?.changesPct?.["60m"];
+  const macroBrentSession = macroOil?.brent?.changesPct?.session;
 
   const newsEvents = payload?.newsEvents || null;
   const newsEventRows = Array.isArray(newsEvents?.events)
@@ -1316,21 +1338,95 @@ export default function Engine25MarketHealthTimeline({
                   />
 
                   <CompareRow
+                    label="ZN 30m"
+                    value={fmtPct(macroZn30m)}
+                    color={macroStateColor(macroRates?.state)}
+                  />
+
+                  <CompareRow
+                    label="ZB 30m"
+                    value={fmtPct(macroZb30m)}
+                    color={macroStateColor(macroRates?.state)}
+                  />
+
+                  <CompareRow
                     label="TLT"
                     value={compactLabel(macroTlt?.state)}
                     color={macroStateColor(macroTlt?.state)}
                   />
 
                   <CompareRow
+                    label="TLT Session"
+                    value={fmtPct(macroTltSession)}
+                    color={macroStateColor(macroTlt?.state)}
+                  />
+
+                  <CompareRow
+                    label="TLT 30m"
+                    value={fmtPct(macroTlt30m)}
+                    color={macroStateColor(macroTlt?.state)}
+                  />
+
+                  <CompareRow
+                    label="TLT 60m"
+                    value={fmtPct(macroTlt60m)}
+                    color={macroStateColor(macroTlt?.state)}
+                  />
+
+                  <CompareRow
                     label="Oil"
-                    value={compactLabel(macroOil?.state)}
+                    value={`${compactLabel(macroOil?.state)} · ${compactLabel(
+                      macroOil?.severity
+                    )}`}
+                    color={macroStateColor(
+                      `${macroOil?.state} ${macroOil?.severity}`
+                    )}
+                  />
+
+                  <CompareRow
+                    label="WTI Session"
+                    value={fmtPct(macroWtiSession)}
+                    color={macroStateColor(macroOil?.state)}
+                  />
+
+                  <CompareRow
+                    label="WTI 30m"
+                    value={fmtPct(macroWti30m)}
+                    color={macroStateColor(macroOil?.state)}
+                  />
+
+                  <CompareRow
+                    label="WTI 60m"
+                    value={fmtPct(macroWti60m)}
+                    color={macroStateColor(macroOil?.state)}
+                  />
+
+                  <CompareRow
+                    label="Brent Session"
+                    value={fmtPct(macroBrentSession)}
+                    color={macroStateColor(macroOil?.state)}
+                  />
+
+                  <CompareRow
+                    label="Brent 30m"
+                    value={fmtPct(macroBrent30m)}
+                    color={macroStateColor(macroOil?.state)}
+                  />
+
+                  <CompareRow
+                    label="Brent 60m"
+                    value={fmtPct(macroBrent60m)}
                     color={macroStateColor(macroOil?.state)}
                   />
 
                   <CompareRow
                     label="Geopolitics"
-                    value={compactLabel(macroGeopolitics?.state)}
-                    color={macroStateColor(macroGeopolitics?.state)}
+                    value={`${compactLabel(
+                      macroGeopolitics?.state
+                    )} · ${compactLabel(macroGeopolitics?.severity)}`}
+                    color={macroStateColor(
+                      `${macroGeopolitics?.state} ${macroGeopolitics?.severity}`
+                    )}
                   />
 
                   <CompareRow
