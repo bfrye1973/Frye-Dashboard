@@ -2810,8 +2810,8 @@ function buildEngine3ContextSection(fib) {
           ["Direction", formatUpper(canonicalDirection, "NEUTRAL")],
           ["Quality", formatUpper(canonicalQuality, "UNAVAILABLE")],
           ["Reaction state", formatUpper(canonicalState, "WAITING")],
-          ["1m immediate", oneMinuteRead],
-          ["5m validation", fiveMinuteRead],
+          ["1m immediate action", oneMinuteRead],
+          ["5m mature action", fiveMinuteRead],
           ["10m broader action", tenMinuteRead],
           [
             "Reaction confirmation",
