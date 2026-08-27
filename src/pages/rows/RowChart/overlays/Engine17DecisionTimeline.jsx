@@ -2518,6 +2518,13 @@ function buildEngine3ContextSection(fib) {
   const fastReaction = getEngine3FastImbalanceReaction(fib);
   const currentLevelAction = getCurrentLevelActionReaction(fib);
   const paperScalp = getPaperScalpReaction(fib);
+   
+  const reactionContext = getReactionContext(fib);
+   
+  const confirmation10m =
+    reactionContext?.engine3ReactionConfirmation10m ||
+    null;
+   
   const lifecycleReaction = getEngine22LifecycleReaction(fib);
   const pullbackReaction = getEngine22PullbackReaction(fib);
   const reaction = getEngine5Reaction(fib);
@@ -2741,13 +2748,13 @@ function buildEngine3ContextSection(fib) {
 
     const fiveMinuteRead = validation5m
       ? `${formatUpper(
-          validation5m?.validationState,
-          "UNRESOLVED"
+          validation5m?.completedZoneReactionState,
+          "NO SIGNAL"
         )} / ${formatUpper(
-          validation5m?.direction,
+          validation5m?.completedZoneReactionDirection,
           "NEUTRAL"
         )} / ${formatUpper(
-          validation5m?.quality,
+          validation5m?.completedZoneReactionQuality,
           "WEAK"
         )}`
       : "—";
