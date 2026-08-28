@@ -720,7 +720,10 @@ export default function Engine25MarketHealthTimeline({
   const newsFeedUnavailable =
     newsEvents?.ok === false ||
     (Array.isArray(newsEvents?.warnings) &&
-      newsEvents.warnings.includes("MASSIVE_BENZINGA_NEWS_UNAVAILABLE"));
+      (
+        newsEvents.warnings.includes("FINLIGHT_NEWS_UNAVAILABLE") ||
+        newsEvents.warnings.includes("MASSIVE_BENZINGA_NEWS_UNAVAILABLE")
+      ));
 
   const creditStressDetail = payload?.creditStressDetail || null;
   const macroCreditHealth =
