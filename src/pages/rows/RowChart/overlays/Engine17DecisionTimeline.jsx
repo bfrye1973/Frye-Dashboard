@@ -319,8 +319,11 @@ function getEngine26ControlLevelContext(fib) {
 
 function getConfluence(fib) {
   const root = getStrategyRoot(fib);
+  const strategyId = "intraday_scalp@10m";
 
   return (
+    root?.strategies?.[strategyId]?.confluence ||
+    fib?.strategies?.[strategyId]?.confluence ||
     root?.confluence ||
     fib?.confluence ||
     root?.engine5 ||
