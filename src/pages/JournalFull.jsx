@@ -2370,28 +2370,25 @@ export default function JournalFull() {
   return (
     <div
       style={{
-        minHeight:
-          "100vh",
-        background:
-          COLORS.page,
-        color:
-          COLORS.text,
-        padding: 18,
-        fontFamily:
-          "Arial, Helvetica, sans-serif",
+        minHeight: "100vh",
+        width: "100vw",
+        background: COLORS.page,
+        color: COLORS.text,
+        padding: 10,
+        boxSizing: "border-box",
+        overflowX: "auto",
+        fontFamily: "Arial, Helvetica, sans-serif",
       }}
     >
       <div
         style={{
-          maxWidth: 1800,
-          margin:
-            "0 auto",
-          border:
-            `1px solid ${COLORS.line}`,
-          background:
-            "#040b14",
-          boxShadow:
-            "0 18px 50px rgba(0,0,0,.55)",
+          width: "100%",
+          maxWidth: "none",
+          margin: 0,
+          boxSizing: "border-box",
+          border: `1px solid ${COLORS.line}`,
+          background: "#040b14",
+          boxShadow: "0 18px 50px rgba(0,0,0,.55)",
         }}
       >
         {/* =================================================
