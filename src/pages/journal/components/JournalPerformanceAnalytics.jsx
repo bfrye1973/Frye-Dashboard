@@ -1,13 +1,14 @@
 // src/pages/journal/components/JournalPerformanceAnalytics.jsx
 //
-// Frye Dashboard — Journal Performance Analytics
+// Frye Dashboard — Contract Performance
 //
-// PRESENTATION ONLY.
-// - Campaign metrics use CLOSED campaigns only.
-// - Live execution metrics use realized exit events.
-// - No Engine 8/10 writes.
-// - No broker calls.
-// - No P&L recomputation beyond values already produced by journalAnalytics.js.
+// Primary performance unit:
+// ONE CLOSED CONTRACT = ONE STATISTICAL OBSERVATION.
+//
+// INTRADAY and SWING remain separate.
+//
+// Legacy closing events that predate Engine 10 closedContracts[] are
+// explicitly excluded from contract win/loss math rather than guessed.
 //
 
 import React from "react";
@@ -34,19 +35,25 @@ function Metric({
     <div
       style={{
         minWidth: 0,
-        border: `1px solid ${COLORS.line}`,
+        border:
+          `1px solid ${COLORS.line}`,
         borderRadius: 7,
-        background: COLORS.panelAlt,
-        padding: "12px 10px",
-        textAlign: "center",
+        background:
+          COLORS.panelAlt,
+        padding:
+          "12px 9px",
+        textAlign:
+          "center",
       }}
     >
       <div
         style={{
-          fontSize: 11,
-          color: COLORS.muted,
+          fontSize: 10,
+          color:
+            COLORS.muted,
           fontWeight: 950,
-          textTransform: "uppercase",
+          textTransform:
+            "uppercase",
           lineHeight: 1.15,
         }}
       >
@@ -55,7 +62,7 @@ function Metric({
 
       <div
         style={{
-          fontSize: 23,
+          fontSize: 22,
           color,
           fontWeight: 1000,
           marginTop: 8,
@@ -68,8 +75,9 @@ function Metric({
       {sub ? (
         <div
           style={{
-            fontSize: 10,
-            color: COLORS.muted,
+            fontSize: 9,
+            color:
+              COLORS.muted,
             marginTop: 7,
             fontWeight: 800,
           }}
@@ -81,41 +89,356 @@ function Metric({
   );
 }
 
-function SectionTitle({
-  children,
-  color,
-  note,
+function StrategyPerformance({
+  title,
+  book,
+  accent,
 }) {
+  const hasClosed =
+    (
+      book
+        ?.closedContracts ||
+      0
+    ) > 0;
+
+  const legacyExcluded =
+    (
+      book
+        ?.legacyClosedQuantityExcluded ||
+      0
+    ) > 0;
+
+  const profitFactor =
+    book?.profitFactor ===
+    Infinity
+      ? "∞"
+      : fmtNum(
+          book?.profitFactor
+        );
+
   return (
     <div
       style={{
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "baseline",
-        gap: 12,
-        marginBottom: 10,
+        border:
+          `1px solid ${
+            accent
+          }`,
+        borderRadius: 8,
+        background:
+          COLORS.panel,
+        padding: 10,
       }}
     >
       <div
         style={{
-          fontSize: 16,
-          color,
-          fontWeight: 1000,
+          display: "flex",
+          justifyContent:
+            "space-between",
+          alignItems:
+            "baseline",
+          gap: 12,
+          marginBottom: 10,
         }}
       >
-        {children}
-      </div>
+        <div
+          style={{
+            fontSize: 18,
+            color:
+              accent,
+            fontWeight: 1000,
+          }}
+        >
+          {title} CONTRACT PERFORMANCE
+        </div>
 
-      {note ? (
         <div
           style={{
             fontSize: 10,
-            color: COLORS.muted,
-            fontWeight: 800,
-            textAlign: "right",
+            color:
+              COLORS.muted,
+            fontWeight: 850,
+            textAlign:
+              "right",
           }}
         >
-          {note}
+          One closed contract = one result
+        </div>
+      </div>
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns:
+            "repeat(7, minmax(0, 1fr))",
+          gap: 7,
+        }}
+      >
+        <Metric
+          label="OPEN CONTRACTS"
+          value={String(
+            book
+              ?.openContracts ||
+            0
+          )}
+          sub="Not scored yet"
+        />
+
+        <Metric
+          label="CLOSED CONTRACTS"
+          value={String(
+            book
+              ?.closedContracts ||
+            0
+          )}
+          sub="Exact Engine 10 records"
+        />
+
+        <Metric
+          label="WINNING CONTRACTS"
+          value={String(
+            book
+              ?.winningContracts ||
+            0
+          )}
+          sub="Gross realized > 0"
+          color={
+            hasClosed
+              ? COLORS.green
+              : COLORS.text
+          }
+        />
+
+        <Metric
+          label="LOSING CONTRACTS"
+          value={String(
+            book
+              ?.losingContracts ||
+            0
+          )}
+          sub="Gross realized < 0"
+          color={
+            (
+              book
+                ?.losingContracts ||
+              0
+            ) > 0
+              ? COLORS.red
+              : COLORS.text
+          }
+        />
+
+        <Metric
+          label="BREAKEVEN"
+          value={String(
+            book
+              ?.breakevenContracts ||
+            0
+          )}
+          sub="Gross realized = 0"
+        />
+
+        <Metric
+          label="CONTRACT WIN %"
+          value={
+            hasClosed
+              ? fmtPct(
+                  book?.winPct
+                )
+              : "—"
+          }
+          sub="Closed contracts"
+          color={
+            hasClosed
+              ? COLORS.green
+              : COLORS.text
+          }
+        />
+
+        <Metric
+          label="REALIZED CONTRACT P&L"
+          value={
+            hasClosed
+              ? fmtMoney(
+                  book
+                    ?.grossRealizedContractPnL
+                )
+              : "—"
+          }
+          sub="Gross exact FIFO P&L"
+          color={
+            hasClosed
+              ? pnlColor(
+                  book
+                    ?.grossRealizedContractPnL
+                )
+              : COLORS.text
+          }
+        />
+
+        <Metric
+          label="AVG WINNING CONTRACT"
+          value={
+            book
+              ?.averageWinningContract !=
+            null
+              ? fmtMoney(
+                  book
+                    ?.averageWinningContract
+                )
+              : "—"
+          }
+          sub="Gross P&L"
+          color={
+            book
+              ?.averageWinningContract !=
+            null
+              ? COLORS.green
+              : COLORS.text
+          }
+        />
+
+        <Metric
+          label="AVG LOSING CONTRACT"
+          value={
+            book
+              ?.averageLosingContract !=
+            null
+              ? fmtNegativeMoney(
+                  book
+                    ?.averageLosingContract
+                )
+              : "—"
+          }
+          sub="Gross P&L"
+          color={
+            book
+              ?.averageLosingContract !=
+            null
+              ? COLORS.red
+              : COLORS.text
+          }
+        />
+
+        <Metric
+          label="WIN/LOSS RATIO"
+          value={
+            hasClosed
+              ? fmtNum(
+                  book
+                    ?.winLossRatio
+                )
+              : "—"
+          }
+          sub="Avg winner / avg loser"
+        />
+
+        <Metric
+          label="PROFIT FACTOR"
+          value={
+            hasClosed
+              ? profitFactor
+              : "—"
+          }
+          sub="Gross profit / gross loss"
+        />
+
+        <Metric
+          label="EXPECTANCY / CONTRACT"
+          value={
+            hasClosed
+              ? fmtMoney(
+                  book
+                    ?.expectancyPerContract
+                )
+              : "—"
+          }
+          sub="Average realized contract"
+          color={
+            hasClosed
+              ? pnlColor(
+                  book
+                    ?.expectancyPerContract
+                )
+              : COLORS.text
+          }
+        />
+
+        <Metric
+          label="BEST CONTRACT"
+          value={
+            book?.bestContract !=
+            null
+              ? fmtMoney(
+                  book
+                    ?.bestContract
+                )
+              : "—"
+          }
+          sub="Gross P&L"
+          color={
+            book?.bestContract !=
+            null
+              ? pnlColor(
+                  book
+                    ?.bestContract
+                )
+              : COLORS.text
+          }
+        />
+
+        <Metric
+          label="WORST CONTRACT"
+          value={
+            book?.worstContract !=
+            null
+              ? fmtMoney(
+                  book
+                    ?.worstContract
+                )
+              : "—"
+          }
+          sub="Gross P&L"
+          color={
+            book?.worstContract !=
+            null
+              ? pnlColor(
+                  book
+                    ?.worstContract
+                )
+              : COLORS.text
+          }
+        />
+      </div>
+
+      {legacyExcluded ? (
+        <div
+          style={{
+            marginTop: 10,
+            border:
+              `1px solid ${COLORS.goldLine}`,
+            borderRadius: 6,
+            padding:
+              "8px 10px",
+            background:
+              COLORS.goldSoft,
+            color:
+              COLORS.gold,
+            fontSize: 10,
+            fontWeight: 900,
+          }}
+        >
+          Historical coverage notice:{" "}
+          {
+            book
+              ?.legacyClosedQuantityExcluded
+          } older closed contract
+          {
+            book
+              ?.legacyClosedQuantityExcluded ===
+            1
+              ? ""
+              : "s"
+          } are excluded from contract win/loss statistics because those legacy Journal events predate exact Engine 10 closedContracts[] records. No P&L was divided or guessed.
         </div>
       ) : null}
     </div>
@@ -126,327 +449,99 @@ export default function JournalPerformanceAnalytics({
   analytics,
   modeFilter = "REAL",
 }) {
-  const tone =
-    modeFilter === "PAPER"
-      ? COLORS.blue
-      : COLORS.green;
+  if (
+    modeFilter ===
+    "PAPER"
+  ) {
+    return (
+      <section
+        style={{
+          margin: 12,
+          border:
+            `1px solid ${COLORS.blueLine}`,
+          borderRadius: 8,
+          padding: 12,
+          background:
+            COLORS.blueSoft,
+          color:
+            COLORS.blue,
+          fontWeight: 900,
+        }}
+      >
+        PAPER contract analytics remain separate from the REAL Schwab contract-performance model.
+      </section>
+    );
+  }
 
-  const campaignReady =
-    (analytics?.closedCount || 0) > 0;
+  const intraday =
+    analytics
+      ?.strategies
+      ?.INTRADAY ||
+    {};
 
-  const exitReady =
-    (analytics?.totalExits || 0) > 0;
-
-  const exitProfitFactor =
-    analytics?.exitProfitFactor === Infinity
-      ? "∞"
-      : fmtNum(
-          analytics?.exitProfitFactor
-        );
+  const swing =
+    analytics
+      ?.strategies
+      ?.SWING ||
+    {};
 
   return (
     <section
       style={{
         margin: 12,
-        border: `1px solid ${COLORS.line}`,
-        borderRadius: 8,
-        padding: 10,
-        background: COLORS.panel,
       }}
     >
-      <SectionTitle
-        color={tone}
-        note="Campaign statistics finalize only after the entire campaign is CLOSED."
+      <div
+        style={{
+          fontSize: 19,
+          color:
+            COLORS.green,
+          fontWeight: 1000,
+          marginBottom: 10,
+        }}
       >
-        CAMPAIGN PERFORMANCE — {modeFilter} TRADING
-      </SectionTitle>
+        REAL CONTRACT PERFORMANCE
+      </div>
 
       <div
         style={{
           display: "grid",
           gridTemplateColumns:
-            "repeat(10, minmax(0, 1fr))",
-          gap: 7,
+            "1fr 1fr",
+          gap: 12,
         }}
       >
-        <Metric
-          label="WIN RATE"
-          value={
-            campaignReady
-              ? fmtPct(
-                  analytics?.winRate
-                )
-              : "—"
+        <StrategyPerformance
+          title="INTRADAY"
+          book={
+            intraday
           }
-          sub="Closed campaigns"
+          accent={
+            COLORS.greenLine
+          }
         />
 
-        <Metric
-          label="PROFIT FACTOR"
-          value={
-            campaignReady
-              ? analytics?.profitFactor === Infinity
-                ? "∞"
-                : fmtNum(
-                    analytics?.profitFactor
-                  )
-              : "—"
+        <StrategyPerformance
+          title="SWING"
+          book={
+            swing
           }
-          sub="Closed campaigns"
-        />
-
-        <Metric
-          label="AVG WIN"
-          value={
-            campaignReady
-              ? fmtMoney(
-                  analytics?.averageWin
-                )
-              : "—"
+          accent={
+            COLORS.goldLine
           }
-          sub="Per campaign"
-        />
-
-        <Metric
-          label="AVG LOSS"
-          value={
-            campaignReady &&
-            analytics?.averageLoss != null
-              ? fmtNegativeMoney(
-                  analytics?.averageLoss
-                )
-              : "—"
-          }
-          sub="Per campaign"
-        />
-
-        <Metric
-          label="WIN/LOSS RATIO"
-          value={
-            campaignReady
-              ? fmtNum(
-                  analytics?.winLossRatio
-                )
-              : "—"
-          }
-          sub="Closed campaigns"
-        />
-
-        <Metric
-          label="EXPECTANCY"
-          value={
-            campaignReady
-              ? fmtMoney(
-                  analytics?.expectancy
-                )
-              : "—"
-          }
-          sub="Per campaign"
-        />
-
-        <Metric
-          label="MAX DRAWDOWN"
-          value={
-            campaignReady
-              ? fmtNegativeMoney(
-                  analytics?.maxDrawdown
-                )
-              : "—"
-          }
-          sub="Closed campaigns"
-        />
-
-        <Metric
-          label="WINNING CAMPAIGN %"
-          value={
-            campaignReady
-              ? fmtPct(
-                  analytics?.winningCampaignPct
-                )
-              : "—"
-          }
-          sub="Closed campaigns"
-        />
-
-        <Metric
-          label="WINNING STREAK"
-          value={
-            campaignReady
-              ? String(
-                  analytics?.currentWinStreak ?? 0
-                )
-              : "—"
-          }
-          sub="Campaigns"
-        />
-
-        <Metric
-          label="LOSING STREAK"
-          value={
-            campaignReady
-              ? String(
-                  analytics?.currentLossStreak ?? 0
-                )
-              : "—"
-          }
-          sub="Campaigns"
         />
       </div>
 
       <div
         style={{
-          borderTop: `1px solid ${COLORS.line}`,
-          marginTop: 12,
-          paddingTop: 12,
+          fontSize: 10,
+          color:
+            COLORS.muted,
+          marginTop: 8,
+          fontWeight: 800,
         }}
       >
-        <SectionTitle
-          color={COLORS.gold}
-          note="Updates from realized partial/final exits even while the campaign remains OPEN."
-        >
-          LIVE EXECUTION PERFORMANCE
-        </SectionTitle>
-
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns:
-              "repeat(8, minmax(0, 1fr))",
-            gap: 7,
-          }}
-        >
-          <Metric
-            label="WINNING EXIT %"
-            value={
-              exitReady
-                ? fmtPct(
-                    analytics?.winningExitPct
-                  )
-                : "—"
-            }
-            sub={
-              exitReady
-                ? `${analytics?.profitableExits || 0} of ${analytics?.totalExits || 0}`
-                : "No realized exits"
-            }
-            color={
-              exitReady
-                ? pnlColor(
-                    analytics?.winningExitPct
-                  )
-                : COLORS.text
-            }
-          />
-
-          <Metric
-            label="PROFITABLE EXITS"
-            value={
-              exitReady
-                ? String(
-                    analytics?.profitableExits || 0
-                  )
-                : "—"
-            }
-            sub="Realized exits"
-            color={
-              exitReady
-                ? COLORS.green
-                : COLORS.text
-            }
-          />
-
-          <Metric
-            label="LOSING EXITS"
-            value={
-              exitReady
-                ? String(
-                    analytics?.losingExits || 0
-                  )
-                : "—"
-            }
-            sub="Realized exits"
-            color={
-              (analytics?.losingExits || 0) > 0
-                ? COLORS.red
-                : COLORS.text
-            }
-          />
-
-          <Metric
-            label="TOTAL EXITS"
-            value={
-              exitReady
-                ? String(
-                    analytics?.totalExits || 0
-                  )
-                : "—"
-            }
-            sub="Realized exit events"
-          />
-
-          <Metric
-            label="TOTAL EXIT P&L"
-            value={
-              exitReady
-                ? fmtMoney(
-                    analytics?.totalExitPnL
-                  )
-                : "—"
-            }
-            sub="Realized exit P&L"
-            color={
-              exitReady
-                ? pnlColor(
-                    analytics?.totalExitPnL
-                  )
-                : COLORS.text
-            }
-          />
-
-          <Metric
-            label="AVG WINNING EXIT"
-            value={
-              exitReady
-                ? fmtMoney(
-                    analytics?.averageWinningExit
-                  )
-                : "—"
-            }
-            sub="Winning exits"
-            color={
-              analytics?.averageWinningExit != null
-                ? COLORS.green
-                : COLORS.text
-            }
-          />
-
-          <Metric
-            label="AVG LOSING EXIT"
-            value={
-              analytics?.averageLosingExit != null
-                ? fmtNegativeMoney(
-                    analytics?.averageLosingExit
-                  )
-                : "—"
-            }
-            sub="Losing exits"
-            color={
-              analytics?.averageLosingExit != null
-                ? COLORS.red
-                : COLORS.text
-            }
-          />
-
-          <Metric
-            label="EXIT PROFIT FACTOR"
-            value={
-              exitReady
-                ? exitProfitFactor
-                : "—"
-            }
-            sub="Realized exits"
-          />
-        </div>
+        Canonical unit: one closed contract. Open contracts are excluded until they close. Contract statistics use exact Engine 10 FIFO gross realized P&L; individual contract fees are not allocated or invented.
       </div>
     </section>
   );
