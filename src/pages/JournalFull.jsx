@@ -1,145 +1,381 @@
 // src/pages/JournalFull.jsx
 //
-// Full Trade Journal
+// Frye Dashboard — Full Trade Journal
 //
-// ✅ Separates REAL TRADING from PAPER TRADING
-// ✅ Keeps REAL and PAPER totals completely separate
-// ✅ Polls Engine 10 Journal
-// ✅ Polls live futures marks for OPEN futures trades
-// ✅ Calculates live unrealized P&L without modifying Journal history
-// ✅ Shows open contracts prominently
-// ✅ Shows Thinkorswim account-level daily P&L
-// ✅ Keeps trade history / execution events / setup details
-//
-// IMPORTANT:
-// - This page is READ-ONLY.
-// - It does NOT place orders.
-// - It does NOT modify Engine 8.
-// - It does NOT write unrealized P&L into trade-journal.json.
+// READ-ONLY FRONTEND
+// - REAL and PAPER trading remain separate.
+// - Automatic Schwab REAL fills are supported.
+// - Legacy Thinkorswim imports remain supported.
+// - Live futures marks are display-only.
+// - Unrealized P&L is never written back to Engine 10.
 //
 
 import React, { useEffect, useMemo, useState } from "react";
 
-const API_BASE = "https://frye-market-backend-1.onrender.com";
+const API_BASE =
+  "https://frye-market-backend-1.onrender.com";
+
 const AZ_TZ = "America/Phoenix";
 
 const JOURNAL_POLL_MS = 15000;
 const MARK_POLL_MS = 5000;
 
-/* =========================================================
-   API
-========================================================= */
+const COLORS = {
+  page: "#030914",
+  header: "#050b14",
+  panel: "#07101c",
+  panelAlt: "#0a1422",
+  panelSelected: "#0c1b2d",
 
-function normalizeApiBase(x) {
-  const raw = String(x || "").trim();
+  line: "#26364a",
+  lineSoft: "#172638",
 
-  if (!raw) {
-    return "https://frye-market-backend-1.onrender.com";
-  }
+  text: "#f8fafc",
+  muted: "#91a0b5",
 
-  let out = raw.replace(/\/+$/, "");
-  out = out.replace(/\/api\/v1$/i, "");
-  out = out.replace(/\/api$/i, "");
+  green: "#22c55e",
+  greenSoft: "#061c12",
+  greenLine: "#16803c",
 
-  return out;
+  blue: "#60a5fa",
+  blueSoft: "#081a34",
+  blueLine: "#2559a8",
+
+  gold: "#fbbf24",
+  goldSoft: "#1a1305",
+  goldLine: "#b77900",
+
+  red: "#fb4b4b",
+};
+
+function upper(value) {
+  return String(value || "")
+    .trim()
+    .toUpperCase();
 }
 
-const BASE = normalizeApiBase(API_BASE);
+function safeNum(value) {
+  const parsed = Number(value);
 
-/* =========================================================
-   FORMATTERS
-========================================================= */
+  return Number.isFinite(parsed)
+    ? parsed
+    : null;
+}
 
-function toAz(iso, withSeconds = false) {
-  if (!iso) return "—";
+function fmtNum(
+  value,
+  digits = 2
+) {
+  const parsed =
+    safeNum(value);
+
+  return parsed == null
+    ? "—"
+    : parsed.toFixed(digits);
+}
+
+function fmtMoney(value) {
+  const parsed =
+    safeNum(value);
+
+  if (parsed == null) {
+    return "—";
+  }
+
+  const sign =
+    parsed >= 0
+      ? "+"
+      : "-";
+
+  return `${sign}$${Math.abs(
+    parsed
+  ).toFixed(2)}`;
+}
+
+function fmtNegativeMoney(value) {
+  const parsed =
+    safeNum(value);
+
+  if (parsed == null) {
+    return "—";
+  }
+
+  return `-$${Math.abs(
+    parsed
+  ).toFixed(2)}`;
+}
+
+function fmtPct(value) {
+  const parsed =
+    safeNum(value);
+
+  return parsed == null
+    ? "—"
+    : `${parsed.toFixed(1)}%`;
+}
+
+function pnlColor(value) {
+  const parsed =
+    safeNum(value);
+
+  if (
+    parsed == null ||
+    parsed === 0
+  ) {
+    return COLORS.text;
+  }
+
+  return parsed > 0
+    ? COLORS.green
+    : COLORS.red;
+}
+
+function toAz(
+  iso,
+  withSeconds = false
+) {
+  if (!iso) {
+    return "—";
+  }
 
   try {
-    return new Date(iso).toLocaleString("en-US", {
-      timeZone: AZ_TZ,
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      second: withSeconds ? "2-digit" : undefined,
-    });
+    return new Date(
+      iso
+    ).toLocaleString(
+      "en-US",
+      {
+        timeZone: AZ_TZ,
+        month: "2-digit",
+        day: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        second:
+          withSeconds
+            ? "2-digit"
+            : undefined,
+      }
+    );
   } catch {
     return String(iso);
   }
 }
 
-function safeNum(value) {
-  const n = Number(value);
-  return Number.isFinite(n) ? n : null;
+function toAzTime(iso) {
+  if (!iso) {
+    return "—";
+  }
+
+  try {
+    return new Date(
+      iso
+    ).toLocaleTimeString(
+      "en-US",
+      {
+        timeZone: AZ_TZ,
+        hour: "numeric",
+        minute: "2-digit",
+        second: "2-digit",
+      }
+    );
+  } catch {
+    return "—";
+  }
 }
 
-function fmtNum(value, digits = 2) {
-  const n = safeNum(value);
-  return n == null ? "—" : n.toFixed(digits);
+function dayKey(iso) {
+  if (!iso) {
+    return null;
+  }
+
+  try {
+    return new Intl.DateTimeFormat(
+      "en-CA",
+      {
+        timeZone: AZ_TZ,
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }
+    ).format(
+      new Date(iso)
+    );
+  } catch {
+    return null;
+  }
 }
 
-function fmtMoney(value) {
-  const n = safeNum(value);
-
-  if (n == null) return "—";
-
-  return `${n >= 0 ? "+" : "-"}$${Math.abs(n).toFixed(2)}`;
-}
-
-function fmtSigned(value, digits = 2) {
-  const n = safeNum(value);
-
-  if (n == null) return "—";
-
-  return `${n >= 0 ? "+" : ""}${n.toFixed(digits)}`;
-}
-
-function upper(value) {
-  return String(value || "").trim().toUpperCase();
+function todayKey() {
+  return dayKey(
+    new Date().toISOString()
+  );
 }
 
 /* =========================================================
-   TRADE MODE
+   TRADE IDENTITY
 ========================================================= */
 
 function getTradeMode(trade) {
+  const source =
+    upper(
+      trade?.source
+    );
+
+  const accountMode =
+    upper(
+      trade?.accountMode
+    );
+
   if (
-    upper(trade?.source) === "THINKORSWIM_IMPORT" ||
-    upper(trade?.accountMode) === "LIVE"
+    source ===
+      "SCHWAB_BROKER_FILL" ||
+    source ===
+      "THINKORSWIM_IMPORT" ||
+    accountMode === "REAL" ||
+    accountMode === "LIVE"
   ) {
     return "REAL";
   }
 
-  if (upper(trade?.accountMode) === "PAPER") {
+  if (
+    accountMode === "PAPER"
+  ) {
     return "PAPER";
   }
 
   return "OTHER";
 }
 
-/* =========================================================
-   FUTURES
-========================================================= */
+function getAccountLabel(
+  trade
+) {
+  const direct =
+    upper(
+      trade?.journalAccount
+    );
 
-function normalizeMarketSymbol(trade) {
-  const direct = upper(trade?.symbol);
-
-  if (direct) {
-    return direct
-      .replace(/^\//, "")
-      .replace(/[A-Z]\d{1,2}$/, "");
+  if (
+    direct === "INTRADAY" ||
+    direct === "SWING"
+  ) {
+    return direct;
   }
 
-  const broker = upper(trade?.brokerSymbol);
+  const alias =
+    upper(
+      trade?.brokerImport
+        ?.accountAlias
+    );
 
-  if (broker.startsWith("/MES")) return "MES";
-  if (broker.startsWith("/ES")) return "ES";
+  if (
+    alias === "INTRADAY" ||
+    alias === "TOS_ACCOUNT_A"
+  ) {
+    return "INTRADAY";
+  }
 
-  return direct || null;
+  if (
+    alias === "SWING" ||
+    alias === "TOS_ACCOUNT_B"
+  ) {
+    return "SWING";
+  }
+
+  if (
+    getTradeMode(trade) ===
+    "PAPER"
+  ) {
+    return "FRYE PAPER";
+  }
+
+  return (
+    direct ||
+    alias ||
+    "REAL"
+  );
 }
 
-function fallbackDollarsPerPoint(symbol) {
-  switch (upper(symbol)) {
+function normalizeMarketSymbol(
+  trade
+) {
+  const explicitRoot =
+    upper(
+      trade
+        ?.normalizedInstrumentRoot ||
+      trade?.realBroker
+        ?.normalizedInstrumentRoot
+    );
+
+  if (explicitRoot) {
+    return explicitRoot;
+  }
+
+  const raw =
+    upper(
+      trade?.brokerSymbol ||
+      trade?.realBroker
+        ?.brokerSymbol ||
+      trade?.brokerImport
+        ?.brokerSymbol ||
+      trade?.symbol
+    )
+      .replace(
+        /:.*$/,
+        ""
+      )
+      .replace(
+        /^\//,
+        ""
+      );
+
+  const futuresMatch =
+    raw.match(
+      /^([A-Z0-9]+?)[FGHJKMNQUVXZ]\d{1,2}$/
+    );
+
+  if (
+    futuresMatch?.[1]
+  ) {
+    return futuresMatch[1];
+  }
+
+  return raw || null;
+}
+
+function getDollarsPerPoint(
+  trade
+) {
+  const direct = [
+    trade?.realBroker
+      ?.dollarsPerPoint,
+
+    trade?.brokerImport
+      ?.dollarsPerPoint,
+
+    trade?.riskBasis
+      ?.dollarsPerPoint,
+  ];
+
+  for (
+    const value
+    of direct
+  ) {
+    const parsed =
+      safeNum(value);
+
+    if (
+      parsed != null &&
+      parsed > 0
+    ) {
+      return parsed;
+    }
+  }
+
+  switch (
+    normalizeMarketSymbol(
+      trade
+    )
+  ) {
     case "MES":
       return 5;
 
@@ -169,93 +405,314 @@ function fallbackDollarsPerPoint(symbol) {
   }
 }
 
-function getDollarsPerPoint(trade) {
-  const values = [
-    trade?.brokerImport?.dollarsPerPoint,
-    trade?.riskBasis?.dollarsPerPoint,
-    fallbackDollarsPerPoint(normalizeMarketSymbol(trade)),
-  ];
+function getRemainingLots(
+  trade
+) {
+  const rows =
+    trade?.realBroker
+      ?.remainingLots ||
+    trade?.brokerImport
+      ?.remainingLots ||
+    [];
 
-  for (const value of values) {
-    const n = safeNum(value);
+  return Array.isArray(
+    rows
+  )
+    ? rows
+    : [];
+}
 
-    if (n != null && n > 0) {
-      return n;
-    }
+function getRemainingAverageEntry(
+  trade
+) {
+  const explicit =
+    safeNum(
+      trade?.brokerImport
+        ?.remainingAverageEntry
+    ) ??
+    safeNum(
+      trade?.realBroker
+        ?.remainingAverageEntry
+    );
+
+  if (
+    explicit != null
+  ) {
+    return explicit;
   }
 
-  return null;
+  let totalQty = 0;
+  let weighted = 0;
+
+  for (
+    const lot
+    of getRemainingLots(
+      trade
+    )
+  ) {
+    const qty =
+      safeNum(
+        lot?.qty
+      );
+
+    const price =
+      safeNum(
+        lot?.price
+      );
+
+    if (
+      qty == null ||
+      qty <= 0 ||
+      price == null
+    ) {
+      continue;
+    }
+
+    totalQty += qty;
+    weighted +=
+      qty *
+      price;
+  }
+
+  if (
+    totalQty > 0
+  ) {
+    return (
+      weighted /
+      totalQty
+    );
+  }
+
+  return safeNum(
+    trade?.entry?.price
+  );
+}
+
+function getGrossRealized(
+  trade
+) {
+  return (
+    safeNum(
+      trade?.summary
+        ?.grossRealizedPnL
+    ) ??
+    safeNum(
+      trade?.brokerImport
+        ?.grossRealizedTradePnL
+    ) ??
+    safeNum(
+      trade?.summary
+        ?.realizedPnL
+    )
+  );
+}
+
+function getActualFees(
+  trade
+) {
+  const direct =
+    safeNum(
+      trade?.summary
+        ?.actualFees
+    ) ??
+    safeNum(
+      trade?.brokerImport
+        ?.actualFees
+    );
+
+  if (
+    direct != null
+  ) {
+    return direct;
+  }
+
+  const commission =
+    safeNum(
+      trade?.summary
+        ?.actualCommission
+    );
+
+  const exchangeFees =
+    safeNum(
+      trade?.summary
+        ?.futuresExchangeFees
+    );
+
+  if (
+    commission == null &&
+    exchangeFees == null
+  ) {
+    return null;
+  }
+
+  return (
+    (commission || 0) +
+    (exchangeFees || 0)
+  );
+}
+
+function getNetRealized(
+  trade
+) {
+  const direct =
+    safeNum(
+      trade?.summary
+        ?.netRealizedPnL
+    ) ??
+    safeNum(
+      trade?.brokerImport
+        ?.netRealizedTradePnL
+    );
+
+  if (
+    direct != null
+  ) {
+    return direct;
+  }
+
+  const gross =
+    getGrossRealized(
+      trade
+    );
+
+  if (
+    gross == null
+  ) {
+    return null;
+  }
+
+  return (
+    gross -
+    (
+      getActualFees(
+        trade
+      ) || 0
+    )
+  );
+}
+
+function getDailyAccountPnL(
+  trade
+) {
+  return (
+    safeNum(
+      trade?.summary
+        ?.dailyAccountPnL
+    ) ??
+    safeNum(
+      trade?.brokerImport
+        ?.dailyAccountPnL
+    )
+  );
+}
+
+function getTradeDate(
+  trade
+) {
+  return (
+    trade?.brokerImport
+      ?.tradingDate ||
+    dayKey(
+      trade?.entry?.time ||
+      trade?.createdAt
+    )
+  );
 }
 
 /* =========================================================
-   LIVE POSITION CALCULATION
+   LIVE P&L
 ========================================================= */
 
-function calculateLivePosition(trade, mark) {
-  const status = upper(trade?.status);
-  const direction = upper(trade?.direction);
-
+function calculateLivePosition(
+  trade,
+  mark
+) {
   const remainingQty =
-    safeNum(trade?.qty?.remainingQty) ?? 0;
+    safeNum(
+      trade?.qty
+        ?.remainingQty
+    ) || 0;
 
-  const realizedPnL =
-    safeNum(trade?.summary?.realizedPnL) ?? 0;
+  const currentMark =
+    safeNum(mark);
+
+  const dollarsPerPoint =
+    getDollarsPerPoint(
+      trade
+    );
+
+  const direction =
+    upper(
+      trade?.direction
+    );
+
+  const averageEntry =
+    getRemainingAverageEntry(
+      trade
+    );
 
   if (
-    status !== "OPEN" ||
+    upper(
+      trade?.status
+    ) !== "OPEN" ||
     remainingQty <= 0
   ) {
     return {
       available: false,
       remainingQty,
-      mark: safeNum(mark),
-      averageEntry: null,
+      averageEntry,
+      mark: currentMark,
       unrealizedPoints: 0,
       unrealizedPnL: 0,
-      realizedPnL,
-      totalTradePnL: realizedPnL,
-      dollarsPerPoint: getDollarsPerPoint(trade),
+      totalPnL:
+        getNetRealized(
+          trade
+        ) ??
+        getGrossRealized(
+          trade
+        ),
     };
   }
 
-  const currentMark = safeNum(mark);
-  const dollarsPerPoint = getDollarsPerPoint(trade);
-
   if (
     currentMark == null ||
-    dollarsPerPoint == null
+    dollarsPerPoint == null ||
+    averageEntry == null
   ) {
     return {
       available: false,
       remainingQty,
+      averageEntry,
       mark: currentMark,
-      averageEntry:
-        safeNum(
-          trade?.brokerImport?.remainingAverageEntry
-        ) ??
-        safeNum(trade?.entry?.price),
       unrealizedPoints: null,
       unrealizedPnL: null,
-      realizedPnL,
-      totalTradePnL: null,
-      dollarsPerPoint,
+      totalPnL: null,
     };
   }
 
-  const lots = Array.isArray(
-    trade?.brokerImport?.remainingLots
-  )
-    ? trade.brokerImport.remainingLots
-    : [];
-
   let unrealizedPoints = 0;
-  let weightedEntrySum = 0;
-  let weightedQty = 0;
 
-  if (lots.length) {
-    for (const lot of lots) {
-      const qty = safeNum(lot?.qty) ?? 0;
-      const entryPrice = safeNum(lot?.price);
+  const lots =
+    getRemainingLots(
+      trade
+    );
+
+  if (
+    lots.length
+  ) {
+    for (
+      const lot
+      of lots
+    ) {
+      const qty =
+        safeNum(
+          lot?.qty
+        ) || 0;
+
+      const entryPrice =
+        safeNum(
+          lot?.price
+        );
 
       if (
         qty <= 0 ||
@@ -265,303 +722,443 @@ function calculateLivePosition(trade, mark) {
       }
 
       const points =
-        direction === "SHORT"
-          ? entryPrice - currentMark
-          : currentMark - entryPrice;
+        direction ===
+        "SHORT"
+          ? entryPrice -
+            currentMark
+          : currentMark -
+            entryPrice;
 
-      unrealizedPoints += points * qty;
-      weightedEntrySum += entryPrice * qty;
-      weightedQty += qty;
+      unrealizedPoints +=
+        points *
+        qty;
     }
   } else {
-    const entryPrice =
-      safeNum(
-        trade?.brokerImport?.remainingAverageEntry
-      ) ??
-      safeNum(trade?.entry?.price);
+    const points =
+      direction ===
+      "SHORT"
+        ? averageEntry -
+          currentMark
+        : currentMark -
+          averageEntry;
 
-    if (entryPrice != null) {
-      const points =
-        direction === "SHORT"
-          ? entryPrice - currentMark
-          : currentMark - entryPrice;
-
-      unrealizedPoints =
-        points * remainingQty;
-
-      weightedEntrySum =
-        entryPrice * remainingQty;
-
-      weightedQty =
-        remainingQty;
-    }
+    unrealizedPoints =
+      points *
+      remainingQty;
   }
 
-  const averageEntry =
-    weightedQty > 0
-      ? weightedEntrySum / weightedQty
-      : null;
-
   const unrealizedPnL =
-    unrealizedPoints * dollarsPerPoint;
+    unrealizedPoints *
+    dollarsPerPoint;
+
+  const realizedBasis =
+    getNetRealized(
+      trade
+    ) ??
+    getGrossRealized(
+      trade
+    ) ??
+    0;
 
   return {
     available: true,
     remainingQty,
-    mark: currentMark,
     averageEntry,
+    mark: currentMark,
     unrealizedPoints,
     unrealizedPnL,
-    realizedPnL,
-    totalTradePnL:
-      realizedPnL + unrealizedPnL,
-    dollarsPerPoint,
+    totalPnL:
+      realizedBasis +
+      unrealizedPnL,
   };
 }
 
 /* =========================================================
-   COLORS
+   ANALYTICS
 ========================================================= */
 
-const COLORS = {
-  real: {
-    bg: "#071b13",
-    fg: "#86efac",
-    bd: "#15803d",
-  },
+function calculateAnalytics(
+  trades
+) {
+  const closed =
+    trades.filter(
+      (trade) =>
+        upper(
+          trade?.status
+        ) === "CLOSED"
+    );
 
-  paper: {
-    bg: "#0b1730",
-    fg: "#93c5fd",
-    bd: "#2563eb",
-  },
+  const campaignPnLs =
+    closed
+      .map(
+        (trade) =>
+          getNetRealized(
+            trade
+          ) ??
+          getGrossRealized(
+            trade
+          )
+      )
+      .filter(
+        (value) =>
+          value != null
+      );
 
-  neutral: {
-    bg: "#0b0b0b",
-    fg: "#94a3b8",
-    bd: "#2b2b2b",
-  },
+  const winners =
+    campaignPnLs.filter(
+      (value) =>
+        value > 0
+    );
 
-  open: {
-    bg: "#1b1409",
-    fg: "#fbbf24",
-    bd: "#92400e",
-  },
+  const losers =
+    campaignPnLs.filter(
+      (value) =>
+        value < 0
+    );
 
-  closed: {
-    bg: "#06220f",
-    fg: "#86efac",
-    bd: "#166534",
-  },
+  const grossProfit =
+    winners.reduce(
+      (sum, value) =>
+        sum + value,
+      0
+    );
 
-  loss: {
-    bg: "#2b0b0b",
-    fg: "#fca5a5",
-    bd: "#7f1d1d",
-  },
-};
+  const grossLoss =
+    Math.abs(
+      losers.reduce(
+        (sum, value) =>
+          sum + value,
+        0
+      )
+    );
 
-function statusTone(status) {
-  const s = upper(status);
+  const averageWin =
+    winners.length
+      ? grossProfit /
+        winners.length
+      : null;
 
-  if (s === "CLOSED") return COLORS.closed;
-  if (s === "OPEN") return COLORS.open;
-  if (s === "CANCELLED") return COLORS.loss;
+  const averageLoss =
+    losers.length
+      ? grossLoss /
+        losers.length
+      : null;
 
-  return COLORS.neutral;
-}
+  const winRate =
+    campaignPnLs.length
+      ? (
+          winners.length /
+          campaignPnLs.length
+        ) *
+        100
+      : null;
 
-function resultTone(result) {
-  const r = upper(result);
+  const profitFactor =
+    grossLoss > 0
+      ? grossProfit /
+        grossLoss
+      : grossProfit > 0
+      ? Infinity
+      : null;
 
-  if (r === "WIN") return COLORS.closed;
-  if (r === "LOSS") return COLORS.loss;
+  const winLossRatio =
+    averageWin != null &&
+    averageLoss != null &&
+    averageLoss > 0
+      ? averageWin /
+        averageLoss
+      : null;
 
-  if (r === "BREAKEVEN") {
-    return {
-      bg: "#111827",
-      fg: "#cbd5e1",
-      bd: "#334155",
-    };
-  }
+  const lossRate =
+    campaignPnLs.length
+      ? (
+          losers.length /
+          campaignPnLs.length
+        )
+      : null;
 
-  return COLORS.neutral;
-}
+  const expectancy =
+    winRate != null &&
+    averageWin != null
+      ? (
+          winRate /
+          100
+        ) *
+          averageWin -
+        (
+          lossRate || 0
+        ) *
+          (
+            averageLoss ||
+            0
+          )
+      : null;
 
-function eventTone(type) {
-  const t = upper(type);
+  let equity = 0;
+  let peak = 0;
+  let maxDrawdown = 0;
 
-  if (t === "ENTRY_FILLED") {
-    return {
-      bg: "#111827",
-      fg: "#93c5fd",
-      bd: "#334155",
-    };
-  }
+  const chronological =
+    [...closed].sort(
+      (a, b) =>
+        (
+          Date.parse(
+            a?.summary
+              ?.closeTime ||
+            a?.updatedAt ||
+            0
+          ) || 0
+        ) -
+        (
+          Date.parse(
+            b?.summary
+              ?.closeTime ||
+            b?.updatedAt ||
+            0
+          ) || 0
+        )
+    );
 
-  if (
-    t === "PARTIAL_CLOSE" ||
-    t === "BLOCK_1_EXIT" ||
-    t === "BLOCK_2_EXIT" ||
-    t === "TARGET_EXIT"
+  let currentWinStreak = 0;
+  let currentLossStreak = 0;
+
+  for (
+    const trade
+    of chronological
   ) {
-    return COLORS.open;
+    const pnl =
+      getNetRealized(
+        trade
+      ) ??
+      getGrossRealized(
+        trade
+      ) ??
+      0;
+
+    equity += pnl;
+    peak =
+      Math.max(
+        peak,
+        equity
+      );
+
+    maxDrawdown =
+      Math.max(
+        maxDrawdown,
+        peak - equity
+      );
+
+    if (
+      pnl > 0
+    ) {
+      currentWinStreak += 1;
+      currentLossStreak = 0;
+    } else if (
+      pnl < 0
+    ) {
+      currentLossStreak += 1;
+      currentWinStreak = 0;
+    } else {
+      currentWinStreak = 0;
+      currentLossStreak = 0;
+    }
   }
 
-  if (
-    t === "FULL_CLOSE" ||
-    t === "FINAL_EXIT" ||
-    t === "TRADE_CLOSED"
-  ) {
-    return COLORS.closed;
-  }
+  const exitEvents =
+    trades.flatMap(
+      (trade) =>
+        (
+          Array.isArray(
+            trade?.events
+          )
+            ? trade.events
+            : []
+        ).filter(
+          (event) =>
+            (
+              safeNum(
+                event?.qtyClosed
+              ) || 0
+            ) > 0
+        )
+    );
 
-  if (
-    t === "STOP_HIT" ||
-    t === "STOP_EXIT"
-  ) {
-    return COLORS.loss;
-  }
+  const profitableExits =
+    exitEvents.filter(
+      (event) => {
+        const pnl =
+          safeNum(
+            event
+              ?.netEventRealizedPnL
+          ) ??
+          safeNum(
+            event
+              ?.grossEventRealizedPnL
+          ) ??
+          safeNum(
+            event
+              ?.eventRealizedPnL
+          );
 
-  return COLORS.neutral;
-}
+        return (
+          pnl != null &&
+          pnl > 0
+        );
+      }
+    ).length;
 
-function pnlColor(value) {
-  const n = safeNum(value);
+  return {
+    closedCount:
+      closed.length,
 
-  if (n == null) return "#cbd5e1";
-  if (n > 0) return "#86efac";
-  if (n < 0) return "#fca5a5";
+    winRate,
+    profitFactor,
+    averageWin,
+    averageLoss,
+    winLossRatio,
+    expectancy,
+    maxDrawdown,
 
-  return "#cbd5e1";
+    winningCampaignPct:
+      closed.length
+        ? (
+            winners.length /
+            closed.length
+          ) *
+          100
+        : null,
+
+    winningExitPct:
+      exitEvents.length
+        ? (
+            profitableExits /
+            exitEvents.length
+          ) *
+          100
+        : null,
+
+    profitableExits,
+    totalExits:
+      exitEvents.length,
+
+    currentWinStreak,
+    currentLossStreak,
+  };
 }
 
 /* =========================================================
    SMALL UI
 ========================================================= */
 
-function Pill({
-  text,
-  tone,
-  fontSize = 16,
-}) {
-  const t = tone || COLORS.neutral;
-
-  return (
-    <span
-      style={{
-        fontSize,
-        fontWeight: 1000,
-        padding: "7px 12px",
-        borderRadius: 999,
-        border: `1px solid ${t.bd}`,
-        background: t.bg,
-        color: t.fg,
-        whiteSpace: "nowrap",
-        lineHeight: 1.1,
-      }}
-    >
-      {text}
-    </span>
-  );
-}
-
-function SectionCard({
-  title,
+function FilterButton({
+  active,
+  tone = "neutral",
   children,
-  style = {},
+  onClick,
 }) {
+  const theme =
+    tone === "real"
+      ? {
+          bg:
+            COLORS.greenSoft,
+
+          fg:
+            COLORS.green,
+
+          border:
+            COLORS.greenLine,
+        }
+      : tone === "paper"
+      ? {
+          bg:
+            COLORS.blueSoft,
+
+          fg:
+            COLORS.blue,
+
+          border:
+            COLORS.blueLine,
+        }
+      : tone === "open"
+      ? {
+          bg:
+            COLORS.goldSoft,
+
+          fg:
+            COLORS.gold,
+
+          border:
+            COLORS.goldLine,
+        }
+      : {
+          bg:
+            COLORS.panelAlt,
+
+          fg:
+            COLORS.text,
+
+          border:
+            COLORS.line,
+        };
+
   return (
-    <div
+    <button
+      type="button"
+      onClick={
+        onClick
+      }
       style={{
-        border: "1px solid #1f2937",
-        borderRadius: 14,
-        padding: 16,
-        background: "#0b0b0b",
-        display: "flex",
-        flexDirection: "column",
-        gap: 10,
-        minWidth: 0,
-        ...style,
+        minHeight: 42,
+        padding:
+          "0 20px",
+        borderRadius: 7,
+        border:
+          `1px solid ${
+            active
+              ? theme.border
+              : COLORS.line
+          }`,
+        background:
+          active
+            ? theme.bg
+            : COLORS.panelAlt,
+        color:
+          active
+            ? theme.fg
+            : COLORS.text,
+        fontWeight: 950,
+        fontSize: 14,
+        cursor: "pointer",
       }}
     >
-      <div
-        style={{
-          fontWeight: 1000,
-          color: "#93c5fd",
-          fontSize: 17,
-        }}
-      >
-        {title}
-      </div>
-
       {children}
-    </div>
+    </button>
   );
 }
 
-function KV({
-  k,
-  v,
-  color = "#e5e7eb",
-}) {
-  return (
-    <div
-      style={{
-        display: "grid",
-        gridTemplateColumns: "165px 1fr",
-        gap: 10,
-        alignItems: "start",
-        minWidth: 0,
-      }}
-    >
-      <div
-        style={{
-          fontSize: 15,
-          fontWeight: 1000,
-          color: "#9ca3af",
-        }}
-      >
-        {k}
-      </div>
-
-      <div
-        style={{
-          fontSize: 17,
-          fontWeight: 900,
-          color,
-          wordBreak: "break-word",
-          lineHeight: 1.25,
-        }}
-      >
-        {v}
-      </div>
-    </div>
-  );
-}
-
-function BigMetric({
+function SummaryMetric({
   label,
   value,
+  color =
+    COLORS.text,
   sub = "",
-  valueColor = "#e5e7eb",
 }) {
   return (
     <div
       style={{
-        border: "1px solid #1f2937",
-        borderRadius: 12,
-        padding: 14,
-        background: "#0b0b0b",
         minWidth: 0,
+        padding:
+          "11px 16px",
       }}
     >
       <div
         style={{
-          color: "#9ca3af",
-          fontSize: 14,
-          fontWeight: 1000,
-          textTransform: "uppercase",
+          fontSize: 12,
+          fontWeight: 950,
+          color:
+            COLORS.muted,
+          textTransform:
+            "uppercase",
         }}
       >
         {label}
@@ -569,11 +1166,11 @@ function BigMetric({
 
       <div
         style={{
-          marginTop: 5,
-          color: valueColor,
-          fontSize: 25,
+          fontSize: 28,
           fontWeight: 1000,
-          lineHeight: 1.1,
+          color,
+          marginTop: 5,
+          lineHeight: 1,
         }}
       >
         {value}
@@ -582,9 +1179,10 @@ function BigMetric({
       {sub ? (
         <div
           style={{
-            marginTop: 5,
-            color: "#64748b",
-            fontSize: 13,
+            fontSize: 11,
+            color:
+              COLORS.muted,
+            marginTop: 6,
             fontWeight: 800,
           }}
         >
@@ -595,116 +1193,149 @@ function BigMetric({
   );
 }
 
-/* =========================================================
-   MODE / STATUS BUTTON
-========================================================= */
-
-function FilterButton({
-  active,
-  children,
-  onClick,
-  tone = COLORS.neutral,
+function AnalyticsMetric({
+  label,
+  value,
+  sub = "Campaigns",
 }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
+    <div
       style={{
-        background:
-          active
-            ? tone.bg
-            : "#0b0b0b",
-
-        color:
-          active
-            ? tone.fg
-            : "#cbd5e1",
-
         border:
-          active
-            ? `1px solid ${tone.bd}`
-            : "1px solid #2b2b2b",
-
-        borderRadius: 10,
-        padding: "8px 14px",
-        fontWeight: 1000,
-        fontSize: 15,
-        cursor: "pointer",
+          `1px solid ${COLORS.line}`,
+        borderRadius: 7,
+        background:
+          COLORS.panelAlt,
+        padding:
+          "11px 8px",
+        textAlign:
+          "center",
       }}
     >
-      {children}
-    </button>
+      <div
+        style={{
+          fontSize: 11,
+          color:
+            COLORS.text,
+          fontWeight: 950,
+        }}
+      >
+        {label}
+      </div>
+
+      <div
+        style={{
+          fontSize: 22,
+          color:
+            COLORS.text,
+          fontWeight: 1000,
+          marginTop: 8,
+        }}
+      >
+        {value}
+      </div>
+
+      <div
+        style={{
+          fontSize: 10,
+          color:
+            COLORS.muted,
+          marginTop: 6,
+        }}
+      >
+        {sub}
+      </div>
+    </div>
   );
 }
 
 /* =========================================================
-   OPEN POSITION CARD
+   ACCOUNT CARD
 ========================================================= */
 
-function OpenPositionCard({
+function AccountCard({
   trade,
   mark,
   selected,
   onClick,
 }) {
-  const mode = getTradeMode(trade);
-  const live = calculateLivePosition(
-    trade,
-    mark
-  );
-
   const account =
-    trade?.brokerImport?.accountAlias ||
-    (mode === "PAPER"
-      ? "FRYE PAPER"
-      : trade?.accountMode || "—");
+    getAccountLabel(
+      trade
+    );
 
-  const symbol =
-    normalizeMarketSymbol(trade) ||
-    trade?.symbol ||
-    "—";
+  const live =
+    calculateLivePosition(
+      trade,
+      mark
+    );
 
-  const modeTone =
-    mode === "REAL"
-      ? COLORS.real
-      : COLORS.paper;
+  const isSwing =
+    account === "SWING";
+
+  const accent =
+    isSwing
+      ? COLORS.gold
+      : COLORS.green;
+
+  const line =
+    isSwing
+      ? COLORS.goldLine
+      : COLORS.greenLine;
+
+  const background =
+    isSwing
+      ? "#100e08"
+      : "#06140f";
 
   return (
     <button
       type="button"
-      onClick={onClick}
+      onClick={
+        onClick
+      }
       style={{
-        textAlign: "left",
-        border:
-          selected
-            ? "2px solid #3b82f6"
-            : `1px solid ${modeTone.bd}`,
-
-        borderRadius: 14,
-        padding: 16,
-        background:
-          selected
-            ? "#111827"
-            : modeTone.bg,
-
-        cursor: "pointer",
-        color: "#e5e7eb",
         width: "100%",
+        textAlign:
+          "left",
+        background,
+        border:
+          `${selected ? 2 : 1}px solid ${
+            selected
+              ? COLORS.blue
+              : line
+          }`,
+        borderRadius: 8,
+        padding: 14,
+        color:
+          COLORS.text,
+        cursor:
+          "pointer",
       }}
     >
       <div
         style={{
-          display: "flex",
-          justifyContent: "space-between",
-          gap: 10,
-          alignItems: "center",
-          flexWrap: "wrap",
+          display: "grid",
+          gridTemplateColumns:
+            "150px 1.2fr .8fr .8fr",
+          gap: 18,
+          alignItems:
+            "start",
         }}
       >
         <div>
           <div
             style={{
-              fontSize: 20,
+              display:
+                "inline-block",
+              border:
+                `1px solid ${line}`,
+              color:
+                accent,
+              borderRadius: 6,
+              padding:
+                "8px 14px",
+              fontSize: 18,
               fontWeight: 1000,
             }}
           >
@@ -713,547 +1344,490 @@ function OpenPositionCard({
 
           <div
             style={{
-              color: "#cbd5e1",
-              fontSize: 16,
+              fontSize: 32,
+              fontWeight: 1000,
+              marginTop: 20,
+            }}
+          >
+            {
+              live.remainingQty
+            }{" "}
+            <span
+              style={{
+                fontSize: 16,
+              }}
+            >
+              OPEN CONTRACT
+              {
+                live.remainingQty ===
+                1
+                  ? ""
+                  : "S"
+              }
+            </span>
+          </div>
+
+          <div
+            style={{
+              fontSize: 12,
+              color:
+                COLORS.muted,
               fontWeight: 900,
-              marginTop: 3,
+              marginTop: 16,
             }}
           >
-            {symbol} {trade?.direction || "—"}
-          </div>
-        </div>
-
-        <div
-          style={{
-            display: "flex",
-            gap: 7,
-            flexWrap: "wrap",
-          }}
-        >
-          <Pill
-            text={mode}
-            tone={modeTone}
-          />
-
-          <Pill
-            text="OPEN"
-            tone={COLORS.open}
-          />
-        </div>
-      </div>
-
-      <div
-        style={{
-          marginTop: 14,
-          display: "grid",
-          gridTemplateColumns:
-            "repeat(4, minmax(0,1fr))",
-          gap: 10,
-        }}
-      >
-        <BigMetric
-          label="Open Contracts"
-          value={live.remainingQty}
-        />
-
-        <BigMetric
-          label="Remaining Avg"
-          value={fmtNum(live.averageEntry)}
-        />
-
-        <BigMetric
-          label={`Current ${symbol}`}
-          value={fmtNum(live.mark)}
-        />
-
-        <BigMetric
-          label="Open P&L"
-          value={
-            live.available
-              ? fmtMoney(live.unrealizedPnL)
-              : "WAITING"
-          }
-          valueColor={pnlColor(
-            live.unrealizedPnL
-          )}
-        />
-      </div>
-
-      <div
-        style={{
-          marginTop: 10,
-          display: "grid",
-          gridTemplateColumns:
-            "repeat(4, minmax(0,1fr))",
-          gap: 10,
-        }}
-      >
-        <BigMetric
-          label="Open Points"
-          value={
-            live.available
-              ? fmtSigned(
-                  live.unrealizedPoints
-                )
-              : "—"
-          }
-          valueColor={pnlColor(
-            live.unrealizedPoints
-          )}
-        />
-
-        <BigMetric
-          label="Realized"
-          value={fmtMoney(
-            trade?.summary?.realizedPnL
-          )}
-          valueColor={pnlColor(
-            trade?.summary?.realizedPnL
-          )}
-        />
-
-        <BigMetric
-          label="Total Trade P&L"
-          value={
-            live.totalTradePnL == null
-              ? "—"
-              : fmtMoney(
-                  live.totalTradePnL
-                )
-          }
-          valueColor={pnlColor(
-            live.totalTradePnL
-          )}
-        />
-
-        <BigMetric
-          label={
-            mode === "REAL"
-              ? "Daily Account P&L"
-              : "Net Realized"
-          }
-          value={
-            mode === "REAL"
-              ? fmtMoney(
-                  trade?.summary
-                    ?.dailyAccountPnL
-                )
-              : fmtMoney(
-                  trade?.summary
-                    ?.realizedPnL
-                )
-          }
-          valueColor={pnlColor(
-            mode === "REAL"
-              ? trade?.summary
-                  ?.dailyAccountPnL
-              : trade?.summary
-                  ?.realizedPnL
-          )}
-        />
-      </div>
-    </button>
-  );
-}
-
-/* =========================================================
-   TRADE HISTORY ROW
-========================================================= */
-
-function TradeRow({
-  trade,
-  selected,
-  onClick,
-  mark,
-}) {
-  const st = statusTone(trade?.status);
-  const rt = resultTone(trade?.result);
-
-  const mode = getTradeMode(trade);
-
-  const modeTone =
-    mode === "REAL"
-      ? COLORS.real
-      : mode === "PAPER"
-      ? COLORS.paper
-      : COLORS.neutral;
-
-  const live = calculateLivePosition(
-    trade,
-    mark
-  );
-
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      style={{
-        width: "100%",
-        textAlign: "left",
-        background:
-          selected
-            ? "#111827"
-            : "#0b0b0b",
-
-        border:
-          selected
-            ? "1px solid #3b82f6"
-            : "1px solid #1f2937",
-
-        borderRadius: 14,
-        padding: 14,
-        cursor: "pointer",
-        display: "flex",
-        flexDirection: "column",
-        gap: 10,
-      }}
-      title={trade?.tradeId}
-    >
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          gap: 10,
-          flexWrap: "wrap",
-        }}
-      >
-        <div>
-          <div
-            style={{
-              fontSize: 19,
-              fontWeight: 1000,
-              color: "#e5e7eb",
-            }}
-          >
-            {trade?.symbol || "—"} •{" "}
-            {trade?.strategyId || "—"}
+            Remaining Avg Entry
           </div>
 
           <div
             style={{
-              fontSize: 14,
-              color: "#9ca3af",
-              fontWeight: 800,
-              marginTop: 3,
-            }}
-          >
-            {toAz(
-              trade?.createdAt,
-              true
-            )}
-          </div>
-        </div>
-
-        <div
-          style={{
-            display: "flex",
-            gap: 7,
-            flexWrap: "wrap",
-          }}
-        >
-          <Pill
-            text={mode}
-            tone={modeTone}
-            fontSize={14}
-          />
-
-          <Pill
-            text={trade?.direction || "—"}
-            tone={{
-              bg: "#111827",
-              fg: "#93c5fd",
-              bd: "#334155",
-            }}
-            fontSize={14}
-          />
-
-          <Pill
-            text={trade?.status || "UNKNOWN"}
-            tone={st}
-            fontSize={14}
-          />
-
-          {trade?.result ? (
-            <Pill
-              text={trade.result}
-              tone={rt}
-              fontSize={14}
-            />
-          ) : null}
-        </div>
-      </div>
-
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns:
-            "repeat(6, minmax(0,1fr))",
-          gap: 8,
-          fontSize: 14,
-          color: "#cbd5e1",
-        }}
-      >
-        <div>
-          <span
-            style={{
-              color: "#9ca3af",
+              fontSize: 22,
               fontWeight: 1000,
             }}
           >
-            Qty:
-          </span>{" "}
-          <b>
-            {trade?.entry?.qty ?? "—"}
-          </b>
-        </div>
-
-        <div>
-          <span
-            style={{
-              color: "#9ca3af",
-              fontWeight: 1000,
-            }}
-          >
-            Remain:
-          </span>{" "}
-          <b>
-            {trade?.qty?.remainingQty ??
-              "—"}
-          </b>
-        </div>
-
-        <div>
-          <span
-            style={{
-              color: "#9ca3af",
-              fontWeight: 1000,
-            }}
-          >
-            Entry:
-          </span>{" "}
-          <b>
             {fmtNum(
-              trade?.entry?.price
+              live.averageEntry
             )}
-          </b>
+          </div>
         </div>
 
         <div>
-          <span
+          <div
             style={{
-              color: "#9ca3af",
+              fontSize: 24,
               fontWeight: 1000,
             }}
           >
-            Realized:
-          </span>{" "}
-          <b
-            style={{
-              color: pnlColor(
-                trade?.summary
-                  ?.realizedPnL
-              ),
-            }}
-          >
-            {fmtMoney(
-              trade?.summary
-                ?.realizedPnL
-            )}
-          </b>
-        </div>
+            {account} — REAL{" "}
+            <span
+              style={{
+                fontSize: 12,
+                color:
+                  COLORS.green,
+                border:
+                  `1px solid ${COLORS.greenLine}`,
+                borderRadius: 5,
+                padding:
+                  "4px 8px",
+              }}
+            >
+              OPEN
+            </span>
+          </div>
 
-        <div>
-          <span
+          <div
             style={{
-              color: "#9ca3af",
+              fontSize: 16,
+              color:
+                accent,
               fontWeight: 1000,
+              marginTop: 4,
             }}
           >
-            Open P&L:
-          </span>{" "}
-          <b
+            {
+              normalizeMarketSymbol(
+                trade
+              )
+            }{" "}
+            {
+              upper(
+                trade?.direction
+              )
+            }
+          </div>
+
+          <div
             style={{
-              color: pnlColor(
-                live.unrealizedPnL
-              ),
+              border:
+                `1px solid ${COLORS.line}`,
+              borderRadius: 6,
+              padding: 12,
+              marginTop: 20,
+              textAlign:
+                "center",
             }}
           >
-            {upper(trade?.status) ===
-            "OPEN"
-              ? live.available
-                ? fmtMoney(
+            <div
+              style={{
+                fontSize: 11,
+                color:
+                  COLORS.muted,
+                fontWeight: 900,
+              }}
+            >
+              CURRENT{" "}
+              {
+                normalizeMarketSymbol(
+                  trade
+                )
+              }{" "}
+              PRICE
+            </div>
+
+            <div
+              style={{
+                fontSize: 26,
+                color:
+                  pnlColor(
                     live.unrealizedPnL
-                  )
-                : "—"
-              : "—"}
-          </b>
+                  ),
+                fontWeight: 1000,
+                marginTop: 5,
+              }}
+            >
+              {fmtNum(
+                live.mark
+              )}
+            </div>
+
+            <div
+              style={{
+                borderTop:
+                  `1px solid ${COLORS.line}`,
+                marginTop: 10,
+                paddingTop: 8,
+                fontSize: 11,
+                color:
+                  COLORS.muted,
+                fontWeight: 900,
+              }}
+            >
+              UNREALIZED P&L
+            </div>
+
+            <div
+              style={{
+                fontSize: 22,
+                color:
+                  pnlColor(
+                    live.unrealizedPnL
+                  ),
+                fontWeight: 1000,
+              }}
+            >
+              {
+                live.available
+                  ? fmtMoney(
+                      live
+                        .unrealizedPnL
+                    )
+                  : "WAITING"
+              }
+            </div>
+          </div>
         </div>
 
         <div>
-          <span
+          <div
             style={{
-              color: "#9ca3af",
+              fontSize: 11,
+              color:
+                COLORS.muted,
+              fontWeight: 950,
+            }}
+          >
+            GROSS REALIZED
+          </div>
+
+          <div
+            style={{
+              fontSize: 25,
+              color:
+                pnlColor(
+                  getGrossRealized(
+                    trade
+                  )
+                ),
               fontWeight: 1000,
             }}
           >
-            Total:
-          </span>{" "}
-          <b
+            {fmtMoney(
+              getGrossRealized(
+                trade
+              )
+            )}
+          </div>
+
+          <div
             style={{
-              color: pnlColor(
-                live.totalTradePnL
-              ),
+              fontSize: 11,
+              color:
+                COLORS.muted,
+              fontWeight: 950,
+              marginTop: 16,
+            }}
+          >
+            ACTUAL FEES
+          </div>
+
+          <div
+            style={{
+              fontSize: 21,
+              color:
+                COLORS.gold,
+              fontWeight: 1000,
+            }}
+          >
+            {fmtNegativeMoney(
+              getActualFees(
+                trade
+              )
+            )}
+          </div>
+
+          <div
+            style={{
+              fontSize: 11,
+              color:
+                COLORS.muted,
+              fontWeight: 950,
+              marginTop: 16,
+            }}
+          >
+            NET REALIZED
+          </div>
+
+          <div
+            style={{
+              fontSize: 23,
+              color:
+                pnlColor(
+                  getNetRealized(
+                    trade
+                  )
+                ),
+              fontWeight: 1000,
             }}
           >
             {fmtMoney(
-              live.totalTradePnL
+              getNetRealized(
+                trade
+              )
             )}
-          </b>
+          </div>
         </div>
+
+        <div>
+          <div
+            style={{
+              fontSize: 11,
+              color:
+                COLORS.muted,
+              fontWeight: 950,
+            }}
+          >
+            DAILY ACCOUNT P&L
+          </div>
+
+          <div
+            style={{
+              fontSize: 25,
+              color:
+                pnlColor(
+                  getDailyAccountPnL(
+                    trade
+                  )
+                ),
+              fontWeight: 1000,
+            }}
+          >
+            {fmtMoney(
+              getDailyAccountPnL(
+                trade
+              )
+            )}
+          </div>
+
+          <div
+            style={{
+              fontSize: 11,
+              color:
+                COLORS.muted,
+              fontWeight: 950,
+              marginTop: 16,
+            }}
+          >
+            TOTAL TRADE P&L
+          </div>
+
+          <div
+            style={{
+              fontSize: 25,
+              color:
+                pnlColor(
+                  live.totalPnL
+                ),
+              fontWeight: 1000,
+            }}
+          >
+            {
+              live.totalPnL ==
+              null
+                ? "—"
+                : fmtMoney(
+                    live
+                      .totalPnL
+                  )
+            }
+          </div>
+        </div>
+      </div>
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns:
+            "repeat(6, 1fr)",
+          border:
+            `1px solid ${COLORS.line}`,
+          borderRadius: 6,
+          marginTop: 14,
+        }}
+      >
+        {[
+          [
+            "ENTRY TIME",
+            toAzTime(
+              trade?.entry
+                ?.time
+            ),
+          ],
+
+          [
+            "ENTRY PRICE",
+            fmtNum(
+              trade?.entry
+                ?.price
+            ),
+          ],
+
+          [
+            "ORIGINAL QTY",
+            trade?.qty
+              ?.originalQty ??
+              trade?.entry
+                ?.qty ??
+              "—",
+          ],
+
+          [
+            "FILLED QTY",
+            trade?.qty
+              ?.cumulativeOpeningQuantity ??
+              trade?.qty
+                ?.cumulativeFilledQuantity ??
+              trade?.entry
+                ?.qty ??
+              "—",
+          ],
+
+          [
+            "REMAINING QTY",
+            trade?.qty
+              ?.remainingQty ??
+              "—",
+          ],
+
+          [
+            "DIRECTION",
+            upper(
+              trade?.direction
+            ) || "—",
+          ],
+        ].map(
+          ([label, value]) => (
+            <div
+              key={
+                label
+              }
+              style={{
+                padding:
+                  "8px 10px",
+                borderRight:
+                  `1px solid ${COLORS.line}`,
+              }}
+            >
+              <div
+                style={{
+                  fontSize: 9,
+                  color:
+                    COLORS.muted,
+                  fontWeight: 900,
+                }}
+              >
+                {label}
+              </div>
+
+              <div
+                style={{
+                  fontSize: 14,
+                  fontWeight: 1000,
+                  color:
+                    label ===
+                    "DIRECTION"
+                      ? COLORS.red
+                      : COLORS.text,
+                  marginTop: 3,
+                }}
+              >
+                {value}
+              </div>
+            </div>
+          )
+        )}
       </div>
     </button>
   );
 }
 
 /* =========================================================
-   EVENT LIST
+   EVENT TABLE
 ========================================================= */
 
-function EventList({
-  events,
-}) {
-  const rows = Array.isArray(events)
-    ? events
-    : [];
+function buildEventRows(
+  trades
+) {
+  const rows = [];
 
-  if (!rows.length) {
-    return (
-      <div
-        style={{
-          color: "#94a3b8",
-          fontSize: 16,
-        }}
-      >
-        No events.
-      </div>
-    );
+  for (
+    const trade
+    of trades
+  ) {
+    const events =
+      Array.isArray(
+        trade?.events
+      )
+        ? trade.events
+        : [];
+
+    for (
+      const event
+      of events
+    ) {
+      rows.push({
+        trade,
+        event,
+      });
+    }
   }
 
-  return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        gap: 8,
-      }}
-    >
-      {rows.map((ev, i) => {
-        const tone =
-          eventTone(ev?.eventType);
-
-        return (
-          <div
-            key={`${ev?.ts || "na"}-${i}`}
-            style={{
-              border: "1px solid #1f2937",
-              borderRadius: 12,
-              padding: 10,
-              background: "#111827",
-              display: "grid",
-              gridTemplateColumns:
-                "190px 1fr 135px 135px 135px 150px 150px",
-              gap: 8,
-              alignItems: "center",
-            }}
-          >
-            <Pill
-              text={
-                ev?.eventType ||
-                "UNKNOWN"
-              }
-              tone={tone}
-              fontSize={14}
-            />
-
-            <div
-              style={{
-                fontSize: 15,
-                fontWeight: 900,
-                color: "#cbd5e1",
-              }}
-            >
-              {toAz(ev?.ts, true)}
-            </div>
-
-            <div
-              style={{
-                fontSize: 15,
-                color: "#e5e7eb",
-                fontWeight: 900,
-              }}
-            >
-              price:{" "}
-              {fmtNum(ev?.price)}
-            </div>
-
-            <div
-              style={{
-                fontSize: 15,
-                color: "#e5e7eb",
-                fontWeight: 900,
-              }}
-            >
-              qtyClosed:{" "}
-              {ev?.qtyClosed ?? "—"}
-            </div>
-
-            <div
-              style={{
-                fontSize: 15,
-                color: "#e5e7eb",
-                fontWeight: 900,
-              }}
-            >
-              remain:{" "}
-              {ev?.remainingQty ??
-                "—"}
-            </div>
-
-            <div
-              style={{
-                fontSize: 15,
-                color: pnlColor(
-                  ev?.eventRealizedPoints
-                ),
-                fontWeight: 900,
-              }}
-            >
-              points:{" "}
-              {fmtSigned(
-                ev?.eventRealizedPoints
-              )}
-            </div>
-
-            <div
-              style={{
-                fontSize: 15,
-                color: pnlColor(
-                  ev?.eventRealizedPnL
-                ),
-                fontWeight: 900,
-              }}
-            >
-              pnl:{" "}
-              {fmtMoney(
-                ev?.eventRealizedPnL
-              )}
-            </div>
-          </div>
-        );
-      })}
-    </div>
+  rows.sort(
+    (a, b) =>
+      (
+        Date.parse(
+          b?.event?.ts ||
+          0
+        ) || 0
+      ) -
+      (
+        Date.parse(
+          a?.event?.ts ||
+          0
+        ) || 0
+      )
   );
+
+  return rows;
 }
 
 /* =========================================================
@@ -1261,38 +1835,48 @@ function EventList({
 ========================================================= */
 
 export default function JournalFull() {
-  const journalUrl = useMemo(
-    () =>
-      `${BASE}/api/v1/trade-journal`,
-    []
-  );
-
-  const [data, setData] = useState({
+  const [
+    data,
+    setData,
+  ] = useState({
     ok: true,
     trades: [],
   });
 
-  const [err, setErr] = useState("");
-  const [loading, setLoading] =
-    useState(true);
+  const [
+    error,
+    setError,
+  ] = useState("");
 
-  const [lastFetch, setLastFetch] =
-    useState(null);
+  const [
+    lastFetch,
+    setLastFetch,
+  ] = useState(null);
 
-  const [selectedTradeId, setSelectedTradeId] =
-    useState(null);
+  const [
+    modeFilter,
+    setModeFilter,
+  ] = useState("REAL");
 
-  const [modeFilter, setModeFilter] =
-    useState("REAL");
+  const [
+    statusFilter,
+    setStatusFilter,
+  ] = useState("ALL");
 
-  const [statusFilter, setStatusFilter] =
-    useState("ALL");
+  const [
+    timeFilter,
+    setTimeFilter,
+  ] = useState("ALL");
 
-  const [marks, setMarks] =
-    useState({});
+  const [
+    selectedTradeId,
+    setSelectedTradeId,
+  ] = useState(null);
 
-  const [markTimes, setMarkTimes] =
-    useState({});
+  const [
+    marks,
+    setMarks,
+  ] = useState({});
 
   /* ---------------------------------------------------------
      JOURNAL POLLING
@@ -1300,30 +1884,32 @@ export default function JournalFull() {
 
   useEffect(() => {
     document.title =
-      "Frye Dashboard — Full Journal";
+      "Frye Dashboard — Full Trade Journal";
 
     let alive = true;
     let timer = null;
 
-    async function pull() {
+    async function pullJournal() {
       try {
-        const res = await fetch(
-          journalUrl,
-          {
-            cache: "no-store",
-            headers: {
-              accept:
-                "application/json",
-              "Cache-Control":
+        const response =
+          await fetch(
+            `${API_BASE}/api/v1/trade-journal`,
+            {
+              cache:
                 "no-store",
-            },
-          }
-        );
+              headers: {
+                accept:
+                  "application/json",
+              },
+            }
+          );
 
         const json =
-          await res.json();
+          await response.json();
 
-        if (!alive) return;
+        if (!alive) {
+          return;
+        }
 
         setData(
           json || {
@@ -1332,81 +1918,73 @@ export default function JournalFull() {
           }
         );
 
-        setErr("");
+        setError("");
         setLastFetch(
           new Date().toISOString()
         );
-
-        const trades =
-          Array.isArray(
-            json?.trades
-          )
-            ? json.trades
-            : [];
-
-        if (trades.length) {
-          setSelectedTradeId(
-            (prev) =>
-              prev ||
-              trades[0]?.tradeId ||
-              null
-          );
+      } catch (err) {
+        if (!alive) {
+          return;
         }
-      } catch (e) {
-        if (!alive) return;
 
-        setErr(
+        setError(
           String(
-            e?.message || e
+            err?.message ||
+            err
           )
         );
       } finally {
-        if (!alive) return;
-
-        setLoading(false);
-
-        timer = setTimeout(
-          pull,
-          JOURNAL_POLL_MS
-        );
+        if (alive) {
+          timer =
+            setTimeout(
+              pullJournal,
+              JOURNAL_POLL_MS
+            );
+        }
       }
     }
 
-    pull();
+    pullJournal();
 
     return () => {
       alive = false;
 
       if (timer) {
-        clearTimeout(timer);
+        clearTimeout(
+          timer
+        );
       }
     };
-  }, [journalUrl]);
-
-  /* ---------------------------------------------------------
-     TRADES
-  --------------------------------------------------------- */
+  }, []);
 
   const allTrades =
-    Array.isArray(data?.trades)
+    Array.isArray(
+      data?.trades
+    )
       ? data.trades
       : [];
 
-  const openFuturesSymbols =
+  const openSymbols =
     useMemo(() => {
-      const set = new Set();
+      const symbols =
+        new Set();
 
-      for (const trade of allTrades) {
+      for (
+        const trade
+        of allTrades
+      ) {
         if (
-          upper(trade?.status) !==
-          "OPEN"
+          upper(
+            trade?.status
+          ) !== "OPEN"
         ) {
           continue;
         }
 
         if (
-          upper(trade?.assetType) !==
-          "FUTURES"
+          upper(
+            trade?.assetType
+          ) !== "FUTURES"
         ) {
           continue;
         }
@@ -1417,19 +1995,25 @@ export default function JournalFull() {
           );
 
         if (symbol) {
-          set.add(symbol);
+          symbols.add(
+            symbol
+          );
         }
       }
 
-      return [...set];
+      return [
+        ...symbols,
+      ];
     }, [allTrades]);
 
   /* ---------------------------------------------------------
-     LIVE FUTURES MARK POLLING
+     LIVE FUTURES MARKS
   --------------------------------------------------------- */
 
   useEffect(() => {
-    if (!openFuturesSymbols.length) {
+    if (
+      !openSymbols.length
+    ) {
       return;
     }
 
@@ -1437,35 +2021,32 @@ export default function JournalFull() {
     let timer = null;
 
     async function pullMarks() {
-      const nextMarks = {};
-      const nextTimes = {};
+      const next = {};
 
       await Promise.all(
-        openFuturesSymbols.map(
-          async (symbol) => {
+        openSymbols.map(
+          async (
+            symbol
+          ) => {
             try {
-              const url =
-                `${BASE}/api/v1/futures/ohlc` +
-                `?symbol=${encodeURIComponent(
-                  symbol
-                )}&tf=1m`;
-
-              const res =
-                await fetch(url, {
-                  cache: "no-store",
-                  headers: {
-                    accept:
-                      "application/json",
-                    "Cache-Control":
+              const response =
+                await fetch(
+                  `${API_BASE}/api/v1/futures/ohlc?symbol=${encodeURIComponent(
+                    symbol
+                  )}&tf=1m`,
+                  {
+                    cache:
                       "no-store",
-                  },
-                });
+                  }
+                );
 
               const json =
-                await res.json();
+                await response.json();
 
               const rows =
-                Array.isArray(json)
+                Array.isArray(
+                  json
+                )
                   ? json
                   : Array.isArray(
                       json?.bars
@@ -1480,7 +2061,8 @@ export default function JournalFull() {
               const last =
                 rows.length
                   ? rows[
-                      rows.length - 1
+                      rows.length -
+                        1
                     ]
                   : null;
 
@@ -1488,17 +2070,16 @@ export default function JournalFull() {
                 safeNum(
                   last?.close
                 ) ??
-                safeNum(last?.c);
+                safeNum(
+                  last?.c
+                );
 
-              if (close != null) {
-                nextMarks[
+              if (
+                close != null
+              ) {
+                next[
                   symbol
                 ] = close;
-
-                nextTimes[
-                  symbol
-                ] =
-                  new Date().toISOString();
               }
             } catch {
               // Keep previous mark.
@@ -1507,29 +2088,28 @@ export default function JournalFull() {
         )
       );
 
-      if (!alive) return;
+      if (!alive) {
+        return;
+      }
 
       if (
-        Object.keys(nextMarks)
-          .length
+        Object.keys(
+          next
+        ).length
       ) {
-        setMarks((prev) => ({
-          ...prev,
-          ...nextMarks,
-        }));
-
-        setMarkTimes(
-          (prev) => ({
-            ...prev,
-            ...nextTimes,
+        setMarks(
+          (previous) => ({
+            ...previous,
+            ...next,
           })
         );
       }
 
-      timer = setTimeout(
-        pullMarks,
-        MARK_POLL_MS
-      );
+      timer =
+        setTimeout(
+          pullMarks,
+          MARK_POLL_MS
+        );
     }
 
     pullMarks();
@@ -1538,115 +2118,105 @@ export default function JournalFull() {
       alive = false;
 
       if (timer) {
-        clearTimeout(timer);
+        clearTimeout(
+          timer
+        );
       }
     };
   }, [
-    openFuturesSymbols.join("|"),
+    openSymbols.join(
+      "|"
+    ),
   ]);
 
   /* ---------------------------------------------------------
-     MODE SPLITS
+     FILTERS
   --------------------------------------------------------- */
-
-  const realTrades =
-    allTrades.filter(
-      (trade) =>
-        getTradeMode(trade) ===
-        "REAL"
-    );
-
-  const paperTrades =
-    allTrades.filter(
-      (trade) =>
-        getTradeMode(trade) ===
-        "PAPER"
-    );
 
   const modeTrades =
-    modeFilter === "REAL"
-      ? realTrades
-      : modeFilter === "PAPER"
-      ? paperTrades
-      : allTrades;
+    allTrades.filter(
+      (trade) =>
+        modeFilter ===
+          "ALL" ||
+        getTradeMode(
+          trade
+        ) === modeFilter
+    );
+
+  const timeTrades =
+    modeTrades.filter(
+      (trade) =>
+        timeFilter ===
+          "ALL" ||
+        getTradeDate(
+          trade
+        ) === todayKey()
+    );
 
   const filteredTrades =
-    modeTrades.filter((trade) => {
-      if (
-        statusFilter === "OPEN"
-      ) {
-        return (
-          upper(trade?.status) ===
-          "OPEN"
-        );
-      }
-
-      if (
-        statusFilter === "CLOSED"
-      ) {
-        return (
-          upper(trade?.status) ===
-          "CLOSED"
-        );
-      }
-
-      return true;
-    });
-
-  const selectedTrade =
-    filteredTrades.find(
+    timeTrades.filter(
       (trade) =>
-        trade?.tradeId ===
-        selectedTradeId
-    ) ||
-    modeTrades.find(
-      (trade) =>
-        trade?.tradeId ===
-        selectedTradeId
-    ) ||
-    filteredTrades[0] ||
-    modeTrades[0] ||
-    null;
-
-  /* ---------------------------------------------------------
-     MODE SUMMARY
-  --------------------------------------------------------- */
+        statusFilter ===
+          "ALL" ||
+        upper(
+          trade?.status
+        ) === statusFilter
+    );
 
   const openTrades =
-    modeTrades.filter(
+    timeTrades.filter(
       (trade) =>
-        upper(trade?.status) ===
-        "OPEN"
+        upper(
+          trade?.status
+        ) === "OPEN"
     );
 
-  const closedTrades =
-    modeTrades.filter(
-      (trade) =>
-        upper(trade?.status) ===
-        "CLOSED"
+  const analytics =
+    calculateAnalytics(
+      timeTrades
     );
 
-  const openContracts =
-    openTrades.reduce(
+  /* ---------------------------------------------------------
+     TOTALS
+  --------------------------------------------------------- */
+
+  const grossTotal =
+    timeTrades.reduce(
       (sum, trade) =>
         sum +
-        (safeNum(
-          trade?.qty?.remainingQty
-        ) ?? 0),
+        (
+          getGrossRealized(
+            trade
+          ) || 0
+        ),
       0
     );
 
-  const realizedPnL =
-    modeTrades.reduce(
+  const feeTotal =
+    timeTrades.reduce(
       (sum, trade) =>
         sum +
-        (safeNum(
-          trade?.summary?.realizedPnL
-        ) ?? 0),
+        (
+          getActualFees(
+            trade
+          ) || 0
+        ),
       0
     );
 
-  const unrealizedPnL =
+  const netTotal =
+    timeTrades.reduce(
+      (sum, trade) =>
+        sum +
+        (
+          getNetRealized(
+            trade
+          ) || 0
+        ),
+      0
+    );
+
+  const unrealizedTotal =
     openTrades.reduce(
       (sum, trade) => {
         const symbol =
@@ -1662,42 +2232,60 @@ export default function JournalFull() {
 
         return (
           sum +
-          (safeNum(
-            live.unrealizedPnL
-          ) ?? 0)
+          (
+            live.unrealizedPnL ||
+            0
+          )
         );
       },
       0
     );
 
-  const totalTradePnL =
-    realizedPnL +
-    unrealizedPnL;
+  const openContracts =
+    openTrades.reduce(
+      (sum, trade) =>
+        sum +
+        (
+          safeNum(
+            trade?.qty
+              ?.remainingQty
+          ) || 0
+        ),
+      0
+    );
 
-  /* ---------------------------------------------------------
-     DAILY REAL ACCOUNT PNL
-     Prevent duplicate account/day sums.
-  --------------------------------------------------------- */
-
-  const dailyAccountPnL =
+  const dailyAccountTotal =
     (() => {
-      const seen = new Set();
+      const seen =
+        new Set();
 
       let total = 0;
 
-      for (const trade of realTrades) {
+      for (
+        const trade
+        of timeTrades
+      ) {
+        if (
+          getTradeMode(
+            trade
+          ) !== "REAL"
+        ) {
+          continue;
+        }
+
         const account =
-          trade?.brokerImport
-            ?.accountAlias;
+          getAccountLabel(
+            trade
+          );
 
         const date =
-          trade?.brokerImport
-            ?.tradingDate;
+          getTradeDate(
+            trade
+          );
 
         const pnl =
-          safeNum(
-            trade?.summary
-              ?.dailyAccountPnL
+          getDailyAccountPnL(
+            trade
           );
 
         if (
@@ -1711,138 +2299,286 @@ export default function JournalFull() {
         const key =
           `${account}|${date}`;
 
-        if (seen.has(key)) {
+        if (
+          seen.has(
+            key
+          )
+        ) {
           continue;
         }
 
-        seen.add(key);
+        seen.add(
+          key
+        );
+
         total += pnl;
       }
 
       return total;
     })();
 
-  const wins =
-    closedTrades.filter(
-      (trade) =>
-        upper(trade?.result) ===
-        "WIN"
-    ).length;
-
-  const losses =
-    closedTrades.filter(
-      (trade) =>
-        upper(trade?.result) ===
-        "LOSS"
-    ).length;
-
-  const breakeven =
-    closedTrades.filter(
-      (trade) =>
-        upper(trade?.result) ===
-        "BREAKEVEN"
-    ).length;
-
   /* ---------------------------------------------------------
-     SELECTED LIVE
+     ACCOUNT CARDS
   --------------------------------------------------------- */
 
-  const selectedSymbol =
-    selectedTrade
-      ? normalizeMarketSymbol(
-          selectedTrade
-        )
-      : null;
+  const accountOpenTrades =
+    [
+      "INTRADAY",
+      "SWING",
+    ]
+      .map(
+        (account) =>
+          openTrades.find(
+            (trade) =>
+              getAccountLabel(
+                trade
+              ) === account
+          )
+      )
+      .filter(Boolean);
 
-  const selectedLive =
-    selectedTrade
-      ? calculateLivePosition(
-          selectedTrade,
-          marks[selectedSymbol]
-        )
-      : null;
+  /* ---------------------------------------------------------
+     SELECTED TRADE
+  --------------------------------------------------------- */
 
-  const selectedMode =
-    selectedTrade
-      ? getTradeMode(selectedTrade)
-      : "OTHER";
+  const selectedTrade =
+    filteredTrades.find(
+      (trade) =>
+        trade?.tradeId ===
+        selectedTradeId
+    ) ||
+    filteredTrades[0] ||
+    null;
 
-  /* =========================================================
-     RENDER
-  ========================================================= */
+  const recentRows =
+    buildEventRows(
+      filteredTrades
+    ).slice(
+      0,
+      12
+    );
+
+  const headlineSymbol =
+    openSymbols[0] ||
+    "FUTURES";
+
+  const headlineMark =
+    marks[
+      headlineSymbol
+    ];
 
   return (
     <div
       style={{
-        minHeight: "100vh",
-        background: "#020817",
-        color: "#e5e7eb",
-        padding: 14,
+        minHeight:
+          "100vh",
+        background:
+          COLORS.page,
+        color:
+          COLORS.text,
+        padding: 18,
+        fontFamily:
+          "Arial, Helvetica, sans-serif",
       }}
     >
-      {/* =====================================================
-          HEADER
-      ===================================================== */}
-
       <div
         style={{
-          border: "1px solid #1f2937",
-          borderRadius: 16,
-          background: "#050b16",
-          padding: 16,
+          maxWidth: 1800,
+          margin:
+            "0 auto",
+          border:
+            `1px solid ${COLORS.line}`,
+          background:
+            "#040b14",
+          boxShadow:
+            "0 18px 50px rgba(0,0,0,.55)",
         }}
       >
-        <div
+        {/* =================================================
+            HEADER
+        ================================================= */}
+
+        <header
           style={{
-            display: "flex",
-            justifyContent:
-              "space-between",
-            alignItems: "center",
-            gap: 12,
-            flexWrap: "wrap",
+            display: "grid",
+            gridTemplateColumns:
+              "1fr 180px 300px 220px",
+            borderBottom:
+              `1px solid ${COLORS.line}`,
+            minHeight: 78,
           }}
         >
-          <div>
+          <div
+            style={{
+              padding:
+                "14px 20px",
+            }}
+          >
             <div
               style={{
-                fontSize: 28,
+                fontSize: 34,
                 fontWeight: 1000,
+                letterSpacing:
+                  ".02em",
               }}
             >
-              Full Trade Journal
+              ▣ FULL TRADE JOURNAL
             </div>
 
             <div
               style={{
-                color: "#9ca3af",
+                fontSize: 13,
+                color:
+                  COLORS.muted,
                 fontWeight: 800,
-                fontSize: 15,
-                marginTop: 4,
               }}
             >
-              Real trading and
-              automated paper trading
-              tracked separately
+              All your trades. All accounts. Complete performance.
             </div>
           </div>
 
           <div
             style={{
+              padding: 14,
+              borderLeft:
+                `1px solid ${COLORS.line}`,
+            }}
+          >
+            <div
+              style={{
+                fontSize: 18,
+                fontWeight: 1000,
+              }}
+            >
+              {headlineSymbol}
+            </div>
+
+            <div
+              style={{
+                fontSize: 11,
+                color:
+                  COLORS.muted,
+              }}
+            >
+              LIVE MARKET
+            </div>
+          </div>
+
+          <div
+            style={{
+              padding: 14,
+              borderLeft:
+                `1px solid ${COLORS.line}`,
+            }}
+          >
+            <div
+              style={{
+                fontSize: 11,
+                color:
+                  COLORS.muted,
+                fontWeight: 900,
+              }}
+            >
+              CURRENT PRICE
+            </div>
+
+            <div
+              style={{
+                fontSize: 27,
+                fontWeight: 1000,
+                color:
+                  COLORS.green,
+              }}
+            >
+              {fmtNum(
+                headlineMark
+              )}
+            </div>
+          </div>
+
+          <div
+            style={{
+              padding: 14,
+              borderLeft:
+                `1px solid ${COLORS.line}`,
+            }}
+          >
+            <div
+              style={{
+                fontSize: 11,
+                color:
+                  COLORS.muted,
+                fontWeight: 900,
+              }}
+            >
+              LAST UPDATED
+            </div>
+
+            <div
+              style={{
+                fontSize: 18,
+                fontWeight: 1000,
+              }}
+            >
+              {lastFetch
+                ? toAzTime(
+                    lastFetch
+                  )
+                : "—"}
+            </div>
+
+            <div
+              style={{
+                fontSize: 11,
+                color:
+                  error
+                    ? COLORS.red
+                    : COLORS.green,
+                fontWeight: 900,
+              }}
+            >
+              {error
+                ? "ERROR"
+                : "LIVE"}
+            </div>
+          </div>
+        </header>
+
+        {/* =================================================
+            FILTER BAR
+        ================================================= */}
+
+        <div
+          style={{
+            display: "flex",
+            justifyContent:
+              "space-between",
+            gap: 12,
+            padding: 12,
+            borderBottom:
+              `1px solid ${COLORS.line}`,
+            flexWrap: "wrap",
+          }}
+        >
+          <div
+            style={{
               display: "flex",
-              gap: 8,
-              flexWrap: "wrap",
+              gap: 10,
             }}
           >
             <FilterButton
               active={
-                modeFilter === "REAL"
+                modeFilter ===
+                "REAL"
               }
-              tone={COLORS.real}
+              tone="real"
               onClick={() =>
-                setModeFilter("REAL")
+                setModeFilter(
+                  "REAL"
+                )
               }
             >
-              REAL TRADING
+              ▥ REAL TRADING
             </FilterButton>
 
             <FilterButton
@@ -1850,43 +2586,63 @@ export default function JournalFull() {
                 modeFilter ===
                 "PAPER"
               }
-              tone={COLORS.paper}
+              tone="paper"
               onClick={() =>
-                setModeFilter("PAPER")
+                setModeFilter(
+                  "PAPER"
+                )
               }
             >
-              PAPER TRADING
+              ▣ PAPER TRADING
             </FilterButton>
 
             <FilterButton
               active={
-                modeFilter === "ALL"
-              }
-              onClick={() =>
-                setModeFilter("ALL")
-              }
-            >
-              ALL
-            </FilterButton>
-
-            <div
-              style={{
-                width: 1,
-                background: "#334155",
-                margin: "0 3px",
-              }}
-            />
-
-            <FilterButton
-              active={
-                statusFilter ===
+                modeFilter ===
                 "ALL"
               }
               onClick={() =>
-                setStatusFilter("ALL")
+                setModeFilter(
+                  "ALL"
+                )
               }
             >
-              ALL
+              ◉ ALL TRADES
+            </FilterButton>
+          </div>
+
+          <div
+            style={{
+              display: "flex",
+              gap: 10,
+            }}
+          >
+            <FilterButton
+              active={
+                timeFilter ===
+                "ALL"
+              }
+              onClick={() =>
+                setTimeFilter(
+                  "ALL"
+                )
+              }
+            >
+              ▣ ALL TIME
+            </FilterButton>
+
+            <FilterButton
+              active={
+                timeFilter ===
+                "TODAY"
+              }
+              onClick={() =>
+                setTimeFilter(
+                  "TODAY"
+                )
+              }
+            >
+              ▣ TODAY
             </FilterButton>
 
             <FilterButton
@@ -1894,14 +2650,17 @@ export default function JournalFull() {
                 statusFilter ===
                 "OPEN"
               }
-              tone={COLORS.open}
+              tone="open"
               onClick={() =>
                 setStatusFilter(
-                  "OPEN"
+                  statusFilter ===
+                    "OPEN"
+                    ? "ALL"
+                    : "OPEN"
                 )
               }
             >
-              OPEN
+              ⊙ OPEN
             </FilterButton>
 
             <FilterButton
@@ -1909,273 +2668,410 @@ export default function JournalFull() {
                 statusFilter ===
                 "CLOSED"
               }
-              tone={COLORS.closed}
               onClick={() =>
                 setStatusFilter(
-                  "CLOSED"
+                  statusFilter ===
+                    "CLOSED"
+                    ? "ALL"
+                    : "CLOSED"
                 )
               }
             >
-              CLOSED
+              ◉ CLOSED
             </FilterButton>
-
-            <button
-              type="button"
-              onClick={() =>
-                window.close()
-              }
-              style={{
-                background: "#0b0b0b",
-                color: "#cbd5e1",
-                border:
-                  "1px solid #2b2b2b",
-                borderRadius: 10,
-                padding: "8px 14px",
-                fontWeight: 1000,
-                fontSize: 15,
-                cursor: "pointer",
-              }}
-            >
-              Close Tab
-            </button>
           </div>
         </div>
 
-        {/* ===================================================
-            CURRENT MODE BANNER
-        =================================================== */}
+        {/* =================================================
+            SUMMARY STRIP
+        ================================================= */}
 
-        <div
+        <section
           style={{
-            marginTop: 14,
+            margin: 12,
             border:
-              modeFilter === "REAL"
-                ? `1px solid ${COLORS.real.bd}`
-                : modeFilter ===
-                  "PAPER"
-                ? `1px solid ${COLORS.paper.bd}`
-                : "1px solid #334155",
-
+              `1px solid ${
+                modeFilter ===
+                "PAPER"
+                  ? COLORS.blueLine
+                  : COLORS.greenLine
+              }`,
+            borderRadius: 8,
             background:
-              modeFilter === "REAL"
-                ? COLORS.real.bg
-                : modeFilter ===
-                  "PAPER"
-                ? COLORS.paper.bg
-                : "#111827",
-
-            borderRadius: 12,
-            padding: "10px 14px",
-
-            fontSize: 17,
-            fontWeight: 1000,
-
-            color:
-              modeFilter === "REAL"
-                ? COLORS.real.fg
-                : modeFilter ===
-                  "PAPER"
-                ? COLORS.paper.fg
-                : "#e5e7eb",
-          }}
-        >
-          {modeFilter === "REAL"
-            ? "REAL TRADING — Schwab / Thinkorswim imported execution history"
-            : modeFilter ===
+              modeFilter ===
               "PAPER"
-            ? "PAPER TRADING — Frye Dashboard automated paper execution"
-            : "ALL JOURNAL RECORDS — REAL AND PAPER COMBINED"}
-        </div>
-
-        {/* ===================================================
-            MAIN SUMMARY
-        =================================================== */}
-
-        <div
-          style={{
-            marginTop: 12,
-            display: "grid",
-            gridTemplateColumns:
-              "repeat(7, minmax(0,1fr))",
-            gap: 10,
+                ? COLORS.blueSoft
+                : COLORS.greenSoft,
           }}
         >
-          <BigMetric
-            label="Trades"
-            value={modeTrades.length}
-          />
-
-          <BigMetric
-            label="Open Positions"
-            value={openTrades.length}
-          />
-
-          <BigMetric
-            label="Open Contracts"
-            value={openContracts}
-          />
-
-          <BigMetric
-            label="Realized P&L"
-            value={fmtMoney(
-              realizedPnL
-            )}
-            valueColor={pnlColor(
-              realizedPnL
-            )}
-          />
-
-          <BigMetric
-            label="Unrealized P&L"
-            value={fmtMoney(
-              unrealizedPnL
-            )}
-            valueColor={pnlColor(
-              unrealizedPnL
-            )}
-            sub="Live futures marks"
-          />
-
-          <BigMetric
-            label="Total Trade P&L"
-            value={fmtMoney(
-              totalTradePnL
-            )}
-            valueColor={pnlColor(
-              totalTradePnL
-            )}
-          />
-
-          <BigMetric
-            label={
-              modeFilter === "REAL"
-                ? "Daily Account P&L"
-                : "Closed W / L / BE"
-            }
-            value={
-              modeFilter === "REAL"
-                ? fmtMoney(
-                    dailyAccountPnL
-                  )
-                : `${wins} / ${losses} / ${breakeven}`
-            }
-            valueColor={
-              modeFilter === "REAL"
-                ? pnlColor(
-                    dailyAccountPnL
-                  )
-                : "#e5e7eb"
-            }
-          />
-        </div>
-
-        {/* ===================================================
-            CONNECTION STATUS
-        =================================================== */}
-
-        <div
-          style={{
-            marginTop: 10,
-            display: "flex",
-            gap: 16,
-            flexWrap: "wrap",
-            color: "#94a3b8",
-            fontSize: 13,
-            fontWeight: 800,
-          }}
-        >
-          <span>
-            Journal:{" "}
-            <b
-              style={{
-                color: err
-                  ? "#fca5a5"
-                  : "#86efac",
-              }}
-            >
-              {err
-                ? "ERROR"
-                : "CONNECTED"}
-            </b>
-          </span>
-
-          <span>
-            Load:{" "}
-            <b>
-              {loading
-                ? "Loading..."
-                : "Ready"}
-            </b>
-          </span>
-
-          <span>
-            Journal fetch:{" "}
-            <b>
-              {lastFetch
-                ? toAz(
-                    lastFetch,
-                    true
-                  )
-                : "—"}
-            </b>
-          </span>
-
-          {openFuturesSymbols.map(
-            (symbol) => (
-              <span key={symbol}>
-                {symbol}:{" "}
-                <b
-                  style={{
-                    color:
-                      "#93c5fd",
-                  }}
-                >
-                  {fmtNum(
-                    marks[symbol]
-                  )}
-                </b>{" "}
-                <span>
-                  (
-                  {markTimes[symbol]
-                    ? toAz(
-                        markTimes[
-                          symbol
-                        ],
-                        true
-                      )
-                    : "waiting"}
-                  )
-                </span>
-              </span>
-            )
-          )}
-        </div>
-
-        {err ? (
           <div
             style={{
-              marginTop: 10,
-              color: "#fca5a5",
+              padding:
+                "10px 14px",
+              fontSize: 18,
+              color:
+                modeFilter ===
+                "PAPER"
+                  ? COLORS.blue
+                  : COLORS.green,
               fontWeight: 1000,
-              fontSize: 16,
             }}
           >
-            Journal error: {err}
+            {modeFilter ===
+            "PAPER"
+              ? "▣ PAPER TRADING"
+              : "▥ REAL TRADING"}
+
+            {timeFilter ===
+            "TODAY"
+              ? " — TODAY"
+              : ""}
           </div>
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns:
+                "1.25fr repeat(7, 1fr)",
+              borderTop:
+                `1px solid ${COLORS.line}`,
+            }}
+          >
+            <SummaryMetric
+              label={
+                modeFilter ===
+                "REAL"
+                  ? "DAILY ACCOUNT P&L"
+                  : "PAPER NET P&L"
+              }
+              value={
+                modeFilter ===
+                "REAL"
+                  ? fmtMoney(
+                      dailyAccountTotal
+                    )
+                  : fmtMoney(
+                      netTotal
+                    )
+              }
+              color={
+                pnlColor(
+                  modeFilter ===
+                    "REAL"
+                    ? dailyAccountTotal
+                    : netTotal
+                )
+              }
+            />
+
+            <SummaryMetric
+              label="GROSS REALIZED"
+              value={fmtMoney(
+                grossTotal
+              )}
+              color={pnlColor(
+                grossTotal
+              )}
+            />
+
+            <SummaryMetric
+              label="ACTUAL FEES"
+              value={
+                feeTotal
+                  ? fmtNegativeMoney(
+                      feeTotal
+                    )
+                  : "—"
+              }
+              color={
+                COLORS.gold
+              }
+            />
+
+            <SummaryMetric
+              label="NET REALIZED"
+              value={fmtMoney(
+                netTotal
+              )}
+              color={pnlColor(
+                netTotal
+              )}
+            />
+
+            <SummaryMetric
+              label="LIVE UNREALIZED"
+              value={fmtMoney(
+                unrealizedTotal
+              )}
+              color={pnlColor(
+                unrealizedTotal
+              )}
+            />
+
+            <SummaryMetric
+              label="TOTAL TRADE P&L"
+              value={fmtMoney(
+                netTotal +
+                unrealizedTotal
+              )}
+              color={pnlColor(
+                netTotal +
+                unrealizedTotal
+              )}
+            />
+
+            <SummaryMetric
+              label="OPEN CAMPAIGNS"
+              value={
+                openTrades.length
+              }
+            />
+
+            <SummaryMetric
+              label="OPEN CONTRACTS"
+              value={
+                openContracts
+              }
+            />
+          </div>
+        </section>
+
+        {/* =================================================
+            REAL ACCOUNT CARDS
+        ================================================= */}
+
+        {modeFilter !==
+          "PAPER" &&
+        accountOpenTrades.length ? (
+          <section
+            style={{
+              display: "grid",
+              gridTemplateColumns:
+                accountOpenTrades.length >
+                1
+                  ? "1fr 1fr"
+                  : "1fr",
+              gap: 12,
+              margin: 12,
+            }}
+          >
+            {accountOpenTrades.map(
+              (trade) => {
+                const symbol =
+                  normalizeMarketSymbol(
+                    trade
+                  );
+
+                return (
+                  <AccountCard
+                    key={
+                      trade.tradeId
+                    }
+                    trade={
+                      trade
+                    }
+                    mark={
+                      marks[
+                        symbol
+                      ]
+                    }
+                    selected={
+                      selectedTrade
+                        ?.tradeId ===
+                      trade.tradeId
+                    }
+                    onClick={() =>
+                      setSelectedTradeId(
+                        trade.tradeId
+                      )
+                    }
+                  />
+                );
+              }
+            )}
+          </section>
         ) : null}
 
-        {/* ===================================================
-            OPEN POSITIONS
-        =================================================== */}
+        {/* =================================================
+            PERFORMANCE ANALYTICS
+        ================================================= */}
 
-        <div
+        <section
           style={{
-            marginTop: 16,
+            margin: 12,
             border:
-              "1px solid #1f2937",
-            borderRadius: 14,
-            background: "#07101f",
-            padding: 14,
+              `1px solid ${COLORS.line}`,
+            borderRadius: 8,
+            padding: 10,
+            background:
+              COLORS.panel,
+          }}
+        >
+          <div
+            style={{
+              fontSize: 17,
+              color:
+                modeFilter ===
+                "PAPER"
+                  ? COLORS.blue
+                  : COLORS.green,
+              fontWeight: 1000,
+              marginBottom: 10,
+            }}
+          >
+            PERFORMANCE ANALYTICS — {modeFilter} TRADING
+          </div>
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns:
+                "repeat(11, 1fr)",
+              gap: 7,
+            }}
+          >
+            <AnalyticsMetric
+              label="WIN RATE"
+              value={fmtPct(
+                analytics.winRate
+              )}
+            />
+
+            <AnalyticsMetric
+              label="PROFIT FACTOR"
+              value={
+                analytics.profitFactor ===
+                Infinity
+                  ? "∞"
+                  : fmtNum(
+                      analytics
+                        .profitFactor
+                    )
+              }
+            />
+
+            <AnalyticsMetric
+              label="AVG WIN"
+              value={fmtMoney(
+                analytics.averageWin
+              )}
+              sub="Per Campaign"
+            />
+
+            <AnalyticsMetric
+              label="AVG LOSS"
+              value={
+                analytics.averageLoss ==
+                null
+                  ? "—"
+                  : fmtNegativeMoney(
+                      analytics
+                        .averageLoss
+                    )
+              }
+              sub="Per Campaign"
+            />
+
+            <AnalyticsMetric
+              label="WIN/LOSS RATIO"
+              value={fmtNum(
+                analytics
+                  .winLossRatio
+              )}
+            />
+
+            <AnalyticsMetric
+              label="EXPECTANCY"
+              value={fmtMoney(
+                analytics.expectancy
+              )}
+              sub="Per Campaign"
+            />
+
+            <AnalyticsMetric
+              label="MAX DRAWDOWN"
+              value={
+                analytics.closedCount
+                  ? fmtNegativeMoney(
+                      analytics
+                        .maxDrawdown
+                    )
+                  : "—"
+              }
+            />
+
+            <AnalyticsMetric
+              label="WINNING CAMPAIGN %"
+              value={fmtPct(
+                analytics
+                  .winningCampaignPct
+              )}
+            />
+
+            <AnalyticsMetric
+              label="WINNING EXIT %"
+              value={fmtPct(
+                analytics
+                  .winningExitPct
+              )}
+              sub={
+                analytics.totalExits
+                  ? `${analytics.profitableExits} of ${analytics.totalExits}`
+                  : "Exits"
+              }
+            />
+
+            <AnalyticsMetric
+              label="WINNING STREAK"
+              value={
+                analytics.closedCount
+                  ? String(
+                      analytics
+                        .currentWinStreak
+                    )
+                  : "—"
+              }
+            />
+
+            <AnalyticsMetric
+              label="LOSING STREAK"
+              value={
+                analytics.closedCount
+                  ? String(
+                      analytics
+                        .currentLossStreak
+                    )
+                  : "—"
+              }
+            />
+          </div>
+
+          <div
+            style={{
+              fontSize: 10,
+              color:
+                COLORS.muted,
+              marginTop: 8,
+            }}
+          >
+            Campaign metrics require CLOSED campaigns. Open trades do not count as wins or losses.
+          </div>
+        </section>
+
+        {/* =================================================
+            RECENT EXECUTIONS
+        ================================================= */}
+
+        <section
+          style={{
+            margin: 12,
+            border:
+              `1px solid ${COLORS.line}`,
+            borderRadius: 8,
+            overflow:
+              "hidden",
+            background:
+              COLORS.panel,
           }}
         >
           <div
@@ -2183,198 +3079,249 @@ export default function JournalFull() {
               display: "flex",
               justifyContent:
                 "space-between",
-              alignItems: "center",
-              marginBottom: 10,
+              padding:
+                "10px 12px",
+              fontWeight: 1000,
             }}
           >
-            <div
-              style={{
-                fontSize: 19,
-                fontWeight: 1000,
-                color: "#93c5fd",
-              }}
-            >
-              OPEN POSITIONS
-            </div>
+            <span>
+              RECENT TRADES / EXECUTIONS
+            </span>
 
-            <div
+            <span
               style={{
-                color: "#94a3b8",
-                fontSize: 14,
-                fontWeight: 900,
+                fontSize: 11,
+                color:
+                  COLORS.muted,
               }}
             >
-              {openContracts} contracts
-              currently open
-            </div>
+              Showing {
+                recentRows.length
+              } recent events
+            </span>
           </div>
-
-          {!openTrades.length ? (
-            <div
-              style={{
-                padding: 18,
-                color: "#94a3b8",
-                fontWeight: 900,
-              }}
-            >
-              No open{" "}
-              {modeFilter === "REAL"
-                ? "real"
-                : modeFilter ===
-                  "PAPER"
-                ? "paper"
-                : ""}{" "}
-              positions.
-            </div>
-          ) : (
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns:
-                  "repeat(2, minmax(0,1fr))",
-                gap: 12,
-              }}
-            >
-              {openTrades.map(
-                (trade) => {
-                  const symbol =
-                    normalizeMarketSymbol(
-                      trade
-                    );
-
-                  return (
-                    <OpenPositionCard
-                      key={
-                        trade.tradeId
-                      }
-                      trade={trade}
-                      mark={
-                        marks[symbol]
-                      }
-                      selected={
-                        selectedTrade
-                          ?.tradeId ===
-                        trade.tradeId
-                      }
-                      onClick={() =>
-                        setSelectedTradeId(
-                          trade.tradeId
-                        )
-                      }
-                    />
-                  );
-                }
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* ===================================================
-            HISTORY + DETAILS
-        =================================================== */}
-
-        <div
-          style={{
-            marginTop: 16,
-            display: "grid",
-            gridTemplateColumns:
-              "minmax(430px, .9fr) minmax(0, 1.55fr)",
-            gap: 14,
-            alignItems: "start",
-          }}
-        >
-          {/* HISTORY */}
 
           <div
             style={{
-              border: "1px solid #262626",
-              borderRadius: 14,
-              padding: 14,
-              background: "#101010",
-              minHeight: 650,
-              display: "flex",
-              flexDirection: "column",
-              gap: 10,
+              display: "grid",
+              gridTemplateColumns:
+                "130px 120px 1.7fr 100px 100px 150px 120px 90px 140px 120px",
+              background:
+                COLORS.panelAlt,
+              borderTop:
+                `1px solid ${COLORS.line}`,
+              borderBottom:
+                `1px solid ${COLORS.line}`,
+              fontSize: 10,
+              color:
+                COLORS.muted,
+              fontWeight: 950,
+              padding:
+                "7px 10px",
             }}
           >
-            <div
-              style={{
-                fontWeight: 1000,
-                color: "#93c5fd",
-                fontSize: 18,
-              }}
-            >
-              TRADE HISTORY
-            </div>
-
-            {filteredTrades.length ===
-            0 ? (
-              <div
-                style={{
-                  color: "#9ca3af",
-                  fontSize: 16,
-                }}
-              >
-                No trades for these
-                filters.
-              </div>
-            ) : (
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection:
-                    "column",
-                  gap: 9,
-                  maxHeight: "72vh",
-                  overflowY: "auto",
-                }}
-              >
-                {filteredTrades.map(
-                  (trade) => {
-                    const symbol =
-                      normalizeMarketSymbol(
-                        trade
-                      );
-
-                    return (
-                      <TradeRow
-                        key={
-                          trade.tradeId
-                        }
-                        trade={trade}
-                        mark={
-                          marks[symbol]
-                        }
-                        selected={
-                          selectedTrade
-                            ?.tradeId ===
-                          trade.tradeId
-                        }
-                        onClick={() =>
-                          setSelectedTradeId(
-                            trade.tradeId
-                          )
-                        }
-                      />
-                    );
+            {[
+              "TIME",
+              "ACCOUNT",
+              "TRADE ID",
+              "SYMBOL",
+              "DIRECTION",
+              "EVENT",
+              "PRICE",
+              "QTY",
+              "REALIZED P&L",
+              "STATUS",
+            ].map(
+              (label) => (
+                <div
+                  key={
+                    label
                   }
-                )}
-              </div>
+                >
+                  {label}
+                </div>
+              )
             )}
           </div>
 
-          {/* DETAILS */}
+          {recentRows.length ? (
+            recentRows.map(
+              (
+                {
+                  trade,
+                  event,
+                },
+                index
+              ) => {
+                const eventPnl =
+                  safeNum(
+                    event
+                      ?.netEventRealizedPnL
+                  ) ??
+                  safeNum(
+                    event
+                      ?.grossEventRealizedPnL
+                  ) ??
+                  safeNum(
+                    event
+                      ?.eventRealizedPnL
+                  );
 
-          <div
+                return (
+                  <button
+                    key={`${event?.ts}-${index}`}
+                    type="button"
+                    onClick={() =>
+                      setSelectedTradeId(
+                        trade.tradeId
+                      )
+                    }
+                    style={{
+                      width: "100%",
+                      display: "grid",
+                      gridTemplateColumns:
+                        "130px 120px 1.7fr 100px 100px 150px 120px 90px 140px 120px",
+                      padding:
+                        "8px 10px",
+                      border: 0,
+                      borderBottom:
+                        `1px solid ${COLORS.lineSoft}`,
+                      background:
+                        selectedTrade
+                          ?.tradeId ===
+                        trade.tradeId
+                          ? COLORS.panelSelected
+                          : COLORS.panel,
+                      color:
+                        COLORS.text,
+                      textAlign:
+                        "left",
+                      fontSize: 12,
+                      fontWeight: 850,
+                      cursor:
+                        "pointer",
+                    }}
+                  >
+                    <div>
+                      {toAzTime(
+                        event?.ts
+                      )}
+                    </div>
+
+                    <div
+                      style={{
+                        color:
+                          getAccountLabel(
+                            trade
+                          ) ===
+                          "SWING"
+                            ? COLORS.gold
+                            : COLORS.green,
+                      }}
+                    >
+                      {getAccountLabel(
+                        trade
+                      )}
+                    </div>
+
+                    <div>
+                      {trade.tradeId}
+                    </div>
+
+                    <div>
+                      {normalizeMarketSymbol(
+                        trade
+                      )}
+                    </div>
+
+                    <div
+                      style={{
+                        color:
+                          COLORS.red,
+                      }}
+                    >
+                      {upper(
+                        trade?.direction
+                      )}
+                    </div>
+
+                    <div>
+                      {event?.eventType ||
+                        "—"}
+                    </div>
+
+                    <div>
+                      {fmtNum(
+                        event?.price
+                      )}
+                    </div>
+
+                    <div>
+                      {event
+                        ?.fillQuantity ??
+                        event?.qtyClosed ??
+                        "—"}
+                    </div>
+
+                    <div
+                      style={{
+                        color:
+                          pnlColor(
+                            eventPnl
+                          ),
+                      }}
+                    >
+                      {fmtMoney(
+                        eventPnl
+                      )}
+                    </div>
+
+                    <div
+                      style={{
+                        color:
+                          upper(
+                            trade?.status
+                          ) ===
+                          "OPEN"
+                            ? COLORS.green
+                            : COLORS.blue,
+                      }}
+                    >
+                      {upper(
+                        trade?.status
+                      )}
+                    </div>
+                  </button>
+                );
+              }
+            )
+          ) : (
+            <div
+              style={{
+                padding: 20,
+                color:
+                  COLORS.muted,
+              }}
+            >
+              No trades for these filters.
+            </div>
+          )}
+        </section>
+
+        {/* =================================================
+            SELECTED TRADE
+        ================================================= */}
+
+        {selectedTrade ? (
+          <section
             style={{
-              border: "1px solid #262626",
-              borderRadius: 14,
+              margin: 12,
+              border:
+                `1px solid ${COLORS.line}`,
+              borderRadius: 8,
               padding: 14,
-              background: "#101010",
-              minHeight: 650,
-              display: "flex",
-              flexDirection: "column",
-              gap: 14,
+              background:
+                COLORS.panel,
             }}
           >
             <div
@@ -2382,576 +3329,173 @@ export default function JournalFull() {
                 display: "flex",
                 justifyContent:
                   "space-between",
-                gap: 10,
-                flexWrap: "wrap",
+                alignItems:
+                  "center",
               }}
             >
-              <div
-                style={{
-                  fontWeight: 1000,
-                  color: "#93c5fd",
-                  fontSize: 18,
-                }}
-              >
-                TRADE DETAILS
+              <div>
+                <div
+                  style={{
+                    fontSize: 18,
+                    fontWeight: 1000,
+                  }}
+                >
+                  SELECTED TRADE — {
+                    getAccountLabel(
+                      selectedTrade
+                    )
+                  } / {
+                    normalizeMarketSymbol(
+                      selectedTrade
+                    )
+                  } {
+                    upper(
+                      selectedTrade
+                        ?.direction
+                    )
+                  }
+                </div>
+
+                <div
+                  style={{
+                    fontSize: 11,
+                    color:
+                      COLORS.muted,
+                    marginTop: 3,
+                  }}
+                >
+                  {
+                    selectedTrade
+                      .tradeId
+                  }
+                </div>
               </div>
 
-              {selectedTrade ? (
-                <Pill
-                  text={
-                    selectedMode
-                  }
-                  tone={
-                    selectedMode ===
-                    "REAL"
-                      ? COLORS.real
-                      : selectedMode ===
-                        "PAPER"
-                      ? COLORS.paper
-                      : COLORS.neutral
-                  }
-                />
-              ) : null}
+              <div
+                style={{
+                  fontSize: 13,
+                  fontWeight: 1000,
+                  color:
+                    upper(
+                      selectedTrade
+                        ?.status
+                    ) ===
+                    "OPEN"
+                      ? COLORS.green
+                      : COLORS.blue,
+                }}
+              >
+                {upper(
+                  selectedTrade
+                    ?.status
+                )}
+              </div>
             </div>
 
-            {!selectedTrade ? (
-              <div
-                style={{
-                  color: "#9ca3af",
-                  fontSize: 16,
-                }}
-              >
-                Select a trade to view
-                details.
-              </div>
-            ) : (
-              <>
-                {/* LIVE POSITION */}
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns:
+                  "repeat(6, 1fr)",
+                gap: 8,
+                marginTop: 12,
+              }}
+            >
+              <AnalyticsMetric
+                label="ENTRY"
+                value={fmtNum(
+                  selectedTrade
+                    ?.entry?.price
+                )}
+                sub={toAz(
+                  selectedTrade
+                    ?.entry?.time,
+                  true
+                )}
+              />
 
-                {upper(
-                  selectedTrade?.status
-                ) === "OPEN" ? (
-                  <SectionCard title="LIVE POSITION">
-                    <div
-                      style={{
-                        display:
-                          "grid",
-                        gridTemplateColumns:
-                          "repeat(4, minmax(0,1fr))",
-                        gap: 10,
-                      }}
-                    >
-                      <BigMetric
-                        label="Open Contracts"
-                        value={
-                          selectedLive
-                            ?.remainingQty ??
-                          "—"
-                        }
-                      />
+              <AnalyticsMetric
+                label="REMAINING"
+                value={String(
+                  selectedTrade
+                    ?.qty
+                    ?.remainingQty ??
+                    "—"
+                )}
+                sub="Contracts"
+              />
 
-                      <BigMetric
-                        label="Remaining Avg"
-                        value={fmtNum(
-                          selectedLive
-                            ?.averageEntry
-                        )}
-                      />
+              <AnalyticsMetric
+                label="GROSS REALIZED"
+                value={fmtMoney(
+                  getGrossRealized(
+                    selectedTrade
+                  )
+                )}
+                sub="Trade P&L"
+              />
 
-                      <BigMetric
-                        label={`Current ${
-                          selectedSymbol ||
-                          "Mark"
-                        }`}
-                        value={fmtNum(
-                          selectedLive
-                            ?.mark
-                        )}
-                      />
+              <AnalyticsMetric
+                label="ACTUAL FEES"
+                value={fmtNegativeMoney(
+                  getActualFees(
+                    selectedTrade
+                  )
+                )}
+                sub="Broker fees"
+              />
 
-                      <BigMetric
-                        label="Unrealized P&L"
-                        value={
-                          selectedLive
-                            ?.available
-                            ? fmtMoney(
-                                selectedLive
-                                  .unrealizedPnL
-                              )
-                            : "WAITING"
-                        }
-                        valueColor={pnlColor(
-                          selectedLive
-                            ?.unrealizedPnL
-                        )}
-                      />
-                    </div>
-                  </SectionCard>
-                ) : null}
+              <AnalyticsMetric
+                label="NET REALIZED"
+                value={fmtMoney(
+                  getNetRealized(
+                    selectedTrade
+                  )
+                )}
+                sub="After fees"
+              />
 
-                {/* IDENTITY / ENTRY */}
+              <AnalyticsMetric
+                label="DAILY ACCOUNT P&L"
+                value={fmtMoney(
+                  getDailyAccountPnL(
+                    selectedTrade
+                  )
+                )}
+                sub={getAccountLabel(
+                  selectedTrade
+                )}
+              />
+            </div>
+          </section>
+        ) : null}
 
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns:
-                      "repeat(2, minmax(0,1fr))",
-                    gap: 12,
-                  }}
-                >
-                  <SectionCard title="IDENTITY">
-                    <KV
-                      k="Trade ID"
-                      v={
-                        selectedTrade.tradeId
-                      }
-                    />
+        {/* =================================================
+            FOOTER
+        ================================================= */}
 
-                    <KV
-                      k="Symbol"
-                      v={
-                        selectedTrade.symbol
-                      }
-                    />
+        <footer
+          style={{
+            display: "flex",
+            justifyContent:
+              "space-between",
+            padding:
+              "10px 14px",
+            borderTop:
+              `1px solid ${COLORS.line}`,
+            fontSize: 11,
+            color:
+              COLORS.muted,
+          }}
+        >
+          <span>
+            ◈ All times are Arizona (America/Phoenix) • Journal polls every 15s • Futures marks every 5s
+          </span>
 
-                    <KV
-                      k="Strategy"
-                      v={
-                        selectedTrade.strategyId
-                      }
-                    />
-
-                    <KV
-                      k="Direction"
-                      v={
-                        selectedTrade.direction
-                      }
-                    />
-
-                    <KV
-                      k="Mode"
-                      v={
-                        selectedTrade.accountMode
-                      }
-                    />
-
-                    <KV
-                      k="Source"
-                      v={
-                        selectedTrade.source ||
-                        "ENGINE10"
-                      }
-                    />
-
-                    <KV
-                      k="Asset Type"
-                      v={
-                        selectedTrade.assetType
-                      }
-                    />
-                  </SectionCard>
-
-                  <SectionCard title="ENTRY">
-                    <KV
-                      k="Entry Time"
-                      v={toAz(
-                        selectedTrade
-                          ?.entry?.time,
-                        true
-                      )}
-                    />
-
-                    <KV
-                      k="Entry Price"
-                      v={fmtNum(
-                        selectedTrade
-                          ?.entry?.price
-                      )}
-                    />
-
-                    <KV
-                      k="Entry Qty"
-                      v={
-                        selectedTrade
-                          ?.entry?.qty ??
-                        "—"
-                      }
-                    />
-
-                    <KV
-                      k="Remaining"
-                      v={
-                        selectedTrade
-                          ?.qty
-                          ?.remainingQty ??
-                        "—"
-                      }
-                    />
-
-                    <KV
-                      k="Order Type"
-                      v={
-                        selectedTrade
-                          ?.entry
-                          ?.orderType ||
-                        "—"
-                      }
-                    />
-
-                    <KV
-                      k="Order ID"
-                      v={
-                        selectedTrade
-                          ?.entry
-                          ?.orderId ||
-                        "—"
-                      }
-                    />
-                  </SectionCard>
-                </div>
-
-                {/* BROKER IMPORT */}
-
-                {selectedMode ===
-                  "REAL" &&
-                selectedTrade
-                  ?.brokerImport ? (
-                  <SectionCard title="SCHWAB / THINKORSWIM">
-                    <div
-                      style={{
-                        display:
-                          "grid",
-                        gridTemplateColumns:
-                          "repeat(2, minmax(0,1fr))",
-                        gap: 8,
-                      }}
-                    >
-                      <KV
-                        k="Account"
-                        v={
-                          selectedTrade
-                            .brokerImport
-                            .accountAlias ||
-                          "—"
-                        }
-                      />
-
-                      <KV
-                        k="Broker Symbol"
-                        v={
-                          selectedTrade
-                            .brokerImport
-                            .brokerSymbol ||
-                          selectedTrade
-                            .brokerSymbol ||
-                          "—"
-                        }
-                      />
-
-                      <KV
-                        k="Trading Date"
-                        v={
-                          selectedTrade
-                            .brokerImport
-                            .tradingDate ||
-                          "—"
-                        }
-                      />
-
-                      <KV
-                        k="$/Point"
-                        v={fmtNum(
-                          selectedTrade
-                            .brokerImport
-                            .dollarsPerPoint
-                        )}
-                      />
-
-                      <KV
-                        k="Remaining Avg"
-                        v={fmtNum(
-                          selectedTrade
-                            .brokerImport
-                            .remainingAverageEntry
-                        )}
-                      />
-
-                      <KV
-                        k="Gross Realized"
-                        v={fmtMoney(
-                          selectedTrade
-                            ?.summary
-                            ?.realizedPnL
-                        )}
-                        color={pnlColor(
-                          selectedTrade
-                            ?.summary
-                            ?.realizedPnL
-                        )}
-                      />
-
-                      <KV
-                        k="Net Realized"
-                        v={fmtMoney(
-                          selectedTrade
-                            ?.summary
-                            ?.netRealizedPnL
-                        )}
-                        color={pnlColor(
-                          selectedTrade
-                            ?.summary
-                            ?.netRealizedPnL
-                        )}
-                      />
-
-                      <KV
-                        k="Daily Account P&L"
-                        v={fmtMoney(
-                          selectedTrade
-                            ?.summary
-                            ?.dailyAccountPnL
-                        )}
-                        color={pnlColor(
-                          selectedTrade
-                            ?.summary
-                            ?.dailyAccountPnL
-                        )}
-                      />
-                    </div>
-                  </SectionCard>
-                ) : null}
-
-                {/* EVENTS */}
-
-                <SectionCard title="EXECUTION EVENTS">
-                  <EventList
-                    events={
-                      selectedTrade?.events
-                    }
-                  />
-                </SectionCard>
-
-                {/* SUMMARY / SETUP */}
-
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns:
-                      "repeat(2, minmax(0,1fr))",
-                    gap: 12,
-                  }}
-                >
-                  <SectionCard title="SUMMARY">
-                    <KV
-                      k="Status"
-                      v={
-                        selectedTrade
-                          ?.status ||
-                        "—"
-                      }
-                    />
-
-                    <KV
-                      k="Result"
-                      v={
-                        selectedTrade
-                          ?.result ||
-                        "—"
-                      }
-                    />
-
-                    <KV
-                      k="Remaining Qty"
-                      v={
-                        selectedTrade
-                          ?.qty
-                          ?.remainingQty ??
-                        "—"
-                      }
-                    />
-
-                    <KV
-                      k="Realized P&L"
-                      v={fmtMoney(
-                        selectedTrade
-                          ?.summary
-                          ?.realizedPnL
-                      )}
-                      color={pnlColor(
-                        selectedTrade
-                          ?.summary
-                          ?.realizedPnL
-                      )}
-                    />
-
-                    <KV
-                      k="Unrealized P&L"
-                      v={
-                        selectedLive
-                          ?.available
-                          ? fmtMoney(
-                              selectedLive
-                                .unrealizedPnL
-                            )
-                          : "—"
-                      }
-                      color={pnlColor(
-                        selectedLive
-                          ?.unrealizedPnL
-                      )}
-                    />
-
-                    <KV
-                      k="Total Trade P&L"
-                      v={fmtMoney(
-                        selectedLive
-                          ?.totalTradePnL ??
-                          selectedTrade
-                            ?.summary
-                            ?.realizedPnL
-                      )}
-                      color={pnlColor(
-                        selectedLive
-                          ?.totalTradePnL ??
-                          selectedTrade
-                            ?.summary
-                            ?.realizedPnL
-                      )}
-                    />
-
-                    <KV
-                      k="Realized Points"
-                      v={fmtSigned(
-                        selectedTrade
-                          ?.summary
-                          ?.realizedPoints
-                      )}
-                    />
-
-                    <KV
-                      k="Duration"
-                      v={
-                        selectedTrade
-                          ?.summary
-                          ?.durationMinutes ??
-                        "—"
-                      }
-                    />
-                  </SectionCard>
-
-                  <SectionCard title="SETUP SNAPSHOT">
-                    <KV
-                      k="Snapshot Time"
-                      v={toAz(
-                        selectedTrade
-                          ?.setup
-                          ?.snapshotTime,
-                        true
-                      )}
-                    />
-
-                    <KV
-                      k="Strategy Type"
-                      v={
-                        selectedTrade
-                          ?.setup
-                          ?.strategyType ||
-                        "—"
-                      }
-                    />
-
-                    <KV
-                      k="Readiness"
-                      v={
-                        selectedTrade
-                          ?.setup
-                          ?.readinessLabel ||
-                        "—"
-                      }
-                    />
-
-                    <KV
-                      k="Action"
-                      v={
-                        selectedTrade
-                          ?.setup?.action ||
-                        "—"
-                      }
-                    />
-
-                    <KV
-                      k="Exec Bias"
-                      v={
-                        selectedTrade
-                          ?.setup
-                          ?.executionBias ||
-                        "—"
-                      }
-                    />
-
-                    <KV
-                      k="Permission"
-                      v={
-                        selectedTrade
-                          ?.setup
-                          ?.permission ||
-                        "—"
-                      }
-                    />
-
-                    <KV
-                      k="Zone Type"
-                      v={
-                        selectedTrade
-                          ?.setup
-                          ?.zoneType ||
-                        "—"
-                      }
-                    />
-                  </SectionCard>
-                </div>
-
-                {/* REVIEW */}
-
-                <SectionCard title="REVIEW">
-                  <KV
-                    k="Grade"
-                    v={
-                      selectedTrade
-                        ?.review?.grade ||
-                      "—"
-                    }
-                  />
-
-                  <KV
-                    k="Notes"
-                    v={
-                      selectedTrade
-                        ?.review?.notes ||
-                      "—"
-                    }
-                  />
-
-                  <KV
-                    k="Tags"
-                    v={
-                      Array.isArray(
-                        selectedTrade
-                          ?.review?.tags
-                      ) &&
-                      selectedTrade.review
-                        .tags.length
-                        ? selectedTrade.review.tags.join(
-                            ", "
-                          )
-                        : "—"
-                    }
-                  />
-                </SectionCard>
-              </>
-            )}
-          </div>
-        </div>
+          <i>
+            This is your complete trading history. Review, learn, improve.
+          </i>
+        </footer>
       </div>
     </div>
   );
