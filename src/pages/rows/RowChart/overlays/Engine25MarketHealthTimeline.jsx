@@ -261,6 +261,49 @@ function isActiveMaterialNewsEvent(event, nowMs = Date.now()) {
   return true;
 }
 
+function isRecentNewsEvent(event, nowMs = Date.now(), lookbackHours = 24) {
+  const observedMs = Date.parse(event?.observedAt || "");
+  if (!Number.isFinite(observedMs)) return false;
+
+  const ageMs = nowMs - observedMs;
+  const lookbackMs = lookbackHours * 60 * 60 * 1000;
+
+  return ageMs >= 0 && ageMs <= lookbackMs;
+}
+
+function newsDisplayStatus(event, nowMs = Date.now()) {
+  if (isActiveMaterialNewsEvent(event, nowMs)) {
+    return {
+      label: "ACTIVE",
+      color: "#ef4444",
+      engine25Active: true,
+      note: "Active material event. Eligible for Engine 25 market-confirmation handling.",
+    };
+  }
+
+  const expiresMs = Date.parse(event?.expiresAt || "");
+  const status = String(event?.status || "").toUpperCase();
+  const expired =
+    status === "EVENT_EXPIRED" ||
+    (Number.isFinite(expiresMs) && nowMs >= expiresMs);
+
+  if (event?.material === true && expired) {
+    return {
+      label: "EXPIRED",
+      color: "#64748b",
+      engine25Active: false,
+      note: "Historical context only. No longer active in Engine 25.",
+    };
+  }
+
+  return {
+    label: "NON-MATERIAL",
+    color: "#94a3b8",
+    engine25Active: false,
+    note: "Visible for news awareness only. Does not enter Engine 25 active-event logic.",
+  };
+}
+
 function newsEventColor(event) {
   const severity = String(event?.severity || "").toUpperCase();
 
@@ -707,16 +750,31 @@ export default function Engine25MarketHealthTimeline({
   const macroBrentSession = macroOil?.brent?.changesPct?.session;
 
   const newsEvents = payload?.newsEvents || null;
+
+  // DISPLAY LANE:
+  // Show the last 24 hours of classified Reuters events so the trader can
+  // see ACTIVE, EXPIRED, and NON-MATERIAL context.
+  //
+  // ENGINE 25 INFLUENCE LANE:
+  // Unchanged. Only material + unexpired events are active.
   const newsEventRows = Array.isArray(newsEvents?.events)
     ? newsEvents.events
-        .filter((event) => isActiveMaterialNewsEvent(event))
+        .filter((event) => isRecentNewsEvent(event, Date.now(), 24))
         .sort(
           (a, b) =>
             Date.parse(b?.observedAt || "") - Date.parse(a?.observedAt || "")
         )
     : [];
 
+  const activeMaterialNewsRows = newsEventRows.filter((event) =>
+    isActiveMaterialNewsEvent(event)
+  );
+
   const hasNewsEvents = newsEventRows.length > 0;
+  const hasActiveMaterialNewsEvents = activeMaterialNewsRows.length > 0;
+  const headlineNewsEvent =
+    activeMaterialNewsRows[0] || newsEventRows[0] || null;
+
   const newsFeedUnavailable =
     newsEvents?.ok === false ||
     (Array.isArray(newsEvents?.warnings) &&
@@ -1006,18 +1064,22 @@ export default function Engine25MarketHealthTimeline({
             <SectionBox
               title="News / Macro Diagnostic"
               titleColor={
-                hasNewsEvents
-                  ? newsEventColor(newsEventRows[0])
+                hasActiveMaterialNewsEvents
+                  ? newsEventColor(headlineNewsEvent)
                   : newsFeedUnavailable
                     ? "#ef4444"
-                    : "#94a3b8"
+                    : hasNewsEvents
+                      ? "#fbbf24"
+                      : "#94a3b8"
               }
               borderColor={
-                hasNewsEvents
-                  ? newsEventColor(newsEventRows[0])
+                hasActiveMaterialNewsEvents
+                  ? newsEventColor(headlineNewsEvent)
                   : newsFeedUnavailable
                     ? "rgba(244,63,94,0.62)"
-                    : "rgba(148,163,184,0.38)"
+                    : hasNewsEvents
+                      ? "rgba(251,191,36,0.45)"
+                      : "rgba(148,163,184,0.38)"
               }
               background={engine25Background()}
             >
@@ -1048,10 +1110,10 @@ export default function Engine25MarketHealthTimeline({
                     </>
                   ) : hasNewsEvents ? (
                     newsEventRows.map((event) => {
-                      const confirmation = confirmationSummaryForEvent(
-                        event,
-                        intradayMacro
-                      );
+                      const displayStatus = newsDisplayStatus(event);
+                      const confirmation = displayStatus.engine25Active
+                        ? confirmationSummaryForEvent(event, intradayMacro)
+                        : null;
 
                       return (
                         <div
@@ -1076,9 +1138,17 @@ export default function Engine25MarketHealthTimeline({
                           </NoteText>
 
                           <CompareRow
+                            label="Feed Status"
+                            value={displayStatus.label}
+                            color={displayStatus.color}
+                          />
+
+                          <CompareRow
                             label="Material"
                             value={event.material === true ? "YES" : "NO"}
-                            color={event.material === true ? "#fbbf24" : "#94a3b8"}
+                            color={
+                              event.material === true ? "#fbbf24" : "#94a3b8"
+                            }
                           />
 
                           {event.primaryEntity && (
@@ -1089,37 +1159,47 @@ export default function Engine25MarketHealthTimeline({
                             />
                           )}
 
-                          <div
-                            style={{
-                              marginTop: 3,
-                              fontSize: FS.miniLabel,
-                              color: "#94a3b8",
-                              fontWeight: 950,
-                              textTransform: "uppercase",
-                              letterSpacing: "0.03em",
-                            }}
-                          >
-                            Market Confirmation
-                          </div>
+                          {displayStatus.engine25Active ? (
+                            <>
+                              <div
+                                style={{
+                                  marginTop: 3,
+                                  fontSize: FS.miniLabel,
+                                  color: "#94a3b8",
+                                  fontWeight: 950,
+                                  textTransform: "uppercase",
+                                  letterSpacing: "0.03em",
+                                }}
+                              >
+                                Market Confirmation
+                              </div>
 
-                          <CompareRow
-                            label={confirmation.label}
-                            value={confirmation.value}
-                            color={
-                              confirmation.confirmed ? "#22c55e" : "#94a3b8"
-                            }
-                          />
+                              <CompareRow
+                                label={confirmation.label}
+                                value={confirmation.value}
+                                color={
+                                  confirmation.confirmed
+                                    ? "#22c55e"
+                                    : "#94a3b8"
+                                }
+                              />
 
-                          <NoteText color="#94a3b8">
-                            {cleanLabel(confirmation.note)}
-                          </NoteText>
+                              <NoteText color="#94a3b8">
+                                {cleanLabel(confirmation.note)}
+                              </NoteText>
+                            </>
+                          ) : (
+                            <NoteText color="#64748b">
+                              {displayStatus.note}
+                            </NoteText>
+                          )}
                         </div>
                       );
                     })
                   ) : (
                     <CompareRow
                       label="Status"
-                      value="NO ACTIVE MATERIAL NEWS EVENT"
+                      value="NO REUTERS EVENT IN LAST 24H"
                       color="#94a3b8"
                     />
                   )}
