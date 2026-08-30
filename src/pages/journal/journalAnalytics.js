@@ -1,41 +1,404 @@
 // src/pages/journal/journalAnalytics.js
-// Pure analytics only. No React, no API calls, no Engine 10 writes.
-import { safeNum, upper } from "./journalFormatters.js";
+//
+// Frye Dashboard — Contract Performance Analytics
+//
+// CANONICAL PERFORMANCE RULE:
+// - INTRADAY and SWING remain separate performance books.
+// - One CLOSED contract = one win/loss statistical observation.
+// - OPEN contracts never count as wins or losses.
+// - Contract results come ONLY from Engine 10 event.closedContracts[].
+// - Legacy exit events without closedContracts[] are NOT guessed or divided.
+// - Contract win/loss calculations currently use exact GROSS realized contract P&L.
+//   Per-contract fee allocation is intentionally not invented here.
+//
 
-const gross=t=>safeNum(t?.summary?.grossRealizedPnL)??safeNum(t?.brokerImport?.grossRealizedTradePnL)??safeNum(t?.summary?.realizedPnL);
-const net=t=>safeNum(t?.summary?.netRealizedPnL)??safeNum(t?.brokerImport?.netRealizedTradePnL)??gross(t);
+import {
+  safeNum,
+  upper,
+} from "./journalFormatters.js";
 
-export function calculateAnalytics(trades=[]){
-  const closed=trades.filter(t=>upper(t?.status)==="CLOSED");
-  const pnls=closed.map(t=>net(t)).filter(v=>v!=null);
-  const wins=pnls.filter(v=>v>0), losses=pnls.filter(v=>v<0);
-  const gp=wins.reduce((a,b)=>a+b,0), gl=Math.abs(losses.reduce((a,b)=>a+b,0));
-  const averageWin=wins.length?gp/wins.length:null;
-  const averageLoss=losses.length?gl/losses.length:null;
-  const winRate=pnls.length?wins.length/pnls.length*100:null;
-  const profitFactor=gl>0?gp/gl:gp>0?Infinity:null;
-  const winLossRatio=averageWin!=null&&averageLoss>0?averageWin/averageLoss:null;
-  const expectancy=winRate!=null&&averageWin!=null?(winRate/100)*averageWin-(pnls.length?losses.length/pnls.length:0)*(averageLoss||0):null;
+import {
+  getAccountLabel,
+} from "./journalTradeModel.js";
 
-  let equity=0,peak=0,maxDrawdown=0,currentWinStreak=0,currentLossStreak=0;
-  const ordered=[...closed].sort((a,b)=>(Date.parse(a?.summary?.closeTime||a?.updatedAt||0)||0)-(Date.parse(b?.summary?.closeTime||b?.updatedAt||0)||0));
-  for(const t of ordered){const p=net(t)??0;equity+=p;peak=Math.max(peak,equity);maxDrawdown=Math.max(maxDrawdown,peak-equity);if(p>0){currentWinStreak++;currentLossStreak=0;}else if(p<0){currentLossStreak++;currentWinStreak=0;}else{currentWinStreak=0;currentLossStreak=0;}}
+function blankStrategy(account) {
+  return {
+    account,
 
-  const exitPnLs=trades.flatMap(t=>Array.isArray(t?.events)?t.events:[])
-    .filter(e=>(safeNum(e?.qtyClosed)||0)>0)
-    .map(e=>safeNum(e?.netEventRealizedPnL)??safeNum(e?.grossEventRealizedPnL)??safeNum(e?.eventRealizedPnL))
-    .filter(v=>v!=null);
-  const exitWins=exitPnLs.filter(v=>v>0), exitLosses=exitPnLs.filter(v=>v<0);
-  const egp=exitWins.reduce((a,b)=>a+b,0), egl=Math.abs(exitLosses.reduce((a,b)=>a+b,0));
+    openContracts: 0,
+
+    closedContracts: 0,
+    winningContracts: 0,
+    losingContracts: 0,
+    breakevenContracts: 0,
+
+    winPct: null,
+    averageWinningContract: null,
+    averageLosingContract: null,
+    winLossRatio: null,
+    profitFactor: null,
+    expectancyPerContract: null,
+
+    bestContract: null,
+    worstContract: null,
+
+    grossRealizedContractPnL: 0,
+
+    exactContractRecords: 0,
+
+    legacyClosingEventsExcluded: 0,
+    legacyClosedQuantityExcluded: 0,
+    legacyRealizedPnLExcluded: 0,
+  };
+}
+
+function classifyContractPnl(value) {
+  if (value > 0) return "WIN";
+  if (value < 0) return "LOSS";
+  return "BREAKEVEN";
+}
+
+function finalizeStrategy(book, contractPnLs) {
+  const wins =
+    contractPnLs.filter(
+      (value) => value > 0
+    );
+
+  const losses =
+    contractPnLs.filter(
+      (value) => value < 0
+    );
+
+  const breakevens =
+    contractPnLs.filter(
+      (value) => value === 0
+    );
+
+  const grossProfit =
+    wins.reduce(
+      (sum, value) => sum + value,
+      0
+    );
+
+  const grossLoss =
+    Math.abs(
+      losses.reduce(
+        (sum, value) => sum + value,
+        0
+      )
+    );
+
+  const averageWinningContract =
+    wins.length
+      ? grossProfit / wins.length
+      : null;
+
+  const averageLosingContract =
+    losses.length
+      ? grossLoss / losses.length
+      : null;
+
+  const resolvedContracts =
+    wins.length +
+    losses.length +
+    breakevens.length;
+
+  const winPct =
+    resolvedContracts
+      ? (
+          wins.length /
+          resolvedContracts
+        ) * 100
+      : null;
+
+  const winLossRatio =
+    averageWinningContract != null &&
+    averageLosingContract != null &&
+    averageLosingContract > 0
+      ? averageWinningContract /
+        averageLosingContract
+      : null;
+
+  const profitFactor =
+    grossLoss > 0
+      ? grossProfit / grossLoss
+      : grossProfit > 0
+        ? Infinity
+        : null;
+
+  const expectancyPerContract =
+    resolvedContracts
+      ? (
+          contractPnLs.reduce(
+            (sum, value) =>
+              sum + value,
+            0
+          ) /
+          resolvedContracts
+        )
+      : null;
+
+  book.closedContracts =
+    resolvedContracts;
+
+  book.winningContracts =
+    wins.length;
+
+  book.losingContracts =
+    losses.length;
+
+  book.breakevenContracts =
+    breakevens.length;
+
+  book.winPct =
+    winPct;
+
+  book.averageWinningContract =
+    averageWinningContract;
+
+  book.averageLosingContract =
+    averageLosingContract;
+
+  book.winLossRatio =
+    winLossRatio;
+
+  book.profitFactor =
+    profitFactor;
+
+  book.expectancyPerContract =
+    expectancyPerContract;
+
+  book.bestContract =
+    contractPnLs.length
+      ? Math.max(
+          ...contractPnLs
+        )
+      : null;
+
+  book.worstContract =
+    contractPnLs.length
+      ? Math.min(
+          ...contractPnLs
+        )
+      : null;
+
+  book.grossRealizedContractPnL =
+    contractPnLs.reduce(
+      (sum, value) =>
+        sum + value,
+      0
+    );
+
+  book.exactContractRecords =
+    contractPnLs.length;
+
+  return book;
+}
+
+export function calculateAnalytics(
+  trades = []
+) {
+  const strategies = {
+    INTRADAY:
+      blankStrategy(
+        "INTRADAY"
+      ),
+
+    SWING:
+      blankStrategy(
+        "SWING"
+      ),
+  };
+
+  const pnlByStrategy = {
+    INTRADAY: [],
+    SWING: [],
+  };
+
+  for (const trade of trades) {
+    const account =
+      getAccountLabel(
+        trade
+      );
+
+    if (
+      account !== "INTRADAY" &&
+      account !== "SWING"
+    ) {
+      continue;
+    }
+
+    const book =
+      strategies[
+        account
+      ];
+
+    if (
+      upper(
+        trade?.status
+      ) === "OPEN"
+    ) {
+      book.openContracts +=
+        safeNum(
+          trade?.qty
+            ?.remainingQty
+        ) || 0;
+    }
+
+    const events =
+      Array.isArray(
+        trade?.events
+      )
+        ? trade.events
+        : [];
+
+    for (const event of events) {
+      const qtyClosed =
+        safeNum(
+          event?.qtyClosed
+        ) || 0;
+
+      if (qtyClosed <= 0) {
+        continue;
+      }
+
+      const closedContracts =
+        Array.isArray(
+          event?.closedContracts
+        )
+          ? event.closedContracts
+          : [];
+
+      if (!closedContracts.length) {
+        /*
+         * Legacy Journal event.
+         *
+         * We know an aggregate closing event occurred, but we do not have
+         * exact per-contract FIFO results. Do NOT manufacture individual
+         * contract wins/losses by dividing event P&L.
+         */
+        book.legacyClosingEventsExcluded +=
+          1;
+
+        book.legacyClosedQuantityExcluded +=
+          qtyClosed;
+
+        const legacyPnl =
+          safeNum(
+            event
+              ?.grossEventRealizedPnL
+          ) ??
+          safeNum(
+            event
+              ?.eventRealizedPnL
+          );
+
+        if (legacyPnl != null) {
+          book.legacyRealizedPnLExcluded +=
+            legacyPnl;
+        }
+
+        continue;
+      }
+
+      for (
+        const contract
+        of closedContracts
+      ) {
+        if (
+          safeNum(
+            contract?.quantity
+          ) !== 1
+        ) {
+          continue;
+        }
+
+        const pnl =
+          safeNum(
+            contract
+              ?.grossRealizedPnL
+          );
+
+        if (pnl == null) {
+          continue;
+        }
+
+        /*
+         * Merely evaluating the classification here makes the canonical
+         * intent explicit and prevents accidental event-level counting.
+         */
+        classifyContractPnl(
+          pnl
+        );
+
+        pnlByStrategy[
+          account
+        ].push(
+          pnl
+        );
+      }
+    }
+  }
+
+  finalizeStrategy(
+    strategies.INTRADAY,
+    pnlByStrategy.INTRADAY
+  );
+
+  finalizeStrategy(
+    strategies.SWING,
+    pnlByStrategy.SWING
+  );
+
+  const allContractPnLs = [
+    ...pnlByStrategy.INTRADAY,
+    ...pnlByStrategy.SWING,
+  ];
+
+  const all =
+    finalizeStrategy(
+      blankStrategy(
+        "ALL REAL"
+      ),
+      allContractPnLs
+    );
+
+  all.openContracts =
+    strategies.INTRADAY
+      .openContracts +
+    strategies.SWING
+      .openContracts;
+
+  all.legacyClosingEventsExcluded =
+    strategies.INTRADAY
+      .legacyClosingEventsExcluded +
+    strategies.SWING
+      .legacyClosingEventsExcluded;
+
+  all.legacyClosedQuantityExcluded =
+    strategies.INTRADAY
+      .legacyClosedQuantityExcluded +
+    strategies.SWING
+      .legacyClosedQuantityExcluded;
+
+  all.legacyRealizedPnLExcluded =
+    strategies.INTRADAY
+      .legacyRealizedPnLExcluded +
+    strategies.SWING
+      .legacyRealizedPnLExcluded;
 
   return {
-    closedCount:closed.length,winRate,profitFactor,averageWin,averageLoss,winLossRatio,expectancy,maxDrawdown,
-    winningCampaignPct:closed.length?wins.length/closed.length*100:null,currentWinStreak,currentLossStreak,
-    totalExits:exitPnLs.length,profitableExits:exitWins.length,losingExits:exitLosses.length,
-    winningExitPct:exitPnLs.length?exitWins.length/exitPnLs.length*100:null,
-    totalExitPnL:exitPnLs.reduce((a,b)=>a+b,0),
-    averageWinningExit:exitWins.length?egp/exitWins.length:null,
-    averageLosingExit:exitLosses.length?egl/exitLosses.length:null,
-    exitProfitFactor:egl>0?egp/egl:egp>0?Infinity:null
+    model:
+      "ENGINE10_CLOSED_CONTRACT_PERFORMANCE_V1",
+
+    performanceUnit:
+      "CLOSED_CONTRACT",
+
+    pnlBasis:
+      "EXACT_FIFO_GROSS_REALIZED_CONTRACT_PNL",
+
+    strategies,
+
+    all,
   };
 }
