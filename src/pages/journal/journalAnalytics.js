@@ -1,20 +1,24 @@
 // src/pages/journal/journalAnalytics.js
 //
-// Frye Dashboard — Contract Performance Analytics
+// Frye Dashboard — Canonical Contract Performance Analytics
 //
-// CANONICAL PERFORMANCE RULE:
+// CANONICAL SOURCE:
+//   trade.realBroker.contracts[]
+//
+// LOCKED RULES:
 // - INTRADAY and SWING remain separate performance books.
-// - One CLOSED contract = one win/loss statistical observation.
-// - OPEN contracts never count as wins or losses.
-// - Contract results come ONLY from Engine 10 event.closedContracts[].
-// - Legacy exit events without closedContracts[] are NOT guessed or divided.
-// - Contract win/loss calculations currently use exact GROSS realized contract P&L.
-//   Per-contract fee allocation is intentionally not invented here.
+// - One durable Engine 10 contractId = one futures contract.
+// - CLOSED contractIds are the only observations used for realized
+//   win/loss statistics.
+// - OPEN contractIds are excluded until they close.
+// - No event reconstruction.
+// - No division of aggregate event P&L.
+// - No invented contract identity.
+// - Daily Account P&L remains a separate account-level metric.
 //
 
 import {
   safeNum,
-  upper,
 } from "./journalFormatters.js";
 
 import {
@@ -26,9 +30,12 @@ function blankStrategy(account) {
   return {
     account,
 
-    openContracts: 0,
+    totalContractIds: 0,
+    uniqueContractIds: 0,
 
+    openContracts: 0,
     closedContracts: 0,
+
     winningContracts: 0,
     losingContracts: 0,
     breakevenContracts: 0,
@@ -50,19 +57,16 @@ function blankStrategy(account) {
 
     exactContractRecords: 0,
 
-    legacyClosingEventsExcluded: 0,
-    legacyClosedQuantityExcluded: 0,
-    legacyRealizedPnLExcluded: 0,
+    missingContractRegistryTrades: 0,
+    duplicateContractIdsExcluded: 0,
+    invalidClosedContractRecordsExcluded: 0,
   };
 }
 
-function classifyContractPnl(value) {
-  if (value > 0) return "WIN";
-  if (value < 0) return "LOSS";
-  return "BREAKEVEN";
-}
-
-function finalizeStrategy(book, contractPnLs) {
+function finalizeStrategy(
+  book,
+  contractPnLs
+) {
   const wins =
     contractPnLs.filter(
       (value) => value > 0
@@ -80,67 +84,36 @@ function finalizeStrategy(book, contractPnLs) {
 
   const grossProfit =
     wins.reduce(
-      (sum, value) => sum + value,
+      (sum, value) =>
+        sum + value,
       0
     );
 
   const grossLoss =
     Math.abs(
       losses.reduce(
-        (sum, value) => sum + value,
+        (sum, value) =>
+          sum + value,
         0
       )
     );
 
   const averageWinningContract =
     wins.length
-      ? grossProfit / wins.length
+      ? grossProfit /
+        wins.length
       : null;
 
   const averageLosingContract =
     losses.length
-      ? grossLoss / losses.length
+      ? grossLoss /
+        losses.length
       : null;
 
   const resolvedContracts =
     wins.length +
     losses.length +
     breakevens.length;
-
-  const winPct =
-    resolvedContracts
-      ? (
-          wins.length /
-          resolvedContracts
-        ) * 100
-      : null;
-
-  const winLossRatio =
-    averageWinningContract != null &&
-    averageLosingContract != null &&
-    averageLosingContract > 0
-      ? averageWinningContract /
-        averageLosingContract
-      : null;
-
-  const profitFactor =
-    grossLoss > 0
-      ? grossProfit / grossLoss
-      : grossProfit > 0
-        ? Infinity
-        : null;
-
-  const expectancyPerContract =
-    resolvedContracts
-      ? (
-          contractPnLs.reduce(
-            (sum, value) =>
-              sum + value,
-            0
-          ) /
-          resolvedContracts
-        )
-      : null;
 
   book.closedContracts =
     resolvedContracts;
@@ -155,7 +128,12 @@ function finalizeStrategy(book, contractPnLs) {
     breakevens.length;
 
   book.winPct =
-    winPct;
+    resolvedContracts
+      ? (
+          wins.length /
+          resolvedContracts
+        ) * 100
+      : null;
 
   book.averageWinningContract =
     averageWinningContract;
@@ -164,13 +142,32 @@ function finalizeStrategy(book, contractPnLs) {
     averageLosingContract;
 
   book.winLossRatio =
-    winLossRatio;
+    averageWinningContract != null &&
+    averageLosingContract != null &&
+    averageLosingContract > 0
+      ? averageWinningContract /
+        averageLosingContract
+      : null;
 
   book.profitFactor =
-    profitFactor;
+    grossLoss > 0
+      ? grossProfit /
+        grossLoss
+      : grossProfit > 0
+        ? Infinity
+        : null;
 
   book.expectancyPerContract =
-    expectancyPerContract;
+    resolvedContracts
+      ? (
+          contractPnLs.reduce(
+            (sum, value) =>
+              sum + value,
+            0
+          ) /
+          resolvedContracts
+        )
+      : null;
 
   book.bestContract =
     contractPnLs.length
@@ -194,7 +191,16 @@ function finalizeStrategy(book, contractPnLs) {
     );
 
   book.exactContractRecords =
-    contractPnLs.length;
+    resolvedContracts;
+
+  book.averageDailyPnLPerClosedContract =
+    resolvedContracts > 0 &&
+    book.dailyAccountPnL != null
+      ? (
+          book.dailyAccountPnL /
+          resolvedContracts
+        )
+      : null;
 
   return book;
 }
@@ -219,6 +225,14 @@ export function calculateAnalytics(
     SWING: [],
   };
 
+  const seenIdsByStrategy = {
+    INTRADAY:
+      new Set(),
+
+    SWING:
+      new Set(),
+  };
+
   for (const trade of trades) {
     const account =
       getAccountLabel(
@@ -226,8 +240,10 @@ export function calculateAnalytics(
       );
 
     if (
-      account !== "INTRADAY" &&
-      account !== "SWING"
+      account !==
+        "INTRADAY" &&
+      account !==
+        "SWING"
     ) {
       continue;
     }
@@ -242,116 +258,127 @@ export function calculateAnalytics(
         trade
       );
 
-    if (dailyAccountPnL != null) {
+    if (
+      dailyAccountPnL !=
+      null
+    ) {
       book.dailyAccountPnL =
         dailyAccountPnL;
     }
 
-    if (
-      upper(
-        trade?.status
-      ) === "OPEN"
-    ) {
-      book.openContracts +=
-        safeNum(
-          trade?.qty
-            ?.remainingQty
-        ) || 0;
-    }
-
-    const events =
+    const contracts =
       Array.isArray(
-        trade?.events
+        trade
+          ?.realBroker
+          ?.contracts
       )
-        ? trade.events
+        ? trade
+            .realBroker
+            .contracts
         : [];
 
-    for (const event of events) {
-      const qtyClosed =
-        safeNum(
-          event?.qtyClosed
-        ) || 0;
+    if (!contracts.length) {
+      book.missingContractRegistryTrades +=
+        1;
 
-      if (qtyClosed <= 0) {
-        continue;
-      }
+      continue;
+    }
 
-      const closedContracts =
-        Array.isArray(
-          event?.closedContracts
-        )
-          ? event.closedContracts
-          : [];
+    for (
+      const contract
+      of contracts
+    ) {
+      const contractId =
+        String(
+          contract
+            ?.contractId ||
+          ""
+        ).trim();
 
-      if (!closedContracts.length) {
-        /*
-         * Legacy Journal event.
-         *
-         * We know an aggregate closing event occurred, but we do not have
-         * exact per-contract FIFO results. Do NOT manufacture individual
-         * contract wins/losses by dividing event P&L.
-         */
-        book.legacyClosingEventsExcluded +=
+      if (!contractId) {
+        book.invalidClosedContractRecordsExcluded +=
           1;
 
-        book.legacyClosedQuantityExcluded +=
-          qtyClosed;
+        continue;
+      }
 
-        const legacyPnl =
-          safeNum(
-            event
-              ?.grossEventRealizedPnL
-          ) ??
-          safeNum(
-            event
-              ?.eventRealizedPnL
-          );
-
-        if (legacyPnl != null) {
-          book.legacyRealizedPnLExcluded +=
-            legacyPnl;
-        }
+      if (
+        seenIdsByStrategy[
+          account
+        ].has(
+          contractId
+        )
+      ) {
+        book.duplicateContractIdsExcluded +=
+          1;
 
         continue;
       }
 
-      for (
-        const contract
-        of closedContracts
+      seenIdsByStrategy[
+        account
+      ].add(
+        contractId
+      );
+
+      book.totalContractIds +=
+        1;
+
+      const status =
+        String(
+          contract
+            ?.status ||
+          ""
+        )
+          .trim()
+          .toUpperCase();
+
+      if (
+        status ===
+        "OPEN"
       ) {
-        if (
-          safeNum(
-            contract?.quantity
-          ) !== 1
-        ) {
-          continue;
-        }
+        book.openContracts +=
+          1;
 
-        const pnl =
-          safeNum(
-            contract
-              ?.grossRealizedPnL
-          );
-
-        if (pnl == null) {
-          continue;
-        }
-
-        /*
-         * Merely evaluating the classification here makes the canonical
-         * intent explicit and prevents accidental event-level counting.
-         */
-        classifyContractPnl(
-          pnl
-        );
-
-        pnlByStrategy[
-          account
-        ].push(
-          pnl
-        );
+        continue;
       }
+
+      if (
+        status !==
+        "CLOSED"
+      ) {
+        book.invalidClosedContractRecordsExcluded +=
+          1;
+
+        continue;
+      }
+
+      const pnl =
+        safeNum(
+          contract
+            ?.grossRealizedPnL
+        );
+
+      if (
+        pnl == null
+      ) {
+        book.invalidClosedContractRecordsExcluded +=
+          1;
+
+        continue;
+      }
+
+      pnlByStrategy[
+        account
+      ].push(
+        pnl
+      );
     }
+
+    book.uniqueContractIds =
+      seenIdsByStrategy[
+        account
+      ].size;
   }
 
   finalizeStrategy(
@@ -363,25 +390,6 @@ export function calculateAnalytics(
     strategies.SWING,
     pnlByStrategy.SWING
   );
-
-  for (const account of [
-    "INTRADAY",
-    "SWING",
-  ]) {
-    const book =
-      strategies[
-        account
-      ];
-
-    book.averageDailyPnLPerClosedContract =
-      book.closedContracts > 0 &&
-      book.dailyAccountPnL != null
-        ? (
-            book.dailyAccountPnL /
-            book.closedContracts
-          )
-        : null;
-  }
 
   const allContractPnLs = [
     ...pnlByStrategy.INTRADAY,
@@ -396,29 +404,41 @@ export function calculateAnalytics(
       allContractPnLs
     );
 
+  all.totalContractIds =
+    strategies.INTRADAY
+      .totalContractIds +
+    strategies.SWING
+      .totalContractIds;
+
+  all.uniqueContractIds =
+    strategies.INTRADAY
+      .uniqueContractIds +
+    strategies.SWING
+      .uniqueContractIds;
+
   all.openContracts =
     strategies.INTRADAY
       .openContracts +
     strategies.SWING
       .openContracts;
 
-  all.legacyClosingEventsExcluded =
+  all.missingContractRegistryTrades =
     strategies.INTRADAY
-      .legacyClosingEventsExcluded +
+      .missingContractRegistryTrades +
     strategies.SWING
-      .legacyClosingEventsExcluded;
+      .missingContractRegistryTrades;
 
-  all.legacyClosedQuantityExcluded =
+  all.duplicateContractIdsExcluded =
     strategies.INTRADAY
-      .legacyClosedQuantityExcluded +
+      .duplicateContractIdsExcluded +
     strategies.SWING
-      .legacyClosedQuantityExcluded;
+      .duplicateContractIdsExcluded;
 
-  all.legacyRealizedPnLExcluded =
+  all.invalidClosedContractRecordsExcluded =
     strategies.INTRADAY
-      .legacyRealizedPnLExcluded +
+      .invalidClosedContractRecordsExcluded +
     strategies.SWING
-      .legacyRealizedPnLExcluded;
+      .invalidClosedContractRecordsExcluded;
 
   const intradayDaily =
     strategies.INTRADAY
@@ -448,13 +468,16 @@ export function calculateAnalytics(
 
   return {
     model:
-      "ENGINE10_CLOSED_CONTRACT_PERFORMANCE_V1",
+      "ENGINE10_CANONICAL_CONTRACT_ID_PERFORMANCE_V2",
 
     performanceUnit:
-      "CLOSED_CONTRACT",
+      "CLOSED_CONTRACT_ID",
+
+    canonicalSource:
+      "trade.realBroker.contracts[]",
 
     pnlBasis:
-      "EXACT_FIFO_GROSS_REALIZED_CONTRACT_PNL",
+      "ENGINE10_CONTRACT_ID_GROSS_REALIZED_PNL",
 
     strategies,
 
