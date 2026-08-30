@@ -276,23 +276,26 @@ function StrategyPerformance({
         />
 
         <Metric
-          label="AVG WINNING CONTRACT"
+          label="AVG DAILY P&L / CLOSED CONTRACT"
           value={
             book
-              ?.averageWinningContract !=
+              ?.averageDailyPnLPerClosedContract !=
             null
               ? fmtMoney(
                   book
-                    ?.averageWinningContract
+                    ?.averageDailyPnLPerClosedContract
                 )
               : "—"
           }
-          sub="Gross P&L"
+          sub="Daily Account P&L ÷ closed contracts"
           color={
             book
-              ?.averageWinningContract !=
+              ?.averageDailyPnLPerClosedContract !=
             null
-              ? COLORS.green
+              ? pnlColor(
+                  book
+                    ?.averageDailyPnLPerClosedContract
+                )
               : COLORS.text
           }
         />
@@ -541,7 +544,7 @@ export default function JournalPerformanceAnalytics({
           fontWeight: 800,
         }}
       >
-        Canonical unit: one closed contract. Open contracts are excluded until they close. Contract statistics use exact Engine 10 FIFO gross realized P&L; individual contract fees are not allocated or invented.
+        Canonical denominator: closed contracts only. Open contracts are excluded until they close. Profit Factor, win/loss classification, best/worst contract, and exact realized contract P&L use Engine 10 FIFO closed-contract records. AVG DAILY P&L / CLOSED CONTRACT uses the strategy Daily Account P&L divided only by that strategy's closed-contract count.
       </div>
     </section>
   );
