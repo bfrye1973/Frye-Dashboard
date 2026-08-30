@@ -2724,55 +2724,66 @@ function buildEngine3ContextSection(fib) {
         )}`
       : "—";
 
-    const observation1m =
-      paperScalp?.reactionObservation1m || null;
+const observation1m =
+  paperScalp?.reactionObservation1m || null;
 
-    const validation5m =
-      paperScalp?.reactionValidation5m || null;
+const validation5m =
+  paperScalp?.reactionValidation5m || null;
 
-    const broader10m =
-      confirmation10m ||
-      null;
+const broader10m =
+  paperScalp?.broaderReaction10m || null;
 
-    const oneMinuteRead = observation1m
-      ? `${formatUpper(
-          observation1m?.state,
-          "NO SIGNAL"
-        )} / ${formatUpper(
-          observation1m?.direction,
-          "NEUTRAL"
-        )} / ${formatUpper(
-          observation1m?.quality,
-          "WEAK"
-        )}`
-      : "—";
+const oneMinuteRead = observation1m
+  ? `${formatUpper(
+      observation1m?.currentPriceActionState ??
+        observation1m?.state,
+      "NO SIGNAL"
+    )} / ${formatUpper(
+      observation1m?.currentPriceActionDirection ??
+        observation1m?.direction,
+      "NEUTRAL"
+    )} / ${formatUpper(
+      observation1m?.currentPriceActionQuality ??
+        observation1m?.quality,
+      "WEAK"
+    )}`
+  : "—";
 
-    const fiveMinuteRead = validation5m
-      ? `${formatUpper(
-          validation5m?.completedZoneReactionState,
-          "NO SIGNAL"
-        )} / ${formatUpper(
-          validation5m?.completedZoneReactionDirection,
-          "NEUTRAL"
-        )} / ${formatUpper(
-          validation5m?.completedZoneReactionQuality,
-          "WEAK"
-        )}`
-      : "—";
+const fiveMinuteRead = validation5m
+  ? `${formatUpper(
+      validation5m?.currentPriceActionState ??
+        validation5m?.completedPriceActionState ??
+        validation5m?.state,
+      "NO SIGNAL"
+    )} / ${formatUpper(
+      validation5m?.currentPriceActionDirection ??
+        validation5m?.completedPriceActionDirection ??
+        validation5m?.direction,
+      "NEUTRAL"
+    )} / ${formatUpper(
+      validation5m?.currentPriceActionQuality ??
+        validation5m?.completedPriceActionQuality ??
+        validation5m?.quality,
+      "WEAK"
+    )}`
+  : "—";
 
-    const tenMinuteRead = broader10m
-      ? `${formatUpper(
-          broader10m?.completedZoneReactionState,
-          "NO SIGNAL"
-        )} / ${formatUpper(
-          broader10m?.completedZoneReactionDirection,
-          "NEUTRAL"
-        )} / ${formatUpper(
-          broader10m?.completedZoneReactionQuality,
-          "WEAK"
-        )}`
-      : "—";
-
+const tenMinuteRead = broader10m
+  ? `${formatUpper(
+      broader10m?.currentPriceActionState ??
+        broader10m?.state,
+      "NO SIGNAL"
+    )} / ${formatUpper(
+      broader10m?.currentPriceActionDirection ??
+        broader10m?.direction ??
+        broader10m?.candleDirection,
+      "NEUTRAL"
+    )} / ${formatUpper(
+      broader10m?.currentPriceActionQuality ??
+        broader10m?.quality,
+      "WEAK"
+    )}`
+  : "—";
     const currentLevelRead = oneMinuteRead;
 
     const meaning =
