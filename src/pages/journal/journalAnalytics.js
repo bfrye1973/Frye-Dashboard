@@ -19,6 +19,7 @@ import {
 
 import {
   getAccountLabel,
+  getDailyAccountPnL,
 } from "./journalTradeModel.js";
 
 function blankStrategy(account) {
@@ -43,6 +44,9 @@ function blankStrategy(account) {
     worstContract: null,
 
     grossRealizedContractPnL: 0,
+
+    dailyAccountPnL: null,
+    averageDailyPnLPerClosedContract: null,
 
     exactContractRecords: 0,
 
@@ -233,6 +237,16 @@ export function calculateAnalytics(
         account
       ];
 
+    const dailyAccountPnL =
+      getDailyAccountPnL(
+        trade
+      );
+
+    if (dailyAccountPnL != null) {
+      book.dailyAccountPnL =
+        dailyAccountPnL;
+    }
+
     if (
       upper(
         trade?.status
@@ -350,6 +364,25 @@ export function calculateAnalytics(
     pnlByStrategy.SWING
   );
 
+  for (const account of [
+    "INTRADAY",
+    "SWING",
+  ]) {
+    const book =
+      strategies[
+        account
+      ];
+
+    book.averageDailyPnLPerClosedContract =
+      book.closedContracts > 0 &&
+      book.dailyAccountPnL != null
+        ? (
+            book.dailyAccountPnL /
+            book.closedContracts
+          )
+        : null;
+  }
+
   const allContractPnLs = [
     ...pnlByStrategy.INTRADAY,
     ...pnlByStrategy.SWING,
@@ -386,6 +419,32 @@ export function calculateAnalytics(
       .legacyRealizedPnLExcluded +
     strategies.SWING
       .legacyRealizedPnLExcluded;
+
+  const intradayDaily =
+    strategies.INTRADAY
+      .dailyAccountPnL;
+
+  const swingDaily =
+    strategies.SWING
+      .dailyAccountPnL;
+
+  if (
+    intradayDaily != null ||
+    swingDaily != null
+  ) {
+    all.dailyAccountPnL =
+      (intradayDaily || 0) +
+      (swingDaily || 0);
+  }
+
+  all.averageDailyPnLPerClosedContract =
+    all.closedContracts > 0 &&
+    all.dailyAccountPnL != null
+      ? (
+          all.dailyAccountPnL /
+          all.closedContracts
+        )
+      : null;
 
   return {
     model:
