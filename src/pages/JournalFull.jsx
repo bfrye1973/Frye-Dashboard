@@ -11,6 +11,8 @@
 //
 
 import React, { useEffect, useMemo, useState } from "react";
+import JournalPerformanceAnalytics
+  from "./journal/components/JournalPerformanceAnalytics.jsx";
 
 import {
   API_BASE,
@@ -1842,171 +1844,10 @@ export default function JournalFull() {
           </section>
         ) : null}
 
-        {/* =================================================
-            PERFORMANCE ANALYTICS
-        ================================================= */}
-
-        <section
-          style={{
-            margin: 12,
-            border:
-              `1px solid ${COLORS.line}`,
-            borderRadius: 8,
-            padding: 10,
-            background:
-              COLORS.panel,
-          }}
-        >
-          <div
-            style={{
-              fontSize: 17,
-              color:
-                modeFilter ===
-                "PAPER"
-                  ? COLORS.blue
-                  : COLORS.green,
-              fontWeight: 1000,
-              marginBottom: 10,
-            }}
-          >
-            PERFORMANCE ANALYTICS — {modeFilter} TRADING
-          </div>
-
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns:
-                "repeat(11, 1fr)",
-              gap: 7,
-            }}
-          >
-            <AnalyticsMetric
-              label="WIN RATE"
-              value={fmtPct(
-                analytics.winRate
-              )}
-            />
-
-            <AnalyticsMetric
-              label="PROFIT FACTOR"
-              value={
-                analytics.profitFactor ===
-                Infinity
-                  ? "∞"
-                  : fmtNum(
-                      analytics
-                        .profitFactor
-                    )
-              }
-            />
-
-            <AnalyticsMetric
-              label="AVG WIN"
-              value={fmtMoney(
-                analytics.averageWin
-              )}
-              sub="Per Campaign"
-            />
-
-            <AnalyticsMetric
-              label="AVG LOSS"
-              value={
-                analytics.averageLoss ==
-                null
-                  ? "—"
-                  : fmtNegativeMoney(
-                      analytics
-                        .averageLoss
-                    )
-              }
-              sub="Per Campaign"
-            />
-
-            <AnalyticsMetric
-              label="WIN/LOSS RATIO"
-              value={fmtNum(
-                analytics
-                  .winLossRatio
-              )}
-            />
-
-            <AnalyticsMetric
-              label="EXPECTANCY"
-              value={fmtMoney(
-                analytics.expectancy
-              )}
-              sub="Per Campaign"
-            />
-
-            <AnalyticsMetric
-              label="MAX DRAWDOWN"
-              value={
-                analytics.closedCount
-                  ? fmtNegativeMoney(
-                      analytics
-                        .maxDrawdown
-                    )
-                  : "—"
-              }
-            />
-
-            <AnalyticsMetric
-              label="WINNING CAMPAIGN %"
-              value={fmtPct(
-                analytics
-                  .winningCampaignPct
-              )}
-            />
-
-            <AnalyticsMetric
-              label="WINNING EXIT %"
-              value={fmtPct(
-                analytics
-                  .winningExitPct
-              )}
-              sub={
-                analytics.totalExits
-                  ? `${analytics.profitableExits} of ${analytics.totalExits}`
-                  : "Exits"
-              }
-            />
-
-            <AnalyticsMetric
-              label="WINNING STREAK"
-              value={
-                analytics.closedCount
-                  ? String(
-                      analytics
-                        .currentWinStreak
-                    )
-                  : "—"
-              }
-            />
-
-            <AnalyticsMetric
-              label="LOSING STREAK"
-              value={
-                analytics.closedCount
-                  ? String(
-                      analytics
-                        .currentLossStreak
-                    )
-                  : "—"
-              }
-            />
-          </div>
-
-          <div
-            style={{
-              fontSize: 10,
-              color:
-                COLORS.muted,
-              marginTop: 8,
-            }}
-          >
-            Campaign metrics require CLOSED campaigns. Open trades do not count as wins or losses.
-          </div>
-        </section>
+        <JournalPerformanceAnalytics
+          analytics={analytics}
+          modeFilter={modeFilter}
+        />
 
         {/* =================================================
             RECENT EXECUTIONS
