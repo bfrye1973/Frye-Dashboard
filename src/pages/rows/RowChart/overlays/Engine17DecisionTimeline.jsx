@@ -2857,13 +2857,13 @@ function buildEngine3ContextSection(fib) {
       "—";
 
     const canonicalRead = `${formatUpper(
-      canonicalState,
+      displayState,
       "WAITING"
     )} / ${formatUpper(
-      canonicalDirection,
+      displayDirection,
       "NEUTRAL"
     )} / ${formatUpper(
-      canonicalQuality,
+      displayQuality,
       "UNAVAILABLE"
     )}`;
 
