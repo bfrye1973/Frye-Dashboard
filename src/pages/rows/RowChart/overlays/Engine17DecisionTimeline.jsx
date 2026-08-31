@@ -3046,10 +3046,19 @@ facts: [
         allowed,
 
         canonicalState:
-          formatUpper(canonicalState),
+          formatUpper(displayState),
 
         canonicalDirection:
+          formatUpper(displayDirection),
+
+        internalCanonicalState:
+          formatUpper(canonicalState),
+
+        internalCanonicalDirection:
           formatUpper(canonicalDirection),
+
+        displayAuthority:
+          formatUpper(bigCardDisplay.source),
 
         contactState: contactState
           ? formatUpper(contactState)
