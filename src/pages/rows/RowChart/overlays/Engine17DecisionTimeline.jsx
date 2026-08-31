@@ -2955,9 +2955,9 @@ const tenMinuteRead = broader10m
       icon: "③",
       title: "Engine 3 — Price Reaction",
 
-      severity: getSelectedDiagnosticSeverity({
-        diagnostic,
+      severity: getEngine3BigCardSeverity({
         paperScalp,
+        displayRead: bigCardDisplay,
       }),
 
       engine3PriceReactionCard: true,
@@ -2976,9 +2976,53 @@ const tenMinuteRead = broader10m
 
         diagnosticSource: selected.source,
 
-        facts: [
-          ["Direction", formatUpper(canonicalDirection, "NEUTRAL")],
-          ["Quality", formatUpper(canonicalQuality, "UNAVAILABLE")],
+facts: [
+  [
+    "Direction",
+    formatUpper(
+      displayDirection,
+      "NEUTRAL"
+    ),
+  ],
+
+  [
+    "Quality",
+    formatUpper(
+      displayQuality,
+      "UNAVAILABLE"
+    ),
+  ],
+
+  [
+    "Reaction state",
+    formatUpper(
+      displayState,
+      "WAITING"
+    ),
+  ],
+
+  ["1m immediate action", oneMinuteRead],
+  ["5m mature action", fiveMinuteRead],
+  ["10m broader action", tenMinuteRead],
+
+  [
+    "Internal reaction",
+    `${formatUpper(
+      canonicalDirection,
+      "NEUTRAL"
+    )} / ${formatUpper(
+      canonicalQuality,
+      "UNAVAILABLE"
+    )}`,
+  ],
+
+  [
+    "Card authority",
+    formatUpper(
+      bigCardDisplay.source,
+      "FIVE MINUTE CURRENT PRICE ACTION"
+    ),
+  ],
           ["Reaction state", formatUpper(canonicalState, "WAITING")],
           ["1m immediate action", oneMinuteRead],
           ["5m mature action", fiveMinuteRead],
