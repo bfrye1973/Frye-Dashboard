@@ -1,5 +1,9 @@
 // src/pages/engine25/Engine25CreditStressDetail.jsx
 // Engine 25 Credit / Rates / Liquidity full research page.
+// Responsive macro-credit detail:
+// - Macro Credit Health = 50% systemic level + 50% four-week trend.
+// - Shows current / 4W ago / delta / direction for NFCI, STLFSI4, and HY OAS.
+// - Credit ETF Fragility remains the separate fast market-warning layer.
 
 import React, { useEffect, useState } from "react";
 
@@ -25,6 +29,12 @@ function fmtPct(value, decimals = 2) {
   const n = Number(value);
   if (!Number.isFinite(n)) return "—";
   return `${n >= 0 ? "+" : ""}${n.toFixed(decimals)}%`;
+}
+
+function fmtSigned(value, decimals = 4) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return "—";
+  return `${n >= 0 ? "+" : ""}${n.toFixed(decimals)}`;
 }
 
 function cleanLabel(value) {
@@ -58,6 +68,35 @@ function macroCreditHealthLabel(healthScore) {
   return "HIGH STRESS";
 }
 
+function macroCreditTrendDirection(change) {
+  const n = Number(change);
+
+  if (!Number.isFinite(n)) {
+    return { label: "UNAVAILABLE", color: "#94a3b8" };
+  }
+
+  // NFCI, STLFSI4, and HY OAS are all lower-is-healthier.
+  if (n < 0) {
+    return { label: "IMPROVING", color: "#22c55e" };
+  }
+
+  if (n > 0) {
+    return { label: "WORSENING", color: "#ef4444" };
+  }
+
+  return { label: "UNCHANGED", color: "#fbbf24" };
+}
+
+function pickCreditStressComponent(data) {
+  return (
+    data?.engine25Context?.marketHealth?.components?.creditStress ||
+    data?.marketHealth?.components?.creditStress ||
+    data?.liveMarketHealth?.components?.creditStress ||
+    data?.creditStressDetail?.creditStressComponent ||
+    null
+  );
+}
+
 function colorForState(state) {
   const text = String(state || "").toUpperCase();
 
@@ -67,7 +106,8 @@ function colorForState(state) {
     text.includes("CALM") ||
     text.includes("LOW") ||
     text.includes("NORMAL") ||
-    text.includes("HOLDING")
+    text.includes("HOLDING") ||
+    text.includes("IMPROVING")
   ) {
     return "#22c55e";
   }
@@ -76,7 +116,8 @@ function colorForState(state) {
     text.includes("WATCH") ||
     text.includes("MIXED") ||
     text.includes("MANAGEABLE") ||
-    text.includes("CONTEXT")
+    text.includes("CONTEXT") ||
+    text.includes("STABLE")
   ) {
     return "#fbbf24";
   }
@@ -94,7 +135,8 @@ function colorForState(state) {
   if (
     text.includes("STRESS") ||
     text.includes("RISK_OFF") ||
-    text.includes("DETERIORATING")
+    text.includes("DETERIORATING") ||
+    text.includes("WORSENING")
   ) {
     return "#ef4444";
   }
@@ -138,9 +180,11 @@ function KV({ label, value, color = "#e2e8f0" }) {
   );
 }
 
-function MetricCard({ item, marketProxy = false }) {
+function MetricCard({ item, marketProxy = false, macroTrend = null }) {
   const value = item?.close ?? item?.value;
   const stateColor = colorForState(item?.state);
+  const trendDirection = macroCreditTrendDirection(macroTrend?.change);
+  const macroDecimals = item?.key === "STLFSI4" ? 4 : 3;
 
   return (
     <Card style={{ padding: 12, display: "grid", gap: 8 }}>
@@ -163,6 +207,7 @@ function MetricCard({ item, marketProxy = false }) {
           >
             {item?.key || "—"}
           </div>
+
           <div
             style={{
               marginTop: 2,
@@ -178,14 +223,14 @@ function MetricCard({ item, marketProxy = false }) {
 
         <div
           style={{
-            color: stateColor,
+            color: macroTrend ? trendDirection.color : stateColor,
             fontSize: 12,
             fontWeight: 900,
             textTransform: "uppercase",
             textAlign: "right",
           }}
         >
-          {cleanLabel(item?.state)}
+          {macroTrend ? trendDirection.label : cleanLabel(item?.state)}
         </div>
       </div>
 
@@ -198,10 +243,44 @@ function MetricCard({ item, marketProxy = false }) {
           paddingTop: 8,
         }}
       >
-        <KV label="Value" value={fmt(value, 3)} color="#f8fafc" />
+        <KV label="Current" value={fmt(value, macroTrend ? macroDecimals : 3)} color="#f8fafc" />
 
-        {item?.observationDate && (
+        {item?.observationDate && !macroTrend && (
           <KV label="Date" value={item.observationDate} />
+        )}
+
+        {macroTrend && (
+          <>
+            <KV
+              label="4W Ago"
+              value={fmt(macroTrend?.prior, macroDecimals)}
+              color="#dbeafe"
+            />
+
+            <KV
+              label="Δ 4W"
+              value={fmtSigned(macroTrend?.change, macroDecimals)}
+              color={trendDirection.color}
+            />
+
+            <KV
+              label="Trend"
+              value={trendDirection.label}
+              color={trendDirection.color}
+            />
+
+            <KV
+              label="Current Date"
+              value={macroTrend?.latestDate || item?.observationDate || "—"}
+              color="#94a3b8"
+            />
+
+            <KV
+              label="Prior Date"
+              value={macroTrend?.priorDate || "—"}
+              color="#94a3b8"
+            />
+          </>
         )}
 
         {marketProxy && (
@@ -223,6 +302,7 @@ function MetricCard({ item, marketProxy = false }) {
                     : "#94a3b8"
               }
             />
+
             <KV
               label="Above EMA20"
               value={
@@ -240,6 +320,7 @@ function MetricCard({ item, marketProxy = false }) {
                     : "#94a3b8"
               }
             />
+
             <KV
               label="Above EMA50"
               value={
@@ -257,6 +338,7 @@ function MetricCard({ item, marketProxy = false }) {
                     : "#94a3b8"
               }
             />
+
             <KV
               label="Above EMA200"
               value={
@@ -274,6 +356,7 @@ function MetricCard({ item, marketProxy = false }) {
                     : "#94a3b8"
               }
             />
+
             <KV
               label="5D"
               value={fmtPct(item?.pctChange5d)}
@@ -281,6 +364,7 @@ function MetricCard({ item, marketProxy = false }) {
                 Number(item?.pctChange5d) >= 0 ? "#22c55e" : "#ef4444"
               }
             />
+
             <KV
               label="20D"
               value={fmtPct(item?.pctChange20d)}
@@ -288,6 +372,7 @@ function MetricCard({ item, marketProxy = false }) {
                 Number(item?.pctChange20d) >= 0 ? "#22c55e" : "#ef4444"
               }
             />
+
             <KV
               label="50D"
               value={fmtPct(item?.pctChange50d)}
@@ -309,13 +394,21 @@ function MetricCard({ item, marketProxy = false }) {
           lineHeight: 1.35,
         }}
       >
-        {item?.read || "Latest interpretation unavailable."}
+        {macroTrend
+          ? `${item?.key || "Macro series"} is ${trendDirection.label.toLowerCase()} over the last four weeks. Lower readings are healthier for this series.`
+          : item?.read || "Latest interpretation unavailable."}
       </div>
     </Card>
   );
 }
 
-function GroupColumn({ title, score, items, marketProxyKeys = [] }) {
+function GroupColumn({
+  title,
+  score,
+  items,
+  marketProxyKeys = [],
+  macroTrendByKey = {},
+}) {
   return (
     <div style={{ display: "grid", gap: 10, alignContent: "start" }}>
       <div
@@ -356,6 +449,7 @@ function GroupColumn({ title, score, items, marketProxyKeys = [] }) {
           key={item.key}
           item={item}
           marketProxy={marketProxyKeys.includes(item.key)}
+          macroTrend={macroTrendByKey?.[item.key] || null}
         />
       ))}
     </div>
@@ -409,11 +503,37 @@ export default function Engine25CreditStressDetail() {
   const groups = detail?.groups || {};
   const scores = detail?.scores || {};
 
+  // The full-dashboard already returns engine25Context. Its embedded
+  // marketHealth object carries the new responsive credit component.
+  const creditStressComponent = pickCreditStressComponent(data);
+
+  const systemicLevelScore =
+    creditStressComponent?.systemicLevelScore ?? null;
+
+  const macroTrendScore =
+    creditStressComponent?.trendScore ?? null;
+
+  const macroTrendLabel =
+    creditStressComponent?.trendLabel ??
+    "MACRO_CREDIT_TREND_UNAVAILABLE";
+
+  const macroFourWeekChanges =
+    creditStressComponent?.inputs?.fourWeekChange || {};
+
   const macroCreditStressLevelValue =
     macroCreditStressLevel(scores.creditStress);
 
   const macroCreditHealthState =
     macroCreditHealthLabel(scores.creditStress);
+
+  const fastCreditScore = Number(scores.creditFragility);
+  const macroCreditScore = Number(scores.creditStress);
+
+  const fastMacroDivergence =
+    Number.isFinite(fastCreditScore) &&
+    Number.isFinite(macroCreditScore)
+      ? Math.round(macroCreditScore - fastCreditScore)
+      : null;
 
   return (
     <div
@@ -455,6 +575,7 @@ export default function Engine25CreditStressDetail() {
             >
               ENGINE 25 — CREDIT / RATES / LIQUIDITY DETAIL
             </div>
+
             <div
               style={{
                 marginTop: 4,
@@ -485,7 +606,9 @@ export default function Engine25CreditStressDetail() {
         </div>
 
         {status === "LOADING" && !data && (
-          <div style={{ color: "#94a3b8" }}>Loading credit detail…</div>
+          <div style={{ color: "#94a3b8" }}>
+            Loading credit detail…
+          </div>
         )}
 
         {status === "ERROR" && (
@@ -507,7 +630,8 @@ export default function Engine25CreditStressDetail() {
               <div
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "minmax(420px, 1.5fr) repeat(4, minmax(160px, 0.5fr))",
+                  gridTemplateColumns:
+                    "minmax(420px, 1.5fr) repeat(4, minmax(160px, 0.5fr))",
                   gap: 12,
                   alignItems: "stretch",
                 }}
@@ -541,6 +665,24 @@ export default function Engine25CreditStressDetail() {
                   >
                     {detail.interpretation}
                   </div>
+
+                  {fastMacroDivergence !== null && (
+                    <div
+                      style={{
+                        marginTop: 10,
+                        borderTop: "1px solid rgba(249,115,22,0.2)",
+                        paddingTop: 8,
+                        color: "#f8fafc",
+                        fontSize: 12,
+                        lineHeight: 1.35,
+                      }}
+                    >
+                      Fast Credit vs Macro Credit gap:{" "}
+                      <strong>{fastMacroDivergence} points</strong>. Fast traded
+                      credit is the early-warning layer; macro credit is the
+                      slower systemic/trend confirmation layer.
+                    </div>
+                  )}
                 </div>
 
                 {[
@@ -591,12 +733,12 @@ export default function Engine25CreditStressDetail() {
                           style={{
                             marginTop: 7,
                             display: "grid",
-                            gap: 3,
+                            gap: 5,
                           }}
                         >
                           <div
                             style={{
-                              color: "#22c55e",
+                              color: colorForScore(score),
                               fontSize: 12,
                               lineHeight: 1.2,
                               fontWeight: 900,
@@ -608,24 +750,108 @@ export default function Engine25CreditStressDetail() {
 
                           <div
                             style={{
-                              color: "#dbeafe",
-                              fontSize: 13,
-                              lineHeight: 1.2,
-                              fontWeight: 850,
+                              display: "grid",
+                              gridTemplateColumns: "1fr 1fr",
+                              gap: 6,
+                              marginTop: 2,
                             }}
                           >
-                            Stress Level:{" "}
-                            {macroCreditStressLevelValue ?? "—"}
+                            <div
+                              style={{
+                                border:
+                                  "1px solid rgba(148,163,184,0.18)",
+                                borderRadius: 7,
+                                padding: "6px 4px",
+                                background: "rgba(15,23,42,0.42)",
+                              }}
+                            >
+                              <div
+                                style={{
+                                  color: "#94a3b8",
+                                  fontSize: 9,
+                                  fontWeight: 850,
+                                  textTransform: "uppercase",
+                                }}
+                              >
+                                Systemic Level
+                              </div>
+
+                              <div
+                                style={{
+                                  marginTop: 2,
+                                  color: colorForScore(systemicLevelScore),
+                                  fontSize: 18,
+                                  fontWeight: 900,
+                                }}
+                              >
+                                {fmt(systemicLevelScore, 0)}
+                              </div>
+                            </div>
+
+                            <div
+                              style={{
+                                border:
+                                  "1px solid rgba(148,163,184,0.18)",
+                                borderRadius: 7,
+                                padding: "6px 4px",
+                                background: "rgba(15,23,42,0.42)",
+                              }}
+                            >
+                              <div
+                                style={{
+                                  color: "#94a3b8",
+                                  fontSize: 9,
+                                  fontWeight: 850,
+                                  textTransform: "uppercase",
+                                }}
+                              >
+                                4W Trend
+                              </div>
+
+                              <div
+                                style={{
+                                  marginTop: 2,
+                                  color: colorForScore(macroTrendScore),
+                                  fontSize: 18,
+                                  fontWeight: 900,
+                                }}
+                              >
+                                {fmt(macroTrendScore, 0)}
+                              </div>
+                            </div>
+                          </div>
+
+                          <div
+                            style={{
+                              color: colorForState(macroTrendLabel),
+                              fontSize: 10,
+                              lineHeight: 1.2,
+                              fontWeight: 850,
+                              textTransform: "uppercase",
+                            }}
+                          >
+                            {cleanLabel(macroTrendLabel)}
                           </div>
 
                           <div
                             style={{
                               color: "#94a3b8",
-                              fontSize: 10,
+                              fontSize: 9,
                               lineHeight: 1.2,
                             }}
                           >
-                            0 stress = healthiest · 100 stress = highest
+                            50% systemic level + 50% four-week trend
+                          </div>
+
+                          <div
+                            style={{
+                              color: "#64748b",
+                              fontSize: 9,
+                              lineHeight: 1.2,
+                            }}
+                          >
+                            Stress equivalent:{" "}
+                            {macroCreditStressLevelValue ?? "—"}
                           </div>
                         </div>
                       )}
@@ -654,6 +880,7 @@ export default function Engine25CreditStressDetail() {
                 title="Macro Credit Health"
                 score={groups?.macroCreditStress?.score}
                 items={groups?.macroCreditStress?.items}
+                macroTrendByKey={macroFourWeekChanges}
               />
 
               <GroupColumn
@@ -690,10 +917,13 @@ export default function Engine25CreditStressDetail() {
                   lineHeight: 1.45,
                 }}
               >
-                Credit ETFs are weak, regional banks remain strong, macro credit
-                stress is calm, Treasury bonds are under pressure, the yield curve
-                is not inverted, liquidity is mixed, and systemic stress is not
-                confirmed.
+                Fast traded-credit conditions and slow macro credit conditions
+                are intentionally shown separately. HYG, JNK, LQD, KRE, and
+                IWM are the fast warning layer. NFCI, STLFSI4, and high-yield
+                OAS show the slower systemic level plus four-week direction of
+                travel. A weak Credit Fragility score can therefore coexist
+                with a healthy Macro Credit score until the macro APIs begin
+                confirming the deterioration.
               </div>
             </Card>
           </>
