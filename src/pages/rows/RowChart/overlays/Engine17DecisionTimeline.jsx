@@ -2205,140 +2205,6 @@ function getSelectedDiagnosticSeverity({ diagnostic, paperScalp }) {
   return "blue";
 }
 
-function getEngine3FiveMinuteDisplayRead(paperScalp) {
-  const fiveMinute =
-    paperScalp?.reactionValidation5m ||
-    null;
-
-  const state = String(
-    fiveMinute?.currentPriceActionState ??
-      fiveMinute?.completedPriceActionState ??
-      fiveMinute?.state ??
-      "NO_CLEAR_DIRECTION"
-  ).toUpperCase();
-
-  const direction = String(
-    fiveMinute?.currentPriceActionDirection ??
-      fiveMinute?.completedPriceActionDirection ??
-      fiveMinute?.direction ??
-      "NEUTRAL"
-  ).toUpperCase();
-
-  const quality = String(
-    fiveMinute?.currentPriceActionQuality ??
-      fiveMinute?.completedPriceActionQuality ??
-      fiveMinute?.quality ??
-      "WEAK"
-  ).toUpperCase();
-
-  return {
-    state,
-    direction:
-      direction === "LONG" ||
-      direction === "SHORT"
-        ? direction
-        : "NEUTRAL",
-    quality,
-  };
-}
-
-function getEngine3BigCardDisplayRead(paperScalp) {
-  const fiveMinute =
-    getEngine3FiveMinuteDisplayRead(
-      paperScalp
-    );
-
-  const persistedDirection = String(
-    paperScalp?.establishedTripDirection ||
-      "NEUTRAL"
-  ).toUpperCase();
-
-  const persistenceActive =
-    paperScalp?.directionPersistenceActive ===
-      true &&
-    (
-      persistedDirection === "LONG" ||
-      persistedDirection === "SHORT"
-    );
-
-  /*
-   * DISPLAY AUTHORITY ONLY.
-   *
-   * 1m may change internal Engine 3 reaction evidence,
-   * but it has ZERO authority over the big card color.
-   *
-   * Outside the zone, an established persisted trip
-   * owns the display.
-   *
-   * Otherwise 5m current price action owns the
-   * visible big-card direction.
-   */
-  if (persistenceActive) {
-    const broader10m =
-      paperScalp?.broaderReaction10m ||
-      null;
-
-    return {
-      source:
-        "ESTABLISHED_TRIP_PERSISTENCE",
-
-      state: String(
-        broader10m?.currentPriceActionState ??
-          broader10m?.state ??
-          "DIRECTION_PERSISTING"
-      ).toUpperCase(),
-
-      direction:
-        persistedDirection,
-
-      quality: String(
-        broader10m?.currentPriceActionQuality ??
-          broader10m?.quality ??
-          "PERSISTING"
-      ).toUpperCase(),
-    };
-  }
-
-  return {
-    source:
-      "FIVE_MINUTE_CURRENT_PRICE_ACTION",
-
-    ...fiveMinute,
-  };
-}
-
-function getEngine3BigCardSeverity({
-  paperScalp,
-  displayRead,
-}) {
-  const canonicalState = String(
-    paperScalp?.reactionState ||
-      paperScalp?.state ||
-      ""
-  ).toUpperCase();
-
-  if (
-    canonicalState.includes("INVALID")
-  ) {
-    return "danger";
-  }
-
-  const direction = String(
-    displayRead?.direction ||
-      "NEUTRAL"
-  ).toUpperCase();
-
-  if (direction === "SHORT") {
-    return "danger";
-  }
-
-  if (direction === "LONG") {
-    return "bullish";
-  }
-
-  return "blue";
-}
-
 function getEngine22LifecycleReaction(fib) {
   const reactionContext = getReactionContext(fib);
 
@@ -2709,37 +2575,15 @@ function buildEngine3ContextSection(fib) {
         "WAITING"
     ).toUpperCase();
 
-     const canonicalQuality = String(
-       paperScalp?.quality || "UNAVAILABLE"
-     ).toUpperCase();
+    const canonicalQuality = String(
+      paperScalp?.quality || "UNAVAILABLE"
+    ).toUpperCase();
 
-     /*
-      * IMPORTANT:
-      * Internal canonical Engine 3 reaction and visible card authority
-      * are intentionally separate.
-      *
-      * paperScalp.direction may be established from completed 1m.
-      * The big card must never flip from that 1m change by itself.
-      */
-     const bigCardDisplay =
-       getEngine3BigCardDisplayRead(
-       paperScalp
-     );
+    const qualifiedForEngine6 =
+      paperScalp?.engine3Strategy1QualifiedForEngine6 === true;
 
-     const displayDirection =
-       bigCardDisplay.direction;
-
-     const displayState =
-       bigCardDisplay.state;
-
-     const displayQuality =
-       bigCardDisplay.quality;
-
-     const qualifiedForEngine6 =
-       paperScalp?.engine3Strategy1QualifiedForEngine6 === true;
-
-     const authorized =
-       paperScalp?.authorized === true;
+    const authorized =
+      paperScalp?.authorized === true;
 
     const canonicalExpectedDirection = String(
       paperScalp?.expectedReactionDirection || "NEUTRAL"
@@ -2857,13 +2701,13 @@ function buildEngine3ContextSection(fib) {
       "—";
 
     const canonicalRead = `${formatUpper(
-      displayState,
+      canonicalState,
       "WAITING"
     )} / ${formatUpper(
-      displayDirection,
+      canonicalDirection,
       "NEUTRAL"
     )} / ${formatUpper(
-      displayQuality,
+      canonicalQuality,
       "UNAVAILABLE"
     )}`;
 
@@ -2955,9 +2799,9 @@ const tenMinuteRead = broader10m
       icon: "③",
       title: "Engine 3 — Price Reaction",
 
-      severity: getEngine3BigCardSeverity({
+      severity: getSelectedDiagnosticSeverity({
+        diagnostic,
         paperScalp,
-        displayRead: bigCardDisplay,
       }),
 
       engine3PriceReactionCard: true,
@@ -2976,53 +2820,9 @@ const tenMinuteRead = broader10m
 
         diagnosticSource: selected.source,
 
-facts: [
-  [
-    "Direction",
-    formatUpper(
-      displayDirection,
-      "NEUTRAL"
-    ),
-  ],
-
-  [
-    "Quality",
-    formatUpper(
-      displayQuality,
-      "UNAVAILABLE"
-    ),
-  ],
-
-  [
-    "Reaction state",
-    formatUpper(
-      displayState,
-      "WAITING"
-    ),
-  ],
-
-  ["1m immediate action", oneMinuteRead],
-  ["5m mature action", fiveMinuteRead],
-  ["10m broader action", tenMinuteRead],
-
-  [
-    "Internal reaction",
-    `${formatUpper(
-      canonicalDirection,
-      "NEUTRAL"
-    )} / ${formatUpper(
-      canonicalQuality,
-      "UNAVAILABLE"
-    )}`,
-  ],
-
-  [
-    "Card authority",
-    formatUpper(
-      bigCardDisplay.source,
-      "FIVE MINUTE CURRENT PRICE ACTION"
-    ),
-  ],
+        facts: [
+          ["Direction", formatUpper(canonicalDirection, "NEUTRAL")],
+          ["Quality", formatUpper(canonicalQuality, "UNAVAILABLE")],
           ["Reaction state", formatUpper(canonicalState, "WAITING")],
           ["1m immediate action", oneMinuteRead],
           ["5m mature action", fiveMinuteRead],
@@ -3046,19 +2846,10 @@ facts: [
         allowed,
 
         canonicalState:
-          formatUpper(displayState),
-
-        canonicalDirection:
-          formatUpper(displayDirection),
-
-        internalCanonicalState:
           formatUpper(canonicalState),
 
-        internalCanonicalDirection:
+        canonicalDirection:
           formatUpper(canonicalDirection),
-
-        displayAuthority:
-          formatUpper(bigCardDisplay.source),
 
         contactState: contactState
           ? formatUpper(contactState)
