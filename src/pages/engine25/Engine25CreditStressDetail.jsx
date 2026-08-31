@@ -1,7 +1,7 @@
 // src/pages/engine25/Engine25CreditStressDetail.jsx
 // Engine 25 Credit / Rates / Liquidity full research page.
 // Responsive macro-credit detail:
-// - Macro Credit Health = 50% systemic level + 50% four-week trend.
+// - Macro Credit Health = Formula: 50% current systemic health + 50% four-week direction.
 // - Shows current / 4W ago / delta / direction for NFCI, STLFSI4, and HY OAS.
 // - Credit ETF Fragility remains the separate fast market-warning layer.
 
@@ -152,7 +152,7 @@ function Card({ children, style = {} }) {
         borderRadius: 14,
         background: "rgba(15,23,42,0.78)",
         boxShadow: "0 8px 24px rgba(0,0,0,0.24)",
-        padding: 14,
+        padding: 16,
         minWidth: 0,
         ...style,
       }}
@@ -170,8 +170,8 @@ function KV({ label, value, color = "#e2e8f0" }) {
         justifyContent: "space-between",
         gap: 12,
         fontFamily: FONT,
-        fontSize: 14,
-        lineHeight: 1.3,
+        fontSize: 17,
+        lineHeight: 1.35,
       }}
     >
       <span style={{ color: "#94a3b8" }}>{label}</span>
@@ -187,7 +187,7 @@ function MetricCard({ item, marketProxy = false, macroTrend = null }) {
   const macroDecimals = item?.key === "STLFSI4" ? 4 : 3;
 
   return (
-    <Card style={{ padding: 12, display: "grid", gap: 8 }}>
+    <Card style={{ padding: 15, display: "grid", gap: 10 }}>
       <div
         style={{
           display: "flex",
@@ -200,7 +200,7 @@ function MetricCard({ item, marketProxy = false, macroTrend = null }) {
           <div
             style={{
               fontFamily: FONT,
-              fontSize: 17,
+              fontSize: 22,
               fontWeight: 900,
               color: "#f8fafc",
             }}
@@ -212,8 +212,8 @@ function MetricCard({ item, marketProxy = false, macroTrend = null }) {
             style={{
               marginTop: 2,
               fontFamily: FONT,
-              fontSize: 12,
-              lineHeight: 1.25,
+              fontSize: 15,
+              lineHeight: 1.35,
               color: "#94a3b8",
             }}
           >
@@ -224,7 +224,7 @@ function MetricCard({ item, marketProxy = false, macroTrend = null }) {
         <div
           style={{
             color: macroTrend ? trendDirection.color : stateColor,
-            fontSize: 12,
+            fontSize: 15,
             fontWeight: 900,
             textTransform: "uppercase",
             textAlign: "right",
@@ -390,12 +390,12 @@ function MetricCard({ item, marketProxy = false, macroTrend = null }) {
           paddingTop: 8,
           color: "#cbd5e1",
           fontFamily: FONT,
-          fontSize: 13,
-          lineHeight: 1.35,
+          fontSize: 16,
+          lineHeight: 1.45,
         }}
       >
         {macroTrend
-          ? `${item?.key || "Macro series"} is ${trendDirection.label.toLowerCase()} over the last four weeks. Lower readings are healthier for this series.`
+          ? `${item?.key || "Macro series"} is ${trendDirection.label.toLowerCase()} over the last four weeks. For this indicator, lower readings mean less financial stress.`
           : item?.read || "Latest interpretation unavailable."}
       </div>
     </Card>
@@ -424,7 +424,7 @@ function GroupColumn({
         <div
           style={{
             fontFamily: FONT,
-            fontSize: 16,
+            fontSize: 20,
             fontWeight: 900,
             color: "#93c5fd",
             textTransform: "uppercase",
@@ -435,7 +435,7 @@ function GroupColumn({
 
         <div
           style={{
-            fontSize: 22,
+            fontSize: 28,
             fontWeight: 900,
             color: colorForScore(score),
           }}
@@ -541,17 +541,19 @@ export default function Engine25CreditStressDetail() {
         minHeight: "100vh",
         background: "#020617",
         color: "#e5e7eb",
-        padding: "20px 26px 34px",
+        padding: "18px 22px 28px",
         fontFamily: FONT,
+        boxSizing: "border-box",
+        overflowX: "hidden",
       }}
     >
       <div
         style={{
-          maxWidth: 2200,
-          width: "96vw",
-          margin: "0 auto",
+          width: "100%",
+          maxWidth: "none",
+          margin: 0,
           display: "grid",
-          gap: 14,
+          gap: 16,
         }}
       >
         <div
@@ -567,8 +569,8 @@ export default function Engine25CreditStressDetail() {
           <div>
             <div
               style={{
-                fontSize: 28,
-                lineHeight: 1.15,
+                fontSize: 34,
+                lineHeight: 1.1,
                 fontWeight: 900,
                 color: "#f8fafc",
               }}
@@ -580,7 +582,7 @@ export default function Engine25CreditStressDetail() {
               style={{
                 marginTop: 4,
                 color: "#94a3b8",
-                fontSize: 14,
+                fontSize: 17,
               }}
             >
               Full learning view · Refreshes every 60 seconds
@@ -595,8 +597,8 @@ export default function Engine25CreditStressDetail() {
               border: "1px solid rgba(148,163,184,0.38)",
               color: "#e5e7eb",
               borderRadius: 9,
-              padding: "8px 13px",
-              fontSize: 14,
+              padding: "10px 16px",
+              fontSize: 16,
               fontWeight: 850,
               cursor: "pointer",
             }}
@@ -631,7 +633,7 @@ export default function Engine25CreditStressDetail() {
                 style={{
                   display: "grid",
                   gridTemplateColumns:
-                    "minmax(420px, 1.5fr) repeat(4, minmax(160px, 0.5fr))",
+                    "minmax(560px, 1.65fr) repeat(4, minmax(210px, 0.6fr))",
                   gap: 12,
                   alignItems: "stretch",
                 }}
@@ -646,24 +648,32 @@ export default function Engine25CreditStressDetail() {
                 >
                   <div
                     style={{
-                      fontSize: 20,
+                      fontSize: 25,
                       fontWeight: 900,
                       color: "#fb923c",
                       textTransform: "uppercase",
                     }}
                   >
-                    {cleanLabel(detail.displayLabel)}
+                    {Number(scores.creditFragility) < 50 &&
+                    Number(systemicLevelScore) >= 75
+                      ? "FAST CREDIT IS WEAK — SYSTEMIC STRESS STILL LOW"
+                      : Number(macroTrendScore) < 45
+                        ? "MACRO CREDIT TREND IS DETERIORATING"
+                        : cleanLabel(detail.displayLabel)}
                   </div>
 
                   <div
                     style={{
                       marginTop: 7,
-                      fontSize: 14,
-                      lineHeight: 1.4,
+                      fontSize: 18,
+                      lineHeight: 1.5,
                       color: "#fed7aa",
                     }}
                   >
-                    {detail.interpretation}
+                    {Number(scores.creditFragility) < 50 &&
+                    Number(systemicLevelScore) >= 75
+                      ? "Market-traded credit is showing weakness first, but the broader macro credit system is not in major stress right now."
+                      : detail.interpretation}
                   </div>
 
                   {fastMacroDivergence !== null && (
@@ -673,14 +683,16 @@ export default function Engine25CreditStressDetail() {
                         borderTop: "1px solid rgba(249,115,22,0.2)",
                         paddingTop: 8,
                         color: "#f8fafc",
-                        fontSize: 12,
-                        lineHeight: 1.35,
+                        fontSize: 16,
+                        lineHeight: 1.45,
                       }}
                     >
-                      Fast Credit vs Macro Credit gap:{" "}
-                      <strong>{fastMacroDivergence} points</strong>. Fast traded
-                      credit is the early-warning layer; macro credit is the
-                      slower systemic/trend confirmation layer.
+                      <strong>What this means:</strong> Credit Fragility is{" "}
+                      <strong>{fmt(scores.creditFragility, 0)}</strong> while
+                      Macro Credit Health is{" "}
+                      <strong>{fmt(scores.creditStress, 0)}</strong>. The fast
+                      market-credit layer is warning first. The slower macro
+                      credit data has not fully confirmed that weakness yet.
                     </div>
                   )}
                 </div>
@@ -708,7 +720,7 @@ export default function Engine25CreditStressDetail() {
                       <div
                         style={{
                           color: "#94a3b8",
-                          fontSize: 12,
+                          fontSize: 14,
                           fontWeight: 850,
                           textTransform: "uppercase",
                         }}
@@ -719,7 +731,7 @@ export default function Engine25CreditStressDetail() {
                       <div
                         style={{
                           marginTop: 6,
-                          fontSize: 32,
+                          fontSize: 46,
                           lineHeight: 1,
                           fontWeight: 900,
                           color: colorForScore(score),
@@ -739,8 +751,8 @@ export default function Engine25CreditStressDetail() {
                           <div
                             style={{
                               color: colorForScore(score),
-                              fontSize: 12,
-                              lineHeight: 1.2,
+                              fontSize: 14,
+                              lineHeight: 1.25,
                               fontWeight: 900,
                               textTransform: "uppercase",
                             }}
@@ -768,7 +780,7 @@ export default function Engine25CreditStressDetail() {
                               <div
                                 style={{
                                   color: "#94a3b8",
-                                  fontSize: 9,
+                                  fontSize: 11,
                                   fontWeight: 850,
                                   textTransform: "uppercase",
                                 }}
@@ -780,7 +792,7 @@ export default function Engine25CreditStressDetail() {
                                 style={{
                                   marginTop: 2,
                                   color: colorForScore(systemicLevelScore),
-                                  fontSize: 18,
+                                  fontSize: 24,
                                   fontWeight: 900,
                                 }}
                               >
@@ -800,7 +812,7 @@ export default function Engine25CreditStressDetail() {
                               <div
                                 style={{
                                   color: "#94a3b8",
-                                  fontSize: 9,
+                                  fontSize: 11,
                                   fontWeight: 850,
                                   textTransform: "uppercase",
                                 }}
@@ -812,7 +824,7 @@ export default function Engine25CreditStressDetail() {
                                 style={{
                                   marginTop: 2,
                                   color: colorForScore(macroTrendScore),
-                                  fontSize: 18,
+                                  fontSize: 24,
                                   fontWeight: 900,
                                 }}
                               >
@@ -824,8 +836,8 @@ export default function Engine25CreditStressDetail() {
                           <div
                             style={{
                               color: colorForState(macroTrendLabel),
-                              fontSize: 10,
-                              lineHeight: 1.2,
+                              fontSize: 12,
+                              lineHeight: 1.25,
                               fontWeight: 850,
                               textTransform: "uppercase",
                             }}
@@ -836,18 +848,18 @@ export default function Engine25CreditStressDetail() {
                           <div
                             style={{
                               color: "#94a3b8",
-                              fontSize: 9,
-                              lineHeight: 1.2,
+                              fontSize: 11,
+                              lineHeight: 1.3,
                             }}
                           >
-                            50% systemic level + 50% four-week trend
+                            Formula: 50% current systemic health + 50% four-week direction
                           </div>
 
                           <div
                             style={{
                               color: "#64748b",
-                              fontSize: 9,
-                              lineHeight: 1.2,
+                              fontSize: 11,
+                              lineHeight: 1.3,
                             }}
                           >
                             Stress equivalent:{" "}
@@ -864,8 +876,9 @@ export default function Engine25CreditStressDetail() {
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
-                gap: 14,
+                gridTemplateColumns: "repeat(4, minmax(320px, 1fr))",
+                gap: 16,
+                width: "100%",
                 alignItems: "start",
               }}
             >
@@ -900,7 +913,7 @@ export default function Engine25CreditStressDetail() {
             <Card>
               <div
                 style={{
-                  fontSize: 15,
+                  fontSize: 22,
                   fontWeight: 900,
                   color: "#93c5fd",
                   textTransform: "uppercase",
@@ -913,17 +926,16 @@ export default function Engine25CreditStressDetail() {
               <div
                 style={{
                   color: "#dbeafe",
-                  fontSize: 15,
-                  lineHeight: 1.45,
+                  fontSize: 19,
+                  lineHeight: 1.5,
                 }}
               >
-                Fast traded-credit conditions and slow macro credit conditions
-                are intentionally shown separately. HYG, JNK, LQD, KRE, and
-                IWM are the fast warning layer. NFCI, STLFSI4, and high-yield
-                OAS show the slower systemic level plus four-week direction of
-                travel. A weak Credit Fragility score can therefore coexist
-                with a healthy Macro Credit score until the macro APIs begin
-                confirming the deterioration.
+                <strong>Fast credit markets are weakening first.</strong>{" "}
+                HYG, JNK, LQD, KRE, and IWM are the early-warning group.
+                The slower macro-credit indicators are still healthier overall:
+                NFCI and high-yield spreads improved over the last four weeks,
+                while STLFSI4 worsened only slightly. That means credit-market
+                weakness is real, but broad systemic stress is not confirmed yet.
               </div>
             </Card>
           </>
