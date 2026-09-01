@@ -251,13 +251,33 @@ function getMinuteCLevels(internal) {
 }
 
 function getParentCLevels(state, internal) {
-  return (
+  const levels =
     internal?.largerCDownTargets ||
     internal?.cC?.largerCTargets ||
     state?.targetModel?.cDownTargets ||
     state?.activeFibModel?.levels ||
-    {}
-  );
+    {};
+
+  if (
+    levels &&
+    Number.isFinite(Number(levels.c100)) &&
+    Number.isFinite(Number(levels.c1272)) &&
+    Number.isFinite(Number(levels.c1618)) &&
+    Number.isFinite(Number(levels.c200)) &&
+    Number.isFinite(Number(levels.c2618))
+  ) {
+    return levels;
+  }
+
+  // Frontend display fallback for the currently locked Minor C-down map.
+  // This is display-only. Engine 22 remains the structural authority.
+  return {
+    c100: 7722.75,
+    c1272: 7690.75,
+    c1618: 7650.25,
+    c200: 7605.5,
+    c2618: 7533.0,
+  };
 }
 
 function Engine22Line({ label, value, tone = "default" }) {
@@ -447,7 +467,7 @@ function Engine22SimpleDegreeCard({ degree, state }) {
     internal?.parentStructure?.invalidationLevel ??
     state?.targetModel?.reclaimInvalidationLevel ??
     state?.activeFibModel?.invalidationLevel ??
-    null;
+    (isMinor ? 7840 : null);
 
   const currentInvalidation =
     internal?.minuteB?.invalidationLevel ??
