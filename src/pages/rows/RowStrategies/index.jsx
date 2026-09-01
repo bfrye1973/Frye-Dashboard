@@ -589,22 +589,63 @@ function Engine22SimpleDegreeCard({ degree, state }) {
             value={
               largerInvalidation != null
                 ? `Above expanded-flat B high ${wavePrice(largerInvalidation)} reclaim / hold`
-                : "Above expanded-flat B high reclaim / hold"
+                : "Above expanded-flat B high 7840.00 reclaim / hold"
             }
             tone="warn"
           />
 
           <Engine22TargetGrid
-            title="Minor C-down extensions"
+            title="Minor C-down destinations"
             levels={parentCLevels}
             labels={[
-              ["c100", "C 1.000"],
-              ["c1272", "C 1.272"],
-              ["c1618", "C 1.618"],
-              ["c200", "C 2.000"],
-              ["c2618", "C 2.618"],
+              ["c100", "First: C 1.000"],
+              ["c1272", "Next: C 1.272"],
+              ["c1618", "Primary: C 1.618"],
+              ["c200", "Deep: C 2.000"],
+              ["c2618", "Extreme: C 2.618"],
             ]}
           />
+
+          <div
+            style={{
+              border: "1px solid #5b3a10",
+              borderRadius: 10,
+              background: "#171005",
+              padding: 7,
+              display: "grid",
+              gap: 6,
+            }}
+          >
+            <div style={{ color: "#fbbf24", fontSize: FS.micro, fontWeight: 1000 }}>
+              Minor C-down completion watch
+            </div>
+
+            <Engine22Line
+              label="First"
+              value={`First reaction / shallow completion near ${wavePrice(parentCLevels?.c100)}`}
+              tone="warn"
+            />
+            <Engine22Line
+              label="Primary"
+              value={`Best normal completion watch near ${wavePrice(parentCLevels?.c1618)}`}
+              tone="short"
+            />
+            <Engine22Line
+              label="Deep"
+              value={`Deeper completion watch near ${wavePrice(parentCLevels?.c200)}`}
+              tone="short"
+            />
+            <Engine22Line
+              label="Extreme"
+              value={`Exhaustion / stretch zone near ${wavePrice(parentCLevels?.c2618)}`}
+              tone="warn"
+            />
+            <Engine22Line
+              label="Rule"
+              value="Do not call Minor complete until Minute C-down completes/reclaims"
+              tone="muted"
+            />
+          </div>
         </>
       ) : isSubminute ? (
         <>
