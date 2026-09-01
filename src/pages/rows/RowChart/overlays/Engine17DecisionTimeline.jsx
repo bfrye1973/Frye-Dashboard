@@ -2751,19 +2751,13 @@ const oneMinuteRead = observation1m
 
 const fiveMinuteRead = validation5m
   ? `${formatUpper(
-      validation5m?.currentPriceActionState ??
-        validation5m?.completedPriceActionState ??
-        validation5m?.state,
+      validation5m?.completedPriceActionState,
       "NO SIGNAL"
     )} / ${formatUpper(
-      validation5m?.currentPriceActionDirection ??
-        validation5m?.completedPriceActionDirection ??
-        validation5m?.direction,
+      validation5m?.completedPriceActionDirection,
       "NEUTRAL"
     )} / ${formatUpper(
-      validation5m?.currentPriceActionQuality ??
-        validation5m?.completedPriceActionQuality ??
-        validation5m?.quality,
+      validation5m?.completedPriceActionQuality,
       "WEAK"
     )}`
   : "—";
