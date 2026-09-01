@@ -8,6 +8,8 @@
 // - Legacy Thinkorswim imports remain supported.
 // - Live futures marks are display-only.
 // - Unrealized P&L is never written back to Engine 10.
+// - Daily Account P&L is derived read-only from Engine 10 contract/event truth
+//   plus the existing live futures mark; legacy stored dailyAccountPnL is not authoritative.
 //
 
 import React, { useEffect, useMemo, useState } from "react";
@@ -41,7 +43,6 @@ import {
   getGrossRealized,
   getActualFees,
   getNetRealized,
-  getDailyAccountPnL,
   getTradeDate,
   calculateLivePosition,
   buildEventRows,
@@ -261,6 +262,7 @@ function AnalyticsMetric({
 function AccountCard({
   trade,
   mark,
+  dailyPerformance,
   selected,
   onClick,
 }) {
@@ -273,6 +275,17 @@ function AccountCard({
     calculateLivePosition(
       trade,
       mark
+    );
+
+  const dailyAccountPnL =
+    safeNum(
+      dailyPerformance
+        ?.dailyAccountPnL
+    ) ??
+    safeNum(
+      dailyPerformance
+        ?.daily
+        ?.realizedNet
     );
 
   const isSwing =
@@ -629,17 +642,13 @@ function AccountCard({
               fontSize: 25,
               color:
                 pnlColor(
-                  getDailyAccountPnL(
-                    trade
-                  )
+                  dailyAccountPnL
                 ),
               fontWeight: 1000,
             }}
           >
             {fmtMoney(
-              getDailyAccountPnL(
-                trade
-              )
+              dailyAccountPnL
             )}
           </div>
 
@@ -1126,9 +1135,23 @@ export default function JournalFull() {
         ) === "OPEN"
     );
 
+  const analyticsMark =
+    safeNum(
+      marks.MES
+    ) ??
+    safeNum(
+      marks[
+        openSymbols[0]
+      ]
+    );
+
   const analytics =
     calculateAnalytics(
-      timeTrades
+      modeTrades,
+      {
+        mark:
+          analyticsMark,
+      }
     );
 
   /* ---------------------------------------------------------
@@ -1210,67 +1233,15 @@ export default function JournalFull() {
     );
 
   const dailyAccountTotal =
-    (() => {
-      const seen =
-        new Set();
-
-      let total = 0;
-
-      for (
-        const trade
-        of timeTrades
-      ) {
-        if (
-          getTradeMode(
-            trade
-          ) !== "REAL"
-        ) {
-          continue;
-        }
-
-        const account =
-          getAccountLabel(
-            trade
-          );
-
-        const date =
-          getTradeDate(
-            trade
-          );
-
-        const pnl =
-          getDailyAccountPnL(
-            trade
-          );
-
-        if (
-          !account ||
-          !date ||
-          pnl == null
-        ) {
-          continue;
-        }
-
-        const key =
-          `${account}|${date}`;
-
-        if (
-          seen.has(
-            key
-          )
-        ) {
-          continue;
-        }
-
-        seen.add(
-          key
-        );
-
-        total += pnl;
-      }
-
-      return total;
-    })();
+    modeFilter === "REAL"
+      ? (
+          safeNum(
+            analytics
+              ?.all
+              ?.dailyAccountPnL
+          ) ?? 0
+        )
+      : null;
 
   /* ---------------------------------------------------------
      ACCOUNT CARDS
@@ -1304,6 +1275,37 @@ export default function JournalFull() {
     ) ||
     filteredTrades[0] ||
     null;
+
+  const selectedAccount =
+    selectedTrade
+      ? getAccountLabel(
+          selectedTrade
+        )
+      : null;
+
+  const selectedDailyAccountPnL =
+    selectedAccount === "INTRADAY" ||
+    selectedAccount === "SWING"
+      ? (
+          safeNum(
+            analytics
+              ?.strategies
+              ?.[
+                selectedAccount
+              ]
+              ?.dailyAccountPnL
+          ) ??
+          safeNum(
+            analytics
+              ?.strategies
+              ?.[
+                selectedAccount
+              ]
+              ?.daily
+              ?.realizedNet
+          )
+        )
+      : null;
 
   const recentRows =
     buildEventRows(
@@ -1827,6 +1829,15 @@ export default function JournalFull() {
                         symbol
                       ]
                     }
+                    dailyPerformance={
+                      analytics
+                        ?.strategies
+                        ?.[
+                          getAccountLabel(
+                            trade
+                          )
+                        ]
+                    }
                     selected={
                       selectedTrade
                         ?.tradeId ===
@@ -2249,13 +2260,12 @@ export default function JournalFull() {
               <AnalyticsMetric
                 label="DAILY ACCOUNT P&L"
                 value={fmtMoney(
-                  getDailyAccountPnL(
-                    selectedTrade
-                  )
+                  selectedDailyAccountPnL
                 )}
-                sub={getAccountLabel(
-                  selectedTrade
-                )}
+                sub={
+                  selectedAccount ||
+                  "—"
+                }
               />
             </div>
           </section>
