@@ -269,7 +269,55 @@ function getMinuteCLevels(internal) {
   );
 }
 
+function getMinuteADownLevels(internal) {
+  const levels =
+    internal?.minuteA?.targetModel?.levels ||
+    internal?.cA?.targetModel?.levels ||
+    internal?.aDownWatchLevels ||
+    internal?.targetModel?.aDownWatchLevels ||
+    {};
+
+  if (
+    levels &&
+    Number.isFinite(Number(levels.firstSupport)) &&
+    Number.isFinite(Number(levels.key0618Reaction))
+  ) {
+    return levels;
+  }
+
+  // Current locked Minute A-down watch map.
+  // Display-only fallback. Engine 22 remains the structural authority.
+  return {
+    firstSupport: 7724.25,
+    key0618Reaction: 7701.75,
+    midSupport: 7685.75,
+    deepSupport: 7669.75,
+    lowerShelf: 7655.0,
+    priorLow: 7618.0,
+    flushZone: 7604.0,
+  };
+}
+
 function getParentCLevels(state, internal) {
+  const completionMap =
+    state?.targetModel?.completionMap ||
+    internal?.completionMap ||
+    {};
+
+  if (
+    completionMap &&
+    Number.isFinite(Number(completionMap.firstReaction)) &&
+    Number.isFinite(Number(completionMap.primaryCompletion))
+  ) {
+    return {
+      c100: completionMap.firstReaction,
+      c1272: completionMap.secondaryReaction ?? 7578.25,
+      c1618: completionMap.primaryCompletion,
+      c200: completionMap.deepCompletion,
+      c2618: completionMap.extremeExhaustion,
+    };
+  }
+
   const levels =
     internal?.largerCDownTargets ||
     internal?.cC?.largerCTargets ||
@@ -288,14 +336,14 @@ function getParentCLevels(state, internal) {
     return levels;
   }
 
-  // Display-only fallback retained from the current file.
-  // Engine 22 remains the structural authority.
+  // Current locked final Minor C-down completion map from the 9/04 A/B update.
+  // Display-only fallback. Engine 22 remains the structural authority.
   return {
-    c100: 7722.75,
-    c1272: 7690.75,
-    c1618: 7650.25,
-    c200: 7605.5,
-    c2618: 7533.0,
+    c100: 7618.0,
+    c1272: 7578.25,
+    c1618: 7527.75,
+    c200: 7472.0,
+    c2618: 7381.75,
   };
 }
 
@@ -490,6 +538,7 @@ function Engine22SimpleDegreeCard({ degree, state }) {
     null;
 
   const minuteCLevels = getMinuteCLevels(internal);
+  const minuteADownLevels = getMinuteADownLevels(internal);
   const parentCLevels = getParentCLevels(state, internal);
 
   const largerInvalidation =
@@ -519,14 +568,14 @@ function Engine22SimpleDegreeCard({ degree, state }) {
     title = "MINUTE";
     subtitle = "Tactical map";
     headline =
-      "Current tactical wave: Minute C-down active";
+      "Current tactical wave: Minute A-down active inside Minor C-down";
     tone = "short";
-    badge = "C DOWN";
+    badge = "A DOWN";
   } else if (isMinor) {
     title = "MINOR";
     subtitle = "Parent correction";
     headline =
-      "Parent active leg: Minor C-down inside Minor W4 expanded flat";
+      "Minor W4 complex correction — Minor C-down starting";
     tone = "short";
     badge = "PARENT";
   } else if (isSubminute) {
@@ -630,68 +679,103 @@ function Engine22SimpleDegreeCard({ degree, state }) {
       {isMinute ? (
         <>
           <Engine22Line
-            label="A Low"
-            value={`${wavePrice(minuteALow)}${
-              minuteATime ? ` — ${minuteATime}` : ""
-            }`}
-          />
-
-          <Engine22Line
-            label="B High"
-            value={`${wavePrice(minuteBHigh)}${
-              minuteBTime ? ` — ${minuteBTime}` : ""
-            }`}
-          />
-
-          <Engine22Line
             label="Current"
-            value={`${waveText(
-              internal?.currentInternalWave ||
-                "Minute-C"
-            )} / ${prettyEnum(minuteCState)}`}
+            value="Minute-A / ACTIVE"
             tone="short"
+          />
+
+          <Engine22Line
+            label="Purpose"
+            value="First leg down inside starting Minor C-down"
           />
 
           <Engine22Line
             label="Started"
-            value={wavePrice(minuteCStart)}
+            value="7764.00 — 2026-09-04 15:00"
             tone="short"
           />
 
           <Engine22Line
+            label="Key Zone"
+            value="7701.75 / 7700 = .618 reaction zone"
+            tone="warn"
+          />
+
+          <Engine22Line
             label="Invalid"
-            value={
-              currentInvalidation != null
-                ? `Above internal B high ${wavePrice(
-                    currentInvalidation
-                  )} reclaim / hold`
-                : "Above internal B high reclaim / hold"
-            }
+            value="Above 7764.00 reclaim / hold"
             tone="warn"
           />
 
           <Engine22TargetGrid
-            title="Minute C-down extensions"
-            levels={minuteCLevels}
+            title="Minute A-down watch levels"
+            levels={minuteADownLevels}
             labels={[
-              ["cc100", "C 1.000"],
-              ["cc1272", "C 1.272"],
-              ["cc1618", "C 1.618"],
-              ["cc200", "C 2.000"],
-              ["cc2618", "C 2.618"],
+              ["firstSupport", "First support"],
+              ["key0618Reaction", "Key .618"],
+              ["midSupport", "Mid support"],
+              ["deepSupport", "Deep support"],
+              ["lowerShelf", "Lower shelf"],
+              ["priorLow", "Prior low"],
+              ["flushZone", "Flush zone"],
             ]}
           />
+
+          <div
+            style={{
+              border: "1px solid #5b3a10",
+              borderRadius: 10,
+              background: "#171005",
+              padding: 7,
+              display: "grid",
+              gap: 6,
+            }}
+          >
+            <div
+              style={{
+                color: "#fbbf24",
+                fontSize: FS.micro,
+                fontWeight: 1000,
+              }}
+            >
+              Minute path
+            </div>
+
+            <Engine22Line
+              label="Now"
+              value="Minute A-down active"
+              tone="short"
+            />
+
+            <Engine22Line
+              label="Next"
+              value="Minute B-up bounce expected after A-down exhaustion"
+              tone="warn"
+            />
+
+            <Engine22Line
+              label="Later"
+              value="Do not project final Minute C-down until B high is confirmed"
+              tone="muted"
+            />
+          </div>
         </>
       ) : isMinor ? (
         <>
           <Engine22Line
             label="Structure"
-            value="Minor W4 expanded flat"
+            value="Minor W4 complex correction"
           />
 
           <Engine22Line
             label="Active Leg"
-            value="Minor C-down"
+            value="Minor C-down starting"
+            tone="short"
+          />
+
+          <Engine22Line
+            label="Internal"
+            value="Minute A-down active now"
             tone="short"
           />
 
@@ -708,7 +792,7 @@ function Engine22SimpleDegreeCard({ degree, state }) {
           />
 
           <Engine22TargetGrid
-            title="Minor C-down destinations"
+            title="Minor W4 final C-down completion map"
             levels={parentCLevels}
             labels={[
               ["c100", "First: C 1.000"],
@@ -736,44 +820,30 @@ function Engine22SimpleDegreeCard({ degree, state }) {
                 fontWeight: 1000,
               }}
             >
-              Minor C-down completion watch
+              Minor W4 completion rule
             </div>
 
             <Engine22Line
-              label="First"
-              value={`First reaction / shallow completion near ${wavePrice(
-                parentCLevels?.c100
-              )}`}
-              tone="warn"
-            />
-
-            <Engine22Line
-              label="Primary"
-              value={`Best normal completion watch near ${wavePrice(
-                parentCLevels?.c1618
-              )}`}
+              label="Step 1"
+              value="Minute A-down sells into 7701.75 / 7700 reaction zone"
               tone="short"
             />
 
             <Engine22Line
-              label="Deep"
-              value={`Deeper completion watch near ${wavePrice(
-                parentCLevels?.c200
-              )}`}
-              tone="short"
+              label="Step 2"
+              value="Minute B-up bounce forms after A-down exhaustion"
+              tone="warn"
             />
 
             <Engine22Line
-              label="Extreme"
-              value={`Exhaustion / stretch zone near ${wavePrice(
-                parentCLevels?.c2618
-              )}`}
-              tone="warn"
+              label="Step 3"
+              value="Final Minute C-down projects only after B high is known"
+              tone="short"
             />
 
             <Engine22Line
               label="Rule"
-              value="Do not call Minor complete until Minute C-down completes/reclaims"
+              value="Minor W4 is not complete until A down → B bounce → C down finishes/reclaims"
               tone="muted"
             />
           </div>
@@ -794,7 +864,7 @@ function Engine22SimpleDegreeCard({ degree, state }) {
 
           <Engine22Line
             label="Parent"
-            value="Minute C-down map controls"
+            value="Minute A-down map controls"
           />
         </>
       ) : isHigher ? (
@@ -1597,18 +1667,7 @@ function Engine27MinuteTacticalCard({
     highestPriorityDegree === "minute";
 
   const plainEnglish =
-    upper(
-      tacticalState,
-      ""
-    ).includes("SHORT_REVERSAL_WATCH")
-      ? "Prior LONG rotation is completing at the negotiated zone. Strategy 1 is NEUTRAL and watching for a SHORT reversal only after Engine 3 rejection and Engine 4 seller participation confirm."
-      : `Minute Strategy 1 is ${prettyEnum(
-          tacticalState
-        )}. Structural leg is ${prettyEnum(
-          structuralLeg
-        )}; Strategy 1 direction is ${prettyEnum(
-          strategyDirection
-        )}.`;
+    "Minute A-down is active inside the starting Minor C-down. Watch 7701.75 / 7700 for the first A-down reaction. After A-down exhaustion, expect a Minute B-up bounce. Final Minute C-down targets should wait until the B high is confirmed.";
 
   return (
     <div
@@ -1653,7 +1712,7 @@ function Engine27MinuteTacticalCard({
               marginTop: 2,
             }}
           >
-            intraday_scalp@10m • negotiated-zone rotation
+            intraday_scalp@10m • Minute A-down watch inside Minor C-down
           </div>
         </div>
 
@@ -1938,19 +1997,13 @@ function Engine27MinorParentCard({
 
   const structure =
     degreeState?.headline ||
-    "Minor W4 expanded flat";
+    "Minor W4 complex correction";
 
   const activeLeg =
-    degreeState?.activeWave ||
-    wave?.currentWave ||
-    "Minor C-down";
+    "Minor C-down starting";
 
   const child =
-    strategyNode?.engine22WaveStrategy
-      ?.degreeStates
-      ?.minute
-      ?.activeWave ||
-    "Minute C-down";
+    "Minute A-down active";
 
   const invalidation =
     internal?.largerInvalidationLevel ??
@@ -1998,7 +2051,7 @@ function Engine27MinorParentCard({
               fontWeight: 1000,
             }}
           >
-            MINOR — PARENT CORRECTION CONTEXT
+            MINOR — W4 COMPLEX CORRECTION CONTEXT
           </div>
 
           <div
@@ -2009,7 +2062,7 @@ function Engine27MinorParentCard({
               marginTop: 2,
             }}
           >
-            Higher-level context for the Minute tactical lane
+            Minor C-down starting • Minute A-down is active now
           </div>
         </div>
 
@@ -2149,9 +2202,10 @@ function Engine27MinorParentCard({
           lineHeight: 1.3,
         }}
       >
-        Minor C-down remains the parent correction. Minute owns the tactical
-        trade decision. Do not call the parent complete until the Minute
-        C-down completes or reclaims its invalidation structure.
+        Minor C-down is starting, but only Minute A-down is active right now.
+        Expect a Minute B-up bounce after A-down exhaustion. Do not call
+        Minor W4 complete until the full A-down → B-up → C-down sequence
+        finishes or reclaims its invalidation structure.
       </div>
     </div>
   );
