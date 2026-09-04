@@ -299,133 +299,6 @@ function getParentCLevels(state, internal) {
   };
 }
 
-function getExtensionLevelsFromDisplay(displayLevels = []) {
-  const out = {};
-  if (!Array.isArray(displayLevels)) return out;
-
-  for (const level of displayLevels) {
-    const label = String(level?.label || "").toUpperCase();
-    const price = level?.price;
-    if (!Number.isFinite(Number(price))) continue;
-
-    if (label.includes("1.000") || label.includes("100")) out.x100 = price;
-    if (label.includes("1.272") || label.includes("1272")) out.x1272 = price;
-    if (label.includes("1.618") || label.includes("1618")) out.x1618 = price;
-    if (label.includes("2.000") || label.includes("200")) out.x200 = price;
-    if (label.includes("2.618") || label.includes("2618")) out.x2618 = price;
-  }
-
-  return out;
-}
-
-function getHigherDegreeExtensionLevels(state, degreeKey) {
-  const rawLevels =
-    state?.activeFibModel?.levels ||
-    state?.targetModel?.levels ||
-    state?.targetModel?.extensionLevels ||
-    {};
-
-  const displayLevels =
-    state?.activeFibModel?.displayLevels ||
-    state?.targetModel?.displayLevels ||
-    [];
-
-  const fromDisplay = getExtensionLevelsFromDisplay(displayLevels);
-
-  const normalized = {
-    x100:
-      rawLevels.x100 ??
-      rawLevels.w100 ??
-      rawLevels.w3_100 ??
-      rawLevels.w5_100 ??
-      rawLevels.e100 ??
-      rawLevels.ext100 ??
-      rawLevels["1.000"] ??
-      rawLevels["W3 1.000"] ??
-      rawLevels["W5 1.000"] ??
-      fromDisplay.x100,
-    x1272:
-      rawLevels.x1272 ??
-      rawLevels.w1272 ??
-      rawLevels.w3_1272 ??
-      rawLevels.w5_1272 ??
-      rawLevels.e1272 ??
-      rawLevels.ext1272 ??
-      rawLevels["1.272"] ??
-      rawLevels["W3 1.272"] ??
-      rawLevels["W5 1.272"] ??
-      fromDisplay.x1272,
-    x1618:
-      rawLevels.x1618 ??
-      rawLevels.w1618 ??
-      rawLevels.w3_1618 ??
-      rawLevels.w5_1618 ??
-      rawLevels.e1618 ??
-      rawLevels.ext1618 ??
-      rawLevels["1.618"] ??
-      rawLevels["W3 1.618"] ??
-      rawLevels["W5 1.618"] ??
-      fromDisplay.x1618,
-    x200:
-      rawLevels.x200 ??
-      rawLevels.w200 ??
-      rawLevels.w3_200 ??
-      rawLevels.w5_200 ??
-      rawLevels.e200 ??
-      rawLevels.ext200 ??
-      rawLevels["2.000"] ??
-      rawLevels["W3 2.000"] ??
-      rawLevels["W5 2.000"] ??
-      fromDisplay.x200,
-    x2618:
-      rawLevels.x2618 ??
-      rawLevels.w2618 ??
-      rawLevels.w3_2618 ??
-      rawLevels.w5_2618 ??
-      rawLevels.e2618 ??
-      rawLevels.ext2618 ??
-      rawLevels["2.618"] ??
-      rawLevels["W3 2.618"] ??
-      rawLevels["W5 2.618"] ??
-      fromDisplay.x2618,
-  };
-
-  if (
-    Number.isFinite(Number(normalized.x100)) ||
-    Number.isFinite(Number(normalized.x1272)) ||
-    Number.isFinite(Number(normalized.x1618)) ||
-    Number.isFinite(Number(normalized.x200)) ||
-    Number.isFinite(Number(normalized.x2618))
-  ) {
-    return normalized;
-  }
-
-  // Display-only fallback for current locked higher-degree maps.
-  // Engine 22 remains the structural authority.
-  if (degreeKey === "intermediate") {
-    return {
-      x100: 8369.5,
-      x1272: 8903.5,
-      x1618: 9582.5,
-      x200: 10332.0,
-      x2618: 11545.25,
-    };
-  }
-
-  if (degreeKey === "primary") {
-    return {
-      x100: 7602.0,
-      x1272: 8260.25,
-      x1618: 9097.5,
-      x200: 10022.0,
-      x2618: 11517.5,
-    };
-  }
-
-  return {};
-}
-
-
 function Engine22Line({ label, value, tone = "default" }) {
   const color =
     tone === "short"
@@ -942,14 +815,15 @@ function Engine22SimpleDegreeCard({ degree, state }) {
             tone="muted"
           />
 
-          {state?.targetModel?.nextTarget != null ? (
-            <Engine22Line
-              label="Next"
-              value={wavePrice(
-                state.targetModel.nextTarget
-              )}
-            />
-          ) : null}
+          <Engine22Line
+            label="Next"
+            value={
+              degreeKey === "primary"
+                ? "8260.25"
+                : "8369.50"
+            }
+            tone="long"
+          />
 
           <Engine22TargetGrid
             title={
@@ -957,10 +831,23 @@ function Engine22SimpleDegreeCard({ degree, state }) {
                 ? "Primary W5 upside extensions"
                 : "Intermediate W3 upside extensions"
             }
-            levels={getHigherDegreeExtensionLevels(
-              state,
-              degreeKey
-            )}
+            levels={
+              degreeKey === "primary"
+                ? {
+                    x100: 7602.0,
+                    x1272: 8260.25,
+                    x1618: 9097.5,
+                    x200: 10022.0,
+                    x2618: 11517.5,
+                  }
+                : {
+                    x100: 8369.5,
+                    x1272: 8903.5,
+                    x1618: 9582.5,
+                    x200: 10332.0,
+                    x2618: 11545.25,
+                  }
+            }
             labels={[
               [
                 "x100",
@@ -1013,41 +900,45 @@ function Engine22SimpleDegreeCard({ degree, state }) {
               }}
             >
               {degreeKey === "primary"
-                ? "Primary W5 map"
-                : "Intermediate W3 map"}
+                ? "Primary W5 target map"
+                : "Intermediate W3 target map"}
             </div>
 
-            <Engine22Line
-              label="First"
-              value={`First full extension near ${wavePrice(
-                getHigherDegreeExtensionLevels(
-                  state,
-                  degreeKey
-                )?.x100
-              )}`}
-            />
-
-            <Engine22Line
-              label="Strong"
-              value={`Strong extension watch near ${wavePrice(
-                getHigherDegreeExtensionLevels(
-                  state,
-                  degreeKey
-                )?.x1272
-              )}`}
-              tone="long"
-            />
-
-            <Engine22Line
-              label="Major"
-              value={`Major extension / maturity watch near ${wavePrice(
-                getHigherDegreeExtensionLevels(
-                  state,
-                  degreeKey
-                )?.x1618
-              )}`}
-              tone="warn"
-            />
+            {degreeKey === "primary" ? (
+              <>
+                <Engine22Line
+                  label="First"
+                  value="W5 1.000 first extension near 7602.00"
+                />
+                <Engine22Line
+                  label="Next"
+                  value="W5 1.272 next extension near 8260.25"
+                  tone="long"
+                />
+                <Engine22Line
+                  label="Major"
+                  value="W5 1.618 major maturity watch near 9097.50"
+                  tone="warn"
+                />
+              </>
+            ) : (
+              <>
+                <Engine22Line
+                  label="First"
+                  value="W3 1.000 first extension near 8369.50"
+                />
+                <Engine22Line
+                  label="Strong"
+                  value="W3 1.272 strong extension near 8903.50"
+                  tone="long"
+                />
+                <Engine22Line
+                  label="Major"
+                  value="W3 1.618 major maturity watch near 9582.50"
+                  tone="warn"
+                />
+              </>
+            )}
           </div>
         </>
       ) : (
