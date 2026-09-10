@@ -261,12 +261,30 @@ function getEngine22Internal(state) {
 }
 
 function getMinuteCLevels(internal) {
-  return (
+  const levels =
     internal?.minuteC?.targetModel?.levels ||
     internal?.cC?.targetModel?.levels ||
     internal?.targetModel?.levels ||
-    {}
-  );
+    {};
+
+  if (
+    levels &&
+    Number.isFinite(Number(levels.cc100)) &&
+    Number.isFinite(Number(levels.cc1272)) &&
+    Number.isFinite(Number(levels.cc1618))
+  ) {
+    return levels;
+  }
+
+  // Current locked Minute C-down projection from A low 7618.00 and B high 7760.00.
+  // Display-only fallback. Engine 22 remains the structural authority.
+  return {
+    cc100: 7618.0,
+    cc1272: 7579.5,
+    cc1618: 7530.25,
+    cc200: 7476.0,
+    cc2618: 7388.25,
+  };
 }
 
 function getMinuteADownLevels(internal) {
@@ -336,14 +354,14 @@ function getParentCLevels(state, internal) {
     return levels;
   }
 
-  // Current locked final Minor C-down completion map from the 9/04 A/B update.
+  // Current locked final Minor C-down completion map from the 9/10 B-complete update.
   // Display-only fallback. Engine 22 remains the structural authority.
   return {
     c100: 7618.0,
-    c1272: 7578.25,
-    c1618: 7527.75,
-    c200: 7472.0,
-    c2618: 7381.75,
+    c1272: 7579.5,
+    c1618: 7530.25,
+    c200: 7476.0,
+    c2618: 7388.25,
   };
 }
 
@@ -568,14 +586,14 @@ function Engine22SimpleDegreeCard({ degree, state }) {
     title = "MINUTE";
     subtitle = "Tactical map";
     headline =
-      "Current tactical wave: Minute A-down active inside Minor C-down";
+      "Current tactical wave: Minute C-down active after B-up completed";
     tone = "short";
-    badge = "A DOWN";
+    badge = "C DOWN";
   } else if (isMinor) {
     title = "MINOR";
     subtitle = "Parent correction";
     headline =
-      "Minor W4 complex correction — Minor C-down starting";
+      "Minor W4 complex correction — Minor C-down active";
     tone = "short";
     badge = "PARENT";
   } else if (isSubminute) {
@@ -679,45 +697,43 @@ function Engine22SimpleDegreeCard({ degree, state }) {
       {isMinute ? (
         <>
           <Engine22Line
-            label="Current"
-            value="Minute-A / ACTIVE"
-            tone="short"
+            label="A Low"
+            value="7618.00 — 2026-09-02 15:00"
           />
 
           <Engine22Line
-            label="Purpose"
-            value="First leg down inside starting Minor C-down"
+            label="B High"
+            value="7760.00 — 2026-09-04 15:00"
+            tone="warn"
+          />
+
+          <Engine22Line
+            label="Current"
+            value="Minute-C / ACTIVE"
+            tone="short"
           />
 
           <Engine22Line
             label="Started"
-            value="7764.00 — 2026-09-04 15:00"
+            value="7760.00"
             tone="short"
           />
 
           <Engine22Line
-            label="Key Zone"
-            value="7701.75 / 7700 = .618 reaction zone"
-            tone="warn"
-          />
-
-          <Engine22Line
             label="Invalid"
-            value="Above 7764.00 reclaim / hold"
+            value="Above internal B high 7760.00 reclaim / hold"
             tone="warn"
           />
 
           <Engine22TargetGrid
-            title="Minute A-down watch levels"
-            levels={minuteADownLevels}
+            title="Minute C-down extensions"
+            levels={minuteCLevels}
             labels={[
-              ["firstSupport", "First support"],
-              ["key0618Reaction", "Key .618"],
-              ["midSupport", "Mid support"],
-              ["deepSupport", "Deep support"],
-              ["lowerShelf", "Lower shelf"],
-              ["priorLow", "Prior low"],
-              ["flushZone", "Flush zone"],
+              ["cc100", "C 1.000"],
+              ["cc1272", "C 1.272"],
+              ["cc1618", "C 1.618"],
+              ["cc200", "C 2.000"],
+              ["cc2618", "C 2.618"],
             ]}
           />
 
@@ -742,21 +758,21 @@ function Engine22SimpleDegreeCard({ degree, state }) {
             </div>
 
             <Engine22Line
-              label="Now"
-              value="Minute A-down active"
-              tone="short"
+              label="Done"
+              value="Minute A-down completed at 7618.00"
+              tone="muted"
             />
 
             <Engine22Line
-              label="Next"
-              value="Minute B-up bounce expected after A-down exhaustion"
+              label="Done"
+              value="Minute B-up completed candidate at 7760.00"
               tone="warn"
             />
 
             <Engine22Line
-              label="Later"
-              value="Do not project final Minute C-down until B high is confirmed"
-              tone="muted"
+              label="Now"
+              value="Minute C-down active from 7760.00"
+              tone="short"
             />
           </div>
         </>
@@ -769,13 +785,13 @@ function Engine22SimpleDegreeCard({ degree, state }) {
 
           <Engine22Line
             label="Active Leg"
-            value="Minor C-down starting"
+            value="Minor C-down active"
             tone="short"
           />
 
           <Engine22Line
             label="Internal"
-            value="Minute A-down active now"
+            value="Minute C-down active now"
             tone="short"
           />
 
@@ -825,25 +841,25 @@ function Engine22SimpleDegreeCard({ degree, state }) {
 
             <Engine22Line
               label="Step 1"
-              value="Minute A-down sells into 7701.75 / 7700 reaction zone"
-              tone="short"
+              value="Minute A-down completed at 7618.00"
+              tone="muted"
             />
 
             <Engine22Line
               label="Step 2"
-              value="Minute B-up bounce forms after A-down exhaustion"
+              value="Minute B-up completed candidate at 7760.00"
               tone="warn"
             />
 
             <Engine22Line
               label="Step 3"
-              value="Final Minute C-down projects only after B high is known"
+              value="Final Minute C-down active from 7760.00"
               tone="short"
             />
 
             <Engine22Line
               label="Rule"
-              value="Minor W4 is not complete until A down → B bounce → C down finishes/reclaims"
+              value="Minor W4 is not complete until Minute C-down finishes/exhausts and reclaims"
               tone="muted"
             />
           </div>
@@ -1667,7 +1683,7 @@ function Engine27MinuteTacticalCard({
     highestPriorityDegree === "minute";
 
   const plainEnglish =
-    "Minute A-down is active inside the starting Minor C-down. Watch 7701.75 / 7700 for the first A-down reaction. After A-down exhaustion, expect a Minute B-up bounce. Final Minute C-down targets should wait until the B high is confirmed.";
+    "Minute B-up is completed candidate at 7760.00. Minute C-down is active from 7760.00. Current invalidation is above 7760.00 reclaim/hold. Watch the C-down extension ladder for the next downside destinations.";
 
   return (
     <div
@@ -1712,7 +1728,7 @@ function Engine27MinuteTacticalCard({
               marginTop: 2,
             }}
           >
-            intraday_scalp@10m • Minute A-down watch inside Minor C-down
+            intraday_scalp@10m • Minute C-down active inside Minor C-down
           </div>
         </div>
 
@@ -2000,10 +2016,10 @@ function Engine27MinorParentCard({
     "Minor W4 complex correction";
 
   const activeLeg =
-    "Minor C-down starting";
+    "Minor C-down active";
 
   const child =
-    "Minute A-down active";
+    "Minute C-down active";
 
   const invalidation =
     internal?.largerInvalidationLevel ??
@@ -2062,7 +2078,7 @@ function Engine27MinorParentCard({
               marginTop: 2,
             }}
           >
-            Minor C-down starting • Minute A-down is active now
+            Minor C-down active • Minute C-down is active now
           </div>
         </div>
 
@@ -2202,10 +2218,10 @@ function Engine27MinorParentCard({
           lineHeight: 1.3,
         }}
       >
-        Minor C-down is starting, but only Minute A-down is active right now.
-        Expect a Minute B-up bounce after A-down exhaustion. Do not call
-        Minor W4 complete until the full A-down → B-up → C-down sequence
-        finishes or reclaims its invalidation structure.
+        Minor C-down is active. Minute A-down completed at 7618.00, Minute
+        B-up completed candidate at 7760.00, and Minute C-down is active now.
+        Do not call Minor W4 complete until Minute C-down finishes/exhausts
+        and price reclaims its invalidation structure.
       </div>
     </div>
   );
