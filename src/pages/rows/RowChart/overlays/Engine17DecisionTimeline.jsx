@@ -2731,7 +2731,9 @@ const validation5m =
   paperScalp?.reactionValidation5m || null;
 
 const broader10m =
-  paperScalp?.broaderReaction10m || null;
+  paperScalp?.tenMinuteConfirmation ||
+  paperScalp?.broaderReaction10m ||
+  null;
 
 const oneMinuteRead = observation1m
   ? `${formatUpper(
@@ -2764,16 +2766,19 @@ const fiveMinuteRead = validation5m
 
 const tenMinuteRead = broader10m
   ? `${formatUpper(
-      broader10m?.currentPriceActionState ??
+      broader10m?.completedPriceActionState ??
+        broader10m?.currentPriceActionState ??
         broader10m?.state,
       "NO SIGNAL"
     )} / ${formatUpper(
-      broader10m?.currentPriceActionDirection ??
+      broader10m?.completedPriceActionDirection ??
+        broader10m?.currentPriceActionDirection ??
         broader10m?.direction ??
         broader10m?.candleDirection,
       "NEUTRAL"
     )} / ${formatUpper(
-      broader10m?.currentPriceActionQuality ??
+      broader10m?.completedPriceActionQuality ??
+        broader10m?.currentPriceActionQuality ??
         broader10m?.quality,
       "WEAK"
     )}`
