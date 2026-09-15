@@ -598,11 +598,11 @@ function Engine22SimpleDegreeCard({ degree, state }) {
     badge = "PARENT";
   } else if (isSubminute) {
     title = "SUBMINUTE";
-    subtitle = "Lower-timeframe context";
+    subtitle = "Timing inside Minute C";
     headline =
-      "Unresolved / context only — do not force count";
-    tone = "wait";
-    badge = "CTX";
+      "Subminute ABC timing inside active Minute C-down";
+    tone = "short";
+    badge = "C DOWN";
   } else if (degreeKey === "intermediate") {
     title = "INTERMEDIATE";
     subtitle = "Higher-timeframe context";
@@ -867,21 +867,90 @@ function Engine22SimpleDegreeCard({ degree, state }) {
       ) : isSubminute ? (
         <>
           <Engine22Line
-            label="Role"
-            value="Context only"
-            tone="muted"
-          />
-
-          <Engine22Line
-            label="Use"
-            value="Do not force subminute count"
-            tone="muted"
-          />
-
-          <Engine22Line
             label="Parent"
-            value="Minute A-down map controls"
+            value="Minute C-down active from 7760.00"
+            tone="short"
           />
+
+          <Engine22Line
+            label="A Down"
+            value="7762.00 → 7586.00"
+          />
+
+          <Engine22Line
+            label="B Up"
+            value="7592.00 → 7680.00"
+            tone="warn"
+          />
+
+          <Engine22Line
+            label="Current"
+            value="Subminute-C / ACTIVE"
+            tone="short"
+          />
+
+          <Engine22Line
+            label="Invalid"
+            value="Above 7680.00 reclaim / hold"
+            tone="warn"
+          />
+
+          <Engine22TargetGrid
+            title="Parent Minute C targets used by Subminute"
+            levels={{
+              cc100: 7618.0,
+              cc1272: 7579.5,
+              cc1618: 7530.25,
+              cc200: 7476.0,
+              cc2618: 7388.25,
+            }}
+            labels={[
+              ["cc100", "Minute C 1.000"],
+              ["cc1272", "Minute C 1.272"],
+              ["cc1618", "Minute C 1.618"],
+              ["cc200", "Minute C 2.000"],
+              ["cc2618", "Minute C 2.618"],
+            ]}
+          />
+
+          <div
+            style={{
+              border: "1px solid #5b3a10",
+              borderRadius: 10,
+              background: "#171005",
+              padding: 7,
+              display: "grid",
+              gap: 6,
+            }}
+          >
+            <div
+              style={{
+                color: "#fbbf24",
+                fontSize: FS.micro,
+                fontWeight: 1000,
+              }}
+            >
+              Subminute rule
+            </div>
+
+            <Engine22Line
+              label="Use"
+              value="Timing/path only inside parent Minute C-down"
+              tone="muted"
+            />
+
+            <Engine22Line
+              label="Do Not"
+              value="Do not publish separate deep subminute extension ladder"
+              tone="warn"
+            />
+
+            <Engine22Line
+              label="Targets"
+              value="Parent Minute C ladder remains authoritative"
+              tone="short"
+            />
+          </div>
         </>
       ) : isHigher ? (
         <>
