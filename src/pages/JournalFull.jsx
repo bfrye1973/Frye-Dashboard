@@ -52,6 +52,29 @@ import {
   calculateAnalytics,
 } from "./journal/journalAnalytics.js";
 
+function getExactFuturesContractCode(
+  trade
+) {
+  const raw =
+    upper(
+      trade?.futuresContractCode ||
+      trade?.realBroker?.futuresContractCode ||
+      trade?.brokerSymbol ||
+      trade?.realBroker?.brokerSymbol
+    )
+      .replace(/:.*$/, "")
+      .replace(/^\//, "");
+
+  const match =
+    raw.match(
+      /^([A-Z0-9]+?)([FGHJKMNQUVXZ])(\d{1,2})$/
+    );
+
+  return match
+    ? `${match[1]}${match[2]}${match[3]}`
+    : null;
+}
+
 /* =========================================================
    SMALL UI
 ========================================================= */
@@ -954,6 +977,9 @@ export default function JournalFull() {
         }
 
         const symbol =
+          getExactFuturesContractCode(
+            trade
+          ) ||
           normalizeMarketSymbol(
             trade
           );
@@ -1149,6 +1175,7 @@ export default function JournalFull() {
     calculateAnalytics(
       modeTrades,
       {
+        marks,
         mark:
           analyticsMark,
       }
@@ -1198,6 +1225,9 @@ export default function JournalFull() {
     openTrades.reduce(
       (sum, trade) => {
         const symbol =
+          getExactFuturesContractCode(
+            trade
+          ) ||
           normalizeMarketSymbol(
             trade
           );
@@ -1812,6 +1842,9 @@ export default function JournalFull() {
             {accountOpenTrades.map(
               (trade) => {
                 const symbol =
+                  getExactFuturesContractCode(
+                    trade
+                  ) ||
                   normalizeMarketSymbol(
                     trade
                   );
