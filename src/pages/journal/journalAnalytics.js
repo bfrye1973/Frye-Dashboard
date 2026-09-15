@@ -188,6 +188,66 @@ function getContracts(trade) {
     : [];
 }
 
+function getExactFuturesContractCode(
+  contract,
+  trade
+) {
+  const raw =
+    upper(
+      contract?.futuresContractCode ||
+      contract?.brokerSymbol ||
+      trade?.futuresContractCode ||
+      trade?.realBroker?.futuresContractCode ||
+      trade?.brokerSymbol ||
+      trade?.realBroker?.brokerSymbol
+    )
+      .replace(/:.*$/, "")
+      .replace(/^\//, "");
+
+  const match =
+    raw.match(
+      /^([A-Z0-9]+?)([FGHJKMNQUVXZ])(\d{1,2})$/
+    );
+
+  return match
+    ? `${match[1]}${match[2]}${match[3]}`
+    : null;
+}
+
+function resolveContractMark({
+  contract,
+  trade,
+  marks,
+  fallbackMark,
+}) {
+  const contractCode =
+    getExactFuturesContractCode(
+      contract,
+      trade
+    );
+
+  if (
+    contractCode &&
+    marks &&
+    typeof marks === "object"
+  ) {
+    const exactMark =
+      safeNum(
+        marks[
+          contractCode
+        ]
+      );
+
+    if (exactMark != null) {
+      return exactMark;
+    }
+  }
+
+  return safeNum(
+    fallbackMark
+  );
+}
+
 function parseMs(value) {
   const ms =
     Date.parse(
@@ -978,6 +1038,13 @@ export function calculateAnalytics(
       options?.mark
     );
 
+  const marks =
+    options?.marks &&
+    typeof options.marks ===
+      "object"
+      ? options.marks
+      : {};
+
   const tradingDate =
     options?.tradingDate ||
     getCurrentFuturesTradingDayKey(
@@ -1129,14 +1196,24 @@ export function calculateAnalytics(
         book.openContracts +=
           1;
 
+        const contractMark =
+          resolveContractMark({
+            contract,
+            trade,
+            marks,
+            fallbackMark:
+              mark,
+          });
+
         if (
-          mark != null
+          contractMark != null
         ) {
           const unrealized =
             calculateContractUnrealized({
               contract,
               trade,
-              mark,
+              mark:
+                contractMark,
             });
 
           if (
