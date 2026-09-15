@@ -67,6 +67,11 @@ function Metric({ label, value, sub = "", color = COLORS.text }) {
 function ScoreboardBook({ title, book, accent }) {
   const excluded = book?.performanceExcludedContracts || 0;
   const sample = book?.closedContracts || 0;
+  const isAllReal = title === "ALL REAL";
+  const profitFactor =
+    book?.profitFactor === Infinity
+      ? "∞"
+      : fmtNum(book?.profitFactor);
 
   return (
     <div
@@ -183,6 +188,23 @@ function ScoreboardBook({ title, book, accent }) {
           value={String(sample)}
           sub={`${book?.tradingDays || 0} days • ${excluded} excluded`}
         />
+
+        {isAllReal ? (
+          <Metric
+            label="PROFIT FACTOR"
+            value={sample ? profitFactor : "—"}
+            sub="Gross profit / gross loss"
+            color={
+              book?.profitFactor != null
+                ? pnlColor(
+                    book.profitFactor === Infinity
+                      ? 1
+                      : book.profitFactor - 1
+                  )
+                : COLORS.text
+            }
+          />
+        ) : null}
       </div>
 
       {excluded > 0 ? (
