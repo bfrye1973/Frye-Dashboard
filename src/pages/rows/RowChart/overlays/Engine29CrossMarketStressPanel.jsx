@@ -20,6 +20,51 @@ function clean(value) {
   return String(value || "—").replaceAll("_", " ");
 }
 
+
+function rawMoveCharacter(value) {
+  if (!value) return null;
+  if (typeof value === "string") return value;
+  if (typeof value === "object") {
+    return (
+      value.moveCharacter ||
+      value.character ||
+      value.status ||
+      value.display?.status ||
+      value.display?.moveCharacter ||
+      null
+    );
+  }
+  return null;
+}
+
+function plainState(value) {
+  const text = String(value || "").toUpperCase();
+  if (text === "BROAD_DETERIORATION") return "BROAD DETERIORATION";
+  if (text === "EARLY_WARNING") return "EARLY WARNING";
+  if (text === "RISK_OFF_CONFIRMED") return "RISK-OFF CONFIRMED";
+  if (text === "SYSTEMIC_STRESS") return "SYSTEMIC STRESS";
+  if (text === "STRESS_ACCELERATING") return "SELLING PRESSURE INCREASING";
+  if (text === "RECOVERY_ATTEMPT") return "RECOVERY ATTEMPT";
+  if (text === "BUYING_PRESSURE_INCREASING") return "BUYING PRESSURE INCREASING";
+  if (text === "SELLING_PRESSURE_INCREASING") return "SELLING PRESSURE INCREASING";
+  return clean(value);
+}
+
+function plainMoveCharacter(value) {
+  const raw = rawMoveCharacter(value);
+  const text = String(raw || "").toUpperCase();
+  if (!text || text === "NO_ACTIVE_MOVE") return "NO ACTIVE SQUEEZE";
+  if (text === "POSSIBLE_UPSIDE_SQUEEZE") return "POSSIBLE ES UPSIDE SQUEEZE";
+  if (text === "POSSIBLE_DOWNSIDE_SQUEEZE") return "POSSIBLE ES DOWNSIDE SQUEEZE";
+  if (text === "LIQUIDITY_SWEEP_HIGH") return "ES LIQUIDITY SWEEP HIGH";
+  if (text === "LIQUIDITY_SWEEP_LOW") return "ES LIQUIDITY SWEEP LOW";
+  if (text === "FAILED_BREAKOUT") return "FAILED ES BREAKOUT";
+  if (text === "FAILED_BREAKDOWN") return "FAILED ES BREAKDOWN";
+  if (text === "BROAD_MOVE_CONFIRMED") return "BROAD MOVE CONFIRMED";
+  if (text === "MIXED") return "MIXED / NO CLEAR MOVE";
+  return clean(raw);
+}
+
 function stateColor(value) {
   const text = String(value || "").toUpperCase();
 
@@ -62,7 +107,7 @@ function stateColor(value) {
   return "#94a3b8";
 }
 
-function TinyState({ label, value }) {
+function TinyState({ label, value, formatter = plainState }) {
   return (
     <div
       style={{
@@ -94,7 +139,7 @@ function TinyState({ label, value }) {
           textTransform: "uppercase",
         }}
       >
-        {clean(value)}
+        {formatter(value)}
       </div>
     </div>
   );
@@ -271,10 +316,10 @@ export default function Engine29CrossMarketStressPanel({ visible = false, symbol
       {payload && (
         <>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 7 }}>
-            <TinyState label="1W Structure" value={display?.oneWeek?.state || payload?.structuralState} />
-            <TinyState label="1H Now" value={display?.oneHour?.state || payload?.tacticalState} />
-            <TinyState label="30m Shift" value={display?.thirtyMinute?.state || payload?.fastTacticalState} />
-            <TinyState label="ES Move" value={display?.thirtyMinute?.status || payload?.moveCharacter} />
+            <TinyState label="1W Bigger Picture" value={display?.oneWeek?.state || payload?.structuralState} />
+            <TinyState label="1H Intraday" value={display?.oneHour?.state || payload?.tacticalState} />
+            <TinyState label="30m Fast Shift" value={display?.thirtyMinute?.state || payload?.fastTacticalState} />
+            <TinyState label="ES Move" value={payload?.moveCharacter || display?.thirtyMinute?.moveCharacter || display?.thirtyMinute?.status} formatter={plainMoveCharacter} />
           </div>
 
           <div
@@ -337,14 +382,14 @@ export default function Engine29CrossMarketStressPanel({ visible = false, symbol
           >
             <strong style={{ color: "#f8fafc" }}>Overall:</strong>{" "}
             <span style={{ color: stateColor(display?.overall), fontWeight: 900 }}>
-              {clean(display?.overall)}
+              {plainState(display?.overall)}
             </span>
             {display?.overallSummary ? ` — ${display.overallSummary}` : ""}
           </div>
 
           {Array.isArray(display?.missingConfirmation) && display.missingConfirmation.length > 0 && (
             <div style={{ color: "#fbbf24", fontSize: 10, lineHeight: 1.3, fontWeight: 700 }}>
-              Missing confirmation: {display.missingConfirmation.map(clean).join(" · ")}
+              Missing confirmation: {display.missingConfirmation.map((x) => clean(x === "CREDIT" ? "Credit confirmation" : x)).join(" · ")}
             </div>
           )}
 
