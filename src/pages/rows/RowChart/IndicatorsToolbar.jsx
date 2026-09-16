@@ -303,6 +303,8 @@ export default function IndicatorsToolbar({
 
   engine25CompositeOverlay = true,
   engine25Timeline = false,
+
+  engine29CrossMarketPanel = false,
   
   showPremarketFibs = false,
 
@@ -574,6 +576,26 @@ export default function IndicatorsToolbar({
                     Market Health Timeline
                   </label>
                 </div>
+
+                {divider}
+
+                <div style={{ color: "#9ca3af", fontSize: 12, margin: "6px 0 8px" }}>
+                  Engine 29 — Cross-Market Stress
+                </div>
+
+                <div style={{ display: "grid", gap: 6 }}>
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={!!engine29CrossMarketPanel}
+                      onChange={(e) =>
+                        onChange?.({ engine29CrossMarketPanel: e.target.checked })
+                      }
+                    />{" "}
+                    Cross-Market Stress Window
+                  </label>
+                </div>
+
                 {divider}
 
                 <div style={{ color: "#9ca3af", fontSize: 12, margin: "6px 0 8px" }}>
