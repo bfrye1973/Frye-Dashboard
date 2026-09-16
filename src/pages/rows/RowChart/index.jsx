@@ -53,6 +53,7 @@ import Engine23BehaviorCard from "./overlays/Engine23BehaviorCard";
 import Engine26ImbalanceWatchCard from "./overlays/Engine26ImbalanceWatchCard";
 import Engine25CompositeOverlay from "./overlays/Engine25CompositeOverlay";
 import Engine25MarketHealthTimeline from "./overlays/Engine25MarketHealthTimeline";
+import Engine29CrossMarketStressPanel from "./overlays/Engine29CrossMarketStressPanel";
 import Engine26TradeGeometryTool from "./panels/Engine26TradeGeometryTool";
 
 /* ------------------------------ Config ------------------------------ */
@@ -1041,6 +1042,7 @@ export default function RowChart({
 
     engine25CompositeOverlay: false,
     engine25Timeline: false,
+    engine29CrossMarketPanel: false,
 
     showPremarketFibs: false,
   });
@@ -2127,7 +2129,8 @@ export default function RowChart({
       engine17DebugPanel: false,
 
       engine25CompositeOverlay: false,
-      engine25Timeline: false,      
+      engine25Timeline: false,
+      engine29CrossMarketPanel: false,
 
       showPremarketFibs: false,
     }));
@@ -2169,6 +2172,7 @@ export default function RowChart({
 
     engine25CompositeOverlay: state.engine25CompositeOverlay,
     engine25Timeline: state.engine25Timeline,
+    engine29CrossMarketPanel: state.engine29CrossMarketPanel,
 
     showPremarketFibs: state.showPremarketFibs,
 
@@ -2336,9 +2340,17 @@ export default function RowChart({
             visible={
               state.engine25Timeline &&
               normalizeSymbol(state.symbol) === "ES"
-          }
-          symbol={state.symbol}
-         />
+            }
+            symbol={state.symbol}
+          />
+
+          <Engine29CrossMarketStressPanel
+            visible={
+              state.engine29CrossMarketPanel &&
+              normalizeSymbol(state.symbol) === "ES"
+            }
+            symbol={state.symbol}
+          />
 
           <Engine26TradeGeometryTool
             visible={
