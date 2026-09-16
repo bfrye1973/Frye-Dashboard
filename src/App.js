@@ -1,8 +1,9 @@
 // src/App.js
-// Engine 29 update:
-// - Keeps Engine 25 research pages outside UIScaler
-// - Adds /engine29-full outside UIScaler
+// Engine 25D update:
 // - Keeps normal dashboard pages inside UIScaler
+// - Moves /engine25-full OUTSIDE UIScaler so the full research page is not shrunk to 60%
+// - Adds /engine25-credit-stress OUTSIDE UIScaler
+// - Keeps API_BASE export, HealthStatusBar, ModeProvider, and existing routes
 
 import React, { useEffect, useMemo, useState } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
@@ -28,11 +29,15 @@ const Engine29FullDashboard = React.lazy(() =>
   import("./pages/engine29/Engine29FullDashboard")
 );
 
+/* ------------------------- API base resolution ------------------------- */
+
 const API_BASE =
   (typeof window !== "undefined" && (window.__API_BASE__ || "")) ||
   process.env.REACT_APP_API_BASE ||
   process.env.VITE_TRADING_API_BASE ||
   "https://frye-market-backend-1.onrender.com/api";
+
+/* --------------------------- date helper (AZ) --------------------------- */
 
 const fmtAz = (iso) => {
   try {
@@ -50,26 +55,59 @@ const fmtAz = (iso) => {
   }
 };
 
+/* --------------------------- Health Status Bar -------------------------- */
+
 function HealthStatusBar() {
-  const [state, setState] = useState({ ok: null, ts: null, service: "", error: null, lastChecked: null });
-  const url = useMemo(() => `${API_BASE.replace(/\/+$/, "")}/api/health`, []);
+  const [state, setState] = useState({
+    ok: null,
+    ts: null,
+    service: "",
+    error: null,
+    lastChecked: null,
+  });
+
+  const url = useMemo(
+    () => `${API_BASE.replace(/\/+$/, "")}/api/health`,
+    []
+  );
 
   useEffect(() => {
     let alive = true;
+
     const fetchHealth = async () => {
       try {
         const res = await fetch(url, { cache: "no-store" });
         const json = await res.json().catch(() => ({}));
+
         if (!alive) return;
-        setState({ ok: Boolean(json.ok), ts: json.ts || null, service: json.service || "backend", error: null, lastChecked: new Date().toISOString() });
+
+        setState({
+          ok: Boolean(json.ok),
+          ts: json.ts || null,
+          service: json.service || "backend",
+          error: null,
+          lastChecked: new Date().toISOString(),
+        });
       } catch (e) {
         if (!alive) return;
-        setState((current) => ({ ...current, ok: false, error: e?.message || "Network error", lastChecked: new Date().toISOString() }));
+
+        setState((current) => ({
+          ...current,
+          ok: false,
+          error: e?.message || "Network error",
+          lastChecked: new Date().toISOString(),
+        }));
       }
     };
+
     fetchHealth();
+
     const id = setInterval(fetchHealth, 10000);
-    return () => { alive = false; clearInterval(id); };
+
+    return () => {
+      alive = false;
+      clearInterval(id);
+    };
   }, [url]);
 
   const connected = state.ok === true;
@@ -78,56 +116,195 @@ function HealthStatusBar() {
   const checked = state.lastChecked ? fmtAz(state.lastChecked) : "—";
 
   return (
-    <div style={{ position: "sticky", top: 0, zIndex: 1000, width: "100%", background: "#0b0f14", borderBottom: "1px solid #1f2937", color: "#e5e7eb", fontSize: 13 }} data-healthbar>
-      <div style={{ display: "flex", gap: 16, alignItems: "center", padding: "6px 10px", flexWrap: "wrap" }}>
-        <strong style={{ color: "#93c5fd" }}>Service:</strong><span>{state.service || "frye-market-backend"}</span>
+    <div
+      style={{
+        position: "sticky",
+        top: 0,
+        zIndex: 1000,
+        width: "100%",
+        background: "#0b0f14",
+        borderBottom: "1px solid #1f2937",
+        color: "#e5e7eb",
+        fontSize: 13,
+      }}
+      data-healthbar
+    >
+      <div
+        style={{
+          display: "flex",
+          gap: 16,
+          alignItems: "center",
+          padding: "6px 10px",
+          flexWrap: "wrap",
+        }}
+      >
+        <strong style={{ color: "#93c5fd" }}>Service:</strong>
+        <span>{state.service || "frye-market-backend"}</span>
+
         <span style={{ opacity: 0.5 }}>|</span>
+
         <strong style={{ color: "#93c5fd" }}>Connected:</strong>
-        <span style={{ display: "inline-flex", alignItems: "center", gap: 6, color: statusColor, fontWeight: 600 }}><span style={{ width: 8, height: 8, borderRadius: 999, background: statusColor, display: "inline-block" }} />{connected ? "✓" : "✗"}</span>
+
+        <span
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 6,
+            color: statusColor,
+            fontWeight: 600,
+          }}
+        >
+          <span
+            style={{
+              width: 8,
+              height: 8,
+              borderRadius: 999,
+              background: statusColor,
+              display: "inline-block",
+            }}
+          />
+
+          {connected ? "✓" : "✗"}
+        </span>
+
         <span style={{ opacity: 0.5 }}>|</span>
-        <strong style={{ color: "#93c5fd" }}>Last heartbeat (AZ):</strong><span>{heartbeat}</span>
+
+        <strong style={{ color: "#93c5fd" }}>
+          Last heartbeat (AZ):
+        </strong>
+
+        <span>{heartbeat}</span>
+
         <span style={{ opacity: 0.5 }}>|</span>
-        <strong style={{ color: "#93c5fd" }}>Checked at (AZ):</strong><span>{checked}</span>
-        {state.error && <><span style={{ opacity: 0.5 }}>|</span><span style={{ color: "#f97316" }}>Note:</span><span style={{ color: "#fca5a5" }}>{state.error}</span></>}
+
+        <strong style={{ color: "#93c5fd" }}>
+          Checked at (AZ):
+        </strong>
+
+        <span>{checked}</span>
+
+        {state.error && (
+          <>
+            <span style={{ opacity: 0.5 }}>|</span>
+            <span style={{ color: "#f97316" }}>Note:</span>
+            <span style={{ color: "#fca5a5" }}>{state.error}</span>
+          </>
+        )}
       </div>
     </div>
   );
 }
 
+/* ---------------------- Normal dashboard scaled shell ------------------- */
+
 function ScaledDashboardShell({ children }) {
   return (
-    <UIScaler minReadable={0.45} defaultScale={0.6} defaultMode="manual" maxScale={1.6}>
-      <ModeProvider initial={ViewModes.METER_TILES}>{children}</ModeProvider>
+    <UIScaler
+      minReadable={0.45}
+      defaultScale={0.6}
+      defaultMode="manual"
+      maxScale={1.6}
+    >
+      <ModeProvider initial={ViewModes.METER_TILES}>
+        {children}
+      </ModeProvider>
     </UIScaler>
   );
 }
+
+/* --------------------------------- App --------------------------------- */
 
 export default function App() {
   useEffect(() => {
     const fixWidth = () => {
       const grid = document.querySelector(".dashboard-grid");
-      if (grid) { grid.style.width = "100%"; grid.style.maxWidth = "100vw"; grid.style.overflowX = "hidden"; }
+
+      if (grid) {
+        grid.style.width = "100%";
+        grid.style.maxWidth = "100vw";
+        grid.style.overflowX = "hidden";
+      }
     };
+
     fixWidth();
+
     window.addEventListener("resize", fixWidth);
     window.addEventListener("orientationchange", fixWidth);
-    return () => { window.removeEventListener("resize", fixWidth); window.removeEventListener("orientationchange", fixWidth); };
+
+    return () => {
+      window.removeEventListener("resize", fixWidth);
+      window.removeEventListener("orientationchange", fixWidth);
+    };
   }, []);
 
   return (
     <ErrorBoundary>
       <BrowserRouter>
         <HealthStatusBar />
-        <React.Suspense fallback={<div style={{ padding: 16, color: "#9ca3af" }}>Loading…</div>}>
-          <Routes>
-            <Route path="/engine25-full" element={<Engine25FullDashboard />} />
-            <Route path="/engine25-credit-stress" element={<Engine25CreditStressDetail />} />
-            <Route path="/engine29-full" element={<Engine29FullDashboard />} />
 
-            <Route path="/" element={<ScaledDashboardShell><NewDashboard /></ScaledDashboardShell>} />
-            <Route path="/chart" element={<ScaledDashboardShell><FullChart /></ScaledDashboardShell>} />
-            <Route path="/strategies-full" element={<ScaledDashboardShell><StrategiesFull /></ScaledDashboardShell>} />
-            <Route path="/journal-full" element={<ScaledDashboardShell><JournalFull /></ScaledDashboardShell>} />
+        <React.Suspense
+          fallback={
+            <div style={{ padding: 16, color: "#9ca3af" }}>
+              Loading…
+            </div>
+          }
+        >
+          <Routes>
+            {/* Engine 25 research pages are outside UIScaler */}
+
+            <Route
+              path="/engine25-full"
+              element={<Engine25FullDashboard />}
+            />
+
+            <Route
+              path="/engine25-credit-stress"
+              element={<Engine25CreditStressDetail />}
+            />
+
+            <Route
+              path="/engine29-full"
+              element={<Engine29FullDashboard />}
+            />
+
+            {/* Normal dashboard routes stay inside UIScaler */}
+
+            <Route
+              path="/"
+              element={
+                <ScaledDashboardShell>
+                  <NewDashboard />
+                </ScaledDashboardShell>
+              }
+            />
+
+            <Route
+              path="/chart"
+              element={
+                <ScaledDashboardShell>
+                  <FullChart />
+                </ScaledDashboardShell>
+              }
+            />
+
+            <Route
+              path="/strategies-full"
+              element={
+                <ScaledDashboardShell>
+                  <StrategiesFull />
+                </ScaledDashboardShell>
+              }
+            />
+
+            <Route
+              path="/journal-full"
+              element={
+                <ScaledDashboardShell>
+                  <JournalFull />
+                </ScaledDashboardShell>
+              }
+            />
+
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </React.Suspense>
@@ -135,5 +312,7 @@ export default function App() {
     </ErrorBoundary>
   );
 }
+
+/* ----------------------------- named export ----------------------------- */
 
 export { API_BASE };
