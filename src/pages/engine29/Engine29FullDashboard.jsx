@@ -1,15 +1,14 @@
-from pathlib import Path
-
-content = r'''// src/pages/engine29/Engine29FullDashboard.jsx
+// src/pages/engine29/Engine29FullDashboard.jsx
 // Engine 29 — Cross-Market Stress full dashboard.
 // Standalone research/control-room page using Engine 29's own API.
 // No dependency on buildStrategySnapshot.js.
 
 import React, { useEffect, useMemo, useState } from "react";
 
-// Engine 29 uses the verified production backend directly.
+// IMPORTANT:
+// Engine 29 intentionally uses the verified production backend directly.
 // This avoids stale frontend environment variables pointing this page
-// at an older backend service.
+// at an older backend service after the ES rollover.
 const API_ROOT = "https://frye-market-backend-1.onrender.com";
 
 const ROUTE = `${API_ROOT}/api/v1/engine29/cross-market-stress`;
@@ -37,7 +36,6 @@ function clean(value) {
 
 function rawMoveCharacter(value) {
   if (!value) return null;
-
   if (typeof value === "string") return value;
 
   if (typeof value === "object") {
@@ -332,39 +330,21 @@ function GroupCard({ title, groupKey, group, displayLabel }) {
       <SectionTitle color={color}>{title}</SectionTitle>
 
       <div style={{ display: "grid", gap: 6 }}>
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            gap: 12,
-          }}
-        >
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
           <span style={{ color: "#94a3b8", fontSize: 14 }}>1W</span>
           <strong style={{ color: stateColor(structural?.state) }}>
             {plainGroupState(groupKey, structural?.state)}
           </strong>
         </div>
 
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            gap: 12,
-          }}
-        >
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
           <span style={{ color: "#94a3b8", fontSize: 14 }}>1H</span>
           <strong style={{ color: stateColor(tactical?.state) }}>
             {plainGroupState(groupKey, tactical?.state)}
           </strong>
         </div>
 
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            gap: 12,
-          }}
-        >
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
           <span style={{ color: "#94a3b8", fontSize: 14 }}>30m</span>
           <strong style={{ color: stateColor(fast?.state) }}>
             {plainGroupState(groupKey, fast?.state)}
@@ -601,9 +581,7 @@ function EsMoveCard({ data }) {
               color: stateColor(moveCharacter),
             }}
           >
-            {plainMoveCharacter(
-              moveCharacter || thirty?.status
-            )}
+            {plainMoveCharacter(moveCharacter || thirty?.status)}
           </div>
 
           <div
@@ -627,49 +605,22 @@ function EsMoveCard({ data }) {
             alignContent: "start",
           }}
         >
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              gap: 10,
-            }}
-          >
-            <span style={{ color: "#94a3b8" }}>
-              Direction
-            </span>
-
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
+            <span style={{ color: "#94a3b8" }}>Direction</span>
             <strong style={{ color: stateColor(moveDirection) }}>
               {clean(moveDirection)}
             </strong>
           </div>
 
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              gap: 10,
-            }}
-          >
-            <span style={{ color: "#94a3b8" }}>
-              Pressure
-            </span>
-
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
+            <span style={{ color: "#94a3b8" }}>Pressure</span>
             <strong style={{ color: stateColor(pressure) }}>
               {clean(pressure)}
             </strong>
           </div>
 
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              gap: 10,
-            }}
-          >
-            <span style={{ color: "#94a3b8" }}>
-              ES contract
-            </span>
-
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
+            <span style={{ color: "#94a3b8" }}>ES contract</span>
             <strong>
               {data?.dataQuality?.esResolvedSymbol ||
                 data?.esResolvedSymbol ||
@@ -679,20 +630,9 @@ function EsMoveCard({ data }) {
           </div>
 
           {Number.isFinite(Number(es?.pointMove)) && (
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                gap: 10,
-              }}
-            >
-              <span style={{ color: "#94a3b8" }}>
-                30m ES move
-              </span>
-
-              <strong>
-                {Number(es.pointMove).toFixed(2)} pts
-              </strong>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
+              <span style={{ color: "#94a3b8" }}>30m ES move</span>
+              <strong>{Number(es.pointMove).toFixed(2)} pts</strong>
             </div>
           )}
         </div>
@@ -713,6 +653,7 @@ export default function Engine29FullDashboard() {
     async function load() {
       try {
         setError(null);
+        setStatus("LOADING");
 
         const [fullRes, summaryRes] = await Promise.all([
           fetch(`${ROUTE}?t=${Date.now()}`, {
@@ -1013,6 +954,7 @@ export default function Engine29FullDashboard() {
               }}
             >
               <EsMoveCard data={d} />
+
               <PressureCard
                 display={display}
                 move={d?.tacticalCharacter}
@@ -1027,7 +969,9 @@ export default function Engine29FullDashboard() {
               }}
             >
               <Card>
-                <SectionTitle>Key Takeaways</SectionTitle>
+                <SectionTitle>
+                  Key Takeaways
+                </SectionTitle>
 
                 <div
                   style={{
@@ -1083,7 +1027,8 @@ export default function Engine29FullDashboard() {
                       style={{
                         padding: "6px 9px",
                         borderRadius: 999,
-                        background: "rgba(245,158,11,0.12)",
+                        background:
+                          "rgba(245,158,11,0.12)",
                         border:
                           "1px solid rgba(245,158,11,0.35)",
                         color: "#fbbf24",
@@ -1111,8 +1056,3 @@ export default function Engine29FullDashboard() {
     </div>
   );
 }
-'''
-
-path = Path('/mnt/data/Engine29FullDashboard.jsx.txt')
-path.write_text(content)
-print(path)
