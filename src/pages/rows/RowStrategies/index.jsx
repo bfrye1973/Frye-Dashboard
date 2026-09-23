@@ -584,25 +584,25 @@ function Engine22SimpleDegreeCard({ degree, state }) {
 
   if (isMinute) {
     title = "MINUTE";
-    subtitle = "Tactical map";
+    subtitle = "Tactical pullback watch";
     headline =
-      "Current tactical wave: Minute C-down active after B-up completed";
-    tone = "short";
-    badge = "C DOWN";
+      "Minute W1 up from 7591 — W2 pullback watch";
+    tone = "long";
+    badge = "W1 UP";
   } else if (isMinor) {
     title = "MINOR";
-    subtitle = "Parent correction";
+    subtitle = "Parent impulse";
     headline =
-      "Minor W4 complex correction — Minor C-down active";
-    tone = "short";
-    badge = "PARENT";
+      "Minor W5 active — internal Wave 3 up active";
+    tone = "long";
+    badge = "W5";
   } else if (isSubminute) {
     title = "SUBMINUTE";
-    subtitle = "Timing inside Minute C";
+    subtitle = "Timing context";
     headline =
-      "Subminute ABC timing inside active Minute C-down";
-    tone = "short";
-    badge = "C DOWN";
+      "Subminute context only inside Minute W2 pullback watch";
+    tone = "watch";
+    badge = "CTX";
   } else if (degreeKey === "intermediate") {
     title = "INTERMEDIATE";
     subtitle = "Higher-timeframe context";
@@ -693,264 +693,42 @@ function Engine22SimpleDegreeCard({ degree, state }) {
       >
         {headline}
       </div>
-
       {isMinute ? (
         <>
-          <Engine22Line
-            label="A Low"
-            value="7618.00 — 2026-09-02 15:00"
-          />
-
-          <Engine22Line
-            label="B High"
-            value="7760.00 — 2026-09-04 15:00"
-            tone="warn"
-          />
-
-          <Engine22Line
-            label="Current"
-            value="Minute-C / ACTIVE"
-            tone="short"
-          />
-
-          <Engine22Line
-            label="Started"
-            value="7760.00"
-            tone="short"
-          />
-
-          <Engine22Line
-            label="Invalid"
-            value="Above internal B high 7760.00 reclaim / hold"
-            tone="warn"
-          />
-
-          <Engine22TargetGrid
-            title="Minute C-down extensions"
-            levels={minuteCLevels}
-            labels={[
-              ["cc100", "C 1.000"],
-              ["cc1272", "C 1.272"],
-              ["cc1618", "C 1.618"],
-              ["cc200", "C 2.000"],
-              ["cc2618", "C 2.618"],
-            ]}
-          />
-
-          <div
-            style={{
-              border: "1px solid #5b3a10",
-              borderRadius: 10,
-              background: "#171005",
-              padding: 7,
-              display: "grid",
-              gap: 6,
-            }}
-          >
-            <div
-              style={{
-                color: "#fbbf24",
-                fontSize: FS.micro,
-                fontWeight: 1000,
-              }}
-            >
-              Minute path
-            </div>
-
-            <Engine22Line
-              label="Done"
-              value="Minute A-down completed at 7618.00"
-              tone="muted"
-            />
-
-            <Engine22Line
-              label="Done"
-              value="Minute B-up completed candidate at 7760.00"
-              tone="warn"
-            />
-
-            <Engine22Line
-              label="Now"
-              value="Minute C-down active from 7760.00"
-              tone="short"
-            />
+          <Engine22Line label="Start" value="7591.00 — 2026-09-16 12:30" tone="long" />
+          <Engine22Line label="High" value="7848.50 — current W1 high reference" tone="warn" />
+          <Engine22Line label="Current" value="Minute-W1 / COMPLETION CANDIDATE" tone="long" />
+          <Engine22Line label="Next" value="Minute-W2 pullback watch" tone="warn" />
+          <Engine22Line label="Invalid" value="Below 7591.00" tone="warn" />
+          <Engine22TargetGrid title="Minute W2 pullback levels from 7591 → 7848.50" levels={{ r0786: 7793.50, r0618: 7750.25, r0500: 7719.75, r0382: 7689.50, r0236: 7651.75 }} labels={[["r0786", "0.786"], ["r0618", "0.618"], ["r0500", "0.500"], ["r0382", "0.382"], ["r0236", "0.236"]]} />
+          <div style={{ border: "1px solid #5b3a10", borderRadius: 10, background: "#171005", padding: 7, display: "grid", gap: 6 }}>
+            <div style={{ color: "#fbbf24", fontSize: FS.micro, fontWeight: 1000 }}>Minute path</div>
+            <Engine22Line label="Done/Active" value="Minute W1 up from 7591.00" tone="long" />
+            <Engine22Line label="Next" value="Minute W2 pullback should hold above 7591.00" tone="warn" />
+            <Engine22Line label="Rule" value="Do not call bearish unless 7591 fails" tone="muted" />
           </div>
         </>
       ) : isMinor ? (
         <>
-          <Engine22Line
-            label="Structure"
-            value="Minor W4 complex correction"
-          />
-
-          <Engine22Line
-            label="Active Leg"
-            value="Minor C-down active"
-            tone="short"
-          />
-
-          <Engine22Line
-            label="Internal"
-            value="Minute C-down active now"
-            tone="short"
-          />
-
-          <Engine22Line
-            label="Invalid"
-            value={
-              largerInvalidation != null
-                ? `Above expanded-flat B high ${wavePrice(
-                    largerInvalidation
-                  )} reclaim / hold`
-                : "Above expanded-flat B high 7840.00 reclaim / hold"
-            }
-            tone="warn"
-          />
-
-          <Engine22TargetGrid
-            title="Minor W4 final C-down completion map"
-            levels={parentCLevels}
-            labels={[
-              ["c100", "First: C 1.000"],
-              ["c1272", "Next: C 1.272"],
-              ["c1618", "Primary: C 1.618"],
-              ["c200", "Deep: C 2.000"],
-              ["c2618", "Extreme: C 2.618"],
-            ]}
-          />
-
-          <div
-            style={{
-              border: "1px solid #5b3a10",
-              borderRadius: 10,
-              background: "#171005",
-              padding: 7,
-              display: "grid",
-              gap: 6,
-            }}
-          >
-            <div
-              style={{
-                color: "#fbbf24",
-                fontSize: FS.micro,
-                fontWeight: 1000,
-              }}
-            >
-              Minor W4 completion rule
-            </div>
-
-            <Engine22Line
-              label="Step 1"
-              value="Minute A-down completed at 7618.00"
-              tone="muted"
-            />
-
-            <Engine22Line
-              label="Step 2"
-              value="Minute B-up completed candidate at 7760.00"
-              tone="warn"
-            />
-
-            <Engine22Line
-              label="Step 3"
-              value="Final Minute C-down active from 7760.00"
-              tone="short"
-            />
-
-            <Engine22Line
-              label="Rule"
-              value="Minor W4 is not complete until Minute C-down finishes/exhausts and reclaims"
-              tone="muted"
-            />
+          <Engine22Line label="Structure" value="Minor W5 active from 7398.00" tone="long" />
+          <Engine22Line label="W4 Done" value="7398.00 — 2026-07-29 13:30" />
+          <Engine22Line label="W1 High" value="7904.00 — 2026-08-13 06:30" />
+          <Engine22Line label="W2 Done" value="7591.00 — 2026-09-16 12:00" tone="warn" />
+          <Engine22Line label="Active" value="Minor W5 internal Wave 3 up from 7591.00" tone="long" />
+          <Engine22TargetGrid title="Minor W5 internal Wave 3 upside targets" levels={{ w3_1000: 8097.00, w3_1272: 8234.75, w3_1618: 8409.75, w3_2000: 8603.00, w3_2618: 8915.75 }} labels={[["w3_1000", "W3 1.000"], ["w3_1272", "W3 1.272"], ["w3_1618", "W3 1.618"], ["w3_2000", "W3 2.000"], ["w3_2618", "W3 2.618"]]} />
+          <div style={{ border: "1px solid #5b3a10", borderRadius: 10, background: "#171005", padding: 7, display: "grid", gap: 6 }}>
+            <div style={{ color: "#fbbf24", fontSize: FS.micro, fontWeight: 1000 }}>Parent-degree rule</div>
+            <Engine22Line label="Old" value="Prior Minor C-down map is demoted to alternate/history" tone="muted" />
+            <Engine22Line label="Warning" value="Lose 7591 weakens Wave 3 launch" tone="warn" />
+            <Engine22Line label="Invalid" value="Lose 7398 invalidates Minor W5 active read" tone="warn" />
           </div>
         </>
       ) : isSubminute ? (
         <>
-          <Engine22Line
-            label="Parent"
-            value="Minute C-down active from 7760.00"
-            tone="short"
-          />
-
-          <Engine22Line
-            label="A Down"
-            value="7762.00 → 7586.00"
-          />
-
-          <Engine22Line
-            label="B Up"
-            value="7592.00 → 7680.00"
-            tone="warn"
-          />
-
-          <Engine22Line
-            label="Current"
-            value="Subminute-C / ACTIVE"
-            tone="short"
-          />
-
-          <Engine22Line
-            label="Invalid"
-            value="Above 7680.00 reclaim / hold"
-            tone="warn"
-          />
-
-          <Engine22TargetGrid
-            title="Parent Minute C targets used by Subminute"
-            levels={{
-              cc100: 7618.0,
-              cc1272: 7579.5,
-              cc1618: 7530.25,
-              cc200: 7476.0,
-              cc2618: 7388.25,
-            }}
-            labels={[
-              ["cc100", "Minute C 1.000"],
-              ["cc1272", "Minute C 1.272"],
-              ["cc1618", "Minute C 1.618"],
-              ["cc200", "Minute C 2.000"],
-              ["cc2618", "Minute C 2.618"],
-            ]}
-          />
-
-          <div
-            style={{
-              border: "1px solid #5b3a10",
-              borderRadius: 10,
-              background: "#171005",
-              padding: 7,
-              display: "grid",
-              gap: 6,
-            }}
-          >
-            <div
-              style={{
-                color: "#fbbf24",
-                fontSize: FS.micro,
-                fontWeight: 1000,
-              }}
-            >
-              Subminute rule
-            </div>
-
-            <Engine22Line
-              label="Use"
-              value="Timing/path only inside parent Minute C-down"
-              tone="muted"
-            />
-
-            <Engine22Line
-              label="Do Not"
-              value="Do not publish separate deep subminute extension ladder"
-              tone="warn"
-            />
-
-            <Engine22Line
-              label="Targets"
-              value="Parent Minute C ladder remains authoritative"
-              tone="short"
-            />
-          </div>
+          <Engine22Line label="Role" value="Timing/context only" tone="muted" />
+          <Engine22Line label="Parent" value="Minute W2 pullback map controls" tone="warn" />
+          <Engine22Line label="Use" value="Use for reaction timing only — do not force subminute count" tone="muted" />
+          <Engine22Line label="Invalid" value="Parent invalidation remains 7591.00" tone="warn" />
         </>
       ) : isHigher ? (
         <>
@@ -1752,7 +1530,7 @@ function Engine27MinuteTacticalCard({
     highestPriorityDegree === "minute";
 
   const plainEnglish =
-    "Minute B-up is completed candidate at 7760.00. Minute C-down is active from 7760.00. Current invalidation is above 7760.00 reclaim/hold. Watch the C-down extension ladder for the next downside destinations.";
+    "Minor W5 internal Wave 3 up is active from 7591. Minute W1 up is completion candidate near 7848.50 and Minute W2 pullback is the next watch. Use 7591 as the hard invalidation; do not call bearish unless 7591 fails.";
 
   return (
     <div
@@ -1797,7 +1575,7 @@ function Engine27MinuteTacticalCard({
               marginTop: 2,
             }}
           >
-            intraday_scalp@10m • Minute C-down active inside Minor C-down
+            intraday_scalp@10m • Minute W2 pullback watch inside Minor W5 Wave 3 up
           </div>
         </div>
 
@@ -2147,7 +1925,7 @@ function Engine27MinorParentCard({
               marginTop: 2,
             }}
           >
-            Minor C-down active • Minute C-down is active now
+            Minor W5 active • internal Wave 3 up active from 7591
           </div>
         </div>
 
@@ -2287,10 +2065,7 @@ function Engine27MinorParentCard({
           lineHeight: 1.3,
         }}
       >
-        Minor C-down is active. Minute A-down completed at 7618.00, Minute
-        B-up completed candidate at 7760.00, and Minute C-down is active now.
-        Do not call Minor W4 complete until Minute C-down finishes/exhausts
-        and price reclaims its invalidation structure.
+        Minor W4 completed candidate at 7398.00 on 2026-07-29 13:30. Minor W5 is active from 7398.00. Internal Wave 1 completed candidate at 7904.00, Wave 2 completed candidate at 7591.00, and Wave 3 up is active from 7591.00. Prior C-down map is now alternate/history.
       </div>
     </div>
   );
