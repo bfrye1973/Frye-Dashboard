@@ -1143,9 +1143,9 @@ function Engine27MinorParentCard({
 
   const completionStatus =
     wave?.parentWaveComplete === true ||
-    degreeState?.stage === "COMPLETE"
+    minorDisplay?.active === false
       ? "COMPLETE"
-      : "CORRECTION ACTIVE — NOT COMPLETE";
+      : "ACTIVE — ENGINE 22 DISPLAY";
 
   return (
     <div
