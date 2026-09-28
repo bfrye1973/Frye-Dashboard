@@ -17,6 +17,7 @@
 
 import React from "react";
 import { useDashboardSnapshot } from "../../../hooks/useDashboardSnapshot";
+import Engine22MarketStructureCard from "../RowChart/overlays/Engine22MarketStructureCard";
 
 /* -------------------- env helpers -------------------- */
 function env(name, fb = "") {
@@ -230,935 +231,23 @@ function Badge({ text, tone = "wait", large = false, title = "" }) {
 }
 
 /* -------------------- Engine 22 Wave Degrees -------------------- */
-function getDegreeStates(snapshot) {
+function getEngine22Display(snapshot) {
   return (
     snapshot?.strategies?.[STRATEGY_ID_MAP.SCALP]?.engine22WaveStrategy
-      ?.degreeStates || null
+      ?.engine22Display || null
   );
 }
 
-function waveText(value, fallback = "—") {
-  if (value === null || value === undefined || value === "") {
-    return fallback;
-  }
-
-  return String(value);
-}
-
-function wavePrice(value, fallback = "—") {
-  return Number.isFinite(Number(value)) ? fmt2(value) : fallback;
-}
-
-function getEngine22Internal(state) {
-  return (
-    state?.cWaveInternalStructure ||
-    state?.targetModel?.internalCStructure ||
-    state?.activeFibModel?.internalCStructure ||
-    state?.internalStructure?.internalCStructure ||
-    state?.internalStructure ||
-    null
-  );
-}
-
-function getMinuteCLevels(internal) {
-  const levels =
-    internal?.minuteC?.targetModel?.levels ||
-    internal?.cC?.targetModel?.levels ||
-    internal?.targetModel?.levels ||
-    {};
-
-  if (
-    levels &&
-    Number.isFinite(Number(levels.cc100)) &&
-    Number.isFinite(Number(levels.cc1272)) &&
-    Number.isFinite(Number(levels.cc1618))
-  ) {
-    return levels;
-  }
-
-  // Current locked Minute C-down projection from A low 7618.00 and B high 7760.00.
-  // Display-only fallback. Engine 22 remains the structural authority.
-  return {
-    cc100: 7618.0,
-    cc1272: 7579.5,
-    cc1618: 7530.25,
-    cc200: 7476.0,
-    cc2618: 7388.25,
-  };
-}
-
-function getMinuteADownLevels(internal) {
-  const levels =
-    internal?.minuteA?.targetModel?.levels ||
-    internal?.cA?.targetModel?.levels ||
-    internal?.aDownWatchLevels ||
-    internal?.targetModel?.aDownWatchLevels ||
-    {};
-
-  if (
-    levels &&
-    Number.isFinite(Number(levels.firstSupport)) &&
-    Number.isFinite(Number(levels.key0618Reaction))
-  ) {
-    return levels;
-  }
-
-  // Current locked Minute A-down watch map.
-  // Display-only fallback. Engine 22 remains the structural authority.
-  return {
-    firstSupport: 7724.25,
-    key0618Reaction: 7701.75,
-    midSupport: 7685.75,
-    deepSupport: 7669.75,
-    lowerShelf: 7655.0,
-    priorLow: 7618.0,
-    flushZone: 7604.0,
-  };
-}
-
-function getParentCLevels(state, internal) {
-  const completionMap =
-    state?.targetModel?.completionMap ||
-    internal?.completionMap ||
-    {};
-
-  if (
-    completionMap &&
-    Number.isFinite(Number(completionMap.firstReaction)) &&
-    Number.isFinite(Number(completionMap.primaryCompletion))
-  ) {
-    return {
-      c100: completionMap.firstReaction,
-      c1272: completionMap.secondaryReaction ?? 7578.25,
-      c1618: completionMap.primaryCompletion,
-      c200: completionMap.deepCompletion,
-      c2618: completionMap.extremeExhaustion,
-    };
-  }
-
-  const levels =
-    internal?.largerCDownTargets ||
-    internal?.cC?.largerCTargets ||
-    state?.targetModel?.cDownTargets ||
-    state?.activeFibModel?.levels ||
-    {};
-
-  if (
-    levels &&
-    Number.isFinite(Number(levels.c100)) &&
-    Number.isFinite(Number(levels.c1272)) &&
-    Number.isFinite(Number(levels.c1618)) &&
-    Number.isFinite(Number(levels.c200)) &&
-    Number.isFinite(Number(levels.c2618))
-  ) {
-    return levels;
-  }
-
-  // Current locked final Minor C-down completion map from the 9/10 B-complete update.
-  // Display-only fallback. Engine 22 remains the structural authority.
-  return {
-    c100: 7618.0,
-    c1272: 7579.5,
-    c1618: 7530.25,
-    c200: 7476.0,
-    c2618: 7388.25,
-  };
-}
-
-function Engine22Line({ label, value, tone = "default" }) {
-  const color =
-    tone === "short"
-      ? "#fca5a5"
-      : tone === "long"
-      ? "#86efac"
-      : tone === "warn"
-      ? "#fbbf24"
-      : tone === "muted"
-      ? "#94a3b8"
-      : "#e5e7eb";
-
-  return (
-    <div
-      style={{
-        display: "grid",
-        gridTemplateColumns: "92px minmax(0,1fr)",
-        gap: 6,
-        alignItems: "start",
-        minWidth: 0,
-      }}
-    >
-      <div
-        style={{
-          color: "#94a3b8",
-          fontSize: 11,
-          fontWeight: 1000,
-          lineHeight: 1.1,
-          textTransform: "uppercase",
-          letterSpacing: ".025em",
-        }}
-      >
-        {label}
-      </div>
-
-      <div
-        style={{
-          color,
-          fontSize: FS.small,
-          fontWeight: 1000,
-          lineHeight: 1.15,
-          wordBreak: "break-word",
-        }}
-      >
-        {value}
-      </div>
-    </div>
-  );
-}
-
-function Engine22TargetGrid({ title, levels, labels }) {
-  const rows = labels
-    .map(([key, label]) => ({
-      key,
-      label,
-      price: levels?.[key],
-    }))
-    .filter((row) => Number.isFinite(Number(row.price)));
-
-  if (!rows.length) return null;
-
-  return (
-    <div
-      style={{
-        border: "1px solid #1f3d20",
-        borderRadius: 10,
-        background: "#061108",
-        padding: 7,
-        display: "grid",
-        gap: 6,
-      }}
-    >
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          gap: 6,
-          alignItems: "center",
-        }}
-      >
-        <div
-          style={{
-            color: "#86efac",
-            fontSize: FS.micro,
-            fontWeight: 1000,
-          }}
-        >
-          {title}
-        </div>
-
-        <Badge text="FIBS" tone="long" />
-      </div>
-
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(3, minmax(0,1fr))",
-          gap: 5,
-        }}
-      >
-        {rows.map((row) => (
-          <div
-            key={row.key}
-            style={{
-              border: "1px solid rgba(34,197,94,.35)",
-              borderRadius: 8,
-              background: "#081509",
-              padding: "5px 6px",
-              minWidth: 0,
-            }}
-          >
-            <div
-              style={{
-                color: "#86efac",
-                fontSize: 11,
-                fontWeight: 1000,
-                lineHeight: 1,
-              }}
-            >
-              {row.label}
-            </div>
-
-            <div
-              style={{
-                color: "#f8fafc",
-                fontSize: FS.small,
-                fontWeight: 1000,
-                lineHeight: 1.1,
-              }}
-            >
-              {wavePrice(row.price)}
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function Engine22SimpleDegreeCard({ degree, state }) {
-  const active = state?.active === true;
-  const internal = getEngine22Internal(state);
-  const degreeKey = String(degree || state?.degree || "").toLowerCase();
-
-  const isMinute = degreeKey === "minute";
-  const isMinor = degreeKey === "minor";
-  const isSubminute = degreeKey === "subminute";
-  const isHigher =
-    degreeKey === "intermediate" ||
-    degreeKey === "primary";
-
-  const minuteALow =
-    internal?.minuteA?.low ??
-    internal?.finalMinuteABC?.waveA?.price ??
-    internal?.cA?.low ??
-    internal?.cA?.completionTouchPrice ??
-    null;
-
-  const minuteATime =
-    internal?.minuteA?.time ??
-    internal?.finalMinuteABC?.waveA?.time ??
-    internal?.cA?.time ??
-    internal?.cA?.completionTouchTime ??
-    null;
-
-  const minuteBHigh =
-    internal?.minuteB?.high ??
-    internal?.finalMinuteABC?.waveB?.price ??
-    internal?.cB?.high ??
-    null;
-
-  const minuteBTime =
-    internal?.minuteB?.time ??
-    internal?.finalMinuteABC?.waveB?.time ??
-    internal?.cB?.time ??
-    null;
-
-  const minuteCState =
-    internal?.minuteC?.state ||
-    internal?.cC?.state ||
-    internal?.cWaveState ||
-    "—";
-
-  const minuteCStart =
-    internal?.minuteC?.start ??
-    internal?.finalMinuteABC?.waveC?.start ??
-    internal?.cC?.start ??
-    minuteBHigh ??
-    null;
-
-  const minuteCLevels = getMinuteCLevels(internal);
-  const minuteADownLevels = getMinuteADownLevels(internal);
-  const parentCLevels = getParentCLevels(state, internal);
-
-  const largerInvalidation =
-    internal?.largerInvalidationLevel ??
-    internal?.parentStructure?.invalidationLevel ??
-    state?.targetModel?.reclaimInvalidationLevel ??
-    state?.activeFibModel?.invalidationLevel ??
-    (isMinor ? 7840 : null);
-
-  const currentInvalidation =
-    internal?.minuteB?.invalidationLevel ??
-    internal?.minuteC?.targetModel?.invalidationLevel ??
-    internal?.cC?.targetModel?.invalidationLevel ??
-    internal?.invalidationLevel ??
-    state?.invalidationLevel ??
-    null;
-
-  let title = prettyEnum(degree);
-  let subtitle = state?.tf || "—";
-  let headline =
-    state?.headline ||
-    `${prettyEnum(degree)} context unavailable`;
-  let tone = active ? "watch" : "wait";
-  let badge = state?.activeWave || "CTX";
-
-  if (isMinute) {
-    title = "MINUTE";
-    subtitle = "W2 ABC pullback";
-    headline =
-      "Minute W2 ABC pullback active — C-down watch";
-    tone = "short";
-    badge = "W2-C";
-  } else if (isMinor) {
-    title = "MINOR";
-    subtitle = "Parent impulse candidate";
-    headline =
-      "Minor W5 active candidate — Minute W3 not confirmed";
-    tone = "long";
-    badge = "W5";
-  } else if (isSubminute) {
-    title = "SUBMINUTE";
-    subtitle = "Timing context";
-    headline =
-      "Subminute context only inside Minute W2-C down";
-    tone = "watch";
-    badge = "CTX";
-  } else if (degreeKey === "intermediate") {
-    title = "INTERMEDIATE";
-    subtitle = "Higher-timeframe context";
-    headline =
-      state?.headline ||
-      "Intermediate structure context only";
-    tone = "long";
-  } else if (degreeKey === "primary") {
-    title = "PRIMARY";
-    subtitle = "Highest-timeframe context";
-    headline =
-      state?.headline ||
-      "Primary structure context only";
-    tone = "long";
-  }
-
-  return (
-    <div
-      style={{
-        background: active ? "#101720" : "#0b0f16",
-        border:
-          tone === "short"
-            ? "1px solid #7f1d1d"
-            : active
-            ? "1px solid #2563eb"
-            : "1px solid #1f2937",
-        borderTop:
-          tone === "short"
-            ? "4px solid #ef4444"
-            : tone === "long"
-            ? "4px solid #22c55e"
-            : "4px solid #3b82f6",
-        borderRadius: 12,
-        padding: 8,
-        minWidth: 0,
-        display: "flex",
-        flexDirection: "column",
-        gap: 7,
-        boxShadow: active
-          ? "0 0 14px rgba(37,99,235,.22)"
-          : "none",
-      }}
-    >
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          gap: 6,
-        }}
-      >
-        <div style={{ minWidth: 0 }}>
-          <div
-            style={{
-              fontWeight: 1000,
-              fontSize: FS.small,
-              color: "#e5e7eb",
-            }}
-          >
-            {title}
-          </div>
-
-          <div
-            style={{
-              fontWeight: 900,
-              fontSize: FS.micro,
-              color: "#9ca3af",
-            }}
-          >
-            {subtitle}
-          </div>
-        </div>
-
-        <Badge text={badge} tone={tone} />
-      </div>
-
-      <div
-        style={{
-          fontWeight: 1000,
-          fontSize: FS.small,
-          color:
-            tone === "short"
-              ? "#fca5a5"
-              : active
-              ? "#bfdbfe"
-              : "#9ca3af",
-          lineHeight: 1.15,
-        }}
-      >
-        {headline}
-      </div>
-      {isMinute ? (
-        <>
-          <Engine22Line
-            label="W1"
-            value="7591.00 → 7848.50"
-            tone="long"
-          />
-
-          <Engine22Line
-            label="A Down"
-            value="7707.25 — 2026-09-24 14:30"
-          />
-
-          <Engine22Line
-            label="B High"
-            value="7810.75 — 2026-09-25 10:00"
-            tone="warn"
-          />
-
-          <Engine22Line
-            label="Current"
-            value="Minute W2-C / ACTIVE OR EXPECTED"
-            tone="short"
-          />
-
-          <Engine22Line
-            label="W3"
-            value="Not confirmed until 7848.50 / 7906.25 reclaim"
-            tone="warn"
-          />
-
-          <Engine22TargetGrid
-            title="Minute W2 C-down targets from 7810.75"
-            levels={{
-              c0618: 7723.50,
-              c0786: 7699.75,
-              c1000: 7669.50,
-              c1272: 7631.00,
-              c1618: 7582.25,
-              c2000: 7528.25,
-            }}
-            labels={[
-              ["c0618", "C 0.618"],
-              ["c0786", "C 0.786"],
-              ["c1000", "C 1.000"],
-              ["c1272", "C 1.272"],
-              ["c1618", "C 1.618"],
-              ["c2000", "C 2.000"],
-            ]}
-          />
-
-          <div
-            style={{
-              border: "1px solid #5b3a10",
-              borderRadius: 10,
-              background: "#171005",
-              padding: 7,
-              display: "grid",
-              gap: 6,
-            }}
-          >
-            <div
-              style={{
-                color: "#fbbf24",
-                fontSize: FS.micro,
-                fontWeight: 1000,
-              }}
-            >
-              Minute rule
-            </div>
-
-            <Engine22Line
-              label="Preferred"
-              value="C-down can finish near 7712 / 7679.75 if it holds"
-              tone="warn"
-            />
-
-            <Engine22Line
-              label="Review"
-              value="7576 / 7591 retest means parent W2 low is under pressure"
-              tone="warn"
-            />
-
-            <Engine22Line
-              label="Invalid"
-              value="Minor W5 candidate fails below 7398.00"
-              tone="muted"
-            />
-          </div>
-        </>
-      ) : isMinor ? (
-        <>
-          <Engine22Line
-            label="Structure"
-            value="Minor W5 active candidate from 7398.00"
-            tone="long"
-          />
-
-          <Engine22Line
-            label="W4 Done"
-            value="7398.00 — 2026-07-29 13:30"
-          />
-
-          <Engine22Line
-            label="W1 High"
-            value="7904.00 — 2026-08-13 06:30"
-          />
-
-          <Engine22Line
-            label="W2 Done"
-            value="7576.00 — 2026-09-16 12:00"
-            tone="warn"
-          />
-
-          <Engine22Line
-            label="Now"
-            value="Minute W2 ABC pullback active"
-            tone="short"
-          />
-
-          <Engine22Line
-            label="W3"
-            value="Not confirmed yet — needs 7848.50 / 7906.25"
-            tone="warn"
-          />
-
-          <Engine22TargetGrid
-            title="Minute W2 C-down map inside Minor W5"
-            levels={{
-              c0618: 7723.50,
-              c0786: 7699.75,
-              c1000: 7669.50,
-              c1272: 7631.00,
-              c1618: 7582.25,
-              c2000: 7528.25,
-            }}
-            labels={[
-              ["c0618", "C 0.618"],
-              ["c0786", "C 0.786"],
-              ["c1000", "C 1.000"],
-              ["c1272", "C 1.272"],
-              ["c1618", "C 1.618"],
-              ["c2000", "C 2.000"],
-            ]}
-          />
-
-          <div
-            style={{
-              border: "1px solid #5b3a10",
-              borderRadius: 10,
-              background: "#171005",
-              padding: 7,
-              display: "grid",
-              gap: 6,
-            }}
-          >
-            <div
-              style={{
-                color: "#fbbf24",
-                fontSize: FS.micro,
-                fontWeight: 1000,
-              }}
-            >
-              Parent rule
-            </div>
-
-            <Engine22Line
-              label="Old"
-              value="Do not call Wave 3 active yet"
-              tone="warn"
-            />
-
-            <Engine22Line
-              label="Review"
-              value="Lose 7576 / 7591 pressures the W2 low"
-              tone="warn"
-            />
-
-            <Engine22Line
-              label="Invalid"
-              value="Lose 7398 invalidates Minor W5 active candidate"
-              tone="muted"
-            />
-          </div>
-        </>
-      ) : isSubminute ? (
-        <>
-          <Engine22Line
-            label="Role"
-            value="Timing/context only"
-            tone="muted"
-          />
-
-          <Engine22Line
-            label="Parent"
-            value="Minute W2-C down map controls"
-            tone="warn"
-          />
-
-          <Engine22Line
-            label="Use"
-            value="Use for reaction timing only — do not force count"
-            tone="muted"
-          />
-
-          <Engine22Line
-            label="Targets"
-            value="7723.50 / 7699.75 / 7669.50 / 7631.00 / 7582.25"
-            tone="short"
-          />
-        </>
-      ) : isHigher ? (
-        <>
-          <Engine22Line
-            label="Wave"
-            value={state?.activeWave || "—"}
-          />
-
-          <Engine22Line
-            label="Stage"
-            value={prettyEnum(state?.stage)}
-          />
-
-          <Engine22Line
-            label="Role"
-            value="Higher-timeframe context only"
-            tone="muted"
-          />
-
-          <Engine22Line
-            label="Next"
-            value={
-              degreeKey === "primary"
-                ? "8260.25"
-                : "8369.50"
-            }
-            tone="long"
-          />
-
-          <Engine22TargetGrid
-            title={
-              degreeKey === "primary"
-                ? "Primary W5 upside extensions"
-                : "Intermediate W3 upside extensions"
-            }
-            levels={
-              degreeKey === "primary"
-                ? {
-                    x100: 7602.0,
-                    x1272: 8260.25,
-                    x1618: 9097.5,
-                    x200: 10022.0,
-                    x2618: 11517.5,
-                  }
-                : {
-                    x100: 8369.5,
-                    x1272: 8903.5,
-                    x1618: 9582.5,
-                    x200: 10332.0,
-                    x2618: 11545.25,
-                  }
-            }
-            labels={[
-              [
-                "x100",
-                degreeKey === "primary"
-                  ? "W5 1.000"
-                  : "W3 1.000",
-              ],
-              [
-                "x1272",
-                degreeKey === "primary"
-                  ? "W5 1.272"
-                  : "W3 1.272",
-              ],
-              [
-                "x1618",
-                degreeKey === "primary"
-                  ? "W5 1.618"
-                  : "W3 1.618",
-              ],
-              [
-                "x200",
-                degreeKey === "primary"
-                  ? "W5 2.000"
-                  : "W3 2.000",
-              ],
-              [
-                "x2618",
-                degreeKey === "primary"
-                  ? "W5 2.618"
-                  : "W3 2.618",
-              ],
-            ]}
-          />
-
-          <div
-            style={{
-              border: "1px solid #1e3a5f",
-              borderRadius: 10,
-              background: "#07111f",
-              padding: 7,
-              display: "grid",
-              gap: 6,
-            }}
-          >
-            <div
-              style={{
-                color: "#93c5fd",
-                fontSize: FS.micro,
-                fontWeight: 1000,
-              }}
-            >
-              {degreeKey === "primary"
-                ? "Primary W5 target map"
-                : "Intermediate W3 target map"}
-            </div>
-
-            {degreeKey === "primary" ? (
-              <>
-                <Engine22Line
-                  label="First"
-                  value="W5 1.000 first extension near 7602.00"
-                />
-                <Engine22Line
-                  label="Next"
-                  value="W5 1.272 next extension near 8260.25"
-                  tone="long"
-                />
-                <Engine22Line
-                  label="Major"
-                  value="W5 1.618 major maturity watch near 9097.50"
-                  tone="warn"
-                />
-              </>
-            ) : (
-              <>
-                <Engine22Line
-                  label="First"
-                  value="W3 1.000 first extension near 8369.50"
-                />
-                <Engine22Line
-                  label="Strong"
-                  value="W3 1.272 strong extension near 8903.50"
-                  tone="long"
-                />
-                <Engine22Line
-                  label="Major"
-                  value="W3 1.618 major maturity watch near 9582.50"
-                  tone="warn"
-                />
-              </>
-            )}
-          </div>
-        </>
-      ) : (
-        <>
-          <Engine22Line
-            label="Stage"
-            value={prettyEnum(state?.stage)}
-          />
-
-          <Engine22Line
-            label="Action"
-            value={prettyEnum(state?.action)}
-          />
-        </>
-      )}
-    </div>
-  );
+function wavePrice(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n.toFixed(2) : "—";
 }
 
 function WaveDegreeRow({ snapshot }) {
-  const degreeStates = getDegreeStates(snapshot);
-
-  const degrees = [
-    "subminute",
-    "minute",
-    "minor",
-    "intermediate",
-    "primary",
-  ];
-
-  if (!degreeStates) {
-    return (
-      <div
-        style={{
-          marginTop: 10,
-          border: "1px solid #1f2937",
-          borderRadius: 14,
-          padding: 10,
-          background: "#0b0f16",
-          color: "#9ca3af",
-          fontWeight: 900,
-        }}
-      >
-        Engine 22 Wave Degrees unavailable
-      </div>
-    );
-  }
-
   return (
-    <div
-      style={{
-        marginTop: 10,
-        border: "1px solid #1f2937",
-        borderRadius: 14,
-        padding: 10,
-        background: "#080d14",
-        display: "flex",
-        flexDirection: "column",
-        gap: 8,
-      }}
-    >
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          gap: 8,
-          alignItems: "center",
-          flexWrap: "wrap",
-        }}
-      >
-        <div
-          style={{
-            fontWeight: 1000,
-            fontSize: FS.title,
-            color: "#e5e7eb",
-          }}
-        >
-          Engine 22 Wave Degrees
-        </div>
-
-        <div
-          style={{
-            color: "#9ca3af",
-            fontSize: FS.tiny,
-            fontWeight: 900,
-          }}
-        >
-          Structural display only — no execution permission
-        </div>
-      </div>
-
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns:
-            "repeat(5, minmax(0,1fr))",
-          gap: 8,
-        }}
-      >
-        {degrees.map((degree) => (
-          <Engine22SimpleDegreeCard
-            key={degree}
-            degree={degree}
-            state={
-              degreeStates?.[degree] || {
-                degree,
-                active: false,
-              }
-            }
-          />
-        ))}
-      </div>
-    </div>
+    <Engine22MarketStructureCard
+      engine22Display={getEngine22Display(snapshot)}
+    />
   );
 }
 
@@ -1563,14 +652,14 @@ function Engine27MinuteTacticalCard({
     strategyNode?.engine26ProposedGeometry ||
     null;
 
-  const degreeState =
+  const engine22Display =
     strategyNode?.engine22WaveStrategy
-      ?.degreeStates
-      ?.minute ||
+      ?.engine22Display ||
     null;
 
-  const internal =
-    getEngine22Internal(degreeState);
+  const minuteDisplay =
+    engine22Display?.degrees?.minute ||
+    null;
 
   /*
    * These are deliberately separate:
@@ -1581,8 +670,7 @@ function Engine27MinuteTacticalCard({
    */
   const structuralLeg =
     wave?.currentLegDirection ||
-    internal?.direction ||
-    degreeState?.direction ||
+    minuteDisplay?.direction ||
     "UNKNOWN";
 
   const strategyDirection =
@@ -2015,41 +1103,43 @@ function Engine27MinorParentCard({
   decision,
   strategyNode,
 }) {
-  const degreeState =
+  const engine22Display =
     strategyNode?.engine22WaveStrategy
-      ?.degreeStates
-      ?.minor ||
+      ?.engine22Display ||
     null;
 
-  const internal =
-    getEngine22Internal(
-      degreeState
-    );
+  const minorDisplay =
+    engine22Display?.degrees?.minor ||
+    null;
 
-  const parentLevels =
-    getParentCLevels(
-      degreeState || {},
-      internal
-    );
+  const minuteDisplay =
+    engine22Display?.degrees?.minute ||
+    null;
 
   const structure =
-    degreeState?.headline ||
-    "Minor W4 complex correction";
+    minorDisplay?.headline ||
+    "Engine 22 structure not published.";
 
   const activeLeg =
-    "Minor C-down active";
+    minorDisplay?.badge ||
+    "Engine 22 structure not published.";
 
   const child =
-    "Minute C-down active";
+    minuteDisplay?.badge ||
+    "Engine 22 structure not published.";
+
+  const invalidationRow =
+    Array.isArray(minorDisplay?.rows)
+      ? minorDisplay.rows.find(
+          (item) =>
+            item?.label === "W5 Invalidation"
+        )
+      : null;
 
   const invalidation =
-    internal?.largerInvalidationLevel ??
-    internal?.parentStructure
-      ?.invalidationLevel ??
-    degreeState?.targetModel
-      ?.reclaimInvalidationLevel ??
+    invalidationRow?.value ??
     wave?.invalidationLevel ??
-    7840;
+    null;
 
   const completionStatus =
     wave?.parentWaveComplete === true ||
@@ -2154,46 +1244,22 @@ function Engine27MinorParentCard({
         style={{
           display: "grid",
           gridTemplateColumns:
-            "repeat(4, minmax(0,1fr))",
+            "repeat(3, minmax(0,1fr))",
           gap: 6,
           marginBottom: 7,
         }}
       >
-        <Engine27StatusBlock
-          label="First Reaction"
-          state={wavePrice(
-            parentLevels?.c100
-          )}
-          detail="C 1.000"
-          tone="warning"
-        />
-
-        <Engine27StatusBlock
-          label="Normal Completion"
-          state={wavePrice(
-            parentLevels?.c1618
-          )}
-          detail="C 1.618"
-          tone="short"
-        />
-
-        <Engine27StatusBlock
-          label="Deep Completion"
-          state={wavePrice(
-            parentLevels?.c200
-          )}
-          detail="C 2.000"
-          tone="short"
-        />
-
-        <Engine27StatusBlock
-          label="Extreme / Exhaustion"
-          state={wavePrice(
-            parentLevels?.c2618
-          )}
-          detail="C 2.618"
-          tone="warning"
-        />
+        {(minorDisplay?.levels || []).map(
+          (level, index) => (
+            <Engine27StatusBlock
+              key={`${level?.label || "level"}-${index}`}
+              label={level?.label || "Engine 22 Level"}
+              state={wavePrice(level?.price)}
+              detail={level?.status || "Engine 22"}
+              tone="warning"
+            />
+          )
+        )}
       </div>
 
       <div
@@ -2210,7 +1276,7 @@ function Engine27MinorParentCard({
           state={engine27Number(
             invalidation
           )}
-          detail="Expanded-flat B-high reclaim / hold"
+          detail="Engine 22 structural invalidation"
           tone="warning"
         />
 
