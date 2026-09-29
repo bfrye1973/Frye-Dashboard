@@ -598,36 +598,17 @@ function MarketCharacterCards({ data, display }) {
 }
 
 function DivergenceAndParticipation({ data, display, groups }) {
-  const participation =
-    data?.engine25Participation ||
-    data?.marketCharacter?.trap?.engine25Participation ||
-    display?.engine25Participation ||
-    display?.marketCharacter?.trap?.engine25Participation ||
-    {};
-
-  const breadth =
-    participation?.breadth ||
-    participation?.breadthParticipation ||
-    {};
-  const distribution =
-    participation?.distribution ||
-    participation?.distributionPressure ||
-    {};
-  const volume =
-    participation?.volumeEvidence ||
-    distribution?.volumeEvidence ||
-    distribution?.inputs?.volumeEvidence ||
-    {};
+  const primary = data?.trapDetection?.participation?.primary || {};
+  const breadth = primary?.breadth || {};
+  const volume = primary?.stockVolume || {};
+  const intradayVolume = volume?.intraday || {};
 
   const advancingShare =
-    volume?.intraday?.advancingVolumeShare ??
-    volume?.advancingVolumeShare;
+    intradayVolume?.advancingVolumeShare;
   const decliningShare =
-    volume?.intraday?.decliningVolumeShare ??
-    volume?.decliningVolumeShare;
+    intradayVolume?.decliningVolumeShare;
   const imbalance =
-    volume?.intraday?.volumeImbalance ??
-    volume?.volumeImbalance;
+    intradayVolume?.volumeImbalance;
 
   const pct100 = (value) => {
     const n = Number(value);
@@ -677,11 +658,13 @@ function DivergenceAndParticipation({ data, display, groups }) {
     });
   }
 
-  const trapEffect =
-    participation?.trapConfirmation ||
-    participation?.trapEffect ||
-    participation?.state ||
-    "UNAVAILABLE";
+  const trapEffect = primary?.primaryParticipationSupportsTrap
+    ? "SUPPORTS"
+    : primary?.primaryParticipationOpposesTrap
+      ? "OPPOSES"
+      : primary?.available === false
+        ? "UNAVAILABLE"
+        : primary?.breadthAlignment || primary?.volumeAlignment || "NEUTRAL";
 
   return (
     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
@@ -710,7 +693,7 @@ function DivergenceAndParticipation({ data, display, groups }) {
         <div style={{ display: "grid", gap: 7, fontSize: 14 }}>
           {[
             ["Breadth", breadth?.label || breadth?.state],
-            ["Distribution", distribution?.label || distribution?.state],
+            ["Distribution", volume?.distributionLabel],\n            ["Distribution pressure", volume?.rawPressure != null ? Number(volume.rawPressure).toFixed(0) + "%" : null],\n            ["Coverage", intradayVolume?.coveragePct != null ? Number(intradayVolume.coveragePct).toFixed(1) + "%" : null],
             ["Advancing volume", pct100(advancingShare)],
             ["Declining volume", pct100(decliningShare)],
             ["Volume imbalance", pct100(imbalance)],
