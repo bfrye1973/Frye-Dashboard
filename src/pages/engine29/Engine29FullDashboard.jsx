@@ -176,6 +176,90 @@ function MarketCharacterCards({ data }) {
 }
 
 /*__COMPONENTS_A__*/
+function MarketInternalsMap({ groups, display }) {
+  const hood = display?.underTheHood || {};
+  const rows = [
+    ["Large Indexes", "headlineIndex", hood?.largeIndexes], ["Breadth", "breadth", hood?.breadth],
+    ["Leadership", "leadership", hood?.techLeadership], ["Credit", "credit", hood?.credit],
+    ["Rates", "ratesDuration", hood?.ratesBonds], ["Energy", "energyInflation", hood?.oil],
+    ["Volatility", "volatility", hood?.volatility], ["Financials", "financialConditions", hood?.financialConditions]
+  ];
+  return <Card>
+    <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+      <SectionTitle>Market Internals Map</SectionTitle>
+      <span style={{ color: COLORS.muted, fontSize: 10 }}>STATE · 1W · 1H · 30M</span>
+    </div>
+    <div style={{ marginTop: 8, overflowX: "auto" }}><div style={{ minWidth: 760 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1.35fr 1.2fr repeat(3,1fr)", gap: 8, padding: "6px 8px", color: COLORS.muted, fontSize: 9, fontWeight: 900 }}>
+        <span>INTERNAL</span><span>STATE</span><span>1W</span><span>1H</span><span>30M</span>
+      </div>
+      {rows.map(([label, key, displayState]) => {
+        const group = groups?.[key] || {};
+        const structural = group?.structural?.state, tactical = group?.tactical?.state, fast = group?.fastTactical?.state;
+        const state = displayState || structural || tactical || fast || "—";
+        return <div key={label} style={{ display: "grid", gridTemplateColumns: "1.35fr 1.2fr repeat(3,1fr)", gap: 8, padding: 8, borderTop: "1px solid #17243a", fontSize: 11 }}>
+          <strong style={{ color: COLORS.text }}>{label}</strong><strong style={{ color: stateColor(state) }}>{clean(state)}</strong>
+          <span style={{ color: stateColor(structural) }}>{clean(structural)}</span>
+          <span style={{ color: stateColor(tactical) }}>{clean(tactical)}</span>
+          <span style={{ color: stateColor(fast) }}>{clean(fast)}</span>
+        </div>;
+      })}
+    </div></div>
+  </Card>;
+}
+
+function DivergencesAndParticipation({ data, groups }) {
+  const primary = data?.trapDetection?.participation?.primary || {};
+  const breadth = primary?.breadth || {}, volume = primary?.stockVolume || {}, intraday = volume?.intraday || {};
+  const gs = key => groups?.[key]?.fastTactical?.state || groups?.[key]?.tactical?.state || groups?.[key]?.structural?.state || null;
+  const headline = gs("headlineIndex"), breadth29 = gs("breadth"), leadership = gs("leadership"), credit = gs("credit");
+  const weak = /BREAK|SEVERE|WEAK|DETERIOR|STRESS/i, strong = /HEALTHY|RECOVER|SUPPORT/i;
+  const divergences = [];
+  if (strong.test(String(leadership || "")) && weak.test(String(breadth29 || ""))) divergences.push(["Leadership vs Breadth", leadership, breadth29]);
+  if (headline && breadth29 && headline !== breadth29) divergences.push(["Indexes vs Breadth", headline, breadth29]);
+  if (headline && credit && strong.test(String(headline)) && weak.test(String(credit))) divergences.push(["Price vs Credit", headline, credit]);
+  const trapEffect = primary?.primaryParticipationSupportsTrap ? "SUPPORTS" : primary?.primaryParticipationOpposesTrap ? "OPPOSES" : primary?.available ? "NEUTRAL" : "UNAVAILABLE";
+
+  return <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+    <Card>
+      <SectionTitle color={COLORS.yellow}>Important Divergences</SectionTitle>
+      {divergences.length ? divergences.map(([title, left, right]) => <div key={title} style={{ marginTop: 7, padding: 8, border: "1px solid rgba(245,158,11,.28)", borderRadius: 7 }}>
+        <strong style={{ color: COLORS.text, fontSize: 12 }}>{title}</strong>
+        <div style={{ color: COLORS.muted, fontSize: 10, marginTop: 3 }}>{clean(left)} · {clean(right)}</div>
+      </div>) : <div style={{ color: COLORS.muted, fontSize: 11, marginTop: 8 }}>No major presentation-level divergence detected.</div>}
+    </Card>
+    <Card>
+      <SectionTitle>Engine 25 Participation</SectionTitle>
+      <div style={{ color: COLORS.muted, fontSize: 9, marginTop: 3 }}>{primary?.authority || "ENGINE25 SCANNER PRIMARY READ ONLY"}</div>
+      <div style={{ display: "grid", gap: 5, marginTop: 8 }}>
+        <KV label="Breadth" value={breadth?.label} /><KV label="Distribution" value={volume?.distributionLabel} />
+        <KV label="Coverage" value={pct(intraday?.coveragePct)} /><KV label="Advancing volume" value={pct(intraday?.advancingVolumeShare)} />
+        <KV label="Declining volume" value={pct(intraday?.decliningVolumeShare)} /><KV label="Volume imbalance" value={pct(intraday?.volumeImbalance)} />
+        <KV label="Breadth alignment" value={primary?.breadthAlignment} /><KV label="Volume alignment" value={primary?.volumeAlignment} />
+        <KV label="Trap effect" value={trapEffect} />
+      </div>
+    </Card>
+  </div>;
+}
+
+function RawEvidence({ groups, data }) {
+  const rows = [
+    ["Large Indexes", groups?.headlineIndex], ["Breadth", groups?.breadth], ["Tech Leadership", groups?.leadership],
+    ["Credit", groups?.credit], ["Rates / Bonds", groups?.ratesDuration], ["Oil / Energy", groups?.energyInflation],
+    ["Volatility", groups?.volatility], ["Financial Conditions", groups?.financialConditions]
+  ];
+  return <div style={{ display: "grid", gridTemplateColumns: "repeat(4,minmax(220px,1fr))", gap: 8 }}>
+    {rows.map(([name, group]) => <Card key={name}>
+      <SectionTitle>{name}</SectionTitle>
+      <div style={{ display: "grid", gap: 5, marginTop: 8 }}>
+        <KV label="1W" value={group?.structural?.state} /><KV label="1H" value={group?.tactical?.state} /><KV label="30m" value={group?.fastTactical?.state} />
+        {(group?.members || []).slice(0, 8).map(member => <KV key={member?.symbol || member?.name} label={member?.symbol || member?.name} value={member?.state || member?.status} />)}
+      </div>
+    </Card>)}
+    <Card><SectionTitle>Underlying Pressure</SectionTitle><div style={{ marginTop: 8 }}><KV label="State" value={data?.moveCharacter?.underlyingPressure?.state} /></div></Card>
+  </div>;
+}
+
 /*__COMPONENTS_B__*/
 /*__COMPONENTS_C__*/
 /*__MAIN__*/
