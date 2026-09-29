@@ -261,5 +261,31 @@ function RawEvidence({ groups, data }) {
 }
 
 /*__COMPONENTS_B__*/
+function Takeaways({ data, display }) {
+  const general = data?.missingConfirmations || display?.missingConfirmation || [];
+  const trapBlockers = data?.marketCharacter?.trap?.confirmationBlockedBy || [];
+  return <div style={{ display: "grid", gridTemplateColumns: "1.3fr .7fr", gap: 10 }}>
+    <Card>
+      <SectionTitle>Key Takeaways</SectionTitle>
+      <div style={{ display: "grid", gap: 5, marginTop: 8 }}>
+        <KV label="Regime" value={data?.overallState} /><KV label="1H current" value={data?.tacticalState} />
+        <KV label="30m fast" value={data?.fastTacticalState} /><KV label="Liquidity" value={data?.marketCharacter?.liquidity?.state} />
+        <KV label="Move" value={data?.marketCharacter?.move?.moveCharacter} /><KV label="Trap" value={data?.marketCharacter?.trap?.state} />
+      </div>
+      <div style={{ color: "#cbd5e1", fontSize: 11, lineHeight: 1.4, marginTop: 9 }}>{display?.overallSummary || "—"}</div>
+    </Card>
+    <Card>
+      <SectionTitle color={COLORS.yellow}>Missing Confirmation</SectionTitle>
+      <div style={{ color: COLORS.muted, fontSize: 9, marginTop: 3 }}>GENERAL CROSS-MARKET</div>
+      {general.length ? general.map(item => <div key={item} style={{ color: COLORS.yellow, fontSize: 10, marginTop: 5 }}>○ {clean(item)}</div>)
+        : <div style={{ color: COLORS.green, fontSize: 11, marginTop: 7 }}>✓ None</div>}
+      {trapBlockers.length ? <div style={{ borderTop: "1px solid #26364f", marginTop: 9, paddingTop: 8 }}>
+        <div style={{ color: COLORS.muted, fontSize: 9 }}>TRAP STILL NEEDS</div>
+        {trapBlockers.map(item => <div key={item} style={{ color: COLORS.orange, fontSize: 10, marginTop: 5 }}>○ {clean(item)}</div>)}
+      </div> : null}
+    </Card>
+  </div>;
+}
+
 /*__COMPONENTS_C__*/
 /*__MAIN__*/
