@@ -1039,7 +1039,8 @@ export default function Engine29FullDashboard() {
   const [status, setStatus] = useState("LOADING");
   const [error, setError] = useState(null);
   const [rebuildStatus, setRebuildStatus] = useState("IDLE");
-  const [lastRebuildAt, setLastRebuildAt] = useState(null);\n  const [showRawEvidence, setShowRawEvidence] = useState(false);
+  const [lastRebuildAt, setLastRebuildAt] = useState(null);
+  const [showRawEvidence, setShowRawEvidence] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
