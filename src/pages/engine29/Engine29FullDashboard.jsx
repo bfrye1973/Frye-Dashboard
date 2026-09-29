@@ -11,7 +11,7 @@ const API_BASE =
 
 const API_ROOT = API_BASE.replace(/\/+$/, "").replace(/\/api$/, "");
 const ROUTE = API_ROOT + "/api/v1/engine29/cross-market-stress";
-const UPDATE_ROUTE = API_ROOT + "/api/v1/engine29/update";
+const UPDATE_ROUTE = API_ROOT + "/api/v1/engine29/dashboard-refresh";
 const READ_POLL_MS = 15_000;
 const LIVE_REBUILD_MS = 10 * 60_000;
 const FONT = "Arial, Helvetica, sans-serif";
