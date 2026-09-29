@@ -62,6 +62,119 @@ function KV({ label, value, valueColor }) {
   </div>;
 }
 
+function HeadlineCard({ label, value, summary }) {
+  const color = stateColor(value);
+  return <Card style={{ borderColor: color + "88", minHeight: 86 }}>
+    <div style={{ color: COLORS.muted, fontSize: 10, fontWeight: 900 }}>{label}</div>
+    <div style={{ marginTop: 7, color, fontSize: 21, fontWeight: 950, lineHeight: 1.05 }}>{clean(value)}</div>
+    <div style={{ marginTop: 7, color: "#b9c7da", fontSize: 11 }}>{summary || "—"}</div>
+  </Card>;
+}
+
+function LiveMonitor({ data, display }) {
+  const live = data?.liveMonitor || {};
+  const metrics = live?.metrics || {};
+  const why = Array.isArray(display?.liveMonitor?.why) ? display.liveMonitor.why : [];
+  const measurements = [
+    ["Headline 10m", metrics?.headline?.move10], ["Headline 20m", metrics?.headline?.move20],
+    ["Breadth 10m", metrics?.breadth?.move10], ["Breadth 20m", metrics?.breadth?.move20],
+    ["Leadership 10m", metrics?.leadership?.move10], ["Credit 10m", metrics?.credit?.move10],
+    ["Financials 10m", metrics?.financials?.move10], ["VIX 10m", metrics?.vix?.move10]
+  ];
+
+  return <Card style={{ borderColor: stateColor(live?.state) + "88" }}>
+    <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+      <SectionTitle color={stateColor(live?.state)}>10m Live Monitor · 20m Persistence</SectionTitle>
+      <span style={{ color: COLORS.muted, fontSize: 10 }}>DIAGNOSTIC ONLY</span>
+    </div>
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 1.2fr 1.25fr", gap: 14, marginTop: 10 }}>
+      <div>
+        <div style={{ color: stateColor(live?.state), fontSize: 20, fontWeight: 950 }}>{clean(live?.state)}</div>
+        <div style={{ display: "grid", gap: 5, marginTop: 9 }}>
+          <KV label="Participation" value={live?.participation} />
+          <KV label="10m direction" value={live?.direction} />
+          <KV label="30m context" value={live?.fastTacticalContext?.state} />
+          <KV label="Authority" value={live?.authority} />
+        </div>
+      </div>
+      <div>
+        <SectionTitle>Live Measurements</SectionTitle>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginTop: 7 }}>
+          {measurements.map(([label, value]) => <div key={label} style={{ border: "1px solid rgba(148,163,184,.14)", borderRadius: 7, padding: "7px 8px" }}>
+            <div style={{ color: COLORS.muted, fontSize: 9, fontWeight: 850 }}>{label}</div>
+            <div style={{ marginTop: 3, color: Number(value) >= 0 ? COLORS.green : COLORS.red, fontWeight: 900 }}>{pct(value, 2)}</div>
+          </div>)}
+        </div>
+      </div>
+      <div>
+        <SectionTitle>Why This State?</SectionTitle>
+        <div style={{ display: "grid", gap: 5, marginTop: 7 }}>
+          {why.length ? why.map((item, index) => <div key={index} style={{ color: "#cbd5e1", fontSize: 11, lineHeight: 1.35 }}>• {item}</div>)
+            : <div style={{ color: COLORS.muted, fontSize: 11 }}>{display?.liveMonitor?.summary || "No live explanation published."}</div>}
+        </div>
+      </div>
+    </div>
+  </Card>;
+}
+
+function MarketCharacterCards({ data }) {
+  const liquidity = data?.marketCharacter?.liquidity || {};
+  const move = data?.marketCharacter?.move || {};
+  const trap = data?.marketCharacter?.trap || {};
+  const auction = data?.trapDetection?.auctionEvent || {};
+  const momentum = data?.trapDetection?.momentumRepair || {};
+  const primary = data?.trapDetection?.participation?.primary || {};
+  const secondary = data?.trapDetection?.participation?.secondary || {};
+  const pressure = data?.moveCharacter?.underlyingPressure || {};
+  const level = liquidity?.level || auction?.liquidityLevel || {};
+  const sweep = liquidity?.sweep || auction?.sweep || {};
+  const blockers = Array.isArray(trap?.confirmationBlockedBy) ? trap.confirmationBlockedBy : [];
+
+  const primaryRead = primary?.available === false ? "UNAVAILABLE"
+    : primary?.primaryParticipationSupportsTrap ? "SUPPORTS"
+    : primary?.primaryParticipationOpposesTrap ? "OPPOSES"
+    : primary?.available ? "NEUTRAL" : "UNAVAILABLE";
+  const secondaryRead = secondary?.secondarySupportsTrap ? "SUPPORTS"
+    : secondary?.secondaryOpposesTrap ? "OPPOSES"
+    : secondary?.trapSide ? "NEUTRAL" : "—";
+
+  const cards = [
+    ["Liquidity", "LEVELS · SWEEPS · RECLAIMS", liquidity?.state || "NO_LIQUIDITY_EVENT", [
+      ["Level", level?.boundary ?? level?.level], ["Type", level?.type],
+      ["Significance", auction?.liquidityLevel?.significance], ["Auction", liquidity?.auctionResult],
+      ["Excursion", sweep?.excursionPoints != null ? sweep.excursionPoints + " pts" : null],
+      ["Reclaimed", liquidity?.reclaimObserved === true ? "YES" : liquidity?.reclaimObserved === false ? "NO" : null]
+    ]],
+    ["Move / Squeeze", "30M AUTHORITY · 10M TRANSITION", move?.moveCharacter || "NO_ACTIVE_MOVE", [
+      ["30m direction", move?.direction], ["10m transition", move?.fastState || data?.liveMonitor?.state],
+      ["10m direction", move?.liveDirection || data?.liveMonitor?.direction],
+      ["20m persistence", data?.liveMonitor?.persistenceWindow],
+      ["Participation", move?.participation || data?.liveMonitor?.participation], ["Pressure", pressure?.state]
+    ]],
+    ["Trap Detection", "FAILED AUCTIONS · FALSE BREAKS", trap?.state || "NO_ACTIVE_TRAP", [
+      ["Side", trap?.side || "NONE"], ["Location", trap?.locationQuality],
+      ["30m failed hold", auction?.acceptance30m?.failedHold === true ? "YES" : auction?.acceptance30m?.failedHold === false ? "NO" : null],
+      ["Momentum repair", momentum?.state], ["E25 participation", primaryRead], ["E29 confirmation", secondaryRead]
+    ]]
+  ];
+
+  return <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(280px, 1fr))", gap: 10 }}>
+    {cards.map(([title, kicker, state, rows]) => {
+      const color = stateColor(state);
+      return <Card key={title} style={{ borderColor: color + "88" }}>
+        <div style={{ color: COLORS.muted, fontSize: 9, fontWeight: 900 }}>{kicker}</div>
+        <div style={{ marginTop: 4, color: COLORS.text, fontSize: 15, fontWeight: 950, textTransform: "uppercase" }}>{title}</div>
+        <div style={{ margin: "8px 0", color, fontSize: 21, fontWeight: 950 }}>{clean(state)}</div>
+        <div style={{ display: "grid", gap: 5 }}>{rows.map(([label, value]) => <KV key={label} label={label} value={value} />)}</div>
+        {title === "Trap Detection" && blockers.length ? <div style={{ borderTop: "1px solid rgba(148,163,184,.14)", marginTop: 9, paddingTop: 8 }}>
+          <SectionTitle color={COLORS.yellow}>Trap Still Needs</SectionTitle>
+          {blockers.slice(0, 4).map(item => <div key={item} style={{ color: "#cbd5e1", fontSize: 10, marginTop: 4 }}>○ {clean(item)}</div>)}
+        </div> : null}
+      </Card>;
+    })}
+  </div>;
+}
+
 /*__COMPONENTS_A__*/
 /*__COMPONENTS_B__*/
 /*__COMPONENTS_C__*/
