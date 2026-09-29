@@ -288,4 +288,95 @@ function Takeaways({ data, display }) {
 }
 
 /*__COMPONENTS_C__*/
-/*__MAIN__*/
+export default function Engine29FullDashboard() {
+  const [data, setData] = useState(null);
+  const [error, setError] = useState(null);
+  const [rebuildStatus, setRebuildStatus] = useState("IDLE");
+  const [showRaw, setShowRaw] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    let rebuildInFlight = false;
+
+    async function load() {
+      try {
+        const response = await fetch(ROUTE, { cache: "no-store" });
+        if (!response.ok) throw new Error("HTTP " + response.status);
+        const json = await response.json();
+        if (!cancelled) { setData(json); setError(null); }
+      } catch (err) {
+        if (!cancelled) setError(err?.message || String(err));
+      }
+    }
+
+    async function rebuild() {
+      if (rebuildInFlight) return;
+      rebuildInFlight = true;
+      if (!cancelled) setRebuildStatus("RUNNING");
+      try {
+        const response = await fetch(UPDATE_ROUTE, { method: "POST", cache: "no-store" });
+        if (!response.ok) throw new Error("HTTP " + response.status);
+        if (!cancelled) setRebuildStatus("SUCCESS");
+        await load();
+      } catch (err) {
+        if (!cancelled) setRebuildStatus("ERROR");
+      } finally {
+        rebuildInFlight = false;
+      }
+    }
+
+    load();
+    const readTimer = setInterval(load, READ_POLL_MS);
+    const rebuildTimer = setInterval(rebuild, LIVE_REBUILD_MS);
+    return () => { cancelled = true; clearInterval(readTimer); clearInterval(rebuildTimer); };
+  }, []);
+
+  const d = data?.data || data || {};
+  const display = d?.display || {};
+  const groups = d?.groups || {};
+  const top = {
+    oneWeek: display?.oneWeek?.state || d?.overallState,
+    oneHour: display?.oneHour?.state || d?.tacticalState,
+    thirtyMinute: display?.thirtyMinute?.state || d?.fastTacticalState,
+    esMove: display?.esMove?.state || d?.moveCharacter?.moveCharacter || d?.marketCharacter?.move?.moveCharacter,
+  };
+
+  return <div style={{ minHeight: "100vh", background: COLORS.bg, color: COLORS.text, fontFamily: FONT, padding: "18px 20px 28px" }}>
+    <div style={{ maxWidth: 1500, margin: "0 auto" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 16, alignItems: "flex-start", marginBottom: 12 }}>
+        <div>
+          <div style={{ fontSize: 24, fontWeight: 950, letterSpacing: ".02em" }}>ENGINE 29 — CROSS-MARKET STRESS</div>
+          <div style={{ color: COLORS.muted, fontSize: 11, marginTop: 3 }}>Bigger picture · Intraday condition · 30m fast shift · 10m transition · ES squeeze / liquidity / trap read</div>
+        </div>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <span style={{ color: rebuildStatus === "ERROR" ? COLORS.red : COLORS.green, fontSize: 10, fontWeight: 900 }}>● {rebuildStatus === "ERROR" ? "REBUILD ERROR" : "LIVE BUILD READY"}</span>
+          <button onClick={() => window.history.back()} style={{ background: "#111c2e", color: COLORS.text, border: "1px solid #334155", borderRadius: 6, padding: "7px 11px", cursor: "pointer", fontWeight: 800 }}>Close</button>
+        </div>
+      </div>
+
+      {error ? <Card style={{ borderColor: COLORS.red, marginBottom: 10 }}><strong style={{ color: COLORS.red }}>Engine29 read error:</strong> {error}</Card> : null}
+
+      {!data ? <Card>Loading Engine 29...</Card> : <div style={{ display: "grid", gap: 10 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 10 }}>
+          <HeadlineCard label="1W BIGGER PICTURE" value={top.oneWeek} summary={display?.oneWeek?.summary} />
+          <HeadlineCard label="1H INTRADAY" value={top.oneHour} summary={display?.oneHour?.summary} />
+          <HeadlineCard label="30M FAST SHIFT" value={top.thirtyMinute} summary={display?.thirtyMinute?.summary} />
+          <HeadlineCard label="ES MOVE" value={top.esMove} summary={display?.esMove?.summary} />
+        </div>
+
+        <LiveMonitor data={d} display={display} />
+        <MarketCharacterCards data={d} />
+        <MarketInternalsMap groups={groups} display={display} />
+        <DivergencesAndParticipation data={d} groups={groups} />
+        <Takeaways data={d} display={display} />
+
+        <Card style={{ padding: 10 }}>
+          <button onClick={() => setShowRaw(v => !v)} style={{ width: "100%", border: 0, background: "transparent", color: COLORS.text, cursor: "pointer", display: "flex", justifyContent: "space-between", fontFamily: FONT, fontWeight: 950 }}>
+            <span>SHOW RAW EVIDENCE</span><span style={{ color: COLORS.blue }}>{showRaw ? "HIDE ▲" : "OPEN ▼"}</span>
+          </button>
+        </Card>
+        {showRaw ? <RawEvidence groups={groups} data={d} /> : null}
+      </div>}
+    </div>
+  </div>;
+}
