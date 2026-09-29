@@ -565,6 +565,136 @@ function MarketCharacterCards({ data, display }) {
   );
 }
 
+function DivergenceAndParticipation({ data, display, groups }) {
+  const participation =
+    data?.engine25Participation ||
+    data?.marketCharacter?.trap?.engine25Participation ||
+    display?.engine25Participation ||
+    display?.marketCharacter?.trap?.engine25Participation ||
+    {};
+
+  const breadth =
+    participation?.breadth ||
+    participation?.breadthParticipation ||
+    {};
+  const distribution =
+    participation?.distribution ||
+    participation?.distributionPressure ||
+    {};
+  const volume =
+    participation?.volumeEvidence ||
+    distribution?.volumeEvidence ||
+    distribution?.inputs?.volumeEvidence ||
+    {};
+
+  const advancingShare =
+    volume?.intraday?.advancingVolumeShare ??
+    volume?.advancingVolumeShare;
+  const decliningShare =
+    volume?.intraday?.decliningVolumeShare ??
+    volume?.decliningVolumeShare;
+  const imbalance =
+    volume?.intraday?.volumeImbalance ??
+    volume?.volumeImbalance;
+
+  const pct100 = (value) => {
+    const n = Number(value);
+    if (!Number.isFinite(n)) return "—";
+    return (Math.abs(n) <= 1 ? n * 100 : n).toFixed(1) + "%";
+  };
+
+  const groupState = (key) =>
+    groups?.[key]?.fastTactical?.state ||
+    groups?.[key]?.tactical?.state ||
+    groups?.[key]?.structural?.state ||
+    null;
+
+  const headline = groupState("headlineIndex");
+  const breadth29 = groupState("breadth");
+  const leadership = groupState("leadership");
+  const credit = groupState("credit");
+
+  const divergences = [];
+  const weakWords = /BREAK|SEVERE|WEAK|DETERIOR|STRESS|FORMING/i;
+  const strongWords = /HEALTHY|RECOVER|SUPPORT|CONFIRMED/i;
+
+  if (strongWords.test(String(leadership || "")) && weakWords.test(String(breadth29 || ""))) {
+    divergences.push({
+      title: "Leadership vs Breadth",
+      text: "Technology leadership is holding better than broad participation.",
+      left: clean(leadership),
+      right: clean(breadth29),
+    });
+  }
+
+  if (headline && breadth29 && String(headline) !== String(breadth29)) {
+    divergences.push({
+      title: "Indexes vs Breadth",
+      text: "Headline-index condition and broad participation are not fully aligned.",
+      left: clean(headline),
+      right: clean(breadth29),
+    });
+  }
+
+  if (headline && credit && strongWords.test(String(headline)) && weakWords.test(String(credit))) {
+    divergences.push({
+      title: "Price vs Credit",
+      text: "Headline price strength is not being fully confirmed by credit.",
+      left: clean(headline),
+      right: clean(credit),
+    });
+  }
+
+  const trapEffect =
+    participation?.trapConfirmation ||
+    participation?.trapEffect ||
+    participation?.state ||
+    "UNAVAILABLE";
+
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+      <Card>
+        <SectionTitle color="#f59e0b">Important Divergences</SectionTitle>
+        {divergences.length ? (
+          <div style={{ display: "grid", gap: 10 }}>
+            {divergences.slice(0, 4).map((item) => (
+              <div key={item.title} style={{ padding: 10, borderRadius: 10, background: "rgba(245,158,11,0.07)", border: "1px solid rgba(245,158,11,0.20)" }}>
+                <div style={{ color: "#f8fafc", fontWeight: 900 }}>{item.title}</div>
+                <div style={{ marginTop: 4, color: "#cbd5e1", fontSize: 13, lineHeight: 1.4 }}>{item.text}</div>
+                <div style={{ marginTop: 6, color: "#94a3b8", fontSize: 12 }}>{item.left} · {item.right}</div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div style={{ color: "#94a3b8", fontSize: 14 }}>No major cross-market divergence detected from the currently available states.</div>
+        )}
+      </Card>
+
+      <Card>
+        <SectionTitle color="#60a5fa">Engine 25 Participation</SectionTitle>
+        <div style={{ color: "#64748b", fontSize: 12, marginBottom: 10 }}>
+          READ-ONLY PRIMARY SCANNER CONFIRMATION
+        </div>
+        <div style={{ display: "grid", gap: 7, fontSize: 14 }}>
+          {[
+            ["Breadth", breadth?.label || breadth?.state],
+            ["Distribution", distribution?.label || distribution?.state],
+            ["Advancing volume", pct100(advancingShare)],
+            ["Declining volume", pct100(decliningShare)],
+            ["Volume imbalance", pct100(imbalance)],
+            ["Trap effect", trapEffect],
+          ].map(([label, value]) => (
+            <div key={label} style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+              <span style={{ color: "#94a3b8" }}>{label}</span>
+              <strong style={{ color: stateColor(value), textAlign: "right" }}>{clean(value)}</strong>
+            </div>
+          ))}
+        </div>
+      </Card>
+    </div>
+  );
+}
+
 function PressureCard({ display, move }) {
   const p = display?.underTheHood?.pressure || move?.underlyingPressure || {};
 
@@ -1224,7 +1354,7 @@ export default function Engine29FullDashboard() {
               display={display}
             />
 
-            <MarketCharacterCards data={d} display={display} />\n\n            <MarketInternalsMap groups={groups} display={display} />
+            <MarketCharacterCards data={d} display={display} />\n\n            <MarketInternalsMap groups={groups} display={display} />\n\n            <DivergenceAndParticipation data={d} display={display} groups={groups} />
 
             <div
               style={{
