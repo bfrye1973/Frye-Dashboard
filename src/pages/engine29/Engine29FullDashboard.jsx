@@ -1066,7 +1066,7 @@ export default function Engine29FullDashboard() {
   const [status, setStatus] = useState("LOADING");
   const [error, setError] = useState(null);
   const [rebuildStatus, setRebuildStatus] = useState("IDLE");
-  const [lastRebuildAt, setLastRebuildAt] = useState(null);
+  const [lastRebuildAt, setLastRebuildAt] = useState(null);\n  const [showRawEvidence, setShowRawEvidence] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -1356,84 +1356,116 @@ export default function Engine29FullDashboard() {
 
             <MarketCharacterCards data={d} display={display} />\n\n            <MarketInternalsMap groups={groups} display={display} />\n\n            <DivergenceAndParticipation data={d} display={display} groups={groups} />
 
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(4, minmax(300px, 1fr))",
-                gap: 12,
-              }}
-            >
-              <GroupCard
-                title="Large Indexes"
-                groupKey="headlineIndex"
-                group={groups?.headlineIndex}
-                displayLabel={display?.underTheHood?.largeIndexes}
-              />
+            <Card style={{ padding: 12 }}>
+              <button
+                onClick={() => setShowRawEvidence((value) => !value)}
+                style={{
+                  width: "100%",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  gap: 12,
+                  border: 0,
+                  background: "transparent",
+                  color: "#e2e8f0",
+                  cursor: "pointer",
+                  padding: 0,
+                  fontFamily: FONT,
+                }}
+              >
+                <span style={{ fontWeight: 950, fontSize: 15, letterSpacing: "0.03em" }}>
+                  SHOW RAW EVIDENCE
+                </span>
+                <span style={{ color: "#60a5fa", fontWeight: 900 }}>
+                  {showRawEvidence ? "HIDE ▲" : "OPEN ▼"}
+                </span>
+              </button>
+            </Card>
 
-              <GroupCard
-                title="Breadth"
-                groupKey="breadth"
-                group={groups?.breadth}
-                displayLabel={display?.underTheHood?.breadth}
-              />
-
-              <GroupCard
-                title="Tech Leadership"
-                groupKey="leadership"
-                group={groups?.leadership}
-                displayLabel={display?.underTheHood?.techLeadership}
-              />
-
-              <GroupCard
-                title="Credit"
-                groupKey="credit"
-                group={groups?.credit}
-                displayLabel={display?.underTheHood?.credit}
-              />
-
-              <GroupCard
-                title="Rates / Bonds"
-                groupKey="ratesDuration"
-                group={groups?.ratesDuration}
-                displayLabel={display?.underTheHood?.ratesBonds}
-              />
-
-              <GroupCard
-                title="Oil / Energy"
-                groupKey="energyInflation"
-                group={groups?.energyInflation}
-                displayLabel={display?.underTheHood?.oil}
-              />
-
-              <GroupCard
-                title="Volatility"
-                groupKey="volatility"
-                group={groups?.volatility}
-                displayLabel={display?.underTheHood?.volatility}
-              />
-
-              <GroupCard
-                title="Financial Conditions"
-                groupKey="financialConditions"
-                group={groups?.financialConditions}
-                displayLabel={display?.underTheHood?.financialConditions}
-              />
-            </div>
-
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1fr 1fr",
-                gap: 12,
-              }}
-            >
-              <EsMoveCard data={d} />
-
-              <PressureCard
-                display={display}
-                move={d?.tacticalCharacter}
-              />
-            </div>
+            {showRawEvidence && (
+              <div style={{ display: "grid", gap: 12 }}>
+                            <div
+                              style={{
+                                display: "grid",
+                                gridTemplateColumns: "repeat(4, minmax(300px, 1fr))",
+                                gap: 12,
+                              }}
+                            >
+                              <GroupCard
+                                title="Large Indexes"
+                                groupKey="headlineIndex"
+                                group={groups?.headlineIndex}
+                                displayLabel={display?.underTheHood?.largeIndexes}
+                              />
+                
+                              <GroupCard
+                                title="Breadth"
+                                groupKey="breadth"
+                                group={groups?.breadth}
+                                displayLabel={display?.underTheHood?.breadth}
+                              />
+                
+                              <GroupCard
+                                title="Tech Leadership"
+                                groupKey="leadership"
+                                group={groups?.leadership}
+                                displayLabel={display?.underTheHood?.techLeadership}
+                              />
+                
+                              <GroupCard
+                                title="Credit"
+                                groupKey="credit"
+                                group={groups?.credit}
+                                displayLabel={display?.underTheHood?.credit}
+                              />
+                
+                              <GroupCard
+                                title="Rates / Bonds"
+                                groupKey="ratesDuration"
+                                group={groups?.ratesDuration}
+                                displayLabel={display?.underTheHood?.ratesBonds}
+                              />
+                
+                              <GroupCard
+                                title="Oil / Energy"
+                                groupKey="energyInflation"
+                                group={groups?.energyInflation}
+                                displayLabel={display?.underTheHood?.oil}
+                              />
+                
+                              <GroupCard
+                                title="Volatility"
+                                groupKey="volatility"
+                                group={groups?.volatility}
+                                displayLabel={display?.underTheHood?.volatility}
+                              />
+                
+                              <GroupCard
+                                title="Financial Conditions"
+                                groupKey="financialConditions"
+                                group={groups?.financialConditions}
+                                displayLabel={display?.underTheHood?.financialConditions}
+                              />
+                            </div>
+                
+                            <div
+                              style={{
+                                display: "grid",
+                                gridTemplateColumns: "1fr 1fr",
+                                gap: 12,
+                              }}
+                            >
+                              <EsMoveCard data={d} />
+                
+                              <PressureCard
+                                display={display}
+                                move={d?.tacticalCharacter}
+                              />
+                            </div>
+                
+                
+              </div>
+            )}
 
             <div
               style={{
