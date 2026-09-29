@@ -493,6 +493,78 @@ function MarketInternalsMap({ groups, display }) {
   );
 }
 
+function MarketCharacterCards({ data, display }) {
+  const mc = data?.marketCharacter || {};
+  const dmc = display?.marketCharacter || {};
+  const liquidity = dmc?.liquidity || mc?.liquidity || {};
+  const move = dmc?.move || mc?.move || data?.tacticalCharacter || {};
+  const trap = dmc?.trap || mc?.trap || {};
+
+  const liquidityState = liquidity?.state || liquidity?.status || "NO_LIQUIDITY_EVENT";
+  const moveState = move?.state || move?.moveCharacter || rawMoveCharacter(data?.moveCharacter) || data?.fastTacticalState || "NO_ACTIVE_MOVE";
+  const trapState = trap?.state || trap?.status || "NO_ACTIVE_TRAP";
+  const trapSide = trap?.side || trap?.trapSide || "NONE";
+
+  const cards = [
+    {
+      title: "Liquidity",
+      kicker: "LEVELS · SWEEPS · RECLAIMS",
+      state: liquidityState,
+      lines: [
+        ["Level", liquidity?.level ?? liquidity?.activeLevel],
+        ["Type", liquidity?.levelType ?? liquidity?.type],
+        ["Significance", liquidity?.significance],
+        ["Next", liquidity?.nextAction ?? liquidity?.nextConfirmation],
+      ],
+    },
+    {
+      title: "Move / Squeeze",
+      kicker: "30M AUTHORITY · 10M TRANSITION",
+      state: moveState,
+      lines: [
+        ["Direction", move?.direction || data?.moveDirection],
+        ["30m", data?.fastTacticalState],
+        ["Pressure", move?.underlyingPressure?.state || display?.underTheHood?.pressure?.state],
+        ["Squeeze", move?.squeezeState || (String(moveState).includes("SQUEEZE") ? moveState : "NONE")],
+      ],
+    },
+    {
+      title: "Trap Detection",
+      kicker: "FAILED AUCTIONS · FALSE BREAKS",
+      state: trapState,
+      lines: [
+        ["Side", trapSide],
+        ["Failed acceptance", trap?.failedAcceptance?.state ?? trap?.failedAcceptance],
+        ["E25 participation", trap?.engine25Participation?.state ?? trap?.participationConfirmation],
+        ["Next", trap?.nextConfirmation ?? trap?.nextAction],
+      ],
+    },
+  ];
+
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(280px, 1fr))", gap: 12 }}>
+      {cards.map((item) => {
+        const color = stateColor(item.state);
+        return (
+          <Card key={item.title} style={{ borderColor: color + "66", background: "linear-gradient(135deg, " + color + "0C, rgba(15,23,42,0.92))" }}>
+            <div style={{ color: "#94a3b8", fontSize: 11, fontWeight: 900, letterSpacing: "0.05em" }}>{item.kicker}</div>
+            <div style={{ marginTop: 5, color: "#f8fafc", fontSize: 16, fontWeight: 950, textTransform: "uppercase" }}>{item.title}</div>
+            <div style={{ marginTop: 10, color, fontSize: 24, lineHeight: 1.05, fontWeight: 950 }}>{clean(item.state)}</div>
+            <div style={{ marginTop: 12, display: "grid", gap: 6 }}>
+              {item.lines.map(([label, value]) => (
+                <div key={label} style={{ display: "flex", justifyContent: "space-between", gap: 12, fontSize: 13 }}>
+                  <span style={{ color: "#64748b" }}>{label}</span>
+                  <strong style={{ color: value ? "#cbd5e1" : "#475569", textAlign: "right" }}>{clean(value)}</strong>
+                </div>
+              ))}
+            </div>
+          </Card>
+        );
+      })}
+    </div>
+  );
+}
+
 function PressureCard({ display, move }) {
   const p = display?.underTheHood?.pressure || move?.underlyingPressure || {};
 
@@ -1152,7 +1224,7 @@ export default function Engine29FullDashboard() {
               display={display}
             />
 
-            <MarketInternalsMap groups={groups} display={display} />
+            <MarketCharacterCards data={d} display={display} />\n\n            <MarketInternalsMap groups={groups} display={display} />
 
             <div
               style={{
