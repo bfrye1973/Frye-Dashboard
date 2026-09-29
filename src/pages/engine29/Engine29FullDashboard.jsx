@@ -445,64 +445,49 @@ function GroupCard({ title, groupKey, group, displayLabel }) {
   );
 }
 
-function UnderHoodGrid({ display }) {
+function MarketInternalsMap({ groups, display }) {
   const hood = display?.underTheHood || {};
-
-  const items = [
-    ["Large Indexes", hood.largeIndexes],
-    ["Breadth", hood.breadth],
-    ["Tech Leadership", hood.techLeadership],
-    ["Credit", hood.credit],
-    ["Rates / Bonds", hood.ratesBonds],
-    ["Oil / Energy", hood.oil],
-    ["Volatility", hood.volatility],
-    ["Financial Conditions", hood.financialConditions],
+  const rows = [
+    ["Large Indexes", "headlineIndex", groups?.headlineIndex, hood.largeIndexes],
+    ["Breadth", "breadth", groups?.breadth, hood.breadth],
+    ["Leadership", "leadership", groups?.leadership, hood.techLeadership],
+    ["Credit", "credit", groups?.credit, hood.credit],
+    ["Rates", "ratesDuration", groups?.ratesDuration, hood.ratesBonds],
+    ["Energy", "energyInflation", groups?.energyInflation, hood.oil],
+    ["Volatility", "volatility", groups?.volatility, hood.volatility],
+    ["Financials", "financialConditions", groups?.financialConditions, hood.financialConditions],
   ];
 
   return (
     <Card>
-      <SectionTitle>Under The Hood</SectionTitle>
-
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(4, minmax(180px, 1fr))",
-          gap: 10,
-        }}
-      >
-        {items.map(([label, value]) => (
-          <div
-            key={label}
-            style={{
-              border: "1px solid rgba(148,163,184,0.17)",
-              borderRadius: 10,
-              padding: 10,
-              background: "rgba(2,6,23,0.28)",
-            }}
-          >
-            <div
-              style={{
-                color: "#94a3b8",
-                fontSize: 12,
-                fontWeight: 850,
-                textTransform: "uppercase",
-              }}
-            >
-              {label}
-            </div>
-
-            <div
-              style={{
-                marginTop: 5,
-                color: stateColor(value),
-                fontSize: 17,
-                fontWeight: 900,
-              }}
-            >
-              {clean(value)}
-            </div>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 14, alignItems: "baseline" }}>
+        <SectionTitle>Market Internals Map</SectionTitle>
+        <div style={{ color: "#64748b", fontSize: 12, fontWeight: 800 }}>
+          1W STRUCTURE · 1H TACTICAL · 30M FAST
+        </div>
+      </div>
+      <div style={{ overflowX: "auto" }}>
+        <div style={{ minWidth: 900 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1.35fr 1.2fr repeat(3, 1fr)", gap: 8, padding: "7px 10px", borderBottom: "1px solid rgba(148,163,184,0.18)", color: "#64748b", fontSize: 11, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.04em" }}>
+            <div>Internal</div><div>State</div><div>1W</div><div>1H</div><div>30m</div>
           </div>
-        ))}
+          {rows.map(([label, key, group, displayState]) => {
+            const structural = group?.structural?.state;
+            const tactical = group?.tactical?.state;
+            const fast = group?.fastTactical?.state;
+            const primary = displayState || structural || tactical || fast || "—";
+            const color = stateColor(primary);
+            return (
+              <div key={label} style={{ display: "grid", gridTemplateColumns: "1.35fr 1.2fr repeat(3, 1fr)", gap: 8, alignItems: "center", padding: "9px 10px", borderBottom: "1px solid rgba(148,163,184,0.10)", background: color + "05" }}>
+                <div style={{ color: "#e2e8f0", fontWeight: 900 }}>{label}</div>
+                <div style={{ color, fontWeight: 900 }}>{clean(primary)}</div>
+                <div style={{ color: stateColor(structural), fontWeight: 800 }}>{plainGroupState(key, structural)}</div>
+                <div style={{ color: stateColor(tactical), fontWeight: 800 }}>{plainGroupState(key, tactical)}</div>
+                <div style={{ color: stateColor(fast), fontWeight: 800 }}>{plainGroupState(key, fast)}</div>
+              </div>
+            );
+          })}
+        </div>
       </div>
     </Card>
   );
@@ -1167,7 +1152,7 @@ export default function Engine29FullDashboard() {
               display={display}
             />
 
-            <UnderHoodGrid display={display} />
+            <MarketInternalsMap groups={groups} display={display} />
 
             <div
               style={{
