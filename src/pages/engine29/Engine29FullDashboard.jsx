@@ -496,14 +496,39 @@ function MarketInternalsMap({ groups, display }) {
 function MarketCharacterCards({ data, display }) {
   const mc = data?.marketCharacter || {};
   const dmc = display?.marketCharacter || {};
-  const liquidity = dmc?.liquidity || mc?.liquidity || {};
-  const move = dmc?.move || mc?.move || data?.tacticalCharacter || {};
-  const trap = dmc?.trap || mc?.trap || {};
+  const trapDetection = data?.trapDetection || {};
+  const auction = trapDetection?.auctionEvent || {};
+  const liquidity = mc?.liquidity || {};
+  const liquidityDisplay = dmc?.liquidity || {};
+  const move = mc?.move || {};
+  const moveDisplay = dmc?.move || {};
+  const trap = mc?.trap || {};
+  const trapDisplay = dmc?.trap || {};
+  const primary = trapDetection?.participation?.primary || {};
+  const secondary = trapDetection?.participation?.secondary || {};
+  const momentum = trapDetection?.momentumRepair || {};
+  const live = data?.liveMonitor || {};
 
-  const liquidityState = liquidity?.state || liquidity?.status || "NO_LIQUIDITY_EVENT";
-  const moveState = move?.state || move?.moveCharacter || rawMoveCharacter(data?.moveCharacter) || data?.fastTacticalState || "NO_ACTIVE_MOVE";
-  const trapState = trap?.state || trap?.status || "NO_ACTIVE_TRAP";
-  const trapSide = trap?.side || trap?.trapSide || "NONE";
+  const liquidityState = liquidity?.state || liquidityDisplay?.state || "NO_LIQUIDITY_EVENT";
+  const moveState = move?.moveCharacter || moveDisplay?.moveCharacter || rawMoveCharacter(data?.moveCharacter) || "NO_ACTIVE_MOVE";
+  const trapState = trap?.state || trapDisplay?.state || "NO_ACTIVE_TRAP";
+  const blockers = trap?.confirmationBlockedBy || trapDisplay?.confirmationBlockedBy || trapDetection?.confirmationBlockedBy || [];
+
+  const primaryRead = primary?.primaryParticipationSupportsTrap
+    ? "SUPPORTS"
+    : primary?.primaryParticipationOpposesTrap
+      ? "OPPOSES"
+      : primary?.available === false
+        ? "UNAVAILABLE"
+        : primary?.breadthAlignment || primary?.volumeAlignment || "NEUTRAL";
+
+  const secondaryRead = secondary?.secondarySupportsTrap
+    ? "SUPPORTS"
+    : secondary?.secondaryOpposesTrap
+      ? "OPPOSES"
+      : secondary?.confirmationCount != null
+        ? String(secondary.confirmationCount) + " CONFIRMING"
+        : "NEUTRAL";
 
   const cards = [
     {
@@ -511,10 +536,12 @@ function MarketCharacterCards({ data, display }) {
       kicker: "LEVELS · SWEEPS · RECLAIMS",
       state: liquidityState,
       lines: [
-        ["Level", liquidity?.level ?? liquidity?.activeLevel],
-        ["Type", liquidity?.levelType ?? liquidity?.type],
-        ["Significance", liquidity?.significance],
-        ["Next", liquidity?.nextAction ?? liquidity?.nextConfirmation],
+        ["Level", liquidity?.level?.boundary ?? liquidity?.level?.level ?? liquidityDisplay?.level?.boundary],
+        ["Type", liquidity?.level?.type ?? auction?.liquidityLevel?.type],
+        ["Significance", auction?.liquidityLevel?.significance],
+        ["Auction", liquidity?.auctionResult || liquidityDisplay?.auctionResult],
+        ["Excursion", liquidity?.sweep?.excursionPoints != null ? Number(liquidity.sweep.excursionPoints).toFixed(2) + " pts" : null],
+        ["Reclaim", liquidity?.reclaimObserved ? "OBSERVED" : "NOT YET"],
       ],
     },
     {
@@ -522,10 +549,12 @@ function MarketCharacterCards({ data, display }) {
       kicker: "30M AUTHORITY · 10M TRANSITION",
       state: moveState,
       lines: [
-        ["Direction", move?.direction || data?.moveDirection],
-        ["30m", data?.fastTacticalState],
-        ["Pressure", move?.underlyingPressure?.state || display?.underTheHood?.pressure?.state],
-        ["Squeeze", move?.squeezeState || (String(moveState).includes("SQUEEZE") ? moveState : "NONE")],
+        ["30m direction", move?.direction || moveDisplay?.direction],
+        ["10m transition", move?.fastState || live?.state],
+        ["20m persistence", live?.persistenceWindow || "20m"],
+        ["10m direction", move?.liveDirection || live?.direction],
+        ["Participation", move?.participation || live?.participation],
+        ["10m vs 30m", move?.context || live?.context],
       ],
     },
     {
@@ -533,10 +562,13 @@ function MarketCharacterCards({ data, display }) {
       kicker: "FAILED AUCTIONS · FALSE BREAKS",
       state: trapState,
       lines: [
-        ["Side", trapSide],
-        ["Failed acceptance", trap?.failedAcceptance?.state ?? trap?.failedAcceptance],
-        ["E25 participation", trap?.engine25Participation?.state ?? trap?.participationConfirmation],
-        ["Next", trap?.nextConfirmation ?? trap?.nextAction],
+        ["Side", trap?.side || trapDisplay?.side || "NONE"],
+        ["Location", trap?.locationQuality || trapDisplay?.locationQuality],
+        ["30m failed hold", auction?.acceptance30m?.failedHold],
+        ["Momentum repair", momentum?.state],
+        ["E25 primary", primaryRead],
+        ["E29 secondary", secondaryRead],
+        ["Still needs", blockers.length ? blockers.length + " confirmation(s)" : "NONE"],
       ],
     },
   ];
@@ -554,7 +586,7 @@ function MarketCharacterCards({ data, display }) {
               {item.lines.map(([label, value]) => (
                 <div key={label} style={{ display: "flex", justifyContent: "space-between", gap: 12, fontSize: 13 }}>
                   <span style={{ color: "#64748b" }}>{label}</span>
-                  <strong style={{ color: value ? "#cbd5e1" : "#475569", textAlign: "right" }}>{clean(value)}</strong>
+                  <strong style={{ color: value != null ? "#cbd5e1" : "#475569", textAlign: "right" }}>{value === true ? "YES" : value === false ? "NO" : clean(value)}</strong>
                 </div>
               ))}
             </div>
