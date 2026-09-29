@@ -494,82 +494,58 @@ function MarketInternalsMap({ groups, display }) {
 }
 
 function MarketCharacterCards({ data, display }) {
-  const mc = data?.marketCharacter || {};
-  const dmc = display?.marketCharacter || {};
-  const trapDetection = data?.trapDetection || {};
-  const auction = trapDetection?.auctionEvent || {};
-  const liquidity = mc?.liquidity || {};
-  const liquidityDisplay = dmc?.liquidity || {};
-  const move = mc?.move || {};
-  const moveDisplay = dmc?.move || {};
-  const trap = mc?.trap || {};
-  const trapDisplay = dmc?.trap || {};
-  const primary = trapDetection?.participation?.primary || {};
-  const secondary = trapDetection?.participation?.secondary || {};
-  const momentum = trapDetection?.momentumRepair || {};
-  const live = data?.liveMonitor || {};
+  const liquidity = data?.marketCharacter?.liquidity || {};
+  const move = data?.marketCharacter?.move || {};
+  const trap = data?.marketCharacter?.trap || {};
+  const auction = data?.trapDetection?.auctionEvent || {};
+  const momentum = data?.trapDetection?.momentumRepair || {};
+  const primary = data?.trapDetection?.participation?.primary || {};
+  const secondary = data?.trapDetection?.participation?.secondary || {};
+  const pressure = data?.moveCharacter?.underlyingPressure || {};
 
-  const liquidityState = liquidity?.state || liquidityDisplay?.state || "NO_LIQUIDITY_EVENT";
-  const moveState = move?.moveCharacter || moveDisplay?.moveCharacter || rawMoveCharacter(data?.moveCharacter) || "NO_ACTIVE_MOVE";
-  const trapState = trap?.state || trapDisplay?.state || "NO_ACTIVE_TRAP";
-  const blockers = trap?.confirmationBlockedBy || trapDisplay?.confirmationBlockedBy || trapDetection?.confirmationBlockedBy || [];
-
-  const primaryRead = primary?.primaryParticipationSupportsTrap
-    ? "SUPPORTS"
-    : primary?.primaryParticipationOpposesTrap
-      ? "OPPOSES"
-      : primary?.available === false
-        ? "UNAVAILABLE"
-        : primary?.breadthAlignment || primary?.volumeAlignment || "NEUTRAL";
-
-  const secondaryRead = secondary?.secondarySupportsTrap
-    ? "SUPPORTS"
-    : secondary?.secondaryOpposesTrap
-      ? "OPPOSES"
-      : secondary?.confirmationCount != null
-        ? String(secondary.confirmationCount) + " CONFIRMING"
-        : "NEUTRAL";
+  const level = liquidity?.level || auction?.liquidityLevel || {};
+  const sweep = liquidity?.sweep || auction?.sweep || {};
 
   const cards = [
     {
       title: "Liquidity",
       kicker: "LEVELS · SWEEPS · RECLAIMS",
-      state: liquidityState,
+      state: liquidity?.state || "NO_LIQUIDITY_EVENT",
       lines: [
-        ["Level", liquidity?.level?.boundary ?? liquidity?.level?.level ?? liquidityDisplay?.level?.boundary],
-        ["Type", liquidity?.level?.type ?? auction?.liquidityLevel?.type],
+        ["Level", level?.boundary ?? level?.level],
+        ["Type", level?.type],
         ["Significance", auction?.liquidityLevel?.significance],
-        ["Auction", liquidity?.auctionResult || liquidityDisplay?.auctionResult],
-        ["Excursion", liquidity?.sweep?.excursionPoints != null ? Number(liquidity.sweep.excursionPoints).toFixed(2) + " pts" : null],
-        ["Reclaim", liquidity?.reclaimObserved ? "OBSERVED" : "NOT YET"],
+        ["Auction", liquidity?.auctionResult],
+        ["Excursion", Number.isFinite(Number(sweep?.excursionPoints)) ? Number(sweep.excursionPoints).toFixed(2) + " pts" : null],
+        ["Reclaimed", liquidity?.reclaimObserved === true ? "YES" : liquidity?.reclaimObserved === false ? "NO" : null],
       ],
     },
     {
       title: "Move / Squeeze",
       kicker: "30M AUTHORITY · 10M TRANSITION",
-      state: moveState,
+      state: move?.moveCharacter || "NO_ACTIVE_MOVE",
       lines: [
-        ["30m direction", move?.direction || moveDisplay?.direction],
-        ["10m transition", move?.fastState || live?.state],
-        ["20m persistence", live?.persistenceWindow || "20m"],
-        ["10m direction", move?.liveDirection || live?.direction],
-        ["Participation", move?.participation || live?.participation],
-        ["10m vs 30m", move?.context || live?.context],
+        ["30m direction", move?.direction],
+        ["10m transition", move?.fastState || data?.liveMonitor?.state],
+        ["10m direction", move?.liveDirection || data?.liveMonitor?.direction],
+        ["20m persistence", data?.liveMonitor?.persistenceWindow],
+        ["Participation", move?.participation || data?.liveMonitor?.participation],
+        ["Pressure", pressure?.state],
       ],
     },
     {
       title: "Trap Detection",
       kicker: "FAILED AUCTIONS · FALSE BREAKS",
-      state: trapState,
+      state: trap?.state || "NO_ACTIVE_TRAP",
       lines: [
-        ["Side", trap?.side || trapDisplay?.side || "NONE"],
-        ["Location", trap?.locationQuality || trapDisplay?.locationQuality],
-        ["30m failed hold", auction?.acceptance30m?.failedHold],
+        ["Side", trap?.side || "NONE"],
+        ["Location", trap?.locationQuality],
+        ["30m failed hold", auction?.acceptance30m?.failedHold === true ? "YES" : auction?.acceptance30m?.failedHold === false ? "NO" : null],
         ["Momentum repair", momentum?.state],
-        ["E25 primary", primaryRead],
-        ["E29 secondary", secondaryRead],
-        ["Still needs", blockers.length ? blockers.length + " confirmation(s)" : "NONE"],
+        ["E25 participation", primary?.available === false ? "UNAVAILABLE" : primary?.primaryParticipationSupportsTrap ? "SUPPORTS" : primary?.primaryParticipationOpposesTrap ? "OPPOSES" : primary?.available ? "NEUTRAL" : null],
+        ["E29 confirmation", secondary?.secondarySupportsTrap ? "SUPPORTS" : secondary?.secondaryOpposesTrap ? "OPPOSES" : secondary?.trapSide ? "NEUTRAL" : null],
       ],
+      blockers: Array.isArray(trap?.confirmationBlockedBy) ? trap.confirmationBlockedBy : [],
     },
   ];
 
@@ -586,10 +562,16 @@ function MarketCharacterCards({ data, display }) {
               {item.lines.map(([label, value]) => (
                 <div key={label} style={{ display: "flex", justifyContent: "space-between", gap: 12, fontSize: 13 }}>
                   <span style={{ color: "#64748b" }}>{label}</span>
-                  <strong style={{ color: value != null ? "#cbd5e1" : "#475569", textAlign: "right" }}>{value === true ? "YES" : value === false ? "NO" : clean(value)}</strong>
+                  <strong style={{ color: value !== null && value !== undefined ? "#cbd5e1" : "#475569", textAlign: "right" }}>{clean(value)}</strong>
                 </div>
               ))}
             </div>
+            {item.blockers?.length ? (
+              <div style={{ marginTop: 10, paddingTop: 8, borderTop: "1px solid rgba(148,163,184,0.14)" }}>
+                <div style={{ color: "#fbbf24", fontSize: 11, fontWeight: 900, marginBottom: 5 }}>TRAP STILL NEEDS</div>
+                {item.blockers.slice(0, 3).map((x) => <div key={x} style={{ color: "#cbd5e1", fontSize: 12, marginTop: 3 }}>○ {clean(x)}</div>)}
+              </div>
+            ) : null}
           </Card>
         );
       })}
@@ -597,18 +579,11 @@ function MarketCharacterCards({ data, display }) {
   );
 }
 
-function DivergenceAndParticipation({ data, display, groups }) {
+function DivergenceAndParticipation({ data, groups }) {
   const primary = data?.trapDetection?.participation?.primary || {};
   const breadth = primary?.breadth || {};
   const volume = primary?.stockVolume || {};
-  const intradayVolume = volume?.intraday || {};
-
-  const advancingShare =
-    intradayVolume?.advancingVolumeShare;
-  const decliningShare =
-    intradayVolume?.decliningVolumeShare;
-  const imbalance =
-    intradayVolume?.volumeImbalance;
+  const intraday = volume?.intraday || {};
 
   const pct100 = (value) => {
     const n = Number(value);
@@ -626,45 +601,27 @@ function DivergenceAndParticipation({ data, display, groups }) {
   const breadth29 = groupState("breadth");
   const leadership = groupState("leadership");
   const credit = groupState("credit");
-
   const divergences = [];
   const weakWords = /BREAK|SEVERE|WEAK|DETERIOR|STRESS|FORMING/i;
-  const strongWords = /HEALTHY|RECOVER|SUPPORT|CONFIRMED/i;
+  const strongWords = /HEALTHY|RECOVER|SUPPORT/i;
 
   if (strongWords.test(String(leadership || "")) && weakWords.test(String(breadth29 || ""))) {
-    divergences.push({
-      title: "Leadership vs Breadth",
-      text: "Technology leadership is holding better than broad participation.",
-      left: clean(leadership),
-      right: clean(breadth29),
-    });
+    divergences.push({ title: "Leadership vs Breadth", text: "Technology leadership is holding better than broad participation.", left: clean(leadership), right: clean(breadth29) });
   }
-
   if (headline && breadth29 && String(headline) !== String(breadth29)) {
-    divergences.push({
-      title: "Indexes vs Breadth",
-      text: "Headline-index condition and broad participation are not fully aligned.",
-      left: clean(headline),
-      right: clean(breadth29),
-    });
+    divergences.push({ title: "Indexes vs Breadth", text: "Headline-index condition and broad participation are not fully aligned.", left: clean(headline), right: clean(breadth29) });
   }
-
   if (headline && credit && strongWords.test(String(headline)) && weakWords.test(String(credit))) {
-    divergences.push({
-      title: "Price vs Credit",
-      text: "Headline price strength is not being fully confirmed by credit.",
-      left: clean(headline),
-      right: clean(credit),
-    });
+    divergences.push({ title: "Price vs Credit", text: "Headline price strength is not being fully confirmed by credit.", left: clean(headline), right: clean(credit) });
   }
 
-  const trapEffect = primary?.primaryParticipationSupportsTrap
-    ? "SUPPORTS"
-    : primary?.primaryParticipationOpposesTrap
-      ? "OPPOSES"
-      : primary?.available === false
-        ? "UNAVAILABLE"
-        : primary?.breadthAlignment || primary?.volumeAlignment || "NEUTRAL";
+  const alignment = primary?.breadthAlignment;
+  const volumeAlignment = primary?.volumeAlignment;
+  const trapEffect =
+    primary?.primaryParticipationSupportsTrap ? "SUPPORTS" :
+    primary?.primaryParticipationOpposesTrap ? "OPPOSES" :
+    primary?.available === false ? "UNAVAILABLE" :
+    primary?.available ? "NEUTRAL" : "UNAVAILABLE";
 
   return (
     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
@@ -680,23 +637,24 @@ function DivergenceAndParticipation({ data, display, groups }) {
               </div>
             ))}
           </div>
-        ) : (
-          <div style={{ color: "#94a3b8", fontSize: 14 }}>No major cross-market divergence detected from the currently available states.</div>
-        )}
+        ) : <div style={{ color: "#94a3b8", fontSize: 14 }}>No major presentation-level divergence detected.</div>}
       </Card>
 
       <Card>
         <SectionTitle color="#60a5fa">Engine 25 Participation</SectionTitle>
         <div style={{ color: "#64748b", fontSize: 12, marginBottom: 10 }}>
-          READ-ONLY PRIMARY SCANNER CONFIRMATION
+          {primary?.authority || "ENGINE25 SCANNER PRIMARY READ ONLY"}
         </div>
         <div style={{ display: "grid", gap: 7, fontSize: 14 }}>
           {[
-            ["Breadth", breadth?.label || breadth?.state],
-            ["Distribution", volume?.distributionLabel],\n            ["Distribution pressure", volume?.rawPressure != null ? Number(volume.rawPressure).toFixed(0) + "%" : null],\n            ["Coverage", intradayVolume?.coveragePct != null ? Number(intradayVolume.coveragePct).toFixed(1) + "%" : null],
-            ["Advancing volume", pct100(advancingShare)],
-            ["Declining volume", pct100(decliningShare)],
-            ["Volume imbalance", pct100(imbalance)],
+            ["Breadth", breadth?.label],
+            ["Distribution", volume?.distributionLabel],
+            ["Coverage", pct100(intraday?.coveragePct)],
+            ["Advancing volume", pct100(intraday?.advancingVolumeShare)],
+            ["Declining volume", pct100(intraday?.decliningVolumeShare)],
+            ["Volume imbalance", pct100(intraday?.volumeImbalance)],
+            ["Breadth alignment", alignment],
+            ["Volume alignment", volumeAlignment],
             ["Trap effect", trapEffect],
           ].map(([label, value]) => (
             <div key={label} style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
@@ -1369,7 +1327,7 @@ export default function Engine29FullDashboard() {
               display={display}
             />
 
-            <MarketCharacterCards data={d} display={display} />\n\n            <MarketInternalsMap groups={groups} display={display} />\n\n            <DivergenceAndParticipation data={d} display={display} groups={groups} />
+            <MarketCharacterCards data={d} display={display} />\n\n            <MarketInternalsMap groups={groups} display={display} />\n\n            <DivergenceAndParticipation data={d} groups={groups} />
 
             <Card style={{ padding: 12 }}>
               <button
