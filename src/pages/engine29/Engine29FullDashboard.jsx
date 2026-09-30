@@ -3,9 +3,8 @@
 // Reorganized Presentation V1 using Engine 29 canonical backend truth.
 //
 // Preserved behavior:
-// - existing API routes
+// - existing API read routes
 // - 15-second persisted reads
-// - 10-minute backend rebuild while this page is open
 // - Close behavior
 // - original detailed group / symbol evidence under SHOW RAW EVIDENCE
 //
@@ -26,11 +25,9 @@ const API_BASE =
 const API_ROOT = API_BASE.replace(/\/+$/, "").replace(/\/api$/, "");
 const ROUTE = `${API_ROOT}/api/v1/engine29/cross-market-stress`;
 const SUMMARY_ROUTE = `${API_ROOT}/api/v1/engine29/cross-market-stress/summary`;
-const UPDATE_ROUTE = `${API_ROOT}/api/v1/engine29/dashboard-refresh`;
 
 const FONT = "Arial, Helvetica, sans-serif";
 const READ_POLL_MS = 15_000;
-const LIVE_REBUILD_MS = 10 * 60_000;
 
 const COLORS = {
   good: "#22c55e",
@@ -855,13 +852,10 @@ export default function Engine29FullDashboard() {
   const [summary, setSummary] = useState(null);
   const [status, setStatus] = useState("LOADING");
   const [error, setError] = useState(null);
-  const [rebuildStatus, setRebuildStatus] = useState("IDLE");
-  const [lastRebuildAt, setLastRebuildAt] = useState(null);
   const [showRaw, setShowRaw] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
-    let rebuildInFlight = false;
 
     async function load() {
       try {
@@ -891,46 +885,13 @@ export default function Engine29FullDashboard() {
       }
     }
 
-    async function rebuild() {
-      if (rebuildInFlight) return;
-      rebuildInFlight = true;
-      try {
-        if (!cancelled) setRebuildStatus("UPDATING");
-        const res = await fetch(`${UPDATE_ROUTE}?t=${Date.now()}`, {
-          method: "POST",
-          cache: "no-store",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({}),
-        });
-        const json = await res.json().catch(() => null);
-        if (!res.ok || json?.ok === false) {
-          throw new Error(json?.error || `Engine 29 update HTTP ${res.status}`);
-        }
-        if (!cancelled) {
-          setLastRebuildAt(new Date());
-          setRebuildStatus("READY");
-        }
-        await load();
-      } catch (err) {
-        if (!cancelled) {
-          setRebuildStatus("ERROR");
-          setError(err?.message || String(err));
-        }
-      } finally {
-        rebuildInFlight = false;
-      }
-    }
-
     load();
-    rebuild();
 
     const readTimer = setInterval(load, READ_POLL_MS);
-    const rebuildTimer = setInterval(rebuild, LIVE_REBUILD_MS);
 
     return () => {
       cancelled = true;
       clearInterval(readTimer);
-      clearInterval(rebuildTimer);
     };
   }, []);
 
@@ -968,9 +929,9 @@ export default function Engine29FullDashboard() {
           </div>
 
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <div style={{ textAlign: "right", fontSize: 12, color: rebuildStatus === "ERROR" ? COLORS.bad : rebuildStatus === "UPDATING" ? COLORS.warn : COLORS.muted }}>
-              <div style={{ fontWeight: 900 }}>LIVE BUILD: {rebuildStatus}</div>
-              <div style={{ marginTop: 2 }}>15s reads · 10m rebuild{lastRebuildAt ? ` · Last ${lastRebuildAt.toLocaleTimeString()}` : ""}</div>
+            <div style={{ textAlign: "right", fontSize: 12, color: COLORS.muted }}>
+              <div style={{ fontWeight: 900 }}>LIVE BUILD: CRON MANAGED</div>
+              <div style={{ marginTop: 2 }}>15s persisted reads · dashboard is read only</div>
             </div>
             <button onClick={() => window.close()} style={{ background: "#0f172a", border: "1px solid rgba(148,163,184,0.38)", color: "#e5e7eb", borderRadius: 9, padding: "9px 14px", fontSize: 14, fontWeight: 850, cursor: "pointer" }}>Close</button>
           </div>
