@@ -31,12 +31,14 @@ export default function FullChart() {
     <div
       className="fullchart-page"
       style={{
-        position: "fixed",
-        inset: 0,
+        position: "relative",
+        width: "100%",
+        height: "calc(100vh - 120px)",
+        minHeight: 640,
         display: "flex",
         flexDirection: "column",
         background: "#0b0f14",
-        zIndex: 100, // below the drawer (drawer uses a higher z via portal)
+        zIndex: 1, // contained inside the persistent Redline shell
       }}
     >
       {/* Top bar */}
