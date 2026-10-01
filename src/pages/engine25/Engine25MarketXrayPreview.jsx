@@ -3,7 +3,7 @@
 // Correctness-first data wiring with simplified customer-facing presentation.
 // No animation. No Engine26. No production dashboard replacement.
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import RowMarketOverview from "../rows/RowMarketOverview";
 import Engine29FullDashboard from "../engine29/Engine29FullDashboard";
@@ -304,19 +304,6 @@ function PlainLineChart({ rows = [] }) {
   );
 }
 
-function currentNewsEvent(news) {
-  const events = Array.isArray(news?.events) ? news.events : [];
-  const active = events.filter((e) => {
-    const exp = Date.parse(e?.expiresAt || "");
-    return e?.material === true && (!Number.isFinite(exp) || Date.now() < exp);
-  });
-  const rank = { EXTREME: 4, HIGH: 3, MODERATE: 2, LOW: 1 };
-  return active.sort(
-    (a, b) => (rank[String(b?.severity || "").toUpperCase()] || 0) -
-              (rank[String(a?.severity || "").toUpperCase()] || 0)
-  )[0] || events[0] || null;
-}
-
 function changeRow(rows, label) {
   return (Array.isArray(rows) ? rows : []).find((r) => r?.label === label) || null;
 }
@@ -370,23 +357,32 @@ export default function Engine25MarketXrayPreview() {
   const upDown = participation?.upDown || {};
   const distribution = participation?.distributionPressure || {};
   const freshness = artifact?.freshness || {};
+  const sectorParticipation = participation?.sectorParticipation || {};
+  const intradaySectorParticipation = sectorParticipation?.intraday || {};
   const sectorBreadth = data?.sectorBreadth || {};
   const tactical = sectorBreadth?.tactical1h || {};
   const regime = sectorBreadth?.regime4h || {};
-  const cards = Array.isArray(tactical?.cards) ? tactical.cards : [];
-  const tacticalSummary = tactical?.summary || {};
+  const cards = Array.isArray(intradaySectorParticipation?.cards)
+    ? intradaySectorParticipation.cards
+    : [];
+  const leadership = participation?.newHighsNewLows || {};
   const credit = data?.creditStressDetail || {};
   const macro = data?.macroPressure || {};
-  const event = useMemo(() => currentNewsEvent(data?.newsEvents), [data?.newsEvents]);
+  const event = Array.isArray(data?.newsEvents?.activeMaterialEvents)
+    ? data.newsEvents.activeMaterialEvents[0] || null
+    : null;
   const underRows = data?.underTheHood?.rows || [];
   const overlayRows = data?.overlay?.rows || [];
 
   const scanned = n(intradayVolume?.stocksScanned);
   const withVolume = n(intradayVolume?.stocksWithVolume);
   const coverage = n(intradayVolume?.coveragePct);
-  const buyVolPct = n(intradayVolume?.advancingVolumeShare);
-  const sellVolPct = n(intradayVolume?.decliningVolumeShare);
-  const imbalance = n(intradayVolume?.volumeImbalance);
+  const buyVolShare = n(intradayVolume?.advancingVolumeShare);
+  const sellVolShare = n(intradayVolume?.decliningVolumeShare);
+  const volumeImbalance = n(intradayVolume?.volumeImbalance);
+  const buyVolPct = buyVolShare == null ? null : buyVolShare * 100;
+  const sellVolPct = sellVolShare == null ? null : sellVolShare * 100;
+  const imbalancePct = volumeImbalance == null ? null : volumeImbalance * 100;
 
   const totalUp = n(upDown?.intradayUp);
   const totalDown = n(upDown?.intradayDown);
@@ -394,19 +390,17 @@ export default function Engine25MarketXrayPreview() {
   const buyBreadthPct = breadthDenom > 0 ? (totalUp / breadthDenom) * 100 : null;
   const sellBreadthPct = breadthDenom > 0 ? (totalDown / breadthDenom) * 100 : null;
 
-  const rawPressure = n(distribution?.rawPressure);
-  const distributionPressurePct =
-    rawPressure != null ? rawPressure : (n(distribution?.score) != null ? 100 - n(distribution.score) : null);
+  const distributionPressurePct = n(distribution?.rawPressure);
 
   const masterScore = n(master?.master?.score);
   const underlyingScore = n(breadth?.score);
 
-  const nh = n(tacticalSummary?.totalNh);
-  const nl = n(tacticalSummary?.totalNl);
+  const nh = n(leadership?.intradayTotalNh);
+  const nl = n(leadership?.intradayTotalNl);
 
-  const weakSectors = cards.filter((c) => n(c?.breadth_pct) <= 45 && n(c?.momentum_pct) <= 45).length;
-  const strongSectors = cards.filter((c) => n(c?.breadth_pct) >= 55 && n(c?.momentum_pct) >= 55).length;
-  const mixedSectors = Math.max(0, cards.length - weakSectors - strongSectors);
+  const bearishSectors = n(intradaySectorParticipation?.bearishCount);
+  const bullishSectors = n(intradaySectorParticipation?.bullishCount);
+  const neutralSectors = n(intradaySectorParticipation?.neutralCount);
 
   const changed = [
     changeRow(underRows, "Breadth"),
@@ -524,9 +518,9 @@ export default function Engine25MarketXrayPreview() {
     "Price / zone context unavailable.";
 
   const marketRead =
-    scanned
-      ? `${fmt(scanned)} stocks scanned. ${sellBreadthPct != null ? pct(sellBreadthPct) : "—"} of directional breadth and ${sellVolPct != null ? pct(sellVolPct) : "—"} of directional volume are on the selling side.`
-      : headline?.interpretation || data?.deskNote || "Engine25 market-health read available.";
+    headline?.interpretation ||
+    data?.deskNote ||
+    "Engine25 canonical market-health interpretation unavailable.";
 
   return (
     <div
@@ -613,9 +607,13 @@ export default function Engine25MarketXrayPreview() {
               />
               <BigStat
                 label="Sectors"
-                value={cards.length ? `${weakSectors} WEAK` : "—"}
-                color={weakSectors >= Math.ceil(cards.length / 2) ? COLORS.red : COLORS.yellow}
-                note={cards.length ? `${strongSectors} strong · ${mixedSectors} mixed` : "sector data unavailable"}
+                value={bearishSectors == null ? "—" : `${fmt(bearishSectors)} BEARISH`}
+                color={COLORS.yellow}
+                note={
+                  bullishSectors == null || neutralSectors == null
+                    ? "sector participation unavailable"
+                    : `${fmt(bullishSectors)} bullish · ${fmt(neutralSectors)} neutral`
+                }
               />
               <BigStat
                 label="Data"
@@ -683,15 +681,15 @@ export default function Engine25MarketXrayPreview() {
                     <BigStat label="Stocks With Volume" value={fmt(withVolume)} note={`${pct(coverage, 1)} coverage`} />
                     <BigStat
                       label="Volume Imbalance"
-                      value={imbalance == null ? "—" : `${imbalance >= 0 ? "+" : ""}${imbalance.toFixed(1)}%`}
-                      color={imbalance != null && imbalance > 0 ? COLORS.red : COLORS.green}
-                      note={imbalance != null && imbalance > 0 ? "toward selling" : "toward buying"}
+                      value={imbalancePct == null ? "—" : `${imbalancePct >= 0 ? "+" : ""}${imbalancePct.toFixed(1)}%`}
+                      color={COLORS.text}
+                      note="canonical directional-volume imbalance"
                     />
                     <BigStat
                       label="Overall Read"
-                      value={sellVolPct != null && sellVolPct > buyVolPct ? "SELLING" : "MIXED"}
-                      color={sellVolPct != null && sellVolPct > buyVolPct ? COLORS.red : COLORS.yellow}
-                      note={sellVolPct != null && sellVolPct > buyVolPct ? "broad selling pressure" : "no broad selling dominance"}
+                      value={intradayVolume?.available === true ? "AVAILABLE" : "UNAVAILABLE"}
+                      color={intradayVolume?.available === true ? COLORS.green : COLORS.yellow}
+                      note={intradayVolume?.reason || "canonical stock-volume evidence"}
                     />
                   </div>
                 </div>
@@ -706,13 +704,10 @@ export default function Engine25MarketXrayPreview() {
                   <BigStat label="Underlying Breadth" value={underlyingScore == null ? "—" : fmt(underlyingScore, 0)} color={toneForScore(underlyingScore)} />
                 </div>
                 <KV label="ES Price" value={fmt(headline?.esClose, 2)} />
-                <div style={{ marginTop: 10, color: COLORS.text, fontWeight: 850, lineHeight: 1.45 }}>
-                  {masterScore != null && underlyingScore != null && masterScore - underlyingScore >= 10
-                    ? "The headline index is reading stronger than the market underneath it."
-                    : masterScore != null && underlyingScore != null && underlyingScore - masterScore >= 10
-                    ? "Underlying participation is stronger than the headline index."
-                    : "Index conditions and underlying participation are broadly similar."}
-                </div>
+                <KV
+                  label="Underlying State"
+                  value={clean(breadth?.label || "UNAVAILABLE").toUpperCase()}
+                />
 
                 <Link
                   to="/market-meter?symbol=ES&tf=10m"
@@ -761,10 +756,13 @@ export default function Engine25MarketXrayPreview() {
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(120px,1fr))", gap: 7 }}>
                   {cards.map((c) => {
                     const b = n(c?.breadth_pct);
-                    const m = n(c?.momentum_pct);
-                    const weak = b <= 45 && m <= 45;
-                    const strong = b >= 55 && m >= 55;
-                    const color = weak ? COLORS.red : strong ? COLORS.green : COLORS.yellow;
+                    const bias = String(c?.bias || "neutral").toLowerCase();
+                    const color =
+                      bias === "bearish"
+                        ? COLORS.red
+                        : bias === "bullish"
+                        ? COLORS.green
+                        : COLORS.yellow;
                     return (
                       <div
                         key={c?.sector}
@@ -785,9 +783,9 @@ export default function Engine25MarketXrayPreview() {
                   })}
                 </div>
                 <div style={{ marginTop: 10, display: "flex", gap: 14, color: COLORS.muted, fontSize: 12 }}>
-                  <span><b style={{ color: COLORS.green }}>{strongSectors}</b> strong</span>
-                  <span><b style={{ color: COLORS.yellow }}>{mixedSectors}</b> mixed</span>
-                  <span><b style={{ color: COLORS.red }}>{weakSectors}</b> weak</span>
+                  <span><b style={{ color: COLORS.green }}>{fmt(bullishSectors)}</b> bullish</span>
+                  <span><b style={{ color: COLORS.yellow }}>{fmt(neutralSectors)}</b> neutral</span>
+                  <span><b style={{ color: COLORS.red }}>{fmt(bearishSectors)}</b> bearish</span>
                 </div>
 
                 <Link
