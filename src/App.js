@@ -11,11 +11,16 @@ import NewDashboard from "./pages/NewDashboard";
 import ErrorBoundary from "./ErrorBoundary";
 import "./index.css";
 import UIScaler from "./components/UIScaler";
+import RedlineAppShell from "./components/RedlineAppShell";
 import { ModeProvider, ViewModes } from "./context/ModeContext";
 
 const FullChart = React.lazy(() => import("./pages/FullChart"));
 const StrategiesFull = React.lazy(() => import("./pages/StrategiesFull"));
 const JournalFull = React.lazy(() => import("./pages/JournalFull"));
+const MarketMeterPage = React.lazy(() => import("./pages/redline/MarketMeterPage"));
+const IndexSectorsPage = React.lazy(() => import("./pages/redline/IndexSectorsPage"));
+const WaveDegreesPage = React.lazy(() => import("./pages/redline/WaveDegreesPage"));
+const ControlsPage = React.lazy(() => import("./pages/redline/ControlsPage"));
 
 const Engine25FullDashboard = React.lazy(() =>
   import("./pages/engine25/Engine25FullDashboard")
@@ -23,6 +28,10 @@ const Engine25FullDashboard = React.lazy(() =>
 
 const Engine25CreditStressDetail = React.lazy(() =>
   import("./pages/engine25/Engine25CreditStressDetail")
+);
+
+const Engine25MarketXrayPreview = React.lazy(() =>
+  import("./pages/engine25/Engine25MarketXrayPreview")
 );
 
 const Engine29FullDashboard = React.lazy(() =>
@@ -122,28 +131,36 @@ function HealthStatusBar() {
         top: 0,
         zIndex: 1000,
         width: "100%",
-        background: "#0b0f14",
-        borderBottom: "1px solid #1f2937",
+        background:
+          "linear-gradient(90deg, rgba(27,5,5,.98), rgba(7,9,12,.99) 24%, rgba(7,9,12,.99))",
+        borderBottom: "1px solid rgba(239,68,68,.26)",
+        boxShadow: "0 4px 18px rgba(0,0,0,.34)",
         color: "#e5e7eb",
-        fontSize: 13,
+        fontSize: 12,
       }}
       data-healthbar
     >
       <div
         style={{
+          minHeight: 34,
           display: "flex",
-          gap: 16,
+          gap: 12,
           alignItems: "center",
-          padding: "6px 10px",
+          padding: "5px 12px",
           flexWrap: "wrap",
         }}
       >
-        <strong style={{ color: "#93c5fd" }}>Service:</strong>
-        <span>{state.service || "frye-market-backend"}</span>
+        <strong
+          style={{
+            color: "#ef4444",
+            letterSpacing: ".06em",
+            fontWeight: 1000,
+          }}
+        >
+          REDLINE SYSTEM
+        </strong>
 
-        <span style={{ opacity: 0.5 }}>|</span>
-
-        <strong style={{ color: "#93c5fd" }}>Connected:</strong>
+        <span style={{ opacity: 0.28 }}>|</span>
 
         <span
           style={{
@@ -151,44 +168,62 @@ function HealthStatusBar() {
             alignItems: "center",
             gap: 6,
             color: statusColor,
-            fontWeight: 600,
+            fontWeight: 900,
           }}
         >
           <span
             style={{
-              width: 8,
-              height: 8,
+              width: 7,
+              height: 7,
               borderRadius: 999,
               background: statusColor,
               display: "inline-block",
+              boxShadow: `0 0 8px ${statusColor}88`,
             }}
           />
-
-          {connected ? "✓" : "✗"}
+          {connected ? "BACKEND CONNECTED" : "BACKEND OFFLINE"}
         </span>
 
-        <span style={{ opacity: 0.5 }}>|</span>
+        <span style={{ opacity: 0.28 }}>|</span>
 
-        <strong style={{ color: "#93c5fd" }}>
-          Last heartbeat (AZ):
-        </strong>
+        <span style={{ color: "#94a3b8" }}>
+          Heartbeat AZ:
+          <strong style={{ color: "#cbd5e1", marginLeft: 5 }}>
+            {heartbeat}
+          </strong>
+        </span>
 
-        <span>{heartbeat}</span>
+        <span style={{ opacity: 0.28 }}>|</span>
 
-        <span style={{ opacity: 0.5 }}>|</span>
+        <span style={{ color: "#94a3b8" }}>
+          Checked:
+          <strong style={{ color: "#cbd5e1", marginLeft: 5 }}>
+            {checked}
+          </strong>
+        </span>
 
-        <strong style={{ color: "#93c5fd" }}>
-          Checked at (AZ):
-        </strong>
-
-        <span>{checked}</span>
+        <span
+          style={{
+            marginLeft: "auto",
+            color: "#64748b",
+            fontWeight: 800,
+            letterSpacing: ".04em",
+            textTransform: "uppercase",
+          }}
+        >
+          Powered by AI
+        </span>
 
         {state.error && (
-          <>
-            <span style={{ opacity: 0.5 }}>|</span>
-            <span style={{ color: "#f97316" }}>Note:</span>
-            <span style={{ color: "#fca5a5" }}>{state.error}</span>
-          </>
+          <span
+            style={{
+              width: "100%",
+              color: "#fca5a5",
+              fontSize: 11,
+            }}
+          >
+            {state.error}
+          </span>
         )}
       </div>
     </div>
@@ -209,6 +244,36 @@ function ScaledDashboardShell({ children }) {
         {children}
       </ModeProvider>
     </UIScaler>
+  );
+}
+
+function RedlineModuleHeader({ title, subtitle }) {
+  return (
+    <div
+      style={{
+        border: "1px solid rgba(239,68,68,.24)",
+        borderLeft: "4px solid #ef4444",
+        borderRadius: 12,
+        padding: "12px 14px",
+        background:
+          "linear-gradient(90deg, rgba(127,29,29,.16), rgba(10,13,17,.96) 32%)",
+        marginBottom: 14,
+      }}
+    >
+      <div
+        style={{
+          color: "#f8fafc",
+          fontSize: 24,
+          fontWeight: 1000,
+          letterSpacing: ".02em",
+        }}
+      >
+        {title}
+      </div>
+      <div style={{ color: "#94a3b8", fontSize: 13, marginTop: 4 }}>
+        {subtitle}
+      </div>
+    </div>
   );
 }
 
@@ -263,6 +328,15 @@ export default function App() {
             />
 
             <Route
+              path="/engine25-market-xray-preview"
+              element={
+                <RedlineAppShell>
+                  <Engine25MarketXrayPreview />
+                </RedlineAppShell>
+              }
+            />
+
+            <Route
               path="/engine29-full"
               element={<Engine29FullDashboard />}
             />
@@ -272,36 +346,108 @@ export default function App() {
             <Route
               path="/"
               element={
-                <ScaledDashboardShell>
-                  <NewDashboard />
-                </ScaledDashboardShell>
+                <RedlineAppShell>
+                  <Engine25MarketXrayPreview />
+                </RedlineAppShell>
+              }
+            />
+
+            <Route
+              path="/market-meter"
+              element={
+                <RedlineAppShell>
+                  <MarketMeterPage />
+                </RedlineAppShell>
+              }
+            />
+
+            <Route
+              path="/index-sectors"
+              element={
+                <RedlineAppShell>
+                  <IndexSectorsPage />
+                </RedlineAppShell>
+              }
+            />
+
+            <Route
+              path="/strategies"
+              element={
+                <RedlineAppShell>
+                  <WaveDegreesPage />
+                </RedlineAppShell>
+              }
+            />
+
+            <Route
+              path="/wave-degrees"
+              element={<Navigate to="/strategies" replace />}
+            />
+
+            <Route
+              path="/controls"
+              element={
+                <RedlineAppShell>
+                  <ModeProvider initial={ViewModes.METER_TILES}>
+                    <ControlsPage />
+                  </ModeProvider>
+                </RedlineAppShell>
+              }
+            />
+
+            <Route
+              path="/legacy-dashboard"
+              element={
+                <RedlineAppShell>
+                  <ScaledDashboardShell>
+                    <NewDashboard />
+                  </ScaledDashboardShell>
+                </RedlineAppShell>
               }
             />
 
             <Route
               path="/chart"
               element={
-                <ScaledDashboardShell>
-                  <FullChart />
-                </ScaledDashboardShell>
+                <RedlineAppShell>
+                  <RedlineModuleHeader
+                    title="CHART"
+                    subtitle="Live ES chart workspace with Engine overlays, structure, levels, and trade-planning tools."
+                  />
+                  <ScaledDashboardShell>
+                    <FullChart />
+                  </ScaledDashboardShell>
+                </RedlineAppShell>
               }
             />
 
             <Route
               path="/strategies-full"
               element={
-                <ScaledDashboardShell>
-                  <StrategiesFull />
-                </ScaledDashboardShell>
+                <RedlineAppShell>
+                  <RedlineModuleHeader
+                    title="STRATEGIES"
+                    subtitle="Wave structure, tactical setup state, candidate location, confirmation, and strategy readiness."
+                  />
+                  <ScaledDashboardShell>
+                    <StrategiesFull />
+                  </ScaledDashboardShell>
+                </RedlineAppShell>
               }
             />
 
             <Route
               path="/journal-full"
               element={
-                <ScaledDashboardShell>
-                  <JournalFull />
-                </ScaledDashboardShell>
+                <RedlineAppShell>
+                  <RedlineModuleHeader
+                    title="JOURNAL"
+                    subtitle="Trade history, contract-level outcomes, campaign tracking, and performance review."
+                  />
+                  <ScaledDashboardShell>
+                    <JournalFull />
+                  </ScaledDashboardShell>
+                </RedlineAppShell>
               }
             />
 

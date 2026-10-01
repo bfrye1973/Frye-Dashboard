@@ -13,6 +13,7 @@
 //
 
 import React, { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import JournalPerformanceAnalytics
   from "./journal/components/JournalPerformanceAnalytics.jsx";
 
@@ -51,6 +52,17 @@ import {
 import {
   calculateAnalytics,
 } from "./journal/journalAnalytics.js";
+
+function getTradeCandidateId(trade) {
+  return (
+    trade?.candidateId ||
+    trade?.identity?.candidateId ||
+    trade?.strategy1Provenance?.candidateId ||
+    trade?.sourceSignal?.candidateId ||
+    trade?.entry?.candidateId ||
+    null
+  );
+}
 
 function getExactFuturesContractCode(
   trade
@@ -822,6 +834,58 @@ function AccountCard({
 ========================================================= */
 
 export default function JournalFull() {
+  const linkedParams = useMemo(
+    () =>
+      new URLSearchParams(
+        typeof window !== "undefined"
+          ? window.location.search
+          : ""
+      ),
+    []
+  );
+
+  const linkedCandidateId =
+    linkedParams.get("candidateId") || "";
+
+  const linkedSymbol =
+    (linkedParams.get("symbol") || "ES").toUpperCase();
+
+  const linkedTf =
+    linkedParams.get("tf") || "10m";
+
+  const linkedStrategyId =
+    linkedParams.get("strategyId") ||
+    "intraday_scalp@10m";
+
+  const linkedSetupClass =
+    linkedParams.get("setupClass") || "";
+
+  const linkedSetupQuery = new URLSearchParams({
+    symbol: linkedSymbol,
+    tf: linkedTf,
+    strategyId: linkedStrategyId,
+  });
+
+  if (linkedCandidateId) {
+    linkedSetupQuery.set(
+      "candidateId",
+      linkedCandidateId
+    );
+  }
+
+  if (linkedSetupClass) {
+    linkedSetupQuery.set(
+      "setupClass",
+      linkedSetupClass
+    );
+  }
+
+  const linkedChartHref =
+    `/chart?${linkedSetupQuery.toString()}`;
+
+  const linkedStrategiesHref =
+    `/strategies?${linkedSetupQuery.toString()}`;
+
   const [
     data,
     setData,
@@ -950,6 +1014,47 @@ export default function JournalFull() {
     )
       ? data.trades
       : [];
+
+  const linkedTrade =
+    linkedCandidateId
+      ? allTrades.find(
+          (trade) =>
+            getTradeCandidateId(trade) ===
+            linkedCandidateId
+        ) || null
+      : null;
+
+  useEffect(() => {
+    if (!linkedTrade) {
+      return;
+    }
+
+    if (linkedTrade?.tradeId) {
+      setSelectedTradeId(
+        linkedTrade.tradeId
+      );
+    }
+
+    const linkedMode =
+      getTradeMode(
+        linkedTrade
+      );
+
+    if (
+      linkedMode === "REAL" ||
+      linkedMode === "PAPER"
+    ) {
+      setModeFilter(
+        linkedMode
+      );
+    }
+
+    setTimeFilter("ALL");
+    setStatusFilter("ALL");
+  }, [
+    linkedTrade?.tradeId,
+    linkedCandidateId,
+  ]);
 
   const openSymbols =
     useMemo(() => {
@@ -1298,6 +1403,7 @@ export default function JournalFull() {
   --------------------------------------------------------- */
 
   const selectedTrade =
+    linkedTrade ||
     filteredTrades.find(
       (trade) =>
         trade?.tradeId ===
@@ -1527,6 +1633,110 @@ export default function JournalFull() {
             </div>
           </div>
         </header>
+
+        {linkedCandidateId ? (
+          <div
+            style={{
+              margin: "12px 12px 0",
+              border:
+                linkedTrade
+                  ? "1px solid rgba(34,197,94,.36)"
+                  : "1px solid rgba(251,191,36,.36)",
+              background:
+                linkedTrade
+                  ? "rgba(20,83,45,.14)"
+                  : "rgba(120,53,15,.14)",
+              borderRadius: 8,
+              padding: "10px 12px",
+              display: "flex",
+              gap: 12,
+              alignItems: "center",
+              flexWrap: "wrap",
+              fontSize: 12,
+            }}
+          >
+            <strong
+              style={{
+                color:
+                  linkedTrade
+                    ? COLORS.green
+                    : COLORS.gold,
+              }}
+            >
+              LINKED ENGINE26 CANDIDATE
+            </strong>
+
+            <span
+              style={{
+                color: COLORS.text,
+                fontWeight: 1000,
+              }}
+            >
+              {linkedCandidateId}
+            </span>
+
+            {linkedTrade ? (
+              <>
+                <span
+                  style={{
+                    color: COLORS.muted,
+                  }}
+                >
+                  Engine10 trade:
+                </span>
+
+                <span
+                  style={{
+                    color: COLORS.text,
+                    fontWeight: 900,
+                  }}
+                >
+                  {linkedTrade?.tradeId || "—"}
+                </span>
+
+                <Link
+                  to={linkedChartHref}
+                  style={{
+                    marginLeft: "auto",
+                    textDecoration: "none",
+                    border: "1px solid rgba(56,189,248,.36)",
+                    background: "rgba(14,116,144,.12)",
+                    color: "#7dd3fc",
+                    borderRadius: 7,
+                    padding: "5px 8px",
+                    fontWeight: 900,
+                  }}
+                >
+                  BACK TO CHART
+                </Link>
+
+                <Link
+                  to={linkedStrategiesHref}
+                  style={{
+                    textDecoration: "none",
+                    border: "1px solid rgba(34,197,94,.34)",
+                    background: "rgba(20,83,45,.12)",
+                    color: "#86efac",
+                    borderRadius: 7,
+                    padding: "5px 8px",
+                    fontWeight: 900,
+                  }}
+                >
+                  BACK TO STRATEGIES
+                </Link>
+              </>
+            ) : (
+              <span
+                style={{
+                  color: COLORS.gold,
+                  fontWeight: 900,
+                }}
+              >
+                No Engine10 journal trade exists for this candidate yet.
+              </span>
+            )}
+          </div>
+        ) : null}
 
         {/* =================================================
             FILTER BAR

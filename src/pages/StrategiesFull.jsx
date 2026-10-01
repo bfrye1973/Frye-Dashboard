@@ -1069,6 +1069,10 @@ function LongerTermCard({ node, snapshot, symbol }) {
 export default function StrategiesFull() {
   const qs = useMemo(() => new URLSearchParams(window.location.search), []);
   const symbol = (qs.get("symbol") || "SPY").toUpperCase();
+  const linkedTf = qs.get("tf") || "";
+  const linkedCandidateId = qs.get("candidateId") || "";
+  const linkedStrategyId = qs.get("strategyId") || "";
+  const linkedSetupClass = qs.get("setupClass") || "";
 
   const {
     data: snapshot,
@@ -1134,6 +1138,44 @@ export default function StrategiesFull() {
           </button>
         </div>
       </div>
+
+      {linkedCandidateId ? (
+        <div
+          style={{
+            marginBottom: 14,
+            border: "1px solid rgba(251,191,36,.34)",
+            background: "rgba(120,53,15,.14)",
+            borderRadius: 12,
+            padding: "10px 12px",
+            display: "flex",
+            gap: 14,
+            alignItems: "center",
+            flexWrap: "wrap",
+          }}
+        >
+          <strong style={{ color: "#fde68a" }}>
+            LINKED ENGINE26 SETUP
+          </strong>
+          <span style={{ color: "#f8fafc", fontWeight: 900 }}>
+            {linkedCandidateId}
+          </span>
+          {linkedStrategyId ? (
+            <span style={{ color: "#94a3b8" }}>
+              {linkedStrategyId}
+            </span>
+          ) : null}
+          {linkedSetupClass ? (
+            <span style={{ color: "#94a3b8" }}>
+              {prettyEnum(linkedSetupClass)}
+            </span>
+          ) : null}
+          {linkedTf ? (
+            <span style={{ color: "#94a3b8" }}>
+              {linkedTf}
+            </span>
+          ) : null}
+        </div>
+      ) : null}
 
       {err && !hasData && (
         <div style={{ marginBottom: 14, color: "#fca5a5", fontWeight: 1000 }}>

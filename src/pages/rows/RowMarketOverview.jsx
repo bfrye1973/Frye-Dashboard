@@ -238,7 +238,7 @@ function useSandboxDeltas() {
 }
 
 /* ===================== Main Component ===================== */
-export default function RowMarketOverview() {
+export default function RowMarketOverview({ prioritySummary = false, topMetersOnly = false }) {
   const replay = useReplay();
   const { data: polled } = useDashboardPoll("dynamic");
 
@@ -485,6 +485,95 @@ export default function RowMarketOverview() {
     paddingBottom: 2,
   };
 
+  if (topMetersOnly) {
+    return (
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(2,minmax(0,1fr))",
+          gap: 12,
+          marginBottom: 14,
+        }}
+      >
+        <div
+          style={{
+            border: "1px solid rgba(239,68,68,.28)",
+            borderRadius: 12,
+            background:
+              "linear-gradient(180deg, rgba(18,23,30,.96), rgba(7,10,14,.98))",
+            padding: 12,
+          }}
+        >
+          <div
+            style={{
+              color: "#f8fafc",
+              fontSize: 13,
+              fontWeight: 1000,
+              marginBottom: 10,
+              letterSpacing: ".04em",
+            }}
+          >
+            ES FUTURES METER
+          </div>
+
+          <div
+            style={{
+              display: "flex",
+              gap: 8,
+              flexWrap: "wrap",
+              alignItems: "flex-start",
+            }}
+          >
+            <Stoplight label="10m" value={num(es10.score)} tone={es10.tone || "info"} size={42} minWidth={66} />
+            <Stoplight label="30m" value={num(es30.score)} tone={es30.tone || "info"} size={42} minWidth={66} />
+            <Stoplight label="1h" value={num(es1h.score)} tone={es1h.tone || "info"} size={42} minWidth={66} />
+            <Stoplight label="4h" value={num(es4h.score)} tone={es4h.tone || "info"} size={42} minWidth={66} />
+            <Stoplight label="EOD" value={num(esEod.score)} tone={esEod.tone || "info"} size={42} minWidth={66} />
+            <Stoplight label="MASTER" value={num(esMaster.score)} tone={esMaster.tone || "info"} size={42} minWidth={74} />
+          </div>
+        </div>
+
+        <div
+          style={{
+            border: "1px solid rgba(56,189,248,.25)",
+            borderRadius: 12,
+            background:
+              "linear-gradient(180deg, rgba(18,23,30,.96), rgba(7,10,14,.98))",
+            padding: 12,
+          }}
+        >
+          <div
+            style={{
+              color: "#f8fafc",
+              fontSize: 13,
+              fontWeight: 1000,
+              marginBottom: 10,
+              letterSpacing: ".04em",
+            }}
+          >
+            SPY MARKET METER
+          </div>
+
+          <div
+            style={{
+              display: "flex",
+              gap: 8,
+              flexWrap: "wrap",
+              alignItems: "flex-start",
+            }}
+          >
+            <Stoplight label="10m" value={overall10} tone={toneForOverallState(state10, overall10)} size={42} minWidth={66} />
+            <Stoplight label="30m" value={overall30} tone={toneForOverallState(state30, overall30)} size={42} minWidth={66} />
+            <Stoplight label="1h" value={overall1} tone={toneForOverallState(state1, overall1)} size={42} minWidth={66} />
+            <Stoplight label="4h" value={overall4} tone={toneForOverallState(state4, overall4)} size={42} minWidth={66} />
+            <Stoplight label="EOD" value={eodScore} tone={toneForOverallState(eodState, eodScore)} size={42} minWidth={66} />
+            <Stoplight label="MASTER" value={masterScore} tone={toneForMaster(masterScore)} size={42} minWidth={74} />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <section id="row-2" className="panel" style={{ padding: 10 }}>
       <div className="panel-head" style={{ alignItems: "center" }}>
@@ -511,6 +600,209 @@ export default function RowMarketOverview() {
           ts={replay?.enabled ? replay?.snapshot?.tsUtc : tsOf(d10 || d30 || d1h || d4h || dd || polled)}
         />
       </div>
+
+      {prioritySummary ? (
+        <div
+          style={{
+            marginTop: 10,
+            marginBottom: 14,
+            border: "1px solid rgba(239,68,68,.24)",
+            borderRadius: 12,
+            background:
+              "linear-gradient(180deg, rgba(18,23,30,.96), rgba(7,10,14,.98))",
+            padding: 14,
+            boxShadow:
+              "inset 0 1px 0 rgba(255,255,255,.03), 0 10px 24px rgba(0,0,0,.22)",
+          }}
+        >
+          <div
+            style={{
+              color: "#f8fafc",
+              fontSize: 15,
+              fontWeight: 1000,
+              letterSpacing: ".04em",
+              marginBottom: 4,
+            }}
+          >
+            PRIORITY READ
+          </div>
+
+          <div
+            style={{
+              color: "#94a3b8",
+              fontSize: 12,
+              marginBottom: 14,
+            }}
+          >
+            ES futures condition, daily structure, and cross-index alignment at a glance.
+          </div>
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns:
+                "minmax(0,1.1fr) minmax(0,1.2fr) minmax(280px,.8fr)",
+              gap: 14,
+              alignItems: "stretch",
+            }}
+          >
+            <div
+              style={{
+                border: "1px solid rgba(148,163,184,.16)",
+                borderRadius: 10,
+                padding: 12,
+                background: "rgba(2,6,23,.30)",
+                minWidth: 0,
+              }}
+            >
+              <div
+                style={{
+                  color: "#e5e7eb",
+                  fontWeight: 900,
+                  marginBottom: 10,
+                }}
+              >
+                ES FUTURES METER
+              </div>
+
+              <div
+                style={{
+                  display: "flex",
+                  gap: 8,
+                  flexWrap: "wrap",
+                  alignItems: "flex-start",
+                }}
+              >
+                <Stoplight label="10m" value={num(es10.score)} tone={es10.tone || "info"} size={44} minWidth={70} />
+                <Stoplight label="30m" value={num(es30.score)} tone={es30.tone || "info"} size={44} minWidth={70} />
+                <Stoplight label="1h" value={num(es1h.score)} tone={es1h.tone || "info"} size={44} minWidth={70} />
+                <Stoplight label="4h" value={num(es4h.score)} tone={es4h.tone || "info"} size={44} minWidth={70} />
+                <Stoplight label="EOD" value={num(esEod.score)} tone={esEod.tone || "info"} size={44} minWidth={70} />
+                <Stoplight label="MASTER" value={num(esMaster.score)} tone={esMaster.tone || "info"} size={44} minWidth={78} />
+              </div>
+
+              <div
+                style={{
+                  color: "#64748b",
+                  fontSize: 10,
+                  marginTop: 8,
+                }}
+              >
+                Updated: {fmtIso(es.updated_at_utc)}
+              </div>
+            </div>
+
+            <div
+              style={{
+                border: "1px solid rgba(148,163,184,.16)",
+                borderRadius: 10,
+                padding: 12,
+                background: "rgba(2,6,23,.30)",
+                minWidth: 0,
+              }}
+            >
+              <div
+                style={{
+                  color: "#e5e7eb",
+                  fontWeight: 900,
+                  marginBottom: 10,
+                }}
+              >
+                EOD — DAILY STRUCTURE
+              </div>
+
+              <div
+                style={{
+                  display: "flex",
+                  gap: 8,
+                  flexWrap: "wrap",
+                  alignItems: "flex-start",
+                }}
+              >
+                <Stoplight label="Overall" value={eodScore} tone={toneForOverallState(eodState, eodScore)} size={44} minWidth={72} />
+                <Stoplight label="Participation" value={eodParticipation} tone={toneForPct(eodParticipation)} size={44} minWidth={82} />
+                <Stoplight label="Daily Squeeze" value={eodSqueezePsi} tone={toneForSqueezePsi(eodSqueezePsi)} size={44} minWidth={82} />
+                <Stoplight label="Vol Regime" value={eodVol} tone={toneForVol(eodVol)} size={44} minWidth={76} />
+                <Stoplight label="Liq Regime" value={eodLiq} unit="%" tone={toneForLiquidity(eodLiq)} size={44} minWidth={76} />
+                <Stoplight label="Risk-On" value={eodRiskOn} tone={toneForPct(eodRiskOn)} size={44} minWidth={72} />
+                <Stoplight label="MASTER" value={masterScore} tone={toneForMaster(masterScore)} size={44} minWidth={78} />
+              </div>
+
+              <div
+                style={{
+                  color: "#64748b",
+                  fontSize: 10,
+                  marginTop: 8,
+                }}
+              >
+                Updated: {fmtIso(tsEod)}
+              </div>
+            </div>
+
+            <div
+              style={{
+                border: "1px solid rgba(148,163,184,.16)",
+                borderRadius: 10,
+                padding: 12,
+                background: "rgba(2,6,23,.30)",
+                minWidth: 0,
+              }}
+            >
+              <div
+                style={{
+                  color: "#e5e7eb",
+                  fontWeight: 900,
+                  marginBottom: 10,
+                }}
+              >
+                MARKET ALIGNMENT
+              </div>
+
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr",
+                  gap: 10,
+                }}
+              >
+                <div>
+                  <Stoplight
+                    label="10m Align"
+                    value={align10Score}
+                    unit=""
+                    tone={toneForAlignment(align10Score)}
+                    size={48}
+                    minWidth={90}
+                  />
+                  <div style={{ color: "#94a3b8", fontSize: 10, marginTop: 6 }}>
+                    {align10State}
+                  </div>
+                  <div style={{ color: "#64748b", fontSize: 9, marginTop: 3 }}>
+                    SPY {align10Components?.SPY?.direction || "—"} · QQQ {align10Components?.QQQ?.direction || "—"} · DIA {align10Components?.DIA?.direction || "—"} · UVXY {align10Components?.UVXY?.direction || "—"}
+                  </div>
+                </div>
+
+                <div>
+                  <Stoplight
+                    label="30m Align"
+                    value={align30Score}
+                    unit=""
+                    tone={toneForAlignment(align30Score)}
+                    size={48}
+                    minWidth={90}
+                  />
+                  <div style={{ color: "#94a3b8", fontSize: 10, marginTop: 6 }}>
+                    {align30State}
+                  </div>
+                  <div style={{ color: "#64748b", fontSize: 9, marginTop: 3 }}>
+                    SPY {align30Components?.SPY?.direction || "—"} · QQQ {align30Components?.QQQ?.direction || "—"} · DIA {align30Components?.DIA?.direction || "—"} · UVXY {align30Components?.UVXY?.direction || "—"}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       <div
         style={{

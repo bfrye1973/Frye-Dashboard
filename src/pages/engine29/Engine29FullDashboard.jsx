@@ -847,7 +847,7 @@ function SymbolEvidence({ symbols }) {
   );
 }
 
-export default function Engine29FullDashboard() {
+export default function Engine29FullDashboard({ homeCompact = false }) {
   const [data, setData] = useState(null);
   const [summary, setSummary] = useState(null);
   const [status, setStatus] = useState("LOADING");
@@ -913,6 +913,143 @@ export default function Engine29FullDashboard() {
   );
 
   const updatedAt = d?.timestamp ? new Date(d.timestamp) : null;
+
+  if (homeCompact) {
+    return (
+      <div
+        style={{
+          display: "grid",
+          gap: 12,
+          color: "#e5e7eb",
+          fontFamily: FONT,
+        }}
+      >
+        {status === "LOADING" && !data && (
+          <Card>
+            <div style={{ color: COLORS.muted }}>Loading Engine 29 market character…</div>
+          </Card>
+        )}
+
+        {status === "ERROR" && (
+          <Card style={{ borderColor: "rgba(239,68,68,0.45)" }}>
+            <div style={{ color: "#fecaca" }}>Engine 29 dashboard error: {error}</div>
+          </Card>
+        )}
+
+        {(data || summary) && (
+          <>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                gap: 10,
+                flexWrap: "wrap",
+              }}
+            >
+              <div>
+                <div
+                  style={{
+                    color: "#f8fafc",
+                    fontSize: 17,
+                    fontWeight: 1000,
+                    letterSpacing: ".04em",
+                  }}
+                >
+                  ENGINE 29 — MARKET CHARACTER
+                </div>
+                <div
+                  style={{
+                    color: COLORS.muted,
+                    fontSize: 12,
+                    marginTop: 2,
+                  }}
+                >
+                  What kind of move is happening right now?
+                </div>
+              </div>
+
+              <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>
+                {updatedAt ? (
+                  <Pill color={COLORS.info}>
+                    Data {updatedAt.toLocaleString()}
+                  </Pill>
+                ) : null}
+                <Pill color={d?.dataDegraded ? COLORS.warn : COLORS.good}>
+                  {d?.dataDegraded ? "DATA DEGRADED" : "DATA OK"}
+                </Pill>
+                <Pill color={COLORS.muted}>
+                  ES {d?.dataQuality?.esResolvedSymbol || "—"}
+                </Pill>
+              </div>
+            </div>
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(4, minmax(220px, 1fr))",
+                gap: 12,
+              }}
+            >
+              <StateCard
+                label="1W Bigger Picture"
+                value={plainOverall(top.oneWeek)}
+                subtitle={display?.oneWeek?.summary}
+              />
+              <StateCard
+                label="1H Current Pressure"
+                value={plainTactical(top.oneHour)}
+                subtitle={display?.oneHour?.summary}
+              />
+              <StateCard
+                label="30m Fast Shift"
+                value={plainTactical(top.thirty)}
+                subtitle={display?.thirtyMinute?.summary}
+              />
+              <StateCard
+                label="ES Move"
+                value={plainMoveCharacter(top.move)}
+                subtitle={display?.thirtyMinute?.summary}
+              />
+            </div>
+
+            <LiveMonitorCard data={d} display={display} />
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(3, minmax(280px, 1fr))",
+                gap: 12,
+              }}
+            >
+              <LiquidityCard
+                liquidity={
+                  marketCharacter?.liquidity ||
+                  trapDetection?.liquidity
+                }
+              />
+              <MoveCharacterCard
+                move={
+                  marketCharacter?.move ||
+                  trapDetection?.moveCharacterLane
+                }
+                data={d}
+              />
+              <TrapCard
+                trap={
+                  marketCharacter?.trap ||
+                  trapDetection?.trap
+                }
+                detection={trapDetection}
+              />
+            </div>
+
+            <MarketInternalsMap groups={groups} display={display} />
+          </>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div style={{ minHeight: "100vh", background: "#020617", color: "#e5e7eb", padding: "18px 24px 32px", fontFamily: FONT, overflowX: "auto" }}>

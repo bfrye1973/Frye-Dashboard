@@ -11,7 +11,10 @@ export default function FullChart() {
 
   // Query params (symbol + tf)
   const symbol = useMemo(() => (params.get("symbol") || "SPY").toUpperCase(), [params]);
-  const tf     = useMemo(() => params.get("tf") || "10m", [params]);
+  const tf = useMemo(() => params.get("tf") || "10m", [params]);
+  const candidateId = useMemo(() => params.get("candidateId") || "", [params]);
+  const strategyId = useMemo(() => params.get("strategyId") || "", [params]);
+  const setupClass = useMemo(() => params.get("setupClass") || "", [params]);
 
   // Page scroll lock while full chart is open
   useEffect(() => {
@@ -28,12 +31,14 @@ export default function FullChart() {
     <div
       className="fullchart-page"
       style={{
-        position: "fixed",
-        inset: 0,
+        position: "relative",
+        width: "100%",
+        height: "calc(100vh - 120px)",
+        minHeight: 640,
         display: "flex",
         flexDirection: "column",
         background: "#0b0f14",
-        zIndex: 100, // below the drawer (drawer uses a higher z via portal)
+        zIndex: 1, // contained inside the persistent Redline shell
       }}
     >
       {/* Top bar */}
@@ -69,6 +74,26 @@ export default function FullChart() {
         <div className="fullchart-meta" style={{ opacity: 0.7 }}>
           {symbol} · {tf}
         </div>
+
+        {candidateId ? (
+          <div
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 7,
+              border: "1px solid rgba(251,191,36,.38)",
+              background: "rgba(120,53,15,.16)",
+              borderRadius: 999,
+              padding: "4px 8px",
+              color: "#fde68a",
+              fontSize: 11,
+              fontWeight: 900,
+            }}
+            title={setupClass || strategyId || "Linked Engine26 setup"}
+          >
+            LINKED SETUP · {candidateId}
+          </div>
+        ) : null}
 
         {/* spacer */}
         <div style={{ flex: 1 }} />
