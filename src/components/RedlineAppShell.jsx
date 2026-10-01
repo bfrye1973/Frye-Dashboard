@@ -135,7 +135,8 @@ export function RedlineNavRail() {
   ];
 
   const contextualHref = (href) => {
-    const [path, query = ""] = href.split("?");
+    const [beforeHash, hash = ""] = href.split("#");
+    const [path, query = ""] = beforeHash.split("?");
     const next = new URLSearchParams(query);
 
     for (const key of contextKeys) {
@@ -146,7 +147,10 @@ export function RedlineNavRail() {
     }
 
     const suffix = next.toString();
-    return suffix ? `${path}?${suffix}` : path;
+    const queryPart = suffix ? `?${suffix}` : "";
+    const hashPart = hash ? `#${hash}` : "";
+
+    return `${path}${queryPart}${hashPart}`;
   };
 
   const items = [
