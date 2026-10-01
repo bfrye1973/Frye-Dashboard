@@ -31,10 +31,10 @@ export default function WaveDegreesPage() {
         }}
       >
         <div style={{ color: "#f8fafc", fontSize: 24, fontWeight: 1000 }}>
-          WAVE DEGREES + TRADER INTELLIGENCE
+          STRATEGIES
         </div>
         <div style={{ color: "#94a3b8", fontSize: 13, marginTop: 4 }}>
-          Engine22 structure and Engine27 trader-facing intelligence in one synchronized view.
+          Engine22 Wave Degrees and Engine27 Trader Intelligence in one synchronized strategy view.
         </div>
       </div>
 
