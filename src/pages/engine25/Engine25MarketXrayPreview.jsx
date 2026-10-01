@@ -708,7 +708,7 @@ export default function Engine25MarketXrayPreview() {
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,320px),1fr))",
+                gridTemplateColumns: "minmax(250px,.9fr) minmax(520px,2.7fr) minmax(300px,1.2fr)",
                 gap: 14,
                 alignItems: "stretch",
               }}
@@ -1095,7 +1095,7 @@ export default function Engine25MarketXrayPreview() {
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,320px),1fr))",
+                gridTemplateColumns: "minmax(560px,1.7fr) minmax(280px,.9fr) minmax(360px,1.15fr)",
                 gap: 14,
               }}
             >
@@ -1600,7 +1600,7 @@ export default function Engine25MarketXrayPreview() {
               </Card>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,360px),1fr))", gap: 14 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "minmax(340px,.8fr) minmax(620px,1.65fr)", gap: 14 }}>
               <Card title="What Changed Since Yesterday?">
                 <div style={{ color: COLORS.muted, fontSize: 12, lineHeight: 1.4, marginBottom: 8 }}>
                   Direction matters more than a single snapshot. This shows which major forces improved or deteriorated.
