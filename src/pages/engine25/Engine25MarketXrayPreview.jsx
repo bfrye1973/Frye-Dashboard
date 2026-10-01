@@ -72,11 +72,22 @@ function colorForCanonicalState(value, fallback = COLORS.muted) {
 }
 
 function dataStatusFromFreshness(freshness) {
-  const state = String(freshness?.state || "").toUpperCase();
+  const state = String(
+    freshness?.intraday?.state || freshness?.state || ""
+  ).toUpperCase();
+
   if (state === "FRESH") return "LIVE";
-  if (state.includes("STALE")) return "STALE";
-  if (state.includes("MISSING")) return "MISSING";
-  return state ? "DEGRADED" : "MISSING";
+  if (state === "LAST_VALID_EQUITY_READ") return "LAST VALID EQUITY READ";
+  if (state === "STALE_INTRADAY_SOURCE" || state.includes("STALE")) return "STALE";
+  if (
+    state === "UNAVAILABLE" ||
+    state.includes("MISSING") ||
+    state.includes("INVALID")
+  ) {
+    return "UNAVAILABLE";
+  }
+  if (state === "INSUFFICIENT_VOLUME_COVERAGE") return "DEGRADED";
+  return state ? clean(state) : "UNAVAILABLE";
 }
 
 function canonicalSectorName(value) {
@@ -1668,6 +1679,35 @@ export default function Engine25MarketXrayPreview() {
                   note={freshness?.intraday?.sourceTimestamp || "—"}
                 />
               </div>
+              {freshness?.intraday?.state === "LAST_VALID_EQUITY_READ" ? (
+                <div
+                  style={{
+                    marginTop: 10,
+                    border: "1px solid rgba(251,191,36,.35)",
+                    borderRadius: 9,
+                    padding: "8px 10px",
+                    color: COLORS.yellow,
+                    fontSize: 12,
+                    lineHeight: 1.4,
+                  }}
+                >
+                  Equity market closed — showing last valid stock-internals read.
+                </div>
+              ) : freshness?.intraday?.state === "STALE_INTRADAY_SOURCE" ? (
+                <div
+                  style={{
+                    marginTop: 10,
+                    border: "1px solid rgba(239,68,68,.35)",
+                    borderRadius: 9,
+                    padding: "8px 10px",
+                    color: COLORS.red,
+                    fontSize: 12,
+                    lineHeight: 1.4,
+                  }}
+                >
+                  Equity scanner should be updating, but the canonical source is stale.
+                </div>
+              ) : null}
               <div style={{ marginTop: 10, color: COLORS.muted, lineHeight: 1.45 }}>{data?.deskNote}</div>
             </Card>
 
