@@ -571,6 +571,9 @@ export default function Engine25MarketXrayPreview() {
 
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 14 }}>
               <Card title="Selling / Distribution Pressure" accent={COLORS.red}>
+                <div style={{ color: COLORS.muted, fontSize: 12, lineHeight: 1.4, marginBottom: 8 }}>
+                  Measures whether broad selling is building underneath price. Higher pressure means more defensive conditions.
+                </div>
                 <SimpleGauge value={distributionPressurePct} label={upper(distribution?.label || "Distribution")} inverse />
                 <KV label="Raw pressure" value={pct(distributionPressurePct, 1)} color={COLORS.red} />
                 <KV label="Volume pressure" value={fmt(volume?.combinedVolumePressure, 0)} color={COLORS.red} />
@@ -578,6 +581,9 @@ export default function Engine25MarketXrayPreview() {
               </Card>
 
               <Card title="Market Leadership — New Highs vs New Lows">
+                <div style={{ color: COLORS.muted, fontSize: 12, lineHeight: 1.4, marginBottom: 10 }}>
+                  Shows whether more stocks are breaking to new highs or falling to new lows.
+                </div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18, textAlign: "center" }}>
                   <div><div style={{ fontSize: 34, color: COLORS.green, fontWeight: 1000 }}>{fmt(nh)}</div><div style={{ color: COLORS.muted }}>New Highs</div></div>
                   <div><div style={{ fontSize: 34, color: COLORS.red, fontWeight: 1000 }}>{fmt(nl)}</div><div style={{ color: COLORS.muted }}>New Lows</div></div>
@@ -588,6 +594,9 @@ export default function Engine25MarketXrayPreview() {
               </Card>
 
               <Card title="11-Sector Participation — Is Weakness Broad?">
+                <div style={{ color: COLORS.muted, fontSize: 12, lineHeight: 1.4, marginBottom: 9 }}>
+                  One weak sector can be noise. Many weak sectors at once means the move is broad.
+                </div>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(4,minmax(0,1fr))", gap: 7 }}>
                   {cards.map((c) => {
                     const b = n(c?.breadth_pct);
@@ -624,6 +633,9 @@ export default function Engine25MarketXrayPreview() {
 
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 14 }}>
               <Card title="1H vs 4H Participation">
+                <div style={{ color: COLORS.muted, fontSize: 12, lineHeight: 1.4, marginBottom: 8 }}>
+                  1H shows what is happening now. 4H shows whether the broader participation trend agrees.
+                </div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
                   <SimpleGauge value={tactical?.classification?.score} label={upper(tactical?.classification?.label || "1H")} />
                   <SimpleGauge value={regime?.classification?.score} label={upper(regime?.classification?.label || "4H")} />
@@ -631,6 +643,9 @@ export default function Engine25MarketXrayPreview() {
               </Card>
 
               <Card title="Financial Stress">
+                <div style={{ color: COLORS.muted, fontSize: 12, lineHeight: 1.4, marginBottom: 8 }}>
+                  Checks credit, bonds, banks, and liquidity for stress that may not yet be obvious in ES.
+                </div>
                 <KV label="Credit Fragility" value={fmt(credit?.scores?.creditFragility)} color={toneForScore(credit?.scores?.creditFragility)} />
                 <KV label="Macro Credit" value={fmt(credit?.scores?.creditStress)} color={toneForScore(credit?.scores?.creditStress)} />
                 <KV label="Bond Market" value={fmt(credit?.scores?.bondMarket)} color={toneForScore(credit?.scores?.bondMarket)} />
@@ -639,6 +654,9 @@ export default function Engine25MarketXrayPreview() {
               </Card>
 
               <Card title="Macro Pressure — Rates, Dollar, Energy">
+                <div style={{ color: COLORS.muted, fontSize: 12, lineHeight: 1.4, marginBottom: 8 }}>
+                  Combines the macro forces most likely to create pressure on the broader market.
+                </div>
                 <KV label="Score" value={fmt(macro?.score)} color={toneForScore(macro?.score)} />
                 <KV label="State" value={upper(macro?.state || macro?.label)} color={toneForScore(macro?.score)} />
                 <KV label="2Y Treasury" value={fmt(macro?.inputs?.DGS2?.value ?? macro?.inputs?.DGS2?.latestValue, 2)} />
@@ -650,6 +668,9 @@ export default function Engine25MarketXrayPreview() {
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
               <Card title="Active Event Risk" accent={COLORS.orange}>
+                <div style={{ color: COLORS.muted, fontSize: 12, lineHeight: 1.4, marginBottom: 9 }}>
+                  Only material events that can meaningfully affect market risk belong here.
+                </div>
                 {event ? (
                   <>
                     <div style={{ fontSize: 21, fontWeight: 950 }}>{clean(event?.eventType || event?.headlineSummary)}</div>
@@ -664,6 +685,9 @@ export default function Engine25MarketXrayPreview() {
               </Card>
 
               <Card title="Price Support / Selling Pressure">
+                <div style={{ color: COLORS.muted, fontSize: 12, lineHeight: 1.4, marginBottom: 8 }}>
+                  Connects market health to the ES price area currently being tested.
+                </div>
                 <div style={{ fontSize: 16, lineHeight: 1.5 }}>{priceContext}</div>
                 <div style={{ marginTop: 10 }}>
                   <KV label="Zone state" value={upper(data?.zoneDecisionRead?.label)} />
@@ -676,6 +700,9 @@ export default function Engine25MarketXrayPreview() {
 
             <div style={{ display: "grid", gridTemplateColumns: "minmax(360px,.75fr) minmax(650px,1.25fr)", gap: 14 }}>
               <Card title="What Changed Since Yesterday?">
+                <div style={{ color: COLORS.muted, fontSize: 12, lineHeight: 1.4, marginBottom: 8 }}>
+                  Direction matters more than a single snapshot. This shows which major forces improved or deteriorated.
+                </div>
                 {changed.length ? changed.map((row) => {
                   const v = n(row?.oneDayChange);
                   const inverse = row?.label === "Distribution";
@@ -693,6 +720,9 @@ export default function Engine25MarketXrayPreview() {
               </Card>
 
               <Card title="Market Health Trend — 6 Months" accent={COLORS.orange}>
+                <div style={{ color: COLORS.muted, fontSize: 12, lineHeight: 1.4, marginBottom: 6 }}>
+                  Places today's Engine25 reading in historical context rather than judging one day by itself.
+                </div>
                 <PlainLineChart rows={overlayRows} />
               </Card>
             </div>
