@@ -591,7 +591,7 @@ export default function Engine25MarketXrayPreview() {
   const brentFresh =
     macroMarketFresh && Boolean(brent?.asOfUtc) && n(brent?.changesPct?.session) != null;
 
-  const sectorGroups = cards.reduce(
+  const eodSectorGroups = cards.reduce(
     (out, card) => {
       const bias = String(card?.bias || "").toLowerCase();
       const name = canonicalSectorName(card?.sector);
@@ -603,7 +603,35 @@ export default function Engine25MarketXrayPreview() {
     },
     { strong: [], neutral: [], weak: [], unclassified: [] }
   );
-  const sectorGroupsAvailable = sectorGroups.unclassified.length === 0 && cards.length > 0;
+
+  const backendSectorGroups =
+    sectorTimeframe === "1H"
+      ? tactical?.groups || null
+      : sectorTimeframe === "4H"
+      ? regime?.groups || null
+      : null;
+
+  const sectorGroups =
+    sectorTimeframe === "EOD"
+      ? eodSectorGroups
+      : {
+          strong: Array.isArray(backendSectorGroups?.strong)
+            ? backendSectorGroups.strong
+            : [],
+          neutral: Array.isArray(backendSectorGroups?.neutral)
+            ? backendSectorGroups.neutral
+            : [],
+          weak: Array.isArray(backendSectorGroups?.weak)
+            ? backendSectorGroups.weak
+            : [],
+          unclassified: [],
+        };
+
+  const sectorGroupsAvailable =
+    sectorTimeframe === "EOD"
+      ? eodSectorGroups.unclassified.length === 0 && cards.length > 0
+      : backendSectorGroups?.available === true &&
+        backendSectorGroups?.complete === true;
 
   const changed = [
     changeRow(underRows, "Breadth"),
@@ -1145,15 +1173,16 @@ export default function Engine25MarketXrayPreview() {
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(140px,1fr))", gap: 7 }}>
                       {cards.map((c) => {
                         const b = n(c?.breadth_pct);
-                        const bias = String(c?.bias || "").toLowerCase();
-                        const color =
-                          bias === "bullish"
+                        const name = canonicalSectorName(c?.sector);
+                        const color = sectorGroupsAvailable
+                          ? sectorGroups.strong.includes(name)
                             ? COLORS.green
-                            : bias === "bearish"
+                            : sectorGroups.weak.includes(name)
                             ? COLORS.red
-                            : bias === "neutral"
+                            : sectorGroups.neutral.includes(name)
                             ? COLORS.yellow
-                            : COLORS.blue;
+                            : COLORS.blue
+                          : COLORS.blue;
                         return (
                           <div
                             key={canonicalSectorName(c?.sector)}
@@ -1202,7 +1231,7 @@ export default function Engine25MarketXrayPreview() {
                       </div>
                     ) : (
                       <div style={{ marginTop: 10, color: COLORS.yellow, fontSize: 11 }}>
-                        Grouped STRONG / NEUTRAL / WEAK sector names are UNAVAILABLE for this timeframe because the backend does not expose per-sector classification labels.
+                        Grouped STRONG / NEUTRAL / WEAK sector names are UNAVAILABLE because the canonical timeframe group contract is incomplete or unavailable.
                       </div>
                     )}
                   </>
