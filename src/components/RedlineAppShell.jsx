@@ -84,6 +84,16 @@ function RedlineIcon({ type, size = 22 }) {
     );
   }
 
+  if (type === "controls") {
+    return (
+      <svg {...common}>
+        <circle cx="12" cy="12" r="3" />
+        <path d="M12 3v3M12 18v3M3 12h3M18 12h3" />
+        <path d="M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1" />
+      </svg>
+    );
+  }
+
   if (type === "lights") {
     return (
       <svg {...common}>
@@ -148,6 +158,7 @@ export function RedlineNavRail() {
     { icon: "chart", short: "Chart", label: "Chart", href: "/chart" },
     { icon: "strategy", short: "Strat", label: "Strategies", href: "/strategies-full" },
     { icon: "journal", short: "Journal", label: "Journal", href: "/journal-full" },
+    { icon: "controls", short: "Tools", label: "Controls / Replay / AI Listen", href: "/legacy-dashboard#row-1" },
   ];
 
   return (
