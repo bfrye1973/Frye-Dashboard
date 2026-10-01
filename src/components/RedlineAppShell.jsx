@@ -259,6 +259,55 @@ export default function RedlineAppShell({ children }) {
           overflow-x: auto;
         }
 
+        .redline-shell-main .panel {
+          background:
+            linear-gradient(180deg, rgba(18,23,30,.96), rgba(7,10,14,.98)) !important;
+          border: 1px solid rgba(148,163,184,.16) !important;
+          border-radius: 14px !important;
+          box-shadow:
+            inset 0 1px 0 rgba(255,255,255,.025),
+            0 10px 28px rgba(0,0,0,.24) !important;
+          color: #e5e7eb !important;
+        }
+
+        .redline-shell-main .panel-head {
+          border-bottom-color: rgba(239,68,68,.16) !important;
+        }
+
+        .redline-shell-main .panel-title {
+          color: #f8fafc !important;
+          font-weight: 900 !important;
+          letter-spacing: .025em;
+        }
+
+        .redline-shell-main button,
+        .redline-shell-main select {
+          border-color: rgba(148,163,184,.25) !important;
+          border-radius: 9px !important;
+        }
+
+        .redline-shell-main button:hover {
+          border-color: rgba(239,68,68,.55) !important;
+        }
+
+        .redline-shell-main ::-webkit-scrollbar {
+          width: 9px;
+          height: 9px;
+        }
+
+        .redline-shell-main ::-webkit-scrollbar-track {
+          background: rgba(2,6,23,.45);
+        }
+
+        .redline-shell-main ::-webkit-scrollbar-thumb {
+          background: rgba(100,116,139,.55);
+          border-radius: 999px;
+        }
+
+        .redline-shell-main ::-webkit-scrollbar-thumb:hover {
+          background: rgba(239,68,68,.55);
+        }
+
         @media (max-width: 980px) {
           .redline-shell-grid {
             grid-template-columns: 64px minmax(0, 1fr);
