@@ -1099,19 +1099,38 @@ export default function Engine25MarketXrayPreview() {
                 gap: 14,
               }}
             >
-              <Card title="11-Sector Participation — Is Weakness Broad?">
+              <Card
+                accent={COLORS.orange}
+                style={{
+                  borderTop: "2px solid #f97316",
+                  background:
+                    "linear-gradient(180deg,rgba(13,18,26,.98),rgba(5,9,14,.99))",
+                }}
+              >
                 <div
                   style={{
                     display: "flex",
                     justifyContent: "space-between",
                     gap: 12,
-                    alignItems: "center",
+                    alignItems: "flex-start",
                     flexWrap: "wrap",
-                    marginBottom: 10,
+                    marginBottom: 12,
                   }}
                 >
-                  <div style={{ color: COLORS.muted, fontSize: 12, lineHeight: 1.4 }}>
-                    See which parts of the market are strong, neutral, or weak.
+                  <div>
+                    <div
+                      style={{
+                        color: COLORS.text,
+                        fontSize: 18,
+                        fontWeight: 1000,
+                        lineHeight: 1.05,
+                      }}
+                    >
+                      11-SECTOR <span style={{ color: COLORS.red }}>PARTICIPATION</span>
+                    </div>
+                    <div style={{ color: COLORS.muted, fontSize: 11, marginTop: 4 }}>
+                      Participation across all 11 sectors
+                    </div>
                   </div>
 
                   <div
@@ -1153,27 +1172,25 @@ export default function Engine25MarketXrayPreview() {
                   </div>
                 </div>
 
-                <div
-                  style={{
-                    color: COLORS.blue,
-                    fontSize: 11,
-                    fontWeight: 900,
-                    marginBottom: 9,
-                  }}
-                >
-                  {sectorTimeframe === "1H"
-                    ? "CURRENT 1-HOUR PARTICIPATION"
-                    : sectorTimeframe === "4H"
-                    ? "BROADER 4-HOUR PARTICIPATION"
-                    : "END-OF-DAY PARTICIPATION"}
-                </div>
-
                 {cards.length ? (
                   <>
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(140px,1fr))", gap: 7 }}>
-                      {cards.map((c) => {
-                        const b = n(c?.breadth_pct);
-                        const name = canonicalSectorName(c?.sector);
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "repeat(11,minmax(42px,1fr))",
+                        gap: 6,
+                        alignItems: "end",
+                        overflowX: "auto",
+                        paddingBottom: 6,
+                      }}
+                    >
+                      {cards.map((card) => {
+                        const name = canonicalSectorName(card?.sector);
+                        const breadthValue = n(card?.breadth_pct);
+                        const heightPct =
+                          breadthValue == null
+                            ? 8
+                            : Math.max(8, Math.min(100, breadthValue));
                         const color = sectorGroupsAvailable
                           ? sectorGroups.strong.includes(name)
                             ? COLORS.green
@@ -1183,24 +1200,44 @@ export default function Engine25MarketXrayPreview() {
                             ? COLORS.yellow
                             : COLORS.blue
                           : COLORS.blue;
+
                         return (
-                          <div
-                            key={canonicalSectorName(c?.sector)}
-                            style={{
-                              border: `1px solid ${color}99`,
-                              borderRadius: 9,
-                              padding: 8,
-                              background: "linear-gradient(180deg,rgba(18,23,30,.95),rgba(8,11,15,.98))",
-                              boxShadow: `inset 0 -2px 0 ${color}22`,
-                              transition:
-                                "border-color 250ms ease, box-shadow 250ms ease, background 250ms ease",
-                            }}
-                          >
-                            <div style={{ fontSize: 11, color: COLORS.muted, minHeight: 28 }}>
-                              {canonicalSectorName(c?.sector)}
+                          <div key={name} style={{ minWidth: 44, textAlign: "center" }}>
+                            <div
+                              style={{
+                                height: 150,
+                                border: "1px solid rgba(148,163,184,.18)",
+                                borderRadius: 7,
+                                padding: 3,
+                                display: "flex",
+                                alignItems: "flex-end",
+                                background:
+                                  "linear-gradient(180deg,rgba(15,23,42,.55),rgba(5,9,14,.90))",
+                                overflow: "hidden",
+                              }}
+                            >
+                              <div
+                                style={{
+                                  width: "100%",
+                                  height: `${heightPct}%`,
+                                  minHeight: 8,
+                                  borderRadius: 5,
+                                  background: `linear-gradient(180deg,${color},${color}88)`,
+                                  boxShadow: `0 0 18px ${color}55`,
+                                  transition: "height 500ms ease",
+                                }}
+                              />
                             </div>
-                            <div style={{ color, fontWeight: 950 }}>
-                              {b == null ? "—" : fmt(b, 0)}
+                            <div
+                              style={{
+                                color: COLORS.text,
+                                fontSize: 8,
+                                lineHeight: 1.2,
+                                marginTop: 6,
+                                minHeight: 30,
+                              }}
+                            >
+                              {name}
                             </div>
                           </div>
                         );
@@ -1221,32 +1258,87 @@ export default function Engine25MarketXrayPreview() {
                           ["NEUTRAL", sectorGroups.neutral, COLORS.yellow],
                           ["WEAK", sectorGroups.weak, COLORS.red],
                         ].map(([label, names, color]) => (
-                          <div key={label} style={{ border: `1px solid ${color}55`, borderRadius: 8, padding: 8 }}>
-                            <div style={{ color, fontSize: 11, fontWeight: 950 }}>{label}</div>
-                            <div style={{ marginTop: 5, color: COLORS.text, fontSize: 11, lineHeight: 1.45 }}>
-                              {names.length ? names.join(" · ") : "None"}
+                          <div
+                            key={label}
+                            style={{
+                              border: `1px solid ${color}aa`,
+                              borderRadius: 10,
+                              padding: 10,
+                              background: `${color}08`,
+                              minHeight: 112,
+                            }}
+                          >
+                            <div
+                              style={{
+                                color,
+                                fontSize: 12,
+                                fontWeight: 1000,
+                                paddingBottom: 7,
+                                borderBottom: `1px solid ${color}44`,
+                              }}
+                            >
+                              {label} ({names.length})
+                            </div>
+                            <div style={{ marginTop: 8, display: "grid", gap: 5 }}>
+                              {names.length ? (
+                                names.map((name) => (
+                                  <div
+                                    key={name}
+                                    style={{
+                                      display: "grid",
+                                      gridTemplateColumns: "7px minmax(0,1fr)",
+                                      gap: 7,
+                                      alignItems: "start",
+                                      color: COLORS.text,
+                                      fontSize: 10,
+                                      lineHeight: 1.35,
+                                    }}
+                                  >
+                                    <span
+                                      style={{
+                                        width: 7,
+                                        height: 7,
+                                        borderRadius: "50%",
+                                        background: color,
+                                        marginTop: 3,
+                                      }}
+                                    />
+                                    <span>{name}</span>
+                                  </div>
+                                ))
+                              ) : (
+                                <div style={{ color: COLORS.muted, fontSize: 10 }}>None</div>
+                              )}
                             </div>
                           </div>
                         ))}
                       </div>
                     ) : (
-                      <div style={{ marginTop: 10, color: COLORS.yellow, fontSize: 11 }}>
-                        Grouped STRONG / NEUTRAL / WEAK sector names are UNAVAILABLE because the canonical timeframe group contract is incomplete or unavailable.
+                      <div
+                        style={{
+                          marginTop: 12,
+                          border: "1px solid rgba(251,191,36,.30)",
+                          borderRadius: 9,
+                          padding: 10,
+                          color: COLORS.yellow,
+                          fontSize: 11,
+                        }}
+                      >
+                        UNAVAILABLE — canonical sector grouping is incomplete for {sectorTimeframe}.
                       </div>
                     )}
                   </>
                 ) : (
                   <div
                     style={{
-                      border: "1px solid rgba(251,191,36,.22)",
+                      border: "1px solid rgba(251,191,36,.30)",
                       borderRadius: 9,
                       padding: 12,
                       color: COLORS.yellow,
-                      fontSize: 12,
                       fontWeight: 850,
                     }}
                   >
-                    {sectorTimeframe} sector participation unavailable.
+                    UNAVAILABLE
                   </div>
                 )}
 
@@ -1256,7 +1348,7 @@ export default function Engine25MarketXrayPreview() {
                     display: "inline-block",
                     marginTop: 10,
                     color: COLORS.yellow,
-                    fontSize: 12,
+                    fontSize: 11,
                     fontWeight: 900,
                     textDecoration: "none",
                   }}
@@ -1340,7 +1432,129 @@ export default function Engine25MarketXrayPreview() {
               </Card>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+            
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,360px),1fr))",
+                gap: 14,
+              }}
+            >
+              <Card title="Selling / Distribution Pressure" accent={distributionColor}>
+                <div
+                  style={{
+                    color: COLORS.muted,
+                    fontSize: 11,
+                    lineHeight: 1.45,
+                    marginBottom: 10,
+                  }}
+                >
+                  Measures whether broad selling is building underneath price.
+                  Higher pressure means more defensive conditions.
+                </div>
+
+                <SimpleGauge
+                  value={distributionPressurePct}
+                  label={upper(distribution?.label || "DISTRIBUTION")}
+                  color={distributionColor}
+                />
+
+                <div style={{ marginTop: 12 }}>
+                  <KV
+                    label="Raw pressure"
+                    value={
+                      distributionPressurePct == null
+                        ? "UNAVAILABLE"
+                        : `${fmt(distributionPressurePct, 1)}%`
+                    }
+                    color={distributionColor}
+                  />
+                  <KV
+                    label="Volume pressure"
+                    value={
+                      volumePressure == null
+                        ? "UNAVAILABLE"
+                        : fmt(volumePressure, 0)
+                    }
+                    color={distributionColor}
+                  />
+                  <KV
+                    label="Engine25 health score"
+                    value={
+                      headline?.score == null
+                        ? "UNAVAILABLE"
+                        : fmt(headline.score, 0)
+                    }
+                    color={headlineColor}
+                  />
+                </div>
+              </Card>
+
+              <Card title="Market Leadership — New Highs vs New Lows" accent={COLORS.blue}>
+                <div
+                  style={{
+                    color: COLORS.muted,
+                    fontSize: 11,
+                    lineHeight: 1.45,
+                    marginBottom: 12,
+                  }}
+                >
+                  Shows whether more stocks are breaking to new highs or falling
+                  to new lows.
+                </div>
+
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr 1fr",
+                    gap: 12,
+                  }}
+                >
+                  <div style={{ textAlign: "center" }}>
+                    <div
+                      style={{
+                        color: COLORS.green,
+                        fontSize: 30,
+                        fontWeight: 1000,
+                      }}
+                    >
+                      {nh == null ? "—" : fmtNumber(nh)}
+                    </div>
+                    <div style={{ color: COLORS.muted, fontSize: 11 }}>
+                      New Highs
+                    </div>
+                  </div>
+
+                  <div style={{ textAlign: "center" }}>
+                    <div
+                      style={{
+                        color: COLORS.red,
+                        fontSize: 30,
+                        fontWeight: 1000,
+                      }}
+                    >
+                      {nl == null ? "—" : fmtNumber(nl)}
+                    </div>
+                    <div style={{ color: COLORS.muted, fontSize: 11 }}>
+                      New Lows
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ marginTop: 14 }}>
+                  <KV
+                    label="Net New Highs / Lows"
+                    value={
+                      n(nhNl?.intradayNetHighsLows) == null
+                        ? "UNAVAILABLE"
+                        : fmtNumber(nhNl?.intradayNetHighsLows)
+                    }
+                  />
+                </div>
+              </Card>
+            </div>
+
+<div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
               <Card title="Active Event Risk" accent={COLORS.orange}>
                 <div style={{ color: COLORS.muted, fontSize: 12, lineHeight: 1.4, marginBottom: 9 }}>
                   Only material events that can meaningfully affect market risk belong here.
