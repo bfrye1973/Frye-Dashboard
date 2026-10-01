@@ -884,7 +884,7 @@ export default function JournalFull() {
     `/chart?${linkedSetupQuery.toString()}`;
 
   const linkedStrategiesHref =
-    `/strategies-full?${linkedSetupQuery.toString()}`;
+    `/strategies?${linkedSetupQuery.toString()}`;
 
   const [
     data,
