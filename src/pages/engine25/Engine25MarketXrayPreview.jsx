@@ -342,6 +342,8 @@ function signedPct(value, digits = 2) {
 
 function MacroMoveRow({
   label,
+  subtitle = "",
+  icon = "•",
   value,
   changePct = null,
   fresh = false,
@@ -356,7 +358,7 @@ function MacroMoveRow({
         ? COLORS.green
         : change < 0
           ? COLORS.red
-          : COLORS.muted;
+          : COLORS.yellow;
 
   const badge = !fresh || change == null
     ? "STALE"
@@ -370,33 +372,191 @@ function MacroMoveRow({
     <div
       style={{
         display: "grid",
-        gridTemplateColumns: "minmax(120px,1fr) auto auto",
+        gridTemplateColumns: "48px minmax(0,1fr) auto",
         gap: 10,
         alignItems: "center",
-        padding: "8px 0",
-        borderBottom: "1px solid rgba(148,163,184,.10)",
+        padding: "10px 10px",
+        border: "1px solid rgba(148,163,184,.16)",
+        borderRadius: 10,
+        background: "linear-gradient(180deg,rgba(15,23,34,.86),rgba(8,13,20,.94))",
       }}
     >
-      <div style={{ color: COLORS.text, fontSize: 13, fontWeight: 800 }}>
-        {label}
-      </div>
-      <div style={{ color, fontSize: 15, fontWeight: 950, textAlign: "right" }}>
-        {n(value) == null ? "—" : `${fmt(value, 2)}${valueSuffix}`}
-      </div>
       <div
         style={{
-          minWidth: 76,
-          textAlign: "center",
-          border: `1px solid ${color}88`,
-          borderRadius: 8,
-          padding: "4px 7px",
+          width: 42,
+          height: 42,
+          display: "grid",
+          placeItems: "center",
+          borderRadius: 9,
+          border: "1px solid rgba(148,163,184,.18)",
           color,
-          background: `${color}12`,
-          fontSize: 10,
-          fontWeight: 950,
+          background: `${color}10`,
+          fontSize: 21,
+          fontWeight: 1000,
         }}
       >
-        {badge}
+        {icon}
+      </div>
+
+      <div style={{ minWidth: 0 }}>
+        <div style={{ color: COLORS.text, fontSize: 14, fontWeight: 950 }}>
+          {label}
+        </div>
+        {subtitle ? (
+          <div style={{ color: COLORS.muted, fontSize: 10, marginTop: 2 }}>
+            {subtitle}
+          </div>
+        ) : null}
+      </div>
+
+      <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+        <div style={{ color: COLORS.text, fontSize: 17, fontWeight: 1000, whiteSpace: "nowrap" }}>
+          {n(value) == null ? "—" : `${fmt(value, 2)}${valueSuffix}`}
+        </div>
+        <div
+          style={{
+            minWidth: 82,
+            textAlign: "center",
+            border: `1px solid ${color}aa`,
+            borderRadius: 8,
+            padding: "6px 8px",
+            color,
+            background: `${color}12`,
+            boxShadow: `0 0 16px ${color}18`,
+            fontSize: 10,
+            fontWeight: 1000,
+          }}
+        >
+          {badge}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function changeStory(row) {
+  const value = n(row?.oneDayChange);
+  if (value == null) return null;
+
+  const label = String(row?.label || "");
+  const signed = `${value > 0 ? "+" : ""}${value}`;
+
+  if (label === "Breadth") {
+    return value < 0
+      ? {
+          icon: "↓",
+          title: "Broader participation weakened",
+          detail: `Breadth moved lower from yesterday (${signed}).`,
+        }
+      : value > 0
+      ? {
+          icon: "↑",
+          title: "Broader participation improved",
+          detail: `Breadth moved higher from yesterday (${signed}).`,
+        }
+      : {
+          icon: "—",
+          title: "Broader participation was unchanged",
+          detail: "Breadth did not change from yesterday.",
+        };
+  }
+
+  if (label === "Distribution") {
+    return value > 0
+      ? {
+          icon: "▥",
+          title: "Selling pressure increased",
+          detail: `Distribution pressure moved higher from yesterday (${signed}).`,
+        }
+      : value < 0
+      ? {
+          icon: "▥",
+          title: "Selling pressure eased",
+          detail: `Distribution pressure moved lower from yesterday (${signed}).`,
+        }
+      : {
+          icon: "—",
+          title: "Selling pressure was unchanged",
+          detail: "Distribution pressure did not change from yesterday.",
+        };
+  }
+
+  if (label === "Credit Fragility") {
+    return value > 0
+      ? {
+          icon: "!",
+          title: "Financial stress increased",
+          detail: `Credit fragility moved higher from yesterday (${signed}).`,
+        }
+      : value < 0
+      ? {
+          icon: "!",
+          title: "Financial stress eased",
+          detail: `Credit fragility moved lower from yesterday (${signed}).`,
+        }
+      : {
+          icon: "—",
+          title: "Financial stress was unchanged",
+          detail: "Credit fragility did not change from yesterday.",
+        };
+  }
+
+  if (label === "Macro Aware") {
+    return {
+      icon: "◇",
+      title: "Macro conditions changed",
+      detail: `Macro condition score changed ${signed} from yesterday.`,
+    };
+  }
+
+  return {
+    icon: "•",
+    title: clean(label),
+    detail: `${clean(label)} changed ${signed} from yesterday.`,
+  };
+}
+
+function ChangeStoryCard({ row }) {
+  const story = changeStory(row);
+  if (!story) return null;
+
+  return (
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "50px minmax(0,1fr)",
+        gap: 12,
+        alignItems: "center",
+        padding: "11px 12px",
+        border: "1px solid rgba(148,163,184,.16)",
+        borderRadius: 11,
+        background: "linear-gradient(180deg,rgba(15,23,34,.86),rgba(8,13,20,.94))",
+      }}
+    >
+      <div
+        style={{
+          width: 44,
+          height: 44,
+          display: "grid",
+          placeItems: "center",
+          borderRadius: "50%",
+          border: `1px solid ${COLORS.red}`,
+          color: COLORS.red,
+          background: "rgba(127,29,29,.14)",
+          boxShadow: "0 0 16px rgba(239,68,68,.16)",
+          fontSize: 23,
+          fontWeight: 1000,
+        }}
+      >
+        {story.icon}
+      </div>
+      <div>
+        <div style={{ color: COLORS.text, fontSize: 14, fontWeight: 950 }}>
+          {story.title}
+        </div>
+        <div style={{ color: COLORS.muted, fontSize: 11, lineHeight: 1.4, marginTop: 3 }}>
+          {story.detail}
+        </div>
       </div>
     </div>
   );
@@ -1095,23 +1255,169 @@ export default function Engine25MarketXrayPreview() {
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,320px),1fr))",
+                gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,360px),1fr))",
                 gap: 14,
+                alignItems: "stretch",
               }}
             >
-              <Card title="11-Sector Participation — Is Weakness Broad?">
+              <Card
+                accent={COLORS.orange}
+                style={{
+                  borderTop: "2px solid #f97316",
+                  background: "linear-gradient(180deg,rgba(13,18,26,.98),rgba(5,9,14,.99))",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
+                  <div
+                    style={{
+                      width: 40,
+                      height: 40,
+                      display: "grid",
+                      placeItems: "center",
+                      borderRadius: 9,
+                      background: "rgba(127,29,29,.18)",
+                      color: COLORS.red,
+                      border: "1px solid rgba(239,68,68,.26)",
+                      fontSize: 22,
+                      fontWeight: 1000,
+                    }}
+                  >
+                    ↗
+                  </div>
+                  <div>
+                    <div style={{ color: COLORS.text, fontSize: 20, fontWeight: 1000 }}>
+                      MACRO <span style={{ color: COLORS.red }}>PRESSURE</span>
+                    </div>
+                    <div style={{ color: COLORS.muted, fontSize: 11, marginTop: 2 }}>
+                      Rates, dollar, energy, Treasury
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ display: "grid", gap: 7, marginTop: 14 }}>
+                  <MacroMoveRow
+                    icon="▥"
+                    label="U.S. 10Y"
+                    subtitle="U.S. 10-Year Treasury"
+                    value={macroRates?.tenYearYield}
+                    fresh={false}
+                    valueSuffix="%"
+                  />
+                  <MacroMoveRow
+                    icon="▥"
+                    label="U.S. 30Y"
+                    subtitle="U.S. 30-Year Treasury"
+                    value={macroRates?.thirtyYearYield}
+                    fresh={false}
+                    valueSuffix="%"
+                  />
+                  <MacroMoveRow
+                    icon="$"
+                    label="U.S. Dollar (UUP)"
+                    subtitle="Engine25 dollar proxy"
+                    value={dollar?.close ?? dollar?.value}
+                    fresh={false}
+                  />
+                  <MacroMoveRow
+                    icon="◉"
+                    label="WTI Oil"
+                    subtitle="West Texas Intermediate"
+                    value={wti?.price}
+                    changePct={wti?.changesPct?.session}
+                    fresh={wtiFresh}
+                  />
+                  <MacroMoveRow
+                    icon="◉"
+                    label="Brent Oil"
+                    subtitle="Brent crude"
+                    value={brent?.price}
+                    changePct={brent?.changesPct?.session}
+                    fresh={brentFresh}
+                  />
+                </div>
+
+                <div
+                  style={{
+                    marginTop: 14,
+                    display: "grid",
+                    gridTemplateColumns: "minmax(0,1fr) auto",
+                    gap: 14,
+                    alignItems: "center",
+                    border: "1px solid rgba(239,68,68,.20)",
+                    borderLeft: "4px solid #ef4444",
+                    borderRadius: 10,
+                    padding: 12,
+                    background: "linear-gradient(90deg,rgba(127,29,29,.14),rgba(15,23,42,.40))",
+                  }}
+                >
+                  <div>
+                    <div style={{ color: COLORS.text, fontSize: 13, fontWeight: 950 }}>
+                      Macro State
+                    </div>
+                    <div style={{ color: COLORS.muted, fontSize: 10, lineHeight: 1.4, marginTop: 3 }}>
+                      {macro?.interpretation || "Backend-owned Engine25 macro state."}
+                    </div>
+                  </div>
+                  <div
+                    style={{
+                      color: colorForCanonicalState(macro?.state || macro?.label, COLORS.red),
+                      fontSize: 22,
+                      fontWeight: 1000,
+                      textAlign: "right",
+                    }}
+                  >
+                    {upper(macro?.state || macro?.label || "UNAVAILABLE")}
+                  </div>
+                </div>
+
+                <div style={{ marginTop: 10, color: COLORS.muted, fontSize: 10, lineHeight: 1.5 }}>
+                  <span style={{ color: COLORS.green }}>▲</span> = up today &nbsp;&nbsp;
+                  <span style={{ color: COLORS.red }}>▼</span> = down today &nbsp;&nbsp;
+                  <span style={{ color: COLORS.yellow }}>◷</span> = stale / no recent update
+                </div>
+              </Card>
+
+              <Card
+                accent={COLORS.orange}
+                style={{
+                  borderTop: "2px solid #f97316",
+                  background: "linear-gradient(180deg,rgba(13,18,26,.98),rgba(5,9,14,.99))",
+                }}
+              >
                 <div
                   style={{
                     display: "flex",
                     justifyContent: "space-between",
                     gap: 12,
-                    alignItems: "center",
+                    alignItems: "flex-start",
                     flexWrap: "wrap",
-                    marginBottom: 10,
                   }}
                 >
-                  <div style={{ color: COLORS.muted, fontSize: 12, lineHeight: 1.4 }}>
-                    See which parts of the market are strong, neutral, or weak.
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <div
+                      style={{
+                        width: 40,
+                        height: 40,
+                        display: "grid",
+                        placeItems: "center",
+                        borderRadius: 9,
+                        background: "rgba(30,41,59,.70)",
+                        color: "#cbd5e1",
+                        border: "1px solid rgba(148,163,184,.20)",
+                        fontSize: 20,
+                        fontWeight: 1000,
+                      }}
+                    >
+                      ▥
+                    </div>
+                    <div>
+                      <div style={{ color: COLORS.text, fontSize: 20, fontWeight: 1000 }}>
+                        11-SECTOR <span style={{ color: COLORS.red }}>PARTICIPATION</span>
+                      </div>
+                      <div style={{ color: COLORS.muted, fontSize: 11, marginTop: 2 }}>
+                        Participation across all 11 sectors
+                      </div>
+                    </div>
                   </div>
 
                   <div
@@ -1137,9 +1443,7 @@ export default function Engine25MarketXrayPreview() {
                               : "1px solid transparent",
                             borderRadius: 7,
                             padding: "6px 11px",
-                            background: active
-                              ? "rgba(248,250,252,.10)"
-                              : "transparent",
+                            background: active ? "rgba(248,250,252,.10)" : "transparent",
                             color: active ? COLORS.text : COLORS.muted,
                             fontSize: 11,
                             fontWeight: 950,
@@ -1153,27 +1457,26 @@ export default function Engine25MarketXrayPreview() {
                   </div>
                 </div>
 
-                <div
-                  style={{
-                    color: COLORS.blue,
-                    fontSize: 11,
-                    fontWeight: 900,
-                    marginBottom: 9,
-                  }}
-                >
-                  {sectorTimeframe === "1H"
-                    ? "CURRENT 1-HOUR PARTICIPATION"
-                    : sectorTimeframe === "4H"
-                    ? "BROADER 4-HOUR PARTICIPATION"
-                    : "END-OF-DAY PARTICIPATION"}
-                </div>
-
                 {cards.length ? (
                   <>
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(140px,1fr))", gap: 7 }}>
-                      {cards.map((c) => {
-                        const b = n(c?.breadth_pct);
-                        const name = canonicalSectorName(c?.sector);
+                    <div
+                      style={{
+                        marginTop: 16,
+                        display: "grid",
+                        gridTemplateColumns: "repeat(11,minmax(42px,1fr))",
+                        gap: 6,
+                        alignItems: "end",
+                        overflowX: "auto",
+                        paddingBottom: 6,
+                      }}
+                    >
+                      {cards.map((card) => {
+                        const name = canonicalSectorName(card?.sector);
+                        const breadthValue = n(card?.breadth_pct);
+                        const heightPct =
+                          breadthValue == null
+                            ? 8
+                            : Math.max(8, Math.min(100, breadthValue));
                         const color = sectorGroupsAvailable
                           ? sectorGroups.strong.includes(name)
                             ? COLORS.green
@@ -1183,24 +1486,43 @@ export default function Engine25MarketXrayPreview() {
                             ? COLORS.yellow
                             : COLORS.blue
                           : COLORS.blue;
+
                         return (
-                          <div
-                            key={canonicalSectorName(c?.sector)}
-                            style={{
-                              border: `1px solid ${color}99`,
-                              borderRadius: 9,
-                              padding: 8,
-                              background: "linear-gradient(180deg,rgba(18,23,30,.95),rgba(8,11,15,.98))",
-                              boxShadow: `inset 0 -2px 0 ${color}22`,
-                              transition:
-                                "border-color 250ms ease, box-shadow 250ms ease, background 250ms ease",
-                            }}
-                          >
-                            <div style={{ fontSize: 11, color: COLORS.muted, minHeight: 28 }}>
-                              {canonicalSectorName(c?.sector)}
+                          <div key={name} style={{ minWidth: 44, textAlign: "center" }}>
+                            <div
+                              style={{
+                                height: 154,
+                                border: "1px solid rgba(148,163,184,.18)",
+                                borderRadius: 7,
+                                padding: 3,
+                                display: "flex",
+                                alignItems: "flex-end",
+                                background: "linear-gradient(180deg,rgba(15,23,42,.55),rgba(5,9,14,.90))",
+                                overflow: "hidden",
+                              }}
+                            >
+                              <div
+                                style={{
+                                  width: "100%",
+                                  height: `${heightPct}%`,
+                                  minHeight: 8,
+                                  borderRadius: 5,
+                                  background: `linear-gradient(180deg,${color},${color}88)`,
+                                  boxShadow: `0 0 18px ${color}55`,
+                                  transition: "height 500ms ease",
+                                }}
+                              />
                             </div>
-                            <div style={{ color, fontWeight: 950 }}>
-                              {b == null ? "—" : fmt(b, 0)}
+                            <div
+                              style={{
+                                color: COLORS.text,
+                                fontSize: 8,
+                                lineHeight: 1.2,
+                                marginTop: 6,
+                                minHeight: 30,
+                              }}
+                            >
+                              {name}
                             </div>
                           </div>
                         );
@@ -1217,36 +1539,106 @@ export default function Engine25MarketXrayPreview() {
                         }}
                       >
                         {[
-                          ["STRONG", sectorGroups.strong, COLORS.green],
-                          ["NEUTRAL", sectorGroups.neutral, COLORS.yellow],
-                          ["WEAK", sectorGroups.weak, COLORS.red],
-                        ].map(([label, names, color]) => (
-                          <div key={label} style={{ border: `1px solid ${color}55`, borderRadius: 8, padding: 8 }}>
-                            <div style={{ color, fontSize: 11, fontWeight: 950 }}>{label}</div>
-                            <div style={{ marginTop: 5, color: COLORS.text, fontSize: 11, lineHeight: 1.45 }}>
-                              {names.length ? names.join(" · ") : "None"}
+                          ["STRONG", sectorGroups.strong, COLORS.green, "↑"],
+                          ["NEUTRAL", sectorGroups.neutral, COLORS.yellow, "—"],
+                          ["WEAK", sectorGroups.weak, COLORS.red, "↓"],
+                        ].map(([label, names, color, icon]) => (
+                          <div
+                            key={label}
+                            style={{
+                              border: `1px solid ${color}aa`,
+                              borderRadius: 10,
+                              padding: 10,
+                              background: `${color}08`,
+                              minHeight: 128,
+                            }}
+                          >
+                            <div
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 7,
+                                paddingBottom: 7,
+                                borderBottom: `1px solid ${color}44`,
+                                color,
+                                fontSize: 13,
+                                fontWeight: 1000,
+                              }}
+                            >
+                              <span
+                                style={{
+                                  width: 25,
+                                  height: 25,
+                                  borderRadius: "50%",
+                                  border: `1px solid ${color}`,
+                                  display: "grid",
+                                  placeItems: "center",
+                                }}
+                              >
+                                {icon}
+                              </span>
+                              {label} ({names.length})
+                            </div>
+                            <div style={{ marginTop: 8, display: "grid", gap: 5 }}>
+                              {names.length ? (
+                                names.map((name) => (
+                                  <div
+                                    key={name}
+                                    style={{
+                                      display: "grid",
+                                      gridTemplateColumns: "7px minmax(0,1fr)",
+                                      gap: 7,
+                                      alignItems: "start",
+                                      color: COLORS.text,
+                                      fontSize: 10,
+                                      lineHeight: 1.35,
+                                    }}
+                                  >
+                                    <span
+                                      style={{
+                                        width: 7,
+                                        height: 7,
+                                        borderRadius: "50%",
+                                        background: color,
+                                        marginTop: 3,
+                                      }}
+                                    />
+                                    <span>{name}</span>
+                                  </div>
+                                ))
+                              ) : (
+                                <div style={{ color: COLORS.muted, fontSize: 10 }}>None</div>
+                              )}
                             </div>
                           </div>
                         ))}
                       </div>
                     ) : (
-                      <div style={{ marginTop: 10, color: COLORS.yellow, fontSize: 11 }}>
-                        Grouped STRONG / NEUTRAL / WEAK sector names are UNAVAILABLE because the canonical timeframe group contract is incomplete or unavailable.
+                      <div
+                        style={{
+                          marginTop: 12,
+                          border: "1px solid rgba(251,191,36,.30)",
+                          borderRadius: 9,
+                          padding: 10,
+                          color: COLORS.yellow,
+                          fontSize: 11,
+                        }}
+                      >
+                        UNAVAILABLE — canonical sector grouping is incomplete for {sectorTimeframe}.
                       </div>
                     )}
                   </>
                 ) : (
                   <div
                     style={{
-                      border: "1px solid rgba(251,191,36,.22)",
+                      marginTop: 14,
+                      border: "1px solid rgba(251,191,36,.30)",
                       borderRadius: 9,
                       padding: 12,
                       color: COLORS.yellow,
-                      fontSize: 12,
-                      fontWeight: 850,
                     }}
                   >
-                    {sectorTimeframe} sector participation unavailable.
+                    UNAVAILABLE
                   </div>
                 )}
 
@@ -1256,7 +1648,7 @@ export default function Engine25MarketXrayPreview() {
                     display: "inline-block",
                     marginTop: 10,
                     color: COLORS.yellow,
-                    fontSize: 12,
+                    fontSize: 11,
                     fontWeight: 900,
                     textDecoration: "none",
                   }}
@@ -1265,78 +1657,62 @@ export default function Engine25MarketXrayPreview() {
                 </Link>
               </Card>
 
-              <Card title="Financial Stress">
-                <div style={{ color: COLORS.muted, fontSize: 12, lineHeight: 1.4, marginBottom: 8 }}>
-                  Credit, banks, bonds and liquidity
+              <Card
+                accent={COLORS.orange}
+                style={{
+                  borderTop: "2px solid #f97316",
+                  background: "linear-gradient(180deg,rgba(13,18,26,.98),rgba(5,9,14,.99))",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <div
+                    style={{
+                      width: 40,
+                      height: 40,
+                      display: "grid",
+                      placeItems: "center",
+                      borderRadius: 9,
+                      background: "rgba(127,29,29,.18)",
+                      color: COLORS.red,
+                      border: "1px solid rgba(239,68,68,.26)",
+                      fontSize: 22,
+                      fontWeight: 1000,
+                    }}
+                  >
+                    ⚡
+                  </div>
+                  <div>
+                    <div style={{ color: COLORS.text, fontSize: 20, fontWeight: 1000, lineHeight: 1.05 }}>
+                      WHAT CHANGED
+                      <br />
+                      <span style={{ color: COLORS.red }}>SINCE YESTERDAY?</span>
+                    </div>
+                    <div style={{ color: COLORS.muted, fontSize: 11, marginTop: 5 }}>
+                      Key differences in market participation, volume, and risk
+                    </div>
+                  </div>
                 </div>
-                <KV label="Credit Fragility" value={fmt(credit?.scores?.creditFragility)} />
-                <KV label="Macro Credit" value={fmt(credit?.scores?.creditStress)} />
-                <KV label="Bond Market" value={fmt(credit?.scores?.bondMarket)} />
-                <KV label="Liquidity" value={fmt(credit?.scores?.liquidity)} />
-                <div style={{ marginTop: 10, color: COLORS.muted, lineHeight: 1.4 }}>{credit?.interpretation || "Credit / rates / liquidity read unavailable."}</div>
-              </Card>
 
-              <Card title="Macro Pressure — Rates, Dollar, Oil" accent={COLORS.red}>
-                <div
-                  style={{
-                    color: COLORS.muted,
-                    fontSize: 12,
-                    lineHeight: 1.4,
-                    marginBottom: 8,
-                  }}
-                >
-                  Current macro prices and whether they are moving up or down
-                  during the current session. Yellow means the source is not
-                  fresh enough for a live direction.
-                </div>
-
-                <MacroMoveRow
-                  label="U.S. 10Y Yield"
-                  value={macroRates?.tenYearYield}
-                  fresh={false}
-                  valueSuffix="%"
-                />
-                <MacroMoveRow
-                  label="U.S. 30Y Yield"
-                  value={macroRates?.thirtyYearYield}
-                  fresh={false}
-                  valueSuffix="%"
-                />
-                <MacroMoveRow
-                  label="U.S. Dollar (UUP)"
-                  value={dollar?.close ?? dollar?.value}
-                  fresh={false}
-                />
-                <MacroMoveRow
-                  label="WTI Oil"
-                  value={wti?.price}
-                  changePct={wti?.changesPct?.session}
-                  fresh={wtiFresh}
-                />
-                <MacroMoveRow
-                  label="Brent Oil"
-                  value={brent?.price}
-                  changePct={brent?.changesPct?.session}
-                  fresh={brentFresh}
-                />
-
-                <div
-                  style={{
-                    marginTop: 10,
-                    display: "flex",
-                    justifyContent: "space-between",
-                    gap: 12,
-                    alignItems: "center",
-                    flexWrap: "wrap",
-                  }}
-                >
-                  <span style={{ color: COLORS.muted, fontSize: 11 }}>
-                    Green = up today · Red = down today · Yellow = stale / no recent update
-                  </span>
-                  <StatusPill color={colorForCanonicalState(macro?.state || macro?.label)}>
-                    {upper(macro?.state || macro?.label || "UNAVAILABLE")}
-                  </StatusPill>
-                </div>
+                {changed.length ? (
+                  <div style={{ display: "grid", gap: 8, marginTop: 15 }}>
+                    {changed.map((row) => (
+                      <ChangeStoryCard key={row.label} row={row} />
+                    ))}
+                  </div>
+                ) : (
+                  <div
+                    style={{
+                      marginTop: 15,
+                      border: "1px solid rgba(251,191,36,.30)",
+                      borderRadius: 9,
+                      padding: 12,
+                      color: COLORS.yellow,
+                      fontWeight: 900,
+                    }}
+                  >
+                    UNAVAILABLE
+                  </div>
+                )}
               </Card>
             </div>
 
@@ -1386,35 +1762,24 @@ export default function Engine25MarketXrayPreview() {
               </Card>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,360px),1fr))", gap: 14 }}>
-              <Card title="What Changed Since Yesterday?">
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,360px),1fr))",
+                gap: 14,
+              }}
+            >
+              <Card title="Financial Stress">
                 <div style={{ color: COLORS.muted, fontSize: 12, lineHeight: 1.4, marginBottom: 8 }}>
-                  Direction matters more than a single snapshot. This shows which major forces improved or deteriorated.
+                  Credit, banks, bonds and liquidity
                 </div>
-                {changed.length ? (
-                  <div style={{ display: "grid", gap: 8 }}>
-                    {changed.map((row) => {
-                      const sentence = changeSentence(row);
-                      return sentence ? (
-                        <div
-                          key={row.label}
-                          style={{
-                            borderBottom: "1px solid rgba(148,163,184,.10)",
-                            paddingBottom: 7,
-                            color: COLORS.text,
-                            fontSize: 13,
-                            lineHeight: 1.4,
-                          }}
-                        >
-                          {sentence}
-                        </div>
-                      ) : null;
-                    })}
-                  </div>
-                ) : (
-                  <div style={{ color: COLORS.muted }}>UNAVAILABLE</div>
-                )}
-                <div style={{ marginTop: 12, color: COLORS.muted, lineHeight: 1.4 }}>{data?.underTheHood?.interpretation || "No comparison interpretation available."}</div>
+                <KV label="Credit Fragility" value={fmt(credit?.scores?.creditFragility)} />
+                <KV label="Macro Credit" value={fmt(credit?.scores?.creditStress)} />
+                <KV label="Bond Market" value={fmt(credit?.scores?.bondMarket)} />
+                <KV label="Liquidity" value={fmt(credit?.scores?.liquidity)} />
+                <div style={{ marginTop: 10, color: COLORS.muted, lineHeight: 1.4 }}>
+                  {credit?.interpretation || "Credit / rates / liquidity read unavailable."}
+                </div>
               </Card>
 
               <Card title="Market Health Trend — 6 Months" accent={COLORS.orange}>
