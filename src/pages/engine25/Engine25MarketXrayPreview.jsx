@@ -14,6 +14,7 @@ const API_BASE =
 const API_ROOT = API_BASE.replace(/\/+$/, "").replace(/\/api$/, "");
 const ENGINE25_ROUTE = `${API_ROOT}/api/v1/engine25/full-dashboard`;
 const MASTER_ROUTE = `${API_ROOT}/api/v1/futures/market-meter?symbol=ES`;
+const SNAPSHOT_ROUTE = `${API_ROOT}/api/v1/dashboard-snapshot?symbol=ES&includeContext=1`;
 
 const COLORS = {
   bg: "#030405",
@@ -320,6 +321,7 @@ function changeRow(rows, label) {
 export default function Engine25MarketXrayPreview() {
   const [data, setData] = useState(null);
   const [master, setMaster] = useState(null);
+  const [snapshot, setSnapshot] = useState(null);
   const [status, setStatus] = useState("LOADING");
   const [error, setError] = useState(null);
 
@@ -327,16 +329,19 @@ export default function Engine25MarketXrayPreview() {
     let alive = true;
     async function load() {
       try {
-        const [a, b] = await Promise.all([
+        const [a, b, s] = await Promise.all([
           fetch(ENGINE25_ROUTE, { cache: "no-store" }),
           fetch(MASTER_ROUTE, { cache: "no-store" }),
+          fetch(SNAPSHOT_ROUTE, { cache: "no-store" }),
         ]);
         const aj = await a.json();
         const bj = await b.json().catch(() => null);
+        const sj = await s.json().catch(() => null);
         if (!a.ok || aj?.ok === false) throw new Error(aj?.error || `HTTP ${a.status}`);
         if (!alive) return;
         setData(aj);
         setMaster(b.ok ? bj : null);
+        setSnapshot(s.ok ? sj : null);
         setStatus("READY");
         setError(null);
       } catch (e) {
@@ -406,6 +411,71 @@ export default function Engine25MarketXrayPreview() {
     changeRow(underRows, "Credit Fragility"),
     changeRow(underRows, "Macro Aware"),
   ].filter(Boolean);
+
+  const strategyNode =
+    snapshot?.strategies?.["intraday_scalp@10m"] || null;
+  const engine26Candidate =
+    strategyNode?.engine26LocationCandidate || null;
+  const engine26Geometry =
+    strategyNode?.engine26ProposedGeometry || null;
+  const engine26GeneralLocation =
+    strategyNode?.engine26GeneralLocation || null;
+
+  const engine26Direction =
+    engine26Candidate?.currentObservationDirection ||
+    engine26Candidate?.direction ||
+    "NEUTRAL";
+
+  const engine26ExpectedDirection =
+    engine26Candidate?.expectedReversalDirection || null;
+
+  const engine26State =
+    engine26Candidate?.contactState ||
+    engine26Candidate?.directionState ||
+    engine26Candidate?.status ||
+    "WAITING";
+
+  const engine26Zone =
+    engine26Candidate?.entryZone ||
+    engine26Candidate?.zone ||
+    engine26Candidate?.location ||
+    null;
+
+  const engine26ZoneLo =
+    engine26Zone?.low ??
+    engine26Zone?.lo ??
+    null;
+
+  const engine26ZoneHi =
+    engine26Zone?.high ??
+    engine26Zone?.hi ??
+    null;
+
+  const engine26ZoneText =
+    n(engine26ZoneLo) != null && n(engine26ZoneHi) != null
+      ? `${fmt(engine26ZoneLo, 2)}–${fmt(engine26ZoneHi, 2)}`
+      : "—";
+
+  const engine26CurrentPrice =
+    engine26Candidate?.currentPrice ??
+    engine26GeneralLocation?.currentPrice ??
+    null;
+
+  const engine26Invalidation =
+    engine26Candidate?.locationInvalidationBoundary ??
+    null;
+
+  const engine26PlannerReady =
+    engine26Geometry?.geometryReady === true ||
+    (
+      engine26Geometry?.active === true &&
+      String(engine26Geometry?.lifecycleStatus || "").toUpperCase() ===
+        "PROPOSED_GEOMETRY_AVAILABLE"
+    );
+
+  const engine26Targets = Array.isArray(engine26Geometry?.proposedTargets)
+    ? engine26Geometry.proposedTargets
+    : [];
 
   const priceContext =
     data?.zoneDecisionRead?.priorityRead ||
@@ -737,6 +807,155 @@ export default function Engine25MarketXrayPreview() {
                 />
               </div>
               <div style={{ marginTop: 10, color: COLORS.muted, lineHeight: 1.45 }}>{data?.deskNote}</div>
+            </Card>
+
+            <Card
+              title="ENGINE 26 — LOCATION & TRADE PLAN"
+              accent={COLORS.yellow}
+              style={{
+                background:
+                  "linear-gradient(180deg, rgba(49,32,8,.30), rgba(7,10,14,.98) 22%)",
+                borderTop: "3px solid #fbbf24",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  gap: 12,
+                  alignItems: "center",
+                  marginBottom: 12,
+                  flexWrap: "wrap",
+                }}
+              >
+                <div>
+                  <div style={{ color: COLORS.text, fontSize: 18, fontWeight: 950 }}>
+                    Where price is and what Engine26 is preparing
+                  </div>
+                  <div style={{ color: COLORS.muted, fontSize: 12, marginTop: 3 }}>
+                    Location and proposed geometry only. Engine6 remains final permission authority.
+                  </div>
+                </div>
+
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  <StatusPill
+                    color={
+                      String(engine26Direction).toUpperCase() === "SHORT"
+                        ? COLORS.red
+                        : String(engine26Direction).toUpperCase() === "LONG"
+                        ? COLORS.green
+                        : COLORS.yellow
+                    }
+                  >
+                    {upper(engine26Direction)}
+                  </StatusPill>
+                  <StatusPill color={engine26PlannerReady ? COLORS.green : COLORS.yellow}>
+                    {engine26PlannerReady ? "PLAN READY" : upper(engine26State)}
+                  </StatusPill>
+                </div>
+              </div>
+
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(3,minmax(0,1fr))",
+                  gap: 12,
+                }}
+              >
+                <div
+                  style={{
+                    background: COLORS.panel2,
+                    border: "1px solid rgba(251,191,36,.25)",
+                    borderRadius: 11,
+                    padding: 12,
+                  }}
+                >
+                  <div style={{ color: COLORS.yellow, fontWeight: 900, fontSize: 12, textTransform: "uppercase", marginBottom: 8 }}>
+                    Location
+                  </div>
+                  <KV label="Current ES" value={fmt(engine26CurrentPrice, 2)} />
+                  <KV label="Entry / Alarm Zone" value={engine26ZoneText} />
+                  <KV label="Setup State" value={upper(engine26State)} />
+                  <KV
+                    label="Expected Reversal"
+                    value={upper(engine26ExpectedDirection)}
+                    color={
+                      String(engine26ExpectedDirection || "").toUpperCase() === "SHORT"
+                        ? COLORS.red
+                        : String(engine26ExpectedDirection || "").toUpperCase() === "LONG"
+                        ? COLORS.green
+                        : COLORS.muted
+                    }
+                  />
+                  <KV label="Setup Grade" value={upper(engine26Candidate?.setupGrade)} />
+                </div>
+
+                <div
+                  style={{
+                    background: COLORS.panel2,
+                    border: "1px solid rgba(56,189,248,.23)",
+                    borderRadius: 11,
+                    padding: 12,
+                  }}
+                >
+                  <div style={{ color: COLORS.blue, fontWeight: 900, fontSize: 12, textTransform: "uppercase", marginBottom: 8 }}>
+                    Proposed Geometry
+                  </div>
+                  <KV label="Planner" value={upper(engine26Geometry?.lifecycleStatus || (engine26PlannerReady ? "READY" : "WAITING"))} color={engine26PlannerReady ? COLORS.green : COLORS.yellow} />
+                  <KV label="Proposed Entry" value={fmt(engine26Geometry?.proposedEntryPrice, 2)} />
+                  <KV label="Proposed Stop" value={fmt(engine26Geometry?.proposedStopPrice, 2)} color={COLORS.red} />
+                  <KV label="Risk Distance" value={n(engine26Geometry?.proposedStopDistancePoints) == null ? "—" : `${fmt(engine26Geometry?.proposedStopDistancePoints, 2)} pts`} />
+                  <KV label="Invalidation" value={fmt(engine26Invalidation, 2)} color={COLORS.red} />
+                </div>
+
+                <div
+                  style={{
+                    background: COLORS.panel2,
+                    border: "1px solid rgba(34,197,94,.23)",
+                    borderRadius: 11,
+                    padding: 12,
+                  }}
+                >
+                  <div style={{ color: COLORS.green, fontWeight: 900, fontSize: 12, textTransform: "uppercase", marginBottom: 8 }}>
+                    Target Map
+                  </div>
+
+                  {engine26Targets.length ? (
+                    engine26Targets.slice(0, 3).map((target, index) => (
+                      <KV
+                        key={target?.id || target?.label || index}
+                        label={target?.label || `Target ${index + 1}`}
+                        value={fmt(target?.price ?? target?.level ?? target, 2)}
+                        color={COLORS.green}
+                      />
+                    ))
+                  ) : (
+                    <div style={{ color: COLORS.muted, fontSize: 13, lineHeight: 1.4 }}>
+                      No proposed targets are attached to the current geometry yet.
+                    </div>
+                  )}
+
+                  <div style={{ marginTop: 10 }}>
+                    <KV label="Candidate ID" value={engine26Candidate?.candidateId || "—"} />
+                    <KV label="Setup Class" value={upper(engine26Candidate?.setupClass)} />
+                  </div>
+                </div>
+              </div>
+
+              <div
+                style={{
+                  marginTop: 12,
+                  border: "1px solid rgba(168,85,247,.28)",
+                  background: "rgba(59,7,100,.12)",
+                  borderRadius: 10,
+                  padding: "9px 11px",
+                  color: "#d8b4fe",
+                  fontSize: 12,
+                  fontWeight: 800,
+                }}
+              >
+                PROPOSAL ONLY — Engine26 does not authorize execution. Engine6 remains the final permission authority.
+              </div>
             </Card>
           </>
         )}
