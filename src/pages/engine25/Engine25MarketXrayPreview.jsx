@@ -304,7 +304,7 @@ function PlainLineChart({ rows = [] }) {
     .map((row) => ({ time: n(row.time), value: n(row.engine25CompositeScore) }));
 
   if (points.length < 2) {
-    return <div style={{ color: COLORS.muted }}>Historical Market Health trend unavailable.</div>;
+    return <div style={{ color: COLORS.muted }}>Historical trend unavailable</div>;
   }
 
   const width = 1000;
@@ -404,6 +404,35 @@ function MacroMoveRow({
 
 function changeRow(rows, label) {
   return (Array.isArray(rows) ? rows : []).find((r) => r?.label === label) || null;
+}
+
+function changeSentence(row) {
+  const value = n(row?.oneDayChange);
+  if (value == null) return null;
+  const label = String(row?.label || "");
+  const direction = value > 0 ? "higher" : value < 0 ? "lower" : "unchanged";
+
+  if (label === "Breadth") {
+    return value > 0
+      ? "Broader participation improved from yesterday."
+      : value < 0
+      ? "Broader participation weakened from yesterday."
+      : "Broader participation was unchanged from yesterday.";
+  }
+  if (label === "Distribution") {
+    return value > 0
+      ? "Selling / distribution pressure increased from yesterday."
+      : value < 0
+      ? "Selling / distribution pressure eased from yesterday."
+      : "Selling / distribution pressure was unchanged from yesterday.";
+  }
+  if (label === "Credit Fragility") {
+    return `Credit fragility score moved ${direction} from yesterday (${value > 0 ? "+" : ""}${value}).`;
+  }
+  if (label === "Macro Aware") {
+    return `Macro condition score moved ${direction} from yesterday (${value > 0 ? "+" : ""}${value}).`;
+  }
+  return `${clean(label)} changed ${value > 0 ? "+" : ""}${value} from yesterday.`;
 }
 
 export default function Engine25MarketXrayPreview() {
@@ -632,8 +661,8 @@ export default function Engine25MarketXrayPreview() {
             </div>
           </div>
           <div style={{ textAlign: "right" }}>
-            <div style={{ color: freshness?.usableForTrapConfirmation ? COLORS.green : COLORS.yellow, fontWeight: 900 }}>
-              DATA: {upper(freshness?.state || "UNAVAILABLE")}
+            <div style={{ color: dataStatusColor, fontWeight: 900 }}>
+              DATA: {dataStatus}
             </div>
             <div style={{ color: COLORS.muted, fontSize: 12, marginTop: 3 }}>
               {artifact?.generatedAt || data?.generatedAtUtc || "—"}
@@ -651,8 +680,7 @@ export default function Engine25MarketXrayPreview() {
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns:
-                  "minmax(250px,.55fr) minmax(760px,1.7fr) minmax(330px,.75fr)",
+                gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,320px),1fr))",
                 gap: 14,
                 alignItems: "stretch",
               }}
@@ -689,7 +717,7 @@ export default function Engine25MarketXrayPreview() {
               </Card>
 
               <Card
-                title={`Market Participation — ${fmt(scanned || 5470)} Stocks`}
+                title={`Market Participation — ${scanned == null ? "UNAVAILABLE" : fmtNumber(scanned)} Stocks`}
                 accent={distributionColor}
                 style={{
                   padding: 16,
@@ -711,7 +739,7 @@ export default function Engine25MarketXrayPreview() {
                 <div
                   style={{
                     display: "grid",
-                    gridTemplateColumns: "repeat(4,minmax(0,1fr))",
+                    gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))",
                     gap: 10,
                   }}
                 >
@@ -732,11 +760,11 @@ export default function Engine25MarketXrayPreview() {
                       label="Volume Coverage"
                       value={pct(coverage, 1)}
                       color={
-                        coverage == null
+                        freshness?.intraday?.volumeCoverageValid === true
+                          ? COLORS.green
+                          : coverage == null
                           ? COLORS.muted
-                          : coverage >= 70
-                            ? COLORS.green
-                            : COLORS.red
+                          : COLORS.yellow
                       }
                     />
                   </div>
@@ -895,17 +923,12 @@ export default function Engine25MarketXrayPreview() {
                     />
                     <KV
                       label="Distribution Pressure"
-                      value={upper(distribution?.label || "UNAVAILABLE")}
-                      color={distributionColor}
-                    />
-                    <KV
-                      label="Overall Pressure"
                       value={
                         distributionPressurePct == null
-                          ? "—"
-                          : `${fmt(distributionPressurePct)} / 100`
+                          ? "UNAVAILABLE"
+                          : `${fmt(distributionPressurePct)} / 100 · ${upper(distribution?.label || "PRESSURE")}`
                       }
-                      color={toneForScore(distributionPressurePct, true)}
+                      color={distributionColor}
                     />
                   </div>
                 </div>
@@ -997,11 +1020,7 @@ export default function Engine25MarketXrayPreview() {
             </div>
 
             <Card
-              accent={
-                sellVolPct != null && sellVolPct > buyVolPct
-                  ? COLORS.red
-                  : COLORS.green
-              }
+              accent={headlineColor}
               style={{
                 background:
                   "linear-gradient(180deg, rgba(15,23,42,.88), rgba(7,11,18,.96))",
@@ -1048,8 +1067,7 @@ export default function Engine25MarketXrayPreview() {
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns:
-                  "minmax(520px,1.35fr) minmax(300px,.8fr) minmax(360px,1fr)",
+                gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,320px),1fr))",
                 gap: 14,
               }}
             >
@@ -1124,7 +1142,7 @@ export default function Engine25MarketXrayPreview() {
 
                 {cards.length ? (
                   <>
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(4,minmax(0,1fr))", gap: 7 }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(140px,1fr))", gap: 7 }}>
                       {cards.map((c) => {
                         const b = n(c?.breadth_pct);
                         const bias = String(c?.bias || "").toLowerCase();
@@ -1150,7 +1168,7 @@ export default function Engine25MarketXrayPreview() {
                             }}
                           >
                             <div style={{ fontSize: 11, color: COLORS.muted, minHeight: 28 }}>
-                              {c?.sector}
+                              {canonicalSectorName(c?.sector)}
                             </div>
                             <div style={{ color, fontWeight: 950 }}>
                               {b == null ? "—" : fmt(b, 0)}
@@ -1339,24 +1357,34 @@ export default function Engine25MarketXrayPreview() {
               </Card>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "minmax(360px,.75fr) minmax(650px,1.25fr)", gap: 14 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,360px),1fr))", gap: 14 }}>
               <Card title="What Changed Since Yesterday?">
                 <div style={{ color: COLORS.muted, fontSize: 12, lineHeight: 1.4, marginBottom: 8 }}>
                   Direction matters more than a single snapshot. This shows which major forces improved or deteriorated.
                 </div>
-                {changed.length ? changed.map((row) => {
-                  const v = n(row?.oneDayChange);
-                  const inverse = row?.label === "Distribution";
-                  const good = v == null ? null : inverse ? v < 0 : v > 0;
-                  return (
-                    <KV
-                      key={row.label}
-                      label={row.label}
-                      value={v == null ? "—" : `${v > 0 ? "+" : ""}${v}`}
-                      color={good == null ? COLORS.muted : good ? COLORS.green : COLORS.red}
-                    />
-                  );
-                }) : <div style={{ color: COLORS.muted }}>1-day comparison unavailable.</div>}
+                {changed.length ? (
+                  <div style={{ display: "grid", gap: 8 }}>
+                    {changed.map((row) => {
+                      const sentence = changeSentence(row);
+                      return sentence ? (
+                        <div
+                          key={row.label}
+                          style={{
+                            borderBottom: "1px solid rgba(148,163,184,.10)",
+                            paddingBottom: 7,
+                            color: COLORS.text,
+                            fontSize: 13,
+                            lineHeight: 1.4,
+                          }}
+                        >
+                          {sentence}
+                        </div>
+                      ) : null;
+                    })}
+                  </div>
+                ) : (
+                  <div style={{ color: COLORS.muted }}>UNAVAILABLE</div>
+                )}
                 <div style={{ marginTop: 12, color: COLORS.muted, lineHeight: 1.4 }}>{data?.underTheHood?.interpretation || "No comparison interpretation available."}</div>
               </Card>
 
@@ -1382,8 +1410,18 @@ export default function Engine25MarketXrayPreview() {
                 />
                 <BigStat
                   label="Source Time"
-                  value={freshness?.intraday?.sourceTimestamp ? "AVAILABLE" : "MISSING"}
-                  color={freshness?.intraday?.sourceTimestamp ? COLORS.green : COLORS.red}
+                  value={
+                    !freshness?.intraday?.sourceTimestamp
+                      ? "MISSING"
+                      : dataStatus === "LIVE"
+                      ? "LIVE"
+                      : dataStatus
+                  }
+                  color={
+                    !freshness?.intraday?.sourceTimestamp
+                      ? COLORS.red
+                      : dataStatusColor
+                  }
                   note={freshness?.intraday?.sourceTimestamp || "—"}
                 />
               </div>
