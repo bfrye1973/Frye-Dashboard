@@ -42,6 +42,11 @@ function fmt(value, digits = 0) {
   return x == null ? "—" : x.toFixed(digits);
 }
 
+function fmtNumber(value, digits = 0) {
+  const x = n(value);
+  return x == null ? "—" : x.toLocaleString(undefined, { maximumFractionDigits: digits, minimumFractionDigits: digits });
+}
+
 function pct(value, digits = 0) {
   const x = n(value);
   return x == null ? "—" : `${x.toFixed(digits)}%`;
@@ -465,16 +470,23 @@ export default function Engine25MarketXrayPreview() {
   const tacticalSummary = tactical?.summary || {};
   const credit = data?.creditStressDetail || {};
   const macro = data?.macroPressure || {};
-  const event = useMemo(() => currentNewsEvent(data?.newsEvents), [data?.newsEvents]);
+  const event = Array.isArray(data?.newsEvents?.activeMaterialEvents)
+    ? data.newsEvents.activeMaterialEvents[0] || null
+    : null;
   const underRows = data?.underTheHood?.rows || [];
   const overlayRows = data?.overlay?.rows || [];
 
   const scanned = n(intradayVolume?.stocksScanned);
   const withVolume = n(intradayVolume?.stocksWithVolume);
   const coverage = n(intradayVolume?.coveragePct);
-  const buyVolPct = n(intradayVolume?.advancingVolumeShare);
-  const sellVolPct = n(intradayVolume?.decliningVolumeShare);
-  const imbalance = n(intradayVolume?.volumeImbalance);
+  const advancingVolume = n(intradayVolume?.advancingVolume);
+  const decliningVolume = n(intradayVolume?.decliningVolume);
+  const buyVolShare = n(intradayVolume?.advancingVolumeShare);
+  const sellVolShare = n(intradayVolume?.decliningVolumeShare);
+  const volumeImbalance = n(intradayVolume?.volumeImbalance);
+  const buyVolPct = buyVolShare == null ? null : buyVolShare * 100;
+  const sellVolPct = sellVolShare == null ? null : sellVolShare * 100;
+  const imbalancePct = volumeImbalance == null ? null : volumeImbalance * 100;
 
   const totalUp = n(upDown?.intradayUp);
   const totalDown = n(upDown?.intradayDown);
@@ -482,12 +494,16 @@ export default function Engine25MarketXrayPreview() {
   const buyBreadthPct = breadthDenom > 0 ? (totalUp / breadthDenom) * 100 : null;
   const sellBreadthPct = breadthDenom > 0 ? (totalDown / breadthDenom) * 100 : null;
 
-  const rawPressure = n(distribution?.rawPressure);
-  const distributionPressurePct =
-    rawPressure != null ? rawPressure : (n(distribution?.score) != null ? 100 - n(distribution.score) : null);
+  const distributionPressurePct = n(distribution?.rawPressure);
 
   const masterScore = n(master?.master?.score);
+  const masterState = master?.master?.tone || master?.master?.state || master?.master?.label || null;
   const underlyingScore = n(breadth?.score);
+  const headlineColor = colorForCanonicalState(headline?.color || headline?.label || headline?.state);
+  const breadthColor = colorForCanonicalState(breadth?.label);
+  const distributionColor = colorForCanonicalState(distribution?.label);
+  const dataStatus = dataStatusFromFreshness(freshness);
+  const dataStatusColor = colorForCanonicalState(dataStatus, COLORS.yellow);
 
   const nhNl = participation?.newHighsNewLows || {};
   const nh = n(nhNl?.intradayTotalNh);
@@ -522,13 +538,23 @@ export default function Engine25MarketXrayPreview() {
   const macroMarketFresh =
     String(intradayMacro?.freshness?.status || "").toUpperCase() === "FRESH";
   const wtiFresh =
-    macroMarketFresh && isFreshIso(wti?.asOfUtc);
+    macroMarketFresh && Boolean(wti?.asOfUtc) && n(wti?.changesPct?.session) != null;
   const brentFresh =
-    macroMarketFresh && isFreshIso(brent?.asOfUtc);
+    macroMarketFresh && Boolean(brent?.asOfUtc) && n(brent?.changesPct?.session) != null;
 
-  const weakSectors = cards.filter((c) => n(c?.breadth_pct) <= 45 && n(c?.momentum_pct) <= 45).length;
-  const strongSectors = cards.filter((c) => n(c?.breadth_pct) >= 55 && n(c?.momentum_pct) >= 55).length;
-  const mixedSectors = Math.max(0, cards.length - weakSectors - strongSectors);
+  const sectorGroups = cards.reduce(
+    (out, card) => {
+      const bias = String(card?.bias || "").toLowerCase();
+      const name = canonicalSectorName(card?.sector);
+      if (bias === "bullish") out.strong.push(name);
+      else if (bias === "bearish") out.weak.push(name);
+      else if (bias === "neutral") out.neutral.push(name);
+      else out.unclassified.push(name);
+      return out;
+    },
+    { strong: [], neutral: [], weak: [], unclassified: [] }
+  );
+  const sectorGroupsAvailable = sectorGroups.unclassified.length === 0 && cards.length > 0;
 
   const changed = [
     changeRow(underRows, "Breadth"),
@@ -537,108 +563,8 @@ export default function Engine25MarketXrayPreview() {
     changeRow(underRows, "Macro Aware"),
   ].filter(Boolean);
 
-  const strategyNode =
-    snapshot?.strategies?.["intraday_scalp@10m"] || null;
-  const engine26Candidate =
-    strategyNode?.engine26LocationCandidate || null;
-  const engine26Geometry =
-    strategyNode?.engine26ProposedGeometry || null;
-  const engine26GeneralLocation =
-    strategyNode?.engine26GeneralLocation || null;
-
-  const engine26Direction =
-    engine26Candidate?.currentObservationDirection ||
-    engine26Candidate?.direction ||
-    "NEUTRAL";
-
-  const engine26ExpectedDirection =
-    engine26Candidate?.expectedReversalDirection || null;
-
-  const engine26State =
-    engine26Candidate?.contactState ||
-    engine26Candidate?.directionState ||
-    engine26Candidate?.status ||
-    "WAITING";
-
-  const engine26Zone =
-    engine26Candidate?.entryZone ||
-    engine26Candidate?.zone ||
-    engine26Candidate?.location ||
-    null;
-
-  const engine26ZoneLo =
-    engine26Zone?.low ??
-    engine26Zone?.lo ??
-    null;
-
-  const engine26ZoneHi =
-    engine26Zone?.high ??
-    engine26Zone?.hi ??
-    null;
-
-  const engine26ZoneText =
-    n(engine26ZoneLo) != null && n(engine26ZoneHi) != null
-      ? `${fmt(engine26ZoneLo, 2)}–${fmt(engine26ZoneHi, 2)}`
-      : "—";
-
-  const engine26CurrentPrice =
-    engine26Candidate?.currentPrice ??
-    engine26GeneralLocation?.currentPrice ??
-    null;
-
-  const engine26Invalidation =
-    engine26Candidate?.locationInvalidationBoundary ??
-    null;
-
-  const engine26PlannerReady =
-    engine26Geometry?.geometryReady === true ||
-    (
-      engine26Geometry?.active === true &&
-      String(engine26Geometry?.lifecycleStatus || "").toUpperCase() ===
-        "PROPOSED_GEOMETRY_AVAILABLE"
-    );
-
-  const engine26Targets = Array.isArray(engine26Geometry?.proposedTargets)
-    ? engine26Geometry.proposedTargets
-    : [];
-
-  const engine26CandidateId =
-    engine26Candidate?.candidateId ||
-    engine26Candidate?.id ||
-    null;
-
-  const engine26GeometryCandidateId =
-    engine26Geometry?.candidateId ||
-    engine26Geometry?.identity?.candidateId ||
-    null;
-
-  const engine26IdentityState =
-    engine26CandidateId && engine26GeometryCandidateId
-      ? engine26CandidateId === engine26GeometryCandidateId
-        ? "MATCH"
-        : "MISMATCH"
-      : "UNVERIFIED";
-
-  const engine26SetupClass =
-    engine26Candidate?.setupClass ||
-    "NEGOTIATED_ZONE_ROTATION";
-
-  const linkedSetupParams = new URLSearchParams({
-    symbol: "ES",
-    tf: "10m",
-    strategyId: "intraday_scalp@10m",
-  });
-
-  if (engine26CandidateId) {
-    linkedSetupParams.set("candidateId", engine26CandidateId);
-  }
-
-  if (engine26SetupClass) {
-    linkedSetupParams.set("setupClass", engine26SetupClass);
-  }
-
-  const linkedChartHref = `/chart?${linkedSetupParams.toString()}`;
-  const linkedWavesHref = `/strategies?${linkedSetupParams.toString()}`;
+  const linkedChartHref = "/chart?symbol=ES&tf=10m";
+  const linkedWavesHref = "/strategies?symbol=ES&tf=10m";
 
   const priceContext =
     data?.zoneDecisionRead?.priorityRead ||
@@ -646,15 +572,16 @@ export default function Engine25MarketXrayPreview() {
     "Price / zone context unavailable.";
 
   const marketRead =
-    scanned
-      ? `${fmt(scanned)} stocks scanned. ${sellBreadthPct != null ? pct(sellBreadthPct) : "—"} of directional breadth and ${sellVolPct != null ? pct(sellVolPct) : "—"} of directional volume are on the selling side.`
-      : headline?.interpretation || data?.deskNote || "Engine25 market-health read available.";
+    headline?.interpretation ||
+    data?.deskNote ||
+    "Engine25 canonical market-health interpretation unavailable.";
 
   return (
     <div
       style={{
-        maxWidth: 1900,
-        margin: "0 auto",
+        width: "100%",
+        maxWidth: "none",
+        margin: 0,
         display: "grid",
         gap: 14,
         minWidth: 0,
