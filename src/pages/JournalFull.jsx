@@ -13,6 +13,7 @@
 //
 
 import React, { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import JournalPerformanceAnalytics
   from "./journal/components/JournalPerformanceAnalytics.jsx";
 
@@ -846,6 +847,45 @@ export default function JournalFull() {
   const linkedCandidateId =
     linkedParams.get("candidateId") || "";
 
+  const linkedSymbol =
+    (linkedParams.get("symbol") || "ES").toUpperCase();
+
+  const linkedTf =
+    linkedParams.get("tf") || "10m";
+
+  const linkedStrategyId =
+    linkedParams.get("strategyId") ||
+    "intraday_scalp@10m";
+
+  const linkedSetupClass =
+    linkedParams.get("setupClass") || "";
+
+  const linkedSetupQuery = new URLSearchParams({
+    symbol: linkedSymbol,
+    tf: linkedTf,
+    strategyId: linkedStrategyId,
+  });
+
+  if (linkedCandidateId) {
+    linkedSetupQuery.set(
+      "candidateId",
+      linkedCandidateId
+    );
+  }
+
+  if (linkedSetupClass) {
+    linkedSetupQuery.set(
+      "setupClass",
+      linkedSetupClass
+    );
+  }
+
+  const linkedChartHref =
+    `/chart?${linkedSetupQuery.toString()}`;
+
+  const linkedStrategiesHref =
+    `/strategies-full?${linkedSetupQuery.toString()}`;
+
   const [
     data,
     setData,
@@ -1653,6 +1693,37 @@ export default function JournalFull() {
                 >
                   {linkedTrade?.tradeId || "—"}
                 </span>
+
+                <Link
+                  to={linkedChartHref}
+                  style={{
+                    marginLeft: "auto",
+                    textDecoration: "none",
+                    border: "1px solid rgba(56,189,248,.36)",
+                    background: "rgba(14,116,144,.12)",
+                    color: "#7dd3fc",
+                    borderRadius: 7,
+                    padding: "5px 8px",
+                    fontWeight: 900,
+                  }}
+                >
+                  BACK TO CHART
+                </Link>
+
+                <Link
+                  to={linkedStrategiesHref}
+                  style={{
+                    textDecoration: "none",
+                    border: "1px solid rgba(34,197,94,.34)",
+                    background: "rgba(20,83,45,.12)",
+                    color: "#86efac",
+                    borderRadius: 7,
+                    padding: "5px 8px",
+                    fontWeight: 900,
+                  }}
+                >
+                  BACK TO STRATEGIES
+                </Link>
               </>
             ) : (
               <span
