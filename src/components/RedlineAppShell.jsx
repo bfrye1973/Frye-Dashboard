@@ -162,7 +162,7 @@ export function RedlineNavRail() {
     { icon: "chart", short: "Chart", label: "Chart", href: "/chart" },
     { icon: "strategy", short: "Strat", label: "Strategies", href: "/strategies-full" },
     { icon: "journal", short: "Journal", label: "Journal", href: "/journal-full" },
-    { icon: "controls", short: "Tools", label: "Controls / Replay / AI Listen", href: "/legacy-dashboard#row-1" },
+    { icon: "controls", short: "Tools", label: "Controls / Replay / AI Listen", href: "/controls" },
   ];
 
   return (
