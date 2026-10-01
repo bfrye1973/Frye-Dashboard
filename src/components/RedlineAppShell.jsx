@@ -303,18 +303,37 @@ export default function RedlineAppShell({ children }) {
   return (
     <>
       <style>{`
+        html,
+        body,
+        #root {
+          width: 100%;
+          max-width: none;
+          min-height: 100%;
+        }
+
+        body {
+          margin: 0;
+          overflow-x: hidden;
+          overflow-y: auto;
+        }
+
         .redline-shell-grid {
           display: grid;
           grid-template-columns: 76px minmax(0, 1fr);
           gap: 14px;
-          max-width: 2200px;
-          margin: 0 auto;
+          width: 100%;
+          max-width: none;
+          margin: 0;
           align-items: start;
+          box-sizing: border-box;
         }
 
         .redline-shell-main {
+          width: 100%;
           min-width: 0;
-          overflow-x: auto;
+          max-width: none;
+          overflow-x: hidden;
+          overflow-y: visible;
         }
 
         .redline-shell-main .panel {
@@ -397,9 +416,11 @@ export default function RedlineAppShell({ children }) {
 
       <div
         style={{
+          width: "100%",
           minHeight: "100vh",
+          boxSizing: "border-box",
           color: COLORS.text,
-          padding: "10px 22px 40px 10px",
+          padding: "10px 14px 40px 10px",
           fontFamily: "Arial, Helvetica, sans-serif",
           background:
             "radial-gradient(circle at 50% -10%, rgba(127,29,29,.16), transparent 28%), linear-gradient(180deg,#050607 0%,#020304 100%)",
