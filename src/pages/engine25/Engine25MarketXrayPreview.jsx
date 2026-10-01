@@ -1716,6 +1716,199 @@ export default function Engine25MarketXrayPreview() {
               </Card>
             </div>
 
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,320px),1fr))",
+                gap: 14,
+              }}
+            >
+              <Card
+                title="Selling / Distribution Pressure"
+                accent={distributionColor}
+                style={{
+                  borderTop: `2px solid ${distributionColor}`,
+                }}
+              >
+                <div
+                  style={{
+                    color: COLORS.muted,
+                    fontSize: 11,
+                    lineHeight: 1.45,
+                    marginBottom: 10,
+                  }}
+                >
+                  Measures whether broad selling is building underneath price.
+                  Higher pressure means more defensive conditions.
+                </div>
+
+                <SimpleGauge
+                  value={distributionPressurePct}
+                  label={upper(distribution?.label || "DISTRIBUTION")}
+                  color={distributionColor}
+                />
+
+                <div style={{ marginTop: 12 }}>
+                  <KV
+                    label="Raw pressure"
+                    value={
+                      distributionPressurePct == null
+                        ? "UNAVAILABLE"
+                        : `${fmt(distributionPressurePct, 1)}%`
+                    }
+                    color={distributionColor}
+                  />
+                  <KV
+                    label="Volume pressure"
+                    value={
+                      volumePressure == null
+                        ? "UNAVAILABLE"
+                        : fmt(volumePressure, 0)
+                    }
+                    color={distributionColor}
+                  />
+                  <KV
+                    label="Engine25 health score"
+                    value={headline?.score == null ? "UNAVAILABLE" : fmt(headline.score, 0)}
+                    color={headlineColor}
+                  />
+                </div>
+              </Card>
+
+              <Card
+                title="Market Leadership — New Highs vs New Lows"
+                accent={COLORS.blue}
+                style={{
+                  borderTop: "2px solid rgba(56,189,248,.75)",
+                }}
+              >
+                <div
+                  style={{
+                    color: COLORS.muted,
+                    fontSize: 11,
+                    lineHeight: 1.45,
+                    marginBottom: 12,
+                  }}
+                >
+                  Shows whether more stocks are breaking to new highs or falling
+                  to new lows.
+                </div>
+
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr 1fr",
+                    gap: 12,
+                  }}
+                >
+                  <div
+                    style={{
+                      border: "1px solid rgba(34,197,94,.22)",
+                      borderRadius: 10,
+                      padding: 12,
+                      textAlign: "center",
+                      background: "rgba(20,83,45,.08)",
+                    }}
+                  >
+                    <div
+                      style={{
+                        color: COLORS.green,
+                        fontSize: 28,
+                        fontWeight: 1000,
+                      }}
+                    >
+                      {nh == null ? "—" : fmtNumber(nh)}
+                    </div>
+                    <div style={{ color: COLORS.muted, fontSize: 11, marginTop: 3 }}>
+                      New Highs
+                    </div>
+                  </div>
+
+                  <div
+                    style={{
+                      border: "1px solid rgba(239,68,68,.22)",
+                      borderRadius: 10,
+                      padding: 12,
+                      textAlign: "center",
+                      background: "rgba(127,29,29,.08)",
+                    }}
+                  >
+                    <div
+                      style={{
+                        color: COLORS.red,
+                        fontSize: 28,
+                        fontWeight: 1000,
+                      }}
+                    >
+                      {nl == null ? "—" : fmtNumber(nl)}
+                    </div>
+                    <div style={{ color: COLORS.muted, fontSize: 11, marginTop: 3 }}>
+                      New Lows
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ marginTop: 12 }}>
+                  <KV
+                    label="Net New Highs / Lows"
+                    value={
+                      n(nhNl?.intradayNetHighsLows) == null
+                        ? "UNAVAILABLE"
+                        : fmtNumber(nhNl?.intradayNetHighsLows)
+                    }
+                  />
+                </div>
+              </Card>
+
+              <Card
+                title="Financial Stress"
+                accent={COLORS.orange}
+                style={{
+                  borderTop: "2px solid rgba(249,115,22,.75)",
+                }}
+              >
+                <div
+                  style={{
+                    color: COLORS.muted,
+                    fontSize: 11,
+                    lineHeight: 1.45,
+                    marginBottom: 10,
+                  }}
+                >
+                  Credit, banks, bonds and liquidity
+                </div>
+
+                <KV
+                  label="Credit Fragility"
+                  value={fmt(credit?.scores?.creditFragility)}
+                />
+                <KV
+                  label="Macro Credit"
+                  value={fmt(credit?.scores?.creditStress)}
+                />
+                <KV
+                  label="Bond Market"
+                  value={fmt(credit?.scores?.bondMarket)}
+                />
+                <KV
+                  label="Liquidity"
+                  value={fmt(credit?.scores?.liquidity)}
+                />
+
+                <div
+                  style={{
+                    marginTop: 10,
+                    color: COLORS.muted,
+                    lineHeight: 1.45,
+                    fontSize: 11,
+                  }}
+                >
+                  {credit?.interpretation ||
+                    "Credit / rates / liquidity read unavailable."}
+                </div>
+              </Card>
+            </div>
+
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
               <Card title="Active Event Risk" accent={COLORS.orange}>
                 <div style={{ color: COLORS.muted, fontSize: 12, lineHeight: 1.4, marginBottom: 9 }}>
@@ -1762,33 +1955,12 @@ export default function Engine25MarketXrayPreview() {
               </Card>
             </div>
 
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,360px),1fr))",
-                gap: 14,
-              }}
-            >
-              <Card title="Financial Stress">
-                <div style={{ color: COLORS.muted, fontSize: 12, lineHeight: 1.4, marginBottom: 8 }}>
-                  Credit, banks, bonds and liquidity
-                </div>
-                <KV label="Credit Fragility" value={fmt(credit?.scores?.creditFragility)} />
-                <KV label="Macro Credit" value={fmt(credit?.scores?.creditStress)} />
-                <KV label="Bond Market" value={fmt(credit?.scores?.bondMarket)} />
-                <KV label="Liquidity" value={fmt(credit?.scores?.liquidity)} />
-                <div style={{ marginTop: 10, color: COLORS.muted, lineHeight: 1.4 }}>
-                  {credit?.interpretation || "Credit / rates / liquidity read unavailable."}
-                </div>
-              </Card>
-
-              <Card title="Market Health Trend — 6 Months" accent={COLORS.orange}>
-                <div style={{ color: COLORS.muted, fontSize: 12, lineHeight: 1.4, marginBottom: 6 }}>
-                  Places today's Engine25 reading in historical context rather than judging one day by itself.
-                </div>
-                <PlainLineChart rows={overlayRows} />
-              </Card>
-            </div>
+            <Card title="Market Health Trend — 6 Months" accent={COLORS.orange}>
+              <div style={{ color: COLORS.muted, fontSize: 12, lineHeight: 1.4, marginBottom: 6 }}>
+                Places today's Engine25 reading in historical context rather than judging one day by itself.
+              </div>
+              <PlainLineChart rows={overlayRows} />
+            </Card>
 
             <Card title="Data Confidence & Engine25 Detail" accent={COLORS.blue}>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 10 }}>
