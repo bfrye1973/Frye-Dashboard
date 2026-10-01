@@ -25,9 +25,9 @@ export function RedlineNavRail() {
 
   const items = [
     { icon: "⌖", short: "X-Ray", label: "Market X-Ray", href: "/" },
-    { icon: "◴", short: "Meter", label: "Market Meter", href: "/legacy-dashboard#row-2" },
-    { icon: "▦", short: "Sector", label: "Index Sector", href: "/legacy-dashboard#row-3" },
-    { icon: "≋", short: "Waves", label: "Wave Degrees", href: "/legacy-dashboard#row-4" },
+    { icon: "◴", short: "Meter", label: "Market Meter", href: "/market-meter" },
+    { icon: "▦", short: "Sector", label: "Index Sector", href: "/index-sectors" },
+    { icon: "≋", short: "Waves", label: "Wave Degrees", href: "/wave-degrees" },
     { icon: "⌁", short: "Chart", label: "Chart", href: "/chart" },
     { icon: "◈", short: "Strat", label: "Strategies", href: "/strategies-full" },
     { icon: "☷", short: "Journal", label: "Journal", href: "/journal-full" },
