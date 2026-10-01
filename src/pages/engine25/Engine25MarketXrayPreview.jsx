@@ -6,6 +6,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import RowMarketOverview from "../rows/RowMarketOverview";
+import Engine29FullDashboard from "../engine29/Engine29FullDashboard";
 
 const API_BASE =
   (typeof window !== "undefined" && (window.__API_BASE__ || "")) ||
@@ -937,174 +938,23 @@ export default function Engine25MarketXrayPreview() {
             </Card>
 
             <Card
-              title="ENGINE 26 — LOCATION & TRADE PLAN"
-              accent={COLORS.yellow}
+              title="ENGINE 29 — LIVE MARKET CHARACTER"
+              accent={COLORS.red}
               style={{
                 background:
-                  "linear-gradient(180deg, rgba(49,32,8,.30), rgba(7,10,14,.98) 22%)",
-                borderTop: "3px solid #fbbf24",
+                  "linear-gradient(180deg, rgba(20,8,12,.30), rgba(7,10,14,.98) 18%)",
+                borderTop: "3px solid #ef4444",
               }}
             >
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  gap: 12,
-                  alignItems: "center",
-                  marginBottom: 12,
-                  flexWrap: "wrap",
-                }}
-              >
-                <div>
-                  <div style={{ color: COLORS.text, fontSize: 18, fontWeight: 950 }}>
-                    Where price is and what Engine26 is preparing
-                  </div>
-                  <div style={{ color: COLORS.muted, fontSize: 12, marginTop: 3 }}>
-                    Location and proposed geometry only. Engine6 remains final permission authority.
-                  </div>
-                </div>
-
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                  <StatusPill
-                    color={
-                      String(engine26Direction).toUpperCase() === "SHORT"
-                        ? COLORS.red
-                        : String(engine26Direction).toUpperCase() === "LONG"
-                        ? COLORS.green
-                        : COLORS.yellow
-                    }
-                  >
-                    {upper(engine26Direction)}
-                  </StatusPill>
-                  <StatusPill color={engine26PlannerReady ? COLORS.green : COLORS.yellow}>
-                    {engine26PlannerReady ? "PLAN READY" : upper(engine26State)}
-                  </StatusPill>
-                </div>
-              </div>
-
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(3,minmax(0,1fr))",
-                  gap: 12,
-                }}
-              >
-                <div
-                  style={{
-                    background: COLORS.panel2,
-                    border: "1px solid rgba(251,191,36,.25)",
-                    borderRadius: 11,
-                    padding: 12,
-                  }}
-                >
-                  <div style={{ color: COLORS.yellow, fontWeight: 900, fontSize: 12, textTransform: "uppercase", marginBottom: 8 }}>
-                    Location
-                  </div>
-                  <KV label="Current ES" value={fmt(engine26CurrentPrice, 2)} />
-                  <KV label="Entry / Alarm Zone" value={engine26ZoneText} />
-                  <KV label="Setup State" value={upper(engine26State)} />
-                  <KV
-                    label="Expected Reversal"
-                    value={upper(engine26ExpectedDirection)}
-                    color={
-                      String(engine26ExpectedDirection || "").toUpperCase() === "SHORT"
-                        ? COLORS.red
-                        : String(engine26ExpectedDirection || "").toUpperCase() === "LONG"
-                        ? COLORS.green
-                        : COLORS.muted
-                    }
-                  />
-                  <KV label="Setup Grade" value={upper(engine26Candidate?.setupGrade)} />
-                </div>
-
-                <div
-                  style={{
-                    background: COLORS.panel2,
-                    border: "1px solid rgba(56,189,248,.23)",
-                    borderRadius: 11,
-                    padding: 12,
-                  }}
-                >
-                  <div style={{ color: COLORS.blue, fontWeight: 900, fontSize: 12, textTransform: "uppercase", marginBottom: 8 }}>
-                    Proposed Geometry
-                  </div>
-                  <KV label="Planner" value={upper(engine26Geometry?.lifecycleStatus || (engine26PlannerReady ? "READY" : "WAITING"))} color={engine26PlannerReady ? COLORS.green : COLORS.yellow} />
-                  <KV
-                    label="Identity Link"
-                    value={engine26IdentityState}
-                    color={
-                      engine26IdentityState === "MATCH"
-                        ? COLORS.green
-                        : engine26IdentityState === "MISMATCH"
-                        ? COLORS.red
-                        : COLORS.yellow
-                    }
-                  />
-                  <KV label="Proposed Entry" value={fmt(engine26Geometry?.proposedEntryPrice, 2)} />
-                  <KV label="Proposed Stop" value={fmt(engine26Geometry?.proposedStopPrice, 2)} color={COLORS.red} />
-                  <KV label="Risk Distance" value={n(engine26Geometry?.proposedStopDistancePoints) == null ? "—" : `${fmt(engine26Geometry?.proposedStopDistancePoints, 2)} pts`} />
-                  <KV label="Invalidation" value={fmt(engine26Invalidation, 2)} color={COLORS.red} />
-                </div>
-
-                <div
-                  style={{
-                    background: COLORS.panel2,
-                    border: "1px solid rgba(34,197,94,.23)",
-                    borderRadius: 11,
-                    padding: 12,
-                  }}
-                >
-                  <div style={{ color: COLORS.green, fontWeight: 900, fontSize: 12, textTransform: "uppercase", marginBottom: 8 }}>
-                    Target Map
-                  </div>
-
-                  {engine26Targets.length ? (
-                    engine26Targets.slice(0, 3).map((target, index) => (
-                      <KV
-                        key={target?.id || target?.label || index}
-                        label={target?.label || `Target ${index + 1}`}
-                        value={fmt(target?.price ?? target?.level ?? target, 2)}
-                        color={COLORS.green}
-                      />
-                    ))
-                  ) : (
-                    <div style={{ color: COLORS.muted, fontSize: 13, lineHeight: 1.4 }}>
-                      No proposed targets are attached to the current geometry yet.
-                    </div>
-                  )}
-
-                  <div style={{ marginTop: 10 }}>
-                    <KV label="Candidate ID" value={engine26Candidate?.candidateId || "—"} />
-                    <KV label="Setup Class" value={upper(engine26Candidate?.setupClass)} />
-                  </div>
-                </div>
-              </div>
+              <Engine29FullDashboard homeCompact />
 
               <div
                 style={{
                   marginTop: 12,
                   display: "flex",
-                  gap: 8,
-                  flexWrap: "wrap",
-                  alignItems: "center",
+                  justifyContent: "flex-end",
                 }}
               >
-                <Link
-                  to={linkedChartHref}
-                  style={{
-                    textDecoration: "none",
-                    border: "1px solid rgba(56,189,248,.45)",
-                    background: "rgba(14,116,144,.14)",
-                    color: "#7dd3fc",
-                    borderRadius: 9,
-                    padding: "7px 10px",
-                    fontSize: 12,
-                    fontWeight: 900,
-                  }}
-                >
-                  OPEN THIS SETUP ON CHART →
-                </Link>
-
                 <Link
                   to={linkedWavesHref}
                   style={{
@@ -1118,24 +968,8 @@ export default function Engine25MarketXrayPreview() {
                     fontWeight: 900,
                   }}
                 >
-                  OPEN STRATEGIES →
+                  OPEN STRATEGIES / ENGINE26 PLANNER →
                 </Link>
-
-              </div>
-
-              <div
-                style={{
-                  marginTop: 10,
-                  border: "1px solid rgba(168,85,247,.28)",
-                  background: "rgba(59,7,100,.12)",
-                  borderRadius: 10,
-                  padding: "9px 11px",
-                  color: "#d8b4fe",
-                  fontSize: 12,
-                  fontWeight: 800,
-                }}
-              >
-                PROPOSAL ONLY — Engine26 does not authorize execution. Engine6 remains the final permission authority.
               </div>
             </Card>
           </>
