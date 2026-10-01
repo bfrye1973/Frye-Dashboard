@@ -308,7 +308,7 @@ function PlainLineChart({ rows = [] }) {
   }
 
   const width = 1000;
-  const height = 190;
+  const height = 145;
   const pad = 26;
   const path = points
     .map((p, i) => {
@@ -504,6 +504,26 @@ export default function Engine25MarketXrayPreview() {
   const distributionColor = colorForCanonicalState(distribution?.label);
   const dataStatus = dataStatusFromFreshness(freshness);
   const dataStatusColor = colorForCanonicalState(dataStatus, COLORS.yellow);
+  const indexMarketDiff =
+    masterScore == null || underlyingScore == null
+      ? null
+      : masterScore - underlyingScore;
+  const indexComparisonTitle =
+    indexMarketDiff == null
+      ? "INDEX / MARKET COMPARISON UNAVAILABLE"
+      : indexMarketDiff > 0
+      ? "ES IS HOLDING UP BETTER THAN THE BROADER MARKET"
+      : indexMarketDiff < 0
+      ? "THE BROADER MARKET IS STRONGER THAN ES"
+      : "ES AND THE BROADER MARKET ARE EVEN";
+  const indexComparisonDetail =
+    indexMarketDiff == null
+      ? "One or both canonical strength scores are unavailable."
+      : indexMarketDiff > 0
+      ? "The ES strength score is above the broader-market participation score."
+      : indexMarketDiff < 0
+      ? "The broader-market participation score is above the ES strength score."
+      : "The two canonical strength scores are equal.";
 
   const nhNl = participation?.newHighsNewLows || {};
   const nh = n(nhNl?.intradayTotalNh);
@@ -637,10 +657,11 @@ export default function Engine25MarketXrayPreview() {
                 alignItems: "stretch",
               }}
             >
-              <Card title="Market Health" accent={toneForScore(headline?.score)}>
+              <Card title="Market Health" accent={headlineColor}>
                 <SimpleGauge
                   value={headline?.score}
                   label={upper(headline?.label || headline?.state)}
+                  color={headlineColor}
                 />
                 <div
                   style={{
@@ -652,39 +673,27 @@ export default function Engine25MarketXrayPreview() {
                   <KV
                     label="Overall Market Condition"
                     value={upper(headline?.label || headline?.state)}
-                    color={toneForScore(headline?.score)}
+                    color={headlineColor}
                   />
                   <KV
                     label="Broader Participation"
                     value={upper(breadth?.label || "UNAVAILABLE")}
-                    color={toneForScore(underlyingScore)}
+                    color={breadthColor}
                   />
                   <KV
                     label="Data Status"
-                    value={upper(freshness?.state || "UNAVAILABLE")}
-                    color={
-                      freshness?.usableForTrapConfirmation
-                        ? COLORS.green
-                        : COLORS.yellow
-                    }
+                    value={dataStatus}
+                    color={dataStatusColor}
                   />
                 </div>
               </Card>
 
               <Card
                 title={`Market Participation — ${fmt(scanned || 5470)} Stocks`}
-                accent={
-                  sellVolPct != null && sellVolPct > buyVolPct
-                    ? COLORS.red
-                    : COLORS.green
-                }
+                accent={distributionColor}
                 style={{
                   padding: 16,
-                  borderTop: `3px solid ${
-                    sellVolPct != null && sellVolPct > buyVolPct
-                      ? COLORS.red
-                      : COLORS.green
-                  }`,
+                  borderTop: `3px solid ${distributionColor}`,
                 }}
               >
                 <div
@@ -767,16 +776,10 @@ export default function Engine25MarketXrayPreview() {
                       label="Sector Participation"
                       value={
                         currentSectorCount
-                          ? `${fmt(currentWeakSectorCount)} weak / ${fmt(currentSectorCount)}`
+                          ? `${fmt(currentStrongSectorCount)} bullish · ${fmt(currentNeutralSectorCount)} neutral · ${fmt(currentWeakSectorCount)} bearish`
                           : "UNAVAILABLE"
                       }
-                      color={
-                        currentWeakSectorCount != null &&
-                        currentSectorCount != null &&
-                        currentWeakSectorCount > currentSectorCount / 2
-                          ? COLORS.red
-                          : COLORS.yellow
-                      }
+                      color={breadthColor}
                     />
                   </div>
 
@@ -793,12 +796,12 @@ export default function Engine25MarketXrayPreview() {
                     </div>
                     <KV
                       label="Advancing Volume"
-                      value={pct(buyVolPct, 1)}
+                      value={advancingVolume == null ? "UNAVAILABLE" : `${fmtNumber(advancingVolume)} (${pct(buyVolPct, 1)})`}
                       color={COLORS.green}
                     />
                     <KV
                       label="Declining Volume"
-                      value={pct(sellVolPct, 1)}
+                      value={decliningVolume == null ? "UNAVAILABLE" : `${fmtNumber(decliningVolume)} (${pct(sellVolPct, 1)})`}
                       color={COLORS.red}
                     />
 
@@ -806,9 +809,9 @@ export default function Engine25MarketXrayPreview() {
                       style={{
                         marginTop: 10,
                         border: `1px solid ${
-                          imbalance == null
+                          imbalancePct == null
                             ? COLORS.muted
-                            : imbalance > 0
+                            : imbalancePct > 0
                               ? COLORS.red
                               : COLORS.green
                         }88`,
@@ -827,34 +830,34 @@ export default function Engine25MarketXrayPreview() {
                           fontSize: 23,
                           fontWeight: 1000,
                           color:
-                            imbalance == null
+                            imbalancePct == null
                               ? COLORS.muted
-                              : imbalance > 0
+                              : imbalancePct > 0
                                 ? COLORS.red
                                 : COLORS.green,
                         }}
                       >
-                        {imbalance == null
+                        {imbalancePct == null
                           ? "UNAVAILABLE"
-                          : `${imbalance > 0 ? "+" : ""}${imbalance.toFixed(1)}%`}
+                          : `${imbalancePct > 0 ? "+" : ""}${imbalancePct.toFixed(1)}%`}
                       </div>
                       <div
                         style={{
                           color:
-                            imbalance == null
+                            imbalancePct == null
                               ? COLORS.muted
-                              : imbalance > 0
+                              : imbalancePct > 0
                                 ? COLORS.red
                                 : COLORS.green,
                           fontSize: 10,
                           fontWeight: 900,
                         }}
                       >
-                        {imbalance == null
+                        {imbalancePct == null
                           ? "NO CURRENT VOLUME READ"
-                          : imbalance > 0
+                          : imbalancePct > 0
                             ? "TOWARD SELLING"
-                            : imbalance < 0
+                            : imbalancePct < 0
                               ? "TOWARD BUYING"
                               : "BALANCED"}
                       </div>
@@ -879,7 +882,7 @@ export default function Engine25MarketXrayPreview() {
                           ? "UNAVAILABLE"
                           : `${fmt(intradayBreadthPressure)} / 100`
                       }
-                      color={toneForScore(intradayBreadthPressure, true)}
+                      color={distributionColor}
                     />
                     <KV
                       label="Volume Pressure"
@@ -888,12 +891,12 @@ export default function Engine25MarketXrayPreview() {
                           ? "UNAVAILABLE"
                           : `${fmt(volumePressure)} / 100`
                       }
-                      color={toneForScore(volumePressure, true)}
+                      color={distributionColor}
                     />
                     <KV
                       label="Distribution Pressure"
                       value={upper(distribution?.label || "UNAVAILABLE")}
-                      color={toneForScore(distributionPressurePct, true)}
+                      color={distributionColor}
                     />
                     <KV
                       label="Overall Pressure"
@@ -931,106 +934,50 @@ export default function Engine25MarketXrayPreview() {
                   <BigStat
                     label="ES Strength"
                     value={masterScore == null ? "—" : fmt(masterScore, 1)}
-                    color={toneForScore(masterScore)}
+                    color={colorForCanonicalState(masterState)}
                   />
                   <BigStat
                     label="Broader Market Strength"
                     value={underlyingScore == null ? "—" : fmt(underlyingScore, 0)}
-                    color={toneForScore(underlyingScore)}
+                    color={breadthColor}
                   />
                 </div>
 
                 <div
                   style={{
-                    border: `1px solid ${
-                      masterScore != null &&
-                      underlyingScore != null &&
-                      masterScore - underlyingScore >= 10
-                        ? COLORS.red
-                        : COLORS.border
-                    }`,
+                    border: `1px solid ${indexMarketDiff == null ? COLORS.border : COLORS.blue}66`,
                     borderRadius: 9,
                     padding: 10,
-                    background:
-                      masterScore != null &&
-                      underlyingScore != null &&
-                      masterScore - underlyingScore >= 10
-                        ? "rgba(127,29,29,.18)"
-                        : "rgba(15,23,42,.42)",
+                    background: "rgba(15,23,42,.42)",
                     marginBottom: 8,
                   }}
                 >
-                  <div
-                    style={{
-                      color:
-                        masterScore != null &&
-                        underlyingScore != null &&
-                        masterScore - underlyingScore >= 10
-                          ? COLORS.red
-                          : COLORS.text,
-                      fontWeight: 950,
-                    }}
-                  >
-                    {masterScore != null &&
-                    underlyingScore != null &&
-                    masterScore - underlyingScore >= 10
-                      ? "ES IS HOLDING UP BETTER THAN THE BROADER MARKET"
-                      : masterScore != null &&
-                          underlyingScore != null &&
-                          underlyingScore - masterScore >= 10
-                        ? "THE BROADER MARKET IS STRONGER THAN ES"
-                        : "ES AND THE BROADER MARKET ARE TELLING A SIMILAR STORY"}
+                  <div style={{ color: COLORS.text, fontWeight: 950 }}>
+                    {indexComparisonTitle}
                   </div>
                   <div style={{ color: COLORS.muted, fontSize: 11, marginTop: 3 }}>
-                    {masterScore != null &&
-                    underlyingScore != null &&
-                    masterScore - underlyingScore >= 10
-                      ? "Most stocks are weaker than the index."
-                      : masterScore != null &&
-                          underlyingScore != null &&
-                          underlyingScore - masterScore >= 10
-                        ? "Participation underneath the index is stronger."
-                        : "No large index-versus-market gap is showing."}
+                    {indexComparisonDetail}
                   </div>
                 </div>
-
                 <KV label="ES Price" value={fmt(headline?.esClose, 2)} />
                 <KV
                   label="Broader Market"
                   value={upper(breadth?.label || "UNAVAILABLE")}
-                  color={toneForScore(underlyingScore)}
+                  color={breadthColor}
                 />
                 <KV
                   label="Participation"
-                  value={
-                    sellBreadthPct == null
-                      ? "UNAVAILABLE"
-                      : sellBreadthPct >= 55
-                        ? "GETTING WEAKER"
-                        : "MIXED / STABLE"
-                  }
-                  color={
-                    sellBreadthPct != null && sellBreadthPct >= 55
-                      ? COLORS.red
-                      : COLORS.yellow
-                  }
+                  value={upper(breadth?.label || "UNAVAILABLE")}
+                  color={breadthColor}
                 />
                 <KV
                   label="Index / Market Difference"
                   value={
-                    masterScore == null || underlyingScore == null
+                    indexMarketDiff == null
                       ? "UNAVAILABLE"
-                      : Math.abs(masterScore - underlyingScore) >= 10
-                        ? "LARGE"
-                        : "NORMAL"
+                      : `${indexMarketDiff > 0 ? "+" : ""}${indexMarketDiff.toFixed(1)} pts`
                   }
-                  color={
-                    masterScore != null &&
-                    underlyingScore != null &&
-                    Math.abs(masterScore - underlyingScore) >= 10
-                      ? COLORS.red
-                      : COLORS.green
-                  }
+                  color={COLORS.text}
                 />
 
                 <Link
@@ -1092,7 +1039,7 @@ export default function Engine25MarketXrayPreview() {
                     {marketRead}
                   </div>
                 </div>
-                <StatusPill color={toneForScore(headline?.score)}>
+                <StatusPill color={headlineColor}>
                   {upper(headline?.label || headline?.state)}
                 </StatusPill>
               </div>
@@ -1180,13 +1127,18 @@ export default function Engine25MarketXrayPreview() {
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(4,minmax(0,1fr))", gap: 7 }}>
                       {cards.map((c) => {
                         const b = n(c?.breadth_pct);
-                        const m = n(c?.momentum_pct);
-                        const weak = b != null && m != null && b <= 45 && m <= 45;
-                        const strong = b != null && m != null && b >= 55 && m >= 55;
-                        const color = weak ? COLORS.red : strong ? COLORS.green : COLORS.yellow;
+                        const bias = String(c?.bias || "").toLowerCase();
+                        const color =
+                          bias === "bullish"
+                            ? COLORS.green
+                            : bias === "bearish"
+                            ? COLORS.red
+                            : bias === "neutral"
+                            ? COLORS.yellow
+                            : COLORS.blue;
                         return (
                           <div
-                            key={c?.sector}
+                            key={canonicalSectorName(c?.sector)}
                             style={{
                               border: `1px solid ${color}99`,
                               borderRadius: 9,
@@ -1208,11 +1160,33 @@ export default function Engine25MarketXrayPreview() {
                       })}
                     </div>
 
-                    <div style={{ marginTop: 10, display: "flex", gap: 14, color: COLORS.muted, fontSize: 12 }}>
-                      <span><b style={{ color: COLORS.green }}>{strongSectors}</b> strong</span>
-                      <span><b style={{ color: COLORS.yellow }}>{mixedSectors}</b> neutral</span>
-                      <span><b style={{ color: COLORS.red }}>{weakSectors}</b> weak</span>
-                    </div>
+                    {sectorGroupsAvailable ? (
+                      <div
+                        style={{
+                          marginTop: 12,
+                          display: "grid",
+                          gridTemplateColumns: "repeat(3,minmax(0,1fr))",
+                          gap: 8,
+                        }}
+                      >
+                        {[
+                          ["STRONG", sectorGroups.strong, COLORS.green],
+                          ["NEUTRAL", sectorGroups.neutral, COLORS.yellow],
+                          ["WEAK", sectorGroups.weak, COLORS.red],
+                        ].map(([label, names, color]) => (
+                          <div key={label} style={{ border: `1px solid ${color}55`, borderRadius: 8, padding: 8 }}>
+                            <div style={{ color, fontSize: 11, fontWeight: 950 }}>{label}</div>
+                            <div style={{ marginTop: 5, color: COLORS.text, fontSize: 11, lineHeight: 1.45 }}>
+                              {names.length ? names.join(" · ") : "None"}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div style={{ marginTop: 10, color: COLORS.yellow, fontSize: 11 }}>
+                        Grouped STRONG / NEUTRAL / WEAK sector names are UNAVAILABLE for this timeframe because the backend does not expose per-sector classification labels.
+                      </div>
+                    )}
                   </>
                 ) : (
                   <div
@@ -1246,12 +1220,12 @@ export default function Engine25MarketXrayPreview() {
 
               <Card title="Financial Stress">
                 <div style={{ color: COLORS.muted, fontSize: 12, lineHeight: 1.4, marginBottom: 8 }}>
-                  Checks credit, bonds, banks, and liquidity for stress that may not yet be obvious in ES.
+                  Credit, banks, bonds and liquidity
                 </div>
-                <KV label="Credit Fragility" value={fmt(credit?.scores?.creditFragility)} color={toneForScore(credit?.scores?.creditFragility)} />
-                <KV label="Macro Credit" value={fmt(credit?.scores?.creditStress)} color={toneForScore(credit?.scores?.creditStress)} />
-                <KV label="Bond Market" value={fmt(credit?.scores?.bondMarket)} color={toneForScore(credit?.scores?.bondMarket)} />
-                <KV label="Liquidity" value={fmt(credit?.scores?.liquidity)} color={toneForScore(credit?.scores?.liquidity)} />
+                <KV label="Credit Fragility" value={fmt(credit?.scores?.creditFragility)} />
+                <KV label="Macro Credit" value={fmt(credit?.scores?.creditStress)} />
+                <KV label="Bond Market" value={fmt(credit?.scores?.bondMarket)} />
+                <KV label="Liquidity" value={fmt(credit?.scores?.liquidity)} />
                 <div style={{ marginTop: 10, color: COLORS.muted, lineHeight: 1.4 }}>{credit?.interpretation || "Credit / rates / liquidity read unavailable."}</div>
               </Card>
 
@@ -1310,9 +1284,9 @@ export default function Engine25MarketXrayPreview() {
                   }}
                 >
                   <span style={{ color: COLORS.muted, fontSize: 11 }}>
-                    Green = up this session · Red = down this session · Yellow = stale
+                    Green = up today · Red = down today · Yellow = stale / no recent update
                   </span>
-                  <StatusPill color={toneForScore(macro?.score)}>
+                  <StatusPill color={colorForCanonicalState(macro?.state || macro?.label)}>
                     {upper(macro?.state || macro?.label || "UNAVAILABLE")}
                   </StatusPill>
                 </div>
@@ -1398,13 +1372,13 @@ export default function Engine25MarketXrayPreview() {
               <div style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 10 }}>
                 <BigStat
                   label="Scanner Status"
-                  value={upper(freshness?.state || "UNAVAILABLE")}
-                  color={freshness?.usableForTrapConfirmation ? COLORS.green : COLORS.yellow}
+                  value={dataStatus}
+                  color={dataStatusColor}
                 />
                 <BigStat
                   label="Volume Coverage"
                   value={pct(coverage, 1)}
-                  color={coverage >= 70 ? COLORS.green : COLORS.red}
+                  color={freshness?.intraday?.volumeCoverageValid === true ? COLORS.green : COLORS.yellow}
                 />
                 <BigStat
                   label="Source Time"
