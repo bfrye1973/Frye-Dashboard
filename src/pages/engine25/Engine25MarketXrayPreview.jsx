@@ -696,6 +696,20 @@ export default function Engine25MarketXrayPreview() {
                     ? "Underlying participation is stronger than the headline index."
                     : "Index conditions and underlying participation are broadly similar."}
                 </div>
+
+                <a
+                  href="/market-meter?symbol=ES&tf=10m"
+                  style={{
+                    display: "inline-block",
+                    marginTop: 10,
+                    color: COLORS.blue,
+                    fontSize: 12,
+                    fontWeight: 900,
+                    textDecoration: "none",
+                  }}
+                >
+                  OPEN MARKET METER →
+                </a>
               </Card>
             </div>
 
@@ -758,6 +772,20 @@ export default function Engine25MarketXrayPreview() {
                   <span><b style={{ color: COLORS.yellow }}>{mixedSectors}</b> mixed</span>
                   <span><b style={{ color: COLORS.red }}>{weakSectors}</b> weak</span>
                 </div>
+
+                <a
+                  href="/index-sectors?symbol=ES&tf=10m"
+                  style={{
+                    display: "inline-block",
+                    marginTop: 10,
+                    color: COLORS.yellow,
+                    fontSize: 12,
+                    fontWeight: 900,
+                    textDecoration: "none",
+                  }}
+                >
+                  OPEN ALL 11 SECTORS →
+                </a>
               </Card>
             </div>
 
@@ -825,6 +853,20 @@ export default function Engine25MarketXrayPreview() {
                   <KV label="Buying support" value={upper(data?.zoneClassification?.accumulationRead?.state)} color={COLORS.yellow} />
                   <KV label="Distribution in zone" value={upper(data?.zoneClassification?.distributionRead?.state)} color={COLORS.red} />
                 </div>
+
+                <a
+                  href={linkedChartHref}
+                  style={{
+                    display: "inline-block",
+                    marginTop: 10,
+                    color: COLORS.blue,
+                    fontSize: 12,
+                    fontWeight: 900,
+                    textDecoration: "none",
+                  }}
+                >
+                  OPEN PRICE CONTEXT ON CHART →
+                </a>
               </Card>
             </div>
 
