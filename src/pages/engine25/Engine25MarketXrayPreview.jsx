@@ -531,8 +531,9 @@ export default function Engine25MarketXrayPreview() {
   return (
     <div
       style={{
-        maxWidth: 1900,
-        margin: "0 auto",
+        width: "100%",
+        maxWidth: "none",
+        margin: 0,
         display: "grid",
         gap: 14,
         minWidth: 0,
@@ -653,7 +654,7 @@ export default function Engine25MarketXrayPreview() {
                 </StatusPill>
               </div>
             </Card>
-            <div style={{ display: "grid", gridTemplateColumns: "minmax(260px,.52fr) minmax(560px,1.22fr) minmax(330px,.72fr)", gap: 14 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,280px),1fr))", gap: 14 }}>
               <Card title="Market Health" accent={toneForScore(headline?.score)}>
                 <SimpleGauge value={headline?.score} label={upper(headline?.label || headline?.state)} />
                 <div style={{ marginTop: 10, fontSize: 13, color: COLORS.muted, textAlign: "center" }}>
@@ -678,7 +679,7 @@ export default function Engine25MarketXrayPreview() {
                     <div style={{ fontWeight: 850, marginBottom: 6 }}>Actual Stock Volume</div>
                     <SplitBar buy={buyVolPct} sell={sellVolPct} />
                   </div>
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 10 }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,240px),1fr))", gap: 10 }}>
                     <BigStat label="Stocks With Volume" value={fmt(withVolume)} note={`${pct(coverage, 1)} coverage`} />
                     <BigStat
                       label="Volume Imbalance"
@@ -700,7 +701,7 @@ export default function Engine25MarketXrayPreview() {
                 <div style={{ color: COLORS.muted, fontSize: 12, lineHeight: 1.4, marginBottom: 8 }}>
                   Is the headline index telling the same story as the broader market?
                 </div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,280px),1fr))", gap: 8, marginBottom: 8 }}>
                   <BigStat label="ES Market Meter" value={masterScore == null ? "—" : fmt(masterScore, 1)} color={toneForScore(masterScore)} />
                   <BigStat label="Underlying Breadth" value={underlyingScore == null ? "—" : fmt(underlyingScore, 0)} color={toneForScore(underlyingScore)} />
                 </div>
@@ -729,7 +730,7 @@ export default function Engine25MarketXrayPreview() {
               </Card>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 14 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,240px),1fr))", gap: 14 }}>
               <Card title="Selling / Distribution Pressure" accent={COLORS.red}>
                 <div style={{ color: COLORS.muted, fontSize: 12, lineHeight: 1.4, marginBottom: 8 }}>
                   Measures whether broad selling is building underneath price. Higher pressure means more defensive conditions.
@@ -744,7 +745,7 @@ export default function Engine25MarketXrayPreview() {
                 <div style={{ color: COLORS.muted, fontSize: 12, lineHeight: 1.4, marginBottom: 10 }}>
                   Shows whether more stocks are breaking to new highs or falling to new lows.
                 </div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18, textAlign: "center" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,280px),1fr))", gap: 18, textAlign: "center" }}>
                   <div><div style={{ fontSize: 34, color: COLORS.green, fontWeight: 1000 }}>{fmt(nh)}</div><div style={{ color: COLORS.muted }}>New Highs</div></div>
                   <div><div style={{ fontSize: 34, color: COLORS.red, fontWeight: 1000 }}>{fmt(nl)}</div><div style={{ color: COLORS.muted }}>New Lows</div></div>
                 </div>
@@ -757,7 +758,7 @@ export default function Engine25MarketXrayPreview() {
                 <div style={{ color: COLORS.muted, fontSize: 12, lineHeight: 1.4, marginBottom: 9 }}>
                   One weak sector can be noise. Many weak sectors at once means the move is broad.
                 </div>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(4,minmax(0,1fr))", gap: 7 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(120px,1fr))", gap: 7 }}>
                   {cards.map((c) => {
                     const b = n(c?.breadth_pct);
                     const m = n(c?.momentum_pct);
@@ -805,12 +806,12 @@ export default function Engine25MarketXrayPreview() {
               </Card>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 14 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,240px),1fr))", gap: 14 }}>
               <Card title="1H vs 4H Participation">
                 <div style={{ color: COLORS.muted, fontSize: 12, lineHeight: 1.4, marginBottom: 8 }}>
                   1H shows what is happening now. 4H shows whether the broader participation trend agrees.
                 </div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,280px),1fr))", gap: 18 }}>
                   <SimpleGauge value={tactical?.classification?.score} label={upper(tactical?.classification?.label || "1H")} />
                   <SimpleGauge value={regime?.classification?.score} label={upper(regime?.classification?.label || "4H")} />
                 </div>
@@ -840,7 +841,7 @@ export default function Engine25MarketXrayPreview() {
               </Card>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,280px),1fr))", gap: 14 }}>
               <Card title="Active Event Risk" accent={COLORS.orange}>
                 <div style={{ color: COLORS.muted, fontSize: 12, lineHeight: 1.4, marginBottom: 9 }}>
                   Only material events that can meaningfully affect market risk belong here.
@@ -886,7 +887,7 @@ export default function Engine25MarketXrayPreview() {
               </Card>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "minmax(360px,.75fr) minmax(650px,1.25fr)", gap: 14 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,320px),1fr))", gap: 14 }}>
               <Card title="What Changed Since Yesterday?">
                 <div style={{ color: COLORS.muted, fontSize: 12, lineHeight: 1.4, marginBottom: 8 }}>
                   Direction matters more than a single snapshot. This shows which major forces improved or deteriorated.
@@ -916,7 +917,7 @@ export default function Engine25MarketXrayPreview() {
             </div>
 
             <Card title="Data Confidence & Engine25 Detail" accent={COLORS.blue}>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 10 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,240px),1fr))", gap: 10 }}>
                 <BigStat
                   label="Scanner Status"
                   value={upper(freshness?.state || "UNAVAILABLE")}

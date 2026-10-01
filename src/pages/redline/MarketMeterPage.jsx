@@ -27,7 +27,7 @@ function PageHeader({ title, subtitle }) {
 
 export default function MarketMeterPage() {
   return (
-    <div style={{ maxWidth: 1900, margin: "0 auto", minWidth: 0 }}>
+    <div style={{ width: "100%", maxWidth: "none", margin: 0, minWidth: 0 }}>
       <PageHeader
         title="MARKET METER"
         subtitle="Live tactical market condition across 10m, 30m, 1H, 4H, EOD, and the ES master read."

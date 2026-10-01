@@ -4,7 +4,7 @@ import RowIndexSectors from "../rows/RowIndexSectors";
 
 export default function IndexSectorsPage() {
   return (
-    <div style={{ maxWidth: 1900, margin: "0 auto", minWidth: 0 }}>
+    <div style={{ width: "100%", maxWidth: "none", margin: 0, minWidth: 0 }}>
       <div
         style={{
           border: "1px solid rgba(239,68,68,.24)",
