@@ -477,6 +477,33 @@ export default function Engine25MarketXrayPreview() {
     ? engine26Geometry.proposedTargets
     : [];
 
+  const engine26CandidateId =
+    engine26Candidate?.candidateId ||
+    engine26Candidate?.id ||
+    null;
+
+  const engine26SetupClass =
+    engine26Candidate?.setupClass ||
+    "NEGOTIATED_ZONE_ROTATION";
+
+  const linkedSetupParams = new URLSearchParams({
+    symbol: "ES",
+    tf: "10m",
+    strategyId: "intraday_scalp@10m",
+  });
+
+  if (engine26CandidateId) {
+    linkedSetupParams.set("candidateId", engine26CandidateId);
+  }
+
+  if (engine26SetupClass) {
+    linkedSetupParams.set("setupClass", engine26SetupClass);
+  }
+
+  const linkedChartHref = `/chart?${linkedSetupParams.toString()}`;
+  const linkedStrategiesHref = `/strategies-full?${linkedSetupParams.toString()}`;
+  const linkedWavesHref = `/wave-degrees?${linkedSetupParams.toString()}`;
+
   const priceContext =
     data?.zoneDecisionRead?.priorityRead ||
     data?.zoneRead?.plainEnglish ||
@@ -988,6 +1015,64 @@ export default function Engine25MarketXrayPreview() {
               <div
                 style={{
                   marginTop: 12,
+                  display: "flex",
+                  gap: 8,
+                  flexWrap: "wrap",
+                  alignItems: "center",
+                }}
+              >
+                <a
+                  href={linkedChartHref}
+                  style={{
+                    textDecoration: "none",
+                    border: "1px solid rgba(56,189,248,.45)",
+                    background: "rgba(14,116,144,.14)",
+                    color: "#7dd3fc",
+                    borderRadius: 9,
+                    padding: "7px 10px",
+                    fontSize: 12,
+                    fontWeight: 900,
+                  }}
+                >
+                  OPEN THIS SETUP ON CHART →
+                </a>
+
+                <a
+                  href={linkedWavesHref}
+                  style={{
+                    textDecoration: "none",
+                    border: "1px solid rgba(251,191,36,.40)",
+                    background: "rgba(120,53,15,.14)",
+                    color: "#fde68a",
+                    borderRadius: 9,
+                    padding: "7px 10px",
+                    fontSize: 12,
+                    fontWeight: 900,
+                  }}
+                >
+                  OPEN WAVES / TRADER INTELLIGENCE →
+                </a>
+
+                <a
+                  href={linkedStrategiesHref}
+                  style={{
+                    textDecoration: "none",
+                    border: "1px solid rgba(34,197,94,.40)",
+                    background: "rgba(20,83,45,.14)",
+                    color: "#86efac",
+                    borderRadius: 9,
+                    padding: "7px 10px",
+                    fontSize: 12,
+                    fontWeight: 900,
+                  }}
+                >
+                  OPEN STRATEGY DETAILS →
+                </a>
+              </div>
+
+              <div
+                style={{
+                  marginTop: 10,
                   border: "1px solid rgba(168,85,247,.28)",
                   background: "rgba(59,7,100,.12)",
                   borderRadius: 10,
