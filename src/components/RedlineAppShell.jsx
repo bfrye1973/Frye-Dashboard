@@ -104,6 +104,30 @@ function RedlineIcon({ type, size = 22 }) {
 export function RedlineNavRail() {
   const location = useLocation();
 
+  const currentParams = new URLSearchParams(location.search || "");
+  const contextKeys = [
+    "symbol",
+    "tf",
+    "candidateId",
+    "strategyId",
+    "setupClass",
+  ];
+
+  const contextualHref = (href) => {
+    const [path, query = ""] = href.split("?");
+    const next = new URLSearchParams(query);
+
+    for (const key of contextKeys) {
+      const value = currentParams.get(key);
+      if (value && !next.has(key)) {
+        next.set(key, value);
+      }
+    }
+
+    const suffix = next.toString();
+    return suffix ? `${path}?${suffix}` : path;
+  };
+
   const items = [
     { icon: "xray", short: "X-Ray", label: "Market X-Ray", href: "/" },
     { icon: "meter", short: "Meter", label: "Market Meter", href: "/market-meter" },
@@ -171,7 +195,7 @@ export function RedlineNavRail() {
           return (
             <Link
               key={item.label}
-              to={item.href}
+              to={contextualHref(item.href)}
               title={item.label}
               aria-label={item.label}
               style={{
