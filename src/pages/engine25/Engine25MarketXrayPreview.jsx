@@ -514,8 +514,7 @@ export default function Engine25MarketXrayPreview() {
   }
 
   const linkedChartHref = `/chart?${linkedSetupParams.toString()}`;
-  const linkedStrategiesHref = `/strategies-full?${linkedSetupParams.toString()}`;
-  const linkedWavesHref = `/wave-degrees?${linkedSetupParams.toString()}`;
+  const linkedWavesHref = `/strategies?${linkedSetupParams.toString()}`;
 
   const priceContext =
     data?.zoneDecisionRead?.priorityRead ||
@@ -1116,24 +1115,9 @@ export default function Engine25MarketXrayPreview() {
                     fontWeight: 900,
                   }}
                 >
-                  OPEN WAVES / TRADER INTELLIGENCE →
+                  OPEN STRATEGIES →
                 </Link>
 
-                <Link
-                  to={linkedStrategiesHref}
-                  style={{
-                    textDecoration: "none",
-                    border: "1px solid rgba(34,197,94,.40)",
-                    background: "rgba(20,83,45,.14)",
-                    color: "#86efac",
-                    borderRadius: 9,
-                    padding: "7px 10px",
-                    fontSize: 12,
-                    fontWeight: 900,
-                  }}
-                >
-                  OPEN STRATEGY DETAILS →
-                </Link>
               </div>
 
               <div
