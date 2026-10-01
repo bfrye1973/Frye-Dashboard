@@ -672,7 +672,7 @@ export default function Engine25MarketXrayPreview() {
 
               <Card
                 title={`UNDER THE MARKET — ${fmt(scanned || 5470)} STOCKS`}
-                accent={sellVolPct != null && sellVolPct > buyVolPct ? COLORS.red : COLORS.green}
+                accent={distributionColor}
                 style={{ padding: 18 }}
               >
                 <div style={{ color: COLORS.muted, fontSize: 13, lineHeight: 1.4, marginBottom: 2 }}>
