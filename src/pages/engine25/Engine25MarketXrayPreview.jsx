@@ -319,8 +319,8 @@ function PlainLineChart({ rows = [] }) {
   }
 
   const width = 1000;
-  const height = 145;
-  const pad = 26;
+  const height = 105;
+  const pad = 20;
   const path = points
     .map((p, i) => {
       const x = pad + (i / (points.length - 1)) * (width - pad * 2);
@@ -716,6 +716,54 @@ export default function Engine25MarketXrayPreview() {
 
         {data && (
           <>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(6,minmax(0,1fr))",
+                gap: 8,
+              }}
+            >
+              <BigStat
+                label="Market Health"
+                value={fmt(headline?.score)}
+                color={headlineColor}
+                note={clean(headline?.label || headline?.state)}
+              />
+              <BigStat
+                label="Breadth"
+                value={sellBreadthPct == null ? "—" : `${pct(sellBreadthPct)} SELLING`}
+                color={breadthColor}
+                note="stocks advancing vs declining"
+              />
+              <BigStat
+                label="Stock Volume"
+                value={sellVolPct == null ? "—" : `${pct(sellVolPct)} SELLING`}
+                color={intradayVolume?.available === true ? COLORS.text : COLORS.muted}
+                note="actual directional volume"
+              />
+              <BigStat
+                label="Distribution"
+                value={distributionPressurePct == null ? "—" : pct(distributionPressurePct, 0)}
+                color={distributionColor}
+                note={clean(distribution?.label || "pressure")}
+              />
+              <BigStat
+                label="Sectors"
+                value={currentWeakSectorCount == null ? "—" : `${fmt(currentWeakSectorCount)} WEAK`}
+                color={COLORS.yellow}
+                note={
+                  currentStrongSectorCount == null || currentNeutralSectorCount == null
+                    ? "sector participation unavailable"
+                    : `${fmt(currentStrongSectorCount)} strong · ${fmt(currentNeutralSectorCount)} mixed`
+                }
+              />
+              <BigStat
+                label="Data"
+                value={dataStatus}
+                color={dataStatusColor}
+                note={coverage == null ? "coverage unavailable" : `${pct(coverage, 1)} volume coverage`}
+              />
+            </div>
             <div
               style={{
                 display: "grid",
@@ -1611,8 +1659,8 @@ export default function Engine25MarketXrayPreview() {
               </Card>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "minmax(340px,.8fr) minmax(620px,1.65fr)", gap: 14 }}>
-              <Card title="What Changed Since Yesterday?">
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, alignItems: "stretch" }}>
+              <Card title="What Changed Since Yesterday?" style={{ padding: 12 }}>
                 <div style={{ color: COLORS.muted, fontSize: 12, lineHeight: 1.4, marginBottom: 8 }}>
                   Direction matters more than a single snapshot. This shows which major forces improved or deteriorated.
                 </div>
@@ -1627,8 +1675,8 @@ export default function Engine25MarketXrayPreview() {
                             borderBottom: "1px solid rgba(148,163,184,.10)",
                             paddingBottom: 7,
                             color: COLORS.text,
-                            fontSize: 13,
-                            lineHeight: 1.4,
+                            fontSize: 15,
+                            lineHeight: 1.3,
                           }}
                         >
                           {sentence}
@@ -1639,10 +1687,10 @@ export default function Engine25MarketXrayPreview() {
                 ) : (
                   <div style={{ color: COLORS.muted }}>UNAVAILABLE</div>
                 )}
-                <div style={{ marginTop: 12, color: COLORS.muted, lineHeight: 1.4 }}>{data?.underTheHood?.interpretation || "No comparison interpretation available."}</div>
+                <div style={{ marginTop: 8, color: COLORS.muted, fontSize: 14, lineHeight: 1.3 }}>{data?.underTheHood?.interpretation || "No comparison interpretation available."}</div>
               </Card>
 
-              <Card title="Market Health Trend — 6 Months" accent={COLORS.orange}>
+              <Card title="Market Health Trend — 6 Months" accent={COLORS.orange} style={{ padding: 12 }}>
                 <div style={{ color: COLORS.muted, fontSize: 12, lineHeight: 1.4, marginBottom: 6 }}>
                   Places today's Engine25 reading in historical context rather than judging one day by itself.
                 </div>
