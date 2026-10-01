@@ -84,6 +84,17 @@ function RedlineIcon({ type, size = 22 }) {
     );
   }
 
+  if (type === "lights") {
+    return (
+      <svg {...common}>
+        <circle cx="7" cy="12" r="2.2" />
+        <circle cx="12" cy="12" r="2.2" />
+        <circle cx="17" cy="12" r="2.2" />
+        <path d="M4 6h16M4 18h16" />
+      </svg>
+    );
+  }
+
   if (type === "strategy") {
     return (
       <svg {...common}>
@@ -133,6 +144,7 @@ export function RedlineNavRail() {
     { icon: "meter", short: "Meter", label: "Market Meter", href: "/market-meter" },
     { icon: "sector", short: "Sector", label: "Index Sector", href: "/index-sectors" },
     { icon: "waves", short: "Waves", label: "Wave Degrees", href: "/wave-degrees" },
+    { icon: "lights", short: "Lights", label: "Engine Lights", href: "/engine-lights" },
     { icon: "chart", short: "Chart", label: "Chart", href: "/chart" },
     { icon: "strategy", short: "Strat", label: "Strategies", href: "/strategies-full" },
     { icon: "journal", short: "Journal", label: "Journal", href: "/journal-full" },
