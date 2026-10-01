@@ -303,18 +303,31 @@ export default function RedlineAppShell({ children }) {
   return (
     <>
       <style>{`
-        html,
-        body,
-        #root {
+        html {
           width: 100%;
           max-width: none;
           min-height: 100%;
+          height: auto !important;
+          overflow-x: hidden !important;
+          overflow-y: scroll !important;
         }
 
         body {
+          width: 100%;
+          max-width: none;
+          min-height: 100vh;
+          height: auto !important;
           margin: 0;
-          overflow-x: hidden;
-          overflow-y: auto;
+          overflow-x: hidden !important;
+          overflow-y: visible !important;
+        }
+
+        #root {
+          width: 100%;
+          max-width: none;
+          min-height: 100vh;
+          height: auto !important;
+          overflow: visible !important;
         }
 
         .redline-shell-grid {
