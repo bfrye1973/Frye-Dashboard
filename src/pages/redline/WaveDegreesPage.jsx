@@ -61,6 +61,26 @@ export default function WaveDegreesPage() {
   const engine26Geometry =
     strategyNode?.engine26ProposedGeometry || null;
 
+  const locationCandidateId =
+    String(engine26Candidate?.candidateId || "").trim();
+
+  const geometryCandidateId =
+    String(engine26Geometry?.candidateId || "").trim();
+
+  const identityState =
+    locationCandidateId && geometryCandidateId
+      ? locationCandidateId === geometryCandidateId
+        ? "MATCH"
+        : "MISMATCH"
+      : "UNVERIFIED";
+
+  const identityColor =
+    identityState === "MATCH"
+      ? "#22c55e"
+      : identityState === "MISMATCH"
+      ? "#ef4444"
+      : "#fbbf24";
+
   const engine26Zone =
     engine26Candidate?.entryZone ||
     engine26Candidate?.zone ||
@@ -89,11 +109,14 @@ export default function WaveDegreesPage() {
     "NEUTRAL";
 
   const plannerReady =
-    engine26Geometry?.geometryReady === true ||
+    identityState !== "MISMATCH" &&
     (
-      engine26Geometry?.active === true &&
-      String(engine26Geometry?.lifecycleStatus || "").toUpperCase() ===
-        "PROPOSED_GEOMETRY_AVAILABLE"
+      engine26Geometry?.geometryReady === true ||
+      (
+        engine26Geometry?.active === true &&
+        String(engine26Geometry?.lifecycleStatus || "").toUpperCase() ===
+          "PROPOSED_GEOMETRY_AVAILABLE"
+      )
     );
 
   const targets =
@@ -214,17 +237,87 @@ export default function WaveDegreesPage() {
 
           <div
             style={{
-              border: `1px solid ${plannerReady ? "#22c55e" : "#fbbf24"}`,
-              color: plannerReady ? "#86efac" : "#fde68a",
+              border: `1px solid ${identityState === "MISMATCH" ? "#ef4444" : plannerReady ? "#22c55e" : "#fbbf24"}`,
+              color: identityState === "MISMATCH" ? "#fecaca" : plannerReady ? "#86efac" : "#fde68a",
               borderRadius: 999,
               padding: "5px 9px",
               fontSize: 11,
               fontWeight: 900,
             }}
           >
-            {plannerReady
+            {identityState === "MISMATCH"
+              ? "IDENTITY MISMATCH"
+              : plannerReady
               ? "PLAN READY"
               : clean(engine26Geometry?.lifecycleStatus || "WAITING").toUpperCase()}
+          </div>
+        </div>
+
+        <div
+          style={{
+            border: `1px solid ${identityColor}66`,
+            borderLeft: `4px solid ${identityColor}`,
+            borderRadius: 10,
+            padding: "10px 12px",
+            marginBottom: 12,
+            background:
+              identityState === "MISMATCH"
+                ? "rgba(127,29,29,.16)"
+                : identityState === "MATCH"
+                ? "rgba(20,83,45,.12)"
+                : "rgba(120,53,15,.12)",
+          }}
+        >
+          <div
+            style={{
+              color: identityColor,
+              fontWeight: 1000,
+              fontSize: 12,
+              letterSpacing: ".05em",
+            }}
+          >
+            ENGINE26 IDENTITY — {identityState}
+          </div>
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: 10,
+              marginTop: 8,
+            }}
+          >
+            <KV
+              label="Location Candidate ID"
+              value={locationCandidateId || "—"}
+              color={identityState === "MISMATCH" ? "#fecaca" : "#f8fafc"}
+            />
+            <KV
+              label="Geometry Candidate ID"
+              value={geometryCandidateId || "—"}
+              color={identityState === "MISMATCH" ? "#fecaca" : "#f8fafc"}
+            />
+          </div>
+
+          <div
+            style={{
+              marginTop: 8,
+              color:
+                identityState === "MISMATCH"
+                  ? "#fecaca"
+                  : identityState === "MATCH"
+                  ? "#bbf7d0"
+                  : "#fde68a",
+              fontSize: 12,
+              lineHeight: 1.45,
+              fontWeight: identityState === "MISMATCH" ? 900 : 700,
+            }}
+          >
+            {identityState === "MATCH"
+              ? "Location candidate and proposed geometry share the same candidate ID."
+              : identityState === "MISMATCH"
+              ? "FAIL CLOSED: proposed geometry is NOT verified against the active location candidate. The two identities are shown separately for diagnosis and must not be treated as one setup."
+              : "Identity UNVERIFIED: one or both candidate IDs are unavailable, so candidate/geometry identity cannot be confirmed."}
           </div>
         </div>
 
@@ -259,15 +352,19 @@ export default function WaveDegreesPage() {
 
           <div
             style={{
-              border: "1px solid rgba(56,189,248,.20)",
+              border:
+                identityState === "MISMATCH"
+                  ? "1px solid rgba(239,68,68,.60)"
+                  : "1px solid rgba(56,189,248,.20)",
               borderRadius: 10,
               padding: 11,
               background: "rgba(15,23,42,.42)",
             }}
           >
             <div style={{ color: "#7dd3fc", fontWeight: 900, marginBottom: 7 }}>
-              PROPOSED GEOMETRY
+              PROPOSED GEOMETRY{identityState === "MISMATCH" ? " — SEPARATE / UNVERIFIED" : ""}
             </div>
+            <KV label="Candidate ID" value={geometryCandidateId || "—"} color={identityState === "MISMATCH" ? "#fecaca" : "#f8fafc"} />
             <KV label="Entry" value={fmtLevel(engine26Geometry?.proposedEntryPrice)} />
             <KV label="Stop" value={fmtLevel(engine26Geometry?.proposedStopPrice)} color="#f87171" />
             <KV label="Risk Distance" value={Number.isFinite(Number(engine26Geometry?.proposedStopDistancePoints)) ? `${fmtLevel(engine26Geometry?.proposedStopDistancePoints)} pts` : "—"} />
@@ -277,14 +374,17 @@ export default function WaveDegreesPage() {
 
           <div
             style={{
-              border: "1px solid rgba(34,197,94,.20)",
+              border:
+                identityState === "MISMATCH"
+                  ? "1px solid rgba(239,68,68,.35)"
+                  : "1px solid rgba(34,197,94,.20)",
               borderRadius: 10,
               padding: 11,
               background: "rgba(15,23,42,.42)",
             }}
           >
             <div style={{ color: "#86efac", fontWeight: 900, marginBottom: 7 }}>
-              TARGET MAP
+              {identityState === "MISMATCH" ? "TARGET MAP — GEOMETRY ONLY" : "TARGET MAP"}
             </div>
             {targets.length ? (
               targets.slice(0, 4).map((target, index) => (
