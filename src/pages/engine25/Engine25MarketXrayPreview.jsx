@@ -5,6 +5,7 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import RowMarketOverview from "../rows/RowMarketOverview";
 
 const API_BASE =
   (typeof window !== "undefined" && (window.__API_BASE__ || "")) ||
@@ -572,6 +573,8 @@ export default function Engine25MarketXrayPreview() {
 
         {status === "ERROR" && <Card accent={COLORS.red}><div style={{ color: "#fecaca" }}>Engine25 preview error: {error}</div></Card>}
         {status === "LOADING" && !data && <div style={{ color: COLORS.muted }}>Loading Engine25 Market X-Ray…</div>}
+
+        <RowMarketOverview topMetersOnly />
 
         {data && (
           <>
