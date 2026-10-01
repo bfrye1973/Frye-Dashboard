@@ -128,17 +128,7 @@ function StatusPill({ children, color = COLORS.blue }) {
 
 function BigStat({ label, value, color = COLORS.text, note = null }) {
   return (
-    <>
-      <style>{`
-        @media (prefers-reduced-motion: reduce) {
-          * {
-            transition-duration: 0.01ms !important;
-            animation-duration: 0.01ms !important;
-            animation-iteration-count: 1 !important;
-          }
-        }
-      `}</style>
-      <div
+    <div
       style={{
         background: "linear-gradient(180deg, rgba(21,27,35,.9), rgba(10,13,18,.94))",
         border: "1px solid rgba(148,163,184,.18)",
@@ -752,6 +742,5 @@ export default function Engine25MarketXrayPreview() {
         )}
       </div>
     </div>
-    </>
   );
 }
