@@ -20,7 +20,6 @@ const JournalFull = React.lazy(() => import("./pages/JournalFull"));
 const MarketMeterPage = React.lazy(() => import("./pages/redline/MarketMeterPage"));
 const IndexSectorsPage = React.lazy(() => import("./pages/redline/IndexSectorsPage"));
 const WaveDegreesPage = React.lazy(() => import("./pages/redline/WaveDegreesPage"));
-const EngineLightsPage = React.lazy(() => import("./pages/redline/EngineLightsPage"));
 const ControlsPage = React.lazy(() => import("./pages/redline/ControlsPage"));
 
 const Engine25FullDashboard = React.lazy(() =>
@@ -372,7 +371,7 @@ export default function App() {
             />
 
             <Route
-              path="/wave-degrees"
+              path="/strategies"
               element={
                 <RedlineAppShell>
                   <WaveDegreesPage />
@@ -381,12 +380,8 @@ export default function App() {
             />
 
             <Route
-              path="/engine-lights"
-              element={
-                <RedlineAppShell>
-                  <EngineLightsPage />
-                </RedlineAppShell>
-              }
+              path="/wave-degrees"
+              element={<Navigate to="/strategies" replace />}
             />
 
             <Route
