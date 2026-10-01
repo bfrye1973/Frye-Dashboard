@@ -21,6 +21,7 @@ const MarketMeterPage = React.lazy(() => import("./pages/redline/MarketMeterPage
 const IndexSectorsPage = React.lazy(() => import("./pages/redline/IndexSectorsPage"));
 const WaveDegreesPage = React.lazy(() => import("./pages/redline/WaveDegreesPage"));
 const EngineLightsPage = React.lazy(() => import("./pages/redline/EngineLightsPage"));
+const ControlsPage = React.lazy(() => import("./pages/redline/ControlsPage"));
 
 const Engine25FullDashboard = React.lazy(() =>
   import("./pages/engine25/Engine25FullDashboard")
@@ -384,6 +385,17 @@ export default function App() {
               element={
                 <RedlineAppShell>
                   <EngineLightsPage />
+                </RedlineAppShell>
+              }
+            />
+
+            <Route
+              path="/controls"
+              element={
+                <RedlineAppShell>
+                  <ModeProvider initial={ViewModes.METER_TILES}>
+                    <ControlsPage />
+                  </ModeProvider>
                 </RedlineAppShell>
               }
             />
