@@ -303,6 +303,7 @@ export default function Engine25MarketXrayPreview() {
   const volume = participation?.stockVolume || {};
   const intradayVolume = volume?.intraday || {};
   const breadth = participation?.breadth || {};
+  const upDown = participation?.upDown || {};
   const distribution = participation?.distributionPressure || {};
   const freshness = artifact?.freshness || {};
   const sectorBreadth = data?.sectorBreadth || {};
@@ -319,14 +320,12 @@ export default function Engine25MarketXrayPreview() {
   const scanned = n(intradayVolume?.stocksScanned);
   const withVolume = n(intradayVolume?.stocksWithVolume);
   const coverage = n(intradayVolume?.coveragePct);
-  const advShare = n(intradayVolume?.advancingVolumeShare);
-  const decShare = n(intradayVolume?.decliningVolumeShare);
-  const buyVolPct = advShare == null ? null : advShare * 100;
-  const sellVolPct = decShare == null ? null : decShare * 100;
+  const buyVolPct = n(intradayVolume?.advancingVolumeShare);
+  const sellVolPct = n(intradayVolume?.decliningVolumeShare);
   const imbalance = n(intradayVolume?.volumeImbalance);
 
-  const totalUp = n(tacticalSummary?.totalUp);
-  const totalDown = n(tacticalSummary?.totalDown);
+  const totalUp = n(upDown?.intradayUp);
+  const totalDown = n(upDown?.intradayDown);
   const breadthDenom = (totalUp ?? 0) + (totalDown ?? 0);
   const buyBreadthPct = breadthDenom > 0 ? (totalUp / breadthDenom) * 100 : null;
   const sellBreadthPct = breadthDenom > 0 ? (totalDown / breadthDenom) * 100 : null;
@@ -406,7 +405,7 @@ export default function Engine25MarketXrayPreview() {
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10 }}>
                     <KV label="Stocks with volume" value={fmt(withVolume)} />
                     <KV label="Coverage" value={pct(coverage, 1)} color={coverage >= 70 ? COLORS.green : COLORS.red} />
-                    <KV label="Directional imbalance" value={imbalance == null ? "—" : `${imbalance >= 0 ? "+" : ""}${(imbalance * 100).toFixed(1)}% selling`} color={COLORS.red} />
+                    <KV label="Directional imbalance" value={imbalance == null ? "—" : `${imbalance >= 0 ? "+" : ""}${imbalance.toFixed(1)}% selling`} color={COLORS.red} />
                   </div>
                   <div style={{ color: COLORS.red, fontWeight: 1000, fontSize: 17 }}>
                     Overall: {sellVolPct != null && sellVolPct > buyVolPct ? "BROAD SELLING PRESSURE" : "MIXED / BUYING PRESSURE"}
