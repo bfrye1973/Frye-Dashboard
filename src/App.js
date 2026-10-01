@@ -41,6 +41,9 @@ const API_BASE =
   process.env.VITE_TRADING_API_BASE ||
   "https://frye-market-backend-1.onrender.com/api";
 
+const REDLINE_XRAY_PREVIEW_HOME =
+  String(process.env.REACT_APP_REDLINE_XRAY_PREVIEW || "") === "1";
+
 /* --------------------------- date helper (AZ) --------------------------- */
 
 const fmtAz = (iso) => {
@@ -281,9 +284,13 @@ export default function App() {
             <Route
               path="/"
               element={
-                <ScaledDashboardShell>
-                  <NewDashboard />
-                </ScaledDashboardShell>
+                REDLINE_XRAY_PREVIEW_HOME ? (
+                  <Engine25MarketXrayPreview />
+                ) : (
+                  <ScaledDashboardShell>
+                    <NewDashboard />
+                  </ScaledDashboardShell>
+                )
               }
             />
 
