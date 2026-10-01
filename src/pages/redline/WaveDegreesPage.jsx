@@ -125,7 +125,7 @@ export default function WaveDegreesPage() {
       : [];
 
   return (
-    <div style={{ maxWidth: 1900, margin: "0 auto", minWidth: 0 }}>
+    <div style={{ width: "100%", maxWidth: "none", margin: 0, minWidth: 0 }}>
       <div
         style={{
           border: "1px solid rgba(239,68,68,.24)",
@@ -282,7 +282,7 @@ export default function WaveDegreesPage() {
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "1fr 1fr",
+              gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,280px),1fr))",
               gap: 10,
               marginTop: 8,
             }}
@@ -324,7 +324,7 @@ export default function WaveDegreesPage() {
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "repeat(3,minmax(0,1fr))",
+            gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,260px),1fr))",
             gap: 12,
           }}
         >
