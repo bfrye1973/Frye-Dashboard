@@ -11,6 +11,7 @@ import NewDashboard from "./pages/NewDashboard";
 import ErrorBoundary from "./ErrorBoundary";
 import "./index.css";
 import UIScaler from "./components/UIScaler";
+import RedlineAppShell from "./components/RedlineAppShell";
 import { ModeProvider, ViewModes } from "./context/ModeContext";
 
 const FullChart = React.lazy(() => import("./pages/FullChart"));
@@ -268,7 +269,11 @@ export default function App() {
 
             <Route
               path="/engine25-market-xray-preview"
-              element={<Engine25MarketXrayPreview />}
+              element={
+                <RedlineAppShell>
+                  <Engine25MarketXrayPreview />
+                </RedlineAppShell>
+              }
             />
 
             <Route
@@ -280,42 +285,54 @@ export default function App() {
 
             <Route
               path="/"
-              element={<Engine25MarketXrayPreview />}
+              element={
+                <RedlineAppShell>
+                  <Engine25MarketXrayPreview />
+                </RedlineAppShell>
+              }
             />
 
             <Route
               path="/legacy-dashboard"
               element={
-                <ScaledDashboardShell>
-                  <NewDashboard />
-                </ScaledDashboardShell>
+                <RedlineAppShell>
+                  <ScaledDashboardShell>
+                    <NewDashboard />
+                  </ScaledDashboardShell>
+                </RedlineAppShell>
               }
             />
 
             <Route
               path="/chart"
               element={
-                <ScaledDashboardShell>
-                  <FullChart />
-                </ScaledDashboardShell>
+                <RedlineAppShell>
+                  <ScaledDashboardShell>
+                    <FullChart />
+                  </ScaledDashboardShell>
+                </RedlineAppShell>
               }
             />
 
             <Route
               path="/strategies-full"
               element={
-                <ScaledDashboardShell>
-                  <StrategiesFull />
-                </ScaledDashboardShell>
+                <RedlineAppShell>
+                  <ScaledDashboardShell>
+                    <StrategiesFull />
+                  </ScaledDashboardShell>
+                </RedlineAppShell>
               }
             />
 
             <Route
               path="/journal-full"
               element={
-                <ScaledDashboardShell>
-                  <JournalFull />
-                </ScaledDashboardShell>
+                <RedlineAppShell>
+                  <ScaledDashboardShell>
+                    <JournalFull />
+                  </ScaledDashboardShell>
+                </RedlineAppShell>
               }
             />
 
