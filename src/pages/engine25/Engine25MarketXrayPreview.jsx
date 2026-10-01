@@ -1,5 +1,6 @@
 // src/pages/engine25/Engine25MarketXrayPreview.jsx
-// Phase 1: correctness-first Engine25 Market X-Ray preview.
+// Version 1 / Phase 2: Engine25 Market X-Ray.
+// Correctness-first data wiring with simplified customer-facing presentation.
 // No animation. No Engine26. No production dashboard replacement.
 
 import React, { useEffect, useMemo, useState } from "react";
@@ -95,6 +96,51 @@ function Card({ title, children, style = {}, accent = COLORS.border }) {
       ) : null}
       {children}
     </section>
+  );
+}
+
+function StatusPill({ children, color = COLORS.blue }) {
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        border: `1px solid ${color}`,
+        color,
+        borderRadius: 999,
+        padding: "5px 9px",
+        fontSize: 11,
+        lineHeight: 1,
+        fontWeight: 900,
+        letterSpacing: ".03em",
+        textTransform: "uppercase",
+        background: "rgba(2,6,23,.55)",
+      }}
+    >
+      {children}
+    </span>
+  );
+}
+
+function BigStat({ label, value, color = COLORS.text, note = null }) {
+  return (
+    <div
+      style={{
+        background: COLORS.panel2,
+        border: "1px solid rgba(148,163,184,.16)",
+        borderRadius: 10,
+        padding: "11px 12px",
+        minWidth: 0,
+      }}
+    >
+      <div style={{ color: COLORS.muted, fontSize: 11, fontWeight: 800, textTransform: "uppercase" }}>
+        {label}
+      </div>
+      <div style={{ color, fontSize: 24, lineHeight: 1.1, fontWeight: 1000, marginTop: 5 }}>
+        {value}
+      </div>
+      {note ? <div style={{ color: COLORS.muted, fontSize: 11, marginTop: 4 }}>{note}</div> : null}
+    </div>
   );
 }
 
@@ -367,7 +413,9 @@ export default function Engine25MarketXrayPreview() {
         <header style={{ display: "flex", justifyContent: "space-between", gap: 18, alignItems: "center", borderBottom: "1px solid #263241", paddingBottom: 12 }}>
           <div>
             <div style={{ fontWeight: 1000, fontSize: 28 }}>REDLINE TRADING — ENGINE 25 MARKET X-RAY</div>
-            <div style={{ color: COLORS.muted, marginTop: 4 }}>Phase 1 preview · correctness first · live Engine25 data · no animation</div>
+            <div style={{ color: COLORS.muted, marginTop: 4 }}>
+              See what is happening underneath the market — participation, pressure, stress, and risk in one view.
+            </div>
           </div>
           <div style={{ textAlign: "right" }}>
             <div style={{ color: freshness?.usableForTrapConfirmation ? COLORS.green : COLORS.yellow, fontWeight: 900 }}>
@@ -384,7 +432,35 @@ export default function Engine25MarketXrayPreview() {
 
         {data && (
           <>
-            <div style={{ display: "grid", gridTemplateColumns: "minmax(260px,.55fr) minmax(520px,1fr) minmax(320px,.65fr)", gap: 14 }}>
+            <Card
+              accent={sellVolPct != null && sellVolPct > buyVolPct ? COLORS.red : COLORS.green}
+              style={{
+                background: "linear-gradient(180deg, rgba(15,23,42,.88), rgba(7,11,18,.96))",
+                padding: 16,
+              }}
+            >
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "minmax(0,1fr) auto",
+                  gap: 18,
+                  alignItems: "center",
+                }}
+              >
+                <div>
+                  <div style={{ color: COLORS.muted, fontSize: 11, fontWeight: 900, textTransform: "uppercase", letterSpacing: ".08em" }}>
+                    What the market is saying
+                  </div>
+                  <div style={{ fontSize: 21, lineHeight: 1.35, fontWeight: 950, marginTop: 5 }}>
+                    {marketRead}
+                  </div>
+                </div>
+                <StatusPill color={toneForScore(headline?.score)}>
+                  {upper(headline?.label || headline?.state)}
+                </StatusPill>
+              </div>
+            </Card>
+            <div style={{ display: "grid", gridTemplateColumns: "minmax(260px,.52fr) minmax(560px,1.22fr) minmax(330px,.72fr)", gap: 14 }}>
               <Card title="Market Health" accent={toneForScore(headline?.score)}>
                 <SimpleGauge value={headline?.score} label={upper(headline?.label || headline?.state)} />
                 <div style={{ marginTop: 10, fontSize: 13, color: COLORS.muted, textAlign: "center" }}>
@@ -392,8 +468,15 @@ export default function Engine25MarketXrayPreview() {
                 </div>
               </Card>
 
-              <Card title={`Under the Market — ${fmt(scanned || 5470)} Stocks`} accent={COLORS.red}>
-                <div style={{ display: "grid", gap: 14 }}>
+              <Card
+                title={`UNDER THE MARKET — ${fmt(scanned || 5470)} STOCKS`}
+                accent={sellVolPct != null && sellVolPct > buyVolPct ? COLORS.red : COLORS.green}
+                style={{ padding: 18 }}
+              >
+                <div style={{ color: COLORS.muted, fontSize: 13, lineHeight: 1.4, marginBottom: 2 }}>
+                  This is the centerpiece: how many stocks are advancing or declining, and where the actual stock volume is flowing.
+                </div>
+                <div style={{ display: "grid", gap: 16 }}>
                   <div>
                     <div style={{ fontWeight: 850, marginBottom: 6 }}>Stocks / Breadth</div>
                     <SplitBar buy={buyBreadthPct} sell={sellBreadthPct} />
@@ -402,22 +485,34 @@ export default function Engine25MarketXrayPreview() {
                     <div style={{ fontWeight: 850, marginBottom: 6 }}>Actual Stock Volume</div>
                     <SplitBar buy={buyVolPct} sell={sellVolPct} />
                   </div>
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10 }}>
-                    <KV label="Stocks with volume" value={fmt(withVolume)} />
-                    <KV label="Coverage" value={pct(coverage, 1)} color={coverage >= 70 ? COLORS.green : COLORS.red} />
-                    <KV label="Directional imbalance" value={imbalance == null ? "—" : `${imbalance >= 0 ? "+" : ""}${imbalance.toFixed(1)}% selling`} color={COLORS.red} />
-                  </div>
-                  <div style={{ color: COLORS.red, fontWeight: 1000, fontSize: 17 }}>
-                    Overall: {sellVolPct != null && sellVolPct > buyVolPct ? "BROAD SELLING PRESSURE" : "MIXED / BUYING PRESSURE"}
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 10 }}>
+                    <BigStat label="Stocks With Volume" value={fmt(withVolume)} note={`${pct(coverage, 1)} coverage`} />
+                    <BigStat
+                      label="Volume Imbalance"
+                      value={imbalance == null ? "—" : `${imbalance >= 0 ? "+" : ""}${imbalance.toFixed(1)}%`}
+                      color={imbalance != null && imbalance > 0 ? COLORS.red : COLORS.green}
+                      note={imbalance != null && imbalance > 0 ? "toward selling" : "toward buying"}
+                    />
+                    <BigStat
+                      label="Overall Read"
+                      value={sellVolPct != null && sellVolPct > buyVolPct ? "SELLING" : "MIXED"}
+                      color={sellVolPct != null && sellVolPct > buyVolPct ? COLORS.red : COLORS.yellow}
+                      note={sellVolPct != null && sellVolPct > buyVolPct ? "broad selling pressure" : "no broad selling dominance"}
+                    />
                   </div>
                 </div>
               </Card>
 
-              <Card title="Index vs Underlying Market">
-                <KV label="ES Market Meter" value={masterScore == null ? "—" : fmt(masterScore, 1)} color={toneForScore(masterScore)} />
-                <KV label="Underlying Breadth" value={underlyingScore == null ? "—" : fmt(underlyingScore, 0)} color={toneForScore(underlyingScore)} />
-                <KV label="Engine25 ES Close" value={fmt(headline?.esClose, 2)} />
-                <div style={{ marginTop: 10, color: COLORS.muted, lineHeight: 1.4 }}>
+              <Card title="Index vs Market Underneath">
+                <div style={{ color: COLORS.muted, fontSize: 12, lineHeight: 1.4, marginBottom: 8 }}>
+                  Is the headline index telling the same story as the broader market?
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
+                  <BigStat label="ES Market Meter" value={masterScore == null ? "—" : fmt(masterScore, 1)} color={toneForScore(masterScore)} />
+                  <BigStat label="Underlying Breadth" value={underlyingScore == null ? "—" : fmt(underlyingScore, 0)} color={toneForScore(underlyingScore)} />
+                </div>
+                <KV label="ES Price" value={fmt(headline?.esClose, 2)} />
+                <div style={{ marginTop: 10, color: COLORS.text, fontWeight: 850, lineHeight: 1.45 }}>
                   {masterScore != null && underlyingScore != null && masterScore - underlyingScore >= 10
                     ? "The headline index is reading stronger than the market underneath it."
                     : masterScore != null && underlyingScore != null && underlyingScore - masterScore >= 10
@@ -428,14 +523,14 @@ export default function Engine25MarketXrayPreview() {
             </div>
 
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 14 }}>
-              <Card title="Distribution Pressure" accent={COLORS.red}>
+              <Card title="Selling / Distribution Pressure" accent={COLORS.red}>
                 <SimpleGauge value={distributionPressurePct} label={upper(distribution?.label || "Distribution")} inverse />
                 <KV label="Raw pressure" value={pct(distributionPressurePct, 1)} color={COLORS.red} />
                 <KV label="Volume pressure" value={fmt(volume?.combinedVolumePressure, 0)} color={COLORS.red} />
                 <KV label="Engine25 health score" value={fmt(distribution?.score, 0)} />
               </Card>
 
-              <Card title="New Highs vs New Lows">
+              <Card title="Market Leadership — New Highs vs New Lows">
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18, textAlign: "center" }}>
                   <div><div style={{ fontSize: 34, color: COLORS.green, fontWeight: 1000 }}>{fmt(nh)}</div><div style={{ color: COLORS.muted }}>New Highs</div></div>
                   <div><div style={{ fontSize: 34, color: COLORS.red, fontWeight: 1000 }}>{fmt(nl)}</div><div style={{ color: COLORS.muted }}>New Lows</div></div>
@@ -445,7 +540,7 @@ export default function Engine25MarketXrayPreview() {
                 </div>
               </Card>
 
-              <Card title="11-Sector Participation">
+              <Card title="11-Sector Participation — Is Weakness Broad?">
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(4,minmax(0,1fr))", gap: 7 }}>
                   {cards.map((c) => {
                     const b = n(c?.breadth_pct);
@@ -470,14 +565,14 @@ export default function Engine25MarketXrayPreview() {
             </div>
 
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 14 }}>
-              <Card title="Short-Term vs Broader Participation">
+              <Card title="1H vs 4H Participation">
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
                   <SimpleGauge value={tactical?.classification?.score} label={upper(tactical?.classification?.label || "1H")} />
                   <SimpleGauge value={regime?.classification?.score} label={upper(regime?.classification?.label || "4H")} />
                 </div>
               </Card>
 
-              <Card title="Credit / Financial Stress">
+              <Card title="Financial Stress">
                 <KV label="Credit Fragility" value={fmt(credit?.scores?.creditFragility)} color={toneForScore(credit?.scores?.creditFragility)} />
                 <KV label="Macro Credit" value={fmt(credit?.scores?.creditStress)} color={toneForScore(credit?.scores?.creditStress)} />
                 <KV label="Bond Market" value={fmt(credit?.scores?.bondMarket)} color={toneForScore(credit?.scores?.bondMarket)} />
@@ -485,7 +580,7 @@ export default function Engine25MarketXrayPreview() {
                 <div style={{ marginTop: 10, color: COLORS.muted, lineHeight: 1.4 }}>{credit?.interpretation || "Credit / rates / liquidity read unavailable."}</div>
               </Card>
 
-              <Card title="Macro Pressure">
+              <Card title="Macro Pressure — Rates, Dollar, Energy">
                 <KV label="Score" value={fmt(macro?.score)} color={toneForScore(macro?.score)} />
                 <KV label="State" value={upper(macro?.state || macro?.label)} color={toneForScore(macro?.score)} />
                 <KV label="2Y Treasury" value={fmt(macro?.inputs?.DGS2?.value ?? macro?.inputs?.DGS2?.latestValue, 2)} />
@@ -496,7 +591,7 @@ export default function Engine25MarketXrayPreview() {
             </div>
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-              <Card title="Active Event Pressure" accent={COLORS.orange}>
+              <Card title="Active Event Risk" accent={COLORS.orange}>
                 {event ? (
                   <>
                     <div style={{ fontSize: 21, fontWeight: 950 }}>{clean(event?.eventType || event?.headlineSummary)}</div>
@@ -510,7 +605,7 @@ export default function Engine25MarketXrayPreview() {
                 ) : <div style={{ color: COLORS.muted }}>No active material Engine25 event found.</div>}
               </Card>
 
-              <Card title="Price / Zone Context">
+              <Card title="Price Support / Selling Pressure">
                 <div style={{ fontSize: 16, lineHeight: 1.5 }}>{priceContext}</div>
                 <div style={{ marginTop: 10 }}>
                   <KV label="Zone state" value={upper(data?.zoneDecisionRead?.label)} />
@@ -522,7 +617,7 @@ export default function Engine25MarketXrayPreview() {
             </div>
 
             <div style={{ display: "grid", gridTemplateColumns: "minmax(360px,.75fr) minmax(650px,1.25fr)", gap: 14 }}>
-              <Card title="What Changed?">
+              <Card title="What Changed Since Yesterday?">
                 {changed.length ? changed.map((row) => {
                   const v = n(row?.oneDayChange);
                   const inverse = row?.label === "Distribution";
@@ -544,9 +639,26 @@ export default function Engine25MarketXrayPreview() {
               </Card>
             </div>
 
-            <Card title="Engine25 Bottom Line" accent={COLORS.blue}>
-              <div style={{ fontSize: 18, lineHeight: 1.5, fontWeight: 800 }}>{marketRead}</div>
-              <div style={{ marginTop: 8, color: COLORS.muted }}>{data?.deskNote}</div>
+            <Card title="Data Confidence & Engine25 Detail" accent={COLORS.blue}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 10 }}>
+                <BigStat
+                  label="Scanner Status"
+                  value={upper(freshness?.state || "UNAVAILABLE")}
+                  color={freshness?.usableForTrapConfirmation ? COLORS.green : COLORS.yellow}
+                />
+                <BigStat
+                  label="Volume Coverage"
+                  value={pct(coverage, 1)}
+                  color={coverage >= 70 ? COLORS.green : COLORS.red}
+                />
+                <BigStat
+                  label="Source Time"
+                  value={freshness?.intraday?.sourceTimestamp ? "AVAILABLE" : "MISSING"}
+                  color={freshness?.intraday?.sourceTimestamp ? COLORS.green : COLORS.red}
+                  note={freshness?.intraday?.sourceTimestamp || "—"}
+                />
+              </div>
+              <div style={{ marginTop: 10, color: COLORS.muted, lineHeight: 1.45 }}>{data?.deskNote}</div>
             </Card>
           </>
         )}
