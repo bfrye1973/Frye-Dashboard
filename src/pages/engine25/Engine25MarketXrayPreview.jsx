@@ -3,7 +3,7 @@
 // Correctness-first data wiring with simplified customer-facing presentation.
 // No animation. No Engine26. No production dashboard replacement.
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import RowMarketOverview from "../rows/RowMarketOverview";
 import Engine29FullDashboard from "../engine29/Engine29FullDashboard";
@@ -57,23 +57,19 @@ function upper(value, fallback = "—") {
   return clean(value, fallback).toUpperCase();
 }
 
-function colorForCanonicalState(value, fallback = COLORS.muted) {
-  const state = String(value ?? "").trim().toUpperCase();
-  if (!state) return fallback;
-
-  if (state === "GREEN" || state === "OK" || state.includes("BULLISH")) {
+function toneForScore(value, inverse = false) {
+  const x = n(value);
+  if (x == null) return COLORS.muted;
+  if (inverse) {
+    if (x >= 75) return COLORS.red;
+    if (x >= 55) return COLORS.orange;
+    if (x >= 35) return COLORS.yellow;
     return COLORS.green;
   }
-  if (state === "YELLOW" || state.includes("WATCH") || state.includes("MIXED") || state.includes("NEUTRAL")) {
-    return COLORS.yellow;
-  }
-  if (state === "ORANGE" || state.includes("ELEVATED")) {
-    return COLORS.orange;
-  }
-  if (state === "RED" || state === "DARKRED" || state.includes("BEARISH") || state.includes("WEAK") || state.includes("HIGH")) {
-    return COLORS.red;
-  }
-  return fallback;
+  if (x >= 70) return COLORS.green;
+  if (x >= 50) return COLORS.yellow;
+  if (x >= 35) return COLORS.orange;
+  return COLORS.red;
 }
 
 function Card({ title, children, style = {}, accent = COLORS.border }) {
@@ -233,8 +229,9 @@ function SplitBar({ buy, sell, buyLabel = "Buying", sellLabel = "Selling" }) {
   );
 }
 
-function SimpleGauge({ value, label, color = COLORS.muted }) {
+function SimpleGauge({ value, label, inverse = false }) {
   const x = Math.max(0, Math.min(100, n(value) ?? 0));
+  const color = toneForScore(x, inverse);
   return (
     <div style={{ textAlign: "center", display: "grid", gap: 7 }}>
       <div
@@ -293,7 +290,7 @@ function PlainLineChart({ rows = [] }) {
 
   return (
     <svg width="100%" viewBox={`0 0 ${width} ${height}`} style={{ display: "block" }}>
-      {[0, 50, 100].map((level) => {
+      {[40, 55, 75].map((level) => {
         const y = pad + (1 - level / 100) * (height - pad * 2);
         return (
           <g key={level}>
@@ -307,6 +304,92 @@ function PlainLineChart({ rows = [] }) {
   );
 }
 
+function isFreshIso(value, maxAgeMs = 30 * 60 * 1000) {
+  const ts = Date.parse(value || "");
+  return Number.isFinite(ts) && Date.now() - ts <= maxAgeMs;
+}
+
+function signedPct(value, digits = 2) {
+  const x = n(value);
+  if (x == null) return "—";
+  return `${x > 0 ? "+" : ""}${x.toFixed(digits)}%`;
+}
+
+function MacroMoveRow({
+  label,
+  value,
+  changePct = null,
+  fresh = false,
+  valueSuffix = "",
+}) {
+  const change = n(changePct);
+  const color = !fresh
+    ? COLORS.yellow
+    : change == null
+      ? COLORS.yellow
+      : change > 0
+        ? COLORS.green
+        : change < 0
+          ? COLORS.red
+          : COLORS.muted;
+
+  const badge = !fresh || change == null
+    ? "STALE"
+    : change > 0
+      ? `▲ ${signedPct(change)}`
+      : change < 0
+        ? `▼ ${signedPct(change)}`
+        : "UNCHANGED";
+
+  return (
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "minmax(120px,1fr) auto auto",
+        gap: 10,
+        alignItems: "center",
+        padding: "8px 0",
+        borderBottom: "1px solid rgba(148,163,184,.10)",
+      }}
+    >
+      <div style={{ color: COLORS.text, fontSize: 13, fontWeight: 800 }}>
+        {label}
+      </div>
+      <div style={{ color, fontSize: 15, fontWeight: 950, textAlign: "right" }}>
+        {n(value) == null ? "—" : `${fmt(value, 2)}${valueSuffix}`}
+      </div>
+      <div
+        style={{
+          minWidth: 76,
+          textAlign: "center",
+          border: `1px solid ${color}88`,
+          borderRadius: 8,
+          padding: "4px 7px",
+          color,
+          background: `${color}12`,
+          fontSize: 10,
+          fontWeight: 950,
+        }}
+      >
+        {badge}
+      </div>
+    </div>
+  );
+}
+
+function currentNewsEvent(news) {
+  const events = Array.isArray(news?.events) ? news.events : [];
+  const active = events.filter((e) => {
+    const exp = Date.parse(e?.expiresAt || "");
+    return e?.material === true && (!Number.isFinite(exp) || Date.now() < exp);
+  });
+  const rank = { EXTREME: 4, HIGH: 3, MODERATE: 2, LOW: 1 };
+  return active.sort(
+    (a, b) => (rank[String(b?.severity || "").toUpperCase()] || 0) -
+              (rank[String(a?.severity || "").toUpperCase()] || 0)
+  )[0] || events[0] || null;
+}
+
 function changeRow(rows, label) {
   return (Array.isArray(rows) ? rows : []).find((r) => r?.label === label) || null;
 }
@@ -317,6 +400,7 @@ export default function Engine25MarketXrayPreview() {
   const [snapshot, setSnapshot] = useState(null);
   const [status, setStatus] = useState("LOADING");
   const [error, setError] = useState(null);
+  const [sectorTimeframe, setSectorTimeframe] = useState("1H");
 
   useEffect(() => {
     let alive = true;
@@ -360,32 +444,34 @@ export default function Engine25MarketXrayPreview() {
   const upDown = participation?.upDown || {};
   const distribution = participation?.distributionPressure || {};
   const freshness = artifact?.freshness || {};
-  const sectorParticipation = participation?.sectorParticipation || {};
-  const intradaySectorParticipation = sectorParticipation?.intraday || {};
   const sectorBreadth = data?.sectorBreadth || {};
   const tactical = sectorBreadth?.tactical1h || {};
   const regime = sectorBreadth?.regime4h || {};
-  const cards = Array.isArray(intradaySectorParticipation?.cards)
-    ? intradaySectorParticipation.cards
-    : [];
-  const leadership = participation?.newHighsNewLows || {};
+  const eodSectorParticipation =
+    participation?.sectorParticipation?.eod || {};
+
+  const sectorCardsByTimeframe = {
+    "1H": Array.isArray(tactical?.cards) ? tactical.cards : [],
+    "4H": Array.isArray(regime?.cards) ? regime.cards : [],
+    EOD: Array.isArray(eodSectorParticipation?.cards)
+      ? eodSectorParticipation.cards
+      : [],
+  };
+
+  const cards = sectorCardsByTimeframe[sectorTimeframe] || [];
+  const tacticalSummary = tactical?.summary || {};
   const credit = data?.creditStressDetail || {};
   const macro = data?.macroPressure || {};
-  const event = Array.isArray(data?.newsEvents?.activeMaterialEvents)
-    ? data.newsEvents.activeMaterialEvents[0] || null
-    : null;
+  const event = useMemo(() => currentNewsEvent(data?.newsEvents), [data?.newsEvents]);
   const underRows = data?.underTheHood?.rows || [];
   const overlayRows = data?.overlay?.rows || [];
 
   const scanned = n(intradayVolume?.stocksScanned);
   const withVolume = n(intradayVolume?.stocksWithVolume);
   const coverage = n(intradayVolume?.coveragePct);
-  const buyVolShare = n(intradayVolume?.advancingVolumeShare);
-  const sellVolShare = n(intradayVolume?.decliningVolumeShare);
-  const volumeImbalance = n(intradayVolume?.volumeImbalance);
-  const buyVolPct = buyVolShare == null ? null : buyVolShare * 100;
-  const sellVolPct = sellVolShare == null ? null : sellVolShare * 100;
-  const imbalancePct = volumeImbalance == null ? null : volumeImbalance * 100;
+  const buyVolPct = n(intradayVolume?.advancingVolumeShare);
+  const sellVolPct = n(intradayVolume?.decliningVolumeShare);
+  const imbalance = n(intradayVolume?.volumeImbalance);
 
   const totalUp = n(upDown?.intradayUp);
   const totalDown = n(upDown?.intradayDown);
@@ -393,24 +479,53 @@ export default function Engine25MarketXrayPreview() {
   const buyBreadthPct = breadthDenom > 0 ? (totalUp / breadthDenom) * 100 : null;
   const sellBreadthPct = breadthDenom > 0 ? (totalDown / breadthDenom) * 100 : null;
 
-  const distributionPressurePct = n(distribution?.rawPressure);
+  const rawPressure = n(distribution?.rawPressure);
+  const distributionPressurePct =
+    rawPressure != null ? rawPressure : (n(distribution?.score) != null ? 100 - n(distribution.score) : null);
 
   const masterScore = n(master?.master?.score);
-  const masterState =
-    master?.master?.tone || master?.master?.state || master?.master?.label || null;
   const underlyingScore = n(breadth?.score);
-  const headlineColor = colorForCanonicalState(
-    headline?.color || headline?.label || headline?.state
-  );
-  const breadthColor = colorForCanonicalState(breadth?.label);
-  const distributionColor = colorForCanonicalState(distribution?.label);
 
-  const nh = n(leadership?.intradayTotalNh);
-  const nl = n(leadership?.intradayTotalNl);
+  const nhNl = participation?.newHighsNewLows || {};
+  const nh = n(nhNl?.intradayTotalNh);
+  const nl = n(nhNl?.intradayTotalNl);
 
-  const bearishSectors = n(intradaySectorParticipation?.bearishCount);
-  const bullishSectors = n(intradaySectorParticipation?.bullishCount);
-  const neutralSectors = n(intradaySectorParticipation?.neutralCount);
+  const intradaySectorParticipation =
+    participation?.sectorParticipation?.intraday || {};
+  const currentWeakSectorCount =
+    n(intradaySectorParticipation?.bearishCount);
+  const currentStrongSectorCount =
+    n(intradaySectorParticipation?.bullishCount);
+  const currentNeutralSectorCount =
+    n(intradaySectorParticipation?.neutralCount);
+  const currentSectorCount =
+    n(intradaySectorParticipation?.count);
+
+  const distributionInputs = distribution?.inputs || {};
+  const intradayBreadthPressure =
+    n(distributionInputs?.intradayBreadthPressure);
+  const volumePressure =
+    n(volume?.combinedVolumePressure);
+
+  const intradayMacro = data?.intradayMacro || {};
+  const macroRates =
+    intradayMacro?.components?.rates?.slowContext || {};
+  const macroOil =
+    intradayMacro?.components?.oil || {};
+  const wti = macroOil?.wti || {};
+  const brent = macroOil?.brent || {};
+  const dollar = macro?.inputs?.UUP || {};
+
+  const macroMarketFresh =
+    String(intradayMacro?.freshness?.status || "").toUpperCase() === "FRESH";
+  const wtiFresh =
+    macroMarketFresh && isFreshIso(wti?.asOfUtc);
+  const brentFresh =
+    macroMarketFresh && isFreshIso(brent?.asOfUtc);
+
+  const weakSectors = cards.filter((c) => n(c?.breadth_pct) <= 45 && n(c?.momentum_pct) <= 45).length;
+  const strongSectors = cards.filter((c) => n(c?.breadth_pct) >= 55 && n(c?.momentum_pct) >= 55).length;
+  const mixedSectors = Math.max(0, cards.length - weakSectors - strongSectors);
 
   const changed = [
     changeRow(underRows, "Breadth"),
@@ -528,16 +643,15 @@ export default function Engine25MarketXrayPreview() {
     "Price / zone context unavailable.";
 
   const marketRead =
-    headline?.interpretation ||
-    data?.deskNote ||
-    "Engine25 canonical market-health interpretation unavailable.";
+    scanned
+      ? `${fmt(scanned)} stocks scanned. ${sellBreadthPct != null ? pct(sellBreadthPct) : "—"} of directional breadth and ${sellVolPct != null ? pct(sellVolPct) : "—"} of directional volume are on the selling side.`
+      : headline?.interpretation || data?.deskNote || "Engine25 market-health read available.";
 
   return (
     <div
       style={{
-        width: "100%",
-        maxWidth: "none",
-        margin: 0,
+        maxWidth: 1900,
+        margin: "0 auto",
         display: "grid",
         gap: 14,
         minWidth: 0,
@@ -587,136 +701,406 @@ export default function Engine25MarketXrayPreview() {
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))",
-                gap: 8,
+                gridTemplateColumns:
+                  "minmax(250px,.55fr) minmax(760px,1.7fr) minmax(330px,.75fr)",
+                gap: 14,
+                alignItems: "stretch",
               }}
             >
-              <BigStat
-                label="Market Health"
-                value={fmt(headline?.score)}
-                color={headlineColor}
-                note={clean(headline?.label || headline?.state)}
-              />
-              <BigStat
-                label="Breadth"
-                value={sellBreadthPct == null ? "—" : `${pct(sellBreadthPct)} DECLINING`}
-                color={breadthColor}
-                note={clean(breadth?.label || "breadth unavailable")}
-              />
-              <BigStat
-                label="Stock Volume"
-                value={sellVolPct == null ? "—" : `${pct(sellVolPct)} DECLINING VOL`}
-                color={intradayVolume?.available === true ? COLORS.text : COLORS.muted}
-                note={intradayVolume?.available === true ? "canonical directional stock volume" : intradayVolume?.reason || "volume unavailable"}
-              />
-              <BigStat
-                label="Distribution"
-                value={pct(distributionPressurePct, 0)}
-                color={distributionColor}
-                note={clean(distribution?.label || "pressure")}
-              />
-              <BigStat
-                label="Sectors"
-                value={bearishSectors == null ? "—" : `${fmt(bearishSectors)} BEARISH`}
-                color={COLORS.yellow}
-                note={
-                  bullishSectors == null || neutralSectors == null
-                    ? "sector participation unavailable"
-                    : `${fmt(bullishSectors)} bullish · ${fmt(neutralSectors)} neutral`
-                }
-              />
-              <BigStat
-                label="Data"
-                value={upper(freshness?.state || "UNAVAILABLE")}
-                color={freshness?.usableForTrapConfirmation ? COLORS.green : COLORS.yellow}
-                note={coverage == null ? "coverage unavailable" : `${pct(coverage, 1)} volume coverage`}
-              />
-            </div>
-
-            <Card
-              accent={distributionColor}
-              style={{
-                background: "linear-gradient(180deg, rgba(15,23,42,.88), rgba(7,11,18,.96))",
-                padding: 16,
-              }}
-            >
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "minmax(0,1fr) auto",
-                  gap: 18,
-                  alignItems: "center",
-                  transition: "opacity 300ms ease, transform 300ms ease",
-                }}
-              >
-                <div>
-                  <div style={{ color: COLORS.muted, fontSize: 11, fontWeight: 900, textTransform: "uppercase", letterSpacing: ".08em" }}>
-                    What the market is saying
-                  </div>
-                  <div style={{ fontSize: 21, lineHeight: 1.35, fontWeight: 950, marginTop: 5 }}>
-                    {marketRead}
-                  </div>
-                </div>
-                <StatusPill color={headlineColor}>
-                  {upper(headline?.label || headline?.state)}
-                </StatusPill>
-              </div>
-            </Card>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,280px),1fr))", gap: 14 }}>
-              <Card title="Market Health" accent={headlineColor}>
-                <SimpleGauge value={headline?.score} label={upper(headline?.label || headline?.state)} color={headlineColor} />
-                <div style={{ marginTop: 10, fontSize: 13, color: COLORS.muted, textAlign: "center" }}>
-                  ES {fmt(headline?.esClose, 2)}
+              <Card title="Market Health" accent={toneForScore(headline?.score)}>
+                <SimpleGauge
+                  value={headline?.score}
+                  label={upper(headline?.label || headline?.state)}
+                />
+                <div
+                  style={{
+                    marginTop: 10,
+                    display: "grid",
+                    gap: 2,
+                  }}
+                >
+                  <KV
+                    label="Overall Market Condition"
+                    value={upper(headline?.label || headline?.state)}
+                    color={toneForScore(headline?.score)}
+                  />
+                  <KV
+                    label="Broader Participation"
+                    value={upper(breadth?.label || "UNAVAILABLE")}
+                    color={toneForScore(underlyingScore)}
+                  />
+                  <KV
+                    label="Data Status"
+                    value={upper(freshness?.state || "UNAVAILABLE")}
+                    color={
+                      freshness?.usableForTrapConfirmation
+                        ? COLORS.green
+                        : COLORS.yellow
+                    }
+                  />
                 </div>
               </Card>
 
               <Card
-                title={`UNDER THE MARKET — ${fmt(scanned || 5470)} STOCKS`}
-                accent={distributionColor}
-                style={{ padding: 18 }}
+                title={`Market Participation — ${fmt(scanned || 5470)} Stocks`}
+                accent={
+                  sellVolPct != null && sellVolPct > buyVolPct
+                    ? COLORS.red
+                    : COLORS.green
+                }
+                style={{
+                  padding: 16,
+                  borderTop: `3px solid ${
+                    sellVolPct != null && sellVolPct > buyVolPct
+                      ? COLORS.red
+                      : COLORS.green
+                  }`,
+                }}
               >
-                <div style={{ color: COLORS.muted, fontSize: 13, lineHeight: 1.4, marginBottom: 2 }}>
-                  This is the centerpiece: how many stocks are advancing or declining, and where the actual stock volume is flowing.
+                <div
+                  style={{
+                    color: COLORS.muted,
+                    fontSize: 12,
+                    lineHeight: 1.4,
+                    marginBottom: 12,
+                  }}
+                >
+                  Real market coverage, breadth, stock volume, and distribution
+                  across the Engine25 stock universe.
                 </div>
-                <div style={{ display: "grid", gap: 16 }}>
-                  <div>
-                    <div style={{ fontWeight: 850, marginBottom: 6 }}>Stocks / Breadth</div>
-                    <SplitBar buy={buyBreadthPct} sell={sellBreadthPct} />
-                  </div>
-                  <div>
-                    <div style={{ fontWeight: 850, marginBottom: 6 }}>Actual Stock Volume</div>
-                    <SplitBar buy={buyVolPct} sell={sellVolPct} />
-                  </div>
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,240px),1fr))", gap: 10 }}>
-                    <BigStat label="Stocks With Volume" value={fmt(withVolume)} note={`${pct(coverage, 1)} coverage`} />
-                    <BigStat
-                      label="Volume Imbalance"
-                      value={imbalancePct == null ? "—" : `${imbalancePct >= 0 ? "+" : ""}${imbalancePct.toFixed(1)}%`}
-                      color={COLORS.text}
-                      note="canonical directional-volume imbalance"
+
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(4,minmax(0,1fr))",
+                    gap: 10,
+                  }}
+                >
+                  <div
+                    style={{
+                      border: "1px solid rgba(56,189,248,.22)",
+                      borderRadius: 10,
+                      padding: 11,
+                      background: "rgba(2,6,23,.30)",
+                    }}
+                  >
+                    <div style={{ color: COLORS.blue, fontWeight: 950, marginBottom: 7 }}>
+                      MARKET COVERAGE
+                    </div>
+                    <KV label="Stocks Scanned" value={fmt(scanned)} color={COLORS.blue} />
+                    <KV label="Stocks With Volume" value={fmt(withVolume)} />
+                    <KV
+                      label="Volume Coverage"
+                      value={pct(coverage, 1)}
+                      color={
+                        coverage == null
+                          ? COLORS.muted
+                          : coverage >= 70
+                            ? COLORS.green
+                            : COLORS.red
+                      }
                     />
-                    <BigStat
-                      label="Overall Read"
-                      value={intradayVolume?.available === true ? "AVAILABLE" : "UNAVAILABLE"}
-                      color={intradayVolume?.available === true ? COLORS.green : COLORS.yellow}
-                      note={intradayVolume?.reason || "canonical stock-volume evidence"}
+                  </div>
+
+                  <div
+                    style={{
+                      border: "1px solid rgba(34,197,94,.20)",
+                      borderRadius: 10,
+                      padding: 11,
+                      background: "rgba(2,6,23,.30)",
+                    }}
+                  >
+                    <div style={{ color: COLORS.green, fontWeight: 950, marginBottom: 7 }}>
+                      BREADTH
+                    </div>
+                    <KV
+                      label="Advancing"
+                      value={
+                        totalUp == null
+                          ? "—"
+                          : `${fmt(totalUp)} (${pct(buyBreadthPct, 0)})`
+                      }
+                      color={COLORS.green}
+                    />
+                    <KV
+                      label="Declining"
+                      value={
+                        totalDown == null
+                          ? "—"
+                          : `${fmt(totalDown)} (${pct(sellBreadthPct, 0)})`
+                      }
+                      color={COLORS.red}
+                    />
+                    <KV label="New Highs" value={fmt(nh)} color={COLORS.green} />
+                    <KV label="New Lows" value={fmt(nl)} color={COLORS.red} />
+                    <KV
+                      label="Sector Participation"
+                      value={
+                        currentSectorCount
+                          ? `${fmt(currentWeakSectorCount)} weak / ${fmt(currentSectorCount)}`
+                          : "UNAVAILABLE"
+                      }
+                      color={
+                        currentWeakSectorCount != null &&
+                        currentSectorCount != null &&
+                        currentWeakSectorCount > currentSectorCount / 2
+                          ? COLORS.red
+                          : COLORS.yellow
+                      }
+                    />
+                  </div>
+
+                  <div
+                    style={{
+                      border: "1px solid rgba(239,68,68,.22)",
+                      borderRadius: 10,
+                      padding: 11,
+                      background: "rgba(2,6,23,.30)",
+                    }}
+                  >
+                    <div style={{ color: COLORS.red, fontWeight: 950, marginBottom: 7 }}>
+                      STOCK VOLUME
+                    </div>
+                    <KV
+                      label="Advancing Volume"
+                      value={pct(buyVolPct, 1)}
+                      color={COLORS.green}
+                    />
+                    <KV
+                      label="Declining Volume"
+                      value={pct(sellVolPct, 1)}
+                      color={COLORS.red}
+                    />
+
+                    <div
+                      style={{
+                        marginTop: 10,
+                        border: `1px solid ${
+                          imbalance == null
+                            ? COLORS.muted
+                            : imbalance > 0
+                              ? COLORS.red
+                              : COLORS.green
+                        }88`,
+                        borderRadius: 9,
+                        padding: 10,
+                        textAlign: "center",
+                        background: "rgba(15,23,42,.45)",
+                      }}
+                    >
+                      <div style={{ color: COLORS.muted, fontSize: 10, fontWeight: 850 }}>
+                        DIRECTIONAL IMBALANCE
+                      </div>
+                      <div
+                        style={{
+                          marginTop: 3,
+                          fontSize: 23,
+                          fontWeight: 1000,
+                          color:
+                            imbalance == null
+                              ? COLORS.muted
+                              : imbalance > 0
+                                ? COLORS.red
+                                : COLORS.green,
+                        }}
+                      >
+                        {imbalance == null
+                          ? "UNAVAILABLE"
+                          : `${imbalance > 0 ? "+" : ""}${imbalance.toFixed(1)}%`}
+                      </div>
+                      <div
+                        style={{
+                          color:
+                            imbalance == null
+                              ? COLORS.muted
+                              : imbalance > 0
+                                ? COLORS.red
+                                : COLORS.green,
+                          fontSize: 10,
+                          fontWeight: 900,
+                        }}
+                      >
+                        {imbalance == null
+                          ? "NO CURRENT VOLUME READ"
+                          : imbalance > 0
+                            ? "TOWARD SELLING"
+                            : imbalance < 0
+                              ? "TOWARD BUYING"
+                              : "BALANCED"}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div
+                    style={{
+                      border: "1px solid rgba(251,191,36,.22)",
+                      borderRadius: 10,
+                      padding: 11,
+                      background: "rgba(2,6,23,.30)",
+                    }}
+                  >
+                    <div style={{ color: COLORS.yellow, fontWeight: 950, marginBottom: 7 }}>
+                      DISTRIBUTION
+                    </div>
+                    <KV
+                      label="Breadth Pressure"
+                      value={
+                        intradayBreadthPressure == null
+                          ? "UNAVAILABLE"
+                          : `${fmt(intradayBreadthPressure)} / 100`
+                      }
+                      color={toneForScore(intradayBreadthPressure, true)}
+                    />
+                    <KV
+                      label="Volume Pressure"
+                      value={
+                        volumePressure == null
+                          ? "UNAVAILABLE"
+                          : `${fmt(volumePressure)} / 100`
+                      }
+                      color={toneForScore(volumePressure, true)}
+                    />
+                    <KV
+                      label="Distribution Pressure"
+                      value={upper(distribution?.label || "UNAVAILABLE")}
+                      color={toneForScore(distributionPressurePct, true)}
+                    />
+                    <KV
+                      label="Overall Pressure"
+                      value={
+                        distributionPressurePct == null
+                          ? "—"
+                          : `${fmt(distributionPressurePct)} / 100`
+                      }
+                      color={toneForScore(distributionPressurePct, true)}
                     />
                   </div>
                 </div>
               </Card>
 
-              <Card title="Index vs Market Underneath">
-                <div style={{ color: COLORS.muted, fontSize: 12, lineHeight: 1.4, marginBottom: 8 }}>
-                  Is the headline index telling the same story as the broader market?
+              <Card title="Index vs Broader Market">
+                <div
+                  style={{
+                    color: COLORS.muted,
+                    fontSize: 12,
+                    lineHeight: 1.4,
+                    marginBottom: 9,
+                  }}
+                >
+                  Is ES stronger or weaker than the stocks underneath it?
                 </div>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,280px),1fr))", gap: 8, marginBottom: 8 }}>
-                  <BigStat label="ES Market Meter" value={masterScore == null ? "—" : fmt(masterScore, 1)} color={colorForCanonicalState(masterState)} />
-                  <BigStat label="Underlying Breadth" value={underlyingScore == null ? "—" : fmt(underlyingScore, 0)} color={breadthColor} />
+
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr 1fr",
+                    gap: 8,
+                    marginBottom: 9,
+                  }}
+                >
+                  <BigStat
+                    label="ES Strength"
+                    value={masterScore == null ? "—" : fmt(masterScore, 1)}
+                    color={toneForScore(masterScore)}
+                  />
+                  <BigStat
+                    label="Broader Market Strength"
+                    value={underlyingScore == null ? "—" : fmt(underlyingScore, 0)}
+                    color={toneForScore(underlyingScore)}
+                  />
                 </div>
+
+                <div
+                  style={{
+                    border: `1px solid ${
+                      masterScore != null &&
+                      underlyingScore != null &&
+                      masterScore - underlyingScore >= 10
+                        ? COLORS.red
+                        : COLORS.border
+                    }`,
+                    borderRadius: 9,
+                    padding: 10,
+                    background:
+                      masterScore != null &&
+                      underlyingScore != null &&
+                      masterScore - underlyingScore >= 10
+                        ? "rgba(127,29,29,.18)"
+                        : "rgba(15,23,42,.42)",
+                    marginBottom: 8,
+                  }}
+                >
+                  <div
+                    style={{
+                      color:
+                        masterScore != null &&
+                        underlyingScore != null &&
+                        masterScore - underlyingScore >= 10
+                          ? COLORS.red
+                          : COLORS.text,
+                      fontWeight: 950,
+                    }}
+                  >
+                    {masterScore != null &&
+                    underlyingScore != null &&
+                    masterScore - underlyingScore >= 10
+                      ? "ES IS HOLDING UP BETTER THAN THE BROADER MARKET"
+                      : masterScore != null &&
+                          underlyingScore != null &&
+                          underlyingScore - masterScore >= 10
+                        ? "THE BROADER MARKET IS STRONGER THAN ES"
+                        : "ES AND THE BROADER MARKET ARE TELLING A SIMILAR STORY"}
+                  </div>
+                  <div style={{ color: COLORS.muted, fontSize: 11, marginTop: 3 }}>
+                    {masterScore != null &&
+                    underlyingScore != null &&
+                    masterScore - underlyingScore >= 10
+                      ? "Most stocks are weaker than the index."
+                      : masterScore != null &&
+                          underlyingScore != null &&
+                          underlyingScore - masterScore >= 10
+                        ? "Participation underneath the index is stronger."
+                        : "No large index-versus-market gap is showing."}
+                  </div>
+                </div>
+
                 <KV label="ES Price" value={fmt(headline?.esClose, 2)} />
                 <KV
-                  label="Underlying State"
-                  value={clean(breadth?.label || "UNAVAILABLE").toUpperCase()}
+                  label="Broader Market"
+                  value={upper(breadth?.label || "UNAVAILABLE")}
+                  color={toneForScore(underlyingScore)}
+                />
+                <KV
+                  label="Participation"
+                  value={
+                    sellBreadthPct == null
+                      ? "UNAVAILABLE"
+                      : sellBreadthPct >= 55
+                        ? "GETTING WEAKER"
+                        : "MIXED / STABLE"
+                  }
+                  color={
+                    sellBreadthPct != null && sellBreadthPct >= 55
+                      ? COLORS.red
+                      : COLORS.yellow
+                  }
+                />
+                <KV
+                  label="Index / Market Difference"
+                  value={
+                    masterScore == null || underlyingScore == null
+                      ? "UNAVAILABLE"
+                      : Math.abs(masterScore - underlyingScore) >= 10
+                        ? "LARGE"
+                        : "NORMAL"
+                  }
+                  color={
+                    masterScore != null &&
+                    underlyingScore != null &&
+                    Math.abs(masterScore - underlyingScore) >= 10
+                      ? COLORS.red
+                      : COLORS.green
+                  }
                 />
 
                 <Link
@@ -735,70 +1119,185 @@ export default function Engine25MarketXrayPreview() {
               </Card>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,240px),1fr))", gap: 14 }}>
-              <Card title="Selling / Distribution Pressure" accent={COLORS.red}>
-                <div style={{ color: COLORS.muted, fontSize: 12, lineHeight: 1.4, marginBottom: 8 }}>
-                  Measures whether broad selling is building underneath price. Higher pressure means more defensive conditions.
+            <Card
+              accent={
+                sellVolPct != null && sellVolPct > buyVolPct
+                  ? COLORS.red
+                  : COLORS.green
+              }
+              style={{
+                background:
+                  "linear-gradient(180deg, rgba(15,23,42,.88), rgba(7,11,18,.96))",
+                padding: 14,
+              }}
+            >
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "minmax(0,1fr) auto",
+                  gap: 18,
+                  alignItems: "center",
+                }}
+              >
+                <div>
+                  <div
+                    style={{
+                      color: COLORS.muted,
+                      fontSize: 11,
+                      fontWeight: 900,
+                      textTransform: "uppercase",
+                      letterSpacing: ".08em",
+                    }}
+                  >
+                    What the market is saying
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 19,
+                      lineHeight: 1.35,
+                      fontWeight: 950,
+                      marginTop: 4,
+                    }}
+                  >
+                    {marketRead}
+                  </div>
                 </div>
-                <SimpleGauge value={distributionPressurePct} label={upper(distribution?.label || "Distribution")} color={distributionColor} />
-                <KV label="Raw pressure" value={pct(distributionPressurePct, 1)} color={distributionColor} />
-                <KV label="Volume pressure" value={fmt(volume?.combinedVolumePressure, 0)} color={distributionColor} />
-                <KV label="Engine25 health score" value={fmt(distribution?.score, 0)} />
-              </Card>
+                <StatusPill color={toneForScore(headline?.score)}>
+                  {upper(headline?.label || headline?.state)}
+                </StatusPill>
+              </div>
+            </Card>
 
-              <Card title="Market Leadership — New Highs vs New Lows">
-                <div style={{ color: COLORS.muted, fontSize: 12, lineHeight: 1.4, marginBottom: 10 }}>
-                  Shows whether more stocks are breaking to new highs or falling to new lows.
-                </div>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,280px),1fr))", gap: 18, textAlign: "center" }}>
-                  <div><div style={{ fontSize: 34, color: COLORS.green, fontWeight: 1000 }}>{fmt(nh)}</div><div style={{ color: COLORS.muted }}>New Highs</div></div>
-                  <div><div style={{ fontSize: 34, color: COLORS.red, fontWeight: 1000 }}>{fmt(nl)}</div><div style={{ color: COLORS.muted }}>New Lows</div></div>
-                </div>
-                <KV
-                  label="Net New Highs / Lows"
-                  value={fmt(leadership?.intradayNetHighsLows)}
-                  color={COLORS.text}
-                />
-              </Card>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns:
+                  "minmax(520px,1.35fr) minmax(300px,.8fr) minmax(360px,1fr)",
+                gap: 14,
+              }}
+            >
+              <Card title="11-Sector Participation — Is Weakness Broad?">
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: 12,
+                    alignItems: "center",
+                    flexWrap: "wrap",
+                    marginBottom: 10,
+                  }}
+                >
+                  <div style={{ color: COLORS.muted, fontSize: 12, lineHeight: 1.4 }}>
+                    See which parts of the market are strong, neutral, or weak.
+                  </div>
 
-              <Card title="11-Sector Participation">
-                <div style={{ color: COLORS.muted, fontSize: 12, lineHeight: 1.4, marginBottom: 9 }}>
-                  Canonical Engine25 intraday sector participation from the participation artifact.
+                  <div
+                    style={{
+                      display: "inline-flex",
+                      gap: 4,
+                      padding: 3,
+                      border: "1px solid rgba(148,163,184,.20)",
+                      borderRadius: 9,
+                      background: "rgba(2,6,23,.48)",
+                    }}
+                  >
+                    {["1H", "4H", "EOD"].map((tf) => {
+                      const active = sectorTimeframe === tf;
+                      return (
+                        <button
+                          key={tf}
+                          type="button"
+                          onClick={() => setSectorTimeframe(tf)}
+                          style={{
+                            border: active
+                              ? "1px solid rgba(248,250,252,.30)"
+                              : "1px solid transparent",
+                            borderRadius: 7,
+                            padding: "6px 11px",
+                            background: active
+                              ? "rgba(248,250,252,.10)"
+                              : "transparent",
+                            color: active ? COLORS.text : COLORS.muted,
+                            fontSize: 11,
+                            fontWeight: 950,
+                            cursor: "pointer",
+                          }}
+                        >
+                          {tf}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(120px,1fr))", gap: 7 }}>
-                  {cards.map((c) => {
-                    const b = n(c?.breadth_pct);
-                    const bias = String(c?.bias || "neutral").toLowerCase();
-                    const color =
-                      bias === "bearish"
-                        ? COLORS.red
-                        : bias === "bullish"
-                        ? COLORS.green
-                        : COLORS.yellow;
-                    return (
-                      <div
-                        key={c?.sector}
-                        style={{
-                          border: `1px solid ${color}99`,
-                          borderRadius: 9,
-                          padding: 8,
-                          background: "linear-gradient(180deg,rgba(18,23,30,.95),rgba(8,11,15,.98))",
-                          boxShadow: `inset 0 -2px 0 ${color}22`,
-                          transition:
-                            "border-color 450ms ease, box-shadow 450ms ease, background 450ms ease, transform 300ms ease",
-                        }}
-                      >
-                        <div style={{ fontSize: 11, color: COLORS.muted, minHeight: 28 }}>{c?.sector}</div>
-                        <div style={{ color, fontWeight: 950 }}>{fmt(b, 0)}</div>
-                      </div>
-                    );
-                  })}
+
+                <div
+                  style={{
+                    color: COLORS.blue,
+                    fontSize: 11,
+                    fontWeight: 900,
+                    marginBottom: 9,
+                  }}
+                >
+                  {sectorTimeframe === "1H"
+                    ? "CURRENT 1-HOUR PARTICIPATION"
+                    : sectorTimeframe === "4H"
+                    ? "BROADER 4-HOUR PARTICIPATION"
+                    : "END-OF-DAY PARTICIPATION"}
                 </div>
-                <div style={{ marginTop: 10, display: "flex", gap: 14, color: COLORS.muted, fontSize: 12 }}>
-                  <span><b style={{ color: COLORS.green }}>{fmt(bullishSectors)}</b> bullish</span>
-                  <span><b style={{ color: COLORS.yellow }}>{fmt(neutralSectors)}</b> neutral</span>
-                  <span><b style={{ color: COLORS.red }}>{fmt(bearishSectors)}</b> bearish</span>
-                </div>
+
+                {cards.length ? (
+                  <>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(4,minmax(0,1fr))", gap: 7 }}>
+                      {cards.map((c) => {
+                        const b = n(c?.breadth_pct);
+                        const m = n(c?.momentum_pct);
+                        const weak = b != null && m != null && b <= 45 && m <= 45;
+                        const strong = b != null && m != null && b >= 55 && m >= 55;
+                        const color = weak ? COLORS.red : strong ? COLORS.green : COLORS.yellow;
+                        return (
+                          <div
+                            key={c?.sector}
+                            style={{
+                              border: `1px solid ${color}99`,
+                              borderRadius: 9,
+                              padding: 8,
+                              background: "linear-gradient(180deg,rgba(18,23,30,.95),rgba(8,11,15,.98))",
+                              boxShadow: `inset 0 -2px 0 ${color}22`,
+                              transition:
+                                "border-color 250ms ease, box-shadow 250ms ease, background 250ms ease",
+                            }}
+                          >
+                            <div style={{ fontSize: 11, color: COLORS.muted, minHeight: 28 }}>
+                              {c?.sector}
+                            </div>
+                            <div style={{ color, fontWeight: 950 }}>
+                              {b == null ? "—" : fmt(b, 0)}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    <div style={{ marginTop: 10, display: "flex", gap: 14, color: COLORS.muted, fontSize: 12 }}>
+                      <span><b style={{ color: COLORS.green }}>{strongSectors}</b> strong</span>
+                      <span><b style={{ color: COLORS.yellow }}>{mixedSectors}</b> neutral</span>
+                      <span><b style={{ color: COLORS.red }}>{weakSectors}</b> weak</span>
+                    </div>
+                  </>
+                ) : (
+                  <div
+                    style={{
+                      border: "1px solid rgba(251,191,36,.22)",
+                      borderRadius: 9,
+                      padding: 12,
+                      color: COLORS.yellow,
+                      fontSize: 12,
+                      fontWeight: 850,
+                    }}
+                  >
+                    {sectorTimeframe} sector participation unavailable.
+                  </div>
+                )}
 
                 <Link
                   to="/index-sectors?symbol=ES&tf=10m"
@@ -814,44 +1313,83 @@ export default function Engine25MarketXrayPreview() {
                   OPEN ALL 11 SECTORS →
                 </Link>
               </Card>
-            </div>
-
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,240px),1fr))", gap: 14 }}>
-              <Card title="1H vs 4H Participation">
-                <div style={{ color: COLORS.muted, fontSize: 12, lineHeight: 1.4, marginBottom: 8 }}>
-                  1H shows what is happening now. 4H shows whether the broader participation trend agrees.
-                </div>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,280px),1fr))", gap: 18 }}>
-                  <SimpleGauge value={tactical?.classification?.score} label={upper(tactical?.classification?.label || "1H")} color={colorForCanonicalState(tactical?.classification?.color || tactical?.classification?.label)} />
-                  <SimpleGauge value={regime?.classification?.score} label={upper(regime?.classification?.label || "4H")} color={colorForCanonicalState(regime?.classification?.color || regime?.classification?.label)} />
-                </div>
-              </Card>
 
               <Card title="Financial Stress">
                 <div style={{ color: COLORS.muted, fontSize: 12, lineHeight: 1.4, marginBottom: 8 }}>
                   Checks credit, bonds, banks, and liquidity for stress that may not yet be obvious in ES.
                 </div>
-                <KV label="Credit Fragility" value={fmt(credit?.scores?.creditFragility)} />
-                <KV label="Macro Credit" value={fmt(credit?.scores?.creditStress)} />
-                <KV label="Bond Market" value={fmt(credit?.scores?.bondMarket)} />
-                <KV label="Liquidity" value={fmt(credit?.scores?.liquidity)} />
+                <KV label="Credit Fragility" value={fmt(credit?.scores?.creditFragility)} color={toneForScore(credit?.scores?.creditFragility)} />
+                <KV label="Macro Credit" value={fmt(credit?.scores?.creditStress)} color={toneForScore(credit?.scores?.creditStress)} />
+                <KV label="Bond Market" value={fmt(credit?.scores?.bondMarket)} color={toneForScore(credit?.scores?.bondMarket)} />
+                <KV label="Liquidity" value={fmt(credit?.scores?.liquidity)} color={toneForScore(credit?.scores?.liquidity)} />
                 <div style={{ marginTop: 10, color: COLORS.muted, lineHeight: 1.4 }}>{credit?.interpretation || "Credit / rates / liquidity read unavailable."}</div>
               </Card>
 
-              <Card title="Macro Pressure — Rates, Dollar, Energy">
-                <div style={{ color: COLORS.muted, fontSize: 12, lineHeight: 1.4, marginBottom: 8 }}>
-                  Combines the macro forces most likely to create pressure on the broader market.
+              <Card title="Macro Pressure — Rates, Dollar, Oil" accent={COLORS.red}>
+                <div
+                  style={{
+                    color: COLORS.muted,
+                    fontSize: 12,
+                    lineHeight: 1.4,
+                    marginBottom: 8,
+                  }}
+                >
+                  Current macro prices and whether they are moving up or down
+                  during the current session. Yellow means the source is not
+                  fresh enough for a live direction.
                 </div>
-                <KV label="Score" value={fmt(macro?.score)} />
-                <KV label="State" value={upper(macro?.state || macro?.label)} color={colorForCanonicalState(macro?.state || macro?.label)} />
-                <KV label="2Y Treasury" value={fmt(macro?.inputs?.DGS2?.value ?? macro?.inputs?.DGS2?.latestValue, 2)} />
-                <KV label="Yield Curve" value={fmt(macro?.inputs?.T10Y2Y?.value ?? macro?.inputs?.T10Y2Y?.latestValue, 2)} />
-                <KV label="Dollar" value={fmt(macro?.inputs?.UUP?.close ?? macro?.inputs?.UUP?.value, 2)} />
-                <KV label="Energy / Oil" value={fmt(macro?.inputs?.energyOil?.score ?? macro?.inputs?.WTI?.value, 2)} />
+
+                <MacroMoveRow
+                  label="U.S. 10Y Yield"
+                  value={macroRates?.tenYearYield}
+                  fresh={false}
+                  valueSuffix="%"
+                />
+                <MacroMoveRow
+                  label="U.S. 30Y Yield"
+                  value={macroRates?.thirtyYearYield}
+                  fresh={false}
+                  valueSuffix="%"
+                />
+                <MacroMoveRow
+                  label="U.S. Dollar (UUP)"
+                  value={dollar?.close ?? dollar?.value}
+                  fresh={false}
+                />
+                <MacroMoveRow
+                  label="WTI Oil"
+                  value={wti?.price}
+                  changePct={wti?.changesPct?.session}
+                  fresh={wtiFresh}
+                />
+                <MacroMoveRow
+                  label="Brent Oil"
+                  value={brent?.price}
+                  changePct={brent?.changesPct?.session}
+                  fresh={brentFresh}
+                />
+
+                <div
+                  style={{
+                    marginTop: 10,
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: 12,
+                    alignItems: "center",
+                    flexWrap: "wrap",
+                  }}
+                >
+                  <span style={{ color: COLORS.muted, fontSize: 11 }}>
+                    Green = up this session · Red = down this session · Yellow = stale
+                  </span>
+                  <StatusPill color={toneForScore(macro?.score)}>
+                    {upper(macro?.state || macro?.label || "UNAVAILABLE")}
+                  </StatusPill>
+                </div>
               </Card>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,280px),1fr))", gap: 14 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
               <Card title="Active Event Risk" accent={COLORS.orange}>
                 <div style={{ color: COLORS.muted, fontSize: 12, lineHeight: 1.4, marginBottom: 9 }}>
                   Only material events that can meaningfully affect market risk belong here.
@@ -897,19 +1435,21 @@ export default function Engine25MarketXrayPreview() {
               </Card>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,320px),1fr))", gap: 14 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "minmax(360px,.75fr) minmax(650px,1.25fr)", gap: 14 }}>
               <Card title="What Changed Since Yesterday?">
                 <div style={{ color: COLORS.muted, fontSize: 12, lineHeight: 1.4, marginBottom: 8 }}>
                   Direction matters more than a single snapshot. This shows which major forces improved or deteriorated.
                 </div>
                 {changed.length ? changed.map((row) => {
                   const v = n(row?.oneDayChange);
+                  const inverse = row?.label === "Distribution";
+                  const good = v == null ? null : inverse ? v < 0 : v > 0;
                   return (
                     <KV
                       key={row.label}
                       label={row.label}
                       value={v == null ? "—" : `${v > 0 ? "+" : ""}${v}`}
-                      color={COLORS.text}
+                      color={good == null ? COLORS.muted : good ? COLORS.green : COLORS.red}
                     />
                   );
                 }) : <div style={{ color: COLORS.muted }}>1-day comparison unavailable.</div>}
@@ -925,7 +1465,7 @@ export default function Engine25MarketXrayPreview() {
             </div>
 
             <Card title="Data Confidence & Engine25 Detail" accent={COLORS.blue}>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,240px),1fr))", gap: 10 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 10 }}>
                 <BigStat
                   label="Scanner Status"
                   value={upper(freshness?.state || "UNAVAILABLE")}
@@ -934,7 +1474,7 @@ export default function Engine25MarketXrayPreview() {
                 <BigStat
                   label="Volume Coverage"
                   value={pct(coverage, 1)}
-                  color={freshness?.intraday?.volumeCoverageValid === true ? COLORS.green : COLORS.yellow}
+                  color={coverage >= 70 ? COLORS.green : COLORS.red}
                 />
                 <BigStat
                   label="Source Time"
