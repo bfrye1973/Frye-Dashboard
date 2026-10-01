@@ -380,22 +380,30 @@ export default function RedlineAppShell({ children }) {
           border-color: rgba(239,68,68,.55) !important;
         }
 
+        .redline-shell-viewport {
+          overscroll-behavior-y: contain;
+        }
+
+        .redline-shell-viewport::-webkit-scrollbar,
         .redline-shell-main ::-webkit-scrollbar {
-          width: 9px;
+          width: 12px;
           height: 9px;
         }
 
+        .redline-shell-viewport::-webkit-scrollbar-track,
         .redline-shell-main ::-webkit-scrollbar-track {
           background: rgba(2,6,23,.45);
         }
 
+        .redline-shell-viewport::-webkit-scrollbar-thumb,
         .redline-shell-main ::-webkit-scrollbar-thumb {
-          background: rgba(100,116,139,.55);
+          background: rgba(100,116,139,.70);
           border-radius: 999px;
         }
 
+        .redline-shell-viewport::-webkit-scrollbar-thumb:hover,
         .redline-shell-main ::-webkit-scrollbar-thumb:hover {
-          background: rgba(239,68,68,.55);
+          background: rgba(239,68,68,.65);
         }
 
         @media (max-width: 980px) {
@@ -428,10 +436,15 @@ export default function RedlineAppShell({ children }) {
       `}</style>
 
       <div
+        className="redline-shell-viewport"
         style={{
           width: "100%",
-          minHeight: "100vh",
+          height: "calc(100dvh - 34px)",
+          minHeight: 0,
           boxSizing: "border-box",
+          overflowY: "auto",
+          overflowX: "hidden",
+          scrollbarGutter: "stable",
           color: COLORS.text,
           padding: "10px 14px 40px 10px",
           fontFamily: "Arial, Helvetica, sans-serif",
