@@ -25,6 +25,10 @@ const Engine25CreditStressDetail = React.lazy(() =>
   import("./pages/engine25/Engine25CreditStressDetail")
 );
 
+const Engine25MarketXrayPreview = React.lazy(() =>
+  import("./pages/engine25/Engine25MarketXrayPreview")
+);
+
 const Engine29FullDashboard = React.lazy(() =>
   import("./pages/engine29/Engine29FullDashboard")
 );
@@ -260,6 +264,11 @@ export default function App() {
             <Route
               path="/engine25-credit-stress"
               element={<Engine25CreditStressDetail />}
+            />
+
+            <Route
+              path="/engine25-market-xray-preview"
+              element={<Engine25MarketXrayPreview />}
             />
 
             <Route
