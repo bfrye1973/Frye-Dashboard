@@ -4,6 +4,7 @@
 // No animation. No Engine26. No production dashboard replacement.
 
 import React, { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 
 const API_BASE =
   (typeof window !== "undefined" && (window.__API_BASE__ || "")) ||
@@ -697,8 +698,8 @@ export default function Engine25MarketXrayPreview() {
                     : "Index conditions and underlying participation are broadly similar."}
                 </div>
 
-                <a
-                  href="/market-meter?symbol=ES&tf=10m"
+                <Link
+                  to="/market-meter?symbol=ES&tf=10m"
                   style={{
                     display: "inline-block",
                     marginTop: 10,
@@ -709,7 +710,7 @@ export default function Engine25MarketXrayPreview() {
                   }}
                 >
                   OPEN MARKET METER →
-                </a>
+                </Link>
               </Card>
             </div>
 
@@ -773,8 +774,8 @@ export default function Engine25MarketXrayPreview() {
                   <span><b style={{ color: COLORS.red }}>{weakSectors}</b> weak</span>
                 </div>
 
-                <a
-                  href="/index-sectors?symbol=ES&tf=10m"
+                <Link
+                  to="/index-sectors?symbol=ES&tf=10m"
                   style={{
                     display: "inline-block",
                     marginTop: 10,
@@ -785,7 +786,7 @@ export default function Engine25MarketXrayPreview() {
                   }}
                 >
                   OPEN ALL 11 SECTORS →
-                </a>
+                </Link>
               </Card>
             </div>
 
@@ -854,8 +855,8 @@ export default function Engine25MarketXrayPreview() {
                   <KV label="Distribution in zone" value={upper(data?.zoneClassification?.distributionRead?.state)} color={COLORS.red} />
                 </div>
 
-                <a
-                  href={linkedChartHref}
+                <Link
+                  to={linkedChartHref}
                   style={{
                     display: "inline-block",
                     marginTop: 10,
@@ -866,7 +867,7 @@ export default function Engine25MarketXrayPreview() {
                   }}
                 >
                   OPEN PRICE CONTEXT ON CHART →
-                </a>
+                </Link>
               </Card>
             </div>
 
@@ -1063,8 +1064,8 @@ export default function Engine25MarketXrayPreview() {
                   alignItems: "center",
                 }}
               >
-                <a
-                  href={linkedChartHref}
+                <Link
+                  to={linkedChartHref}
                   style={{
                     textDecoration: "none",
                     border: "1px solid rgba(56,189,248,.45)",
@@ -1077,10 +1078,10 @@ export default function Engine25MarketXrayPreview() {
                   }}
                 >
                   OPEN THIS SETUP ON CHART →
-                </a>
+                </Link>
 
-                <a
-                  href={linkedWavesHref}
+                <Link
+                  to={linkedWavesHref}
                   style={{
                     textDecoration: "none",
                     border: "1px solid rgba(251,191,36,.40)",
@@ -1093,10 +1094,10 @@ export default function Engine25MarketXrayPreview() {
                   }}
                 >
                   OPEN WAVES / TRADER INTELLIGENCE →
-                </a>
+                </Link>
 
-                <a
-                  href={linkedStrategiesHref}
+                <Link
+                  to={linkedStrategiesHref}
                   style={{
                     textDecoration: "none",
                     border: "1px solid rgba(34,197,94,.40)",
@@ -1109,7 +1110,7 @@ export default function Engine25MarketXrayPreview() {
                   }}
                 >
                   OPEN STRATEGY DETAILS →
-                </a>
+                </Link>
               </div>
 
               <div
