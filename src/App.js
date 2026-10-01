@@ -280,6 +280,11 @@ export default function App() {
 
             <Route
               path="/"
+              element={<Engine25MarketXrayPreview />}
+            />
+
+            <Route
+              path="/legacy-dashboard"
               element={
                 <ScaledDashboardShell>
                   <NewDashboard />
