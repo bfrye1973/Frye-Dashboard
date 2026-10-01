@@ -112,6 +112,7 @@ function StatusPill({ children, color = COLORS.blue }) {
         color,
         borderRadius: 999,
         padding: "5px 9px",
+        transition: "color 300ms ease, border-color 300ms ease, background-color 300ms ease",
         fontSize: 11,
         lineHeight: 1,
         fontWeight: 900,
@@ -127,12 +128,23 @@ function StatusPill({ children, color = COLORS.blue }) {
 
 function BigStat({ label, value, color = COLORS.text, note = null }) {
   return (
-    <div
+    <>
+      <style>{`
+        @media (prefers-reduced-motion: reduce) {
+          * {
+            transition-duration: 0.01ms !important;
+            animation-duration: 0.01ms !important;
+            animation-iteration-count: 1 !important;
+          }
+        }
+      `}</style>
+      <div
       style={{
         background: "linear-gradient(180deg, rgba(21,27,35,.9), rgba(10,13,18,.94))",
         border: "1px solid rgba(148,163,184,.18)",
         borderRadius: 10,
         boxShadow: "inset 0 1px 0 rgba(255,255,255,.025)",
+        transition: "border-color 350ms ease, box-shadow 350ms ease, transform 350ms ease",
         padding: "11px 12px",
         minWidth: 0,
       }}
@@ -194,6 +206,7 @@ function SplitBar({ buy, sell, buyLabel = "Buying", sellLabel = "Selling" }) {
             fontWeight: 900,
             color: "#04120a",
             minWidth: bp > 7 ? 36 : 0,
+            transition: "width 700ms cubic-bezier(.2,.8,.2,1), background-color 350ms ease",
           }}
         >
           {bp > 7 ? pct(b, 0) : ""}
@@ -208,6 +221,7 @@ function SplitBar({ buy, sell, buyLabel = "Buying", sellLabel = "Selling" }) {
             fontWeight: 900,
             color: "#180404",
             minWidth: sp > 7 ? 36 : 0,
+            transition: "width 700ms cubic-bezier(.2,.8,.2,1), background-color 350ms ease",
           }}
         >
           {sp > 7 ? pct(s, 0) : ""}
@@ -248,6 +262,7 @@ function SimpleGauge({ value, label, inverse = false }) {
             width: `${x}%`,
             background: color,
             opacity: .9,
+            transition: "width 750ms cubic-bezier(.2,.8,.2,1), background-color 350ms ease",
           }}
         />
       </div>
@@ -476,6 +491,7 @@ export default function Engine25MarketXrayPreview() {
                   gridTemplateColumns: "minmax(0,1fr) auto",
                   gap: 18,
                   alignItems: "center",
+                  transition: "opacity 300ms ease, transform 300ms ease",
                 }}
               >
                 <div>
@@ -588,6 +604,8 @@ export default function Engine25MarketXrayPreview() {
                           padding: 8,
                           background: "linear-gradient(180deg,rgba(18,23,30,.95),rgba(8,11,15,.98))",
                           boxShadow: `inset 0 -2px 0 ${color}22`,
+                          transition:
+                            "border-color 450ms ease, box-shadow 450ms ease, background 450ms ease, transform 300ms ease",
                         }}
                       >
                         <div style={{ fontSize: 11, color: COLORS.muted, minHeight: 28 }}>{c?.sector}</div>
@@ -704,5 +722,6 @@ export default function Engine25MarketXrayPreview() {
         )}
       </div>
     </div>
+    </>
   );
 }
