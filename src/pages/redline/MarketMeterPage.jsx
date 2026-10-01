@@ -41,7 +41,7 @@ export default function MarketMeterPage() {
           overflowX: "auto",
         }}
       >
-        <RowMarketOverview />
+        <RowMarketOverview prioritySummary />
       </div>
     </div>
   );
