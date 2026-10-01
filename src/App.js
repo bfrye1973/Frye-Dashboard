@@ -220,6 +220,36 @@ function ScaledDashboardShell({ children }) {
   );
 }
 
+function RedlineModuleHeader({ title, subtitle }) {
+  return (
+    <div
+      style={{
+        border: "1px solid rgba(239,68,68,.24)",
+        borderLeft: "4px solid #ef4444",
+        borderRadius: 12,
+        padding: "12px 14px",
+        background:
+          "linear-gradient(90deg, rgba(127,29,29,.16), rgba(10,13,17,.96) 32%)",
+        marginBottom: 14,
+      }}
+    >
+      <div
+        style={{
+          color: "#f8fafc",
+          fontSize: 24,
+          fontWeight: 1000,
+          letterSpacing: ".02em",
+        }}
+      >
+        {title}
+      </div>
+      <div style={{ color: "#94a3b8", fontSize: 13, marginTop: 4 }}>
+        {subtitle}
+      </div>
+    </div>
+  );
+}
+
 /* --------------------------------- App --------------------------------- */
 
 export default function App() {
@@ -337,6 +367,10 @@ export default function App() {
               path="/chart"
               element={
                 <RedlineAppShell>
+                  <RedlineModuleHeader
+                    title="CHART"
+                    subtitle="Live ES chart workspace with Engine overlays, structure, levels, and trade-planning tools."
+                  />
                   <ScaledDashboardShell>
                     <FullChart />
                   </ScaledDashboardShell>
@@ -348,6 +382,10 @@ export default function App() {
               path="/strategies-full"
               element={
                 <RedlineAppShell>
+                  <RedlineModuleHeader
+                    title="STRATEGIES"
+                    subtitle="Wave structure, tactical setup state, candidate location, confirmation, and strategy readiness."
+                  />
                   <ScaledDashboardShell>
                     <StrategiesFull />
                   </ScaledDashboardShell>
@@ -359,6 +397,10 @@ export default function App() {
               path="/journal-full"
               element={
                 <RedlineAppShell>
+                  <RedlineModuleHeader
+                    title="JOURNAL"
+                    subtitle="Trade history, contract-level outcomes, campaign tracking, and performance review."
+                  />
                   <ScaledDashboardShell>
                     <JournalFull />
                   </ScaledDashboardShell>
