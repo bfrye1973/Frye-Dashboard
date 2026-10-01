@@ -3,7 +3,7 @@
 // Correctness-first data wiring with simplified customer-facing presentation.
 // No animation. No Engine26. No production dashboard replacement.
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import RowMarketOverview from "../rows/RowMarketOverview";
 import Engine29FullDashboard from "../engine29/Engine29FullDashboard";
@@ -17,7 +17,6 @@ const API_BASE =
 const API_ROOT = API_BASE.replace(/\/+$/, "").replace(/\/api$/, "");
 const ENGINE25_ROUTE = `${API_ROOT}/api/v1/engine25/full-dashboard`;
 const MASTER_ROUTE = `${API_ROOT}/api/v1/futures/market-meter?symbol=ES`;
-const SNAPSHOT_ROUTE = `${API_ROOT}/api/v1/dashboard-snapshot?symbol=ES&includeContext=1`;
 
 const COLORS = {
   bg: "#030405",
@@ -57,19 +56,46 @@ function upper(value, fallback = "—") {
   return clean(value, fallback).toUpperCase();
 }
 
-function toneForScore(value, inverse = false) {
-  const x = n(value);
-  if (x == null) return COLORS.muted;
-  if (inverse) {
-    if (x >= 75) return COLORS.red;
-    if (x >= 55) return COLORS.orange;
-    if (x >= 35) return COLORS.yellow;
-    return COLORS.green;
-  }
-  if (x >= 70) return COLORS.green;
-  if (x >= 50) return COLORS.yellow;
-  if (x >= 35) return COLORS.orange;
-  return COLORS.red;
+function colorForCanonicalState(value, fallback = COLORS.muted) {
+  const state = String(value ?? "").trim().toUpperCase();
+  if (!state) return fallback;
+  if (state === "GREEN" || state === "OK" || state.includes("BULLISH") || state.includes("FRESH") || state === "LIVE") return COLORS.green;
+  if (state === "ORANGE" || state.includes("ELEVATED")) return COLORS.orange;
+  if (state === "RED" || state === "DARKRED" || state.includes("BEARISH") || state.includes("WEAK") || state.includes("HIGH")) return COLORS.red;
+  if (state === "YELLOW" || state.includes("WATCH") || state.includes("MIXED") || state.includes("NEUTRAL") || state.includes("STALE") || state.includes("DEGRADED")) return COLORS.yellow;
+  return fallback;
+}
+
+function dataStatusFromFreshness(freshness) {
+  const state = String(freshness?.state || "").toUpperCase();
+  if (state === "FRESH") return "LIVE";
+  if (state.includes("STALE")) return "STALE";
+  if (state.includes("MISSING")) return "MISSING";
+  return state ? "DEGRADED" : "MISSING";
+}
+
+function canonicalSectorName(value) {
+  const s = String(value || "").trim();
+  const key = s.toLowerCase();
+  const aliases = {
+    "technology": "Information Technology",
+    "tech": "Information Technology",
+    "information technology": "Information Technology",
+    "communication services": "Communication Services",
+    "communications": "Communication Services",
+    "consumer staples": "Consumer Staples",
+    "utilities": "Utilities",
+    "real estate": "Real Estate",
+    "financials": "Financials",
+    "financial": "Financials",
+    "healthcare": "Health Care",
+    "health care": "Health Care",
+    "industrials": "Industrials",
+    "energy": "Energy",
+    "materials": "Materials",
+    "consumer discretionary": "Consumer Discretionary",
+  };
+  return aliases[key] || s || "Unknown";
 }
 
 function Card({ title, children, style = {}, accent = COLORS.border }) {
@@ -229,9 +255,8 @@ function SplitBar({ buy, sell, buyLabel = "Buying", sellLabel = "Selling" }) {
   );
 }
 
-function SimpleGauge({ value, label, inverse = false }) {
+function SimpleGauge({ value, label, color = COLORS.muted }) {
   const x = Math.max(0, Math.min(100, n(value) ?? 0));
-  const color = toneForScore(x, inverse);
   return (
     <div style={{ textAlign: "center", display: "grid", gap: 7 }}>
       <div
@@ -304,11 +329,6 @@ function PlainLineChart({ rows = [] }) {
   );
 }
 
-function isFreshIso(value, maxAgeMs = 30 * 60 * 1000) {
-  const ts = Date.parse(value || "");
-  return Number.isFinite(ts) && Date.now() - ts <= maxAgeMs;
-}
-
 function signedPct(value, digits = 2) {
   const x = n(value);
   if (x == null) return "—";
@@ -377,19 +397,6 @@ function MacroMoveRow({
   );
 }
 
-function currentNewsEvent(news) {
-  const events = Array.isArray(news?.events) ? news.events : [];
-  const active = events.filter((e) => {
-    const exp = Date.parse(e?.expiresAt || "");
-    return e?.material === true && (!Number.isFinite(exp) || Date.now() < exp);
-  });
-  const rank = { EXTREME: 4, HIGH: 3, MODERATE: 2, LOW: 1 };
-  return active.sort(
-    (a, b) => (rank[String(b?.severity || "").toUpperCase()] || 0) -
-              (rank[String(a?.severity || "").toUpperCase()] || 0)
-  )[0] || events[0] || null;
-}
-
 function changeRow(rows, label) {
   return (Array.isArray(rows) ? rows : []).find((r) => r?.label === label) || null;
 }
@@ -397,7 +404,6 @@ function changeRow(rows, label) {
 export default function Engine25MarketXrayPreview() {
   const [data, setData] = useState(null);
   const [master, setMaster] = useState(null);
-  const [snapshot, setSnapshot] = useState(null);
   const [status, setStatus] = useState("LOADING");
   const [error, setError] = useState(null);
   const [sectorTimeframe, setSectorTimeframe] = useState("1H");
@@ -406,19 +412,16 @@ export default function Engine25MarketXrayPreview() {
     let alive = true;
     async function load() {
       try {
-        const [a, b, s] = await Promise.all([
+        const [a, b] = await Promise.all([
           fetch(ENGINE25_ROUTE, { cache: "no-store" }),
           fetch(MASTER_ROUTE, { cache: "no-store" }),
-          fetch(SNAPSHOT_ROUTE, { cache: "no-store" }),
         ]);
         const aj = await a.json();
         const bj = await b.json().catch(() => null);
-        const sj = await s.json().catch(() => null);
         if (!a.ok || aj?.ok === false) throw new Error(aj?.error || `HTTP ${a.status}`);
         if (!alive) return;
         setData(aj);
         setMaster(b.ok ? bj : null);
-        setSnapshot(s.ok ? sj : null);
         setStatus("READY");
         setError(null);
       } catch (e) {
