@@ -536,6 +536,51 @@ export default function Engine25MarketXrayPreview() {
 
         {data && (
           <>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(6,minmax(0,1fr))",
+                gap: 8,
+              }}
+            >
+              <BigStat
+                label="Market Health"
+                value={fmt(headline?.score)}
+                color={toneForScore(headline?.score)}
+                note={clean(headline?.label || headline?.state)}
+              />
+              <BigStat
+                label="Breadth"
+                value={sellBreadthPct == null ? "—" : `${pct(sellBreadthPct)} SELLING`}
+                color={sellBreadthPct != null && sellBreadthPct >= 55 ? COLORS.red : COLORS.yellow}
+                note="stocks advancing vs declining"
+              />
+              <BigStat
+                label="Stock Volume"
+                value={sellVolPct == null ? "—" : `${pct(sellVolPct)} SELLING`}
+                color={sellVolPct != null && sellVolPct >= 55 ? COLORS.red : COLORS.yellow}
+                note="actual directional volume"
+              />
+              <BigStat
+                label="Distribution"
+                value={pct(distributionPressurePct, 0)}
+                color={toneForScore(distributionPressurePct, true)}
+                note={clean(distribution?.label || "pressure")}
+              />
+              <BigStat
+                label="Sectors"
+                value={cards.length ? `${weakSectors} WEAK` : "—"}
+                color={weakSectors >= Math.ceil(cards.length / 2) ? COLORS.red : COLORS.yellow}
+                note={cards.length ? `${strongSectors} strong · ${mixedSectors} mixed` : "sector data unavailable"}
+              />
+              <BigStat
+                label="Data"
+                value={upper(freshness?.state || "UNAVAILABLE")}
+                color={freshness?.usableForTrapConfirmation ? COLORS.green : COLORS.yellow}
+                note={coverage == null ? "coverage unavailable" : `${pct(coverage, 1)} volume coverage`}
+              />
+            </div>
+
             <Card
               accent={sellVolPct != null && sellVolPct > buyVolPct ? COLORS.red : COLORS.green}
               style={{
