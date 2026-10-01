@@ -539,7 +539,7 @@ export default function Engine25MarketXrayPreview() {
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: "repeat(6,minmax(0,1fr))",
+                gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))",
                 gap: 8,
               }}
             >
