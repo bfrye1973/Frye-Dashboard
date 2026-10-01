@@ -17,6 +17,9 @@ import { ModeProvider, ViewModes } from "./context/ModeContext";
 const FullChart = React.lazy(() => import("./pages/FullChart"));
 const StrategiesFull = React.lazy(() => import("./pages/StrategiesFull"));
 const JournalFull = React.lazy(() => import("./pages/JournalFull"));
+const MarketMeterPage = React.lazy(() => import("./pages/redline/MarketMeterPage"));
+const IndexSectorsPage = React.lazy(() => import("./pages/redline/IndexSectorsPage"));
+const WaveDegreesPage = React.lazy(() => import("./pages/redline/WaveDegreesPage"));
 
 const Engine25FullDashboard = React.lazy(() =>
   import("./pages/engine25/Engine25FullDashboard")
@@ -288,6 +291,33 @@ export default function App() {
               element={
                 <RedlineAppShell>
                   <Engine25MarketXrayPreview />
+                </RedlineAppShell>
+              }
+            />
+
+            <Route
+              path="/market-meter"
+              element={
+                <RedlineAppShell>
+                  <MarketMeterPage />
+                </RedlineAppShell>
+              }
+            />
+
+            <Route
+              path="/index-sectors"
+              element={
+                <RedlineAppShell>
+                  <IndexSectorsPage />
+                </RedlineAppShell>
+              }
+            />
+
+            <Route
+              path="/wave-degrees"
+              element={
+                <RedlineAppShell>
+                  <WaveDegreesPage />
                 </RedlineAppShell>
               }
             />
