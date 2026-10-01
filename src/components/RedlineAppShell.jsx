@@ -157,10 +157,8 @@ export function RedlineNavRail() {
     { icon: "xray", short: "X-Ray", label: "Market X-Ray", href: "/" },
     { icon: "meter", short: "Meter", label: "Market Meter", href: "/market-meter" },
     { icon: "sector", short: "Sector", label: "Index Sector", href: "/index-sectors" },
-    { icon: "waves", short: "Waves", label: "Wave Degrees", href: "/wave-degrees" },
-    { icon: "lights", short: "Lights", label: "Engine Lights", href: "/engine-lights" },
+    { icon: "strategy", short: "Strat", label: "Strategies", href: "/strategies" },
     { icon: "chart", short: "Chart", label: "Chart", href: "/chart" },
-    { icon: "strategy", short: "Strat", label: "Strategies", href: "/strategies-full" },
     { icon: "journal", short: "Journal", label: "Journal", href: "/journal-full" },
     { icon: "controls", short: "Tools", label: "Controls / Replay / AI Listen", href: "/controls" },
   ];
