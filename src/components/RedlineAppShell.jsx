@@ -1,6 +1,6 @@
 // src/components/RedlineAppShell.jsx
 import React from "react";
-import { useLocation } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 
 const COLORS = {
   red: "#ef4444",
@@ -134,8 +134,8 @@ export function RedlineNavRail() {
         zIndex: 900,
       }}
     >
-      <a
-        href="/"
+      <Link
+        to="/"
         aria-label="Redline Trading Market X-Ray"
         title="Redline Trading"
         style={{
@@ -155,7 +155,7 @@ export function RedlineNavRail() {
         }}
       >
         R
-      </a>
+      </Link>
 
       <nav
         style={{
@@ -169,9 +169,9 @@ export function RedlineNavRail() {
           const active = isActive(item, location);
 
           return (
-            <a
+            <Link
               key={item.label}
-              href={item.href}
+              to={item.href}
               title={item.label}
               aria-label={item.label}
               style={{
@@ -218,7 +218,7 @@ export function RedlineNavRail() {
               >
                 {item.short}
               </span>
-            </a>
+            </Link>
           );
         })}
       </nav>
