@@ -16,10 +16,10 @@ const ENGINE25_ROUTE = `${API_ROOT}/api/v1/engine25/full-dashboard`;
 const MASTER_ROUTE = `${API_ROOT}/api/v1/futures/market-meter?symbol=ES`;
 
 const COLORS = {
-  bg: "#05070b",
-  panel: "#0b1018",
-  panel2: "#0e1520",
-  border: "#263241",
+  bg: "#030405",
+  panel: "#0a0d11",
+  panel2: "#10151b",
+  border: "#303842",
   text: "#f8fafc",
   muted: "#94a3b8",
   green: "#22c55e",
@@ -72,11 +72,14 @@ function Card({ title, children, style = {}, accent = COLORS.border }) {
   return (
     <section
       style={{
-        background: COLORS.panel,
+        background:
+          "linear-gradient(180deg, rgba(18,23,30,.96) 0%, rgba(7,10,14,.98) 100%)",
         border: `1px solid ${accent}`,
-        borderRadius: 12,
+        borderRadius: 14,
         padding: 14,
         minWidth: 0,
+        boxShadow:
+          "inset 0 1px 0 rgba(255,255,255,.035), 0 10px 28px rgba(0,0,0,.28)",
         ...style,
       }}
     >
@@ -126,9 +129,10 @@ function BigStat({ label, value, color = COLORS.text, note = null }) {
   return (
     <div
       style={{
-        background: COLORS.panel2,
-        border: "1px solid rgba(148,163,184,.16)",
+        background: "linear-gradient(180deg, rgba(21,27,35,.9), rgba(10,13,18,.94))",
+        border: "1px solid rgba(148,163,184,.18)",
         borderRadius: 10,
+        boxShadow: "inset 0 1px 0 rgba(255,255,255,.025)",
         padding: "11px 12px",
         minWidth: 0,
       }}
@@ -228,7 +232,8 @@ function SimpleGauge({ value, label, inverse = false }) {
           height: 64,
           margin: "0 auto",
           borderRadius: "128px 128px 0 0",
-          border: "10px solid rgba(148,163,184,.18)",
+          border: "10px solid rgba(148,163,184,.14)",
+          boxShadow: `0 0 22px ${color}33, inset 0 -8px 18px rgba(0,0,0,.7)`,
           borderBottom: 0,
           position: "relative",
           overflow: "hidden",
@@ -408,11 +413,37 @@ export default function Engine25MarketXrayPreview() {
       : headline?.interpretation || data?.deskNote || "Engine25 market-health read available.";
 
   return (
-    <div style={{ minHeight: "100vh", background: COLORS.bg, color: COLORS.text, padding: "18px 22px 40px", fontFamily: "Arial, Helvetica, sans-serif" }}>
+    <div
+      style={{
+        minHeight: "100vh",
+        color: COLORS.text,
+        padding: "18px 22px 40px",
+        fontFamily: "Arial, Helvetica, sans-serif",
+        background:
+          "radial-gradient(circle at 50% -10%, rgba(127,29,29,.20), transparent 28%), linear-gradient(180deg,#050607 0%,#020304 100%)",
+      }}
+    >
       <div style={{ maxWidth: 1900, margin: "0 auto", display: "grid", gap: 14 }}>
-        <header style={{ display: "flex", justifyContent: "space-between", gap: 18, alignItems: "center", borderBottom: "1px solid #263241", paddingBottom: 12 }}>
+        <header
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            gap: 18,
+            alignItems: "center",
+            border: "1px solid rgba(239,68,68,.24)",
+            borderLeft: "4px solid #ef4444",
+            borderRadius: 12,
+            padding: "12px 14px",
+            background: "linear-gradient(90deg, rgba(127,29,29,.16), rgba(10,13,17,.96) 32%)",
+            boxShadow: "0 10px 34px rgba(0,0,0,.34)",
+          }}
+        >
           <div>
-            <div style={{ fontWeight: 1000, fontSize: 28 }}>REDLINE TRADING — ENGINE 25 MARKET X-RAY</div>
+            <div style={{ fontWeight: 1000, fontSize: 28, letterSpacing: ".02em" }}>
+              <span style={{ color: COLORS.red }}>REDLINE</span> TRADING
+              <span style={{ color: "#475569", padding: "0 9px" }}>//</span>
+              ENGINE 25 — MARKET X-RAY
+            </div>
             <div style={{ color: COLORS.muted, marginTop: 4 }}>
               See what is happening underneath the market — participation, pressure, stress, and risk in one view.
             </div>
@@ -549,7 +580,16 @@ export default function Engine25MarketXrayPreview() {
                     const strong = b >= 55 && m >= 55;
                     const color = weak ? COLORS.red : strong ? COLORS.green : COLORS.yellow;
                     return (
-                      <div key={c?.sector} style={{ border: `1px solid ${color}`, borderRadius: 8, padding: 8, background: COLORS.panel2 }}>
+                      <div
+                        key={c?.sector}
+                        style={{
+                          border: `1px solid ${color}99`,
+                          borderRadius: 9,
+                          padding: 8,
+                          background: "linear-gradient(180deg,rgba(18,23,30,.95),rgba(8,11,15,.98))",
+                          boxShadow: `inset 0 -2px 0 ${color}22`,
+                        }}
+                      >
                         <div style={{ fontSize: 11, color: COLORS.muted, minHeight: 28 }}>{c?.sector}</div>
                         <div style={{ color, fontWeight: 950 }}>{fmt(b, 0)}</div>
                       </div>
@@ -634,7 +674,7 @@ export default function Engine25MarketXrayPreview() {
                 <div style={{ marginTop: 12, color: COLORS.muted, lineHeight: 1.4 }}>{data?.underTheHood?.interpretation || "No comparison interpretation available."}</div>
               </Card>
 
-              <Card title="Market Health Trend — 6 Months">
+              <Card title="Market Health Trend — 6 Months" accent={COLORS.orange}>
                 <PlainLineChart rows={overlayRows} />
               </Card>
             </div>
