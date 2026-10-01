@@ -524,12 +524,12 @@ export default function RowMarketOverview({ prioritySummary = false, topMetersOn
               alignItems: "flex-start",
             }}
           >
-            <Stoplight label="10m" value={num(es10.score)} tone={es10.tone || "info"} size={42} minWidth={66} />
-            <Stoplight label="30m" value={num(es30.score)} tone={es30.tone || "info"} size={42} minWidth={66} />
-            <Stoplight label="1h" value={num(es1h.score)} tone={es1h.tone || "info"} size={42} minWidth={66} />
-            <Stoplight label="4h" value={num(es4h.score)} tone={es4h.tone || "info"} size={42} minWidth={66} />
-            <Stoplight label="EOD" value={num(esEod.score)} tone={esEod.tone || "info"} size={42} minWidth={66} />
-            <Stoplight label="MASTER" value={num(esMaster.score)} tone={esMaster.tone || "info"} size={42} minWidth={74} />
+            <Stoplight label="10m" value={num(es10.score)} tone={es10.tone || "info"} size={64} minWidth={88} />
+            <Stoplight label="30m" value={num(es30.score)} tone={es30.tone || "info"} size={64} minWidth={88} />
+            <Stoplight label="1h" value={num(es1h.score)} tone={es1h.tone || "info"} size={64} minWidth={88} />
+            <Stoplight label="4h" value={num(es4h.score)} tone={es4h.tone || "info"} size={64} minWidth={88} />
+            <Stoplight label="EOD" value={num(esEod.score)} tone={esEod.tone || "info"} size={64} minWidth={88} />
+            <Stoplight label="MASTER" value={num(esMaster.score)} tone={esMaster.tone || "info"} size={64} minWidth={96} />
           </div>
         </div>
 
@@ -562,12 +562,12 @@ export default function RowMarketOverview({ prioritySummary = false, topMetersOn
               alignItems: "flex-start",
             }}
           >
-            <Stoplight label="10m" value={overall10} tone={toneForOverallState(state10, overall10)} size={42} minWidth={66} />
-            <Stoplight label="30m" value={overall30} tone={toneForOverallState(state30, overall30)} size={42} minWidth={66} />
-            <Stoplight label="1h" value={overall1} tone={toneForOverallState(state1, overall1)} size={42} minWidth={66} />
-            <Stoplight label="4h" value={overall4} tone={toneForOverallState(state4, overall4)} size={42} minWidth={66} />
-            <Stoplight label="EOD" value={eodScore} tone={toneForOverallState(eodState, eodScore)} size={42} minWidth={66} />
-            <Stoplight label="MASTER" value={masterScore} tone={toneForMaster(masterScore)} size={42} minWidth={74} />
+            <Stoplight label="10m" value={overall10} tone={toneForOverallState(state10, overall10)} size={64} minWidth={88} />
+            <Stoplight label="30m" value={overall30} tone={toneForOverallState(state30, overall30)} size={64} minWidth={88} />
+            <Stoplight label="1h" value={overall1} tone={toneForOverallState(state1, overall1)} size={64} minWidth={88} />
+            <Stoplight label="4h" value={overall4} tone={toneForOverallState(state4, overall4)} size={64} minWidth={88} />
+            <Stoplight label="EOD" value={eodScore} tone={toneForOverallState(eodState, eodScore)} size={64} minWidth={88} />
+            <Stoplight label="MASTER" value={masterScore} tone={toneForMaster(masterScore)} size={64} minWidth={96} />
           </div>
         </div>
       </div>
