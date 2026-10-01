@@ -266,6 +266,15 @@ export function RedlineNavRail() {
 }
 
 export default function RedlineAppShell({ children }) {
+  const location = useLocation();
+  const qs = new URLSearchParams(location.search || "");
+
+  const linkedCandidateId = qs.get("candidateId") || "";
+  const linkedSymbol = (qs.get("symbol") || "").toUpperCase();
+  const linkedTf = qs.get("tf") || "";
+  const linkedStrategyId = qs.get("strategyId") || "";
+  const linkedSetupClass = qs.get("setupClass") || "";
+
   return (
     <>
       <style>{`
@@ -375,6 +384,66 @@ export default function RedlineAppShell({ children }) {
           <RedlineNavRail />
 
           <div className="redline-shell-main">
+            {linkedCandidateId ? (
+              <div
+                style={{
+                  marginBottom: 10,
+                  border: "1px solid rgba(251,191,36,.32)",
+                  background:
+                    "linear-gradient(90deg, rgba(120,53,15,.18), rgba(10,13,17,.94) 42%)",
+                  borderRadius: 10,
+                  padding: "7px 10px",
+                  display: "flex",
+                  gap: 10,
+                  alignItems: "center",
+                  flexWrap: "wrap",
+                  fontSize: 11,
+                }}
+              >
+                <strong
+                  style={{
+                    color: "#fde68a",
+                    letterSpacing: ".05em",
+                  }}
+                >
+                  LINKED SETUP
+                </strong>
+
+                <span style={{ color: "#f8fafc", fontWeight: 1000 }}>
+                  {linkedCandidateId}
+                </span>
+
+                {linkedSymbol ? (
+                  <span style={{ color: "#94a3b8" }}>
+                    {linkedSymbol}
+                  </span>
+                ) : null}
+
+                {linkedTf ? (
+                  <span style={{ color: "#94a3b8" }}>
+                    {linkedTf}
+                  </span>
+                ) : null}
+
+                {linkedStrategyId ? (
+                  <span style={{ color: "#94a3b8" }}>
+                    {linkedStrategyId}
+                  </span>
+                ) : null}
+
+                {linkedSetupClass ? (
+                  <span
+                    style={{
+                      color: "#64748b",
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    {linkedSetupClass.replaceAll("_", " ")}
+                  </span>
+                ) : null}
+              </div>
+            ) : null}
+
             <div
               style={{
                 animation: "none",
