@@ -238,7 +238,7 @@ function useSandboxDeltas() {
 }
 
 /* ===================== Main Component ===================== */
-export default function RowMarketOverview({ prioritySummary = false }) {
+export default function RowMarketOverview({ prioritySummary = false, topMetersOnly = false }) {
   const replay = useReplay();
   const { data: polled } = useDashboardPoll("dynamic");
 
@@ -484,6 +484,95 @@ export default function RowMarketOverview({ prioritySummary = false }) {
     overflowX: "auto",
     paddingBottom: 2,
   };
+
+  if (topMetersOnly) {
+    return (
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(2,minmax(0,1fr))",
+          gap: 12,
+          marginBottom: 14,
+        }}
+      >
+        <div
+          style={{
+            border: "1px solid rgba(239,68,68,.28)",
+            borderRadius: 12,
+            background:
+              "linear-gradient(180deg, rgba(18,23,30,.96), rgba(7,10,14,.98))",
+            padding: 12,
+          }}
+        >
+          <div
+            style={{
+              color: "#f8fafc",
+              fontSize: 13,
+              fontWeight: 1000,
+              marginBottom: 10,
+              letterSpacing: ".04em",
+            }}
+          >
+            ES FUTURES METER
+          </div>
+
+          <div
+            style={{
+              display: "flex",
+              gap: 8,
+              flexWrap: "wrap",
+              alignItems: "flex-start",
+            }}
+          >
+            <Stoplight label="10m" value={num(es10.score)} tone={es10.tone || "info"} size={42} minWidth={66} />
+            <Stoplight label="30m" value={num(es30.score)} tone={es30.tone || "info"} size={42} minWidth={66} />
+            <Stoplight label="1h" value={num(es1h.score)} tone={es1h.tone || "info"} size={42} minWidth={66} />
+            <Stoplight label="4h" value={num(es4h.score)} tone={es4h.tone || "info"} size={42} minWidth={66} />
+            <Stoplight label="EOD" value={num(esEod.score)} tone={esEod.tone || "info"} size={42} minWidth={66} />
+            <Stoplight label="MASTER" value={num(esMaster.score)} tone={esMaster.tone || "info"} size={42} minWidth={74} />
+          </div>
+        </div>
+
+        <div
+          style={{
+            border: "1px solid rgba(56,189,248,.25)",
+            borderRadius: 12,
+            background:
+              "linear-gradient(180deg, rgba(18,23,30,.96), rgba(7,10,14,.98))",
+            padding: 12,
+          }}
+        >
+          <div
+            style={{
+              color: "#f8fafc",
+              fontSize: 13,
+              fontWeight: 1000,
+              marginBottom: 10,
+              letterSpacing: ".04em",
+            }}
+          >
+            SPY MARKET METER
+          </div>
+
+          <div
+            style={{
+              display: "flex",
+              gap: 8,
+              flexWrap: "wrap",
+              alignItems: "flex-start",
+            }}
+          >
+            <Stoplight label="10m" value={overall10} tone={toneForOverallState(state10, overall10)} size={42} minWidth={66} />
+            <Stoplight label="30m" value={overall30} tone={toneForOverallState(state30, overall30)} size={42} minWidth={66} />
+            <Stoplight label="1h" value={overall1} tone={toneForOverallState(state1, overall1)} size={42} minWidth={66} />
+            <Stoplight label="4h" value={overall4} tone={toneForOverallState(state4, overall4)} size={42} minWidth={66} />
+            <Stoplight label="EOD" value={eodScore} tone={toneForOverallState(eodState, eodScore)} size={42} minWidth={66} />
+            <Stoplight label="MASTER" value={masterScore} tone={toneForMaster(masterScore)} size={42} minWidth={74} />
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <section id="row-2" className="panel" style={{ padding: 10 }}>
