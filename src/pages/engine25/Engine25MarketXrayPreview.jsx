@@ -483,6 +483,18 @@ export default function Engine25MarketXrayPreview() {
     engine26Candidate?.id ||
     null;
 
+  const engine26GeometryCandidateId =
+    engine26Geometry?.candidateId ||
+    engine26Geometry?.identity?.candidateId ||
+    null;
+
+  const engine26IdentityState =
+    engine26CandidateId && engine26GeometryCandidateId
+      ? engine26CandidateId === engine26GeometryCandidateId
+        ? "MATCH"
+        : "MISMATCH"
+      : "UNVERIFIED";
+
   const engine26SetupClass =
     engine26Candidate?.setupClass ||
     "NEGOTIATED_ZONE_ROTATION";
@@ -1015,6 +1027,17 @@ export default function Engine25MarketXrayPreview() {
                     Proposed Geometry
                   </div>
                   <KV label="Planner" value={upper(engine26Geometry?.lifecycleStatus || (engine26PlannerReady ? "READY" : "WAITING"))} color={engine26PlannerReady ? COLORS.green : COLORS.yellow} />
+                  <KV
+                    label="Identity Link"
+                    value={engine26IdentityState}
+                    color={
+                      engine26IdentityState === "MATCH"
+                        ? COLORS.green
+                        : engine26IdentityState === "MISMATCH"
+                        ? COLORS.red
+                        : COLORS.yellow
+                    }
+                  />
                   <KV label="Proposed Entry" value={fmt(engine26Geometry?.proposedEntryPrice, 2)} />
                   <KV label="Proposed Stop" value={fmt(engine26Geometry?.proposedStopPrice, 2)} color={COLORS.red} />
                   <KV label="Risk Distance" value={n(engine26Geometry?.proposedStopDistancePoints) == null ? "—" : `${fmt(engine26Geometry?.proposedStopDistancePoints, 2)} pts`} />
