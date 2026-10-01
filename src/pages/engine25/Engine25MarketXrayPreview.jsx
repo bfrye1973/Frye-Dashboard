@@ -327,6 +327,7 @@ export default function Engine25MarketXrayPreview() {
   const [snapshot, setSnapshot] = useState(null);
   const [status, setStatus] = useState("LOADING");
   const [error, setError] = useState(null);
+  const [sectorTimeframe, setSectorTimeframe] = useState("1H");
 
   useEffect(() => {
     let alive = true;
@@ -373,7 +374,18 @@ export default function Engine25MarketXrayPreview() {
   const sectorBreadth = data?.sectorBreadth || {};
   const tactical = sectorBreadth?.tactical1h || {};
   const regime = sectorBreadth?.regime4h || {};
-  const cards = Array.isArray(tactical?.cards) ? tactical.cards : [];
+  const eodSectorParticipation =
+    participation?.sectorParticipation?.eod || {};
+
+  const sectorCardsByTimeframe = {
+    "1H": Array.isArray(tactical?.cards) ? tactical.cards : [],
+    "4H": Array.isArray(regime?.cards) ? regime.cards : [],
+    EOD: Array.isArray(eodSectorParticipation?.cards)
+      ? eodSectorParticipation.cards
+      : [],
+  };
+
+  const cards = sectorCardsByTimeframe[sectorTimeframe] || [];
   const tacticalSummary = tactical?.summary || {};
   const credit = data?.creditStressDetail || {};
   const macro = data?.macroPressure || {};
@@ -754,40 +766,127 @@ export default function Engine25MarketXrayPreview() {
               </Card>
 
               <Card title="11-Sector Participation — Is Weakness Broad?">
-                <div style={{ color: COLORS.muted, fontSize: 12, lineHeight: 1.4, marginBottom: 9 }}>
-                  One weak sector can be noise. Many weak sectors at once means the move is broad.
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: 12,
+                    alignItems: "center",
+                    flexWrap: "wrap",
+                    marginBottom: 10,
+                  }}
+                >
+                  <div style={{ color: COLORS.muted, fontSize: 12, lineHeight: 1.4 }}>
+                    See which parts of the market are strong, neutral, or weak.
+                  </div>
+
+                  <div
+                    style={{
+                      display: "inline-flex",
+                      gap: 4,
+                      padding: 3,
+                      border: "1px solid rgba(148,163,184,.20)",
+                      borderRadius: 9,
+                      background: "rgba(2,6,23,.48)",
+                    }}
+                  >
+                    {["1H", "4H", "EOD"].map((tf) => {
+                      const active = sectorTimeframe === tf;
+                      return (
+                        <button
+                          key={tf}
+                          type="button"
+                          onClick={() => setSectorTimeframe(tf)}
+                          style={{
+                            border: active
+                              ? "1px solid rgba(248,250,252,.30)"
+                              : "1px solid transparent",
+                            borderRadius: 7,
+                            padding: "6px 11px",
+                            background: active
+                              ? "rgba(248,250,252,.10)"
+                              : "transparent",
+                            color: active ? COLORS.text : COLORS.muted,
+                            fontSize: 11,
+                            fontWeight: 950,
+                            cursor: "pointer",
+                          }}
+                        >
+                          {tf}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(4,minmax(0,1fr))", gap: 7 }}>
-                  {cards.map((c) => {
-                    const b = n(c?.breadth_pct);
-                    const m = n(c?.momentum_pct);
-                    const weak = b <= 45 && m <= 45;
-                    const strong = b >= 55 && m >= 55;
-                    const color = weak ? COLORS.red : strong ? COLORS.green : COLORS.yellow;
-                    return (
-                      <div
-                        key={c?.sector}
-                        style={{
-                          border: `1px solid ${color}99`,
-                          borderRadius: 9,
-                          padding: 8,
-                          background: "linear-gradient(180deg,rgba(18,23,30,.95),rgba(8,11,15,.98))",
-                          boxShadow: `inset 0 -2px 0 ${color}22`,
-                          transition:
-                            "border-color 450ms ease, box-shadow 450ms ease, background 450ms ease, transform 300ms ease",
-                        }}
-                      >
-                        <div style={{ fontSize: 11, color: COLORS.muted, minHeight: 28 }}>{c?.sector}</div>
-                        <div style={{ color, fontWeight: 950 }}>{fmt(b, 0)}</div>
-                      </div>
-                    );
-                  })}
+
+                <div
+                  style={{
+                    color: COLORS.blue,
+                    fontSize: 11,
+                    fontWeight: 900,
+                    marginBottom: 9,
+                  }}
+                >
+                  {sectorTimeframe === "1H"
+                    ? "CURRENT 1-HOUR PARTICIPATION"
+                    : sectorTimeframe === "4H"
+                    ? "BROADER 4-HOUR PARTICIPATION"
+                    : "END-OF-DAY PARTICIPATION"}
                 </div>
-                <div style={{ marginTop: 10, display: "flex", gap: 14, color: COLORS.muted, fontSize: 12 }}>
-                  <span><b style={{ color: COLORS.green }}>{strongSectors}</b> strong</span>
-                  <span><b style={{ color: COLORS.yellow }}>{mixedSectors}</b> mixed</span>
-                  <span><b style={{ color: COLORS.red }}>{weakSectors}</b> weak</span>
-                </div>
+
+                {cards.length ? (
+                  <>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(4,minmax(0,1fr))", gap: 7 }}>
+                      {cards.map((c) => {
+                        const b = n(c?.breadth_pct);
+                        const m = n(c?.momentum_pct);
+                        const weak = b != null && m != null && b <= 45 && m <= 45;
+                        const strong = b != null && m != null && b >= 55 && m >= 55;
+                        const color = weak ? COLORS.red : strong ? COLORS.green : COLORS.yellow;
+                        return (
+                          <div
+                            key={c?.sector}
+                            style={{
+                              border: `1px solid ${color}99`,
+                              borderRadius: 9,
+                              padding: 8,
+                              background: "linear-gradient(180deg,rgba(18,23,30,.95),rgba(8,11,15,.98))",
+                              boxShadow: `inset 0 -2px 0 ${color}22`,
+                              transition:
+                                "border-color 250ms ease, box-shadow 250ms ease, background 250ms ease",
+                            }}
+                          >
+                            <div style={{ fontSize: 11, color: COLORS.muted, minHeight: 28 }}>
+                              {c?.sector}
+                            </div>
+                            <div style={{ color, fontWeight: 950 }}>
+                              {b == null ? "—" : fmt(b, 0)}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    <div style={{ marginTop: 10, display: "flex", gap: 14, color: COLORS.muted, fontSize: 12 }}>
+                      <span><b style={{ color: COLORS.green }}>{strongSectors}</b> strong</span>
+                      <span><b style={{ color: COLORS.yellow }}>{mixedSectors}</b> neutral</span>
+                      <span><b style={{ color: COLORS.red }}>{weakSectors}</b> weak</span>
+                    </div>
+                  </>
+                ) : (
+                  <div
+                    style={{
+                      border: "1px solid rgba(251,191,36,.22)",
+                      borderRadius: 9,
+                      padding: 12,
+                      color: COLORS.yellow,
+                      fontSize: 12,
+                      fontWeight: 850,
+                    }}
+                  >
+                    {sectorTimeframe} sector participation unavailable.
+                  </div>
+                )}
 
                 <Link
                   to="/index-sectors?symbol=ES&tf=10m"
@@ -805,17 +904,7 @@ export default function Engine25MarketXrayPreview() {
               </Card>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 14 }}>
-              <Card title="1H vs 4H Participation">
-                <div style={{ color: COLORS.muted, fontSize: 12, lineHeight: 1.4, marginBottom: 8 }}>
-                  1H shows what is happening now. 4H shows whether the broader participation trend agrees.
-                </div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
-                  <SimpleGauge value={tactical?.classification?.score} label={upper(tactical?.classification?.label || "1H")} />
-                  <SimpleGauge value={regime?.classification?.score} label={upper(regime?.classification?.label || "4H")} />
-                </div>
-              </Card>
-
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: 14 }}>
               <Card title="Financial Stress">
                 <div style={{ color: COLORS.muted, fontSize: 12, lineHeight: 1.4, marginBottom: 8 }}>
                   Checks credit, bonds, banks, and liquidity for stress that may not yet be obvious in ES.
