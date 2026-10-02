@@ -109,20 +109,25 @@ function plainTactical(value) {
   if (text === "POSSIBLE_DOWNSIDE_SQUEEZE") return "POSSIBLE ES DOWNSIDE SQUEEZE";
   if (text === "LIQUIDITY_SWEEP_HIGH") return "ES LIQUIDITY SWEEP HIGH";
   if (text === "LIQUIDITY_SWEEP_LOW") return "ES LIQUIDITY SWEEP LOW";
-  if (text === "BROAD_MOVE_UP") return "BROAD MOVE UP";
-  if (text === "BROAD_MOVE_DOWN") return "BROAD MOVE DOWN";
+  if (text === "BROAD_MOVE_UP") return "UPSIDE PARTICIPATION BROADENING";
+  if (text === "BROAD_MOVE_DOWN") return "DOWNSIDE PARTICIPATION BROADENING";
   return clean(value);
 }
 
-function plainMoveCharacter(value) {
+function plainMoveCharacter(value, direction = null) {
   const raw = rawMoveCharacter(value);
   const text = String(raw || "").toUpperCase();
+  const dir = String(direction || "").toUpperCase();
   if (!text || text === "NO_ACTIVE_MOVE") return "NO ACTIVE MOVE";
   if (text === "POSSIBLE_UPSIDE_SQUEEZE") return "POSSIBLE UPSIDE SQUEEZE";
   if (text === "POSSIBLE_DOWNSIDE_SQUEEZE") return "POSSIBLE DOWNSIDE SQUEEZE";
   if (text === "FAILED_BREAKOUT") return "FAILED BREAKOUT";
   if (text === "FAILED_BREAKDOWN") return "FAILED BREAKDOWN";
-  if (text === "BROAD_MOVE_CONFIRMED") return "BROAD MOVE CONFIRMED";
+  if (text === "BROAD_MOVE_CONFIRMED") {
+    if (dir === "UP") return "BROAD RALLY CONFIRMED";
+    if (dir === "DOWN") return "BROAD SELLOFF CONFIRMED";
+    return "BROAD MOVE CONFIRMED";
+  }
   if (text === "MIXED") return "MIXED / NO CLEAR MOVE";
   return clean(raw);
 }
@@ -474,7 +479,7 @@ function MoveCharacterCard({ move, data }) {
   return (
     <Card style={{ borderColor: `${color}66` }}>
       <SectionTitle color={color}>〽 Move / Squeeze</SectionTitle>
-      <div style={{ color, fontSize: 25, fontWeight: 950 }}>{plainMoveCharacter(moveCharacter)}</div>
+      <div style={{ color, fontSize: 25, fontWeight: 950 }}>{plainMoveCharacter(moveCharacter, move?.direction)}</div>
       <div style={{ marginTop: 10, display: "grid", gap: 6 }}>
         <LabelValue label="Direction" value={clean(move?.direction)} />
         <LabelValue label="30m authority" value={plainTactical(data?.fastTacticalState)} />
@@ -678,7 +683,7 @@ function KeyTakeawaysCard({ data, display }) {
         <div><strong>Overall:</strong> {plainOverall(display?.overall || data?.overallState)}</div>
         <div>{display?.overallSummary || "—"}</div>
         <div><strong>Liquidity:</strong> {clean(liquidity?.state || "NO_LIQUIDITY_EVENT")}</div>
-        <div><strong>Move:</strong> {plainMoveCharacter(move?.moveCharacter || data?.moveCharacter?.moveCharacter)}</div>
+        <div><strong>Move:</strong> {plainMoveCharacter(move?.moveCharacter || data?.moveCharacter?.moveCharacter, move?.direction || data?.moveDirection || data?.moveCharacter?.direction)}</div>
         <div><strong>Trap:</strong> {clean(trap?.side || "NONE")} / {clean(trap?.state || "NO_ACTIVE_TRAP")}</div>
         <div><strong>ES backdrop:</strong> <span style={{ color: stateColor(data?.esNqBackdrop) }}>{plainBackdrop(data?.esNqBackdrop)}</span></div>
       </div>
@@ -808,7 +813,7 @@ function EsMoveCard({ data }) {
   return (
     <Card style={{ borderColor: `${stateColor(moveCharacter)}66` }}>
       <SectionTitle color={stateColor(moveCharacter)}>ES Move Character</SectionTitle>
-      <div style={{ fontSize: 24, fontWeight: 900, color: stateColor(moveCharacter) }}>{plainMoveCharacter(moveCharacter || thirty?.status)}</div>
+      <div style={{ fontSize: 24, fontWeight: 900, color: stateColor(moveCharacter) }}>{plainMoveCharacter(moveCharacter || thirty?.status, moveDirection)}</div>
       <div style={{ marginTop: 9, display: "grid", gap: 6 }}>
         <LabelValue label="Direction" value={clean(moveDirection)} />
         <LabelValue label="Pressure" value={clean(pressure)} />
@@ -908,6 +913,7 @@ export default function Engine29FullDashboard({ homeCompact = false }) {
       oneHour: display?.oneHour?.state || d?.tacticalState,
       thirty: display?.thirtyMinute?.state || d?.fastTacticalState,
       move: marketCharacter?.move?.moveCharacter || rawMoveCharacter(d?.moveCharacter) || rawMoveCharacter(display?.thirtyMinute?.moveCharacter) || display?.thirtyMinute?.status,
+      moveDirection: marketCharacter?.move?.direction || d?.moveDirection || d?.moveCharacter?.direction || null,
     }),
     [display, d, marketCharacter]
   );
@@ -1008,7 +1014,7 @@ export default function Engine29FullDashboard({ homeCompact = false }) {
               />
               <StateCard
                 label="ES Move"
-                value={plainMoveCharacter(top.move)}
+                value={plainMoveCharacter(top.move, top.moveDirection)}
                 subtitle={display?.thirtyMinute?.summary}
               />
             </div>
@@ -1088,7 +1094,7 @@ export default function Engine29FullDashboard({ homeCompact = false }) {
               <StateCard label="1W Bigger Picture" value={plainOverall(top.oneWeek)} subtitle={display?.oneWeek?.summary} />
               <StateCard label="1H Current Pressure" value={plainTactical(top.oneHour)} subtitle={display?.oneHour?.summary} />
               <StateCard label="30m Fast Shift" value={plainTactical(top.thirty)} subtitle={display?.thirtyMinute?.summary} />
-              <StateCard label="ES Move" value={plainMoveCharacter(top.move)} subtitle={display?.thirtyMinute?.summary} />
+              <StateCard label="ES Move" value={plainMoveCharacter(top.move, top.moveDirection)} subtitle={display?.thirtyMinute?.summary} />
             </div>
 
             <LiveMonitorCard data={d} display={display} />
