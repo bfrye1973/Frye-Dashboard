@@ -1104,7 +1104,7 @@ export default function Engine25MarketXrayPreview() {
                   <div
                     style={{
                       display: "grid",
-                      gridTemplateColumns: "repeat(4,minmax(0,1fr))",
+                      gridTemplateColumns: "repeat(auto-fit,minmax(120px,1fr))",
                       gap: 8,
                       marginTop: 12,
                     }}
