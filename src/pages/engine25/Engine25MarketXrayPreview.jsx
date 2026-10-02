@@ -609,7 +609,8 @@ function changeSentence(row) {
 
 export default function Engine25MarketXrayPreview() {
   const [data, setData] = useState(null);
-  const [master, setMaster] = useState(null);\n  const [hourlyData, setHourlyData] = useState(null);
+  const [master, setMaster] = useState(null);
+  const [hourlyData, setHourlyData] = useState(null);
   const [status, setStatus] = useState("LOADING");
   const [error, setError] = useState(null);
   const [sectorTimeframe, setSectorTimeframe] = useState("1H");
