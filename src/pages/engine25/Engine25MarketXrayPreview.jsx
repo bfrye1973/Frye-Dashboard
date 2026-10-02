@@ -659,6 +659,23 @@ export default function Engine25MarketXrayPreview() {
     data?.zoneRead?.plainEnglish ||
     "Price / zone context unavailable.";
 
+  const narrator = data?.plainEnglishNarrator || null;
+  const narratorEvidence = data?.narratorEvidence || narrator?.narratorEvidence || null;
+  const narratorSentences = Array.isArray(narrator?.sentences)
+    ? narrator.sentences.filter(Boolean).slice(0, 5)
+    : [];
+  const narratorConfidence = upper(
+    narratorEvidence?.confidence || "UNAVAILABLE"
+  );
+  const narratorConfidenceColor =
+    narratorConfidence === "HIGH"
+      ? COLORS.green
+      : narratorConfidence === "MODERATE"
+      ? COLORS.yellow
+      : narratorConfidence === "LOW"
+      ? COLORS.orange
+      : COLORS.muted;
+
   const marketRead =
     headline?.interpretation ||
     data?.deskNote ||
@@ -1119,7 +1136,7 @@ export default function Engine25MarketXrayPreview() {
                   display: "grid",
                   gridTemplateColumns: "minmax(0,1fr) auto",
                   gap: 18,
-                  alignItems: "center",
+                  alignItems: "start",
                 }}
               >
                 <div>
@@ -1134,20 +1151,61 @@ export default function Engine25MarketXrayPreview() {
                   >
                     What the market is saying
                   </div>
-                  <div
-                    style={{
-                      fontSize: 19,
-                      lineHeight: 1.35,
-                      fontWeight: 950,
-                      marginTop: 4,
-                    }}
-                  >
-                    {marketRead}
-                  </div>
+
+                  {narratorSentences.length ? (
+                    <div
+                      style={{
+                        display: "grid",
+                        gap: 5,
+                        marginTop: 7,
+                        maxWidth: 1180,
+                      }}
+                    >
+                      {narratorSentences.map((sentence, index) => (
+                        <div
+                          key={`narrator-${index}`}
+                          style={{
+                            color: index === 4 ? COLORS.muted : COLORS.text,
+                            fontSize: index === 4 ? 14 : 16,
+                            lineHeight: 1.35,
+                            fontWeight: index === 0 ? 900 : 750,
+                          }}
+                        >
+                          {sentence}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div
+                      style={{
+                        fontSize: 19,
+                        lineHeight: 1.35,
+                        fontWeight: 950,
+                        marginTop: 4,
+                      }}
+                    >
+                      {marketRead}
+                    </div>
+                  )}
                 </div>
-                <StatusPill color={headlineColor}>
-                  {upper(headline?.label || headline?.state)}
-                </StatusPill>
+
+                <div
+                  style={{
+                    display: "grid",
+                    gap: 7,
+                    justifyItems: "end",
+                    minWidth: 150,
+                  }}
+                >
+                  <StatusPill color={headlineColor}>
+                    {upper(headline?.label || headline?.state)}
+                  </StatusPill>
+                  {narratorSentences.length ? (
+                    <StatusPill color={narratorConfidenceColor}>
+                      NARRATOR {narratorConfidence}
+                    </StatusPill>
+                  ) : null}
+                </div>
               </div>
             </Card>
 
