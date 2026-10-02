@@ -413,6 +413,87 @@ function MacroMoveRow({
   );
 }
 
+function macroPressureColor(change, available = true) {
+  const value = n(change);
+  if (!available || value == null) return COLORS.yellow;
+  if (value > 0) return COLORS.red;
+  if (value < 0) return COLORS.green;
+  return COLORS.muted;
+}
+
+function MacroTrendCell({ value, unit = "pct", available = true }) {
+  const x = n(value);
+  const color = macroPressureColor(x, available);
+
+  let label = "—";
+  if (available && x != null) {
+    if (unit === "bps") {
+      label = `${x > 0 ? "+" : ""}${x.toFixed(1)} bp`;
+    } else {
+      label = signedPct(x, 2);
+    }
+  }
+
+  return (
+    <div
+      style={{
+        color,
+        fontSize: 10,
+        fontWeight: 950,
+        textAlign: "center",
+        whiteSpace: "nowrap",
+      }}
+    >
+      {label}
+    </div>
+  );
+}
+
+function MacroTrendRow({
+  label,
+  current,
+  currentSuffix = "",
+  changes = {},
+  unit = "pct",
+  currentFresh = true,
+}) {
+  const currentColor = currentFresh ? COLORS.text : COLORS.yellow;
+
+  return (
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns:
+          "minmax(112px,1.45fr) minmax(62px,.8fr) repeat(5,minmax(50px,.7fr))",
+        gap: 6,
+        alignItems: "center",
+        padding: "9px 0",
+        borderBottom: "1px solid rgba(148,163,184,.10)",
+      }}
+    >
+      <div style={{ color: COLORS.text, fontSize: 11, fontWeight: 900 }}>
+        {label}
+      </div>
+      <div
+        style={{
+          color: currentColor,
+          fontSize: 12,
+          fontWeight: 1000,
+          textAlign: "center",
+          whiteSpace: "nowrap",
+        }}
+      >
+        {n(current) == null ? "—" : `${fmt(current, 2)}${currentSuffix}`}
+      </div>
+      <MacroTrendCell value={changes?.["2h"]} unit={unit} available={unit !== "bps"} />
+      <MacroTrendCell value={changes?.session} unit={unit} available={unit !== "bps"} />
+      <MacroTrendCell value={changes?.["1d"]} unit={unit} />
+      <MacroTrendCell value={changes?.["2d"]} unit={unit} />
+      <MacroTrendCell value={changes?.["5d"]} unit={unit} />
+    </div>
+  );
+}
+
 function changeRow(rows, label) {
   return (Array.isArray(rows) ? rows : []).find((r) => r?.label === label) || null;
 }
@@ -588,6 +669,7 @@ export default function Engine25MarketXrayPreview() {
     n(volume?.combinedVolumePressure);
 
   const intradayMacro = data?.intradayMacro || {};
+  const macroTrends = intradayMacro?.trendComparisons || {};
   const macroRates =
     intradayMacro?.components?.rates?.slowContext || {};
   const macroOil =
@@ -1548,44 +1630,71 @@ export default function Engine25MarketXrayPreview() {
                 <div
                   style={{
                     color: COLORS.muted,
-                    fontSize: 12,
+                    fontSize: 11,
                     lineHeight: 1.4,
-                    marginBottom: 8,
+                    marginBottom: 9,
                   }}
                 >
-                  Current macro prices and whether they are moving up or down
-                  during the current session. Yellow means the source is not
-                  fresh enough for a live direction.
+                  Pressure trend across multiple horizons. Red = increasing pressure on equities.
+                  Green = easing pressure. Yellow = stale or unavailable.
                 </div>
 
-                <MacroMoveRow
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns:
+                      "minmax(112px,1.45fr) minmax(62px,.8fr) repeat(5,minmax(50px,.7fr))",
+                    gap: 6,
+                    paddingBottom: 5,
+                    borderBottom: "1px solid rgba(148,163,184,.18)",
+                    color: COLORS.muted,
+                    fontSize: 9,
+                    fontWeight: 950,
+                    textAlign: "center",
+                  }}
+                >
+                  <div style={{ textAlign: "left" }}>INSTRUMENT</div>
+                  <div>CURRENT</div>
+                  <div>2H</div>
+                  <div>SESSION</div>
+                  <div>1D</div>
+                  <div>2D</div>
+                  <div>5D</div>
+                </div>
+
+                <MacroTrendRow
                   label="U.S. 10Y Yield"
-                  value={macroRates?.tenYearYield}
-                  fresh={false}
-                  valueSuffix="%"
+                  current={macroTrends?.tenYearYield?.current ?? macroRates?.tenYearYield}
+                  currentSuffix="%"
+                  changes={macroTrends?.tenYearYield?.changesBps || {}}
+                  unit="bps"
+                  currentFresh={false}
                 />
-                <MacroMoveRow
+                <MacroTrendRow
                   label="U.S. 30Y Yield"
-                  value={macroRates?.thirtyYearYield}
-                  fresh={false}
-                  valueSuffix="%"
+                  current={macroTrends?.thirtyYearYield?.current ?? macroRates?.thirtyYearYield}
+                  currentSuffix="%"
+                  changes={macroTrends?.thirtyYearYield?.changesBps || {}}
+                  unit="bps"
+                  currentFresh={false}
                 />
-                <MacroMoveRow
+                <MacroTrendRow
                   label="U.S. Dollar (UUP)"
-                  value={dollar?.close ?? dollar?.value}
-                  fresh={false}
+                  current={macroTrends?.dollarUup?.current ?? dollar?.close ?? dollar?.value}
+                  changes={macroTrends?.dollarUup?.changesPct || {}}
+                  currentFresh={Boolean(macroTrends?.dollarUup?.asOfUtc)}
                 />
-                <MacroMoveRow
+                <MacroTrendRow
                   label="WTI Oil"
-                  value={wti?.price}
-                  changePct={wti?.changesPct?.session}
-                  fresh={wtiFresh}
+                  current={macroTrends?.wti?.current ?? wti?.price}
+                  changes={macroTrends?.wti?.changesPct || wti?.changesPct || {}}
+                  currentFresh={Boolean(macroTrends?.wti?.asOfUtc || wti?.asOfUtc)}
                 />
-                <MacroMoveRow
+                <MacroTrendRow
                   label="Brent Oil"
-                  value={brent?.price}
-                  changePct={brent?.changesPct?.session}
-                  fresh={brentFresh}
+                  current={macroTrends?.brent?.current ?? brent?.price}
+                  changes={macroTrends?.brent?.changesPct || brent?.changesPct || {}}
+                  currentFresh={Boolean(macroTrends?.brent?.asOfUtc || brent?.asOfUtc)}
                 />
 
                 <div
@@ -1598,8 +1707,9 @@ export default function Engine25MarketXrayPreview() {
                     flexWrap: "wrap",
                   }}
                 >
-                  <span style={{ color: COLORS.muted, fontSize: 11 }}>
-                    Green = up today · Red = down today · Yellow = stale / no recent update
+                  <span style={{ color: COLORS.muted, fontSize: 10 }}>
+                    Oil session = 6:00 PM ET Globex open · UUP session = 9:30 AM ET cash open ·
+                    Treasury 1D/2D/5D = FRED daily yield change in basis points
                   </span>
                   <StatusPill color={colorForCanonicalState(macro?.state || macro?.label)}>
                     {upper(macro?.state || macro?.label || "UNAVAILABLE")}
