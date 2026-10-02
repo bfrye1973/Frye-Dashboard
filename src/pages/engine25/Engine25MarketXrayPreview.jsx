@@ -71,6 +71,85 @@ function colorForCanonicalState(value, fallback = COLORS.muted) {
   return fallback;
 }
 
+function participationStateColor(value, fallback = COLORS.muted) {
+  const state = String(value ?? "").trim().toUpperCase();
+  if (!state) return fallback;
+  if (state === "STRONG" || state === "RECOVERING") return COLORS.green;
+  if (state === "BROAD_WEAKNESS" || state === "WEAK") return COLORS.red;
+  if (state === "SHORT_TERM_DETERIORATION") return COLORS.orange;
+  if (
+    state === "MIXED" ||
+    state === "INSUFFICIENT_DATA" ||
+    state.includes("STALE") ||
+    state.includes("DECAYING") ||
+    state.includes("UNAVAILABLE")
+  ) {
+    return COLORS.yellow;
+  }
+  return fallback;
+}
+
+function timeframeFreshnessLabel(diag) {
+  const freshnessState = String(diag?.freshnessState || "UNAVAILABLE").toUpperCase();
+  if (freshnessState === "FRESH") return "FRESH";
+  if (freshnessState === "DECAYING") return "DECAYING";
+  if (freshnessState === "STALE") return "STALE";
+  if (freshnessState.includes("UNUSABLE")) return "UNAVAILABLE";
+  return freshnessState || "UNAVAILABLE";
+}
+
+function ParticipationTimeframeTile({ label, diag }) {
+  const state = upper(diag?.timeframeState || "UNAVAILABLE");
+  const freshnessLabel = timeframeFreshnessLabel(diag);
+  const stateColor = participationStateColor(diag?.timeframeState);
+  const freshnessColor =
+    freshnessLabel === "FRESH"
+      ? COLORS.green
+      : freshnessLabel === "DECAYING"
+      ? COLORS.orange
+      : COLORS.yellow;
+
+  return (
+    <div
+      style={{
+        border: `1px solid ${stateColor}55`,
+        borderRadius: 10,
+        padding: 10,
+        background: "rgba(2,6,23,.34)",
+        minWidth: 0,
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          gap: 8,
+          alignItems: "center",
+          marginBottom: 7,
+        }}
+      >
+        <strong style={{ color: COLORS.text, fontSize: 12 }}>{label}</strong>
+        <StatusPill color={freshnessColor}>{freshnessLabel}</StatusPill>
+      </div>
+      <div style={{ color: stateColor, fontSize: 15, fontWeight: 1000 }}>
+        {state}
+      </div>
+      <div style={{ color: COLORS.muted, fontSize: 10, marginTop: 5 }}>
+        {diag?.completeCanonicalSet === false
+          ? "Canonical 11-sector set incomplete"
+          : diag?.sectorCount == null
+          ? "Sector count unavailable"
+          : `${diag.sectorCount} sectors · weight ${pct(
+              n(diag?.effectiveWeight) == null
+                ? null
+                : n(diag.effectiveWeight) * 100,
+              1
+            )}`}
+      </div>
+    </div>
+  );
+}
+
 function dataStatusFromFreshness(freshness) {
   const state = String(
     freshness?.intraday?.state || freshness?.state || ""
@@ -567,6 +646,12 @@ export default function Engine25MarketXrayPreview() {
 
   const headline = data?.headline || {};
   const artifact = data?.participationArtifact || null;
+  const fastParticipation =
+    data?.fastParticipation || artifact?.fastParticipation || null;
+  const blendedParticipation =
+    data?.blendedParticipation || artifact?.blendedParticipation || null;
+  const participationDiagnostics =
+    data?.sourceDiagnostics || artifact?.sourceDiagnostics || {};
   const participation = artifact?.participation || {};
   const volume = participation?.stockVolume || {};
   const intradayVolume = volume?.intraday || {};
@@ -624,6 +709,16 @@ export default function Engine25MarketXrayPreview() {
   const headlineColor = colorForCanonicalState(headline?.color || headline?.label || headline?.state);
   const breadthColor = colorForCanonicalState(breadth?.label);
   const distributionColor = colorForCanonicalState(distribution?.label);
+  const blendedState = String(
+    blendedParticipation?.state || "UNAVAILABLE"
+  ).toUpperCase();
+  const blendedColor = participationStateColor(blendedState, COLORS.yellow);
+  const fastState = String(
+    fastParticipation?.state ||
+      participationDiagnostics?.["10m"]?.timeframeState ||
+      "UNAVAILABLE"
+  ).toUpperCase();
+  const fastColor = participationStateColor(fastState, COLORS.yellow);
   const dataStatus = dataStatusFromFreshness(freshness);
   const dataStatusColor = colorForCanonicalState(dataStatus, COLORS.yellow);
   const indexMarketDiff =
@@ -913,10 +1008,10 @@ export default function Engine25MarketXrayPreview() {
 
               <Card
                 title={`Market Participation — ${scanned == null ? "UNAVAILABLE" : fmtNumber(scanned)} Stocks`}
-                accent={distributionColor}
+                accent={blendedColor}
                 style={{
                   padding: 16,
-                  borderTop: `3px solid ${distributionColor}`,
+                  borderTop: `3px solid ${blendedColor}`,
                 }}
               >
                 <div
@@ -927,8 +1022,177 @@ export default function Engine25MarketXrayPreview() {
                     marginBottom: 12,
                   }}
                 >
-                  Real market coverage, breadth, stock volume, and distribution
-                  across the Engine25 stock universe.
+                  Blended Participation combines the latest valid 10m, 1H, 4H, and
+                  EOD participation readings. Fast Participation below remains the
+                  raw 10-minute market evidence.
+                </div>
+
+                <div
+                  style={{
+                    border: `1px solid ${blendedColor}66`,
+                    borderRadius: 12,
+                    padding: 13,
+                    background: `${blendedColor}0d`,
+                    marginBottom: 12,
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      gap: 10,
+                      flexWrap: "wrap",
+                      alignItems: "center",
+                    }}
+                  >
+                    <div>
+                      <div
+                        style={{
+                          color: COLORS.muted,
+                          fontSize: 10,
+                          fontWeight: 900,
+                          letterSpacing: ".06em",
+                        }}
+                      >
+                        BLENDED PARTICIPATION
+                      </div>
+                      <div
+                        style={{
+                          color: blendedColor,
+                          fontSize: 26,
+                          lineHeight: 1.1,
+                          fontWeight: 1000,
+                          marginTop: 4,
+                        }}
+                      >
+                        {blendedState === "INSUFFICIENT_DATA"
+                          ? "INSUFFICIENT DATA"
+                          : upper(blendedState)}
+                      </div>
+                    </div>
+                    <div style={{ textAlign: "right" }}>
+                      <div style={{ color: COLORS.muted, fontSize: 10 }}>
+                        SURVIVING EVIDENCE
+                      </div>
+                      <div style={{ color: COLORS.text, fontWeight: 950, marginTop: 3 }}>
+                        {n(blendedParticipation?.usableEffectiveWeight) == null
+                          ? "—"
+                          : pct(
+                              n(blendedParticipation.usableEffectiveWeight) * 100,
+                              1
+                            )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {blendedState === "INSUFFICIENT_DATA" ? (
+                    <div
+                      style={{
+                        marginTop: 10,
+                        color: COLORS.yellow,
+                        fontSize: 12,
+                        lineHeight: 1.4,
+                        fontWeight: 850,
+                      }}
+                    >
+                      Not enough fresh multi-timeframe evidence is available to issue
+                      a blended participation read. The card will not substitute the
+                      10m fast condition as the main headline.
+                    </div>
+                  ) : null}
+
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "repeat(4,minmax(0,1fr))",
+                      gap: 8,
+                      marginTop: 12,
+                    }}
+                  >
+                    <ParticipationTimeframeTile
+                      label="10m"
+                      diag={participationDiagnostics?.["10m"]}
+                    />
+                    <ParticipationTimeframeTile
+                      label="1H"
+                      diag={participationDiagnostics?.["1h"]}
+                    />
+                    <ParticipationTimeframeTile
+                      label="4H"
+                      diag={participationDiagnostics?.["4h"]}
+                    />
+                    <ParticipationTimeframeTile
+                      label="EOD"
+                      diag={participationDiagnostics?.eod}
+                    />
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    border: `1px solid ${fastColor}55`,
+                    borderRadius: 10,
+                    padding: "10px 12px",
+                    background: "rgba(2,6,23,.28)",
+                    marginBottom: 12,
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: 12,
+                    alignItems: "center",
+                    flexWrap: "wrap",
+                  }}
+                >
+                  <div>
+                    <div
+                      style={{
+                        color: COLORS.muted,
+                        fontSize: 10,
+                        fontWeight: 900,
+                        letterSpacing: ".05em",
+                      }}
+                    >
+                      FAST PARTICIPATION / 10m
+                    </div>
+                    <div
+                      style={{
+                        color: fastColor,
+                        fontSize: 18,
+                        fontWeight: 1000,
+                        marginTop: 3,
+                      }}
+                    >
+                      {upper(fastState)}
+                    </div>
+                  </div>
+                  <StatusPill
+                    color={
+                      timeframeFreshnessLabel(
+                        participationDiagnostics?.["10m"]
+                      ) === "FRESH"
+                        ? COLORS.green
+                        : timeframeFreshnessLabel(
+                            participationDiagnostics?.["10m"]
+                          ) === "DECAYING"
+                        ? COLORS.orange
+                        : COLORS.yellow
+                    }
+                  >
+                    {timeframeFreshnessLabel(
+                      participationDiagnostics?.["10m"]
+                    )}
+                  </StatusPill>
+                </div>
+
+                <div
+                  style={{
+                    color: COLORS.muted,
+                    fontSize: 10,
+                    fontWeight: 900,
+                    letterSpacing: ".05em",
+                    marginBottom: 8,
+                  }}
+                >
+                  RAW 10m FAST EVIDENCE
                 </div>
 
                 <div
