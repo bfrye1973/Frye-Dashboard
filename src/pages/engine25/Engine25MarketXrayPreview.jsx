@@ -16,7 +16,8 @@ const API_BASE =
 
 const API_ROOT = API_BASE.replace(/\/+$/, "").replace(/\/api$/, "");
 const ENGINE25_ROUTE = `${API_ROOT}/api/v1/engine25/full-dashboard`;
-const MASTER_ROUTE = `${API_ROOT}/api/v1/futures/market-meter?symbol=ES`;\nconst HOURLY_ROUTE = `${API_ROOT}/live/hourly`;
+const MASTER_ROUTE = `${API_ROOT}/api/v1/futures/market-meter?symbol=ES`;
+const HOURLY_ROUTE = `${API_ROOT}/live/hourly`;
 
 const COLORS = {
   bg: "#030405",
@@ -993,13 +994,13 @@ export default function Engine25MarketXrayPreview() {
                 label="Breadth"
                 value={sellBreadthPct == null ? "—" : `${pct(sellBreadthPct)} SELLING`}
                 color={breadthColor}
-                note="stocks advancing vs declining"
+                note="1H stocks advancing vs declining"
               />
               <BigStat
                 label="Stock Volume"
                 value={sellVolPct == null ? "—" : `${pct(sellVolPct)} SELLING`}
                 color={intradayVolume?.available === true ? COLORS.text : COLORS.muted}
-                note="actual directional volume"
+                note="1H directional volume"
               />
               <BigStat
                 label="Distribution"
@@ -1268,7 +1269,7 @@ export default function Engine25MarketXrayPreview() {
                     }}
                   >
                     <div style={{ color: COLORS.blue, fontWeight: 950, marginBottom: 7 }}>
-                      MARKET COVERAGE
+                      MARKET COVERAGE — 1H
                     </div>
                     <KV label="Stocks Scanned" value={fmt(scanned)} color={COLORS.blue} />
                     <KV label="Stocks With Volume" value={fmt(withVolume)} />
@@ -1294,7 +1295,7 @@ export default function Engine25MarketXrayPreview() {
                     }}
                   >
                     <div style={{ color: COLORS.green, fontWeight: 950, marginBottom: 7 }}>
-                      BREADTH
+                      BREADTH — 1H
                     </div>
                     <KV
                       label="Advancing"
@@ -1336,7 +1337,7 @@ export default function Engine25MarketXrayPreview() {
                     }}
                   >
                     <div style={{ color: COLORS.red, fontWeight: 950, marginBottom: 7 }}>
-                      STOCK VOLUME
+                      STOCK VOLUME — 1H
                     </div>
                     <KV
                       label="Advancing Volume"
