@@ -1,0 +1,26 @@
+name: Engine26E Frontend Live Validation
+
+on:
+  push:
+    branches:
+      - engine26e-blended-participation-ui-v1
+
+jobs:
+  validate-live:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate deployed Redline bundle
+        run: |
+          set -euo pipefail
+          curl -fsS --retry 5 --retry-delay 3 https://frye-dashboard.onrender.com/ -o /tmp/index.html
+          grep -oE 'src="/static/js/[^"]+\.js"' /tmp/index.html | sed 's/src="//;s/"//' > /tmp/jsfiles.txt
+          test -s /tmp/jsfiles.txt
+          : > /tmp/all.js
+          while read -r p; do
+            curl -fsS "https://frye-dashboard.onrender.com$p" >> /tmp/all.js
+          done < /tmp/jsfiles.txt
+          grep -q "BLENDED PARTICIPATION" /tmp/all.js
+          grep -q "FAST PARTICIPATION / 10m" /tmp/all.js
+          grep -q "RAW 10m FAST EVIDENCE" /tmp/all.js
+          grep -q "INSUFFICIENT DATA" /tmp/all.js
+          echo "FRONTEND_LIVE_VALIDATION_PASS"
