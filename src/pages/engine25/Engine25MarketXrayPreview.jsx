@@ -452,6 +452,7 @@ export default function Engine25MarketXrayPreview() {
   const [status, setStatus] = useState("LOADING");
   const [error, setError] = useState(null);
   const [sectorTimeframe, setSectorTimeframe] = useState("1H");
+  const [briefMode, setBriefMode] = useState("CURRENT");
 
   useEffect(() => {
     let alive = true;
@@ -680,6 +681,14 @@ export default function Engine25MarketXrayPreview() {
     headline?.interpretation ||
     data?.deskNote ||
     "Engine25 canonical market-health interpretation unavailable.";
+
+  const currentMarketBrief = data?.redlineCurrentMarketBrief || null;
+  const intradayBrief = data?.redlineIntradayBrief || null;
+  const activeBrief =
+    briefMode === "INTRADAY" ? intradayBrief : currentMarketBrief;
+  const activeBriefParagraphs = Array.isArray(activeBrief?.paragraphs)
+    ? activeBrief.paragraphs.filter(Boolean)
+    : [];
 
   return (
     <div
@@ -1207,6 +1216,133 @@ export default function Engine25MarketXrayPreview() {
                   ) : null}
                 </div>
               </div>
+            </Card>
+
+            <Card
+              accent={briefMode === "INTRADAY" ? COLORS.blue : COLORS.orange}
+              style={{
+                background:
+                  "linear-gradient(180deg, rgba(9,14,22,.98), rgba(5,8,13,.99))",
+                padding: 14,
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  gap: 14,
+                  alignItems: "flex-start",
+                  flexWrap: "wrap",
+                  marginBottom: 10,
+                }}
+              >
+                <div>
+                  <div
+                    style={{
+                      fontSize: 18,
+                      fontWeight: 1000,
+                      letterSpacing: ".02em",
+                    }}
+                  >
+                    REDLINE MARKET BRIEFING
+                  </div>
+                  <div
+                    style={{
+                      color: COLORS.muted,
+                      fontSize: 11,
+                      marginTop: 3,
+                    }}
+                  >
+                    Full plain-English read of current market conditions from canonical Redline evidence.
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    display: "inline-flex",
+                    gap: 4,
+                    padding: 3,
+                    border: "1px solid rgba(148,163,184,.20)",
+                    borderRadius: 9,
+                    background: "rgba(2,6,23,.48)",
+                  }}
+                >
+                  {[
+                    ["CURRENT", "CURRENT MARKET"],
+                    ["INTRADAY", "INTRADAY"],
+                  ].map(([mode, label]) => {
+                    const active = briefMode === mode;
+                    return (
+                      <button
+                        key={mode}
+                        type="button"
+                        onClick={() => setBriefMode(mode)}
+                        style={{
+                          border: active
+                            ? "1px solid rgba(248,250,252,.30)"
+                            : "1px solid transparent",
+                          borderRadius: 7,
+                          padding: "6px 11px",
+                          background: active
+                            ? "rgba(248,250,252,.10)"
+                            : "transparent",
+                          color: active ? COLORS.text : COLORS.muted,
+                          fontSize: 11,
+                          fontWeight: 950,
+                          cursor: "pointer",
+                        }}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {activeBriefParagraphs.length ? (
+                <div
+                  style={{
+                    display: "grid",
+                    gap: 10,
+                    maxHeight: 460,
+                    overflowY: "auto",
+                    paddingRight: 6,
+                  }}
+                >
+                  {activeBriefParagraphs.map((paragraph, index) => (
+                    <div
+                      key={`brief-${briefMode}-${index}`}
+                      style={{
+                        borderLeft:
+                          index === activeBriefParagraphs.length - 1
+                            ? `3px solid ${COLORS.orange}`
+                            : "3px solid rgba(148,163,184,.18)",
+                        paddingLeft: 11,
+                        color:
+                          index === activeBriefParagraphs.length - 1
+                            ? COLORS.text
+                            : "#dbe4ef",
+                        fontSize: index === activeBriefParagraphs.length - 1 ? 15 : 14,
+                        lineHeight: 1.45,
+                        fontWeight:
+                          index === activeBriefParagraphs.length - 1 ? 900 : 650,
+                      }}
+                    >
+                      {paragraph}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div
+                  style={{
+                    color: COLORS.muted,
+                    fontSize: 13,
+                    lineHeight: 1.4,
+                  }}
+                >
+                  Redline briefing evidence is not available yet. The brief will populate automatically when the canonical backend sources are available.
+                </div>
+              )}
             </Card>
 
             <div
