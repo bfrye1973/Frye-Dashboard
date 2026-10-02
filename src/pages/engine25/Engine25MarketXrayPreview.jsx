@@ -1228,12 +1228,9 @@ export default function Engine25MarketXrayPreview() {
             >
               <div
                 style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  gap: 14,
-                  alignItems: "flex-start",
-                  flexWrap: "wrap",
-                  marginBottom: 10,
+                  display: "grid",
+                  gap: 9,
+                  marginBottom: 12,
                 }}
               >
                 <div>
@@ -1259,12 +1256,10 @@ export default function Engine25MarketXrayPreview() {
 
                 <div
                   style={{
-                    display: "inline-flex",
-                    gap: 4,
-                    padding: 3,
-                    border: "1px solid rgba(148,163,184,.20)",
-                    borderRadius: 9,
-                    background: "rgba(2,6,23,.48)",
+                    display: "flex",
+                    gap: 8,
+                    flexWrap: "wrap",
+                    alignItems: "center",
                   }}
                 >
                   {[
@@ -1279,16 +1274,19 @@ export default function Engine25MarketXrayPreview() {
                         onClick={() => setBriefMode(mode)}
                         style={{
                           border: active
-                            ? "1px solid rgba(248,250,252,.30)"
-                            : "1px solid transparent",
-                          borderRadius: 7,
-                          padding: "6px 11px",
+                            ? "1px solid rgba(248,250,252,.42)"
+                            : "1px solid rgba(148,163,184,.24)",
+                          borderRadius: 8,
+                          padding: "8px 14px",
                           background: active
-                            ? "rgba(248,250,252,.10)"
-                            : "transparent",
+                            ? mode === "INTRADAY"
+                              ? "rgba(56,189,248,.16)"
+                              : "rgba(249,115,22,.16)"
+                            : "rgba(2,6,23,.42)",
                           color: active ? COLORS.text : COLORS.muted,
-                          fontSize: 11,
-                          fontWeight: 950,
+                          fontSize: 12,
+                          fontWeight: 1000,
+                          letterSpacing: ".03em",
                           cursor: "pointer",
                         }}
                       >
@@ -1296,6 +1294,17 @@ export default function Engine25MarketXrayPreview() {
                       </button>
                     );
                   })}
+                  <div
+                    style={{
+                      color: COLORS.muted,
+                      fontSize: 11,
+                      fontWeight: 850,
+                    }}
+                  >
+                    {briefMode === "INTRADAY"
+                      ? "Engine29 live market-character brief"
+                      : "Full current-market / morning brief"}
+                  </div>
                 </div>
               </div>
 
