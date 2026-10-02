@@ -40,7 +40,7 @@ jobs:
           exit 1
       - name: Capture acceptance screenshots
         run: |
-          cat > /tmp/phase-e-screenshots.mjs <<'NODE'
+          cat > phase-e-screenshots.mjs <<'NODE'
           import { chromium } from "playwright";
           import fs from "fs";
 
@@ -207,7 +207,7 @@ jobs:
 
           await browser.close();
           NODE
-          node /tmp/phase-e-screenshots.mjs
+          node phase-e-screenshots.mjs
       - uses: actions/upload-artifact@v4
         with:
           name: engine26e-phase-e-ui-acceptance
