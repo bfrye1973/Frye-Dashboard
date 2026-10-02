@@ -485,8 +485,8 @@ function MacroTrendRow({
       >
         {n(current) == null ? "—" : `${fmt(current, 2)}${currentSuffix}`}
       </div>
-      <MacroTrendCell value={changes?.["2h"]} unit={unit} available={unit !== "bps"} />
-      <MacroTrendCell value={changes?.session} unit={unit} available={unit !== "bps"} />
+      <MacroTrendCell value={changes?.["2h"]} unit={unit} />
+      <MacroTrendCell value={changes?.session} unit={unit} />
       <MacroTrendCell value={changes?.["1d"]} unit={unit} />
       <MacroTrendCell value={changes?.["2d"]} unit={unit} />
       <MacroTrendCell value={changes?.["5d"]} unit={unit} />
