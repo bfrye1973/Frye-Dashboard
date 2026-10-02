@@ -12,8 +12,8 @@ jobs:
       - name: Validate deployed Redline bundle
         run: |
           set -euo pipefail
-          curl -fsS --retry 5 --retry-delay 3 https://frye-dashboard.onrender.com/ -o /tmp/index.html
-          grep -oE 'src="/static/js/[^"]+\.js"' /tmp/index.html | sed 's/src="//;s/"//' > /tmp/jsfiles.txt
+          curl -fsS --retry 5 --retry-delay 3 https://frye-dashboard.onrender.com/asset-manifest.json -o /tmp/manifest.json
+          jq -r '.files | to_entries[] | select(.key | endswith(".js")) | .value' /tmp/manifest.json > /tmp/jsfiles.txt
           test -s /tmp/jsfiles.txt
           : > /tmp/all.js
           while read -r p; do
