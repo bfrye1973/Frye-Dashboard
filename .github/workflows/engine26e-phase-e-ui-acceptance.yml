@@ -1,0 +1,214 @@
+name: Engine26E Phase E UI Acceptance
+
+on:
+  push:
+    branches:
+      - engine26e-blended-participation-ui-v1
+
+jobs:
+  ui-acceptance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+      - name: Install
+        run: npm ci
+      - name: Production build
+        run: npm run build
+      - name: Install browser tooling
+        run: |
+          npm install --no-save playwright@1.55.0 serve@14.2.4
+          npx playwright install --with-deps chromium
+      - name: Static UI contract checks
+        run: |
+          grep -q "INSUFFICIENT DATA" src/pages/engine25/Engine25MarketXrayPreview.jsx
+          grep -q "BLENDED PARTICIPATION" src/pages/engine25/Engine25MarketXrayPreview.jsx
+          grep -q "FAST PARTICIPATION / 10m" src/pages/engine25/Engine25MarketXrayPreview.jsx
+          grep -q "RAW 10m FAST EVIDENCE" src/pages/engine25/Engine25MarketXrayPreview.jsx
+      - name: Start app
+        run: |
+          npx serve -s build -l 4173 > /tmp/redline-serve.log 2>&1 &
+          echo $! > /tmp/redline-serve.pid
+          for i in {1..30}; do
+            curl -fsS http://127.0.0.1:4173/ >/dev/null && exit 0
+            sleep 1
+          done
+          cat /tmp/redline-serve.log
+          exit 1
+      - name: Capture acceptance screenshots
+        run: |
+          cat > /tmp/phase-e-screenshots.mjs <<'NODE'
+          import { chromium } from "playwright";
+          import fs from "fs";
+
+          const sectors = [
+            "Information Technology","Communication Services","Consumer Staples",
+            "Utilities","Real Estate","Financials","Health Care","Industrials",
+            "Energy","Materials","Consumer Discretionary"
+          ];
+
+          const fastCards = sectors.map((sector, i) => ({
+            sector,
+            breadth_pct: i === 8 ? 50 : 40,
+            momentum_pct: i === 8 ? 50 : 40,
+            up: i === 8 ? 25 : 10,
+            down: i === 8 ? 25 : 50,
+            nh: 2,
+            nl: 8,
+            advancingVolume: 1000000 + i * 1000,
+            decliningVolume: 3000000 + i * 1000,
+          }));
+
+          const legacyArtifact = {
+            freshness: {
+              intraday: {
+                state: "STALE_INTRADAY_SOURCE",
+                sourceTimestamp: "2026-10-02T15:15:25Z",
+                volumeCoverageValid: true
+              }
+            },
+            participation: {
+              stockVolume: {
+                intraday: {
+                  stocksScanned: 5470,
+                  stocksWithVolume: 5032,
+                  coveragePct: 92.0,
+                  advancingVolume: 27000000,
+                  decliningVolume: 81000000,
+                  advancingVolumeShare: 0.25,
+                  decliningVolumeShare: 0.75,
+                  volumeImbalance: 0.5
+                },
+                combinedVolumePressure: 82
+              },
+              upDown: { intradayUp: 768, intradayDown: 991 },
+              newHighsNewLows: {
+                intradayTotalNh: 229,
+                intradayTotalNl: 2492,
+                intradayNetHighsLows: -2263
+              },
+              breadth: { score: 32, label: "BREADTH_PARTICIPATION_WEAK" },
+              sectorParticipation: {
+                intraday: {
+                  count: 11,
+                  bullishCount: 0,
+                  neutralCount: 1,
+                  bearishCount: 10
+                },
+                eod: { count: 11, bullishCount: 4, neutralCount: 6, bearishCount: 1, cards: [] }
+              },
+              distributionPressure: {
+                rawPressure: 84,
+                label: "DISTRIBUTION_PRESSURE_HIGH",
+                inputs: { intradayBreadthPressure: 90 }
+              }
+            }
+          };
+
+          function diagnostics10m(state = "WEAK", freshness = "STALE", weight = 0) {
+            return {
+              timeframeState: state,
+              freshnessState: freshness,
+              completeCanonicalSet: true,
+              sectorCount: 11,
+              effectiveWeight: weight,
+              sourceTimestamp: "2026-10-02T15:15:25Z"
+            };
+          }
+
+          const insufficient = {
+            ok: true,
+            headline: { score: 46, label: "CAUTION", color: "YELLOW" },
+            participationArtifact: legacyArtifact,
+            fastParticipation: {
+              state: "WEAK",
+              advancingStocks: 768,
+              decliningStocks: 991
+            },
+            blendedParticipation: {
+              state: "INSUFFICIENT_DATA",
+              usableEffectiveWeight: 0.419667,
+              usableTimeframeCount: 3,
+              normalizedWeights: { "10m": 0, "1h": 0.387576, "4h": 0.254997, eod: 0.357427 }
+            },
+            sourceDiagnostics: {
+              "10m": diagnostics10m("WEAK", "STALE", 0),
+              "1h": { timeframeState: "WEAK", freshnessState: "DECAYING", completeCanonicalSet: true, sectorCount: 11, effectiveWeight: 0.162653 },
+              "4h": { timeframeState: "MIXED", freshnessState: "DECAYING", completeCanonicalSet: true, sectorCount: 11, effectiveWeight: 0.107014 },
+              eod: { timeframeState: "MIXED", freshnessState: "FRESH", completeCanonicalSet: true, sectorCount: 11, effectiveWeight: 0.15 }
+            },
+            sectorBreadth: {},
+            underTheHood: { rows: [] },
+            overlay: { rows: [] }
+          };
+
+          const divergence = {
+            ...insufficient,
+            participationArtifact: {
+              ...legacyArtifact,
+              freshness: {
+                intraday: {
+                  state: "FRESH",
+                  sourceTimestamp: "2026-10-02T15:15:25Z",
+                  volumeCoverageValid: true
+                }
+              }
+            },
+            blendedParticipation: {
+              state: "SHORT_TERM_DETERIORATION",
+              usableEffectiveWeight: 1,
+              usableTimeframeCount: 4,
+              normalizedWeights: { "10m": 0.25, "1h": 0.35, "4h": 0.25, eod: 0.15 }
+            },
+            sourceDiagnostics: {
+              "10m": diagnostics10m("WEAK", "FRESH", 0.25),
+              "1h": { timeframeState: "STRONG", freshnessState: "FRESH", completeCanonicalSet: true, sectorCount: 11, effectiveWeight: 0.35 },
+              "4h": { timeframeState: "MIXED", freshnessState: "FRESH", completeCanonicalSet: true, sectorCount: 11, effectiveWeight: 0.25 },
+              eod: { timeframeState: "MIXED", freshnessState: "FRESH", completeCanonicalSet: true, sectorCount: 11, effectiveWeight: 0.15 }
+            }
+          };
+
+          const browser = await chromium.launch({ headless: true });
+          const page = await browser.newPage({ viewport: { width: 1500, height: 1300 }, deviceScaleFactor: 1 });
+
+          let currentPayload = insufficient;
+          await page.route("**/api/v1/engine25/full-dashboard", async route => {
+            await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(currentPayload) });
+          });
+          await page.route("**/api/v1/futures/market-meter**", async route => {
+            await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ master: { score: 50, state: "NEUTRAL" } }) });
+          });
+          await page.route("**/api/v1/engine29/**", async route => {
+            await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true }) });
+          });
+
+          fs.mkdirSync("ui-acceptance", { recursive: true });
+
+          await page.goto("http://127.0.0.1:4173/engine25-market-xray-preview", { waitUntil: "networkidle" });
+          const card = page.locator("section").filter({ hasText: "Market Participation" }).first();
+          await card.waitFor({ state: "visible" });
+          await card.screenshot({ path: "ui-acceptance/phase-e-insufficient-data.png" });
+          const text1 = await card.innerText();
+          if (!text1.includes("INSUFFICIENT DATA")) throw new Error("Missing INSUFFICIENT DATA headline");
+          if (!text1.includes("FAST PARTICIPATION / 10m")) throw new Error("Missing fast participation section");
+          if (!text1.includes("STALE")) throw new Error("Missing stale 10m visibility");
+
+          currentPayload = divergence;
+          await page.reload({ waitUntil: "networkidle" });
+          const card2 = page.locator("section").filter({ hasText: "Market Participation" }).first();
+          await card2.waitFor({ state: "visible" });
+          await card2.screenshot({ path: "ui-acceptance/phase-e-divergence.png" });
+          const text2 = await card2.innerText();
+          if (!text2.includes("SHORT TERM DETERIORATION")) throw new Error("Missing blended divergence headline");
+          if (!text2.includes("1H") || !text2.includes("4H") || !text2.includes("EOD")) throw new Error("Missing timeframe states");
+
+          await browser.close();
+          NODE
+          node /tmp/phase-e-screenshots.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: engine26e-phase-e-ui-acceptance
+          path: ui-acceptance/*.png
