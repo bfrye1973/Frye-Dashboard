@@ -1,0 +1,26 @@
+name: Engine25 1H Main Evidence Test
+
+on:
+  push:
+    branches:
+      - engine25-participation-main-evidence-1h-v1
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install
+        run: npm install --no-package-lock
+      - name: Production build
+        run: DISABLE_ESLINT_PLUGIN=true npm run build
+      - name: Contract checks
+        run: |
+          grep -q 'const HOURLY_ROUTE' src/pages/engine25/Engine25MarketXrayPreview.jsx
+          grep -q 'MAIN 1H MARKET EVIDENCE' src/pages/engine25/Engine25MarketXrayPreview.jsx
+          grep -q 'BREADTH — 1H' src/pages/engine25/Engine25MarketXrayPreview.jsx
+          grep -q 'STOCK VOLUME — 1H' src/pages/engine25/Engine25MarketXrayPreview.jsx
+          grep -q 'hourlyAgeMs <= 75 \* 60 \* 1000' src/pages/engine25/Engine25MarketXrayPreview.jsx
