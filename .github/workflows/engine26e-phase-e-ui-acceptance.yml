@@ -15,7 +15,7 @@ jobs:
           node-version: "20"
           cache: "npm"
       - name: Install
-        run: npm ci
+        run: npm install --no-package-lock
       - name: Production build
         run: npm run build
       - name: Install browser tooling
