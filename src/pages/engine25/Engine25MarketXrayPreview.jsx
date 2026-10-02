@@ -17,6 +17,7 @@ const API_BASE =
 const API_ROOT = API_BASE.replace(/\/+$/, "").replace(/\/api$/, "");
 const ENGINE25_ROUTE = `${API_ROOT}/api/v1/engine25/full-dashboard`;
 const MASTER_ROUTE = `${API_ROOT}/api/v1/futures/market-meter?symbol=ES`;
+const HOURLY_ROUTE = `${API_ROOT}/live/hourly`;
 
 const COLORS = {
   bg: "#030405",
@@ -609,6 +610,7 @@ function changeSentence(row) {
 export default function Engine25MarketXrayPreview() {
   const [data, setData] = useState(null);
   const [master, setMaster] = useState(null);
+  const [hourlyData, setHourlyData] = useState(null);
   const [status, setStatus] = useState("LOADING");
   const [error, setError] = useState(null);
   const [sectorTimeframe, setSectorTimeframe] = useState("1H");
@@ -618,16 +620,19 @@ export default function Engine25MarketXrayPreview() {
     let alive = true;
     async function load() {
       try {
-        const [a, b] = await Promise.all([
+        const [a, b, h] = await Promise.all([
           fetch(ENGINE25_ROUTE, { cache: "no-store" }),
           fetch(MASTER_ROUTE, { cache: "no-store" }),
+          fetch(HOURLY_ROUTE, { cache: "no-store" }),
         ]);
         const aj = await a.json();
         const bj = await b.json().catch(() => null);
+        const hj = await h.json().catch(() => null);
         if (!a.ok || aj?.ok === false) throw new Error(aj?.error || `HTTP ${a.status}`);
         if (!alive) return;
         setData(aj);
         setMaster(b.ok ? bj : null);
+        setHourlyData(h.ok ? hj : null);
         setStatus("READY");
         setError(null);
       } catch (e) {
@@ -683,20 +688,64 @@ export default function Engine25MarketXrayPreview() {
   const underRows = data?.underTheHood?.rows || [];
   const overlayRows = data?.overlay?.rows || [];
 
-  const scanned = n(intradayVolume?.stocksScanned);
-  const withVolume = n(intradayVolume?.stocksWithVolume);
-  const coverage = n(intradayVolume?.coveragePct);
-  const advancingVolume = n(intradayVolume?.advancingVolume);
-  const decliningVolume = n(intradayVolume?.decliningVolume);
-  const buyVolShare = n(intradayVolume?.advancingVolumeShare);
-  const sellVolShare = n(intradayVolume?.decliningVolumeShare);
-  const volumeImbalance = n(intradayVolume?.volumeImbalance);
-  const buyVolPct = buyVolShare == null ? null : buyVolShare * 100;
-  const sellVolPct = sellVolShare == null ? null : sellVolShare * 100;
-  const imbalancePct = volumeImbalance == null ? null : volumeImbalance * 100;
+  const hourlyCards = Array.isArray(hourlyData?.sectorCards)
+    ? hourlyData.sectorCards
+    : [];
+  const hourlySourceTimestamp =
+    hourlyData?.updated_at_utc ||
+    hourlyData?.generated_at_utc ||
+    hourlyData?.meta?.ts_utc ||
+    hourlyData?.meta?.last_run_utc ||
+    null;
+  const hourlySourceMs = Date.parse(String(hourlySourceTimestamp || ""));
+  const hourlyAgeMs = Number.isFinite(hourlySourceMs)
+    ? Math.max(0, Date.now() - hourlySourceMs)
+    : null;
+  const hourlyFresh = hourlyCards.length === 11 && hourlyAgeMs != null && hourlyAgeMs <= 75 * 60 * 1000;
 
-  const totalUp = n(upDown?.intradayUp);
-  const totalDown = n(upDown?.intradayDown);
+  const hourlyTotals = hourlyCards.reduce(
+    (out, card) => {
+      out.up += Number(card?.up || 0);
+      out.down += Number(card?.down || 0);
+      out.nh += Number(card?.nh || 0);
+      out.nl += Number(card?.nl || 0);
+      out.stocksScanned += Number(card?.stocksScanned || 0);
+      out.stocksWithVolume += Number(card?.stocksWithVolume || 0);
+      out.advancingVolume += Number(card?.advancingVolume || 0);
+      out.decliningVolume += Number(card?.decliningVolume || 0);
+      return out;
+    },
+    {
+      up: 0,
+      down: 0,
+      nh: 0,
+      nl: 0,
+      stocksScanned: 0,
+      stocksWithVolume: 0,
+      advancingVolume: 0,
+      decliningVolume: 0,
+    }
+  );
+
+  const scanned = hourlyFresh ? hourlyTotals.stocksScanned : null;
+  const withVolume = hourlyFresh ? hourlyTotals.stocksWithVolume : null;
+  const coverage =
+    hourlyFresh && scanned > 0 ? (withVolume / scanned) * 100 : null;
+  const advancingVolume = hourlyFresh ? hourlyTotals.advancingVolume : null;
+  const decliningVolume = hourlyFresh ? hourlyTotals.decliningVolume : null;
+  const directionalVolume =
+    (advancingVolume ?? 0) + (decliningVolume ?? 0);
+  const buyVolPct =
+    directionalVolume > 0 ? (advancingVolume / directionalVolume) * 100 : null;
+  const sellVolPct =
+    directionalVolume > 0 ? (decliningVolume / directionalVolume) * 100 : null;
+  const imbalancePct =
+    directionalVolume > 0
+      ? ((decliningVolume - advancingVolume) / directionalVolume) * 100
+      : null;
+
+  const totalUp = hourlyFresh ? hourlyTotals.up : null;
+  const totalDown = hourlyFresh ? hourlyTotals.down : null;
   const breadthDenom = (totalUp ?? 0) + (totalDown ?? 0);
   const buyBreadthPct = breadthDenom > 0 ? (totalUp / breadthDenom) * 100 : null;
   const sellBreadthPct = breadthDenom > 0 ? (totalDown / breadthDenom) * 100 : null;
@@ -743,19 +792,29 @@ export default function Engine25MarketXrayPreview() {
       : "The two canonical strength scores are equal.";
 
   const nhNl = participation?.newHighsNewLows || {};
-  const nh = n(nhNl?.intradayTotalNh);
-  const nl = n(nhNl?.intradayTotalNl);
+  const nh = hourlyFresh ? hourlyTotals.nh : null;
+  const nl = hourlyFresh ? hourlyTotals.nl : null;
 
-  const intradaySectorParticipation =
-    participation?.sectorParticipation?.intraday || {};
-  const currentWeakSectorCount =
-    n(intradaySectorParticipation?.bearishCount);
-  const currentStrongSectorCount =
-    n(intradaySectorParticipation?.bullishCount);
-  const currentNeutralSectorCount =
-    n(intradaySectorParticipation?.neutralCount);
-  const currentSectorCount =
-    n(intradaySectorParticipation?.count);
+  const hourlySectorStates = hourlyFresh
+    ? hourlyCards.map((card) => {
+        const b = n(card?.breadth_pct);
+        const m = n(card?.momentum_pct);
+        if (b == null || m == null) return "UNAVAILABLE";
+        if (b >= 55 && m >= 55) return "STRONG";
+        if (b <= 45 && m <= 45) return "WEAK";
+        return "NEUTRAL";
+      })
+    : [];
+  const currentWeakSectorCount = hourlyFresh
+    ? hourlySectorStates.filter((x) => x === "WEAK").length
+    : null;
+  const currentStrongSectorCount = hourlyFresh
+    ? hourlySectorStates.filter((x) => x === "STRONG").length
+    : null;
+  const currentNeutralSectorCount = hourlyFresh
+    ? hourlySectorStates.filter((x) => x === "NEUTRAL").length
+    : null;
+  const currentSectorCount = hourlyFresh ? hourlyCards.length : null;
 
   const distributionInputs = distribution?.inputs || {};
   const intradayBreadthPressure =
@@ -936,13 +995,13 @@ export default function Engine25MarketXrayPreview() {
                 label="Breadth"
                 value={sellBreadthPct == null ? "—" : `${pct(sellBreadthPct)} SELLING`}
                 color={breadthColor}
-                note="stocks advancing vs declining"
+                note="1H stocks advancing vs declining"
               />
               <BigStat
                 label="Stock Volume"
                 value={sellVolPct == null ? "—" : `${pct(sellVolPct)} SELLING`}
                 color={intradayVolume?.available === true ? COLORS.text : COLORS.muted}
-                note="actual directional volume"
+                note="1H directional volume"
               />
               <BigStat
                 label="Distribution"
@@ -1192,7 +1251,7 @@ export default function Engine25MarketXrayPreview() {
                     marginBottom: 8,
                   }}
                 >
-                  RAW 10m FAST EVIDENCE
+                  MAIN 1H MARKET EVIDENCE
                 </div>
 
                 <div
@@ -1211,7 +1270,7 @@ export default function Engine25MarketXrayPreview() {
                     }}
                   >
                     <div style={{ color: COLORS.blue, fontWeight: 950, marginBottom: 7 }}>
-                      MARKET COVERAGE
+                      MARKET COVERAGE — 1H
                     </div>
                     <KV label="Stocks Scanned" value={fmt(scanned)} color={COLORS.blue} />
                     <KV label="Stocks With Volume" value={fmt(withVolume)} />
@@ -1219,7 +1278,7 @@ export default function Engine25MarketXrayPreview() {
                       label="Volume Coverage"
                       value={pct(coverage, 1)}
                       color={
-                        freshness?.intraday?.volumeCoverageValid === true
+                        hourlyFresh
                           ? COLORS.green
                           : coverage == null
                           ? COLORS.muted
@@ -1237,7 +1296,7 @@ export default function Engine25MarketXrayPreview() {
                     }}
                   >
                     <div style={{ color: COLORS.green, fontWeight: 950, marginBottom: 7 }}>
-                      BREADTH
+                      BREADTH — 1H
                     </div>
                     <KV
                       label="Advancing"
@@ -1279,7 +1338,7 @@ export default function Engine25MarketXrayPreview() {
                     }}
                   >
                     <div style={{ color: COLORS.red, fontWeight: 950, marginBottom: 7 }}>
-                      STOCK VOLUME
+                      STOCK VOLUME — 1H
                     </div>
                     <KV
                       label="Advancing Volume"
