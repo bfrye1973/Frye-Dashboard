@@ -99,6 +99,19 @@ function timeframeFreshnessLabel(diag) {
   return freshnessState || "UNAVAILABLE";
 }
 
+function formatArizonaTimestamp(value) {
+  const ms = Date.parse(String(value || ""));
+  if (!Number.isFinite(ms)) return "UNAVAILABLE";
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Phoenix",
+    month: "numeric",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  }).format(new Date(ms));
+}
+
 function ParticipationTimeframeTile({ label, diag }) {
   const state = upper(diag?.timeframeState || "UNAVAILABLE");
   const freshnessLabel = timeframeFreshnessLabel(diag);
@@ -146,6 +159,21 @@ function ParticipationTimeframeTile({ label, diag }) {
                 : n(diag.effectiveWeight) * 100,
               1
             )}`}
+      </div>
+      <div
+        style={{
+          color:
+            freshnessLabel === "FRESH"
+              ? COLORS.green
+              : freshnessLabel === "DECAYING"
+              ? COLORS.orange
+              : COLORS.yellow,
+          fontSize: 10,
+          marginTop: 5,
+          fontWeight: 850,
+        }}
+      >
+        LAST RUN: {formatArizonaTimestamp(diag?.sourceTimestamp)} AZ
       </div>
     </div>
   );
@@ -1385,7 +1413,7 @@ export default function Engine25MarketXrayPreview() {
                       >
                         {imbalancePct == null
                           ? "UNAVAILABLE"
-                          : `${imbalancePct > 0 ? "+" : ""}${imbalancePct.toFixed(1)}%`}
+                          : `${Math.abs(imbalancePct).toFixed(1)}%`}
                       </div>
                       <div
                         style={{
