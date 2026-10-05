@@ -1,0 +1,17 @@
+name: Engine29 internals UI check
+
+on:
+  push:
+    branches:
+      - engine29-internals-freshness-ui
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install
+      - run: npm run build
