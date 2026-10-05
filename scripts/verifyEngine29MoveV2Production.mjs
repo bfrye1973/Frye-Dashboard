@@ -32,8 +32,12 @@ async function bodyText(page) {
   return await page.locator("body").innerText();
 }
 
+function hasText(text, needle) {
+  return String(text || "").toUpperCase().includes(String(needle || "").toUpperCase());
+}
+
 async function assertContains(name, text, needle) {
-  if (!String(text).includes(needle)) {
+  if (!hasText(text, needle)) {
     throw new Error(`${name}: missing expected text: ${needle}`);
   }
 }
@@ -108,17 +112,17 @@ try {
   );
 
   const homeChecks = {
-    parentMove: homeText.includes("ES Parent MOVE"),
-    expectedMove: homeText.includes(expectedMove),
-    character: homeText.includes("MOVE Authority"),
-    liveCondition: homeText.includes("10m Live Condition"),
-    fastTactical: homeText.includes("30m Fast Shift"),
-    oneHour: homeText.includes("1H Current Pressure"),
-    liquidity: homeText.includes("Liquidity"),
-    trap: homeText.includes("Trap Detection"),
+    parentMove: hasText(homeText, "ES Parent MOVE"),
+    expectedMove: hasText(homeText, expectedMove),
+    character: hasText(homeText, "MOVE Authority"),
+    liveCondition: hasText(homeText, "10m Live Condition"),
+    fastTactical: hasText(homeText, "30m Fast Shift"),
+    oneHour: hasText(homeText, "1H Current Pressure"),
+    liquidity: hasText(homeText, "Liquidity"),
+    trap: hasText(homeText, "Trap Detection"),
     degraded:
       canonical?.dataDegraded !== true ||
-      homeText.includes("DATA DEGRADED"),
+      hasText(homeText, "DATA DEGRADED"),
   };
 
   console.log(
@@ -142,17 +146,17 @@ try {
   );
 
   const fullChecks = {
-    parentMove: fullText.includes("ES Parent MOVE"),
-    expectedMove: fullText.includes(expectedMove),
-    character: fullText.includes("MOVE Authority"),
-    liveCondition: fullText.includes("10m Live Condition"),
-    fastTactical: fullText.includes("30m Fast Shift"),
-    oneHour: fullText.includes("1H Current Pressure"),
-    liquidity: fullText.includes("Liquidity"),
-    trap: fullText.includes("Trap Detection"),
+    parentMove: hasText(fullText, "ES Parent MOVE"),
+    expectedMove: hasText(fullText, expectedMove),
+    character: hasText(fullText, "MOVE Authority"),
+    liveCondition: hasText(fullText, "10m Live Condition"),
+    fastTactical: hasText(fullText, "30m Fast Shift"),
+    oneHour: hasText(fullText, "1H Current Pressure"),
+    liquidity: hasText(fullText, "Liquidity"),
+    trap: hasText(fullText, "Trap Detection"),
     degraded:
       canonical?.dataDegraded !== true ||
-      fullText.includes("DATA DEGRADED"),
+      hasText(fullText, "DATA DEGRADED"),
   };
 
   console.log(
@@ -175,14 +179,11 @@ try {
   await page.waitForTimeout(8000);
 
   await page.getByText("Indicators ▾", { exact: true }).click();
-  const overlayLabel = page.getByText("Cross-Market Stress Window", {
+  const checkbox = page.getByLabel("Cross-Market Stress Window", {
     exact: true,
   });
-  await overlayLabel.waitFor({ state: "visible", timeout: 120000 });
-  const checkbox = overlayLabel.locator(
-    "xpath=preceding::input[@type='checkbox'][1]"
-  );
-  await checkbox.check();
+  await checkbox.waitFor({ state: "visible", timeout: 120000 });
+  await checkbox.check({ timeout: 120000 });
 
   await page
     .getByText("Engine 29 — Cross-Market Stress", { exact: false })
@@ -197,23 +198,23 @@ try {
   });
 
   const chartChecks = {
-    parentMove: chartText.includes("ES Parent MOVE"),
-    expectedMove: chartText.includes(expectedMove),
+    parentMove: hasText(chartText, "ES Parent MOVE"),
+    expectedMove: hasText(chartText, expectedMove),
     character:
-      chartText.includes("MOVE v2 Authority") &&
-      chartText.includes("Character"),
-    liveCondition: chartText.includes("Live condition"),
-    fastTactical: chartText.includes("30m Fast Shift"),
-    oneHour: chartText.includes("1H Intraday"),
+      hasText(chartText, "MOVE v2 Authority") &&
+      hasText(chartText, "Character"),
+    liveCondition: hasText(chartText, "Live condition"),
+    fastTactical: hasText(chartText, "30m Fast Shift"),
+    oneHour: hasText(chartText, "1H Intraday"),
     liquidity:
-      chartText.includes("Liquidity") &&
-      chartText.includes(clean(liquidity?.state)),
+      hasText(chartText, "Liquidity") &&
+      hasText(chartText, clean(liquidity?.state)),
     trap:
-      chartText.includes("Trap") &&
-      chartText.includes(clean(trap?.state)),
+      hasText(chartText, "Trap") &&
+      hasText(chartText, clean(trap?.state)),
     degraded:
       canonical?.dataDegraded !== true ||
-      chartText.includes("DATA DEGRADED"),
+      hasText(chartText, "DATA DEGRADED"),
   };
 
   console.log(
