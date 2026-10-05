@@ -917,8 +917,14 @@ export default function Engine29FullDashboard({ homeCompact = false }) {
     };
   }, []);
 
-  const d = data || summary || {};
-  const display = d?.display || summary?.display || {};
+  const d = useMemo(
+    () => data || summary || {},
+    [data, summary]
+  );
+  const display = useMemo(
+    () => d?.display || summary?.display || {},
+    [d, summary]
+  );
   const groups = d?.groups || {};
   const marketCharacter = d?.marketCharacter || display?.marketCharacter || {};
   const trapDetection = d?.trapDetection || {};
