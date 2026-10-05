@@ -19,6 +19,12 @@ const ENGINE25_ROUTE = `${API_ROOT}/api/v1/engine25/full-dashboard`;
 const MASTER_ROUTE = `${API_ROOT}/api/v1/futures/market-meter?symbol=ES`;
 const HOURLY_ROUTE = `${API_ROOT}/live/hourly`;
 
+const BROADER_MARKET_STRENGTH_WEIGHTS = Object.freeze({
+  breadth: 0.60,
+  sectors: 0.25,
+  volume: 0.15,
+});
+
 const COLORS = {
   bg: "#030405",
   panel: "#0a0d11",
@@ -778,11 +784,46 @@ export default function Engine25MarketXrayPreview() {
   const buyBreadthPct = breadthDenom > 0 ? (totalUp / breadthDenom) * 100 : null;
   const sellBreadthPct = breadthDenom > 0 ? (totalDown / breadthDenom) * 100 : null;
 
+  const hourlySectorStates = hourlyFresh
+    ? hourlyCards.map((card) => {
+        const b = n(card?.breadth_pct);
+        const m = n(card?.momentum_pct);
+        if (b == null || m == null) return "UNAVAILABLE";
+        if (b >= 55 && m >= 55) return "STRONG";
+        if (b <= 45 && m <= 45) return "WEAK";
+        return "NEUTRAL";
+      })
+    : [];
+  const currentWeakSectorCount = hourlyFresh
+    ? hourlySectorStates.filter((x) => x === "WEAK").length
+    : null;
+  const currentStrongSectorCount = hourlyFresh
+    ? hourlySectorStates.filter((x) => x === "STRONG").length
+    : null;
+  const currentNeutralSectorCount = hourlyFresh
+    ? hourlySectorStates.filter((x) => x === "NEUTRAL").length
+    : null;
+  const currentSectorCount = hourlyFresh ? hourlyCards.length : null;
+
+  const sectorParticipationScore =
+    hourlyFresh && currentSectorCount === 11
+      ? (((currentStrongSectorCount - currentWeakSectorCount) / 11) + 1) * 50
+      : null;
+
+  const broaderMarketStrength =
+    buyBreadthPct == null ||
+    sectorParticipationScore == null ||
+    buyVolPct == null
+      ? null
+      : buyBreadthPct * BROADER_MARKET_STRENGTH_WEIGHTS.breadth +
+        sectorParticipationScore * BROADER_MARKET_STRENGTH_WEIGHTS.sectors +
+        buyVolPct * BROADER_MARKET_STRENGTH_WEIGHTS.volume;
+
   const distributionPressurePct = n(distribution?.rawPressure);
 
   const masterScore = n(master?.master?.score);
   const masterState = master?.master?.tone || master?.master?.state || master?.master?.label || null;
-  const underlyingScore = n(breadth?.score);
+  const underlyingScore = n(broaderMarketStrength);
   const headlineColor = colorForCanonicalState(headline?.color || headline?.label || headline?.state);
   const breadthColor = colorForCanonicalState(breadth?.label);
   const distributionColor = colorForCanonicalState(distribution?.label);
@@ -822,27 +863,6 @@ export default function Engine25MarketXrayPreview() {
   const nhNl = participation?.newHighsNewLows || {};
   const nh = hourlyFresh ? hourlyTotals.nh : null;
   const nl = hourlyFresh ? hourlyTotals.nl : null;
-
-  const hourlySectorStates = hourlyFresh
-    ? hourlyCards.map((card) => {
-        const b = n(card?.breadth_pct);
-        const m = n(card?.momentum_pct);
-        if (b == null || m == null) return "UNAVAILABLE";
-        if (b >= 55 && m >= 55) return "STRONG";
-        if (b <= 45 && m <= 45) return "WEAK";
-        return "NEUTRAL";
-      })
-    : [];
-  const currentWeakSectorCount = hourlyFresh
-    ? hourlySectorStates.filter((x) => x === "WEAK").length
-    : null;
-  const currentStrongSectorCount = hourlyFresh
-    ? hourlySectorStates.filter((x) => x === "STRONG").length
-    : null;
-  const currentNeutralSectorCount = hourlyFresh
-    ? hourlySectorStates.filter((x) => x === "NEUTRAL").length
-    : null;
-  const currentSectorCount = hourlyFresh ? hourlyCards.length : null;
 
   const distributionInputs = distribution?.inputs || {};
   const intradayBreadthPressure =
