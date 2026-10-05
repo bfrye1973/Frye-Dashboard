@@ -184,7 +184,7 @@ export default function Engine29CrossMarketStressPanel({ visible = false, symbol
 
     async function load() {
       try {
-        setStatus((current) => (payload ? current : "LOADING"));
+        setStatus((current) => (current === "READY" ? current : "LOADING"));
         setError(null);
 
         const res = await fetch(FULL_ROUTE, { cache: "no-store" });
