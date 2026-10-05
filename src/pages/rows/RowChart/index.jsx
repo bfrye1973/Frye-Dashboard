@@ -961,6 +961,7 @@ export default function RowChart({
   const roRef = useRef(null);
 
   const overlayInstancesRef = useRef([]);
+  const engine1OverlayInstancesRef = useRef([]);
 
   const [bars, setBars] = useState([]);
   const barsRef = useRef([]);
@@ -1163,6 +1164,11 @@ export default function RowChart({
         overlayInstancesRef.current.forEach((o) => o?.destroy?.());
       } catch {}
       overlayInstancesRef.current = [];
+
+      try {
+        engine1OverlayInstancesRef.current.forEach((o) => o?.destroy?.());
+      } catch {}
+      engine1OverlayInstancesRef.current = [];
 
       try {
         drawingsEngineRef.current?.destroy?.();
@@ -1415,6 +1421,72 @@ export default function RowChart({
     chartMode,
   ]);
 
+  /* ============ Engine 1: Stable Location Overlays (isolated) ============ */
+
+  useEffect(() => {
+    if (!chartRef.current || !seriesRef.current || barsRef.current.length === 0) {
+      return;
+    }
+
+    try {
+      engine1OverlayInstancesRef.current.forEach((o) => o?.destroy?.());
+    } catch {}
+    engine1OverlayInstancesRef.current = [];
+
+    const regEngine1 = (inst) =>
+      inst && engine1OverlayInstancesRef.current.push(inst);
+
+    if (state.institutionalZonesAuto) {
+      regEngine1(
+        attachOverlay(SMZLevelsOverlay, {
+          chart: chartRef.current,
+          priceSeries: seriesRef.current,
+          chartContainer: containerRef.current,
+          timeframe: state.timeframe,
+          symbol: state.symbol,
+        })
+      );
+
+      regEngine1(
+        attachOverlay(SMZNegotiatedOverlay, {
+          chart: chartRef.current,
+          priceSeries: seriesRef.current,
+          chartContainer: containerRef.current,
+          timeframe: state.timeframe,
+          symbol: state.symbol,
+        })
+      );
+    }
+
+    if (state.smzShelvesAuto) {
+      regEngine1(
+        attachOverlay(SMZShelvesOverlay, {
+          chart: chartRef.current,
+          priceSeries: seriesRef.current,
+          chartContainer: containerRef.current,
+          timeframe: state.timeframe,
+          symbol: state.symbol,
+        })
+      );
+    }
+
+    try {
+      engine1OverlayInstancesRef.current.forEach((o) =>
+        o?.seed?.(barsRef.current)
+      );
+    } catch {}
+
+    return () => {
+      try {
+        engine1OverlayInstancesRef.current.forEach((o) => o?.destroy?.());
+      } catch {}
+      engine1OverlayInstancesRef.current = [];
+    };
+  }, [
+    state.timeframe,
+    state.symbol,
+  ]);
+
   /* =================== Effect C: Attach/Seed Overlays =================== */
 
   useEffect(() => {
@@ -1431,45 +1503,6 @@ export default function RowChart({
     const reg = (inst) => inst && overlayInstancesRef.current.push(inst);
 
     const isES = normalizeSymbol(state.symbol) === "ES";
-
-    const engine1On = !!state.institutionalZonesAuto;
-    const shelvesOn = !!state.smzShelvesAuto;
-
-    // ES manual institutional/negotiated zones are now supported.
-    // SMZ overlay components must choose the correct route by symbol.
-    if (engine1On) {
-      reg(
-        attachOverlay(SMZLevelsOverlay, {
-          chart: chartRef.current,
-          priceSeries: seriesRef.current,
-          chartContainer: containerRef.current,
-          timeframe: state.timeframe,
-          symbol: state.symbol,
-        })
-      );
-
-      reg(
-        attachOverlay(SMZNegotiatedOverlay, {
-          chart: chartRef.current,
-          priceSeries: seriesRef.current,
-          chartContainer: containerRef.current,
-          timeframe: state.timeframe,
-          symbol: state.symbol,
-        })
-      );
-    }
-
-    if (shelvesOn) {
-      reg(
-        attachOverlay(SMZShelvesOverlay, {
-          chart: chartRef.current,
-          priceSeries: seriesRef.current,
-          chartContainer: containerRef.current,
-          timeframe: state.timeframe,
-          symbol: state.symbol,
-        })
-      );
-    }
 
     if (state.fibPrimary) {
       reg(
