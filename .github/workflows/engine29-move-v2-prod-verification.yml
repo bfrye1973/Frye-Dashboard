@@ -1,0 +1,43 @@
+name: Engine29 MOVE v2 production verification
+
+on:
+  push:
+    branches:
+      - engine29-move-v2-prod-verification
+  workflow_dispatch:
+
+jobs:
+  production-verification:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout verification branch
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Playwright
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+
+      - name: Verify three production Engine29 surfaces
+        env:
+          ENGINE29_FRONTEND_BASE: "https://frye-dashboard.onrender.com"
+          ENGINE29_BACKEND_URL: "https://frye-market-backend-1.onrender.com/api/v1/engine29/cross-market-stress"
+        run: node scripts/verifyEngine29MoveV2Production.mjs
+
+      - name: Upload production screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: engine29-move-v2-production-screenshots
+          path: |
+            engine29-home.png
+            engine29-full.png
+            engine29-chart-overlay.png
+          if-no-files-found: ignore
