@@ -1385,7 +1385,7 @@ export default function Engine25MarketXrayPreview() {
                       >
                         {imbalancePct == null
                           ? "UNAVAILABLE"
-                          : `${imbalancePct > 0 ? "+" : ""}${imbalancePct.toFixed(1)}%`}
+                          : `${Math.abs(imbalancePct).toFixed(1)}%`}
                       </div>
                       <div
                         style={{
