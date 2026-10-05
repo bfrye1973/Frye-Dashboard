@@ -1,0 +1,31 @@
+name: Engine29 MOVE v2 frontend parity
+
+on:
+  push:
+    branches:
+      - engine29-move-v2-frontend-parity
+  workflow_dispatch:
+
+jobs:
+  frontend-parity:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install
+        run: npm install
+
+      - name: MOVE v2 selector and parity tests
+        env:
+          CI: "true"
+        run: npm test -- --watchAll=false src/pages/engine29/engine29MoveV2ViewModel.test.js
+
+      - name: Production build check
+        run: npm run build

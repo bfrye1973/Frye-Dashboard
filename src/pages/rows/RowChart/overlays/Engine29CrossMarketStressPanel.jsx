@@ -4,6 +4,7 @@
 // Read-only. Uses Engine 29 summary API and never owns trade permission.
 
 import React, { useEffect, useMemo, useState } from "react";
+import { selectEngine29MoveV2View } from "../../../engine29/engine29MoveV2ViewModel";
 
 const API_BASE =
   (typeof window !== "undefined" && (window.__API_BASE__ || "")) ||
@@ -12,7 +13,7 @@ const API_BASE =
   "https://frye-market-backend-1.onrender.com";
 
 const API_ROOT = API_BASE.replace(/\/+$/, "").replace(/\/api$/, "");
-const SUMMARY_ROUTE = `${API_ROOT}/api/v1/engine29/cross-market-stress/summary`;
+const FULL_ROUTE = `${API_ROOT}/api/v1/engine29/cross-market-stress`;
 
 const FONT = "Arial, Helvetica, sans-serif";
 
@@ -53,7 +54,7 @@ function plainState(value) {
 function plainMoveCharacter(value) {
   const raw = rawMoveCharacter(value);
   const text = String(raw || "").toUpperCase();
-  if (!text || text === "NO_ACTIVE_MOVE") return "NO ACTIVE SQUEEZE";
+  if (!text || text === "NO_ACTIVE_MOVE") return "NO ACTIVE MOVE";
   if (text === "POSSIBLE_UPSIDE_SQUEEZE") return "POSSIBLE ES UPSIDE SQUEEZE";
   if (text === "POSSIBLE_DOWNSIDE_SQUEEZE") return "POSSIBLE ES DOWNSIDE SQUEEZE";
   if (text === "LIQUIDITY_SWEEP_HIGH") return "ES LIQUIDITY SWEEP HIGH";
@@ -183,18 +184,18 @@ export default function Engine29CrossMarketStressPanel({ visible = false, symbol
 
     async function load() {
       try {
-        setStatus((current) => (payload ? current : "LOADING"));
+        setStatus((current) => (current === "READY" ? current : "LOADING"));
         setError(null);
 
-        const res = await fetch(SUMMARY_ROUTE, { cache: "no-store" });
+        const res = await fetch(FULL_ROUTE, { cache: "no-store" });
         const json = await res.json();
 
         if (!res.ok || json?.ok === false) {
-          throw new Error(json?.error || `Engine 29 summary HTTP ${res.status}`);
+          throw new Error(json?.error || `Engine 29 HTTP ${res.status}`);
         }
 
         if (!cancelled) {
-          setPayload(json?.data || null);
+          setPayload(json?.data || json || null);
           setStatus("READY");
         }
       } catch (err) {
@@ -217,6 +218,10 @@ export default function Engine29CrossMarketStressPanel({ visible = false, symbol
   const display = payload?.display || {};
   const hood = display?.underTheHood || {};
   const pressure = hood?.pressure || {};
+  const moveView = useMemo(
+    () => selectEngine29MoveV2View(payload || {}, null),
+    [payload]
+  );
 
   const titleBorder = useMemo(
     () => stateColor(payload?.overallState || display?.overall),
@@ -317,9 +322,32 @@ export default function Engine29CrossMarketStressPanel({ visible = false, symbol
         <>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 7 }}>
             <TinyState label="1W Bigger Picture" value={display?.oneWeek?.state || payload?.structuralState} />
-            <TinyState label="1H Intraday" value={display?.oneHour?.state || payload?.tacticalState} />
-            <TinyState label="30m Fast Shift" value={display?.thirtyMinute?.state || payload?.fastTacticalState} />
-            <TinyState label="ES Move" value={payload?.moveCharacter || display?.thirtyMinute?.moveCharacter || display?.thirtyMinute?.status} formatter={plainMoveCharacter} />
+            <TinyState label="1H Intraday" value={moveView?.oneHour?.state} />
+            <TinyState label="30m Fast Shift" value={moveView?.fastTactical?.state} />
+            <TinyState label="ES Parent MOVE" value={moveView?.parent?.state} formatter={plainMoveCharacter} />
+          </div>
+
+          <div
+            style={{
+              border: "1px solid rgba(96,165,250,0.30)",
+              borderRadius: 9,
+              padding: "8px 9px",
+              background: "rgba(30,64,175,0.08)",
+              display: "grid",
+              gap: 5,
+            }}
+          >
+            <div style={{ color: "#93c5fd", fontSize: 11, fontWeight: 900, textTransform: "uppercase" }}>
+              MOVE v2 Authority
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px 16px" }}>
+              <KV label="Parent direction" value={moveView?.parent?.direction} />
+              <KV label="Character" value={moveView?.character?.type || "NONE"} />
+              <KV label="Squeeze" value={moveView?.character?.squeeze?.active ? `${moveView.character.squeeze.direction} POSSIBLE SQUEEZE` : "NO ACTIVE SQUEEZE"} />
+              <KV label="Broad confirmation" value={moveView?.character?.broadConfirmation?.state || "—"} />
+              <KV label="Live condition" value={moveView?.liveCondition?.state || "—"} />
+              <KV label="Live vs parent" value={moveView?.liveCondition?.contextVsParent || "—"} />
+            </div>
           </div>
 
           <div
@@ -394,7 +422,7 @@ export default function Engine29CrossMarketStressPanel({ visible = false, symbol
           )}
 
           <div style={{ color: "#64748b", fontSize: 9, textAlign: "right" }}>
-            {symbol || "ES"} · refresh 60s · Engine 29 is contextual only
+            {symbol || "ES"} · canonical full snapshot · refresh 60s · Engine 29 is contextual only
           </div>
         </>
       )}
