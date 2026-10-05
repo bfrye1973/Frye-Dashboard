@@ -44,7 +44,7 @@ async function openAndCapture(page, url, marker, screenshotPath) {
     state: "visible",
     timeout: 120000,
   });
-  await page.waitForTimeout(4000);
+  await page.waitForTimeout(12000);
   await page.screenshot({ path: screenshotPath, fullPage: true });
   return bodyText(page);
 }
@@ -107,24 +107,30 @@ try {
     "engine29-home.png"
   );
 
-  await assertContains("HOME", homeText, "ES Parent MOVE");
-  await assertContains("HOME", homeText, expectedMove);
-  await assertContains("HOME", homeText, "10m Live Condition");
-  await assertContains("HOME", homeText, "Liquidity");
-  await assertContains("HOME", homeText, "Trap Detection");
-  if (canonical?.dataDegraded === true) {
-    await assertContains("HOME", homeText, "DATA DEGRADED");
-  }
+  const homeChecks = {
+    parentMove: homeText.includes("ES Parent MOVE"),
+    expectedMove: homeText.includes(expectedMove),
+    character: homeText.includes("MOVE Authority"),
+    liveCondition: homeText.includes("10m Live Condition"),
+    fastTactical: homeText.includes("30m Fast Shift"),
+    oneHour: homeText.includes("1H Current Pressure"),
+    liquidity: homeText.includes("Liquidity"),
+    trap: homeText.includes("Trap Detection"),
+    degraded:
+      canonical?.dataDegraded !== true ||
+      homeText.includes("DATA DEGRADED"),
+  };
 
   console.log(
     "HOME_OUTPUT " +
       JSON.stringify({
+        checks: homeChecks,
+        markerSegment: segment(homeText, "ENGINE 29 — MARKET CHARACTER", 1600),
         move: segment(homeText, "ES Parent MOVE"),
         character: segment(homeText, "MOVE Authority"),
         live: segment(homeText, "10m Live Condition"),
         liquidity: segment(homeText, "Liquidity"),
         trap: segment(homeText, "Trap Detection"),
-        degraded: homeText.includes("DATA DEGRADED"),
       })
   );
 
@@ -135,24 +141,30 @@ try {
     "engine29-full.png"
   );
 
-  await assertContains("FULL", fullText, "ES Parent MOVE");
-  await assertContains("FULL", fullText, expectedMove);
-  await assertContains("FULL", fullText, "10m Live Condition");
-  await assertContains("FULL", fullText, "Liquidity");
-  await assertContains("FULL", fullText, "Trap Detection");
-  if (canonical?.dataDegraded === true) {
-    await assertContains("FULL", fullText, "DATA DEGRADED");
-  }
+  const fullChecks = {
+    parentMove: fullText.includes("ES Parent MOVE"),
+    expectedMove: fullText.includes(expectedMove),
+    character: fullText.includes("MOVE Authority"),
+    liveCondition: fullText.includes("10m Live Condition"),
+    fastTactical: fullText.includes("30m Fast Shift"),
+    oneHour: fullText.includes("1H Current Pressure"),
+    liquidity: fullText.includes("Liquidity"),
+    trap: fullText.includes("Trap Detection"),
+    degraded:
+      canonical?.dataDegraded !== true ||
+      fullText.includes("DATA DEGRADED"),
+  };
 
   console.log(
     "FULL_OUTPUT " +
       JSON.stringify({
+        checks: fullChecks,
+        markerSegment: segment(fullText, "ENGINE 29 — MARKET CHARACTER", 1600),
         move: segment(fullText, "ES Parent MOVE"),
         character: segment(fullText, "MOVE Authority"),
         live: segment(fullText, "10m Live Condition"),
         liquidity: segment(fullText, "Liquidity"),
         trap: segment(fullText, "Trap Detection"),
-        degraded: fullText.includes("DATA DEGRADED"),
       })
   );
 
@@ -160,39 +172,44 @@ try {
     waitUntil: "domcontentloaded",
     timeout: 120000,
   });
+  await page.waitForTimeout(8000);
 
   await page.getByText("Indicators ▾", { exact: true }).click();
   const overlayLabel = page.getByText("Cross-Market Stress Window", {
     exact: true,
   });
   await overlayLabel.waitFor({ state: "visible", timeout: 120000 });
-  const checkbox = overlayLabel.locator("xpath=preceding::input[@type='checkbox'][1]");
+  const checkbox = overlayLabel.locator(
+    "xpath=preceding::input[@type='checkbox'][1]"
+  );
   await checkbox.check();
 
   await page
     .getByText("Engine 29 — Cross-Market Stress", { exact: false })
     .last()
     .waitFor({ state: "visible", timeout: 120000 });
-  await page.waitForTimeout(5000);
+  await page.waitForTimeout(12000);
 
   const chartText = await bodyText(page);
-  await page.screenshot({ path: "engine29-chart-overlay.png", fullPage: true });
+  await page.screenshot({
+    path: "engine29-chart-overlay.png",
+    fullPage: true,
+  });
 
-  await assertContains("CHART_OVERLAY", chartText, "ES Parent MOVE");
-  await assertContains("CHART_OVERLAY", chartText, expectedMove);
-  await assertContains("CHART_OVERLAY", chartText, "MOVE v2 Authority");
-
-  const overlayChecks = {
+  const chartChecks = {
     parentMove: chartText.includes("ES Parent MOVE"),
-    character: chartText.includes("Character"),
+    expectedMove: chartText.includes(expectedMove),
+    character:
+      chartText.includes("MOVE v2 Authority") &&
+      chartText.includes("Character"),
     liveCondition: chartText.includes("Live condition"),
     fastTactical: chartText.includes("30m Fast Shift"),
     oneHour: chartText.includes("1H Intraday"),
     liquidity:
-      chartText.includes("Liquidity") ||
+      chartText.includes("Liquidity") &&
       chartText.includes(clean(liquidity?.state)),
     trap:
-      chartText.includes("Trap") ||
+      chartText.includes("Trap") &&
       chartText.includes(clean(trap?.state)),
     degraded:
       canonical?.dataDegraded !== true ||
@@ -202,15 +219,39 @@ try {
   console.log(
     "CHART_OUTPUT " +
       JSON.stringify({
-        checks: overlayChecks,
+        checks: chartChecks,
+        markerSegment: segment(chartText, "Engine 29 — Cross-Market Stress", 2000),
         move: segment(chartText, "ES Parent MOVE"),
         authority: segment(chartText, "MOVE v2 Authority"),
       })
   );
 
-  if (Object.values(overlayChecks).some((value) => value !== true)) {
+  const parity = {
+    home: homeChecks,
+    full: fullChecks,
+    chartOverlay: chartChecks,
+  };
+
+  const failed = Object.entries(parity).flatMap(([surface, checks]) =>
+    Object.entries(checks)
+      .filter(([, ok]) => ok !== true)
+      .map(([check]) => `${surface}:${check}`)
+  );
+
+  console.log(
+    "PRODUCTION_PARITY_SUMMARY " +
+      JSON.stringify({
+        canonicalTimestamp: canonical?.timestamp ?? null,
+        parentDirection: parent?.direction ?? null,
+        expectedMove,
+        failed,
+        parity,
+      })
+  );
+
+  if (failed.length) {
     throw new Error(
-      "CHART_OVERLAY_PARITY_INCOMPLETE " + JSON.stringify(overlayChecks)
+      "PRODUCTION_PARITY_INCOMPLETE " + JSON.stringify(failed)
     );
   }
 
