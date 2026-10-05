@@ -1483,6 +1483,8 @@ export default function RowChart({
       engine1OverlayInstancesRef.current = [];
     };
   }, [
+    state.institutionalZonesAuto,
+    state.smzShelvesAuto,
     state.timeframe,
     state.symbol,
   ]);
