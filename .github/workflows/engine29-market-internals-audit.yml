@@ -1,0 +1,49 @@
+name: Engine29 market internals audit
+
+on:
+  push:
+    branches:
+      - engine29-move-v2-prod-verification
+    paths:
+      - .github/workflows/engine29-market-internals-audit.yml
+  workflow_dispatch:
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Audit live Engine29 group timestamps and states
+        shell: bash
+        run: |
+          curl -fsS "https://frye-market-backend-1.onrender.com/api/v1/engine29/cross-market-stress?t=$(date +%s)" -o /tmp/e29.json
+          node <<'NODE'
+          const fs=require("fs");
+          const raw=JSON.parse(fs.readFileSync("/tmp/e29.json","utf8"));
+          const d=raw.data||raw;
+          const groups=d.groups||{};
+          const names=["headlineIndex","breadth","leadership","credit","ratesDuration","energyInflation","volatility","financialConditions"];
+          const latest=(layer)=>{
+            const times=(layer?.members||[]).map(m=>m?.latest?.time).filter(Number.isFinite);
+            if(!times.length) return null;
+            return new Date(Math.max(...times)).toISOString();
+          };
+          const rows=names.map(name=>{
+            const g=groups[name]||{};
+            return {
+              group:name,
+              structural:g.structural?.state??null,
+              structuralLatest:latest(g.structural),
+              tactical:g.tactical?.state??null,
+              tacticalLatest:latest(g.tactical),
+              fast:g.fastTactical?.state??null,
+              fastLatest:latest(g.fastTactical),
+              degraded:Boolean(g.structural?.dataDegraded||g.tactical?.dataDegraded||g.fastTactical?.dataDegraded),
+              structuralMissing:g.structural?.missingRequiredMembers||[],
+              tacticalMissing:g.tactical?.missingRequiredMembers||[],
+              fastMissing:g.fastTactical?.missingRequiredMembers||[]
+            };
+          });
+          console.log("ENGINE29_TIMESTAMP", d.timestamp);
+          console.log("DATA_DEGRADED", d.dataDegraded);
+          console.log("GROUP_AUDIT", JSON.stringify(rows));
+          NODE
