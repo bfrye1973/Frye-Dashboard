@@ -1,0 +1,22 @@
+name: Engine25 Broader Market 1H Gate
+
+on:
+  push:
+    branches:
+      - engine25-broader-market-strength-1h-v1
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: npm install --no-package-lock
+      - run: DISABLE_ESLINT_PLUGIN=true npm run build
+      - run: |
+          grep -q 'breadth: 0.60' src/pages/engine25/Engine25MarketXrayPreview.jsx
+          grep -q 'sectors: 0.25' src/pages/engine25/Engine25MarketXrayPreview.jsx
+          grep -q 'volume: 0.15' src/pages/engine25/Engine25MarketXrayPreview.jsx
+          grep -q 'const underlyingScore = n(broaderMarketStrength);' src/pages/engine25/Engine25MarketXrayPreview.jsx
