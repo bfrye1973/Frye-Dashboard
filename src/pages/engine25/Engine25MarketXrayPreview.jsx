@@ -729,7 +729,7 @@ export default function Engine25MarketXrayPreview() {
   const hourlyAgeMs = Number.isFinite(hourlySourceMs)
     ? Math.max(0, Date.now() - hourlySourceMs)
     : null;
-  const hourlyFresh = hourlyCards.length === 11 && hourlyAgeMs != null && hourlyAgeMs <= 75 * 60 * 1000;
+  const hourlyFresh = hourlyCards.length === 11 && hourlyAgeMs != null && hourlyAgeMs <= 90 * 60 * 1000;
 
   const hourlyTotals = hourlyCards.reduce(
     (out, card) => {
