@@ -15,6 +15,7 @@
 // - 10m live monitor / 20m persistence is diagnostic only
 
 import React, { useEffect, useMemo, useState } from "react";
+import { selectEngine29MoveV2View } from "./engine29MoveV2ViewModel";
 
 const API_BASE =
   (typeof window !== "undefined" && (window.__API_BASE__ || "")) ||
@@ -156,6 +157,9 @@ function plainLiveState(value) {
 
 function plainContext(value) {
   const text = String(value || "").toUpperCase();
+  if (text === "COUNTERTREND_TO_PARENT") return "COUNTERTREND TO 30M PARENT";
+  if (text === "ALIGNED_WITH_PARENT") return "ALIGNED WITH 30M PARENT";
+  if (text === "NO_ACTIVE_PARENT") return "NO ACTIVE 30M PARENT";
   if (text === "COUNTERTREND_TO_30M") return "COUNTERTREND TO 30M";
   if (text === "ALIGNED_WITH_30M") return "ALIGNED WITH 30M";
   if (text === "FAST_NEUTRAL") return "30M NEUTRAL";
@@ -376,11 +380,12 @@ function StateCard({ label, value, subtitle, accent }) {
   );
 }
 
-function LiveMonitorCard({ data, display }) {
+function LiveMonitorCard({ data, display, moveView }) {
   const live = data?.liveMonitor || {};
   const liveDisplay = display?.liveMonitor || live?.display || {};
   const metrics = live?.metrics || {};
-  const state = live?.state || liveDisplay?.state;
+  const canonicalLive = moveView?.liveCondition || {};
+  const state = canonicalLive?.state || live?.state || liveDisplay?.state;
   const color = stateColor(state);
 
   const metricItems = [
@@ -396,14 +401,14 @@ function LiveMonitorCard({ data, display }) {
 
   return (
     <Card style={{ borderColor: `${color}66`, background: `linear-gradient(135deg, ${color}0D, rgba(15,23,42,0.90))` }}>
-      <SectionTitle color={color}>10m Live Monitor — 20m Persistence</SectionTitle>
+      <SectionTitle color={color}>10m Live Condition — 20m Diagnostic</SectionTitle>
       <div style={{ display: "grid", gridTemplateColumns: "1.0fr 1.45fr 1.2fr", gap: 16 }}>
         <div>
           <div style={{ color, fontSize: 24, fontWeight: 950 }}>{plainLiveState(state)}</div>
           <div style={{ marginTop: 10, display: "grid", gap: 6 }}>
-            <LabelValue label="Participation" value={clean(live?.participation || liveDisplay?.participation)} />
-            <LabelValue label="10m vs 30m" value={plainContext(live?.context || liveDisplay?.context)} />
-            <LabelValue label="30m authority" value={plainTactical(live?.fastTacticalContext?.state || liveDisplay?.parent30mState || data?.fastTacticalState)} />
+            <LabelValue label="Participation" value={clean(canonicalLive?.participation || live?.participation || liveDisplay?.participation)} />
+            <LabelValue label="10m/20m vs Parent" value={plainContext(canonicalLive?.contextVsParent || live?.contextVsParent || liveDisplay?.contextVsParent || live?.context || liveDisplay?.context)} />
+            <LabelValue label="Parent MOVE" value={plainMoveCharacter(moveView?.parent?.state, moveView?.parent?.direction)} />
             <LabelValue label="Authority" value="DIAGNOSTIC ONLY" color={COLORS.info} />
           </div>
         </div>
@@ -428,7 +433,7 @@ function LiveMonitorCard({ data, display }) {
                 <span>{reason}</span>
               </div>
             ))}
-            {!asArray(liveDisplay?.why || live?.display?.why).length ? <span style={{ color: COLORS.muted }}>Waiting for live-monitor explanation.</span> : null}
+            {!asArray(liveDisplay?.why || live?.display?.why).length ? <span style={{ color: COLORS.muted }}>Waiting for live-condition explanation.</span> : null}
           </div>
         </div>
       </div>
@@ -469,24 +474,35 @@ function LiquidityCard({ liquidity }) {
   );
 }
 
-function MoveCharacterCard({ move, data }) {
-  const moveCharacter = move?.moveCharacter || "NO_ACTIVE_MOVE";
-  const color = stateColor(moveCharacter);
-  const live = data?.liveMonitor || {};
-  const pressure = data?.moveCharacter?.underlyingPressure?.state || data?.display?.underTheHood?.pressure?.state;
-  const squeeze = String(moveCharacter).includes("SQUEEZE") ? plainMoveCharacter(moveCharacter) : "NO SQUEEZE";
+function MoveCharacterCard({ moveView, data }) {
+  const parent = moveView?.parent || {};
+  const character = moveView?.character || {};
+  const liveCondition = moveView?.liveCondition || {};
+  const color = stateColor(parent?.state);
+  const pressure =
+    data?.moveCharacter?.underlyingPressure?.state ||
+    data?.display?.underTheHood?.pressure?.state;
+
+  const squeezeLabel = character?.squeeze?.active
+    ? `${clean(character.squeeze.direction)} POSSIBLE SQUEEZE`
+    : "NO ACTIVE SQUEEZE";
 
   return (
     <Card style={{ borderColor: `${color}66` }}>
-      <SectionTitle color={color}>〽 Move / Squeeze</SectionTitle>
-      <div style={{ color, fontSize: 25, fontWeight: 950 }}>{plainMoveCharacter(moveCharacter, move?.direction)}</div>
+      <SectionTitle color={color}>〽 MOVE Authority</SectionTitle>
+      <div style={{ color, fontSize: 25, fontWeight: 950 }}>
+        {plainMoveCharacter(parent?.state, parent?.direction)}
+      </div>
       <div style={{ marginTop: 10, display: "grid", gap: 6 }}>
-        <LabelValue label="Direction" value={clean(move?.direction)} />
-        <LabelValue label="30m authority" value={plainTactical(data?.fastTacticalState)} />
-        <LabelValue label="10m transition" value={plainLiveState(move?.fastState || live?.state)} />
-        <LabelValue label="20m persistence" value={pct(live?.metrics?.es?.move20)} />
+        <LabelValue label="Parent direction" value={clean(parent?.direction)} />
+        <LabelValue label="Parent source" value={clean(parent?.source)} color={COLORS.info} />
+        <LabelValue label="Move character" value={clean(character?.type || "NONE")} />
+        <LabelValue label="Squeeze character" value={squeezeLabel} />
+        <LabelValue label="Broad confirmation" value={clean(character?.broadConfirmation?.state || "—")} />
+        <LabelValue label="Broad target direction" value={clean(character?.broadConfirmation?.targetDirection || "—")} />
+        <LabelValue label="Live condition" value={plainLiveState(liveCondition?.state)} />
+        <LabelValue label="30m fast pressure" value={plainTactical(moveView?.fastTactical?.state)} />
         <LabelValue label="Underlying pressure" value={clean(pressure)} />
-        <LabelValue label="Squeeze" value={squeeze} />
       </div>
     </Card>
   );
@@ -683,7 +699,7 @@ function KeyTakeawaysCard({ data, display }) {
         <div><strong>Overall:</strong> {plainOverall(display?.overall || data?.overallState)}</div>
         <div>{display?.overallSummary || "—"}</div>
         <div><strong>Liquidity:</strong> {clean(liquidity?.state || "NO_LIQUIDITY_EVENT")}</div>
-        <div><strong>Move:</strong> {plainMoveCharacter(move?.moveCharacter || data?.moveCharacter?.moveCharacter, move?.direction || data?.moveDirection || data?.moveCharacter?.direction)}</div>
+        <div><strong>Move:</strong> {plainMoveCharacter(move?.parent?.active === true ? (move?.parent?.direction === "UP" ? "UPSIDE_MOVE_ACTIVE" : "DOWNSIDE_MOVE_ACTIVE") : move?.moveCharacter || data?.moveCharacter?.moveCharacter, move?.parent?.direction || move?.direction || data?.moveCharacter?.direction)}</div>
         <div><strong>Trap:</strong> {clean(trap?.side || "NONE")} / {clean(trap?.state || "NO_ACTIVE_TRAP")}</div>
         <div><strong>ES backdrop:</strong> <span style={{ color: stateColor(data?.esNqBackdrop) }}>{plainBackdrop(data?.esNqBackdrop)}</span></div>
       </div>
@@ -802,24 +818,25 @@ function PressureCard({ display, move }) {
   );
 }
 
-function EsMoveCard({ data }) {
-  const move = data?.moveCharacter || data?.tacticalCharacter || data?.moveCharacterDetail || null;
-  const display = data?.display || {};
-  const thirty = display?.thirtyMinute || {};
-  const moveCharacter = rawMoveCharacter(data?.moveCharacter) || rawMoveCharacter(move) || rawMoveCharacter(thirty?.moveCharacter) || thirty?.status;
-  const moveDirection = data?.moveDirection || move?.direction;
-  const pressure = move?.underlyingPressure?.state || display?.underTheHood?.pressure?.state;
+function EsMoveCard({ data, moveView }) {
+  const parent = moveView?.parent || {};
+  const character = moveView?.character || {};
+  const pressure =
+    data?.moveCharacter?.underlyingPressure?.state ||
+    data?.display?.underTheHood?.pressure?.state;
 
   return (
-    <Card style={{ borderColor: `${stateColor(moveCharacter)}66` }}>
-      <SectionTitle color={stateColor(moveCharacter)}>ES Move Character</SectionTitle>
-      <div style={{ fontSize: 24, fontWeight: 900, color: stateColor(moveCharacter) }}>{plainMoveCharacter(moveCharacter || thirty?.status, moveDirection)}</div>
+    <Card style={{ borderColor: `${stateColor(parent?.state)}66` }}>
+      <SectionTitle color={stateColor(parent?.state)}>ES Parent MOVE</SectionTitle>
+      <div style={{ fontSize: 24, fontWeight: 900, color: stateColor(parent?.state) }}>
+        {plainMoveCharacter(parent?.state, parent?.direction)}
+      </div>
       <div style={{ marginTop: 9, display: "grid", gap: 6 }}>
-        <LabelValue label="Direction" value={clean(moveDirection)} />
+        <LabelValue label="Direction" value={clean(parent?.direction)} />
+        <LabelValue label="Character" value={clean(character?.type || "NONE")} />
         <LabelValue label="Pressure" value={clean(pressure)} />
         <LabelValue label="ES contract" value={data?.dataQuality?.esResolvedSymbol || data?.esResolvedSymbol || "—"} color="#f8fafc" />
       </div>
-      <div style={{ marginTop: 9, color: "#cbd5e1", fontSize: 12.5, lineHeight: 1.4 }}>{thirty?.summary || move?.display?.summary || "No move-character summary available."}</div>
     </Card>
   );
 }
@@ -906,16 +923,20 @@ export default function Engine29FullDashboard({ homeCompact = false }) {
   const marketCharacter = d?.marketCharacter || display?.marketCharacter || {};
   const trapDetection = d?.trapDetection || {};
   const engine25Primary = trapDetection?.participation?.primary || {};
+  const moveView = useMemo(
+    () => selectEngine29MoveV2View(d, summary),
+    [d, summary]
+  );
 
   const top = useMemo(
     () => ({
       oneWeek: display?.oneWeek?.state || d?.structuralState || d?.overallState,
-      oneHour: display?.oneHour?.state || d?.tacticalState,
-      thirty: display?.thirtyMinute?.state || d?.fastTacticalState,
-      move: marketCharacter?.move?.moveCharacter || rawMoveCharacter(d?.moveCharacter) || rawMoveCharacter(display?.thirtyMinute?.moveCharacter) || display?.thirtyMinute?.status,
-      moveDirection: marketCharacter?.move?.direction || d?.moveDirection || d?.moveCharacter?.direction || null,
+      oneHour: moveView?.oneHour?.state,
+      thirty: moveView?.fastTactical?.state,
+      move: moveView?.parent?.state,
+      moveDirection: moveView?.parent?.direction,
     }),
-    [display, d, marketCharacter]
+    [display, d, moveView]
   );
 
   const updatedAt = d?.timestamp ? new Date(d.timestamp) : null;
@@ -1013,13 +1034,13 @@ export default function Engine29FullDashboard({ homeCompact = false }) {
                 subtitle={display?.thirtyMinute?.summary}
               />
               <StateCard
-                label="ES Move"
+                label="ES Parent MOVE"
                 value={plainMoveCharacter(top.move, top.moveDirection)}
                 subtitle={display?.thirtyMinute?.summary}
               />
             </div>
 
-            <LiveMonitorCard data={d} display={display} />
+            <LiveMonitorCard data={d} display={display} moveView={moveView} />
 
             <div
               style={{
@@ -1035,10 +1056,7 @@ export default function Engine29FullDashboard({ homeCompact = false }) {
                 }
               />
               <MoveCharacterCard
-                move={
-                  marketCharacter?.move ||
-                  trapDetection?.moveCharacterLane
-                }
+                moveView={moveView}
                 data={d}
               />
               <TrapCard
@@ -1094,14 +1112,14 @@ export default function Engine29FullDashboard({ homeCompact = false }) {
               <StateCard label="1W Bigger Picture" value={plainOverall(top.oneWeek)} subtitle={display?.oneWeek?.summary} />
               <StateCard label="1H Current Pressure" value={plainTactical(top.oneHour)} subtitle={display?.oneHour?.summary} />
               <StateCard label="30m Fast Shift" value={plainTactical(top.thirty)} subtitle={display?.thirtyMinute?.summary} />
-              <StateCard label="ES Move" value={plainMoveCharacter(top.move, top.moveDirection)} subtitle={display?.thirtyMinute?.summary} />
+              <StateCard label="ES Parent MOVE" value={plainMoveCharacter(top.move, top.moveDirection)} subtitle={display?.thirtyMinute?.summary} />
             </div>
 
-            <LiveMonitorCard data={d} display={display} />
+            <LiveMonitorCard data={d} display={display} moveView={moveView} />
 
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(300px, 1fr))", gap: 12 }}>
               <LiquidityCard liquidity={marketCharacter?.liquidity || trapDetection?.liquidity} />
-              <MoveCharacterCard move={marketCharacter?.move || trapDetection?.moveCharacterLane} data={d} />
+              <MoveCharacterCard moveView={moveView} data={d} />
               <TrapCard trap={marketCharacter?.trap || trapDetection?.trap} detection={trapDetection} />
             </div>
 
@@ -1157,7 +1175,7 @@ export default function Engine29FullDashboard({ homeCompact = false }) {
                   </div>
 
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                    <EsMoveCard data={d} />
+                    <EsMoveCard data={d} moveView={moveView} />
                     <PressureCard display={display} move={d?.moveCharacter || d?.tacticalCharacter} />
                   </div>
 
