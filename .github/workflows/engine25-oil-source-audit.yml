@@ -1,0 +1,33 @@
+name: Engine25 oil source audit
+
+on:
+  push:
+    branches:
+      - engine29-move-v2-prod-verification
+    paths:
+      - .github/workflows/engine25-oil-source-audit.yml
+  workflow_dispatch:
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Inspect live Engine25 oil source timestamps
+        shell: bash
+        run: |
+          curl -fsS "https://frye-market-backend-1.onrender.com/api/v1/engine25/intraday-macro?t=$(date +%s)" -o /tmp/e25.json
+          node <<'NODE'
+          const fs=require("fs");
+          const raw=JSON.parse(fs.readFileSync("/tmp/e25.json","utf8"));
+          const d=raw.data||raw;
+          function walk(o,p=[]){
+            if(!o||typeof o!=="object") return;
+            for(const [k,v] of Object.entries(o)){
+              const path=[...p,k];
+              if(/oil|wti|brent|crude/i.test(k)) console.log("OIL_FIELD",path.join("."),JSON.stringify(v));
+              if(v&&typeof v==="object") walk(v,path);
+            }
+          }
+          console.log("TOP",JSON.stringify({timestamp:d.timestamp,generatedAt:d.generatedAt,updatedAt:d.updatedAt}));
+          walk(d);
+          NODE
