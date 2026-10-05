@@ -1559,31 +1559,15 @@ export default function RowChart({
       );
     }
 
-    if (state.engine17Overlay && engine17Data?.ok) {
-      reg(
-        attachOverlay(Engine17Overlay, {
-          chart: chartRef.current,
-          priceSeries: seriesRef.current,
-          chartContainer: containerRef.current,
-          overlayData: engine17Data,
-          showLiquidityZones: false,
-          showMarketStructure: false,
-          showBadges: false,
-          showSignals: !!state.engine17Signals,
-          showSignalProvenance: false,
-          showForwardRiskMap: false,
-          showRegimeBackground: false,
-          showTriggerLine: !!state.engine17TriggerLine,
-        })
-      );
-    }
+    // Engine 17 chart overlay is retired.
+    // IMPORTANT: do not attach it here; Engine 1 canvases must not be
+    // destroyed/recreated when dashboard snapshot data refreshes.
 
     try {
       overlayInstancesRef.current.forEach((o) => o?.seed?.(barsRef.current));
     } catch {}
   }, [
     seedToken,
-    engine17Data,
     state.institutionalZonesAuto,
     state.smzShelvesAuto,
     state.fibPrimary,
@@ -1597,9 +1581,6 @@ export default function RowChart({
     state.fibMinuteStyle,
     state.fibMicroStyle,
     state.showPremarketFibs,
-    state.engine17Overlay,
-    state.engine17Signals,
-    state.engine17TriggerLine,
     state.timeframe,
     state.symbol,
     showDebug,
