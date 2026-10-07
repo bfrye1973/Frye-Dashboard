@@ -835,9 +835,69 @@ export default function Engine25MarketXrayPreview() {
   const distributionSectorPressure = distributionV2
     ? n(distribution4hComponents?.sectorPressure)
     : null;
-  const distribution1hPressure = n(distribution?.tactical1h?.pressure);
-  const distribution30mPressure = n(distribution?.confirmation30m?.pressure);
-  const distribution10mPressure = n(distribution?.acceleration10m?.pressure);
+  const distribution1hAvailable = distribution?.tactical1h?.available === true;
+  const distribution30mAvailable = distribution?.confirmation30m?.available === true;
+  const distribution10mAvailable = distribution?.acceleration10m?.available === true;
+  const distribution1hPressure = distribution1hAvailable
+    ? n(distribution?.tactical1h?.pressure)
+    : null;
+  const distribution30mPressure = distribution30mAvailable
+    ? n(distribution?.confirmation30m?.pressure)
+    : null;
+  const distribution10mPressure = distribution10mAvailable
+    ? n(distribution?.acceleration10m?.pressure)
+    : null;
+  const distributionHistory = distribution?.history || {};
+
+  const distributionComparison = (timeframe, currentPressure, available) => {
+    const rows = Array.isArray(distributionHistory?.[timeframe])
+      ? distributionHistory[timeframe]
+      : [];
+    const validRows = rows
+      .filter((row) => n(row?.pressure) != null && row?.sourceTimestamp)
+      .slice(-2);
+
+    if (!available) {
+      const last = validRows[validRows.length - 1];
+      return last
+        ? `LAST VALID RUN: ${fmt(n(last.pressure), 1)} / 100`
+        : "NO PRIOR VALID RUN";
+    }
+
+    if (currentPressure == null || validRows.length < 2) {
+      return "PRIOR COMPARISON: BUILDING HISTORY";
+    }
+
+    const previous = n(validRows[validRows.length - 2]?.pressure);
+    const latest = n(validRows[validRows.length - 1]?.pressure);
+    if (previous == null || latest == null) {
+      return "PRIOR COMPARISON: UNAVAILABLE";
+    }
+
+    const delta = latest - previous;
+    const direction =
+      Math.abs(delta) < 0.05
+        ? "UNCHANGED"
+        : delta > 0
+        ? `+${fmt(delta, 1)} MORE SELLING PRESSURE`
+        : `${fmt(delta, 1)} LESS SELLING PRESSURE`;
+
+    return `PRIOR ${fmt(previous, 1)} → CURRENT ${fmt(latest, 1)} · ${direction}`;
+  };
+
+  const distributionStateText = (state, fallback = "UNAVAILABLE") => {
+    const s = String(state || fallback).toUpperCase();
+    if (s === "BUYING_RECOVERY_CONFIRMED") return "BUYING RECOVERY";
+    if (s === "BUYING_RECOVERY_PENDING") return "BUYING RECOVERY — PENDING";
+    if (s === "SELLING_PRESSURE_CONFIRMED") return "SELLING PRESSURE";
+    if (s === "SELLING_PRESSURE_PENDING") return "SELLING PRESSURE — PENDING";
+    if (s === "FAST_BUYING_RECOVERY_CONFIRMED") return "FAST IMPROVEMENT";
+    if (s === "FAST_BUYING_RECOVERY_PENDING") return "FAST IMPROVEMENT — PENDING";
+    if (s === "FAST_SELLING_ACCELERATION_CONFIRMED") return "FAST SELLING";
+    if (s === "FAST_SELLING_ACCELERATION_PENDING") return "FAST SELLING — PENDING";
+    if (s === "NO_MATERIAL_CHANGE" || s === "NONE") return "NO MATERIAL CHANGE";
+    return s.replaceAll("_", " ");
+  };
   const distribution1hTrend = String(
     distribution?.tactical1h?.trend?.state || "UNAVAILABLE"
   ).toUpperCase();
@@ -2172,76 +2232,115 @@ export default function Engine25MarketXrayPreview() {
                     : "Measures whether broad selling is building underneath price. Higher pressure means more defensive conditions."}
                 </div>
 
-                <SimpleGauge
-                  value={distributionPressurePct}
-                  label={upper(distribution?.label || "DISTRIBUTION")}
-                  color={distributionColor}
-                />
-
-                <div style={{ marginTop: 12 }}>
-                  <KV
-                    label="Raw pressure"
-                    value={
-                      distributionPressurePct == null
-                        ? "UNAVAILABLE"
-                        : `${fmt(distributionPressurePct, 1)}%`
-                    }
-                    color={distributionColor}
-                  />
-                  <KV
-                    label={distributionV2 ? "4H volume pressure" : "Volume pressure"}
-                    value={
-                      volumePressure == null
-                        ? "UNAVAILABLE"
-                        : fmt(volumePressure, 0)
-                    }
-                    color={distributionColor}
-                  />
-                  {distributionV2 ? (
-                    <>
-                      <KV label="4H breadth pressure" value={distributionBreadthPressure == null ? "UNAVAILABLE" : fmt(distributionBreadthPressure, 0)} color={distributionColor} />
-                      <KV label="4H NH/NL pressure" value={distributionHighLowPressure == null ? "UNAVAILABLE" : fmt(distributionHighLowPressure, 0)} color={distributionColor} />
-                      <KV label="4H sector pressure" value={distributionSectorPressure == null ? "UNAVAILABLE" : fmt(distributionSectorPressure, 0)} color={distributionColor} />
-                      <KV label="Integrated state" value={distributionIntegratedState} color={distributionColor} />
+                {distributionV2 ? (
+                  <div
+                    style={{
+                      marginTop: 14,
+                      border: "1px solid rgba(148,163,184,.20)",
+                      borderRadius: 12,
+                      padding: "14px 16px",
+                      background: "rgba(2,6,23,.28)",
+                      fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+                    }}
+                  >
+                    {[
+                      {
+                        title: "4H STRUCTURE:",
+                        read:
+                          distributionPressurePct == null
+                            ? "UNAVAILABLE"
+                            : `${fmt(distributionPressurePct, 0)} ${upper(distribution?.pressureLabel || "UNAVAILABLE")}`,
+                        compare: distributionComparison(
+                          "4h",
+                          distributionPressurePct,
+                          distribution4h?.available === true
+                        ),
+                      },
+                      {
+                        title: "1H TREND:",
+                        read: distribution1hAvailable
+                          ? distributionStateText(distribution1hTrend)
+                          : "UNAVAILABLE",
+                        compare: distributionComparison(
+                          "1h",
+                          distribution1hPressure,
+                          distribution1hAvailable
+                        ),
+                      },
+                      {
+                        title: "30m CONFIRMATION:",
+                        read: distribution30mAvailable
+                          ? distributionStateText(distribution30mState)
+                          : "UNAVAILABLE",
+                        compare: distributionComparison(
+                          "30m",
+                          distribution30mPressure,
+                          distribution30mAvailable
+                        ),
+                      },
+                      {
+                        title: "10m:",
+                        read: distribution10mAvailable
+                          ? distributionStateText(distribution10mState)
+                          : "UNAVAILABLE",
+                        compare: distributionComparison(
+                          "10m",
+                          distribution10mPressure,
+                          distribution10mAvailable
+                        ),
+                      },
+                    ].map((row) => (
+                      <div key={row.title} style={{ marginBottom: 16 }}>
+                        <div style={{ color: COLORS.text, fontSize: 12, fontWeight: 900 }}>
+                          {row.title}
+                        </div>
+                        <div
+                          style={{
+                            color: distributionColor,
+                            fontSize: 14,
+                            fontWeight: 950,
+                            marginTop: 3,
+                          }}
+                        >
+                          {row.read}
+                        </div>
+                        <div
+                          style={{
+                            color: COLORS.muted,
+                            fontSize: 10,
+                            marginTop: 4,
+                          }}
+                        >
+                          {row.compare}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <>
+                    <SimpleGauge
+                      value={distributionPressurePct}
+                      label={upper(distribution?.label || "DISTRIBUTION")}
+                      color={distributionColor}
+                    />
+                    <div style={{ marginTop: 12 }}>
                       <KV
-                        label="1H tactical pressure"
+                        label="Raw pressure"
                         value={
-                          distribution1hPressure == null
-                            ? `UNAVAILABLE · ${distribution1hTrend}`
-                            : `${fmt(distribution1hPressure, 1)} / 100 · ${distribution1hTrend}`
+                          distributionPressurePct == null
+                            ? "UNAVAILABLE"
+                            : `${fmt(distributionPressurePct, 1)}%`
                         }
                         color={distributionColor}
                       />
                       <KV
-                        label="30m confirmation pressure"
-                        value={
-                          distribution30mPressure == null
-                            ? `UNAVAILABLE · ${distribution30mState}`
-                            : `${fmt(distribution30mPressure, 1)} / 100 · ${distribution30mState}`
-                        }
+                        label="Volume pressure"
+                        value={volumePressure == null ? "UNAVAILABLE" : fmt(volumePressure, 0)}
                         color={distributionColor}
                       />
-                      <KV
-                        label="10m acceleration pressure"
-                        value={
-                          distribution10mPressure == null
-                            ? `UNAVAILABLE · ${distribution10mState}`
-                            : `${fmt(distribution10mPressure, 1)} / 100 · ${distribution10mState}`
-                        }
-                        color={distributionColor}
-                      />
-                    </>
-                  ) : null}
-                  <KV
-                    label="Engine25 health score"
-                    value={
-                      headline?.score == null
-                        ? "UNAVAILABLE"
-                        : fmt(headline.score, 0)
-                    }
-                    color={headlineColor}
-                  />
-                </div>
+                    </div>
+                  </>
+                )}
               </Card>
 
               <Card title="Market Leadership — New Highs vs New Lows" accent={COLORS.blue}>
