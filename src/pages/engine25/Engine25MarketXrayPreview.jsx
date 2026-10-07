@@ -820,6 +820,33 @@ export default function Engine25MarketXrayPreview() {
         buyVolPct * BROADER_MARKET_STRENGTH_WEIGHTS.volume;
 
   const distributionPressurePct = n(distribution?.rawPressure);
+  const distributionV2 = String(distribution?.schema || "") === "engine25.distributionPressure.v2";
+  const distribution4h = distribution?.structural4h || {};
+  const distribution4hComponents = distribution4h?.components || {};
+  const distributionBreadthPressure = distributionV2
+    ? n(distribution4hComponents?.breadthPressure)
+    : null;
+  const distributionVolumePressure = distributionV2
+    ? n(distribution4hComponents?.volumePressure)
+    : null;
+  const distributionHighLowPressure = distributionV2
+    ? n(distribution4hComponents?.highLowPressure)
+    : null;
+  const distributionSectorPressure = distributionV2
+    ? n(distribution4hComponents?.sectorPressure)
+    : null;
+  const distribution1hTrend = String(
+    distribution?.tactical1h?.trend?.state || "UNAVAILABLE"
+  ).toUpperCase();
+  const distribution30mState = String(
+    distribution?.confirmation30m?.confirmation?.state || "UNAVAILABLE"
+  ).toUpperCase();
+  const distribution10mState = String(
+    distribution?.acceleration10m?.acceleration?.state || "UNAVAILABLE"
+  ).toUpperCase();
+  const distributionIntegratedState = String(
+    distribution?.integratedState || "UNAVAILABLE"
+  ).toUpperCase();
 
   const masterScore = n(master?.master?.score);
   const masterState = master?.master?.tone || master?.master?.state || master?.master?.label || null;
@@ -865,10 +892,12 @@ export default function Engine25MarketXrayPreview() {
   const nl = hourlyFresh ? hourlyTotals.nl : null;
 
   const distributionInputs = distribution?.inputs || {};
-  const intradayBreadthPressure =
-    n(distributionInputs?.intradayBreadthPressure);
-  const volumePressure =
-    n(volume?.combinedVolumePressure);
+  const intradayBreadthPressure = distributionV2
+    ? distributionBreadthPressure
+    : n(distributionInputs?.intradayBreadthPressure);
+  const volumePressure = distributionV2
+    ? distributionVolumePressure
+    : n(volume?.combinedVolumePressure);
 
   const intradayMacro = data?.intradayMacro || {};
   const macroTrends = intradayMacro?.trendComparisons || {};
@@ -1055,7 +1084,11 @@ export default function Engine25MarketXrayPreview() {
                 label="Distribution"
                 value={distributionPressurePct == null ? "—" : pct(distributionPressurePct, 0)}
                 color={distributionColor}
-                note={clean(distribution?.label || "pressure")}
+                note={
+                  distributionV2
+                    ? `4H structural · ${clean(distribution?.pressureLabel || distribution?.label || "pressure")}`
+                    : clean(distribution?.label || "pressure")
+                }
               />
               <BigStat
                 label="Sectors"
@@ -1470,7 +1503,7 @@ export default function Engine25MarketXrayPreview() {
                       DISTRIBUTION
                     </div>
                     <KV
-                      label="Breadth Pressure"
+                      label={distributionV2 ? "Breadth Pressure — 4H" : "Breadth Pressure"}
                       value={
                         intradayBreadthPressure == null
                           ? "UNAVAILABLE"
@@ -1479,7 +1512,7 @@ export default function Engine25MarketXrayPreview() {
                       color={distributionColor}
                     />
                     <KV
-                      label="Volume Pressure"
+                      label={distributionV2 ? "Volume Pressure — 4H" : "Volume Pressure"}
                       value={
                         volumePressure == null
                           ? "UNAVAILABLE"
@@ -1487,12 +1520,37 @@ export default function Engine25MarketXrayPreview() {
                       }
                       color={distributionColor}
                     />
+                    {distributionV2 ? (
+                      <>
+                        <KV
+                          label="NH/NL Pressure — 4H"
+                          value={
+                            distributionHighLowPressure == null
+                              ? "UNAVAILABLE"
+                              : `${fmt(distributionHighLowPressure)} / 100`
+                          }
+                          color={distributionColor}
+                        />
+                        <KV
+                          label="Sector Pressure — 4H"
+                          value={
+                            distributionSectorPressure == null
+                              ? "UNAVAILABLE"
+                              : `${fmt(distributionSectorPressure)} / 100`
+                          }
+                          color={distributionColor}
+                        />
+                        <KV label="1H Trend" value={distribution1hTrend} color={distributionColor} />
+                        <KV label="30m Confirmation" value={distribution30mState} color={distributionColor} />
+                        <KV label="10m Acceleration" value={distribution10mState} color={distributionColor} />
+                      </>
+                    ) : null}
                     <KV
                       label="Distribution Pressure"
                       value={
                         distributionPressurePct == null
                           ? "UNAVAILABLE"
-                          : `${fmt(distributionPressurePct)} / 100 · ${upper(distribution?.label || "PRESSURE")}`
+                          : `${fmt(distributionPressurePct)} / 100 · ${upper(distribution?.pressureLabel || distribution?.label || "PRESSURE")}`
                       }
                       color={distributionColor}
                     />
@@ -2106,8 +2164,9 @@ export default function Engine25MarketXrayPreview() {
                     marginBottom: 10,
                   }}
                 >
-                  Measures whether broad selling is building underneath price.
-                  Higher pressure means more defensive conditions.
+                  {distributionV2
+                    ? "4H owns the structural pressure score. 1H shows direction, 30m confirms transitions, and 10m flags acceleration."
+                    : "Measures whether broad selling is building underneath price. Higher pressure means more defensive conditions."}
                 </div>
 
                 <SimpleGauge
@@ -2127,7 +2186,7 @@ export default function Engine25MarketXrayPreview() {
                     color={distributionColor}
                   />
                   <KV
-                    label="Volume pressure"
+                    label={distributionV2 ? "4H volume pressure" : "Volume pressure"}
                     value={
                       volumePressure == null
                         ? "UNAVAILABLE"
@@ -2135,6 +2194,17 @@ export default function Engine25MarketXrayPreview() {
                     }
                     color={distributionColor}
                   />
+                  {distributionV2 ? (
+                    <>
+                      <KV label="4H breadth pressure" value={distributionBreadthPressure == null ? "UNAVAILABLE" : fmt(distributionBreadthPressure, 0)} color={distributionColor} />
+                      <KV label="4H NH/NL pressure" value={distributionHighLowPressure == null ? "UNAVAILABLE" : fmt(distributionHighLowPressure, 0)} color={distributionColor} />
+                      <KV label="4H sector pressure" value={distributionSectorPressure == null ? "UNAVAILABLE" : fmt(distributionSectorPressure, 0)} color={distributionColor} />
+                      <KV label="Integrated state" value={distributionIntegratedState} color={distributionColor} />
+                      <KV label="1H trend" value={distribution1hTrend} color={distributionColor} />
+                      <KV label="30m confirmation" value={distribution30mState} color={distributionColor} />
+                      <KV label="10m acceleration" value={distribution10mState} color={distributionColor} />
+                    </>
+                  ) : null}
                   <KV
                     label="Engine25 health score"
                     value={
