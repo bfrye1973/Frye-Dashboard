@@ -835,6 +835,9 @@ export default function Engine25MarketXrayPreview() {
   const distributionSectorPressure = distributionV2
     ? n(distribution4hComponents?.sectorPressure)
     : null;
+  const distribution1hPressure = n(distribution?.tactical1h?.pressure);
+  const distribution30mPressure = n(distribution?.confirmation30m?.pressure);
+  const distribution10mPressure = n(distribution?.acceleration10m?.pressure);
   const distribution1hTrend = String(
     distribution?.tactical1h?.trend?.state || "UNAVAILABLE"
   ).toUpperCase();
@@ -2200,9 +2203,33 @@ export default function Engine25MarketXrayPreview() {
                       <KV label="4H NH/NL pressure" value={distributionHighLowPressure == null ? "UNAVAILABLE" : fmt(distributionHighLowPressure, 0)} color={distributionColor} />
                       <KV label="4H sector pressure" value={distributionSectorPressure == null ? "UNAVAILABLE" : fmt(distributionSectorPressure, 0)} color={distributionColor} />
                       <KV label="Integrated state" value={distributionIntegratedState} color={distributionColor} />
-                      <KV label="1H trend" value={distribution1hTrend} color={distributionColor} />
-                      <KV label="30m confirmation" value={distribution30mState} color={distributionColor} />
-                      <KV label="10m acceleration" value={distribution10mState} color={distributionColor} />
+                      <KV
+                        label="1H tactical pressure"
+                        value={
+                          distribution1hPressure == null
+                            ? `UNAVAILABLE · ${distribution1hTrend}`
+                            : `${fmt(distribution1hPressure, 1)} / 100 · ${distribution1hTrend}`
+                        }
+                        color={distributionColor}
+                      />
+                      <KV
+                        label="30m confirmation pressure"
+                        value={
+                          distribution30mPressure == null
+                            ? `UNAVAILABLE · ${distribution30mState}`
+                            : `${fmt(distribution30mPressure, 1)} / 100 · ${distribution30mState}`
+                        }
+                        color={distributionColor}
+                      />
+                      <KV
+                        label="10m acceleration pressure"
+                        value={
+                          distribution10mPressure == null
+                            ? `UNAVAILABLE · ${distribution10mState}`
+                            : `${fmt(distribution10mPressure, 1)} / 100 · ${distribution10mState}`
+                        }
+                        color={distributionColor}
+                      />
                     </>
                   ) : null}
                   <KV
