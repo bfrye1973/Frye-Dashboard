@@ -1,0 +1,27 @@
+name: Engine25 Distribution timeframe rows gate
+
+on:
+  push:
+    branches:
+      - engine25-distribution-v2-timeframe-rows
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install
+        run: npm install --no-package-lock
+      - name: Build
+        env:
+          DISABLE_ESLINT_PLUGIN: "true"
+        run: npm run build
+      - name: Contract checks
+        run: |
+          grep -q '1H tactical pressure' src/pages/engine25/Engine25MarketXrayPreview.jsx
+          grep -q '30m confirmation pressure' src/pages/engine25/Engine25MarketXrayPreview.jsx
+          grep -q '10m acceleration pressure' src/pages/engine25/Engine25MarketXrayPreview.jsx
