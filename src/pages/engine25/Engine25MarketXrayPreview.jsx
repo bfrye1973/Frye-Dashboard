@@ -1564,83 +1564,187 @@ export default function Engine25MarketXrayPreview() {
 
                   <div
                     style={{
-                      border: "1px solid rgba(251,191,36,.22)",
+                      border: "1px solid rgba(251,191,36,.26)",
                       borderRadius: 10,
-                      padding: 11,
+                      padding: "11px 12px",
                       background: "rgba(2,6,23,.30)",
                     }}
                   >
-                    <div style={{ color: COLORS.yellow, fontWeight: 950, marginBottom: 7 }}>
+                    <div
+                      style={{
+                        color: COLORS.yellow,
+                        fontSize: 16,
+                        fontWeight: 1000,
+                        letterSpacing: ".02em",
+                        marginBottom: 8,
+                      }}
+                    >
                       DISTRIBUTION
                     </div>
-                    <KV
-                      label={distributionV2 ? "Breadth Pressure — 4H" : "Breadth Pressure"}
-                      value={
-                        intradayBreadthPressure == null
-                          ? "UNAVAILABLE"
-                          : `${fmt(intradayBreadthPressure)} / 100`
-                      }
-                      color={distributionColor}
-                    />
-                    <KV
-                      label={distributionV2 ? "Volume Pressure — 4H" : "Volume Pressure"}
-                      value={
-                        volumePressure == null
-                          ? "UNAVAILABLE"
-                          : `${fmt(volumePressure)} / 100`
-                      }
-                      color={distributionColor}
-                    />
-                    {distributionV2 ? (
-                      <>
-                        <KV
-                          label="NH/NL Pressure — 4H"
-                          value={
-                            distributionHighLowPressure == null
-                              ? "UNAVAILABLE"
-                              : `${fmt(distributionHighLowPressure)} / 100`
-                          }
-                          color={distributionColor}
-                        />
-                        <KV
-                          label="Sector Pressure — 4H"
-                          value={
-                            distributionSectorPressure == null
-                              ? "UNAVAILABLE"
-                              : `${fmt(distributionSectorPressure)} / 100`
-                          }
-                          color={distributionColor}
-                        />
-                        <KV label="1H Trend" value={distribution1hTrend} color={distributionColor} />
-                        <KV
-                          label="30m Confirmation"
-                          value={
-                            distribution30mLastValid
-                              ? `LAST VALID EQUITY READ · ${fmt(distribution30mDisplay?.pressure, 1)} / 100`
-                              : distribution30mState
-                          }
-                          color={distributionColor}
-                        />
-                        <KV
-                          label="10m Acceleration"
-                          value={
-                            distribution10mLastValid
-                              ? `LAST VALID EQUITY READ · ${fmt(distribution10mDisplay?.pressure, 1)} / 100`
-                              : distribution10mState
-                          }
-                          color={distributionColor}
-                        />
-                      </>
-                    ) : null}
-                    <KV
-                      label="Distribution Pressure"
-                      value={
-                        distributionPressurePct == null
-                          ? "UNAVAILABLE"
-                          : `${fmt(distributionPressurePct)} / 100 · ${upper(distribution?.pressureLabel || distribution?.label || "PRESSURE")}`
-                      }
-                      color={distributionColor}
-                    />
+
+                    {[
+                      {
+                        label: distributionV2 ? "Breadth Pressure — 4H" : "Breadth Pressure",
+                        value:
+                          intradayBreadthPressure == null
+                            ? "UNAVAILABLE"
+                            : `${fmt(intradayBreadthPressure)} / 100`,
+                        color:
+                          intradayBreadthPressure == null
+                            ? COLORS.muted
+                            : intradayBreadthPressure >= 70
+                            ? COLORS.red
+                            : intradayBreadthPressure >= 50
+                            ? COLORS.yellow
+                            : COLORS.green,
+                      },
+                      {
+                        label: distributionV2 ? "Volume Pressure — 4H" : "Volume Pressure",
+                        value:
+                          volumePressure == null
+                            ? "UNAVAILABLE"
+                            : `${fmt(volumePressure)} / 100`,
+                        color:
+                          volumePressure == null
+                            ? COLORS.muted
+                            : volumePressure >= 70
+                            ? COLORS.red
+                            : volumePressure >= 50
+                            ? COLORS.yellow
+                            : COLORS.green,
+                      },
+                      ...(distributionV2
+                        ? [
+                            {
+                              label: "NH/NL Pressure — 4H",
+                              value:
+                                distributionHighLowPressure == null
+                                  ? "UNAVAILABLE"
+                                  : `${fmt(distributionHighLowPressure)} / 100`,
+                              color:
+                                distributionHighLowPressure == null
+                                  ? COLORS.muted
+                                  : distributionHighLowPressure >= 70
+                                  ? COLORS.red
+                                  : distributionHighLowPressure >= 50
+                                  ? COLORS.yellow
+                                  : COLORS.green,
+                            },
+                            {
+                              label: "Sector Pressure — 4H",
+                              value:
+                                distributionSectorPressure == null
+                                  ? "UNAVAILABLE"
+                                  : `${fmt(distributionSectorPressure)} / 100`,
+                              color:
+                                distributionSectorPressure == null
+                                  ? COLORS.muted
+                                  : distributionSectorPressure >= 70
+                                  ? COLORS.red
+                                  : distributionSectorPressure >= 50
+                                  ? COLORS.yellow
+                                  : COLORS.green,
+                            },
+                            {
+                              label: "1H Trend",
+                              value: distributionStateText(distribution1hTrend),
+                              color:
+                                distribution1hTrend.includes("EASING")
+                                  ? COLORS.green
+                                  : distribution1hTrend.includes("RISING")
+                                  ? COLORS.red
+                                  : COLORS.yellow,
+                            },
+                            {
+                              label: "30m Confirmation",
+                              value: distribution30mLastValid
+                                ? `LAST VALID READ · ${fmt(distribution30mDisplay?.pressure, 1)} / 100`
+                                : distributionStateText(distribution30mState),
+                              color:
+                                distribution30mLastValid
+                                  ? COLORS.yellow
+                                  : distribution30mState.includes("RECOVERY") ||
+                                    distribution30mState.includes("BUYING")
+                                  ? COLORS.green
+                                  : distribution30mState.includes("SELLING")
+                                  ? COLORS.red
+                                  : COLORS.yellow,
+                            },
+                            {
+                              label: "10m Acceleration",
+                              value: distribution10mLastValid
+                                ? `LAST VALID READ · ${fmt(distribution10mDisplay?.pressure, 1)} / 100`
+                                : distributionStateText(distribution10mState),
+                              color:
+                                distribution10mLastValid
+                                  ? COLORS.yellow
+                                  : distribution10mState.includes("RECOVERY") ||
+                                    distribution10mState.includes("BUYING")
+                                  ? COLORS.green
+                                  : distribution10mState.includes("SELLING")
+                                  ? COLORS.red
+                                  : COLORS.yellow,
+                            },
+                          ]
+                        : []),
+                      {
+                        label: "Distribution Pressure",
+                        value:
+                          distributionPressurePct == null
+                            ? "UNAVAILABLE"
+                            : `${fmt(distributionPressurePct)} / 100 · ${upper(
+                                distribution?.pressureLabel ||
+                                  distribution?.label ||
+                                  "PRESSURE"
+                              )}`,
+                        color:
+                          distributionPressurePct == null
+                            ? COLORS.muted
+                            : distributionPressurePct >= 70
+                            ? COLORS.red
+                            : distributionPressurePct >= 50
+                            ? COLORS.yellow
+                            : COLORS.green,
+                      },
+                    ].map((row, index, rows) => (
+                      <div
+                        key={row.label}
+                        style={{
+                          display: "grid",
+                          gridTemplateColumns: "minmax(145px,1fr) minmax(150px,1.25fr)",
+                          gap: 14,
+                          alignItems: "center",
+                          padding: "8px 0",
+                          borderBottom:
+                            index < rows.length - 1
+                              ? "1px solid rgba(148,163,184,.12)"
+                              : "none",
+                        }}
+                      >
+                        <div
+                          style={{
+                            color: COLORS.text,
+                            fontSize: 12,
+                            fontWeight: 900,
+                            lineHeight: 1.25,
+                          }}
+                        >
+                          {row.label}
+                        </div>
+                        <div
+                          style={{
+                            color: row.color,
+                            fontSize: 12,
+                            fontWeight: 1000,
+                            lineHeight: 1.25,
+                            textAlign: "right",
+                            overflowWrap: "anywhere",
+                          }}
+                        >
+                          {row.value}
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
               </Card>
