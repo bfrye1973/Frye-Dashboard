@@ -262,14 +262,14 @@ function Card({ title, children, style = {}, accent = COLORS.border }) {
   );
 }
 
-function StatusPill({ children, color = COLORS.blue }) {
+function StatusPill({ children, color = COLORS.blue, textColor = null }) {
   return (
     <span
       style={{
         display: "inline-flex",
         alignItems: "center",
         border: `1px solid ${color}`,
-        color,
+        color: textColor || color,
         borderRadius: 999,
         padding: "5px 9px",
         transition: "color 300ms ease, border-color 300ms ease, background-color 300ms ease",
@@ -2245,8 +2245,9 @@ export default function Engine25MarketXrayPreview() {
               <Card title="Selling / Distribution Pressure" accent={distributionColor}>
                 <div
                   style={{
-                    color: COLORS.muted,
-                    fontSize: 11,
+                    color: COLORS.text,
+                    fontSize: 12,
+                    fontWeight: 900,
                     lineHeight: 1.45,
                     marginBottom: 10,
                   }}
@@ -2428,9 +2429,9 @@ export default function Engine25MarketXrayPreview() {
                               </span>
                               <span
                                 style={{
-                                  color: COLORS.muted,
-                                  fontSize: 12,
-                                  fontWeight: 850,
+                                  color: COLORS.text,
+                                  fontSize: 13,
+                                  fontWeight: 900,
                                 }}
                               >
                                 {row.role}
@@ -2438,8 +2439,9 @@ export default function Engine25MarketXrayPreview() {
                             </div>
                             <div
                               style={{
-                                color: COLORS.muted,
-                                fontSize: 11,
+                                color: COLORS.text,
+                                fontSize: 12,
+                                fontWeight: 800,
                                 marginTop: 5,
                                 lineHeight: 1.35,
                               }}
@@ -2451,8 +2453,7 @@ export default function Engine25MarketXrayPreview() {
                           <div>
                             <div
                               style={{
-                                color:
-                                  row.value === "—" ? COLORS.muted : statusColor,
+                                color: COLORS.text,
                                 fontSize: 28,
                                 lineHeight: 1,
                                 fontWeight: 1000,
@@ -2463,9 +2464,9 @@ export default function Engine25MarketXrayPreview() {
                             </div>
                             <div
                               style={{
-                                color: COLORS.muted,
-                                fontSize: 9,
-                                fontWeight: 800,
+                                color: COLORS.text,
+                                fontSize: 10,
+                                fontWeight: 900,
                                 marginTop: 5,
                                 textTransform: "uppercase",
                                 letterSpacing: ".08em",
@@ -2476,11 +2477,12 @@ export default function Engine25MarketXrayPreview() {
                           </div>
 
                           <div style={{ minWidth: 0 }}>
-                            <StatusPill color={statusColor}>{statusText}</StatusPill>
+                            <StatusPill color={statusColor} textColor={COLORS.text}>{statusText}</StatusPill>
                             <div
                               style={{
-                                color: COLORS.muted,
-                                fontSize: 11,
+                                color: COLORS.text,
+                                fontSize: 12,
+                                fontWeight: 900,
                                 marginTop: 8,
                                 lineHeight: 1.4,
                               }}
