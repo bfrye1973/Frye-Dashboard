@@ -2260,20 +2260,26 @@ export default function Engine25MarketXrayPreview() {
                   <div
                     style={{
                       marginTop: 14,
-                      border: "1px solid rgba(148,163,184,.20)",
-                      borderRadius: 12,
-                      padding: "14px 16px",
-                      background: "rgba(2,6,23,.28)",
-                      fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+                      border: "1px solid rgba(148,163,184,.18)",
+                      borderRadius: 14,
+                      overflow: "hidden",
+                      background:
+                        "linear-gradient(180deg, rgba(15,23,42,.34), rgba(2,6,23,.24))",
                     }}
                   >
                     {[
                       {
-                        title: "4H STRUCTURE:",
-                        read:
+                        label: "4H",
+                        role: "Structure",
+                        status:
                           distributionPressurePct == null
                             ? "UNAVAILABLE"
-                            : `${fmt(distributionPressurePct, 0)} ${upper(distribution?.pressureLabel || "UNAVAILABLE")}`,
+                            : upper(distribution?.pressureLabel || "UNAVAILABLE"),
+                        value:
+                          distributionPressurePct == null
+                            ? "—"
+                            : fmt(distributionPressurePct, 1),
+                        description: "Structural selling pressure",
                         compare: distributionComparison(
                           "4h",
                           distributionPressurePct,
@@ -2281,10 +2287,15 @@ export default function Engine25MarketXrayPreview() {
                         ),
                       },
                       {
-                        title: "1H TREND:",
-                        read: distribution1hAvailable
+                        label: "1H",
+                        role: "Trend",
+                        status: distribution1hAvailable
                           ? distributionStateText(distribution1hTrend)
                           : "UNAVAILABLE",
+                        value: distribution1hAvailable
+                          ? fmt(distribution1hPressure, 1)
+                          : "—",
+                        description: "Direction of selling pressure",
                         compare: distributionComparison(
                           "1h",
                           distribution1hPressure,
@@ -2292,14 +2303,29 @@ export default function Engine25MarketXrayPreview() {
                         ),
                       },
                       {
-                        title: "30m CONFIRMATION:",
-                        read: distribution30mAvailable
+                        label: "30m",
+                        role: "Confirmation",
+                        status: distribution30mAvailable
                           ? distributionStateText(distribution30mState)
                           : distribution30mLastValid
                           ? "LAST VALID EQUITY READ"
                           : "UNAVAILABLE",
+                        value:
+                          distribution30mAvailable || distribution30mLastValid
+                            ? fmt(
+                                distribution30mLastValid
+                                  ? distribution30mDisplay?.pressure
+                                  : distribution30mPressure,
+                                1
+                              )
+                            : "—",
+                        description: "Confirms whether the transition is holding",
                         compare: distribution30mLastValid
-                          ? `PRESSURE ${fmt(distribution30mDisplay?.pressure, 1)} / 100 · ${upper(distribution30mDisplay?.label || "UNAVAILABLE")} · AS OF ${formatArizonaTimestamp(distribution30mDisplay?.sourceTimestamp)} AZ · EQUITY SESSION CLOSED`
+                          ? `Last valid read · ${upper(
+                              distribution30mDisplay?.label || "UNAVAILABLE"
+                            )} · ${formatArizonaTimestamp(
+                              distribution30mDisplay?.sourceTimestamp
+                            )} AZ`
                           : distributionComparison(
                               "30m",
                               distribution30mPressure,
@@ -2307,46 +2333,164 @@ export default function Engine25MarketXrayPreview() {
                             ),
                       },
                       {
-                        title: "10m:",
-                        read: distribution10mAvailable
+                        label: "10m",
+                        role: "Acceleration",
+                        status: distribution10mAvailable
                           ? distributionStateText(distribution10mState)
                           : distribution10mLastValid
                           ? "LAST VALID EQUITY READ"
                           : "UNAVAILABLE",
+                        value:
+                          distribution10mAvailable || distribution10mLastValid
+                            ? fmt(
+                                distribution10mLastValid
+                                  ? distribution10mDisplay?.pressure
+                                  : distribution10mPressure,
+                                1
+                              )
+                            : "—",
+                        description: "Fast acceleration or recovery signal",
                         compare: distribution10mLastValid
-                          ? `PRESSURE ${fmt(distribution10mDisplay?.pressure, 1)} / 100 · ${upper(distribution10mDisplay?.label || "UNAVAILABLE")} · AS OF ${formatArizonaTimestamp(distribution10mDisplay?.sourceTimestamp)} AZ · EQUITY SESSION CLOSED`
+                          ? `Last valid read · ${upper(
+                              distribution10mDisplay?.label || "UNAVAILABLE"
+                            )} · ${formatArizonaTimestamp(
+                              distribution10mDisplay?.sourceTimestamp
+                            )} AZ`
                           : distributionComparison(
                               "10m",
                               distribution10mPressure,
                               distribution10mAvailable
                             ),
                       },
-                    ].map((row) => (
-                      <div key={row.title} style={{ marginBottom: 16 }}>
-                        <div style={{ color: COLORS.text, fontSize: 12, fontWeight: 900 }}>
-                          {row.title}
-                        </div>
+                    ].map((row, index, rows) => {
+                      const statusText = upper(row.status || "UNAVAILABLE");
+                      const statusColor =
+                        statusText.includes("UNAVAILABLE")
+                          ? COLORS.muted
+                          : statusText.includes("LAST VALID")
+                          ? COLORS.yellow
+                          : statusText.includes("EASING") ||
+                            statusText.includes("RECOVERY") ||
+                            statusText.includes("BUYING")
+                          ? COLORS.green
+                          : statusText.includes("RISING") ||
+                            statusText.includes("SELLING") ||
+                            statusText.includes("HIGH") ||
+                            statusText.includes("EXTREME") ||
+                            statusText.includes("DETERIORATING")
+                          ? COLORS.red
+                          : statusText.includes("WATCH") ||
+                            statusText.includes("STABLE") ||
+                            statusText.includes("NONE") ||
+                            statusText.includes("NO MATERIAL")
+                          ? COLORS.yellow
+                          : distributionColor;
+
+                      const comparisonText =
+                        row.compare === "NO PRIOR VALID RUN"
+                          ? "Waiting for a second valid observation"
+                          : clean(row.compare || "Comparison unavailable");
+
+                      return (
                         <div
+                          key={`${row.label}-${row.role}`}
                           style={{
-                            color: distributionColor,
-                            fontSize: 14,
-                            fontWeight: 950,
-                            marginTop: 3,
+                            display: "grid",
+                            gridTemplateColumns:
+                              "minmax(145px, .85fr) minmax(100px, .55fr) minmax(170px, 1.15fr)",
+                            gap: 18,
+                            alignItems: "center",
+                            padding: "16px 18px",
+                            borderBottom:
+                              index < rows.length - 1
+                                ? "1px solid rgba(148,163,184,.12)"
+                                : "none",
                           }}
                         >
-                          {row.read}
+                          <div style={{ minWidth: 0 }}>
+                            <div
+                              style={{
+                                display: "flex",
+                                alignItems: "baseline",
+                                gap: 9,
+                                flexWrap: "wrap",
+                              }}
+                            >
+                              <span
+                                style={{
+                                  color: COLORS.text,
+                                  fontSize: 17,
+                                  fontWeight: 1000,
+                                  letterSpacing: ".01em",
+                                }}
+                              >
+                                {row.label}
+                              </span>
+                              <span
+                                style={{
+                                  color: COLORS.muted,
+                                  fontSize: 12,
+                                  fontWeight: 850,
+                                }}
+                              >
+                                {row.role}
+                              </span>
+                            </div>
+                            <div
+                              style={{
+                                color: COLORS.muted,
+                                fontSize: 11,
+                                marginTop: 5,
+                                lineHeight: 1.35,
+                              }}
+                            >
+                              {row.description}
+                            </div>
+                          </div>
+
+                          <div>
+                            <div
+                              style={{
+                                color:
+                                  row.value === "—" ? COLORS.muted : statusColor,
+                                fontSize: 28,
+                                lineHeight: 1,
+                                fontWeight: 1000,
+                                letterSpacing: "-.02em",
+                              }}
+                            >
+                              {row.value}
+                            </div>
+                            <div
+                              style={{
+                                color: COLORS.muted,
+                                fontSize: 9,
+                                fontWeight: 800,
+                                marginTop: 5,
+                                textTransform: "uppercase",
+                                letterSpacing: ".08em",
+                              }}
+                            >
+                              Pressure score
+                            </div>
+                          </div>
+
+                          <div style={{ minWidth: 0 }}>
+                            <StatusPill color={statusColor}>{statusText}</StatusPill>
+                            <div
+                              style={{
+                                color: COLORS.muted,
+                                fontSize: 11,
+                                marginTop: 8,
+                                lineHeight: 1.4,
+                              }}
+                            >
+                              {comparisonText}
+                            </div>
+                          </div>
                         </div>
-                        <div
-                          style={{
-                            color: COLORS.muted,
-                            fontSize: 10,
-                            marginTop: 4,
-                          }}
-                        >
-                          {row.compare}
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 ) : (
                   <>
