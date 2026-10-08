@@ -1691,29 +1691,33 @@ function Engine27DegreeCard({
 }
 
 function Engine27MicroTimingCard({ microState, microDisplay, currentPrice }) {
-  const levels = Array.isArray(microState?.levels) ? microState.levels : [];
-  const next = microState?.nextLevel;
+  const sequence = microState?.microSequence || {};
+  const wave = sequence.activeWave || microState?.activeWave || "W1";
+  const next = microState?.nextLevel || null;
   return (
     <div className="engine27-degree-card" style={{
-      background: "#0b1018", border: "1px solid #2563eb",
-      borderTop: "4px solid #3b82f6", borderRadius: 12,
-      padding: 9, minWidth: 0, display: "grid", gap: 9,
-      alignContent: "start",
+      background:"#0b1018",border:"1px solid #2563eb",borderTop:"4px solid #3b82f6",
+      borderRadius:12,padding:9,minWidth:0,display:"grid",gap:9,alignContent:"start",
     }}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:6}}>
-        <strong style={{color:"#f8fafc",fontSize:13}}>MICRO — W5</strong>
+        <strong style={{color:"#f8fafc",fontSize:13}}>{`MICRO — ${wave}`}</strong>
         <Badge text="TIMING ONLY" tone="arming" />
       </div>
-      <div style={{color:"#bfdbfe",fontWeight:900,fontSize:12}}>Micro W5 launch watch</div>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(2,minmax(0,1fr))",gap:5}}>
-        <Engine27Metric label="W4 Support" value={engine27Number(microState?.origin ?? 7782.75)} />
-        <Engine27Metric label="Confirm" value={engine27Number(microState?.confirmation ?? 7897.75)} />
-        <Engine27Metric label="Next Fib" value={next?.label || "WATCH"} />
-        <Engine27Metric label="Next Price" value={engine27Number(next?.price)} />
-        <Engine27Metric label="Last Touched" value={microState?.lastTouchedLevel?.label || "—"} />
-        <Engine27Metric label="Wave Status" value={engine27Value(microState?.confirmationStatus || "PENDING")} />
+      <div style={{color:"#bfdbfe",fontWeight:900,fontSize:12}}>
+        {sequence.state === "MICRO_W2_PULLBACK_WATCH" ? "W2 retracement watch" :
+          sequence.state === "MICRO_W3_SETUP_WATCH" ? "W3 setup watch" : "W1 high search"}
       </div>
-      <div style={{color:"#94a3b8",fontSize:11,fontWeight:800}}>Engine 22 wave intelligence • no permission, sizing or trade ticket</div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(2,minmax(0,1fr))",gap:5}}>
+        <Engine27Metric label="W1 Start" value={engine27Number(microState?.origin ?? 7784)} />
+        <Engine27Metric label="W1 Candidate" value={engine27Number(sequence.candidateW1High)} />
+        <Engine27Metric label="W1 Confirmed" value={engine27Number(sequence.confirmedW1High)} />
+        <Engine27Metric label="Next Fib" value={next?.label || "—"} />
+        <Engine27Metric label="Next Price" value={engine27Number(next?.price)} />
+        <Engine27Metric label="W2 Available" value={sequence.w2TargetsAvailable ? "YES" : "PENDING W1 HIGH"} />
+      </div>
+      <div style={{color:"#94a3b8",fontSize:11,fontWeight:800}}>
+        Provisional W1 targets • W2 only after confirmed W1 high • No permission or ticket
+      </div>
     </div>
   );
 }
