@@ -331,12 +331,13 @@ function Engine22DegreeCard({ degree, state, wavelength }) {
 
       {waveDegree ? (
         <div style={{border: "1px solid #344156", borderRadius: 8, padding: 6, display: "grid", gap: 4}}>
-          <div style={{color: "#bfdbfe", fontWeight: 900, fontSize: 11}}>FIB PROGRESS — {waveDegree.activeWave || "—"}</div>
+          <div style={{color: "#bfdbfe", fontWeight: 900, fontSize: 11}}>FIB EXTENSIONS — {waveDegree.activeWave || "—"}</div>
           <Engine22Line label="State" value={waveDegree.state} tone="watch" />
           <Engine22Line label="Confirm" value={waveDegree.confirmationStatus} tone="watch" />
           {fibLevels.map((fib) => (
-            <Engine22Line key={fib.key} label={fib.label} value={`${fib.price == null ? "PRICE PENDING" : Number(fib.price).toFixed(2)} — ${fib.status}`} tone={fib.status === "TOUCHED" ? "long" : "watch"} />
+            <Engine22Line key={fib.key} label={fib.label} value={`${fib.price == null ? "ANCHOR PENDING" : Number(fib.price).toFixed(2)} — ${fib.status}`} tone={fib.status === "TOUCHED" ? "long" : "watch"} />
           ))}
+          {waveDegree.fibAnchorStatus ? <Engine22Line label="Anchor" value="W1 MARKS PENDING" tone="warning" /> : null}
           {waveDegree.nextLevel ? <Engine22Line label="Next" value={`${waveDegree.nextLevel.label} @ ${waveDegree.nextLevel.price}`} /> : null}
         </div>
       ) : null}
@@ -421,7 +422,7 @@ export default function Engine22MarketStructureCard({ engine22Display, currentWa
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: `repeat(${columnCount}, minmax(160px,1fr))`,
+          gridTemplateColumns: `repeat(${columnCount}, minmax(180px,1fr))`,
           overflowX: "auto",
           gap: 8,
         }}
