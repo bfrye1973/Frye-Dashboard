@@ -7,7 +7,7 @@ const FS = {
   tiny: 11,
 };
 
-const DEGREE_ORDER = ["subminute", "minute", "minor", "intermediate", "primary"];
+const DEFAULT_DEGREE_ORDER = ["micro", "subminute", "minute", "minor", "intermediate", "primary"];
 
 function wavePrice(value) {
   const n = Number(value);
@@ -16,16 +16,20 @@ function wavePrice(value) {
 
 function toneForDegree(degree, state) {
   const direction = String(state?.direction || "").toUpperCase();
+  const badge = String(state?.badge || "").toUpperCase();
 
-  if (degree === "minute" && direction === "DOWN") return "short";
+  if (degree === "micro") return "watch";
+  if (direction === "DOWN") return "short";
   if (direction === "UP") return "long";
-  if (degree === "subminute") return "watch";
+  if (badge.includes("W5") || badge.includes("W3")) return "long";
   return state?.active === true ? "watch" : "wait";
 }
 
-function subtitleForDegree(degree) {
-  if (degree === "subminute") return "Timing context";
-  if (degree === "minute") return "W2 ABC pullback";
+function subtitleForDegree(degree, state) {
+  if (state?.subtitle) return state.subtitle;
+  if (degree === "micro") return "Immediate timing";
+  if (degree === "subminute") return "Immediate wave path";
+  if (degree === "minute") return "Tactical wave";
   if (degree === "minor") return "Parent impulse candidate";
   if (degree === "intermediate") return "Higher-timeframe context";
   if (degree === "primary") return "Highest-timeframe context";
@@ -147,13 +151,13 @@ function Engine22TargetGrid({ title, levels }) {
           {title}
         </div>
 
-        <Badge text="FIBS" tone="long" />
+        <Badge text="LEVELS" tone="long" />
       </div>
 
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(3, minmax(0,1fr))",
+          gridTemplateColumns: "repeat(2, minmax(0,1fr))",
           gap: 5,
         }}
       >
@@ -286,7 +290,7 @@ function Engine22DegreeCard({ degree, state }) {
               color: "#9ca3af",
             }}
           >
-            {subtitleForDegree(degree)}
+            {subtitleForDegree(degree, state)}
           </div>
         </div>
 
@@ -354,7 +358,9 @@ export default function Engine22MarketStructureCard({ engine22Display }) {
   const degreeOrder =
     Array.isArray(engine22Display.degreeOrder) && engine22Display.degreeOrder.length
       ? engine22Display.degreeOrder
-      : DEGREE_ORDER;
+      : DEFAULT_DEGREE_ORDER;
+
+  const columnCount = Math.max(1, degreeOrder.length);
 
   return (
     <div
@@ -402,7 +408,7 @@ export default function Engine22MarketStructureCard({ engine22Display }) {
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(5, minmax(0,1fr))",
+          gridTemplateColumns: `repeat(${columnCount}, minmax(0,1fr))`,
           gap: 8,
         }}
       >
