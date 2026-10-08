@@ -160,8 +160,9 @@ html body #root .dashboard-grid[data-cluster-host] text{
    Full Chart (true full-screen)
 --------------------------- */
 .fullchart-page{
-  position: fixed; inset: 0; background: #0b0b14;
-  display: flex; flex-direction: column; min-height: 0; z-index: 9999;
+  position: relative; background: #0b0b14;
+  width: 100%; min-width: 0;
+  display: flex; flex-direction: column; min-height: 0; z-index: 1;
 }
 .fullchart-topbar{
   height: 48px; display: flex; align-items: center; gap: 12px; padding: 0 12px;
@@ -171,7 +172,7 @@ html body #root .dashboard-grid[data-cluster-host] text{
 .fullchart-title{ opacity:.7; } .fullchart-meta{ margin-left:auto; opacity:.6; }
 
 .fullchart-body{
-  height: calc(100vh - 48px) !important; flex: 1 1 auto !important; min-height: 0 !important;
+  flex: 1 1 auto !important; min-height: 0 !important; min-width: 0 !important;
   display: flex; flex-direction: column; overflow: hidden; /* chart owns scroll */
 }
 .fullchart-body .panel, .fullchart-body .panel-head{ display:none !important; }
