@@ -838,6 +838,14 @@ export default function Engine25MarketXrayPreview() {
   const distribution1hAvailable = distribution?.tactical1h?.available === true;
   const distribution30mAvailable = distribution?.confirmation30m?.available === true;
   const distribution10mAvailable = distribution?.acceleration10m?.available === true;
+  const distribution30mDisplay = distribution?.confirmation30m?.display || {};
+  const distribution10mDisplay = distribution?.acceleration10m?.display || {};
+  const distribution30mLastValid =
+    String(distribution30mDisplay?.state || "").toUpperCase() ===
+    "LAST_VALID_EQUITY_READ";
+  const distribution10mLastValid =
+    String(distribution10mDisplay?.state || "").toUpperCase() ===
+    "LAST_VALID_EQUITY_READ";
   const distribution1hPressure = distribution1hAvailable
     ? n(distribution?.tactical1h?.pressure)
     : null;
@@ -1604,8 +1612,24 @@ export default function Engine25MarketXrayPreview() {
                           color={distributionColor}
                         />
                         <KV label="1H Trend" value={distribution1hTrend} color={distributionColor} />
-                        <KV label="30m Confirmation" value={distribution30mState} color={distributionColor} />
-                        <KV label="10m Acceleration" value={distribution10mState} color={distributionColor} />
+                        <KV
+                          label="30m Confirmation"
+                          value={
+                            distribution30mLastValid
+                              ? `LAST VALID EQUITY READ · ${fmt(distribution30mDisplay?.pressure, 1)} / 100`
+                              : distribution30mState
+                          }
+                          color={distributionColor}
+                        />
+                        <KV
+                          label="10m Acceleration"
+                          value={
+                            distribution10mLastValid
+                              ? `LAST VALID EQUITY READ · ${fmt(distribution10mDisplay?.pressure, 1)} / 100`
+                              : distribution10mState
+                          }
+                          color={distributionColor}
+                        />
                       </>
                     ) : null}
                     <KV
@@ -2271,23 +2295,31 @@ export default function Engine25MarketXrayPreview() {
                         title: "30m CONFIRMATION:",
                         read: distribution30mAvailable
                           ? distributionStateText(distribution30mState)
+                          : distribution30mLastValid
+                          ? "LAST VALID EQUITY READ"
                           : "UNAVAILABLE",
-                        compare: distributionComparison(
-                          "30m",
-                          distribution30mPressure,
-                          distribution30mAvailable
-                        ),
+                        compare: distribution30mLastValid
+                          ? `PRESSURE ${fmt(distribution30mDisplay?.pressure, 1)} / 100 · ${upper(distribution30mDisplay?.label || "UNAVAILABLE")} · AS OF ${formatArizonaTimestamp(distribution30mDisplay?.sourceTimestamp)} AZ · EQUITY SESSION CLOSED`
+                          : distributionComparison(
+                              "30m",
+                              distribution30mPressure,
+                              distribution30mAvailable
+                            ),
                       },
                       {
                         title: "10m:",
                         read: distribution10mAvailable
                           ? distributionStateText(distribution10mState)
+                          : distribution10mLastValid
+                          ? "LAST VALID EQUITY READ"
                           : "UNAVAILABLE",
-                        compare: distributionComparison(
-                          "10m",
-                          distribution10mPressure,
-                          distribution10mAvailable
-                        ),
+                        compare: distribution10mLastValid
+                          ? `PRESSURE ${fmt(distribution10mDisplay?.pressure, 1)} / 100 · ${upper(distribution10mDisplay?.label || "UNAVAILABLE")} · AS OF ${formatArizonaTimestamp(distribution10mDisplay?.sourceTimestamp)} AZ · EQUITY SESSION CLOSED`
+                          : distributionComparison(
+                              "10m",
+                              distribution10mPressure,
+                              distribution10mAvailable
+                            ),
                       },
                     ].map((row) => (
                       <div key={row.title} style={{ marginBottom: 16 }}>
