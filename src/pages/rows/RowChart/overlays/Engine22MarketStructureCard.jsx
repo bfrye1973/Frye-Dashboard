@@ -81,7 +81,7 @@ function Engine22Line({ label, value, tone = "default" }) {
     <div
       style={{
         display: "grid",
-        gridTemplateColumns: "92px minmax(0,1fr)",
+        gridTemplateColumns: "68px minmax(0,1fr)",
         gap: 6,
         alignItems: "start",
         minWidth: 0,
@@ -236,9 +236,11 @@ function RulesBox({ rules }) {
   );
 }
 
-function Engine22DegreeCard({ degree, state }) {
+function Engine22DegreeCard({ degree, state, wavelength }) {
   const active = state?.active === true;
   const tone = toneForDegree(degree, state);
+  const waveDegree = wavelength?.degrees?.[degree] || null;
+  const fibLevels = Array.isArray(waveDegree?.levels) ? waveDegree.levels : [];
 
   return (
     <div
@@ -327,12 +329,24 @@ function Engine22DegreeCard({ degree, state }) {
         levels={state?.levels}
       />
 
+      {waveDegree ? (
+        <div style={{border: "1px solid #344156", borderRadius: 8, padding: 6, display: "grid", gap: 4}}>
+          <div style={{color: "#bfdbfe", fontWeight: 900, fontSize: 11}}>FIB EXTENSIONS — {waveDegree.activeWave || "—"}</div>
+          <Engine22Line label="State" value={waveDegree.state} tone="watch" />
+          <Engine22Line label="Confirm" value={waveDegree.confirmationStatus} tone="watch" />
+          {fibLevels.map((fib) => (
+            <Engine22Line key={fib.key} label={fib.label} value={`${fib.price == null ? "ANCHOR PENDING" : Number(fib.price).toFixed(2)} — ${fib.status}`} tone={fib.status === "TOUCHED" ? "long" : "watch"} />
+          ))}
+          {waveDegree.fibAnchorStatus ? <Engine22Line label="Anchor" value="W1 MARKS PENDING" tone="warning" /> : null}
+          {waveDegree.nextLevel ? <Engine22Line label="Next" value={`${waveDegree.nextLevel.label} @ ${waveDegree.nextLevel.price}`} /> : null}
+        </div>
+      ) : null}
       <RulesBox rules={state?.rules} />
     </div>
   );
 }
 
-export default function Engine22MarketStructureCard({ engine22Display }) {
+export default function Engine22MarketStructureCard({ engine22Display, currentWavelength = null }) {
   if (
     !engine22Display ||
     engine22Display.version !== "engine22Display.v1" ||
@@ -408,7 +422,8 @@ export default function Engine22MarketStructureCard({ engine22Display }) {
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: `repeat(${columnCount}, minmax(0,1fr))`,
+          gridTemplateColumns: `repeat(${columnCount}, minmax(180px,1fr))`,
+          overflowX: "auto",
           gap: 8,
         }}
       >
@@ -416,6 +431,7 @@ export default function Engine22MarketStructureCard({ engine22Display }) {
           <Engine22DegreeCard
             key={degree}
             degree={degree}
+            wavelength={currentWavelength}
             state={
               engine22Display.degrees?.[degree] || {
                 degree,
