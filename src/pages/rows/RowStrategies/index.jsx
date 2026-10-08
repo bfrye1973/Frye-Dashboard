@@ -238,6 +238,10 @@ function getEngine22Display(snapshot) {
   );
 }
 
+function getEngine22CurrentWavelength(snapshot) {
+  return snapshot?.strategies?.[STRATEGY_ID_MAP.SCALP]?.engine22WaveStrategy?.currentWavelength || null;
+}
+
 function wavePrice(value) {
   const n = Number(value);
   return Number.isFinite(n) ? n.toFixed(2) : "—";
@@ -247,12 +251,14 @@ function WaveDegreeRow({ snapshot }) {
   return (
     <Engine22MarketStructureCard
       engine22Display={getEngine22Display(snapshot)}
+      currentWavelength={getEngine22CurrentWavelength(snapshot)}
     />
   );
 }
 
 /* -------------------- Engine 27 presentation -------------------- */
 const ENGINE27_DEGREES = [
+  "micro",
   "subminute",
   "minute",
   "minor",
@@ -261,6 +267,7 @@ const ENGINE27_DEGREES = [
 ];
 
 const ENGINE27_COMPATIBILITY_PATHS = {
+  micro: "subminuteToMicro",
   subminute: "minuteToSubminute",
   minute: "minorToMinute",
   minor: "intermediateToMinor",
@@ -341,6 +348,7 @@ function engine27Compatibility(
   alignment,
   degree
 ) {
+  if (degree === "micro") return "TIMING_ONLY";
   if (degree === "primary") {
     return "TOP DEGREE";
   }
@@ -792,7 +800,7 @@ function Engine27MinuteTacticalCard({
     highestPriorityDegree === "minute";
 
   const plainEnglish =
-    "Minute W2 ABC pullback is active. A-down completed at 7707.25, B-up completed candidate at 7810.75, and C-down is active/expected from 7810.75. Minute W3 is not confirmed until reclaim/confirmation above 7848.50 and stronger above 7906.25.";
+    "Minute W3 started from 7575 / 7576. Confirmation pending above 7848.50 and 7906.25. Subminute W3 active candidate; Micro W5 launch watch.";
 
   return (
     <div
@@ -837,7 +845,7 @@ function Engine27MinuteTacticalCard({
               marginTop: 2,
             }}
           >
-            intraday_scalp@10m • Minute W2 ABC C-down active; W3 not confirmed
+            intraday_scalp@10m • Minute W3 started / confirmation pending
           </div>
         </div>
 
@@ -1178,7 +1186,7 @@ function Engine27MinorParentCard({
               fontWeight: 1000,
             }}
           >
-            MINOR — W4 COMPLEX CORRECTION CONTEXT
+            MINOR — W5 ACTIVE CANDIDATE
           </div>
 
           <div
@@ -1189,7 +1197,7 @@ function Engine27MinorParentCard({
               marginTop: 2,
             }}
           >
-            Minor W5 candidate • Minute W2 ABC C-down active
+            Minor W5 active candidate • Minute W3 started / confirmation pending
           </div>
         </div>
 
@@ -1305,7 +1313,7 @@ function Engine27MinorParentCard({
           lineHeight: 1.3,
         }}
       >
-        Minor W5 remains an active candidate from 7398.00. Wave 2 completed candidate is 7576.00 on 2026-09-16, but Minute W3 is not confirmed yet. Current tactical child is Minute W2 ABC C-down from 7810.75. Watch 7723.50 / 7699.75 / 7669.50 / 7631.00 / 7582.25.
+        Minor W5 active candidate from 7398.00. Minute W3 started from 7575 / 7576; confirmation pending above 7848.50 and 7906.25. Subminute W3 active candidate. Micro W5 launch watch.
       </div>
     </div>
   );
@@ -1713,6 +1721,9 @@ function Engine27TraderIntelligence({
     );
   }
 
+  const currentWavelength = getEngine22CurrentWavelength(snapshot);
+  const microDisplay = getEngine22Display(snapshot)?.degrees?.micro;
+  const microState = currentWavelength?.degrees?.micro || null;
   const waveIntelligence =
     engine27?.engine27WaveIntelligence ||
     {};
@@ -1778,51 +1789,26 @@ function Engine27TraderIntelligence({
 
         .engine27-degree-grid {
           display: grid;
-          grid-template-columns: repeat(5, minmax(0, 1fr));
+          grid-auto-flow: column;
+          grid-auto-columns: minmax(180px, 1fr);
+          grid-template-columns: repeat(6, minmax(180px, 1fr));
           gap: 8px;
           align-items: stretch;
+          overflow-x: auto;
+          padding-bottom: 5px;
         }
-
         .engine27-minute-tactical-card,
         .engine27-minor-parent-card {
           grid-column: span 1;
         }
-
-        @media (max-width: 1750px) {
-          .engine27-degree-grid {
-            grid-template-columns: repeat(3, minmax(0, 1fr));
-          }
-
-          .engine27-minute-tactical-card,
-          .engine27-minor-parent-card {
-            grid-column: span 2;
-          }
-        }
-
         @media (max-width: 1180px) {
           .engine27-summary-grid {
             grid-template-columns: repeat(2, minmax(0, 1fr));
           }
-
-          .engine27-degree-grid {
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-          }
-
-          .engine27-minute-tactical-card,
-          .engine27-minor-parent-card {
-            grid-column: span 2;
-          }
         }
-
         @media (max-width: 760px) {
-          .engine27-summary-grid,
-          .engine27-degree-grid {
+          .engine27-summary-grid {
             grid-template-columns: minmax(0, 1fr);
-          }
-
-          .engine27-minute-tactical-card,
-          .engine27-minor-parent-card {
-            grid-column: span 1;
           }
         }
       `}</style>
@@ -1953,6 +1939,42 @@ function Engine27TraderIntelligence({
       >
         {ENGINE27_DEGREES.map(
           (degree) => {
+            if (degree === "micro") {
+              const activeWave = microState?.activeWave || microDisplay?.badge || "W5";
+              const levels = microState?.levels || [];
+              const next = microState?.nextLevel || null;
+              const last = microState?.lastTouchedLevel || null;
+              return (
+                <Engine27DegreeCard
+                  key="micro"
+                  degree="micro"
+                  wave={{
+                    currentWave: activeWave,
+                    currentLegDirection: "UP",
+                    nextExpectedWave: "W5_CONTINUATION_OR_COMPLETION_WATCH",
+                    supportLevel: microState?.origin ?? 7782.75,
+                    invalidationLevel: microState?.invalidation ?? 7782.75,
+                    preferredTradeDirection: "NEUTRAL",
+                  }}
+                  fib={{
+                    currentFib: { lastCompleted: last?.label || "—" },
+                    nextFib: next?.label || (levels.length ? "WATCH" : "—"),
+                    nextPrice: next?.price ?? null,
+                    distance: next?.price != null && currentWavelength?.currentPrice != null
+                      ? next.price - currentWavelength.currentPrice : null,
+                  }}
+                  decision={{
+                    decisionState: "WATCH",
+                    direction: "NEUTRAL",
+                    recommendedAction: "MONITOR_MICRO_TIMING",
+                    waitingFor: ["ENGINE22_MICRO_CONFIRMATION"],
+                    warnings: ["TIMING_ONLY_NO_PERMISSION"],
+                  }}
+                  alignment={alignment}
+                  highestPriorityDegree={highestPriorityDegree}
+                />
+              );
+            }
             if (degree === "minute") {
               return (
                 <Engine27MinuteTacticalCard
