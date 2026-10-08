@@ -2453,7 +2453,8 @@ export default function Engine25MarketXrayPreview() {
                           <div>
                             <div
                               style={{
-                                color: COLORS.text,
+                                color:
+                                  row.value === "—" ? COLORS.muted : statusColor,
                                 fontSize: 28,
                                 lineHeight: 1,
                                 fontWeight: 1000,
@@ -2477,7 +2478,7 @@ export default function Engine25MarketXrayPreview() {
                           </div>
 
                           <div style={{ minWidth: 0 }}>
-                            <StatusPill color={statusColor} textColor={COLORS.text}>{statusText}</StatusPill>
+                            <StatusPill color={statusColor}>{statusText}</StatusPill>
                             <div
                               style={{
                                 color: COLORS.text,
