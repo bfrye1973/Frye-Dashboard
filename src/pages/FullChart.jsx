@@ -33,8 +33,8 @@ export default function FullChart() {
       style={{
         position: "relative",
         width: "100%",
-        height: "calc(100dvh - 120px)",
-        minHeight: 0,
+        height: "calc(100vh - 120px)",
+        minHeight: 640,
         display: "flex",
         flexDirection: "column",
         background: "#0b0f14",
