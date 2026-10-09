@@ -241,24 +241,6 @@ function Engine22DegreeCard({ degree, state, wavelength }) {
   const tone = toneForDegree(degree, state);
   const waveDegree = wavelength?.degrees?.[degree] || null;
   const fibLevels = Array.isArray(waveDegree?.levels) ? waveDegree.levels : [];
-  const microSequence = degree === "micro" ? waveDegree?.microSequence : null;
-  const activeMicro = microSequence?.activeWave || null;
-  const displayHeadline = activeMicro === "W2" ? "Micro W2 retracement watch — W1 anchor locked"
-    : activeMicro === "W3_WATCH" ? "Micro W3 setup watch — W2 anchor locked"
-    : activeMicro === "W1" ? "Micro W1 high search — structural confirmation pending"
-    : state?.headline;
-  const displayRows = microSequence ? [
-    {label:"Origin",value:Number(microSequence.origin).toFixed(2)},
-    {label:"Candidate W1",value:microSequence.candidateW1High == null ? "PENDING" : Number(microSequence.candidateW1High).toFixed(2)},
-    {label:"Confirmed W1",value:microSequence.confirmedW1High == null ? "PENDING" : Number(microSequence.confirmedW1High).toFixed(2)},
-    {label:"W1 completion",value:microSequence.w1Completion?.state || "DEVELOPING"},
-    {label:"W2 completion",value:microSequence.w2Completion?.state || "DEVELOPING"},
-  ] : (state?.rows || []);
-  const displayRules = microSequence ? [
-    "Five-minute structure owns confirmation; one-minute evidence is diagnostic only.",
-    "Wave 2 levels appear after confirmed W1; locked anchors cannot repaint.",
-    "Micro timing creates no permission, sizing or execution."
-  ] : state?.rules;
 
   return (
     <div
@@ -314,7 +296,7 @@ function Engine22DegreeCard({ degree, state, wavelength }) {
           </div>
         </div>
 
-        <Badge text={activeMicro || state?.badge || "CTX"} tone={tone} />
+        <Badge text={state?.badge || "CTX"} tone={tone} />
       </div>
 
       <div
@@ -330,10 +312,10 @@ function Engine22DegreeCard({ degree, state, wavelength }) {
           lineHeight: 1.15,
         }}
       >
-        {displayHeadline || `${String(degree || "").toUpperCase()} structure not published.`}
+        {state?.headline || `${String(degree || "").toUpperCase()} structure not published.`}
       </div>
 
-      {displayRows.map((item, index) => (
+      {(state?.rows || []).map((item, index) => (
         <Engine22Line
           key={`${item.label || "row"}-${index}`}
           label={item.label}
@@ -349,7 +331,7 @@ function Engine22DegreeCard({ degree, state, wavelength }) {
 
       {waveDegree ? (
         <div style={{border: "1px solid #344156", borderRadius: 8, padding: 6, display: "grid", gap: 4}}>
-          <div style={{color: "#bfdbfe", fontWeight: 900, fontSize: 11}}>{activeMicro === "W2" ? "FIB RETRACEMENTS" : "FIB EXTENSIONS"} — {waveDegree.activeWave || "—"}</div>
+          <div style={{color: "#bfdbfe", fontWeight: 900, fontSize: 11}}>FIB EXTENSIONS — {waveDegree.activeWave || "—"}</div>
           <Engine22Line label="State" value={waveDegree.state} tone="watch" />
           <Engine22Line label="Confirm" value={waveDegree.confirmationStatus} tone="watch" />
           {fibLevels.map((fib) => (
@@ -359,7 +341,7 @@ function Engine22DegreeCard({ degree, state, wavelength }) {
           {waveDegree.nextLevel ? <Engine22Line label="Next" value={`${waveDegree.nextLevel.label} @ ${waveDegree.nextLevel.price}`} /> : null}
         </div>
       ) : null}
-      <RulesBox rules={displayRules} />
+      <RulesBox rules={state?.rules} />
     </div>
   );
 }
