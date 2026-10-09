@@ -1,0 +1,40 @@
+name: Micro Copilot Transition Position UI V1
+
+on:
+  push:
+    branches:
+      - micro-copilot-transition-position-ui-v1
+  pull_request:
+    paths:
+      - "src/pages/rows/RowStrategies/**"
+      - "src/pages/rows/RowChart/overlays/Engine22MarketStructureCard.jsx"
+      - ".github/workflows/micro-copilot-transition-position-ui-v1.yml"
+  workflow_dispatch: {}
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build dashboard
+        run: npm run build
+
+      - name: Verify Micro copilot UI contracts
+        run: |
+          grep -q "W2 DOWN FIBS" src/pages/rows/RowChart/overlays/Engine22MarketStructureCard.jsx
+          grep -q "W3 UP FIBS" src/pages/rows/RowChart/overlays/Engine22MarketStructureCard.jsx
+          grep -q "A++ TRADING HAPPENING" src/pages/rows/RowChart/overlays/Engine22MarketStructureCard.jsx
+          grep -q "MICRO POSITION AWARENESS" src/pages/rows/RowChart/overlays/Engine22MarketStructureCard.jsx
+          grep -q "DO NOT ADD AGAINST THE EMERGING MICRO IMPULSE" src/pages/rows/RowChart/overlays/Engine22MarketStructureCard.jsx
+          grep -q "microW2W3TransitionFibs" src/pages/rows/RowStrategies/index.jsx
+          grep -q "microPositionContext" src/pages/rows/RowStrategies/index.jsx

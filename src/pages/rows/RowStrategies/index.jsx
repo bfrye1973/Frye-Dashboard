@@ -243,6 +243,27 @@ function getEngine22CurrentWavelength(snapshot) {
   return snapshot?.strategies?.[STRATEGY_ID_MAP.SCALP]?.engine22WaveStrategy?.currentWavelength || null;
 }
 
+function getMicroW2W3TransitionFibs(snapshot) {
+  return (
+    snapshot?.strategies?.[STRATEGY_ID_MAP.SCALP]?.engine22WaveStrategy
+      ?.microW2W3TransitionFibs || null
+  );
+}
+
+function getMicroNegotiatedMidlineConfluence(snapshot) {
+  return (
+    snapshot?.strategies?.[STRATEGY_ID_MAP.SCALP]
+      ?.engine22MicroNegotiatedMidlineConfluence || null
+  );
+}
+
+function getMicroPositionContext(snapshot) {
+  return (
+    snapshot?.strategies?.[STRATEGY_ID_MAP.SCALP]
+      ?.microPositionContext || null
+  );
+}
+
 function wavePrice(value) {
   const n = Number(value);
   return Number.isFinite(n) ? n.toFixed(2) : "—";
@@ -253,6 +274,9 @@ function WaveDegreeRow({ snapshot }) {
     <Engine22MarketStructureCard
       engine22Display={getEngine22Display(snapshot)}
       currentWavelength={getEngine22CurrentWavelength(snapshot)}
+      microW2W3TransitionFibs={getMicroW2W3TransitionFibs(snapshot)}
+      microMidlineConfluence={getMicroNegotiatedMidlineConfluence(snapshot)}
+      microPositionContext={getMicroPositionContext(snapshot)}
     />
   );
 }
