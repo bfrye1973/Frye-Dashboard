@@ -18,6 +18,7 @@
 import React from "react";
 import { useDashboardSnapshot } from "../../../hooks/useDashboardSnapshot";
 import Engine22MarketStructureCard from "../RowChart/overlays/Engine22MarketStructureCard";
+import Engine27TraderIntelligenceV2 from "./Engine27TraderIntelligenceV2";
 
 /* -------------------- env helpers -------------------- */
 function env(name, fb = "") {
@@ -2214,9 +2215,15 @@ export default function RowStrategies() {
         snapshot={snapshot}
       />
 
-      <Engine27TraderIntelligence
-        snapshot={snapshot}
-      />
+      {snapshot?.engine27Strategies?.engine27TraderIntelligenceV2 ? (
+        <Engine27TraderIntelligenceV2
+          snapshot={snapshot}
+        />
+      ) : (
+        <Engine27TraderIntelligence
+          snapshot={snapshot}
+        />
+      )}
     </section>
   );
 }
