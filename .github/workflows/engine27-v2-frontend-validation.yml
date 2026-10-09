@@ -1,0 +1,31 @@
+name: Engine27 V2 Frontend Validation
+
+on:
+  push:
+    branches:
+      - engine27-v2-six-degree-ui
+  pull_request:
+    paths:
+      - "src/pages/rows/RowStrategies/**"
+      - ".github/workflows/engine27-v2-frontend-validation.yml"
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build dashboard
+        run: npm run build
