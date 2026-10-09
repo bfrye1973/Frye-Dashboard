@@ -1,0 +1,20 @@
+name: Engine22 Micro wave sequence UI build
+on:
+  push:
+    branches: [engine22-micro-wave-sequence-ui-v1]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build-ui:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - run: npm ci
+      - run: npm run build
