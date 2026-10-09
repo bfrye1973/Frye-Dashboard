@@ -2309,10 +2309,6 @@ export default function RowChart({
           flexDirection: "row",
           width: "100%",
           height: fullScreen ? "100%" : undefined,
-          minHeight: fullScreen ? 0 : undefined,
-          minWidth: 0,
-          flex: fullScreen ? "1 1 auto" : undefined,
-          overflow: "hidden",
         }}
       >
         <div
