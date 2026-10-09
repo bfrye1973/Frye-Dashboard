@@ -236,7 +236,255 @@ function RulesBox({ rules }) {
   );
 }
 
-function Engine22DegreeCard({ degree, state, wavelength }) {
+function FibTransitionColumn({ title, subtitle, levels, tone = "long" }) {
+  const rows = Array.isArray(levels)
+    ? levels.filter((item) => Number.isFinite(Number(item?.price)))
+    : [];
+
+  const accent =
+    tone === "short"
+      ? "#f87171"
+      : "#86efac";
+
+  const border =
+    tone === "short"
+      ? "rgba(239,68,68,.34)"
+      : "rgba(34,197,94,.34)";
+
+  const background =
+    tone === "short"
+      ? "rgba(69,10,10,.22)"
+      : "rgba(5,46,22,.22)";
+
+  return (
+    <div
+      style={{
+        border: `1px solid ${border}`,
+        borderRadius: 9,
+        padding: 7,
+        background,
+        minWidth: 0,
+      }}
+    >
+      <div style={{ color: accent, fontSize: 11, fontWeight: 1000 }}>
+        {title}
+      </div>
+      <div style={{ color: "#94a3b8", fontSize: 9, fontWeight: 800, marginTop: 2, marginBottom: 5 }}>
+        {subtitle}
+      </div>
+
+      <div style={{ display: "grid", gap: 3 }}>
+        {rows.map((item) => (
+          <div
+            key={item.key || `${title}-${item.label}`}
+            style={{
+              display: "grid",
+              gridTemplateColumns: "42px 1fr auto",
+              gap: 5,
+              alignItems: "center",
+              borderTop: "1px solid rgba(148,163,184,.08)",
+              paddingTop: 3,
+            }}
+          >
+            <span style={{ color: "#94a3b8", fontSize: 9, fontWeight: 900 }}>
+              {item.label || "—"}
+            </span>
+            <span style={{ color: "#f8fafc", fontSize: 10, fontWeight: 1000 }}>
+              {wavePrice(item.price)}
+            </span>
+            <span
+              style={{
+                color: item.status === "TOUCHED" ? "#86efac" : "#fbbf24",
+                fontSize: 9,
+                fontWeight: 1000,
+              }}
+            >
+              {item.status || "WATCH"}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function MicroTransitionFibPanel({ transition }) {
+  if (transition?.available !== true) return null;
+
+  return (
+    <div
+      style={{
+        border: "1px solid rgba(56,189,248,.45)",
+        borderRadius: 10,
+        padding: 7,
+        background: "rgba(8,47,73,.18)",
+        display: "grid",
+        gap: 6,
+      }}
+    >
+      <div>
+        <div style={{ color: "#7dd3fc", fontSize: 11, fontWeight: 1000 }}>
+          {transition?.headline || "W2 DOWN + W3 UP — transition confirming"}
+        </div>
+        <div style={{ color: "#94a3b8", fontSize: 9, fontWeight: 800, marginTop: 2 }}>
+          Both Fib maps stay visible while canonical W3 is still developing.
+        </div>
+      </div>
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(2,minmax(0,1fr))",
+          gap: 6,
+        }}
+      >
+        <FibTransitionColumn
+          title="W2 DOWN FIBS"
+          subtitle={`W2 ${transition?.w2Down?.state || "—"} • low ${wavePrice(transition?.anchors?.w2Low)}`}
+          levels={transition?.w2Down?.levels}
+          tone="short"
+        />
+        <FibTransitionColumn
+          title="W3 UP FIBS"
+          subtitle={`Launch from ${wavePrice(transition?.anchors?.w2Low)} • W1 length ${wavePrice(transition?.anchors?.w1Length)}`}
+          levels={transition?.w3Up?.levels}
+          tone="long"
+        />
+      </div>
+    </div>
+  );
+}
+
+function MicroMidlineBanner({ confluence }) {
+  if (confluence?.active !== true) return null;
+
+  return (
+    <div
+      style={{
+        border: "1px solid rgba(250,204,21,.70)",
+        borderLeft: "4px solid #facc15",
+        borderRadius: 9,
+        background: "rgba(113,63,18,.22)",
+        padding: "7px 8px",
+      }}
+    >
+      <div style={{ color: "#fde047", fontSize: 12, fontWeight: 1000 }}>
+        A++ TRADING HAPPENING
+      </div>
+      <div style={{ color: "#fef3c7", fontSize: 10, fontWeight: 900, marginTop: 2 }}>
+        Micro {confluence?.activeWave || "—"} + negotiated midpoint {wavePrice(confluence?.negotiatedZone?.midline)}
+        {Number.isFinite(Number(confluence?.distanceToMidline))
+          ? ` • distance ${Number(confluence.distanceToMidline).toFixed(2)} pts`
+          : ""}
+      </div>
+      <div style={{ color: "#94a3b8", fontSize: 9, fontWeight: 800, marginTop: 2 }}>
+        Confluence quality only — Engine 6 permission still required.
+      </div>
+    </div>
+  );
+}
+
+function MicroPositionBanner({ context }) {
+  if (!context || context.positionPresent !== true) return null;
+
+  const severity = String(context?.conflictSeverity || "NONE").toUpperCase();
+  const conflict = context?.positionConflict === true;
+  const critical = severity === "CRITICAL";
+  const high = severity === "HIGH";
+
+  const color =
+    critical
+      ? "#fca5a5"
+      : high
+      ? "#fdba74"
+      : conflict
+      ? "#fde68a"
+      : "#86efac";
+
+  const border =
+    critical
+      ? "rgba(239,68,68,.68)"
+      : high
+      ? "rgba(249,115,22,.62)"
+      : conflict
+      ? "rgba(251,191,36,.52)"
+      : "rgba(34,197,94,.42)";
+
+  const positions = Array.isArray(context?.positions)
+    ? context.positions
+    : [];
+
+  return (
+    <div
+      style={{
+        border: `1px solid ${border}`,
+        borderRadius: 9,
+        background: conflict ? "rgba(69,10,10,.16)" : "rgba(5,46,22,.16)",
+        padding: "7px 8px",
+        display: "grid",
+        gap: 4,
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          gap: 6,
+          alignItems: "center",
+          flexWrap: "wrap",
+        }}
+      >
+        <div style={{ color, fontSize: 11, fontWeight: 1000 }}>
+          MICRO POSITION AWARENESS
+        </div>
+        <Badge
+          text={conflict ? `CONFLICT ${severity}` : "ALIGNED"}
+          tone={conflict ? "short" : "long"}
+        />
+      </div>
+
+      {positions.slice(0, 3).map((position, index) => (
+        <div
+          key={position?.tradeId || index}
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr auto",
+            gap: 7,
+            fontSize: 10,
+            fontWeight: 900,
+          }}
+        >
+          <span style={{ color: "#e5e7eb" }}>
+            {String(position?.direction || "—").toUpperCase()} × {position?.remainingQty ?? "?"}
+            {position?.accountMode ? ` • ${position.accountMode}` : ""}
+          </span>
+          <span style={{ color }}>
+            {position?.microAlignment || "—"}
+          </span>
+        </div>
+      ))}
+
+      <div style={{ color: "#cbd5e1", fontSize: 10, fontWeight: 900 }}>
+        Micro posture: {String(context?.tradePosture || "NEUTRAL").replaceAll("_", " ")}
+      </div>
+
+      {context?.doNotAddAgainstImpulse === true ? (
+        <div style={{ color: "#fca5a5", fontSize: 11, fontWeight: 1000 }}>
+          DO NOT ADD AGAINST THE EMERGING MICRO IMPULSE
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function Engine22DegreeCard({
+  degree,
+  state,
+  wavelength,
+  microW2W3TransitionFibs = null,
+  microMidlineConfluence = null,
+  microPositionContext = null,
+}) {
   const active = state?.active === true;
   const tone = toneForDegree(degree, state);
   const waveDegree = wavelength?.degrees?.[degree] || null;
@@ -324,6 +572,14 @@ function Engine22DegreeCard({ degree, state, wavelength }) {
         />
       ))}
 
+      {degree === "micro" ? (
+        <>
+          <MicroMidlineBanner confluence={microMidlineConfluence} />
+          <MicroPositionBanner context={microPositionContext} />
+          <MicroTransitionFibPanel transition={microW2W3TransitionFibs} />
+        </>
+      ) : null}
+
       <Engine22TargetGrid
         title={`${String(state?.label || degree || "").toUpperCase()} levels`}
         levels={state?.levels}
@@ -346,7 +602,13 @@ function Engine22DegreeCard({ degree, state, wavelength }) {
   );
 }
 
-export default function Engine22MarketStructureCard({ engine22Display, currentWavelength = null }) {
+export default function Engine22MarketStructureCard({
+  engine22Display,
+  currentWavelength = null,
+  microW2W3TransitionFibs = null,
+  microMidlineConfluence = null,
+  microPositionContext = null,
+}) {
   if (
     !engine22Display ||
     engine22Display.version !== "engine22Display.v1" ||
@@ -432,6 +694,9 @@ export default function Engine22MarketStructureCard({ engine22Display, currentWa
             key={degree}
             degree={degree}
             wavelength={currentWavelength}
+            microW2W3TransitionFibs={microW2W3TransitionFibs}
+            microMidlineConfluence={microMidlineConfluence}
+            microPositionContext={microPositionContext}
             state={
               engine22Display.degrees?.[degree] || {
                 degree,
