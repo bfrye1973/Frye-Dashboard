@@ -1690,33 +1690,24 @@ function Engine27DegreeCard({
   );
 }
 
-function Engine27MicroTimingCard({ microState, microDisplay, currentPrice }) {
-  const sequence = microState?.microSequence || {};
-  const wave = sequence.activeWave || microState?.activeWave || "W1";
-  const next = microState?.nextLevel || null;
+function Engine27MicroTimingCard({ microState, microDisplay }) {
+  const rows = Array.isArray(microDisplay?.rows) ? microDisplay.rows : [];
   return (
     <div className="engine27-degree-card" style={{
       background:"#0b1018",border:"1px solid #2563eb",borderTop:"4px solid #3b82f6",
       borderRadius:12,padding:9,minWidth:0,display:"grid",gap:9,alignContent:"start",
     }}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:6}}>
-        <strong style={{color:"#f8fafc",fontSize:13}}>{`MICRO — ${wave}`}</strong>
-        <Badge text="TIMING ONLY" tone="arming" />
+        <strong style={{color:"#f8fafc",fontSize:13}}>{microDisplay?.label || "Micro"}</strong>
+        <Badge text={microDisplay?.badge || "—"} tone="arming" />
       </div>
       <div style={{color:"#bfdbfe",fontWeight:900,fontSize:12}}>
-        {sequence.state === "MICRO_W2_PULLBACK_WATCH" ? "W2 retracement watch" :
-          sequence.state === "MICRO_W3_SETUP_WATCH" ? "W3 setup watch" : "W1 high search"}
+        {microDisplay?.headline || "Engine 22 Micro display unavailable"}
       </div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(2,minmax(0,1fr))",gap:5}}>
-        <Engine27Metric label="W1 Start" value={engine27Number(microState?.origin ?? 7784)} />
-        <Engine27Metric label="W1 Candidate" value={engine27Number(sequence.candidateW1High)} />
-        <Engine27Metric label="W1 Confirmed" value={engine27Number(sequence.confirmedW1High)} />
-        <Engine27Metric label="Next Fib" value={next?.label || "—"} />
-        <Engine27Metric label="Next Price" value={engine27Number(next?.price)} />
-        <Engine27Metric label="W2 Available" value={sequence.w2TargetsAvailable ? "YES" : "PENDING W1 HIGH"} />
-      </div>
-      <div style={{color:"#94a3b8",fontSize:11,fontWeight:800}}>
-        Provisional W1 targets • W2 only after confirmed W1 high • No permission or ticket
+        {rows.map((item,index) => (
+          <Engine27Metric key={index} label={item.label} value={item.value} />
+        ))}
       </div>
     </div>
   );
