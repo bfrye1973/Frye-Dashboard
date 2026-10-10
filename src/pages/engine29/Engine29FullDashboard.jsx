@@ -567,30 +567,165 @@ const INTERNAL_ROWS = [
   ["Financials", "financialConditions", "financialConditions"],
 ];
 
-function MarketInternalsMap({ groups, display }) {
-  const hood = display?.underTheHood || {};
+function layerSourceTime(layer) {
+  const times = asArray(layer?.members)
+    .map((member) => Number(member?.latest?.time))
+    .filter(Number.isFinite);
+
+  if (!times.length) return null;
+
+  // Show the oldest contributing member so one lagging source cannot be hidden
+  // behind a fresher member in the same market-internals group.
+  return Math.min(...times);
+}
+
+function formatSourceTime(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return "NO SOURCE TIME";
+
+  const ms = n < 1e12 ? n * 1000 : n;
+  const d = new Date(ms);
+
+  return d.toLocaleString([], {
+    month: "numeric",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+function layerQuality(layer) {
+  if (!layer) return "UNAVAILABLE";
+  if (layer?.dataDegraded === true) return "DEGRADED";
+
+  const members = asArray(layer?.members).filter((member) => member?.available);
+  if (!members.length) return "UNAVAILABLE";
+
+  if (members.some((member) => member?.freshness?.stale === true)) {
+    return "STALE";
+  }
+
+  return "CURRENT";
+}
+
+function InternalLayerCell({ groupKey, layer }) {
+  const state = layer?.state;
+  const quality = layerQuality(layer);
+  const sourceTime = layerSourceTime(layer);
+  const qualityColor =
+    quality === "CURRENT"
+      ? COLORS.good
+      : quality === "STALE"
+        ? COLORS.bad
+        : quality === "DEGRADED"
+          ? COLORS.warn
+          : COLORS.muted;
+
+  return (
+    <div style={{ minWidth: 0 }}>
+      <div style={{ color: stateColor(state), fontWeight: 900 }}>
+        {plainGroupState(groupKey, state)}
+      </div>
+      <div style={{ marginTop: 3, color: COLORS.muted, fontSize: 10.5 }}>
+        {formatSourceTime(sourceTime)}
+      </div>
+      <div style={{ marginTop: 2, color: qualityColor, fontSize: 9.5, fontWeight: 900 }}>
+        {quality}
+      </div>
+    </div>
+  );
+}
+
+function MarketInternalsMap({ groups }) {
   return (
     <Card>
-      <SectionTitle>Market Internals Map</SectionTitle>
+      <SectionTitle
+        right={
+          <span style={{ color: COLORS.muted, fontSize: 10, fontWeight: 800 }}>
+            Source time shown for every timeframe
+          </span>
+        }
+      >
+        Market Internals Map
+      </SectionTitle>
+
       <div style={{ overflowX: "auto" }}>
-        <div style={{ minWidth: 900 }}>
-          <div style={{ display: "grid", gridTemplateColumns: "1.35fr 1.25fr 1fr 1fr 1fr 1.35fr", gap: 8, padding: "6px 8px", color: COLORS.muted, fontSize: 11, fontWeight: 900, textTransform: "uppercase", borderBottom: `1px solid ${COLORS.line}` }}>
-            <div>Internal</div><div>State</div><div>1W</div><div>1H</div><div>30m</div><div>Now</div>
+        <div style={{ minWidth: 980 }}>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1.2fr 1fr 1fr 1fr 0.8fr",
+              gap: 10,
+              padding: "6px 8px",
+              color: COLORS.muted,
+              fontSize: 11,
+              fontWeight: 900,
+              textTransform: "uppercase",
+              borderBottom: `1px solid ${COLORS.line}`,
+            }}
+          >
+            <div>Internal</div>
+            <div>1W</div>
+            <div>1H</div>
+            <div>30m</div>
+            <div>Overall quality</div>
           </div>
-          {INTERNAL_ROWS.map(([label, groupKey, displayKey]) => {
+
+          {INTERNAL_ROWS.map(([label, groupKey]) => {
             const group = groups?.[groupKey] || {};
-            const structural = group?.structural?.state;
-            const tactical = group?.tactical?.state;
-            const fast = group?.fastTactical?.state;
-            const now = hood?.[displayKey];
+            const structural = group?.structural || null;
+            const tactical = group?.tactical || null;
+            const fast = group?.fastTactical || null;
+
+            const qualities = [
+              layerQuality(tactical),
+              layerQuality(fast),
+            ];
+
+            const overallQuality =
+              qualities.includes("STALE")
+                ? "STALE"
+                : qualities.includes("DEGRADED")
+                  ? "DEGRADED"
+                  : qualities.every((value) => value === "UNAVAILABLE")
+                    ? "UNAVAILABLE"
+                    : qualities.includes("UNAVAILABLE")
+                      ? "PARTIAL"
+                      : "CURRENT";
+
+            const overallColor =
+              overallQuality === "CURRENT"
+                ? COLORS.good
+                : overallQuality === "STALE"
+                  ? COLORS.bad
+                  : overallQuality === "DEGRADED" || overallQuality === "PARTIAL"
+                    ? COLORS.warn
+                    : COLORS.muted;
+
             return (
-              <div key={groupKey} style={{ display: "grid", gridTemplateColumns: "1.35fr 1.25fr 1fr 1fr 1fr 1.35fr", gap: 8, padding: "9px 8px", alignItems: "center", borderBottom: "1px solid rgba(148,163,184,0.10)", fontSize: 13 }}>
-                <div style={{ color: "#f8fafc", fontWeight: 900 }}>{label}</div>
-                <div style={{ color: stateColor(structural || now), fontWeight: 900 }}>{plainGroupState(groupKey, structural || now)}</div>
-                <div style={{ color: stateColor(structural) }}>{plainGroupState(groupKey, structural)}</div>
-                <div style={{ color: stateColor(tactical) }}>{plainGroupState(groupKey, tactical)}</div>
-                <div style={{ color: stateColor(fast) }}>{plainGroupState(groupKey, fast)}</div>
-                <div style={{ color: stateColor(now), fontWeight: 850 }}>{clean(now)}</div>
+              <div
+                key={groupKey}
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1.2fr 1fr 1fr 1fr 0.8fr",
+                  gap: 10,
+                  padding: "10px 8px",
+                  alignItems: "center",
+                  borderBottom: "1px solid rgba(148,163,184,0.10)",
+                  fontSize: 13,
+                }}
+              >
+                <div style={{ color: "#f8fafc", fontWeight: 900 }}>
+                  {label}
+                </div>
+
+                <InternalLayerCell groupKey={groupKey} layer={structural} />
+                <InternalLayerCell groupKey={groupKey} layer={tactical} />
+                <InternalLayerCell groupKey={groupKey} layer={fast} />
+
+                <div style={{ color: overallColor, fontWeight: 950 }}>
+                  {overallQuality}
+                </div>
               </div>
             );
           })}
