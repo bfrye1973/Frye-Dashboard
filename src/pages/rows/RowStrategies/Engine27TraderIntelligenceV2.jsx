@@ -56,6 +56,329 @@ function conditionTone(condition) {
   return "#3b82f6";
 }
 
+
+const STRATEGY_ALIGNMENT_ORDER = [
+  "INTRADAY",
+  "SUBMINUTE",
+  "MINUTE",
+  "MINOR",
+  "INTERMEDIATE",
+  "PRIMARY",
+];
+
+function toneForThesis(state) {
+  const value = String(state || "").toUpperCase();
+
+  if (value === "ALIGNED") return "#22c55e";
+  if (value === "LOWER_DEGREE_PULLBACK") return "#eab308";
+  if (value === "EARLY_WARNING") return "#f59e0b";
+  if (value === "THESIS_WEAKENING") return "#f97316";
+  if (value === "THESIS_BROKEN") return "#ef4444";
+  if (value === "FLAT") return "#64748b";
+  return "#64748b";
+}
+
+function toneForAccountAlignment(value) {
+  const alignment = String(value || "").toUpperCase();
+  if (alignment === "ALIGNED") return "#22c55e";
+  if (alignment === "CONFLICT") return "#ef4444";
+  if (alignment === "FLAT") return "#64748b";
+  return "#f59e0b";
+}
+
+function accountPositionLabel(account) {
+  const position = account?.position || {};
+  if (position?.positionPresent !== true) return "FLAT";
+
+  const direction = pretty(position?.direction, "UNKNOWN");
+  const contracts = Number(position?.contracts);
+
+  return Number.isFinite(contracts)
+    ? `${direction} ${contracts} MES`
+    : direction;
+}
+
+function accountStructuralRead(account) {
+  const structure = account?.structure || {};
+  const wave = pretty(structure?.activeWave, "—");
+  const direction = pretty(structure?.direction, "—");
+  const condition =
+    pretty(
+      structure?.timingState ||
+      structure?.lifecycle,
+      "—"
+    );
+
+  return `${wave} • ${direction} • ${condition}`;
+}
+
+function StrategyAlignmentCard({ account }) {
+  const thesisState =
+    account?.thesisState || "FLAT";
+
+  const thesisTone =
+    toneForThesis(thesisState);
+
+  const accountAlignmentTone =
+    toneForAccountAlignment(
+      account?.alignment
+    );
+
+  const brokerStatus =
+    account?.brokerBinding?.status ||
+    "UNBOUND";
+
+  const comparisons =
+    Array.isArray(
+      account?.campaignComparisons
+    )
+      ? account.campaignComparisons
+      : [];
+
+  const activeComparison =
+    comparisons[0] || null;
+
+  const lowerPressure =
+    Array.isArray(
+      activeComparison?.opposedLowerDegrees
+    )
+      ? activeComparison.opposedLowerDegrees
+      : [];
+
+  const higherPressure =
+    Array.isArray(
+      activeComparison?.opposedHigherDegrees
+    )
+      ? activeComparison.opposedHigherDegrees
+      : [];
+
+  const liveRead =
+    thesisState === "FLAT"
+      ? `${account?.structuralOwner || "STRUCTURE"} currently ${pretty(account?.structure?.direction, "unavailable")} — account is flat.`
+      : activeComparison?.guidance ||
+        "Live strategy thesis monitoring active.";
+
+  return (
+    <div
+      style={{
+        border: `1px solid ${thesisTone}88`,
+        borderTop: `4px solid ${thesisTone}`,
+        borderRadius: 10,
+        background: "#0a1018",
+        padding: 8,
+        minWidth: 0,
+        display: "grid",
+        gap: 6,
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          gap: 6,
+          flexWrap: "wrap",
+        }}
+      >
+        <div>
+          <div
+            style={{
+              color: "#f8fafc",
+              fontSize: 12,
+              fontWeight: 1000,
+            }}
+          >
+            {account?.displayName?.toUpperCase() || account?.accountRole || "STRATEGY"} ALIGNMENT
+          </div>
+          <div
+            style={{
+              color: "#94a3b8",
+              fontSize: 9,
+              fontWeight: 900,
+              marginTop: 1,
+            }}
+          >
+            {account?.structuralOwner || "—"} structural owner • live read
+          </div>
+        </div>
+
+        <SmallBadge
+          text={pretty(thesisState)}
+          tone={thesisTone}
+        />
+      </div>
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns:
+            "repeat(2,minmax(0,1fr))",
+          gap: 4,
+        }}
+      >
+        <Cell
+          label="Position"
+          value={accountPositionLabel(account)}
+          tone={accountAlignmentTone}
+        />
+
+        <Cell
+          label="Account Alignment"
+          value={pretty(account?.alignment)}
+          tone={accountAlignmentTone}
+        />
+
+        <Cell
+          label="Current Structure"
+          value={accountStructuralRead(account)}
+          tone={toneForDirection(
+            account?.structure?.direction
+          )}
+        />
+
+        <Cell
+          label="Broker Slot"
+          value={pretty(brokerStatus)}
+          detail={
+            account?.brokerBinding
+              ?.brokerAccountLabel ||
+            "Not bound yet"
+          }
+        />
+      </div>
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns:
+            "repeat(2,minmax(0,1fr))",
+          gap: 4,
+        }}
+      >
+        <Cell
+          label="Lower-Degree Pressure"
+          value={
+            lowerPressure.length
+              ? lowerPressure
+                  .map(pretty)
+                  .join(" • ")
+              : "NONE"
+          }
+          tone={
+            lowerPressure.length
+              ? "#fbbf24"
+              : "#86efac"
+          }
+        />
+
+        <Cell
+          label="Higher-Degree Conflict"
+          value={
+            higherPressure.length
+              ? higherPressure
+                  .map(pretty)
+                  .join(" • ")
+              : "NONE"
+          }
+          tone={
+            higherPressure.length
+              ? "#fb923c"
+              : "#86efac"
+          }
+        />
+      </div>
+
+      <div
+        style={{
+          border:
+            "1px solid rgba(148,163,184,.22)",
+          borderRadius: 7,
+          background: "#080d14",
+          padding: "6px 7px",
+        }}
+      >
+        <div
+          style={{
+            color: "#94a3b8",
+            fontSize: 9,
+            fontWeight: 1000,
+          }}
+        >
+          STRATEGY READ
+        </div>
+        <div
+          style={{
+            color: "#f8fafc",
+            fontSize: 10,
+            fontWeight: 900,
+            lineHeight: 1.24,
+            marginTop: 2,
+          }}
+        >
+          {liveRead}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SeparateStrategyAlignments({ snapshot }) {
+  const monitor =
+    snapshot?.strategyAccountMonitoring ||
+    null;
+
+  const accounts =
+    Array.isArray(monitor?.accounts)
+      ? monitor.accounts
+      : [];
+
+  if (!accounts.length) return null;
+
+  const byRole =
+    Object.fromEntries(
+      accounts.map((account) => [
+        account?.accountRole,
+        account,
+      ])
+    );
+
+  return (
+    <div
+      style={{
+        display: "grid",
+        gap: 7,
+      }}
+    >
+      <div
+        style={{
+          color: "#cbd5e1",
+          fontSize: 11,
+          fontWeight: 1000,
+          letterSpacing: ".03em",
+        }}
+      >
+        SEPARATE LIVE STRATEGY ALIGNMENTS
+      </div>
+
+      <div className="engine27-strategy-alignment-grid">
+        {STRATEGY_ALIGNMENT_ORDER.map(
+          (role) => {
+            const account = byRole[role];
+            if (!account) return null;
+
+            return (
+              <StrategyAlignmentCard
+                key={role}
+                account={account}
+              />
+            );
+          }
+        )}
+      </div>
+    </div>
+  );
+}
+
 function Cell({ label, value, detail = null, tone = "#e5e7eb" }) {
   return (
     <div
@@ -582,6 +905,15 @@ export default function Engine27TraderIntelligenceV2({ snapshot }) {
           padding-bottom: 4px;
         }
 
+        .engine27-strategy-alignment-grid {
+          display: grid;
+          grid-template-columns: repeat(6, minmax(220px, 1fr));
+          gap: 8px;
+          align-items: stretch;
+          overflow-x: auto;
+          padding-bottom: 4px;
+        }
+
         @media (max-width: 1180px) {
           .engine27-v2-summary {
             grid-template-columns: repeat(2, minmax(0,1fr)) !important;
@@ -623,6 +955,10 @@ export default function Engine27TraderIntelligenceV2({ snapshot }) {
       <div className="engine27-v2-summary">
         <Summary engine27={engine27} />
       </div>
+
+      <SeparateStrategyAlignments
+        snapshot={snapshot}
+      />
 
       <div className="engine27-v2-grid">
         {DEGREE_ORDER.map((degree) => (
