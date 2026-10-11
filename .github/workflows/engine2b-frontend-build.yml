@@ -9,6 +9,9 @@ on:
       - 'scripts/engine2bFullChartSmoke.mjs'
       - '.github/workflows/engine2b-frontend-build.yml'
   workflow_dispatch:
+concurrency:
+  group: engine2b-frontend-${{ github.ref }}
+  cancel-in-progress: true
 permissions:
   contents: read
 jobs:
