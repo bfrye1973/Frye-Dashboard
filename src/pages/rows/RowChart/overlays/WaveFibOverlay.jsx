@@ -148,6 +148,7 @@ export default function WaveFibOverlay({chart, priceSeries, chartContainer, symb
     }
     if (style.showWaveLabels === false && style.showWaveLines === false && style.showAnchors === false) return;
     const points=[];
+    let unmapped=0, outside=0;
     for (const mark of block.marks || []) {
       const p=PRICE(mark.price), t=timeSec(mark.time);
       if (p==null || t==null) continue;
@@ -156,11 +157,15 @@ export default function WaveFibOverlay({chart, priceSeries, chartContainer, symb
       const nearest=bars.reduce((best,b)=>Math.abs(Number(b.time)-t)<Math.abs(Number(best)-t)?Number(b.time):best,t);
       const validSnap=nearest !== t && Math.abs(nearest-t) <= 8*60*60;
       const x=ts.timeToCoordinate(validSnap ? nearest : t), y=priceSeries.priceToCoordinate(p);
-      if (!Number.isFinite(x)||!Number.isFinite(y)) continue;
-      if (x<0 || x>w || y<0 || y>h) continue;
+      if (!Number.isFinite(x)||!Number.isFinite(y)) {unmapped++;continue;}
+      if (x<0 || x>w || y<0 || y>h) {outside++;continue;}
       points.push({x,y,t,name:mark.label,status:mark.status});
     }
     points.sort((a,b)=>a.t-b.t);
+    if ((outside || unmapped) && block.marks?.length) {
+      label(`${selected.toUpperCase()} WAVE MARKS: ${points.length} VISIBLE / ${outside} OFFSCREEN / ${unmapped} UNMAPPED`,
+        Math.max(4,w*.36),Math.max(28,h-235-degreeLane*22),"#fbbf24");
+    }
     if (points.length>1 && style.showWaveLines !== false) {
       ctx.strokeStyle=color;ctx.lineWidth=width;ctx.beginPath();
       points.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));ctx.stroke();
@@ -171,7 +176,10 @@ export default function WaveFibOverlay({chart, priceSeries, chartContainer, symb
       ctx.strokeStyle=color;ctx.lineWidth=mature==="LOCKED"?3:2;
       ctx.setLineDash(mature==="CONFIRMED"||mature==="LOCKED"?[]:[4,4]);
       ctx.beginPath();ctx.arc(p.x,p.y,6,0,2*Math.PI);ctx.stroke();ctx.setLineDash([]);
-      if(style.showWaveLabels !== false) label(`${selected.toUpperCase()} ${p.name}${p.status?" ("+p.status+")":""}`,p.x+9,p.y-8+(degreeLane-2)*22);
+      if(style.showWaveLabels !== false) {
+        const waveLabel = /^W([1-5])(?:_|$)/i.test(p.name||"") ? p.name.replace(/^W([1-5])(?:_|$)/i,"$1 ") : p.name;
+        label(`${selected.toUpperCase()} ${waveLabel}${p.status?" ("+p.status+")":""}`,p.x+9,p.y-8+(degreeLane-2)*22);
+      }
     }
   }
   function schedule() {if(disposed)return;if(raf)cancelAnimationFrame(raf);raf=requestAnimationFrame(draw);}
