@@ -118,6 +118,7 @@ export default function WaveFibOverlay({chart, priceSeries, chartContainer, symb
       label(`${selected.toUpperCase()} unavailable: ${block.reason || "NO_DATA"}`,8,26,"#fbbf24");
       return;
     }
+    if (block.wave?.current) label(`${selected.toUpperCase()} ${block.wave.current} | ${block.wave.status || "STATUS UNKNOWN"} | ${block.wave.confirmationStatus || "CONFIRMATION UNKNOWN"}`,8,52,color);
     for (const line of block.lines || []) {
       const price=PRICE(line.price);
       if (price===null) continue;
@@ -147,7 +148,10 @@ export default function WaveFibOverlay({chart, priceSeries, chartContainer, symb
       points.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));ctx.stroke();
     }
     for (const p of points) {
-      ctx.strokeStyle=color;ctx.lineWidth=2;ctx.beginPath();ctx.arc(p.x,p.y,6,0,2*Math.PI);ctx.stroke();
+      const mature=String(p.status||"").toUpperCase();
+      ctx.strokeStyle=color;ctx.lineWidth=mature==="LOCKED"?3:2;
+      ctx.setLineDash(mature==="CONFIRMED"||mature==="LOCKED"?[]:[4,4]);
+      ctx.beginPath();ctx.arc(p.x,p.y,6,0,2*Math.PI);ctx.stroke();ctx.setLineDash([]);
       label(`${selected.toUpperCase()} ${p.name}${p.status?" ("+p.status+")":""}`,p.x+9,p.y-8);
     }
   }
