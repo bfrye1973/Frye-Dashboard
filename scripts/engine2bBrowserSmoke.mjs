@@ -58,6 +58,7 @@ try {
     // Simulates zoom/pan redraw callbacks on the renderer.
     for(const cb of callbacks)cb();
     await new Promise(ok=>setTimeout(ok,70));
+    await new Promise(ok=>requestAnimationFrame(()=>requestAnimationFrame(ok)));
     const canvases=[...document.querySelectorAll("canvas[data-engine2b-degree]")];
     const painted=canvases.map(c=>c.getContext("2d").getImageData(300,150,1,1).data[3]>0);
     window.__engine2bCleanup=()=>{
@@ -69,10 +70,11 @@ try {
     };
     return {attached,painted};
   });
+  console.log("BROWSER_RENDER_INSPECTION",JSON.stringify(result));
+  await page.screenshot({path:"engine2b-browser-smoke.png"});
   assert.equal(result.attached,5);
   assert.ok(result.painted.every(Boolean),"All five degree canvases must contain painted fib geometry");
   assert.equal(requests,1,"All five degrees should share one request");
-  await page.screenshot({path:"engine2b-browser-smoke.png"});
   const cleanup=await page.evaluate(()=>window.__engine2bCleanup());
   assert.equal(cleanup.afterToggle,4);
   assert.equal(cleanup.afterDestroy,0);
