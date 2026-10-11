@@ -16,7 +16,7 @@ try{
  await page.getByText("Indicators ▾",{exact:true}).first().click({timeout:25000});
  const micro=page.getByLabel("Fib (Micro)",{exact:true});
  await micro.check({timeout:25000});
- await page.waitForTimeout(12000);
+ await page.waitForTimeout(60000);
  const state=await page.evaluate(()=>{
  const c=document.querySelector('canvas[data-engine2b-degree="micro"]');
  let painted=false;
