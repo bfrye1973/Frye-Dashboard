@@ -58,19 +58,26 @@ try {
     // Simulates zoom/pan redraw callbacks on the renderer.
     for(const cb of callbacks)cb();
     await new Promise(ok=>setTimeout(ok,70));
-    instances[0].destroy();
-    const afterToggle=document.querySelectorAll("canvas[data-engine2b-degree]").length;
-    for(const inst of instances.slice(1))inst.destroy();
-    return {attached,afterToggle,afterDestroy:document.querySelectorAll("canvas[data-engine2b-degree]").length,
-      listenersRemaining:callbacks.size};
+    const canvases=[...document.querySelectorAll("canvas[data-engine2b-degree]")];
+    const painted=canvases.map(c=>c.getContext("2d").getImageData(300,150,1,1).data[3]>0);
+    window.__engine2bCleanup=()=>{
+      instances[0].destroy();
+      const afterToggle=document.querySelectorAll("canvas[data-engine2b-degree]").length;
+      for(const inst of instances.slice(1))inst.destroy();
+      return {afterToggle,afterDestroy:document.querySelectorAll("canvas[data-engine2b-degree]").length,
+        listenersRemaining:callbacks.size};
+    };
+    return {attached,painted};
   });
   assert.equal(result.attached,5);
-  assert.equal(result.afterToggle,4);
-  assert.equal(result.afterDestroy,0);
-  assert.equal(result.listenersRemaining,0);
+  assert.ok(result.painted.every(Boolean),"All five degree canvases must contain painted fib geometry");
   assert.equal(requests,1,"All five degrees should share one request");
-  console.log("PASS Engine2B Chromium five-degree canvas render, shared fetch, zoom redraw, and teardown",result);
   await page.screenshot({path:"engine2b-browser-smoke.png"});
+  const cleanup=await page.evaluate(()=>window.__engine2bCleanup());
+  assert.equal(cleanup.afterToggle,4);
+  assert.equal(cleanup.afterDestroy,0);
+  assert.equal(cleanup.listenersRemaining,0);
+  console.log("PASS Engine2B Chromium five-degree painted canvas, shared fetch, zoom redraw, and teardown",result,cleanup);
 }finally{
   if(browser)await browser.close();
   await new Promise(ok=>server.close(ok));
