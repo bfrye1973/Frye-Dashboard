@@ -57,9 +57,28 @@ try{
   const removed=await page.locator('canvas[data-engine2b-degree="micro"]').count();
   assert.equal(active,1);
   assert.equal(removed,0);
+  // Exercise all five actual React checkbox controls individually and together.
+  const degreeNames=["Primary","Intermediate","Minor","Minute","Micro"];
+  for(const degree of degreeNames){
+    const control=page.getByLabel("Fib ("+degree+")",{exact:true});
+    const canvas=page.locator('canvas[data-engine2b-degree="'+degree.toLowerCase()+'"]');
+    await control.check();
+    await canvas.waitFor({state:"attached",timeout:20000});
+    await control.uncheck();
+    await canvas.waitFor({state:"detached",timeout:15000});
+  }
+  for(const degree of degreeNames)await page.getByLabel("Fib ("+degree+")",{exact:true}).check();
+  await page.waitForFunction(()=>document.querySelectorAll("canvas[data-engine2b-degree]").length===5,null,{timeout:20000});
+  const allAttached=await page.locator("canvas[data-engine2b-degree]").count();
+  assert.equal(allAttached,5);
+  await page.getByText("Indicators ▾",{exact:true}).first().click();
+  await page.screenshot({path:"engine2b-full-chart-five-on.png",fullPage:false});
+  await page.getByText("Indicators ▾",{exact:true}).first().click();
+  for(const degree of degreeNames)await page.getByLabel("Fib ("+degree+")",{exact:true}).uncheck();
+  await page.waitForFunction(()=>document.querySelectorAll("canvas[data-engine2b-degree]").length===0,null,{timeout:15000});
   // Only the new chart overlay must be exercised; unrelated page errors are reported but
   // not permitted to conceal a missing overlay.
-  console.log("ENGINE2B_FULL_CHART_MICRO_TOGGLE_PASS",JSON.stringify({active,removed,painted,pageErrors:errors.slice(0,4)}));
+  console.log("ENGINE2B_FULL_CHART_MICRO_TOGGLE_PASS",JSON.stringify({active,removed,allAttached,painted,pageErrors:errors.slice(0,4)}));
 }finally{
   if(browser)await browser.close();
   await new Promise(ok=>server.close(ok));
