@@ -8,12 +8,11 @@ try{
  page.on("response",res=>{if(res.url().includes("engine2b-preview-api"))network.push({phase:"response",status:res.status(),url:res.url()});});
  page.on("requestfailed",req=>{if(req.url().includes("engine2b-preview-api"))network.push({phase:"failure",reason:req.failure()?.errorText,url:req.url()});});
  page.on("pageerror",e=>errors.push(String(e)));
- const navigation=await page.goto("https://engine2b-fib-chart-preview.onrender.com/",{waitUntil:"domcontentloaded",timeout:60000});
+ const navigation=await page.goto("https://engine2b-chart-test-web.onrender.com/chart?symbol=ES&tf=10m",{waitUntil:"domcontentloaded",timeout:60000});
  await page.screenshot({path:"engine2b-deployed-preview-diagnostic.png"});
  console.log("PREVIEW_DOCUMENT",JSON.stringify({status:navigation?.status(),url:page.url(),title:await page.title(),body:(await page.locator("body").innerText().catch(()=>"" )).slice(0,500),html:(await page.content()).slice(0,400)}));
  const symbol=await page.locator('select').allTextContents();
  console.log("SYMBOL_SELECTS",JSON.stringify(symbol.slice(0,4)));
- await page.getByText("ES SCALP",{exact:true}).first().click({timeout:25000});
  await page.getByText("Indicators ▾",{exact:true}).first().click({timeout:25000});
  const micro=page.getByLabel("Fib (Micro)",{exact:true});
  await micro.check({timeout:25000});
