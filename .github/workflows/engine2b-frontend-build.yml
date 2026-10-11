@@ -5,6 +5,7 @@ on:
   pull_request:
     paths:
       - 'src/pages/rows/RowChart/**'
+      - 'scripts/engine2bBrowserSmoke.mjs'
       - '.github/workflows/engine2b-frontend-build.yml'
   workflow_dispatch:
 permissions:
@@ -30,3 +31,17 @@ jobs:
         run: npm test -- --watchAll=false --runInBand --testPathPattern=WaveFibOverlay.test.js
         env:
           CI: 'true'
+
+      - name: Install headless Chromium test dependency
+        run: |
+          npm install --no-save --no-package-lock playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Browser canvas smoke
+        run: node scripts/engine2bBrowserSmoke.mjs
+      - name: Upload browser smoke screenshot
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: engine2b-browser-smoke
+          path: engine2b-browser-smoke.png
+          if-no-files-found: ignore
