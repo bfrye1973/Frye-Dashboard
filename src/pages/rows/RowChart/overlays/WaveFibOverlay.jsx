@@ -121,6 +121,9 @@ export default function WaveFibOverlay({chart, priceSeries, chartContainer, symb
     }
     if (block.wave?.current) label(`${selected.toUpperCase()} ${block.wave.current} | ${block.wave.status || "STATUS UNKNOWN"} | ${block.wave.confirmationStatus || "CONFIRMATION UNKNOWN"}`,8,52,color);
     for (const line of block.lines || []) {
+      if (line.kind === "FIB_CONTEXT" && style.showRetrace === false) continue;
+      if (line.kind === "FIB" && /^[rR]/.test(line.key||"") && style.showRetrace === false) continue;
+      if (line.kind === "FIB" && !/^[rR]/.test(line.key||"") && style.showExtensions === false) continue;
       const price=PRICE(line.price);
       if (price===null) continue;
       const y=priceSeries.priceToCoordinate(price);
@@ -130,6 +133,7 @@ export default function WaveFibOverlay({chart, priceSeries, chartContainer, symb
       ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke();ctx.setLineDash([]);
       label(`${selected.toUpperCase()} ${line.label || line.key}: ${price.toFixed(2)}`,Math.max(4,w*.38),Math.max(24,Math.min(h-22,y+(degreeLane-2)*25)),line.kind==="FIB_CONTEXT"?"#94a3b8":color);
     }
+    if (style.showWaveLabels === false && style.showWaveLines === false && style.showAnchors === false) return;
     const points=[];
     for (const mark of block.marks || []) {
       const p=PRICE(mark.price), t=timeSec(mark.time);
@@ -144,16 +148,17 @@ export default function WaveFibOverlay({chart, priceSeries, chartContainer, symb
       points.push({x,y,t,name:mark.label,status:mark.status});
     }
     points.sort((a,b)=>a.t-b.t);
-    if (points.length>1) {
+    if (points.length>1 && style.showWaveLines !== false) {
       ctx.strokeStyle=color;ctx.lineWidth=width;ctx.beginPath();
       points.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));ctx.stroke();
     }
     for (const p of points) {
+      if(style.showAnchors === false && style.showWaveLabels === false) continue;
       const mature=String(p.status||"").toUpperCase();
       ctx.strokeStyle=color;ctx.lineWidth=mature==="LOCKED"?3:2;
       ctx.setLineDash(mature==="CONFIRMED"||mature==="LOCKED"?[]:[4,4]);
       ctx.beginPath();ctx.arc(p.x,p.y,6,0,2*Math.PI);ctx.stroke();ctx.setLineDash([]);
-      label(`${selected.toUpperCase()} ${p.name}${p.status?" ("+p.status+")":""}`,p.x+9,p.y-8+(degreeLane-2)*22);
+      if(style.showWaveLabels !== false) label(`${selected.toUpperCase()} ${p.name}${p.status?" ("+p.status+")":""}`,p.x+9,p.y-8+(degreeLane-2)*22);
     }
   }
   function schedule() {if(disposed)return;if(raf)cancelAnimationFrame(raf);raf=requestAnimationFrame(draw);}
