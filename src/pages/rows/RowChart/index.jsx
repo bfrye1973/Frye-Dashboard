@@ -241,8 +241,8 @@ function makeFibStyle(color, fontPx, lineWidth, showExtensions = true, showWaveS
     showRetrace: true,
     showAnchors: true,
 
-    showWaveLabels: ENGINE2B_V1_ENABLED,
-    showWaveLines: ENGINE2B_V1_ENABLED,
+    showWaveLabels: showWaveStructure,
+    showWaveLines: showWaveStructure,
     waveLabelColor: color,
     waveLabelFontPx: fontPx,
     waveLineColor: color,
