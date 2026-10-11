@@ -710,7 +710,7 @@ export default function Engine22MarketStructureCard({
                 levels: [],
                 rules: degree === "submicro" ? [
                   "Submicro is a separate child degree of Micro. No wave count or prices are inferred from Micro.",
-                  "No new strategy/account. No trading authority.",
+                  "Separate Submicro strategy/account planned; not connected or authorized for trading.",
                 ] : [],
               }
             }
