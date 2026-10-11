@@ -25,3 +25,8 @@ jobs:
         env:
           REACT_APP_ENGINE2B_OVERLAY_V1: 'true'
           CI: 'false'
+
+      - name: Wave/Fib lifecycle regression tests
+        run: npm test -- --watchAll=false --runInBand --testPathPattern=WaveFibOverlay.test.js
+        env:
+          CI: 'true'
