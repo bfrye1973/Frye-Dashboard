@@ -1,5 +1,6 @@
 // Engine 2B — read-only v1 chart renderer. No Elliott or Fibonacci calculations.
-const API_BASE = (typeof window !== "undefined" && window.__API_BASE__) ||
+const API_BASE = process.env.REACT_APP_ENGINE2B_API_BASE ||
+  (typeof window !== "undefined" && window.__API_BASE__) ||
   (typeof process !== "undefined" && process.env?.REACT_APP_API_BASE) ||
   "https://frye-market-backend-1.onrender.com";
 const POLL_MS = 30000;
