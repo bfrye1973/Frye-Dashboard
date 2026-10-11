@@ -47,8 +47,16 @@ jobs:
           path: engine2b-browser-smoke.png
           if-no-files-found: ignore
 
-      - name: Full React chart Fib Micro toggle smoke
+      - name: Read draft Engine 2B backend adapter
+        uses: actions/checkout@v4
+        with:
+          repository: bfrye1973/frye-market-backend
+          ref: engine2b-chart-overlays-v1
+          path: backend-contract
+      - name: Full React chart Fib Micro toggle smoke with live Engine 22 snapshot
         run: node scripts/engine2bFullChartSmoke.mjs
+        env:
+          ENGINE2B_BACKEND_PATH: backend-contract
       - name: Upload full chart smoke screenshot
         if: always()
         uses: actions/upload-artifact@v4
