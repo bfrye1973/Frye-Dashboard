@@ -38,8 +38,20 @@ try{
   const toggle=page.getByLabel("Fib (Micro)",{exact:true});
   await toggle.check({timeout:20000});
   await page.locator('canvas[data-engine2b-degree="micro"]').waitFor({state:"attached",timeout:45000});
+  await page.waitForFunction(()=>{
+    const canvas=document.querySelector('canvas[data-engine2b-degree="micro"]');
+    if(!canvas || canvas.width<2 || canvas.height<2)return false;
+    const pixels=canvas.getContext("2d").getImageData(0,0,canvas.width,canvas.height).data;
+    for(let i=3;i<pixels.length;i+=4)if(pixels[i]>0)return true;
+    return false;
+  },null,{timeout:15000});
+  const painted=await page.locator('canvas[data-engine2b-degree="micro"]').evaluate(c=>({
+    width:c.width,height:c.height,rect:{x:c.getBoundingClientRect().x,y:c.getBoundingClientRect().y}
+  }));
+  await page.getByText("Indicators ▾",{exact:true}).first().click();
   await page.screenshot({path:"engine2b-full-chart-micro-on.png",fullPage:false});
   const active=await page.locator('canvas[data-engine2b-degree="micro"]').count();
+  await page.getByText("Indicators ▾",{exact:true}).first().click();
   await toggle.uncheck();
   await page.locator('canvas[data-engine2b-degree="micro"]').waitFor({state:"detached",timeout:15000});
   const removed=await page.locator('canvas[data-engine2b-degree="micro"]').count();
@@ -47,7 +59,7 @@ try{
   assert.equal(removed,0);
   // Only the new chart overlay must be exercised; unrelated page errors are reported but
   // not permitted to conceal a missing overlay.
-  console.log("ENGINE2B_FULL_CHART_MICRO_TOGGLE_PASS",JSON.stringify({active,removed,pageErrors:errors.slice(0,4)}));
+  console.log("ENGINE2B_FULL_CHART_MICRO_TOGGLE_PASS",JSON.stringify({active,removed,painted,pageErrors:errors.slice(0,4)}));
 }finally{
   if(browser)await browser.close();
   await new Promise(ok=>server.close(ok));
