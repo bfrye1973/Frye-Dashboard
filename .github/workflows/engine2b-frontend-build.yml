@@ -54,5 +54,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: engine2b-full-chart-micro
-          path: engine2b-full-chart-micro-on.png
+          path: engine2b-full-chart-*.png
           if-no-files-found: ignore
