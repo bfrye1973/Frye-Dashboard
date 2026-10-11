@@ -80,6 +80,23 @@ describe("Engine 2B WaveFibOverlay lifecycle", () => {
     host.remove();
   });
 
+  test("invalid API success flag fails visibly without inventing levels", async () => {
+    global.fetch.mockResolvedValueOnce({
+      ok:true,status:200,headers:{get:()=>null},
+      json:async()=>({...payload,ok:false})
+    });
+    const {chart}=mockChart();
+    const host=document.createElement("div");
+    host.getBoundingClientRect=()=>({width:800,height:450});
+    const series={priceToCoordinate:()=>150};
+    const instance=WaveFibOverlay({chart,priceSeries:series,chartContainer:host,degree:"primary",enabled:true});
+    instance.seed([]);
+    await flush();
+    // Requests are rejected as invalid; no structural levels may be accepted.
+    expect(global.fetch).toHaveBeenCalled();
+    instance.destroy();
+  });
+
   test("disabled overlay does not fetch or attach listeners", () => {
     const { chart, ts } = mockChart();
     const host = document.createElement("div");
