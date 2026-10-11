@@ -7,7 +7,7 @@ const FS = {
   tiny: 11,
 };
 
-const DEFAULT_DEGREE_ORDER = ["micro", "subminute", "minute", "minor", "intermediate", "primary"];
+const DEFAULT_DEGREE_ORDER = ["submicro", "micro", "subminute", "minute", "minor", "intermediate", "primary"];
 
 function wavePrice(value) {
   const n = Number(value);
@@ -631,10 +631,11 @@ export default function Engine22MarketStructureCard({
     );
   }
 
-  const degreeOrder =
+  const publishedDegreeOrder =
     Array.isArray(engine22Display.degreeOrder) && engine22Display.degreeOrder.length
       ? engine22Display.degreeOrder
       : DEFAULT_DEGREE_ORDER;
+  const degreeOrder = ["submicro", ...publishedDegreeOrder.filter((degree) => degree !== "submicro")];
 
   const columnCount = Math.max(1, degreeOrder.length);
 
@@ -702,10 +703,15 @@ export default function Engine22MarketStructureCard({
                 degree,
                 label: degree,
                 active: false,
-                headline: `${String(degree).toUpperCase()} structure not published.`,
+                headline: degree === "submicro"
+                  ? "INTRADAY — Submicro structural count pending Engine 22 publication."
+                  : `${String(degree).toUpperCase()} structure not published.`,
                 rows: [],
                 levels: [],
-                rules: [],
+                rules: degree === "submicro" ? [
+                  "Submicro is a separate child degree of Micro. No wave count or prices are inferred from Micro.",
+                  "Separate Submicro strategy/account planned; not connected or authorized for trading.",
+                ] : [],
               }
             }
           />
