@@ -3,9 +3,38 @@ const API_BASE = (typeof window !== "undefined" && window.__API_BASE__) ||
   (typeof process !== "undefined" && process.env?.REACT_APP_API_BASE) ||
   "https://frye-market-backend-1.onrender.com";
 const POLL_MS = 30000;
-const PRICE = x => Number.isFinite(Number(x)) ? Number(x) : null;
+const PRICE = x => x == null || x === "" || typeof x === "boolean" ? null : Number.isFinite(Number(x)) ? Number(x) : null;
 const DEGREE_NAMES = ["primary", "intermediate", "minor", "minute", "micro"];
 const cache = new Map();
+const subscriptions = new Map();
+function subscribeOverlay(symbol, listener) {
+  const key = String(symbol || "ES").toUpperCase();
+  let group = subscriptions.get(key);
+  if (!group) {
+    group = { listeners: new Set(), timer: null };
+    subscriptions.set(key, group);
+  }
+  group.listeners.add(listener);
+  if (!group.timer) {
+    const refresh = () => fetchOverlay(key).then(data => {
+      for (const notify of [...group.listeners]) notify(null, data);
+    }).catch(error => {
+      for (const notify of [...group.listeners]) notify(error, null);
+    });
+    refresh();
+    group.timer = setInterval(refresh, POLL_MS);
+  } else {
+    const cached = cache.get(key)?.data;
+    if (cached) listener(null, cached);
+  }
+  return () => {
+    group.listeners.delete(listener);
+    if (!group.listeners.size) {
+      clearInterval(group.timer);
+      subscriptions.delete(key);
+    }
+  };
+}
 function fetchOverlay(symbol) {
   const key = String(symbol || "ES").toUpperCase();
   let entry = cache.get(key);
@@ -45,7 +74,7 @@ export default function WaveFibOverlay({chart, priceSeries, chartContainer, symb
   if (!chart || !priceSeries || !chartContainer || !enabled) return {seed(){},update(){},destroy(){}};
   const selected = String(degree).toLowerCase();
   if (!DEGREE_NAMES.includes(selected)) return {seed(){},update(){},destroy(){}};
-  let canvas, timer, raf, disposed=false, payload=null, bars=[];
+  let canvas, unsubscribe=null, raf, disposed=false, payload=null, bars=[];
   const ts=chart.timeScale();
   const color=style.color || "#ffd54a";
   const font=Math.max(11,Math.min(22,Number(style.fontPx)||14));
@@ -122,14 +151,13 @@ export default function WaveFibOverlay({chart, priceSeries, chartContainer, symb
     }
   }
   function schedule() {if(disposed)return;if(raf)cancelAnimationFrame(raf);raf=requestAnimationFrame(draw);}
-  function refresh() {fetchOverlay(symbol).then(data=>{if(disposed)return;payload=data;schedule();}).catch(err=>{if(disposed)return;payload={degrees:{[selected]:{drawable:false,reason:err.message}}};schedule();});}
-  function seed(nextBars) {bars=Array.isArray(nextBars)?nextBars:[];refresh();timer=setInterval(refresh,POLL_MS);}
+  function seed(nextBars) {bars=Array.isArray(nextBars)?nextBars:[];if(!unsubscribe)unsubscribe=subscribeOverlay(symbol,(error,data)=>{if(disposed)return;payload=error?{degrees:{[selected]:{drawable:false,reason:error.message}}}:data;schedule();});schedule();}
   function update(bar) {if(bar?.time && (!bars.length||bar.time>bars[bars.length-1].time)) {bars.push(bar);if(bars.length>8000)bars=bars.slice(-8000);}schedule();}
   function onResize(){schedule();}
   window.addEventListener("resize",onResize);
   ts.subscribeVisibleTimeRangeChange(schedule);
   return {seed,update,destroy(){
-    disposed=true;if(timer)clearInterval(timer);if(raf)cancelAnimationFrame(raf);
+    disposed=true;if(unsubscribe)unsubscribe();unsubscribe=null;if(raf)cancelAnimationFrame(raf);
     window.removeEventListener("resize",onResize);
     try{ts.unsubscribeVisibleTimeRangeChange(schedule);}catch{}
     if(canvas)canvas.remove();canvas=null;payload=null;bars=[];
