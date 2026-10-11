@@ -90,7 +90,7 @@ export default function WaveFibOverlay({chart, priceSeries, chartContainer, symb
     if (canvas) return;
     canvas=document.createElement("canvas");
     canvas.dataset.engine2bDegree=selected;
-    Object.assign(canvas.style,{position:"absolute",inset:"0",width:"100%",height:"100%",pointerEvents:"none",zIndex:"80"});
+    Object.assign(canvas.style,{position:"absolute",inset:"0",width:"100%",height:"100%",pointerEvents:"none",zIndex:"2"});
     chartContainer.appendChild(canvas);
     resize();
   }
@@ -119,7 +119,8 @@ export default function WaveFibOverlay({chart, priceSeries, chartContainer, symb
       label(`${selected.toUpperCase()} unavailable: ${block.reason || "NO_DATA"}`,8,26,"#fbbf24");
       return;
     }
-    if (block.wave?.current) label(`${selected.toUpperCase()} ${block.wave.current} | ${block.wave.status || "STATUS UNKNOWN"} | ${block.wave.confirmationStatus || "CONFIRMATION UNKNOWN"}`,8,52,color);
+    if (block.wave?.current && (subscriptions.get(String(symbol).toUpperCase())?.listeners.size || 1) === 1) label(`${selected.toUpperCase()} ${block.wave.current} | ${block.wave.status || "STATUS UNKNOWN"} | ${block.wave.confirmationStatus || "CONFIRMATION UNKNOWN"}`,8,52,color);
+    const offscreen=[];
     for (const line of block.lines || []) {
       if (line.kind === "FIB_CONTEXT" && style.showRetrace === false) continue;
       if (line.kind === "FIB" && /^[rR]/.test(line.key||"") && style.showRetrace === false) continue;
@@ -128,10 +129,15 @@ export default function WaveFibOverlay({chart, priceSeries, chartContainer, symb
       if (price===null) continue;
       const y=priceSeries.priceToCoordinate(price);
       if (!Number.isFinite(y)) continue;
-      if (y<0 || y>h) { label(`${selected.toUpperCase()} ${line.label || line.key} ${price.toFixed(2)} ${y<0?"UP":"DOWN"}`,Math.max(4,w*.38),y<0?28:h-12,"#fbbf24"); continue; }
+      if (y<0 || y>h) { offscreen.push({price, y});continue; }
       ctx.strokeStyle=line.kind==="FIB_CONTEXT"?"#94a3b8":color;ctx.lineWidth=line.kind==="FIB_CONTEXT"?1:width;ctx.setLineDash(line.kind==="INVALIDATION"?[7,5]:line.kind==="FIB_CONTEXT"?[3,8]:[13,6]);
       ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke();ctx.setLineDash([]);
       label(`${selected.toUpperCase()} ${line.label || line.key}: ${price.toFixed(2)}`,Math.max(4,w*.38),Math.max(24,Math.min(h-22,y+(degreeLane-2)*25)),line.kind==="FIB_CONTEXT"?"#94a3b8":color);
+    }
+    if (offscreen.length) {
+      const closest=[...offscreen].sort((a,b)=>Math.min(Math.abs(a.y),Math.abs(a.y-h))-Math.min(Math.abs(b.y),Math.abs(b.y-h)))[0];
+      label(`${selected.toUpperCase()} ${offscreen.length} OFFSCREEN | NEAREST ${closest.price.toFixed(2)} ${closest.y<0?"UP":"DOWN"}`,
+        Math.max(2,w*.36),h-22-degreeLane*23,"#fbbf24");
     }
     if (style.showWaveLabels === false && style.showWaveLines === false && style.showAnchors === false) return;
     const points=[];
