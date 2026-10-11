@@ -115,11 +115,17 @@ export default function WaveFibOverlay({chart, priceSeries, chartContainer, symb
       ctx.fillStyle=tint;ctx.fillText(text,px+6,py+16);
     };
     if (payload?.snapshot?.authorityConflict === true && selected === "micro") label("MICRO SOURCE CONFLICT",8,26,"#fbbf24");
+    const manyDegrees=(subscriptions.get(String(symbol).toUpperCase())?.listeners.size || 1)>1;
+    const statusX=manyDegrees?Math.max(5,w*.38):8;
+    const statusY=manyDegrees?Math.max(32,h-135-degreeLane*22):52;
     if (!block.drawable) {
-      label(`${selected.toUpperCase()} unavailable: ${block.reason || "NO_DATA"}`,8,26,"#fbbf24");
+      label(`${selected.toUpperCase()} ${block.wave?.current || "WAVE UNKNOWN"} | ${block.reason || "NO CURRENT LEVELS"}`,
+        statusX,statusY,"#fbbf24");
       return;
     }
-    if (block.wave?.current && (subscriptions.get(String(symbol).toUpperCase())?.listeners.size || 1) === 1) label(`${selected.toUpperCase()} ${block.wave.current} | ${block.wave.status || "STATUS UNKNOWN"} | ${block.wave.confirmationStatus || "CONFIRMATION UNKNOWN"}`,8,52,color);
+    if (block.wave?.current)
+      label(`${selected.toUpperCase()} ${block.wave.current} | ${block.wave.status || "STATUS UNKNOWN"} | ${block.wave.confirmationStatus || "CONFIRMATION UNKNOWN"}`,
+        statusX,statusY,color);
     const offscreen=[];
     for (const line of block.lines || []) {
       if (line.kind === "FIB_CONTEXT" && style.showRetrace === false) continue;
