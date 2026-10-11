@@ -34,7 +34,7 @@ let browser;
 try {
   browser=await chromium.launch({headless:true,args:["--no-sandbox"]});
   const page=await browser.newPage({viewport:{width:1000,height:700}});
-  await page.addInitScript(url=>{window.__API_BASE__=url;},'http://127.0.0.1:'+port);
+  await page.addInitScript(url=>{window.__API_BASE__=url;window.process={env:{}};},'http://127.0.0.1:'+port);
   await page.goto('http://127.0.0.1:'+port);
   const result=await page.evaluate(async()=>{
     const {default:WaveFibOverlay}=await import("/WaveFibOverlay.mjs");
