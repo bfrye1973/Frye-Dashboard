@@ -232,7 +232,7 @@ function attachOverlay(Module, args) {
   return { attach() {}, seed() {}, update() {}, destroy() {} };
 }
 
-function makeFibStyle(color, fontPx, lineWidth, showExtensions = true) {
+function makeFibStyle(color, fontPx, lineWidth, showExtensions = true, showWaveStructure = false) {
   return {
     color,
     fontPx,
@@ -1023,11 +1023,11 @@ export default function RowChart({
     fibMinute: false,
     fibMicro: false,
 
-    fibPrimaryStyle: makeFibStyle("#ff5ad6", 18, 3.5, true),
-    fibIntermediateStyle: makeFibStyle("#ffd54a", 18, 3.5, true),
-    fibMinorStyle: makeFibStyle("#22c55e", 16, 3.0, true),
-    fibMinuteStyle: makeFibStyle("#60a5fa", 14, 2.5, true),
-    fibMicroStyle: makeFibStyle("#f472b6", 12, 2.0, true),
+    fibPrimaryStyle: makeFibStyle("#ff5ad6", 18, 3.5, true, ENGINE2B_V1_ENABLED && normalizedDefaultSymbol === "ES"),
+    fibIntermediateStyle: makeFibStyle("#ffd54a", 18, 3.5, true, ENGINE2B_V1_ENABLED && normalizedDefaultSymbol === "ES"),
+    fibMinorStyle: makeFibStyle("#22c55e", 16, 3.0, true, ENGINE2B_V1_ENABLED && normalizedDefaultSymbol === "ES"),
+    fibMinuteStyle: makeFibStyle("#60a5fa", 14, 2.5, true, ENGINE2B_V1_ENABLED && normalizedDefaultSymbol === "ES"),
+    fibMicroStyle: makeFibStyle("#f472b6", 12, 2.0, true, ENGINE2B_V1_ENABLED && normalizedDefaultSymbol === "ES"),
 
     accDistLevels: false,
     wickPaZones: false,
