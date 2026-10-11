@@ -125,9 +125,9 @@ export default function WaveFibOverlay({chart, priceSeries, chartContainer, symb
       const y=priceSeries.priceToCoordinate(price);
       if (!Number.isFinite(y)) continue;
       if (y<0 || y>h) { label(`${selected.toUpperCase()} ${line.label || line.key} ${price.toFixed(2)} ${y<0?"UP":"DOWN"}`,Math.max(4,w*.38),y<0?28:h-12,"#fbbf24"); continue; }
-      ctx.strokeStyle=color;ctx.lineWidth=width;ctx.setLineDash(line.kind==="INVALIDATION"?[7,5]:[13,6]);
+      ctx.strokeStyle=line.kind==="FIB_CONTEXT"?"#94a3b8":color;ctx.lineWidth=line.kind==="FIB_CONTEXT"?1:width;ctx.setLineDash(line.kind==="INVALIDATION"?[7,5]:line.kind==="FIB_CONTEXT"?[3,8]:[13,6]);
       ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke();ctx.setLineDash([]);
-      label(`${selected.toUpperCase()} ${line.label || line.key}: ${price.toFixed(2)}`,Math.max(4,w*.38),y);
+      label(`${selected.toUpperCase()} ${line.label || line.key}: ${price.toFixed(2)}`,Math.max(4,w*.38),y,line.kind==="FIB_CONTEXT"?"#94a3b8":color);
     }
     const points=[];
     for (const mark of block.marks || []) {
