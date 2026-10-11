@@ -70,6 +70,7 @@ jobs:
           if-no-files-found: ignore
 
       - name: Diagnose deployed Engine2B preview
+        if: always()
         run: node scripts/engine2bDeployedPreviewSmoke.mjs
       - name: Upload deployed preview diagnostics
         if: always()
