@@ -47,9 +47,9 @@ function fetchOverlay(symbol) {
     if (response.status === 304 && entry?.data) return entry.data;
     if (!response.ok) throw new Error(`ENGINE2_OVERLAY_HTTP_${response.status}`);
     const data = await response.json();
-    if (data?.schemaVersion !== "engine2.chartOverlays.v1" || data?.symbol !== key || !data.degrees)
+    if (data?.ok !== true || data?.schemaVersion !== "engine2.chartOverlays.v1" || data?.symbol !== key || !data.degrees)
       throw new Error("INVALID_ENGINE2_OVERLAY_CONTRACT");
-    cache.set(key, { data, etag: response.headers.get("ETag"), fetchedAt: Date.now() });
+    cache.set(key, { data, etag: response.headers.get("ETag"), fetchedAt: Date.now(), pending });
     return data;
   }).finally(() => {
     const current = cache.get(key);
@@ -113,6 +113,7 @@ export default function WaveFibOverlay({chart, priceSeries, chartContainer, symb
       ctx.fillRect(px,py,textWidth+12,22);
       ctx.fillStyle=tint;ctx.fillText(text,px+6,py+16);
     };
+    if (payload?.snapshot?.authorityConflict === true && selected === "micro") label("MICRO SOURCE CONFLICT",8,26,"#fbbf24");
     if (!block.drawable) {
       label(`${selected.toUpperCase()} unavailable: ${block.reason || "NO_DATA"}`,8,26,"#fbbf24");
       return;
@@ -122,7 +123,7 @@ export default function WaveFibOverlay({chart, priceSeries, chartContainer, symb
       if (price===null) continue;
       const y=priceSeries.priceToCoordinate(price);
       if (!Number.isFinite(y)) continue;
-      if (y<0 || y>h) continue; // offscreen indicators come in later phase.
+      if (y<0 || y>h) { label(`${selected.toUpperCase()} ${line.label || line.key} ${price.toFixed(2)} ${y<0?"UP":"DOWN"}`,Math.max(4,w*.38),y<0?28:h-12,"#fbbf24"); continue; }
       ctx.strokeStyle=color;ctx.lineWidth=width;ctx.setLineDash(line.kind==="INVALIDATION"?[7,5]:[13,6]);
       ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke();ctx.setLineDash([]);
       label(`${selected.toUpperCase()} ${line.label || line.key}: ${price.toFixed(2)}`,Math.max(4,w*.38),y);
