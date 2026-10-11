@@ -4,6 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import http from "node:http";
 import { chromium } from "playwright";
+import { pathToFileURL } from "node:url";
 const root=path.resolve("build");
 const types={".html":"text/html",".js":"application/javascript",".css":"text/css",".json":"application/json",".png":"image/png",".svg":"image/svg+xml"};
 const server=http.createServer((req,res)=>{
@@ -30,8 +31,26 @@ try{
         marks:[],lines:[{id:"fib"+i,price:7800+i,label:"1.618",kind:"FIB"}]}
     ]))
   };
+  // Optional real-data contract path: run the exact draft backend adapter against live
+  // published Engine22 snapshot, without deploying code or mutating production.
+  const backendPath=process.env.ENGINE2B_BACKEND_PATH;
+  let testPayload=payload;
+  if(backendPath) {
+    const {buildEngine2ChartOverlayV1,validateEngine2ChartOverlayV1}=await import(
+      pathToFileURL(path.resolve(backendPath,"services/core/logic/engine2/buildEngine2ChartOverlayV1.js")).href
+    );
+    const upstream=await fetch("https://frye-market-backend-1.onrender.com/api/v1/dashboard-snapshot?symbol=ES",
+      {signal:AbortSignal.timeout(45000)});
+    assert.equal(upstream.ok,true,"Live Engine22 ES source required");
+    testPayload=buildEngine2ChartOverlayV1(await upstream.json(),"ES");
+    assert.equal(validateEngine2ChartOverlayV1(testPayload).ok,true);
+    assert.equal(testPayload.degrees.micro.sourceDegree,"micro");
+    console.log("REAL_SNAPSHOT_BROWSER_CONTRACT_READY",
+      JSON.stringify(Object.fromEntries(Object.entries(testPayload.degrees)
+        .map(([d,x])=>[d,{drawable:x.drawable,marks:x.marks.length,lines:x.lines.length}]))));
+  }
   await page.route("**/api/v1/engine2/chart-overlays/v1?symbol=ES",route=>route.fulfill({
-    status:200,contentType:"application/json",body:JSON.stringify(payload)
+    status:200,contentType:"application/json",body:JSON.stringify(testPayload)
   }));
   await page.goto("http://127.0.0.1:"+port+"/chart?symbol=ES&tf=10m",{waitUntil:"domcontentloaded",timeout:30000});
   await page.getByText("Indicators ▾",{exact:true}).first().click({timeout:20000});
