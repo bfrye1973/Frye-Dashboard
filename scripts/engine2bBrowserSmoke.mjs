@@ -60,7 +60,8 @@ try {
     await new Promise(ok=>setTimeout(ok,70));
     await new Promise(ok=>requestAnimationFrame(()=>requestAnimationFrame(ok)));
     const canvases=[...document.querySelectorAll("canvas[data-engine2b-degree]")];
-    const painted=canvases.map(c=>c.getContext("2d").getImageData(300,150,1,1).data[3]>0);
+    const painted=canvases.map(c=>{const rgba=c.getContext("2d").getImageData(0,0,c.width,c.height).data;for(let i=3;i<rgba.length;i+=4){if(rgba[i]>0)return true;}return false;});
+    const sizes=canvases.map(c=>[c.width,c.height]);
     window.__engine2bCleanup=()=>{
       instances[0].destroy();
       const afterToggle=document.querySelectorAll("canvas[data-engine2b-degree]").length;
@@ -68,7 +69,7 @@ try {
       return {afterToggle,afterDestroy:document.querySelectorAll("canvas[data-engine2b-degree]").length,
         listenersRemaining:callbacks.size};
     };
-    return {attached,painted};
+    return {attached,painted,sizes};
   });
   console.log("BROWSER_RENDER_INSPECTION",JSON.stringify(result));
   await page.screenshot({path:"engine2b-browser-smoke.png"});
