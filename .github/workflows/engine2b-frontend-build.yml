@@ -6,6 +6,7 @@ on:
     paths:
       - 'src/pages/rows/RowChart/**'
       - 'scripts/engine2bBrowserSmoke.mjs'
+      - 'scripts/engine2bFullChartSmoke.mjs'
       - '.github/workflows/engine2b-frontend-build.yml'
   workflow_dispatch:
 permissions:
@@ -44,4 +45,14 @@ jobs:
         with:
           name: engine2b-browser-smoke
           path: engine2b-browser-smoke.png
+          if-no-files-found: ignore
+
+      - name: Full React chart Fib Micro toggle smoke
+        run: node scripts/engine2bFullChartSmoke.mjs
+      - name: Upload full chart smoke screenshot
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: engine2b-full-chart-micro
+          path: engine2b-full-chart-micro-on.png
           if-no-files-found: ignore
