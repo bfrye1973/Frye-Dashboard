@@ -73,6 +73,7 @@ export default function WaveFibOverlay({chart, priceSeries, chartContainer, symb
   degree="minute", enabled=false, style={}}) {
   if (!chart || !priceSeries || !chartContainer || !enabled) return {seed(){},update(){},destroy(){}};
   const selected = String(degree).toLowerCase();
+  const degreeLane = DEGREE_NAMES.indexOf(selected);
   if (!DEGREE_NAMES.includes(selected)) return {seed(){},update(){},destroy(){}};
   let canvas, unsubscribe=null, raf, disposed=false, payload=null, bars=[];
   const ts=chart.timeScale();
@@ -127,7 +128,7 @@ export default function WaveFibOverlay({chart, priceSeries, chartContainer, symb
       if (y<0 || y>h) { label(`${selected.toUpperCase()} ${line.label || line.key} ${price.toFixed(2)} ${y<0?"UP":"DOWN"}`,Math.max(4,w*.38),y<0?28:h-12,"#fbbf24"); continue; }
       ctx.strokeStyle=line.kind==="FIB_CONTEXT"?"#94a3b8":color;ctx.lineWidth=line.kind==="FIB_CONTEXT"?1:width;ctx.setLineDash(line.kind==="INVALIDATION"?[7,5]:line.kind==="FIB_CONTEXT"?[3,8]:[13,6]);
       ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke();ctx.setLineDash([]);
-      label(`${selected.toUpperCase()} ${line.label || line.key}: ${price.toFixed(2)}`,Math.max(4,w*.38),y,line.kind==="FIB_CONTEXT"?"#94a3b8":color);
+      label(`${selected.toUpperCase()} ${line.label || line.key}: ${price.toFixed(2)}`,Math.max(4,w*.38),Math.max(24,Math.min(h-22,y+(degreeLane-2)*25)),line.kind==="FIB_CONTEXT"?"#94a3b8":color);
     }
     const points=[];
     for (const mark of block.marks || []) {
@@ -152,7 +153,7 @@ export default function WaveFibOverlay({chart, priceSeries, chartContainer, symb
       ctx.strokeStyle=color;ctx.lineWidth=mature==="LOCKED"?3:2;
       ctx.setLineDash(mature==="CONFIRMED"||mature==="LOCKED"?[]:[4,4]);
       ctx.beginPath();ctx.arc(p.x,p.y,6,0,2*Math.PI);ctx.stroke();ctx.setLineDash([]);
-      label(`${selected.toUpperCase()} ${p.name}${p.status?" ("+p.status+")":""}`,p.x+9,p.y-8);
+      label(`${selected.toUpperCase()} ${p.name}${p.status?" ("+p.status+")":""}`,p.x+9,p.y-8+(degreeLane-2)*22);
     }
   }
   function schedule() {if(disposed)return;if(raf)cancelAnimationFrame(raf);raf=requestAnimationFrame(draw);}
