@@ -154,8 +154,12 @@ export default function WaveFibOverlay({chart, priceSeries, chartContainer, symb
       if (p==null || t==null) continue;
       // Never snap a historical anchor to an unrelated recent candle.
       // Use the exact published time when the loaded bars do not contain a nearby match.
-      const nearest=bars.reduce((best,b)=>Math.abs(Number(b.time)-t)<Math.abs(Number(best)-t)?Number(b.time):best,t);
-      const validSnap=nearest !== t && Math.abs(nearest-t) <= 8*60*60;
+      const nearest=bars.reduce((best,b)=>{
+        const candidate=Number(b?.time);
+        if(!Number.isFinite(candidate))return best;
+        return best == null || Math.abs(candidate-t)<Math.abs(best-t) ? candidate : best;
+      },null);
+      const validSnap=nearest != null && Math.abs(nearest-t) <= 8*60*60;
       const x=ts.timeToCoordinate(validSnap ? nearest : t), y=priceSeries.priceToCoordinate(p);
       if (!Number.isFinite(x)||!Number.isFinite(y)) {unmapped++;continue;}
       if (x<0 || x>w || y<0 || y>h) {outside++;continue;}
