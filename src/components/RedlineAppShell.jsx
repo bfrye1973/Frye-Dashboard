@@ -160,6 +160,7 @@ export function RedlineNavRail() {
     { icon: "strategy", short: "Strat", label: "Strategies", href: "/strategies" },
     { icon: "chart", short: "Chart", label: "Chart", href: "/chart" },
     { icon: "journal", short: "Journal", label: "Journal", href: "/journal-full" },
+    { icon: "journal", short: "PAPER", label: "Manual PAPER Accounts", href: "/manual-paper-accounts" },
     { icon: "controls", short: "Tools", label: "Controls / Replay / AI Listen", href: "/controls" },
   ];
 
