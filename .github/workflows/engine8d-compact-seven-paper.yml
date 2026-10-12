@@ -1,0 +1,22 @@
+name: Engine 8D Compact Seven PAPER Dashboard
+on:
+  push:
+    branches: [engine8d-compact-seven-journal-layout-v1]
+  pull_request:
+    paths:
+      - "src/pages/ManualPaperAccounts.jsx"
+      - ".github/workflows/engine8d-compact-seven-paper.yml"
+permissions:
+  contents: read
+jobs:
+  compile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: npm ci --ignore-scripts
+      - name: Compile seven-account compact Journal layout
+        run: npm run build
