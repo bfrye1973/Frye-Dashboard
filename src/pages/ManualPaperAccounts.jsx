@@ -1,6 +1,7 @@
 import React,{useCallback,useEffect,useMemo,useState} from "react";
 import {useDashboardSnapshot} from "../hooks/useDashboardSnapshot";
 import {readVolatilePaperToken,storeVolatilePaperToken,clearVolatilePaperToken} from "./manualPaperSessionMemory";
+import {buildSevenPaperBuyPlan,isSevenPaperBuyPlan,makePaperBatchTicket,MANUAL_PAPER_BATCH_STORAGE_KEY} from "./manualPaperBatch";
 
 const ROOT=(
   process.env.REACT_APP_API_BASE ||
@@ -150,6 +151,21 @@ export default function ManualPaperAccountsPage(){
   const [confirmed,setConfirmed]=useState(false);
   const [prepared,setPrepared]=useState(null);
   const [pendingKey,setPendingKey]=useState("");
+  // Only non-secret request IDs are held in sessionStorage. Never auth tokens.
+  const [batch,setBatch]=useState(()=>{
+    try{
+      const raw=window.sessionStorage.getItem(MANUAL_PAPER_BATCH_STORAGE_KEY);
+      if(!raw)return null;
+      const parsed=JSON.parse(raw);
+      return isSevenPaperBuyPlan(parsed)?parsed:null;
+    }catch{return null;}
+  });
+  const [batchContract,setBatchContract]=useState("MESZ26");
+  const [batchPrice,setBatchPrice]=useState("7850.00");
+  const [batchConfirmed,setBatchConfirmed]=useState(false);
+  const [batchBusy,setBatchBusy]=useState(false);
+  const [batchNotice,setBatchNotice]=useState("");
+
   const [accountCheckedAt,setAccountCheckedAt]=useState(null);
   const [accountRefreshing,setAccountRefreshing]=useState(false);
   const [accountStatus,setAccountStatus]=useState("AUTHENTICATION_REQUIRED");
@@ -258,6 +274,100 @@ export default function ManualPaperAccountsPage(){
     }catch(e){setError(e.message);}
     finally{setBusy(false);}
   }
+
+  function persistBatch(next){
+    // Fail closed if a browser cannot preserve original instruction identities.
+    window.sessionStorage.setItem(MANUAL_PAPER_BATCH_STORAGE_KEY,JSON.stringify(next));
+    setBatch(next);
+  }
+  function reviewSevenPaperBatch(){
+    if(batch)throw Error("Existing batch must be reconciled before preparing new orders.");
+    const plan=buildSevenPaperBuyPlan({
+      overview,contract:batchContract,price:batchPrice,newRequestId:requestId
+    });
+    persistBatch(plan);
+    setBatchConfirmed(false);
+    setBatchNotice("Review all seven simulated orders, then explicitly confirm.");
+  }
+  async function confirmSevenPaperBatch(){
+    if(!isActive||!batchConfirmed||batchBusy||!isSevenPaperBuyPlan(batch)||
+      batch.entries.some(e=>e.status!=="READY"))return;
+    // User approval applies only to this exact displayed plan.
+    if(!window.confirm("Submit these SEVEN separate PAPER BUY orders, 11 MES total? "+
+      "No REAL orders. Stop immediately if any result is uncertain."))return;
+    setBatchBusy(true);
+    setBatchNotice("Submitting approved PAPER orders sequentially…");
+    let current=batch;
+    try{
+      for(let index=0;index<current.entries.length;index++){
+        const selected=current.entries[index];
+        const inFlight={...current,entries:current.entries.map((e,i)=>
+          i===index?{...e,status:"SUBMITTING"}:e)};
+        persistBatch(inFlight);
+        current=inFlight;
+        try{
+          const res=await api("/execute",{method:"POST",
+            body:JSON.stringify(makePaperBatchTicket(selected))});
+          if(res.ok!==true||res.journalStatus!=="JOURNAL_COMPLETE"||
+             res.accountId!==selected.accountId||!res.executionId||!res.tradeId)
+            throw Error("Execution receipt could not be verified; reconcile original request.");
+          current={...current,entries:current.entries.map((e,i)=>i===index?
+            {...e,status:"CONFIRMED",executionId:res.executionId,tradeId:res.tradeId}:e)};
+          persistBatch(current);
+        }catch(err){
+          current={...current,entries:current.entries.map((e,i)=>i===index?
+            {...e,status:"UNCERTAIN"}:e)};
+          persistBatch(current);
+          setBatchNotice("STOPPED at "+selected.name+": "+err.message+
+            ". Do not submit another batch. Reconcile the original request IDs.");
+          return;
+        }
+      }
+      setBatchNotice("All seven PAPER orders returned Engine 10 Journal confirmations.");
+      await refresh();
+    }catch(e){
+      setBatchNotice("Batch interrupted: "+e.message+
+        ". Inspect original request statuses before taking any action.");
+    }finally{
+      setBatchBusy(false);
+      setBatchConfirmed(false);
+    }
+  }
+  async function reconcileSevenPaperBatch(){
+    if(!batch||batchBusy||!token)return;
+    setBatchBusy(true);
+    setBatchNotice("Checking the original Engine 8 / Engine 10 instruction identities…");
+    let current=batch;
+    try{
+      for(let i=0;i<current.entries.length;i++){
+        const entry=current.entries[i];
+        if(entry.status==="CONFIRMED"||entry.status==="READY")continue;
+        const result=await api("/recovery-status?idempotencyKey="+
+          encodeURIComponent(entry.idempotencyKey));
+        const confirmed=result.engine10Acknowledged===true&&Boolean(result.tradeId);
+        current={...current,entries:current.entries.map((e,k)=>k===i?
+          {...e,status:confirmed?"CONFIRMED":"UNCERTAIN",
+            executionId:result.executionId||e.executionId,
+            tradeId:confirmed?result.tradeId:e.tradeId}:e)};
+        persistBatch(current);
+      }
+      const unresolved=current.entries.filter(e=>e.status!=="CONFIRMED");
+      setBatchNotice(unresolved.length===0?"All seven Engine 10 fills confirmed.":
+        unresolved.length+" orders remain unconfirmed or unsubmitted. "+
+        "Do not start a new batch. Use Engine 8 Journal-only reconciliation for ambiguous fills.");
+      await refresh();
+    }catch(e){setBatchNotice("Reconciliation unavailable: "+e.message+". No new fills submitted.");}
+    finally{setBatchBusy(false);}
+  }
+  function clearSevenPaperBatch(){
+    if(!batch)return;
+    if(batch.entries.some(e=>e.status==="SUBMITTING"||e.status==="UNCERTAIN"))
+      throw Error("Cannot clear unresolved execution identities.");
+    if(!window.confirm("Clear this batch review/receipt? This does NOT cancel or reverse trades."))return;
+    window.sessionStorage.removeItem(MANUAL_PAPER_BATCH_STORAGE_KEY);
+    setBatch(null);setBatchConfirmed(false);setBatchNotice("");
+  }
+
   function prepare(e){
     e.preventDefault();setError("");setMessage("");setConfirmed(false);
     try{
@@ -344,6 +454,18 @@ export default function ManualPaperAccountsPage(){
       .mp-ticket{margin-top:12px;border:1px solid #2d4155;background:linear-gradient(130deg,#0d1929,#08131f);border-radius:8px;padding:12px 14px}
       .mp-ticket>summary{cursor:pointer;font-size:13px;font-weight:950;color:#93c5fd;outline-offset:4px}
       .mp-risk{margin-top:7px;font-size:10px;color:#91a6bc}
+      .mp-batch{margin-top:12px;border:1px solid #3b5b79;background:linear-gradient(135deg,#102038,#0a1728);border-radius:8px;padding:13px}
+      .mp-batch h2{font-size:15px;letter-spacing:.035em;margin:0 0 7px;color:#bfdbfe}
+      .mp-batch form{display:flex;gap:10px;align-items:end;flex-wrap:wrap;margin:10px 0}
+      .mp-batch label{font-size:11px;color:#c5d5e7;font-weight:750}
+      .mp-batch input{display:block;background:#071524;border:1px solid #405e76;color:#fff;border-radius:5px;padding:7px 9px;min-width:130px}
+      .mp-batch button{min-height:34px;border:1px solid #4d7294;background:#203956;color:#f8fafc;padding:7px 13px;border-radius:6px;font-weight:850}
+      .mp-batch button:disabled{opacity:.5;cursor:not-allowed}
+      .mp-batch table{border-collapse:collapse;width:100%;font-size:11px;font-variant-numeric:tabular-nums}
+      .mp-batch th,.mp-batch td{padding:6px 8px;text-align:left;border-bottom:1px solid #2c4057}
+      .mp-batch th{color:#8dabcb;text-transform:uppercase;font-size:10px}
+      .mp-batch-status{font-size:11px;color:#fbbf24;margin:9px 0}
+
       .mp-banner{color:#fbbf24;font-size:11px;font-weight:850}
       .mp-data-status{display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding:6px 10px;margin:0 0 8px;border:1px solid #233a50;background:#091623;border-radius:6px;font-size:10px;color:#a9bbcf}
       .mp-connection-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px;background:#f59e0b}
@@ -439,6 +561,58 @@ export default function ManualPaperAccountsPage(){
       MES fee {money(overview.riskPolicy.feePerContractPerSide.MES)}/side ·
       Max {overview.riskPolicy.maxContractsPerAccount} contracts/account
     </div>}
+    <section className="mp-batch" aria-label="Seven PAPER account batch ticket">
+      <h2>ONE CONFIRMATION · SEVEN MANUAL PAPER BUY ORDERS</h2>
+      <div style={{fontSize:11,color:"#9fbedb"}}>
+        Owner-controlled simulated MES entries only. The seven original idempotency keys
+        are retained for recovery. No automated signals and no REAL broker orders.
+      </div>
+      {!batch&&<form onSubmit={e=>{
+        e.preventDefault();
+        try{reviewSevenPaperBatch();}catch(err){setBatchNotice(err.message);}
+      }}>
+        <label>Explicit futures contract
+          <input value={batchContract} onChange={e=>setBatchContract(e.target.value)}
+            placeholder="MESZ26" autoComplete="off"/>
+        </label>
+        <label>Manual simulated fill price
+          <input value={batchPrice} onChange={e=>setBatchPrice(e.target.value)}
+            placeholder="7850.00" inputMode="decimal"/>
+        </label>
+        <button type="submit" disabled={!isActive||batchBusy}>Review all seven PAPER orders</button>
+      </form>}
+      {batch&&<React.Fragment>
+        <div style={{overflowX:"auto"}}>
+          <table><thead><tr><th>Account</th><th>Action</th><th>Contract</th>
+            <th>Qty</th><th>Price</th><th>Execution state</th></tr></thead>
+            <tbody>{batch.entries.map(e=><tr key={e.accountId}>
+              <td>{e.name}</td><td>BUY LONG</td><td>{e.contract}</td><td>{e.qty}</td>
+              <td>{Number(e.price).toFixed(2)}</td><td>{e.status}</td>
+            </tr>)}</tbody>
+          </table>
+        </div>
+        <div style={{fontSize:12,fontWeight:850,margin:"10px 0"}}>
+          TOTAL: {batch.totalContracts} MES across 7 independent $10,000 PAPER accounts
+        </div>
+        {batch.entries.every(e=>e.status==="READY")&&<React.Fragment>
+          <label style={{display:"block",fontSize:12,marginBottom:10}}>
+            <input type="checkbox" checked={batchConfirmed}
+              onChange={e=>setBatchConfirmed(e.target.checked)}/>
+            {" "}I explicitly authorize these seven exact PAPER BUY orders.
+          </label>
+          <button type="button" disabled={!isActive||!batchConfirmed||batchBusy}
+            onClick={confirmSevenPaperBatch}>CONFIRM & EXECUTE ALL 7 PAPER ORDERS</button>
+        </React.Fragment>}
+        <button type="button" style={{marginLeft:8}} disabled={!isActive||batchBusy}
+          onClick={reconcileSevenPaperBatch}>Check original execution statuses</button>
+        <button type="button" style={{marginLeft:8}} disabled={batchBusy||
+          batch.entries.some(e=>e.status==="UNCERTAIN"||e.status==="SUBMITTING")}
+          onClick={()=>{try{clearSevenPaperBatch();}catch(e){setBatchNotice(e.message);}}}>
+          Clear review/receipt
+        </button>
+      </React.Fragment>}
+      {batchNotice&&<div className="mp-batch-status" role="status">{batchNotice}</div>}
+    </section>
     <details className="mp-ticket"><summary>MANUAL TRADE TICKET — expand to BUY, SELL, REDUCE or CLOSE</summary>
       <h2>Owner-authorized manual PAPER ticket</h2>
       <p style={{color:"#a1b2c6"}}>Explicit quantity and price only; no strategy signals can generate orders.</p>
