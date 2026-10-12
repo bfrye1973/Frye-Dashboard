@@ -1,0 +1,22 @@
+name: Engine 8D Manual PAPER Journal Tab
+on:
+  push:
+    branches: [engine8d-journal-manual-paper-tab-v1]
+  pull_request:
+    paths:
+      - "src/pages/JournalFull.jsx"
+      - ".github/workflows/engine8d-journal-manual-paper-tab.yml"
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: npm ci --ignore-scripts
+      - name: Compile Full Trade Journal and Manual PAPER tab
+        run: npm run build

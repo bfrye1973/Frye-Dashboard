@@ -1790,6 +1790,29 @@ export default function JournalFull() {
               ▣ PAPER TRADING
             </FilterButton>
 
+            <Link
+              to="/manual-paper-accounts"
+              aria-label="Open Manual Paper Trades"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                minHeight: 42,
+                padding: "0 20px",
+                borderRadius: 7,
+                border: `1px solid ${COLORS.blueLine}`,
+                background: COLORS.panelAlt,
+                color: COLORS.text,
+                fontWeight: 950,
+                fontSize: 14,
+                textDecoration: "none",
+                whiteSpace: "nowrap",
+                boxSizing: "border-box",
+              }}
+            >
+              ▣ MANUAL PAPER TRADES
+            </Link>
+
             <FilterButton
               active={
                 modeFilter ===
