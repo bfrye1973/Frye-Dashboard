@@ -64,30 +64,24 @@ function readEngine22Wave(snapshot,accountId){
 }
 function WaveContext({snapshot,accountId,loading,error}){
   const wave=readEngine22Wave(snapshot,accountId);
-  return <div style={{background:"#091925",border:"1px solid #26435b",
-    borderRadius:9,padding:"11px 12px",margin:"12px 0"}}>
-    <div style={{display:"flex",justifyContent:"space-between",gap:8,
-      flexWrap:"wrap",alignItems:"center",marginBottom:6}}>
-      <strong style={{color:"#7dd3fc",fontSize:12}}>ENGINE 22 — CURRENT WAVE</strong>
-      <span style={{fontSize:10,color:"#94a3b8"}}>READ ONLY</span>
-    </div>
+  const down=wave?.direction?.toUpperCase().includes("DOWN");
+  return <div className="mp-wave">
+    <div className="mp-wave-head"><span>ENGINE 22 · ELLIOTT COUNT</span><span>READ ONLY</span></div>
     {wave?<React.Fragment>
-      <div style={{display:"flex",gap:12,alignItems:"baseline",flexWrap:"wrap"}}>
-        <strong style={{fontSize:24,color:"#e2f6ff"}}>{wave.wave}</strong>
-        <strong style={{fontSize:12,color:wave.direction==="DOWN"?"#fca5a5":"#86efac"}}>
-          {wave.direction||"DIRECTION NOT PUBLISHED"}</strong>
+      <div className="mp-wave-line">
+        <strong className="mp-wave-number">{wave.wave}</strong>
+        <strong style={{color:down?"#fca5a5":"#86efac",fontSize:11}}>
+          {wave.direction||"DIRECTION UNAVAILABLE"}
+        </strong>
       </div>
-      <div style={{fontSize:12,color:"#cbd5e1",marginTop:3}}>
-        {wave.status||"Status not published"}</div>
-      {wave.next&&<div style={{fontSize:12,marginTop:4}}>Next expected: {wave.next}</div>}
-      {wave.levels.length>0&&<div style={{fontSize:11,color:"#a8c6da",marginTop:7}}>
-        {wave.levels.map((level,i)=><span key={i} style={{marginRight:11}}>
-          {level.label}: {level.price}</span>)}
+      <div className="mp-wave-status" title={wave.status||""}>{wave.status||"Status not published"}</div>
+      {wave.next&&<div className="mp-wave-next">NEXT: {wave.next}</div>}
+      {wave.levels.length>0&&<div className="mp-wave-levels">
+        {wave.levels.map((level,i)=><span key={i}>{level.label} {level.price}</span>)}
       </div>}
-      <div style={{fontSize:10,color:"#8195a7",marginTop:7}}>{wave.source}</div>
-    </React.Fragment>:<div style={{fontSize:12,color:"#fbbf24"}}>
-      {error?"Engine 22 data unavailable":loading?"Loading current wave…":"Wave count not published for this degree"}
-    </div>}
+    </React.Fragment>:<span className="mp-wave-unavailable">
+      {error?"Engine 22 unavailable":loading?"Loading wave…":"Count not published"}
+    </span>}
   </div>;
 }
 
@@ -194,77 +188,116 @@ export default function ManualPaperAccountsPage(){
   }
   const accounts=overview?.accounts||[];
   const isActive=Boolean(token&&overview?.ok&&overview?.initialized===true);
-  return <main style={{color:"#e5edf6",padding:20,maxWidth:1440,margin:"auto"}}>
-    <header style={{marginBottom:20}}>
-      <h1 style={{margin:"0 0 8px"}}>Seven Manual PAPER Accounts</h1>
-      <strong style={{color:"#fbbf24"}}>PAPER ONLY — NO REAL BROKER ORDERS</strong>
-      <p style={{color:"#9fb0c2"}}>Seven independent simulated accounts. No automated strategy execution.</p>
+  return <main className="mp-dashboard">
+    <style>{`
+      .mp-dashboard{box-sizing:border-box;color:#e5edf6;width:100%;max-width:none;margin:0;padding:10px 14px 24px;background:#060b12}
+      .mp-dashboard *{box-sizing:border-box}
+      .mp-heading{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;margin:0 0 10px}
+      .mp-heading h1{font-size:22px;letter-spacing:.02em;margin:0;font-weight:950}
+      .mp-heading small{font-size:10px;letter-spacing:.06em;color:#9fb0c2;font-weight:800}
+      .mp-paper-label{color:#fbbf24;font-size:12px;font-weight:900}
+      .mp-summary{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:1px;background:#203146;border:1px solid #203146;border-radius:8px;overflow:hidden;margin:7px 0 12px}
+      .mp-summary-item{min-width:0;padding:10px 12px;background:#07121b}
+      .mp-kpi-label{color:#8fa6bd;font-size:10px;font-weight:900;letter-spacing:.04em;text-transform:uppercase}
+      .mp-kpi-value{font-size:20px;font-weight:1000;color:#f8fafc;margin-top:3px;line-height:1.1;font-variant-numeric:tabular-nums}
+      .mp-card-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;align-items:start}
+      .mp-account-card{min-width:0;border:1px solid #2e495e;border-top:3px solid #22c55e;border-radius:9px;background:linear-gradient(160deg,#07121b,#0d1725);padding:10px 11px;min-height:228px;overflow:hidden}
+      .mp-account-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
+      .mp-account-head strong{color:#f8fafc;font-size:13px;letter-spacing:.03em;white-space:nowrap}
+      .mp-account-id{font-size:9px;color:#87a6c1;white-space:nowrap}
+      .mp-wave{background:#071b29;border:1px solid #23465a;border-radius:6px;margin:8px 0;padding:7px 8px;min-height:74px}
+      .mp-wave-head{display:flex;justify-content:space-between;gap:8px;font-size:9px;color:#7dd3fc;font-weight:900}
+      .mp-wave-head span:last-child{color:#7890a7;font-size:8px}
+      .mp-wave-line{display:flex;align-items:baseline;gap:9px;margin-top:3px}
+      .mp-wave-number{font-size:21px;line-height:1;color:#f8fafc}
+      .mp-wave-status{color:#b7c8d8;font-size:10px;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:4px}
+      .mp-wave-next{font-size:10px;color:#fbbf24;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .mp-wave-levels{font-size:9px;color:#9eb8ca;margin-top:4px;display:flex;gap:7px;overflow:hidden;white-space:nowrap}
+      .mp-wave-unavailable{font-size:11px;color:#fbbf24;display:block;margin-top:10px}
+      .mp-main-metrics{display:grid;grid-template-columns:1fr 1fr;gap:8px;border-bottom:1px solid #253d52;padding:6px 0}
+      .mp-value{font-size:17px;font-weight:1000;font-variant-numeric:tabular-nums;white-space:nowrap}
+      .mp-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;padding:8px 0 2px}
+      .mp-stat-value{color:#f3f5f8;font-size:13px;font-weight:850}
+      .mp-details{margin-top:6px;border-top:1px solid #253d52;padding-top:6px;font-size:11px}
+      .mp-details summary{cursor:pointer;color:#7db6eb;font-weight:850}
+      .mp-position-row{margin:6px 0;color:#cbd5e1;line-height:1.3}
+      .mp-operator{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:7px 10px;background:#0e1826;border:1px solid #293b52;border-radius:7px;margin-bottom:8px}
+      .mp-operator input{min-width:170px;max-width:260px;flex:1;background:#0a1321;color:#f8fafc;padding:6px 9px;border:1px solid #405166;border-radius:5px}
+      .mp-operator button,.mp-dashboard button{cursor:pointer}
+      .mp-ticket{margin-top:10px;border:1px solid #2d4155;background:#0b1421;border-radius:8px;padding:10px}
+      .mp-ticket>summary{cursor:pointer;font-size:13px;font-weight:950;color:#93c5fd}
+      .mp-risk{margin-top:7px;font-size:10px;color:#91a6bc}
+      .mp-banner{color:#fbbf24;font-size:11px;font-weight:850}
+      @media(max-width:1380px){.mp-card-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+      @media(max-width:930px){.mp-card-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.mp-summary{grid-template-columns:repeat(3,minmax(0,1fr))}}
+      @media(max-width:580px){.mp-card-grid{grid-template-columns:1fr}.mp-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.mp-dashboard{padding:8px}}
+    `}</style>
+    <header className="mp-heading">
+      <div><h1>▣ MANUAL PAPER TRADING</h1><small>SEVEN INDEPENDENT ACCOUNTS · ENGINE 22 WAVE STRUCTURE</small></div>
+      <div className="mp-paper-label">PAPER ONLY — NO REAL BROKER ORDERS</div>
     </header>
-    {!token&&<form onSubmit={redeem} style={{...panel,maxWidth:560,marginBottom:20}}>
-      <h3>Secure operator pairing</h3>
-      <p>Use a one-time access code issued by an authorized Engine 8 administrator. Never enter the Engine 8 admin secret here.</p>
-      <input style={control} value={pairing} onChange={e=>setPairing(e.target.value)}
-        placeholder="One-time pairing code" autoComplete="off"/>
-      <button disabled={busy||!pairing} style={{marginTop:12}} type="submit">Unlock PAPER workspace</button>
+    {!token&&<form className="mp-operator" onSubmit={redeem}>
+      <strong style={{fontSize:12}}>SECURE PAPER ACCESS</strong>
+      <input value={pairing} onChange={e=>setPairing(e.target.value)}
+        placeholder="One-time pairing code" autoComplete="off" aria-label="One-time operator pairing code"/>
+      <button disabled={busy||!pairing} type="submit">Unlock PAPER workspace</button>
+      <small style={{color:"#9fb0c2"}}>Engine 8 administrator pairing required; never enter the admin secret.</small>
     </form>}
-    {token&&!overview&&<div style={panel}>Account data unavailable. Your server session may have expired. No simulated balances are being guessed.</div>}
+    {token&&!overview&&<div style={panel}>Account data unavailable or session expired. Values will not be estimated.</div>}
     {token&&overview&&overview.initialized===false&&<div style={panel}>
-      <p>Accounts not initialized. Starting capital will be $70,000 across seven independent accounts.</p>
-      <button onClick={initialize} disabled={busy}>Initialize seven $10,000 PAPER accounts</button>
+      <p>Accounts not initialized. Starting capital is $70,000 across seven PAPER accounts.</p>
+      <button onClick={initialize} disabled={busy}>Initialize seven $10,000 accounts</button>
     </div>}
     {error&&<p role="alert" style={{color:"#f87171"}}>{error}</p>}
     {message&&<p role="status" style={{color:"#86efac"}}>{message}</p>}
-    <div style={{...panel,margin:"18px 0"}}>
-      <div style={{display:"flex",flexWrap:"wrap",justifyContent:"space-between",gap:12}}>
-        <strong>TOTAL STARTING PAPER CAPITAL: $70,000</strong>
-        <span>Current aggregate equity: {isActive?money(overview.totalEquity):"Awaiting secure account data"}</span>
-      </div>
-    </div>
-    {overview?.riskPolicy&&<div style={{...panel,margin:"0 0 18px"}}>
-      <strong>Simulated futures margin and fee model</strong>
-      <p style={{margin:"7px 0 0"}}>ES: margin {money(overview.riskPolicy.simulatedInitialMargin.ES)} per contract,
-        fee {money(overview.riskPolicy.feePerContractPerSide.ES)} per side.
-        MES: margin {money(overview.riskPolicy.simulatedInitialMargin.MES)} per contract,
-        fee {money(overview.riskPolicy.feePerContractPerSide.MES)} per side.
-        Maximum {overview.riskPolicy.maxContractsPerAccount} contracts per account.</p>
-      <small>Explicit manual simulated fill prices. No live automatic marks or broker execution.</small>
-    </div>}
-    <section style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(min(100%,540px),1fr))",gap:12}}>
+    <section className="mp-summary" aria-label="Manual PAPER overview">
+      <div className="mp-summary-item"><div className="mp-kpi-label">Starting capital</div><div className="mp-kpi-value">$70,000</div></div>
+      <div className="mp-summary-item"><div className="mp-kpi-label">Current equity</div><div className="mp-kpi-value">{isActive?money(overview.totalEquity):"—"}</div></div>
+      <div className="mp-summary-item"><div className="mp-kpi-label">Realized P&L</div><div className="mp-kpi-value" style={{color:"#4ade80"}}>{isActive?money(accounts.reduce((n,a)=>n+a.realizedPnL,0)):"—"}</div></div>
+      <div className="mp-summary-item"><div className="mp-kpi-label">Open contracts</div><div className="mp-kpi-value">{isActive?accounts.reduce((n,a)=>n+a.openContracts,0):"—"}</div></div>
+      <div className="mp-summary-item"><div className="mp-kpi-label">Account count</div><div className="mp-kpi-value">7</div></div>
+    </section>
+    <section className="mp-card-grid" aria-label="Seven strategy PAPER accounts">
       {ACCOUNT_SLOTS.map(([id,label])=>{
         const a=accounts.find(item=>item.accountId===id);
-        return <article key={id} style={panel}>
-          <div style={{color:"#8fb3e8",fontSize:12}}>{id}</div>
-          <h3 style={{margin:"7px 0 14px"}}>{label}</h3>
+        const tone=a?.tradingBlocked?"#f87171":!isActive?"#405872":"#22c55e";
+        const pnl=a?.realizedPnL;
+        return <article key={id} className="mp-account-card" style={{borderTopColor:tone}}>
+          <div className="mp-account-head"><strong>{label}</strong><span className="mp-account-id">{id.replace("PAPER-","P")}</span></div>
           <WaveContext snapshot={waveSnapshot} accountId={id} loading={waveLoading} error={waveError}/>
-          <div>Starting: <strong>$10,000.00</strong></div>
-          <div>Equity: <strong>{a?money(a.equity):"—"}</strong></div>
-          <div>Realized: {a?money(a.realizedPnL):"—"}</div>
-          <div>Unrealized: {a?money(a.unrealizedPnL):"—"}</div>
-          <div>Open contracts: {a?a.openContracts:"—"}</div>
-          <div>Open positions: {a?Object.keys(a.positions||{}).length:"—"}</div>
-          <div>Buying power: {a?money(a.availableFunds):"—"}</div>
-          <div>Margin used: {a?money(a.marginUsed):"—"}</div>
-          <div>Simulated fees: {a?money(a.feesPaid):"—"}</div>
-          <div>Closed contracts: {a?a.closedContracts:"—"}</div>
-          <div>Profit factor: {a?(a.profitFactor??"—"):"—"}</div>
-          <div>Current drawdown: {a?money(a.currentDrawdown):"—"}</div>
-          <div>Maximum drawdown: {a?money(a.maxDrawdown):"—"}</div>
-          <div>Win %: {a?a.winPercentage+"%":"—"}</div>
-          {a&&<details style={{marginTop:12,borderTop:"1px solid #344457",paddingTop:8}}>
-            <summary style={{cursor:"pointer"}}>Positions and execution history</summary>
-            {Object.values(a.positions||{}).map(p=><p key={p.symbol} style={{fontSize:12}}>
-              {p.symbol} · {p.side} · {p.qty} contracts · Avg {p.averageEntryPrice}
-            </p>)}
-            {!Object.keys(a.positions||{}).length&&<p style={{fontSize:12}}>No open positions.</p>}
-            {(a.executions||[]).slice().reverse().map(ex=><p key={ex.executionId} style={{fontSize:12}}>
-              {ex.opening?"ENTRY":"EXIT"} · {ex.symbol} · {ex.qty} at {ex.price} · {ex.executionId}
-            </p>)}
-          </details>}
-          {a?.tradingBlocked&&<strong style={{color:"#f87171"}}>JOURNAL RECONCILIATION REQUIRED</strong>}
+          <div className="mp-main-metrics">
+            <div><div className="mp-kpi-label">Current equity</div><div className="mp-value">{a?money(a.equity):"—"}</div></div>
+            <div><div className="mp-kpi-label">Realized P&L</div><div className="mp-value" style={{color:pnl==null?"#f8fafc":pnl>=0?"#4ade80":"#f87171"}}>{a?money(pnl):"—"}</div></div>
+          </div>
+          <div className="mp-stats">
+            <div><div className="mp-kpi-label">Open</div><div className="mp-stat-value">{a?a.openContracts:"—"}</div></div>
+            <div><div className="mp-kpi-label">Unrealized</div><div className="mp-stat-value">{a?money(a.unrealizedPnL):"—"}</div></div>
+            <div><div className="mp-kpi-label">Win %</div><div className="mp-stat-value">{a?a.winPercentage+"%":"—"}</div></div>
+          </div>
+          <details className="mp-details">
+            <summary>Positions · Performance · History</summary>
+            <div className="mp-position-row">Starting: $10,000 · Buying power: {a?money(a.availableFunds):"—"}</div>
+            <div className="mp-position-row">Margin: {a?money(a.marginUsed):"—"} · Fees: {a?money(a.feesPaid):"—"}</div>
+            <div className="mp-position-row">Closed: {a?a.closedContracts:"—"} · Profit factor: {a?(a.profitFactor??"—"):"—"}</div>
+            <div className="mp-position-row">Drawdown: {a?money(a.currentDrawdown):"—"} · Max: {a?money(a.maxDrawdown):"—"}</div>
+            {a&&Object.values(a.positions||{}).map(p=><div key={p.symbol} className="mp-position-row">
+              {p.symbol} · {p.side} · {p.qty} contracts · Average {p.averageEntryPrice}</div>)}
+            {(a?.executions||[]).slice().reverse().map(ex=><div key={ex.executionId} className="mp-position-row">
+              {ex.opening?"ENTRY":"EXIT"} · {ex.symbol} · {ex.qty} @ {ex.price} · {ex.executionId}</div>)}
+            {a&&Object.keys(a.positions||{}).length===0&&<div className="mp-position-row">No open positions.</div>}
+          </details>
+          {a?.tradingBlocked&&<div style={{fontSize:10,color:"#f87171",fontWeight:900,marginTop:5}}>JOURNAL RECONCILIATION REQUIRED</div>}
         </article>;
       })}
     </section>
-    <section style={{...panel,marginTop:20}}>
+    {overview?.riskPolicy&&<div className="mp-risk">
+      SIMULATED POLICY · ES margin {money(overview.riskPolicy.simulatedInitialMargin.ES)} ·
+      MES margin {money(overview.riskPolicy.simulatedInitialMargin.MES)} ·
+      ES fee {money(overview.riskPolicy.feePerContractPerSide.ES)}/side ·
+      MES fee {money(overview.riskPolicy.feePerContractPerSide.MES)}/side ·
+      Max {overview.riskPolicy.maxContractsPerAccount} contracts/account
+    </div>}
+    <details className="mp-ticket"><summary>MANUAL TRADE TICKET — expand to BUY, SELL, REDUCE or CLOSE</summary>
       <h2>Owner-authorized manual PAPER ticket</h2>
       <p style={{color:"#a1b2c6"}}>Explicit quantity and price only; no strategy signals can generate orders.</p>
       <form onSubmit={prepare} style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))",gap:12}}>
@@ -299,6 +332,6 @@ export default function ManualPaperAccountsPage(){
         <button type="button" disabled={busy} onClick={retryJournal}
           style={{display:"block",marginTop:9}}>Retry original Journal event only</button>
       </div>}
-    </section>
+    </details>
   </main>;
 }
