@@ -596,7 +596,7 @@ function Engine22DegreeCard({
         <>
           <MicroMidlineBanner confluence={microMidlineConfluence} />
           <MicroPositionBanner context={microPositionContext} />
-          <MicroTransitionFibPanel
+          {!w4 ? <MicroTransitionFibPanel
             transition={microW2W3TransitionFibs?.available === true &&
               microW3TouchW4Shadow?.available === true &&
               microW3TouchW4Shadow?.w3OneToOne?.touched === true &&
@@ -606,13 +606,13 @@ function Engine22DegreeCard({
                       levels:microW2W3TransitionFibs.w3Up.levels.map(level=>
                         level.key === "e1000" ? {...level,status:"TOUCHED"} : level)}}
                 : microW2W3TransitionFibs}
-          />
+          /> : null}
           {microW3TouchW4Shadow?.available === true &&
            microW3TouchW4Shadow?.w3OneToOne?.touched === true ? (
             <div style={{fontSize:11,color:"#bfdbfe",fontWeight:900}}>
               W3 1.000 VERIFIED TOUCH • {microW3TouchW4Shadow.w3OneToOne.target}
               {microW3TouchW4Shadow.w4DownCandidate === true
-                ? " • W4 DOWN CANDIDATE (NOT CONFIRMED)"
+                ? " • W4 DOWN CURRENT (DEVELOPING, NOT CONFIRMED)"
                 : " • W4 TRANSITION NOT CONFIRMED"}
             </div>
           ) : null}
