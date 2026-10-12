@@ -90,6 +90,42 @@ const control={background:"#0c1421",color:"#edf2f7",border:"1px solid #405166",
   borderRadius:7,padding:"10px 12px",width:"100%",boxSizing:"border-box"};
 const money=value=>Number.isFinite(Number(value))
   ?Number(value).toLocaleString("en-US",{style:"currency",currency:"USD"}):"—";
+
+// Read-only mark estimator: never sends a mark or P&L value to Engine 8/10.
+function deriveIndicativeAccount(account,marks){
+  if(!account)return null;
+  const open=Object.values(account.positions||{});
+  if(open.length===0)return {
+    available:true,equity:account.equity,unrealizedPnL:0,source:"NO_OPEN_POSITIONS"
+  };
+  let unrealized=0;
+  for(const position of open){
+    const mark=marks?.[position.symbol]?.price;
+    const qty=Number(position.qty);
+    const entry=Number(position.averageEntryPrice);
+    const multiplier=String(position.symbol).startsWith("MES")?5:
+      String(position.symbol).startsWith("ES")?50:null;
+    if(!Number.isFinite(mark)||!Number.isFinite(entry)||!Number.isInteger(qty)||
+      qty<=0||multiplier===null||!["LONG","SHORT"].includes(position.side)){
+      return {available:false,source:"PRICE_OR_POSITION_UNAVAILABLE"};
+    }
+    unrealized+=(position.side==="SHORT"?entry-mark:mark-entry)*qty*multiplier;
+  }
+  const cash=Number(account.cashBalance);
+  if(!Number.isFinite(cash))return {available:false,source:"CASH_BALANCE_UNAVAILABLE"};
+  return {available:true,unrealizedPnL:Math.round(unrealized*100)/100,
+    equity:Math.round((cash+unrealized)*100)/100,source:"INDICATIVE_1M_CLOSE"};
+}
+function readLastFuturesBar(payload){
+  const bars=Array.isArray(payload)?payload:
+    Array.isArray(payload?.bars)?payload.bars:
+    Array.isArray(payload?.data)?payload.data:[];
+  const bar=bars[bars.length-1];
+  const close=Number(bar?.close??bar?.c);
+  if(!bar||!Number.isFinite(close)||close<=0)return null;
+  return close;
+}
+
 const requestId=()=>{
   if(typeof crypto!=="undefined"&&crypto.randomUUID)return "MANUAL-"+crypto.randomUUID();
   throw Error("Browser secure random identity unavailable");
@@ -108,6 +144,12 @@ export default function ManualPaperAccountsPage(){
   const [confirmed,setConfirmed]=useState(false);
   const [prepared,setPrepared]=useState(null);
   const [pendingKey,setPendingKey]=useState("");
+  const [accountCheckedAt,setAccountCheckedAt]=useState(null);
+  const [accountRefreshing,setAccountRefreshing]=useState(false);
+  const [accountStatus,setAccountStatus]=useState("AUTHENTICATION_REQUIRED");
+  const [marks,setMarks]=useState({});
+  const [markCheckedAt,setMarkCheckedAt]=useState(null);
+
   const auth=useMemo(()=>token?{Authorization:"Bearer "+token}:{},[token]);
   const api=useCallback(async(path,options={})=>{
     const res=await fetch(API+path,{...options,headers:{
@@ -119,10 +161,62 @@ export default function ManualPaperAccountsPage(){
   },[auth]);
   const refresh=useCallback(async()=>{
     if(!token)return;
-    try{setOverview(await api("/overview"));}
-    catch(e){setError(e.message);setOverview(null);}
+    setAccountRefreshing(true);
+    try{
+      const result=await api("/overview");
+      if(result.initialized!==true||!Array.isArray(result.accounts)||
+         (result.initialized===true&&result.accounts.length!==7))
+        throw Error("SEVEN_PAPER_ACCOUNT_VERIFICATION_REQUIRED");
+      setOverview(result);
+      setAccountCheckedAt(new Date().toISOString());
+      setAccountStatus("CONNECTED");
+      setError("");
+    }catch(e){
+      // Never display old authenticated figures as current after a polling failure.
+      setOverview(null);
+      setAccountStatus("DATA_UNAVAILABLE");
+      setError(e.message);
+    }finally{setAccountRefreshing(false);}
   },[token,api]);
-  useEffect(()=>{refresh();},[refresh]);
+  useEffect(()=>{
+    if(!token)return undefined;
+    refresh();
+    const poll=setInterval(refresh,10000);
+    return ()=>clearInterval(poll);
+  },[token,refresh]);
+
+  const openSymbols=useMemo(()=>{
+    if(!overview?.accounts)return [];
+    return [...new Set(overview.accounts.flatMap(a=>
+      Object.keys(a.positions||{})))];
+  },[overview]);
+  useEffect(()=>{
+    if(!token||!openSymbols.length){setMarks({});setMarkCheckedAt(null);return undefined;}
+    let alive=true;
+    async function pullMarks(){
+      const next={};
+      await Promise.all(openSymbols.map(async symbol=>{
+        try{
+          const response=await fetch(
+            ROOT+"/api/v1/futures/ohlc?symbol="+encodeURIComponent(symbol)+"&tf=1m",
+            {cache:"no-store"}
+          );
+          if(!response.ok)return;
+          const price=readLastFuturesBar(await response.json());
+          if(price!==null)next[symbol]={price,receivedAt:Date.now()};
+        }catch{
+          // No synthetic marks or backfilled prices.
+        }
+      }));
+      if(alive){
+        setMarks(next);
+        setMarkCheckedAt(new Date().toISOString());
+      }
+    }
+    pullMarks();
+    const poll=setInterval(pullMarks,5000);
+    return ()=>{alive=false;clearInterval(poll);};
+  },[token,openSymbols.join("|")]);
   async function redeem(e){
     e.preventDefault();setBusy(true);setError("");setMessage("");
     try{
@@ -188,6 +282,11 @@ export default function ManualPaperAccountsPage(){
   }
   const accounts=overview?.accounts||[];
   const isActive=Boolean(token&&overview?.ok&&overview?.initialized===true);
+  const displayModels=accounts.map(a=>deriveIndicativeAccount(a,marks));
+  const totalIndicativeEquity=isActive&&displayModels.every(m=>m?.available)
+    ?displayModels.reduce((n,m)=>n+m.equity,0):null;
+  const totalIndicativeUnrealized=isActive&&displayModels.every(m=>m?.available)
+    ?displayModels.reduce((n,m)=>n+m.unrealizedPnL,0):null;
   return <main className="mp-dashboard">
     <style>{`
       .mp-dashboard{box-sizing:border-box;color:#e5edf6;width:100%;max-width:none;margin:0;padding:12px 16px 24px;background:radial-gradient(ellipse at 85% -10%,rgba(127,29,29,.12),transparent 38%),#060b12}
@@ -228,6 +327,12 @@ export default function ManualPaperAccountsPage(){
       .mp-ticket>summary{cursor:pointer;font-size:13px;font-weight:950;color:#93c5fd;outline-offset:4px}
       .mp-risk{margin-top:7px;font-size:10px;color:#91a6bc}
       .mp-banner{color:#fbbf24;font-size:11px;font-weight:850}
+      .mp-data-status{display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding:6px 10px;margin:0 0 8px;border:1px solid #233a50;background:#091623;border-radius:6px;font-size:10px;color:#a9bbcf}
+      .mp-connection-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px;background:#f59e0b}
+      .mp-connection-dot.ok{background:#22c55e}
+      .mp-connection-dot.bad{background:#ef4444}
+      .mp-quote-note{font-size:9px;color:#82a0b8;margin-top:3px}
+
       @media(max-width:1380px){.mp-card-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
       @media(max-width:930px){.mp-card-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.mp-summary{grid-template-columns:repeat(3,minmax(0,1fr))}}
       @media(max-width:580px){.mp-card-grid{grid-template-columns:1fr}.mp-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.mp-dashboard{padding:8px}.mp-account-card{min-height:0}.mp-value{font-size:19px}}
@@ -236,6 +341,13 @@ export default function ManualPaperAccountsPage(){
       <div><h1>▣ MANUAL PAPER TRADING</h1><small>SEVEN INDEPENDENT ACCOUNTS · ENGINE 22 WAVE STRUCTURE</small></div>
       <div className="mp-paper-label">PAPER ONLY — NO REAL BROKER ORDERS</div>
     </header>
+    <div className="mp-data-status" role="status">
+      <span><span className={"mp-connection-dot "+(accountStatus==="CONNECTED"?"ok":accountStatus==="DATA_UNAVAILABLE"?"bad":"")}/>
+        PAPER ACCOUNTS: {accountStatus==="CONNECTED"?"CONNECTED":accountStatus==="DATA_UNAVAILABLE"?"UNAVAILABLE — REFRESH OR RE-AUTHENTICATE":"SECURE LOGIN REQUIRED"}</span>
+      <span>Engine 10 account refresh: {accountCheckedAt?new Date(accountCheckedAt).toLocaleTimeString():"—"} · every 10s</span>
+      <span>Engine 22: read-only snapshot · every 20s</span>
+      {token&&<button type="button" disabled={accountRefreshing} onClick={refresh}>{accountRefreshing?"Refreshing…":"Refresh accounts"}</button>}
+    </div>
     {!token&&<form className="mp-operator" onSubmit={redeem}>
       <strong style={{fontSize:12}}>SECURE PAPER ACCESS</strong>
       <input value={pairing} onChange={e=>setPairing(e.target.value)}
@@ -252,7 +364,7 @@ export default function ManualPaperAccountsPage(){
     {message&&<p role="status" style={{color:"#86efac"}}>{message}</p>}
     <section className="mp-summary" aria-label="Manual PAPER overview">
       <div className="mp-summary-item"><div className="mp-kpi-label">Starting capital</div><div className="mp-kpi-value">$70,000</div></div>
-      <div className="mp-summary-item"><div className="mp-kpi-label">Current equity</div><div className="mp-kpi-value">{isActive?money(overview.totalEquity):"—"}</div></div>
+      <div className="mp-summary-item"><div className="mp-kpi-label">Equity (indicative)</div><div className="mp-kpi-value">{totalIndicativeEquity!==null?money(totalIndicativeEquity):"—"}</div><div className="mp-quote-note">{totalIndicativeEquity!==null?"Includes 1m price marks; view-only":"Awaiting valid marks / login"}</div></div>
       <div className="mp-summary-item"><div className="mp-kpi-label">Realized P&L</div><div className="mp-kpi-value" style={{color:"#4ade80"}}>{isActive?money(accounts.reduce((n,a)=>n+a.realizedPnL,0)):"—"}</div></div>
       <div className="mp-summary-item"><div className="mp-kpi-label">Open contracts</div><div className="mp-kpi-value">{isActive?accounts.reduce((n,a)=>n+a.openContracts,0):"—"}</div></div>
       <div className="mp-summary-item"><div className="mp-kpi-label">Account count</div><div className="mp-kpi-value">7</div></div>
@@ -262,18 +374,24 @@ export default function ManualPaperAccountsPage(){
         const a=accounts.find(item=>item.accountId===id);
         const tone=a?.tradingBlocked?"#f87171":!isActive?"#405872":"#22c55e";
         const pnl=a?.realizedPnL;
+        const indicative=deriveIndicativeAccount(a,marks);
+        const hasOpen=(a?.openContracts||0)>0;
         return <article key={id} className="mp-account-card" style={{borderTopColor:tone}}>
           <div className="mp-account-head"><strong>{label}</strong><span className="mp-account-id">{id.replace("PAPER-","P")}</span></div>
           <WaveContext snapshot={waveSnapshot} accountId={id} loading={waveLoading} error={waveError}/>
           <div className="mp-main-metrics">
-            <div><div className="mp-kpi-label">Current equity</div><div className="mp-value">{a?money(a.equity):"—"}</div></div>
+            <div><div className="mp-kpi-label">Equity (indicative)</div><div className="mp-value">{indicative?.available?money(indicative.equity):"—"}</div></div>
             <div><div className="mp-kpi-label">Realized P&L</div><div className="mp-value" style={{color:pnl==null?"#f8fafc":pnl>=0?"#4ade80":"#f87171"}}>{a?money(pnl):"—"}</div></div>
           </div>
           <div className="mp-stats">
             <div><div className="mp-kpi-label">Open</div><div className="mp-stat-value">{a?a.openContracts:"—"}</div></div>
-            <div><div className="mp-kpi-label">Unrealized</div><div className="mp-stat-value">{a?money(a.unrealizedPnL):"—"}</div></div>
+            <div><div className="mp-kpi-label">Unrealized (indicative)</div><div className="mp-stat-value">{indicative?.available?money(indicative.unrealizedPnL):"—"}</div></div>
             <div><div className="mp-kpi-label">Win %</div><div className="mp-stat-value">{a?a.winPercentage+"%":"—"}</div></div>
           </div>
+          {hasOpen&&<div className="mp-quote-note">
+            {indicative?.available?"Based on 1-minute futures closing prices, not executable quotes":
+              "Live valuation unavailable — no estimated P&L shown"}
+          </div>}
           <details className="mp-details">
             <summary>Positions · Performance · History</summary>
             <div className="mp-position-row">Starting: $10,000 · Buying power: {a?money(a.availableFunds):"—"}</div>
@@ -290,6 +408,12 @@ export default function ManualPaperAccountsPage(){
         </article>;
       })}
     </section>
+    {isActive&&<div className="mp-risk">
+      Engine 10 is the official contract/FIFO and realized P&L source. Indicative equity and
+      unrealized P&L use the most recent available 1-minute futures close for display only;
+      no marks are saved to Engine 10. Price check: {markCheckedAt?new Date(markCheckedAt).toLocaleTimeString():"—"}.
+      Combined indicative unrealized: {totalIndicativeUnrealized!==null?money(totalIndicativeUnrealized):"—"}.
+    </div>}
     {overview?.riskPolicy&&<div className="mp-risk">
       SIMULATED POLICY · ES margin {money(overview.riskPolicy.simulatedInitialMargin.ES)} ·
       MES margin {money(overview.riskPolicy.simulatedInitialMargin.MES)} ·
