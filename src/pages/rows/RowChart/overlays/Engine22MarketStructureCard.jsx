@@ -484,10 +484,12 @@ function Engine22DegreeCard({
   microW2W3TransitionFibs = null,
   microMidlineConfluence = null,
   microPositionContext = null,
+  legacyMicroWidgets = false,
+  waveDegreeOverride = undefined,
 }) {
   const active = state?.active === true;
   const tone = toneForDegree(degree, state);
-  const waveDegree = wavelength?.degrees?.[degree] || null;
+  const waveDegree = waveDegreeOverride !== undefined ? waveDegreeOverride : wavelength?.degrees?.[degree] || null;
   const fibLevels = Array.isArray(waveDegree?.levels) ? waveDegree.levels : [];
 
   return (
@@ -572,7 +574,7 @@ function Engine22DegreeCard({
         />
       ))}
 
-      {degree === "micro" ? (
+      {legacyMicroWidgets ? (
         <>
           <MicroMidlineBanner confluence={microMidlineConfluence} />
           <MicroPositionBanner context={microPositionContext} />
@@ -643,7 +645,21 @@ export default function Engine22MarketStructureCard({
     engine22V3Projection?.shadowOnly === true
       ? engine22V3Projection?.engine22Display?.degrees
       : null;
-  const v3Order = ["intraday_submicro", "micro", "subminute", "minute", "minor", "intermediate", "primary"];
+  const microV3 = v3Degrees?.micro || null;
+  const largerMicroState = microV3 ? {
+    ...microV3, label: "Micro", active: true,
+    headline: "Independent MICRO — " + (engine22V3Projection?.degreeStates?.micro?.activeWave || "W5 developing"),
+    rows: [{label:"Wave",value:engine22V3Projection?.degreeStates?.micro?.activeWave || "—"}, ...(microV3.rows || [])],
+    levels: (microV3.levels || []).map(level=>({...level,label:String(level.ratio ?? level.key ?? "")})),
+  } : {
+    degree:"micro",label:"Micro",active:false,badge:"V3 PENDING",
+    headline:"New larger MICRO V3 structure awaiting publication.",
+    rows:[],levels:[],rules:[],
+  };
+  const oldMicroAsSubmicro = {
+    ...(engine22Display.degrees?.micro || {}),
+    degree:"submicro",label:"Submicro",subtitle:"Fast operational wave structure",
+  };
 
   return (
     <div
@@ -688,36 +704,6 @@ export default function Engine22MarketStructureCard({
         </div>
       </div>
 
-      {v3Degrees && (
-        <div style={{ border: "1px solid #2563eb", borderRadius: 10, padding: 10, background: "#0b1628" }}>
-          <div style={{ fontWeight: 900, fontSize: 13, color: "#bfdbfe", marginBottom: 8 }}>
-            ENGINE 22 V3 — SEVEN INDEPENDENT WAVE DEGREES (READ-ONLY)
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 8 }}>
-            {v3Order.map((key) => {
-              const degreeState = v3Degrees[key];
-              const levels = Array.isArray(degreeState?.levels) ? degreeState.levels : [];
-              return (
-                <div key={key} style={{ border: "1px solid #334155", borderRadius: 8, padding: 8, background: "#101b2d" }}>
-                  <div style={{ color: "#e2e8f0", fontWeight: 900, fontSize: 12 }}>{key.replaceAll("_", " ").toUpperCase()}</div>
-                  <div style={{ color: "#93c5fd", fontSize: 12, marginTop: 4 }}>{degreeState?.badge || "UNKNOWN"}</div>
-                  {(degreeState?.rows || []).map((entry, index) => (
-                    <div key={index} style={{ color: "#cbd5e1", fontSize: 11, marginTop: 3 }}>
-                      {entry.label}: {entry.value}
-                    </div>
-                  ))}
-                  {levels.length > 0 && <div style={{ marginTop: 6, color: "#fcd34d", fontSize: 11 }}>
-                    Fib watch: {levels.slice(0, 6).map((entry) => `${entry.ratio ?? entry.key}: ${entry.price}`).join(" · ")}
-                  </div>}
-                </div>
-              );
-            })}
-          </div>
-          <div style={{ fontSize: 11, marginTop: 8, color: "#94a3b8" }}>
-            Shadow intelligence only. No trade permission, sizing, execution, or order management.
-          </div>
-        </div>
-      )}
       <div
         style={{
           display: "grid",
@@ -731,10 +717,16 @@ export default function Engine22MarketStructureCard({
             key={degree}
             degree={degree}
             wavelength={currentWavelength}
+            legacyMicroWidgets={degree === "submicro"}
+            waveDegreeOverride={degree === "submicro"
+              ? currentWavelength?.degrees?.micro || null
+              : degree === "micro" ? null : undefined}
             microW2W3TransitionFibs={microW2W3TransitionFibs}
             microMidlineConfluence={microMidlineConfluence}
             microPositionContext={microPositionContext}
             state={
+              degree === "submicro" ? oldMicroAsSubmicro :
+              degree === "micro" ? largerMicroState :
               engine22Display.degrees?.[degree] || {
                 degree,
                 label: degree,
