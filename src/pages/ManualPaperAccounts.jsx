@@ -92,7 +92,7 @@ const money=value=>Number.isFinite(Number(value))
   ?Number(value).toLocaleString("en-US",{style:"currency",currency:"USD"}):"—";
 
 // Read-only mark estimator: never sends a mark or P&L value to Engine 8/10.
-function deriveIndicativeAccount(account,marks){
+export function deriveIndicativeAccount(account,marks){
   if(!account)return null;
   const open=Object.values(account.positions||{});
   if(open.length===0)return {
@@ -116,14 +116,19 @@ function deriveIndicativeAccount(account,marks){
   return {available:true,unrealizedPnL:Math.round(unrealized*100)/100,
     equity:Math.round((cash+unrealized)*100)/100,source:"INDICATIVE_1M_CLOSE"};
 }
-function readLastFuturesBar(payload){
+export function readLastFuturesBar(payload,nowMs=Date.now()){
   const bars=Array.isArray(payload)?payload:
     Array.isArray(payload?.bars)?payload.bars:
     Array.isArray(payload?.data)?payload.data:[];
   const bar=bars[bars.length-1];
   const close=Number(bar?.close??bar?.c);
-  if(!bar||!Number.isFinite(close)||close<=0)return null;
-  return close;
+  const timeSeconds=Number(bar?.time);
+  if(!bar||!Number.isFinite(close)||close<=0||
+    !Number.isFinite(timeSeconds)||timeSeconds<=0)return null;
+  const ageMs=nowMs-timeSeconds*1000;
+  // No stale/weekend historical candle masquerading as an intraday live mark.
+  if(ageMs< -60000||ageMs>30*60*1000)return null;
+  return {price:close,barTime:new Date(timeSeconds*1000).toISOString()};
 }
 
 const requestId=()=>{
@@ -212,8 +217,8 @@ export default function ManualPaperAccountsPage(){
             {cache:"no-store"}
           );
           if(!response.ok)return;
-          const price=readLastFuturesBar(await response.json());
-          if(price!==null)next[symbol]={price,receivedAt:Date.now()};
+          const mark=readLastFuturesBar(await response.json());
+          if(mark!==null)next[symbol]={...mark,receivedAt:Date.now()};
         }catch{
           // No synthetic marks or backfilled prices.
         }
@@ -420,7 +425,7 @@ export default function ManualPaperAccountsPage(){
     </section>
     {isActive&&<div className="mp-risk">
       Engine 10 is the official contract/FIFO and realized P&L source. Indicative equity and
-      unrealized P&L use the most recent available 1-minute futures close for display only;
+      unrealized P&L use 1-minute futures bars not older than 30 minutes for display only;
       no marks are saved to Engine 10. Price check: {markCheckedAt?new Date(markCheckedAt).toLocaleTimeString():"—"}.
       Combined indicative unrealized: {totalIndicativeUnrealized!==null?money(totalIndicativeUnrealized):"—"}.
     </div>}
