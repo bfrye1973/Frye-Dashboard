@@ -1,5 +1,6 @@
 import React,{useCallback,useEffect,useMemo,useState} from "react";
 import {useDashboardSnapshot} from "../hooks/useDashboardSnapshot";
+import {readVolatilePaperToken,storeVolatilePaperToken,clearVolatilePaperToken} from "./manualPaperSessionMemory";
 
 const ROOT=(
   process.env.REACT_APP_API_BASE ||
@@ -138,7 +139,7 @@ const requestId=()=>{
 export default function ManualPaperAccountsPage(){
   const {data:waveSnapshot,err:waveError,loading:waveLoading}=useDashboardSnapshot("ES",{pollMs:20000,includeContext:1});
   // Access tokens are never persisted in localStorage, cookies, or bundled secrets.
-  const [token,setToken]=useState("");
+  const [token,setToken]=useState(readVolatilePaperToken);
   const [pairing,setPairing]=useState("");
   const [overview,setOverview]=useState(null);
   const [error,setError]=useState("");
@@ -184,6 +185,7 @@ export default function ManualPaperAccountsPage(){
       // Never display old authenticated figures as current after a polling failure.
       setOverview(null);
       if(e.status===401||e.status===403){
+        clearVolatilePaperToken();
         setToken("");
         setAccountStatus("AUTHENTICATION_REQUIRED");
         setError("PAPER session expired or access denied. Please pair again.");
@@ -240,6 +242,7 @@ export default function ManualPaperAccountsPage(){
         body:JSON.stringify({pairingCode:pairing.trim()})});
       const result=await res.json();
       if(!res.ok||!result.ok)throw Error(result.reason||"Access denied");
+      storeVolatilePaperToken(result.accessToken);
       setToken(result.accessToken);setPairing("");
       setMessage("Authenticated PAPER-only session. No REAL broker permission.");
     }catch(e){setError(e.message);}
