@@ -510,6 +510,7 @@ function Engine22DegreeCard({
   microW3TouchW4Shadow = null,
   legacyMicroWidgets = false,
   waveDegreeOverride = undefined,
+  v3Shadow = null,
 }) {
   const active = state?.active === true;
   const tone = toneForDegree(degree, state);
@@ -599,6 +600,40 @@ function Engine22DegreeCard({
           tone={item.tone || "default"}
         />
       ))}
+
+      {v3Shadow?.shadowOnly === true ? (
+        <div style={{border:"1px solid #475569",borderRadius:8,padding:7,display:"grid",gap:4,background:"#101823"}}>
+          <div style={{fontSize:11,color:"#c4b5fd",fontWeight:1000}}>
+            V3 SHADOW — {String(v3Shadow.dataStatus || "EVIDENCE_PENDING").replaceAll("_"," ")}
+          </div>
+          <Engine22Line label="Wave" value={v3Shadow.activeWave || "UNCONFIRMED"} tone="watch" />
+          <Engine22Line label="Lifecycle" value={v3Shadow.lifecycle || "EVIDENCE_PENDING"} tone="watch" />
+          <Engine22Line label="Candle" value={v3Shadow.sourceTimeframe || "—"} />
+          <Engine22Line label="Swing nodes" value={`${v3Shadow.swingHighCount ?? 0} HIGH / ${v3Shadow.swingLowCount ?? 0} LOW`} />
+          {v3Shadow.waveCandidate ? <Engine22Line label="Candidate" value={`${v3Shadow.waveCandidate.activeWave || "—"} ${v3Shadow.waveCandidate.side || ""} — UNCONFIRMED`} tone="warning" /> : null}
+          {v3Shadow.fibonacci?.available === true ? (
+            <>
+              <div style={{fontSize:10,color:"#bfdbfe",fontWeight:900}}>
+                {v3Shadow.fibonacci.modelType} — {v3Shadow.fibonacci.provisional ? "PROVISIONAL" : "SHADOW ONLY"}
+              </div>
+              {(v3Shadow.levels || []).map(fib => (
+                <Engine22Line key={fib.key} label={fib.key}
+                  value={`${Number(fib.price).toFixed(2)} — ${fib.status}`}
+                  tone={fib.status === "TOUCHED" ? "long" : "watch"} />
+              ))}
+            </>
+          ) : (
+            <div style={{fontSize:10,color:"#fbbf24"}}>
+              {v3Shadow.dataStatus === "INSUFFICIENT_HISTORY"
+                ? "INSUFFICIENT VALIDATED HISTORY"
+                : (v3Shadow.fibonacci?.reasonCodes || v3Shadow.reasonCodes || ["EVIDENCE_PENDING"])[0]}
+            </div>
+          )}
+          <div style={{fontSize:9,color:"#94a3b8"}}>
+            Independent V3 observation only. No approved anchor, official Fib, or trading permission changed.
+          </div>
+        </div>
+      ) : null}
 
       {legacyMicroWidgets ? (
         <>
@@ -701,6 +736,10 @@ export default function Engine22MarketStructureCard({
     engine22V3Projection?.shadowOnly === true
       ? engine22V3Projection?.engine22Display?.degrees
       : null;
+  const v3ShadowDegrees = engine22V3Projection?.available === true &&
+    engine22V3Projection?.shadowOnly === true &&
+    engine22V3Projection?.v3LiveShadow?.shadowOnly === true
+      ? engine22V3Projection.v3LiveShadow.degrees : null;
   const microV3 = v3Degrees?.micro || null;
   const largerMicroState = microV3 ? {
     ...microV3, label: "Micro", active: true,
@@ -772,6 +811,7 @@ export default function Engine22MarketStructureCard({
           <Engine22DegreeCard
             key={degree}
             degree={degree}
+            v3Shadow={v3ShadowDegrees?.[degree] || (degree === "submicro" ? v3ShadowDegrees?.intraday_submicro : null) || null}
             wavelength={currentWavelength}
             legacyMicroWidgets={degree === "submicro"}
             waveDegreeOverride={degree === "submicro"
