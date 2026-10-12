@@ -477,6 +477,21 @@ function MicroPositionBanner({ context }) {
   );
 }
 
+// Read-only SUBMICRO display; no canonical wave state or trading changes.
+function submicroW4Display(shadow, transition) {
+  if (shadow?.available !== true || shadow?.w3OneToOne?.touched !== true ||
+      shadow?.w4DownCandidate !== true || transition?.available !== true ||
+      shadow?.w3OneToOne?.countId !== transition?.sourceCountId) return null;
+  const peak = Number(shadow?.w4CandidateEvidence?.peakHigh);
+  const origin = Number(transition?.anchors?.w2Low);
+  if (!Number.isFinite(peak) || !Number.isFinite(origin) || peak <= origin) return null;
+  return {peak, fibs: [0.236, 0.382, 0.5, 0.618, 0.786].map(ratio => ({
+    key: "w4-" + ratio, label: ratio.toFixed(3),
+    price: Math.round((peak - (peak - origin) * ratio) * 4) / 4,
+    status: "WATCH",
+  }))};
+}
+
 function Engine22DegreeCard({
   degree,
   state,
@@ -491,6 +506,7 @@ function Engine22DegreeCard({
   const active = state?.active === true;
   const tone = toneForDegree(degree, state);
   const waveDegree = waveDegreeOverride !== undefined ? waveDegreeOverride : wavelength?.degrees?.[degree] || null;
+  const w4 = legacyMicroWidgets ? submicroW4Display(microW3TouchW4Shadow, microW2W3TransitionFibs) : null;
   const fibLevels = Array.isArray(waveDegree?.levels) ? waveDegree.levels : [];
 
   return (
@@ -563,10 +579,11 @@ function Engine22DegreeCard({
           lineHeight: 1.15,
         }}
       >
-        {state?.headline || `${String(degree || "").toUpperCase()} structure not published.`}
+        {w4 ? "W4 DOWN — CURRENT DEVELOPING (UNCONFIRMED)" : state?.headline || `${String(degree || "").toUpperCase()} structure not published.`}
       </div>
 
-      {(state?.rows || []).map((item, index) => (
+      {w4 ? <Engine22Line label="Wave" value="W4 DOWN — DEVELOPING" tone="short" /> : null}
+      {(state?.rows || []).filter(item => !w4 || !/^(wave|state|status)$/i.test(String(item.label || ""))).map((item, index) => (
         <Engine22Line
           key={`${item.label || "row"}-${index}`}
           label={item.label}
@@ -579,7 +596,7 @@ function Engine22DegreeCard({
         <>
           <MicroMidlineBanner confluence={microMidlineConfluence} />
           <MicroPositionBanner context={microPositionContext} />
-          <MicroTransitionFibPanel
+          {!w4 ? <MicroTransitionFibPanel
             transition={microW2W3TransitionFibs?.available === true &&
               microW3TouchW4Shadow?.available === true &&
               microW3TouchW4Shadow?.w3OneToOne?.touched === true &&
@@ -589,17 +606,27 @@ function Engine22DegreeCard({
                       levels:microW2W3TransitionFibs.w3Up.levels.map(level=>
                         level.key === "e1000" ? {...level,status:"TOUCHED"} : level)}}
                 : microW2W3TransitionFibs}
-          />
+          /> : null}
           {microW3TouchW4Shadow?.available === true &&
            microW3TouchW4Shadow?.w3OneToOne?.touched === true ? (
             <div style={{fontSize:11,color:"#bfdbfe",fontWeight:900}}>
               W3 1.000 VERIFIED TOUCH • {microW3TouchW4Shadow.w3OneToOne.target}
               {microW3TouchW4Shadow.w4DownCandidate === true
-                ? " • W4 DOWN CANDIDATE (NOT CONFIRMED)"
+                ? " • W4 DOWN CURRENT (DEVELOPING, NOT CONFIRMED)"
                 : " • W4 TRANSITION NOT CONFIRMED"}
             </div>
           ) : null}
         </>
+      ) : null}
+
+      {w4 ? (
+        <div style={{border:"1px solid #7f1d1d",borderRadius:9,padding:7,background:"#1b1013",display:"grid",gap:5}}>
+          <div style={{color:"#fca5a5",fontSize:11,fontWeight:1000}}>CURRENT W4 DOWN FIB RETRACEMENTS — WATCH ONLY</div>
+          <Engine22Line label="W3 peak" value={wavePrice(w4.peak)} />
+          <Engine22Line label="W2 origin" value={wavePrice(microW2W3TransitionFibs?.anchors?.w2Low)} />
+          {w4.fibs.map(fib => <Engine22Line key={fib.key} label={fib.label} value={wavePrice(fib.price) + " — " + fib.status} tone="warning" />)}
+          <div style={{fontSize:9,color:"#94a3b8"}}>Observational W4 developing display; no confirmed W4 anchor or trading permission.</div>
+        </div>
       ) : null}
 
       <Engine22TargetGrid
@@ -607,7 +634,7 @@ function Engine22DegreeCard({
         levels={state?.levels}
       />
 
-      {waveDegree ? (
+      {waveDegree && !w4 ? (
         <div style={{border: "1px solid #344156", borderRadius: 8, padding: 6, display: "grid", gap: 4}}>
           <div style={{color: "#bfdbfe", fontWeight: 900, fontSize: 11}}>FIB EXTENSIONS — {waveDegree.activeWave || "—"}</div>
           <Engine22Line label="State" value={waveDegree.state} tone="watch" />
