@@ -1,0 +1,26 @@
+name: Engine 8D Live PAPER Account Monitor
+on:
+  push:
+    branches: [engine8d-live-paper-account-monitor-v1]
+  pull_request:
+    paths:
+      - "src/pages/ManualPaperAccounts.jsx"
+      - "src/pages/ManualPaperAccounts.live.test.js"
+      - "src/pages/manualPaperSessionMemory.js"
+      - ".github/workflows/engine8d-live-paper-monitor.yml"
+permissions:
+  contents: read
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: npm ci --ignore-scripts
+      - name: Simulated live account valuation regression tests
+        run: CI=true npm test -- --watch=false --runInBand --testPathPattern=ManualPaperAccounts.live.test.js
+      - name: Production build
+        run: npm run build
