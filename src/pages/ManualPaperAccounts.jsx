@@ -190,22 +190,22 @@ export default function ManualPaperAccountsPage(){
   const isActive=Boolean(token&&overview?.ok&&overview?.initialized===true);
   return <main className="mp-dashboard">
     <style>{`
-      .mp-dashboard{box-sizing:border-box;color:#e5edf6;width:100%;max-width:none;margin:0;padding:10px 14px 24px;background:#060b12}
+      .mp-dashboard{box-sizing:border-box;color:#e5edf6;width:100%;max-width:none;margin:0;padding:12px 16px 24px;background:radial-gradient(ellipse at 85% -10%,rgba(127,29,29,.12),transparent 38%),#060b12}
       .mp-dashboard *{box-sizing:border-box}
       .mp-heading{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;margin:0 0 10px}
-      .mp-heading h1{font-size:22px;letter-spacing:.02em;margin:0;font-weight:950}
+      .mp-heading h1{font-size:21px;letter-spacing:.035em;margin:0;font-weight:900;color:#f8fafc;text-shadow:0 1px 0 rgba(255,255,255,.05)}
       .mp-heading small{font-size:10px;letter-spacing:.06em;color:#9fb0c2;font-weight:800}
-      .mp-paper-label{color:#fbbf24;font-size:12px;font-weight:900}
-      .mp-summary{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:1px;background:#203146;border:1px solid #203146;border-radius:8px;overflow:hidden;margin:7px 0 12px}
-      .mp-summary-item{min-width:0;padding:10px 12px;background:#07121b}
-      .mp-kpi-label{color:#8fa6bd;font-size:10px;font-weight:900;letter-spacing:.04em;text-transform:uppercase}
+      .mp-paper-label{color:#fbbf24;font-size:10px;font-weight:900;letter-spacing:.045em;border:1px solid rgba(245,158,11,.33);background:rgba(120,53,15,.16);padding:7px 11px;border-radius:6px}
+      .mp-summary{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:1px;background:#203146;border:1px solid #294058;border-radius:9px;overflow:hidden;margin:7px 0 12px;box-shadow:0 8px 24px rgba(0,0,0,.16)}
+      .mp-summary-item{min-width:0;padding:10px 14px;background:linear-gradient(180deg,#0b1722,#07121b)}
+      .mp-kpi-label{color:#89a6be;font-size:10px;font-weight:900;letter-spacing:.055em;text-transform:uppercase}
       .mp-kpi-value{font-size:20px;font-weight:1000;color:#f8fafc;margin-top:3px;line-height:1.1;font-variant-numeric:tabular-nums}
-      .mp-card-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;align-items:start}
-      .mp-account-card{min-width:0;border:1px solid #2e495e;border-top:3px solid #22c55e;border-radius:9px;background:linear-gradient(160deg,#07121b,#0d1725);padding:10px 11px;min-height:228px;overflow:hidden}
+      .mp-card-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;align-items:stretch}
+      .mp-account-card{min-width:0;border:1px solid #29445d;border-top:3px solid #22c55e;border-radius:9px;background:linear-gradient(145deg,#0c1b27 0%,#09131f 70%);padding:11px 12px;min-height:224px;overflow:hidden;box-shadow:0 7px 22px rgba(0,0,0,.22);transition:border-color .2s ease,box-shadow .2s ease}.mp-account-card:hover{border-color:#45708b;box-shadow:0 9px 26px rgba(0,0,0,.32)}
       .mp-account-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
-      .mp-account-head strong{color:#f8fafc;font-size:13px;letter-spacing:.03em;white-space:nowrap}
-      .mp-account-id{font-size:9px;color:#87a6c1;white-space:nowrap}
-      .mp-wave{background:#071b29;border:1px solid #23465a;border-radius:6px;margin:8px 0;padding:7px 8px;min-height:74px}
+      .mp-account-head strong{color:#f8fafc;font-size:14px;letter-spacing:.04em;white-space:nowrap;font-weight:950}
+      .mp-account-id{font-size:9px;color:#87a6c1;white-space:nowrap;border:1px solid #2a4158;border-radius:4px;padding:3px 5px}
+      .mp-wave{background:linear-gradient(105deg,rgba(5,32,43,.92),rgba(9,23,38,.95));border:1px solid #235065;border-radius:6px;margin:9px 0 7px;padding:7px 9px;min-height:76px}
       .mp-wave-head{display:flex;justify-content:space-between;gap:8px;font-size:9px;color:#7dd3fc;font-weight:900}
       .mp-wave-head span:last-child{color:#7890a7;font-size:8px}
       .mp-wave-line{display:flex;align-items:baseline;gap:9px;margin-top:3px}
@@ -214,23 +214,23 @@ export default function ManualPaperAccountsPage(){
       .mp-wave-next{font-size:10px;color:#fbbf24;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
       .mp-wave-levels{font-size:9px;color:#9eb8ca;margin-top:4px;display:flex;gap:7px;overflow:hidden;white-space:nowrap}
       .mp-wave-unavailable{font-size:11px;color:#fbbf24;display:block;margin-top:10px}
-      .mp-main-metrics{display:grid;grid-template-columns:1fr 1fr;gap:8px;border-bottom:1px solid #253d52;padding:6px 0}
-      .mp-value{font-size:17px;font-weight:1000;font-variant-numeric:tabular-nums;white-space:nowrap}
+      .mp-main-metrics{display:grid;grid-template-columns:1fr 1fr;gap:8px;border-bottom:1px solid #253d52;padding:7px 0 9px}
+      .mp-value{font-size:clamp(15px,1.25vw,20px);font-weight:950;font-variant-numeric:tabular-nums;white-space:nowrap;letter-spacing:-.035em}
       .mp-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;padding:8px 0 2px}
-      .mp-stat-value{color:#f3f5f8;font-size:13px;font-weight:850}
+      .mp-stat-value{color:#f3f5f8;font-size:14px;font-weight:900;font-variant-numeric:tabular-nums}
       .mp-details{margin-top:6px;border-top:1px solid #253d52;padding-top:6px;font-size:11px}
-      .mp-details summary{cursor:pointer;color:#7db6eb;font-weight:850}
+      .mp-details summary{cursor:pointer;color:#7db6eb;font-weight:850;outline-offset:4px}.mp-details[open] summary{color:#bae6fd}
       .mp-position-row{margin:6px 0;color:#cbd5e1;line-height:1.3}
       .mp-operator{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:7px 10px;background:#0e1826;border:1px solid #293b52;border-radius:7px;margin-bottom:8px}
       .mp-operator input{min-width:170px;max-width:260px;flex:1;background:#0a1321;color:#f8fafc;padding:6px 9px;border:1px solid #405166;border-radius:5px}
       .mp-operator button,.mp-dashboard button{cursor:pointer}
-      .mp-ticket{margin-top:10px;border:1px solid #2d4155;background:#0b1421;border-radius:8px;padding:10px}
-      .mp-ticket>summary{cursor:pointer;font-size:13px;font-weight:950;color:#93c5fd}
+      .mp-ticket{margin-top:12px;border:1px solid #2d4155;background:linear-gradient(130deg,#0d1929,#08131f);border-radius:8px;padding:12px 14px}
+      .mp-ticket>summary{cursor:pointer;font-size:13px;font-weight:950;color:#93c5fd;outline-offset:4px}
       .mp-risk{margin-top:7px;font-size:10px;color:#91a6bc}
       .mp-banner{color:#fbbf24;font-size:11px;font-weight:850}
       @media(max-width:1380px){.mp-card-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
       @media(max-width:930px){.mp-card-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.mp-summary{grid-template-columns:repeat(3,minmax(0,1fr))}}
-      @media(max-width:580px){.mp-card-grid{grid-template-columns:1fr}.mp-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.mp-dashboard{padding:8px}}
+      @media(max-width:580px){.mp-card-grid{grid-template-columns:1fr}.mp-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.mp-dashboard{padding:8px}.mp-account-card{min-height:0}.mp-value{font-size:19px}}
     `}</style>
     <header className="mp-heading">
       <div><h1>▣ MANUAL PAPER TRADING</h1><small>SEVEN INDEPENDENT ACCOUNTS · ENGINE 22 WAVE STRUCTURE</small></div>
