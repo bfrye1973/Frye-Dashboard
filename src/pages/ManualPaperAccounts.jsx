@@ -116,7 +116,7 @@ export default function ManualPaperAccountsPage(){
     finally{setBusy(false);}
   }
   const accounts=overview?.accounts||[];
-  const isActive=Boolean(token&&overview?.ok);
+  const isActive=Boolean(token&&overview?.ok&&overview?.initialized===true);
   return <main style={{color:"#e5edf6",padding:20,maxWidth:1440,margin:"auto"}}>
     <header style={{marginBottom:20}}>
       <h1 style={{margin:"0 0 8px"}}>Seven Manual PAPER Accounts</h1>
@@ -131,7 +131,7 @@ export default function ManualPaperAccountsPage(){
       <button disabled={busy||!pairing} style={{marginTop:12}} type="submit">Unlock PAPER workspace</button>
     </form>}
     {token&&!overview&&<div style={panel}>Account data unavailable. Your server session may have expired. No simulated balances are being guessed.</div>}
-    {token&&overview&&!overview.ok&&<div style={panel}>
+    {token&&overview&&overview.initialized===false&&<div style={panel}>
       <p>Accounts not initialized. Starting capital will be $70,000 across seven independent accounts.</p>
       <button onClick={initialize} disabled={busy}>Initialize seven $10,000 PAPER accounts</button>
     </div>}
