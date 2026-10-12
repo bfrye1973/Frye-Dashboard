@@ -156,7 +156,11 @@ export default function ManualPaperAccountsPage(){
       "Content-Type":"application/json",...auth,...(options.headers||{})
     },cache:"no-store"});
     const data=await res.json().catch(()=>({ok:false,reason:"INVALID_SERVER_RESPONSE"}));
-    if(!res.ok||data.ok===false)throw Error(data.reason||"Request rejected");
+    if(!res.ok||data.ok===false){
+      const problem=new Error(data.reason||"Request rejected");
+      problem.status=res.status;
+      throw problem;
+    }
     return data;
   },[auth]);
   const refresh=useCallback(async()=>{
@@ -174,8 +178,14 @@ export default function ManualPaperAccountsPage(){
     }catch(e){
       // Never display old authenticated figures as current after a polling failure.
       setOverview(null);
-      setAccountStatus("DATA_UNAVAILABLE");
-      setError(e.message);
+      if(e.status===401||e.status===403){
+        setToken("");
+        setAccountStatus("AUTHENTICATION_REQUIRED");
+        setError("PAPER session expired or access denied. Please pair again.");
+      }else{
+        setAccountStatus("DATA_UNAVAILABLE");
+        setError(e.message);
+      }
     }finally{setAccountRefreshing(false);}
   },[token,api]);
   useEffect(()=>{
