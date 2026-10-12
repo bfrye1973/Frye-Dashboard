@@ -155,7 +155,13 @@ export default function ManualPaperAccountsPage(){
           <div>Unrealized: {a?money(a.unrealizedPnL):"—"}</div>
           <div>Open contracts: {a?a.openContracts:"—"}</div>
           <div>Open positions: {a?Object.keys(a.positions||{}).length:"—"}</div>
+          <div>Buying power: {a?money(a.availableFunds):"—"}</div>
+          <div>Margin used: {a?money(a.marginUsed):"—"}</div>
+          <div>Simulated fees: {a?money(a.feesPaid):"—"}</div>
           <div>Closed contracts: {a?a.closedContracts:"—"}</div>
+          <div>Profit factor: {a?(a.profitFactor??"—"):"—"}</div>
+          <div>Current drawdown: {a?money(a.currentDrawdown):"—"}</div>
+          <div>Maximum drawdown: {a?money(a.maxDrawdown):"—"}</div>
           <div>Win %: {a?a.winPercentage+"%":"—"}</div>
           {a?.tradingBlocked&&<strong style={{color:"#f87171"}}>JOURNAL RECONCILIATION REQUIRED</strong>}
         </article>;
