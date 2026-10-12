@@ -1,0 +1,22 @@
+name: Engine 8D Manual PAPER Wave Counts
+on:
+  push:
+    branches: [engine8d-manual-paper-wave-counts-v1]
+  pull_request:
+    paths:
+      - "src/pages/ManualPaperAccounts.jsx"
+      - ".github/workflows/engine8d-manual-paper-waves.yml"
+permissions:
+  contents: read
+jobs:
+  compile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: npm ci --ignore-scripts
+      - name: Compile Manual PAPER Engine 22 cards
+        run: npm run build
