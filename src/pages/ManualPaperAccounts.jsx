@@ -1,4 +1,5 @@
 import React,{useCallback,useEffect,useMemo,useState} from "react";
+import {useDashboardSnapshot} from "../hooks/useDashboardSnapshot";
 
 const ROOT=(
   process.env.REACT_APP_API_BASE ||
@@ -15,6 +16,81 @@ const ACCOUNT_SLOTS=[
  ["PAPER-06-INTERMEDIATE","INTERMEDIATE"],
  ["PAPER-07-PRIMARY","PRIMARY"],
 ];
+// Engine 22 alone owns count truth. This component never derives its own count.
+const DEGREE_KEYS={
+  "PAPER-01-SUBMICRO":"submicro",
+  "PAPER-02-MICRO":"micro",
+  "PAPER-03-SUBMINUTE":"subminute",
+  "PAPER-04-MINUTE":"minute",
+  "PAPER-05-MINOR":"minor",
+  "PAPER-06-INTERMEDIATE":"intermediate",
+  "PAPER-07-PRIMARY":"primary",
+};
+const WAVE_PATTERN=/^W[1-5]$/i;
+const publishedWave=x=>typeof x==="string"&&WAVE_PATTERN.test(x.trim())?x.trim().toUpperCase():null;
+const present=x=>x!==undefined&&x!==null&&String(x).trim()!==""?String(x):null;
+function readEngine22Wave(snapshot,accountId){
+  const degree=DEGREE_KEYS[accountId];
+  const source=snapshot?.strategies?.["intraday_scalp@10m"]?.engine22WaveStrategy;
+  if(!source||!degree)return null;
+  const v3=source.engine22V3Projection?.available===true &&
+    source.engine22V3Projection?.shadowOnly===true
+      ?source.engine22V3Projection:null;
+  // The Strategies page currently labels the legacy operational MICRO as
+  // SUBMICRO. Keep that exact presentation mapping, not the independent V3 MICRO.
+  const operationalSubmicro=degree==="submicro";
+  const stateKey=operationalSubmicro?"micro":degree;
+  const legacy=source.degreeStates?.degrees?.[stateKey] ||
+    source.degreeStates?.[stateKey] || null;
+  const legacyDisplay=source.engine22Display?.degrees?.[stateKey]||null;
+  const canonical=v3?.degreeStates?.[degree]||null;
+  const v3Display=v3?.engine22Display?.degrees?.[degree]||null;
+  // Independent MICRO may ONLY use its published V3 record.
+  if(degree==="micro"&&!canonical&&!v3Display)return null;
+  const state=degree==="micro"?canonical:(operationalSubmicro?legacy:(legacy||canonical));
+  const display=degree==="micro"?v3Display:(operationalSubmicro?legacyDisplay:(legacyDisplay||v3Display));
+  const wave=publishedWave(state?.activeWave) ||
+    publishedWave(state?.parentWave) ||
+    publishedWave(display?.badge);
+  if(!wave)return null;
+  const direction=present(display?.direction)||present(state?.direction);
+  const status=present(state?.stage)||present(state?.lifecycle)||present(display?.headline);
+  const next=present(state?.nextExpectedWave)||present(state?.internalStructure?.nextExpectedInternalWave);
+  const levels=Array.isArray(display?.levels)?display.levels.filter(x=>
+    x&&x.price!==undefined&&x.price!==null&&x.label).slice(0,3):[];
+  return {wave,direction,status,next,levels,
+    source:degree==="submicro"?"Engine 22 operational Submicro":
+      degree==="micro"?"Engine 22 V3 independent Micro":"Engine 22"};
+}
+function WaveContext({snapshot,accountId,loading,error}){
+  const wave=readEngine22Wave(snapshot,accountId);
+  return <div style={{background:"#091925",border:"1px solid #26435b",
+    borderRadius:9,padding:"11px 12px",margin:"12px 0"}}>
+    <div style={{display:"flex",justifyContent:"space-between",gap:8,
+      flexWrap:"wrap",alignItems:"center",marginBottom:6}}>
+      <strong style={{color:"#7dd3fc",fontSize:12}}>ENGINE 22 — CURRENT WAVE</strong>
+      <span style={{fontSize:10,color:"#94a3b8"}}>READ ONLY</span>
+    </div>
+    {wave?<React.Fragment>
+      <div style={{display:"flex",gap:12,alignItems:"baseline",flexWrap:"wrap"}}>
+        <strong style={{fontSize:24,color:"#e2f6ff"}}>{wave.wave}</strong>
+        <strong style={{fontSize:12,color:wave.direction==="DOWN"?"#fca5a5":"#86efac"}}>
+          {wave.direction||"DIRECTION NOT PUBLISHED"}</strong>
+      </div>
+      <div style={{fontSize:12,color:"#cbd5e1",marginTop:3}}>
+        {wave.status||"Status not published"}</div>
+      {wave.next&&<div style={{fontSize:12,marginTop:4}}>Next expected: {wave.next}</div>}
+      {wave.levels.length>0&&<div style={{fontSize:11,color:"#a8c6da",marginTop:7}}>
+        {wave.levels.map((level,i)=><span key={i} style={{marginRight:11}}>
+          {level.label}: {level.price}</span>)}
+      </div>}
+      <div style={{fontSize:10,color:"#8195a7",marginTop:7}}>{wave.source}</div>
+    </React.Fragment>:<div style={{fontSize:12,color:"#fbbf24"}}>
+      {error?"Engine 22 data unavailable":loading?"Loading current wave…":"Wave count not published for this degree"}
+    </div>}
+  </div>;
+}
+
 const panel={background:"#101722",border:"1px solid #293649",borderRadius:12,padding:16};
 const control={background:"#0c1421",color:"#edf2f7",border:"1px solid #405166",
   borderRadius:7,padding:"10px 12px",width:"100%",boxSizing:"border-box"};
@@ -25,6 +101,7 @@ const requestId=()=>{
   throw Error("Browser secure random identity unavailable");
 };
 export default function ManualPaperAccountsPage(){
+  const {data:waveSnapshot,err:waveError,loading:waveLoading}=useDashboardSnapshot("ES",{pollMs:20000,includeContext:1});
   // Access tokens are never persisted in localStorage, cookies, or bundled secrets.
   const [token,setToken]=useState("");
   const [pairing,setPairing]=useState("");
@@ -152,12 +229,13 @@ export default function ManualPaperAccountsPage(){
         Maximum {overview.riskPolicy.maxContractsPerAccount} contracts per account.</p>
       <small>Explicit manual simulated fill prices. No live automatic marks or broker execution.</small>
     </div>}
-    <section style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(230px,1fr))",gap:12}}>
+    <section style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(min(100%,540px),1fr))",gap:12}}>
       {ACCOUNT_SLOTS.map(([id,label])=>{
         const a=accounts.find(item=>item.accountId===id);
         return <article key={id} style={panel}>
           <div style={{color:"#8fb3e8",fontSize:12}}>{id}</div>
           <h3 style={{margin:"7px 0 14px"}}>{label}</h3>
+          <WaveContext snapshot={waveSnapshot} accountId={id} loading={waveLoading} error={waveError}/>
           <div>Starting: <strong>$10,000.00</strong></div>
           <div>Equity: <strong>{a?money(a.equity):"—"}</strong></div>
           <div>Realized: {a?money(a.realizedPnL):"—"}</div>
