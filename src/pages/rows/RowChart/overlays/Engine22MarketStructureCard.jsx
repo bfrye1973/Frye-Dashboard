@@ -603,6 +603,7 @@ function Engine22DegreeCard({
 }
 
 export default function Engine22MarketStructureCard({
+  engine22V3Projection = null,
   engine22Display,
   currentWavelength = null,
   microW2W3TransitionFibs = null,
@@ -638,6 +639,11 @@ export default function Engine22MarketStructureCard({
   const degreeOrder = ["submicro", ...publishedDegreeOrder.filter((degree) => degree !== "submicro")];
 
   const columnCount = Math.max(1, degreeOrder.length);
+  const v3Degrees = engine22V3Projection?.available === true &&
+    engine22V3Projection?.shadowOnly === true
+      ? engine22V3Projection?.engine22Display?.degrees
+      : null;
+  const v3Order = ["intraday_submicro", "micro", "subminute", "minute", "minor", "intermediate", "primary"];
 
   return (
     <div
@@ -682,6 +688,36 @@ export default function Engine22MarketStructureCard({
         </div>
       </div>
 
+      {v3Degrees && (
+        <div style={{ border: "1px solid #2563eb", borderRadius: 10, padding: 10, background: "#0b1628" }}>
+          <div style={{ fontWeight: 900, fontSize: 13, color: "#bfdbfe", marginBottom: 8 }}>
+            ENGINE 22 V3 — SEVEN INDEPENDENT WAVE DEGREES (READ-ONLY)
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 8 }}>
+            {v3Order.map((key) => {
+              const degreeState = v3Degrees[key];
+              const levels = Array.isArray(degreeState?.levels) ? degreeState.levels : [];
+              return (
+                <div key={key} style={{ border: "1px solid #334155", borderRadius: 8, padding: 8, background: "#101b2d" }}>
+                  <div style={{ color: "#e2e8f0", fontWeight: 900, fontSize: 12 }}>{key.replaceAll("_", " ").toUpperCase()}</div>
+                  <div style={{ color: "#93c5fd", fontSize: 12, marginTop: 4 }}>{degreeState?.badge || "UNKNOWN"}</div>
+                  {(degreeState?.rows || []).map((entry, index) => (
+                    <div key={index} style={{ color: "#cbd5e1", fontSize: 11, marginTop: 3 }}>
+                      {entry.label}: {entry.value}
+                    </div>
+                  ))}
+                  {levels.length > 0 && <div style={{ marginTop: 6, color: "#fcd34d", fontSize: 11 }}>
+                    Fib watch: {levels.slice(0, 6).map((entry) => `${entry.ratio ?? entry.key}: ${entry.price}`).join(" · ")}
+                  </div>}
+                </div>
+              );
+            })}
+          </div>
+          <div style={{ fontSize: 11, marginTop: 8, color: "#94a3b8" }}>
+            Shadow intelligence only. No trade permission, sizing, execution, or order management.
+          </div>
+        </div>
+      )}
       <div
         style={{
           display: "grid",

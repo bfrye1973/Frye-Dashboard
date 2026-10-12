@@ -272,6 +272,7 @@ function wavePrice(value) {
 function WaveDegreeRow({ snapshot }) {
   return (
     <Engine22MarketStructureCard
+      engine22V3Projection={snapshot?.strategies?.["intraday_scalp@10m"]?.engine22WaveStrategy?.engine22V3Projection || null}
       engine22Display={getEngine22Display(snapshot)}
       currentWavelength={getEngine22CurrentWavelength(snapshot)}
       microW2W3TransitionFibs={getMicroW2W3TransitionFibs(snapshot)}
