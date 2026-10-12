@@ -278,6 +278,7 @@ function WaveDegreeRow({ snapshot }) {
       microW2W3TransitionFibs={getMicroW2W3TransitionFibs(snapshot)}
       microMidlineConfluence={getMicroNegotiatedMidlineConfluence(snapshot)}
       microPositionContext={getMicroPositionContext(snapshot)}
+      microW3TouchW4Shadow={snapshot?.strategies?.["intraday_scalp@10m"]?.engine22WaveStrategy?.microW3TouchW4Shadow || null}
     />
   );
 }
