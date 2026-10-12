@@ -17,6 +17,7 @@ import { ModeProvider, ViewModes } from "./context/ModeContext";
 const FullChart = React.lazy(() => import("./pages/FullChart"));
 const StrategiesFull = React.lazy(() => import("./pages/StrategiesFull"));
 const JournalFull = React.lazy(() => import("./pages/JournalFull"));
+const ManualPaperAccounts=React.lazy(()=>import("./pages/ManualPaperAccounts"));
 const MarketMeterPage = React.lazy(() => import("./pages/redline/MarketMeterPage"));
 const IndexSectorsPage = React.lazy(() => import("./pages/redline/IndexSectorsPage"));
 const WaveDegreesPage = React.lazy(() => import("./pages/redline/WaveDegreesPage"));
@@ -435,6 +436,12 @@ export default function App() {
                 </RedlineAppShell>
               }
             />
+
+            <Route path="/manual-paper-accounts" element={
+              <RedlineAppShell>
+                <ManualPaperAccounts />
+              </RedlineAppShell>
+            } />
 
             <Route
               path="/journal-full"
