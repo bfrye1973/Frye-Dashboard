@@ -143,6 +143,15 @@ export default function ManualPaperAccountsPage(){
         <span>Current aggregate equity: {isActive?money(overview.totalEquity):"Awaiting secure account data"}</span>
       </div>
     </div>
+    {overview?.riskPolicy&&<div style={{...panel,margin:"0 0 18px"}}>
+      <strong>Simulated futures margin and fee model</strong>
+      <p style={{margin:"7px 0 0"}}>ES: margin {money(overview.riskPolicy.simulatedInitialMargin.ES)} per contract,
+        fee {money(overview.riskPolicy.feePerContractPerSide.ES)} per side.
+        MES: margin {money(overview.riskPolicy.simulatedInitialMargin.MES)} per contract,
+        fee {money(overview.riskPolicy.feePerContractPerSide.MES)} per side.
+        Maximum {overview.riskPolicy.maxContractsPerAccount} contracts per account.</p>
+      <small>Explicit manual simulated fill prices. No live automatic marks or broker execution.</small>
+    </div>}
     <section style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(230px,1fr))",gap:12}}>
       {ACCOUNT_SLOTS.map(([id,label])=>{
         const a=accounts.find(item=>item.accountId===id);
