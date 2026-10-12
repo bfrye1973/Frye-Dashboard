@@ -485,11 +485,19 @@ function submicroW4Display(shadow, transition) {
   const peak = Number(shadow?.w4CandidateEvidence?.peakHigh);
   const origin = Number(transition?.anchors?.w2Low);
   if (!Number.isFinite(peak) || !Number.isFinite(origin) || peak <= origin) return null;
-  return {peak, fibs: [0.236, 0.382, 0.5, 0.618, 0.786].map(ratio => ({
-    key: "w4-" + ratio, label: ratio.toFixed(3),
-    price: Math.round((peak - (peak - origin) * ratio) * 4) / 4,
-    status: "WATCH",
-  }))};
+  // Only completed-candle lows published for this same W3/W4 observation
+  // may mark a retracement touched. A price rebound cannot erase the touch.
+  const evidence = shadow?.w4CandidateEvidence;
+  const completedLow = evidence?.minimumPostPeakLow;
+  const hasVerifiedLow = evidence?.sourceCountId === transition?.sourceCountId &&
+    typeof completedLow === "number" && Number.isFinite(completedLow);
+  return {peak, fibs: [0.236, 0.382, 0.5, 0.618, 0.786].map(ratio => {
+    const price = Math.round((peak - (peak - origin) * ratio) * 4) / 4;
+    return {
+      key: "w4-" + ratio, label: ratio.toFixed(3), price,
+      status: hasVerifiedLow && completedLow <= price ? "TOUCHED" : "WATCH",
+    };
+  })};
 }
 
 function Engine22DegreeCard({
@@ -624,7 +632,7 @@ function Engine22DegreeCard({
           <div style={{color:"#fca5a5",fontSize:11,fontWeight:1000}}>CURRENT W4 DOWN FIB RETRACEMENTS — WATCH ONLY</div>
           <Engine22Line label="W3 peak" value={wavePrice(w4.peak)} />
           <Engine22Line label="W2 origin" value={wavePrice(microW2W3TransitionFibs?.anchors?.w2Low)} />
-          {w4.fibs.map(fib => <Engine22Line key={fib.key} label={fib.label} value={wavePrice(fib.price) + " — " + fib.status} tone="warning" />)}
+          {w4.fibs.map(fib => <Engine22Line key={fib.key} label={fib.label} value={wavePrice(fib.price) + " — " + fib.status} tone={fib.status === "TOUCHED" ? "long" : "warning"} />)}
           <div style={{fontSize:9,color:"#94a3b8"}}>Observational W4 developing display; no confirmed W4 anchor or trading permission.</div>
         </div>
       ) : null}
