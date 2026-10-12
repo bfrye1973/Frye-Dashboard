@@ -6,6 +6,7 @@ on:
     paths:
       - "src/pages/ManualPaperAccounts.jsx"
       - "src/pages/ManualPaperAccounts.live.test.js"
+      - "src/pages/manualPaperSessionMemory.js"
       - ".github/workflows/engine8d-live-paper-monitor.yml"
 permissions:
   contents: read
