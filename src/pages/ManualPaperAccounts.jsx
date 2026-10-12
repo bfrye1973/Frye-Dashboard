@@ -172,6 +172,16 @@ export default function ManualPaperAccountsPage(){
           <div>Current drawdown: {a?money(a.currentDrawdown):"—"}</div>
           <div>Maximum drawdown: {a?money(a.maxDrawdown):"—"}</div>
           <div>Win %: {a?a.winPercentage+"%":"—"}</div>
+          {a&&<details style={{marginTop:12,borderTop:"1px solid #344457",paddingTop:8}}>
+            <summary style={{cursor:"pointer"}}>Positions and execution history</summary>
+            {Object.values(a.positions||{}).map(p=><p key={p.symbol} style={{fontSize:12}}>
+              {p.symbol} · {p.side} · {p.qty} contracts · Avg {p.averageEntryPrice}
+            </p>)}
+            {!Object.keys(a.positions||{}).length&&<p style={{fontSize:12}}>No open positions.</p>}
+            {(a.executions||[]).slice().reverse().map(ex=><p key={ex.executionId} style={{fontSize:12}}>
+              {ex.opening?"ENTRY":"EXIT"} · {ex.symbol} · {ex.qty} at {ex.price} · {ex.executionId}
+            </p>)}
+          </details>}
           {a?.tradingBlocked&&<strong style={{color:"#f87171"}}>JOURNAL RECONCILIATION REQUIRED</strong>}
         </article>;
       })}
