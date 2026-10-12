@@ -11,7 +11,8 @@ const payload = {
   degrees: Object.fromEntries(
     ["primary","intermediate","minor","minute","micro"].map((degree,i) => [
       degree, {degree,drawable:true,lines:[{id:"fib",price:7800+i,label:"1.618",kind:"FIB"}],
-        marks:[{id:"w1",label:"W1",price:7800+i,time:1791630030,status:"CANDIDATE"}]}
+        marks:[{id:"w1",label:"W1",price:7800+i,time:1791630030,status:"CONFIRMED"},
+          {id:"w2",label:"W2",price:7780+i,time:1791630630,status:"CONFIRMED"}]}
     ])
   )
 };
@@ -39,10 +40,12 @@ try {
   const result=await page.evaluate(async()=>{
     const {default:WaveFibOverlay}=await import("/WaveFibOverlay.mjs");
     const callbacks=new Set();
-    let arcs=0;
+    let arcs=0,segments=0;
+    const originalLineTo=CanvasRenderingContext2D.prototype.lineTo;
+    CanvasRenderingContext2D.prototype.lineTo=function(x,y){if(x>=0&&x<=800&&y>=0&&y<=450)segments++;return originalLineTo.call(this,x,y);};
     const originalArc=CanvasRenderingContext2D.prototype.arc;
     CanvasRenderingContext2D.prototype.arc=function(...args){arcs++;return originalArc.apply(this,args);};
-    const ts={timeToCoordinate:t=>t===1791630000?110:null,subscribeVisibleTimeRangeChange:cb=>callbacks.add(cb),
+    const ts={timeToCoordinate:t=>t===1791630000?-40:t===1791630600?110:null,subscribeVisibleTimeRangeChange:cb=>callbacks.add(cb),
       unsubscribeVisibleTimeRangeChange:cb=>callbacks.delete(cb)};
     const chart={timeScale:()=>ts};
     const priceSeries={priceToCoordinate:()=>150};
@@ -72,12 +75,13 @@ try {
       return {afterToggle,afterDestroy:document.querySelectorAll("canvas[data-engine2b-degree]").length,
         listenersRemaining:callbacks.size};
     };
-    return {attached,painted,sizes,arcs};
+    return {attached,painted,sizes,arcs,segments};
   });
   console.log("BROWSER_RENDER_INSPECTION",JSON.stringify(result));
   await page.screenshot({path:"engine2b-browser-smoke.png"});
   assert.equal(result.attached,5);
-  assert.ok(result.arcs>=5,"All five wave marks must snap to the actual nearby candle rather than disappear");
+  assert.ok(result.arcs>=5,"Each degree must retain its visible W2 anchor");
+  assert.ok(result.segments>=5,"Wave geometry must be drawn across the viewport even when W1 is offscreen");
   assert.ok(result.painted.every(Boolean),"All five degree canvases must contain painted fib geometry");
   assert.equal(requests,1,"All five degrees should share one request");
   const cleanup=await page.evaluate(()=>window.__engine2bCleanup());
