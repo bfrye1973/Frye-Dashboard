@@ -162,7 +162,7 @@ export default function WaveFibOverlay({chart, priceSeries, chartContainer, symb
       const validSnap=nearest != null && Math.abs(nearest-t) <= 8*60*60;
       const x=ts.timeToCoordinate(validSnap ? nearest : t), y=priceSeries.priceToCoordinate(p);
       if (!Number.isFinite(x)||!Number.isFinite(y)) {unmapped++;continue;}
-      if (x<0 || x>w || y<0 || y>h) {outside++;continue;}
+      if (x<0 || x>w || y<0 || y>h) outside++;
       points.push({x,y,t,name:mark.label,status:mark.status});
     }
     points.sort((a,b)=>a.t-b.t);
@@ -171,10 +171,25 @@ export default function WaveFibOverlay({chart, priceSeries, chartContainer, symb
         Math.max(4,w*.36),Math.max(28,h-235-degreeLane*22),"#fbbf24");
     }
     if (points.length>1 && style.showWaveLines !== false) {
-      ctx.strokeStyle=color;ctx.lineWidth=width;ctx.beginPath();
-      points.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));ctx.stroke();
+      // Use original canonical endpoints; canvas clips line geometry, not wave structure.
+      ctx.save();ctx.beginPath();ctx.rect(0,0,w,h);ctx.clip();
+      ctx.strokeStyle=color;ctx.lineWidth=width;
+      // Never bridge impulse and correction sequences or missing wave ordinal gaps.
+      const parseWave = name => {
+        const m=String(name||"").match(/^(?:W([1-5])|([ABC]))(?:_|$)/i);
+        if(!m)return null;
+        return m[1]?{family:"IMPULSE",index:Number(m[1])}:{family:"CORRECTION",index:"ABC".indexOf(m[2].toUpperCase())+1};
+      };
+      for(let i=1;i<points.length;i++){
+        const previous=points[i-1],current=points[i];
+        const a=parseWave(previous.name),b=parseWave(current.name);
+        if(!a||!b||a.family!==b.family||b.index!==a.index+1)continue;
+        ctx.beginPath();ctx.moveTo(previous.x,previous.y);ctx.lineTo(current.x,current.y);ctx.stroke();
+      }
+      ctx.restore();
     }
     for (const p of points) {
+      if(p.x<0||p.x>w||p.y<0||p.y>h)continue;
       if(style.showAnchors === false && style.showWaveLabels === false) continue;
       const mature=String(p.status||"").toUpperCase();
       ctx.strokeStyle=color;ctx.lineWidth=mature==="LOCKED"?3:2;
