@@ -13,10 +13,11 @@ try{
  console.log("PREVIEW_DOCUMENT",JSON.stringify({status:navigation?.status(),url:page.url(),title:await page.title(),body:(await page.locator("body").innerText().catch(()=>"" )).slice(0,500),html:(await page.content()).slice(0,400)}));
  const symbol=await page.locator('select').allTextContents();
  console.log("SYMBOL_SELECTS",JSON.stringify(symbol.slice(0,4)));
- await page.getByText("Indicators ▾",{exact:true}).first().click({timeout:25000});
+ await page.getByText("Indicators ▾",{exact:true}).first().waitFor({state:"visible",timeout:60000});
+ await page.getByText("Indicators ▾",{exact:true}).first().click({timeout:15000});
  const micro=page.getByLabel("Fib (Micro)",{exact:true});
  await micro.check({timeout:25000});
- await page.waitForTimeout(60000);
+ await page.waitForTimeout(1500);
  const state=await page.evaluate(()=>{
  const c=document.querySelector('canvas[data-engine2b-degree="micro"]');
  let painted=false;
