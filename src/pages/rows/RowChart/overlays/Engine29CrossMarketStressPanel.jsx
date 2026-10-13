@@ -343,7 +343,16 @@ export default function Engine29CrossMarketStressPanel({ visible = false, symbol
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px 16px" }}>
               <KV label="Parent direction" value={moveView?.parent?.direction} />
               <KV label="Character" value={moveView?.character?.type || "NONE"} />
-              <KV label="Squeeze" value={moveView?.character?.squeeze?.active ? `${moveView.character.squeeze.direction} POSSIBLE SQUEEZE` : "NO ACTIVE SQUEEZE"} />
+              <KV
+                label="Squeeze v2"
+                value={
+                  moveView?.squeezeCampaign?.state &&
+                  moveView.squeezeCampaign.state !== "NO_ACTIVE_SQUEEZE"
+                    ? `${moveView.squeezeCampaign.direction || ""} ${moveView.squeezeCampaign.state}`.trim()
+                    : "NO ACTIVE SQUEEZE"
+                }
+              />
+              <KV label="Legacy squeeze" value={moveView?.character?.squeeze?.active ? `${moveView.character.squeeze.direction} POSSIBLE SQUEEZE` : "NO ACTIVE SQUEEZE"} />
               <KV label="Broad confirmation" value={moveView?.character?.broadConfirmation?.state || "—"} />
               <KV label="Live condition" value={moveView?.liveCondition?.state || "—"} />
               <KV label="Live vs parent" value={moveView?.liveCondition?.contextVsParent || "—"} />
