@@ -1,0 +1,26 @@
+name: Engine 8D Seven Account PAPER Batch
+on:
+  push:
+    branches: [engine8d-seven-account-paper-batch-v1]
+  pull_request:
+    paths:
+      - "src/pages/ManualPaperAccounts.jsx"
+      - "src/pages/manualPaperBatch.js"
+      - "src/pages/manualPaperBatch.test.js"
+      - ".github/workflows/engine8d-seven-paper-batch.yml"
+permissions:
+  contents: read
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: npm ci --ignore-scripts
+      - name: Batch risk and idempotency tests
+        run: CI=true npm test -- --watch=false --runInBand --testPathPattern=manualPaperBatch.test.js
+      - name: Production frontend build
+        run: npm run build
