@@ -801,6 +801,25 @@ export default function Engine22MarketStructureCard({
       price:l.price,
     })),rules:[],
   };
+  const minuteW3Owner = v3ShadowDegrees?.minute?.ownerCorrectionState ===
+    "MINUTE_W3_OWNER_CONTEXT" &&
+    v3ShadowDegrees?.minute?.activeWave === "W3";
+  const minuteW3State = minuteW3Owner ? {
+    ...(engine22Display.degrees?.minute || {}),
+    degree:"minute",
+    label:"Minute",
+    active:true,
+    badge:"W3 UP",
+    subtitle:"Tactical wave — owner W3 context",
+    headline:"WAVE 3 UP — STARTED, CONFIRMATION PENDING",
+    rows:[
+      {label:"Current wave",value:"W3 UP — DEVELOPING"},
+      {label:"Confirmation",value:"7848.50 RECLAIM / 7906.25 CONFIRM"},
+      ...(engine22Display.degrees?.minute?.rows || []).filter(
+        row => !/^(current wave|confirmation)$/i.test(String(row.label||""))
+      ),
+    ],
+  } : null;
   const subminuteW3State = {
     degree:"subminute",label:"Subminute",subtitle:"Owner's larger-degree W3 context",
     active:true,badge:"W3 WATCH",headline:"W3 DEVELOPING — OWNER SHADOW (UNCONFIRMED)",
@@ -873,6 +892,7 @@ export default function Engine22MarketStructureCard({
             state={degree === "submicro" && submicroABC ? submicroState :
               degree === "micro" && microW2 ? microW2State :
               degree === "subminute" && subminuteW3 ? subminuteW3State :
+              degree === "minute" && minuteW3Owner ? minuteW3State :
               engine22Display.degrees?.[degree] || {
                 degree,label:degree,active:false,
                 headline:`${String(degree).toUpperCase()} structure not published.`,
