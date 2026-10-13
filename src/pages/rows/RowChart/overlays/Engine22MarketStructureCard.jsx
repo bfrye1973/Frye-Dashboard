@@ -616,6 +616,11 @@ function Engine22DegreeCard({
               <div style={{fontSize:10,color:"#bfdbfe",fontWeight:900}}>
                 {v3Shadow.fibonacci.modelType} — {v3Shadow.fibonacci.provisional ? "PROVISIONAL" : "SHADOW ONLY"}
               </div>
+              {v3Shadow.fibonacci.anchorOnly === true ? (
+                <div style={{fontSize:10,color:"#fbbf24"}}>
+                  OWNER ANCHORS ONLY — CANDLE TOUCHES UNVERIFIED
+                </div>
+              ) : null}
               {(v3Shadow.levels || []).map(fib => (
                 <Engine22Line key={fib.key} label={fib.key}
                   value={`${Number(fib.price).toFixed(2)} — ${fib.status}`}
