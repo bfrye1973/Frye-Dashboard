@@ -624,7 +624,9 @@ function Engine22DegreeCard({
             </>
           ) : (
             <div style={{fontSize:10,color:"#fbbf24"}}>
-              {v3Shadow.dataStatus === "INSUFFICIENT_HISTORY"
+              {v3Shadow.dataStatus === "PROVISIONAL_NODE_EVIDENCE"
+                ? "PIVOT EVIDENCE ONLY — VERIFIED FIB HISTORY PENDING"
+                : v3Shadow.dataStatus === "INSUFFICIENT_HISTORY"
                 ? "INSUFFICIENT VALIDATED HISTORY"
                 : (v3Shadow.fibonacci?.reasonCodes || v3Shadow.reasonCodes || ["EVIDENCE_PENDING"])[0]}
             </div>
