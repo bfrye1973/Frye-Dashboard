@@ -140,6 +140,30 @@ export function selectEngine29MoveV2View(data = {}, summary = null) {
         liveCondition?.authority || "DIAGNOSTIC_ONLY",
     },
 
+    squeezeCampaign: {
+      raw: data?.marketCharacter?.squeezeCampaign || null,
+      state:
+        data?.marketCharacter?.squeezeCampaign?.state ||
+        "NO_ACTIVE_SQUEEZE",
+      direction:
+        data?.marketCharacter?.squeezeCampaign?.direction ||
+        null,
+      active:
+        data?.marketCharacter?.squeezeCampaign?.active === true,
+      campaignId:
+        data?.marketCharacter?.squeezeCampaign?.campaignId ||
+        null,
+      squeezePressure:
+        data?.marketCharacter?.squeezeCampaign?.squeezePressure ??
+        null,
+      counterToParent:
+        data?.marketCharacter?.squeezeCampaign?.counterToParent === true,
+      available:
+        data?.marketCharacter?.squeezeCampaign?.available === true,
+      dataDegraded:
+        data?.marketCharacter?.squeezeCampaign?.dataDegraded === true,
+    },
+
     oneHour: {
       state:
         display?.oneHour?.state ||
