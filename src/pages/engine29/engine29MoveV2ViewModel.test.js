@@ -53,6 +53,17 @@ const liveFixture = {
       state: "NO_ACTIVE_TRAP",
       side: "NONE",
     },
+    squeezeCampaign: {
+      version: "engine29.squeezeCampaign.v2",
+      available: true,
+      dataDegraded: false,
+      campaignId: "E29SQ-UP-20261013133606",
+      direction: "UP",
+      state: "SQUEEZE_WATCH",
+      active: true,
+      squeezePressure: 45.4,
+      counterToParent: true,
+    },
   },
   display: {
     oneHour: { state: "CAUTION" },
@@ -72,6 +83,12 @@ test("canonical parent owns ES MOVE even when legacy fields conflict", () => {
 
   expect(view.liveCondition.state).toBe("UPSIDE_MOMENTUM_WEAKENING");
   expect(view.liveCondition.authority).toBe("DIAGNOSTIC_ONLY");
+
+  expect(view.squeezeCampaign.state).toBe("SQUEEZE_WATCH");
+  expect(view.squeezeCampaign.direction).toBe("UP");
+  expect(view.squeezeCampaign.campaignId).toBe("E29SQ-UP-20261013133606");
+  expect(view.squeezeCampaign.squeezePressure).toBe(45.4);
+  expect(view.squeezeCampaign.counterToParent).toBe(true);
 
   expect(view.oneHour.state).toBe("CAUTION");
   expect(view.fastTactical.state).toBe("STABILIZING");
@@ -122,6 +139,7 @@ test("shared component contract keeps Redline home compact and full page on same
   const appSource = fs.readFileSync(appPath, "utf8");
 
   expect(fullSource).toContain("selectEngine29MoveV2View");
+  expect(fullSource).toContain("Squeeze v2 Campaign");
   expect(fullSource).toContain("homeCompact");
   expect(previewSource).toContain("<Engine29FullDashboard homeCompact");
   expect(appSource).toContain('path="/engine29-full"');

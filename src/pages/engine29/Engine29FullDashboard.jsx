@@ -155,6 +155,22 @@ function plainLiveState(value) {
   return clean(value);
 }
 
+function plainSqueezeCampaign(campaign) {
+  const state = String(campaign?.state || "NO_ACTIVE_SQUEEZE").toUpperCase();
+  const direction = String(campaign?.direction || "").toUpperCase();
+
+  if (state === "NO_ACTIVE_SQUEEZE") return "NO ACTIVE SQUEEZE";
+
+  const side =
+    direction === "UP"
+      ? "UP"
+      : direction === "DOWN"
+        ? "DOWN"
+        : "";
+
+  return `${side ? `${side} — ` : ""}${clean(state)}`;
+}
+
 function plainContext(value) {
   const text = String(value || "").toUpperCase();
   if (text === "COUNTERTREND_TO_PARENT") return "COUNTERTREND TO 30M PARENT";
@@ -385,6 +401,10 @@ function LiveMonitorCard({ data, display, moveView }) {
   const liveDisplay = display?.liveMonitor || live?.display || {};
   const metrics = live?.metrics || {};
   const canonicalLive = moveView?.liveCondition || {};
+  const squeezeCampaign = moveView?.squeezeCampaign || {};
+  const squeezeCampaignActive =
+    squeezeCampaign?.state &&
+    squeezeCampaign.state !== "NO_ACTIVE_SQUEEZE";
   const state = canonicalLive?.state || live?.state || liveDisplay?.state;
   const color = stateColor(state);
 
@@ -405,10 +425,39 @@ function LiveMonitorCard({ data, display, moveView }) {
       <div style={{ display: "grid", gridTemplateColumns: "1.0fr 1.45fr 1.2fr", gap: 16 }}>
         <div>
           <div style={{ color, fontSize: 24, fontWeight: 950 }}>{plainLiveState(state)}</div>
+          {squeezeCampaignActive ? (
+            <div
+              style={{
+                marginTop: 9,
+                padding: "8px 10px",
+                borderRadius: 9,
+                border: `1px solid ${COLORS.purple}88`,
+                background: `${COLORS.purple}14`,
+              }}
+            >
+              <div style={{ color: COLORS.muted, fontSize: 10, fontWeight: 900, textTransform: "uppercase" }}>
+                Squeeze v2 Campaign
+              </div>
+              <div style={{ marginTop: 3, color: COLORS.purple, fontSize: 16, fontWeight: 950 }}>
+                {plainSqueezeCampaign(squeezeCampaign)}
+              </div>
+              {Number.isFinite(Number(squeezeCampaign?.squeezePressure)) ? (
+                <div style={{ marginTop: 3, color: "#cbd5e1", fontSize: 11 }}>
+                  Pressure {num(squeezeCampaign.squeezePressure, 1)}
+                  {squeezeCampaign?.counterToParent ? " · COUNTER TO 30M PARENT" : ""}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
           <div style={{ marginTop: 10, display: "grid", gap: 6 }}>
+            <LabelValue
+              label="Squeeze v2"
+              value={plainSqueezeCampaign(squeezeCampaign)}
+              color={squeezeCampaignActive ? COLORS.purple : COLORS.muted}
+            />
             <LabelValue label="Participation" value={clean(canonicalLive?.participation || live?.participation || liveDisplay?.participation)} />
             <LabelValue label="10m/20m vs Parent" value={plainContext(canonicalLive?.contextVsParent || live?.contextVsParent || liveDisplay?.contextVsParent || live?.context || liveDisplay?.context)} />
-            <LabelValue label="Parent MOVE" value={plainMoveCharacter(moveView?.parent?.state, moveView?.parent?.direction)} />
+            <LabelValue label="30m Parent MOVE" value={plainMoveCharacter(moveView?.parent?.state, moveView?.parent?.direction)} />
             <LabelValue label="Authority" value="DIAGNOSTIC ONLY" color={COLORS.info} />
           </div>
         </div>
@@ -478,6 +527,7 @@ function MoveCharacterCard({ moveView, data }) {
   const parent = moveView?.parent || {};
   const character = moveView?.character || {};
   const liveCondition = moveView?.liveCondition || {};
+  const squeezeCampaign = moveView?.squeezeCampaign || {};
   const color = stateColor(parent?.state);
   const pressure =
     data?.moveCharacter?.underlyingPressure?.state ||
@@ -497,7 +547,12 @@ function MoveCharacterCard({ moveView, data }) {
         <LabelValue label="Parent direction" value={clean(parent?.direction)} />
         <LabelValue label="Parent source" value={clean(parent?.source)} color={COLORS.info} />
         <LabelValue label="Move character" value={clean(character?.type || "NONE")} />
-        <LabelValue label="Squeeze character" value={squeezeLabel} />
+        <LabelValue
+          label="Squeeze v2 campaign"
+          value={plainSqueezeCampaign(squeezeCampaign)}
+          color={squeezeCampaign?.state && squeezeCampaign.state !== "NO_ACTIVE_SQUEEZE" ? COLORS.purple : COLORS.muted}
+        />
+        <LabelValue label="Legacy squeeze character" value={squeezeLabel} />
         <LabelValue label="Broad confirmation" value={clean(character?.broadConfirmation?.state || "—")} />
         <LabelValue label="Broad target direction" value={clean(character?.broadConfirmation?.targetDirection || "—")} />
         <LabelValue label="Live condition" value={plainLiveState(liveCondition?.state)} />
