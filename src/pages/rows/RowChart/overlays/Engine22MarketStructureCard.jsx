@@ -698,7 +698,7 @@ function Engine22DegreeCard({
         levels={state?.levels}
       />
 
-      {waveDegree && !w4 ? (
+      {waveDegree && !w4 && !ownerW2Correction ? (
         <div style={{border: "1px solid #344156", borderRadius: 8, padding: 6, display: "grid", gap: 4}}>
           <div style={{color: "#bfdbfe", fontWeight: 900, fontSize: 11}}>FIB EXTENSIONS — {waveDegree.activeWave || "—"}</div>
           <Engine22Line label="State" value={waveDegree.state} tone="watch" />
