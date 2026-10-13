@@ -512,10 +512,15 @@ function Engine22DegreeCard({
   waveDegreeOverride = undefined,
   v3Shadow = null,
 }) {
+  const ownerW2Correction = degree === "submicro" &&
+    v3Shadow?.ownerCorrectionState === "SUBMICRO_W2_OWNER_CORRECTED";
   const active = state?.active === true;
   const tone = toneForDegree(degree, state);
   const waveDegree = waveDegreeOverride !== undefined ? waveDegreeOverride : wavelength?.degrees?.[degree] || null;
-  const w4 = legacyMicroWidgets ? submicroW4Display(microW3TouchW4Shadow, microW2W3TransitionFibs) : null;
+  // The old W3/W4 operational hypothesis is superseded on this card by the
+  // owner correction. Do not edit the legacy structural source or trading inputs.
+  const w4 = legacyMicroWidgets && !ownerW2Correction
+    ? submicroW4Display(microW3TouchW4Shadow, microW2W3TransitionFibs) : null;
   const fibLevels = Array.isArray(waveDegree?.levels) ? waveDegree.levels : [];
 
   return (
@@ -606,7 +611,14 @@ function Engine22DegreeCard({
           <div style={{fontSize:11,color:"#c4b5fd",fontWeight:1000}}>
             V3 SHADOW — {String(v3Shadow.dataStatus || "EVIDENCE_PENDING").replaceAll("_"," ")}
           </div>
-          <Engine22Line label="Wave" value={v3Shadow.activeWave || "UNCONFIRMED"} tone="watch" />
+          <Engine22Line label="Wave" value={ownerW2Correction ? "W2 DOWN — DEVELOPING" : v3Shadow.activeWave || "UNCONFIRMED"} tone={ownerW2Correction ? "short" : "watch"} />
+          {ownerW2Correction ? (
+            <>
+              <Engine22Line label="W1 High" value={Number(v3Shadow.ownerW1High?.price).toFixed(2)} />
+              <Engine22Line label="W1 High Time" value={v3Shadow.ownerW1High?.time || "PENDING"} />
+              <Engine22Line label="W1 Low" value="PENDING — RECONCILE BEFORE W2 FIB" tone="warning" />
+            </>
+          ) : null}
           <Engine22Line label="Lifecycle" value={v3Shadow.lifecycle || "EVIDENCE_PENDING"} tone="watch" />
           <Engine22Line label="Candle" value={v3Shadow.sourceTimeframe || "—"} />
           <Engine22Line label="Swing nodes" value={`${v3Shadow.swingHighCount ?? 0} HIGH / ${v3Shadow.swingLowCount ?? 0} LOW`} />
@@ -629,7 +641,9 @@ function Engine22DegreeCard({
             </>
           ) : (
             <div style={{fontSize:10,color:"#fbbf24"}}>
-              {v3Shadow.dataStatus === "PROVISIONAL_NODE_EVIDENCE"
+              {ownerW2Correction
+                ? "W2 RETRACEMENT LEVELS PENDING — VALID W1 LOW REQUIRED"
+                : v3Shadow.dataStatus === "PROVISIONAL_NODE_EVIDENCE"
                 ? "PIVOT EVIDENCE ONLY — VERIFIED FIB HISTORY PENDING"
                 : v3Shadow.dataStatus === "INSUFFICIENT_HISTORY"
                 ? "INSUFFICIENT VALIDATED HISTORY"
@@ -642,7 +656,7 @@ function Engine22DegreeCard({
         </div>
       ) : null}
 
-      {legacyMicroWidgets ? (
+      {legacyMicroWidgets && !ownerW2Correction ? (
         <>
           <MicroMidlineBanner confluence={microMidlineConfluence} />
           <MicroPositionBanner context={microPositionContext} />
@@ -762,6 +776,21 @@ export default function Engine22MarketStructureCard({
     ...(engine22Display.degrees?.micro || {}),
     degree:"submicro",label:"Submicro",subtitle:"Fast operational wave structure",
   };
+  const submicroCorrection = v3ShadowDegrees?.intraday_submicro?.ownerCorrectionState ===
+    "SUBMICRO_W2_OWNER_CORRECTED";
+  const correctedSubmicroState = submicroCorrection ? {
+    degree:"submicro",label:"Submicro",subtitle:"Owner-corrected independent wave",
+    active:true,badge:"W2 DOWN",
+    headline:"W2 DOWN — CURRENT DEVELOPING (OWNER CORRECTED)",
+    rows:[
+      {label:"Wave",value:"W2 DOWN — DEVELOPING"},
+      {label:"W1 High",value:wavePrice(v3ShadowDegrees.intraday_submicro.ownerW1High?.price)},
+      {label:"W1 High Time",value:v3ShadowDegrees.intraday_submicro.ownerW1High?.time || "PENDING"},
+      {label:"W1 Low",value:"PENDING — UNVERIFIED"},
+      {label:"W2 Fibs",value:"PENDING VERIFIED W1 LOW"},
+    ],
+    levels:[],rules:[],
+  } : oldMicroAsSubmicro;
 
   return (
     <div
@@ -820,7 +849,7 @@ export default function Engine22MarketStructureCard({
             degree={degree}
             v3Shadow={v3ShadowDegrees?.[degree] || (degree === "submicro" ? v3ShadowDegrees?.intraday_submicro : null) || null}
             wavelength={currentWavelength}
-            legacyMicroWidgets={degree === "submicro"}
+            legacyMicroWidgets={degree === "submicro" && !submicroCorrection}
             waveDegreeOverride={degree === "submicro"
               ? currentWavelength?.degrees?.micro || null
               : degree === "micro" ? null : undefined}
@@ -829,7 +858,7 @@ export default function Engine22MarketStructureCard({
             microPositionContext={microPositionContext}
             microW3TouchW4Shadow={degree === "submicro" ? microW3TouchW4Shadow : null}
             state={
-              degree === "submicro" ? oldMicroAsSubmicro :
+              degree === "submicro" ? correctedSubmicroState :
               degree === "micro" ? largerMicroState :
               engine22Display.degrees?.[degree] || {
                 degree,
