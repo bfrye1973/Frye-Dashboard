@@ -635,7 +635,7 @@ function Engine22DegreeCard({
               ) : null}
               {(v3Shadow.levels || []).map(fib => (
                 <Engine22Line key={fib.key} label={fib.key}
-                  value={`${Number(fib.price).toFixed(2)} — ${fib.status}`}
+                  value={`${Number(fib.price).toFixed(2)} — ${fib.ownerReportedTouch ? "OWNER TOUCH (UNVERIFIED)" : fib.status}`}
                   tone={fib.status === "TOUCHED" ? "long" : "watch"} />
               ))}
             </>
@@ -775,9 +775,14 @@ export default function Engine22MarketStructureCard({
       {label:"Wave B high",value:wavePrice(ownerSubmicro?.ownerAbcTurns?.B?.price)},
       {label:"B completed",value:ownerSubmicro?.ownerAbcTurns?.B?.time || "PENDING"},
       {label:"Wave C",value:"DOWN — DEVELOPING, END UNCONFIRMED"},
+      {label:"C projection",value:"A START ASSUMED AT MICRO W1 HIGH — WATCH ONLY"},
       {label:"Role",value:"Watch for possible MICRO W2 completion"},
       {label:"Confirmation",value:"MICRO structural confirmation still required"},
-    ],levels:[],rules:[],
+    ],
+    levels:(ownerSubmicro?.levels || []).map(l=>({
+      label:`${l.key.toUpperCase()} · ${l.status}`,
+      price:l.price,
+    })),rules:[],
   };
   const microW2State = {
     degree:"micro",label:"Micro",subtitle:"Independent MICRO corrective structure",
@@ -788,7 +793,13 @@ export default function Engine22MarketStructureCard({
       {label:"W1 High",value:String(ownerMicro?.ownerW1HighPrice ?? "PENDING")},
       {label:"W1 High Time",value:"UNVERIFIED — PRICE ONLY"},
       {label:"Current",value:"W2 CORRECTIVE RETRACEMENT"},
-    ],levels:[],rules:[],
+      {label:"Touch status",value:"7845.50 OWNER REPORTED — NOT CANDLE VERIFIED"},
+    ],
+    levels:(ownerMicro?.levels || []).map(l=>({
+      label:l.ownerReportedTouch ? `${l.key.toUpperCase()} · OWNER TOUCH` :
+        `${l.key.toUpperCase()} · ${l.status}`,
+      price:l.price,
+    })),rules:[],
   };
   const subminuteW3State = {
     degree:"subminute",label:"Subminute",subtitle:"Owner's larger-degree W3 context",
@@ -797,7 +808,12 @@ export default function Engine22MarketStructureCard({
       {label:"Wave",value:"W3 — OWNER CONTEXT"},
       {label:"W2 Bottom",value:"~7700 (APPROXIMATE)"},
       {label:"Source",value:"AWAITING VERIFIED STRUCTURAL HISTORY"},
-    ],levels:[],rules:[],
+      {label:"Fib W3",value:"PENDING VERIFIED W1/W2 ANCHORS"},
+    ],
+    levels:Number.isFinite(ownerSubminute?.ownerApproxW2Low)
+      ? [{label:"W2 LOW ~ (APPROX)",price:ownerSubminute.ownerApproxW2Low}]
+      : [],
+    rules:[],
   };
   return (
     <div
