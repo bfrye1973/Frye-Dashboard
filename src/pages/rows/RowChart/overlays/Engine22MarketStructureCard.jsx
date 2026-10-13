@@ -770,7 +770,11 @@ export default function Engine22MarketStructureCard({
     active:true,badge:"ABC DOWN",headline:"A–B–C DOWN — INSIDE MICRO W2 (SHADOW)",
     rows:[
       {label:"Parent",value:"MICRO W2"},
-      {label:"Internal path",value:"A → B → C — LEG UNCONFIRMED"},
+      {label:"Wave A low",value:wavePrice(ownerSubmicro?.ownerAbcTurns?.A?.price)},
+      {label:"A completed",value:ownerSubmicro?.ownerAbcTurns?.A?.time || "PENDING"},
+      {label:"Wave B high",value:wavePrice(ownerSubmicro?.ownerAbcTurns?.B?.price)},
+      {label:"B completed",value:ownerSubmicro?.ownerAbcTurns?.B?.time || "PENDING"},
+      {label:"Wave C",value:"DOWN — DEVELOPING, END UNCONFIRMED"},
       {label:"Role",value:"Watch for possible MICRO W2 completion"},
       {label:"Confirmation",value:"MICRO structural confirmation still required"},
     ],levels:[],rules:[],
