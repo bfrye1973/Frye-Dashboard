@@ -616,7 +616,7 @@ function Engine22DegreeCard({
             <>
               <Engine22Line label="W1 High" value={Number(v3Shadow.ownerW1High?.price).toFixed(2)} />
               <Engine22Line label="W1 High Time" value={v3Shadow.ownerW1High?.time || "PENDING"} />
-              <Engine22Line label="W1 Low" value="PENDING — RECONCILE BEFORE W2 FIB" tone="warning" />
+              <Engine22Line label="W1 Low" value={wavePrice(v3Shadow.ownerW1Low?.price)} />
             </>
           ) : null}
           <Engine22Line label="Lifecycle" value={v3Shadow.lifecycle || "EVIDENCE_PENDING"} tone="watch" />
@@ -787,7 +787,7 @@ export default function Engine22MarketStructureCard({
       {label:"W1 High",value:wavePrice(v3ShadowDegrees.intraday_submicro.ownerW1High?.price)},
       {label:"W1 High Time",value:v3ShadowDegrees.intraday_submicro.ownerW1High?.time || "PENDING"},
       {label:"W1 Low",value:wavePrice(v3ShadowDegrees.intraday_submicro.ownerW1Low?.price)},
-      {label:"W2 Fibs",value:"PENDING VERIFIED W1 LOW"},
+      {label:"W1 Low Time",value:v3ShadowDegrees.intraday_submicro.ownerW1Low?.time || "PENDING"},
     ],
     levels:[],rules:[],
   } : oldMicroAsSubmicro;
