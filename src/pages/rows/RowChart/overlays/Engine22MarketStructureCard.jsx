@@ -786,7 +786,7 @@ export default function Engine22MarketStructureCard({
       {label:"Wave",value:"W2 DOWN — DEVELOPING"},
       {label:"W1 High",value:wavePrice(v3ShadowDegrees.intraday_submicro.ownerW1High?.price)},
       {label:"W1 High Time",value:v3ShadowDegrees.intraday_submicro.ownerW1High?.time || "PENDING"},
-      {label:"W1 Low",value:"PENDING — UNVERIFIED"},
+      {label:"W1 Low",value:wavePrice(v3ShadowDegrees.intraday_submicro.ownerW1Low?.price)},
       {label:"W2 Fibs",value:"PENDING VERIFIED W1 LOW"},
     ],
     levels:[],rules:[],
