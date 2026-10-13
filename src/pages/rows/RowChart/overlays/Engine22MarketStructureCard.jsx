@@ -750,16 +750,51 @@ export default function Engine22MarketStructureCard({
     Array.isArray(engine22Display.degreeOrder) && engine22Display.degreeOrder.length
       ? engine22Display.degreeOrder
       : DEFAULT_DEGREE_ORDER;
-  // Restore the original six published operational degrees. The experimental
-  // independent SUBMICRO and larger MICRO V3 rows are not shown as extra cards.
-  // This is presentation only: no backend count, anchors, or trading changes.
-  const degreeOrder = publishedDegreeOrder.filter(degree => degree !== "submicro");
+  // Seven distinct degree cards. SUBMICRO tracks the internal ABC context
+  // inside MICRO W2; never borrow the legacy Micro timing/Fib widgets for it.
+  const degreeOrder = ["submicro", ...publishedDegreeOrder.filter(degree => degree !== "submicro")];
   const columnCount = Math.max(1, degreeOrder.length);
   const v3ShadowDegrees = engine22V3Projection?.available === true &&
     engine22V3Projection?.shadowOnly === true &&
     engine22V3Projection?.v3LiveShadow?.shadowOnly === true
       ? engine22V3Projection.v3LiveShadow.degrees : null;
 
+  const ownerMicro = v3ShadowDegrees?.micro;
+  const ownerSubmicro = v3ShadowDegrees?.intraday_submicro;
+  const ownerSubminute = v3ShadowDegrees?.subminute;
+  const submicroABC = ownerSubmicro?.ownerCorrectionState === "SUBMICRO_ABC_INSIDE_MICRO_W2";
+  const microW2 = ownerMicro?.ownerCorrectionState === "MICRO_W2_OWNER_RECOUNT";
+  const subminuteW3 = ownerSubminute?.ownerCorrectionState === "SUBMINUTE_W3_OWNER_CONTEXT";
+  const submicroState = {
+    degree:"submicro",label:"Submicro",subtitle:"Internal correction within MICRO W2",
+    active:true,badge:"ABC DOWN",headline:"A–B–C DOWN — INSIDE MICRO W2 (SHADOW)",
+    rows:[
+      {label:"Parent",value:"MICRO W2"},
+      {label:"Internal path",value:"A → B → C — LEG UNCONFIRMED"},
+      {label:"Role",value:"Watch for possible MICRO W2 completion"},
+      {label:"Confirmation",value:"MICRO structural confirmation still required"},
+    ],levels:[],rules:[],
+  };
+  const microW2State = {
+    degree:"micro",label:"Micro",subtitle:"Independent MICRO corrective structure",
+    active:true,badge:"W2 DOWN",headline:"W2 DOWN — DEVELOPING (OWNER SHADOW)",
+    rows:[
+      {label:"W1 Low",value:"7677.25"},
+      {label:"W1 Low Time",value:"2026-10-01 08:30"},
+      {label:"W1 High",value:String(ownerMicro?.ownerW1HighPrice ?? "PENDING")},
+      {label:"W1 High Time",value:"UNVERIFIED — PRICE ONLY"},
+      {label:"Current",value:"W2 CORRECTIVE RETRACEMENT"},
+    ],levels:[],rules:[],
+  };
+  const subminuteW3State = {
+    degree:"subminute",label:"Subminute",subtitle:"Owner's larger-degree W3 context",
+    active:true,badge:"W3 WATCH",headline:"W3 DEVELOPING — OWNER SHADOW (UNCONFIRMED)",
+    rows:[
+      {label:"Wave",value:"W3 — OWNER CONTEXT"},
+      {label:"W2 Bottom",value:"~7700 (APPROXIMATE)"},
+      {label:"Source",value:"AWAITING VERIFIED STRUCTURAL HISTORY"},
+    ],levels:[],rules:[],
+  };
   return (
     <div
       style={{
@@ -815,24 +850,25 @@ export default function Engine22MarketStructureCard({
           <Engine22DegreeCard
             key={degree}
             degree={degree}
-            state={engine22Display.degrees?.[degree] || {
-              degree,
-              label: degree,
-              active: false,
-              headline: `${String(degree).toUpperCase()} structure not published.`,
-              rows: [],
-              levels: [],
-              rules: [],
-            }}
-            // The operational MICRO card reads its original operational owner,
-            // not either provisional V3 Submicro/Micro hypothesis.
-            v3Shadow={degree === "micro" ? null : v3ShadowDegrees?.[degree] || null}
+            state={degree === "submicro" && submicroABC ? submicroState :
+              degree === "micro" && microW2 ? microW2State :
+              degree === "subminute" && subminuteW3 ? subminuteW3State :
+              engine22Display.degrees?.[degree] || {
+                degree,label:degree,active:false,
+                headline:`${String(degree).toUpperCase()} structure not published.`,
+                rows:[],levels:[],rules:[],
+              }}
+            v3Shadow={degree === "submicro" ? ownerSubmicro :
+              degree === "micro" ? ownerMicro :
+              degree === "subminute" ? ownerSubminute :
+              v3ShadowDegrees?.[degree] || null}
             wavelength={currentWavelength}
-            legacyMicroWidgets={degree === "micro"}
+            waveDegreeOverride={["submicro","micro","subminute"].includes(degree) ? null : undefined}
+            legacyMicroWidgets={degree === "micro" && !microW2}
             microW2W3TransitionFibs={microW2W3TransitionFibs}
             microMidlineConfluence={microMidlineConfluence}
             microPositionContext={microPositionContext}
-            microW3TouchW4Shadow={degree === "micro" ? microW3TouchW4Shadow : null}
+            microW3TouchW4Shadow={degree === "micro" && !microW2 ? microW3TouchW4Shadow : null}
           />
         ))}
       </div>
