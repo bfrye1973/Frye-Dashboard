@@ -767,14 +767,14 @@ export default function Engine22MarketStructureCard({
   const subminuteW3 = ownerSubminute?.ownerCorrectionState === "SUBMINUTE_W3_OWNER_CONTEXT";
   const submicroState = {
     degree:"submicro",label:"Submicro",subtitle:"Internal correction within MICRO W2",
-    active:true,badge:"ABC DOWN",headline:"A–B–C DOWN — INSIDE MICRO W2 (SHADOW)",
+    active:true,badge:"C DOWN",headline:"FINAL WAVE C DOWN — INSIDE MICRO W2 (DEVELOPING, UNCONFIRMED)",
     rows:[
       {label:"Parent",value:"MICRO W2"},
       {label:"Wave A low",value:wavePrice(ownerSubmicro?.ownerAbcTurns?.A?.price)},
       {label:"A completed",value:ownerSubmicro?.ownerAbcTurns?.A?.time || "PENDING"},
       {label:"Wave B high",value:wavePrice(ownerSubmicro?.ownerAbcTurns?.B?.price)},
       {label:"B completed",value:ownerSubmicro?.ownerAbcTurns?.B?.time || "PENDING"},
-      {label:"Wave C",value:"DOWN — DEVELOPING, END UNCONFIRMED"},
+      {label:"Current leg",value:"FINAL C DOWN — DEVELOPING, LOW NOT CONFIRMED"},
       {label:"C projection",value:"A START ASSUMED AT MICRO W1 HIGH — WATCH ONLY"},
       {label:"Role",value:"Watch for possible MICRO W2 completion"},
       {label:"Confirmation",value:"MICRO structural confirmation still required"},
