@@ -1,7 +1,7 @@
 // src/pages/FullChart.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
-import RowChart from "./rows/RowChart";                  // your existing chart row
+import RowChart from "./RowChartModeGate";                  // your existing chart row
 import TradeDrawer from "../components/trading/TradeDrawer";
 import usePaperStatus from "../hooks/usePaperStatus";    // for the tiny green/red pill
 
