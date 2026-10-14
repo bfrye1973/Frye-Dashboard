@@ -14,7 +14,7 @@
   const finite = x => typeof x === 'number' && Number.isFinite(x);
   const state = {handoff:null,view:'UNADJUSTED',frame:'5m',degree:'ALL',generation:0,request:0,rows:[],identities:new Set(),pageSet:new Set(),cursor:null,zoom:1,offset:0,marks:true};
   const frameSeconds={ '5m':300,'10m':600,'1h':3600,'4h':14400,'1d':86400,'1w':604800,'1mo':2629746 };
-  const date = ns => {if(typeof ns !== 'string' && typeof ns !== 'number')return NaN;const x=String(ns);if(/^\\d{15,}$/.test(x))return Number(x.slice(0,-9));if(/^\\d{10}$/.test(x))return Number(x);const d=Date.parse(x);return Number.isFinite(d)?Math.floor(d/1000):NaN;};
+  const date = ns => {if(typeof ns !== 'string' && typeof ns !== 'number')return NaN;const x=String(ns);if(/^\d{15,}$/.test(x))return Number(x.slice(0,-9));if(/^\d{10}$/.test(x))return Number(x);const d=Date.parse(x);return Number.isFinite(d)?Math.floor(d/1000):NaN;};
   const time = s => new Date(s*1000).toLocaleString('en-US',{timeZone:'America/Phoenix',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
   const rect=(canvas,x,y,w,h,c)=>{canvas.fillStyle=c;canvas.fillRect(x,y,w,h)};
   function selection(){return {view:state.view,frame:state.frame,degree:state.degree};}
@@ -46,12 +46,12 @@
     validatePage(p);
     if(state.pageSet.has(key))return false;
     state.pageSet.add(key);
+    const oldAnchor=state.rows[Math.min(state.rows.length-1,Math.max(0,Math.floor(state.offset)))]?.researchCandleId;
     for(const r of p.rows)if(!state.identities.has(r.researchCandleId)){
       state.identities.add(r.researchCandleId);state.rows.push(r);
     }
     state.rows.sort((a,b)=>date(a.timestampNs)-date(b.timestampNs));
     // Preserve a visible candle's identity when older pages are prepended.
-    const oldAnchor=state.rows.length>p.rows.length ? state.rows[Math.min(state.rows.length-1,Math.floor(state.offset))]?.researchCandleId : null;
     if(state.rows.length>CAP){
       const drop=state.rows.splice(0,state.rows.length-CAP);
       drop.forEach(r=>state.identities.delete(r.researchCandleId));
