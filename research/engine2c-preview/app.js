@@ -158,9 +158,24 @@
     $('coverage').innerHTML='<p><b>Selected:</b> '+escape(LABELS[state.view])+'</p><p><b>Dataset:</b> '+escape(v?.datasetVersion)+'</p><p><b>Price basis:</b> '+escape(v?.priceBasisVersion)+'</p><p><b>Sample source contracts:</b> '+escape(contracts.join(', ')||'UNAVAILABLE')+'</p><p class="warn">Unknown calendars, gaps and source finality are not certified closures. Candidate roll rules do not prove TradingView ES1! equivalence.</p><p><b>Rows loaded:</b> '+r.length+' / '+CAP+'</p>';
     $('fib').textContent='34 ORIGINAL workbook references preserved; 0 official Fibonacci levels plotted. ENGINE 22 CERTIFICATE PENDING.';
   }
+  async function decodePinnedFile(file){
+    const raw=await file.text();
+    if(file.name.endsWith('.json'))return JSON.parse(raw);
+    if(typeof DecompressionStream==='undefined')throw Error('This browser cannot decode zlib; use the documented Node decoder');
+    const binary=Uint8Array.from(atob(raw.trim()),c=>c.charCodeAt(0));
+    const stream=new Blob([binary]).stream().pipeThrough(new DecompressionStream('deflate'));
+    return JSON.parse(await new Response(stream).text());
+  }
+  async function verifyDigest(h){
+    if(!globalThis.crypto?.subtle)throw Error('Secure SHA-256 digest API is unavailable: reject unverified file');
+    const {handoffVersion,...body}=h;
+    const bytes=new TextEncoder().encode(JSON.stringify(body));
+    const digest=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes))).map(b=>b.toString(16).padStart(2,'0')).join('');
+    if(handoffVersion!=='preview-handoff:'+digest)throw Error('Engine11 HANDOFF_DIGEST mismatch; source modified or corrupted');
+  }
   async function importFile(file){
     if(!file)return;
-    try{const h=checkHandoff(JSON.parse(await file.text()));state.handoff=h;clearContext();
+    try{const h=checkHandoff(await decodePinnedFile(file));await verifyDigest(h);state.handoff=h;clearContext();
       $('fixtureInfo').textContent='Loaded pinned research source: '+h.handoffVersion+' · Registry '+(h.nodeLayers.registrySha||'UNKNOWN')+' · 40 nodes / 34 withheld Fib refs.';
       await loadSelection();
     }catch(e){state.handoff=null;clearContext();showError(e);}
