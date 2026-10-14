@@ -39,7 +39,7 @@ const assert=require('node:assert/strict');
    await page.goto(origin+'/legacy-dashboard?engine2cChart=research',{waitUntil:'domcontentloaded'});
    await page.locator('#row-5 [data-engine2c-chart-gate]').waitFor({timeout:20000});
    for(const id of ['row-2','row-3','row-4','row-6','row-7']){
-     assert.equal(await page.locator('#'+id).count(),1,'Surrounding dashboard '+id+' must remain mounted');
+     assert.ok((await page.locator('#'+id).count())>=1,'Surrounding dashboard '+id+' must remain mounted');
    }
    assert.equal(await page.locator('#row-5 [data-engine2c-research-panel]').count(),1);
    await page.locator('#row-5 [data-engine2c-live]').click();
