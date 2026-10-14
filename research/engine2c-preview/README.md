@@ -7,7 +7,7 @@ This self-contained offline chart lives only at `research/engine2c-preview/`. It
 ## Preview startup
 
 1. Obtain `docs/architecture/evidence/engine11-research-chart-preview-handoff-v1.json.zlib.b64` from backend draft PR #136, pinned SHA `6c5dc7f409ef60fa1f9152363315ebb57b3008fd`.
-2. Decode strictly with Node: `node -e "const fs=require('fs'),z=require('zlib');fs.writeFileSync('handoff.json',z.inflateSync(Buffer.from(fs.readFileSync('engine11-research-chart-preview-handoff-v1.json.zlib.b64','utf8').trim(),'base64')))"`. Verify the fixture's upstream SHA and `handoffVersion` with the backend `read.mjs` hash checker **before** loading it into the browser; the local viewer performs schema/authority checks but not cryptographic provenance verification.
+2. The offline page now accepts the original `.json.zlib.b64` directly, inflates it in the browser and checks the exact SHA-256 `handoffVersion`; alternatively, decode strictly with Node: `node -e "const fs=require('fs'),z=require('zlib');fs.writeFileSync('handoff.json',z.inflateSync(Buffer.from(fs.readFileSync('engine11-research-chart-preview-handoff-v1.json.zlib.b64','utf8').trim(),'base64')))"`. Verify the fixture's upstream SHA and `handoffVersion` with the backend `read.mjs` hash checker **before** loading it into the browser; the local viewer performs schema/authority checks but not cryptographic provenance verification.
 3. Open `research/engine2c-preview/index.html` locally in a modern browser. Use the file selector to load `handoff.json`. No server, external scripts, node_modules, feeds or credentials are needed.
 4. Select one of three price views, seven frames and ALL/seven owner degrees. Use Load older sample / Show rollover sample, scroll or drag to pan, and zoom buttons.
 
@@ -20,3 +20,7 @@ This self-contained offline chart lives only at `research/engine2c-preview/`. It
 **Rollback:** Delete `research/engine2c-preview/` from the feature branch or close the offline page. Nothing in production imports this directory.
 
 **Owner:** Engine2C, reporting to Engine2B. Related backend Issue #137 and central Issue #130. Engine22 exclusively owns official structural/Fib authority. Engine11 exclusively owns source-candle contracts.
+
+## Preliminary executable smoke tests
+
+Run `node --test research/engine2c-preview/preview.test.cjs` on Node 20. This mocks a DOM and exercises context rejection, timestamp ordering, deduplication, degree switch viewport retention, and the 25k row cap. It does **not** replace actual browser testing. Isolated CI definition: `.github/workflows/engine2c-research-preview.yml`. Do not claim PASS until test-run result is inspected.
