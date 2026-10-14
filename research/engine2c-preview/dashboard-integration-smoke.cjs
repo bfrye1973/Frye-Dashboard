@@ -42,6 +42,11 @@ const assert=require('node:assert/strict');
      assert.ok((await page.locator('#'+id).count())>=1,'Surrounding dashboard '+id+' must remain mounted');
    }
    assert.equal(await page.locator('#row-5 [data-engine2c-research-panel]').count(),1);
+   for(const id of ['row-2','row-3','row-4','row-6','row-7']){
+     const first=page.locator('#'+id).first();
+     assert.ok((await first.innerText()).trim().length>0,'Surrounding '+id+' must not be empty');
+   }
+   await page.screenshot({path:'/tmp/engine2c-integrated-dashboard-'+name+'.png',fullPage:true});
    await page.locator('#row-5 [data-engine2c-live]').click();
    assert.equal(await page.locator('#row-5 [data-engine2c-live-panel]').count(),1);
    results.push(name+': full-screen + dashboard row RESEARCH/LIVE rollback and surrounding cards rendered');
