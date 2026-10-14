@@ -38,6 +38,14 @@ jobs:
       - name: Serve built SPA on localhost only
         run: |
           npx --yes serve@14 -s build -l 8193 >/tmp/engine2c-integration-server.log 2>&1 &
+      - name: Verify local preview server is ready
+        run: |
+          for i in $(seq 1 60); do
+            if curl --fail --silent http://127.0.0.1:8193/ >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/engine2c-integration-server.log
+          exit 1
       - name: Test integrated chart and reversible rollback
         run: node research/engine2c-preview/dashboard-integration-smoke.cjs
       - name: Archive integrated screenshots
