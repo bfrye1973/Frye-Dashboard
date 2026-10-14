@@ -36,11 +36,11 @@ const path=require('node:path');
    await page.locator('#degree').selectOption('ALL');
    await page.locator('#zoomIn').click();await page.locator('#zoomOut').click();
    await page.locator('#older').click();await page.locator('#roll').click();
-   const state=await page.evaluate(()=>({rows:window.__ENGINE2C_TEST__.state.rows.length,limit:window.__ENGINE2C_TEST__.CAP,official:window.__ENGINE2C_TEST__.state.handoff.nodeLayers.officialFibonacciLevels.length,overflow:document.documentElement.scrollWidth>window.innerWidth+1}));
+   const state=await page.evaluate(()=>({rows:window.__ENGINE2C_TEST__.state.rows.length,limit:window.__ENGINE2C_TEST__.CAP,official:window.__ENGINE2C_TEST__.state.handoff.nodeLayers.officialFibonacciLevels.length,overflow:(()=>{const x=window.scrollX;window.scrollTo(10000,0);const actual=window.scrollX;window.scrollTo(x,0);return actual>1})(),scrollWidth:document.documentElement.scrollWidth,clientWidth:document.documentElement.clientWidth}));
    assert.equal(state.official,0);assert.ok(state.rows<=state.limit);
    if(state.overflow){
      const offenders=await page.evaluate(()=>[...document.querySelectorAll('*')].map(e=>({tag:e.tagName,id:e.id,cls:String(e.className||'').slice(0,80),right:Math.ceil(e.getBoundingClientRect().right),width:Math.ceil(e.getBoundingClientRect().width)})).filter(x=>x.right>innerWidth+1).slice(0,15));
-     console.error('T26 horizontal overflow details',JSON.stringify({viewport,offenders}));
+     console.error('T26 horizontal overflow details',JSON.stringify({viewport,state,offenders}));
    }
    await page.screenshot({path:path.join(out,name+'.png'),fullPage:true});
    assert.equal(state.overflow,false,'Unexpected horizontal viewport overflow');
