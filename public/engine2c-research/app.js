@@ -28,8 +28,9 @@
     if(cursor!==null)args.set('cursor',cursor);
     const res=await fetch(historyEndpoint+'?'+args,{credentials:'same-origin',cache:'no-store',signal,headers:{Accept:'application/json'}});
     if(!res.ok)throw Error('PRIVATE_HISTORY_HTTP_'+res.status);
+    if(!(res.headers.get('content-type')||'').includes('application/json'))throw Error('PRIVATE_HISTORY_INVALID_CONTENT_TYPE');
     const json=await res.json();
-    if(json.datasetVersion!==historyPins[view][0]||json.priceBasisVersion!==historyPins[view][1]||json.direction!=='DESC'||json.frame!==frame||json.rows?.length>1000)throw Error('PRIVATE_HISTORY_BASIS_MISMATCH');
+    if(json.datasetVersion!==historyPins[view][0]||json.priceBasisVersion!==historyPins[view][1]||json.direction!=='DESC'||json.frame!==frame||json.researchOnly!==true||json.structuralEligible!==false||json.executionPriceAuthority!==false||!Array.isArray(json.rows)||json.rows.length>1000)throw Error('PRIVATE_HISTORY_BASIS_MISMATCH');
     return json;
   }
   function currentFixture(){return state.handoff?.fixtures?.[state.view]?.[state.frame]??null;}
@@ -67,7 +68,12 @@
     state.rows.sort((a,b)=>date(a.timestampNs)-date(b.timestampNs));
     // Preserve a visible candle's identity when older pages are prepended.
     if(state.rows.length>CAP){
-      const drop=state.rows.splice(0,state.rows.length-CAP);
+      // When browsing older history, keep the newly requested older end of the window.
+      // A future newer-direction fetch can recover evicted bars; do not silently
+      // discard the just-loaded page by evicting from the older end.
+      const drop=historyEndpoint&&key.startsWith('history-')
+        ?state.rows.splice(CAP,state.rows.length-CAP)
+        :state.rows.splice(0,state.rows.length-CAP);
       drop.forEach(r=>state.identities.delete(r.researchCandleId));
     }
     if(oldAnchor){const nextAnchor=state.rows.findIndex(r=>r.researchCandleId===oldAnchor);if(nextAnchor>=0)state.offset=nextAnchor;}
@@ -127,6 +133,9 @@
     const f=currentFixture();if(!f?.rollPage){$('status').textContent='Rollover sample unavailable for selected native frame.';return;}
     try{appendPage(f.rollPage,'roll');}catch(e){showError(e);}
   }
+  function maybeLoadOlder(){
+    if(historyEndpoint&&historySession&&!historyBusy&&state.cursor!==null&&state.offset<Math.max(20,Math.round(state.rows.length*.03)))older();
+  }
   function zoom(factor){
     if(!state.rows.length)return;
     const oldShown=Math.max(1,Math.min(state.rows.length,Math.round(state.rows.length/state.zoom)));
@@ -134,7 +143,7 @@
     state.zoom=Math.max(1,Math.min(16,Number((state.zoom*factor).toFixed(8))));
     const newShown=Math.max(1,Math.min(state.rows.length,Math.round(state.rows.length/state.zoom)));
     state.offset=Math.max(0,Math.min(state.rows.length-newShown,Math.round(center-(newShown-1)/2)));
-    draw();
+    draw();maybeLoadOlder();
   }
   function yFor(price,lo,hi,top,height){return top+(hi-price)*height/Math.max(hi-lo,1);}
   function draw(){
@@ -231,9 +240,9 @@
   $('zoomIn').addEventListener('click',()=>zoom(1.5));
   $('zoomOut').addEventListener('click',()=>zoom(1/1.5));
   $('reset').addEventListener('click',()=>{state.zoom=1;state.offset=0;draw();});
-  $('chart').addEventListener('wheel',e=>{if(!state.rows.length)return;e.preventDefault();if(e.ctrlKey){zoom(e.deltaY>0?.85:1.15);}else{state.offset=Math.max(0,Math.min(Math.max(0,state.rows.length-1),state.offset+Math.sign(e.deltaY)*2));}draw();},{passive:false});
+  $('chart').addEventListener('wheel',e=>{if(!state.rows.length)return;e.preventDefault();if(e.ctrlKey){zoom(e.deltaY>0?.85:1.15);}else{state.offset=Math.max(0,Math.min(Math.max(0,state.rows.length-1),state.offset+Math.sign(e.deltaY)*2));}draw();maybeLoadOlder();},{passive:false});
   let drag=null;$('chart').addEventListener('pointerdown',e=>{drag=e.clientX;$('chart').setPointerCapture?.(e.pointerId);});
-  $('chart').addEventListener('pointermove',e=>{if(drag==null||!state.rows.length)return;const dx=e.clientX-drag;drag=e.clientX;state.offset=Math.max(0,Math.min(Math.max(0,state.rows.length-1),state.offset-dx/Math.max(12,$('chart').clientWidth/state.rows.length)));draw();});
+  $('chart').addEventListener('pointermove',e=>{if(drag==null||!state.rows.length)return;const dx=e.clientX-drag;drag=e.clientX;state.offset=Math.max(0,Math.min(Math.max(0,state.rows.length-1),state.offset-dx/Math.max(12,$('chart').clientWidth/state.rows.length)));draw();maybeLoadOlder();});
   $('chart').addEventListener('pointerup',()=>{drag=null;});$('chart').addEventListener('pointercancel',()=>{drag=null;});
   if(window.ResizeObserver)new ResizeObserver(draw).observe($('chart'));else window.addEventListener('resize',draw);
   details();draw();
