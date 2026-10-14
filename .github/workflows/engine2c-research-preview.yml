@@ -1,0 +1,70 @@
+name: Engine 2C isolated research preview smoke tests
+on:
+  push:
+    branches:
+      - engine2c-isolated-es-research-preview-v1-20261014
+    paths:
+      - 'research/engine2c-preview/**'
+      - '.github/workflows/engine2c-research-preview.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'research/engine2c-preview/**'
+      - '.github/workflows/engine2c-research-preview.yml'
+  workflow_dispatch:
+jobs:
+  offline-contract:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Run isolated Engine2C Node contract tests
+        run: node --test research/engine2c-preview/preview.test.cjs
+      - name: Check isolation from production entrypoints
+        run: |
+          if grep -R 'engine2c-preview' src/App.js src/index.js; then
+            echo 'Production entrypoint unexpectedly refers to research preview'
+            exit 1
+          fi
+
+  pinned-browser:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Checkout pinned Engine11 handoff
+        uses: actions/checkout@v4
+        with:
+          repository: bfrye1973/frye-market-backend
+          ref: 6c5dc7f409ef60fa1f9152363315ebb57b3008fd
+          path: engine11-source
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Decode pinned research fixture
+        run: |
+          node -e "const fs=require('fs'),z=require('zlib'),p='engine11-source/docs/architecture/evidence/engine11-research-chart-preview-handoff-v1.json.zlib.b64';fs.writeFileSync('/tmp/engine2c-handoff.json',z.inflateSync(Buffer.from(fs.readFileSync(p,'utf8').trim(),'base64')))"
+      - name: Install isolated browser runner
+        run: |
+          npm install --no-save --no-package-lock playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Run offline page on localhost
+        run: |
+          python3 -m http.server 8173 --bind 127.0.0.1 >/tmp/engine2c-http.log 2>&1 &
+      - name: Browser smoke and screenshots
+        env:
+          ENGINE2C_FIXTURE_FILE: /tmp/engine2c-handoff.json
+          ENGINE2C_SCREENSHOTS: /tmp/engine2c-screenshots
+        run: node research/engine2c-preview/browser-smoke.cjs
+      - name: Upload isolated visual evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: engine2c-preview-browser-screenshots
+          path: /tmp/engine2c-screenshots/*.png
+          if-no-files-found: ignore
