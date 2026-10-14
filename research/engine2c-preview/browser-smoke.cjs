@@ -42,9 +42,9 @@ const path=require('node:path');
      const offenders=await page.evaluate(()=>[...document.querySelectorAll('*')].map(e=>({tag:e.tagName,id:e.id,cls:String(e.className||'').slice(0,80),right:Math.ceil(e.getBoundingClientRect().right),width:Math.ceil(e.getBoundingClientRect().width)})).filter(x=>x.right>innerWidth+1).slice(0,15));
      console.error('T26 horizontal overflow details',JSON.stringify({viewport,offenders}));
    }
+   await page.screenshot({path:path.join(out,name+'.png'),fullPage:true});
    assert.equal(state.overflow,false,'Unexpected horizontal viewport overflow');
    assert.deepEqual(errors,[]);
-   await page.screenshot({path:path.join(out,name+'.png'),fullPage:true});
    await page.close();
   }
  }finally{await browser.close();}
