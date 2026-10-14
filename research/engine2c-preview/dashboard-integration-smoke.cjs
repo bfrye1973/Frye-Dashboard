@@ -36,7 +36,7 @@ const assert=require('node:assert/strict');
    await page.locator('[data-engine2c-research-panel]').waitFor({timeout:10000});
    assert.equal(await page.locator('[data-engine2c-live-panel]').count(),0);
    // Actual dashboard row integration must not unmount the surrounding engine cards.
-   await page.goto(origin+'/?engine2cChart=research',{waitUntil:'domcontentloaded'});
+   await page.goto(origin+'/legacy-dashboard?engine2cChart=research',{waitUntil:'domcontentloaded'});
    await page.locator('#row-5 [data-engine2c-chart-gate]').waitFor({timeout:20000});
    for(const id of ['row-2','row-3','row-4','row-6','row-7']){
      assert.equal(await page.locator('#'+id).count(),1,'Surrounding dashboard '+id+' must remain mounted');
