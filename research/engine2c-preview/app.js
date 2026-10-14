@@ -95,7 +95,7 @@
     if(!state.rows.length)return;
     const oldShown=Math.max(1,Math.min(state.rows.length,Math.round(state.rows.length/state.zoom)));
     const center=Math.max(0,state.offset)+(oldShown-1)/2;
-    state.zoom=Math.max(1,Math.min(16,state.zoom*factor));
+    state.zoom=Math.max(1,Math.min(16,Number((state.zoom*factor).toFixed(8))));
     const newShown=Math.max(1,Math.min(state.rows.length,Math.round(state.rows.length/state.zoom)));
     state.offset=Math.max(0,Math.min(state.rows.length-newShown,Math.round(center-(newShown-1)/2)));
     draw();
