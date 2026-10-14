@@ -828,20 +828,15 @@ export default function Engine22MarketStructureCard({
     active:true,badge:"W3 WATCH",headline:"W3 DEVELOPING — OWNER SHADOW (UNCONFIRMED)",
     rows:[
       {label:"Wave",value:"W3 — OWNER CONTEXT"},
-      {label:"W2 Bottom",value:"~7700 (APPROXIMATE)"},
-      {label:"Source",value:"AWAITING VERIFIED STRUCTURAL HISTORY"},
-      {label:"Fib W3",value:"PENDING VERIFIED W1/W2 ANCHORS"},
+      {label:"W1 Low · owner evidence",value:"7616.25"},
+      {label:"W1 High · owner evidence",value:"7847.00"},
+      {label:"W2 Low · owner evidence",value:"7673.25"},
+      {label:"Fib W3",value:"AWAITING ENGINE 22 APPROVED MODEL"},
     ],
-    // Preserve the existing Engine 22 provisional W3 ladder as research
-    // context. This is not a newly approved Fib model or candle touch proof.
-    levels:Array.isArray(currentWavelength?.degrees?.subminute?.levels)
-      ? currentWavelength.degrees.subminute.levels.map(level=>({
-          ...level,
-          label:`${level.label || level.key || "Fib"} · LEGACY MODEL · PROVISIONAL`,
-          status:level.status === "TOUCHED" ? "REPORTED_TOUCH_UNVERIFIED" : "WATCH",
-          anchorSource:level.anchorSource || "ENGINE22_SUBMINUTE_PROVISIONAL",
-        }))
-      : [],
+    // Old provisional W3 ladder uses obsolete anchors; display no official
+    // Fib prices until Engine 22 publishes an approved model-qualified ladder.
+    // The canonical sevenDegreeTouchDisplay contract takes precedence above.
+    levels:[],
     rules:[],
   };
   return (
