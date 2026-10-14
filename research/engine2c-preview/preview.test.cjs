@@ -54,6 +54,23 @@ test('T25 preliminary: degree changes preserve candles and viewport; view change
   assert.equal(api.state.rows.length,2);assert.equal(api.state.offset,1);assert.equal(api.state.generation,generation+1);
   el('view').value='ACTUAL_CONTRACT';api.choose();assert.equal(api.state.rows.length,0);
 });
+test('T25: repeated view/frame changes reject a prior page identity',()=>{
+  const {api,el}=harness();api.state.handoff=fixture();
+  api.appendPage(page([row(0)]),'first');
+  el('view').value='ADJUSTED_RESEARCH';api.choose();
+  assert.throws(()=>api.validatePage(page([row(0)])),/Incompatible/);
+  el('frame').value='10m';api.choose();
+  assert.throws(()=>api.validatePage(page([row(0,'ADJUSTED_RESEARCH','5m')],'ADJUSTED_RESEARCH','5m')),/Incompatible/);
+});
+test('T27: all 21 source view/frame combinations enforce explicit research authority',()=>{
+  const {api,el}=harness();const f=fixture();api.state.handoff=f;
+  for(const view of views)for(const frame of frames){
+    el('view').value=view;el('frame').value=frame;api.choose();
+    assert.doesNotThrow(()=>api.validatePage(f.fixtures[view][frame].firstPage));
+  }
+  assert.equal(f.nodeLayers.withheldFibonacciReferences.length,34);
+  assert.equal(f.nodeLayers.officialFibonacciLevels.length,0);
+});
 test('T26 preliminary: 25,000-row storage bound with distinct identities',()=>{
   const {api}=harness();api.state.handoff=fixture();
   api.appendPage(page(Array.from({length:25010},(_,i)=>row(i))),'big');
