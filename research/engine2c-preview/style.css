@@ -7,3 +7,6 @@ html,body{max-width:100%;}main,.chartWrap,#chart,.toolbar,.cards,.cards section,
 
 /* T26 strict no-document-overflow on phone: long evidence identifiers wrap inside table cells. */
 .cards .scroll table{table-layout:fixed;width:100%!important;min-width:0!important;max-width:100%!important;}.cards .scroll th,.cards .scroll td{overflow-wrap:anywhere;word-break:break-word;white-space:normal;}
+
+/* Keep horizontal gestures inside evidence panels rather than turning into a whole-page pan. */
+html,body{overflow-x:clip;}main{overflow-x:clip;}
