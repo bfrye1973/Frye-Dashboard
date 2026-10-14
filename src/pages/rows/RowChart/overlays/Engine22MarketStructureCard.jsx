@@ -829,8 +829,15 @@ export default function Engine22MarketStructureCard({
       {label:"Source",value:"AWAITING VERIFIED STRUCTURAL HISTORY"},
       {label:"Fib W3",value:"PENDING VERIFIED W1/W2 ANCHORS"},
     ],
-    levels:Number.isFinite(ownerSubminute?.ownerApproxW2Low)
-      ? [{label:"W2 LOW ~ (APPROX)",price:ownerSubminute.ownerApproxW2Low}]
+    // Preserve the existing Engine 22 provisional W3 ladder as research
+    // context. This is not a newly approved Fib model or candle touch proof.
+    levels:Array.isArray(currentWavelength?.degrees?.subminute?.levels)
+      ? currentWavelength.degrees.subminute.levels.map(level=>({
+          ...level,
+          label:`${level.label || level.key || "Fib"} · PROVISIONAL`,
+          status:level.status === "TOUCHED" ? "REPORTED_TOUCH_UNVERIFIED" : "WATCH",
+          anchorSource:level.anchorSource || "ENGINE22_SUBMINUTE_PROVISIONAL",
+        }))
       : [],
     rules:[],
   };
