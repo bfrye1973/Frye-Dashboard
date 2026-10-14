@@ -57,7 +57,7 @@
       drop.forEach(r=>state.identities.delete(r.researchCandleId));
     }
     if(oldAnchor){const nextAnchor=state.rows.findIndex(r=>r.researchCandleId===oldAnchor);if(nextAnchor>=0)state.offset=nextAnchor;}
-    state.cursor=p.nextCursor??null;
+    if(key!=='roll')state.cursor=p.nextCursor??null;
     draw();details();return true;
   }
   function clearContext(){
