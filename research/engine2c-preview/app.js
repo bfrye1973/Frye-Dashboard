@@ -91,6 +91,15 @@
     const f=currentFixture();if(!f?.rollPage){$('status').textContent='Rollover sample unavailable for selected native frame.';return;}
     try{appendPage(f.rollPage,'roll');}catch(e){showError(e);}
   }
+  function zoom(factor){
+    if(!state.rows.length)return;
+    const oldShown=Math.max(1,Math.min(state.rows.length,Math.round(state.rows.length/state.zoom)));
+    const center=Math.max(0,state.offset)+(oldShown-1)/2;
+    state.zoom=Math.max(1,Math.min(16,state.zoom*factor));
+    const newShown=Math.max(1,Math.min(state.rows.length,Math.round(state.rows.length/state.zoom)));
+    state.offset=Math.max(0,Math.min(state.rows.length-newShown,Math.round(center-(newShown-1)/2)));
+    draw();
+  }
   function yFor(price,lo,hi,top,height){return top+(hi-price)*height/Math.max(hi-lo,1);}
   function draw(){
     const root=$('chart'),w=Math.max(320,root.clientWidth),h=Math.max(250,root.clientHeight),dpr=window.devicePixelRatio||1;
@@ -183,14 +192,14 @@
   $('view').addEventListener('change',choose);$('frame').addEventListener('change',choose);$('degree').addEventListener('change',choose);
   $('fixture').addEventListener('change',e=>importFile(e.target.files?.[0]));
   $('older').addEventListener('click',older);$('roll').addEventListener('click',roll);
-  $('zoomIn').addEventListener('click',()=>{state.zoom=Math.min(16,state.zoom*1.5);draw();});
-  $('zoomOut').addEventListener('click',()=>{state.zoom=Math.max(1,state.zoom/1.5);draw();});
+  $('zoomIn').addEventListener('click',()=>zoom(1.5));
+  $('zoomOut').addEventListener('click',()=>zoom(1/1.5));
   $('reset').addEventListener('click',()=>{state.zoom=1;state.offset=0;draw();});
-  $('chart').addEventListener('wheel',e=>{if(!state.rows.length)return;e.preventDefault();if(e.ctrlKey){state.zoom=Math.min(16,Math.max(1,state.zoom*(e.deltaY>0?.85:1.15)));}else{state.offset=Math.max(0,Math.min(Math.max(0,state.rows.length-1),state.offset+Math.sign(e.deltaY)*2));}draw();},{passive:false});
+  $('chart').addEventListener('wheel',e=>{if(!state.rows.length)return;e.preventDefault();if(e.ctrlKey){zoom(e.deltaY>0?.85:1.15);}else{state.offset=Math.max(0,Math.min(Math.max(0,state.rows.length-1),state.offset+Math.sign(e.deltaY)*2));}draw();},{passive:false});
   let drag=null;$('chart').addEventListener('pointerdown',e=>{drag=e.clientX;$('chart').setPointerCapture?.(e.pointerId);});
   $('chart').addEventListener('pointermove',e=>{if(drag==null||!state.rows.length)return;const dx=e.clientX-drag;drag=e.clientX;state.offset=Math.max(0,Math.min(Math.max(0,state.rows.length-1),state.offset-dx/Math.max(12,$('chart').clientWidth/state.rows.length)));draw();});
   $('chart').addEventListener('pointerup',()=>{drag=null;});$('chart').addEventListener('pointercancel',()=>{drag=null;});
   if(window.ResizeObserver)new ResizeObserver(draw).observe($('chart'));else window.addEventListener('resize',draw);
   details();draw();
-  window.__ENGINE2C_TEST__={state,checkHandoff,validatePage,appendPage,clearContext,selection,choose,loadSelection,older,roll,draw,CAP};
+  window.__ENGINE2C_TEST__={state,checkHandoff,validatePage,appendPage,clearContext,selection,choose,loadSelection,older,roll,draw,zoom,CAP};
 })();
