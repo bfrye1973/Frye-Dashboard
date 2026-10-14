@@ -18,9 +18,12 @@
     checkSelection(view,frame);const p=PINS[view];
     if(!page||page.datasetVersion!==p.dataset||page.priceBasisVersion!==p.basis||page.frame!==frame||page.direction!=='DESC'||page.researchOnly!==true||page.structuralEligible!==false||page.executionPriceAuthority!==false||!Array.isArray(page.rows)||page.rows.length>1000)throw Error('HISTORY_PAGE_CONTEXT_MISMATCH');
     if(page.requestCursor!==undefined&&page.requestCursor!==cursor)throw Error('HISTORY_CURSOR_MISMATCH');
-    const ids=new Set();
+    const ids=new Set();let previous=Infinity;
     for(const row of page.rows){
       if(!row||typeof row.researchCandleId!=='string'||ids.has(row.researchCandleId)||row.frame!==frame||row.priceBasisVersion!==p.basis||row.structuralEligible!==false||row.executionPriceAuthority!==false||!row.prices||!['open','high','low','close'].every(k=>Number.isFinite(row.prices[k]))||!Number.isFinite(Date.parse(row.timestampUtc))||(p.contract&&(row.sourceContract!==p.contract||row.adjustment!==0))||(view==='UNADJUSTED'&&row.adjustment!==0)||(view==='ADJUSTED_RESEARCH'&&typeof row.adjustmentVersion!=='string'))throw Error('HISTORY_ROW_INVALID');
+      const current=Date.parse(row.timestampUtc);
+      if(current>previous)throw Error('HISTORY_PAGE_ORDER_INVALID');
+      previous=current;
       ids.add(row.researchCandleId);
     }
     return page;
