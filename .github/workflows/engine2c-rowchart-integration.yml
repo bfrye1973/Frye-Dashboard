@@ -18,6 +18,8 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
@@ -35,7 +37,7 @@ jobs:
           npx playwright install --with-deps chromium
       - name: Serve built SPA on localhost only
         run: |
-          python3 -m http.server 8193 --bind 127.0.0.1 --directory build >/tmp/engine2c-integration-server.log 2>&1 &
+          npx --yes serve@14 -s build -l 8193 >/tmp/engine2c-integration-server.log 2>&1 &
       - name: Test integrated chart and reversible rollback
         run: node research/engine2c-preview/dashboard-integration-smoke.cjs
       - name: Archive integrated screenshots
