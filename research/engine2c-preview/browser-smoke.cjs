@@ -15,14 +15,15 @@ const path=require('node:path');
    const page=await browser.newPage({viewport,deviceScaleFactor:1});
    const errors=[];page.on('pageerror',e=>errors.push(e.message));
    await page.goto(base);
+   // Pinned fixture may autoload on page startup; explicit selection also exercises manual import.
    await page.locator('#fixture').setInputFiles(fixture);
-   await page.waitForFunction(()=>document.querySelector('#status')?.textContent.includes('sample candles loaded'),{timeout:15000});
+   await page.waitForFunction(()=>document.querySelector('#status')?.textContent.includes('sample candles loaded'),null,{timeout:15000});
    assert.match(await page.locator('#fixtureInfo').textContent(),/40 nodes \/ 34 withheld Fib refs/);
    for(const view of ['UNADJUSTED','ADJUSTED_RESEARCH','ACTUAL_CONTRACT']){
     await page.locator('#view').selectOption(view);
     for(const frame of ['5m','10m','1h','4h','1d','1w','1mo']){
      await page.locator('#frame').selectOption(frame);
-     await page.waitForFunction(([v,f])=>{const s=document.querySelector('#status')?.textContent||'';return s.includes(v==='ADJUSTED_RESEARCH'?'Back-adjusted':v==='ACTUAL_CONTRACT'?'ESZ2026':'Unadjusted')&&s.includes('· '+f+' ·')&&s.includes('sample candles loaded');},[view,frame]);
+     await page.waitForFunction(([v,f])=>{const s=document.querySelector('#status')?.textContent||'';return s.includes(v==='ADJUSTED_RESEARCH'?'Back-adjusted':v==='ACTUAL_CONTRACT'?'ESZ2026':'Unadjusted')&&s.includes('· '+f+' ·')&&s.includes('sample candles loaded');},[view,frame],{timeout:15000});
      assert.equal(await page.locator('#chartEmpty').isVisible(),false);
     }
    }
