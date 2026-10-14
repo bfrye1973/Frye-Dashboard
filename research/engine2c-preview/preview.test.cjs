@@ -93,3 +93,12 @@ test('T24 preliminary: rollover sampling does not discard the older-page cursor'
  api.appendPage(page([row(-20)],'UNADJUSTED','5m',null),'roll');
  assert.equal(api.state.cursor,'older-token');
 });
+
+test('T26: zoom at the left edge never produces negative viewport offsets',()=>{
+ const {api}=harness();api.state.handoff=fixture();api.appendPage(page(Array.from({length:100},(_,i)=>row(i))),'hundred');
+ api.state.offset=0;for(let i=0;i<20;i++)api.zoom(1.5);
+ assert.ok(api.state.offset>=0);assert.ok(api.state.offset<api.state.rows.length);
+ for(let i=0;i<20;i++)api.zoom(1/1.5);
+ assert.equal(api.state.zoom,1);
+ assert.equal(api.state.offset,0);
+});
