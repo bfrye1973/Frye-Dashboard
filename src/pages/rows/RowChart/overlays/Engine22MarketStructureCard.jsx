@@ -715,6 +715,7 @@ function Engine22DegreeCard({
 export default function Engine22MarketStructureCard({
   engine22V3Projection = null,
   engine22Display,
+  sevenDegreeTouchDisplay = null,
   currentWavelength = null,
   microW2W3TransitionFibs = null,
   microMidlineConfluence = null,
@@ -742,6 +743,11 @@ export default function Engine22MarketStructureCard({
       </div>
     );
   }
+
+  // Only a model-qualified Engine22 packet may supersede older per-degree
+  // presentation. Never infer status from current ES price in the frontend.
+  const validTouchContract = sevenDegreeTouchDisplay?.schema ===
+    "engine22.sevenDegreeTouchDisplay.v1" ? sevenDegreeTouchDisplay : null;
 
   const publishedDegreeOrder =
     Array.isArray(engine22Display.degreeOrder) && engine22Display.degreeOrder.length
@@ -893,7 +899,15 @@ export default function Engine22MarketStructureCard({
           <Engine22DegreeCard
             key={degree}
             degree={degree}
-            state={degree === "submicro" && submicroABC ? submicroState :
+            state={validTouchContract?.degrees?.[degree]?.available === true
+              ? {
+                  ...(engine22Display.degrees?.[degree] || {}),
+                  degree,
+                  label:degree.toUpperCase(),
+                  active:true,
+                  levels:validTouchContract.degrees[degree].levels,
+                }
+              : degree === "submicro" && submicroABC ? submicroState :
               degree === "micro" && microW2 ? microW2State :
               degree === "subminute" && subminuteW3 ? subminuteW3State :
               degree === "minute" && minuteW3Owner ? minuteW3State :
