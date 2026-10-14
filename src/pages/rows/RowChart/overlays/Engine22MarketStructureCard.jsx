@@ -161,40 +161,37 @@ function Engine22TargetGrid({ title, levels }) {
           gap: 5,
         }}
       >
-        {rows.map((level, index) => (
-          <div
-            key={`${level.label || "level"}-${index}`}
-            style={{
-              border: "1px solid rgba(34,197,94,.35)",
-              borderRadius: 8,
-              background: "#081509",
-              padding: "5px 6px",
-              minWidth: 0,
-            }}
-          >
+        {rows.map((level, index) => {
+          // Display only: Engine 22 owns the touch status and its persistence.
+          // Never turn a provisional or owner-reported touch into a verified one.
+          const verifiedTouch = level.status === "TOUCHED" &&
+            level.provisional !== true && level.touchEvidenceAvailable !== false;
+          const status = verifiedTouch ? "TOUCHED" :
+            level.status === "REPORTED_TOUCH_UNVERIFIED" ? "UNVERIFIED" : "WATCH";
+          const activeColor = verifiedTouch ? "#86efac" : "#fbbf24";
+          return (
             <div
+              key={`${level.key || level.label || "level"}-${index}`}
               style={{
-                color: "#86efac",
-                fontSize: 11,
-                fontWeight: 1000,
-                lineHeight: 1,
+                border: verifiedTouch ? "1px solid rgba(34,197,94,.6)" : "1px solid rgba(245,158,11,.3)",
+                borderRadius: 8,
+                background: verifiedTouch ? "#081b10" : "#19150b",
+                padding: "5px 6px",
+                minWidth: 0,
               }}
             >
-              {level.label}
+              <div style={{color:activeColor,fontSize:11,fontWeight:1000,lineHeight:1}}>
+                {level.label}
+              </div>
+              <div style={{color:"#f8fafc",fontSize:FS.small,fontWeight:1000,lineHeight:1.1}}>
+                {wavePrice(level.price)}
+              </div>
+              <div style={{color:activeColor,fontSize:FS.tiny,fontWeight:900}}>
+                {status}
+              </div>
             </div>
-
-            <div
-              style={{
-                color: "#f8fafc",
-                fontSize: FS.small,
-                fontWeight: 1000,
-                lineHeight: 1.1,
-              }}
-            >
-              {wavePrice(level.price)}
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
