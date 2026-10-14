@@ -77,3 +77,19 @@ test('T26 preliminary: 25,000-row storage bound with distinct identities',()=>{
   assert.equal(api.state.rows.length,25000);assert.equal(api.state.identities.size,25000);
   assert.equal(api.state.rows[0].researchCandleId,'UNADJUSTED-5m-10');
 });
+
+test('T26 preliminary: zoom keeps the same logical chart center',()=>{
+ const {api}=harness();api.state.handoff=fixture();
+ api.appendPage(page(Array.from({length:100},(_,i)=>row(i))),'hundred');
+ api.state.offset=30;api.state.zoom=2;
+ const before=api.state.offset+(Math.round(api.state.rows.length/api.state.zoom)-1)/2;
+ api.zoom(1.5);
+ const after=api.state.offset+(Math.round(api.state.rows.length/api.state.zoom)-1)/2;
+ assert.ok(Math.abs(after-before)<=1,'Zoom must preserve the logical center candle');
+});
+test('T24 preliminary: rollover sampling does not discard the older-page cursor',()=>{
+ const {api}=harness();api.state.handoff=fixture();
+ api.appendPage(page([row(0)],'UNADJUSTED','5m','older-token'),'first');
+ api.appendPage(page([row(-20)],'UNADJUSTED','5m',null),'roll');
+ assert.equal(api.state.cursor,'older-token');
+});
