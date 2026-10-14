@@ -831,7 +831,7 @@ export default function Engine22MarketStructureCard({
     levels:Array.isArray(currentWavelength?.degrees?.subminute?.levels)
       ? currentWavelength.degrees.subminute.levels.map(level=>({
           ...level,
-          label:`${level.label || level.key || "Fib"} · PROVISIONAL`,
+          label:`${level.label || level.key || "Fib"} · LEGACY MODEL · PROVISIONAL`,
           status:level.status === "TOUCHED" ? "REPORTED_TOUCH_UNVERIFIED" : "WATCH",
           anchorSource:level.anchorSource || "ENGINE22_SUBMINUTE_PROVISIONAL",
         }))
