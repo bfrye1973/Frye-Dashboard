@@ -1,0 +1,47 @@
+name: Engine2C RowChart Integration V1
+on:
+  push:
+    branches: [engine2c-rowchart-integration-v1-20261014]
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/pages/RowChartModeGate.jsx'
+      - 'src/pages/FullChart.jsx'
+      - 'src/pages/NewDashboard.jsx'
+      - 'public/engine2c-research/**'
+      - 'research/engine2c-preview/dashboard-integration-smoke.cjs'
+      - '.github/workflows/engine2c-rowchart-integration.yml'
+jobs:
+  integrated-chart:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - name: Verify original chart was not changed
+        run: |
+          git diff --exit-code fe99cddfd7a219da484aa7a8413a76dd7f865d7a -- src/pages/rows/RowChart/index.jsx src/lib/ohlcClient.js || exit 1
+      - name: Install frontend dependencies
+        run: npm ci
+      - name: Build actual production frontend
+        run: npm run build
+      - name: Install Chromium test runner
+        run: |
+          npm install --no-save --no-package-lock playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Serve built SPA on localhost only
+        run: |
+          python3 -m http.server 8193 --bind 127.0.0.1 --directory build >/tmp/engine2c-integration-server.log 2>&1 &
+      - name: Test integrated chart and reversible rollback
+        run: node research/engine2c-preview/dashboard-integration-smoke.cjs
+      - name: Archive integrated screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: engine2c-integrated-dashboard-v1
+          path: /tmp/engine2c-integrated-*.png
+          if-no-files-found: ignore
