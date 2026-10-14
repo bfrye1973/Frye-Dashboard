@@ -1,0 +1,27 @@
+name: Engine 2C isolated research preview smoke tests
+on:
+  push:
+    branches:
+      - engine2c-isolated-es-research-preview-v1-20261014
+    paths:
+      - 'research/engine2c-preview/**'
+      - '.github/workflows/engine2c-research-preview.yml'
+  workflow_dispatch:
+jobs:
+  offline-contract:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Run isolated Engine2C Node contract tests
+        run: node --test research/engine2c-preview/preview.test.cjs
+      - name: Check isolation from production entrypoints
+        run: |
+          if grep -R 'engine2c-preview' src/App.js src/index.js; then
+            echo 'Production entrypoint unexpectedly refers to research preview'
+            exit 1
+          fi
