@@ -24,3 +24,7 @@ This self-contained offline chart lives only at `research/engine2c-preview/`. It
 ## Preliminary executable smoke tests
 
 Run `node --test research/engine2c-preview/preview.test.cjs` on Node 20. This mocks a DOM and exercises context rejection, timestamp ordering, deduplication, degree switch viewport retention, and the 25k row cap. It does **not** replace actual browser testing. Isolated CI definition: `.github/workflows/engine2c-research-preview.yml`. Do not claim PASS until test-run result is inspected.
+
+## Browser smoke runner (new)
+
+`browser-smoke.cjs` exercises the **actual accepted Engine11 PR136 fixture** in headless Chromium, switching 3 views × 7 timeframes and 8 degree selections on desktop (1440×900) and smartphone (390×844). It exercises zoom, pinned sample paging, zero official Fibonacci values, no horizontal viewport overflow and captures two screenshots. The isolated GitHub workflow checks out Engine11 at exact SHA `6c5dc7f409ef60fa1f9152363315ebb57b3008fd`, decodes the compressed fixture, serves the static preview on localhost, and uploads screenshots if execution succeeds. These tests remain **PENDING** until actual CI evidence is visible. This is a smoke suite; it cannot certify T24–T27 in full, particularly a genuine 25,000-candle browser replay or two-year uninterrupted history.
