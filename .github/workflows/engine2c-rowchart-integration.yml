@@ -37,7 +37,12 @@ jobs:
           npx playwright install --with-deps chromium
       - name: Serve built SPA on localhost only
         run: |
-          npx --yes serve@14 -s build -l 8193 >/tmp/engine2c-integration-server.log 2>&1 &
+          node research/engine2c-preview/integration-http.cjs >/tmp/engine2c-integration-server.log 2>&1 &
+      - name: Verify research static asset packaged in CRA build
+        run: |
+          test -s build/engine2c-research/index.html
+          test -s build/engine2c-research/app.js
+          test -s build/engine2c-research/fixture-pinned.js
       - name: Verify local preview server is ready
         run: |
           for i in $(seq 1 60); do
