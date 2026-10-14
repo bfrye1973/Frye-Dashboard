@@ -14,7 +14,7 @@ function harness(){
   }
   const document={getElementById:el,createElement:()=>({style:{},setAttribute(){},getContext:()=>ctx})};
   const window={devicePixelRatio:1,ResizeObserver:class{observe(){}}};
-  const context={document,window,console,Date,Number,Math,JSON,Set,Promise,Error};
+  const context={document,window,ResizeObserver:window.ResizeObserver,console,Date,Number,Math,JSON,Set,Promise,Error};
   vm.createContext(context);
   vm.runInContext(fs.readFileSync(path.join(__dirname,'app.js'),'utf8'),context,{filename:'app.js'});
   return {api:window.__ENGINE2C_TEST__,el};
