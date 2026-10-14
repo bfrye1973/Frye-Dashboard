@@ -44,9 +44,48 @@ const path=require('node:path');
    }
    await page.screenshot({path:path.join(out,name+'.png'),fullPage:true});
    assert.equal(state.overflow,false,'Unexpected horizontal viewport overflow');
+   // Synthetic stress data is TEST-ONLY, never saved as authentic source evidence.
+   // Run after screenshots to ensure visual proof always shows only the pinned Engine11 candles.
+   if(name==='desktop'){
+     const stress=await page.evaluate(()=>{
+       const api=window.__ENGINE2C_TEST__, st=api.state;
+       const sample=st.handoff.fixtures.UNADJUSTED['5m'].firstPage.rows[0];
+       const basis=st.handoff.views.UNADJUSTED;
+       const startNs=BigInt(sample.timestampNs)-BigInt(300*25100)*1000000000n;
+       const generated=Array.from({length:25100},(_,i)=>({
+         ...sample,
+         researchCandleId:'SYNTHETIC_T26_STRESS_'+i,
+         timestampNs:String(startNs+BigInt(i*300)*1000000000n),
+         sourceContract:'ESZ2026',
+         adjustment:0,
+         structuralEligible:false,
+         executionPriceAuthority:false
+       }));
+       api.appendPage({datasetVersion:basis.datasetVersion,priceBasisVersion:basis.priceBasisVersion,frame:'5m',researchOnly:true,structuralEligible:false,executionPriceAuthority:false,rows:generated,nextCursor:null},'T26_SYNTHETIC');
+       const result={loaded:st.rows.length,cache:st.identities.size,cap:api.CAP,unique:new Set(st.rows.map(r=>r.researchCandleId)).size};
+       // Synthetic observations must never persist into the user's evidence view.
+       api.clearContext();api.loadSelection();
+       return result;
+     });
+     assert.equal(stress.loaded,25000,'T26 synthetic browser cache must be 25k bounded');
+     assert.equal(stress.cache,25000,'T26 cache identities must be bounded');
+     assert.equal(stress.unique,25000,'T26 synthetic test must not duplicate candle IDs');
+   }
+   // Rapid same-tick price/frame selection: a stale microtask must not repaint the newest intent.
+   await page.evaluate(()=>{
+     document.querySelector('#view').value='ADJUSTED_RESEARCH';
+     document.querySelector('#view').dispatchEvent(new Event('change',{bubbles:true}));
+     document.querySelector('#view').value='ACTUAL_CONTRACT';
+     document.querySelector('#view').dispatchEvent(new Event('change',{bubbles:true}));
+   });
+   await page.waitForFunction(()=>document.querySelector('#status')?.textContent.includes('Actual ESZ2026'));
+   const latest=await page.evaluate(()=>({view:window.__ENGINE2C_TEST__.state.view,contracts:window.__ENGINE2C_TEST__.state.rows.map(r=>r.sourceContract),adjustments:window.__ENGINE2C_TEST__.state.rows.map(r=>r.adjustment)}));
+   assert.equal(latest.view,'ACTUAL_CONTRACT');
+   assert.ok(latest.contracts.every(x=>x==='ESZ2026'));
+   assert.ok(latest.adjustments.every(x=>x===0));
    assert.deepEqual(errors,[]);
    await page.close();
   }
  }finally{await browser.close();}
- console.log('Engine2C browser smoke verified: 3 views × 7 frames, 8 degrees, desktop/mobile, screenshot capture; T24–T27 full acceptance remains pending.');
+ console.log('Engine2C browser acceptance exercised: 21 source combinations, eight degree controls, pinned integrity, desktop/mobile screenshots, viewport scrolling, newest-intent race guard, and labeled SYNTHETIC 25,100-row browser stress. Full two-year navigation remains unavailable from sample handoff.');
 })().catch(e=>{console.error(e);process.exitCode=1;});
