@@ -50,10 +50,13 @@
       state.identities.add(r.researchCandleId);state.rows.push(r);
     }
     state.rows.sort((a,b)=>date(a.timestampNs)-date(b.timestampNs));
+    // Preserve a visible candle's identity when older pages are prepended.
+    const oldAnchor=state.rows.length>p.rows.length ? state.rows[Math.min(state.rows.length-1,Math.floor(state.offset))]?.researchCandleId : null;
     if(state.rows.length>CAP){
       const drop=state.rows.splice(0,state.rows.length-CAP);
       drop.forEach(r=>state.identities.delete(r.researchCandleId));
     }
+    if(oldAnchor){const nextAnchor=state.rows.findIndex(r=>r.researchCandleId===oldAnchor);if(nextAnchor>=0)state.offset=nextAnchor;}
     state.cursor=p.nextCursor??null;
     draw();details();return true;
   }
@@ -71,7 +74,10 @@
   function choose(){
     const v=$('view').value,f=$('frame').value,d=$('degree').value;
     if(!VIEWS.includes(v)||!FRAMES.includes(f)||!DEGREES.includes(d))return;
-    state.view=v;state.frame=f;state.degree=d;clearContext();
+    const sameCandles=state.view===v&&state.frame===f;
+    state.view=v;state.frame=f;state.degree=d;
+    if(sameCandles){state.generation++;state.request++;draw();details();return;}
+    clearContext();
     if(state.handoff)loadSelection().catch(showError);else details();
   }
   function showError(e){$('status').textContent='RESEARCH LOAD BLOCKED: '+(e?.message||e);$('chartEmpty').hidden=false;}
@@ -95,7 +101,7 @@
     const rows=state.rows,plot={left:60,right:w-62,top:20,bottom:h-40};
     if(!rows.length){$('chartEmpty').hidden=false;return;}$('chartEmpty').hidden=true;
     const count=rows.length;
-    const show=Math.max(2,Math.min(count,Math.round(count/state.zoom)));
+    const show=Math.max(1,Math.min(count,Math.round(count/state.zoom)));
     const start=Math.max(0,Math.min(count-show,Math.round(state.offset)));
     const visible=rows.slice(start,start+show),prices=visible.flatMap(r=>[r.prices.low,r.prices.high]);
     let lo=Math.min(...prices),hi=Math.max(...prices),padding=Math.max((hi-lo)*.10,2);
@@ -126,7 +132,10 @@
         if(!(ts>=first&&ts<=last))continue;
         let i=visible.findIndex(r=>date(r.timestampNs)>=ts);
         if(i<0)continue;
-        const prev=Math.max(0,i-1),p0=date(visible[prev].timestampNs),p1=date(visible[i].timestampNs),fraction=p1===p0?i:prev+(ts-p0)/(p1-p0);
+        const prev=Math.max(0,i-1),p0=date(visible[prev].timestampNs),p1=date(visible[i].timestampNs);
+        // Unknown missing intervals cannot certify mark placement: no connecting across a gap.
+        if(p1-p0>frameSeconds[state.frame]*1.5)continue;
+        const fraction=p1===p0?i:prev+(ts-p0)/(p1-p0);
         const x=plot.left+(fraction+.5)*step,y=yFor(n.originalOwnerCoordinate.price,lo,hi,plot.top,height);
         if(y<plot.top||y>plot.bottom)continue;
         ctx.strokeStyle='#f9b64f';ctx.setLineDash([2,3]);ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(x-8,y);ctx.lineTo(x+8,y);ctx.moveTo(x,y-8);ctx.lineTo(x,y+8);ctx.stroke();ctx.setLineDash([]);
@@ -162,9 +171,9 @@
   $('zoomIn').addEventListener('click',()=>{state.zoom=Math.min(16,state.zoom*1.5);draw();});
   $('zoomOut').addEventListener('click',()=>{state.zoom=Math.max(1,state.zoom/1.5);draw();});
   $('reset').addEventListener('click',()=>{state.zoom=1;state.offset=0;draw();});
-  $('chart').addEventListener('wheel',e=>{if(!state.rows.length)return;e.preventDefault();if(e.ctrlKey){state.zoom=Math.min(16,Math.max(1,state.zoom*(e.deltaY>0?.85:1.15)));}else{state.offset=Math.max(0,Math.min(state.rows.length-2,state.offset+Math.sign(e.deltaY)*2));}draw();},{passive:false});
+  $('chart').addEventListener('wheel',e=>{if(!state.rows.length)return;e.preventDefault();if(e.ctrlKey){state.zoom=Math.min(16,Math.max(1,state.zoom*(e.deltaY>0?.85:1.15)));}else{state.offset=Math.max(0,Math.min(Math.max(0,state.rows.length-1),state.offset+Math.sign(e.deltaY)*2));}draw();},{passive:false});
   let drag=null;$('chart').addEventListener('pointerdown',e=>{drag=e.clientX;$('chart').setPointerCapture?.(e.pointerId);});
-  $('chart').addEventListener('pointermove',e=>{if(drag==null||!state.rows.length)return;const dx=e.clientX-drag;drag=e.clientX;state.offset=Math.max(0,Math.min(state.rows.length-2,state.offset-dx/Math.max(12,$('chart').clientWidth/state.rows.length)));draw();});
+  $('chart').addEventListener('pointermove',e=>{if(drag==null||!state.rows.length)return;const dx=e.clientX-drag;drag=e.clientX;state.offset=Math.max(0,Math.min(Math.max(0,state.rows.length-1),state.offset-dx/Math.max(12,$('chart').clientWidth/state.rows.length)));draw();});
   $('chart').addEventListener('pointerup',()=>{drag=null;});$('chart').addEventListener('pointercancel',()=>{drag=null;});
   if(window.ResizeObserver)new ResizeObserver(draw).observe($('chart'));else window.addEventListener('resize',draw);
   details();draw();
