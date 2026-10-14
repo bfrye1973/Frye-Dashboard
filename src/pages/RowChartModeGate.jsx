@@ -1,0 +1,65 @@
+// Engine 2C Phase 3 — visual-only LIVE / RESEARCH rollback gate.
+// Original RowChart is intentionally unmodified and only mounts in LIVE mode.
+// No research candles can enter OHLC, execution, sizing, zones, Journal or Replay.
+import React, { useState } from "react";
+import LegacyRowChart from "./rows/RowChart/index.jsx";
+
+function initialMode() {
+  if (typeof window === "undefined") return "LIVE";
+  const search = new URLSearchParams(window.location.search);
+  const override = search.get("engine2cChart");
+  if (override === "live") return "LIVE";
+  if (override === "research") return "RESEARCH";
+  return process.env.REACT_APP_ENGINE2C_DEFAULT_RESEARCH === "true" ? "RESEARCH" : "LIVE";
+}
+
+export default function RowChartModeGate(props) {
+  const [mode, setMode] = useState(initialMode);
+  const research = mode === "RESEARCH";
+  const select = (next) => {
+    setMode(next);
+    // This flag changes only the visible frontend presentation, not engine authority.
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      url.searchParams.set("engine2cChart", next.toLowerCase());
+      window.history.replaceState(window.history.state, "", url.toString());
+    }
+  };
+  return (
+    <section data-engine2c-chart-gate style={{ minWidth: 0, width: "100%" }}>
+      <nav aria-label="Chart display selection" style={{
+        display:"flex", alignItems:"center", flexWrap:"wrap", gap:8,
+        padding:"9px 12px", color:"#e2e8f0", background:"#0b1220",
+        border:"1px solid #334155", borderRadius:8, marginBottom:6
+      }}>
+        <strong style={{ marginRight:10 }}>ES CHART VIEW</strong>
+        <button type="button" aria-pressed={!research} onClick={() => select("LIVE")}
+          data-engine2c-live
+          style={{ background:research?"#1e293b":"#166534", color:"white", border:"1px solid #64748b", borderRadius:6, padding:"7px 12px", cursor:"pointer" }}>
+          LIVE — original chart
+        </button>
+        <button type="button" aria-pressed={research} onClick={() => select("RESEARCH")}
+          data-engine2c-research
+          style={{ background:research?"#92400e":"#1e293b", color:"white", border:"1px solid #64748b", borderRadius:6, padding:"7px 12px", cursor:"pointer" }}>
+          RESEARCH — seven-degree ES
+        </button>
+        <span style={{ fontSize:12, color:"#fbbf24" }}>
+          {research ? "ARCHIVED SAMPLE / NOT LIVE / NONOFFICIAL" : "LIVE feeds + existing engine overlays"}
+        </span>
+      </nav>
+      {research ? (
+        <div data-engine2c-research-panel style={{ position:"relative",minWidth:0,width:"100%",height:props.fullScreen?"calc(100vh - 220px)":"min(860px, 85vh)",minHeight:470 }}>
+          <iframe
+            title="Engine 2C seven-degree ES research — archived historical sample, not live"
+            src={`${process.env.PUBLIC_URL || ""}/engine2c-research/index.html`}
+            loading="eager"
+            style={{ width:"100%", height:"100%", border:"1px solid #334155", borderRadius:8, background:"#090e17" }}
+            sandbox="allow-scripts allow-same-origin"
+          />
+        </div>
+      ) : (
+        <div data-engine2c-live-panel><LegacyRowChart {...props} /></div>
+      )}
+    </section>
+  );
+}
