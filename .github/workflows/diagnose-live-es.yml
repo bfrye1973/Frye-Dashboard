@@ -2,6 +2,8 @@ name: Diagnose production ES LIVE chart read-only
 on:
   push:
     branches: [diagnose-live-es-blank-chart-20261015]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 jobs:
   production-browser-probe:
