@@ -784,22 +784,34 @@ export default function Engine22MarketStructureCard({
       price:l.price,
     })),rules:[],
   };
+  // Read corrected owner projection directly from the Engine 22 backend.
+  // Display-only: all levels WATCH until a separately verified touch contract exists.
+  const microW3 = currentWavelength?.degrees?.micro?.ownerMicroW3;
+  const microW3Levels = microW3?.version === "engine22.microW3OwnerProjection.v1" &&
+    Array.isArray(microW3?.levels)
+    ? microW3.levels.map(l=>({...l,status:"WATCH",provisional:true,touchEvidenceAvailable:false}))
+    : [];
+  const microW3State = {
+    degree:"micro",label:"Micro",subtitle:"Owner-locked W3 projection",
+    active:true,badge:"W3 UP WATCH",headline:"MICRO W3 UP — OWNER PROJECTION",
+    rows:[
+      {label:"W1 Low",value:wavePrice(microW3?.anchors?.w1Low)},
+      {label:"W1 High",value:wavePrice(microW3?.anchors?.w1High)},
+      {label:"W2 Low",value:wavePrice(microW3?.anchors?.w2Low)},
+      {label:"W2 Time",value:microW3?.anchors?.w2LowLocalTime || "—"},
+      {label:"Touches",value:"WATCH — CANDLE VERIFICATION PENDING"},
+    ],
+    levels:microW3Levels,rules:[],
+  };
   const microW2State = {
     degree:"micro",label:"Micro",subtitle:"Independent MICRO corrective structure",
     active:true,badge:"W2 DOWN",headline:"W2 DOWN — DEVELOPING (OWNER SHADOW)",
     rows:[
       {label:"W1 Low",value:"7677.25"},
-      {label:"W1 Low Time",value:"2026-10-01 08:30"},
       {label:"W1 High",value:String(ownerMicro?.ownerW1HighPrice ?? "PENDING")},
-      {label:"W1 High Time",value:"UNVERIFIED — PRICE ONLY"},
       {label:"Current",value:"W2 CORRECTIVE RETRACEMENT"},
-      {label:"Touch status",value:"7845.50 OWNER REPORTED — NOT CANDLE VERIFIED"},
     ],
-    levels:(ownerMicro?.levels || []).map(l=>({
-      label:l.ownerReportedTouch ? `${l.key.toUpperCase()} · OWNER TOUCH` :
-        `${l.key.toUpperCase()} · ${l.status}`,
-      price:l.price,
-    })),rules:[],
+    levels:[],rules:[],
   };
   const minuteW3Owner = v3ShadowDegrees?.minute?.ownerCorrectionState ===
     "MINUTE_W3_OWNER_CONTEXT" &&
@@ -820,19 +832,22 @@ export default function Engine22MarketStructureCard({
       ),
     ],
   } : null;
+  const subminuteW3Levels = currentWavelength?.degrees?.subminute
+    ?.fibAnchorStatus === "OWNER_COORDINATES_CONFIRMED_PRICE_BASIS_PENDING" &&
+    Array.isArray(currentWavelength?.degrees?.subminute?.levels)
+      ? currentWavelength.degrees.subminute.levels.map(l=>({
+          ...l,status:"WATCH",provisional:true,touchEvidenceAvailable:false,
+        })) : [];
   const subminuteW3State = {
-    degree:"subminute",label:"Subminute",subtitle:"Owner's larger-degree W3 context",
-    active:true,badge:"W3 WATCH",headline:"W3 DEVELOPING — OWNER SHADOW (UNCONFIRMED)",
+    degree:"subminute",label:"Subminute",subtitle:"Owner-locked W3 projection",
+    active:true,badge:"W3 UP WATCH",headline:"SUBMINUTE W3 — OWNER PROJECTION",
     rows:[
-      {label:"Wave",value:"W3 — OWNER CONTEXT"},
-      {label:"W2 Bottom",value:"~7700 (APPROXIMATE)"},
-      {label:"Source",value:"AWAITING VERIFIED STRUCTURAL HISTORY"},
-      {label:"Fib W3",value:"PENDING VERIFIED W1/W2 ANCHORS"},
+      {label:"W1 Low",value:"7616.25"},
+      {label:"W1 High",value:"7847.00"},
+      {label:"W2 Low",value:"7673.25"},
+      {label:"Touches",value:"WATCH — CANDLE VERIFICATION PENDING"},
     ],
-    levels:Number.isFinite(ownerSubminute?.ownerApproxW2Low)
-      ? [{label:"W2 LOW ~ (APPROX)",price:ownerSubminute.ownerApproxW2Low}]
-      : [],
-    rules:[],
+    levels:subminuteW3Levels,rules:[],
   };
   return (
     <div
@@ -889,7 +904,9 @@ export default function Engine22MarketStructureCard({
           <Engine22DegreeCard
             key={degree}
             degree={degree}
-            state={degree === "submicro" && submicroABC ? submicroState :
+            state={degree === "micro" && microW3Levels.length ? microW3State :
+              degree === "subminute" && subminuteW3Levels.length ? subminuteW3State :
+              degree === "submicro" && submicroABC ? submicroState :
               degree === "micro" && microW2 ? microW2State :
               degree === "subminute" && subminuteW3 ? subminuteW3State :
               degree === "minute" && minuteW3Owner ? minuteW3State :
@@ -898,7 +915,9 @@ export default function Engine22MarketStructureCard({
                 headline:`${String(degree).toUpperCase()} structure not published.`,
                 rows:[],levels:[],rules:[],
               }}
-            v3Shadow={degree === "submicro" ? ownerSubmicro :
+            v3Shadow={degree === "micro" && microW3Levels.length ? null :
+              degree === "subminute" && subminuteW3Levels.length ? null :
+              degree === "submicro" ? ownerSubmicro :
               degree === "micro" ? ownerMicro :
               degree === "subminute" ? ownerSubminute :
               v3ShadowDegrees?.[degree] || null}
