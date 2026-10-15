@@ -918,7 +918,7 @@ export default function Engine22MarketStructureCard({
                   active:true,
                   levels:validTouchContract.degrees[degree].levels,
                 }
-              : degree === "subminute" && subminuteW3 &&
+              : degree === "subminute" &&
                 ownerSubminuteFibLevels.length ? subminuteW3State
               : validTouchContract?.degrees?.[degree] ? {
                   ...(engine22Display.degrees?.[degree] || {}),
