@@ -945,6 +945,10 @@ export default function Engine22MarketStructureCard({
               }}
             v3Shadow={degree === "submicro" ? ownerSubmicro :
               degree === "micro" ? ownerMicro :
+              // Corrected Subminute owner W3 already has its own Fib ladder.
+              // Suppress its contradictory older V3 shadow on this card only.
+              degree === "subminute" && ownerSubminuteFibLevels.length
+                ? null :
               degree === "subminute" ? ownerSubminute :
               v3ShadowDegrees?.[degree] || null}
             wavelength={currentWavelength}
