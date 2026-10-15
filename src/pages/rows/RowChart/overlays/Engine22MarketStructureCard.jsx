@@ -902,6 +902,20 @@ export default function Engine22MarketStructureCard({
                   active:true,
                   levels:validTouchContract.degrees[degree].levels,
                 }
+              : validTouchContract?.degrees?.[degree] ? {
+                  ...(engine22Display.degrees?.[degree] || {}),
+                  degree,
+                  label:degree.toUpperCase(),
+                  active:true,
+                  headline:"FIBONACCI MODEL APPROVAL / SOURCE VERIFICATION PENDING",
+                  rows:[
+                    ...(engine22Display.degrees?.[degree]?.rows || []).filter(row =>
+                      !/fib|target|touch/i.test(String(row.label || ""))),
+                    {label:"Fib touch",value:"WATCH — approved model not yet available"},
+                  ],
+                  levels:[],
+                  rules:[],
+                }
               : degree === "submicro" && submicroABC ? submicroState :
               degree === "micro" && microW2 ? microW2State :
               degree === "subminute" && subminuteW3 ? subminuteW3State :
@@ -916,8 +930,8 @@ export default function Engine22MarketStructureCard({
               degree === "subminute" ? ownerSubminute :
               v3ShadowDegrees?.[degree] || null}
             wavelength={currentWavelength}
-            waveDegreeOverride={["submicro","micro","subminute"].includes(degree) ? null : undefined}
-            legacyMicroWidgets={degree === "micro" && !microW2}
+            waveDegreeOverride={validTouchContract || ["submicro","micro","subminute"].includes(degree) ? null : undefined}
+            legacyMicroWidgets={!validTouchContract && degree === "micro" && !microW2}
             microW2W3TransitionFibs={microW2W3TransitionFibs}
             microMidlineConfluence={microMidlineConfluence}
             microPositionContext={microPositionContext}
