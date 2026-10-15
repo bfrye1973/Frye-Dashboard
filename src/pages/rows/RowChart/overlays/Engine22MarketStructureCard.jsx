@@ -786,19 +786,29 @@ export default function Engine22MarketStructureCard({
     levels:[],
     rules:[],
   };
+  // Consume only Engine 22's owner-locked Micro W3 projection.
+  // Do not independently calculate Fibonacci targets or infer touches here.
+  const microW3Projection = currentWavelength?.degrees?.micro?.ownerMicroW3;
+  const microW3Anchors = microW3Projection?.anchors || null;
+  const microW3Levels = microW3Projection?.version ===
+    "engine22.microW3OwnerProjection.v1" &&
+    Array.isArray(microW3Projection.levels)
+    ? microW3Projection.levels.map(level => ({
+        ...level, status:"WATCH", provisional:true,
+        touchEvidenceAvailable:false,
+      })) : [];
   const microW2State = {
-    degree:"micro",label:"Micro",subtitle:"Owner working wave count",
+    degree:"micro",label:"Micro",subtitle:"Owner-locked Micro W3 projection",
     active:true,badge:"W3 UP WATCH",
-    headline:"WAVE 2 COMPLETION ASSESSED — WAVE 3 UP STARTED (OWNER READ)",
+    headline:"MICRO W2 ENDED — W3 UP STARTED (OWNER COUNT)",
     rows:[
-      {label:"Previous",value:"MICRO W2 — OWNER ASSESSES COMPLETE"},
-      {label:"Current",value:"MICRO W3 UP — STARTED / CONFIRMATION PENDING"},
-      {label:"W1 Low",value:"7677.25 — PRIOR V3 OWNER SHADOW"},
-      {label:"W1 High",value:String(ownerMicro?.ownerW1HighPrice ?? "UNVERIFIED")},
-      {label:"W3 Fibs",value:"AWAITING VERIFIED MICRO W2 PIVOT AND APPROVED MODEL"},
-      {label:"Evidence",value:"OWNER WORKING COUNT; STRUCTURAL CONFIRMATION PENDING"},
+      {label:"W1 Low",value:microW3Anchors ? wavePrice(microW3Anchors.w1Low) : "AWAITING BACKEND"},
+      {label:"W1 High",value:microW3Anchors ? wavePrice(microW3Anchors.w1High) : "AWAITING BACKEND"},
+      {label:"W2 Low",value:microW3Anchors ? wavePrice(microW3Anchors.w2Low) : "AWAITING BACKEND"},
+      {label:"W2 Time",value:microW3Anchors?.w2LowLocalTime || "AWAITING BACKEND"},
+      {label:"Fib touch",value:"WATCH — verified candle evidence pending"},
     ],
-    levels:[],
+    levels:microW3Levels,
     rules:[],
   };
   const minuteW3Owner = v3ShadowDegrees?.minute?.ownerCorrectionState ===
