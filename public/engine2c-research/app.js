@@ -22,6 +22,7 @@
   const historyEndpoint=window.__ENGINE2C_HISTORY_ENDPOINT__=== '/engine2c-private-history/page' ? window.__ENGINE2C_HISTORY_ENDPOINT__ : null;
   if(historyEndpoint){
     const olderButton=$('older');if(olderButton)olderButton.textContent='Load older historical candles';
+    const newerButton=document.createElement('button');newerButton.id='newer';newerButton.textContent='Load newer historical candles';olderButton?.insertAdjacentElement('afterend',newerButton);
     const header=document.querySelector('header p');if(header)header.textContent='UNVERIFIED / AUTHENTIC HISTORICAL RESEARCH / NOT LIVE / NOT EXECUTION ELIGIBLE';
   }
   let historySession=null,historyBusy=false;
@@ -75,7 +76,7 @@
       // When browsing older history, keep the newly requested older end of the window.
       // A future newer-direction fetch can recover evicted bars; do not silently
       // discard the just-loaded page by evicting from the older end.
-      const drop=historyEndpoint&&key.startsWith('history-')
+      const drop=historyEndpoint&&(key.startsWith('history-')||key.startsWith('older-reload-'))
         ?state.rows.splice(CAP,state.rows.length-CAP)
         :state.rows.splice(0,state.rows.length-CAP);
       drop.forEach(r=>state.identities.delete(r.researchCandleId));
@@ -93,11 +94,11 @@
     await Promise.resolve(); // predictable newest-intent guard even for async adapters
     if(gen!==state.generation||seq!==state.request)return;
     if(historyEndpoint){
-      const session={abortController:new AbortController(),page:0,abort(){this.abortController.abort();}};
+      const session={abortController:new AbortController(),page:0,oldestLoaded:0,newestLoaded:0,cursors:[null],serial:0,abort(){this.abortController.abort();}};
       historySession=session;
       const p=await requestHistory(state.view,state.frame,null,session.abortController.signal);
       if(gen!==state.generation||seq!==state.request||historySession!==session)return;
-      appendPage(p,'history-0');session.page=1;return;
+      appendPage(p,'history-0');session.page=1;session.cursors[1]=p.nextCursor;return;
     }
     const fixture=currentFixture();
     if(!fixture)throw Error('No pinned page for selection');
@@ -117,14 +118,22 @@
     if(historyEndpoint){
       const session=historySession;if(!session||historyBusy)return;
       if(state.cursor===null){$('status').textContent='End of approved historical data';return;}
-      const gen=state.generation,cursor=state.cursor,view=state.view,frame=state.frame;
+      const gen=state.generation,view=state.view,frame=state.frame;
+      const reloading=session.oldestLoaded<session.page-1,requestedPage=reloading?session.oldestLoaded+1:session.page;
+      const cursor=reloading?session.cursors[requestedPage]:state.cursor;
+      if(cursor===undefined||cursor===null){if(requestedPage>0){$('status').textContent='End of available history';return;}}
       historyBusy=true;
       try{
         const p=await requestHistory(view,frame,cursor,session.abortController.signal);
         if(gen!==state.generation||historySession!==session)return;
         if(p.requestCursor!==undefined&&p.requestCursor!==cursor)throw Error('PRIVATE_HISTORY_CURSOR_MISMATCH');
         if(p.nextCursor===cursor)throw Error('PRIVATE_HISTORY_CURSOR_LOOP');
-        appendPage(p,'history-'+session.page++);
+        const willEvict=state.rows.length+p.rows.filter(r=>!state.identities.has(r.researchCandleId)).length>CAP;
+        appendPage(p,(reloading?'older-reload-':'history-')+requestedPage+'-'+(++session.serial));
+        session.oldestLoaded=requestedPage;
+        if(willEvict)session.newestLoaded=Math.min(session.oldestLoaded,session.newestLoaded+1);
+        if(!reloading){session.page=requestedPage+1;session.cursors[session.page]=p.nextCursor;}
+        else state.cursor=session.cursors[session.page]??null;
       }catch(e){if(e.name!=='AbortError'&&historySession===session)showError(e);}finally{if(historySession===session)historyBusy=false;}
       return;
     }
@@ -132,6 +141,24 @@
     if(state.pageSet.has('second')||!f.firstPage.nextCursor||!f.secondPage){$('status').textContent='No further pinned older sample page. Unqueried history is unavailable.';return;}
     if(f.secondRequest?.cursor!==f.firstPage.nextCursor){showError(Error('Pinned cursor mismatch'));return;}
     try{appendPage(f.secondPage,'second');}catch(e){showError(e);}
+  }
+  async function newer(){
+    if(!historyEndpoint||!historySession||historyBusy)return;
+    const session=historySession,requestedPage=session.newestLoaded-1;
+    if(requestedPage<0){$('status').textContent='Already at newest archived page';return;}
+    const cursor=session.cursors[requestedPage];
+    if(cursor===undefined)return showError(Error('NEWER_PAGE_CURSOR_MISSING'));
+    const gen=state.generation,view=state.view,frame=state.frame,olderFrontier=state.cursor;
+    historyBusy=true;
+    try{
+      const p=await requestHistory(view,frame,cursor,session.abortController.signal);
+      if(gen!==state.generation||historySession!==session)return;
+      if(p.requestCursor!==undefined&&p.requestCursor!==cursor)throw Error('NEWER_CURSOR_MISMATCH');
+      const willEvict=state.rows.length+p.rows.filter(r=>!state.identities.has(r.researchCandleId)).length>CAP;
+      appendPage(p,'newer-reload-'+requestedPage+'-'+(++session.serial));
+      state.cursor=olderFrontier;session.newestLoaded=requestedPage;
+      if(willEvict)session.oldestLoaded=Math.max(session.newestLoaded,session.oldestLoaded-1);
+    }catch(e){if(e.name!=='AbortError'&&historySession===session)showError(e);}finally{if(historySession===session)historyBusy=false;}
   }
   function roll(){
     const f=currentFixture();if(!f?.rollPage){$('status').textContent='Rollover sample unavailable for selected native frame.';return;}
@@ -240,7 +267,7 @@
   }
   $('view').addEventListener('change',choose);$('frame').addEventListener('change',choose);$('degree').addEventListener('change',choose);
   $('fixture').addEventListener('change',e=>importFile(e.target.files?.[0]));
-  $('older').addEventListener('click',older);$('roll').addEventListener('click',roll);
+  $('older').addEventListener('click',older);$('newer')?.addEventListener('click',newer);$('roll').addEventListener('click',roll);
   $('zoomIn').addEventListener('click',()=>zoom(1.5));
   $('zoomOut').addEventListener('click',()=>zoom(1/1.5));
   $('reset').addEventListener('click',()=>{state.zoom=1;state.offset=0;draw();});
@@ -250,5 +277,5 @@
   $('chart').addEventListener('pointerup',()=>{drag=null;});$('chart').addEventListener('pointercancel',()=>{drag=null;});
   if(window.ResizeObserver)new ResizeObserver(draw).observe($('chart'));else window.addEventListener('resize',draw);
   details();draw();
-  window.__ENGINE2C_TEST__={state,historyEndpoint,requestHistory,checkHandoff,validatePage,appendPage,clearContext,selection,choose,loadSelection,older,roll,draw,zoom,CAP};
+  window.__ENGINE2C_TEST__={state,historyEndpoint,requestHistory,checkHandoff,validatePage,appendPage,clearContext,selection,choose,loadSelection,older,newer,roll,draw,zoom,CAP};
 })();
