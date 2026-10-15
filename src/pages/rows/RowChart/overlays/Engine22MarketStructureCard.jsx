@@ -917,6 +917,8 @@ export default function Engine22MarketStructureCard({
                 }
               : degree === "subminute" &&
                 ownerSubminuteFibLevels.length ? subminuteW3State
+              : degree === "submicro" && submicroABC ? submicroState
+              : degree === "micro" && microW2 ? microW2State
               : validTouchContract?.degrees?.[degree] ? {
                   ...(engine22Display.degrees?.[degree] || {}),
                   degree,
