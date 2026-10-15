@@ -1,0 +1,31 @@
+name: P0 LIVE ES chart height repair
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - src/pages/RowChartModeGate.jsx
+      - research/engine2c-preview/live-height-regression.cjs
+      - .github/workflows/live-height-p0.yml
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: npm ci
+      - run: npm run build
+      - run: |
+          npm install --no-save --no-package-lock playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - run: node research/engine2c-preview/integration-http.cjs >/tmp/live-es-http.log 2>&1 &
+      - run: |
+          for i in $(seq 1 45); do curl -fsS http://127.0.0.1:8193/ >/dev/null && exit 0; sleep 1; done
+          exit 1
+      - run: node research/engine2c-preview/live-height-regression.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: p0-live-height-regression
+          path: /tmp/live-es-fixed.png
