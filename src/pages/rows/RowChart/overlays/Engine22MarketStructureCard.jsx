@@ -14,6 +14,37 @@ function wavePrice(value) {
   return Number.isFinite(n) ? n.toFixed(2) : "—";
 }
 
+// A displayed owner Fib only becomes green when Engine 22 has published a
+// complete, approved ladder matching every key and ES price. Color/status
+// comes solely from persisted backend touch evidence, never the live quote.
+function displayOwnerFibWithVerifiedTouches(ownerLevels, approvedDegree) {
+  if (!Array.isArray(ownerLevels)) return [];
+  const official = approvedDegree?.available === true &&
+    approvedDegree?.provisional !== true &&
+    Array.isArray(approvedDegree?.levels) ? approvedDegree.levels : null;
+  const matching = official && official.length === ownerLevels.length &&
+    ownerLevels.every(level => official.some(fib =>
+      fib.key === level.key && fib.price === level.price));
+  if (!matching) return ownerLevels.map(level => ({
+    ...level, status:"WATCH", provisional:true,
+    touchEvidenceAvailable:false,
+  }));
+  return ownerLevels.map(level => {
+    const fib = official.find(item => item.key === level.key && item.price === level.price);
+    const verified = fib?.status === "TOUCHED" &&
+      fib?.touchEvidence?.verified === true &&
+      typeof fib.touchEvidence.sourceBarId === "string" &&
+      typeof fib.touchEvidence.sourceTimestamp === "string";
+    return {
+      ...level,
+      status: verified ? "TOUCHED" : "WATCH",
+      provisional: !verified,
+      touchEvidenceAvailable: verified,
+      touchEvidence: verified ? fib.touchEvidence : null,
+    };
+  });
+}
+
 function toneForDegree(degree, state) {
   const direction = String(state?.direction || "").toUpperCase();
   const badge = String(state?.badge || "").toUpperCase();
@@ -793,10 +824,9 @@ export default function Engine22MarketStructureCard({
   const microW3Levels = microW3Projection?.version ===
     "engine22.microW3OwnerProjection.v1" &&
     Array.isArray(microW3Projection.levels)
-    ? microW3Projection.levels.map(level => ({
-        ...level, status:"WATCH", provisional:true,
-        touchEvidenceAvailable:false,
-      })) : [];
+    ? displayOwnerFibWithVerifiedTouches(
+        microW3Projection.levels, validTouchContract?.degrees?.micro
+      ) : [];
   const microW2State = {
     degree:"micro",label:"Micro",subtitle:"Owner-locked Micro W3 projection",
     active:true,badge:"W3 UP WATCH",
@@ -838,14 +868,10 @@ export default function Engine22MarketStructureCard({
     subminuteWavelength?.fibAnchorStatus ===
       "OWNER_COORDINATES_CONFIRMED_PRICE_BASIS_PENDING" &&
     Array.isArray(subminuteWavelength?.levels)
-      ? subminuteWavelength.levels
-          .filter(level => Number.isFinite(Number(level?.price)))
-          .map(level => ({
-            ...level,
-            status:"WATCH",
-            provisional:true,
-            touchEvidenceAvailable:false,
-          }))
+      ? displayOwnerFibWithVerifiedTouches(
+          subminuteWavelength.levels.filter(level => Number.isFinite(Number(level?.price))),
+          validTouchContract?.degrees?.subminute
+        )
       : [];
   const subminuteW3State = {
     degree:"subminute",label:"Subminute",subtitle:"Owner's larger-degree W3 context",
@@ -917,7 +943,11 @@ export default function Engine22MarketStructureCard({
           <Engine22DegreeCard
             key={degree}
             degree={degree}
-            state={validTouchContract?.degrees?.[degree]?.available === true
+            state={degree === "micro" && microW2 && microW3Levels.length
+              ? microW2State
+              : degree === "subminute" && ownerSubminuteFibLevels.length
+              ? subminuteW3State
+              : validTouchContract?.degrees?.[degree]?.available === true
               ? {
                   ...(engine22Display.degrees?.[degree] || {}),
                   degree,
