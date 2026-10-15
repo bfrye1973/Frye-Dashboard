@@ -26,7 +26,7 @@ export default function RowChartModeGate(props) {
     }
   };
   return (
-    <section data-engine2c-chart-gate style={{ minWidth: 0, width: "100%" }}>
+    <section data-engine2c-chart-gate style={{ minWidth: 0, width: "100%", ...(props.fullScreen ? { height: "100%", minHeight: 0, display: "flex", flexDirection: "column" } : {}) }}>
       <nav aria-label="Chart display selection" style={{
         display:"flex", alignItems:"center", flexWrap:"wrap", gap:8,
         padding:"9px 12px", color:"#e2e8f0", background:"#0b1220",
@@ -58,7 +58,7 @@ export default function RowChartModeGate(props) {
           />
         </div>
       ) : (
-        <div data-engine2c-live-panel><LegacyRowChart {...props} /></div>
+        <div data-engine2c-live-panel style={props.fullScreen ? { flex: "1 1 auto", minHeight: 0, height: "100%", display: "flex", flexDirection: "column" } : undefined}><LegacyRowChart {...props} /></div>
       )}
     </section>
   );
