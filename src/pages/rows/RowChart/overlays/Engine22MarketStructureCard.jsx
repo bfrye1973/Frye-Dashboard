@@ -161,40 +161,35 @@ function Engine22TargetGrid({ title, levels }) {
           gap: 5,
         }}
       >
-        {rows.map((level, index) => (
-          <div
-            key={`${level.label || "level"}-${index}`}
-            style={{
-              border: "1px solid rgba(34,197,94,.35)",
-              borderRadius: 8,
-              background: "#081509",
-              padding: "5px 6px",
-              minWidth: 0,
-            }}
-          >
+        {rows.map((level, index) => {
+          // Owner-only Micro/Subminute projections have explicit WATCH status.
+          // Never color those cards as a confirmed green touch by default.
+          const pending = level.status === "WATCH" || level.provisional === true;
+          const verified = level.status === "TOUCHED" &&
+            level.provisional !== true && level.touchEvidence?.verified === true;
+          const color = pending ? "#fbbf24" : "#86efac";
+          return (
             <div
+              key={`${level.key || level.label || "level"}-${index}`}
               style={{
-                color: "#86efac",
-                fontSize: 11,
-                fontWeight: 1000,
-                lineHeight: 1,
+                border: pending ? "1px solid rgba(245,158,11,.45)" : "1px solid rgba(34,197,94,.35)",
+                borderRadius: 8,
+                background: pending ? "#19150b" : "#081509",
+                padding: "5px 6px",
+                minWidth: 0,
               }}
             >
-              {level.label}
+              <div style={{color,fontSize:11,fontWeight:1000,lineHeight:1}}>
+                {level.label}
+              </div>
+              <div style={{color:"#f8fafc",fontSize:FS.small,fontWeight:1000,lineHeight:1.1}}>
+                {wavePrice(level.price)}
+              </div>
+              {pending ? <div style={{color,fontSize:FS.tiny,fontWeight:900}}>WATCH</div> : null}
+              {verified ? <div style={{color,fontSize:FS.tiny,fontWeight:900}}>TOUCHED</div> : null}
             </div>
-
-            <div
-              style={{
-                color: "#f8fafc",
-                fontSize: FS.small,
-                fontWeight: 1000,
-                lineHeight: 1.1,
-              }}
-            >
-              {wavePrice(level.price)}
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
@@ -765,24 +760,21 @@ export default function Engine22MarketStructureCard({
   const submicroABC = ownerSubmicro?.ownerCorrectionState === "SUBMICRO_ABC_INSIDE_MICRO_W2";
   const microW2 = ownerMicro?.ownerCorrectionState === "MICRO_W2_OWNER_RECOUNT";
   const subminuteW3 = ownerSubminute?.ownerCorrectionState === "SUBMINUTE_W3_OWNER_CONTEXT";
+  // Owner-directed current count, presentation only. The previous V3 shadow
+  // remains unconfirmed in the backend and never supplies execution authority.
   const submicroState = {
-    degree:"submicro",label:"Submicro",subtitle:"Internal correction within MICRO W2",
-    active:true,badge:"C DOWN",headline:"FINAL WAVE C DOWN — INSIDE MICRO W2 (DEVELOPING, UNCONFIRMED)",
+    degree:"submicro",label:"Submicro",subtitle:"ABC correction — owner working count",
+    active:true,badge:"C COMPLETE · OWNER",
+    headline:"WAVE C COMPLETE — OWNER ASSESSMENT; CANDLE CONFIRMATION PENDING",
     rows:[
-      {label:"Parent",value:"MICRO W2"},
+      {label:"Parent",value:"MICRO W2 — OWNER ASSESSES COMPLETE"},
       {label:"Wave A low",value:wavePrice(ownerSubmicro?.ownerAbcTurns?.A?.price)},
-      {label:"A completed",value:ownerSubmicro?.ownerAbcTurns?.A?.time || "PENDING"},
       {label:"Wave B high",value:wavePrice(ownerSubmicro?.ownerAbcTurns?.B?.price)},
-      {label:"B completed",value:ownerSubmicro?.ownerAbcTurns?.B?.time || "PENDING"},
-      {label:"Current leg",value:"FINAL C DOWN — DEVELOPING, LOW NOT CONFIRMED"},
-      {label:"C projection",value:"A START ASSUMED AT MICRO W1 HIGH — WATCH ONLY"},
-      {label:"Role",value:"Watch for possible MICRO W2 completion"},
-      {label:"Confirmation",value:"MICRO structural confirmation still required"},
+      {label:"Wave C",value:"COMPLETE — OWNER WORKING COUNT"},
+      {label:"Next",value:"AWAITING NEW SUBMICRO WAVE STRUCTURE"},
+      {label:"Evidence",value:"C-LOW PIVOT / STRUCTURAL CONFIRMATION PENDING"},
     ],
-    levels:(ownerSubmicro?.levels || []).map(l=>({
-      label:`${l.key.toUpperCase()} · ${l.status}`,
-      price:l.price,
-    })),rules:[],
+    levels:[],rules:[],
   };
   // Read corrected owner projection directly from the Engine 22 backend.
   // Display-only: all levels WATCH until a separately verified touch contract exists.
@@ -797,6 +789,7 @@ export default function Engine22MarketStructureCard({
     rows:[
       {label:"W1 Low",value:wavePrice(microW3?.anchors?.w1Low)},
       {label:"W1 High",value:wavePrice(microW3?.anchors?.w1High)},
+      {label:"W2 State",value:"COMPLETED — OWNER WORKING COUNT"},
       {label:"W2 Low",value:wavePrice(microW3?.anchors?.w2Low)},
       {label:"W2 Time",value:microW3?.anchors?.w2LowLocalTime || "—"},
       {label:"Touches",value:"WATCH — CANDLE VERIFICATION PENDING"},
@@ -840,8 +833,9 @@ export default function Engine22MarketStructureCard({
         })) : [];
   const subminuteW3State = {
     degree:"subminute",label:"Subminute",subtitle:"Owner-locked W3 projection",
-    active:true,badge:"W3 UP WATCH",headline:"SUBMINUTE W3 — OWNER PROJECTION",
+    active:true,badge:"W3 UP WATCH",headline:"SUBMINUTE W3 — PRIOR C COMPLETION (OWNER ASSESSMENT)",
     rows:[
+      {label:"Prior Wave C",value:"COMPLETE — OWNER WORKING COUNT; NOT CANDLE-CONFIRMED"},
       {label:"W1 Low",value:"7616.25"},
       {label:"W1 High",value:"7847.00"},
       {label:"W2 Low",value:"7673.25"},
@@ -906,7 +900,7 @@ export default function Engine22MarketStructureCard({
             degree={degree}
             state={degree === "micro" && microW3Levels.length ? microW3State :
               degree === "subminute" && subminuteW3Levels.length ? subminuteW3State :
-              degree === "submicro" && submicroABC ? submicroState :
+              degree === "submicro" ? submicroState :
               degree === "micro" && microW2 ? microW2State :
               degree === "subminute" && subminuteW3 ? subminuteW3State :
               degree === "minute" && minuteW3Owner ? minuteW3State :
@@ -915,7 +909,8 @@ export default function Engine22MarketStructureCard({
                 headline:`${String(degree).toUpperCase()} structure not published.`,
                 rows:[],levels:[],rules:[],
               }}
-            v3Shadow={degree === "micro" && microW3Levels.length ? null :
+            v3Shadow={degree === "submicro" && submicroABC ? null :
+              degree === "micro" && microW3Levels.length ? null :
               degree === "subminute" && subminuteW3Levels.length ? null :
               degree === "submicro" ? ownerSubmicro :
               degree === "micro" ? ownerMicro :
