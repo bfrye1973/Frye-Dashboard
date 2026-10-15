@@ -766,20 +766,28 @@ export default function Engine22MarketStructureCard({
   // while the new five-wave move is assessed as Submicro W1 near 8000.
   // Do not fabricate an exact W1 high or W2 Fib geometry without its pivot.
   // This presentation is not a canonical candle-confirmed count.
+  // Engine 22's owner-locked Submicro W1 pivot and W2 retracement map.
+  // No Fibonacci computation or touch inference in the frontend.
+  const submicroW2 = currentWavelength?.degrees?.submicro?.ownerSubmicroW2;
+  const submicroW2Levels =
+    submicroW2?.version === "engine22.submicroW2OwnerProjection.v1" &&
+    Array.isArray(submicroW2.levels)
+      ? submicroW2.levels.map(level=>({
+          ...level,status:"WATCH",provisional:true,touchEvidenceAvailable:false,
+        })) : [];
   const submicroState = {
-    degree:"submicro",label:"Submicro",subtitle:"Owner working wave count — next correction",
+    degree:"submicro",label:"Submicro",subtitle:"Owner-locked W1 / W2 retracement watch",
     active:true,badge:"W2 DOWN WATCH",
-    headline:"SUBMICRO W1 UP COMPLETE (OWNER READ) — W2 DOWN NEXT",
+    headline:"SUBMICRO W1 COMPLETE — W2 RETRACEMENT WATCH",
     rows:[
-      {label:"Prior C low",value:"7718.00 — COMPLETE (OWNER ASSESSMENT)"},
-      {label:"W1 start",value:"7718.00"},
-      {label:"W1 high",value:"NEAR 8000 — EXACT HIGH PENDING"},
-      {label:"W1 status",value:"FIVE-WAVE ADVANCE COMPLETE — OWNER WORKING COUNT"},
-      {label:"Current",value:"WATCH SUBMICRO W2 PULLBACK"},
-      {label:"W2 Fibs",value:"AWAIT EXACT W1 HIGH BEFORE RETRACEMENT LEVELS"},
-      {label:"Evidence",value:"CANDLE CONFIRMATION PENDING; NO EXECUTION"},
+      {label:"Prior Wave C",value:"COMPLETED AT 7718.00 — OWNER COUNT"},
+      {label:"W1 Low",value:wavePrice(submicroW2?.anchors?.w1Low)},
+      {label:"W1 High",value:wavePrice(submicroW2?.anchors?.w1High)},
+      {label:"W1",value:"COMPLETE — OWNER WORKING COUNT"},
+      {label:"Current",value:"W2 DOWN — WATCH"},
+      {label:"Touches",value:"WATCH — CANDLE CONFIRMATION PENDING"},
     ],
-    levels:[],rules:[],
+    levels:submicroW2Levels,rules:[],
   };
   // Read corrected owner projection directly from the Engine 22 backend.
   // Display-only: all levels WATCH until a separately verified touch contract exists.
