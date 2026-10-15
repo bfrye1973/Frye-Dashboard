@@ -161,40 +161,35 @@ function Engine22TargetGrid({ title, levels }) {
           gap: 5,
         }}
       >
-        {rows.map((level, index) => (
-          <div
-            key={`${level.label || "level"}-${index}`}
-            style={{
-              border: "1px solid rgba(34,197,94,.35)",
-              borderRadius: 8,
-              background: "#081509",
-              padding: "5px 6px",
-              minWidth: 0,
-            }}
-          >
+        {rows.map((level, index) => {
+          // Owner-only Micro/Subminute projections have explicit WATCH status.
+          // Never color those cards as a confirmed green touch by default.
+          const pending = level.status === "WATCH" || level.provisional === true;
+          const verified = level.status === "TOUCHED" &&
+            level.provisional !== true && level.touchEvidence?.verified === true;
+          const color = pending ? "#fbbf24" : "#86efac";
+          return (
             <div
+              key={`${level.key || level.label || "level"}-${index}`}
               style={{
-                color: "#86efac",
-                fontSize: 11,
-                fontWeight: 1000,
-                lineHeight: 1,
+                border: pending ? "1px solid rgba(245,158,11,.45)" : "1px solid rgba(34,197,94,.35)",
+                borderRadius: 8,
+                background: pending ? "#19150b" : "#081509",
+                padding: "5px 6px",
+                minWidth: 0,
               }}
             >
-              {level.label}
+              <div style={{color,fontSize:11,fontWeight:1000,lineHeight:1}}>
+                {level.label}
+              </div>
+              <div style={{color:"#f8fafc",fontSize:FS.small,fontWeight:1000,lineHeight:1.1}}>
+                {wavePrice(level.price)}
+              </div>
+              {pending ? <div style={{color,fontSize:FS.tiny,fontWeight:900}}>WATCH</div> : null}
+              {verified ? <div style={{color,fontSize:FS.tiny,fontWeight:900}}>TOUCHED</div> : null}
             </div>
-
-            <div
-              style={{
-                color: "#f8fafc",
-                fontSize: FS.small,
-                fontWeight: 1000,
-                lineHeight: 1.1,
-              }}
-            >
-              {wavePrice(level.price)}
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
