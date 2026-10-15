@@ -762,17 +762,22 @@ export default function Engine22MarketStructureCard({
   const subminuteW3 = ownerSubminute?.ownerCorrectionState === "SUBMINUTE_W3_OWNER_CONTEXT";
   // Owner-directed current count, presentation only. The previous V3 shadow
   // remains unconfirmed in the backend and never supplies execution authority.
+  // Owner-directed new Submicro cycle (Oct 15). Prior C ended at 7718.00,
+  // while the new five-wave move is assessed as Submicro W1 near 8000.
+  // Do not fabricate an exact W1 high or W2 Fib geometry without its pivot.
+  // This presentation is not a canonical candle-confirmed count.
   const submicroState = {
-    degree:"submicro",label:"Submicro",subtitle:"ABC correction — owner working count",
-    active:true,badge:"C COMPLETE · OWNER",
-    headline:"WAVE C COMPLETE — OWNER ASSESSMENT; CANDLE CONFIRMATION PENDING",
+    degree:"submicro",label:"Submicro",subtitle:"Owner working wave count — next correction",
+    active:true,badge:"W2 DOWN WATCH",
+    headline:"SUBMICRO W1 UP COMPLETE (OWNER READ) — W2 DOWN NEXT",
     rows:[
-      {label:"Parent",value:"MICRO W2 — OWNER ASSESSES COMPLETE"},
-      {label:"Wave A low",value:wavePrice(ownerSubmicro?.ownerAbcTurns?.A?.price)},
-      {label:"Wave B high",value:wavePrice(ownerSubmicro?.ownerAbcTurns?.B?.price)},
-      {label:"Wave C",value:"COMPLETE — OWNER WORKING COUNT"},
-      {label:"Next",value:"AWAITING NEW SUBMICRO WAVE STRUCTURE"},
-      {label:"Evidence",value:"C-LOW PIVOT / STRUCTURAL CONFIRMATION PENDING"},
+      {label:"Prior C low",value:"7718.00 — COMPLETE (OWNER ASSESSMENT)"},
+      {label:"W1 start",value:"7718.00"},
+      {label:"W1 high",value:"NEAR 8000 — EXACT HIGH PENDING"},
+      {label:"W1 status",value:"FIVE-WAVE ADVANCE COMPLETE — OWNER WORKING COUNT"},
+      {label:"Current",value:"WATCH SUBMICRO W2 PULLBACK"},
+      {label:"W2 Fibs",value:"AWAIT EXACT W1 HIGH BEFORE RETRACEMENT LEVELS"},
+      {label:"Evidence",value:"CANDLE CONFIRMATION PENDING; NO EXECUTION"},
     ],
     levels:[],rules:[],
   };
