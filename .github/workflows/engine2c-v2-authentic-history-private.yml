@@ -1,5 +1,7 @@
 name: Engine2C V2 authentic ES history private verification
 on:
+  push:
+    branches: [engine2c-expanded-es-history-v2-20261014]
   workflow_dispatch:
 jobs:
   verify-authentic-history:
