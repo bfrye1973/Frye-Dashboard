@@ -768,41 +768,38 @@ export default function Engine22MarketStructureCard({
   const submicroABC = ownerSubmicro?.ownerCorrectionState === "SUBMICRO_ABC_INSIDE_MICRO_W2";
   const microW2 = ownerMicro?.ownerCorrectionState === "MICRO_W2_OWNER_RECOUNT";
   const subminuteW3 = ownerSubminute?.ownerCorrectionState === "SUBMINUTE_W3_OWNER_CONTEXT";
+  // Owner's current working interpretation as of Oct 15.
+  // These context cards do not promote C or Micro W2/W3 into canonical,
+  // candle-confirmed structures or create a trade signal.
   const submicroState = {
-    degree:"submicro",label:"Submicro",subtitle:"Internal correction within MICRO W2",
-    active:true,badge:"C DOWN",headline:"FINAL WAVE C DOWN — INSIDE MICRO W2 (DEVELOPING, UNCONFIRMED)",
+    degree:"submicro",label:"Submicro",subtitle:"ABC correction — owner working count",
+    active:true,badge:"C LOW WATCH",
+    headline:"WAVE C COMPLETION — OWNER ASSESSMENT (CONFIRMATION PENDING)",
     rows:[
-      {label:"Parent",value:"MICRO W2"},
+      {label:"Parent",value:"MICRO W2 — OWNER ASSESSES COMPLETE"},
       {label:"Wave A low",value:wavePrice(ownerSubmicro?.ownerAbcTurns?.A?.price)},
-      {label:"A completed",value:ownerSubmicro?.ownerAbcTurns?.A?.time || "PENDING"},
       {label:"Wave B high",value:wavePrice(ownerSubmicro?.ownerAbcTurns?.B?.price)},
-      {label:"B completed",value:ownerSubmicro?.ownerAbcTurns?.B?.time || "PENDING"},
-      {label:"Current leg",value:"FINAL C DOWN — DEVELOPING, LOW NOT CONFIRMED"},
-      {label:"C projection",value:"A START ASSUMED AT MICRO W1 HIGH — WATCH ONLY"},
-      {label:"Role",value:"Watch for possible MICRO W2 completion"},
-      {label:"Confirmation",value:"MICRO structural confirmation still required"},
+      {label:"C low",value:"REVERSAL AREA OBSERVED — EXACT C PIVOT UNVERIFIED"},
+      {label:"Current",value:"C COMPLETION CANDIDATE — ASSESS NEXT SUBMICRO WAVE"},
+      {label:"Evidence",value:"OWNER ASSESSMENT; CANDLE CONFIRMATION PENDING"},
     ],
-    levels:(ownerSubmicro?.levels || []).map(l=>({
-      label:`${l.key.toUpperCase()} · ${l.status}`,
-      price:l.price,
-    })),rules:[],
+    levels:[],
+    rules:[],
   };
   const microW2State = {
-    degree:"micro",label:"Micro",subtitle:"Independent MICRO corrective structure",
-    active:true,badge:"W2 DOWN",headline:"W2 DOWN — DEVELOPING (OWNER SHADOW)",
+    degree:"micro",label:"Micro",subtitle:"Owner working wave count",
+    active:true,badge:"W3 UP WATCH",
+    headline:"WAVE 2 COMPLETION ASSESSED — WAVE 3 UP STARTED (OWNER READ)",
     rows:[
-      {label:"W1 Low",value:"7677.25"},
-      {label:"W1 Low Time",value:"2026-10-01 08:30"},
-      {label:"W1 High",value:String(ownerMicro?.ownerW1HighPrice ?? "PENDING")},
-      {label:"W1 High Time",value:"UNVERIFIED — PRICE ONLY"},
-      {label:"Current",value:"W2 CORRECTIVE RETRACEMENT"},
-      {label:"Touch status",value:"7845.50 OWNER REPORTED — NOT CANDLE VERIFIED"},
+      {label:"Previous",value:"MICRO W2 — OWNER ASSESSES COMPLETE"},
+      {label:"Current",value:"MICRO W3 UP — STARTED / CONFIRMATION PENDING"},
+      {label:"W1 Low",value:"7677.25 — PRIOR V3 OWNER SHADOW"},
+      {label:"W1 High",value:String(ownerMicro?.ownerW1HighPrice ?? "UNVERIFIED")},
+      {label:"W3 Fibs",value:"AWAITING VERIFIED MICRO W2 PIVOT AND APPROVED MODEL"},
+      {label:"Evidence",value:"OWNER WORKING COUNT; STRUCTURAL CONFIRMATION PENDING"},
     ],
-    levels:(ownerMicro?.levels || []).map(l=>({
-      label:l.ownerReportedTouch ? `${l.key.toUpperCase()} · OWNER TOUCH` :
-        `${l.key.toUpperCase()} · ${l.status}`,
-      price:l.price,
-    })),rules:[],
+    levels:[],
+    rules:[],
   };
   const minuteW3Owner = v3ShadowDegrees?.minute?.ownerCorrectionState ===
     "MINUTE_W3_OWNER_CONTEXT" &&
@@ -943,7 +940,9 @@ export default function Engine22MarketStructureCard({
                 headline:`${String(degree).toUpperCase()} structure not published.`,
                 rows:[],levels:[],rules:[],
               }}
-            v3Shadow={degree === "submicro" ? ownerSubmicro :
+            v3Shadow={degree === "submicro" && submicroABC ? null :
+              degree === "micro" && microW2 ? null :
+              degree === "submicro" ? ownerSubmicro :
               degree === "micro" ? ownerMicro :
               // Corrected Subminute owner W3 already has its own Fib ladder.
               // Suppress its contradictory older V3 shadow on this card only.
