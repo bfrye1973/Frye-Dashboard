@@ -41,6 +41,10 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict');
    assert.equal(await page.locator('#chart canvas').count(),1);
    const owners=await page.evaluate(()=>({nodes:Object.values(window.__ENGINE2C_TEST__.state.handoff.nodeLayers.degrees).flat().length,fibs:window.__ENGINE2C_TEST__.state.handoff.nodeLayers.withheldFibonacciReferences.length}));
    assert.deepEqual(owners,{nodes:40,fibs:34});
+   // Privacy-safe screenshot: hide market-price canvas, axis, source-price tables and original mark values.
+   // Chart correctness is asserted above in Chromium; image demonstrates responsive controls only.
+   await page.addStyleTag({content:'#chart,#nodes,#coverage,#fib{visibility:hidden!important} .chartWrap{background:#111827!important}'});
+   await page.screenshot({path:'/tmp/engine2c-v2-ui-redacted-'+viewport.width+'.png',fullPage:true});
    console.log('PASS authentic Chromium V2',viewport.width,'1k/5k/25k, older/newer cache reload, 3x7x8 selections, 40 owner records, 34 withheld Fibs; no source-price output');
    await page.close();
   }
