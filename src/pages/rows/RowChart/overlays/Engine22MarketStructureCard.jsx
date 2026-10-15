@@ -943,7 +943,7 @@ export default function Engine22MarketStructureCard({
           <Engine22DegreeCard
             key={degree}
             degree={degree}
-            state={degree === "micro" && microW2 && microW3Levels.length
+            state={degree === "micro" && microW3Levels.length
               ? microW2State
               : degree === "subminute" && ownerSubminuteFibLevels.length
               ? subminuteW3State
