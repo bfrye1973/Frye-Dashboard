@@ -1,0 +1,26 @@
+name: Diagnose production ES LIVE chart read-only
+on:
+  push:
+    branches: [diagnose-live-es-blank-chart-20261015]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+jobs:
+  production-browser-probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: npm ci
+      - run: |
+          npm install --no-save --no-package-lock playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - run: node research/engine2c-preview/diagnose-production-live.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: live-es-production-diagnostic
+          path: /tmp/live-es-*.png
+          if-no-files-found: ignore
