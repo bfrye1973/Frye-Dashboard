@@ -274,6 +274,7 @@ function WaveDegreeRow({ snapshot }) {
     <Engine22MarketStructureCard
       engine22V3Projection={snapshot?.strategies?.["intraday_scalp@10m"]?.engine22WaveStrategy?.engine22V3Projection || null}
       engine22Display={getEngine22Display(snapshot)}
+      sevenDegreeTouchDisplay={snapshot?.strategies?.["intraday_scalp@10m"]?.engine22WaveStrategy?.sevenDegreeTouchDisplayV1 || null}
       currentWavelength={getEngine22CurrentWavelength(snapshot)}
       microW2W3TransitionFibs={getMicroW2W3TransitionFibs(snapshot)}
       microMidlineConfluence={getMicroNegotiatedMidlineConfluence(snapshot)}

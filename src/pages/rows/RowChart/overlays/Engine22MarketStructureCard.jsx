@@ -14,6 +14,37 @@ function wavePrice(value) {
   return Number.isFinite(n) ? n.toFixed(2) : "—";
 }
 
+// A displayed owner Fib only becomes green when Engine 22 has published a
+// complete, approved ladder matching every key and ES price. Color/status
+// comes solely from persisted backend touch evidence, never the live quote.
+function displayOwnerFibWithVerifiedTouches(ownerLevels, approvedDegree) {
+  if (!Array.isArray(ownerLevels)) return [];
+  const official = approvedDegree?.available === true &&
+    approvedDegree?.provisional !== true &&
+    Array.isArray(approvedDegree?.levels) ? approvedDegree.levels : null;
+  const matching = official && official.length === ownerLevels.length &&
+    ownerLevels.every(level => official.some(fib =>
+      fib.key === level.key && fib.price === level.price));
+  if (!matching) return ownerLevels.map(level => ({
+    ...level, status:"WATCH", provisional:true,
+    touchEvidenceAvailable:false,
+  }));
+  return ownerLevels.map(level => {
+    const fib = official.find(item => item.key === level.key && item.price === level.price);
+    const verified = fib?.status === "TOUCHED" &&
+      fib?.touchEvidence?.verified === true &&
+      typeof fib.touchEvidence.sourceBarId === "string" &&
+      typeof fib.touchEvidence.sourceTimestamp === "string";
+    return {
+      ...level,
+      status: verified ? "TOUCHED" : "WATCH",
+      provisional: !verified,
+      touchEvidenceAvailable: verified,
+      touchEvidence: verified ? fib.touchEvidence : null,
+    };
+  });
+}
+
 function toneForDegree(degree, state) {
   const direction = String(state?.direction || "").toUpperCase();
   const badge = String(state?.badge || "").toUpperCase();
@@ -161,40 +192,37 @@ function Engine22TargetGrid({ title, levels }) {
           gap: 5,
         }}
       >
-        {rows.map((level, index) => (
-          <div
-            key={`${level.label || "level"}-${index}`}
-            style={{
-              border: "1px solid rgba(34,197,94,.35)",
-              borderRadius: 8,
-              background: "#081509",
-              padding: "5px 6px",
-              minWidth: 0,
-            }}
-          >
+        {rows.map((level, index) => {
+          // Display only: Engine 22 owns the touch status and its persistence.
+          // Never turn a provisional or owner-reported touch into a verified one.
+          const verifiedTouch = level.status === "TOUCHED" &&
+            level.provisional !== true && level.touchEvidenceAvailable !== false;
+          const status = verifiedTouch ? "TOUCHED" :
+            level.status === "REPORTED_TOUCH_UNVERIFIED" ? "UNVERIFIED" : "WATCH";
+          const activeColor = verifiedTouch ? "#86efac" : "#fbbf24";
+          return (
             <div
+              key={`${level.key || level.label || "level"}-${index}`}
               style={{
-                color: "#86efac",
-                fontSize: 11,
-                fontWeight: 1000,
-                lineHeight: 1,
+                border: verifiedTouch ? "1px solid rgba(34,197,94,.6)" : "1px solid rgba(245,158,11,.3)",
+                borderRadius: 8,
+                background: verifiedTouch ? "#081b10" : "#19150b",
+                padding: "5px 6px",
+                minWidth: 0,
               }}
             >
-              {level.label}
+              <div style={{color:activeColor,fontSize:11,fontWeight:1000,lineHeight:1}}>
+                {level.label}
+              </div>
+              <div style={{color:"#f8fafc",fontSize:FS.small,fontWeight:1000,lineHeight:1.1}}>
+                {wavePrice(level.price)}
+              </div>
+              <div style={{color:activeColor,fontSize:FS.tiny,fontWeight:900}}>
+                {status}
+              </div>
             </div>
-
-            <div
-              style={{
-                color: "#f8fafc",
-                fontSize: FS.small,
-                fontWeight: 1000,
-                lineHeight: 1.1,
-              }}
-            >
-              {wavePrice(level.price)}
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
@@ -718,6 +746,7 @@ function Engine22DegreeCard({
 export default function Engine22MarketStructureCard({
   engine22V3Projection = null,
   engine22Display,
+  sevenDegreeTouchDisplay = null,
   currentWavelength = null,
   microW2W3TransitionFibs = null,
   microMidlineConfluence = null,
@@ -746,6 +775,11 @@ export default function Engine22MarketStructureCard({
     );
   }
 
+  // Only a model-qualified Engine22 packet may supersede older per-degree
+  // presentation. Never infer status from current ES price in the frontend.
+  const validTouchContract = sevenDegreeTouchDisplay?.schema ===
+    "engine22.sevenDegreeTouchDisplay.v1" ? sevenDegreeTouchDisplay : null;
+
   const publishedDegreeOrder =
     Array.isArray(engine22Display.degreeOrder) && engine22Display.degreeOrder.length
       ? engine22Display.degreeOrder
@@ -765,41 +799,47 @@ export default function Engine22MarketStructureCard({
   const submicroABC = ownerSubmicro?.ownerCorrectionState === "SUBMICRO_ABC_INSIDE_MICRO_W2";
   const microW2 = ownerMicro?.ownerCorrectionState === "MICRO_W2_OWNER_RECOUNT";
   const subminuteW3 = ownerSubminute?.ownerCorrectionState === "SUBMINUTE_W3_OWNER_CONTEXT";
+  // Owner's current working interpretation as of Oct 15.
+  // These context cards do not promote C or Micro W2/W3 into canonical,
+  // candle-confirmed structures or create a trade signal.
   const submicroState = {
-    degree:"submicro",label:"Submicro",subtitle:"Internal correction within MICRO W2",
-    active:true,badge:"C DOWN",headline:"FINAL WAVE C DOWN — INSIDE MICRO W2 (DEVELOPING, UNCONFIRMED)",
+    degree:"submicro",label:"Submicro",subtitle:"ABC correction — owner working count",
+    active:true,badge:"C LOW WATCH",
+    headline:"WAVE C COMPLETION — OWNER ASSESSMENT (CONFIRMATION PENDING)",
     rows:[
-      {label:"Parent",value:"MICRO W2"},
+      {label:"Parent",value:"MICRO W2 — OWNER ASSESSES COMPLETE"},
       {label:"Wave A low",value:wavePrice(ownerSubmicro?.ownerAbcTurns?.A?.price)},
-      {label:"A completed",value:ownerSubmicro?.ownerAbcTurns?.A?.time || "PENDING"},
       {label:"Wave B high",value:wavePrice(ownerSubmicro?.ownerAbcTurns?.B?.price)},
-      {label:"B completed",value:ownerSubmicro?.ownerAbcTurns?.B?.time || "PENDING"},
-      {label:"Current leg",value:"FINAL C DOWN — DEVELOPING, LOW NOT CONFIRMED"},
-      {label:"C projection",value:"A START ASSUMED AT MICRO W1 HIGH — WATCH ONLY"},
-      {label:"Role",value:"Watch for possible MICRO W2 completion"},
-      {label:"Confirmation",value:"MICRO structural confirmation still required"},
+      {label:"C low",value:"REVERSAL AREA OBSERVED — EXACT C PIVOT UNVERIFIED"},
+      {label:"Current",value:"C COMPLETION CANDIDATE — ASSESS NEXT SUBMICRO WAVE"},
+      {label:"Evidence",value:"OWNER ASSESSMENT; CANDLE CONFIRMATION PENDING"},
     ],
-    levels:(ownerSubmicro?.levels || []).map(l=>({
-      label:`${l.key.toUpperCase()} · ${l.status}`,
-      price:l.price,
-    })),rules:[],
+    levels:[],
+    rules:[],
   };
+  // Consume only Engine 22's owner-locked Micro W3 projection.
+  // Do not independently calculate Fibonacci targets or infer touches here.
+  const microW3Projection = currentWavelength?.degrees?.micro?.ownerMicroW3;
+  const microW3Anchors = microW3Projection?.anchors || null;
+  const microW3Levels = microW3Projection?.version ===
+    "engine22.microW3OwnerProjection.v1" &&
+    Array.isArray(microW3Projection.levels)
+    ? displayOwnerFibWithVerifiedTouches(
+        microW3Projection.levels, validTouchContract?.degrees?.micro
+      ) : [];
   const microW2State = {
-    degree:"micro",label:"Micro",subtitle:"Independent MICRO corrective structure",
-    active:true,badge:"W2 DOWN",headline:"W2 DOWN — DEVELOPING (OWNER SHADOW)",
+    degree:"micro",label:"Micro",subtitle:"Owner-locked Micro W3 projection",
+    active:true,badge:"W3 UP WATCH",
+    headline:"MICRO W2 ENDED — W3 UP STARTED (OWNER COUNT)",
     rows:[
-      {label:"W1 Low",value:"7677.25"},
-      {label:"W1 Low Time",value:"2026-10-01 08:30"},
-      {label:"W1 High",value:String(ownerMicro?.ownerW1HighPrice ?? "PENDING")},
-      {label:"W1 High Time",value:"UNVERIFIED — PRICE ONLY"},
-      {label:"Current",value:"W2 CORRECTIVE RETRACEMENT"},
-      {label:"Touch status",value:"7845.50 OWNER REPORTED — NOT CANDLE VERIFIED"},
+      {label:"W1 Low",value:microW3Anchors ? wavePrice(microW3Anchors.w1Low) : "AWAITING BACKEND"},
+      {label:"W1 High",value:microW3Anchors ? wavePrice(microW3Anchors.w1High) : "AWAITING BACKEND"},
+      {label:"W2 Low",value:microW3Anchors ? wavePrice(microW3Anchors.w2Low) : "AWAITING BACKEND"},
+      {label:"W2 Time",value:microW3Anchors?.w2LowLocalTime || "AWAITING BACKEND"},
+      {label:"Fib touch",value:"WATCH — verified candle evidence pending"},
     ],
-    levels:(ownerMicro?.levels || []).map(l=>({
-      label:l.ownerReportedTouch ? `${l.key.toUpperCase()} · OWNER TOUCH` :
-        `${l.key.toUpperCase()} · ${l.status}`,
-      price:l.price,
-    })),rules:[],
+    levels:microW3Levels,
+    rules:[],
   };
   const minuteW3Owner = v3ShadowDegrees?.minute?.ownerCorrectionState ===
     "MINUTE_W3_OWNER_CONTEXT" &&
@@ -820,18 +860,32 @@ export default function Engine22MarketStructureCard({
       ),
     ],
   } : null;
+  // Preserve Engine 22's owner-locked W1/W2 projections on the Subminute card.
+  // The backend wavelength carries these exact owner anchors. These are
+  // WATCH-only projections until Engine 22 supplies persisted touch evidence.
+  const subminuteWavelength = currentWavelength?.degrees?.subminute;
+  const ownerSubminuteFibLevels =
+    subminuteWavelength?.fibAnchorStatus ===
+      "OWNER_COORDINATES_CONFIRMED_PRICE_BASIS_PENDING" &&
+    Array.isArray(subminuteWavelength?.levels)
+      ? displayOwnerFibWithVerifiedTouches(
+          subminuteWavelength.levels.filter(level => Number.isFinite(Number(level?.price))),
+          validTouchContract?.degrees?.subminute
+        )
+      : [];
   const subminuteW3State = {
     degree:"subminute",label:"Subminute",subtitle:"Owner's larger-degree W3 context",
-    active:true,badge:"W3 WATCH",headline:"W3 DEVELOPING — OWNER SHADOW (UNCONFIRMED)",
+    active:true,badge:"W3 WATCH",headline:"W3 UP — OWNER ANCHORS / FIB EXTENSIONS",
     rows:[
-      {label:"Wave",value:"W3 — OWNER CONTEXT"},
-      {label:"W2 Bottom",value:"~7700 (APPROXIMATE)"},
-      {label:"Source",value:"AWAITING VERIFIED STRUCTURAL HISTORY"},
-      {label:"Fib W3",value:"PENDING VERIFIED W1/W2 ANCHORS"},
+      {label:"Wave",value:"W3 — DEVELOPING"},
+      {label:"W1 Low",value:"7616.25"},
+      {label:"W1 High",value:"7847.00"},
+      {label:"W2 Low",value:"7673.25"},
+      {label:"Fib status",value:ownerSubminuteFibLevels.length
+        ? "EXTENSIONS DISPLAYED — TOUCH VERIFICATION PENDING"
+        : "AWAITING ENGINE 22 WAVELENGTH LEVELS"},
     ],
-    levels:Number.isFinite(ownerSubminute?.ownerApproxW2Low)
-      ? [{label:"W2 LOW ~ (APPROX)",price:ownerSubminute.ownerApproxW2Low}]
-      : [],
+    levels:ownerSubminuteFibLevels,
     rules:[],
   };
   return (
@@ -889,7 +943,37 @@ export default function Engine22MarketStructureCard({
           <Engine22DegreeCard
             key={degree}
             degree={degree}
-            state={degree === "submicro" && submicroABC ? submicroState :
+            state={degree === "micro" && microW3Levels.length
+              ? microW2State
+              : degree === "subminute" && ownerSubminuteFibLevels.length
+              ? subminuteW3State
+              : validTouchContract?.degrees?.[degree]?.available === true
+              ? {
+                  ...(engine22Display.degrees?.[degree] || {}),
+                  degree,
+                  label:degree.toUpperCase(),
+                  active:true,
+                  levels:validTouchContract.degrees[degree].levels,
+                }
+              : degree === "subminute" &&
+                ownerSubminuteFibLevels.length ? subminuteW3State
+              : degree === "submicro" && submicroABC ? submicroState
+              : degree === "micro" && microW2 ? microW2State
+              : validTouchContract?.degrees?.[degree] ? {
+                  ...(engine22Display.degrees?.[degree] || {}),
+                  degree,
+                  label:degree.toUpperCase(),
+                  active:true,
+                  headline:"FIBONACCI MODEL APPROVAL / SOURCE VERIFICATION PENDING",
+                  rows:[
+                    ...(engine22Display.degrees?.[degree]?.rows || []).filter(row =>
+                      !/fib|target|touch/i.test(String(row.label || ""))),
+                    {label:"Fib touch",value:"WATCH — approved model not yet available"},
+                  ],
+                  levels:[],
+                  rules:[],
+                }
+              : degree === "submicro" && submicroABC ? submicroState :
               degree === "micro" && microW2 ? microW2State :
               degree === "subminute" && subminuteW3 ? subminuteW3State :
               degree === "minute" && minuteW3Owner ? minuteW3State :
@@ -898,13 +982,19 @@ export default function Engine22MarketStructureCard({
                 headline:`${String(degree).toUpperCase()} structure not published.`,
                 rows:[],levels:[],rules:[],
               }}
-            v3Shadow={degree === "submicro" ? ownerSubmicro :
+            v3Shadow={degree === "submicro" && submicroABC ? null :
+              degree === "micro" && microW2 ? null :
+              degree === "submicro" ? ownerSubmicro :
               degree === "micro" ? ownerMicro :
+              // Corrected Subminute owner W3 already has its own Fib ladder.
+              // Suppress its contradictory older V3 shadow on this card only.
+              degree === "subminute" && ownerSubminuteFibLevels.length
+                ? null :
               degree === "subminute" ? ownerSubminute :
               v3ShadowDegrees?.[degree] || null}
             wavelength={currentWavelength}
-            waveDegreeOverride={["submicro","micro","subminute"].includes(degree) ? null : undefined}
-            legacyMicroWidgets={degree === "micro" && !microW2}
+            waveDegreeOverride={validTouchContract || ["submicro","micro","subminute"].includes(degree) ? null : undefined}
+            legacyMicroWidgets={!validTouchContract && degree === "micro" && !microW2}
             microW2W3TransitionFibs={microW2W3TransitionFibs}
             microMidlineConfluence={microMidlineConfluence}
             microPositionContext={microPositionContext}
