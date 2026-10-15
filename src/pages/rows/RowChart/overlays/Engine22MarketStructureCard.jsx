@@ -823,20 +823,36 @@ export default function Engine22MarketStructureCard({
       ),
     ],
   } : null;
+  // Preserve Engine 22's owner-locked W1/W2 projections on the Subminute card.
+  // The backend wavelength carries these exact owner anchors. These are
+  // WATCH-only projections until Engine 22 supplies persisted touch evidence.
+  const subminuteWavelength = currentWavelength?.degrees?.subminute;
+  const ownerSubminuteFibLevels =
+    subminuteWavelength?.fibAnchorStatus ===
+      "OWNER_COORDINATES_CONFIRMED_PRICE_BASIS_PENDING" &&
+    Array.isArray(subminuteWavelength?.levels)
+      ? subminuteWavelength.levels
+          .filter(level => Number.isFinite(Number(level?.price)))
+          .map(level => ({
+            ...level,
+            status:"WATCH",
+            provisional:true,
+            touchEvidenceAvailable:false,
+          }))
+      : [];
   const subminuteW3State = {
     degree:"subminute",label:"Subminute",subtitle:"Owner's larger-degree W3 context",
-    active:true,badge:"W3 WATCH",headline:"W3 DEVELOPING — OWNER SHADOW (UNCONFIRMED)",
+    active:true,badge:"W3 WATCH",headline:"W3 UP — OWNER ANCHORS / FIB EXTENSIONS",
     rows:[
-      {label:"Wave",value:"W3 — OWNER CONTEXT"},
-      {label:"W1 Low · owner evidence",value:"7616.25"},
-      {label:"W1 High · owner evidence",value:"7847.00"},
-      {label:"W2 Low · owner evidence",value:"7673.25"},
-      {label:"Fib W3",value:"AWAITING ENGINE 22 APPROVED MODEL"},
+      {label:"Wave",value:"W3 — DEVELOPING"},
+      {label:"W1 Low",value:"7616.25"},
+      {label:"W1 High",value:"7847.00"},
+      {label:"W2 Low",value:"7673.25"},
+      {label:"Fib status",value:ownerSubminuteFibLevels.length
+        ? "EXTENSIONS DISPLAYED — TOUCH VERIFICATION PENDING"
+        : "AWAITING ENGINE 22 WAVELENGTH LEVELS"},
     ],
-    // Old provisional W3 ladder uses obsolete anchors; display no official
-    // Fib prices until Engine 22 publishes an approved model-qualified ladder.
-    // The canonical sevenDegreeTouchDisplay contract takes precedence above.
-    levels:[],
+    levels:ownerSubminuteFibLevels,
     rules:[],
   };
   return (
@@ -902,6 +918,8 @@ export default function Engine22MarketStructureCard({
                   active:true,
                   levels:validTouchContract.degrees[degree].levels,
                 }
+              : degree === "subminute" && subminuteW3 &&
+                ownerSubminuteFibLevels.length ? subminuteW3State
               : validTouchContract?.degrees?.[degree] ? {
                   ...(engine22Display.degrees?.[degree] || {}),
                   degree,
