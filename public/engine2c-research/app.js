@@ -20,6 +20,10 @@
   function selection(){return {view:state.view,frame:state.frame,degree:state.degree};}
   // V2 is dormant until an approved, same-origin authenticated research route exists.
   const historyEndpoint=window.__ENGINE2C_HISTORY_ENDPOINT__=== '/engine2c-private-history/page' ? window.__ENGINE2C_HISTORY_ENDPOINT__ : null;
+  if(historyEndpoint){
+    const olderButton=$('older');if(olderButton)olderButton.textContent='Load older historical candles';
+    const header=document.querySelector('header p');if(header)header.textContent='UNVERIFIED / AUTHENTIC HISTORICAL RESEARCH / NOT LIVE / NOT EXECUTION ELIGIBLE';
+  }
   let historySession=null,historyBusy=false;
   const historyPins={UNADJUSTED:['research-dataset:5224f595326ff44d424a9a3ada59fcf548ac5efa4c1e25eb7f4e141331b290f5','price-basis:d4ff32a184e2236d5bcb6551637253517ec694f7cbdcb8d34afd2f017a35f569'],ADJUSTED_RESEARCH:['research-dataset:9caaa3723b576f09bb4040a44c9da3f2a6e0fd5f0bc177f809802e4b80b9a0a4','price-basis:40baff5124d2cae5b6678813329ed7aab1f47a3ac947555390f8ac7cd212c655'],ACTUAL_CONTRACT:['research-dataset:ec592b47b697dc860a47b61dd713d45602d293c8797e1b52fc924a7459d68ac0','price-basis:98e08538fb38efedcb944e54232df4af396383ed6014c0bc1ef874f228dde05e']};
   async function requestHistory(view,frame,cursor,signal){
