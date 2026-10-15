@@ -44,6 +44,18 @@ jobs:
       - name: Assert all 21 page catalogs and no unapproved assets
         run: |
           node research/engine2c-preview/verify-history-export.mjs /tmp/engine2c-private-artifact/pages
+      - name: Build actual research chart and install private Chromium runner
+        run: |
+          npm ci
+          npm run build
+          npx playwright install --with-deps chromium
+      - name: Test authentic historical data in real Chromium via localhost
+        run: |
+          ENGINE2C_PRIVATE_PAGES=/tmp/engine2c-private-artifact/pages node research/engine2c-preview/private-history-http.cjs &
+          SERVER_PID=$!
+          trap 'kill $SERVER_PID 2>/dev/null || true' EXIT
+          for i in $(seq 1 30); do if curl --silent --fail http://127.0.0.1:8197/engine2c-research/index.html -o /dev/null; then break; fi; sleep 1; done
+          node research/engine2c-preview/authentic-history-browser.cjs
       - name: Clean private temporary historical data
         if: always()
         run: rm -rf /tmp/engine2c-private-artifact /tmp/engine11-source
