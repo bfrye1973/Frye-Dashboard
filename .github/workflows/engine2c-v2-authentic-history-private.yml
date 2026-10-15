@@ -1,0 +1,70 @@
+name: Engine2C V2 authentic ES history private verification
+on:
+  push:
+    branches: [engine2c-expanded-es-history-v2-20261014]
+  workflow_dispatch:
+jobs:
+  verify-authentic-history:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Checkout accepted Engine11 source at pinned commit
+        run: |
+          git clone --filter=blob:none https://github.com/bfrye1973/frye-market-backend.git /tmp/engine11-source
+          git -C /tmp/engine11-source checkout 45a351f1bd264d807ee7a3fadc92bae5dba6f4dc
+      - name: Fetch approved research artifact without publishing archive
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/engine2c-private-artifact
+          gh api /repos/bfrye1973/frye-market-backend/actions/artifacts/11901549711/zip > /tmp/engine2c-private-artifact/archive.zip
+          echo 'e47f6ef694a36f3b022322b0ff855c8be38276f3510ac6b3ef19fc52a4d781f6  /tmp/engine2c-private-artifact/archive.zip' | sha256sum -c -
+          unzip -q /tmp/engine2c-private-artifact/archive.zip -d /tmp/engine2c-private-artifact/source
+      - name: Verify exact gzip versions and SHA256 checksums
+        run: |
+          cd /tmp/engine2c-private-artifact/source
+          echo '2fb27d02e169c127ba6f423b5e36097d35068fb56ebcfbf8249b8594929ff76a  continuousRaw.json.gz' | sha256sum -c -
+          echo '14f9b382f86a6008ce031dee1aa858f7f87bc93b48909d041a3ada01b95fa56e  continuousAdjustedClose.json.gz' | sha256sum -c -
+          echo '03cb49eb1240b9a4febf78c3d98eab0839ac699f7818936ea97b64bb519ded36  actualESZ2026.json.gz' | sha256sum -c -
+      - name: Export all authentic 3x7 historical collections to runner-private directory
+        run: |
+          set -euo pipefail
+          for view in continuousRaw continuousAdjustedClose actualESZ2026; do
+            node research/engine2c-preview/export-history-pages.mjs \
+              /tmp/engine11-source/services/core/logic/engine11/continuousChartResearchV1/series.js \
+              /tmp/engine2c-private-artifact/source/${view}.json.gz \
+              /tmp/engine2c-private-artifact/pages/${view} \
+              "${view}"
+          done
+      - name: Assert all 21 page catalogs and no unapproved assets
+        run: |
+          node research/engine2c-preview/verify-history-export.mjs /tmp/engine2c-private-artifact/pages
+      - name: Build actual research chart and install private Chromium runner
+        run: |
+          npm ci
+          npm run build
+          npm install --no-save --package-lock=false playwright
+          npx playwright install --with-deps chromium
+      - name: Test authentic historical data in real Chromium via localhost
+        run: |
+          ENGINE2C_PRIVATE_PAGES=/tmp/engine2c-private-artifact/pages node research/engine2c-preview/private-history-http.cjs &
+          SERVER_PID=$!
+          trap 'kill $SERVER_PID 2>/dev/null || true' EXIT
+          for i in $(seq 1 30); do if curl --silent --fail http://127.0.0.1:8197/engine2c-research/index.html -o /dev/null; then break; fi; sleep 1; done
+          node research/engine2c-preview/authentic-history-browser.cjs
+      - name: Upload only redacted chart UI screenshots (NO prices or historical source)
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: engine2c-v2-price-redacted-ui
+          path: /tmp/engine2c-v2-ui-redacted-*.png
+          retention-days: 7
+          if-no-files-found: error
+      - name: Clean private temporary historical data
+        if: always()
+        run: rm -rf /tmp/engine2c-private-artifact /tmp/engine11-source
