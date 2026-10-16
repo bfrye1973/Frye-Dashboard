@@ -1,7 +1,7 @@
 name: Engine2C RowChart Integration V1
 on:
   push:
-    branches: [engine2c-original-research-browser-archive-20261016]
+    branches: [engine2c-navigation-verification-20261016]
   pull_request:
     branches: [main]
     paths:
@@ -101,3 +101,39 @@ jobs:
       - name: Remove private data
         if: always()
         run: rm -rf /tmp/engine2c-verified-package
+
+  full-navigation-verification:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Retrieve pinned Engine11 historical pages
+        uses: actions/download-artifact@v4
+        with:
+          run-id: 38939332953
+          name: engine2c-windows-real-history-test
+          path: /tmp/engine2c-history
+          github-token: ${{ github.token }}
+      - name: Build existing research chart and install Chromium
+        run: |
+          npm ci
+          npm run build
+          npm install --no-save --no-package-lock playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Start existing dashboard test host
+        run: |
+          node research/engine2c-preview/integration-http.cjs >/tmp/engine2c-nav-http.log 2>&1 &
+          for i in $(seq 1 45); do
+            if curl -fsS http://127.0.0.1:8193/engine2c-research/index.html >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/engine2c-nav-http.log
+          exit 1
+      - name: Verify all 21 collections and earliest-history navigation
+        env:
+          ENGINE2C_PRIVATE_PAGES: /tmp/engine2c-history/pages
+        run: node research/engine2c-preview/verify-historical-navigation.cjs
