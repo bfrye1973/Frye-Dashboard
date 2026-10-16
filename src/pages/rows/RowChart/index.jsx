@@ -41,6 +41,7 @@ import AccDistZonesPanel from "../../../components/smz/AccDistZonesPanel";
 
 import FibLevelsOverlay from "./overlays/FibLevelsOverlay";
 import ActiveWaveFibOverlay from "./overlays/ActiveWaveFibOverlay";
+import WaveFibOverlay from "./overlays/WaveFibOverlay";
 import PremarketFibOverlay from "./overlays/PremarketFibOverlay";
 
 import DrawingsToolbar from "../../../features/drawings/DrawingsToolbar";
@@ -64,6 +65,8 @@ const API_BASE =
   process.env.REACT_APP_API_URL ||
   "https://frye-market-backend-1.onrender.com";
 
+// Off by default until Manager approves production activation.
+const ENGINE2B_V1_ENABLED = process.env.REACT_APP_ENGINE2B_OVERLAY_V1 === "true";
 const HISTORY_MONTHS = 6;
 const FAST_MONTHS_INTRADAY = 2;
 const TRADING_DAYS_PER_MONTH = 21;
@@ -229,7 +232,7 @@ function attachOverlay(Module, args) {
   return { attach() {}, seed() {}, update() {}, destroy() {} };
 }
 
-function makeFibStyle(color, fontPx, lineWidth, showExtensions = true) {
+function makeFibStyle(color, fontPx, lineWidth, showExtensions = true, showWaveStructure = false) {
   return {
     color,
     fontPx,
@@ -238,8 +241,8 @@ function makeFibStyle(color, fontPx, lineWidth, showExtensions = true) {
     showRetrace: true,
     showAnchors: true,
 
-    showWaveLabels: false,
-    showWaveLines: false,
+    showWaveLabels: showWaveStructure,
+    showWaveLines: showWaveStructure,
     waveLabelColor: color,
     waveLabelFontPx: fontPx,
     waveLineColor: color,
@@ -1020,11 +1023,11 @@ export default function RowChart({
     fibMinute: false,
     fibMicro: false,
 
-    fibPrimaryStyle: makeFibStyle("#ff5ad6", 18, 3.5, true),
-    fibIntermediateStyle: makeFibStyle("#ffd54a", 18, 3.5, true),
-    fibMinorStyle: makeFibStyle("#22c55e", 16, 3.0, true),
-    fibMinuteStyle: makeFibStyle("#60a5fa", 14, 2.5, true),
-    fibMicroStyle: makeFibStyle("#f472b6", 12, 2.0, true),
+    fibPrimaryStyle: makeFibStyle("#ff5ad6", 18, 3.5, true, ENGINE2B_V1_ENABLED && normalizedDefaultSymbol === "ES"),
+    fibIntermediateStyle: makeFibStyle("#ffd54a", 18, 3.5, true, ENGINE2B_V1_ENABLED && normalizedDefaultSymbol === "ES"),
+    fibMinorStyle: makeFibStyle("#22c55e", 16, 3.0, true, ENGINE2B_V1_ENABLED && normalizedDefaultSymbol === "ES"),
+    fibMinuteStyle: makeFibStyle("#60a5fa", 14, 2.5, true, ENGINE2B_V1_ENABLED && normalizedDefaultSymbol === "ES"),
+    fibMicroStyle: makeFibStyle("#f472b6", 12, 2.0, true, ENGINE2B_V1_ENABLED && normalizedDefaultSymbol === "ES"),
 
     accDistLevels: false,
     wickPaZones: false,
@@ -1508,7 +1511,7 @@ export default function RowChart({
 
     if (state.fibPrimary) {
       reg(
-        attachOverlay(isES ? ActiveWaveFibOverlay : FibLevelsOverlay, {
+        attachOverlay(isES ? (ENGINE2B_V1_ENABLED ? WaveFibOverlay : ActiveWaveFibOverlay) : FibLevelsOverlay, {
           chart: chartRef.current,
           priceSeries: seriesRef.current,
           chartContainer: containerRef.current,
@@ -1523,7 +1526,7 @@ export default function RowChart({
 
     if (state.fibIntermediate) {
       reg(
-        attachOverlay(isES ? ActiveWaveFibOverlay : FibLevelsOverlay, {
+        attachOverlay(isES ? (ENGINE2B_V1_ENABLED ? WaveFibOverlay : ActiveWaveFibOverlay) : FibLevelsOverlay, {
           chart: chartRef.current,
           priceSeries: seriesRef.current,
           chartContainer: containerRef.current,
@@ -1538,7 +1541,7 @@ export default function RowChart({
 
     if (state.fibMinor) {
       reg(
-        attachOverlay(isES ? ActiveWaveFibOverlay : FibLevelsOverlay, {
+        attachOverlay(isES ? (ENGINE2B_V1_ENABLED ? WaveFibOverlay : ActiveWaveFibOverlay) : FibLevelsOverlay, {
           chart: chartRef.current,
           priceSeries: seriesRef.current,
           chartContainer: containerRef.current,
@@ -1553,7 +1556,7 @@ export default function RowChart({
 
     if (state.fibMinute) {
       reg(
-        attachOverlay(isES ? ActiveWaveFibOverlay : FibLevelsOverlay, {
+        attachOverlay(isES ? (ENGINE2B_V1_ENABLED ? WaveFibOverlay : ActiveWaveFibOverlay) : FibLevelsOverlay, {
           chart: chartRef.current,
           priceSeries: seriesRef.current,
           chartContainer: containerRef.current,
@@ -1568,7 +1571,7 @@ export default function RowChart({
 
     if (state.fibMicro) {
       reg(
-        attachOverlay(isES ? ActiveWaveFibOverlay : FibLevelsOverlay, {
+        attachOverlay(isES ? (ENGINE2B_V1_ENABLED ? WaveFibOverlay : ActiveWaveFibOverlay) : FibLevelsOverlay, {
           chart: chartRef.current,
           priceSeries: seriesRef.current,
           chartContainer: containerRef.current,
