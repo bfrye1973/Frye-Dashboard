@@ -19,7 +19,8 @@
   const rect=(canvas,x,y,w,h,c)=>{canvas.fillStyle=c;canvas.fillRect(x,y,w,h)};
   function selection(){return {view:state.view,frame:state.frame,degree:state.degree};}
   // V2 is dormant until an approved, same-origin authenticated research route exists.
-  let historyEndpoint=null;
+  const historyEndpoint = window.__ENGINE2C_HISTORY_ENDPOINT__ === 'https://frye-market-backend-1.onrender.com/engine2c-private-history/page' ? window.__ENGINE2C_HISTORY_ENDPOINT__ : null;
+  // Research only. The token is stored for this browser tab, not embedded in deployed assets.
   let historicalZip=null;
   if(historyEndpoint){
     const olderButton=$('older');if(olderButton)olderButton.textContent='Load older historical candles';
@@ -33,7 +34,26 @@
     if(historyEndpoint==='zip-file')return historicalZip.page(view,frame,cursor,historyPins[view]);
     const args=new URLSearchParams({view,frame,limit:'1000',direction:'DESC',datasetVersion:historyPins[view][0],priceBasisVersion:historyPins[view][1]});
     if(cursor!==null)args.set('cursor',cursor);
-    const res=await fetch(historyEndpoint+'?'+args,{credentials:'omit',cache:'no-store',signal,headers:{Accept:'application/json'}});
+    const fetchPrivate=async key=>fetch(historyEndpoint+'?'+args,{
+      credentials:'omit',cache:'no-store',signal,headers:{Accept:'application/json','X-Engine2C-Access':key}
+    });
+    let key=sessionStorage.getItem('engine2cResearchOwnerKey')||'';
+    if(!key){
+      // The private one-click test link places the key in the URL fragment,
+      // which is not sent in any HTTP request or published in website assets.
+      const fragment=new URLSearchParams((window.top.location.hash||'').replace(/^#/, ''));
+      key=fragment.get('engine2cKey')||'';
+      if(key){
+        sessionStorage.setItem('engine2cResearchOwnerKey',key);
+        window.top.history.replaceState(window.top.history.state,'',window.top.location.pathname+window.top.location.search);
+      }
+    }
+    if(!key)throw Error('PRIVATE_RESEARCH_ACCESS_REQUIRED');
+    let res=await fetchPrivate(key);
+    if(res.status===401){
+      sessionStorage.removeItem('engine2cResearchOwnerKey');
+      throw Error('RESEARCH_OWNER_ACCESS_REJECTED');
+    }
     if(!res.ok)throw Error('PRIVATE_HISTORY_HTTP_'+res.status);
     if(!(res.headers.get('content-type')||'').includes('application/json'))throw Error('PRIVATE_HISTORY_INVALID_CONTENT_TYPE');
     const json=await res.json();
@@ -269,26 +289,6 @@
   }
   $('view').addEventListener('change',choose);$('frame').addEventListener('change',choose);$('degree').addEventListener('change',choose);
   $('fixture').addEventListener('change',e=>importFile(e.target.files?.[0]));
-  const historicalFile=$('historicalZip');
-  historicalFile?.addEventListener('change',async e=>{
-    const file=e.target.files?.[0];if(!file)return;
-    try{
-      $('status').textContent='Verifying historical ES pages in ZIP...';
-      const reader=await window.Engine2CLocalHistoryZip.open(file);
-      for(const view of VIEWS)if(reader.catalog(view).datasetVersion!==historyPins[view][0]||
-        reader.catalog(view).priceBasisVersion!==historyPins[view][1])throw Error('HISTORICAL_ARCHIVE_IDENTITY_MISMATCH');
-      if(!state.handoff)throw Error('ENGINE11_WAVE_EVIDENCE_NOT_READY');
-      historicalZip=reader;historyEndpoint='zip-file';
-      const olderButton=$('older');olderButton.textContent='Load older historical candles';
-      let newerButton=$('newer');
-      if(!newerButton){newerButton=document.createElement('button');newerButton.id='newer';
-        newerButton.textContent='Load newer historical candles';
-        olderButton.insertAdjacentElement('afterend',newerButton);
-        newerButton.addEventListener('click',newer);}
-      $('historicalZipInfo').textContent='Verified historical ZIP selected: '+file.name+' — local research only; no upload.';
-      clearContext();await loadSelection();
-    }catch(error){historicalZip=null;historyEndpoint=null;showError(error);}
-  });
   $('older').addEventListener('click',older);$('newer')?.addEventListener('click',newer);$('roll').addEventListener('click',roll);
   $('zoomIn').addEventListener('click',()=>zoom(1.5));
   $('zoomOut').addEventListener('click',()=>zoom(1/1.5));
