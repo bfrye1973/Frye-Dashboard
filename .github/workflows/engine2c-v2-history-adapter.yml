@@ -1,0 +1,23 @@
+name: Engine2C V2 history adapter tests
+on:
+  push:
+    branches: [engine2c-expanded-es-history-v2-20261014]
+  pull_request:
+    branches: [main]
+jobs:
+  research-only:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Verify pinned browser pagination contracts
+        run: node --test research/engine2c-preview/history-v2-adapter.test.cjs
+      - name: Assert production trade/chart modules unmodified
+        run: |
+          git diff --exit-code 1ab5d7d94427adecaba476d9938791f9a3209222 -- src/pages/rows/RowChart/index.jsx src/lib/ohlcClient.js src/pages/RowChartModeGate.jsx src/pages/FullChart.jsx
