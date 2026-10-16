@@ -33,6 +33,21 @@ try{
  while($listener.IsListening){
   $ctx=$listener.GetContext()
   try{
+   $origin=$ctx.Request.Headers["Origin"]
+   $isHistory=$ctx.Request.Url.AbsolutePath -eq "/engine2c-private-history/page"
+   if($isHistory -and $origin -and $origin -ne "https://frye-dashboard.onrender.com"){Fail $ctx 403 "ORIGIN_NOT_ALLOWED";continue}
+   if($isHistory -and $origin -eq "https://frye-dashboard.onrender.com"){
+    $ctx.Response.Headers.Add("Access-Control-Allow-Origin","https://frye-dashboard.onrender.com")
+    $ctx.Response.Headers.Add("Vary","Origin")
+    $ctx.Response.Headers.Add("Access-Control-Allow-Private-Network","true")
+   }
+   if($isHistory -and $ctx.Request.HttpMethod -eq "OPTIONS"){
+    $ctx.Response.Headers.Add("Access-Control-Allow-Methods","GET, OPTIONS")
+    $ctx.Response.Headers.Add("Access-Control-Allow-Headers","Accept, Content-Type")
+    $ctx.Response.StatusCode=204
+    $ctx.Response.Close()
+    continue
+   }
    if($ctx.Request.HttpMethod -ne "GET"){Fail $ctx 405 "METHOD_NOT_ALLOWED";continue}
    $uri=$ctx.Request.Url
    $pathname=[Uri]::UnescapeDataString($uri.AbsolutePath)
