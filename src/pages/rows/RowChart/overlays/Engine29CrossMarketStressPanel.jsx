@@ -51,6 +51,17 @@ function plainState(value) {
   return clean(value);
 }
 
+function plainBiggerPictureCharacter(value) {
+  const text = String(value || "").toUpperCase();
+  if (text === "SUPPORTIVE") return "SUPPORTIVE";
+  if (text === "NARROWING") return "NARROWING";
+  if (text === "DISTRIBUTION_PRESSURE") return "DISTRIBUTION PRESSURE";
+  if (text === "BROAD_DETERIORATION") return "BROAD DETERIORATION";
+  if (text === "STRUCTURE_ONLY") return "STRUCTURE ONLY";
+  if (text === "MIXED") return "MIXED";
+  return clean(value);
+}
+
 function plainMoveCharacter(value) {
   const raw = rawMoveCharacter(value);
   const text = String(raw || "").toUpperCase();
@@ -218,6 +229,21 @@ export default function Engine29CrossMarketStressPanel({ visible = false, symbol
   const display = payload?.display || {};
   const hood = display?.underTheHood || {};
   const pressure = hood?.pressure || {};
+  const biggerPicture =
+    payload?.marketCharacter?.biggerPicture || {};
+  const oneWeek = display?.oneWeek || {};
+  const biggerCharacter =
+    oneWeek?.character ||
+    biggerPicture?.character ||
+    null;
+  const structuralParticipation =
+    oneWeek?.structuralParticipation ||
+    biggerPicture?.structuralParticipation ||
+    null;
+  const priceBreadth =
+    oneWeek?.priceBreadth ||
+    biggerPicture?.priceBreadth ||
+    null;
   const moveView = useMemo(
     () => selectEngine29MoveV2View(payload || {}, null),
     [payload]
@@ -321,11 +347,52 @@ export default function Engine29CrossMarketStressPanel({ visible = false, symbol
       {payload && (
         <>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 7 }}>
-            <TinyState label="1W Bigger Picture" value={display?.oneWeek?.state || payload?.structuralState} />
+            <TinyState
+              label="Bigger Picture"
+              value={biggerCharacter?.state || display?.oneWeek?.state || payload?.structuralState}
+              formatter={biggerCharacter?.state ? plainBiggerPictureCharacter : plainState}
+            />
             <TinyState label="1H Intraday" value={moveView?.oneHour?.state} />
             <TinyState label="30m Fast Shift" value={moveView?.fastTactical?.state} />
             <TinyState label="ES Parent MOVE" value={moveView?.parent?.state} formatter={plainMoveCharacter} />
           </div>
+
+          {(biggerCharacter || structuralParticipation || priceBreadth) && (
+            <div
+              style={{
+                border: "1px solid rgba(148,163,184,0.24)",
+                borderRadius: 9,
+                padding: "8px 9px",
+                background: "rgba(2,6,23,0.44)",
+                display: "grid",
+                gap: 5,
+              }}
+            >
+              <div style={{ color: "#93c5fd", fontSize: 11, fontWeight: 900, textTransform: "uppercase" }}>
+                Bigger Picture v2
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px 16px" }}>
+                <KV label="Cross-market structure" value={plainState(oneWeek?.state || payload?.structuralState)} />
+                <KV label="Price breadth" value={priceBreadth?.state || "—"} />
+                <KV
+                  label="Engine25 4H distribution"
+                  value={structuralParticipation?.distributionLabel || structuralParticipation?.distribution?.label || "—"}
+                />
+                <KV
+                  label="Engine25 scanner breadth"
+                  value={structuralParticipation?.breadth?.label || "—"}
+                />
+                <KV
+                  label="Engine25 freshness"
+                  value={structuralParticipation?.freshness?.state || "—"}
+                />
+                <KV
+                  label="Participation role"
+                  value={biggerCharacter?.currentParticipationPromotionEligible ? "CURRENT" : "CONTEXT ONLY"}
+                />
+              </div>
+            </div>
+          )}
 
           <div
             style={{
