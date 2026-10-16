@@ -97,13 +97,58 @@ function plainOverall(value) {
 
 function plainBiggerPictureCharacter(value) {
   const text = String(value || "").toUpperCase();
-  if (text === "SUPPORTIVE") return "HEALTHY / SUPPORTIVE";
-  if (text === "NARROWING") return "WAIT — MARKET NARROWING";
+  if (text === "SUPPORTIVE") return "HEALTHY";
+  if (text === "NARROWING") return "WAIT — MIXED MARKET";
   if (text === "DISTRIBUTION_PRESSURE") return "DOWNWARD PRESSURE";
   if (text === "BROAD_DETERIORATION") return "STRONG DOWNWARD PRESSURE";
-  if (text === "STRUCTURE_ONLY") return "WAIT — LIMITED DATA";
-  if (text === "MIXED") return "WAIT — MIXED SIGNALS";
+  if (text === "STRUCTURE_ONLY") return "WAIT — MIXED MARKET";
+  if (text === "MIXED") return "WAIT — MIXED MARKET";
   return clean(value);
+}
+
+function plainOverallMarketHealth(value) {
+  const text = String(value || "").toUpperCase();
+  if (text === "NORMAL") return "HEALTHY";
+  if (text === "EARLY_WARNING") return "SOME WEAKNESS SHOWING";
+  if (text === "BROAD_DETERIORATION") return "BROAD WEAKNESS";
+  if (text === "RISK_OFF_CONFIRMED") return "DOWNWARD PRESSURE";
+  if (text === "SYSTEMIC_STRESS") return "STRONG DOWNWARD PRESSURE";
+  return clean(value);
+}
+
+function plainPriceBreadth(value) {
+  const text = String(value || "").toUpperCase();
+  if (text === "HEALTHY") return "BROAD PARTICIPATION";
+  if (text === "RECOVERING") return "IMPROVING";
+  if (text === "FORMING") return "SOME ARE LAGGING";
+  if (text === "CONFIRMED" || text === "SEVERE") return "BROAD WEAKNESS";
+  return clean(value);
+}
+
+function plainDistribution(value) {
+  const text = String(value || "").toUpperCase();
+  if (text.includes("LOW")) return "LOW";
+  if (text.includes("WATCH") || text.includes("ELEVATED")) return "BUILDING";
+  if (text.includes("HIGH")) return "HIGH";
+  if (text.includes("EXTREME")) return "VERY HIGH";
+  return clean(value);
+}
+
+function plainScannerBreadth(value) {
+  const text = String(value || "").toUpperCase();
+  if (text.includes("HEALTHY")) return "HEALTHY";
+  if (text.includes("MIXED_WEAKENING")) return "MIXED — WEAKENING";
+  if (text.includes("MIXED")) return "MIXED";
+  if (text.includes("WEAK")) return "WEAK";
+  return clean(value);
+}
+
+function plainVolumeDataQuality(coverage, freshness) {
+  if (freshness?.lastValidEquityRead === true) return "LAST SESSION";
+  const n = Number(coverage);
+  if (!Number.isFinite(n) || n <= 0) return "UNAVAILABLE";
+  if (n >= 70) return "GOOD";
+  return "LIMITED";
 }
 
 function biggerPictureColor(value) {
@@ -522,28 +567,28 @@ function BiggerPictureCard({ data, display }) {
 
       <div style={{ marginTop: 10, display: "grid", gap: 6 }}>
         <LabelValue
-          label="ES Daily Price Action"
+          label="ES Daily Trend"
           value={plainEsPriceAction(esPriceAction?.daily?.state)}
           color={esPriceActionColor(esPriceAction?.daily?.state)}
         />
         <LabelValue
-          label="ES Weekly Price Action"
+          label="ES Weekly Trend"
           value={plainEsPriceAction(esPriceAction?.weekly?.state)}
           color={esPriceActionColor(esPriceAction?.weekly?.state)}
         />
         <LabelValue
           label="Overall Market Health"
-          value={plainOverall(oneWeek?.state || data?.structuralState || data?.overallState)}
+          value={plainOverallMarketHealth(oneWeek?.state || data?.structuralState || data?.overallState)}
           color={biggerPictureColor(oneWeek?.state || data?.structuralState || data?.overallState)}
         />
         <LabelValue
-          label="Price Breadth"
-          value={clean(priceBreadth?.state)}
+          label="How Much of the Market Is Participating"
+          value={plainPriceBreadth(priceBreadth?.state)}
           color={biggerPictureColor(priceBreadth?.state)}
         />
         <LabelValue
-          label="Engine25 4H Distribution"
-          value={clean(distributionLabel)}
+          label="Selling Pressure"
+          value={plainDistribution(distributionLabel)}
           color={biggerPictureColor(
             String(distributionLabel).includes("HIGH") ||
             String(distributionLabel).includes("EXTREME")
@@ -554,8 +599,8 @@ function BiggerPictureCard({ data, display }) {
           )}
         />
         <LabelValue
-          label="Engine25 Scanner Breadth"
-          value={clean(breadthLabel)}
+          label="Stocks Participating"
+          value={plainScannerBreadth(breadthLabel)}
           color={biggerPictureColor(
             String(breadthLabel).includes("HEALTHY")
               ? "SUPPORTIVE"
@@ -566,9 +611,15 @@ function BiggerPictureCard({ data, display }) {
           )}
         />
         <LabelValue
-          label="Stock-volume coverage"
-          value={Number.isFinite(Number(coverage)) ? Number(coverage).toFixed(1) + "%" : "—"}
-          color={Number.isFinite(Number(coverage)) && Number(coverage) >= 70 ? COLORS.good : COLORS.warn}
+          label="Volume Data Quality"
+          value={plainVolumeDataQuality(coverage, structuralParticipation?.freshness)}
+          color={
+            structuralParticipation?.freshness?.lastValidEquityRead === true
+              ? COLORS.warn
+              : Number.isFinite(Number(coverage)) && Number(coverage) >= 70
+                ? COLORS.good
+                : COLORS.warn
+          }
         />
       </div>
 
@@ -580,10 +631,10 @@ function BiggerPictureCard({ data, display }) {
 
       <div style={{ marginTop: 9, color: "#cbd5e1", fontSize: 12, lineHeight: 1.35 }}>
         {currentEligible
-          ? "Engine25 participation is current and eligible to shape Bigger Picture character."
+          ? "Current stock participation data is included in this read."
           : structuralParticipation?.freshness?.state === "LAST_VALID_EQUITY_READ"
-            ? "Last valid equity-session participation is diagnostic only."
-            : "Engine25 participation is context only until current validity is confirmed."}
+            ? "Stock market is closed — using the last valid session read."
+            : "Some stock participation data is not currently available."}
       </div>
     </Card>
   );
