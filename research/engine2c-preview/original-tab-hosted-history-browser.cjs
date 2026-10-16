@@ -12,9 +12,10 @@ const catalogs=Object.fromEntries(Object.entries(folders).map(([v,d])=>[v,JSON.p
 (async()=>{
  const browser=await chromium.launch({headless:true});
  try{
-  const page=await browser.newPage({viewport:{width:1440,height:900}});
+  const context=await browser.newContext({viewport:{width:1440,height:900}});
+  const page=await context.newPage();
   let served=0;
-  await page.route('https://frye-market-backend-1.onrender.com/engine2c-private-history/page**',async route=>{
+  await context.route('https://frye-market-backend-1.onrender.com/engine2c-private-history/page**',async route=>{
     const request=route.request(),url=new URL(request.url()),origin='http://127.0.0.1:8193';
     const headers={'Access-Control-Allow-Origin':origin,'Access-Control-Allow-Headers':'Accept, X-Engine2C-Access',
       'Access-Control-Allow-Methods':'GET, OPTIONS','Content-Type':'application/json','Cache-Control':'no-store'};
@@ -47,6 +48,17 @@ const catalogs=Object.fromEntries(Object.entries(folders).map(([v,d])=>[v,JSON.p
     const s=await state();assert.equal(s.n,count);assert.equal(s.unique,count);
   };
   await wait(1000);
+  // Second dashboard tab has no URL access key and no shared sessionStorage.
+  // It must load the same authentic pages using the temporary research-only
+  // authorization stored for this browser origin by the first tab.
+  const second=await context.newPage();
+  await second.goto('http://127.0.0.1:8193/chart?symbol=ES&tf=10m&engine2cChart=research',{waitUntil:'domcontentloaded'});
+  await second.waitForFunction(()=>{
+    const w=document.querySelector('[data-engine2c-research-panel] iframe')?.contentWindow;
+    return w?.__ENGINE2C_TEST__?.state?.rows?.length===1000;
+  },null,{timeout:40000});
+  assert.equal(await second.locator('[data-engine2c-research-panel] iframe').count(),1);
+  await second.close();
   const control=fn=>page.evaluate(fn=>document.querySelector('[data-engine2c-research-panel] iframe').contentWindow.__ENGINE2C_TEST__[fn](),fn);
   for(let i=0;i<4;i++)await control('older');
   await wait(5000);

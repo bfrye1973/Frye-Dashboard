@@ -37,21 +37,32 @@
     const fetchPrivate=async key=>fetch(historyEndpoint+'?'+args,{
       credentials:'omit',cache:'no-store',signal,headers:{Accept:'application/json','X-Engine2C-Access':key}
     });
+    // The verified owner link only needs to be opened once per browser.
+    // Keep research authorization isolated from LIVE and expire it after 24h.
+    const storageKey='engine2cResearchOwnerAccessV1';
     let key=sessionStorage.getItem('engine2cResearchOwnerKey')||'';
+    const fragment=new URLSearchParams((window.top.location.hash||'').replace(/^#/, ''));
+    const supplied=fragment.get('engine2cKey')||'';
+    if(supplied){
+      key=supplied;
+      sessionStorage.setItem('engine2cResearchOwnerKey',key);
+      localStorage.setItem(storageKey,JSON.stringify({key,expiresAt:Date.now()+86400000}));
+      window.top.history.replaceState(window.top.history.state,'',window.top.location.pathname+window.top.location.search);
+    }
     if(!key){
-      // The private one-click test link places the key in the URL fragment,
-      // which is not sent in any HTTP request or published in website assets.
-      const fragment=new URLSearchParams((window.top.location.hash||'').replace(/^#/, ''));
-      key=fragment.get('engine2cKey')||'';
-      if(key){
-        sessionStorage.setItem('engine2cResearchOwnerKey',key);
-        window.top.history.replaceState(window.top.history.state,'',window.top.location.pathname+window.top.location.search);
-      }
+      try{
+        const saved=JSON.parse(localStorage.getItem(storageKey)||'null');
+        if(saved?.expiresAt>Date.now()&&typeof saved.key==='string'){
+          key=saved.key;
+          sessionStorage.setItem('engine2cResearchOwnerKey',key);
+        }else localStorage.removeItem(storageKey);
+      }catch{localStorage.removeItem(storageKey);}
     }
     if(!key)throw Error('PRIVATE_RESEARCH_ACCESS_REQUIRED');
     let res=await fetchPrivate(key);
     if(res.status===401){
       sessionStorage.removeItem('engine2cResearchOwnerKey');
+      localStorage.removeItem(storageKey);
       throw Error('RESEARCH_OWNER_ACCESS_REJECTED');
     }
     if(!res.ok)throw Error('PRIVATE_HISTORY_HTTP_'+res.status);
