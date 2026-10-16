@@ -19,7 +19,8 @@
   const rect=(canvas,x,y,w,h,c)=>{canvas.fillStyle=c;canvas.fillRect(x,y,w,h)};
   function selection(){return {view:state.view,frame:state.frame,degree:state.degree};}
   // V2 is dormant until an approved, same-origin authenticated research route exists.
-  const historyEndpoint=['/engine2c-private-history/page','http://127.0.0.1:8197/engine2c-private-history/page'].includes(window.__ENGINE2C_HISTORY_ENDPOINT__) ? window.__ENGINE2C_HISTORY_ENDPOINT__ : null;
+  let historyEndpoint=null;
+  let historicalZip=null;
   if(historyEndpoint){
     const olderButton=$('older');if(olderButton)olderButton.textContent='Load older historical candles';
     const newerButton=document.createElement('button');newerButton.id='newer';newerButton.textContent='Load newer historical candles';olderButton?.insertAdjacentElement('afterend',newerButton);
@@ -29,6 +30,7 @@
   const historyPins={UNADJUSTED:['research-dataset:5224f595326ff44d424a9a3ada59fcf548ac5efa4c1e25eb7f4e141331b290f5','price-basis:d4ff32a184e2236d5bcb6551637253517ec694f7cbdcb8d34afd2f017a35f569'],ADJUSTED_RESEARCH:['research-dataset:9caaa3723b576f09bb4040a44c9da3f2a6e0fd5f0bc177f809802e4b80b9a0a4','price-basis:40baff5124d2cae5b6678813329ed7aab1f47a3ac947555390f8ac7cd212c655'],ACTUAL_CONTRACT:['research-dataset:ec592b47b697dc860a47b61dd713d45602d293c8797e1b52fc924a7459d68ac0','price-basis:98e08538fb38efedcb944e54232df4af396383ed6014c0bc1ef874f228dde05e']};
   async function requestHistory(view,frame,cursor,signal){
     if(!historyEndpoint)throw Error('PRIVATE_HISTORY_NOT_CONFIGURED');
+    if(historyEndpoint==='zip-file')return historicalZip.page(view,frame,cursor,historyPins[view]);
     const args=new URLSearchParams({view,frame,limit:'1000',direction:'DESC',datasetVersion:historyPins[view][0],priceBasisVersion:historyPins[view][1]});
     if(cursor!==null)args.set('cursor',cursor);
     const res=await fetch(historyEndpoint+'?'+args,{credentials:'omit',cache:'no-store',signal,headers:{Accept:'application/json'}});
@@ -267,6 +269,26 @@
   }
   $('view').addEventListener('change',choose);$('frame').addEventListener('change',choose);$('degree').addEventListener('change',choose);
   $('fixture').addEventListener('change',e=>importFile(e.target.files?.[0]));
+  const historicalFile=$('historicalZip');
+  historicalFile?.addEventListener('change',async e=>{
+    const file=e.target.files?.[0];if(!file)return;
+    try{
+      $('status').textContent='Verifying historical ES pages in ZIP...';
+      const reader=await window.Engine2CLocalHistoryZip.open(file);
+      for(const view of VIEWS)if(reader.catalog(view).datasetVersion!==historyPins[view][0]||
+        reader.catalog(view).priceBasisVersion!==historyPins[view][1])throw Error('HISTORICAL_ARCHIVE_IDENTITY_MISMATCH');
+      if(!state.handoff)throw Error('ENGINE11_WAVE_EVIDENCE_NOT_READY');
+      historicalZip=reader;historyEndpoint='zip-file';
+      const olderButton=$('older');olderButton.textContent='Load older historical candles';
+      let newerButton=$('newer');
+      if(!newerButton){newerButton=document.createElement('button');newerButton.id='newer';
+        newerButton.textContent='Load newer historical candles';
+        olderButton.insertAdjacentElement('afterend',newerButton);
+        newerButton.addEventListener('click',newer);}
+      $('historicalZipInfo').textContent='Verified historical ZIP selected: '+file.name+' — local research only; no upload.';
+      clearContext();await loadSelection();
+    }catch(error){historicalZip=null;historyEndpoint=null;showError(error);}
+  });
   $('older').addEventListener('click',older);$('newer')?.addEventListener('click',newer);$('roll').addEventListener('click',roll);
   $('zoomIn').addEventListener('click',()=>zoom(1.5));
   $('zoomOut').addEventListener('click',()=>zoom(1/1.5));

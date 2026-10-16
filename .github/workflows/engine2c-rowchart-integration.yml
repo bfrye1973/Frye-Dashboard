@@ -1,7 +1,7 @@
 name: Engine2C RowChart Integration V1
 on:
   push:
-    branches: [engine2c-rowchart-integration-v1-20261014]
+    branches: [engine2c-original-research-browser-archive-20261016]
   pull_request:
     branches: [main]
     paths:
@@ -60,3 +60,51 @@ jobs:
           name: engine2c-integrated-dashboard-v1
           path: /tmp/engine2c-integrated-*.png
           if-no-files-found: ignore
+  original-tab-authentic-history:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Retrieve already-verified private history package
+        uses: actions/download-artifact@v4
+        with:
+          run-id: 38939332953
+          name: engine2c-windows-real-history-test
+          path: /tmp/engine2c-verified-package
+          github-token: ${{ github.token }}
+      - name: Package the existing verified local history pages as a private ZIP
+        run: |
+          set -euo pipefail
+          test -s /tmp/engine2c-verified-package/pages/continuousRaw/continuousRaw-catalog.json
+          cd /tmp/engine2c-verified-package
+          zip -q -r /tmp/engine2c-existing-pages.zip pages/
+          test -s /tmp/engine2c-existing-pages.zip
+      - name: Build the unchanged original Frye Dashboard with ZIP-reading option
+        run: |
+          npm ci
+          npm run build
+          test -s build/engine2c-research/localHistoryZip.js
+      - name: Install Chromium browser test
+        run: |
+          npm install --no-save --no-package-lock playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Serve same original RESEARCH chart inside normal dashboard page
+        run: |
+          node research/engine2c-preview/integration-http.cjs >/tmp/engine2c-original-http.log 2>&1 &
+          for i in $(seq 1 40); do
+            if curl -fsS http://127.0.0.1:8193/engine2c-research/index.html -o /dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/engine2c-original-http.log
+          exit 1
+      - name: Verify original chart with 1000 / 5000 / 25000 authentic ES bars
+        env:
+          ENGINE2C_ZIP_FILE: /tmp/engine2c-existing-pages.zip
+        run: node research/engine2c-preview/original-tab-history-zip-browser.cjs
+      - name: Remove private data
+        if: always()
+        run: rm -rf /tmp/engine2c-verified-package /tmp/engine2c-existing-pages.zip
