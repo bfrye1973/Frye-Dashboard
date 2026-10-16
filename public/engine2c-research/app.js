@@ -18,6 +18,26 @@
   const time = s => new Date(s*1000).toLocaleString('en-US',{timeZone:'America/Phoenix',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
   const rect=(canvas,x,y,w,h,c)=>{canvas.fillStyle=c;canvas.fillRect(x,y,w,h)};
   function selection(){return {view:state.view,frame:state.frame,degree:state.degree};}
+  // V2 is dormant until an approved, same-origin authenticated research route exists.
+  const historyEndpoint=['/engine2c-private-history/page','http://127.0.0.1:8197/engine2c-private-history/page'].includes(window.__ENGINE2C_HISTORY_ENDPOINT__) ? window.__ENGINE2C_HISTORY_ENDPOINT__ : null;
+  if(historyEndpoint){
+    const olderButton=$('older');if(olderButton)olderButton.textContent='Load older historical candles';
+    const newerButton=document.createElement('button');newerButton.id='newer';newerButton.textContent='Load newer historical candles';olderButton?.insertAdjacentElement('afterend',newerButton);
+    const header=document.querySelector('header p');if(header)header.textContent='UNVERIFIED / AUTHENTIC HISTORICAL RESEARCH / NOT LIVE / NOT EXECUTION ELIGIBLE';
+  }
+  let historySession=null,historyBusy=false;
+  const historyPins={UNADJUSTED:['research-dataset:5224f595326ff44d424a9a3ada59fcf548ac5efa4c1e25eb7f4e141331b290f5','price-basis:d4ff32a184e2236d5bcb6551637253517ec694f7cbdcb8d34afd2f017a35f569'],ADJUSTED_RESEARCH:['research-dataset:9caaa3723b576f09bb4040a44c9da3f2a6e0fd5f0bc177f809802e4b80b9a0a4','price-basis:40baff5124d2cae5b6678813329ed7aab1f47a3ac947555390f8ac7cd212c655'],ACTUAL_CONTRACT:['research-dataset:ec592b47b697dc860a47b61dd713d45602d293c8797e1b52fc924a7459d68ac0','price-basis:98e08538fb38efedcb944e54232df4af396383ed6014c0bc1ef874f228dde05e']};
+  async function requestHistory(view,frame,cursor,signal){
+    if(!historyEndpoint)throw Error('PRIVATE_HISTORY_NOT_CONFIGURED');
+    const args=new URLSearchParams({view,frame,limit:'1000',direction:'DESC',datasetVersion:historyPins[view][0],priceBasisVersion:historyPins[view][1]});
+    if(cursor!==null)args.set('cursor',cursor);
+    const res=await fetch(historyEndpoint+'?'+args,{credentials:'omit',cache:'no-store',signal,headers:{Accept:'application/json'}});
+    if(!res.ok)throw Error('PRIVATE_HISTORY_HTTP_'+res.status);
+    if(!(res.headers.get('content-type')||'').includes('application/json'))throw Error('PRIVATE_HISTORY_INVALID_CONTENT_TYPE');
+    const json=await res.json();
+    if(json.datasetVersion!==historyPins[view][0]||json.priceBasisVersion!==historyPins[view][1]||json.direction!=='DESC'||json.frame!==frame||json.researchOnly!==true||json.structuralEligible!==false||json.executionPriceAuthority!==false||!Array.isArray(json.rows)||json.rows.length>1000)throw Error('PRIVATE_HISTORY_BASIS_MISMATCH');
+    return json;
+  }
   function currentFixture(){return state.handoff?.fixtures?.[state.view]?.[state.frame]??null;}
   function availableNodes(){const groups=state.handoff?.nodeLayers?.degrees||{};return state.degree==='ALL'?Object.values(groups).flat():groups[state.degree]||[];}
   function checkHandoff(h){
@@ -53,7 +73,12 @@
     state.rows.sort((a,b)=>date(a.timestampNs)-date(b.timestampNs));
     // Preserve a visible candle's identity when older pages are prepended.
     if(state.rows.length>CAP){
-      const drop=state.rows.splice(0,state.rows.length-CAP);
+      // When browsing older history, keep the newly requested older end of the window.
+      // A future newer-direction fetch can recover evicted bars; do not silently
+      // discard the just-loaded page by evicting from the older end.
+      const drop=historyEndpoint&&(key.startsWith('history-')||key.startsWith('older-reload-'))
+        ?state.rows.splice(CAP,state.rows.length-CAP)
+        :state.rows.splice(0,state.rows.length-CAP);
       drop.forEach(r=>state.identities.delete(r.researchCandleId));
     }
     if(oldAnchor){const nextAnchor=state.rows.findIndex(r=>r.researchCandleId===oldAnchor);if(nextAnchor>=0)state.offset=nextAnchor;}
@@ -61,12 +86,20 @@
     draw();details();return true;
   }
   function clearContext(){
+    historySession?.abort?.();historySession=null;historyBusy=false;
     state.generation++;state.request++;state.rows=[];state.identities.clear();state.pageSet.clear();state.cursor=null;state.zoom=1;state.offset=0;
   }
   async function loadSelection(){
     const gen=state.generation,seq=++state.request;
     await Promise.resolve(); // predictable newest-intent guard even for async adapters
     if(gen!==state.generation||seq!==state.request)return;
+    if(historyEndpoint){
+      const session={abortController:new AbortController(),page:0,oldestLoaded:0,newestLoaded:0,cursors:[null],serial:0,abort(){this.abortController.abort();}};
+      historySession=session;
+      const p=await requestHistory(state.view,state.frame,null,session.abortController.signal);
+      if(gen!==state.generation||seq!==state.request||historySession!==session)return;
+      appendPage(p,'history-0');session.page=1;session.cursors[1]=p.nextCursor;return;
+    }
     const fixture=currentFixture();
     if(!fixture)throw Error('No pinned page for selection');
     appendPage(fixture.firstPage,'first');
@@ -81,15 +114,58 @@
     if(state.handoff)loadSelection().catch(showError);else details();
   }
   function showError(e){$('status').textContent='RESEARCH LOAD BLOCKED: '+(e?.message||e);$('chartEmpty').hidden=false;}
-  function older(){
+  async function older(){
+    if(historyEndpoint){
+      const session=historySession;if(!session||historyBusy)return;
+      if(state.cursor===null){$('status').textContent='End of approved historical data';return;}
+      const gen=state.generation,view=state.view,frame=state.frame;
+      const reloading=session.oldestLoaded<session.page-1,requestedPage=reloading?session.oldestLoaded+1:session.page;
+      const cursor=reloading?session.cursors[requestedPage]:state.cursor;
+      if(cursor===undefined||cursor===null){if(requestedPage>0){$('status').textContent='End of available history';return;}}
+      historyBusy=true;
+      try{
+        const p=await requestHistory(view,frame,cursor,session.abortController.signal);
+        if(gen!==state.generation||historySession!==session)return;
+        if(p.requestCursor!==undefined&&p.requestCursor!==cursor)throw Error('PRIVATE_HISTORY_CURSOR_MISMATCH');
+        if(p.nextCursor===cursor)throw Error('PRIVATE_HISTORY_CURSOR_LOOP');
+        const willEvict=state.rows.length+p.rows.filter(r=>!state.identities.has(r.researchCandleId)).length>CAP;
+        appendPage(p,(reloading?'older-reload-':'history-')+requestedPage+'-'+(++session.serial));
+        session.oldestLoaded=requestedPage;
+        if(willEvict)session.newestLoaded=Math.min(session.oldestLoaded,session.newestLoaded+1);
+        if(!reloading){session.page=requestedPage+1;session.cursors[session.page]=p.nextCursor;}
+        else state.cursor=session.cursors[session.page]??null;
+      }catch(e){if(e.name!=='AbortError'&&historySession===session)showError(e);}finally{if(historySession===session)historyBusy=false;}
+      return;
+    }
     const f=currentFixture();if(!f||!state.handoff)return;
     if(state.pageSet.has('second')||!f.firstPage.nextCursor||!f.secondPage){$('status').textContent='No further pinned older sample page. Unqueried history is unavailable.';return;}
     if(f.secondRequest?.cursor!==f.firstPage.nextCursor){showError(Error('Pinned cursor mismatch'));return;}
     try{appendPage(f.secondPage,'second');}catch(e){showError(e);}
   }
+  async function newer(){
+    if(!historyEndpoint||!historySession||historyBusy)return;
+    const session=historySession,requestedPage=session.newestLoaded-1;
+    if(requestedPage<0){$('status').textContent='Already at newest archived page';return;}
+    const cursor=session.cursors[requestedPage];
+    if(cursor===undefined)return showError(Error('NEWER_PAGE_CURSOR_MISSING'));
+    const gen=state.generation,view=state.view,frame=state.frame,olderFrontier=state.cursor;
+    historyBusy=true;
+    try{
+      const p=await requestHistory(view,frame,cursor,session.abortController.signal);
+      if(gen!==state.generation||historySession!==session)return;
+      if(p.requestCursor!==undefined&&p.requestCursor!==cursor)throw Error('NEWER_CURSOR_MISMATCH');
+      const willEvict=state.rows.length+p.rows.filter(r=>!state.identities.has(r.researchCandleId)).length>CAP;
+      appendPage(p,'newer-reload-'+requestedPage+'-'+(++session.serial));
+      state.cursor=olderFrontier;session.newestLoaded=requestedPage;
+      if(willEvict)session.oldestLoaded=Math.max(session.newestLoaded,session.oldestLoaded-1);
+    }catch(e){if(e.name!=='AbortError'&&historySession===session)showError(e);}finally{if(historySession===session)historyBusy=false;}
+  }
   function roll(){
     const f=currentFixture();if(!f?.rollPage){$('status').textContent='Rollover sample unavailable for selected native frame.';return;}
     try{appendPage(f.rollPage,'roll');}catch(e){showError(e);}
+  }
+  function maybeLoadOlder(){
+    if(historyEndpoint&&historySession&&!historyBusy&&state.cursor!==null&&state.offset<Math.max(20,Math.round(state.rows.length*.03)))older();
   }
   function zoom(factor){
     if(!state.rows.length)return;
@@ -98,7 +174,7 @@
     state.zoom=Math.max(1,Math.min(16,Number((state.zoom*factor).toFixed(8))));
     const newShown=Math.max(1,Math.min(state.rows.length,Math.round(state.rows.length/state.zoom)));
     state.offset=Math.max(0,Math.min(state.rows.length-newShown,Math.round(center-(newShown-1)/2)));
-    draw();
+    draw();maybeLoadOlder();
   }
   function yFor(price,lo,hi,top,height){return top+(hi-price)*height/Math.max(hi-lo,1);}
   function draw(){
@@ -153,7 +229,7 @@
     }
     const stride=Math.max(1,Math.ceil(visible.length/6));ctx.fillStyle='#99aec7';ctx.textAlign='center';ctx.font='11px system-ui';
     for(let i=0;i<visible.length;i+=stride)ctx.fillText(time(date(visible[i].timestampNs)),plot.left+(i+.5)*step,h-18);
-    $('status').textContent=LABELS[state.view]+' · '+state.frame+' · '+state.degree+' · '+count+' sample candles loaded / max '+CAP+' · '+(state.cursor?'more pinned sample may exist':'no further pinned cursor')+' · UNVERIFIED SOURCE MARKS';
+    $('status').textContent=LABELS[state.view]+' · '+state.frame+' · '+state.degree+' · '+count+(historyEndpoint?' authenticated research':' sample')+' candles loaded / max '+CAP+' · '+(state.cursor?'older page available':'end of available pages')+' · UNVERIFIED SOURCE MARKS';
   }
   function nodeDetails(){
     const nodes=availableNodes();
@@ -191,15 +267,15 @@
   }
   $('view').addEventListener('change',choose);$('frame').addEventListener('change',choose);$('degree').addEventListener('change',choose);
   $('fixture').addEventListener('change',e=>importFile(e.target.files?.[0]));
-  $('older').addEventListener('click',older);$('roll').addEventListener('click',roll);
+  $('older').addEventListener('click',older);$('newer')?.addEventListener('click',newer);$('roll').addEventListener('click',roll);
   $('zoomIn').addEventListener('click',()=>zoom(1.5));
   $('zoomOut').addEventListener('click',()=>zoom(1/1.5));
   $('reset').addEventListener('click',()=>{state.zoom=1;state.offset=0;draw();});
-  $('chart').addEventListener('wheel',e=>{if(!state.rows.length)return;e.preventDefault();if(e.ctrlKey){zoom(e.deltaY>0?.85:1.15);}else{state.offset=Math.max(0,Math.min(Math.max(0,state.rows.length-1),state.offset+Math.sign(e.deltaY)*2));}draw();},{passive:false});
+  $('chart').addEventListener('wheel',e=>{if(!state.rows.length)return;e.preventDefault();if(e.ctrlKey){zoom(e.deltaY>0?.85:1.15);}else{state.offset=Math.max(0,Math.min(Math.max(0,state.rows.length-1),state.offset+Math.sign(e.deltaY)*2));}draw();maybeLoadOlder();},{passive:false});
   let drag=null;$('chart').addEventListener('pointerdown',e=>{drag=e.clientX;$('chart').setPointerCapture?.(e.pointerId);});
-  $('chart').addEventListener('pointermove',e=>{if(drag==null||!state.rows.length)return;const dx=e.clientX-drag;drag=e.clientX;state.offset=Math.max(0,Math.min(Math.max(0,state.rows.length-1),state.offset-dx/Math.max(12,$('chart').clientWidth/state.rows.length)));draw();});
+  $('chart').addEventListener('pointermove',e=>{if(drag==null||!state.rows.length)return;const dx=e.clientX-drag;drag=e.clientX;state.offset=Math.max(0,Math.min(Math.max(0,state.rows.length-1),state.offset-dx/Math.max(12,$('chart').clientWidth/state.rows.length)));draw();maybeLoadOlder();});
   $('chart').addEventListener('pointerup',()=>{drag=null;});$('chart').addEventListener('pointercancel',()=>{drag=null;});
   if(window.ResizeObserver)new ResizeObserver(draw).observe($('chart'));else window.addEventListener('resize',draw);
   details();draw();
-  window.__ENGINE2C_TEST__={state,checkHandoff,validatePage,appendPage,clearContext,selection,choose,loadSelection,older,roll,draw,zoom,CAP};
+  window.__ENGINE2C_TEST__={state,historyEndpoint,requestHistory,checkHandoff,validatePage,appendPage,clearContext,selection,choose,loadSelection,older,newer,roll,draw,zoom,CAP};
 })();

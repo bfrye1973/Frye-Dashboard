@@ -55,7 +55,7 @@ export default function RowChartModeGate(props) {
         <div data-engine2c-research-panel style={{ position:"relative",minWidth:0,width:"100%",height:props.fullScreen?"calc(100vh - 220px)":"min(860px, 85vh)",minHeight:470 }}>
           <iframe
             title="Engine 2C seven-degree ES research — historical research, not live"
-            src={localHistory ? "http://127.0.0.1:8197/engine2c-research/index.html" : `${process.env.PUBLIC_URL || ""}/engine2c-research/index.html`}
+            src={`${process.env.PUBLIC_URL || ""}/engine2c-research/index.html${localHistory ? "?engine2cHistory=local" : ""}`}
             loading="eager"
             style={{ width:"100%", height:"100%", border:"1px solid #334155", borderRadius:8, background:"#090e17" }}
             sandbox="allow-scripts allow-same-origin"
