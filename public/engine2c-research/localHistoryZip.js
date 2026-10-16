@@ -23,10 +23,10 @@
       const nameLength=u16(dir,pos+28),extra=u16(dir,pos+30),comment=u16(dir,pos+32),offset=u32(dir,pos+42);
       if(flags&1)throw Error('ENCRYPTED_ZIP_UNSUPPORTED');
       if(method!==0&&method!==8)throw Error('ZIP_METHOD_UNSUPPORTED');
-      if(plain>2500000||compressed>2500000)throw Error('ZIP_PAGE_TOO_LARGE');
       if(pos+46+nameLength+extra+comment>dir.byteLength)throw Error('ZIP_ENTRY_TRUNCATED');
       const name=utf8.decode(new Uint8Array(dir.buffer,dir.byteOffset+pos+46,nameLength));
       if(name.includes('..')||name.startsWith('/')||name.includes('\\'))throw Error('ZIP_ENTRY_NAME_INVALID');
+      if(name.includes('/pages/') && (plain>2500000||compressed>2500000))throw Error('ZIP_PAGE_TOO_LARGE');
       if(!name.endsWith('/'))entries.set(name,{method,compressed,plain,offset});
       pos+=46+nameLength+extra+comment;
     }
