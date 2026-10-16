@@ -110,5 +110,7 @@ jobs:
             $url="http://127.0.0.1:8197/engine2c-private-history/page?view=UNADJUSTED&frame=10m&limit=1000&direction=DESC&datasetVersion=$v&priceBasisVersion=$b"
             $data=Invoke-RestMethod $url
             if ($data.rows.Count -ne 1000 -or $data.researchOnly -ne $true -or $data.executionPriceAuthority -ne $false) { throw "Historical candles missing or invalid" }
-            Write-Host "WINDOWS LOCAL RESEARCH PASS: 1000 authentic ES candles via same-origin local chart route"
+            $cors=Invoke-WebRequest -UseBasicParsing $url -Headers @{"Origin"="https://frye-dashboard.onrender.com"}
+            if($cors.Headers["Access-Control-Allow-Origin"] -ne "https://frye-dashboard.onrender.com"){throw "HTTPS dashboard CORS missing"}
+            Write-Host "WINDOWS LOCAL RESEARCH PASS: 1000 authentic ES candles and dashboard CORS"
           } finally { Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue }
