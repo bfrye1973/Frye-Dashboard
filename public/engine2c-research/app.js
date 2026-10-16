@@ -39,10 +39,16 @@
     });
     let key=sessionStorage.getItem('engine2cResearchOwnerKey')||'';
     if(!key){
-      key=window.prompt('Enter your private historical research access key (one-time per tab):')||'';
-      if(!key)throw Error('RESEARCH_OWNER_ACCESS_REQUIRED');
-      sessionStorage.setItem('engine2cResearchOwnerKey',key);
+      // The private one-click test link places the key in the URL fragment,
+      // which is not sent in any HTTP request or published in website assets.
+      const fragment=new URLSearchParams((window.top.location.hash||'').replace(/^#/, ''));
+      key=fragment.get('engine2cKey')||'';
+      if(key){
+        sessionStorage.setItem('engine2cResearchOwnerKey',key);
+        window.top.history.replaceState(window.top.history.state,'',window.top.location.pathname+window.top.location.search);
+      }
     }
+    if(!key)throw Error('PRIVATE_RESEARCH_ACCESS_REQUIRED');
     let res=await fetchPrivate(key);
     if(res.status===401){
       sessionStorage.removeItem('engine2cResearchOwnerKey');
