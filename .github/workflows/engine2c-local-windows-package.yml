@@ -1,0 +1,74 @@
+name: Engine2C Windows Historical ES Research Test Package
+on:
+  push:
+    branches: [engine2c-research-test-connection-20261016]
+    paths:
+      - 'research/engine2c-preview/**'
+      - 'public/engine2c-research/**'
+      - '.github/workflows/engine2c-local-windows-package.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  package-local-research:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Retrieve original historical data privately
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/engine2c-private/source
+          gh api /repos/bfrye1973/frye-market-backend/actions/artifacts/11901549711/zip > /tmp/engine2c-private/archive.zip
+          echo 'e47f6ef694a36f3b022322b0ff855c8be38276f3510ac6b3ef19fc52a4d781f6  /tmp/engine2c-private/archive.zip' | sha256sum -c -
+          unzip -q /tmp/engine2c-private/archive.zip -d /tmp/engine2c-private/source
+          cd /tmp/engine2c-private/source
+          echo '2fb27d02e169c127ba6f423b5e36097d35068fb56ebcfbf8249b8594929ff76a  continuousRaw.json.gz' | sha256sum -c -
+          echo '14f9b382f86a6008ce031dee1aa858f7f87bc93b48909d041a3ada01b95fa56e  continuousAdjustedClose.json.gz' | sha256sum -c -
+          echo '03cb49eb1240b9a4febf78c3d98eab0839ac699f7818936ea97b64bb519ded36  actualESZ2026.json.gz' | sha256sum -c -
+      - name: Use pinned existing Engine11 pagination authority
+        run: |
+          git clone --filter=blob:none https://github.com/bfrye1973/frye-market-backend.git /tmp/engine11-source
+          git -C /tmp/engine11-source checkout 45a351f1bd264d807ee7a3fadc92bae5dba6f4dc
+      - name: Export existing historical data as private page files
+        run: |
+          set -euo pipefail
+          for view in continuousRaw continuousAdjustedClose actualESZ2026; do
+            node research/engine2c-preview/export-history-pages.mjs \
+              /tmp/engine11-source/services/core/logic/engine11/continuousChartResearchV1/series.js \
+              /tmp/engine2c-private/source/$view.json.gz \
+              /tmp/engine2c-private/pages/$view "$view"
+          done
+          node research/engine2c-preview/verify-history-export.mjs /tmp/engine2c-private/pages
+      - name: Build the original full dashboard with tested research loader
+        run: |
+          npm ci
+          npm run build
+          test -s build/engine2c-research/index.html
+          test -s build/engine2c-research/app.js
+      - name: Prepare local-only Windows package
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/engine2c-windows-test
+          cp -a build /tmp/engine2c-windows-test/
+          cp -a /tmp/engine2c-private/pages /tmp/engine2c-windows-test/
+          cp research/engine2c-preview/start-research-chart.ps1 /tmp/engine2c-windows-test/
+          cp research/engine2c-preview/start-research-chart.cmd /tmp/engine2c-windows-test/
+          printf '1. Extract ZIP on your Windows computer.\r\n2. Double-click start-research-chart.cmd.\r\n3. The RESEARCH tab opens with authentic historical ES candles.\r\n4. Close the black window to stop.\r\n\r\nLocal only: 127.0.0.1. Does not modify the Render dashboard.\r\n' > /tmp/engine2c-windows-test/READ-ME-FIRST.txt
+          test -s /tmp/engine2c-windows-test/pages/continuousRaw/continuousRaw-catalog.json
+      - name: Upload local test package
+        uses: actions/upload-artifact@v4
+        with:
+          name: engine2c-windows-real-history-test
+          path: /tmp/engine2c-windows-test/
+          retention-days: 7
+          compression-level: 6
+      - name: Remove temporary source data
+        if: always()
+        run: rm -rf /tmp/engine2c-private /tmp/engine11-source /tmp/engine2c-windows-test
