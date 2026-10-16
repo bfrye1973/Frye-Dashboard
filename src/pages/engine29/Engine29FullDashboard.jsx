@@ -95,6 +95,17 @@ function plainOverall(value) {
   return clean(value);
 }
 
+function plainBiggerPictureCharacter(value) {
+  const text = String(value || "").toUpperCase();
+  if (text === "SUPPORTIVE") return "SUPPORTIVE";
+  if (text === "NARROWING") return "NARROWING";
+  if (text === "DISTRIBUTION_PRESSURE") return "DISTRIBUTION PRESSURE";
+  if (text === "BROAD_DETERIORATION") return "BROAD DETERIORATION";
+  if (text === "STRUCTURE_ONLY") return "STRUCTURE ONLY";
+  if (text === "MIXED") return "MIXED";
+  return clean(value);
+}
+
 function plainTactical(value) {
   const text = String(value || "").toUpperCase();
   if (text === "NORMAL") return "NORMAL";
@@ -392,6 +403,107 @@ function StateCard({ label, value, subtitle, accent }) {
       <div style={{ color: COLORS.muted, fontSize: 12, fontWeight: 900, textTransform: "uppercase" }}>{label}</div>
       <div style={{ marginTop: 7, color, fontSize: 25, lineHeight: 1.08, fontWeight: 900 }}>{clean(value)}</div>
       {subtitle ? <div style={{ marginTop: 7, color: "#cbd5e1", fontSize: 13, lineHeight: 1.35 }}>{subtitle}</div> : null}
+    </Card>
+  );
+}
+
+
+function BiggerPictureCard({ data, display }) {
+  const oneWeek = display?.oneWeek || {};
+  const character =
+    oneWeek?.character ||
+    data?.biggerPictureCharacter ||
+    data?.marketCharacter?.biggerPicture?.character ||
+    null;
+  const priceBreadth =
+    oneWeek?.priceBreadth ||
+    data?.marketCharacter?.biggerPicture?.priceBreadth ||
+    null;
+  const structuralParticipation =
+    oneWeek?.structuralParticipation ||
+    data?.structuralParticipation ||
+    data?.marketCharacter?.biggerPicture?.structuralParticipation ||
+    null;
+
+  const hasV2 =
+    Boolean(character) ||
+    Boolean(structuralParticipation) ||
+    Boolean(priceBreadth);
+
+  if (!hasV2) {
+    return (
+      <StateCard
+        label="1W Bigger Picture"
+        value={plainOverall(oneWeek?.state || data?.structuralState || data?.overallState)}
+        subtitle={oneWeek?.summary}
+      />
+    );
+  }
+
+  const distributionLabel =
+    structuralParticipation?.distributionLabel ||
+    structuralParticipation?.distribution?.label ||
+    "—";
+
+  const breadthLabel =
+    structuralParticipation?.breadth?.label ||
+    "—";
+
+  const stockVolume =
+    structuralParticipation?.stockVolume || {};
+
+  const coverage =
+    stockVolume?.intraday?.coveragePct ??
+    stockVolume?.coverage?.intradayPct ??
+    null;
+
+  const currentEligible =
+    character?.currentParticipationPromotionEligible === true;
+
+  const characterState =
+    character?.state || "STRUCTURE_ONLY";
+
+  return (
+    <Card style={{ borderColor: stateColor(characterState), background: "rgba(15,23,42,0.88)" }}>
+      <div style={{ color: COLORS.muted, fontSize: 12, fontWeight: 900, textTransform: "uppercase" }}>
+        1W Bigger Picture
+      </div>
+
+      <div style={{ marginTop: 7, color: stateColor(characterState), fontSize: 23, lineHeight: 1.08, fontWeight: 950 }}>
+        {plainBiggerPictureCharacter(characterState)}
+      </div>
+
+      <div style={{ marginTop: 10, display: "grid", gap: 6 }}>
+        <LabelValue
+          label="Cross-market structure"
+          value={plainOverall(oneWeek?.state || data?.structuralState || data?.overallState)}
+        />
+        <LabelValue
+          label="Price breadth"
+          value={clean(priceBreadth?.state)}
+        />
+        <LabelValue
+          label="Engine25 4H distribution"
+          value={clean(distributionLabel)}
+        />
+        <LabelValue
+          label="Engine25 scanner breadth"
+          value={clean(breadthLabel)}
+        />
+        <LabelValue
+          label="Stock-volume coverage"
+          value={Number.isFinite(Number(coverage)) ? Number(coverage).toFixed(1) + "%" : "—"}
+          color={Number.isFinite(Number(coverage)) && Number(coverage) >= 70 ? COLORS.good : COLORS.warn}
+        />
+      </div>
+
+      <div style={{ marginTop: 9, color: "#cbd5e1", fontSize: 12, lineHeight: 1.35 }}>
+        {currentEligible
+          ? "Engine25 participation is current and eligible to shape Bigger Picture character."
+          : structuralParticipation?.freshness?.state === "LAST_VALID_EQUITY_READ"
+            ? "Last valid equity-session participation is diagnostic only."
+            : "Engine25 participation is context only until current validity is confirmed."}
+      </div>
     </Card>
   );
 }
@@ -1079,11 +1191,7 @@ export default function Engine29FullDashboard({ homeCompact = false }) {
                 gap: 12,
               }}
             >
-              <StateCard
-                label="1W Bigger Picture"
-                value={plainOverall(top.oneWeek)}
-                subtitle={display?.oneWeek?.summary}
-              />
+              <BiggerPictureCard data={d} display={display} />
               <StateCard
                 label="1H Current Pressure"
                 value={plainTactical(top.oneHour)}
@@ -1170,7 +1278,7 @@ export default function Engine29FullDashboard({ homeCompact = false }) {
         {(data || summary) && (
           <>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(250px, 1fr))", gap: 12 }}>
-              <StateCard label="1W Bigger Picture" value={plainOverall(top.oneWeek)} subtitle={display?.oneWeek?.summary} />
+              <BiggerPictureCard data={d} display={display} />
               <StateCard label="1H Current Pressure" value={plainTactical(top.oneHour)} subtitle={display?.oneHour?.summary} />
               <StateCard label="30m Fast Shift" value={plainTactical(top.thirty)} subtitle={display?.thirtyMinute?.summary} />
               <StateCard label="ES Parent MOVE" value={plainMoveCharacter(top.move, top.moveDirection)} subtitle={display?.thirtyMinute?.summary} />
