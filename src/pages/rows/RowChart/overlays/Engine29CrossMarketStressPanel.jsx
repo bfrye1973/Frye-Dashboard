@@ -385,17 +385,17 @@ export default function Engine29CrossMarketStressPanel({ visible = false, symbol
                 Bigger Picture v2
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px 16px" }}>
-                <KV label="ES Daily Price Action" value={plainEsPriceAction(esPriceAction?.daily?.state)} />
-                <KV label="ES Weekly Price Action" value={plainEsPriceAction(esPriceAction?.weekly?.state)} />
-                <KV label="Overall Market Health" value={plainState(oneWeek?.state || payload?.structuralState)} />
-                <KV label="Price breadth" value={priceBreadth?.state || "—"} />
+                <KV label="ES Daily Trend" value={plainEsPriceAction(esPriceAction?.daily?.state)} />
+                <KV label="ES Weekly Trend" value={plainEsPriceAction(esPriceAction?.weekly?.state)} />
+                <KV label="Overall Market Health" value={plainOverallMarketHealth(oneWeek?.state || payload?.structuralState)} />
+                <KV label="How Much of the Market Is Participating" value={plainPriceBreadth(priceBreadth?.state)} />
                 <KV
-                  label="Engine25 4H distribution"
-                  value={structuralParticipation?.distributionLabel || structuralParticipation?.distribution?.label || "—"}
+                  label="Selling Pressure"
+                  value={plainDistribution(structuralParticipation?.distributionLabel || structuralParticipation?.distribution?.label)}
                 />
                 <KV
-                  label="Engine25 scanner breadth"
-                  value={structuralParticipation?.breadth?.label || "—"}
+                  label="Stocks Participating"
+                  value={plainScannerBreadth(structuralParticipation?.breadth?.label)}
                 />
                 <KV
                   label="Engine25 freshness"
