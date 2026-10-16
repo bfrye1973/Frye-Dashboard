@@ -53,12 +53,49 @@ function plainState(value) {
 
 function plainBiggerPictureCharacter(value) {
   const text = String(value || "").toUpperCase();
-  if (text === "SUPPORTIVE") return "HEALTHY / SUPPORTIVE";
-  if (text === "NARROWING") return "WAIT — MARKET NARROWING";
+  if (text === "SUPPORTIVE") return "HEALTHY";
+  if (text === "NARROWING") return "WAIT — MIXED MARKET";
   if (text === "DISTRIBUTION_PRESSURE") return "DOWNWARD PRESSURE";
   if (text === "BROAD_DETERIORATION") return "STRONG DOWNWARD PRESSURE";
-  if (text === "STRUCTURE_ONLY") return "WAIT — LIMITED DATA";
-  if (text === "MIXED") return "WAIT — MIXED SIGNALS";
+  if (text === "STRUCTURE_ONLY") return "WAIT — MIXED MARKET";
+  if (text === "MIXED") return "WAIT — MIXED MARKET";
+  return clean(value);
+}
+
+function plainOverallMarketHealth(value) {
+  const text = String(value || "").toUpperCase();
+  if (text === "NORMAL") return "HEALTHY";
+  if (text === "EARLY_WARNING") return "SOME WEAKNESS SHOWING";
+  if (text === "BROAD_DETERIORATION") return "BROAD WEAKNESS";
+  if (text === "RISK_OFF_CONFIRMED") return "DOWNWARD PRESSURE";
+  if (text === "SYSTEMIC_STRESS") return "STRONG DOWNWARD PRESSURE";
+  return clean(value);
+}
+
+function plainPriceBreadth(value) {
+  const text = String(value || "").toUpperCase();
+  if (text === "HEALTHY") return "BROAD PARTICIPATION";
+  if (text === "RECOVERING") return "IMPROVING";
+  if (text === "FORMING") return "SOME ARE LAGGING";
+  if (text === "CONFIRMED" || text === "SEVERE") return "BROAD WEAKNESS";
+  return clean(value);
+}
+
+function plainDistribution(value) {
+  const text = String(value || "").toUpperCase();
+  if (text.includes("EXTREME")) return "VERY HIGH";
+  if (text.includes("HIGH")) return "HIGH";
+  if (text.includes("WATCH") || text.includes("ELEVATED")) return "BUILDING";
+  if (text.includes("LOW")) return "LOW";
+  return clean(value);
+}
+
+function plainScannerBreadth(value) {
+  const text = String(value || "").toUpperCase();
+  if (text.includes("HEALTHY")) return "HEALTHY";
+  if (text.includes("MIXED_WEAKENING")) return "MIXED — WEAKENING";
+  if (text.includes("MIXED")) return "MIXED";
+  if (text.includes("WEAK")) return "WEAK";
   return clean(value);
 }
 
