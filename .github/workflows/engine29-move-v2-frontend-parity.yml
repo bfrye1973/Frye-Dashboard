@@ -8,6 +8,7 @@ on:
       - engine29-bigger-picture-v2-ui
       - engine29-bigger-picture-plain-language-colors
       - engine29-bigger-picture-plain-english-v2
+      - engine29-remove-volume-data-quality
   workflow_dispatch:
 
 jobs:
