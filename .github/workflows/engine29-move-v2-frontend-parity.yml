@@ -6,6 +6,7 @@ on:
       - engine29-move-v2-frontend-parity
       - engine29-squeeze-v2-frontend-live
       - engine29-bigger-picture-v2-ui
+      - engine29-bigger-picture-plain-language-colors
   workflow_dispatch:
 
 jobs:
