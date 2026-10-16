@@ -75,9 +75,9 @@ function plainOverallMarketHealth(value) {
 function plainPriceBreadth(value) {
   const text = String(value || "").toUpperCase();
   if (text === "HEALTHY") return "BROAD PARTICIPATION";
-  if (text === "RECOVERING") return "IMPROVING";
-  if (text === "FORMING") return "SOME ARE LAGGING";
-  if (text === "CONFIRMED" || text === "SEVERE") return "BROAD WEAKNESS";
+  if (text === "RECOVERING") return "IMPROVING PARTICIPATION";
+  if (text === "FORMING") return "MIXED PARTICIPATION";
+  if (text === "CONFIRMED" || text === "SEVERE") return "WEAK PARTICIPATION";
   return clean(value);
 }
 
