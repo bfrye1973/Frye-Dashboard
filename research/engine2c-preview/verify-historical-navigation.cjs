@@ -119,6 +119,12 @@ let served=0;
   assert.ok(newerWindow.first!==oldestWindow.first,'newer reload did not advance');
   assert.equal(newerWindow.n,25000);
   assert.equal(newerWindow.unique,25000);
+  await func('older');
+  const returnWindow=await inspect();
+  assert.equal(returnWindow.first,oldestWindow.first,'cannot return to oldest boundary after newer page reload');
+  assert.equal(returnWindow.n,25000);
+  assert.equal(returnWindow.unique,25000);
+
   // Basic zoom and wheel pan with the original canvas.
   await frame.locator('#zoomIn').click();
   const zoomed=await inspect();assert.ok(zoomed.zoom>1);
