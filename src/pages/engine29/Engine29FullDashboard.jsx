@@ -143,14 +143,6 @@ function plainScannerBreadth(value) {
   return clean(value);
 }
 
-function plainVolumeDataQuality(coverage, freshness) {
-  if (freshness?.lastValidEquityRead === true) return "LAST SESSION";
-  const n = Number(coverage);
-  if (!Number.isFinite(n) || n <= 0) return "UNAVAILABLE";
-  if (n >= 70) return "GOOD";
-  return "LIMITED";
-}
-
 function biggerPictureColor(value) {
   const text = String(value || "").toUpperCase();
 
@@ -541,14 +533,6 @@ function BiggerPictureCard({ data, display }) {
     structuralParticipation?.breadth?.label ||
     "—";
 
-  const stockVolume =
-    structuralParticipation?.stockVolume || {};
-
-  const coverage =
-    stockVolume?.intraday?.coveragePct ??
-    stockVolume?.coverage?.intradayPct ??
-    null;
-
   const currentEligible =
     character?.currentParticipationPromotionEligible === true;
 
@@ -609,17 +593,6 @@ function BiggerPictureCard({ data, display }) {
                 ? "WEAK"
                 : "NARROWING"
           )}
-        />
-        <LabelValue
-          label="Volume Data Quality"
-          value={plainVolumeDataQuality(coverage, structuralParticipation?.freshness)}
-          color={
-            structuralParticipation?.freshness?.lastValidEquityRead === true
-              ? COLORS.warn
-              : Number.isFinite(Number(coverage)) && Number(coverage) >= 70
-                ? COLORS.good
-                : COLORS.warn
-          }
         />
       </div>
 
