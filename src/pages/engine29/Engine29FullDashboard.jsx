@@ -434,6 +434,22 @@ function StateCard({ label, value, subtitle, accent }) {
 }
 
 
+function plainEsPriceAction(value) {
+  const text = String(value || "").toUpperCase();
+  if (text === "UPTREND_SUPPORTIVE") return "UPTREND / SUPPORTIVE";
+  if (text === "DOWNWARD_PRESSURE") return "DOWNWARD PRESSURE";
+  if (text === "WAIT_CONSOLIDATING") return "WAIT — CONSOLIDATING";
+  if (text === "UNAVAILABLE") return "UNAVAILABLE";
+  return clean(value);
+}
+
+function esPriceActionColor(value) {
+  const text = String(value || "").toUpperCase();
+  if (text === "UPTREND_SUPPORTIVE") return COLORS.good;
+  if (text === "DOWNWARD_PRESSURE") return COLORS.bad;
+  return COLORS.warn;
+}
+
 function BiggerPictureCard({ data, display }) {
   const oneWeek = display?.oneWeek || {};
   const character =
@@ -449,6 +465,11 @@ function BiggerPictureCard({ data, display }) {
     oneWeek?.structuralParticipation ||
     data?.structuralParticipation ||
     data?.marketCharacter?.biggerPicture?.structuralParticipation ||
+    null;
+  const esPriceAction =
+    oneWeek?.esPriceAction ||
+    data?.esPriceAction ||
+    data?.marketCharacter?.biggerPicture?.esPriceAction ||
     null;
 
   const hasV2 =
@@ -501,6 +522,16 @@ function BiggerPictureCard({ data, display }) {
 
       <div style={{ marginTop: 10, display: "grid", gap: 6 }}>
         <LabelValue
+          label="ES Daily Price Action"
+          value={plainEsPriceAction(esPriceAction?.daily?.state)}
+          color={esPriceActionColor(esPriceAction?.daily?.state)}
+        />
+        <LabelValue
+          label="ES Weekly Price Action"
+          value={plainEsPriceAction(esPriceAction?.weekly?.state)}
+          color={esPriceActionColor(esPriceAction?.weekly?.state)}
+        />
+        <LabelValue
           label="Overall Market Health"
           value={plainOverall(oneWeek?.state || data?.structuralState || data?.overallState)}
           color={biggerPictureColor(oneWeek?.state || data?.structuralState || data?.overallState)}
@@ -540,6 +571,12 @@ function BiggerPictureCard({ data, display }) {
           color={Number.isFinite(Number(coverage)) && Number(coverage) >= 70 ? COLORS.good : COLORS.warn}
         />
       </div>
+
+      {esPriceAction?.weekly?.historyScope ? (
+        <div style={{ marginTop: 8, color: COLORS.muted, fontSize: 10.5, lineHeight: 1.3 }}>
+          Weekly ES read uses recent current-contract candles only; it is not long-term continuous-contract authority.
+        </div>
+      ) : null}
 
       <div style={{ marginTop: 9, color: "#cbd5e1", fontSize: 12, lineHeight: 1.35 }}>
         {currentEligible
