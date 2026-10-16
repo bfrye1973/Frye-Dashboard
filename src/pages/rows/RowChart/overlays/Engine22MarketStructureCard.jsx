@@ -166,9 +166,12 @@ function Engine22TargetGrid({ title, levels }) {
           // Never color those cards as a confirmed green touch by default.
           const ownerObserved = level.status === "OWNER_OBSERVED_TOUCH" &&
             level.touchEvidenceType === "OWNER_CHART_OBSERVATION";
+          const observedTouch = level.status === "TOUCHED" &&
+            level.touchEvidenceAvailable === true &&
+            typeof level.touchEvidenceType === "string";
           const verified = level.status === "TOUCHED" &&
-            level.provisional !== true && level.touchEvidence?.verified === true;
-          const pending = !ownerObserved && !verified;
+            level.touchEvidence?.verified === true;
+          const pending = !ownerObserved && !observedTouch && !verified;
           const color = pending ? "#fbbf24" : "#86efac";
           return (
             <div
@@ -189,6 +192,7 @@ function Engine22TargetGrid({ title, levels }) {
               </div>
               {pending ? <div style={{color,fontSize:FS.tiny,fontWeight:900}}>WATCH</div> : null}
               {ownerObserved ? <div style={{color,fontSize:FS.tiny,fontWeight:900}}>TOUCHED · OWNER CHART</div> : null}
+              {observedTouch ? <div style={{color,fontSize:FS.tiny,fontWeight:900}}>TOUCHED · ES PRICE</div> : null}
               {verified ? <div style={{color,fontSize:FS.tiny,fontWeight:900}}>TOUCHED · VERIFIED</div> : null}
             </div>
           );
@@ -775,9 +779,7 @@ export default function Engine22MarketStructureCard({
   const submicroW2Levels =
     submicroW2?.version === "engine22.submicroW2OwnerProjection.v1" &&
     Array.isArray(submicroW2.levels)
-      ? submicroW2.levels.map(level=>({
-          ...level,provisional:true,touchEvidenceAvailable:false,
-        })) : [];
+      ? submicroW2.levels : [];
   const submicroState = {
     degree:"submicro",label:"Submicro",subtitle:"Owner-locked W1 / W2 retracement watch",
     active:true,badge:"W2 DOWN WATCH",
@@ -798,7 +800,7 @@ export default function Engine22MarketStructureCard({
   const microW3 = currentWavelength?.degrees?.micro?.ownerMicroW3;
   const microW3Levels = microW3?.version === "engine22.microW3OwnerProjection.v1" &&
     Array.isArray(microW3?.levels)
-    ? microW3.levels.map(l=>({...l,status:"WATCH",provisional:true,touchEvidenceAvailable:false}))
+    ? microW3.levels
     : [];
   const microW3State = {
     degree:"micro",label:"Micro",subtitle:"Owner-locked W3 projection",
@@ -845,9 +847,7 @@ export default function Engine22MarketStructureCard({
   const subminuteW3Levels = currentWavelength?.degrees?.subminute
     ?.fibAnchorStatus === "OWNER_COORDINATES_CONFIRMED_PRICE_BASIS_PENDING" &&
     Array.isArray(currentWavelength?.degrees?.subminute?.levels)
-      ? currentWavelength.degrees.subminute.levels.map(l=>({
-          ...l,status:"WATCH",provisional:true,touchEvidenceAvailable:false,
-        })) : [];
+      ? currentWavelength.degrees.subminute.levels : [];
   const subminuteW3State = {
     degree:"subminute",label:"Subminute",subtitle:"Owner-locked W3 projection",
     active:true,badge:"W3 UP WATCH",headline:"SUBMINUTE W3 — PRIOR C COMPLETION (OWNER ASSESSMENT)",
