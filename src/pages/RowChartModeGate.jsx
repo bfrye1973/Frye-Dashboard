@@ -16,6 +16,10 @@ function initialMode() {
 export default function RowChartModeGate(props) {
   const [mode, setMode] = useState(initialMode);
   const research = mode === "RESEARCH";
+  // Owner-only local test selection: the deployed dashboard stays on Render,
+  // while historical prices are served exclusively from this computer.
+  const localHistory = typeof window !== "undefined" &&
+    new URLSearchParams(window.location.search).get("engine2cHistory") === "local";
   const select = (next) => {
     setMode(next);
     // This flag changes only the visible frontend presentation, not engine authority.
@@ -44,14 +48,14 @@ export default function RowChartModeGate(props) {
           RESEARCH — seven-degree ES
         </button>
         <span style={{ fontSize:12, color:"#fbbf24" }}>
-          {research ? "ARCHIVED SAMPLE / NOT LIVE / NONOFFICIAL" : "LIVE feeds + existing engine overlays"}
+          {research ? (localHistory ? "LOCAL AUTHENTIC ES HISTORY / RESEARCH ONLY" : "ARCHIVED SAMPLE / NOT LIVE / NONOFFICIAL") : "LIVE feeds + existing engine overlays"}
         </span>
       </nav>
       {research ? (
         <div data-engine2c-research-panel style={{ position:"relative",minWidth:0,width:"100%",height:props.fullScreen?"calc(100vh - 220px)":"min(860px, 85vh)",minHeight:470 }}>
           <iframe
-            title="Engine 2C seven-degree ES research — archived historical sample, not live"
-            src={`${process.env.PUBLIC_URL || ""}/engine2c-research/index.html`}
+            title="Engine 2C seven-degree ES research — historical research, not live"
+            src={localHistory ? "http://127.0.0.1:8197/engine2c-research/index.html" : `${process.env.PUBLIC_URL || ""}/engine2c-research/index.html`}
             loading="eager"
             style={{ width:"100%", height:"100%", border:"1px solid #334155", borderRadius:8, background:"#090e17" }}
             sandbox="allow-scripts allow-same-origin"
