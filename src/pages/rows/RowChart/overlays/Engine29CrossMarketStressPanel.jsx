@@ -77,6 +77,14 @@ function plainMoveCharacter(value) {
   return clean(raw);
 }
 
+function plainEsPriceAction(value) {
+  const text = String(value || "").toUpperCase();
+  if (text === "UPTREND_SUPPORTIVE") return "UPTREND / SUPPORTIVE";
+  if (text === "DOWNWARD_PRESSURE") return "DOWNWARD PRESSURE";
+  if (text === "WAIT_CONSOLIDATING") return "WAIT — CONSOLIDATING";
+  return clean(value);
+}
+
 function stateColor(value) {
   const text = String(value || "").toUpperCase();
 
@@ -244,6 +252,11 @@ export default function Engine29CrossMarketStressPanel({ visible = false, symbol
     oneWeek?.priceBreadth ||
     biggerPicture?.priceBreadth ||
     null;
+  const esPriceAction =
+    oneWeek?.esPriceAction ||
+    biggerPicture?.esPriceAction ||
+    payload?.esPriceAction ||
+    null;
   const moveView = useMemo(
     () => selectEngine29MoveV2View(payload || {}, null),
     [payload]
@@ -372,6 +385,8 @@ export default function Engine29CrossMarketStressPanel({ visible = false, symbol
                 Bigger Picture v2
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px 16px" }}>
+                <KV label="ES Daily Price Action" value={plainEsPriceAction(esPriceAction?.daily?.state)} />
+                <KV label="ES Weekly Price Action" value={plainEsPriceAction(esPriceAction?.weekly?.state)} />
                 <KV label="Overall Market Health" value={plainState(oneWeek?.state || payload?.structuralState)} />
                 <KV label="Price breadth" value={priceBreadth?.state || "—"} />
                 <KV
