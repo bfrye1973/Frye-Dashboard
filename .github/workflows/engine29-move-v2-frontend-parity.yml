@@ -7,6 +7,7 @@ on:
       - engine29-squeeze-v2-frontend-live
       - engine29-bigger-picture-v2-ui
       - engine29-bigger-picture-plain-language-colors
+      - engine29-bigger-picture-plain-english-v2
   workflow_dispatch:
 
 jobs:
