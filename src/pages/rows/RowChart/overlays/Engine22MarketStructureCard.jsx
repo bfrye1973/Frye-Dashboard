@@ -164,9 +164,11 @@ function Engine22TargetGrid({ title, levels }) {
         {rows.map((level, index) => {
           // Owner-only Micro/Subminute projections have explicit WATCH status.
           // Never color those cards as a confirmed green touch by default.
-          const pending = level.status === "WATCH" || level.provisional === true;
+          const ownerObserved = level.status === "OWNER_OBSERVED_TOUCH" &&
+            level.touchEvidenceType === "OWNER_CHART_OBSERVATION";
           const verified = level.status === "TOUCHED" &&
             level.provisional !== true && level.touchEvidence?.verified === true;
+          const pending = !ownerObserved && !verified;
           const color = pending ? "#fbbf24" : "#86efac";
           return (
             <div
@@ -186,7 +188,8 @@ function Engine22TargetGrid({ title, levels }) {
                 {wavePrice(level.price)}
               </div>
               {pending ? <div style={{color,fontSize:FS.tiny,fontWeight:900}}>WATCH</div> : null}
-              {verified ? <div style={{color,fontSize:FS.tiny,fontWeight:900}}>TOUCHED</div> : null}
+              {ownerObserved ? <div style={{color,fontSize:FS.tiny,fontWeight:900}}>TOUCHED · OWNER CHART</div> : null}
+              {verified ? <div style={{color,fontSize:FS.tiny,fontWeight:900}}>TOUCHED · VERIFIED</div> : null}
             </div>
           );
         })}
@@ -773,7 +776,7 @@ export default function Engine22MarketStructureCard({
     submicroW2?.version === "engine22.submicroW2OwnerProjection.v1" &&
     Array.isArray(submicroW2.levels)
       ? submicroW2.levels.map(level=>({
-          ...level,status:"WATCH",provisional:true,touchEvidenceAvailable:false,
+          ...level,provisional:true,touchEvidenceAvailable:false,
         })) : [];
   const submicroState = {
     degree:"submicro",label:"Submicro",subtitle:"Owner-locked W1 / W2 retracement watch",
@@ -785,7 +788,8 @@ export default function Engine22MarketStructureCard({
       {label:"W1 High",value:wavePrice(submicroW2?.anchors?.w1High)},
       {label:"W1",value:"COMPLETE — OWNER WORKING COUNT"},
       {label:"Current",value:"W2 DOWN — WATCH"},
-      {label:"Touches",value:"WATCH — CANDLE CONFIRMATION PENDING"},
+      {label:"W2 observed low",value:"7772.50 — OWNER CHART"},
+      {label:"Touches",value:"0.236 CROSSED ON OWNER CHART; LIVE VERIFICATION PENDING"},
     ],
     levels:submicroW2Levels,rules:[],
   };
