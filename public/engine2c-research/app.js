@@ -150,9 +150,11 @@
   async function older(){
     if(historyEndpoint){
       const session=historySession;if(!session||historyBusy)return;
-      if(state.cursor===null){$('status').textContent='End of approved historical data';return;}
       const gen=state.generation,view=state.view,frame=state.frame;
       const reloading=session.oldestLoaded<session.page-1,requestedPage=reloading?session.oldestLoaded+1:session.page;
+      // Reopen an evicted older page even when the complete archive's terminal
+      // nextCursor is null. Terminal applies to NEW pagination, not cache reload.
+      if(!reloading && state.cursor===null){$('status').textContent='End of approved historical data';return;}
       const cursor=reloading?session.cursors[requestedPage]:state.cursor;
       if(cursor===undefined||cursor===null){if(requestedPage>0){$('status').textContent='End of available history';return;}}
       historyBusy=true;
