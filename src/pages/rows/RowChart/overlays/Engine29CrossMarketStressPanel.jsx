@@ -53,12 +53,12 @@ function plainState(value) {
 
 function plainBiggerPictureCharacter(value) {
   const text = String(value || "").toUpperCase();
-  if (text === "SUPPORTIVE") return "SUPPORTIVE";
-  if (text === "NARROWING") return "NARROWING";
-  if (text === "DISTRIBUTION_PRESSURE") return "DISTRIBUTION PRESSURE";
-  if (text === "BROAD_DETERIORATION") return "BROAD DETERIORATION";
-  if (text === "STRUCTURE_ONLY") return "STRUCTURE ONLY";
-  if (text === "MIXED") return "MIXED";
+  if (text === "SUPPORTIVE") return "HEALTHY / SUPPORTIVE";
+  if (text === "NARROWING") return "WAIT — MARKET NARROWING";
+  if (text === "DISTRIBUTION_PRESSURE") return "DOWNWARD PRESSURE";
+  if (text === "BROAD_DETERIORATION") return "STRONG DOWNWARD PRESSURE";
+  if (text === "STRUCTURE_ONLY") return "WAIT — LIMITED DATA";
+  if (text === "MIXED") return "WAIT — MIXED SIGNALS";
   return clean(value);
 }
 
@@ -372,7 +372,7 @@ export default function Engine29CrossMarketStressPanel({ visible = false, symbol
                 Bigger Picture v2
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px 16px" }}>
-                <KV label="Cross-market structure" value={plainState(oneWeek?.state || payload?.structuralState)} />
+                <KV label="Overall Market Health" value={plainState(oneWeek?.state || payload?.structuralState)} />
                 <KV label="Price breadth" value={priceBreadth?.state || "—"} />
                 <KV
                   label="Engine25 4H distribution"
