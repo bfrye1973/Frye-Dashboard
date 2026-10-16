@@ -82,3 +82,33 @@ jobs:
       - name: Remove temporary source data
         if: always()
         run: rm -rf /tmp/engine2c-private /tmp/engine11-source /tmp/engine2c-windows-test
+
+  windows-local-smoke:
+    needs: package-local-research
+    runs-on: windows-latest
+    steps:
+      - name: Download exact package created by this workflow
+        uses: actions/download-artifact@v4
+        with:
+          name: engine2c-windows-real-history-test
+          path: local-test
+      - name: Start Windows local server and request real historical ES data
+        shell: pwsh
+        run: |
+          $process = Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile","-ExecutionPolicy","Bypass","-File",((Resolve-Path "local-test/start-research-chart.ps1").Path) -PassThru -WindowStyle Hidden
+          try {
+            $ready = $false
+            for ($i=0; $i -lt 30; $i++) {
+              Start-Sleep -Seconds 1
+              try { $res=Invoke-WebRequest -UseBasicParsing "http://127.0.0.1:8197/engine2c-research/index.html"; if ($res.StatusCode -eq 200) { $ready=$true; break } } catch {}
+            }
+            if (!$ready) { throw "Windows local research server did not start" }
+            if ($res.Content -notmatch '__ENGINE2C_HISTORY_ENDPOINT__') { throw "Research endpoint injection missing" }
+            $catalog=Get-Content "local-test/pages/continuousRaw/continuousRaw-catalog.json" -Raw | ConvertFrom-Json
+            $v=[uri]::EscapeDataString($catalog.datasetVersion)
+            $b=[uri]::EscapeDataString($catalog.priceBasisVersion)
+            $url="http://127.0.0.1:8197/engine2c-private-history/page?view=UNADJUSTED&frame=10m&limit=1000&direction=DESC&datasetVersion=$v&priceBasisVersion=$b"
+            $data=Invoke-RestMethod $url
+            if ($data.rows.Count -ne 1000 -or $data.researchOnly -ne $true -or $data.executionPriceAuthority -ne $false) { throw "Historical candles missing or invalid" }
+            Write-Host "WINDOWS LOCAL RESEARCH PASS: 1000 authentic ES candles via same-origin local chart route"
+          } finally { Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue }
