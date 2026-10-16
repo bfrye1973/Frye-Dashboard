@@ -97,13 +97,39 @@ function plainOverall(value) {
 
 function plainBiggerPictureCharacter(value) {
   const text = String(value || "").toUpperCase();
-  if (text === "SUPPORTIVE") return "SUPPORTIVE";
-  if (text === "NARROWING") return "NARROWING";
-  if (text === "DISTRIBUTION_PRESSURE") return "DISTRIBUTION PRESSURE";
-  if (text === "BROAD_DETERIORATION") return "BROAD DETERIORATION";
-  if (text === "STRUCTURE_ONLY") return "STRUCTURE ONLY";
-  if (text === "MIXED") return "MIXED";
+  if (text === "SUPPORTIVE") return "HEALTHY / SUPPORTIVE";
+  if (text === "NARROWING") return "WAIT — MARKET NARROWING";
+  if (text === "DISTRIBUTION_PRESSURE") return "DOWNWARD PRESSURE";
+  if (text === "BROAD_DETERIORATION") return "STRONG DOWNWARD PRESSURE";
+  if (text === "STRUCTURE_ONLY") return "WAIT — LIMITED DATA";
+  if (text === "MIXED") return "WAIT — MIXED SIGNALS";
   return clean(value);
+}
+
+function biggerPictureColor(value) {
+  const text = String(value || "").toUpperCase();
+
+  if (["SUPPORTIVE", "NORMAL", "HEALTHY"].includes(text)) {
+    return COLORS.good;
+  }
+
+  if (
+    [
+      "DISTRIBUTION_PRESSURE",
+      "BROAD_DETERIORATION",
+      "RISK_OFF_CONFIRMED",
+      "SYSTEMIC_STRESS",
+      "CONFIRMED",
+      "SEVERE",
+      "WEAK",
+      "BREAKING",
+      "CONFIRMED_BREAK",
+    ].includes(text)
+  ) {
+    return COLORS.bad;
+  }
+
+  return COLORS.warn;
 }
 
 function plainTactical(value) {
@@ -464,31 +490,49 @@ function BiggerPictureCard({ data, display }) {
     character?.state || "STRUCTURE_ONLY";
 
   return (
-    <Card style={{ borderColor: stateColor(characterState), background: "rgba(15,23,42,0.88)" }}>
+    <Card style={{ borderColor: biggerPictureColor(characterState), background: "rgba(15,23,42,0.88)" }}>
       <div style={{ color: COLORS.muted, fontSize: 12, fontWeight: 900, textTransform: "uppercase" }}>
         1W Bigger Picture
       </div>
 
-      <div style={{ marginTop: 7, color: stateColor(characterState), fontSize: 23, lineHeight: 1.08, fontWeight: 950 }}>
+      <div style={{ marginTop: 7, color: biggerPictureColor(characterState), fontSize: 23, lineHeight: 1.08, fontWeight: 950 }}>
         {plainBiggerPictureCharacter(characterState)}
       </div>
 
       <div style={{ marginTop: 10, display: "grid", gap: 6 }}>
         <LabelValue
-          label="Cross-market structure"
+          label="Overall Market Health"
           value={plainOverall(oneWeek?.state || data?.structuralState || data?.overallState)}
+          color={biggerPictureColor(oneWeek?.state || data?.structuralState || data?.overallState)}
         />
         <LabelValue
-          label="Price breadth"
+          label="Price Breadth"
           value={clean(priceBreadth?.state)}
+          color={biggerPictureColor(priceBreadth?.state)}
         />
         <LabelValue
-          label="Engine25 4H distribution"
+          label="Engine25 4H Distribution"
           value={clean(distributionLabel)}
+          color={biggerPictureColor(
+            String(distributionLabel).includes("HIGH") ||
+            String(distributionLabel).includes("EXTREME")
+              ? "DISTRIBUTION_PRESSURE"
+              : String(distributionLabel).includes("LOW")
+                ? "SUPPORTIVE"
+                : "NARROWING"
+          )}
         />
         <LabelValue
-          label="Engine25 scanner breadth"
+          label="Engine25 Scanner Breadth"
           value={clean(breadthLabel)}
+          color={biggerPictureColor(
+            String(breadthLabel).includes("HEALTHY")
+              ? "SUPPORTIVE"
+              : String(breadthLabel).includes("WEAK") &&
+                  !String(breadthLabel).includes("MIXED")
+                ? "WEAK"
+                : "NARROWING"
+          )}
         />
         <LabelValue
           label="Stock-volume coverage"
