@@ -850,20 +850,23 @@ export default function Engine22MarketStructureCard({
   const minuteW2State = minuteW2Watch ? {
     degree:"minute",label:"Minute",
     subtitle:"Owner working count — larger correction",
-    active:true,badge:"W2 CORRECTION",
-    headline:"MINUTE W2 — COMPLEX CORRECTION / TRIANGLE CANDIDATE",
+    active:true,badge:"D UP WATCH",
+    headline:"MINUTE W2 — INTERNAL D UP DEVELOPING (TRIANGLE CANDIDATE)",
     rows:[
       {label:"Current",value:"MINUTE W2 STILL DEVELOPING — OWNER WORKING COUNT"},
       {label:"Internal",value:"CONTRACTING ABCDE TRIANGLE CANDIDATE (B/X PLACEMENT UNRESOLVED)"},
       {label:"Wave A",value:"COMPLETION CANDIDATE"},
       {label:"Wave B",value:"COMPLETION CANDIDATE"},
       {label:"Wave C",value:"COMPLETION CANDIDATE"},
-      {label:"Wave D",value:"DEVELOPING / WATCH"},
+      {label:"Wave D",value:"UP DEVELOPING — OWNER WORKING COUNT"},
+      {label:"B high",value:wavePrice(minuteW2Hypothesis?.priorPivotB?.price)},
+      {label:"C low",value:wavePrice(minuteW2Hypothesis?.priorPivotC?.price)},
+      {label:"C low time",value:minuteW2Hypothesis?.priorPivotC?.localTime || "PENDING"},
       {label:"Wave E",value:"ANTICIPATED — NOT STARTED"},
       {label:"Minute W3",value:"NOT CONFIRMED / NOT STARTED IN CURRENT OWNER HYPOTHESIS"},
       {label:"Range",value:"~7910 UPPER / ~7557 LOWER — REFERENCES ONLY"},
       {label:"Authority",value:"OWNER HYPOTHESIS — CANDLE / PATTERN CONFIRMATION PENDING"},
-    ],levels:[],rules:[],
+    ],levels:minuteW2Hypothesis?.internalDProjection?.levels || [],rules:[],
   } : null;
   const minuteW3Owner = v3ShadowDegrees?.minute?.ownerCorrectionState ===
     "MINUTE_W3_OWNER_CONTEXT" &&
@@ -893,7 +896,7 @@ export default function Engine22MarketStructureCard({
     active:true,
     badge:parentMinuteW2 ? "ABCDE WATCH" : "W3 UP WATCH",
     headline:parentMinuteW2
-      ? "SUBMINUTE — A/B/C CANDIDATES; D/E PENDING"
+      ? "SUBMINUTE ABC UP — BUILDING MINUTE D"
       : "SUBMINUTE W3 — PRIOR C COMPLETION (OWNER ASSESSMENT)",
     rows:[
       {label:"Prior Wave C",value:"COMPLETE — OWNER WORKING COUNT; NOT CANDLE-CONFIRMED"},
@@ -901,6 +904,7 @@ export default function Engine22MarketStructureCard({
       {label:"W1 High",value:"7847.00"},
       {label:"W2 Low",value:"7673.25"},
       ...(parentMinuteW2 ? [{label:"Old Fib Model",value:"HISTORICAL SUBMINUTE W3 PROJECTION — NOT CURRENT COUNT"}] : []),
+      ...(parentMinuteW2 ? [{label:"Current ABC",value:"ABC UP — DEVELOPING INSIDE MINUTE D; A CANDIDATE / B,C PENDING"}] : []),
       ...parentReviewRow("subminute"),
       {label:"Touches",value:"WATCH — CANDLE VERIFICATION PENDING"},
     ],
