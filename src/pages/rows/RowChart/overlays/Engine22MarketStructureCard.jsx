@@ -780,6 +780,14 @@ export default function Engine22MarketStructureCard({
     submicroW2?.version === "engine22.submicroW2OwnerProjection.v1" &&
     Array.isArray(submicroW2.levels)
       ? submicroW2.levels : [];
+  const minuteW2Hypothesis =
+    currentWavelength?.degrees?.minute?.ownerMinuteW2Hypothesis;
+  const parentMinuteW2 = minuteW2Hypothesis?.version ===
+    "engine22.minuteW2ComplexCorrectionWatch.v1";
+  const parentReviewRow = degree => parentMinuteW2 &&
+    minuteW2Hypothesis?.childDegreeContext?.[degree]?.noReset === true
+      ? [{label:"Minute Parent",value:"W2 COMPLEX CORRECTION CANDIDATE — LOWER-WAVE RECOUNT PENDING; HISTORY PRESERVED"}]
+      : [];
   const submicroState = {
     degree:"submicro",label:"Submicro",subtitle:"Owner-locked W1 / W2 retracement watch",
     active:true,badge:"W2 DOWN WATCH",
@@ -790,6 +798,7 @@ export default function Engine22MarketStructureCard({
       {label:"W1 High",value:wavePrice(submicroW2?.anchors?.w1High)},
       {label:"W1",value:"COMPLETE — OWNER WORKING COUNT"},
       {label:"Current",value:"W2 DOWN — WATCH"},
+      ...parentReviewRow("submicro"),
       {label:"W2 observed low",value:"7772.50 — OWNER CHART"},
       {label:"Touches",value:"0.236 CROSSED ON OWNER CHART; LIVE VERIFICATION PENDING"},
     ],
@@ -811,6 +820,7 @@ export default function Engine22MarketStructureCard({
       {label:"W2 State",value:"COMPLETED — OWNER WORKING COUNT"},
       {label:"W2 Low",value:wavePrice(microW3?.anchors?.w2Low)},
       {label:"W2 Time",value:microW3?.anchors?.w2LowLocalTime || "—"},
+      ...parentReviewRow("micro"),
       {label:"Touches",value:"WATCH — CANDLE VERIFICATION PENDING"},
     ],
     levels:microW3Levels,rules:[],
@@ -828,8 +838,6 @@ export default function Engine22MarketStructureCard({
   // Prefer the Engine 22-owned Minute W2 hypothesis for this owner's
   // presentation. The historical W3 context and Fibs remain in the backend
   // but cannot be presented as the CURRENT wave while W2 is under review.
-  const minuteW2Hypothesis =
-    currentWavelength?.degrees?.minute?.ownerMinuteW2Hypothesis;
   const minuteW2Watch =
     minuteW2Hypothesis?.version === "engine22.minuteW2ComplexCorrectionWatch.v1";
   const minuteW2State = minuteW2Watch ? {
@@ -881,6 +889,7 @@ export default function Engine22MarketStructureCard({
       {label:"W1 Low",value:"7616.25"},
       {label:"W1 High",value:"7847.00"},
       {label:"W2 Low",value:"7673.25"},
+      ...parentReviewRow("subminute"),
       {label:"Touches",value:"WATCH — CANDLE VERIFICATION PENDING"},
     ],
     levels:subminuteW3Levels,rules:[],
