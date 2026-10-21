@@ -813,6 +813,27 @@ export default function Engine22MarketStructureCard({
     Array.isArray(microW3?.levels)
     ? microW3.levels
     : [];
+  const microAbc = currentWavelength?.degrees?.micro?.ownerMicroAbc;
+  const microAbcActive = parentMinuteW2 &&
+    microAbc?.version === "engine22.microAbcMinuteD.v1";
+  const microAbcState = microAbcActive ? {
+    degree:"micro",label:"Micro",
+    subtitle:"Internal ABC UP inside Minute D",
+    active:true,badge:"C UP WATCH",
+    headline:"MICRO C UP — DEVELOPING (OWNER WORKING COUNT)",
+    rows:[
+      {label:"Parent",value:"MINUTE W2 INTERNAL D UP"},
+      {label:"A start",value:wavePrice(microAbc.waveA.startPrice)},
+      {label:"A high",value:wavePrice(microAbc.waveA.high)},
+      {label:"A time",value:microAbc.waveA.highLocalTime},
+      {label:"B low",value:wavePrice(microAbc.waveB.low)},
+      {label:"B time",value:microAbc.waveB.lowLocalTime},
+      {label:"Current",value:"MICRO C UP — DEVELOPING / NOT CONFIRMED"},
+      {label:"History",value:"OLDER MICRO W3 MODEL PRESERVED — NOT CURRENT COUNT"},
+      ...parentReviewRow("micro"),
+    ],
+    levels:microAbc.levels,rules:[],
+  } : null;
   const microW3State = {
     degree:"micro",label:"Micro",subtitle:parentMinuteW2 ? "Smaller subdivisions of Subminute corrective swings" : "Owner-locked W3 projection",
     active:true,
@@ -965,7 +986,8 @@ export default function Engine22MarketStructureCard({
           <Engine22DegreeCard
             key={degree}
             degree={degree}
-            state={degree === "micro" && microW3Levels.length ? microW3State :
+            state={degree === "micro" && microAbcActive ? microAbcState :
+              degree === "micro" && microW3Levels.length ? microW3State :
               degree === "subminute" && subminuteW3Levels.length ? subminuteW3State :
               degree === "submicro" ? submicroState :
               degree === "micro" && microW2 ? microW2State :
