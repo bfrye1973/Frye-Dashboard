@@ -790,14 +790,16 @@ export default function Engine22MarketStructureCard({
       : [];
   const submicroState = {
     degree:"submicro",label:"Submicro",subtitle:"Owner-locked W1 / W2 retracement watch",
-    active:true,badge:"W2 DOWN WATCH",
-    headline:"SUBMICRO W1 COMPLETE — W2 RETRACEMENT WATCH",
+    active:true,badge:parentMinuteW2 ? "TIMING WATCH" : "W2 DOWN WATCH",
+    headline:parentMinuteW2
+      ? "SUBMICRO — IMMEDIATE WAVES INSIDE MINUTE W2"
+      : "SUBMICRO W1 COMPLETE — W2 RETRACEMENT WATCH",
     rows:[
       {label:"Prior Wave C",value:"COMPLETED AT 7718.00 — OWNER COUNT"},
       {label:"W1 Low",value:wavePrice(submicroW2?.anchors?.w1Low)},
       {label:"W1 High",value:wavePrice(submicroW2?.anchors?.w1High)},
       {label:"W1",value:"COMPLETE — OWNER WORKING COUNT"},
-      {label:"Current",value:"W2 DOWN — WATCH"},
+      {label:"Current",value:parentMinuteW2 ? "IMMEDIATE WAVE TURN WATCH; OLD W2 COUNT PRESERVED" : "W2 DOWN — WATCH"},
       ...parentReviewRow("submicro"),
       {label:"W2 observed low",value:"7772.50 — OWNER CHART"},
       {label:"Touches",value:"0.236 CROSSED ON OWNER CHART; LIVE VERIFICATION PENDING"},
@@ -812,14 +814,19 @@ export default function Engine22MarketStructureCard({
     ? microW3.levels
     : [];
   const microW3State = {
-    degree:"micro",label:"Micro",subtitle:"Owner-locked W3 projection",
-    active:true,badge:"W3 UP WATCH",headline:"MICRO W3 UP — OWNER PROJECTION",
+    degree:"micro",label:"Micro",subtitle:parentMinuteW2 ? "Smaller subdivisions of Subminute corrective swings" : "Owner-locked W3 projection",
+    active:true,
+    badge:parentMinuteW2 ? "RECOUNT WATCH" : "W3 UP WATCH",
+    headline:parentMinuteW2
+      ? "MICRO — INTERNAL WAVES / CURRENT RECOUNT PENDING"
+      : "MICRO W3 UP — OWNER PROJECTION",
     rows:[
       {label:"W1 Low",value:wavePrice(microW3?.anchors?.w1Low)},
       {label:"W1 High",value:wavePrice(microW3?.anchors?.w1High)},
       {label:"W2 State",value:"COMPLETED — OWNER WORKING COUNT"},
       {label:"W2 Low",value:wavePrice(microW3?.anchors?.w2Low)},
       {label:"W2 Time",value:microW3?.anchors?.w2LowLocalTime || "—"},
+      ...(parentMinuteW2 ? [{label:"Old Fib Model",value:"HISTORICAL MICRO W3 PROJECTION — NOT CURRENT COUNT"}] : []),
       ...parentReviewRow("micro"),
       {label:"Touches",value:"WATCH — CANDLE VERIFICATION PENDING"},
     ],
@@ -882,13 +889,18 @@ export default function Engine22MarketStructureCard({
     Array.isArray(currentWavelength?.degrees?.subminute?.levels)
       ? currentWavelength.degrees.subminute.levels : [];
   const subminuteW3State = {
-    degree:"subminute",label:"Subminute",subtitle:"Owner-locked W3 projection",
-    active:true,badge:"W3 UP WATCH",headline:"SUBMINUTE W3 — PRIOR C COMPLETION (OWNER ASSESSMENT)",
+    degree:"subminute",label:"Subminute",subtitle:parentMinuteW2 ? "Larger internal swings of Minute W2" : "Owner-locked W3 projection",
+    active:true,
+    badge:parentMinuteW2 ? "ABCDE WATCH" : "W3 UP WATCH",
+    headline:parentMinuteW2
+      ? "SUBMINUTE — A/B/C CANDIDATES; D/E PENDING"
+      : "SUBMINUTE W3 — PRIOR C COMPLETION (OWNER ASSESSMENT)",
     rows:[
       {label:"Prior Wave C",value:"COMPLETE — OWNER WORKING COUNT; NOT CANDLE-CONFIRMED"},
       {label:"W1 Low",value:"7616.25"},
       {label:"W1 High",value:"7847.00"},
       {label:"W2 Low",value:"7673.25"},
+      ...(parentMinuteW2 ? [{label:"Old Fib Model",value:"HISTORICAL SUBMINUTE W3 PROJECTION — NOT CURRENT COUNT"}] : []),
       ...parentReviewRow("subminute"),
       {label:"Touches",value:"WATCH — CANDLE VERIFICATION PENDING"},
     ],
