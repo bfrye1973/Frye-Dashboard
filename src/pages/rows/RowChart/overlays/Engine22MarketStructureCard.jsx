@@ -788,6 +788,26 @@ export default function Engine22MarketStructureCard({
     minuteW2Hypothesis?.childDegreeContext?.[degree]?.noReset === true
       ? [{label:"Minute Parent",value:"W2 COMPLEX CORRECTION CANDIDATE — LOWER-WAVE RECOUNT PENDING; HISTORY PRESERVED"}]
       : [];
+  const submicroAbc = currentWavelength?.degrees?.submicro?.ownerSubmicroAbc;
+  const submicroAbcActive = parentMinuteW2 &&
+    submicroAbc?.version === "engine22.submicroAbcMicroC.v1";
+  const submicroAbcState = submicroAbcActive ? {
+    degree:"submicro",label:"Submicro",
+    subtitle:"ABC UP nested within Micro C UP",
+    active:true,badge:"C UP WATCH",
+    headline:"SUBMICRO C UP — DEVELOPING (OWNER WORKING COUNT)",
+    rows:[
+      {label:"Parent",value:"MICRO C UP — INSIDE MINUTE D UP"},
+      {label:"A start",value:wavePrice(submicroAbc.waveA.startPrice)},
+      {label:"A high",value:wavePrice(submicroAbc.waveA.high)},
+      {label:"A time",value:submicroAbc.waveA.highLocalTime},
+      {label:"B low",value:wavePrice(submicroAbc.waveB.low)},
+      {label:"B time",value:submicroAbc.waveB.lowLocalTime},
+      {label:"Current",value:"C UP DEVELOPING — COMPLETION NOT CONFIRMED"},
+      {label:"History",value:"OLDER SUBMICRO W2 MODEL PRESERVED — NOT CURRENT COUNT"},
+    ],
+    levels:submicroAbc.levels,rules:[],
+  } : null;
   const submicroState = {
     degree:"submicro",label:"Submicro",subtitle:"Owner-locked W1 / W2 retracement watch",
     active:true,badge:parentMinuteW2 ? "TIMING WATCH" : "W2 DOWN WATCH",
@@ -989,6 +1009,7 @@ export default function Engine22MarketStructureCard({
             state={degree === "micro" && microAbcActive ? microAbcState :
               degree === "micro" && microW3Levels.length ? microW3State :
               degree === "subminute" && subminuteW3Levels.length ? subminuteW3State :
+              degree === "submicro" && submicroAbcActive ? submicroAbcState :
               degree === "submicro" ? submicroState :
               degree === "micro" && microW2 ? microW2State :
               degree === "subminute" && subminuteW3 ? subminuteW3State :
