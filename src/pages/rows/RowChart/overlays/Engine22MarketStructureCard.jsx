@@ -825,6 +825,31 @@ export default function Engine22MarketStructureCard({
     ],
     levels:[],rules:[],
   };
+  // Prefer the Engine 22-owned Minute W2 hypothesis for this owner's
+  // presentation. The historical W3 context and Fibs remain in the backend
+  // but cannot be presented as the CURRENT wave while W2 is under review.
+  const minuteW2Hypothesis =
+    currentWavelength?.degrees?.minute?.ownerMinuteW2Hypothesis;
+  const minuteW2Watch =
+    minuteW2Hypothesis?.version === "engine22.minuteW2ComplexCorrectionWatch.v1";
+  const minuteW2State = minuteW2Watch ? {
+    degree:"minute",label:"Minute",
+    subtitle:"Owner working count — larger correction",
+    active:true,badge:"W2 CORRECTION",
+    headline:"MINUTE W2 — COMPLEX CORRECTION / TRIANGLE CANDIDATE",
+    rows:[
+      {label:"Current",value:"MINUTE W2 STILL DEVELOPING — OWNER WORKING COUNT"},
+      {label:"Internal",value:"CONTRACTING ABCDE TRIANGLE CANDIDATE (B/X PLACEMENT UNRESOLVED)"},
+      {label:"Wave A",value:"COMPLETION CANDIDATE"},
+      {label:"Wave B",value:"COMPLETION CANDIDATE"},
+      {label:"Wave C",value:"COMPLETION CANDIDATE"},
+      {label:"Wave D",value:"DEVELOPING / WATCH"},
+      {label:"Wave E",value:"ANTICIPATED — NOT STARTED"},
+      {label:"Minute W3",value:"NOT CONFIRMED / NOT STARTED IN CURRENT OWNER HYPOTHESIS"},
+      {label:"Range",value:"~7910 UPPER / ~7557 LOWER — REFERENCES ONLY"},
+      {label:"Authority",value:"OWNER HYPOTHESIS — CANDLE / PATTERN CONFIRMATION PENDING"},
+    ],levels:[],rules:[],
+  } : null;
   const minuteW3Owner = v3ShadowDegrees?.minute?.ownerCorrectionState ===
     "MINUTE_W3_OWNER_CONTEXT" &&
     v3ShadowDegrees?.minute?.activeWave === "W3";
@@ -920,6 +945,7 @@ export default function Engine22MarketStructureCard({
               degree === "submicro" ? submicroState :
               degree === "micro" && microW2 ? microW2State :
               degree === "subminute" && subminuteW3 ? subminuteW3State :
+              degree === "minute" && minuteW2Watch ? minuteW2State :
               degree === "minute" && minuteW3Owner ? minuteW3State :
               engine22Display.degrees?.[degree] || {
                 degree,label:degree,active:false,
@@ -929,12 +955,13 @@ export default function Engine22MarketStructureCard({
             v3Shadow={degree === "submicro" && submicroABC ? null :
               degree === "micro" && microW3Levels.length ? null :
               degree === "subminute" && subminuteW3Levels.length ? null :
+              degree === "minute" && minuteW2Watch ? null :
               degree === "submicro" ? ownerSubmicro :
               degree === "micro" ? ownerMicro :
               degree === "subminute" ? ownerSubminute :
               v3ShadowDegrees?.[degree] || null}
             wavelength={currentWavelength}
-            waveDegreeOverride={["submicro","micro","subminute"].includes(degree) ? null : undefined}
+            waveDegreeOverride={["submicro","micro","subminute"].includes(degree) || (degree === "minute" && minuteW2Watch) ? null : undefined}
             legacyMicroWidgets={degree === "micro" && !microW2}
             microW2W3TransitionFibs={microW2W3TransitionFibs}
             microMidlineConfluence={microMidlineConfluence}
