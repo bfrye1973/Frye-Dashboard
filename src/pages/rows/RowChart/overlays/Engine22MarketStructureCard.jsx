@@ -788,6 +788,37 @@ export default function Engine22MarketStructureCard({
     minuteW2Hypothesis?.childDegreeContext?.[degree]?.noReset === true
       ? [{label:"Minute Parent",value:"W2 COMPLEX CORRECTION CANDIDATE — LOWER-WAVE RECOUNT PENDING; HISTORY PRESERVED"}]
       : [];
+  const microBDown = currentWavelength?.degrees?.micro?.ownerMicroBDown;
+  const submicroADown = currentWavelength?.degrees?.submicro?.ownerSubmicroADown;
+  const microBActive = microBDown?.version === "engine22.microBDownOwnerWatch.v1";
+  const submicroAActive = submicroADown?.version === "engine22.submicroADownOwnerWatch.v1";
+  const microBState = microBActive ? {
+    degree:"micro",label:"Micro",active:true,badge:"B DOWN WATCH",
+    subtitle:"Micro ABC inside Minute D — owner working count",
+    headline:"MICRO A COMPLETED — B DOWN DEVELOPING",
+    rows:[
+      {label:"A low",value:wavePrice(microBDown.waveA.low)},
+      {label:"A high",value:wavePrice(microBDown.waveA.high)},
+      {label:"A high time",value:microBDown.waveA.highLocalTime},
+      {label:"Current",value:"B DOWN — DEVELOPING / NOT STRUCTURALLY CONFIRMED"},
+      {label:"Historical",value:"OLDER MICRO C UP LEVELS RETAINED IN BACKEND"},
+    ],
+    levels:microBDown.levels,rules:[],
+  } : null;
+  const submicroAState = submicroAActive ? {
+    degree:"submicro",label:"Submicro",active:true,badge:"A DOWN WATCH",
+    subtitle:"Immediate correction inside Micro B",
+    headline:"SUBMICRO A DOWN — DEVELOPING / WATCH",
+    rows:[
+      {label:"Parent",value:"MICRO B DOWN"},
+      {label:"Origin high",value:wavePrice(submicroADown.originHigh)},
+      {label:"Reference low",value:wavePrice(submicroADown.referenceLow)},
+      {label:"Basis",value:"PROVISIONAL DOWNSIDE RETRACEMENT REFERENCES"},
+      {label:"Completion",value:"NOT CONFIRMED"},
+      {label:"Historical",value:"OLDER SUBMICRO C UP LEVELS RETAINED"},
+    ],
+    levels:submicroADown.levels,rules:[],
+  } : null;
   const submicroAbc = currentWavelength?.degrees?.submicro?.ownerSubmicroAbc;
   const submicroAbcActive = parentMinuteW2 &&
     submicroAbc?.version === "engine22.submicroAbcMicroC.v1";
@@ -1006,7 +1037,9 @@ export default function Engine22MarketStructureCard({
           <Engine22DegreeCard
             key={degree}
             degree={degree}
-            state={degree === "micro" && microAbcActive ? microAbcState :
+            state={degree === "micro" && microBActive ? microBState :
+              degree === "submicro" && submicroAActive ? submicroAState :
+              degree === "micro" && microAbcActive ? microAbcState :
               degree === "micro" && microW3Levels.length ? microW3State :
               degree === "subminute" && subminuteW3Levels.length ? subminuteW3State :
               degree === "submicro" && submicroAbcActive ? submicroAbcState :
