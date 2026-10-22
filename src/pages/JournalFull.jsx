@@ -16,6 +16,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import JournalPerformanceAnalytics
   from "./journal/components/JournalPerformanceAnalytics.jsx";
+import JournalRealStrategySections from "./journal/components/JournalRealStrategySections.jsx";
 
 import {
   API_BASE,
@@ -2121,6 +2122,7 @@ export default function JournalFull() {
           </section>
         ) : null}
 
+        <JournalRealStrategySections />
         <JournalPerformanceAnalytics
           analytics={analytics}
           modeFilter={modeFilter}
