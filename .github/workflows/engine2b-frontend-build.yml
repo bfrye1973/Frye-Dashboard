@@ -1,0 +1,81 @@
+name: Engine 2B Frontend Build
+on:
+  push:
+    branches: [engine2b-chart-overlays-v1]
+  pull_request:
+    paths:
+      - 'src/pages/rows/RowChart/**'
+      - 'scripts/engine2bBrowserSmoke.mjs'
+      - 'scripts/engine2bFullChartSmoke.mjs'
+      - 'scripts/engine2bDeployedPreviewSmoke.mjs'
+      - '.github/workflows/engine2b-frontend-build.yml'
+  workflow_dispatch:
+concurrency:
+  group: engine2b-frontend-${{ github.ref }}
+  cancel-in-progress: true
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - run: npm ci
+      - name: Build feature-gated chart
+        run: npm run build
+        env:
+          REACT_APP_ENGINE2B_OVERLAY_V1: 'true'
+          CI: 'false'
+
+      - name: Wave/Fib lifecycle regression tests
+        run: npm test -- --watchAll=false --runInBand --testPathPattern=WaveFibOverlay.test.js
+        env:
+          CI: 'true'
+
+      - name: Install headless Chromium test dependency
+        run: |
+          npm install --no-save --no-package-lock playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Browser canvas smoke
+        run: node scripts/engine2bBrowserSmoke.mjs
+      - name: Upload browser smoke screenshot
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: engine2b-browser-smoke
+          path: engine2b-browser-smoke.png
+          if-no-files-found: ignore
+
+      - name: Read draft Engine 2B backend adapter
+        uses: actions/checkout@v4
+        with:
+          repository: bfrye1973/frye-market-backend
+          ref: engine2b-chart-overlays-v1
+          path: backend-contract
+      - name: Full React chart Fib Micro toggle smoke with live Engine 22 snapshot
+        run: node scripts/engine2bFullChartSmoke.mjs
+        env:
+          ENGINE2B_BACKEND_PATH: backend-contract
+      - name: Upload full chart smoke screenshot
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: engine2b-full-chart-micro
+          path: engine2b-full-chart-*.png
+          if-no-files-found: ignore
+
+      - name: Diagnose deployed Engine2B preview
+        if: always()
+        run: node scripts/engine2bDeployedPreviewSmoke.mjs
+      - name: Upload deployed preview diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: engine2b-deployed-preview-debug
+          path: engine2b-deployed-preview-diagnostic.png
+          if-no-files-found: ignore
