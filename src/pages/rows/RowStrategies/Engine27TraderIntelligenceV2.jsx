@@ -543,7 +543,7 @@ function CompletionLevels({ completion }) {
               minWidth: 0,
             }}
           >
-            <div style={{ color: level?.status === "TOUCHED" ? "#86efac" : "#fbbf24", fontSize: 9, fontWeight: 1000 }}>
+            <div style={{ color: level?.status === "TOUCHED" && level?.touchEvidenceAvailable === true && !level?.provisional ? "#86efac" : "#fbbf24", fontSize: 9, fontWeight: 1000 }}>
               {level?.label || "Level"}
             </div>
             <div style={{ color: "#f8fafc", fontSize: 12, fontWeight: 1000 }}>
@@ -551,7 +551,7 @@ function CompletionLevels({ completion }) {
             </div>
             {level?.status ? (
               <div style={{ color: level?.status === "TOUCHED" ? "#86efac" : "#fbbf24", fontSize: 9, fontWeight: 800 }}>
-                {pretty(level.status)}
+                {level.status === "TOUCHED" && (level.provisional || level.touchEvidenceAvailable !== true) ? "TOUCH REPORTED — EVIDENCE UNVERIFIED" : pretty(level.status)}
               </div>
             ) : null}
           </div>
