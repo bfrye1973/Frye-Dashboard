@@ -325,7 +325,49 @@ function StrategyAlignmentCard({ account }) {
   );
 }
 
-function SeparateStrategyAlignments({ snapshot }) {
+const CURRENT_ACCOUNT_ENDINGS = Object.freeze({
+  submicro:"0747", micro:"6380", subminute:"7727", minute:"3914",
+  minor:"5671", intermediate:"2888", primary:"0144",
+});
+function CurrentWorkingAlignmentCard({ degree, read }) {
+  const direction = read?.available ? read.waveDirection : "NOT_PUBLISHED";
+  const tone = toneForDirection(direction);
+  return (
+    <div style={{background:"#0a1018",border:"1px solid #334155",borderTop:`4px solid ${tone}`,borderRadius:10,padding:9,minWidth:0,display:"grid",gap:6}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:4}}>
+        <strong style={{fontSize:12,color:"#e2e8f0"}}>{degree.toUpperCase()} ALIGNMENT</strong>
+        <SmallBadge text="WORKING" tone="#92400e" />
+      </div>
+      <Cell label="Wave / direction" value={`${pretty(read?.activeWave)} • ${pretty(direction)}`} tone={tone} />
+      <Cell label="Schwab strategy account" value={`••••${CURRENT_ACCOUNT_ENDINGS[degree]}`} detail="Account identity only — live position/thesis not reclassified" />
+      <Cell label="Structural state" value={pretty(read?.currentCondition)} tone="#fbbf24" />
+      <Cell label="Confirmation" value={pretty(read?.confirmationNeeded?.status)} tone="#fbbf24" />
+      <div style={{fontSize:10,color:"#cbd5e1"}}>{read?.traderRead?.summary || "Engine 22 current model unavailable"}</div>
+    </div>
+  );
+}
+function SeparateStrategyAlignments({ snapshot, workingSeven = null }) {
+  if (workingSeven?.engine === "engine27.workingSevenDegrees.v1") {
+    return (
+      <div style={{display:"grid",gap:7}}>
+        <div style={{fontSize:11,color:"#cbd5e1",fontWeight:1000}}>SEVEN CURRENT STRUCTURAL STRATEGY ALIGNMENTS — READ ONLY</div>
+        <div className="engine27-strategy-alignment-grid">
+          {workingSeven.degreeOrder.map(degree => (
+            <CurrentWorkingAlignmentCard key={degree} degree={degree} read={workingSeven.degrees?.[degree]} />
+          ))}
+        </div>
+        <div style={{color:"#fbbf24",fontSize:10}}>These current structural views do not infer broker positions or rewrite historical thesis states.</div>
+        <details style={{border:"1px solid #334155",borderRadius:8,padding:7}}>
+          <summary style={{cursor:"pointer",color:"#94a3b8",fontSize:11,fontWeight:900}}>LEGACY SIX-ROLE POSITION & THESIS MONITORING — expand original records</summary>
+          <LegacyStrategyAlignments snapshot={snapshot} />
+        </details>
+      </div>
+    );
+  }
+  return <LegacyStrategyAlignments snapshot={snapshot} />;
+}
+
+function LegacyStrategyAlignments({ snapshot }) {
   const monitor =
     snapshot?.strategyAccountMonitoring ||
     null;
@@ -509,7 +551,7 @@ function CompletionLevels({ completion }) {
               minWidth: 0,
             }}
           >
-            <div style={{ color: level?.status === "TOUCHED" ? "#86efac" : "#fbbf24", fontSize: 9, fontWeight: 1000 }}>
+            <div style={{ color: level?.status === "TOUCHED" && level?.touchEvidenceAvailable === true && !level?.provisional ? "#86efac" : "#fbbf24", fontSize: 9, fontWeight: 1000 }}>
               {level?.label || "Level"}
             </div>
             <div style={{ color: "#f8fafc", fontSize: 12, fontWeight: 1000 }}>
@@ -517,7 +559,7 @@ function CompletionLevels({ completion }) {
             </div>
             {level?.status ? (
               <div style={{ color: level?.status === "TOUCHED" ? "#86efac" : "#fbbf24", fontSize: 9, fontWeight: 800 }}>
-                {pretty(level.status)}
+                {level.status === "TOUCHED" && (level.provisional || level.touchEvidenceAvailable !== true) ? "TOUCH REPORTED — EVIDENCE UNVERIFIED" : pretty(level.status)}
               </div>
             ) : null}
           </div>
@@ -913,7 +955,7 @@ export default function Engine27TraderIntelligenceV2({ snapshot }) {
 
         .engine27-strategy-alignment-grid {
           display: grid;
-          grid-template-columns: repeat(6, minmax(220px, 1fr));
+          grid-template-columns: repeat(7, minmax(220px, 1fr));
           gap: 8px;
           align-items: stretch;
           overflow-x: auto;
@@ -960,10 +1002,10 @@ export default function Engine27TraderIntelligenceV2({ snapshot }) {
 
       {showWorking ? (
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 2fr 2fr",gap:7}}>
-          <Cell label="CURRENT WAVE ALIGNMENT" value="MIXED INTERNAL CORRECTION" detail="Submicro A DOWN / Micro B DOWN within Minute W2 internal D UP" tone="#fbbf24" />
-          <Cell label="CONFIRMATION" value="WORKING COUNTS" detail="Owner-directed interpretations, not confirmed Elliott completions" tone="#fbbf24" />
-          <Cell label="MARKET STORY" value="Minute W2 complex correction; D UP developing. Subminute ABC UP context; Micro B DOWN and Submicro A DOWN are current lower-degree counter-moves." />
-          <Cell label="WARNINGS" value="Cross-degree directions differ; current Subminute ABC ladder is unavailable. Do not use historical W3 levels as active signals." tone="#fbbf24" />
+          <Cell label="CURRENT WAVE ALIGNMENT" value={pretty(workingSeven?.workingAlignment?.alignmentState)} tone="#fbbf24" />
+          <Cell label="CONFIDENCE" value={pretty(workingSeven?.workingAlignment?.confidence)} detail="Historical calibration not yet published" tone="#fbbf24" />
+          <Cell label="MARKET STORY" value={workingSeven?.workingAlignment?.marketStory || "Current story unavailable"} />
+          <Cell label="WARNINGS" value={(workingSeven?.workingAlignment?.warnings || []).map(pretty).join(" • ") || "No published working-count warnings"} tone="#fbbf24" />
         </div>
       ) : <div className="engine27-v2-summary"><Summary engine27={engine27} /></div>}
       {showWorking ? (
@@ -974,6 +1016,7 @@ export default function Engine27TraderIntelligenceV2({ snapshot }) {
 
       <SeparateStrategyAlignments
         snapshot={snapshot}
+        workingSeven={showWorking ? workingSeven : null}
       />
 
       <div className="engine27-v2-grid">
