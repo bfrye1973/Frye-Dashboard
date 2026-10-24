@@ -18,6 +18,7 @@ const DEGREE_ORDER = [
 ];
 
 const LABELS = {
+  submicro: "SUBMICRO",
   micro: "MICRO",
   subminute: "SUBMINUTE",
   minute: "MINUTE",
@@ -51,6 +52,7 @@ function toneForDirection(direction) {
 
 function conditionTone(condition) {
   const c = String(condition || "").toUpperCase();
+  if (c.includes("UNCONFIRMED") || c.includes("NOT_CONFIRMED")) return "#f59e0b";
   if (c.includes("LOCKED") || c.includes("CONFIRMED")) return "#22c55e";
   if (c.includes("CANDIDATE") || c.includes("PENDING") || c.includes("DEVELOP")) return "#f59e0b";
   if (c.includes("FAILED") || c.includes("INVALID")) return "#ef4444";
@@ -507,14 +509,14 @@ function CompletionLevels({ completion }) {
               minWidth: 0,
             }}
           >
-            <div style={{ color: "#86efac", fontSize: 9, fontWeight: 1000 }}>
+            <div style={{ color: level?.status === "TOUCHED" ? "#86efac" : "#fbbf24", fontSize: 9, fontWeight: 1000 }}>
               {level?.label || "Level"}
             </div>
             <div style={{ color: "#f8fafc", fontSize: 12, fontWeight: 1000 }}>
               {price(level?.price)}
             </div>
             {level?.status ? (
-              <div style={{ color: "#94a3b8", fontSize: 9, fontWeight: 800 }}>
+              <div style={{ color: level?.status === "TOUCHED" ? "#86efac" : "#fbbf24", fontSize: 9, fontWeight: 800 }}>
                 {pretty(level.status)}
               </div>
             ) : null}
@@ -798,7 +800,7 @@ function DegreeCard({ degree, data }) {
           padding: 7,
         }}
       >
-        <div style={{ color: "#86efac", fontSize: 10, fontWeight: 1000, marginBottom: 5 }}>
+        <div style={{ color: "#fbbf24", fontSize: 10, fontWeight: 1000, marginBottom: 5 }}>
           POTENTIAL COMPLETION
         </div>
         <CompletionLevels completion={data?.potentialCompletion} />
@@ -837,7 +839,7 @@ function DegreeCard({ degree, data }) {
         }}
       >
         <div style={{ color: "#64748b", fontSize: 9, fontWeight: 800 }}>
-          SOURCE: {pretty(provenance?.structuralSource)}
+          SOURCE: {pretty(provenance?.workingSource || provenance?.structuralSource)}
         </div>
         <div style={{ color: "#64748b", fontSize: 9, fontWeight: 800 }}>
           CONFIRMATION: {pretty(provenance?.confirmationStatus)}
@@ -957,12 +959,18 @@ export default function Engine27TraderIntelligenceV2({ snapshot }) {
       </div>
 
       {showWorking ? (
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 2fr 2fr",gap:7}}>
+          <Cell label="CURRENT WAVE ALIGNMENT" value="MIXED INTERNAL CORRECTION" detail="Submicro A DOWN / Micro B DOWN within Minute W2 internal D UP" tone="#fbbf24" />
+          <Cell label="CONFIRMATION" value="WORKING COUNTS" detail="Owner-directed interpretations, not confirmed Elliott completions" tone="#fbbf24" />
+          <Cell label="MARKET STORY" value="Minute W2 complex correction; D UP developing. Subminute ABC UP context; Micro B DOWN and Submicro A DOWN are current lower-degree counter-moves." />
+          <Cell label="WARNINGS" value="Cross-degree directions differ; current Subminute ABC ladder is unavailable. Do not use historical W3 levels as active signals." tone="#fbbf24" />
+        </div>
+      ) : <div className="engine27-v2-summary"><Summary engine27={engine27} /></div>}
+      {showWorking ? (
         <div style={{color:"#fbbf24",fontSize:12,fontWeight:800,padding:8,border:"1px solid #92400e",borderRadius:7}}>
           CURRENT ENGINE 22 WORKING STRUCTURE — {currentInterpretation.degreeOrder.map(degree => `${degree.toUpperCase()}: ${currentInterpretation.degrees?.[degree]?.activeWave || "NOT PUBLISHED"} ${currentInterpretation.degrees?.[degree]?.waveDirection || ""}`).join(" | ")}. Working counts are not confirmed completions. Legacy account-thesis readings below are compatibility context pending separate synchronization, not current directional authority.
         </div>
-      ) : (
-        <div className="engine27-v2-summary"><Summary engine27={engine27} /></div>
-      )}
+      ) : null}
 
       <SeparateStrategyAlignments
         snapshot={snapshot}
