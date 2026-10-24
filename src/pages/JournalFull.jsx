@@ -2054,79 +2054,23 @@ export default function JournalFull() {
           </div>
         </section>
 
-        {/* =================================================
-            REAL ACCOUNT CARDS
-        ================================================= */}
-
-        {modeFilter !==
-          "PAPER" &&
-        accountOpenTrades.length ? (
-          <section
-            style={{
-              display: "grid",
-              gridTemplateColumns:
-                accountOpenTrades.length >
-                1
-                  ? "1fr 1fr"
-                  : "1fr",
-              gap: 12,
-              margin: 12,
-            }}
-          >
-            {accountOpenTrades.map(
-              (trade) => {
-                const symbol =
-                  getExactFuturesContractCode(
-                    trade
-                  ) ||
-                  normalizeMarketSymbol(
-                    trade
-                  );
-
-                return (
-                  <AccountCard
-                    key={
-                      trade.tradeId
-                    }
-                    trade={
-                      trade
-                    }
-                    mark={
-                      marks[
-                        symbol
-                      ]
-                    }
-                    dailyPerformance={
-                      analytics
-                        ?.strategies
-                        ?.[
-                          getAccountLabel(
-                            trade
-                          )
-                        ]
-                    }
-                    selected={
-                      selectedTrade
-                        ?.tradeId ===
-                      trade.tradeId
-                    }
-                    onClick={() =>
-                      setSelectedTradeId(
-                        trade.tradeId
-                      )
-                    }
-                  />
-                );
-              }
-            )}
-          </section>
-        ) : null}
-
-        <JournalRealStrategySections />
-        <JournalPerformanceAnalytics
-          analytics={analytics}
-          modeFilter={modeFilter}
-        />
+        {/* Seven strategies are the primary REAL control center.
+            Preserve the established PAPER view and historical metrics below. */}
+        {modeFilter === "REAL" ? (
+          <>
+            <JournalRealStrategySections trades={allTrades} marks={marks} />
+            <details style={{ margin: 12, padding: 12, background: COLORS.panel,
+              border: `1px solid ${COLORS.line}`, borderRadius: 8 }}>
+              <summary style={{ cursor: "pointer", fontSize: 13,
+                color: COLORS.gold, fontWeight: 950 }}>
+                EXPAND LEGACY INTRADAY / SWING PERFORMANCE ANALYTICS
+              </summary>
+              <JournalPerformanceAnalytics analytics={analytics} modeFilter="REAL" />
+            </details>
+          </>
+        ) : (
+          <JournalPerformanceAnalytics analytics={analytics} modeFilter={modeFilter} />
+        )}
 
         {/* =================================================
             RECENT EXECUTIONS
