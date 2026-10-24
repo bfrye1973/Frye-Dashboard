@@ -8,6 +8,7 @@
 import React from "react";
 
 const DEGREE_ORDER = [
+  "submicro",
   "micro",
   "subminute",
   "minute",
@@ -880,8 +881,11 @@ function Summary({ engine27 }) {
 export default function Engine27TraderIntelligenceV2({ snapshot }) {
   const engine27 = snapshot?.engine27Strategies || null;
   const v2 = engine27?.engine27TraderIntelligenceV2 || null;
+  const workingSeven = engine27?.engine27WorkingSevenDegrees || null;
+  const currentInterpretation = workingSeven?.engine === "engine27.workingSevenDegrees.v1" ? workingSeven : v2;
+  const showWorking = currentInterpretation === workingSeven;
 
-  if (!v2 || !v2?.degrees) return null;
+  if (!currentInterpretation?.degrees) return null;
 
   return (
     <div
@@ -898,7 +902,7 @@ export default function Engine27TraderIntelligenceV2({ snapshot }) {
       <style>{`
         .engine27-v2-grid {
           display: grid;
-          grid-template-columns: repeat(6, minmax(220px, 1fr));
+          grid-template-columns: repeat(7, minmax(220px, 1fr));
           gap: 8px;
           align-items: stretch;
           overflow-x: auto;
@@ -938,23 +942,27 @@ export default function Engine27TraderIntelligenceV2({ snapshot }) {
       >
         <div>
           <div style={{ color: "#f8fafc", fontSize: 20, fontWeight: 1000 }}>
-            ENGINE 27 — TRADER INTELLIGENCE V2
+            ENGINE 27 — TRADER INTELLIGENCE
           </div>
           <div style={{ color: "#94a3b8", fontSize: 11, fontWeight: 900, marginTop: 2 }}>
-            Six-degree Elliott Wave interpretation — Engine 22 structural authority preserved
+            {showWorking ? "Seven current owner working interpretations — Engine 22 authority preserved" : "Legacy Engine 27 V2 interpretation — Engine 22 authority preserved"}
           </div>
         </div>
 
         <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
           <SmallBadge text="READ ONLY" tone="#334155" />
-          <SmallBadge text="6 DEGREES" tone="#1d4ed8" />
+          <SmallBadge text={showWorking ? "7 DEGREES" : "6 DEGREES"} tone="#1d4ed8" />
           <SmallBadge text="NO EXECUTION" tone="#7f1d1d" />
         </div>
       </div>
 
-      <div className="engine27-v2-summary">
-        <Summary engine27={engine27} />
-      </div>
+      {showWorking ? (
+        <div style={{color:"#fbbf24",fontSize:12,fontWeight:800,padding:8,border:"1px solid #92400e",borderRadius:7}}>
+          CURRENT OWNER WORKING STRUCTURE — Submicro A DOWN / Micro B DOWN / Subminute ABC UP / Minute W2 internal D UP. These working counts are not confirmed completions. Legacy global alignment and account-thesis readings below are historical compatibility context pending degree-specific migration, not current directional authority.
+        </div>
+      ) : (
+        <div className="engine27-v2-summary"><Summary engine27={engine27} /></div>
+      )}
 
       <SeparateStrategyAlignments
         snapshot={snapshot}
@@ -965,7 +973,7 @@ export default function Engine27TraderIntelligenceV2({ snapshot }) {
           <DegreeCard
             key={degree}
             degree={degree}
-            data={v2?.degrees?.[degree] || null}
+            data={currentInterpretation?.degrees?.[degree] || null}
           />
         ))}
       </div>
