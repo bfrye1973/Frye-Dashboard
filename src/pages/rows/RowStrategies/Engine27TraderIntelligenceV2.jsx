@@ -958,7 +958,7 @@ export default function Engine27TraderIntelligenceV2({ snapshot }) {
 
       {showWorking ? (
         <div style={{color:"#fbbf24",fontSize:12,fontWeight:800,padding:8,border:"1px solid #92400e",borderRadius:7}}>
-          CURRENT OWNER WORKING STRUCTURE — Submicro A DOWN / Micro B DOWN / Subminute ABC UP / Minute W2 internal D UP. These working counts are not confirmed completions. Legacy global alignment and account-thesis readings below are historical compatibility context pending degree-specific migration, not current directional authority.
+          CURRENT ENGINE 22 WORKING STRUCTURE — {currentInterpretation.degreeOrder.map(degree => `${degree.toUpperCase()}: ${currentInterpretation.degrees?.[degree]?.activeWave || "NOT PUBLISHED"} ${currentInterpretation.degrees?.[degree]?.waveDirection || ""}`).join(" | ")}. Working counts are not confirmed completions. Legacy account-thesis readings below are compatibility context pending separate synchronization, not current directional authority.
         </div>
       ) : (
         <div className="engine27-v2-summary"><Summary engine27={engine27} /></div>
