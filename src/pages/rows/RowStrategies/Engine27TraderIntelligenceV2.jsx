@@ -5,7 +5,8 @@
 //
 // Existing Engine 27A–27E production contracts remain untouched.
 
-import React from "react";
+import React, { useEffect, useState } from "react";
+import { API_BASE } from "../../journal/journalConstants.js";
 
 const DEGREE_ORDER = [
   "submicro",
@@ -329,7 +330,7 @@ const CURRENT_ACCOUNT_ENDINGS = Object.freeze({
   submicro:"0747", micro:"6380", subminute:"7727", minute:"3914",
   minor:"5671", intermediate:"2888", primary:"0144",
 });
-function CurrentWorkingAlignmentCard({ degree, read }) {
+function CurrentWorkingAlignmentCard({ degree, read, performance }) {
   const direction = read?.available ? read.waveDirection : "NOT_PUBLISHED";
   const tone = toneForDirection(direction);
   return (
@@ -340,20 +341,22 @@ function CurrentWorkingAlignmentCard({ degree, read }) {
       </div>
       <Cell label="Wave / direction" value={`${pretty(read?.activeWave)} • ${pretty(direction)}`} tone={tone} />
       <Cell label="Schwab strategy account" value={`••••${CURRENT_ACCOUNT_ENDINGS[degree]}`} detail="Account identity only — live position/thesis not reclassified" />
+      <Cell label="Engine 10 open contracts" value={performance?.available ? String(performance?.openContracts ?? "—") : "UNAVAILABLE"} detail={performance?.available ? "Current REAL performance section" : "No verified Engine 10 group response"} />
+      <Cell label="Trade thesis" value={performance?.available && performance.openContracts === 0 ? "FLAT" : "ENTRY_STRUCTURE_UNAVAILABLE"} detail={performance?.available && performance.openContracts > 0 ? "Open contracts exist; original entry structure not matched to this working count" : "No inferred thesis from broker account identity"} tone="#fbbf24" />
       <Cell label="Structural state" value={pretty(read?.currentCondition)} tone="#fbbf24" />
       <Cell label="Confirmation" value={pretty(read?.confirmationNeeded?.status)} tone="#fbbf24" />
       <div style={{fontSize:10,color:"#cbd5e1"}}>{read?.traderRead?.summary || "Engine 22 current model unavailable"}</div>
     </div>
   );
 }
-function SeparateStrategyAlignments({ snapshot, workingSeven = null }) {
+function SeparateStrategyAlignments({ snapshot, workingSeven = null, performanceSections = null }) {
   if (workingSeven?.engine === "engine27.workingSevenDegrees.v1") {
     return (
       <div style={{display:"grid",gap:7}}>
         <div style={{fontSize:11,color:"#cbd5e1",fontWeight:1000}}>SEVEN CURRENT STRUCTURAL STRATEGY ALIGNMENTS — READ ONLY</div>
         <div className="engine27-strategy-alignment-grid">
           {workingSeven.degreeOrder.map(degree => (
-            <CurrentWorkingAlignmentCard key={degree} degree={degree} read={workingSeven.degrees?.[degree]} />
+            <CurrentWorkingAlignmentCard key={degree} degree={degree} read={workingSeven.degrees?.[degree]} performance={performanceSections?.[degree.toUpperCase()] || null} />
           ))}
         </div>
         <div style={{color:"#fbbf24",fontSize:10}}>These current structural views do not infer broker positions or rewrite historical thesis states.</div>
@@ -544,9 +547,9 @@ function CompletionLevels({ completion }) {
           <div
             key={`${level?.label || "level"}-${index}`}
             style={{
-              border: "1px solid rgba(34,197,94,.20)",
+              border: level?.status === "TOUCHED" && level?.touchEvidenceAvailable === true && !level?.provisional ? "1px solid rgba(34,197,94,.35)" : "1px solid rgba(245,158,11,.30)",
               borderRadius: 7,
-              background: "#071008",
+              background: level?.status === "TOUCHED" && level?.touchEvidenceAvailable === true && !level?.provisional ? "#071008" : "#171205",
               padding: "5px 6px",
               minWidth: 0,
             }}
@@ -558,7 +561,7 @@ function CompletionLevels({ completion }) {
               {price(level?.price)}
             </div>
             {level?.status ? (
-              <div style={{ color: level?.status === "TOUCHED" ? "#86efac" : "#fbbf24", fontSize: 9, fontWeight: 800 }}>
+              <div style={{ color: level?.status === "TOUCHED" && level?.touchEvidenceAvailable === true && !level?.provisional ? "#86efac" : "#fbbf24", fontSize: 9, fontWeight: 800 }}>
                 {level.status === "TOUCHED" && (level.provisional || level.touchEvidenceAvailable !== true) ? "TOUCH REPORTED — EVIDENCE UNVERIFIED" : pretty(level.status)}
               </div>
             ) : null}
@@ -923,6 +926,31 @@ function Summary({ engine27 }) {
 }
 
 export default function Engine27TraderIntelligenceV2({ snapshot }) {
+  const [performanceSections, setPerformanceSections] = useState(null);
+  useEffect(() => {
+    let active = true;
+    async function refresh() {
+      try {
+        const response = await fetch(API_BASE + "/api/v1/trade-journal/real-performance", {cache:"no-store"});
+        if (!response.ok) throw new Error("Engine 10 unavailable");
+        const payload = await response.json();
+        if (!payload?.ok || payload?.schema !== "engine10.realPerformanceSections.v1") throw new Error("Unexpected Engine 10 contract");
+        const entries = Object.fromEntries(
+          ["SUBMICRO","MICRO","SUBMINUTE","MINUTE","MINOR","INTERMEDIATE","PRIMARY"].map(group => [
+            group, payload.sections?.[group]
+              ? {available:true,openContracts:payload.sections[group].openContracts}
+              : {available:false}
+          ])
+        );
+        if (active) setPerformanceSections(entries);
+      } catch {
+        if (active) setPerformanceSections(null);
+      }
+    }
+    refresh();
+    const interval = setInterval(refresh, 30000);
+    return () => { active = false; clearInterval(interval); };
+  }, []);
   const engine27 = snapshot?.engine27Strategies || null;
   const v2 = engine27?.engine27TraderIntelligenceV2 || null;
   const workingSeven = engine27?.engine27WorkingSevenDegrees || null;
@@ -1017,6 +1045,7 @@ export default function Engine27TraderIntelligenceV2({ snapshot }) {
       <SeparateStrategyAlignments
         snapshot={snapshot}
         workingSeven={showWorking ? workingSeven : null}
+        performanceSections={performanceSections}
       />
 
       <div className="engine27-v2-grid">
