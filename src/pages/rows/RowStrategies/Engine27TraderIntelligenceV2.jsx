@@ -356,6 +356,7 @@ function CurrentWorkingAlignmentCard({ degree, read, performance, invalidationRe
       <Cell label="Direction alignment" value={alignment} detail="Price action versus wave direction; not trade permission" tone={alignmentTone} />
       <Cell label="Engine 22 review / structural reference" value={zoneLabel} detail={`${pretty(invalidationRecord?.review?.zone?.kind || "NOT_PUBLISHED")} • REVIEW ONLY — not an approved invalidation or stop`} tone="#fbbf24" />
       <Cell label="Official invalidation" value={invalidationRecord?.status === "PUBLISHED" && invalidationRecord?.price != null ? price(invalidationRecord.price) : "NOT PUBLISHED"} detail="Only Engine 22 can approve structural invalidation" tone="#94a3b8" />
+      <Cell label="Cross-market" value={marketContext?.crossMarket?.QQQ?.status === "ZONES_AVAILABLE" && marketContext?.crossMarket?.VIX?.status === "ZONES_AVAILABLE" ? "QQQ / VIX ZONES AVAILABLE" : "PARTIAL / UNAVAILABLE"} detail={`QQQ: ${marketContext?.crossMarket?.QQQ?.levelCount ?? 0} zones • VIX: ${marketContext?.crossMarket?.VIX?.levelCount ?? 0} zones • evidence only`} tone="#94a3b8" />
        {(degree === "intermediate" || degree === "primary") && (
          <Cell label="7200 bearish protection" value={pretty(protection?.status || "UNCONFIRMED")}
            detail={protection
@@ -1071,6 +1072,8 @@ export default function Engine27TraderIntelligenceV2({ snapshot }) {
         snapshot={snapshot}
         workingSeven={showWorking ? workingSeven : null}
         performanceSections={performanceSections}
+        invalidations={invalidations}
+        marketContext={marketContext}
       />
 
       <div className="engine27-v2-grid">
