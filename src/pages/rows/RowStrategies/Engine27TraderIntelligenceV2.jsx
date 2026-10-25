@@ -330,7 +330,7 @@ const CURRENT_ACCOUNT_ENDINGS = Object.freeze({
   submicro:"0747", micro:"6380", subminute:"7727", minute:"3914",
   minor:"5671", intermediate:"2888", primary:"0144",
 });
-function CurrentWorkingAlignmentCard({ degree, read, performance, invalidationRecord, marketContext }) {
+function CurrentWorkingAlignmentCard({ degree, read, performance, invalidationRecord, marketContext, reactions }) {
   const assessment = read?.directionAssessment || null;
   const protection = read?.bearishProtection || null;
   const protectionTone = ["HIGH_BEARISH_RISK","MAJOR_BEARISH_RISK"].includes(protection?.status)
@@ -356,6 +356,12 @@ function CurrentWorkingAlignmentCard({ degree, read, performance, invalidationRe
       <Cell label="Direction alignment" value={alignment} detail="Price action versus wave direction; not trade permission" tone={alignmentTone} />
       <Cell label="Engine 22 review / structural reference" value={zoneLabel} detail={`${pretty(invalidationRecord?.review?.zone?.kind || "NOT_PUBLISHED")} • REVIEW ONLY — not an approved invalidation or stop`} tone="#fbbf24" />
       <Cell label="Official invalidation" value={invalidationRecord?.status === "PUBLISHED" && invalidationRecord?.price != null ? price(invalidationRecord.price) : "NOT PUBLISHED"} detail="Only Engine 22 can approve structural invalidation" tone="#94a3b8" />
+      <Cell label="QQQ price reaction" value={reactions?.instruments?.QQQ?.events?.length ? reactions.instruments.QQQ.events.map(e => pretty(e.event)).join(", ") : pretty(reactions?.instruments?.QQQ?.state || "UNAVAILABLE")}
+        detail={`Direct QQQ • completed hourly candles • ${reactions?.instruments?.QQQ?.lastCompletedAt || "source not verified"} • zone reactions only`}
+        tone="#94a3b8" />
+      <Cell label="VIX price reaction" value={reactions?.instruments?.VIX?.events?.length ? reactions.instruments.VIX.events.map(e => pretty(e.event)).join(", ") : pretty(reactions?.instruments?.VIX?.state || "UNAVAILABLE")}
+        detail={`Direct I:VIX • completed hourly candles • ${reactions?.instruments?.VIX?.lastCompletedAt || "source not verified"} • no automatic ES confirmation`}
+        tone="#94a3b8" />
       <Cell label="Cross-market" value={marketContext?.crossMarket?.QQQ?.status === "ZONES_AVAILABLE" && marketContext?.crossMarket?.VIX?.status === "ZONES_AVAILABLE" ? "QQQ / VIX ZONES AVAILABLE" : "PARTIAL / UNAVAILABLE"} detail={`QQQ: ${marketContext?.crossMarket?.QQQ?.levelCount ?? 0} zones • VIX: ${marketContext?.crossMarket?.VIX?.levelCount ?? 0} zones • evidence only`} tone="#94a3b8" />
       <Cell label="Engine 25 / 29" value={`Breadth: ${pretty(marketContext?.participation?.state || "UNAVAILABLE")} • Tactical: ${pretty(marketContext?.tactical?.overallState || "UNAVAILABLE")}`}
         detail={`Market-wide background, not a separate degree signal • ${["minute","minor","intermediate","primary"].includes(degree) ? `${assessment?.lookback ?? "—"}-daily-close interpretation shown above` : "Intraday interpretation shown above"} • E25 ${marketContext?.participation?.fresh ? "CURRENT" : "STALE"} / E29 ${marketContext?.tactical?.fresh ? "CURRENT" : "STALE"}`}
@@ -376,14 +382,14 @@ function CurrentWorkingAlignmentCard({ degree, read, performance, invalidationRe
     </div>
   );
 }
-function SeparateStrategyAlignments({ snapshot, workingSeven = null, performanceSections = null, invalidations = null, marketContext = null }) {
+function SeparateStrategyAlignments({ snapshot, workingSeven = null, performanceSections = null, invalidations = null, marketContext = null, reactions = null }) {
   if (workingSeven?.engine === "engine27.workingSevenDegrees.v1") {
     return (
       <div style={{display:"grid",gap:7}}>
         <div style={{fontSize:11,color:"#cbd5e1",fontWeight:1000}}>SEVEN CURRENT STRUCTURAL STRATEGY ALIGNMENTS — READ ONLY</div>
         <div className="engine27-strategy-alignment-grid">
           {workingSeven.degreeOrder.map(degree => (
-            <CurrentWorkingAlignmentCard key={degree} degree={degree} read={workingSeven.degrees?.[degree]} invalidationRecord={invalidations?.degrees?.[degree]} marketContext={marketContext} performance={performanceSections?.[degree.toUpperCase()] || null} />
+            <CurrentWorkingAlignmentCard key={degree} degree={degree} read={workingSeven.degrees?.[degree]} invalidationRecord={invalidations?.degrees?.[degree]} marketContext={marketContext} reactions={reactions} performance={performanceSections?.[degree.toUpperCase()] || null} />
           ))}
         </div>
         <div style={{color:"#fbbf24",fontSize:10}}>These current structural views do not infer broker positions or rewrite historical thesis states.</div>
@@ -983,6 +989,7 @@ export default function Engine27TraderIntelligenceV2({ snapshot }) {
   const workingSeven = engine27?.engine27WorkingSevenDegrees || null;
   const invalidations = engine27?.engine27SevenInvalidations || null;
   const marketContext = engine27?.engine27UnifiedMarketContext || null;
+  const reactions = engine27?.engine27LiveCrossMarketReactions || null;
   const currentInterpretation = workingSeven?.engine === "engine27.workingSevenDegrees.v1" ? workingSeven : v2;
   const showWorking = currentInterpretation === workingSeven;
 
@@ -1077,6 +1084,7 @@ export default function Engine27TraderIntelligenceV2({ snapshot }) {
         performanceSections={performanceSections}
         invalidations={invalidations}
         marketContext={marketContext}
+        reactions={reactions}
       />
 
       <div className="engine27-v2-grid">
