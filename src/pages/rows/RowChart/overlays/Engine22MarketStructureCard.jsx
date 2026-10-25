@@ -793,6 +793,7 @@ export default function Engine22MarketStructureCard({
   microPositionContext = null,
   microW3TouchW4Shadow = null,
   higherDegreeBearishProtection = null,
+  sevenDegreeInvalidations = null,
 }) {
   if (
     !engine22Display ||
