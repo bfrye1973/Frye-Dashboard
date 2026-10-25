@@ -502,80 +502,66 @@ function submicroW4Display(shadow, transition) {
   })};
 }
 
-// Read-only Engine 22 owner-published protection; never infer a risk state from a price label.
-function HigherDegreeProtectionPanel({ degree, protection }) {
-  if (degree !== "intermediate" && degree !== "primary") return null;
-  const read = protection?.degrees?.[degree] ?? null;
-  const status = read?.status ?? "UNCONFIRMED";
-  const color = ["HIGH_BEARISH_RISK", "MAJOR_BEARISH_RISK"].includes(status) ? "#f87171"
-    : ["WARNING", "BEARISH_RISK_CONFIRMED"].includes(status) ? "#fbbf24"
-    : status === "BULLISH_STRUCTURE_ABOVE_WARNING" ? "#86efac" : "#94a3b8";
-  const frame = degree === "primary" ? "Daily" : "4H";
-  const structural = read?.structuralReference;
-  const structuralText = Number.isFinite(structural) && structural > 0
-    ? wavePrice(structural) : "NOT VERIFIED";
-  const latest = read?.latestCompletedClose;
-  const latestText = Number.isFinite(latest) && latest > 0
-    ? wavePrice(latest) : "UNAVAILABLE";
+// Unified, read-only risk strip for all seven degrees.
+// Warning is separate from a wave-count boundary and from trade permission.
+function Engine22WaveRiskStrip({degree,wavelength,protection,invalidations}) {
+  const higher=degree==="intermediate"||degree==="primary";
+  const minute=degree==="minute";
+  const minor=degree==="minor";
+  const ownerMinute=wavelength?.degrees?.minute?.ownerMinuteW2Retracement;
+  const ownerMinor=wavelength?.degrees?.minor?.ownerW5StructuralReference;
+  const higherRead=protection?.degrees?.[degree] || null;
+  const readiness=invalidations?.degrees?.[degree]?.invalidationReadiness || null;
+  const ownerBoundary=minute && ownerMinute?.version==="engine22.minuteW2RetracementOwner.v1"
+    ? ownerMinute.structuralReference
+    : minor && ownerMinor?.version==="engine22.minorW5StructuralReference.v1"
+    ? ownerMinor.price : null;
+  const higherBoundary=higherRead?.structuralReference;
+  const structural=Number.isFinite(ownerBoundary) && ownerBoundary>0 ? ownerBoundary
+    : higher && Number.isFinite(higherBoundary) && higherBoundary>0 ? higherBoundary : null;
+  const review=readiness?.candidateZone;
+  const reviewPrice=review && Number.isFinite(review.low) && Number.isFinite(review.high)
+    ? review.low===review.high ? wavePrice(review.low) : wavePrice(review.low)+"–"+wavePrice(review.high)
+    : null;
+  const status=higher ? (higherRead?.status || "UNCONFIRMED") : structural ? "OWNER REFERENCE" : "UNCONFIRMED";
+  const stateTone=["HIGH_BEARISH_RISK","MAJOR_BEARISH_RISK"].includes(status)?"#f87171"
+    : ["WARNING","BEARISH_RISK_CONFIRMED"].includes(status)?"#fbbf24"
+    : status==="BULLISH_STRUCTURE_ABOVE_WARNING"?"#86efac":"#94a3b8";
+  const primary=degree==="primary";
+  const referenceText=structural!==null?wavePrice(structural):"NOT PUBLISHED";
+  const referenceBasis=minute?"W1 origin • W2 count":minor?"W4 origin • W5 review"
+    :higher?(primary?"Primary W4 low":"Intermediate W2 low"):"No approved hard invalidation";
+  const warningValue=higher?"7200.00":"NOT SET";
+  const warningDetail=higher?(primary?"Daily close below":"4H close below"):"No early-warning rule approved";
+  const last=higherRead?.latestCompletedClose;
+  const evidence=higher
+    ? (higherRead?.sourceFresh && Number.isFinite(last)
+      ? (primary?"Daily":"4H")+" close "+wavePrice(last)+" • 2 closes confirm • deep risk 6800"
+      : "Completed-candle evidence unavailable • deep risk 6800")
+    : minute?"Below W1 origin breaches current Minute W2 count"
+    :minor?"Below W4 origin requires W5 recount review"
+    :reviewPrice?"Recount review "+reviewPrice+" • not a hard invalidation"
+    :"No current structural rule approved";
   return (
-    <div style={{
-      border: "1px solid #344156", borderRadius: 8, padding: 8,
-      background: "#0b1420", display: "grid", gap: 6, marginTop: 3
-    }}>
-      <div style={{display: "flex", alignItems: "center", justifyContent: "space-between", gap: 5, flexWrap: "wrap"}}>
-        <strong style={{fontSize: 11, color: "#e2e8f0"}}>HIGHER-DEGREE PROTECTION</strong>
-        <span style={{fontSize: 10, fontWeight: 1000, color}}>{status.replaceAll("_", " ")}</span>
+    <div style={{border:"1px solid #344156",borderRadius:8,padding:7,background:"#0b1420",display:"grid",gap:5}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:4,flexWrap:"wrap"}}>
+        <strong style={{fontSize:10,color:"#e2e8f0"}}>WAVE RISK / PROTECTION</strong>
+        <span style={{fontSize:9,color:stateTone,fontWeight:900}}>{status.replaceAll("_"," ")}</span>
       </div>
-      <div style={{display: "grid", gridTemplateColumns: "1fr 1fr", gap: 5}}>
-        <div style={{border: "1px solid #854d0e", borderRadius: 6, padding: 6, background: "#1d170c"}}>
-          <div style={{fontSize: 10, color: "#fbbf24", fontWeight: 900}}>BEARISH WARNING</div>
-          <div style={{fontSize: 15, color: "#fde68a", fontWeight: 1000}}>7200.00</div>
-          <div style={{fontSize: 10, color: "#cbd5e1"}}>{frame} close below</div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(2,minmax(0,1fr))",gap:5}}>
+        <div style={{padding:6,borderRadius:6,background:"#19150b",border:"1px solid rgba(245,158,11,.45)",minWidth:0}}>
+          <div style={{fontSize:9,fontWeight:900,color:"#fbbf24"}}>EARLY WARNING</div>
+          <div style={{fontSize:14,fontWeight:1000,color:"#fde68a"}}>{warningValue}</div>
+          <div style={{fontSize:9,color:"#cbd5e1"}}>{warningDetail}</div>
         </div>
-        <div style={{border: "1px solid #7f1d1d", borderRadius: 6, padding: 6, background: "#1b1013"}}>
-          <div style={{fontSize: 10, color: "#fca5a5", fontWeight: 900}}>DEEP RISK</div>
-          <div style={{fontSize: 15, color: "#fecaca", fontWeight: 1000}}>6800.00</div>
-          <div style={{fontSize: 10, color: "#cbd5e1"}}>High bearish risk</div>
+        <div style={{padding:6,borderRadius:6,background:"#1b1013",border:"1px solid #7f1d1d",minWidth:0}}>
+          <div style={{fontSize:9,fontWeight:900,color:"#fca5a5"}}>STRUCTURAL REFERENCE</div>
+          <div style={{fontSize:14,fontWeight:1000,color:"#fecaca"}}>{referenceText}</div>
+          <div style={{fontSize:9,color:"#cbd5e1"}}>{referenceBasis}</div>
         </div>
       </div>
-      <Engine22Line label="Confirm" value={degree === "primary" ? "2 daily closes below 7200" : "2 consecutive 4H closes below 7200"} tone="warning" />
-      <Engine22Line label={degree === "primary" ? "W4 low" : "W2 low"} value={structuralText + " — structural reference"} tone="muted" />
-      <Engine22Line label={frame + " close"} value={latestText} tone={read?.sourceFresh ? "long" : "muted"} />
-      <div style={{fontSize: 10, color: "#94a3b8"}}>
-        {read?.sourceFresh ? "Completed-candle observation" : "Completed-candle evidence unavailable or stale"}
-        {" • Warning only — not a wave invalidation or trading permission"}
-      </div>
-    </div>
-  );
-}
-
-// Owner-approved structural boundary, intentionally distinct from a trade stop.
-function MinuteMinorInvalidationPanel({degree,wavelength}) {
-  if (!["minute","minor"].includes(degree)) return null;
-  const minute=wavelength?.degrees?.minute?.ownerMinuteW2Retracement;
-  const minor=wavelength?.degrees?.minor?.ownerW5StructuralReference;
-  const owner=degree==="minute" ? minute : minor;
-  const version=degree==="minute" ? "engine22.minuteW2RetracementOwner.v1" : "engine22.minorW5StructuralReference.v1";
-  if (owner?.version!==version) return (
-    <div style={{border:"1px solid #475569",borderRadius:8,padding:8,color:"#94a3b8",fontSize:11}}>
-      STRUCTURAL INVALIDATION — CURRENT OWNER REFERENCE UNAVAILABLE
-    </div>
-  );
-  const boundary=degree==="minute" ? owner.structuralReference : owner.price;
-  const valid=Number.isFinite(boundary)&&boundary>0;
-  return (
-    <div style={{border:"1px solid #854d0e",borderRadius:9,padding:8,background:"#171208",display:"grid",gap:5}}>
-      <div style={{fontSize:11,fontWeight:1000,color:"#fbbf24"}}>STRUCTURAL INVALIDATION REFERENCE</div>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,flexWrap:"wrap"}}>
-        <strong style={{fontSize:20,color:"#fcd34d"}}>{valid?wavePrice(boundary):"UNAVAILABLE"}</strong>
-        <span style={{fontSize:10,color:"#fbbf24",fontWeight:900}}>BELOW THIS LEVEL</span>
-      </div>
-      <div style={{fontSize:10,color:"#cbd5e1"}}>
-        {degree==="minute"
-          ? "Minute W2: a breach below its completed W1 origin requires invalidating this W2 count."
-          : "Minor W5: a breach below its approved W4 origin triggers structural recount review."}
-      </div>
-      <div style={{fontSize:10,color:"#94a3b8"}}>Owner-approved reference • Not a trade stop or Engine 6 permission</div>
+      <div style={{fontSize:9,color:"#94a3b8"}}>{evidence}</div>
+      <div style={{fontSize:9,color:"#64748b"}}>Read only • Not a trade stop or permission</div>
     </div>
   );
 }
@@ -592,6 +578,7 @@ function Engine22DegreeCard({
   waveDegreeOverride = undefined,
   v3Shadow = null,
   higherDegreeBearishProtection = null,
+  sevenDegreeInvalidations = null,
 }) {
   const ownerW2Correction = degree === "submicro" &&
     v3Shadow?.ownerCorrectionState === "SUBMICRO_W2_OWNER_CORRECTED";
@@ -776,16 +763,9 @@ function Engine22DegreeCard({
 
       <Engine22TargetGrid
         title={`${String(state?.label || degree || "").toUpperCase()} levels`}
-        levels={state?.levels}
+        levels={degree==="minor" && waveDegree?.state==="MINOR_W5_ACTIVE_CANDIDATE" ? fibLevels : state?.levels}
       />
-
-      {degree === "minor" && waveDegree?.state === "MINOR_W5_ACTIVE_CANDIDATE" && (
-        <>
-          <Engine22TargetGrid title="MINOR W5 FIBONACCI PRICE LEVELS" levels={fibLevels}/>
-          <div style={{fontSize:10,color:"#94a3b8"}}>Green = ES snapshot reached this price; orange = awaiting reach. Historical candle-touch confirmation remains separate.</div>
-        </>
-      )}
-      {waveDegree && !w4 && !ownerW2Correction ? (
+      {waveDegree && degree!=="minor" && !w4 && !ownerW2Correction ? (
         <div style={{border: "1px solid #344156", borderRadius: 8, padding: 6, display: "grid", gap: 4}}>
           <div style={{color: "#bfdbfe", fontWeight: 900, fontSize: 11}}>FIB EXTENSIONS — {waveDegree.activeWave || "—"}</div>
           <Engine22Line label="State" value={waveDegree.state} tone="watch" />
@@ -797,9 +777,9 @@ function Engine22DegreeCard({
           {waveDegree.nextLevel ? <Engine22Line label="Next" value={`${waveDegree.nextLevel.label} @ ${waveDegree.nextLevel.price}`} /> : null}
         </div>
       ) : null}
-      <MinuteMinorInvalidationPanel degree={degree} wavelength={wavelength} />
-      <HigherDegreeProtectionPanel degree={degree} protection={higherDegreeBearishProtection} />
-      <RulesBox rules={state?.rules} />
+      <Engine22WaveRiskStrip degree={degree} wavelength={wavelength}
+        protection={higherDegreeBearishProtection} invalidations={sevenDegreeInvalidations} />
+      {degree!=="minute" && degree!=="minor" ? <RulesBox rules={state?.rules} /> : null}
     </div>
   );
 }
@@ -1256,6 +1236,7 @@ export default function Engine22MarketStructureCard({
               v3ShadowDegrees?.[degree] || null}
             wavelength={currentWavelength}
             higherDegreeBearishProtection={higherDegreeBearishProtection}
+            sevenDegreeInvalidations={sevenDegreeInvalidations}
             waveDegreeOverride={["submicro","micro","subminute"].includes(degree) || (degree === "minute" && minuteW2Watch) ? null : undefined}
             legacyMicroWidgets={degree === "micro" && !microW2}
             microW2W3TransitionFibs={microW2W3TransitionFibs}
