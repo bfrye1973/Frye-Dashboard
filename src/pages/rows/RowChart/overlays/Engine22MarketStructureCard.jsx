@@ -939,8 +939,8 @@ export default function Engine22MarketStructureCard({
       {label:"Internal",value:"CONTRACTING ABCDE TRIANGLE CANDIDATE (B/X PLACEMENT UNRESOLVED)"},
       {label:"Wave A",value:"COMPLETION CANDIDATE"},
       {label:"Wave B",value:"COMPLETION CANDIDATE"},
-      {label:"Wave C",value:"COMPLETION CANDIDATE"},
-      {label:"Wave D",value:"UP DEVELOPING — OWNER WORKING COUNT"},
+      {label:"Wave C",value:largerCDownWatch?"C DOWN — DEVELOPING / NOT CONFIRMED":"COMPLETION CANDIDATE"},
+      {label:"Wave D",value:largerCDownWatch?"POTENTIAL NEXT LEG — NOT STARTED":"UP DEVELOPING — OWNER WORKING COUNT"},
       {label:"B high",value:wavePrice(minuteW2Hypothesis?.priorPivotB?.price)},
       {label:"C low",value:wavePrice(minuteW2Hypothesis?.priorPivotC?.price)},
       {label:"C low time",value:minuteW2Hypothesis?.priorPivotC?.localTime || "PENDING"},
@@ -973,6 +973,27 @@ export default function Engine22MarketStructureCard({
     ?.fibAnchorStatus === "OWNER_COORDINATES_CONFIRMED_PRICE_BASIS_PENDING" &&
     Array.isArray(currentWavelength?.degrees?.subminute?.levels)
       ? currentWavelength.degrees.subminute.levels : [];
+  const subminuteCDown = currentWavelength?.degrees?.subminute?.ownerCurrentCDown;
+  const subminuteCDownActive = subminuteCDown?.version === "engine22.subminuteCurrentCDownReference.v1" &&
+    largerCDownWatch && Array.isArray(largerCDown?.levels);
+  const subminuteCDownState = subminuteCDownActive ? {
+    degree:"subminute",label:"Subminute",
+    subtitle:"Current corrective leg of unfinished Minute W2",
+    active:true,badge:"C DOWN WATCH",
+    headline:"SUBMINUTE C DOWN — DEVELOPING / MINUTE W2 ABCDE WATCH",
+    rows:[
+      {label:"Parent",value:"MINUTE W2 — COMPLEX CORRECTION NOT COMPLETE"},
+      {label:"Current",value:"C DOWN — PROVISIONAL WORKING LEG / NOT CONFIRMED"},
+      {label:"A high",value:wavePrice(largerCDown.anchors.aHigh)},
+      {label:"A low",value:wavePrice(largerCDown.anchors.aLow)},
+      {label:"B high",value:wavePrice(largerCDown.anchors.bHigh)},
+      {label:"Structure",value:"ABC OR ABCDE — C LEG DEVELOPING; D/E NOT CONFIRMED"},
+      {label:"Degree",value:"PROVISIONAL PLACEMENT — OWNER WORKING INTERPRETATION"},
+      {label:"History",value:"OLDER SUBMINUTE W3 PROJECTION PRESERVED"},
+    ],
+    levels:largerCDown.levels,
+    rules:[],
+  } : null;
   const subminuteW3State = {
     degree:"subminute",label:"Subminute",subtitle:parentMinuteW2 ? "Larger internal swings of Minute W2" : "Owner-locked W3 projection",
     active:true,
@@ -1051,6 +1072,7 @@ export default function Engine22MarketStructureCard({
               degree === "submicro" && submicroAActive ? submicroAState :
               degree === "micro" && microAbcActive ? microAbcState :
               degree === "micro" && microW3Levels.length ? microW3State :
+              degree === "subminute" && subminuteCDownActive ? subminuteCDownState :
               degree === "subminute" && subminuteW3Levels.length ? subminuteW3State :
               degree === "submicro" && submicroAbcActive ? submicroAbcState :
               degree === "submicro" ? submicroState :
