@@ -810,6 +810,26 @@ export default function Engine22MarketStructureCard({
     levels:microCDown.levels,rules:[],
   } : null;
   const microBDown = currentWavelength?.degrees?.micro?.ownerMicroBDown;
+  const submicroCDown = currentWavelength?.degrees?.submicro?.ownerSubmicroCDown;
+  const submicroCActive = submicroCDown?.version === "engine22.submicroCDownOwnerWatch.v1";
+  const submicroCState = submicroCActive ? {
+    degree:"submicro",label:"Submicro",active:true,badge:"C DOWN WATCH",
+    subtitle:"Fast corrective C leg inside Micro C DOWN",
+    headline:"SUBMICRO C DOWN — DEVELOPING / ABCDE WATCH",
+    rows:[
+      {label:"Parent",value:"MICRO C DOWN — SUBMINUTE C DOWN"},
+      {label:"A high",value:wavePrice(submicroCDown.waveA.high)},
+      {label:"A time",value:submicroCDown.waveA.highLocalTime},
+      {label:"A low",value:wavePrice(submicroCDown.waveA.low)},
+      {label:"A low time",value:submicroCDown.waveA.lowLocalTime},
+      {label:"B high",value:wavePrice(submicroCDown.waveB.high)},
+      {label:"B time",value:submicroCDown.waveB.highLocalTime},
+      {label:"Current",value:"C DOWN DEVELOPING — COMPLETION NOT CONFIRMED"},
+      {label:"Pattern",value:"ABC / ABCDE ALTERNATIVE — UNCONFIRMED"},
+      {label:"History",value:"OLDER SUBMICRO A DOWN / C UP LEVELS PRESERVED"},
+    ],
+    levels:submicroCDown.levels,rules:[],
+  } : null;
   const submicroADown = currentWavelength?.degrees?.submicro?.ownerSubmicroADown;
   const microBActive = microBDown?.version === "engine22.microBDownOwnerWatch.v1";
   const submicroAActive = submicroADown?.version === "engine22.submicroADownOwnerWatch.v1";
@@ -1091,6 +1111,7 @@ export default function Engine22MarketStructureCard({
             degree={degree}
             state={degree === "micro" && microCDownActive ? microCDownState :
               degree === "micro" && microBActive ? microBState :
+              degree === "submicro" && submicroCActive ? submicroCState :
               degree === "submicro" && submicroAActive ? submicroAState :
               degree === "micro" && microAbcActive ? microAbcState :
               degree === "micro" && microW3Levels.length ? microW3State :
