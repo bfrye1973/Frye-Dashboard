@@ -330,56 +330,62 @@ const CURRENT_ACCOUNT_ENDINGS = Object.freeze({
   submicro:"0747", micro:"6380", subminute:"7727", minute:"3914",
   minor:"5671", intermediate:"2888", primary:"0144",
 });
-function CurrentWorkingAlignmentCard({ degree, read, performance, invalidationRecord, marketContext, reactions }) {
-  const assessment = read?.directionAssessment || null;
-  const protection = read?.bearishProtection || null;
-  const protectionTone = ["HIGH_BEARISH_RISK","MAJOR_BEARISH_RISK"].includes(protection?.status)
-    ? "#ef4444" : ["WARNING","BEARISH_RISK_CONFIRMED"].includes(protection?.status)
-      ? "#f59e0b" : protection?.status === "BULLISH_STRUCTURE_ABOVE_WARNING" ? "#22c55e" : "#94a3b8";
-  const alignment = assessment?.status || "UNCONFIRMED";
-  const alignmentTone = alignment === "ALIGNED" ? "#22c55e" : alignment === "CONFLICT" ? "#ef4444" : "#f59e0b";
-  const reviewZone = invalidationRecord?.review?.zone || assessment?.reviewZone;
-  const zoneLabel = reviewZone && Number.isFinite(reviewZone.low) && Number.isFinite(reviewZone.high)
-    ? (reviewZone.low === reviewZone.high ? price(reviewZone.low) : `${price(reviewZone.low)}–${price(reviewZone.high)}`)
+function CurrentWorkingAlignmentCard({ degree, read, performance, invalidationRecord }) {
+  const observation = read?.directionAssessment || {};
+  const ref = invalidationRecord?.review?.zone;
+  const refText = ref && Number.isFinite(ref.low) && Number.isFinite(ref.high)
+    ? ref.low === ref.high ? price(ref.low) : `${price(ref.low)}–${price(ref.high)}`
     : "NOT PUBLISHED";
-  const direction = read?.available ? read.waveDirection : "NOT_PUBLISHED";
-  const tone = toneForDirection(direction);
+  const direction = read?.available ? read.waveDirection : "UNAVAILABLE";
+  const alignment = observation?.status || "UNCONFIRMED";
+  const directionTone = toneForDirection(direction);
+  const statusTone = alignment === "ALIGNED" ? "#22c55e" : alignment === "CONFLICT" ? "#f59e0b" : "#94a3b8";
+  const open = performance?.available ? performance.openContracts : null;
   return (
-    <div style={{background:"#0a1018",border:"1px solid #334155",borderTop:`4px solid ${tone}`,borderRadius:10,padding:9,minWidth:0,display:"grid",gap:6}}>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:4}}>
-        <strong style={{fontSize:12,color:"#e2e8f0"}}>{degree.toUpperCase()} ALIGNMENT</strong>
-        <SmallBadge text={alignment} tone={alignmentTone} />
+    <div style={{background:"#0a1018",border:"1px solid #334155",borderTop:`3px solid ${directionTone}`,borderRadius:10,padding:9,minWidth:0,display:"grid",alignContent:"start",gap:7}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:5}}>
+        <strong style={{fontSize:12,color:"#e2e8f0"}}>{degree.toUpperCase()}</strong>
+        <SmallBadge text={alignment} tone={statusTone} />
       </div>
-      <Cell label="Wave / direction" value={`${pretty(read?.activeWave)} • ${pretty(direction)}`} tone={tone} />
-      <Cell label="Expected wave" value={pretty(assessment?.expectedWaveDirection || direction)} tone={tone} />
-      <Cell label="Price action" value={pretty(assessment?.observedPriceDirection || "UNCONFIRMED")} detail={assessment ? `${assessment.timeframe === "1d" ? "DAILY ONLY" : assessment.timeframe} • ${assessment.lookback ? `${assessment.lookback} completed closes • ` : ""}${pretty(assessment.evidence)}` : "Completed-candle evidence pending"} tone={alignmentTone} />
-      <Cell label="Direction alignment" value={alignment} detail="Price action versus wave direction; not trade permission" tone={alignmentTone} />
-      <Cell label="Engine 22 review / structural reference" value={zoneLabel} detail={`${pretty(invalidationRecord?.review?.zone?.kind || "NOT_PUBLISHED")} • REVIEW ONLY — not an approved invalidation or stop`} tone="#fbbf24" />
-      <Cell label="Official invalidation" value={invalidationRecord?.status === "PUBLISHED" && invalidationRecord?.price != null ? price(invalidationRecord.price) : "NOT PUBLISHED"} detail="Only Engine 22 can approve structural invalidation" tone="#94a3b8" />
-      <Cell label="QQQ/VIX ES context" value={pretty(reactions?.interpretation?.state || "UNAVAILABLE")} detail="Completed candle observations only; not ES trade permission" tone="#fbbf24" />
-      <Cell label="QQQ price reaction" value={reactions?.instruments?.QQQ?.events?.length ? reactions.instruments.QQQ.events.map(e => pretty(e.event)).join(", ") : pretty(reactions?.instruments?.QQQ?.state || "UNAVAILABLE")}
-        detail={`Direct QQQ • completed hourly candles • ${reactions?.instruments?.QQQ?.lastCompletedAt || "source not verified"} • zone reactions only`}
-        tone="#94a3b8" />
-      <Cell label="VIX price reaction" value={reactions?.instruments?.VIX?.events?.length ? reactions.instruments.VIX.events.map(e => pretty(e.event)).join(", ") : pretty(reactions?.instruments?.VIX?.state || "UNAVAILABLE")}
-        detail={`Direct I:VIX • completed hourly candles • ${reactions?.instruments?.VIX?.lastCompletedAt || "source not verified"} • no automatic ES confirmation`}
-        tone="#94a3b8" />
-      <Cell label="Cross-market" value={marketContext?.crossMarket?.QQQ?.status === "ZONES_AVAILABLE" && marketContext?.crossMarket?.VIX?.status === "ZONES_AVAILABLE" ? "QQQ / VIX ZONES AVAILABLE" : "PARTIAL / UNAVAILABLE"} detail={`QQQ: ${marketContext?.crossMarket?.QQQ?.levelCount ?? 0} zones • VIX: ${marketContext?.crossMarket?.VIX?.levelCount ?? 0} zones • evidence only`} tone="#94a3b8" />
-      <Cell label="Engine 25 / 29" value={`Breadth: ${pretty(marketContext?.participation?.state || "UNAVAILABLE")} • Tactical: ${pretty(marketContext?.tactical?.overallState || "UNAVAILABLE")}`}
-        detail={`Market-wide background, not a separate degree signal • ${["minute","minor","intermediate","primary"].includes(degree) ? `${assessment?.lookback ?? "—"}-daily-close interpretation shown above` : "Intraday interpretation shown above"} • E25 ${marketContext?.participation?.fresh ? "CURRENT" : "STALE"} / E29 ${marketContext?.tactical?.fresh ? "CURRENT" : "STALE"}`}
-        tone="#94a3b8" />
-       {(degree === "intermediate" || degree === "primary") && (
-         <Cell label="7200 bearish protection" value={pretty(protection?.status || "UNCONFIRMED")}
-           detail={protection
-             ? `${protection.timeframe} completed close: ${protection.latestCompletedClose == null ? "unavailable" : price(protection.latestCompletedClose)} • Deep risk below 6800 • Structural reference ${price(protection.structuralReference)} remains separate`
-             : "Engine 22 completed-candle protection unavailable"}
-           tone={protectionTone} />
-       )}
-      <Cell label="Schwab strategy account" value={`••••${CURRENT_ACCOUNT_ENDINGS[degree]}`} detail="Account identity only — live position/thesis not reclassified" />
-      <Cell label="Engine 10 open contracts" value={performance?.available ? String(performance?.openContracts ?? "—") : "UNAVAILABLE"} detail={performance?.available ? "Current REAL performance section" : "No verified Engine 10 group response"} />
-      <Cell label="Trade thesis" value={performance?.available && performance.openContracts === 0 ? "FLAT" : "ENTRY_STRUCTURE_UNAVAILABLE"} detail={performance?.available && performance.openContracts > 0 ? "Open contracts exist; original entry structure not matched to this working count" : "No inferred thesis from broker account identity"} tone="#fbbf24" />
-      <Cell label="Structural state" value={pretty(read?.currentCondition)} tone="#fbbf24" />
-      <Cell label="Confirmation" value={pretty(read?.confirmationNeeded?.status)} tone="#fbbf24" />
-      <div style={{fontSize:10,color:"#cbd5e1"}}>{read?.traderRead?.summary || "Engine 22 current model unavailable"}</div>
+      <Cell label="Current Elliott wave" value={`${pretty(read?.activeWave)} • ${pretty(direction)}`} tone={directionTone}/>
+      <Cell label="Price direction" value={pretty(observation?.observedPriceDirection || "UNCONFIRMED")}
+        detail={`${observation?.timeframe==="1d"?"DAILY":observation?.timeframe||"NO DATA"} • ${observation?.lookback||2} completed closes`}
+        tone={statusTone}/>
+      <Cell label="Engine 22 structural review" value={refText}
+        detail="Review reference only — NOT an approved stop or invalidation" tone="#fbbf24"/>
+      <Cell label="Real position" value={open == null ? "UNAVAILABLE" : `${open} open contracts`}
+        detail={`Account ••••${CURRENT_ACCOUNT_ENDINGS[degree]} • ${open > 0 ? "Entry thesis not yet reconciled" : "No open position confirmed"}`}/>
+      <details style={{border:"1px solid #263548",borderRadius:6,padding:7}}>
+        <summary style={{cursor:"pointer",fontSize:10,color:"#94a3b8",fontWeight:800}}>Wave details and risk rules</summary>
+        <div style={{display:"grid",gap:5,marginTop:7}}>
+          <Cell label="Structural condition" value={pretty(read?.currentCondition)}/>
+          <Cell label="Wave confirmation" value={pretty(read?.confirmationNeeded?.status)}/>
+          <Cell label="Official invalidation" value={invalidationRecord?.status==="PUBLISHED" && invalidationRecord?.price != null ? price(invalidationRecord.price) : "NOT PUBLISHED"}/>
+          <div style={{fontSize:10,color:"#cbd5e1"}}>{read?.traderRead?.summary||"Working count unavailable"}</div>
+          {(degree==="intermediate"||degree==="primary")&&<Cell label="Engine 22 bearish protection" value={pretty(read?.bearishProtection?.status||"UNAVAILABLE")}
+            detail={`${read?.bearishProtection?.timeframe||"—"} • Separate Engine 22 warning rule, not wave invalidation`}/>}
+        </div>
+      </details>
+    </div>
+  );
+}
+function SharedCrossMarketBrief({ marketContext, reactions }) {
+  const q = reactions?.instruments?.QQQ, v = reactions?.instruments?.VIX;
+  const line = x => x?.events?.length ? x.events.slice(-1)[0].event : x?.state==="NO_QUALIFIED_EVENT" ? "NO NEW REACTION" : x?.state||"UNAVAILABLE";
+  return (
+    <div style={{border:"1px solid #334155",borderRadius:9,padding:10,display:"grid",gap:8}}>
+      <div style={{fontSize:12,fontWeight:900,color:"#e2e8f0"}}>SHARED MARKET CONFIRMATION — ES / QQQ / VIX / ENGINE 25 / ENGINE 29</div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:7}}>
+        <Cell label="QQQ — latest zone event" value={pretty(line(q))} detail="Completed hourly evidence; not a trend verdict"/>
+        <Cell label="VIX — latest zone event" value={pretty(line(v))} detail="Direct I:VIX completed hourly evidence"/>
+        <Cell label="QQQ + VIX interpretation" value={pretty(reactions?.interpretation?.state||"UNAVAILABLE")}
+          detail="No new event does not mean no market activity"/>
+        <Cell label="Engine 25 — breadth" value={pretty(marketContext?.participation?.state||"UNAVAILABLE")}
+          detail={marketContext?.participation?.fresh?"Fresh shared market context":"Stale or unverified source"}/>
+        <Cell label="Engine 29 — tactical" value={pretty(marketContext?.tactical?.overallState||"UNAVAILABLE")}
+          detail={marketContext?.tactical?.fresh?"Fresh shared market context":"Stale or unverified source"}/>
+      </div>
+      <div style={{fontSize:10,color:"#94a3b8"}}>Shared conditions appear once. Each strategy above uses its own Elliott wave, daily/intraday price window, and structural reference. Cross-market reactions are context, not trade authorization.</div>
     </div>
   );
 }
@@ -390,9 +396,10 @@ function SeparateStrategyAlignments({ snapshot, workingSeven = null, performance
         <div style={{fontSize:11,color:"#cbd5e1",fontWeight:1000}}>SEVEN CURRENT STRUCTURAL STRATEGY ALIGNMENTS — READ ONLY</div>
         <div className="engine27-strategy-alignment-grid">
           {workingSeven.degreeOrder.map(degree => (
-            <CurrentWorkingAlignmentCard key={degree} degree={degree} read={workingSeven.degrees?.[degree]} invalidationRecord={invalidations?.degrees?.[degree]} marketContext={marketContext} reactions={reactions} performance={performanceSections?.[degree.toUpperCase()] || null} />
+            <CurrentWorkingAlignmentCard key={degree} degree={degree} read={workingSeven.degrees?.[degree]} invalidationRecord={invalidations?.degrees?.[degree]} performance={performanceSections?.[degree.toUpperCase()] || null} />
           ))}
         </div>
+        <SharedCrossMarketBrief marketContext={marketContext} reactions={reactions} />
         <div style={{color:"#fbbf24",fontSize:10}}>These current structural views do not infer broker positions or rewrite historical thesis states.</div>
         <details style={{border:"1px solid #334155",borderRadius:8,padding:7}}>
           <summary style={{cursor:"pointer",color:"#94a3b8",fontSize:11,fontWeight:900}}>LEGACY SIX-ROLE POSITION & THESIS MONITORING — expand original records</summary>
