@@ -919,13 +919,23 @@ export default function Engine22MarketStructureCard({
   // but cannot be presented as the CURRENT wave while W2 is under review.
   const minuteW2Watch =
     minuteW2Hypothesis?.version === "engine22.minuteW2ComplexCorrectionWatch.v1";
+  const largerCDown = currentWavelength?.degrees?.minute?.ownerLargerCDownScenario;
+  const largerCDownWatch = largerCDown?.version === "engine22.largerCorrectionCDownWatch.v1";
   const minuteW2State = minuteW2Watch ? {
     degree:"minute",label:"Minute",
     subtitle:"Owner working count — larger correction",
-    active:true,badge:"D UP WATCH",
-    headline:"MINUTE W2 — INTERNAL D UP DEVELOPING (TRIANGLE CANDIDATE)",
+    active:true,badge:largerCDownWatch ? "C DOWN WATCH" : "D UP WATCH",
+    headline:largerCDownWatch ? "MINUTE W2 — LARGER C DOWN SCENARIO / ABCDE ALTERNATIVE" : "MINUTE W2 — INTERNAL D UP DEVELOPING (TRIANGLE CANDIDATE)",
     rows:[
-      {label:"Current",value:"MINUTE W2 STILL DEVELOPING — OWNER WORKING COUNT"},
+      {label:"Current",value:largerCDownWatch ? "C DOWN — PROVISIONAL LARGER CORRECTION; DEGREE NOT YET CONFIRMED" : "MINUTE W2 STILL DEVELOPING — OWNER WORKING COUNT"},
+      ...(largerCDownWatch ? [
+        {label:"A high",value:wavePrice(largerCDown.anchors.aHigh)},
+        {label:"A low",value:wavePrice(largerCDown.anchors.aLow)},
+        {label:"B high",value:wavePrice(largerCDown.anchors.bHigh)},
+        {label:"Support",value:"7618 BODY / 7575 WICK — WATCH ONLY"},
+        {label:"ABC/ABCDE",value:"COMPETING CORRECTION PATTERNS — UNCONFIRMED"},
+        {label:"Old D UP",value:"PREVIOUS HYPOTHESIS PRESERVED FOR RECOUNT"},
+      ] : []),
       {label:"Internal",value:"CONTRACTING ABCDE TRIANGLE CANDIDATE (B/X PLACEMENT UNRESOLVED)"},
       {label:"Wave A",value:"COMPLETION CANDIDATE"},
       {label:"Wave B",value:"COMPLETION CANDIDATE"},
@@ -938,7 +948,7 @@ export default function Engine22MarketStructureCard({
       {label:"Minute W3",value:"NOT CONFIRMED / NOT STARTED IN CURRENT OWNER HYPOTHESIS"},
       {label:"Range",value:"~7910 UPPER / ~7557 LOWER — REFERENCES ONLY"},
       {label:"Authority",value:"OWNER HYPOTHESIS — CANDLE / PATTERN CONFIRMATION PENDING"},
-    ],levels:minuteW2Hypothesis?.internalDProjection?.levels || [],rules:[],
+    ],levels:largerCDownWatch ? largerCDown.levels : (minuteW2Hypothesis?.internalDProjection?.levels || []),rules:[],
   } : null;
   const minuteW3Owner = v3ShadowDegrees?.minute?.ownerCorrectionState ===
     "MINUTE_W3_OWNER_CONTEXT" &&
