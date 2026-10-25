@@ -502,6 +502,53 @@ function submicroW4Display(shadow, transition) {
   })};
 }
 
+// Read-only Engine 22 owner-published protection; never infer a risk state from a price label.
+function HigherDegreeProtectionPanel({ degree, protection }) {
+  if (degree !== "intermediate" && degree !== "primary") return null;
+  const read = protection?.degrees?.[degree] ?? null;
+  const status = read?.status ?? "UNCONFIRMED";
+  const color = ["HIGH_BEARISH_RISK", "MAJOR_BEARISH_RISK"].includes(status) ? "#f87171"
+    : ["WARNING", "BEARISH_RISK_CONFIRMED"].includes(status) ? "#fbbf24"
+    : status === "BULLISH_STRUCTURE_ABOVE_WARNING" ? "#86efac" : "#94a3b8";
+  const frame = degree === "primary" ? "Daily" : "4H";
+  const structural = read?.structuralReference;
+  const structuralText = Number.isFinite(structural) && structural > 0
+    ? wavePrice(structural) : "NOT VERIFIED";
+  const latest = read?.latestCompletedClose;
+  const latestText = Number.isFinite(latest) && latest > 0
+    ? wavePrice(latest) : "UNAVAILABLE";
+  return (
+    <div style={{
+      border: "1px solid #344156", borderRadius: 8, padding: 8,
+      background: "#0b1420", display: "grid", gap: 6, marginTop: 3
+    }}>
+      <div style={{display: "flex", alignItems: "center", justifyContent: "space-between", gap: 5, flexWrap: "wrap"}}>
+        <strong style={{fontSize: 11, color: "#e2e8f0"}}>HIGHER-DEGREE PROTECTION</strong>
+        <span style={{fontSize: 10, fontWeight: 1000, color}}>{status.replaceAll("_", " ")}</span>
+      </div>
+      <div style={{display: "grid", gridTemplateColumns: "1fr 1fr", gap: 5}}>
+        <div style={{border: "1px solid #854d0e", borderRadius: 6, padding: 6, background: "#1d170c"}}>
+          <div style={{fontSize: 10, color: "#fbbf24", fontWeight: 900}}>BEARISH WARNING</div>
+          <div style={{fontSize: 15, color: "#fde68a", fontWeight: 1000}}>7200.00</div>
+          <div style={{fontSize: 10, color: "#cbd5e1"}}>{frame} close below</div>
+        </div>
+        <div style={{border: "1px solid #7f1d1d", borderRadius: 6, padding: 6, background: "#1b1013"}}>
+          <div style={{fontSize: 10, color: "#fca5a5", fontWeight: 900}}>DEEP RISK</div>
+          <div style={{fontSize: 15, color: "#fecaca", fontWeight: 1000}}>6800.00</div>
+          <div style={{fontSize: 10, color: "#cbd5e1"}}>High bearish risk</div>
+        </div>
+      </div>
+      <Engine22Line label="Confirm" value={degree === "primary" ? "2 daily closes below 7200" : "2 consecutive 4H closes below 7200"} tone="warning" />
+      <Engine22Line label={degree === "primary" ? "W4 low" : "W2 low"} value={structuralText + " — structural reference"} tone="muted" />
+      <Engine22Line label={frame + " close"} value={latestText} tone={read?.sourceFresh ? "long" : "muted"} />
+      <div style={{fontSize: 10, color: "#94a3b8"}}>
+        {read?.sourceFresh ? "Completed-candle observation" : "Completed-candle evidence unavailable or stale"}
+        {" • Warning only — not a wave invalidation or trading permission"}
+      </div>
+    </div>
+  );
+}
+
 function Engine22DegreeCard({
   degree,
   state,
@@ -513,6 +560,7 @@ function Engine22DegreeCard({
   legacyMicroWidgets = false,
   waveDegreeOverride = undefined,
   v3Shadow = null,
+  higherDegreeBearishProtection = null,
 }) {
   const ownerW2Correction = degree === "submicro" &&
     v3Shadow?.ownerCorrectionState === "SUBMICRO_W2_OWNER_CORRECTED";
@@ -712,6 +760,7 @@ function Engine22DegreeCard({
           {waveDegree.nextLevel ? <Engine22Line label="Next" value={`${waveDegree.nextLevel.label} @ ${waveDegree.nextLevel.price}`} /> : null}
         </div>
       ) : null}
+      <HigherDegreeProtectionPanel degree={degree} protection={higherDegreeBearishProtection} />
       <RulesBox rules={state?.rules} />
     </div>
   );
@@ -725,6 +774,7 @@ export default function Engine22MarketStructureCard({
   microMidlineConfluence = null,
   microPositionContext = null,
   microW3TouchW4Shadow = null,
+  higherDegreeBearishProtection = null,
 }) {
   if (
     !engine22Display ||
@@ -1137,6 +1187,7 @@ export default function Engine22MarketStructureCard({
               degree === "subminute" ? ownerSubminute :
               v3ShadowDegrees?.[degree] || null}
             wavelength={currentWavelength}
+            higherDegreeBearishProtection={higherDegreeBearishProtection}
             waveDegreeOverride={["submicro","micro","subminute"].includes(degree) || (degree === "minute" && minuteW2Watch) ? null : undefined}
             legacyMicroWidgets={degree === "micro" && !microW2}
             microW2W3TransitionFibs={microW2W3TransitionFibs}
