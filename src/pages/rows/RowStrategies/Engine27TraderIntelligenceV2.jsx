@@ -332,6 +332,10 @@ const CURRENT_ACCOUNT_ENDINGS = Object.freeze({
 });
 function CurrentWorkingAlignmentCard({ degree, read, performance }) {
   const assessment = read?.directionAssessment || null;
+  const protection = read?.bearishProtection || null;
+  const protectionTone = ["HIGH_BEARISH_RISK","MAJOR_BEARISH_RISK"].includes(protection?.status)
+    ? "#ef4444" : ["WARNING","BEARISH_RISK_CONFIRMED"].includes(protection?.status)
+      ? "#f59e0b" : protection?.status === "BULLISH_STRUCTURE_ABOVE_WARNING" ? "#22c55e" : "#94a3b8";
   const alignment = assessment?.status || "UNCONFIRMED";
   const alignmentTone = alignment === "ALIGNED" ? "#22c55e" : alignment === "CONFLICT" ? "#ef4444" : "#f59e0b";
   const reviewZone = assessment?.reviewZone;
@@ -351,6 +355,13 @@ function CurrentWorkingAlignmentCard({ degree, read, performance }) {
       <Cell label="Price action" value={pretty(assessment?.observedPriceDirection || "UNCONFIRMED")} detail={assessment ? `${assessment.timeframe} • ${pretty(assessment.evidence)}` : "Completed-candle evidence pending"} tone={alignmentTone} />
       <Cell label="Direction alignment" value={alignment} detail="Price action versus wave direction; not trade permission" tone={alignmentTone} />
       <Cell label="Invalidation review zone" value={zoneLabel} detail={assessment?.reviewZoneState === "AT_REVIEW_REFERENCE" ? "At review reference — no structural invalidation implied" : "Reference only; official invalidation not published"} tone="#fbbf24" />
+       {(degree === "intermediate" || degree === "primary") && (
+         <Cell label="7200 bearish protection" value={pretty(protection?.status || "UNCONFIRMED")}
+           detail={protection
+             ? `${protection.timeframe} completed close: ${protection.latestCompletedClose == null ? "unavailable" : price(protection.latestCompletedClose)} • Deep risk below 6800 • Structural reference ${price(protection.structuralReference)} remains separate`
+             : "Engine 22 completed-candle protection unavailable"}
+           tone={protectionTone} />
+       )}
       <Cell label="Schwab strategy account" value={`••••${CURRENT_ACCOUNT_ENDINGS[degree]}`} detail="Account identity only — live position/thesis not reclassified" />
       <Cell label="Engine 10 open contracts" value={performance?.available ? String(performance?.openContracts ?? "—") : "UNAVAILABLE"} detail={performance?.available ? "Current REAL performance section" : "No verified Engine 10 group response"} />
       <Cell label="Trade thesis" value={performance?.available && performance.openContracts === 0 ? "FLAT" : "ENTRY_STRUCTURE_UNAVAILABLE"} detail={performance?.available && performance.openContracts > 0 ? "Open contracts exist; original entry structure not matched to this working count" : "No inferred thesis from broker account identity"} tone="#fbbf24" />
