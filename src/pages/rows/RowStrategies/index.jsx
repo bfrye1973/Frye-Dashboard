@@ -276,6 +276,7 @@ function WaveDegreeRow({ snapshot }) {
       engine22Display={getEngine22Display(snapshot)}
       currentWavelength={getEngine22CurrentWavelength(snapshot)}
       higherDegreeBearishProtection={snapshot?.strategies?.[STRATEGY_ID_MAP.SCALP]?.engine22WaveStrategy?.higherDegreeBearishProtection ?? null}
+      sevenDegreeInvalidations={snapshot?.strategies?.[STRATEGY_ID_MAP.SCALP]?.engine22WaveStrategy?.sevenDegreeInvalidations ?? null}
       microW2W3TransitionFibs={getMicroW2W3TransitionFibs(snapshot)}
       microMidlineConfluence={getMicroNegotiatedMidlineConfluence(snapshot)}
       microPositionContext={getMicroPositionContext(snapshot)}
