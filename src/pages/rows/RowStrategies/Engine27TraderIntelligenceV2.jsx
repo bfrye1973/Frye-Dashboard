@@ -357,6 +357,9 @@ function CurrentWorkingAlignmentCard({ degree, read, performance, invalidationRe
       <Cell label="Engine 22 review / structural reference" value={zoneLabel} detail={`${pretty(invalidationRecord?.review?.zone?.kind || "NOT_PUBLISHED")} • REVIEW ONLY — not an approved invalidation or stop`} tone="#fbbf24" />
       <Cell label="Official invalidation" value={invalidationRecord?.status === "PUBLISHED" && invalidationRecord?.price != null ? price(invalidationRecord.price) : "NOT PUBLISHED"} detail="Only Engine 22 can approve structural invalidation" tone="#94a3b8" />
       <Cell label="Cross-market" value={marketContext?.crossMarket?.QQQ?.status === "ZONES_AVAILABLE" && marketContext?.crossMarket?.VIX?.status === "ZONES_AVAILABLE" ? "QQQ / VIX ZONES AVAILABLE" : "PARTIAL / UNAVAILABLE"} detail={`QQQ: ${marketContext?.crossMarket?.QQQ?.levelCount ?? 0} zones • VIX: ${marketContext?.crossMarket?.VIX?.levelCount ?? 0} zones • evidence only`} tone="#94a3b8" />
+      <Cell label="Engine 25 / 29" value={`Breadth: ${pretty(marketContext?.participation?.state || "UNAVAILABLE")} • Tactical: ${pretty(marketContext?.tactical?.overallState || "UNAVAILABLE")}`}
+        detail={`Engine 25: ${marketContext?.participation?.fresh ? "CURRENT" : "STALE / UNAVAILABLE"} • Engine 29: ${marketContext?.tactical?.fresh ? "CURRENT" : "STALE / UNAVAILABLE"} • No automatic Elliott confirmation`}
+        tone="#94a3b8" />
        {(degree === "intermediate" || degree === "primary") && (
          <Cell label="7200 bearish protection" value={pretty(protection?.status || "UNCONFIRMED")}
            detail={protection
