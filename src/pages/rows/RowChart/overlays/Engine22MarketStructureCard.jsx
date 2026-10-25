@@ -794,7 +794,7 @@ export default function Engine22MarketStructureCard({
     degree:"micro",label:"Micro",
     subtitle:"Current corrective subdivision of Subminute C DOWN",
     active:true,badge:"C DOWN WATCH",
-    headline:"MICRO C DOWN — DEVELOPING (OWNER WORKING COUNT)",
+    headline:"MICRO C DOWN — DEVELOPING / ABCDE WATCH",
     rows:[
       {label:"Parent",value:"SUBMINUTE C DOWN / MINUTE W2 CORRECTION"},
       {label:"A high",value:wavePrice(microCDown.waveA.high)},
@@ -803,6 +803,8 @@ export default function Engine22MarketStructureCard({
       {label:"B high",value:wavePrice(microCDown.waveB.high)},
       {label:"B high time",value:microCDown.waveB.highLocalTime},
       {label:"Current",value:"C DOWN DEVELOPING — NOT CONFIRMED COMPLETE"},
+      {label:"Pattern",value:"ABC / ABCDE CORRECTIVE ALTERNATIVE — UNCONFIRMED"},
+      {label:"Next",value:"D / E ONLY IF CORRECTIVE STRUCTURE CONFIRMS; NOT STARTED"},
       {label:"History",value:"OLDER MICRO B DOWN AND C UP MODELS RETAINED"},
     ],
     levels:microCDown.levels,rules:[],
