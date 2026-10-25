@@ -330,7 +330,7 @@ const CURRENT_ACCOUNT_ENDINGS = Object.freeze({
   submicro:"0747", micro:"6380", subminute:"7727", minute:"3914",
   minor:"5671", intermediate:"2888", primary:"0144",
 });
-function CurrentWorkingAlignmentCard({ degree, read, performance, invalidationRecord }) {
+function CurrentWorkingAlignmentCard({ degree, read, performance, invalidationRecord, microIntelligence }) {
   const observation = read?.directionAssessment || {};
   const ref = invalidationRecord?.review?.zone;
   const refText = ref && Number.isFinite(ref.low) && Number.isFinite(ref.high)
@@ -347,6 +347,19 @@ function CurrentWorkingAlignmentCard({ degree, read, performance, invalidationRe
         <strong style={{fontSize:12,color:"#e2e8f0"}}>{degree.toUpperCase()}</strong>
         <SmallBadge text={alignment} tone={statusTone} />
       </div>
+      {degree==="micro" && microIntelligence?.available && (
+        <div style={{border:"1px solid #35536c",background:"#0b1b29",borderRadius:8,padding:8,display:"grid",gap:6}}>
+          <div style={{color:"#7dd3fc",fontSize:11,fontWeight:900}}>MICRO INTELLIGENCE — READ ONLY</div>
+          <Cell label="Next Engine 22 objective" value={microIntelligence.nextObjective?.price != null ? price(microIntelligence.nextObjective.price) : "NOT VERIFIED"}
+            detail={microIntelligence.explanation}/>
+          <Cell label="Neighboring degrees" value={pretty(microIntelligence.adjacency)}
+            detail={(microIntelligence.neighboring||[]).map(x=>`${x.degree}: ${x.direction||"UNAVAILABLE"}`).join(" • ")}/>
+          <Cell label="Market confirmation" value={pretty(microIntelligence.evidence?.combined||"UNAVAILABLE")}
+            detail={`E25: ${pretty(microIntelligence.evidence?.engine25||"UNAVAILABLE")} • E29: ${pretty(microIntelligence.evidence?.engine29||"UNAVAILABLE")} • QQQ: ${pretty(microIntelligence.evidence?.qqq||"UNAVAILABLE")} • VIX: ${pretty(microIntelligence.evidence?.vix||"UNAVAILABLE")}`}/>
+          <Cell label="Position thesis / action" value="ENTRY STRUCTURE UNAVAILABLE"
+            detail="Current contracts do not establish their entry-time Elliott thesis. Consult official management plan; no independent hold/exit advice."/>
+        </div>
+      )}
       <Cell label="Current Elliott wave" value={`${pretty(read?.activeWave)} • ${pretty(direction)}`} tone={directionTone}/>
       <Cell label="Price direction" value={pretty(observation?.observedPriceDirection || "UNCONFIRMED")}
         detail={`${observation?.timeframe==="1d"?"DAILY":observation?.timeframe||"NO DATA"} • ${observation?.lookback||2} completed closes`}
@@ -389,14 +402,14 @@ function SharedCrossMarketBrief({ marketContext, reactions }) {
     </div>
   );
 }
-function SeparateStrategyAlignments({ snapshot, workingSeven = null, performanceSections = null, invalidations = null, marketContext = null, reactions = null }) {
+function SeparateStrategyAlignments({ snapshot, workingSeven = null, performanceSections = null, invalidations = null, marketContext = null, reactions = null, microIntelligence = null }) {
   if (workingSeven?.engine === "engine27.workingSevenDegrees.v1") {
     return (
       <div style={{display:"grid",gap:7}}>
         <div style={{fontSize:11,color:"#cbd5e1",fontWeight:1000}}>SEVEN CURRENT STRUCTURAL STRATEGY ALIGNMENTS — READ ONLY</div>
         <div className="engine27-strategy-alignment-grid">
           {workingSeven.degreeOrder.map(degree => (
-            <CurrentWorkingAlignmentCard key={degree} degree={degree} read={workingSeven.degrees?.[degree]} invalidationRecord={invalidations?.degrees?.[degree]} performance={performanceSections?.[degree.toUpperCase()] || null} />
+            <CurrentWorkingAlignmentCard key={degree} degree={degree} read={workingSeven.degrees?.[degree]} invalidationRecord={invalidations?.degrees?.[degree]} microIntelligence={microIntelligence} performance={performanceSections?.[degree.toUpperCase()] || null} />
           ))}
         </div>
         <SharedCrossMarketBrief marketContext={marketContext} reactions={reactions} />
@@ -997,6 +1010,7 @@ export default function Engine27TraderIntelligenceV2({ snapshot }) {
   const workingSeven = engine27?.engine27WorkingSevenDegrees || null;
   const invalidations = engine27?.engine27SevenInvalidations || null;
   const marketContext = engine27?.engine27UnifiedMarketContext || null;
+  const microIntelligence = engine27?.engine27MicroIntelligence || null;
   const reactions = engine27?.engine27LiveCrossMarketReactions || null;
   const currentInterpretation = workingSeven?.engine === "engine27.workingSevenDegrees.v1" ? workingSeven : v2;
   const showWorking = currentInterpretation === workingSeven;
@@ -1092,6 +1106,7 @@ export default function Engine27TraderIntelligenceV2({ snapshot }) {
         performanceSections={performanceSections}
         invalidations={invalidations}
         marketContext={marketContext}
+        microIntelligence={microIntelligence}
         reactions={reactions}
       />
 
