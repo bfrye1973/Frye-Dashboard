@@ -1056,7 +1056,7 @@ export default function Engine22MarketStructureCard({
       ] : []),
     ],levels:ownerMinuteReady ? minuteW2Owner.levels :
       largerCDownWatch ? largerCDown.levels : (minuteW2Hypothesis?.internalDProjection?.levels || []),
-      rules:ownerMinuteReady ? [{label:"STRUCTURAL RULE",value:"W2 cannot breach W1 origin 7419.50; separate from trade stops."}] : [],
+      rules:ownerMinuteReady ? ["Minute W2 invalid below W1 origin 7419.50 — structural boundary only; not a trade stop."] : [],
 
   } : null;
   const approvedMinor = currentWavelength?.degrees?.minor?.ownerW5StructuralReference;
@@ -1068,7 +1068,7 @@ export default function Engine22MarketStructureCard({
       {label:"W4 origin",value:"7398.00 — OWNER APPROVED REFERENCE"},
       {label:"W5 risk",value:"BELOW 7398.00 → RECOUNT / STRUCTURAL REVIEW"}],
     rules:[...(minorDisplay.rules || []),
-      {label:"STRUCTURAL REVIEW",value:"Minor W5 candidate reviewed if price breaches 7398.00; not a trade stop."}],
+      "Minor W5 active candidate: a breach below 7398.00 requires structural review; not a trade stop."],
   } : null;
   const minuteW3Owner = v3ShadowDegrees?.minute?.ownerCorrectionState ===
     "MINUTE_W3_OWNER_CONTEXT" &&
