@@ -331,15 +331,26 @@ const CURRENT_ACCOUNT_ENDINGS = Object.freeze({
   minor:"5671", intermediate:"2888", primary:"0144",
 });
 function CurrentWorkingAlignmentCard({ degree, read, performance }) {
+  const assessment = read?.directionAssessment || null;
+  const alignment = assessment?.status || "UNCONFIRMED";
+  const alignmentTone = alignment === "ALIGNED" ? "#22c55e" : alignment === "CONFLICT" ? "#ef4444" : "#f59e0b";
+  const reviewZone = assessment?.reviewZone;
+  const zoneLabel = reviewZone && Number.isFinite(reviewZone.low) && Number.isFinite(reviewZone.high)
+    ? (reviewZone.low === reviewZone.high ? price(reviewZone.low) : `${price(reviewZone.low)}–${price(reviewZone.high)}`)
+    : "NOT PUBLISHED";
   const direction = read?.available ? read.waveDirection : "NOT_PUBLISHED";
   const tone = toneForDirection(direction);
   return (
     <div style={{background:"#0a1018",border:"1px solid #334155",borderTop:`4px solid ${tone}`,borderRadius:10,padding:9,minWidth:0,display:"grid",gap:6}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:4}}>
         <strong style={{fontSize:12,color:"#e2e8f0"}}>{degree.toUpperCase()} ALIGNMENT</strong>
-        <SmallBadge text="WORKING" tone="#92400e" />
+        <SmallBadge text={alignment} tone={alignmentTone} />
       </div>
       <Cell label="Wave / direction" value={`${pretty(read?.activeWave)} • ${pretty(direction)}`} tone={tone} />
+      <Cell label="Expected wave" value={pretty(assessment?.expectedWaveDirection || direction)} tone={tone} />
+      <Cell label="Price action" value={pretty(assessment?.observedPriceDirection || "UNCONFIRMED")} detail={assessment ? `${assessment.timeframe} • ${pretty(assessment.evidence)}` : "Completed-candle evidence pending"} tone={alignmentTone} />
+      <Cell label="Direction alignment" value={alignment} detail="Price action versus wave direction; not trade permission" tone={alignmentTone} />
+      <Cell label="Invalidation review zone" value={zoneLabel} detail={assessment?.reviewZoneState === "AT_REVIEW_REFERENCE" ? "At review reference — no structural invalidation implied" : "Reference only; official invalidation not published"} tone="#fbbf24" />
       <Cell label="Schwab strategy account" value={`••••${CURRENT_ACCOUNT_ENDINGS[degree]}`} detail="Account identity only — live position/thesis not reclassified" />
       <Cell label="Engine 10 open contracts" value={performance?.available ? String(performance?.openContracts ?? "—") : "UNAVAILABLE"} detail={performance?.available ? "Current REAL performance section" : "No verified Engine 10 group response"} />
       <Cell label="Trade thesis" value={performance?.available && performance.openContracts === 0 ? "FLAT" : "ENTRY_STRUCTURE_UNAVAILABLE"} detail={performance?.available && performance.openContracts > 0 ? "Open contracts exist; original entry structure not matched to this working count" : "No inferred thesis from broker account identity"} tone="#fbbf24" />
