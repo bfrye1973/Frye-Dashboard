@@ -1008,17 +1008,31 @@ export default function Engine22MarketStructureCard({
   // Prefer the Engine 22-owned Minute W2 hypothesis for this owner's
   // presentation. The historical W3 context and Fibs remain in the backend
   // but cannot be presented as the CURRENT wave while W2 is under review.
-  const minuteW2Watch =
+  const minuteW2Owner = currentWavelength?.degrees?.minute?.ownerMinuteW2Retracement;
+  const ownerMinuteReady = minuteW2Owner?.version === "engine22.minuteW2RetracementOwner.v1";
+  const minuteW2Watch = ownerMinuteReady ||
     minuteW2Hypothesis?.version === "engine22.minuteW2ComplexCorrectionWatch.v1";
   const largerCDown = currentWavelength?.degrees?.minute?.ownerLargerCDownScenario;
   const largerCDownWatch = largerCDown?.version === "engine22.largerCorrectionCDownWatch.v1";
   const minuteW2State = minuteW2Watch ? {
     degree:"minute",label:"Minute",
     subtitle:"Owner working count — larger correction",
-    active:true,badge:largerCDownWatch ? "C DOWN WATCH" : "D UP WATCH",
-    headline:largerCDownWatch ? "MINUTE W2 — LARGER C DOWN SCENARIO / ABCDE ALTERNATIVE" : "MINUTE W2 — INTERNAL D UP DEVELOPING (TRIANGLE CANDIDATE)",
+    active:true,badge:ownerMinuteReady ? "W2 DOWN" : largerCDownWatch ? "C DOWN WATCH" : "D UP WATCH",
+    headline:ownerMinuteReady ? "MINUTE W1 COMPLETE — W2 DOWN DEVELOPING — W3 NOT STARTED" :
+      largerCDownWatch ? "MINUTE W2 — LARGER C DOWN SCENARIO / ABCDE ALTERNATIVE" : "MINUTE W2 — INTERNAL D UP DEVELOPING (TRIANGLE CANDIDATE)",
     rows:[
-      {label:"Current",value:largerCDownWatch ? "C DOWN — PROVISIONAL LARGER CORRECTION; DEGREE NOT YET CONFIRMED" : "MINUTE W2 STILL DEVELOPING — OWNER WORKING COUNT"},
+      ...(ownerMinuteReady ? [
+        {label:"W1",value:"COMPLETE — JUL 30 12:00 → AUG 13 09:00 AZ"},
+        {label:"W1 low",value:wavePrice(minuteW2Owner.anchors.w1Low)},
+        {label:"W1 high",value:wavePrice(minuteW2Owner.anchors.w1High)},
+        {label:"Current",value:"W2 DOWN — DEVELOPING / RETRACEMENT IN PROGRESS"},
+        {label:"W3",value:"NOT STARTED"},
+        {label:"Invalidation",value:"BELOW 7419.50 — MINUTE W1 ORIGIN"},
+        {label:"Internal",value:"ABC / ABCDE STRUCTURES UNCONFIRMED — SECONDARY DETAIL"},
+      ] : [
+        {label:"Current",value:largerCDownWatch ? "C DOWN — PROVISIONAL LARGER CORRECTION; DEGREE NOT YET CONFIRMED" : "MINUTE W2 STILL DEVELOPING — OWNER WORKING COUNT"},
+      ]),
+      ...(!ownerMinuteReady ? [
       ...(largerCDownWatch ? [
         {label:"A high",value:wavePrice(largerCDown.anchors.aHigh)},
         {label:"A low",value:wavePrice(largerCDown.anchors.aLow)},
@@ -1039,7 +1053,22 @@ export default function Engine22MarketStructureCard({
       {label:"Minute W3",value:"NOT CONFIRMED / NOT STARTED IN CURRENT OWNER HYPOTHESIS"},
       {label:"Range",value:"~7910 UPPER / ~7557 LOWER — REFERENCES ONLY"},
       {label:"Authority",value:"OWNER HYPOTHESIS — CANDLE / PATTERN CONFIRMATION PENDING"},
-    ],levels:largerCDownWatch ? largerCDown.levels : (minuteW2Hypothesis?.internalDProjection?.levels || []),rules:[],
+      ] : []),
+    ],levels:ownerMinuteReady ? minuteW2Owner.levels :
+      largerCDownWatch ? largerCDown.levels : (minuteW2Hypothesis?.internalDProjection?.levels || []),
+      rules:ownerMinuteReady ? ["Minute W2 invalid below W1 origin 7419.50 — structural boundary only; not a trade stop."] : [],
+
+  } : null;
+  const approvedMinor = currentWavelength?.degrees?.minor?.ownerW5StructuralReference;
+  const minorDisplay = engine22Display?.degrees?.minor;
+  const minorW5State = approvedMinor?.version === "engine22.minorW5StructuralReference.v1"
+    && minorDisplay ? {
+    ...minorDisplay,
+    rows:[...(minorDisplay.rows || []).filter(row=>String(row?.label||"").toLowerCase()!=="invalidation"),
+      {label:"W4 origin",value:"7398.00 — OWNER APPROVED REFERENCE"},
+      {label:"W5 risk",value:"BELOW 7398.00 → RECOUNT / STRUCTURAL REVIEW"}],
+    rules:[...(minorDisplay.rules || []),
+      "Minor W5 active candidate: a breach below 7398.00 requires structural review; not a trade stop."],
   } : null;
   const minuteW3Owner = v3ShadowDegrees?.minute?.ownerCorrectionState ===
     "MINUTE_W3_OWNER_CONTEXT" &&
@@ -1172,6 +1201,7 @@ export default function Engine22MarketStructureCard({
               degree === "micro" && microW2 ? microW2State :
               degree === "subminute" && subminuteW3 ? subminuteW3State :
               degree === "minute" && minuteW2Watch ? minuteW2State :
+              degree === "minor" && minorW5State ? minorW5State :
               degree === "minute" && minuteW3Owner ? minuteW3State :
               engine22Display.degrees?.[degree] || {
                 degree,label:degree,active:false,
