@@ -330,7 +330,7 @@ const CURRENT_ACCOUNT_ENDINGS = Object.freeze({
   submicro:"0747", micro:"6380", subminute:"7727", minute:"3914",
   minor:"5671", intermediate:"2888", primary:"0144",
 });
-function CurrentWorkingAlignmentCard({ degree, read, performance }) {
+function CurrentWorkingAlignmentCard({ degree, read, performance, invalidationRecord, marketContext }) {
   const assessment = read?.directionAssessment || null;
   const protection = read?.bearishProtection || null;
   const protectionTone = ["HIGH_BEARISH_RISK","MAJOR_BEARISH_RISK"].includes(protection?.status)
@@ -338,7 +338,7 @@ function CurrentWorkingAlignmentCard({ degree, read, performance }) {
       ? "#f59e0b" : protection?.status === "BULLISH_STRUCTURE_ABOVE_WARNING" ? "#22c55e" : "#94a3b8";
   const alignment = assessment?.status || "UNCONFIRMED";
   const alignmentTone = alignment === "ALIGNED" ? "#22c55e" : alignment === "CONFLICT" ? "#ef4444" : "#f59e0b";
-  const reviewZone = assessment?.reviewZone;
+  const reviewZone = invalidationRecord?.review?.zone || assessment?.reviewZone;
   const zoneLabel = reviewZone && Number.isFinite(reviewZone.low) && Number.isFinite(reviewZone.high)
     ? (reviewZone.low === reviewZone.high ? price(reviewZone.low) : `${price(reviewZone.low)}–${price(reviewZone.high)}`)
     : "NOT PUBLISHED";
@@ -354,7 +354,8 @@ function CurrentWorkingAlignmentCard({ degree, read, performance }) {
       <Cell label="Expected wave" value={pretty(assessment?.expectedWaveDirection || direction)} tone={tone} />
       <Cell label="Price action" value={pretty(assessment?.observedPriceDirection || "UNCONFIRMED")} detail={assessment ? `${assessment.timeframe} • ${pretty(assessment.evidence)}` : "Completed-candle evidence pending"} tone={alignmentTone} />
       <Cell label="Direction alignment" value={alignment} detail="Price action versus wave direction; not trade permission" tone={alignmentTone} />
-      <Cell label="Invalidation review zone" value={zoneLabel} detail={assessment?.reviewZoneState === "AT_REVIEW_REFERENCE" ? "At review reference — no structural invalidation implied" : "Reference only; official invalidation not published"} tone="#fbbf24" />
+      <Cell label="Engine 22 review / structural reference" value={zoneLabel} detail={`${pretty(invalidationRecord?.review?.zone?.kind || "NOT_PUBLISHED")} • REVIEW ONLY — not an approved invalidation or stop`} tone="#fbbf24" />
+      <Cell label="Official invalidation" value={invalidationRecord?.status === "PUBLISHED" && invalidationRecord?.price != null ? price(invalidationRecord.price) : "NOT PUBLISHED"} detail="Only Engine 22 can approve structural invalidation" tone="#94a3b8" />
        {(degree === "intermediate" || degree === "primary") && (
          <Cell label="7200 bearish protection" value={pretty(protection?.status || "UNCONFIRMED")}
            detail={protection
@@ -371,14 +372,14 @@ function CurrentWorkingAlignmentCard({ degree, read, performance }) {
     </div>
   );
 }
-function SeparateStrategyAlignments({ snapshot, workingSeven = null, performanceSections = null }) {
+function SeparateStrategyAlignments({ snapshot, workingSeven = null, performanceSections = null, invalidations = null, marketContext = null }) {
   if (workingSeven?.engine === "engine27.workingSevenDegrees.v1") {
     return (
       <div style={{display:"grid",gap:7}}>
         <div style={{fontSize:11,color:"#cbd5e1",fontWeight:1000}}>SEVEN CURRENT STRUCTURAL STRATEGY ALIGNMENTS — READ ONLY</div>
         <div className="engine27-strategy-alignment-grid">
           {workingSeven.degreeOrder.map(degree => (
-            <CurrentWorkingAlignmentCard key={degree} degree={degree} read={workingSeven.degrees?.[degree]} performance={performanceSections?.[degree.toUpperCase()] || null} />
+            <CurrentWorkingAlignmentCard key={degree} degree={degree} read={workingSeven.degrees?.[degree]} invalidationRecord={invalidations?.degrees?.[degree]} marketContext={marketContext} performance={performanceSections?.[degree.toUpperCase()] || null} />
           ))}
         </div>
         <div style={{color:"#fbbf24",fontSize:10}}>These current structural views do not infer broker positions or rewrite historical thesis states.</div>
@@ -976,6 +977,8 @@ export default function Engine27TraderIntelligenceV2({ snapshot }) {
   const engine27 = snapshot?.engine27Strategies || null;
   const v2 = engine27?.engine27TraderIntelligenceV2 || null;
   const workingSeven = engine27?.engine27WorkingSevenDegrees || null;
+  const invalidations = engine27?.engine27SevenInvalidations || null;
+  const marketContext = engine27?.engine27UnifiedMarketContext || null;
   const currentInterpretation = workingSeven?.engine === "engine27.workingSevenDegrees.v1" ? workingSeven : v2;
   const showWorking = currentInterpretation === workingSeven;
 
