@@ -356,6 +356,7 @@ function CurrentWorkingAlignmentCard({ degree, read, performance, invalidationRe
       <Cell label="Direction alignment" value={alignment} detail="Price action versus wave direction; not trade permission" tone={alignmentTone} />
       <Cell label="Engine 22 review / structural reference" value={zoneLabel} detail={`${pretty(invalidationRecord?.review?.zone?.kind || "NOT_PUBLISHED")} • REVIEW ONLY — not an approved invalidation or stop`} tone="#fbbf24" />
       <Cell label="Official invalidation" value={invalidationRecord?.status === "PUBLISHED" && invalidationRecord?.price != null ? price(invalidationRecord.price) : "NOT PUBLISHED"} detail="Only Engine 22 can approve structural invalidation" tone="#94a3b8" />
+      <Cell label="QQQ/VIX ES context" value={pretty(reactions?.interpretation?.state || "UNAVAILABLE")} detail="Completed candle observations only; not ES trade permission" tone="#fbbf24" />
       <Cell label="QQQ price reaction" value={reactions?.instruments?.QQQ?.events?.length ? reactions.instruments.QQQ.events.map(e => pretty(e.event)).join(", ") : pretty(reactions?.instruments?.QQQ?.state || "UNAVAILABLE")}
         detail={`Direct QQQ • completed hourly candles • ${reactions?.instruments?.QQQ?.lastCompletedAt || "source not verified"} • zone reactions only`}
         tone="#94a3b8" />
