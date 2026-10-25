@@ -192,7 +192,7 @@ function Engine22TargetGrid({ title, levels }) {
               </div>
               {pending ? <div style={{color,fontSize:FS.tiny,fontWeight:900}}>WATCH</div> : null}
               {ownerObserved ? <div style={{color,fontSize:FS.tiny,fontWeight:900}}>TOUCHED · OWNER CHART</div> : null}
-              {observedTouch ? <div style={{color,fontSize:FS.tiny,fontWeight:900}}>TOUCHED · ES PRICE</div> : null}
+              {observedTouch ? <div style={{color,fontSize:FS.tiny,fontWeight:900}}>{level.touchEvidenceType === "ES_CURRENT_SNAPSHOT_AT_OR_ABOVE_LEVEL" ? "REACHED · ES SNAPSHOT" : "TOUCHED · ES PRICE"}</div> : null}
               {verified ? <div style={{color,fontSize:FS.tiny,fontWeight:900}}>TOUCHED · VERIFIED</div> : null}
             </div>
           );
@@ -549,6 +549,37 @@ function HigherDegreeProtectionPanel({ degree, protection }) {
   );
 }
 
+// Owner-approved structural boundary, intentionally distinct from a trade stop.
+function MinuteMinorInvalidationPanel({degree,wavelength}) {
+  if (!["minute","minor"].includes(degree)) return null;
+  const minute=wavelength?.degrees?.minute?.ownerMinuteW2Retracement;
+  const minor=wavelength?.degrees?.minor?.ownerW5StructuralReference;
+  const owner=degree==="minute" ? minute : minor;
+  const version=degree==="minute" ? "engine22.minuteW2RetracementOwner.v1" : "engine22.minorW5StructuralReference.v1";
+  if (owner?.version!==version) return (
+    <div style={{border:"1px solid #475569",borderRadius:8,padding:8,color:"#94a3b8",fontSize:11}}>
+      STRUCTURAL INVALIDATION — CURRENT OWNER REFERENCE UNAVAILABLE
+    </div>
+  );
+  const boundary=degree==="minute" ? owner.structuralReference : owner.price;
+  const valid=Number.isFinite(boundary)&&boundary>0;
+  return (
+    <div style={{border:"1px solid #854d0e",borderRadius:9,padding:8,background:"#171208",display:"grid",gap:5}}>
+      <div style={{fontSize:11,fontWeight:1000,color:"#fbbf24"}}>STRUCTURAL INVALIDATION REFERENCE</div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+        <strong style={{fontSize:20,color:"#fcd34d"}}>{valid?wavePrice(boundary):"UNAVAILABLE"}</strong>
+        <span style={{fontSize:10,color:"#fbbf24",fontWeight:900}}>BELOW THIS LEVEL</span>
+      </div>
+      <div style={{fontSize:10,color:"#cbd5e1"}}>
+        {degree==="minute"
+          ? "Minute W2: a breach below its completed W1 origin requires invalidating this W2 count."
+          : "Minor W5: a breach below its approved W4 origin triggers structural recount review."}
+      </div>
+      <div style={{fontSize:10,color:"#94a3b8"}}>Owner-approved reference • Not a trade stop or Engine 6 permission</div>
+    </div>
+  );
+}
+
 function Engine22DegreeCard({
   degree,
   state,
@@ -748,6 +779,12 @@ function Engine22DegreeCard({
         levels={state?.levels}
       />
 
+      {degree === "minor" && waveDegree?.state === "MINOR_W5_ACTIVE_CANDIDATE" && (
+        <>
+          <Engine22TargetGrid title="MINOR W5 FIBONACCI PRICE LEVELS" levels={fibLevels}/>
+          <div style={{fontSize:10,color:"#94a3b8"}}>Green = ES snapshot reached this price; orange = awaiting reach. Historical candle-touch confirmation remains separate.</div>
+        </>
+      )}
       {waveDegree && !w4 && !ownerW2Correction ? (
         <div style={{border: "1px solid #344156", borderRadius: 8, padding: 6, display: "grid", gap: 4}}>
           <div style={{color: "#bfdbfe", fontWeight: 900, fontSize: 11}}>FIB EXTENSIONS — {waveDegree.activeWave || "—"}</div>
@@ -760,6 +797,7 @@ function Engine22DegreeCard({
           {waveDegree.nextLevel ? <Engine22Line label="Next" value={`${waveDegree.nextLevel.label} @ ${waveDegree.nextLevel.price}`} /> : null}
         </div>
       ) : null}
+      <MinuteMinorInvalidationPanel degree={degree} wavelength={wavelength} />
       <HigherDegreeProtectionPanel degree={degree} protection={higherDegreeBearishProtection} />
       <RulesBox rules={state?.rules} />
     </div>
