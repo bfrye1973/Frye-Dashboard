@@ -192,7 +192,7 @@ function Engine22TargetGrid({ title, levels }) {
               </div>
               {pending ? <div style={{color,fontSize:FS.tiny,fontWeight:900}}>WATCH</div> : null}
               {ownerObserved ? <div style={{color,fontSize:FS.tiny,fontWeight:900}}>TOUCHED · OWNER CHART</div> : null}
-              {observedTouch ? <div style={{color,fontSize:FS.tiny,fontWeight:900}}>{level.touchEvidenceType === "ES_CURRENT_SNAPSHOT_AT_OR_ABOVE_LEVEL" ? "REACHED · ES SNAPSHOT" : "TOUCHED · ES PRICE"}</div> : null}
+              {observedTouch ? <div style={{color,fontSize:FS.tiny,fontWeight:900}}>{level.touchEvidenceType === "ES_CURRENT_SNAPSHOT_AT_OR_ABOVE_LEVEL" || level.touchEvidenceType === "ES_CURRENT_PRICE" ? "REACHED · ES SNAPSHOT" : "TOUCHED · ES PRICE"}</div> : null}
               {verified ? <div style={{color,fontSize:FS.tiny,fontWeight:900}}>TOUCHED · VERIFIED</div> : null}
             </div>
           );
@@ -523,14 +523,20 @@ function Engine22WaveRiskStrip({degree,wavelength,protection,invalidations}) {
   const reviewPrice=review && Number.isFinite(review.low) && Number.isFinite(review.high)
     ? review.low===review.high ? wavePrice(review.low) : wavePrice(review.low)+"–"+wavePrice(review.high)
     : null;
-  const status=higher ? (higherRead?.status || "UNCONFIRMED") : structural ? "OWNER REFERENCE" : "UNCONFIRMED";
+  const lowerC=["submicro","micro","subminute"].includes(degree);
+  const lowerB=lowerC && review && Number.isFinite(review.low) && review.low>0 &&
+    review.low===review.high ? review.low : null;
+  const status=higher ? (higherRead?.status || "UNCONFIRMED")
+    : structural ? "OWNER REFERENCE" : lowerB!==null ? "C DOWN RECOUNT" : "UNCONFIRMED";
   const stateTone=["HIGH_BEARISH_RISK","MAJOR_BEARISH_RISK"].includes(status)?"#f87171"
     : ["WARNING","BEARISH_RISK_CONFIRMED"].includes(status)?"#fbbf24"
     : status==="BULLISH_STRUCTURE_ABOVE_WARNING"?"#86efac":"#94a3b8";
   const primary=degree==="primary";
-  const referenceText=structural!==null?wavePrice(structural):"NOT PUBLISHED";
+  const referenceText=structural!==null?wavePrice(structural):
+    lowerB!==null?wavePrice(lowerB):"NOT PUBLISHED";
   const referenceBasis=minute?"W1 origin • W2 count":minor?"W4 origin • W5 review"
-    :higher?(primary?"Primary W4 low":"Intermediate W2 low"):"No approved hard invalidation";
+    :higher?(primary?"Primary W4 low":"Intermediate W2 low")
+    :lowerB!==null?"C down • B-high recount":"No approved hard invalidation";
   const warningValue=higher?"7200.00":"NOT SET";
   const warningDetail=higher?(primary?"Daily close below":"4H close below"):"No early-warning rule approved";
   const last=higherRead?.latestCompletedClose;
@@ -540,12 +546,13 @@ function Engine22WaveRiskStrip({degree,wavelength,protection,invalidations}) {
       : "Completed-candle evidence unavailable • deep risk 6800")
     : minute?"Below W1 origin breaches current Minute W2 count"
     :minor?"Below W4 origin requires W5 recount review"
+    :lowerB!==null?"Above B high requires current C-down recount • not parent invalidation"
     :reviewPrice?"Recount review "+reviewPrice+" • not a hard invalidation"
     :"No current structural rule approved";
   return (
     <div style={{border:"1px solid #344156",borderRadius:8,padding:7,background:"#0b1420",display:"grid",gap:5}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:4,flexWrap:"wrap"}}>
-        <strong style={{fontSize:10,color:"#e2e8f0"}}>WAVE RISK / PROTECTION</strong>
+        <strong style={{fontSize:10,color:"#e2e8f0"}}>INVALIDATION ZONES - WAVE RISK / PROTECTION</strong>
         <span style={{fontSize:9,color:stateTone,fontWeight:900}}>{status.replaceAll("_"," ")}</span>
       </div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(2,minmax(0,1fr))",gap:5}}>
@@ -555,7 +562,7 @@ function Engine22WaveRiskStrip({degree,wavelength,protection,invalidations}) {
           <div style={{fontSize:9,color:"#cbd5e1"}}>{warningDetail}</div>
         </div>
         <div style={{padding:6,borderRadius:6,background:"#1b1013",border:"1px solid #7f1d1d",minWidth:0}}>
-          <div style={{fontSize:9,fontWeight:900,color:"#fca5a5"}}>STRUCTURAL REFERENCE</div>
+          <div style={{fontSize:9,fontWeight:900,color:"#fca5a5"}}>{lowerB!==null?"C-DOWN INVALIDATION REVIEW":"STRUCTURAL REFERENCE"}</div>
           <div style={{fontSize:14,fontWeight:1000,color:"#fecaca"}}>{referenceText}</div>
           <div style={{fontSize:9,color:"#cbd5e1"}}>{referenceBasis}</div>
         </div>
@@ -762,7 +769,8 @@ function Engine22DegreeCard({
       ) : null}
 
       <Engine22TargetGrid
-        title={`${String(state?.label || degree || "").toUpperCase()} levels`}
+        title={degree==="minute"?"MINUTE W2 RETRACEMENT FIB LEVELS":
+          `${String(state?.label || degree || "").toUpperCase()} levels`}
         levels={degree==="minor" && waveDegree?.state==="MINOR_W5_ACTIVE_CANDIDATE" ? fibLevels : state?.levels}
       />
       {waveDegree && degree!=="minor" && !w4 && !ownerW2Correction ? (
