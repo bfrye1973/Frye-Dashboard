@@ -654,25 +654,44 @@ export default function Engine25MarketXrayPreview() {
     let alive = true;
     async function load() {
       try {
-        const [a, b, h] = await Promise.all([
-          fetch(ENGINE25_ROUTE, { cache: "no-store" }),
+        // Engine 25 is the primary page contract. Auxiliary ES-meter/hourly
+        // requests must never make the whole Market X-Ray appear unavailable.
+        const a = await fetch(ENGINE25_ROUTE, { cache: "no-store" });
+        const aj = await a.json();
+        if (!a.ok || aj?.ok === false) {
+          throw new Error(aj?.error || `HTTP ${a.status}`);
+        }
+
+        if (!alive) return;
+        setData(aj);
+        setStatus("READY");
+        setError(null);
+
+        const [masterResult, hourlyResult] = await Promise.allSettled([
           fetch(MASTER_ROUTE, { cache: "no-store" }),
           fetch(HOURLY_ROUTE, { cache: "no-store" }),
         ]);
-        const aj = await a.json();
-        const bj = await b.json().catch(() => null);
-        const hj = await h.json().catch(() => null);
-        if (!a.ok || aj?.ok === false) throw new Error(aj?.error || `HTTP ${a.status}`);
+
         if (!alive) return;
-        setData(aj);
-        setMaster(b.ok ? bj : null);
-        setHourlyData(h.ok ? hj : null);
-        setStatus("READY");
-        setError(null);
+
+        if (masterResult.status === "fulfilled") {
+          const response = masterResult.value;
+          const json = await response.json().catch(() => null);
+          setMaster(response.ok ? json : null);
+        }
+
+        if (hourlyResult.status === "fulfilled") {
+          const response = hourlyResult.value;
+          const json = await response.json().catch(() => null);
+          setHourlyData(response.ok ? json : null);
+        }
       } catch (e) {
         if (!alive) return;
+
+        // Preserve the last good Engine 25 payload during a transient network
+        // interruption. Show an error only when no primary payload exists yet.
         setError(e?.message || String(e));
-        setStatus("ERROR");
+        setStatus((previous) => (data ? previous : "ERROR"));
       }
     }
     load();
