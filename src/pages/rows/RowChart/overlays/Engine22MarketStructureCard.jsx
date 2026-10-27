@@ -542,7 +542,7 @@ function Engine22WaveRiskStrip({degree,wavelength,protection,invalidations}) {
     lowerB!==null?wavePrice(lowerB):workingReview?wavePrice(review.low):"NOT PUBLISHED";
   const referenceBasis=minute?"W1 origin • W2 count":minor?"W4 origin • W5 review"
     :higher?(primary?"Primary W4 low":"Intermediate W2 low")
-    :submicroFiveUp?"W5 UP watch • W4 low pending":microW3?"W3 UP • W2 low review":subminuteD?"D UP • C low review":lowerB!==null?"C down • B-high recount":"No approved hard invalidation";
+    :submicroFiveUp?"W5 UP watch • W4 low review":microW3?"W3 UP • W2 low review":subminuteD?"D UP • C low review":lowerB!==null?"C down • B-high recount":"No approved hard invalidation";
   const warningValue=higher?"7200.00":"NOT SET";
   const warningDetail=higher?(primary?"Daily close below":"4H close below"):"No early-warning rule approved";
   const last=higherRead?.latestCompletedClose;
@@ -552,7 +552,7 @@ function Engine22WaveRiskStrip({degree,wavelength,protection,invalidations}) {
       : "Completed-candle evidence unavailable • deep risk 6800")
     : minute?"Below W1 origin breaches current Minute W2 count"
     :minor?"Below W4 origin requires W5 recount review"
-    :submicroFiveUp?"W4 low not verified • no approved Submicro invalidation"
+    :submicroFiveUp?"W4 low owner reference • no approved Submicro invalidation"
     :microW3?"Below owner W2 low requires W3 UP review • no approved invalidation"
     :subminuteD?"Below owner C low requires D UP review • no approved invalidation"
     :lowerB!==null?"Above B high requires current C-down recount • not parent invalidation"
@@ -936,17 +936,17 @@ export default function Engine22MarketStructureCard({
     headline:"SUBMICRO UPWARD FIVE-WAVE SCENARIO — W5 WATCH / NOT CONFIRMED",
     rows:[
       {label:"Parent",value:"MICRO W3 UP / SUBMINUTE D UP — DEVELOPING"},
-      {label:"W1",value:"UP — OWNER CHART LABEL; EXTREME PRICE PENDING"},
-      {label:"W2",value:"DOWN — OWNER CHART LABEL; EXTREME PRICE PENDING"},
-      {label:"W3 high",value:wavePrice(submicroFiveUp.wave3?.high)},
-      {label:"W3 status",value:"CHART OBSERVATION — CANDLE CONFIRMATION PENDING"},
-      {label:"W4",value:"PULLBACK CANDIDATE; EXACT LOW PENDING"},
-      {label:"W5",value:"UPWARD PROJECTION — NOT CONFIRMED STARTED"},
+      {label:"W1 low",value:wavePrice(submicroFiveUp.wave1?.low)+" — OCT 27 1:45 AM AZ"},
+      {label:"W1 high",value:wavePrice(submicroFiveUp.wave1?.high)+" — OCT 27 5:15 AM AZ"},
+      {label:"W2 low",value:wavePrice(submicroFiveUp.wave2?.low)+" — OCT 27 7:15 AM AZ"},
+      {label:"W3 high",value:wavePrice(submicroFiveUp.wave3?.high)+" — OCT 27 9:00 AM AZ"},
+      {label:"W4 low",value:wavePrice(submicroFiveUp.wave4?.low)+" — OCT 27 11:30 AM AZ"},
+      {label:"W5",value:"UPWARD WATCH — NOT CONFIRMED COMPLETE"},
       {label:"Prior C reference",value:"7648.50 / OCT 23, 7:00 AM AZ — OWNER NOMINATED"},
-      {label:"Fibonacci",value:"AWAITING VERIFIED W1/W2/W4 ANCHORS — NO INVENTED TARGETS"},
+      {label:"Fibonacci",value:"W5 UP EXTENSIONS FROM W4 LOW + W1 LENGTH — PROVISIONAL"},
       {label:"History",value:"PRIOR SUBMICRO C DOWN AND ALL TOUCHES PRESERVED"},
     ],
-    levels:[],rules:[],
+    levels:Array.isArray(submicroFiveUp.levels)?submicroFiveUp.levels:[],rules:[],
   }:null;
   const submicroCDown = currentWavelength?.degrees?.submicro?.ownerSubmicroCDown;
   const submicroCActive = submicroCDown?.version === "engine22.submicroCDownOwnerWatch.v1";
