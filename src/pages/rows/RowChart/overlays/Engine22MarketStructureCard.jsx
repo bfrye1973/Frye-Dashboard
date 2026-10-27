@@ -1140,8 +1140,10 @@ export default function Engine22MarketStructureCard({
       {label:"Next",value:"E DOWN POSSIBLE — NOT STARTED"},
       {label:"History",value:"PRIOR C DOWN FIB LEVELS AND OLD SUBMINUTE W3 PRESERVED"},
       {label:"Minute W3",value:"NOT STARTED"},
+      {label:"D Fibonacci basis",value:"B HIGH 7897.50 → C LOW 7648.50 / PROVISIONAL"},
     ],
-    levels:[],rules:[],
+    levels:Array.isArray(subminuteDUp.levels)?subminuteDUp.levels:[],
+    rules:[],
   } : null;
   const subminuteCDown = currentWavelength?.degrees?.subminute?.ownerCurrentCDown;
   const subminuteCDownActive = subminuteCDown?.version === "engine22.subminuteCurrentCDownReference.v1" &&
