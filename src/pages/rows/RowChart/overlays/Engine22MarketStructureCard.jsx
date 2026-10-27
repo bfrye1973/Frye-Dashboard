@@ -1120,6 +1120,29 @@ export default function Engine22MarketStructureCard({
     ?.fibAnchorStatus === "OWNER_COORDINATES_CONFIRMED_PRICE_BASIS_PENDING" &&
     Array.isArray(currentWavelength?.degrees?.subminute?.levels)
       ? currentWavelength.degrees.subminute.levels : [];
+  const subminuteDUp = currentWavelength?.degrees?.subminute?.ownerCurrentDUp;
+  const subminuteDUpActive = subminuteDUp?.version === "engine22.subminuteDUpOwnerWorking.v1" &&
+    subminuteDUp?.activeWave === "D" && subminuteDUp?.direction === "UP" &&
+    subminuteDUp?.parentWave === "W2" && subminuteDUp?.minuteW3Started === false &&
+    minuteW2Watch;
+  const subminuteDUpState = subminuteDUpActive ? {
+    degree:"subminute",label:"Subminute",
+    subtitle:"Owner working D UP inside unfinished Minute W2",
+    active:true,badge:"D UP CANDIDATE",
+    headline:"SUBMINUTE D UP — DEVELOPING / MINUTE W2 NOT COMPLETE",
+    rows:[
+      {label:"Parent",value:"MINUTE W2 — COMPLEX CORRECTION NOT COMPLETE"},
+      {label:"Current",value:"D UP — OWNER WORKING CANDIDATE / UNCONFIRMED"},
+      {label:"Prior C low",value:wavePrice(subminuteDUp.proposedPriorC?.endingPrice)},
+      {label:"C low time",value:"OCT 23 2026, 7:00 AM ARIZONA — OWNER REFERENCE"},
+      {label:"Prior C status",value:"ENDING NOMINATED — NOT STRUCTURALLY VERIFIED"},
+      {label:"Structure",value:"ABCDE TRIANGLE CANDIDATE — UNCONFIRMED"},
+      {label:"Next",value:"E DOWN POSSIBLE — NOT STARTED"},
+      {label:"History",value:"PRIOR C DOWN FIB LEVELS AND OLD SUBMINUTE W3 PRESERVED"},
+      {label:"Minute W3",value:"NOT STARTED"},
+    ],
+    levels:[],rules:[],
+  } : null;
   const subminuteCDown = currentWavelength?.degrees?.subminute?.ownerCurrentCDown;
   const subminuteCDownActive = subminuteCDown?.version === "engine22.subminuteCurrentCDownReference.v1" &&
     largerCDownWatch && Array.isArray(largerCDown?.levels);
@@ -1221,6 +1244,7 @@ export default function Engine22MarketStructureCard({
               degree === "submicro" && submicroAActive ? submicroAState :
               degree === "micro" && microAbcActive ? microAbcState :
               degree === "micro" && microW3Levels.length ? microW3State :
+              degree === "subminute" && subminuteDUpActive ? subminuteDUpState :
               degree === "subminute" && subminuteCDownActive ? subminuteCDownState :
               degree === "subminute" && subminuteW3Levels.length ? subminuteW3State :
               degree === "submicro" && submicroAbcActive ? submicroAbcState :
