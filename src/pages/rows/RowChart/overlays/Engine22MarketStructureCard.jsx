@@ -867,6 +867,34 @@ export default function Engine22MarketStructureCard({
     minuteW2Hypothesis?.childDegreeContext?.[degree]?.noReset === true
       ? [{label:"Minute Parent",value:"W2 COMPLEX CORRECTION CANDIDATE — LOWER-WAVE RECOUNT PENDING; HISTORY PRESERVED"}]
       : [];
+  const microW3Owner = currentWavelength?.degrees?.micro?.ownerMicroW3Up;
+  const microW3OwnerActive =
+    microW3Owner?.version === "engine22.microW3UpOct27Owner.v1" &&
+    microW3Owner?.activeWave === "W3" &&
+    microW3Owner?.parentWave === "D" &&
+    microW3Owner?.stage === "DEVELOPING_CANDIDATE" &&
+    currentWavelength?.degrees?.subminute?.ownerCurrentDUp?.version ===
+      "engine22.subminuteDUpOwnerWorking.v1";
+  const microW3OwnerState = microW3OwnerActive ? {
+    degree:"micro",label:"Micro",
+    subtitle:"Bullish Micro structure developing inside Subminute D UP",
+    active:true,badge:"W3 UP CANDIDATE",
+    headline:"MICRO W3 UP — DEVELOPING / UNCONFIRMED",
+    rows:[
+      {label:"Parent",value:"SUBMINUTE D UP — DEVELOPING / MINUTE W2 NOT COMPLETE"},
+      {label:"W1 low",value:wavePrice(microW3Owner.wave1?.low)},
+      {label:"W1 low time",value:"OCT 25 2026, 3:00 PM AZ — OWNER REFERENCE"},
+      {label:"W1 high",value:wavePrice(microW3Owner.wave1?.high)},
+      {label:"W1 high time",value:"OCT 26 2026, 8:00 AM AZ — OWNER REFERENCE"},
+      {label:"W2 low",value:wavePrice(microW3Owner.wave2?.low)},
+      {label:"W2 low time",value:"OCT 27 2026, 1:00 AM AZ — OWNER REFERENCE"},
+      {label:"Current",value:"W3 UP — OWNER WORKING CANDIDATE / NOT CONFIRMED"},
+      {label:"Fibonacci",value:"W3 UP EXTENSIONS — OWNER ANCHORS / PROVISIONAL"},
+      {label:"History",value:"OLDER MICRO C DOWN COUNT AND FIB TOUCHES PRESERVED"},
+    ],
+    levels:Array.isArray(microW3Owner.levels)?microW3Owner.levels:[],
+    rules:[],
+  } : null;
   const microCDown = currentWavelength?.degrees?.micro?.ownerMicroCDown;
   const microCDownActive = microCDown?.version === "engine22.microCDownOwnerWatch.v1";
   const microCDownState = microCDownActive ? {
@@ -1243,7 +1271,8 @@ export default function Engine22MarketStructureCard({
           <Engine22DegreeCard
             key={degree}
             degree={degree}
-            state={degree === "micro" && microCDownActive ? microCDownState :
+            state={degree === "micro" && microW3OwnerActive ? microW3OwnerState :
+              degree === "micro" && microCDownActive ? microCDownState :
               degree === "micro" && microBActive ? microBState :
               degree === "submicro" && submicroCActive ? submicroCState :
               degree === "submicro" && submicroAActive ? submicroAState :
