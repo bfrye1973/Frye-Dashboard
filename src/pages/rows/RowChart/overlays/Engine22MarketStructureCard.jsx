@@ -525,10 +525,11 @@ function Engine22WaveRiskStrip({degree,wavelength,protection,invalidations}) {
     : null;
   const subminuteD=degree==="subminute" && wavelength?.degrees?.subminute?.ownerCurrentDUp?.version==="engine22.subminuteDUpOwnerWorking.v1";
   const microW3=degree==="micro" && wavelength?.degrees?.micro?.ownerMicroW3Up?.version==="engine22.microW3UpOct27Owner.v1";
+  const submicroFiveUp=degree==="submicro" && wavelength?.degrees?.submicro?.ownerSubmicroFiveUp?.version==="engine22.submicroFiveUpOct27OwnerWatch.v1";
   const workingUp=microW3||subminuteD;
   const workingReview=workingUp && review?.reviewOnly===true &&
     Number.isFinite(review.low)&&review.low>0 && review.low===review.high;
-  const lowerC=degree==="submicro" || (degree==="micro"&&!microW3) || (degree==="subminute"&&!subminuteD);
+  const lowerC=(degree==="submicro"&&!submicroFiveUp) || (degree==="micro"&&!microW3) || (degree==="subminute"&&!subminuteD);
   const lowerB=lowerC && review && Number.isFinite(review.low) && review.low>0 &&
     review.low===review.high ? review.low : null;
   const status=higher ? (higherRead?.status || "UNCONFIRMED")
@@ -541,7 +542,7 @@ function Engine22WaveRiskStrip({degree,wavelength,protection,invalidations}) {
     lowerB!==null?wavePrice(lowerB):workingReview?wavePrice(review.low):"NOT PUBLISHED";
   const referenceBasis=minute?"W1 origin • W2 count":minor?"W4 origin • W5 review"
     :higher?(primary?"Primary W4 low":"Intermediate W2 low")
-    :microW3?"W3 UP • W2 low review":subminuteD?"D UP • C low review":lowerB!==null?"C down • B-high recount":"No approved hard invalidation";
+    :submicroFiveUp?"W5 UP watch • W4 low pending":microW3?"W3 UP • W2 low review":subminuteD?"D UP • C low review":lowerB!==null?"C down • B-high recount":"No approved hard invalidation";
   const warningValue=higher?"7200.00":"NOT SET";
   const warningDetail=higher?(primary?"Daily close below":"4H close below"):"No early-warning rule approved";
   const last=higherRead?.latestCompletedClose;
@@ -551,6 +552,7 @@ function Engine22WaveRiskStrip({degree,wavelength,protection,invalidations}) {
       : "Completed-candle evidence unavailable • deep risk 6800")
     : minute?"Below W1 origin breaches current Minute W2 count"
     :minor?"Below W4 origin requires W5 recount review"
+    :submicroFiveUp?"W4 low not verified • no approved Submicro invalidation"
     :microW3?"Below owner W2 low requires W3 UP review • no approved invalidation"
     :subminuteD?"Below owner C low requires D UP review • no approved invalidation"
     :lowerB!==null?"Above B high requires current C-down recount • not parent invalidation"
