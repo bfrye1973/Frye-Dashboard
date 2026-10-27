@@ -523,7 +523,8 @@ function Engine22WaveRiskStrip({degree,wavelength,protection,invalidations}) {
   const reviewPrice=review && Number.isFinite(review.low) && Number.isFinite(review.high)
     ? review.low===review.high ? wavePrice(review.low) : wavePrice(review.low)+"–"+wavePrice(review.high)
     : null;
-  const lowerC=["submicro","micro","subminute"].includes(degree);
+  const subminuteD=degree==="subminute" && wavelength?.degrees?.subminute?.ownerCurrentDUp?.version==="engine22.subminuteDUpOwnerWorking.v1";
+  const lowerC=["submicro","micro"].includes(degree) || (degree==="subminute" && !subminuteD);
   const lowerB=lowerC && review && Number.isFinite(review.low) && review.low>0 &&
     review.low===review.high ? review.low : null;
   const status=higher ? (higherRead?.status || "UNCONFIRMED")
@@ -536,7 +537,7 @@ function Engine22WaveRiskStrip({degree,wavelength,protection,invalidations}) {
     lowerB!==null?wavePrice(lowerB):"NOT PUBLISHED";
   const referenceBasis=minute?"W1 origin • W2 count":minor?"W4 origin • W5 review"
     :higher?(primary?"Primary W4 low":"Intermediate W2 low")
-    :lowerB!==null?"C down • B-high recount":"No approved hard invalidation";
+    :lowerB!==null?"C down • B-high recount":subminuteD?"D UP • no approved invalidation":"No approved hard invalidation";
   const warningValue=higher?"7200.00":"NOT SET";
   const warningDetail=higher?(primary?"Daily close below":"4H close below"):"No early-warning rule approved";
   const last=higherRead?.latestCompletedClose;
@@ -546,6 +547,7 @@ function Engine22WaveRiskStrip({degree,wavelength,protection,invalidations}) {
       : "Completed-candle evidence unavailable • deep risk 6800")
     : minute?"Below W1 origin breaches current Minute W2 count"
     :minor?"Below W4 origin requires W5 recount review"
+    :subminuteD?"D UP working • monitor 7865–7875 completion watch, not confirmed"
     :lowerB!==null?"Above B high requires current C-down recount • not parent invalidation"
     :reviewPrice?"Recount review "+reviewPrice+" • not a hard invalidation"
     :"No current structural rule approved";
@@ -1141,6 +1143,7 @@ export default function Engine22MarketStructureCard({
       {label:"History",value:"PRIOR C DOWN FIB LEVELS AND OLD SUBMINUTE W3 PRESERVED"},
       {label:"Minute W3",value:"NOT STARTED"},
       {label:"D Fibonacci basis",value:"B HIGH 7897.50 → C LOW 7648.50 / PROVISIONAL"},
+      {label:"D completion watch",value:"7865.00–7875.00 — WATCH ONLY / NOT CONFIRMED"},
     ],
     levels:Array.isArray(subminuteDUp.levels)?subminuteDUp.levels:[],
     rules:[],
