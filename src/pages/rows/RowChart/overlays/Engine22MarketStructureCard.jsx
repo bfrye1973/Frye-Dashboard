@@ -524,20 +524,24 @@ function Engine22WaveRiskStrip({degree,wavelength,protection,invalidations}) {
     ? review.low===review.high ? wavePrice(review.low) : wavePrice(review.low)+"–"+wavePrice(review.high)
     : null;
   const subminuteD=degree==="subminute" && wavelength?.degrees?.subminute?.ownerCurrentDUp?.version==="engine22.subminuteDUpOwnerWorking.v1";
-  const lowerC=["submicro","micro"].includes(degree) || (degree==="subminute" && !subminuteD);
+  const microW3=degree==="micro" && wavelength?.degrees?.micro?.ownerMicroW3Up?.version==="engine22.microW3UpOct27Owner.v1";
+  const workingUp=microW3||subminuteD;
+  const workingReview=workingUp && review?.reviewOnly===true &&
+    Number.isFinite(review.low)&&review.low>0 && review.low===review.high;
+  const lowerC=degree==="submicro" || (degree==="micro"&&!microW3) || (degree==="subminute"&&!subminuteD);
   const lowerB=lowerC && review && Number.isFinite(review.low) && review.low>0 &&
     review.low===review.high ? review.low : null;
   const status=higher ? (higherRead?.status || "UNCONFIRMED")
-    : structural ? "OWNER REFERENCE" : lowerB!==null ? "C DOWN RECOUNT" : "UNCONFIRMED";
+    : structural ? "OWNER REFERENCE" : workingReview?"OWNER REVIEW ONLY":lowerB!==null ? "C DOWN RECOUNT" : "UNCONFIRMED";
   const stateTone=["HIGH_BEARISH_RISK","MAJOR_BEARISH_RISK"].includes(status)?"#f87171"
     : ["WARNING","BEARISH_RISK_CONFIRMED"].includes(status)?"#fbbf24"
     : status==="BULLISH_STRUCTURE_ABOVE_WARNING"?"#86efac":"#94a3b8";
   const primary=degree==="primary";
   const referenceText=structural!==null?wavePrice(structural):
-    lowerB!==null?wavePrice(lowerB):"NOT PUBLISHED";
+    lowerB!==null?wavePrice(lowerB):workingReview?wavePrice(review.low):"NOT PUBLISHED";
   const referenceBasis=minute?"W1 origin • W2 count":minor?"W4 origin • W5 review"
     :higher?(primary?"Primary W4 low":"Intermediate W2 low")
-    :lowerB!==null?"C down • B-high recount":subminuteD?"D UP • no approved invalidation":"No approved hard invalidation";
+    :microW3?"W3 UP • W2 low review":subminuteD?"D UP • C low review":lowerB!==null?"C down • B-high recount":"No approved hard invalidation";
   const warningValue=higher?"7200.00":"NOT SET";
   const warningDetail=higher?(primary?"Daily close below":"4H close below"):"No early-warning rule approved";
   const last=higherRead?.latestCompletedClose;
@@ -547,7 +551,8 @@ function Engine22WaveRiskStrip({degree,wavelength,protection,invalidations}) {
       : "Completed-candle evidence unavailable • deep risk 6800")
     : minute?"Below W1 origin breaches current Minute W2 count"
     :minor?"Below W4 origin requires W5 recount review"
-    :subminuteD?"D UP working • monitor 7865–7875 completion watch, not confirmed"
+    :microW3?"Below owner W2 low requires W3 UP review • no approved invalidation"
+    :subminuteD?"Below owner C low requires D UP review • no approved invalidation"
     :lowerB!==null?"Above B high requires current C-down recount • not parent invalidation"
     :reviewPrice?"Recount review "+reviewPrice+" • not a hard invalidation"
     :"No current structural rule approved";
@@ -564,7 +569,7 @@ function Engine22WaveRiskStrip({degree,wavelength,protection,invalidations}) {
           <div style={{fontSize:9,color:"#cbd5e1"}}>{warningDetail}</div>
         </div>
         <div style={{padding:6,borderRadius:6,background:"#1b1013",border:"1px solid #7f1d1d",minWidth:0}}>
-          <div style={{fontSize:9,fontWeight:900,color:"#fca5a5"}}>{lowerB!==null?"C-DOWN INVALIDATION REVIEW":"STRUCTURAL REFERENCE"}</div>
+          <div style={{fontSize:9,fontWeight:900,color:"#fca5a5"}}>{workingReview?"WORKING WAVE REVIEW":lowerB!==null?"C-DOWN INVALIDATION REVIEW":"STRUCTURAL REFERENCE"}</div>
           <div style={{fontSize:14,fontWeight:1000,color:"#fecaca"}}>{referenceText}</div>
           <div style={{fontSize:9,color:"#cbd5e1"}}>{referenceBasis}</div>
         </div>
