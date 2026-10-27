@@ -922,6 +922,30 @@ export default function Engine22MarketStructureCard({
     levels:microCDown.levels,rules:[],
   } : null;
   const microBDown = currentWavelength?.degrees?.micro?.ownerMicroBDown;
+  const submicroFiveUp=currentWavelength?.degrees?.submicro?.ownerSubmicroFiveUp;
+  const submicroFiveUpActive=
+    submicroFiveUp?.version==="engine22.submicroFiveUpOct27OwnerWatch.v1" &&
+    submicroFiveUp?.stage==="PROJECTED_W5_WATCH" &&
+    currentWavelength?.degrees?.micro?.ownerMicroW3Up?.version==="engine22.microW3UpOct27Owner.v1" &&
+    currentWavelength?.degrees?.subminute?.ownerCurrentDUp?.version==="engine22.subminuteDUpOwnerWorking.v1";
+  const submicroFiveUpState=submicroFiveUpActive?{
+    degree:"submicro",label:"Submicro",active:true,badge:"W5 UP WATCH",
+    subtitle:"Bullish subdivisions developing inside Micro W3 UP",
+    headline:"SUBMICRO UPWARD FIVE-WAVE SCENARIO — W5 WATCH / NOT CONFIRMED",
+    rows:[
+      {label:"Parent",value:"MICRO W3 UP / SUBMINUTE D UP — DEVELOPING"},
+      {label:"W1",value:"UP — OWNER CHART LABEL; EXTREME PRICE PENDING"},
+      {label:"W2",value:"DOWN — OWNER CHART LABEL; EXTREME PRICE PENDING"},
+      {label:"W3 high",value:wavePrice(submicroFiveUp.wave3?.high)},
+      {label:"W3 status",value:"CHART OBSERVATION — CANDLE CONFIRMATION PENDING"},
+      {label:"W4",value:"PULLBACK CANDIDATE; EXACT LOW PENDING"},
+      {label:"W5",value:"UPWARD PROJECTION — NOT CONFIRMED STARTED"},
+      {label:"Prior C reference",value:"7648.50 / OCT 23, 7:00 AM AZ — OWNER NOMINATED"},
+      {label:"Fibonacci",value:"AWAITING VERIFIED W1/W2/W4 ANCHORS — NO INVENTED TARGETS"},
+      {label:"History",value:"PRIOR SUBMICRO C DOWN AND ALL TOUCHES PRESERVED"},
+    ],
+    levels:[],rules:[],
+  }:null;
   const submicroCDown = currentWavelength?.degrees?.submicro?.ownerSubmicroCDown;
   const submicroCActive = submicroCDown?.version === "engine22.submicroCDownOwnerWatch.v1";
   const submicroCState = submicroCActive ? {
@@ -1279,6 +1303,7 @@ export default function Engine22MarketStructureCard({
             state={degree === "micro" && microW3OwnerActive ? microW3OwnerState :
               degree === "micro" && microCDownActive ? microCDownState :
               degree === "micro" && microBActive ? microBState :
+              degree === "submicro" && submicroFiveUpActive ? submicroFiveUpState :
               degree === "submicro" && submicroCActive ? submicroCState :
               degree === "submicro" && submicroAActive ? submicroAState :
               degree === "micro" && microAbcActive ? microAbcState :
