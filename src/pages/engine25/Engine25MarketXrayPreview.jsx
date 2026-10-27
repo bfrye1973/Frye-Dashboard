@@ -1160,13 +1160,21 @@ export default function Engine25MarketXrayPreview() {
               />
               <BigStat
                 label="Breadth"
-                value={sellBreadthPct == null ? "—" : `${pct(sellBreadthPct)} SELLING`}
+                value={
+                  buyBreadthPct == null || sellBreadthPct == null
+                    ? "—"
+                    : `${pct(buyBreadthPct)} ADVANCING / ${pct(sellBreadthPct)} DECLINING`
+                }
                 color={breadthColor}
                 note="1H stocks advancing vs declining"
               />
               <BigStat
                 label="Stock Volume"
-                value={sellVolPct == null ? "—" : `${pct(sellVolPct)} SELLING`}
+                value={
+                  buyVolPct == null || sellVolPct == null
+                    ? "—"
+                    : `${pct(buyVolPct)} BUYING / ${pct(sellVolPct)} SELLING`
+                }
                 color={intradayVolume?.available === true ? COLORS.text : COLORS.muted}
                 note="1H directional volume"
               />
