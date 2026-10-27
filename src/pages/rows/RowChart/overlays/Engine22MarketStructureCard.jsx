@@ -525,10 +525,11 @@ function Engine22WaveRiskStrip({degree,wavelength,protection,invalidations}) {
     : null;
   const subminuteD=degree==="subminute" && wavelength?.degrees?.subminute?.ownerCurrentDUp?.version==="engine22.subminuteDUpOwnerWorking.v1";
   const microW3=degree==="micro" && wavelength?.degrees?.micro?.ownerMicroW3Up?.version==="engine22.microW3UpOct27Owner.v1";
-  const workingUp=microW3||subminuteD;
+  const submicroFiveUp=degree==="submicro" && wavelength?.degrees?.submicro?.ownerSubmicroFiveUp?.version==="engine22.submicroFiveUpOct27OwnerWatch.v1";
+  const workingUp=submicroFiveUp||microW3||subminuteD;
   const workingReview=workingUp && review?.reviewOnly===true &&
     Number.isFinite(review.low)&&review.low>0 && review.low===review.high;
-  const lowerC=degree==="submicro" || (degree==="micro"&&!microW3) || (degree==="subminute"&&!subminuteD);
+  const lowerC=(degree==="submicro"&&!submicroFiveUp) || (degree==="micro"&&!microW3) || (degree==="subminute"&&!subminuteD);
   const lowerB=lowerC && review && Number.isFinite(review.low) && review.low>0 &&
     review.low===review.high ? review.low : null;
   const status=higher ? (higherRead?.status || "UNCONFIRMED")
@@ -541,7 +542,7 @@ function Engine22WaveRiskStrip({degree,wavelength,protection,invalidations}) {
     lowerB!==null?wavePrice(lowerB):workingReview?wavePrice(review.low):"NOT PUBLISHED";
   const referenceBasis=minute?"W1 origin • W2 count":minor?"W4 origin • W5 review"
     :higher?(primary?"Primary W4 low":"Intermediate W2 low")
-    :microW3?"W3 UP • W2 low review":subminuteD?"D UP • C low review":lowerB!==null?"C down • B-high recount":"No approved hard invalidation";
+    :submicroFiveUp?"W5 UP • W4 low review":microW3?"W3 UP • W2 low review":subminuteD?"D UP • C low review":lowerB!==null?"C down • B-high recount":"No approved hard invalidation";
   const warningValue=higher?"7200.00":"NOT SET";
   const warningDetail=higher?(primary?"Daily close below":"4H close below"):"No early-warning rule approved";
   const last=higherRead?.latestCompletedClose;
@@ -551,6 +552,7 @@ function Engine22WaveRiskStrip({degree,wavelength,protection,invalidations}) {
       : "Completed-candle evidence unavailable • deep risk 6800")
     : minute?"Below W1 origin breaches current Minute W2 count"
     :minor?"Below W4 origin requires W5 recount review"
+    :submicroFiveUp?"Below owner W4 low requires Submicro W5 review • no approved invalidation"
     :microW3?"Below owner W2 low requires W3 UP review • no approved invalidation"
     :subminuteD?"Below owner C low requires D UP review • no approved invalidation"
     :lowerB!==null?"Above B high requires current C-down recount • not parent invalidation"
@@ -922,6 +924,30 @@ export default function Engine22MarketStructureCard({
     levels:microCDown.levels,rules:[],
   } : null;
   const microBDown = currentWavelength?.degrees?.micro?.ownerMicroBDown;
+  const submicroFiveUp=currentWavelength?.degrees?.submicro?.ownerSubmicroFiveUp;
+  const submicroFiveUpActive=
+    submicroFiveUp?.version==="engine22.submicroFiveUpOct27OwnerWatch.v1" &&
+    submicroFiveUp?.stage==="PROJECTED_W5_WATCH" &&
+    currentWavelength?.degrees?.micro?.ownerMicroW3Up?.version==="engine22.microW3UpOct27Owner.v1" &&
+    currentWavelength?.degrees?.subminute?.ownerCurrentDUp?.version==="engine22.subminuteDUpOwnerWorking.v1";
+  const submicroFiveUpState=submicroFiveUpActive?{
+    degree:"submicro",label:"Submicro",active:true,badge:"W5 UP WATCH",
+    subtitle:"Bullish subdivisions developing inside Micro W3 UP",
+    headline:"SUBMICRO UPWARD FIVE-WAVE SCENARIO — W5 WATCH / NOT CONFIRMED",
+    rows:[
+      {label:"Parent",value:"MICRO W3 UP / SUBMINUTE D UP — DEVELOPING"},
+      {label:"W1 low",value:wavePrice(submicroFiveUp.wave1?.low)+" — OCT 27 1:45 AM AZ"},
+      {label:"W1 high",value:wavePrice(submicroFiveUp.wave1?.high)+" — OCT 27 5:15 AM AZ"},
+      {label:"W2 low",value:wavePrice(submicroFiveUp.wave2?.low)+" — OCT 27 7:15 AM AZ"},
+      {label:"W3 high",value:wavePrice(submicroFiveUp.wave3?.high)+" — OCT 27 9:00 AM AZ"},
+      {label:"W4 low",value:wavePrice(submicroFiveUp.wave4?.low)+" — OCT 27 11:30 AM AZ"},
+      {label:"W5",value:"UPWARD WATCH — NOT CONFIRMED COMPLETE"},
+      {label:"Prior C reference",value:"7648.50 / OCT 23, 7:00 AM AZ — OWNER NOMINATED"},
+      {label:"Fibonacci",value:"W5 UP EXTENSIONS FROM W4 LOW + W1 LENGTH — PROVISIONAL"},
+      {label:"History",value:"PRIOR SUBMICRO C DOWN AND ALL TOUCHES PRESERVED"},
+    ],
+    levels:Array.isArray(submicroFiveUp.levels)?submicroFiveUp.levels:[],rules:[],
+  }:null;
   const submicroCDown = currentWavelength?.degrees?.submicro?.ownerSubmicroCDown;
   const submicroCActive = submicroCDown?.version === "engine22.submicroCDownOwnerWatch.v1";
   const submicroCState = submicroCActive ? {
@@ -1279,6 +1305,7 @@ export default function Engine22MarketStructureCard({
             state={degree === "micro" && microW3OwnerActive ? microW3OwnerState :
               degree === "micro" && microCDownActive ? microCDownState :
               degree === "micro" && microBActive ? microBState :
+              degree === "submicro" && submicroFiveUpActive ? submicroFiveUpState :
               degree === "submicro" && submicroCActive ? submicroCState :
               degree === "submicro" && submicroAActive ? submicroAState :
               degree === "micro" && microAbcActive ? microAbcState :
