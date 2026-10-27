@@ -523,7 +523,8 @@ function Engine22WaveRiskStrip({degree,wavelength,protection,invalidations}) {
   const reviewPrice=review && Number.isFinite(review.low) && Number.isFinite(review.high)
     ? review.low===review.high ? wavePrice(review.low) : wavePrice(review.low)+"–"+wavePrice(review.high)
     : null;
-  const lowerC=["submicro","micro","subminute"].includes(degree);
+  const subminuteD=degree==="subminute" && wavelength?.degrees?.subminute?.ownerCurrentDUp?.version==="engine22.subminuteDUpOwnerWorking.v1";
+  const lowerC=["submicro","micro"].includes(degree) || (degree==="subminute" && !subminuteD);
   const lowerB=lowerC && review && Number.isFinite(review.low) && review.low>0 &&
     review.low===review.high ? review.low : null;
   const status=higher ? (higherRead?.status || "UNCONFIRMED")
@@ -536,7 +537,7 @@ function Engine22WaveRiskStrip({degree,wavelength,protection,invalidations}) {
     lowerB!==null?wavePrice(lowerB):"NOT PUBLISHED";
   const referenceBasis=minute?"W1 origin • W2 count":minor?"W4 origin • W5 review"
     :higher?(primary?"Primary W4 low":"Intermediate W2 low")
-    :lowerB!==null?"C down • B-high recount":"No approved hard invalidation";
+    :lowerB!==null?"C down • B-high recount":subminuteD?"D UP • no approved invalidation":"No approved hard invalidation";
   const warningValue=higher?"7200.00":"NOT SET";
   const warningDetail=higher?(primary?"Daily close below":"4H close below"):"No early-warning rule approved";
   const last=higherRead?.latestCompletedClose;
@@ -546,6 +547,7 @@ function Engine22WaveRiskStrip({degree,wavelength,protection,invalidations}) {
       : "Completed-candle evidence unavailable • deep risk 6800")
     : minute?"Below W1 origin breaches current Minute W2 count"
     :minor?"Below W4 origin requires W5 recount review"
+    :subminuteD?"D UP working • monitor 7865–7875 completion watch, not confirmed"
     :lowerB!==null?"Above B high requires current C-down recount • not parent invalidation"
     :reviewPrice?"Recount review "+reviewPrice+" • not a hard invalidation"
     :"No current structural rule approved";
@@ -1120,6 +1122,32 @@ export default function Engine22MarketStructureCard({
     ?.fibAnchorStatus === "OWNER_COORDINATES_CONFIRMED_PRICE_BASIS_PENDING" &&
     Array.isArray(currentWavelength?.degrees?.subminute?.levels)
       ? currentWavelength.degrees.subminute.levels : [];
+  const subminuteDUp = currentWavelength?.degrees?.subminute?.ownerCurrentDUp;
+  const subminuteDUpActive = subminuteDUp?.version === "engine22.subminuteDUpOwnerWorking.v1" &&
+    subminuteDUp?.activeWave === "D" && subminuteDUp?.direction === "UP" &&
+    subminuteDUp?.parentWave === "W2" && subminuteDUp?.minuteW3Started === false &&
+    minuteW2Watch;
+  const subminuteDUpState = subminuteDUpActive ? {
+    degree:"subminute",label:"Subminute",
+    subtitle:"Owner working D UP inside unfinished Minute W2",
+    active:true,badge:"D UP CANDIDATE",
+    headline:"SUBMINUTE D UP — DEVELOPING / MINUTE W2 NOT COMPLETE",
+    rows:[
+      {label:"Parent",value:"MINUTE W2 — COMPLEX CORRECTION NOT COMPLETE"},
+      {label:"Current",value:"D UP — OWNER WORKING CANDIDATE / UNCONFIRMED"},
+      {label:"Prior C low",value:wavePrice(subminuteDUp.proposedPriorC?.endingPrice)},
+      {label:"C low time",value:"OCT 23 2026, 7:00 AM ARIZONA — OWNER REFERENCE"},
+      {label:"Prior C status",value:"ENDING NOMINATED — NOT STRUCTURALLY VERIFIED"},
+      {label:"Structure",value:"ABCDE TRIANGLE CANDIDATE — UNCONFIRMED"},
+      {label:"Next",value:"E DOWN POSSIBLE — NOT STARTED"},
+      {label:"History",value:"PRIOR C DOWN FIB LEVELS AND OLD SUBMINUTE W3 PRESERVED"},
+      {label:"Minute W3",value:"NOT STARTED"},
+      {label:"D Fibonacci basis",value:"B HIGH 7897.50 → C LOW 7648.50 / PROVISIONAL"},
+      {label:"D completion watch",value:"7865.00–7875.00 — WATCH ONLY / NOT CONFIRMED"},
+    ],
+    levels:Array.isArray(subminuteDUp.levels)?subminuteDUp.levels:[],
+    rules:[],
+  } : null;
   const subminuteCDown = currentWavelength?.degrees?.subminute?.ownerCurrentCDown;
   const subminuteCDownActive = subminuteCDown?.version === "engine22.subminuteCurrentCDownReference.v1" &&
     largerCDownWatch && Array.isArray(largerCDown?.levels);
@@ -1221,6 +1249,7 @@ export default function Engine22MarketStructureCard({
               degree === "submicro" && submicroAActive ? submicroAState :
               degree === "micro" && microAbcActive ? microAbcState :
               degree === "micro" && microW3Levels.length ? microW3State :
+              degree === "subminute" && subminuteDUpActive ? subminuteDUpState :
               degree === "subminute" && subminuteCDownActive ? subminuteCDownState :
               degree === "subminute" && subminuteW3Levels.length ? subminuteW3State :
               degree === "submicro" && submicroAbcActive ? submicroAbcState :
