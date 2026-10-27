@@ -884,15 +884,16 @@ export default function Engine22MarketStructureCard({
       {label:"Parent",value:"SUBMINUTE D UP — DEVELOPING / MINUTE W2 NOT COMPLETE"},
       {label:"W1 low",value:wavePrice(microW3Owner.wave1?.low)},
       {label:"W1 low time",value:"OCT 25 2026, 3:00 PM AZ — OWNER REFERENCE"},
-      {label:"W1 high",value:"EXACT PRICE PENDING — CHART MARKED"},
+      {label:"W1 high",value:wavePrice(microW3Owner.wave1?.high)},
       {label:"W1 high time",value:"OCT 26 2026, 8:00 AM AZ — OWNER REFERENCE"},
       {label:"W2 low",value:wavePrice(microW3Owner.wave2?.low)},
       {label:"W2 low time",value:"OCT 27 2026, 1:00 AM AZ — OWNER REFERENCE"},
       {label:"Current",value:"W3 UP — OWNER WORKING CANDIDATE / NOT CONFIRMED"},
-      {label:"Fibonacci",value:"W3 EXTENSIONS PENDING EXACT W1 HIGH"},
+      {label:"Fibonacci",value:"W3 UP EXTENSIONS — OWNER ANCHORS / PROVISIONAL"},
       {label:"History",value:"OLDER MICRO C DOWN COUNT AND FIB TOUCHES PRESERVED"},
     ],
-    levels:[],rules:[],
+    levels:Array.isArray(microW3Owner.levels)?microW3Owner.levels:[],
+    rules:[],
   } : null;
   const microCDown = currentWavelength?.degrees?.micro?.ownerMicroCDown;
   const microCDownActive = microCDown?.version === "engine22.microCDownOwnerWatch.v1";
