@@ -505,6 +505,15 @@ function submicroW4Display(shadow, transition) {
 // Unified, read-only risk strip for all seven degrees.
 // Warning is separate from a wave-count boundary and from trade permission.
 function Engine22WaveRiskStrip({degree,wavelength,protection,invalidations}) {
+  if ((degree==="micro" && wavelength?.degrees?.micro?.ownerMicroW4Down) ||
+      (degree==="submicro" && wavelength?.degrees?.submicro?.ownerSubmicroADownInsideMicroW4)) {
+    return <div style={{border:"1px solid #344156",padding:8,borderRadius:8}}>
+      <strong>INVALIDATION ZONES — WAVE RISK / PROTECTION</strong>
+      <div>NEW CORRECTION — WARNING AND REVIEW RULE NOT SET</div>
+      <div>Historical W3/W5 review references are not current W4/A invalidations.</div>
+      <div>Read only — not a trade stop or permission.</div>
+    </div>;
+  }
   const higher=degree==="intermediate"||degree==="primary";
   const minute=degree==="minute";
   const minor=degree==="minor";
@@ -874,6 +883,37 @@ export default function Engine22MarketStructureCard({
     minuteW2Hypothesis?.childDegreeContext?.[degree]?.noReset === true
       ? [{label:"Minute Parent",value:"W2 COMPLEX CORRECTION CANDIDATE — LOWER-WAVE RECOUNT PENDING; HISTORY PRESERVED"}]
       : [];
+  const workingMicroW4 = currentWavelength?.degrees?.micro?.ownerMicroW4Down;
+  const workingSubmicroA = currentWavelength?.degrees?.submicro?.ownerSubmicroADownInsideMicroW4;
+  const microW4Active = workingMicroW4?.version === "engine22.microW4DownOct28OwnerWorking.v1" &&
+    workingMicroW4?.activeWave === "W4" && workingMicroW4?.stage === "DEVELOPING_CANDIDATE";
+  const submicroCorrectionAActive = workingSubmicroA?.version === "engine22.submicroADownMicroW4Oct28OwnerWorking.v1" &&
+    workingSubmicroA?.parentWave === "W4" && microW4Active;
+  const microW4State = microW4Active ? {
+    degree:"micro",label:"Micro",active:true,badge:"W4 DOWN",
+    headline:"MICRO W4 DOWN — DEVELOPING CORRECTION / NOT CONFIRMED COMPLETE",
+    rows:[
+      {label:"Parent",value:"SUBMINUTE D UP — MINUTE W2 UNFINISHED"},
+      {label:"W3 end",value:"7788.50 — OCT 28, 11:00 AM AZ — OWNER MARK"},
+      {label:"Current",value:"W4 DOWN — DEVELOPING"},
+      {label:"Internal",value:"SUBMICRO ABC DOWN — A DEVELOPING; B AND C PENDING"},
+      {label:"Next",value:"MICRO W5 UP POSSIBLE — NOT STARTED"},
+      {label:"Fibonacci",value:"W4 DOWN RETRACEMENTS OF MICRO W3 (7699.50 TO 7788.50)"},
+      {label:"History",value:"MICRO W3 AND HISTORICAL FIB TOUCHES PRESERVED"},
+    ],levels:workingMicroW4.levels,rules:[],
+  } : null;
+  const submicroCorrectionAState = submicroCorrectionAActive ? {
+    degree:"submicro",label:"Submicro",active:true,badge:"A DOWN",
+    headline:"SUBMICRO A DOWN — DEVELOPING INSIDE MICRO W4 / NOT COMPLETE",
+    rows:[
+      {label:"Parent",value:"MICRO W4 DOWN — DEVELOPING"},
+      {label:"Prior W5",value:"7788.50 — OCT 28, 11:00 AM AZ — OWNER MARK"},
+      {label:"Current",value:"A DOWN — DEVELOPING"},
+      {label:"Next",value:"B UP PENDING; C DOWN PENDING"},
+      {label:"Fibonacci",value:"A DOWN PROJECTIONS FROM 7788.50 USING 84.75 POINT PRIOR ADVANCE"},
+      {label:"History",value:"PRIOR SUBMICRO W5 AND TOUCHES PRESERVED"},
+    ],levels:workingSubmicroA.levels,rules:[],
+  } : null;
   const microW3Owner = currentWavelength?.degrees?.micro?.ownerMicroW3Up;
   const microW3OwnerActive =
     microW3Owner?.version === "engine22.microW3UpOct27Owner.v1" &&
@@ -1303,7 +1343,9 @@ export default function Engine22MarketStructureCard({
           <Engine22DegreeCard
             key={degree}
             degree={degree}
-            state={degree === "micro" && microW3OwnerActive ? microW3OwnerState :
+            state={degree === "micro" && microW4Active ? microW4State :
+              degree === "submicro" && submicroCorrectionAActive ? submicroCorrectionAState :
+              degree === "micro" && microW3OwnerActive ? microW3OwnerState :
               degree === "micro" && microCDownActive ? microCDownState :
               degree === "micro" && microBActive ? microBState :
               degree === "submicro" && submicroFiveUpActive ? submicroFiveUpState :
