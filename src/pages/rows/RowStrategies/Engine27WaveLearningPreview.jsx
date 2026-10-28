@@ -29,6 +29,9 @@ export default function Engine27WaveLearningPreview({snapshot}){
  const [tab,setTab]=useState("timeline");
  const active=TIMELINES[degree];
  const published=snapshot?.engine27Strategies?.engine27WorkingSevenDegrees?.degrees?.[degree.toLowerCase()];
+ const levels=Array.isArray(published?.potentialCompletion?.levels)?published.potentialCompletion.levels:[];
+ const lastTouch=levels.filter(x=>x?.status==="TOUCHED"&&x?.touchedAt&&Number.isFinite(Date.parse(x.touchedAt)))
+   .sort((a,b)=>Date.parse(b.touchedAt)-Date.parse(a.touchedAt))[0]??null;
  return <details style={{marginTop:12,border:"1px solid #334155",borderRadius:8,padding:8}}>
   <summary style={{cursor:"pointer",fontWeight:900,color:"#cbd5e1",fontSize:12}}>ENGINE 27 — WAVE LEARNING & PERFORMANCE — expand history</summary>
   <section style={{...card,marginTop:8}} aria-label="Engine 27 Wave Learning preview">
@@ -41,9 +44,10 @@ export default function Engine27WaveLearningPreview({snapshot}){
     style={{background:degree===d?"#1d4ed8":"#1e293b",border:"1px solid #475569",color:"#fff",padding:"8px 14px",borderRadius:7,cursor:"pointer"}}>{TIMELINES[d].label}</button>)}
   </div>
   <div style={{marginTop:12,padding:12,background:"#111d2e",borderRadius:8}}>
-   <strong>{active.label} — {published?.activeWave||active.reference} {published?.waveDirection||""}</strong>
-   <div style={muted}>Current model from Engine 22 when available; timeline below is owner-nominated historical chart reference, not contemporaneous Replay proof.</div>
+   <strong>{active.label} — Current: {published?.activeWave||"UNAVAILABLE"} {published?.waveDirection||""}</strong>
+   <div style={muted}>Current model is sourced from Engine 22. Timeline below preserves earlier owner-nominated UP-wave history, not contemporaneous Replay proof.</div>
   </div>
+  <div style={{marginTop:8,fontSize:12,color:"#94a3b8"}}>Latest time-verified published Fib touch: {lastTouch?`${lastTouch.label??lastTouch.key} at ${lastTouch.price}`:"UNAVAILABLE"} · Candle rejection / 0.500–0.618 research: AWAITING VERIFIED BAR DATA</div>
   <div style={{display:"flex",gap:8,marginTop:12}}>
    {[["timeline","Timeline"],["behavior","Market behavior"],["trades","Trades"]].map(([id,label])=>
      <button key={id} type="button" onClick={()=>setTab(id)}
