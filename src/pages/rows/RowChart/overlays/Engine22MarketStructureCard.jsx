@@ -887,7 +887,7 @@ export default function Engine22MarketStructureCard({
   const workingSubmicroA = currentWavelength?.degrees?.submicro?.ownerSubmicroADownInsideMicroW4;
   const microW4Active = workingMicroW4?.version === "engine22.microW4DownOct28OwnerWorking.v1" &&
     workingMicroW4?.activeWave === "W4" && workingMicroW4?.stage === "DEVELOPING_CANDIDATE";
-  const submicroAActive = workingSubmicroA?.version === "engine22.submicroADownMicroW4Oct28OwnerWorking.v1" &&
+  const submicroCorrectionAActive = workingSubmicroA?.version === "engine22.submicroADownMicroW4Oct28OwnerWorking.v1" &&
     workingSubmicroA?.parentWave === "W4" && microW4Active;
   const microW4State = microW4Active ? {
     degree:"micro",label:"Micro",active:true,badge:"W4 DOWN",
@@ -902,7 +902,7 @@ export default function Engine22MarketStructureCard({
       {label:"History",value:"MICRO W3 AND HISTORICAL FIB TOUCHES PRESERVED"},
     ],levels:workingMicroW4.levels,rules:[],
   } : null;
-  const submicroAState = submicroAActive ? {
+  const submicroCorrectionAState = submicroCorrectionAActive ? {
     degree:"submicro",label:"Submicro",active:true,badge:"A DOWN",
     headline:"SUBMICRO A DOWN — DEVELOPING INSIDE MICRO W4 / NOT COMPLETE",
     rows:[
@@ -1344,7 +1344,7 @@ export default function Engine22MarketStructureCard({
             key={degree}
             degree={degree}
             state={degree === "micro" && microW4Active ? microW4State :
-              degree === "submicro" && submicroAActive ? submicroAState :
+              degree === "submicro" && submicroCorrectionAActive ? submicroCorrectionAState :
               degree === "micro" && microW3OwnerActive ? microW3OwnerState :
               degree === "micro" && microCDownActive ? microCDownState :
               degree === "micro" && microBActive ? microBState :
