@@ -932,9 +932,9 @@ export default function Engine22MarketStructureCard({
     currentWavelength?.degrees?.micro?.ownerMicroW3Up?.version==="engine22.microW3UpOct27Owner.v1" &&
     currentWavelength?.degrees?.subminute?.ownerCurrentDUp?.version==="engine22.subminuteDUpOwnerWorking.v1";
   const submicroFiveUpState=submicroFiveUpActive?{
-    degree:"submicro",label:"Submicro",active:true,badge:submicroFiveUp.wave5?.high != null ? "W5 OWNER COMPLETE" : "W5 UP WATCH",
+    degree:"submicro",label:"Submicro",active:true,badge:submicroFiveUp.wave5?.ownerEnding?.price != null ? "W5 OWNER COMPLETE" : "W5 UP WATCH",
     subtitle:"Bullish subdivisions developing inside Micro W3 UP",
-    headline:submicroFiveUp.wave5?.high != null ? "SUBMICRO W5 UP — OWNER-MARKED COMPLETE / CANDLE UNVERIFIED" : "SUBMICRO UPWARD FIVE-WAVE SCENARIO — W5 WATCH / NOT CONFIRMED",
+    headline:submicroFiveUp.wave5?.ownerEnding?.price != null ? "SUBMICRO W5 UP — OWNER-MARKED COMPLETE / CANDLE UNVERIFIED" : "SUBMICRO UPWARD FIVE-WAVE SCENARIO — W5 WATCH / NOT CONFIRMED",
     rows:[
       {label:"Parent",value:"MICRO W3 UP / SUBMINUTE D UP — DEVELOPING"},
       {label:"W1 low",value:wavePrice(submicroFiveUp.wave1?.low)+" — OCT 27 1:45 AM AZ"},
@@ -942,7 +942,7 @@ export default function Engine22MarketStructureCard({
       {label:"W2 low",value:wavePrice(submicroFiveUp.wave2?.low)+" — OCT 27 7:15 AM AZ"},
       {label:"W3 high",value:wavePrice(submicroFiveUp.wave3?.high)+" — OCT 27 9:00 AM AZ"},
       {label:"W4 low",value:wavePrice(submicroFiveUp.wave4?.low)+" — OCT 27 11:30 AM AZ"},
-      {label:"W5",value:submicroFiveUp.wave5?.high != null ? wavePrice(submicroFiveUp.wave5.high)+" — OCT 28 11:00 AM AZ — OWNER COMPLETE / CANDLE UNVERIFIED" : "UPWARD WATCH — NOT CONFIRMED COMPLETE"},
+      {label:"W5",value:submicroFiveUp.wave5?.ownerEnding?.price != null ? wavePrice(submicroFiveUp.wave5.ownerEnding.price)+" — OCT 28 11:00 AM AZ — OWNER COMPLETE / CANDLE UNVERIFIED" : "UPWARD WATCH — NOT CONFIRMED COMPLETE"},
       {label:"Prior C reference",value:"7648.50 / OCT 23, 7:00 AM AZ — OWNER NOMINATED"},
       {label:"Fibonacci",value:"W5 UP EXTENSIONS FROM W4 LOW + W1 LENGTH — PROVISIONAL"},
       {label:"History",value:"PRIOR SUBMICRO C DOWN AND ALL TOUCHES PRESERVED"},
