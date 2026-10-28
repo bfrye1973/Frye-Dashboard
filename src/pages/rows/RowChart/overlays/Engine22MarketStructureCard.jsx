@@ -885,8 +885,8 @@ export default function Engine22MarketStructureCard({
   const microW3OwnerState = microW3OwnerActive ? {
     degree:"micro",label:"Micro",
     subtitle:"Bullish Micro structure developing inside Subminute D UP",
-    active:true,badge:"W3 UP CANDIDATE",
-    headline:"MICRO W3 UP — DEVELOPING / UNCONFIRMED",
+    active:true,badge:microW3Owner.wave3?.ownerEnding ? "W3 OWNER COMPLETE" : "W3 UP CANDIDATE",
+    headline:microW3Owner.wave3?.ownerEnding ? "MICRO W3 UP — OWNER-MARKED COMPLETE / CANDLE UNVERIFIED" : "MICRO W3 UP — DEVELOPING / UNCONFIRMED",
     rows:[
       {label:"Parent",value:"SUBMINUTE D UP — DEVELOPING / MINUTE W2 NOT COMPLETE"},
       {label:"W1 low",value:wavePrice(microW3Owner.wave1?.low)},
@@ -895,7 +895,8 @@ export default function Engine22MarketStructureCard({
       {label:"W1 high time",value:"OCT 26 2026, 8:00 AM AZ — OWNER REFERENCE"},
       {label:"W2 low",value:wavePrice(microW3Owner.wave2?.low)},
       {label:"W2 low time",value:"OCT 27 2026, 1:00 AM AZ — OWNER REFERENCE"},
-      {label:"Current",value:"W3 UP — OWNER WORKING CANDIDATE / NOT CONFIRMED"},
+      {label:"Current",value:microW3Owner.wave3?.ownerEnding ? "W3 OWNER-MARKED COMPLETE — NOT INDEPENDENTLY VERIFIED" : "W3 UP — OWNER WORKING CANDIDATE / NOT CONFIRMED"},
+      ...(microW3Owner.wave3?.ownerEnding ? [{label:"W3 ending",value:wavePrice(microW3Owner.wave3.ownerEnding.price)+" — OCT 28 11:00 AM AZ — OWNER MARK"}] : []),
       {label:"Fibonacci",value:"W3 UP EXTENSIONS — OWNER ANCHORS / PROVISIONAL"},
       {label:"History",value:"OLDER MICRO C DOWN COUNT AND FIB TOUCHES PRESERVED"},
     ],
@@ -931,9 +932,9 @@ export default function Engine22MarketStructureCard({
     currentWavelength?.degrees?.micro?.ownerMicroW3Up?.version==="engine22.microW3UpOct27Owner.v1" &&
     currentWavelength?.degrees?.subminute?.ownerCurrentDUp?.version==="engine22.subminuteDUpOwnerWorking.v1";
   const submicroFiveUpState=submicroFiveUpActive?{
-    degree:"submicro",label:"Submicro",active:true,badge:"W5 UP WATCH",
+    degree:"submicro",label:"Submicro",active:true,badge:submicroFiveUp.wave5?.high != null ? "W5 OWNER COMPLETE" : "W5 UP WATCH",
     subtitle:"Bullish subdivisions developing inside Micro W3 UP",
-    headline:"SUBMICRO UPWARD FIVE-WAVE SCENARIO — W5 WATCH / NOT CONFIRMED",
+    headline:submicroFiveUp.wave5?.high != null ? "SUBMICRO W5 UP — OWNER-MARKED COMPLETE / CANDLE UNVERIFIED" : "SUBMICRO UPWARD FIVE-WAVE SCENARIO — W5 WATCH / NOT CONFIRMED",
     rows:[
       {label:"Parent",value:"MICRO W3 UP / SUBMINUTE D UP — DEVELOPING"},
       {label:"W1 low",value:wavePrice(submicroFiveUp.wave1?.low)+" — OCT 27 1:45 AM AZ"},
@@ -941,7 +942,7 @@ export default function Engine22MarketStructureCard({
       {label:"W2 low",value:wavePrice(submicroFiveUp.wave2?.low)+" — OCT 27 7:15 AM AZ"},
       {label:"W3 high",value:wavePrice(submicroFiveUp.wave3?.high)+" — OCT 27 9:00 AM AZ"},
       {label:"W4 low",value:wavePrice(submicroFiveUp.wave4?.low)+" — OCT 27 11:30 AM AZ"},
-      {label:"W5",value:"UPWARD WATCH — NOT CONFIRMED COMPLETE"},
+      {label:"W5",value:submicroFiveUp.wave5?.high != null ? wavePrice(submicroFiveUp.wave5.high)+" — OCT 28 11:00 AM AZ — OWNER COMPLETE / CANDLE UNVERIFIED" : "UPWARD WATCH — NOT CONFIRMED COMPLETE"},
       {label:"Prior C reference",value:"7648.50 / OCT 23, 7:00 AM AZ — OWNER NOMINATED"},
       {label:"Fibonacci",value:"W5 UP EXTENSIONS FROM W4 LOW + W1 LENGTH — PROVISIONAL"},
       {label:"History",value:"PRIOR SUBMICRO C DOWN AND ALL TOUCHES PRESERVED"},
