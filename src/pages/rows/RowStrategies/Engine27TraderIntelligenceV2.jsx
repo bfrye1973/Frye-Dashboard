@@ -348,19 +348,6 @@ function CurrentWorkingAlignmentCard({ degree, read, performance, invalidationRe
         <strong style={{fontSize:12,color:"#e2e8f0"}}>{degree.toUpperCase()}</strong>
         <SmallBadge text={alignment} tone={statusTone} />
       </div>
-      {degree==="micro" && microIntelligence?.available && (
-        <div style={{border:"1px solid #35536c",background:"#0b1b29",borderRadius:8,padding:8,display:"grid",gap:6}}>
-          <div style={{color:"#7dd3fc",fontSize:11,fontWeight:900}}>MICRO INTELLIGENCE — READ ONLY</div>
-          <Cell label="Next Engine 22 objective" value={microIntelligence.nextObjective?.price != null ? price(microIntelligence.nextObjective.price) : "NOT VERIFIED"}
-            detail={microIntelligence.explanation}/>
-          <Cell label="Neighboring degrees" value={pretty(microIntelligence.adjacency)}
-            detail={(microIntelligence.neighboring||[]).map(x=>`${x.degree}: ${x.direction||"UNAVAILABLE"}`).join(" • ")}/>
-          <Cell label="Market confirmation" value={pretty(microIntelligence.evidence?.combined||"UNAVAILABLE")}
-            detail={`E25: ${pretty(microIntelligence.evidence?.engine25||"UNAVAILABLE")} • E29: ${pretty(microIntelligence.evidence?.engine29||"UNAVAILABLE")} • QQQ: ${pretty(microIntelligence.evidence?.qqq||"UNAVAILABLE")} • VIX: ${pretty(microIntelligence.evidence?.vix||"UNAVAILABLE")}`}/>
-          <Cell label="Position thesis / action" value="ENTRY STRUCTURE UNAVAILABLE"
-            detail="Current contracts do not establish their entry-time Elliott thesis. Consult official management plan; no independent hold/exit advice."/>
-        </div>
-      )}
       <Cell label="Current Elliott wave" value={`${pretty(read?.activeWave)} • ${pretty(direction)}`} tone={directionTone}/>
       <Cell label="Price direction" value={pretty(observation?.observedPriceDirection || "UNCONFIRMED")}
         detail={`${observation?.timeframe==="1d"?"DAILY":observation?.timeframe||"NO DATA"} • ${observation?.lookback||2} completed closes`}
