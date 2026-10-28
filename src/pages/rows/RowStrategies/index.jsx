@@ -19,6 +19,7 @@ import React from "react";
 import { useDashboardSnapshot } from "../../../hooks/useDashboardSnapshot";
 import Engine22MarketStructureCard from "../RowChart/overlays/Engine22MarketStructureCard";
 import Engine27TraderIntelligenceV2 from "./Engine27TraderIntelligenceV2";
+import Engine27WaveLearningPreview from "./Engine27WaveLearningPreview";
 
 /* -------------------- env helpers -------------------- */
 function env(name, fb = "") {
@@ -2252,6 +2253,7 @@ export default function RowStrategies() {
           snapshot={snapshot}
         />
       )}
+      <Engine27WaveLearningPreview snapshot={snapshot} />
     </section>
   );
 }
