@@ -505,6 +505,15 @@ function submicroW4Display(shadow, transition) {
 // Unified, read-only risk strip for all seven degrees.
 // Warning is separate from a wave-count boundary and from trade permission.
 function Engine22WaveRiskStrip({degree,wavelength,protection,invalidations}) {
+  if ((degree==="micro" && wavelength?.degrees?.micro?.ownerMicroW4Down) ||
+      (degree==="submicro" && wavelength?.degrees?.submicro?.ownerSubmicroADownInsideMicroW4)) {
+    return <div style={{border:"1px solid #344156",padding:8,borderRadius:8}}>
+      <strong>INVALIDATION ZONES — WAVE RISK / PROTECTION</strong>
+      <div>NEW CORRECTION — WARNING AND REVIEW RULE NOT SET</div>
+      <div>Historical W3/W5 review references are not current W4/A invalidations.</div>
+      <div>Read only — not a trade stop or permission.</div>
+    </div>;
+  }
   const higher=degree==="intermediate"||degree==="primary";
   const minute=degree==="minute";
   const minor=degree==="minor";
