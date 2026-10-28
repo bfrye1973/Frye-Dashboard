@@ -524,7 +524,7 @@ function Engine22WaveRiskStrip({degree,wavelength,protection,invalidations}) {
           <div style={{fontSize:9}}>Start-high recount review only</div>
         </div>
       </div>
-      <div style={{fontSize:9,color:"#94a3b8"}}>Above owner 7788.50 start high requires wave review; not an approved invalidation</div>
+      <div style={{fontSize:9,color:"#94a3b8"}}>Above owner 7820.00 start high requires wave review; not an approved invalidation</div>
       <div style={{fontSize:9,color:"#64748b"}}>Read only • Not a trade stop or permission</div>
     </div>;
   }
@@ -908,11 +908,11 @@ export default function Engine22MarketStructureCard({
     headline:"MICRO W4 DOWN — DEVELOPING CORRECTION / NOT CONFIRMED COMPLETE",
     rows:[
       {label:"Parent",value:"SUBMINUTE D UP — MINUTE W2 UNFINISHED"},
-      {label:"W3 end",value:"7788.50 — OCT 28, 11:00 AM AZ — OWNER MARK"},
+      {label:"W3 end",value:"7820.00 — OCT 28, 1:00 PM AZ — OWNER MARK"},
       {label:"Current",value:"W4 DOWN — DEVELOPING"},
       {label:"Internal",value:"SUBMICRO ABC DOWN — A DEVELOPING; B AND C PENDING"},
       {label:"Next",value:"MICRO W5 UP POSSIBLE — NOT STARTED"},
-      {label:"Fibonacci",value:"W4 DOWN RETRACEMENTS OF MICRO W3 (7699.50 TO 7788.50)"},
+      {label:"Fibonacci",value:"W4 DOWN RETRACEMENTS OF MICRO W3 (7699.50 TO 7820.00)"},
       {label:"History",value:"MICRO W3 AND HISTORICAL FIB TOUCHES PRESERVED"},
     ],levels:workingMicroW4.levels,rules:[],
   } : null;
@@ -921,10 +921,10 @@ export default function Engine22MarketStructureCard({
     headline:"SUBMICRO A DOWN — DEVELOPING INSIDE MICRO W4 / NOT COMPLETE",
     rows:[
       {label:"Parent",value:"MICRO W4 DOWN — DEVELOPING"},
-      {label:"Prior W5",value:"7788.50 — OCT 28, 11:00 AM AZ — OWNER MARK"},
+      {label:"Prior W5",value:"7820.00 — OCT 28, 1:00 PM AZ — OWNER MARK"},
       {label:"Current",value:"A DOWN — DEVELOPING"},
       {label:"Next",value:"B UP PENDING; C DOWN PENDING"},
-      {label:"Fibonacci",value:"A DOWN PROJECTIONS FROM 7788.50 USING 84.75 POINT PRIOR ADVANCE"},
+      {label:"Fibonacci",value:"A DOWN PROJECTIONS FROM 7820.00 USING 116.25 POINT PRIOR ADVANCE"},
       {label:"History",value:"PRIOR SUBMICRO W5 AND TOUCHES PRESERVED"},
     ],levels:workingSubmicroA.levels,rules:[],
   } : null;
@@ -950,7 +950,7 @@ export default function Engine22MarketStructureCard({
       {label:"W2 low",value:wavePrice(microW3Owner.wave2?.low)},
       {label:"W2 low time",value:"OCT 27 2026, 1:00 AM AZ — OWNER REFERENCE"},
       {label:"Current",value:microW3Owner.wave3?.ownerEnding ? "W3 OWNER-MARKED COMPLETE — NOT INDEPENDENTLY VERIFIED" : "W3 UP — OWNER WORKING CANDIDATE / NOT CONFIRMED"},
-      ...(microW3Owner.wave3?.ownerEnding ? [{label:"W3 ending",value:wavePrice(microW3Owner.wave3.ownerEnding.price)+" — OCT 28 11:00 AM AZ — OWNER MARK"}] : []),
+      ...(microW3Owner.wave3?.ownerEnding ? [{label:"W3 ending",value:wavePrice(microW3Owner.wave3.ownerEnding.price)+" — OCT 28 1:00 PM AZ — OWNER MARK"}] : []),
       {label:"Fibonacci",value:"W3 UP EXTENSIONS — OWNER ANCHORS / PROVISIONAL"},
       {label:"History",value:"OLDER MICRO C DOWN COUNT AND FIB TOUCHES PRESERVED"},
     ],
@@ -996,7 +996,7 @@ export default function Engine22MarketStructureCard({
       {label:"W2 low",value:wavePrice(submicroFiveUp.wave2?.low)+" — OCT 27 7:15 AM AZ"},
       {label:"W3 high",value:wavePrice(submicroFiveUp.wave3?.high)+" — OCT 27 9:00 AM AZ"},
       {label:"W4 low",value:wavePrice(submicroFiveUp.wave4?.low)+" — OCT 27 11:30 AM AZ"},
-      {label:"W5",value:submicroFiveUp.wave5?.ownerEnding?.price != null ? wavePrice(submicroFiveUp.wave5.ownerEnding.price)+" — OCT 28 11:00 AM AZ — OWNER COMPLETE / CANDLE UNVERIFIED" : "UPWARD WATCH — NOT CONFIRMED COMPLETE"},
+      {label:"W5",value:submicroFiveUp.wave5?.ownerEnding?.price != null ? wavePrice(submicroFiveUp.wave5.ownerEnding.price)+" — OCT 28 1:00 PM AZ — OWNER COMPLETE / CANDLE UNVERIFIED" : "UPWARD WATCH — NOT CONFIRMED COMPLETE"},
       {label:"Prior C reference",value:"7648.50 / OCT 23, 7:00 AM AZ — OWNER NOMINATED"},
       {label:"Fibonacci",value:"W5 UP EXTENSIONS FROM W4 LOW + W1 LENGTH — PROVISIONAL"},
       {label:"History",value:"PRIOR SUBMICRO C DOWN AND ALL TOUCHES PRESERVED"},
