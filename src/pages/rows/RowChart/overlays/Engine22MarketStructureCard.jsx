@@ -507,11 +507,25 @@ function submicroW4Display(shadow, transition) {
 function Engine22WaveRiskStrip({degree,wavelength,protection,invalidations}) {
   if ((degree==="micro" && wavelength?.degrees?.micro?.ownerMicroW4Down) ||
       (degree==="submicro" && wavelength?.degrees?.submicro?.ownerSubmicroADownInsideMicroW4)) {
-    return <div style={{border:"1px solid #344156",padding:8,borderRadius:8}}>
-      <strong>INVALIDATION ZONES — WAVE RISK / PROTECTION</strong>
-      <div>NEW CORRECTION — WARNING AND REVIEW RULE NOT SET</div>
-      <div>Historical W3/W5 review references are not current W4/A invalidations.</div>
-      <div>Read only — not a trade stop or permission.</div>
+    const readiness=invalidations?.degrees?.[degree]?.invalidationReadiness;
+    const z=readiness?.candidateZone;
+    const reference=z?.reviewOnly===true && Number.isFinite(z.low)?wavePrice(z.low):"NOT SET";
+    return <div style={{border:"1px solid #344156",borderRadius:8,padding:7,background:"#0b1420",display:"grid",gap:5}}>
+      <strong style={{fontSize:10,color:"#e2e8f0"}}>INVALIDATION ZONES — WAVE RISK / PROTECTION</strong>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(2,minmax(0,1fr))",gap:5}}>
+        <div style={{padding:6,border:"1px solid #80602a",borderRadius:6,background:"#19150b"}}>
+          <div style={{fontSize:9,color:"#fbbf24",fontWeight:900}}>EARLY WARNING</div>
+          <div style={{fontSize:14,color:"#fde68a",fontWeight:900}}>NOT SET</div>
+          <div style={{fontSize:9}}>No warning rule approved</div>
+        </div>
+        <div style={{padding:6,border:"1px solid #7f1d1d",borderRadius:6,background:"#1b1013"}}>
+          <div style={{fontSize:9,color:"#fca5a5",fontWeight:900}}>WORKING WAVE REVIEW</div>
+          <div style={{fontSize:14,color:"#fecaca",fontWeight:900}}>{reference}</div>
+          <div style={{fontSize:9}}>Start-high recount review only</div>
+        </div>
+      </div>
+      <div style={{fontSize:9,color:"#94a3b8"}}>Above owner 7788.50 start high requires wave review; not an approved invalidation</div>
+      <div style={{fontSize:9,color:"#64748b"}}>Read only • Not a trade stop or permission</div>
     </div>;
   }
   const higher=degree==="intermediate"||degree==="primary";
