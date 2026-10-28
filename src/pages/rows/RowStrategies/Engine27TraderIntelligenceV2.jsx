@@ -1,3 +1,4 @@
+import Engine27WaveLearningPreview from "./Engine27WaveLearningPreview";
 // src/pages/rows/RowStrategies/Engine27TraderIntelligenceV2.jsx
 // Engine 27 V2 — six-degree trader intelligence presentation.
 // Read-only. Consumes additive backend contract:
@@ -414,10 +415,7 @@ function SeparateStrategyAlignments({ snapshot, workingSeven = null, performance
         </div>
         <SharedCrossMarketBrief marketContext={marketContext} reactions={reactions} />
         <div style={{color:"#fbbf24",fontSize:10}}>These current structural views do not infer broker positions or rewrite historical thesis states.</div>
-        <details style={{border:"1px solid #334155",borderRadius:8,padding:7}}>
-          <summary style={{cursor:"pointer",color:"#94a3b8",fontSize:11,fontWeight:900}}>LEGACY SIX-ROLE POSITION & THESIS MONITORING — expand original records</summary>
-          <LegacyStrategyAlignments snapshot={snapshot} />
-        </details>
+        <Engine27WaveLearningPreview snapshot={snapshot} />
       </div>
     );
   }
