@@ -29,7 +29,9 @@ export default function Engine27WaveLearningPreview({snapshot}){
  const [tab,setTab]=useState("timeline");
  const active=TIMELINES[degree];
  const published=snapshot?.engine27Strategies?.engine27WorkingSevenDegrees?.degrees?.[degree.toLowerCase()];
- return <section style={{...card,marginTop:12}} aria-label="Engine 27 Wave Learning preview">
+ return <details style={{marginTop:12,border:"1px solid #334155",borderRadius:8,padding:8}}>
+  <summary style={{cursor:"pointer",fontWeight:900,color:"#cbd5e1",fontSize:12}}>ENGINE 27 — WAVE LEARNING & PERFORMANCE — expand history</summary>
+  <section style={{...card,marginTop:8}} aria-label="Engine 27 Wave Learning preview">
   <div style={{display:"flex",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
    <div><strong style={{fontSize:18}}>ENGINE 27 — WAVE LEARNING</strong><div style={muted}>Historical research timeline · no duplicate Engine 22 Fibonacci tables</div></div>
    <span style={{...muted,border:"1px solid #475569",borderRadius:16,padding:"4px 9px"}}>RESEARCH PREVIEW — NOT LIVE JOURNAL</span>
@@ -57,5 +59,5 @@ export default function Engine27WaveLearningPreview({snapshot}){
   <p style={{...muted,marginTop:12}}>
    Original-time Engine 12 observations, verified physical ES contracts, and journal events are not yet loaded. Owner reference pivots are not confirmed wave-completion events.
   </p>
- </section>;
+ </section></details>;
 }
