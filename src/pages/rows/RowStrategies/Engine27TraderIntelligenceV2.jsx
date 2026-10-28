@@ -415,7 +415,6 @@ function SeparateStrategyAlignments({ snapshot, workingSeven = null, performance
         </div>
         <SharedCrossMarketBrief marketContext={marketContext} reactions={reactions} />
         <div style={{color:"#fbbf24",fontSize:10}}>These current structural views do not infer broker positions or rewrite historical thesis states.</div>
-        <Engine27WaveLearningPreview snapshot={snapshot} />
       </div>
     );
   }
@@ -1108,15 +1107,7 @@ export default function Engine27TraderIntelligenceV2({ snapshot }) {
         reactions={reactions}
       />
 
-      <div className="engine27-v2-grid">
-        {DEGREE_ORDER.map((degree) => (
-          <DegreeCard
-            key={degree}
-            degree={degree}
-            data={currentInterpretation?.degrees?.[degree] || null}
-          />
-        ))}
-      </div>
+      <Engine27WaveLearningPreview snapshot={snapshot} />
     </div>
   );
 }
