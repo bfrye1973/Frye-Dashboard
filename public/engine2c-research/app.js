@@ -305,7 +305,15 @@
     try{const h=checkHandoff(await decodePinnedFile(file));await verifyDigest(h);state.handoff=h;clearContext();
       $('fixtureInfo').textContent='Loaded pinned research source: '+h.handoffVersion+' · Registry '+(h.nodeLayers.registrySha||'UNKNOWN')+' · 40 nodes / 34 withheld Fib refs.';
       await loadSelection();
-    }catch(e){state.handoff=null;clearContext();showError(e);}
+    }catch(e){
+      const message=e?.message||String(e);
+      // Authorization failure does NOT invalidate the verified Engine11
+      // historical source and wave evidence. Keep it for the unlock retry.
+      if(message!=='PRIVATE_RESEARCH_ACCESS_REQUIRED' && message!=='RESEARCH_OWNER_ACCESS_REJECTED'){
+        state.handoff=null;
+      }
+      clearContext();showError(e);
+    }
   }
   $('view').addEventListener('change',choose);$('frame').addEventListener('change',choose);$('degree').addEventListener('change',choose);
   $('fixture').addEventListener('change',e=>importFile(e.target.files?.[0]));
