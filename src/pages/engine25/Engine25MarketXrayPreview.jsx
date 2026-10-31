@@ -1457,17 +1457,27 @@ export default function Engine25MarketXrayPreview() {
                 </div>
               </div>
 
-              <div style={{ padding: "5px 9px", minWidth: 0 }}>
+              <Link
+                to="/engine25-eod-structure"
+                style={{
+                  padding: "5px 9px",
+                  minWidth: 0,
+                  textDecoration: "none",
+                  borderRadius: 7,
+                  display: "block",
+                }}
+                title="Open reconstructed EOD sector counts and legacy spreadsheet comparison"
+              >
                 <div style={{ color: COLORS.muted, fontSize: 10, fontWeight: 900 }}>
-                  EOD STRUCTURE · 15%
+                  EOD STRUCTURE · 15% ↗
                 </div>
                 <div
                   style={{
                     color:
                       reconstructedEodScore == null
                         ? COLORS.muted
-                        : colorForCanonicalState(reconstructedEodState),
-                    fontSize: 21,
+                        : scoreTrafficColor(reconstructedEodScore),
+                    fontSize: 24,
                     fontWeight: 1000,
                     marginTop: 3,
                   }}
@@ -1481,7 +1491,7 @@ export default function Engine25MarketXrayPreview() {
                     color:
                       reconstructedEodScore == null
                         ? COLORS.yellow
-                        : colorForCanonicalState(reconstructedEodState),
+                        : scoreTrafficColor(reconstructedEodScore),
                     fontSize: 10,
                     fontWeight: 900,
                   }}
@@ -1490,7 +1500,7 @@ export default function Engine25MarketXrayPreview() {
                     ? "WAITING FOR FEED"
                     : upper(reconstructedEodState || "AVAILABLE")}
                 </div>
-              </div>
+              </Link>
 
               <div
                 style={{
