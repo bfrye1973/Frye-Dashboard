@@ -5,7 +5,7 @@ import {resolve,join} from 'node:path';
 import {createHash} from 'node:crypto';
 const [root]=process.argv.slice(2);
 if(!root)throw Error('PRIVATE_ROOT_REQUIRED');
-const expected={continuousRaw:[141181,70596,11776,2794,490,97,16],continuousAdjustedClose:[141181,70596,11776,2794,490,97,16],actualESZ2026:[7980,4066,688,167,32,6,2]};
+const expected={continuousRaw:[144999,72505,12094,2868,503,99,16],continuousAdjustedClose:[144999,72505,12094,2868,503,99,16],actualESZ2026:[11798,5975,1006,241,45,8,2]};
 const frames=['5m','10m','1h','4h','1d','1w','1mo'];
 let total=0,pages=0;
 for(const [view,counts] of Object.entries(expected)){
@@ -34,5 +34,5 @@ for(const [view,counts] of Object.entries(expected)){
   total+=counted;
  }
 }
-if(total!==466841)throw Error('TOTAL_AUTHENTIC_ROWS_MISMATCH');
+if(total!==485243)throw Error('TOTAL_AUTHENTIC_ROWS_MISMATCH');
 process.stdout.write('Verified 21 authentic collections; '+total+' rows, '+pages+' private pages, zero duplicates; no historical price data published.\n');
