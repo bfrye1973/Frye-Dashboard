@@ -46,7 +46,7 @@
     if(supplied){
       key=supplied;
       sessionStorage.setItem('engine2cResearchOwnerKey',key);
-      localStorage.setItem(storageKey,JSON.stringify({key,expiresAt:Date.now()+86400000}));
+      localStorage.setItem(storageKey,JSON.stringify({key,expiresAt:Date.now()+30*86400000}));
       window.top.history.replaceState(window.top.history.state,'',window.top.location.pathname+window.top.location.search);
     }
     if(!key){
@@ -146,7 +146,14 @@
     clearContext();
     if(state.handoff)loadSelection().catch(showError);else details();
   }
-  function showError(e){$('status').textContent='RESEARCH LOAD BLOCKED: '+(e?.message||e);$('chartEmpty').hidden=false;}
+  function showError(e){
+    const message=e?.message||String(e);
+    $('status').textContent='RESEARCH LOAD BLOCKED: '+message;
+    $('chartEmpty').hidden=false;
+    if(message==='PRIVATE_RESEARCH_ACCESS_REQUIRED'||message==='RESEARCH_OWNER_ACCESS_REJECTED'){
+      if($('unlockHistory'))$('unlockHistory').hidden=false;
+    }
+  }
   async function older(){
     if(historyEndpoint){
       const session=historySession;if(!session||historyBusy)return;
@@ -302,6 +309,22 @@
   }
   $('view').addEventListener('change',choose);$('frame').addEventListener('change',choose);$('degree').addEventListener('change',choose);
   $('fixture').addEventListener('change',e=>importFile(e.target.files?.[0]));
+  $('unlockHistoryButton')?.addEventListener('click',async()=>{
+    const input=$('unlockHistoryKey');const key=input?.value?.trim();
+    if(!key){$('status').textContent='Enter your private research access key.';return;}
+    sessionStorage.setItem('engine2cResearchOwnerKey',key);
+    // Do not persist an unverified credential. Successful data access is required.
+    clearContext();
+    try{
+      await loadSelection();
+      localStorage.setItem('engine2cResearchOwnerAccessV1',JSON.stringify({key,expiresAt:Date.now()+30*86400000}));
+      $('unlockHistory').hidden=true;input.value='';
+    }catch(error){
+      sessionStorage.removeItem('engine2cResearchOwnerKey');
+      localStorage.removeItem('engine2cResearchOwnerAccessV1');
+      showError(error);
+    }
+  });
   $('older').addEventListener('click',older);$('newer')?.addEventListener('click',newer);$('roll').addEventListener('click',roll);
   $('zoomIn').addEventListener('click',()=>zoom(1.5));
   $('zoomOut').addEventListener('click',()=>zoom(1/1.5));
