@@ -13,7 +13,7 @@ on:
       - '.github/workflows/engine2c-rowchart-integration.yml'
 jobs:
   integrated-chart:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
     steps:
@@ -61,7 +61,7 @@ jobs:
           path: /tmp/engine2c-integrated-*.png
           if-no-files-found: ignore
   original-tab-authentic-history:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
@@ -103,7 +103,7 @@ jobs:
         run: rm -rf /tmp/engine2c-verified-package
 
   full-navigation-verification:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
