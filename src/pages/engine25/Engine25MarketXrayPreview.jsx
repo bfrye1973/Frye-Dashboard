@@ -620,6 +620,100 @@ export default function Engine25MarketXrayPreview() {
 
   const masterScore = n(master?.master?.score);
   const masterState = master?.master?.tone || master?.master?.state || master?.master?.label || null;
+  const master4hScore = n(master?.lights?.["4h"]?.score);
+  const master4hState =
+    master?.lights?.["4h"]?.state ||
+    master?.lights?.["4h"]?.tone ||
+    null;
+
+  // Reconstructed EOD v1 will be wired from its dedicated shadow output once
+  // that backend field is published. Do not silently substitute production EOD.
+  const reconstructedEodScore = n(
+    data?.reconstructedEod?.score ??
+    data?.eodStructure?.score ??
+    data?.shadowEod?.score
+  );
+  const reconstructedEodState =
+    data?.reconstructedEod?.state ||
+    data?.eodStructure?.state ||
+    data?.shadowEod?.state ||
+    null;
+
+  const tradePermissionScore =
+    masterScore != null &&
+    master4hScore != null &&
+    reconstructedEodScore != null
+      ? 0.65 * masterScore +
+        0.20 * master4hScore +
+        0.15 * reconstructedEodScore
+      : null;
+
+  function tradePermissionRead(score) {
+    const x = n(score);
+    if (x == null) {
+      return {
+        label: "WAITING FOR EOD SHADOW",
+        sizing: "NO DECISION SCORE YET",
+        color: COLORS.muted,
+        detail:
+          "Layout preview is live. Reconstructed EOD v1 still needs its backend feed before the permission score is activated.",
+      };
+    }
+    if (x >= 65) {
+      return {
+        label: "LONG BIAS",
+        sizing: "NORMAL LONG PERMISSION",
+        color: COLORS.green,
+        detail:
+          "Fast and structural evidence are aligned enough to favor longs when price confirms.",
+      };
+    }
+    if (x >= 55) {
+      return {
+        label: "LONG ALLOWED — REDUCED SIZE",
+        sizing: "NO AGGRESSIVE SIZE-UP",
+        color: COLORS.yellow,
+        detail:
+          "Longs are allowed, but confirmation is incomplete. Keep size controlled.",
+      };
+    }
+    if (x >= 50) {
+      return {
+        label: "NEUTRAL / WAIT",
+        sizing: "DO NOT SIZE UP",
+        color: COLORS.yellow,
+        detail:
+          "Evidence is mixed. Wait for faster confirmation before adding directional risk.",
+      };
+    }
+    if (x >= 45) {
+      return {
+        label: "AVOID NEW LONGS / SHORT WATCH",
+        sizing: "NO SIZE-UP LONG",
+        color: COLORS.orange,
+        detail:
+          "Fast ES weakness is overpowering the slower backdrop. Watch for confirmed short setup.",
+      };
+    }
+    if (x >= 35) {
+      return {
+        label: "BEARISH / SHORTS FAVORED",
+        sizing: "DEFENSIVE",
+        color: COLORS.red,
+        detail:
+          "Tactical evidence is bearish. Avoid blind longs and require confirmation for any reversal.",
+      };
+    }
+    return {
+      label: "STRONG DEFENSIVE / BEARISH",
+      sizing: "NO NORMAL LONGS",
+      color: COLORS.red,
+      detail:
+        "Fast and intermediate evidence are strongly bearish. Long exposure requires exceptional confirmation.",
+    };
+  }
+
+  const tradePermission = tradePermissionRead(tradePermissionScore);
   const underlyingScore = n(breadth?.score);
   const headlineColor = colorForCanonicalState(headline?.color || headline?.label || headline?.state);
   const breadthColor = colorForCanonicalState(breadth?.label);
@@ -872,6 +966,203 @@ export default function Engine25MarketXrayPreview() {
                 note={coverage == null ? "coverage unavailable" : `${pct(coverage, 1)} volume coverage`}
               />
             </div>
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns:
+                  "minmax(330px,1.55fr) minmax(145px,.72fr) minmax(145px,.72fr) minmax(165px,.82fr) minmax(210px,1fr)",
+                gap: 8,
+                alignItems: "stretch",
+                border: `1px solid ${tradePermission.color}66`,
+                borderLeft: `4px solid ${tradePermission.color}`,
+                borderRadius: 11,
+                padding: 8,
+                background:
+                  "linear-gradient(90deg, rgba(15,23,42,.92), rgba(7,10,14,.98))",
+                boxShadow: "0 7px 22px rgba(0,0,0,.26)",
+              }}
+            >
+              <div
+                style={{
+                  minWidth: 0,
+                  padding: "5px 9px",
+                  borderRight: "1px solid rgba(148,163,184,.14)",
+                }}
+              >
+                <div
+                  style={{
+                    color: COLORS.muted,
+                    fontSize: 10,
+                    fontWeight: 900,
+                    letterSpacing: ".05em",
+                    textTransform: "uppercase",
+                  }}
+                >
+                  Trade Permission
+                </div>
+                <div
+                  style={{
+                    display: "flex",
+                    gap: 10,
+                    alignItems: "baseline",
+                    marginTop: 2,
+                    minWidth: 0,
+                  }}
+                >
+                  <span
+                    style={{
+                      color: tradePermission.color,
+                      fontSize: 28,
+                      lineHeight: 1,
+                      fontWeight: 1000,
+                    }}
+                  >
+                    {tradePermissionScore == null
+                      ? "—"
+                      : fmt(tradePermissionScore)}
+                  </span>
+                  <span
+                    style={{
+                      color: tradePermission.color,
+                      fontSize: 13,
+                      fontWeight: 1000,
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {tradePermission.label}
+                  </span>
+                </div>
+                <div
+                  style={{
+                    color: COLORS.muted,
+                    fontSize: 10,
+                    marginTop: 4,
+                    lineHeight: 1.25,
+                  }}
+                >
+                  {tradePermission.detail}
+                </div>
+              </div>
+
+              <div style={{ padding: "5px 9px", minWidth: 0 }}>
+                <div style={{ color: COLORS.muted, fontSize: 10, fontWeight: 900 }}>
+                  ES MASTER · 65%
+                </div>
+                <div
+                  style={{
+                    color: colorForCanonicalState(masterState),
+                    fontSize: 21,
+                    fontWeight: 1000,
+                    marginTop: 3,
+                  }}
+                >
+                  {masterScore == null ? "—" : fmt(masterScore, 1)}
+                </div>
+                <div
+                  style={{
+                    color: colorForCanonicalState(masterState),
+                    fontSize: 10,
+                    fontWeight: 900,
+                  }}
+                >
+                  {upper(masterState || "UNAVAILABLE")}
+                </div>
+              </div>
+
+              <div style={{ padding: "5px 9px", minWidth: 0 }}>
+                <div style={{ color: COLORS.muted, fontSize: 10, fontWeight: 900 }}>
+                  4H · 20%
+                </div>
+                <div
+                  style={{
+                    color: colorForCanonicalState(master4hState),
+                    fontSize: 21,
+                    fontWeight: 1000,
+                    marginTop: 3,
+                  }}
+                >
+                  {master4hScore == null ? "—" : fmt(master4hScore, 1)}
+                </div>
+                <div
+                  style={{
+                    color: colorForCanonicalState(master4hState),
+                    fontSize: 10,
+                    fontWeight: 900,
+                  }}
+                >
+                  {upper(master4hState || "UNAVAILABLE")}
+                </div>
+              </div>
+
+              <div style={{ padding: "5px 9px", minWidth: 0 }}>
+                <div style={{ color: COLORS.muted, fontSize: 10, fontWeight: 900 }}>
+                  EOD STRUCTURE · 15%
+                </div>
+                <div
+                  style={{
+                    color:
+                      reconstructedEodScore == null
+                        ? COLORS.muted
+                        : colorForCanonicalState(reconstructedEodState),
+                    fontSize: 21,
+                    fontWeight: 1000,
+                    marginTop: 3,
+                  }}
+                >
+                  {reconstructedEodScore == null
+                    ? "SHADOW"
+                    : fmt(reconstructedEodScore, 1)}
+                </div>
+                <div
+                  style={{
+                    color:
+                      reconstructedEodScore == null
+                        ? COLORS.yellow
+                        : colorForCanonicalState(reconstructedEodState),
+                    fontSize: 10,
+                    fontWeight: 900,
+                  }}
+                >
+                  {reconstructedEodScore == null
+                    ? "WAITING FOR FEED"
+                    : upper(reconstructedEodState || "AVAILABLE")}
+                </div>
+              </div>
+
+              <div
+                style={{
+                  padding: "5px 9px",
+                  minWidth: 0,
+                  borderLeft: "1px solid rgba(148,163,184,.14)",
+                }}
+              >
+                <div style={{ color: COLORS.muted, fontSize: 10, fontWeight: 900 }}>
+                  SIZING
+                </div>
+                <div
+                  style={{
+                    color: tradePermission.color,
+                    fontSize: 14,
+                    fontWeight: 1000,
+                    marginTop: 5,
+                  }}
+                >
+                  {tradePermission.sizing}
+                </div>
+                <div
+                  style={{
+                    color: COLORS.muted,
+                    fontSize: 10,
+                    marginTop: 4,
+                    lineHeight: 1.25,
+                  }}
+                >
+                  Permission score = 65% ES Master + 20% 4H + 15% reconstructed EOD.
+                </div>
+              </div>
+            </div>
+
             <div
               style={{
                 display: "grid",
