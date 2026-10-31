@@ -18,6 +18,7 @@ const API_ROOT = API_BASE.replace(/\/+$/, "").replace(/\/api$/, "");
 const ENGINE25_ROUTE = `${API_ROOT}/api/v1/engine25/full-dashboard`;
 const MASTER_ROUTE = `${API_ROOT}/api/v1/futures/market-meter?symbol=ES`;
 const HOURLY_ROUTE = `${API_ROOT}/live/hourly`;
+const EOD_SHADOW_ROUTE = `${API_ROOT}/live/eod-shadow`;
 
 const BROADER_MARKET_STRENGTH_WEIGHTS = Object.freeze({
   breadth: 0.60,
@@ -645,6 +646,7 @@ export default function Engine25MarketXrayPreview() {
   const [data, setData] = useState(null);
   const [master, setMaster] = useState(null);
   const [hourlyData, setHourlyData] = useState(null);
+  const [eodShadow, setEodShadow] = useState(null);
   const [status, setStatus] = useState("LOADING");
   const [error, setError] = useState(null);
   const [sectorTimeframe, setSectorTimeframe] = useState("1H");
@@ -667,9 +669,10 @@ export default function Engine25MarketXrayPreview() {
         setStatus("READY");
         setError(null);
 
-        const [masterResult, hourlyResult] = await Promise.allSettled([
+        const [masterResult, hourlyResult, eodShadowResult] = await Promise.allSettled([
           fetch(MASTER_ROUTE, { cache: "no-store" }),
           fetch(HOURLY_ROUTE, { cache: "no-store" }),
+          fetch(EOD_SHADOW_ROUTE, { cache: "no-store" }),
         ]);
 
         if (!alive) return;
@@ -684,6 +687,12 @@ export default function Engine25MarketXrayPreview() {
           const response = hourlyResult.value;
           const json = await response.json().catch(() => null);
           setHourlyData(response.ok ? json : null);
+        }
+
+        if (eodShadowResult.status === "fulfilled") {
+          const response = eodShadowResult.value;
+          const json = await response.json().catch(() => null);
+          setEodShadow(response.ok && json?.ok !== false ? json : null);
         }
       } catch (e) {
         if (!alive) return;
@@ -949,11 +958,13 @@ export default function Engine25MarketXrayPreview() {
   // Reconstructed EOD v1 will be wired from its dedicated shadow output once
   // that backend field is published. Do not silently substitute production EOD.
   const reconstructedEodScore = n(
+    eodShadow?.score ??
     data?.reconstructedEod?.score ??
     data?.eodStructure?.score ??
     data?.shadowEod?.score
   );
   const reconstructedEodState =
+    eodShadow?.state ||
     data?.reconstructedEod?.state ||
     data?.eodStructure?.state ||
     data?.shadowEod?.state ||
@@ -1354,7 +1365,7 @@ export default function Engine25MarketXrayPreview() {
                   <span
                     style={{
                       color: tradePermission.color,
-                      fontSize: 28,
+                      fontSize: 32,
                       lineHeight: 1,
                       fontWeight: 1000,
                     }}
@@ -1367,7 +1378,7 @@ export default function Engine25MarketXrayPreview() {
                   <span
                     style={{
                       color: tradePermission.color,
-                      fontSize: 13,
+                      fontSize: 15,
                       fontWeight: 1000,
                       whiteSpace: "nowrap",
                     }}
