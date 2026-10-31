@@ -106,9 +106,34 @@ export default function Engine25EodStructureDetail(){
 
   const cell=(v,color)=>({padding:"7px 9px",textAlign:"right",borderBottom:"1px solid #223047",color:color||COLORS.text,fontWeight:800});
   const head={padding:"7px 9px",textAlign:"right",background:"#172033",color:"#cbd5e1",fontSize:11,textTransform:"uppercase"};
-  return <div style={{minHeight:"100vh",background:COLORS.bg,color:COLORS.text,padding:"18px 22px",fontFamily:"Arial,Helvetica,sans-serif"}}>
-    <div style={{maxWidth:1900,margin:"0 auto",display:"grid",gap:14}}>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:12}}>
+  return <div
+    style={{
+      height:"calc(100vh - 34px)",
+      overflowY:"auto",
+      overflowX:"hidden",
+      background:COLORS.bg,
+      color:COLORS.text,
+      padding:"18px 22px 40px",
+      fontFamily:"Arial,Helvetica,sans-serif",
+      boxSizing:"border-box",
+      scrollbarGutter:"stable",
+    }}
+  >
+    <div style={{maxWidth:1900,margin:"0 auto",display:"grid",gap:14,minWidth:0}}>
+      <div
+        style={{
+          position:"sticky",
+          top:0,
+          zIndex:20,
+          display:"flex",
+          justifyContent:"space-between",
+          alignItems:"center",
+          gap:12,
+          padding:"8px 0 10px",
+          background:"linear-gradient(180deg, rgba(2,6,23,1) 72%, rgba(2,6,23,.94) 88%, rgba(2,6,23,0))",
+          backdropFilter:"blur(4px)",
+        }}
+      >
         <div>
           <div style={{fontSize:25,fontWeight:1000}}>ENGINE 25 — EOD STRUCTURE DETAIL</div>
           <div style={{color:COLORS.muted,marginTop:4}}>Reconstructed EOD v1 shadow · spreadsheet-style validation view</div>
@@ -118,7 +143,17 @@ export default function Engine25EodStructureDetail(){
 
       {error&&<div style={{border:"1px solid #7f1d1d",padding:10,borderRadius:8,color:"#fecaca"}}>{error}</div>}
 
-      <div style={{display:"grid",gridTemplateColumns:"repeat(5,minmax(0,1fr))",gap:8}}>
+      <div
+        style={{
+          position:"sticky",
+          top:64,
+          zIndex:15,
+          padding:"6px 0 8px",
+          background:"linear-gradient(180deg, rgba(2,6,23,.98), rgba(2,6,23,.94))",
+          borderBottom:"1px solid rgba(148,163,184,.08)",
+        }}
+      >
+        <div style={{display:"grid",gridTemplateColumns:"repeat(5,minmax(0,1fr))",gap:8}}>
         {[
           ["EOD STRUCTURE",data?.score,data?.state],
           ["BREADTH",data?.breadthScore,"10NH vs 10NL"],
@@ -130,6 +165,7 @@ export default function Engine25EodStructureDetail(){
           <div style={{fontSize:23,fontWeight:1000,marginTop:3,color:typeof v==="number"?colorScore(v):COLORS.text}}>{v??"—"}</div>
           <div style={{fontSize:10,color:COLORS.muted,marginTop:3}}>{note}</div>
         </div>)}
+        </div>
       </div>
 
       <div style={{background:COLORS.panel,border:"1px solid "+COLORS.border,borderRadius:10,padding:12}}>
@@ -156,7 +192,7 @@ export default function Engine25EodStructureDetail(){
         </div>
 
         <div style={{overflowX:"auto"}}>
-          <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
+          <table style={{width:"100%",minWidth:900,borderCollapse:"collapse",fontSize:11}}>
             <thead><tr>
               <th style={{...head,textAlign:"left"}}>Universe</th>
               <th style={head}>Members</th><th style={head}>10NH</th><th style={head}>10NL</th>
@@ -194,7 +230,7 @@ export default function Engine25EodStructureDetail(){
 
       <div style={{background:COLORS.panel,border:"1px solid "+COLORS.border,borderRadius:10,padding:12,overflowX:"auto"}}>
         <div style={{fontWeight:1000,fontSize:16,marginBottom:8}}>CURRENT RECONSTRUCTED EOD — RAW SECTOR COUNTS</div>
-        <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+        <table style={{width:"100%",minWidth:900,borderCollapse:"collapse",fontSize:12}}>
           <thead><tr>
             <th style={{...head,textAlign:"left"}}>Sector</th><th style={head}>10NH</th><th style={head}>10NL</th>
             <th style={head}>Breadth %</th><th style={head}>5U*</th><th style={head}>5D*</th><th style={head}>Momentum %</th>
@@ -210,7 +246,7 @@ export default function Engine25EodStructureDetail(){
         <div style={{fontSize:10,color:COLORS.muted,marginTop:7}}>*5U / 5D are legacy display labels. Reconstructed v1 momentum is the 4-session close move versus ±3× ADR20.</div>
       </div>
 
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(420px,1fr))",gap:12,minWidth:0}}>
         <MiniLines rows={chartRows} aKey="nh" bKey="nl" aLabel="10NH" bLabel="10NL"/>
         <MiniLines rows={chartRows} aKey="up" bKey="down" aLabel="5U" bLabel="5D"/>
       </div>
@@ -225,7 +261,7 @@ export default function Engine25EodStructureDetail(){
             style={{border:"1px solid "+(date===d?COLORS.blue:COLORS.border),background:date===d?"#082f49":"#0f172a",color:date===d?"#bae6fd":"#cbd5e1",borderRadius:7,padding:"6px 10px",fontWeight:900,cursor:"pointer"}}>{d}</button>)}</div>
         </div>
         <div style={{overflowX:"auto"}}>
-          <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
+          <table style={{width:"100%",minWidth:900,borderCollapse:"collapse",fontSize:11}}>
             <thead><tr>
               <th style={{...head,textAlign:"left"}}>Sector</th>
               <th style={head}>Sheet 10NH</th><th style={head}>Rebuilt 10NH</th>
@@ -247,6 +283,8 @@ export default function Engine25EodStructureDetail(){
       <div style={{color:COLORS.muted,fontSize:11,lineHeight:1.5}}>
         Frozen v1 formula: breadth = 10-session HIGH/LOW event with 2-session carry. Momentum = 4-session close move versus ±3× 20-session ADR. This page is research/shadow only.
       </div>
+
+      <div style={{height:24}} />
     </div>
   </div>;
 }
