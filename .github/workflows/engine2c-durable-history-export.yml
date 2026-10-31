@@ -3,6 +3,8 @@ on:
   push:
     branches: [main, engine2c-durable-history-export-20261031]
   workflow_dispatch:
+  pull_request:
+    branches: [main]
   schedule:
     - cron: '17 9 * * 1'
 permissions:
