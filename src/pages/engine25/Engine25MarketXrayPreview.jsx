@@ -50,6 +50,14 @@ function fmt(value, digits = 0) {
   return x == null ? "—" : x.toFixed(digits);
 }
 
+function scoreTrafficColor(value) {
+  const x = n(value);
+  if (x == null) return COLORS.muted;
+  if (x >= 65) return COLORS.green;
+  if (x >= 50) return COLORS.yellow;
+  return COLORS.red;
+}
+
 function fmtNumber(value, digits = 0) {
   const x = n(value);
   return x == null ? "—" : x.toLocaleString(undefined, { maximumFractionDigits: digits, minimumFractionDigits: digits });
@@ -1415,7 +1423,7 @@ export default function Engine25MarketXrayPreview() {
                 </div>
                 <div
                   style={{
-                    color: colorForCanonicalState(masterState),
+                    color: scoreTrafficColor(masterScore),
                     fontSize: 10,
                     fontWeight: 900,
                   }}
@@ -1440,7 +1448,7 @@ export default function Engine25MarketXrayPreview() {
                 </div>
                 <div
                   style={{
-                    color: colorForCanonicalState(master4hState),
+                    color: scoreTrafficColor(master4hScore),
                     fontSize: 10,
                     fontWeight: 900,
                   }}
