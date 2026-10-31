@@ -1,5 +1,7 @@
 name: Engine2C private historical pages refresh
 on:
+  push:
+    branches: [engine2c-durable-history-export-20261031]
   workflow_dispatch:
   schedule:
     - cron: '17 9 * * 1'
