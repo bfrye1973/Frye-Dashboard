@@ -225,7 +225,7 @@
     if(!canvas){canvas=document.createElement('canvas');canvas.setAttribute('aria-hidden','true');root.appendChild(canvas);}
     canvas.width=Math.round(w*dpr);canvas.height=Math.round(h*dpr);canvas.style.width=w+'px';canvas.style.height=h+'px';
     const ctx=canvas.getContext('2d');ctx.scale(dpr,dpr);rect(ctx,0,0,w,h,'#0c1522');
-    const rows=state.rows,plot={left:60,right:w-62,top:20,bottom:h-40};
+    const rows=state.rows,axisHeight=78,plot={left:60,right:w-62,top:20,bottom:h-axisHeight};
     if(!rows.length){$('chartEmpty').hidden=false;return;}$('chartEmpty').hidden=true;
     const count=rows.length;
     const show=Math.max(1,Math.min(count,Math.round(count/state.zoom)));
@@ -269,12 +269,16 @@
         ctx.fillStyle='#ffdba0';ctx.font='10px system-ui';ctx.textAlign='left';ctx.fillText(n.degree+' '+n.node+' (?)',x+8,Math.max(plot.top+10,y-10));
       }
     }
-    // Two-row Arizona time axis: calendar date above local hour for intraday bars.
-    // Tick positions come from existing visible candles; no new or interpolated prices.
+    // High-contrast, dedicated two-row Arizona time axis, derived solely from real bars.
     const axisDate=new Intl.DateTimeFormat('en-US',{timeZone:'America/Phoenix',month:'short',day:'numeric',year:'2-digit'});
     const axisHour=new Intl.DateTimeFormat('en-US',{timeZone:'America/Phoenix',hour:'numeric',minute:'2-digit',hour12:true});
     const intraday=['5m','10m','1h','4h'].includes(state.frame);
-    const maxTicks=Math.max(2,Math.min(9,Math.floor(width/135)));
+    const axisTop=plot.bottom+7;
+    rect(ctx,plot.left,axisTop,plot.right-plot.left,h-axisTop,'#14243a');
+    ctx.strokeStyle='#547393';ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(plot.left,axisTop);ctx.lineTo(plot.right,axisTop);ctx.stroke();
+    // Leave adequate space for every full date/time pair, including at high zoom.
+    const maxTicks=Math.max(2,Math.min(8,Math.floor(width/(intraday?205:150))));
     const indices=[...new Set(Array.from({length:maxTicks},(_,j)=>Math.round(j*(visible.length-1)/(maxTicks-1))))];
     ctx.textBaseline='middle';ctx.textAlign='center';
     for(const i of indices){
@@ -283,13 +287,13 @@
       const x=plot.left+(i+.5)*step;
       const day=axisDate.format(new Date(tickTime*1000));
       const hour=intraday?axisHour.format(new Date(tickTime*1000)):'';
-      ctx.strokeStyle='#53677d';ctx.lineWidth=1;
-      ctx.beginPath();ctx.moveTo(x,plot.bottom);ctx.lineTo(x,plot.bottom+4);ctx.stroke();
-      ctx.fillStyle='#b9d0e9';ctx.font='11px system-ui';
-      ctx.fillText(day,x,h-27);
+      ctx.strokeStyle='#6d91ae';ctx.lineWidth=1;
+      ctx.beginPath();ctx.moveTo(x,axisTop);ctx.lineTo(x,axisTop+8);ctx.stroke();
+      ctx.fillStyle='#e3eefc';ctx.font='bold 14px system-ui';
+      ctx.fillText(day,x,axisTop+24);
       if(intraday){
-        ctx.fillStyle='#8caac8';ctx.font='10px system-ui';
-        ctx.fillText(hour,x,h-13);
+        ctx.fillStyle='#b9dcfa';ctx.font='13px system-ui';
+        ctx.fillText(hour+' AZ',x,axisTop+48);
       }
     }
     $('status').textContent=LABELS[state.view]+' · '+state.frame+' · '+state.degree+' · '+count+(historyEndpoint?' authenticated research':' sample')+' candles loaded / max '+CAP+' · '+(state.cursor?'older page available':'end of available pages')+' · UNVERIFIED SOURCE MARKS';
