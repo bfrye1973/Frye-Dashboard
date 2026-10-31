@@ -269,8 +269,29 @@
         ctx.fillStyle='#ffdba0';ctx.font='10px system-ui';ctx.textAlign='left';ctx.fillText(n.degree+' '+n.node+' (?)',x+8,Math.max(plot.top+10,y-10));
       }
     }
-    const stride=Math.max(1,Math.ceil(visible.length/6));ctx.fillStyle='#99aec7';ctx.textAlign='center';ctx.font='11px system-ui';
-    for(let i=0;i<visible.length;i+=stride)ctx.fillText(time(date(visible[i].timestampNs)),plot.left+(i+.5)*step,h-18);
+    // Two-row Arizona time axis: calendar date above local hour for intraday bars.
+    // Tick positions come from existing visible candles; no new or interpolated prices.
+    const axisDate=new Intl.DateTimeFormat('en-US',{timeZone:'America/Phoenix',month:'short',day:'numeric',year:'2-digit'});
+    const axisHour=new Intl.DateTimeFormat('en-US',{timeZone:'America/Phoenix',hour:'numeric',minute:'2-digit',hour12:true});
+    const intraday=['5m','10m','1h','4h'].includes(state.frame);
+    const maxTicks=Math.max(2,Math.min(9,Math.floor(width/135)));
+    const indices=[...new Set(Array.from({length:maxTicks},(_,j)=>Math.round(j*(visible.length-1)/(maxTicks-1))))];
+    ctx.textBaseline='middle';ctx.textAlign='center';
+    for(const i of indices){
+      const tickTime=date(visible[i].timestampNs);
+      if(!Number.isFinite(tickTime))continue;
+      const x=plot.left+(i+.5)*step;
+      const day=axisDate.format(new Date(tickTime*1000));
+      const hour=intraday?axisHour.format(new Date(tickTime*1000)):'';
+      ctx.strokeStyle='#53677d';ctx.lineWidth=1;
+      ctx.beginPath();ctx.moveTo(x,plot.bottom);ctx.lineTo(x,plot.bottom+4);ctx.stroke();
+      ctx.fillStyle='#b9d0e9';ctx.font='11px system-ui';
+      ctx.fillText(day,x,h-27);
+      if(intraday){
+        ctx.fillStyle='#8caac8';ctx.font='10px system-ui';
+        ctx.fillText(hour,x,h-13);
+      }
+    }
     $('status').textContent=LABELS[state.view]+' · '+state.frame+' · '+state.degree+' · '+count+(historyEndpoint?' authenticated research':' sample')+' candles loaded / max '+CAP+' · '+(state.cursor?'older page available':'end of available pages')+' · UNVERIFIED SOURCE MARKS';
   }
   function nodeDetails(){
