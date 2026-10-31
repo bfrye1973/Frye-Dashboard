@@ -45,6 +45,67 @@ const REBUILT = {
   }
 };
 
+
+const PRIMARY_LEGACY = {
+  "10/29":{
+    indices:{QQQ:"RED",SPY:"RED",MDY:"GREEN",IWM:"GREEN"},
+    caps:{
+      all:[2160,1047,301,259],
+      large:[392,125,37,14],
+      mid:[476,155,44,21],
+      small:[1292,767,220,224]
+    }
+  },
+  "10/28":{
+    indices:{QQQ:"GREEN",SPY:"GREEN",MDY:"GREEN",IWM:"GREEN"},
+    caps:{
+      all:[1626,1035,258,251],
+      large:[212,104,30,11],
+      mid:[333,159,32,15],
+      small:[1081,772,196,225]
+    }
+  },
+  "10/27":{
+    indices:{QQQ:"YELLOW",SPY:"GREEN",MDY:"GREEN",IWM:"GREEN"},
+    caps:{
+      all:[1626,1205,276,297],
+      large:[224,99,46,17],
+      mid:[382,170,39,16],
+      small:[1020,936,191,264]
+    }
+  }
+};
+
+const PRIMARY_REBUILT = {
+  "10/29":{
+    indices:{ES:"RED",QQQ:"RED",MDY:"GREEN",IWM:"GREEN"},
+    caps:{
+      all:[1660,859,222,129],
+      large:[341,142,60,32],
+      mid:[420,159,44,16],
+      small:[897,553,117,77]
+    }
+  },
+  "10/28":{
+    indices:{ES:"YELLOW",QQQ:"GREEN",MDY:"GREEN",IWM:"GREEN"},
+    caps:{
+      all:[null,null,null,null],
+      large:[null,null,null,null],
+      mid:[null,null,null,null],
+      small:[null,null,null,null]
+    }
+  },
+  "10/27":{
+    indices:{ES:"GREEN",QQQ:"GREEN",MDY:"GREEN",IWM:"GREEN"},
+    caps:{
+      all:[null,null,null,null],
+      large:[null,null,null,null],
+      mid:[null,null,null,null],
+      small:[null,null,null,null]
+    }
+  }
+};
+
 function canon(s=""){
   const k=String(s).trim().toLowerCase();
   if(k==="technology"||k==="information technology") return "tech";
@@ -316,6 +377,63 @@ export default function Engine25EodStructureDetail(){
           </div>
           <div style={{display:"flex",gap:6}}>{["10/27","10/28","10/29"].map(d=><button key={d} onClick={()=>setDate(d)}
             style={{border:"1px solid "+(date===d?COLORS.blue:COLORS.border),background:date===d?"#082f49":"#0f172a",color:date===d?"#bae6fd":"#cbd5e1",borderRadius:7,padding:"6px 10px",fontWeight:900,cursor:"pointer"}}>{d}</button>)}</div>
+        </div>
+
+        <div style={{marginBottom:12,border:"1px solid "+COLORS.border,borderRadius:8,padding:10,background:"#09111f"}}>
+          <div style={{fontWeight:1000,fontSize:13,marginBottom:7}}>PRIMARY CHECK — INDICES VS MAs</div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(4,minmax(0,1fr))",gap:8}}>
+            {["ES","QQQ","MDY","IWM"].map(sym=>{
+              const legacySym=sym==="ES"?"SPY":sym;
+              const sheet=PRIMARY_LEGACY?.[date]?.indices?.[legacySym]||"—";
+              const rebuilt=PRIMARY_REBUILT?.[date]?.indices?.[sym]||"—";
+              const stateColor=s=>s==="GREEN"?COLORS.green:s==="RED"?COLORS.red:s==="YELLOW"?COLORS.yellow:COLORS.muted;
+              return <div key={sym} style={{border:"1px solid "+COLORS.border,borderRadius:7,padding:8,background:"#0f172a"}}>
+                <div style={{fontSize:10,color:COLORS.muted,fontWeight:900}}>{sym}{sym==="ES"?" (replaces SPY)":""}</div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginTop:5}}>
+                  <div>
+                    <div style={{fontSize:9,color:COLORS.muted}}>SHEET</div>
+                    <div style={{fontWeight:1000,color:stateColor(sheet)}}>{sheet}</div>
+                  </div>
+                  <div>
+                    <div style={{fontSize:9,color:COLORS.muted}}>REBUILT</div>
+                    <div style={{fontWeight:1000,color:stateColor(rebuilt)}}>{rebuilt}</div>
+                  </div>
+                </div>
+              </div>
+            })}
+          </div>
+        </div>
+
+        <div style={{marginBottom:12}}>
+          <div style={{fontWeight:1000,fontSize:13,marginBottom:7}}>PRIMARY CHECK — ALL / LARGE / MID / SMALL</div>
+          <div style={{overflowX:"auto"}}>
+            <table style={{width:"100%",minWidth:980,borderCollapse:"collapse",fontSize:11}}>
+              <thead><tr>
+                <th style={{...head,textAlign:"left"}}>Universe</th>
+                <th style={head}>Sheet 10NH</th><th style={head}>Rebuilt 10NH</th>
+                <th style={head}>Sheet 10NL</th><th style={head}>Rebuilt 10NL</th>
+                <th style={head}>Sheet 5U</th><th style={head}>Rebuilt 5U</th>
+                <th style={head}>Sheet 5D</th><th style={head}>Rebuilt 5D</th>
+              </tr></thead>
+              <tbody>{[
+                ["All Stocks","all"],["Large Cap","large"],["Mid Cap","mid"],["Small Cap","small"]
+              ].map(([label,key])=>{
+                const a=PRIMARY_LEGACY?.[date]?.caps?.[key]||[];
+                const b=PRIMARY_REBUILT?.[date]?.caps?.[key]||[];
+                const show=v=>v==null?"—":v;
+                return <tr key={key}>
+                  <td style={{...cell(label),textAlign:"left"}}>{label}</td>
+                  <td style={cell(a[0])}>{show(a[0])}</td><td style={cell(b[0],COLORS.green)}>{show(b[0])}</td>
+                  <td style={cell(a[1])}>{show(a[1])}</td><td style={cell(b[1],COLORS.red)}>{show(b[1])}</td>
+                  <td style={cell(a[2])}>{show(a[2])}</td><td style={cell(b[2],COLORS.green)}>{show(b[2])}</td>
+                  <td style={cell(a[3])}>{show(a[3])}</td><td style={cell(b[3],COLORS.red)}>{show(b[3])}</td>
+                </tr>
+              })}</tbody>
+            </table>
+          </div>
+          <div style={{fontSize:10,color:COLORS.muted,marginTop:5}}>
+            Rebuilt cap values are shown where historical cap reconstruction has been completed. Blank values remain explicit rather than estimated.
+          </div>
         </div>
         <div style={{overflowX:"auto"}}>
           <table style={{width:"100%",minWidth:900,borderCollapse:"collapse",fontSize:11}}>
