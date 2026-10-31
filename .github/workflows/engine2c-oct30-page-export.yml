@@ -1,0 +1,52 @@
+name: Engine2C October30 verified page export
+on:
+  push:
+    branches: [engine2c-oct30-historical-pin-refresh-20261031]
+  pull_request:
+    branches: [main]
+    paths:
+      - 'research/engine2c-preview/export-history-pages.mjs'
+      - 'research/engine2c-preview/verify-history-export.mjs'
+      - '.github/workflows/engine2c-oct30-page-export.yml'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  export-new-pages:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Fetch verified October30 Engine11 datasets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/engine11-oct30-datasets
+          gh api /repos/bfrye1973/frye-market-backend/actions/artifacts/13055299296/zip > /tmp/engine11-oct30-datasets.zip
+          unzip -q /tmp/engine11-oct30-datasets.zip -d /tmp/engine11-oct30-datasets
+          test -s /tmp/engine11-oct30-datasets/extension-validation.json
+      - name: Use unchanged pinned Engine11 pageDataset
+        run: |
+          git clone -q --filter=blob:none https://github.com/bfrye1973/frye-market-backend.git /tmp/engine11-oct30-source
+          git -C /tmp/engine11-oct30-source checkout -q 45a351f1bd264d807ee7a3fadc92bae5dba6f4dc
+      - name: Export three visible dataset views through original Engine2C exporter
+        run: |
+          for view in continuousRaw continuousAdjustedClose actualESZ2026; do
+            node research/engine2c-preview/export-history-pages.mjs \
+              /tmp/engine11-oct30-source/services/core/logic/engine11/continuousChartResearchV1/series.js \
+              /tmp/engine11-oct30-datasets/$view.json.gz \
+              /tmp/engine2c-oct30-pages/$view "$view"
+          done
+      - name: Verify exact 21 collection manifests, 498 paginated files
+        run: node research/engine2c-preview/verify-history-export.mjs /tmp/engine2c-oct30-pages
+      - name: Archive private verified October30 pages
+        uses: actions/upload-artifact@v4
+        with:
+          name: engine2c-oct30-private-history-pages
+          path: /tmp/engine2c-oct30-pages/
+          retention-days: 30
+          compression-level: 6
+          if-no-files-found: error
