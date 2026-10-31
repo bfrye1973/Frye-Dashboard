@@ -132,6 +132,66 @@ export default function Engine25EodStructureDetail(){
         </div>)}
       </div>
 
+      <div style={{background:COLORS.panel,border:"1px solid "+COLORS.border,borderRadius:10,padding:12}}>
+        <div style={{fontWeight:1000,fontSize:16,marginBottom:8}}>PRIMARY — INDICES VS MAs + MARKET-CAP BREADTH</div>
+        <div style={{color:COLORS.muted,fontSize:11,marginBottom:10}}>
+          Index colors follow the old spreadsheet rule: green = 10/20 MAs both upsloping, yellow = mixed slope, red = both downsloping.
+        </div>
+
+        <div style={{display:"grid",gridTemplateColumns:"repeat(4,minmax(0,1fr))",gap:8,marginBottom:10}}>
+          {["ES","QQQ","MDY","IWM"].map(sym=>{
+            const r=data?.indicesVsMAs?.[sym]||null;
+            const state=String(r?.state||"UNAVAILABLE").toUpperCase();
+            const color=state==="GREEN"?COLORS.green:state==="RED"?COLORS.red:state==="YELLOW"?COLORS.yellow:COLORS.muted;
+            return <div key={sym} style={{border:"1px solid "+color+"77",background:"#0f172a",borderRadius:8,padding:9}}>
+              <div style={{fontSize:10,color:COLORS.muted,fontWeight:900}}>{sym}</div>
+              <div style={{fontSize:19,fontWeight:1000,color,marginTop:2}}>{state}</div>
+              <div style={{fontSize:10,color:COLORS.muted,marginTop:3}}>
+                {r?.available===true
+                  ? `10MA ${r.ma10Upsloping?"↑":"↓"} · 20MA ${r.ma20Upsloping?"↑":"↓"} · ${r.sessionDate||"—"}`
+                  : r?.reason||"waiting for feed"}
+              </div>
+            </div>
+          })}
+        </div>
+
+        <div style={{overflowX:"auto"}}>
+          <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
+            <thead><tr>
+              <th style={{...head,textAlign:"left"}}>Universe</th>
+              <th style={head}>Members</th><th style={head}>10NH</th><th style={head}>10NL</th>
+              <th style={head}>5U*</th><th style={head}>5D*</th>
+              <th style={head}>Breadth %</th><th style={head}>Momentum %</th>
+            </tr></thead>
+            <tbody>
+              {[
+                ["All Stocks","all"],
+                ["Large Cap","large"],
+                ["Mid Cap","mid"],
+                ["Small Cap","small"],
+              ].map(([label,key])=>{
+                const g=data?.capGroups?.[key]||{};
+                return <tr key={key}>
+                  <td style={{...cell(label),textAlign:"left"}}>{label}</td>
+                  <td style={cell(g.members)}>{g.members??"—"}</td>
+                  <td style={cell(g.nh,COLORS.green)}>{g.nh??"—"}</td>
+                  <td style={cell(g.nl,COLORS.red)}>{g.nl??"—"}</td>
+                  <td style={cell(g.up,COLORS.green)}>{g.up??"—"}</td>
+                  <td style={cell(g.down,COLORS.red)}>{g.down??"—"}</td>
+                  <td style={cell(g.breadth_pct,colorScore(Number(g.breadth_pct??50)))}>{g.breadth_pct==null?"—":Number(g.breadth_pct).toFixed(1)}</td>
+                  <td style={cell(g.momentum_pct,colorScore(Number(g.momentum_pct??50)))}>{g.momentum_pct==null?"—":Number(g.momentum_pct).toFixed(1)}</td>
+                </tr>
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        <div style={{fontSize:10,color:COLORS.muted,marginTop:7,lineHeight:1.45}}>
+          Cap buckets: Large ≥ $10B · Mid $2B–$10B · Small &lt; $2B. Classification coverage: {data?.capGroups?.classificationCoveragePct??"—"}%.
+          {data?.capGroups?.marketCapAvailable===false ? ` Market-cap feed unavailable: ${data?.capGroups?.marketCapReason||"unknown"}.` : ""}
+        </div>
+      </div>
+
       <div style={{background:COLORS.panel,border:"1px solid "+COLORS.border,borderRadius:10,padding:12,overflowX:"auto"}}>
         <div style={{fontWeight:1000,fontSize:16,marginBottom:8}}>CURRENT RECONSTRUCTED EOD — RAW SECTOR COUNTS</div>
         <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
