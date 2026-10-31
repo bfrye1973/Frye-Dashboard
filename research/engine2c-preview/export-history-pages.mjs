@@ -9,7 +9,7 @@ import {gunzipSync} from 'node:zlib';
 import {resolve,sep} from 'node:path';
 import {pathToFileURL} from 'node:url';
 const [modulePath,datasetPath,targetPath,view]=process.argv.slice(2);
-const VIEWS={continuousRaw:['research-dataset:5224f595326ff44d424a9a3ada59fcf548ac5efa4c1e25eb7f4e141331b290f5','price-basis:d4ff32a184e2236d5bcb6551637253517ec694f7cbdcb8d34afd2f017a35f569'],continuousAdjustedClose:['research-dataset:9caaa3723b576f09bb4040a44c9da3f2a6e0fd5f0bc177f809802e4b80b9a0a4','price-basis:40baff5124d2cae5b6678813329ed7aab1f47a3ac947555390f8ac7cd212c655'],actualESZ2026:['research-dataset:ec592b47b697dc860a47b61dd713d45602d293c8797e1b52fc924a7459d68ac0','price-basis:98e08538fb38efedcb944e54232df4af396383ed6014c0bc1ef874f228dde05e']};
+const VIEWS={continuousRaw:['research-dataset:a0c81ce398869440b1b9cd42b94ced0101923356c4c860a9c13232a1f98f3c91','price-basis:fcbfa10815555415c8afdfddbbc28a96a4f42207db162a0db853b549546b3908'],continuousAdjustedClose:['research-dataset:5d880a0fddf98e0db3d90c2262ab4f5febcf37d3deed83fc3d45426158863b14','price-basis:94b25a5e2dc04574a59966c369243300d205a50527800b63876641a6023e9f63'],actualESZ2026:['research-dataset:2dd028c39df6fe16e2adfec59b4c1bba312b21f1b2a2f9b783751a25b32dc808','price-basis:757ed82449f97edfea282111a163ffa04681ba188242fd17034ff9cb91410623']};
 const FRAMES=['5m','10m','1h','4h','1d','1w','1mo'];
 if(!modulePath||!datasetPath||!targetPath||!VIEWS[view])throw Error('REQUIRED_PRIVATE_INPUTS_MISSING');
 const repo=resolve(process.cwd())+sep,out=resolve(targetPath)+sep;
