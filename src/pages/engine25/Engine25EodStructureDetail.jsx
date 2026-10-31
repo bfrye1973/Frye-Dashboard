@@ -54,6 +54,33 @@ function canon(s=""){
 function pct(a,b){ const d=Number(a)+Number(b); return d>0 ? 100*Number(a)/d : 50; }
 function colorScore(x){ return x>=60?COLORS.green:x<=40?COLORS.red:COLORS.yellow; }
 
+function trendArrow(current, prior){
+  const a=Number(current), b=Number(prior);
+  if(!Number.isFinite(a)||!Number.isFinite(b)) return "→";
+  return a>b?"↑":a<b?"↓":"→";
+}
+
+function breadthState(current, prior){
+  const nh=Number(current?.nh), nl=Number(current?.nl);
+  const pnh=Number(prior?.nh), pnl=Number(prior?.nl);
+  if(![nh,nl,pnh,pnl].every(Number.isFinite)){
+    return {key:"UNAVAILABLE",label:"WAITING FOR PRIOR DAY",color:COLORS.muted,detail:"Prior-session breadth is unavailable."};
+  }
+  if(nh>nl && nh>pnh && nl<pnl){
+    return {key:"BULLISH_EXPANSION",label:"BULLISH EXPANSION",color:COLORS.green,detail:"New highs are expanding while new lows contract."};
+  }
+  if(nl>nh && nl>pnl && nh<pnh){
+    return {key:"BEARISH_EXPANSION",label:"BEARISH EXPANSION",color:COLORS.red,detail:"New lows are expanding while new highs contract."};
+  }
+  if(nh>nl && nh<pnh){
+    return {key:"BULLISH_CONTRACTION",label:"PULLBACK IN UPTREND",color:COLORS.yellow,detail:"New highs are contracting but still exceed new lows."};
+  }
+  if(nl>nh && nl<pnl){
+    return {key:"BEARISH_CONTRACTION",label:"PULLBACK IN DOWNTREND",color:COLORS.yellow,detail:"New lows are contracting but still exceed new highs."};
+  }
+  return {key:"MIXED",label:"MIXED ENVIRONMENT",color:COLORS.yellow,detail:"Breadth is mixed or changing without a clean expansion/contraction pattern."};
+}
+
 function MiniLines({rows, aKey, bKey, aLabel, bLabel}){
   if(!rows.length) return null;
   const W=340,H=90,P=14;
@@ -89,10 +116,20 @@ export default function Engine25EodStructureDetail(){
   },[]);
 
   const current=Array.isArray(data?.sectorCards)?data.sectorCards:[];
-  const currentRows=current.map(c=>({
-    sector:c.sector,nh:c.nh,nl:c.nl,up:c.up,down:c.down,
-    breadth:pct(c.nh,c.nl),momentum:pct(c.up,c.down)
-  }));
+  const currentRows=current.map(c=>{
+    const prior=data?.sectorPrior?.[c.sector]||null;
+    const state=breadthState(c,prior);
+    return {
+      sector:c.sector,nh:c.nh,nl:c.nl,up:c.up,down:c.down,
+      breadth:pct(c.nh,c.nl),momentum:pct(c.up,c.down),
+      prior,state
+    };
+  });
+
+  const overallBreadthState=breadthState(
+    data?.capGroups?.all||null,
+    data?.capGroups?.all?.prior||null
+  );
 
   const validationRows=useMemo(()=>{
     const legacy=LEGACY[date]||{}, rebuilt=REBUILT[date]||{};
@@ -168,6 +205,20 @@ export default function Engine25EodStructureDetail(){
         </div>
       </div>
 
+      <div
+        style={{
+          border:"1px solid "+overallBreadthState.color+"66",
+          borderLeft:"4px solid "+overallBreadthState.color,
+          borderRadius:10,
+          padding:"10px 12px",
+          background:"#0b1220"
+        }}
+      >
+        <div style={{fontSize:10,color:COLORS.muted,fontWeight:900,letterSpacing:".05em"}}>BREADTH ENVIRONMENT</div>
+        <div style={{fontSize:20,fontWeight:1000,color:overallBreadthState.color,marginTop:2}}>{overallBreadthState.label}</div>
+        <div style={{fontSize:11,color:COLORS.muted,marginTop:3}}>{overallBreadthState.detail}</div>
+      </div>
+
       <div style={{background:COLORS.panel,border:"1px solid "+COLORS.border,borderRadius:10,padding:12}}>
         <div style={{fontWeight:1000,fontSize:16,marginBottom:8}}>PRIMARY — INDICES VS MAs + MARKET-CAP BREADTH</div>
         <div style={{color:COLORS.muted,fontSize:11,marginBottom:10}}>
@@ -197,7 +248,7 @@ export default function Engine25EodStructureDetail(){
               <th style={{...head,textAlign:"left"}}>Universe</th>
               <th style={head}>Members</th><th style={head}>10NH</th><th style={head}>10NL</th>
               <th style={head}>5U*</th><th style={head}>5D*</th>
-              <th style={head}>Breadth %</th><th style={head}>Momentum %</th>
+              <th style={head}>Breadth %</th><th style={head}>Momentum %</th><th style={head}>Breadth State</th>
             </tr></thead>
             <tbody>
               {[
@@ -207,15 +258,18 @@ export default function Engine25EodStructureDetail(){
                 ["Small Cap","small"],
               ].map(([label,key])=>{
                 const g=data?.capGroups?.[key]||{};
+                const prior=g?.prior||null;
+                const state=breadthState(g,prior);
                 return <tr key={key}>
                   <td style={{...cell(label),textAlign:"left"}}>{label}</td>
                   <td style={cell(g.members)}>{g.members??"—"}</td>
-                  <td style={cell(g.nh,COLORS.green)}>{g.nh??"—"}</td>
-                  <td style={cell(g.nl,COLORS.red)}>{g.nl??"—"}</td>
-                  <td style={cell(g.up,COLORS.green)}>{g.up??"—"}</td>
-                  <td style={cell(g.down,COLORS.red)}>{g.down??"—"}</td>
+                  <td style={cell(g.nh,COLORS.green)}>{g.nh??"—"} <span style={{color:COLORS.muted}}>{trendArrow(g.nh,prior?.nh)}</span></td>
+                  <td style={cell(g.nl,COLORS.red)}>{g.nl??"—"} <span style={{color:COLORS.muted}}>{trendArrow(g.nl,prior?.nl)}</span></td>
+                  <td style={cell(g.up,COLORS.green)}>{g.up??"—"} <span style={{color:COLORS.muted}}>{trendArrow(g.up,prior?.up)}</span></td>
+                  <td style={cell(g.down,COLORS.red)}>{g.down??"—"} <span style={{color:COLORS.muted}}>{trendArrow(g.down,prior?.down)}</span></td>
                   <td style={cell(g.breadth_pct,colorScore(Number(g.breadth_pct??50)))}>{g.breadth_pct==null?"—":Number(g.breadth_pct).toFixed(1)}</td>
                   <td style={cell(g.momentum_pct,colorScore(Number(g.momentum_pct??50)))}>{g.momentum_pct==null?"—":Number(g.momentum_pct).toFixed(1)}</td>
+                  <td style={cell(state.label,state.color)}>{state.label}</td>
                 </tr>
               })}
             </tbody>
@@ -233,14 +287,17 @@ export default function Engine25EodStructureDetail(){
         <table style={{width:"100%",minWidth:900,borderCollapse:"collapse",fontSize:12}}>
           <thead><tr>
             <th style={{...head,textAlign:"left"}}>Sector</th><th style={head}>10NH</th><th style={head}>10NL</th>
-            <th style={head}>Breadth %</th><th style={head}>5U*</th><th style={head}>5D*</th><th style={head}>Momentum %</th>
+            <th style={head}>Breadth %</th><th style={head}>5U*</th><th style={head}>5D*</th><th style={head}>Momentum %</th><th style={head}>Breadth State</th>
           </tr></thead>
           <tbody>{currentRows.map(r=><tr key={r.sector}>
             <td style={{...cell(r.sector),textAlign:"left"}}>{r.sector}</td>
-            <td style={cell(r.nh,COLORS.green)}>{r.nh}</td><td style={cell(r.nl,COLORS.red)}>{r.nl}</td>
+            <td style={cell(r.nh,COLORS.green)}>{r.nh} <span style={{color:COLORS.muted}}>{trendArrow(r.nh,r.prior?.nh)}</span></td>
+            <td style={cell(r.nl,COLORS.red)}>{r.nl} <span style={{color:COLORS.muted}}>{trendArrow(r.nl,r.prior?.nl)}</span></td>
             <td style={cell(r.breadth,colorScore(r.breadth))}>{r.breadth.toFixed(1)}</td>
-            <td style={cell(r.up,COLORS.green)}>{r.up}</td><td style={cell(r.down,COLORS.red)}>{r.down}</td>
+            <td style={cell(r.up,COLORS.green)}>{r.up} <span style={{color:COLORS.muted}}>{trendArrow(r.up,r.prior?.up)}</span></td>
+            <td style={cell(r.down,COLORS.red)}>{r.down} <span style={{color:COLORS.muted}}>{trendArrow(r.down,r.prior?.down)}</span></td>
             <td style={cell(r.momentum,colorScore(r.momentum))}>{r.momentum.toFixed(1)}</td>
+            <td style={cell(r.state.label,r.state.color)}>{r.state.label}</td>
           </tr>)}</tbody>
         </table>
         <div style={{fontSize:10,color:COLORS.muted,marginTop:7}}>*5U / 5D are legacy display labels. Reconstructed v1 momentum is the 4-session close move versus ±3× ADR20.</div>
