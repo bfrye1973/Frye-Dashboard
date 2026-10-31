@@ -1,0 +1,55 @@
+name: Engine2C private historical pages refresh
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 9 * * 1'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  refresh-verified-history:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Retrieve pinned original Engine11 datasets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/engine2c-history/source
+          gh api /repos/bfrye1973/frye-market-backend/actions/artifacts/11901549711/zip > /tmp/engine2c-history/engine11-source.zip
+          echo 'e47f6ef694a36f3b022322b0ff855c8be38276f3510ac6b3ef19fc52a4d781f6  /tmp/engine2c-history/engine11-source.zip' | sha256sum -c -
+          unzip -q /tmp/engine2c-history/engine11-source.zip -d /tmp/engine2c-history/source
+          cd /tmp/engine2c-history/source
+          echo '2fb27d02e169c127ba6f423b5e36097d35068fb56ebcfbf8249b8594929ff76a  continuousRaw.json.gz' | sha256sum -c -
+          echo '14f9b382f86a6008ce031dee1aa858f7f87bc93b48909d041a3ada01b95fa56e  continuousAdjustedClose.json.gz' | sha256sum -c -
+          echo '03cb49eb1240b9a4febf78c3d98eab0839ac699f7818936ea97b64bb519ded36  actualESZ2026.json.gz' | sha256sum -c -
+      - name: Use exact existing Engine11 source
+        run: |
+          git clone -q --filter=blob:none https://github.com/bfrye1973/frye-market-backend.git /tmp/engine2c-source
+          git -C /tmp/engine2c-source checkout -q 45a351f1bd264d807ee7a3fadc92bae5dba6f4dc
+      - name: Regenerate the accepted 480 read-only historical pages
+        run: |
+          set -euo pipefail
+          for view in continuousRaw continuousAdjustedClose actualESZ2026; do
+            node research/engine2c-preview/export-history-pages.mjs \
+              /tmp/engine2c-source/services/core/logic/engine11/continuousChartResearchV1/series.js \
+              /tmp/engine2c-history/source/$view.json.gz \
+              /tmp/engine2c-history/pages/$view "$view"
+          done
+          node research/engine2c-preview/verify-history-export.mjs /tmp/engine2c-history/pages
+      - name: Publish only private chart pages as authenticated Actions artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: engine2c-historical-pages-private
+          path: /tmp/engine2c-history/pages/
+          retention-days: 14
+          compression-level: 6
+          if-no-files-found: error
+      - name: Destroy temporary source workspace
+        if: always()
+        run: rm -rf /tmp/engine2c-source /tmp/engine2c-history
