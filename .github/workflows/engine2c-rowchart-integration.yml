@@ -72,9 +72,9 @@ jobs:
       - name: Retrieve already-verified private history package
         uses: actions/download-artifact@v4
         with:
-          run-id: 38939332953
-          name: engine2c-windows-real-history-test
-          path: /tmp/engine2c-verified-package
+          run-id: 41232217138
+          name: engine2c-historical-pages-private
+          path: /tmp/engine2c-verified-package/pages
           github-token: ${{ github.token }}
       - name: Build original Frye Dashboard with automatic Backend-1 history requests
         run: |
@@ -114,9 +114,9 @@ jobs:
       - name: Retrieve pinned Engine11 historical pages
         uses: actions/download-artifact@v4
         with:
-          run-id: 38939332953
-          name: engine2c-windows-real-history-test
-          path: /tmp/engine2c-history
+          run-id: 41232217138
+          name: engine2c-historical-pages-private
+          path: /tmp/engine2c-history/pages
           github-token: ${{ github.token }}
       - name: Build existing research chart and install Chromium
         run: |
