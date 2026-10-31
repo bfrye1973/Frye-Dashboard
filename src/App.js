@@ -35,6 +35,10 @@ const Engine25MarketXrayPreview = React.lazy(() =>
   import("./pages/engine25/Engine25MarketXrayPreview")
 );
 
+const Engine25EodStructureDetail = React.lazy(() =>
+  import("./pages/engine25/Engine25EodStructureDetail")
+);
+
 const Engine29FullDashboard = React.lazy(() =>
   import("./pages/engine29/Engine29FullDashboard")
 );
@@ -335,6 +339,11 @@ export default function App() {
                   <Engine25MarketXrayPreview />
                 </RedlineAppShell>
               }
+            />
+
+            <Route
+              path="/engine25-eod-structure"
+              element={<Engine25EodStructureDetail />}
             />
 
             <Route
