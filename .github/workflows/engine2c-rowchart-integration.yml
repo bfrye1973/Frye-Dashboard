@@ -13,7 +13,7 @@ on:
       - '.github/workflows/engine2c-rowchart-integration.yml'
 jobs:
   integrated-chart:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
     steps:
@@ -61,7 +61,7 @@ jobs:
           path: /tmp/engine2c-integrated-*.png
           if-no-files-found: ignore
   original-tab-authentic-history:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
@@ -72,9 +72,9 @@ jobs:
       - name: Retrieve already-verified private history package
         uses: actions/download-artifact@v4
         with:
-          run-id: 38939332953
-          name: engine2c-windows-real-history-test
-          path: /tmp/engine2c-verified-package
+          run-id: 41232217138
+          name: engine2c-historical-pages-private
+          path: /tmp/engine2c-verified-package/pages
           github-token: ${{ github.token }}
       - name: Build original Frye Dashboard with automatic Backend-1 history requests
         run: |
@@ -103,7 +103,7 @@ jobs:
         run: rm -rf /tmp/engine2c-verified-package
 
   full-navigation-verification:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
@@ -114,9 +114,9 @@ jobs:
       - name: Retrieve pinned Engine11 historical pages
         uses: actions/download-artifact@v4
         with:
-          run-id: 38939332953
-          name: engine2c-windows-real-history-test
-          path: /tmp/engine2c-history
+          run-id: 41232217138
+          name: engine2c-historical-pages-private
+          path: /tmp/engine2c-history/pages
           github-token: ${{ github.token }}
       - name: Build existing research chart and install Chromium
         run: |

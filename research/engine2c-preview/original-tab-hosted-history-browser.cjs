@@ -15,7 +15,7 @@ const catalogs=Object.fromEntries(Object.entries(folders).map(([v,d])=>[v,JSON.p
   const context=await browser.newContext({viewport:{width:1440,height:900}});
   const page=await context.newPage();
   let served=0;
-  await context.route('https://frye-market-backend-1.onrender.com/engine2c-private-history/page**',async route=>{
+  const historyHandler=async route=>{
     const request=route.request(),url=new URL(request.url()),origin='http://127.0.0.1:8193';
     const headers={'Access-Control-Allow-Origin':origin,'Access-Control-Allow-Headers':'Accept, X-Engine2C-Access',
       'Access-Control-Allow-Methods':'GET, OPTIONS','Content-Type':'application/json','Cache-Control':'no-store'};
@@ -32,8 +32,29 @@ const catalogs=Object.fromEntries(Object.entries(folders).map(([v,d])=>[v,JSON.p
     assert.equal(crypto.createHash('sha256').update(bytes).digest('hex'),desc.sha256);
     served++;
     await route.fulfill({status:200,headers,body:bytes});
-  });
+  };
+  await context.route('https://frye-market-backend-1.onrender.com/engine2c-private-history/page**',historyHandler);
   await page.goto('http://127.0.0.1:8193/chart?symbol=ES&tf=10m&engine2cChart=research#engine2cKey=engine2c-private-browser-test-token',{waitUntil:'domcontentloaded'});
+  // Regression: standard owner tab with no fragment must expose a visible
+  // unlock, accept verified key, then render the authentic 1000-page archive.
+  const freshContext=await browser.newContext({viewport:{width:1440,height:900}});
+  await freshContext.route('https://frye-market-backend-1.onrender.com/engine2c-private-history/page**',historyHandler);
+  const fresh=await freshContext.newPage();
+  await fresh.goto('http://127.0.0.1:8193/chart?symbol=ES&tf=10m&engine2cChart=research',{waitUntil:'domcontentloaded'});
+  const freshFrame=fresh.frameLocator('[data-engine2c-research-panel] iframe');
+  await freshFrame.locator('#unlockHistory:not([hidden])').waitFor({timeout:30000});
+  await freshFrame.locator('#unlockHistoryKey').fill('engine2c-private-browser-test-token');
+  await freshFrame.locator('#unlockHistoryButton').click();
+  await fresh.waitForFunction(()=>{
+    const w=document.querySelector('[data-engine2c-research-panel] iframe')?.contentWindow;
+    return w?.__ENGINE2C_TEST__?.state?.rows?.length===1000;
+  },null,{timeout:30000});
+  await fresh.reload({waitUntil:'domcontentloaded'});
+  await fresh.waitForFunction(()=>{
+    const w=document.querySelector('[data-engine2c-research-panel] iframe')?.contentWindow;
+    return w?.__ENGINE2C_TEST__?.state?.rows?.length===1000;
+  },null,{timeout:30000});
+  await freshContext.close();
   const frame=page.frameLocator('[data-engine2c-research-panel] iframe');
   const state=()=>page.evaluate(()=>{
     const w=document.querySelector('[data-engine2c-research-panel] iframe').contentWindow;
