@@ -1,7 +1,7 @@
 name: Engine2C RowChart Integration V1
 on:
   push:
-    branches: [engine2c-navigation-verification-20261016]
+    branches: [engine2c-oct30-historical-pin-refresh-20261031]
   pull_request:
     branches: [main]
     paths:
@@ -72,8 +72,8 @@ jobs:
       - name: Retrieve already-verified private history package
         uses: actions/download-artifact@v4
         with:
-          run-id: 41232217138
-          name: engine2c-historical-pages-private
+          run-id: 41237495347
+          name: engine2c-oct30-private-history-pages
           path: /tmp/engine2c-verified-package/pages
           github-token: ${{ github.token }}
       - name: Build original Frye Dashboard with automatic Backend-1 history requests
@@ -114,8 +114,8 @@ jobs:
       - name: Retrieve pinned Engine11 historical pages
         uses: actions/download-artifact@v4
         with:
-          run-id: 41232217138
-          name: engine2c-historical-pages-private
+          run-id: 41237495347
+          name: engine2c-oct30-private-history-pages
           path: /tmp/engine2c-history/pages
           github-token: ${{ github.token }}
       - name: Build existing research chart and install Chromium
