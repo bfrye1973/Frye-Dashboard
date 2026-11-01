@@ -5,6 +5,7 @@ import React, { useState, useRef, useEffect, useMemo } from "react";
 import { useDashboardSnapshot } from "../hooks/useDashboardSnapshot";
 import LegacyRowChart from "./rows/RowChart/index.jsx";
 import { currentEngine22ResearchPacket } from "./engine2dCurrentWorkingFibPacket";
+import { getOHLC } from "../lib/ohlcClient";
 
 function initialMode() {
   if (typeof window === "undefined") return "LIVE";
@@ -33,6 +34,36 @@ export default function RowChartModeGate(props) {
     frame.addEventListener("load", publish);
     return () => frame.removeEventListener("load", publish);
   }, [mode, currentChartAnchors]);
+  useEffect(() => {
+    if (mode !== "RESEARCH") return;
+    let active=true;
+    let frame="10m";
+    let inflight=false;
+    const publish=async()=>{
+      if(inflight||!active)return;
+      inflight=true;
+      try{
+        const bars=await getOHLC("ES",frame,1500);
+        if(active&&frameRef.current?.contentWindow)frameRef.current.contentWindow.postMessage({
+          type:"ENGINE2D_CURRENT_ES_CANDLES_V1",timeframe:frame,bars,source:"EXISTING_FUTURES_OHLC"
+        },window.location.origin);
+      }catch(e){
+        if(active)frameRef.current?.contentWindow?.postMessage({
+          type:"ENGINE2D_CURRENT_ES_CANDLES_ERROR_V1",reason:String(e?.message||e)
+        },window.location.origin);
+      }finally{inflight=false;}
+    };
+    const onMessage=e=>{
+      if(e.origin!==window.location.origin||e.source!==frameRef.current?.contentWindow)return;
+      if(e.data?.type!=="ENGINE2D_ES_CANDLES_REQUEST_V1")return;
+      const requested=e.data.timeframe;
+      if(!["5m","10m","1h","4h","1d"].includes(requested))return;
+      frame=requested;publish();
+    };
+    window.addEventListener("message",onMessage);
+    const timer=window.setInterval(()=>{if(frameRef.current?.contentWindow)publish();},20000);
+    return ()=>{active=false;window.clearInterval(timer);window.removeEventListener("message",onMessage);};
+  },[mode]);
   const research = mode === "RESEARCH";
   // Owner-only local test selection: the deployed dashboard stays on Render,
   // while historical prices are served exclusively from this computer.
