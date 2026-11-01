@@ -12,7 +12,7 @@ function initialMode() {
   const override = search.get("engine2cChart");
   if (override === "live") return "LIVE";
   if (override === "research") return "RESEARCH";
-  return process.env.REACT_APP_ENGINE2C_DEFAULT_RESEARCH === "true" ? "RESEARCH" : "LIVE";
+  // Owner-approved default: existing seven-degree research chart; original LIVE remains selectable.\n  return "RESEARCH";
 }
 
 export default function RowChartModeGate(props) {
