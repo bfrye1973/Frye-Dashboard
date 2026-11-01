@@ -1,7 +1,7 @@
 // Engine 2C Phase 3 — visual-only LIVE / RESEARCH rollback gate.
 // Original RowChart is intentionally unmodified and only mounts in LIVE mode.
 // No research candles can enter OHLC, execution, sizing, zones, Journal or Replay.
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useMemo } from "react";
 import { useDashboardSnapshot } from "../hooks/useDashboardSnapshot";
 import LegacyRowChart from "./rows/RowChart/index.jsx";
 import { currentEngine22ResearchPacket } from "./engine2dCurrentWorkingFibPacket";
@@ -20,7 +20,7 @@ export default function RowChartModeGate(props) {
   const frameRef = useRef(null);
   const { data: engine22Snapshot } = useDashboardSnapshot("ES", { pollMs: 20000 });
   const waveStrategy = engine22Snapshot?.strategies?.["intraday_scalp@10m"]?.engine22WaveStrategy;
-  const currentChartAnchors = waveStrategy?.chartAnchors || currentEngine22ResearchPacket(waveStrategy);
+  const currentChartAnchors = useMemo(() => waveStrategy?.chartAnchors || currentEngine22ResearchPacket(waveStrategy), [waveStrategy]);
   useEffect(() => {
     if (mode !== "RESEARCH" || !currentChartAnchors) return;
     const frame = frameRef.current;
