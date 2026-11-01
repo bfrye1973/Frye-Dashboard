@@ -828,8 +828,10 @@ function Engine22DegreeCard({
           {waveDegree.nextLevel ? <Engine22Line label="Next" value={`${waveDegree.nextLevel.label} @ ${waveDegree.nextLevel.price}`} /> : null}
         </div>
       ) : null}
-      <Engine22WaveRiskStrip degree={degree} wavelength={wavelength}
-        protection={higherDegreeBearishProtection} invalidations={sevenDegreeInvalidations} />
+      {!state?.ownerReviewZone ? (
+        <Engine22WaveRiskStrip degree={degree} wavelength={wavelength}
+          protection={higherDegreeBearishProtection} invalidations={sevenDegreeInvalidations} />
+      ) : null}
       {degree!=="minute" && degree!=="minor" ? <RulesBox rules={state?.rules} /> : null}
     </div>
   );
