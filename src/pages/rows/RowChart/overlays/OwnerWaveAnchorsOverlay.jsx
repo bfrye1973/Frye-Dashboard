@@ -37,6 +37,7 @@ export default function OwnerWaveAnchorsOverlay({
       ctx.setTransform(dpr,0,0,dpr,0,0);
       ctx.clearRect(0,0,rect.width,rect.height);
 
+      const plotted=[];
       for(const a of anchors){
         const x=chart.timeScale().timeToCoordinate(a.timeSec);
         const y=priceSeries.priceToCoordinate(a.price);
@@ -52,15 +53,51 @@ export default function OwnerWaveAnchorsOverlay({
         ctx.fill();
         ctx.stroke();
 
-        ctx.font="600 12px system-ui";
-        ctx.textAlign="center";
-        ctx.textBaseline="bottom";
-        ctx.fillStyle=color;
-        ctx.fillText(
-          `${a.degree.toUpperCase()} ${a.label} @ ${a.price.toFixed(2)}`,
-          x,
-          Math.max(14,y-10)
-        );
+        plotted.push({
+          a,x,y,color,
+          text:`${a.degree.toUpperCase()} ${a.label} @ ${a.price.toFixed(2)}`
+        });
+      }
+
+      // Collision avoidance moves LABELS only. Exact anchor dots never move.
+      ctx.font="600 12px system-ui";
+      ctx.textAlign="center";
+      ctx.textBaseline="bottom";
+      const placed=[];
+      const LABEL_H=16, PAD_X=6, STEP=16, MAX_STEPS=10;
+      for(const p of plotted.sort((m,n)=>m.y-n.y||m.x-n.x)){
+        const width=ctx.measureText(p.text).width+PAD_X*2;
+        let labelY=Math.max(14,p.y-10);
+        let box=null;
+        for(let step=0;step<=MAX_STEPS;step++){
+          const direction=step===0?0:(step%2?1:-1);
+          const distance=Math.ceil(step/2)*STEP;
+          const candidateY=Math.max(14,Math.min(rect.height-4,labelY+direction*distance));
+          const candidate={
+            left:p.x-width/2,right:p.x+width/2,
+            top:candidateY-LABEL_H,bottom:candidateY
+          };
+          const overlaps=placed.some(q=>
+            candidate.left<q.right && candidate.right>q.left &&
+            candidate.top<q.bottom && candidate.bottom>q.top
+          );
+          if(!overlaps){labelY=candidateY;box=candidate;break;}
+        }
+        if(!box){
+          box={left:p.x-width/2,right:p.x+width/2,top:labelY-LABEL_H,bottom:labelY};
+        }
+        placed.push(box);
+
+        if(Math.abs(labelY-(p.y-10))>4){
+          ctx.strokeStyle=p.color;
+          ctx.lineWidth=1;
+          ctx.beginPath();
+          ctx.moveTo(p.x,p.y-6);
+          ctx.lineTo(p.x,labelY-LABEL_H+2);
+          ctx.stroke();
+        }
+        ctx.fillStyle=p.color;
+        ctx.fillText(p.text,p.x,labelY);
       }
     }
 
