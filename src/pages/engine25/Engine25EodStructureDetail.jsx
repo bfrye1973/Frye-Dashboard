@@ -16,6 +16,10 @@ const COLORS = {
 };
 
 const LEGACY = {
+  "10/30":{
+    "tech":[213,254,32,29],"consumer discretionary":[218,99,17,21],"healthcare":[345,155,35,16],
+    "financials":[323,142,23,26],"energy":[90,44,4,6],"industrials":[240,106,34,14],"materials":[91,122,4,26]
+  },
   "10/29":{
     "tech":[224,157,27,23],"consumer discretionary":[205,99,14,17],"healthcare":[379,68,37,11],
     "financials":[333,100,30,21],"energy":[96,39,5,7],"industrials":[254,83,29,10],"materials":[84,66,2,11]
@@ -31,6 +35,10 @@ const LEGACY = {
 };
 
 const REBUILT = {
+  "10/30":{
+    "tech":[156,243,17,22],"consumer discretionary":[198,91,36,10],"healthcare":[375,238,33,31],
+    "financials":[328,145,42,33],"energy":[87,42,4,5],"industrials":[249,145,46,17],"materials":[60,97,7,9]
+  },
   "10/29":{
     "tech":[223,158,30,23],"consumer discretionary":[179,105,36,6],"healthcare":[339,79,43,18],
     "financials":[301,105,48,31],"energy":[90,31,6,4],"industrials":[253,106,46,11],"materials":[79,43,6,9]
@@ -47,6 +55,15 @@ const REBUILT = {
 
 
 const PRIMARY_LEGACY = {
+  "10/30":{
+    indices:{QQQ:"RED",SPY:"RED",MDY:"GREEN",IWM:"GREEN"},
+    caps:{
+      all:[2134,1318,305,272],
+      large:[391,160,42,22],
+      mid:[475,221,47,31],
+      small:[1268,937,216,219]
+    }
+  },
   "10/29":{
     indices:{QQQ:"RED",SPY:"RED",MDY:"GREEN",IWM:"GREEN"},
     caps:{
@@ -77,6 +94,15 @@ const PRIMARY_LEGACY = {
 };
 
 const PRIMARY_REBUILT = {
+  "10/30":{
+    indices:{ES:"RED",QQQ:"RED",MDY:"YELLOW",IWM:"YELLOW"},
+    caps:{
+      all:[1704,1202,200,157],
+      large:[402,182,46,33],
+      mid:[438,198,42,24],
+      small:[861,816,111,99]
+    }
+  },
   "10/29":{
     indices:{ES:"RED",QQQ:"RED",MDY:"GREEN",IWM:"GREEN"},
     caps:{
@@ -375,7 +401,7 @@ export default function Engine25EodStructureDetail(){
             <div style={{fontWeight:1000,fontSize:16}}>LEGACY SPREADSHEET CHECK</div>
             <div style={{color:COLORS.muted,fontSize:11,marginTop:2}}>Old sheet numbers beside the historical reconstruction we validated.</div>
           </div>
-          <div style={{display:"flex",gap:6}}>{["10/27","10/28","10/29"].map(d=><button key={d} onClick={()=>setDate(d)}
+          <div style={{display:"flex",gap:6}}>{["10/27","10/28","10/29","10/30"].map(d=><button key={d} onClick={()=>setDate(d)}
             style={{border:"1px solid "+(date===d?COLORS.blue:COLORS.border),background:date===d?"#082f49":"#0f172a",color:date===d?"#bae6fd":"#cbd5e1",borderRadius:7,padding:"6px 10px",fontWeight:900,cursor:"pointer"}}>{d}</button>)}</div>
         </div>
 
