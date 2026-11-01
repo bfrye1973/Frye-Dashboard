@@ -42,16 +42,17 @@ export default function RowChartModeGate(props) {
     const publish=async()=>{
       if(inflight||!active)return;
       inflight=true;
+      const requestedFrame=frame;
       try{
-        const bars=await getOHLC("ES",frame,1500);
+        const bars=await getOHLC("ES",requestedFrame,1500);
         if(active&&frameRef.current?.contentWindow)frameRef.current.contentWindow.postMessage({
-          type:"ENGINE2D_CURRENT_ES_CANDLES_V1",timeframe:frame,bars,source:"EXISTING_FUTURES_OHLC"
+          type:"ENGINE2D_CURRENT_ES_CANDLES_V1",timeframe:requestedFrame,bars,source:"EXISTING_FUTURES_OHLC"
         },window.location.origin);
       }catch(e){
         if(active)frameRef.current?.contentWindow?.postMessage({
           type:"ENGINE2D_CURRENT_ES_CANDLES_ERROR_V1",reason:String(e?.message||e)
         },window.location.origin);
-      }finally{inflight=false;}
+      }finally{inflight=false;if(active&&requestedFrame!==frame)publish();}
     };
     const onMessage=e=>{
       if(e.origin!==window.location.origin||e.source!==frameRef.current?.contentWindow)return;
