@@ -52,14 +52,14 @@ export default function OwnerWaveAnchorsOverlay({
         ctx.fill();
         ctx.stroke();
 
-        ctx.font="600 11px system-ui";
+        ctx.font="600 12px system-ui";
         ctx.textAlign="center";
         ctx.textBaseline="bottom";
         ctx.fillStyle=color;
         ctx.fillText(
           `${a.degree.toUpperCase()} ${a.label} @ ${a.price.toFixed(2)}`,
           x,
-          Math.max(12,y-9)
+          Math.max(14,y-10)
         );
       }
     }
