@@ -10,8 +10,16 @@
 window.addEventListener('DOMContentLoaded', () => {
   window.__ENGINE2D_RESEARCH_FIB_VISIBLE__=true;
   document.getElementById('engine2dResearchFibs')?.addEventListener('change',e=>{window.__ENGINE2D_RESEARCH_FIB_VISIBLE__=e.target.checked;window.__ENGINE2C_TEST__?.draw();});
+  window.addEventListener('message',event=>{
+    if(event.origin!==window.location.origin||event.source!==window.parent)return;
+    if(event.data?.type!=='ENGINE2D_CHART_ANCHORS_V1')return;
+    const result=window.__ENGINE2D_CHART_PACKET_PANEL__?.update(event.data.packet);
+    const status=document.querySelector('[data-packet-status]');
+    if(status)status.textContent=result?.ok?'Current Engine 22 strategy snapshot received (research only)':'Engine 22 packet unavailable or incompatible';
+  });
   const packetPanel=window.Engine2DWavePacketPanel?.mount(document.getElementById('engine2dWavePacket'),window.localStorage,{view:()=>document.getElementById('view').value,degree:()=>document.getElementById('degree').value});
   window.addEventListener('engine2d-packet-change',()=>window.__ENGINE2C_TEST__?.draw());
+  window.__ENGINE2D_CHART_PACKET_PANEL__=packetPanel;
   window.Engine2DWaveDisplaySettings?.mount(document.getElementById('engine2dWaveSettings'),window.localStorage,()=>{packetPanel?.render();window.__ENGINE2C_TEST__?.draw();});
   for(const id of ['view','degree'])document.getElementById(id)?.addEventListener('change',()=>packetPanel?.render());
   const source=window.ENGINE2C_PINNED_HANDOFF_B64;
