@@ -800,11 +800,22 @@ function Engine22DegreeCard({
         </div>
       ) : null}
 
-      <Engine22TargetGrid
-        title={degree==="minute"?"MINUTE W2 RETRACEMENT FIB LEVELS":
-          `${String(state?.label || degree || "").toUpperCase()} levels`}
-        levels={degree==="minor" && waveDegree?.state==="MINOR_W5_ACTIVE_CANDIDATE" ? fibLevels : state?.levels}
-      />
+      {Array.isArray(state?.fibGroups) ? state.fibGroups.map((group) => (
+        <Engine22TargetGrid key={group.key} title={group.title} levels={group.levels} />
+      )) : (
+        <Engine22TargetGrid
+          title={degree==="minute"?"MINUTE W2 RETRACEMENT FIB LEVELS":
+            `${String(state?.label || degree || "").toUpperCase()} levels`}
+          levels={degree==="minor" && waveDegree?.state==="MINOR_W5_ACTIVE_CANDIDATE" ? fibLevels : state?.levels}
+        />
+      )}
+      {state?.ownerReviewZone ? (
+        <div style={{background:"#24130f",border:"1px solid #fb923c",borderRadius:8,padding:8}}>
+          <div style={{color:"#fdba74",fontSize:11,fontWeight:1000}}>C DOWN — STRUCTURAL REVIEW BOUNDARY</div>
+          <div style={{color:"#fff7ed",fontSize:15,fontWeight:900}}>{wavePrice(state.ownerReviewZone.price)}</div>
+          <div style={{color:"#cbd5e1",fontSize:10}}>A move above the owner B high requires recount review. Not a confirmed invalidation, stop, or trade permission.</div>
+        </div>
+      ) : null}
       {waveDegree && degree!=="minor" && !w4 && !ownerW2Correction ? (
         <div style={{border: "1px solid #344156", borderRadius: 8, padding: 6, display: "grid", gap: 4}}>
           <div style={{color: "#bfdbfe", fontWeight: 900, fontSize: 11}}>FIB EXTENSIONS — {waveDegree.activeWave || "—"}</div>
@@ -817,8 +828,10 @@ function Engine22DegreeCard({
           {waveDegree.nextLevel ? <Engine22Line label="Next" value={`${waveDegree.nextLevel.label} @ ${waveDegree.nextLevel.price}`} /> : null}
         </div>
       ) : null}
-      <Engine22WaveRiskStrip degree={degree} wavelength={wavelength}
-        protection={higherDegreeBearishProtection} invalidations={sevenDegreeInvalidations} />
+      {!state?.ownerReviewZone ? (
+        <Engine22WaveRiskStrip degree={degree} wavelength={wavelength}
+          protection={higherDegreeBearishProtection} invalidations={sevenDegreeInvalidations} />
+      ) : null}
       {degree!=="minute" && degree!=="minor" ? <RulesBox rules={state?.rules} /> : null}
     </div>
   );
@@ -1236,6 +1249,31 @@ export default function Engine22MarketStructureCard({
     ?.fibAnchorStatus === "OWNER_COORDINATES_CONFIRMED_PRICE_BASIS_PENDING" &&
     Array.isArray(currentWavelength?.degrees?.subminute?.levels)
       ? currentWavelength.degrees.subminute.levels : [];
+  const proposedSubminuteC = currentWavelength?.degrees?.subminute?.ownerSubminuteCDownOct31;
+  const proposedSubminuteCReady = proposedSubminuteC?.version === "engine22.subminuteCDownOct31OwnerWorking.v1" &&
+    proposedSubminuteC?.activeWave === "C" && proposedSubminuteC?.direction === "DOWN" &&
+    proposedSubminuteC?.parentWave === "W2";
+  const proposedSubminuteCState = proposedSubminuteCReady ? {
+    degree:"subminute",label:"Subminute",active:true,badge:"C DOWN — DEVELOPING",
+    subtitle:"Owner working C DOWN inside Minute W2 • unconfirmed completion",
+    headline:"SUBMINUTE C DOWN — A / B OWNER-MARKED COMPLETE; C DEVELOPING",
+    rows:[
+      {label:"Parent",value:"MINUTE W2 — NOT COMPLETE"},
+      {label:"A high",value:"7901.00 — AUG 14 2026"},
+      {label:"A wick low",value:"7558.75 — SEP 16 2026"},
+      {label:"A body reference",value:"7617.50 — ALTERNATIVE RESEARCH"},
+      {label:"B high",value:"7895.00 — OCT 6 2026"},
+      {label:"Current",value:"C DOWN — DEVELOPING / COMPLETION NOT CONFIRMED"},
+      {label:"Fibonacci",value:"WICK PRIMARY + BODY ALTERNATIVE; PRICE TOUCH REQUIRES EVIDENCE"},
+      {label:"Wave history",value:"PREVIOUS D UP MODEL PRESERVED"},
+    ],
+    fibGroups:[
+      {key:"wick",title:"SUBMINUTE C DOWN — WICK FIBS",levels:proposedSubminuteC.fibReferences?.wick?.levels || []},
+      {key:"body",title:"SUBMINUTE C DOWN — BODY FIBS (ALTERNATIVE)",levels:proposedSubminuteC.fibReferences?.body?.levels || []},
+    ],
+    ownerReviewZone:{price:7895.00},
+    levels:[],rules:[],
+  } : null;
   const subminuteDUp = currentWavelength?.degrees?.subminute?.ownerCurrentDUp;
   const subminuteDUpActive = subminuteDUp?.version === "engine22.subminuteDUpOwnerWorking.v1" &&
     subminuteDUp?.activeWave === "D" && subminuteDUp?.direction === "UP" &&
@@ -1367,6 +1405,7 @@ export default function Engine22MarketStructureCard({
               degree === "submicro" && submicroAActive ? submicroAState :
               degree === "micro" && microAbcActive ? microAbcState :
               degree === "micro" && microW3Levels.length ? microW3State :
+              degree === "subminute" && proposedSubminuteCReady ? proposedSubminuteCState :
               degree === "subminute" && subminuteDUpActive ? subminuteDUpState :
               degree === "subminute" && subminuteCDownActive ? subminuteCDownState :
               degree === "subminute" && subminuteW3Levels.length ? subminuteW3State :
