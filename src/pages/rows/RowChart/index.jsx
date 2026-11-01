@@ -22,6 +22,9 @@ import Controls from "./Controls";
 import IndicatorsToolbar from "./IndicatorsToolbar";
 
 import { getOHLC, subscribeStream } from "../../../lib/ohlcClient";
+import {
+  fetchEngine11ActualESZ2026Page,
+} from "./engine11HistoricalAdapter";
 import { SYMBOLS, TIMEFRAMES } from "./constants";
 
 import MoneyFlowOverlay from "../../../components/overlays/MoneyFlowOverlay";
@@ -973,6 +976,10 @@ export default function RowChart({
   const [seedToken, setSeedToken] = useState(0);
 
   const streamUnsubRef = useRef(null);
+  // Engine 2E isolated historical transplant state. Full Engine 11 rows are
+  // retained for provenance while Lightweight Charts receives only OHLCV.
+  const engine11ProvenanceRef = useRef([]);
+  const engine11HistoryAbortRef = useRef(null);
 
   const lastUiSyncRef = useRef(0);
   const uiTimerRef = useRef(null);
@@ -1290,7 +1297,32 @@ export default function RowChart({
 
       try {
         const limit = seedLimitFor(state.timeframe);
-        const seed = await getOHLC(state.symbol, state.timeframe, limit);
+        const useEngine11 =
+          normalizeSymbol(state.symbol) === "ES" &&
+          ["5m", "10m", "1h", "4h", "1d"].includes(state.timeframe) &&
+          typeof window !== "undefined" &&
+          new URLSearchParams(window.location.search).get("engine11Candles") === "1";
+
+        let seed;
+        if (useEngine11) {
+          // Isolated acceptance mode only. Never embed the owner key in code.
+          // Reuse the already-approved research browser authorization.
+          const accessKey =
+            window.sessionStorage?.getItem("engine2cResearchOwnerKey") || "";
+          engine11HistoryAbortRef.current?.abort?.();
+          const controller = new AbortController();
+          engine11HistoryAbortRef.current = controller;
+          const historical = await fetchEngine11ActualESZ2026Page({
+            frame: state.timeframe,
+            accessKey,
+            signal: controller.signal,
+          });
+          seed = historical.bars;
+          engine11ProvenanceRef.current = historical.provenanceRows;
+        } else {
+          seed = await getOHLC(state.symbol, state.timeframe, limit);
+          engine11ProvenanceRef.current = [];
+        }
 
         if (cancelled) return;
 
@@ -1359,6 +1391,8 @@ export default function RowChart({
 
     return () => {
       cancelled = true;
+      try { engine11HistoryAbortRef.current?.abort?.(); } catch {}
+      engine11HistoryAbortRef.current = null;
     };
   }, [state.symbol, state.timeframe, state.range, state.volume]);
 
