@@ -4,6 +4,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useDashboardSnapshot } from "../hooks/useDashboardSnapshot";
 import LegacyRowChart from "./rows/RowChart/index.jsx";
+import { currentEngine22ResearchPacket } from "./engine2dCurrentWorkingFibPacket";
 
 function initialMode() {
   if (typeof window === "undefined") return "LIVE";
@@ -18,7 +19,8 @@ export default function RowChartModeGate(props) {
   const [mode, setMode] = useState(initialMode);
   const frameRef = useRef(null);
   const { data: engine22Snapshot } = useDashboardSnapshot("ES", { pollMs: 20000 });
-  const currentChartAnchors = engine22Snapshot?.strategies?.["intraday_scalp@10m"]?.engine22WaveStrategy?.chartAnchors || null;
+  const waveStrategy = engine22Snapshot?.strategies?.["intraday_scalp@10m"]?.engine22WaveStrategy;
+  const currentChartAnchors = waveStrategy?.chartAnchors || currentEngine22ResearchPacket(waveStrategy);
   useEffect(() => {
     if (mode !== "RESEARCH" || !currentChartAnchors) return;
     const frame = frameRef.current;
