@@ -966,6 +966,7 @@ export default function RowChart({
   const roRef = useRef(null);
 
   const overlayInstancesRef = useRef([]);
+  const engine22MinorFibRef = useRef(null);
   const engine1OverlayInstancesRef = useRef([]);
 
   const [bars, setBars] = useState([]);
@@ -1593,9 +1594,9 @@ export default function RowChart({
       );
     }
 
-    if (state.fibMinor) {
+    if (state.fibMinor && !isES) {
       reg(
-        attachOverlay(isES ? Engine22AuthorizedFibOverlay : FibLevelsOverlay, {
+        attachOverlay(FibLevelsOverlay, {
           chart: chartRef.current,
           priceSeries: seriesRef.current,
           chartContainer: containerRef.current,
@@ -1604,9 +1605,6 @@ export default function RowChart({
           degree: "minor",
           tf: "1h",
           style: state.fibMinorStyle,
-          authorizedWorkingStructure: isES
-            ? engine22AuthorizedWorkingStructure
-            : null,
         })
       );
     }
@@ -1680,6 +1678,48 @@ export default function RowChart({
     state.timeframe,
     state.symbol,
     showDebug,
+  ]);
+
+  /* ============ Engine 22 Minor Fib — dedicated toggle lifecycle ============ */
+  useEffect(() => {
+    try { engine22MinorFibRef.current?.destroy?.(); } catch {}
+    engine22MinorFibRef.current = null;
+
+    const isES = normalizeSymbol(state.symbol) === "ES";
+    if (
+      !state.fibMinor ||
+      !isES ||
+      !chartRef.current ||
+      !seriesRef.current ||
+      !containerRef.current ||
+      barsRef.current.length === 0
+    ) {
+      return;
+    }
+
+    const inst = Engine22AuthorizedFibOverlay({
+      chart: chartRef.current,
+      priceSeries: seriesRef.current,
+      chartContainer: containerRef.current,
+      enabled: true,
+      degree: "minor",
+      style: state.fibMinorStyle,
+      authorizedWorkingStructure: engine22AuthorizedWorkingStructure,
+    });
+    engine22MinorFibRef.current = inst;
+    try { inst?.seed?.(barsRef.current); } catch {}
+
+    return () => {
+      try { inst?.destroy?.(); } catch {}
+      if (engine22MinorFibRef.current === inst) engine22MinorFibRef.current = null;
+    };
+  }, [
+    chartReady,
+    seedToken,
+    state.symbol,
+    state.fibMinor,
+    state.fibMinorStyle,
+    engine22AuthorizedWorkingStructure,
   ]);
 
   /* =================== Drawings Engine (ONE TIME) =================== */
