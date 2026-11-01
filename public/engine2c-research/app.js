@@ -270,6 +270,17 @@
         ctx.fillStyle='#ffdba0';ctx.font='10px system-ui';ctx.textAlign='left';ctx.fillText(n.degree+' '+n.node+' (?)',x+8,Math.max(plot.top+10,y-10));
       }
     }
+    // Engine22-only overlay. Never draws until the independently verified plot gate permits it.
+    window.Engine2DWaveOverlayRenderer?.draw({
+      ctx,packet:window.__ENGINE2D_CURRENT_CHART_PACKET__||null,
+      view:state.view,degree:state.degree,
+      prefs:window.Engine2DWaveDisplaySettings?.read(window.localStorage),
+      plot:{...plot,lo,hi},visible,
+      first:date(visible[0].timestampNs)*1000,
+      last:date(visible[visible.length-1].timestampNs)*1000,
+      frameSeconds:frameSeconds[state.frame],
+      plotGate:window.Engine2DChartAnchorsV1?.plotGate
+    });
     // Two-row Arizona time axis: calendar date above local hour for intraday bars.
     // Tick positions come from existing visible candles; no new or interpolated prices.
     const axisDate=new Intl.DateTimeFormat('en-US',{timeZone:'America/Phoenix',month:'short',day:'numeric',year:'2-digit'});
