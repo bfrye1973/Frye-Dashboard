@@ -66,6 +66,31 @@ function draw({ctx,visible,plot,degree='ALL',prefs}={}){
    ctx.textAlign='left';ctx.fillText(a.degree.toUpperCase()+' '+a.label+' '+a.price.toFixed(2)+' OWNER',x+8,Math.max(plot.top+12,y-10));
    drawn++;
   }
+  // Connect only chronological owner-supplied pivots within the visible window.
+  // Missing endpoints remain absent; these are research annotations, not forecasts.
+  for(const degreeName of [...new Set(grouped(degree).map(a=>a.degree))]){
+   const setting=prefs?.[degreeName];
+   if(setting?.visible===false||setting?.anchors===false)continue;
+   const points=grouped(degreeName).filter(a=>Date.parse(a.timestampUtc)>=start&&Date.parse(a.timestampUtc)<=end)
+     .sort((a,b)=>Date.parse(a.timestampUtc)-Date.parse(b.timestampUtc));
+   if(points.length<2)continue;
+   ctx.strokeStyle=/^#[0-9a-fA-F]{6}$/.test(setting?.color||'')?setting.color:'#fbbf24';
+   ctx.lineWidth=setting?.lineWidth||2;ctx.setLineDash([5,5]);
+   let previous=null;
+   for(const a of points){
+    const at=Date.parse(a.timestampUtc),idx=ts.findIndex(t=>t>=at);
+    if(idx<0){previous=null;continue;}
+    const prior=Math.max(0,idx-1),left=ts[prior],right=ts[idx];
+    if(!Number.isFinite(left)||!Number.isFinite(right)){previous=null;continue;}
+    const fraction=idx===0?0:right===left?idx:prior+(at-left)/(right-left);
+    const x=plot.left+(fraction+.5)*width/visible.length;
+    const y=plot.top+(plot.hi-a.price)*height/(plot.hi-plot.lo);
+    if(y<plot.top||y>plot.bottom){previous=null;continue;}
+    if(previous){ctx.beginPath();ctx.moveTo(previous.x,previous.y);ctx.lineTo(x,y);ctx.stroke();}
+    previous={x,y};
+   }
+   ctx.setLineDash([]);
+  }
  }finally{ctx.restore();}
  return {drawn,reason:'OWNER_RESEARCH_ONLY'};
 }
