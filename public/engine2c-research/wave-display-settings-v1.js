@@ -29,6 +29,7 @@ function mount(host,storage,notify=()=>{}){
  if(!host)return null;
  let state=read(storage);
  function draw(){
+  const wasOpen=host.querySelector('details')?.open??false;
   host.innerHTML='<details><summary style="cursor:pointer;font-weight:700;padding:9px">Elliott Wave overlay settings (seven degrees)</summary>'+
    '<p style="font-size:12px;color:#fbbf24">Display preferences only. Engine 22 price-basis verification is still required before any wave or Fibonacci plotting.</p>'+
    DEGREES.map(d=>{const s=state[d];return '<fieldset data-degree="'+d+'" style="border:1px solid #334155;border-radius:6px;margin:8px 0;padding:9px">'+
@@ -43,6 +44,7 @@ function mount(host,storage,notify=()=>{}){
     (d==='submicro'?'<div><label><input type="checkbox" data-field="scenarios.OPTION_1_ABC_C_DOWN" '+(s.scenarios.OPTION_1_ABC_C_DOWN?'checked':'')+'> Option 1 ABC DOWN</label> <label><input type="checkbox" data-field="scenarios.OPTION_2_A_DOWN_B_UP_PENDING" '+(s.scenarios.OPTION_2_A_DOWN_B_UP_PENDING?'checked':'')+'> Option 2 A DOWN</label></div>':'')+
     (d==='subminute'?'<div><label><input type="checkbox" data-field="fibGroups.WICK" '+(s.fibGroups.WICK?'checked':'')+'> WICK Fib</label> <label><input type="checkbox" data-field="fibGroups.BODY" '+(s.fibGroups.BODY?'checked':'')+'> BODY Fib</label></div>':'')+
     '</fieldset>';}).join('')+'<button type="button" data-reset>Reset display settings</button></details>';
+  if(wasOpen)host.querySelector('details').open=true;
  }
  host.addEventListener('change',e=>{
   const el=e.target,field=el?.dataset?.field,d=el?.closest?.('[data-degree]')?.dataset?.degree;
