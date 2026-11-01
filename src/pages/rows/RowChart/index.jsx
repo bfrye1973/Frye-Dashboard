@@ -1307,8 +1307,23 @@ export default function RowChart({
         if (useEngine11) {
           // Isolated acceptance mode only. Never embed the owner key in code.
           // Reuse the already-approved research browser authorization.
-          const accessKey =
+          let accessKey =
             window.sessionStorage?.getItem("engine2cResearchOwnerKey") || "";
+          if (!accessKey) {
+            try {
+              const saved = JSON.parse(
+                window.localStorage?.getItem("engine2cResearchOwnerAccessV1") || "null"
+              );
+              if (
+                saved?.expiresAt > Date.now() &&
+                typeof saved.key === "string" &&
+                saved.key
+              ) {
+                accessKey = saved.key;
+                window.sessionStorage?.setItem("engine2cResearchOwnerKey", accessKey);
+              }
+            } catch {}
+          }
           engine11HistoryAbortRef.current?.abort?.();
           const controller = new AbortController();
           engine11HistoryAbortRef.current = controller;
