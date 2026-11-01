@@ -23,7 +23,7 @@ import IndicatorsToolbar from "./IndicatorsToolbar";
 
 import { getOHLC, subscribeStream } from "../../../lib/ohlcClient";
 import {
-  fetchEngine11ActualESZ2026Page,
+  fetchEngine11ContinuousUnadjustedPage,
 } from "./engine11HistoricalAdapter";
 import { SYMBOLS, TIMEFRAMES } from "./constants";
 
@@ -1328,7 +1328,7 @@ export default function RowChart({
           engine11HistoryAbortRef.current?.abort?.();
           const controller = new AbortController();
           engine11HistoryAbortRef.current = controller;
-          const historical = await fetchEngine11ActualESZ2026Page({
+          const historical = await fetchEngine11ContinuousUnadjustedPage({
             frame: state.timeframe,
             accessKey,
             signal: controller.signal,
