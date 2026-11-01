@@ -1262,6 +1262,29 @@ export default function Engine22MarketStructureCard({
       {label:"History",value:"PRIOR MICRO W4 PRESERVED"}
     ],levels:newMicroC.levels||[],ownerReviewZone:{price:7814.75},rules:[],
   }:null;
+  // Owner-approved Submicro comparison. Neither scenario is a confirmed wave ending.
+  const submicroCompare=currentWavelength?.degrees?.submicro?.submicroCompare;
+  const submicroCompareActive=submicroCompare?.version==="engine22.submicroCompareNov1.v1" &&
+    submicroCompare?.parentWave==="C";
+  const submicroCompareState=submicroCompareActive?{
+    degree:"submicro",label:"Submicro",active:true,badge:"TWO OPTIONS — UNCONFIRMED",
+    subtitle:"Two owner working alternatives inside Micro C DOWN",
+    headline:"SUBMICRO — COMPARE ABC C DOWN VS A DOWN ENDING",
+    rows:[
+      {label:"Parent",value:"MICRO C DOWN — DEVELOPING"},
+      {label:"Option 1",value:"ABC DOWN — A/B OWNER-MARKED COMPLETE; C DEVELOPING"},
+      {label:"Option 1 anchors",value:"A 7819.50 → 7664.50; B 7696.00"},
+      {label:"Option 2",value:"A DOWN ENDING CANDIDATE AT 7558.25"},
+      {label:"Option 2 next",value:"B UP POSSIBLE — NOT CONFIRMED OR STARTED"},
+      {label:"History",value:"PRIOR SUBMICRO A DOWN MODEL PRESERVED"},
+    ],
+    fibGroups:[
+      {key:"abc",title:"OPTION 1 — C DOWN FIBONACCI",levels:submicroCompare.option1?.levels||[]},
+      {key:"aonly",title:"OPTION 2 — POSSIBLE B UP RETRACEMENTS",levels:submicroCompare.option2?.levels||[]},
+    ],
+    ownerReviewZone:{price:7696.00},
+    levels:[],rules:[],
+  }:null;
   const subminuteW3Levels = currentWavelength?.degrees?.subminute
     ?.fibAnchorStatus === "OWNER_COORDINATES_CONFIRMED_PRICE_BASIS_PENDING" &&
     Array.isArray(currentWavelength?.degrees?.subminute?.levels)
@@ -1412,7 +1435,8 @@ export default function Engine22MarketStructureCard({
           <Engine22DegreeCard
             key={degree}
             degree={degree}
-            state={degree === "micro" && newMicroCActive ? newMicroCState :
+            state={degree === "submicro" && submicroCompareActive ? submicroCompareState :
+              degree === "micro" && newMicroCActive ? newMicroCState :
               degree === "micro" && microW4Active ? microW4State :
               degree === "submicro" && submicroCorrectionAActive ? submicroCorrectionAState :
               degree === "micro" && microW3OwnerActive ? microW3OwnerState :
