@@ -1642,20 +1642,39 @@ export default function RowChart({
           tf: "10m",
           style: state.fibMicroStyle,
           authorizedWorkingStructure: isES
-            ? {
-                schema: "engine22.authorizedWorkingStructure.v1",
-                mode: "READ_ONLY",
-                noExecution: true,
-                degrees: {
-                  micro: {
-                    available: Array.isArray(
-                      engine22CurrentWavelength?.degrees?.micro?.levels
-                    ),
-                    levels:
-                      engine22CurrentWavelength?.degrees?.micro?.levels || [],
-                  },
-                },
-              }
+            ? (() => {
+                const micro =
+                  engine22AuthorizedWorkingStructure?.degrees?.micro || null;
+                const expectedPath =
+                  "currentWavelength.degrees.micro.ownerMicroCDownOct31";
+                const valid =
+                  engine22AuthorizedWorkingStructure?.schema ===
+                    "engine22.authorizedWorkingStructure.v1" &&
+                  engine22AuthorizedWorkingStructure?.mode === "READ_ONLY" &&
+                  engine22AuthorizedWorkingStructure?.noExecution === true &&
+                  micro?.available === true &&
+                  micro?.sourcePath === expectedPath &&
+                  Array.isArray(micro?.levels);
+                return valid
+                  ? engine22AuthorizedWorkingStructure
+                  : {
+                      schema: "engine22.authorizedWorkingStructure.v1",
+                      mode: "READ_ONLY",
+                      noExecution: true,
+                      degrees: {
+                        micro: {
+                          available: Array.isArray(
+                            engine22CurrentWavelength?.degrees?.micro
+                              ?.ownerMicroCDownOct31?.levels
+                          ),
+                          sourcePath: expectedPath,
+                          levels:
+                            engine22CurrentWavelength?.degrees?.micro
+                              ?.ownerMicroCDownOct31?.levels || [],
+                        },
+                      },
+                    };
+              })()
             : null,
         })
       );
