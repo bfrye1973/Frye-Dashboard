@@ -1,5 +1,12 @@
 name: Engine2D Chart Anchors Consumer V1
 on:
+  push:
+    branches: [main]
+    paths:
+      - 'public/engine2c-research/**'
+      - 'research/engine2c-preview/*v1.test.cjs'
+      - 'research/engine2c-preview/owner-anchors-24-independent-audit.test.cjs'
+      - '.github/workflows/engine2d-chart-anchors-v1.yml'
   pull_request:
     paths:
       - 'public/engine2c-research/**'
