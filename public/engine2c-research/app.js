@@ -139,6 +139,11 @@
     appendPage(fixture.firstPage,'first');
   }
   function choose(){
+    if(currentEsMode){
+      // The parent requests the new timeframe; do not load archived fixtures.
+      state.degree=$('degree').value;
+      draw();return;
+    }
     const v=$('view').value,f=$('frame').value,d=$('degree').value;
     if(!VIEWS.includes(v)||!FRAMES.includes(f)||!DEGREES.includes(d))return;
     const sameCandles=state.view===v&&state.frame===f;
@@ -424,6 +429,9 @@
   function toggleCurrentEs(enabled){
     if(enabled===currentEsMode)return;
     if(enabled){
+      $('view').disabled=true;
+      $('older').disabled=true;
+      if($('newer'))$('newer').disabled=true;
       archivedRows=state.rows;archivedFrame=state.frame;
       currentEsMode=true;
       if(currentEsBars.length){
@@ -434,6 +442,9 @@
       }
     }else{
       currentEsMode=false;
+      $('view').disabled=false;
+      $('older').disabled=false;
+      if($('newer'))$('newer').disabled=false;
       state.rows=archivedRows||[];state.frame=archivedFrame||state.frame;
       $('frame').value=state.frame;state.zoom=1;state.offset=0;draw();details();
     }
