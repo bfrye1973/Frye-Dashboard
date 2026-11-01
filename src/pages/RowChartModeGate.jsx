@@ -12,8 +12,9 @@ function initialMode() {
   const override = search.get("engine2cChart");
   if (override === "live") return "LIVE";
   if (override === "research") return "RESEARCH";
-  // Owner-approved default: existing seven-degree research chart; original LIVE remains selectable.
-  return "RESEARCH";
+  // Engine 2E acceptance: use the actual LIVE RowChart location for candle transplant testing.
+  // The separate RESEARCH page remains selectable as a rollback/reference view.
+  return "LIVE";
 }
 
 export default function RowChartModeGate(props) {

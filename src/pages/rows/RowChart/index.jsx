@@ -22,6 +22,9 @@ import Controls from "./Controls";
 import IndicatorsToolbar from "./IndicatorsToolbar";
 
 import { getOHLC, subscribeStream } from "../../../lib/ohlcClient";
+import {
+  fetchEngine11ActualESZ2026Page,
+} from "./engine11HistoricalAdapter";
 import { SYMBOLS, TIMEFRAMES } from "./constants";
 
 import MoneyFlowOverlay from "../../../components/overlays/MoneyFlowOverlay";
@@ -55,6 +58,7 @@ import Engine25CompositeOverlay from "./overlays/Engine25CompositeOverlay";
 import Engine25MarketHealthTimeline from "./overlays/Engine25MarketHealthTimeline";
 import Engine29CrossMarketStressPanel from "./overlays/Engine29CrossMarketStressPanel";
 import Engine26TradeGeometryTool from "./panels/Engine26TradeGeometryTool";
+import OwnerWaveAnchorsOverlay from "./overlays/OwnerWaveAnchorsOverlay";
 
 /* ------------------------------ Config ------------------------------ */
 
@@ -973,6 +977,10 @@ export default function RowChart({
   const [seedToken, setSeedToken] = useState(0);
 
   const streamUnsubRef = useRef(null);
+  // Engine 2E isolated historical transplant state. Full Engine 11 rows are
+  // retained for provenance while Lightweight Charts receives only OHLCV.
+  const engine11ProvenanceRef = useRef([]);
+  const engine11HistoryAbortRef = useRef(null);
 
   const lastUiSyncRef = useRef(0);
   const uiTimerRef = useRef(null);
@@ -1290,7 +1298,47 @@ export default function RowChart({
 
       try {
         const limit = seedLimitFor(state.timeframe);
-        const seed = await getOHLC(state.symbol, state.timeframe, limit);
+        const useEngine11 =
+          normalizeSymbol(state.symbol) === "ES" &&
+          ["5m", "10m", "1h", "4h", "1d"].includes(state.timeframe) &&
+          typeof window !== "undefined" &&
+          new URLSearchParams(window.location.search).get("engine11Candles") !== "0";
+
+        let seed;
+        if (useEngine11) {
+          // Isolated acceptance mode only. Never embed the owner key in code.
+          // Reuse the already-approved research browser authorization.
+          let accessKey =
+            window.sessionStorage?.getItem("engine2cResearchOwnerKey") || "";
+          if (!accessKey) {
+            try {
+              const saved = JSON.parse(
+                window.localStorage?.getItem("engine2cResearchOwnerAccessV1") || "null"
+              );
+              if (
+                saved?.expiresAt > Date.now() &&
+                typeof saved.key === "string" &&
+                saved.key
+              ) {
+                accessKey = saved.key;
+                window.sessionStorage?.setItem("engine2cResearchOwnerKey", accessKey);
+              }
+            } catch {}
+          }
+          engine11HistoryAbortRef.current?.abort?.();
+          const controller = new AbortController();
+          engine11HistoryAbortRef.current = controller;
+          const historical = await fetchEngine11ActualESZ2026Page({
+            frame: state.timeframe,
+            accessKey,
+            signal: controller.signal,
+          });
+          seed = historical.bars;
+          engine11ProvenanceRef.current = historical.provenanceRows;
+        } else {
+          seed = await getOHLC(state.symbol, state.timeframe, limit);
+          engine11ProvenanceRef.current = [];
+        }
 
         if (cancelled) return;
 
@@ -1359,6 +1407,8 @@ export default function RowChart({
 
     return () => {
       cancelled = true;
+      try { engine11HistoryAbortRef.current?.abort?.(); } catch {}
+      engine11HistoryAbortRef.current = null;
     };
   }, [state.symbol, state.timeframe, state.range, state.volume]);
 
@@ -2351,6 +2401,13 @@ export default function RowChart({
           >
             {badge.text}
           </div>
+
+          <OwnerWaveAnchorsOverlay
+            visible={normalizeSymbol(state.symbol) === "ES"}
+            chart={chartRef.current}
+            priceSeries={seriesRef.current}
+            degree="ALL"
+          />
 
           <Engine25MarketHealthTimeline
             visible={
