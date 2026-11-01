@@ -21,7 +21,7 @@ import { createChart } from "lightweight-charts";
 import Controls from "./Controls";
 import IndicatorsToolbar from "./IndicatorsToolbar";
 
-import { getOHLC, subscribeStream } from "../../../lib/ohlcClient";
+import { getOHLC, getFuturesContractIdentity, subscribeStream } from "../../../lib/ohlcClient";
 import {
   fetchEngine11ActualESZ2026Page,
 } from "./engine11HistoricalAdapter";
@@ -1327,11 +1327,21 @@ export default function RowChart({
           engine11HistoryAbortRef.current?.abort?.();
           const controller = new AbortController();
           engine11HistoryAbortRef.current = controller;
-          const historical = await fetchEngine11ActualESZ2026Page({
-            frame: state.timeframe,
-            accessKey,
-            signal: controller.signal,
-          });
+          const [historical, liveIdentity] = await Promise.all([
+            fetchEngine11ActualESZ2026Page({
+              frame: state.timeframe,
+              accessKey,
+              signal: controller.signal,
+            }),
+            getFuturesContractIdentity("ES", state.timeframe),
+          ]);
+          // Engine 11 certified a same-contract seam only when LIVE resolves to
+          // December 2026 ES. Polygon/Massive represents ESZ2026 as ESZ6.
+          if (liveIdentity?.resolvedSymbol !== "ESZ6") {
+            throw new Error(
+              `ENGINE11_LIVE_CONTRACT_MISMATCH_${liveIdentity?.resolvedSymbol || "UNKNOWN"}`
+            );
+          }
           seed = historical.bars;
           engine11ProvenanceRef.current = historical.provenanceRows;
         } else {
