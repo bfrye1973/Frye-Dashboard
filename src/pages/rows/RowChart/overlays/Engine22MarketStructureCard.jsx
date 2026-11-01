@@ -1246,6 +1246,22 @@ export default function Engine22MarketStructureCard({
       ),
     ],
   } : null;
+  const newMicroC=currentWavelength?.degrees?.micro?.ownerMicroCDownOct31;
+  const newMicroCActive=newMicroC?.version==="engine22.microCDownOct31OwnerWorking.v1" &&
+    newMicroC.activeWave==="C" && newMicroC.direction==="DOWN";
+  const newMicroCState=newMicroCActive?{
+    degree:"micro",label:"Micro",active:true,badge:"C DOWN — DEVELOPING",
+    subtitle:"Owner working ABC inside Subminute C",
+    headline:"MICRO C DOWN — A AND B OWNER-MARKED COMPLETE; C DEVELOPING",
+    rows:[
+      {label:"Parent",value:"SUBMINUTE C DOWN — DEVELOPING"},
+      {label:"A high",value:"7810.00 — OCT 21, 11 AM AZ"},
+      {label:"A low",value:"7663.25 — OCT 26, 3 AM AZ"},
+      {label:"B high",value:"7814.75 — OCT 28, 1 PM AZ"},
+      {label:"Current",value:"C DOWN — COMPLETION UNCONFIRMED"},
+      {label:"History",value:"PRIOR MICRO W4 PRESERVED"}
+    ],levels:newMicroC.levels||[],ownerReviewZone:{price:7814.75},rules:[],
+  }:null;
   const subminuteW3Levels = currentWavelength?.degrees?.subminute
     ?.fibAnchorStatus === "OWNER_COORDINATES_CONFIRMED_PRICE_BASIS_PENDING" &&
     Array.isArray(currentWavelength?.degrees?.subminute?.levels)
@@ -1396,7 +1412,8 @@ export default function Engine22MarketStructureCard({
           <Engine22DegreeCard
             key={degree}
             degree={degree}
-            state={degree === "micro" && microW4Active ? microW4State :
+            state={degree === "micro" && newMicroCActive ? newMicroCState :
+              degree === "micro" && microW4Active ? microW4State :
               degree === "submicro" && submicroCorrectionAActive ? submicroCorrectionAState :
               degree === "micro" && microW3OwnerActive ? microW3OwnerState :
               degree === "micro" && microCDownActive ? microCDownState :
