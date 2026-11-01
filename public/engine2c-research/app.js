@@ -277,12 +277,20 @@
     }):null;
     window.__ENGINE2D_LAST_OWNER_DRAW__=ownerOverlay;
     // Separate owner-requested research Fib layer; NEVER official certification.
-    window.Engine2DResearchFibOverlay?.draw({
+    const researchFibResult=window.Engine2DResearchFibOverlay?.draw({
       ctx,packet:window.__ENGINE2D_CURRENT_CHART_PACKET__||null,
       prefs:window.Engine2DWaveDisplaySettings?.read(window.localStorage),
       degree:state.degree,plot:{...plot,lo,hi},
       enabled:window.__ENGINE2D_RESEARCH_FIB_VISIBLE__===true
     });
+    const currentPacket=window.__ENGINE2D_CURRENT_CHART_PACKET__;
+    const sourceCount=currentPacket?window.Engine2DResearchFibOverlay?.collect(
+      currentPacket,window.Engine2DWaveDisplaySettings?.read(window.localStorage),state.degree
+    ).length:0;
+    if($('fib'))$('fib').textContent=currentPacket
+      ?'Engine 22 working research: '+sourceCount+' published Fib prices for selected degree; '+(researchFibResult?.drawn||0)+' visible in current candle price range. Official certified overlays withheld.'
+      :'Waiting for current Engine 22 Fibonacci publication; your 24 owner anchors are independent. Official certified overlays withheld.';
+
     // Engine22-only overlay. Never draws until the independently verified plot gate permits it.
     window.Engine2DWaveOverlayRenderer?.draw({
       ctx,packet:window.__ENGINE2D_CURRENT_CHART_PACKET__||null,
