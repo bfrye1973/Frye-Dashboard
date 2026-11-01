@@ -164,7 +164,8 @@ function Engine22TargetGrid({ title, levels }) {
         {rows.map((level, index) => {
           // Owner-only Micro/Subminute projections have explicit WATCH status.
           // Never color those cards as a confirmed green touch by default.
-          const ownerObserved = level.status === "OWNER_OBSERVED_TOUCH" &&
+          const ownerObserved = (level.status === "OWNER_OBSERVED_TOUCH" ||
+            level.status === "TOUCHED") &&
             level.touchEvidenceType === "OWNER_CHART_OBSERVATION";
           const observedTouch = level.status === "TOUCHED" &&
             level.touchEvidenceAvailable === true &&
