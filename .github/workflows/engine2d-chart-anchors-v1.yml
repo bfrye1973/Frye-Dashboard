@@ -1,0 +1,27 @@
+name: Engine2D Chart Anchors Consumer V1
+on:
+  pull_request:
+    paths:
+      - 'public/engine2c-research/**'
+      - 'research/engine2c-preview/*v1.test.cjs'
+      - '.github/workflows/engine2d-chart-anchors-v1.yml'
+  workflow_dispatch:
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check browser script syntax
+        run: |
+          node --check public/engine2c-research/app.js
+          node --check public/engine2c-research/chart-anchors-consumer-v1.js
+          node --check public/engine2c-research/wave-display-settings-v1.js
+          node --check public/engine2c-research/wave-packet-panel-v1.js
+          node --check public/engine2c-research/wave-overlay-renderer-v1.js
+          node --check public/engine2c-research/owner-anchors-v1.js
+          node --check public/engine2c-research/research-fib-overlay-v1.js
+      - name: Engine 2D consumer and renderer tests
+        run: node --test research/engine2c-preview/*v1.test.cjs

@@ -12,7 +12,7 @@
   const $ = id => document.getElementById(id);
   const escape = s => String(s == null ? '—' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const finite = x => typeof x === 'number' && Number.isFinite(x);
-  const state = {handoff:null,view:'UNADJUSTED',frame:'5m',degree:'ALL',generation:0,request:0,rows:[],identities:new Set(),pageSet:new Set(),cursor:null,zoom:1,offset:0,marks:true};
+  const state = {handoff:null,view:'UNADJUSTED',frame:'5m',degree:'ALL',generation:0,request:0,rows:[],identities:new Set(),pageSet:new Set(),cursor:null,zoom:1,offset:0,marks:false}; // Legacy September evidence hidden by default; never current Engine22 wave authority.
   const frameSeconds={ '5m':300,'10m':600,'1h':3600,'4h':14400,'1d':86400,'1w':604800,'1mo':2629746 };
   const date = ns => {if(typeof ns !== 'string' && typeof ns !== 'number')return NaN;const x=String(ns);if(/^\d{15,}$/.test(x))return Number(x.slice(0,-9));if(/^\d{10}$/.test(x))return Number(x);const d=Date.parse(x);return Number.isFinite(d)?Math.floor(d/1000):NaN;};
   const time = s => new Date(s*1000).toLocaleString('en-US',{timeZone:'America/Phoenix',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
@@ -270,6 +270,30 @@
         ctx.fillStyle='#ffdba0';ctx.font='10px system-ui';ctx.textAlign='left';ctx.fillText(n.degree+' '+n.node+' (?)',x+8,Math.max(plot.top+10,y-10));
       }
     }
+    // Owner-approved coordinates: separate, visibly nonofficial research layer.
+    const ownerOverlay=window.__ENGINE2D_OWNER_RESEARCH_VISIBLE__!==false?window.Engine2DOwnerAnchors?.draw({
+      ctx,visible,plot:{...plot,lo,hi},degree:state.degree,
+      prefs:window.Engine2DWaveDisplaySettings?.read(window.localStorage)
+    }):null;
+    window.__ENGINE2D_LAST_OWNER_DRAW__=ownerOverlay;
+    // Separate owner-requested research Fib layer; NEVER official certification.
+    window.Engine2DResearchFibOverlay?.draw({
+      ctx,packet:window.__ENGINE2D_CURRENT_CHART_PACKET__||null,
+      prefs:window.Engine2DWaveDisplaySettings?.read(window.localStorage),
+      degree:state.degree,plot:{...plot,lo,hi},
+      enabled:window.__ENGINE2D_RESEARCH_FIB_VISIBLE__===true
+    });
+    // Engine22-only overlay. Never draws until the independently verified plot gate permits it.
+    window.Engine2DWaveOverlayRenderer?.draw({
+      ctx,packet:window.__ENGINE2D_CURRENT_CHART_PACKET__||null,
+      view:state.view,degree:state.degree,
+      prefs:window.Engine2DWaveDisplaySettings?.read(window.localStorage),
+      plot:{...plot,lo,hi},visible,
+      first:date(visible[0].timestampNs)*1000,
+      last:date(visible[visible.length-1].timestampNs)*1000,
+      frameSeconds:frameSeconds[state.frame],
+      plotGate:window.Engine2DChartAnchorsV1?.plotGate
+    });
     // Two-row Arizona time axis: calendar date above local hour for intraday bars.
     // Tick positions come from existing visible candles; no new or interpolated prices.
     const axisDate=new Intl.DateTimeFormat('en-US',{timeZone:'America/Phoenix',month:'short',day:'numeric',year:'2-digit'});
@@ -296,9 +320,9 @@
     $('status').textContent=LABELS[state.view]+' · '+state.frame+' · '+state.degree+' · '+count+(historyEndpoint?' authenticated research':' sample')+' candles loaded / max '+CAP+' · '+(state.cursor?'older page available':'end of available pages')+' · UNVERIFIED SOURCE MARKS';
   }
   function nodeDetails(){
-    const nodes=availableNodes();
-    const lines=nodes.map(n=>'<tr><td>'+escape(n.degree+' '+n.node)+'</td><td>'+escape(n.originalOwnerCoordinate?.rawDate)+' '+escape(n.originalOwnerCoordinate?.rawTime)+'</td><td>'+escape(n.originalOwnerCoordinate?.price)+'</td><td>'+escape(n.ownerEvidenceVisibility)+'</td><td>'+escape(n.registryNodeId)+'</td></tr>').join('');
-    $('nodes').innerHTML='<p class="muted">'+nodes.length+' original evidence records in this selection. Never candle-verified.</p><table><thead><tr><th>Degree / node</th><th>Original date/time</th><th>Price</th><th>Plot eligibility</th><th>Registry ID</th></tr></thead><tbody>'+lines+'</tbody></table>';
+    const anchors=window.Engine2DOwnerAnchors?.grouped(state.degree)||[];
+    const rows=anchors.map(a=>'<tr><td>'+escape(a.degree.toUpperCase()+' '+a.label)+'</td><td>'+escape(a.date+' '+a.time+' AZ')+'</td><td>'+escape(a.price.toFixed(2))+'</td><td>OWNER-APPROVED RESEARCH</td><td>'+escape(a.id)+'</td></tr>').join('');
+    $('nodes').innerHTML='<p><b>'+anchors.length+' current owner-provided anchors</b> in this selection. Exact owner prices and Arizona times; no candle-price adjustment. Earlier Engine 11 evidence is preserved but not displayed as current waves.</p><table><thead><tr><th>Degree / node</th><th>Owner date / time</th><th>ES price</th><th>Status</th><th>ID</th></tr></thead><tbody>'+rows+'</tbody></table>';
   }
   function details(){
     nodeDetails();
@@ -306,7 +330,7 @@
     const pins=historyEndpoint?historyPins[state.view]:[v?.datasetVersion,v?.priceBasisVersion];
     const contracts=[...new Set(r.map(x=>x.sourceContract))];
     $('coverage').innerHTML='<p><b>Selected:</b> '+escape(LABELS[state.view])+'</p><p><b>Dataset:</b> '+escape(pins[0])+'</p><p><b>Price basis:</b> '+escape(pins[1])+'</p><p><b>Sample source contracts:</b> '+escape(contracts.join(', ')||'UNAVAILABLE')+'</p><p class="warn">Unknown calendars, gaps and source finality are not certified closures. Candidate roll rules do not prove TradingView ES1! equivalence.</p><p><b>Rows loaded:</b> '+r.length+' / '+CAP+'</p>';
-    $('fib').textContent='34 ORIGINAL workbook references preserved; 0 official Fibonacci levels plotted. ENGINE 22 CERTIFICATE PENDING.';
+    $('fib').textContent='Owner-approved anchor overlay active in RESEARCH; Engine 22 working Fibonacci lines display when their current packet is available. Certified Fibonacci overlays remain withheld. Older workbook references preserved, not shown as current.';
   }
   async function decodePinnedFile(file){
     const raw=await file.text();

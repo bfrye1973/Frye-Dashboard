@@ -1,7 +1,8 @@
 // Engine 2C Phase 3 — visual-only LIVE / RESEARCH rollback gate.
 // Original RowChart is intentionally unmodified and only mounts in LIVE mode.
 // No research candles can enter OHLC, execution, sizing, zones, Journal or Replay.
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
+import { useDashboardSnapshot } from "../hooks/useDashboardSnapshot";
 import LegacyRowChart from "./rows/RowChart/index.jsx";
 
 function initialMode() {
@@ -15,6 +16,20 @@ function initialMode() {
 
 export default function RowChartModeGate(props) {
   const [mode, setMode] = useState(initialMode);
+  const frameRef = useRef(null);
+  const { data: engine22Snapshot } = useDashboardSnapshot("ES", { pollMs: 20000 });
+  const currentChartAnchors = engine22Snapshot?.strategies?.["intraday_scalp@10m"]?.engine22WaveStrategy?.chartAnchors || null;
+  useEffect(() => {
+    if (mode !== "RESEARCH" || !currentChartAnchors) return;
+    const frame = frameRef.current;
+    if (!frame?.contentWindow) return;
+    const publish = () => frame.contentWindow?.postMessage({
+      type: "ENGINE2D_CHART_ANCHORS_V1", packet: currentChartAnchors
+    }, window.location.origin);
+    publish();
+    frame.addEventListener("load", publish);
+    return () => frame.removeEventListener("load", publish);
+  }, [mode, currentChartAnchors]);
   const research = mode === "RESEARCH";
   // Owner-only local test selection: the deployed dashboard stays on Render,
   // while historical prices are served exclusively from this computer.
@@ -54,8 +69,9 @@ export default function RowChartModeGate(props) {
       {research ? (
         <div data-engine2c-research-panel style={{ position:"relative",minWidth:0,width:"100%",height:props.fullScreen?"calc(100vh - 220px)":"min(860px, 85vh)",minHeight:470 }}>
           <iframe
+            ref={frameRef}
             title="Engine 2C seven-degree ES research — historical research, not live"
-            src={`${process.env.PUBLIC_URL || ""}/engine2c-research/index.html${localHistory ? "?engine2cHistory=local" : ""}`}
+            src={`${process.env.PUBLIC_URL || ""}/engine2c-research/index.html?engine2dBuild=owner24-20261101-v3${localHistory ? "&engine2cHistory=local" : ""}`}
             loading="eager"
             style={{ width:"100%", height:"100%", border:"1px solid #334155", borderRadius:8, background:"#090e17" }}
             sandbox="allow-scripts allow-same-origin"
