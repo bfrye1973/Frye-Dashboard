@@ -113,6 +113,29 @@ export async function getOHLC(symbol = "SPY", timeframe = "10m", limit = 1500) {
   return bars.length > safeLimit ? bars.slice(-safeLimit) : bars;
 }
 
+
+export async function getFuturesContractIdentity(symbol = "ES", timeframe = "10m") {
+  const sym = String(symbol || "ES").toUpperCase();
+  const tf = normalizeTf(timeframe);
+  if (!isFuturesSymbol(sym)) return null;
+  const url =
+    `${API}/api/v1/futures/ohlc?symbol=${encodeURIComponent(sym)}` +
+    `&timeframe=${encodeURIComponent(tf)}&limit=1&debug=1`;
+  const r = await fetch(url, { cache: "no-store" });
+  if (!r.ok) throw new Error(`Futures contract identity ${r.status}`);
+  const data = await r.json();
+  const resolvedSymbol = String(data?.resolvedSymbol || "").toUpperCase();
+  return resolvedSymbol
+    ? {
+        requestedSymbol: data?.requestedSymbol || sym,
+        resolvedSymbol,
+        timeframe: data?.timeframe || tf,
+        resolver: data?.resolver || null,
+        lastBar: data?.lastBar || null,
+      }
+    : null;
+}
+
 // ---------------- API: compat shim ----------------
 
 export async function fetchOHLCResilient({ symbol, timeframe, limit = 1500 }) {
@@ -363,6 +386,7 @@ export function subscribeStream(symbol, timeframe, onBar, onAlive) {
 
 export default {
   getOHLC,
+  getFuturesContractIdentity,
   fetchOHLCResilient,
   subscribeStream,
 };
