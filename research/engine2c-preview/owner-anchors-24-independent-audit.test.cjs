@@ -32,7 +32,7 @@ test('seven degree grouping and missing active endpoints remain absent',()=>{
 test('all 24 source coordinates can be drawn independently with matching synthetic candle times',()=>{
  const calls={cross:0,text:0};
  const ctx={save(){},restore(){},beginPath(){},rect(){},clip(){},setLineDash(){},moveTo(){},lineTo(){},stroke(){calls.cross++},fillText(){calls.text++}};
- const visible=owner.anchors.map(a=>({timestampNs:String(Date.parse(a.timestampUtc)*1000000)})).sort((a,b)=>Number(BigInt(a.timestampNs)-BigInt(b.timestampNs)));
+ const visible=owner.anchors.map(a=>({timestampNs:String(BigInt(Date.parse(a.timestampUtc))*1000000n)})).sort((a,b)=>Number(BigInt(a.timestampNs)-BigInt(b.timestampNs)));
  const result=owner.draw({ctx,visible,plot:{left:50,right:950,top:20,bottom:700,lo:3000,hi:8200},degree:'ALL'});
  assert.equal(result.drawn,24);
  assert.equal(calls.text,24);
