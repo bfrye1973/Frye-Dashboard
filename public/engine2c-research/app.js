@@ -270,6 +270,11 @@
         ctx.fillStyle='#ffdba0';ctx.font='10px system-ui';ctx.textAlign='left';ctx.fillText(n.degree+' '+n.node+' (?)',x+8,Math.max(plot.top+10,y-10));
       }
     }
+    // Owner-approved coordinates: separate, visibly nonofficial research layer.
+    if(window.__ENGINE2D_OWNER_RESEARCH_VISIBLE__!==false)window.Engine2DOwnerAnchors?.draw({
+      ctx,visible,plot:{...plot,lo,hi},degree:state.degree,
+      prefs:window.Engine2DWaveDisplaySettings?.read(window.localStorage)
+    });
     // Engine22-only overlay. Never draws until the independently verified plot gate permits it.
     window.Engine2DWaveOverlayRenderer?.draw({
       ctx,packet:window.__ENGINE2D_CURRENT_CHART_PACKET__||null,
