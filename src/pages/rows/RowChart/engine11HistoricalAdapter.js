@@ -5,12 +5,12 @@
 export const ENGINE11_HISTORY_ENDPOINT =
   "https://frye-market-backend-1.onrender.com/engine2c-private-history/page";
 
-export const ENGINE11_ACTUAL_ESZ2026 = Object.freeze({
-  view: "ACTUAL_CONTRACT",
+export const ENGINE11_CONTINUOUS_UNADJUSTED = Object.freeze({
+  view: "UNADJUSTED",
   datasetVersion:
-    "research-dataset:2dd028c39df6fe16e2adfec59b4c1bba312b21f1b2a2f9b783751a25b32dc808",
+    "research-dataset:a0c81ce398869440b1b9cd42b94ced0101923356c4c860a9c13232a1f98f3c91",
   priceBasisVersion:
-    "price-basis:757ed82449f97edfea282111a163ffa04681ba188242fd17034ff9cb91410623",
+    "price-basis:fcbfa10815555415c8afdfddbbc28a96a4f42207db162a0db853b549546b3908",
 });
 
 const SUPPORTED_FRAMES = new Set(["5m", "10m", "1h", "4h", "1d", "1w", "1mo"]);
@@ -55,8 +55,8 @@ export function preserveEngine11Row(row) {
 export function validateEngine11Page(page, frame) {
   if (!SUPPORTED_FRAMES.has(frame)) throw new Error("ENGINE11_UNSUPPORTED_FRAME");
   if (
-    page?.datasetVersion !== ENGINE11_ACTUAL_ESZ2026.datasetVersion ||
-    page?.priceBasisVersion !== ENGINE11_ACTUAL_ESZ2026.priceBasisVersion ||
+    page?.datasetVersion !== ENGINE11_CONTINUOUS_UNADJUSTED.datasetVersion ||
+    page?.priceBasisVersion !== ENGINE11_CONTINUOUS_UNADJUSTED.priceBasisVersion ||
     page?.frame !== frame ||
     page?.direction !== "DESC" ||
     page?.researchOnly !== true ||
@@ -70,7 +70,7 @@ export function validateEngine11Page(page, frame) {
   return page;
 }
 
-export async function fetchEngine11ActualESZ2026Page({
+export async function fetchEngine11ContinuousUnadjustedPage({
   frame,
   cursor = null,
   accessKey,
@@ -81,12 +81,12 @@ export async function fetchEngine11ActualESZ2026Page({
     throw new Error("ENGINE11_RESEARCH_ACCESS_REQUIRED");
   }
   const q = new URLSearchParams({
-    view: ENGINE11_ACTUAL_ESZ2026.view,
+    view: ENGINE11_CONTINUOUS_UNADJUSTED.view,
     frame,
     limit: "1000",
     direction: "DESC",
-    datasetVersion: ENGINE11_ACTUAL_ESZ2026.datasetVersion,
-    priceBasisVersion: ENGINE11_ACTUAL_ESZ2026.priceBasisVersion,
+    datasetVersion: ENGINE11_CONTINUOUS_UNADJUSTED.datasetVersion,
+    priceBasisVersion: ENGINE11_CONTINUOUS_UNADJUSTED.priceBasisVersion,
   });
   if (cursor !== null) q.set("cursor", cursor);
   const response = await fetch(`${ENGINE11_HISTORY_ENDPOINT}?${q}`, {
