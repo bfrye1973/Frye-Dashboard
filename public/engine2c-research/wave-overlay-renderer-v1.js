@@ -53,7 +53,7 @@ function draw({ctx,packet,view,degree='ALL',prefs,plot,visible,first,last,frameS
     const ts=parseTime(a.marketEventTimeUtc);
     if(!Number.isFinite(ts)||ts<first||ts>last)continue;
     // No fabricated pivot candle position: place only on a matching actual bar timestamp.
-    const i=visible.findIndex(r=>parseTime(r.timestampUtc)===ts);
+    const i=visible.findIndex(r=>{const raw=String(r.timestampNs||'');const ms=/^\\d{15,}$/.test(raw)?Number(raw.slice(0,-6)):(/^\\d{10}$/.test(raw)?Number(raw)*1000:parseTime(r.timestampUtc));return ms===ts;});
     if(i<0)continue;
     const yp=y(a.price),xp=plot.left+(i+.5)*width/visible.length;
     if(yp<plot.top||yp>plot.bottom)continue;
