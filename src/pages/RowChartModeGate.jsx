@@ -71,7 +71,7 @@ export default function RowChartModeGate(props) {
           <iframe
             ref={frameRef}
             title="Engine 2C seven-degree ES research — historical research, not live"
-            src={`${process.env.PUBLIC_URL || ""}/engine2c-research/index.html${localHistory ? "?engine2cHistory=local" : ""}`}
+            src={`${process.env.PUBLIC_URL || ""}/engine2c-research/index.html?engine2dBuild=owner24-20261101-v3${localHistory ? "&engine2cHistory=local" : ""}`}
             loading="eager"
             style={{ width:"100%", height:"100%", border:"1px solid #334155", borderRadius:8, background:"#090e17" }}
             sandbox="allow-scripts allow-same-origin"
