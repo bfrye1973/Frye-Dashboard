@@ -17,6 +17,8 @@ window.addEventListener('DOMContentLoaded', () => {
     window.__ENGINE2C_TEST__?.toggleCurrentEs(currentEs);
     esButton.textContent=currentEs?'Return to archived Engine 11 candles':'Use current ES candles';
     esButton.setAttribute('aria-pressed',String(currentEs));
+    const header=document.querySelector('header p');
+    if(header)header.textContent=currentEs?'CURRENT ES FUTURES OHLC / EXISTING DASHBOARD DATA SOURCE / RESEARCH DISPLAY ONLY':'UNVERIFIED / RESEARCH ONLY · Archived sample candles · No execution authority';
     if(currentEs)requestEs();
   });
   document.getElementById('frame')?.addEventListener('change',e=>{
