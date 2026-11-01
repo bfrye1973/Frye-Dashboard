@@ -1000,6 +1000,7 @@ export default function RowChart({
 
   const [engine17Data, setEngine17Data] = useState(null);
   const [engine22AuthorizedWorkingStructure, setEngine22AuthorizedWorkingStructure] = useState(null);
+  const [engine22CurrentWavelength, setEngine22CurrentWavelength] = useState(null);
   const [engine17RawDebug, setEngine17RawDebug] = useState(null);
   const [chartMode, setChartMode] = useState(initialChartMode);
   const [selectedWaveDegree, setSelectedWaveDegree] = useState("minute");
@@ -1429,9 +1430,13 @@ export default function RowChart({
         setEngine17Data(
           mapSnapshotToEngine17Overlay(snap, selectedStrategyId, chartMode)
         );
+        const engine22WaveStrategy =
+          snap?.strategies?.["intraday_scalp@10m"]?.engine22WaveStrategy || null;
         setEngine22AuthorizedWorkingStructure(
-          snap?.strategies?.["intraday_scalp@10m"]?.engine22WaveStrategy
-            ?.authorizedWorkingStructure || null
+          engine22WaveStrategy?.authorizedWorkingStructure || null
+        );
+        setEngine22CurrentWavelength(
+          engine22WaveStrategy?.currentWavelength || null
         );
       } catch (err) {
         if (cancelled) return;
@@ -1443,6 +1448,7 @@ export default function RowChart({
           detail: err?.message || String(err),
         });
         setEngine22AuthorizedWorkingStructure(null);
+        setEngine22CurrentWavelength(null);
       }
 
       if (showDebug || state.engine17DebugPanel || state.showPremarketFibs) {
@@ -1626,7 +1632,7 @@ export default function RowChart({
 
     if (state.fibMicro) {
       reg(
-        attachOverlay(isES ? ActiveWaveFibOverlay : FibLevelsOverlay, {
+        attachOverlay(isES ? Engine22AuthorizedFibOverlay : FibLevelsOverlay, {
           chart: chartRef.current,
           priceSeries: seriesRef.current,
           chartContainer: containerRef.current,
@@ -1635,6 +1641,22 @@ export default function RowChart({
           degree: "micro",
           tf: "10m",
           style: state.fibMicroStyle,
+          authorizedWorkingStructure: isES
+            ? {
+                schema: "engine22.authorizedWorkingStructure.v1",
+                mode: "READ_ONLY",
+                noExecution: true,
+                degrees: {
+                  micro: {
+                    available: Array.isArray(
+                      engine22CurrentWavelength?.degrees?.micro?.levels
+                    ),
+                    levels:
+                      engine22CurrentWavelength?.degrees?.micro?.levels || [],
+                  },
+                },
+              }
+            : null,
         })
       );
     }
@@ -1674,6 +1696,7 @@ export default function RowChart({
     engine22AuthorizedWorkingStructure,
     state.fibMinuteStyle,
     state.fibMicroStyle,
+    engine22CurrentWavelength,
     state.showPremarketFibs,
     state.timeframe,
     state.symbol,
