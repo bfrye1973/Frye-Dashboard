@@ -10,7 +10,7 @@
 window.addEventListener('DOMContentLoaded', () => {
   const packetPanel=window.Engine2DWavePacketPanel?.mount(document.getElementById('engine2dWavePacket'),window.localStorage,{view:()=>document.getElementById('view').value,degree:()=>document.getElementById('degree').value});
   window.addEventListener('engine2d-packet-change',()=>window.__ENGINE2C_TEST__?.draw());
-  window.Engine2DWaveDisplaySettings?.mount(document.getElementById('engine2dWaveSettings'),window.localStorage,()=>packetPanel?.render());
+  window.Engine2DWaveDisplaySettings?.mount(document.getElementById('engine2dWaveSettings'),window.localStorage,()=>{packetPanel?.render();window.__ENGINE2C_TEST__?.draw();});
   for(const id of ['view','degree'])document.getElementById(id)?.addEventListener('change',()=>packetPanel?.render());
   const source=window.ENGINE2C_PINNED_HANDOFF_B64;
   if (!source || typeof File==='undefined' || typeof DataTransfer==='undefined') return;
