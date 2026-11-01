@@ -4,6 +4,7 @@ on:
     paths:
       - 'public/engine2c-research/**'
       - 'research/engine2c-preview/*v1.test.cjs'
+      - 'research/engine2c-preview/owner-anchors-24-independent-audit.test.cjs'
       - '.github/workflows/engine2d-chart-anchors-v1.yml'
   workflow_dispatch:
 jobs:
@@ -24,4 +25,4 @@ jobs:
           node --check public/engine2c-research/owner-anchors-v1.js
           node --check public/engine2c-research/research-fib-overlay-v1.js
       - name: Engine 2D consumer and renderer tests
-        run: node --test research/engine2c-preview/*v1.test.cjs
+        run: node --test research/engine2c-preview/*v1.test.cjs research/engine2c-preview/owner-anchors-24-independent-audit.test.cjs
