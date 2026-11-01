@@ -275,6 +275,13 @@
       ctx,visible,plot:{...plot,lo,hi},degree:state.degree,
       prefs:window.Engine2DWaveDisplaySettings?.read(window.localStorage)
     });
+    // Separate owner-requested research Fib layer; NEVER official certification.
+    window.Engine2DResearchFibOverlay?.draw({
+      ctx,packet:window.__ENGINE2D_CURRENT_CHART_PACKET__||null,
+      prefs:window.Engine2DWaveDisplaySettings?.read(window.localStorage),
+      degree:state.degree,plot:{...plot,lo,hi},
+      enabled:window.__ENGINE2D_RESEARCH_FIB_VISIBLE__===true
+    });
     // Engine22-only overlay. Never draws until the independently verified plot gate permits it.
     window.Engine2DWaveOverlayRenderer?.draw({
       ctx,packet:window.__ENGINE2D_CURRENT_CHART_PACKET__||null,
