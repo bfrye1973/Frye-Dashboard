@@ -44,6 +44,7 @@ import AccDistZonesPanel from "../../../components/smz/AccDistZonesPanel";
 
 import FibLevelsOverlay from "./overlays/FibLevelsOverlay";
 import ActiveWaveFibOverlay from "./overlays/ActiveWaveFibOverlay";
+import Engine22AuthorizedFibOverlay from "./overlays/Engine22AuthorizedFibOverlay";
 import PremarketFibOverlay from "./overlays/PremarketFibOverlay";
 
 import DrawingsToolbar from "../../../features/drawings/DrawingsToolbar";
@@ -997,6 +998,7 @@ export default function RowChart({
   });
 
   const [engine17Data, setEngine17Data] = useState(null);
+  const [engine22AuthorizedWorkingStructure, setEngine22AuthorizedWorkingStructure] = useState(null);
   const [engine17RawDebug, setEngine17RawDebug] = useState(null);
   const [chartMode, setChartMode] = useState(initialChartMode);
   const [selectedWaveDegree, setSelectedWaveDegree] = useState("minute");
@@ -1426,6 +1428,10 @@ export default function RowChart({
         setEngine17Data(
           mapSnapshotToEngine17Overlay(snap, selectedStrategyId, chartMode)
         );
+        setEngine22AuthorizedWorkingStructure(
+          snap?.strategies?.["intraday_scalp@10m"]?.engine22WaveStrategy
+            ?.authorizedWorkingStructure || null
+        );
       } catch (err) {
         if (cancelled) return;
 
@@ -1435,6 +1441,7 @@ export default function RowChart({
           error: "SNAPSHOT_FETCH_FAILED",
           detail: err?.message || String(err),
         });
+        setEngine22AuthorizedWorkingStructure(null);
       }
 
       if (showDebug || state.engine17DebugPanel || state.showPremarketFibs) {
@@ -1588,7 +1595,7 @@ export default function RowChart({
 
     if (state.fibMinor) {
       reg(
-        attachOverlay(isES ? ActiveWaveFibOverlay : FibLevelsOverlay, {
+        attachOverlay(isES ? Engine22AuthorizedFibOverlay : FibLevelsOverlay, {
           chart: chartRef.current,
           priceSeries: seriesRef.current,
           chartContainer: containerRef.current,
@@ -1597,6 +1604,9 @@ export default function RowChart({
           degree: "minor",
           tf: "1h",
           style: state.fibMinorStyle,
+          authorizedWorkingStructure: isES
+            ? engine22AuthorizedWorkingStructure
+            : null,
         })
       );
     }
@@ -1663,6 +1673,7 @@ export default function RowChart({
     state.fibPrimaryStyle,
     state.fibIntermediateStyle,
     state.fibMinorStyle,
+    engine22AuthorizedWorkingStructure,
     state.fibMinuteStyle,
     state.fibMicroStyle,
     state.showPremarketFibs,
