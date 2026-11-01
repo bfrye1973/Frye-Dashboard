@@ -21,5 +21,7 @@ jobs:
           node --check public/engine2c-research/wave-display-settings-v1.js
           node --check public/engine2c-research/wave-packet-panel-v1.js
           node --check public/engine2c-research/wave-overlay-renderer-v1.js
+          node --check public/engine2c-research/owner-anchors-v1.js
+          node --check public/engine2c-research/research-fib-overlay-v1.js
       - name: Engine 2D consumer and renderer tests
         run: node --test research/engine2c-preview/*v1.test.cjs
