@@ -438,6 +438,7 @@
         state.frame=currentEsBars[0].frame;state.rows=currentEsBars;state.zoom=1;state.offset=0;
         $('frame').value=state.frame;draw();
       }else{
+        state.rows=[];draw();
         $('status').textContent='Waiting for current ES futures OHLC candles';
       }
     }else{
