@@ -10,10 +10,10 @@ function createController({host,storage,view=()=> 'UNADJUSTED',degree=()=> 'ALL'
  function update(next){
   const p=api()?.packetFromSnapshot(next)||next?.chartAnchors||next;
   const checked=api()?.validate(p);
-  if(!checked?.ok){packet=null;revision=null;hash=null;render();return {ok:false,reason:checked?.reason||'CONSUMER_NOT_LOADED'};}
+  if(!checked?.ok){packet=null;revision=null;hash=null;if(root)root.__ENGINE2D_CURRENT_CHART_PACKET__=null;render();root?.dispatchEvent?.(new Event('engine2d-packet-change'));return {ok:false,reason:checked?.reason||'CONSUMER_NOT_LOADED'};}
   const nextHash=p.chartContractFingerprint||null;
   const changed=revision!==p.selectionRevision||hash!==nextHash;
-  packet=p;revision=p.selectionRevision;hash=nextHash;render();
+  packet=p;revision=p.selectionRevision;hash=nextHash;if(root)root.__ENGINE2D_CURRENT_CHART_PACKET__=p;render();root?.dispatchEvent?.(new Event('engine2d-packet-change'));
   return {ok:true,changed,revision,hash,plotAllowed:false};
  }
  function render(){
