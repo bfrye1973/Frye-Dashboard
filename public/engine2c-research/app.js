@@ -139,11 +139,6 @@
     appendPage(fixture.firstPage,'first');
   }
   function choose(){
-    if(currentEsMode){
-      // The parent requests the new timeframe; do not load archived fixtures.
-      state.degree=$('degree').value;
-      draw();return;
-    }
     const v=$('view').value,f=$('frame').value,d=$('degree').value;
     if(!VIEWS.includes(v)||!FRAMES.includes(f)||!DEGREES.includes(d))return;
     const sameCandles=state.view===v&&state.frame===f;
@@ -403,52 +398,5 @@
   $('chart').addEventListener('pointerup',()=>{drag=null;});$('chart').addEventListener('pointercancel',()=>{drag=null;});
   if(window.ResizeObserver)new ResizeObserver(draw).observe($('chart'));else window.addEventListener('resize',draw);
   details();draw();
-  // Current ES candles are a separate, read-only display mode. Never append to
-  // Engine11 archived rows, rewrite source basis, or treat as certified rollover history.
-  let currentEsMode=false,archivedRows=null,archivedFrame=null,currentEsBars=[];
-  function applyCurrentEs(bars,tf){
-    if(!['5m','10m','1h','4h','1d'].includes(tf)||!Array.isArray(bars))return false;
-    const normalized=bars.filter(b=>b&&[b.time,b.open,b.high,b.low,b.close].every(Number.isFinite))
-      .map(b=>({timestampNs:String(BigInt(Math.floor(b.time))*1000000000n),
-        timestampUtc:new Date(b.time*1000).toISOString(),frame:tf,
-        prices:{open:b.open,high:b.high,low:b.low,close:b.close},
-        sourceContract:'ES_ACTIVE_CONTRACT_UNVERIFIED',adjustment:0,
-        researchCandleId:'current-es-'+tf+'-'+b.time,
-        structuralEligible:false,executionPriceAuthority:false,
-        priceBasisVersion:'CURRENT_ES_OHLC_UNVERIFIED'}))
-      .sort((a,b)=>date(a.timestampNs)-date(b.timestampNs));
-    if(!normalized.length)return false;
-    currentEsBars=normalized;
-    if(!currentEsMode)return true;
-    state.frame=tf;state.rows=currentEsBars;state.zoom=1;state.offset=0;
-    $('frame').value=tf;
-    draw();
-    $('status').textContent='CURRENT ES FUTURES OHLC · '+tf+' · '+normalized.length+' bars · Existing dashboard market-data endpoint · Contract/rollover basis not certified · RESEARCH DISPLAY ONLY';
-    return true;
-  }
-  function toggleCurrentEs(enabled){
-    if(enabled===currentEsMode)return;
-    if(enabled){
-      $('view').disabled=true;
-      $('older').disabled=true;
-      if($('newer'))$('newer').disabled=true;
-      archivedRows=state.rows;archivedFrame=state.frame;
-      currentEsMode=true;
-      if(currentEsBars.length){
-        state.frame=currentEsBars[0].frame;state.rows=currentEsBars;state.zoom=1;state.offset=0;
-        $('frame').value=state.frame;draw();
-      }else{
-        state.rows=[];draw();
-        $('status').textContent='Waiting for current ES futures OHLC candles';
-      }
-    }else{
-      currentEsMode=false;
-      $('view').disabled=false;
-      $('older').disabled=false;
-      if($('newer'))$('newer').disabled=false;
-      state.rows=archivedRows||[];state.frame=archivedFrame||state.frame;
-      $('frame').value=state.frame;state.zoom=1;state.offset=0;draw();details();
-    }
-  }
-  window.__ENGINE2C_TEST__={state,historyEndpoint,requestHistory,checkHandoff,validatePage,appendPage,clearContext,selection,choose,loadSelection,older,newer,roll,draw,zoom,applyCurrentEs,toggleCurrentEs,CAP};
+  window.__ENGINE2C_TEST__={state,historyEndpoint,requestHistory,checkHandoff,validatePage,appendPage,clearContext,selection,choose,loadSelection,older,newer,roll,draw,zoom,CAP};
 })();
