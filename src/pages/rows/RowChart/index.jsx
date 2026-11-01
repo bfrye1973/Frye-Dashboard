@@ -58,6 +58,7 @@ import Engine25CompositeOverlay from "./overlays/Engine25CompositeOverlay";
 import Engine25MarketHealthTimeline from "./overlays/Engine25MarketHealthTimeline";
 import Engine29CrossMarketStressPanel from "./overlays/Engine29CrossMarketStressPanel";
 import Engine26TradeGeometryTool from "./panels/Engine26TradeGeometryTool";
+import OwnerWaveAnchorsOverlay from "./overlays/OwnerWaveAnchorsOverlay";
 
 /* ------------------------------ Config ------------------------------ */
 
@@ -2400,6 +2401,13 @@ export default function RowChart({
           >
             {badge.text}
           </div>
+
+          <OwnerWaveAnchorsOverlay
+            visible={normalizeSymbol(state.symbol) === "ES"}
+            chart={chartRef.current}
+            priceSeries={seriesRef.current}
+            degree="ALL"
+          />
 
           <Engine25MarketHealthTimeline
             visible={
