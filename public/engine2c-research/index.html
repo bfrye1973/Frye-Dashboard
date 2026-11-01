@@ -7,7 +7,8 @@
 <div class="cards"><section><h2>Owner node evidence <small>UNVERIFIED</small></h2><p>Source coordinates remain unchanged. Timestamp hypotheses are not independently verified and are never snapped to bars.</p><div id="nodes" class="scroll"></div></section><section><h2>Source coverage and rollover</h2><div id="coverage" class="scroll"></div><h2>Withheld Fibonacci</h2><div id="fib">Official Fibonacci overlay EMPTY — Engine 22 approval pending.</div></section></div>
 <section class="footer"><h2>Isolated, reversible research experiment</h2><p>Load only the pinned Engine 11 Phase 5 handoff fixture. This file is deliberately not imported by production entrypoints or RowChart. It never opens a live feed, broker connection or trading API.</p><label class="file">Select Engine 11 pinned handoff (.json or .zlib.b64) <input type="file" id="fixture" accept=".json,.b64,.txt,application/json"></label><p id="fixtureInfo"></p></section></main>
 <script src="./fixture-pinned.js"></script><script>window.__ENGINE2C_HISTORY_ENDPOINT__="https://frye-market-backend-1.onrender.com/engine2c-private-history/page";</script><script src="./chart-anchors-consumer-v1.js"></script><script src="./wave-display-settings-v1.js"></script><script src="./app.js"></script><script>
-window.addEventListener('DOMContentLoaded', () => {\n  window.Engine2DWaveDisplaySettings?.mount(document.getElementById('engine2dWaveSettings'),window.localStorage);
+window.addEventListener('DOMContentLoaded', () => {
+  window.Engine2DWaveDisplaySettings?.mount(document.getElementById('engine2dWaveSettings'),window.localStorage);
   const source=window.ENGINE2C_PINNED_HANDOFF_B64;
   if (!source || typeof File==='undefined' || typeof DataTransfer==='undefined') return;
   const transfer=new DataTransfer();
