@@ -1,0 +1,29 @@
+name: Engine 2 Immutable ES History Stability
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/pages/rows/RowChart/index.jsx'
+      - 'src/pages/rows/RowChart/engine11HistoricalAdapter.js'
+      - 'src/pages/rows/RowChart/engine11ChartStability*'
+      - 'src/pages/rows/RowChart/engine11HistoricalAdapter.test.js'
+      - '.github/workflows/engine2-chartfix-history-stability.yml'
+
+jobs:
+  chart-stability:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Install production frontend dependencies
+        run: npm ci
+      - name: Unit tests — contract identity, overlap, 25k-independent range and archive metadata
+        run: CI=true npm test -- --watch=false --runInBand --testPathPattern='engine11ChartStability.test.js|engine11HistoricalAdapter.test.js'
+      - name: Build unchanged dashboard routes and Engine22 overlays
+        run: npm run build
