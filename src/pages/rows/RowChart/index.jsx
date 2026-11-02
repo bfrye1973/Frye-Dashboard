@@ -101,6 +101,8 @@ const TF_SEC = {
   "1h": 3600,
   "4h": 14400,
   "1d": 86400,
+  "1w": 604800,
+  "1mo": 2592000,
 };
 
 const LIVE_TF = "1m";
@@ -149,14 +151,14 @@ function phoenixTime(ts, isDaily = false) {
     timeZone: "America/Phoenix",
     hour12: true,
     ...(isDaily
-      ? { month: "short", day: "2-digit" }
+      ? { month: "short", day: "2-digit", year: "numeric" }
       : { hour: "numeric", minute: "2-digit" }),
   }).format(new Date(seconds * 1000));
 }
 
 function makeTickFormatter(tf) {
   const showSeconds = tf === "1m";
-  const isDailyTF = tf === "1d";
+  const isDailyTF = ["1d", "1w", "1mo"].includes(tf);
 
   const fmtTime = new Intl.DateTimeFormat("en-US", {
     timeZone: "America/Phoenix",
@@ -176,7 +178,7 @@ function makeTickFormatter(tf) {
   const fmtDaily = new Intl.DateTimeFormat("en-US", {
     timeZone: "America/Phoenix",
     month: "short",
-    day: "2-digit",
+    year: "numeric",
   });
 
   return (t) => {
@@ -1110,7 +1112,8 @@ export default function RowChart({
         tickMarkFormatter: makeTickFormatter(state.timeframe),
       },
       localization: {
-        timeFormatter: (t) => phoenixTime(t, state.timeframe === "1d"),
+        timeFormatter: (t) =>
+          phoenixTime(t, ["1d", "1w", "1mo"].includes(state.timeframe)),
       },
       crosshair: { mode: 0 },
     });
@@ -1224,7 +1227,8 @@ export default function RowChart({
         secondsVisible: tf === "1m",
       },
       localization: {
-        timeFormatter: (t) => phoenixTime(t, tf === "1d"),
+        timeFormatter: (t) =>
+          phoenixTime(t, ["1d", "1w", "1mo"].includes(tf)),
       },
       layout: { fontSize: AXIS_FONT_SIZE },
     });
@@ -1238,6 +1242,12 @@ export default function RowChart({
     try {
       if (liveTimerRef.current) clearInterval(liveTimerRef.current);
     } catch {}
+
+    if (["1w", "1mo"].includes(state.timeframe)) {
+      setLiveStatus("ARCHIVE");
+      liveTimerRef.current = null;
+      return undefined;
+    }
 
     liveTimerRef.current = setInterval(() => {
       const now = Date.now();
@@ -1259,7 +1269,7 @@ export default function RowChart({
       } catch {}
       liveTimerRef.current = null;
     };
-  }, []);
+  }, [state.timeframe]);
 
   /* ---------------------- TURBO: UI sync helper ---------------------- */
 
@@ -1313,7 +1323,7 @@ export default function RowChart({
         const limit = seedLimitFor(state.timeframe);
         const useEngine11 =
           normalizeSymbol(state.symbol) === "ES" &&
-          ["5m", "10m", "1h", "4h", "1d"].includes(state.timeframe) &&
+          ["5m", "10m", "1h", "4h", "1d", "1w", "1mo"].includes(state.timeframe) &&
           typeof window !== "undefined" &&
           new URLSearchParams(window.location.search).get("engine11Candles") !== "0";
 
@@ -1767,6 +1777,11 @@ export default function RowChart({
 
   useEffect(() => {
     if (!chartReady || !seriesRef.current) return;
+
+    if (["1w", "1mo"].includes(state.timeframe)) {
+      setLiveStatus("ARCHIVE");
+      return;
+    }
 
     lastAliveRef.current = 0;
     setLiveStatus("CONNECTING");
@@ -2364,6 +2379,10 @@ export default function RowChart({
       return { text: "STALE", bg: "rgba(239,68,68,0.92)" };
     }
 
+    if (liveStatus === "ARCHIVE") {
+      return { text: "ARCHIVE", bg: "rgba(59,130,246,0.92)" };
+    }
+
     return { text: "CONNECTING", bg: "rgba(245,158,11,0.92)" };
   })();
 
@@ -2457,7 +2476,9 @@ export default function RowChart({
                 ? "Stream healthy (receiving messages)"
                 : liveStatus === "STALE"
                   ? "No stream messages received in 30s"
-                  : "Connecting to live stream…"
+                  : liveStatus === "ARCHIVE"
+                    ? "Engine 11 historical archive timeframe"
+                    : "Connecting to live stream…"
             }
           >
             {badge.text}
