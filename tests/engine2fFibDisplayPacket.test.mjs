@@ -40,3 +40,20 @@ test("reject unavailable degree without disturbing other degrees",()=>{
   assert.equal(p.degrees.minor.available,false);
   assert.equal(p.degrees.micro.available,true);
 });
+
+test("owner-authorized Submicro alternatives remain separately labeled",()=>{
+  const f=fixture();
+  f.authorizedWorkingStructure.degrees.submicro={
+    available:true,sourcePath:"currentWavelength.degrees.submicro.submicroCompare",
+    modelVersion:"engine22.submicroCompareNov1.v1",activeWave:"ALTERNATIVES",
+    direction:"DOWN",levels:[]
+  };
+  f.currentWavelength={degrees:{submicro:{submicroCompare:{
+    version:"engine22.submicroCompareNov1.v1",activeWave:"ALTERNATIVES",direction:"DOWN",
+    option1:{levels:[{label:"0.618",price:7600.25}]},
+    option2:{levels:[{label:"0.618",price:7719.75}]}
+  }}}};
+  const p=normalizeEngine22FibPacket(f);
+  assert.deepEqual(p.degrees.submicro.levels.map(x=>x.price),[7600.25,7719.75]);
+  assert.deepEqual(p.degrees.submicro.levels.map(x=>x.ratio),["OPTION1 0.618","OPTION2 0.618"]);
+});
