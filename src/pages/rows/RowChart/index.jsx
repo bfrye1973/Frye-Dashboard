@@ -1001,6 +1001,7 @@ export default function RowChart({
 
   const [engine17Data, setEngine17Data] = useState(null);
   const [engine22AuthorizedWorkingStructure, setEngine22AuthorizedWorkingStructure] = useState(null);
+  const [engine22CurrentWavelength, setEngine22CurrentWavelength] = useState(null);
 
   const [engine17RawDebug, setEngine17RawDebug] = useState(null);
   const [chartMode, setChartMode] = useState(initialChartMode);
@@ -1438,6 +1439,7 @@ export default function RowChart({
         setEngine22AuthorizedWorkingStructure(
           engine22WaveStrategy?.authorizedWorkingStructure || null
         );
+        setEngine22CurrentWavelength(engine22WaveStrategy?.currentWavelength || null);
 
       } catch (err) {
         if (cancelled) return;
@@ -1449,6 +1451,7 @@ export default function RowChart({
           detail: err?.message || String(err),
         });
         setEngine22AuthorizedWorkingStructure(null);
+        setEngine22CurrentWavelength(null);
 
       }
 
@@ -1574,6 +1577,7 @@ export default function RowChart({
     if (isES) {
       const packet = normalizeEngine22FibPacket({
         authorizedWorkingStructure: engine22AuthorizedWorkingStructure,
+        currentWavelength: engine22CurrentWavelength,
       });
       reg(attachOverlay(Engine22FibLayersOverlay, {
         chart: chartRef.current,
@@ -1649,6 +1653,7 @@ export default function RowChart({
     state.fibIntermediateStyle,
     state.fibMinorStyle,
     engine22AuthorizedWorkingStructure,
+    engine22CurrentWavelength,
     state.fibMinuteStyle,
     state.fibMicroStyle,
     state.fibSubmicroStyle,
