@@ -37,6 +37,8 @@ export const TIMEFRAMES = [
   "1h",
   "4h",
   "1d",
+  "1w",
+  "1mo",
 ];
 
 // Resolve API base URL (priority: explicit prop > env > same-origin)

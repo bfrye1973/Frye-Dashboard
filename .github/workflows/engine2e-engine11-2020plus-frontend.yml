@@ -1,0 +1,22 @@
+name: Engine2E Engine11 2020plus frontend acceptance
+on:
+  push:
+    branches: [engine2e-engine11-2020plus-full-pagination-v1]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - name: Cursor-chain adapter tests
+        run: npx react-scripts test src/pages/rows/RowChart/engine11HistoricalAdapter.test.js --watchAll=false
+      - name: Production build
+        run: npm run build
