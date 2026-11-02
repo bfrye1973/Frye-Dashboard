@@ -169,6 +169,7 @@ export async function fetchEngine11AllPages({
   dataset = ENGINE11_CONTINUOUS_UNADJUSTED_2020PLUS,
   maxPages = 1000,
   onPage,
+  includeProvenance = true,
 } = {}) {
   assertDataset(dataset);
   if (!SUPPORTED_FRAMES.has(frame)) throw new Error("ENGINE11_UNSUPPORTED_FRAME");
@@ -217,10 +218,13 @@ export async function fetchEngine11AllPages({
     if (cursor === null) break;
   }
 
-  const provenanceRows = Array.from(rowsById.values()).sort(
-    (a, b) => exactSecond(a) - exactSecond(b)
-  );
-  const bars = provenanceRows.map(engine11RowToLiveBar);
+  const provenanceRows = includeProvenance
+    ? Array.from(rowsById.values()).sort((a, b) => exactSecond(a) - exactSecond(b))
+    : [];
+  const sourceRows = includeProvenance
+    ? provenanceRows
+    : Array.from(rowsByTime.values()).sort((a, b) => exactSecond(a) - exactSecond(b));
+  const bars = sourceRows.map(engine11RowToLiveBar);
 
   const expected = dataset.expectedRows?.[frame];
   if (Number.isInteger(expected) && bars.length !== expected) {
