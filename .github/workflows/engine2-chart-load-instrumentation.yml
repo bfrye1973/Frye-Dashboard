@@ -1,0 +1,29 @@
+name: Engine2 Chart Load Instrumentation
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/pages/rows/RowChart/index.jsx'
+      - 'src/pages/rows/RowChart/engine11HistoricalAdapter.js'
+      - 'src/pages/rows/RowChart/engine2ChartLoadProbe*'
+      - 'src/pages/rows/RowChart/engine2ChartTimingIntegration.test.js'
+      - 'src/lib/ohlcClient.js'
+      - '.github/workflows/engine2-chart-load-instrumentation.yml'
+
+jobs:
+  non-production-loading-probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - name: Instrumentation + page and 1m timing unit tests
+        run: CI=true npm test -- --watch=false --runInBand --testPathPattern='engine2ChartLoadProbe.test.js|engine2ChartTimingIntegration.test.js'
+      - name: Build production frontend (no deployment)
+        run: npm run build
