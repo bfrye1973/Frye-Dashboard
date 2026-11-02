@@ -1,0 +1,25 @@
+name: Engine2 ES 5m Candles Only Integration
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/pages/rows/RowChart/index.jsx'
+      - 'src/pages/rows/RowChart/engine11InfiniteHistory5mProof*'
+      - '.github/workflows/engine2-5m-candles-only.yml'
+jobs:
+  frontend-candle-safety:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - name: Test paging and concurrent LIVE candle invariants
+        run: CI=true npm test -- --watch=false --runInBand --testPathPattern=engine11InfiniteHistory5mProof.test.js
+      - name: Build existing production RowChart without deploying
+        run: npm run build
