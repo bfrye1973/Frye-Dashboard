@@ -78,7 +78,7 @@ const port=server.address().port;
 let browser;
 try{
  browser=await chromium.launch({headless:true,args:["--disable-gpu-sandbox"]});
- const page=await browser.newPage({viewport:{width:1150,height:650},deviceScaleFactor:1});
+ const page=await browser.newPage({viewport:{width:1150,height:650},deviceScaleFactor:1,locale:"en-US"});
  const errors=[];
  page.on("pageerror",e=>errors.push(e.message));
  await page.goto("http://127.0.0.1:"+port, {waitUntil:"load"});
