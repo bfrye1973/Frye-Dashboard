@@ -29,6 +29,7 @@ import {
 import { SYMBOLS, TIMEFRAMES } from "./constants";
 import {
   fullChartLogicalRange,
+  mayUseTruncatedBackfill,
   liveBucketIsAfterArchive,
   liveContractMatchesHistory,
 } from "./engine11ChartStability";
@@ -1928,7 +1929,7 @@ export default function RowChart({
 
     function setFullSeries(nextBars) {
       // Fallback-only; never overwrite an Engine 11 full history with barsRef.
-      if (engine11SourceRef.current.active) return;
+      if (!mayUseTruncatedBackfill(engine11SourceRef.current)) return;
       const clean = normalizeChartBars(nextBars).slice(-MAX_KEEP_BARS);
       fullSeriesBarCountRef.current = clean.length;
       seriesLastBarTimeRef.current = clean[clean.length - 1]?.time ?? null;
@@ -1971,7 +1972,7 @@ export default function RowChart({
       if (!isFuturesLikeSymbol(state.symbol)) return;
       // Ordinary OHLC gap-backfill lacks the Engine11 source contract/basis
       // guarantee and must never rebuild the protected historical series.
-      if (engine11SourceRef.current.active) return;
+      if (!mayUseTruncatedBackfill(engine11SourceRef.current)) return;
       if (backfillRunning) return;
 
       const last = barsRef.current[barsRef.current.length - 1] || null;
