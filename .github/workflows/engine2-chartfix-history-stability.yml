@@ -24,6 +24,6 @@ jobs:
       - name: Install production frontend dependencies
         run: npm ci
       - name: Unit tests — contract identity, overlap, 25k-independent range and archive metadata
-        run: CI=true npm test -- --watch=false --runInBand --testPathPattern='engine11(ChartStability|HistoricalAdapter)\\.test\\.js'
+        run: CI=true npm test -- --watch=false --runInBand --testPathPattern='engine11ChartStability.test.js|engine11HistoricalAdapter.test.js'
       - name: Build unchanged dashboard routes and Engine22 overlays
         run: npm run build
