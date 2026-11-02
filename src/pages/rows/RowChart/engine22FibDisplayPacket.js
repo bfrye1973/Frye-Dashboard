@@ -1,7 +1,7 @@
 // Engine 2F: read-only, owner-authorized ES Fibonacci display adapter.
 // No Fibonacci math, model selection heuristics, or trading authority.
 // The backend authorized selection owns current model identity and price updates.
-const DEGREES = ["primary", "intermediate", "minor", "minute", "micro"];
+const DEGREES = ["primary", "intermediate", "minor", "minute", "micro", "submicro"];
 
 export function normalizeEngine22FibPacket(strategy) {
   const authorized = strategy?.authorizedWorkingStructure;
