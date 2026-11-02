@@ -17,6 +17,11 @@ export function liveBucketIsAfterArchive(bucketTime, archiveLastTime) {
     bucketTime > archiveLastTime;
 }
 
+export function mayUseTruncatedBackfill(engine11Source) {
+  // Never let the bounded UI cache become an Engine 11 series source.
+  return engine11Source?.active !== true;
+}
+
 export function fullChartLogicalRange(totalBars, requestedBars) {
   const length = Number(totalBars);
   const count = Number(requestedBars);
