@@ -282,13 +282,17 @@ export default function IndicatorsToolbar({
   fibMinor = false,
   fibMinute = false,
   fibMicro = false,
+  fibSubminute = false,
   fibSubmicro = false,
+  fibSubmicroScenario = "option1",
+  fibSubminuteScenario = "wick",
 
   fibPrimaryStyle,
   fibIntermediateStyle,
   fibMinorStyle,
   fibMinuteStyle,
   fibMicroStyle,
+  fibSubminuteStyle,
   fibSubmicroStyle, 
 
   engine17Overlay = true,
@@ -662,6 +666,24 @@ export default function IndicatorsToolbar({
                   }
                 />
 
+
+
+                <FibRow
+                  label="Fib (Subminute)"
+                  enabled={fibSubminute}
+                  styleObj={fibSubminuteStyle}
+                  onToggle={(v)=>onChange?.({fibSubminute:v})}
+                  onStylePatch={(patch)=>onChange?.({fibSubminuteStyle:{...(fibSubminuteStyle||{}),...patch}})}
+                />
+                <label style={{display:"grid",gap:3,marginLeft:18,fontSize:11,color:"#e5e7eb"}}>
+                  Subminute scenario
+                  <select value={fibSubminuteScenario} onChange={(e)=>onChange?.({fibSubminuteScenario:e.target.value})}
+                    style={{background:"#101827",color:"#e5e7eb",border:"1px solid #475569",borderRadius:4,padding:4}}>
+                    <option value="wick">Wick reference</option>
+                    <option value="body">Body reference</option>
+                    <option value="both">Both references</option>
+                  </select>
+                </label>
                 <FibRow
                   label="Fib (Micro)"
                   enabled={fibMicro}
@@ -682,7 +704,17 @@ export default function IndicatorsToolbar({
                   onStylePatch={(patch) =>
                     onChange?.({ fibSubmicroStyle: { ...(fibSubmicroStyle || {}), ...patch } })
                   }
-                />                
+                />
+                <label style={{display:"grid",gap:3,marginLeft:18,fontSize:11,color:"#e5e7eb"}}>
+                  Submicro scenario
+                  <select value={fibSubmicroScenario} onChange={(e)=>onChange?.({fibSubmicroScenario:e.target.value})}
+                    style={{background:"#101827",color:"#e5e7eb",border:"1px solid #475569",borderRadius:4,padding:4}}>
+                    <option value="option1">Option 1 — ABC Down</option>
+                    <option value="option2">Option 2 — A Ending</option>
+                    <option value="both">Both scenarios</option>
+                  </select>
+                </label>
+                
               </div>
 
               {divider}
