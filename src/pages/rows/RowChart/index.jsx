@@ -1359,6 +1359,13 @@ export default function RowChart({
               lastTime: historical.lastTime,
             });
           } catch (expandedError) {
+            if (
+              expandedError?.name === "AbortError" ||
+              controller.signal.aborted ||
+              cancelled
+            ) {
+              return;
+            }
             console.warn(
               "[RowChart] Engine11 2020plus unavailable; using legacy history",
               expandedError
@@ -1370,6 +1377,13 @@ export default function RowChart({
                 signal: controller.signal,
               });
             } catch (legacyError) {
+              if (
+                legacyError?.name === "AbortError" ||
+                controller.signal.aborted ||
+                cancelled
+              ) {
+                return;
+              }
               console.warn(
                 "[RowChart] Engine11 legacy unavailable; using normal OHLC seed",
                 legacyError
@@ -1470,7 +1484,7 @@ export default function RowChart({
       try { engine11HistoryAbortRef.current?.abort?.(); } catch {}
       engine11HistoryAbortRef.current = null;
     };
-  }, [state.symbol, state.timeframe, state.range, state.volume]);
+  }, [state.symbol, state.timeframe, state.volume]);
 
   /* ==================== Effect B: SNAPSHOT TRUTH FETCH ==================== */
 
