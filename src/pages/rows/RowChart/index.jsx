@@ -43,8 +43,9 @@ import SMZShelvesOverlay from "./overlays/SMZShelvesOverlay";
 import AccDistZonesPanel from "../../../components/smz/AccDistZonesPanel";
 
 import FibLevelsOverlay from "./overlays/FibLevelsOverlay";
-import ActiveWaveFibOverlay from "./overlays/ActiveWaveFibOverlay";
-import Engine22AuthorizedFibOverlay from "./overlays/Engine22AuthorizedFibOverlay";
+import Engine22FibLayersOverlay from "./overlays/Engine22FibLayersOverlay";
+import { normalizeEngine22FibPacket } from "./engine22FibDisplayPacket";
+
 import PremarketFibOverlay from "./overlays/PremarketFibOverlay";
 
 import DrawingsToolbar from "../../../features/drawings/DrawingsToolbar";
@@ -966,7 +967,7 @@ export default function RowChart({
   const roRef = useRef(null);
 
   const overlayInstancesRef = useRef([]);
-  const engine22MinorFibRef = useRef(null);
+
   const engine1OverlayInstancesRef = useRef([]);
 
   const [bars, setBars] = useState([]);
@@ -1000,7 +1001,7 @@ export default function RowChart({
 
   const [engine17Data, setEngine17Data] = useState(null);
   const [engine22AuthorizedWorkingStructure, setEngine22AuthorizedWorkingStructure] = useState(null);
-  const [engine22CurrentWavelength, setEngine22CurrentWavelength] = useState(null);
+
   const [engine17RawDebug, setEngine17RawDebug] = useState(null);
   const [chartMode, setChartMode] = useState(initialChartMode);
   const [selectedWaveDegree, setSelectedWaveDegree] = useState("minute");
@@ -1435,9 +1436,7 @@ export default function RowChart({
         setEngine22AuthorizedWorkingStructure(
           engine22WaveStrategy?.authorizedWorkingStructure || null
         );
-        setEngine22CurrentWavelength(
-          engine22WaveStrategy?.currentWavelength || null
-        );
+
       } catch (err) {
         if (cancelled) return;
 
@@ -1448,7 +1447,7 @@ export default function RowChart({
           detail: err?.message || String(err),
         });
         setEngine22AuthorizedWorkingStructure(null);
-        setEngine22CurrentWavelength(null);
+
       }
 
       if (showDebug || state.engine17DebugPanel || state.showPremarketFibs) {
@@ -1570,114 +1569,45 @@ export default function RowChart({
 
     const isES = normalizeSymbol(state.symbol) === "ES";
 
-    if (state.fibPrimary) {
-      reg(
-        attachOverlay(isES ? ActiveWaveFibOverlay : FibLevelsOverlay, {
+    if (isES) {
+      const packet = normalizeEngine22FibPacket({
+        authorizedWorkingStructure: engine22AuthorizedWorkingStructure,
+      });
+      reg(attachOverlay(Engine22FibLayersOverlay, {
+        chart: chartRef.current,
+        priceSeries: seriesRef.current,
+        chartContainer: containerRef.current,
+        packet,
+        toggles: {
+          primary: state.fibPrimary,
+          intermediate: state.fibIntermediate,
+          minor: state.fibMinor,
+          minute: state.fibMinute,
+          micro: state.fibMicro,
+        },
+        styles: {
+          primary: state.fibPrimaryStyle,
+          intermediate: state.fibIntermediateStyle,
+          minor: state.fibMinorStyle,
+          minute: state.fibMinuteStyle,
+          micro: state.fibMicroStyle,
+        },
+      }));
+    } else {
+      for (const [degree, enabled, style, tf] of [
+        ["primary", state.fibPrimary, state.fibPrimaryStyle, "1d"],
+        ["intermediate", state.fibIntermediate, state.fibIntermediateStyle, "1h"],
+        ["minor", state.fibMinor, state.fibMinorStyle, "1h"],
+        ["minute", state.fibMinute, state.fibMinuteStyle, "10m"],
+        ["micro", state.fibMicro, state.fibMicroStyle, "10m"],
+      ]) {
+        if (enabled) reg(attachOverlay(FibLevelsOverlay, {
           chart: chartRef.current,
           priceSeries: seriesRef.current,
           chartContainer: containerRef.current,
-          enabled: true,
-          symbol: state.symbol,
-          degree: "primary",
-          tf: "1d",
-          style: state.fibPrimaryStyle,
-        })
-      );
-    }
-
-    if (state.fibIntermediate) {
-      reg(
-        attachOverlay(isES ? ActiveWaveFibOverlay : FibLevelsOverlay, {
-          chart: chartRef.current,
-          priceSeries: seriesRef.current,
-          chartContainer: containerRef.current,
-          enabled: true,
-          symbol: state.symbol,
-          degree: "intermediate",
-          tf: "1h",
-          style: state.fibIntermediateStyle,
-        })
-      );
-    }
-
-    if (state.fibMinor && !isES) {
-      reg(
-        attachOverlay(FibLevelsOverlay, {
-          chart: chartRef.current,
-          priceSeries: seriesRef.current,
-          chartContainer: containerRef.current,
-          enabled: true,
-          symbol: state.symbol,
-          degree: "minor",
-          tf: "1h",
-          style: state.fibMinorStyle,
-        })
-      );
-    }
-
-    if (state.fibMinute) {
-      reg(
-        attachOverlay(isES ? ActiveWaveFibOverlay : FibLevelsOverlay, {
-          chart: chartRef.current,
-          priceSeries: seriesRef.current,
-          chartContainer: containerRef.current,
-          enabled: true,
-          symbol: state.symbol,
-          degree: "minute",
-          tf: "10m",
-          style: state.fibMinuteStyle,
-        })
-      );
-    }
-
-    if (state.fibMicro) {
-      reg(
-        attachOverlay(isES ? Engine22AuthorizedFibOverlay : FibLevelsOverlay, {
-          chart: chartRef.current,
-          priceSeries: seriesRef.current,
-          chartContainer: containerRef.current,
-          enabled: true,
-          symbol: state.symbol,
-          degree: "micro",
-          tf: "10m",
-          style: state.fibMicroStyle,
-          authorizedWorkingStructure: isES
-            ? (() => {
-                const micro =
-                  engine22AuthorizedWorkingStructure?.degrees?.micro || null;
-                const expectedPath =
-                  "currentWavelength.degrees.micro.ownerMicroCDownOct31";
-                const valid =
-                  engine22AuthorizedWorkingStructure?.schema ===
-                    "engine22.authorizedWorkingStructure.v1" &&
-                  engine22AuthorizedWorkingStructure?.mode === "READ_ONLY" &&
-                  engine22AuthorizedWorkingStructure?.noExecution === true &&
-                  micro?.available === true &&
-                  micro?.sourcePath === expectedPath &&
-                  Array.isArray(micro?.levels);
-                return valid
-                  ? engine22AuthorizedWorkingStructure
-                  : {
-                      schema: "engine22.authorizedWorkingStructure.v1",
-                      mode: "READ_ONLY",
-                      noExecution: true,
-                      degrees: {
-                        micro: {
-                          available: Array.isArray(
-                            engine22CurrentWavelength?.degrees?.micro
-                              ?.ownerMicroCDownOct31?.levels
-                          ),
-                          sourcePath: expectedPath,
-                          levels:
-                            engine22CurrentWavelength?.degrees?.micro
-                              ?.ownerMicroCDownOct31?.levels || [],
-                        },
-                      },
-                    };
-              })()
-            : null,
-        })
-      );
+          enabled: true, symbol: state.symbol, degree, tf, style,
+        }));
+      }
     }
 
     if (state.showPremarketFibs) {
@@ -1715,53 +1645,10 @@ export default function RowChart({
     engine22AuthorizedWorkingStructure,
     state.fibMinuteStyle,
     state.fibMicroStyle,
-    engine22CurrentWavelength,
     state.showPremarketFibs,
     state.timeframe,
     state.symbol,
     showDebug,
-  ]);
-
-  /* ============ Engine 22 Minor Fib — dedicated toggle lifecycle ============ */
-  useEffect(() => {
-    try { engine22MinorFibRef.current?.destroy?.(); } catch {}
-    engine22MinorFibRef.current = null;
-
-    const isES = normalizeSymbol(state.symbol) === "ES";
-    if (
-      !state.fibMinor ||
-      !isES ||
-      !chartRef.current ||
-      !seriesRef.current ||
-      !containerRef.current ||
-      barsRef.current.length === 0
-    ) {
-      return;
-    }
-
-    const inst = Engine22AuthorizedFibOverlay({
-      chart: chartRef.current,
-      priceSeries: seriesRef.current,
-      chartContainer: containerRef.current,
-      enabled: true,
-      degree: "minor",
-      style: state.fibMinorStyle,
-      authorizedWorkingStructure: engine22AuthorizedWorkingStructure,
-    });
-    engine22MinorFibRef.current = inst;
-    try { inst?.seed?.(barsRef.current); } catch {}
-
-    return () => {
-      try { inst?.destroy?.(); } catch {}
-      if (engine22MinorFibRef.current === inst) engine22MinorFibRef.current = null;
-    };
-  }, [
-    chartReady,
-    seedToken,
-    state.symbol,
-    state.fibMinor,
-    state.fibMinorStyle,
-    engine22AuthorizedWorkingStructure,
   ]);
 
   /* =================== Drawings Engine (ONE TIME) =================== */
