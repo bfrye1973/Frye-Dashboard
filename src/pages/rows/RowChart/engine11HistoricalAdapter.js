@@ -145,8 +145,6 @@ export async function fetchEngine11Page({
     page,
     bars: page.rows.map(engine11RowToLiveBar).sort((a, b) => a.time - b.time),
     provenanceRows: page.rows.map(preserveEngine11Row),
-    lastSourceContract: [...page.rows]
-      .sort((a, b) => exactSecond(b) - exactSecond(a))[0]?.sourceContract ?? null,
   };
 }
 
@@ -181,8 +179,6 @@ export async function fetchEngine11AllPages({
   const barsByTime = new Map();
   let cursor = null;
   let pages = 0;
-  let latestSourceTime = -Infinity;
-  let latestSourceContract = null;
 
   while (true) {
     if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
@@ -207,10 +203,6 @@ export async function fetchEngine11AllPages({
       if (!id || !Number.isFinite(time)) throw new Error("ENGINE11_INVALID_ROW_IDENTITY");
       if (rowsById.has(id)) throw new Error("ENGINE11_DUPLICATE_CANDLE_ID");
       if (barsByTime.has(time)) throw new Error("ENGINE11_DUPLICATE_TIMESTAMP");
-      if (time > latestSourceTime) {
-        latestSourceTime = time;
-        latestSourceContract = row.sourceContract ?? null;
-      }
       rowsById.set(id, includeProvenance ? preserveEngine11Row(row) : true);
       barsByTime.set(time, engine11RowToLiveBar(row));
     }
@@ -249,7 +241,6 @@ export async function fetchEngine11AllPages({
     provenanceRows,
     firstTime: bars[0]?.time ?? null,
     lastTime: bars[bars.length - 1]?.time ?? null,
-    lastSourceContract: latestSourceContract,
   };
 }
 

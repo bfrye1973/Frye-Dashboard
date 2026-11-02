@@ -21,18 +21,12 @@ import { createChart } from "lightweight-charts";
 import Controls from "./Controls";
 import IndicatorsToolbar from "./IndicatorsToolbar";
 
-import { getOHLC, getFuturesContractIdentity, subscribeStream } from "../../../lib/ohlcClient";
+import { getOHLC, subscribeStream } from "../../../lib/ohlcClient";
 import {
   fetchEngine11ContinuousUnadjustedPage,
   fetchEngine11ContinuousUnadjusted2020PlusAll,
 } from "./engine11HistoricalAdapter";
 import { SYMBOLS, TIMEFRAMES } from "./constants";
-import {
-  fullChartLogicalRange,
-  mayUseTruncatedBackfill,
-  liveBucketIsAfterArchive,
-  liveContractMatchesHistory,
-} from "./engine11ChartStability";
 
 import MoneyFlowOverlay from "../../../components/overlays/MoneyFlowOverlay";
 import RightProfileOverlay from "../../../components/overlays/RightProfileOverlay";
@@ -978,15 +972,7 @@ export default function RowChart({
   const engine1OverlayInstancesRef = useRef([]);
 
   const [bars, setBars] = useState([]);
-  // This bounded UI/overlay cache NEVER owns the full historical series.
   const barsRef = useRef([]);
-  const fullSeriesBarCountRef = useRef(0);
-  const seriesLastBarTimeRef = useRef(null);
-  const historySeededRef = useRef(false);
-  const liveContractGateRef = useRef("UNVERIFIED");
-  const engine11SourceRef = useRef({
-    active: false, archiveLastTime: null, terminalContract: null,
-  });
 
   const didFitOnceRef = useRef(false);
   const userInteractedRef = useRef(false);
@@ -1246,11 +1232,6 @@ export default function RowChart({
     didFitOnceRef.current = false;
   }, [state.timeframe]);
 
-  // Visibility changes must not re-fetch the Engine 11 history.
-  useEffect(() => {
-    volSeriesRef.current?.applyOptions({ visible: state.volume });
-  }, [chartReady, state.volume]);
-
   /* ---------------------- LIVE: status timer ---------------------- */
 
   useEffect(() => {
@@ -1259,15 +1240,6 @@ export default function RowChart({
     } catch {}
 
     liveTimerRef.current = setInterval(() => {
-      if (!historySeededRef.current) {
-        setLiveStatus("CONNECTING");
-        return;
-      }
-      if (engine11SourceRef.current.active &&
-          liveContractGateRef.current !== "MATCH") {
-        setLiveStatus("CONTRACT_HOLD");
-        return;
-      }
       const now = Date.now();
       const last = lastAliveRef.current || 0;
 
@@ -1333,11 +1305,6 @@ export default function RowChart({
 
   useEffect(() => {
     let cancelled = false;
-    historySeededRef.current = false;
-    liveContractGateRef.current = "UNVERIFIED";
-    engine11SourceRef.current = {
-      active: false, archiveLastTime: null, terminalContract: null,
-    };
 
     async function seedSeries() {
       setState((s) => ({ ...s, disabled: true }));
@@ -1351,7 +1318,6 @@ export default function RowChart({
           new URLSearchParams(window.location.search).get("engine11Candles") !== "0";
 
         let seed;
-        let engine11History = null;
         if (useEngine11) {
           // Isolated acceptance mode only. Never embed the owner key in code.
           // Reuse the already-approved research browser authorization.
@@ -1414,7 +1380,6 @@ export default function RowChart({
 
           if (historical) {
             seed = historical.bars;
-            engine11History = historical;
             engine11ProvenanceRef.current = historical.provenanceRows || [];
           } else {
             seed = await getOHLC(state.symbol, state.timeframe, limit);
@@ -1445,13 +1410,6 @@ export default function RowChart({
         barsRef.current = fullEngine11History
           ? asc.slice(-MAX_KEEP_BARS)
           : asc;
-        fullSeriesBarCountRef.current = asc.length;
-        seriesLastBarTimeRef.current = asc[asc.length - 1]?.time ?? null;
-        engine11SourceRef.current = {
-          active: Boolean(engine11History),
-          archiveLastTime: engine11History ? (asc[asc.length - 1]?.time ?? null) : null,
-          terminalContract: engine11History?.lastSourceContract ?? null,
-        };
 
         seriesRef.current?.setData(
           asc.map((b) => ({
@@ -1464,17 +1422,20 @@ export default function RowChart({
         );
 
         if (volSeriesRef.current) {
-          volSeriesRef.current.setData(
-            asc.map((b) => ({
-              time: b.time,
-              value: Number(b.volume || 0),
-              color: b.close >= b.open ? DEFAULTS.volUp : DEFAULTS.volDown,
-            }))
-          );
-          volSeriesRef.current.applyOptions({ visible: state.volume });
+          if (state.volume) {
+            volSeriesRef.current.applyOptions({ visible: true });
+            volSeriesRef.current.setData(
+              asc.map((b) => ({
+                time: b.time,
+                value: Number(b.volume || 0),
+                color: b.close >= b.open ? DEFAULTS.volUp : DEFAULTS.volDown,
+              }))
+            );
+          } else {
+            volSeriesRef.current.applyOptions({ visible: false });
+            volSeriesRef.current.setData([]);
+          }
         }
-        historySeededRef.current = true;
-        if (!engine11History) liveContractGateRef.current = "NOT_REQUIRED";
 
         setBars([...barsRef.current]);
         lastUiSyncRef.current = Date.now();
@@ -1494,12 +1455,6 @@ export default function RowChart({
       } catch (e) {
         console.error("[RowChart] seed error:", e);
         barsRef.current = [];
-        fullSeriesBarCountRef.current = 0;
-        seriesLastBarTimeRef.current = null;
-        historySeededRef.current = false;
-        engine11SourceRef.current = {
-          active: false, archiveLastTime: null, terminalContract: null,
-        };
         setBars([]);
       } finally {
         if (!cancelled) {
@@ -1515,7 +1470,7 @@ export default function RowChart({
       try { engine11HistoryAbortRef.current?.abort?.(); } catch {}
       engine11HistoryAbortRef.current = null;
     };
-  }, [state.symbol, state.timeframe]);
+  }, [state.symbol, state.timeframe, state.range, state.volume]);
 
   /* ==================== Effect B: SNAPSHOT TRUTH FETCH ==================== */
 
@@ -1828,64 +1783,6 @@ export default function RowChart({
     let isCurrent = true;
     let backfillRunning = false;
     let lastBackfillAt = 0;
-    let lastContractCheck = null;
-    let contractCheckInFlight = null;
-    let warnedContractMismatch = false;
-
-    async function confirmedEngine11LiveContract() {
-      const source = engine11SourceRef.current;
-      if (!source.active) return true;
-      if (!source.terminalContract) {
-        liveContractGateRef.current = "HOLD";
-        return false;
-      }
-
-      // Source rows identify the archived physical contract; the 1m stream
-      // exposes OHLCV only, so use the futures resolver as a conservative
-      // fail-closed side channel. Recheck periodically for contract changes.
-      if (lastContractCheck &&
-          Date.now() - lastContractCheck.at < 60_000 &&
-          lastContractCheck.terminalContract === source.terminalContract) {
-        return lastContractCheck.allowed;
-      }
-      if (!contractCheckInFlight) {
-        contractCheckInFlight = getFuturesContractIdentity(state.symbol, state.timeframe)
-          .then((identity) => {
-            const current = engine11SourceRef.current;
-            const allowed = current.active && liveContractMatchesHistory(
-              current.terminalContract, identity?.resolvedSymbol
-            );
-            lastContractCheck = {
-              at: Date.now(), terminalContract: current.terminalContract, allowed,
-            };
-            liveContractGateRef.current = allowed ? "MATCH" : "HOLD";
-            if (!allowed && !warnedContractMismatch) {
-              console.warn("[RowChart] Engine11 contract mismatch — holding LIVE bars", {
-                historicalContract: current.terminalContract,
-                liveResolvedTicker: identity?.resolvedSymbol ?? null,
-              });
-              warnedContractMismatch = true;
-            }
-            if (allowed) warnedContractMismatch = false;
-            return allowed;
-          })
-          .catch((err) => {
-            lastContractCheck = {
-              at: Date.now(),
-              terminalContract: engine11SourceRef.current.terminalContract,
-              allowed: false,
-            };
-            liveContractGateRef.current = "HOLD";
-            if (!warnedContractMismatch) {
-              console.warn("[RowChart] Engine11 LIVE contract unverified — holding bars", err);
-              warnedContractMismatch = true;
-            }
-            return false;
-          })
-          .finally(() => { contractCheckInFlight = null; });
-      }
-      return contractCheckInFlight;
-    }
 
     // For higher timeframes, rebuild the active bucket from unique 1m bars.
     // This prevents repeated live updates from double-counting volume.
@@ -1928,11 +1825,7 @@ export default function RowChart({
     }
 
     function setFullSeries(nextBars) {
-      // Fallback-only; never overwrite an Engine 11 full history with barsRef.
-      if (!mayUseTruncatedBackfill(engine11SourceRef.current)) return;
       const clean = normalizeChartBars(nextBars).slice(-MAX_KEEP_BARS);
-      fullSeriesBarCountRef.current = clean.length;
-      seriesLastBarTimeRef.current = clean[clean.length - 1]?.time ?? null;
 
       barsRef.current = clean;
 
@@ -1970,9 +1863,6 @@ export default function RowChart({
     async function backfillMissingHistoryIfNeeded(liveTimeSec) {
       if (!isCurrent) return;
       if (!isFuturesLikeSymbol(state.symbol)) return;
-      // Ordinary OHLC gap-backfill lacks the Engine11 source contract/basis
-      // guarantee and must never rebuild the protected historical series.
-      if (!mayUseTruncatedBackfill(engine11SourceRef.current)) return;
       if (backfillRunning) return;
 
       const last = barsRef.current[barsRef.current.length - 1] || null;
@@ -2046,8 +1936,6 @@ export default function RowChart({
     }
 
     function updateVisibleBar(bar) {
-      const last = seriesLastBarTimeRef.current;
-      if (Number.isFinite(last) && bar.time < last) return false;
       seriesRef.current?.update({
         time: bar.time,
         open: bar.open,
@@ -2056,22 +1944,17 @@ export default function RowChart({
         close: bar.close,
       });
 
-      if (volSeriesRef.current) {
+      if (state.volume && volSeriesRef.current) {
         volSeriesRef.current.update({
           time: bar.time,
           value: Number(bar.volume || 0),
           color: bar.close >= bar.open ? DEFAULTS.volUp : DEFAULTS.volDown,
         });
       }
-      if (!Number.isFinite(last) || bar.time > last) {
-        fullSeriesBarCountRef.current += 1;
-        seriesLastBarTimeRef.current = bar.time;
-      }
 
       try {
         overlayInstancesRef.current.forEach((o) => o?.update?.(bar));
       } catch {}
-      return true;
     }
 
     function buildBucketBar(bucketStart) {
@@ -2124,7 +2007,7 @@ export default function RowChart({
       state.symbol,
       LIVE_TF,
       async (oneMin) => {
-        if (!isCurrent || !historySeededRef.current) return;
+        if (!isCurrent) return;
 
         const tSec = Number(
           oneMin.time > 1e12 ? Math.floor(oneMin.time / 1000) : oneMin.time
@@ -2151,21 +2034,11 @@ export default function RowChart({
         }
 
         await backfillMissingHistoryIfNeeded(cleanOneMin.time);
-        if (!isCurrent || !historySeededRef.current) return;
-
-        if (engine11SourceRef.current.active) {
-          const bucketStart = tfSec === TF_SEC["1m"]
-            ? cleanOneMin.time : floorToBucket(cleanOneMin.time);
-          if (!liveBucketIsAfterArchive(
-            bucketStart, engine11SourceRef.current.archiveLastTime
-          )) return;
-          if (!(await confirmedEngine11LiveContract())) return;
-          if (!isCurrent || !historySeededRef.current) return;
-        }
 
         // 1m chart: update the current candle directly.
         if (tfSec === TF_SEC["1m"]) {
-          if (updateVisibleBar(cleanOneMin)) upsertChartBar(cleanOneMin, false);
+          updateVisibleBar(cleanOneMin);
+          upsertChartBar(cleanOneMin, false);
           return;
         }
 
@@ -2183,7 +2056,8 @@ export default function RowChart({
         const bucketBar = buildBucketBar(bucketStart);
         if (!bucketBar) return;
 
-        if (updateVisibleBar(bucketBar)) upsertChartBar(bucketBar, false);
+        updateVisibleBar(bucketBar);
+        upsertChartBar(bucketBar, false);
       },
       onAlive
     );
@@ -2315,7 +2189,8 @@ export default function RowChart({
     setState((s) => ({ ...s, range: nextRange }));
 
     const tsLocal = chart.timeScale();
-    const len = fullSeriesBarCountRef.current;
+    const list = barsRef.current;
+    const len = list.length;
 
     if (!len) return;
 
@@ -2335,9 +2210,10 @@ export default function RowChart({
       return;
     }
 
-    const logicalRange = fullChartLogicalRange(len, r);
-    if (!logicalRange) return;
-    tsLocal.setVisibleLogicalRange(logicalRange);
+    const to = len - 1;
+    const from = Math.max(0, to - (r - 1));
+
+    tsLocal.setVisibleLogicalRange({ from, to });
     didFitOnceRef.current = true;
     userInteractedRef.current = true;
   };
@@ -2480,9 +2356,6 @@ export default function RowChart({
   );
 
   const badge = (() => {
-    if (liveStatus === "CONTRACT_HOLD") {
-      return { text: "ES CONTRACT HOLD", bg: "rgba(245,158,11,0.92)" };
-    }
     if (liveStatus === "LIVE") {
       return { text: "LIVE", bg: "rgba(16,185,129,0.92)" };
     }
@@ -2580,11 +2453,9 @@ export default function RowChart({
               userSelect: "none",
             }}
             title={
-              liveStatus === "CONTRACT_HOLD"
-                ? "Engine 11 historical/LIVE contract not verified; new ES candles held"
-                : liveStatus === "LIVE"
-                  ? "Stream healthy (receiving messages)"
-                  : liveStatus === "STALE"
+              liveStatus === "LIVE"
+                ? "Stream healthy (receiving messages)"
+                : liveStatus === "STALE"
                   ? "No stream messages received in 30s"
                   : "Connecting to live stream…"
             }
