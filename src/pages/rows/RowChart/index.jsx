@@ -24,6 +24,7 @@ import IndicatorsToolbar from "./IndicatorsToolbar";
 import { getOHLC, subscribeStream } from "../../../lib/ohlcClient";
 import {
   fetchEngine11ContinuousUnadjustedPage,
+  fetchEngine11ContinuousUnadjusted2020PlusAll,
 } from "./engine11HistoricalAdapter";
 import { SYMBOLS, TIMEFRAMES } from "./constants";
 
@@ -984,6 +985,8 @@ export default function RowChart({
   // retained for provenance while Lightweight Charts receives only OHLCV.
   const engine11ProvenanceRef = useRef([]);
   const engine11HistoryAbortRef = useRef(null);
+  const engine11FullHistoryModeRef = useRef(false);
+  const engine11FullHistoryMetaRef = useRef(null);
 
   const lastUiSyncRef = useRef(0);
   const uiTimerRef = useRef(null);
@@ -1263,11 +1266,15 @@ export default function RowChart({
   /* ---------------------- TURBO: UI sync helper ---------------------- */
 
   const forceUiSync = () => {
-    if (barsRef.current.length > MAX_KEEP_BARS) {
+    if (!engine11FullHistoryModeRef.current && barsRef.current.length > MAX_KEEP_BARS) {
       barsRef.current = barsRef.current.slice(-MAX_KEEP_BARS);
     }
 
-    setBars([...barsRef.current]);
+    setBars(
+      engine11FullHistoryModeRef.current
+        ? barsRef.current.slice(-MAX_KEEP_BARS)
+        : [...barsRef.current]
+    );
     lastUiSyncRef.current = Date.now();
   };
 
@@ -1310,13 +1317,20 @@ export default function RowChart({
 
       try {
         const limit = seedLimitFor(state.timeframe);
+        const params =
+          typeof window !== "undefined"
+            ? new URLSearchParams(window.location.search)
+            : null;
         const useEngine11 =
           normalizeSymbol(state.symbol) === "ES" &&
-          ["5m", "10m", "1h", "4h", "1d"].includes(state.timeframe) &&
-          typeof window !== "undefined" &&
-          new URLSearchParams(window.location.search).get("engine11Candles") !== "0";
+          ["5m", "10m", "1h", "4h", "1d", "1w", "1mo"].includes(state.timeframe) &&
+          params?.get("engine11Candles") !== "0";
+        const useEngine11_2020plus =
+          useEngine11 && params?.get("engine11History") === "2020plus";
 
         let seed;
+        engine11FullHistoryModeRef.current = useEngine11_2020plus;
+        engine11FullHistoryMetaRef.current = null;
         if (useEngine11) {
           // Isolated acceptance mode only. Never embed the owner key in code.
           // Reuse the already-approved research browser authorization.
@@ -1340,13 +1354,38 @@ export default function RowChart({
           engine11HistoryAbortRef.current?.abort?.();
           const controller = new AbortController();
           engine11HistoryAbortRef.current = controller;
-          const historical = await fetchEngine11ContinuousUnadjustedPage({
-            frame: state.timeframe,
-            accessKey,
-            signal: controller.signal,
-          });
+          const historical = useEngine11_2020plus
+            ? await fetchEngine11ContinuousUnadjusted2020PlusAll({
+                frame: state.timeframe,
+                accessKey,
+                signal: controller.signal,
+                includeProvenance: false,
+                onPage: ({ pageNumber, rowsLoaded }) => {
+                  if (pageNumber === 1 || pageNumber % 25 === 0) {
+                    console.log("[RowChart] Engine11 2020plus pagination", {
+                      frame: state.timeframe,
+                      pageNumber,
+                      rowsLoaded,
+                    });
+                  }
+                },
+              })
+            : await fetchEngine11ContinuousUnadjustedPage({
+                frame: state.timeframe,
+                accessKey,
+                signal: controller.signal,
+              });
           seed = historical.bars;
-          engine11ProvenanceRef.current = historical.provenanceRows;
+          engine11ProvenanceRef.current = historical.provenanceRows || [];
+          if (useEngine11_2020plus) {
+            engine11FullHistoryMetaRef.current = {
+              frame: historical.frame,
+              pages: historical.pages,
+              rows: historical.rows,
+              firstTime: historical.firstTime,
+              lastTime: historical.lastTime,
+            };
+          }
         } else {
           seed = await getOHLC(state.symbol, state.timeframe, limit);
           engine11ProvenanceRef.current = [];
@@ -1389,7 +1428,11 @@ export default function RowChart({
           }
         }
 
-        setBars(asc);
+        setBars(
+          engine11FullHistoryModeRef.current
+            ? asc.slice(-MAX_KEEP_BARS)
+            : asc
+        );
         lastUiSyncRef.current = Date.now();
         setSeedToken((x) => x + 1);
 
@@ -1777,7 +1820,10 @@ export default function RowChart({
     }
 
     function setFullSeries(nextBars) {
-      const clean = normalizeChartBars(nextBars).slice(-MAX_KEEP_BARS);
+      const normalized = normalizeChartBars(nextBars);
+      const clean = engine11FullHistoryModeRef.current
+        ? normalized
+        : normalized.slice(-MAX_KEEP_BARS);
 
       barsRef.current = clean;
 
@@ -1807,7 +1853,11 @@ export default function RowChart({
         }
       }
 
-      setBars(clean);
+      setBars(
+        engine11FullHistoryModeRef.current
+          ? clean.slice(-MAX_KEEP_BARS)
+          : clean
+      );
       lastUiSyncRef.current = Date.now();
       setSeedToken((x) => x + 1);
     }
@@ -1874,7 +1924,9 @@ export default function RowChart({
       const prev = barsRef.current[barsRef.current.length - 1];
 
       if (!prev || bar.time > prev.time) {
-        barsRef.current = [...barsRef.current, bar].slice(-MAX_KEEP_BARS);
+        barsRef.current = engine11FullHistoryModeRef.current
+        ? [...barsRef.current, bar]
+        : [...barsRef.current, bar].slice(-MAX_KEEP_BARS);
         scheduleUiSync(true);
         return;
       }
