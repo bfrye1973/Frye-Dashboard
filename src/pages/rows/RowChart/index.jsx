@@ -1815,6 +1815,59 @@ export default function RowChart({
     let isCurrent = true;
     let backfillRunning = false;
     let lastBackfillAt = 0;
+    let lastContractCheck = null;
+    let contractCheckInFlight = null;
+    let warnedContractMismatch = false;
+
+    async function confirmedEngine11LiveContract() {
+      const source = engine11SourceRef.current;
+      if (!source.active) return true;
+      if (!source.terminalContract) return false;
+
+      // Source rows identify the archived physical contract; the 1m stream
+      // exposes OHLCV only, so use the futures resolver as a conservative
+      // fail-closed side channel. Recheck periodically for contract changes.
+      if (lastContractCheck &&
+          Date.now() - lastContractCheck.at < 60_000 &&
+          lastContractCheck.terminalContract === source.terminalContract) {
+        return lastContractCheck.allowed;
+      }
+      if (!contractCheckInFlight) {
+        contractCheckInFlight = getFuturesContractIdentity(state.symbol, state.timeframe)
+          .then((identity) => {
+            const current = engine11SourceRef.current;
+            const allowed = current.active && liveContractMatchesHistory(
+              current.terminalContract, identity?.resolvedSymbol
+            );
+            lastContractCheck = {
+              at: Date.now(), terminalContract: current.terminalContract, allowed,
+            };
+            if (!allowed && !warnedContractMismatch) {
+              console.warn("[RowChart] Engine11 contract mismatch — holding LIVE bars", {
+                historicalContract: current.terminalContract,
+                liveResolvedTicker: identity?.resolvedSymbol ?? null,
+              });
+              warnedContractMismatch = true;
+            }
+            if (allowed) warnedContractMismatch = false;
+            return allowed;
+          })
+          .catch((err) => {
+            lastContractCheck = {
+              at: Date.now(),
+              terminalContract: engine11SourceRef.current.terminalContract,
+              allowed: false,
+            };
+            if (!warnedContractMismatch) {
+              console.warn("[RowChart] Engine11 LIVE contract unverified — holding bars", err);
+              warnedContractMismatch = true;
+            }
+            return false;
+          })
+          .finally(() => { contractCheckInFlight = null; });
+      }
+      return contractCheckInFlight;
+    }
 
     // For higher timeframes, rebuild the active bucket from unique 1m bars.
     // This prevents repeated live updates from double-counting volume.
@@ -1857,7 +1910,11 @@ export default function RowChart({
     }
 
     function setFullSeries(nextBars) {
+      // Fallback-only; never overwrite an Engine 11 full history with barsRef.
+      if (engine11SourceRef.current.active) return;
       const clean = normalizeChartBars(nextBars).slice(-MAX_KEEP_BARS);
+      fullSeriesBarCountRef.current = clean.length;
+      seriesLastBarTimeRef.current = clean[clean.length - 1]?.time ?? null;
 
       barsRef.current = clean;
 
@@ -1895,6 +1952,9 @@ export default function RowChart({
     async function backfillMissingHistoryIfNeeded(liveTimeSec) {
       if (!isCurrent) return;
       if (!isFuturesLikeSymbol(state.symbol)) return;
+      // Ordinary OHLC gap-backfill lacks the Engine11 source contract/basis
+      // guarantee and must never rebuild the protected historical series.
+      if (engine11SourceRef.current.active) return;
       if (backfillRunning) return;
 
       const last = barsRef.current[barsRef.current.length - 1] || null;
@@ -1968,6 +2028,8 @@ export default function RowChart({
     }
 
     function updateVisibleBar(bar) {
+      const last = seriesLastBarTimeRef.current;
+      if (Number.isFinite(last) && bar.time < last) return false;
       seriesRef.current?.update({
         time: bar.time,
         open: bar.open,
@@ -1976,17 +2038,22 @@ export default function RowChart({
         close: bar.close,
       });
 
-      if (state.volume && volSeriesRef.current) {
+      if (volSeriesRef.current) {
         volSeriesRef.current.update({
           time: bar.time,
           value: Number(bar.volume || 0),
           color: bar.close >= bar.open ? DEFAULTS.volUp : DEFAULTS.volDown,
         });
       }
+      if (!Number.isFinite(last) || bar.time > last) {
+        fullSeriesBarCountRef.current += 1;
+        seriesLastBarTimeRef.current = bar.time;
+      }
 
       try {
         overlayInstancesRef.current.forEach((o) => o?.update?.(bar));
       } catch {}
+      return true;
     }
 
     function buildBucketBar(bucketStart) {
@@ -2039,7 +2106,7 @@ export default function RowChart({
       state.symbol,
       LIVE_TF,
       async (oneMin) => {
-        if (!isCurrent) return;
+        if (!isCurrent || !historySeededRef.current) return;
 
         const tSec = Number(
           oneMin.time > 1e12 ? Math.floor(oneMin.time / 1000) : oneMin.time
@@ -2066,11 +2133,21 @@ export default function RowChart({
         }
 
         await backfillMissingHistoryIfNeeded(cleanOneMin.time);
+        if (!isCurrent || !historySeededRef.current) return;
+
+        if (engine11SourceRef.current.active) {
+          const bucketStart = tfSec === TF_SEC["1m"]
+            ? cleanOneMin.time : floorToBucket(cleanOneMin.time);
+          if (!liveBucketIsAfterArchive(
+            bucketStart, engine11SourceRef.current.archiveLastTime
+          )) return;
+          if (!(await confirmedEngine11LiveContract())) return;
+          if (!isCurrent || !historySeededRef.current) return;
+        }
 
         // 1m chart: update the current candle directly.
         if (tfSec === TF_SEC["1m"]) {
-          updateVisibleBar(cleanOneMin);
-          upsertChartBar(cleanOneMin, false);
+          if (updateVisibleBar(cleanOneMin)) upsertChartBar(cleanOneMin, false);
           return;
         }
 
@@ -2088,8 +2165,7 @@ export default function RowChart({
         const bucketBar = buildBucketBar(bucketStart);
         if (!bucketBar) return;
 
-        updateVisibleBar(bucketBar);
-        upsertChartBar(bucketBar, false);
+        if (updateVisibleBar(bucketBar)) upsertChartBar(bucketBar, false);
       },
       onAlive
     );
