@@ -1,0 +1,40 @@
+name: Engine2 5m Infinite History Isolated Proof
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/pages/rows/RowChart/engine11InfiniteHistory5mProof*'
+      - 'research/engine2-chartfix/isolatedInfiniteHistory5mBrowser.mjs'
+      - '.github/workflows/engine2-infinite-history-5m-proof.yml'
+
+jobs:
+  offline-5m-proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Install exact frontend dependencies
+        run: npm ci
+      - name: Test page, race, overlap, viewport and UI cache invariants
+        run: CI=true npm test -- --watch=false --runInBand --testPathPattern=engine11InfiniteHistory5mProof.test.js
+      - name: Build existing LIVE dashboard unchanged
+        run: npm run build
+      - name: Install isolated browser tooling (CI only)
+        run: |
+          npm install --no-save --no-package-lock playwright@1.56.1 esbuild@0.25.12
+          npx playwright install --with-deps chromium
+      - name: Validate 5m paging against actual Lightweight Charts in Chromium
+        run: node research/engine2-chartfix/isolatedInfiniteHistory5mBrowser.mjs
+      - name: Archive synthetic browser screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: engine2-5m-infinite-history-synthetic-browser
+          path: /tmp/engine2-infinite-history-browser/*.png
+          if-no-files-found: ignore
