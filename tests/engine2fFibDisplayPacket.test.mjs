@@ -53,7 +53,7 @@ test("owner-authorized Submicro alternatives remain separately labeled",()=>{
     option1:{levels:[{label:"0.618",price:7600.25}]},
     option2:{levels:[{label:"0.618",price:7719.75}]}
   }}}};
-  const p=normalizeEngine22FibPacket(f);
+  const p=normalizeEngine22FibPacket(f,{submicro:"both"});
   assert.deepEqual(p.degrees.submicro.levels.map(x=>x.price),[7600.25,7719.75]);
   assert.deepEqual(p.degrees.submicro.levels.map(x=>x.ratio),["OPTION1 0.618","OPTION2 0.618"]);
 });
