@@ -3,6 +3,7 @@ import {
   liveContractMatchesHistory,
   liveBucketIsAfterArchive,
   fullChartLogicalRange,
+  mayUseTruncatedBackfill,
 } from "./engine11ChartStability";
 
 describe("Engine 11 historical/LIVE chart stability guards", () => {
@@ -20,6 +21,12 @@ describe("Engine 11 historical/LIVE chart stability guards", () => {
     expect(liveBucketIsAfterArchive(last - 600, last)).toBe(false);
     expect(liveBucketIsAfterArchive(last + 600, last)).toBe(true);
     expect(liveBucketIsAfterArchive(NaN, last)).toBe(false);
+  });
+
+  test("never authorizes 25k full-series backfill for an Engine11-backed chart", () => {
+    expect(mayUseTruncatedBackfill({ active: true })).toBe(false);
+    expect(mayUseTruncatedBackfill({ active: false })).toBe(true);
+    expect(mayUseTruncatedBackfill(null)).toBe(true);
   });
 
   test("50, 100 and 200 ranges reference 235733 plotted candles, not the UI cache", () => {
