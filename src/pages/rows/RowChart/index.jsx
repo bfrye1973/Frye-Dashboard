@@ -24,6 +24,7 @@ import IndicatorsToolbar from "./IndicatorsToolbar";
 import { getOHLC, subscribeStream } from "../../../lib/ohlcClient";
 import {
   fetchEngine11ContinuousUnadjustedPage,
+  fetchEngine11ContinuousUnadjusted2020PlusAll,
 } from "./engine11HistoricalAdapter";
 import { SYMBOLS, TIMEFRAMES } from "./constants";
 
@@ -1340,13 +1341,56 @@ export default function RowChart({
           engine11HistoryAbortRef.current?.abort?.();
           const controller = new AbortController();
           engine11HistoryAbortRef.current = controller;
-          const historical = await fetchEngine11ContinuousUnadjustedPage({
-            frame: state.timeframe,
-            accessKey,
-            signal: controller.signal,
-          });
-          seed = historical.bars;
-          engine11ProvenanceRef.current = historical.provenanceRows;
+          let historical;
+          let loadedFullHistory = false;
+          try {
+            historical = await fetchEngine11ContinuousUnadjusted2020PlusAll({
+              frame: state.timeframe,
+              accessKey,
+              signal: controller.signal,
+              includeProvenance: false,
+            });
+            loadedFullHistory = true;
+            console.log("[RowChart] Engine11 2020plus history loaded", {
+              frame: state.timeframe,
+              pages: historical.pages,
+              rows: historical.rows,
+              firstTime: historical.firstTime,
+              lastTime: historical.lastTime,
+            });
+          } catch (expandedError) {
+            console.warn(
+              "[RowChart] Engine11 2020plus unavailable; using legacy history",
+              expandedError
+            );
+            try {
+              historical = await fetchEngine11ContinuousUnadjustedPage({
+                frame: state.timeframe,
+                accessKey,
+                signal: controller.signal,
+              });
+            } catch (legacyError) {
+              console.warn(
+                "[RowChart] Engine11 legacy unavailable; using normal OHLC seed",
+                legacyError
+              );
+              historical = null;
+            }
+          }
+
+          if (historical) {
+            seed = historical.bars;
+            engine11ProvenanceRef.current = historical.provenanceRows || [];
+          } else {
+            seed = await getOHLC(state.symbol, state.timeframe, limit);
+            engine11ProvenanceRef.current = [];
+          }
+
+          // Keep the full historical series in Lightweight Charts, while the
+          // React/overlay working set stays bounded for live updates.
+          if (loadedFullHistory) {
+            engine11ProvenanceRef.current = [];
+          }
         } else {
           seed = await getOHLC(state.symbol, state.timeframe, limit);
           engine11ProvenanceRef.current = [];
@@ -1361,7 +1405,11 @@ export default function RowChart({
           }))
           .sort((a, b) => a.time - b.time);
 
-        barsRef.current = asc;
+        const fullEngine11History =
+          useEngine11 && asc.length > MAX_KEEP_BARS;
+        barsRef.current = fullEngine11History
+          ? asc.slice(-MAX_KEEP_BARS)
+          : asc;
 
         seriesRef.current?.setData(
           asc.map((b) => ({
@@ -1389,7 +1437,7 @@ export default function RowChart({
           }
         }
 
-        setBars(asc);
+        setBars([...barsRef.current]);
         lastUiSyncRef.current = Date.now();
         setSeedToken((x) => x + 1);
 
