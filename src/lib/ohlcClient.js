@@ -85,7 +85,7 @@ function normalizeBars(arr) {
 //
 // Futures:
 //   /api/v1/futures/ohlc?symbol=ES&timeframe=1m&limit=1500
-export async function getOHLC(symbol = "SPY", timeframe = "10m", limit = 1500) {
+export async function getOHLC(symbol = "SPY", timeframe = "10m", limit = 1500, onTiming = null) {
   const sym = String(symbol || "SPY").toUpperCase();
   const tf = normalizeTf(timeframe);
   const safeLimit = clampLimit(limit, 1500);
@@ -100,17 +100,24 @@ export async function getOHLC(symbol = "SPY", timeframe = "10m", limit = 1500) {
       `&timeframe=${encodeURIComponent(tf)}` +
       `&limit=${encodeURIComponent(safeLimit)}`;
 
+  const networkStart = performance.now();
   const r = await fetch(url, { cache: "no-store" });
+  const networkMs = performance.now() - networkStart;
 
   if (!r.ok) {
     throw new Error(`${isFutures ? "Futures OHLC" : "OHLC"} ${r.status}`);
   }
 
+  const parseStart = performance.now();
   const data = await r.json().catch(() => null);
+  const parseMs = performance.now() - parseStart;
+  const normalizeStart = performance.now();
   const raw = Array.isArray(data) ? data : Array.isArray(data?.bars) ? data.bars : [];
   const bars = normalizeBars(raw);
-
-  return bars.length > safeLimit ? bars.slice(-safeLimit) : bars;
+  const trimmed = bars.length > safeLimit ? bars.slice(-safeLimit) : bars;
+  const normalizeMs = performance.now() - normalizeStart;
+  onTiming?.({networkMs, parseMs, normalizeMs, rawRows:raw.length, rows:trimmed.length});
+  return trimmed;
 }
 
 
