@@ -176,7 +176,7 @@ export async function fetchEngine11AllPages({
 
   const seenCursors = new Set();
   const rowsById = new Map();
-  const rowsByTime = new Map();
+  const barsByTime = new Map();
   let cursor = null;
   let pages = 0;
 
@@ -202,9 +202,9 @@ export async function fetchEngine11AllPages({
       const time = exactSecond(row);
       if (!id || !Number.isFinite(time)) throw new Error("ENGINE11_INVALID_ROW_IDENTITY");
       if (rowsById.has(id)) throw new Error("ENGINE11_DUPLICATE_CANDLE_ID");
-      if (rowsByTime.has(time)) throw new Error("ENGINE11_DUPLICATE_TIMESTAMP");
-      rowsById.set(id, preserveEngine11Row(row));
-      rowsByTime.set(time, row);
+      if (barsByTime.has(time)) throw new Error("ENGINE11_DUPLICATE_TIMESTAMP");
+      rowsById.set(id, includeProvenance ? preserveEngine11Row(row) : true);
+      barsByTime.set(time, engine11RowToLiveBar(row));
     }
 
     onPage?.({
@@ -221,10 +221,9 @@ export async function fetchEngine11AllPages({
   const provenanceRows = includeProvenance
     ? Array.from(rowsById.values()).sort((a, b) => exactSecond(a) - exactSecond(b))
     : [];
-  const sourceRows = includeProvenance
-    ? provenanceRows
-    : Array.from(rowsByTime.values()).sort((a, b) => exactSecond(a) - exactSecond(b));
-  const bars = sourceRows.map(engine11RowToLiveBar);
+  const bars = includeProvenance
+    ? provenanceRows.map(engine11RowToLiveBar)
+    : Array.from(barsByTime.values()).sort((a, b) => a.time - b.time);
 
   const expected = dataset.expectedRows?.[frame];
   if (Number.isInteger(expected) && bars.length !== expected) {
