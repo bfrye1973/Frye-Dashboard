@@ -982,6 +982,7 @@ export default function RowChart({
   const fullSeriesBarCountRef = useRef(0);
   const seriesLastBarTimeRef = useRef(null);
   const historySeededRef = useRef(false);
+  const liveContractGateRef = useRef("UNVERIFIED");
   const engine11SourceRef = useRef({
     active: false, archiveLastTime: null, terminalContract: null,
   });
@@ -1257,6 +1258,15 @@ export default function RowChart({
     } catch {}
 
     liveTimerRef.current = setInterval(() => {
+      if (!historySeededRef.current) {
+        setLiveStatus("CONNECTING");
+        return;
+      }
+      if (engine11SourceRef.current.active &&
+          liveContractGateRef.current !== "MATCH") {
+        setLiveStatus("CONTRACT_HOLD");
+        return;
+      }
       const now = Date.now();
       const last = lastAliveRef.current || 0;
 
@@ -1323,6 +1333,7 @@ export default function RowChart({
   useEffect(() => {
     let cancelled = false;
     historySeededRef.current = false;
+    liveContractGateRef.current = "UNVERIFIED";
     engine11SourceRef.current = {
       active: false, archiveLastTime: null, terminalContract: null,
     };
@@ -1462,6 +1473,7 @@ export default function RowChart({
           volSeriesRef.current.applyOptions({ visible: state.volume });
         }
         historySeededRef.current = true;
+        if (!engine11History) liveContractGateRef.current = "NOT_REQUIRED";
 
         setBars([...barsRef.current]);
         lastUiSyncRef.current = Date.now();
@@ -1822,7 +1834,10 @@ export default function RowChart({
     async function confirmedEngine11LiveContract() {
       const source = engine11SourceRef.current;
       if (!source.active) return true;
-      if (!source.terminalContract) return false;
+      if (!source.terminalContract) {
+        liveContractGateRef.current = "HOLD";
+        return false;
+      }
 
       // Source rows identify the archived physical contract; the 1m stream
       // exposes OHLCV only, so use the futures resolver as a conservative
@@ -1842,6 +1857,7 @@ export default function RowChart({
             lastContractCheck = {
               at: Date.now(), terminalContract: current.terminalContract, allowed,
             };
+            liveContractGateRef.current = allowed ? "MATCH" : "HOLD";
             if (!allowed && !warnedContractMismatch) {
               console.warn("[RowChart] Engine11 contract mismatch — holding LIVE bars", {
                 historicalContract: current.terminalContract,
@@ -1858,6 +1874,7 @@ export default function RowChart({
               terminalContract: engine11SourceRef.current.terminalContract,
               allowed: false,
             };
+            liveContractGateRef.current = "HOLD";
             if (!warnedContractMismatch) {
               console.warn("[RowChart] Engine11 LIVE contract unverified — holding bars", err);
               warnedContractMismatch = true;
@@ -2462,6 +2479,9 @@ export default function RowChart({
   );
 
   const badge = (() => {
+    if (liveStatus === "CONTRACT_HOLD") {
+      return { text: "ES CONTRACT HOLD", bg: "rgba(245,158,11,0.92)" };
+    }
     if (liveStatus === "LIVE") {
       return { text: "LIVE", bg: "rgba(16,185,129,0.92)" };
     }
@@ -2559,9 +2579,11 @@ export default function RowChart({
               userSelect: "none",
             }}
             title={
-              liveStatus === "LIVE"
-                ? "Stream healthy (receiving messages)"
-                : liveStatus === "STALE"
+              liveStatus === "CONTRACT_HOLD"
+                ? "Engine 11 historical/LIVE contract not verified; new ES candles held"
+                : liveStatus === "LIVE"
+                  ? "Stream healthy (receiving messages)"
+                  : liveStatus === "STALE"
                   ? "No stream messages received in 30s"
                   : "Connecting to live stream…"
             }
