@@ -27,6 +27,7 @@ import {
   fetchEngine11ContinuousUnadjusted2020PlusAll,
 } from "./engine11HistoricalAdapter";
 import { SYMBOLS, TIMEFRAMES } from "./constants";
+import { createChartLoadProbe, recordChartLoadReport } from "./engine2ChartLoadProbe";
 
 import MoneyFlowOverlay from "../../../components/overlays/MoneyFlowOverlay";
 import RightProfileOverlay from "../../../components/overlays/RightProfileOverlay";
@@ -985,6 +986,7 @@ export default function RowChart({
   // retained for provenance while Lightweight Charts receives only OHLCV.
   const engine11ProvenanceRef = useRef([]);
   const engine11HistoryAbortRef = useRef(null);
+  const historyLoadVisitsRef = useRef({});
 
   const lastUiSyncRef = useRef(0);
   const uiTimerRef = useRef(null);
@@ -1305,6 +1307,16 @@ export default function RowChart({
 
   useEffect(() => {
     let cancelled = false;
+    // Read-only performance telemetry; never stores owner keys or candle values.
+    const visitKey = normalizeSymbol(state.symbol) + ":" + state.timeframe;
+    const visit = (historyLoadVisitsRef.current[visitKey] || 0) + 1;
+    historyLoadVisitsRef.current[visitKey] = visit;
+    const probe = createChartLoadProbe({
+      symbol: normalizeSymbol(state.symbol),
+      timeframe: state.timeframe,
+      visit,
+      onReport: recordChartLoadReport,
+    });
 
     async function seedSeries() {
       setState((s) => ({ ...s, disabled: true }));
@@ -1344,11 +1356,14 @@ export default function RowChart({
           let historical;
           let loadedFullHistory = false;
           try {
+            probe.source("engine11-2020plus");
             historical = await fetchEngine11ContinuousUnadjusted2020PlusAll({
               frame: state.timeframe,
               accessKey,
               signal: controller.signal,
               includeProvenance: false,
+              onPageMetric: (metrics) => probe.page(metrics),
+              onSort: (ms) => probe.sorted(ms),
             });
             loadedFullHistory = true;
             console.log("[RowChart] Engine11 2020plus history loaded", {
@@ -1364,10 +1379,12 @@ export default function RowChart({
               expandedError
             );
             try {
+              probe.source("engine11-legacy");
               historical = await fetchEngine11ContinuousUnadjustedPage({
                 frame: state.timeframe,
                 accessKey,
                 signal: controller.signal,
+                onTiming: (metrics) => probe.page(metrics),
               });
             } catch (legacyError) {
               console.warn(
@@ -1382,7 +1399,8 @@ export default function RowChart({
             seed = historical.bars;
             engine11ProvenanceRef.current = historical.provenanceRows || [];
           } else {
-            seed = await getOHLC(state.symbol, state.timeframe, limit);
+            probe.source("futures-ohlc");
+            seed = await getOHLC(state.symbol, state.timeframe, limit, (metrics) => probe.regular(metrics));
             engine11ProvenanceRef.current = [];
           }
 
@@ -1392,12 +1410,18 @@ export default function RowChart({
             engine11ProvenanceRef.current = [];
           }
         } else {
-          seed = await getOHLC(state.symbol, state.timeframe, limit);
+          probe.source(isFuturesLikeSymbol(state.symbol) ? "futures-ohlc" : "stock-ohlc");
+          seed = await getOHLC(state.symbol, state.timeframe, limit, (metrics) => probe.regular(metrics));
           engine11ProvenanceRef.current = [];
         }
+        probe.fetched();
 
-        if (cancelled) return;
+        if (cancelled) {
+          probe.finish({ status: "CANCELLED" });
+          return;
+        }
 
+        const seedPrepareStart = performance.now();
         const asc = (Array.isArray(seed) ? seed : [])
           .map((b) => ({
             ...b,
@@ -1410,7 +1434,9 @@ export default function RowChart({
         barsRef.current = fullEngine11History
           ? asc.slice(-MAX_KEEP_BARS)
           : asc;
+        probe.seedPrepared(performance.now() - seedPrepareStart);
 
+        const candleSetDataStart = performance.now();
         seriesRef.current?.setData(
           asc.map((b) => ({
             time: b.time,
@@ -1420,8 +1446,10 @@ export default function RowChart({
             close: b.close,
           }))
         );
+        probe.candleSetData(performance.now() - candleSetDataStart, asc.length);
 
         if (volSeriesRef.current) {
+          const volumeSetDataStart = performance.now();
           if (state.volume) {
             volSeriesRef.current.applyOptions({ visible: true });
             volSeriesRef.current.setData(
@@ -1435,6 +1463,7 @@ export default function RowChart({
             volSeriesRef.current.applyOptions({ visible: false });
             volSeriesRef.current.setData([]);
           }
+          probe.volumeSetData(performance.now() - volumeSetDataStart);
         }
 
         setBars([...barsRef.current]);
@@ -1452,7 +1481,27 @@ export default function RowChart({
           chart.timeScale().fitContent();
           didFitOnceRef.current = true;
         }
+
+        const reportAfterPaintOpportunity = () => {
+          if (cancelled) return;
+          let visibleTimeRangePresent = false;
+          try {
+            visibleTimeRangePresent = Boolean(chartRef.current?.timeScale().getVisibleRange());
+          } catch {}
+          probe.finish({
+            status: "OK",
+            visibleTimeRangePresent,
+            paintOpportunity: true,
+          });
+        };
+        // Two animation frames provide a paint opportunity, not pixel proof.
+        if (typeof requestAnimationFrame === "function") {
+          requestAnimationFrame(() => requestAnimationFrame(reportAfterPaintOpportunity));
+        } else {
+          reportAfterPaintOpportunity();
+        }
       } catch (e) {
+        probe.finish({ status: "FAILED" });
         console.error("[RowChart] seed error:", e);
         barsRef.current = [];
         setBars([]);
@@ -1467,6 +1516,7 @@ export default function RowChart({
 
     return () => {
       cancelled = true;
+      probe.finish({ status: "CANCELLED" });
       try { engine11HistoryAbortRef.current?.abort?.(); } catch {}
       engine11HistoryAbortRef.current = null;
     };
