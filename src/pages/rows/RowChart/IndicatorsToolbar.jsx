@@ -665,15 +665,7 @@ export default function IndicatorsToolbar({
                     onChange?.({ fibMinuteStyle: { ...(fibMinuteStyle || {}), ...patch } })
                   }
                 />
-                <label style={{display:"grid",gap:3,marginLeft:18,fontSize:11,color:"#e5e7eb"}}>
-                  Subminute scenario
-                  <select value={fibSubminuteScenario} onChange={(e)=>onChange?.({fibSubminuteScenario:e.target.value})}
-                    style={{background:"#101827",color:"#e5e7eb",border:"1px solid #475569",borderRadius:4,padding:4}}>
-                    <option value="wick">Wick reference</option>
-                    <option value="body">Body reference</option>
-                    <option value="both">Both references</option>
-                  </select>
-                </label>
+
 
 
                 <FibRow
@@ -683,6 +675,15 @@ export default function IndicatorsToolbar({
                   onToggle={(v)=>onChange?.({fibSubminute:v})}
                   onStylePatch={(patch)=>onChange?.({fibSubminuteStyle:{...(fibSubminuteStyle||{}),...patch}})}
                 />
+                <label style={{display:"grid",gap:3,marginLeft:18,fontSize:11,color:"#e5e7eb"}}>
+                  Subminute scenario
+                  <select value={fibSubminuteScenario} onChange={(e)=>onChange?.({fibSubminuteScenario:e.target.value})}
+                    style={{background:"#101827",color:"#e5e7eb",border:"1px solid #475569",borderRadius:4,padding:4}}>
+                    <option value="wick">Wick reference</option>
+                    <option value="body">Body reference</option>
+                    <option value="both">Both references</option>
+                  </select>
+                </label>
                 <FibRow
                   label="Fib (Micro)"
                   enabled={fibMicro}
