@@ -21,12 +21,17 @@ import { createChart } from "lightweight-charts";
 import Controls from "./Controls";
 import IndicatorsToolbar from "./IndicatorsToolbar";
 
-import { getOHLC, subscribeStream } from "../../../lib/ohlcClient";
+import { getOHLC, getFuturesContractIdentity, subscribeStream } from "../../../lib/ohlcClient";
 import {
   fetchEngine11ContinuousUnadjustedPage,
   fetchEngine11ContinuousUnadjusted2020PlusAll,
 } from "./engine11HistoricalAdapter";
 import { SYMBOLS, TIMEFRAMES } from "./constants";
+import {
+  fullChartLogicalRange,
+  liveBucketIsAfterArchive,
+  liveContractMatchesHistory,
+} from "./engine11ChartStability";
 
 import MoneyFlowOverlay from "../../../components/overlays/MoneyFlowOverlay";
 import RightProfileOverlay from "../../../components/overlays/RightProfileOverlay";
@@ -972,7 +977,14 @@ export default function RowChart({
   const engine1OverlayInstancesRef = useRef([]);
 
   const [bars, setBars] = useState([]);
+  // This bounded UI/overlay cache NEVER owns the full historical series.
   const barsRef = useRef([]);
+  const fullSeriesBarCountRef = useRef(0);
+  const seriesLastBarTimeRef = useRef(null);
+  const historySeededRef = useRef(false);
+  const engine11SourceRef = useRef({
+    active: false, archiveLastTime: null, terminalContract: null,
+  });
 
   const didFitOnceRef = useRef(false);
   const userInteractedRef = useRef(false);
@@ -1232,6 +1244,11 @@ export default function RowChart({
     didFitOnceRef.current = false;
   }, [state.timeframe]);
 
+  // Visibility changes must not re-fetch the Engine 11 history.
+  useEffect(() => {
+    volSeriesRef.current?.applyOptions({ visible: state.volume });
+  }, [chartReady, state.volume]);
+
   /* ---------------------- LIVE: status timer ---------------------- */
 
   useEffect(() => {
@@ -1305,6 +1322,10 @@ export default function RowChart({
 
   useEffect(() => {
     let cancelled = false;
+    historySeededRef.current = false;
+    engine11SourceRef.current = {
+      active: false, archiveLastTime: null, terminalContract: null,
+    };
 
     async function seedSeries() {
       setState((s) => ({ ...s, disabled: true }));
@@ -1318,6 +1339,7 @@ export default function RowChart({
           new URLSearchParams(window.location.search).get("engine11Candles") !== "0";
 
         let seed;
+        let engine11History = null;
         if (useEngine11) {
           // Isolated acceptance mode only. Never embed the owner key in code.
           // Reuse the already-approved research browser authorization.
@@ -1380,6 +1402,7 @@ export default function RowChart({
 
           if (historical) {
             seed = historical.bars;
+            engine11History = historical;
             engine11ProvenanceRef.current = historical.provenanceRows || [];
           } else {
             seed = await getOHLC(state.symbol, state.timeframe, limit);
@@ -1410,6 +1433,13 @@ export default function RowChart({
         barsRef.current = fullEngine11History
           ? asc.slice(-MAX_KEEP_BARS)
           : asc;
+        fullSeriesBarCountRef.current = asc.length;
+        seriesLastBarTimeRef.current = asc[asc.length - 1]?.time ?? null;
+        engine11SourceRef.current = {
+          active: Boolean(engine11History),
+          archiveLastTime: engine11History ? (asc[asc.length - 1]?.time ?? null) : null,
+          terminalContract: engine11History?.lastSourceContract ?? null,
+        };
 
         seriesRef.current?.setData(
           asc.map((b) => ({
@@ -1422,20 +1452,16 @@ export default function RowChart({
         );
 
         if (volSeriesRef.current) {
-          if (state.volume) {
-            volSeriesRef.current.applyOptions({ visible: true });
-            volSeriesRef.current.setData(
-              asc.map((b) => ({
-                time: b.time,
-                value: Number(b.volume || 0),
-                color: b.close >= b.open ? DEFAULTS.volUp : DEFAULTS.volDown,
-              }))
-            );
-          } else {
-            volSeriesRef.current.applyOptions({ visible: false });
-            volSeriesRef.current.setData([]);
-          }
+          volSeriesRef.current.setData(
+            asc.map((b) => ({
+              time: b.time,
+              value: Number(b.volume || 0),
+              color: b.close >= b.open ? DEFAULTS.volUp : DEFAULTS.volDown,
+            }))
+          );
+          volSeriesRef.current.applyOptions({ visible: state.volume });
         }
+        historySeededRef.current = true;
 
         setBars([...barsRef.current]);
         lastUiSyncRef.current = Date.now();
@@ -1455,6 +1481,12 @@ export default function RowChart({
       } catch (e) {
         console.error("[RowChart] seed error:", e);
         barsRef.current = [];
+        fullSeriesBarCountRef.current = 0;
+        seriesLastBarTimeRef.current = null;
+        historySeededRef.current = false;
+        engine11SourceRef.current = {
+          active: false, archiveLastTime: null, terminalContract: null,
+        };
         setBars([]);
       } finally {
         if (!cancelled) {
@@ -1470,7 +1502,7 @@ export default function RowChart({
       try { engine11HistoryAbortRef.current?.abort?.(); } catch {}
       engine11HistoryAbortRef.current = null;
     };
-  }, [state.symbol, state.timeframe, state.range, state.volume]);
+  }, [state.symbol, state.timeframe]);
 
   /* ==================== Effect B: SNAPSHOT TRUTH FETCH ==================== */
 
@@ -2189,8 +2221,7 @@ export default function RowChart({
     setState((s) => ({ ...s, range: nextRange }));
 
     const tsLocal = chart.timeScale();
-    const list = barsRef.current;
-    const len = list.length;
+    const len = fullSeriesBarCountRef.current;
 
     if (!len) return;
 
@@ -2210,10 +2241,9 @@ export default function RowChart({
       return;
     }
 
-    const to = len - 1;
-    const from = Math.max(0, to - (r - 1));
-
-    tsLocal.setVisibleLogicalRange({ from, to });
+    const logicalRange = fullChartLogicalRange(len, r);
+    if (!logicalRange) return;
+    tsLocal.setVisibleLogicalRange(logicalRange);
     didFitOnceRef.current = true;
     userInteractedRef.current = true;
   };
