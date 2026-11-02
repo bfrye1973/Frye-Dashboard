@@ -48,6 +48,30 @@ app.use(
     pathRewrite: (pathReq) => `/live${pathReq}`,
   })
 );
+const HISTORY_TARGET =
+  (process.env.ENGINE11_HISTORY_TARGET || "").trim().replace(/\/$/, "");
+const HISTORY_PREVIEW_KEY =
+  (process.env.ENGINE11_HISTORY_PREVIEW_KEY || "").trim();
+
+if (HISTORY_TARGET && HISTORY_PREVIEW_KEY) {
+  app.use(
+    "/engine2c-private-history/page",
+    createProxyMiddleware({
+      target: HISTORY_TARGET,
+      changeOrigin: true,
+      secure: true,
+      logLevel: "warn",
+      pathRewrite: () => "/engine2c-private-history/page",
+      on: {
+        proxyReq: (proxyReq) => {
+          proxyReq.setHeader("X-Engine2C-Access", HISTORY_PREVIEW_KEY);
+          proxyReq.setHeader("Accept", "application/json");
+        },
+      },
+    })
+  );
+}
+
 // Serve CRA build
 const buildDir = path.resolve(__dirname, "../build");
 app.use(express.static(buildDir));
@@ -63,4 +87,5 @@ app.listen(PORT, "0.0.0.0", () => {
   console.log(`- buildDir: ${buildDir}`);
   console.log(`- proxy /api  -> ${API_TARGET} (rewritten to /api + path)`);
   console.log(`- proxy /live -> ${API_TARGET} (no rewrite)`);
+  console.log(`- proxy history -> ${HISTORY_TARGET || "disabled"}`);
 });
