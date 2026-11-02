@@ -1336,7 +1336,17 @@ export default function RowChart({
         if (useEngine11) {
           // Isolated acceptance mode only. Never embed the owner key in code.
           // Reuse the already-approved research browser authorization.
+          const previewKey = params?.get("engine11PreviewKey") || "";
+          if (previewKey) {
+            window.sessionStorage?.setItem("engine2cResearchOwnerKey", previewKey);
+            try {
+              const clean = new URL(window.location.href);
+              clean.searchParams.delete("engine11PreviewKey");
+              window.history.replaceState({}, "", clean.toString());
+            } catch {}
+          }
           let accessKey =
+            previewKey ||
             window.sessionStorage?.getItem("engine2cResearchOwnerKey") || "";
           if (!accessKey) {
             try {
