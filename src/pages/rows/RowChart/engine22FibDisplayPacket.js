@@ -3,7 +3,7 @@
 // The backend authorized selection owns current model identity and price updates.
 const DEGREES = ["primary", "intermediate", "minor", "minute", "micro", "submicro"];
 
-export function normalizeEngine22FibPacket(strategy) {
+export function normalizeEngine22FibPacket(strategy, scenarioSelections = {}) {
   const authorized = strategy?.authorizedWorkingStructure;
   const valid = authorized?.schema === "engine22.authorizedWorkingStructure.v1" &&
     authorized?.mode === "READ_ONLY" && authorized?.noExecution === true &&
@@ -27,12 +27,29 @@ export function normalizeEngine22FibPacket(strategy) {
       if (selected?.version === d.modelVersion &&
           selected?.activeWave === d.activeWave &&
           selected?.direction === d.direction) {
-        levels = ["option1", "option2"].flatMap(option => {
+        const choice = scenarioSelections.submicro || "option1";
+        levels = (choice === "both" ? ["option1","option2"] : [choice]).flatMap(option => {
           const group = selected[option];
           return Array.isArray(group?.levels) ? group.levels.map((level,i)=>({
             ratio: `${option.toUpperCase()} ${String(level?.label ?? level?.ratio ?? i+1)}`,
             price: Number(level?.price),
             status: level?.status ?? null,
+          })).filter(level=>Number.isFinite(level.price)&&level.price>0) : [];
+        });
+      }
+    }
+    if (degree === "subminute" && valid && d?.available === true &&
+        d?.sourcePath === "currentWavelength.degrees.subminute.ownerSubminuteCDownOct31" &&
+        d?.modelVersion === "engine22.subminuteCDownOct31OwnerWorking.v1") {
+      const model = strategy?.currentWavelength?.degrees?.subminute?.ownerSubminuteCDownOct31;
+      if (model?.version === d.modelVersion && model?.activeWave === d.activeWave &&
+          model?.direction === d.direction) {
+        const choice = scenarioSelections.subminute || "wick";
+        levels = (choice === "both" ? ["wick","body"] : [choice]).flatMap(method => {
+          const group = model.fibReferences?.[method];
+          return Array.isArray(group?.levels) ? group.levels.map((level,i)=>({
+            ratio: method.toUpperCase() + " " + String(level?.label ?? level?.ratio ?? i+1),
+            price: Number(level?.price), status: level?.status ?? null
           })).filter(level=>Number.isFinite(level.price)&&level.price>0) : [];
         });
       }
