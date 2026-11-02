@@ -110,6 +110,7 @@ export async function fetchEngine11Page({
   accessKey,
   signal,
   dataset = ENGINE11_CONTINUOUS_UNADJUSTED,
+  onTiming,
 } = {}) {
   assertDataset(dataset);
   if (!SUPPORTED_FRAMES.has(frame)) throw new Error("ENGINE11_UNSUPPORTED_FRAME");
@@ -127,6 +128,7 @@ export async function fetchEngine11Page({
   });
   if (cursor !== null) q.set("cursor", cursor);
 
+  const networkStart = performance.now();
   const response = await fetch(`${ENGINE11_HISTORY_ENDPOINT}?${q}`, {
     cache: "no-store",
     credentials: "omit",
@@ -137,15 +139,20 @@ export async function fetchEngine11Page({
     },
   });
 
+  const networkMs = performance.now() - networkStart;
   if (response.status === 401) throw new Error("ENGINE11_RESEARCH_ACCESS_REJECTED");
   if (!response.ok) throw new Error(`ENGINE11_HISTORY_HTTP_${response.status}`);
 
-  const page = validateEngine11Page(await response.json(), frame, dataset);
-  return {
-    page,
-    bars: page.rows.map(engine11RowToLiveBar).sort((a, b) => a.time - b.time),
-    provenanceRows: page.rows.map(preserveEngine11Row),
-  };
+  const parseStart = performance.now();
+  const parsed = await response.json();
+  const parseMs = performance.now() - parseStart;
+  const transformStart = performance.now();
+  const page = validateEngine11Page(parsed, frame, dataset);
+  const bars = page.rows.map(engine11RowToLiveBar).sort((a, b) => a.time - b.time);
+  const provenanceRows = page.rows.map(preserveEngine11Row);
+  const transformMs = performance.now() - transformStart;
+  onTiming?.({rows:page.rows.length, networkMs, parseMs, transformMs});
+  return {page, bars, provenanceRows};
 }
 
 export async function fetchEngine11ContinuousUnadjustedPage(args = {}) {
@@ -169,6 +176,8 @@ export async function fetchEngine11AllPages({
   dataset = ENGINE11_CONTINUOUS_UNADJUSTED_2020PLUS,
   maxPages = 1000,
   onPage,
+  onPageMetric,
+  onSort,
   includeProvenance = true,
 } = {}) {
   assertDataset(dataset);
@@ -186,17 +195,20 @@ export async function fetchEngine11AllPages({
     if (seenCursors.has(cursorKey)) throw new Error("ENGINE11_CURSOR_CYCLE");
     seenCursors.add(cursorKey);
 
+    let pageTiming = null;
     const result = await fetchEngine11Page({
       frame,
       cursor,
       accessKey,
       signal,
       dataset,
+      onTiming: (detail) => { pageTiming = detail; },
     });
 
     pages += 1;
     if (pages > maxPages) throw new Error("ENGINE11_PAGE_LIMIT_EXCEEDED");
 
+    const mergeStart = performance.now();
     for (const row of result.page.rows) {
       const id = String(row?.researchCandleId || "");
       const time = exactSecond(row);
@@ -206,6 +218,7 @@ export async function fetchEngine11AllPages({
       rowsById.set(id, includeProvenance ? preserveEngine11Row(row) : true);
       barsByTime.set(time, engine11RowToLiveBar(row));
     }
+    onPageMetric?.({...pageTiming, mergeMs:performance.now() - mergeStart});
 
     onPage?.({
       pageNumber: pages,
@@ -218,12 +231,15 @@ export async function fetchEngine11AllPages({
     if (cursor === null) break;
   }
 
+  const sortStart = performance.now();
   const provenanceRows = includeProvenance
     ? Array.from(rowsById.values()).sort((a, b) => exactSecond(a) - exactSecond(b))
     : [];
   const bars = includeProvenance
     ? provenanceRows.map(engine11RowToLiveBar)
     : Array.from(barsByTime.values()).sort((a, b) => a.time - b.time);
+
+  onSort?.(performance.now() - sortStart);
 
   const expected = dataset.expectedRows?.[frame];
   if (Number.isInteger(expected) && bars.length !== expected) {
