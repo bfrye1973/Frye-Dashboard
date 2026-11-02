@@ -1359,13 +1359,6 @@ export default function RowChart({
               lastTime: historical.lastTime,
             });
           } catch (expandedError) {
-            if (
-              expandedError?.name === "AbortError" ||
-              controller.signal.aborted ||
-              cancelled
-            ) {
-              return;
-            }
             console.warn(
               "[RowChart] Engine11 2020plus unavailable; using legacy history",
               expandedError
@@ -1377,13 +1370,6 @@ export default function RowChart({
                 signal: controller.signal,
               });
             } catch (legacyError) {
-              if (
-                legacyError?.name === "AbortError" ||
-                controller.signal.aborted ||
-                cancelled
-              ) {
-                return;
-              }
               console.warn(
                 "[RowChart] Engine11 legacy unavailable; using normal OHLC seed",
                 legacyError
@@ -1484,7 +1470,7 @@ export default function RowChart({
       try { engine11HistoryAbortRef.current?.abort?.(); } catch {}
       engine11HistoryAbortRef.current = null;
     };
-  }, [state.symbol, state.timeframe, state.volume]);
+  }, [state.symbol, state.timeframe, state.range, state.volume]);
 
   /* ==================== Effect B: SNAPSHOT TRUTH FETCH ==================== */
 
@@ -1874,19 +1860,9 @@ export default function RowChart({
       setSeedToken((x) => x + 1);
     }
 
-    const engine11BackedFrame =
-      normalizeSymbol(state.symbol) === "ES" &&
-      ["5m", "10m", "1h", "4h", "1d"].includes(state.timeframe) &&
-      typeof window !== "undefined" &&
-      new URLSearchParams(window.location.search).get("engine11Candles") !== "0";
-
     async function backfillMissingHistoryIfNeeded(liveTimeSec) {
       if (!isCurrent) return;
       if (!isFuturesLikeSymbol(state.symbol)) return;
-      // Engine 11 already owns the historical series for these ES frames.
-      // Never let the normal futures gap-backfill replace that full series
-      // with the smaller live working window.
-      if (engine11BackedFrame) return;
       if (backfillRunning) return;
 
       const last = barsRef.current[barsRef.current.length - 1] || null;
