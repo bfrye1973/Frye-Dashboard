@@ -1346,7 +1346,7 @@ export default function RowChart({
       try {
         const identity = await getFuturesContractIdentity("ES", "5m");
         const source = pager.snapshot().terminalContract;
-        const contractCode = /^ES([HMUZ])(\\d{4})$/.exec(String(source || ""));
+        const contractCode = /^ES([HMUZ])(\d{4})$/.exec(String(source || ""));
         sourceVerified = Boolean(contractCode && identity?.resolvedSymbol ===
           ("ES" + contractCode[1] + contractCode[2].slice(-1)));
       } catch (error) { console.warn("[Engine2 5m] LIVE contract unverified", error); }
