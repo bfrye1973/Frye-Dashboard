@@ -57,3 +57,33 @@ test("owner-authorized Submicro alternatives remain separately labeled",()=>{
   assert.deepEqual(p.degrees.submicro.levels.map(x=>x.price),[7600.25,7719.75]);
   assert.deepEqual(p.degrees.submicro.levels.map(x=>x.ratio),["OPTION1 0.618","OPTION2 0.618"]);
 });
+
+test("Submicro option selector does not mix the two owner scenarios",()=>{
+  const f=fixture();
+  f.authorizedWorkingStructure.degrees.submicro={
+    available:true,sourcePath:"currentWavelength.degrees.submicro.submicroCompare",
+    modelVersion:"engine22.submicroCompareNov1.v1",activeWave:"ALTERNATIVES",direction:"DOWN",levels:[]
+  };
+  f.currentWavelength={degrees:{submicro:{submicroCompare:{
+    version:"engine22.submicroCompareNov1.v1",activeWave:"ALTERNATIVES",direction:"DOWN",
+    option1:{levels:[{label:"0.618",price:7600.25}]},
+    option2:{levels:[{label:"0.618",price:7719.75}]}
+  }}}};
+  assert.deepEqual(normalizeEngine22FibPacket(f,{submicro:"option1"}).degrees.submicro.levels.map(x=>x.price),[7600.25]);
+  assert.deepEqual(normalizeEngine22FibPacket(f,{submicro:"option2"}).degrees.submicro.levels.map(x=>x.price),[7719.75]);
+  assert.equal(normalizeEngine22FibPacket(f,{submicro:"both"}).degrees.submicro.levels.length,2);
+});
+test("Subminute wick/body selection preserves separate Engine22 reference prices",()=>{
+  const f=fixture();
+  f.authorizedWorkingStructure.degrees.subminute={
+    available:true,sourcePath:"currentWavelength.degrees.subminute.ownerSubminuteCDownOct31",
+    modelVersion:"engine22.subminuteCDownOct31OwnerWorking.v1",activeWave:"C",direction:"DOWN",levels:[]
+  };
+  f.currentWavelength={degrees:{subminute:{ownerSubminuteCDownOct31:{
+    version:"engine22.subminuteCDownOct31OwnerWorking.v1",activeWave:"C",direction:"DOWN",
+    fibReferences:{wick:{levels:[{label:"0.618",price:7683.5}]},
+                   body:{levels:[{label:"0.618",price:7719.75}]}}
+  }}}};
+  assert.deepEqual(normalizeEngine22FibPacket(f,{subminute:"wick"}).degrees.subminute.levels.map(x=>x.price),[7683.5]);
+  assert.deepEqual(normalizeEngine22FibPacket(f,{subminute:"body"}).degrees.subminute.levels.map(x=>x.price),[7719.75]);
+});
