@@ -1034,6 +1034,9 @@ export default function RowChart({
     fibMinute: false,
     fibMicro: false,
     fibSubmicro: false,
+    fibSubminute: false,
+    fibSubmicroScenario: "option1",
+    fibSubminuteScenario: "wick",
 
     fibPrimaryStyle: makeFibStyle("#ff5ad6", 18, 3.5, true),
     fibIntermediateStyle: makeFibStyle("#ffd54a", 18, 3.5, true),
@@ -1041,6 +1044,7 @@ export default function RowChart({
     fibMinuteStyle: makeFibStyle("#60a5fa", 14, 2.5, true),
     fibMicroStyle: makeFibStyle("#f472b6", 12, 2.0, true),
     fibSubmicroStyle: makeFibStyle("#f59e0b", 12, 2.0, true),
+    fibSubminuteStyle: makeFibStyle("#38bdf8", 12, 2.0, true),
 
     accDistLevels: false,
     wickPaZones: false,
@@ -1578,7 +1582,7 @@ export default function RowChart({
       const packet = normalizeEngine22FibPacket({
         authorizedWorkingStructure: engine22AuthorizedWorkingStructure,
         currentWavelength: engine22CurrentWavelength,
-      });
+      }, {submicro:state.fibSubmicroScenario,subminute:state.fibSubminuteScenario});
       reg(attachOverlay(Engine22FibLayersOverlay, {
         chart: chartRef.current,
         priceSeries: seriesRef.current,
@@ -1591,6 +1595,7 @@ export default function RowChart({
           minute: state.fibMinute,
           micro: state.fibMicro,
           submicro: state.fibSubmicro,
+          subminute: state.fibSubminute,
         },
         styles: {
           primary: state.fibPrimaryStyle,
@@ -1599,6 +1604,7 @@ export default function RowChart({
           minute: state.fibMinuteStyle,
           micro: state.fibMicroStyle,
           submicro: state.fibSubmicroStyle,
+          subminute: state.fibSubminuteStyle,
         },
       }));
     } else {
@@ -1609,6 +1615,7 @@ export default function RowChart({
         ["minute", state.fibMinute, state.fibMinuteStyle, "10m"],
         ["micro", state.fibMicro, state.fibMicroStyle, "10m"],
         ["submicro", state.fibSubmicro, state.fibSubmicroStyle, "10m"],
+        ["subminute", state.fibSubminute, state.fibSubminuteStyle, "10m"],
       ]) {
         if (enabled) reg(attachOverlay(FibLevelsOverlay, {
           chart: chartRef.current,
@@ -1649,6 +1656,9 @@ export default function RowChart({
     state.fibMinute,
     state.fibMicro,
     state.fibSubmicro,
+    state.fibSubminute,
+    state.fibSubmicroScenario,
+    state.fibSubminuteScenario,
     state.fibPrimaryStyle,
     state.fibIntermediateStyle,
     state.fibMinorStyle,
@@ -1657,6 +1667,7 @@ export default function RowChart({
     state.fibMinuteStyle,
     state.fibMicroStyle,
     state.fibSubmicroStyle,
+    state.fibSubminuteStyle,
     state.showPremarketFibs,
     state.timeframe,
     state.symbol,
@@ -2178,6 +2189,9 @@ export default function RowChart({
       fibMinute: false,
       fibMicro: false,
     fibSubmicro: false,
+    fibSubminute: false,
+    fibSubmicroScenario: "option1",
+    fibSubminuteScenario: "wick",
 
       engine17Overlay: true,
       engine17Timeline: true,
@@ -2211,6 +2225,9 @@ export default function RowChart({
     fibMinute: state.fibMinute,
     fibMicro: state.fibMicro,
     fibSubmicro: state.fibSubmicro,
+    fibSubminute: state.fibSubminute,
+    fibSubmicroScenario: state.fibSubmicroScenario,
+    fibSubminuteScenario: state.fibSubminuteScenario,
 
     fibPrimaryStyle: state.fibPrimaryStyle,
     fibIntermediateStyle: state.fibIntermediateStyle,
@@ -2218,6 +2235,7 @@ export default function RowChart({
     fibMinuteStyle: state.fibMinuteStyle,
     fibMicroStyle: state.fibMicroStyle,
     fibSubmicroStyle: state.fibSubmicroStyle,
+    fibSubminuteStyle: state.fibSubminuteStyle,
 
     engine17Overlay: state.engine17Overlay,
     engine17Timeline: state.engine17Timeline,
