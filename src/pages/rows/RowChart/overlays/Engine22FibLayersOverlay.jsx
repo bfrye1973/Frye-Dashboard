@@ -1,5 +1,5 @@
 // Engine 2F: one ES Fibonacci canvas with independently controlled degrees.
-const ORDER = ["primary", "intermediate", "minor", "minute", "micro"];
+const ORDER = ["primary", "intermediate", "minor", "minute", "micro", "submicro"];
 export default function Engine22FibLayersOverlay({chart, priceSeries, chartContainer, packet, toggles = {}, styles = {}}) {
   if (!chart || !priceSeries || !chartContainer) return {seed(){},update(){},destroy(){}};
   let canvas = null, frame = 0, disposed = false;

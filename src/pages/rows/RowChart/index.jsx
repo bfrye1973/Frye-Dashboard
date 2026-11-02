@@ -1001,6 +1001,7 @@ export default function RowChart({
 
   const [engine17Data, setEngine17Data] = useState(null);
   const [engine22AuthorizedWorkingStructure, setEngine22AuthorizedWorkingStructure] = useState(null);
+  const [engine22CurrentWavelength, setEngine22CurrentWavelength] = useState(null);
 
   const [engine17RawDebug, setEngine17RawDebug] = useState(null);
   const [chartMode, setChartMode] = useState(initialChartMode);
@@ -1032,12 +1033,14 @@ export default function RowChart({
     fibMinor: false,
     fibMinute: false,
     fibMicro: false,
+    fibSubmicro: false,
 
     fibPrimaryStyle: makeFibStyle("#ff5ad6", 18, 3.5, true),
     fibIntermediateStyle: makeFibStyle("#ffd54a", 18, 3.5, true),
     fibMinorStyle: makeFibStyle("#22c55e", 16, 3.0, true),
     fibMinuteStyle: makeFibStyle("#60a5fa", 14, 2.5, true),
     fibMicroStyle: makeFibStyle("#f472b6", 12, 2.0, true),
+    fibSubmicroStyle: makeFibStyle("#f59e0b", 12, 2.0, true),
 
     accDistLevels: false,
     wickPaZones: false,
@@ -1436,6 +1439,7 @@ export default function RowChart({
         setEngine22AuthorizedWorkingStructure(
           engine22WaveStrategy?.authorizedWorkingStructure || null
         );
+        setEngine22CurrentWavelength(engine22WaveStrategy?.currentWavelength || null);
 
       } catch (err) {
         if (cancelled) return;
@@ -1447,6 +1451,7 @@ export default function RowChart({
           detail: err?.message || String(err),
         });
         setEngine22AuthorizedWorkingStructure(null);
+        setEngine22CurrentWavelength(null);
 
       }
 
@@ -1572,6 +1577,7 @@ export default function RowChart({
     if (isES) {
       const packet = normalizeEngine22FibPacket({
         authorizedWorkingStructure: engine22AuthorizedWorkingStructure,
+        currentWavelength: engine22CurrentWavelength,
       });
       reg(attachOverlay(Engine22FibLayersOverlay, {
         chart: chartRef.current,
@@ -1584,6 +1590,7 @@ export default function RowChart({
           minor: state.fibMinor,
           minute: state.fibMinute,
           micro: state.fibMicro,
+          submicro: state.fibSubmicro,
         },
         styles: {
           primary: state.fibPrimaryStyle,
@@ -1591,6 +1598,7 @@ export default function RowChart({
           minor: state.fibMinorStyle,
           minute: state.fibMinuteStyle,
           micro: state.fibMicroStyle,
+          submicro: state.fibSubmicroStyle,
         },
       }));
     } else {
@@ -1600,6 +1608,7 @@ export default function RowChart({
         ["minor", state.fibMinor, state.fibMinorStyle, "1h"],
         ["minute", state.fibMinute, state.fibMinuteStyle, "10m"],
         ["micro", state.fibMicro, state.fibMicroStyle, "10m"],
+        ["submicro", state.fibSubmicro, state.fibSubmicroStyle, "10m"],
       ]) {
         if (enabled) reg(attachOverlay(FibLevelsOverlay, {
           chart: chartRef.current,
@@ -1639,12 +1648,15 @@ export default function RowChart({
     state.fibMinor,
     state.fibMinute,
     state.fibMicro,
+    state.fibSubmicro,
     state.fibPrimaryStyle,
     state.fibIntermediateStyle,
     state.fibMinorStyle,
     engine22AuthorizedWorkingStructure,
+    engine22CurrentWavelength,
     state.fibMinuteStyle,
     state.fibMicroStyle,
+    state.fibSubmicroStyle,
     state.showPremarketFibs,
     state.timeframe,
     state.symbol,
@@ -2165,6 +2177,7 @@ export default function RowChart({
       fibMinor: false,
       fibMinute: false,
       fibMicro: false,
+    fibSubmicro: false,
 
       engine17Overlay: true,
       engine17Timeline: true,
@@ -2197,12 +2210,14 @@ export default function RowChart({
     fibMinor: state.fibMinor,
     fibMinute: state.fibMinute,
     fibMicro: state.fibMicro,
+    fibSubmicro: state.fibSubmicro,
 
     fibPrimaryStyle: state.fibPrimaryStyle,
     fibIntermediateStyle: state.fibIntermediateStyle,
     fibMinorStyle: state.fibMinorStyle,
     fibMinuteStyle: state.fibMinuteStyle,
     fibMicroStyle: state.fibMicroStyle,
+    fibSubmicroStyle: state.fibSubmicroStyle,
 
     engine17Overlay: state.engine17Overlay,
     engine17Timeline: state.engine17Timeline,
