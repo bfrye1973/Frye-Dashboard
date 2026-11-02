@@ -7,7 +7,7 @@ function fixture() {
   return { authorizedWorkingStructure: {
     schema:"engine22.authorizedWorkingStructure.v1", mode:"READ_ONLY", noExecution:true,
     publicationRevision:5, degrees: Object.fromEntries(
-      ["primary","intermediate","minor","minute","micro"].map(degree => [degree, {
+      ["primary","intermediate","minor","minute","micro","submicro"].map(degree => [degree, {
         available:true, sourcePath:degree === "micro"
           ? "currentWavelength.degrees.micro.ownerMicroCDownOct31" : "degreeStates."+degree,
         modelVersion:"test-model", levels:(degree === "micro" ? expected : [7800]).map((price,i)=>({
@@ -17,10 +17,10 @@ function fixture() {
     )
   }};
 }
-test("five independently available ES Fib degrees",()=>{
+test("six independently available ES Fib degrees",()=>{
   const p=normalizeEngine22FibPacket(fixture());
-  assert.equal(Object.keys(p.degrees).length,5);
-  for(const degree of ["primary","intermediate","minor","minute","micro"])
+  assert.equal(Object.keys(p.degrees).length,6);
+  for(const degree of ["primary","intermediate","minor","minute","micro","submicro"])
     assert.equal(p.degrees[degree].available,true);
   assert.deepEqual(p.degrees.micro.levels.map(x=>x.price),expected);
 });
