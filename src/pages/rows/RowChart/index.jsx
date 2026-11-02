@@ -21,7 +21,9 @@ import { createChart } from "lightweight-charts";
 import Controls from "./Controls";
 import IndicatorsToolbar from "./IndicatorsToolbar";
 
-import { getOHLC, subscribeStream } from "../../../lib/ohlcClient";
+import { getOHLC, subscribeStream, getFuturesContractIdentity } from "../../../lib/ohlcClient";
+import { fetchEngine11ContinuousUnadjusted2020PlusPage } from "./engine11HistoricalAdapter";
+import { createEngine115mInfiniteHistoryProof } from "./engine11InfiniteHistory5mProof";
 import {
   fetchEngine11ContinuousUnadjustedPage,
   fetchEngine11ContinuousUnadjusted2020PlusAll,
@@ -973,6 +975,8 @@ export default function RowChart({
 
   const [bars, setBars] = useState([]);
   const barsRef = useRef([]);
+  const fiveMinutePagerRef = useRef(null);
+
 
   const didFitOnceRef = useRef(false);
   const userInteractedRef = useRef(false);
@@ -1068,6 +1072,11 @@ export default function RowChart({
 
     showPremarketFibs: false,
   });
+
+  const fiveMinuteFeatureEnabled =
+    normalizeSymbol(state.symbol) === "ES" && state.timeframe === "5m" &&
+    typeof window !== "undefined" &&
+    new URLSearchParams(window.location.search).get("engine2Infinite5m") === "1";
 
   if (typeof window !== "undefined") {
     window.__indicators = {
@@ -1301,9 +1310,80 @@ export default function RowChart({
     }
   };
 
+  // Test-only 5m newest-first history attached to the existing RowChart.
+  // Inactive by default. No overlays, anchors or source files are modified.
+  useEffect(() => {
+    if (!fiveMinuteFeatureEnabled || !chartReady || !seriesRef.current) return;
+    let active = true;
+    let stopStream = null;
+    let sourceVerified = false;
+    let latest1m = new Map();
+    const pager = createEngine115mInfiniteHistoryProof({
+      chart: chartRef.current,
+      priceSeries: seriesRef.current,
+      volumeSeries: volSeriesRef.current,
+      fetchPage: fetchEngine11ContinuousUnadjusted2020PlusPage,
+      ownerKey: (() => {
+        const direct = window.sessionStorage?.getItem("engine2cResearchOwnerKey");
+        if (direct) return direct;
+        try {
+          const prior = JSON.parse(window.localStorage?.getItem("engine2cResearchOwnerAccessV1") || "null");
+          return prior?.expiresAt > Date.now() ? prior?.key : null;
+        } catch { return null; }
+      })(),
+      onWorkingBars: (recent) => {
+        barsRef.current = recent;
+        setBars(recent);
+      },
+      onError: (error) => console.error("[Engine2 5m paging test]", error),
+    });
+    fiveMinutePagerRef.current = pager;
+    void (async () => {
+      const loaded = await pager.start();
+      if (!active || !loaded) return;
+      if (state.range === "ALL") chartRef.current?.timeScale().fitContent();
+      setSeedToken(x => x + 1);
+      try {
+        const identity = await getFuturesContractIdentity("ES", "5m");
+        const source = pager.snapshot().terminalContract;
+        const contractCode = /^ES([HMUZ])(\\d{4})$/.exec(String(source || ""));
+        sourceVerified = Boolean(contractCode && identity?.resolvedSymbol ===
+          ("ES" + contractCode[1] + contractCode[2].slice(-1)));
+      } catch (error) { console.warn("[Engine2 5m] LIVE contract unverified", error); }
+      if (!active || !sourceVerified) return;
+      stopStream = subscribeStream("ES", "1m", (bar) => {
+        if (!active || !sourceVerified) return;
+        const t = Number(bar.time);
+        if (!Number.isFinite(t)) return;
+        const bucket = Math.floor(t / 300) * 300;
+        const sourceLast = pager.snapshot().archiveLastTime;
+        if (bucket <= sourceLast) return;
+        latest1m.set(t, bar);
+        for(const k of latest1m.keys()) if(k < bucket) latest1m.delete(k);
+        const group = [...latest1m.values()].sort((a,b)=>a.time-b.time);
+        if (!group.length) return;
+        pager.updateLive({
+          time:bucket,
+          open:group[0].open,
+          high:Math.max(...group.map(x=>x.high)),
+          low:Math.min(...group.map(x=>x.low)),
+          close:group[group.length-1].close,
+          volume:group.reduce((sum,x)=>sum+Number(x.volume||0),0),
+        },{contractVerified:true});
+      },()=>{ lastAliveRef.current = Date.now(); });
+    })();
+    return () => {
+      active = false;
+      stopStream?.();
+      pager.destroy();
+      if (fiveMinutePagerRef.current === pager) fiveMinutePagerRef.current = null;
+    };
+  }, [chartReady, fiveMinuteFeatureEnabled, state.symbol, state.timeframe]);
+
   /* ==================== Effect A: Fetch + Seed Series ==================== */
 
   useEffect(() => {
+    if (fiveMinuteFeatureEnabled) return;
     let cancelled = false;
 
     async function seedSeries() {
@@ -1470,7 +1550,7 @@ export default function RowChart({
       try { engine11HistoryAbortRef.current?.abort?.(); } catch {}
       engine11HistoryAbortRef.current = null;
     };
-  }, [state.symbol, state.timeframe, state.range, state.volume]);
+  }, [state.symbol, state.timeframe, state.range, state.volume, fiveMinuteFeatureEnabled]);
 
   /* ==================== Effect B: SNAPSHOT TRUTH FETCH ==================== */
 
@@ -1766,7 +1846,7 @@ export default function RowChart({
   /* =================== Effect D: LIVE STREAM =================== */
 
   useEffect(() => {
-    if (!chartReady || !seriesRef.current) return;
+    if (!chartReady || !seriesRef.current || fiveMinuteFeatureEnabled) return;
 
     lastAliveRef.current = 0;
     setLiveStatus("CONNECTING");
@@ -2082,7 +2162,7 @@ export default function RowChart({
         streamUnsubRef.current = null;
       }
     };
-  }, [chartReady, state.symbol, state.timeframe, state.volume]);
+  }, [chartReady, state.symbol, state.timeframe, state.volume, fiveMinuteFeatureEnabled]);
 
   /* ---------------------------- EMA lines ----------------------------- */
 
