@@ -11,13 +11,32 @@ export function normalizeEngine22FibPacket(strategy) {
   const degrees = {};
   for (const degree of DEGREES) {
     const d = valid ? authorized?.degrees?.[degree] : null;
-    const levels = d?.available === true && Array.isArray(d.levels)
+    let levels = d?.available === true && Array.isArray(d.levels)
       ? d.levels.map((level, i) => ({
           ratio: String(level?.label ?? level?.ratio ?? level?.key ?? i + 1),
           price: Number(level?.price),
           status: level?.status ?? null,
         })).filter(level => Number.isFinite(level.price) && level.price > 0)
       : [];
+    // The owner-approved Submicro selection explicitly contains TWO alternatives.
+    // Keep their labels and prices distinct; never combine them into one wave count.
+    if (degree === "submicro" && valid && d?.available === true &&
+        d?.sourcePath === "currentWavelength.degrees.submicro.submicroCompare" &&
+        d?.modelVersion === "engine22.submicroCompareNov1.v1") {
+      const selected = strategy?.currentWavelength?.degrees?.submicro?.submicroCompare;
+      if (selected?.version === d.modelVersion &&
+          selected?.activeWave === d.activeWave &&
+          selected?.direction === d.direction) {
+        levels = ["option1", "option2"].flatMap(option => {
+          const group = selected[option];
+          return Array.isArray(group?.levels) ? group.levels.map((level,i)=>({
+            ratio: `${option.toUpperCase()} ${String(level?.label ?? level?.ratio ?? i+1)}`,
+            price: Number(level?.price),
+            status: level?.status ?? null,
+          })).filter(level=>Number.isFinite(level.price)&&level.price>0) : [];
+        });
+      }
+    }
     degrees[degree] = {
       degree, available: Boolean(d?.available === true && levels.length > 0),
       sourcePath: d?.sourcePath ?? null,
