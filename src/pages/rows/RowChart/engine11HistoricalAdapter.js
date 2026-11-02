@@ -2,6 +2,7 @@
 // Never changes source OHLCV, rollovers, adjustments, or execution authority.
 
 export const ENGINE11_HISTORY_ENDPOINT =
+  process.env.REACT_APP_ENGINE11_HISTORY_ENDPOINT ||
   "https://frye-market-backend-1.onrender.com/engine2c-private-history/page";
 
 export const ENGINE11_CONTINUOUS_UNADJUSTED_LEGACY = Object.freeze({
