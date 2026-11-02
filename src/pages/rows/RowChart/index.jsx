@@ -2401,41 +2401,6 @@ export default function RowChart({
         onRange={applyRange}
       />
 
-      <div
-        style={{
-          padding: "6px 10px",
-          display: "flex",
-          gap: 8,
-          alignItems: "center",
-          flexWrap: "wrap",
-        }}
-      >
-        <div style={{ fontWeight: 900 }}>Chart Mode:</div>
-
-        {[
-          ["SPY_SCALP", "SPY SCALP"],
-          ["SPY_SWING", "SPY SWING"],
-          ["ES_SCALP", "ES SCALP"],
-          ["ES_SWING", "ES SWING"],
-        ].map(([value, label]) => (
-          <button
-            key={value}
-            onClick={() => handleChartModeClick(value)}
-            style={{
-              background: chartMode === value ? "#1f2937" : "#0b0b0b",
-              color: "#fff",
-              border: "1px solid #3b82f6",
-              padding: "4px 10px",
-              borderRadius: 6,
-              cursor: "pointer",
-              fontWeight: 900,
-            }}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-
       <IndicatorsToolbar {...toolbarProps} />
 
       <div
