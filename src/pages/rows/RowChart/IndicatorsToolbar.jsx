@@ -282,6 +282,7 @@ export default function IndicatorsToolbar({
   fibMinor = false,
   fibMinute = false,
   fibMicro = false,
+  fibSubminute = false,
   fibSubmicro = false,
   fibSubmicroScenario = "option1",
   fibSubminuteScenario = "wick",
@@ -291,6 +292,7 @@ export default function IndicatorsToolbar({
   fibMinorStyle,
   fibMinuteStyle,
   fibMicroStyle,
+  fibSubminuteStyle,
   fibSubmicroStyle, 
 
   engine17Overlay = true,
@@ -674,6 +676,13 @@ export default function IndicatorsToolbar({
                 </label>
 
 
+                <FibRow
+                  label="Fib (Subminute)"
+                  enabled={fibSubminute}
+                  styleObj={fibSubminuteStyle}
+                  onToggle={(v)=>onChange?.({fibSubminute:v})}
+                  onStylePatch={(patch)=>onChange?.({fibSubminuteStyle:{...(fibSubminuteStyle||{}),...patch}})}
+                />
                 <FibRow
                   label="Fib (Micro)"
                   enabled={fibMicro}
