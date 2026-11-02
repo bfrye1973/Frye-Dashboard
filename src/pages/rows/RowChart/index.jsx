@@ -101,6 +101,8 @@ const TF_SEC = {
   "1h": 3600,
   "4h": 14400,
   "1d": 86400,
+  "1w": 604800,
+  "1mo": 2592000,
 };
 
 const LIVE_TF = "1m";
@@ -156,7 +158,7 @@ function phoenixTime(ts, isDaily = false) {
 
 function makeTickFormatter(tf) {
   const showSeconds = tf === "1m";
-  const isDailyTF = tf === "1d";
+  const isDailyTF = ["1d", "1w", "1mo"].includes(tf);
 
   const fmtTime = new Intl.DateTimeFormat("en-US", {
     timeZone: "America/Phoenix",
@@ -1112,7 +1114,7 @@ export default function RowChart({
         tickMarkFormatter: makeTickFormatter(state.timeframe),
       },
       localization: {
-        timeFormatter: (t) => phoenixTime(t, state.timeframe === "1d"),
+        timeFormatter: (t) => phoenixTime(t, ["1d", "1w", "1mo"].includes(state.timeframe)),
       },
       crosshair: { mode: 0 },
     });
@@ -1226,7 +1228,7 @@ export default function RowChart({
         secondsVisible: tf === "1m",
       },
       localization: {
-        timeFormatter: (t) => phoenixTime(t, tf === "1d"),
+        timeFormatter: (t) => phoenixTime(t, ["1d", "1w", "1mo"].includes(tf)),
       },
       layout: { fontSize: AXIS_FONT_SIZE },
     });
@@ -1762,6 +1764,14 @@ export default function RowChart({
 
   useEffect(() => {
     if (!chartReady || !seriesRef.current) return;
+
+    const archiveOnlyFrame =
+      engine11FullHistoryModeRef.current &&
+      ["1w", "1mo"].includes(state.timeframe);
+    if (archiveOnlyFrame) {
+      setLiveStatus("ARCHIVE");
+      return;
+    }
 
     lastAliveRef.current = 0;
     setLiveStatus("CONNECTING");
@@ -2366,6 +2376,10 @@ export default function RowChart({
 
     if (liveStatus === "STALE") {
       return { text: "STALE", bg: "rgba(239,68,68,0.92)" };
+    }
+
+    if (liveStatus === "ARCHIVE") {
+      return { text: "ARCHIVE", bg: "rgba(59,130,246,0.92)" };
     }
 
     return { text: "CONNECTING", bg: "rgba(245,158,11,0.92)" };
