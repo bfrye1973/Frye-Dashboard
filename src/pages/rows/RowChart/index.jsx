@@ -1349,6 +1349,13 @@ export default function RowChart({
       onWorkingBars: (recent) => {
         barsRef.current = recent;
         setBars(recent);
+        if (window.__ENGINE11B_TEST__) {
+          window.__ENGINE11B_TEST__.events.push({
+            kind: "paged-setData", frame: state.timeframe,
+            bars: pager.snapshot().loadedBars || recent.length,
+            at: performance.now(),
+          });
+        }
       },
       onError: (error) => console.error("[Engine11B recent-first history]", state.timeframe, error),
     });
@@ -1382,7 +1389,7 @@ export default function RowChart({
         for(const k of latest1m.keys()) if(k < bucket) latest1m.delete(k);
         const group = [...latest1m.values()].sort((a,b)=>a.time-b.time);
         if (!group.length) return;
-        pager.updateLive({
+        const liveAccepted = pager.updateLive({
           time:bucket,
           open:group[0].open,
           high:Math.max(...group.map(x=>x.high)),
@@ -1390,6 +1397,12 @@ export default function RowChart({
           close:group[group.length-1].close,
           volume:group.reduce((sum,x)=>sum+Number(x.volume||0),0),
         },{contractVerified:true});
+        if (liveAccepted && window.__ENGINE11B_TEST__) {
+          window.__ENGINE11B_TEST__.events.push({
+            kind: "paged-live-update", frame: state.timeframe,
+            at: performance.now(), bucket,
+          });
+        }
       },()=>{ lastAliveRef.current = Date.now(); });
     })();
     return () => {
@@ -1520,6 +1533,12 @@ export default function RowChart({
             close: b.close,
           }))
         );
+        if (typeof window !== "undefined" && window.__ENGINE11B_TEST__) {
+          window.__ENGINE11B_TEST__.events.push({
+            kind: "standard-setData", frame: state.timeframe,
+            bars: asc.length, at: performance.now(),
+          });
+        }
 
         if (volSeriesRef.current) {
           if (state.volume) {
@@ -2036,6 +2055,12 @@ export default function RowChart({
     }
 
     function updateVisibleBar(bar) {
+      if (typeof window !== "undefined" && window.__ENGINE11B_TEST__) {
+        window.__ENGINE11B_TEST__.events.push({
+          kind: "standard-live-update", frame: state.timeframe,
+          at: performance.now(), bucket: bar.time,
+        });
+      }
       seriesRef.current?.update({
         time: bar.time,
         open: bar.open,
