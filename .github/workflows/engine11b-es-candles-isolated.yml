@@ -120,7 +120,7 @@ jobs:
           const data=JSON.parse(fs.readFileSync('/tmp/engine11b-artifact-meta.json','utf8'));
           if(!data?.id||!data?.run_id)throw Error('ENGINE11B_APPROVED_PAGES_ARTIFACT_NOT_FOUND');
           console.log('ENGINE11B_APPROVED_PAGES_ARTIFACT_ID='+data.id+' RUN_ID='+data.run_id);
-          fs.appendFileSync(process.env.GITHUB_OUTPUT,'backend_run_id='+data.run_id+'\\n');
+          fs.appendFileSync(process.env.GITHUB_OUTPUT,'backend_run_id='+data.run_id+'\n');
           NODE
       - name: Retrieve immutable Engine 11 pages from the exact backend run
         uses: actions/download-artifact@v4
