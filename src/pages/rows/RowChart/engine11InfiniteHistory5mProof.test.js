@@ -156,6 +156,16 @@ describe("Engine11 five-minute Infinite History: isolated chart contract",()=>{
     expect(ui.calls.priceSet.at(-1)).toHaveLength(26000);
     expect(latestCache).toHaveLength(25000);
     expect(fetchPage).toHaveBeenCalledTimes(26);
+    // The old RowChart would re-seed from the 25k cache during LIVE gap
+    // reconciliation, silently deleting the oldest 1,000 plotted candles.
+    const plottedBeforeLive = ui.calls.priceSet.length;
+    const live = {time:26000 * 300, open:50,high:51,low:49,close:50.5,volume:7};
+    expect(p.updateLive(live,{contractVerified:true})).toBe(true);
+    expect(ui.calls.priceSet).toHaveLength(plottedBeforeLive);
+    expect(ui.calls.priceUpdate.at(-1).time).toBe(26000*300);
+    expect(p.snapshot().loadedBars).toBe(26001);
+    expect(p.snapshot().earliestTime).toBe(0);
+    expect(latestCache).toHaveLength(25000);
     p.destroy();
   });
 });
