@@ -88,3 +88,17 @@ jobs:
           if(!data.length) throw Error('OHLC_1M_EMPTY');
           console.log('ENGINE11B_1M_ROWS='+data.length);
           NODE
+      - name: Measure original RowChart normal 1m limit (21,294), read-only
+        shell: bash
+        run: |
+          set -eo pipefail
+          curl --retry 0 --silent --show-error --max-time 55 \
+            --output /tmp/engine11b-normal-one-minute.json \
+            --write-out 'ENGINE11B_NORMAL_1M_HTTP status=%{http_code} firstByteSec=%{time_starttransfer} totalSec=%{time_total} bytes=%{size_download}\\n' \
+            'https://frye-market-backend-1.onrender.com/api/v1/futures/ohlc?symbol=ES&timeframe=1m&limit=21294'
+          node - <<'NODE'
+          const fs=require('fs');
+          const d=JSON.parse(fs.readFileSync('/tmp/engine11b-normal-one-minute.json','utf8'));
+          if(!Array.isArray(d)||!d.length) throw Error('NORMAL_1M_OHLC_EMPTY');
+          console.log('ENGINE11B_NORMAL_1M_ROWS='+d.length);
+          NODE
