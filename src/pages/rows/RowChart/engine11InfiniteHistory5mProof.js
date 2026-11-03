@@ -28,6 +28,7 @@ export function createEngine115mInfiniteHistoryProof({
   chart,
   priceSeries,
   volumeSeries,
+  frame = "5m",
   fetchPage,
   onWorkingBars,
   onError,
@@ -35,6 +36,7 @@ export function createEngine115mInfiniteHistoryProof({
   thresholdBars = 100,
   ownerKey,
 } = {}) {
+  if (!new Set(["5m", "10m"]).has(frame)) throw Error("ENGINE11_PAGER_FRAME_UNSUPPORTED");
   if (!chart?.timeScale || !priceSeries?.setData ||
       !priceSeries?.update || typeof fetchPage !== "function") {
     throw Error("ENGINE11_PROOF_DEPENDENCIES_REQUIRED");
@@ -60,17 +62,17 @@ export function createEngine115mInfiniteHistoryProof({
     const ctrl = new AbortController();
     controllers.add(ctrl);
     try {
-      return await fetchPage({frame:"5m",cursor,signal:ctrl.signal,accessKey:ownerKey});
+      return await fetchPage({frame,cursor,signal:ctrl.signal,accessKey:ownerKey});
     } finally {
       controllers.delete(ctrl);
     }
   };
   const validatePage = result => {
     const p = result?.page;
-    if (p?.frame !== "5m" || p?.researchOnly !== true ||
+    if (p?.frame !== frame || p?.researchOnly !== true ||
         p?.structuralEligible !== false || p?.executionPriceAuthority !== false ||
         !Array.isArray(result?.bars)) {
-      throw Error("ENGINE11_5M_PROOF_PAGE_CONTEXT");
+      throw Error("ENGINE11_PAGER_PAGE_CONTEXT");
     }
     return validateBars(result.bars, "ENGINE11_PROOF_PAGE");
   };
