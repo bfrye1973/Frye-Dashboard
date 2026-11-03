@@ -124,20 +124,38 @@ const headers={"Access-Control-Allow-Origin":ORIGIN,
      e=>e.kind==="paged-setData"));
    assert.ok(before.length>=1);
    assert.equal(before[0].bars,latest.rows.length);
-   const initialPrice=latest.rows.at(-1).prices;
-   assert.ok(Number.isFinite(initialPrice.close));
+   const expected=latest.rows[0];
+   const actual=before[0].latestOHLCV;
+   assert.ok(actual,"ROWCHART_LATEST_CANDLE_NOT_CAPTURED");
+   assert.deepEqual({
+     time:actual.time,open:actual.open,high:actual.high,
+     low:actual.low,close:actual.close,volume:actual.volume,
+   },{
+     time:Math.floor(Date.parse(expected.timestampUtc)/1000),
+     open:expected.prices.open,high:expected.prices.high,
+     low:expected.prices.low,close:expected.prices.close,
+     volume:expected.volume,
+   },"DISPLAYED_OHLCV_MUST_MATCH_ORIGINAL_ENGINE11_CANDLE");
    // The test-only hook moves the actual chart viewport to its left edge,
    // causing Lightweight Charts logical-range history callback to load older.
-   await page.evaluate(()=>{
+   const viewportBefore=await page.evaluate(()=>{
      const t=window.__ENGINE11B_TEST__;
      if(typeof t.scrollOlder!=="function")throw Error("SCROLL_HOOK_MISSING");
      t.scrollOlder();
+     return t.visibleRange();
    });
    await page.waitForFunction(()=>window.__ENGINE11B_TEST__?.events?.filter(
      e=>e.kind==="paged-setData").length>=2,null,{timeout:35000});
    assert.equal(historyRequests,2,"EXACTLY_ONE_OLDER_PAGE_ON_SCROLL");
    const older=readPage(latest.nextCursor).page;
    assert.ok(Date.parse(older.rows[0].timestampUtc)<Date.parse(latest.rows.at(-1).timestampUtc));
+   const preserved=await page.evaluate(()=>{
+     const t=window.__ENGINE11B_TEST__;
+     return {viewport:t.visibleRange(),pager:t.pagerSnapshot()};
+   });
+   assert.equal(preserved.pager.loadedBars,2000);
+   assert.equal(preserved.pager.earliestTime,Math.floor(Date.parse(older.rows.at(-1).timestampUtc)/1000));
+   assert.deepEqual(preserved.viewport,viewportBefore,"PAN_VIEWPORT_MUST_REMAIN_STABLE_AFTER_PREPEND");
    assert.equal(errors.length,0,errors.join(" | "));
    console.log("ENGINE11B_AUTHENTIC_ROWCHART_PASS",JSON.stringify({
      frame,archiveRows:cat.frames[frame].rows,archivePages:EXPECTED.pages[frame],
@@ -147,7 +165,8 @@ const headers={"Access-Control-Allow-Origin":ORIGIN,
      firstLatestUtc:latest.rows[0].timestampUtc,
      lastOlderUtc:older.rows.at(-1).timestampUtc,
      firstLatestClose:latest.rows[0].prices.close,
-     cursorChain:"verified",sha256Pages:"verified",source:"authentic published verified Engine11 private pages",
+     cursorChain:"verified",sha256Pages:"verified",exactPlottedOHLCV:"verified",
+     viewportPreserved:true,source:"authentic published verified Engine11 private pages",
    }));
    await context.close();
   }
