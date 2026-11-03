@@ -13,6 +13,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   unit-and-build:
@@ -102,3 +103,69 @@ jobs:
           if(!Array.isArray(d)||!d.length) throw Error('NORMAL_1M_OHLC_EMPTY');
           console.log('ENGINE11B_NORMAL_1M_ROWS='+d.length);
           NODE
+
+  authentic-engine11-rowchart:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Retrieve the signed-off Engine 11 2020+ pages artifact from BACKEND repository
+        uses: actions/download-artifact@v4
+        with:
+          name: engine11-2020plus-private-history-pages-v1
+          repository: bfrye1973/frye-market-backend
+          github-token: ${{ github.token }}
+          path: /tmp/engine11b-verified-pages
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Build actual RowChart for authenticated source-page Chromium test
+        env:
+          REACT_APP_STREAM_BASE: https://frye-market-backend-2.onrender.com
+        run: npm run build
+      - name: Install Chromium
+        run: |
+          npm install --no-save --no-package-lock playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Serve existing compiled Dashboard Chart
+        run: |
+          node research/engine2c-preview/integration-http.cjs > /tmp/engine11b-authentic-http.log 2>&1 &
+          for i in $(seq 1 40); do
+            if curl --silent --fail http://127.0.0.1:8193/chart >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/engine11b-authentic-http.log
+          exit 1
+      - name: Verify actual RowChart against SHA-256 verified production-format 5m/10m Engine11 pages and older-on-scroll
+        env:
+          ENGINE11B_VERIFIED_PAGES: /tmp/engine11b-verified-pages
+        run: node research/engine11b/authentic-rowchart-browser.cjs
+      - name: Erase private history package after isolated test
+        if: always()
+        run: rm -rf /tmp/engine11b-verified-pages
+
+  production-sse-read-only:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Read-only ES 1m production SSE snapshot AND real bar delivery
+        run: node research/engine11b/production-sse-diagnostic.cjs
+
+  production-history-identity-read-only:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Verify authorized private production endpoint without printing credentials
+        env:
+          ENGINE11B_AUTHORIZED_HISTORY_OWNER_KEY: ${{ secrets.ENGINE2C_HISTORY_OWNER_KEY }}
+        run: node research/engine11b/production-history-identity.cjs
