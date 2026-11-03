@@ -77,7 +77,14 @@ const sleep = ms => new Promise(r=>setTimeout(r,ms));
           last = Number(productionBars.at(-1).time);
           return route.fulfill({status:200,headers:cors,body:bytes});
         }
-        const bars=generateBars("1m",1400,600);
+        const bars=frame==="1m"
+          ?generateBars("1m",1400,600)
+          :generateBars(frame,2000,40);
+        if(frame!=="1m") {
+          assert.equal(debug,true,"recent bridge must preserve contract identity");
+          assert.equal(Number(url.searchParams.get("limit")),1500);
+          last=bars.at(-1).time;
+        }
         return route.fulfill({status:200,headers:cors,body:JSON.stringify(debug?{
           ok:true,resolvedSymbol:"ESZ6",requestedSymbol:"ES",
           timeframe:url.searchParams.get("timeframe")||frame,
@@ -132,6 +139,15 @@ const sleep = ms => new Promise(r=>setTimeout(r,ms));
       if(frame!=="1m"){
         assert.equal(privateRequests,1,"first paint must require only one authenticated page");
         assert.equal(events.find(e=>e.kind==="paged-setData").bars,1000);
+        await page.waitForFunction(f=>
+          window.__ENGINE11B_TEST__?.events?.some(e=>e.kind==="recent-catchup"&&e.frame===f),
+          frame,{timeout:15000});
+        const bridge=await page.evaluate(f=>window.__ENGINE11B_TEST__.events
+          .find(e=>e.kind==="recent-catchup"&&e.frame===f),frame);
+        assert.equal(ohlcRequests,1,"one bounded recent OHLC bridge");
+        assert.equal(bridge.added,40,"all 40 current source candles appended");
+        assert.equal(bridge.latestTime,last,"chart must reach latest source candle immediately");
+        assert.equal(privateRequests,1,"catch-up must never request older Engine11 pages");
       } else {
         assert.equal(privateRequests,0,"1m must not request Engine11 archive");
         assert.ok(ohlcRequests>=1,"1m must use futures OHLC");
