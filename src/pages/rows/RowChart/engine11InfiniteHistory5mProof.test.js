@@ -200,12 +200,13 @@ describe("Engine11 five-minute Infinite History: isolated chart contract",()=>{
     const factor=2;
     const original=makeBars(1000,1000).map(b=>({...b,time:b.time*factor}));
     const prior=makeBars(0,1000).map(b=>({...b,time:b.time*factor}));
+    // The older shared fixture is stamped 5m; adapt the page context to 10m.
+    const fixture10m=(bars,cursor)=>({
+      ...page(bars,cursor),page:{...page(bars,cursor).page,frame:"10m"}
+    });
     const fetchPage=jest.fn()
-      .mockResolvedValueOnce(page(original,"older"))
-      .mockResolvedValueOnce(page(prior,null));
-    // The test fixture is stamped as frame 5m; provide the current 10m context.
-    fetchPage.mockImplementationOnce(async()=>({...page(original,"older"),page:{...page(original,"older").page,frame:"10m"}}))
-      .mockImplementationOnce(async()=>({...page(prior,null),page:{...page(prior,null).page,frame:"10m"}}));
+      .mockImplementationOnce(async()=>fixture10m(original,"older"))
+      .mockImplementationOnce(async()=>fixture10m(prior,null));
     const p=createEngine115mInfiniteHistoryProof({...ui,frame:"10m",fetchPage});
     expect(await p.start()).toBe(true);
     const recent=makeBars(2000,12).map(b=>({...b,time:b.time*factor}));
