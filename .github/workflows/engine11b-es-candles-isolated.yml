@@ -109,11 +109,25 @@ jobs:
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
-      - name: Retrieve the signed-off Engine 11 2020+ pages artifact from BACKEND repository
+      - name: Locate exact signed-off pages artifact in backend repository
+        id: backend-pages
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api 'repos/bfrye1973/frye-market-backend/actions/artifacts?per_page=100' --jq             '[.artifacts[] | select(.name=="engine11-2020plus-private-history-pages-v1" and .expired==false) | {id, run_id:.workflow_run.id, created_at}] | sort_by(.created_at) | last'             > /tmp/engine11b-artifact-meta.json
+          node - <<'NODE'
+          const fs=require('fs');
+          const data=JSON.parse(fs.readFileSync('/tmp/engine11b-artifact-meta.json','utf8'));
+          if(!data?.id||!data?.run_id)throw Error('ENGINE11B_APPROVED_PAGES_ARTIFACT_NOT_FOUND');
+          console.log('ENGINE11B_APPROVED_PAGES_ARTIFACT_ID='+data.id+' RUN_ID='+data.run_id);
+          fs.appendFileSync(process.env.GITHUB_OUTPUT,'backend_run_id='+data.run_id+'\\n');
+          NODE
+      - name: Retrieve immutable Engine 11 pages from the exact backend run
         uses: actions/download-artifact@v4
         with:
           name: engine11-2020plus-private-history-pages-v1
           repository: bfrye1973/frye-market-backend
+          run-id: ${{ steps.backend-pages.outputs.backend_run_id }}
           github-token: ${{ github.token }}
           path: /tmp/engine11b-verified-pages
       - uses: actions/setup-node@v4
