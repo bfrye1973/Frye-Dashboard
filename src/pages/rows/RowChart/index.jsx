@@ -1367,6 +1367,7 @@ export default function RowChart({
           window.__ENGINE11B_TEST__.events.push({
             kind: "paged-setData", frame: state.timeframe,
             bars: pager.snapshot().loadedBars || recent.length,
+            latestOHLCV: recent.length ? { ...recent[recent.length - 1] } : null,
             at: performance.now(),
           });
         }
@@ -1383,6 +1384,8 @@ export default function RowChart({
       window.__ENGINE11B_TEST__.scrollOlder = () =>
         chartRef.current?.timeScale().setVisibleLogicalRange({from:0,to:60});
       window.__ENGINE11B_TEST__.pagerSnapshot = () => pager.snapshot();
+      window.__ENGINE11B_TEST__.visibleRange = () =>
+        chartRef.current?.timeScale().getVisibleRange?.();
     }
 
     const streamMatchesHistory = () => Boolean(
