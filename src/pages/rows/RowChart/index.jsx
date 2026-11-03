@@ -1073,10 +1073,16 @@ export default function RowChart({
     showPremarketFibs: false,
   });
 
+  // Engine 11B: recent-first candles on the normal ES 5m/10m chart.
+  // A failed or unauthorized private page falls back to the original OHLC path.
+  const [engine11RecentFallbackKey, setEngine11RecentFallbackKey] = useState("");
+  const engine11RecentKey = `${state.symbol}:${state.timeframe}`;
   const fiveMinuteFeatureEnabled =
-    normalizeSymbol(state.symbol) === "ES" && state.timeframe === "5m" &&
+    normalizeSymbol(state.symbol) === "ES" &&
+    ["5m", "10m"].includes(state.timeframe) &&
+    engine11RecentFallbackKey !== engine11RecentKey &&
     typeof window !== "undefined" &&
-    new URLSearchParams(window.location.search).get("engine2Infinite5m") === "1";
+    new URLSearchParams(window.location.search).get("engine11Candles") !== "0";
 
   if (typeof window !== "undefined") {
     window.__indicators = {
@@ -1317,45 +1323,59 @@ export default function RowChart({
     let active = true;
     let stopStream = null;
     let sourceVerified = false;
+    const fallbackKey = engine11RecentKey;
+    const ownerKey = (() => {
+      const direct = window.sessionStorage?.getItem("engine2cResearchOwnerKey");
+      if (direct) return direct;
+      try {
+        const saved = JSON.parse(window.localStorage?.getItem("engine2cResearchOwnerAccessV1") || "null");
+        return saved?.expiresAt > Date.now() && typeof saved?.key === "string" ? saved.key : null;
+      } catch { return null; }
+    })();
+    if (!ownerKey) {
+      setEngine11RecentFallbackKey(fallbackKey);
+      return;
+    }
+
     let latest1m = new Map();
+    const bucketSeconds = TF_SEC[state.timeframe];
     const pager = createEngine115mInfiniteHistoryProof({
+      frame: state.timeframe,
       chart: chartRef.current,
       priceSeries: seriesRef.current,
       volumeSeries: volSeriesRef.current,
       fetchPage: fetchEngine11ContinuousUnadjusted2020PlusPage,
-      ownerKey: (() => {
-        const direct = window.sessionStorage?.getItem("engine2cResearchOwnerKey");
-        if (direct) return direct;
-        try {
-          const prior = JSON.parse(window.localStorage?.getItem("engine2cResearchOwnerAccessV1") || "null");
-          return prior?.expiresAt > Date.now() ? prior?.key : null;
-        } catch { return null; }
-      })(),
+      ownerKey,
       onWorkingBars: (recent) => {
         barsRef.current = recent;
         setBars(recent);
       },
-      onError: (error) => console.error("[Engine2 5m paging test]", error),
+      onError: (error) => console.error("[Engine11B recent-first history]", state.timeframe, error),
     });
     fiveMinutePagerRef.current = pager;
     void (async () => {
       const loaded = await pager.start();
-      if (!active || !loaded) return;
+      if (!active) return;
+      if (!loaded) {
+        // Do not leave the normal chart blank when the private history is unavailable.
+        setEngine11RecentFallbackKey(fallbackKey);
+        return;
+      }
       if (state.range === "ALL") chartRef.current?.timeScale().fitContent();
       setSeedToken(x => x + 1);
       try {
-        const identity = await getFuturesContractIdentity("ES", "5m");
+        const identity = await getFuturesContractIdentity("ES", state.timeframe);
         const source = pager.snapshot().terminalContract;
         const contractCode = /^ES([HMUZ])(\d{4})$/.exec(String(source || ""));
         sourceVerified = Boolean(contractCode && identity?.resolvedSymbol ===
           ("ES" + contractCode[1] + contractCode[2].slice(-1)));
-      } catch (error) { console.warn("[Engine2 5m] LIVE contract unverified", error); }
+      } catch (error) { console.warn("[Engine11B] LIVE contract unverified", error); }
       if (!active || !sourceVerified) return;
       stopStream = subscribeStream("ES", "1m", (bar) => {
         if (!active || !sourceVerified) return;
         const t = Number(bar.time);
         if (!Number.isFinite(t)) return;
-        const bucket = Math.floor(t / 300) * 300;
+        const bucket = Math.floor(t / bucketSeconds) * bucketSeconds;
         const sourceLast = pager.snapshot().archiveLastTime;
         if (bucket <= sourceLast) return;
         latest1m.set(t, bar);
@@ -1378,7 +1398,7 @@ export default function RowChart({
       pager.destroy();
       if (fiveMinutePagerRef.current === pager) fiveMinutePagerRef.current = null;
     };
-  }, [chartReady, fiveMinuteFeatureEnabled, state.symbol, state.timeframe]);
+  }, [chartReady, fiveMinuteFeatureEnabled, state.symbol, state.timeframe, engine11RecentKey]);
 
   /* ==================== Effect A: Fetch + Seed Series ==================== */
 
