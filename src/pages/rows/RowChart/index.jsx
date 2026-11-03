@@ -1377,6 +1377,13 @@ export default function RowChart({
       },
     });
     fiveMinutePagerRef.current = pager;
+    if (window.__ENGINE11B_TEST__) {
+      // Isolated browser acceptance only: exercise the real Lightweight Charts
+      // visible-range observer with genuine verified historical pages.
+      window.__ENGINE11B_TEST__.scrollOlder = () =>
+        chartRef.current?.timeScale().setVisibleLogicalRange({from:0,to:60});
+      window.__ENGINE11B_TEST__.pagerSnapshot = () => pager.snapshot();
+    }
 
     const streamMatchesHistory = () => Boolean(
       expectedContract && streamContract && expectedContract === streamContract
