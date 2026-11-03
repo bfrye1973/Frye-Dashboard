@@ -1368,7 +1368,15 @@ export default function RowChart({
         setEngine11RecentFallbackKey(fallbackKey);
         return;
       }
-      if (state.range === "ALL") chartRef.current?.timeScale().fitContent();
+      // Recent-first mode must NOT call fitContent(): showing the full initial page
+      // triggers the logical-range history observer and fetches older pages at startup.
+      // Open at the newest candles; backward panning is the only older-page trigger.
+      const initialCount = pager.snapshot().loadedBars;
+      const visibleCount = Math.min(160, initialCount);
+      chartRef.current?.timeScale().setVisibleLogicalRange({
+        from: Math.max(0, initialCount - visibleCount),
+        to: Math.max(0, initialCount - 1),
+      });
       setSeedToken(x => x + 1);
       try {
         const identity = await getFuturesContractIdentity("ES", state.timeframe);
