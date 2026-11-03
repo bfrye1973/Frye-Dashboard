@@ -150,6 +150,54 @@ const sleep = ms => new Promise(r=>setTimeout(r,ms));
       });
       await context.close();
     }
+
+    // Regression for the manager's first two release blockers:
+    // absent owner key NEVER reactivates full Engine11 loading,
+    // while a mismatched feed remains connected but its bars are HELD.
+    for (const frame of ["5m","10m"]) {
+      const context=await browser.newContext({viewport:{width:1440,height:900}});
+      await context.addInitScript(()=>{
+        window.__ENGINE11B_TEST__={events:[]};
+      });
+      let privateRequests=0,ohlcRequests=0;
+      await context.route("https://frye-market-backend-1.onrender.com/**",
+        route=>route.fulfill({status:200,headers:cors,body:"{}"}));
+      await context.route("https://frye-market-backend-1.onrender.com/engine2c-private-history/page**",
+        route=>{privateRequests++;return route.fulfill({status:401,headers:cors,body:"{}"});});
+      await context.route("https://frye-market-backend-1.onrender.com/api/v1/futures/ohlc**",route=>{
+        ohlcRequests++;
+        const u=new URL(route.request().url());
+        assert.equal(u.searchParams.get("debug"),"1","fallback must return physical contract");
+        assert.ok(Number(u.searchParams.get("limit"))<=1500);
+        const bars=generateBars(frame,1000,600);
+        return route.fulfill({status:200,headers:cors,
+          body:JSON.stringify({ok:true,resolvedSymbol:"ESZ6",bars,count:bars.length})});
+      });
+      await context.route("https://frye-market-backend-2.onrender.com/stream/futures/agg**",route=>{
+        const msg={ok:true,type:"snapshot",symbol:"ES",resolvedSymbol:"ESU6",tf:"1m"};
+        const bar={ok:true,type:"bar",symbol:"ES",resolvedSymbol:"ESU6",tf:"1m",
+          bar:{time:BASE_SECONDS+6000000,open:8000,high:8001,low:7999,close:8000,volume:12}};
+        return route.fulfill({status:200,headers:{
+          "Access-Control-Allow-Origin":ORIGIN,"Content-Type":"text/event-stream",
+          "Cache-Control":"no-cache",
+        },body:[msg,bar].map(x=>"data: "+JSON.stringify(x)+"\\n\\n").join("").replace(/\\n/g,"\n")});
+      });
+      const page=await context.newPage();
+      await page.goto(ORIGIN+"/chart?symbol=ES&tf="+frame+"&engine2cChart=live",
+        {waitUntil:"domcontentloaded"});
+      await page.waitForFunction(f=>window.__ENGINE11B_TEST__?.events?.some(
+        e=>e.kind==="standard-setData"&&e.frame===f),frame,{timeout:30000});
+      await page.waitForFunction(()=>document.body.innerText.includes("CONTRACT HOLD"),null,{timeout:10000});
+      const events=await page.evaluate(()=>window.__ENGINE11B_TEST__.events);
+      assert.equal(privateRequests,0,"no owner key must not attempt private 472/236 pages");
+      assert.equal(ohlcRequests,1,"bounded fallback must use only a single futures call");
+      assert.equal(events.find(e=>e.kind==="standard-setData").bars,600);
+      assert.equal(events.filter(e=>e.kind==="standard-live-update").length,0,
+        "mismatched physical contract must never update candle series");
+      results.push({frame,historySource:"bounded OHLC fallback",
+        privateRequests,ohlcRequests,contractHold:true,liveUpdatesRejected:true});
+      await context.close();
+    }
     console.log("ENGINE11B_ACTUAL_ROWCHART_BROWSER_PASS "+JSON.stringify(results));
   } finally {await browser.close();}
 })().catch(err=>{console.error(err.stack||err);process.exitCode=1});
