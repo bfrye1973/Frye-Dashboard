@@ -185,8 +185,22 @@ const sleep = ms => new Promise(r=>setTimeout(r,ms));
       const page=await context.newPage();
       await page.goto(ORIGIN+"/chart?symbol=ES&tf="+frame+"&engine2cChart=live",
         {waitUntil:"domcontentloaded"});
-      await page.waitForFunction(f=>window.__ENGINE11B_TEST__?.events?.some(
-        e=>e.kind==="standard-setData"&&e.frame===f),frame,{timeout:30000});
+      const errors=[];
+      page.on("pageerror",e=>errors.push("PAGE "+e.message));
+      page.on("console",m=>{if(m.type()==="error")errors.push("CONSOLE "+m.text());});
+      try {
+        await page.waitForFunction(f=>window.__ENGINE11B_TEST__?.events?.some(
+          e=>e.kind==="standard-setData"&&e.frame===f),frame,{timeout:10000});
+      } catch (error) {
+        const debug=await page.evaluate(()=>({
+          body:document.body.innerText.slice(0,1200),
+          events:window.__ENGINE11B_TEST__?.events||[],
+        })).catch(e=>({error:String(e)}));
+        console.error("ENGINE11B_FALLBACK_DIAG",JSON.stringify({
+          frame,privateRequests,ohlcRequests,errors,debug,
+        }));
+        throw error;
+      }
       await page.waitForFunction(()=>document.body.innerText.includes("CONTRACT HOLD"),null,{timeout:10000});
       const events=await page.evaluate(()=>window.__ENGINE11B_TEST__.events);
       assert.equal(privateRequests,0,"no owner key must not attempt private 472/236 pages");
