@@ -114,6 +114,30 @@ export async function getOHLC(symbol = "SPY", timeframe = "10m", limit = 1500) {
 }
 
 
+/**
+ * Same Backend-1 futures OHLC endpoint as getOHLC(), with the resolved
+ * physical contract returned in the SAME response. Bounded newest-only
+ * fallback; never downloads Engine 11's 2020+ archive.
+ */
+export async function getFuturesRecentOHLCWithIdentity(symbol = "ES", timeframe = "5m", limit = 1500) {
+  const sym = String(symbol || "ES").toUpperCase();
+  const tf = normalizeTf(timeframe);
+  if (!isFuturesSymbol(sym)) throw new Error("RECENT_FUTURES_SYMBOL_REQUIRED");
+  const safeLimit = Math.min(1500, clampLimit(limit, 1500));
+  const url =
+    `${API}/api/v1/futures/ohlc?symbol=${encodeURIComponent(sym)}` +
+    `&timeframe=${encodeURIComponent(tf)}&limit=${safeLimit}&debug=1`;
+  const response = await fetch(url, {cache: "no-store"});
+  if (!response.ok) throw new Error(`RECENT_FUTURES_OHLC_HTTP_${response.status}`);
+  const data = await response.json();
+  const resolvedSymbol = String(data?.resolvedSymbol || "").toUpperCase();
+  const bars = normalizeBars(data?.bars);
+  if (!/^ES[FGHJKMNQUVXZ]\\d{1,2}$/.test(resolvedSymbol) || sym !== "ES" || !bars.length) {
+    throw new Error("RECENT_FUTURES_CONTRACT_OR_BARS_MISSING");
+  }
+  return {bars: bars.slice(-safeLimit), resolvedSymbol};
+}
+
 export async function getFuturesContractIdentity(symbol = "ES", timeframe = "10m") {
   const sym = String(symbol || "ES").toUpperCase();
   const tf = normalizeTf(timeframe);
@@ -242,6 +266,11 @@ function createSharedStream(url) {
             low: Number(b.low ?? b.l),
             close: Number(b.close ?? b.c),
             volume: Number(b.volume ?? b.v ?? 0),
+            // Backend-2 includes the actual physical futures symbol on
+            // each SSE bar event; preserve it for exact-contract checks.
+            sourceContract: isFuturesSymbol(String(msg?.symbol || "").toUpperCase())
+              ? String(msg?.resolvedSymbol || b.sourceContract || "").toUpperCase()
+              : null,
           };
 
           if (
@@ -387,6 +416,7 @@ export function subscribeStream(symbol, timeframe, onBar, onAlive) {
 export default {
   getOHLC,
   getFuturesContractIdentity,
+  getFuturesRecentOHLCWithIdentity,
   fetchOHLCResilient,
   subscribeStream,
 };
