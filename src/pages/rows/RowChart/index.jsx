@@ -1406,17 +1406,19 @@ export default function RowChart({
       }
     };
     const consumeMinute = (oneMin) => {
-      // Buffer the stream during the short recent-OHLC catch-up. Otherwise
-      // the current forming bucket could jump ahead of all missing candles.
-      if (!recentCatchupDone || !streamMatchesHistory() || !pager.snapshot().started) return;
+      // Compatible LIVE bars must be painted as soon as the first immutable
+      // page is ready. Never wait for the optional recent OHLC bridge.
+      if (!streamMatchesHistory() || !pager.snapshot().started) return;
       const t = Number(oneMin.time);
       if (!Number.isFinite(t)) return;
       const bucket = Math.floor(t / bucketSeconds) * bucketSeconds;
       if (bucket <= pager.snapshot().archiveLastTime) return;
       const group = Array.from(bufferedOneMinute.values())
-        .filter(b => Math.floor(b.time / bucketSeconds) * bucketSeconds === bucket)
+        .filter(b => b.sourceContract === expectedContract &&
+          Math.floor(b.time / bucketSeconds) * bucketSeconds === bucket)
         .sort((a, b) => a.time - b.time);
       if (!group.length) return;
+      const arrivalAt = Number(oneMin.__arrivalAt || performance.now());
       const accepted = pager.updateLive({
         time: bucket,
         open: group[0].open,
@@ -1429,25 +1431,30 @@ export default function RowChart({
         window.__ENGINE11B_TEST__.events.push({
           kind: "paged-live-update", frame: state.timeframe,
           at: performance.now(), bucket,
+          receiveToChartMs: performance.now() - arrivalAt,
+          candleStartAgeMs: Date.now() - bucket * 1000,
+          recentCatchupDone,
         });
       }
     };
     const receiveMinute = (oneMin) => {
       if (!active) return;
+      const receivedAt = performance.now();
       const code = String(oneMin?.sourceContract || "").toUpperCase();
       if (code) streamContract = code;
       updateContractStatus();
-      if (!code || !streamMatchesHistory()) return;
       const t = Number(oneMin.time);
-      if (!Number.isFinite(t)) return;
-      bufferedOneMinute.set(t, oneMin); // same-timestamp replacements, no double-counting
+      if (!Number.isFinite(t) || !code) return;
+      // Retain a bounded sample even before archive identity is available.
+      // Recheck contract before presentation and during replay.
+      bufferedOneMinute.set(t, {...oneMin, sourceContract:code, __arrivalAt:receivedAt});
       for (const key of bufferedOneMinute.keys()) {
         if (key < t - Math.max(bucketSeconds, 1200)) bufferedOneMinute.delete(key);
       }
       while (bufferedOneMinute.size > 30) {
         bufferedOneMinute.delete(bufferedOneMinute.keys().next().value);
       }
-      consumeMinute(oneMin);
+      consumeMinute({...oneMin, sourceContract:code, __arrivalAt:receivedAt});
     };
 
     // Subscribe immediately. An unavailable identity must not disable the feed.
@@ -1480,6 +1487,12 @@ export default function RowChart({
         to: Math.max(0, initialCount - 1),
       });
       setSeedToken(x => x + 1);
+      // The source contract is now verified. Flush compatible streaming bars
+      // immediately; do not let a slow/failed recent-history HTTP request
+      // stall the currently forming candle.
+      for (const bar of [...bufferedOneMinute.values()].sort((a,b) => a.time - b.time)) {
+        if (bar.sourceContract === expectedContract) consumeMinute(bar);
+      }
       try {
         // The immutable archive ends on its last publication date. A single
         // bounded 5m/10m futures response bridges to the current session.
@@ -1516,15 +1529,17 @@ export default function RowChart({
       } catch (error) {
         if (!active) return;
         // Keep verified history visible if fresh market OHLC is unavailable.
-        recentContractMismatch = true;
-        updateContractStatus();
+        // Failure to retrieve optional recent OHLC is not evidence of a
+        // physical contract mismatch; preserve verified LIVE presentation.
         setHistoryStatus("ENGINE11 HISTORY VISIBLE · CURRENT CANDLES UNAVAILABLE");
         console.warn("[Engine11B] current futures catch-up unavailable", error);
       } finally {
         if (active) {
           recentCatchupDone = true;
+          // A racing stream candle may have arrived while the bridge was
+          // merging. Its newer timestamp remains authoritative.
           for (const bar of [...bufferedOneMinute.values()].sort((a,b) => a.time - b.time)) {
-            consumeMinute(bar);
+            if (bar.sourceContract === expectedContract) consumeMinute(bar);
           }
         }
       }
@@ -2189,7 +2204,10 @@ export default function RowChart({
         fullEngine11Loaded:engine11FullSeriesRef.current,
         activeEngine11Pager:Boolean(fiveMinutePagerRef.current),
       })) return;
-        const merged = mergeBars(barsRef.current, latest);
+        // History cannot overwrite a newer LIVE close/volume delivered while
+        // this request was pending. Merge on the latest current working cache
+        // at completion, preferring LIVE on timestamp collisions.
+        const merged = mergeBars(latest, barsRef.current);
         setFullSeries(merged);
 
         console.log("[RowChart] futures gap backfilled", {
@@ -2349,12 +2367,21 @@ export default function RowChart({
           return;
         }
 
-        await backfillMissingHistoryIfNeeded(cleanOneMin.time);
+        // Gap repair is optional. The LIVE candle must never await network
+        // requests; schedule it only after painting the new bar.
 
         // 1m chart: update the current candle directly.
         if (tfSec === TF_SEC["1m"]) {
+          const receivedAt = performance.now();
           updateVisibleBar(cleanOneMin);
           upsertChartBar(cleanOneMin, false);
+          if (window.__ENGINE11B_TEST__) window.__ENGINE11B_TEST__.events.push({
+            kind:"standard-receive-to-chart",frame:state.timeframe,
+            receiveToChartMs:performance.now()-receivedAt,
+            candleStartAgeMs:Date.now()-cleanOneMin.time*1000,
+            at:performance.now(),
+          });
+          void backfillMissingHistoryIfNeeded(cleanOneMin.time);
           return;
         }
 
@@ -2374,6 +2401,7 @@ export default function RowChart({
 
         updateVisibleBar(bucketBar);
         upsertChartBar(bucketBar, false);
+        void backfillMissingHistoryIfNeeded(cleanOneMin.time);
       },
       onAlive
     );
