@@ -53,7 +53,7 @@ const sleep = ms => new Promise(r=>setTimeout(r,ms));
       let privateRequests=0,ohlcRequests=0;
       let releaseStream;
       const streamReady=new Promise(resolve=>{releaseStream=resolve;});
-      const last=frame==="1m"
+      let last=frame==="1m"
         ?generateBars("1m",1400,600).at(-1).time
         :generateBars(frame,1000,1000).at(-1).time;
       await context.route("https://frye-market-backend-1.onrender.com/**",async route=>{
@@ -64,6 +64,19 @@ const sleep = ms => new Promise(r=>setTimeout(r,ms));
         if(req.method()==="OPTIONS")return route.fulfill({status:204,headers:cors,body:""});
         ohlcRequests++;
         const debug=url.searchParams.get("debug")==="1";
+        if (frame === "1m" && !debug) {
+          // Preserve the real backend OHLC response, including resolved market
+          // candles and payload size. Only CORS is rewritten for localhost.
+          const response = await route.fetch({timeout:55000});
+          if (!response.ok()) throw Error("PRODUCTION_1M_HTTP_" + response.status());
+          const bytes = await response.body();
+          const productionBars = JSON.parse(bytes.toString("utf8"));
+          if (!Array.isArray(productionBars) || !productionBars.length) {
+            throw Error("PRODUCTION_1M_EMPTY");
+          }
+          last = Number(productionBars.at(-1).time);
+          return route.fulfill({status:200,headers:cors,body:bytes});
+        }
         const bars=generateBars("1m",1400,600);
         return route.fulfill({status:200,headers:cors,body:JSON.stringify(debug?{
           ok:true,resolvedSymbol:"ESZ6",requestedSymbol:"ES",
@@ -115,8 +128,13 @@ const sleep = ms => new Promise(r=>setTimeout(r,ms));
       const liveKind=frame==="1m"?"standard-live-update":"paged-live-update";
       await page.waitForFunction(kind=>window.__ENGINE11B_TEST__?.events?.some(e=>e.kind===kind),liveKind,{timeout:15000});
       // 10m / 5m must remain on recent-first after switching back; no full-history request.
-      results.push({frame,firstPaintLocalFixtureMs:measured,privateRequests,
-        ohlcRequests,live:true,events:events.length,errors:errors.slice(0,3)});
+      results.push({
+        frame,
+        firstPaintMs:measured,
+        historySource:frame==="1m"?"actual production OHLC":"browser historical fixture",
+        privateRequests,ohlcRequests,liveSimulated:true,
+        events:events.length,errors:errors.slice(0,3),
+      });
       await context.close();
     }
     console.log("ENGINE11B_ACTUAL_ROWCHART_BROWSER_PASS "+JSON.stringify(results));
