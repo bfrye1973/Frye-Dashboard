@@ -998,6 +998,7 @@ export default function RowChart({
   const lastAliveRef = useRef(0);
   const liveContractHoldRef = useRef(false);
   const recentFallbackContractRef = useRef(null);
+  const engine11FullSeriesRef = useRef(false); // archive plotted >25k: never re-seed from truncated UI cache
   const liveTimerRef = useRef(null);
 
   const drawingsEngineRef = useRef(null);
@@ -1598,6 +1599,7 @@ export default function RowChart({
 
         const fullEngine11History =
           useEngine11 && asc.length > MAX_KEEP_BARS;
+        engine11FullSeriesRef.current = fullEngine11History;
         barsRef.current = fullEngine11History
           ? asc.slice(-MAX_KEEP_BARS)
           : asc;
@@ -1650,6 +1652,7 @@ export default function RowChart({
           didFitOnceRef.current = true;
         }
       } catch (e) {
+        engine11FullSeriesRef.current = false;
         console.error("[RowChart] seed error:", e);
         barsRef.current = [];
         setBars([]);
@@ -2026,6 +2029,10 @@ export default function RowChart({
     }
 
     function setFullSeries(nextBars) {
+      // The displayed archive must never be reconstructed from a truncated
+      // barsRef UI cache (PR #164 regression). Paged ES 5m/10m uses its own
+      // history-preserving pager and never takes this normal-backfill path.
+      if (engine11FullSeriesRef.current || fiveMinutePagerRef.current) return;
       const clean = normalizeChartBars(nextBars).slice(-MAX_KEEP_BARS);
 
       barsRef.current = clean;
@@ -2063,6 +2070,7 @@ export default function RowChart({
 
     async function backfillMissingHistoryIfNeeded(liveTimeSec) {
       if (!isCurrent) return;
+      if (engine11FullSeriesRef.current || fiveMinutePagerRef.current) return;
       if (!isFuturesLikeSymbol(state.symbol)) return;
       if (backfillRunning) return;
 
@@ -2092,14 +2100,25 @@ export default function RowChart({
               ? 300
               : 200;
 
-        const latest = await getOHLC(
-          state.symbol,
-          state.timeframe,
-          backfillLimit
-        );
+        const boundedFallback =
+          normalizeSymbol(state.symbol) === "ES" &&
+          ["5m", "10m"].includes(state.timeframe) &&
+          engine11RecentFallbackKey === engine11RecentKey;
+        const recent = boundedFallback
+          ? await getFuturesRecentOHLCWithIdentity(state.symbol, state.timeframe, backfillLimit)
+          : null;
+        if (boundedFallback &&
+            (!recentFallbackContractRef.current ||
+             recent.resolvedSymbol !== recentFallbackContractRef.current)) {
+          liveContractHoldRef.current = true;
+          return;
+        }
+        const latest = boundedFallback
+          ? recent.bars
+          : await getOHLC(state.symbol, state.timeframe, backfillLimit);
 
         if (!isCurrent) return;
-
+        if (engine11FullSeriesRef.current || fiveMinutePagerRef.current) return;
         const merged = mergeBars(barsRef.current, latest);
         setFullSeries(merged);
 
@@ -2205,9 +2224,18 @@ export default function RowChart({
       };
     }
 
-    const onAlive = () => {
+    const onAlive = (msg) => {
       if (!isCurrent) return;
       lastAliveRef.current = Date.now();
+      const boundedFallback =
+        normalizeSymbol(state.symbol) === "ES" &&
+        ["5m", "10m"].includes(state.timeframe) &&
+        engine11RecentFallbackKey === engine11RecentKey;
+      if (boundedFallback && msg?.resolvedSymbol) {
+        liveContractHoldRef.current =
+          !recentFallbackContractRef.current ||
+          msg.resolvedSymbol.toUpperCase() !== recentFallbackContractRef.current;
+      }
     };
 
     const unsub = subscribeStream(
@@ -2215,6 +2243,17 @@ export default function RowChart({
       LIVE_TF,
       async (oneMin) => {
         if (!isCurrent) return;
+        const boundedFallback =
+          normalizeSymbol(state.symbol) === "ES" &&
+          ["5m", "10m"].includes(state.timeframe) &&
+          engine11RecentFallbackKey === engine11RecentKey;
+        if (boundedFallback &&
+            (!recentFallbackContractRef.current ||
+             oneMin.sourceContract !== recentFallbackContractRef.current)) {
+          liveContractHoldRef.current = true;
+          return;
+        }
+        if (boundedFallback) liveContractHoldRef.current = false;
 
         const tSec = Number(
           oneMin.time > 1e12 ? Math.floor(oneMin.time / 1000) : oneMin.time
@@ -2289,7 +2328,8 @@ export default function RowChart({
         streamUnsubRef.current = null;
       }
     };
-  }, [chartReady, state.symbol, state.timeframe, state.volume, fiveMinuteFeatureEnabled]);
+  }, [chartReady, state.symbol, state.timeframe, state.volume, fiveMinuteFeatureEnabled,
+      engine11RecentFallbackKey, engine11RecentKey]);
 
   /* ---------------------------- EMA lines ----------------------------- */
 
