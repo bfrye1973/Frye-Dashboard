@@ -25,7 +25,7 @@ const URL="https://frye-market-backend-2.onrender.com/stream/futures/agg?symbol=
    liveBars++;
    const symbol=String(msg.symbol||"").toUpperCase();
    const physical=String(msg.resolvedSymbol||msg.bar?.sourceContract||"").toUpperCase();
-   if(symbol!=="ES"||!/^ES[FGHJKMNQUVXZ]\\d{1,2}$/.test(physical)){invalid++;return;}
+   if(symbol!=="ES"||!/^ES[FGHJKMNQUVXZ]\d{1,2}$/.test(physical)){invalid++;return;}
    if(snapshot?.resolvedSymbol && physical!==String(snapshot.resolvedSymbol).toUpperCase()){
      invalid++;return;
    }
@@ -62,10 +62,10 @@ const URL="https://frye-market-backend-2.onrender.com/stream/futures/agg?symbol=
      try{read=await reader.read();}catch(e){if(controller.signal.aborted)break;throw e;}
      if(read.done){eof=true;break;}
      buffer+=new TextDecoder().decode(read.value,{stream:true});
-     const chunks=buffer.split(/\\r?\\n\\r?\\n/);
+     const chunks=buffer.split(/\r?\n\r?\n/);
      buffer=chunks.pop()||"";
      for(const block of chunks){
-       const data=block.split(/\\r?\\n/).filter(x=>x.startsWith("data:"))
+       const data=block.split(/\r?\n/).filter(x=>x.startsWith("data:"))
          .map(x=>x.slice(5).trim()).join("\n");
        if(!data)continue;
        try{inspect(JSON.parse(data));}catch(e){parseErrors++;}
