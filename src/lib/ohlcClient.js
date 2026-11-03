@@ -132,7 +132,7 @@ export async function getFuturesRecentOHLCWithIdentity(symbol = "ES", timeframe 
   const data = await response.json();
   const resolvedSymbol = String(data?.resolvedSymbol || "").toUpperCase();
   const bars = normalizeBars(data?.bars);
-  if (!/^ES[FGHJKMNQUVXZ]\\d{1,2}$/.test(resolvedSymbol) || sym !== "ES" || !bars.length) {
+  if (!/^ES[FGHJKMNQUVXZ]\d{1,2}$/.test(resolvedSymbol) || sym !== "ES" || !bars.length) {
     throw new Error("RECENT_FUTURES_CONTRACT_OR_BARS_MISSING");
   }
   return {bars: bars.slice(-safeLimit), resolvedSymbol};
