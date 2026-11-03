@@ -28,7 +28,7 @@ jobs:
       - name: 5m and 10m historical-page / LIVE regression
         env:
           CI: "true"
-        run: npm test -- --watch=false --runInBand --runTestsByPath src/pages/rows/RowChart/engine11InfiniteHistory5mProof.test.js src/pages/rows/RowChart/engine11InfiniteHistory10mProof.test.js
+        run: npm test -- --watch=false --runInBand --runTestsByPath src/pages/rows/RowChart/engine11InfiniteHistory5mProof.test.js src/pages/rows/RowChart/engine11InfiniteHistory10mProof.test.js src/pages/rows/RowChart/engine11BackfillGuard.test.js
       - name: Build actual RowChart frontend
         run: npm run build
 
