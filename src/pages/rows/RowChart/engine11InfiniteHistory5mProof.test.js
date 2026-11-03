@@ -168,4 +168,55 @@ describe("Engine11 five-minute Infinite History: isolated chart contract",()=>{
     expect(latestCache).toHaveLength(25000);
     p.destroy();
   });
+
+  test("recent 5m bridge fills gap, never modifies archive overlap, and preserves LIVE collision",async()=>{
+    const ui=chartFixture();
+    const original=makeBars(1000,1000);
+    const fetchPage=jest.fn(async()=>page(original,"older"));
+    const p=createEngine115mInfiniteHistoryProof({...ui,fetchPage});
+    expect(await p.start()).toBe(true);
+    const originalLast=ui.calls.priceSet[0].at(-1);
+    const live={time:2003*300,open:88,high:90,low:86,close:89,volume:8};
+    expect(p.updateLive(live,{contractVerified:true})).toBe(true);
+    const recent=[...makeBars(1997,3),...makeBars(2000,7)];
+    const setCount=ui.calls.priceSet.length;
+    expect(p.appendVerifiedRecent(recent,{contractVerified:false})).toBe(0);
+    expect(ui.calls.priceSet).toHaveLength(setCount);
+    expect(p.appendVerifiedRecent(recent,{contractVerified:true})).toBe(6);
+    expect(p.snapshot().loadedBars).toBe(1007);
+    expect(p.snapshot().earliestTime).toBe(1000*300);
+    expect(p.snapshot().latestTime).toBe(2006*300);
+    const plotted=ui.calls.priceSet.at(-1);
+    expect(plotted[999]).toEqual(originalLast);
+    expect(plotted.find(b=>b.time===live.time).close).toBe(live.close);
+    expect(plotted[1000].time).toBe(2000*300);
+    expect(ui.calls.ranges.at(-1)).toEqual({from:950,to:999});
+    expect(fetchPage).toHaveBeenCalledTimes(1);
+    p.destroy();
+  });
+
+  test("recent 10m verifies contract gate and retains older-on-scroll pagination after bridge",async()=>{
+    const ui=chartFixture();
+    const factor=2;
+    const original=makeBars(1000,1000).map(b=>({...b,time:b.time*factor}));
+    const prior=makeBars(0,1000).map(b=>({...b,time:b.time*factor}));
+    // The older shared fixture is stamped 5m; adapt the page context to 10m.
+    const fixture10m=(bars,cursor)=>({
+      ...page(bars,cursor),page:{...page(bars,cursor).page,frame:"10m"}
+    });
+    const fetchPage=jest.fn()
+      .mockImplementationOnce(async()=>fixture10m(original,"older"))
+      .mockImplementationOnce(async()=>fixture10m(prior,null));
+    const p=createEngine115mInfiniteHistoryProof({...ui,frame:"10m",fetchPage});
+    expect(await p.start()).toBe(true);
+    const recent=makeBars(2000,12).map(b=>({...b,time:b.time*factor}));
+    expect(p.appendVerifiedRecent(recent,{contractVerified:true})).toBe(12);
+    expect(p.snapshot().loadedBars).toBe(1012);
+    expect(await p.loadOlder()).toBe(true);
+    expect(p.snapshot().loadedBars).toBe(2012);
+    expect(p.snapshot().earliestTime).toBe(0);
+    expect(p.snapshot().latestTime).toBe(2011*600);
+    expect(ui.calls.priceSet.at(-1)).toHaveLength(2012);
+    p.destroy();
+  });
 });

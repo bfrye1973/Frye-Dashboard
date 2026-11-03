@@ -171,6 +171,17 @@ jobs:
       - name: Read-only ES 1m production SSE snapshot AND real bar delivery
         run: node research/engine11b/production-sse-diagnostic.cjs
 
+  production-current-candles-read-only:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Verify existing production ES 5m/10m OHLC covers archive-to-current gap
+        run: node research/engine11b/production-current-candles-diagnostic.cjs
+
   production-history-identity-read-only:
     runs-on: ubuntu-24.04
     timeout-minutes: 2

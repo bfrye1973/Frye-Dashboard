@@ -161,6 +161,30 @@ export function createEngine115mInfiniteHistoryProof({
       if (!destroyed) report();
     }
   }
+  // Append a bounded, physical-contract-verified recent futures bridge
+  // after the immutable Engine11 archive. Preserve already accepted LIVE
+  // bars on timestamp collisions and never touch original archive candles.
+  function appendVerifiedRecent(bars, {contractVerified = false} = {}) {
+    if (!started || destroyed || !contractVerified) return 0;
+    if (!Array.isArray(bars) || !bars.length) return 0;
+    const recent = validateBars(bars, "ENGINE11_RECENT_FUTURES");
+    const archiveEnd = archiveLastTime;
+    const before = new Map(loaded.map(b => [b.time, b]));
+    let added = 0;
+    for (const bar of recent) {
+      // Never rewrite immutable source OHLCV, even if Polygon differs.
+      if (bar.time <= archiveEnd) continue;
+      if (!before.has(bar.time)) {
+        before.set(bar.time, bar);
+        added++;
+      }
+      // If LIVE already emitted the same bucket, prefer its latest update.
+    }
+    if (!added) return 0;
+    const merged = [...before.values()].sort((a,b) => a.time-b.time);
+    commit(merged, 0, true);
+    return added;
+  }
   function updateLive(bar, { contractVerified = false } = {}) {
     if (!started || destroyed || !contractVerified ||
         !Number.isFinite(bar?.time) ||
@@ -189,7 +213,7 @@ export function createEngine115mInfiniteHistoryProof({
     }
   }
   return {
-    start, loadOlder, updateLive, destroy,
+    start, loadOlder, appendVerifiedRecent, updateLive, destroy,
     snapshot: () => ({
       started, loading, pages, nextCursor, loadedBars:loaded.length,
       earliestTime:loaded[0]?.time ?? null,
