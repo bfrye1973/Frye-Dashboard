@@ -21,9 +21,10 @@ import { createChart } from "lightweight-charts";
 import Controls from "./Controls";
 import IndicatorsToolbar from "./IndicatorsToolbar";
 
-import { getOHLC, subscribeStream, getFuturesContractIdentity } from "../../../lib/ohlcClient";
+import { getOHLC, subscribeStream, getFuturesRecentOHLCWithIdentity } from "../../../lib/ohlcClient";
 import { fetchEngine11ContinuousUnadjusted2020PlusPage } from "./engine11HistoricalAdapter";
 import { createEngine115mInfiniteHistoryProof } from "./engine11InfiniteHistory5mProof";
+import { mustPreserveEngine11HistoricalSeries } from "./engine11BackfillGuard";
 import {
   fetchEngine11ContinuousUnadjustedPage,
   fetchEngine11ContinuousUnadjusted2020PlusAll,
@@ -994,7 +995,11 @@ export default function RowChart({
   const uiTimerRef = useRef(null);
 
   const [liveStatus, setLiveStatus] = useState("CONNECTING");
+  const [historyStatus, setHistoryStatus] = useState("");
   const lastAliveRef = useRef(0);
+  const liveContractHoldRef = useRef(false);
+  const recentFallbackContractRef = useRef(null);
+  const engine11FullSeriesRef = useRef(false); // archive plotted >25k: never re-seed from truncated UI cache
   const liveTimerRef = useRef(null);
 
   const drawingsEngineRef = useRef(null);
@@ -1073,10 +1078,17 @@ export default function RowChart({
     showPremarketFibs: false,
   });
 
+  // Engine 11B: newest verified page for ES 5m/10m.
+  // A missing/expired authorization uses bounded contract-identified futures
+  // OHLC, NEVER the old full 472/236-page archive loader.
+  const [engine11RecentFallbackKey, setEngine11RecentFallbackKey] = useState("");
+  const engine11RecentKey = `${state.symbol}:${state.timeframe}`;
   const fiveMinuteFeatureEnabled =
-    normalizeSymbol(state.symbol) === "ES" && state.timeframe === "5m" &&
+    normalizeSymbol(state.symbol) === "ES" &&
+    ["5m", "10m"].includes(state.timeframe) &&
+    engine11RecentFallbackKey !== engine11RecentKey &&
     typeof window !== "undefined" &&
-    new URLSearchParams(window.location.search).get("engine2Infinite5m") === "1";
+    new URLSearchParams(window.location.search).get("engine11Candles") !== "0";
 
   if (typeof window !== "undefined") {
     window.__indicators = {
@@ -1252,14 +1264,14 @@ export default function RowChart({
       const now = Date.now();
       const last = lastAliveRef.current || 0;
 
-      if (!last) {
+      const connected = last > 0 && now - last <= LIVE_STALE_MS;
+      if (liveContractHoldRef.current) {
+        setLiveStatus(connected ? "HOLD_FEED_LIVE" : (last ? "HOLD_FEED_STALE" : "HOLD_CONNECTING"));
+      } else if (!last) {
         setLiveStatus("CONNECTING");
-        return;
+      } else {
+        setLiveStatus(connected ? "LIVE" : "STALE");
       }
-
-      const age = now - last;
-      if (age > LIVE_STALE_MS) setLiveStatus("STALE");
-      else setLiveStatus("LIVE");
     }, 1000);
 
     return () => {
@@ -1310,75 +1322,172 @@ export default function RowChart({
     }
   };
 
-  // Test-only 5m newest-first history attached to the existing RowChart.
-  // Inactive by default. No overlays, anchors or source files are modified.
+  // Engine 11B: normal ES 5m/10m recent-first history, with LIVE subscribed
+  // independently of contract verification. No execution/overlay modification.
   useEffect(() => {
     if (!fiveMinuteFeatureEnabled || !chartReady || !seriesRef.current) return;
     let active = true;
     let stopStream = null;
-    let sourceVerified = false;
-    let latest1m = new Map();
+    const fallbackKey = engine11RecentKey;
+    const ownerKey = (() => {
+      const direct = window.sessionStorage?.getItem("engine2cResearchOwnerKey");
+      if (direct) return direct;
+      try {
+        const saved = JSON.parse(window.localStorage?.getItem("engine2cResearchOwnerAccessV1") || "null");
+        return saved?.expiresAt > Date.now() && typeof saved?.key === "string" ? saved.key : null;
+      } catch { return null; }
+    })();
+
+    if (!ownerKey) {
+      setHistoryStatus("RECENT FUTURES FALLBACK · PRIVATE KEY UNAVAILABLE");
+      setEngine11RecentFallbackKey(fallbackKey);
+      return;
+    }
+
+    const bucketSeconds = TF_SEC[state.timeframe];
+    const bufferedOneMinute = new Map(); // bounded while the first page is loading
+    let expectedContract = "";
+    let streamContract = "";
+
+    lastAliveRef.current = 0;
+    liveContractHoldRef.current = true;
+    setHistoryStatus("LOADING VERIFIED RECENT HISTORY");
+
     const pager = createEngine115mInfiniteHistoryProof({
+      frame: state.timeframe,
       chart: chartRef.current,
       priceSeries: seriesRef.current,
       volumeSeries: volSeriesRef.current,
       fetchPage: fetchEngine11ContinuousUnadjusted2020PlusPage,
-      ownerKey: (() => {
-        const direct = window.sessionStorage?.getItem("engine2cResearchOwnerKey");
-        if (direct) return direct;
-        try {
-          const prior = JSON.parse(window.localStorage?.getItem("engine2cResearchOwnerAccessV1") || "null");
-          return prior?.expiresAt > Date.now() ? prior?.key : null;
-        } catch { return null; }
-      })(),
+      ownerKey,
       onWorkingBars: (recent) => {
         barsRef.current = recent;
         setBars(recent);
+        if (window.__ENGINE11B_TEST__) {
+          window.__ENGINE11B_TEST__.events.push({
+            kind: "paged-setData", frame: state.timeframe,
+            bars: pager.snapshot().loadedBars || recent.length,
+            latestOHLCV: recent.length ? { ...recent[recent.length - 1] } : null,
+            at: performance.now(),
+          });
+        }
       },
-      onError: (error) => console.error("[Engine2 5m paging test]", error),
+      onError: (error) => {
+        console.error("[Engine11B recent-first history]", state.timeframe, error);
+        if (pager.snapshot().started) setHistoryStatus("HISTORY PAGE ERROR · RECENT CANDLES PRESERVED");
+      },
     });
     fiveMinutePagerRef.current = pager;
+    if (window.__ENGINE11B_TEST__) {
+      // Isolated browser acceptance only: exercise the real Lightweight Charts
+      // visible-range observer with genuine verified historical pages.
+      window.__ENGINE11B_TEST__.scrollOlder = () =>
+        chartRef.current?.timeScale().setVisibleLogicalRange({from:0,to:60});
+      window.__ENGINE11B_TEST__.pagerSnapshot = () => pager.snapshot();
+      window.__ENGINE11B_TEST__.visibleRange = () =>
+        chartRef.current?.timeScale().getVisibleRange?.();
+    }
+
+    const streamMatchesHistory = () => Boolean(
+      expectedContract && streamContract && expectedContract === streamContract
+    );
+    const updateContractStatus = () => {
+      if (!active) return;
+      liveContractHoldRef.current = !streamMatchesHistory();
+      if (window.__ENGINE11B_TEST__) {
+        window.__ENGINE11B_TEST__.events.push({
+          kind: liveContractHoldRef.current ? "paged-contract-hold" : "paged-contract-match",
+          frame: state.timeframe, at: performance.now(),
+          expectedContract, streamContract,
+        });
+      }
+    };
+    const consumeMinute = (oneMin) => {
+      if (!streamMatchesHistory() || !pager.snapshot().started) return;
+      const t = Number(oneMin.time);
+      if (!Number.isFinite(t)) return;
+      const bucket = Math.floor(t / bucketSeconds) * bucketSeconds;
+      if (bucket <= pager.snapshot().archiveLastTime) return;
+      const group = Array.from(bufferedOneMinute.values())
+        .filter(b => Math.floor(b.time / bucketSeconds) * bucketSeconds === bucket)
+        .sort((a, b) => a.time - b.time);
+      if (!group.length) return;
+      const accepted = pager.updateLive({
+        time: bucket,
+        open: group[0].open,
+        high: Math.max(...group.map(b => b.high)),
+        low: Math.min(...group.map(b => b.low)),
+        close: group[group.length - 1].close,
+        volume: group.reduce((sum, b) => sum + Number(b.volume || 0), 0),
+      }, {contractVerified:true});
+      if (accepted && window.__ENGINE11B_TEST__) {
+        window.__ENGINE11B_TEST__.events.push({
+          kind: "paged-live-update", frame: state.timeframe,
+          at: performance.now(), bucket,
+        });
+      }
+    };
+    const receiveMinute = (oneMin) => {
+      if (!active) return;
+      const code = String(oneMin?.sourceContract || "").toUpperCase();
+      if (code) streamContract = code;
+      updateContractStatus();
+      if (!code || !streamMatchesHistory()) return;
+      const t = Number(oneMin.time);
+      if (!Number.isFinite(t)) return;
+      bufferedOneMinute.set(t, oneMin); // same-timestamp replacements, no double-counting
+      for (const key of bufferedOneMinute.keys()) {
+        if (key < t - Math.max(bucketSeconds, 1200)) bufferedOneMinute.delete(key);
+      }
+      while (bufferedOneMinute.size > 30) {
+        bufferedOneMinute.delete(bufferedOneMinute.keys().next().value);
+      }
+      consumeMinute(oneMin);
+    };
+
+    // Subscribe immediately. An unavailable identity must not disable the feed.
+    stopStream = subscribeStream("ES", "1m", receiveMinute, (msg) => {
+      if (!active) return;
+      lastAliveRef.current = Date.now();
+      if (typeof msg?.resolvedSymbol === "string") {
+        streamContract = msg.resolvedSymbol.toUpperCase();
+        updateContractStatus();
+      }
+    });
+
     void (async () => {
       const loaded = await pager.start();
-      if (!active || !loaded) return;
-      if (state.range === "ALL") chartRef.current?.timeScale().fitContent();
+      if (!active) return;
+      if (!loaded) {
+        setHistoryStatus("RECENT FUTURES FALLBACK · PRIVATE HISTORY UNAVAILABLE");
+        setEngine11RecentFallbackKey(fallbackKey);
+        return;
+      }
+      const source = pager.snapshot().terminalContract;
+      const match = /^ES([HMUZ])(\d{4})$/.exec(String(source || ""));
+      expectedContract = match ? `ES${match[1]}${match[2].slice(-1)}` : "";
+      updateContractStatus();
+      setHistoryStatus("ENGINE11 VERIFIED RECENT HISTORY");
+      const initialCount = pager.snapshot().loadedBars;
+      const visibleCount = Math.min(160, initialCount);
+      chartRef.current?.timeScale().setVisibleLogicalRange({
+        from: Math.max(0, initialCount - visibleCount),
+        to: Math.max(0, initialCount - 1),
+      });
       setSeedToken(x => x + 1);
-      try {
-        const identity = await getFuturesContractIdentity("ES", "5m");
-        const source = pager.snapshot().terminalContract;
-        const contractCode = /^ES([HMUZ])(\d{4})$/.exec(String(source || ""));
-        sourceVerified = Boolean(contractCode && identity?.resolvedSymbol ===
-          ("ES" + contractCode[1] + contractCode[2].slice(-1)));
-      } catch (error) { console.warn("[Engine2 5m] LIVE contract unverified", error); }
-      if (!active || !sourceVerified) return;
-      stopStream = subscribeStream("ES", "1m", (bar) => {
-        if (!active || !sourceVerified) return;
-        const t = Number(bar.time);
-        if (!Number.isFinite(t)) return;
-        const bucket = Math.floor(t / 300) * 300;
-        const sourceLast = pager.snapshot().archiveLastTime;
-        if (bucket <= sourceLast) return;
-        latest1m.set(t, bar);
-        for(const k of latest1m.keys()) if(k < bucket) latest1m.delete(k);
-        const group = [...latest1m.values()].sort((a,b)=>a.time-b.time);
-        if (!group.length) return;
-        pager.updateLive({
-          time:bucket,
-          open:group[0].open,
-          high:Math.max(...group.map(x=>x.high)),
-          low:Math.min(...group.map(x=>x.low)),
-          close:group[group.length-1].close,
-          volume:group.reduce((sum,x)=>sum+Number(x.volume||0),0),
-        },{contractVerified:true});
-      },()=>{ lastAliveRef.current = Date.now(); });
+      for (const bar of [...bufferedOneMinute.values()].sort((a,b) => a.time - b.time)) {
+        consumeMinute(bar);
+      }
     })();
+
     return () => {
       active = false;
       stopStream?.();
       pager.destroy();
+      liveContractHoldRef.current = false;
       if (fiveMinutePagerRef.current === pager) fiveMinutePagerRef.current = null;
     };
-  }, [chartReady, fiveMinuteFeatureEnabled, state.symbol, state.timeframe]);
+  }, [chartReady, fiveMinuteFeatureEnabled, state.symbol, state.timeframe, engine11RecentKey]);
 
   /* ==================== Effect A: Fetch + Seed Series ==================== */
 
@@ -1391,14 +1500,28 @@ export default function RowChart({
 
       try {
         const limit = seedLimitFor(state.timeframe);
+        const boundedRecentFallback =
+          normalizeSymbol(state.symbol) === "ES" &&
+          ["5m", "10m"].includes(state.timeframe) &&
+          engine11RecentFallbackKey === engine11RecentKey;
         const useEngine11 =
+          !boundedRecentFallback &&
           normalizeSymbol(state.symbol) === "ES" &&
           ["5m", "10m", "1h", "4h", "1d"].includes(state.timeframe) &&
           typeof window !== "undefined" &&
           new URLSearchParams(window.location.search).get("engine11Candles") !== "0";
 
         let seed;
-        if (useEngine11) {
+        if (boundedRecentFallback) {
+          // One contract-identified, bounded recent response. No archive loop.
+          const recent = await getFuturesRecentOHLCWithIdentity(state.symbol, state.timeframe, 1500);
+          if (cancelled) return;
+          seed = recent.bars;
+          recentFallbackContractRef.current = recent.resolvedSymbol;
+          liveContractHoldRef.current = true;
+          setHistoryStatus("RECENT FUTURES · LIMITED HISTORY (ENGINE11 UNAVAILABLE)");
+          engine11ProvenanceRef.current = [];
+        } else if (useEngine11) {
           // Isolated acceptance mode only. Never embed the owner key in code.
           // Reuse the already-approved research browser authorization.
           let accessKey =
@@ -1487,6 +1610,7 @@ export default function RowChart({
 
         const fullEngine11History =
           useEngine11 && asc.length > MAX_KEEP_BARS;
+        engine11FullSeriesRef.current = fullEngine11History;
         barsRef.current = fullEngine11History
           ? asc.slice(-MAX_KEEP_BARS)
           : asc;
@@ -1500,6 +1624,12 @@ export default function RowChart({
             close: b.close,
           }))
         );
+        if (typeof window !== "undefined" && window.__ENGINE11B_TEST__) {
+          window.__ENGINE11B_TEST__.events.push({
+            kind: "standard-setData", frame: state.timeframe,
+            bars: asc.length, at: performance.now(),
+          });
+        }
 
         if (volSeriesRef.current) {
           if (state.volume) {
@@ -1533,9 +1663,13 @@ export default function RowChart({
           didFitOnceRef.current = true;
         }
       } catch (e) {
+        engine11FullSeriesRef.current = false;
         console.error("[RowChart] seed error:", e);
         barsRef.current = [];
         setBars([]);
+        if (normalizeSymbol(state.symbol) === "ES" && ["5m", "10m"].includes(state.timeframe)) {
+          setHistoryStatus("HISTORY UNAVAILABLE · CHECK DATA SOURCE");
+        }
       } finally {
         if (!cancelled) {
           setState((s) => ({ ...s, disabled: false }));
@@ -1550,7 +1684,8 @@ export default function RowChart({
       try { engine11HistoryAbortRef.current?.abort?.(); } catch {}
       engine11HistoryAbortRef.current = null;
     };
-  }, [state.symbol, state.timeframe, state.range, state.volume, fiveMinuteFeatureEnabled]);
+  }, [state.symbol, state.timeframe, state.range, state.volume,
+      fiveMinuteFeatureEnabled, engine11RecentFallbackKey, engine11RecentKey]);
 
   /* ==================== Effect B: SNAPSHOT TRUTH FETCH ==================== */
 
@@ -1905,6 +2040,13 @@ export default function RowChart({
     }
 
     function setFullSeries(nextBars) {
+      // The displayed archive must never be reconstructed from a truncated
+      // barsRef UI cache (PR #164 regression). Paged ES 5m/10m uses its own
+      // history-preserving pager and never takes this normal-backfill path.
+      if (mustPreserveEngine11HistoricalSeries({
+        fullEngine11Loaded:engine11FullSeriesRef.current,
+        activeEngine11Pager:Boolean(fiveMinutePagerRef.current),
+      })) return;
       const clean = normalizeChartBars(nextBars).slice(-MAX_KEEP_BARS);
 
       barsRef.current = clean;
@@ -1942,6 +2084,10 @@ export default function RowChart({
 
     async function backfillMissingHistoryIfNeeded(liveTimeSec) {
       if (!isCurrent) return;
+      if (mustPreserveEngine11HistoricalSeries({
+        fullEngine11Loaded:engine11FullSeriesRef.current,
+        activeEngine11Pager:Boolean(fiveMinutePagerRef.current),
+      })) return;
       if (!isFuturesLikeSymbol(state.symbol)) return;
       if (backfillRunning) return;
 
@@ -1971,14 +2117,28 @@ export default function RowChart({
               ? 300
               : 200;
 
-        const latest = await getOHLC(
-          state.symbol,
-          state.timeframe,
-          backfillLimit
-        );
+        const boundedFallback =
+          normalizeSymbol(state.symbol) === "ES" &&
+          ["5m", "10m"].includes(state.timeframe) &&
+          engine11RecentFallbackKey === engine11RecentKey;
+        const recent = boundedFallback
+          ? await getFuturesRecentOHLCWithIdentity(state.symbol, state.timeframe, backfillLimit)
+          : null;
+        if (boundedFallback &&
+            (!recentFallbackContractRef.current ||
+             recent.resolvedSymbol !== recentFallbackContractRef.current)) {
+          liveContractHoldRef.current = true;
+          return;
+        }
+        const latest = boundedFallback
+          ? recent.bars
+          : await getOHLC(state.symbol, state.timeframe, backfillLimit);
 
         if (!isCurrent) return;
-
+        if (mustPreserveEngine11HistoricalSeries({
+        fullEngine11Loaded:engine11FullSeriesRef.current,
+        activeEngine11Pager:Boolean(fiveMinutePagerRef.current),
+      })) return;
         const merged = mergeBars(barsRef.current, latest);
         setFullSeries(merged);
 
@@ -2016,6 +2176,12 @@ export default function RowChart({
     }
 
     function updateVisibleBar(bar) {
+      if (typeof window !== "undefined" && window.__ENGINE11B_TEST__) {
+        window.__ENGINE11B_TEST__.events.push({
+          kind: "standard-live-update", frame: state.timeframe,
+          at: performance.now(), bucket: bar.time,
+        });
+      }
       seriesRef.current?.update({
         time: bar.time,
         open: bar.open,
@@ -2078,9 +2244,18 @@ export default function RowChart({
       };
     }
 
-    const onAlive = () => {
+    const onAlive = (msg) => {
       if (!isCurrent) return;
       lastAliveRef.current = Date.now();
+      const boundedFallback =
+        normalizeSymbol(state.symbol) === "ES" &&
+        ["5m", "10m"].includes(state.timeframe) &&
+        engine11RecentFallbackKey === engine11RecentKey;
+      if (boundedFallback && msg?.resolvedSymbol) {
+        liveContractHoldRef.current =
+          !recentFallbackContractRef.current ||
+          msg.resolvedSymbol.toUpperCase() !== recentFallbackContractRef.current;
+      }
     };
 
     const unsub = subscribeStream(
@@ -2088,6 +2263,17 @@ export default function RowChart({
       LIVE_TF,
       async (oneMin) => {
         if (!isCurrent) return;
+        const boundedFallback =
+          normalizeSymbol(state.symbol) === "ES" &&
+          ["5m", "10m"].includes(state.timeframe) &&
+          engine11RecentFallbackKey === engine11RecentKey;
+        if (boundedFallback &&
+            (!recentFallbackContractRef.current ||
+             oneMin.sourceContract !== recentFallbackContractRef.current)) {
+          liveContractHoldRef.current = true;
+          return;
+        }
+        if (boundedFallback) liveContractHoldRef.current = false;
 
         const tSec = Number(
           oneMin.time > 1e12 ? Math.floor(oneMin.time / 1000) : oneMin.time
@@ -2162,7 +2348,8 @@ export default function RowChart({
         streamUnsubRef.current = null;
       }
     };
-  }, [chartReady, state.symbol, state.timeframe, state.volume, fiveMinuteFeatureEnabled]);
+  }, [chartReady, state.symbol, state.timeframe, state.volume, fiveMinuteFeatureEnabled,
+      engine11RecentFallbackKey, engine11RecentKey]);
 
   /* ---------------------------- EMA lines ----------------------------- */
 
@@ -2436,6 +2623,11 @@ export default function RowChart({
   );
 
   const badge = (() => {
+    if (liveStatus.startsWith("HOLD_")) {
+      const feed = liveStatus === "HOLD_FEED_LIVE" ? "FEED CONNECTED"
+        : liveStatus === "HOLD_FEED_STALE" ? "FEED STALE" : "FEED CONNECTING";
+      return {text: `CONTRACT HOLD · ${feed}`, bg:"rgba(245,158,11,0.92)"};
+    }
     if (liveStatus === "LIVE") {
       return { text: "LIVE", bg: "rgba(16,185,129,0.92)" };
     }
@@ -2533,15 +2725,22 @@ export default function RowChart({
               userSelect: "none",
             }}
             title={
-              liveStatus === "LIVE"
-                ? "Stream healthy (receiving messages)"
-                : liveStatus === "STALE"
-                  ? "No stream messages received in 30s"
-                  : "Connecting to live stream…"
+              liveStatus.startsWith("HOLD_") ? "Physical futures contract not verified; historical candles remain visible"
+                : liveStatus === "LIVE" ? "Stream messages received; LIVE candle delivery depends on market activity"
+                : liveStatus === "STALE" ? "No stream messages received in 30s"
+                : "Connecting to live stream…"
             }
           >
             {badge.text}
           </div>
+          {historyStatus && normalizeSymbol(state.symbol) === "ES" &&
+            ["5m","10m"].includes(state.timeframe) && (
+            <div style={{position:"absolute",top:46,left:60,zIndex:90,
+              padding:"4px 8px",fontSize:11,borderRadius:6,
+              color:"#e2e8f0",background:"rgba(15,23,42,0.85)"}}>
+              {historyStatus}
+            </div>
+          )}
 
           <OwnerWaveAnchorsOverlay
             visible={normalizeSymbol(state.symbol) === "ES"}
