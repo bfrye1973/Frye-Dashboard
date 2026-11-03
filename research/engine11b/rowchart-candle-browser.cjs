@@ -171,6 +171,84 @@ const sleep = ms => new Promise(r=>setTimeout(r,ms));
       await context.close();
     }
 
+    // Regression: compatible LIVE MUST paint before slow or FAILED
+    // optional current-OHLC reconciliation. The existing authenticated
+    // history first page remains immutable; test via the actual RowChart.
+    for(const {frame,fail} of [{frame:"5m",fail:false},{frame:"10m",fail:true}]) {
+      const context=await browser.newContext({viewport:{width:1440,height:900}});
+      await context.addInitScript(()=>{
+        if(window.location.hostname==="127.0.0.1"){
+          window.sessionStorage.setItem("engine2cResearchOwnerKey","fixture-only");
+          window.__ENGINE11B_TEST__={events:[]};
+        }
+      });
+      let releaseOHLC,releaseStream,ohlcCalled=0,privateCalled=0;
+      const waitOHLC=new Promise(resolve=>{releaseOHLC=resolve});
+      const waitStream=new Promise(resolve=>{releaseStream=resolve});
+      const archiveLast=generateBars(frame,1000,1000).at(-1).time;
+      await context.route("https://frye-market-backend-1.onrender.com/**",async route=>
+        route.fulfill({status:200,headers:cors,body:"{}"}));
+      await context.route("https://frye-market-backend-1.onrender.com/api/v1/futures/ohlc**",async route=>{
+        ohlcCalled++;
+        await waitOHLC;
+        const bars=generateBars(frame,2000,40);
+        return route.fulfill({status:fail?503:200,headers:cors,
+          body:fail?"{}":JSON.stringify({ok:true,resolvedSymbol:"ESZ6",bars})});
+      });
+      await context.route("https://frye-market-backend-1.onrender.com/engine2c-private-history/page**",async route=>{
+        privateCalled++;
+        const cursor=new URL(route.request().url()).searchParams.get("cursor");
+        return route.fulfill({status:200,headers:cors,body:JSON.stringify(pageFixture(frame,cursor))});
+      });
+      await context.route("https://frye-market-backend-2.onrender.com/stream/futures/agg**",async route=>{
+        await waitStream;
+        const secs=frame==="5m"?300:600;
+        const next=Math.floor((archiveLast+secs)/secs)*secs;
+        const payload=[
+          {ok:true,type:"snapshot",symbol:"ES",resolvedSymbol:"ESZ6",tf:"1m"},
+          {ok:true,type:"bar",symbol:"ES",resolvedSymbol:"ESZ6",tf:"1m",
+           bar:{time:next,open:7800,high:7801,low:7799,close:7800.5,volume:27}},
+        ];
+        return route.fulfill({status:200,headers:{
+          "Access-Control-Allow-Origin":ORIGIN,"Content-Type":"text/event-stream",
+          "Cache-Control":"no-cache",
+        },body:payload.map(e=>"data: "+JSON.stringify(e)+"\\n\\n").join("").replace(/\\n/g,"\n")});
+      });
+      const page=await context.newPage();
+      await page.goto(ORIGIN+"/chart?symbol=ES&tf="+frame+"&engine2cChart=live",
+        {waitUntil:"domcontentloaded"});
+      await page.waitForFunction(f=>window.__ENGINE11B_TEST__?.events?.some(
+        e=>e.kind==="paged-setData"&&e.frame===f),frame,{timeout:25000});
+      releaseStream();
+      await page.waitForFunction(f=>window.__ENGINE11B_TEST__?.events?.some(
+        e=>e.kind==="paged-live-update"&&e.frame===f),frame,{timeout:15000});
+      const liveBeforeBridge=await page.evaluate(f=>window.__ENGINE11B_TEST__.events
+        .find(e=>e.kind==="paged-live-update"&&e.frame===f),frame);
+      assert.equal(liveBeforeBridge.recentCatchupDone,false,
+        "LIVE MUST NOT WAIT FOR SLOW RECENT OHLC");
+      assert.ok(liveBeforeBridge.receiveToChartMs>=0 &&
+        liveBeforeBridge.receiveToChartMs<1000,
+        "LIVE RECEIPT TO CHART APPLICATION OVER ONE SECOND");
+      const before=await page.evaluate(()=>window.__ENGINE11B_TEST__.pagerSnapshot());
+      assert.equal(before.latestTime,Math.floor((archiveLast+(frame==="5m"?300:600))/
+        (frame==="5m"?300:600))*(frame==="5m"?300:600));
+      releaseOHLC();
+      if(fail){
+        await page.waitForFunction(()=>document.body.textContent.includes("CURRENT CANDLES UNAVAILABLE"),null,{timeout:15000});
+      }else {
+        await page.waitForFunction(f=>window.__ENGINE11B_TEST__?.events?.some(
+          e=>e.kind==="recent-catchup"&&e.frame===f),frame,{timeout:15000});
+      }
+      const after=await page.evaluate(()=>window.__ENGINE11B_TEST__.pagerSnapshot());
+      assert.ok(after.latestTime>=before.latestTime,"SLOW BRIDGE MUST NOT REWIND LIVE");
+      assert.equal(privateCalled,1,"SLOW RECENT SOURCE CANNOT TRIGGER FULL HISTORY");
+      assert.equal(ohlcCalled,1,"ONE BOUNDED OHLC BRIDGE");
+      results.push({frame,slowOrFailedRecent:fail?"failed":"held",
+        liveBeforeRecent:true,receiveToChartMs:liveBeforeBridge.receiveToChartMs,
+        retainedLatestAfterBridge:true});
+      await context.close();
+    }
+
     // Regression for the manager's first two release blockers:
     // missing OR rejected owner key NEVER reactivates full Engine11 loading,
     // while a mismatched feed remains connected but its bars are HELD.
