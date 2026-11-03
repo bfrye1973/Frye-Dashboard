@@ -1349,6 +1349,7 @@ export default function RowChart({
     let expectedContract = "";
     let streamContract = "";
     let recentCatchupDone = false;
+    let recentContractMismatch = false;
 
     lastAliveRef.current = 0;
     liveContractHoldRef.current = true;
@@ -1390,7 +1391,8 @@ export default function RowChart({
     }
 
     const streamMatchesHistory = () => Boolean(
-      expectedContract && streamContract && expectedContract === streamContract
+      !recentContractMismatch && expectedContract && streamContract &&
+      expectedContract === streamContract
     );
     const updateContractStatus = () => {
       if (!active) return;
@@ -1485,8 +1487,9 @@ export default function RowChart({
         const recent = await getFuturesRecentOHLCWithIdentity("ES", state.timeframe, 1500);
         if (!active) return;
         if (!expectedContract || recent.resolvedSymbol !== expectedContract) {
+          recentContractMismatch = true;
+          updateContractStatus();
           setHistoryStatus("CURRENT CANDLES ON HOLD · FUTURES CONTRACT MISMATCH");
-          liveContractHoldRef.current = true;
           if (window.__ENGINE11B_TEST__) {
             window.__ENGINE11B_TEST__.events.push({
               kind:"recent-contract-hold",frame:state.timeframe,
@@ -1513,6 +1516,8 @@ export default function RowChart({
       } catch (error) {
         if (!active) return;
         // Keep verified history visible if fresh market OHLC is unavailable.
+        recentContractMismatch = true;
+        updateContractStatus();
         setHistoryStatus("ENGINE11 HISTORY VISIBLE · CURRENT CANDLES UNAVAILABLE");
         console.warn("[Engine11B] current futures catch-up unavailable", error);
       } finally {
