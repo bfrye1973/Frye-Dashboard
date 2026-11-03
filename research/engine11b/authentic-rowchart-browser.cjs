@@ -100,11 +100,14 @@ const headers={"Access-Control-Allow-Origin":ORIGIN,
      if(cursor!==null) await olderPageGate;
      return route.fulfill({status:200,headers,body:bytes});
    });
-   await context.route("https://frye-market-backend-1.onrender.com/api/v1/futures/ohlc**",route=>{
+   await context.route("https://frye-market-backend-1.onrender.com/api/v1/futures/ohlc**",async route=>{
      ohclRequests++;
-     return route.fulfill({status:200,headers,body:JSON.stringify({
-       ok:true,resolvedSymbol:resolved,count:1,bars:[],
-     })});
+     const response=await route.fetch({timeout:35000});
+     assert.equal(response.status(),200,"PRODUCTION_RECENT_OHLC_STATUS");
+     const payload=await response.json();
+     assert.equal(payload.resolvedSymbol,resolved,"PRODUCTION_FUTURES_CONTRACT_MISMATCH");
+     assert.ok(Array.isArray(payload.bars)&&payload.bars.length>0);
+     return route.fulfill({status:200,headers,body:JSON.stringify(payload)});
    });
    await context.route("https://frye-market-backend-2.onrender.com/stream/futures/agg**",route=>{
      const snap={type:"snapshot",symbol:"ES",resolvedSymbol:resolved,tf:"1m"};
@@ -121,6 +124,17 @@ const headers={"Access-Control-Allow-Origin":ORIGIN,
    await page.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))));
    const paintMs=Date.now()-started;
    assert.equal(historyRequests,1,"NO_MORE_THAN_ONE_PAGE_ON_INITIAL_PAINT");
+   // Wait for the genuine production 5m/10m futures bridge on top of the
+   // certified immutable archive. This tests the original owner defect.
+   await page.waitForFunction(f=>window.__ENGINE11B_TEST__?.events?.some(
+     e=>e.kind==="recent-catchup"&&e.frame===f&&e.added>0),frame,{timeout:35000});
+   const bridge=await page.evaluate(f=>window.__ENGINE11B_TEST__.events.find(
+     e=>e.kind==="recent-catchup"&&e.frame===f),frame);
+   const viewportLatest=await page.evaluate(()=>window.__ENGINE11B_TEST__.visibleRange());
+   assert.ok(viewportLatest.from<=bridge.latestTime && viewportLatest.to>=bridge.latestTime,
+     "RECENTEST_CANDLE_NOT_VISIBLE");
+   assert.equal(ohclRequests,1,"CURRENT_CANDLES_REQUIRE_ONE_BOUNDED_OHLC_REQUEST");
+   assert.equal(historyRequests,1,"CURRENT_CATCHUP_MUST_NOT_FETCH_MORE_ARCHIVE_PAGES");
    // Compare exact original unadjusted OHLCV from verified archive to the
    // current UI working series (no synthetic changes, adjust, or roll).
    const before=await page.evaluate(()=>window.__ENGINE11B_TEST__.events.filter(
@@ -166,7 +180,7 @@ const headers={"Access-Control-Allow-Origin":ORIGIN,
      const t=window.__ENGINE11B_TEST__;
      return {viewport:t.visibleRange(),pager:t.pagerSnapshot()};
    });
-   assert.equal(preserved.pager.loadedBars,2000);
+   assert.equal(preserved.pager.loadedBars,2000+bridge.added);
    assert.equal(preserved.pager.earliestTime,Math.floor(Date.parse(older.rows.at(-1).timestampUtc)/1000));
    assert.deepEqual(preserved.viewport,viewportBefore,"PAN_VIEWPORT_MUST_REMAIN_STABLE_AFTER_PREPEND");
    assert.equal(errors.length,0,errors.join(" | "));
@@ -179,7 +193,10 @@ const headers={"Access-Control-Allow-Origin":ORIGIN,
      lastOlderUtc:older.rows.at(-1).timestampUtc,
      firstLatestClose:latest.rows[0].prices.close,
      cursorChain:"verified",sha256Pages:"verified",exactPlottedOHLCV:"verified",
-     viewportPreserved:true,source:"authentic published verified Engine11 private pages",
+     viewportPreserved:true, currentCandlesAppended:bridge.added,
+     currentLastUtc:new Date(bridge.latestTime*1000).toISOString(),
+     currentContract:bridge.receivedContract,
+     source:"authentic published verified Engine11 private pages + genuine Backend-1 futures OHLC",
    }));
    await context.close();
   }
