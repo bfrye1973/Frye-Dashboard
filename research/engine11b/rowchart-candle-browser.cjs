@@ -97,11 +97,24 @@ const sleep = ms => new Promise(r=>setTimeout(r,ms));
       });
       await context.route("https://frye-market-backend-2.onrender.com/stream/futures/agg**",async route=>{
         await streamReady;
-        const b={time:last+(frame==="1m"?60:600),open:7750,high:7752,low:7749,close:7751,volume:33};
+        const bucketSeconds=frame==="10m"?600:frame==="5m"?300:60;
+        const bucketStart=Math.floor((last+bucketSeconds)/bucketSeconds)*bucketSeconds;
+        const candleEvents=Array.from({length:10},(_,i)=>({
+          ok:true,type:"bar",symbol:"ES",resolvedSymbol:"ESZ6",tf:"1m",
+          bar:{time:bucketStart+i*60,open:7750+i,high:7752+i,
+            low:7749+i,close:7751+i,volume:33+i}
+        }));
+        // Duplicate the minute 3 with a corrected close and the same cumulative
+        // volume. The 10m bucket must count it only once.
+        candleEvents.splice(4,0,{...candleEvents[3],bar:{
+          ...candleEvents[3].bar,close:7754,volume:36,
+        }});
+        const events=[{ok:true,type:"snapshot",symbol:"ES",
+          resolvedSymbol:"ESZ6",tf:"1m"}, ...candleEvents];
         await route.fulfill({status:200,headers:{
           "Access-Control-Allow-Origin":ORIGIN,"Content-Type":"text/event-stream",
           "Cache-Control":"no-cache",
-        },body:`data: ${JSON.stringify({type:"bar",bar:b})}\n\n`});
+        },body:events.map(evt=>"data: "+JSON.stringify(evt)+"\\n\\n").join("").replace(/\\n/g,"\n")});
       });
       const page=await context.newPage();
       const errors=[];
