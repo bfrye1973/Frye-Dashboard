@@ -24,6 +24,7 @@ import IndicatorsToolbar from "./IndicatorsToolbar";
 import { getOHLC, subscribeStream, getFuturesRecentOHLCWithIdentity } from "../../../lib/ohlcClient";
 import { fetchEngine11ContinuousUnadjusted2020PlusPage } from "./engine11HistoricalAdapter";
 import { createEngine115mInfiniteHistoryProof } from "./engine11InfiniteHistory5mProof";
+import { mustPreserveEngine11HistoricalSeries } from "./engine11BackfillGuard";
 import {
   fetchEngine11ContinuousUnadjustedPage,
   fetchEngine11ContinuousUnadjusted2020PlusAll,
@@ -2032,7 +2033,10 @@ export default function RowChart({
       // The displayed archive must never be reconstructed from a truncated
       // barsRef UI cache (PR #164 regression). Paged ES 5m/10m uses its own
       // history-preserving pager and never takes this normal-backfill path.
-      if (engine11FullSeriesRef.current || fiveMinutePagerRef.current) return;
+      if (mustPreserveEngine11HistoricalSeries({
+        fullEngine11Loaded:engine11FullSeriesRef.current,
+        activeEngine11Pager:Boolean(fiveMinutePagerRef.current),
+      })) return;
       const clean = normalizeChartBars(nextBars).slice(-MAX_KEEP_BARS);
 
       barsRef.current = clean;
@@ -2070,7 +2074,10 @@ export default function RowChart({
 
     async function backfillMissingHistoryIfNeeded(liveTimeSec) {
       if (!isCurrent) return;
-      if (engine11FullSeriesRef.current || fiveMinutePagerRef.current) return;
+      if (mustPreserveEngine11HistoricalSeries({
+        fullEngine11Loaded:engine11FullSeriesRef.current,
+        activeEngine11Pager:Boolean(fiveMinutePagerRef.current),
+      })) return;
       if (!isFuturesLikeSymbol(state.symbol)) return;
       if (backfillRunning) return;
 
@@ -2118,7 +2125,10 @@ export default function RowChart({
           : await getOHLC(state.symbol, state.timeframe, backfillLimit);
 
         if (!isCurrent) return;
-        if (engine11FullSeriesRef.current || fiveMinutePagerRef.current) return;
+        if (mustPreserveEngine11HistoricalSeries({
+        fullEngine11Loaded:engine11FullSeriesRef.current,
+        activeEngine11Pager:Boolean(fiveMinutePagerRef.current),
+      })) return;
         const merged = mergeBars(barsRef.current, latest);
         setFullSeries(merged);
 
