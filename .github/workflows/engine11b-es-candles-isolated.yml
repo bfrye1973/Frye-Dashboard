@@ -1,0 +1,90 @@
+name: Engine11B ES Candle Loading Isolated Acceptance
+on:
+  push:
+    branches: [engine11b-es-candle-loading-isolated-20261102]
+  pull_request:
+    branches: [main]
+    paths:
+      - src/pages/rows/RowChart/index.jsx
+      - src/pages/rows/RowChart/engine11InfiniteHistory5mProof.js
+      - src/pages/rows/RowChart/engine11InfiniteHistory10mProof.test.js
+      - research/engine11b/**
+      - .github/workflows/engine11b-es-candles-isolated.yml
+
+permissions:
+  contents: read
+
+jobs:
+  unit-and-build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: 5m and 10m historical-page / LIVE regression
+        env:
+          CI: "true"
+        run: npm test -- --watch=false --runInBand --runTestsByPath src/pages/rows/RowChart/engine11InfiniteHistory5mProof.test.js src/pages/rows/RowChart/engine11InfiniteHistory10mProof.test.js
+      - name: Build actual RowChart frontend
+        run: npm run build
+
+  actual-rowchart-chromium:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Build existing Dashboard Chart with fixture SSE routing
+        env:
+          REACT_APP_STREAM_BASE: https://frye-market-backend-2.onrender.com
+        run: npm run build
+      - name: Install Chromium
+        run: |
+          npm install --no-save --no-package-lock playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Serve actual built dashboard in isolation
+        run: |
+          node research/engine2c-preview/integration-http.cjs >/tmp/engine11b-http.log 2>&1 &
+          for i in $(seq 1 50); do
+            if curl -fsS http://127.0.0.1:8193/chart?symbol=ES >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/engine11b-http.log
+          exit 1
+      - name: Verify first candle and LIVE for ES 1m 5m 10m in actual RowChart
+        run: node research/engine11b/rowchart-candle-browser.cjs
+      - name: Store candle screenshots for inspection
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: engine11b-isolated-es-candles
+          path: /tmp/engine11b-*-candles.png
+          if-no-files-found: ignore
+
+  real-1m-ohlc-response:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Record read-only backend 1m ES OHLC network duration
+        shell: bash
+        run: |
+          set -eo pipefail
+          curl --retry 0 --silent --show-error --max-time 55 \
+            --output /tmp/engine11b-one-minute.json \
+            --write-out 'ENGINE11B_1M_HTTP status=%{http_code} firstByteSec=%{time_starttransfer} totalSec=%{time_total} bytes=%{size_download}\n' \
+            'https://frye-market-backend-1.onrender.com/api/v1/futures/ohlc?symbol=ES&timeframe=1m&limit=1500'
+          node - <<'NODE'
+          const fs=require('fs');
+          const data=JSON.parse(fs.readFileSync('/tmp/engine11b-one-minute.json','utf8'));
+          if(!Array.isArray(data)) throw Error('OHLC_1M_RESPONSE_NOT_ARRAY');
+          if(!data.length) throw Error('OHLC_1M_EMPTY');
+          console.log('ENGINE11B_1M_ROWS='+data.length);
+          NODE
