@@ -1348,6 +1348,7 @@ export default function RowChart({
     const bufferedOneMinute = new Map(); // bounded while the first page is loading
     let expectedContract = "";
     let streamContract = "";
+    let recentCatchupDone = false;
 
     lastAliveRef.current = 0;
     liveContractHoldRef.current = true;
@@ -1403,7 +1404,9 @@ export default function RowChart({
       }
     };
     const consumeMinute = (oneMin) => {
-      if (!streamMatchesHistory() || !pager.snapshot().started) return;
+      // Buffer the stream during the short recent-OHLC catch-up. Otherwise
+      // the current forming bucket could jump ahead of all missing candles.
+      if (!recentCatchupDone || !streamMatchesHistory() || !pager.snapshot().started) return;
       const t = Number(oneMin.time);
       if (!Number.isFinite(t)) return;
       const bucket = Math.floor(t / bucketSeconds) * bucketSeconds;
@@ -1467,7 +1470,7 @@ export default function RowChart({
       const match = /^ES([HMUZ])(\d{4})$/.exec(String(source || ""));
       expectedContract = match ? `ES${match[1]}${match[2].slice(-1)}` : "";
       updateContractStatus();
-      setHistoryStatus("ENGINE11 VERIFIED RECENT HISTORY");
+      setHistoryStatus("ENGINE11 VERIFIED HISTORY · FETCHING CURRENT CANDLES");
       const initialCount = pager.snapshot().loadedBars;
       const visibleCount = Math.min(160, initialCount);
       chartRef.current?.timeScale().setVisibleLogicalRange({
@@ -1475,8 +1478,50 @@ export default function RowChart({
         to: Math.max(0, initialCount - 1),
       });
       setSeedToken(x => x + 1);
-      for (const bar of [...bufferedOneMinute.values()].sort((a,b) => a.time - b.time)) {
-        consumeMinute(bar);
+      try {
+        // The immutable archive ends on its last publication date. A single
+        // bounded 5m/10m futures response bridges to the current session.
+        // Never download the entire Engine11 archive or alter its OHLCV.
+        const recent = await getFuturesRecentOHLCWithIdentity("ES", state.timeframe, 1500);
+        if (!active) return;
+        if (!expectedContract || recent.resolvedSymbol !== expectedContract) {
+          setHistoryStatus("CURRENT CANDLES ON HOLD · FUTURES CONTRACT MISMATCH");
+          liveContractHoldRef.current = true;
+          if (window.__ENGINE11B_TEST__) {
+            window.__ENGINE11B_TEST__.events.push({
+              kind:"recent-contract-hold",frame:state.timeframe,
+              expectedContract,receivedContract:recent.resolvedSymbol,
+            });
+          }
+        } else {
+          const added = pager.appendVerifiedRecent(recent.bars, {contractVerified:true});
+          if (added > 0 && !userInteractedRef.current) {
+            chartRef.current?.timeScale().scrollToRealTime();
+          }
+          setHistoryStatus(added > 0
+            ? "ENGINE11 HISTORY + CURRENT FUTURES · LIVE STREAM"
+            : "ENGINE11 VERIFIED HISTORY · NO NEWER FUTURES CANDLES");
+          if (window.__ENGINE11B_TEST__) {
+            window.__ENGINE11B_TEST__.events.push({
+              kind:"recent-catchup",frame:state.timeframe,
+              added, latestTime:pager.snapshot().latestTime,
+              expectedContract,receivedContract:recent.resolvedSymbol,
+              at:performance.now(),
+            });
+          }
+        }
+      } catch (error) {
+        if (!active) return;
+        // Keep verified history visible if fresh market OHLC is unavailable.
+        setHistoryStatus("ENGINE11 HISTORY VISIBLE · CURRENT CANDLES UNAVAILABLE");
+        console.warn("[Engine11B] current futures catch-up unavailable", error);
+      } finally {
+        if (active) {
+          recentCatchupDone = true;
+          for (const bar of [...bufferedOneMinute.values()].sort((a,b) => a.time - b.time)) {
+            consumeMinute(bar);
+          }
+        }
       }
     })();
 
