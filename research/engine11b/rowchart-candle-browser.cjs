@@ -147,6 +147,10 @@ const sleep = ms => new Promise(r=>setTimeout(r,ms));
         assert.equal(ohlcRequests,1,"one bounded recent OHLC bridge");
         assert.equal(bridge.added,40,"all 40 current source candles appended");
         assert.equal(bridge.latestTime,last,"chart must reach latest source candle immediately");
+        await page.waitForFunction(latest=>{
+          const visible=window.__ENGINE11B_TEST__?.visibleRange?.();
+          return visible?.from <= latest && visible?.to >= latest;
+        },last,{timeout:10000});
         assert.equal(privateRequests,1,"catch-up must never request older Engine11 pages");
       } else {
         assert.equal(privateRequests,0,"1m must not request Engine11 archive");
