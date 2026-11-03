@@ -152,13 +152,19 @@ const sleep = ms => new Promise(r=>setTimeout(r,ms));
     }
 
     // Regression for the manager's first two release blockers:
-    // absent owner key NEVER reactivates full Engine11 loading,
+    // missing OR rejected owner key NEVER reactivates full Engine11 loading,
     // while a mismatched feed remains connected but its bars are HELD.
-    for (const frame of ["5m","10m"]) {
+    for (const {frame, keyState} of [
+      {frame:"5m",keyState:"missing"}, {frame:"10m",keyState:"missing"},
+      {frame:"5m",keyState:"rejected"}, {frame:"10m",keyState:"rejected"},
+    ]) {
       const context=await browser.newContext({viewport:{width:1440,height:900}});
-      await context.addInitScript(()=>{
+      await context.addInitScript(({keyState})=>{
         window.__ENGINE11B_TEST__={events:[]};
-      });
+        if(keyState==="rejected"){
+          window.sessionStorage.setItem("engine2cResearchOwnerKey","rejected-fixture-key");
+        }
+      },{keyState});
       let privateRequests=0,ohlcRequests=0;
       await context.route("https://frye-market-backend-1.onrender.com/**",
         route=>route.fulfill({status:200,headers:cors,body:"{}"}));
@@ -203,12 +209,13 @@ const sleep = ms => new Promise(r=>setTimeout(r,ms));
       }
       await page.waitForFunction(()=>document.body.innerText.includes("CONTRACT HOLD"),null,{timeout:10000});
       const events=await page.evaluate(()=>window.__ENGINE11B_TEST__.events);
-      assert.equal(privateRequests,0,"no owner key must not attempt private 472/236 pages");
+      assert.equal(privateRequests,keyState==="rejected"?1:0,
+        "missing/rejected owner key must not trigger sequential archive downloads");
       assert.equal(ohlcRequests,1,"bounded fallback must use only a single futures call");
       assert.equal(events.find(e=>e.kind==="standard-setData").bars,600);
       assert.equal(events.filter(e=>e.kind==="standard-live-update").length,0,
         "mismatched physical contract must never update candle series");
-      results.push({frame,historySource:"bounded OHLC fallback",
+      results.push({frame,credential:keyState,historySource:"bounded OHLC fallback",
         privateRequests,ohlcRequests,contractHold:true,liveUpdatesRejected:true});
       await context.close();
     }
