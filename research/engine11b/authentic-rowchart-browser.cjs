@@ -52,6 +52,8 @@ const headers={"Access-Control-Allow-Origin":ORIGIN,
    });
    const errors=[];
    let historyRequests=0, ohclRequests=0;
+   let releaseOlderPage;
+   const olderPageGate=new Promise(resolve=>{releaseOlderPage=resolve;});
    const sourceRows=new Map();
    const readPage=cursor=>{
      const entry=cat.frames[frame].pages.find(x=>x.requestCursor===cursor);
@@ -95,6 +97,7 @@ const headers={"Access-Control-Allow-Origin":ORIGIN,
      const cursor=url.searchParams.get("cursor");
      const {bytes}=readPage(cursor);
      historyRequests++;
+     if(cursor!==null) await olderPageGate;
      return route.fulfill({status:200,headers,body:bytes});
    });
    await context.route("https://frye-market-backend-1.onrender.com/api/v1/futures/ohlc**",route=>{
@@ -138,12 +141,22 @@ const headers={"Access-Control-Allow-Origin":ORIGIN,
    },"DISPLAYED_OHLCV_MUST_MATCH_ORIGINAL_ENGINE11_CANDLE");
    // The test-only hook moves the actual chart viewport to its left edge,
    // causing Lightweight Charts logical-range history callback to load older.
-   const viewportBefore=await page.evaluate(()=>{
+   await page.evaluate(()=>{
      const t=window.__ENGINE11B_TEST__;
      if(typeof t.scrollOlder!=="function")throw Error("SCROLL_HOOK_MISSING");
      t.scrollOlder();
-     return t.visibleRange();
    });
+   for(let i=0;i<60&&historyRequests<2;i++){
+     await new Promise(resolve=>setTimeout(resolve,20));
+   }
+   assert.equal(historyRequests,2,"OLDER_PAGE_REQUEST_REQUIRED_AFTER_SCROLL");
+   // Give LWC time to publish the newly requested viewport *before* the
+   // older page is returned. Otherwise we could compare to the old initial
+   // view and misdiagnose an intentional scroll as a viewport regression.
+   await page.waitForTimeout(150);
+   const viewportBefore=await page.evaluate(()=>window.__ENGINE11B_TEST__.visibleRange());
+   assert.ok(viewportBefore?.from!=null&&viewportBefore?.to!=null);
+   releaseOlderPage();
    await page.waitForFunction(()=>window.__ENGINE11B_TEST__?.events?.filter(
      e=>e.kind==="paged-setData").length>=2,null,{timeout:35000});
    assert.equal(historyRequests,2,"EXACTLY_ONE_OLDER_PAGE_ON_SCROLL");
