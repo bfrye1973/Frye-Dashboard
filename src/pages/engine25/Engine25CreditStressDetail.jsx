@@ -26,12 +26,14 @@ function fmt(value, decimals = 2) {
 }
 
 function fmtPct(value, decimals = 2) {
+  if (value === null || value === undefined || value === "") return "—";
   const n = Number(value);
   if (!Number.isFinite(n)) return "—";
   return `${n >= 0 ? "+" : ""}${n.toFixed(decimals)}%`;
 }
 
 function fmtSigned(value, decimals = 4) {
+  if (value === null || value === undefined || value === "") return "—";
   const n = Number(value);
   if (!Number.isFinite(n)) return "—";
   return `${n >= 0 ? "+" : ""}${n.toFixed(decimals)}`;
@@ -69,6 +71,9 @@ function macroCreditHealthLabel(healthScore) {
 }
 
 function macroCreditTrendDirection(change) {
+  if (change === null || change === undefined || change === "") {
+    return { label: "UNAVAILABLE", color: "#94a3b8" };
+  }
   const n = Number(change);
 
   if (!Number.isFinite(n)) {
