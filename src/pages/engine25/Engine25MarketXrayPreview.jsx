@@ -1571,6 +1571,15 @@ export default function Engine25MarketXrayPreview() {
                     value={dataStatus}
                     color={dataStatusColor}
                   />
+                  <KV
+                    label="Last Update"
+                    value={
+                      headline?.lastUpdatedAt
+                        ? `${formatArizonaTimestamp(headline.lastUpdatedAt)} AZ`
+                        : "UNAVAILABLE"
+                    }
+                    color={COLORS.muted}
+                  />
                 </div>
               </Card>
 
