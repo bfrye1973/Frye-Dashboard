@@ -23,7 +23,7 @@ const render=()=>renderToStaticMarkup(<Engine22MarketStructureCard
  }}}
  currentWavelength={{degrees:{minute:{
    ownerMinuteAbcResearch:minute,
-   ownerMinuteW2Retracement:{version:"engine22.minuteW2RetracementOwner.v1",structuralReference:7419.5},
+   ownerMinuteW2Retracement:{version:"engine22.minuteW2RetracementOwner.v1",structuralReference:7419.5,anchors:{w1Low:7419.5,w1High:7908.75},levels:[]},
  }}}}
 />);
 test("Minute major ABC card uses the shared layout and correct extension prices",()=>{
