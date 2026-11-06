@@ -534,11 +534,14 @@ function Engine22WaveRiskStrip({degree,wavelength,protection,invalidations}) {
   const minor=degree==="minor";
   const ownerMinute=wavelength?.degrees?.minute?.ownerMinuteW2Retracement;
   const minuteABC=wavelength?.degrees?.minute?.ownerMinuteAbcResearch;
+  const subNov5=wavelength?.degrees?.subminute?.ownerSubminuteNov5AbcResearch;
   const minorResearch=wavelength?.degrees?.minor?.ownerMinorW2Research;
   const ownerMinor=wavelength?.degrees?.minor?.ownerW5StructuralReference;
   const higherRead=protection?.degrees?.[degree] || null;
   const readiness=invalidations?.degrees?.[degree]?.invalidationReadiness || null;
-  const ownerBoundary=minute && minuteABC?.version==="engine22.minuteAbcDownNov5Research.v1"
+  const ownerBoundary=degree==="subminute" && subNov5?.version==="engine22.subminuteNov5AbcResearch.v1"
+    ? subNov5.reviewReference
+    : minute && minuteABC?.version==="engine22.minuteAbcDownNov5Research.v1"
     ? minuteABC.reviewReference
     : minute && ownerMinute?.version==="engine22.minuteW2RetracementOwner.v1"
     ? ownerMinute.structuralReference
@@ -562,7 +565,8 @@ function Engine22WaveRiskStrip({degree,wavelength,protection,invalidations}) {
   const lowerC=(degree==="submicro"&&!submicroFiveUp) || (degree==="micro"&&!microW3) || (degree==="subminute"&&!subminuteD);
   const lowerB=lowerC && review && Number.isFinite(review.low) && review.low>0 &&
     review.low===review.high ? review.low : null;
-  const status=minute && minuteABC?.version==="engine22.minuteAbcDownNov5Research.v1"
+  const status=degree==="subminute" && subNov5?.version==="engine22.subminuteNov5AbcResearch.v1"
+    ? "RESEARCH_ONLY" : minute && minuteABC?.version==="engine22.minuteAbcDownNov5Research.v1"
     ? "RESEARCH_ONLY" : minor && minorResearch?.version==="engine22.minorW2ResearchCardNov5.v1"
     ? "RESEARCH_ONLY" : higher ? (higherRead?.status || "UNCONFIRMED")
     : structural ? "OWNER REFERENCE" : workingReview?"OWNER REVIEW ONLY":lowerB!==null ? "C DOWN RECOUNT" : "UNCONFIRMED";
@@ -572,7 +576,7 @@ function Engine22WaveRiskStrip({degree,wavelength,protection,invalidations}) {
   const primary=degree==="primary";
   const referenceText=structural!==null?wavePrice(structural):
     lowerB!==null?wavePrice(lowerB):workingReview?wavePrice(review.low):"NOT PUBLISHED";
-  const referenceBasis=minute && minuteABC?.version==="engine22.minuteAbcDownNov5Research.v1"?"B high • C-down recount review":minute?"W1 origin • W2 count":minor && minorResearch?.version==="engine22.minorW2ResearchCardNov5.v1"?"W1 origin • W2 research review":minor?"W4 origin • W5 review"
+  const referenceBasis=degree==="subminute" && subNov5?.version==="engine22.subminuteNov5AbcResearch.v1"?"B high • Subminute C research review":minute && minuteABC?.version==="engine22.minuteAbcDownNov5Research.v1"?"B high • C-down recount review":minute?"W1 origin • W2 count":minor && minorResearch?.version==="engine22.minorW2ResearchCardNov5.v1"?"W1 origin • W2 research review":minor?"W4 origin • W5 review"
     :higher?(primary?"Primary W4 low":"Intermediate W2 low")
     :submicroFiveUp?"W5 UP • W4 low review":microW3?"W3 UP • W2 low review":subminuteD?"D UP • C low review":lowerB!==null?"C down • B-high recount":"No approved hard invalidation";
   const warningValue=higher?"7200.00":"NOT SET";
@@ -582,6 +586,7 @@ function Engine22WaveRiskStrip({degree,wavelength,protection,invalidations}) {
     ? (higherRead?.sourceFresh && Number.isFinite(last)
       ? (primary?"Daily":"4H")+" close "+wavePrice(last)+" • 2 closes confirm • deep risk 6800"
       : "Completed-candle evidence unavailable • deep risk 6800")
+    : degree==="subminute" && subNov5?.version==="engine22.subminuteNov5AbcResearch.v1"?"Above B high requires Subminute C recount review; not confirmed invalidation or broker stop"
     : minute && minuteABC?.version==="engine22.minuteAbcDownNov5Research.v1"?"Above B high requires Minute C-down recount review • not a broker stop"
     : minute?"Below W1 origin breaches current Minute W2 count"
     :minor && minorResearch?.version==="engine22.minorW2ResearchCardNov5.v1"?"Below W1 origin requires W2 recount review • not a broker stop"
@@ -815,7 +820,7 @@ function Engine22DegreeCard({
         <Engine22TargetGrid key={group.key} title={group.title} levels={group.levels} />
       )) : (
         <Engine22TargetGrid
-          title={degree==="minute" && state?.fibTitle ? state.fibTitle : degree==="minute"?"MINUTE W2 RETRACEMENT FIB LEVELS":degree==="minor" && state?.badge==="W2 DOWN"?"MINOR W2 RETRACEMENT FIB LEVELS":
+          title={state?.fibTitle ? state.fibTitle : degree==="minute"?"MINUTE W2 RETRACEMENT FIB LEVELS":degree==="minor" && state?.badge==="W2 DOWN"?"MINOR W2 RETRACEMENT FIB LEVELS":
             `${String(state?.label || degree || "").toUpperCase()} levels`}
           levels={degree==="minor" && waveDegree?.state==="MINOR_W5_ACTIVE_CANDIDATE" ? fibLevels : state?.levels}
         />
@@ -1354,6 +1359,27 @@ export default function Engine22MarketStructureCard({
     ?.fibAnchorStatus === "OWNER_COORDINATES_CONFIRMED_PRICE_BASIS_PENDING" &&
     Array.isArray(currentWavelength?.degrees?.subminute?.levels)
       ? currentWavelength.degrees.subminute.levels : [];
+  const subNov5=currentWavelength?.degrees?.subminute?.ownerSubminuteNov5AbcResearch;
+  const subNov5State=subNov5?.version==="engine22.subminuteNov5AbcResearch.v1" &&
+    subNov5.selectionStatus==="RESEARCH_ONLY" ? {
+    degree:"subminute",label:"Subminute",active:true,badge:"C DOWN",
+    subtitle:"Nov 5 internal ABC inside Minute C — research only",
+    headline:"SUBMINUTE A-B-C DOWN — C DEVELOPING / COMPLETION UNCONFIRMED",
+    fibTitle:"SUBMINUTE C DOWN — A-LENGTH FIB EXTENSIONS",
+    rows:[
+      {label:"Parent",value:"MINUTE C DOWN — RESEARCH"},
+      {label:"A high",value:wavePrice(subNov5.anchors.aHigh)+" — "+subNov5.anchors.aHighLocalTime},
+      {label:"A low",value:wavePrice(subNov5.anchors.aLow)+" — "+subNov5.anchors.aLowLocalTime},
+      {label:"B high",value:wavePrice(subNov5.anchors.bHigh)+" — "+subNov5.anchors.bHighLocalTime},
+      {label:"C reference",value:wavePrice(subNov5.anchors.observedLowReference)+" — "+subNov5.anchors.observedLowLocalTime+" (OWNER CHART; NOT C END)"},
+      {label:"Current",value:"C DOWN — DEVELOPING / NOT CONFIRMED"},
+      {label:"History",value:"OLDER SUBMINUTE C WICK/BODY & D MODELS PRESERVED"},
+      {label:"Review",value:"A LOW TIME AND INTERNAL MOTIVE SUBDIVISIONS UNVERIFIED"},
+      {label:"Authority",value:"RESEARCH CARD ONLY — LIVE SUBMINUTE SELECTION UNCHANGED"}
+    ],
+    levels:subNov5.levels,
+    rules:["7542.00 B high: recount review only; not an approved hard invalidation or trade permission."],
+  } : null;
   const proposedSubminuteC = currentWavelength?.degrees?.subminute?.ownerSubminuteCDownOct31;
   const proposedSubminuteCReady = proposedSubminuteC?.version === "engine22.subminuteCDownOct31OwnerWorking.v1" &&
     proposedSubminuteC?.activeWave === "C" && proposedSubminuteC?.direction === "DOWN" &&
@@ -1513,6 +1539,7 @@ export default function Engine22MarketStructureCard({
               degree === "submicro" && submicroAActive ? submicroAState :
               degree === "micro" && microAbcActive ? microAbcState :
               degree === "micro" && microW3Levels.length ? microW3State :
+              degree === "subminute" && subNov5State ? subNov5State :
               degree === "subminute" && proposedSubminuteCReady ? proposedSubminuteCState :
               degree === "subminute" && subminuteDUpActive ? subminuteDUpState :
               degree === "subminute" && subminuteCDownActive ? subminuteCDownState :
@@ -1538,6 +1565,7 @@ export default function Engine22MarketStructureCard({
               degree === "minor" && minorW2State ? null :
               degree === "submicro" ? ownerSubmicro :
               degree === "micro" ? ownerMicro :
+              degree === "subminute" && subNov5State ? null :
               degree === "subminute" ? ownerSubminute :
               v3ShadowDegrees?.[degree] || null}
             wavelength={currentWavelength}
