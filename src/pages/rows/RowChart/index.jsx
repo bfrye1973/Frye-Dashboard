@@ -1572,7 +1572,7 @@ export default function RowChart({
         const useEngine11 =
           !boundedRecentFallback &&
           normalizeSymbol(state.symbol) === "ES" &&
-          ["5m", "10m", "1h", "4h", "1d"].includes(state.timeframe) &&
+          ["5m", "10m", "1h", "4h", "1d", "1w", "1mo"].includes(state.timeframe) &&
           typeof window !== "undefined" &&
           new URLSearchParams(window.location.search).get("engine11Candles") !== "0";
 
