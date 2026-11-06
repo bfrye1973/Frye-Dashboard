@@ -1,0 +1,21 @@
+name: Engine22 Subminute Nov5 ABC Card
+on:
+  pull_request:
+    paths:
+      - "src/pages/rows/RowChart/overlays/Engine22MarketStructureCard.jsx"
+      - "src/pages/rows/RowChart/overlays/Engine22SubminuteNov5AbcResearch.test.jsx"
+      - ".github/workflows/engine22-subminute-nov5-abc.yml"
+  push:
+    branches: ["engine22-subminute-nov5-abc-card"]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: CI=true npm test -- --watchAll=false --runTestsByPath src/pages/rows/RowChart/overlays/Engine22SubminuteNov5AbcResearch.test.jsx
+      - run: npm run build
