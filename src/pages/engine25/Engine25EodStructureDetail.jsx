@@ -8,6 +8,19 @@ const API_BASE =
   "https://frye-market-backend-1.onrender.com";
 const API_ROOT = API_BASE.replace(/\/+$/, "").replace(/\/api$/, "");
 const ROUTE = `${API_ROOT}/live/eod-shadow`;
+const HISTORY_ROUTE = `${API_ROOT}/live/eod-shadow-history`;
+
+function formatArizonaTimestamp(value){
+  if(!value) return "—";
+  const d=new Date(value);
+  if(Number.isNaN(d.getTime())) return "—";
+  const parts=new Intl.DateTimeFormat("en-US",{
+    timeZone:"America/Phoenix",year:"numeric",month:"2-digit",day:"2-digit",
+    hour:"2-digit",minute:"2-digit",second:"2-digit",hour12:true
+  }).formatToParts(d);
+  const p=Object.fromEntries(parts.map(x=>[x.type,x.value]));
+  return `${p.month}/${p.day}/${p.year} ${p.hour}:${p.minute}:${p.second} ${p.dayPeriod} AZ`;
+}
 
 const COLORS = {
   bg:"#020617", panel:"#0b1220", border:"#263244", text:"#f8fafc",
@@ -191,6 +204,7 @@ export default function Engine25EodStructureDetail(){
   const [data,setData]=useState(null);
   const [error,setError]=useState(null);
   const [date,setDate]=useState("10/29");
+  const [historyDates,setHistoryDates]=useState([]);
 
   useEffect(()=>{ let alive=true;
     async function load(){
@@ -201,6 +215,36 @@ export default function Engine25EodStructureDetail(){
     }
     load(); const id=setInterval(load,60000); return()=>{alive=false;clearInterval(id)};
   },[]);
+
+  useEffect(()=>{ let alive=true;
+    async function loadHistory(){
+      try{
+        const r=await fetch(HISTORY_ROUTE,{cache:"no-store"});
+        const j=await r.json();
+        if(r.ok&&Array.isArray(j?.dates)&&alive){
+          setHistoryDates(j.dates);
+          if(j.dates.length){
+            const latest=j.dates[0];
+            const [y,m,d]=latest.split("-");
+            setDate(`${Number(m)}/${Number(d)}`);
+          }
+        }
+      }catch(_e){ /* history is additive; latest shadow remains usable */ }
+    }
+    loadHistory(); const id=setInterval(loadHistory,60000);
+    return()=>{alive=false;clearInterval(id)};
+  },[]);
+
+  const comparisonDates=useMemo(()=>{
+    const dynamic=historyDates.map(x=>{
+      const [y,m,d]=String(x).split("-");
+      return `${Number(m)}/${Number(d)}`;
+    });
+    return Array.from(new Set([...dynamic,...Object.keys(LEGACY)])).sort((a,b)=>{
+      const [am,ad]=a.split("/").map(Number), [bm,bd]=b.split("/").map(Number);
+      return (am*100+ad)-(bm*100+bd);
+    });
+  },[historyDates]);
 
   const current=Array.isArray(data?.sectorCards)?data.sectorCards:[];
   const currentRows=current.map(c=>{
@@ -261,6 +305,9 @@ export default function Engine25EodStructureDetail(){
         <div>
           <div style={{fontSize:25,fontWeight:1000}}>ENGINE 25 — EOD STRUCTURE DETAIL</div>
           <div style={{color:COLORS.muted,marginTop:4}}>Reconstructed EOD v1 shadow · spreadsheet-style validation view</div>
+          <div style={{color:COLORS.yellow,marginTop:5,fontSize:11,fontWeight:900}}>
+            LAST UPDATED: {formatArizonaTimestamp(data?.updated_at_utc)}
+          </div>
         </div>
         <Link to="/" style={{color:COLORS.blue,fontWeight:900,textDecoration:"none"}}>← BACK TO MARKET X-RAY</Link>
       </div>
@@ -401,7 +448,7 @@ export default function Engine25EodStructureDetail(){
             <div style={{fontWeight:1000,fontSize:16}}>LEGACY SPREADSHEET CHECK</div>
             <div style={{color:COLORS.muted,fontSize:11,marginTop:2}}>Old sheet numbers beside the historical reconstruction we validated.</div>
           </div>
-          <div style={{display:"flex",gap:6}}>{["10/27","10/28","10/29","10/30"].map(d=><button key={d} onClick={()=>setDate(d)}
+          <div style={{display:"flex",gap:6}}>{comparisonDates.map(d=><button key={d} onClick={()=>setDate(d)}
             style={{border:"1px solid "+(date===d?COLORS.blue:COLORS.border),background:date===d?"#082f49":"#0f172a",color:date===d?"#bae6fd":"#cbd5e1",borderRadius:7,padding:"6px 10px",fontWeight:900,cursor:"pointer"}}>{d}</button>)}</div>
         </div>
 
