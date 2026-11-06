@@ -167,7 +167,7 @@ function Engine22TargetGrid({ title, levels }) {
           const ownerObserved = (level.status === "OWNER_OBSERVED_TOUCH" ||
             level.status === "TOUCHED") &&
             level.touchEvidenceType === "OWNER_CHART_OBSERVATION";
-          const observedTouch = level.status === "TOUCHED" &&
+          const observedTouch = !ownerObserved && level.status === "TOUCHED" &&
             level.touchEvidenceAvailable === true &&
             typeof level.touchEvidenceType === "string";
           const verified = level.status === "TOUCHED" &&

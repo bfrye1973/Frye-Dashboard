@@ -41,3 +41,25 @@ test("Minor W2 research card shows authoritative backend retracements and standa
   expect(html).not.toContain("MINOR W5 UP");
   expect(html).not.toContain("TOUCHED · VERIFIED");
 });
+
+test("Minor owner-chart touched fibs render green evidence once and deeper levels remain WATCH",()=>{
+ const updated={...minorModel,levels:minorModel.levels.map((l,i)=>i<2?{
+   ...l,status:"TOUCHED",touchEvidenceAvailable:true,
+   touchEvidenceType:"OWNER_CHART_OBSERVATION",
+   touchEvidence:{verified:false,evidenceClass:"OWNER_CHART_UNVERIFIED"}
+ }:l)};
+ const html=renderToStaticMarkup(<Engine22MarketStructureCard
+   engine22Display={{version:"engine22Display.v1",degreeOrder:["minor"],degrees:{
+     minor:{label:"Minor",badge:"W5",headline:"MINOR W5 UP",rows:[],levels:[]}
+   }}}
+   currentWavelength={{degrees:{minor:{
+     ownerMinorW2Research:updated,
+     ownerW5StructuralReference:{version:"engine22.minorW5StructuralReference.v1",price:7398},
+     state:"MINOR_W5_ACTIVE_CANDIDATE",levels:[]
+   }}}}
+ />);
+ expect((html.match(/TOUCHED · OWNER CHART/g)||[])).toHaveLength(2);
+ expect(html).not.toContain("TOUCHED · ES PRICE");
+ expect(html).not.toContain("TOUCHED · VERIFIED");
+ expect((html.match(/>WATCH</g)||[])).toHaveLength(5);
+});
