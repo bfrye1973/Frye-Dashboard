@@ -38,25 +38,44 @@ export default function OwnerWaveAnchorsOverlay({
       ctx.clearRect(0,0,rect.width,rect.height);
 
       const plotted=[];
+      const samePivot=new Map();
       for(const a of anchors){
+        // Use only the exact owner timestamp; never snap to a nearby candle.
         const x=chart.timeScale().timeToCoordinate(a.timeSec);
         const y=priceSeries.priceToCoordinate(a.price);
         if(!Number.isFinite(x)||!Number.isFinite(y))continue;
         if(x<0||x>rect.width||y<0||y>rect.height)continue;
 
+        const classification=a.classification==="RESEARCH"?"RESEARCH":"HISTORICAL";
+        const key=`${a.degree}:${a.timeSec}:${a.price}:${classification}`;
+        const existing=samePivot.get(key);
+        if(existing){
+          existing.labels.push(a.label);
+          continue;
+        }
+
         const color=DEGREE_COLORS[a.degree]||"#fbbf24";
         ctx.fillStyle=color;
-        ctx.strokeStyle="#0b0b14";
+        ctx.strokeStyle=color;
         ctx.lineWidth=2;
         ctx.beginPath();
         ctx.arc(x,y,5,0,Math.PI*2);
-        ctx.fill();
-        ctx.stroke();
+        if(classification==="RESEARCH"){
+          // Hollow marker means owner-provided research, NOT approved count.
+          ctx.stroke();
+        }else{
+          ctx.fill();
+          ctx.strokeStyle="#0b0b14";
+          ctx.stroke();
+        }
 
-        plotted.push({
-          a,x,y,color,
-          text:`${a.degree.toUpperCase()} ${a.label} @ ${a.price.toFixed(2)}`
-        });
+        const node={a,x,y,color,classification,labels:[a.label]};
+        plotted.push(node);
+        samePivot.set(key,node);
+      }
+      for(const p of plotted){
+        p.text=`${p.a.degree.toUpperCase()} ${p.labels.join(" / ")} @ ${p.a.price.toFixed(2)}`+
+          (p.classification==="RESEARCH"?" [RESEARCH]":"");
       }
 
       // Collision avoidance moves LABELS only. Exact anchor dots never move.
