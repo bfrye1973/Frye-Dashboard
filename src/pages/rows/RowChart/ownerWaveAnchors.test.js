@@ -55,7 +55,7 @@ test("no unverified wave endings or UNKNOWN timestamps become plotted dots",()=>
 });
 
 test("two owner-supplied Aug14 highs preserve distinct Arizona timestamps",()=>{
-  const minor=ownerAnchorsForDegree("minor").find(n=>n.label==="W1 ending high");
+  const minor=ownerAnchorsForDegree("minor").find(n=>n.label==="W1 ending high"&&n.classification==="RESEARCH");
   const minute=ownerAnchorsForDegree("minute").find(n=>n.label==="A starting high");
   expect(minor.timeSec).toBe(Date.parse("2026-08-14T10:00:00Z")/1000);
   expect(minute.timeSec).toBe(Date.parse("2026-08-14T14:00:00Z")/1000);
