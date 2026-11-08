@@ -20,11 +20,21 @@ export default function Engine22WaveNodeHistoryLayer({chart, priceSeries, visibl
   const [degrees,setDegrees] = useState(checkedAll);
   const [categories,setCategories] = useState(initialCategory);
   const canvasRef = useRef(null);
-  const rawEndpoint = typeof window === "undefined" ? "" :
-    (window.__ENGINE22_WAVE_HISTORY_PROXY__ || process.env.REACT_APP_ENGINE22_WAVE_HISTORY_PROXY || "");
+  // Reuse existing Engine 2C owner chart authorization. The independent
+  // backend history bearer token stays ONLY in the server-side proxy.
+  const ownerAccessKey = (() => {
+    if (typeof window === "undefined") return null;
+    try {
+      const direct=window.sessionStorage?.getItem("engine2cResearchOwnerKey");
+      if (direct) return direct;
+      const saved=JSON.parse(window.localStorage?.getItem("engine2cResearchOwnerAccessV1") || "null");
+      return saved?.expiresAt > Date.now() && typeof saved?.key === "string"
+        ? saved.key : null;
+    } catch { return null; }
+  })();
   const endpoint = typeof window === "undefined" ? null :
-    sameOriginWaveNodeProxy(rawEndpoint,window.location.origin);
-  const enabled = Boolean(visible && endpoint);
+    sameOriginWaveNodeProxy("/api/engine22/wave-history/nodes",window.location.origin);
+  const enabled = Boolean(visible && endpoint && ownerAccessKey);
 
   // No backend token in browser. The owner-authenticated same-origin proxy
   // is configured separately once Engine 22's draft backend is released.
@@ -34,7 +44,7 @@ export default function Engine22WaveNodeHistoryLayer({chart, priceSeries, visibl
     const controller=new AbortController();
     const reader=createWaveNodeHistoryReader({
       getPage:({afterRevision,limit})=>fetchWaveNodePageFromProxy(endpoint,{
-        afterRevision,limit,signal:controller.signal,
+        afterRevision,limit,signal:controller.signal,ownerAccessKey,
       }),
       onUpdate: next=>{if(!disposed)setSnapshot(next);},
     });
@@ -56,7 +66,7 @@ export default function Engine22WaveNodeHistoryLayer({chart, priceSeries, visibl
       clearInterval(interval);
       document.removeEventListener("visibilitychange",onFocus);
     };
-  },[enabled,endpoint]);
+  },[enabled,endpoint,ownerAccessKey]);
 
   const counts=useMemo(()=>{
     const result={approved:0,research:0,superseded:0};
