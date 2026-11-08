@@ -1,6 +1,6 @@
 import {
   WAVE_DEGREES, classifyNodeRecord, createWaveNodeHistoryReader,
-  verifiedNodeForChart, sameOriginWaveNodeProxy, fetchWaveNodePageFromProxy,
+  verifiedNodeForChart, engine22OwnerNodeEndpoint, fetchWaveNodePageFromBackend,
 } from "./engine22WaveNodeHistory";
 
 const basis="price-basis:04ec3639248269336f8df3626c6c9a3eb119ac18cbc39429addbbb2f24d22b15";
@@ -78,18 +78,24 @@ test("reader blocks invalid schema, non-advancing cursor, and invalid records",a
   await expect(missing.refresh()).rejects.toThrow(/INVALID_RECORD/);
 });
 
-test("same-origin owner proxy only; never send a browser bearer secret",async()=>{
-  const origin="https://frye-dashboard.onrender.com";
-  expect(sameOriginWaveNodeProxy("/api/engine22/wave-history/nodes",origin))
-    .toBe(origin+"/api/engine22/wave-history/nodes");
-  expect(sameOriginWaveNodeProxy("https://frye-market-backend-1.onrender.com/api/engine22/wave-history/nodes",origin)).toBe(null);
-  expect(sameOriginWaveNodeProxy("/api/engine22/wave-history/nodes?token=secret",origin)).toBe(null);
+test("static site uses only exact authorized backend and existing owner research credential",async()=>{
+  const backend="https://frye-market-backend-1.onrender.com";
+  const endpoint=backend+"/api/engine22/wave-history/nodes";
+  expect(engine22OwnerNodeEndpoint()).toBe(endpoint);
+  expect(engine22OwnerNodeEndpoint(backend+"/")).toBe(endpoint);
+  expect(engine22OwnerNodeEndpoint("https://malicious.example.com")).toBe(null);
+  expect(engine22OwnerNodeEndpoint(backend+"/api?token=secret")).toBe(null);
   const fetcher=jest.fn(async()=>({ok:true,json:async()=>page(0,[])}));
-  await fetchWaveNodePageFromProxy(origin+"/api/engine22/wave-history/nodes",{
-    fetcher,afterRevision:3,limit:50,
+  await fetchWaveNodePageFromBackend(endpoint,{
+    fetcher,afterRevision:3,limit:50,ownerAccessKey:"owner-test-research-key",
   });
   const [url,init]=fetcher.mock.calls[0];
   expect(url).toContain("afterRevision=3");
-  expect(init.credentials).toBe("same-origin");
+  expect(init.credentials).toBe("omit");
+  expect(init.headers["x-engine2c-access"]).toBe("owner-test-research-key");
   expect(init.headers.Authorization).toBeUndefined();
+  await expect(fetchWaveNodePageFromBackend("https://malicious.example.com/api/engine22/wave-history/nodes",{
+    fetcher,ownerAccessKey:"owner-test-research-key",
+  })).rejects.toThrow(/OWNER_ACCESS_REQUIRED/);
+  expect(fetcher).toHaveBeenCalledTimes(1);
 });
