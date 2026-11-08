@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ownerAnchorsForDegree } from "../ownerWaveAnchors";
 
 const DEGREE_COLORS={
@@ -6,13 +6,17 @@ const DEGREE_COLORS={
   minor:"#f472b6",intermediate:"#fb7185",primary:"#facc15"
 };
 
+// Owner-directed staged review: clear all anchor dots by default.
+// Stage 1 permits ONLY Primary. Other degrees stay stored but unmounted.
 export default function OwnerWaveAnchorsOverlay({
-  visible=true, chart, priceSeries, degree="ALL"
+  visible=true, chart, priceSeries, degree="PRIMARY"
 }){
   const canvasRef=useRef(null);
+  const [stage,setStage]=useState("OFF");
+  const primaryOnly=degree==="PRIMARY"&&stage==="PRIMARY";
 
   useEffect(()=>{
-    if(!visible||!chart||!priceSeries)return;
+    if(!visible||!primaryOnly||!chart||!priceSeries)return;
     const host=chart.chartElement?.()?.parentElement || null;
     if(!host)return;
 
@@ -135,7 +139,39 @@ export default function OwnerWaveAnchorsOverlay({
       try{canvas.remove();}catch{}
       canvasRef.current=null;
     };
-  },[visible,chart,priceSeries,degree]);
+  },[visible,primaryOnly,chart,priceSeries,degree]);
 
-  return null;
+  if(!visible)return null;
+
+  return (
+    <div
+      aria-label="Elliott Wave nodes - one degree at a time"
+      style={{
+        position:"absolute",top:10,right:80,zIndex:95,
+        display:"flex",alignItems:"center",gap:6,
+        padding:"5px 8px",background:"rgba(8,12,24,.92)",
+        border:"1px solid #334155",borderRadius:6,
+        color:"#e5e7eb",fontSize:11
+      }}
+    >
+      <span style={{fontWeight:800,marginRight:3}}>Wave nodes · 1/7</span>
+      <button type="button" aria-pressed={!primaryOnly}
+        onClick={()=>setStage("OFF")}
+        style={{
+          background:!primaryOnly?"#facc15":"#111827",
+          color:!primaryOnly?"#111827":"#d1d5db",
+          border:"1px solid #64748b",borderRadius:4,
+          padding:"3px 9px",cursor:"pointer"
+        }}>Off</button>
+      <button type="button" aria-pressed={primaryOnly}
+        onClick={()=>setStage("PRIMARY")}
+        style={{
+          background:primaryOnly?"#facc15":"#111827",
+          color:primaryOnly?"#111827":"#d1d5db",
+          border:"1px solid #64748b",borderRadius:4,
+          padding:"3px 9px",cursor:"pointer"
+        }}>Primary (5)</button>
+      <span style={{fontSize:10,opacity:.8}}>Other 6 degrees hidden</span>
+    </div>
+  );
 }

@@ -2824,7 +2824,7 @@ export default function RowChart({
             visible={normalizeSymbol(state.symbol) === "ES"}
             chart={chartRef.current}
             priceSeries={seriesRef.current}
-            degree="ALL"
+            degree="PRIMARY"
           />
 
           <Engine25MarketHealthTimeline
