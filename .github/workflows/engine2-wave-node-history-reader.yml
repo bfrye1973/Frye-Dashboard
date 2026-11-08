@@ -1,0 +1,26 @@
+name: Engine2 Engine22 Node History Reader
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/pages/rows/RowChart/engine22WaveNodeHistory*'
+      - 'src/pages/rows/RowChart/overlays/Engine22WaveNodeHistoryLayer.jsx'
+      - 'src/pages/rows/RowChart/index.jsx'
+      - '.github/workflows/engine2-wave-node-history-reader.yml'
+jobs:
+  read-only-node-history:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - name: Test cursor replay and chart authorization
+        run: CI=true npm test -- --watch=false --runInBand --testPathPattern=engine22WaveNodeHistory.test.js
+      - name: Check frontend build; no deployment
+        run: npm run build
