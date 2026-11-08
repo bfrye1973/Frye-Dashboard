@@ -1,0 +1,30 @@
+name: Engine2 Primary Wave Review
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/pages/rows/RowChart/index.jsx'
+      - 'src/pages/rows/RowChart/overlays/OwnerWaveAnchorsOverlay.jsx'
+      - 'src/pages/rows/RowChart/overlays/OwnerWaveAnchorsOverlay.test.jsx'
+      - 'src/pages/rows/RowChart/ownerWaveAnchors.js'
+      - 'src/pages/rows/RowChart/ownerWaveAnchors.test.js'
+      - '.github/workflows/engine2-primary-wave-review.yml'
+jobs:
+  primary-only:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - name: Only Primary staged; all source data retained
+        run: CI=true npm test -- --watch=false --runInBand --testPathPattern=OwnerWaveAnchorsOverlay.test.jsx
+      - name: Verify original and research anchors unchanged
+        run: CI=true npm test -- --watch=false --runInBand --testPathPattern=ownerWaveAnchors.test.js
+      - name: Full existing chart build, no deploy
+        run: npm run build
