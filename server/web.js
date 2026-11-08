@@ -3,6 +3,7 @@ import express from "express";
 import path from "path";
 import { fileURLToPath } from "url";
 import { createProxyMiddleware } from "http-proxy-middleware";
+import { createEngine22NodeHistoryProxy } from "./engine22NodeHistoryProxy.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -11,6 +12,12 @@ const app = express();
 
 const API_TARGET =
   (process.env.API_TARGET || "https://frye-market-backend-1.onrender.com").trim();
+
+// Engine 22 owner-only node-history reader. This exact route must run
+// BEFORE the generic /api proxy; it never exposes the backend bearer secret.
+const waveHistoryNodeProxy=createEngine22NodeHistoryProxy({apiTarget:API_TARGET});
+app.get("/api/engine22/wave-history/nodes",waveHistoryNodeProxy);
+app.get("/api/engine22/wave-history/nodes/current",waveHistoryNodeProxy);
 
 /**
  * ✅ Proxy /api/* → backend /api/*
