@@ -137,6 +137,15 @@ function ParticipationTimeframeTile({ label, diag }) {
       : freshnessLabel === "DECAYING"
       ? COLORS.orange
       : COLORS.yellow;
+  // EOD carries a verified completed equity session date separately from
+  // Sunday/holiday workflow publication time. Never invent a session for
+  // intraday/hourly/4H files from their publish timestamps.
+  const completedEodSession =
+    label === "EOD" &&
+    freshnessLabel === "FRESH" &&
+    /^\d{4}-\d{2}-\d{2}$/.test(String(diag?.sourceSessionDate || ""))
+      ? diag.sourceSessionDate
+      : null;
 
   return (
     <div
@@ -188,8 +197,13 @@ function ParticipationTimeframeTile({ label, diag }) {
           fontWeight: 850,
         }}
       >
-        LAST RUN: {formatArizonaTimestamp(diag?.sourceTimestamp)} AZ
+        FILE PUBLISHED: {formatArizonaTimestamp(diag?.sourceTimestamp)} AZ
       </div>
+      {completedEodSession ? (
+        <div style={{ color: COLORS.green, fontSize: 10, marginTop: 5, fontWeight: 900 }}>
+          COMPLETED EQUITY SESSION: {completedEodSession}
+        </div>
+      ) : null}
     </div>
   );
 }
