@@ -95,31 +95,35 @@ export function createWaveNodeHistoryReader({ getPage, onUpdate } = {}) {
   return { refresh, snapshot, close: () => { closed = true; } };
 }
 
-// The browser must never call the private backend with an Engine 22 secret.
-// A same-origin authenticated owner proxy may be enabled after backend release.
-export function sameOriginWaveNodeProxy(raw, origin) {
-  if (!raw || !origin) return null;
+// Production dashboard is a Render static site. Use existing licensed
+// Engine 2C owner research access on the EXISTING backend, never a browser
+// Engine 22 history bearer token. Backend must explicitly accept this route.
+const ENGINE22_OWNER_BACKEND = "https://frye-market-backend-1.onrender.com";
+const OWNER_NODE_PATH = "/api/engine22/wave-history/nodes";
+export function engine22OwnerNodeEndpoint(rawBackend = ENGINE22_OWNER_BACKEND) {
   try {
-    const url = new URL(raw, origin);
-    if (url.origin !== new URL(origin).origin || url.search || url.hash ||
-        !url.pathname.endsWith("/wave-history/nodes")) return null;
-    return url.toString();
+    const backend = new URL(rawBackend);
+    if (backend.origin !== ENGINE22_OWNER_BACKEND ||
+        backend.pathname !== "/" || backend.search || backend.hash) return null;
+    return new URL(OWNER_NODE_PATH, backend).toString();
   } catch { return null; }
 }
 
-export async function fetchWaveNodePageFromProxy(endpoint, {
+export async function fetchWaveNodePageFromBackend(endpoint, {
   afterRevision = 0, limit = 50, fetcher = fetch, signal, ownerAccessKey,
 } = {}) {
+  if (engine22OwnerNodeEndpoint() !== endpoint || !ownerAccessKey)
+    throw Error("ENGINE22_NODE_OWNER_ACCESS_REQUIRED");
   const url = new URL(endpoint);
   url.searchParams.set("afterRevision", String(afterRevision));
   url.searchParams.set("limit", String(limit));
   const response = await fetcher(url.toString(), {
-    method: "GET", credentials: "same-origin", cache: "no-store",
+    method: "GET", credentials: "omit", cache: "no-store",
     headers: {
       Accept: "application/json",
-      ...(typeof ownerAccessKey === "string" && ownerAccessKey
-        ? { "x-engine2c-access": ownerAccessKey } : {}),
-    }, signal,
+      "x-engine2c-access": ownerAccessKey,
+    },
+    signal,
   });
   if (!response.ok) throw Error("ENGINE22_NODE_HISTORY_HTTP_" + response.status);
   return response.json();
