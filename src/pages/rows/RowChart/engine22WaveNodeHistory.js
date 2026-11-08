@@ -10,11 +10,11 @@ const isUtc = (v) => typeof v === "string" &&
   /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(v) &&
   Number.isFinite(Date.parse(v));
 
-export function approvedNodeForChart(node, {
+export function verifiedNodeForChart(node, {
   chartPriceBasisId, historicalAsOfSupported = false,
 } = {}) {
   if (!historicalAsOfSupported || !node || node.plotAllowed !== true ||
-      node.approvalStatus !== "OWNER_APPROVED" ||
+      typeof node.approvalStatus !== "string" ||
       node.priceBasisId !== chartPriceBasisId ||
       !WAVE_DEGREES.includes(node.degree) ||
       !node.nodeId || !node.waveId || !node.countId ||
