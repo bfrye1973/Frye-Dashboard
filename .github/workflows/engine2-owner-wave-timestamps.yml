@@ -1,0 +1,26 @@
+name: Engine2 Owner Wave Timestamp Overlay
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "src/pages/rows/RowChart/ownerWaveAnchors.js"
+      - "src/pages/rows/RowChart/ownerWaveAnchors.test.js"
+      - "src/pages/rows/RowChart/overlays/OwnerWaveAnchorsOverlay.jsx"
+      - ".github/workflows/engine2-owner-wave-timestamps.yml"
+jobs:
+  verify-existing-es-overlay:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - run: npm ci
+      - name: Verify exact owner timestamps and seven degrees
+        run: CI=true npm test -- --watch=false --runInBand --testPathPattern=ownerWaveAnchors.test.js
+      - name: Build existing chart (no deploy)
+        run: npm run build
