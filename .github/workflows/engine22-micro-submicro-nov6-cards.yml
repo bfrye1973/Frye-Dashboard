@@ -1,0 +1,21 @@
+name: Engine22 Micro Submicro Nov6 cards
+on:
+  pull_request:
+    paths:
+      - "src/pages/rows/RowChart/overlays/Engine22MarketStructureCard.jsx"
+      - "src/pages/rows/RowChart/overlays/Engine22MicroSubmicroNov6Research.test.jsx"
+      - ".github/workflows/engine22-micro-submicro-nov6-cards.yml"
+  push:
+    branches: ["engine22-micro-submicro-nov6-research-cards"]
+jobs:
+  cards:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: CI=true npm test -- --watchAll=false --runTestsByPath src/pages/rows/RowChart/overlays/Engine22MicroSubmicroNov6Research.test.jsx
+      - run: npm run build
