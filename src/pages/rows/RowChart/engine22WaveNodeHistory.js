@@ -108,14 +108,18 @@ export function sameOriginWaveNodeProxy(raw, origin) {
 }
 
 export async function fetchWaveNodePageFromProxy(endpoint, {
-  afterRevision = 0, limit = 50, fetcher = fetch, signal,
+  afterRevision = 0, limit = 50, fetcher = fetch, signal, ownerAccessKey,
 } = {}) {
   const url = new URL(endpoint);
   url.searchParams.set("afterRevision", String(afterRevision));
   url.searchParams.set("limit", String(limit));
   const response = await fetcher(url.toString(), {
     method: "GET", credentials: "same-origin", cache: "no-store",
-    headers: { Accept: "application/json" }, signal,
+    headers: {
+      Accept: "application/json",
+      ...(typeof ownerAccessKey === "string" && ownerAccessKey
+        ? { "x-engine2c-access": ownerAccessKey } : {}),
+    }, signal,
   });
   if (!response.ok) throw Error("ENGINE22_NODE_HISTORY_HTTP_" + response.status);
   return response.json();
