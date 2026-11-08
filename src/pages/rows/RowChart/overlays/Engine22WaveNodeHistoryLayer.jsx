@@ -38,7 +38,9 @@ export default function Engine22WaveNodeHistoryLayer({chart, priceSeries, visibl
       }),
       onUpdate: next=>{if(!disposed)setSnapshot(next);},
     });
-    const poll=()=>reader.refresh().catch(err=>{
+    const poll=()=>reader.refresh().then(()=>{
+      if(!disposed)setError(null);
+    }).catch(err=>{
       if(!disposed)setError(String(err?.message||err));
     });
     poll();
