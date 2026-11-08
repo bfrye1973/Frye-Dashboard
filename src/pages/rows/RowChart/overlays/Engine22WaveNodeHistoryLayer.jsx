@@ -1,7 +1,7 @@
 import React, {useEffect, useMemo, useRef, useState} from "react";
 import {
   WAVE_DEGREES, classifyNodeRecord, createWaveNodeHistoryReader,
-  sameOriginWaveNodeProxy, fetchWaveNodePageFromProxy, verifiedNodeForChart,
+  engine22OwnerNodeEndpoint, fetchWaveNodePageFromBackend, verifiedNodeForChart,
 } from "../engine22WaveNodeHistory";
 import {ENGINE11_CONTINUOUS_UNADJUSTED_2020PLUS} from "../engine11HistoricalAdapter";
 
@@ -32,18 +32,18 @@ export default function Engine22WaveNodeHistoryLayer({chart, priceSeries, visibl
         ? saved.key : null;
     } catch { return null; }
   })();
-  const endpoint = typeof window === "undefined" ? null :
-    sameOriginWaveNodeProxy("/api/engine22/wave-history/nodes",window.location.origin);
+  const endpoint = engine22OwnerNodeEndpoint();
   const enabled = Boolean(visible && endpoint && ownerAccessKey);
 
-  // No backend token in browser. The owner-authenticated same-origin proxy
-  // is configured separately once Engine 22's draft backend is released.
+  // Static Render dashboard; backend is the owner-authenticated read-only API.
+  // Owner credential is the EXISTING Engine2C research key, never Engine22 bearer.
+  // Backend #266 must approve this limited access contract before release.
   useEffect(()=>{
     if(!enabled)return;
     let disposed=false;
     const controller=new AbortController();
     const reader=createWaveNodeHistoryReader({
-      getPage:({afterRevision,limit})=>fetchWaveNodePageFromProxy(endpoint,{
+      getPage:({afterRevision,limit})=>fetchWaveNodePageFromBackend(endpoint,{
         afterRevision,limit,signal:controller.signal,ownerAccessKey,
       }),
       onUpdate: next=>{if(!disposed)setSnapshot(next);},
