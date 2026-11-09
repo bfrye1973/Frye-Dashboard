@@ -1862,7 +1862,7 @@ export default function RowChart({
         setEngine22WorkingNodeSnapshot(prev=>
           waveNodeFeedChanged(prev,nodes)?nodes:prev);
         setEngine22HistoryReady(
-          engine22WaveStrategy?.engine22WaveHistory?.available===true);
+          snap?.strategies?.["intraday_scalp@10m"]?.engine22WaveHistory?.available === true);
 
       } catch (err) {
         if (cancelled) return;
