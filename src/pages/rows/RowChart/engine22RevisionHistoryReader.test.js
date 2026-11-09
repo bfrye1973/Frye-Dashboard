@@ -1,5 +1,6 @@
 import {
   HISTORY_SCHEMA,createEngine22RevisionHistoryReader,fetchOwnerWaveHistoryPage,
+  engine22HistoryAvailableFromSnapshot,
 } from "./engine22RevisionHistoryReader";
 const node=(revision,publicationRevision,price,plotAllowed=false)=>({
   nodeId:"micro-w1",sourceRevision:revision,publicationRevision,
@@ -70,4 +71,18 @@ test("network fetch uses only owner research credential, no private history bear
  expect(request.cache).toBe("no-store");
  await expect(fetchOwnerWaveHistoryPage({ownerKey:null,fetcher:fake}))
    .rejects.toThrow(/OWNER_ACCESS_REQUIRED/);
+});
+
+test("history catch-up is gated on actual backend strategy sibling, never nested wave display",()=>{
+ const snap={strategies:{"intraday_scalp@10m":{
+   engine22WaveStrategy:{workingWaveNodes:{fingerprint:"research-revision-a"},
+     engine22WaveHistory:{available:true}},
+   engine22WaveHistory:{available:false}
+ }}};
+ expect(engine22HistoryAvailableFromSnapshot(snap)).toBe(false);
+ snap.strategies["intraday_scalp@10m"].engine22WaveHistory.available=true;
+ expect(engine22HistoryAvailableFromSnapshot(snap)).toBe(true);
+ delete snap.strategies["intraday_scalp@10m"].engine22WaveHistory;
+ expect(engine22HistoryAvailableFromSnapshot(snap)).toBe(false);
+ expect(engine22HistoryAvailableFromSnapshot(null)).toBe(false);
 });
