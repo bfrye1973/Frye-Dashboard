@@ -1,0 +1,23 @@
+name: Engine16B Existing Chart ABC Research Acceptance
+on:
+  push:
+    branches:
+      - feature/engine16-submicro-10m-existing-chart
+  workflow_dispatch:
+jobs:
+  test-and-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+      - name: Install locked dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Run Engine16 chart research tests
+        env:
+          CI: 'true'
+        run: npm test -- --watchAll=false --runInBand engine16SubmicroChartResearch.test.js
+      - name: Build existing chart app (no deployment)
+        run: npm run build
