@@ -65,6 +65,7 @@ import Engine25MarketHealthTimeline from "./overlays/Engine25MarketHealthTimelin
 import Engine29CrossMarketStressPanel from "./overlays/Engine29CrossMarketStressPanel";
 import Engine26TradeGeometryTool from "./panels/Engine26TradeGeometryTool";
 import OwnerWaveAnchorsOverlay from "./overlays/OwnerWaveAnchorsOverlay";
+import { waveNodeFeedChanged } from "./engine22WorkingNodeReader";
 
 /* ------------------------------ Config ------------------------------ */
 
@@ -1014,6 +1015,7 @@ export default function RowChart({
   const [engine17Data, setEngine17Data] = useState(null);
   const [engine22AuthorizedWorkingStructure, setEngine22AuthorizedWorkingStructure] = useState(null);
   const [engine22CurrentWavelength, setEngine22CurrentWavelength] = useState(null);
+  const [engine22WorkingNodeSnapshot, setEngine22WorkingNodeSnapshot] = useState(null);
 
   const [engine17RawDebug, setEngine17RawDebug] = useState(null);
   const [chartMode, setChartMode] = useState(initialChartMode);
@@ -1851,6 +1853,11 @@ export default function RowChart({
           engine22WaveStrategy?.authorizedWorkingStructure || null
         );
         setEngine22CurrentWavelength(engine22WaveStrategy?.currentWavelength || null);
+        // SAME Strategies-card Engine22 source; hash de-duplicates routine
+        // 15s snapshot refreshes. Do not trigger candle series resets.
+        const nodes=engine22WaveStrategy?.workingWaveNodes;
+        setEngine22WorkingNodeSnapshot(prev=>
+          waveNodeFeedChanged(prev,nodes)?nodes:prev);
 
       } catch (err) {
         if (cancelled) return;
@@ -2916,6 +2923,7 @@ export default function RowChart({
               : null}
             stage={waveNodeStage}
             onStageChange={setWaveNodeStage}
+            workingNodes={engine22WorkingNodeSnapshot}
           />
 
           <Engine25MarketHealthTimeline
