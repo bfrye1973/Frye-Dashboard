@@ -65,6 +65,7 @@ import Engine25MarketHealthTimeline from "./overlays/Engine25MarketHealthTimelin
 import Engine29CrossMarketStressPanel from "./overlays/Engine29CrossMarketStressPanel";
 import Engine26TradeGeometryTool from "./panels/Engine26TradeGeometryTool";
 import OwnerWaveAnchorsOverlay from "./overlays/OwnerWaveAnchorsOverlay";
+import Engine16SubmicroResearchOverlay from "./overlays/Engine16SubmicroResearchOverlay";
 import {createDefaultWaveNodeStyles} from "./waveNodePresentation";
 import { waveNodeFeedChanged } from "./engine22WorkingNodeReader";
 import { createEngine22RevisionHistoryReader, fetchOwnerWaveHistoryPage, engine22HistoryAvailableFromSnapshot } from "./engine22RevisionHistoryReader";
@@ -1060,6 +1061,7 @@ export default function RowChart({
     fibMinute: false,
     fibMicro: false,
     fibSubmicro: false,
+    engine16SubmicroResearch: false,
     fibSubminute: false,
     fibSubmicroScenario: "option1",
     fibSubminuteScenario: "wick",
@@ -2727,6 +2729,7 @@ export default function RowChart({
       fibMinute: false,
       fibMicro: false,
     fibSubmicro: false,
+      engine16SubmicroResearch: false,
     fibSubminute: false,
     fibSubmicroScenario: "option1",
     fibSubminuteScenario: "wick",
@@ -2916,6 +2919,19 @@ export default function RowChart({
             {label}
           </button>
         ))}
+        {normalizeSymbol(state.symbol)==="ES"&&state.timeframe==="10m" ? (
+          <label style={{display:"flex",alignItems:"center",gap:7,
+            padding:"5px 10px",border:"1px solid #eab308",borderRadius:7,
+            color:"#fbbf24",fontSize:12,fontWeight:800,cursor:"pointer"}}>
+            <input type="checkbox" checked={!!state.engine16SubmicroResearch}
+              onChange={e=>{
+                const enabled=e.target.checked;
+                setState(s=>({...s,engine16SubmicroResearch:enabled}));
+                if(enabled)setWaveNodeStage("SUBMICRO");
+              }}/>
+            Engine 16 ABC · SUBMICRO 10M (RESEARCH)
+          </label>
+        ):null}
       </div>
 
       <IndicatorsToolbar {...toolbarProps} />
@@ -2975,6 +2991,21 @@ export default function RowChart({
               {historyStatus}
             </div>
           )}
+
+          <Engine16SubmicroResearchOverlay
+            visible={state.engine16SubmicroResearch &&
+              normalizeSymbol(state.symbol)==="ES" && state.timeframe==="10m"}
+            chart={chartRef.current}
+            priceSeries={seriesRef.current}
+            bars={bars}
+            verified={!liveStatus.startsWith("HOLD_") && (
+              (fiveMinuteFeatureEnabled && historyStatus.startsWith("ENGINE11")) ||
+              (historyStatus.startsWith("RECENT FUTURES") &&
+                Boolean(recentFallbackContractRef.current) &&
+                !liveContractHoldRef.current)
+            )}
+            engine22Nodes={engine22WorkingNodeSnapshot}
+          />
 
           <OwnerWaveAnchorsOverlay
             visible={normalizeSymbol(state.symbol) === "ES"}
