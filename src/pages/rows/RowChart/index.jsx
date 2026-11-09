@@ -1420,6 +1420,37 @@ export default function RowChart({
       }
       return null;
     };
+    // A new 4H session bucket may begin after the initial OHLC bridge.
+    // Resolve its opening from a NEW verified bounded source response,
+    // never inventing a UTC 4H bucket across futures session gaps.
+    let lastFourHourRefreshAt=0;
+    let fourHourRefreshInFlight=false;
+    const refreshFourHourBoundary = async () => {
+      if(state.timeframe!=="4h"||fourHourRefreshInFlight||
+        !recentCatchupDone||!streamMatchesHistory())return;
+      const now=Date.now();
+      if(now-lastFourHourRefreshAt<15000)return;
+      lastFourHourRefreshAt=now;
+      fourHourRefreshInFlight=true;
+      try{
+        const latest=await getFuturesRecentOHLCWithIdentity("ES","4h",200);
+        if(!active)return;
+        if(latest.resolvedSymbol!==expectedContract){
+          recentContractMismatch=true;
+          updateContractStatus();
+          setHistoryStatus("CURRENT CANDLES ON HOLD · FUTURES CONTRACT MISMATCH");
+          return;
+        }
+        verifiedFourHourOpens=[...new Set(latest.bars
+          .map(b=>Number(b.time)).filter(Number.isFinite))].sort((a,b)=>a-b);
+        pager.appendVerifiedRecent(latest.bars,{contractVerified:true});
+        for(const b of [...bufferedOneMinute.values()].sort((a,b)=>a.time-b.time)){
+          if(b.sourceContract===expectedContract)consumeMinute(b);
+        }
+      }catch(err){
+        if(active)console.warn("[Engine11B] optional 4h boundary refresh",err);
+      }finally{fourHourRefreshInFlight=false;}
+    };
     const consumeMinute = (oneMin) => {
       // Compatible LIVE bars must be painted as soon as the first immutable
       // page is ready. Never wait for the optional recent OHLC bridge.
@@ -1427,7 +1458,11 @@ export default function RowChart({
       const t = Number(oneMin.time);
       if (!Number.isFinite(t)) return;
       const bucket = bucketForMinute(t);
-      if (!Number.isFinite(bucket)||bucket <= pager.snapshot().archiveLastTime) return;
+      if(!Number.isFinite(bucket)){
+        void refreshFourHourBoundary();
+        return;
+      }
+      if(bucket <= pager.snapshot().archiveLastTime)return;
       const group = Array.from(bufferedOneMinute.values())
         .filter(b => b.sourceContract === expectedContract &&
           bucketForMinute(b.time) === bucket)
