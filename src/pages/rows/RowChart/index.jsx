@@ -1918,7 +1918,9 @@ export default function RowChart({
         priceSeries: seriesRef.current,
         chartContainer: containerRef.current,
         packet,
-        waveStage: waveNodeStage,
+        // Primary-only stage controls owner dots, not Fib/manual connectors.
+        // Fib horizontal levels remain independently toggleable.
+        waveStage: "OFF",
         toggles: {
           primary: state.fibPrimary,
           intermediate: state.fibIntermediate,
@@ -2829,6 +2831,7 @@ export default function RowChart({
             chart={chartRef.current}
             priceSeries={seriesRef.current}
             degree="PRIMARY"
+            timeframe={state.timeframe}
             stage={waveNodeStage}
             onStageChange={setWaveNodeStage}
           />
