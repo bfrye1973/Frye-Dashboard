@@ -5,8 +5,7 @@ import { validatedEngine22WorkingNodeAnchors } from "../engine22WorkingNodeReade
 import {waveNodeDisplayStyle} from "../waveNodePresentation";
 import { INTERMEDIATE_REVIEW_ANCHORS, MINOR_REVIEW_ANCHORS,
   MINOR_W2_RESEARCH_LEVELS, MINUTE_REVIEW_ANCHORS,
-  SUBMINUTE_REVIEW_ANCHORS, MICRO_REVIEW_ANCHORS,
-  SUBMICRO_REVIEW_ANCHORS,
+  SUBMINUTE_REVIEW_ANCHORS,
   checkedDisplayCandleOpen } from "../intermediateMinorReview";
 
 // Owner-directed staged review: only one selected degree visible at a time.
@@ -32,8 +31,11 @@ export default function OwnerWaveAnchorsOverlay({
   // acceptance. Other five stages stay unchanged until separately accepted.
   const microFromEngine22=validatedEngine22WorkingNodeAnchors(workingNodes,"micro");
   const submicroFromEngine22=validatedEngine22WorkingNodeAnchors(workingNodes,"submicro");
-  const microStageNodes=microFromEngine22??MICRO_REVIEW_ANCHORS;
-  const submicroStageNodes=submicroFromEngine22??SUBMICRO_REVIEW_ANCHORS;
+  // Engine22 is the ONLY active Micro/Submicro node source. A missing,
+  // failed, or invalid packet must show zero nodes, NEVER archived spreadsheet
+  // coordinates. Keep research archives in source control for provenance only.
+  const microStageNodes=microFromEngine22??[];
+  const submicroStageNodes=submicroFromEngine22??[];
   const activeNodes=primaryOnly?ownerAnchorsForDegree(degree):
     intermediateOnly?INTERMEDIATE_REVIEW_ANCHORS:
     minorOnly?MINOR_REVIEW_ANCHORS:
@@ -55,8 +57,11 @@ export default function OwnerWaveAnchorsOverlay({
     onNodeStatusChange?.({
       stage:visible?stage:"OFF",mapped:mappedNodeCount,
       total:activeNodes.length,timeframe,
+      sourceAvailable:!((microOnly&&!microFromEngine22)||(submicroOnly&&!submicroFromEngine22)),
+      sourceKind:microOnly||submicroOnly?"ENGINE22":"OWNER_REVIEW",
     });
-  },[stage,visible,mappedNodeCount,activeNodes.length,timeframe,onNodeStatusChange]);
+  },[stage,visible,mappedNodeCount,activeNodes.length,timeframe,onNodeStatusChange,
+    microOnly,submicroOnly,microFromEngine22,submicroFromEngine22]);
 
   useEffect(()=>{
     if(!visible||!stageEnabled||!chart||!priceSeries)return;
