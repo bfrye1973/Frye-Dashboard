@@ -535,6 +535,8 @@ function Engine22WaveRiskStrip({degree,wavelength,protection,invalidations}) {
   const ownerMinute=wavelength?.degrees?.minute?.ownerMinuteW2Retracement;
   const minuteABC=wavelength?.degrees?.minute?.ownerMinuteAbcResearch;
   const subNov5=wavelength?.degrees?.subminute?.ownerSubminuteNov5AbcResearch;
+  const microNov9=wavelength?.degrees?.micro?.ownerMicroW3Nov9ReclassifiedResearch;
+  const submicroInternalNov9=wavelength?.degrees?.submicro?.ownerSubmicroW3Nov9InternalResearch;
   const microNov6=wavelength?.degrees?.micro?.ownerMicroW2Nov6Research;
   const submicroNov6=wavelength?.degrees?.submicro?.ownerSubmicroNov6AbcResearch;
   const submicroW3Nov9=wavelength?.degrees?.submicro?.ownerSubmicroW3Nov9Research;
@@ -543,7 +545,11 @@ function Engine22WaveRiskStrip({degree,wavelength,protection,invalidations}) {
   const ownerMinor=wavelength?.degrees?.minor?.ownerW5StructuralReference;
   const higherRead=protection?.degrees?.[degree] || null;
   const readiness=invalidations?.degrees?.[degree]?.invalidationReadiness || null;
-  const ownerBoundary=degree==="micro" && microNov6?.version==="engine22.microW2Nov6Research.v1"
+  const ownerBoundary=degree==="micro" && microNov9?.version==="engine22.ownerMicroW3Nov9ReclassifiedResearch.v1"
+    ? microNov9.structuralReference
+    : degree==="submicro" && submicroInternalNov9?.version==="engine22.ownerSubmicroW3Nov9InternalResearch.v1"
+    ? submicroInternalNov9.structuralReference
+    : degree==="micro" && microNov6?.version==="engine22.microW2Nov6Research.v1"
     ? microNov6.structuralReference
     : degree==="submicro" && submicroW3Nov9?.version==="engine22.submicroW3Nov9Research.v1"
     ? submicroW3Nov9.structuralReference
@@ -577,7 +583,9 @@ function Engine22WaveRiskStrip({degree,wavelength,protection,invalidations}) {
   const lowerC=(degree==="submicro"&&!submicroFiveUp) || (degree==="micro"&&!microW3) || (degree==="subminute"&&!subminuteD);
   const lowerB=lowerC && review && Number.isFinite(review.low) && review.low>0 &&
     review.low===review.high ? review.low : null;
-  const status=(degree==="micro" && microNov6?.version==="engine22.microW2Nov6Research.v1") ||
+  const status=(degree==="micro" && microNov9?.version==="engine22.ownerMicroW3Nov9ReclassifiedResearch.v1") ||
+    (degree==="submicro" && submicroInternalNov9?.version==="engine22.ownerSubmicroW3Nov9InternalResearch.v1") ||
+    (degree==="micro" && microNov6?.version==="engine22.microW2Nov6Research.v1") ||
     (degree==="submicro" && submicroW3Nov9?.version==="engine22.submicroW3Nov9Research.v1") ||
     (degree==="submicro" && submicroNov6?.version==="engine22.submicroNov6AbcResearch.v1")
     ? "RESEARCH_ONLY" : degree==="subminute" && subNov5?.version==="engine22.subminuteNov5AbcResearch.v1"
@@ -1341,6 +1349,44 @@ export default function Engine22MarketStructureCard({
       ),
     ],
   } : null;
+  const microW3ReclassifiedNov9=currentWavelength?.degrees?.micro?.ownerMicroW3Nov9ReclassifiedResearch;
+  const microW3ReclassifiedNov9State=microW3ReclassifiedNov9?.version==="engine22.ownerMicroW3Nov9ReclassifiedResearch.v1" && microW3ReclassifiedNov9.selectionStatus==="RESEARCH_ONLY" ? {
+    degree:"micro",label:"Micro",active:true,badge:"W3 UP",
+    subtitle:"Owner working anchors — upward projection research; older interpretations preserved",
+    headline:"MICRO W1 UP → W2 DOWN → W3 UP DEVELOPING / RESEARCH",
+    fibTitle:"MICRO W3 UP — W2 LOW + W1 LENGTH FIB EXTENSIONS",
+    rows:[
+      {label:"Parent",value:"SUBMINUTE W1 FORMING — RESEARCH"},
+      {label:"W1 low",value:wavePrice(microW3ReclassifiedNov9.anchors.w1Low)+" — "+microW3ReclassifiedNov9.anchors.w1LowLocalTime},
+      {label:"W1 high",value:wavePrice(microW3ReclassifiedNov9.anchors.w1High)+" — "+microW3ReclassifiedNov9.anchors.w1HighLocalTime},
+      {label:"W2 low",value:wavePrice(microW3ReclassifiedNov9.anchors.w2Low)+" — "+microW3ReclassifiedNov9.anchors.w2LowLocalTime},
+      {label:"W1 range",value:wavePrice(microW3ReclassifiedNov9.anchors.w1Length)+" ES POINTS — OWNER ANCHORS"},
+      {label:"Current",value:"W3 UP PROJECTION — COMPLETION NOT CONFIRMED"},
+      {label:"History",value:"OLDER MICRO ABC/W2 AND BLUE SUBMICRO MODELS RETAINED"},
+      {label:"Authority",value:"RESEARCH ONLY — LIVE CANONICAL DEGREE SELECTION UNCHANGED"},
+    ],
+    levels:microW3ReclassifiedNov9.levels,
+    rules:["7362.00 Micro W2 low — structural review only; no broker stop or trade permission."],
+  } : null;
+  const submicroW3InternalNov9=currentWavelength?.degrees?.submicro?.ownerSubmicroW3Nov9InternalResearch;
+  const submicroW3InternalNov9State=submicroW3InternalNov9?.version==="engine22.ownerSubmicroW3Nov9InternalResearch.v1" && submicroW3InternalNov9.selectionStatus==="RESEARCH_ONLY" ? {
+    degree:"submicro",label:"Submicro",active:true,badge:"W3 UP",
+    subtitle:"Owner working anchors — upward projection research; older interpretations preserved",
+    headline:"SUBMICRO W1 UP → W2 DOWN → W3 UP DEVELOPING / RESEARCH",
+    fibTitle:"SUBMICRO W3 UP — W2 LOW + W1 LENGTH FIB EXTENSIONS",
+    rows:[
+      {label:"Parent",value:"MICRO W3 RESEARCH — BLACK INTERNAL WAVES"},
+      {label:"W1 low",value:wavePrice(submicroW3InternalNov9.anchors.w1Low)+" — "+submicroW3InternalNov9.anchors.w1LowLocalTime},
+      {label:"W1 high",value:wavePrice(submicroW3InternalNov9.anchors.w1High)+" — "+submicroW3InternalNov9.anchors.w1HighLocalTime},
+      {label:"W2 low",value:wavePrice(submicroW3InternalNov9.anchors.w2Low)+" — "+submicroW3InternalNov9.anchors.w2LowLocalTime},
+      {label:"W1 range",value:wavePrice(submicroW3InternalNov9.anchors.w1Length)+" ES POINTS — OWNER ANCHORS"},
+      {label:"Current",value:"W3 UP PROJECTION — COMPLETION NOT CONFIRMED"},
+      {label:"History",value:"PRIOR SUBMICRO ABC/BLUE MODEL HISTORY RETAINED"},
+      {label:"Authority",value:"RESEARCH ONLY — LIVE CANONICAL DEGREE SELECTION UNCHANGED"},
+    ],
+    levels:submicroW3InternalNov9.levels,
+    rules:["7449.25 Submicro W2 low — structural review only; no broker stop or trade permission."],
+  } : null;
   const microW2Nov6=currentWavelength?.degrees?.micro?.ownerMicroW2Nov6Research;
   const microW2Nov6State=microW2Nov6?.version==="engine22.microW2Nov6Research.v1" &&
     microW2Nov6.selectionStatus==="RESEARCH_ONLY" ? {
@@ -1628,7 +1674,9 @@ export default function Engine22MarketStructureCard({
           <Engine22DegreeCard
             key={degree}
             degree={degree}
-            state={degree === "submicro" && submicroW3Nov9State ? submicroW3Nov9State :
+            state={degree === "submicro" && submicroW3InternalNov9State ? submicroW3InternalNov9State :
+              degree === "micro" && microW3ReclassifiedNov9State ? microW3ReclassifiedNov9State :
+              degree === "submicro" && submicroW3Nov9State ? submicroW3Nov9State :
               degree === "submicro" && submicroAbcNov6State ? submicroAbcNov6State :
               degree === "micro" && microW2Nov6State ? microW2Nov6State :
               degree === "submicro" && nov2SubmicroActive ? nov2SubmicroState :
@@ -1664,7 +1712,9 @@ export default function Engine22MarketStructureCard({
                 headline:`${String(degree).toUpperCase()} structure not published.`,
                 rows:[],levels:[],rules:[],
               }}
-            v3Shadow={degree === "submicro" && submicroAbcNov6State ? null :
+            v3Shadow={degree === "submicro" && submicroW3InternalNov9State ? null :
+              degree === "micro" && microW3ReclassifiedNov9State ? null :
+              degree === "submicro" && submicroAbcNov6State ? null :
               degree === "micro" && microW2Nov6State ? null :
               degree === "submicro" && submicroABC ? null :
               degree === "micro" && microW3Levels.length ? null :
