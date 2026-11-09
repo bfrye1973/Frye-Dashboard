@@ -66,7 +66,7 @@ import Engine29CrossMarketStressPanel from "./overlays/Engine29CrossMarketStress
 import Engine26TradeGeometryTool from "./panels/Engine26TradeGeometryTool";
 import OwnerWaveAnchorsOverlay from "./overlays/OwnerWaveAnchorsOverlay";
 import { waveNodeFeedChanged } from "./engine22WorkingNodeReader";
-import { createEngine22RevisionHistoryReader, fetchOwnerWaveHistoryPage } from "./engine22RevisionHistoryReader";
+import { createEngine22RevisionHistoryReader, fetchOwnerWaveHistoryPage, engine22HistoryAvailableFromSnapshot } from "./engine22RevisionHistoryReader";
 
 /* ------------------------------ Config ------------------------------ */
 
@@ -1861,8 +1861,7 @@ export default function RowChart({
         const nodes=engine22WaveStrategy?.workingWaveNodes;
         setEngine22WorkingNodeSnapshot(prev=>
           waveNodeFeedChanged(prev,nodes)?nodes:prev);
-        setEngine22HistoryReady(
-          snap?.strategies?.["intraday_scalp@10m"]?.engine22WaveHistory?.available === true);
+        setEngine22HistoryReady(engine22HistoryAvailableFromSnapshot(snap));
 
       } catch (err) {
         if (cancelled) return;
