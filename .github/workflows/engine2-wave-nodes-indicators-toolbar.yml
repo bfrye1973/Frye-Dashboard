@@ -1,0 +1,34 @@
+name: Engine2 Elliott Wave Nodes Indicators Toolbar
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/pages/rows/RowChart/IndicatorsToolbar.jsx'
+      - 'src/pages/rows/RowChart/index.jsx'
+      - 'src/pages/rows/RowChart/waveNodePresentation*'
+      - 'src/pages/rows/RowChart/overlays/OwnerWaveAnchorsOverlay*'
+      - 'src/pages/rows/RowChart/overlays/Engine22ManualWaveStage.test.jsx'
+      - '.github/workflows/engine2-wave-nodes-indicators-toolbar.yml'
+jobs:
+  existing-chart-wave-controls:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Wave Nodes relocated and all 7 degree style controls verified
+        run: CI=true npm test -- --watch=false --runInBand --testPathPattern=waveNodePresentation.test.js
+      - name: Prior chart wave controls and no floating UI regressions
+        run: CI=true npm test -- --watch=false --runInBand --testPathPattern=Engine22ManualWaveStage.test.jsx
+      - name: Historical source and blank-completion guard
+        run: CI=true npm test -- --watch=false --runInBand --testPathPattern=OwnerWaveAnchorsOverlay.test.jsx
+      - name: Owner node source and all-degree timestamp mapping unchanged
+        run: CI=true npm test -- --watch=false --runInBand --testPathPattern=intermediateMinorReview.test.js
+      - name: Existing frontend build only - NO DEPLOY
+        run: npm run build
