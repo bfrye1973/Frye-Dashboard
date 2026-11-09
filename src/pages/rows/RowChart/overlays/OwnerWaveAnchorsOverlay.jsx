@@ -1,6 +1,8 @@
 import { useEffect, useRef } from "react";
 import { ownerAnchorsForDegree } from "../ownerWaveAnchors";
 import { primaryDisplayCandleOpen } from "../primaryDisplayCandleMapping";
+import { INTERMEDIATE_REVIEW_ANCHORS, MINOR_REVIEW_ANCHORS,
+  MINOR_W2_RESEARCH_LEVELS, checkedDisplayCandleOpen } from "../intermediateMinorReview";
 
 const DEGREE_COLORS={
   submicro:"#f59e0b",micro:"#22c55e",subminute:"#38bdf8",minute:"#a78bfa",
@@ -10,13 +12,16 @@ const DEGREE_COLORS={
 // Owner-directed staged review: clear all anchor dots by default.
 // Stage 1 permits ONLY Primary. Other degrees stay stored but unmounted.
 export default function OwnerWaveAnchorsOverlay({
-  visible=true, chart, priceSeries, degree="PRIMARY", stage="OFF", timeframe="1d", onStageChange
+  visible=true, chart, priceSeries, degree="PRIMARY", stage="OFF", timeframe="1d", sourceBars=[], onStageChange
 }){
   const canvasRef=useRef(null);
   const primaryOnly=degree==="PRIMARY"&&stage==="PRIMARY";
+  const intermediateOnly=stage==="INTERMEDIATE";
+  const minorOnly=stage==="MINOR";
+  const stageEnabled=primaryOnly||intermediateOnly||minorOnly;
 
   useEffect(()=>{
-    if(!visible||!primaryOnly||!chart||!priceSeries||!["1d","4h"].includes(timeframe))return;
+    if(!visible||!stageEnabled||!chart||!priceSeries||!["1d","4h"].includes(timeframe))return;
     const host=chart.chartElement?.()?.parentElement || null;
     if(!host)return;
 
@@ -28,7 +33,8 @@ export default function OwnerWaveAnchorsOverlay({
     host.appendChild(canvas);
     canvasRef.current=canvas;
 
-    const anchors=ownerAnchorsForDegree(degree);
+    const anchors=primaryOnly?ownerAnchorsForDegree(degree):
+      intermediateOnly?INTERMEDIATE_REVIEW_ANCHORS:MINOR_REVIEW_ANCHORS;
 
     function draw(){
       const rect=host.getBoundingClientRect();
@@ -46,7 +52,8 @@ export default function OwnerWaveAnchorsOverlay({
       for(const a of anchors){
         // Owner event time stays unchanged; X uses the exact verified
         // source opening on the currently selected Daily/4H candle series.
-        const mapped=primaryDisplayCandleOpen(a,timeframe);
+        const mapped=primaryOnly?primaryDisplayCandleOpen(a,timeframe):
+          checkedDisplayCandleOpen(a,timeframe,sourceBars);
         if(!Number.isFinite(mapped))continue;
         const x=chart.timeScale().timeToCoordinate(mapped);
         const priceY=priceSeries.priceToCoordinate(a.price);
@@ -57,7 +64,8 @@ export default function OwnerWaveAnchorsOverlay({
         const outOfView=!Number.isFinite(priceY)||priceY<14||priceY>rect.height-20;
         const y=outOfView?18:priceY;
 
-        const classification="UNVERIFIED PRICE BASIS";
+        const classification=primaryOnly?"UNVERIFIED PRICE BASIS":
+          (a.classification==="OWNER RESEARCH"?"RESEARCH — UNCONFIRMED":"OWNER REVIEW");
         const key=`${a.degree}:${a.timeSec}:${a.price}:${classification}`;
         const existing=samePivot.get(key);
         if(existing){
@@ -79,8 +87,25 @@ export default function OwnerWaveAnchorsOverlay({
         samePivot.set(key,node);
       }
       for(const p of plotted){
-        p.text=`PRIMARY ${p.labels.join(" / ")} · ${p.a.price.toFixed(2)}`+
-          (p.outOfView?" [PRICE OFF SCALE]":" [UNVERIFIED]");
+        p.text=`${p.a.degree.toUpperCase()} ${p.labels.join(" / ")} · ${p.a.price.toFixed(2)}`+
+          (p.outOfView?" [PRICE OFF SCALE]":minorOnly?" [RESEARCH]":" [OWNER REVIEW]");
+      }
+
+      // Minor W2 research retracement prices. These are levels only:
+      // no touch, no trade authority, no claim of a completed W2 pivot.
+      if(minorOnly){
+        ctx.strokeStyle="#f472b6"; ctx.fillStyle="#f472b6";
+        ctx.lineWidth=1; ctx.setLineDash([3,5]);
+        for(const level of MINOR_W2_RESEARCH_LEVELS){
+          const yy=priceSeries.priceToCoordinate(level.price);
+          if(!Number.isFinite(yy)||yy<20||yy>rect.height-20)continue;
+          ctx.beginPath();ctx.moveTo(0,yy);ctx.lineTo(rect.width,yy);ctx.stroke();
+          ctx.font="600 10px system-ui";
+          ctx.textAlign="right";
+          ctx.fillText("MINOR W2 "+level.ratio+" · "+level.price.toFixed(2)+" [UNVERIFIED]",
+            Math.max(90,rect.width-12),yy-3);
+        }
+        ctx.setLineDash([]);
       }
 
       // Collision avoidance moves LABELS only. Exact anchor dots never move.
@@ -140,18 +165,22 @@ export default function OwnerWaveAnchorsOverlay({
       try{canvas.remove();}catch{}
       canvasRef.current=null;
     };
-  },[visible,primaryOnly,chart,priceSeries,degree,timeframe]);
+  },[visible,stageEnabled,primaryOnly,intermediateOnly,minorOnly,chart,priceSeries,degree,timeframe,sourceBars]);
 
   if(!visible)return null;
 
-  const showPrimary=()=>{
-    onStageChange?.("PRIMARY");
+  const showStage=next=>{
+    onStageChange?.(next);
     if(chart&&["1d","4h"].includes(timeframe)){
-      // Explicit user action: show all five owner dates. No chart auto-pan
-      // or data changes during normal timeframe switching.
-      chart.timeScale().setVisibleRange({
-        from:Date.parse("2020-03-20T00:00:00Z")/1000,
-        to:Date.parse("2025-05-05T00:00:00Z")/1000,
+      const ranges={
+        PRIMARY:["2020-03-20","2025-05-05"],
+        INTERMEDIATE:["2025-03-25","2026-04-15"],
+        MINOR:["2026-04-01","2026-11-12"],
+      };
+      const range=ranges[next];
+      if(range)chart.timeScale().setVisibleRange({
+        from:Date.parse(range[0]+"T00:00:00Z")/1000,
+        to:Date.parse(range[1]+"T00:00:00Z")/1000,
       });
     }
   };
@@ -167,9 +196,9 @@ export default function OwnerWaveAnchorsOverlay({
         color:"#e5e7eb",fontSize:11
       }}
     >
-      <span style={{fontWeight:800,marginRight:3}}>Wave nodes · 1/7</span>
+      <span style={{fontWeight:800,marginRight:3}}>Wave nodes · 1 degree at a time</span>
       <button type="button" aria-pressed={!primaryOnly}
-        onClick={()=>onStageChange?.("OFF")}
+        onClick={()=>showStage("OFF")}
         style={{
           background:!primaryOnly?"#facc15":"#111827",
           color:!primaryOnly?"#111827":"#d1d5db",
@@ -177,14 +206,31 @@ export default function OwnerWaveAnchorsOverlay({
           padding:"3px 9px",cursor:"pointer"
         }}>Off</button>
       <button type="button" aria-pressed={primaryOnly}
-        onClick={showPrimary}
+        onClick={()=>showStage("PRIMARY")}
         style={{
           background:primaryOnly?"#facc15":"#111827",
           color:primaryOnly?"#111827":"#d1d5db",
           border:"1px solid #64748b",borderRadius:4,
           padding:"3px 9px",cursor:"pointer"
         }}>Primary (5)</button>
-      <span style={{fontSize:10,opacity:.8}}>Other 6 degrees hidden · Price basis unverified</span>
+      {[
+        ["INTERMEDIATE",intermediateOnly,"Intermediate (3)"],
+        ["MINOR",minorOnly,"Minor (research)"],
+      ].map(([next,pressed,text])=>(
+        <button key={next} type="button" aria-pressed={pressed}
+          onClick={()=>showStage(next)}
+          style={{
+            background:pressed?"#facc15":"#111827",
+            color:pressed?"#111827":"#d1d5db",
+            border:"1px solid #64748b",borderRadius:4,
+            padding:"3px 9px",cursor:"pointer"
+          }}>{text}</button>
+      ))}
+      <span style={{fontSize:10,opacity:.8}}>
+        {minorOnly?"W1 start date INVALID (Apr 31) · W2 low UNCONFIRMED · Fib levels RESEARCH":
+         intermediateOnly?"Intermediate W3 active · historical owner review":
+         "Other degrees hidden · historical source not modified"}
+      </span>
     </div>
   );
 }
