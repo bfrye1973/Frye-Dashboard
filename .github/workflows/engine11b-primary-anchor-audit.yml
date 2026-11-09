@@ -1,0 +1,47 @@
+name: Engine11B Primary Signed Archive Timestamp Audit
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - research/engine11b/primary-anchor-signed-archive-audit.cjs
+      - .github/workflows/engine11b-primary-anchor-audit.yml
+permissions:
+  contents: read
+  actions: read
+jobs:
+  verify-primary-five:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Locate approved signed-off Engine11 private artifact in existing backend workflow
+        id: pages
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api 'repos/bfrye1973/frye-market-backend/actions/artifacts?per_page=100' --jq '[.artifacts[] | select(.name=="engine11-2020plus-private-history-pages-v1" and .expired==false) | {id, run_id:.workflow_run.id, created_at}] | sort_by(.created_at) | last' > /tmp/engine11b-artifact-meta.json
+          node - <<'NODE'
+          const fs=require('fs');
+          const data=JSON.parse(fs.readFileSync('/tmp/engine11b-artifact-meta.json','utf8'));
+          if(!data?.id||!data?.run_id)throw Error('ENGINE11B_APPROVED_PAGES_ARTIFACT_NOT_FOUND');
+          console.log('SIGNED_PAGES_ARTIFACT_ID='+data.id+' RUN_ID='+data.run_id);
+          fs.appendFileSync(process.env.GITHUB_OUTPUT,'backend_run_id='+data.run_id+'\n');
+          NODE
+      - name: Download already-approved Engine 11 2020+ source pages READ ONLY
+        uses: actions/download-artifact@v4
+        with:
+          name: engine11-2020plus-private-history-pages-v1
+          repository: bfrye1973/frye-market-backend
+          run-id: ${{ steps.pages.outputs.backend_run_id }}
+          github-token: ${{ github.token }}
+          path: /tmp/engine11b-verified-pages
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify five Primary owner timestamps against original ES 5m 1h 4h 1d candle OHLC
+        env:
+          ENGINE11B_VERIFIED_PAGES: /tmp/engine11b-verified-pages
+        run: node research/engine11b/primary-anchor-signed-archive-audit.cjs
+      - name: Remove archive files
+        if: always()
+        run: rm -rf /tmp/engine11b-verified-pages
