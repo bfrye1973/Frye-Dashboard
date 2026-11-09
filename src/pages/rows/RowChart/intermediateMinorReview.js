@@ -12,8 +12,9 @@ export const INTERMEDIATE_REVIEW_ANCHORS=Object.freeze([
   anchor("intermediate","W2 ending low","2026-03-31","03:00",6345),
 ]);
 export const MINOR_REVIEW_ANCHORS=Object.freeze([
-  // W1 start is intentionally not plotted. Shared sheet says 2026-04-31,
-  // an impossible date; NEVER substitute Apr 30 or an older model.
+  // Owner corrected invalid 2026-04-31 to 2026-04-30 in
+  // connected sheet; direct re-read verified Apr 30, 17:00 AZ @6342.
+  anchor("minor","W1 starting low","2026-04-30","17:00",6342,"OWNER RESEARCH"),
   anchor("minor","W1 ending high","2026-08-13","06:00",7841.25,"OWNER RESEARCH"),
   // W2 low near 7325 is NOT a confirmed time/price pivot per shared
   // evidence. Its '16:00' field conflicts with UNKNOWN-time notes.
