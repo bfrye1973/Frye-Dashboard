@@ -1,7 +1,8 @@
 // Engine 2: strictly read-only Engine22 Strategy node snapshot validation.
 // Does not calculate pivots, alter ES prices, confirm a count, or fetch candles.
 export const ENGINE22_WORKING_NODES_SCHEMA="engine22.workingWaveNodes.v1";
-const ALLOWED=new Set(["micro","submicro"]);
+export const ENGINE22_NODE_DEGREES=Object.freeze(["primary","intermediate","minor","minute","subminute","micro","submicro"]);
+const ALLOWED=new Set(ENGINE22_NODE_DEGREES);
 const validUtc=v=>typeof v==="string" &&
   /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/.test(v) &&
   Number.isFinite(Date.parse(v));
@@ -56,9 +57,14 @@ export function waveNodeFeedChanged(current,next){
     next.fingerprint!==current?.fingerprint);
 }
 
-// No archived spreadsheet fallback for the two Engine22-wired stages.
-// An unavailable or invalid Engine22 packet returns an empty chart list.
-export function currentEngine22MicroSubmicroAnchors(packet,degree){
-  if(degree!=="micro"&&degree!=="submicro")return [];
+// A missing or unverified Engine22 source always fails closed. No archived
+// owner-sheet anchors may be substituted for current seven-degree nodes.
+export function currentEngine22DegreeAnchors(packet,degree){
+  if(!ALLOWED.has(degree))return [];
   return validatedEngine22WorkingNodeAnchors(packet,degree)??[];
+}
+// Compatibility export for existing chart consumers; identical source contract.
+export function currentEngine22MicroSubmicroAnchors(packet,degree){
+  return degree==="micro"||degree==="submicro"
+    ? currentEngine22DegreeAnchors(packet,degree):[];
 }
