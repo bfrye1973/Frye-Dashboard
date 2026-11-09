@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { ownerAnchorsForDegree } from "../ownerWaveAnchors";
 
 const DEGREE_COLORS={
@@ -9,10 +9,9 @@ const DEGREE_COLORS={
 // Owner-directed staged review: clear all anchor dots by default.
 // Stage 1 permits ONLY Primary. Other degrees stay stored but unmounted.
 export default function OwnerWaveAnchorsOverlay({
-  visible=true, chart, priceSeries, degree="PRIMARY"
+  visible=true, chart, priceSeries, degree="PRIMARY", stage="OFF", onStageChange
 }){
   const canvasRef=useRef(null);
-  const [stage,setStage]=useState("OFF");
   const primaryOnly=degree==="PRIMARY"&&stage==="PRIMARY";
 
   useEffect(()=>{
@@ -156,7 +155,7 @@ export default function OwnerWaveAnchorsOverlay({
     >
       <span style={{fontWeight:800,marginRight:3}}>Wave nodes · 1/7</span>
       <button type="button" aria-pressed={!primaryOnly}
-        onClick={()=>setStage("OFF")}
+        onClick={()=>onStageChange?.("OFF")}
         style={{
           background:!primaryOnly?"#facc15":"#111827",
           color:!primaryOnly?"#111827":"#d1d5db",
@@ -164,7 +163,7 @@ export default function OwnerWaveAnchorsOverlay({
           padding:"3px 9px",cursor:"pointer"
         }}>Off</button>
       <button type="button" aria-pressed={primaryOnly}
-        onClick={()=>setStage("PRIMARY")}
+        onClick={()=>onStageChange?.("PRIMARY")}
         style={{
           background:primaryOnly?"#facc15":"#111827",
           color:primaryOnly?"#111827":"#d1d5db",

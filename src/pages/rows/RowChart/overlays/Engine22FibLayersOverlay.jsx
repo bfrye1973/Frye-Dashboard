@@ -1,7 +1,16 @@
 import { ownerAnchorsForDegree } from "../ownerWaveAnchors";
 // Engine 2F: one ES Fibonacci canvas with independently controlled degrees.
 const ORDER = ["primary", "intermediate", "minor", "minute", "subminute", "micro", "submicro"];
-export default function Engine22FibLayersOverlay({chart, priceSeries, chartContainer, packet, toggles = {}, styles = {}}) {
+
+// The owner's staged Wave nodes control owns manual wave labels/connecting
+// lines. Independent Fibonacci levels remain controlled by Fib checkboxes.
+export function manualWaveDrawingEnabled(waveStage, degree, fibToggle, style = {}) {
+  return waveStage === degree.toUpperCase() && fibToggle === true &&
+    (style.showWaveLines === true || style.showWaveLabels === true);
+}
+export default function Engine22FibLayersOverlay({
+  chart, priceSeries, chartContainer, packet, toggles = {}, styles = {}, waveStage = "OFF"
+}) {
   if (!chart || !priceSeries || !chartContainer) return {seed(){},update(){},destroy(){}};
   let canvas = null, frame = 0, disposed = false;
   const ts = chart.timeScale();
@@ -20,7 +29,8 @@ export default function Engine22FibLayersOverlay({chart, priceSeries, chartConta
       const d = packet?.degrees?.[degree];
       return toggles[degree] && d?.available ? d.levels.map(level => ({degree,level,style:styles[degree] || {}})) : [];
     });
-    const waveEnabled = ORDER.some(degree => toggles[degree] && (styles[degree]?.showWaveLines || styles[degree]?.showWaveLabels));
+    const waveEnabled = ORDER.some(degree =>
+      manualWaveDrawingEnabled(waveStage, degree, toggles[degree], styles[degree]));
     if (!visible.length && !waveEnabled) {canvas?.remove(); canvas = null; return;}
     const rect = chartContainer.getBoundingClientRect();
     if (!rect.width || !rect.height) return;
@@ -52,9 +62,8 @@ export default function Engine22FibLayersOverlay({chart, priceSeries, chartConta
     // The manual wave controls use only owner-approved time/price anchors.
     // No wave pivot is inferred and the permanent owner-anchor overlay is untouched.
     for (const degree of ORDER) {
-      if (!toggles[degree]) continue;
       const style = styles[degree] || {};
-      if (!style.showWaveLines && !style.showWaveLabels) continue;
+      if (!manualWaveDrawingEnabled(waveStage, degree, toggles[degree], style)) continue;
       const anchors = ownerAnchorsForDegree(degree)
         .map(a=>({a,x:ts.timeToCoordinate(a.timeSec),y:priceSeries.priceToCoordinate(a.price)}))
         .filter(p=>Number.isFinite(p.x)&&Number.isFinite(p.y))

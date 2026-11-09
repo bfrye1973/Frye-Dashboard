@@ -1016,6 +1016,8 @@ export default function RowChart({
   const [engine17RawDebug, setEngine17RawDebug] = useState(null);
   const [chartMode, setChartMode] = useState(initialChartMode);
   const [selectedWaveDegree, setSelectedWaveDegree] = useState("minute");
+  // One staged control for BOTH anchor dots and legacy manual wave lines.
+  const [waveNodeStage, setWaveNodeStage] = useState("OFF");
 
   const selectedMode = modeNameFromChartMode(chartMode);
   const selectedStrategyId = strategyIdFromChartMode(chartMode);
@@ -1916,6 +1918,7 @@ export default function RowChart({
         priceSeries: seriesRef.current,
         chartContainer: containerRef.current,
         packet,
+        waveStage: waveNodeStage,
         toggles: {
           primary: state.fibPrimary,
           intermediate: state.fibIntermediate,
@@ -1978,6 +1981,7 @@ export default function RowChart({
     seedToken,
     state.institutionalZonesAuto,
     state.smzShelvesAuto,
+    waveNodeStage,
     state.fibPrimary,
     state.fibIntermediate,
     state.fibMinor,
@@ -2825,6 +2829,8 @@ export default function RowChart({
             chart={chartRef.current}
             priceSeries={seriesRef.current}
             degree="PRIMARY"
+            stage={waveNodeStage}
+            onStageChange={setWaveNodeStage}
           />
 
           <Engine25MarketHealthTimeline
