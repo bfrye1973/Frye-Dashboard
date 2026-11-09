@@ -215,7 +215,7 @@ export default function OwnerWaveAnchorsOverlay({
         }}>Primary (5)</button>
       {[
         ["INTERMEDIATE",intermediateOnly,"Intermediate (3)"],
-        ["MINOR",minorOnly,"Minor (research)"],
+        ["MINOR",minorOnly,"Minor (2 + Fib)"],
       ].map(([next,pressed,text])=>(
         <button key={next} type="button" aria-pressed={pressed}
           onClick={()=>showStage(next)}
@@ -227,7 +227,7 @@ export default function OwnerWaveAnchorsOverlay({
           }}>{text}</button>
       ))}
       <span style={{fontSize:10,opacity:.8}}>
-        {minorOnly?"W1 start date INVALID (Apr 31) · W2 low UNCONFIRMED · Fib levels RESEARCH":
+        {minorOnly?"W1/W2 RESEARCH · W2 low UNCONFIRMED · Fib levels UNVERIFIED":
          intermediateOnly?"Intermediate W3 active · historical owner review":
          "Other degrees hidden · historical source not modified"}
       </span>
