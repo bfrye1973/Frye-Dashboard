@@ -11,7 +11,7 @@ test("Intermediate exactly matches connected Master historical owner coordinates
 });
 test("Minor uses corrected Apr 30 W1 origin and August W1 high; W2 candidate is not a confirmed node",()=>{
   expect(MINOR_REVIEW_ANCHORS.map(a=>[a.label,a.date,a.time,a.price])).toEqual([
-    ["W1 starting low","2026-04-30","17:00",6342],
+    ["W1 starting low","2026-03-30","17:00",6342],
     ["W1 ending high","2026-08-13","06:00",7841.25],
   ]);
   expect(MINOR_REVIEW_ANCHORS.every(a=>a.classification==="OWNER RESEARCH")).toBe(true);
@@ -39,4 +39,33 @@ test("none of the other six degree collections are edited to show Intermediate a
   expect(ownerAnchorsForDegree("PRIMARY")).toHaveLength(5);
   expect(ownerAnchorsForDegree("INTERMEDIATE")).toHaveLength(3);
   expect(ownerAnchorsForDegree("MINOR")).toHaveLength(8);
+});
+
+test("Minute updated research A-B-C nodes retain sheet values and C remains provisional",()=>{
+  const {MINUTE_REVIEW_ANCHORS}=require("./intermediateMinorReview");
+  expect(MINUTE_REVIEW_ANCHORS.map(a=>[a.label,a.date,a.time,a.price])).toEqual([
+    ["A starting high","2026-08-14","07:00",7832.25],
+    ["A ending low","2026-09-16","11:00",7575.25],
+    ["B ending high","2026-10-11","22:00",7887],
+    ["C observed low candidate","2026-11-05","16:00",7322.25],
+  ]);
+  expect(MINUTE_REVIEW_ANCHORS.at(-1).classification).toMatch(/PROVISIONAL/);
+});
+test("Subminute updated research nodes do not fabricate unknown C endpoint",()=>{
+  const {SUBMINUTE_REVIEW_ANCHORS}=require("./intermediateMinorReview");
+  expect(SUBMINUTE_REVIEW_ANCHORS.map(a=>[a.label,a.date,a.time,a.price])).toEqual([
+    ["A starting high","2026-10-14","05:00",7876],
+    ["A ending low","2026-10-25","16:00",7647],
+    ["B ending high","2026-10-28","08:20",7819],
+  ]);
+});
+test("Micro research preserves conflicting A High sheet cell and flags disagreement",()=>{
+  const {MICRO_REVIEW_ANCHORS}=require("./intermediateMinorReview");
+  expect(MICRO_REVIEW_ANCHORS.map(a=>[a.label,a.date,a.time,a.price])).toEqual([
+    ["A Low","2026-11-03","16:00",7484.75],
+    ["A High","2026-10-28","12:00",7819.25],
+    ["B","2026-11-05","05:00",7740],
+  ]);
+  expect(MICRO_REVIEW_ANCHORS[1].classification).toMatch(/CONFLICT/);
+  expect(MICRO_REVIEW_ANCHORS[2].classification).toMatch(/PROVISIONAL/);
 });
