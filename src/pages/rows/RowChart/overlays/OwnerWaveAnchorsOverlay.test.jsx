@@ -3,21 +3,15 @@ import { renderToStaticMarkup } from "react-dom/server";
 import OwnerWaveAnchorsOverlay from "./OwnerWaveAnchorsOverlay";
 import { ownerAnchorsForDegree, ALL_OWNER_WAVE_ANCHORS } from "../ownerWaveAnchors";
 
-test("new wave review opens clean with all marker dots OFF",()=>{
-  const html=renderToStaticMarkup(
-    <OwnerWaveAnchorsOverlay visible={true} chart={null} priceSeries={null} degree="PRIMARY"/>
-  );
-  expect(html).toContain("Wave nodes · 1 degree at a time");
-  expect(html).toContain("Minor (2 + Fib)");
-  expect(html).toContain("Minute (4)");
-  expect(html).toContain("Subminute (3)");
-  expect(html).toContain("Micro (3)");
-  expect(html).toContain("Submicro (3)");
-  expect(html).toContain("Intermediate (3)");
-  expect(html).toContain('aria-pressed="true"');
-  expect(html).toContain("Primary (5)");
-  expect(html).not.toContain("ALL");
-  expect((html.match(/<button/g)||[])).toHaveLength(8);
+test("anchor overlay no longer creates a floating top-right wave toolbar",()=>{
+  for(const stage of ["OFF","PRIMARY","INTERMEDIATE","MINOR","MINUTE",
+    "SUBMINUTE","MICRO","SUBMICRO"]){
+    const html=renderToStaticMarkup(
+      <OwnerWaveAnchorsOverlay visible={true} chart={null}
+        priceSeries={null} degree="PRIMARY" stage={stage}/>
+    );
+    expect(html).toBe("");
+  }
 });
 
 test("stage 1 permits only Primary's five original historical points",()=>{
