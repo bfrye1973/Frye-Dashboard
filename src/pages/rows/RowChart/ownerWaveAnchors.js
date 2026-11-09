@@ -22,11 +22,15 @@ export const OWNER_WAVE_ANCHORS = Object.freeze([
 ["intermediate","W1 starting low","2025-04-08","07:00",5188.50],
 ["intermediate","W1 ending high","2026-01-28","10:00",7151.00],
 ["intermediate","W2 ending low","2026-03-30","03:00",6407.00],
-["primary","W1 starting low","2020-04-02","08:00",3200.00],
-["primary","W1 ending high","2022-01-05","10:00",5620.00],
-["primary","W2 ending low","2022-10-12","09:00",4306.00],
-["primary","W3 ending high","2025-02-20","09:00",6487.00],
-["primary","W4 ending low","2025-04-09","07:00",5182.00]
+// Owner's updated unadjusted TradingView ES1! Primary coordinates.
+// Source: Engine22 Seven Degree Elliott Wave Master — Primary!A2:F6,
+// directly confirmed in connected Google Sheet, November 8, 2026.
+// The previous B-ADJ coordinates remain in Git history at commit cbc489ca.
+["primary","W1 starting low","2020-04-01","08:00",2440.00],
+["primary","W1 ending high","2022-01-04","10:00",4806.00],
+["primary","W2 ending low","2022-10-13","09:00",3504.00],
+["primary","W3 ending high","2025-02-19","09:00",6157.00],
+["primary","W4 ending low","2025-04-07","07:00",4825.00]
 ].map(([degree,label,date,time,price],i)=>Object.freeze({
   id:`OWNER-${String(i+1).padStart(2,"0")}`,
   degree,label,date,time,price,
