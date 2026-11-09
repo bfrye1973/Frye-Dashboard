@@ -60,6 +60,22 @@ describe("Engine11 five-minute Infinite History: isolated chart contract",()=>{
     p.destroy();
   });
 
+  test("owner nodes map to real candle opens as paged history becomes available",async()=>{
+    const ui=chartFixture();
+    const responses=[page(makeBars(1000,1000),"OLDER"),page(makeBars(0,1000),null)];
+    let i=0;
+    const p=createEngine115mInfiniteHistoryProof({...ui,fetchPage:async()=>responses[i++]});
+    expect(p.candleOpenAt(1200*300)).toBeNull();
+    expect(await p.start()).toBe(true);
+    expect(p.candleOpenAt(1200*300+120)).toBe(1200*300);
+    expect(p.candleOpenAt(20*300)).toBeNull();
+    expect(await p.loadOlder()).toBe(true);
+    expect(p.candleOpenAt(20*300+250)).toBe(20*300);
+    expect(p.candleOpenAt(-100)).toBeNull();
+    p.destroy();
+    expect(p.candleOpenAt(20*300)).toBeNull();
+  });
+
   test("scroll loads an older page only once and preserves visible time range",async()=>{
     const ui=chartFixture();
     let next=0;
