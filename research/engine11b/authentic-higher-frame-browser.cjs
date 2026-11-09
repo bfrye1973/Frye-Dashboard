@@ -17,8 +17,8 @@ const sha=b=>crypto.createHash("sha256").update(b).digest("hex");
 const EXPECTED={
   dataset:"research-dataset:2e555ba83cbf25466d3e8d157371cc423401f30a25ed35b33a95fca5f81aaae2",
   basis:"price-basis:04ec3639248269336f8df3626c6c9a3eb119ac18cbc39429addbbb2f24d22b15",
-  counts:{"1h":39364,"4h":9319},
-  pages:{"1h":40,"4h":10},
+  counts:{"1h":39364,"4h":9319,"1d":1645},
+  pages:{"1h":40,"4h":10,"1d":2},
 };
 assert.equal(summary.schema,"engine11.private-history-pages.verification.v1");
 assert.equal(summary.sourceArtifactId,13158459519);
@@ -27,7 +27,7 @@ assert.equal(summary.priceBasisVersion,EXPECTED.basis);
 assert.equal(summary.catalogSha256,sha(catalogBytes));
 assert.equal(cat.datasetVersion,EXPECTED.dataset);
 assert.equal(cat.priceBasisVersion,EXPECTED.basis);
-for(const frame of ["1h","4h"]){
+for(const frame of ["1h","4h","1d"]){
   const pages=cat.frames?.[frame]?.pages;
   assert.equal(pages.length,EXPECTED.pages[frame]);
   assert.equal(cat.frames[frame].rows,EXPECTED.counts[frame]);
@@ -44,7 +44,7 @@ const headers={"Access-Control-Allow-Origin":ORIGIN,
 (async()=>{
  const browser=await chromium.launch({headless:true});
  try{
-  for(const frame of ["1h","4h"]){
+  for(const frame of ["1h","4h","1d"]){
    const context=await browser.newContext({viewport:{width:1440,height:900}});
    await context.addInitScript(()=>{
      sessionStorage.setItem("engine2cResearchOwnerKey","isolated-signed-archive-only");
