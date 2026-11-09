@@ -2,7 +2,9 @@ import { useEffect, useRef } from "react";
 import { ownerAnchorsForDegree } from "../ownerWaveAnchors";
 import { primaryDisplayCandleOpen } from "../primaryDisplayCandleMapping";
 import { INTERMEDIATE_REVIEW_ANCHORS, MINOR_REVIEW_ANCHORS,
-  MINOR_W2_RESEARCH_LEVELS, checkedDisplayCandleOpen } from "../intermediateMinorReview";
+  MINOR_W2_RESEARCH_LEVELS, MINUTE_REVIEW_ANCHORS,
+  SUBMINUTE_REVIEW_ANCHORS, MICRO_REVIEW_ANCHORS,
+  checkedDisplayCandleOpen } from "../intermediateMinorReview";
 
 const DEGREE_COLORS={
   submicro:"#f59e0b",micro:"#22c55e",subminute:"#38bdf8",minute:"#a78bfa",
@@ -18,7 +20,11 @@ export default function OwnerWaveAnchorsOverlay({
   const primaryOnly=degree==="PRIMARY"&&stage==="PRIMARY";
   const intermediateOnly=stage==="INTERMEDIATE";
   const minorOnly=stage==="MINOR";
-  const stageEnabled=primaryOnly||intermediateOnly||minorOnly;
+  const minuteOnly=stage==="MINUTE";
+  const subminuteOnly=stage==="SUBMINUTE";
+  const microOnly=stage==="MICRO";
+  const stageEnabled=primaryOnly||intermediateOnly||minorOnly||
+    minuteOnly||subminuteOnly||microOnly;
 
   useEffect(()=>{
     if(!visible||!stageEnabled||!chart||!priceSeries||!["1d","4h"].includes(timeframe))return;
@@ -34,7 +40,10 @@ export default function OwnerWaveAnchorsOverlay({
     canvasRef.current=canvas;
 
     const anchors=primaryOnly?ownerAnchorsForDegree(degree):
-      intermediateOnly?INTERMEDIATE_REVIEW_ANCHORS:MINOR_REVIEW_ANCHORS;
+      intermediateOnly?INTERMEDIATE_REVIEW_ANCHORS:
+      minorOnly?MINOR_REVIEW_ANCHORS:
+      minuteOnly?MINUTE_REVIEW_ANCHORS:
+      subminuteOnly?SUBMINUTE_REVIEW_ANCHORS:MICRO_REVIEW_ANCHORS;
 
     function draw(){
       const rect=host.getBoundingClientRect();
@@ -88,7 +97,10 @@ export default function OwnerWaveAnchorsOverlay({
       }
       for(const p of plotted){
         p.text=`${p.a.degree.toUpperCase()} ${p.labels.join(" / ")} · ${p.a.price.toFixed(2)}`+
-          (p.outOfView?" [PRICE OFF SCALE]":minorOnly?" [RESEARCH]":" [OWNER REVIEW]");
+          (p.outOfView?" [PRICE OFF SCALE]":
+           p.a.classification?.startsWith("CONFLICT")?" [SHEET CONFLICT]":
+           p.a.classification?.startsWith("PROVISIONAL")?" [PROVISIONAL]":
+           minorOnly||minuteOnly||subminuteOnly||microOnly?" [RESEARCH]":" [OWNER REVIEW]");
       }
 
       // Minor W2 research retracement prices. These are levels only:
@@ -165,7 +177,8 @@ export default function OwnerWaveAnchorsOverlay({
       try{canvas.remove();}catch{}
       canvasRef.current=null;
     };
-  },[visible,stageEnabled,primaryOnly,intermediateOnly,minorOnly,chart,priceSeries,degree,timeframe,sourceBars]);
+  },[visible,stageEnabled,primaryOnly,intermediateOnly,minorOnly,
+    minuteOnly,subminuteOnly,microOnly,chart,priceSeries,degree,timeframe,sourceBars]);
 
   if(!visible)return null;
 
@@ -175,7 +188,10 @@ export default function OwnerWaveAnchorsOverlay({
       const ranges={
         PRIMARY:["2020-03-20","2025-05-05"],
         INTERMEDIATE:["2025-03-25","2026-04-15"],
-        MINOR:["2026-04-01","2026-11-12"],
+        MINOR:["2026-03-15","2026-11-12"],
+        MINUTE:["2026-08-01","2026-11-12"],
+        SUBMINUTE:["2026-10-01","2026-11-12"],
+        MICRO:["2026-10-15","2026-11-12"],
       };
       const range=ranges[next];
       if(range)chart.timeScale().setVisibleRange({
@@ -216,6 +232,9 @@ export default function OwnerWaveAnchorsOverlay({
       {[
         ["INTERMEDIATE",intermediateOnly,"Intermediate (3)"],
         ["MINOR",minorOnly,"Minor (2 + Fib)"],
+        ["MINUTE",minuteOnly,"Minute (4)"],
+        ["SUBMINUTE",subminuteOnly,"Subminute (3)"],
+        ["MICRO",microOnly,"Micro (3)"],
       ].map(([next,pressed,text])=>(
         <button key={next} type="button" aria-pressed={pressed}
           onClick={()=>showStage(next)}
@@ -227,7 +246,10 @@ export default function OwnerWaveAnchorsOverlay({
           }}>{text}</button>
       ))}
       <span style={{fontSize:10,opacity:.8}}>
-        {minorOnly?"W1/W2 RESEARCH · W2 low UNCONFIRMED · Fib levels UNVERIFIED":
+        {minorOnly?"Minor W2 unconfirmed · Fib levels RESEARCH":
+         minuteOnly?"Minute C low provisional · ABC research":
+         subminuteOnly?"Subminute C ending UNKNOWN":
+         microOnly?"Micro A High conflicts with sheet note · W2 unconfirmed":
          intermediateOnly?"Intermediate W3 active · historical owner review":
          "Other degrees hidden · historical source not modified"}
       </span>
