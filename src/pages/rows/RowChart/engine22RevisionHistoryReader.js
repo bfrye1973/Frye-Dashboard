@@ -47,7 +47,7 @@ export function createEngine22RevisionHistoryReader({getPage,onUpdate}={}){
              !Number.isSafeInteger(record.publicationRevision)||
              record.publicationRevision<=from||
              record.publicationRevision>page.nextRevision||
-             record.plotAllowed!==false)
+             typeof record.plotAllowed!=="boolean")
             throw Error("ENGINE22_HISTORY_INVALID_NODE_RECORD");
           const id=record.publicationRevision+":"+record.nodeId+":"+record.sourceRevision;
           const contents=JSON.stringify(record);
