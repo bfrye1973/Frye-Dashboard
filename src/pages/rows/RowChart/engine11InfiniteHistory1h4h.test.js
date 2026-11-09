@@ -1,7 +1,7 @@
 import {createEngine115mInfiniteHistoryProof} from "./engine11InfiniteHistory5mProof";
 
 const mk=(frame,start,count)=>Array.from({length:count},(_,i)=>{
-  const t=(start+i)*({"1h":3600,"4h":14400})[frame];
+  const t=(start+i)*({"1h":3600,"4h":14400,"1d":86400})[frame];
   return {time:t,open:4000+i,high:4003+i,low:3998+i,
     close:4001+i,volume:20+i};
 });
@@ -27,7 +27,7 @@ function fixture(){
   return {chart,priceSeries,volumeSeries,price,volume,live,
     range:()=>range,scroll:v=>cb?.(v)};
 }
-for(const frame of ["1h","4h"]){
+for(const frame of ["1h","4h","1d"]){
   describe("Engine11B authentic page contract "+frame,()=>{
     test("first verified 1000 rows render with one request, scroll gets exactly one older page",async()=>{
       const v=fixture();
@@ -39,10 +39,10 @@ for(const frame of ["1h","4h"]){
       expect(request).toHaveBeenCalledTimes(1);
       expect(v.price[0]).toHaveLength(1000);
       expect(p.snapshot()).toMatchObject({
-        loadedBars:1000,archiveLastTime:1999*({"1h":3600,"4h":14400})[frame],
+        loadedBars:1000,archiveLastTime:1999*({"1h":3600,"4h":14400,"1d":86400})[frame],
         terminalContract:"ESZ2026",
       });
-      const secs=frame==="1h"?3600:14400;
+      const secs=({"1h":3600,"4h":14400,"1d":86400})[frame];
       expect(p.candleOpenAt(1500*secs+25)).toBe(1500*secs);
       expect(p.candleOpenAt(50*secs)).toBeNull();
       const after=mk(frame,2000,1)[0];
@@ -60,7 +60,7 @@ for(const frame of ["1h","4h"]){
       const p=createEngine115mInfiniteHistoryProof({...v,frame,
         fetchPage:async()=>page(frame,seed,null)});
       expect(await p.start()).toBe(true);
-      const secs=frame==="1h"?3600:14400;
+      const secs=({"1h":3600,"4h":14400,"1d":86400})[frame];
       const live={time:2004*secs,open:9999,high:10001,low:9998,close:10000,volume:12};
       expect(p.updateLive(live,{contractVerified:true})).toBe(true);
       expect(p.appendVerifiedRecent(mk(frame,2000,10),{contractVerified:false})).toBe(0);
