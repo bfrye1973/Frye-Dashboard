@@ -100,7 +100,7 @@ test("Submicro stage uses owner's NEW rows 23-25, not the older ABC rows 2-4",()
   expect(SUBMICRO_REVIEW_ANCHORS.map(a=>[a.label,a.date,a.time,a.price])).toEqual([
     ["W1 Low","2026-11-05","15:20",7324],
     ["W1 High","2026-11-06","07:40",7469],
-    ["W2","2026-11-08","15:00",7362],
+    ["W2","2026-11-08","16:00",7362],
   ]);
   expect(SUBMICRO_REVIEW_ANCHORS.every(a=>a.classification.startsWith("OWNER RESEARCH"))).toBe(true);
   expect(SUBMICRO_REVIEW_ANCHORS.some(a=>a.label==="W3")).toBe(false);
@@ -111,18 +111,20 @@ test("Submicro stage uses owner's NEW rows 23-25, not the older ABC rows 2-4",()
   expect(SUBMICRO_REVIEW_ANCHORS.every(a=>a.price*4===Math.round(a.price*4))).toBe(true);
   expect(SUBMICRO_REVIEW_ANCHORS[0].timeSec).toBe(Date.parse("2026-11-05T22:20:00Z")/1000);
   expect(SUBMICRO_REVIEW_ANCHORS[1].timeSec).toBe(Date.parse("2026-11-06T14:40:00Z")/1000);
-  expect(SUBMICRO_REVIEW_ANCHORS[2].timeSec).toBe(Date.parse("2026-11-08T22:00:00Z")/1000);
+  expect(SUBMICRO_REVIEW_ANCHORS[2].timeSec).toBe(Date.parse("2026-11-08T23:00:00Z")/1000);
 });
 
-test("Submicro W2 from Nov8 15:00 AZ has no fabricated candle when source data lacks one",()=>{
+test("Submicro W2 from Nov8 16:00 AZ has no fabricated candle when source data lacks one",()=>{
   const {SUBMICRO_REVIEW_ANCHORS,checkedDisplayCandleOpen}=require("./intermediateMinorReview");
   const w2=SUBMICRO_REVIEW_ANCHORS[2];
   const preceding={time:Date.parse("2026-11-06T22:00:00Z")/1000};
-  const later={time:Date.parse("2026-11-08T23:00:00Z")/1000};
+  const later={time:Date.parse("2026-11-08T23:10:00Z")/1000};
   expect(checkedDisplayCandleOpen(w2,"10m",[preceding,later])).toBeNull();
+  const genuine={time:Date.parse("2026-11-08T23:00:00Z")/1000};
+  expect(checkedDisplayCandleOpen(w2,"10m",[preceding,genuine,later])).toBe(genuine.time);
 });
 
-test("Submicro W1 Low and W2 must not be shifted onto a different available 10m candle",()=>{
+test("Submicro W1 Low remains unplottable without source candle while corrected W2 maps only to actual opening",()=>{
   const {SUBMICRO_REVIEW_ANCHORS,checkedDisplayCandleOpen}=require("./intermediateMinorReview");
   const sourceBars=[
     {time:Date.parse("2026-11-05T21:50:00Z")/1000}, // last earlier available candle
@@ -130,5 +132,5 @@ test("Submicro W1 Low and W2 must not be shifted onto a different available 10m 
     {time:Date.parse("2026-11-08T23:00:00Z")/1000}, // following Sunday open
   ];
   expect(checkedDisplayCandleOpen(SUBMICRO_REVIEW_ANCHORS[0],"10m",sourceBars)).toBeNull();
-  expect(checkedDisplayCandleOpen(SUBMICRO_REVIEW_ANCHORS[2],"10m",sourceBars)).toBeNull();
+  expect(checkedDisplayCandleOpen(SUBMICRO_REVIEW_ANCHORS[2],"10m",sourceBars)).toBe(Date.parse("2026-11-08T23:00:00Z")/1000);
 });
