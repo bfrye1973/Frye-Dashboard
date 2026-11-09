@@ -117,3 +117,15 @@ test("malformed current Engine22 packet fails closed instead of old Submicro ABC
   bad.degrees.submicro.nodes.forEach(n=>{n.marketAtUtc=null});
   expect(currentEngine22MicroSubmicroAnchors(bad,"submicro")).toEqual([]);
 });
+
+
+test("seven degrees accept only validated Engine22 source nodes, never archived fallback",()=>{
+ const packet={schema:"engine22.workingWaveNodes.v1",authority:"ENGINE22",available:true,symbol:"ES",readOnly:true,noExecution:true,ownerCountPromotion:false,fingerprint:"seven-current",degrees:{}};
+ for(const degree of ["primary","intermediate","minor","minute","subminute","micro","submicro"]){
+  packet.degrees[degree]={degree,nodes:[{degree,nodeId:degree+"-1",approvalStatus:"RESEARCH",selectedForResearchDisplay:true,sourcePath:"currentWavelength.degrees."+degree+".ownerWorking",modelVersion:"owner.v1",sourceRevision:"revision-1",label:"W1 Low",price:7324,marketAtUtc:"2026-11-09T16:00:00Z",priceBasisStatus:"PENDING",presentationAllowed:true,plotAllowed:false,noExecution:true,waveCompletionConfirmed:false}]};
+  assert.equal(validatedEngine22WorkingNodeAnchors(packet,degree)?.length,1);
+ }
+ packet.degrees.primary.nodes[0].marketAtUtc=null;
+ assert.deepEqual(validatedEngine22WorkingNodeAnchors(packet,"primary"),[]);
+ assert.equal(validatedEngine22WorkingNodeAnchors(null,"primary"),null);
+});
