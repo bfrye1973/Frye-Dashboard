@@ -14,7 +14,8 @@ const DEGREE_COLORS={
 // Owner-directed staged review: only one selected degree visible at a time.
 // Primary remains unchanged; Intermediate and Minor are explicitly selected.
 export default function OwnerWaveAnchorsOverlay({
-  visible=true, chart, priceSeries, degree="PRIMARY", stage="OFF", timeframe="1d", sourceBars=[], onStageChange
+  visible=true, chart, priceSeries, degree="PRIMARY", stage="OFF", timeframe="1d",
+  sourceBars=[], pagedCandleOpenAt=null, onStageChange
 }){
   const canvasRef=useRef(null);
   const primaryOnly=degree==="PRIMARY"&&stage==="PRIMARY";
@@ -25,9 +26,22 @@ export default function OwnerWaveAnchorsOverlay({
   const microOnly=stage==="MICRO";
   const stageEnabled=primaryOnly||intermediateOnly||minorOnly||
     minuteOnly||subminuteOnly||microOnly;
+  const activeNodes=primaryOnly?ownerAnchorsForDegree(degree):
+    intermediateOnly?INTERMEDIATE_REVIEW_ANCHORS:
+    minorOnly?MINOR_REVIEW_ANCHORS:
+    minuteOnly?MINUTE_REVIEW_ANCHORS:
+    subminuteOnly?SUBMINUTE_REVIEW_ANCHORS:
+    microOnly?MICRO_REVIEW_ANCHORS:[];
+  const mappedNodeCount=activeNodes.filter(a=>Number.isFinite(
+    primaryOnly&&["1d","4h"].includes(timeframe)
+      ? primaryDisplayCandleOpen(a,timeframe)
+      : typeof pagedCandleOpenAt==="function"
+        ? pagedCandleOpenAt(a.timeSec)
+        : checkedDisplayCandleOpen(a,timeframe,sourceBars)
+  )).length;
 
   useEffect(()=>{
-    if(!visible||!stageEnabled||!chart||!priceSeries||!["1d","4h"].includes(timeframe))return;
+    if(!visible||!stageEnabled||!chart||!priceSeries)return;
     const host=chart.chartElement?.()?.parentElement || null;
     if(!host)return;
 
@@ -59,10 +73,15 @@ export default function OwnerWaveAnchorsOverlay({
       const plotted=[];
       const samePivot=new Map();
       for(const a of anchors){
-        // Owner event time stays unchanged; X uses the exact verified
-        // source opening on the currently selected Daily/4H candle series.
-        const mapped=primaryOnly?primaryDisplayCandleOpen(a,timeframe):
-          checkedDisplayCandleOpen(a,timeframe,sourceBars);
+        // X may use ONLY an opening timestamp actually in the chart's
+        // source series. Primary has independently audited Daily/4H opens;
+        // intraday uses the loaded authentic candle timestamps or pager.
+        // Never extrapolate unseen old nodes or change owner event/price.
+        const mapped=primaryOnly&&["1d","4h"].includes(timeframe)
+          ? primaryDisplayCandleOpen(a,timeframe)
+          : typeof pagedCandleOpenAt==="function"
+            ? pagedCandleOpenAt(a.timeSec)
+            : checkedDisplayCandleOpen(a,timeframe,sourceBars);
         if(!Number.isFinite(mapped))continue;
         const x=chart.timeScale().timeToCoordinate(mapped);
         const priceY=priceSeries.priceToCoordinate(a.price);
@@ -178,13 +197,14 @@ export default function OwnerWaveAnchorsOverlay({
       canvasRef.current=null;
     };
   },[visible,stageEnabled,primaryOnly,intermediateOnly,minorOnly,
-    minuteOnly,subminuteOnly,microOnly,chart,priceSeries,degree,timeframe,sourceBars]);
+    minuteOnly,subminuteOnly,microOnly,chart,priceSeries,degree,
+    timeframe,sourceBars,pagedCandleOpenAt]);
 
   if(!visible)return null;
 
   const showStage=next=>{
     onStageChange?.(next);
-    if(chart&&["1d","4h"].includes(timeframe)){
+    if(chart){
       const ranges={
         PRIMARY:["2020-03-20","2025-05-05"],
         INTERMEDIATE:["2025-03-25","2026-04-15"],
@@ -194,10 +214,33 @@ export default function OwnerWaveAnchorsOverlay({
         MICRO:["2026-10-15","2026-11-12"],
       };
       const range=ranges[next];
-      if(range)chart.timeScale().setVisibleRange({
-        from:Date.parse(range[0]+"T00:00:00Z")/1000,
-        to:Date.parse(range[1]+"T00:00:00Z")/1000,
-      });
+      if(range&&["1d","4h"].includes(timeframe)){
+        chart.timeScale().setVisibleRange({
+          from:Date.parse(range[0]+"T00:00:00Z")/1000,
+          to:Date.parse(range[1]+"T00:00:00Z")/1000,
+        });
+      } else if(range) {
+        // For intraday, zoom ONLY to candles already loaded. The 5m/10m
+        // pager and regular 1m data often do not contain years-old anchors.
+        // Do not force a fake historical x-axis or alter LIVE chart loading.
+        const selected=next==="PRIMARY"?ownerAnchorsForDegree("PRIMARY"):
+          next==="INTERMEDIATE"?INTERMEDIATE_REVIEW_ANCHORS:
+          next==="MINOR"?MINOR_REVIEW_ANCHORS:
+          next==="MINUTE"?MINUTE_REVIEW_ANCHORS:
+          next==="SUBMINUTE"?SUBMINUTE_REVIEW_ANCHORS:
+          next==="MICRO"?MICRO_REVIEW_ANCHORS:[];
+        const mapped=selected.map(a=>typeof pagedCandleOpenAt==="function"
+          ? pagedCandleOpenAt(a.timeSec)
+          : checkedDisplayCandleOpen(a,timeframe,sourceBars))
+          .filter(t=>Number.isFinite(t)).sort((a,b)=>a-b);
+        if(mapped.length) {
+          const seconds=({"1m":60,"5m":300,"10m":600,"15m":900,"30m":1800,"1h":3600})[timeframe]||60;
+          chart.timeScale().setVisibleRange({
+            from:mapped[0]-seconds*20,
+            to:mapped[mapped.length-1]+seconds*20,
+          });
+        }
+      }
     }
   };
 
@@ -252,6 +295,8 @@ export default function OwnerWaveAnchorsOverlay({
          microOnly?"Micro A High conflicts with sheet note · W2 unconfirmed":
          intermediateOnly?"Intermediate W3 active · historical owner review":
          "Other degrees hidden · historical source not modified"}
+        {stageEnabled?` · ${mappedNodeCount}/${activeNodes.length} nodes in loaded ${timeframe} history`:""}
+        {stageEnabled&&mappedNodeCount===0?" · Older source candles required":""}
       </span>
     </div>
   );

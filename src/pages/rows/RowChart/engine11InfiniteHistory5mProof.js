@@ -203,6 +203,20 @@ export function createEngine115mInfiniteHistoryProof({
     publishCache();
     return true;
   }
+  // Owner Elliott nodes may be older than the 25k React UI cache.
+  // Consult the paged series actually plotted, never synthesize times.
+  function candleOpenAt(eventTimeSec) {
+    if (!started || destroyed || !Number.isFinite(eventTimeSec)) return null;
+    const seconds = frame === "5m" ? 300 : 600;
+    let lo = 0, hi = loaded.length - 1, found = null;
+    while (lo <= hi) {
+      const mid = (lo + hi) >> 1;
+      if (loaded[mid].time <= eventTimeSec) {
+        found = loaded[mid].time; lo = mid + 1;
+      } else hi = mid - 1;
+    }
+    return found !== null && eventTimeSec < found + seconds ? found : null;
+  }
   function destroy() {
     destroyed = true;
     controllers.forEach(c => c.abort());
@@ -213,7 +227,7 @@ export function createEngine115mInfiniteHistoryProof({
     }
   }
   return {
-    start, loadOlder, appendVerifiedRecent, updateLive, destroy,
+    start, loadOlder, appendVerifiedRecent, updateLive, candleOpenAt, destroy,
     snapshot: () => ({
       started, loading, pages, nextCursor, loadedBars:loaded.length,
       earliestTime:loaded[0]?.time ?? null,

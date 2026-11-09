@@ -69,3 +69,28 @@ test("Micro research preserves conflicting A High sheet cell and flags disagreem
   expect(MICRO_REVIEW_ANCHORS[1].classification).toMatch(/CONFLICT/);
   expect(MICRO_REVIEW_ANCHORS[2].classification).toMatch(/PROVISIONAL/);
 });
+
+test("owner anchor candle-open mapping is available on every supported chart timeframe",()=>{
+  const {containingLoadedCandleOpen,OWNER_NODE_FRAME_SECONDS}=require("./intermediateMinorReview");
+  const anchor=Date.parse("2026-11-05T16:05:00Z")/1000;
+  for(const [frame,secs] of Object.entries(OWNER_NODE_FRAME_SECONDS)){
+    const open=anchor - (anchor % secs);
+    const bars=[{time:open-secs},{time:open},{time:open+secs}];
+    expect(containingLoadedCandleOpen(anchor,frame,bars)).toBe(open);
+    expect(containingLoadedCandleOpen(anchor,frame,[])).toBeNull();
+  }
+});
+test("missing historical candles never produce invented nodes",()=>{
+  const {containingLoadedCandleOpen}=require("./intermediateMinorReview");
+  const anchor=Date.parse("2020-04-01T15:00:00Z")/1000;
+  const current=[{time:Date.parse("2026-11-03T15:00:00Z")/1000}];
+  for(const tf of ["1m","5m","10m","15m","30m","1h","4h","1d"]){
+    expect(containingLoadedCandleOpen(anchor,tf,current)).toBeNull();
+  }
+});
+test("mapping respects nonstandard 4h session candle starts and does not align to UTC modulo",()=>{
+  const {containingLoadedCandleOpen}=require("./intermediateMinorReview");
+  const t=Date.parse("2026-11-05T15:00:00Z")/1000;
+  const start=Date.parse("2026-11-05T13:00:00Z")/1000;
+  expect(containingLoadedCandleOpen(t,"4h",[{time:start}])).toBe(start);
+});
