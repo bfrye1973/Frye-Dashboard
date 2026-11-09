@@ -1082,14 +1082,14 @@ export default function RowChart({
     showPremarketFibs: false,
   });
 
-  // Engine 11B: newest verified page for ES 5m/10m.
+  // Engine 11B: newest verified page for ES 5m/10m/1h/4h.
   // A missing/expired authorization uses bounded contract-identified futures
-  // OHLC, NEVER the old full 472/236-page archive loader.
+  // OHLC, NEVER the old full-history page loop.
   const [engine11RecentFallbackKey, setEngine11RecentFallbackKey] = useState("");
   const engine11RecentKey = `${state.symbol}:${state.timeframe}`;
   const fiveMinuteFeatureEnabled =
     normalizeSymbol(state.symbol) === "ES" &&
-    ["5m", "10m"].includes(state.timeframe) &&
+    ["5m", "10m", "1h", "4h"].includes(state.timeframe) &&
     engine11RecentFallbackKey !== engine11RecentKey &&
     typeof window !== "undefined" &&
     new URLSearchParams(window.location.search).get("engine11Candles") !== "0";
@@ -1354,6 +1354,8 @@ export default function RowChart({
     let streamContract = "";
     let recentCatchupDone = false;
     let recentContractMismatch = false;
+    // 4H bars can use session-specific openings, unlike UTC floor.
+    let verifiedFourHourOpens = [];
 
     lastAliveRef.current = 0;
     liveContractHoldRef.current = true;
@@ -1409,17 +1411,26 @@ export default function RowChart({
         });
       }
     };
+    const bucketForMinute = t => {
+      if(state.timeframe!=="4h") return Math.floor(t/bucketSeconds)*bucketSeconds;
+      // Do not invent session boundaries: only source-verified 4H openings.
+      for(let i=verifiedFourHourOpens.length-1;i>=0;i--){
+        const open=verifiedFourHourOpens[i];
+        if(open<=t&&t<open+bucketSeconds)return open;
+      }
+      return null;
+    };
     const consumeMinute = (oneMin) => {
       // Compatible LIVE bars must be painted as soon as the first immutable
       // page is ready. Never wait for the optional recent OHLC bridge.
       if (!streamMatchesHistory() || !pager.snapshot().started) return;
       const t = Number(oneMin.time);
       if (!Number.isFinite(t)) return;
-      const bucket = Math.floor(t / bucketSeconds) * bucketSeconds;
-      if (bucket <= pager.snapshot().archiveLastTime) return;
+      const bucket = bucketForMinute(t);
+      if (!Number.isFinite(bucket)||bucket <= pager.snapshot().archiveLastTime) return;
       const group = Array.from(bufferedOneMinute.values())
         .filter(b => b.sourceContract === expectedContract &&
-          Math.floor(b.time / bucketSeconds) * bucketSeconds === bucket)
+          bucketForMinute(b.time) === bucket)
         .sort((a, b) => a.time - b.time);
       if (!group.length) return;
       const arrivalAt = Number(oneMin.__arrivalAt || performance.now());
@@ -1514,9 +1525,18 @@ export default function RowChart({
             });
           }
         } else {
+          if(state.timeframe==="4h"){
+            verifiedFourHourOpens=[...new Set(recent.bars
+              .map(b=>Number(b.time)).filter(Number.isFinite))].sort((a,b)=>a-b);
+          }
           const added = pager.appendVerifiedRecent(recent.bars, {contractVerified:true});
           if (added > 0 && !userInteractedRef.current) {
             chartRef.current?.timeScale().scrollToRealTime();
+          }
+          if(state.timeframe==="4h"){
+            for(const b of [...bufferedOneMinute.values()].sort((a,b)=>a.time-b.time)){
+              if(b.sourceContract===expectedContract)consumeMinute(b);
+            }
           }
           setHistoryStatus(added > 0
             ? "ENGINE11 HISTORY + CURRENT FUTURES · LIVE STREAM"
@@ -1571,7 +1591,7 @@ export default function RowChart({
         const limit = seedLimitFor(state.timeframe);
         const boundedRecentFallback =
           normalizeSymbol(state.symbol) === "ES" &&
-          ["5m", "10m"].includes(state.timeframe) &&
+          ["5m", "10m", "1h", "4h"].includes(state.timeframe) &&
           engine11RecentFallbackKey === engine11RecentKey;
         const useEngine11 =
           !boundedRecentFallback &&
@@ -1740,7 +1760,7 @@ export default function RowChart({
         console.error("[RowChart] seed error:", e);
         barsRef.current = [];
         setBars([]);
-        if (normalizeSymbol(state.symbol) === "ES" && ["5m", "10m"].includes(state.timeframe)) {
+        if (normalizeSymbol(state.symbol) === "ES" && ["5m", "10m", "1h", "4h"].includes(state.timeframe)) {
           setHistoryStatus("HISTORY UNAVAILABLE · CHECK DATA SOURCE");
         }
       } finally {
@@ -2196,7 +2216,7 @@ export default function RowChart({
 
         const boundedFallback =
           normalizeSymbol(state.symbol) === "ES" &&
-          ["5m", "10m"].includes(state.timeframe) &&
+          ["5m", "10m", "1h", "4h"].includes(state.timeframe) &&
           engine11RecentFallbackKey === engine11RecentKey;
         const recent = boundedFallback
           ? await getFuturesRecentOHLCWithIdentity(state.symbol, state.timeframe, backfillLimit)
@@ -2329,7 +2349,7 @@ export default function RowChart({
       lastAliveRef.current = Date.now();
       const boundedFallback =
         normalizeSymbol(state.symbol) === "ES" &&
-        ["5m", "10m"].includes(state.timeframe) &&
+        ["5m", "10m", "1h", "4h"].includes(state.timeframe) &&
         engine11RecentFallbackKey === engine11RecentKey;
       if (boundedFallback && msg?.resolvedSymbol) {
         liveContractHoldRef.current =
@@ -2345,7 +2365,7 @@ export default function RowChart({
         if (!isCurrent) return;
         const boundedFallback =
           normalizeSymbol(state.symbol) === "ES" &&
-          ["5m", "10m"].includes(state.timeframe) &&
+          ["5m", "10m", "1h", "4h"].includes(state.timeframe) &&
           engine11RecentFallbackKey === engine11RecentKey;
         if (boundedFallback &&
             (!recentFallbackContractRef.current ||
@@ -2824,7 +2844,7 @@ export default function RowChart({
             {badge.text}
           </div>
           {historyStatus && normalizeSymbol(state.symbol) === "ES" &&
-            ["5m","10m"].includes(state.timeframe) && (
+            ["5m","10m","1h","4h"].includes(state.timeframe) && (
             <div style={{position:"absolute",top:46,left:60,zIndex:90,
               padding:"4px 8px",fontSize:11,borderRadius:6,
               color:"#e2e8f0",background:"rgba(15,23,42,0.85)"}}>
