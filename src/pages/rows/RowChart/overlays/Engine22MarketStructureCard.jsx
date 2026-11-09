@@ -1349,7 +1349,7 @@ export default function Engine22MarketStructureCard({
       ),
     ],
   } : null;
-  const microW3ReclassifiedNov9=currentWavelength?.degrees?.micro?.microW3ReclassifiedNov9;
+  const microW3ReclassifiedNov9=currentWavelength?.degrees?.micro?.ownerMicroW3Nov9ReclassifiedResearch;
   const microW3ReclassifiedNov9State=microW3ReclassifiedNov9?.version==="engine22.ownerMicroW3Nov9ReclassifiedResearch.v1" && microW3ReclassifiedNov9.selectionStatus==="RESEARCH_ONLY" ? {
     degree:"micro",label:"Micro",active:true,badge:"W3 UP",
     subtitle:"Owner working anchors — upward projection research; older interpretations preserved",
@@ -1368,7 +1368,7 @@ export default function Engine22MarketStructureCard({
     levels:microW3ReclassifiedNov9.levels,
     rules:["7362.00 Micro W2 low — structural review only; no broker stop or trade permission."],
   } : null;
-  const submicroW3InternalNov9=currentWavelength?.degrees?.submicro?.submicroW3InternalNov9;
+  const submicroW3InternalNov9=currentWavelength?.degrees?.submicro?.ownerSubmicroW3Nov9InternalResearch;
   const submicroW3InternalNov9State=submicroW3InternalNov9?.version==="engine22.ownerSubmicroW3Nov9InternalResearch.v1" && submicroW3InternalNov9.selectionStatus==="RESEARCH_ONLY" ? {
     degree:"submicro",label:"Submicro",active:true,badge:"W3 UP",
     subtitle:"Owner working anchors — upward projection research; older interpretations preserved",
