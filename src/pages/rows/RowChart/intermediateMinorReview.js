@@ -58,13 +58,14 @@ export const SUBMICRO_PREVIOUS_ABC_ANCHORS=Object.freeze([
 // OWNER UPDATED SAME SHEET: Submicro ABC Proposed!A23:E26, directly re-read
 // 2026-11-09. Cells C/D are native Google DATE/TIME numeric values displayed
 // as AZ clock dates/times; values below are the formatted source values.
+// W2 timestamp corrected by owner Nov 9 from 15:00 to 16:00 AZ.
 // This is only a source-presented W1/W2 *research* interpretation.
 // W3 is blank. A valid event time requires a REAL loaded candle; do not
 // invent/snap a candle or claim that W2 was owner-confirmed as a wave ending.
 export const SUBMICRO_REVIEW_ANCHORS=Object.freeze([
   anchor("submicro","W1 Low","2026-11-05","15:20",7324,"OWNER RESEARCH — NEW SHEET ROW 24"),
   anchor("submicro","W1 High","2026-11-06","07:40",7469,"OWNER RESEARCH — NEW SHEET ROW 23"),
-  anchor("submicro","W2","2026-11-08","15:00",7362,"OWNER RESEARCH — NEW SHEET ROW 25; CANDLE MATCH PENDING"),
+  anchor("submicro","W2","2026-11-08","16:00",7362,"OWNER RESEARCH — OWNER CORRECTED NOV 9 TO 16:00 AZ; CANDLE MATCH PENDING"),
 ]);
 
 export const MINOR_W2_RESEARCH_LEVELS=Object.freeze([
