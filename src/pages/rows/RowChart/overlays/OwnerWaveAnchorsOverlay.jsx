@@ -4,6 +4,7 @@ import { primaryDisplayCandleOpen } from "../primaryDisplayCandleMapping";
 import { INTERMEDIATE_REVIEW_ANCHORS, MINOR_REVIEW_ANCHORS,
   MINOR_W2_RESEARCH_LEVELS, MINUTE_REVIEW_ANCHORS,
   SUBMINUTE_REVIEW_ANCHORS, MICRO_REVIEW_ANCHORS,
+  SUBMICRO_REVIEW_ANCHORS,
   checkedDisplayCandleOpen } from "../intermediateMinorReview";
 
 const DEGREE_COLORS={
@@ -24,14 +25,16 @@ export default function OwnerWaveAnchorsOverlay({
   const minuteOnly=stage==="MINUTE";
   const subminuteOnly=stage==="SUBMINUTE";
   const microOnly=stage==="MICRO";
+  const submicroOnly=stage==="SUBMICRO";
   const stageEnabled=primaryOnly||intermediateOnly||minorOnly||
-    minuteOnly||subminuteOnly||microOnly;
+    minuteOnly||subminuteOnly||microOnly||submicroOnly;
   const activeNodes=primaryOnly?ownerAnchorsForDegree(degree):
     intermediateOnly?INTERMEDIATE_REVIEW_ANCHORS:
     minorOnly?MINOR_REVIEW_ANCHORS:
     minuteOnly?MINUTE_REVIEW_ANCHORS:
     subminuteOnly?SUBMINUTE_REVIEW_ANCHORS:
-    microOnly?MICRO_REVIEW_ANCHORS:[];
+    microOnly?MICRO_REVIEW_ANCHORS:
+    submicroOnly?SUBMICRO_REVIEW_ANCHORS:[];
   const mappedNodeCount=activeNodes.filter(a=>Number.isFinite(
     primaryOnly&&["1d","4h"].includes(timeframe)
       ? primaryDisplayCandleOpen(a,timeframe)
@@ -57,7 +60,8 @@ export default function OwnerWaveAnchorsOverlay({
       intermediateOnly?INTERMEDIATE_REVIEW_ANCHORS:
       minorOnly?MINOR_REVIEW_ANCHORS:
       minuteOnly?MINUTE_REVIEW_ANCHORS:
-      subminuteOnly?SUBMINUTE_REVIEW_ANCHORS:MICRO_REVIEW_ANCHORS;
+      subminuteOnly?SUBMINUTE_REVIEW_ANCHORS:
+      microOnly?MICRO_REVIEW_ANCHORS:SUBMICRO_REVIEW_ANCHORS;
 
     function draw(){
       const rect=host.getBoundingClientRect();
@@ -119,7 +123,7 @@ export default function OwnerWaveAnchorsOverlay({
           (p.outOfView?" [PRICE OFF SCALE]":
            p.a.classification?.startsWith("CONFLICT")?" [SHEET CONFLICT]":
            p.a.classification?.startsWith("PROVISIONAL")?" [PROVISIONAL]":
-           minorOnly||minuteOnly||subminuteOnly||microOnly?" [RESEARCH]":" [OWNER REVIEW]");
+           minorOnly||minuteOnly||subminuteOnly||microOnly||submicroOnly?" [RESEARCH]":" [OWNER REVIEW]");
       }
 
       // Minor W2 research retracement prices. These are levels only:
@@ -197,7 +201,7 @@ export default function OwnerWaveAnchorsOverlay({
       canvasRef.current=null;
     };
   },[visible,stageEnabled,primaryOnly,intermediateOnly,minorOnly,
-    minuteOnly,subminuteOnly,microOnly,chart,priceSeries,degree,
+    minuteOnly,subminuteOnly,microOnly,submicroOnly,chart,priceSeries,degree,
     timeframe,sourceBars,pagedCandleOpenAt]);
 
   if(!visible)return null;
@@ -212,6 +216,7 @@ export default function OwnerWaveAnchorsOverlay({
         MINUTE:["2026-08-01","2026-11-12"],
         SUBMINUTE:["2026-10-01","2026-11-12"],
         MICRO:["2026-10-15","2026-11-12"],
+        SUBMICRO:["2026-11-03","2026-11-12"],
       };
       const range=ranges[next];
       if(range&&["1d","4h"].includes(timeframe)){
@@ -228,7 +233,8 @@ export default function OwnerWaveAnchorsOverlay({
           next==="MINOR"?MINOR_REVIEW_ANCHORS:
           next==="MINUTE"?MINUTE_REVIEW_ANCHORS:
           next==="SUBMINUTE"?SUBMINUTE_REVIEW_ANCHORS:
-          next==="MICRO"?MICRO_REVIEW_ANCHORS:[];
+          next==="MICRO"?MICRO_REVIEW_ANCHORS:
+          next==="SUBMICRO"?SUBMICRO_REVIEW_ANCHORS:[];
         const mapped=selected.map(a=>typeof pagedCandleOpenAt==="function"
           ? pagedCandleOpenAt(a.timeSec)
           : checkedDisplayCandleOpen(a,timeframe,sourceBars))
@@ -278,6 +284,7 @@ export default function OwnerWaveAnchorsOverlay({
         ["MINUTE",minuteOnly,"Minute (4)"],
         ["SUBMINUTE",subminuteOnly,"Subminute (3)"],
         ["MICRO",microOnly,"Micro (3)"],
+        ["SUBMICRO",submicroOnly,"Submicro (3)"],
       ].map(([next,pressed,text])=>(
         <button key={next} type="button" aria-pressed={pressed}
           onClick={()=>showStage(next)}
@@ -293,6 +300,7 @@ export default function OwnerWaveAnchorsOverlay({
          minuteOnly?"Minute C low provisional · ABC research":
          subminuteOnly?"Subminute C ending UNKNOWN":
          microOnly?"Micro A High conflicts with sheet note · W2 unconfirmed":
+         submicroOnly?"Submicro C ending UNKNOWN · research only":
          intermediateOnly?"Intermediate W3 active · historical owner review":
          "Other degrees hidden · historical source not modified"}
         {stageEnabled?` · ${mappedNodeCount}/${activeNodes.length} nodes in loaded ${timeframe} history`:""}
