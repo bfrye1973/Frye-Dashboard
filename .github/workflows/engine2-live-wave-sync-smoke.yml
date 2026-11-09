@@ -1,0 +1,79 @@
+name: Engine2 LIVE Read-Only Elliott Wave Sync Smoke
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/engine2-live-wave-sync-smoke.yml'
+jobs:
+  verify-production-read-only:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check LIVE Engine22 Strategies snapshot and protected history without mutations
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          const BASE='https://frye-market-backend-1.onrender.com';
+          const get=async(path)=>{
+            const ctl=new AbortController(),timer=setTimeout(()=>ctl.abort(),45000);
+            try{return await fetch(BASE+path,{
+              headers:{Accept:'application/json'},signal:ctl.signal,redirect:'manual'
+            });}finally{clearTimeout(timer);}
+          };
+          const resp=await get('/api/v1/dashboard-snapshot?symbol=ES&includeContext=1');
+          console.log('PROD_SNAPSHOT_HTTP',resp.status);
+          assert.equal(resp.status,200,'Production ES dashboard snapshot must be publicly readable');
+          const snap=await resp.json();
+          const strategy=snap?.strategies?.['intraday_scalp@10m'];
+          assert.ok(strategy,'ES intraday strategy card exists');
+          const wave=strategy.engine22WaveStrategy;
+          assert.ok(wave?.currentWavelength,'Engine22 published model exists');
+          const feed=wave?.workingWaveNodes;
+          assert.equal(feed?.schema,'engine22.workingWaveNodes.v1');
+          assert.equal(feed?.authority,'ENGINE22');
+          assert.equal(feed?.readOnly,true);
+          assert.equal(feed?.noExecution,true);
+          assert.equal(feed?.ownerCountPromotion,false);
+          assert.ok(feed?.fingerprint,'content fingerprint present');
+          const assertDegree=(degree,prices,utcTimes)=>{
+            const nodes=feed?.degrees?.[degree]?.nodes;
+            assert.equal(nodes?.length,3,degree+' exactly 3 current research nodes');
+            assert.deepEqual(nodes.map(x=>x.price),prices,degree+' price values');
+            assert.deepEqual(nodes.map(x=>x.marketAtUtc),utcTimes,degree+' UTC values');
+            assert.ok(nodes.every(n=>n.degree===degree&&n.plotAllowed===false&&
+              n.presentationAllowed===true&&n.noExecution===true&&
+              n.approvalStatus==='RESEARCH'&&
+              Number.isInteger(Date.parse(n.marketAtUtc))&&
+              Number.isInteger(n.price*4)));
+            console.log('PROD_'+degree.toUpperCase()+'_RESEARCH_NODES',
+              nodes.map(n=>({label:n.label,price:n.price,marketAtUtc:n.marketAtUtc,
+                nodeId:n.nodeId,sourceRevision:!!n.sourceRevision})));
+          };
+          assertDegree('micro',[7324,7469,7362],[
+            '2026-11-05T22:20:00.000Z','2026-11-06T14:40:00.000Z',
+            '2026-11-08T23:00:00.000Z']);
+          assertDegree('submicro',[7390.25,7476,7449.25],[
+            '2026-11-09T08:00:00.000Z','2026-11-09T13:00:00.000Z',
+            '2026-11-09T13:20:00.000Z']);
+          const prev=wave.currentWavelength.degrees.micro.ownerMicroW3Nov9ReclassifiedResearch.anchors.priorAnchorRevision;
+          assert.equal(prev?.w2LowAtUtc,'2026-11-08T22:00:00Z','old timestamp preserved in source');
+          console.log('PROD_STRATEGY_HISTORY_READINESS',{
+            available:strategy.engine22WaveHistory?.available??false,
+            reason:strategy.engine22WaveHistory?.reason??null,
+            revision:strategy.engine22WaveHistory?.latestRevision??null,
+          });
+          const locked=await get('/api/engine22/wave-history/nodes/current');
+          console.log('PROD_HISTORY_UNAUTHENTICATED_HTTP',locked.status);
+          assert.equal(locked.status,401,'Private history must reject anonymous reads');
+          const frontend=await fetch('https://frye-dashboard.onrender.com/chart?symbol=ES&tf=10m',{
+            signal:AbortSignal.timeout(45000)});
+          console.log('PROD_FRONTEND_HTTP',frontend.status);
+          assert.equal(frontend.status,200);
+          console.log('PASS_ENGINE22_STRATEGY_TO_ENGINE2_PUBLIC_SOURCE_SMOKE');
+          NODE
