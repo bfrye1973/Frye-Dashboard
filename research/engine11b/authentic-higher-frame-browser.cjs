@@ -180,7 +180,7 @@ const headers={"Access-Control-Allow-Origin":ORIGIN,
      const t=window.__ENGINE11B_TEST__;
      return {viewport:t.visibleRange(),pager:t.pagerSnapshot()};
    });
-   assert.equal(preserved.pager.loadedBars,2000+bridge.added);
+   assert.equal(preserved.pager.loadedBars,latest.rows.length+older.rows.length+bridge.added);
    assert.equal(preserved.pager.earliestTime,Math.floor(Date.parse(older.rows.at(-1).timestampUtc)/1000));
    assert.deepEqual(preserved.viewport,viewportBefore,"PAN_VIEWPORT_MUST_REMAIN_STABLE_AFTER_PREPEND");
    assert.equal(errors.length,0,errors.join(" | "));
