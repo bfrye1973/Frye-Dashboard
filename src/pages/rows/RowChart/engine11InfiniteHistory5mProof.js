@@ -36,7 +36,7 @@ export function createEngine115mInfiniteHistoryProof({
   thresholdBars = 100,
   ownerKey,
 } = {}) {
-  if (!new Set(["5m", "10m", "1h", "4h"]).has(frame)) throw Error("ENGINE11_PAGER_FRAME_UNSUPPORTED");
+  if (!new Set(["5m", "10m", "1h", "4h", "1d"]).has(frame)) throw Error("ENGINE11_PAGER_FRAME_UNSUPPORTED");
   if (!chart?.timeScale || !priceSeries?.setData ||
       !priceSeries?.update || typeof fetchPage !== "function") {
     throw Error("ENGINE11_PROOF_DEPENDENCIES_REQUIRED");
@@ -207,7 +207,7 @@ export function createEngine115mInfiniteHistoryProof({
   // Consult the paged series actually plotted, never synthesize times.
   function candleOpenAt(eventTimeSec) {
     if (!started || destroyed || !Number.isFinite(eventTimeSec)) return null;
-    const seconds = ({ "5m":300, "10m":600, "1h":3600, "4h":14400 })[frame];
+    const seconds = ({ "5m":300, "10m":600, "1h":3600, "4h":14400, "1d":86400 })[frame];
     let lo = 0, hi = loaded.length - 1, found = null;
     while (lo <= hi) {
       const mid = (lo + hi) >> 1;
