@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { ownerAnchorsForDegree } from "../ownerWaveAnchors";
 import { primaryDisplayCandleOpen } from "../primaryDisplayCandleMapping";
+import { validatedEngine22WorkingNodeAnchors } from "../engine22WorkingNodeReader";
 import { INTERMEDIATE_REVIEW_ANCHORS, MINOR_REVIEW_ANCHORS,
   MINOR_W2_RESEARCH_LEVELS, MINUTE_REVIEW_ANCHORS,
   SUBMINUTE_REVIEW_ANCHORS, MICRO_REVIEW_ANCHORS,
@@ -16,7 +17,7 @@ const DEGREE_COLORS={
 // Primary remains unchanged; Intermediate and Minor are explicitly selected.
 export default function OwnerWaveAnchorsOverlay({
   visible=true, chart, priceSeries, degree="PRIMARY", stage="OFF", timeframe="1d",
-  sourceBars=[], pagedCandleOpenAt=null, onStageChange
+  sourceBars=[], pagedCandleOpenAt=null, onStageChange, workingNodes=null
 }){
   const canvasRef=useRef(null);
   const primaryOnly=degree==="PRIMARY"&&stage==="PRIMARY";
@@ -28,13 +29,19 @@ export default function OwnerWaveAnchorsOverlay({
   const submicroOnly=stage==="SUBMICRO";
   const stageEnabled=primaryOnly||intermediateOnly||minorOnly||
     minuteOnly||subminuteOnly||microOnly||submicroOnly;
+  // Only Micro and Submicro are in initial Engine22 automatic-source
+  // acceptance. Other five stages stay unchanged until separately accepted.
+  const microFromEngine22=validatedEngine22WorkingNodeAnchors(workingNodes,"micro");
+  const submicroFromEngine22=validatedEngine22WorkingNodeAnchors(workingNodes,"submicro");
+  const microStageNodes=microFromEngine22??MICRO_REVIEW_ANCHORS;
+  const submicroStageNodes=submicroFromEngine22??SUBMICRO_REVIEW_ANCHORS;
   const activeNodes=primaryOnly?ownerAnchorsForDegree(degree):
     intermediateOnly?INTERMEDIATE_REVIEW_ANCHORS:
     minorOnly?MINOR_REVIEW_ANCHORS:
     minuteOnly?MINUTE_REVIEW_ANCHORS:
     subminuteOnly?SUBMINUTE_REVIEW_ANCHORS:
-    microOnly?MICRO_REVIEW_ANCHORS:
-    submicroOnly?SUBMICRO_REVIEW_ANCHORS:[];
+    microOnly?microStageNodes:
+    submicroOnly?submicroStageNodes:[];
   const mappedNodeCount=activeNodes.filter(a=>Number.isFinite(
     primaryOnly&&["1d","4h"].includes(timeframe)
       ? primaryDisplayCandleOpen(a,timeframe)
@@ -56,12 +63,7 @@ export default function OwnerWaveAnchorsOverlay({
     host.appendChild(canvas);
     canvasRef.current=canvas;
 
-    const anchors=primaryOnly?ownerAnchorsForDegree(degree):
-      intermediateOnly?INTERMEDIATE_REVIEW_ANCHORS:
-      minorOnly?MINOR_REVIEW_ANCHORS:
-      minuteOnly?MINUTE_REVIEW_ANCHORS:
-      subminuteOnly?SUBMINUTE_REVIEW_ANCHORS:
-      microOnly?MICRO_REVIEW_ANCHORS:SUBMICRO_REVIEW_ANCHORS;
+    const anchors=activeNodes;
 
     function draw(){
       const rect=host.getBoundingClientRect();
@@ -202,7 +204,7 @@ export default function OwnerWaveAnchorsOverlay({
     };
   },[visible,stageEnabled,primaryOnly,intermediateOnly,minorOnly,
     minuteOnly,subminuteOnly,microOnly,submicroOnly,chart,priceSeries,degree,
-    timeframe,sourceBars,pagedCandleOpenAt]);
+    timeframe,sourceBars,pagedCandleOpenAt,workingNodes]);
 
   if(!visible)return null;
 
@@ -233,8 +235,8 @@ export default function OwnerWaveAnchorsOverlay({
           next==="MINOR"?MINOR_REVIEW_ANCHORS:
           next==="MINUTE"?MINUTE_REVIEW_ANCHORS:
           next==="SUBMINUTE"?SUBMINUTE_REVIEW_ANCHORS:
-          next==="MICRO"?MICRO_REVIEW_ANCHORS:
-          next==="SUBMICRO"?SUBMICRO_REVIEW_ANCHORS:[];
+          next==="MICRO"?microStageNodes:
+          next==="SUBMICRO"?submicroStageNodes:[];
         const mapped=selected.map(a=>typeof pagedCandleOpenAt==="function"
           ? pagedCandleOpenAt(a.timeSec)
           : checkedDisplayCandleOpen(a,timeframe,sourceBars))
@@ -299,8 +301,10 @@ export default function OwnerWaveAnchorsOverlay({
         {minorOnly?"Minor W2 unconfirmed · Fib levels RESEARCH":
          minuteOnly?"Minute C low provisional · ABC research":
          subminuteOnly?"Subminute C ending UNKNOWN":
-         microOnly?"Micro A High conflicts with sheet note · W2 unconfirmed":
-         submicroOnly?"Submicro W1/W2 research · W3 blank · W1 Low/W2 source times need matching ES candles":
+         microOnly?(microFromEngine22?"Micro nodes from Engine22 Strategies · research only":
+           "Micro A High conflicts with sheet note · W2 unconfirmed"):
+         submicroOnly?(submicroFromEngine22?"Submicro nodes from Engine22 Strategies · research only":
+           "Submicro W1/W2 research · W3 blank · source times require real candles"):
          intermediateOnly?"Intermediate W3 active · historical owner review":
          "Other degrees hidden · historical source not modified"}
         {stageEnabled?` · ${mappedNodeCount}/${activeNodes.length} nodes in loaded ${timeframe} history`:""}
