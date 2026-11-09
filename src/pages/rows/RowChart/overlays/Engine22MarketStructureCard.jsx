@@ -537,12 +537,15 @@ function Engine22WaveRiskStrip({degree,wavelength,protection,invalidations}) {
   const subNov5=wavelength?.degrees?.subminute?.ownerSubminuteNov5AbcResearch;
   const microNov6=wavelength?.degrees?.micro?.ownerMicroW2Nov6Research;
   const submicroNov6=wavelength?.degrees?.submicro?.ownerSubmicroNov6AbcResearch;
+  const submicroW3Nov9=wavelength?.degrees?.submicro?.ownerSubmicroW3Nov9Research;
   const minorResearch=wavelength?.degrees?.minor?.ownerMinorW2Research;
   const ownerMinor=wavelength?.degrees?.minor?.ownerW5StructuralReference;
   const higherRead=protection?.degrees?.[degree] || null;
   const readiness=invalidations?.degrees?.[degree]?.invalidationReadiness || null;
   const ownerBoundary=degree==="micro" && microNov6?.version==="engine22.microW2Nov6Research.v1"
     ? microNov6.structuralReference
+    : degree==="submicro" && submicroW3Nov9?.version==="engine22.submicroW3Nov9Research.v1"
+    ? submicroW3Nov9.structuralReference
     : degree==="submicro" && submicroNov6?.version==="engine22.submicroNov6AbcResearch.v1"
     ? submicroNov6.reviewReference
     : degree==="subminute" && subNov5?.version==="engine22.subminuteNov5AbcResearch.v1"
@@ -572,6 +575,7 @@ function Engine22WaveRiskStrip({degree,wavelength,protection,invalidations}) {
   const lowerB=lowerC && review && Number.isFinite(review.low) && review.low>0 &&
     review.low===review.high ? review.low : null;
   const status=(degree==="micro" && microNov6?.version==="engine22.microW2Nov6Research.v1") ||
+    (degree==="submicro" && submicroW3Nov9?.version==="engine22.submicroW3Nov9Research.v1") ||
     (degree==="submicro" && submicroNov6?.version==="engine22.submicroNov6AbcResearch.v1")
     ? "RESEARCH_ONLY" : degree==="subminute" && subNov5?.version==="engine22.subminuteNov5AbcResearch.v1"
     ? "RESEARCH_ONLY" : minute && minuteABC?.version==="engine22.minuteAbcDownNov5Research.v1"
@@ -585,6 +589,7 @@ function Engine22WaveRiskStrip({degree,wavelength,protection,invalidations}) {
   const referenceText=structural!==null?wavePrice(structural):
     lowerB!==null?wavePrice(lowerB):workingReview?wavePrice(review.low):"NOT PUBLISHED";
   const referenceBasis=degree==="micro" && microNov6?.version==="engine22.microW2Nov6Research.v1"?"W1 origin • W2 research review"
+    :degree==="submicro" && submicroW3Nov9?.version==="engine22.submicroW3Nov9Research.v1"?"W1 origin • W3-up research review"
     :degree==="submicro" && submicroNov6?.version==="engine22.submicroNov6AbcResearch.v1"?"B high • C-down research review"
     :degree==="subminute" && subNov5?.version==="engine22.subminuteNov5AbcResearch.v1"?"B high • Subminute C research review":minute && minuteABC?.version==="engine22.minuteAbcDownNov5Research.v1"?"B high • C-down recount review":minute?"W1 origin • W2 count":minor && minorResearch?.version==="engine22.minorW2ResearchCardNov5.v1"?"W1 origin • W2 research review":minor?"W4 origin • W5 review"
     :higher?(primary?"Primary W4 low":"Intermediate W2 low")
@@ -597,6 +602,7 @@ function Engine22WaveRiskStrip({degree,wavelength,protection,invalidations}) {
       ? (primary?"Daily":"4H")+" close "+wavePrice(last)+" • 2 closes confirm • deep risk 6800"
       : "Completed-candle evidence unavailable • deep risk 6800")
     : degree==="micro" && microNov6?.version==="engine22.microW2Nov6Research.v1"?"Below W1 origin invalidates conventional Micro W2 count; review-only, not a trade stop"
+    : degree==="submicro" && submicroW3Nov9?.version==="engine22.submicroW3Nov9Research.v1"?"Below W1 origin requires a Submicro recount review; W3 not confirmed started; not a trade stop"
     : degree==="submicro" && submicroNov6?.version==="engine22.submicroNov6AbcResearch.v1"?"Above B high requires Submicro C-down recount review; not an approved hard invalidation"
     : degree==="subminute" && subNov5?.version==="engine22.subminuteNov5AbcResearch.v1"?"Above B high requires Subminute C recount review; not confirmed invalidation or broker stop"
     : minute && minuteABC?.version==="engine22.minuteAbcDownNov5Research.v1"?"Above B high requires Minute C-down recount review • not a broker stop"
@@ -1333,6 +1339,26 @@ export default function Engine22MarketStructureCard({
     levels:microW2Nov6.levels,
     rules:["7321.75 W1 origin is conventional W2 structural limit; not a broker stop."]
   } : null;
+  const submicroW3Nov9=currentWavelength?.degrees?.submicro?.ownerSubmicroW3Nov9Research;
+  const submicroW3Nov9State=submicroW3Nov9?.version==="engine22.submicroW3Nov9Research.v1" &&
+    submicroW3Nov9.selectionStatus==="RESEARCH_ONLY" ? {
+    degree:"submicro",label:"Submicro",active:true,badge:"W3 UP",
+    subtitle:"Nov 9 W1/W2 owner anchors — W3 upward projection research only",
+    headline:"SUBMICRO W1 UP → W2 DOWN → W3 UP CANDIDATE / NOT CONFIRMED",
+    fibTitle:"SUBMICRO W3 UP — W2 LOW + W1 LENGTH FIB EXTENSIONS",
+    rows:[
+      {label:"Parent",value:"MICRO W2 — RESEARCH; CLASSIFICATION PROVISIONAL"},
+      {label:"W1 low",value:wavePrice(submicroW3Nov9.anchors.w1Low)+" — "+submicroW3Nov9.anchors.w1LowLocalTime},
+      {label:"W1 high",value:wavePrice(submicroW3Nov9.anchors.w1High)+" — "+submicroW3Nov9.anchors.w1HighLocalTime},
+      {label:"W2 low",value:wavePrice(submicroW3Nov9.anchors.w2Low)+" — "+submicroW3Nov9.anchors.w2LowLocalTime},
+      {label:"W1 range",value:wavePrice(submicroW3Nov9.anchors.w1Length)+" ES POINTS — OWNER ANCHORS"},
+      {label:"Current",value:"W3 UP PROJECTION CANDIDATE — START NOT CONFIRMED"},
+      {label:"History",value:"PRIOR SUBMICRO ABC COUNTS AND TOUCHES PRESERVED"},
+      {label:"Authority",value:"RESEARCH CARD ONLY — LIVE SUBMICRO SELECTION UNCHANGED"}
+    ],
+    levels:submicroW3Nov9.levels,
+    rules:["7324.00 W1 origin is a conventional structural review reference only; not a broker stop or trading permission."]
+  } : null;
   const submicroAbcNov6=currentWavelength?.degrees?.submicro?.ownerSubmicroNov6AbcResearch;
   const submicroAbcNov6State=submicroAbcNov6?.version==="engine22.submicroNov6AbcResearch.v1" &&
     submicroAbcNov6.selectionStatus==="RESEARCH_ONLY" ? {
@@ -1579,7 +1605,8 @@ export default function Engine22MarketStructureCard({
           <Engine22DegreeCard
             key={degree}
             degree={degree}
-            state={degree === "submicro" && submicroAbcNov6State ? submicroAbcNov6State :
+            state={degree === "submicro" && submicroW3Nov9State ? submicroW3Nov9State :
+              degree === "submicro" && submicroAbcNov6State ? submicroAbcNov6State :
               degree === "micro" && microW2Nov6State ? microW2Nov6State :
               degree === "submicro" && nov2SubmicroActive ? nov2SubmicroState :
               degree === "submicro" && submicroCompareActive ? submicroCompareState :
