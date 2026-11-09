@@ -15,6 +15,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Compare actual LIVE 5m / 10m / 30m OHLC against Submicro W1/W2 source timestamps
+        run: node research/engine2c-preview/live-wave-candle-source-diagnostic.cjs
       - name: Check LIVE Engine22 Strategies snapshot and protected history without mutations
         run: |
           node --input-type=module <<'NODE'
