@@ -28,7 +28,7 @@ test("Off control remains selected by default on every timeframe",()=>{
   expect(html).toContain("Wave nodes · 1 degree at a time");
   expect(html).toContain("Primary (5)");
   expect(html).toContain('aria-pressed="true"');
-  expect((html.match(/<button/g)||[])).toHaveLength(7);
+  expect((html.match(/<button/g)||[])).toHaveLength(8);
 });
 
 test("Primary stage marks only Primary selected",()=>{
@@ -39,18 +39,19 @@ test("Primary stage marks only Primary selected",()=>{
   expect(html).toContain("Other degrees hidden");
   expect(html).toContain("Primary (5)");
   expect((html.match(/aria-pressed="true"/g)||[])).toHaveLength(1);
-  expect((html.match(/aria-pressed="false"/g)||[])).toHaveLength(6);
+  expect((html.match(/aria-pressed="false"/g)||[])).toHaveLength(7);
 });
 
 test("Intermediate and Minor selectors each activate exactly one stage; others remain off",()=>{
-  for(const stage of ["INTERMEDIATE","MINOR","MINUTE","SUBMINUTE","MICRO"]){
+  for(const stage of ["INTERMEDIATE","MINOR","MINUTE","SUBMINUTE","MICRO","SUBMICRO"]){
     const html=renderToStaticMarkup(
       <OwnerWaveAnchorsOverlay visible={true} chart={null} priceSeries={null}
         degree="PRIMARY" stage={stage} onStageChange={()=>{}}/>
     );
     expect((html.match(/aria-pressed="true"/g)||[])).toHaveLength(1);
-    expect((html.match(/aria-pressed="false"/g)||[])).toHaveLength(6);
+    expect((html.match(/aria-pressed="false"/g)||[])).toHaveLength(7);
     expect(html).toContain("Intermediate (3)");
     expect(html).toContain("Minor (2 + Fib)");
+    expect(html).toContain("Submicro (3)");
   }
 });
