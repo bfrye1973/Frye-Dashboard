@@ -65,6 +65,7 @@ import Engine25MarketHealthTimeline from "./overlays/Engine25MarketHealthTimelin
 import Engine29CrossMarketStressPanel from "./overlays/Engine29CrossMarketStressPanel";
 import Engine26TradeGeometryTool from "./panels/Engine26TradeGeometryTool";
 import OwnerWaveAnchorsOverlay from "./overlays/OwnerWaveAnchorsOverlay";
+import Engine22WaveNodeHistoryLayer from "./overlays/Engine22WaveNodeHistoryLayer";
 
 /* ------------------------------ Config ------------------------------ */
 
@@ -2916,6 +2917,11 @@ export default function RowChart({
               : null}
             stage={waveNodeStage}
             onStageChange={setWaveNodeStage}
+          />
+          <Engine22WaveNodeHistoryLayer
+            visible={normalizeSymbol(state.symbol) === "ES"}
+            chart={chartRef.current}
+            priceSeries={seriesRef.current}
           />
 
           <Engine25MarketHealthTimeline
