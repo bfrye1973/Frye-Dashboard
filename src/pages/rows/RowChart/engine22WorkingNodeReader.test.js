@@ -61,19 +61,19 @@ test("unverified, malformed, fabricated and duplicate inputs are rejected",()=>{
  const original=packet();
  const bad=JSON.parse(JSON.stringify(original));
  bad.degrees.micro.nodes[0].marketAtUtc=null;
- expect(validatedEngine22WorkingNodeAnchors(bad,"micro")).toHaveLength(0);
+ expect(validatedEngine22WorkingNodeAnchors(bad,"micro").map(n=>n.label)).toEqual(["W2 research anchor"]);
  bad.degrees.micro.nodes[0].marketAtUtc="2026-11-06T14:40:00.000Z";
  bad.degrees.micro.nodes[0].price=7469.1;
- expect(validatedEngine22WorkingNodeAnchors(bad,"micro")).toHaveLength(0);
+ expect(validatedEngine22WorkingNodeAnchors(bad,"micro").map(n=>n.label)).toEqual(["W2 research anchor"]);
  bad.degrees.micro.nodes[0].price=7469;
  bad.degrees.micro.nodes[0].plotAllowed=true;
- expect(validatedEngine22WorkingNodeAnchors(bad,"micro")).toHaveLength(0);
+ expect(validatedEngine22WorkingNodeAnchors(bad,"micro").map(n=>n.label)).toEqual(["W2 research anchor"]);
  bad.degrees.micro.nodes[0].plotAllowed=false;
  bad.degrees.micro.nodes[0].waveCompletionConfirmed=true;
- expect(validatedEngine22WorkingNodeAnchors(bad,"micro")).toHaveLength(0);
+ expect(validatedEngine22WorkingNodeAnchors(bad,"micro").map(n=>n.label)).toEqual(["W2 research anchor"]);
  const duplicate=JSON.parse(JSON.stringify(original));
  duplicate.degrees.micro.nodes.push({...duplicate.degrees.micro.nodes[0]});
- expect(validatedEngine22WorkingNodeAnchors(duplicate,"micro")).toHaveLength(1);
+ expect(validatedEngine22WorkingNodeAnchors(duplicate,"micro")).toHaveLength(2);
 });
 
 test("selected Engine22 event maps only to a genuine loaded 10m candle and never moves ES price",()=>{
