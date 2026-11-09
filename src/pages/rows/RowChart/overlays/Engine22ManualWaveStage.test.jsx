@@ -1,6 +1,6 @@
 import React from "react";
 import {renderToStaticMarkup} from "react-dom/server";
-import OwnerWaveAnchorsOverlay from "./OwnerWaveAnchorsOverlay";
+import IndicatorsToolbar from "../IndicatorsToolbar";
 import {manualWaveDrawingEnabled} from "./Engine22FibLayersOverlay";
 
 test("Wave Off hides every degree's manual wave lines and labels even when Fib is enabled",()=>{
@@ -20,38 +20,44 @@ test("Primary stage enables Primary only, not six other manual wave layers",()=>
   expect(manualWaveDrawingEnabled("PRIMARY","primary",true,{showWaveLines:false,showWaveLabels:false})).toBe(false);
 });
 
-test("Off control remains selected by default on every timeframe",()=>{
-  const html=renderToStaticMarkup(
-    <OwnerWaveAnchorsOverlay visible={true} chart={null} priceSeries={null}
-      degree="PRIMARY" stage="OFF" onStageChange={()=>{}}/>
-  );
-  expect(html).toContain("Wave nodes · 1 degree at a time");
-  expect(html).toContain("Primary (5)");
-  expect(html).toContain('aria-pressed="true"');
-  expect((html.match(/<button/g)||[])).toHaveLength(8);
+const radioTags=html=>(html.match(/<input[^>]*type="radio"[^>]*>/g)||[]);
+const selectedRadioIndex=html=>radioTags(html).findIndex(tag=>tag.includes("checked"));
+
+test("Off and all 7 Elliott Wave degree selectors now live INSIDE Indicators",()=>{
+ const html=renderToStaticMarkup(<IndicatorsToolbar waveNodeStage="OFF"/>);
+ expect(html).toContain("Engine 2 — Elliott Wave Nodes");
+ expect(html).toContain("Off — hide all wave nodes");
+ for(const label of ["Primary (5)","Intermediate (3)","Minor (2 + Fib)",
+   "Minute (4)","Subminute (3)","Micro (3)","Submicro (3)"])
+   expect(html).toContain(label);
+ expect(radioTags(html)).toHaveLength(8);
+ expect(selectedRadioIndex(html)).toBe(0);
+ expect(html).toContain("Connect verified source anchors");
+ expect(html).toContain("Node / label color");
+ expect(html).toContain("Connecting line color");
+ expect(html).toContain("Fib (Primary)");
 });
 
-test("Primary stage marks only Primary selected",()=>{
-  const html=renderToStaticMarkup(
-    <OwnerWaveAnchorsOverlay visible={true} chart={null} priceSeries={null}
-      degree="PRIMARY" stage="PRIMARY" onStageChange={()=>{}}/>
-  );
-  expect(html).toContain("Other degrees hidden");
-  expect(html).toContain("Primary (5)");
-  expect((html.match(/aria-pressed="true"/g)||[])).toHaveLength(1);
-  expect((html.match(/aria-pressed="false"/g)||[])).toHaveLength(7);
+test("exactly one selected wave degree remains active, Fib checkboxes independent",()=>{
+ const all=["PRIMARY","INTERMEDIATE","MINOR","MINUTE","SUBMINUTE","MICRO","SUBMICRO"];
+ for(let i=0;i<all.length;i++){
+   const html=renderToStaticMarkup(
+     <IndicatorsToolbar waveNodeStage={all[i]} fibPrimary={false}/>
+   );
+   expect(radioTags(html)).toHaveLength(8);
+   expect(selectedRadioIndex(html)).toBe(i+1);
+   expect(radioTags(html).filter(tag=>tag.includes("checked"))).toHaveLength(1);
+   expect(html).toContain("Fib (Primary)");
+ }
 });
 
-test("Intermediate and Minor selectors each activate exactly one stage; others remain off",()=>{
-  for(const stage of ["INTERMEDIATE","MINOR","MINUTE","SUBMINUTE","MICRO","SUBMICRO"]){
-    const html=renderToStaticMarkup(
-      <OwnerWaveAnchorsOverlay visible={true} chart={null} priceSeries={null}
-        degree="PRIMARY" stage={stage} onStageChange={()=>{}}/>
-    );
-    expect((html.match(/aria-pressed="true"/g)||[])).toHaveLength(1);
-    expect((html.match(/aria-pressed="false"/g)||[])).toHaveLength(7);
-    expect(html).toContain("Intermediate (3)");
-    expect(html).toContain("Minor (2 + Fib)");
-    expect(html).toContain("Submicro (3)");
-  }
+test("Wave Nodes indicator reports history/source candle availability",()=>{
+ const html=renderToStaticMarkup(<IndicatorsToolbar
+   waveNodeStage="SUBMICRO"
+   waveNodeStatus={{stage:"SUBMICRO",mapped:2,total:3,timeframe:"30m"}}
+   waveNodeHistoryCursor={11} waveNodeHistoricalRevisionCount={32}
+ />);
+ expect(html).toContain("2/3 source nodes have matching loaded");
+ expect(html).toContain("Engine 22 history revision 11");
+ expect(html).toContain("32 stored revision events");
 });
