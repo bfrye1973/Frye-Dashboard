@@ -2,6 +2,7 @@ import {
   ENGINE22_WORKING_NODES_SCHEMA,
   validatedEngine22WorkingNodeAnchors,waveNodeFeedChanged,
 } from "./engine22WorkingNodeReader";
+import {checkedDisplayCandleOpen} from "./intermediateMinorReview";
 
 const sourceNode=(degree,label,price,marketAtUtc)=>({
  nodeId:"n-"+degree+"-"+label,degree,label,price,marketAtUtc,
@@ -70,4 +71,17 @@ test("unverified, malformed, fabricated and duplicate inputs are rejected",()=>{
  const duplicate=JSON.parse(JSON.stringify(original));
  duplicate.degrees.micro.nodes.push({...duplicate.degrees.micro.nodes[0]});
  expect(validatedEngine22WorkingNodeAnchors(duplicate,"micro")).toHaveLength(1);
+});
+
+test("selected Engine22 event maps only to a genuine loaded 10m candle and never moves ES price",()=>{
+ const pkt=packet();
+ const w1=validatedEngine22WorkingNodeAnchors(pkt,"submicro")[0];
+ const open=Date.parse("2026-11-09T08:00:00Z")/1000;
+ const existing=[{time:open-600},{time:open},{time:open+600}];
+ expect(checkedDisplayCandleOpen(w1,"10m",existing)).toBe(open);
+ expect(w1.price).toBe(7390.25);
+ expect(checkedDisplayCandleOpen(w1,"10m",[{time:open-1800},{time:open+600}])).toBeNull();
+ const later=validatedEngine22WorkingNodeAnchors(pkt,"submicro")[2];
+ const before=Date.parse("2026-11-09T13:00:00Z")/1000;
+ expect(checkedDisplayCandleOpen(later,"10m",[{time:before}])).toBeNull();
 });
