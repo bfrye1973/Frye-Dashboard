@@ -36,6 +36,8 @@ export default function OwnerWaveAnchorsOverlay({
   // coordinates. Keep research archives in source control for provenance only.
   const microStageNodes=microFromEngine22??[];
   const submicroStageNodes=submicroFromEngine22??[];
+  const dynamicSourceAvailable=(!microOnly||microFromEngine22!==null)&&
+    (!submicroOnly||submicroFromEngine22!==null);
   const activeNodes=primaryOnly?ownerAnchorsForDegree(degree):
     intermediateOnly?INTERMEDIATE_REVIEW_ANCHORS:
     minorOnly?MINOR_REVIEW_ANCHORS:
@@ -57,11 +59,11 @@ export default function OwnerWaveAnchorsOverlay({
     onNodeStatusChange?.({
       stage:visible?stage:"OFF",mapped:mappedNodeCount,
       total:activeNodes.length,timeframe,
-      sourceAvailable:!((microOnly&&!microFromEngine22)||(submicroOnly&&!submicroFromEngine22)),
+      sourceAvailable:dynamicSourceAvailable,
       sourceKind:microOnly||submicroOnly?"ENGINE22":"OWNER_REVIEW",
     });
   },[stage,visible,mappedNodeCount,activeNodes.length,timeframe,onNodeStatusChange,
-    microOnly,submicroOnly,microFromEngine22,submicroFromEngine22]);
+    dynamicSourceAvailable,microOnly,submicroOnly]);
 
   useEffect(()=>{
     if(!visible||!stageEnabled||!chart||!priceSeries)return;
