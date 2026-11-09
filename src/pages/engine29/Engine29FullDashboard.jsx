@@ -321,6 +321,17 @@ function plainSymbolState(value) {
 
 function stateColor(value) {
   const text = String(value || "").toUpperCase();
+
+  if (
+    text.includes("UPSIDE MOVE ACTIVE") ||
+    text.includes("UPSIDE_MOVE_ACTIVE")
+  ) return COLORS.good;
+
+  if (
+    text.includes("DOWNSIDE MOVE ACTIVE") ||
+    text.includes("DOWNSIDE_MOVE_ACTIVE")
+  ) return COLORS.bad;
+
   if (
     text.includes("FAILED") ||
     text.includes("SYSTEMIC") ||

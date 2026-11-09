@@ -9,6 +9,7 @@ on:
       - engine29-bigger-picture-plain-language-colors
       - engine29-bigger-picture-plain-english-v2
       - engine29-remove-volume-data-quality
+      - engine29-top-cards-live-fix
   workflow_dispatch:
 
 jobs:

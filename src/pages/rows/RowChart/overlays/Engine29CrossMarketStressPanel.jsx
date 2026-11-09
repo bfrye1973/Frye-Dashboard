@@ -126,6 +126,20 @@ function stateColor(value) {
   const text = String(value || "").toUpperCase();
 
   if (
+    text.includes("UPSIDE MOVE ACTIVE") ||
+    text.includes("UPSIDE_MOVE_ACTIVE")
+  ) {
+    return "#22c55e";
+  }
+
+  if (
+    text.includes("DOWNSIDE MOVE ACTIVE") ||
+    text.includes("DOWNSIDE_MOVE_ACTIVE")
+  ) {
+    return "#ef4444";
+  }
+
+  if (
     text.includes("SYSTEMIC") ||
     text.includes("RISK OFF") ||
     text.includes("RISK_OFF") ||
