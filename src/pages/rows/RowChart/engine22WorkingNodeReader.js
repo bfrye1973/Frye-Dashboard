@@ -55,3 +55,10 @@ export function waveNodeFeedChanged(current,next){
     typeof next.fingerprint==="string"&&next.fingerprint &&
     next.fingerprint!==current?.fingerprint);
 }
+
+// No archived spreadsheet fallback for the two Engine22-wired stages.
+// An unavailable or invalid Engine22 packet returns an empty chart list.
+export function currentEngine22MicroSubmicroAnchors(packet,degree){
+  if(degree!=="micro"&&degree!=="submicro")return [];
+  return validatedEngine22WorkingNodeAnchors(packet,degree)??[];
+}
