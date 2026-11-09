@@ -12,13 +12,40 @@ export const INTERMEDIATE_REVIEW_ANCHORS=Object.freeze([
   anchor("intermediate","W2 ending low","2026-03-31","03:00",6345),
 ]);
 export const MINOR_REVIEW_ANCHORS=Object.freeze([
-  // Owner corrected invalid 2026-04-31 to 2026-04-30 in
-  // connected sheet; direct re-read verified Apr 30, 17:00 AZ @6342.
-  anchor("minor","W1 starting low","2026-04-30","17:00",6342,"OWNER RESEARCH"),
+  // Owner corrected Minor W1 start to March 30, 2026, 17:00 AZ @6342;
+  // re-read from connected Master Minor W1-W2 Proposed!A2:F3.
+  anchor("minor","W1 starting low","2026-03-30","17:00",6342,"OWNER RESEARCH"),
   anchor("minor","W1 ending high","2026-08-13","06:00",7841.25,"OWNER RESEARCH"),
   // W2 low near 7325 is NOT a confirmed time/price pivot per shared
   // evidence. Its '16:00' field conflicts with UNKNOWN-time notes.
 ]);
+// Explicit research entries from the connected updated Master, November 8.
+// These are chart-review markers, NOT promotions of Engine22 live counts.
+// Missing/unknown endings are deliberately omitted from coordinates.
+export const MINUTE_REVIEW_ANCHORS=Object.freeze([
+  anchor("minute","A starting high","2026-08-14","07:00",7832.25,"OWNER RESEARCH — TIME CONFLICT WITH MINOR"),
+  anchor("minute","A ending low","2026-09-16","11:00",7575.25,"OWNER RESEARCH"),
+  anchor("minute","B ending high","2026-10-11","22:00",7887,"OWNER RESEARCH"),
+  anchor("minute","C observed low candidate","2026-11-05","16:00",7322.25,"PROVISIONAL — NOT CONFIRMED"),
+]);
+
+export const SUBMINUTE_REVIEW_ANCHORS=Object.freeze([
+  anchor("subminute","A starting high","2026-10-14","05:00",7876,"OWNER RESEARCH"),
+  anchor("subminute","A ending low","2026-10-25","16:00",7647,"OWNER RESEARCH — TIME NEEDS REVIEW"),
+  anchor("subminute","B ending high","2026-10-28","08:20",7819,"OWNER RESEARCH"),
+  // Subminute C ending low intentionally absent — UNKNOWN.
+]);
+
+export const MICRO_REVIEW_ANCHORS=Object.freeze([
+  anchor("micro","A Low","2026-11-03","16:00",7484.75,"OWNER RESEARCH"),
+  // The active Micro sheet A High CELL is Oct 28 12:00 @7819.25,
+  // while its note disagrees with Nov 6 07:50 @7469.25.
+  // Show as research only and flag discrepancy; do NOT claim W1 approved.
+  anchor("micro","A High","2026-10-28","12:00",7819.25,"CONFLICT — SHEET NOTE DISAGREES"),
+  anchor("micro","B","2026-11-05","05:00",7740,"PROVISIONAL — W2 NOT CONFIRMED"),
+  // Micro C is blank in the sheet: do not fabricate.
+]);
+
 export const MINOR_W2_RESEARCH_LEVELS=Object.freeze([
   {ratio:"0.236",price:7487.50,status:"UNVERIFIED"},
   {ratio:"0.500",price:7091.75,status:"UNVERIFIED"},
