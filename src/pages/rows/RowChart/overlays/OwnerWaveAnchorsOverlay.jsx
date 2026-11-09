@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { ownerAnchorsForDegree } from "../ownerWaveAnchors";
+import { primaryDisplayCandleOpen } from "../primaryDisplayCandleMapping";
 
 const DEGREE_COLORS={
   submicro:"#f59e0b",micro:"#22c55e",subminute:"#38bdf8",minute:"#a78bfa",
@@ -9,13 +10,13 @@ const DEGREE_COLORS={
 // Owner-directed staged review: clear all anchor dots by default.
 // Stage 1 permits ONLY Primary. Other degrees stay stored but unmounted.
 export default function OwnerWaveAnchorsOverlay({
-  visible=true, chart, priceSeries, degree="PRIMARY", stage="OFF", onStageChange
+  visible=true, chart, priceSeries, degree="PRIMARY", stage="OFF", timeframe="1d", onStageChange
 }){
   const canvasRef=useRef(null);
   const primaryOnly=degree==="PRIMARY"&&stage==="PRIMARY";
 
   useEffect(()=>{
-    if(!visible||!primaryOnly||!chart||!priceSeries)return;
+    if(!visible||!primaryOnly||!chart||!priceSeries||!["1d","4h"].includes(timeframe))return;
     const host=chart.chartElement?.()?.parentElement || null;
     if(!host)return;
 
@@ -43,13 +44,20 @@ export default function OwnerWaveAnchorsOverlay({
       const plotted=[];
       const samePivot=new Map();
       for(const a of anchors){
-        // Use only the exact owner timestamp; never snap to a nearby candle.
-        const x=chart.timeScale().timeToCoordinate(a.timeSec);
-        const y=priceSeries.priceToCoordinate(a.price);
-        if(!Number.isFinite(x)||!Number.isFinite(y))continue;
-        if(x<0||x>rect.width||y<0||y>rect.height)continue;
+        // Owner event time stays unchanged; X uses the exact verified
+        // source opening on the currently selected Daily/4H candle series.
+        const mapped=primaryDisplayCandleOpen(a,timeframe);
+        if(!Number.isFinite(mapped))continue;
+        const x=chart.timeScale().timeToCoordinate(mapped);
+        const priceY=priceSeries.priceToCoordinate(a.price);
+        if(!Number.isFinite(x)||x<0||x>rect.width)continue;
+        // The five owner prices do not match the original 5m ES source.
+        // If the exact owner price is outside the chart's visible scale,
+        // show an edge indicator, NEVER a fabricated candle-price pivot.
+        const outOfView=!Number.isFinite(priceY)||priceY<14||priceY>rect.height-20;
+        const y=outOfView?18:priceY;
 
-        const classification=a.classification==="RESEARCH"?"RESEARCH":"HISTORICAL";
+        const classification="UNVERIFIED PRICE BASIS";
         const key=`${a.degree}:${a.timeSec}:${a.price}:${classification}`;
         const existing=samePivot.get(key);
         if(existing){
@@ -63,22 +71,16 @@ export default function OwnerWaveAnchorsOverlay({
         ctx.lineWidth=2;
         ctx.beginPath();
         ctx.arc(x,y,5,0,Math.PI*2);
-        if(classification==="RESEARCH"){
-          // Hollow marker means owner-provided research, NOT approved count.
-          ctx.stroke();
-        }else{
-          ctx.fill();
-          ctx.strokeStyle="#0b0b14";
-          ctx.stroke();
-        }
-
-        const node={a,x,y,color,classification,labels:[a.label]};
+        // Always hollow: owner-provided price has NOT been validated
+        // against the corresponding Engine11 unadjusted source OHLC.
+        ctx.stroke();
+        const node={a,x,y,color,classification,labels:[a.label],outOfView};
         plotted.push(node);
         samePivot.set(key,node);
       }
       for(const p of plotted){
-        p.text=`${p.a.degree.toUpperCase()} ${p.labels.join(" / ")} @ ${p.a.price.toFixed(2)}`+
-          (p.classification==="RESEARCH"?" [RESEARCH]":"");
+        p.text=`PRIMARY ${p.labels.join(" / ")} · ${p.a.price.toFixed(2)}`+
+          (p.outOfView?" [PRICE OFF SCALE]":" [UNVERIFIED]");
       }
 
       // Collision avoidance moves LABELS only. Exact anchor dots never move.
@@ -138,9 +140,21 @@ export default function OwnerWaveAnchorsOverlay({
       try{canvas.remove();}catch{}
       canvasRef.current=null;
     };
-  },[visible,primaryOnly,chart,priceSeries,degree]);
+  },[visible,primaryOnly,chart,priceSeries,degree,timeframe]);
 
   if(!visible)return null;
+
+  const showPrimary=()=>{
+    onStageChange?.("PRIMARY");
+    if(chart&&["1d","4h"].includes(timeframe)){
+      // Explicit user action: show all five owner dates. No chart auto-pan
+      // or data changes during normal timeframe switching.
+      chart.timeScale().setVisibleRange({
+        from:Date.parse("2020-03-20T00:00:00Z")/1000,
+        to:Date.parse("2025-05-05T00:00:00Z")/1000,
+      });
+    }
+  };
 
   return (
     <div
@@ -163,14 +177,14 @@ export default function OwnerWaveAnchorsOverlay({
           padding:"3px 9px",cursor:"pointer"
         }}>Off</button>
       <button type="button" aria-pressed={primaryOnly}
-        onClick={()=>onStageChange?.("PRIMARY")}
+        onClick={showPrimary}
         style={{
           background:primaryOnly?"#facc15":"#111827",
           color:primaryOnly?"#111827":"#d1d5db",
           border:"1px solid #64748b",borderRadius:4,
           padding:"3px 9px",cursor:"pointer"
         }}>Primary (5)</button>
-      <span style={{fontSize:10,opacity:.8}}>Other 6 degrees hidden</span>
+      <span style={{fontSize:10,opacity:.8}}>Other 6 degrees hidden · Price basis unverified</span>
     </div>
   );
 }
