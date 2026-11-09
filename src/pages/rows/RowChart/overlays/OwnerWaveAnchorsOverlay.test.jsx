@@ -7,12 +7,13 @@ test("new wave review opens clean with all marker dots OFF",()=>{
   const html=renderToStaticMarkup(
     <OwnerWaveAnchorsOverlay visible={true} chart={null} priceSeries={null} degree="PRIMARY"/>
   );
-  expect(html).toContain("Wave nodes · 1/7");
-  expect(html).toContain("Other 6 degrees hidden");
+  expect(html).toContain("Wave nodes · 1 degree at a time");
+  expect(html).toContain("Minor (2 + Fib)");
+  expect(html).toContain("Intermediate (3)");
   expect(html).toContain('aria-pressed="true"');
   expect(html).toContain("Primary (5)");
   expect(html).not.toContain("ALL");
-  expect((html.match(/<button/g)||[])).toHaveLength(2);
+  expect((html.match(/<button/g)||[])).toHaveLength(4);
 });
 
 test("stage 1 permits only Primary's five original historical points",()=>{

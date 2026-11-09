@@ -2832,6 +2832,7 @@ export default function RowChart({
             priceSeries={seriesRef.current}
             degree="PRIMARY"
             timeframe={state.timeframe}
+            sourceBars={bars}
             stage={waveNodeStage}
             onStageChange={setWaveNodeStage}
           />

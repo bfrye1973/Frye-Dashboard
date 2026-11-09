@@ -7,6 +7,8 @@ on:
       - 'src/pages/rows/RowChart/overlays/OwnerWaveAnchorsOverlay.jsx'
       - 'src/pages/rows/RowChart/overlays/OwnerWaveAnchorsOverlay.test.jsx'
       - 'src/pages/rows/RowChart/ownerWaveAnchors.js'
+      - 'src/pages/rows/RowChart/intermediateMinorReview.js'
+      - 'src/pages/rows/RowChart/intermediateMinorReview.test.js'
       - 'src/pages/rows/RowChart/ownerWaveAnchors.test.js'
       - '.github/workflows/engine2-primary-wave-review.yml'
 jobs:
@@ -28,5 +30,7 @@ jobs:
         run: CI=true npm test -- --watch=false --runInBand --testPathPattern=ownerWaveAnchors.test.js
       - name: Engine11B verified Primary Daily/4H candle mapping
         run: CI=true npm test -- --watch=false --runInBand --testPathPattern=primaryDisplayCandleMapping.test.js
+      - name: Verify owner Intermediate and Minor nodes and research Fib levels
+        run: CI=true npm test -- --watch=false --runInBand --testPathPattern=intermediateMinorReview.test.js
       - name: Full existing chart build, no deploy
         run: npm run build
