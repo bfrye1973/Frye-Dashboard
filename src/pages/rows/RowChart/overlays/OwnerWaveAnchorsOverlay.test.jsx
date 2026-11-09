@@ -9,11 +9,14 @@ test("new wave review opens clean with all marker dots OFF",()=>{
   );
   expect(html).toContain("Wave nodes · 1 degree at a time");
   expect(html).toContain("Minor (2 + Fib)");
+  expect(html).toContain("Minute (4)");
+  expect(html).toContain("Subminute (3)");
+  expect(html).toContain("Micro (3)");
   expect(html).toContain("Intermediate (3)");
   expect(html).toContain('aria-pressed="true"');
   expect(html).toContain("Primary (5)");
   expect(html).not.toContain("ALL");
-  expect((html.match(/<button/g)||[])).toHaveLength(4);
+  expect((html.match(/<button/g)||[])).toHaveLength(7);
 });
 
 test("stage 1 permits only Primary's five original historical points",()=>{
