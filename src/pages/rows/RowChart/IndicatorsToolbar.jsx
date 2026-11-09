@@ -474,10 +474,12 @@ export default function IndicatorsToolbar({
                 ))}
               </div>
               {waveNodeStage!=="OFF"&&waveNodeStatus?.stage===waveNodeStage?(
-                <div style={{marginTop:7,color:"#94a3b8",fontSize:11}}>
-                  {waveNodeStatus.mapped}/{waveNodeStatus.total} source nodes have matching loaded
-                  {" "}{waveNodeStatus.timeframe} candles
-                  {waveNodeStatus.mapped===0?" · Older or missing candles may be required":""}
+                <div style={{marginTop:7,color:waveNodeStatus.sourceAvailable===false?"#fbbf24":"#94a3b8",fontSize:11}}>
+                  {waveNodeStatus.sourceAvailable===false
+                    ?"Engine 22 node source unavailable — no archived fallback nodes displayed"
+                    :<>{waveNodeStatus.mapped}/{waveNodeStatus.total} source nodes have matching loaded
+                      {" "}{waveNodeStatus.timeframe} candles
+                      {waveNodeStatus.mapped===0?" · Older or missing candles may be required":""}</>}
                 </div>
               ):null}
               {waveNodeHistoryCursor>0?(

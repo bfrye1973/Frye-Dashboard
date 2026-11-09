@@ -61,3 +61,15 @@ test("Wave Nodes indicator reports history/source candle availability",()=>{
  expect(html).toContain("Engine 22 history revision 11");
  expect(html).toContain("32 stored revision events");
 });
+
+test("legacy Fibonacci wave canvas cannot overlay old Micro/Submicro chart nodes",()=>{
+  for(const degree of ["micro","submicro"]){
+    expect(manualWaveDrawingEnabled(degree.toUpperCase(),degree,true,{
+      showWaveLines:true,showWaveLabels:true,showExtensions:true,
+    })).toBe(false);
+  }
+  // Fibonacci price-level controls themselves are independent and unchanged.
+  expect(manualWaveDrawingEnabled("PRIMARY","primary",true,{
+    showWaveLines:true,showWaveLabels:true,
+  })).toBe(true);
+});

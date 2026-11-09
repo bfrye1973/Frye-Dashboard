@@ -1866,7 +1866,12 @@ export default function RowChart({
         // SAME Strategies-card Engine22 source; hash de-duplicates routine
         // 15s snapshot refreshes. Do not trigger candle series resets.
         const nodes=engine22WaveStrategy?.workingWaveNodes;
+        // Never retain old Micro/Submicro anchors after Engine22 becomes
+        // unavailable or rejects a packet; fail closed instead of displaying
+        // stale last-known source coordinates as if they were current.
         setEngine22WorkingNodeSnapshot(prev=>
+          !nodes?.available || nodes?.schema!=="engine22.workingWaveNodes.v1" ||
+          nodes?.authority!=="ENGINE22" ? null :
           waveNodeFeedChanged(prev,nodes)?nodes:prev);
         setEngine22HistoryReady(engine22HistoryAvailableFromSnapshot(snap));
 
@@ -1881,6 +1886,8 @@ export default function RowChart({
         });
         setEngine22AuthorizedWorkingStructure(null);
         setEngine22CurrentWavelength(null);
+        setEngine22WorkingNodeSnapshot(null);
+        setEngine22HistoryReady(false);
 
       }
 

@@ -5,6 +5,11 @@ const ORDER = ["primary", "intermediate", "minor", "minute", "subminute", "micro
 // The owner's staged Wave nodes control owns manual wave labels/connecting
 // lines. Independent Fibonacci levels remain controlled by Fib checkboxes.
 export function manualWaveDrawingEnabled(waveStage, degree, fibToggle, style = {}) {
+  // Micro/Submicro owner nodes now come ONLY from Engine22 workingWaveNodes.
+  // This older Fib canvas reads archived ownerWaveAnchors.js and must NEVER
+  // redraw stale Micro/Submicro labels/connectors. Independent Fib price
+  // levels remain available through the separate existing controls.
+  if (degree === "micro" || degree === "submicro") return false;
   return waveStage === degree.toUpperCase() && fibToggle === true &&
     (style.showWaveLines === true || style.showWaveLabels === true);
 }

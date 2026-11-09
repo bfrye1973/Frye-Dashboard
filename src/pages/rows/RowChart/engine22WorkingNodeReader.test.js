@@ -1,6 +1,7 @@
 import {
   ENGINE22_WORKING_NODES_SCHEMA,
   validatedEngine22WorkingNodeAnchors,waveNodeFeedChanged,
+  currentEngine22MicroSubmicroAnchors,
 } from "./engine22WorkingNodeReader";
 import {checkedDisplayCandleOpen} from "./intermediateMinorReview";
 
@@ -99,4 +100,20 @@ test("corrected owner Micro W2 16:00 Arizona maps to 23:00 UTC; old 15:00 is not
  expect(checkedDisplayCandleOpen(w2,"10m",[{time:candle-600},{time:candle},{time:candle+600}])).toBe(candle);
  expect(checkedDisplayCandleOpen(w2,"10m",[{time:candle-3600}])).toBeNull();
  expect(micro.every(n=>n.reviewOnly===true&&n.executionEligible===false)).toBe(true);
+});
+
+test("Micro and Submicro can never resurrect legacy hard-coded sheet nodes on missing Engine22 data",()=>{
+  for(const degree of ["micro","submicro"]){
+    expect(currentEngine22MicroSubmicroAnchors(null,degree)).toEqual([]);
+    expect(currentEngine22MicroSubmicroAnchors({},degree)).toEqual([]);
+    expect(currentEngine22MicroSubmicroAnchors({schema:"wrong"},degree)).toEqual([]);
+    expect(currentEngine22MicroSubmicroAnchors(packet(),degree).length).toBeGreaterThan(0);
+  }
+  expect(currentEngine22MicroSubmicroAnchors(packet(),"minute")).toEqual([]);
+});
+
+test("malformed current Engine22 packet fails closed instead of old Submicro ABC or W1/W2",()=>{
+  const bad=JSON.parse(JSON.stringify(packet()));
+  bad.degrees.submicro.nodes.forEach(n=>{n.marketAtUtc=null});
+  expect(currentEngine22MicroSubmicroAnchors(bad,"submicro")).toEqual([]);
 });
