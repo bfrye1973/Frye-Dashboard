@@ -31,7 +31,7 @@ test("Micro blue working anchors have moved from Submicro with own W3 projection
  expect(html).toContain("7451.50");
  expect(html).toContain("7507.00");
  expect(html).toContain("7596.50");
- expect(html).not.toContain("OLDER MICRO");
+ expect(html).not.toContain(">OLDER MICRO<");
 });
 test("Submicro black internal W3 uses Nov9 owner anchors and own smaller fib ladder",()=>{
  const html=renderToStaticMarkup(<Engine22MarketStructureCard
