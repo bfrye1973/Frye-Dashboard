@@ -94,3 +94,14 @@ test("mapping respects nonstandard 4h session candle starts and does not align t
   const start=Date.parse("2026-11-05T13:00:00Z")/1000;
   expect(containingLoadedCandleOpen(t,"4h",[{time:start}])).toBe(start);
 });
+
+test("updated Submicro research ABC preserves owner sheet and omits unknown C",()=>{
+  const {SUBMICRO_REVIEW_ANCHORS}=require("./intermediateMinorReview");
+  expect(SUBMICRO_REVIEW_ANCHORS.map(a=>[a.label,a.date,a.time,a.price])).toEqual([
+    ["A starting high","2026-11-06","07:50",7469.75],
+    ["A ending low","2026-11-06","10:50",7396.75],
+    ["B ending high","2026-11-06","12:30",7436.75],
+  ]);
+  expect(SUBMICRO_REVIEW_ANCHORS.every(a=>a.classification==="OWNER RESEARCH")).toBe(true);
+  expect(SUBMICRO_REVIEW_ANCHORS.some(a=>a.label.startsWith("C"))).toBe(false);
+});
