@@ -65,6 +65,7 @@ import Engine25MarketHealthTimeline from "./overlays/Engine25MarketHealthTimelin
 import Engine29CrossMarketStressPanel from "./overlays/Engine29CrossMarketStressPanel";
 import Engine26TradeGeometryTool from "./panels/Engine26TradeGeometryTool";
 import OwnerWaveAnchorsOverlay from "./overlays/OwnerWaveAnchorsOverlay";
+import {createDefaultWaveNodeStyles} from "./waveNodePresentation";
 import { waveNodeFeedChanged } from "./engine22WorkingNodeReader";
 import { createEngine22RevisionHistoryReader, fetchOwnerWaveHistoryPage, engine22HistoryAvailableFromSnapshot } from "./engine22RevisionHistoryReader";
 
@@ -1025,6 +1026,12 @@ export default function RowChart({
   const [selectedWaveDegree, setSelectedWaveDegree] = useState("minute");
   // One staged control for BOTH anchor dots and legacy manual wave lines.
   const [waveNodeStage, setWaveNodeStage] = useState("OFF");
+  // Presentation only. Separate settings per Elliott degree; never changes
+  // source timestamps, ES prices, Engine22 models or Fibonacci calculations.
+  const [waveNodeStyles,setWaveNodeStyles]=useState(createDefaultWaveNodeStyles);
+  const [waveNodeStatus,setWaveNodeStatus]=useState({
+    stage:"OFF",mapped:0,total:0,timeframe:"",
+  });
 
   const selectedMode = modeNameFromChartMode(chartMode);
   const selectedStrategyId = strategyIdFromChartMode(chartMode);
@@ -2692,7 +2699,9 @@ export default function RowChart({
     userInteractedRef.current = true;
   };
 
-  const resetIndicators = () =>
+  const resetIndicators = () => {
+    setWaveNodeStage("OFF");
+    setWaveNodeStyles(createDefaultWaveNodeStyles());
     setState((s) => ({
       ...s,
       showEma: true,
@@ -2729,6 +2738,7 @@ export default function RowChart({
 
       showPremarketFibs: false,
     }));
+  };
 
   const toolbarProps = {
     showEma: state.showEma,
@@ -2776,6 +2786,16 @@ export default function RowChart({
     engine29CrossMarketPanel: state.engine29CrossMarketPanel,
 
     showPremarketFibs: state.showPremarketFibs,
+
+    waveNodeStage,
+    waveNodeStyles,
+    waveNodeStatus,
+    waveNodeHistoryCursor:engine22HistoryRevisions.cursor,
+    waveNodeHistoricalRevisionCount:engine22HistoryRevisions.records.length,
+    onWaveNodeStageChange:setWaveNodeStage,
+    onWaveNodeStylePatch:(degree,patch)=>setWaveNodeStyles(previous=>({
+      ...previous,[degree]:{...(previous[degree]||{}),...patch},
+    })),
 
     onChange: handleControlsChange,
     onReset: resetIndicators,
@@ -2961,10 +2981,9 @@ export default function RowChart({
               ? (timeSec)=>fiveMinutePagerRef.current?.candleOpenAt?.(timeSec) ?? null
               : null}
             stage={waveNodeStage}
-            onStageChange={setWaveNodeStage}
             workingNodes={engine22WorkingNodeSnapshot}
-            historyCursor={engine22HistoryRevisions.cursor}
-            historicalRevisionCount={engine22HistoryRevisions.records.length}
+            nodeStyles={waveNodeStyles}
+            onNodeStatusChange={setWaveNodeStatus}
           />
 
           <Engine25MarketHealthTimeline

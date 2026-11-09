@@ -2,25 +2,23 @@ import { useEffect, useRef } from "react";
 import { ownerAnchorsForDegree } from "../ownerWaveAnchors";
 import { primaryDisplayCandleOpen } from "../primaryDisplayCandleMapping";
 import { validatedEngine22WorkingNodeAnchors } from "../engine22WorkingNodeReader";
+import {waveNodeDisplayStyle} from "../waveNodePresentation";
 import { INTERMEDIATE_REVIEW_ANCHORS, MINOR_REVIEW_ANCHORS,
   MINOR_W2_RESEARCH_LEVELS, MINUTE_REVIEW_ANCHORS,
   SUBMINUTE_REVIEW_ANCHORS, MICRO_REVIEW_ANCHORS,
   SUBMICRO_REVIEW_ANCHORS,
   checkedDisplayCandleOpen } from "../intermediateMinorReview";
 
-const DEGREE_COLORS={
-  submicro:"#f59e0b",micro:"#22c55e",subminute:"#38bdf8",minute:"#a78bfa",
-  minor:"#f472b6",intermediate:"#fb7185",primary:"#facc15"
-};
-
 // Owner-directed staged review: only one selected degree visible at a time.
 // Primary remains unchanged; Intermediate and Minor are explicitly selected.
 export default function OwnerWaveAnchorsOverlay({
   visible=true, chart, priceSeries, degree="PRIMARY", stage="OFF", timeframe="1d",
-  sourceBars=[], pagedCandleOpenAt=null, onStageChange, workingNodes=null,
-  historyCursor=0, historicalRevisionCount=0
+  sourceBars=[], pagedCandleOpenAt=null, workingNodes=null,
+  nodeStyles={}, onNodeStatusChange=null
 }){
   const canvasRef=useRef(null);
+  const priorStageRef=useRef(stage);
+  const activeStyle=waveNodeDisplayStyle(nodeStyles,stage);
   const primaryOnly=degree==="PRIMARY"&&stage==="PRIMARY";
   const intermediateOnly=stage==="INTERMEDIATE";
   const minorOnly=stage==="MINOR";
@@ -51,6 +49,15 @@ export default function OwnerWaveAnchorsOverlay({
         : checkedDisplayCandleOpen(a,timeframe,sourceBars)
   )).length;
 
+  // Keep the per-degree loaded-candle count in the Indicators panel.
+  // This is presentation status only; it does not change/source candles.
+  useEffect(()=>{
+    onNodeStatusChange?.({
+      stage:visible?stage:"OFF",mapped:mappedNodeCount,
+      total:activeNodes.length,timeframe,
+    });
+  },[stage,visible,mappedNodeCount,activeNodes.length,timeframe,onNodeStatusChange]);
+
   useEffect(()=>{
     if(!visible||!stageEnabled||!chart||!priceSeries)return;
     const host=chart.chartElement?.()?.parentElement || null;
@@ -79,7 +86,7 @@ export default function OwnerWaveAnchorsOverlay({
 
       const plotted=[];
       const samePivot=new Map();
-      for(const a of anchors){
+      for(const [anchorIndex,a] of anchors.entries()){
         // X may use ONLY an opening timestamp actually in the chart's
         // source series. Primary has independently audited Daily/4H opens;
         // intraday uses the loaded authentic candle timestamps or pager.
@@ -108,16 +115,10 @@ export default function OwnerWaveAnchorsOverlay({
           continue;
         }
 
-        const color=DEGREE_COLORS[a.degree]||"#fbbf24";
-        ctx.fillStyle=color;
-        ctx.strokeStyle=color;
-        ctx.lineWidth=2;
-        ctx.beginPath();
-        ctx.arc(x,y,5,0,Math.PI*2);
-        // Always hollow: owner-provided price has NOT been validated
-        // against the corresponding Engine11 unadjusted source OHLC.
-        ctx.stroke();
-        const node={a,x,y,color,classification,labels:[a.label],outOfView};
+        const color=activeStyle.color;
+        // Exact source position is always retained. Marker visibility is
+        // only a drawing preference; it never creates another node.
+        const node={a,x,y,priceY,anchorIndex,color,classification,labels:[a.label],outOfView};
         plotted.push(node);
         samePivot.set(key,node);
       }
@@ -127,6 +128,36 @@ export default function OwnerWaveAnchorsOverlay({
            p.a.classification?.startsWith("CONFLICT")?" [SHEET CONFLICT]":
            p.a.classification?.startsWith("PROVISIONAL")?" [PROVISIONAL]":
            minorOnly||minuteOnly||subminuteOnly||microOnly||submicroOnly?" [RESEARCH]":" [OWNER REVIEW]");
+      }
+
+      // Optional owner-requested wave connectors. Connect ONLY adjacent
+      // valid source anchors when both corresponding genuine candle opens
+      // are loaded; never bridge missing nodes or invent projection points.
+      if(activeStyle.showLines){
+        const ordered=[...plotted].sort((a,b)=>a.anchorIndex-b.anchorIndex);
+        ctx.setLineDash([]);
+        ctx.strokeStyle=activeStyle.lineColor;
+        ctx.lineWidth=activeStyle.lineWidth;
+        for(let i=1;i<ordered.length;i++){
+          const prev=ordered[i-1],next=ordered[i];
+          if(next.anchorIndex!==prev.anchorIndex+1||
+             prev.outOfView||next.outOfView)continue;
+          ctx.beginPath();
+          ctx.moveTo(prev.x,prev.priceY);
+          ctx.lineTo(next.x,next.priceY);
+          ctx.stroke();
+        }
+      }
+
+      if(activeStyle.showDots){
+        ctx.strokeStyle=activeStyle.color;
+        ctx.lineWidth=2;
+        for(const p of plotted){
+          ctx.beginPath();
+          ctx.arc(p.x,p.y,activeStyle.markerRadius,0,Math.PI*2);
+          // Hollow markers preserve unverified owner research semantics.
+          ctx.stroke();
+        }
       }
 
       // Minor W2 research retracement prices. These are levels only:
@@ -147,12 +178,12 @@ export default function OwnerWaveAnchorsOverlay({
       }
 
       // Collision avoidance moves LABELS only. Exact anchor dots never move.
-      ctx.font="600 12px system-ui";
+      ctx.font=`600 ${activeStyle.labelFontPx}px system-ui`;
       ctx.textAlign="center";
       ctx.textBaseline="bottom";
       const placed=[];
-      const LABEL_H=16, PAD_X=6, STEP=16, MAX_STEPS=10;
-      for(const p of plotted.sort((m,n)=>m.y-n.y||m.x-n.x)){
+      const LABEL_H=activeStyle.labelFontPx+4, PAD_X=6, STEP=LABEL_H, MAX_STEPS=10;
+      if(activeStyle.showLabels)for(const p of plotted.sort((m,n)=>m.y-n.y||m.x-n.x)){
         const width=ctx.measureText(p.text).width+PAD_X*2;
         let labelY=Math.max(14,p.y-10);
         let box=null;
@@ -205,12 +236,14 @@ export default function OwnerWaveAnchorsOverlay({
     };
   },[visible,stageEnabled,primaryOnly,intermediateOnly,minorOnly,
     minuteOnly,subminuteOnly,microOnly,submicroOnly,chart,priceSeries,degree,
-    timeframe,sourceBars,pagedCandleOpenAt,workingNodes]);
+    timeframe,sourceBars,pagedCandleOpenAt,workingNodes,activeStyle.color,
+    activeStyle.lineColor,activeStyle.showDots,activeStyle.showLines,
+    activeStyle.showLabels,activeStyle.markerRadius,activeStyle.labelFontPx,
+    activeStyle.lineWidth]);
 
-  if(!visible)return null;
-
-  const showStage=next=>{
-    onStageChange?.(next);
+  // The original degree selection used to focus the relevant source
+  // period. Preserve that behavior after moving controls to Indicators.
+  const focusStage=next=>{
     if(chart){
       const ranges={
         PRIMARY:["2020-03-20","2025-05-05"],
@@ -253,68 +286,13 @@ export default function OwnerWaveAnchorsOverlay({
     }
   };
 
-  return (
-    <div
-      aria-label="Elliott Wave nodes - one degree at a time"
-      style={{
-        position:"absolute",top:10,right:80,zIndex:95,
-        display:"flex",alignItems:"center",gap:6,
-        padding:"5px 8px",background:"rgba(8,12,24,.92)",
-        border:"1px solid #334155",borderRadius:6,
-        color:"#e5e7eb",fontSize:11
-      }}
-    >
-      <span style={{fontWeight:800,marginRight:3}}>Wave nodes · 1 degree at a time</span>
-      {historyCursor>0?<span style={{fontSize:10,opacity:.85}}>
-        Engine22 history rev {historyCursor} · {historicalRevisionCount} preserved
-      </span>:null}
-      <button type="button" aria-pressed={stage==="OFF"}
-        onClick={()=>showStage("OFF")}
-        style={{
-          background:stage==="OFF"?"#facc15":"#111827",
-          color:stage==="OFF"?"#111827":"#d1d5db",
-          border:"1px solid #64748b",borderRadius:4,
-          padding:"3px 9px",cursor:"pointer"
-        }}>Off</button>
-      <button type="button" aria-pressed={primaryOnly}
-        onClick={()=>showStage("PRIMARY")}
-        style={{
-          background:primaryOnly?"#facc15":"#111827",
-          color:primaryOnly?"#111827":"#d1d5db",
-          border:"1px solid #64748b",borderRadius:4,
-          padding:"3px 9px",cursor:"pointer"
-        }}>Primary (5)</button>
-      {[
-        ["INTERMEDIATE",intermediateOnly,"Intermediate (3)"],
-        ["MINOR",minorOnly,"Minor (2 + Fib)"],
-        ["MINUTE",minuteOnly,"Minute (4)"],
-        ["SUBMINUTE",subminuteOnly,"Subminute (3)"],
-        ["MICRO",microOnly,"Micro (3)"],
-        ["SUBMICRO",submicroOnly,"Submicro (3)"],
-      ].map(([next,pressed,text])=>(
-        <button key={next} type="button" aria-pressed={pressed}
-          onClick={()=>showStage(next)}
-          style={{
-            background:pressed?"#facc15":"#111827",
-            color:pressed?"#111827":"#d1d5db",
-            border:"1px solid #64748b",borderRadius:4,
-            padding:"3px 9px",cursor:"pointer"
-          }}>{text}</button>
-      ))}
-      <span style={{fontSize:10,opacity:.8}}>
-        {minorOnly?"Minor W2 unconfirmed · Fib levels RESEARCH":
-         minuteOnly?"Minute C low provisional · ABC research":
-         subminuteOnly?"Subminute C ending UNKNOWN":
-         microOnly?(microFromEngine22?"Micro nodes from Engine22 Strategies · research only":
-           "Micro A High conflicts with sheet note · W2 unconfirmed"):
-         submicroOnly?(submicroFromEngine22?"Submicro nodes from Engine22 Strategies · research only":
-           "Submicro W1/W2 research · W3 blank · source times require real candles"):
-         intermediateOnly?"Intermediate W3 active · historical owner review":
-         "Other degrees hidden · historical source not modified"}
-        {stageEnabled?` · ${mappedNodeCount}/${activeNodes.length} nodes in loaded ${timeframe} history`:""}
-        {stageEnabled&&mappedNodeCount===0?
-          (submicroOnly?" · No matching Submicro candles loaded":" · Older source candles required"):""}
-      </span>
-    </div>
-  );
+  useEffect(()=>{
+    if(priorStageRef.current===stage)return;
+    priorStageRef.current=stage;
+    if(visible&&stage!=="OFF")focusStage(stage);
+    // Focus only when degree changes, never when LIVE candles update.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[stage,visible]);
+
+  return null;
 }
