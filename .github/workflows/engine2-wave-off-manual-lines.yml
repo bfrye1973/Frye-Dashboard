@@ -1,0 +1,29 @@
+name: Engine2 Wave Off Hides All Manual Lines
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/pages/rows/RowChart/index.jsx'
+      - 'src/pages/rows/RowChart/overlays/OwnerWaveAnchorsOverlay.jsx'
+      - 'src/pages/rows/RowChart/overlays/Engine22FibLayersOverlay.jsx'
+      - 'src/pages/rows/RowChart/overlays/Engine22ManualWaveStage.test.jsx'
+      - '.github/workflows/engine2-wave-off-manual-lines.yml'
+jobs:
+  verify-off-and-primary:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - name: Ensure Off hides manual wave connectors regardless of timeframe
+        run: CI=true npm test -- --watch=false --runInBand --testPathPattern=Engine22ManualWaveStage.test.jsx
+      - name: Existing Primary-only stage regression
+        run: CI=true npm test -- --watch=false --runInBand --testPathPattern=OwnerWaveAnchorsOverlay.test.jsx
+      - name: Full existing frontend build - no deployment
+        run: npm run build
