@@ -1082,14 +1082,14 @@ export default function RowChart({
     showPremarketFibs: false,
   });
 
-  // Engine 11B: newest verified page for ES 5m/10m.
+  // Engine 11B: newest verified page for ES 5m/10m/1h/4h.
   // A missing/expired authorization uses bounded contract-identified futures
-  // OHLC, NEVER the old full 472/236-page archive loader.
+  // OHLC, NEVER the old full-history page loop.
   const [engine11RecentFallbackKey, setEngine11RecentFallbackKey] = useState("");
   const engine11RecentKey = `${state.symbol}:${state.timeframe}`;
   const fiveMinuteFeatureEnabled =
     normalizeSymbol(state.symbol) === "ES" &&
-    ["5m", "10m"].includes(state.timeframe) &&
+    ["5m", "10m", "1h", "4h", "1d"].includes(state.timeframe) &&
     engine11RecentFallbackKey !== engine11RecentKey &&
     typeof window !== "undefined" &&
     new URLSearchParams(window.location.search).get("engine11Candles") !== "0";
@@ -1255,6 +1255,9 @@ export default function RowChart({
     });
 
     didFitOnceRef.current = false;
+    // A timeframe change is new navigation: stale prior wheel/pan intent
+    // must not suppress jumping to the current candle on its recent bridge.
+    userInteractedRef.current = false;
   }, [state.timeframe]);
 
   /* ---------------------- LIVE: status timer ---------------------- */
@@ -1354,6 +1357,9 @@ export default function RowChart({
     let streamContract = "";
     let recentCatchupDone = false;
     let recentContractMismatch = false;
+    // 4H bars can use session-specific openings, unlike UTC floor.
+    let verifiedSessionOpens = [];
+    const verifiedSourceBucketOHLC = new Map();
 
     lastAliveRef.current = 0;
     liveContractHoldRef.current = true;
@@ -1409,27 +1415,80 @@ export default function RowChart({
         });
       }
     };
+    const bucketForMinute = t => {
+      if(!["4h","1d"].includes(state.timeframe)) return Math.floor(t/bucketSeconds)*bucketSeconds;
+      // Do not invent session boundaries: only source-verified 4H/EOD openings.
+      for(let i=verifiedSessionOpens.length-1;i>=0;i--){
+        const open=verifiedSessionOpens[i];
+        if(open<=t&&t<open+bucketSeconds)return open;
+      }
+      return null;
+    };
+    // A new higher-timeframe session bucket may begin after the initial OHLC bridge.
+    // Resolve its opening from a NEW verified bounded source response,
+    // never inventing a UTC 4H bucket across futures session gaps.
+    let lastSessionRefreshAt=0;
+    let sessionRefreshInFlight=false;
+    const refreshSessionBoundary = async () => {
+      if(!["4h","1d"].includes(state.timeframe)||sessionRefreshInFlight||
+        !recentCatchupDone||!streamMatchesHistory())return;
+      const now=Date.now();
+      if(now-lastSessionRefreshAt<15000)return;
+      lastSessionRefreshAt=now;
+      sessionRefreshInFlight=true;
+      try{
+        const latest=await getFuturesRecentOHLCWithIdentity("ES",state.timeframe,200);
+        if(!active)return;
+        if(latest.resolvedSymbol!==expectedContract){
+          recentContractMismatch=true;
+          updateContractStatus();
+          setHistoryStatus("CURRENT CANDLES ON HOLD · FUTURES CONTRACT MISMATCH");
+          return;
+        }
+        verifiedSessionOpens=[...new Set(latest.bars
+          .map(b=>Number(b.time)).filter(Number.isFinite))].sort((a,b)=>a-b);
+        for(const b of latest.bars)verifiedSourceBucketOHLC.set(Number(b.time),b);
+        pager.appendVerifiedRecent(latest.bars,{contractVerified:true});
+        for(const b of [...bufferedOneMinute.values()].sort((a,b)=>a.time-b.time)){
+          if(b.sourceContract===expectedContract)consumeMinute(b);
+        }
+      }catch(err){
+        if(active)console.warn("[Engine11B] optional 4h boundary refresh",err);
+      }finally{sessionRefreshInFlight=false;}
+    };
     const consumeMinute = (oneMin) => {
       // Compatible LIVE bars must be painted as soon as the first immutable
       // page is ready. Never wait for the optional recent OHLC bridge.
       if (!streamMatchesHistory() || !pager.snapshot().started) return;
       const t = Number(oneMin.time);
       if (!Number.isFinite(t)) return;
-      const bucket = Math.floor(t / bucketSeconds) * bucketSeconds;
-      if (bucket <= pager.snapshot().archiveLastTime) return;
+      const bucket = bucketForMinute(t);
+      if(!Number.isFinite(bucket)){
+        void refreshSessionBoundary();
+        return;
+      }
+      if(bucket <= pager.snapshot().archiveLastTime)return;
       const group = Array.from(bufferedOneMinute.values())
         .filter(b => b.sourceContract === expectedContract &&
-          Math.floor(b.time / bucketSeconds) * bucketSeconds === bucket)
+          bucketForMinute(b.time) === bucket)
         .sort((a, b) => a.time - b.time);
       if (!group.length) return;
       const arrivalAt = Number(oneMin.__arrivalAt || performance.now());
+      // Higher-frame current OHLC already includes earlier minutes in the
+      // forming bar. Preserve its source-backed opening, extremes and volume.
+      // Do not overwrite a full-hour/4h volume with only 1 minute of volume.
+      const baseline = ["1h","4h","1d"].includes(state.timeframe)
+        ? verifiedSourceBucketOHLC.get(bucket) : null;
       const accepted = pager.updateLive({
         time: bucket,
-        open: group[0].open,
-        high: Math.max(...group.map(b => b.high)),
-        low: Math.min(...group.map(b => b.low)),
+        open: baseline?.open ?? group[0].open,
+        high: Math.max(baseline?.high ?? -Infinity,...group.map(b => b.high)),
+        low: Math.min(baseline?.low ?? Infinity,...group.map(b => b.low)),
         close: group[group.length - 1].close,
-        volume: group.reduce((sum, b) => sum + Number(b.volume || 0), 0),
+        // This conservative nondecreasing lower bound avoids double counting
+        // overlapping cumulative minute source volume.
+        volume: Math.max(Number(baseline?.volume||0),
+          group.reduce((sum, b) => sum + Number(b.volume || 0), 0)),
       }, {contractVerified:true});
       if (accepted && window.__ENGINE11B_TEST__) {
         window.__ENGINE11B_TEST__.events.push({
@@ -1514,9 +1573,21 @@ export default function RowChart({
             });
           }
         } else {
+          if(["1h","4h","1d"].includes(state.timeframe)){
+            for(const b of recent.bars)verifiedSourceBucketOHLC.set(Number(b.time),b);
+          }
+          if(["4h","1d"].includes(state.timeframe)){
+            verifiedSessionOpens=[...new Set(recent.bars
+              .map(b=>Number(b.time)).filter(Number.isFinite))].sort((a,b)=>a-b);
+          }
           const added = pager.appendVerifiedRecent(recent.bars, {contractVerified:true});
           if (added > 0 && !userInteractedRef.current) {
             chartRef.current?.timeScale().scrollToRealTime();
+          }
+          if(["4h","1d"].includes(state.timeframe)){
+            for(const b of [...bufferedOneMinute.values()].sort((a,b)=>a.time-b.time)){
+              if(b.sourceContract===expectedContract)consumeMinute(b);
+            }
           }
           setHistoryStatus(added > 0
             ? "ENGINE11 HISTORY + CURRENT FUTURES · LIVE STREAM"
@@ -1571,7 +1642,7 @@ export default function RowChart({
         const limit = seedLimitFor(state.timeframe);
         const boundedRecentFallback =
           normalizeSymbol(state.symbol) === "ES" &&
-          ["5m", "10m"].includes(state.timeframe) &&
+          ["5m", "10m", "1h", "4h", "1d"].includes(state.timeframe) &&
           engine11RecentFallbackKey === engine11RecentKey;
         const useEngine11 =
           !boundedRecentFallback &&
@@ -1740,7 +1811,7 @@ export default function RowChart({
         console.error("[RowChart] seed error:", e);
         barsRef.current = [];
         setBars([]);
-        if (normalizeSymbol(state.symbol) === "ES" && ["5m", "10m"].includes(state.timeframe)) {
+        if (normalizeSymbol(state.symbol) === "ES" && ["5m", "10m", "1h", "4h", "1d"].includes(state.timeframe)) {
           setHistoryStatus("HISTORY UNAVAILABLE · CHECK DATA SOURCE");
         }
       } finally {
@@ -2196,7 +2267,7 @@ export default function RowChart({
 
         const boundedFallback =
           normalizeSymbol(state.symbol) === "ES" &&
-          ["5m", "10m"].includes(state.timeframe) &&
+          ["5m", "10m", "1h", "4h", "1d"].includes(state.timeframe) &&
           engine11RecentFallbackKey === engine11RecentKey;
         const recent = boundedFallback
           ? await getFuturesRecentOHLCWithIdentity(state.symbol, state.timeframe, backfillLimit)
@@ -2329,7 +2400,7 @@ export default function RowChart({
       lastAliveRef.current = Date.now();
       const boundedFallback =
         normalizeSymbol(state.symbol) === "ES" &&
-        ["5m", "10m"].includes(state.timeframe) &&
+        ["5m", "10m", "1h", "4h", "1d"].includes(state.timeframe) &&
         engine11RecentFallbackKey === engine11RecentKey;
       if (boundedFallback && msg?.resolvedSymbol) {
         liveContractHoldRef.current =
@@ -2345,7 +2416,7 @@ export default function RowChart({
         if (!isCurrent) return;
         const boundedFallback =
           normalizeSymbol(state.symbol) === "ES" &&
-          ["5m", "10m"].includes(state.timeframe) &&
+          ["5m", "10m", "1h", "4h", "1d"].includes(state.timeframe) &&
           engine11RecentFallbackKey === engine11RecentKey;
         if (boundedFallback &&
             (!recentFallbackContractRef.current ||
@@ -2824,7 +2895,7 @@ export default function RowChart({
             {badge.text}
           </div>
           {historyStatus && normalizeSymbol(state.symbol) === "ES" &&
-            ["5m","10m"].includes(state.timeframe) && (
+            ["5m","10m","1h","4h","1d"].includes(state.timeframe) && (
             <div style={{position:"absolute",top:46,left:60,zIndex:90,
               padding:"4px 8px",fontSize:11,borderRadius:6,
               color:"#e2e8f0",background:"rgba(15,23,42,0.85)"}}>

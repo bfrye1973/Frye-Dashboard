@@ -29,7 +29,7 @@ jobs:
       - name: 5m and 10m historical-page / LIVE regression
         env:
           CI: "true"
-        run: npm test -- --watch=false --runInBand --runTestsByPath src/pages/rows/RowChart/engine11InfiniteHistory5mProof.test.js src/pages/rows/RowChart/engine11InfiniteHistory10mProof.test.js src/pages/rows/RowChart/engine11BackfillGuard.test.js
+        run: npm test -- --watch=false --runInBand --runTestsByPath src/pages/rows/RowChart/engine11InfiniteHistory5mProof.test.js src/pages/rows/RowChart/engine11InfiniteHistory10mProof.test.js src/pages/rows/RowChart/engine11BackfillGuard.test.js src/pages/rows/RowChart/engine11InfiniteHistory1h4h.test.js
       - name: Build actual RowChart frontend
         run: npm run build
 
@@ -69,6 +69,60 @@ jobs:
           name: engine11b-isolated-es-candles
           path: /tmp/engine11b-*-candles.png
           if-no-files-found: ignore
+
+  authentic-engine11-higher-frame-rowchart:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Locate the existing signed Engine11 2020+ source artifact
+        id: backend-pages
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api 'repos/bfrye1973/frye-market-backend/actions/artifacts?per_page=100' --jq '[.artifacts[] | select(.name=="engine11-2020plus-private-history-pages-v1" and .expired==false) | {id, run_id:.workflow_run.id, created_at}] | sort_by(.created_at) | last' > /tmp/engine11b-higher-meta.json
+          node - <<'NODE'
+          const fs=require('fs');
+          const d=JSON.parse(fs.readFileSync('/tmp/engine11b-higher-meta.json','utf8'));
+          if(!d?.id||!d?.run_id)throw Error('ENGINE11_APPROVED_ARTIFACT_UNAVAILABLE');
+          fs.appendFileSync(process.env.GITHUB_OUTPUT,'backend_run_id='+d.run_id+'\n');
+          NODE
+      - uses: actions/download-artifact@v4
+        with:
+          name: engine11-2020plus-private-history-pages-v1
+          repository: bfrye1973/frye-market-backend
+          run-id: ${{ steps.backend-pages.outputs.backend_run_id }}
+          github-token: ${{ github.token }}
+          path: /tmp/engine11b-higher-verified-pages
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Build existing RowChart with genuine 1h and 4h source data
+        env:
+          REACT_APP_STREAM_BASE: https://frye-market-backend-2.onrender.com
+        run: npm run build
+      - name: Install Chromium
+        run: |
+          npm install --no-save --no-package-lock playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Serve existing built chart
+        run: |
+          node research/engine2c-preview/integration-http.cjs > /tmp/engine11b-higher-http.log 2>&1 &
+          for i in $(seq 1 50); do
+            if curl -fsS http://127.0.0.1:8193/chart?symbol=ES >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/engine11b-higher-http.log
+          exit 1
+      - name: Assert 1h and 4h first-page paint, verified recent bridge and older-on-scroll
+        env:
+          ENGINE11B_VERIFIED_PAGES: /tmp/engine11b-higher-verified-pages
+        run: node research/engine11b/authentic-higher-frame-browser.cjs
+      - name: Destroy downloaded historical source package
+        if: always()
+        run: rm -rf /tmp/engine11b-higher-verified-pages
 
   real-1m-ohlc-response:
     runs-on: ubuntu-24.04

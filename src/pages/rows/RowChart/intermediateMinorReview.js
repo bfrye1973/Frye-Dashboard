@@ -46,6 +46,14 @@ export const MICRO_REVIEW_ANCHORS=Object.freeze([
   // Micro C is blank in the sheet: do not fabricate.
 ]);
 
+// Source: connected Engine22 Master "Submicro ABC Proposed", rows 2-5,
+// verified 2026-11-08. C ending has UNKNOWN source coordinates: no dot.
+export const SUBMICRO_REVIEW_ANCHORS=Object.freeze([
+  anchor("submicro","A starting high","2026-11-06","07:50",7469.75,"OWNER RESEARCH"),
+  anchor("submicro","A ending low","2026-11-06","10:50",7396.75,"OWNER RESEARCH"),
+  anchor("submicro","B ending high","2026-11-06","12:30",7436.75,"OWNER RESEARCH"),
+]);
+
 export const MINOR_W2_RESEARCH_LEVELS=Object.freeze([
   {ratio:"0.236",price:7487.50,status:"UNVERIFIED"},
   {ratio:"0.500",price:7091.75,status:"UNVERIFIED"},
