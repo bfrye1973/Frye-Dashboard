@@ -19,11 +19,11 @@ assert.equal(cat.priceBasisVersion,basis);
 assert.equal(summary.datasetVersion,dataset);
 assert.equal(summary.priceBasisVersion,basis);
 const anchors=[
- ["W1 starting low","2020-04-02","08:00",3200],
- ["W1 ending high","2022-01-05","10:00",5620],
- ["W2 ending low","2022-10-12","09:00",4306],
- ["W3 ending high","2025-02-20","09:00",6487],
- ["W4 ending low","2025-04-09","07:00",5182],
+ ["W1 starting low","2020-04-01","08:00",2440],
+ ["W1 ending high","2022-01-04","10:00",4806],
+ ["W2 ending low","2022-10-13","09:00",3504],
+ ["W3 ending high","2025-02-19","09:00",6157],
+ ["W4 ending low","2025-04-07","07:00",4825],
 ].map(([node,date,time,price])=>({node,az:date+" "+time,utc:new Date(date+"T"+time+":00-07:00").toISOString(),
   t:Date.parse(date+"T"+time+":00-07:00"),price}));
 const frames=[["5m",300000],["1h",3600000],["4h",14400000],["1d",86400000]];
