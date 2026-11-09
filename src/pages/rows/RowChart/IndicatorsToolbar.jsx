@@ -2,6 +2,7 @@
 // Engine 17 + Premarket Fib controls
 
 import React from "react";
+import {WAVE_NODE_DEGREES,waveNodeDisplayStyle} from "./waveNodePresentation";
 
 function ColorInput({ value, onChange }) {
   return (
@@ -266,6 +267,73 @@ function FibRow({ label, enabled, styleObj, onToggle, onStylePatch }) {
   );
 }
 
+// Chart wave anchors are not Fibonacci projections. Keep selection and
+// cosmetics independent from all Fib (degree) toggles and Engine22 decisions.
+function WaveNodeRow({degree,label,selected,styleObj,onSelect,onStylePatch}){
+  const s=waveNodeDisplayStyle({[degree]:styleObj},degree);
+  return (
+    <div style={{
+      border:"1px solid #272f3d",borderRadius:6,padding:"5px 7px",
+      background:selected?"#1c2737":"#101216"
+    }}>
+      <label style={{display:"flex",alignItems:"center",gap:7,cursor:"pointer",fontSize:12}}>
+        <input type="radio" name="wave-node-degree"
+          checked={selected} onChange={onSelect}/>
+        <span style={{fontWeight:selected?800:600}}>{label}</span>
+        {selected?<span style={{marginLeft:"auto",fontSize:10,color:"#facc15"}}>On</span>:null}
+      </label>
+      <details style={{marginLeft:20,marginTop:3}}>
+        <summary style={{fontSize:11,color:"#cbd5e1",cursor:"pointer"}}>
+          ⚙ Node &amp; line appearance
+        </summary>
+        <div style={{padding:"7px 2px",display:"grid",gap:9,fontSize:12}}>
+          <label style={{display:"flex",gap:7,alignItems:"center"}}>
+            <input type="checkbox" checked={s.showDots}
+              onChange={e=>onStylePatch({showDots:e.target.checked})}/>
+            Show pivot dots
+          </label>
+          <label style={{display:"flex",gap:7,alignItems:"center"}}>
+            <input type="checkbox" checked={s.showLabels}
+              onChange={e=>onStylePatch({showLabels:e.target.checked})}/>
+            Show wave labels &amp; prices
+          </label>
+          <label style={{display:"flex",gap:7,alignItems:"center"}}>
+            <input type="checkbox" checked={s.showLines}
+              onChange={e=>onStylePatch({showLines:e.target.checked})}/>
+            Connect verified source anchors
+          </label>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10}}>
+            <span>Node / label color</span>
+            <ColorInput value={s.color} onChange={color=>onStylePatch({color})}/>
+          </div>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10}}>
+            <span>Connecting line color</span>
+            <ColorInput value={s.lineColor} onChange={lineColor=>onStylePatch({lineColor})}/>
+          </div>
+          <label style={{display:"grid",gap:3}}>
+            <span>Pivot dot size: {s.markerRadius}px radius</span>
+            <Slider min={2} max={12} step={1} value={s.markerRadius}
+              onChange={markerRadius=>onStylePatch({markerRadius})}/>
+          </label>
+          <label style={{display:"grid",gap:3}}>
+            <span>Label size: {s.labelFontPx}px</span>
+            <Slider min={10} max={24} step={1} value={s.labelFontPx}
+              onChange={labelFontPx=>onStylePatch({labelFontPx})}/>
+          </label>
+          <label style={{display:"grid",gap:3}}>
+            <span>Line thickness: {s.lineWidth}px</span>
+            <Slider min={1} max={8} step={0.5} value={s.lineWidth}
+              onChange={lineWidth=>onStylePatch({lineWidth})}/>
+          </label>
+          <div style={{fontSize:10,color:"#94a3b8"}}>
+            Only confirmed source-candle positions are connected. Fib targets are separate.
+          </div>
+        </div>
+      </details>
+    </div>
+  );
+}
+
 export default function IndicatorsToolbar({
   showEma = true,
   ema10 = true,
@@ -314,6 +382,14 @@ export default function IndicatorsToolbar({
   
   showPremarketFibs = false,
 
+  waveNodeStage = "OFF",
+  waveNodeStyles = {},
+  waveNodeStatus = null,
+  waveNodeHistoryCursor = 0,
+  waveNodeHistoricalRevisionCount = 0,
+  onWaveNodeStageChange,
+  onWaveNodeStylePatch,
+
   onChange,
   onReset,
 }) {
@@ -330,6 +406,9 @@ export default function IndicatorsToolbar({
         borderRadius: 8,
         padding: 10,
         minWidth: 420,
+        maxHeight: "calc(100vh - 190px)",
+        overflowY: "auto",
+        overscrollBehavior: "contain",
         color: "#e5e7eb",
         boxShadow: "0 6px 24px rgba(0,0,0,0.35)",
       }}
@@ -370,6 +449,50 @@ export default function IndicatorsToolbar({
 
           {wrap(
             <>
+              <div style={{color:"#facc15",fontSize:12,fontWeight:800,margin:"5px 0 4px"}}>
+                Engine 2 — Elliott Wave Nodes
+              </div>
+              <div style={{fontSize:11,color:"#94a3b8",marginBottom:7}}>
+                Select one degree. Wave dots, labels and connectors are independent of Fibonacci.
+              </div>
+              <div style={{display:"grid",gap:5}}>
+                <label style={{display:"flex",gap:7,alignItems:"center",cursor:"pointer",fontSize:12}}>
+                  <input type="radio" name="wave-node-degree"
+                    checked={waveNodeStage==="OFF"}
+                    onChange={()=>onWaveNodeStageChange?.("OFF")}/>
+                  <span style={{fontWeight:waveNodeStage==="OFF"?800:500}}>Off — hide all wave nodes</span>
+                </label>
+                {WAVE_NODE_DEGREES.map(([degree,label])=>(
+                  <WaveNodeRow
+                    key={degree}
+                    degree={degree} label={label}
+                    selected={waveNodeStage===degree}
+                    styleObj={waveNodeStyles[degree]}
+                    onSelect={()=>onWaveNodeStageChange?.(degree)}
+                    onStylePatch={patch=>onWaveNodeStylePatch?.(degree,patch)}
+                  />
+                ))}
+              </div>
+              {waveNodeStage!=="OFF"&&waveNodeStatus?.stage===waveNodeStage?(
+                <div style={{marginTop:7,color:"#94a3b8",fontSize:11}}>
+                  {waveNodeStatus.mapped}/{waveNodeStatus.total} source nodes have matching loaded
+                  {" "}{waveNodeStatus.timeframe} candles
+                  {waveNodeStatus.mapped===0?" · Older or missing candles may be required":""}
+                </div>
+              ):null}
+              {waveNodeHistoryCursor>0?(
+                <div style={{marginTop:4,color:"#94a3b8",fontSize:10}}>
+                  Engine 22 history revision {waveNodeHistoryCursor}
+                  {" · "}{waveNodeHistoricalRevisionCount} stored revision events
+                </div>
+              ):null}
+              <div style={{marginTop:5,color:"#94a3b8",fontSize:10}}>
+                Micro and Submicro follow validated Engine 22 Strategies research data.
+                All other degrees retain their existing review references.
+              </div>
+
+              {divider}
+
               <div style={{ color: "#9ca3af", fontSize: 12, margin: "6px 0 4px" }}>EMA</div>
 
               <label>
