@@ -55,7 +55,7 @@ test("null feed preserves previously accepted stage instead of inventing pivots"
 
 test("unverified, malformed, fabricated and duplicate inputs are rejected",()=>{
  const original=packet();
- const bad=structuredClone(original);
+ const bad=JSON.parse(JSON.stringify(original));
  bad.degrees.micro.nodes[0].marketAtUtc=null;
  expect(validatedEngine22WorkingNodeAnchors(bad,"micro")).toHaveLength(0);
  bad.degrees.micro.nodes[0].marketAtUtc="2026-11-06T14:40:00.000Z";
@@ -67,7 +67,7 @@ test("unverified, malformed, fabricated and duplicate inputs are rejected",()=>{
  bad.degrees.micro.nodes[0].plotAllowed=false;
  bad.degrees.micro.nodes[0].waveCompletionConfirmed=true;
  expect(validatedEngine22WorkingNodeAnchors(bad,"micro")).toHaveLength(0);
- const duplicate=structuredClone(original);
+ const duplicate=JSON.parse(JSON.stringify(original));
  duplicate.degrees.micro.nodes.push({...duplicate.degrees.micro.nodes[0]});
  expect(validatedEngine22WorkingNodeAnchors(duplicate,"micro")).toHaveLength(1);
 });
