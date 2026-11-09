@@ -1,6 +1,12 @@
 // Engine2 read-only cursor/replay for the EXISTING Engine22 persistent journal.
 // This is enabled only when Engine22's Strategy snapshot says durable history is
 // available. It never calculates waves or sends a backend history Bearer token.
+// Backend buildStrategySnapshot publishes engine22WaveHistory beside engine22WaveStrategy.
+// Keep readiness bound to the real payload shape; never infer it from the nested
+// Strategies wave model or from an untrusted card presentation.
+export const engine22HistoryAvailableFromSnapshot = snapshot =>
+  snapshot?.strategies?.["intraday_scalp@10m"]?.engine22WaveHistory?.available === true;
+
 export const HISTORY_SCHEMA="engine22.chartNodeHistoryPage.v1";
 const ENDPOINT="https://frye-market-backend-1.onrender.com/api/engine22/wave-history/nodes";
 const positiveRevision=v=>Number.isSafeInteger(v)&&v>=0;
