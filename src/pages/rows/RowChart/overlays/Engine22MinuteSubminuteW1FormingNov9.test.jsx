@@ -32,7 +32,7 @@ test("Minute card prioritizes W1 UP forming over previous C DOWN and shows no fi
  expect(html).toContain("2026-11-05 16:00 AZ");
  expect(html).toContain("SUBMINUTE W1");
  expect(html).toContain("NOT CONFIRMED");
- expect(html).toContain("PENDING W1 AND W2 ANCHORS");
+ expect(html).toContain("PENDING W1 END AND W2 LOW");
  expect(html).toContain("ENGINE 27 / CANONICAL COUNT UNCHANGED");
  expect(html).not.toContain("MINUTE A-B-C DOWN — C DEVELOPING");
  expect(html).not.toContain("MINUTE C DOWN — A-LENGTH FIB EXTENSIONS");
@@ -45,7 +45,7 @@ test("Subminute card prioritizes W1 UP forming and Micro children without false 
  expect(html).toContain("7322.25");
  expect(html).toContain("2026-11-05 16:00 AZ");
  expect(html).toContain("15:20 AZ PRECEDES PARENT 16:00 AZ");
- expect(html).toContain("FIB EXTENSIONS — PENDING W1 AND W2 ANCHORS");
+ expect(html).toContain("PENDING W1 END AND W2 LOW");
  expect(html).not.toContain("SUBMINUTE A-B-C DOWN — C DEVELOPING");
  expect(html).not.toContain("SUBMINUTE C DOWN — A-LENGTH FIB EXTENSIONS");
 });
