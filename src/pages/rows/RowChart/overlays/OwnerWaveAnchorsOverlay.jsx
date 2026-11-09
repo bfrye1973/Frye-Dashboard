@@ -26,6 +26,19 @@ export default function OwnerWaveAnchorsOverlay({
   const microOnly=stage==="MICRO";
   const stageEnabled=primaryOnly||intermediateOnly||minorOnly||
     minuteOnly||subminuteOnly||microOnly;
+  const activeNodes=primaryOnly?ownerAnchorsForDegree(degree):
+    intermediateOnly?INTERMEDIATE_REVIEW_ANCHORS:
+    minorOnly?MINOR_REVIEW_ANCHORS:
+    minuteOnly?MINUTE_REVIEW_ANCHORS:
+    subminuteOnly?SUBMINUTE_REVIEW_ANCHORS:
+    microOnly?MICRO_REVIEW_ANCHORS:[];
+  const mappedNodeCount=activeNodes.filter(a=>Number.isFinite(
+    primaryOnly&&["1d","4h"].includes(timeframe)
+      ? primaryDisplayCandleOpen(a,timeframe)
+      : typeof pagedCandleOpenAt==="function"
+        ? pagedCandleOpenAt(a.timeSec)
+        : checkedDisplayCandleOpen(a,timeframe,sourceBars)
+  )).length;
 
   useEffect(()=>{
     if(!visible||!stageEnabled||!chart||!priceSeries)return;
@@ -282,8 +295,8 @@ export default function OwnerWaveAnchorsOverlay({
          microOnly?"Micro A High conflicts with sheet note · W2 unconfirmed":
          intermediateOnly?"Intermediate W3 active · historical owner review":
          "Other degrees hidden · historical source not modified"}
-        {!["1d","4h"].includes(timeframe)
-          ?" · Intraday nodes display where source candles are loaded":""}
+        {stageEnabled?` · ${mappedNodeCount}/${activeNodes.length} nodes in loaded ${timeframe} history`:""}
+        {stageEnabled&&mappedNodeCount===0?" · Older source candles required":""}
       </span>
     </div>
   );
