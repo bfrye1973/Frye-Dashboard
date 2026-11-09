@@ -10,11 +10,14 @@ export default function Engine16SubmicroResearchOverlay({
   const canvasRef=useRef(null);
   const eventsRef=useRef([]);
   const lastFingerprint=useRef("");
+  const analysisRef=useRef(null);
+  const redrawRef=useRef(null);
   const analysis=useMemo(()=>{
     if(!visible)return null;
     try{return detectSubmicroChartAbc(bars,{contractVerified:verified});}
     catch{return {status:"UNAVAILABLE",reason:"RESEARCH_DETECTOR_ERROR",candidate:null};}
   },[visible,bars,verified]);
+  analysisRef.current=analysis;
   const context=useMemo(()=>validatedEngine22WorkingNodeAnchors(engine22Nodes,"submicro"),[engine22Nodes]);
   useEffect(()=>{
     if(!visible||!analysis?.candidate)return;
@@ -29,7 +32,7 @@ export default function Engine16SubmicroResearchOverlay({
   },[visible,analysis]);
 
   useEffect(()=>{
-    if(!visible||!chart||!priceSeries||!analysis?.candidate)return;
+    if(!visible||!chart||!priceSeries)return;
     const host=chart.chartElement?.()?.parentElement;
     if(!host)return;
     const canvas=document.createElement("canvas");
@@ -47,7 +50,8 @@ export default function Engine16SubmicroResearchOverlay({
       canvas.width=Math.round(rect.width*dpr);canvas.height=Math.round(rect.height*dpr);
       const ctx=canvas.getContext("2d");if(!ctx)return;
       ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,rect.width,rect.height);
-      const c=analysis.candidate;
+      const c=analysisRef.current?.candidate;
+      if(!c)return;
       const color=c.direction==="UP"?"#34d399":"#fb7185";
       const at=(time,price)=>({
         x:chart.timeScale().timeToCoordinate(time),
@@ -89,6 +93,7 @@ export default function Engine16SubmicroResearchOverlay({
       }
     };
     const schedule=()=>{if(!disposed&&!frame)frame=requestAnimationFrame(draw);};
+    redrawRef.current=schedule;
     const ts=chart.timeScale();
     ts.subscribeVisibleTimeRangeChange(schedule);
     ts.subscribeVisibleLogicalRangeChange(schedule);
@@ -99,9 +104,11 @@ export default function Engine16SubmicroResearchOverlay({
       ts.unsubscribeVisibleTimeRangeChange(schedule);
       ts.unsubscribeVisibleLogicalRangeChange(schedule);
       ro.disconnect();canvas.remove();
+      if(redrawRef.current===schedule)redrawRef.current=null;
       if(canvasRef.current===canvas)canvasRef.current=null;
     };
-  },[visible,chart,priceSeries,analysis]);
+  },[visible,chart,priceSeries]);
+  useEffect(()=>{redrawRef.current?.();},[analysis]);
 
   if(!visible)return null;
   const active=analysis?.candidate;
