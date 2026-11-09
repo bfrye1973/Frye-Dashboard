@@ -55,16 +55,33 @@ export const MINOR_W2_RESEARCH_LEVELS=Object.freeze([
   {ratio:"1.000",price:6342.00,status:"UNVERIFIED"},
 ].map(x=>Object.freeze(x)));
 
-export function checkedDisplayCandleOpen(anchor,timeframe,bars){
-  if(!["1d","4h"].includes(timeframe)||!Number.isFinite(anchor?.timeSec)||!Array.isArray(bars))return null;
-  const seconds=timeframe==="1d"?86400:14400;
-  // Search existing Engine11 chart candle OPEN times. No guess, no nearest
-  // arbitrary bar and no mutation of source event timestamp or price.
-  let found=null;
-  for(const bar of bars){
-    const t=Number(bar.time);
-    if(Number.isFinite(t)&&t<=anchor.timeSec&&(found===null||t>found))found=t;
+// Only map an owner event to the opening of a REAL, already-loaded candle.
+// Candle-start timestamps are source authority. Never synthesize a bar,
+// silently replace the owner's event timestamp or perform an unbounded fetch.
+// The archive has daily UTC opens and session-dependent 4h opens.
+export const OWNER_NODE_FRAME_SECONDS = Object.freeze({
+  "1m":60,"5m":300,"10m":600,"15m":900,
+  "30m":1800,"1h":3600,"4h":14400,"1d":86400,
+});
+
+export function containingLoadedCandleOpen(eventTimeSec,timeframe,bars){
+  const duration=OWNER_NODE_FRAME_SECONDS[timeframe];
+  if(!duration||!Number.isFinite(eventTimeSec)||!Array.isArray(bars)||!bars.length)return null;
+  // The Engine11 historical adapter sorts source candle times ascending.
+  // Binary search avoids re-scanning 39k 1h bars on each pan/zoom redraw.
+  let low=0, high=bars.length-1, match=null;
+  while(low<=high){
+    const mid=(low+high)>>1;
+    const time=Number(bars[mid]?.time);
+    if(!Number.isFinite(time))return null;
+    if(time<=eventTimeSec){match=time;low=mid+1;}
+    else high=mid-1;
   }
-  if(found===null||anchor.timeSec>=found+seconds)return null;
-  return found;
+  if(match===null||eventTimeSec>=match+duration)return null;
+  return match;
+}
+
+export function checkedDisplayCandleOpen(anchor,timeframe,bars){
+  if(!Number.isFinite(anchor?.timeSec))return null;
+  return containingLoadedCandleOpen(anchor.timeSec,timeframe,bars);
 }
