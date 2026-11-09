@@ -121,3 +121,14 @@ test("Submicro W2 from Nov8 15:00 AZ has no fabricated candle when source data l
   const later={time:Date.parse("2026-11-08T23:00:00Z")/1000};
   expect(checkedDisplayCandleOpen(w2,"10m",[preceding,later])).toBeNull();
 });
+
+test("Submicro W1 Low and W2 must not be shifted onto a different available 10m candle",()=>{
+  const {SUBMICRO_REVIEW_ANCHORS,checkedDisplayCandleOpen}=require("./intermediateMinorReview");
+  const sourceBars=[
+    {time:Date.parse("2026-11-05T21:50:00Z")/1000}, // last earlier available candle
+    {time:Date.parse("2026-11-05T23:00:00Z")/1000}, // next trading session
+    {time:Date.parse("2026-11-08T23:00:00Z")/1000}, // following Sunday open
+  ];
+  expect(checkedDisplayCandleOpen(SUBMICRO_REVIEW_ANCHORS[0],"10m",sourceBars)).toBeNull();
+  expect(checkedDisplayCandleOpen(SUBMICRO_REVIEW_ANCHORS[2],"10m",sourceBars)).toBeNull();
+});
