@@ -2998,9 +2998,12 @@ export default function RowChart({
             chart={chartRef.current}
             priceSeries={seriesRef.current}
             bars={bars}
-            verified={fiveMinuteFeatureEnabled &&
-              historyStatus.startsWith("ENGINE11") &&
-              !liveStatus.startsWith("HOLD_")}
+            verified={!liveStatus.startsWith("HOLD_") && (
+              (fiveMinuteFeatureEnabled && historyStatus.startsWith("ENGINE11")) ||
+              (historyStatus.startsWith("RECENT FUTURES") &&
+                Boolean(recentFallbackContractRef.current) &&
+                !liveContractHoldRef.current)
+            )}
             engine22Nodes={engine22WorkingNodeSnapshot}
           />
 
