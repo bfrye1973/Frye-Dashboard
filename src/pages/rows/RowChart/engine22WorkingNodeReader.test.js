@@ -18,7 +18,10 @@ const packet=(fp="first")=>({
  available:true,symbol:"ES",readOnly:true,noExecution:true,
  ownerCountPromotion:false,fingerprint:fp,
  degrees:{
-  micro:{degree:"micro",nodes:[sourceNode("micro","W1 High",7469,"2026-11-06T14:40:00.000Z")]},
+  micro:{degree:"micro",nodes:[
+    sourceNode("micro","W1 High",7469,"2026-11-06T14:40:00.000Z"),
+    sourceNode("micro","W2 research anchor",7362,"2026-11-08T23:00:00.000Z")
+  ]},
   submicro:{degree:"submicro",nodes:[
     sourceNode("submicro","W1 Low",7390.25,"2026-11-09T08:00:00.000Z"),
     sourceNode("submicro","W1 High",7476,"2026-11-09T13:00:00.000Z"),
@@ -84,4 +87,16 @@ test("selected Engine22 event maps only to a genuine loaded 10m candle and never
  const later=validatedEngine22WorkingNodeAnchors(pkt,"submicro")[2];
  const before=Date.parse("2026-11-09T13:00:00Z")/1000;
  expect(checkedDisplayCandleOpen(later,"10m",[{time:before}])).toBeNull();
+});
+
+test("corrected owner Micro W2 16:00 Arizona maps to 23:00 UTC; old 15:00 is not current",()=>{
+ const micro=validatedEngine22WorkingNodeAnchors(packet("owner-nov9-w2-correction"),"micro");
+ const w2=micro.find(n=>n.label==="W2 research anchor");
+ expect(w2.price).toBe(7362);
+ expect(w2.timeSec).toBe(Date.parse("2026-11-08T23:00:00.000Z")/1000);
+ expect(w2.timeSec).not.toBe(Date.parse("2026-11-08T22:00:00.000Z")/1000);
+ const candle=w2.timeSec;
+ expect(checkedDisplayCandleOpen(w2,"10m",[{time:candle-600},{time:candle},{time:candle+600}])).toBe(candle);
+ expect(checkedDisplayCandleOpen(w2,"10m",[{time:candle-3600}])).toBeNull();
+ expect(micro.every(n=>n.reviewOnly===true&&n.executionEligible===false)).toBe(true);
 });
