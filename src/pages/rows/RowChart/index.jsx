@@ -3005,6 +3005,9 @@ export default function RowChart({
                 !liveContractHoldRef.current)
             )}
             engine22Nodes={engine22WorkingNodeSnapshot}
+            engine22AuthorizedWorkingStructure={engine22AuthorizedWorkingStructure}
+            engine22CurrentWavelength={engine22CurrentWavelength}
+            fibScenario={state.fibSubmicroScenario}
           />
 
           <OwnerWaveAnchorsOverlay
