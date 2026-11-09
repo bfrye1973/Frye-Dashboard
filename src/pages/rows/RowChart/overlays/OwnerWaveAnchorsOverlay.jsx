@@ -9,8 +9,8 @@ const DEGREE_COLORS={
   minor:"#f472b6",intermediate:"#fb7185",primary:"#facc15"
 };
 
-// Owner-directed staged review: clear all anchor dots by default.
-// Stage 1 permits ONLY Primary. Other degrees stay stored but unmounted.
+// Owner-directed staged review: only one selected degree visible at a time.
+// Primary remains unchanged; Intermediate and Minor are explicitly selected.
 export default function OwnerWaveAnchorsOverlay({
   visible=true, chart, priceSeries, degree="PRIMARY", stage="OFF", timeframe="1d", sourceBars=[], onStageChange
 }){
@@ -197,11 +197,11 @@ export default function OwnerWaveAnchorsOverlay({
       }}
     >
       <span style={{fontWeight:800,marginRight:3}}>Wave nodes · 1 degree at a time</span>
-      <button type="button" aria-pressed={!primaryOnly}
+      <button type="button" aria-pressed={stage==="OFF"}
         onClick={()=>showStage("OFF")}
         style={{
-          background:!primaryOnly?"#facc15":"#111827",
-          color:!primaryOnly?"#111827":"#d1d5db",
+          background:stage==="OFF"?"#facc15":"#111827",
+          color:stage==="OFF"?"#111827":"#d1d5db",
           border:"1px solid #64748b",borderRadius:4,
           padding:"3px 9px",cursor:"pointer"
         }}>Off</button>
