@@ -1,0 +1,65 @@
+name: Engine2 Read-only Seven Degree Strategies Audit
+on:
+  pull_request:
+    branches: [main]
+    paths: ['.github/workflows/engine2-seven-strategy-audit.yml']
+jobs:
+  inspect-live-contracts:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 7
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Audit all LIVE Strategy cards and seven Engine22 degrees (read-only)
+        run: |
+          node --input-type=module <<'NODE'
+          const base='https://frye-market-backend-1.onrender.com';
+          const response=await fetch(base+'/api/v1/dashboard-snapshot?symbol=ES&includeContext=1',{
+            headers:{Accept:'application/json'},signal:AbortSignal.timeout(45000)
+          });
+          console.log('PRODUCTION_SNAPSHOT_HTTP',response.status);
+          if(!response.ok)throw Error('SNAPSHOT_REQUEST_FAILED');
+          const snapshot=await response.json();
+          const ordered=['primary','intermediate','minor','minute','subminute','micro','submicro'];
+          const cards=Object.entries(snapshot.strategies||{});
+          console.log('STRATEGY_COUNT',cards.length);
+          for(const [id,card] of cards){
+            const w=card.engine22WaveStrategy;
+            const authorized=w?.authorizedWorkingStructure;
+            const packet=w?.workingWaveNodes;
+            console.log('STRATEGY',JSON.stringify({
+              id,hasEngine22:!!w,engine22Mode:w?.mode??null,
+              approvedSchema:authorized?.schema??null,
+              ownerRevision:authorized?.publicationRevision??null,
+              workingPacketSchema:packet?.schema??null,
+              workingPacketFingerprintPresent:!!packet?.fingerprint,
+              historyAvailable:card.engine22WaveHistory?.available===true,
+              hasCurrentWavelength:!!w?.currentWavelength,
+            }));
+            for(const degree of ordered){
+              const auth=authorized?.degrees?.[degree];
+              const d=packet?.degrees?.[degree];
+              const models=d?.models||[];
+              console.log('DEGREE',JSON.stringify({
+                strategy:id,degree,
+                approvedAvailable:auth?.available===true,
+                approvedSource:auth?.sourcePath??null,
+                approvedModelVersion:auth?.modelVersion??null,
+                packetAvailable:d?.available===true,
+                packetCurrentNodes:d?.nodes?.length??0,
+                packetModelCount:models.length,
+                packetSourcePaths:models.map(m=>m.sourcePath),
+                packetNodesValid:(d?.nodes||[]).every(n=>
+                  n?.degree===degree&&n.noExecution===true&&
+                  typeof n.marketAtUtc==='string'&&
+                  Number.isFinite(Date.parse(n.marketAtUtc))&&
+                  Number.isFinite(n.price)&&n.price>0),
+              }));
+            }
+          }
+          console.log('SEVEN_DEGREE_LIVE_STRATEGIES_AUDIT_COMPLETE');
+          NODE
