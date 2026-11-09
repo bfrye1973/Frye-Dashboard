@@ -66,6 +66,7 @@ import Engine29CrossMarketStressPanel from "./overlays/Engine29CrossMarketStress
 import Engine26TradeGeometryTool from "./panels/Engine26TradeGeometryTool";
 import OwnerWaveAnchorsOverlay from "./overlays/OwnerWaveAnchorsOverlay";
 import { waveNodeFeedChanged } from "./engine22WorkingNodeReader";
+import { createEngine22RevisionHistoryReader, fetchOwnerWaveHistoryPage } from "./engine22RevisionHistoryReader";
 
 /* ------------------------------ Config ------------------------------ */
 
@@ -1016,6 +1017,8 @@ export default function RowChart({
   const [engine22AuthorizedWorkingStructure, setEngine22AuthorizedWorkingStructure] = useState(null);
   const [engine22CurrentWavelength, setEngine22CurrentWavelength] = useState(null);
   const [engine22WorkingNodeSnapshot, setEngine22WorkingNodeSnapshot] = useState(null);
+  const [engine22HistoryReady, setEngine22HistoryReady] = useState(false);
+  const [engine22HistoryRevisions, setEngine22HistoryRevisions] = useState({cursor:0,records:[]});
 
   const [engine17RawDebug, setEngine17RawDebug] = useState(null);
   const [chartMode, setChartMode] = useState(initialChartMode);
@@ -1858,6 +1861,8 @@ export default function RowChart({
         const nodes=engine22WaveStrategy?.workingWaveNodes;
         setEngine22WorkingNodeSnapshot(prev=>
           waveNodeFeedChanged(prev,nodes)?nodes:prev);
+        setEngine22HistoryReady(
+          engine22WaveStrategy?.engine22WaveHistory?.available===true);
 
       } catch (err) {
         if (cancelled) return;
@@ -1974,6 +1979,41 @@ export default function RowChart({
     state.timeframe,
     state.symbol,
   ]);
+
+  // Engine22 append-only node revision catch-up is strictly optional and
+  // independent of Engine11 candle series. The backend must explicitly
+  // advertise an authorized durable history feed before any request occurs.
+  useEffect(()=>{
+    if(!engine22HistoryReady || normalizeSymbol(state.symbol)!=="ES")return;
+    const ownerAccessKey=()=>{
+      try{
+        const direct=window.sessionStorage?.getItem("engine2cResearchOwnerKey");
+        if(direct)return direct;
+        const saved=JSON.parse(window.localStorage?.getItem("engine2cResearchOwnerAccessV1") || "null");
+        return saved?.expiresAt>Date.now()&&typeof saved?.key==="string"?saved.key:null;
+      }catch{return null;}
+    };
+    let disposed=false;
+    const controller=new AbortController();
+    const reader=createEngine22RevisionHistoryReader({
+      getPage:({afterRevision,limit})=>fetchOwnerWaveHistoryPage({
+        afterRevision,limit,ownerKey:ownerAccessKey(),signal:controller.signal,
+      }),
+      onUpdate:next=>{if(!disposed)setEngine22HistoryRevisions(next);}
+    });
+    const catchUp=()=>reader.catchUp().catch(error=>{
+      if(!disposed)console.warn("[Engine22 wave history] read unavailable",
+        error?.message||String(error));
+    });
+    catchUp();
+    const timer=setInterval(()=>{if(!document.hidden)catchUp();},30000);
+    const onFocus=()=>{if(!document.hidden)catchUp();};
+    document.addEventListener("visibilitychange",onFocus);
+    return()=>{
+      disposed=true;controller.abort();reader.close();clearInterval(timer);
+      document.removeEventListener("visibilitychange",onFocus);
+    };
+  },[engine22HistoryReady,state.symbol]);
 
   /* =================== Effect C: Attach/Seed Overlays =================== */
 
@@ -2924,6 +2964,8 @@ export default function RowChart({
             stage={waveNodeStage}
             onStageChange={setWaveNodeStage}
             workingNodes={engine22WorkingNodeSnapshot}
+            historyCursor={engine22HistoryRevisions.cursor}
+            historicalRevisionCount={engine22HistoryRevisions.records.length}
           />
 
           <Engine25MarketHealthTimeline
