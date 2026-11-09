@@ -95,13 +95,29 @@ test("mapping respects nonstandard 4h session candle starts and does not align t
   expect(containingLoadedCandleOpen(t,"4h",[{time:start}])).toBe(start);
 });
 
-test("updated Submicro research ABC preserves owner sheet and omits unknown C",()=>{
-  const {SUBMICRO_REVIEW_ANCHORS}=require("./intermediateMinorReview");
+test("Submicro stage uses owner's NEW rows 23-25, not the older ABC rows 2-4",()=>{
+  const {SUBMICRO_REVIEW_ANCHORS,SUBMICRO_PREVIOUS_ABC_ANCHORS}=require("./intermediateMinorReview");
   expect(SUBMICRO_REVIEW_ANCHORS.map(a=>[a.label,a.date,a.time,a.price])).toEqual([
-    ["A starting high","2026-11-06","07:50",7469.75],
-    ["A ending low","2026-11-06","10:50",7396.75],
-    ["B ending high","2026-11-06","12:30",7436.75],
+    ["W1 Low","2026-11-05","15:20",7324],
+    ["W1 High","2026-11-06","07:40",7469],
+    ["W2","2026-11-08","15:00",7362],
   ]);
-  expect(SUBMICRO_REVIEW_ANCHORS.every(a=>a.classification==="OWNER RESEARCH")).toBe(true);
-  expect(SUBMICRO_REVIEW_ANCHORS.some(a=>a.label.startsWith("C"))).toBe(false);
+  expect(SUBMICRO_REVIEW_ANCHORS.every(a=>a.classification.startsWith("OWNER RESEARCH"))).toBe(true);
+  expect(SUBMICRO_REVIEW_ANCHORS.some(a=>a.label==="W3")).toBe(false);
+  // Older ABC evidence survives in its own source/history collection.
+  expect(SUBMICRO_PREVIOUS_ABC_ANCHORS.map(a=>a.label)).toEqual([
+    "A starting high","A ending low","B ending high",
+  ]);
+  expect(SUBMICRO_REVIEW_ANCHORS.every(a=>a.price*4===Math.round(a.price*4))).toBe(true);
+  expect(SUBMICRO_REVIEW_ANCHORS[0].timeSec).toBe(Date.parse("2026-11-05T22:20:00Z")/1000);
+  expect(SUBMICRO_REVIEW_ANCHORS[1].timeSec).toBe(Date.parse("2026-11-06T14:40:00Z")/1000);
+  expect(SUBMICRO_REVIEW_ANCHORS[2].timeSec).toBe(Date.parse("2026-11-08T22:00:00Z")/1000);
+});
+
+test("Submicro W2 from Nov8 15:00 AZ has no fabricated candle when source data lacks one",()=>{
+  const {SUBMICRO_REVIEW_ANCHORS,checkedDisplayCandleOpen}=require("./intermediateMinorReview");
+  const w2=SUBMICRO_REVIEW_ANCHORS[2];
+  const preceding={time:Date.parse("2026-11-06T22:00:00Z")/1000};
+  const later={time:Date.parse("2026-11-08T23:00:00Z")/1000};
+  expect(checkedDisplayCandleOpen(w2,"10m",[preceding,later])).toBeNull();
 });
