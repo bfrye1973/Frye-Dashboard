@@ -4,6 +4,7 @@ on:
     branches: [main]
     paths:
       - 'src/pages/rows/RowChart/engine22WorkingNodeReader*'
+      - 'src/pages/rows/RowChart/engine22RevisionHistoryReader*'
       - 'src/pages/rows/RowChart/index.jsx'
       - 'src/pages/rows/RowChart/overlays/OwnerWaveAnchorsOverlay.jsx'
       - '.github/workflows/engine2-working-node-reader.yml'
@@ -22,6 +23,8 @@ jobs:
       - run: npm ci
       - name: Validate Engine22 Micro/Submicro Strategies node consumer
         run: CI=true npm test -- --watch=false --runInBand --testPathPattern=engine22WorkingNodeReader.test.js
+      - name: Verify immutable history revision cursor and reconnect catch-up
+        run: CI=true npm test -- --watch=false --runInBand --testPathPattern=engine22RevisionHistoryReader.test.js
       - name: Verify previous seven-degree coordinate mapping tests
         run: CI=true npm test -- --watch=false --runInBand --testPathPattern=intermediateMinorReview.test.js
       - name: Existing frontend production build (NO DEPLOY)
