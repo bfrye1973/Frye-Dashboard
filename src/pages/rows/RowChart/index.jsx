@@ -1356,6 +1356,7 @@ export default function RowChart({
     let recentContractMismatch = false;
     // 4H bars can use session-specific openings, unlike UTC floor.
     let verifiedFourHourOpens = [];
+    const verifiedSourceBucketOHLC = new Map();
 
     lastAliveRef.current = 0;
     liveContractHoldRef.current = true;
@@ -1443,6 +1444,7 @@ export default function RowChart({
         }
         verifiedFourHourOpens=[...new Set(latest.bars
           .map(b=>Number(b.time)).filter(Number.isFinite))].sort((a,b)=>a-b);
+        for(const b of latest.bars)verifiedSourceBucketOHLC.set(Number(b.time),b);
         pager.appendVerifiedRecent(latest.bars,{contractVerified:true});
         for(const b of [...bufferedOneMinute.values()].sort((a,b)=>a.time-b.time)){
           if(b.sourceContract===expectedContract)consumeMinute(b);
@@ -1469,13 +1471,21 @@ export default function RowChart({
         .sort((a, b) => a.time - b.time);
       if (!group.length) return;
       const arrivalAt = Number(oneMin.__arrivalAt || performance.now());
+      // Higher-frame current OHLC already includes earlier minutes in the
+      // forming bar. Preserve its source-backed opening, extremes and volume.
+      // Do not overwrite a full-hour/4h volume with only 1 minute of volume.
+      const baseline = ["1h","4h"].includes(state.timeframe)
+        ? verifiedSourceBucketOHLC.get(bucket) : null;
       const accepted = pager.updateLive({
         time: bucket,
-        open: group[0].open,
-        high: Math.max(...group.map(b => b.high)),
-        low: Math.min(...group.map(b => b.low)),
+        open: baseline?.open ?? group[0].open,
+        high: Math.max(baseline?.high ?? -Infinity,...group.map(b => b.high)),
+        low: Math.min(baseline?.low ?? Infinity,...group.map(b => b.low)),
         close: group[group.length - 1].close,
-        volume: group.reduce((sum, b) => sum + Number(b.volume || 0), 0),
+        // This conservative nondecreasing lower bound avoids double counting
+        // overlapping cumulative minute source volume.
+        volume: Math.max(Number(baseline?.volume||0),
+          group.reduce((sum, b) => sum + Number(b.volume || 0), 0)),
       }, {contractVerified:true});
       if (accepted && window.__ENGINE11B_TEST__) {
         window.__ENGINE11B_TEST__.events.push({
@@ -1560,6 +1570,9 @@ export default function RowChart({
             });
           }
         } else {
+          if(["1h","4h"].includes(state.timeframe)){
+            for(const b of recent.bars)verifiedSourceBucketOHLC.set(Number(b.time),b);
+          }
           if(state.timeframe==="4h"){
             verifiedFourHourOpens=[...new Set(recent.bars
               .map(b=>Number(b.time)).filter(Number.isFinite))].sort((a,b)=>a-b);
