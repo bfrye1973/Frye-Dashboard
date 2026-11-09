@@ -1,0 +1,22 @@
+name: Engine16 reads Engine22 Strategy-card Fibonacci levels
+on:
+  push:
+    branches:
+      - fix/engine16-use-engine22-strategy-fibs
+  workflow_dispatch:
+jobs:
+  test-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Engine16 Engine22 source-contract tests
+        env:
+          CI: 'true'
+        run: npm test -- --watchAll=false --runInBand engine16Engine22CardFibs.test.js
+      - name: Frontend build (no deploy)
+        run: npm run build
