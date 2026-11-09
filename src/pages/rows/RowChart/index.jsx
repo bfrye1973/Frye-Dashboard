@@ -977,7 +977,9 @@ export default function RowChart({
   const [bars, setBars] = useState([]);
   const barsRef = useRef([]);
   const fiveMinutePagerRef = useRef(null);
-
+  // Full verified source times remain available for historical overlay X
+  // mapping even when the LIVE React working cache retains only 25k rows.
+  const fullCandleTimeIndexRef = useRef(null);
 
   const didFitOnceRef = useRef(false);
   const userInteractedRef = useRef(false);
@@ -1678,6 +1680,9 @@ export default function RowChart({
         const fullEngine11History =
           useEngine11 && asc.length > MAX_KEEP_BARS;
         engine11FullSeriesRef.current = fullEngine11History;
+        fullCandleTimeIndexRef.current = fullEngine11History
+          ? {frame:state.timeframe,bars:asc.map(b=>({time:b.time}))}
+          : null;
         barsRef.current = fullEngine11History
           ? asc.slice(-MAX_KEEP_BARS)
           : asc;
@@ -1730,6 +1735,7 @@ export default function RowChart({
           didFitOnceRef.current = true;
         }
       } catch (e) {
+        fullCandleTimeIndexRef.current = null;
         engine11FullSeriesRef.current = false;
         console.error("[RowChart] seed error:", e);
         barsRef.current = [];
@@ -2832,7 +2838,11 @@ export default function RowChart({
             priceSeries={seriesRef.current}
             degree="PRIMARY"
             timeframe={state.timeframe}
-            sourceBars={bars}
+            sourceBars={fullCandleTimeIndexRef.current?.frame===state.timeframe
+              ? fullCandleTimeIndexRef.current.bars : bars}
+            pagedCandleOpenAt={fiveMinuteFeatureEnabled
+              ? (timeSec)=>fiveMinutePagerRef.current?.candleOpenAt?.(timeSec) ?? null
+              : null}
             stage={waveNodeStage}
             onStageChange={setWaveNodeStage}
           />
