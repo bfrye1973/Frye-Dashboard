@@ -1,10 +1,9 @@
 import { useEffect, useRef } from "react";
 import { validatedEngine22WorkingNodeAnchors, currentEngine22DegreeAnchors } from "../engine22WorkingNodeReader";
 import {waveNodeDisplayStyle} from "../waveNodePresentation";
-import { MINOR_W2_RESEARCH_LEVELS, checkedDisplayCandleOpen } from "../intermediateMinorReview";
+import { checkedDisplayCandleOpen } from "../intermediateMinorReview";
 
-// Owner-directed staged review: only one selected degree visible at a time.
-// Primary remains unchanged; Intermediate and Minor are explicitly selected.
+// One selected degree at a time, all from the current Engine22 publisher.
 export default function OwnerWaveAnchorsOverlay({
   visible=true, chart, priceSeries, degree="PRIMARY", stage="OFF", timeframe="1d",
   sourceBars=[], pagedCandleOpenAt=null, workingNodes=null,
