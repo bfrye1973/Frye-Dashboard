@@ -46,12 +46,26 @@ export const MICRO_REVIEW_ANCHORS=Object.freeze([
   // Micro C is blank in the sheet: do not fabricate.
 ]);
 
-// Source: connected Engine22 Master "Submicro ABC Proposed", rows 2-5,
-// verified 2026-11-08. C ending has UNKNOWN source coordinates: no dot.
+// Historical Submicro ABC source (worksheet rows 2-5), retained for
+// provenance. These older ABC markers are no longer the selected chart view.
+// No source sheet values or Engine 22 canonical wave model are changed.
+export const SUBMICRO_PREVIOUS_ABC_ANCHORS=Object.freeze([
+  anchor("submicro","A starting high","2026-11-06","07:50",7469.75,"OLDER ABC RESEARCH"),
+  anchor("submicro","A ending low","2026-11-06","10:50",7396.75,"OLDER ABC RESEARCH"),
+  anchor("submicro","B ending high","2026-11-06","12:30",7436.75,"OLDER ABC RESEARCH"),
+]);
+
+// OWNER UPDATED SAME SHEET: Submicro ABC Proposed!A23:E26, directly re-read
+// 2026-11-09. Cells C/D are native Google DATE/TIME numeric values displayed
+// as AZ clock dates/times; values below are the formatted source values.
+// W2 timestamp corrected by owner Nov 9 from 15:00 to 16:00 AZ.
+// This is only a source-presented W1/W2 *research* interpretation.
+// W3 is blank. A valid event time requires a REAL loaded candle; do not
+// invent/snap a candle or claim that W2 was owner-confirmed as a wave ending.
 export const SUBMICRO_REVIEW_ANCHORS=Object.freeze([
-  anchor("submicro","A starting high","2026-11-06","07:50",7469.75,"OWNER RESEARCH"),
-  anchor("submicro","A ending low","2026-11-06","10:50",7396.75,"OWNER RESEARCH"),
-  anchor("submicro","B ending high","2026-11-06","12:30",7436.75,"OWNER RESEARCH"),
+  anchor("submicro","W1 Low","2026-11-05","15:20",7324,"OWNER RESEARCH — NEW SHEET ROW 24"),
+  anchor("submicro","W1 High","2026-11-06","07:40",7469,"OWNER RESEARCH — NEW SHEET ROW 23"),
+  anchor("submicro","W2","2026-11-08","16:00",7362,"OWNER RESEARCH — OWNER CORRECTED NOV 9 TO 16:00 AZ; CANDLE MATCH PENDING"),
 ]);
 
 export const MINOR_W2_RESEARCH_LEVELS=Object.freeze([

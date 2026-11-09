@@ -300,11 +300,12 @@ export default function OwnerWaveAnchorsOverlay({
          minuteOnly?"Minute C low provisional · ABC research":
          subminuteOnly?"Subminute C ending UNKNOWN":
          microOnly?"Micro A High conflicts with sheet note · W2 unconfirmed":
-         submicroOnly?"Submicro C ending UNKNOWN · research only":
+         submicroOnly?"Submicro W1/W2 research · W3 blank · W1 Low/W2 source times need matching ES candles":
          intermediateOnly?"Intermediate W3 active · historical owner review":
          "Other degrees hidden · historical source not modified"}
         {stageEnabled?` · ${mappedNodeCount}/${activeNodes.length} nodes in loaded ${timeframe} history`:""}
-        {stageEnabled&&mappedNodeCount===0?" · Older source candles required":""}
+        {stageEnabled&&mappedNodeCount===0?
+          (submicroOnly?" · No matching Submicro candles loaded":" · Older source candles required"):""}
       </span>
     </div>
   );
