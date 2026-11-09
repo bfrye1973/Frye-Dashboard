@@ -17,7 +17,8 @@ const DEGREE_COLORS={
 // Primary remains unchanged; Intermediate and Minor are explicitly selected.
 export default function OwnerWaveAnchorsOverlay({
   visible=true, chart, priceSeries, degree="PRIMARY", stage="OFF", timeframe="1d",
-  sourceBars=[], pagedCandleOpenAt=null, onStageChange, workingNodes=null
+  sourceBars=[], pagedCandleOpenAt=null, onStageChange, workingNodes=null,
+  historyCursor=0, historicalRevisionCount=0
 }){
   const canvasRef=useRef(null);
   const primaryOnly=degree==="PRIMARY"&&stage==="PRIMARY";
@@ -264,6 +265,9 @@ export default function OwnerWaveAnchorsOverlay({
       }}
     >
       <span style={{fontWeight:800,marginRight:3}}>Wave nodes · 1 degree at a time</span>
+      {historyCursor>0?<span style={{fontSize:10,opacity:.85}}>
+        Engine22 history rev {historyCursor} · {historicalRevisionCount} preserved
+      </span>:null}
       <button type="button" aria-pressed={stage==="OFF"}
         onClick={()=>showStage("OFF")}
         style={{
