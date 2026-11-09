@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { ownerAnchorsForDegree } from "../ownerWaveAnchors";
 import { primaryDisplayCandleOpen } from "../primaryDisplayCandleMapping";
-import { validatedEngine22WorkingNodeAnchors } from "../engine22WorkingNodeReader";
+import { validatedEngine22WorkingNodeAnchors, currentEngine22MicroSubmicroAnchors } from "../engine22WorkingNodeReader";
 import {waveNodeDisplayStyle} from "../waveNodePresentation";
 import { INTERMEDIATE_REVIEW_ANCHORS, MINOR_REVIEW_ANCHORS,
   MINOR_W2_RESEARCH_LEVELS, MINUTE_REVIEW_ANCHORS,
@@ -34,8 +34,8 @@ export default function OwnerWaveAnchorsOverlay({
   // Engine22 is the ONLY active Micro/Submicro node source. A missing,
   // failed, or invalid packet must show zero nodes, NEVER archived spreadsheet
   // coordinates. Keep research archives in source control for provenance only.
-  const microStageNodes=microFromEngine22??[];
-  const submicroStageNodes=submicroFromEngine22??[];
+  const microStageNodes=currentEngine22MicroSubmicroAnchors(workingNodes,"micro");
+  const submicroStageNodes=currentEngine22MicroSubmicroAnchors(workingNodes,"submicro");
   const dynamicSourceAvailable=(!microOnly||microFromEngine22!==null)&&
     (!submicroOnly||submicroFromEngine22!==null);
   const activeNodes=primaryOnly?ownerAnchorsForDegree(degree):
