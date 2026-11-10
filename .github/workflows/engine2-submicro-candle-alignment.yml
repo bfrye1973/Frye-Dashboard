@@ -1,0 +1,31 @@
+name: Engine2 Submicro Genuine Candle Alignment
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/pages/rows/RowChart/index.jsx'
+      - 'src/pages/rows/RowChart/IndicatorsToolbar.jsx'
+      - 'src/pages/rows/RowChart/overlays/OwnerWaveAnchorsOverlay.jsx'
+      - 'src/pages/rows/RowChart/ownerNodeCandleAlignment*'
+      - '.github/workflows/engine2-submicro-candle-alignment.yml'
+jobs:
+  source-price-time-validation:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Exact Submicro W1/W2 Strategy time-to-10m-candle mapping
+        run: CI=true npm test -- --watch=false --runInBand --testPathPattern=ownerNodeCandleAlignment.test.js
+      - name: Engine22 seven-degree reader remains strict
+        run: CI=true npm test -- --watch=false --runInBand --testPathPattern=engine22WorkingNodeReader.test.js
+      - name: Engine11 genuine candle-open mapping unchanged
+        run: CI=true npm test -- --watch=false --runInBand --testPathPattern=intermediateMinorReview.test.js
+      - name: Full frontend build - no candle/model changes
+        run: npm run build
