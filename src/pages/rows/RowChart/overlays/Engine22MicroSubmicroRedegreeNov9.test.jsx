@@ -18,6 +18,9 @@ micro.w4RetracementLevels=[.236,.382,.5,.618,.786,1].map(ratio=>({
  key:"r"+String(Math.round(ratio*1000)),label:ratio.toFixed(3),
  price:Math.round((7600-238*ratio)*4)/4,status:"WATCH",provisional:true
 }));
+micro.anchors.w4Low=7492.25;
+micro.anchors.w4LowLocalTime="2026-11-10 10:40 AZ";
+micro.w5UpExtensionLevels=[.618,1,1.272,1.618,2,2.618].map(ratio=>({key:"e"+ratio,label:ratio.toFixed(3),price:Math.round((7492.25+145*ratio)*4)/4,status:"WATCH",provisional:true}));
 micro.anchors.w3High=7600;
 micro.anchors.w3HighLocalTime="2026-11-09 13:00 AZ";
 const submicro=make("engine22.ownerSubmicroW3Nov9InternalResearch.v1",
@@ -28,24 +31,27 @@ submicro.cDownExtensionLevels=[.618,1,1.272,1.618,2,2.618].map(ratio=>({
  key:"e"+String(Math.round(ratio*1000)),label:ratio.toFixed(3),
  price:Math.round((7566-92.75*ratio)*4)/4,status:"WATCH",provisional:true
 }));
-Object.assign(submicro.anchors,{aHigh:7600,aHighLocalTime:"2026-11-09 13:00 AZ",aLow:7507.25,aLowLocalTime:"2026-11-10 06:40 AZ",bHigh:7566,bHighLocalTime:"2026-11-10 08:00 AZ"});
+submicro.w1UpReferenceLevels=[.618,1,1.272,1.618,2,2.618].map(ratio=>({key:"e"+ratio,label:ratio.toFixed(3),price:Math.round((7492.25+85.75*ratio)*4)/4,status:"WATCH",provisional:true}));
+Object.assign(submicro.anchors,{cLow:7492.25,cLowLocalTime:"2026-11-10 10:40 AZ",aHigh:7600,aHighLocalTime:"2026-11-09 13:00 AZ",aLow:7507.25,aLowLocalTime:"2026-11-10 06:40 AZ",bHigh:7566,bHighLocalTime:"2026-11-10 08:00 AZ"});
 test("Micro card keeps W1/W2 history and shows owner-marked W3 high",()=>{
  const html=renderToStaticMarkup(<Engine22MarketStructureCard
   engine22Display={{version:"engine22Display.v1",degreeOrder:["micro"],degrees:{
    micro:{label:"Micro",headline:"OLDER MICRO",rows:[],levels:[]}}}}
   currentWavelength={{degrees:{micro:{ownerMicroW3Nov9ReclassifiedResearch:micro}}}}/>);
- expect(html).toContain("MICRO W3 END MARKED");
- expect(html).toContain("W4 DOWN WATCH");
+ expect(html).toContain("MICRO W4 COMPLETE");
+ expect(html).toContain("W5 UP DEVELOPING");
  expect(html).toContain("7324.00");
  expect(html).toContain("7469.00");
  expect(html).toContain("7362.00");
  expect(html).toContain("7600.00");
  expect(html).toContain("2026-11-09 13:00 AZ");
- expect(html).toContain("MICRO W4 DOWN");
- expect(html).toContain("7543.75");
- expect(html).toContain("7509.00");
- expect(html).toContain("7481.00");
- expect(html).toContain("7453.00");
+ expect(html).toContain("MICRO W5 UP");
+ expect(html).toContain("7492.25");
+ expect(html).toContain("2026-11-10 10:40 AZ");
+ expect(html).toContain("7581.75");
+ expect(html).toContain("7637.25");
+ expect(html).toContain("7676.75");
+ expect(html).toContain("7726.75");
  expect(html).not.toContain("MICRO W3 UP — W2 LOW + W1 LENGTH FIB EXTENSIONS");
  expect(html).not.toContain(">OLDER MICRO<");
 });
@@ -57,20 +63,22 @@ test("Submicro card shows owner-marked A/B while keeping old models separate",()
    ownerSubmicroW3Nov9InternalResearch:submicro,
    ownerSubmicroW3Nov9Research:make("engine22.submicroW3Nov9Research.v1",
     7324,"old",7469,"old",7362,"old",[[1,7507]])}}}}/>);
- expect(html).toContain("SUBMICRO A DOWN");
+ expect(html).toContain("SUBMICRO C COMPLETE");
  expect(html).toContain("7600.00");
  expect(html).toContain("2026-11-09 13:00 AZ");
  expect(html).toContain("7507.25");
  expect(html).toContain("2026-11-10 06:40 AZ");
  expect(html).toContain("7566.00");
  expect(html).toContain("2026-11-10 08:00 AZ");
- expect(html).toContain("C DOWN WATCH");
- expect(html).toContain("OLDER SUBMICRO W1/W2/W3 AND ABC RESEARCH PRESERVED");
+ expect(html).toContain("W1 UP FORMING");
+ expect(html).toContain("OLDER W3 AND ABC C-DOWN FIBONACCI LEVELS PRESERVED");
  expect(html).not.toContain("7324.00");
- expect(html).toContain("SUBMICRO C DOWN — A LENGTH");
- expect(html).toContain("7508.75");
- expect(html).toContain("7473.25");
- expect(html).toContain("7448.00");
- expect(html).toContain("7416.00");
+ expect(html).toContain("SUBMICRO W1 UP");
+ expect(html).toContain("7492.25");
+ expect(html).toContain("2026-11-10 10:40 AZ");
+ expect(html).toContain("7545.25");
+ expect(html).toContain("7578.00");
+ expect(html).toContain("7601.25");
+ expect(html).toContain("7631.00");
  expect(html).not.toContain("SUBMICRO W3 UP — W2 LOW + W1 LENGTH FIB EXTENSIONS");
 });
