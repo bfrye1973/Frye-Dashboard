@@ -66,6 +66,7 @@ import Engine29CrossMarketStressPanel from "./overlays/Engine29CrossMarketStress
 import Engine26TradeGeometryTool from "./panels/Engine26TradeGeometryTool";
 import OwnerWaveAnchorsOverlay from "./overlays/OwnerWaveAnchorsOverlay";
 import Engine16SubmicroResearchOverlay from "./overlays/Engine16SubmicroResearchOverlay";
+import Engine18LiquidityZonesOverlay from "./overlays/Engine18LiquidityZonesOverlay";
 import {createDefaultWaveNodeStyles,WAVE_NODE_DEGREES} from "./waveNodePresentation";
 import {DEFAULT_VISIBLE_WAVE_DEGREES,toggleVisibleWaveDegree} from "./waveNodeVisibility";
 import { waveNodeFeedChanged,validatedEngine22WorkingNodeAnchors } from "./engine22WorkingNodeReader";
@@ -2742,6 +2743,7 @@ export default function RowChart({
       fibMicro: false,
     fibSubmicro: false,
       engine16SubmicroResearch: false,
+     engine18LiquidityZones: false,
     fibSubminute: false,
     fibSubmicroScenario: "option1",
     fibSubminuteScenario: "wick",
@@ -2806,6 +2808,7 @@ export default function RowChart({
     engine25CompositeOverlay: state.engine25CompositeOverlay,
     engine25Timeline: state.engine25Timeline,
     engine29CrossMarketPanel: state.engine29CrossMarketPanel,
+    engine18LiquidityZones: state.engine18LiquidityZones,
 
     showPremarketFibs: state.showPremarketFibs,
 
@@ -3009,6 +3012,13 @@ export default function RowChart({
               {historyStatus}
             </div>
           )}
+
+          <Engine18LiquidityZonesOverlay
+            visible={!!state.engine18LiquidityZones && normalizeSymbol(state.symbol)==="ES"}
+            chart={chartRef.current}
+            priceSeries={seriesRef.current}
+            symbol={normalizeSymbol(state.symbol)}
+          />
 
           <Engine16SubmicroResearchOverlay
             visible={state.engine16SubmicroResearch &&

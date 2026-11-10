@@ -379,6 +379,7 @@ export default function IndicatorsToolbar({
   engine25Timeline = false,
 
   engine29CrossMarketPanel = false,
+  engine18LiquidityZones = false,
   
   showPremarketFibs = false,
 
@@ -508,6 +509,20 @@ export default function IndicatorsToolbar({
                 Zero-node degrees remain empty; old spreadsheet anchors are never substituted.
               </div>
 
+              {divider}
+
+              <div style={{color:"#fbbf24",fontSize:12,fontWeight:800,margin:"6px 0"}}>
+                Engine 18 — Liquidity Intelligence (Demo)
+              </div>
+              <label style={{display:"flex",alignItems:"center",gap:7,fontSize:12}}>
+                <input type="checkbox" checked={!!engine18LiquidityZones}
+                  onChange={e=>onChange?.({engine18LiquidityZones:e.target.checked})}/>
+                Liquidity Zones (Level 2 · test)
+              </label>
+              <div style={{fontSize:10,color:"#94a3b8",marginTop:4}}>
+                Experimental ES visible depth · price levels only when feed is fresh and approved for display.
+                Read-only. No hidden stops or Level 3 claims.
+              </div>
               {divider}
 
               <div style={{ color: "#9ca3af", fontSize: 12, margin: "6px 0 4px" }}>EMA</div>
