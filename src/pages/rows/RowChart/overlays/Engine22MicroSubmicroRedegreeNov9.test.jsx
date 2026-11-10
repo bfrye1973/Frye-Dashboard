@@ -31,7 +31,7 @@ submicro.cDownExtensionLevels=[.618,1,1.272,1.618,2,2.618].map(ratio=>({
  key:"e"+String(Math.round(ratio*1000)),label:ratio.toFixed(3),
  price:Math.round((7566-92.75*ratio)*4)/4,status:"WATCH",provisional:true
 }));
-submicro.w1UpReferenceLevels=[.618,1,1.272,1.618,2,2.618].map(ratio=>({key:"e"+ratio,label:ratio.toFixed(3),price:Math.round((7492.25+85.75*ratio)*4)/4,status:"WATCH",provisional:true}));
+submicro.w1PriorCorrectionRetracementLevels=[.236,.382,.5,.618,.786,1].map(ratio=>({key:"r"+ratio,label:ratio.toFixed(3),price:Math.round((7492.25+(7600-7492.25)*ratio)*4)/4,status:"WATCH",provisional:true}));
 Object.assign(submicro.anchors,{cLow:7492.25,cLowLocalTime:"2026-11-10 10:40 AZ",aHigh:7600,aHighLocalTime:"2026-11-09 13:00 AZ",aLow:7507.25,aLowLocalTime:"2026-11-10 06:40 AZ",bHigh:7566,bHighLocalTime:"2026-11-10 08:00 AZ"});
 test("Micro card keeps W1/W2 history and shows owner-marked W3 high",()=>{
  const html=renderToStaticMarkup(<Engine22MarketStructureCard
@@ -74,11 +74,33 @@ test("Submicro card shows owner-marked A/B while keeping old models separate",()
  expect(html).toContain("OLDER W3 AND ABC C-DOWN FIBONACCI LEVELS PRESERVED");
  expect(html).not.toContain("7324.00");
  expect(html).toContain("SUBMICRO W1 UP");
+ expect(html).toContain("PRIOR CORRECTION RETRACEMENTS");
+ expect(html).toContain("7577.00");
+ expect(html).toContain("7600.00");
+ expect(html).not.toContain("PRIOR W1 LENGTH PROXY");
  expect(html).toContain("7492.25");
  expect(html).toContain("2026-11-10 10:40 AZ");
- expect(html).toContain("7545.25");
- expect(html).toContain("7578.00");
- expect(html).toContain("7601.25");
- expect(html).toContain("7631.00");
+ expect(html).toContain("7517.75");
+ expect(html).toContain("7533.50");
+ expect(html).toContain("7546.25");
+ expect(html).toContain("7558.75");
  expect(html).not.toContain("SUBMICRO W3 UP — W2 LOW + W1 LENGTH FIB EXTENSIONS");
+});
+
+test("Micro and Submicro Fib levels change from amber WATCH to green on Engine22 ES touch",()=>{
+ const touched=level=>({...level,status:"TOUCHED",touchEvidenceAvailable:true,
+   touchEvidenceType:"ES_CURRENT_PRICE",touchedAt:"2026-11-10T18:00:00Z"});
+ const microCopy={...micro,w5UpExtensionLevels:micro.w5UpExtensionLevels.map((l,i)=>i===0?touched(l):l)};
+ const subCopy={...submicro,w1PriorCorrectionRetracementLevels:
+   submicro.w1PriorCorrectionRetracementLevels.map((l,i)=>i===0?touched(l):l)};
+ const html=renderToStaticMarkup(<Engine22MarketStructureCard
+   engine22Display={{version:"engine22Display.v1",degreeOrder:["micro","submicro"],
+     degrees:{micro:{label:"Micro",rows:[],levels:[]},submicro:{label:"Submicro",rows:[],levels:[]}}}}
+   currentWavelength={{degrees:{micro:{ownerMicroW3Nov9ReclassifiedResearch:microCopy},
+     submicro:{ownerSubmicroW3Nov9InternalResearch:subCopy}}}}/>);
+ expect(html).toContain("REACHED · ES SNAPSHOT");
+ expect(html).toContain("WATCH");
+ expect(html).toContain("#86efac");
+ expect(html).toContain("7581.75");
+ expect(html).toContain("7517.75");
 });
