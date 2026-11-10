@@ -40,7 +40,7 @@ test("all seven Elliott Wave degree toggles are independent inside Indicators",(
  expect(html).toContain("Connect verified source anchors");
  expect(html).toContain("Node / label color");
  expect(html).toContain("Connecting line color");
- expect(html).toContain("Fib (Primary)");
+ expect(html).toContain("Fib extensions (Engine 22)");
 });
 
 test("Primary and Intermediate can remain ON together with Submicro",()=>{
@@ -53,7 +53,7 @@ test("Primary and Intermediate can remain ON together with Submicro",()=>{
  expect(selected).toHaveLength(3);
  for(const name of ["Primary (4)","Intermediate (2)","Submicro (3)"])
    expect(selected.some(tag=>tag.includes(name+" wave nodes"))).toBe(true);
- expect(html).toContain("Fib (Primary)");
+ expect(html).toContain("Fib extensions (Engine 22)");
 });
 
 test("each degree can be switched off without changing unrelated degrees",()=>{
@@ -95,4 +95,19 @@ test("legacy Fibonacci wave canvas cannot overlay old Micro/Submicro chart nodes
   expect(manualWaveDrawingEnabled("PRIMARY","primary",true,{
     showWaveLines:true,showWaveLabels:true,
   })).toBe(false);
+});
+
+test("seven independent Fib extension switches are paired with seven wave degrees",()=>{
+ const html=renderToStaticMarkup(<IndicatorsToolbar
+   waveNodeDegrees={["PRIMARY","MICRO"]}
+   fibPrimary={true} fibIntermediate={false} fibMinor={false}
+   fibMinute={false} fibSubminute={false} fibMicro={true} fibSubmicro={false}/>);
+ const fibTags=html.match(/<input[^>]*type="checkbox"[^>]*aria-label="[^"]* Fibonacci extensions"[^>]*>/g)||[];
+ expect(fibTags).toHaveLength(7);
+ expect(fibTags.filter(t=>t.includes("checked"))).toHaveLength(2);
+ expect(fibTags.some(t=>t.includes("PRIMARY Fibonacci extensions")&&t.includes("checked"))).toBe(true);
+ expect(fibTags.some(t=>t.includes("MICRO Fibonacci extensions")&&t.includes("checked"))).toBe(true);
+ expect(fibTags.some(t=>t.includes("SUBMICRO Fibonacci extensions")&&t.includes("checked"))).toBe(false);
+ expect(html).not.toContain("Engine 2 (Fib) — Multi-Degree");
+ expect(html).not.toContain("Elliott (Manual) Labels & Lines");
 });
