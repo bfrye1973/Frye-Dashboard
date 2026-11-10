@@ -156,7 +156,7 @@ function phoenixTime(ts, isDaily = false) {
     timeZone: "America/Phoenix",
     hour12: true,
     ...(isDaily
-      ? { month: "short", day: "2-digit" }
+      ? { month: "short", day: "2-digit", year: "numeric" }
       : { hour: "numeric", minute: "2-digit" }),
   }).format(new Date(seconds * 1000));
 }
@@ -183,7 +183,7 @@ function makeTickFormatter(tf) {
   const fmtDaily = new Intl.DateTimeFormat("en-US", {
     timeZone: "America/Phoenix",
     month: "short",
-    day: "2-digit",
+    year: "numeric",
   });
 
   return (t) => {
