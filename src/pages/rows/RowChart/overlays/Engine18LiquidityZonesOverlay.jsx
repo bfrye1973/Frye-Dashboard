@@ -28,6 +28,16 @@ export function validateEngine18ChartZones(packet,now=Date.now()){
   return out;
 }
 
+// Keep the owner's LIVE test uncluttered: at most two per book side.
+// Existing backend ranks candidate levels by displayed contract quantity.
+export function selectEngine18TestZones(zones){
+  const list=Array.isArray(zones)?zones:[];
+  const strongest=side=>list.filter(z=>z.side===side)
+    .sort((a,b)=>b.visibleContracts-a.visibleContracts||
+      b.observedInImages-a.observedInImages||a.price-b.price).slice(0,2);
+  return [...strongest("ASK"),...strongest("BID")];
+}
+
 export default function Engine18LiquidityZonesOverlay({visible=false,chart=null,priceSeries=null,symbol="ES"}){
   const [packet,setPacket]=useState(null);
   const [status,setStatus]=useState("WAITING");
@@ -54,7 +64,7 @@ export default function Engine18LiquidityZonesOverlay({visible=false,chart=null,
     update();const timer=setInterval(update,5000);
     return()=>{cancelled=true;clearInterval(timer);};
   },[visible,symbol]);
-  const zones=validateEngine18ChartZones(packet);
+  const zones=selectEngine18TestZones(validateEngine18ChartZones(packet));
   useEffect(()=>{drawRef.current?.();},[packet,visible]);
   useEffect(()=>{
     if(!visible||symbol!=="ES"||!chart||!priceSeries)return;
@@ -78,7 +88,7 @@ export default function Engine18LiquidityZonesOverlay({visible=false,chart=null,
       ctx.clearRect(0,0,rect.width,rect.height);
       // Bold, readily visible research guides. Price labels live inside
       // chart plot, not on top of the right-axis price ticks.
-      const active=validateEngine18ChartZones(packetRef.current).slice(0,5);
+      const active=selectEngine18TestZones(validateEngine18ChartZones(packetRef.current));
       const occupied=[];
       for(const z of active){
         const y=priceSeries.priceToCoordinate(z.price);
@@ -130,13 +140,13 @@ export default function Engine18LiquidityZonesOverlay({visible=false,chart=null,
       borderRadius:8,padding:"12px 14px",fontSize:14,pointerEvents:"none",
       width:270,maxWidth:"calc(100% - 145px)",boxShadow:"0 4px 14px rgba(0,0,0,.4)"}}>
     <div style={{fontWeight:800,color:"#fbbf24",letterSpacing:".3px"}}>
-      E18 LIQUIDITY · DEMO L2
+      E18 LIQUIDITY · MAX 2 BUY / 2 SELL
     </div>
     <div style={{color:"#94a3b8",marginTop:3,marginBottom:5}}>
       {status} · Research only
     </div>
     {zones.length===0?<div style={{color:"#cbd5e1"}}>No verified recent zones</div>:
-      zones.slice(0,5).map(z=><div key={z.side+":"+z.price}
+      zones.map(z=><div key={z.side+":"+z.price}
         style={{display:"flex",justifyContent:"space-between",alignItems:"center",
           gap:9,padding:"6px 0",borderTop:"1px solid rgba(148,163,184,.25)",
           fontVariantNumeric:"tabular-nums"}}>
