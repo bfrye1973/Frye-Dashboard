@@ -1,0 +1,34 @@
+name: Engine 18 LIVE chart overlay isolated acceptance
+on:
+  push:
+    branches:
+      - engine18-live-liquidity-overlay-20261110
+    paths:
+      - 'src/pages/rows/RowChart/overlays/Engine18LiquidityZonesOverlay*'
+      - 'src/pages/rows/RowChart/IndicatorsToolbar.jsx'
+      - 'src/pages/rows/RowChart/index.jsx'
+      - '.github/workflows/engine18-chart-overlay-isolated.yml'
+  pull_request:
+    paths:
+      - 'src/pages/rows/RowChart/overlays/Engine18LiquidityZonesOverlay*'
+      - 'src/pages/rows/RowChart/IndicatorsToolbar.jsx'
+      - 'src/pages/rows/RowChart/index.jsx'
+      - '.github/workflows/engine18-chart-overlay-isolated.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  read-only-overlay:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - name: Validate Level 2 demo packet never treated as an executable signal
+        run: CI=true npm test -- --watch=false --runInBand --runTestsByPath src/pages/rows/RowChart/overlays/Engine18LiquidityZonesOverlay.test.jsx
+      - name: Verify existing LIVE chart compiles with the independent overlay off by default
+        run: npm run build
