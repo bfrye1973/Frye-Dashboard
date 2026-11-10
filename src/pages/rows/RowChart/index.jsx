@@ -2138,7 +2138,6 @@ export default function RowChart({
     seedToken,
     state.institutionalZonesAuto,
     state.smzShelvesAuto,
-    waveNodeStage,
     state.fibPrimary,
     state.fibIntermediate,
     state.fibMinor,
