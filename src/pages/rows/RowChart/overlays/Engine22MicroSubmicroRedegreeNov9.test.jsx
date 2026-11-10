@@ -86,3 +86,19 @@ test("Submicro card shows owner-marked A/B while keeping old models separate",()
  expect(html).toContain("7558.75");
  expect(html).not.toContain("SUBMICRO W3 UP — W2 LOW + W1 LENGTH FIB EXTENSIONS");
 });
+
+test("Micro and Submicro Fib levels change from amber WATCH to green on Engine22 ES touch",()=>{
+ const touched=level=>({...level,status:"TOUCHED",touchEvidenceAvailable:true,
+   touchEvidenceType:"ES_CURRENT_PRICE",touchedAt:"2026-11-10T18:00:00Z"});
+ const microCopy={...micro,w5UpExtensionLevels:micro.w5UpExtensionLevels.map((l,i)=>i===0?touched(l):l)};
+ const subCopy={...submicro,w1PriorCorrectionRetracementLevels:
+   submicro.w1PriorCorrectionRetracementLevels.map((l,i)=>i===0?touched(l):l)};
+ const html=renderToStaticMarkup(<Engine22MarketStructureCard
+   currentWavelength={{degrees:{micro:{ownerMicroW3Nov9ReclassifiedResearch:microCopy},
+     submicro:{ownerSubmicroW3Nov9InternalResearch:subCopy}}}}/>);
+ expect(html).toContain("REACHED · ES SNAPSHOT");
+ expect(html).toContain("WATCH");
+ expect(html).toContain("#86efac");
+ expect(html).toContain("7581.75");
+ expect(html).toContain("7517.75");
+});
