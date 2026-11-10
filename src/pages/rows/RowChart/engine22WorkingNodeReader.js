@@ -69,7 +69,28 @@ export function waveNodeFeedChanged(current,next){
 // owner-sheet anchors may be substituted for current seven-degree nodes.
 export function currentEngine22DegreeAnchors(packet,degree){
   if(!ALLOWED.has(degree))return [];
-  return validatedEngine22WorkingNodeAnchors(packet,degree)??[];
+  const nodes=validatedEngine22WorkingNodeAnchors(packet,degree)??[];
+  // The owner-revised Submicro ABC correction supersedes the earlier
+  // internal W1/W2 research *display*, not those immutable source records.
+  // Only apply this presentation rule when the complete ABC handoff is
+  // published from the same selected Engine22 model. Partial ABC updates
+  // fail safely to the original publisher-selected node set.
+  if(degree==="submicro"){
+    const abc=["A starting high","A ending low","B ending high"];
+    const models=new Map();
+    for(const n of nodes){
+      const key=n.sourcePath+"|"+n.modelVersion;
+      if(!models.has(key))models.set(key,new Set());
+      models.get(key).add(n.label);
+    }
+    const activeModels=new Set([...models].filter(([,labels])=>
+      abc.every(label=>labels.has(label))).map(([key])=>key));
+    if(activeModels.size)return nodes.filter(n=>{
+      const key=n.sourcePath+"|"+n.modelVersion;
+      return !activeModels.has(key)||!(n.label.startsWith("W1 ")||n.label.startsWith("W2 "));
+    });
+  }
+  return nodes;
 }
 // Compatibility export for existing chart consumers; identical source contract.
 export function currentEngine22MicroSubmicroAnchors(packet,degree){

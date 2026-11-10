@@ -8,6 +8,7 @@ import {assessOwnerNodeAgainstLoadedCandle} from "../ownerNodeCandleAlignment";
 // One selected degree at a time, all from the current Engine22 publisher.
 export default function OwnerWaveAnchorsOverlay({
   visible=true, chart, priceSeries, degree="PRIMARY", stage="OFF", timeframe="1d",
+  visibleWaveDegrees=[],
   sourceBars=[], priceBars=[], pagedCandleOpenAt=null, workingNodes=null,
   nodeStyles={}, onNodeStatusChange=null
 }){
@@ -128,7 +129,14 @@ export default function OwnerWaveAnchorsOverlay({
         const color=activeStyle.color;
         // Exact source position is always retained. Marker visibility is
         // only a drawing preference; it never creates another node.
-        const node={a,x,y,priceY,anchorIndex,color,classification,labels:[a.label],outOfView};
+        // Two degrees can own the exact same pivot. Keep both source anchors,
+        // and give their labels/marker outlines separate presentation lanes.
+        const counterpart=(microOnly||submicroOnly)
+          ?currentEngine22DegreeAnchors(workingNodes,microOnly?"submicro":"micro")
+          :[];
+        const sharedPivot=counterpart.some(other=>
+          other.timeSec===a.timeSec&&other.price===a.price);
+        const node={a,x,y,priceY,anchorIndex,color,classification,labels:[a.label],outOfView,sharedPivot};
         plotted.push(node);
         samePivot.set(key,node);
       }
@@ -164,51 +172,104 @@ export default function OwnerWaveAnchorsOverlay({
         ctx.lineWidth=2;
         for(const p of plotted){
           ctx.beginPath();
-          ctx.arc(p.x,p.y,activeStyle.markerRadius,0,Math.PI*2);
+          ctx.arc(p.x,p.y,activeStyle.markerRadius+
+            (p.sharedPivot&&submicroOnly?5:0),0,Math.PI*2);
           // Hollow markers preserve unverified owner research semantics.
           ctx.stroke();
         }
       }
 
-      // Collision avoidance moves LABELS only. Exact anchor dots never move.
-      ctx.font=`600 ${activeStyle.labelFontPx}px system-ui`;
-      ctx.textAlign="center";
-      ctx.textBaseline="bottom";
+      // Compute the SAME global layout independently on each degree canvas.
+      // Otherwise every canvas only sees its own text and overlapping labels
+      // from Minor, Micro and Submicro remain invisible to collision checks.
+      // Never move owner-approved source pivots; move labels with leader lines.
+      const candidateStages=["PRIMARY","INTERMEDIATE","MINOR","MINUTE","SUBMINUTE","MICRO","SUBMICRO"]
+        .filter(d=>visibleWaveDegrees.includes(d));
+      const candidates=[];
+      for(const degreeStage of candidateStages){
+        const style=waveNodeDisplayStyle(nodeStyles,degreeStage);
+        if(!style.showLabels)continue;
+        const type=degreeStage.toLowerCase();
+        const nodes=currentEngine22DegreeAnchors(workingNodes,type);
+        const samePoint=new Map();
+        for(const a of nodes){
+          const audited=type==="primary"&&["1d","4h"].includes(timeframe)
+            ?primaryDisplayCandleOpen(a,timeframe):null;
+          const mapped=Number.isFinite(audited)?audited:
+            (typeof pagedCandleOpenAt==="function"?pagedCandleOpenAt(a.timeSec):
+              checkedDisplayCandleOpen(a,timeframe,sourceBars));
+          if(!Number.isFinite(mapped))continue;
+          const x=chart.timeScale().timeToCoordinate(mapped);
+          const priceY=priceSeries.priceToCoordinate(a.price);
+          if(!Number.isFinite(x)||x<0||x>rect.width)continue;
+          const off=!Number.isFinite(priceY)||priceY<14||priceY>rect.height-20;
+          const y=off?18:priceY;
+          const key=degreeStage+":"+a.timeSec+":"+a.price;
+          const existing=samePoint.get(key);
+          if(existing){existing.labels.push(a.label);continue;}
+          const item={key,degreeStage,a,x,y,labels:[a.label],off,style};
+          samePoint.set(key,item);
+          candidates.push(item);
+        }
+      }
+      // Canonical order is identical for all overlay canvases, independent
+      // of React mount order, paint order, or incoming packet node order.
+      candidates.sort((a,b)=>a.x-b.x||a.y-b.y||
+        a.degreeStage.localeCompare(b.degreeStage)||a.key.localeCompare(b.key));
       const placed=[];
-      const LABEL_H=activeStyle.labelFontPx+4, PAD_X=6, STEP=LABEL_H, MAX_STEPS=10;
-      if(activeStyle.showLabels)for(const p of plotted.sort((m,n)=>m.y-n.y||m.x-n.x)){
-        const width=ctx.measureText(p.text).width+PAD_X*2;
-        let labelY=Math.max(14,p.y-10);
-        let box=null;
-        for(let step=0;step<=MAX_STEPS;step++){
-          const direction=step===0?0:(step%2?1:-1);
-          const distance=Math.ceil(step/2)*STEP;
-          const candidateY=Math.max(14,Math.min(rect.height-4,labelY+direction*distance));
-          const candidate={
-            left:p.x-width/2,right:p.x+width/2,
-            top:candidateY-LABEL_H,bottom:candidateY
-          };
-          const overlaps=placed.some(q=>
-            candidate.left<q.right && candidate.right>q.left &&
-            candidate.top<q.bottom && candidate.bottom>q.top
-          );
-          if(!overlaps){labelY=candidateY;box=candidate;break;}
+      const labelBoxes=new Map();
+      for(const c of candidates){
+        const font=c.style.labelFontPx;
+        const isResearch=["MINOR","MINUTE","SUBMINUTE","MICRO","SUBMICRO"].includes(c.degreeStage);
+        const label=c.degreeStage+" "+c.labels.join(" / ")+" · "+c.a.price.toFixed(2)+
+          (c.off?" [PRICE OFF SCALE]":isResearch?" [RESEARCH]":" [OWNER REVIEW]");
+        ctx.font="600 "+font+"px system-ui";
+        const w=ctx.measureText(label).width+12;
+        const h=font+5;
+        let chosen=null;
+        // Search alternating vertical and horizontal lanes, prioritizing
+        // nearby labels while allowing dense degree clusters to spread out.
+        for(let ring=0;ring<=24&&!chosen;ring++){
+          const offsets=ring===0?[[0,-12]]:
+            [[0,-12-ring*(h+4)],[0,ring*(h+4)+h],
+             [-ring*(w*.42+8),-12],[ring*(w*.42+8),-12],
+             [-ring*(w*.42+8),ring*(h+4)+h],
+             [ring*(w*.42+8),ring*(h+4)+h]];
+          for(const [dx,dy] of offsets){
+            const x=Math.max(w/2+3,Math.min(rect.width-w/2-3,c.x+dx));
+            const y=Math.max(h+3,Math.min(rect.height-4,c.y+dy));
+            const box={left:x-w/2,right:x+w/2,top:y-h,bottom:y};
+            if(box.left<0||box.right>rect.width)continue;
+            if(placed.some(p=>box.left<p.right&&box.right>p.left&&
+                 box.top<p.bottom&&box.bottom>p.top))continue;
+            chosen={x,y,box,label,color:c.style.color};
+            break;
+          }
         }
-        if(!box){
-          box={left:p.x-width/2,right:p.x+width/2,top:labelY-LABEL_H,bottom:labelY};
+        // Saturated viewport: hide the label rather than overlap another
+        // degree; leave its exact point marker and connecting line visible.
+        if(chosen){placed.push(chosen.box);labelBoxes.set(c.key,chosen);}
+      }
+      if(activeStyle.showLabels){
+        for(const p of plotted){
+          const key=stage+":"+p.a.timeSec+":"+p.a.price;
+          const label=labelBoxes.get(key);
+          if(!label)continue;
+          const font=activeStyle.labelFontPx;
+          ctx.font="600 "+font+"px system-ui";
+          ctx.textAlign="center";
+          ctx.textBaseline="bottom";
+          if(Math.abs(label.x-p.x)>5||Math.abs(label.y-(p.y-12))>5){
+            ctx.strokeStyle=p.color;
+            ctx.lineWidth=1;
+            ctx.beginPath();
+            ctx.moveTo(p.x,p.y-6);
+            ctx.lineTo(label.x,label.y-font-2);
+            ctx.stroke();
+          }
+          ctx.fillStyle=p.color;
+          ctx.fillText(label.label,label.x,label.y);
         }
-        placed.push(box);
-
-        if(Math.abs(labelY-(p.y-10))>4){
-          ctx.strokeStyle=p.color;
-          ctx.lineWidth=1;
-          ctx.beginPath();
-          ctx.moveTo(p.x,p.y-6);
-          ctx.lineTo(p.x,labelY-LABEL_H+2);
-          ctx.stroke();
-        }
-        ctx.fillStyle=p.color;
-        ctx.fillText(p.text,p.x,labelY);
       }
     }
 
@@ -229,7 +290,7 @@ export default function OwnerWaveAnchorsOverlay({
     };
   },[visible,stageEnabled,primaryOnly,intermediateOnly,minorOnly,
     minuteOnly,subminuteOnly,microOnly,submicroOnly,chart,priceSeries,degree,
-    timeframe,sourceBars,pagedCandleOpenAt,workingNodes,activeStyle.color,
+    timeframe,sourceBars,pagedCandleOpenAt,workingNodes,visibleWaveDegrees,nodeStyles,activeStyle.color,
     activeStyle.lineColor,activeStyle.showDots,activeStyle.showLines,
     activeStyle.showLabels,activeStyle.markerRadius,activeStyle.labelFontPx,
     activeStyle.lineWidth]);
