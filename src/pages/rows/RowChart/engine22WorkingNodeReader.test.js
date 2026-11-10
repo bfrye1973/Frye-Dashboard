@@ -129,3 +129,20 @@ test("seven degrees accept only validated Engine22 source nodes, never archived 
  expect(validatedEngine22WorkingNodeAnchors(packet,"primary")).toEqual([]);
  expect(validatedEngine22WorkingNodeAnchors(null,"primary")).toBeNull();
 });
+
+test("Engine2 receives exact Arizona time from Engine22 for a higher-degree node",()=>{
+  const node={degree:"primary",nodeId:"primary-W1",approvalStatus:"RESEARCH",
+    selectedForResearchDisplay:true,sourcePath:"degreeStates.primary",
+    modelVersion:"engine22.degreeStates.primary.v1",sourceRevision:"content-hash",
+    label:"W1",price:5620,marketAtUtc:"2022-01-05T17:00:00.000Z",
+    ownerArizonaTime:"2022-01-05 10:00 AZ",priceBasisStatus:"PENDING",
+    presentationAllowed:true,plotAllowed:false,noExecution:true,waveCompletionConfirmed:false};
+  const packet={schema:"engine22.workingWaveNodes.v1",authority:"ENGINE22",
+    available:true,symbol:"ES",readOnly:true,noExecution:true,
+    ownerCountPromotion:false,fingerprint:"primary-revision",
+    degrees:{primary:{degree:"primary",nodes:[node]}}};
+  const result=validatedEngine22WorkingNodeAnchors(packet,"primary");
+  expect(result).toHaveLength(1);
+  expect(result[0]).toMatchObject({price:5620,date:"2022-01-05",time:"10:00",
+    ownerArizonaTime:"2022-01-05 10:00 AZ",timeSec:Date.parse("2022-01-05T17:00:00Z")/1000});
+});
