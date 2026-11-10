@@ -21,7 +21,7 @@ export function assessOwnerNodeAgainstLoadedCandle(anchor,timeframe,bars,mappedC
     ?"PRICE_WITHIN_CANDLE":"PRICE_OUTSIDE_CANDLE";
 }
 
-export function summarizeNodeCandleAlignment(anchors,timeframe,timeBars,priceBars,openAt){
+export function summarizeNodeCandleAlignment(anchors,timeframe,priceBars,openAt){
   const summary={mapped:0,total:anchors.length,priceWithin:0,priceOutside:0,
     priceUnavailable:0};
   for(const a of anchors){
