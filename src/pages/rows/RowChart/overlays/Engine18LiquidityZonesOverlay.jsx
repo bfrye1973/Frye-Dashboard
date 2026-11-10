@@ -76,23 +76,21 @@ export default function Engine18LiquidityZonesOverlay({visible=false,chart=null,
       const ctx=canvas.getContext("2d");if(!ctx)return;
       ctx.setTransform(dpr,0,0,dpr,0,0);
       ctx.clearRect(0,0,rect.width,rect.height);
-      const active=validateEngine18ChartZones(packetRef.current);
+      // Quiet guide lines only; detailed prices and sizes live in one clean
+      // legend away from the right price scale and Elliott labels.
+      const active=validateEngine18ChartZones(packetRef.current).slice(0,5);
       const occupied=[];
-      ctx.font="bold 11px system-ui";ctx.textAlign="right";
       for(const z of active){
         const y=priceSeries.priceToCoordinate(z.price);
         if(!Number.isFinite(y)||y<20||y>rect.height-25)continue;
-        const color=z.side==="BID"?"#34d399":"#fb7185";
-        ctx.strokeStyle=color;ctx.globalAlpha=.72;ctx.lineWidth=1.2;
-        ctx.setLineDash([5,5]);ctx.beginPath();
-        ctx.moveTo(0,y);ctx.lineTo(rect.width,y);ctx.stroke();ctx.setLineDash([]);
-        ctx.globalAlpha=1;
-        if(occupied.some(prev=>Math.abs(prev-y)<15))continue;
+        if(occupied.some(prev=>Math.abs(prev-y)<7))continue;
         occupied.push(y);
-        ctx.fillStyle=color;
-        ctx.fillText("E18 "+(z.side==="BID"?"BUY":"SELL")+" "+z.price.toFixed(2)+
-          " · "+z.visibleContracts+" [DEMO L2]",rect.width-12,y-4);
+        const color=z.side==="BID"?"#34d399":"#fb7185";
+        ctx.strokeStyle=color;ctx.globalAlpha=.45;ctx.lineWidth=1;
+        ctx.setLineDash([4,7]);ctx.beginPath();
+        ctx.moveTo(0,y);ctx.lineTo(rect.width-8,y);ctx.stroke();
       }
+      ctx.setLineDash([]);ctx.globalAlpha=1;
     };
     const schedule=()=>{if(!disposed&&!frame)frame=requestAnimationFrame(draw);};
     drawRef.current=schedule;
@@ -111,12 +109,30 @@ export default function Engine18LiquidityZonesOverlay({visible=false,chart=null,
     };
   },[visible,symbol,chart,priceSeries]);
   if(!visible||symbol!=="ES")return null;
-  return <div style={{position:"absolute",top:76,left:60,zIndex:87,
-    color:"#e2e8f0",background:"rgba(15,23,42,.88)",border:"1px solid #475569",
-    borderRadius:6,padding:"5px 8px",fontSize:11,pointerEvents:"none"}}>
-    <strong style={{color:"#fbbf24"}}>ENGINE 18 · L2 LIQUIDITY · DEMO</strong>
-    {" · "}{status}
-    {zones.length>0?" · "+zones.length+" zones":""}
-    <span style={{color:"#94a3b8"}}> · Unverified tier · Research only</span>
+  return <div data-engine18-liquidity-legend="true"
+    style={{position:"absolute",top:76,left:60,zIndex:87,
+      color:"#e2e8f0",background:"rgba(10,18,31,.94)",border:"1px solid #475569",
+      borderRadius:8,padding:"9px 11px",fontSize:11,pointerEvents:"none",
+      width:210,maxWidth:"calc(100% - 130px)",boxShadow:"0 4px 14px rgba(0,0,0,.4)"}}>
+    <div style={{fontWeight:800,color:"#fbbf24",letterSpacing:".3px"}}>
+      E18 LIQUIDITY · DEMO L2
+    </div>
+    <div style={{color:"#94a3b8",marginTop:3,marginBottom:5}}>
+      {status} · Research only
+    </div>
+    {zones.length===0?<div style={{color:"#cbd5e1"}}>No verified recent zones</div>:
+      zones.slice(0,5).map(z=><div key={z.side+":"+z.price}
+        style={{display:"flex",justifyContent:"space-between",alignItems:"center",
+          gap:8,padding:"3px 0",borderTop:"1px solid rgba(148,163,184,.15)",
+          fontVariantNumeric:"tabular-nums"}}>
+        <span style={{color:z.side==="BID"?"#34d399":"#fb7185",fontWeight:800}}>
+          {z.side==="BID"?"BUY":"SELL"}
+        </span>
+        <span style={{color:"#f8fafc"}}>{z.price.toFixed(2)}</span>
+        <span style={{color:"#cbd5e1"}}>{z.visibleContracts} ct</span>
+      </div>)}
+    <div style={{color:"#94a3b8",fontSize:10,marginTop:5}}>
+      Data tier unverified · Not trade signals
+    </div>
   </div>;
 }
