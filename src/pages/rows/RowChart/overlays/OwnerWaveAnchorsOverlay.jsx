@@ -128,7 +128,14 @@ export default function OwnerWaveAnchorsOverlay({
         const color=activeStyle.color;
         // Exact source position is always retained. Marker visibility is
         // only a drawing preference; it never creates another node.
-        const node={a,x,y,priceY,anchorIndex,color,classification,labels:[a.label],outOfView};
+        // Two degrees can own the exact same pivot. Keep both source anchors,
+        // and give their labels/marker outlines separate presentation lanes.
+        const counterpart=(microOnly||submicroOnly)
+          ?currentEngine22DegreeAnchors(workingNodes,microOnly?"submicro":"micro")
+          :[];
+        const sharedPivot=counterpart.some(other=>
+          other.timeSec===a.timeSec&&other.price===a.price);
+        const node={a,x,y,priceY,anchorIndex,color,classification,labels:[a.label],outOfView,sharedPivot};
         plotted.push(node);
         samePivot.set(key,node);
       }
@@ -164,7 +171,8 @@ export default function OwnerWaveAnchorsOverlay({
         ctx.lineWidth=2;
         for(const p of plotted){
           ctx.beginPath();
-          ctx.arc(p.x,p.y,activeStyle.markerRadius,0,Math.PI*2);
+          ctx.arc(p.x,p.y,activeStyle.markerRadius+
+            (p.sharedPivot&&submicroOnly?5:0),0,Math.PI*2);
           // Hollow markers preserve unverified owner research semantics.
           ctx.stroke();
         }
@@ -178,19 +186,24 @@ export default function OwnerWaveAnchorsOverlay({
       const LABEL_H=activeStyle.labelFontPx+4, PAD_X=6, STEP=LABEL_H, MAX_STEPS=10;
       if(activeStyle.showLabels)for(const p of plotted.sort((m,n)=>m.y-n.y||m.x-n.x)){
         const width=ctx.measureText(p.text).width+PAD_X*2;
-        // Micro W3 high and Submicro A high legitimately share one ES pivot.
-        // Separate *labels*, never the source price, marker, or candle time.
-        const sharedPeakLabel=submicroOnly&&p.a.label==="A starting high";
-        let labelY=sharedPeakLabel
-          ?Math.min(rect.height-4,p.y+activeStyle.labelFontPx+16)
-          :Math.max(14,p.y-10);
+        // Shared Micro/Submicro pivots need deterministic cross-degree lanes.
+        // The canvases are independent, so per-canvas collision checks alone
+        // cannot prevent both labels from painting over one another.
+        const half=width/2;
+        const labelX=p.sharedPivot
+          ?Math.max(half+4,Math.min(rect.width-half-4,
+              p.x+(microOnly?-half-12:half+12)))
+          :p.x;
+        let labelY=p.sharedPivot&&submicroOnly
+          ?Math.min(rect.height-4,p.y+activeStyle.labelFontPx+22)
+          :Math.max(14,p.y-12);
         let box=null;
         for(let step=0;step<=MAX_STEPS;step++){
           const direction=step===0?0:(step%2?1:-1);
           const distance=Math.ceil(step/2)*STEP;
           const candidateY=Math.max(14,Math.min(rect.height-4,labelY+direction*distance));
           const candidate={
-            left:p.x-width/2,right:p.x+width/2,
+            left:labelX-width/2,right:labelX+width/2,
             top:candidateY-LABEL_H,bottom:candidateY
           };
           const overlaps=placed.some(q=>
@@ -204,16 +217,16 @@ export default function OwnerWaveAnchorsOverlay({
         }
         placed.push(box);
 
-        if(Math.abs(labelY-(p.y-10))>4){
+        if(Math.abs(labelY-(p.y-10))>4||Math.abs(labelX-p.x)>4){
           ctx.strokeStyle=p.color;
           ctx.lineWidth=1;
           ctx.beginPath();
           ctx.moveTo(p.x,p.y-6);
-          ctx.lineTo(p.x,labelY-LABEL_H+2);
+          ctx.lineTo(labelX,labelY-LABEL_H+2);
           ctx.stroke();
         }
         ctx.fillStyle=p.color;
-        ctx.fillText(p.text,p.x,labelY);
+        ctx.fillText(p.text,labelX,labelY);
       }
     }
 
