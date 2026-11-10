@@ -1,0 +1,51 @@
+name: Engine2 LIVE Owner Primary Intermediate Replot Verification
+on:
+  pull_request:
+    branches: [main]
+    paths: ['.github/workflows/engine2-owner-replot-live-check.yml']
+jobs:
+  live-primary-intermediate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 7
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify authoritative LIVE Strategies are updated for actual Engine2 client
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          const host='https://frye-market-backend-1.onrender.com';
+          const r=await fetch(host+'/api/v1/dashboard-snapshot?symbol=ES&includeContext=1',{
+            signal:AbortSignal.timeout(45000),headers:{Accept:'application/json'}});
+          assert.equal(r.status,200);
+          const snap=await r.json();
+          const packet=snap?.strategies?.['intraday_scalp@10m']?.engine22WaveStrategy?.workingWaveNodes;
+          assert.equal(packet?.schema,'engine22.workingWaveNodes.v1');
+          assert.equal(packet.authority,'ENGINE22');
+          assert.equal(packet.available,true);
+          const degrees={
+            primary:[['W1 LOW',2440,'2020-04-01 08:00 AZ'],
+                     ['W1 HIGH',4806,'2022-01-04 10:00 AZ'],
+                     ['W2',3504,'2022-10-13 09:00 AZ'],
+                     ['W3',6157,'2025-02-19 09:00 AZ'],
+                     ['W4',4825,'2025-04-07 07:00 AZ']],
+            intermediate:[['W1 LOW',4877,'2025-04-09 07:00 AZ'],
+                          ['W1 HIGH',7044,'2026-01-28 10:00 AZ'],
+                          ['W2',6345,'2026-03-31 03:00 AZ']]
+          };
+          for(const [degree,expected] of Object.entries(degrees)){
+            const d=packet.degrees[degree];
+            console.log('LIVE_DEGREE',degree,'available',d.available,'count',d.nodes?.length,
+              'coverage',d.coverageStatus,'fingerprint',packet.fingerprint.slice(0,18));
+            const received=(d.nodes||[]).map(n=>[n.label,n.price,n.ownerArizonaTime]);
+            console.log('LIVE_ANCHORS',degree,JSON.stringify(received));
+            assert.deepEqual(received,expected);
+            assert(d.nodes.every(n=>n.selectedForResearchDisplay&&n.presentationAllowed&&
+              n.sourceRevision&&n.marketAtUtc&&n.noExecution));
+          }
+          console.log('PASS_LIVE_STRATEGIES_PRIMARY_INTERMEDIATE_OWNER_PRICE_TIME_REPLOT');
+          NODE
