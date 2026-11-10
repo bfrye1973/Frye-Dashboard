@@ -44,18 +44,6 @@ function SettingsBlock({ styleObj, onPatch }) {
   const fontPx = Number.isFinite(s.fontPx) ? s.fontPx : 18;
   const lineWidth = Number.isFinite(s.lineWidth) ? s.lineWidth : 3;
 
-  const showAnchors = s.showAnchors !== false;
-  const showRetrace = s.showRetrace !== false;
-  const showExtensions = s.showExtensions !== false;
-
-  const showWaveLabels = s.showWaveLabels === true;
-  const showWaveLines = s.showWaveLines === true;
-
-  const waveLabelColor = s.waveLabelColor || color;
-  const waveLabelFontPx = Number.isFinite(s.waveLabelFontPx) ? s.waveLabelFontPx : fontPx;
-
-  const waveLineColor = s.waveLineColor || color;
-  const waveLineWidth = Number.isFinite(s.waveLineWidth) ? s.waveLineWidth : Math.max(2, lineWidth);
 
   return (
     <div
@@ -118,122 +106,8 @@ function SettingsBlock({ styleObj, onPatch }) {
         </div>
       </div>
 
-      <div style={{ display: "grid", gap: 6, marginBottom: 12 }}>
-        <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12 }}>
-          <input type="checkbox" checked={showAnchors} onChange={(e) => onPatch?.({ showAnchors: e.target.checked })} />
-          Show Anchors
-        </label>
-
-        <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12 }}>
-          <input type="checkbox" checked={showRetrace} onChange={(e) => onPatch?.({ showRetrace: e.target.checked })} />
-          Show Retrace
-        </label>
-
-        <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12 }}>
-          <input
-            type="checkbox"
-            checked={showExtensions}
-            onChange={(e) => onPatch?.({ showExtensions: e.target.checked })}
-          />
-          Show Extensions
-        </label>
-      </div>
-
-      <div style={{ color: "#9ca3af", fontSize: 12, fontWeight: 800, marginBottom: 8 }}>
-        Elliott (Manual) Labels & Lines
-      </div>
-
-      <div style={{ display: "grid", gap: 6, marginBottom: 10 }}>
-        <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12 }}>
-          <input
-            type="checkbox"
-            checked={showWaveLabels}
-            onChange={(e) => onPatch?.({ showWaveLabels: e.target.checked })}
-          />
-          Show Wave Labels
-        </label>
-
-        <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12 }}>
-          <input
-            type="checkbox"
-            checked={showWaveLines}
-            onChange={(e) => onPatch?.({ showWaveLines: e.target.checked })}
-          />
-          Show Wave Lines
-        </label>
-      </div>
-
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "95px 1fr",
-          alignItems: "center",
-          gap: 10,
-          marginBottom: 10,
-        }}
-      >
-        <div style={{ color: "#9ca3af", fontSize: 12 }}>Label Color</div>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <ColorInput value={waveLabelColor} onChange={(v) => onPatch?.({ waveLabelColor: v })} />
-          <span style={{ color: "#9ca3af", fontSize: 12 }}>{waveLabelColor}</span>
-        </div>
-      </div>
-
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "95px 1fr",
-          gap: 10,
-          marginBottom: 10,
-        }}
-      >
-        <div style={{ color: "#9ca3af", fontSize: 12 }}>Label Font</div>
-        <div>
-          <Slider
-            min={10}
-            max={72}
-            step={1}
-            value={waveLabelFontPx}
-            onChange={(v) => onPatch?.({ waveLabelFontPx: v })}
-          />
-          <div style={{ color: "#9ca3af", fontSize: 12, marginTop: 4 }}>{waveLabelFontPx}px</div>
-        </div>
-      </div>
-
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "95px 1fr",
-          alignItems: "center",
-          gap: 10,
-          marginBottom: 10,
-        }}
-      >
-        <div style={{ color: "#9ca3af", fontSize: 12 }}>Line Color</div>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <ColorInput value={waveLineColor} onChange={(v) => onPatch?.({ waveLineColor: v })} />
-          <span style={{ color: "#9ca3af", fontSize: 12 }}>{waveLineColor}</span>
-        </div>
-      </div>
-
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "95px 1fr",
-          gap: 10,
-        }}
-      >
-        <div style={{ color: "#9ca3af", fontSize: 12 }}>Line Width</div>
-        <div>
-          <Slider
-            min={1}
-            max={12}
-            step={0.5}
-            value={waveLineWidth}
-            onChange={(v) => onPatch?.({ waveLineWidth: v })}
-          />
-          <div style={{ color: "#9ca3af", fontSize: 12, marginTop: 4 }}>{waveLineWidth}px</div>
-        </div>
+      <div style={{fontSize:11,color:"#94a3b8",marginTop:8}}>
+        Engine 22 published WATCH lines only. This control never creates Elliott Wave nodes.
       </div>
     </div>
   );
@@ -302,7 +176,7 @@ function WaveNodeRow({degree,label,selected,styleObj,onSelect,onStylePatch, fibE
           </label>
           <label style={{display:"grid",gap:3}}>
             <span>Label size: {s.labelFontPx}px</span>
-            <Slider min={10} max={24} step={1} value={s.labelFontPx}
+            <Slider min={12} max={28} step={1} value={s.labelFontPx}
               onChange={labelFontPx=>onStylePatch({labelFontPx})}/>
           </label>
           <label style={{display:"grid",gap:3}}>
