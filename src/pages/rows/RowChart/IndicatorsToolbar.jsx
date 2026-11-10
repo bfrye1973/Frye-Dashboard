@@ -666,12 +666,7 @@ export default function IndicatorsToolbar({
 
               {divider}
 
-              <div style={{fontSize:11,color:"#94a3b8",margin:"6px 0"}}>
-                Elliott Wave Fib controls are now beside each wave degree above.
-                No legacy node or Fibonacci source is drawn here.
-              </div>
 
-              {divider}
 
               <button
                 type="button"
