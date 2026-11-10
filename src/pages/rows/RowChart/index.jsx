@@ -3040,6 +3040,7 @@ export default function RowChart({
                 ?(timeSec)=>fiveMinutePagerRef.current?.candleOpenAt?.(timeSec)??null
                 :null}
               stage={degree}
+              visibleWaveDegrees={waveNodeDegrees}
               workingNodes={engine22WorkingNodeSnapshot}
               nodeStyles={waveNodeStyles}
               onNodeStatusChange={handleWaveNodeStatus}
