@@ -239,37 +239,9 @@ function SettingsBlock({ styleObj, onPatch }) {
   );
 }
 
-function FibRow({ label, enabled, styleObj, onToggle, onStylePatch }) {
-  return (
-    <div style={{ display: "grid", gap: 6 }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
-        <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <input type="checkbox" checked={!!enabled} onChange={(e) => onToggle?.(e.target.checked)} />
-          <span style={{ fontWeight: 800 }}>{label}</span>
-        </label>
-
-        <details>
-          <summary
-            style={{
-              cursor: "pointer",
-              userSelect: "none",
-              color: "#e5e7eb",
-              fontWeight: 800,
-            }}
-            title="Settings"
-          >
-            ⚙
-          </summary>
-          <SettingsBlock styleObj={styleObj} onPatch={onStylePatch} />
-        </details>
-      </div>
-    </div>
-  );
-}
-
 // Chart wave anchors are not Fibonacci projections. Keep selection and
 // cosmetics independent from all Fib (degree) toggles and Engine22 decisions.
-function WaveNodeRow({degree,label,selected,styleObj,onSelect,onStylePatch}){
+function WaveNodeRow({degree,label,selected,styleObj,onSelect,onStylePatch, fibEnabled,fibStyle,onFibToggle,onFibStylePatch}){
   const s=waveNodeDisplayStyle({[degree]:styleObj},degree);
   return (
     <div style={{
@@ -282,6 +254,19 @@ function WaveNodeRow({degree,label,selected,styleObj,onSelect,onStylePatch}){
         <span style={{fontWeight:selected?800:600}}>{label}</span>
         {selected?<span style={{marginLeft:"auto",fontSize:10,color:"#facc15"}}>On</span>:null}
       </label>
+      <div style={{marginLeft:20,marginTop:6,display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+        <label style={{display:"flex",alignItems:"center",gap:7,fontSize:13,fontWeight:700}}>
+          <input type="checkbox" aria-label={degree+" Fibonacci extensions"}
+            checked={!!fibEnabled} onChange={e=>onFibToggle?.(e.target.checked)}/>
+          Fib extensions (Engine 22)
+        </label>
+        <details>
+          <summary style={{fontSize:11,color:"#cbd5e1",cursor:"pointer"}}>
+            ⚙ Fib appearance
+          </summary>
+          <SettingsBlock styleObj={fibStyle} onPatch={onFibStylePatch}/>
+        </details>
+      </div>
       <details style={{marginLeft:20,marginTop:3}}>
         <summary style={{fontSize:11,color:"#cbd5e1",cursor:"pointer"}}>
           ⚙ Node &amp; line appearance
@@ -456,7 +441,7 @@ export default function IndicatorsToolbar({
                 Engine 2 — Elliott Wave Nodes
               </div>
               <div style={{fontSize:11,color:"#94a3b8",marginBottom:7}}>
-                Turn each degree on or off independently. The wave dots, labels and lines do not affect Fibonacci.
+                Turn wave nodes and Engine 22 Fibonacci extensions on/off independently for each degree.
               </div>
               <div style={{display:"grid",gap:5}}>
                 <button type="button" onClick={()=>onWaveNodeHideAll?.()}
@@ -474,6 +459,37 @@ export default function IndicatorsToolbar({
                     styleObj={waveNodeStyles[degree]}
                     onSelect={checked=>onWaveNodeDegreeToggle?.(degree,checked)}
                     onStylePatch={patch=>onWaveNodeStylePatch?.(degree,patch)}
+                    fibEnabled={({
+                      PRIMARY:fibPrimary,INTERMEDIATE:fibIntermediate,MINOR:fibMinor,
+                      MINUTE:fibMinute,SUBMINUTE:fibSubminute,
+                      MICRO:fibMicro,SUBMICRO:fibSubmicro,
+                    })[degree]}
+                    fibStyle={({
+                      PRIMARY:fibPrimaryStyle,INTERMEDIATE:fibIntermediateStyle,
+                      MINOR:fibMinorStyle,MINUTE:fibMinuteStyle,
+                      SUBMINUTE:fibSubminuteStyle,MICRO:fibMicroStyle,
+                      SUBMICRO:fibSubmicroStyle,
+                    })[degree]}
+                    onFibToggle={enabled=>onChange?.({
+                      [({PRIMARY:"fibPrimary",INTERMEDIATE:"fibIntermediate",MINOR:"fibMinor",
+                         MINUTE:"fibMinute",SUBMINUTE:"fibSubminute",MICRO:"fibMicro",
+                         SUBMICRO:"fibSubmicro"})[degree]]:enabled
+                    })}
+                    onFibStylePatch={patch=>{
+                      const property=({
+                        PRIMARY:"fibPrimaryStyle",INTERMEDIATE:"fibIntermediateStyle",
+                        MINOR:"fibMinorStyle",MINUTE:"fibMinuteStyle",
+                        SUBMINUTE:"fibSubminuteStyle",MICRO:"fibMicroStyle",
+                        SUBMICRO:"fibSubmicroStyle",
+                      })[degree];
+                      const previous=({
+                        PRIMARY:fibPrimaryStyle,INTERMEDIATE:fibIntermediateStyle,
+                        MINOR:fibMinorStyle,MINUTE:fibMinuteStyle,
+                        SUBMINUTE:fibSubminuteStyle,MICRO:fibMicroStyle,
+                        SUBMICRO:fibSubmicroStyle,
+                      })[degree];
+                      onChange?.({[property]:{...(previous||{}),...patch}});
+                    }}
                   />
                 ))}
               </div>
@@ -776,100 +792,9 @@ export default function IndicatorsToolbar({
 
               {divider}
 
-              <div style={{ color: "#9ca3af", fontSize: 12, margin: "6px 0 8px" }}>
-                Engine 2 (Fib) — Multi-Degree
-              </div>
-
-              <div style={{ display: "grid", gap: 10 }}>
-                <FibRow
-                  label="Fib (Primary)"
-                  enabled={fibPrimary}
-                  styleObj={fibPrimaryStyle}
-                  onToggle={(v) => onChange?.({ fibPrimary: v })}
-                  onStylePatch={(patch) =>
-                    onChange?.({ fibPrimaryStyle: { ...(fibPrimaryStyle || {}), ...patch } })
-                  }
-                />
-
-                <FibRow
-                  label="Fib (Intermediate)"
-                  enabled={fibIntermediate}
-                  styleObj={fibIntermediateStyle}
-                  onToggle={(v) => onChange?.({ fibIntermediate: v })}
-                  onStylePatch={(patch) =>
-                    onChange?.({ fibIntermediateStyle: { ...(fibIntermediateStyle || {}), ...patch } })
-                  }
-                />
-
-                <FibRow
-                  label="Fib (Minor)"
-                  enabled={fibMinor}
-                  styleObj={fibMinorStyle}
-                  onToggle={(v) => onChange?.({ fibMinor: v })}
-                  onStylePatch={(patch) =>
-                    onChange?.({ fibMinorStyle: { ...(fibMinorStyle || {}), ...patch } })
-                  }
-                />
-
-                <FibRow
-                  label="Fib (Minute)"
-                  enabled={fibMinute}
-                  styleObj={fibMinuteStyle}
-                  onToggle={(v) => onChange?.({ fibMinute: v })}
-                  onStylePatch={(patch) =>
-                    onChange?.({ fibMinuteStyle: { ...(fibMinuteStyle || {}), ...patch } })
-                  }
-                />
-
-
-
-                <FibRow
-                  label="Fib (Subminute)"
-                  enabled={fibSubminute}
-                  styleObj={fibSubminuteStyle}
-                  onToggle={(v)=>onChange?.({fibSubminute:v})}
-                  onStylePatch={(patch)=>onChange?.({fibSubminuteStyle:{...(fibSubminuteStyle||{}),...patch}})}
-                />
-                <label style={{display:"grid",gap:3,marginLeft:18,fontSize:11,color:"#e5e7eb"}}>
-                  Subminute scenario
-                  <select value={fibSubminuteScenario} onChange={(e)=>onChange?.({fibSubminuteScenario:e.target.value})}
-                    style={{background:"#101827",color:"#e5e7eb",border:"1px solid #475569",borderRadius:4,padding:4}}>
-                    <option value="wick">Wick reference</option>
-                    <option value="body">Body reference</option>
-                    <option value="both">Both references</option>
-                  </select>
-                </label>
-                <FibRow
-                  label="Fib (Micro)"
-                  enabled={fibMicro}
-                  styleObj={fibMicroStyle}
-                  onToggle={(v) => onChange?.({ fibMicro: v })}
-                  onStylePatch={(patch) =>
-                    onChange?.({
-                      fibMicroStyle: { ...(fibMicroStyle || {}), ...patch },
-                    })
-                  }
-                />
-
-                <FibRow
-                  label="Fib (Submicro)"
-                  enabled={fibSubmicro}
-                  styleObj={fibSubmicroStyle}
-                  onToggle={(v) => onChange?.({ fibSubmicro: v })}
-                  onStylePatch={(patch) =>
-                    onChange?.({ fibSubmicroStyle: { ...(fibSubmicroStyle || {}), ...patch } })
-                  }
-                />
-                <label style={{display:"grid",gap:3,marginLeft:18,fontSize:11,color:"#e5e7eb"}}>
-                  Submicro scenario
-                  <select value={fibSubmicroScenario} onChange={(e)=>onChange?.({fibSubmicroScenario:e.target.value})}
-                    style={{background:"#101827",color:"#e5e7eb",border:"1px solid #475569",borderRadius:4,padding:4}}>
-                    <option value="option1">Option 1 — ABC Down</option>
-                    <option value="option2">Option 2 — A Ending</option>
-                    <option value="both">Both scenarios</option>
-                  </select>
-                </label>
-                
+              <div style={{fontSize:11,color:"#94a3b8",margin:"6px 0"}}>
+                Elliott Wave Fib controls are now beside each wave degree above.
+                No legacy node or Fibonacci source is drawn here.
               </div>
 
               {divider}
