@@ -3,7 +3,7 @@ import {WAVE_NODE_DEGREES} from "./waveNodePresentation";
 // Presentation-layer toggles only. Wave nodes still come from the existing
 // Engine22 Strategies packet. No source prices/times/history are changed.
 export const DEFAULT_VISIBLE_WAVE_DEGREES=Object.freeze([
-  "PRIMARY","INTERMEDIATE","SUBMICRO",
+  "PRIMARY","INTERMEDIATE","MINOR","MICRO","SUBMICRO",
 ]);
 const allowed=new Set(WAVE_NODE_DEGREES.map(([degree])=>degree));
 export function toggleVisibleWaveDegree(previous,degree,on){
