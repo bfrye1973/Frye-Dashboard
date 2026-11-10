@@ -479,7 +479,17 @@ export default function IndicatorsToolbar({
                     ?"Engine 22 node source unavailable — no archived fallback nodes displayed"
                     :<>{waveNodeStatus.mapped}/{waveNodeStatus.total} source nodes have matching loaded
                       {" "}{waveNodeStatus.timeframe} candles
-                      {waveNodeStatus.mapped===0?" · Older or missing candles may be required":""}</>}
+                      {waveNodeStatus.mapped===0?" · Older or missing candles may be required":""}
+                      {waveNodeStatus.mapped>0&&
+                        <div style={{marginTop:4,
+                          color:waveNodeStatus.priceOutside>0?"#fbbf24":"#94a3b8"}}>
+                          Chart candle-price check: {waveNodeStatus.priceWithin||0} within range
+                          {" · "}{waveNodeStatus.priceOutside||0} outside range
+                          {" · "}{waveNodeStatus.priceUnavailable||0} awaiting OHLC
+                          {waveNodeStatus.priceOutside>0
+                            ?" · Review ES price basis; owner anchors were not moved":""}
+                        </div>}
+                      </>}
                 </div>
               ):null}
               {waveNodeHistoryCursor>0?(
