@@ -1,7 +1,8 @@
 // Engine 2: strictly read-only Engine22 Strategy node snapshot validation.
 // Does not calculate pivots, alter ES prices, confirm a count, or fetch candles.
 export const ENGINE22_WORKING_NODES_SCHEMA="engine22.workingWaveNodes.v1";
-const ALLOWED=new Set(["micro","submicro"]);
+export const ENGINE22_NODE_DEGREES=Object.freeze(["primary","intermediate","minor","minute","subminute","micro","submicro"]);
+const ALLOWED=new Set(ENGINE22_NODE_DEGREES);
 const validUtc=v=>typeof v==="string" &&
   /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/.test(v) &&
   Number.isFinite(Date.parse(v));
@@ -22,7 +23,8 @@ export function validatedEngine22WorkingNodeAnchors(packet,degree){
   for(const n of section.nodes){
     if(n.degree!==degree||n.approvalStatus!=="RESEARCH" ||
        n.selectedForResearchDisplay!==true||
-       !n.sourcePath?.startsWith("currentWavelength.degrees."+degree+".")||
+       !(n.sourcePath?.startsWith("currentWavelength.degrees."+degree+".")||
+         (["primary","intermediate","minor"].includes(degree)&&n.sourcePath==="degreeStates."+degree))||
        typeof n.nodeId!=="string"||!n.nodeId||
        typeof n.modelVersion!=="string"||!n.modelVersion||
        typeof n.sourceRevision!=="string"||!n.sourceRevision||
@@ -34,9 +36,16 @@ export function validatedEngine22WorkingNodeAnchors(packet,degree){
        continue; // Research may be incomplete; missing points are never invented.
     if(ids.has(n.nodeId))continue;
     ids.add(n.nodeId);
+    // Keep the owner's original Arizona event time alongside the UTC
+    // timestamp that maps to Engine11's real candle opening.
+    const arizona=typeof n.ownerArizonaTime==="string"
+      ? /^(\d{4}-\d{2}-\d{2}) ([01]\d|2[0-3]):([0-5]\d) AZ$/.exec(n.ownerArizonaTime)
+      : null;
     out.push({
       id:n.nodeId,degree,label:n.label,
-      date:n.marketAtUtc.slice(0,10),time:null,
+      date:arizona?.[1]??n.marketAtUtc.slice(0,10),
+      time:arizona?arizona[2]+":"+arizona[3]:null,
+      ownerArizonaTime:n.ownerArizonaTime??null,
       price:n.price,timeSec:Math.floor(Date.parse(n.marketAtUtc)/1000),
       classification:"OWNER RESEARCH",
       modelVersion:n.modelVersion,sourcePath:n.sourcePath,
@@ -56,9 +65,14 @@ export function waveNodeFeedChanged(current,next){
     next.fingerprint!==current?.fingerprint);
 }
 
-// No archived spreadsheet fallback for the two Engine22-wired stages.
-// An unavailable or invalid Engine22 packet returns an empty chart list.
-export function currentEngine22MicroSubmicroAnchors(packet,degree){
-  if(degree!=="micro"&&degree!=="submicro")return [];
+// A missing or unverified Engine22 source always fails closed. No archived
+// owner-sheet anchors may be substituted for current seven-degree nodes.
+export function currentEngine22DegreeAnchors(packet,degree){
+  if(!ALLOWED.has(degree))return [];
   return validatedEngine22WorkingNodeAnchors(packet,degree)??[];
+}
+// Compatibility export for existing chart consumers; identical source contract.
+export function currentEngine22MicroSubmicroAnchors(packet,degree){
+  return degree==="micro"||degree==="submicro"
+    ? currentEngine22DegreeAnchors(packet,degree):[];
 }

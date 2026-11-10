@@ -10,9 +10,9 @@ test("Wave Off hides every degree's manual wave lines and labels even when Fib i
   }
 });
 
-test("Primary stage enables Primary only, not six other manual wave layers",()=>{
+test("no stage may enable archived manual wave layers once Engine22 owns all degrees",()=>{
   const style={showWaveLines:true,showWaveLabels:true};
-  expect(manualWaveDrawingEnabled("PRIMARY","primary",true,style)).toBe(true);
+  expect(manualWaveDrawingEnabled("PRIMARY","primary",true,style)).toBe(false);
   for(const degree of ["intermediate","minor","minute","subminute","micro","submicro"]){
     expect(manualWaveDrawingEnabled("PRIMARY",degree,true,style)).toBe(false);
   }
@@ -71,5 +71,5 @@ test("legacy Fibonacci wave canvas cannot overlay old Micro/Submicro chart nodes
   // Fibonacci price-level controls themselves are independent and unchanged.
   expect(manualWaveDrawingEnabled("PRIMARY","primary",true,{
     showWaveLines:true,showWaveLabels:true,
-  })).toBe(true);
+  })).toBe(false);
 });

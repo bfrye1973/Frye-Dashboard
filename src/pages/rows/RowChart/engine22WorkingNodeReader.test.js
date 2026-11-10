@@ -117,3 +117,32 @@ test("malformed current Engine22 packet fails closed instead of old Submicro ABC
   bad.degrees.submicro.nodes.forEach(n=>{n.marketAtUtc=null});
   expect(currentEngine22MicroSubmicroAnchors(bad,"submicro")).toEqual([]);
 });
+
+
+test("seven degrees accept only validated Engine22 source nodes, never archived fallback",()=>{
+ const packet={schema:"engine22.workingWaveNodes.v1",authority:"ENGINE22",available:true,symbol:"ES",readOnly:true,noExecution:true,ownerCountPromotion:false,fingerprint:"seven-current",degrees:{}};
+ for(const degree of ["primary","intermediate","minor","minute","subminute","micro","submicro"]){
+  packet.degrees[degree]={degree,nodes:[{degree,nodeId:degree+"-1",approvalStatus:"RESEARCH",selectedForResearchDisplay:true,sourcePath:"currentWavelength.degrees."+degree+".ownerWorking",modelVersion:"owner.v1",sourceRevision:"revision-1",label:"W1 Low",price:7324,marketAtUtc:"2026-11-09T16:00:00Z",priceBasisStatus:"PENDING",presentationAllowed:true,plotAllowed:false,noExecution:true,waveCompletionConfirmed:false}]};
+  expect(validatedEngine22WorkingNodeAnchors(packet,degree)).toHaveLength(1);
+ }
+ packet.degrees.primary.nodes[0].marketAtUtc=null;
+ expect(validatedEngine22WorkingNodeAnchors(packet,"primary")).toEqual([]);
+ expect(validatedEngine22WorkingNodeAnchors(null,"primary")).toBeNull();
+});
+
+test("Engine2 receives exact Arizona time from Engine22 for a higher-degree node",()=>{
+  const node={degree:"primary",nodeId:"primary-W1",approvalStatus:"RESEARCH",
+    selectedForResearchDisplay:true,sourcePath:"degreeStates.primary",
+    modelVersion:"engine22.degreeStates.primary.v1",sourceRevision:"content-hash",
+    label:"W1",price:5620,marketAtUtc:"2022-01-05T17:00:00.000Z",
+    ownerArizonaTime:"2022-01-05 10:00 AZ",priceBasisStatus:"PENDING",
+    presentationAllowed:true,plotAllowed:false,noExecution:true,waveCompletionConfirmed:false};
+  const packet={schema:"engine22.workingWaveNodes.v1",authority:"ENGINE22",
+    available:true,symbol:"ES",readOnly:true,noExecution:true,
+    ownerCountPromotion:false,fingerprint:"primary-revision",
+    degrees:{primary:{degree:"primary",nodes:[node]}}};
+  const result=validatedEngine22WorkingNodeAnchors(packet,"primary");
+  expect(result).toHaveLength(1);
+  expect(result[0]).toMatchObject({price:5620,date:"2022-01-05",time:"10:00",
+    ownerArizonaTime:"2022-01-05 10:00 AZ",timeSec:Date.parse("2022-01-05T17:00:00Z")/1000});
+});

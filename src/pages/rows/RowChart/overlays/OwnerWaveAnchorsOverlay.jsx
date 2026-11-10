@@ -1,15 +1,10 @@
 import { useEffect, useRef } from "react";
-import { ownerAnchorsForDegree } from "../ownerWaveAnchors";
-import { primaryDisplayCandleOpen } from "../primaryDisplayCandleMapping";
-import { validatedEngine22WorkingNodeAnchors, currentEngine22MicroSubmicroAnchors } from "../engine22WorkingNodeReader";
+import { validatedEngine22WorkingNodeAnchors, currentEngine22DegreeAnchors } from "../engine22WorkingNodeReader";
 import {waveNodeDisplayStyle} from "../waveNodePresentation";
-import { INTERMEDIATE_REVIEW_ANCHORS, MINOR_REVIEW_ANCHORS,
-  MINOR_W2_RESEARCH_LEVELS, MINUTE_REVIEW_ANCHORS,
-  SUBMINUTE_REVIEW_ANCHORS,
-  checkedDisplayCandleOpen } from "../intermediateMinorReview";
+import { primaryDisplayCandleOpen } from "../primaryDisplayCandleMapping";
+import { checkedDisplayCandleOpen } from "../intermediateMinorReview";
 
-// Owner-directed staged review: only one selected degree visible at a time.
-// Primary remains unchanged; Intermediate and Minor are explicitly selected.
+// One selected degree at a time, all from the current Engine22 publisher.
 export default function OwnerWaveAnchorsOverlay({
   visible=true, chart, priceSeries, degree="PRIMARY", stage="OFF", timeframe="1d",
   sourceBars=[], pagedCandleOpenAt=null, workingNodes=null,
@@ -27,31 +22,27 @@ export default function OwnerWaveAnchorsOverlay({
   const submicroOnly=stage==="SUBMICRO";
   const stageEnabled=primaryOnly||intermediateOnly||minorOnly||
     minuteOnly||subminuteOnly||microOnly||submicroOnly;
-  // Only Micro and Submicro are in initial Engine22 automatic-source
-  // acceptance. Other five stages stay unchanged until separately accepted.
-  const microFromEngine22=validatedEngine22WorkingNodeAnchors(workingNodes,"micro");
-  const submicroFromEngine22=validatedEngine22WorkingNodeAnchors(workingNodes,"submicro");
-  // Engine22 is the ONLY active Micro/Submicro node source. A missing,
-  // failed, or invalid packet must show zero nodes, NEVER archived spreadsheet
-  // coordinates. Keep research archives in source control for provenance only.
-  const microStageNodes=currentEngine22MicroSubmicroAnchors(workingNodes,"micro");
-  const submicroStageNodes=currentEngine22MicroSubmicroAnchors(workingNodes,"submicro");
-  const dynamicSourceAvailable=(!microOnly||microFromEngine22!==null)&&
-    (!submicroOnly||submicroFromEngine22!==null);
-  const activeNodes=primaryOnly?ownerAnchorsForDegree(degree):
-    intermediateOnly?INTERMEDIATE_REVIEW_ANCHORS:
-    minorOnly?MINOR_REVIEW_ANCHORS:
-    minuteOnly?MINUTE_REVIEW_ANCHORS:
-    subminuteOnly?SUBMINUTE_REVIEW_ANCHORS:
-    microOnly?microStageNodes:
-    submicroOnly?submicroStageNodes:[];
-  const mappedNodeCount=activeNodes.filter(a=>Number.isFinite(
-    primaryOnly&&["1d","4h"].includes(timeframe)
-      ? primaryDisplayCandleOpen(a,timeframe)
-      : typeof pagedCandleOpenAt==="function"
-        ? pagedCandleOpenAt(a.timeSec)
-        : checkedDisplayCandleOpen(a,timeframe,sourceBars)
-  )).length;
+  // All seven chart degrees now consume the same Engine22 Strategy-card feed.
+  // Missing/invalid degree publications fail closed; archived sheet coordinates
+  // never masquerade as current nodes. Release only with seven-degree backend.
+  const selectedDegree=stageEnabled?stage.toLowerCase():null;
+  const dynamicSourceAvailable=selectedDegree
+    ? validatedEngine22WorkingNodeAnchors(workingNodes,selectedDegree)!==null
+    : true;
+  const activeNodes=selectedDegree
+    ? currentEngine22DegreeAnchors(workingNodes,selectedDegree)
+    : [];
+  // Preserve Engine11's audited Primary opens when they match the source
+  // event; otherwise use only a genuine currently loaded source candle.
+  const candleOpenForNode=a=>{
+    const primaryVerified=primaryOnly&&["1d","4h"].includes(timeframe)
+      ? primaryDisplayCandleOpen(a,timeframe):null;
+    if(Number.isFinite(primaryVerified))return primaryVerified;
+    return typeof pagedCandleOpenAt==="function"
+      ? pagedCandleOpenAt(a.timeSec)
+      : checkedDisplayCandleOpen(a,timeframe,sourceBars);
+  };
+  const mappedNodeCount=activeNodes.filter(a=>Number.isFinite(candleOpenForNode(a))).length;
 
   // Keep the per-degree loaded-candle count in the Indicators panel.
   // This is presentation status only; it does not change/source candles.
@@ -60,10 +51,10 @@ export default function OwnerWaveAnchorsOverlay({
       stage:visible?stage:"OFF",mapped:mappedNodeCount,
       total:activeNodes.length,timeframe,
       sourceAvailable:dynamicSourceAvailable,
-      sourceKind:microOnly||submicroOnly?"ENGINE22":"OWNER_REVIEW",
+      sourceKind:"ENGINE22",
     });
   },[stage,visible,mappedNodeCount,activeNodes.length,timeframe,onNodeStatusChange,
-    dynamicSourceAvailable,microOnly,submicroOnly]);
+    dynamicSourceAvailable]);
 
   useEffect(()=>{
     if(!visible||!stageEnabled||!chart||!priceSeries)return;
@@ -98,11 +89,7 @@ export default function OwnerWaveAnchorsOverlay({
         // source series. Primary has independently audited Daily/4H opens;
         // intraday uses the loaded authentic candle timestamps or pager.
         // Never extrapolate unseen old nodes or change owner event/price.
-        const mapped=primaryOnly&&["1d","4h"].includes(timeframe)
-          ? primaryDisplayCandleOpen(a,timeframe)
-          : typeof pagedCandleOpenAt==="function"
-            ? pagedCandleOpenAt(a.timeSec)
-            : checkedDisplayCandleOpen(a,timeframe,sourceBars);
+        const mapped=candleOpenForNode(a);
         if(!Number.isFinite(mapped))continue;
         const x=chart.timeScale().timeToCoordinate(mapped);
         const priceY=priceSeries.priceToCoordinate(a.price);
@@ -165,23 +152,6 @@ export default function OwnerWaveAnchorsOverlay({
           // Hollow markers preserve unverified owner research semantics.
           ctx.stroke();
         }
-      }
-
-      // Minor W2 research retracement prices. These are levels only:
-      // no touch, no trade authority, no claim of a completed W2 pivot.
-      if(minorOnly){
-        ctx.strokeStyle="#f472b6"; ctx.fillStyle="#f472b6";
-        ctx.lineWidth=1; ctx.setLineDash([3,5]);
-        for(const level of MINOR_W2_RESEARCH_LEVELS){
-          const yy=priceSeries.priceToCoordinate(level.price);
-          if(!Number.isFinite(yy)||yy<20||yy>rect.height-20)continue;
-          ctx.beginPath();ctx.moveTo(0,yy);ctx.lineTo(rect.width,yy);ctx.stroke();
-          ctx.font="600 10px system-ui";
-          ctx.textAlign="right";
-          ctx.fillText("MINOR W2 "+level.ratio+" · "+level.price.toFixed(2)+" [UNVERIFIED]",
-            Math.max(90,rect.width-12),yy-3);
-        }
-        ctx.setLineDash([]);
       }
 
       // Collision avoidance moves LABELS only. Exact anchor dots never move.
@@ -271,13 +241,7 @@ export default function OwnerWaveAnchorsOverlay({
         // For intraday, zoom ONLY to candles already loaded. The 5m/10m
         // pager and regular 1m data often do not contain years-old anchors.
         // Do not force a fake historical x-axis or alter LIVE chart loading.
-        const selected=next==="PRIMARY"?ownerAnchorsForDegree("PRIMARY"):
-          next==="INTERMEDIATE"?INTERMEDIATE_REVIEW_ANCHORS:
-          next==="MINOR"?MINOR_REVIEW_ANCHORS:
-          next==="MINUTE"?MINUTE_REVIEW_ANCHORS:
-          next==="SUBMINUTE"?SUBMINUTE_REVIEW_ANCHORS:
-          next==="MICRO"?microStageNodes:
-          next==="SUBMICRO"?submicroStageNodes:[];
+        const selected=currentEngine22DegreeAnchors(workingNodes,next.toLowerCase());
         const mapped=selected.map(a=>typeof pagedCandleOpenAt==="function"
           ? pagedCandleOpenAt(a.timeSec)
           : checkedDisplayCandleOpen(a,timeframe,sourceBars))

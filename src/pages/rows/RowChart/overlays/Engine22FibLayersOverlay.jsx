@@ -1,17 +1,13 @@
-import { ownerAnchorsForDegree } from "../ownerWaveAnchors";
 // Engine 2F: one ES Fibonacci canvas with independently controlled degrees.
 const ORDER = ["primary", "intermediate", "minor", "minute", "subminute", "micro", "submicro"];
 
 // The owner's staged Wave nodes control owns manual wave labels/connecting
 // lines. Independent Fibonacci levels remain controlled by Fib checkboxes.
-export function manualWaveDrawingEnabled(waveStage, degree, fibToggle, style = {}) {
-  // Micro/Submicro owner nodes now come ONLY from Engine22 workingWaveNodes.
-  // This older Fib canvas reads archived ownerWaveAnchors.js and must NEVER
-  // redraw stale Micro/Submicro labels/connectors. Independent Fib price
-  // levels remain available through the separate existing controls.
-  if (degree === "micro" || degree === "submicro") return false;
-  return waveStage === degree.toUpperCase() && fibToggle === true &&
-    (style.showWaveLines === true || style.showWaveLabels === true);
+export function manualWaveDrawingEnabled() {
+  // Wave labels/connectors are owned solely by the existing live Engine22
+  // workingWaveNodes overlay across ALL seven degrees. This older Fibonacci
+  // canvas must not revive archived ownerWaveAnchors for any degree.
+  return false;
 }
 export default function Engine22FibLayersOverlay({
   chart, priceSeries, chartContainer, packet, toggles = {}, styles = {}, waveStage = "OFF"
@@ -63,33 +59,6 @@ export default function Engine22FibLayersOverlay({
       ctx.fillStyle = "rgba(0,0,0,.8)";
       ctx.fillRect(x,y-12,width,24);
       ctx.fillStyle = color;ctx.fillText(label,x+8,y+5);
-    }
-    // The manual wave controls use only owner-approved time/price anchors.
-    // No wave pivot is inferred and the permanent owner-anchor overlay is untouched.
-    for (const degree of ORDER) {
-      const style = styles[degree] || {};
-      if (!manualWaveDrawingEnabled(waveStage, degree, toggles[degree], style)) continue;
-      const anchors = ownerAnchorsForDegree(degree)
-        .map(a=>({a,x:ts.timeToCoordinate(a.timeSec),y:priceSeries.priceToCoordinate(a.price)}))
-        .filter(p=>Number.isFinite(p.x)&&Number.isFinite(p.y))
-        .sort((a,b)=>a.a.timeSec-b.a.timeSec);
-      if (style.showWaveLines && anchors.length>1) {
-        ctx.beginPath();
-        ctx.setLineDash([]);
-        ctx.strokeStyle = style.waveLineColor || style.color || "#e2e8f0";
-        ctx.lineWidth = Number.isFinite(style.waveLineWidth) ? style.waveLineWidth : 2;
-        ctx.moveTo(anchors[0].x,anchors[0].y);
-        for (const p of anchors.slice(1)) ctx.lineTo(p.x,p.y);
-        ctx.stroke();
-      }
-      if (style.showWaveLabels) {
-        ctx.font = "600 " + (style.waveLabelFontPx || style.fontPx || 12) + "px system-ui";
-        ctx.fillStyle = style.waveLabelColor || style.color || "#e2e8f0";
-        for (const p of anchors) {
-          if (p.x>=0 && p.x<=rect.width && p.y>=0 && p.y<=rect.height)
-            ctx.fillText(p.a.label + " " + p.a.price.toFixed(2),p.x+7,p.y-8);
-        }
-      }
     }
   };
   const schedule = () => {if (!disposed && !frame) frame = requestAnimationFrame(draw);};
