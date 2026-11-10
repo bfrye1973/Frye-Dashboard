@@ -3015,6 +3015,7 @@ export default function RowChart({
             timeframe={state.timeframe}
             sourceBars={fullCandleTimeIndexRef.current?.frame===state.timeframe
               ? fullCandleTimeIndexRef.current.bars : bars}
+            priceBars={bars}
             pagedCandleOpenAt={fiveMinuteFeatureEnabled
               ? (timeSec)=>fiveMinutePagerRef.current?.candleOpenAt?.(timeSec) ?? null
               : null}

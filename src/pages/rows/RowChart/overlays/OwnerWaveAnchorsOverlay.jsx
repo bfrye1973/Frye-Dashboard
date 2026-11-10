@@ -3,11 +3,12 @@ import { validatedEngine22WorkingNodeAnchors, currentEngine22DegreeAnchors } fro
 import {waveNodeDisplayStyle} from "../waveNodePresentation";
 import { primaryDisplayCandleOpen } from "../primaryDisplayCandleMapping";
 import { checkedDisplayCandleOpen } from "../intermediateMinorReview";
+import {assessOwnerNodeAgainstLoadedCandle} from "../ownerNodeCandleAlignment";
 
 // One selected degree at a time, all from the current Engine22 publisher.
 export default function OwnerWaveAnchorsOverlay({
   visible=true, chart, priceSeries, degree="PRIMARY", stage="OFF", timeframe="1d",
-  sourceBars=[], pagedCandleOpenAt=null, workingNodes=null,
+  sourceBars=[], priceBars=[], pagedCandleOpenAt=null, workingNodes=null,
   nodeStyles={}, onNodeStatusChange=null
 }){
   const canvasRef=useRef(null);
@@ -43,6 +44,17 @@ export default function OwnerWaveAnchorsOverlay({
       : checkedDisplayCandleOpen(a,timeframe,sourceBars);
   };
   const mappedNodeCount=activeNodes.filter(a=>Number.isFinite(candleOpenForNode(a))).length;
+  // This is an acceptance diagnostic, not a source for chart pivots.
+  // A price outside the bar must be reported, never silently snapped.
+  const candleAlignment=activeNodes.reduce((out,a)=>{
+    const mapped=candleOpenForNode(a);
+    if(!Number.isFinite(mapped))return out;
+    const check=assessOwnerNodeAgainstLoadedCandle(a,timeframe,priceBars,mapped);
+    if(check==="PRICE_WITHIN_CANDLE")out.priceWithin++;
+    else if(check==="PRICE_OUTSIDE_CANDLE")out.priceOutside++;
+    else out.priceUnavailable++;
+    return out;
+  },{priceWithin:0,priceOutside:0,priceUnavailable:0});
 
   // Keep the per-degree loaded-candle count in the Indicators panel.
   // This is presentation status only; it does not change/source candles.
@@ -50,11 +62,15 @@ export default function OwnerWaveAnchorsOverlay({
     onNodeStatusChange?.({
       stage:visible?stage:"OFF",mapped:mappedNodeCount,
       total:activeNodes.length,timeframe,
+      priceWithin:candleAlignment.priceWithin,
+      priceOutside:candleAlignment.priceOutside,
+      priceUnavailable:candleAlignment.priceUnavailable,
       sourceAvailable:dynamicSourceAvailable,
       sourceKind:"ENGINE22",
     });
   },[stage,visible,mappedNodeCount,activeNodes.length,timeframe,onNodeStatusChange,
-    dynamicSourceAvailable]);
+    candleAlignment.priceWithin,candleAlignment.priceOutside,
+    candleAlignment.priceUnavailable,dynamicSourceAvailable]);
 
   useEffect(()=>{
     if(!visible||!stageEnabled||!chart||!priceSeries)return;
