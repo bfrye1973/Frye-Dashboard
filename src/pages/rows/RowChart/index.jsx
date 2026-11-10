@@ -66,9 +66,9 @@ import Engine29CrossMarketStressPanel from "./overlays/Engine29CrossMarketStress
 import Engine26TradeGeometryTool from "./panels/Engine26TradeGeometryTool";
 import OwnerWaveAnchorsOverlay from "./overlays/OwnerWaveAnchorsOverlay";
 import Engine16SubmicroResearchOverlay from "./overlays/Engine16SubmicroResearchOverlay";
-import {createDefaultWaveNodeStyles} from "./waveNodePresentation";
+import {createDefaultWaveNodeStyles,WAVE_NODE_DEGREES} from "./waveNodePresentation";
 import {DEFAULT_VISIBLE_WAVE_DEGREES,toggleVisibleWaveDegree} from "./waveNodeVisibility";
-import { waveNodeFeedChanged } from "./engine22WorkingNodeReader";
+import { waveNodeFeedChanged,validatedEngine22WorkingNodeAnchors } from "./engine22WorkingNodeReader";
 import { createEngine22RevisionHistoryReader, fetchOwnerWaveHistoryPage, engine22HistoryAvailableFromSnapshot } from "./engine22RevisionHistoryReader";
 
 /* ------------------------------ Config ------------------------------ */
@@ -2812,6 +2812,11 @@ export default function RowChart({
     waveNodeDegrees,
     waveNodeStyles,
     waveNodeStatuses,
+    waveNodeCounts:Object.fromEntries(WAVE_NODE_DEGREES.map(([d])=>{
+      const published=validatedEngine22WorkingNodeAnchors(
+        engine22WorkingNodeSnapshot,d.toLowerCase());
+      return [d,published===null?null:published.length];
+    })),
     waveNodeHistoryCursor:engine22HistoryRevisions.cursor,
     waveNodeHistoricalRevisionCount:engine22HistoryRevisions.records.length,
     onWaveNodeDegreeToggle:handleWaveNodeDegreeToggle,
