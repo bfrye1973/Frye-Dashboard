@@ -385,6 +385,7 @@ export default function IndicatorsToolbar({
   waveNodeDegrees = [],
   waveNodeStyles = {},
   waveNodeStatuses = {},
+  waveNodeCounts = {},
   waveNodeHistoryCursor = 0,
   waveNodeHistoricalRevisionCount = 0,
   onWaveNodeDegreeToggle,
@@ -465,7 +466,9 @@ export default function IndicatorsToolbar({
                 {WAVE_NODE_DEGREES.map(([degree,label])=>(
                   <WaveNodeRow
                     key={degree}
-                    degree={degree} label={label}
+                    degree={degree}
+                    label={Number.isInteger(waveNodeCounts[degree])
+                      ?label+" ("+waveNodeCounts[degree]+")":label}
                     selected={waveNodeDegrees.includes(degree)}
                     styleObj={waveNodeStyles[degree]}
                     onSelect={checked=>onWaveNodeDegreeToggle?.(degree,checked)}
@@ -501,8 +504,8 @@ export default function IndicatorsToolbar({
                 </div>
               ):null}
               <div style={{marginTop:5,color:"#94a3b8",fontSize:10}}>
-                All seven degrees read the same Engine 22 Strategies node feed.
-                Empty degrees never substitute older spreadsheet nodes.
+                Degree counts come from the current Engine 22 Strategies feed.
+                Zero-node degrees remain empty; old spreadsheet anchors are never substituted.
               </div>
 
               {divider}
