@@ -66,7 +66,8 @@ import Engine29CrossMarketStressPanel from "./overlays/Engine29CrossMarketStress
 import Engine26TradeGeometryTool from "./panels/Engine26TradeGeometryTool";
 import OwnerWaveAnchorsOverlay from "./overlays/OwnerWaveAnchorsOverlay";
 import Engine16SubmicroResearchOverlay from "./overlays/Engine16SubmicroResearchOverlay";
-import {createDefaultWaveNodeStyles,WAVE_NODE_DEGREES} from "./waveNodePresentation";
+import {createDefaultWaveNodeStyles} from "./waveNodePresentation";
+import {DEFAULT_VISIBLE_WAVE_DEGREES,toggleVisibleWaveDegree} from "./waveNodeVisibility";
 import { waveNodeFeedChanged } from "./engine22WorkingNodeReader";
 import { createEngine22RevisionHistoryReader, fetchOwnerWaveHistoryPage, engine22HistoryAvailableFromSnapshot } from "./engine22RevisionHistoryReader";
 
@@ -1029,7 +1030,7 @@ export default function RowChart({
   // Engine22 Strategies node packet. Primary + Intermediate + Submicro are
   // owner-requested defaults; other degrees remain individually selectable.
   const [waveNodeDegrees,setWaveNodeDegrees]=useState(
-    ["PRIMARY","INTERMEDIATE","SUBMICRO"]);
+    [...DEFAULT_VISIBLE_WAVE_DEGREES]);
   // Presentation only. Never modifies source prices, timestamps or trades.
   const [waveNodeStyles,setWaveNodeStyles]=useState(createDefaultWaveNodeStyles);
   const [waveNodeStatuses,setWaveNodeStatuses]=useState({});
@@ -1043,12 +1044,8 @@ export default function RowChart({
         ?prev:{...prev,[next.stage]:next};
     });
   },[]);
-  const handleWaveNodeDegreeToggle=(degree,enabled)=>{
-    if(!WAVE_NODE_DEGREES.some(([d])=>d===degree))return;
-    setWaveNodeDegrees(prev=>enabled
-      ?prev.includes(degree)?prev:[...prev,degree]
-      :prev.filter(d=>d!==degree));
-  };
+  const handleWaveNodeDegreeToggle=(degree,enabled)=>
+    setWaveNodeDegrees(prev=>toggleVisibleWaveDegree(prev,degree,enabled));
 
   const selectedMode = modeNameFromChartMode(chartMode);
   const selectedStrategyId = strategyIdFromChartMode(chartMode);
