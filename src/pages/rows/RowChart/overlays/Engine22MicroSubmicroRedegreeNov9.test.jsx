@@ -52,7 +52,7 @@ test("Submicro card shows owner-marked A/B while keeping old models separate",()
  expect(html).toContain("7566.00");
  expect(html).toContain("2026-11-10 08:00 AZ");
  expect(html).toContain("C DOWN WATCH");
- expect(html).not.toContain("OLDER SUBMICRO");
+ expect(html).toContain("OLDER SUBMICRO W1/W2/W3 AND ABC RESEARCH PRESERVED");
  expect(html).not.toContain("7324.00");
  expect(html).not.toContain("SUBMICRO W3 UP — W2 LOW + W1 LENGTH FIB EXTENSIONS");
 });
