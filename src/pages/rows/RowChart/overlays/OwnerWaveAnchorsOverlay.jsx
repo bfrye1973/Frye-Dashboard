@@ -32,13 +32,17 @@ export default function OwnerWaveAnchorsOverlay({
   const activeNodes=selectedDegree
     ? currentEngine22DegreeAnchors(workingNodes,selectedDegree)
     : [];
-  const mappedNodeCount=activeNodes.filter(a=>Number.isFinite(
-    primaryOnly&&["1d","4h"].includes(timeframe)
-      ? primaryDisplayCandleOpen(a,timeframe)
-      : typeof pagedCandleOpenAt==="function"
-        ? pagedCandleOpenAt(a.timeSec)
-        : checkedDisplayCandleOpen(a,timeframe,sourceBars)
-  )).length;
+  // Preserve Engine11's audited Primary opens when they match the source
+  // event; otherwise use only a genuine currently loaded source candle.
+  const candleOpenForNode=a=>{
+    const primaryVerified=primaryOnly&&["1d","4h"].includes(timeframe)
+      ? primaryDisplayCandleOpen(a,timeframe):null;
+    if(Number.isFinite(primaryVerified))return primaryVerified;
+    return typeof pagedCandleOpenAt==="function"
+      ? pagedCandleOpenAt(a.timeSec)
+      : checkedDisplayCandleOpen(a,timeframe,sourceBars);
+  };
+  const mappedNodeCount=activeNodes.filter(a=>Number.isFinite(candleOpenForNode(a))).length;
 
   // Keep the per-degree loaded-candle count in the Indicators panel.
   // This is presentation status only; it does not change/source candles.
@@ -85,11 +89,7 @@ export default function OwnerWaveAnchorsOverlay({
         // source series. Primary has independently audited Daily/4H opens;
         // intraday uses the loaded authentic candle timestamps or pager.
         // Never extrapolate unseen old nodes or change owner event/price.
-        const mapped=primaryOnly&&["1d","4h"].includes(timeframe)
-          ? primaryDisplayCandleOpen(a,timeframe)
-          : typeof pagedCandleOpenAt==="function"
-            ? pagedCandleOpenAt(a.timeSec)
-            : checkedDisplayCandleOpen(a,timeframe,sourceBars);
+        const mapped=candleOpenForNode(a);
         if(!Number.isFinite(mapped))continue;
         const x=chart.timeScale().timeToCoordinate(mapped);
         const priceY=priceSeries.priceToCoordinate(a.price);
