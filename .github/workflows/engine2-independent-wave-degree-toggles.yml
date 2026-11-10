@@ -1,0 +1,34 @@
+name: Engine2 Independent Seven Degree Chart Toggles
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/pages/rows/RowChart/IndicatorsToolbar.jsx'
+      - 'src/pages/rows/RowChart/index.jsx'
+      - 'src/pages/rows/RowChart/waveNodeVisibility*'
+      - 'src/pages/rows/RowChart/waveNodePresentation.js'
+      - 'src/pages/rows/RowChart/overlays/Engine22ManualWaveStage.test.jsx'
+      - '.github/workflows/engine2-independent-wave-degree-toggles.yml'
+jobs:
+  independent-live-chart-degrees:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Primary Intermediate Submicro independently selected
+        run: CI=true npm test -- --watch=false --runInBand --testPathPattern=waveNodeVisibility.test.js
+      - name: All seven degrees visible as independent Indicators checkboxes
+        run: CI=true npm test -- --watch=false --runInBand --testPathPattern=Engine22ManualWaveStage.test.jsx
+      - name: Seven-degree Engine22 node validation preserved
+        run: CI=true npm test -- --watch=false --runInBand --testPathPattern=engine22WorkingNodeReader.test.js
+      - name: Source candle map and Submicro alignment preserved
+        run: CI=true npm test -- --watch=false --runInBand --testPathPattern=ownerNodeCandleAlignment.test.js
+      - name: Existing frontend full build
+        run: npm run build

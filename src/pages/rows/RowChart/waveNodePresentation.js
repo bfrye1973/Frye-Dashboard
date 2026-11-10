@@ -1,13 +1,13 @@
 // Presentation settings ONLY. Elliott Wave identity, price, timestamp,
 // validation and revisions remain owned by Engine22 and the existing overlay.
 export const WAVE_NODE_DEGREES=Object.freeze([
-  ["PRIMARY","Primary (5)","#facc15"],
-  ["INTERMEDIATE","Intermediate (3)","#fb7185"],
-  ["MINOR","Minor (2 + Fib)","#f472b6"],
-  ["MINUTE","Minute (4)","#a78bfa"],
-  ["SUBMINUTE","Subminute (3)","#38bdf8"],
-  ["MICRO","Micro (3)","#22c55e"],
-  ["SUBMICRO","Submicro (3)","#f59e0b"],
+  ["PRIMARY","Primary","#facc15"],
+  ["INTERMEDIATE","Intermediate","#fb7185"],
+  ["MINOR","Minor","#f472b6"],
+  ["MINUTE","Minute","#a78bfa"],
+  ["SUBMINUTE","Subminute","#38bdf8"],
+  ["MICRO","Micro","#22c55e"],
+  ["SUBMICRO","Submicro","#f59e0b"],
 ]);
 
 export const createDefaultWaveNodeStyles=()=>Object.fromEntries(

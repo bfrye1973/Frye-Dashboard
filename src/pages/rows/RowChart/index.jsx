@@ -66,8 +66,9 @@ import Engine29CrossMarketStressPanel from "./overlays/Engine29CrossMarketStress
 import Engine26TradeGeometryTool from "./panels/Engine26TradeGeometryTool";
 import OwnerWaveAnchorsOverlay from "./overlays/OwnerWaveAnchorsOverlay";
 import Engine16SubmicroResearchOverlay from "./overlays/Engine16SubmicroResearchOverlay";
-import {createDefaultWaveNodeStyles} from "./waveNodePresentation";
-import { waveNodeFeedChanged } from "./engine22WorkingNodeReader";
+import {createDefaultWaveNodeStyles,WAVE_NODE_DEGREES} from "./waveNodePresentation";
+import {DEFAULT_VISIBLE_WAVE_DEGREES,toggleVisibleWaveDegree} from "./waveNodeVisibility";
+import { waveNodeFeedChanged,validatedEngine22WorkingNodeAnchors } from "./engine22WorkingNodeReader";
 import { createEngine22RevisionHistoryReader, fetchOwnerWaveHistoryPage, engine22HistoryAvailableFromSnapshot } from "./engine22RevisionHistoryReader";
 
 /* ------------------------------ Config ------------------------------ */
@@ -1025,14 +1026,26 @@ export default function RowChart({
   const [engine17RawDebug, setEngine17RawDebug] = useState(null);
   const [chartMode, setChartMode] = useState(initialChartMode);
   const [selectedWaveDegree, setSelectedWaveDegree] = useState("minute");
-  // One staged control for BOTH anchor dots and legacy manual wave lines.
-  const [waveNodeStage, setWaveNodeStage] = useState("OFF");
-  // Presentation only. Separate settings per Elliott degree; never changes
-  // source timestamps, ES prices, Engine22 models or Fibonacci calculations.
+  // Each degree is an independent display layer backed ONLY by the single
+  // Engine22 Strategies node packet. Primary + Intermediate + Submicro are
+  // owner-requested defaults; other degrees remain individually selectable.
+  const [waveNodeDegrees,setWaveNodeDegrees]=useState(
+    [...DEFAULT_VISIBLE_WAVE_DEGREES]);
+  // Presentation only. Never modifies source prices, timestamps or trades.
   const [waveNodeStyles,setWaveNodeStyles]=useState(createDefaultWaveNodeStyles);
-  const [waveNodeStatus,setWaveNodeStatus]=useState({
-    stage:"OFF",mapped:0,total:0,timeframe:"",
-  });
+  const [waveNodeStatuses,setWaveNodeStatuses]=useState({});
+  const handleWaveNodeStatus=React.useCallback(next=>{
+    if(!next||next.stage==="OFF")return;
+    setWaveNodeStatuses(prev=>{
+      const old=prev[next.stage];
+      const keys=["stage","mapped","total","timeframe","priceWithin","priceOutside",
+        "priceUnavailable","sourceAvailable","sourceKind"];
+      return old&&keys.every(key=>old[key]===next[key])
+        ?prev:{...prev,[next.stage]:next};
+    });
+  },[]);
+  const handleWaveNodeDegreeToggle=(degree,enabled)=>
+    setWaveNodeDegrees(prev=>toggleVisibleWaveDegree(prev,degree,enabled));
 
   const selectedMode = modeNameFromChartMode(chartMode);
   const selectedStrategyId = strategyIdFromChartMode(chartMode);
@@ -2122,7 +2135,6 @@ export default function RowChart({
     seedToken,
     state.institutionalZonesAuto,
     state.smzShelvesAuto,
-    waveNodeStage,
     state.fibPrimary,
     state.fibIntermediate,
     state.fibMinor,
@@ -2709,7 +2721,7 @@ export default function RowChart({
   };
 
   const resetIndicators = () => {
-    setWaveNodeStage("OFF");
+    setWaveNodeDegrees([]);
     setWaveNodeStyles(createDefaultWaveNodeStyles());
     setState((s) => ({
       ...s,
@@ -2797,12 +2809,18 @@ export default function RowChart({
 
     showPremarketFibs: state.showPremarketFibs,
 
-    waveNodeStage,
+    waveNodeDegrees,
     waveNodeStyles,
-    waveNodeStatus,
+    waveNodeStatuses,
+    waveNodeCounts:Object.fromEntries(WAVE_NODE_DEGREES.map(([d])=>{
+      const published=validatedEngine22WorkingNodeAnchors(
+        engine22WorkingNodeSnapshot,d.toLowerCase());
+      return [d,published===null?null:published.length];
+    })),
     waveNodeHistoryCursor:engine22HistoryRevisions.cursor,
     waveNodeHistoricalRevisionCount:engine22HistoryRevisions.records.length,
-    onWaveNodeStageChange:setWaveNodeStage,
+    onWaveNodeDegreeToggle:handleWaveNodeDegreeToggle,
+    onWaveNodeHideAll:()=>setWaveNodeDegrees([]),
     onWaveNodeStylePatch:(degree,patch)=>setWaveNodeStyles(previous=>({
       ...previous,[degree]:{...(previous[degree]||{}),...patch},
     })),
@@ -2927,7 +2945,7 @@ export default function RowChart({
               onChange={e=>{
                 const enabled=e.target.checked;
                 setState(s=>({...s,engine16SubmicroResearch:enabled}));
-                if(enabled)setWaveNodeStage("SUBMICRO");
+                if(enabled)handleWaveNodeDegreeToggle("SUBMICRO",true);
               }}/>
             Engine 16 ABC · SUBMICRO 10M (RESEARCH)
           </label>
@@ -3007,23 +3025,26 @@ export default function RowChart({
             engine22Nodes={engine22WorkingNodeSnapshot}
           />
 
-          <OwnerWaveAnchorsOverlay
-            visible={normalizeSymbol(state.symbol) === "ES"}
-            chart={chartRef.current}
-            priceSeries={seriesRef.current}
-            degree="PRIMARY"
-            timeframe={state.timeframe}
-            sourceBars={fullCandleTimeIndexRef.current?.frame===state.timeframe
-              ? fullCandleTimeIndexRef.current.bars : bars}
-            priceBars={bars}
-            pagedCandleOpenAt={fiveMinuteFeatureEnabled
-              ? (timeSec)=>fiveMinutePagerRef.current?.candleOpenAt?.(timeSec) ?? null
-              : null}
-            stage={waveNodeStage}
-            workingNodes={engine22WorkingNodeSnapshot}
-            nodeStyles={waveNodeStyles}
-            onNodeStatusChange={setWaveNodeStatus}
-          />
+          {waveNodeDegrees.map(degree=>(
+            <OwnerWaveAnchorsOverlay
+              key={degree}
+              visible={normalizeSymbol(state.symbol)==="ES"}
+              chart={chartRef.current}
+              priceSeries={seriesRef.current}
+              degree="PRIMARY"
+              timeframe={state.timeframe}
+              sourceBars={fullCandleTimeIndexRef.current?.frame===state.timeframe
+                ?fullCandleTimeIndexRef.current.bars:bars}
+              priceBars={bars}
+              pagedCandleOpenAt={fiveMinuteFeatureEnabled
+                ?(timeSec)=>fiveMinutePagerRef.current?.candleOpenAt?.(timeSec)??null
+                :null}
+              stage={degree}
+              workingNodes={engine22WorkingNodeSnapshot}
+              nodeStyles={waveNodeStyles}
+              onNodeStatusChange={handleWaveNodeStatus}
+            />
+          ))}
 
           <Engine25MarketHealthTimeline
             visible={

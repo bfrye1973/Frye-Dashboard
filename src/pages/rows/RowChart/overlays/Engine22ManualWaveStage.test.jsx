@@ -20,44 +20,67 @@ test("no stage may enable archived manual wave layers once Engine22 owns all deg
   expect(manualWaveDrawingEnabled("PRIMARY","primary",true,{showWaveLines:false,showWaveLabels:false})).toBe(false);
 });
 
-const radioTags=html=>(html.match(/<input[^>]*type="radio"[^>]*>/g)||[]);
-const selectedRadioIndex=html=>radioTags(html).findIndex(tag=>tag.includes("checked"));
+const degreeCheckboxes=html=>(
+  html.match(/<input[^>]*type="checkbox"[^>]*aria-label="[^"]*wave nodes"[^>]*>/g)||[]
+);
+const selectedDegreeCheckboxes=html=>
+  degreeCheckboxes(html).filter(tag=>tag.includes("checked"));
 
-test("Off and all 7 Elliott Wave degree selectors now live INSIDE Indicators",()=>{
- const html=renderToStaticMarkup(<IndicatorsToolbar waveNodeStage="OFF"/>);
+test("all seven Elliott Wave degree toggles are independent inside Indicators",()=>{
+ const html=renderToStaticMarkup(<IndicatorsToolbar
+   waveNodeDegrees={["PRIMARY","INTERMEDIATE","SUBMICRO"]}
+   waveNodeCounts={{PRIMARY:4,INTERMEDIATE:2,MINOR:9,MINUTE:0,SUBMINUTE:0,MICRO:3,SUBMICRO:3}}/>);
  expect(html).toContain("Engine 2 — Elliott Wave Nodes");
  expect(html).toContain("Off — hide all wave nodes");
- for(const label of ["Primary (5)","Intermediate (3)","Minor (2 + Fib)",
-   "Minute (4)","Subminute (3)","Micro (3)","Submicro (3)"])
+ for(const label of ["Primary (4)","Intermediate (2)","Minor (9)",
+   "Minute (0)","Subminute (0)","Micro (3)","Submicro (3)"])
    expect(html).toContain(label);
- expect(radioTags(html)).toHaveLength(8);
- expect(selectedRadioIndex(html)).toBe(0);
+ expect(degreeCheckboxes(html)).toHaveLength(7);
+ expect(selectedDegreeCheckboxes(html)).toHaveLength(3);
  expect(html).toContain("Connect verified source anchors");
  expect(html).toContain("Node / label color");
  expect(html).toContain("Connecting line color");
  expect(html).toContain("Fib (Primary)");
 });
 
-test("exactly one selected wave degree remains active, Fib checkboxes independent",()=>{
- const all=["PRIMARY","INTERMEDIATE","MINOR","MINUTE","SUBMINUTE","MICRO","SUBMICRO"];
- for(let i=0;i<all.length;i++){
-   const html=renderToStaticMarkup(
-     <IndicatorsToolbar waveNodeStage={all[i]} fibPrimary={false}/>
-   );
-   expect(radioTags(html)).toHaveLength(8);
-   expect(selectedRadioIndex(html)).toBe(i+1);
-   expect(radioTags(html).filter(tag=>tag.includes("checked"))).toHaveLength(1);
-   expect(html).toContain("Fib (Primary)");
- }
+test("Primary and Intermediate can remain ON together with Submicro",()=>{
+ const all=["PRIMARY","INTERMEDIATE","SUBMICRO"];
+ const html=renderToStaticMarkup(
+   <IndicatorsToolbar waveNodeDegrees={all} fibPrimary={false}
+      waveNodeCounts={{PRIMARY:4,INTERMEDIATE:2,SUBMICRO:3}}/>
+ );
+ const selected=selectedDegreeCheckboxes(html);
+ expect(selected).toHaveLength(3);
+ for(const name of ["Primary (4)","Intermediate (2)","Submicro (3)"])
+   expect(selected.some(tag=>tag.includes(name+" wave nodes"))).toBe(true);
+ expect(html).toContain("Fib (Primary)");
 });
 
-test("Wave Nodes indicator reports history/source candle availability",()=>{
+test("each degree can be switched off without changing unrelated degrees",()=>{
  const html=renderToStaticMarkup(<IndicatorsToolbar
-   waveNodeStage="SUBMICRO"
-   waveNodeStatus={{stage:"SUBMICRO",mapped:2,total:3,timeframe:"30m"}}
+   waveNodeDegrees={["PRIMARY","SUBMICRO"]}
+   waveNodeCounts={{PRIMARY:4,INTERMEDIATE:2,SUBMICRO:3}}/>);
+ const active=selectedDegreeCheckboxes(html);
+ expect(active).toHaveLength(2);
+ expect(active.some(tag=>tag.includes("Primary (4) wave nodes"))).toBe(true);
+ expect(active.some(tag=>tag.includes("Intermediate (2) wave nodes"))).toBe(false);
+ expect(active.some(tag=>tag.includes("Submicro (3) wave nodes"))).toBe(true);
+});
+
+test("wave status appears separately for each active degree",()=>{
+ const html=renderToStaticMarkup(<IndicatorsToolbar
+   waveNodeDegrees={["PRIMARY","INTERMEDIATE","SUBMICRO"]}
+   waveNodeCounts={{PRIMARY:4,INTERMEDIATE:2,SUBMICRO:3}}
+   waveNodeStatuses={{
+     PRIMARY:{stage:"PRIMARY",mapped:0,total:4,timeframe:"10m",sourceAvailable:true},
+     INTERMEDIATE:{stage:"INTERMEDIATE",mapped:0,total:2,timeframe:"10m",sourceAvailable:true},
+     SUBMICRO:{stage:"SUBMICRO",mapped:3,total:3,timeframe:"10m",sourceAvailable:true}
+   }}
    waveNodeHistoryCursor={11} waveNodeHistoricalRevisionCount={32}
  />);
- expect(html).toContain("2/3 source nodes have matching loaded");
+ expect(html).toContain("0/4 source nodes match loaded");
+ expect(html).toContain("0/2 source nodes match loaded");
+ expect(html).toContain("3/3 source nodes match loaded");
  expect(html).toContain("Engine 22 history revision 11");
  expect(html).toContain("32 stored revision events");
 });
