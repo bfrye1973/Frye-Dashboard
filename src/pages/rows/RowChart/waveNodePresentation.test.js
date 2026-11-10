@@ -15,6 +15,7 @@ test("seven degrees each have independent colors and lines OFF by default",()=>{
   expect(style.showLabels).toBe(true);
   expect(style.showLines).toBe(false);
   expect(style.markerRadius).toBe(5);
+  expect(style.labelFontPx).toBe(16);
  }
 });
 
@@ -42,7 +43,7 @@ test("malformed style values cannot create invalid canvas widths or colors",()=>
  expect(style.color).toBe("#22c55e");
  expect(style.lineColor).toBe("#22c55e");
  expect(style.lineWidth).toBe(8);
- expect(style.labelFontPx).toBe(10);
+ expect(style.labelFontPx).toBe(12);
  expect(style.markerRadius).toBe(12);
  expect(style.showDots).toBe(false);
  expect(style.showLabels).toBe(false);
