@@ -1428,7 +1428,7 @@ export default function Engine22MarketStructureCard({
     degree:"submicro",label:"Submicro",active:true,badge:"W1 UP",
     subtitle:"Owner-marked Submicro C completed; new W1 UP starts from shared Micro W4 low",
     headline:"SUBMICRO C COMPLETE → W1 UP DEVELOPING / RESEARCH",
-    fibTitle:"SUBMICRO W1 UP — PRIOR W1 LENGTH PROXY (WATCH)",
+    fibTitle:"SUBMICRO W1 UP — PRIOR CORRECTION RETRACEMENTS (WATCH)",
     rows:[
       {label:"Parent",value:"MICRO W5 UP — RESEARCH"},
       {label:"A starting high",value:wavePrice(submicroW3InternalNov9.anchors.aHigh)+" — "+submicroW3InternalNov9.anchors.aHighLocalTime},
@@ -1436,12 +1436,12 @@ export default function Engine22MarketStructureCard({
       {label:"B high",value:wavePrice(submicroW3InternalNov9.anchors.bHigh)+" — "+submicroW3InternalNov9.anchors.bHighLocalTime},
       {label:"C ending low / W1 start",value:wavePrice(submicroW3InternalNov9.anchors.cLow)+" — "+submicroW3InternalNov9.anchors.cLowLocalTime+" — OWNER COMPLETE"},
       {label:"Current",value:"W1 UP FORMING — ENDING HIGH NOT SUPPLIED"},
-      {label:"Projection basis",value:"PRIOR SUBMICRO W1 LENGTH 85.75 POINTS — REFERENCE ONLY"},
+      {label:"Projection basis",value:"PRIOR C-DOWN 7600.00 → 7492.25 — RETRACEMENT RESISTANCE"},
       {label:"History",value:"OLDER W3 AND ABC C-DOWN FIBONACCI LEVELS PRESERVED"},
       {label:"Authority",value:"RESEARCH CARD ONLY — CANONICAL COUNT UNCHANGED"},
     ],
-    levels:submicroW3InternalNov9.w1UpReferenceLevels??[],
-    rules:["Submicro W1 high is unknown. WATCH projections use historical W1 length proxy, not a confirmed new W1 extension or trading permission."],
+    levels:submicroW3InternalNov9.w1PriorCorrectionRetracementLevels??[],
+    rules:["Submicro W1 high is unknown. Levels retrace the preceding C-down correction; they are resistance references, NOT W1 extension targets or trading permission."],
   } : null;
   const microW2Nov6=currentWavelength?.degrees?.micro?.ownerMicroW2Nov6Research;
   const microW2Nov6State=microW2Nov6?.version==="engine22.microW2Nov6Research.v1" &&
