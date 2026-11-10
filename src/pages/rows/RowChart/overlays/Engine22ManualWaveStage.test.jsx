@@ -28,11 +28,12 @@ const selectedDegreeCheckboxes=html=>
 
 test("all seven Elliott Wave degree toggles are independent inside Indicators",()=>{
  const html=renderToStaticMarkup(<IndicatorsToolbar
-   waveNodeDegrees={["PRIMARY","INTERMEDIATE","SUBMICRO"]}/>);
+   waveNodeDegrees={["PRIMARY","INTERMEDIATE","SUBMICRO"]}
+   waveNodeCounts={{PRIMARY:4,INTERMEDIATE:2,MINOR:9,MINUTE:0,SUBMINUTE:0,MICRO:3,SUBMICRO:3}}/>);
  expect(html).toContain("Engine 2 — Elliott Wave Nodes");
  expect(html).toContain("Off — hide all wave nodes");
- for(const label of ["Primary (5)","Intermediate (3)","Minor (2 + Fib)",
-   "Minute (4)","Subminute (3)","Micro (3)","Submicro (3)"])
+ for(const label of ["Primary (4)","Intermediate (2)","Minor (9)",
+   "Minute (0)","Subminute (0)","Micro (3)","Submicro (3)"])
    expect(html).toContain(label);
  expect(degreeCheckboxes(html)).toHaveLength(7);
  expect(selectedDegreeCheckboxes(html)).toHaveLength(3);
@@ -45,28 +46,31 @@ test("all seven Elliott Wave degree toggles are independent inside Indicators",(
 test("Primary and Intermediate can remain ON together with Submicro",()=>{
  const all=["PRIMARY","INTERMEDIATE","SUBMICRO"];
  const html=renderToStaticMarkup(
-   <IndicatorsToolbar waveNodeDegrees={all} fibPrimary={false}/>
+   <IndicatorsToolbar waveNodeDegrees={all} fibPrimary={false}
+      waveNodeCounts={{PRIMARY:4,INTERMEDIATE:2,SUBMICRO:3}}/>
  );
  const selected=selectedDegreeCheckboxes(html);
  expect(selected).toHaveLength(3);
- for(const name of ["Primary (5)","Intermediate (3)","Submicro (3)"])
+ for(const name of ["Primary (4)","Intermediate (2)","Submicro (3)"])
    expect(selected.some(tag=>tag.includes(name+" wave nodes"))).toBe(true);
  expect(html).toContain("Fib (Primary)");
 });
 
 test("each degree can be switched off without changing unrelated degrees",()=>{
  const html=renderToStaticMarkup(<IndicatorsToolbar
-   waveNodeDegrees={["PRIMARY","SUBMICRO"]}/>);
+   waveNodeDegrees={["PRIMARY","SUBMICRO"]}
+   waveNodeCounts={{PRIMARY:4,INTERMEDIATE:2,SUBMICRO:3}}/>);
  const active=selectedDegreeCheckboxes(html);
  expect(active).toHaveLength(2);
- expect(active.some(tag=>tag.includes("Primary (5) wave nodes"))).toBe(true);
- expect(active.some(tag=>tag.includes("Intermediate (3) wave nodes"))).toBe(false);
+ expect(active.some(tag=>tag.includes("Primary (4) wave nodes"))).toBe(true);
+ expect(active.some(tag=>tag.includes("Intermediate (2) wave nodes"))).toBe(false);
  expect(active.some(tag=>tag.includes("Submicro (3) wave nodes"))).toBe(true);
 });
 
 test("wave status appears separately for each active degree",()=>{
  const html=renderToStaticMarkup(<IndicatorsToolbar
    waveNodeDegrees={["PRIMARY","INTERMEDIATE","SUBMICRO"]}
+   waveNodeCounts={{PRIMARY:4,INTERMEDIATE:2,SUBMICRO:3}}
    waveNodeStatuses={{
      PRIMARY:{stage:"PRIMARY",mapped:0,total:4,timeframe:"10m",sourceAvailable:true},
      INTERMEDIATE:{stage:"INTERMEDIATE",mapped:0,total:2,timeframe:"10m",sourceAvailable:true},
