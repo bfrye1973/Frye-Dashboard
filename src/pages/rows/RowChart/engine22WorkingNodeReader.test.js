@@ -1,7 +1,7 @@
 import {
   ENGINE22_WORKING_NODES_SCHEMA,
   validatedEngine22WorkingNodeAnchors,waveNodeFeedChanged,
-  currentEngine22MicroSubmicroAnchors,
+  currentEngine22MicroSubmicroAnchors,currentEngine22DegreeAnchors,
 } from "./engine22WorkingNodeReader";
 import {checkedDisplayCandleOpen} from "./intermediateMinorReview";
 
@@ -145,4 +145,23 @@ test("Engine2 receives exact Arizona time from Engine22 for a higher-degree node
   expect(result).toHaveLength(1);
   expect(result[0]).toMatchObject({price:5620,date:"2022-01-05",time:"10:00",
     ownerArizonaTime:"2022-01-05 10:00 AZ",timeSec:Date.parse("2022-01-05T17:00:00Z")/1000});
+});
+
+test("current Submicro ABC replaces earlier internal W1/W2 chart markers without touching history",()=>{
+ const pkt=packet("owner-abc-revision");
+ const old=pkt.degrees.submicro.nodes.map(n=>({...n}));
+ const abc=[
+  sourceNode("submicro","A starting high",7600,"2026-11-09T20:00:00.000Z"),
+  sourceNode("submicro","A ending low",7507.25,"2026-11-10T13:40:00.000Z"),
+  sourceNode("submicro","B ending high",7566,"2026-11-10T15:00:00.000Z")
+ ];
+ pkt.degrees.submicro.nodes.push(...abc);
+ expect(validatedEngine22WorkingNodeAnchors(pkt,"submicro")).toHaveLength(6);
+ expect(currentEngine22DegreeAnchors(pkt,"submicro").map(n=>[n.label,n.price])).toEqual([
+  ["A starting high",7600],["A ending low",7507.25],["B ending high",7566]
+ ]);
+ expect(pkt.degrees.submicro.nodes.slice(0,3)).toEqual(old);
+ expect(currentEngine22DegreeAnchors(pkt,"micro")).toHaveLength(2);
+ pkt.degrees.submicro.nodes.pop();
+ expect(currentEngine22DegreeAnchors(pkt,"submicro")).toHaveLength(5);
 });
