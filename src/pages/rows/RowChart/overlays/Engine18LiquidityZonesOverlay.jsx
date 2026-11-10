@@ -33,6 +33,8 @@ export default function Engine18LiquidityZonesOverlay({visible=false,chart=null,
   const [status,setStatus]=useState("WAITING");
   const canvasRef=useRef(null);
   const drawRef=useRef(null);
+  const packetRef=useRef(null);
+  packetRef.current=packet;
   // Poll only while the owner has explicitly enabled this experimental layer.
   useEffect(()=>{
     if(!visible||symbol!=="ES"){setPacket(null);setStatus("OFF");return;}
@@ -74,7 +76,7 @@ export default function Engine18LiquidityZonesOverlay({visible=false,chart=null,
       const ctx=canvas.getContext("2d");if(!ctx)return;
       ctx.setTransform(dpr,0,0,dpr,0,0);
       ctx.clearRect(0,0,rect.width,rect.height);
-      const active=validateEngine18ChartZones(packet);
+      const active=validateEngine18ChartZones(packetRef.current);
       const occupied=[];
       ctx.font="bold 11px system-ui";ctx.textAlign="right";
       for(const z of active){
@@ -107,7 +109,7 @@ export default function Engine18LiquidityZonesOverlay({visible=false,chart=null,
       if(canvasRef.current===canvas)canvasRef.current=null;
       if(drawRef.current===schedule)drawRef.current=null;
     };
-  },[visible,symbol,chart,priceSeries,packet]);
+  },[visible,symbol,chart,priceSeries]);
   if(!visible||symbol!=="ES")return null;
   return <div style={{position:"absolute",top:76,left:60,zIndex:87,
     color:"#e2e8f0",background:"rgba(15,23,42,.88)",border:"1px solid #475569",
