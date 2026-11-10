@@ -54,6 +54,38 @@ export function normalizeEngine22FibPacket(strategy, scenarioSelections = {}) {
         });
       }
     }
+    // Engine22's Nov 10 research Fib projections accompany the current
+    // workingWaveNodes chart snapshot, while authorizedWorkingStructure may
+    // still identify an older canonical count. These are WATCH display-only
+    // projections, never replacement approvals or broker signals.
+    if(valid && (degree==="micro"||degree==="submicro")){
+      const current=strategy?.currentWavelength?.degrees?.[degree];
+      const model=degree==="micro"
+        ?current?.ownerMicroW3Nov9ReclassifiedResearch
+        :current?.ownerSubmicroW3Nov9InternalResearch;
+      const expected=degree==="micro"
+        ?"engine22.ownerMicroW3Nov9ReclassifiedResearch.v1"
+        :"engine22.ownerSubmicroW3Nov9InternalResearch.v1";
+      const sourceLevels=degree==="micro"
+        ?model?.w4RetracementLevels:model?.cDownExtensionLevels;
+      const sourceAnchors=model?.anchors;
+      const validAnchors=degree==="micro"
+        ?sourceAnchors?.w3High===7600&&sourceAnchors?.w2Low===7362
+        :sourceAnchors?.aHigh===7600&&sourceAnchors?.aLow===7507.25&&sourceAnchors?.bHigh===7566;
+      if(model?.version===expected&&model?.degree===degree&&
+         model?.selectionStatus==="RESEARCH_ONLY"&&validAnchors&&
+         Array.isArray(sourceLevels)&&sourceLevels.length===6&&
+         sourceLevels.every(l=>l?.status==="WATCH"&&l?.provisional===true&&
+           Number.isFinite(l?.price)&&l.price>0&&
+           Number.isFinite(l?.ratio)&&
+           (degree==="micro"?l.levelType==="MICRO_W4_DOWN_RETRACEMENT_RESEARCH":
+              l.levelType==="SUBMICRO_C_DOWN_EXTENSION_RESEARCH"))){
+        levels=sourceLevels.map(l=>({
+          ratio:String(l.label??l.ratio),price:l.price,
+          status:"WATCH",provisional:true,
+        }));
+      }
+    }
     degrees[degree] = {
       degree, available: Boolean(d?.available === true && levels.length > 0),
       sourcePath: d?.sourcePath ?? null,
