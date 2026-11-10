@@ -94,6 +94,8 @@ test("Micro and Submicro Fib levels change from amber WATCH to green on Engine22
  const subCopy={...submicro,w1PriorCorrectionRetracementLevels:
    submicro.w1PriorCorrectionRetracementLevels.map((l,i)=>i===0?touched(l):l)};
  const html=renderToStaticMarkup(<Engine22MarketStructureCard
+   engine22Display={{version:"engine22Display.v1",degreeOrder:["micro","submicro"],
+     degrees:{micro:{label:"Micro",rows:[],levels:[]},submicro:{label:"Submicro",rows:[],levels:[]}}}}
    currentWavelength={{degrees:{micro:{ownerMicroW3Nov9ReclassifiedResearch:microCopy},
      submicro:{ownerSubmicroW3Nov9InternalResearch:subCopy}}}}/>);
  expect(html).toContain("REACHED · ES SNAPSHOT");
