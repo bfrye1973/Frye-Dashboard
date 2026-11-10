@@ -13,7 +13,7 @@ export const WAVE_NODE_DEGREES=Object.freeze([
 export const createDefaultWaveNodeStyles=()=>Object.fromEntries(
   WAVE_NODE_DEGREES.map(([degree,,color])=>[degree,{
     color,lineColor:color,showDots:true,showLabels:true,
-    showLines:false,markerRadius:5,labelFontPx:12,lineWidth:2,
+    showLines:false,markerRadius:5,labelFontPx:16,lineWidth:2,
   }])
 );
 
@@ -23,7 +23,7 @@ const hex=v=>typeof v==="string"&&/^#[a-fA-F0-9]{6}$/.test(v);
 export function waveNodeDisplayStyle(styles,degree){
   const defaults=createDefaultWaveNodeStyles()[degree]||
     {color:"#fbbf24",lineColor:"#fbbf24",showDots:true,
-      showLabels:true,showLines:false,markerRadius:5,labelFontPx:12,lineWidth:2};
+      showLabels:true,showLines:false,markerRadius:5,labelFontPx:16,lineWidth:2};
   const actual=styles?.[degree]||{};
   return {
     color:hex(actual.color)?actual.color:defaults.color,
@@ -32,7 +32,7 @@ export function waveNodeDisplayStyle(styles,degree){
     showLabels:actual.showLabels!==false,
     showLines:actual.showLines===true,
     markerRadius:clamp(actual.markerRadius,2,12,defaults.markerRadius),
-    labelFontPx:clamp(actual.labelFontPx,10,24,defaults.labelFontPx),
+    labelFontPx:clamp(actual.labelFontPx,12,28,defaults.labelFontPx),
     lineWidth:clamp(actual.lineWidth,1,8,defaults.lineWidth),
   };
 }
