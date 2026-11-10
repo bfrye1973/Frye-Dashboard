@@ -36,9 +36,16 @@ export function validatedEngine22WorkingNodeAnchors(packet,degree){
        continue; // Research may be incomplete; missing points are never invented.
     if(ids.has(n.nodeId))continue;
     ids.add(n.nodeId);
+    // Keep the owner's original Arizona event time alongside the UTC
+    // timestamp that maps to Engine11's real candle opening.
+    const arizona=typeof n.ownerArizonaTime==="string"
+      ? /^(\\d{4}-\\d{2}-\\d{2}) ([01]\\d|2[0-3]):([0-5]\\d) AZ$/.exec(n.ownerArizonaTime)
+      : null;
     out.push({
       id:n.nodeId,degree,label:n.label,
-      date:n.marketAtUtc.slice(0,10),time:null,
+      date:arizona?.[1]??n.marketAtUtc.slice(0,10),
+      time:arizona?arizona[2]+":"+arizona[3]:null,
+      ownerArizonaTime:n.ownerArizonaTime??null,
       price:n.price,timeSec:Math.floor(Date.parse(n.marketAtUtc)/1000),
       classification:"OWNER RESEARCH",
       modelVersion:n.modelVersion,sourcePath:n.sourcePath,
