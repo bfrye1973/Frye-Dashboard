@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { validatedEngine22WorkingNodeAnchors, currentEngine22DegreeAnchors } from "../engine22WorkingNodeReader";
 import {waveNodeDisplayStyle} from "../waveNodePresentation";
+import { primaryDisplayCandleOpen } from "../primaryDisplayCandleMapping";
 import { checkedDisplayCandleOpen } from "../intermediateMinorReview";
 
 // One selected degree at a time, all from the current Engine22 publisher.
@@ -32,7 +33,9 @@ export default function OwnerWaveAnchorsOverlay({
     ? currentEngine22DegreeAnchors(workingNodes,selectedDegree)
     : [];
   const mappedNodeCount=activeNodes.filter(a=>Number.isFinite(
-    typeof pagedCandleOpenAt==="function"
+    primaryOnly&&["1d","4h"].includes(timeframe)
+      ? primaryDisplayCandleOpen(a,timeframe)
+      : typeof pagedCandleOpenAt==="function"
         ? pagedCandleOpenAt(a.timeSec)
         : checkedDisplayCandleOpen(a,timeframe,sourceBars)
   )).length;
@@ -82,7 +85,9 @@ export default function OwnerWaveAnchorsOverlay({
         // source series. Primary has independently audited Daily/4H opens;
         // intraday uses the loaded authentic candle timestamps or pager.
         // Never extrapolate unseen old nodes or change owner event/price.
-        const mapped=typeof pagedCandleOpenAt==="function"
+        const mapped=primaryOnly&&["1d","4h"].includes(timeframe)
+          ? primaryDisplayCandleOpen(a,timeframe)
+          : typeof pagedCandleOpenAt==="function"
             ? pagedCandleOpenAt(a.timeSec)
             : checkedDisplayCandleOpen(a,timeframe,sourceBars);
         if(!Number.isFinite(mapped))continue;
