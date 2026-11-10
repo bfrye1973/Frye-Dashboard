@@ -1405,40 +1405,43 @@ export default function Engine22MarketStructureCard({
   } : null;
   const microW3ReclassifiedNov9=currentWavelength?.degrees?.micro?.ownerMicroW3Nov9ReclassifiedResearch;
   const microW3ReclassifiedNov9State=microW3ReclassifiedNov9?.version==="engine22.ownerMicroW3Nov9ReclassifiedResearch.v1" && microW3ReclassifiedNov9.selectionStatus==="RESEARCH_ONLY" ? {
-    degree:"micro",label:"Micro",active:true,badge:"W4 WATCH",
-    subtitle:"Owner-marked Micro W3 ending; prior W1/W2 and W3 research preserved",
-    headline:"MICRO W3 END MARKED → W4 DOWN WATCH / RESEARCH",
-    fibTitle:"MICRO W4 DOWN — W2 LOW TO W3 HIGH RETRACEMENT (WATCH)",
+    degree:"micro",label:"Micro",active:true,badge:"W5 UP",
+    subtitle:"Owner-marked Micro W4 completed; W5 upward research targets",
+    headline:"MICRO W4 COMPLETE → W5 UP DEVELOPING / RESEARCH",
+    fibTitle:"MICRO W5 UP — W4 LOW + W1 LENGTH EXTENSIONS (WATCH)",
     rows:[
       {label:"Parent",value:"SUBMINUTE W1 FORMING — RESEARCH"},
       {label:"W1 low",value:wavePrice(microW3ReclassifiedNov9.anchors.w1Low)+" — "+microW3ReclassifiedNov9.anchors.w1LowLocalTime},
       {label:"W1 high",value:wavePrice(microW3ReclassifiedNov9.anchors.w1High)+" — "+microW3ReclassifiedNov9.anchors.w1HighLocalTime},
       {label:"W2 low",value:wavePrice(microW3ReclassifiedNov9.anchors.w2Low)+" — "+microW3ReclassifiedNov9.anchors.w2LowLocalTime},
-      {label:"W3 ending high",value:wavePrice(microW3ReclassifiedNov9.anchors.w3High)+" — "+microW3ReclassifiedNov9.anchors.w3HighLocalTime+" — OWNER MARK"},
-      {label:"Current",value:"W4 DOWN WATCH — ENDING LOW NOT CONFIRMED"},
-      {label:"History",value:"PRIOR MICRO W3 EXTENSION LEVELS AND MODELS PRESERVED"},
+      {label:"W3 ending high",value:wavePrice(microW3ReclassifiedNov9.anchors.w3High)+" — "+microW3ReclassifiedNov9.anchors.w3HighLocalTime},
+      {label:"W4 ending low",value:wavePrice(microW3ReclassifiedNov9.anchors.w4Low)+" — "+microW3ReclassifiedNov9.anchors.w4LowLocalTime+" — OWNER COMPLETE"},
+      {label:"Current",value:"W5 UP DEVELOPING — ENDING HIGH NOT CONFIRMED"},
+      {label:"History",value:"OLDER W3 UP AND W4 DOWN FIBONACCI LEVELS PRESERVED"},
       {label:"Authority",value:"RESEARCH CARD ONLY — CANONICAL COUNT UNCHANGED"},
     ],
-    levels:microW3ReclassifiedNov9.w4RetracementLevels??[],
-    rules:["Micro W3 ending is owner-marked research; no broker stop, confirmed W4 low or trade permission."],
+    levels:microW3ReclassifiedNov9.w5UpExtensionLevels??[],
+    rules:["Owner-marked W4 low; W5 projection is WATCH only and cannot authorize execution."],
   } : null;
   const submicroW3InternalNov9=currentWavelength?.degrees?.submicro?.ownerSubmicroW3Nov9InternalResearch;
   const submicroW3InternalNov9State=submicroW3InternalNov9?.version==="engine22.ownerSubmicroW3Nov9InternalResearch.v1" && submicroW3InternalNov9.selectionStatus==="RESEARCH_ONLY" ? {
-    degree:"submicro",label:"Submicro",active:true,badge:"ABC",
-    subtitle:"Owner-marked Submicro A/B correction inside Micro W4 research",
-    headline:"SUBMICRO A DOWN → B UP MARKED → C NOT CONFIRMED",
-    fibTitle:"SUBMICRO C DOWN — A LENGTH FROM B HIGH (WATCH)",
+    degree:"submicro",label:"Submicro",active:true,badge:"W1 UP",
+    subtitle:"Owner-marked Submicro C completed; new W1 UP starts from shared Micro W4 low",
+    headline:"SUBMICRO C COMPLETE → W1 UP DEVELOPING / RESEARCH",
+    fibTitle:"SUBMICRO W1 UP — PRIOR W1 LENGTH PROXY (WATCH)",
     rows:[
-      {label:"Parent",value:"MICRO W4 DOWN — RESEARCH"},
+      {label:"Parent",value:"MICRO W5 UP — RESEARCH"},
       {label:"A starting high",value:wavePrice(submicroW3InternalNov9.anchors.aHigh)+" — "+submicroW3InternalNov9.anchors.aHighLocalTime},
       {label:"A ending low",value:wavePrice(submicroW3InternalNov9.anchors.aLow)+" — "+submicroW3InternalNov9.anchors.aLowLocalTime},
       {label:"B high",value:wavePrice(submicroW3InternalNov9.anchors.bHigh)+" — "+submicroW3InternalNov9.anchors.bHighLocalTime},
-      {label:"Current",value:"C DOWN WATCH — COMPLETION NOT CONFIRMED"},
-      {label:"History",value:"OLDER SUBMICRO W1/W2/W3 AND ABC RESEARCH PRESERVED"},
+      {label:"C ending low / W1 start",value:wavePrice(submicroW3InternalNov9.anchors.cLow)+" — "+submicroW3InternalNov9.anchors.cLowLocalTime+" — OWNER COMPLETE"},
+      {label:"Current",value:"W1 UP FORMING — ENDING HIGH NOT SUPPLIED"},
+      {label:"Projection basis",value:"PRIOR SUBMICRO W1 LENGTH 85.75 POINTS — REFERENCE ONLY"},
+      {label:"History",value:"OLDER W3 AND ABC C-DOWN FIBONACCI LEVELS PRESERVED"},
       {label:"Authority",value:"RESEARCH CARD ONLY — CANONICAL COUNT UNCHANGED"},
     ],
-    levels:submicroW3InternalNov9.cDownExtensionLevels??[],
-    rules:["A/B are owner-marked source points; C ending low, official Fibonacci levels and trade permission are NOT confirmed."],
+    levels:submicroW3InternalNov9.w1UpReferenceLevels??[],
+    rules:["Submicro W1 high is unknown. WATCH projections use historical W1 length proxy, not a confirmed new W1 extension or trading permission."],
   } : null;
   const microW2Nov6=currentWavelength?.degrees?.micro?.ownerMicroW2Nov6Research;
   const microW2Nov6State=microW2Nov6?.version==="engine22.microW2Nov6Research.v1" &&
