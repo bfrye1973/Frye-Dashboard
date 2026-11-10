@@ -39,7 +39,7 @@ export function validatedEngine22WorkingNodeAnchors(packet,degree){
     // Keep the owner's original Arizona event time alongside the UTC
     // timestamp that maps to Engine11's real candle opening.
     const arizona=typeof n.ownerArizonaTime==="string"
-      ? /^(\\d{4}-\\d{2}-\\d{2}) ([01]\\d|2[0-3]):([0-5]\\d) AZ$/.exec(n.ownerArizonaTime)
+      ? /^(\d{4}-\d{2}-\d{2}) ([01]\d|2[0-3]):([0-5]\d) AZ$/.exec(n.ownerArizonaTime)
       : null;
     out.push({
       id:n.nodeId,degree,label:n.label,
