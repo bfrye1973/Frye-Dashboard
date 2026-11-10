@@ -7,11 +7,11 @@ test("Primary Intermediate Minor Micro and Submicro start on together for owner 
   expect(new Set(DEFAULT_VISIBLE_WAVE_DEGREES).size).toBe(5);
 });
 
-test("turning Intermediate off retains Primary and Submicro",()=>{
+test("turning Intermediate off retains Primary Minor Micro and Submicro",()=>{
   const original=[...DEFAULT_VISIBLE_WAVE_DEGREES];
   const after=toggleVisibleWaveDegree(original,"INTERMEDIATE",false);
   expect(after).toEqual(["PRIMARY","MINOR","MICRO","SUBMICRO"]);
-  expect(original).toEqual(["PRIMARY","INTERMEDIATE","SUBMICRO"]);
+  expect(original).toEqual(["PRIMARY","INTERMEDIATE","MINOR","MICRO","SUBMICRO"]);
 });
 
 test("toggling a degree on twice never duplicates its overlay",()=>{
