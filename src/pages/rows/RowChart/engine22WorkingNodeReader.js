@@ -87,7 +87,7 @@ export function currentEngine22DegreeAnchors(packet,degree){
       abc.every(label=>labels.has(label))).map(([key])=>key));
     if(activeModels.size)return nodes.filter(n=>{
       const key=n.sourcePath+"|"+n.modelVersion;
-      return !activeModels.has(key)||!/^W[12](?:\\s|$)/.test(n.label);
+      return !activeModels.has(key)||!(n.label.startsWith("W1 ")||n.label.startsWith("W2 "));
     });
   }
   return nodes;
