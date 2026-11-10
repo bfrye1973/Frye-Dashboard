@@ -23,7 +23,8 @@ export function validatedEngine22WorkingNodeAnchors(packet,degree){
   for(const n of section.nodes){
     if(n.degree!==degree||n.approvalStatus!=="RESEARCH" ||
        n.selectedForResearchDisplay!==true||
-       !n.sourcePath?.startsWith("currentWavelength.degrees."+degree+".")||
+       !(n.sourcePath?.startsWith("currentWavelength.degrees."+degree+".")||
+         (["primary","intermediate","minor"].includes(degree)&&n.sourcePath==="degreeStates."+degree))||
        typeof n.nodeId!=="string"||!n.nodeId||
        typeof n.modelVersion!=="string"||!n.modelVersion||
        typeof n.sourceRevision!=="string"||!n.sourceRevision||
