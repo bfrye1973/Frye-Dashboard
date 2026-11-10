@@ -277,8 +277,8 @@ function WaveNodeRow({degree,label,selected,styleObj,onSelect,onStylePatch}){
       background:selected?"#1c2737":"#101216"
     }}>
       <label style={{display:"flex",alignItems:"center",gap:7,cursor:"pointer",fontSize:12}}>
-        <input type="radio" name="wave-node-degree"
-          checked={selected} onChange={onSelect}/>
+        <input type="checkbox" aria-label={label+" wave nodes"}
+          checked={selected} onChange={e=>onSelect?.(e.target.checked)}/>
         <span style={{fontWeight:selected?800:600}}>{label}</span>
         {selected?<span style={{marginLeft:"auto",fontSize:10,color:"#facc15"}}>On</span>:null}
       </label>
@@ -382,12 +382,13 @@ export default function IndicatorsToolbar({
   
   showPremarketFibs = false,
 
-  waveNodeStage = "OFF",
+  waveNodeDegrees = [],
   waveNodeStyles = {},
-  waveNodeStatus = null,
+  waveNodeStatuses = {},
   waveNodeHistoryCursor = 0,
   waveNodeHistoricalRevisionCount = 0,
-  onWaveNodeStageChange,
+  onWaveNodeDegreeToggle,
+  onWaveNodeHideAll,
   onWaveNodeStylePatch,
 
   onChange,
@@ -453,45 +454,46 @@ export default function IndicatorsToolbar({
                 Engine 2 — Elliott Wave Nodes
               </div>
               <div style={{fontSize:11,color:"#94a3b8",marginBottom:7}}>
-                Select one degree. Wave dots, labels and connectors are independent of Fibonacci.
+                Turn each degree on or off independently. The wave dots, labels and lines do not affect Fibonacci.
               </div>
               <div style={{display:"grid",gap:5}}>
-                <label style={{display:"flex",gap:7,alignItems:"center",cursor:"pointer",fontSize:12}}>
-                  <input type="radio" name="wave-node-degree"
-                    checked={waveNodeStage==="OFF"}
-                    onChange={()=>onWaveNodeStageChange?.("OFF")}/>
-                  <span style={{fontWeight:waveNodeStage==="OFF"?800:500}}>Off — hide all wave nodes</span>
-                </label>
+                <button type="button" onClick={()=>onWaveNodeHideAll?.()}
+                  style={{background:"#111827",color:"#e5e7eb",border:"1px solid #475569",
+                    borderRadius:5,padding:6,cursor:"pointer",textAlign:"left"}}>
+                  Off — hide all wave nodes
+                </button>
                 {WAVE_NODE_DEGREES.map(([degree,label])=>(
                   <WaveNodeRow
                     key={degree}
                     degree={degree} label={label}
-                    selected={waveNodeStage===degree}
+                    selected={waveNodeDegrees.includes(degree)}
                     styleObj={waveNodeStyles[degree]}
-                    onSelect={()=>onWaveNodeStageChange?.(degree)}
+                    onSelect={checked=>onWaveNodeDegreeToggle?.(degree,checked)}
                     onStylePatch={patch=>onWaveNodeStylePatch?.(degree,patch)}
                   />
                 ))}
               </div>
-              {waveNodeStage!=="OFF"&&waveNodeStatus?.stage===waveNodeStage?(
-                <div style={{marginTop:7,color:waveNodeStatus.sourceAvailable===false?"#fbbf24":"#94a3b8",fontSize:11}}>
-                  {waveNodeStatus.sourceAvailable===false
-                    ?"Engine 22 node source unavailable — no archived fallback nodes displayed"
-                    :<>{waveNodeStatus.mapped}/{waveNodeStatus.total} source nodes have matching loaded
-                      {" "}{waveNodeStatus.timeframe} candles
-                      {waveNodeStatus.mapped===0?" · Older or missing candles may be required":""}
-                      {waveNodeStatus.mapped>0&&
-                        <div style={{marginTop:4,
-                          color:waveNodeStatus.priceOutside>0?"#fbbf24":"#94a3b8"}}>
-                          Chart candle-price check: {waveNodeStatus.priceWithin||0} within range
-                          {" · "}{waveNodeStatus.priceOutside||0} outside range
-                          {" · "}{waveNodeStatus.priceUnavailable||0} awaiting OHLC
-                          {waveNodeStatus.priceOutside>0
-                            ?" · Review ES price basis; owner anchors were not moved":""}
-                        </div>}
+              {WAVE_NODE_DEGREES.filter(([degree])=>waveNodeDegrees.includes(degree))
+                .map(([degree,label])=>{
+                  const status=waveNodeStatuses[degree];
+                  if(!status)return null;
+                  return <div key={degree} style={{marginTop:7,
+                    color:status.sourceAvailable===false?"#fbbf24":"#94a3b8",fontSize:11}}>
+                    <strong>{label}:</strong>{" "}
+                    {status.sourceAvailable===false
+                      ?"Engine 22 unavailable — no old nodes shown"
+                      :<>{status.mapped}/{status.total} source nodes match loaded{" "}
+                        {status.timeframe} candles
+                        {status.mapped===0?" · Historical candles may be required":""}
+                        {status.mapped>0&&
+                          <div style={{marginTop:3,color:status.priceOutside>0?"#fbbf24":"#94a3b8"}}>
+                            Price/candle: {status.priceWithin||0} within{" · "}
+                            {status.priceOutside||0} outside{" · "}
+                            {status.priceUnavailable||0} OHLC unavailable
+                          </div>}
                       </>}
-                </div>
-              ):null}
+                  </div>;
+                })}
               {waveNodeHistoryCursor>0?(
                 <div style={{marginTop:4,color:"#94a3b8",fontSize:10}}>
                   Engine 22 history revision {waveNodeHistoryCursor}
@@ -499,8 +501,8 @@ export default function IndicatorsToolbar({
                 </div>
               ):null}
               <div style={{marginTop:5,color:"#94a3b8",fontSize:10}}>
-                Micro and Submicro follow validated Engine 22 Strategies research data.
-                All other degrees retain their existing review references.
+                All seven degrees read the same Engine 22 Strategies node feed.
+                Empty degrees never substitute older spreadsheet nodes.
               </div>
 
               {divider}
