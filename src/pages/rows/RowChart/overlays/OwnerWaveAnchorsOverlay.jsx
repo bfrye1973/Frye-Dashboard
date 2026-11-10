@@ -178,7 +178,12 @@ export default function OwnerWaveAnchorsOverlay({
       const LABEL_H=activeStyle.labelFontPx+4, PAD_X=6, STEP=LABEL_H, MAX_STEPS=10;
       if(activeStyle.showLabels)for(const p of plotted.sort((m,n)=>m.y-n.y||m.x-n.x)){
         const width=ctx.measureText(p.text).width+PAD_X*2;
-        let labelY=Math.max(14,p.y-10);
+        // Micro W3 high and Submicro A high legitimately share one ES pivot.
+        // Separate *labels*, never the source price, marker, or candle time.
+        const sharedPeakLabel=submicroOnly&&p.a.label==="A starting high";
+        let labelY=sharedPeakLabel
+          ?Math.min(rect.height-4,p.y+activeStyle.labelFontPx+16)
+          :Math.max(14,p.y-10);
         let box=null;
         for(let step=0;step<=MAX_STEPS;step++){
           const direction=step===0?0:(step%2?1:-1);
