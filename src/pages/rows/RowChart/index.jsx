@@ -69,7 +69,7 @@ import Engine16SubmicroResearchOverlay from "./overlays/Engine16SubmicroResearch
 import Engine18LiquidityZonesOverlay from "./overlays/Engine18LiquidityZonesOverlay";
 import {createDefaultWaveNodeStyles,WAVE_NODE_DEGREES} from "./waveNodePresentation";
 import {DEFAULT_VISIBLE_WAVE_DEGREES,toggleVisibleWaveDegree} from "./waveNodeVisibility";
-import { waveNodeFeedChanged,validatedEngine22WorkingNodeAnchors } from "./engine22WorkingNodeReader";
+import { waveNodeFeedChanged,validatedEngine22WorkingNodeAnchors,currentEngine22DegreeAnchors } from "./engine22WorkingNodeReader";
 import { createEngine22RevisionHistoryReader, fetchOwnerWaveHistoryPage, engine22HistoryAvailableFromSnapshot } from "./engine22RevisionHistoryReader";
 
 /* ------------------------------ Config ------------------------------ */
@@ -2818,7 +2818,7 @@ export default function RowChart({
     waveNodeCounts:Object.fromEntries(WAVE_NODE_DEGREES.map(([d])=>{
       const published=validatedEngine22WorkingNodeAnchors(
         engine22WorkingNodeSnapshot,d.toLowerCase());
-      return [d,published===null?null:published.length];
+      return [d,published===null?null:currentEngine22DegreeAnchors(engine22WorkingNodeSnapshot,d.toLowerCase()).length];
     })),
     waveNodeHistoryCursor:engine22HistoryRevisions.cursor,
     waveNodeHistoricalRevisionCount:engine22HistoryRevisions.records.length,
