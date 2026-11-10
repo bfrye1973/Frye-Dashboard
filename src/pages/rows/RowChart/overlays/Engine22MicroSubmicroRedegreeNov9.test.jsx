@@ -14,12 +14,20 @@ const micro=make("engine22.ownerMicroW3Nov9ReclassifiedResearch.v1",
  7324,"2026-11-05 15:20 AZ",7469,"2026-11-06 07:40 AZ",
  7362,"2026-11-08 15:00 AZ",
  [[.618,7451.5],[1,7507],[1.272,7546.5],[1.618,7596.5],[2,7652],[2.618,7741.5]]);
+micro.w4RetracementLevels=[.236,.382,.5,.618,.786,1].map(ratio=>({
+ key:"r"+String(Math.round(ratio*1000)),label:ratio.toFixed(3),
+ price:Math.round((7600-238*ratio)*4)/4,status:"WATCH",provisional:true
+}));
 micro.anchors.w3High=7600;
 micro.anchors.w3HighLocalTime="2026-11-09 13:00 AZ";
 const submicro=make("engine22.ownerSubmicroW3Nov9InternalResearch.v1",
  7390.25,"2026-11-09 01:00 AZ",7476,"2026-11-09 06:00 AZ",
  7449.25,"2026-11-09 06:20 AZ",
  [[.618,7502.25],[1,7535],[1.272,7558.25],[1.618,7588],[2,7620.75],[2.618,7673.75]]);
+submicro.cDownExtensionLevels=[.618,1,1.272,1.618,2,2.618].map(ratio=>({
+ key:"e"+String(Math.round(ratio*1000)),label:ratio.toFixed(3),
+ price:Math.round((7566-92.75*ratio)*4)/4,status:"WATCH",provisional:true
+}));
 Object.assign(submicro.anchors,{aHigh:7600,aHighLocalTime:"2026-11-09 13:00 AZ",aLow:7507.25,aLowLocalTime:"2026-11-10 06:40 AZ",bHigh:7566,bHighLocalTime:"2026-11-10 08:00 AZ"});
 test("Micro card keeps W1/W2 history and shows owner-marked W3 high",()=>{
  const html=renderToStaticMarkup(<Engine22MarketStructureCard
@@ -33,6 +41,11 @@ test("Micro card keeps W1/W2 history and shows owner-marked W3 high",()=>{
  expect(html).toContain("7362.00");
  expect(html).toContain("7600.00");
  expect(html).toContain("2026-11-09 13:00 AZ");
+ expect(html).toContain("MICRO W4 DOWN");
+ expect(html).toContain("7543.75");
+ expect(html).toContain("7509.00");
+ expect(html).toContain("7481.00");
+ expect(html).toContain("7453.00");
  expect(html).not.toContain("MICRO W3 UP — W2 LOW + W1 LENGTH FIB EXTENSIONS");
  expect(html).not.toContain(">OLDER MICRO<");
 });
@@ -54,5 +67,10 @@ test("Submicro card shows owner-marked A/B while keeping old models separate",()
  expect(html).toContain("C DOWN WATCH");
  expect(html).toContain("OLDER SUBMICRO W1/W2/W3 AND ABC RESEARCH PRESERVED");
  expect(html).not.toContain("7324.00");
+ expect(html).toContain("SUBMICRO C DOWN — A LENGTH");
+ expect(html).toContain("7508.75");
+ expect(html).toContain("7473.25");
+ expect(html).toContain("7448.00");
+ expect(html).toContain("7416.00");
  expect(html).not.toContain("SUBMICRO W3 UP — W2 LOW + W1 LENGTH FIB EXTENSIONS");
 });

@@ -1408,7 +1408,7 @@ export default function Engine22MarketStructureCard({
     degree:"micro",label:"Micro",active:true,badge:"W4 WATCH",
     subtitle:"Owner-marked Micro W3 ending; prior W1/W2 and W3 research preserved",
     headline:"MICRO W3 END MARKED → W4 DOWN WATCH / RESEARCH",
-    fibTitle:"MICRO W4 RETRACEMENT — NOT YET PUBLISHED",
+    fibTitle:"MICRO W4 DOWN — W2 LOW TO W3 HIGH RETRACEMENT (WATCH)",
     rows:[
       {label:"Parent",value:"SUBMINUTE W1 FORMING — RESEARCH"},
       {label:"W1 low",value:wavePrice(microW3ReclassifiedNov9.anchors.w1Low)+" — "+microW3ReclassifiedNov9.anchors.w1LowLocalTime},
@@ -1419,7 +1419,7 @@ export default function Engine22MarketStructureCard({
       {label:"History",value:"PRIOR MICRO W3 EXTENSION LEVELS AND MODELS PRESERVED"},
       {label:"Authority",value:"RESEARCH CARD ONLY — CANONICAL COUNT UNCHANGED"},
     ],
-    levels:[],
+    levels:microW3ReclassifiedNov9.w4RetracementLevels??[],
     rules:["Micro W3 ending is owner-marked research; no broker stop, confirmed W4 low or trade permission."],
   } : null;
   const submicroW3InternalNov9=currentWavelength?.degrees?.submicro?.ownerSubmicroW3Nov9InternalResearch;
@@ -1427,7 +1427,7 @@ export default function Engine22MarketStructureCard({
     degree:"submicro",label:"Submicro",active:true,badge:"ABC",
     subtitle:"Owner-marked Submicro A/B correction inside Micro W4 research",
     headline:"SUBMICRO A DOWN → B UP MARKED → C NOT CONFIRMED",
-    fibTitle:"SUBMICRO C PROJECTION — NOT YET PUBLISHED",
+    fibTitle:"SUBMICRO C DOWN — A LENGTH FROM B HIGH (WATCH)",
     rows:[
       {label:"Parent",value:"MICRO W4 DOWN — RESEARCH"},
       {label:"A starting high",value:wavePrice(submicroW3InternalNov9.anchors.aHigh)+" — "+submicroW3InternalNov9.anchors.aHighLocalTime},
@@ -1437,7 +1437,7 @@ export default function Engine22MarketStructureCard({
       {label:"History",value:"OLDER SUBMICRO W1/W2/W3 AND ABC RESEARCH PRESERVED"},
       {label:"Authority",value:"RESEARCH CARD ONLY — CANONICAL COUNT UNCHANGED"},
     ],
-    levels:[],
+    levels:submicroW3InternalNov9.cDownExtensionLevels??[],
     rules:["A/B are owner-marked source points; C ending low, official Fibonacci levels and trade permission are NOT confirmed."],
   } : null;
   const microW2Nov6=currentWavelength?.degrees?.micro?.ownerMicroW2Nov6Research;
