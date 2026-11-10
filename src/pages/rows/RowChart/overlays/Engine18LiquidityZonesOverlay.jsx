@@ -76,19 +76,34 @@ export default function Engine18LiquidityZonesOverlay({visible=false,chart=null,
       const ctx=canvas.getContext("2d");if(!ctx)return;
       ctx.setTransform(dpr,0,0,dpr,0,0);
       ctx.clearRect(0,0,rect.width,rect.height);
-      // Quiet guide lines only; detailed prices and sizes live in one clean
-      // legend away from the right price scale and Elliott labels.
+      // Bold, readily visible research guides. Price labels live inside
+      // chart plot, not on top of the right-axis price ticks.
       const active=validateEngine18ChartZones(packetRef.current).slice(0,5);
       const occupied=[];
       for(const z of active){
         const y=priceSeries.priceToCoordinate(z.price);
-        if(!Number.isFinite(y)||y<20||y>rect.height-25)continue;
-        if(occupied.some(prev=>Math.abs(prev-y)<7))continue;
+        if(!Number.isFinite(y)||y<24||y>rect.height-26)continue;
+        if(occupied.some(prev=>Math.abs(prev-y)<12))continue;
         occupied.push(y);
-        const color=z.side==="BID"?"#34d399":"#fb7185";
-        ctx.strokeStyle=color;ctx.globalAlpha=.45;ctx.lineWidth=1;
-        ctx.setLineDash([4,7]);ctx.beginPath();
-        ctx.moveTo(0,y);ctx.lineTo(rect.width-8,y);ctx.stroke();
+        const buy=z.side==="BID";
+        const color=buy?"#4ade80":"#fb7185";
+        ctx.strokeStyle=color;ctx.globalAlpha=.97;ctx.lineWidth=3;
+        ctx.setLineDash([13,7]);ctx.beginPath();
+        ctx.moveTo(0,y);ctx.lineTo(rect.width-10,y);ctx.stroke();
+        ctx.setLineDash([]);ctx.globalAlpha=1;
+        // Opaque price markers, consistently inside the plot rather than
+        // cramped against the exchange price scale.
+        const label=(buy?"BUY ":"SELL ")+z.price.toFixed(2)+" · "+z.visibleContracts+" ct";
+        ctx.font="800 13px system-ui";
+        const width=Math.ceil(ctx.measureText(label).width)+20;
+        const x=Math.max(8,Math.min(rect.width-width-20,rect.width-width-65));
+        const labelY=Math.max(5,Math.min(rect.height-25,y-26));
+        ctx.fillStyle="rgba(9,15,27,.98)";
+        ctx.fillRect(x,labelY,width,23);
+        ctx.strokeStyle=color;ctx.lineWidth=2;
+        ctx.strokeRect(x+1,labelY+1,width-2,21);
+        ctx.fillStyle=color;ctx.textAlign="left";ctx.textBaseline="middle";
+        ctx.fillText(label,x+10,labelY+11.5);
       }
       ctx.setLineDash([]);ctx.globalAlpha=1;
     };
@@ -110,10 +125,10 @@ export default function Engine18LiquidityZonesOverlay({visible=false,chart=null,
   },[visible,symbol,chart,priceSeries]);
   if(!visible||symbol!=="ES")return null;
   return <div data-engine18-liquidity-legend="true"
-    style={{position:"absolute",top:76,left:60,zIndex:87,
+    style={{position:"absolute",top:14,left:70,zIndex:110,
       color:"#e2e8f0",background:"rgba(10,18,31,.94)",border:"1px solid #475569",
-      borderRadius:8,padding:"9px 11px",fontSize:11,pointerEvents:"none",
-      width:210,maxWidth:"calc(100% - 130px)",boxShadow:"0 4px 14px rgba(0,0,0,.4)"}}>
+      borderRadius:8,padding:"12px 14px",fontSize:14,pointerEvents:"none",
+      width:270,maxWidth:"calc(100% - 145px)",boxShadow:"0 4px 14px rgba(0,0,0,.4)"}}>
     <div style={{fontWeight:800,color:"#fbbf24",letterSpacing:".3px"}}>
       E18 LIQUIDITY · DEMO L2
     </div>
@@ -123,7 +138,7 @@ export default function Engine18LiquidityZonesOverlay({visible=false,chart=null,
     {zones.length===0?<div style={{color:"#cbd5e1"}}>No verified recent zones</div>:
       zones.slice(0,5).map(z=><div key={z.side+":"+z.price}
         style={{display:"flex",justifyContent:"space-between",alignItems:"center",
-          gap:8,padding:"3px 0",borderTop:"1px solid rgba(148,163,184,.15)",
+          gap:9,padding:"6px 0",borderTop:"1px solid rgba(148,163,184,.25)",
           fontVariantNumeric:"tabular-nums"}}>
         <span style={{color:z.side==="BID"?"#34d399":"#fb7185",fontWeight:800}}>
           {z.side==="BID"?"BUY":"SELL"}
