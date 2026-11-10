@@ -69,9 +69,10 @@ export function normalizeEngine22FibPacket(strategy, scenarioSelections = {}) {
       const sourceLevels=degree==="micro"
         ?model?.w4RetracementLevels:model?.cDownExtensionLevels;
       const sourceAnchors=model?.anchors;
-      const validAnchors=degree==="micro"
-        ?sourceAnchors?.w3High===7600&&sourceAnchors?.w2Low===7362
-        :sourceAnchors?.aHigh===7600&&sourceAnchors?.aLow===7507.25&&sourceAnchors?.bHigh===7566;
+      const sourceKeys=degree==="micro"
+        ?["w2Low","w3High"]:["aHigh","aLow","bHigh"];
+      const validAnchors=sourceKeys.every(key=>Number.isFinite(sourceAnchors?.[key])&&
+        sourceAnchors[key]>0&&Math.abs(sourceAnchors[key]*4-Math.round(sourceAnchors[key]*4))<1e-8);
       if(model?.version===expected&&model?.degree===degree&&
          model?.selectionStatus==="RESEARCH_ONLY"&&validAnchors&&
          Array.isArray(sourceLevels)&&sourceLevels.length===6&&
@@ -87,7 +88,7 @@ export function normalizeEngine22FibPacket(strategy, scenarioSelections = {}) {
       }
     }
     degrees[degree] = {
-      degree, available: Boolean(d?.available === true && levels.length > 0),
+      degree, available: Boolean(valid && levels.length > 0),
       sourcePath: d?.sourcePath ?? null,
       modelVersion: d?.modelVersion ?? null,
       activeWave: d?.activeWave ?? null,
