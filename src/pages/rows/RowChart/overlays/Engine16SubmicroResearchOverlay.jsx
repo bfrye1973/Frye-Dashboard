@@ -1,16 +1,20 @@
 import React,{useEffect,useMemo,useRef} from "react";
 import {detectSubmicroChartAbc} from "../engine16SubmicroChartResearch";
 import {validatedEngine22WorkingNodeAnchors} from "../engine22WorkingNodeReader";
+import {engine16FibLevelsFromStrategyCard} from "../engine16Engine22CardFibs";
 
 // Non-interactive canvas on the OWNER'S EXISTING Engine2 chart. It never calls
 // series.update/setData, changes timescale, writes Engine22, or creates a feed.
 export default function Engine16SubmicroResearchOverlay({
-  visible=false,chart,priceSeries,bars=[],verified=false,engine22Nodes=null
+  visible=false,chart,priceSeries,bars=[],verified=false,engine22Nodes=null,
+  engine22AuthorizedWorkingStructure=null,engine22CurrentWavelength=null,
+  fibScenario="option1"
 }){
   const canvasRef=useRef(null);
   const eventsRef=useRef([]);
   const lastFingerprint=useRef("");
   const analysisRef=useRef(null);
+  const fibRef=useRef(null);
   const redrawRef=useRef(null);
   const analysis=useMemo(()=>{
     if(!visible)return null;
@@ -18,6 +22,11 @@ export default function Engine16SubmicroResearchOverlay({
     catch{return {status:"UNAVAILABLE",reason:"RESEARCH_DETECTOR_ERROR",candidate:null};}
   },[visible,bars,verified]);
   analysisRef.current=analysis;
+  const fibs=useMemo(()=>engine16FibLevelsFromStrategyCard({
+    authorizedWorkingStructure:engine22AuthorizedWorkingStructure,
+    currentWavelength:engine22CurrentWavelength,submicroScenario:fibScenario,
+  }),[engine22AuthorizedWorkingStructure,engine22CurrentWavelength,fibScenario]);
+  fibRef.current=fibs;
   const context=useMemo(()=>validatedEngine22WorkingNodeAnchors(engine22Nodes,"submicro"),[engine22Nodes]);
   useEffect(()=>{
     if(!visible||!analysis?.candidate)return;
@@ -77,13 +86,18 @@ export default function Engine16SubmicroResearchOverlay({
         ctx.beginPath();ctx.arc(p.x,p.y,3,0,Math.PI*2);ctx.fill();
         ctx.fillText("E16 "+p.label,p.x,Math.max(12,p.y-10));
       }
-      for(const t of c.targets.filter(x=>[1,1.272,1.618].includes(x.ratio))){
+      // Draw ONLY the authoritative Engine22 Strategies-card levels.
+      // No chart-local Fibonacci targets; never label C DOWN as C UP.
+      const selected=fibRef.current;
+      if(selected?.available)for(const t of selected.levels) {
         const y=priceSeries.priceToCoordinate(t.price);
         if(!Number.isFinite(y)||y<14||y>rect.height-14)continue;
-        ctx.strokeStyle="rgba(125,211,252,.6)";ctx.setLineDash([3,5]);
+        ctx.strokeStyle="rgba(125,211,252,.55)";ctx.setLineDash([3,5]);
         ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(rect.width,y);ctx.stroke();
         ctx.setLineDash([]);ctx.fillStyle="#7dd3fc";ctx.textAlign="right";
-        ctx.fillText("E16 C "+t.ratio+" · "+t.price.toFixed(2),rect.width-12,y-4);
+        ctx.fillText("E22 "+String(selected.activeWave||"WAVE")+" "+
+          String(selected.direction||"") +" "+t.label+" · "+t.price.toFixed(2),
+          rect.width-12,y-4);
       }
       const invalidY=priceSeries.priceToCoordinate(c.B.price);
       if(Number.isFinite(invalidY)&&invalidY>=12&&invalidY<=rect.height-12){
@@ -108,7 +122,7 @@ export default function Engine16SubmicroResearchOverlay({
       if(canvasRef.current===canvas)canvasRef.current=null;
     };
   },[visible,chart,priceSeries]);
-  useEffect(()=>{redrawRef.current?.();},[analysis]);
+  useEffect(()=>{redrawRef.current?.();},[analysis,fibs]);
 
   if(!visible)return null;
   const active=analysis?.candidate;
@@ -117,7 +131,8 @@ export default function Engine16SubmicroResearchOverlay({
     borderRadius:7,background:"rgba(15,23,42,.91)",color:"#e2e8f0",fontSize:11}}>
     <div style={{fontWeight:800,color:"#fbbf24"}}>ENGINE 16 · SUBMICRO · ES 10M · RESEARCH</div>
     <div>{active?active.label+" · "+active.direction:analysis?.reason||"Waiting for candles"}</div>
-    <div>Engine22: {context?"Submicro reference available":"Context unavailable / unverified"}</div>
+    <div>Engine22: {context?"Submicro nodes available":"Submicro nodes unverified"}</div>
+    <div>Fibs: {fibs.available?`Engine22 ${fibs.activeWave||"WAVE"} ${fibs.direction||""} · rev ${fibs.publicationRevision}`:"Engine22 source unavailable"}</div>
     <div style={{color:"#94a3b8"}}>Provisional only · no trade authority · session events {eventsRef.current.length}</div>
   </div>;
 }
