@@ -1020,6 +1020,7 @@ export default function RowChart({
   const [engine17Data, setEngine17Data] = useState(null);
   const [engine22AuthorizedWorkingStructure, setEngine22AuthorizedWorkingStructure] = useState(null);
   const [engine22CurrentWavelength, setEngine22CurrentWavelength] = useState(null);
+  const [engine22DegreeStates, setEngine22DegreeStates] = useState(null);
   const [engine22WorkingNodeSnapshot, setEngine22WorkingNodeSnapshot] = useState(null);
   const [engine22HistoryReady, setEngine22HistoryReady] = useState(false);
   const [engine22HistoryRevisions, setEngine22HistoryRevisions] = useState({cursor:0,records:[]});
@@ -1879,6 +1880,7 @@ export default function RowChart({
           engine22WaveStrategy?.authorizedWorkingStructure || null
         );
         setEngine22CurrentWavelength(engine22WaveStrategy?.currentWavelength || null);
+        setEngine22DegreeStates(engine22WaveStrategy?.degreeStates || null);
         // SAME Strategies-card Engine22 source; hash de-duplicates routine
         // 15s snapshot refreshes. Do not trigger candle series resets.
         const nodes=engine22WaveStrategy?.workingWaveNodes;
@@ -1902,6 +1904,7 @@ export default function RowChart({
         });
         setEngine22AuthorizedWorkingStructure(null);
         setEngine22CurrentWavelength(null);
+        setEngine22DegreeStates(null);
         setEngine22WorkingNodeSnapshot(null);
         setEngine22HistoryReady(false);
 
@@ -2065,6 +2068,7 @@ export default function RowChart({
       const packet = normalizeEngine22FibPacket({
         authorizedWorkingStructure: engine22AuthorizedWorkingStructure,
         currentWavelength: engine22CurrentWavelength,
+        degreeStates: engine22DegreeStates,
       }, {submicro:state.fibSubmicroScenario,subminute:state.fibSubminuteScenario});
       reg(attachOverlay(Engine22FibLayersOverlay, {
         chart: chartRef.current,
@@ -2150,6 +2154,7 @@ export default function RowChart({
     state.fibMinorStyle,
     engine22AuthorizedWorkingStructure,
     engine22CurrentWavelength,
+    engine22DegreeStates,
     state.fibMinuteStyle,
     state.fibMicroStyle,
     state.fibSubmicroStyle,
