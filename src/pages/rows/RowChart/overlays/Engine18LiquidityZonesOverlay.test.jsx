@@ -1,4 +1,4 @@
-import {validateEngine18ChartZones,selectEngine18TestZones} from "./Engine18LiquidityZonesOverlay";
+import {validateEngine18ChartZones,selectEngine18TestZones,advanceEngine18StableLevels} from "./Engine18LiquidityZonesOverlay";
 const now=1794344915000;
 const sample={schema:"engine18.chartLiquidityDemo.v1",symbol:"XCME:ES.Z26",
  available:true,executionEligible:false,displayOnly:true,mode:"DEMO_RESEARCH_ONLY",
@@ -25,7 +25,7 @@ test("invalid tick prices and zero order size are rejected",()=>{
  ]},now)).toEqual([]);
 });
 
-test("chart always limits each side to three and orders by displayed contracts",()=>{
+test("chart always limits each side to two and orders by displayed contracts",()=>{
  const zones=[
  {side:"ASK",price:7561,visibleContracts:12,observedInImages:10},
  {side:"ASK",price:7562,visibleContracts:50,observedInImages:5},
@@ -35,8 +35,34 @@ test("chart always limits each side to three and orders by displayed contracts",
  {side:"BID",price:7547,visibleContracts:80,observedInImages:8}
  ];
  const selected=selectEngine18TestZones(zones);
- expect(selected).toHaveLength(6);
- expect(selected.filter(z=>z.side==="ASK").map(z=>z.visibleContracts)).toEqual([50,30,12]);
- expect(selected.filter(z=>z.side==="BID").map(z=>z.visibleContracts)).toEqual([80,45,20]);
- expect(selectEngine18TestZones(zones.filter(z=>z.side==="BID"))).toHaveLength(3);
+ expect(selected).toHaveLength(4);
+ expect(selected.filter(z=>z.side==="ASK").map(z=>z.visibleContracts)).toEqual([50,30]);
+ expect(selected.filter(z=>z.side==="BID").map(z=>z.visibleContracts)).toEqual([80,45]);
+ expect(selectEngine18TestZones(zones.filter(z=>z.side==="BID"))).toHaveLength(2);
+});
+
+test("two unique fresh feeds required before any line is shown",()=>{
+ const a=advanceEngine18StableLevels(null,sample,now);
+ expect(a.zones).toEqual([]);
+ const unchanged=advanceEngine18StableLevels(a,sample,now);
+ expect(unchanged.zones).toEqual([]);
+ const b=advanceEngine18StableLevels(unchanged,{...sample,asOfUnixMs:now-100},now);
+ expect(b.zones).toHaveLength(2);
+});
+test("vanished resting liquidity is removed immediately; no ghost levels",()=>{
+ const a=advanceEngine18StableLevels(null,sample,now);
+ const b=advanceEngine18StableLevels(a,{...sample,asOfUnixMs:now-100},now);
+ const next=advanceEngine18StableLevels(b,{...sample,asOfUnixMs:now,
+   zones:[{side:"BID",price:7551,visibleContracts:100}]},now);
+ expect(next.zones).toEqual([{side:"BID",price:7551,visibleContracts:100,observedInImages:0}]);
+ expect(advanceEngine18StableLevels(next,{...sample,available:false},now).zones).toEqual([]);
+});
+test("two of each side are selected independently",()=>{
+ const zones=[1,2,3,4].map(i=>({side:"BID",price:7548+i*.25,visibleContracts:i*10}))
+   .concat([1,2,3,4].map(i=>({side:"ASK",price:7555+i*.25,visibleContracts:i*5})));
+ const selected=selectEngine18TestZones(zones);
+ expect(selected.filter(z=>z.side==="BID")).toHaveLength(2);
+ expect(selected.filter(z=>z.side==="ASK")).toHaveLength(2);
+ expect(selected[0].visibleContracts).toBe(20);
+ expect(selected[2].visibleContracts).toBe(40);
 });
