@@ -1438,14 +1438,15 @@ export default function Engine22MarketStructureCard({
       {label:"C ending low / W1 start",value:wavePrice(submicroW3InternalNov9.anchors.cLow)+" — "+submicroW3InternalNov9.anchors.cLowLocalTime+" — OWNER COMPLETE"},
       {label:"W1 ending high",value:wavePrice(submicroW3InternalNov9.anchors.newW1High)+" — "+submicroW3InternalNov9.anchors.newW1HighLocalTime+" — OWNER COMPLETE"},
       {label:"W1 length",value:wavePrice(submicroW3InternalNov9.anchors.newW1Length)+" ES POINTS"},
+      {label:"Prior W1 high",value:"7560.00 — 2026-11-10 14:50 AZ — SUPERSEDED"},
       {label:"Current",value:"W2 DOWN DEVELOPING — ENDING LOW NOT CONFIRMED"},
-      {label:"Projection basis",value:"COMPLETED SUBMICRO W1 7492.25 → 7560.00 — W2 SUPPORT"},
+      {label:"Projection basis",value:"COMPLETED SUBMICRO W1 7492.25 → 7625.00 — W2 SUPPORT"},
       {label:"History",value:"OLDER W3 AND ABC C-DOWN FIBONACCI LEVELS PRESERVED"},
       {label:"Fib touches",value:"AMBER WATCH → GREEN WHEN ES REACHES LEVEL (POST-WAVE START)"},
       {label:"Authority",value:"RESEARCH CARD ONLY — CANONICAL COUNT UNCHANGED"},
     ],
     levels:submicroW3InternalNov9.w2DownRetracementLevels??[],
-    rules:["W1 high is owner-marked at 7560.00; W2 retracements are WATCH support levels, not an approved W2 low or trade permission. W3 projection requires the W2 low."],
+    rules:["W1 high is owner-marked at 7625.00 (Nov 11 07:30 AZ); W2 retracements are WATCH support levels, not an approved W2 low or trade permission. W3 projection requires the W2 low."],
   } : null;
   const microW2Nov6=currentWavelength?.degrees?.micro?.ownerMicroW2Nov6Research;
   const microW2Nov6State=microW2Nov6?.version==="engine22.microW2Nov6Research.v1" &&

@@ -32,8 +32,8 @@ submicro.cDownExtensionLevels=[.618,1,1.272,1.618,2,2.618].map(ratio=>({
  price:Math.round((7566-92.75*ratio)*4)/4,status:"WATCH",provisional:true
 }));
 submicro.w1PriorCorrectionRetracementLevels=[.236,.382,.5,.618,.786,1].map(ratio=>({key:"r"+ratio,label:ratio.toFixed(3),price:Math.round((7492.25+(7600-7492.25)*ratio)*4)/4,status:"WATCH",provisional:true}));
-submicro.w2DownRetracementLevels=[.236,.382,.5,.618,.786,1].map(ratio=>({key:"r"+ratio,label:ratio.toFixed(3),price:Math.round((7560-67.75*ratio)*4)/4,status:"WATCH",provisional:true}));
-Object.assign(submicro.anchors,{newW1High:7560,newW1HighLocalTime:"2026-11-10 14:50 AZ",newW1Length:67.75,cLow:7492.25,cLowLocalTime:"2026-11-10 10:40 AZ",aHigh:7600,aHighLocalTime:"2026-11-09 13:00 AZ",aLow:7507.25,aLowLocalTime:"2026-11-10 06:40 AZ",bHigh:7566,bHighLocalTime:"2026-11-10 08:00 AZ"});
+submicro.w2DownRetracementLevels=[.236,.382,.5,.618,.786,1].map(ratio=>({key:"r"+ratio,label:ratio.toFixed(3),price:Math.round((7625-132.75*ratio)*4)/4,status:"WATCH",provisional:true}));
+Object.assign(submicro.anchors,{newW1High:7625,newW1HighLocalTime:"2026-11-11 07:30 AZ",newW1Length:132.75,cLow:7492.25,cLowLocalTime:"2026-11-10 10:40 AZ",aHigh:7600,aHighLocalTime:"2026-11-09 13:00 AZ",aLow:7507.25,aLowLocalTime:"2026-11-10 06:40 AZ",bHigh:7566,bHighLocalTime:"2026-11-10 08:00 AZ"});
 test("Micro card keeps W1/W2 history and shows owner-marked W3 high",()=>{
  const html=renderToStaticMarkup(<Engine22MarketStructureCard
   engine22Display={{version:"engine22Display.v1",degreeOrder:["micro"],degrees:{
@@ -65,7 +65,9 @@ test("Submicro card shows owner-marked A/B while keeping old models separate",()
    ownerSubmicroW3Nov9Research:make("engine22.submicroW3Nov9Research.v1",
     7324,"old",7469,"old",7362,"old",[[1,7507]])}}}}/>);
  expect(html).toContain("SUBMICRO W1 COMPLETE");
+ expect(html).toContain("7625.00");
  expect(html).toContain("7560.00");
+ expect(html).toContain("2026-11-11 07:30 AZ");
  expect(html).toContain("2026-11-10 14:50 AZ");
  expect(html).toContain("7600.00");
  expect(html).toContain("2026-11-09 13:00 AZ");
@@ -78,15 +80,15 @@ test("Submicro card shows owner-marked A/B while keeping old models separate",()
  expect(html).not.toContain("7324.00");
  expect(html).toContain("SUBMICRO W2 DOWN");
  expect(html).toContain("RETRACEMENTS OF COMPLETED W1");
- expect(html).toContain("7544.00");
+ expect(html).toContain("7593.75");
  expect(html).toContain("7600.00");
  expect(html).not.toContain("PRIOR W1 LENGTH PROXY");
  expect(html).toContain("7492.25");
  expect(html).toContain("2026-11-10 10:40 AZ");
- expect(html).toContain("7534.00");
- expect(html).toContain("7526.25");
- expect(html).toContain("7518.25");
- expect(html).toContain("7506.75");
+ expect(html).toContain("7574.25");
+ expect(html).toContain("7558.75");
+ expect(html).toContain("7543.00");
+ expect(html).toContain("7520.75");
  expect(html).not.toContain("SUBMICRO W3 UP — W2 LOW + W1 LENGTH FIB EXTENSIONS");
 });
 
@@ -105,5 +107,5 @@ test("Micro and Submicro Fib levels change from amber WATCH to green on Engine22
  expect(html).toContain("WATCH");
  expect(html).toContain("#86efac");
  expect(html).toContain("7581.75");
- expect(html).toContain("7544.00");
+ expect(html).toContain("7593.75");
 });
