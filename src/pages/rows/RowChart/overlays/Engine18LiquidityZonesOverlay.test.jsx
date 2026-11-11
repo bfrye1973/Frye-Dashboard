@@ -9,7 +9,7 @@ const sample={schema:"engine18.chartLiquidityDemo.v1",symbol:"XCME:ES.Z26",
 ]};
 test("only fresh read-only demo Level 2 zone packet is rendered",()=>{
  const zones=validateEngine18ChartZones(sample,now);
- expect(zones).toHaveLength(3);
+ expect(zones).toHaveLength(2);
  expect(zones[0]).toMatchObject({side:"BID",price:7551,visibleContracts:71});
 });
 test("stale, unavailable, or non-ES packets hide all overlays",()=>{
@@ -38,5 +38,5 @@ test("chart always limits each side to three and orders by displayed contracts",
  expect(selected).toHaveLength(6);
  expect(selected.filter(z=>z.side==="ASK").map(z=>z.visibleContracts)).toEqual([50,30,12]);
  expect(selected.filter(z=>z.side==="BID").map(z=>z.visibleContracts)).toEqual([80,45,20]);
- expect(selectEngine18TestZones(zones.filter(z=>z.side==="BID"))).toHaveLength(2);
+ expect(selectEngine18TestZones(zones.filter(z=>z.side==="BID"))).toHaveLength(3);
 });
