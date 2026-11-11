@@ -28,13 +28,13 @@ export function validateEngine18ChartZones(packet,now=Date.now()){
   return out;
 }
 
-// Keep the owner's LIVE test uncluttered: at most two per book side.
+// Keep the owner's LIVE test uncluttered: at most three per book side.
 // Existing backend ranks candidate levels by displayed contract quantity.
 export function selectEngine18TestZones(zones){
   const list=Array.isArray(zones)?zones:[];
   const strongest=side=>list.filter(z=>z.side===side)
     .sort((a,b)=>b.visibleContracts-a.visibleContracts||
-      b.observedInImages-a.observedInImages||a.price-b.price).slice(0,2);
+      b.observedInImages-a.observedInImages||a.price-b.price).slice(0,3);
   return [...strongest("ASK"),...strongest("BID")];
 }
 
@@ -140,7 +140,7 @@ export default function Engine18LiquidityZonesOverlay({visible=false,chart=null,
       borderRadius:8,padding:"12px 14px",fontSize:14,pointerEvents:"none",
       width:270,maxWidth:"calc(100% - 145px)",boxShadow:"0 4px 14px rgba(0,0,0,.4)"}}>
     <div style={{fontWeight:800,color:"#fbbf24",letterSpacing:".3px"}}>
-      E18 LIQUIDITY · MAX 2 BUY / 2 SELL
+      E18 LIQUIDITY · MAX 3 BUY / 3 SELL
     </div>
     <div style={{color:"#94a3b8",marginTop:3,marginBottom:5}}>
       {status} · Research only
