@@ -28,26 +28,54 @@ export function validateEngine18ChartZones(packet,now=Date.now()){
   return out;
 }
 
-// Keep the owner's LIVE test uncluttered: at most three per book side.
-// Existing backend ranks candidate levels by displayed contract quantity.
+// Two BUY and two SELL levels, independent of market direction.
 export function selectEngine18TestZones(zones){
   const list=Array.isArray(zones)?zones:[];
   const strongest=side=>list.filter(z=>z.side===side)
     .sort((a,b)=>b.visibleContracts-a.visibleContracts||
-      b.observedInImages-a.observedInImages||a.price-b.price).slice(0,3);
+      b.observedInImages-a.observedInImages||a.price-b.price).slice(0,2);
   return [...strongest("ASK"),...strongest("BID")];
+}
+
+// Only promote a newly arrived price after it appears in two *distinct*
+// fresh market snapshots. Existing approved prices stay as long as they
+// remain in the latest valid book; missing prices are removed immediately
+// rather than showing ghost resting orders. This avoids re-ranking churn.
+export function advanceEngine18StableLevels(previous,packet,now=Date.now()){
+ const fresh=validateEngine18ChartZones(packet,now);
+ const asOf=packet?.asOfUnixMs;
+ if(!fresh.length)return {zones:[],seen:{},asOf:null};
+ const prior=previous||{zones:[],seen:{},asOf:null};
+ if(asOf===prior.asOf)return prior;
+ const byKey=new Map(fresh.map(z=>[z.side+":"+z.price,z]));
+ const seen={};
+ for(const [key,z] of byKey){
+   const earlier=prior.seen?.[key];
+   seen[key]={count:earlier?Math.min(2,earlier.count+1):1,
+     price:z.price,side:z.side};
+ }
+ const held=prior.zones.filter(z=>byKey.has(z.side+":"+z.price))
+   .map(z=>byKey.get(z.side+":"+z.price));
+ const heldKeys=new Set(held.map(z=>z.side+":"+z.price));
+ const newcomers=fresh.filter(z=>seen[z.side+":"+z.price].count>=2 &&
+    !heldKeys.has(z.side+":"+z.price));
+ return {zones:selectEngine18TestZones([...held,...newcomers]),
+   seen,asOf};
 }
 
 export default function Engine18LiquidityZonesOverlay({visible=false,chart=null,priceSeries=null,symbol="ES"}){
   const [packet,setPacket]=useState(null);
+  const [stable,setStable]=useState({zones:[],seen:{},asOf:null});
+  const stableRef=useRef({zones:[],seen:{},asOf:null});
   const [status,setStatus]=useState("WAITING");
   const canvasRef=useRef(null);
   const drawRef=useRef(null);
   const packetRef=useRef(null);
-  packetRef.current=packet;
+  packetRef.current=stable.zones;
   // Poll only while the owner has explicitly enabled this experimental layer.
   useEffect(()=>{
-    if(!visible||symbol!=="ES"){setPacket(null);setStatus("OFF");return;}
+    if(!visible||symbol!=="ES"){setPacket(null);setStable({zones:[],seen:{},asOf:null});
+      stableRef.current={zones:[],seen:{},asOf:null};setStatus("OFF");return;}
     let cancelled=false;
     const update=async()=>{
       try{
@@ -56,16 +84,19 @@ export default function Engine18LiquidityZonesOverlay({visible=false,chart=null,
         const next=await response.json();
         if(cancelled)return;
         setPacket(next);
+        const updated=advanceEngine18StableLevels(stableRef.current,next);
+        stableRef.current=updated;setStable(updated);
         setStatus(next?.available===true?"DEMO RESEARCH":"AWAITING VALID DEPTH");
       }catch{
-        if(!cancelled){setPacket(null);setStatus("FEED NOT AUTHORIZED / UNAVAILABLE");}
+        if(!cancelled){setPacket(null);stableRef.current={zones:[],seen:{},asOf:null};
+          setStable(stableRef.current);setStatus("FEED NOT AUTHORIZED / UNAVAILABLE");}
       }
     };
     update();const timer=setInterval(update,5000);
     return()=>{cancelled=true;clearInterval(timer);};
   },[visible,symbol]);
-  const zones=selectEngine18TestZones(validateEngine18ChartZones(packet));
-  useEffect(()=>{drawRef.current?.();},[packet,visible]);
+  const zones=stable.zones;
+  useEffect(()=>{drawRef.current?.();},[stable,visible]);
   useEffect(()=>{
     if(!visible||symbol!=="ES"||!chart||!priceSeries)return;
     const host=chart.chartElement?.()?.parentElement;
@@ -88,7 +119,7 @@ export default function Engine18LiquidityZonesOverlay({visible=false,chart=null,
       ctx.clearRect(0,0,rect.width,rect.height);
       // Bold, readily visible research guides. Price labels live inside
       // chart plot, not on top of the right-axis price ticks.
-      const active=selectEngine18TestZones(validateEngine18ChartZones(packetRef.current));
+      const active=packetRef.current||[];
       const occupied=[];
       for(const z of active){
         const y=priceSeries.priceToCoordinate(z.price);
@@ -140,10 +171,10 @@ export default function Engine18LiquidityZonesOverlay({visible=false,chart=null,
       borderRadius:8,padding:"12px 14px",fontSize:14,pointerEvents:"none",
       width:270,maxWidth:"calc(100% - 145px)",boxShadow:"0 4px 14px rgba(0,0,0,.4)"}}>
     <div style={{fontWeight:800,color:"#fbbf24",letterSpacing:".3px"}}>
-      E18 LIQUIDITY · MAX 3 BUY / 3 SELL
+      E18 LIQUIDITY · MAX 2 BUY / 2 SELL
     </div>
     <div style={{color:"#94a3b8",marginTop:3,marginBottom:5}}>
-      {status} · Research only
+      {status} · Research only · 2-feed confirmation
     </div>
     {zones.length===0?<div style={{color:"#cbd5e1"}}>No verified recent zones</div>:
       zones.map(z=><div key={z.side+":"+z.price}
