@@ -1424,6 +1424,26 @@ export default function Engine22MarketStructureCard({
       ),
     ],
   } : null;
+  const microAbcNov16=currentWavelength?.degrees?.micro?.ownerMicroAbcDownNov16Research;
+  const microAbcNov16State=microAbcNov16?.version==="engine22.ownerMicroAbcDownNov16Research.v1" &&
+    microAbcNov16.selectionStatus==="RESEARCH_ONLY" ? {
+    degree:"micro",label:"Micro",active:true,badge:"C DOWN",direction:"DOWN",
+    subtitle:"Owner-marked Micro ABC, November 15–16 — research only",
+    headline:"MICRO A DOWN → B UP COMPLETE → C DOWN DEVELOPING / RESEARCH",
+    fibTitle:"MICRO C DOWN — B HIGH MINUS A LENGTH EXTENSIONS (WATCH)",
+    rows:[
+      {label:"Parent",value:"SUBMINUTE C DOWN — RESEARCH"},
+      {label:"A high",value:wavePrice(microAbcNov16.anchors.aHigh)+" — "+microAbcNov16.anchors.aHighLocalTime},
+      {label:"A low",value:wavePrice(microAbcNov16.anchors.aLow)+" — "+microAbcNov16.anchors.aLowLocalTime},
+      {label:"B high",value:wavePrice(microAbcNov16.anchors.bHigh)+" — "+microAbcNov16.anchors.bHighLocalTime},
+      {label:"Wave A length",value:wavePrice(microAbcNov16.aLength)+" ES POINTS"},
+      {label:"Current",value:"C DOWN DEVELOPING — ENDING LOW NOT CONFIRMED"},
+      {label:"History",value:"OLDER MICRO W5 UP AND ABC MODELS PRESERVED"},
+      {label:"Authority",value:"RESEARCH ONLY — CANONICAL COUNT / ENGINE 27 UNCHANGED"},
+    ],
+    levels:microAbcNov16.levels??[],
+    rules:["C-down levels are research-only projections; touch turns green on observed post-B ES price, not completion or trading permission."],
+  } : null;
   const microW3ReclassifiedNov9=currentWavelength?.degrees?.micro?.ownerMicroW3Nov9ReclassifiedResearch;
   const microW3ReclassifiedNov9State=microW3ReclassifiedNov9?.version==="engine22.ownerMicroW3Nov9ReclassifiedResearch.v1" && microW3ReclassifiedNov9.selectionStatus==="RESEARCH_ONLY" ? {
     degree:"micro",label:"Micro",active:true,badge:"W5 UP",
@@ -1757,6 +1777,7 @@ export default function Engine22MarketStructureCard({
             key={degree}
             degree={degree}
             state={degree === "submicro" && submicroW3InternalNov9State ? submicroW3InternalNov9State :
+              degree === "micro" && microAbcNov16State ? microAbcNov16State :
               degree === "micro" && microW3ReclassifiedNov9State ? microW3ReclassifiedNov9State :
               degree === "submicro" && submicroW3Nov9State ? submicroW3Nov9State :
               degree === "submicro" && submicroAbcNov6State ? submicroAbcNov6State :
@@ -1798,6 +1819,7 @@ export default function Engine22MarketStructureCard({
                 rows:[],levels:[],rules:[],
               }}
             v3Shadow={degree === "submicro" && submicroW3InternalNov9State ? null :
+              degree === "micro" && microAbcNov16State ? null :
               degree === "micro" && microW3ReclassifiedNov9State ? null :
               degree === "submicro" && submicroAbcNov6State ? null :
               degree === "micro" && microW2Nov6State ? null :
