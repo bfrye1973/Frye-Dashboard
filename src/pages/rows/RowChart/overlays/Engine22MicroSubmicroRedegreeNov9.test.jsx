@@ -33,7 +33,7 @@ submicro.cDownExtensionLevels=[.618,1,1.272,1.618,2,2.618].map(ratio=>({
 }));
 submicro.w1PriorCorrectionRetracementLevels=[.236,.382,.5,.618,.786,1].map(ratio=>({key:"r"+ratio,label:ratio.toFixed(3),price:Math.round((7492.25+(7600-7492.25)*ratio)*4)/4,status:"WATCH",provisional:true}));
 submicro.w2DownRetracementLevels=[.236,.382,.5,.618,.786,1].map(ratio=>({key:"r"+ratio,label:ratio.toFixed(3),price:Math.round((7625-132.75*ratio)*4)/4,status:"WATCH",provisional:true}));
-Object.assign(submicro.anchors,{newW1High:7625,newW1HighLocalTime:"2026-11-11 07:30 AZ",newW1Length:132.75,cLow:7492.25,cLowLocalTime:"2026-11-10 10:40 AZ",aHigh:7600,aHighLocalTime:"2026-11-09 13:00 AZ",aLow:7507.25,aLowLocalTime:"2026-11-10 06:40 AZ",bHigh:7566,bHighLocalTime:"2026-11-10 08:00 AZ"});
+Object.assign(submicro.anchors,{w1StartLow:7492.25,w1StartLocalTime:"2026-11-10 10:40 AZ",newW1High:7625,newW1HighLocalTime:"2026-11-11 07:30 AZ",newW1Length:132.75,cLow:7492.25,cLowLocalTime:"2026-11-10 10:40 AZ",aHigh:7600,aHighLocalTime:"2026-11-09 13:00 AZ",aLow:7507.25,aLowLocalTime:"2026-11-10 06:40 AZ",bHigh:7566,bHighLocalTime:"2026-11-10 08:00 AZ"});
 test("Micro card keeps W1/W2 history and shows owner-marked W3 high",()=>{
  const html=renderToStaticMarkup(<Engine22MarketStructureCard
   engine22Display={{version:"engine22Display.v1",degreeOrder:["micro"],degrees:{
