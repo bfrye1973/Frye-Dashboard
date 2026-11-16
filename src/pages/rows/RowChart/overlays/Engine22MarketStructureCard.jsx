@@ -1283,24 +1283,25 @@ export default function Engine22MarketStructureCard({
   const minuteW1Nov9State=minuteW1Nov9?.version==="engine22.minuteW1FormingNov9Research.v1" &&
     minuteW1Nov9.selectionStatus==="RESEARCH_ONLY" ? {
     degree:"minute",label:"Minute",
-    active:true,badge:"W1 UP",direction:"UP",
+    active:true,badge:"W2 DOWN",direction:"DOWN",
     subtitle:"Owner working interpretation — research only; not the trading count",
-    headline:"MINUTE W1 UP — FORMING / COMPLETION NOT CONFIRMED",
-    fibTitle:"MINUTE FIB EXTENSIONS — PENDING W1 AND W2 ANCHORS",
+    headline:"MINUTE W1 OWNER-MARKED COMPLETE → W2 DOWN DEVELOPING / RESEARCH",
+    fibTitle:"MINUTE W2 DOWN — W1 RETRACEMENTS (PROVISIONAL START)",
     rows:[
       {label:"Parent",value:"MINOR W3 UP — OWNER WORKING COUNT"},
       {label:"W1 start reference",value:wavePrice(minuteW1Nov9.anchors.w1StartReference)+" — "+minuteW1Nov9.anchors.w1StartReferenceLocalTime+" — PROPOSED SHARED PARENT"},
-      {label:"Current",value:"W1 UP — FORMING / ENDING HIGH NOT CONFIRMED"},
+      {label:"W1 ending high",value:wavePrice(minuteW1Nov9.anchors.w1EndingHigh)+" — "+minuteW1Nov9.anchors.w1EndingHighLocalTime+" — OWNER MARK"},
+      {label:"Current",value:"W2 DOWN DEVELOPING — ENDING LOW NOT CONFIRMED"},
       {label:"Internals",value:"SUBMINUTE W1–W5 SEQUENCE DEVELOPING"},
-      {label:"W1 completion",value:"NOT CONFIRMED — NO FINISHED FIVE-WAVE CHILD SEQUENCE"},
-      {label:"Next",value:"W2 DOWN ONLY AFTER W1 COMPLETE"},
-      {label:"Fibonacci",value:"PENDING W1 END AND W2 LOW — NO TARGETS INVENTED"},
+      {label:"W1 completion",value:"OWNER-MARKED COMPLETE — INTERNAL CHILD SEQUENCE NOT INDEPENDENTLY VALIDATED"},
+      {label:"Next",value:"W2 DOWN UNDER OBSERVATION"},
+      {label:"Fibonacci",value:"W2 RETRACEMENTS FROM OWNER W1 HIGH / PROPOSED START — RESEARCH"},
       {label:"Review",value:"MICRO BLUE W1 LOW 15:20 AZ PRECEDES PARENT 16:00 AZ — RECONCILE"},
       {label:"History",value:"OLDER MINUTE W2 / ABC C DOWN COUNTS AND TOUCHES PRESERVED"},
       {label:"Authority",value:"RESEARCH CARD ONLY — ENGINE 27 / CANONICAL COUNT UNCHANGED"},
     ],
-    levels:[],
-    rules:["7322.25 is a provisional common Minor W2 reference, not a confirmed minute starting anchor or approved trading invalidation."],
+    levels:minuteW1Nov9.levels??[],
+    rules:["Minute W1 high is owner-marked at 7671.00 (Nov 11, 08:00 AZ). Starting 7322.25 is a proposed parent reference, so W2 Fib levels are provisional and not trading permissions."],
   } : null;
   const subminuteW1Nov9=currentWavelength?.degrees?.subminute?.ownerSubminuteW1FormingNov9Research;
   const subminuteW1Nov9State=subminuteW1Nov9?.version==="engine22.subminuteW1FormingNov9Research.v1" &&
