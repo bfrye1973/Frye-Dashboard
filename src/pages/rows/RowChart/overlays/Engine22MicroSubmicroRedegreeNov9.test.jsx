@@ -56,56 +56,45 @@ test("Micro card keeps W1/W2 history and shows owner-marked W3 high",()=>{
  expect(html).not.toContain("MICRO W3 UP — W2 LOW + W1 LENGTH FIB EXTENSIONS");
  expect(html).not.toContain(">OLDER MICRO<");
 });
-test("Submicro card shows owner-marked A/B while keeping old models separate",()=>{
+test("Submicro current card waits for owner W2 low, not showing stale W2 fibs as active",()=>{
+ const observed={...submicro,w2DownRetracementLevels:submicro.w2DownRetracementLevels.map(l=>({
+  ...l,status:"TOUCHED",touchEvidenceAvailable:true,touchEvidenceType:"ES_CURRENT_PRICE"
+ }))};
  const html=renderToStaticMarkup(<Engine22MarketStructureCard
   engine22Display={{version:"engine22Display.v1",degreeOrder:["submicro"],degrees:{
    submicro:{label:"Submicro",headline:"OLDER SUBMICRO",rows:[],levels:[]}}}}
   currentWavelength={{degrees:{submicro:{
-   ownerSubmicroW3Nov9InternalResearch:submicro,
+   ownerSubmicroW3Nov9InternalResearch:observed,
    ownerSubmicroW3Nov9Research:make("engine22.submicroW3Nov9Research.v1",
     7324,"old",7469,"old",7362,"old",[[1,7507]])}}}}/>);
- expect(html).toContain("SUBMICRO W1 COMPLETE");
- expect(html).toContain("7625.00");
- expect(html).toContain("7560.00");
- expect(html).toContain("2026-11-11 07:30 AZ");
- expect(html).toContain("2026-11-10 14:50 AZ");
- expect(html).toContain("7600.00");
- expect(html).toContain("2026-11-09 13:00 AZ");
- expect(html).toContain("7507.25");
- expect(html).toContain("2026-11-10 06:40 AZ");
- expect(html).toContain("7566.00");
- expect(html).toContain("2026-11-10 08:00 AZ");
- expect(html).toContain("W2 DOWN DEVELOPING");
- expect(html).toContain("OLDER W3 AND ABC C-DOWN FIBONACCI LEVELS PRESERVED");
- expect(html).not.toContain("7324.00");
- expect(html).toContain("SUBMICRO W2 DOWN");
- expect(html).toContain("RETRACEMENTS OF COMPLETED W1");
- expect(html).toContain("7593.75");
- expect(html).toContain("7600.00");
- expect(html).not.toContain("PRIOR W1 LENGTH PROXY");
+ expect(html).toContain("SUBMICRO W2 DOWN — LOW NOT CONFIRMED");
+ expect(html).toContain("DOWN WATCH");
  expect(html).toContain("7492.25");
  expect(html).toContain("2026-11-10 10:40 AZ");
- expect(html).toContain("7574.25");
- expect(html).toContain("7558.75");
- expect(html).toContain("7543.00");
- expect(html).toContain("7520.75");
+ expect(html).toContain("7625.00");
+ expect(html).toContain("2026-11-11 07:30 AZ");
+ expect(html).toContain("6 OF 6 RETRACEMENT LEVELS OBSERVED");
+ expect(html).toContain("W3 UP ONLY AFTER OWNER CONFIRMS W2 LOW");
+ expect(html).toContain("PENDING W2 LOW — NO TARGETS INVENTED");
+ expect(html).toContain("OLDER W2 FIB TOUCHES, ABC COUNTS AND CORRECTIONS PRESERVED");
+ expect(html).not.toContain("7593.75");
+ expect(html).not.toContain("7574.25");
  expect(html).not.toContain("SUBMICRO W3 UP — W2 LOW + W1 LENGTH FIB EXTENSIONS");
 });
-
-test("Micro and Submicro Fib levels change from amber WATCH to green on Engine22 ES touch",()=>{
+test("historical Submicro fib touches remain stored but no longer shown as current green target cards",()=>{
  const touched=level=>({...level,status:"TOUCHED",touchEvidenceAvailable:true,
-   touchEvidenceType:"ES_CURRENT_PRICE",touchedAt:"2026-11-10T18:00:00Z"});
+   touchEvidenceType:"ES_CURRENT_PRICE"});
+ const archived={...submicro,w2DownRetracementLevels:submicro.w2DownRetracementLevels.map(touched)};
  const microCopy={...micro,w5UpExtensionLevels:micro.w5UpExtensionLevels.map((l,i)=>i===0?touched(l):l)};
- const subCopy={...submicro,w2DownRetracementLevels:
-   submicro.w2DownRetracementLevels.map((l,i)=>i===0?touched(l):l)};
  const html=renderToStaticMarkup(<Engine22MarketStructureCard
    engine22Display={{version:"engine22Display.v1",degreeOrder:["micro","submicro"],
      degrees:{micro:{label:"Micro",rows:[],levels:[]},submicro:{label:"Submicro",rows:[],levels:[]}}}}
    currentWavelength={{degrees:{micro:{ownerMicroW3Nov9ReclassifiedResearch:microCopy},
-     submicro:{ownerSubmicroW3Nov9InternalResearch:subCopy}}}}/>);
+     submicro:{ownerSubmicroW3Nov9InternalResearch:archived}}}}/>);
+ expect(archived.w2DownRetracementLevels.every(l=>l.status==="TOUCHED")).toBe(true);
+ expect(html).toContain("6 OF 6 RETRACEMENT LEVELS OBSERVED");
+ expect(html).not.toContain("7593.75");
  expect(html).toContain("REACHED · ES SNAPSHOT");
- expect(html).toContain("WATCH");
- expect(html).toContain("#86efac");
  expect(html).toContain("7581.75");
- expect(html).toContain("7593.75");
+ expect(html).toContain("WATCH");
 });
