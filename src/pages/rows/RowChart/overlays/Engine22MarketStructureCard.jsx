@@ -1469,27 +1469,27 @@ export default function Engine22MarketStructureCard({
   } : null;
   const submicroW3InternalNov9=currentWavelength?.degrees?.submicro?.ownerSubmicroW3Nov9InternalResearch;
   const submicroW3InternalNov9State=submicroW3InternalNov9?.version==="engine22.ownerSubmicroW3Nov9InternalResearch.v1" && submicroW3InternalNov9.selectionStatus==="RESEARCH_ONLY" ? {
-    degree:"submicro",label:"Submicro",active:true,badge:"W2 DOWN",
-    subtitle:"Owner-marked Submicro W1 completed; W2 downward retracement watch",
-    headline:"SUBMICRO W1 COMPLETE → W2 DOWN DEVELOPING / RESEARCH",
-    fibTitle:"SUBMICRO W2 DOWN — RETRACEMENTS OF COMPLETED W1 (WATCH)",
+    degree:"submicro",label:"Submicro",active:true,badge:"DOWN WATCH",
+    subtitle:"Downside correction — waiting for owner-confirmed W2 low before a new UP wave",
+    headline:"SUBMICRO W2 DOWN — LOW NOT CONFIRMED / NEXT UP PENDING",
+    fibTitle:"PREVIOUS SUBMICRO W2 FIBS — HISTORICAL OBSERVATIONS",
     rows:[
-      {label:"Parent",value:"MICRO W5 UP — RESEARCH"},
-      {label:"A starting high",value:wavePrice(submicroW3InternalNov9.anchors.aHigh)+" — "+submicroW3InternalNov9.anchors.aHighLocalTime},
-      {label:"A ending low",value:wavePrice(submicroW3InternalNov9.anchors.aLow)+" — "+submicroW3InternalNov9.anchors.aLowLocalTime},
-      {label:"B high",value:wavePrice(submicroW3InternalNov9.anchors.bHigh)+" — "+submicroW3InternalNov9.anchors.bHighLocalTime},
-      {label:"C ending low / W1 start",value:wavePrice(submicroW3InternalNov9.anchors.cLow)+" — "+submicroW3InternalNov9.anchors.cLowLocalTime+" — OWNER COMPLETE"},
+      {label:"Parent",value:"MICRO / SUBMINUTE C DOWN — RESEARCH"},
+      {label:"W1 start low",value:wavePrice(submicroW3InternalNov9.anchors.w1StartLow)+" — "+submicroW3InternalNov9.anchors.w1StartLocalTime},
       {label:"W1 ending high",value:wavePrice(submicroW3InternalNov9.anchors.newW1High)+" — "+submicroW3InternalNov9.anchors.newW1HighLocalTime+" — OWNER COMPLETE"},
       {label:"W1 length",value:wavePrice(submicroW3InternalNov9.anchors.newW1Length)+" ES POINTS"},
-      {label:"Prior W1 high",value:"7560.00 — 2026-11-10 14:50 AZ — SUPERSEDED"},
-      {label:"Current",value:"W2 DOWN DEVELOPING — ENDING LOW NOT CONFIRMED"},
-      {label:"Projection basis",value:"COMPLETED SUBMICRO W1 7492.25 → 7625.00 — W2 SUPPORT"},
-      {label:"History",value:"OLDER W3 AND ABC C-DOWN FIBONACCI LEVELS PRESERVED"},
-      {label:"Fib touches",value:"AMBER WATCH → GREEN WHEN ES REACHES LEVEL (POST-WAVE START)"},
-      {label:"Authority",value:"RESEARCH CARD ONLY — CANONICAL COUNT UNCHANGED"},
+      {label:"Current",value:"W2 DOWN / DEEP CORRECTION — ENDING LOW NOT CONFIRMED"},
+      {label:"Previous Fibonacci",value:(submicroW3InternalNov9.w2DownRetracementLevels??[]).filter(l=>l.status==="TOUCHED").length+" OF "+(submicroW3InternalNov9.w2DownRetracementLevels??[]).length+" RETRACEMENT LEVELS OBSERVED — HISTORICAL"},
+      {label:"Next",value:"W3 UP ONLY AFTER OWNER CONFIRMS W2 LOW"},
+      {label:"New UP Fibs",value:"PENDING W2 LOW — NO TARGETS INVENTED"},
+      {label:"History",value:"OLDER W2 FIB TOUCHES, ABC COUNTS AND CORRECTIONS PRESERVED"},
+      {label:"Authority",value:"RESEARCH ONLY — CANONICAL COUNT / ENGINE 27 UNCHANGED"},
     ],
-    levels:submicroW3InternalNov9.w2DownRetracementLevels??[],
-    rules:["W1 high is owner-marked at 7625.00 (Nov 11 07:30 AZ); W2 retracements are WATCH support levels, not an approved W2 low or trade permission. W3 projection requires the W2 low."],
+    // Current W2 ladder has already been penetrated; don't keep showing
+    // previous all-green Fib cards as active downside targets. Keep them in
+    // Engine22 source/history. A future owner W2 low starts a NEW ladder.
+    levels:[],
+    rules:["No owner-confirmed Submicro W2 ending low or UP reversal. Previously reached W2 supports remain in research history; new W3 Fib extensions require the confirmed W2 low. No trading permission."],
   } : null;
   const microW2Nov6=currentWavelength?.degrees?.micro?.ownerMicroW2Nov6Research;
   const microW2Nov6State=microW2Nov6?.version==="engine22.microW2Nov6Research.v1" &&
