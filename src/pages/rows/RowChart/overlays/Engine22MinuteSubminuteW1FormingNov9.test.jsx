@@ -18,6 +18,18 @@ const model={degrees:{
    levels:[],reviewReference:7890.25}
  },
  subminute:{
+  ownerSubminuteAbcDownNov16Research:{
+   version:"engine22.ownerSubminuteAbcDownNov16Research.v1",
+   selectionStatus:"RESEARCH_ONLY",
+   anchors:{aHigh:7675.75,aHighLocalTime:"2026-11-12 09:00 AZ",
+     aLow:7516,aLowLocalTime:"2026-11-13 08:00 AZ",
+     bHigh:7614,bHighLocalTime:"2026-11-15 16:30 AZ"},
+   aLength:159.75,
+   levels:[["0.618",7515.25],["1.000",7454.25],["1.272",7410.75],
+     ["1.618",7355.50],["2.000",7294.50],["2.618",7195.75]]
+      .map(([label,price])=>({key:"e"+label,label,price,status:"WATCH",
+        provisional:true,touchEvidenceAvailable:false})),
+  },
   ownerSubminuteW1FormingNov9Research:make("subminute"),
   ownerSubminuteNov5AbcResearch:{version:"engine22.subminuteNov5AbcResearch.v1",selectionStatus:"RESEARCH_ONLY",
    anchors:{aHigh:7735,aLow:7420,bHigh:7542,observedLowReference:7322.25},
@@ -42,15 +54,19 @@ test("Minute Strategy card prioritizes owner-marked W1 high and provisional W2 d
  expect(html).toContain("ENGINE 27 / CANONICAL COUNT UNCHANGED");
  expect(html).not.toContain("MINUTE C DOWN — A-LENGTH FIB EXTENSIONS");
 });
-test("Subminute card prioritizes W1 UP forming and Micro children without false confirmation",()=>{
+test("current owner Subminute ABC card supersedes older forming W1 research only on presentation",()=>{
  const html=render("subminute");
- expect(html).toContain("SUBMINUTE W1 UP — FORMING");
- expect(html).toContain("MINUTE W1 UP");
- expect(html).toContain("MICRO W1");
- expect(html).toContain("7322.25");
- expect(html).toContain("2026-11-05 16:00 AZ");
- expect(html).toContain("15:20 AZ PRECEDES PARENT 16:00 AZ");
- expect(html).toContain("PENDING W1 END AND W2 LOW");
- expect(html).not.toContain("SUBMINUTE A-B-C DOWN — C DEVELOPING");
- expect(html).not.toContain("SUBMINUTE C DOWN — A-LENGTH FIB EXTENSIONS");
+ expect(html).toContain("SUBMINUTE A DOWN");
+ expect(html).toContain("C DOWN DEVELOPING");
+ expect(html).toContain("7675.75");
+ expect(html).toContain("2026-11-12 09:00 AZ");
+ expect(html).toContain("7516.00");
+ expect(html).toContain("2026-11-13 08:00 AZ");
+ expect(html).toContain("7614.00");
+ expect(html).toContain("2026-11-15 16:30 AZ");
+ for(const price of ["7515.25","7454.25","7410.75","7355.50","7294.50","7195.75"])
+  expect(html).toContain(price);
+ expect(html).toContain("ENDING LOW NOT CONFIRMED");
+ expect(html).toContain("CANONICAL COUNT / ENGINE 27 UNCHANGED");
+ expect(html).not.toContain("SUBMINUTE W1 UP — FORMING");
 });

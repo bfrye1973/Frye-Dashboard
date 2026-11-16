@@ -1303,6 +1303,26 @@ export default function Engine22MarketStructureCard({
     levels:minuteW1Nov9.levels??[],
     rules:["Minute W1 high is owner-marked at 7671.00 (Nov 11, 08:00 AZ). Starting 7322.25 is a proposed parent reference, so W2 Fib levels are provisional and not trading permissions."],
   } : null;
+  const subminuteAbcNov16=currentWavelength?.degrees?.subminute?.ownerSubminuteAbcDownNov16Research;
+  const subminuteAbcNov16State=subminuteAbcNov16?.version==="engine22.ownerSubminuteAbcDownNov16Research.v1" &&
+    subminuteAbcNov16.selectionStatus==="RESEARCH_ONLY" ? {
+    degree:"subminute",label:"Subminute",active:true,badge:"C DOWN",direction:"DOWN",
+    subtitle:"Owner-marked Nov 12–15 ABC correction — research only",
+    headline:"SUBMINUTE A DOWN → B UP COMPLETE → C DOWN DEVELOPING / RESEARCH",
+    fibTitle:"SUBMINUTE C DOWN — B HIGH MINUS A LENGTH FIB EXTENSIONS (WATCH)",
+    rows:[
+      {label:"Parent",value:"MINUTE W2 DOWN — RESEARCH"},
+      {label:"A high",value:wavePrice(subminuteAbcNov16.anchors.aHigh)+" — "+subminuteAbcNov16.anchors.aHighLocalTime},
+      {label:"A low",value:wavePrice(subminuteAbcNov16.anchors.aLow)+" — "+subminuteAbcNov16.anchors.aLowLocalTime},
+      {label:"B high",value:wavePrice(subminuteAbcNov16.anchors.bHigh)+" — "+subminuteAbcNov16.anchors.bHighLocalTime},
+      {label:"Wave A length",value:wavePrice(subminuteAbcNov16.aLength)+" ES POINTS"},
+      {label:"Current",value:"C DOWN DEVELOPING — ENDING LOW NOT CONFIRMED"},
+      {label:"History",value:"OLDER SUBMINUTE W1 FORMING AND ABC RESEARCH PRESERVED"},
+      {label:"Authority",value:"RESEARCH ONLY — CANONICAL COUNT / ENGINE 27 UNCHANGED"},
+    ],
+    levels:subminuteAbcNov16.levels??[],
+    rules:["C-down targets are research-only WATCH levels from owner A/B anchors; no C completion, stop or trading permission."],
+  } : null;
   const subminuteW1Nov9=currentWavelength?.degrees?.subminute?.ownerSubminuteW1FormingNov9Research;
   const subminuteW1Nov9State=subminuteW1Nov9?.version==="engine22.subminuteW1FormingNov9Research.v1" &&
     subminuteW1Nov9.selectionStatus==="RESEARCH_ONLY" ? {
@@ -1754,6 +1774,7 @@ export default function Engine22MarketStructureCard({
               degree === "submicro" && submicroAActive ? submicroAState :
               degree === "micro" && microAbcActive ? microAbcState :
               degree === "micro" && microW3Levels.length ? microW3State :
+              degree === "subminute" && subminuteAbcNov16State ? subminuteAbcNov16State :
               degree === "subminute" && subminuteW1Nov9State ? subminuteW1Nov9State :
               degree === "subminute" && subNov5State ? subNov5State :
               degree === "subminute" && proposedSubminuteCReady ? proposedSubminuteCState :
@@ -1782,6 +1803,7 @@ export default function Engine22MarketStructureCard({
               degree === "micro" && microW2Nov6State ? null :
               degree === "submicro" && submicroABC ? null :
               degree === "micro" && microW3Levels.length ? null :
+              degree === "subminute" && subminuteAbcNov16State ? null :
               degree === "subminute" && subminuteW1Nov9State ? null :
               degree === "minute" && minuteW1Nov9State ? null :
               degree === "subminute" && subminuteW3Levels.length ? null :
