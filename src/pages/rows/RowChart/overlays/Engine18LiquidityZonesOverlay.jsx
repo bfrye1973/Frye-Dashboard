@@ -22,7 +22,14 @@ export function validateEngine18ChartZones(packet,now=Date.now()){
     const key=side+":"+price;
     if(seen.has(key))continue;seen.add(key);
     out.push({side,price,visibleContracts:size,
-      observedInImages:zone.observedInImages||0});
+      observedInImages:Number.isSafeInteger(zone.observedInImages)?
+        zone.observedInImages:0,
+      // Optional backend source-side evidence; legacy packet shape unchanged.
+      // Repeated 5-second HTTP polls cannot fabricate this elapsed duration.
+      ...(Number.isSafeInteger(zone.observedPersistenceMs)&&zone.observedPersistenceMs>=0?
+        {observedPersistenceMs:zone.observedPersistenceMs}:{}),
+      ...(zone.coverageState==="IN_COVERAGE"?
+        {coverageState:"IN_COVERAGE"}:{})});
     if(out.length>=8)break;
   }
   return out;
@@ -66,6 +73,22 @@ export function advanceEngine18StableLevels(previous,packet,now=Date.now()){
 // Anchor observation prices rather than re-ranking the current moving MBP-10
 // window every 5 seconds. LAST_SEEN explicitly means UNKNOWN currently, not a
 // resting order, cancellation, or validated institutional liquidity zone.
+export function describeEngine18NoCandidate(packet){
+ const reason=packet?.diagnostics?.noCandidateReason??packet?.reason;
+ const messages={
+  NO_VALID_DEPTH:'No valid depth images',
+  INSUFFICIENT_OBSERVATIONS:'Awaiting distinct book observations',
+  INSUFFICIENT_PRICE_OBSERVATIONS:'Not enough repeated observations at one price',
+  INSUFFICIENT_COVERED_ELAPSED_TIME:'Levels have not remained visible long enough',
+  NO_REPEATED_DISPLAYED_CONCENTRATION:'No repeatedly strong displayed depth',
+  QUALIFIED_LEVELS_NOT_IN_CURRENT_BOOK:'Past observations left the visible depth window',
+  CURRENT_PRICE_STREAK_TOO_SHORT:'Current level persistence or strength not established',
+  CANDIDATES_EXPIRED_OR_OUTSIDE_WINDOW:'Earlier depth evidence expired',
+  STALE_OR_UNVERIFIED_DEMO_DEPTH:'Recent verified depth unavailable'
+ };
+ return Object.prototype.hasOwnProperty.call(messages,reason)?messages[reason]:
+   'No currently qualified depth observations';
+}
 export const ENGINE18_ANCHOR_MIN_MS=30000;
 export const ENGINE18_LAST_SEEN_MS=180000;
 export function advanceEngine18AnchoredObservations(previous,packet,now=Date.now()){
@@ -87,7 +110,10 @@ export function advanceEngine18AnchoredObservations(previous,packet,now=Date.now
     asOf-earlier.lastSeenMs<=15000;
   const firstSeenMs=continuous?earlier.firstSeenMs:asOf;
   const count=continuous?earlier.count+1:1;
-  const qualified=!!earlier?.qualified ||
+  const backendQualified=z.coverageState==="IN_COVERAGE"&&
+    z.observedInImages>=3&&
+    z.observedPersistenceMs>=ENGINE18_ANCHOR_MIN_MS;
+  const qualified=!!earlier?.qualified||backendQualified||
     (count>=3&&asOf-firstSeenMs>=ENGINE18_ANCHOR_MIN_MS);
   tracked[key]={...z,firstSeenMs,count,lastSeenMs:asOf,qualified,
     status:"OBSERVED",anchorAtMs:earlier?.anchorAtMs||(qualified?asOf:null)};
@@ -232,7 +258,7 @@ export default function Engine18LiquidityZonesOverlay({visible=false,chart=null,
     <div style={{color:"#94a3b8",marginTop:3,marginBottom:5}}>
       {status} · Research only · 30s observation gate
     </div>
-    {zones.length===0?<div style={{color:"#cbd5e1"}}>No verified recent zones</div>:
+    {zones.length===0?<div style={{color:"#cbd5e1"}}>{describeEngine18NoCandidate(packet)}</div>:
       zones.map(z=><div key={z.side+":"+z.price}
         style={{display:"flex",justifyContent:"space-between",alignItems:"center",
           gap:9,padding:"6px 0",borderTop:"1px solid rgba(148,163,184,.25)",
