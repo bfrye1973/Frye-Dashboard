@@ -74,7 +74,7 @@ test("anchored levels do not chase price when the MBP-10 shortlist moves",()=>{
  let state=null;
  // Genuine distinct source timestamps, >=30 seconds span at the SAME price.
  for(let t=now-40000;t<=now-10000;t+=5000)
-  state=advanceEngine18AnchoredObservations(state,packet(t,[a(7500),ask(7502)]),now);
+  state=advanceEngine18AnchoredObservations(state,packet(t,[a(7500),ask(7502)]),t+100);
  expect(state.zones.map(z=>z.price).sort()).toEqual([7500,7502]);
  expect(state.zones.every(z=>z.status==="OBSERVED")).toBe(true);
  // Moving bid/ask shortlist causes price-following in previous implementation.
@@ -99,7 +99,7 @@ test("historical observations expire; stale, unauthorized packets clear anchors"
  const level={side:"ASK",price:7520,visibleContracts:100,observedInImages:50};
  let state=null;
  for(let t=now-45000;t<=now-15000;t+=5000)
-  state=advanceEngine18AnchoredObservations(state,packet(t,[level]),now);
+  state=advanceEngine18AnchoredObservations(state,packet(t,[level]),t+100);
  expect(state.zones).toHaveLength(1);
  state=advanceEngine18AnchoredObservations(state,packet(now-10000,[]),now);
  expect(state.zones[0].status).toBe("LAST_SEEN");
