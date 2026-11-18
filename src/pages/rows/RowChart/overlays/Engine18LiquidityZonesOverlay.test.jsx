@@ -122,3 +122,24 @@ test("no-candidate legend describes sanitized backend eligibility without drawin
   .toBe("No currently qualified depth observations");
  expect(validateEngine18ChartZones({...sample,zones:[],reason:"NO_VALID_DEPTH"},now)).toEqual([]);
 });
+
+test("backend verified 30-second fixed-price evidence avoids a second chart-side 30-second delay",()=>{
+ const evidence={...sample,asOfUnixMs:now-100,
+  zones:[{side:"BID",price:7500,visibleContracts:120,
+   coverageState:"IN_COVERAGE",observedPersistenceMs:30000,observedInImages:7}]};
+ const first=advanceEngine18AnchoredObservations(null,evidence,now);
+ expect(first.zones).toHaveLength(1);
+ expect(first.zones[0].status).toBe("OBSERVED");
+ const repeated=advanceEngine18AnchoredObservations(first,evidence,now);
+ expect(repeated).toBe(first);
+ const missing=advanceEngine18AnchoredObservations(first,
+  {...evidence,asOfUnixMs:now,zones:[]},now);
+ expect(missing.zones).toHaveLength(1);
+ expect(missing.zones[0].status).toBe("LAST_SEEN");
+});
+test("backend persistence without explicit current book coverage cannot promote a zone",()=>{
+ const packet={...sample,asOfUnixMs:now-100,
+  zones:[{side:"BID",price:7500,visibleContracts:120,
+   coverageState:"OUT_OF_COVERAGE",observedPersistenceMs:50000,observedInImages:20}]};
+ expect(advanceEngine18AnchoredObservations(null,packet,now).zones).toEqual([]);
+});
