@@ -1,4 +1,4 @@
-import {validateEngine18ChartZones,selectEngine18TestZones,advanceEngine18StableLevels} from "./Engine18LiquidityZonesOverlay";
+import {validateEngine18ChartZones,selectEngine18TestZones,advanceEngine18StableLevels,advanceEngine18AnchoredObservations} from "./Engine18LiquidityZonesOverlay";
 const now=1794344915000;
 const sample={schema:"engine18.chartLiquidityDemo.v1",symbol:"XCME:ES.Z26",
  available:true,executionEligible:false,displayOnly:true,mode:"DEMO_RESEARCH_ONLY",
@@ -65,4 +65,48 @@ test("two of each side are selected independently",()=>{
  expect(selected.filter(z=>z.side==="ASK")).toHaveLength(2);
  expect(selected[0].visibleContracts).toBe(20);
  expect(selected[2].visibleContracts).toBe(40);
+});
+
+test("anchored levels do not chase price when the MBP-10 shortlist moves",()=>{
+ const packet=(t,zones)=>({...sample,asOfUnixMs:t,zones});
+ const a=(price,size=80)=>({side:"BID",price,visibleContracts:size,observedInImages:30});
+ const ask=(price,size=65)=>({side:"ASK",price,visibleContracts:size,observedInImages:30});
+ let state=null;
+ // Genuine distinct source timestamps, >=30 seconds span at the SAME price.
+ for(let t=now-40000;t<=now-10000;t+=5000)
+  state=advanceEngine18AnchoredObservations(state,packet(t,[a(7500),ask(7502)]),now);
+ expect(state.zones.map(z=>z.price).sort()).toEqual([7500,7502]);
+ expect(state.zones.every(z=>z.status==="OBSERVED")).toBe(true);
+ // Moving bid/ask shortlist causes price-following in previous implementation.
+ const next=advanceEngine18AnchoredObservations(state,packet(now-5000,
+  [a(7496,150),ask(7498,150)]),now);
+ expect(next.zones.map(z=>z.price).sort()).toEqual([7500,7502]);
+ expect(next.zones.every(z=>z.status==="LAST_SEEN")).toBe(true);
+ expect(next.zones.every(z=>z.qualified)).toBe(true);
+ expect(next.zones.some(z=>z.price===7496)).toBe(false);
+});
+test("two polls or two distinct snapshots cannot fabricate elapsed persistence",()=>{
+ const packet=(t,zones)=>({...sample,asOfUnixMs:t,zones});
+ const level={side:"BID",price:7480,visibleContracts:100,observedInImages:100};
+ let state=advanceEngine18AnchoredObservations(null,packet(now-10000,[level]),now);
+ const repeated=advanceEngine18AnchoredObservations(state,packet(now-10000,[level]),now);
+ expect(repeated).toBe(state);
+ state=advanceEngine18AnchoredObservations(state,packet(now-5000,[level]),now);
+ expect(state.zones).toEqual([]);
+});
+test("historical observations expire; stale, unauthorized packets clear anchors",()=>{
+ const packet=(t,zones)=>({...sample,asOfUnixMs:t,zones});
+ const level={side:"ASK",price:7520,visibleContracts:100,observedInImages:50};
+ let state=null;
+ for(let t=now-45000;t<=now-15000;t+=5000)
+  state=advanceEngine18AnchoredObservations(state,packet(t,[level]),now);
+ expect(state.zones).toHaveLength(1);
+ state=advanceEngine18AnchoredObservations(state,packet(now-10000,[]),now);
+ expect(state.zones[0].status).toBe("LAST_SEEN");
+ expect(advanceEngine18AnchoredObservations(state,
+  {...packet(now-5000,[]),available:false},now).zones).toEqual([]);
+ // Advance time beyond the 3-minute historical display TTL.
+ const later=now+190000;
+ state=advanceEngine18AnchoredObservations(state,packet(later-1000,[]),later);
+ expect(state.zones).toEqual([]);
 });
