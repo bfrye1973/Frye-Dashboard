@@ -22,7 +22,13 @@ export function validateEngine18ChartZones(packet,now=Date.now()){
     const key=side+":"+price;
     if(seen.has(key))continue;seen.add(key);
     out.push({side,price,visibleContracts:size,
-      observedInImages:zone.observedInImages||0});
+      observedInImages:Number.isSafeInteger(zone.observedInImages)?
+        zone.observedInImages:0,
+      // Source-side duration is based on distinct actual book observations;
+      // never infer it from repeated 5-second dashboard HTTP requests.
+      observedPersistenceMs:Number.isSafeInteger(zone.observedPersistenceMs)&&
+        zone.observedPersistenceMs>=0?zone.observedPersistenceMs:null,
+      coverageState:zone.coverageState==="IN_COVERAGE"?"IN_COVERAGE":null});
     if(out.length>=8)break;
   }
   return out;
@@ -103,7 +109,10 @@ export function advanceEngine18AnchoredObservations(previous,packet,now=Date.now
     asOf-earlier.lastSeenMs<=15000;
   const firstSeenMs=continuous?earlier.firstSeenMs:asOf;
   const count=continuous?earlier.count+1:1;
-  const qualified=!!earlier?.qualified ||
+  const backendQualified=z.coverageState==="IN_COVERAGE"&&
+    z.observedInImages>=3&&
+    z.observedPersistenceMs>=ENGINE18_ANCHOR_MIN_MS;
+  const qualified=!!earlier?.qualified||backendQualified||
     (count>=3&&asOf-firstSeenMs>=ENGINE18_ANCHOR_MIN_MS);
   tracked[key]={...z,firstSeenMs,count,lastSeenMs:asOf,qualified,
     status:"OBSERVED",anchorAtMs:earlier?.anchorAtMs||(qualified?asOf:null)};
