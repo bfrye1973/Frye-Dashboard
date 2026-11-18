@@ -1,4 +1,4 @@
-import {validateEngine18ChartZones,selectEngine18TestZones,advanceEngine18StableLevels,advanceEngine18AnchoredObservations} from "./Engine18LiquidityZonesOverlay";
+import {validateEngine18ChartZones,selectEngine18TestZones,advanceEngine18StableLevels,advanceEngine18AnchoredObservations,describeEngine18NoCandidate} from "./Engine18LiquidityZonesOverlay";
 const now=1794344915000;
 const sample={schema:"engine18.chartLiquidityDemo.v1",symbol:"XCME:ES.Z26",
  available:true,executionEligible:false,displayOnly:true,mode:"DEMO_RESEARCH_ONLY",
@@ -109,4 +109,16 @@ test("historical observations expire; stale, unauthorized packets clear anchors"
  const later=now+190000;
  state=advanceEngine18AnchoredObservations(state,packet(later-1000,[]),later);
  expect(state.zones).toEqual([]);
+});
+
+test("no-candidate legend describes sanitized backend eligibility without drawing made-up prices",()=>{
+ expect(describeEngine18NoCandidate({diagnostics:{
+  noCandidateReason:"INSUFFICIENT_COVERED_ELAPSED_TIME"}}))
+  .toBe("Levels have not remained visible long enough");
+ expect(describeEngine18NoCandidate({diagnostics:{
+  noCandidateReason:"QUALIFIED_LEVELS_NOT_IN_CURRENT_BOOK"}}))
+  .toBe("Past observations left the visible depth window");
+ expect(describeEngine18NoCandidate({reason:"SOME_UNTRUSTED_HTML"}))
+  .toBe("No currently qualified depth observations");
+ expect(validateEngine18ChartZones({...sample,zones:[],reason:"NO_VALID_DEPTH"},now)).toEqual([]);
 });
