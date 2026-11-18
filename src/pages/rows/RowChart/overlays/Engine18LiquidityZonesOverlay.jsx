@@ -24,11 +24,12 @@ export function validateEngine18ChartZones(packet,now=Date.now()){
     out.push({side,price,visibleContracts:size,
       observedInImages:Number.isSafeInteger(zone.observedInImages)?
         zone.observedInImages:0,
-      // Source-side duration is based on distinct actual book observations;
-      // never infer it from repeated 5-second dashboard HTTP requests.
-      observedPersistenceMs:Number.isSafeInteger(zone.observedPersistenceMs)&&
-        zone.observedPersistenceMs>=0?zone.observedPersistenceMs:null,
-      coverageState:zone.coverageState==="IN_COVERAGE"?"IN_COVERAGE":null});
+      // Optional backend source-side evidence; legacy packet shape unchanged.
+      // Repeated 5-second HTTP polls cannot fabricate this elapsed duration.
+      ...(Number.isSafeInteger(zone.observedPersistenceMs)&&zone.observedPersistenceMs>=0?
+        {observedPersistenceMs:zone.observedPersistenceMs}:{}),
+      ...(zone.coverageState==="IN_COVERAGE"?
+        {coverageState:"IN_COVERAGE"}:{})});
     if(out.length>=8)break;
   }
   return out;
