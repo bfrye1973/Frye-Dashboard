@@ -1373,25 +1373,29 @@ export default function Engine22MarketStructureCard({
   const minorW3Nov9=currentWavelength?.degrees?.minor?.ownerMinorW3Nov9Research;
   const minorW3Nov9State=minorW3Nov9?.version==="engine22.minorW3Nov9Research.v1" &&
     minorW3Nov9.selectionStatus==="RESEARCH_ONLY" ? {
-    degree:"minor",label:"Minor",active:true,badge:"LOW REVIEW",
-    subtitle:"New lower low under prior Minor W2 reference — owner reversal review",
-    headline:"MINOR W2 PRIOR LOW BROKEN → REVISED END CANDIDATE / REVIEW",
-    fibTitle:"MINOR W3 UP — W2 LOW + W1 LENGTH FIB EXTENSIONS",
+    degree:"minor",label:"Minor",active:true,badge:"W3 UP",
+    subtitle:"Owner marks revised lower Minor W2 price; W3 UP working research, event clock pending",
+    headline:"MINOR W2 REVISED LOWER END PRICE → W3 UP DEVELOPING / RESEARCH",
+    fibTitle:"MINOR W3 UP — REVISED W2 LOW + ORIGINAL W1 LENGTH (WATCH)",
     rows:[
       {label:"Parent",value:"INTERMEDIATE W3 UP — UNCHANGED"},
       {label:"W1 low",value:wavePrice(minorW3Nov9.anchors.w1Low)+" — "+minorW3Nov9.anchors.w1LowLocalTime},
       {label:"W1 high",value:wavePrice(minorW3Nov9.anchors.w1High)+" — "+minorW3Nov9.anchors.w1HighLocalTime},
       {label:"W1 length",value:wavePrice(minorW3Nov9.anchors.w1Length)+" ES POINTS"},
-      {label:"Prior W2 mark",value:wavePrice(minorW3Nov9.anchors.w2EndingLow)+" — "+minorW3Nov9.anchors.w2EndingLocalTime+" — SUPERSEDED AS CURRENT END CANDIDATE"},
-      {label:"New chart low",value:"7305.25 — SCREENSHOT OBSERVATION / AZ PIVOT TIME UNVERIFIED"},
-      {label:"Difference",value:"17.00 ES POINTS BELOW PRIOR 7322.25 MARK"},
-      {label:"Current",value:"POTENTIAL LOWER W2 END / W3 UP NOT YET CONFIRMED"},
-      {label:"Next",value:"CONFIRM FIVE-WAVE ADVANCE AND HIGHER LOW ABOVE CANDIDATE BOTTOM"},
+      {label:"Revised W2 low",value:wavePrice(minorW3Nov9.anchors.w2EndingLow)+" — OWNER RECOUNT / EXACT AZ TIME PENDING"},
+      {label:"Prior W2 mark",value:wavePrice(minorW3Nov9.anchors.priorW2Ending?.price)+" — "+minorW3Nov9.anchors.priorW2Ending?.localTime+" — SUPERSEDED"},
+      {label:"First smaller W1",value:"UP DEVELOPING CANDIDATE — ENDING HIGH NOT SUPPLIED"},
+      {label:"Early resistance",value:"7446.00 (0.236) / 7533.00 (0.382) — WATCH"},
+      {label:"Further resistance",value:"7603.50 (0.500) / 7674.00 (0.618) — WATCH"},
+      {label:"Higher references",value:"7774.00 (0.786) / 7901.75 (prior W1 high)"},
+      {label:"Reference method",value:"RETRACE PRECEDING MINOR W2 DECLINE; NOT AN ACTUAL W1 END"},
+      {label:"Current",value:"W3 UP — OWNER WORKING COUNT / IMPULSE UNCONFIRMED"},
+      {label:"Next",value:"MARK ACTUAL FIRST SMALLER W1 HIGH AND FOLLOWING W2 HIGHER LOW"},
       {label:"History",value:"OLDER MINOR W5 AND W2 RETRACEMENT HISTORY PRESERVED"},
       {label:"Authority",value:"OWNER-MARKED RESEARCH CARD; LIVE MINOR SELECTION UNCHANGED"}
     ],
-    levels:[],
-    rules:["The prior 7322.25 Minor W2 mark has been undercut by a 7305.25 chart-observed low. The historical Fib extension ladder is not a currently validated W3 target set. Do not re-anchor W2, declare a new W3, or grant trade permission until owner verifies the new pivot price/time and count."]
+    levels:minorW3Nov9.levels??[],
+    rules:["Owner working revision places Minor W2 ending price at 7305.25, but the exact Arizona timestamp remains unavailable. Minor W3 Fibonacci extensions are provisional research, not a forecast of the first smaller W1 high. Do not publish an invented pivot, confirm internal waves, or grant trading permission."]
   } : null;
   const minorResearch=currentWavelength?.degrees?.minor?.ownerMinorW2Research;
   const minorW2State=minorResearch?.version==="engine22.minorW2ResearchCardNov5.v1" && minorResearch.selectionStatus==="RESEARCH_ONLY" ? {
