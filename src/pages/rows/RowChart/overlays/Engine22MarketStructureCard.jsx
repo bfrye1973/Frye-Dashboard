@@ -1395,6 +1395,15 @@ export default function Engine22MarketStructureCard({
       {label:"Authority",value:"OWNER-MARKED RESEARCH CARD; LIVE MINOR SELECTION UNCHANGED"}
     ],
     levels:minorW3Nov9.levels??[],
+    // Distinct Fib grids: the nearer-term retracement references for the
+    // FIRST smaller upward W1 are NOT the larger Minor W3 extensions.
+    // All remain WATCH until eligible post-pivot evidence exists.
+    fibGroups:[
+      {key:"first-internal-wave1",title:"FIRST SMALLER W1 UP — PROVISIONAL RESISTANCE (NOT W1 END)",
+        levels:minorW3Nov9.firstInternalWaveResistance??[]},
+      {key:"minor-wave3-extensions",title:"MINOR W3 UP — W2 LOW + MINOR W1 LENGTH EXTENSIONS",
+        levels:minorW3Nov9.levels??[]},
+    ],
     rules:["Owner working revision places Minor W2 ending price at 7305.25, but the exact Arizona timestamp remains unavailable. Minor W3 Fibonacci extensions are provisional research, not a forecast of the first smaller W1 high. Do not publish an invented pivot, confirm internal waves, or grant trading permission."]
   } : null;
   const minorResearch=currentWavelength?.degrees?.minor?.ownerMinorW2Research;
