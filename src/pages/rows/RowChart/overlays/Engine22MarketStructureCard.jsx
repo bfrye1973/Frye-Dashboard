@@ -1291,7 +1291,8 @@ export default function Engine22MarketStructureCard({
       {label:"Parent",value:"MINOR W3 UP — OWNER WORKING COUNT"},
       {label:"W1 start reference",value:wavePrice(minuteW1Nov9.anchors.w1StartReference)+" — "+minuteW1Nov9.anchors.w1StartReferenceLocalTime+" — PROPOSED SHARED PARENT"},
       {label:"W1 ending high",value:wavePrice(minuteW1Nov9.anchors.w1EndingHigh)+" — "+minuteW1Nov9.anchors.w1EndingHighLocalTime+" — OWNER MARK"},
-      {label:"Current",value:"W2 DOWN DEVELOPING — ENDING LOW NOT CONFIRMED"},
+      {label:"Current",value:"W2 DOWN / POTENTIAL ENDING LOW — NOT OWNER-CONFIRMED"},
+      {label:"Bottom review",value:"NEW 7305.25 CHART LOW BELOW 7322.25 PROPOSED START — RECOUNT REQUIRED"},
       {label:"Internals",value:"SUBMINUTE W1–W5 SEQUENCE DEVELOPING"},
       {label:"W1 completion",value:"OWNER-MARKED COMPLETE — INTERNAL CHILD SEQUENCE NOT INDEPENDENTLY VALIDATED"},
       {label:"Next",value:"W2 DOWN UNDER OBSERVATION"},
@@ -1302,7 +1303,7 @@ export default function Engine22MarketStructureCard({
       {label:"Authority",value:"RESEARCH CARD ONLY — ENGINE 27 / CANONICAL COUNT UNCHANGED"},
     ],
     levels:minuteW1Nov9.levels??[],
-    rules:["Minute W1 high is owner-marked at 7671.00 (Nov 11, 08:00 AZ). Starting 7322.25 is a proposed parent reference, so W2 Fib levels are provisional and not trading permissions."],
+    rules:["Minute W1 high is owner-marked at 7671.00 (Nov 11, 08:00 AZ). Its proposed start 7322.25 is undercut by the new 7305.25 chart low: reassess the Minute W1/W2 count before treating its existing Fib ladder as active trade targets. No owner-confirmed W2 ending."],
   } : null;
   const subminuteAbcNov16=currentWavelength?.degrees?.subminute?.ownerSubminuteAbcDownNov16Research;
   const subminuteAbcNov16State=subminuteAbcNov16?.version==="engine22.ownerSubminuteAbcDownNov16Research.v1" &&
@@ -1317,12 +1318,13 @@ export default function Engine22MarketStructureCard({
       {label:"A low",value:wavePrice(subminuteAbcNov16.anchors.aLow)+" — "+subminuteAbcNov16.anchors.aLowLocalTime},
       {label:"B high",value:wavePrice(subminuteAbcNov16.anchors.bHigh)+" — "+subminuteAbcNov16.anchors.bHighLocalTime},
       {label:"Wave A length",value:wavePrice(subminuteAbcNov16.aLength)+" ES POINTS"},
-      {label:"Current",value:"C DOWN DEVELOPING — ENDING LOW NOT CONFIRMED"},
+      {label:"Current",value:"C DOWN / POTENTIAL TERMINATION — ENDING LOW UNCONFIRMED"},
+      {label:"Bottom review",value:"7305.25 CHART LOW AT RISING SUPPORT — REQUIRES OWNER PIVOT TIME"},
       {label:"History",value:"OLDER SUBMINUTE W1 FORMING AND ABC RESEARCH PRESERVED"},
       {label:"Authority",value:"RESEARCH ONLY — CANONICAL COUNT / ENGINE 27 UNCHANGED"},
     ],
     levels:subminuteAbcNov16.levels??[],
-    rules:["C-down targets are research-only WATCH levels from owner A/B anchors; no C completion, stop or trading permission."],
+    rules:["C-down Fib touches remain historical evidence. A 7305.25 chart low and sharp bounce suggest a possible ending C, but exact pivot time and an owner-confirmed completion are still required. No stop or trading permission."],
   } : null;
   const subminuteW1Nov9=currentWavelength?.degrees?.subminute?.ownerSubminuteW1FormingNov9Research;
   const subminuteW1Nov9State=subminuteW1Nov9?.version==="engine22.subminuteW1FormingNov9Research.v1" &&
@@ -1372,21 +1374,28 @@ export default function Engine22MarketStructureCard({
   const minorW3Nov9State=minorW3Nov9?.version==="engine22.minorW3Nov9Research.v1" &&
     minorW3Nov9.selectionStatus==="RESEARCH_ONLY" ? {
     degree:"minor",label:"Minor",active:true,badge:"W3 UP",
-    subtitle:"Owner-marked Minor W2 completion — W3 UP developing research count",
-    headline:"MINOR W2 COMPLETE — W3 UP DEVELOPING / OWNER WORKING COUNT",
-    fibTitle:"MINOR W3 UP — W2 LOW + W1 LENGTH FIB EXTENSIONS",
+    subtitle:"Owner marks revised lower Minor W2 price; W3 UP working research, event clock pending",
+    headline:"MINOR W2 REVISED LOWER END PRICE → W3 UP DEVELOPING / RESEARCH",
+    fibTitle:"MINOR W3 UP — REVISED W2 LOW + ORIGINAL W1 LENGTH (WATCH)",
     rows:[
       {label:"Parent",value:"INTERMEDIATE W3 UP — UNCHANGED"},
       {label:"W1 low",value:wavePrice(minorW3Nov9.anchors.w1Low)+" — "+minorW3Nov9.anchors.w1LowLocalTime},
       {label:"W1 high",value:wavePrice(minorW3Nov9.anchors.w1High)+" — "+minorW3Nov9.anchors.w1HighLocalTime},
       {label:"W1 length",value:wavePrice(minorW3Nov9.anchors.w1Length)+" ES POINTS"},
-      {label:"W2 complete",value:wavePrice(minorW3Nov9.anchors.w2EndingLow)+" — "+minorW3Nov9.anchors.w2EndingLocalTime+" — OWNER MARKED"},
-      {label:"Current",value:"W3 UP — DEVELOPING / OWNER WORKING COUNT"},
+      {label:"Revised W2 low",value:wavePrice(minorW3Nov9.anchors.w2EndingLow)+" — OWNER RECOUNT / EXACT AZ TIME PENDING"},
+      {label:"Prior W2 mark",value:wavePrice(minorW3Nov9.anchors.priorW2Ending?.price)+" — "+minorW3Nov9.anchors.priorW2Ending?.localTime+" — SUPERSEDED"},
+      {label:"First smaller W1",value:"UP DEVELOPING CANDIDATE — ENDING HIGH NOT SUPPLIED"},
+      {label:"Early resistance",value:"7446.00 (0.236) / 7533.00 (0.382) — WATCH"},
+      {label:"Further resistance",value:"7603.50 (0.500) / 7674.00 (0.618) — WATCH"},
+      {label:"Higher references",value:"7774.00 (0.786) / 7901.75 (prior W1 high)"},
+      {label:"Reference method",value:"RETRACE PRECEDING MINOR W2 DECLINE; NOT AN ACTUAL W1 END"},
+      {label:"Current",value:"W3 UP — OWNER WORKING COUNT / IMPULSE UNCONFIRMED"},
+      {label:"Next",value:"MARK ACTUAL FIRST SMALLER W1 HIGH AND FOLLOWING W2 HIGHER LOW"},
       {label:"History",value:"OLDER MINOR W5 AND W2 RETRACEMENT HISTORY PRESERVED"},
       {label:"Authority",value:"OWNER-MARKED RESEARCH CARD; LIVE MINOR SELECTION UNCHANGED"}
     ],
-    levels:minorW3Nov9.levels,
-    rules:["7322.25 Minor W2 low is a working structural review reference; ES price basis pending; no broker stop or trading permission."]
+    levels:minorW3Nov9.levels??[],
+    rules:["Owner working revision places Minor W2 ending price at 7305.25, but the exact Arizona timestamp remains unavailable. Minor W3 Fibonacci extensions are provisional research, not a forecast of the first smaller W1 high. Do not publish an invented pivot, confirm internal waves, or grant trading permission."]
   } : null;
   const minorResearch=currentWavelength?.degrees?.minor?.ownerMinorW2Research;
   const minorW2State=minorResearch?.version==="engine22.minorW2ResearchCardNov5.v1" && minorResearch.selectionStatus==="RESEARCH_ONLY" ? {
@@ -1438,13 +1447,14 @@ export default function Engine22MarketStructureCard({
       {label:"A low",value:wavePrice(microAbcNov16.anchors.aLow)+" — "+microAbcNov16.anchors.aLowLocalTime},
       {label:"B high",value:wavePrice(microAbcNov16.anchors.bHigh)+" — "+microAbcNov16.anchors.bHighLocalTime},
       {label:"Wave A length",value:wavePrice(microAbcNov16.aLength)+" ES POINTS"},
-      {label:"Current",value:"C DOWN DEVELOPING — ENDING LOW NOT CONFIRMED"},
+      {label:"Current",value:"C DOWN / BOTTOM CANDIDATE — ENDING LOW UNCONFIRMED"},
+      {label:"Bottom review",value:"7305.25 CHART LOW / RED SUPPORT-LINE REACTION — UNVERIFIED PIVOT"},
       {label:"History",value:"OLDER MICRO W5 UP AND ABC MODELS PRESERVED"},
       {label:"Fib touches",value:"AMBER WATCH → GREEN WHEN ES REACHES C LEVEL AFTER B HIGH"},
       {label:"Authority",value:"RESEARCH ONLY — CANONICAL COUNT / ENGINE 27 UNCHANGED"},
     ],
     levels:microAbcNov16.levels??[],
-    rules:["C-down levels are research-only projections; touch turns green on observed post-B ES price, not completion or trading permission."],
+    rules:["Touched C-down Fibonacci levels stay green in history. The chart shows a possible 7305.25 bottom, not an owner-confirmed C completion or a validated new UP wave. Keep authorization and trading permission unchanged."],
   } : null;
   const microW3ReclassifiedNov9=currentWavelength?.degrees?.micro?.ownerMicroW3Nov9ReclassifiedResearch;
   const microW3ReclassifiedNov9State=microW3ReclassifiedNov9?.version==="engine22.ownerMicroW3Nov9ReclassifiedResearch.v1" && microW3ReclassifiedNov9.selectionStatus==="RESEARCH_ONLY" ? {
@@ -1478,7 +1488,8 @@ export default function Engine22MarketStructureCard({
       {label:"W1 start low",value:wavePrice(submicroW3InternalNov9.anchors.w1StartLow)+" — "+submicroW3InternalNov9.anchors.w1StartLocalTime},
       {label:"W1 ending high",value:wavePrice(submicroW3InternalNov9.anchors.newW1High)+" — "+submicroW3InternalNov9.anchors.newW1HighLocalTime+" — OWNER COMPLETE"},
       {label:"W1 length",value:wavePrice(submicroW3InternalNov9.anchors.newW1Length)+" ES POINTS"},
-      {label:"Current",value:"W2 DOWN / DEEP CORRECTION — ENDING LOW NOT CONFIRMED"},
+      {label:"Current",value:"W2 DOWN / POSSIBLE BOTTOM — ENDING LOW UNCONFIRMED"},
+      {label:"Bottom review",value:"7305.25 CHART LOW — AWAIT OWNER-VERIFIED AZ TIME / UP STRUCTURE"},
       {label:"Previous Fibonacci",value:(submicroW3InternalNov9.w2DownRetracementLevels??[]).filter(l=>l.status==="TOUCHED").length+" OF "+(submicroW3InternalNov9.w2DownRetracementLevels??[]).length+" RETRACEMENT LEVELS OBSERVED — HISTORICAL"},
       {label:"Next",value:"W3 UP ONLY AFTER OWNER CONFIRMS W2 LOW"},
       {label:"New UP Fibs",value:"PENDING W2 LOW — NO TARGETS INVENTED"},
@@ -1489,7 +1500,7 @@ export default function Engine22MarketStructureCard({
     // previous all-green Fib cards as active downside targets. Keep them in
     // Engine22 source/history. A future owner W2 low starts a NEW ladder.
     levels:[],
-    rules:["No owner-confirmed Submicro W2 ending low or UP reversal. Previously reached W2 supports remain in research history; new W3 Fib extensions require the confirmed W2 low. No trading permission."],
+    rules:["Possible bottom is being monitored, but there is no owner-confirmed Submicro W2 low or new W3 UP. Historical W2 touches remain archived. Do not invent upward Fibonacci targets or trading permission."],
   } : null;
   const microW2Nov6=currentWavelength?.degrees?.micro?.ownerMicroW2Nov6Research;
   const microW2Nov6State=microW2Nov6?.version==="engine22.microW2Nov6Research.v1" &&

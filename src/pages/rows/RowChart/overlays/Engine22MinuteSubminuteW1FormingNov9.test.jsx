@@ -66,7 +66,7 @@ test("current owner Subminute ABC card supersedes older forming W1 research only
  expect(html).toContain("2026-11-15 16:30 AZ");
  for(const price of ["7515.25","7454.25","7410.75","7355.50","7294.50","7195.75"])
   expect(html).toContain(price);
- expect(html).toContain("ENDING LOW NOT CONFIRMED");
+ expect(html).toContain("ENDING LOW UNCONFIRMED");
  expect(html).toContain("CANONICAL COUNT / ENGINE 27 UNCHANGED");
  expect(html).not.toContain("SUBMINUTE W1 UP — FORMING");
 });
