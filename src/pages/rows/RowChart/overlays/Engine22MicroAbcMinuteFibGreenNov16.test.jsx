@@ -35,7 +35,7 @@ test("Micro current ABC card uses exact owner A/B and green for reached Fib leve
  for(const text of ["MICRO A DOWN","C DOWN DEVELOPING","7614.75","2026-11-15 16:40 AZ",
   "7537.25","2026-11-15 23:20 AZ","7570.75","2026-11-16 01:40 AZ",
   "7522.75","7493.25","7472.25","7445.25","7415.75","7367.75",
-  "REACHED · ES SNAPSHOT","WATCH","ENDING LOW NOT CONFIRMED"])
+  "REACHED · ES SNAPSHOT","WATCH","ENDING LOW UNCONFIRMED"])
   expect(html).toContain(text);
  expect(html).toContain("#86efac");
  expect(html).not.toContain("MICRO W4 COMPLETE → W5 UP DEVELOPING");
