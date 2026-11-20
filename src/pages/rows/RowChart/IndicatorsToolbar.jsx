@@ -203,6 +203,7 @@ export default function IndicatorsToolbar({
 
   institutionalZonesAuto = false,
   smzShelvesAuto = false,
+  volumeProfileAuto = false,
 
   fibPrimary = false,
   fibIntermediate = false,
@@ -497,6 +498,14 @@ export default function IndicatorsToolbar({
                     onChange={(e) => onChange?.({ smzShelvesAuto: e.target.checked })}
                   />{" "}
                   Acc/Dist Shelves (auto)
+                </label>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={!!volumeProfileAuto}
+                    onChange={(e) => onChange?.({ volumeProfileAuto: e.target.checked })}
+                  />{" "}
+                  Volume Profile (POC / value area / shelf edges)
                 </label>
               </div>
 

@@ -44,6 +44,7 @@ import SmartMoneyZonesPanel from "../../../components/smz/SmartMoneyZonesPanel";
 
 import SMZLevelsOverlay from "./overlays/SMZLevelsOverlay";
 import SMZShelvesOverlay from "./overlays/SMZShelvesOverlay";
+import VolumeProfileOverlay from "./overlays/VolumeProfileOverlay";
 import AccDistZonesPanel from "../../../components/smz/AccDistZonesPanel";
 
 import FibLevelsOverlay from "./overlays/FibLevelsOverlay";
@@ -980,6 +981,7 @@ export default function RowChart({
   const overlayInstancesRef = useRef([]);
 
   const engine1OverlayInstancesRef = useRef([]);
+  const volumeProfileInstanceRef = useRef(null);
 
   const [bars, setBars] = useState([]);
   const barsRef = useRef([]);
@@ -1069,6 +1071,7 @@ export default function RowChart({
 
     institutionalZonesAuto: false,
     smzShelvesAuto: false,
+    volumeProfileAuto: false,
 
     fibPrimary: false,
     fibIntermediate: false,
@@ -2014,6 +2017,41 @@ export default function RowChart({
     state.symbol,
   ]);
 
+  /* ============ Volume Profile (read-only display) ============ */
+
+  useEffect(() => {
+    if (!state.volumeProfileAuto) return;
+    // Bars may still be loading: the overlay reads them through getBars()
+    // and redraws on every live bar and on scroll/zoom.
+    if (!chartRef.current || !seriesRef.current || !containerRef.current) {
+      return;
+    }
+
+    const inst = attachOverlay(VolumeProfileOverlay, {
+      chart: chartRef.current,
+      priceSeries: seriesRef.current,
+      chartContainer: containerRef.current,
+      getBars: () => barsRef.current,
+      mode: "visible",
+      lookback: 500,
+      rows: 120,
+    });
+    volumeProfileInstanceRef.current = inst;
+
+    try {
+      inst?.seed?.(barsRef.current);
+    } catch {}
+
+    return () => {
+      try {
+        inst?.destroy?.();
+      } catch {}
+      if (volumeProfileInstanceRef.current === inst) {
+        volumeProfileInstanceRef.current = null;
+      }
+    };
+  }, [state.volumeProfileAuto, state.timeframe, state.symbol]);
+
   // Engine22 append-only node revision catch-up is strictly optional and
   // independent of Engine11 candle series. The backend must explicitly
   // advertise an authorized durable history feed before any request occurs.
@@ -2432,6 +2470,10 @@ export default function RowChart({
       try {
         overlayInstancesRef.current.forEach((o) => o?.update?.(bar));
       } catch {}
+
+      try {
+        volumeProfileInstanceRef.current?.update?.(bar);
+      } catch {}
     }
 
     function buildBucketBar(bucketStart) {
@@ -2740,6 +2782,7 @@ export default function RowChart({
       volume: true,
       institutionalZonesAuto: false,
       smzShelvesAuto: false,
+      volumeProfileAuto: false,
 
       fibPrimary: false,
       fibIntermediate: false,
@@ -2780,6 +2823,7 @@ export default function RowChart({
 
     institutionalZonesAuto: state.institutionalZonesAuto,
     smzShelvesAuto: state.smzShelvesAuto,
+    volumeProfileAuto: state.volumeProfileAuto,
 
     fibPrimary: state.fibPrimary,
     fibIntermediate: state.fibIntermediate,
