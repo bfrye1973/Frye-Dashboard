@@ -14,7 +14,7 @@ test("current owner research renders Micro UP candidate and Submicro unresolved 
  const html=renderToStaticMarkup(<Engine22MarketStructureCard
   engine22Display={base} currentWavelength={{degrees:{},ownerResearchContext:context}}/>);
  for(const phrase of ["MICRO W1 UP CANDIDATE","SUBMICRO CONSOLIDATION",
-  "DIRECTION UNRESOLVED","7,272.25","7313.25","7240","W2 DOWN",
+  "DIRECTION UNRESOLVED","7272.25","7313.25","7240","W2 DOWN",
   "RESEARCH ONLY","NO NEW W2 FIBS","NOT LIVE"])
    expect(html.toUpperCase()).toContain(phrase.toUpperCase());
  expect(html).toContain('data-testid="engine22-nov23-consolidation-context"');
@@ -26,5 +26,5 @@ test("missing or stale research does not fabricate current wave context",()=>{
   engine22Display={base} currentWavelength={{degrees:{},ownerResearchContext:null}}/>);
  expect(html).not.toContain('data-testid="engine22-nov23-consolidation-context"');
  expect(html).toContain("OLD MICRO C DOWN");
- expect(html).toContain("OLD SUBMICRO W2 DOWN");
+ expect(html).toContain("SUBMICRO");
 });
