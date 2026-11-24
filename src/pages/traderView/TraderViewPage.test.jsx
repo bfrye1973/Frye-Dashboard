@@ -65,10 +65,12 @@ test("missing engines render UNAVAILABLE cards without crashing", () => {
   const d = clone(live);
   delete d.sections.reaction;
   d.sections.structure = null;
+  // backend contract shape for a missing engine
+  d.sections.permission = { ...d.sections.permission, status: "INFO", state: "UNAVAILABLE", label: "Unavailable", facts: [] };
   d.marketDirection = { state: "UNAVAILABLE" };
   const view = markup(d);
   const unavailable = view.match(/data-status="UNAVAILABLE"/g) || [];
-  expect(unavailable.length).toBeGreaterThanOrEqual(2);
+  expect(unavailable.length).toBeGreaterThanOrEqual(3);
   expect(view).toContain("Unavailable — this engine");
 });
 

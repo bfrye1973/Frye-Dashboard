@@ -163,7 +163,11 @@ export function TraderSection({ eyebrow, children, className = "" }) {
 
 /* ---------------- engine card ---------------- */
 export function TraderCard({ title, question, section, forceOpen, children, details }) {
-  const unavailable = !section || normStatus(section.status) === "UNAVAILABLE";
+  // Backend marks a missing engine as status INFO + state UNAVAILABLE.
+  const unavailable =
+    !section ||
+    String(section.state || "").toUpperCase() === "UNAVAILABLE" ||
+    normStatus(section.status) === "UNAVAILABLE";
   const status = unavailable ? "UNAVAILABLE" : normStatus(section.status);
   const facts = Array.isArray(section?.facts) ? section.facts : [];
 
