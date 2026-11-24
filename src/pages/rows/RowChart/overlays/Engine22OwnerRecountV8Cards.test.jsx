@@ -20,7 +20,7 @@ test("owner V8 replaces five lower CURRENT cards with accurate no-entry research
  for(const phrase of ["MINOR — RECOUNT PENDING","MINUTE — RECOUNT PENDING",
    "SUBMINUTE — RECOUNT PENDING","MICRO W1 UP — CANDIDATE",
    "SUBMICRO CONSOLIDATION","7313.25","DIRECTION UNRESOLVED",
-   "ENGINE6","NO ENTRY","HISTORY"])
+   "ENGINE6","NO LONG PERMISSION","HISTORY"])
    expect(html.toUpperCase()).toContain(phrase.toUpperCase());
  for(const d of Object.keys(degrees))
    expect(html).not.toContain("OUTDATED_"+d.toUpperCase()+"_HISTORICAL_COUNT");
