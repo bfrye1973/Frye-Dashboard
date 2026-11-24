@@ -936,6 +936,38 @@ export default function Engine22MarketStructureCard({
     engine22V3Projection?.v3LiveShadow?.shadowOnly === true
       ? engine22V3Projection.v3LiveShadow.degrees : null;
 
+  // Dated, owner-reported research context. Never treat as the authoritative engine22 selection.
+  // Unlike old Nov 16 historical models, these cards clearly state the new structure is provisional.
+  const ownerNov23Research=currentWavelength?.ownerResearchContext?.schema==="engine22.ownerNov23ResearchContext.v1" &&
+    currentWavelength.ownerResearchContext.noExecution===true &&
+    currentWavelength.ownerResearchContext.pointInTimeAsOfAvailable===false
+      ? currentWavelength.ownerResearchContext : null;
+  const nov23MicroState=ownerNov23Research ? {
+    degree:"micro",label:"Micro",active:true,badge:"W1 UP?",direction:"UP",
+    subtitle:"Nov 23 owner research — chart snapshot, not live / no trade permission",
+    headline:"MICRO W1 UP CANDIDATE — HIGH UNCONFIRMED / POSSIBLE W2 DOWN",
+    rows:[
+      {label:"Parent",value:"SUBMINUTE / MINUTE RECOUNT PENDING"},
+      {label:"High reference",value:wavePrice(ownerNov23Research.micro.referenceHigh?.price)+" — NOV 23 CHART ONLY"},
+      {label:"Current",value:"UP RALLY OBSERVED; CONSOLIDATION / MICRO W2 ALTERNATIVE"},
+      {label:"Evidence",value:"FIVE SUBMICRO SUBDIVISIONS NOT VERIFIED"},
+      {label:"Next",value:"CONFIRM SAME-BASIS MICRO W1 LOW/HIGH BEFORE W2 RETRACEMENTS"},
+      {label:"Authority",value:"RESEARCH ONLY — ENGINE 6 AUTHORIZED MICRO SELECTION UNCHANGED"}
+    ],levels:[],rules:["Snapshot context only; no entry, no Fib touch claims and no new wave-completion permission."]
+  } : null;
+  const nov23SubmicroState=ownerNov23Research ? {
+    degree:"submicro",label:"Submicro",active:true,badge:"UNRESOLVED",direction:"NEUTRAL",
+    subtitle:"Nov 23 owner research — sideways range, not a confirmed child wave",
+    headline:"SUBMICRO CONSOLIDATION — INTERNAL W4 OR MICRO W2 DOWN START",
+    rows:[
+      {label:"Range",value:"~7250–7300 — OWNER CHART, NOT AUTHORIZED TRADE ZONE"},
+      {label:"Up reference",value:"7313.25 — PRIOR RALLY HIGH (UNVERIFIED PIVOT)"},
+      {label:"Down reference",value:"~7240 — RANGE SUPPORT (NOT WAVE INVALIDATION)"},
+      {label:"Current",value:"DIRECTION UNRESOLVED; DO NOT FORCE A COUNT"},
+      {label:"Next",value:"VERIFY 5M/10M SWINGS AND COMPLETED SUBDIVISIONS"},
+      {label:"Authority",value:"RESEARCH ONLY — ENGINE 6 AUTHORIZED SUBMICRO SELECTION UNCHANGED"}
+    ],levels:[],rules:["No entry signal; wait for zone reaction and Engine 6 approved confirmation."]
+  } : null;
   const ownerMicro = v3ShadowDegrees?.micro;
   const ownerSubmicro = v3ShadowDegrees?.intraday_submicro;
   const ownerSubminute = v3ShadowDegrees?.subminute;
@@ -1786,14 +1818,15 @@ export default function Engine22MarketStructureCard({
         </div>
       </div>
 
-      {/* Owner-supplied Nov 23 market snapshot; deliberately not a live wave count or trading signal. */}
-      <div role="note" data-testid="engine22-nov23-consolidation-context"
-        style={{border:"1px solid #9a7415",borderRadius:10,background:"#231b0a",padding:"9px 12px",color:"#fcd34d",fontSize:12,lineHeight:1.45}}>
-        <strong>NOV 23, 2026 ES RESEARCH SNAPSHOT — CONSOLIDATION / DIRECTION UNRESOLVED</strong>
-        <div>Owner chart: ES 7,272.25 in a roughly 7,250–7,300 zone; 7,313.25 prior rally high; ~7,240 lower range reference. All levels are historical screenshot observations, NOT live prices, verified pivots, trading zones or executable alerts.</div>
-        <div>Micro W1 UP: completion candidate only, not owner-confirmed. Submicro: sideways structure may be an internal W4 or the start of a Micro W2 correction; no final count selected. No new W2 Fibonacci ladder until same-basis W1 low/high and wave subdivisions are verified.</div>
-        <div>Higher degree: owner research marks Primary W4 COMPLETE at 6,899 (Nov 20) with Primary W5 UP proposed; old published cards below can still show prior November counts until independently revised. Historical touches and canonical Engine 6 authority are unchanged.</div>
-      </div>
+      {ownerNov23Research ? (
+        <div role="note" data-testid="engine22-nov23-consolidation-context"
+          style={{border:"1px solid #9a7415",borderRadius:10,background:"#231b0a",padding:"9px 12px",color:"#fcd34d",fontSize:12,lineHeight:1.45}}>
+          <strong>OWNER RESEARCH — {ownerNov23Research.observedOn} (NOT LIVE) · MICRO UP CANDIDATE / SUBMICRO UNRESOLVED</strong>
+          <div>Screenshot observation: ES {wavePrice(ownerNov23Research.consolidation.priceAtScreenshot)} inside ~{ownerNov23Research.consolidation.observedBand?.join("–")}; 7,313.25 prior rally high; ~7,240 lower reference. These are not confirmed pivots, trading zones or live signals.</div>
+          <div>Engine 6 research advisory: Micro W1 UP is a candidate only; Submicro may be internal W4 or starting Micro W2 DOWN. Old published counts below can differ until a verified owner-authorized wave revision.</div>
+          <div>Primary W4 owner-marked at 6,899; W5 UP proposed. No execution authority, no new Fibonacci completion or green touch evidence.</div>
+        </div>
+      ) : null}
       <div
         style={{
           display: "grid",
@@ -1806,7 +1839,9 @@ export default function Engine22MarketStructureCard({
           <Engine22DegreeCard
             key={degree}
             degree={degree}
-            state={degree === "submicro" && submicroW3InternalNov9State ? submicroW3InternalNov9State :
+            state={degree === "micro" && nov23MicroState ? nov23MicroState :
+              degree === "submicro" && nov23SubmicroState ? nov23SubmicroState :
+              degree === "submicro" && submicroW3InternalNov9State ? submicroW3InternalNov9State :
               degree === "micro" && microAbcNov16State ? microAbcNov16State :
               degree === "micro" && microW3ReclassifiedNov9State ? microW3ReclassifiedNov9State :
               degree === "submicro" && submicroW3Nov9State ? submicroW3Nov9State :
