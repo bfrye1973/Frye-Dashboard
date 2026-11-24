@@ -5,6 +5,8 @@ on:
       - "src/pages/traderView/**"
       - "src/hooks/useTraderView.js"
       - "src/App.js"
+      - "src/pages/rows/RowChart/index.jsx"
+      - "src/pages/rows/RowChart/overlays/TraderViewChartPanel.jsx"
       - ".github/workflows/trader-view.yml"
 jobs:
   test-and-build:

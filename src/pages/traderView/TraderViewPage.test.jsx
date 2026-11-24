@@ -126,3 +126,18 @@ test("Engine 22 research facts get a Research tag, authorized facts do not", () 
   expect(view).not.toMatch(/Authorized Micro<span class="tv-chip tv-chip--RESEARCH"/);
   expect(view).toContain("Reconciliation pending");
 });
+
+test("compact mode (docked on the Chart) adds tv--compact", () => {
+  expect(markup(live, { compact: true })).toContain('class="tv tv--compact"');
+  expect(markup(live)).not.toContain("tv--compact");
+});
+
+test("Chart page: old engine panels only show in Advanced; Trader View panel is the default", () => {
+  const chart = fs.readFileSync(path.join(__dirname, "../rows/RowChart/index.jsx"), "utf8");
+  expect(chart).toMatch(/visible=\{showAdvancedPanels && state\.engine17Timeline/);
+  expect(chart).toMatch(/<Engine26ImbalanceWatchCard\s+visible=\{\s+showAdvancedPanels &&/);
+  expect(chart).toMatch(/<Engine23BehaviorCard\s+visible=\{\s+showAdvancedPanels &&/);
+  expect(chart).toMatch(/visible=\{showAdvancedPanels && state\.engine17Badges/);
+  expect(chart).toMatch(/<TraderViewChartPanel\s+visible=\{!showAdvancedPanels/);
+  expect(chart).toMatch(/=== "advanced" \? "advanced" : "trader"/);
+});

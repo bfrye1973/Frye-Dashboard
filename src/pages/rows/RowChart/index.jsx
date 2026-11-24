@@ -60,6 +60,7 @@ import Engine17DecisionTimeline from "./overlays/Engine17DecisionTimeline";
 import Engine17Badges from "./overlays/Engine17Badges";
 import Engine23BehaviorCard from "./overlays/Engine23BehaviorCard";
 import Engine26ImbalanceWatchCard from "./overlays/Engine26ImbalanceWatchCard";
+import TraderViewChartPanel from "./overlays/TraderViewChartPanel";
 import Engine25CompositeOverlay from "./overlays/Engine25CompositeOverlay";
 import Engine25MarketHealthTimeline from "./overlays/Engine25MarketHealthTimeline";
 import Engine29CrossMarketStressPanel from "./overlays/Engine29CrossMarketStressPanel";
@@ -1027,6 +1028,23 @@ export default function RowChart({
   const [engine17RawDebug, setEngine17RawDebug] = useState(null);
   const [chartMode, setChartMode] = useState(initialChartMode);
   const [selectedWaveDegree, setSelectedWaveDegree] = useState("minute");
+  // Engine panels: "trader" (Trader View cards, default) or "advanced" (the original engine panels).
+  const [panelView, setPanelView] = useState(() => {
+    try {
+      return window.localStorage.getItem("redline.chart.panelView") === "advanced" ? "advanced" : "trader";
+    } catch {
+      return "trader";
+    }
+  });
+  const choosePanelView = (v) => {
+    setPanelView(v);
+    try {
+      window.localStorage.setItem("redline.chart.panelView", v);
+    } catch {
+      /* storage unavailable: keep in-memory choice */
+    }
+  };
+  const showAdvancedPanels = panelView === "advanced";
   // Each degree is an independent display layer backed ONLY by the single
   // Engine22 Strategies node packet. Primary + Intermediate + Submicro are
   // owner-requested defaults; other degrees remain individually selectable.
@@ -3084,9 +3102,55 @@ export default function RowChart({
             chart={chartRef.current}
             priceSeries={seriesRef.current}
            />
+          <TraderViewChartPanel
+            visible={!showAdvancedPanels && normalizeSymbol(state.symbol) === "ES"}
+          />
+
+          {normalizeSymbol(state.symbol) === "ES" && (
+            <div
+              role="group"
+              aria-label="Engine panels"
+              style={{
+                position: "absolute",
+                top: 10,
+                left: 220,
+                zIndex: 120,
+                display: "flex",
+                borderRadius: 8,
+                overflow: "hidden",
+                border: "1px solid #2b3a5c",
+                boxShadow: "0 2px 10px rgba(0,0,0,0.35)",
+              }}
+            >
+              {[
+                ["trader", "Trader View"],
+                ["advanced", "Advanced"],
+              ].map(([v, label]) => (
+                <button
+                  key={v}
+                  type="button"
+                  aria-pressed={panelView === v}
+                  onClick={() => choosePanelView(v)}
+                  title={v === "trader" ? "Plain-English Trader View cards" : "Original engine panels (full detail)"}
+                  style={{
+                    padding: "6px 12px",
+                    fontSize: 12,
+                    fontWeight: 800,
+                    border: "none",
+                    cursor: "pointer",
+                    color: panelView === v ? "#0b0b14" : "#cbd5e1",
+                    background: panelView === v ? "#60a5fa" : "rgba(15,22,38,0.92)",
+                  }}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
+
            <Engine17DecisionTimeline
              overlayData={engine17Data}
-             visible={state.engine17Timeline && state.engine17Overlay}
+             visible={showAdvancedPanels && state.engine17Timeline && state.engine17Overlay}
              chartMode={selectedMode}
              symbol={state.symbol}
              selectedWaveDegree={selectedWaveDegree}
@@ -3095,6 +3159,7 @@ export default function RowChart({
 
           <Engine26ImbalanceWatchCard
             visible={
+              showAdvancedPanels &&
               state.engine23BehaviorCard &&
               state.engine17Timeline &&
               state.engine17Overlay &&
@@ -3117,6 +3182,7 @@ export default function RowChart({
 
           <Engine23BehaviorCard
             visible={
+              showAdvancedPanels &&
               state.engine23BehaviorCard &&
               state.engine17Timeline &&
               state.engine17Overlay &&
@@ -3130,7 +3196,7 @@ export default function RowChart({
 
           <Engine17Badges
             overlayData={engine17Data}
-            visible={state.engine17Badges && state.engine17Overlay}
+            visible={showAdvancedPanels && state.engine17Badges && state.engine17Overlay}
             showConfidenceStack={showDebug || state.engine17DebugPanel}
             showReplaySyncedState={false}
           />

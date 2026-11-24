@@ -26,7 +26,7 @@ const CARDS = [
   { key: "reaction", title: "Engine 3 · Price reaction", question: "Are buyers or sellers in control at the zone?" },
   { key: "participation", title: "Engine 4 · Volume", question: "Is real money behind the move?" },
   { key: "permission", title: "Engine 6 · Permission", question: "Can the paper trade go?" },
-  { key: "structure", title: "Engine 22 · Wave structure", question: "Where are we in the wave count?" },
+  { key: "structure", title: "Engine 22 · Micro wave count", question: "Where are we on the Micro chart?" },
   { key: "marketContext", title: "Market context · Engines 25 / 29 + ES Master", question: "Is the bigger picture helping?" },
 ];
 
@@ -220,12 +220,13 @@ function CardDetails({ cardKey, section }) {
 
 /* ---------- pure view (used by the page and by tests) ---------- */
 
-export function TraderViewView({ data, err = null, loading = false, refreshing = false, mock = false }) {
+export function TraderViewView({ data, err = null, loading = false, refreshing = false, mock = false, compact = false }) {
+  const rootClass = compact ? "tv tv--compact" : "tv";
   const [allOpen, setAllOpen] = useState(false);
 
   if (!data) {
     return (
-      <div className="tv" data-testid="trader-view">
+      <div className={rootClass} data-testid="trader-view">
         <div className={`tv-banner ${loading ? "tv-banner--info" : ""}`}>
           {loading ? "Loading Trader View…" : `Trader View unavailable${err ? `: ${err}` : "."}`}
         </div>
@@ -245,7 +246,7 @@ export function TraderViewView({ data, err = null, loading = false, refreshing =
       : "Unavailable";
 
   return (
-    <div className="tv" data-testid="trader-view" data-verdict={verdict.state || "UNKNOWN"}>
+    <div className={rootClass} data-testid="trader-view" data-verdict={verdict.state || "UNKNOWN"}>
       {String(freshness.status).toUpperCase() === "STALE" ? (
         <div className="tv-banner" role="alert">
           STALE — the engine snapshot is old{freshness.snapshotAsOf ? ` (as of ${fmtAzTime(freshness.snapshotAsOf)})` : ""}.
