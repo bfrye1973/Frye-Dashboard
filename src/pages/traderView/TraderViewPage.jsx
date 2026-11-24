@@ -82,149 +82,6 @@ function ReactionEvidence({ section }) {
   );
 }
 
-function fmtBarTime(iso) {
-  return fmtAzTime(iso).replace(/:\d\d (AM|PM)/, " $1");
-}
-
-function BarLine({ label, b, extra }) {
-  if (!b) return null;
-  return (
-    <div className="tv-bar">
-      <span className="tv-faint">{label}</span>{" "}
-      <strong>{fmtBarTime(b.time)}</strong> · O {fmtPrice(b.open)} H {fmtPrice(b.high)} L {fmtPrice(b.low)} C {fmtPrice(b.close)}
-      {extra ? <span className="tv-faint"> · {extra}</span> : null}
-    </div>
-  );
-}
-
-function ReactionExplain({ section }) {
-  const x = section?.explain;
-  if (!x) return null;
-  const lc = x.lastCompleted5m;
-  const lcExtra = lc
-    ? [humanize(lc.zoneRelation), humanize(lc.control), lc.quality ? `quality ${humanize(lc.quality)}${lc.qualityScore != null ? ` ${lc.qualityScore}` : ""}` : null]
-        .filter((t) => t && t !== "—")
-        .join(" · ")
-    : null;
-  return (
-    <>
-      {x.whyWaiting ? (
-        <div className="tv-why" data-testid="e3-why-waiting">
-          <span className="tv-why-label">Why waiting</span> {x.whyWaiting}
-        </div>
-      ) : null}
-      {Array.isArray(x.checks) && x.checks.length ? (
-        <>
-          <div className="tv-subhead">Engine 3 checks (published by Engine 3 v5)</div>
-          <ul className="tv-mini-checks">
-            {x.checks.map((c) => (
-              <li key={c.label} className={c.done ? "tv-mini-check--done" : ""} title={c.source || undefined}>
-                <span aria-label={c.done ? "met" : "not yet"}>{c.done ? "✓" : "○"}</span> {c.label}
-              </li>
-            ))}
-          </ul>
-        </>
-      ) : null}
-      {lc || x.forming5m ? (
-        <>
-          <div className="tv-subhead">5-minute bars</div>
-          <BarLine label="Last completed" b={lc} extra={lcExtra} />
-          <BarLine label="Forming" b={x.forming5m} extra="not used to set direction" />
-        </>
-      ) : null}
-      {x.v6Shadow ? (
-        <>
-          <div className="tv-subhead">
-            Engine 3 v6 <ShadowTag /> · no authority
-          </div>
-          <table className="tv-table">
-            <thead>
-              <tr>
-                <th></th>
-                <th>v5 (decides)</th>
-                <th>v6 shadow</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td>Direction</td>
-                <td>{humanize(x.officialDirection)}</td>
-                <td>{humanize(x.v6Shadow.direction)}</td>
-              </tr>
-              <tr>
-                <td>Reason</td>
-                <td>{humanize(x.canonicalSource)}</td>
-                <td>{humanize(x.v6Shadow.reason)}</td>
-              </tr>
-              <tr>
-                <td>Quality</td>
-                <td>{humanize(x.quality?.value)}</td>
-                <td>{humanize(x.v6Shadow.quality)}</td>
-              </tr>
-            </tbody>
-          </table>
-        </>
-      ) : null}
-    </>
-  );
-}
-
-function ReactionExplainDetails({ section }) {
-  const x = section?.explain;
-  if (!x) return null;
-  const h = x.directionHistory;
-  return (
-    <>
-      <div className="tv-subhead">Direction history</div>
-      {h && Array.isArray(h.entries) && h.entries.length ? (
-        <>
-          <table className="tv-table">
-            <thead>
-              <tr>
-                <th>Time</th>
-                <th>Change</th>
-                <th>Why (Engine 3)</th>
-              </tr>
-            </thead>
-            <tbody>
-              {h.entries.map((e) => (
-                <tr key={e.at}>
-                  <td>{fmtAzTime(e.at)}</td>
-                  <td>{e.firstObservation ? `${humanize(e.to)} (first seen)` : `${humanize(e.from)} → ${humanize(e.to)}`}</td>
-                  <td>
-                    {humanize(e.canonicalSource || e.stateTransition)}
-                    {e.controlState ? ` · ${humanize(e.controlState)}` : ""}
-                    {e.quality ? ` · ${humanize(e.quality)}` : ""}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <div className="tv-details-note">
-            {h.recordedBy}, since {fmtAzTime(h.since)}. {h.note}
-          </div>
-        </>
-      ) : (
-        <div className="tv-details-note">No direction changes recorded yet.</div>
-      )}
-      <div className="tv-details-row">
-        <span className="tv-details-key">state transition</span>
-        <span className="tv-details-val">{humanize(x.stateTransition)} · {humanize(x.canonicalSource)}</span>
-      </div>
-      <div className="tv-details-row">
-        <span className="tv-details-key">control scores</span>
-        <span className="tv-details-val">
-          sellers {x.observedControl?.scores?.sellers ?? "—"} · buyers {x.observedControl?.scores?.buyers ?? "—"} · mixed {x.observedControl?.scores?.mixed ?? "—"}
-        </span>
-      </div>
-      <div className="tv-details-row">
-        <span className="tv-details-key">Engine 3 rule codes</span>
-        <span className="tv-details-val">{(x.ruleCodes || []).join(", ") || "—"}</span>
-      </div>
-    </>
-  );
-}
-
 function ReactionDetails({ section }) {
   const tf = section?.details?.timeframes || {};
   return ["oneMinute", "fiveMinute", "tenMinute"].map((k) =>
@@ -348,26 +205,14 @@ function MarketDetails({ section }) {
 
 function CardExtras({ cardKey, section }) {
   if (!section) return null;
-  if (cardKey === "reaction")
-    return (
-      <>
-        <ReactionExplain section={section} />
-        <ReactionEvidence section={section} />
-      </>
-    );
+  if (cardKey === "reaction") return <ReactionEvidence section={section} />;
   if (cardKey === "marketContext") return <MarketExtras section={section} />;
   return <DisplayWarnings section={section} />;
 }
 
 function CardDetails({ cardKey, section }) {
   if (!section) return null;
-  if (cardKey === "reaction")
-    return (
-      <>
-        <ReactionExplainDetails section={section} />
-        <ReactionDetails section={section} />
-      </>
-    );
+  if (cardKey === "reaction") return <ReactionDetails section={section} />;
   if (cardKey === "participation") return <ParticipationDetails section={section} />;
   if (cardKey === "marketContext") return <MarketDetails section={section} />;
   return <DetailsRows obj={section.details} skip={["displayWarnings"]} />;
