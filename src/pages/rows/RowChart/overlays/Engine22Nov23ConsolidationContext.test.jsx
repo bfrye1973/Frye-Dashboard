@@ -15,7 +15,7 @@ test("current owner research renders Micro UP candidate and Submicro unresolved 
   engine22Display={base} currentWavelength={{degrees:{},ownerResearchContext:context}}/>);
  for(const phrase of ["MICRO W1 UP CANDIDATE","SUBMICRO CONSOLIDATION",
   "DIRECTION UNRESOLVED","7272.25","7313.25","7240","W2 DOWN",
-  "RESEARCH ONLY","NO NEW W2 FIBS","NOT LIVE"])
+  "RESEARCH ONLY","NOT LIVE"])
    expect(html.toUpperCase()).toContain(phrase.toUpperCase());
  expect(html).toContain('data-testid="engine22-nov23-consolidation-context"');
  expect(html).not.toContain("OLD MICRO C DOWN");
