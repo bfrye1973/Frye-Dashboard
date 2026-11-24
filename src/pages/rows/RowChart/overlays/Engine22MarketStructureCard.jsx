@@ -1016,6 +1016,54 @@ export default function Engine22MarketStructureCard({
     ],levels:[],
     rules:["Unconfirmed Micro W1 candidate; never force a W2 retracement from the Primary W4 low."]
   } : null;
+  // Source-controlled owner recount v8 supersedes *display-only* lower-degree working cards.
+  // Does not overwrite older Engine22 historical models or claim Engine6 authorization.
+  const recount=currentWavelength?.ownerRecountV8?.micro?.version==="engine22.ownerRecountNov23.v8.micro" &&
+     currentWavelength.ownerRecountV8.micro.noExecution===true
+       ? currentWavelength.ownerRecountV8 : null;
+  const currentCleared=(degree)=>recount?.[degree] ? {
+    degree,label:degree.charAt(0).toUpperCase()+degree.slice(1),
+    active:false,badge:"RECOUNT",direction:"NEUTRAL",
+    subtitle:"Current count cleared — earlier owner models retained in history",
+    headline:`${degree.toUpperCase()} — RECOUNT PENDING / NO ACTIVE WAVE SELECTED`,
+    rows:[
+      {label:"Current",value:"RECOUNT PENDING — PREVIOUS NOVEMBER COUNT NO LONGER CURRENT"},
+      {label:"History",value:"ALL OLDER WAVE ANCHORS AND FIBONACCI TOUCHES PRESERVED"},
+      {label:"Targets",value:"NONE PUBLISHED UNTIL A NEW OWNER-VALIDATED COUNT"},
+      {label:"Engine6",value:"ENGINE22 RESEARCH ONLY — EXECUTION AUTHORITY UNCHANGED"}
+    ],
+    levels:[],rules:["No new Elliott Wave decision, target or trade permission until owner-authorized recount."]
+  } : null;
+  const clearedMinorState=currentCleared("minor");
+  const clearedMinuteState=currentCleared("minute");
+  const clearedSubminuteState=currentCleared("subminute");
+  const recountedMicroState=recount?.micro ? {
+    degree:"micro",label:"Micro",active:true,badge:"W1 UP?",direction:"UP",
+    subtitle:"Owner research — new upward impulse candidate, not confirmed",
+    headline:"MICRO W1 UP — CANDIDATE / W2 DOWN POSSIBLE",
+    rows:[
+      {label:"W1 high",value:wavePrice(recount.micro.candidateHigh?.price)+" — NOV 23 CHART REFERENCE"},
+      {label:"W1 low",value:"NOT VERIFIED ON MATCHING MICRO PRICE BASIS"},
+      {label:"Current",value:"W1 COMPLETION UNCONFIRMED — MAY BE AN INTERNAL CORRECTION"},
+      {label:"Next",value:"WATCH FOR VALIDATED MICRO W1 HIGH / NEXT PULLBACK"},
+      {label:"W2 Fibonacci",value:"WITHHELD UNTIL OWNER-CONFIRMED W1 LOW AND HIGH"},
+      {label:"Engine6",value:"RESEARCH ADVISORY — NO LONG PERMISSION CREATED"}
+    ],
+    levels:[],rules:["Research candidate, not an authorized Engine 6 directional trade signal."]
+  } : null;
+  const recountedSubmicroState=recount?.submicro ? {
+    degree:"submicro",label:"Submicro",active:false,badge:"UNRESOLVED",direction:"NEUTRAL",
+    subtitle:"Owner research — no verified current subdivision",
+    headline:"SUBMICRO CONSOLIDATION — DIRECTION UNRESOLVED",
+    rows:[
+      {label:"Scenario A",value:"POSSIBLE INTERNAL W4 BEFORE UPWARD CONTINUATION"},
+      {label:"Scenario B",value:"POSSIBLE MICRO W2 DOWN CORRECTION"},
+      {label:"Current",value:"NO CONFIRMED ENDING PIVOT OR WAVE LABEL"},
+      {label:"Fibonacci",value:"NO NEW LEVELS PUBLISHED"},
+      {label:"Engine6",value:"NEUTRAL RESEARCH CONTEXT — DO NOT FORCE A DIRECTION"}
+    ],
+    levels:[],rules:["Wait for smaller-wave evidence; trade-zone rules remain with Engines 3, 4 and 6."]
+  } : null;
   const ownerMicro = v3ShadowDegrees?.micro;
   const ownerSubmicro = v3ShadowDegrees?.intraday_submicro;
   const ownerSubminute = v3ShadowDegrees?.subminute;
@@ -1887,7 +1935,12 @@ export default function Engine22MarketStructureCard({
           <Engine22DegreeCard
             key={degree}
             degree={degree}
-            state={degree === "primary" && primaryW5OwnerState ? primaryW5OwnerState :
+            state={degree === "minor" && clearedMinorState ? clearedMinorState :
+              degree === "minute" && clearedMinuteState ? clearedMinuteState :
+              degree === "subminute" && clearedSubminuteState ? clearedSubminuteState :
+              degree === "micro" && recountedMicroState ? recountedMicroState :
+              degree === "submicro" && recountedSubmicroState ? recountedSubmicroState :
+              degree === "primary" && primaryW5OwnerState ? primaryW5OwnerState :
               degree === "intermediate" && intermediateW1OwnerState ? intermediateW1OwnerState :
               degree === "micro" && microW1RoadmapState ? microW1RoadmapState :
               degree === "micro" && nov23MicroState ? nov23MicroState :
