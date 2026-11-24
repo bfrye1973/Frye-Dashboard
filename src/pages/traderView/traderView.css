@@ -303,3 +303,18 @@
 @media (max-width: 1400px) {
   .tv--compact .tv-cards { grid-template-columns: 1fr; }
 }
+
+/* ---------- Engine 3 explain ---------- */
+.tv-chip--DIAGNOSTIC { color: var(--tv-info); background: var(--tv-info-bg); border-color: var(--tv-info-border); font-size: 10px; padding: 1px 6px; }
+.tv-why {
+  font-size: 13px;
+  border: 1px solid var(--tv-waiting-border);
+  background: var(--tv-waiting-bg);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+.tv-why-label { font-weight: 800; color: var(--tv-waiting); margin-right: 4px; }
+.tv-mini-checks { list-style: none; margin: 0; padding: 0; display: grid; gap: 3px; font-size: 13px; color: var(--tv-muted); }
+.tv-mini-check--done { color: var(--tv-text); }
+.tv-mini-check--done span { color: var(--tv-ready); font-weight: 800; }
+.tv-bar { font-size: 12px; overflow-wrap: anywhere; }

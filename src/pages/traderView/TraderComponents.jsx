@@ -102,13 +102,19 @@ export function TraderKeyValue({ label, value }) {
   const raw = String(label ?? "");
   const isShadow = /\(shadow\)/i.test(raw);
   const isResearch = /\(research\)/i.test(raw);
-  const clean = raw.replace(/\s*\((shadow|research)\)\s*/i, " ").trim();
+  const isDiagnostic = /\(diagnostic\)/i.test(raw);
+  const clean = raw.replace(/\s*\((shadow|research|diagnostic)\)\s*/i, " ").trim();
   return (
     <div className={`tv-kv ${isResearch ? "tv-kv--research" : ""}`}>
       <div className="tv-kv-label">
         {clean}
         {isShadow ? <ShadowTag /> : null}
         {isResearch ? <ResearchTag /> : null}
+        {isDiagnostic ? (
+          <span className="tv-chip tv-chip--DIAGNOSTIC" title="Observed by Engine 3 but not its official direction">
+            Diagnostic
+          </span>
+        ) : null}
       </div>
       <div className="tv-kv-value">{humanize(value)}</div>
     </div>
