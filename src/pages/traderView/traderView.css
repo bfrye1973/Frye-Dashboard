@@ -289,3 +289,17 @@
 }
 
 .tv-faint { color: var(--tv-faint); }
+
+/* ---------- compact: Trader View docked inside the Chart page ---------- */
+.tv--compact { padding: 12px; font-size: 14px; min-height: 0; }
+.tv--compact .tv-top { gap: 12px; }
+.tv--compact .tv-price { font-size: 22px; }
+.tv--compact .tv-top-spacer { display: none; }
+.tv--compact .tv-row2 { grid-template-columns: 1fr; }
+.tv--compact .tv-rightnow-text { font-size: 15px; }
+.tv--compact .tv-pipeline { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.tv--compact .tv-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.tv--compact .tv-card-answer { font-size: 15px; }
+@media (max-width: 1400px) {
+  .tv--compact .tv-cards { grid-template-columns: 1fr; }
+}
