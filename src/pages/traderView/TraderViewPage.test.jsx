@@ -140,6 +140,8 @@ test("Chart page: Trader View panel is an Indicators toggle (default on), center
   expect(chart).toMatch(/visible=\{showAdvancedPanels && state\.engine17Badges/);
   expect(chart).toMatch(/<TraderViewChartPanel\s+visible=\{!showAdvancedPanels/);
   expect(chart).toMatch(/const showAdvancedPanels = !state\.traderViewPanel;/);
+  // must be declared after the chart state exists (a TDZ crash took the Chart page down on the preview)
+  expect(chart.indexOf("const showAdvancedPanels")).toBeGreaterThan(chart.indexOf("const [state, setState] = useState("));
   expect((chart.match(/traderViewPanel: true/g) || []).length).toBe(2); // default + reset
   expect(chart).not.toMatch(/aria-label="Engine panels"/); // old top-right switch removed
   const toolbar = fs.readFileSync(path.join(__dirname, "../rows/RowChart/IndicatorsToolbar.jsx"), "utf8");

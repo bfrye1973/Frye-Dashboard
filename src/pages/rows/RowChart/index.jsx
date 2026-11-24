@@ -1028,8 +1028,6 @@ export default function RowChart({
   const [engine17RawDebug, setEngine17RawDebug] = useState(null);
   const [chartMode, setChartMode] = useState(initialChartMode);
   const [selectedWaveDegree, setSelectedWaveDegree] = useState("minute");
-  // Trader View panel (Indicators menu, on by default) replaces the original engine panels.
-  const showAdvancedPanels = !state.traderViewPanel;
   // Each degree is an independent display layer backed ONLY by the single
   // Engine22 Strategies node packet. Primary + Intermediate + Submicro are
   // owner-requested defaults; other degrees remain individually selectable.
@@ -1113,6 +1111,9 @@ export default function RowChart({
 
     showPremarketFibs: false,
   });
+
+  // Trader View panel (Indicators menu, on by default) replaces the original engine panels.
+  const showAdvancedPanels = !state.traderViewPanel;
 
   // Engine 11B: newest verified page for ES 5m/10m/1h/4h.
   // A missing/expired authorization uses bounded contract-identified futures
