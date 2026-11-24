@@ -1,0 +1,20 @@
+name: Trader View v1 frontend
+on:
+  pull_request:
+    paths:
+      - "src/pages/traderView/**"
+      - "src/hooks/useTraderView.js"
+      - "src/App.js"
+      - ".github/workflows/trader-view.yml"
+jobs:
+  test-and-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - run: npm ci
+      - run: CI=true npx react-scripts test --watchAll=false src/pages/traderView
+      - run: npm run build

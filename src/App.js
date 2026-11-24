@@ -22,6 +22,8 @@ const MarketMeterPage = React.lazy(() => import("./pages/redline/MarketMeterPage
 const IndexSectorsPage = React.lazy(() => import("./pages/redline/IndexSectorsPage"));
 const WaveDegreesPage = React.lazy(() => import("./pages/redline/WaveDegreesPage"));
 const ControlsPage = React.lazy(() => import("./pages/redline/ControlsPage"));
+// Trader View v1 — hidden route (not in nav) until Brian approves the preview.
+const TraderViewPage = React.lazy(() => import("./pages/traderView/TraderViewPage"));
 
 const Engine25FullDashboard = React.lazy(() =>
   import("./pages/engine25/Engine25FullDashboard")
@@ -392,6 +394,15 @@ export default function App() {
             <Route
               path="/wave-degrees"
               element={<Navigate to="/strategies" replace />}
+            />
+
+            <Route
+              path="/trader-view"
+              element={
+                <RedlineAppShell>
+                  <TraderViewPage />
+                </RedlineAppShell>
+              }
             />
 
             <Route
