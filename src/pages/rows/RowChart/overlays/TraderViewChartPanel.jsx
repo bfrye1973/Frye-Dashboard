@@ -18,8 +18,8 @@ function TraderViewChartPanelInner() {
       data-testid="chart-trader-view-panel"
       style={{
         position: "absolute",
-        top: 88,
-        left: 18,
+        top: 52,
+        left: 60, // clear of the drawing toolbar
         zIndex: 108,
         width: "min(940px, 56%)",
         maxHeight: "calc(100vh - 110px)",

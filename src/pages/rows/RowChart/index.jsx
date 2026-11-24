@@ -3113,7 +3113,7 @@ export default function RowChart({
               style={{
                 position: "absolute",
                 top: 10,
-                left: 220,
+                right: 90, // left of the price scale, clear of the stream badge
                 zIndex: 120,
                 display: "flex",
                 borderRadius: 8,
