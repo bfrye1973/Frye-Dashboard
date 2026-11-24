@@ -90,15 +90,25 @@ export function TraderFreshnessBadge({ freshness, err, refreshing, mock = false 
 }
 
 /* ---------------- key/value tile ---------------- */
+export function ResearchTag() {
+  return (
+    <span className="tv-chip tv-chip--RESEARCH" title="Owner working research — not confirmed, not the authorized count, never a trade signal">
+      Research
+    </span>
+  );
+}
+
 export function TraderKeyValue({ label, value }) {
   const raw = String(label ?? "");
   const isShadow = /\(shadow\)/i.test(raw);
-  const clean = isShadow ? raw.replace(/\s*\(shadow\)\s*/i, " ").trim() : raw;
+  const isResearch = /\(research\)/i.test(raw);
+  const clean = raw.replace(/\s*\((shadow|research)\)\s*/i, " ").trim();
   return (
-    <div className="tv-kv">
+    <div className={`tv-kv ${isResearch ? "tv-kv--research" : ""}`}>
       <div className="tv-kv-label">
         {clean}
         {isShadow ? <ShadowTag /> : null}
+        {isResearch ? <ResearchTag /> : null}
       </div>
       <div className="tv-kv-value">{humanize(value)}</div>
     </div>

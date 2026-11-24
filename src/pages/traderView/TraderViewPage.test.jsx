@@ -108,3 +108,21 @@ test("mock mode labels the badge SAMPLE, never LIVE", () => {
   expect(view).not.toContain("tv-chip--LIVE");
   expect(markup(live)).toContain("tv-chip--LIVE");
 });
+
+test("Engine 22 research facts get a Research tag, authorized facts do not", () => {
+  const d = clone(live);
+  d.sections.structure = {
+    ...d.sections.structure,
+    state: "RECONCILIATION_PENDING",
+    label: "Authorized count and owner research disagree — reconciliation pending",
+    facts: [
+      { label: "Authorized Micro", value: "C DOWN" },
+      { label: "Micro (research)", value: "W1 UP candidate (unconfirmed)" },
+      { label: "Count status", value: "RECONCILIATION_PENDING" },
+    ],
+  };
+  const view = markup(d);
+  expect(view).toMatch(/Micro<span class="tv-chip tv-chip--RESEARCH"/);
+  expect(view).not.toMatch(/Authorized Micro<span class="tv-chip tv-chip--RESEARCH"/);
+  expect(view).toContain("Reconciliation pending");
+});

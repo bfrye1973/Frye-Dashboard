@@ -8,6 +8,7 @@ import "./traderView.css";
 import useTraderView from "../../hooks/useTraderView";
 import {
   DetailsRows,
+  ResearchTag,
   ShadowTag,
   TraderCard,
   TraderFreshnessBadge,
@@ -367,6 +368,9 @@ export function TraderViewView({ data, err = null, loading = false, refreshing =
           </span>
           <span>
             <ShadowTag /> experimental value, evidence only
+          </span>
+          <span>
+            <ResearchTag /> owner research, not confirmed
           </span>
         </div>
         <div className="tv-top-spacer" />
