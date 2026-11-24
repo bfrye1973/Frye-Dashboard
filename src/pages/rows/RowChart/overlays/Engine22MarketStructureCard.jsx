@@ -936,6 +936,86 @@ export default function Engine22MarketStructureCard({
     engine22V3Projection?.v3LiveShadow?.shadowOnly === true
       ? engine22V3Projection.v3LiveShadow.degrees : null;
 
+  // Dated, owner-reported research context. Never treat as the authoritative engine22 selection.
+  // Unlike old Nov 16 historical models, these cards clearly state the new structure is provisional.
+  const ownerNov23Research=currentWavelength?.ownerResearchContext?.schema==="engine22.ownerNov23ResearchContext.v1" &&
+    currentWavelength.ownerResearchContext.noExecution===true &&
+    currentWavelength.ownerResearchContext.pointInTimeAsOfAvailable===false
+      ? currentWavelength.ownerResearchContext : null;
+  const nov23MicroState=ownerNov23Research ? {
+    degree:"micro",label:"Micro",active:true,badge:"W1 UP?",direction:"UP",
+    subtitle:"Nov 23 owner research — chart snapshot, not live / no trade permission",
+    headline:"MICRO W1 UP CANDIDATE — HIGH UNCONFIRMED / POSSIBLE W2 DOWN",
+    rows:[
+      {label:"Parent",value:"SUBMINUTE / MINUTE RECOUNT PENDING"},
+      {label:"High reference",value:wavePrice(ownerNov23Research.micro.referenceHigh?.price)+" — NOV 23 CHART ONLY"},
+      {label:"Current",value:"UP RALLY OBSERVED; CONSOLIDATION / MICRO W2 ALTERNATIVE"},
+      {label:"Evidence",value:"FIVE SUBMICRO SUBDIVISIONS NOT VERIFIED"},
+      {label:"Next",value:"CONFIRM SAME-BASIS MICRO W1 LOW/HIGH BEFORE W2 RETRACEMENTS"},
+      {label:"Authority",value:"RESEARCH ONLY — ENGINE 6 AUTHORIZED MICRO SELECTION UNCHANGED"}
+    ],levels:[],rules:["Snapshot context only; no entry, no Fib touch claims and no new wave-completion permission."]
+  } : null;
+  const nov23SubmicroState=ownerNov23Research ? {
+    degree:"submicro",label:"Submicro",active:true,badge:"UNRESOLVED",direction:"NEUTRAL",
+    subtitle:"Nov 23 owner research — sideways range, not a confirmed child wave",
+    headline:"SUBMICRO CONSOLIDATION — INTERNAL W4 OR MICRO W2 DOWN START",
+    rows:[
+      {label:"Range",value:"~7250–7300 — OWNER CHART, NOT AUTHORIZED TRADE ZONE"},
+      {label:"Up reference",value:"7313.25 — PRIOR RALLY HIGH (UNVERIFIED PIVOT)"},
+      {label:"Down reference",value:"~7240 — RANGE SUPPORT (NOT WAVE INVALIDATION)"},
+      {label:"Current",value:"DIRECTION UNRESOLVED; DO NOT FORCE A COUNT"},
+      {label:"Next",value:"VERIFY 5M/10M SWINGS AND COMPLETED SUBDIVISIONS"},
+      {label:"Authority",value:"RESEARCH ONLY — ENGINE 6 AUTHORIZED SUBMICRO SELECTION UNCHANGED"}
+    ],levels:[],rules:["No entry signal; wait for zone reaction and Engine 6 approved confirmation."]
+  } : null;
+  // Owner wave roadmap is as-of research, not live authority or a broker signal.
+  const roadmap=currentWavelength?.ownerWaveRoadmap?.schema==="engine22.ownerWaveRoadmap.v1" &&
+    currentWavelength.ownerWaveRoadmap.noExecution===true
+      ? currentWavelength.ownerWaveRoadmap:null;
+  const primaryW5OwnerState=roadmap ? {
+    degree:"primary",label:"Primary",active:true,direction:"UP",badge:"W5 UP?",
+    subtitle:"Owner-approved W4 ending / W5 working research — source clock and basis unverified",
+    headline:"PRIMARY W4 COMPLETE (OWNER MARK) → W5 UP PROPOSED / UNCONFIRMED",
+    fibTitle:"PRIMARY W5 UP — W4 LOW + ORIGINAL W1 LENGTH (RESEARCH WATCH)",
+    rows:[
+      {label:"W3 high",value:wavePrice(roadmap.primary.priorW3High.price)+" — 2026-10-07 — AZ TIME PENDING"},
+      {label:"W4 low",value:wavePrice(roadmap.primary.ownerMarkedW4Low.price)+" — 2026-11-20 — OWNER-MARKED"},
+      {label:"W1 length",value:wavePrice(roadmap.primary.w1.length)+" ES POINTS"},
+      {label:"Current",value:"W5 UP OWNER WORKING COUNT; INTERNAL UP IMPULSE NOT CONFIRMED"},
+      {label:"History",value:"OLDER PRIMARY W3 6157 / W4 4825 PRESERVED"},
+      {label:"Authority",value:"OWNER RESEARCH; NO ENGINE6 EXECUTION PERMISSION"}
+    ],levels:roadmap.primary.levels||[],
+    rules:["W5 levels are mathematical projections, not guaranteed ends. Tick rounding 0.25; do not backfill green touch states."]
+  } : null;
+  const intermediateW1OwnerState=roadmap ? {
+    degree:"intermediate",label:"Intermediate",active:true,direction:"UP",badge:"W1 UP?",
+    subtitle:"First upward wave inside proposed Primary W5 — research only",
+    headline:"INTERMEDIATE W1 UP DEVELOPING — ENDING HIGH NOT ESTABLISHED",
+    fibTitle:"FIRST INTERMEDIATE W1 UP — RETRACEMENT RESISTANCE (NOT W1 END)",
+    rows:[
+      {label:"Parent",value:"PRIMARY W5 UP WORKING RESEARCH"},
+      {label:"Origin",value:wavePrice(roadmap.intermediate.originLowCandidate.price)+" — OWNER RESEARCH 2026-11-20"},
+      {label:"Method",value:"RETRACE PRIOR 7885→6899 CORRECTION; NOT A HISTORICAL W1 EXTENSION"},
+      {label:"Current",value:"UPWARD SWING DEVELOPING — END HIGH UNCONFIRMED"},
+      {label:"Next",value:"VERIFY FIVE SMALLER SUBDIVISIONS AND CONFIRM ENDING PIVOT"},
+      {label:"Authority",value:"NO TRADING SIGNAL / NO ENGINE6 PERMISSION"}
+    ],levels:roadmap.intermediate.levels||[],
+    rules:["Potential resistance only; completed Intermediate W1 ending price is unknown."]
+  } : null;
+  const microW1RoadmapState=roadmap ? {
+    degree:"micro",label:"Micro",active:true,direction:"UP",badge:"W1 UP?",
+    subtitle:"Owner working 10m/30m structure — as-of research, not live",
+    headline:"MICRO W1 UP CANDIDATE — W2 DOWN NOT YET IDENTIFIED",
+    rows:[
+      {label:"Parent",value:"LOWER DEGREE IMPULSE / RECOUNT PENDING"},
+      {label:"High reference",value:wavePrice(roadmap.micro.observedReferenceHigh.price)+" — NOV 23 SCREENSHOT ONLY"},
+      {label:"W1 origin",value:"NOT VERIFIED FOR THIS MICRO DEGREE"},
+      {label:"W1 completion",value:"NOT CONFIRMED / ALTERNATIVE UP CONTINUATION"},
+      {label:"W2 Fib",value:"NOT CALCULATED UNTIL BOTH SAME-BASIS W1 ANCHORS VERIFIED"},
+      {label:"Authority",value:"ENGINE6 MICRO ADVISORY ONLY; NO ENTRY AUTHORIZATION"}
+    ],levels:[],
+    rules:["Unconfirmed Micro W1 candidate; never force a W2 retracement from the Primary W4 low."]
+  } : null;
   const ownerMicro = v3ShadowDegrees?.micro;
   const ownerSubmicro = v3ShadowDegrees?.intraday_submicro;
   const ownerSubminute = v3ShadowDegrees?.subminute;
@@ -1786,6 +1866,15 @@ export default function Engine22MarketStructureCard({
         </div>
       </div>
 
+      {ownerNov23Research ? (
+        <div role="note" data-testid="engine22-nov23-consolidation-context"
+          style={{border:"1px solid #9a7415",borderRadius:10,background:"#231b0a",padding:"9px 12px",color:"#fcd34d",fontSize:12,lineHeight:1.45}}>
+          <strong>OWNER RESEARCH — {ownerNov23Research.observedOn} (NOT LIVE) · MICRO UP CANDIDATE / SUBMICRO UNRESOLVED</strong>
+          <div>Screenshot observation: ES {wavePrice(ownerNov23Research.consolidation.priceAtScreenshot)} inside ~{ownerNov23Research.consolidation.observedBand?.join("–")}; 7,313.25 prior rally high; ~7,240 lower reference. These are not confirmed pivots, trading zones or live signals.</div>
+          <div>Engine 6 research advisory: Micro W1 UP is a candidate only; Submicro may be internal W4 or starting Micro W2 DOWN. Old published counts below can differ until a verified owner-authorized wave revision.</div>
+          <div>Primary W4 owner-marked at 6,899; W5 UP proposed. No execution authority, no new Fibonacci completion or green touch evidence.</div>
+        </div>
+      ) : null}
       <div
         style={{
           display: "grid",
@@ -1798,7 +1887,12 @@ export default function Engine22MarketStructureCard({
           <Engine22DegreeCard
             key={degree}
             degree={degree}
-            state={degree === "submicro" && submicroW3InternalNov9State ? submicroW3InternalNov9State :
+            state={degree === "primary" && primaryW5OwnerState ? primaryW5OwnerState :
+              degree === "intermediate" && intermediateW1OwnerState ? intermediateW1OwnerState :
+              degree === "micro" && microW1RoadmapState ? microW1RoadmapState :
+              degree === "micro" && nov23MicroState ? nov23MicroState :
+              degree === "submicro" && nov23SubmicroState ? nov23SubmicroState :
+              degree === "submicro" && submicroW3InternalNov9State ? submicroW3InternalNov9State :
               degree === "micro" && microAbcNov16State ? microAbcNov16State :
               degree === "micro" && microW3ReclassifiedNov9State ? microW3ReclassifiedNov9State :
               degree === "submicro" && submicroW3Nov9State ? submicroW3Nov9State :
