@@ -1786,6 +1786,14 @@ export default function Engine22MarketStructureCard({
         </div>
       </div>
 
+      {/* Owner-supplied Nov 23 market snapshot; deliberately not a live wave count or trading signal. */}
+      <div role="note" data-testid="engine22-nov23-consolidation-context"
+        style={{border:"1px solid #9a7415",borderRadius:10,background:"#231b0a",padding:"9px 12px",color:"#fcd34d",fontSize:12,lineHeight:1.45}}>
+        <strong>NOV 23, 2026 ES RESEARCH SNAPSHOT — CONSOLIDATION / DIRECTION UNRESOLVED</strong>
+        <div>Owner chart: ES 7,272.25 in a roughly 7,250–7,300 zone; 7,313.25 prior rally high; ~7,240 lower range reference. All levels are historical screenshot observations, NOT live prices, verified pivots, trading zones or executable alerts.</div>
+        <div>Micro W1 UP: completion candidate only, not owner-confirmed. Submicro: sideways structure may be an internal W4 or the start of a Micro W2 correction; no final count selected. No new W2 Fibonacci ladder until same-basis W1 low/high and wave subdivisions are verified.</div>
+        <div>Higher degree: owner research marks Primary W4 COMPLETE at 6,899 (Nov 20) with Primary W5 UP proposed; old published cards below can still show prior November counts until independently revised. Historical touches and canonical Engine 6 authority are unchanged.</div>
+      </div>
       <div
         style={{
           display: "grid",
