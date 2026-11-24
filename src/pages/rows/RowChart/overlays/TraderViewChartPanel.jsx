@@ -1,6 +1,6 @@
 // Trader View docked on the Chart page (replaces the engine panels by default).
 // DISPLAY ONLY: same single endpoint and hook as /trader-view; no engine logic here.
-// The old engine panels remain available behind the Chart's "Advanced" switch.
+// Turned on/off from the Indicators menu ("Trader View panel"); off shows the original engine panels.
 
 import React from "react";
 import useTraderView from "../../../../hooks/useTraderView";
@@ -19,9 +19,10 @@ function TraderViewChartPanelInner() {
       style={{
         position: "absolute",
         top: 52,
-        left: 60, // clear of the drawing toolbar
-        zIndex: 108,
-        width: "min(940px, 56%)",
+        left: "50%", // centered in the chart
+        transform: "translateX(-50%)",
+        zIndex: 108, // below the Indicators dropdown (300)
+        width: "min(900px, 62%)",
         maxHeight: "calc(100vh - 110px)",
         overflowY: "auto",
         borderRadius: 14,

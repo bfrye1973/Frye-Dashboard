@@ -1028,23 +1028,8 @@ export default function RowChart({
   const [engine17RawDebug, setEngine17RawDebug] = useState(null);
   const [chartMode, setChartMode] = useState(initialChartMode);
   const [selectedWaveDegree, setSelectedWaveDegree] = useState("minute");
-  // Engine panels: "trader" (Trader View cards, default) or "advanced" (the original engine panels).
-  const [panelView, setPanelView] = useState(() => {
-    try {
-      return window.localStorage.getItem("redline.chart.panelView") === "advanced" ? "advanced" : "trader";
-    } catch {
-      return "trader";
-    }
-  });
-  const choosePanelView = (v) => {
-    setPanelView(v);
-    try {
-      window.localStorage.setItem("redline.chart.panelView", v);
-    } catch {
-      /* storage unavailable: keep in-memory choice */
-    }
-  };
-  const showAdvancedPanels = panelView === "advanced";
+  // Trader View panel (Indicators menu, on by default) replaces the original engine panels.
+  const showAdvancedPanels = !state.traderViewPanel;
   // Each degree is an independent display layer backed ONLY by the single
   // Engine22 Strategies node packet. Primary + Intermediate + Submicro are
   // owner-requested defaults; other degrees remain individually selectable.
@@ -1124,6 +1109,7 @@ export default function RowChart({
     engine25CompositeOverlay: false,
     engine25Timeline: false,
     engine29CrossMarketPanel: false,
+    traderViewPanel: true,
 
     showPremarketFibs: false,
   });
@@ -2777,6 +2763,7 @@ export default function RowChart({
       engine25CompositeOverlay: false,
       engine25Timeline: false,
       engine29CrossMarketPanel: false,
+      traderViewPanel: true,
 
       showPremarketFibs: false,
     }));
@@ -2826,6 +2813,7 @@ export default function RowChart({
     engine25CompositeOverlay: state.engine25CompositeOverlay,
     engine25Timeline: state.engine25Timeline,
     engine29CrossMarketPanel: state.engine29CrossMarketPanel,
+    traderViewPanel: state.traderViewPanel,
     engine18LiquidityZones: state.engine18LiquidityZones,
 
     showPremarketFibs: state.showPremarketFibs,
@@ -3105,48 +3093,6 @@ export default function RowChart({
           <TraderViewChartPanel
             visible={!showAdvancedPanels && normalizeSymbol(state.symbol) === "ES"}
           />
-
-          {normalizeSymbol(state.symbol) === "ES" && (
-            <div
-              role="group"
-              aria-label="Engine panels"
-              style={{
-                position: "absolute",
-                top: 10,
-                right: 90, // left of the price scale, clear of the stream badge
-                zIndex: 120,
-                display: "flex",
-                borderRadius: 8,
-                overflow: "hidden",
-                border: "1px solid #2b3a5c",
-                boxShadow: "0 2px 10px rgba(0,0,0,0.35)",
-              }}
-            >
-              {[
-                ["trader", "Trader View"],
-                ["advanced", "Advanced"],
-              ].map(([v, label]) => (
-                <button
-                  key={v}
-                  type="button"
-                  aria-pressed={panelView === v}
-                  onClick={() => choosePanelView(v)}
-                  title={v === "trader" ? "Plain-English Trader View cards" : "Original engine panels (full detail)"}
-                  style={{
-                    padding: "6px 12px",
-                    fontSize: 12,
-                    fontWeight: 800,
-                    border: "none",
-                    cursor: "pointer",
-                    color: panelView === v ? "#0b0b14" : "#cbd5e1",
-                    background: panelView === v ? "#60a5fa" : "rgba(15,22,38,0.92)",
-                  }}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          )}
 
            <Engine17DecisionTimeline
              overlayData={engine17Data}

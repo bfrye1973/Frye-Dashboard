@@ -238,6 +238,7 @@ export default function IndicatorsToolbar({
   engine25Timeline = false,
 
   engine29CrossMarketPanel = false,
+  traderViewPanel = true,
   engine18LiquidityZones = false,
   
   showPremarketFibs = false,
@@ -261,7 +262,7 @@ export default function IndicatorsToolbar({
     <div
       style={{
         position: "absolute",
-        zIndex: 5,
+        zIndex: 300, // above every chart overlay (engine panels and Trader View sit at ~108)
         marginTop: 6,
         background: "#111",
         border: "1px solid #2b2b2b",
@@ -625,6 +626,23 @@ export default function IndicatorsToolbar({
                       }
                     />{" "}
                     Market Health Timeline
+                  </label>
+                </div>
+
+                {divider}
+
+                <div style={{ color: "#9ca3af", fontSize: 12, margin: "6px 0 8px" }}>
+                  Trader View
+                </div>
+
+                <div style={{ display: "grid", gap: 6 }}>
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={!!traderViewPanel}
+                      onChange={(e) => onChange?.({ traderViewPanel: e.target.checked })}
+                    />{" "}
+                    Trader View panel (off = original engine panels)
                   </label>
                 </div>
 

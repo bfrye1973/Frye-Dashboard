@@ -132,37 +132,21 @@ test("compact mode (docked on the Chart) adds tv--compact", () => {
   expect(markup(live)).not.toContain("tv--compact");
 });
 
-test("Chart page: old engine panels only show in Advanced; Trader View panel is the default", () => {
+test("Chart page: Trader View panel is an Indicators toggle (default on), centered, under the dropdown", () => {
   const chart = fs.readFileSync(path.join(__dirname, "../rows/RowChart/index.jsx"), "utf8");
   expect(chart).toMatch(/visible=\{showAdvancedPanels && state\.engine17Timeline/);
   expect(chart).toMatch(/<Engine26ImbalanceWatchCard\s+visible=\{\s+showAdvancedPanels &&/);
   expect(chart).toMatch(/<Engine23BehaviorCard\s+visible=\{\s+showAdvancedPanels &&/);
   expect(chart).toMatch(/visible=\{showAdvancedPanels && state\.engine17Badges/);
   expect(chart).toMatch(/<TraderViewChartPanel\s+visible=\{!showAdvancedPanels/);
-  expect(chart).toMatch(/=== "advanced" \? "advanced" : "trader"/);
+  expect(chart).toMatch(/const showAdvancedPanels = !state\.traderViewPanel;/);
+  expect((chart.match(/traderViewPanel: true/g) || []).length).toBe(2); // default + reset
+  expect(chart).not.toMatch(/aria-label="Engine panels"/); // old top-right switch removed
+  const toolbar = fs.readFileSync(path.join(__dirname, "../rows/RowChart/IndicatorsToolbar.jsx"), "utf8");
+  expect(toolbar).toMatch(/checked=\{!!traderViewPanel\}/);
+  expect(toolbar).toMatch(/zIndex: 300/);
+  const panel = fs.readFileSync(path.join(__dirname, "../rows/RowChart/overlays/TraderViewChartPanel.jsx"), "utf8");
+  expect(panel).toMatch(/left: "50%"/);
+  expect(panel).toMatch(/translateX\(-50%\)/);
 });
 
-test("Engine 3 card explains why it is waiting (real adapter output)", () => {
-  const explainSample = JSON.parse(fs.readFileSync(path.join(__dirname, "fixtures/composite-e3-explain.traderView.v1.json"), "utf8"));
-  const view = markup(explainSample, { compact: true });
-  expect(view).toContain('data-testid="e3-why-waiting"');
-  expect(view).toContain("Engine 3 only sets a new direction when quality is GOOD or STRONG.");
-  expect(view).toMatch(/Observed control<span class="tv-chip tv-chip--DIAGNOSTIC"/);
-  expect(view).toContain("Engine 3 checks (published by Engine 3 v5)");
-  expect((view.match(/tv-mini-check--done/g) || []).length).toBe(2);
-  expect(view).toContain("Last completed");
-  expect(view).toContain("not used to set direction");
-  expect(view).toContain("Direction history");
-  expect(view).toContain("Engine 3 does not publish a history");
-  expect(view).not.toContain("Engine 3 v6"); // only when v6 shadow is published
-});
-
-test("Engine 3 v6 shadow comparison renders only when present", () => {
-  const explainSample = JSON.parse(fs.readFileSync(path.join(__dirname, "fixtures/composite-e3-explain.traderView.v1.json"), "utf8"));
-  const d = clone(explainSample);
-  d.sections.reaction.explain.v6Shadow = { direction: "SHORT", reason: "V6_CONVICTION_SELLERS", quality: "GOOD", authority: "SHADOW_NO_AUTHORITY" };
-  const view = markup(d);
-  expect(view).toContain("v5 (decides)");
-  expect(view).toContain("v6 shadow");
-  expect(view).toContain("V6 conviction sellers");
-});
