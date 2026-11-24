@@ -22,9 +22,9 @@ test("Primary, Intermediate, Micro cards show new research instead of stale wave
  }} currentWavelength={{ownerWaveRoadmap:roadmap,degrees:{}}}/>);
  for(const text of ["PRIMARY W4 COMPLETE","W5 UP PROPOSED",
   "INTERMEDIATE W1 UP DEVELOPING","MICRO W1 UP CANDIDATE",
-  "6,899.00","7,885.00","8,361.25","9,265.00","9,908.50","10,727.25",
-  "11,631.00","13,093.25","7,131.75","7,275.75","7,392.00",
-  "7,508.25","7,674.00","7,313.25","NO ENGINE6 EXECUTION",
+  "6899.00","7885.00","8361.25","9265.00","9908.50","10727.25",
+  "11631.00","13093.25","7131.75","7275.75","7392.00",
+  "7508.25","7674.00","7313.25","NO ENGINE6 EXECUTION",
   "W2 Fib"]) expect(html.toUpperCase()).toContain(text.toUpperCase());
  expect(html).not.toContain("OLD MICRO C DOWN");
  expect(html).not.toContain("OLD PRIMARY");
