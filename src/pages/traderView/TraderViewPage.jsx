@@ -292,7 +292,7 @@ export function TraderViewView({ data, err = null, loading = false, refreshing =
 
         <div className="tv-updated">
           <span>Updated {fmtAzTime(data.generatedAt)}</span>
-          <TraderFreshnessBadge freshness={freshness} err={err} refreshing={refreshing} />
+          <TraderFreshnessBadge freshness={freshness} err={err} refreshing={refreshing} mock={mock} />
           <button type="button" className="tv-btn" onClick={() => setAllOpen((v) => !v)}>
             {allOpen ? "Hide all details" : "Show all details"}
           </button>

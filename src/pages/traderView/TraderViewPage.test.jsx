@@ -99,3 +99,10 @@ test("frontend never calls any endpoint but trader-view and has no inline colors
   expect(hook).not.toMatch(/dashboard-snapshot|market-meter/);
   expect(src).not.toMatch(/#[0-9a-fA-F]{3,6}\b/);
 });
+
+test("mock mode labels the badge SAMPLE, never LIVE", () => {
+  const view = markup(live, { mock: true });
+  expect(view).toContain("tv-chip--SAMPLE");
+  expect(view).not.toContain("tv-chip--LIVE");
+  expect(markup(live)).toContain("tv-chip--LIVE");
+});

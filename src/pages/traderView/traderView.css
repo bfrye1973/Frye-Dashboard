@@ -126,6 +126,7 @@
 .tv-chip--SHADOW { color: var(--tv-shadow); background: var(--tv-shadow-bg); border-color: var(--tv-shadow-border); font-size: 10px; padding: 1px 6px; }
 .tv-chip--LIVE { color: var(--tv-allowed); background: var(--tv-allowed-bg); border-color: var(--tv-allowed-border); }
 .tv-chip--STALE { color: var(--tv-blocked); background: var(--tv-blocked-bg); border-color: var(--tv-blocked-border); }
+.tv-chip--SAMPLE,
 .tv-chip--UNKNOWN { color: var(--tv-waiting); background: var(--tv-waiting-bg); border-color: var(--tv-waiting-border); }
 
 /* ---------- right now + checklist ---------- */

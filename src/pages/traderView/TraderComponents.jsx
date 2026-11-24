@@ -67,8 +67,9 @@ export function ShadowTag() {
 }
 
 /* ---------------- freshness badge (the only one on the page) ---------------- */
-export function TraderFreshnessBadge({ freshness, err, refreshing }) {
-  const status = String(freshness?.status || "UNKNOWN").toUpperCase();
+export function TraderFreshnessBadge({ freshness, err, refreshing, mock = false }) {
+  // Mock mode shows the saved sample: never label it LIVE.
+  const status = mock ? "SAMPLE" : String(freshness?.status || "UNKNOWN").toUpperCase();
   const notes = Array.isArray(freshness?.notes) ? freshness.notes : [];
   const title = [
     freshness?.snapshotAsOf ? `Snapshot ${fmtAzTime(freshness.snapshotAsOf)}` : null,
@@ -80,7 +81,7 @@ export function TraderFreshnessBadge({ freshness, err, refreshing }) {
     .join(" · ");
   return (
     <span className="tv-freshness" title={title || undefined}>
-      <TraderStatusChip status={status === "UNAVAILABLE" ? "UNAVAILABLE" : status}>
+      <TraderStatusChip status={status}>
         {status}
       </TraderStatusChip>
       {refreshing ? <span className="tv-faint"> refreshing…</span> : null}
