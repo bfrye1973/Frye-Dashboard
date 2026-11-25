@@ -1,0 +1,777 @@
+{
+ "ok": true,
+ "schema": "engine12.tradeInvestigator.investigation.v1",
+ "query": {
+  "date": "2026-11-24",
+  "time": "1000",
+  "strategyId": "intraday_scalp@10m",
+  "candidateId": null,
+  "planId": null,
+  "tradeId": null,
+  "windowMinutes": 15,
+  "detail": "summary"
+ },
+ "selection": {
+  "requestedTime": "1000",
+  "selectedTime": "1000",
+  "selection": "EXACT",
+  "offsetMinutes": 0,
+  "windowMinutes": 15,
+  "nextArchivedTime": null,
+  "nextArchivedTimeNote": null
+ },
+ "replay": {
+  "replayRoot": "ENGINE12_ES_REPLAY_ROOT",
+  "replayRelativePath": "2026-11-24/1000.json",
+  "sha256": "c846d10c47beb19236c6b200d82c1be9e58a5b9d2d56bcdb8d7200672a4b48b2",
+  "sha256Scope": "EXACT_BYTES_READ_AND_PARSED_FOR_THIS_RESPONSE",
+  "byteLength": 5500,
+  "readAt": "2026-11-25T00:23:05.896Z",
+  "schema": "engine12.multiStrategyReplay.v1",
+  "replayContract": "CANONICAL_MULTI_STRATEGY_REPLAY",
+  "immutable": true,
+  "generatedAtUtc": "2026-11-24T17:00:10.000Z",
+  "snapshotTime": "2026-11-24T17:00:00.000Z",
+  "timezone": "America/Phoenix"
+ },
+ "knownAtDecision": {
+  "note": "Built only from the selected Replay snapshot. Nothing after decisionTime is included.",
+  "snapshotTime": "2026-11-24T17:00:00.000Z",
+  "decisionTime": "2026-11-24T17:00:02.000Z",
+  "decisionTimeSource": "engine8.evaluatedAt",
+  "price": {
+   "value": 7230,
+   "source": "engine26A.currentPrice",
+   "status": "KNOWN"
+  },
+  "direction": {
+   "value": "LONG",
+   "source": "engine6",
+   "status": "KNOWN"
+  },
+  "identity": {
+   "strategyId": "intraday_scalp@10m",
+   "candidateId": {
+    "value": "E26C-LIFE-A",
+    "source": "engine26A"
+   },
+   "zoneId": {
+    "value": "E26Z-LIFE-A",
+    "source": "engine26A"
+   },
+   "planId": {
+    "value": "E9P-LIFE-A",
+    "source": "engine9"
+   },
+   "orderId": {
+    "value": null,
+    "source": null
+   },
+   "executionId": {
+    "value": null,
+    "source": null
+   },
+   "tradeId": {
+    "value": null,
+    "source": null
+   },
+   "direction": {
+    "value": "LONG",
+    "source": "engine6"
+   },
+   "referenceSnapshotTime": "2026-11-24T17:00:00.000Z",
+   "decisionTime": "2026-11-24T17:00:02.000Z",
+   "decisionTimeSource": "engine8.evaluatedAt",
+   "mode": "PAPER"
+  },
+  "firstBlocker": {
+   "engine": null,
+   "status": "PASS",
+   "recordedPipelineStatus": "ORDER_READY",
+   "failureType": null,
+   "rootCause": null,
+   "reasonCodes": [],
+   "blockers": [],
+   "source": "ENGINE28A_RECORDED"
+  },
+  "engine28a": {
+   "present": true,
+   "trusted": true,
+   "checks": [
+    {
+     "check": "LANE_COVERED_BY_ENGINE28A",
+     "ok": true,
+     "detail": "intraday_scalp@10m"
+    },
+    {
+     "check": "REGISTRY_VERIFIED_FOR_DATE",
+     "ok": true,
+     "detail": "2026-11-24"
+    },
+    {
+     "check": "RECORD_PRESENT",
+     "ok": true,
+     "detail": null
+    },
+    {
+     "check": "KNOWN_CONTRACT",
+     "ok": true,
+     "detail": "engine28a.pipelineDoctor.v1"
+    },
+    {
+     "check": "STRATEGY_MATCH",
+     "ok": true,
+     "detail": "intraday_scalp@10m"
+    },
+    {
+     "check": "SAME_CYCLE_SNAPSHOT_TIME",
+     "ok": true,
+     "detail": {
+      "recorded": "2026-11-24T17:00:00.000Z",
+      "laneReference": "2026-11-24T17:00:00.000Z"
+     }
+    },
+    {
+     "check": "GENERATED_NOT_AFTER_REPLAY_WRITE",
+     "ok": true,
+     "detail": {
+      "generatedAt": "2026-11-24T17:00:04.000Z",
+      "replayGeneratedAtUtc": "2026-11-24T17:00:10.000Z"
+     }
+    },
+    {
+     "check": "FIRST_FAILING_ENGINE_IS_CANONICAL_GATE",
+     "ok": true,
+     "detail": null
+    }
+   ],
+   "laneReferenceSnapshotTime": "2026-11-24T17:00:00.000Z",
+   "recorded": {
+    "contractVersion": "engine28a.pipelineDoctor.v1",
+    "pipelineStatus": "ORDER_READY",
+    "firstFailingEngine": null,
+    "failureType": null,
+    "rootCause": null,
+    "snapshotTime": "2026-11-24T17:00:00.000Z",
+    "generatedAt": "2026-11-24T17:00:04.000Z",
+    "stages": [
+     {
+      "engine": "engine26A",
+      "state": "PASS_CONTEXT"
+     },
+     {
+      "engine": "engine3",
+      "state": "PASS"
+     },
+     {
+      "engine": "engine4",
+      "state": "PASS"
+     },
+     {
+      "engine": "engine6",
+      "state": "PASS"
+     },
+     {
+      "engine": "engine26B",
+      "state": "PASS"
+     },
+     {
+      "engine": "engine7",
+      "state": "PASS"
+     },
+     {
+      "engine": "engine9",
+      "state": "PASS"
+     },
+     {
+      "engine": "engine8",
+      "state": "PASS"
+     }
+    ],
+    "warnings": []
+   }
+  },
+  "blockerFallback": null,
+  "pipeline": [
+   {
+    "engine": "engine26A",
+    "authority": "CANONICAL",
+    "status": "PASS",
+    "statusSource": "ENGINE_OWN_CANONICAL_GATE",
+    "downstreamOfFirstBlocker": false,
+    "engine28aRecordedStage": "PASS_CONTEXT",
+    "gate": "PASSED",
+    "rawStatus": "ACTIVE",
+    "decision": {
+     "direction": "LONG",
+     "candidateId": "E26C-LIFE-A",
+     "zoneId": "E26Z-LIFE-A",
+     "snapshotTime": "2026-11-24T17:00:00.000Z",
+     "status": "ACTIVE",
+     "currentPrice": 7230
+    },
+    "reasonCodes": [],
+    "blockers": [],
+    "evaluatedAt": "2026-11-24T17:00:00.000Z",
+    "evaluatedAtField": "snapshotTime",
+    "source": "ENGINE12_REPLAY",
+    "sourcePath": "engine26LocationCandidate",
+    "version": "engine26A",
+    "versionVerified": false,
+    "mappingVersion": "engine12.investigator.statusMap.v1",
+    "shadow": []
+   },
+   {
+    "engine": "engine3",
+    "authority": "CANONICAL",
+    "status": "PASS",
+    "statusSource": "ENGINE_OWN_CANONICAL_GATE",
+    "downstreamOfFirstBlocker": false,
+    "engine28aRecordedStage": "PASS",
+    "gate": "PASSED",
+    "rawStatus": "QUALIFIED",
+    "decision": {
+     "direction": "LONG",
+     "candidateId": null,
+     "zoneId": null,
+     "snapshotTime": "2026-11-24T17:00:00.000Z",
+     "state": "QUALIFIED",
+     "quality": "STRONG",
+     "allowed": true,
+     "qualified": true
+    },
+    "reasonCodes": [],
+    "blockers": [],
+    "evaluatedAt": "2026-11-24T17:00:00.000Z",
+    "evaluatedAtField": "snapshotTime",
+    "source": "ENGINE12_REPLAY",
+    "sourcePath": "confluence.context.reaction.paperScalpReaction",
+    "version": "engine3.v5",
+    "versionVerified": true,
+    "mappingVersion": "engine12.investigator.statusMap.v1",
+    "shadow": []
+   },
+   {
+    "engine": "engine4",
+    "authority": "CANONICAL",
+    "status": "PASS",
+    "statusSource": "ENGINE_OWN_CANONICAL_GATE",
+    "downstreamOfFirstBlocker": false,
+    "engine28aRecordedStage": "PASS",
+    "gate": "PASSED",
+    "rawStatus": "CONFIRMED",
+    "decision": {
+     "direction": "LONG",
+     "candidateId": null,
+     "zoneId": null,
+     "snapshotTime": "2026-11-24T17:00:00.000Z",
+     "participationState": "CONFIRMED",
+     "participationQuality": "GOOD",
+     "confirmed": true,
+     "allowed": true,
+     "hardBlocked": false
+    },
+    "reasonCodes": [],
+    "blockers": [],
+    "evaluatedAt": "2026-11-24T17:00:00.000Z",
+    "evaluatedAtField": "snapshotTime",
+    "source": "ENGINE12_REPLAY",
+    "sourcePath": "confluence.context.volume.engine4AuthorizedReactionParticipation",
+    "version": "engine4.v1",
+    "versionVerified": true,
+    "mappingVersion": "engine12.investigator.statusMap.v1",
+    "shadow": []
+   },
+   {
+    "engine": "engine6",
+    "authority": "CANONICAL",
+    "status": "PASS",
+    "statusSource": "ENGINE_OWN_CANONICAL_GATE",
+    "downstreamOfFirstBlocker": false,
+    "engine28aRecordedStage": "PASS",
+    "gate": "PASSED",
+    "rawStatus": "FAST_INTRADAY_PAPER_ALLOW",
+    "decision": {
+     "direction": "LONG",
+     "candidateId": "E26C-LIFE-A",
+     "zoneId": "E26Z-LIFE-A",
+     "snapshotTime": "2026-11-24T17:00:00.000Z",
+     "decision": "FAST_INTRADAY_PAPER_ALLOW",
+     "allowed": true,
+     "paperAllowed": true,
+     "locked": true,
+     "sizeMultiplier": 1
+    },
+    "reasonCodes": [],
+    "blockers": [],
+    "evaluatedAt": "2026-11-24T17:00:00.000Z",
+    "evaluatedAtField": "snapshotTime",
+    "source": "ENGINE12_REPLAY",
+    "sourcePath": "permission.paper",
+    "version": "engine6.paper",
+    "versionVerified": false,
+    "mappingVersion": "engine12.investigator.statusMap.v1",
+    "shadow": []
+   },
+   {
+    "engine": "engine26B",
+    "authority": "CANONICAL",
+    "status": "PASS",
+    "statusSource": "ENGINE_OWN_CANONICAL_GATE",
+    "downstreamOfFirstBlocker": false,
+    "engine28aRecordedStage": "PASS",
+    "gate": "PASSED",
+    "rawStatus": "GEOMETRY_READY",
+    "decision": {
+     "direction": "LONG",
+     "candidateId": "E26C-LIFE-A",
+     "zoneId": "E26Z-LIFE-A",
+     "snapshotTime": "2026-11-24T17:00:00.000Z",
+     "status": "GEOMETRY_READY",
+     "geometryReady": true,
+     "entry": 7230,
+     "stop": 7224,
+     "targets": [
+      7236,
+      7242,
+      7250
+     ]
+    },
+    "reasonCodes": [],
+    "blockers": [],
+    "evaluatedAt": "2026-11-24T17:00:00.000Z",
+    "evaluatedAtField": "snapshotTime",
+    "source": "ENGINE12_REPLAY",
+    "sourcePath": "engine26ProposedGeometry",
+    "version": "engine26B",
+    "versionVerified": false,
+    "mappingVersion": "engine12.investigator.statusMap.v1",
+    "shadow": []
+   },
+   {
+    "engine": "engine7",
+    "authority": "CANONICAL",
+    "status": "PASS",
+    "statusSource": "ENGINE_OWN_CANONICAL_GATE",
+    "downstreamOfFirstBlocker": false,
+    "engine28aRecordedStage": "PASS",
+    "gate": "PASSED",
+    "rawStatus": "SIZED",
+    "decision": {
+     "direction": "LONG",
+     "candidateId": "E26C-LIFE-A",
+     "zoneId": null,
+     "snapshotTime": "2026-11-24T17:00:00.000Z",
+     "status": "SIZED",
+     "allowed": true,
+     "executableSizing": true,
+     "contracts": 3,
+     "dollarRisk": 97.5,
+     "riskBudgetDollars": 150,
+     "sizeMultiplier": null,
+     "planId": "E9P-LIFE-A"
+    },
+    "reasonCodes": [],
+    "blockers": [],
+    "evaluatedAt": "2026-11-24T17:00:00.000Z",
+    "evaluatedAtField": "snapshotTime",
+    "source": "ENGINE12_REPLAY",
+    "sourcePath": "engine7PositionSizing",
+    "version": "engine7",
+    "versionVerified": false,
+    "mappingVersion": "engine12.investigator.statusMap.v1",
+    "shadow": []
+   },
+   {
+    "engine": "engine9",
+    "authority": "CANONICAL",
+    "status": "PASS",
+    "statusSource": "ENGINE_OWN_CANONICAL_GATE",
+    "downstreamOfFirstBlocker": false,
+    "engine28aRecordedStage": "PASS",
+    "gate": "PASSED",
+    "rawStatus": "OFFICIAL",
+    "decision": {
+     "direction": "LONG",
+     "candidateId": "E26C-LIFE-A",
+     "zoneId": null,
+     "snapshotTime": "2026-11-24T17:00:00.000Z",
+     "planId": "E9P-LIFE-A",
+     "planStatus": "OFFICIAL",
+     "managementReady": true,
+     "official": true,
+     "entry": 7230,
+     "stop": 7224,
+     "targets": [
+      7236,
+      7242,
+      7250
+     ],
+     "waitingFor": []
+    },
+    "reasonCodes": [],
+    "blockers": [],
+    "evaluatedAt": "2026-11-24T17:00:00.000Z",
+    "evaluatedAtField": "snapshotTime",
+    "source": "ENGINE12_REPLAY",
+    "sourcePath": "engine9OfficialManagementPlan",
+    "version": "engine9",
+    "versionVerified": false,
+    "mappingVersion": "engine12.investigator.statusMap.v1",
+    "shadow": []
+   },
+   {
+    "engine": "engine8",
+    "authority": "CANONICAL",
+    "status": "PASS",
+    "statusSource": "ENGINE_OWN_CANONICAL_GATE",
+    "downstreamOfFirstBlocker": false,
+    "engine28aRecordedStage": "PASS",
+    "gate": "PASSED",
+    "rawStatus": "READY_TO_CREATE_PAPER_ORDER",
+    "decision": {
+     "direction": "LONG",
+     "candidateId": "E26C-LIFE-A",
+     "zoneId": "E26Z-LIFE-A",
+     "snapshotTime": "2026-11-24T17:00:00.000Z",
+     "status": "READY_TO_CREATE_PAPER_ORDER",
+     "executable": true,
+     "planId": "E9P-LIFE-A",
+     "orderCreated": false,
+     "orderId": null,
+     "tradeId": null,
+     "executionId": null,
+     "contracts": 3
+    },
+    "reasonCodes": [],
+    "blockers": [],
+    "evaluatedAt": "2026-11-24T17:00:02.000Z",
+    "evaluatedAtField": "evaluatedAt",
+    "source": "ENGINE12_REPLAY",
+    "sourcePath": "engine8PaperOrder",
+    "version": "engine8.paper",
+    "versionVerified": false,
+    "mappingVersion": "engine12.investigator.statusMap.v1",
+    "shadow": []
+   },
+   {
+    "engine": "engine10",
+    "authority": "CANONICAL",
+    "status": "UNKNOWN",
+    "statusSource": "RECORD_ABSENT",
+    "downstreamOfFirstBlocker": false,
+    "engine28aRecordedStage": null,
+    "gate": "NOT_A_GATE",
+    "rawStatus": null,
+    "decision": null,
+    "reasonCodes": [],
+    "blockers": [],
+    "evaluatedAt": null,
+    "evaluatedAtField": null,
+    "source": "ENGINE12_REPLAY",
+    "sourcePath": null,
+    "version": null,
+    "versionVerified": false,
+    "mappingVersion": "engine12.investigator.statusMap.v1",
+    "shadow": []
+   }
+  ],
+  "tradeGeometry": {
+   "entry": {
+    "value": 7230,
+    "source": "engine9",
+    "status": "KNOWN"
+   },
+   "stop": {
+    "value": 7224,
+    "source": "engine9",
+    "status": "KNOWN"
+   },
+   "target1": {
+    "value": 7236,
+    "source": "engine9",
+    "status": "KNOWN"
+   },
+   "target2": {
+    "value": 7242,
+    "source": "engine9",
+    "status": "KNOWN"
+   },
+   "target3": {
+    "value": 7250,
+    "source": "engine9",
+    "status": "KNOWN"
+   },
+   "contracts": {
+    "value": 3,
+    "source": "engine7",
+    "status": "KNOWN"
+   },
+   "dollarRisk": {
+    "value": 97.5,
+    "source": "engine7",
+    "status": "KNOWN"
+   },
+   "riskBudgetDollars": {
+    "value": 150,
+    "source": "engine7",
+    "status": "KNOWN"
+   },
+   "sizeMultiplier": {
+    "value": 1,
+    "source": "engine6",
+    "status": "KNOWN"
+   },
+   "note": "Stored values only. Nothing is recalculated."
+  },
+  "executionAtDecision": {
+   "source": "engine8 (Replay)",
+   "status": {
+    "value": "READY_TO_CREATE_PAPER_ORDER",
+    "source": "engine8",
+    "status": "KNOWN"
+   },
+   "orderCreated": {
+    "value": false,
+    "source": "engine8",
+    "status": "KNOWN"
+   },
+   "orderId": {
+    "value": null,
+    "source": null,
+    "status": "UNKNOWN"
+   },
+   "tradeId": {
+    "value": null,
+    "source": null,
+    "status": "UNKNOWN"
+   },
+   "blockers": [],
+   "note": "Replay is archived before later PAPER execution activity in the same cycle. This proves the evaluation result only, not that no earlier or later order exists."
+  }
+ },
+ "priorEvents": [],
+ "subsequentEvents": [
+  {
+   "eventType": "ENGINE8_ORDER_FILLED",
+   "source": "ENGINE8_PAPER_STORE",
+   "eventTime": "2026-11-24T17:00:12.000Z",
+   "eventTimeField": "filledAt",
+   "orderId": "E8O-SYN-A",
+   "action": "NEW_ENTRY",
+   "side": "BUY",
+   "qty": 3,
+   "filledQty": 3,
+   "avgPrice": 7230.25
+  },
+  {
+   "eventType": "ENGINE10_ENTRY",
+   "source": "ENGINE10_JOURNAL",
+   "eventTime": "2026-11-24T17:00:12.500Z",
+   "eventTimeField": "entry.time",
+   "price": 7230.25,
+   "qty": 3
+  },
+  {
+   "eventType": "ENGINE10_PARTIAL_CLOSE",
+   "source": "ENGINE10_JOURNAL",
+   "eventTime": "2026-11-24T17:12:00.000Z",
+   "eventTimeField": "events[].ts",
+   "price": 7236,
+   "qtyClosed": 2,
+   "remainingQty": 1,
+   "orderId": null,
+   "executionId": null,
+   "exitReason": null,
+   "stopReason": null,
+   "targetId": "T1"
+  },
+  {
+   "eventType": "ENGINE10_FULL_CLOSE",
+   "source": "ENGINE10_JOURNAL",
+   "eventTime": "2026-11-24T17:40:00.000Z",
+   "eventTimeField": "events[].ts",
+   "price": 7238,
+   "qtyClosed": 1,
+   "remainingQty": 0,
+   "orderId": null,
+   "executionId": null,
+   "exitReason": "TARGET2",
+   "stopReason": null,
+   "targetId": null
+  }
+ ],
+ "undatedEvents": [],
+ "execution": {
+  "source": "ENGINE8_PAPER_STORE",
+  "status": "MATCHED",
+  "matchTier": "planId",
+  "orders": [
+   {
+    "kind": "ENGINE8_ORDER",
+    "ref": "E8O-SYN-A",
+    "mode": "PAPER",
+    "strategyId": "intraday_scalp@10m",
+    "tradeId": null,
+    "orderId": "E8O-SYN-A",
+    "executionId": "E8O-SYN-A-X",
+    "planId": "E9P-LIFE-A",
+    "candidateId": "E26C-LIFE-A",
+    "action": "NEW_ENTRY",
+    "side": "BUY",
+    "qty": 3,
+    "filledQty": 3,
+    "avgPrice": 7230.25,
+    "status": "filled",
+    "eventTime": "2026-11-24T17:00:12.000Z",
+    "eventTimeField": "filledAt"
+   }
+  ],
+  "executions": [
+   {
+    "kind": "ENGINE8_EXECUTION",
+    "orderId": "E8O-SYN-A",
+    "action": "NEW_ENTRY",
+    "qty": 3,
+    "filledQty": 3,
+    "avgPrice": 7230.25,
+    "status": "filled",
+    "eventTime": "2026-11-24T17:00:12.000Z",
+    "eventTimeField": "ts"
+   }
+  ],
+  "ambiguousCandidates": [],
+  "conflicts": [],
+  "excluded": [],
+  "notes": [],
+  "truncated": false,
+  "priorEvents": [],
+  "subsequentEvents": [
+   {
+    "eventType": "ENGINE8_ORDER_FILLED",
+    "source": "ENGINE8_PAPER_STORE",
+    "eventTime": "2026-11-24T17:00:12.000Z",
+    "eventTimeField": "filledAt",
+    "orderId": "E8O-SYN-A",
+    "action": "NEW_ENTRY",
+    "side": "BUY",
+    "qty": 3,
+    "filledQty": 3,
+    "avgPrice": 7230.25
+   }
+  ],
+  "undatedEvents": [],
+  "stores": [
+   {
+    "store": "engine8.paper-orders",
+    "status": "OK",
+    "reason": null,
+    "sha256": "f6430189cf381b5859d968a4324e088105b9080209a566ad2f0cb2e372d2cf9a",
+    "byteLength": 417,
+    "mtime": "2026-11-25T00:23:05.888Z",
+    "readAt": "2026-11-25T00:23:05.896Z",
+    "mutable": true,
+    "retentionGuarantee": "NONE_DEFINED",
+    "note": "Mutable durable store, read at readAt; not an immutable archive. No time-based retention guarantee is defined, so absent evidence for older dates is UNKNOWN, not proof that nothing happened."
+   },
+   {
+    "store": "engine8.paper-executions",
+    "status": "OK",
+    "reason": null,
+    "sha256": "d8c2e1c45af5c661f7af7cd96db0319b91478613b4d21bb140ba4ec17c6eddfe",
+    "byteLength": 137,
+    "mtime": "2026-11-25T00:23:05.888Z",
+    "readAt": "2026-11-25T00:23:05.896Z",
+    "mutable": true,
+    "retentionGuarantee": "NONE_DEFINED",
+    "note": "Mutable durable store, read at readAt; not an immutable archive. No time-based retention guarantee is defined, so absent evidence for older dates is UNKNOWN, not proof that nothing happened."
+   }
+  ],
+  "lifecycle": "MATCHED",
+  "retentionGuarantee": "NONE_DEFINED",
+  "evidenceNote": "Engine 8 PAPER stores are mutable durable files (atomic replace + fsync), not an immutable archive. No time-based retention guarantee is defined; missing execution evidence is UNKNOWN, not proof that no order existed.",
+  "entryFill": {
+   "status": "FILLED_PER_ENGINE8_PAPER_STORE",
+   "orderId": "E8O-SYN-A",
+   "avgPrice": 7230.25,
+   "filledQty": 3,
+   "eventTime": "2026-11-24T17:00:12.000Z"
+  }
+ },
+ "outcome": {
+  "source": "ENGINE10_JOURNAL",
+  "status": "MATCHED",
+  "lifecycle": "MATCHED",
+  "journalReadAt": "2026-11-25T00:23:05.896Z",
+  "trade": {
+   "tradeId": "T-SYN-A",
+   "accountMode": "PAPER",
+   "status": "CLOSED",
+   "direction": "LONG",
+   "entry": {
+    "time": "2026-11-24T17:00:12.500Z",
+    "price": 7230.25,
+    "qty": 3,
+    "fillStatus": "FILLED"
+   },
+   "qty": {
+    "originalQty": 3,
+    "remainingQty": 0,
+    "cumulativeExitQuantity": 3
+   },
+   "outcome": {
+    "openTime": "2026-11-24T17:00:12.500Z",
+    "closeTime": "2026-11-24T17:40:00.000Z",
+    "realizedPnL": 78.75,
+    "realizedPoints": null,
+    "realizedR": null,
+    "pnlBasis": "GROSS_AS_RECORDED_BY_ENGINE10"
+   }
+  },
+  "retentionGuarantee": "NONE_DEFINED",
+  "note": "Journal is a mutable durable store read at journalReadAt, not a point-in-time record or immutable archive. No time-based retention guarantee is defined; missing lifecycle evidence is UNKNOWN."
+ },
+ "journal": {
+  "status": "MATCHED",
+  "reason": null,
+  "matchTier": "orderId",
+  "identity": {
+   "tradeId": "T-SYN-A",
+   "orderId": "E8O-SYN-A",
+   "executionId": "E8O-SYN-A-X",
+   "planId": "E9P-LIFE-A",
+   "candidateId": "E26C-LIFE-A",
+   "strategyId": "intraday_scalp@10m"
+  },
+  "conflicts": [],
+  "excluded": [],
+  "notes": [],
+  "store": {
+   "store": "engine10.trade-journal",
+   "status": "OK",
+   "reason": null,
+   "sha256": "f21dbb6e123bd94236bf64780b1be507762061ad2caaf0273656b5c1bf16da7c",
+   "byteLength": 1025,
+   "mtime": "2026-11-25T00:23:05.888Z",
+   "readAt": "2026-11-25T00:23:05.896Z",
+   "mutable": true,
+   "retentionGuarantee": "NONE_DEFINED",
+   "note": "Mutable durable store, read at readAt; not an immutable archive. No time-based retention guarantee is defined, so absent evidence for older dates is UNKNOWN, not proof that nothing happened."
+  }
+ },
+ "flags": [],
+ "provenance": {
+  "registryVersion": "engine12.investigator.authorityRegistry.v2",
+  "registryEvidenceStatus": "EVIDENCE_BACKED_DATES_ONLY",
+  "gateVersion": "engine12.investigator.gate.v1",
+  "statusMappingVersion": "engine12.investigator.statusMap.v1",
+  "blockerFallbackVersion": "engine12.investigator.blockerFallback.v1",
+  "joinVersion": "engine12.investigator.identityJoin.v1",
+  "enginesRerun": false,
+  "writesPerformed": false
+ },
+ "timing": {
+  "durationMs": 0
+ },
+ "_fixtureNote": "SYNTHETIC closed-trade case for UI tests only; not a real Nov 24 trade."
+}

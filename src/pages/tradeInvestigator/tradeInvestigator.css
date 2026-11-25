@@ -1,0 +1,97 @@
+/* Engine 12 Trade Investigator — the one tokens + styles file for this page.
+   Palette follows Trader View. Shadow is purple + dashed and never uses a
+   status chip, so it can never look like production authority. */
+
+.ti {
+  --ti-bg: #0a0e17;
+  --ti-card: #0f1626;
+  --ti-inner: #0b1120;
+  --ti-border: #1f2a44;
+  --ti-text: #e5e7eb;
+  --ti-muted: #94a3b8;
+  --ti-pass: #4ade80;
+  --ti-pass-bg: #062a17;
+  --ti-waiting: #fbbf24;
+  --ti-waiting-bg: #2a1f05;
+  --ti-blocked: #fb7154;
+  --ti-blocked-bg: #33100b;
+  --ti-neutral: #cbd5e1;
+  --ti-neutral-bg: #1b2333;
+  --ti-inferred: #7dd3fc;
+  --ti-shadow: #c4b5fd;
+  --ti-shadow-bg: #1e1638;
+  --ti-radius: 12px;
+
+  background: var(--ti-bg);
+  color: var(--ti-text);
+  padding: 18px;
+  font-size: 15px;
+  min-height: 100vh;
+}
+.ti h2, .ti h3, .ti h4 { margin: 0 0 10px; }
+.ti h3 { font-size: 16px; }
+.ti h4 { font-size: 14px; color: var(--ti-muted); }
+.ti code { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12.5px; }
+.ti-muted { color: var(--ti-muted); font-size: 13px; }
+.ti-unknown { color: var(--ti-muted); font-style: italic; }
+
+.ti-header { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; }
+.ti-card { background: var(--ti-card); border: 1px solid var(--ti-border); border-radius: var(--ti-radius); padding: 14px; margin-bottom: 14px; }
+.ti-error { color: var(--ti-blocked); }
+
+.ti-pair { display: grid; gap: 8px; max-width: 560px; }
+.ti-controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; align-items: end; }
+.ti-controls label { display: grid; gap: 4px; font-size: 13px; color: var(--ti-muted); }
+.ti input, .ti select { background: var(--ti-inner); color: var(--ti-text); border: 1px solid var(--ti-border); border-radius: 8px; padding: 7px 8px; font-size: 14px; }
+.ti button { background: #1e3a8a; color: #fff; border: 0; border-radius: 8px; padding: 8px 12px; cursor: pointer; }
+.ti button:disabled { opacity: 0.5; cursor: default; }
+.ti .ti-link { background: none; color: var(--ti-muted); text-decoration: underline; padding: 0; }
+
+.ti-badge { font-size: 11px; font-weight: 700; letter-spacing: 0.04em; border-radius: 6px; padding: 2px 7px; border: 1px solid var(--ti-border); }
+.ti-badge--readonly, .ti-badge--evidence { color: var(--ti-neutral); background: var(--ti-neutral-bg); }
+.ti-badge--canonical { color: var(--ti-neutral); background: var(--ti-neutral-bg); }
+.ti-badge--blocker { color: var(--ti-blocked); background: var(--ti-blocked-bg); border-color: var(--ti-blocked); }
+.ti-badge--shadow { color: var(--ti-shadow); background: var(--ti-shadow-bg); border: 1px dashed var(--ti-shadow); }
+
+.ti-chip { font-size: 12px; font-weight: 700; border-radius: 999px; padding: 2px 10px; border: 1px solid transparent; white-space: nowrap; }
+.ti-chip--PASS { color: var(--ti-pass); background: var(--ti-pass-bg); border-color: var(--ti-pass); }
+.ti-chip--WAITING { color: var(--ti-waiting); background: var(--ti-waiting-bg); border-color: var(--ti-waiting); }
+.ti-chip--BLOCKED { color: var(--ti-blocked); background: var(--ti-blocked-bg); border-color: var(--ti-blocked); }
+.ti-chip--NOT_REACHED { color: var(--ti-muted); background: transparent; border-color: var(--ti-border); }
+/* Inferred progress is deliberately NOT green: outline only, dashed. */
+.ti-chip--INFERRED_PROGRESS { color: var(--ti-inferred); background: transparent; border: 1px dashed var(--ti-inferred); }
+.ti-chip--UNKNOWN { color: var(--ti-neutral); background: var(--ti-neutral-bg); border-color: var(--ti-border); }
+
+.ti-summary__grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 14px; }
+.ti-label { color: var(--ti-muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; }
+.ti-big { font-size: 20px; font-weight: 700; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.ti-summary__blocker { grid-column: span 2; }
+.ti-reason { margin: 4px 0; }
+.ti-provenance { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 12px; font-size: 13px; color: var(--ti-muted); align-items: center; }
+
+.ti-codes { display: flex; gap: 6px; flex-wrap: wrap; margin: 6px 0; }
+.ti-code { border-radius: 6px; padding: 1px 6px; background: var(--ti-inner); border: 1px solid var(--ti-border); }
+.ti-code--blocker { color: var(--ti-blocked); }
+.ti-code--flag { color: var(--ti-waiting); }
+
+.ti-pipeline { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
+.ti-engine { background: var(--ti-inner); border: 1px solid var(--ti-border); border-radius: 10px; padding: 10px 12px; }
+.ti-engine--blocker { border-color: var(--ti-blocked); }
+.ti-engine__head { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.ti-engine__name { font-weight: 700; min-width: 220px; }
+.ti-engine__meta { display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; color: var(--ti-muted); margin-top: 6px; }
+.ti-details summary { cursor: pointer; color: var(--ti-muted); font-size: 13px; margin-top: 6px; }
+.ti-path { margin-top: 6px; }
+
+.ti-facts { display: grid; grid-template-columns: max-content 1fr; gap: 3px 12px; margin: 6px 0; font-size: 13px; }
+.ti-facts dt { color: var(--ti-muted); }
+.ti-facts dd { margin: 0; word-break: break-word; }
+
+.ti-shadow { margin-top: 8px; border: 1px dashed var(--ti-shadow); background: var(--ti-shadow-bg); border-radius: 8px; padding: 8px 10px; }
+.ti-shadow__head { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; color: var(--ti-shadow); font-size: 13px; }
+
+.ti-trade { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
+.ti-events { margin-top: 12px; }
+.ti-events ol { margin: 0; padding-left: 18px; display: grid; gap: 4px; font-size: 13px; }
+.ti-events li { display: flex; gap: 8px; flex-wrap: wrap; }
+.ti-events__time { color: var(--ti-muted); min-width: 150px; }
