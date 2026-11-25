@@ -1,0 +1,837 @@
+{
+ "ok": true,
+ "schema": "engine12.tradeInvestigator.investigation.v1",
+ "query": {
+  "date": "2026-11-24",
+  "time": "0746",
+  "strategyId": "intraday_scalp@10m",
+  "candidateId": null,
+  "planId": null,
+  "tradeId": null,
+  "windowMinutes": 15,
+  "detail": "summary"
+ },
+ "selection": {
+  "requestedTime": "0746",
+  "selectedTime": "0746",
+  "selection": "EXACT",
+  "offsetMinutes": 0,
+  "windowMinutes": 15,
+  "nextArchivedTime": "0752",
+  "nextArchivedTimeNote": "A later snapshot is a later system state; it was not used."
+ },
+ "replay": {
+  "replayRoot": "ENGINE12_ES_REPLAY_ROOT",
+  "replayRelativePath": "2026-11-24/0746.json",
+  "sha256": "98da4ccb50eca204b0e6ebce635de6332963a2b7ca998281c12f24168212455e",
+  "sha256Scope": "EXACT_BYTES_READ_AND_PARSED_FOR_THIS_RESPONSE",
+  "byteLength": 103601,
+  "readAt": "2026-11-25T00:23:05.884Z",
+  "schema": "engine12.multiStrategyReplay.v1",
+  "replayContract": "CANONICAL_MULTI_STRATEGY_REPLAY",
+  "immutable": true,
+  "generatedAtUtc": "2026-11-24T14:46:16.133Z",
+  "snapshotTime": "2026-11-24T14:45:59.411Z",
+  "timezone": "America/Phoenix"
+ },
+ "knownAtDecision": {
+  "note": "Built only from the selected Replay snapshot. Nothing after decisionTime is included.",
+  "snapshotTime": "2026-11-24T14:45:59.411Z",
+  "decisionTime": "2026-11-24T14:46:13.690Z",
+  "decisionTimeSource": "engine8.evaluatedAt",
+  "price": {
+   "value": 7206.75,
+   "source": "engine26A.currentPrice",
+   "status": "KNOWN"
+  },
+  "direction": {
+   "value": "NONE",
+   "source": "engine6",
+   "status": "KNOWN"
+  },
+  "identity": {
+   "strategyId": "intraday_scalp@10m",
+   "candidateId": {
+    "value": "E26C-a607cde8a1153d6f9058",
+    "source": "engine26A"
+   },
+   "zoneId": {
+    "value": "E26Z-7f08c947ad1400d2cd05",
+    "source": "engine26A"
+   },
+   "planId": {
+    "value": null,
+    "source": null
+   },
+   "orderId": {
+    "value": null,
+    "source": null
+   },
+   "executionId": {
+    "value": null,
+    "source": null
+   },
+   "tradeId": {
+    "value": null,
+    "source": null
+   },
+   "direction": {
+    "value": "NONE",
+    "source": "engine6"
+   },
+   "referenceSnapshotTime": "2026-11-24T14:46:08.120Z",
+   "decisionTime": "2026-11-24T14:46:13.690Z",
+   "decisionTimeSource": "engine8.evaluatedAt",
+   "mode": "PAPER"
+  },
+  "firstBlocker": {
+   "engine": "engine3",
+   "status": "WAITING",
+   "recordedPipelineStatus": "WAITING",
+   "failureType": "WAITING_FOR_MARKET",
+   "rootCause": "ENGINE3_STRATEGY1_NOT_QUALIFIED",
+   "reasonCodes": [
+    "ENGINE3_V5_STRATEGY1_HANDOFF",
+    "ENGINE3_V5_STABLE_CANONICAL_SIGNAL_INACTIVE",
+    "ENGINE3_V5_REACTION_NOT_CONFIRMED",
+    "ENGINE3_V5_SIGNAL_HELD",
+    "ENGINE3_V5_SIGNAL_RESET",
+    "ENGINE3_V5_CANONICAL_DIRECTION_NEUTRAL",
+    "ENGINE3_V5_LOCAL_CONTROL_BUYERS_CONTROL",
+    "ENGINE3_V5_LOCAL_CONTROL_CANNOT_WITHDRAW_HELD_CANONICAL_SIGNAL",
+    "ENGINE3_V5_TIMEFRAME_LABELS_HAVE_NO_DIRECTION_AUTHORITY",
+    "ENGINE4_PARTICIPATION_REQUIRED",
+    "ENGINE6_FINAL_PAPER_PERMISSION_REQUIRED",
+    "NO_PERMISSION_CREATED",
+    "NO_EXECUTION"
+   ],
+   "blockers": [
+    "ENGINE3_V5_CANONICAL_DIRECTION_NEUTRAL",
+    "ENGINE3_V5_CANONICAL_SIGNAL_RESET"
+   ],
+   "source": "ENGINE28A_RECORDED"
+  },
+  "engine28a": {
+   "present": true,
+   "trusted": true,
+   "checks": [
+    {
+     "check": "LANE_COVERED_BY_ENGINE28A",
+     "ok": true,
+     "detail": "intraday_scalp@10m"
+    },
+    {
+     "check": "REGISTRY_VERIFIED_FOR_DATE",
+     "ok": true,
+     "detail": "2026-11-24"
+    },
+    {
+     "check": "RECORD_PRESENT",
+     "ok": true,
+     "detail": null
+    },
+    {
+     "check": "KNOWN_CONTRACT",
+     "ok": true,
+     "detail": "engine28a.pipelineDoctor.v1"
+    },
+    {
+     "check": "STRATEGY_MATCH",
+     "ok": true,
+     "detail": "intraday_scalp@10m"
+    },
+    {
+     "check": "SAME_CYCLE_SNAPSHOT_TIME",
+     "ok": true,
+     "detail": {
+      "recorded": "2026-11-24T14:46:08.120Z",
+      "laneReference": "2026-11-24T14:46:08.120Z"
+     }
+    },
+    {
+     "check": "GENERATED_NOT_AFTER_REPLAY_WRITE",
+     "ok": true,
+     "detail": {
+      "generatedAt": "2026-11-24T14:46:15.392Z",
+      "replayGeneratedAtUtc": "2026-11-24T14:46:16.133Z"
+     }
+    },
+    {
+     "check": "FIRST_FAILING_ENGINE_IS_CANONICAL_GATE",
+     "ok": true,
+     "detail": "engine3"
+    }
+   ],
+   "laneReferenceSnapshotTime": "2026-11-24T14:46:08.120Z",
+   "recorded": {
+    "contractVersion": "engine28a.pipelineDoctor.v1",
+    "pipelineStatus": "WAITING",
+    "firstFailingEngine": "engine3",
+    "failureType": "WAITING_FOR_MARKET",
+    "rootCause": "ENGINE3_STRATEGY1_NOT_QUALIFIED",
+    "snapshotTime": "2026-11-24T14:46:08.120Z",
+    "generatedAt": "2026-11-24T14:46:15.392Z",
+    "stages": [
+     {
+      "engine": "engine26A",
+      "state": "PASS_CONTEXT"
+     },
+     {
+      "engine": "engine3",
+      "state": "REACTION_WAITING"
+     }
+    ],
+    "warnings": []
+   }
+  },
+  "blockerFallback": null,
+  "pipeline": [
+   {
+    "engine": "engine26A",
+    "authority": "CANONICAL",
+    "status": "PASS",
+    "statusSource": "ENGINE_OWN_CANONICAL_GATE",
+    "downstreamOfFirstBlocker": false,
+    "engine28aRecordedStage": "PASS_CONTEXT",
+    "gate": "PASSED",
+    "rawStatus": "OBSERVING_PROMOTED_ZONE",
+    "decision": {
+     "direction": "NEUTRAL",
+     "candidateId": "E26C-a607cde8a1153d6f9058",
+     "zoneId": "E26Z-7f08c947ad1400d2cd05",
+     "snapshotTime": "2026-11-24T14:46:08.120Z",
+     "status": "OBSERVING_PROMOTED_ZONE",
+     "currentPrice": 7206.75
+    },
+    "reasonCodes": [
+     "ENGINE26A_LOCATION_DISCOVERY_COMPLETE",
+     "REACTION_INDEPENDENT_LOCATION_SELECTION",
+     "ENGINE26A_MANUAL_IMBALANCE_INVENTORY_AVAILABLE",
+     "ENGINE26A_IN_RANGE_ELIGIBILITY_APPLIED_BEFORE_RANKING",
+     "ENGINE26A_SOURCE_ENGINE26_MANUAL_NEGOTIATED",
+     "ENGINE26A_STATUS_OBSERVING_PROMOTED_ZONE",
+     "ENGINE26A_DIRECTION_BIAS_NEUTRAL",
+     "ENGINE26_STRATEGY1_INITIAL_ZONE_OBSERVATION",
+     "ENGINE26_SHORT_REJECTION_FAILED_ACCEPTANCE_FACTS",
+     "ENGINE26_EMA10_BULLISH_POSTURE",
+     "ENGINE26_DIRECTIONAL_CONFLICT",
+     "ENGINE26_DIRECTION_REMAINS_NEUTRAL",
+     "ENGINE26A_CANDIDATE_WITHIN_MONITORING_RANGE",
+     "ENGINE26_STRATEGY1_V2_STABLE_IDENTITY_GENERATED",
+     "ENGINE26_STRATEGY1_IDENTITY_EXCLUDES_VOLATILE_CONTEXT",
+     "ENGINE26_STRATEGY1_CLASSIFICATION_ATTACHED",
+     "ENGINE26_STRATEGY1_TACTICAL_DIRECTION_NEUTRAL",
+     "ENGINE22_INTERNAL_LEG_DIRECTION_NOT_USED_WITHOUT_EXPLICIT_TRAVEL_CONTRACT",
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     null,
+     "ENGINE26_NEGOTIATED_LINE_CONTACT",
+     null,
+     null,
+     "ENGINE26_STRATEGY1_PROMOTED_OBSERVATION_SUPERSEDED",
+     "ENGINE26_STRATEGY1_NEW_APPROVED_NEGOTIATED_ZONE_CONTACT",
+     "ENGINE26_STRATEGY1_SUPERSESSION_FROM_LIVE_ZONE_CONTACT",
+     null,
+     "ENGINE26_STRATEGY1_NEW_PROMOTED_IDENTITY_CREATED",
+     "ENGINE26_CHAIN_ARMED",
+     "ENGINE26_PROMOTED_ZONE_NEUTRAL_RESET",
+     "ENGINE26_NO_AUTOMATIC_DIRECTION_FLIP"
+    ],
+    "blockers": [],
+    "evaluatedAt": "2026-11-24T14:46:08.120Z",
+    "evaluatedAtField": "snapshotTime",
+    "source": "ENGINE12_REPLAY",
+    "sourcePath": "engine26LocationCandidate",
+    "version": "engine26A",
+    "versionVerified": false,
+    "mappingVersion": "engine12.investigator.statusMap.v1",
+    "shadow": []
+   },
+   {
+    "engine": "engine3",
+    "authority": "CANONICAL",
+    "status": "WAITING",
+    "statusSource": "ENGINE28A_RECORDED_FIRST_BLOCKER",
+    "downstreamOfFirstBlocker": false,
+    "engine28aRecordedStage": "REACTION_WAITING",
+    "gate": "NOT_PASSED",
+    "rawStatus": "REACTION_WAITING",
+    "decision": {
+     "direction": "NEUTRAL",
+     "candidateId": "E26C-a607cde8a1153d6f9058",
+     "zoneId": "E26Z-7f08c947ad1400d2cd05",
+     "snapshotTime": "2026-11-24T14:46:08.120Z",
+     "state": "REACTION_WAITING",
+     "quality": "GOOD",
+     "allowed": false,
+     "qualified": false
+    },
+    "reasonCodes": [
+     "ENGINE3_V5_STRATEGY1_HANDOFF",
+     "ENGINE3_V5_STABLE_CANONICAL_SIGNAL_INACTIVE",
+     "ENGINE3_V5_REACTION_NOT_CONFIRMED",
+     "ENGINE3_V5_SIGNAL_HELD",
+     "ENGINE3_V5_SIGNAL_RESET",
+     "ENGINE3_V5_CANONICAL_DIRECTION_NEUTRAL",
+     "ENGINE3_V5_LOCAL_CONTROL_BUYERS_CONTROL",
+     "ENGINE3_V5_LOCAL_CONTROL_CANNOT_WITHDRAW_HELD_CANONICAL_SIGNAL",
+     "ENGINE3_V5_TIMEFRAME_LABELS_HAVE_NO_DIRECTION_AUTHORITY",
+     "ENGINE4_PARTICIPATION_REQUIRED",
+     "ENGINE6_FINAL_PAPER_PERMISSION_REQUIRED",
+     "NO_PERMISSION_CREATED",
+     "NO_EXECUTION"
+    ],
+    "blockers": [
+     "ENGINE3_V5_CANONICAL_DIRECTION_NEUTRAL",
+     "ENGINE3_V5_CANONICAL_SIGNAL_RESET"
+    ],
+    "evaluatedAt": "2026-11-24T14:46:08.120Z",
+    "evaluatedAtField": "snapshotTime",
+    "source": "ENGINE12_REPLAY",
+    "sourcePath": "confluence.context.reaction.paperScalpReaction",
+    "version": "engine3.v5",
+    "versionVerified": true,
+    "mappingVersion": "engine12.investigator.statusMap.v1",
+    "shadow": []
+   },
+   {
+    "engine": "engine4",
+    "authority": "CANONICAL",
+    "status": "UNKNOWN",
+    "statusSource": "ENGINE_OWN_FIELDS",
+    "downstreamOfFirstBlocker": true,
+    "engine28aRecordedStage": null,
+    "gate": "NOT_PASSED",
+    "rawStatus": "PARTICIPATION_WAITING",
+    "decision": {
+     "direction": "NEUTRAL",
+     "candidateId": "E26C-a607cde8a1153d6f9058",
+     "zoneId": "E26Z-7f08c947ad1400d2cd05",
+     "snapshotTime": null,
+     "participationState": "PARTICIPATION_WAITING",
+     "participationQuality": "WEAK",
+     "confirmed": false,
+     "allowed": false,
+     "hardBlocked": false
+    },
+    "reasonCodes": [
+     "ENGINE4_AUTHORIZED_REACTION_PARTICIPATION",
+     "PAPER_ONLY_RESEARCH_LANE",
+     "ENGINE3_CANDIDATE_AWARE_REACTION_CONSUMED",
+     "NO_PERMISSION_CREATED",
+     "NO_EXECUTION",
+     "ENGINE6_FINAL_PERMISSION_REQUIRED",
+     "ENGINE3_PARTICIPATION_EVALUATION_NOT_ELIGIBLE"
+    ],
+    "blockers": [
+     "ENGINE3_PARTICIPATION_EVALUATION_NOT_ELIGIBLE"
+    ],
+    "evaluatedAt": null,
+    "evaluatedAtField": null,
+    "source": "ENGINE12_REPLAY",
+    "sourcePath": "confluence.context.volume.engine4AuthorizedReactionParticipation",
+    "version": "engine4.v1",
+    "versionVerified": true,
+    "mappingVersion": "engine12.investigator.statusMap.v1",
+    "shadow": [
+     {
+      "engine": "engine4",
+      "authority": "SHADOW",
+      "version": "engine4.v2",
+      "sourcePath": "confluence.context.volume.engine4V2Shadow",
+      "decision": {
+       "participationState": "NO_DIRECTION",
+       "confirmationState": "NO_DIRECTION",
+       "direction": "NEUTRAL",
+       "relVol": 9.21
+      },
+      "rawStatus": "NO_DIRECTION",
+      "reasonCodes": [
+       "ENGINE4_V2_COMPLETED_PAIR_EVALUATED",
+       "ENGINE4_V2_SHADOW_NO_GATE",
+       "ENGINE4_V2_NEW_SETUP_KEY_RESET"
+      ],
+      "evaluatedAt": null,
+      "note": "Comparison only. Never used for status or first blocker."
+     }
+    ]
+   },
+   {
+    "engine": "engine6",
+    "authority": "CANONICAL",
+    "status": "UNKNOWN",
+    "statusSource": "ENGINE_OWN_FIELDS",
+    "downstreamOfFirstBlocker": true,
+    "engine28aRecordedStage": null,
+    "gate": "NOT_PASSED",
+    "rawStatus": "STRUCTURAL_FAST_WATCH",
+    "decision": {
+     "direction": "NONE",
+     "candidateId": "E26C-a607cde8a1153d6f9058",
+     "zoneId": "E26Z-7f08c947ad1400d2cd05",
+     "snapshotTime": "2026-11-24T14:46:08.120Z",
+     "decision": "STRUCTURAL_FAST_WATCH",
+     "allowed": false,
+     "paperAllowed": false,
+     "locked": null,
+     "sizeMultiplier": null
+    },
+    "reasonCodes": [
+     "PAPER_ONLY_RESEARCH_LANE",
+     "REAL_EXECUTION_REMAINS_BLOCKED",
+     "ENGINE6_FINAL_PAPER_PERMISSION",
+     "ENGINE6_AUTHORIZED_ENGINE3_INPUT",
+     "ENGINE6_AUTHORIZED_ENGINE4_INPUT",
+     "ENGINE3_STRATEGY1_NOT_QUALIFIED",
+     "ENGINE6_PHASE4_STRATEGY1_V2_CONTRACT_EVALUATED",
+     "ENGINE6_PHASE4_APPLIES_TO_ES_MINUTE_SCALP",
+     "ENGINE26A_CANONICAL_SETUP_IDENTITY_USED",
+     "ENGINE26_NEGOTIATED_MIDLINE_NOT_YET_REACHED",
+     "TARGET_ROOM_REMAINS_TO_MIDLINE",
+     "ENGINE6_PHASE4_PERMISSION_NOT_ALLOWED",
+     "ENGINE3_V5_STRATEGY1_HANDOFF",
+     "ENGINE3_V5_STABLE_CANONICAL_SIGNAL_INACTIVE",
+     "ENGINE3_V5_REACTION_NOT_CONFIRMED",
+     "ENGINE3_V5_SIGNAL_HELD",
+     "ENGINE3_V5_SIGNAL_RESET",
+     "ENGINE3_V5_CANONICAL_DIRECTION_NEUTRAL",
+     "ENGINE3_V5_LOCAL_CONTROL_BUYERS_CONTROL",
+     "ENGINE3_V5_LOCAL_CONTROL_CANNOT_WITHDRAW_HELD_CANONICAL_SIGNAL",
+     "ENGINE3_V5_TIMEFRAME_LABELS_HAVE_NO_DIRECTION_AUTHORITY",
+     "ENGINE4_PARTICIPATION_REQUIRED",
+     "ENGINE6_FINAL_PAPER_PERMISSION_REQUIRED",
+     "NO_PERMISSION_CREATED",
+     "NO_EXECUTION",
+     "ENGINE4_AUTHORIZED_REACTION_PARTICIPATION",
+     "ENGINE3_CANDIDATE_AWARE_REACTION_CONSUMED",
+     "ENGINE6_FINAL_PERMISSION_REQUIRED",
+     "ENGINE3_PARTICIPATION_EVALUATION_NOT_ELIGIBLE",
+     "ENGINE6_PAPER_PARTICIPATION_SOURCE_ENGINE4AUTHORIZEDREACTIONPARTICIPATION",
+     "ENGINE6_FAST_PAPER_WATCH_CANDIDATE",
+     "ENGINE4_WEAK_PARTICIPATION",
+     "REQUIRES_ENGINE8_PAPER",
+     "REQUIRES_ENGINE10_JOURNAL",
+     "ENGINE6_STRUCTURAL_FAST_WATCH",
+     "ENGINE26_SHORT_WATCH_ONLY",
+     "ENGINE26_DO_NOT_CHASE_LONG",
+     "ENGINE26_SHORT_RESEARCH_ONLY",
+     "ENGINE26_C_DOWN_WATCH",
+     "WATCH_ONLY_NO_PAPER_ALLOW",
+     "NO_TICKET"
+    ],
+    "blockers": [
+     "ENGINE3_STRATEGY1_NOT_QUALIFIED",
+     "ENGINE4_PAPER_PARTICIPATION_NOT_ALLOWED",
+     "FAST_LANE_DIRECTION_NOT_CONFIRMED_BY_ENGINE3_ENGINE4_ENGINE26",
+     "ENGINE3_PARTICIPATION_EVALUATION_NOT_ELIGIBLE",
+     "REACTION_DIRECTION_UNRESOLVED",
+     "ENGINE4_PARTICIPATION_WAITING"
+    ],
+    "evaluatedAt": "2026-11-24T14:46:08.120Z",
+    "evaluatedAtField": "snapshotTime",
+    "source": "ENGINE12_REPLAY",
+    "sourcePath": "permission.paper",
+    "version": "engine6.paper",
+    "versionVerified": false,
+    "mappingVersion": "engine12.investigator.statusMap.v1",
+    "shadow": []
+   },
+   {
+    "engine": "engine26B",
+    "authority": "CANONICAL",
+    "status": "UNKNOWN",
+    "statusSource": "ENGINE_OWN_FIELDS",
+    "downstreamOfFirstBlocker": true,
+    "engine28aRecordedStage": null,
+    "gate": "NOT_PASSED",
+    "rawStatus": "WAITING_FOR_DIRECTIONAL_RESOLUTION",
+    "decision": {
+     "direction": "NEUTRAL",
+     "candidateId": "E26C-a607cde8a1153d6f9058",
+     "zoneId": "E26Z-7f08c947ad1400d2cd05",
+     "snapshotTime": "2026-11-24T14:46:08.120Z",
+     "status": "WAITING_FOR_DIRECTIONAL_RESOLUTION",
+     "geometryReady": false,
+     "entry": null,
+     "stop": null,
+     "targets": []
+    },
+    "reasonCodes": [
+     "ENGINE26B_STRATEGY1_V2_BRANCH",
+     "WAITING_FOR_DIRECTIONAL_RESOLUTION",
+     "WAITING_FOR_DIRECTIONAL_RESOLUTION",
+     "ENGINE26A_IDENTITY_PRESERVED",
+     "ENGINE6_PERMISSION_SEPARATE_FROM_GEOMETRY",
+     "SIMPLIFIED_THREE_BLOCK_TESTING_LIFECYCLE",
+     "BLOCK_1_TARGET_ZONE_ENTRY",
+     "BLOCKS_2_AND_3_TARGET_ZONE_MIDLINE",
+     "EMA20_RUNNER_DISABLED",
+     "NO_PERMISSION_CREATED",
+     "NO_SIZING_CREATED",
+     "NO_MANAGEMENT_CREATED",
+     "NO_EXECUTION",
+     "ENGINE26B_PIPELINE_PRELOCK_DIAGNOSTIC_ONLY",
+     "ENGINE26B_PIPELINE_GEOMETRY_INPUT_ENGINE26A_LOCATION_CONTEXT"
+    ],
+    "blockers": [],
+    "evaluatedAt": "2026-11-24T14:46:08.120Z",
+    "evaluatedAtField": "snapshotTime",
+    "source": "ENGINE12_REPLAY",
+    "sourcePath": "engine26ProposedGeometry",
+    "version": "engine26B",
+    "versionVerified": false,
+    "mappingVersion": "engine12.investigator.statusMap.v1",
+    "shadow": []
+   },
+   {
+    "engine": "engine7",
+    "authority": "CANONICAL",
+    "status": "UNKNOWN",
+    "statusSource": "ENGINE_OWN_FIELDS",
+    "downstreamOfFirstBlocker": true,
+    "engine28aRecordedStage": null,
+    "gate": "NOT_PASSED",
+    "rawStatus": "SIZING_GEOMETRY_INVALID",
+    "decision": {
+     "direction": "NEUTRAL",
+     "candidateId": "E26C-a607cde8a1153d6f9058",
+     "zoneId": "E26Z-7f08c947ad1400d2cd05",
+     "snapshotTime": "2026-11-24T14:46:08.120Z",
+     "status": "SIZING_GEOMETRY_INVALID",
+     "allowed": false,
+     "executableSizing": false,
+     "contracts": 0,
+     "dollarRisk": 0,
+     "riskBudgetDollars": 1000,
+     "sizeMultiplier": null,
+     "planId": null
+    },
+    "reasonCodes": [
+     "ENGINE7_RISK_CONFIG_VALID",
+     "ENGINE7_SINGLE_SIZING_OWNER",
+     "ENGINE7_SIZING_ONLY",
+     "ENGINE7_FINAL_CONTRACTS_ZERO",
+     "NO_PERMISSION_CREATED",
+     "NO_ORDER_CREATED",
+     "NO_EXECUTION",
+     "ENGINE7_SINGLE_SIZING_DECISION_PUBLISHED",
+     "ENGINE7_POSITION_SIZING_COMPATIBILITY_VIEW"
+    ],
+    "blockers": [
+     "ENGINE7_DIRECTION_REQUIRED_FOR_SIZING",
+     "ENGINE7_ENTRY_REQUIRED_FOR_SIZING",
+     "ENGINE7_STOP_REQUIRED_FOR_SIZING",
+     "ENGINE7_STOP_DISTANCE_REQUIRED_FOR_SIZING"
+    ],
+    "evaluatedAt": "2026-11-24T14:46:08.120Z",
+    "evaluatedAtField": "snapshotTime",
+    "source": "ENGINE12_REPLAY",
+    "sourcePath": "engine7PositionSizing",
+    "version": "engine7",
+    "versionVerified": false,
+    "mappingVersion": "engine12.investigator.statusMap.v1",
+    "shadow": []
+   },
+   {
+    "engine": "engine9",
+    "authority": "CANONICAL",
+    "status": "WAITING",
+    "statusSource": "ENGINE_OWN_FIELDS",
+    "downstreamOfFirstBlocker": true,
+    "engine28aRecordedStage": null,
+    "gate": "NOT_PASSED",
+    "rawStatus": "WAITING_FOR_ENGINE6_LOCKED_GO",
+    "decision": {
+     "direction": "NEUTRAL",
+     "candidateId": "E26C-a607cde8a1153d6f9058",
+     "zoneId": "E26Z-7f08c947ad1400d2cd05",
+     "snapshotTime": "2026-11-24T14:46:08.120Z",
+     "planId": null,
+     "planStatus": "WAITING_FOR_ENGINE6_LOCKED_GO",
+     "managementReady": false,
+     "official": false,
+     "entry": null,
+     "stop": null,
+     "targets": [],
+     "waitingFor": [
+      "ENGINE6_LOCKED_GO",
+      "ENGINE26B_GEOMETRY_READY",
+      "VALID_MANAGEMENT_GEOMETRY"
+     ]
+    },
+    "reasonCodes": [
+     "ENGINE9_STRATEGY1_PHASE8A",
+     "ENGINE9_NON_BLOCKING_MANAGEMENT_CONTRACT",
+     "SIMPLIFIED_THREE_BLOCK_TESTING_LIFECYCLE",
+     "OPENING_MANAGEMENT_PLAN_ONLY",
+     "NO_DYNAMIC_MANAGEMENT",
+     "NO_PERMISSION_CREATED",
+     "NO_SIZING_CREATED",
+     "NO_EXECUTION_AUTHORITY",
+     "NO_ORDER_CREATED",
+     "NO_FILL_CREATED",
+     "NO_JOURNAL_WRITE",
+     "PIPELINE_IDENTITY_MATCHED",
+     "ENGINE6_LOCKED_GO_REQUIRED",
+     "ENGINE26B_GEOMETRY_READY_REQUIRED",
+     "TARGET_1_INVALID",
+     "TARGET_2_INVALID",
+     "TARGET_3_INVALID",
+     "ENGINE27_READINESS_CONTEXT_ONLY",
+     "ENGINE7_SIZING_CONTEXT_ONLY_FOR_ENGINE9",
+     "NO_RUNNER_REQUIRED",
+     "ENGINE7A_TESTING_ALLOCATION_NOT_ACCEPTED",
+     "ENGINE9_MANAGEMENT_NOT_READY"
+    ],
+    "blockers": [
+     "INVALID_DIRECTION",
+     "INVALID_ENTRY_GEOMETRY",
+     "INVALID_STOP_GEOMETRY",
+     "ENGINE26B_GEOMETRY_INCOMPLETE",
+     "TARGET_1_INVALID",
+     "TARGET_2_INVALID",
+     "TARGET_3_INVALID",
+     "ENGINE6_LOCKED_GO_REQUIRED"
+    ],
+    "evaluatedAt": "2026-11-24T14:46:13.648Z",
+    "evaluatedAtField": "generatedAt",
+    "source": "ENGINE12_REPLAY",
+    "sourcePath": "engine9OfficialManagementPlan",
+    "version": "engine9",
+    "versionVerified": false,
+    "mappingVersion": "engine12.investigator.statusMap.v1",
+    "shadow": []
+   },
+   {
+    "engine": "engine8",
+    "authority": "CANONICAL",
+    "status": "UNKNOWN",
+    "statusSource": "ENGINE_OWN_FIELDS",
+    "downstreamOfFirstBlocker": true,
+    "engine28aRecordedStage": null,
+    "gate": "NOT_PASSED",
+    "rawStatus": "PAPER_ORDER_REJECTED",
+    "decision": {
+     "direction": "NEUTRAL",
+     "candidateId": "E26C-a607cde8a1153d6f9058",
+     "zoneId": "E26Z-7f08c947ad1400d2cd05",
+     "snapshotTime": "2026-11-24T14:46:08.120Z",
+     "status": "PAPER_ORDER_REJECTED",
+     "executable": false,
+     "planId": null,
+     "orderCreated": false,
+     "orderId": null,
+     "tradeId": null,
+     "executionId": null,
+     "contracts": 0
+    },
+    "reasonCodes": [
+     "ENGINE6_DIRECTION_REQUIRED",
+     "NO_ORDER_CREATED",
+     "PAPER_ORDER_REJECTED"
+    ],
+    "blockers": [
+     "ENGINE6_DIRECTION_INVALID"
+    ],
+    "evaluatedAt": "2026-11-24T14:46:13.690Z",
+    "evaluatedAtField": "evaluatedAt",
+    "source": "ENGINE12_REPLAY",
+    "sourcePath": "engine8PaperOrder",
+    "version": "engine8.paper",
+    "versionVerified": false,
+    "mappingVersion": "engine12.investigator.statusMap.v1",
+    "shadow": []
+   },
+   {
+    "engine": "engine10",
+    "authority": "CANONICAL",
+    "status": "UNKNOWN",
+    "statusSource": "ENGINE_OWN_FIELDS",
+    "downstreamOfFirstBlocker": true,
+    "engine28aRecordedStage": null,
+    "gate": "NOT_A_GATE",
+    "rawStatus": null,
+    "decision": {
+     "status": null,
+     "tradeId": null,
+     "remainingQty": null
+    },
+    "reasonCodes": [],
+    "blockers": [],
+    "evaluatedAt": null,
+    "evaluatedAtField": null,
+    "source": "ENGINE12_REPLAY",
+    "sourcePath": "engine10JournalAttachment",
+    "version": "engine10",
+    "versionVerified": false,
+    "mappingVersion": "engine12.investigator.statusMap.v1",
+    "shadow": []
+   }
+  ],
+  "tradeGeometry": {
+   "entry": {
+    "value": null,
+    "source": null,
+    "status": "UNKNOWN"
+   },
+   "stop": {
+    "value": null,
+    "source": null,
+    "status": "UNKNOWN"
+   },
+   "target1": {
+    "value": null,
+    "source": null,
+    "status": "UNKNOWN"
+   },
+   "target2": {
+    "value": null,
+    "source": null,
+    "status": "UNKNOWN"
+   },
+   "target3": {
+    "value": null,
+    "source": null,
+    "status": "UNKNOWN"
+   },
+   "contracts": {
+    "value": 0,
+    "source": "engine7",
+    "status": "KNOWN"
+   },
+   "dollarRisk": {
+    "value": 0,
+    "source": "engine7",
+    "status": "KNOWN"
+   },
+   "riskBudgetDollars": {
+    "value": 1000,
+    "source": "engine7",
+    "status": "KNOWN"
+   },
+   "sizeMultiplier": {
+    "value": null,
+    "source": null,
+    "status": "UNKNOWN"
+   },
+   "note": "Stored values only. Nothing is recalculated."
+  },
+  "executionAtDecision": {
+   "source": "engine8 (Replay)",
+   "status": {
+    "value": "PAPER_ORDER_REJECTED",
+    "source": "engine8",
+    "status": "KNOWN"
+   },
+   "orderCreated": {
+    "value": false,
+    "source": "engine8",
+    "status": "KNOWN"
+   },
+   "orderId": {
+    "value": null,
+    "source": null,
+    "status": "UNKNOWN"
+   },
+   "tradeId": {
+    "value": null,
+    "source": null,
+    "status": "UNKNOWN"
+   },
+   "blockers": [
+    "ENGINE6_DIRECTION_INVALID"
+   ],
+   "note": "Replay is archived before later PAPER execution activity in the same cycle. This proves the evaluation result only, not that no earlier or later order exists."
+  }
+ },
+ "priorEvents": [],
+ "subsequentEvents": [],
+ "undatedEvents": [],
+ "execution": {
+  "source": "ENGINE8_PAPER_STORE",
+  "status": "UNAVAILABLE",
+  "reason": "FILE_NOT_FOUND",
+  "stores": [
+   {
+    "store": "engine8.paper-orders",
+    "status": "UNAVAILABLE",
+    "reason": "FILE_NOT_FOUND",
+    "sha256": null,
+    "byteLength": null,
+    "mtime": null,
+    "readAt": "2026-11-25T00:23:05.887Z",
+    "mutable": true,
+    "retentionGuarantee": "NONE_DEFINED",
+    "note": "Mutable durable store, read at readAt; not an immutable archive. No time-based retention guarantee is defined, so absent evidence for older dates is UNKNOWN, not proof that nothing happened."
+   },
+   {
+    "store": "engine8.paper-executions",
+    "status": "UNAVAILABLE",
+    "reason": "FILE_NOT_FOUND",
+    "sha256": null,
+    "byteLength": null,
+    "mtime": null,
+    "readAt": "2026-11-25T00:23:05.887Z",
+    "mutable": true,
+    "retentionGuarantee": "NONE_DEFINED",
+    "note": "Mutable durable store, read at readAt; not an immutable archive. No time-based retention guarantee is defined, so absent evidence for older dates is UNKNOWN, not proof that nothing happened."
+   }
+  ],
+  "lifecycle": "UNKNOWN",
+  "retentionGuarantee": "NONE_DEFINED",
+  "evidenceNote": "Engine 8 PAPER stores are mutable durable files (atomic replace + fsync), not an immutable archive. No time-based retention guarantee is defined; missing execution evidence is UNKNOWN, not proof that no order existed.",
+  "entryFill": {
+   "status": "UNKNOWN"
+  }
+ },
+ "outcome": {
+  "source": "ENGINE10_JOURNAL",
+  "status": "UNAVAILABLE",
+  "lifecycle": "UNKNOWN",
+  "journalReadAt": "2026-11-25T00:23:05.887Z",
+  "trade": null,
+  "retentionGuarantee": "NONE_DEFINED",
+  "note": "Journal is a mutable durable store read at journalReadAt, not a point-in-time record or immutable archive. No time-based retention guarantee is defined; missing lifecycle evidence is UNKNOWN."
+ },
+ "journal": {
+  "status": "UNAVAILABLE",
+  "reason": "FILE_NOT_FOUND",
+  "matchTier": null,
+  "identity": null,
+  "conflicts": [],
+  "excluded": [],
+  "notes": [],
+  "store": {
+   "store": "engine10.trade-journal",
+   "status": "UNAVAILABLE",
+   "reason": "FILE_NOT_FOUND",
+   "sha256": null,
+   "byteLength": null,
+   "mtime": null,
+   "readAt": "2026-11-25T00:23:05.887Z",
+   "mutable": true,
+   "retentionGuarantee": "NONE_DEFINED",
+   "note": "Mutable durable store, read at readAt; not an immutable archive. No time-based retention guarantee is defined, so absent evidence for older dates is UNKNOWN, not proof that nothing happened."
+  }
+ },
+ "flags": [],
+ "provenance": {
+  "registryVersion": "engine12.investigator.authorityRegistry.v2",
+  "registryEvidenceStatus": "EVIDENCE_BACKED_DATES_ONLY",
+  "gateVersion": "engine12.investigator.gate.v1",
+  "statusMappingVersion": "engine12.investigator.statusMap.v1",
+  "blockerFallbackVersion": "engine12.investigator.blockerFallback.v1",
+  "joinVersion": "engine12.investigator.identityJoin.v1",
+  "enginesRerun": false,
+  "writesPerformed": false
+ },
+ "timing": {
+  "durationMs": 0
+ }
+}
