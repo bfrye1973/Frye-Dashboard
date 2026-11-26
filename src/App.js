@@ -24,6 +24,8 @@ const WaveDegreesPage = React.lazy(() => import("./pages/redline/WaveDegreesPage
 const ControlsPage = React.lazy(() => import("./pages/redline/ControlsPage"));
 // Trader View v1 — hidden route (not in nav) until Brian approves the preview.
 const TraderViewPage = React.lazy(() => import("./pages/traderView/TraderViewPage"));
+// Engine 18 live panel v1 — hidden preview route (not in nav, not on the LIVE chart) until Brian approves.
+const Engine18LivePreviewPage = React.lazy(() => import("./pages/engine18/Engine18LivePreviewPage"));
 
 const Engine25FullDashboard = React.lazy(() =>
   import("./pages/engine25/Engine25FullDashboard")
@@ -346,6 +348,11 @@ export default function App() {
             <Route
               path="/engine25-eod-structure"
               element={<Engine25EodStructureDetail />}
+            />
+
+            <Route
+              path="/engine18-live-preview"
+              element={<Engine18LivePreviewPage />}
             />
 
             <Route

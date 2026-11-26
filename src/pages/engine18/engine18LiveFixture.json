@@ -1,0 +1,312 @@
+{
+ "status": "LIVE",
+ "synthetic": true,
+ "snapshot": {
+  "schema": "engine18.live.v1",
+  "t": 1795627800,
+  "time": "10:30 MST",
+  "price": 7124.5,
+  "dataSource": "RITHMIC_TRADES_BBO",
+  "orderBook": "NOT_CONNECTED_V1",
+  "currentRead": {
+   "tone": "CONFIRMATION",
+   "side": "BUY_SIDE",
+   "type": "ABSORPTION_CLUSTER",
+   "line": "Absorption repeated 10 of last 10 min: buyers persistently absorbing",
+   "since": "10:29",
+   "activeReads": [
+    {
+     "type": "FLOOR_DEFENDED",
+     "time": "10:29",
+     "read": "Floor 7097 held 7x (sellers aggressive into it on 7)",
+     "kind": "CONFIRMATION"
+    },
+    {
+     "type": "ABSORPTION_CLUSTER",
+     "time": "10:29",
+     "read": "Absorption repeated 10 of last 10 min: buyers persistently absorbing",
+     "kind": "CONFIRMATION"
+    },
+    {
+     "type": "ABSORPTION_BUYERS",
+     "time": "10:29",
+     "read": "Sellers hitting bids, price still rising: resting buyers absorbing",
+     "kind": "CONFIRMATION"
+    },
+    {
+     "type": "FLOOR_DEFENDED",
+     "time": "10:28",
+     "read": "Floor 7097 held 7x (sellers aggressive into it on 7)",
+     "kind": "CONFIRMATION"
+    },
+    {
+     "type": "ABSORPTION_CLUSTER",
+     "time": "10:28",
+     "read": "Absorption repeated 9 of last 10 min: buyers persistently absorbing",
+     "kind": "CONFIRMATION"
+    },
+    {
+     "type": "ABSORPTION_BUYERS",
+     "time": "10:28",
+     "read": "Sellers hitting bids, price still rising: resting buyers absorbing",
+     "kind": "CONFIRMATION"
+    }
+   ]
+  },
+  "lines": [
+   {
+    "id": "L28000",
+    "side": "BUY",
+    "price": 7000,
+    "strength": 2,
+    "distancePts": 124.5,
+    "sources": [
+     "PROVEN",
+     "REFERENCE"
+    ],
+    "labels": [
+     "SWEEP_RECLAIMED_SUPPORT",
+     "ROUND_50"
+    ],
+    "state": "SWEPT_AND_HELD",
+    "insideOwnerZones": [],
+    "defenseHistory": [
+     {
+      "time": "07:49",
+      "type": "SWEEP_RECLAIMED_SUPPORT",
+      "state": "SWEPT_AND_HELD",
+      "penetrationPts": 8
+     }
+    ],
+    "currentFlowRead": null,
+    "currentFlowNote": "Price 124.5 pts away",
+    "airPocketsBetween": [],
+    "ownerBreakRule": {
+     "fullBodyCloseBeyondAt": "07:46",
+     "sinceLastProof": false
+    },
+    "invalidation": "Defense fails on a full-body 1-min candle below 7000 (open and close below)",
+    "title": "BUY 7000: PROVEN + REFERENCE · SWEPT_AND_HELD"
+   },
+   {
+    "id": "L28400",
+    "side": "BUY",
+    "price": 7100,
+    "strength": 2,
+    "distancePts": 24.5,
+    "sources": [
+     "REFERENCE",
+     "PROFILE"
+    ],
+    "labels": [
+     "ROUND_50",
+     "HVN",
+     "POC",
+     "VAH"
+    ],
+    "state": "FLIPPED",
+    "flippedFrom": [
+     "SWEEP_RECLAIMED_RESISTANCE"
+    ],
+    "insideOwnerZones": [],
+    "defenseHistory": [
+     {
+      "time": "09:31",
+      "type": "SWEEP_RECLAIMED_RESISTANCE",
+      "state": "SWEPT_AND_HELD",
+      "penetrationPts": 1
+     }
+    ],
+    "currentFlowRead": null,
+    "currentFlowNote": "Price 24.5 pts away",
+    "airPocketsBetween": [],
+    "ownerBreakRule": {
+     "fullBodyCloseBeyondAt": "10:19",
+     "sinceLastProof": true
+    },
+    "invalidation": "Defense fails on a full-body 1-min candle below 7100 (open and close below)",
+    "title": "BUY 7100: REFERENCE + PROFILE · FLIPPED"
+   },
+   {
+    "id": "L28600",
+    "side": "SELL",
+    "price": 7150,
+    "strength": 2,
+    "distancePts": 25.5,
+    "sources": [
+     "OWNER_ZONE",
+     "REFERENCE"
+    ],
+    "labels": [
+     "OWNER_PARENT_LOW",
+     "ROUND_50"
+    ],
+    "state": null,
+    "insideOwnerZones": [
+     "PARENT 7150-7170"
+    ],
+    "defenseHistory": [],
+    "currentFlowRead": null,
+    "currentFlowNote": "Price 25.5 pts away",
+    "airPocketsBetween": [],
+    "ownerBreakRule": {
+     "fullBodyCloseBeyondAt": null,
+     "sinceLastProof": false
+    },
+    "invalidation": "Defense fails on a full-body 1-min candle above 7150 (open and close above)",
+    "title": "SELL 7150: OWNER_ZONE + REFERENCE"
+   }
+  ],
+  "noLineReason": null,
+  "last15": {
+   "changePts": 26,
+   "delta": -6000,
+   "minutes": [
+    {
+     "time": "10:15",
+     "c": 7099.5,
+     "movePts": 1,
+     "delta": 0,
+     "v": 3000
+    },
+    {
+     "time": "10:16",
+     "c": 7100.5,
+     "movePts": 1,
+     "delta": 0,
+     "v": 3000
+    },
+    {
+     "time": "10:17",
+     "c": 7101.5,
+     "movePts": 1,
+     "delta": 0,
+     "v": 3000
+    },
+    {
+     "time": "10:18",
+     "c": 7098.5,
+     "movePts": -3,
+     "delta": 0,
+     "v": 3000
+    },
+    {
+     "time": "10:19",
+     "c": 7099.5,
+     "movePts": 1,
+     "delta": 0,
+     "v": 3000
+    },
+    {
+     "time": "10:20",
+     "c": 7102,
+     "movePts": 2.5,
+     "delta": -600,
+     "v": 1800
+    },
+    {
+     "time": "10:21",
+     "c": 7104.5,
+     "movePts": 2.5,
+     "delta": -600,
+     "v": 1800
+    },
+    {
+     "time": "10:22",
+     "c": 7107,
+     "movePts": 2.5,
+     "delta": -600,
+     "v": 1800
+    },
+    {
+     "time": "10:23",
+     "c": 7109.5,
+     "movePts": 2.5,
+     "delta": -600,
+     "v": 1800
+    },
+    {
+     "time": "10:24",
+     "c": 7112,
+     "movePts": 2.5,
+     "delta": -600,
+     "v": 1800
+    },
+    {
+     "time": "10:25",
+     "c": 7114.5,
+     "movePts": 2.5,
+     "delta": -600,
+     "v": 1800
+    },
+    {
+     "time": "10:26",
+     "c": 7117,
+     "movePts": 2.5,
+     "delta": -600,
+     "v": 1800
+    },
+    {
+     "time": "10:27",
+     "c": 7119.5,
+     "movePts": 2.5,
+     "delta": -600,
+     "v": 1800
+    },
+    {
+     "time": "10:28",
+     "c": 7122,
+     "movePts": 2.5,
+     "delta": -600,
+     "v": 1800
+    },
+    {
+     "time": "10:29",
+     "c": 7124.5,
+     "movePts": 2.5,
+     "delta": -600,
+     "v": 1800
+    }
+   ]
+  },
+  "volumeVsNormal": {
+   "ratio": 0.6,
+   "basis": "median 1-min volume, last 15 min vs prior 45 min"
+  },
+  "trend": {
+   "lows": "MIXED",
+   "highs": "MIXED",
+   "lowsByBlock": [
+    7097,
+    7097,
+    7097
+   ],
+   "highsByBlock": [
+    7103,
+    7103,
+    7103
+   ]
+  },
+  "airPockets": [],
+  "profile": {
+   "poc": 7099.5,
+   "vah": 7103,
+   "val": 7055,
+   "lo": 6992,
+   "hi": 7103
+  },
+  "session": {
+   "mode": "RTH",
+   "open": 7015,
+   "minutes": 180,
+   "priorDay": null
+  },
+  "rules": {
+   "ownerBreakRule": true,
+   "minSources": 2,
+   "minDistancePts": 8,
+   "maxPerSide": 2
+  },
+  "note": "Confirmation only. Evidence counts are descriptive, not probabilities. Never buy/sell instructions."
+ }
+}
